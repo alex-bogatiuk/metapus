@@ -2,10 +2,12 @@
 package v1
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"metapus/internal/core/numerator"
 	"metapus/internal/core/tenant"
 	"metapus/internal/domain/auth"
 	"metapus/internal/domain/catalogs/counterparty"
@@ -27,7 +29,6 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
 	"metapus/internal/infrastructure/storage/postgres/report_repo"
 	"metapus/pkg/logger"
-	"metapus/pkg/numerator"
 )
 
 // RouterConfig holds router configuration for multi-tenant architecture.
@@ -48,7 +49,7 @@ type RouterConfig struct {
 	AuthService *auth.Service
 
 	// Numerator for document number generation
-	Numerator *numerator.Service
+	Numerator numerator.Generator
 
 	// IdempotencyEnabled enables idempotency middleware
 	IdempotencyEnabled bool
@@ -86,7 +87,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		// Protected endpoints - TenantDB runs first, then Auth
 		protected := v1.Group("")
 		protected.Use(middleware.TenantDB(cfg.TenantManager)) // 1. Resolve tenant, get DB pool
-		protected.Use(middleware.Auth(cfg.JWTValidator))       // 2. Validate JWT
+		protected.Use(middleware.Auth(cfg.JWTValidator))      // 2. Validate JWT
 
 		// Apply idempotency middleware for mutating operations
 		if cfg.IdempotencyEnabled {

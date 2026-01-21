@@ -8,9 +8,9 @@ import (
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
+	"metapus/internal/core/numerator"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/tx"
-	"metapus/pkg/numerator"
 )
 
 // CatalogService provides business logic for catalog entities.
@@ -18,7 +18,7 @@ import (
 type CatalogService[T entity.Validatable] struct {
 	repo      CatalogRepository[T]
 	txManager tx.Manager // Optional - if nil, obtained from context
-	numerator *numerator.Service
+	numerator numerator.Generator
 	hooks     *HookRegistry[T]
 
 	// entityName for error messages and numerator prefix
@@ -29,7 +29,7 @@ type CatalogService[T entity.Validatable] struct {
 type CatalogServiceConfig[T entity.Validatable] struct {
 	Repo       CatalogRepository[T]
 	TxManager  tx.Manager // Optional for Database-per-Tenant
-	Numerator  *numerator.Service
+	Numerator  numerator.Generator
 	EntityName string
 }
 

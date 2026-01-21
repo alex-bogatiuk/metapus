@@ -1,6 +1,6 @@
 package goods_receipt
 
-import "metapus/pkg/numerator"
+import "metapus/internal/core/numerator"
 
 const (
 	// NumeratorStrategy defines the numbering strategy for this document type.

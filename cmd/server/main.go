@@ -16,9 +16,9 @@ import (
 	"metapus/internal/core/tenant"
 	"metapus/internal/domain/auth"
 	v1 "metapus/internal/infrastructure/http/v1"
+	"metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres/auth_repo"
 	"metapus/pkg/logger"
-	"metapus/pkg/numerator"
 )
 
 func main() {

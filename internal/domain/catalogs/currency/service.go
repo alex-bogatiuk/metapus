@@ -5,8 +5,8 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/core/numerator"
 	"metapus/internal/domain"
-	"metapus/pkg/numerator"
 )
 
 // Service provides business logic for Currency catalog.
@@ -14,14 +14,14 @@ import (
 type Service struct {
 	*domain.CatalogService[*Currency]
 	repo      Repository
-	numerator *numerator.Service
+	numerator numerator.Generator
 }
 
 // NewService creates a new Currency service.
 // In Database-per-Tenant, TxManager is obtained from context, so it's optional here.
 func NewService(
 	repo Repository,
-	numerator *numerator.Service,
+	numerator numerator.Generator,
 ) *Service {
 	base := domain.NewCatalogService(domain.CatalogServiceConfig[*Currency]{
 		Repo:       repo,

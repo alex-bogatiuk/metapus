@@ -7,23 +7,23 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/core/numerator"
 	"metapus/internal/domain"
-	"metapus/pkg/numerator"
 )
 
 // Service provides business logic for Unit catalog.
 // Uses composition with domain.CatalogService for common CRUD operations.
 type Service struct {
-	*domain.CatalogService[*Unit]
-	repo      Repository
-	numerator *numerator.Service
+	*domain.CatalogService[*Unit] // Embedded for delegation
+	repo                          Repository
+	numerator                     numerator.Generator
 }
 
 // NewService creates a new Unit service.
 // In Database-per-Tenant, TxManager is obtained from context.
 func NewService(
 	repo Repository,
-	numerator *numerator.Service,
+	numerator numerator.Generator,
 ) *Service {
 	base := domain.NewCatalogService(domain.CatalogServiceConfig[*Unit]{
 		Repo:       repo,

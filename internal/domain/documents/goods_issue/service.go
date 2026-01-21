@@ -7,12 +7,12 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/core/numerator"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/tx"
 	"metapus/internal/domain"
 	"metapus/internal/domain/posting"
 	"metapus/pkg/logger"
-	"metapus/pkg/numerator"
 )
 
 // Service provides business operations for goods issue documents.
@@ -20,8 +20,8 @@ import (
 type Service struct {
 	repo          Repository
 	postingEngine *posting.Engine
-	numerator     *numerator.Service
-	txManager     tx.Manager // Optional. If nil, obtained from context (DB-per-tenant).
+	numerator     numerator.Generator
+	txManager     tx.Manager // Optional for Database-per-Tenant mode
 }
 
 // NewService creates a new goods issue service.
@@ -29,7 +29,7 @@ type Service struct {
 func NewService(
 	repo Repository,
 	postingEngine *posting.Engine,
-	numerator *numerator.Service,
+	numerator numerator.Generator,
 	txManager tx.Manager,
 ) *Service {
 	return &Service{

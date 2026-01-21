@@ -7,8 +7,8 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/core/numerator"
 	"metapus/internal/domain"
-	"metapus/pkg/numerator"
 )
 
 // Service provides business logic for Counterparty catalog.
@@ -16,14 +16,14 @@ import (
 type Service struct {
 	*domain.CatalogService[*Counterparty] // Embedded for delegation
 	repo                                  Repository
-	numerator                             *numerator.Service
+	numerator                             numerator.Generator
 }
 
 // NewService creates a new Counterparty service.
 // In Database-per-Tenant, TxManager is obtained from context.
 func NewService(
 	repo Repository,
-	numerator *numerator.Service,
+	numerator numerator.Generator,
 ) *Service {
 	// Create base service
 	base := domain.NewCatalogService(domain.CatalogServiceConfig[*Counterparty]{

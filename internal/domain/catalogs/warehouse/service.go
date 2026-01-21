@@ -5,23 +5,23 @@ import (
 	"fmt"
 	"time"
 
+	"metapus/internal/core/numerator"
 	"metapus/internal/domain"
-	"metapus/pkg/numerator"
 )
 
 // Service provides business logic for Warehouse catalog.
 // Uses composition with domain.CatalogService for common CRUD operations.
 type Service struct {
-	*domain.CatalogService[*Warehouse]
-	repo      Repository
-	numerator *numerator.Service
+	*domain.CatalogService[*Warehouse] // Embedded for delegation
+	repo                               Repository
+	numerator                          numerator.Generator
 }
 
 // NewService creates a new Warehouse service.
 // In Database-per-Tenant, TxManager is obtained from context.
 func NewService(
 	repo Repository,
-	numerator *numerator.Service,
+	numerator numerator.Generator,
 ) *Service {
 	// Инициализируем базовый Generic сервис
 	base := domain.NewCatalogService(domain.CatalogServiceConfig[*Warehouse]{
