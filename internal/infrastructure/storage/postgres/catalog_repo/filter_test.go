@@ -7,7 +7,7 @@ import (
 )
 
 func TestApplyAdvancedFilters_Operators(t *testing.T) {
-	repo := NewBaseCatalogRepo[any]("test_table", []string{"id", "col1"})
+	repo := NewBaseCatalogRepo[any]("test_table", []string{"id", "col1"}, func() any { return nil })
 	ctx := context.Background()
 
 	tests := []struct {

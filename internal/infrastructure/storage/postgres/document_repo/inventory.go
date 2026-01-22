@@ -29,6 +29,7 @@ func NewInventoryRepo() *InventoryRepo {
 		BaseDocumentRepo: NewBaseDocumentRepo[*inventory.Inventory](
 			inventoriesTable,
 			postgres.ExtractDBColumns[inventory.Inventory](),
+			func() *inventory.Inventory { return &inventory.Inventory{} },
 		),
 	}
 }

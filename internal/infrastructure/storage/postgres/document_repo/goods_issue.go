@@ -29,6 +29,7 @@ func NewGoodsIssueRepo() *GoodsIssueRepo {
 		BaseDocumentRepo: NewBaseDocumentRepo[*goods_issue.GoodsIssue](
 			goodsIssuesTable,
 			postgres.ExtractDBColumns[goods_issue.GoodsIssue](),
+			func() *goods_issue.GoodsIssue { return &goods_issue.GoodsIssue{} },
 		),
 	}
 }

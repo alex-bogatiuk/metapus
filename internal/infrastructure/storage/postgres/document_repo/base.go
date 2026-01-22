@@ -23,6 +23,7 @@ import (
 type BaseDocumentRepo[T any] struct {
 	tableName  string
 	selectCols []string
+	newFn      func() T
 }
 
 // NewBaseDocumentRepo creates a new base document repository.
@@ -30,10 +31,12 @@ type BaseDocumentRepo[T any] struct {
 func NewBaseDocumentRepo[T any](
 	tableName string,
 	selectCols []string,
+	newFn func() T,
 ) *BaseDocumentRepo[T] {
 	return &BaseDocumentRepo[T]{
 		tableName:  tableName,
 		selectCols: selectCols,
+		newFn:      newFn,
 	}
 }
 
@@ -172,7 +175,7 @@ func (r *BaseDocumentRepo[T]) baseSelect(ctx context.Context) squirrel.SelectBui
 
 // GetByID retrieves a document by ID.
 func (r *BaseDocumentRepo[T]) GetByID(ctx context.Context, entityID id.ID) (T, error) {
-	var entity T
+	entity := r.newFn()
 	q := r.baseSelect(ctx).
 		Where(squirrel.Eq{"id": entityID})
 
@@ -182,7 +185,7 @@ func (r *BaseDocumentRepo[T]) GetByID(ctx context.Context, entityID id.ID) (T, e
 	}
 
 	querier := r.getTxManager(ctx).GetQuerier(ctx)
-	if err := pgxscan.Get(ctx, querier, &entity, sql, args...); err != nil {
+	if err := pgxscan.Get(ctx, querier, entity, sql, args...); err != nil {
 		if pgxscan.NotFound(err) {
 			return entity, apperror.NewNotFound(r.tableName, entityID.String())
 		}
@@ -194,7 +197,7 @@ func (r *BaseDocumentRepo[T]) GetByID(ctx context.Context, entityID id.ID) (T, e
 
 // GetByNumber retrieves a document by Number.
 func (r *BaseDocumentRepo[T]) GetByNumber(ctx context.Context, number string) (T, error) {
-	var entity T
+	entity := r.newFn()
 	q := r.baseSelect(ctx).
 		Where(squirrel.Eq{"number": number})
 
@@ -204,7 +207,7 @@ func (r *BaseDocumentRepo[T]) GetByNumber(ctx context.Context, number string) (T
 	}
 
 	querier := r.getTxManager(ctx).GetQuerier(ctx)
-	if err := pgxscan.Get(ctx, querier, &entity, sql, args...); err != nil {
+	if err := pgxscan.Get(ctx, querier, entity, sql, args...); err != nil {
 		if pgxscan.NotFound(err) {
 			return entity, apperror.NewNotFound(r.tableName, number)
 		}
@@ -216,7 +219,7 @@ func (r *BaseDocumentRepo[T]) GetByNumber(ctx context.Context, number string) (T
 
 // GetForUpdate retrieves document with row lock.
 func (r *BaseDocumentRepo[T]) GetForUpdate(ctx context.Context, entityID id.ID) (T, error) {
-	var entity T
+	entity := r.newFn()
 	q := r.baseSelect(ctx).
 		Where(squirrel.Eq{"id": entityID}).
 		Suffix("FOR UPDATE")
@@ -227,7 +230,7 @@ func (r *BaseDocumentRepo[T]) GetForUpdate(ctx context.Context, entityID id.ID) 
 	}
 
 	querier := r.getTxManager(ctx).GetQuerier(ctx)
-	if err := pgxscan.Get(ctx, querier, &entity, sql, args...); err != nil {
+	if err := pgxscan.Get(ctx, querier, entity, sql, args...); err != nil {
 		if pgxscan.NotFound(err) {
 			return entity, apperror.NewNotFound(r.tableName, entityID.String())
 		}

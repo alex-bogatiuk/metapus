@@ -71,8 +71,7 @@ type CatalogRepository[T entity.Validatable] interface {
 	// Update modifies existing entity (with optimistic locking)
 	Update(ctx context.Context, entity T) error
 
-	// Delete performs soft delete by default (sets deletion_mark=true).
-	// Hard delete (physical removal) is intentionally not exposed in the platform core yet.
+	// Delete performs physical removal.
 	Delete(ctx context.Context, id id.ID) error
 
 	// SetDeletionMark устанавливает или снимает пометку удаления

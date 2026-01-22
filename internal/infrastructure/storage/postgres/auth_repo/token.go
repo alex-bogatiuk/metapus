@@ -34,7 +34,7 @@ func (r *TokenRepo) SaveRefreshToken(ctx context.Context, token *auth.RefreshTok
 
 	query := `
 		INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, created_at, user_agent, ip_address)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, '')::inet)
 	`
 
 	_, err := q.Exec(ctx, query,

@@ -55,7 +55,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	tokens, user, err := h.service.Login(ctx, req.ToCredentials())
+	info := auth.SessionInfo{
+		UserAgent: c.Request.UserAgent(),
+		IPAddress: c.ClientIP(),
+	}
+
+	tokens, user, err := h.service.Login(ctx, req.ToCredentials(), info)
 	if err != nil {
 		h.Error(c, err)
 		return
@@ -76,7 +81,12 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	tokens, err := h.service.RefreshToken(ctx, req.RefreshToken)
+	info := auth.SessionInfo{
+		UserAgent: c.Request.UserAgent(),
+		IPAddress: c.ClientIP(),
+	}
+
+	tokens, err := h.service.RefreshToken(ctx, req.RefreshToken, info)
 	if err != nil {
 		h.Error(c, err)
 		return

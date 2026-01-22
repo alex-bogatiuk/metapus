@@ -9,6 +9,12 @@ import (
 	"metapus/internal/core/id"
 )
 
+// SessionInfo holds metadata for authentication sessions.
+type SessionInfo struct {
+	UserAgent string
+	IPAddress string
+}
+
 // User represents a system user.
 type User struct {
 	ID                  id.ID      `db:"id" json:"id"`

@@ -155,7 +155,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"email\": \"admin@metapus.io\",\n  \"password\": \"Admin123!\"\n}"
+							"raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"SecurePass123!\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/auth/login",
@@ -581,41 +581,251 @@
 							"item": [
 								{
 									"name": "1: Найти всех покупателей (Type = \"customer\")",
+									"protocolProfileBehavior": {
+										"disableBodyPruning": true
+									},
 									"request": {
 										"method": "GET",
-										"header": []
+										"header": [
+											{
+												"key": "X-Tenant-ID",
+												"value": "{{tenantId}}"
+											},
+											{
+												"key": "Authorization",
+												"value": "••••••"
+											}
+										],
+										"body": {
+											"mode": "urlencoded",
+											"urlencoded": [
+												{
+													"key": "filter",
+													"value": "[{\"field\":\"type\",\"operator\":\"eq\",\"value\":\"customer\"}]",
+													"type": "text"
+												}
+											]
+										},
+										"url": {
+											"raw": "http://localhost:8080/api/v1/catalog/counterparties?filter=[{\"field\":\"inn\",\"operator\":\"eq\",\"value\":\"7710151579\"}]",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8080",
+											"path": [
+												"api",
+												"v1",
+												"catalog",
+												"counterparties"
+											],
+											"query": [
+												{
+													"key": "filter",
+													"value": "[{\"field\":\"inn\",\"operator\":\"eq\",\"value\":\"7710151579\"}]"
+												}
+											]
+										}
 									},
 									"response": []
 								},
 								{
 									"name": "2: Найти по названию (Содержит \"Тест\")",
+									"protocolProfileBehavior": {
+										"disableBodyPruning": true
+									},
 									"request": {
 										"method": "GET",
-										"header": []
+										"header": [
+											{
+												"key": "X-Tenant-ID",
+												"value": "{{tenantId}}"
+											},
+											{
+												"key": "Authorization",
+												"value": "••••••"
+											}
+										],
+										"body": {
+											"mode": "urlencoded",
+											"urlencoded": [
+												{
+													"key": "filter",
+													"value": "[{\"field\":\"name\",\"operator\":\"contains\",\"value\":\"Тест\"}]",
+													"type": "text"
+												}
+											]
+										},
+										"url": {
+											"raw": "http://localhost:8080/api/v1/catalog/counterparties?filter=[{\"field\":\"name\",\"operator\":\"contains\",\"value\":\"Тест\"}]",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8080",
+											"path": [
+												"api",
+												"v1",
+												"catalog",
+												"counterparties"
+											],
+											"query": [
+												{
+													"key": "filter",
+													"value": "[{\"field\":\"name\",\"operator\":\"contains\",\"value\":\"Тест\"}]"
+												}
+											]
+										}
 									},
 									"response": []
 								},
 								{
 									"name": "3: Сложный отбор (Юрлицо И Поставщик)",
+									"protocolProfileBehavior": {
+										"disableBodyPruning": true
+									},
 									"request": {
 										"method": "GET",
-										"header": []
+										"header": [
+											{
+												"key": "X-Tenant-ID",
+												"value": "{{tenantId}}"
+											},
+											{
+												"key": "Authorization",
+												"value": "••••••"
+											}
+										],
+										"body": {
+											"mode": "urlencoded",
+											"urlencoded": [
+												{
+													"key": "filter",
+													"value": "[{\"field\":\"legal_form\",\"operator\":\"eq\",\"value\":\"company\"},{\"field\":\"type\",\"operator\":\"eq\",\"value\":\"supplier\"}]",
+													"type": "text"
+												}
+											]
+										},
+										"url": {
+											"raw": "http://localhost:8080/api/v1/catalog/counterparties?filter=[{\"field\":\"legal_form\",\"operator\":\"eq\",\"value\":\"company\"},{\"field\":\"type\",\"operator\":\"eq\",\"value\":\"supplier\"}]",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8080",
+											"path": [
+												"api",
+												"v1",
+												"catalog",
+												"counterparties"
+											],
+											"query": [
+												{
+													"key": "filter",
+													"value": "[{\"field\":\"legal_form\",\"operator\":\"eq\",\"value\":\"company\"},{\"field\":\"type\",\"operator\":\"eq\",\"value\":\"supplier\"}]"
+												}
+											]
+										}
 									},
 									"response": []
 								},
 								{
 									"name": "4: Отбор \"В списке\" (по конкретным ИНН)",
+									"protocolProfileBehavior": {
+										"disableBodyPruning": true
+									},
 									"request": {
 										"method": "GET",
-										"header": []
+										"header": [
+											{
+												"key": "X-Tenant-ID",
+												"value": "{{tenantId}}"
+											},
+											{
+												"key": "Authorization",
+												"value": "••••••"
+											}
+										],
+										"body": {
+											"mode": "urlencoded",
+											"urlencoded": [
+												{
+													"key": "filter",
+													"value": "[{\"field\":\"inn\",\"operator\":\"in\",\"value\":[\"7710140679\",\"772300001234\"]}]",
+													"type": "text"
+												}
+											]
+										},
+										"url": {
+											"raw": "http://localhost:8080/api/v1/catalog/counterparties?filter=[{\"field\":\"inn\",\"operator\":\"in\",\"value\":[\"7710140679\",\"772300001234\"]}]",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8080",
+											"path": [
+												"api",
+												"v1",
+												"catalog",
+												"counterparties"
+											],
+											"query": [
+												{
+													"key": "filter",
+													"value": "[{\"field\":\"inn\",\"operator\":\"in\",\"value\":[\"7710140679\",\"772300001234\"]}]"
+												}
+											]
+										}
 									},
 									"response": []
 								},
 								{
 									"name": "5: Заполнено поле (Есть Email)",
+									"protocolProfileBehavior": {
+										"disableBodyPruning": true
+									},
 									"request": {
 										"method": "GET",
-										"header": []
+										"header": [
+											{
+												"key": "X-Tenant-ID",
+												"value": "{{tenantId}}"
+											},
+											{
+												"key": "Authorization",
+												"value": "••••••"
+											}
+										],
+										"body": {
+											"mode": "urlencoded",
+											"urlencoded": [
+												{
+													"key": "filter",
+													"value": "[{\"field\":\"email\",\"operator\":\"not_null\",\"value\":true}]",
+													"type": "text"
+												}
+											]
+										},
+										"url": {
+											"raw": "http://localhost:8080/api/v1/catalog/counterparties?filter=[{\"field\":\"email\",\"operator\":\"not_null\",\"value\":true}]",
+											"protocol": "http",
+											"host": [
+												"localhost"
+											],
+											"port": "8080",
+											"path": [
+												"api",
+												"v1",
+												"catalog",
+												"counterparties"
+											],
+											"query": [
+												{
+													"key": "filter",
+													"value": "[{\"field\":\"email\",\"operator\":\"not_null\",\"value\":true}]"
+												}
+											]
+										}
 									},
 									"response": []
 								}
@@ -648,13 +858,12 @@
 									},
 									{
 										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}",
-										"disabled": true
+										"value": "{{tenantId}}"
 									}
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n    \"name\": \"ООО 'Тест'\",\n    \"type\": \"customer\",\n    \"legalForm\": \"company\",\n    \"fullName\": \"ООО 'Тест'\",\n    \"inn\": \"7710141579\"\n}"
+									"raw": "{\n    \"name\": \"ООО 'Тест'\",\n    \"type\": \"customer\",\n    \"legalForm\": \"company\",\n    \"fullName\": \"ООО 'Тест'\",\n    \"inn\": \"7710151579\"\n}"
 								},
 								"url": {
 									"raw": "{{baseUrl}}/api/v1/catalog/counterparties",
@@ -712,7 +921,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n    \"code\": \"CP-001\",\n    \"name\": \"ООО 'Поставщик' (Renamed)\",\n    \"type\": \"supplier\",\n    \"legalForm\": \"company\",\n    \"fullName\": \"Общество с ограниченной ответственностью Поставщик\",\n    \"inn\": \"7700000001\",\n    \"kpp\": \"770001001\",\n    \"version\": 1\n}",
+									"raw": "{\n    \"code\": \"CP-2026-00001\",\n    \"name\": \"ООО 'Тест' Переименовано\",\n    \"type\": \"customer\",\n    \"legalForm\": \"company\",\n    \"fullName\": \"ООО 'Тест'\",\n    \"inn\": \"7710151579\",\n    \"version\": 1\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -737,7 +946,7 @@
 							"response": []
 						},
 						{
-							"name": "Set Deletion Mark (Soft Delete)",
+							"name": "Hard delete",
 							"event": [
 								{
 									"listen": "test",
@@ -1923,6 +2132,10 @@
 		},
 		{
 			"key": "inventoryId",
+			"value": ""
+		},
+		{
+			"key": "userId",
 			"value": ""
 		}
 	]

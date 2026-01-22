@@ -26,6 +26,7 @@ func NewNomenclatureRepo() *NomenclatureRepo {
 		BaseCatalogRepo: NewBaseCatalogRepo[*nomenclature.Nomenclature](
 			nomenclatureTable,
 			postgres.ExtractDBColumns[nomenclature.Nomenclature](),
+			func() *nomenclature.Nomenclature { return &nomenclature.Nomenclature{} },
 		),
 	}
 }

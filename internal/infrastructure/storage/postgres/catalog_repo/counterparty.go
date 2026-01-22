@@ -23,6 +23,7 @@ func NewCounterpartyRepo() *CounterpartyRepo {
 		BaseCatalogRepo: NewBaseCatalogRepo[*counterparty.Counterparty](
 			counterpartyTable,
 			postgres.ExtractDBColumns[counterparty.Counterparty](),
+			func() *counterparty.Counterparty { return &counterparty.Counterparty{} },
 		),
 	}
 }

@@ -29,6 +29,7 @@ func NewCurrencyRepo() *CurrencyRepo {
 		BaseCatalogRepo: NewBaseCatalogRepo[*currency.Currency](
 			currencyTable,
 			postgres.ExtractDBColumns[currency.Currency](),
+			func() *currency.Currency { return &currency.Currency{} },
 		),
 	}
 }

@@ -157,7 +157,7 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*User, err
 }
 
 // Login authenticates user and returns tokens.
-func (s *Service) Login(ctx context.Context, creds Credentials) (*TokenPair, *User, error) {
+func (s *Service) Login(ctx context.Context, creds Credentials, info SessionInfo) (*TokenPair, *User, error) {
 	if _, err := s.requireTenantID(ctx); err != nil {
 		return nil, nil, err
 	}
@@ -200,7 +200,7 @@ func (s *Service) Login(ctx context.Context, creds Credentials) (*TokenPair, *Us
 	user.OrgIDs = orgIDs
 
 	// Generate tokens
-	tokens, err := s.generateTokenPair(ctx, user)
+	tokens, err := s.generateTokenPair(ctx, user, info)
 	if err != nil {
 		return nil, nil, fmt.Errorf("generate tokens: %w", err)
 	}
@@ -217,7 +217,7 @@ func (s *Service) Login(ctx context.Context, creds Credentials) (*TokenPair, *Us
 }
 
 // RefreshToken refreshes access token using refresh token.
-func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (*TokenPair, error) {
+func (s *Service) RefreshToken(ctx context.Context, refreshToken string, info SessionInfo) (*TokenPair, error) {
 	// Hash token to lookup
 	tokenHash := hashToken(refreshToken)
 
@@ -255,7 +255,7 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (*Token
 	_ = s.tokenRepo.RevokeRefreshToken(ctx, token.ID, "refreshed")
 
 	// Generate new token pair
-	return s.generateTokenPair(ctx, user)
+	return s.generateTokenPair(ctx, user, info)
 }
 
 // Logout revokes all user's refresh tokens.
@@ -359,7 +359,7 @@ func (s *Service) CreateRole(ctx context.Context, code, name, description string
 }
 
 // generateTokenPair creates access and refresh tokens.
-func (s *Service) generateTokenPair(ctx context.Context, user *User) (*TokenPair, error) {
+func (s *Service) generateTokenPair(ctx context.Context, user *User, info SessionInfo) (*TokenPair, error) {
 	tenantID, err := s.requireTenantID(ctx)
 	if err != nil {
 		return nil, err
@@ -391,6 +391,8 @@ func (s *Service) generateTokenPair(ctx context.Context, user *User) (*TokenPair
 		TokenHash: refreshTokenHash,
 		ExpiresAt: time.Now().Add(s.config.RefreshTokenExpiry),
 		CreatedAt: time.Now(),
+		UserAgent: info.UserAgent,
+		IPAddress: info.IPAddress,
 	}
 
 	if err := s.tokenRepo.SaveRefreshToken(ctx, refreshToken); err != nil {

@@ -53,6 +53,7 @@ CREATE INDEX idx_tenant_audit_tenant ON tenant_audit(tenant_id);
 CREATE INDEX idx_tenant_audit_created ON tenant_audit(created_at DESC);
 
 -- Trigger to update updated_at on tenants
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION update_tenant_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -60,6 +61,7 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+-- +goose StatementEnd
 
 CREATE TRIGGER trigger_tenants_updated_at
     BEFORE UPDATE ON tenants

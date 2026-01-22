@@ -29,6 +29,7 @@ func NewGoodsReceiptRepo() *GoodsReceiptRepo {
 		BaseDocumentRepo: NewBaseDocumentRepo[*goods_receipt.GoodsReceipt](
 			goodsReceiptsTable,
 			postgres.ExtractDBColumns[goods_receipt.GoodsReceipt](),
+			func() *goods_receipt.GoodsReceipt { return &goods_receipt.GoodsReceipt{} },
 		),
 	}
 }

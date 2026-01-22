@@ -191,7 +191,7 @@ func (s *CatalogService[T]) Delete(ctx context.Context, entityID id.ID) error {
 		return apperror.NewInternal(err).WithDetail("missing", "tx_manager")
 	}
 	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
-		if err := s.repo.SetDeletionMark(ctx, entityID, true); err != nil {
+		if err := s.repo.Delete(ctx, entityID); err != nil {
 			return fmt.Errorf("delete %s: %w", s.entityName, err)
 		}
 		return nil

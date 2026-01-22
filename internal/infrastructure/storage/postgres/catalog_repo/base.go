@@ -4,6 +4,7 @@ package catalog_repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"metapus/internal/domain/filter"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
@@ -27,6 +29,7 @@ import (
 type BaseCatalogRepo[T any] struct {
 	tableName  string
 	selectCols []string
+	newFn      func() T
 }
 
 // NewBaseCatalogRepo creates a new base catalog repository.
@@ -34,10 +37,12 @@ type BaseCatalogRepo[T any] struct {
 func NewBaseCatalogRepo[T any](
 	tableName string,
 	selectCols []string,
+	newFn func() T,
 ) *BaseCatalogRepo[T] {
 	return &BaseCatalogRepo[T]{
 		tableName:  tableName,
 		selectCols: selectCols,
+		newFn:      newFn,
 	}
 }
 
@@ -150,7 +155,7 @@ func (r *BaseCatalogRepo[T]) baseSelect(ctx context.Context) squirrel.SelectBuil
 
 // GetByID retrieves entity by ID.
 func (r *BaseCatalogRepo[T]) GetByID(ctx context.Context, entityID id.ID) (T, error) {
-	var entity T
+	entity := r.newFn()
 
 	q := r.baseSelect(ctx).
 		Where(squirrel.Eq{"id": entityID}).
@@ -162,7 +167,7 @@ func (r *BaseCatalogRepo[T]) GetByID(ctx context.Context, entityID id.ID) (T, er
 	}
 
 	querier := r.getTxManager(ctx).GetQuerier(ctx)
-	if err := pgxscan.Get(ctx, querier, &entity, sql, args...); err != nil {
+	if err := pgxscan.Get(ctx, querier, entity, sql, args...); err != nil {
 		if pgxscan.NotFound(err) {
 			return entity, apperror.NewNotFound(r.tableName, entityID.String())
 		}
@@ -174,7 +179,7 @@ func (r *BaseCatalogRepo[T]) GetByID(ctx context.Context, entityID id.ID) (T, er
 
 // GetByCode retrieves entity by code.
 func (r *BaseCatalogRepo[T]) GetByCode(ctx context.Context, code string) (T, error) {
-	var entity T
+	entity := r.newFn()
 
 	q := r.baseSelect(ctx).
 		Where(squirrel.Eq{"code": code}).
@@ -187,7 +192,7 @@ func (r *BaseCatalogRepo[T]) GetByCode(ctx context.Context, code string) (T, err
 	}
 
 	querier := r.getTxManager(ctx).GetQuerier(ctx)
-	if err := pgxscan.Get(ctx, querier, &entity, sql, args...); err != nil {
+	if err := pgxscan.Get(ctx, querier, entity, sql, args...); err != nil {
 		if pgxscan.NotFound(err) {
 			return entity, apperror.NewNotFound(r.tableName, code)
 		}
@@ -406,9 +411,35 @@ func (r *BaseCatalogRepo[T]) ExistsByCode(ctx context.Context, code string) (boo
 	return true, nil
 }
 
-// Delete performs soft delete (deletion_mark=true).
+// Delete performs physical removal from the database.
 func (r *BaseCatalogRepo[T]) Delete(ctx context.Context, entityID id.ID) error {
-	return r.SetDeletionMark(ctx, entityID, true)
+	q := r.Builder().
+		Delete(r.tableName).
+		Where(squirrel.Eq{"id": entityID})
+
+	sql, args, err := q.ToSql()
+	if err != nil {
+		return fmt.Errorf("build delete: %w", err)
+	}
+
+	result, err := r.getTxManager(ctx).GetQuerier(ctx).Exec(ctx, sql, args...)
+	if err != nil {
+		// Check for foreign key violation (23503)
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			return apperror.NewConflict("Нельзя удалить: объект используется в других документах или справочниках").
+				WithDetail("entity", r.tableName).
+				WithDetail("id", entityID.String()).
+				WithCause(err)
+		}
+		return fmt.Errorf("execute delete %s: %w", r.tableName, err)
+	}
+
+	if result.RowsAffected() == 0 {
+		return apperror.NewNotFound(r.tableName, entityID.String())
+	}
+
+	return nil
 }
 
 // SetDeletionMark sets or clears the deletion mark (soft delete).
@@ -500,7 +531,7 @@ func (r *BaseCatalogRepo[T]) GetPath(ctx context.Context, entityID id.ID) ([]T, 
 
 // GetForUpdate retrieves entity by ID with row lock.
 func (r *BaseCatalogRepo[T]) GetForUpdate(ctx context.Context, entityID id.ID) (T, error) {
-	var entity T
+	entity := r.newFn()
 
 	q := r.baseSelect(ctx).
 		Where(squirrel.Eq{"id": entityID}).
@@ -512,7 +543,7 @@ func (r *BaseCatalogRepo[T]) GetForUpdate(ctx context.Context, entityID id.ID) (
 	}
 
 	querier := r.getTxManager(ctx).GetQuerier(ctx)
-	if err := pgxscan.Get(ctx, querier, &entity, sql, args...); err != nil {
+	if err := pgxscan.Get(ctx, querier, entity, sql, args...); err != nil {
 		if pgxscan.NotFound(err) {
 			return entity, apperror.NewNotFound(r.tableName, entityID.String())
 		}
@@ -524,7 +555,7 @@ func (r *BaseCatalogRepo[T]) GetForUpdate(ctx context.Context, entityID id.ID) (
 
 // FindOne executes a SELECT query and returns a single entity.
 func (r *BaseCatalogRepo[T]) FindOne(ctx context.Context, q squirrel.SelectBuilder) (T, error) {
-	var entity T
+	entity := r.newFn()
 
 	sql, args, err := q.ToSql()
 	if err != nil {
@@ -532,7 +563,7 @@ func (r *BaseCatalogRepo[T]) FindOne(ctx context.Context, q squirrel.SelectBuild
 	}
 
 	querier := r.getTxManager(ctx).GetQuerier(ctx)
-	if err := pgxscan.Get(ctx, querier, &entity, sql, args...); err != nil {
+	if err := pgxscan.Get(ctx, querier, entity, sql, args...); err != nil {
 		if pgxscan.NotFound(err) {
 			return entity, apperror.NewNotFound(r.tableName, "matching query")
 		}

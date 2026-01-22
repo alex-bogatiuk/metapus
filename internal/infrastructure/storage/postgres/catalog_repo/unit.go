@@ -25,6 +25,7 @@ func NewUnitRepo() *UnitRepo {
 		BaseCatalogRepo: NewBaseCatalogRepo[*unit.Unit](
 			unitTable,
 			postgres.ExtractDBColumns[unit.Unit](),
+			func() *unit.Unit { return &unit.Unit{} },
 		),
 	}
 }

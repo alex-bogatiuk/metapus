@@ -23,6 +23,7 @@ func NewWarehouseRepo() *WarehouseRepo {
 		BaseCatalogRepo: NewBaseCatalogRepo[*warehouse.Warehouse](
 			warehouseTable,
 			postgres.ExtractDBColumns[warehouse.Warehouse](),
+			func() *warehouse.Warehouse { return &warehouse.Warehouse{} },
 		),
 	}
 }
