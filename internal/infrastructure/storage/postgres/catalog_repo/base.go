@@ -305,6 +305,10 @@ func (r *BaseCatalogRepo[T]) applyAdvancedFilters(ctx context.Context, q squirre
 			q = q.Where(squirrel.LtOrEq{item.Field: item.Value})
 		case filter.GreaterOrEqual:
 			q = q.Where(squirrel.GtOrEq{item.Field: item.Value})
+		case filter.Less:
+			q = q.Where(squirrel.Lt{item.Field: item.Value})
+		case filter.Greater:
+			q = q.Where(squirrel.Gt{item.Field: item.Value})
 		case filter.InList:
 			q = q.Where(squirrel.Eq{item.Field: item.Value})
 		case filter.NotInList:

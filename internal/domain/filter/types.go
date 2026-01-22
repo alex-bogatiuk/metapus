@@ -8,6 +8,8 @@ const (
 	NotEqual       ComparisonType = "neq"       // Не равно
 	LessOrEqual    ComparisonType = "lte"       // Меньше или равно
 	GreaterOrEqual ComparisonType = "gte"       // Больше или равно
+	Less           ComparisonType = "lt"        // Меньше
+	Greater        ComparisonType = "gt"        // Больше
 	InList         ComparisonType = "in"        // В списке
 	NotInList      ComparisonType = "nin"       // Не в списке
 	Contains       ComparisonType = "contains"  // Содержит (ILIKE %val%)

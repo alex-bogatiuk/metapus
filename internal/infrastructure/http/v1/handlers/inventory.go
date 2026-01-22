@@ -105,11 +105,7 @@ func (h *InventoryHandler) Create(c *gin.Context) {
 
 	doc := req.ToEntity()
 
-	if userID := h.GetUserID(c); userID != "" {
-		doc.CreatedBy = userID
-		doc.UpdatedBy = userID
-	}
-
+	// doc created above
 	if err := h.service.Create(ctx, doc); err != nil {
 		h.Error(c, err)
 		return
@@ -142,10 +138,7 @@ func (h *InventoryHandler) Update(c *gin.Context) {
 
 	req.ApplyTo(doc)
 
-	if userID := h.GetUserID(c); userID != "" {
-		doc.UpdatedBy = userID
-	}
-
+	// req.ApplyTo(doc) already called above
 	if err := h.service.Update(ctx, doc); err != nil {
 		h.Error(c, err)
 		return

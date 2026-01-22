@@ -2,6 +2,7 @@
 package v1
 
 import (
+	"context"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -9,6 +10,7 @@ import (
 
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/tenant"
+	"metapus/internal/domain/audit"
 	"metapus/internal/domain/auth"
 	"metapus/internal/domain/catalogs/counterparty"
 	"metapus/internal/domain/catalogs/currency"
@@ -28,6 +30,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
 	"metapus/internal/infrastructure/storage/postgres/report_repo"
+	"metapus/internal/metadata"
 	"metapus/pkg/logger"
 )
 
@@ -53,6 +56,9 @@ type RouterConfig struct {
 
 	// IdempotencyEnabled enables idempotency middleware
 	IdempotencyEnabled bool
+
+	// MetadataRegistry stores entity definitions
+	MetadataRegistry *metadata.Registry
 }
 
 // NewRouter creates and configures the Gin router for multi-tenant architecture.
@@ -88,6 +94,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		protected := v1.Group("")
 		protected.Use(middleware.TenantDB(cfg.TenantManager)) // 1. Resolve tenant, get DB pool
 		protected.Use(middleware.Auth(cfg.JWTValidator))      // 2. Validate JWT
+		protected.Use(middleware.UserContext())               // 3. Add UserID to context for domain layer
 
 		// Apply idempotency middleware for mutating operations
 		if cfg.IdempotencyEnabled {
@@ -199,6 +206,17 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 	{
 		repo := document_repo.NewGoodsReceiptRepo()
 		service := goods_receipt.NewService(repo, postingEngine, cfg.Numerator, nil)
+
+		// Register audit hooks
+		service.Hooks().OnBeforeCreate(func(ctx context.Context, doc *goods_receipt.GoodsReceipt) error {
+			audit.EnrichCreatedByDirect(ctx, &doc.CreatedBy, &doc.UpdatedBy)
+			return nil
+		})
+		service.Hooks().OnBeforeUpdate(func(ctx context.Context, doc *goods_receipt.GoodsReceipt) error {
+			audit.EnrichUpdatedByDirect(ctx, &doc.UpdatedBy)
+			return nil
+		})
+
 		handler := handlers.NewGoodsReceiptHandler(baseHandler, service)
 		RegisterDocumentRoutes(documents.Group("/goods-receipt"), handler, "document:goods_receipt")
 	}
@@ -207,6 +225,17 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 	{
 		repo := document_repo.NewGoodsIssueRepo()
 		service := goods_issue.NewService(repo, postingEngine, cfg.Numerator, nil)
+
+		// Register audit hooks
+		service.Hooks().OnBeforeCreate(func(ctx context.Context, doc *goods_issue.GoodsIssue) error {
+			audit.EnrichCreatedByDirect(ctx, &doc.CreatedBy, &doc.UpdatedBy)
+			return nil
+		})
+		service.Hooks().OnBeforeUpdate(func(ctx context.Context, doc *goods_issue.GoodsIssue) error {
+			audit.EnrichUpdatedByDirect(ctx, &doc.UpdatedBy)
+			return nil
+		})
+
 		handler := handlers.NewGoodsIssueHandler(baseHandler, service)
 		RegisterDocumentRoutes(documents.Group("/goods-issue"), handler, "document:goods_issue")
 	}
@@ -215,6 +244,17 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 	{
 		repo := document_repo.NewInventoryRepo()
 		service := inventory.NewService(repo, postingEngine, stockService, cfg.Numerator, nil)
+
+		// Register audit hooks
+		service.Hooks().OnBeforeCreate(func(ctx context.Context, doc *inventory.Inventory) error {
+			audit.EnrichCreatedByDirect(ctx, &doc.CreatedBy, &doc.UpdatedBy)
+			return nil
+		})
+		service.Hooks().OnBeforeUpdate(func(ctx context.Context, doc *inventory.Inventory) error {
+			audit.EnrichUpdatedByDirect(ctx, &doc.UpdatedBy)
+			return nil
+		})
+
 		handler := handlers.NewInventoryHandler(baseHandler, service)
 
 		// Register standard document routes
@@ -251,12 +291,17 @@ func registerRegisterRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 }
 
 // registerMetaRoutes registers metadata/schema endpoints.
+// registerMetaRoutes registers metadata/schema endpoints.
 func registerMetaRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
+	if cfg.MetadataRegistry == nil {
+		return
+	}
+
+	handler := handlers.NewMetadataHandler(cfg.MetadataRegistry)
 	meta := rg.Group("/meta")
 	{
-		// GET /api/v1/meta/schemas/{type}/{name}    - Get entity schema
-		// GET /api/v1/meta/layouts/{entity}         - Get UI layout hints
-		_ = meta
+		meta.GET("", handler.ListEntities)
+		meta.GET("/:name", handler.GetEntity)
 	}
 }
 

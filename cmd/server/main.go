@@ -110,6 +110,10 @@ func main() {
 	// Note: Numerator will need to be updated to work with context-based TxManager
 	numeratorService := numerator.NewFromContext()
 
+	// --- Metadata Registry ---
+	metadataRegistry := setupMetadataRegistry()
+	log.Info("metadata registry initialized")
+
 	// --- Router ---
 	router := v1.NewRouter(v1.RouterConfig{
 		TenantManager:      tenantManager,
@@ -119,6 +123,7 @@ func main() {
 		AuthService:        authService,
 		Numerator:          numeratorService,
 		IdempotencyEnabled: getEnv("IDEMPOTENCY_ENABLED", "false") == "true",
+		MetadataRegistry:   metadataRegistry,
 	})
 
 	// --- HTTP Server ---

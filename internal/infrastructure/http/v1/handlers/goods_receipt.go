@@ -55,11 +55,6 @@ func (h *GoodsReceiptHandler) Create(c *gin.Context) {
 
 	doc := req.ToEntity()
 
-	if userID := h.GetUserID(c); userID != "" {
-		doc.CreatedBy = userID
-		doc.UpdatedBy = userID
-	}
-
 	var err error
 	if req.PostImmediately {
 		err = h.service.PostAndSave(ctx, doc)
@@ -98,10 +93,6 @@ func (h *GoodsReceiptHandler) Update(c *gin.Context) {
 	}
 
 	req.ApplyTo(doc)
-
-	if userID := h.GetUserID(c); userID != "" {
-		doc.UpdatedBy = userID
-	}
 
 	if err := h.service.Update(ctx, doc); err != nil {
 		h.Error(c, err)
@@ -194,12 +185,6 @@ func (h *GoodsReceiptHandler) Copy(c *gin.Context) {
 	// Copy lines
 	for _, line := range source.Lines {
 		copy.AddLine(line.ProductID, line.Quantity, line.UnitPrice, line.VATRate)
-	}
-
-	// Set created_by
-	if userID := h.GetUserID(c); userID != "" {
-		copy.CreatedBy = userID
-		copy.UpdatedBy = userID
 	}
 
 	if err := h.service.Create(ctx, copy); err != nil {

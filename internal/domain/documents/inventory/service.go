@@ -24,6 +24,7 @@ type Service struct {
 	stockService  *stock.Service
 	numerator     numerator.Generator
 	txManager     tx.Manager // Optional. If nil, obtained from context (DB-per-tenant).
+	hooks         *domain.HookRegistry[*Inventory]
 }
 
 // NewService creates a new inventory service.
@@ -41,7 +42,13 @@ func NewService(
 		stockService:  stockService,
 		numerator:     numerator,
 		txManager:     txManager,
+		hooks:         domain.NewHookRegistry[*Inventory](),
 	}
+}
+
+// Hooks returns the hook registry for registering callbacks.
+func (s *Service) Hooks() *domain.HookRegistry[*Inventory] {
+	return s.hooks
 }
 
 func (s *Service) getTxManager(ctx context.Context) (tx.Manager, error) {
@@ -53,6 +60,11 @@ func (s *Service) getTxManager(ctx context.Context) (tx.Manager, error) {
 
 // Create creates a new inventory document.
 func (s *Service) Create(ctx context.Context, doc *Inventory) error {
+	// Run before-create hooks
+	if err := s.hooks.RunBeforeCreate(ctx, doc); err != nil {
+		return err
+	}
+
 	if err := doc.Validate(ctx); err != nil {
 		return err
 	}
@@ -84,6 +96,11 @@ func (s *Service) Create(ctx context.Context, doc *Inventory) error {
 		return err
 	}
 
+	// Run after-create hooks
+	if err := s.hooks.RunAfterCreate(ctx, doc); err != nil {
+		logger.Warn(ctx, "after-create hook failed", "error", err)
+	}
+
 	logger.Info(ctx, "inventory created", "id", doc.ID, "number", doc.Number)
 	return nil
 }
@@ -106,6 +123,11 @@ func (s *Service) GetByID(ctx context.Context, docID id.ID) (*Inventory, error) 
 
 // Update updates an inventory document.
 func (s *Service) Update(ctx context.Context, doc *Inventory) error {
+	// Run before-update hooks
+	if err := s.hooks.RunBeforeUpdate(ctx, doc); err != nil {
+		return err
+	}
+
 	if err := doc.CanModify(); err != nil {
 		return err
 	}

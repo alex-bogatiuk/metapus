@@ -22,6 +22,7 @@ type Service struct {
 	postingEngine *posting.Engine
 	numerator     numerator.Generator
 	txManager     tx.Manager // Optional for Database-per-Tenant mode
+	hooks         *domain.HookRegistry[*GoodsIssue]
 }
 
 // NewService creates a new goods issue service.
@@ -37,7 +38,13 @@ func NewService(
 		postingEngine: postingEngine,
 		numerator:     numerator,
 		txManager:     txManager,
+		hooks:         domain.NewHookRegistry[*GoodsIssue](),
 	}
+}
+
+// Hooks returns the hook registry for registering callbacks.
+func (s *Service) Hooks() *domain.HookRegistry[*GoodsIssue] {
+	return s.hooks
 }
 
 func (s *Service) getTxManager(ctx context.Context) (tx.Manager, error) {
@@ -49,6 +56,11 @@ func (s *Service) getTxManager(ctx context.Context) (tx.Manager, error) {
 
 // Create creates a new goods issue document.
 func (s *Service) Create(ctx context.Context, doc *GoodsIssue) error {
+	// Run before-create hooks
+	if err := s.hooks.RunBeforeCreate(ctx, doc); err != nil {
+		return err
+	}
+
 	if err := doc.Validate(ctx); err != nil {
 		return err
 	}
@@ -80,6 +92,11 @@ func (s *Service) Create(ctx context.Context, doc *GoodsIssue) error {
 		return err
 	}
 
+	// Run after-create hooks
+	if err := s.hooks.RunAfterCreate(ctx, doc); err != nil {
+		logger.Warn(ctx, "after-create hook failed", "error", err)
+	}
+
 	logger.Info(ctx, "goods issue created", "id", doc.ID, "number", doc.Number)
 	return nil
 }
@@ -102,6 +119,11 @@ func (s *Service) GetByID(ctx context.Context, docID id.ID) (*GoodsIssue, error)
 
 // Update updates a goods issue document.
 func (s *Service) Update(ctx context.Context, doc *GoodsIssue) error {
+	// Run before-update hooks
+	if err := s.hooks.RunBeforeUpdate(ctx, doc); err != nil {
+		return err
+	}
+
 	if err := doc.CanModify(); err != nil {
 		return err
 	}
