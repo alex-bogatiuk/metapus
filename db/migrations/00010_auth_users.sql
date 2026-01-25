@@ -19,8 +19,6 @@ CREATE TABLE IF NOT EXISTS users (
                                      last_login_at TIMESTAMPTZ,
                                      failed_login_attempts INT NOT NULL DEFAULT 0,
                                      locked_until TIMESTAMPTZ,
-                                     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                                     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                                      deleted_at TIMESTAMPTZ,
                                      version INT NOT NULL DEFAULT 1,
 
@@ -40,8 +38,6 @@ CREATE TABLE IF NOT EXISTS roles (
                                      name VARCHAR(100) NOT NULL,
                                      description TEXT,
                                      is_system BOOLEAN NOT NULL DEFAULT false, -- system roles cannot be deleted
-                                     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                                     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
                                      CONSTRAINT roles_code_unique UNIQUE (code)
 );
@@ -55,8 +51,7 @@ CREATE TABLE IF NOT EXISTS permissions (
                                            name VARCHAR(200) NOT NULL,
                                            description TEXT,
                                            resource VARCHAR(50) NOT NULL, -- e.g., "catalog", "document", "register"
-                                           action VARCHAR(50) NOT NULL, -- e.g., "create", "read", "update", "delete", "post"
-                                           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                                           action VARCHAR(50) NOT NULL -- e.g., "create", "read", "update", "delete", "post"
 );
 
 CREATE INDEX IF NOT EXISTS idx_permissions_resource ON permissions(resource);
@@ -66,7 +61,6 @@ CREATE INDEX IF NOT EXISTS idx_permissions_code ON permissions(code);
 CREATE TABLE IF NOT EXISTS role_permissions (
                                                 role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
                                                 permission_id UUID NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
-                                                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
                                                 PRIMARY KEY (role_id, permission_id)
 );
@@ -76,7 +70,6 @@ CREATE TABLE IF NOT EXISTS user_roles (
                                           user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                                           role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
                                           granted_by UUID REFERENCES users(id),
-                                          granted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
                                           PRIMARY KEY (user_id, role_id)
 );
@@ -89,7 +82,6 @@ CREATE TABLE IF NOT EXISTS user_organizations (
                                                   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                                                   organization_id UUID NOT NULL,
                                                   is_default BOOLEAN NOT NULL DEFAULT false,
-                                                  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
                                                   PRIMARY KEY (user_id, organization_id)
 );
@@ -112,33 +104,9 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires ON refresh_tokens(expires_at) WHERE revoked_at IS NULL;
 
--- Trigger to update updated_at
--- +goose StatementBegin
-CREATE OR REPLACE FUNCTION update_users_updated_at()
-RETURNS TRIGGER AS $func$
-BEGIN
-    NEW.updated_at = now();
-RETURN NEW;
-END;
-$func$ LANGUAGE plpgsql;
--- +goose StatementEnd
-
-CREATE TRIGGER trigger_users_updated_at
-    BEFORE UPDATE ON users
-    FOR EACH ROW
-    EXECUTE FUNCTION update_users_updated_at();
-
-CREATE TRIGGER trigger_roles_updated_at
-    BEFORE UPDATE ON roles
-    FOR EACH ROW
-    EXECUTE FUNCTION update_users_updated_at();
-
 SELECT pg_advisory_unlock(hashtext('metapus_migrations'));
 
 -- +goose Down
-DROP TRIGGER IF EXISTS trigger_roles_updated_at ON roles;
-DROP TRIGGER IF EXISTS trigger_users_updated_at ON users;
-DROP FUNCTION IF EXISTS update_users_updated_at();
 DROP TABLE IF EXISTS refresh_tokens;
 DROP TABLE IF EXISTS user_organizations;
 DROP TABLE IF EXISTS user_roles;

@@ -33,13 +33,12 @@ func (r *RoleRepo) Create(ctx context.Context, role *auth.Role) error {
 	q := r.getTxManager(ctx).GetQuerier(ctx)
 
 	query := `
-		INSERT INTO roles (id, code, name, description, is_system, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO roles (id, code, name, description, is_system)
+		VALUES ($1, $2, $3, $4, $5)
 	`
 
 	_, err := q.Exec(ctx, query,
-		role.ID, role.Code, role.Name,
-		role.Description, role.IsSystem, role.CreatedAt, role.UpdatedAt,
+		role.ID, role.Code, role.Name, role.Description, role.IsSystem,
 	)
 	if err != nil {
 		return fmt.Errorf("insert role: %w", err)
@@ -53,14 +52,14 @@ func (r *RoleRepo) GetByID(ctx context.Context, roleID id.ID) (*auth.Role, error
 	q := r.getTxManager(ctx).GetQuerier(ctx)
 
 	query := `
-		SELECT id, code, name, description, is_system, created_at, updated_at
+		SELECT id, code, name, description, is_system
 		FROM roles WHERE id = $1
 	`
 
 	var role auth.Role
 	err := q.QueryRow(ctx, query, roleID).Scan(
 		&role.ID, &role.Code, &role.Name,
-		&role.Description, &role.IsSystem, &role.CreatedAt, &role.UpdatedAt,
+		&role.Description, &role.IsSystem,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, apperror.NewNotFound("role", roleID.String())
@@ -77,14 +76,14 @@ func (r *RoleRepo) GetByCode(ctx context.Context, code string) (*auth.Role, erro
 	q := r.getTxManager(ctx).GetQuerier(ctx)
 
 	query := `
-		SELECT id, code, name, description, is_system, created_at, updated_at
+		SELECT id, code, name, description, is_system,
 		FROM roles WHERE code = $1
 	`
 
 	var role auth.Role
 	err := q.QueryRow(ctx, query, code).Scan(
 		&role.ID, &role.Code, &role.Name,
-		&role.Description, &role.IsSystem, &role.CreatedAt, &role.UpdatedAt,
+		&role.Description, &role.IsSystem,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, apperror.NewNotFound("role", code)
@@ -101,7 +100,7 @@ func (r *RoleRepo) Update(ctx context.Context, role *auth.Role) error {
 	q := r.getTxManager(ctx).GetQuerier(ctx)
 
 	query := `
-		UPDATE roles SET name = $2, description = $3, updated_at = now()
+		UPDATE roles SET name = $2, description = $3
 		WHERE id = $1
 	`
 
@@ -135,7 +134,7 @@ func (r *RoleRepo) List(ctx context.Context) ([]auth.Role, error) {
 	q := r.getTxManager(ctx).GetQuerier(ctx)
 
 	query := `
-		SELECT id, code, name, description, is_system, created_at, updated_at
+		SELECT id, code, name, description, is_system
 		FROM roles
 		ORDER BY name
 	`
@@ -151,7 +150,7 @@ func (r *RoleRepo) List(ctx context.Context) ([]auth.Role, error) {
 		var role auth.Role
 		err := rows.Scan(
 			&role.ID, &role.Code, &role.Name,
-			&role.Description, &role.IsSystem, &role.CreatedAt, &role.UpdatedAt,
+			&role.Description, &role.IsSystem,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan role: %w", err)
@@ -167,7 +166,7 @@ func (r *RoleRepo) LoadPermissions(ctx context.Context, roleID id.ID) ([]auth.Pe
 	q := r.getTxManager(ctx).GetQuerier(ctx)
 
 	query := `
-		SELECT p.id, p.code, p.name, p.description, p.resource, p.action, p.created_at
+		SELECT p.id, p.code, p.name, p.description, p.resource, p.action
 		FROM permissions p
 		INNER JOIN role_permissions rp ON p.id = rp.permission_id
 		WHERE rp.role_id = $1
@@ -184,7 +183,7 @@ func (r *RoleRepo) LoadPermissions(ctx context.Context, roleID id.ID) ([]auth.Pe
 		var perm auth.Permission
 		err := rows.Scan(
 			&perm.ID, &perm.Code, &perm.Name, &perm.Description,
-			&perm.Resource, &perm.Action, &perm.CreatedAt,
+			&perm.Resource, &perm.Action,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan permission: %w", err)
@@ -200,8 +199,8 @@ func (r *RoleRepo) AssignPermission(ctx context.Context, roleID, permissionID id
 	q := r.getTxManager(ctx).GetQuerier(ctx)
 
 	query := `
-		INSERT INTO role_permissions (role_id, permission_id, created_at)
-		VALUES ($1, $2, now())
+		INSERT INTO role_permissions (role_id, permission_id)
+		VALUES ($1, $2)
 		ON CONFLICT (role_id, permission_id) DO NOTHING
 	`
 

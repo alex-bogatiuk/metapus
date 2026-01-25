@@ -32,14 +32,14 @@ func (r *PermissionRepo) GetByCode(ctx context.Context, code string) (*auth.Perm
 	q := r.getTxManager(ctx).GetQuerier(ctx)
 
 	query := `
-		SELECT id, code, name, description, resource, action, created_at
+		SELECT id, code, name, description, resource, action
 		FROM permissions WHERE code = $1
 	`
 
 	var perm auth.Permission
 	err := q.QueryRow(ctx, query, code).Scan(
 		&perm.ID, &perm.Code, &perm.Name, &perm.Description,
-		&perm.Resource, &perm.Action, &perm.CreatedAt,
+		&perm.Resource, &perm.Action,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, apperror.NewNotFound("permission", code)
@@ -56,7 +56,7 @@ func (r *PermissionRepo) List(ctx context.Context) ([]auth.Permission, error) {
 	q := r.getTxManager(ctx).GetQuerier(ctx)
 
 	query := `
-		SELECT id, code, name, description, resource, action, created_at
+		SELECT id, code, name, description, resource, action
 		FROM permissions ORDER BY resource, action
 	`
 
@@ -71,7 +71,7 @@ func (r *PermissionRepo) List(ctx context.Context) ([]auth.Permission, error) {
 		var perm auth.Permission
 		err := rows.Scan(
 			&perm.ID, &perm.Code, &perm.Name, &perm.Description,
-			&perm.Resource, &perm.Action, &perm.CreatedAt,
+			&perm.Resource, &perm.Action,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan permission: %w", err)
@@ -87,7 +87,7 @@ func (r *PermissionRepo) ListByResource(ctx context.Context, resource string) ([
 	q := r.getTxManager(ctx).GetQuerier(ctx)
 
 	query := `
-		SELECT id, code, name, description, resource, action, created_at
+		SELECT id, code, name, description, resource, action
 		FROM permissions WHERE resource = $1 ORDER BY action
 	`
 
@@ -102,7 +102,7 @@ func (r *PermissionRepo) ListByResource(ctx context.Context, resource string) ([
 		var perm auth.Permission
 		err := rows.Scan(
 			&perm.ID, &perm.Code, &perm.Name, &perm.Description,
-			&perm.Resource, &perm.Action, &perm.CreatedAt,
+			&perm.Resource, &perm.Action,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan permission: %w", err)

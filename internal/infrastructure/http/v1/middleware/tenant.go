@@ -107,5 +107,3 @@ func GetTxManagerFromContext(c *gin.Context) *postgres.TxManager {
 	}
 	return nil
 }
-
-// (slug-based tenant resolution removed; tenant is addressed by UUID only)

@@ -35,14 +35,14 @@ func (r *UserRepo) Create(ctx context.Context, user *auth.User) error {
 	query := `
 		INSERT INTO users (
 			id, email, password_hash, first_name, last_name,
-			is_active, is_admin, email_verified, created_at, updated_at, version
+			is_active, is_admin, email_verified, version, deletion_mark, attributes
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 
 	_, err := q.Exec(ctx, query,
 		user.ID, user.Email, user.PasswordHash,
 		user.FirstName, user.LastName, user.IsActive, user.IsAdmin,
-		user.EmailVerified, user.CreatedAt, user.UpdatedAt, user.Version,
+		user.EmailVerified, user.Version, user.DeletionMark, user.Attributes,
 	)
 	if err != nil {
 		return fmt.Errorf("insert user: %w", err)
@@ -59,9 +59,9 @@ func (r *UserRepo) GetByID(ctx context.Context, userID id.ID) (*auth.User, error
 		SELECT id, email, password_hash, first_name, last_name,
 			   is_active, is_admin, email_verified, email_verified_at,
 			   last_login_at, failed_login_attempts, locked_until,
-			   created_at, updated_at, deleted_at, version
+			   deletion_mark, version, attributes
 		FROM users
-		WHERE id = $1 AND deleted_at IS NULL
+		WHERE id = $1 AND deletion_mark = FALSE
 	`
 
 	var user auth.User
@@ -70,7 +70,7 @@ func (r *UserRepo) GetByID(ctx context.Context, userID id.ID) (*auth.User, error
 		&user.FirstName, &user.LastName, &user.IsActive, &user.IsAdmin,
 		&user.EmailVerified, &user.EmailVerifiedAt, &user.LastLoginAt,
 		&user.FailedLoginAttempts, &user.LockedUntil,
-		&user.CreatedAt, &user.UpdatedAt, &user.DeletedAt, &user.Version,
+		&user.DeletionMark, &user.Version, &user.Attributes,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, apperror.NewNotFound("user", userID.String())
@@ -90,9 +90,9 @@ func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*auth.User, er
 		SELECT id, email, password_hash, first_name, last_name,
 			   is_active, is_admin, email_verified, email_verified_at,
 			   last_login_at, failed_login_attempts, locked_until,
-			   created_at, updated_at, deleted_at, version
+			   deletion_mark, version, attributes
 		FROM users
-		WHERE email = $1 AND deleted_at IS NULL
+		WHERE email = $1 AND deletion_mark = FALSE
 	`
 
 	var user auth.User
@@ -101,7 +101,7 @@ func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*auth.User, er
 		&user.FirstName, &user.LastName, &user.IsActive, &user.IsAdmin,
 		&user.EmailVerified, &user.EmailVerifiedAt, &user.LastLoginAt,
 		&user.FailedLoginAttempts, &user.LockedUntil,
-		&user.CreatedAt, &user.UpdatedAt, &user.DeletedAt, &user.Version,
+		&user.DeletionMark, &user.Version, &user.Attributes,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, apperror.NewNotFound("user", email)
@@ -128,15 +128,17 @@ func (r *UserRepo) Update(ctx context.Context, user *auth.User) error {
 			last_login_at = $8,
 			failed_login_attempts = $9,
 			locked_until = $10,
-			updated_at = now(),
-			version = version + 1
-		WHERE id = $1 AND deleted_at IS NULL AND version = $11
+			version = version + 1,
+			deletion_mark = $11,
+			attributes = $12
+		WHERE id = $1 AND deletion_mark = FALSE AND version = $13
 	`
 
 	result, err := q.Exec(ctx, query,
 		user.ID, user.FirstName, user.LastName, user.IsActive, user.IsAdmin,
 		user.EmailVerified, user.EmailVerifiedAt, user.LastLoginAt,
-		user.FailedLoginAttempts, user.LockedUntil, user.Version,
+		user.FailedLoginAttempts, user.LockedUntil, user.DeletionMark, user.Attributes,
+		user.Version,
 	)
 	if err != nil {
 		return fmt.Errorf("update user: %w", err)
@@ -154,7 +156,7 @@ func (r *UserRepo) Update(ctx context.Context, user *auth.User) error {
 func (r *UserRepo) Delete(ctx context.Context, userID id.ID) error {
 	q := r.getTxManager(ctx).GetQuerier(ctx)
 
-	query := `UPDATE users SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`
+	query := `UPDATE users SET deletion_mark = TRUE WHERE id = $1 AND deletion_mark = FALSE`
 	result, err := q.Exec(ctx, query, userID)
 	if err != nil {
 		return fmt.Errorf("delete user: %w", err)
@@ -174,11 +176,11 @@ func (r *UserRepo) List(ctx context.Context, filter auth.UserFilter) ([]auth.Use
 	query := `
 		SELECT id, email, password_hash, first_name, last_name,
 			   is_active, is_admin, email_verified, email_verified_at,
-			   last_login_at, created_at, updated_at, version
+			   last_login_at, deletion_mark, version, attributes
 		FROM users
-		WHERE deleted_at IS NULL
+		WHERE deletion_mark = FALSE
 	`
-	countQuery := `SELECT COUNT(*) FROM users WHERE deleted_at IS NULL`
+	countQuery := `SELECT COUNT(*) FROM users WHERE deletion_mark = FALSE`
 
 	var args []interface{}
 	argIdx := 1
@@ -205,7 +207,7 @@ func (r *UserRepo) List(ctx context.Context, filter auth.UserFilter) ([]auth.Use
 	}
 
 	// Add pagination
-	query += " ORDER BY created_at DESC"
+	query += " ORDER BY id ASC"
 	if filter.Limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", filter.Limit)
 	}
@@ -226,7 +228,7 @@ func (r *UserRepo) List(ctx context.Context, filter auth.UserFilter) ([]auth.Use
 			&user.ID, &user.Email, &user.PasswordHash,
 			&user.FirstName, &user.LastName, &user.IsActive, &user.IsAdmin,
 			&user.EmailVerified, &user.EmailVerifiedAt, &user.LastLoginAt,
-			&user.CreatedAt, &user.UpdatedAt, &user.Version,
+			&user.DeletionMark, &user.Version, &user.Attributes,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("scan user: %w", err)
@@ -242,7 +244,7 @@ func (r *UserRepo) LoadRoles(ctx context.Context, userID id.ID) ([]auth.Role, er
 	q := r.getTxManager(ctx).GetQuerier(ctx)
 
 	query := `
-		SELECT r.id, r.code, r.name, r.description, r.is_system, r.created_at, r.updated_at
+		SELECT r.id, r.code, r.name, r.description, r.is_system
 		FROM roles r
 		INNER JOIN user_roles ur ON r.id = ur.role_id
 		WHERE ur.user_id = $1
@@ -259,7 +261,7 @@ func (r *UserRepo) LoadRoles(ctx context.Context, userID id.ID) ([]auth.Role, er
 		var role auth.Role
 		err := rows.Scan(
 			&role.ID, &role.Code, &role.Name,
-			&role.Description, &role.IsSystem, &role.CreatedAt, &role.UpdatedAt,
+			&role.Description, &role.IsSystem,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan role: %w", err)
@@ -329,8 +331,8 @@ func (r *UserRepo) AssignRole(ctx context.Context, userID, roleID id.ID, granted
 	q := r.getTxManager(ctx).GetQuerier(ctx)
 
 	query := `
-		INSERT INTO user_roles (user_id, role_id, granted_by, granted_at)
-		VALUES ($1, $2, NULLIF($3, '00000000-0000-0000-0000-000000000000'::uuid), now())
+		INSERT INTO user_roles (user_id, role_id, granted_by)
+		VALUES ($1, $2, NULLIF($3, '00000000-0000-0000-0000-000000000000'::uuid))
 		ON CONFLICT (user_id, role_id) DO NOTHING
 	`
 
@@ -359,7 +361,7 @@ func (r *UserRepo) RevokeRole(ctx context.Context, userID, roleID id.ID) error {
 func (r *UserRepo) Exists(ctx context.Context, email string) (bool, error) {
 	q := r.getTxManager(ctx).GetQuerier(ctx)
 
-	query := `SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND deleted_at IS NULL)`
+	query := `SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND deletion_mark = FALSE)`
 
 	var exists bool
 	err := q.QueryRow(ctx, query, email).Scan(&exists)

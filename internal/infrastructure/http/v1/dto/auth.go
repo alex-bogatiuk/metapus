@@ -74,16 +74,16 @@ func FromTokenPair(tp *auth.TokenPair) *TokenResponse {
 
 // UserResponse represents user in API response.
 type UserResponse struct {
-	ID            string       `json:"id"`
-	Email         string       `json:"email"`
-	FirstName     string       `json:"firstName,omitempty"`
-	LastName      string       `json:"lastName,omitempty"`
-	FullName      string       `json:"fullName"`
-	IsActive      bool         `json:"isActive"`
-	IsAdmin       bool         `json:"isAdmin"`
-	EmailVerified bool         `json:"emailVerified"`
+	ID            string         `json:"id"`
+	Email         string         `json:"email"`
+	FirstName     string         `json:"firstName,omitempty"`
+	LastName      string         `json:"lastName,omitempty"`
+	FullName      string         `json:"fullName"`
+	IsActive      bool           `json:"isActive"`
+	IsAdmin       bool           `json:"isAdmin"`
+	EmailVerified bool           `json:"emailVerified"`
 	Roles         []RoleResponse `json:"roles,omitempty"`
-	CreatedAt     time.Time    `json:"createdAt"`
+	CreatedAt     time.Time      `json:"createdAt"`
 }
 
 // FromUser creates response from domain user.
@@ -103,7 +103,6 @@ func FromUser(u *auth.User) *UserResponse {
 		IsAdmin:       u.IsAdmin,
 		EmailVerified: u.EmailVerified,
 		Roles:         roles,
-		CreatedAt:     u.CreatedAt,
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"metapus/internal/core/apperror"
+	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 )
 
@@ -17,7 +18,8 @@ type SessionInfo struct {
 
 // User represents a system user.
 type User struct {
-	ID                  id.ID      `db:"id" json:"id"`
+	entity.BaseEntity
+
 	Email               string     `db:"email" json:"email"`
 	PasswordHash        string     `db:"password_hash" json:"-"`
 	FirstName           string     `db:"first_name" json:"firstName,omitempty"`
@@ -29,10 +31,6 @@ type User struct {
 	LastLoginAt         *time.Time `db:"last_login_at" json:"lastLoginAt,omitempty"`
 	FailedLoginAttempts int        `db:"failed_login_attempts" json:"-"`
 	LockedUntil         *time.Time `db:"locked_until" json:"-"`
-	CreatedAt           time.Time  `db:"created_at" json:"createdAt"`
-	UpdatedAt           time.Time  `db:"updated_at" json:"updatedAt"`
-	DeletedAt           *time.Time `db:"deleted_at" json:"-"`
-	Version             int        `db:"version" json:"version"`
 
 	// Loaded relations
 	Roles       []Role   `db:"-" json:"roles,omitempty"`
@@ -43,13 +41,10 @@ type User struct {
 // NewUser creates a new user.
 func NewUser(email, passwordHash string) *User {
 	return &User{
-		ID:           id.New(),
+		BaseEntity:   entity.NewBaseEntity(),
 		Email:        email,
 		PasswordHash: passwordHash,
 		IsActive:     true,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
-		Version:      1,
 	}
 }
 
@@ -136,13 +131,12 @@ func (u *User) FullName() string {
 
 // Role represents a user role.
 type Role struct {
-	ID          id.ID     `db:"id" json:"id"`
-	Code        string    `db:"code" json:"code"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description,omitempty"`
-	IsSystem    bool      `db:"is_system" json:"isSystem"`
-	CreatedAt   time.Time `db:"created_at" json:"createdAt"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updatedAt"`
+	entity.BaseEntity
+
+	Code        string `db:"code" json:"code"`
+	Name        string `db:"name" json:"name"`
+	Description string `db:"description" json:"description,omitempty"`
+	IsSystem    bool   `db:"is_system" json:"isSystem"`
 
 	// Loaded relations
 	Permissions []Permission `db:"-" json:"permissions,omitempty"`
@@ -151,23 +145,20 @@ type Role struct {
 // NewRole creates a new role.
 func NewRole(code, name string) *Role {
 	return &Role{
-		ID:        id.New(),
-		Code:      code,
-		Name:      name,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		BaseEntity: entity.NewBaseEntity(),
+		Code:       code,
+		Name:       name,
 	}
 }
 
 // Permission represents a system permission.
 type Permission struct {
-	ID          id.ID     `db:"id" json:"id"`
-	Code        string    `db:"code" json:"code"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description,omitempty"`
-	Resource    string    `db:"resource" json:"resource"`
-	Action      string    `db:"action" json:"action"`
-	CreatedAt   time.Time `db:"created_at" json:"createdAt"`
+	ID          id.ID  `db:"id" json:"id"`
+	Code        string `db:"code" json:"code"`
+	Name        string `db:"name" json:"name"`
+	Description string `db:"description" json:"description,omitempty"`
+	Resource    string `db:"resource" json:"resource"`
+	Action      string `db:"action" json:"action"`
 }
 
 // RefreshToken represents a refresh token for JWT refresh.

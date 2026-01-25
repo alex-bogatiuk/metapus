@@ -33,6 +33,9 @@ type BaseEntity struct {
 
 	// Attributes stores custom fields (JSONB in PostgreSQL)
 	Attributes Attributes `db:"attributes" json:"attributes,omitempty"`
+
+	// CDCFields contains Change Data Capture system fields (_txid, _deleted_at)
+	CDCFields
 }
 
 // NewBaseEntity creates a new BaseEntity with generated ID.

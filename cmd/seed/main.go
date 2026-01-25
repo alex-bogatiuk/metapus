@@ -70,7 +70,7 @@ func seedAdminUser(ctx context.Context, pool *postgres.Pool, log *logger.Logger)
 	// Check if admin already exists
 	var exists bool
 	err := pool.Pool.QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND deleted_at IS NULL)`,
+		`SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND deletion_mark = FALSE)`,
 		adminEmail,
 	).Scan(&exists)
 	if err != nil {
@@ -93,8 +93,12 @@ func seedAdminUser(ctx context.Context, pool *postgres.Pool, log *logger.Logger)
 
 	// Create admin user
 	_, err = pool.Pool.Exec(ctx, `
-		INSERT INTO users (id, email, password_hash, first_name, last_name, is_active, is_admin, email_verified, created_at, updated_at)
-		VALUES ($1, $2, $3, 'System', 'Admin', true, true, true, $4, $4)
+		INSERT INTO users (
+			id, email, password_hash, first_name, last_name, 
+			is_active, is_admin, email_verified, created_at, updated_at,
+			version, deletion_mark, attributes
+		)
+		VALUES ($1, $2, $3, 'System', 'Admin', true, true, true, $4, $4, 1, false, '{}')
 	`, userID, adminEmail, string(passwordHash), now)
 	if err != nil {
 		return fmt.Errorf("insert admin user: %w", err)
@@ -134,8 +138,8 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger) 
 	orgID := id.New()
 	orgCode := "ORG-001"
 	_, err := pool.Pool.Exec(ctx, `
-		INSERT INTO cat_organizations (id, code, name, full_name, inn, kpp, legal_address)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO cat_organizations (id, code, name, full_name, inn, kpp, legal_address, version, deletion_mark, attributes)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 1, false, '{}')
 		ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
 	`, orgID, orgCode, "ООО Ромашка", "Общество с ограниченной ответственностью 'Ромашка'", "7700000001", "770001001", "г. Москва, ул. Ленина, 1")
 	if err != nil {
@@ -165,8 +169,8 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger) 
 		uid := id.New()
 		// Try to insert
 		commandTag, err := pool.Pool.Exec(ctx, `
-			INSERT INTO cat_units (id, code, name, symbol, type, is_base, conversion_factor)
-			VALUES ($1, $2, $3, $4, $5, true, 1)
+			INSERT INTO cat_units (id, code, name, symbol, type, is_base, conversion_factor, version, deletion_mark, attributes)
+			VALUES ($1, $2, $3, $4, $5, true, 1, 1, false, '{}')
 			ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
 		`, uid, u.symbol, u.name, u.symbol, u.uType)
 
@@ -205,8 +209,8 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger) 
 	for _, c := range currencies {
 		currID := id.New()
 		_, err := pool.Pool.Exec(ctx, `
-			INSERT INTO cat_currencies (id, code, name, iso_code, symbol, is_base)
-			VALUES ($1, $2, $3, $4, $5, $6)
+			INSERT INTO cat_currencies (id, code, name, iso_code, symbol, is_base, version, deletion_mark, attributes)
+			VALUES ($1, $2, $3, $4, $5, $6, 1, false, '{}')
 			ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
 		`, currID, c.isoCode, c.name, c.isoCode, c.symbol, c.isBase)
 		if err != nil {
@@ -231,8 +235,8 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger) 
 		whID := id.New()
 		code := fmt.Sprintf("WH-%03d", i+1)
 		_, err := pool.Pool.Exec(ctx, `
-            INSERT INTO cat_warehouses (id, code, name, address, type, organization_id, is_default)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO cat_warehouses (id, code, name, address, type, organization_id, is_default, version, deletion_mark, attributes)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, 1, false, '{}')
             ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
         `, whID, code, w.name, w.address, w.wType, orgID, w.isDefault)
 
@@ -261,8 +265,8 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger) 
 		cpID := id.New()
 		code := fmt.Sprintf("CP-%03d", i+1)
 		_, err := pool.Pool.Exec(ctx, `
-			INSERT INTO cat_counterparties (id, code, name, type, legal_form, inn, full_name)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			INSERT INTO cat_counterparties (id, code, name, type, legal_form, inn, full_name, version, deletion_mark, attributes)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, 1, false, '{}')
 			ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
 		`, cpID, code, cp.name, cp.ctype, cp.legalForm, cp.inn, cp.name)
 		if err != nil {
@@ -298,8 +302,8 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger) 
 		}
 
 		_, err := pool.Pool.Exec(ctx, `
-			INSERT INTO cat_nomenclature (id, code, name, type, article, barcode, base_unit_id, vat_rate)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, '20')
+			INSERT INTO cat_nomenclature (id, code, name, type, article, barcode, base_unit_id, vat_rate, version, deletion_mark, attributes)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, '20', 1, false, '{}')
 			ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
 		`, prodID, code, p.name, p.ntype, p.article, p.barcode, unitID)
 
