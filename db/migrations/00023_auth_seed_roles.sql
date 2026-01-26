@@ -13,16 +13,16 @@ INSERT INTO roles (id, code, name, description, is_system) VALUES
 ON CONFLICT (code) DO NOTHING;
 
 -- Assign all permissions to admin role
-INSERT INTO role_permissions (role_id, permission_id, created_at)
-SELECT r.id, p.id, now()
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
 FROM roles r
          CROSS JOIN permissions p
 WHERE r.code = 'admin'
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- Assign permissions to accountant role
-INSERT INTO role_permissions (role_id, permission_id, created_at)
-SELECT r.id, p.id, now()
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
 FROM roles r
          CROSS JOIN permissions p
 WHERE r.code = 'accountant'
@@ -35,8 +35,8 @@ WHERE r.code = 'accountant'
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- Assign permissions to manager role
-INSERT INTO role_permissions (role_id, permission_id, created_at)
-SELECT r.id, p.id, now()
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
 FROM roles r
          CROSS JOIN permissions p
 WHERE r.code = 'manager'
@@ -49,8 +49,8 @@ WHERE r.code = 'manager'
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- Assign read permissions to user role
-INSERT INTO role_permissions (role_id, permission_id, created_at)
-SELECT r.id, p.id, now()
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
 FROM roles r
          CROSS JOIN permissions p
 WHERE r.code = 'user'

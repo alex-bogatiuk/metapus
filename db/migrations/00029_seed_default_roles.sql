@@ -4,13 +4,13 @@
 SELECT pg_advisory_lock(hashtext('metapus_migrations'));
 
 -- Используем фиксированный UUID вместо строки 'default'
-INSERT INTO roles (id, code, name, description, is_system, created_at, updated_at)
+INSERT INTO roles (id, code, name, description, is_system)
 VALUES
-    (gen_random_uuid(), 'admin', 'Администратор', 'Полный доступ к системе', true, NOW(), NOW()),
-    (gen_random_uuid(), 'accountant', 'Бухгалтер', 'Работа с документами и отчётами', true, NOW(), NOW()),
-    (gen_random_uuid(), 'manager', 'Менеджер', 'Работа со справочниками и документами', true, NOW(), NOW()),
-    (gen_random_uuid(), 'warehouse_keeper', 'Кладовщик', 'Складские операции', true, NOW(), NOW()),
-    (gen_random_uuid(), 'user', 'Пользователь', 'Базовый доступ только на чтение', true, NOW(), NOW())
+    (gen_random_uuid(), 'admin', 'Администратор', 'Полный доступ к системе', true),
+    (gen_random_uuid(), 'accountant', 'Бухгалтер', 'Работа с документами и отчётами', true),
+    (gen_random_uuid(), 'manager', 'Менеджер', 'Работа со справочниками и документами', true),
+    (gen_random_uuid(), 'warehouse_keeper', 'Кладовщик', 'Складские операции', true),
+    (gen_random_uuid(), 'user', 'Пользователь', 'Базовый доступ только на чтение', true)
 ON CONFLICT (code) DO NOTHING;
 
 -- Assign all permissions to admin role
