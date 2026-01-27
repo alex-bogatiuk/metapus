@@ -30,6 +30,8 @@ type BaseCatalogRepo[T any] struct {
 	tableName  string
 	selectCols []string
 	newFn      func() T
+	validCols  map[string]struct{}
+	orderCols  map[string]struct{}
 }
 
 // NewBaseCatalogRepo creates a new base catalog repository.
@@ -39,10 +41,27 @@ func NewBaseCatalogRepo[T any](
 	selectCols []string,
 	newFn func() T,
 ) *BaseCatalogRepo[T] {
+	validCols := make(map[string]struct{}, len(selectCols)+4)
+	orderCols := make(map[string]struct{}, len(selectCols)+6)
+	for _, col := range selectCols {
+		validCols[col] = struct{}{}
+		orderCols[col] = struct{}{}
+	}
+	validCols["id"] = struct{}{}
+	validCols["parent_id"] = struct{}{}
+
+	orderCols["id"] = struct{}{}
+	orderCols["code"] = struct{}{}
+	orderCols["name"] = struct{}{}
+	orderCols["created_at"] = struct{}{}
+	orderCols["updated_at"] = struct{}{}
+
 	return &BaseCatalogRepo[T]{
 		tableName:  tableName,
 		selectCols: selectCols,
 		newFn:      newFn,
+		validCols:  validCols,
+		orderCols:  orderCols,
 	}
 }
 
@@ -153,6 +172,10 @@ func (r *BaseCatalogRepo[T]) baseSelect(ctx context.Context) squirrel.SelectBuil
 		From(r.tableName)
 }
 
+func (r *BaseCatalogRepo[T]) baseFilterSelect() squirrel.SelectBuilder {
+	return r.Builder().From(r.tableName)
+}
+
 // GetByID retrieves entity by ID.
 func (r *BaseCatalogRepo[T]) GetByID(ctx context.Context, entityID id.ID) (T, error) {
 	entity := r.newFn()
@@ -210,36 +233,36 @@ func (r *BaseCatalogRepo[T]) List(ctx context.Context, filter domain.ListFilter)
 	}
 
 	// Build base query
-	q := r.baseSelect(ctx)
+	filterQ := r.baseFilterSelect()
 
 	// Apply filters
 	if !filter.IncludeDeleted {
-		q = q.Where(squirrel.Eq{"deletion_mark": false})
+		filterQ = filterQ.Where(squirrel.Eq{"deletion_mark": false})
 	}
 
 	if filter.Search != "" {
 		pattern := "%" + filter.Search + "%"
-		q = q.Where(squirrel.Or{
+		filterQ = filterQ.Where(squirrel.Or{
 			squirrel.ILike{"name": pattern},
 			squirrel.ILike{"code": pattern},
 		})
 	}
 
 	if len(filter.IDs) > 0 {
-		q = q.Where(squirrel.Eq{"id": filter.IDs})
+		filterQ = filterQ.Where(squirrel.Eq{"id": filter.IDs})
 	}
 
 	if filter.ParentID != nil {
-		q = q.Where(squirrel.Eq{"parent_id": *filter.ParentID})
+		filterQ = filterQ.Where(squirrel.Eq{"parent_id": *filter.ParentID})
 	}
 
 	if filter.IsFolder != nil {
-		q = q.Where(squirrel.Eq{"is_folder": *filter.IsFolder})
+		filterQ = filterQ.Where(squirrel.Eq{"is_folder": *filter.IsFolder})
 	}
 
 	// Apply advanced filters
 	var err error
-	q, err = r.applyAdvancedFilters(ctx, q, filter.AdvancedFilters)
+	filterQ, err = r.applyAdvancedFilters(ctx, filterQ, filter.AdvancedFilters)
 	if err != nil {
 		return domain.ListResult[T]{}, err
 	}
@@ -247,7 +270,7 @@ func (r *BaseCatalogRepo[T]) List(ctx context.Context, filter domain.ListFilter)
 	// Count total (before pagination)
 	countQ := r.Builder().
 		Select("COUNT(*)").
-		FromSelect(q, "sub")
+		FromSelect(filterQ.Select("1"), "sub")
 
 	countSQL, countArgs, err := countQ.ToSql()
 	if err != nil {
@@ -264,7 +287,7 @@ func (r *BaseCatalogRepo[T]) List(ctx context.Context, filter domain.ListFilter)
 	if err != nil {
 		return result, err
 	}
-	q = q.OrderBy(orderBy)
+	q := filterQ.Select(r.selectCols...).OrderBy(orderBy)
 
 	// Apply pagination
 	if filter.Limit > 0 {
@@ -288,16 +311,8 @@ func (r *BaseCatalogRepo[T]) List(ctx context.Context, filter domain.ListFilter)
 
 // applyAdvancedFilters applies complex filters to query.
 func (r *BaseCatalogRepo[T]) applyAdvancedFilters(ctx context.Context, q squirrel.SelectBuilder, filters []filter.Item) (squirrel.SelectBuilder, error) {
-	// Whitelist columns for SQL injection protection
-	validCols := make(map[string]bool, len(r.selectCols))
-	for _, col := range r.selectCols {
-		validCols[col] = true
-	}
-	validCols["id"] = true
-	validCols["parent_id"] = true
-
 	for _, item := range filters {
-		if !validCols[item.Field] {
+		if _, ok := r.validCols[item.Field]; !ok {
 			return q, fmt.Errorf("invalid filter column: %s", item.Field)
 		}
 
@@ -474,22 +489,23 @@ func (r *BaseCatalogRepo[T]) GetTree(ctx context.Context, rootID *id.ID) ([]T, e
 	rootCond, rootArgs := r.rootCondition(rootID)
 	args := rootArgs
 
+	cteCols := strings.Join(r.treeSelectCols(), ", ")
 	cteSQL := fmt.Sprintf(`
 		WITH RECURSIVE tree AS (
-			SELECT *, 0 as level
+			SELECT %s, 0 as level
 			FROM %s
 			WHERE %s AND deletion_mark = false
 			
 			UNION ALL
 			
-			SELECT c.*, t.level + 1
+			SELECT %s, t.level + 1
 			FROM %s c
 			INNER JOIN tree t ON c.parent_id = t.id
 			WHERE c.deletion_mark = false
 		)
 		SELECT %s FROM tree
 		ORDER BY level, name
-	`, r.tableName, rootCond, r.tableName, strings.Join(r.selectCols, ", "))
+	`, cteCols, r.tableName, rootCond, cteCols, r.tableName, strings.Join(r.selectCols, ", "))
 
 	querier := r.getTxManager(ctx).GetQuerier(ctx)
 	if err := pgxscan.Select(ctx, querier, &items, cteSQL, args...); err != nil {
@@ -505,21 +521,22 @@ func (r *BaseCatalogRepo[T]) GetPath(ctx context.Context, entityID id.ID) ([]T, 
 
 	args := []any{entityID}
 
+	cteCols := strings.Join(r.pathSelectCols(), ", ")
 	cteSQL := fmt.Sprintf(`
 		WITH RECURSIVE path AS (
-			SELECT *, 0 as level
+			SELECT %s, 0 as level
 			FROM %s
 			WHERE id = $1
 			
 			UNION ALL
 			
-			SELECT c.*, p.level + 1
+			SELECT %s, p.level + 1
 			FROM %s c
 			INNER JOIN path p ON c.id = p.parent_id
 		)
 		SELECT %s FROM path
 		ORDER BY level DESC
-	`, r.tableName, r.tableName, strings.Join(r.selectCols, ", "))
+	`, cteCols, r.tableName, cteCols, r.tableName, strings.Join(r.selectCols, ", "))
 
 	querier := r.getTxManager(ctx).GetQuerier(ctx)
 	if err := pgxscan.Select(ctx, querier, &items, cteSQL, args...); err != nil {
@@ -583,17 +600,6 @@ func (r *BaseCatalogRepo[T]) rootCondition(rootID *id.ID) (string, []any) {
 }
 
 func (r *BaseCatalogRepo[T]) parseOrderBy(orderBy string) (string, error) {
-	allowed := make(map[string]struct{}, len(r.selectCols)+4)
-	for _, col := range r.selectCols {
-		allowed[col] = struct{}{}
-	}
-	// Common catalog columns (safe even if not in selectCols for some types)
-	allowed["id"] = struct{}{}
-	allowed["code"] = struct{}{}
-	allowed["name"] = struct{}{}
-	allowed["created_at"] = struct{}{}
-	allowed["updated_at"] = struct{}{}
-
 	if orderBy == "" {
 		return "name ASC", nil
 	}
@@ -613,9 +619,36 @@ func (r *BaseCatalogRepo[T]) parseOrderBy(orderBy string) (string, error) {
 		return "", apperror.NewValidation("invalid orderBy").WithDetail("orderBy", orderBy)
 	}
 
-	if _, ok := allowed[field]; !ok {
+	if _, ok := r.orderCols[field]; !ok {
 		return "", apperror.NewValidation("invalid orderBy").WithDetail("orderBy", orderBy).WithDetail("field", field)
 	}
 
 	return field + " " + direction, nil
+}
+
+func (r *BaseCatalogRepo[T]) treeSelectCols() []string {
+	cols := make([]string, 0, len(r.selectCols)+2)
+	cols = append(cols, "id", "parent_id", "deletion_mark")
+	cols = append(cols, r.selectCols...)
+	return uniqueCols(cols)
+}
+
+func (r *BaseCatalogRepo[T]) pathSelectCols() []string {
+	cols := make([]string, 0, len(r.selectCols)+2)
+	cols = append(cols, "id", "parent_id")
+	cols = append(cols, r.selectCols...)
+	return uniqueCols(cols)
+}
+
+func uniqueCols(cols []string) []string {
+	seen := make(map[string]struct{}, len(cols))
+	out := make([]string, 0, len(cols))
+	for _, col := range cols {
+		if _, ok := seen[col]; ok {
+			continue
+		}
+		seen[col] = struct{}{}
+		out = append(out, col)
+	}
+	return out
 }
