@@ -172,8 +172,44 @@ func (r *BaseCatalogRepo[T]) baseSelect(ctx context.Context) squirrel.SelectBuil
 		From(r.tableName)
 }
 
-func (r *BaseCatalogRepo[T]) baseFilterSelect() squirrel.SelectBuilder {
-	return r.Builder().From(r.tableName)
+// buildWhereConditions builds WHERE conditions for list filtering.
+// Returns conditions that can be applied to any SelectBuilder via Where().
+func (r *BaseCatalogRepo[T]) buildWhereConditions(filter domain.ListFilter) ([]squirrel.Sqlizer, error) {
+	var conditions []squirrel.Sqlizer
+
+	// Apply filters
+	if !filter.IncludeDeleted {
+		conditions = append(conditions, squirrel.Eq{"deletion_mark": false})
+	}
+
+	if filter.Search != "" {
+		pattern := "%" + filter.Search + "%"
+		conditions = append(conditions, squirrel.Or{
+			squirrel.ILike{"name": pattern},
+			squirrel.ILike{"code": pattern},
+		})
+	}
+
+	if len(filter.IDs) > 0 {
+		conditions = append(conditions, squirrel.Eq{"id": filter.IDs})
+	}
+
+	if filter.ParentID != nil {
+		conditions = append(conditions, squirrel.Eq{"parent_id": *filter.ParentID})
+	}
+
+	if filter.IsFolder != nil {
+		conditions = append(conditions, squirrel.Eq{"is_folder": *filter.IsFolder})
+	}
+
+	// Apply advanced filters
+	advConditions, err := r.buildAdvancedFilterConditions(filter.AdvancedFilters)
+	if err != nil {
+		return nil, err
+	}
+	conditions = append(conditions, advConditions...)
+
+	return conditions, nil
 }
 
 // GetByID retrieves entity by ID.
@@ -232,37 +268,8 @@ func (r *BaseCatalogRepo[T]) List(ctx context.Context, filter domain.ListFilter)
 		Offset: filter.Offset,
 	}
 
-	// Build base query
-	filterQ := r.baseFilterSelect()
-
-	// Apply filters
-	if !filter.IncludeDeleted {
-		filterQ = filterQ.Where(squirrel.Eq{"deletion_mark": false})
-	}
-
-	if filter.Search != "" {
-		pattern := "%" + filter.Search + "%"
-		filterQ = filterQ.Where(squirrel.Or{
-			squirrel.ILike{"name": pattern},
-			squirrel.ILike{"code": pattern},
-		})
-	}
-
-	if len(filter.IDs) > 0 {
-		filterQ = filterQ.Where(squirrel.Eq{"id": filter.IDs})
-	}
-
-	if filter.ParentID != nil {
-		filterQ = filterQ.Where(squirrel.Eq{"parent_id": *filter.ParentID})
-	}
-
-	if filter.IsFolder != nil {
-		filterQ = filterQ.Where(squirrel.Eq{"is_folder": *filter.IsFolder})
-	}
-
-	// Apply advanced filters
-	var err error
-	filterQ, err = r.applyAdvancedFilters(ctx, filterQ, filter.AdvancedFilters)
+	// Build WHERE conditions
+	conditions, err := r.buildWhereConditions(filter)
 	if err != nil {
 		return domain.ListResult[T]{}, err
 	}
@@ -270,7 +277,10 @@ func (r *BaseCatalogRepo[T]) List(ctx context.Context, filter domain.ListFilter)
 	// Count total (before pagination)
 	countQ := r.Builder().
 		Select("COUNT(*)").
-		FromSelect(filterQ.Select("1"), "sub")
+		From(r.tableName)
+	for _, cond := range conditions {
+		countQ = countQ.Where(cond)
+	}
 
 	countSQL, countArgs, err := countQ.ToSql()
 	if err != nil {
@@ -287,7 +297,15 @@ func (r *BaseCatalogRepo[T]) List(ctx context.Context, filter domain.ListFilter)
 	if err != nil {
 		return result, err
 	}
-	q := filterQ.Select(r.selectCols...).OrderBy(orderBy)
+
+	// Build select query with same conditions
+	q := r.Builder().
+		Select(r.selectCols...).
+		From(r.tableName)
+	for _, cond := range conditions {
+		q = q.Where(cond)
+	}
+	q = q.OrderBy(orderBy)
 
 	// Apply pagination
 	if filter.Limit > 0 {
@@ -309,40 +327,42 @@ func (r *BaseCatalogRepo[T]) List(ctx context.Context, filter domain.ListFilter)
 	return result, nil
 }
 
-// applyAdvancedFilters applies complex filters to query.
-func (r *BaseCatalogRepo[T]) applyAdvancedFilters(ctx context.Context, q squirrel.SelectBuilder, filters []filter.Item) (squirrel.SelectBuilder, error) {
+// buildAdvancedFilterConditions builds conditions from advanced filters.
+func (r *BaseCatalogRepo[T]) buildAdvancedFilterConditions(filters []filter.Item) ([]squirrel.Sqlizer, error) {
+	var conditions []squirrel.Sqlizer
+
 	for _, item := range filters {
 		if _, ok := r.validCols[item.Field]; !ok {
-			return q, fmt.Errorf("invalid filter column: %s", item.Field)
+			return nil, fmt.Errorf("invalid filter column: %s", item.Field)
 		}
 
 		switch item.Operator {
 		case filter.Equal:
-			q = q.Where(squirrel.Eq{item.Field: item.Value})
+			conditions = append(conditions, squirrel.Eq{item.Field: item.Value})
 		case filter.NotEqual:
-			q = q.Where(squirrel.NotEq{item.Field: item.Value})
+			conditions = append(conditions, squirrel.NotEq{item.Field: item.Value})
 		case filter.LessOrEqual:
-			q = q.Where(squirrel.LtOrEq{item.Field: item.Value})
+			conditions = append(conditions, squirrel.LtOrEq{item.Field: item.Value})
 		case filter.GreaterOrEqual:
-			q = q.Where(squirrel.GtOrEq{item.Field: item.Value})
+			conditions = append(conditions, squirrel.GtOrEq{item.Field: item.Value})
 		case filter.Less:
-			q = q.Where(squirrel.Lt{item.Field: item.Value})
+			conditions = append(conditions, squirrel.Lt{item.Field: item.Value})
 		case filter.Greater:
-			q = q.Where(squirrel.Gt{item.Field: item.Value})
+			conditions = append(conditions, squirrel.Gt{item.Field: item.Value})
 		case filter.InList:
-			q = q.Where(squirrel.Eq{item.Field: item.Value})
+			conditions = append(conditions, squirrel.Eq{item.Field: item.Value})
 		case filter.NotInList:
-			q = q.Where(squirrel.NotEq{item.Field: item.Value})
+			conditions = append(conditions, squirrel.NotEq{item.Field: item.Value})
 		case filter.IsNull:
-			q = q.Where(squirrel.Eq{item.Field: nil})
+			conditions = append(conditions, squirrel.Eq{item.Field: nil})
 		case filter.IsNotNull:
-			q = q.Where(squirrel.NotEq{item.Field: nil})
+			conditions = append(conditions, squirrel.NotEq{item.Field: nil})
 		case filter.Contains:
 			val := fmt.Sprintf("%%%v%%", item.Value)
-			q = q.Where(squirrel.ILike{item.Field: val})
+			conditions = append(conditions, squirrel.ILike{item.Field: val})
 		case filter.NotContains:
 			val := fmt.Sprintf("%%%v%%", item.Value)
-			q = q.Where(squirrel.NotILike{item.Field: val})
+			conditions = append(conditions, squirrel.NotILike{item.Field: val})
 		case filter.InHierarchy:
 			cteSQL := fmt.Sprintf(`
                 id IN (
@@ -354,7 +374,7 @@ func (r *BaseCatalogRepo[T]) applyAdvancedFilters(ctx context.Context, q squirre
                     SELECT id FROM hierarchy
                 )
             `, r.tableName, r.tableName)
-			q = q.Where(squirrel.Expr(cteSQL, item.Value))
+			conditions = append(conditions, squirrel.Expr(cteSQL, item.Value))
 		case filter.NotInHierarchy:
 			cteSQL := fmt.Sprintf(`
                 id NOT IN (
@@ -366,11 +386,11 @@ func (r *BaseCatalogRepo[T]) applyAdvancedFilters(ctx context.Context, q squirre
                     SELECT id FROM hierarchy
                 )
             `, r.tableName, r.tableName)
-			q = q.Where(squirrel.Expr(cteSQL, item.Value))
+			conditions = append(conditions, squirrel.Expr(cteSQL, item.Value))
 		}
 	}
 
-	return q, nil
+	return conditions, nil
 }
 
 // Exists checks if entity exists.

@@ -75,11 +75,12 @@ func (s *CatalogService[T]) normalizeGetErr(err error, idOrCode any) error {
 	}
 	// Preserve existing AppError, but ensure not-found is mapped to the correct entity name.
 	if apperror.IsNotFound(err) {
-		return apperror.NewNotFound(s.entityName, idOrCode)
+		return apperror.NewNotFound(s.entityName, idOrCode).WithCause(err)
 	}
 	if apperror.IsAppError(err) {
 		return err
 	}
+	// Internal errors already have cause set via NewInternal(err)
 	return apperror.NewInternal(err).WithDetail("entity", s.entityName).WithDetail("id", idOrCode)
 }
 

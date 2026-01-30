@@ -165,7 +165,10 @@ func (s *Service) Login(ctx context.Context, creds Credentials, info SessionInfo
 	// Find user
 	user, err := s.userRepo.GetByEmail(ctx, creds.Email)
 	if err != nil {
-		return nil, nil, apperror.NewUnauthorized("invalid credentials")
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get user by email", "email", creds.Email, "error", err)
+		}
+		return nil, nil, apperror.NewUnauthorized("invalid credentials").WithCause(err)
 	}
 	// Check if can login
 	if err := user.CanLogin(); err != nil {
@@ -224,7 +227,10 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string, info Se
 	// Find token
 	token, err := s.tokenRepo.GetRefreshToken(ctx, tokenHash)
 	if err != nil {
-		return nil, apperror.NewUnauthorized("invalid refresh token")
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get refresh token", "error", err)
+		}
+		return nil, apperror.NewUnauthorized("invalid refresh token").WithCause(err)
 	}
 
 	// Validate token
@@ -235,7 +241,10 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string, info Se
 	// Get user
 	user, err := s.userRepo.GetByID(ctx, token.UserID)
 	if err != nil {
-		return nil, apperror.NewUnauthorized("user not found")
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get user by ID for refresh", "user_id", token.UserID, "error", err)
+		}
+		return nil, apperror.NewUnauthorized("user not found").WithCause(err)
 	}
 
 	// Check if user can login
@@ -275,13 +284,19 @@ func (s *Service) AssignRole(ctx context.Context, userID id.ID, roleCode string)
 	// Ensure user exists
 	_, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return apperror.NewNotFound("user", userID.String())
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get user for role assignment", "user_id", userID, "error", err)
+		}
+		return apperror.NewNotFound("user", userID.String()).WithCause(err)
 	}
 
 	// Find role
 	role, err := s.roleRepo.GetByCode(ctx, roleCode)
 	if err != nil {
-		return apperror.NewNotFound("role", roleCode)
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get role by code", "role_code", roleCode, "error", err)
+		}
+		return apperror.NewNotFound("role", roleCode).WithCause(err)
 	}
 
 	// Assign role
@@ -302,12 +317,18 @@ func (s *Service) RevokeRole(ctx context.Context, userID id.ID, roleCode string)
 	// Ensure user exists
 	_, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return apperror.NewNotFound("user", userID.String())
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get user for role revocation", "user_id", userID, "error", err)
+		}
+		return apperror.NewNotFound("user", userID.String()).WithCause(err)
 	}
 
 	role, err := s.roleRepo.GetByCode(ctx, roleCode)
 	if err != nil {
-		return apperror.NewNotFound("role", roleCode)
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get role by code", "role_code", roleCode, "error", err)
+		}
+		return apperror.NewNotFound("role", roleCode).WithCause(err)
 	}
 
 	return s.userRepo.RevokeRole(ctx, userID, role.ID)
@@ -317,7 +338,10 @@ func (s *Service) RevokeRole(ctx context.Context, userID id.ID, roleCode string)
 func (s *Service) GetUserByID(ctx context.Context, userID id.ID) (*User, error) {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return nil, apperror.NewNotFound("user", userID.String())
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get user by ID", "user_id", userID, "error", err)
+		}
+		return nil, apperror.NewNotFound("user", userID.String()).WithCause(err)
 	}
 
 	// Load relations
