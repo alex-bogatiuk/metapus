@@ -3,10 +3,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 
 	"metapus/internal/core/id"
@@ -42,13 +44,14 @@ func main() {
 	log.Info("connected to database")
 
 	// Seed admin user
-	if err := seedAdminUser(ctx, pool, log); err != nil {
+	adminUserID, err := seedAdminUser(ctx, pool, log)
+	if err != nil {
 		log.Fatalw("failed to seed admin user", "error", err)
 	}
 
 	// Seed demo data if requested
 	if os.Getenv("SEED_DEMO_DATA") == "true" {
-		if err := seedDemoData(ctx, pool, log); err != nil {
+		if err := seedDemoData(ctx, pool, log, adminUserID); err != nil {
 			log.Fatalw("failed to seed demo data", "error", err)
 		}
 	}
@@ -56,7 +59,7 @@ func main() {
 	log.Info("seeding completed successfully")
 }
 
-func seedAdminUser(ctx context.Context, pool *postgres.Pool, log *logger.Logger) error {
+func seedAdminUser(ctx context.Context, pool *postgres.Pool, log *logger.Logger) (id.ID, error) {
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	if adminEmail == "" {
 		adminEmail = "admin@metapus.io"
@@ -68,24 +71,23 @@ func seedAdminUser(ctx context.Context, pool *postgres.Pool, log *logger.Logger)
 	}
 
 	// Check if admin already exists
-	var exists bool
+	var existingID id.ID
 	err := pool.Pool.QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND deletion_mark = FALSE)`,
+		`SELECT id FROM users WHERE email = $1 AND deleted_at IS NULL`,
 		adminEmail,
-	).Scan(&exists)
-	if err != nil {
-		return fmt.Errorf("check admin exists: %w", err)
+	).Scan(&existingID)
+	if err == nil {
+		log.Infow("admin user already exists", "email", adminEmail, "user_id", existingID)
+		return existingID, nil
 	}
-
-	if exists {
-		log.Infow("admin user already exists", "email", adminEmail)
-		return nil
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return id.Nil(), fmt.Errorf("check admin exists: %w", err)
 	}
 
 	// Hash password
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
 	if err != nil {
-		return fmt.Errorf("hash password: %w", err)
+		return id.Nil(), fmt.Errorf("hash password: %w", err)
 	}
 
 	userID := id.New()
@@ -94,14 +96,13 @@ func seedAdminUser(ctx context.Context, pool *postgres.Pool, log *logger.Logger)
 	// Create admin user
 	_, err = pool.Pool.Exec(ctx, `
 		INSERT INTO users (
-			id, email, password_hash, first_name, last_name, 
-			is_active, is_admin, email_verified, created_at, updated_at,
-			version, deletion_mark, attributes
+			id, email, password_hash, first_name, last_name,
+			is_active, is_admin, email_verified, email_verified_at, version
 		)
-		VALUES ($1, $2, $3, 'System', 'Admin', true, true, true, $4, $4, 1, false, '{}')
+		VALUES ($1, $2, $3, 'System', 'Admin', true, true, true, $4, 1)
 	`, userID, adminEmail, string(passwordHash), now)
 	if err != nil {
-		return fmt.Errorf("insert admin user: %w", err)
+		return id.Nil(), fmt.Errorf("insert admin user: %w", err)
 	}
 
 	// Assign admin role
@@ -113,10 +114,10 @@ func seedAdminUser(ctx context.Context, pool *postgres.Pool, log *logger.Logger)
 		log.Warnw("admin role not found, skipping role assignment", "error", err)
 	} else {
 		_, err = pool.Pool.Exec(ctx, `
-			INSERT INTO user_roles (user_id, role_id, granted_at)
-			VALUES ($1, $2, $3)
-			ON CONFLICT DO NOTHING
-		`, userID, adminRoleID, now)
+			INSERT INTO user_roles (user_id, role_id, granted_by)
+			VALUES ($1, $2, NULL)
+			ON CONFLICT (user_id, role_id) DO NOTHING
+		`, userID, adminRoleID)
 		if err != nil {
 			log.Warnw("failed to assign admin role", "error", err)
 		}
@@ -127,23 +128,45 @@ func seedAdminUser(ctx context.Context, pool *postgres.Pool, log *logger.Logger)
 		"user_id", userID,
 	)
 
-	return nil
+	return userID, nil
 }
 
-func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger) error {
+func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, adminUserID id.ID) error {
 	log.Info("seeding demo data...")
 
 	// 1. Seed Organization (Root entity)
 	// Required for documents in later stages
 	orgID := id.New()
 	orgCode := "ORG-001"
-	_, err := pool.Pool.Exec(ctx, `
+	commandTag, err := pool.Pool.Exec(ctx, `
 		INSERT INTO cat_organizations (id, code, name, full_name, inn, kpp, legal_address, version, deletion_mark, attributes)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, 1, false, '{}')
 		ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
 	`, orgID, orgCode, "ООО Ромашка", "Общество с ограниченной ответственностью 'Ромашка'", "7700000001", "770001001", "г. Москва, ул. Ленина, 1")
 	if err != nil {
 		log.Warnw("failed to seed organization", "error", err)
+	}
+
+	orgAvailable := err == nil
+	if orgAvailable && commandTag.RowsAffected() == 0 {
+		err = pool.Pool.QueryRow(ctx, `
+			SELECT id FROM cat_organizations WHERE code = $1 AND deletion_mark = FALSE
+		`, orgCode).Scan(&orgID)
+		if err != nil {
+			log.Warnw("failed to fetch existing organization", "code", orgCode, "error", err)
+			orgAvailable = false
+		}
+	}
+
+	if orgAvailable && !id.IsNil(adminUserID) && !id.IsNil(orgID) {
+		_, orgErr := pool.Pool.Exec(ctx, `
+			INSERT INTO user_organizations (user_id, organization_id, is_default)
+			VALUES ($1, $2, true)
+			ON CONFLICT (user_id, organization_id) DO NOTHING
+		`, adminUserID, orgID)
+		if orgErr != nil {
+			log.Warnw("failed to link admin user to organization", "error", orgErr)
+		}
 	}
 
 	// 2. Seed Units
@@ -234,11 +257,15 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger) 
 	for i, w := range warehouses {
 		whID := id.New()
 		code := fmt.Sprintf("WH-%03d", i+1)
+		var orgIDValue interface{}
+		if orgAvailable && !id.IsNil(orgID) {
+			orgIDValue = orgID
+		}
 		_, err := pool.Pool.Exec(ctx, `
             INSERT INTO cat_warehouses (id, code, name, address, type, organization_id, is_default, version, deletion_mark, attributes)
             VALUES ($1, $2, $3, $4, $5, $6, $7, 1, false, '{}')
             ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
-        `, whID, code, w.name, w.address, w.wType, orgID, w.isDefault)
+        `, whID, code, w.name, w.address, w.wType, orgIDValue, w.isDefault)
 
 		// Особая обработка для is_default:
 		// Если мы пытаемся вставить второй default (вдруг), база отстрелит ошибку 23505
