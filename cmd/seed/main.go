@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
 	"metapus/internal/core/id"
+	"metapus/internal/core/tenant"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/pkg/logger"
 )
@@ -51,6 +53,9 @@ func main() {
 
 	// Seed demo data if requested
 	if os.Getenv("SEED_DEMO_DATA") == "true" {
+		if err := seedTenantRegistry(ctx, dbURL, log); err != nil {
+			log.Warnw("failed to seed tenant registry", "error", err)
+		}
 		if err := seedDemoData(ctx, pool, log, adminUserID); err != nil {
 			log.Fatalw("failed to seed demo data", "error", err)
 		}
@@ -340,5 +345,87 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 	}
 
 	log.Info("demo data seeded successfully")
+	return nil
+}
+
+func seedTenantRegistry(ctx context.Context, dbURL string, log *logger.Logger) error {
+	metaDSN := os.Getenv("META_DATABASE_URL")
+	if metaDSN == "" {
+		log.Warn("META_DATABASE_URL is not set; skipping tenant registry seed")
+		return nil
+	}
+
+	metaPool, err := pgxpool.New(ctx, metaDSN)
+	if err != nil {
+		return fmt.Errorf("connect meta database: %w", err)
+	}
+	defer metaPool.Close()
+
+	if err := metaPool.Ping(ctx); err != nil {
+		return fmt.Errorf("ping meta database: %w", err)
+	}
+
+	tenantSlug := os.Getenv("TENANT_SLUG")
+	if tenantSlug == "" {
+		tenantSlug = "demo"
+	}
+
+	tenantName := os.Getenv("TENANT_NAME")
+	if tenantName == "" {
+		tenantName = "Demo Tenant"
+	}
+
+	tenantPlan := os.Getenv("TENANT_PLAN")
+	if tenantPlan == "" {
+		tenantPlan = string(tenant.PlanStandard)
+	}
+
+	dbConfig, err := pgxpool.ParseConfig(dbURL)
+	if err != nil {
+		return fmt.Errorf("parse tenant database url: %w", err)
+	}
+
+	dbHost := dbConfig.ConnConfig.Host
+	if dbHost == "" {
+		dbHost = "localhost"
+	}
+
+	dbPort := int(dbConfig.ConnConfig.Port)
+	if dbPort == 0 {
+		dbPort = 5432
+	}
+
+	dbName := dbConfig.ConnConfig.Database
+	if dbName == "" {
+		dbName = "metapus"
+	}
+
+	var existingID string
+	err = metaPool.QueryRow(ctx, `SELECT id FROM tenants WHERE slug = $1`, tenantSlug).Scan(&existingID)
+	if err == nil {
+		log.Infow("tenant already exists in registry", "slug", tenantSlug, "tenant_id", existingID)
+		return nil
+	}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("check tenant exists: %w", err)
+	}
+
+	registry := tenant.NewPostgresRegistry(metaPool)
+	newTenant := &tenant.Tenant{
+		Slug:        tenantSlug,
+		DisplayName: tenantName,
+		DBName:      dbName,
+		DBHost:      dbHost,
+		DBPort:      dbPort,
+		Status:      tenant.StatusActive,
+		Plan:        tenant.Plan(tenantPlan),
+		Settings:    map[string]any{},
+	}
+
+	if err := registry.Create(ctx, newTenant); err != nil {
+		return fmt.Errorf("create tenant: %w", err)
+	}
+
+	log.Infow("tenant seeded in registry", "slug", tenantSlug, "tenant_id", newTenant.ID)
 	return nil
 }
