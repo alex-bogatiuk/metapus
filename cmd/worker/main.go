@@ -54,7 +54,12 @@ func main() {
 	// Start multi-tenant worker
 	worker := NewMultiTenantWorker(manager, log)
 
-	go worker.Run(ctx)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		worker.Run(ctx)
+	}()
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
@@ -64,7 +69,7 @@ func main() {
 	log.Info("shutting down worker...")
 	cancel()
 
-	time.Sleep(2 * time.Second)
+	wg.Wait()
 	log.Info("worker stopped")
 }
 
@@ -117,8 +122,21 @@ func (w *MultiTenantWorker) refreshTenants(ctx context.Context, wg *sync.WaitGro
 		return
 	}
 
+	activeTenants := make(map[string]*tenant.Tenant, len(tenants))
+	for _, t := range tenants {
+		activeTenants[t.ID] = t
+	}
+
 	mu.Lock()
 	defer mu.Unlock()
+
+	for tenantID, cancel := range tenantContexts {
+		if _, active := activeTenants[tenantID]; !active {
+			cancel()
+			delete(tenantContexts, tenantID)
+			w.log.Infow("stopped worker for inactive tenant", "tenant_id", tenantID)
+		}
+	}
 
 	for _, t := range tenants {
 		if _, exists := tenantContexts[t.ID]; !exists {
