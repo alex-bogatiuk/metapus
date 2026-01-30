@@ -3,13 +3,17 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
 	"metapus/internal/core/id"
+	"metapus/internal/core/tenant"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/pkg/logger"
 )
@@ -42,13 +46,17 @@ func main() {
 	log.Info("connected to database")
 
 	// Seed admin user
-	if err := seedAdminUser(ctx, pool, log); err != nil {
+	adminUserID, err := seedAdminUser(ctx, pool, log)
+	if err != nil {
 		log.Fatalw("failed to seed admin user", "error", err)
 	}
 
 	// Seed demo data if requested
 	if os.Getenv("SEED_DEMO_DATA") == "true" {
-		if err := seedDemoData(ctx, pool, log); err != nil {
+		if err := seedTenantRegistry(ctx, dbURL, log); err != nil {
+			log.Warnw("failed to seed tenant registry", "error", err)
+		}
+		if err := seedDemoData(ctx, pool, log, adminUserID); err != nil {
 			log.Fatalw("failed to seed demo data", "error", err)
 		}
 	}
@@ -56,7 +64,7 @@ func main() {
 	log.Info("seeding completed successfully")
 }
 
-func seedAdminUser(ctx context.Context, pool *postgres.Pool, log *logger.Logger) error {
+func seedAdminUser(ctx context.Context, pool *postgres.Pool, log *logger.Logger) (id.ID, error) {
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	if adminEmail == "" {
 		adminEmail = "admin@metapus.io"
@@ -68,24 +76,23 @@ func seedAdminUser(ctx context.Context, pool *postgres.Pool, log *logger.Logger)
 	}
 
 	// Check if admin already exists
-	var exists bool
+	var existingID id.ID
 	err := pool.Pool.QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND deletion_mark = FALSE)`,
+		`SELECT id FROM users WHERE email = $1 AND deleted_at IS NULL`,
 		adminEmail,
-	).Scan(&exists)
-	if err != nil {
-		return fmt.Errorf("check admin exists: %w", err)
+	).Scan(&existingID)
+	if err == nil {
+		log.Infow("admin user already exists", "email", adminEmail, "user_id", existingID)
+		return existingID, nil
 	}
-
-	if exists {
-		log.Infow("admin user already exists", "email", adminEmail)
-		return nil
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return id.Nil(), fmt.Errorf("check admin exists: %w", err)
 	}
 
 	// Hash password
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
 	if err != nil {
-		return fmt.Errorf("hash password: %w", err)
+		return id.Nil(), fmt.Errorf("hash password: %w", err)
 	}
 
 	userID := id.New()
@@ -94,14 +101,13 @@ func seedAdminUser(ctx context.Context, pool *postgres.Pool, log *logger.Logger)
 	// Create admin user
 	_, err = pool.Pool.Exec(ctx, `
 		INSERT INTO users (
-			id, email, password_hash, first_name, last_name, 
-			is_active, is_admin, email_verified, created_at, updated_at,
-			version, deletion_mark, attributes
+			id, email, password_hash, first_name, last_name,
+			is_active, is_admin, email_verified, email_verified_at, version
 		)
-		VALUES ($1, $2, $3, 'System', 'Admin', true, true, true, $4, $4, 1, false, '{}')
+		VALUES ($1, $2, $3, 'System', 'Admin', true, true, true, $4, 1)
 	`, userID, adminEmail, string(passwordHash), now)
 	if err != nil {
-		return fmt.Errorf("insert admin user: %w", err)
+		return id.Nil(), fmt.Errorf("insert admin user: %w", err)
 	}
 
 	// Assign admin role
@@ -113,10 +119,10 @@ func seedAdminUser(ctx context.Context, pool *postgres.Pool, log *logger.Logger)
 		log.Warnw("admin role not found, skipping role assignment", "error", err)
 	} else {
 		_, err = pool.Pool.Exec(ctx, `
-			INSERT INTO user_roles (user_id, role_id, granted_at)
-			VALUES ($1, $2, $3)
-			ON CONFLICT DO NOTHING
-		`, userID, adminRoleID, now)
+			INSERT INTO user_roles (user_id, role_id, granted_by)
+			VALUES ($1, $2, NULL)
+			ON CONFLICT (user_id, role_id) DO NOTHING
+		`, userID, adminRoleID)
 		if err != nil {
 			log.Warnw("failed to assign admin role", "error", err)
 		}
@@ -127,23 +133,45 @@ func seedAdminUser(ctx context.Context, pool *postgres.Pool, log *logger.Logger)
 		"user_id", userID,
 	)
 
-	return nil
+	return userID, nil
 }
 
-func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger) error {
+func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, adminUserID id.ID) error {
 	log.Info("seeding demo data...")
 
 	// 1. Seed Organization (Root entity)
 	// Required for documents in later stages
 	orgID := id.New()
 	orgCode := "ORG-001"
-	_, err := pool.Pool.Exec(ctx, `
+	commandTag, err := pool.Pool.Exec(ctx, `
 		INSERT INTO cat_organizations (id, code, name, full_name, inn, kpp, legal_address, version, deletion_mark, attributes)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, 1, false, '{}')
 		ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
 	`, orgID, orgCode, "ООО Ромашка", "Общество с ограниченной ответственностью 'Ромашка'", "7700000001", "770001001", "г. Москва, ул. Ленина, 1")
 	if err != nil {
 		log.Warnw("failed to seed organization", "error", err)
+	}
+
+	orgAvailable := err == nil
+	if orgAvailable && commandTag.RowsAffected() == 0 {
+		err = pool.Pool.QueryRow(ctx, `
+			SELECT id FROM cat_organizations WHERE code = $1 AND deletion_mark = FALSE
+		`, orgCode).Scan(&orgID)
+		if err != nil {
+			log.Warnw("failed to fetch existing organization", "code", orgCode, "error", err)
+			orgAvailable = false
+		}
+	}
+
+	if orgAvailable && !id.IsNil(adminUserID) && !id.IsNil(orgID) {
+		_, orgErr := pool.Pool.Exec(ctx, `
+			INSERT INTO user_organizations (user_id, organization_id, is_default)
+			VALUES ($1, $2, true)
+			ON CONFLICT (user_id, organization_id) DO NOTHING
+		`, adminUserID, orgID)
+		if orgErr != nil {
+			log.Warnw("failed to link admin user to organization", "error", orgErr)
+		}
 	}
 
 	// 2. Seed Units
@@ -234,11 +262,15 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger) 
 	for i, w := range warehouses {
 		whID := id.New()
 		code := fmt.Sprintf("WH-%03d", i+1)
+		var orgIDValue interface{}
+		if orgAvailable && !id.IsNil(orgID) {
+			orgIDValue = orgID
+		}
 		_, err := pool.Pool.Exec(ctx, `
             INSERT INTO cat_warehouses (id, code, name, address, type, organization_id, is_default, version, deletion_mark, attributes)
             VALUES ($1, $2, $3, $4, $5, $6, $7, 1, false, '{}')
             ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
-        `, whID, code, w.name, w.address, w.wType, orgID, w.isDefault)
+        `, whID, code, w.name, w.address, w.wType, orgIDValue, w.isDefault)
 
 		// Особая обработка для is_default:
 		// Если мы пытаемся вставить второй default (вдруг), база отстрелит ошибку 23505
@@ -313,5 +345,87 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger) 
 	}
 
 	log.Info("demo data seeded successfully")
+	return nil
+}
+
+func seedTenantRegistry(ctx context.Context, dbURL string, log *logger.Logger) error {
+	metaDSN := os.Getenv("META_DATABASE_URL")
+	if metaDSN == "" {
+		log.Warn("META_DATABASE_URL is not set; skipping tenant registry seed")
+		return nil
+	}
+
+	metaPool, err := pgxpool.New(ctx, metaDSN)
+	if err != nil {
+		return fmt.Errorf("connect meta database: %w", err)
+	}
+	defer metaPool.Close()
+
+	if err := metaPool.Ping(ctx); err != nil {
+		return fmt.Errorf("ping meta database: %w", err)
+	}
+
+	tenantSlug := os.Getenv("TENANT_SLUG")
+	if tenantSlug == "" {
+		tenantSlug = "demo"
+	}
+
+	tenantName := os.Getenv("TENANT_NAME")
+	if tenantName == "" {
+		tenantName = "Demo Tenant"
+	}
+
+	tenantPlan := os.Getenv("TENANT_PLAN")
+	if tenantPlan == "" {
+		tenantPlan = string(tenant.PlanStandard)
+	}
+
+	dbConfig, err := pgxpool.ParseConfig(dbURL)
+	if err != nil {
+		return fmt.Errorf("parse tenant database url: %w", err)
+	}
+
+	dbHost := dbConfig.ConnConfig.Host
+	if dbHost == "" {
+		dbHost = "localhost"
+	}
+
+	dbPort := int(dbConfig.ConnConfig.Port)
+	if dbPort == 0 {
+		dbPort = 5432
+	}
+
+	dbName := dbConfig.ConnConfig.Database
+	if dbName == "" {
+		dbName = "metapus"
+	}
+
+	var existingID string
+	err = metaPool.QueryRow(ctx, `SELECT id FROM tenants WHERE slug = $1`, tenantSlug).Scan(&existingID)
+	if err == nil {
+		log.Infow("tenant already exists in registry", "slug", tenantSlug, "tenant_id", existingID)
+		return nil
+	}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("check tenant exists: %w", err)
+	}
+
+	registry := tenant.NewPostgresRegistry(metaPool)
+	newTenant := &tenant.Tenant{
+		Slug:        tenantSlug,
+		DisplayName: tenantName,
+		DBName:      dbName,
+		DBHost:      dbHost,
+		DBPort:      dbPort,
+		Status:      tenant.StatusActive,
+		Plan:        tenant.Plan(tenantPlan),
+		Settings:    map[string]any{},
+	}
+
+	if err := registry.Create(ctx, newTenant); err != nil {
+		return fmt.Errorf("create tenant: %w", err)
+	}
+
+	log.Infow("tenant seeded in registry", "slug", tenantSlug, "tenant_id", newTenant.ID)
 	return nil
 }
