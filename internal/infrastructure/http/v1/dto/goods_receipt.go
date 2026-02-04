@@ -19,7 +19,7 @@ type CreateGoodsReceiptRequest struct {
 	SupplierDocNumber string                    `json:"supplierDocNumber,omitempty"`
 	SupplierDocDate   *time.Time                `json:"supplierDocDate,omitempty"`
 	Currency          string                    `json:"currency,omitempty"`
-	Comment           string                    `json:"comment,omitempty"`
+	Description       string                    `json:"description,omitempty"`
 	Lines             []GoodsReceiptLineRequest `json:"lines" binding:"required,min=1,dive"`
 	PostImmediately   bool                      `json:"postImmediately,omitempty"`
 }
@@ -42,7 +42,7 @@ func (r *CreateGoodsReceiptRequest) ToEntity() *goods_receipt.GoodsReceipt {
 	doc.Date = r.Date
 	doc.SupplierDocNumber = r.SupplierDocNumber
 	doc.SupplierDocDate = r.SupplierDocDate
-	doc.Comment = r.Comment
+	doc.Description = r.Description
 
 	if r.Currency != "" {
 		doc.Currency = r.Currency
@@ -71,7 +71,7 @@ type UpdateGoodsReceiptRequest struct {
 	SupplierDocNumber *string                   `json:"supplierDocNumber,omitempty"`
 	SupplierDocDate   *time.Time                `json:"supplierDocDate,omitempty"`
 	Currency          *string                   `json:"currency,omitempty"`
-	Comment           *string                   `json:"comment,omitempty"`
+	Description       *string                   `json:"description,omitempty"`
 	Lines             []GoodsReceiptLineRequest `json:"lines,omitempty"`
 }
 
@@ -103,8 +103,8 @@ func (r *UpdateGoodsReceiptRequest) ApplyTo(doc *goods_receipt.GoodsReceipt) {
 	if r.Currency != nil {
 		doc.Currency = *r.Currency
 	}
-	if r.Comment != nil {
-		doc.Comment = *r.Comment
+	if r.Description != nil {
+		doc.Description = *r.Description
 	}
 
 	// If lines are provided, rebuild them
@@ -140,7 +140,7 @@ type GoodsReceiptResponse struct {
 	TotalQuantity     float64                    `json:"totalQuantity"`
 	TotalAmount       int64                      `json:"totalAmount"`
 	TotalVAT          int64                      `json:"totalVat"`
-	Comment           string                     `json:"comment,omitempty"`
+	Description       string                     `json:"description,omitempty"`
 	Lines             []GoodsReceiptLineResponse `json:"lines,omitempty"`
 	DeletionMark      bool                       `json:"deletionMark,omitempty"`
 	CreatedAt         time.Time                  `json:"createdAt"`
@@ -175,7 +175,7 @@ func FromGoodsReceipt(doc *goods_receipt.GoodsReceipt) *GoodsReceiptResponse {
 		TotalQuantity:     doc.TotalQuantity,
 		TotalAmount:       doc.TotalAmount,
 		TotalVAT:          doc.TotalVAT,
-		Comment:           doc.Comment,
+		Description:       doc.Description,
 		DeletionMark:      doc.DeletionMark,
 		CreatedAt:         doc.CreatedAt,
 		UpdatedAt:         doc.UpdatedAt,

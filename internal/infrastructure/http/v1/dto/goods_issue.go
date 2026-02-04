@@ -18,7 +18,7 @@ type CreateGoodsIssueRequest struct {
 	CustomerOrderNumber string                  `json:"customerOrderNumber,omitempty"`
 	CustomerOrderDate   *time.Time              `json:"customerOrderDate,omitempty"`
 	Currency            string                  `json:"currency,omitempty"`
-	Comment             string                  `json:"comment,omitempty"`
+	Description         string                  `json:"description,omitempty"`
 	Lines               []GoodsIssueLineRequest `json:"lines" binding:"required,min=1,dive"`
 	PostImmediately     bool                    `json:"postImmediately,omitempty"`
 }
@@ -39,7 +39,7 @@ func (r *CreateGoodsIssueRequest) ToEntity() *goods_issue.GoodsIssue {
 	doc.Date = r.Date
 	doc.CustomerOrderNumber = r.CustomerOrderNumber
 	doc.CustomerOrderDate = r.CustomerOrderDate
-	doc.Comment = r.Comment
+	doc.Description = r.Description
 
 	if r.Currency != "" {
 		doc.Currency = r.Currency
@@ -67,7 +67,7 @@ type UpdateGoodsIssueRequest struct {
 	CustomerOrderNumber *string                 `json:"customerOrderNumber,omitempty"`
 	CustomerOrderDate   *time.Time              `json:"customerOrderDate,omitempty"`
 	Currency            *string                 `json:"currency,omitempty"`
-	Comment             *string                 `json:"comment,omitempty"`
+	Description         *string                 `json:"description,omitempty"`
 	Lines               []GoodsIssueLineRequest `json:"lines,omitempty"`
 }
 
@@ -98,8 +98,8 @@ func (r *UpdateGoodsIssueRequest) ApplyTo(doc *goods_issue.GoodsIssue) {
 	if r.Currency != nil {
 		doc.Currency = *r.Currency
 	}
-	if r.Comment != nil {
-		doc.Comment = *r.Comment
+	if r.Description != nil {
+		doc.Description = *r.Description
 	}
 
 	if r.Lines != nil {
@@ -133,7 +133,7 @@ type GoodsIssueResponse struct {
 	TotalQuantity       float64                  `json:"totalQuantity"`
 	TotalAmount         int64                    `json:"totalAmount"`
 	TotalVAT            int64                    `json:"totalVat"`
-	Comment             string                   `json:"comment,omitempty"`
+	Description         string                   `json:"description,omitempty"`
 	Lines               []GoodsIssueLineResponse `json:"lines,omitempty"`
 	DeletionMark        bool                     `json:"deletionMark,omitempty"`
 	CreatedAt           time.Time                `json:"createdAt"`
@@ -167,7 +167,7 @@ func FromGoodsIssue(doc *goods_issue.GoodsIssue) *GoodsIssueResponse {
 		TotalQuantity:       doc.TotalQuantity,
 		TotalAmount:         doc.TotalAmount,
 		TotalVAT:            doc.TotalVAT,
-		Comment:             doc.Comment,
+		Description:         doc.Description,
 		DeletionMark:        doc.DeletionMark,
 		CreatedAt:           doc.CreatedAt,
 		UpdatedAt:           doc.UpdatedAt,
