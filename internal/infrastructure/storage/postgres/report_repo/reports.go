@@ -240,7 +240,7 @@ func (r *ReportRepo) GetDocumentJournal(ctx context.Context, filter reports.Docu
 					warehouse_id, '' as warehouse_name,
 					0.0 as total_quantity,
 					COALESCE((SELECT SUM(amount) FROM doc_goods_receipt_lines WHERE document_id = d.id), 0) as total_amount,
-					currency, comment, deletion_mark, created_at, updated_at
+					currency, description, deletion_mark, created_at, updated_at
 				FROM doc_goods_receipts d
 				WHERE deletion_mark = false
 			`
@@ -272,7 +272,7 @@ func (r *ReportRepo) GetDocumentJournal(ctx context.Context, filter reports.Docu
 					warehouse_id, '' as warehouse_name,
 					0.0 as total_quantity,
 					COALESCE((SELECT SUM(amount) FROM doc_goods_issue_lines WHERE document_id = d.id), 0) as total_amount,
-					currency, comment, deletion_mark, created_at, updated_at
+					currency, description, deletion_mark, created_at, updated_at
 				FROM doc_goods_issues d
 				WHERE deletion_mark = false
 			`
@@ -304,7 +304,7 @@ func (r *ReportRepo) GetDocumentJournal(ctx context.Context, filter reports.Docu
 					warehouse_id, '' as warehouse_name,
 					0.0 as total_quantity,
 					0 as total_amount,
-					'RUB' as currency, comment, deletion_mark, created_at, updated_at
+					'RUB' as currency, description, deletion_mark, created_at, updated_at
 				FROM doc_inventories d
 				WHERE deletion_mark = false
 			`

@@ -159,7 +159,7 @@ type DocumentJournalItem struct {
 	TotalAmount   int64   `json:"totalAmount"`
 	Currency      string  `json:"currency"`
 
-	Comment      string    `json:"comment,omitempty"`
+	Description  string    `json:"description,omitempty"`
 	DeletionMark bool      `json:"deletionMark"`
 	CreatedAt    time.Time `json:"createdAt"`
 	UpdatedAt    time.Time `json:"updatedAt"`

@@ -16,7 +16,7 @@ type CreateInventoryRequest struct {
 	WarehouseID    string    `json:"warehouseId" binding:"required"`
 	StartDate      time.Time `json:"startDate" binding:"required"`
 	ResponsibleID  *string   `json:"responsibleId,omitempty"`
-	Comment        string    `json:"comment,omitempty"`
+	Description    string    `json:"description,omitempty"`
 }
 
 func (r *CreateInventoryRequest) ToEntity() *inventory.Inventory {
@@ -26,7 +26,7 @@ func (r *CreateInventoryRequest) ToEntity() *inventory.Inventory {
 	doc.Number = r.Number
 	doc.Date = r.Date
 	doc.StartDate = r.StartDate
-	doc.Comment = r.Comment
+	doc.Description = r.Description
 
 	if r.ResponsibleID != nil {
 		respID, _ := id.Parse(*r.ResponsibleID)
@@ -43,7 +43,7 @@ type UpdateInventoryRequest struct {
 	WarehouseID    *string    `json:"warehouseId,omitempty"`
 	StartDate      *time.Time `json:"startDate,omitempty"`
 	ResponsibleID  *string    `json:"responsibleId,omitempty"`
-	Comment        *string    `json:"comment,omitempty"`
+	Description    *string    `json:"description,omitempty"`
 }
 
 func (r *UpdateInventoryRequest) ApplyTo(doc *inventory.Inventory) {
@@ -67,8 +67,8 @@ func (r *UpdateInventoryRequest) ApplyTo(doc *inventory.Inventory) {
 		respID, _ := id.Parse(*r.ResponsibleID)
 		doc.ResponsibleID = &respID
 	}
-	if r.Comment != nil {
-		doc.Comment = *r.Comment
+	if r.Description != nil {
+		doc.Description = *r.Description
 	}
 }
 
@@ -95,7 +95,7 @@ type InventoryResponse struct {
 	TotalActualQuantity   float64                 `json:"totalActualQuantity"`
 	TotalSurplusQuantity  float64                 `json:"totalSurplusQuantity"`
 	TotalShortageQuantity float64                 `json:"totalShortageQuantity"`
-	Comment               string                  `json:"comment,omitempty"`
+	Description           string                  `json:"description,omitempty"`
 	Lines                 []InventoryLineResponse `json:"lines,omitempty"`
 	DeletionMark          bool                    `json:"deletionMark,omitempty"`
 	CreatedAt             time.Time               `json:"createdAt"`
@@ -132,7 +132,7 @@ func FromInventory(doc *inventory.Inventory) *InventoryResponse {
 		TotalActualQuantity:   doc.TotalActualQuantity,
 		TotalSurplusQuantity:  doc.TotalSurplusQuantity,
 		TotalShortageQuantity: doc.TotalShortageQuantity,
-		Comment:               doc.Comment,
+		Description:           doc.Description,
 		DeletionMark:          doc.DeletionMark,
 		CreatedAt:             doc.CreatedAt,
 		UpdatedAt:             doc.UpdatedAt,

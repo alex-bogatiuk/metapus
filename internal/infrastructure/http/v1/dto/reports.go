@@ -171,7 +171,7 @@ type DocumentJournalItemResponse struct {
 	TotalQuantity    float64 `json:"totalQuantity"`
 	TotalAmount      int64   `json:"totalAmount"`
 	Currency         string  `json:"currency"`
-	Comment          string  `json:"comment,omitempty"`
+	Description      string  `json:"description,omitempty"`
 	DeletionMark     bool    `json:"deletionMark,omitempty"`
 	CreatedAt        string  `json:"createdAt"`
 	UpdatedAt        string  `json:"updatedAt"`
@@ -207,7 +207,7 @@ func FromDocumentJournal(j *reports.DocumentJournal) *DocumentJournalResponse {
 			TotalQuantity:    item.TotalQuantity,
 			TotalAmount:      item.TotalAmount,
 			Currency:         item.Currency,
-			Comment:          item.Comment,
+			Description:      item.Description,
 			DeletionMark:     item.DeletionMark,
 			CreatedAt:        item.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:        item.UpdatedAt.Format(time.RFC3339),

@@ -164,7 +164,7 @@ type DocumentResponse struct {
 	Posted         bool      `json:"posted"`
 	PostedVersion  int       `json:"postedVersion"`
 	OrganizationID string    `json:"organizationId"`
-	Comment        string    `json:"comment,omitempty"`
+	Description    string    `json:"description,omitempty"`
 }
 
 // FromDocument creates DocumentResponse from entity.Document.
@@ -176,7 +176,7 @@ func FromDocument(d entity.Document) DocumentResponse {
 		Posted:         d.Posted,
 		PostedVersion:  d.PostedVersion,
 		OrganizationID: d.OrganizationID,
-		Comment:        d.Comment,
+		Description:    d.Description,
 	}
 }
 

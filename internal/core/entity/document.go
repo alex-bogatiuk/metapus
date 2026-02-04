@@ -29,8 +29,8 @@ type Document struct {
 	// OrganizationID is the owning organization (required for multi-org support)
 	OrganizationID string `db:"organization_id" json:"organizationId"`
 
-	// Comment is an optional user comment
-	Comment string `db:"comment" json:"comment,omitempty"`
+	// Description is an optional user comment
+	Description string `db:"description" json:"description,omitempty"`
 }
 
 // NewDocument creates a new Document with generated ID.
