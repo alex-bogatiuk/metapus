@@ -31,9 +31,9 @@ type GoodsReceipt struct {
 	Currency string `db:"currency" json:"currency"`
 
 	// Totals (calculated from lines)
-	TotalQuantity float64 `db:"total_quantity" json:"totalQuantity"`
-	TotalAmount   int64   `db:"total_amount" json:"totalAmount"` // in minor units
-	TotalVAT      int64   `db:"total_vat" json:"totalVat"`
+	TotalQuantity types.Quantity `db:"total_quantity" json:"totalQuantity"`
+	TotalAmount   int64          `db:"total_amount" json:"totalAmount"` // in minor units
+	TotalVAT      int64          `db:"total_vat" json:"totalVat"`
 
 	// Table part: received goods
 	Lines []GoodsReceiptLine `db:"-" json:"lines"`
@@ -49,11 +49,11 @@ type GoodsReceiptLine struct {
 	ProductID id.ID `db:"product_id" json:"productId"`
 
 	// Quantity and pricing
-	Quantity  float64 `db:"quantity" json:"quantity"`
-	UnitPrice int64   `db:"unit_price" json:"unitPrice"` // in minor units
-	VATRate   string  `db:"vat_rate" json:"vatRate"`     // "0", "10", "20"
-	VATAmount int64   `db:"vat_amount" json:"vatAmount"`
-	Amount    int64   `db:"amount" json:"amount"` // total with VAT
+	Quantity  types.Quantity `db:"quantity" json:"quantity"`
+	UnitPrice int64          `db:"unit_price" json:"unitPrice"` // in minor units
+	VATRate   string         `db:"vat_rate" json:"vatRate"`     // "0", "10", "20"
+	VATAmount int64          `db:"vat_amount" json:"vatAmount"`
+	Amount    int64          `db:"amount" json:"amount"` // total with VAT
 }
 
 // NewGoodsReceipt creates a new goods receipt document.
@@ -68,12 +68,14 @@ func NewGoodsReceipt(organizationID string, supplierID, warehouseID id.ID) *Good
 }
 
 // AddLine adds a line to the goods receipt and recalculates totals.
-func (g *GoodsReceipt) AddLine(productID id.ID, quantity float64, unitPrice int64, vatRate string) {
+func (g *GoodsReceipt) AddLine(productID id.ID, quantity types.Quantity, unitPrice int64, vatRate string) {
 	lineNo := len(g.Lines) + 1
 
 	// Calculate VAT
+	// Quantity is scaled by 10000. UnitPrice is in minor units.
+	// baseAmount (minor units) = (QuantityScaled * UnitPrice) / 10000
 	vatPercent := vatRateToPercent(vatRate)
-	baseAmount := int64(float64(unitPrice) * quantity)
+	baseAmount := (quantity.Int64Scaled() * unitPrice) / 10000
 	vatAmount := baseAmount * int64(vatPercent) / 100
 	totalAmount := baseAmount + vatAmount
 
@@ -166,7 +168,7 @@ func (g *GoodsReceipt) GenerateMovements(ctx context.Context) (*posting.Movement
 			entity.RecordTypeReceipt,
 			g.WarehouseID,
 			line.ProductID,
-			types.NewQuantityFromFloat64(line.Quantity),
+			line.Quantity,
 		)
 
 		movements.AddStock(stockMovement)

@@ -78,7 +78,7 @@ func seedAdminUser(ctx context.Context, pool *postgres.Pool, log *logger.Logger)
 	// Check if admin already exists
 	var existingID id.ID
 	err := pool.Pool.QueryRow(ctx,
-		`SELECT id FROM users WHERE email = $1 AND deleted_at IS NULL`,
+		`SELECT id FROM users WHERE email = $1 AND NOT deletion_mark`,
 		adminEmail,
 	).Scan(&existingID)
 	if err == nil {

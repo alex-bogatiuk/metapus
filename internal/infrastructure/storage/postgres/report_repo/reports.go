@@ -46,7 +46,7 @@ func (r *ReportRepo) GetStockBalanceReport(ctx context.Context, filter reports.S
 			SELECT 
 				m.warehouse_id,
 				m.product_id,
-				SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END)::float8 / 10000.0 as quantity
+				SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END) as quantity_scaled
 			FROM reg_stock_movements m
 			WHERE m.period <= $1
 	`
@@ -89,7 +89,7 @@ func (r *ReportRepo) GetStockBalanceReport(ctx context.Context, filter reports.S
 			p.name as product_name,
 			COALESCE(p.article, '') as product_sku,
 			COALESCE(u.name, '') as unit_name,
-			bd.quantity,
+			bd.quantity_scaled::float8 / 10000.0 as quantity,
 			0 as total_cost
 		FROM balance_data bd
 		JOIN cat_warehouses w ON bd.warehouse_id = w.id
@@ -132,7 +132,7 @@ func (r *ReportRepo) GetStockTurnoverReport(ctx context.Context, filter reports.
 		SELECT 
 			m.warehouse_id,
 			m.product_id,
-			SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END)::float8 / 10000.0 as quantity
+			SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END) as quantity_scaled
 		FROM reg_stock_movements m
 		WHERE m.period < $1
 	`
@@ -158,11 +158,11 @@ func (r *ReportRepo) GetStockTurnoverReport(ctx context.Context, filter reports.
 			p.name as product_name,
 			COALESCE(p.article, '') as product_sku,
 			COALESCE(u.name, '') as unit_name,
-			COALESCE(opening.quantity, 0) as opening_balance,
+			COALESCE(opening.quantity_scaled, 0)::float8 / 10000.0 as opening_balance,
 			SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE 0 END)::float8 / 10000.0 as receipt,
 			SUM(CASE WHEN m.record_type = 'expense' THEN m.quantity ELSE 0 END)::float8 / 10000.0 as expense,
-			COALESCE(opening.quantity, 0) + 
-				SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END)::float8 / 10000.0 as closing_balance
+			(COALESCE(opening.quantity_scaled, 0) + 
+				SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END))::float8 / 10000.0 as closing_balance
 		FROM reg_stock_movements m
 		JOIN cat_warehouses w ON m.warehouse_id = w.id
 		JOIN cat_nomenclature p ON m.product_id = p.id

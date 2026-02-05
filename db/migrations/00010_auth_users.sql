@@ -19,16 +19,17 @@ CREATE TABLE IF NOT EXISTS users (
                                      last_login_at TIMESTAMPTZ,
                                      failed_login_attempts INT NOT NULL DEFAULT 0,
                                      locked_until TIMESTAMPTZ,
-                                     deleted_at TIMESTAMPTZ,
+                                     deletion_mark BOOLEAN NOT NULL DEFAULT false,
                                      version INT NOT NULL DEFAULT 1,
+                                     attributes JSONB DEFAULT '{}',
 
                                      CONSTRAINT users_email_unique UNIQUE (email)
 );
 
 -- Indexes for users
 
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE deletion_mark = FALSE;
+CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active) WHERE deletion_mark = FALSE;
 
 -- Roles table
 CREATE TABLE IF NOT EXISTS roles (

@@ -10,6 +10,7 @@ import (
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/tx"
+	"metapus/internal/core/types"
 	"metapus/internal/domain"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/stock"
@@ -185,7 +186,7 @@ func (s *Service) PrepareSheet(ctx context.Context, docID id.ID) (*Inventory, er
 	// Create lines from balances
 	doc.Lines = make([]InventoryLine, 0, len(balances))
 	for _, balance := range balances {
-		doc.AddLine(balance.ProductID, balance.Quantity.Float64(), 0) // unitPrice будет заполнен позже
+		doc.AddLine(balance.ProductID, balance.Quantity, 0) // unitPrice будет заполнен позже
 	}
 
 	// Save lines
@@ -218,7 +219,7 @@ func (s *Service) Start(ctx context.Context, docID id.ID) error {
 }
 
 // RecordCount records actual quantity for a line.
-func (s *Service) RecordCount(ctx context.Context, docID id.ID, lineNo int, actualQty float64, countedBy string) error {
+func (s *Service) RecordCount(ctx context.Context, docID id.ID, lineNo int, actualQty types.Quantity, countedBy string) error {
 	doc, err := s.GetByID(ctx, docID)
 	if err != nil {
 		return err
@@ -350,19 +351,19 @@ type ComparisonResult struct {
 	WarehouseID    id.ID            `json:"warehouseId"`
 	Status         InventoryStatus  `json:"status"`
 	Items          []ComparisonItem `json:"items"`
-	TotalBookQty   float64          `json:"totalBookQty"`
-	TotalActualQty float64          `json:"totalActualQty"`
-	TotalSurplus   float64          `json:"totalSurplus"`
-	TotalShortage  float64          `json:"totalShortage"`
+	TotalBookQty   types.Quantity   `json:"totalBookQty"`
+	TotalActualQty types.Quantity   `json:"totalActualQty"`
+	TotalSurplus   types.Quantity   `json:"totalSurplus"`
+	TotalShortage  types.Quantity   `json:"totalShortage"`
 }
 
 // ComparisonItem represents a single comparison line.
 type ComparisonItem struct {
-	LineNo          int     `json:"lineNo"`
-	ProductID       id.ID   `json:"productId"`
-	BookQuantity    float64 `json:"bookQuantity"`
-	ActualQuantity  float64 `json:"actualQuantity"`
-	Deviation       float64 `json:"deviation"`
-	DeviationAmount int64   `json:"deviationAmount"`
-	Counted         bool    `json:"counted"`
+	LineNo          int            `json:"lineNo"`
+	ProductID       id.ID          `json:"productId"`
+	BookQuantity    types.Quantity `json:"bookQuantity"`
+	ActualQuantity  types.Quantity `json:"actualQuantity"`
+	Deviation       types.Quantity `json:"deviation"`
+	DeviationAmount int64          `json:"deviationAmount"`
+	Counted         bool           `json:"counted"`
 }

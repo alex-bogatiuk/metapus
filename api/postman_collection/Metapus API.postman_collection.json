@@ -1,2142 +1,2172 @@
 {
-	"info": {
-		"_postman_id": "96d7e6d9-f493-41c3-9907-25414543eb0d",
-		"name": "Metapus API",
-		"description": "Коллекция API запросов для системы Metapus",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "15612834"
-	},
-	"item": [
-		{
-			"name": "Health",
-			"item": [
-				{
-					"name": "Liveness",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/health/live",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"health",
-								"live"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Readiness",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/health/ready",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"health",
-								"ready"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Info",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/health/info",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"health",
-								"info"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Auth",
-			"item": [
-				{
-					"name": "Register",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"if (pm.response.code === 201) {",
-									"    var jsonData = pm.response.json();",
-									"    pm.collectionVariables.set('userId', jsonData.id);",
-									"}"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"auth": {
-							"type": "noauth"
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "X-Tenant-ID",
-								"value": "{{tenantId}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"email\": \"admin@example.com\",\n    \"password\": \"SecurePass123!\",\n    \"firstName\": \"Admin\",\n    \"lastName\": \"User\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/auth/register",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"auth",
-								"register"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Login",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"if (pm.response.code === 200) {",
-									"    var jsonData = pm.response.json();",
-									"    pm.collectionVariables.set('accessToken', jsonData.tokens.accessToken);",
-									"    pm.collectionVariables.set('refreshToken', jsonData.tokens.refreshToken);",
-									"}"
-								],
-								"type": "text/javascript",
-								"packages": {},
-								"requests": {}
-							}
-						}
-					],
-					"request": {
-						"auth": {
-							"type": "noauth"
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "X-Tenant-ID",
-								"value": "{{tenantId}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"SecurePass123!\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/auth/login",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"auth",
-								"login"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Refresh Token",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"if (pm.response.code === 200) {",
-									"    var jsonData = pm.response.json();",
-									"    pm.collectionVariables.set('accessToken', jsonData.accessToken);",
-									"    pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
-									"}"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"auth": {
-							"type": "noauth"
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"refreshToken\": \"{{refreshToken}}\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/auth/refresh",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"auth",
-								"refresh"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Get Current User",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Tenant-ID",
-								"value": "{{tenantId}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/auth/me",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"auth",
-								"me"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Assign Role",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "X-Tenant-ID",
-								"value": "{{tenantId}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"userId\": \"{{userId}}\",\n    \"roleCode\": \"admin\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/auth/assign-role",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"auth",
-								"assign-role"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Logout",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/auth/logout",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"auth",
-								"logout"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Catalogs",
-			"item": [
-				{
-					"name": "Units",
-					"item": [
-						{
-							"name": "Create Unit",
-							"event": [
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"if (pm.response.code === 201) {",
-											"    var jsonData = pm.response.json();",
-											"    pm.collectionVariables.set('unitId', jsonData.id);",
-											"}"
-										],
-										"type": "text/javascript",
-										"packages": {},
-										"requests": {}
-									}
-								}
-							],
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									},
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}",
-										"disabled": true
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"name\": \"тест\",\n    \"code\": \"тест\",\n    \"parentId\": null,\n    \"type\": \"volume\",\n    \"symbol\": \"тест\",\n    \"international_code\": null,\n    \"base_unit_id\": null,\n    \"conversion_factor\": 1,\n    \"isBase\": true,\n    \"isFolder\": false\n}"
-								},
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/catalog/units",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"catalog",
-										"units"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "List Units",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/catalog/units",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"catalog",
-										"units"
-									]
-								}
-							},
-							"response": []
-						}
-					]
-				},
-				{
-					"name": "Currencies",
-					"item": [
-						{
-							"name": "Create Currency",
-							"event": [
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"if (pm.response.code === 201) {",
-											"    var jsonData = pm.response.json();",
-											"    pm.collectionVariables.set('currencyId', jsonData.id);",
-											"}"
-										],
-										"type": "text/javascript",
-										"packages": {},
-										"requests": {}
-									}
-								}
-							],
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									},
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"code\": \"TEST\",\n    \"name\": \"Тестовая Валюта\",\n    \"isoCode\": \"TES\",\n    \"symbol\": \"T\",\n    \"decimalPlaces\": 2,\n    \"isBase\": false,\n    \"isFolder\": false\n}"
-								},
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/catalog/currencies",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"catalog",
-										"currencies"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "List Currencies",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/catalog/currencies",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"catalog",
-										"currencies"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Set Exchange Rate",
-							"request": {
-								"method": "PUT",
-								"header": [],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"rate\": \"92.50\",\n    \"date\": \"2024-01-25T12:00:00Z\"\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/catalog/currencies/{{currencyId}}/rate",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"catalog",
-										"currencies",
-										"{{currencyId}}",
-										"rate"
-									]
-								}
-							},
-							"response": []
-						}
-					]
-				},
-				{
-					"name": "Warehouses",
-					"item": [
-						{
-							"name": "Create Warehouse",
-							"event": [
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"if (pm.response.code === 201) {",
-											"    var jsonData = pm.response.json();",
-											"    pm.collectionVariables.set('warehouseId', jsonData.id);",
-											"}"
-										],
-										"type": "text/javascript",
-										"packages": {},
-										"requests": {}
-									}
-								}
-							],
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									},
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}",
-										"disabled": true
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"name\": \"Основной склад\",\n    \"address\": \"г. Москва, ул. Складская, д. 1\",\n    \"type\": \"retail\",\n    \"organization_id\": \"019b2822-51ab-7bf6-9be9-b0eb664c6b3f\",\n    \"allow_negative_stock\": \"false\",\n    \"is_folder\": \"false\",\n    \"is_default\": \"false\"\n}"
-								},
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/catalog/warehouses",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"catalog",
-										"warehouses"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "List Warehouses",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}",
-										"disabled": true
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/catalog/warehouses",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"catalog",
-										"warehouses"
-									]
-								}
-							},
-							"response": []
-						}
-					]
-				},
-				{
-					"name": "Counterparties",
-					"item": [
-						{
-							"name": "Примеры с гибкими фильтрами",
-							"item": [
-								{
-									"name": "1: Найти всех покупателей (Type = \"customer\")",
-									"protocolProfileBehavior": {
-										"disableBodyPruning": true
-									},
-									"request": {
-										"method": "GET",
-										"header": [
-											{
-												"key": "X-Tenant-ID",
-												"value": "{{tenantId}}"
-											},
-											{
-												"key": "Authorization",
-												"value": "••••••"
-											}
-										],
-										"body": {
-											"mode": "urlencoded",
-											"urlencoded": [
-												{
-													"key": "filter",
-													"value": "[{\"field\":\"type\",\"operator\":\"eq\",\"value\":\"customer\"}]",
-													"type": "text"
-												}
-											]
-										},
-										"url": {
-											"raw": "http://localhost:8080/api/v1/catalog/counterparties?filter=[{\"field\":\"inn\",\"operator\":\"eq\",\"value\":\"7710151579\"}]",
-											"protocol": "http",
-											"host": [
-												"localhost"
-											],
-											"port": "8080",
-											"path": [
-												"api",
-												"v1",
-												"catalog",
-												"counterparties"
-											],
-											"query": [
-												{
-													"key": "filter",
-													"value": "[{\"field\":\"inn\",\"operator\":\"eq\",\"value\":\"7710151579\"}]"
-												}
-											]
-										}
-									},
-									"response": []
-								},
-								{
-									"name": "2: Найти по названию (Содержит \"Тест\")",
-									"protocolProfileBehavior": {
-										"disableBodyPruning": true
-									},
-									"request": {
-										"method": "GET",
-										"header": [
-											{
-												"key": "X-Tenant-ID",
-												"value": "{{tenantId}}"
-											},
-											{
-												"key": "Authorization",
-												"value": "••••••"
-											}
-										],
-										"body": {
-											"mode": "urlencoded",
-											"urlencoded": [
-												{
-													"key": "filter",
-													"value": "[{\"field\":\"name\",\"operator\":\"contains\",\"value\":\"Тест\"}]",
-													"type": "text"
-												}
-											]
-										},
-										"url": {
-											"raw": "http://localhost:8080/api/v1/catalog/counterparties?filter=[{\"field\":\"name\",\"operator\":\"contains\",\"value\":\"Тест\"}]",
-											"protocol": "http",
-											"host": [
-												"localhost"
-											],
-											"port": "8080",
-											"path": [
-												"api",
-												"v1",
-												"catalog",
-												"counterparties"
-											],
-											"query": [
-												{
-													"key": "filter",
-													"value": "[{\"field\":\"name\",\"operator\":\"contains\",\"value\":\"Тест\"}]"
-												}
-											]
-										}
-									},
-									"response": []
-								},
-								{
-									"name": "3: Сложный отбор (Юрлицо И Поставщик)",
-									"protocolProfileBehavior": {
-										"disableBodyPruning": true
-									},
-									"request": {
-										"method": "GET",
-										"header": [
-											{
-												"key": "X-Tenant-ID",
-												"value": "{{tenantId}}"
-											},
-											{
-												"key": "Authorization",
-												"value": "••••••"
-											}
-										],
-										"body": {
-											"mode": "urlencoded",
-											"urlencoded": [
-												{
-													"key": "filter",
-													"value": "[{\"field\":\"legal_form\",\"operator\":\"eq\",\"value\":\"company\"},{\"field\":\"type\",\"operator\":\"eq\",\"value\":\"supplier\"}]",
-													"type": "text"
-												}
-											]
-										},
-										"url": {
-											"raw": "http://localhost:8080/api/v1/catalog/counterparties?filter=[{\"field\":\"legal_form\",\"operator\":\"eq\",\"value\":\"company\"},{\"field\":\"type\",\"operator\":\"eq\",\"value\":\"supplier\"}]",
-											"protocol": "http",
-											"host": [
-												"localhost"
-											],
-											"port": "8080",
-											"path": [
-												"api",
-												"v1",
-												"catalog",
-												"counterparties"
-											],
-											"query": [
-												{
-													"key": "filter",
-													"value": "[{\"field\":\"legal_form\",\"operator\":\"eq\",\"value\":\"company\"},{\"field\":\"type\",\"operator\":\"eq\",\"value\":\"supplier\"}]"
-												}
-											]
-										}
-									},
-									"response": []
-								},
-								{
-									"name": "4: Отбор \"В списке\" (по конкретным ИНН)",
-									"protocolProfileBehavior": {
-										"disableBodyPruning": true
-									},
-									"request": {
-										"method": "GET",
-										"header": [
-											{
-												"key": "X-Tenant-ID",
-												"value": "{{tenantId}}"
-											},
-											{
-												"key": "Authorization",
-												"value": "••••••"
-											}
-										],
-										"body": {
-											"mode": "urlencoded",
-											"urlencoded": [
-												{
-													"key": "filter",
-													"value": "[{\"field\":\"inn\",\"operator\":\"in\",\"value\":[\"7710140679\",\"772300001234\"]}]",
-													"type": "text"
-												}
-											]
-										},
-										"url": {
-											"raw": "http://localhost:8080/api/v1/catalog/counterparties?filter=[{\"field\":\"inn\",\"operator\":\"in\",\"value\":[\"7710140679\",\"772300001234\"]}]",
-											"protocol": "http",
-											"host": [
-												"localhost"
-											],
-											"port": "8080",
-											"path": [
-												"api",
-												"v1",
-												"catalog",
-												"counterparties"
-											],
-											"query": [
-												{
-													"key": "filter",
-													"value": "[{\"field\":\"inn\",\"operator\":\"in\",\"value\":[\"7710140679\",\"772300001234\"]}]"
-												}
-											]
-										}
-									},
-									"response": []
-								},
-								{
-									"name": "5: Заполнено поле (Есть Email)",
-									"protocolProfileBehavior": {
-										"disableBodyPruning": true
-									},
-									"request": {
-										"method": "GET",
-										"header": [
-											{
-												"key": "X-Tenant-ID",
-												"value": "{{tenantId}}"
-											},
-											{
-												"key": "Authorization",
-												"value": "••••••"
-											}
-										],
-										"body": {
-											"mode": "urlencoded",
-											"urlencoded": [
-												{
-													"key": "filter",
-													"value": "[{\"field\":\"email\",\"operator\":\"not_null\",\"value\":true}]",
-													"type": "text"
-												}
-											]
-										},
-										"url": {
-											"raw": "http://localhost:8080/api/v1/catalog/counterparties?filter=[{\"field\":\"email\",\"operator\":\"not_null\",\"value\":true}]",
-											"protocol": "http",
-											"host": [
-												"localhost"
-											],
-											"port": "8080",
-											"path": [
-												"api",
-												"v1",
-												"catalog",
-												"counterparties"
-											],
-											"query": [
-												{
-													"key": "filter",
-													"value": "[{\"field\":\"email\",\"operator\":\"not_null\",\"value\":true}]"
-												}
-											]
-										}
-									},
-									"response": []
-								}
-							]
-						},
-						{
-							"name": "Create Counterparty",
-							"event": [
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"if (pm.response.code === 201) {",
-											"    var jsonData = pm.response.json();",
-											"    pm.collectionVariables.set('counterpartyId', jsonData.id);",
-											"}"
-										],
-										"type": "text/javascript",
-										"packages": {},
-										"requests": {}
-									}
-								}
-							],
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									},
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"name\": \"ООО 'Тест'\",\n    \"type\": \"customer\",\n    \"legalForm\": \"company\",\n    \"fullName\": \"ООО 'Тест'\",\n    \"inn\": \"7710151579\"\n}"
-								},
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/catalog/counterparties",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"catalog",
-										"counterparties"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "List Counterparties",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/catalog/counterparties",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"catalog",
-										"counterparties"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Update Counterparty (Rename)",
-							"request": {
-								"method": "PUT",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									},
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"code\": \"CP-2026-00001\",\n    \"name\": \"ООО 'Тест' Переименовано\",\n    \"type\": \"customer\",\n    \"legalForm\": \"company\",\n    \"fullName\": \"ООО 'Тест'\",\n    \"inn\": \"7710151579\",\n    \"version\": 1\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/catalog/counterparties/{{counterpartyId}}",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"catalog",
-										"counterparties",
-										"{{counterpartyId}}"
-									]
-								},
-								"description": "Обновляет данные. Требует поле 'version', соответствующее текущему в БД."
-							},
-							"response": []
-						},
-						{
-							"name": "Hard delete",
-							"event": [
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"pm.test(\"Status code is 204\", function () {",
-											"    pm.response.to.have.status(204);",
-											"});"
-										],
-										"type": "text/javascript"
-									}
-								}
-							],
-							"request": {
-								"method": "DELETE",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/catalog/counterparties/{{counterpartyId}}",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"catalog",
-										"counterparties",
-										"{{counterpartyId}}"
-									]
-								},
-								"description": "Устанавливает флаг deletion_mark = true."
-							},
-							"response": []
-						}
-					]
-				},
-				{
-					"name": "Nomenclature",
-					"item": [
-						{
-							"name": "Create Product",
-							"event": [
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"if (pm.response.code === 201) {",
-											"    var jsonData = pm.response.json();",
-											"    pm.collectionVariables.set('productId', jsonData.id);",
-											"}"
-										],
-										"type": "text/javascript",
-										"packages": {},
-										"requests": {}
-									}
-								}
-							],
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									},
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"code\": \"NM-00010\",\n    \"name\": \"Тестовая номенклатура\",\n    \"type\": \"goods\",\n    \"article\": \"PAP-A5\",\n    \"barcode\": \"4600000000011\",\n    \"baseUnitId\": \"019b2822-51cd-7a81-b4e1-6915c3110e02\",\n    \"vatRate\": \"20\",\n    \"weight\": \"0\",\n    \"volume\": \"0\",\n    \"isWeighed\": false,\n    \"trackSerial\": false,\n    \"trackBatch\": false,\n    \"isFolder\": false\n}"
-								},
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/catalog/nomenclature",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"catalog",
-										"nomenclature"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "List Nomenclature",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/catalog/nomenclature?pageSize=20&page=1",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"catalog",
-										"nomenclature"
-									],
-									"query": [
-										{
-											"key": "pageSize",
-											"value": "20"
-										},
-										{
-											"key": "page",
-											"value": "1"
-										}
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Search Nomenclature",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/catalog/nomenclature/search?q=Тестовая",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"catalog",
-										"nomenclature",
-										"search"
-									],
-									"query": [
-										{
-											"key": "q",
-											"value": "Тестовая"
-										}
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Get Product by Barcode",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/catalog/nomenclature/by-barcode/4600000000001",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"catalog",
-										"nomenclature",
-										"by-barcode",
-										"4600000000001"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "1: Найти все товары (Type = \"goods\")",
-							"request": {
-								"method": "GET",
-								"header": []
-							},
-							"response": []
-						}
-					]
-				}
-			]
-		},
-		{
-			"name": "Documents",
-			"item": [
-				{
-					"name": "GoodsReceipt",
-					"item": [
-						{
-							"name": "Create GoodsReceipt",
-							"event": [
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"if (pm.response.code === 201) {",
-											"    var jsonData = pm.response.json();",
-											"    pm.collectionVariables.set('goodsReceiptId', jsonData.id);",
-											"}"
-										],
-										"type": "text/javascript",
-										"packages": {},
-										"requests": {}
-									}
-								}
-							],
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									},
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}",
-										"disabled": true
-									},
-									{
-										"key": "Idempotency-Key",
-										"value": "{{$guid}}",
-										"disabled": true
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"date\": \"2026-01-03T15:04:05Z\",\n    \"organizationId\": \"019b2822-51ab-7bf6-9be9-b0eb664c6b3f\",\n    \"warehouseId\": \"019b2822-51df-7330-a254-aa47286d3b39\",\n    \"supplierID\": \"019b88b6-01ef-768c-a45b-4430f3cb8bb5\",\n    \"description\": \"Поступление от поставщика\",\n    \"lines\": [\n        {\n            \"productId\": \"019b85ae-af98-74d0-b79d-20fd8ec9205d\",\n            \"quantity\": 100,\n            \"unitPrice\": 150,\n            \"vatRate\": \"20\"\n        },\n        {\n            \"productId\": \"019b2822-520b-7229-9f21-f2085bca80e6\",\n            \"quantity\": 1,\n            \"unitPrice\": 150,\n            \"vatRate\": \"0\"\n        }\n    ]\n}"
-								},
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/goods-receipt",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"goods-receipt"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "List GoodsReceipts",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/goods-receipt",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"goods-receipt"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Get GoodsReceipt",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{goodsReceiptId}}",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"goods-receipt",
-										"{{goodsReceiptId}}"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Post GoodsReceipt",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{goodsReceiptId}}/post",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"goods-receipt",
-										"{{goodsReceiptId}}",
-										"post"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Unpost GoodsReceipt",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{goodsReceiptId}}/unpost",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"goods-receipt",
-										"{{goodsReceiptId}}",
-										"unpost"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Copy GoodsReceipt",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{goodsReceiptId}}/copy",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"goods-receipt",
-										"{{goodsReceiptId}}",
-										"copy"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "1. Unpost (Required before Edit/Delete)",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{receiptId}}/unpost",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"goods-receipt",
-										"{{receiptId}}",
-										"unpost"
-									]
-								},
-								"description": "ЭТОТ ЗАПРОС УДАЛЯЕТ ДВИЖЕНИЯ.\nСогласно коду (service.go), нельзя удалить или изменить проведенный документ. Сначала нужно вызвать этот метод."
-							},
-							"response": []
-						},
-						{
-							"name": "2a. Update Content (Edit)",
-							"request": {
-								"method": "PUT",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									},
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"comment\": \"Исправлено количество и цена\",\n    \"lines\": [\n        {\n            \"productId\": \"{{productId}}\",\n            \"quantity\": 150,\n            \"unitPrice\": 14500,\n            \"vatRate\": \"20\"\n        }\n    ]\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{receiptId}}",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"goods-receipt",
-										"{{receiptId}}"
-									]
-								},
-								"description": "Работает только если документ НЕ проведен (или после Unpost)."
-							},
-							"response": []
-						},
-						{
-							"name": "2b. Repost (After Edit)",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{receiptId}}/post",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"goods-receipt",
-										"{{receiptId}}",
-										"post"
-									]
-								},
-								"description": "Формирует новые движения на основе обновленных данных."
-							},
-							"response": []
-						},
-						{
-							"name": "3. Set Deletion Mark",
-							"request": {
-								"method": "DELETE",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{receiptId}}",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"goods-receipt",
-										"{{receiptId}}"
-									]
-								},
-								"description": "Устанавливает deletion_mark = true. Сработает ТОЛЬКО если документ не проведен (выполнен шаг 1)."
-							},
-							"response": []
-						}
-					]
-				},
-				{
-					"name": "GoodsIssue",
-					"item": [
-						{
-							"name": "Create GoodsIssue",
-							"event": [
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"if (pm.response.code === 201) {",
-											"    var jsonData = pm.response.json();",
-											"    pm.collectionVariables.set('goodsIssueId', jsonData.id);",
-											"}"
-										],
-										"type": "text/javascript"
-									}
-								}
-							],
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									},
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									},
-									{
-										"key": "Idempotency-Key",
-										"value": "{{$guid}}"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"warehouseId\": \"{{warehouseId}}\",\n    \"counterpartyId\": \"{{counterpartyId}}\",\n    \"comment\": \"Отгрузка покупателю\",\n    \"lines\": [\n        {\n            \"productId\": \"{{productId}}\",\n            \"quantity\": 10,\n            \"price\": 200.00,\n            \"vatRate\": \"20\"\n        }\n    ]\n}"
-								},
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/goods-issue",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"goods-issue"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "List GoodsIssues",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/goods-issue",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"goods-issue"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Post GoodsIssue",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/goods-issue/{{goodsIssueId}}/post",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"goods-issue",
-										"{{goodsIssueId}}",
-										"post"
-									]
-								}
-							},
-							"response": []
-						}
-					]
-				},
-				{
-					"name": "Inventory",
-					"item": [
-						{
-							"name": "Create Inventory",
-							"event": [
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"if (pm.response.code === 201) {",
-											"    var jsonData = pm.response.json();",
-											"    pm.collectionVariables.set('inventoryId', jsonData.id);",
-											"}"
-										],
-										"type": "text/javascript"
-									}
-								}
-							],
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									},
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"warehouseId\": \"{{warehouseId}}\",\n    \"comment\": \"Плановая инвентаризация\"\n}"
-								},
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/inventory",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"inventory"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Prepare Inventory Sheet",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/inventory/{{inventoryId}}/prepare-sheet",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"inventory",
-										"{{inventoryId}}",
-										"prepare-sheet"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Start Inventory",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/inventory/{{inventoryId}}/start",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"inventory",
-										"{{inventoryId}}",
-										"start"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Record Count",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									},
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"productId\": \"{{productId}}\",\n    \"actualQuantity\": 95\n}"
-								},
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/inventory/{{inventoryId}}/record-count",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"inventory",
-										"{{inventoryId}}",
-										"record-count"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Complete Inventory",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/inventory/{{inventoryId}}/complete",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"inventory",
-										"{{inventoryId}}",
-										"complete"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Get Comparison",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/inventory/{{inventoryId}}/comparison",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"inventory",
-										"{{inventoryId}}",
-										"comparison"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Post Inventory",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "X-Tenant-ID",
-										"value": "{{tenantId}}"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/v1/document/inventory/{{inventoryId}}/post",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"document",
-										"inventory",
-										"{{inventoryId}}",
-										"post"
-									]
-								}
-							},
-							"response": []
-						}
-					]
-				}
-			]
-		},
-		{
-			"name": "Registers",
-			"item": [
-				{
-					"name": "Get Stock Balances",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Tenant-ID",
-								"value": "{{tenantId}}"
-							},
-							{
-								"key": "warehouseId",
-								"value": "",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/registers/stock/balances",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"registers",
-								"stock",
-								"balances"
-							],
-							"query": [
-								{
-									"key": "warehouseId",
-									"value": "{{warehouseId}}",
-									"disabled": true
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Get Stock Balances by Warehouse",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Tenant-ID",
-								"value": "{{tenantId}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/registers/stock/balances?warehouseId={{warehouseId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"registers",
-								"stock",
-								"balances"
-							],
-							"query": [
-								{
-									"key": "warehouseId",
-									"value": "{{warehouseId}}"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Get Stock Movements",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Tenant-ID",
-								"value": "{{tenantId}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/registers/stock/movements",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"registers",
-								"stock",
-								"movements"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Get Stock Turnovers",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Tenant-ID",
-								"value": "{{tenantId}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/registers/stock/turnovers?dateFrom=2024-01-01&dateTo=2024-12-31",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"registers",
-								"stock",
-								"turnovers"
-							],
-							"query": [
-								{
-									"key": "dateFrom",
-									"value": "2024-01-01"
-								},
-								{
-									"key": "dateTo",
-									"value": "2024-12-31"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Get Product Availability",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Tenant-ID",
-								"value": "{{tenantId}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/registers/stock/availability/{{productId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"registers",
-								"stock",
-								"availability",
-								"{{productId}}"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Reports",
-			"item": [
-				{
-					"name": "Stock Balance Report",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Tenant-ID",
-								"value": "{{tenantId}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/reports/stock-balance",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"reports",
-								"stock-balance"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Stock Turnover Report",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Tenant-ID",
-								"value": "{{tenantId}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/reports/stock-turnover?dateFrom=2024-01-01&dateTo=2024-12-31",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"reports",
-								"stock-turnover"
-							],
-							"query": [
-								{
-									"key": "dateFrom",
-									"value": "2024-01-01"
-								},
-								{
-									"key": "dateTo",
-									"value": "2024-12-31"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Document Journal",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Tenant-ID",
-								"value": "{{tenantId}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/reports/document-journal",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"reports",
-								"document-journal"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		}
-	],
-	"auth": {
-		"type": "bearer",
-		"bearer": [
-			{
-				"key": "token",
-				"value": "{{accessToken}}",
-				"type": "string"
-			}
-		]
-	},
-	"event": [
-		{
-			"listen": "prerequest",
-			"script": {
-				"type": "text/javascript",
-				"packages": {},
-				"requests": {},
-				"exec": [
-					""
-				]
-			}
-		},
-		{
-			"listen": "test",
-			"script": {
-				"type": "text/javascript",
-				"packages": {},
-				"requests": {},
-				"exec": [
-					""
-				]
-			}
-		}
-	],
-	"variable": [
-		{
-			"key": "baseUrl",
-			"value": "http://localhost:8080"
-		},
-		{
-			"key": "accessToken",
-			"value": ""
-		},
-		{
-			"key": "refreshToken",
-			"value": ""
-		},
-		{
-			"key": "tenantId",
-			"value": "default"
-		},
-		{
-			"key": "warehouseId",
-			"value": ""
-		},
-		{
-			"key": "counterpartyId",
-			"value": ""
-		},
-		{
-			"key": "productId",
-			"value": ""
-		},
-		{
-			"key": "unitId",
-			"value": ""
-		},
-		{
-			"key": "currencyId",
-			"value": ""
-		},
-		{
-			"key": "goodsReceiptId",
-			"value": ""
-		},
-		{
-			"key": "goodsIssueId",
-			"value": ""
-		},
-		{
-			"key": "inventoryId",
-			"value": ""
-		},
-		{
-			"key": "userId",
-			"value": ""
-		}
-	]
+  "info": {
+    "_postman_id": "96d7e6d9-f493-41c3-9907-25414543eb0d",
+    "name": "Metapus API",
+    "description": "Коллекция API запросов для системы Metapus",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "15612834"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Liveness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/live",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health",
+                "live"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Readiness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/ready",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/info",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health",
+                "info"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('userId', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"admin@example.com\",\n    \"password\": \"SecurePass123!\",\n    \"firstName\": \"Admin\",\n    \"lastName\": \"User\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('accessToken', jsonData.tokens.accessToken);",
+                  "    pm.collectionVariables.set('refreshToken', jsonData.tokens.refreshToken);",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"Admin123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('accessToken', jsonData.accessToken);",
+                  "    pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"{{userId}}\",\n    \"roleCode\": \"admin\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/assign-role",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "assign-role"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Catalogs",
+      "item": [
+        {
+          "name": "Units",
+          "item": [
+            {
+              "name": "Create Unit",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.collectionVariables.set('unitId', jsonData.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}",
+                    "disabled": true
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"тест\",\n    \"code\": \"тест\",\n    \"parentId\": null,\n    \"type\": \"volume\",\n    \"symbol\": \"тест\",\n    \"international_code\": null,\n    \"base_unit_id\": null,\n    \"conversion_factor\": 1,\n    \"isBase\": true,\n    \"isFolder\": false\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/units",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "units"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List Units",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/units",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "units"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Currencies",
+          "item": [
+            {
+              "name": "Create Currency",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.collectionVariables.set('currencyId', jsonData.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"code\": \"TEST\",\n    \"name\": \"Тестовая Валюта\",\n    \"isoCode\": \"TES\",\n    \"symbol\": \"T\",\n    \"decimalPlaces\": 2,\n    \"isBase\": false,\n    \"isFolder\": false\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/currencies",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "currencies"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List Currencies",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/currencies",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "currencies"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Set Exchange Rate",
+              "request": {
+                "method": "PUT",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"rate\": \"92.50\",\n    \"date\": \"2024-01-25T12:00:00Z\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/currencies/{{currencyId}}/rate",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "currencies",
+                    "{{currencyId}}",
+                    "rate"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Warehouses",
+          "item": [
+            {
+              "name": "Create Warehouse",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.collectionVariables.set('warehouseId', jsonData.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}",
+                    "disabled": true
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"Основной склад\",\n    \"address\": \"г. Москва, ул. Складская, д. 1\",\n    \"type\": \"retail\",\n    \"organization_id\": \"019b2822-51ab-7bf6-9be9-b0eb664c6b3f\",\n    \"allow_negative_stock\": \"false\",\n    \"is_folder\": \"false\",\n    \"is_default\": \"false\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/warehouses",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "warehouses"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List Warehouses",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}",
+                    "disabled": true
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/warehouses",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "warehouses"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Counterparties",
+          "item": [
+            {
+              "name": "Примеры с гибкими фильтрами",
+              "item": [
+                {
+                  "name": "1: Найти всех покупателей (Type = \"customer\")",
+                  "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                  },
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-Tenant-ID",
+                        "value": "{{tenantId}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "••••••"
+                      }
+                    ],
+                    "body": {
+                      "mode": "urlencoded",
+                      "urlencoded": [
+                        {
+                          "type": "text",
+                          "key": "filter",
+                          "value": "[{\"field\":\"type\",\"operator\":\"eq\",\"value\":\"customer\"}]"
+                        }
+                      ]
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/catalog/counterparties?filter=[{\"field\":\"inn\",\"operator\":\"eq\",\"value\":\"7710151579\"}]",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "catalog",
+                        "counterparties"
+                      ],
+                      "query": [
+                        {
+                          "key": "filter",
+                          "value": "[{\"field\":\"inn\",\"operator\":\"eq\",\"value\":\"7710151579\"}]"
+                        }
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "2: Найти по названию (Содержит \"Тест\")",
+                  "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                  },
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-Tenant-ID",
+                        "value": "{{tenantId}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "••••••"
+                      }
+                    ],
+                    "body": {
+                      "mode": "urlencoded",
+                      "urlencoded": [
+                        {
+                          "type": "text",
+                          "key": "filter",
+                          "value": "[{\"field\":\"name\",\"operator\":\"contains\",\"value\":\"Тест\"}]"
+                        }
+                      ]
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/catalog/counterparties?filter=[{\"field\":\"name\",\"operator\":\"contains\",\"value\":\"Тест\"}]",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "catalog",
+                        "counterparties"
+                      ],
+                      "query": [
+                        {
+                          "key": "filter",
+                          "value": "[{\"field\":\"name\",\"operator\":\"contains\",\"value\":\"Тест\"}]"
+                        }
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "3: Сложный отбор (Юрлицо И Поставщик)",
+                  "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                  },
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-Tenant-ID",
+                        "value": "{{tenantId}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "••••••"
+                      }
+                    ],
+                    "body": {
+                      "mode": "urlencoded",
+                      "urlencoded": [
+                        {
+                          "type": "text",
+                          "key": "filter",
+                          "value": "[{\"field\":\"legal_form\",\"operator\":\"eq\",\"value\":\"company\"},{\"field\":\"type\",\"operator\":\"eq\",\"value\":\"supplier\"}]"
+                        }
+                      ]
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/catalog/counterparties?filter=[{\"field\":\"legal_form\",\"operator\":\"eq\",\"value\":\"company\"},{\"field\":\"type\",\"operator\":\"eq\",\"value\":\"supplier\"}]",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "catalog",
+                        "counterparties"
+                      ],
+                      "query": [
+                        {
+                          "key": "filter",
+                          "value": "[{\"field\":\"legal_form\",\"operator\":\"eq\",\"value\":\"company\"},{\"field\":\"type\",\"operator\":\"eq\",\"value\":\"supplier\"}]"
+                        }
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "4: Отбор \"В списке\" (по конкретным ИНН)",
+                  "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                  },
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-Tenant-ID",
+                        "value": "{{tenantId}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "••••••"
+                      }
+                    ],
+                    "body": {
+                      "mode": "urlencoded",
+                      "urlencoded": [
+                        {
+                          "type": "text",
+                          "key": "filter",
+                          "value": "[{\"field\":\"inn\",\"operator\":\"in\",\"value\":[\"7710140679\",\"772300001234\"]}]"
+                        }
+                      ]
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/catalog/counterparties?filter=[{\"field\":\"inn\",\"operator\":\"in\",\"value\":[\"7710140679\",\"772300001234\"]}]",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "catalog",
+                        "counterparties"
+                      ],
+                      "query": [
+                        {
+                          "key": "filter",
+                          "value": "[{\"field\":\"inn\",\"operator\":\"in\",\"value\":[\"7710140679\",\"772300001234\"]}]"
+                        }
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "5: Заполнено поле (Есть Email)",
+                  "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                  },
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-Tenant-ID",
+                        "value": "{{tenantId}}"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "••••••"
+                      }
+                    ],
+                    "body": {
+                      "mode": "urlencoded",
+                      "urlencoded": [
+                        {
+                          "type": "text",
+                          "key": "filter",
+                          "value": "[{\"field\":\"email\",\"operator\":\"not_null\",\"value\":true}]"
+                        }
+                      ]
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/catalog/counterparties?filter=[{\"field\":\"email\",\"operator\":\"not_null\",\"value\":true}]",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "catalog",
+                        "counterparties"
+                      ],
+                      "query": [
+                        {
+                          "key": "filter",
+                          "value": "[{\"field\":\"email\",\"operator\":\"not_null\",\"value\":true}]"
+                        }
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "6: Полнотекстовый поиск",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-Tenant-ID",
+                        "value": "{{tenantId}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/catalog/counterparties?search=Доставка",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "catalog",
+                        "counterparties"
+                      ],
+                      "query": [
+                        {
+                          "key": "search",
+                          "value": "Доставка"
+                        }
+                      ]
+                    }
+                  },
+                  "response": []
+                }
+              ]
+            },
+            {
+              "name": "Create Counterparty",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.collectionVariables.set('counterpartyId', jsonData.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"ООО 'Тест'\",\n    \"type\": \"customer\",\n    \"legalForm\": \"company\",\n    \"fullName\": \"ООО 'Тест'\",\n    \"inn\": \"7710151579\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/counterparties",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "counterparties"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List Counterparties",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/counterparties",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "counterparties"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Counterparty (Rename)",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"code\": \"CP-2026-00001\",\n    \"name\": \"ООО 'Тест' Переименовано\",\n    \"type\": \"customer\",\n    \"legalForm\": \"company\",\n    \"fullName\": \"ООО 'Тест'\",\n    \"inn\": \"7710151579\",\n    \"version\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/counterparties/{{counterpartyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "counterparties",
+                    "{{counterpartyId}}"
+                  ]
+                },
+                "description": "Обновляет данные. Требует поле 'version', соответствующее текущему в БД."
+              },
+              "response": []
+            },
+            {
+              "name": "Hard delete",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 204\", function () {",
+                      "    pm.response.to.have.status(204);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/counterparties/{{counterpartyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "counterparties",
+                    "{{counterpartyId}}"
+                  ]
+                },
+                "description": "Устанавливает флаг deletion_mark = true."
+              },
+              "response": []
+            },
+            {
+              "name": "Set Deletion Mark (Soft Delete)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 204\", function () {",
+                      "    pm.response.to.have.status(204);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/counterparties/{{counterpartyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "counterparties",
+                    "{{counterpartyId}}"
+                  ]
+                },
+                "description": "Устанавливает флаг deletion_mark = true."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Nomenclature",
+          "item": [
+            {
+              "name": "Create Product",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.collectionVariables.set('productId', jsonData.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"code\": \"NM-00010\",\n    \"name\": \"Тестовая номенклатура\",\n    \"type\": \"goods\",\n    \"article\": \"PAP-A5\",\n    \"barcode\": \"4600000000011\",\n    \"baseUnitId\": \"019b2822-51cd-7a81-b4e1-6915c3110e02\",\n    \"vatRate\": \"20\",\n    \"weight\": \"0\",\n    \"volume\": \"0\",\n    \"isWeighed\": false,\n    \"trackSerial\": false,\n    \"trackBatch\": false,\n    \"isFolder\": false\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/nomenclature",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "nomenclature"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List Nomenclature",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/nomenclature?pageSize=20&page=1",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "nomenclature"
+                  ],
+                  "query": [
+                    {
+                      "key": "pageSize",
+                      "value": "20"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Product by Barcode",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/nomenclature/by-barcode/4600000000001",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "nomenclature",
+                    "by-barcode",
+                    "4600000000001"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "1: Найти все товары (Type = \"goods\")",
+              "request": {
+                "method": "GET",
+                "header": []
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "GoodsReceipt",
+          "item": [
+            {
+              "name": "Create GoodsReceipt",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.collectionVariables.set('goodsReceiptId', jsonData.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}",
+                    "disabled": true
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{$guid}}",
+                    "disabled": true
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"date\": \"2026-01-03T15:04:05Z\",\n    \"organizationId\": \"019b2822-51ab-7bf6-9be9-b0eb664c6b3f\",\n    \"warehouseId\": \"019b2822-51df-7330-a254-aa47286d3b39\",\n    \"supplierID\": \"019b88b6-01ef-768c-a45b-4430f3cb8bb5\",\n    \"description\": \"Поступление от поставщика\",\n    \"lines\": [\n        {\n            \"productId\": \"019b85ae-af98-74d0-b79d-20fd8ec9205d\",\n            \"quantity\": 100,\n            \"unitPrice\": 150,\n            \"vatRate\": \"20\"\n        },\n        {\n            \"productId\": \"019b2822-520b-7229-9f21-f2085bca80e6\",\n            \"quantity\": 1,\n            \"unitPrice\": 150,\n            \"vatRate\": \"0\"\n        }\n    ]\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-receipt",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-receipt"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List GoodsReceipts",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-receipt",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-receipt"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get GoodsReceipt",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{goodsReceiptId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-receipt",
+                    "{{goodsReceiptId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Post GoodsReceipt",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{goodsReceiptId}}/post",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-receipt",
+                    "{{goodsReceiptId}}",
+                    "post"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Unpost GoodsReceipt",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{goodsReceiptId}}/unpost",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-receipt",
+                    "{{goodsReceiptId}}",
+                    "unpost"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Copy GoodsReceipt",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{goodsReceiptId}}/copy",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-receipt",
+                    "{{goodsReceiptId}}",
+                    "copy"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "1. Unpost (Required before Edit/Delete)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{receiptId}}/unpost",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-receipt",
+                    "{{receiptId}}",
+                    "unpost"
+                  ]
+                },
+                "description": "ЭТОТ ЗАПРОС УДАЛЯЕТ ДВИЖЕНИЯ.\nСогласно коду (service.go), нельзя удалить или изменить проведенный документ. Сначала нужно вызвать этот метод."
+              },
+              "response": []
+            },
+            {
+              "name": "2a. Update Content (Edit)",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"comment\": \"Исправлено количество и цена\",\n    \"lines\": [\n        {\n            \"productId\": \"{{productId}}\",\n            \"quantity\": 150,\n            \"unitPrice\": 14500,\n            \"vatRate\": \"20\"\n        }\n    ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{receiptId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-receipt",
+                    "{{receiptId}}"
+                  ]
+                },
+                "description": "Работает только если документ НЕ проведен (или после Unpost)."
+              },
+              "response": []
+            },
+            {
+              "name": "2b. Repost (After Edit)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{receiptId}}/post",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-receipt",
+                    "{{receiptId}}",
+                    "post"
+                  ]
+                },
+                "description": "Формирует новые движения на основе обновленных данных."
+              },
+              "response": []
+            },
+            {
+              "name": "3. Set Deletion Mark",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{receiptId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-receipt",
+                    "{{receiptId}}"
+                  ]
+                },
+                "description": "Устанавливает deletion_mark = true. Сработает ТОЛЬКО если документ не проведен (выполнен шаг 1)."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "GoodsIssue",
+          "item": [
+            {
+              "name": "Create GoodsIssue",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.collectionVariables.set('goodsIssueId', jsonData.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{$guid}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"warehouseId\": \"{{warehouseId}}\",\n    \"counterpartyId\": \"{{counterpartyId}}\",\n    \"comment\": \"Отгрузка покупателю\",\n    \"lines\": [\n        {\n            \"productId\": \"{{productId}}\",\n            \"quantity\": 10,\n            \"price\": 200.00,\n            \"vatRate\": \"20\"\n        }\n    ]\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-issue",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-issue"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List GoodsIssues",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-issue",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-issue"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Post GoodsIssue",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-issue/{{goodsIssueId}}/post",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-issue",
+                    "{{goodsIssueId}}",
+                    "post"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Inventory",
+          "item": [
+            {
+              "name": "Create Inventory",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.collectionVariables.set('inventoryId', jsonData.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"warehouseId\": \"{{warehouseId}}\",\n    \"comment\": \"Плановая инвентаризация\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/inventory",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "inventory"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Prepare Inventory Sheet",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/inventory/{{inventoryId}}/prepare-sheet",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "inventory",
+                    "{{inventoryId}}",
+                    "prepare-sheet"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Start Inventory",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/inventory/{{inventoryId}}/start",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "inventory",
+                    "{{inventoryId}}",
+                    "start"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Record Count",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"productId\": \"{{productId}}\",\n    \"actualQuantity\": 95\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/inventory/{{inventoryId}}/record-count",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "inventory",
+                    "{{inventoryId}}",
+                    "record-count"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Complete Inventory",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/inventory/{{inventoryId}}/complete",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "inventory",
+                    "{{inventoryId}}",
+                    "complete"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Comparison",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/inventory/{{inventoryId}}/comparison",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "inventory",
+                    "{{inventoryId}}",
+                    "comparison"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Post Inventory",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/inventory/{{inventoryId}}/post",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "inventory",
+                    "{{inventoryId}}",
+                    "post"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Registers",
+      "item": [
+        {
+          "name": "Get Stock Balances",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "warehouseId",
+                "value": "",
+                "type": "text",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/registers/stock/balances",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "registers",
+                "stock",
+                "balances"
+              ],
+              "query": [
+                {
+                  "key": "warehouseId",
+                  "value": "{{warehouseId}}",
+                  "type": "text",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Stock Balances by Warehouse",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/registers/stock/balances?warehouseId={{warehouseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "registers",
+                "stock",
+                "balances"
+              ],
+              "query": [
+                {
+                  "key": "warehouseId",
+                  "value": "{{warehouseId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Stock Movements",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/registers/stock/movements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "registers",
+                "stock",
+                "movements"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Stock Turnovers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/registers/stock/turnovers?dateFrom=2024-01-01&dateTo=2024-12-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "registers",
+                "stock",
+                "turnovers"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "2024-12-31"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Product Availability",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/registers/stock/availability/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "registers",
+                "stock",
+                "availability",
+                "{{productId}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Stock Balance Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reports/stock-balance",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "stock-balance"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Stock Turnover Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reports/stock-turnover?dateFrom=2024-01-01&dateTo=2024-12-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "stock-turnover"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "2024-12-31"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Document Journal",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reports/document-journal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "document-journal"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "refreshToken",
+      "value": ""
+    },
+    {
+      "key": "tenantId",
+      "value": "default"
+    },
+    {
+      "key": "warehouseId",
+      "value": ""
+    },
+    {
+      "key": "counterpartyId",
+      "value": ""
+    },
+    {
+      "key": "productId",
+      "value": ""
+    },
+    {
+      "key": "unitId",
+      "value": ""
+    },
+    {
+      "key": "currencyId",
+      "value": ""
+    },
+    {
+      "key": "goodsReceiptId",
+      "value": ""
+    },
+    {
+      "key": "goodsIssueId",
+      "value": ""
+    },
+    {
+      "key": "inventoryId",
+      "value": ""
+    },
+    {
+      "key": "userId",
+      "value": ""
+    }
+  ]
 }

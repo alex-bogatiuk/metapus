@@ -226,7 +226,7 @@ func (h *StockHandler) GetProductAvailability(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"productId": productID.String(),
-		"quantity":  quantity,
+		"quantity":  quantity.Float64(),
 	})
 }
 

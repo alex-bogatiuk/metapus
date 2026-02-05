@@ -204,7 +204,7 @@ func (r *StockRepo) GetBalanceForUpdate(ctx context.Context, warehouseID, produc
 	return balance, nil
 }
 
-// GetBalancesByWarehouse returns non-zero balances for a warehouse.
+// GetBalancesByWarehouse returns balances for a warehouse.
 func (r *StockRepo) GetBalancesByWarehouse(ctx context.Context, warehouseID id.ID, filter stock.BalanceFilter) ([]entity.StockBalance, error) {
 	q := r.builder.Select(
 		"warehouse_id", "product_id",
@@ -221,13 +221,11 @@ func (r *StockRepo) GetBalancesByWarehouse(ctx context.Context, warehouseID id.I
 	}
 
 	if filter.MinQuantity != nil {
-		minQ := types.NewQuantityFromFloat64(*filter.MinQuantity).Int64Scaled()
-		q = q.Where(squirrel.GtOrEq{"quantity": minQ})
+		q = q.Where(squirrel.GtOrEq{"quantity": filter.MinQuantity.Int64Scaled()})
 	}
 
 	if filter.MaxQuantity != nil {
-		maxQ := types.NewQuantityFromFloat64(*filter.MaxQuantity).Int64Scaled()
-		q = q.Where(squirrel.LtOrEq{"quantity": maxQ})
+		q = q.Where(squirrel.LtOrEq{"quantity": filter.MaxQuantity.Int64Scaled()})
 	}
 
 	q = q.OrderBy("product_id")
@@ -271,7 +269,7 @@ func (r *StockRepo) GetBalancesByProduct(ctx context.Context, productID id.ID) (
 }
 
 // GetBalancesAtDate calculates balance as of a specific date.
-func (r *StockRepo) GetBalancesAtDate(ctx context.Context, warehouseID, productID id.ID, date time.Time) (float64, error) {
+func (r *StockRepo) GetBalancesAtDate(ctx context.Context, warehouseID, productID id.ID, date time.Time) (types.Quantity, error) {
 	sql := `
 		SELECT COALESCE(
 			SUM(CASE WHEN record_type = 'receipt' THEN quantity ELSE -quantity END),
@@ -290,7 +288,7 @@ func (r *StockRepo) GetBalancesAtDate(ctx context.Context, warehouseID, productI
 		return 0, fmt.Errorf("calculate balance at date: %w", err)
 	}
 
-	return types.NewQuantityFromInt64Scaled(balanceScaled).Float64(), nil
+	return types.NewQuantityFromInt64Scaled(balanceScaled), nil
 }
 
 // GetMovementHistory returns movement history for a product.
@@ -360,6 +358,7 @@ func (r *StockRepo) GetTurnover(ctx context.Context, filter stock.TurnoverFilter
 		baseConditions += fmt.Sprintf(" AND product_id = $%d", argIndex)
 		args = append(args, *filter.ProductID)
 		result.ProductID = *filter.ProductID
+		argIndex++
 	}
 
 	sql := fmt.Sprintf(`
@@ -376,8 +375,8 @@ func (r *StockRepo) GetTurnover(ctx context.Context, filter stock.TurnoverFilter
 	if err != nil && err != pgx.ErrNoRows {
 		return result, fmt.Errorf("calculate turnover: %w", err)
 	}
-	result.Receipt = types.NewQuantityFromInt64Scaled(receiptScaled).Float64()
-	result.Expense = types.NewQuantityFromInt64Scaled(expenseScaled).Float64()
+	result.Receipt = types.NewQuantityFromInt64Scaled(receiptScaled)
+	result.Expense = types.NewQuantityFromInt64Scaled(expenseScaled)
 
 	// Calculate opening balance
 	openingArgs := []any{filter.FromDate}
@@ -409,7 +408,7 @@ func (r *StockRepo) GetTurnover(ctx context.Context, filter stock.TurnoverFilter
 	if err != nil && err != pgx.ErrNoRows {
 		return result, fmt.Errorf("calculate opening balance: %w", err)
 	}
-	result.OpeningBalance = types.NewQuantityFromInt64Scaled(openingScaled).Float64()
+	result.OpeningBalance = types.NewQuantityFromInt64Scaled(openingScaled)
 
 	result.ClosingBalance = result.OpeningBalance + result.Receipt - result.Expense
 
@@ -424,15 +423,14 @@ func (r *StockRepo) RecalculateBalances(ctx context.Context, warehouseID, produc
 }
 
 // CheckStockAvailability checks if required quantity is available.
-func (r *StockRepo) CheckStockAvailability(ctx context.Context, warehouseID, productID id.ID, requiredQty float64) error {
+func (r *StockRepo) CheckStockAvailability(ctx context.Context, warehouseID, productID id.ID, requiredQty types.Quantity) error {
 	balance, err := r.GetBalanceForUpdate(ctx, warehouseID, productID)
 	if err != nil {
 		return fmt.Errorf("get balance: %w", err)
 	}
 
-	req := types.NewQuantityFromFloat64(requiredQty)
-	if balance.Quantity < req {
-		return apperror.NewInsufficientStock(productID.String(), requiredQty, balance.Quantity.Float64())
+	if balance.Quantity < requiredQty {
+		return apperror.NewInsufficientStock(productID.String(), requiredQty.Float64(), balance.Quantity.Float64())
 	}
 
 	return nil

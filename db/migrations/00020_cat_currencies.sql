@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS cat_currencies (
     iso_numeric_code VARCHAR(3),
     symbol VARCHAR(10) NOT NULL,
     decimal_places INT NOT NULL DEFAULT 2,
+    minor_multiplier BIGINT NOT NULL DEFAULT 100,
     is_base BOOLEAN NOT NULL DEFAULT FALSE,
     country VARCHAR(100),
     

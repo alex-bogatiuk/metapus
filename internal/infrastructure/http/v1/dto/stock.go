@@ -83,10 +83,10 @@ type StockTurnoverResponse struct {
 // FromStockTurnover converts domain turnover to response DTO.
 func FromStockTurnover(t stock.Turnover) StockTurnoverResponse {
 	resp := StockTurnoverResponse{
-		OpeningBalance: t.OpeningBalance,
-		Receipt:        t.Receipt,
-		Expense:        t.Expense,
-		ClosingBalance: t.ClosingBalance,
+		OpeningBalance: t.OpeningBalance.Float64(),
+		Receipt:        t.Receipt.Float64(),
+		Expense:        t.Expense.Float64(),
+		ClosingBalance: t.ClosingBalance.Float64(),
 	}
 	if !id.IsNil(t.WarehouseID) {
 		resp.WarehouseID = t.WarehouseID.String()

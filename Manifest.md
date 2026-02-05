@@ -47,7 +47,7 @@
 │     Никакой "магии" ORM.                                                │
 │                                                                          │
 │  3. PERFORMANCE FIRST                                                    │
-│     Нативные драйверы (pgx), пулы соединений, decimal для финансов.     │
+│     Нативные драйверы (pgx), пулы соединений, MinorUnits/Quantity для точности. │
 │                                                                          │
 │  4. LAYERED ISOLATION                                                    │
 │     Domain ничего не знает о Infrastructure и Presentation.              │
@@ -369,7 +369,7 @@ func (o OperationType) MarshalJSON() ([]byte, error) {
 CREATE TABLE reg_info_currency_rates (
     period      DATE NOT NULL,
     currency_id UUID NOT NULL,
-    rate        NUMERIC(15,4) NOT NULL,
+    rate        BIGINT NOT NULL, -- scaled x10000 (Quantity)
     PRIMARY KEY (currency_id, period)
 );
 
@@ -466,7 +466,7 @@ metapus/
 │   │   │   ├── scope.go          # AccessScope (UserID, Roles)
 │   │   │   └── jwt.go            # JWT Claims
 │   │   └── types/
-│   │       └── money.go          # Decimal алиасы
+│   │       └── money.go          # MinorUnits, Quantity, Money (Decimal)
 │   │
 │   ├── domain/                   # ═══ БИЗНЕС-ЛОГИКА ═══
 │   │   ├── catalogs/
@@ -617,21 +617,21 @@ func (a *Attributes) Scan(value interface{}) error {
 }
 
 // Типизированные геттеры
-func (a Attributes) GetDecimal(key string) (decimal.Decimal, error) {
-    v, ok := a[key]
-    if !ok {
-        return decimal.Zero, nil
+func (a Attributes) GetDecimal(key string) decimal.Decimal {
+    if a == nil {
+        return decimal.Zero
     }
-    switch val := v.(type) {
+    switch v := a[key].(type) {
     case json.Number:
-        return decimal.NewFromString(val.String())
-    case float64:
-        return decimal.NewFromFloat(val), nil
+        d, _ := decimal.NewFromString(v.String())
+        return d
     case string:
-        return decimal.NewFromString(val)
-    default:
-        return decimal.Zero, fmt.Errorf("invalid decimal type for key %s", key)
+        d, _ := decimal.NewFromString(v)
+        return d
+    case float64:
+        return decimal.NewFromFloat(v)
     }
+    return decimal.Zero
 }
 
 func (a Attributes) GetString(key string) string {
@@ -795,7 +795,7 @@ func NewNotFoundError(entity, id string) AppError {
     }
 }
 
-func NewInsufficientStockError(productID string, requested, available float64) AppError {
+func NewInsufficientStockError(productID string, requested, available types.Quantity) AppError {
     return AppError{
         Code:    CodeInsufficientStock,
         Message: "Недостаточно товара на складе",
@@ -1003,7 +1003,7 @@ type Invoice struct {
     WarehouseID    string    `db:"warehouse_id" json:"warehouseId"`
     OrganizationID string    `db:"organization_id" json:"organizationId"`
     CurrencyID     string    `db:"currency_id" json:"currencyId"`
-    TotalAmount    decimal.Decimal `db:"total_amount" json:"totalAmount"`
+    TotalAmount    types.MinorUnits `db:"total_amount" json:"totalAmount"`
 
     // Табличные части (не маппятся напрямую)
     Items []InvoiceItem `db:"-" json:"items"`
@@ -1013,9 +1013,9 @@ type InvoiceItem struct {
     LineID     string          `db:"line_id" json:"lineId"`
     LineNumber int             `db:"line_number" json:"lineNumber"`
     ProductID  string          `db:"product_id" json:"productId"`
-    Quantity   decimal.Decimal `db:"quantity" json:"quantity"`
-    Price      decimal.Decimal `db:"price" json:"price"`
-    Amount     decimal.Decimal `db:"amount" json:"amount"`
+    Quantity   types.Quantity  `db:"quantity" json:"quantity"`
+    Price      types.MinorUnits `db:"price" json:"price"`
+    Amount     types.MinorUnits `db:"amount" json:"amount"`
 }
 
 func (i *Invoice) Validate(ctx context.Context) error {
@@ -1038,10 +1038,11 @@ func (i *Invoice) Validate(ctx context.Context) error {
 
 // Calculate пересчитывает суммы
 func (i *Invoice) Calculate() {
-    total := decimal.Zero
+    var total types.MinorUnits
     for idx := range i.Items {
-        i.Items[idx].Amount = i.Items[idx].Quantity.Mul(i.Items[idx].Price)
-        total = total.Add(i.Items[idx].Amount)
+        // Integer arithmetic: (QuantityScaled * Price) / 10000
+        i.Items[idx].Amount = types.MinorUnits((i.Items[idx].Quantity.Int64Scaled() * int64(i.Items[idx].Price)) / 10000)
+        total += i.Items[idx].Amount
     }
     i.TotalAmount = total
 }
@@ -1137,8 +1138,8 @@ func (s *PostingService) Post(ctx context.Context, docID string) error {
                     balance, _ := s.stockRepo.GetBalance(ctx, key.WarehouseID, key.ProductID)
                     return apperror.NewInsufficientStockError(
                         key.ProductID,
-                        delta.Abs().InexactFloat64(),
-                        balance.InexactFloat64(),
+                        delta.Abs(),
+                        balance,
                     )
                 }
             } else {

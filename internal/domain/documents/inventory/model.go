@@ -33,10 +33,10 @@ type Inventory struct {
 	ResponsibleID *id.ID          `db:"responsible_id" json:"responsibleId,omitempty"`
 
 	// Totals (calculated)
-	TotalBookQuantity     float64 `db:"total_book_quantity" json:"totalBookQuantity"`
-	TotalActualQuantity   float64 `db:"total_actual_quantity" json:"totalActualQuantity"`
-	TotalSurplusQuantity  float64 `db:"total_surplus_quantity" json:"totalSurplusQuantity"`
-	TotalShortageQuantity float64 `db:"total_shortage_quantity" json:"totalShortageQuantity"`
+	TotalBookQuantity     types.Quantity `db:"total_book_quantity" json:"totalBookQuantity"`
+	TotalActualQuantity   types.Quantity `db:"total_actual_quantity" json:"totalActualQuantity"`
+	TotalSurplusQuantity  types.Quantity `db:"total_surplus_quantity" json:"totalSurplusQuantity"`
+	TotalShortageQuantity types.Quantity `db:"total_shortage_quantity" json:"totalShortageQuantity"`
 
 	Lines []InventoryLine `db:"-" json:"lines"`
 }
@@ -47,9 +47,9 @@ type InventoryLine struct {
 	LineNo    int   `db:"line_no" json:"lineNo"`
 	ProductID id.ID `db:"product_id" json:"productId"`
 
-	BookQuantity   float64  `db:"book_quantity" json:"bookQuantity"`
-	ActualQuantity *float64 `db:"actual_quantity" json:"actualQuantity,omitempty"`
-	Deviation      float64  `db:"deviation" json:"deviation"`
+	BookQuantity   types.Quantity  `db:"book_quantity" json:"bookQuantity"`
+	ActualQuantity *types.Quantity `db:"actual_quantity" json:"actualQuantity,omitempty"`
+	Deviation      types.Quantity  `db:"deviation" json:"deviation"`
 
 	UnitPrice       int64 `db:"unit_price" json:"unitPrice"`
 	DeviationAmount int64 `db:"deviation_amount" json:"deviationAmount"`
@@ -71,7 +71,7 @@ func NewInventory(organizationID string, warehouseID id.ID) *Inventory {
 }
 
 // AddLine adds a line to the inventory.
-func (inv *Inventory) AddLine(productID id.ID, bookQuantity float64, unitPrice int64) {
+func (inv *Inventory) AddLine(productID id.ID, bookQuantity types.Quantity, unitPrice int64) {
 	lineNo := len(inv.Lines) + 1
 
 	line := InventoryLine{
@@ -88,7 +88,7 @@ func (inv *Inventory) AddLine(productID id.ID, bookQuantity float64, unitPrice i
 }
 
 // SetActualQuantity sets the actual quantity for a line.
-func (inv *Inventory) SetActualQuantity(lineNo int, actualQty float64, countedBy string) error {
+func (inv *Inventory) SetActualQuantity(lineNo int, actualQty types.Quantity, countedBy string) error {
 	if lineNo < 1 || lineNo > len(inv.Lines) {
 		return apperror.NewValidation("invalid line number")
 	}
@@ -96,7 +96,8 @@ func (inv *Inventory) SetActualQuantity(lineNo int, actualQty float64, countedBy
 	idx := lineNo - 1
 	inv.Lines[idx].ActualQuantity = &actualQty
 	inv.Lines[idx].Deviation = actualQty - inv.Lines[idx].BookQuantity
-	inv.Lines[idx].DeviationAmount = int64(inv.Lines[idx].Deviation) * inv.Lines[idx].UnitPrice
+	// Deviation Amount calculation using integer arithmetic: (DeviationScaled * UnitPrice) / 10000
+	inv.Lines[idx].DeviationAmount = (inv.Lines[idx].Deviation.Int64Scaled() * inv.Lines[idx].UnitPrice) / 10000
 	inv.Lines[idx].Counted = true
 	now := time.Now().UTC()
 	inv.Lines[idx].CountedAt = &now
@@ -228,7 +229,7 @@ func (inv *Inventory) GenerateMovements(ctx context.Context) (*posting.MovementS
 		}
 
 		var recordType entity.RecordType
-		var qty float64
+		var qty types.Quantity
 
 		if line.Deviation > 0 {
 			// Surplus: receipt
@@ -248,7 +249,7 @@ func (inv *Inventory) GenerateMovements(ctx context.Context) (*posting.MovementS
 			recordType,
 			inv.WarehouseID,
 			line.ProductID,
-			types.NewQuantityFromFloat64(qty),
+			qty,
 		)
 
 		movements.AddStock(stockMovement)

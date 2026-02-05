@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"metapus/internal/core/id"
+	"metapus/internal/core/types"
 	"metapus/internal/domain/documents/inventory"
 )
 
@@ -73,8 +74,8 @@ func (r *UpdateInventoryRequest) ApplyTo(doc *inventory.Inventory) {
 }
 
 type RecordCountRequest struct {
-	LineNo         int     `json:"lineNo" binding:"required,min=1"`
-	ActualQuantity float64 `json:"actualQuantity" binding:"required,gte=0"`
+	LineNo         int            `json:"lineNo" binding:"required,min=1"`
+	ActualQuantity types.Quantity `json:"actualQuantity" binding:"required,gte=0"`
 }
 
 // --- Response DTOs ---
@@ -91,10 +92,10 @@ type InventoryResponse struct {
 	StartDate             time.Time               `json:"startDate"`
 	EndDate               *time.Time              `json:"endDate,omitempty"`
 	ResponsibleID         *string                 `json:"responsibleId,omitempty"`
-	TotalBookQuantity     float64                 `json:"totalBookQuantity"`
-	TotalActualQuantity   float64                 `json:"totalActualQuantity"`
-	TotalSurplusQuantity  float64                 `json:"totalSurplusQuantity"`
-	TotalShortageQuantity float64                 `json:"totalShortageQuantity"`
+	TotalBookQuantity     types.Quantity          `json:"totalBookQuantity"`
+	TotalActualQuantity   types.Quantity          `json:"totalActualQuantity"`
+	TotalSurplusQuantity  types.Quantity          `json:"totalSurplusQuantity"`
+	TotalShortageQuantity types.Quantity          `json:"totalShortageQuantity"`
 	Description           string                  `json:"description,omitempty"`
 	Lines                 []InventoryLineResponse `json:"lines,omitempty"`
 	DeletionMark          bool                    `json:"deletionMark,omitempty"`
@@ -103,17 +104,17 @@ type InventoryResponse struct {
 }
 
 type InventoryLineResponse struct {
-	LineID          string     `json:"lineId"`
-	LineNo          int        `json:"lineNo"`
-	ProductID       string     `json:"productId"`
-	BookQuantity    float64    `json:"bookQuantity"`
-	ActualQuantity  *float64   `json:"actualQuantity,omitempty"`
-	Deviation       float64    `json:"deviation"`
-	UnitPrice       int64      `json:"unitPrice"`
-	DeviationAmount int64      `json:"deviationAmount"`
-	Counted         bool       `json:"counted"`
-	CountedAt       *time.Time `json:"countedAt,omitempty"`
-	CountedBy       *string    `json:"countedBy,omitempty"`
+	LineID          string          `json:"lineId"`
+	LineNo          int             `json:"lineNo"`
+	ProductID       string          `json:"productId"`
+	BookQuantity    types.Quantity  `json:"bookQuantity"`
+	ActualQuantity  *types.Quantity `json:"actualQuantity,omitempty"`
+	Deviation       types.Quantity  `json:"deviation"`
+	UnitPrice       int64           `json:"unitPrice"`
+	DeviationAmount int64           `json:"deviationAmount"`
+	Counted         bool            `json:"counted"`
+	CountedAt       *time.Time      `json:"countedAt,omitempty"`
+	CountedBy       *string         `json:"countedBy,omitempty"`
 }
 
 func FromInventory(doc *inventory.Inventory) *InventoryResponse {
@@ -175,20 +176,20 @@ type ComparisonResponse struct {
 	WarehouseID    string           `json:"warehouseId"`
 	Status         string           `json:"status"`
 	Items          []ComparisonItem `json:"items"`
-	TotalBookQty   float64          `json:"totalBookQty"`
-	TotalActualQty float64          `json:"totalActualQty"`
-	TotalSurplus   float64          `json:"totalSurplus"`
-	TotalShortage  float64          `json:"totalShortage"`
+	TotalBookQty   types.Quantity   `json:"totalBookQty"`
+	TotalActualQty types.Quantity   `json:"totalActualQty"`
+	TotalSurplus   types.Quantity   `json:"totalSurplus"`
+	TotalShortage  types.Quantity   `json:"totalShortage"`
 }
 
 type ComparisonItem struct {
-	LineNo          int     `json:"lineNo"`
-	ProductID       string  `json:"productId"`
-	BookQuantity    float64 `json:"bookQuantity"`
-	ActualQuantity  float64 `json:"actualQuantity"`
-	Deviation       float64 `json:"deviation"`
-	DeviationAmount int64   `json:"deviationAmount"`
-	Counted         bool    `json:"counted"`
+	LineNo          int            `json:"lineNo"`
+	ProductID       string         `json:"productId"`
+	BookQuantity    types.Quantity `json:"bookQuantity"`
+	ActualQuantity  types.Quantity `json:"actualQuantity"`
+	Deviation       types.Quantity `json:"deviation"`
+	DeviationAmount int64          `json:"deviationAmount"`
+	Counted         bool           `json:"counted"`
 }
 
 func FromComparison(c *inventory.ComparisonResult) *ComparisonResponse {

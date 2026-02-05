@@ -38,7 +38,7 @@ CREATE TABLE doc_goods_receipts (
                                     currency CHAR(3) NOT NULL DEFAULT 'RUB',
 
     -- Totals (denormalized for performance)
-                                    total_quantity NUMERIC(15,4) NOT NULL DEFAULT 0,
+                                    total_quantity BIGINT NOT NULL DEFAULT 0, -- scaled x10000
                                     total_amount BIGINT NOT NULL DEFAULT 0,
                                     total_vat BIGINT NOT NULL DEFAULT 0,
 
@@ -61,7 +61,7 @@ CREATE TABLE doc_goods_receipt_lines (
                                          product_id UUID NOT NULL,
 
     -- Quantity and pricing
-                                         quantity NUMERIC(15,4) NOT NULL,
+                                         quantity BIGINT NOT NULL, -- scaled x10000
                                          unit_price BIGINT NOT NULL,
                                          vat_rate VARCHAR(5) NOT NULL DEFAULT '20',
                                          vat_amount BIGINT NOT NULL DEFAULT 0,

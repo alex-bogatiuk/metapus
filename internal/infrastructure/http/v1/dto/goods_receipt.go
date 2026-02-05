@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"metapus/internal/core/id"
+	"metapus/internal/core/types"
 	"metapus/internal/domain/documents/goods_receipt"
 )
 
@@ -26,10 +27,10 @@ type CreateGoodsReceiptRequest struct {
 
 // GoodsReceiptLineRequest represents a line in create/update request.
 type GoodsReceiptLineRequest struct {
-	ProductID string  `json:"productId" binding:"required"`
-	Quantity  float64 `json:"quantity" binding:"required,gt=0"`
-	UnitPrice int64   `json:"unitPrice" binding:"required,gte=0"`
-	VATRate   string  `json:"vatRate,omitempty"`
+	ProductID string         `json:"productId" binding:"required"`
+	Quantity  types.Quantity `json:"quantity" binding:"required,gt=0"`
+	UnitPrice int64          `json:"unitPrice" binding:"required,gte=0"`
+	VATRate   string         `json:"vatRate,omitempty"`
 }
 
 // ToEntity converts request to domain entity.
@@ -55,7 +56,6 @@ func (r *CreateGoodsReceiptRequest) ToEntity() *goods_receipt.GoodsReceipt {
 			vatRate = "20"
 		}
 		doc.AddLine(productID, line.Quantity, line.UnitPrice, vatRate)
-
 	}
 
 	return doc
@@ -137,7 +137,7 @@ type GoodsReceiptResponse struct {
 	SupplierDocNumber string                     `json:"supplierDocNumber,omitempty"`
 	SupplierDocDate   *time.Time                 `json:"supplierDocDate,omitempty"`
 	Currency          string                     `json:"currency"`
-	TotalQuantity     float64                    `json:"totalQuantity"`
+	TotalQuantity     types.Quantity             `json:"totalQuantity"`
 	TotalAmount       int64                      `json:"totalAmount"`
 	TotalVAT          int64                      `json:"totalVat"`
 	Description       string                     `json:"description,omitempty"`
@@ -149,14 +149,14 @@ type GoodsReceiptResponse struct {
 
 // GoodsReceiptLineResponse represents a line in API responses.
 type GoodsReceiptLineResponse struct {
-	LineID    string  `json:"lineId"`
-	LineNo    int     `json:"lineNo"`
-	ProductID string  `json:"productId"`
-	Quantity  float64 `json:"quantity"`
-	UnitPrice int64   `json:"unitPrice"`
-	VATRate   string  `json:"vatRate"`
-	VATAmount int64   `json:"vatAmount"`
-	Amount    int64   `json:"amount"`
+	LineID    string         `json:"lineId"`
+	LineNo    int            `json:"lineNo"`
+	ProductID string         `json:"productId"`
+	Quantity  types.Quantity `json:"quantity"`
+	UnitPrice int64          `json:"unitPrice"`
+	VATRate   string         `json:"vatRate"`
+	VATAmount int64          `json:"vatAmount"`
+	Amount    int64          `json:"amount"`
 }
 
 // FromGoodsReceipt converts domain entity to response DTO.

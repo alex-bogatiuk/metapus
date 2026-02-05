@@ -29,10 +29,10 @@ CREATE TABLE doc_inventories (
 
                                  responsible_id UUID REFERENCES users(id),
 
-                                 total_book_quantity NUMERIC(18, 4) NOT NULL DEFAULT 0,
-                                 total_actual_quantity NUMERIC(18, 4) NOT NULL DEFAULT 0,
-                                 total_surplus_quantity NUMERIC(18, 4) NOT NULL DEFAULT 0,
-                                 total_shortage_quantity NUMERIC(18, 4) NOT NULL DEFAULT 0,
+                                 total_book_quantity BIGINT NOT NULL DEFAULT 0, -- scaled x10000
+                                 total_actual_quantity BIGINT NOT NULL DEFAULT 0,
+                                 total_surplus_quantity BIGINT NOT NULL DEFAULT 0,
+                                 total_shortage_quantity BIGINT NOT NULL DEFAULT 0,
 
                                  CONSTRAINT uq_inventory_number UNIQUE (number)
 );
@@ -44,13 +44,13 @@ CREATE TABLE doc_inventory_lines (
 
                                      product_id UUID NOT NULL REFERENCES cat_nomenclature(id),
 
-                                     book_quantity NUMERIC(18, 4) NOT NULL DEFAULT 0,
-                                     actual_quantity NUMERIC(18, 4),
-                                     deviation NUMERIC(18, 4) GENERATED ALWAYS AS (COALESCE(actual_quantity, 0) - book_quantity) STORED,
+                                     book_quantity BIGINT NOT NULL DEFAULT 0, -- scaled x10000
+                                     actual_quantity BIGINT,
+                                     deviation BIGINT GENERATED ALWAYS AS (COALESCE(actual_quantity, 0) - book_quantity) STORED,
 
                                      unit_price BIGINT NOT NULL DEFAULT 0,
                                      deviation_amount BIGINT GENERATED ALWAYS AS (
-                                         (COALESCE(actual_quantity, 0) - book_quantity)::BIGINT * unit_price
+                                         ((COALESCE(actual_quantity, 0) - book_quantity) * unit_price) / 10000
 ) STORED,
 
     counted BOOLEAN NOT NULL DEFAULT FALSE,

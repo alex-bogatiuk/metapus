@@ -185,3 +185,29 @@ func parseQuantityString(s string) (Quantity, error) {
 	return Quantity(sign * (intPart*QuantityScale + frac)), nil
 }
 
+// MinorUnits represents a monetary value in minor currency units (cents, kopecks, satoshi).
+// Storage: int64 - sufficient for ±922 trillion minor units.
+// Example: 123.45 RUB → 12345 (kopecks), 0.001 BTC → 100000 (satoshi)
+type MinorUnits int64
+
+// NewMinorUnitsFromMajor creates MinorUnits from a major unit amount and decimal places.
+func NewMinorUnitsFromMajor(major float64, decimalPlaces int) MinorUnits {
+	multiplier := math.Pow10(decimalPlaces)
+	return MinorUnits(math.Round(major * multiplier))
+}
+
+// ToMajor converts minor units back to major units for display.
+func (m MinorUnits) ToMajor(decimalPlaces int) float64 {
+	return float64(m) / math.Pow10(decimalPlaces)
+}
+
+func (m MinorUnits) IsZero() bool     { return m == 0 }
+func (m MinorUnits) IsPositive() bool { return m > 0 }
+func (m MinorUnits) IsNegative() bool { return m < 0 }
+func (m MinorUnits) Neg() MinorUnits  { return -m }
+func (m MinorUnits) Abs() MinorUnits {
+	if m < 0 {
+		return -m
+	}
+	return m
+}

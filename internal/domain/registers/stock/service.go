@@ -98,7 +98,7 @@ type StockReservation struct {
 }
 
 // GetProductAvailability returns available quantity across warehouses.
-func (s *Service) GetProductAvailability(ctx context.Context, productID id.ID) (float64, error) {
+func (s *Service) GetProductAvailability(ctx context.Context, productID id.ID) (types.Quantity, error) {
 	balances, err := s.repo.GetBalancesByProduct(ctx, productID)
 	if err != nil {
 		return 0, fmt.Errorf("get balances: %w", err)
@@ -109,7 +109,7 @@ func (s *Service) GetProductAvailability(ctx context.Context, productID id.ID) (
 		total += b.Quantity
 	}
 
-	return total.Float64(), nil
+	return total, nil
 }
 
 // GetWarehouseStock returns all products with stock in a warehouse.

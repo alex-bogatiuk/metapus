@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"metapus/internal/core/id"
+	"metapus/internal/core/types"
 	"metapus/internal/domain/documents/goods_issue"
 )
 
@@ -24,10 +25,10 @@ type CreateGoodsIssueRequest struct {
 }
 
 type GoodsIssueLineRequest struct {
-	ProductID string  `json:"productId" binding:"required"`
-	Quantity  float64 `json:"quantity" binding:"required,gt=0"`
-	UnitPrice int64   `json:"unitPrice" binding:"required,gte=0"`
-	VATRate   string  `json:"vatRate,omitempty"`
+	ProductID string         `json:"productId" binding:"required"`
+	Quantity  types.Quantity `json:"quantity" binding:"required,gt=0"`
+	UnitPrice int64          `json:"unitPrice" binding:"required,gte=0"`
+	VATRate   string         `json:"vatRate,omitempty"`
 }
 
 func (r *CreateGoodsIssueRequest) ToEntity() *goods_issue.GoodsIssue {
@@ -52,7 +53,6 @@ func (r *CreateGoodsIssueRequest) ToEntity() *goods_issue.GoodsIssue {
 			vatRate = "20"
 		}
 		doc.AddLine(productID, line.Quantity, line.UnitPrice, vatRate)
-
 	}
 
 	return doc
@@ -130,7 +130,7 @@ type GoodsIssueResponse struct {
 	CustomerOrderNumber string                   `json:"customerOrderNumber,omitempty"`
 	CustomerOrderDate   *time.Time               `json:"customerOrderDate,omitempty"`
 	Currency            string                   `json:"currency"`
-	TotalQuantity       float64                  `json:"totalQuantity"`
+	TotalQuantity       types.Quantity           `json:"totalQuantity"`
 	TotalAmount         int64                    `json:"totalAmount"`
 	TotalVAT            int64                    `json:"totalVat"`
 	Description         string                   `json:"description,omitempty"`
@@ -141,14 +141,14 @@ type GoodsIssueResponse struct {
 }
 
 type GoodsIssueLineResponse struct {
-	LineID    string  `json:"lineId"`
-	LineNo    int     `json:"lineNo"`
-	ProductID string  `json:"productId"`
-	Quantity  float64 `json:"quantity"`
-	UnitPrice int64   `json:"unitPrice"`
-	VATRate   string  `json:"vatRate"`
-	VATAmount int64   `json:"vatAmount"`
-	Amount    int64   `json:"amount"`
+	LineID    string         `json:"lineId"`
+	LineNo    int            `json:"lineNo"`
+	ProductID string         `json:"productId"`
+	Quantity  types.Quantity `json:"quantity"`
+	UnitPrice int64          `json:"unitPrice"`
+	VATRate   string         `json:"vatRate"`
+	VATAmount int64          `json:"vatAmount"`
+	Amount    int64          `json:"amount"`
 }
 
 func FromGoodsIssue(doc *goods_issue.GoodsIssue) *GoodsIssueResponse {

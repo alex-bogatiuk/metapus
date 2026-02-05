@@ -4,12 +4,14 @@ package currency
 
 import (
 	"context"
+	"math"
 	"regexp"
 
 	"github.com/shopspring/decimal"
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
+	"metapus/internal/core/types"
 )
 
 // Currency represents a monetary unit.
@@ -27,6 +29,9 @@ type Currency struct {
 
 	// DecimalPlaces is the number of decimal places
 	DecimalPlaces int `db:"decimal_places" json:"decimalPlaces"`
+
+	// MinorMultiplier is 10^DecimalPlaces (e.g., 100 for 2 decimal places)
+	MinorMultiplier int64 `db:"minor_multiplier" json:"minorMultiplier"`
 
 	// IsBase indicates if this is the base (accounting) currency
 	IsBase bool `db:"is_base" json:"isBase"`
@@ -72,6 +77,9 @@ func (c *Currency) Validate(ctx context.Context) error {
 			WithDetail("field", "decimalPlaces")
 	}
 
+	// Auto-calculate MinorMultiplier
+	c.MinorMultiplier = int64(math.Pow10(c.DecimalPlaces))
+
 	return nil
 }
 
@@ -86,10 +94,14 @@ func (c *Currency) Format(amount decimal.Decimal) string {
 	return formatted + *c.Symbol
 }
 
-// Convert converts an amount from this currency to another.
-func (c *Currency) Convert(amount decimal.Decimal, target *Currency) decimal.Decimal {
-	// It needs to be completed
-	return amount.Round(int32(1))
+// ToMinorUnits converts major units to minor units using currency's decimal places.
+func (c *Currency) ToMinorUnits(major float64) types.MinorUnits {
+	return types.NewMinorUnitsFromMajor(major, c.DecimalPlaces)
+}
+
+// FromMinorUnits converts minor units to major units for display.
+func (c *Currency) FromMinorUnits(minor types.MinorUnits) float64 {
+	return minor.ToMajor(c.DecimalPlaces)
 }
 
 // --- Validation Helpers ---
