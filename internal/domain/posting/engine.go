@@ -112,13 +112,12 @@ func (e *Engine) OnAfterPost(hook PostHook) {
 // 3. Checks stock availability (for expense movements)
 // 4. Records movements to registers
 // 5. Updates document posted state
+//
+// If the document is already posted, it will be re-posted (like 1C behavior).
 func (e *Engine) Post(ctx context.Context, doc Postable, updateDoc func(context.Context) error) error {
-	// 1. Check if already posted
+	// If already posted, do repost (перепроведение like in 1C)
 	if doc.IsPosted() {
-		return apperror.NewBusinessRule(
-			apperror.CodeDocumentPosted,
-			"Document is already posted",
-		).WithDetail("document_id", doc.GetID().String())
+		return e.Repost(ctx, doc, updateDoc)
 	}
 
 	// 2. Validate document can be posted

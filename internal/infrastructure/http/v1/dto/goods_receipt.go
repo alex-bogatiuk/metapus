@@ -19,7 +19,7 @@ type CreateGoodsReceiptRequest struct {
 	WarehouseID       string                    `json:"warehouseId" binding:"required"`
 	SupplierDocNumber string                    `json:"supplierDocNumber,omitempty"`
 	SupplierDocDate   *time.Time                `json:"supplierDocDate,omitempty"`
-	Currency          string                    `json:"currency,omitempty"`
+	CurrencyID        string                    `json:"currencyId,omitempty"`
 	Description       string                    `json:"description,omitempty"`
 	Lines             []GoodsReceiptLineRequest `json:"lines" binding:"required,min=1,dive"`
 	PostImmediately   bool                      `json:"postImmediately,omitempty"`
@@ -27,10 +27,10 @@ type CreateGoodsReceiptRequest struct {
 
 // GoodsReceiptLineRequest represents a line in create/update request.
 type GoodsReceiptLineRequest struct {
-	ProductID string         `json:"productId" binding:"required"`
-	Quantity  types.Quantity `json:"quantity" binding:"required,gt=0"`
-	UnitPrice int64          `json:"unitPrice" binding:"required,gte=0"`
-	VATRate   string         `json:"vatRate,omitempty"`
+	ProductID string           `json:"productId" binding:"required"`
+	Quantity  types.Quantity   `json:"quantity" binding:"required,gt=0"`
+	UnitPrice types.MinorUnits `json:"unitPrice" binding:"required,gte=0"`
+	VATRate   string           `json:"vatRate,omitempty"`
 }
 
 // ToEntity converts request to domain entity.
@@ -38,15 +38,17 @@ func (r *CreateGoodsReceiptRequest) ToEntity() *goods_receipt.GoodsReceipt {
 	supplierID, _ := id.Parse(r.SupplierID)
 	warehouseID, _ := id.Parse(r.WarehouseID)
 
-	doc := goods_receipt.NewGoodsReceipt(r.OrganizationID, supplierID, warehouseID)
+	orgID, _ := id.Parse(r.OrganizationID)
+	doc := goods_receipt.NewGoodsReceipt(orgID, supplierID, warehouseID)
 	doc.Number = r.Number
 	doc.Date = r.Date
 	doc.SupplierDocNumber = r.SupplierDocNumber
 	doc.SupplierDocDate = r.SupplierDocDate
 	doc.Description = r.Description
 
-	if r.Currency != "" {
-		doc.Currency = r.Currency
+	if r.CurrencyID != "" {
+		currencyID, _ := id.Parse(r.CurrencyID)
+		doc.CurrencyID = currencyID
 	}
 
 	for _, line := range r.Lines {
@@ -70,7 +72,7 @@ type UpdateGoodsReceiptRequest struct {
 	WarehouseID       *string                   `json:"warehouseId,omitempty"`
 	SupplierDocNumber *string                   `json:"supplierDocNumber,omitempty"`
 	SupplierDocDate   *time.Time                `json:"supplierDocDate,omitempty"`
-	Currency          *string                   `json:"currency,omitempty"`
+	CurrencyID        *string                   `json:"currencyId,omitempty"`
 	Description       *string                   `json:"description,omitempty"`
 	Lines             []GoodsReceiptLineRequest `json:"lines,omitempty"`
 }
@@ -84,7 +86,8 @@ func (r *UpdateGoodsReceiptRequest) ApplyTo(doc *goods_receipt.GoodsReceipt) {
 		doc.Date = *r.Date
 	}
 	if r.OrganizationID != nil {
-		doc.OrganizationID = *r.OrganizationID
+		orgID, _ := id.Parse(*r.OrganizationID)
+		doc.OrganizationID = orgID
 	}
 	if r.SupplierID != nil {
 		supplierID, _ := id.Parse(*r.SupplierID)
@@ -100,8 +103,9 @@ func (r *UpdateGoodsReceiptRequest) ApplyTo(doc *goods_receipt.GoodsReceipt) {
 	if r.SupplierDocDate != nil {
 		doc.SupplierDocDate = r.SupplierDocDate
 	}
-	if r.Currency != nil {
-		doc.Currency = *r.Currency
+	if r.CurrencyID != nil {
+		currencyID, _ := id.Parse(*r.CurrencyID)
+		doc.CurrencyID = currencyID
 	}
 	if r.Description != nil {
 		doc.Description = *r.Description
@@ -136,10 +140,10 @@ type GoodsReceiptResponse struct {
 	WarehouseID       string                     `json:"warehouseId"`
 	SupplierDocNumber string                     `json:"supplierDocNumber,omitempty"`
 	SupplierDocDate   *time.Time                 `json:"supplierDocDate,omitempty"`
-	Currency          string                     `json:"currency"`
+	CurrencyID        string                     `json:"currencyId"`
 	TotalQuantity     types.Quantity             `json:"totalQuantity"`
-	TotalAmount       int64                      `json:"totalAmount"`
-	TotalVAT          int64                      `json:"totalVat"`
+	TotalAmount       types.MinorUnits           `json:"totalAmount"`
+	TotalVAT          types.MinorUnits           `json:"totalVat"`
 	Description       string                     `json:"description,omitempty"`
 	Lines             []GoodsReceiptLineResponse `json:"lines,omitempty"`
 	DeletionMark      bool                       `json:"deletionMark,omitempty"`
@@ -149,14 +153,14 @@ type GoodsReceiptResponse struct {
 
 // GoodsReceiptLineResponse represents a line in API responses.
 type GoodsReceiptLineResponse struct {
-	LineID    string         `json:"lineId"`
-	LineNo    int            `json:"lineNo"`
-	ProductID string         `json:"productId"`
-	Quantity  types.Quantity `json:"quantity"`
-	UnitPrice int64          `json:"unitPrice"`
-	VATRate   string         `json:"vatRate"`
-	VATAmount int64          `json:"vatAmount"`
-	Amount    int64          `json:"amount"`
+	LineID    string           `json:"lineId"`
+	LineNo    int              `json:"lineNo"`
+	ProductID string           `json:"productId"`
+	Quantity  types.Quantity   `json:"quantity"`
+	UnitPrice types.MinorUnits `json:"unitPrice"`
+	VATRate   string           `json:"vatRate"`
+	VATAmount types.MinorUnits `json:"vatAmount"`
+	Amount    types.MinorUnits `json:"amount"`
 }
 
 // FromGoodsReceipt converts domain entity to response DTO.
@@ -166,12 +170,12 @@ func FromGoodsReceipt(doc *goods_receipt.GoodsReceipt) *GoodsReceiptResponse {
 		Number:            doc.Number,
 		Date:              doc.Date,
 		Posted:            doc.Posted,
-		OrganizationID:    doc.OrganizationID,
+		OrganizationID:    doc.OrganizationID.String(),
 		SupplierID:        doc.SupplierID.String(),
 		WarehouseID:       doc.WarehouseID.String(),
 		SupplierDocNumber: doc.SupplierDocNumber,
 		SupplierDocDate:   doc.SupplierDocDate,
-		Currency:          doc.Currency,
+		CurrencyID:        doc.CurrencyID.String(),
 		TotalQuantity:     doc.TotalQuantity,
 		TotalAmount:       doc.TotalAmount,
 		TotalVAT:          doc.TotalVAT,

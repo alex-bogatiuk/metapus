@@ -176,7 +176,7 @@ func (h *GoodsIssueHandler) Copy(c *gin.Context) {
 	copy := goods_issue.NewGoodsIssue(source.OrganizationID, source.CustomerID, source.WarehouseID)
 	copy.Date = time.Now()
 	copy.CustomerOrderNumber = source.CustomerOrderNumber
-	copy.Currency = source.Currency
+	copy.CurrencyID = source.CurrencyID
 	copy.Description = source.Description
 
 	for _, line := range source.Lines {

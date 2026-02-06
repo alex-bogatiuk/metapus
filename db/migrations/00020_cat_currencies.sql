@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS cat_currencies (
     
     -- Constraints
     CONSTRAINT chk_iso_code CHECK (iso_code ~ '^[A-Z]{3}$'),
-    CONSTRAINT chk_decimal_places CHECK (decimal_places >= 0 AND decimal_places <= 8)
+    CONSTRAINT chk_decimal_places CHECK (decimal_places >= 0 AND decimal_places <= 18)
 );
 
 -- Indexes

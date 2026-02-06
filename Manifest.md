@@ -684,19 +684,29 @@ type HierarchicalCatalog struct {
     SortOrder int    `db:"sort_order" json:"sortOrder"`
 }
 
-// BaseDocument — стандарт для документов
-type BaseDocument struct {
-    BaseEntity
-    Number         string    `db:"number" json:"number"`
-    Date           time.Time `db:"date" json:"date"`
-    OrganizationID string    `db:"organization_id" json:"organizationId"`
-    Posted         bool      `db:"posted" json:"posted"`
-    PostedVersion  int       `db:"posted_version" json:"postedVersion"` // Версия проведения
-}
-
-// Document — стандарт для документов (с кастомными полями)
+// Document — технический стандарт для всех бизнес-документов.
 type Document struct {
     BaseDocument
+    Number         string    `db:"number" json:"number"`
+    Date           time.Time `db:"date" json:"date"`
+    OrganizationID id.ID     `db:"organization_id" json:"organizationId"`
+    Posted         bool      `db:"posted" json:"posted"`
+    PostedVersion  int       `db:"posted_version" json:"postedVersion"`
+}
+
+// 3.2.4.1. Стандартные Трейты (Traits / Mixins)
+// Мы используем композицию для добавления стандартных измерений там, где они нужны.
+
+// CurrencyAware добавляет поддержку валюты (для финансовых документов).
+type CurrencyAware struct {
+    CurrencyID id.ID `db:"currency_id" json:"currencyId"`
+}
+
+// Пример сборки документа:
+type GoodsReceipt struct {
+    Document      // Включает BaseDocument
+    CurrencyAware // Трейт валюты
+    // ... поля документа
 }
 ```
 

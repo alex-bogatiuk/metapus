@@ -15,8 +15,10 @@ import (
 	"metapus/internal/domain/catalogs/counterparty"
 	"metapus/internal/domain/catalogs/currency"
 	"metapus/internal/domain/catalogs/nomenclature"
+	"metapus/internal/domain/catalogs/organization"
 	"metapus/internal/domain/catalogs/unit"
 	"metapus/internal/domain/catalogs/warehouse"
+	"metapus/internal/domain/documents"
 	"metapus/internal/domain/documents/goods_issue"
 	"metapus/internal/domain/documents/goods_receipt"
 	"metapus/internal/domain/documents/inventory"
@@ -190,11 +192,19 @@ func registerCatalogRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 		handler := handlers.NewCurrencyHandler(baseHandler, service)
 		RegisterCatalogRoutes(catalogs.Group("/currencies"), handler, "catalog:currency")
 	}
+
+	// --- ORGANIZATIONS ---
+	{
+		repo := catalog_repo.NewOrganizationRepo()
+		service := organization.NewService(repo, cfg.Numerator)
+		handler := handlers.NewOrganizationHandler(baseHandler, service)
+		RegisterCatalogRoutes(catalogs.Group("/organizations"), handler, "catalog:organization")
+	}
 }
 
 // registerDocumentRoutes registers document endpoints.
 func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
-	documents := rg.Group("/document")
+	docsGroup := rg.Group("/document")
 	baseHandler := handlers.NewBaseHandler()
 
 	// Create shared dependencies for documents
@@ -202,10 +212,16 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 	stockService := stock.NewService(stockRepo)
 	postingEngine := posting.NewEngine(stockService)
 
+	// Shared resolver for currencies
+	whRepo := catalog_repo.NewWarehouseRepo() // We need repos for resolver
+	orgRepo := catalog_repo.NewOrganizationRepo()
+	curRepo := catalog_repo.NewCurrencyRepo()
+	currencyResolver := documents.NewCurrencyResolver(whRepo, orgRepo, curRepo)
+
 	// --- GOODS RECEIPT ---
 	{
 		repo := document_repo.NewGoodsReceiptRepo()
-		service := goods_receipt.NewService(repo, postingEngine, cfg.Numerator, nil)
+		service := goods_receipt.NewService(repo, postingEngine, cfg.Numerator, nil, currencyResolver)
 
 		// Register audit hooks
 		service.Hooks().OnBeforeCreate(func(ctx context.Context, doc *goods_receipt.GoodsReceipt) error {
@@ -218,13 +234,13 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 		})
 
 		handler := handlers.NewGoodsReceiptHandler(baseHandler, service)
-		RegisterDocumentRoutes(documents.Group("/goods-receipt"), handler, "document:goods_receipt")
+		RegisterDocumentRoutes(docsGroup.Group("/goods-receipt"), handler, "document:goods_receipt")
 	}
 
 	// --- GOODS ISSUE ---
 	{
 		repo := document_repo.NewGoodsIssueRepo()
-		service := goods_issue.NewService(repo, postingEngine, cfg.Numerator, nil)
+		service := goods_issue.NewService(repo, postingEngine, cfg.Numerator, nil, currencyResolver)
 
 		// Register audit hooks
 		service.Hooks().OnBeforeCreate(func(ctx context.Context, doc *goods_issue.GoodsIssue) error {
@@ -237,7 +253,7 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 		})
 
 		handler := handlers.NewGoodsIssueHandler(baseHandler, service)
-		RegisterDocumentRoutes(documents.Group("/goods-issue"), handler, "document:goods_issue")
+		RegisterDocumentRoutes(docsGroup.Group("/goods-issue"), handler, "document:goods_issue")
 	}
 
 	// --- INVENTORY (with custom routes) ---
@@ -258,7 +274,7 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 		handler := handlers.NewInventoryHandler(baseHandler, service)
 
 		// Register standard document routes
-		invGroup := documents.Group("/inventory")
+		invGroup := docsGroup.Group("/inventory")
 		RegisterDocumentRoutes(invGroup, handler, "document:inventory")
 
 		// Register custom inventory-specific routes

@@ -145,7 +145,8 @@ func (r *BaseCatalogRepo[T]) Update(ctx context.Context, entity T) error {
 		SetMap(filteredData).
 		Set("version", squirrel.Expr("version + 1")).
 		Where(squirrel.Eq{"id": entityID}).
-		Where(squirrel.Eq{"version": version}) // optimistic lock: expect current version
+		Where(squirrel.Eq{"version": version}).
+		Suffix("RETURNING version")
 
 	sql, args, err := q.ToSql()
 	if err != nil {
@@ -153,13 +154,19 @@ func (r *BaseCatalogRepo[T]) Update(ctx context.Context, entity T) error {
 	}
 
 	querier := r.getTxManager(ctx).GetQuerier(ctx)
-	result, err := querier.Exec(ctx, sql, args...)
+
+	var newVersion int
+	err = querier.QueryRow(ctx, sql, args...).Scan(&newVersion)
 	if err != nil {
+		if err == pgx.ErrNoRows {
+			return apperror.NewConcurrentModification(r.tableName, entityID)
+		}
 		return fmt.Errorf("update %s: %w", r.tableName, err)
 	}
 
-	if result.RowsAffected() == 0 {
-		return apperror.NewConcurrentModification(r.tableName, entityID)
+	// Update entity in memory to prevent stale object issues
+	if v, ok := any(entity).(interface{ SetVersion(int) }); ok {
+		v.SetVersion(newVersion)
 	}
 
 	return nil

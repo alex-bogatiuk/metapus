@@ -175,7 +175,7 @@ func FromDocument(d entity.Document) DocumentResponse {
 		Date:           d.Date,
 		Posted:         d.Posted,
 		PostedVersion:  d.PostedVersion,
-		OrganizationID: d.OrganizationID,
+		OrganizationID: d.OrganizationID.String(),
 		Description:    d.Description,
 	}
 }

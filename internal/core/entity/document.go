@@ -27,7 +27,7 @@ type Document struct {
 	PostedVersion int `db:"posted_version" json:"postedVersion"`
 
 	// OrganizationID is the owning organization (required for multi-org support)
-	OrganizationID string `db:"organization_id" json:"organizationId"`
+	OrganizationID id.ID `db:"organization_id" json:"organizationId"`
 
 	// Description is an optional user comment
 	Description string `db:"description" json:"description,omitempty"`
@@ -35,7 +35,7 @@ type Document struct {
 
 // NewDocument creates a new Document with generated ID.
 // In Database-per-Tenant architecture, tenantID is not required.
-func NewDocument(organizationID string) Document {
+func NewDocument(organizationID id.ID) Document {
 	return Document{
 		BaseDocument:   NewBaseDocument(),
 		Date:           time.Now().UTC(),
@@ -45,7 +45,7 @@ func NewDocument(organizationID string) Document {
 
 // Validate implements Validatable interface.
 func (d *Document) Validate(ctx context.Context) error {
-	if d.OrganizationID == "" {
+	if id.IsNil(d.OrganizationID) {
 		return apperror.NewValidation("organization is required").
 			WithDetail("field", "organizationId")
 	}
@@ -74,13 +74,11 @@ func (d *Document) CanModify() error {
 func (d *Document) MarkPosted() {
 	d.Posted = true
 	d.PostedVersion++
-	d.Touch()
 }
 
 // MarkUnposted clears the posted flag.
 func (d *Document) MarkUnposted() {
 	d.Posted = false
-	d.Touch()
 }
 
 // IsBackdated checks if document date is in the past.

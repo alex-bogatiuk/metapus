@@ -6,9 +6,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
+	"github.com/jackc/pgx/v5"
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
@@ -119,7 +121,8 @@ func (r *BaseDocumentRepo[T]) Update(ctx context.Context, entity T) error {
 		Set("version", squirrel.Expr("version + 1")).
 		Set("updated_at", squirrel.Expr("NOW()")).
 		Where(squirrel.Eq{"id": entityID}).
-		Where(squirrel.Eq{"version": version})
+		Where(squirrel.Eq{"version": version}).
+		Suffix("RETURNING version, updated_at")
 
 	sql, args, err := q.ToSql()
 	if err != nil {
@@ -127,13 +130,24 @@ func (r *BaseDocumentRepo[T]) Update(ctx context.Context, entity T) error {
 	}
 
 	querier := r.getTxManager(ctx).GetQuerier(ctx)
-	result, err := querier.Exec(ctx, sql, args...)
+
+	var newVersion int
+	var updatedAt time.Time
+
+	err = querier.QueryRow(ctx, sql, args...).Scan(&newVersion, &updatedAt)
 	if err != nil {
+		if err == pgx.ErrNoRows {
+			return apperror.NewConcurrentModification(r.tableName, entityID)
+		}
 		return fmt.Errorf("update %s: %w", r.tableName, err)
 	}
 
-	if result.RowsAffected() == 0 {
-		return apperror.NewConcurrentModification(r.tableName, entityID)
+	// Update entity in memory to prevent stale object issues
+	if v, ok := any(entity).(interface{ SetVersion(int) }); ok {
+		v.SetVersion(newVersion)
+	}
+	if v, ok := any(entity).(interface{ SetUpdatedAt(time.Time) }); ok {
+		v.SetUpdatedAt(updatedAt)
 	}
 
 	return nil

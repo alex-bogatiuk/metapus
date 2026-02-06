@@ -81,7 +81,6 @@ func (r *CurrencyRepo) UpdateExchangeRate(ctx context.Context, currencyID id.ID,
 	return nil
 }
 
-// ClearBase clears the base flag on all currencies.
 func (r *CurrencyRepo) ClearBase(ctx context.Context) error {
 	q := r.Builder().
 		Update(currencyTable).
@@ -100,4 +99,27 @@ func (r *CurrencyRepo) ClearBase(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// GetBaseCurrency retrieves the base (accounting) currency.
+func (r *CurrencyRepo) GetBaseCurrency(ctx context.Context) (*currency.Currency, error) {
+	q := r.baseSelect(ctx).
+		Where(squirrel.Eq{"is_base": true, "deletion_mark": false}).
+		Limit(1)
+
+	sql, args, err := q.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build query: %w", err)
+	}
+
+	c := &currency.Currency{}
+	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	if err := pgxscan.Get(ctx, querier, c, sql, args...); err != nil {
+		if pgxscan.NotFound(err) {
+			return nil, apperror.NewNotFound("currency", "base")
+		}
+		return nil, fmt.Errorf("get base currency: %w", err)
+	}
+
+	return c, nil
 }

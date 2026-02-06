@@ -54,13 +54,16 @@ func (b *BaseEntity) Touch() {
 // MarkDeleted sets the deletion mark.
 func (b *BaseEntity) MarkDeleted() {
 	b.DeletionMark = true
-	b.Touch()
 }
 
 // Undelete clears the deletion mark.
 func (b *BaseEntity) Undelete() {
 	b.DeletionMark = false
-	b.Touch()
+}
+
+// SetVersion updates the version number (used by repository after sync).
+func (b *BaseEntity) SetVersion(v int) {
+	b.Version = v
 }
 
 // SetAttribute is a convenience method for setting custom fields.
@@ -108,6 +111,11 @@ func NewBaseDocument() BaseDocument {
 func (b *BaseDocument) Touch() {
 	b.UpdatedAt = time.Now().UTC()
 	b.BaseEntity.Touch()
+}
+
+// SetUpdatedAt updates the updated_at timestamp (used by repository).
+func (b *BaseDocument) SetUpdatedAt(t time.Time) {
+	b.UpdatedAt = t
 }
 
 //////////////

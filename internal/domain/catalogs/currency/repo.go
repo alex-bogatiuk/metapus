@@ -18,4 +18,7 @@ type Repository interface {
 
 	// ClearBase clears the base flag on all currencies (before setting new base).
 	ClearBase(ctx context.Context) error
+
+	// GetBaseCurrency retrieves the base (accounting) currency.
+	GetBaseCurrency(ctx context.Context) (*Currency, error)
 }

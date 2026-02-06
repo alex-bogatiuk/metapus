@@ -18,32 +18,34 @@ type CreateGoodsIssueRequest struct {
 	WarehouseID         string                  `json:"warehouseId" binding:"required"`
 	CustomerOrderNumber string                  `json:"customerOrderNumber,omitempty"`
 	CustomerOrderDate   *time.Time              `json:"customerOrderDate,omitempty"`
-	Currency            string                  `json:"currency,omitempty"`
+	CurrencyID          string                  `json:"currencyId,omitempty"`
 	Description         string                  `json:"description,omitempty"`
 	Lines               []GoodsIssueLineRequest `json:"lines" binding:"required,min=1,dive"`
 	PostImmediately     bool                    `json:"postImmediately,omitempty"`
 }
 
 type GoodsIssueLineRequest struct {
-	ProductID string         `json:"productId" binding:"required"`
-	Quantity  types.Quantity `json:"quantity" binding:"required,gt=0"`
-	UnitPrice int64          `json:"unitPrice" binding:"required,gte=0"`
-	VATRate   string         `json:"vatRate,omitempty"`
+	ProductID string           `json:"productId" binding:"required"`
+	Quantity  types.Quantity   `json:"quantity" binding:"required,gt=0"`
+	UnitPrice types.MinorUnits `json:"unitPrice" binding:"required,gte=0"`
+	VATRate   string           `json:"vatRate,omitempty"`
 }
 
 func (r *CreateGoodsIssueRequest) ToEntity() *goods_issue.GoodsIssue {
 	customerID, _ := id.Parse(r.CustomerID)
 	warehouseID, _ := id.Parse(r.WarehouseID)
 
-	doc := goods_issue.NewGoodsIssue(r.OrganizationID, customerID, warehouseID)
+	orgID, _ := id.Parse(r.OrganizationID)
+	doc := goods_issue.NewGoodsIssue(orgID, customerID, warehouseID)
 	doc.Number = r.Number
 	doc.Date = r.Date
 	doc.CustomerOrderNumber = r.CustomerOrderNumber
 	doc.CustomerOrderDate = r.CustomerOrderDate
 	doc.Description = r.Description
 
-	if r.Currency != "" {
-		doc.Currency = r.Currency
+	if r.CurrencyID != "" {
+		currencyID, _ := id.Parse(r.CurrencyID)
+		doc.CurrencyID = currencyID
 	}
 
 	for _, line := range r.Lines {
@@ -66,7 +68,7 @@ type UpdateGoodsIssueRequest struct {
 	WarehouseID         *string                 `json:"warehouseId,omitempty"`
 	CustomerOrderNumber *string                 `json:"customerOrderNumber,omitempty"`
 	CustomerOrderDate   *time.Time              `json:"customerOrderDate,omitempty"`
-	Currency            *string                 `json:"currency,omitempty"`
+	CurrencyID          *string                 `json:"currencyId,omitempty"`
 	Description         *string                 `json:"description,omitempty"`
 	Lines               []GoodsIssueLineRequest `json:"lines,omitempty"`
 }
@@ -79,7 +81,8 @@ func (r *UpdateGoodsIssueRequest) ApplyTo(doc *goods_issue.GoodsIssue) {
 		doc.Date = *r.Date
 	}
 	if r.OrganizationID != nil {
-		doc.OrganizationID = *r.OrganizationID
+		orgID, _ := id.Parse(*r.OrganizationID)
+		doc.OrganizationID = orgID
 	}
 	if r.CustomerID != nil {
 		customerID, _ := id.Parse(*r.CustomerID)
@@ -95,8 +98,9 @@ func (r *UpdateGoodsIssueRequest) ApplyTo(doc *goods_issue.GoodsIssue) {
 	if r.CustomerOrderDate != nil {
 		doc.CustomerOrderDate = r.CustomerOrderDate
 	}
-	if r.Currency != nil {
-		doc.Currency = *r.Currency
+	if r.CurrencyID != nil {
+		currencyID, _ := id.Parse(*r.CurrencyID)
+		doc.CurrencyID = currencyID
 	}
 	if r.Description != nil {
 		doc.Description = *r.Description
@@ -129,10 +133,10 @@ type GoodsIssueResponse struct {
 	WarehouseID         string                   `json:"warehouseId"`
 	CustomerOrderNumber string                   `json:"customerOrderNumber,omitempty"`
 	CustomerOrderDate   *time.Time               `json:"customerOrderDate,omitempty"`
-	Currency            string                   `json:"currency"`
+	CurrencyID          string                   `json:"currencyId"`
 	TotalQuantity       types.Quantity           `json:"totalQuantity"`
-	TotalAmount         int64                    `json:"totalAmount"`
-	TotalVAT            int64                    `json:"totalVat"`
+	TotalAmount         types.MinorUnits         `json:"totalAmount"`
+	TotalVAT            types.MinorUnits         `json:"totalVat"`
 	Description         string                   `json:"description,omitempty"`
 	Lines               []GoodsIssueLineResponse `json:"lines,omitempty"`
 	DeletionMark        bool                     `json:"deletionMark,omitempty"`
@@ -141,14 +145,14 @@ type GoodsIssueResponse struct {
 }
 
 type GoodsIssueLineResponse struct {
-	LineID    string         `json:"lineId"`
-	LineNo    int            `json:"lineNo"`
-	ProductID string         `json:"productId"`
-	Quantity  types.Quantity `json:"quantity"`
-	UnitPrice int64          `json:"unitPrice"`
-	VATRate   string         `json:"vatRate"`
-	VATAmount int64          `json:"vatAmount"`
-	Amount    int64          `json:"amount"`
+	LineID    string           `json:"lineId"`
+	LineNo    int              `json:"lineNo"`
+	ProductID string           `json:"productId"`
+	Quantity  types.Quantity   `json:"quantity"`
+	UnitPrice types.MinorUnits `json:"unitPrice"`
+	VATRate   string           `json:"vatRate"`
+	VATAmount types.MinorUnits `json:"vatAmount"`
+	Amount    types.MinorUnits `json:"amount"`
 }
 
 func FromGoodsIssue(doc *goods_issue.GoodsIssue) *GoodsIssueResponse {
@@ -158,12 +162,12 @@ func FromGoodsIssue(doc *goods_issue.GoodsIssue) *GoodsIssueResponse {
 		Date:                doc.Date,
 		Posted:              doc.Posted,
 		PostedVersion:       doc.PostedVersion,
-		OrganizationID:      doc.OrganizationID,
+		OrganizationID:      doc.OrganizationID.String(),
 		CustomerID:          doc.CustomerID.String(),
 		WarehouseID:         doc.WarehouseID.String(),
 		CustomerOrderNumber: doc.CustomerOrderNumber,
 		CustomerOrderDate:   doc.CustomerOrderDate,
-		Currency:            doc.Currency,
+		CurrencyID:          doc.CurrencyID.String(),
 		TotalQuantity:       doc.TotalQuantity,
 		TotalAmount:         doc.TotalAmount,
 		TotalVAT:            doc.TotalVAT,

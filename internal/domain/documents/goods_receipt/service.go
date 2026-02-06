@@ -12,6 +12,7 @@ import (
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/tx"
 	"metapus/internal/domain"
+	"metapus/internal/domain/documents"
 	"metapus/internal/domain/posting"
 	"metapus/pkg/logger"
 )
@@ -23,6 +24,7 @@ type Service struct {
 	postingEngine *posting.Engine
 	numerator     numerator.Generator
 	txManager     tx.Manager // Optional. If nil, obtained from context (DB-per-tenant).
+	resolver      *documents.CurrencyResolver
 	hooks         *domain.HookRegistry[*GoodsReceipt]
 }
 
@@ -33,12 +35,14 @@ func NewService(
 	postingEngine *posting.Engine,
 	numerator numerator.Generator,
 	txManager tx.Manager,
+	resolver *documents.CurrencyResolver,
 ) *Service {
 	return &Service{
 		repo:          repo,
 		postingEngine: postingEngine,
 		numerator:     numerator,
 		txManager:     txManager,
+		resolver:      resolver,
 		hooks:         domain.NewHookRegistry[*GoodsReceipt](),
 	}
 }
@@ -61,6 +65,13 @@ func (s *Service) Create(ctx context.Context, doc *GoodsReceipt) error {
 	if err := s.hooks.RunBeforeCreate(ctx, doc); err != nil {
 		return err
 	}
+
+	// Resolve currency
+	currencyID, err := s.resolver.ResolveForDocument(ctx, doc.CurrencyID, doc.WarehouseID, doc.OrganizationID)
+	if err != nil {
+		return err
+	}
+	doc.CurrencyID = currencyID
 
 	// Validate
 	if err := doc.Validate(ctx); err != nil {
@@ -209,10 +220,14 @@ func (s *Service) Unpost(ctx context.Context, docID id.ID) error {
 // PostAndSave posts document and saves changes atomically.
 // Used when creating and posting in one operation.
 func (s *Service) PostAndSave(ctx context.Context, doc *GoodsReceipt) error {
-	// Validate
-	if err := doc.Validate(ctx); err != nil {
+	// Resolve currency
+	currencyID, err := s.resolver.ResolveForDocument(ctx, doc.CurrencyID, doc.WarehouseID, doc.OrganizationID)
+	if err != nil {
 		return err
 	}
+	doc.CurrencyID = currencyID
+
+	// Validate
 
 	// Generate number if empty
 	if doc.Number == "" {

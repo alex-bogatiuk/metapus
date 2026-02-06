@@ -179,7 +179,7 @@ func (h *GoodsReceiptHandler) Copy(c *gin.Context) {
 	copy := goods_receipt.NewGoodsReceipt(source.OrganizationID, source.SupplierID, source.WarehouseID)
 	copy.Date = time.Now()
 	copy.SupplierDocNumber = source.SupplierDocNumber
-	copy.Currency = source.Currency
+	copy.CurrencyID = source.CurrencyID
 	copy.Description = source.Description
 
 	// Copy lines

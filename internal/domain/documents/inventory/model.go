@@ -51,8 +51,8 @@ type InventoryLine struct {
 	ActualQuantity *types.Quantity `db:"actual_quantity" json:"actualQuantity,omitempty"`
 	Deviation      types.Quantity  `db:"deviation" json:"deviation"`
 
-	UnitPrice       int64 `db:"unit_price" json:"unitPrice"`
-	DeviationAmount int64 `db:"deviation_amount" json:"deviationAmount"`
+	UnitPrice       types.MinorUnits `db:"unit_price" json:"unitPrice"`
+	DeviationAmount types.MinorUnits `db:"deviation_amount" json:"deviationAmount"`
 
 	Counted   bool       `db:"counted" json:"counted"`
 	CountedAt *time.Time `db:"counted_at" json:"countedAt,omitempty"`
@@ -60,7 +60,7 @@ type InventoryLine struct {
 }
 
 // NewInventory creates a new inventory document.
-func NewInventory(organizationID string, warehouseID id.ID) *Inventory {
+func NewInventory(organizationID id.ID, warehouseID id.ID) *Inventory {
 	return &Inventory{
 		Document:    entity.NewDocument(organizationID),
 		WarehouseID: warehouseID,
@@ -71,7 +71,7 @@ func NewInventory(organizationID string, warehouseID id.ID) *Inventory {
 }
 
 // AddLine adds a line to the inventory.
-func (inv *Inventory) AddLine(productID id.ID, bookQuantity types.Quantity, unitPrice int64) {
+func (inv *Inventory) AddLine(productID id.ID, bookQuantity types.Quantity, unitPrice types.MinorUnits) {
 	lineNo := len(inv.Lines) + 1
 
 	line := InventoryLine{
@@ -97,7 +97,7 @@ func (inv *Inventory) SetActualQuantity(lineNo int, actualQty types.Quantity, co
 	inv.Lines[idx].ActualQuantity = &actualQty
 	inv.Lines[idx].Deviation = actualQty - inv.Lines[idx].BookQuantity
 	// Deviation Amount calculation using integer arithmetic: (DeviationScaled * UnitPrice) / 10000
-	inv.Lines[idx].DeviationAmount = (inv.Lines[idx].Deviation.Int64Scaled() * inv.Lines[idx].UnitPrice) / 10000
+	inv.Lines[idx].DeviationAmount = types.MinorUnits((inv.Lines[idx].Deviation.Int64Scaled() * int64(inv.Lines[idx].UnitPrice)) / 10000)
 	inv.Lines[idx].Counted = true
 	now := time.Now().UTC()
 	inv.Lines[idx].CountedAt = &now
@@ -108,10 +108,10 @@ func (inv *Inventory) SetActualQuantity(lineNo int, actualQty types.Quantity, co
 }
 
 func (inv *Inventory) recalculateTotals() {
-	inv.TotalBookQuantity = 0
-	inv.TotalActualQuantity = 0
-	inv.TotalSurplusQuantity = 0
-	inv.TotalShortageQuantity = 0
+	inv.TotalBookQuantity = types.Quantity(0)
+	inv.TotalActualQuantity = types.Quantity(0)
+	inv.TotalSurplusQuantity = types.Quantity(0)
+	inv.TotalShortageQuantity = types.Quantity(0)
 
 	for _, line := range inv.Lines {
 		inv.TotalBookQuantity += line.BookQuantity

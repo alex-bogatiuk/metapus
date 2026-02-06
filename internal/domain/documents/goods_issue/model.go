@@ -27,13 +27,13 @@ type GoodsIssue struct {
 	CustomerOrderNumber string     `db:"customer_order_number" json:"customerOrderNumber,omitempty"`
 	CustomerOrderDate   *time.Time `db:"customer_order_date" json:"customerOrderDate,omitempty"`
 
-	// Currency
-	Currency string `db:"currency" json:"currency"`
+	// Currency support trait
+	entity.CurrencyAware
 
 	// Totals (calculated from lines)
-	TotalQuantity types.Quantity `db:"total_quantity" json:"totalQuantity"`
-	TotalAmount   int64          `db:"total_amount" json:"totalAmount"`
-	TotalVAT      int64          `db:"total_vat" json:"totalVat"`
+	TotalQuantity types.Quantity   `db:"total_quantity" json:"totalQuantity"`
+	TotalAmount   types.MinorUnits `db:"total_amount" json:"totalAmount"`
+	TotalVAT      types.MinorUnits `db:"total_vat" json:"totalVat"`
 
 	// Table part: issued goods
 	Lines []GoodsIssueLine `db:"-" json:"lines"`
@@ -44,34 +44,33 @@ type GoodsIssueLine struct {
 	LineID id.ID `db:"line_id" json:"lineId"`
 	LineNo int   `db:"line_no" json:"lineNo"`
 
-	ProductID id.ID          `db:"product_id" json:"productId"`
-	Quantity  types.Quantity `db:"quantity" json:"quantity"`
-	UnitPrice int64          `db:"unit_price" json:"unitPrice"`
-	VATRate   string         `db:"vat_rate" json:"vatRate"`
-	VATAmount int64          `db:"vat_amount" json:"vatAmount"`
-	Amount    int64          `db:"amount" json:"amount"`
+	ProductID id.ID            `db:"product_id" json:"productId"`
+	Quantity  types.Quantity   `db:"quantity" json:"quantity"`
+	UnitPrice types.MinorUnits `db:"unit_price" json:"unitPrice"`
+	VATRate   string           `db:"vat_rate" json:"vatRate"`
+	VATAmount types.MinorUnits `db:"vat_amount" json:"vatAmount"`
+	Amount    types.MinorUnits `db:"amount" json:"amount"`
 }
 
 // NewGoodsIssue creates a new goods issue document.
-func NewGoodsIssue(organizationID string, customerID, warehouseID id.ID) *GoodsIssue {
+func NewGoodsIssue(organizationID id.ID, customerID, warehouseID id.ID) *GoodsIssue {
 	return &GoodsIssue{
 		Document:    entity.NewDocument(organizationID),
 		CustomerID:  customerID,
 		WarehouseID: warehouseID,
-		Currency:    "RUB",
 		Lines:       make([]GoodsIssueLine, 0),
 	}
 }
 
 // AddLine adds a line to the goods issue and recalculates totals.
-func (g *GoodsIssue) AddLine(productID id.ID, quantity types.Quantity, unitPrice int64, vatRate string) {
+func (g *GoodsIssue) AddLine(productID id.ID, quantity types.Quantity, unitPrice types.MinorUnits, vatRate string) {
 	lineNo := len(g.Lines) + 1
 
 	// Quantity is scaled by 10000. UnitPrice is in minor units.
 	// baseAmount (minor units) = (QuantityScaled * UnitPrice) / 10000
 	vatPercent := vatRateToPercent(vatRate)
-	baseAmount := (quantity.Int64Scaled() * unitPrice) / 10000
-	vatAmount := baseAmount * int64(vatPercent) / 100
+	baseAmount := types.MinorUnits((quantity.Int64Scaled() * int64(unitPrice)) / 10000)
+	vatAmount := baseAmount * types.MinorUnits(vatPercent) / 100
 	totalAmount := baseAmount + vatAmount
 
 	line := GoodsIssueLine{
@@ -90,9 +89,9 @@ func (g *GoodsIssue) AddLine(productID id.ID, quantity types.Quantity, unitPrice
 }
 
 func (g *GoodsIssue) recalculateTotals() {
-	g.TotalQuantity = 0
-	g.TotalAmount = 0
-	g.TotalVAT = 0
+	g.TotalQuantity = types.Quantity(0)
+	g.TotalAmount = types.MinorUnits(0)
+	g.TotalVAT = types.MinorUnits(0)
 
 	for _, line := range g.Lines {
 		g.TotalQuantity += line.Quantity
@@ -104,6 +103,10 @@ func (g *GoodsIssue) recalculateTotals() {
 // Validate implements entity.Validatable.
 func (g *GoodsIssue) Validate(ctx context.Context) error {
 	if err := g.Document.Validate(ctx); err != nil {
+		return err
+	}
+
+	if err := g.CurrencyAware.ValidateCurrency(ctx); err != nil {
 		return err
 	}
 

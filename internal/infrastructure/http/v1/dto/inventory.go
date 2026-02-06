@@ -23,7 +23,8 @@ type CreateInventoryRequest struct {
 func (r *CreateInventoryRequest) ToEntity() *inventory.Inventory {
 	warehouseID, _ := id.Parse(r.WarehouseID)
 
-	doc := inventory.NewInventory(r.OrganizationID, warehouseID)
+	orgID, _ := id.Parse(r.OrganizationID)
+	doc := inventory.NewInventory(orgID, warehouseID)
 	doc.Number = r.Number
 	doc.Date = r.Date
 	doc.StartDate = r.StartDate
@@ -55,7 +56,8 @@ func (r *UpdateInventoryRequest) ApplyTo(doc *inventory.Inventory) {
 		doc.Date = *r.Date
 	}
 	if r.OrganizationID != nil {
-		doc.OrganizationID = *r.OrganizationID
+		orgID, _ := id.Parse(*r.OrganizationID)
+		doc.OrganizationID = orgID
 	}
 	if r.WarehouseID != nil {
 		warehouseID, _ := id.Parse(*r.WarehouseID)
@@ -104,17 +106,17 @@ type InventoryResponse struct {
 }
 
 type InventoryLineResponse struct {
-	LineID          string          `json:"lineId"`
-	LineNo          int             `json:"lineNo"`
-	ProductID       string          `json:"productId"`
-	BookQuantity    types.Quantity  `json:"bookQuantity"`
-	ActualQuantity  *types.Quantity `json:"actualQuantity,omitempty"`
-	Deviation       types.Quantity  `json:"deviation"`
-	UnitPrice       int64           `json:"unitPrice"`
-	DeviationAmount int64           `json:"deviationAmount"`
-	Counted         bool            `json:"counted"`
-	CountedAt       *time.Time      `json:"countedAt,omitempty"`
-	CountedBy       *string         `json:"countedBy,omitempty"`
+	LineID          string           `json:"lineId"`
+	LineNo          int              `json:"lineNo"`
+	ProductID       string           `json:"productId"`
+	BookQuantity    types.Quantity   `json:"bookQuantity"`
+	ActualQuantity  *types.Quantity  `json:"actualQuantity,omitempty"`
+	Deviation       types.Quantity   `json:"deviation"`
+	UnitPrice       types.MinorUnits `json:"unitPrice"`
+	DeviationAmount types.MinorUnits `json:"deviationAmount"`
+	Counted         bool             `json:"counted"`
+	CountedAt       *time.Time       `json:"countedAt,omitempty"`
+	CountedBy       *string          `json:"countedBy,omitempty"`
 }
 
 func FromInventory(doc *inventory.Inventory) *InventoryResponse {
@@ -124,7 +126,7 @@ func FromInventory(doc *inventory.Inventory) *InventoryResponse {
 		Date:                  doc.Date,
 		Posted:                doc.Posted,
 		PostedVersion:         doc.PostedVersion,
-		OrganizationID:        doc.OrganizationID,
+		OrganizationID:        doc.OrganizationID.String(),
 		WarehouseID:           doc.WarehouseID.String(),
 		Status:                string(doc.Status),
 		StartDate:             doc.StartDate,
@@ -183,13 +185,13 @@ type ComparisonResponse struct {
 }
 
 type ComparisonItem struct {
-	LineNo          int            `json:"lineNo"`
-	ProductID       string         `json:"productId"`
-	BookQuantity    types.Quantity `json:"bookQuantity"`
-	ActualQuantity  types.Quantity `json:"actualQuantity"`
-	Deviation       types.Quantity `json:"deviation"`
-	DeviationAmount int64          `json:"deviationAmount"`
-	Counted         bool           `json:"counted"`
+	LineNo          int              `json:"lineNo"`
+	ProductID       string           `json:"productId"`
+	BookQuantity    types.Quantity   `json:"bookQuantity"`
+	ActualQuantity  types.Quantity   `json:"actualQuantity"`
+	Deviation       types.Quantity   `json:"deviation"`
+	DeviationAmount types.MinorUnits `json:"deviationAmount"`
+	Counted         bool             `json:"counted"`
 }
 
 func FromComparison(c *inventory.ComparisonResult) *ComparisonResponse {

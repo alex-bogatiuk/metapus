@@ -224,23 +224,31 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 
 	// 3. Seed Currencies
 	currencies := []struct {
-		name    string
-		isoCode string
-		symbol  string
-		isBase  bool
+		name            string
+		isoCode         string
+		symbol          string
+		decimalPlaces   int
+		minorMultiplier int64
+		isBase          bool
 	}{
-		{"Российский рубль", "RUB", "₽", true},
-		{"Доллар США", "USD", "$", false},
-		{"Евро", "EUR", "€", false},
+		{"Российский рубль", "RUB", "₽", 2, 100, true},
+		{"Доллар США", "USD", "$", 2, 100, false},
+		{"Евро", "EUR", "€", 2, 100, false},
+		{"Bitcoin", "BTC", "₿", 8, 100000000, false},
+		{"Ethereum", "ETH", "Ξ", 9, 1000000000, false},
 	}
 
 	for _, c := range currencies {
 		currID := id.New()
 		_, err := pool.Pool.Exec(ctx, `
-			INSERT INTO cat_currencies (id, code, name, iso_code, symbol, is_base, version, deletion_mark, attributes)
-			VALUES ($1, $2, $3, $4, $5, $6, 1, false, '{}')
+			INSERT INTO cat_currencies (
+				id, code, name, iso_code, symbol, 
+				decimal_places, minor_multiplier, is_base, 
+				version, deletion_mark, attributes
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, false, '{}')
 			ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
-		`, currID, c.isoCode, c.name, c.isoCode, c.symbol, c.isBase)
+		`, currID, c.isoCode, c.name, c.isoCode, c.symbol, c.decimalPlaces, c.minorMultiplier, c.isBase)
 		if err != nil {
 			log.Warnw("failed to seed currency", "name", c.name, "error", err)
 		}

@@ -11,6 +11,7 @@ import (
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/tx"
 	"metapus/internal/domain"
+	"metapus/internal/domain/documents"
 	"metapus/internal/domain/posting"
 	"metapus/pkg/logger"
 )
@@ -22,6 +23,7 @@ type Service struct {
 	postingEngine *posting.Engine
 	numerator     numerator.Generator
 	txManager     tx.Manager // Optional for Database-per-Tenant mode
+	resolver      *documents.CurrencyResolver
 	hooks         *domain.HookRegistry[*GoodsIssue]
 }
 
@@ -32,12 +34,14 @@ func NewService(
 	postingEngine *posting.Engine,
 	numerator numerator.Generator,
 	txManager tx.Manager,
+	resolver *documents.CurrencyResolver,
 ) *Service {
 	return &Service{
 		repo:          repo,
 		postingEngine: postingEngine,
 		numerator:     numerator,
 		txManager:     txManager,
+		resolver:      resolver,
 		hooks:         domain.NewHookRegistry[*GoodsIssue](),
 	}
 }
@@ -60,6 +64,13 @@ func (s *Service) Create(ctx context.Context, doc *GoodsIssue) error {
 	if err := s.hooks.RunBeforeCreate(ctx, doc); err != nil {
 		return err
 	}
+
+	// Resolve currency
+	currencyID, err := s.resolver.ResolveForDocument(ctx, doc.CurrencyID, doc.WarehouseID, doc.OrganizationID)
+	if err != nil {
+		return err
+	}
+	doc.CurrencyID = currencyID
 
 	if err := doc.Validate(ctx); err != nil {
 		return err
@@ -192,6 +203,13 @@ func (s *Service) Unpost(ctx context.Context, docID id.ID) error {
 
 // PostAndSave posts document and saves changes atomically.
 func (s *Service) PostAndSave(ctx context.Context, doc *GoodsIssue) error {
+	// Resolve currency
+	currencyID, err := s.resolver.ResolveForDocument(ctx, doc.CurrencyID, doc.WarehouseID, doc.OrganizationID)
+	if err != nil {
+		return err
+	}
+	doc.CurrencyID = currencyID
+
 	if err := doc.Validate(ctx); err != nil {
 		return err
 	}

@@ -359,11 +359,11 @@ type ComparisonResult struct {
 
 // ComparisonItem represents a single comparison line.
 type ComparisonItem struct {
-	LineNo          int            `json:"lineNo"`
-	ProductID       id.ID          `json:"productId"`
-	BookQuantity    types.Quantity `json:"bookQuantity"`
-	ActualQuantity  types.Quantity `json:"actualQuantity"`
-	Deviation       types.Quantity `json:"deviation"`
-	DeviationAmount int64          `json:"deviationAmount"`
-	Counted         bool           `json:"counted"`
+	LineNo          int              `json:"lineNo"`
+	ProductID       id.ID            `json:"productId"`
+	BookQuantity    types.Quantity   `json:"bookQuantity"`
+	ActualQuantity  types.Quantity   `json:"actualQuantity"`
+	Deviation       types.Quantity   `json:"deviation"`
+	DeviationAmount types.MinorUnits `json:"deviationAmount"`
+	Counted         bool             `json:"counted"`
 }

@@ -27,13 +27,13 @@ type GoodsReceipt struct {
 	SupplierDocNumber string     `db:"supplier_doc_number" json:"supplierDocNumber,omitempty"`
 	SupplierDocDate   *time.Time `db:"supplier_doc_date" json:"supplierDocDate,omitempty"`
 
-	// Currency
-	Currency string `db:"currency" json:"currency"`
+	// Currency support trait
+	entity.CurrencyAware
 
 	// Totals (calculated from lines)
-	TotalQuantity types.Quantity `db:"total_quantity" json:"totalQuantity"`
-	TotalAmount   int64          `db:"total_amount" json:"totalAmount"` // in minor units
-	TotalVAT      int64          `db:"total_vat" json:"totalVat"`
+	TotalQuantity types.Quantity   `db:"total_quantity" json:"totalQuantity"`
+	TotalAmount   types.MinorUnits `db:"total_amount" json:"totalAmount"` // in minor units
+	TotalVAT      types.MinorUnits `db:"total_vat" json:"totalVat"`
 
 	// Table part: received goods
 	Lines []GoodsReceiptLine `db:"-" json:"lines"`
@@ -49,34 +49,32 @@ type GoodsReceiptLine struct {
 	ProductID id.ID `db:"product_id" json:"productId"`
 
 	// Quantity and pricing
-	Quantity  types.Quantity `db:"quantity" json:"quantity"`
-	UnitPrice int64          `db:"unit_price" json:"unitPrice"` // in minor units
-	VATRate   string         `db:"vat_rate" json:"vatRate"`     // "0", "10", "20"
-	VATAmount int64          `db:"vat_amount" json:"vatAmount"`
-	Amount    int64          `db:"amount" json:"amount"` // total with VAT
+	Quantity  types.Quantity   `db:"quantity" json:"quantity"`
+	UnitPrice types.MinorUnits `db:"unit_price" json:"unitPrice"` // in minor units
+	VATRate   string           `db:"vat_rate" json:"vatRate"`     // "0", "10", "20"
+	VATAmount types.MinorUnits `db:"vat_amount" json:"vatAmount"`
+	Amount    types.MinorUnits `db:"amount" json:"amount"` // total with VAT
 }
 
-// NewGoodsReceipt creates a new goods receipt document.
-func NewGoodsReceipt(organizationID string, supplierID, warehouseID id.ID) *GoodsReceipt {
+func NewGoodsReceipt(organizationID id.ID, supplierID, warehouseID id.ID) *GoodsReceipt {
 	return &GoodsReceipt{
 		Document:    entity.NewDocument(organizationID),
 		SupplierID:  supplierID,
 		WarehouseID: warehouseID,
-		Currency:    "RUB",
 		Lines:       make([]GoodsReceiptLine, 0),
 	}
 }
 
 // AddLine adds a line to the goods receipt and recalculates totals.
-func (g *GoodsReceipt) AddLine(productID id.ID, quantity types.Quantity, unitPrice int64, vatRate string) {
+func (g *GoodsReceipt) AddLine(productID id.ID, quantity types.Quantity, unitPrice types.MinorUnits, vatRate string) {
 	lineNo := len(g.Lines) + 1
 
 	// Calculate VAT
 	// Quantity is scaled by 10000. UnitPrice is in minor units.
 	// baseAmount (minor units) = (QuantityScaled * UnitPrice) / 10000
 	vatPercent := vatRateToPercent(vatRate)
-	baseAmount := (quantity.Int64Scaled() * unitPrice) / 10000
-	vatAmount := baseAmount * int64(vatPercent) / 100
+	baseAmount := types.MinorUnits((quantity.Int64Scaled() * int64(unitPrice)) / 10000)
+	vatAmount := baseAmount * types.MinorUnits(vatPercent) / 100
 	totalAmount := baseAmount + vatAmount
 
 	line := GoodsReceiptLine{
@@ -96,9 +94,9 @@ func (g *GoodsReceipt) AddLine(productID id.ID, quantity types.Quantity, unitPri
 
 // recalculateTotals updates document totals from lines.
 func (g *GoodsReceipt) recalculateTotals() {
-	g.TotalQuantity = 0
-	g.TotalAmount = 0
-	g.TotalVAT = 0
+	g.TotalQuantity = types.Quantity(0)
+	g.TotalAmount = types.MinorUnits(0)
+	g.TotalVAT = types.MinorUnits(0)
 
 	for _, line := range g.Lines {
 		g.TotalQuantity += line.Quantity
@@ -110,6 +108,10 @@ func (g *GoodsReceipt) recalculateTotals() {
 // Validate implements entity.Validatable.
 func (g *GoodsReceipt) Validate(ctx context.Context) error {
 	if err := g.Document.Validate(ctx); err != nil {
+		return err
+	}
+
+	if err := g.CurrencyAware.ValidateCurrency(ctx); err != nil {
 		return err
 	}
 
