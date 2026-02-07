@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS cat_warehouses (
           organization_id UUID,
           description TEXT,
           is_default BOOLEAN NOT NULL DEFAULT FALSE, -- Поле для указания основного склада
+          default_currency_id UUID,
           is_active BOOLEAN NOT NULL DEFAULT TRUE,
 
     -- Constraints
@@ -51,10 +52,12 @@ CREATE INDEX idx_cat_warehouses_address ON cat_warehouses USING gin (address gin
 CREATE INDEX idx_cat_warehouses_type ON cat_warehouses (type) WHERE deletion_mark = FALSE;
 CREATE INDEX idx_cat_warehouses_parent ON cat_warehouses (parent_id) WHERE deletion_mark = FALSE;
 CREATE INDEX idx_cat_warehouses_org ON cat_warehouses (organization_id) WHERE organization_id IS NOT NULL;
+CREATE INDEX idx_cat_warehouses_default_currency_id ON cat_warehouses (default_currency_id);
 CREATE INDEX idx_cat_warehouses_attrs ON cat_warehouses USING gin (attributes);
 
 COMMENT ON TABLE cat_warehouses IS 'Справочник Склады - места хранения товаров и материалов';
 COMMENT ON COLUMN cat_warehouses.is_default IS 'Признак основного склада для автоматической подстановки в документы';
+COMMENT ON COLUMN cat_warehouses.default_currency_id IS 'Default currency for documents on this warehouse';
 
 SELECT pg_advisory_unlock(hashtext('metapus_migrations'));
 -- +goose StatementEnd

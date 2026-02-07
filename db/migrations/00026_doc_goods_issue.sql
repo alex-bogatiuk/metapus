@@ -28,7 +28,7 @@ CREATE TABLE doc_goods_issues (
     customer_order_date TIMESTAMPTZ,
 
     -- Currency and totals
-    currency VARCHAR(3) NOT NULL DEFAULT 'RUB',
+    currency_id UUID NOT NULL REFERENCES cat_currencies(id),
     total_quantity BIGINT NOT NULL DEFAULT 0, -- scaled x10000
     total_amount BIGINT NOT NULL DEFAULT 0,
     total_vat BIGINT NOT NULL DEFAULT 0,
@@ -61,8 +61,11 @@ CREATE TABLE doc_goods_issue_lines (
 CREATE INDEX idx_goods_issues_date ON doc_goods_issues(date);
 CREATE INDEX idx_goods_issues_customer ON doc_goods_issues(customer_id);
 CREATE INDEX idx_goods_issues_warehouse ON doc_goods_issues(warehouse_id);
+CREATE INDEX idx_doc_goods_issues_currency_id ON doc_goods_issues(currency_id);
 CREATE INDEX idx_goods_issues_posted ON doc_goods_issues(posted);
 CREATE INDEX idx_goods_issue_lines_product ON doc_goods_issue_lines(product_id);
+
+COMMENT ON COLUMN doc_goods_issues.currency_id IS 'Reference to currency catalog';
 
 SELECT pg_advisory_unlock(hashtext('metapus_migrations'));
 
