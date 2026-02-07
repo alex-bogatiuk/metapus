@@ -172,6 +172,55 @@ func (s *Service) Delete(ctx context.Context, docID id.ID) error {
 	return s.repo.Delete(ctx, docID)
 }
 
+// SetDeletionMark sets or clears the deletion mark on a goods issue.
+// 1C-style logic:
+//   - If marking for deletion (marked=true) and document is posted: unpost first, then mark deleted (atomic).
+//   - If marking for deletion (marked=true) and document is NOT posted: just mark deleted.
+//   - If clearing the mark (marked=false): clear the flag, document stays unposted (draft state).
+func (s *Service) SetDeletionMark(ctx context.Context, docID id.ID, marked bool) error {
+	doc, err := s.GetByID(ctx, docID)
+	if err != nil {
+		return err
+	}
+
+	// No-op if state already matches
+	if doc.DeletionMark == marked {
+		return nil
+	}
+
+	if marked {
+		// Setting deletion mark
+		if doc.Posted {
+			// Unpost + mark deleted in one transaction via postingEngine.Unpost
+			updateDocAndMark := func(ctx context.Context) error {
+				doc.MarkDeleted()
+				return s.repo.Update(ctx, doc)
+			}
+			return s.postingEngine.Unpost(ctx, doc, updateDocAndMark)
+		}
+
+		// Not posted — just mark in a transaction
+		txm, err := s.getTxManager(ctx)
+		if err != nil {
+			return apperror.NewInternal(err).WithDetail("missing", "tx_manager")
+		}
+		return txm.RunInTransaction(ctx, func(ctx context.Context) error {
+			doc.MarkDeleted()
+			return s.repo.Update(ctx, doc)
+		})
+	}
+
+	// Clearing deletion mark (marked=false)
+	txm, err := s.getTxManager(ctx)
+	if err != nil {
+		return apperror.NewInternal(err).WithDetail("missing", "tx_manager")
+	}
+	return txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		doc.Undelete()
+		return s.repo.Update(ctx, doc)
+	})
+}
+
 // Post records document movements to registers.
 // Will fail if insufficient stock (negative balance prevention).
 func (s *Service) Post(ctx context.Context, docID id.ID) error {

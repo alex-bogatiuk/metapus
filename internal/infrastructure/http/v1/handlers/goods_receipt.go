@@ -219,10 +219,11 @@ func (h *GoodsReceiptHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	// We should probably NOT call base.RegisterRoutes if we want to override some.
 	// OR we register specific ones.
 
-	rg.GET("/:id", h.Get)            // Base
-	rg.DELETE("/:id", h.Delete)      // Base
-	rg.POST("/:id/post", h.Post)     // Base
-	rg.POST("/:id/unpost", h.Unpost) // Base
+	rg.GET("/:id", h.Get)                              // Base
+	rg.DELETE("/:id", h.Delete)                        // Base
+	rg.POST("/:id/post", h.Post)                       // Base
+	rg.POST("/:id/unpost", h.Unpost)                   // Base
+	rg.POST("/:id/deletion-mark", h.SetDeletionMark)   // Base
 	rg.POST("/:id/copy", h.Copy)
 }
 
