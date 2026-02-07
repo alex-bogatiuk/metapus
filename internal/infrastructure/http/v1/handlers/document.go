@@ -8,6 +8,7 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/infrastructure/http/v1/dto"
 )
 
 // DocumentService defines the interface that services must implement for BaseDocumentHandler.
@@ -19,6 +20,7 @@ type DocumentService[T any] interface {
 	Post(ctx context.Context, id id.ID) error
 	Unpost(ctx context.Context, id id.ID) error
 	PostAndSave(ctx context.Context, entity T) error
+	SetDeletionMark(ctx context.Context, id id.ID, marked bool) error
 }
 
 // BaseDocumentHandler provides generic HTTP handlers for document entities.
@@ -246,6 +248,40 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) Unpost(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// SetDeletionMark handles POST /{entity}/:id/deletion-mark
+// Sets or clears the deletion mark. If the document is posted and we're marking it for deletion,
+// the service will unpost it first (1C-style behavior: unpost + mark in one transaction).
+func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) SetDeletionMark(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	docID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid id format"))
+		return
+	}
+
+	var req dto.SetDeletionMarkRequest
+	if !h.BindJSON(c, &req) {
+		return
+	}
+
+	if err := h.service.SetDeletionMark(ctx, docID, req.Marked); err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	// Return updated document
+	doc, err := h.service.GetByID(ctx, docID)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	response := h.mapToDTO(doc)
+	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
+	c.JSON(http.StatusOK, response)
+}
+
 // RegisterRoutes registers standard routes.
 func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("", h.Create)
@@ -254,4 +290,5 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) RegisterRoutes(rg *gin.Ro
 	rg.DELETE("/:id", h.Delete)
 	rg.POST("/:id/post", h.Post)
 	rg.POST("/:id/unpost", h.Unpost)
+	rg.POST("/:id/deletion-mark", h.SetDeletionMark)
 }

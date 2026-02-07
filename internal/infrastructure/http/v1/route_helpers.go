@@ -28,6 +28,7 @@ type DocumentRouteHandler interface {
 	Delete(c *gin.Context)
 	Post(c *gin.Context)
 	Unpost(c *gin.Context)
+	SetDeletionMark(c *gin.Context)
 }
 
 // DocumentCopyHandler is an optional interface for documents that support copying.
@@ -72,6 +73,7 @@ func RegisterDocumentRoutes(group *gin.RouterGroup, handler DocumentRouteHandler
 	group.DELETE("/:id", middleware.RequirePermission(permission+":delete"), handler.Delete)
 	group.POST("/:id/post", middleware.RequirePermission(permission+":post"), handler.Post)
 	group.POST("/:id/unpost", middleware.RequirePermission(permission+":unpost"), handler.Unpost)
+	group.POST("/:id/deletion-mark", middleware.RequirePermission(permission+":delete"), handler.SetDeletionMark)
 
 	// Register Copy route if handler supports it (optional)
 	if copyHandler, ok := handler.(DocumentCopyHandler); ok {

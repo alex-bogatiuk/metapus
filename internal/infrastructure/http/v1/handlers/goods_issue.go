@@ -215,6 +215,7 @@ func (h *GoodsIssueHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.DELETE("/:id", h.BaseDocumentHandler.Delete)
 	rg.POST("/:id/post", h.BaseDocumentHandler.Post)
 	rg.POST("/:id/unpost", h.BaseDocumentHandler.Unpost)
+	rg.POST("/:id/deletion-mark", h.BaseDocumentHandler.SetDeletionMark)
 
 	// Overrides and specific methods
 	rg.GET("", h.List)
