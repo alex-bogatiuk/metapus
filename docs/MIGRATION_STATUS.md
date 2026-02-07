@@ -18,7 +18,7 @@
 - [x] `internal/infrastructure/http/v1/handlers/document.go` - MapCreateDTO without tenantID
 - [x] `internal/infrastructure/http/v1/handlers/health.go` - MultiTenantHealthHandler
 - [x] All catalog handlers updated (currency, counterparty, nomenclature, unit, warehouse)
-- [x] All document handlers updated (goods_receipt, goods_issue, inventory)
+- [x] All document handlers updated (goods_receipt, goods_issue)
 
 ### DTOs
 - [x] All `ToEntity()` methods updated to not require tenantID
@@ -33,7 +33,6 @@
 - [x] `internal/domain/catalogs/unit/service.go` - No TxManager in constructor
 - [x] `internal/domain/documents/goods_receipt/service.go` - TxManager from context
 - [x] `internal/domain/documents/goods_issue/service.go` - TxManager from context
-- [x] `internal/domain/documents/inventory/service.go` - TxManager from context
 - [x] `internal/domain/registers/stock/service.go` - No TxManager needed
 - [x] `internal/domain/posting/engine.go` - TxManager from context
 
@@ -41,7 +40,7 @@
 - [x] `internal/infrastructure/storage/postgres/catalog_repo/base.go` - getTxManager from context
 - [x] `internal/infrastructure/storage/postgres/document_repo/base.go` - getTxManager from context
 - [x] All concrete catalog repos (currency, counterparty, nomenclature, warehouse, unit)
-- [x] All concrete document repos (goods_receipt, goods_issue, inventory)
+- [x] All concrete document repos (goods_receipt, goods_issue)
 - [x] `internal/infrastructure/storage/postgres/register_repo/stock.go` - No tenant filtering in queries
 - [x] `internal/infrastructure/storage/postgres/report_repo/reports.go` - Context-based TxManager
 

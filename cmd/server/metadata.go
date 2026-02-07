@@ -8,7 +8,6 @@ import (
 	"metapus/internal/domain/catalogs/warehouse"
 	"metapus/internal/domain/documents/goods_issue"
 	"metapus/internal/domain/documents/goods_receipt"
-	"metapus/internal/domain/documents/inventory"
 	"metapus/internal/metadata"
 )
 
@@ -37,7 +36,6 @@ func setupMetadataRegistry() *metadata.Registry {
 	// --- Documents ---
 	register(goods_receipt.GoodsReceipt{}, "GoodsReceipt", metadata.TypeDocument, "Поступление товаров")
 	register(goods_issue.GoodsIssue{}, "GoodsIssue", metadata.TypeDocument, "Реализация товаров")
-	register(inventory.Inventory{}, "Inventory", metadata.TypeDocument, "Инвентаризация")
 
 	return reg
 }

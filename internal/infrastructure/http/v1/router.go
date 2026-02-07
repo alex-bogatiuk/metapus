@@ -21,7 +21,6 @@ import (
 	"metapus/internal/domain/documents"
 	"metapus/internal/domain/documents/goods_issue"
 	"metapus/internal/domain/documents/goods_receipt"
-	"metapus/internal/domain/documents/inventory"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/stock"
 	"metapus/internal/domain/reports"
@@ -254,36 +253,6 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 
 		handler := handlers.NewGoodsIssueHandler(baseHandler, service)
 		RegisterDocumentRoutes(docsGroup.Group("/goods-issue"), handler, "document:goods_issue")
-	}
-
-	// --- INVENTORY (with custom routes) ---
-	{
-		repo := document_repo.NewInventoryRepo()
-		service := inventory.NewService(repo, postingEngine, stockService, cfg.Numerator, nil)
-
-		// Register audit hooks
-		service.Hooks().OnBeforeCreate(func(ctx context.Context, doc *inventory.Inventory) error {
-			audit.EnrichCreatedByDirect(ctx, &doc.CreatedBy, &doc.UpdatedBy)
-			return nil
-		})
-		service.Hooks().OnBeforeUpdate(func(ctx context.Context, doc *inventory.Inventory) error {
-			audit.EnrichUpdatedByDirect(ctx, &doc.UpdatedBy)
-			return nil
-		})
-
-		handler := handlers.NewInventoryHandler(baseHandler, service)
-
-		// Register standard document routes
-		invGroup := docsGroup.Group("/inventory")
-		RegisterDocumentRoutes(invGroup, handler, "document:inventory")
-
-		// Register custom inventory-specific routes
-		invGroup.POST("/:id/prepare-sheet", middleware.RequirePermission("document:inventory:update"), handler.PrepareSheet)
-		invGroup.POST("/:id/start", middleware.RequirePermission("document:inventory:update"), handler.Start)
-		invGroup.POST("/:id/record-count", middleware.RequirePermission("document:inventory:update"), handler.RecordCount)
-		invGroup.POST("/:id/complete", middleware.RequirePermission("document:inventory:update"), handler.Complete)
-		invGroup.POST("/:id/cancel", middleware.RequirePermission("document:inventory:update"), handler.Cancel)
-		invGroup.GET("/:id/comparison", middleware.RequirePermission("document:inventory:read"), handler.GetComparison)
 	}
 }
 

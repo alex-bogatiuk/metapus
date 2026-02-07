@@ -64,7 +64,6 @@ WHERE r.code = 'warehouse_keeper'
     OR p.code LIKE 'catalog:unit:read'
     OR p.code LIKE 'document:goods_receipt:%'
     OR p.code LIKE 'document:goods_issue:%'
-    OR p.code LIKE 'document:inventory:%'
     OR p.code LIKE 'register:stock:read'
   )
 ON CONFLICT DO NOTHING;

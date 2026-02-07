@@ -222,7 +222,7 @@ func (r *ReportRepo) GetDocumentJournal(ctx context.Context, filter reports.Docu
 	// Build union query for different document types
 	docTypes := filter.DocumentTypes
 	if len(docTypes) == 0 {
-		docTypes = []string{"goods_receipt", "goods_issue", "inventory"}
+		docTypes = []string{"goods_receipt", "goods_issue"}
 	}
 
 	var unions []string
@@ -295,37 +295,6 @@ func (r *ReportRepo) GetDocumentJournal(ctx context.Context, filter reports.Docu
 
 			unions = append(unions, q)
 
-		case "inventory":
-			q := `
-				SELECT 
-					id, 'inventory' as document_type, number, date,
-					posted, organization_id,
-					NULL::uuid as counterparty_id, '' as counterparty_name,
-					warehouse_id, '' as warehouse_name,
-					0.0 as total_quantity,
-					0 as total_amount,
-					'RUB' as currency, description, deletion_mark, created_at, updated_at
-				FROM doc_inventories d
-				WHERE deletion_mark = false
-			`
-
-			if filter.FromDate != nil {
-				q += fmt.Sprintf(" AND date >= $%d", argIndex)
-				args = append(args, *filter.FromDate)
-				argIndex++
-			}
-			if filter.ToDate != nil {
-				q += fmt.Sprintf(" AND date < $%d", argIndex)
-				args = append(args, *filter.ToDate)
-				argIndex++
-			}
-			if filter.Posted != nil {
-				q += fmt.Sprintf(" AND posted = $%d", argIndex)
-				args = append(args, *filter.Posted)
-				argIndex++
-			}
-
-			unions = append(unions, q)
 		}
 	}
 
@@ -366,7 +335,7 @@ func (r *ReportRepo) GetDocumentTypeSummary(ctx context.Context, filter reports.
 
 	docTypes := filter.DocumentTypes
 	if len(docTypes) == 0 {
-		docTypes = []string{"goods_receipt", "goods_issue", "inventory"}
+		docTypes = []string{"goods_receipt", "goods_issue"}
 	}
 
 	querier := r.getTxManager(ctx).GetQuerier(ctx)
@@ -398,16 +367,6 @@ func (r *ReportRepo) GetDocumentTypeSummary(ctx context.Context, filter reports.
 					0.0 as total_quantity,
 					COALESCE(SUM((SELECT SUM(amount) FROM doc_goods_issue_lines WHERE document_id = d.id)), 0) as total_amount
 				FROM doc_goods_issues d
-				WHERE deletion_mark = false
-			`
-		case "inventory":
-			query = `
-				SELECT 
-					COUNT(*) as count,
-					COUNT(*) FILTER (WHERE posted = true) as posted_count,
-					0.0 as total_quantity,
-					0 as total_amount
-				FROM doc_inventories d
 				WHERE deletion_mark = false
 			`
 		default:

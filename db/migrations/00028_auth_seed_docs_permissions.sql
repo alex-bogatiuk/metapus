@@ -1,6 +1,6 @@
 -- +goose Up
--- Seed permissions for GoodsIssue and Inventory documents
--- Migration: 00027_auth_seed_goods_issue_inventory_permissions.sql
+-- Seed permissions for GoodsIssue document
+-- Migration: 00028_auth_seed_docs_permissions.sql
 
 SELECT pg_advisory_lock(hashtext('metapus_migrations'));
 
@@ -14,32 +14,22 @@ INSERT INTO permissions (code, name, description, resource, action) VALUES
                                                                         ('document:goods_issue:unpost', 'Unpost Goods Issue', 'Permission to unpost goods issue documents', 'document:goods_issue', 'unpost')
 ON CONFLICT (code) DO NOTHING;
 
--- Insert Inventory permissions
-INSERT INTO permissions (code, name, description, resource, action) VALUES
-                                                                        ('document:inventory:create', 'Create Inventory', 'Permission to create inventory documents', 'document:inventory', 'create'),
-                                                                        ('document:inventory:read', 'Read Inventory', 'Permission to view inventory documents', 'document:inventory', 'read'),
-                                                                        ('document:inventory:update', 'Update Inventory', 'Permission to update inventory documents', 'document:inventory', 'update'),
-                                                                        ('document:inventory:delete', 'Delete Inventory', 'Permission to delete inventory documents', 'document:inventory', 'delete'),
-                                                                        ('document:inventory:post', 'Post Inventory', 'Permission to post inventory documents', 'document:inventory', 'post'),
-                                                                        ('document:inventory:unpost', 'Unpost Inventory', 'Permission to unpost inventory documents', 'document:inventory', 'unpost')
-ON CONFLICT (code) DO NOTHING;
-
--- Grant GoodsIssue + Inventory permissions to admin
+-- Grant GoodsIssue permissions to admin
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r
          CROSS JOIN permissions p
 WHERE r.code = 'admin'
-    AND p.code LIKE 'document:goods_issue:%' OR p.code LIKE 'document:inventory:%'
+    AND p.code LIKE 'document:goods_issue:%'
 ON CONFLICT DO NOTHING;
 
--- Grant GoodsIssue + Inventory to accountant
+-- Grant GoodsIssue permissions to accountant
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r
          CROSS JOIN permissions p
 WHERE r.code = 'accountant'
-  AND (p.code LIKE 'document:goods_issue:%' OR p.code LIKE 'document:inventory:%')
+  AND (p.code LIKE 'document:goods_issue:%')
 ON CONFLICT DO NOTHING;
 
 -- Grant read-only to manager
@@ -48,7 +38,7 @@ SELECT r.id, p.id
 FROM roles r
          CROSS JOIN permissions p
 WHERE r.code = 'manager'
-  AND (p.code = 'document:goods_issue:read' OR p.code = 'document:inventory:read')
+  AND (p.code = 'document:goods_issue:read')
 ON CONFLICT DO NOTHING;
 
 -- Create warehouse_keeper role
@@ -66,7 +56,6 @@ WHERE r.code = 'warehouse_keeper'
   AND p.code IN (
                  'document:goods_receipt:read','document:goods_receipt:create','document:goods_receipt:update',
                  'document:goods_issue:read','document:goods_issue:create','document:goods_issue:update',
-                 'document:inventory:read','document:inventory:create','document:inventory:update',
                  'catalog:nomenclature:read','catalog:warehouse:read','catalog:unit:read','catalog:counterparty:read',
                  'register:stock:read'
     )
