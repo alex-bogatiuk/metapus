@@ -16,6 +16,8 @@ CREATE TABLE cat_organizations (
     actual_address TEXT,
     phone VARCHAR(50),
     email VARCHAR(255),
+    base_currency_id UUID,
+    is_default BOOLEAN NOT NULL DEFAULT FALSE,
     deletion_mark BOOLEAN NOT NULL DEFAULT FALSE,
     version INT NOT NULL DEFAULT 1,
     attributes JSONB
@@ -34,8 +36,11 @@ CREATE UNIQUE INDEX idx_org_inn ON cat_organizations (inn)
 
 -- GIN index for attributes
 CREATE INDEX idx_org_attributes ON cat_organizations USING GIN (attributes);
+CREATE INDEX idx_cat_organizations_base_currency_id ON cat_organizations (base_currency_id);
 
 COMMENT ON TABLE cat_organizations IS 'Legal entities owned by tenant';
+COMMENT ON COLUMN cat_organizations.base_currency_id IS 'Main accounting currency for the organization';
+COMMENT ON COLUMN cat_organizations.is_default IS 'Indicates if this is the default organization';
 
 SELECT pg_advisory_unlock(hashtext('metapus_migrations'));
 

@@ -31,6 +31,14 @@ CREATE TABLE IF NOT EXISTS cat_currencies (
     CONSTRAINT chk_decimal_places CHECK (decimal_places >= 0 AND decimal_places <= 18)
 );
 
+ALTER TABLE cat_organizations
+    ADD CONSTRAINT fk_cat_organizations_base_currency
+        FOREIGN KEY (base_currency_id) REFERENCES cat_currencies(id);
+
+ALTER TABLE cat_warehouses
+    ADD CONSTRAINT fk_cat_warehouses_default_currency
+        FOREIGN KEY (default_currency_id) REFERENCES cat_currencies(id);
+
 -- Indexes
 CREATE UNIQUE INDEX idx_cat_currencies_code 
     ON cat_currencies (code) 

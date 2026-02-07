@@ -35,7 +35,7 @@ CREATE TABLE doc_goods_receipts (
                                     warehouse_id UUID NOT NULL,
                                     supplier_doc_number VARCHAR(50),
                                     supplier_doc_date DATE,
-                                    currency CHAR(3) NOT NULL DEFAULT 'RUB',
+                                    currency_id UUID NOT NULL REFERENCES cat_currencies(id),
 
     -- Totals (denormalized for performance)
                                     total_quantity BIGINT NOT NULL DEFAULT 0, -- scaled x10000
@@ -79,6 +79,7 @@ CREATE TABLE doc_goods_receipt_lines (
 CREATE INDEX idx_goods_receipts_date ON doc_goods_receipts (date DESC);
 CREATE INDEX idx_goods_receipts_supplier ON doc_goods_receipts (supplier_id);
 CREATE INDEX idx_goods_receipts_warehouse ON doc_goods_receipts (warehouse_id);
+CREATE INDEX idx_doc_goods_receipts_currency_id ON doc_goods_receipts (currency_id);
 CREATE INDEX idx_goods_receipts_posted ON doc_goods_receipts (posted) WHERE posted = FALSE;
 
 -- Дополнительные индексы для полей аудита (полезны при фильтрации по пользователю)
@@ -112,6 +113,7 @@ COMMENT ON COLUMN doc_goods_receipts.created_at IS 'Дата и время со�
 COMMENT ON COLUMN doc_goods_receipts.updated_at IS 'Дата и время последнего изменения документа';
 COMMENT ON COLUMN doc_goods_receipts.created_by IS 'Пользователь, создавший документ';
 COMMENT ON COLUMN doc_goods_receipts.updated_by IS 'Пользователь, последний изменивший документ';
+COMMENT ON COLUMN doc_goods_receipts.currency_id IS 'Reference to currency catalog';
 
 SELECT pg_advisory_unlock(hashtext('metapus_migrations'));
 
