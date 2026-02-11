@@ -61,6 +61,13 @@ func Auth(validator JWTValidator) gin.HandlerFunc {
 		// Store in gin context for easy access
 		c.Set("user_id", user.UserID)
 		c.Set("permissions", user.Permissions)
+
+		// Build permissions set for O(1) lookups in RequirePermission
+		permSet := make(map[string]struct{}, len(user.Permissions))
+		for _, p := range user.Permissions {
+			permSet[p] = struct{}{}
+		}
+		c.Set("permissions_set", permSet)
 		
 		c.Next()
 	}
@@ -95,6 +102,12 @@ func OptionalAuth(validator JWTValidator) gin.HandlerFunc {
 			c.Request = c.Request.WithContext(ctx)
 			c.Set("user_id", user.UserID)
 			c.Set("permissions", user.Permissions)
+
+			permSet := make(map[string]struct{}, len(user.Permissions))
+			for _, p := range user.Permissions {
+				permSet[p] = struct{}{}
+			}
+			c.Set("permissions_set", permSet)
 		}
 		
 		c.Next()

@@ -32,7 +32,7 @@ func (r *CreateWarehouseRequest) ToEntity() *warehouse.Warehouse {
 	wh.IsDefault = r.IsDefault
 	wh.OrganizationID = r.OrganizationID
 	wh.Description = r.Description
-	wh.ParentID = r.ParentID
+	wh.ParentID = stringPtrToIDPtr(r.ParentID)
 	wh.IsFolder = r.IsFolder
 	wh.Attributes = r.Attributes
 	return wh
@@ -66,7 +66,7 @@ func (r *UpdateWarehouseRequest) ApplyTo(wh *warehouse.Warehouse) {
 	wh.IsDefault = r.IsDefault
 	wh.OrganizationID = r.OrganizationID
 	wh.Description = r.Description
-	wh.ParentID = r.ParentID
+	wh.ParentID = stringPtrToIDPtr(r.ParentID)
 	wh.IsFolder = r.IsFolder
 	wh.Attributes = r.Attributes
 	wh.Version = r.Version
@@ -106,7 +106,7 @@ func FromWarehouse(wh *warehouse.Warehouse) *WarehouseResponse {
 		IsDefault:          wh.IsDefault,
 		OrganizationID:     wh.OrganizationID,
 		Description:        wh.Description,
-		ParentID:           wh.ParentID,
+		ParentID:           idToStringPtr(wh.ParentID),
 		IsFolder:           wh.IsFolder,
 		DeletionMark:       wh.DeletionMark,
 		Version:            wh.Version,

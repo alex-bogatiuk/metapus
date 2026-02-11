@@ -132,6 +132,13 @@ func (h *GoodsReceiptHandler) List(c *gin.Context) {
 		}
 	}
 
+	if contractID := c.Query("contractId"); contractID != "" {
+		parsed, err := id.Parse(contractID)
+		if err == nil {
+			filter.ContractID = &parsed
+		}
+	}
+
 	if posted := c.Query("posted"); posted != "" {
 		val := posted == "true"
 		filter.Posted = &val
@@ -178,13 +185,16 @@ func (h *GoodsReceiptHandler) Copy(c *gin.Context) {
 	// Create copy (no tenantID needed in Database-per-Tenant)
 	copy := goods_receipt.NewGoodsReceipt(source.OrganizationID, source.SupplierID, source.WarehouseID)
 	copy.Date = time.Now()
+	copy.ContractID = source.ContractID
 	copy.SupplierDocNumber = source.SupplierDocNumber
+	copy.IncomingNumber = source.IncomingNumber
 	copy.CurrencyID = source.CurrencyID
+	copy.AmountIncludesVAT = source.AmountIncludesVAT
 	copy.Description = source.Description
 
 	// Copy lines
 	for _, line := range source.Lines {
-		copy.AddLine(line.ProductID, line.Quantity, line.UnitPrice, line.VATRate)
+		copy.AddLine(line.ProductID, line.UnitID, line.Coefficient, line.Quantity, line.UnitPrice, line.VATRateID, 0, line.DiscountPercent)
 	}
 
 	if err := h.service.Create(ctx, copy); err != nil {

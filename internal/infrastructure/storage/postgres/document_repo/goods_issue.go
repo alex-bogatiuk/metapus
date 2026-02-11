@@ -38,7 +38,10 @@ func (r *GoodsIssueRepo) GetLines(ctx context.Context, docID id.ID) ([]goods_iss
 	q := r.Builder().
 		Select(
 			"line_id", "line_no", "product_id",
-			"quantity", "unit_price", "vat_rate", "vat_amount", "amount",
+			"unit_id", "coefficient",
+			"quantity", "unit_price",
+			"discount_percent", "discount_amount",
+			"vat_rate_id", "vat_amount", "amount",
 		).
 		From(goodsIssueLinesTable).
 		Where(squirrel.Eq{"document_id": docID}).
@@ -74,13 +77,19 @@ func (r *GoodsIssueRepo) SaveLines(ctx context.Context, docID id.ID, lines []goo
 		Insert(goodsIssueLinesTable).
 		Columns(
 			"line_id", "document_id", "line_no", "product_id",
-			"quantity", "unit_price", "vat_rate", "vat_amount", "amount",
+			"unit_id", "coefficient",
+			"quantity", "unit_price",
+			"discount_percent", "discount_amount",
+			"vat_rate_id", "vat_amount", "amount",
 		)
 
 	for _, line := range lines {
 		q = q.Values(
 			line.LineID, docID, line.LineNo, line.ProductID,
-			line.Quantity, line.UnitPrice, line.VATRate, line.VATAmount, line.Amount,
+			line.UnitID, line.Coefficient,
+			line.Quantity, line.UnitPrice,
+			line.DiscountPercent, line.DiscountAmount,
+			line.VATRateID, line.VATAmount, line.Amount,
 		)
 	}
 
@@ -116,6 +125,10 @@ func (r *GoodsIssueRepo) List(ctx context.Context, filter goods_issue.ListFilter
 		q = q.Where(squirrel.Eq{"warehouse_id": *filter.WarehouseID})
 	}
 
+	if filter.ContractID != nil {
+		q = q.Where(squirrel.Eq{"contract_id": *filter.ContractID})
+	}
+
 	if filter.Posted != nil {
 		q = q.Where(squirrel.Eq{"posted": *filter.Posted})
 	}
@@ -147,9 +160,9 @@ func (r *GoodsIssueRepo) List(ctx context.Context, filter goods_issue.ListFilter
 		return result, fmt.Errorf("count: %w", err)
 	}
 
-	orderBy := "date DESC"
-	if filter.OrderBy != "" {
-		orderBy = filter.OrderBy
+	orderBy, err := r.parseOrderBy(filter.OrderBy)
+	if err != nil {
+		return result, err
 	}
 	q = q.OrderBy(orderBy)
 

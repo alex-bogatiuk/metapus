@@ -238,9 +238,11 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 		{"Ethereum", "ETH", "Ξ", 9, 1000000000, false},
 	}
 
+	currencyIDs := make(map[string]id.ID)
+
 	for _, c := range currencies {
 		currID := id.New()
-		_, err := pool.Pool.Exec(ctx, `
+		commandTag, err := pool.Pool.Exec(ctx, `
 			INSERT INTO cat_currencies (
 				id, code, name, iso_code, symbol, 
 				decimal_places, minor_multiplier, is_base, 
@@ -251,6 +253,31 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 		`, currID, c.isoCode, c.name, c.isoCode, c.symbol, c.decimalPlaces, c.minorMultiplier, c.isBase)
 		if err != nil {
 			log.Warnw("failed to seed currency", "name", c.name, "error", err)
+			continue
+		}
+
+		if commandTag.RowsAffected() == 0 {
+			err = pool.Pool.QueryRow(ctx, `
+				SELECT id FROM cat_currencies WHERE code = $1 AND deletion_mark = FALSE
+			`, c.isoCode).Scan(&currID)
+			if err != nil {
+				log.Warnw("failed to fetch existing currency id", "iso", c.isoCode, "error", err)
+				continue
+			}
+		}
+
+		currencyIDs[c.isoCode] = currID
+	}
+
+	// 3a. Update organization base_currency_id
+	if orgAvailable && !id.IsNil(orgID) {
+		if rubID, ok := currencyIDs["RUB"]; ok {
+			_, err := pool.Pool.Exec(ctx, `
+				UPDATE cat_organizations SET base_currency_id = $1 WHERE id = $2
+			`, rubID, orgID)
+			if err != nil {
+				log.Warnw("failed to set organization base currency", "error", err)
+			}
 		}
 	}
 
@@ -301,20 +328,84 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 		{"ИП Иванов И.И.", "both", "individual", "772300001234"},
 	}
 
+	counterpartyIDs := make(map[string]id.ID)
+
 	for i, cp := range counterparties {
 		cpID := id.New()
 		code := fmt.Sprintf("CP-%03d", i+1)
-		_, err := pool.Pool.Exec(ctx, `
+		commandTag, err := pool.Pool.Exec(ctx, `
 			INSERT INTO cat_counterparties (id, code, name, type, legal_form, inn, full_name, version, deletion_mark, attributes)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, 1, false, '{}')
 			ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
 		`, cpID, code, cp.name, cp.ctype, cp.legalForm, cp.inn, cp.name)
 		if err != nil {
 			log.Warnw("failed to seed counterparty", "name", cp.name, "error", err)
+			continue
+		}
+
+		if commandTag.RowsAffected() == 0 {
+			err = pool.Pool.QueryRow(ctx, `
+				SELECT id FROM cat_counterparties WHERE code = $1 AND deletion_mark = FALSE
+			`, code).Scan(&cpID)
+			if err != nil {
+				log.Warnw("failed to fetch existing counterparty id", "code", code, "error", err)
+				continue
+			}
+		}
+
+		counterpartyIDs[cp.ctype] = cpID
+	}
+
+	// 6. Seed Contracts
+	contracts := []struct {
+		name            string
+		counterpartKey  string // key in counterpartyIDs map
+		contractType    string // supply, sale, other
+		currencyISOCode string // key in currencyIDs map
+	}{
+		{"Договор поставки канцтоваров", "supplier", "supply", "RUB"},
+		{"Договор продажи (розница)", "customer", "sale", "RUB"},
+		{"Договор (USD)", "both", "other", "USD"},
+	}
+
+	for i, ct := range contracts {
+		ctID := id.New()
+		code := fmt.Sprintf("CTR-%03d", i+1)
+
+		cpID, cpOk := counterpartyIDs[ct.counterpartKey]
+		if !cpOk {
+			log.Warnw("skipping contract: counterparty not found", "key", ct.counterpartKey)
+			continue
+		}
+
+		var currIDValue interface{}
+		if cID, ok := currencyIDs[ct.currencyISOCode]; ok {
+			currIDValue = cID
+		}
+
+		_, err := pool.Pool.Exec(ctx, `
+			INSERT INTO cat_contracts (
+				id, code, name, counterparty_id, type, currency_id,
+				payment_term_days, version, deletion_mark, attributes
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, 30, 1, false, '{}')
+			ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
+		`, ctID, code, ct.name, cpID, ct.contractType, currIDValue)
+		if err != nil {
+			log.Warnw("failed to seed contract", "name", ct.name, "error", err)
 		}
 	}
 
-	// 6. Seed Nomenclature
+	// 7. Seed Nomenclature
+	// Fetch default VAT rate (НДС 20%) — seeded by migration 00016_cat_vat_rates
+	var defaultVatRateID id.ID
+	err = pool.Pool.QueryRow(ctx, `
+		SELECT id FROM cat_vat_rates WHERE code = 'VR-001' AND deletion_mark = FALSE
+	`).Scan(&defaultVatRateID)
+	if err != nil {
+		log.Warnw("failed to fetch default VAT rate, nomenclature will have NULL default_vat_rate_id", "error", err)
+	}
+
 	products := []struct {
 		name       string
 		article    string
@@ -341,11 +432,16 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 			unitID = unitIDs["шт"]
 		}
 
+		var vatRateValue interface{}
+		if !id.IsNil(defaultVatRateID) {
+			vatRateValue = defaultVatRateID
+		}
+
 		_, err := pool.Pool.Exec(ctx, `
-			INSERT INTO cat_nomenclature (id, code, name, type, article, barcode, base_unit_id, vat_rate, version, deletion_mark, attributes)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, '20', 1, false, '{}')
+			INSERT INTO cat_nomenclature (id, code, name, type, article, barcode, base_unit_id, default_vat_rate_id, version, deletion_mark, attributes)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, false, '{}')
 			ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
-		`, prodID, code, p.name, p.ntype, p.article, p.barcode, unitID)
+		`, prodID, code, p.name, p.ntype, p.article, p.barcode, unitID, vatRateValue)
 
 		if err != nil {
 			log.Warnw("failed to seed product", "name", p.name, "error", err)

@@ -67,7 +67,7 @@ func (s *Service) Create(ctx context.Context, doc *GoodsReceipt) error {
 	}
 
 	// Resolve currency
-	currencyID, err := s.resolver.ResolveForDocument(ctx, doc.CurrencyID, doc.WarehouseID, doc.OrganizationID)
+	currencyID, err := s.resolver.ResolveForDocument(ctx, doc.CurrencyID, doc.ContractID, doc.OrganizationID)
 	if err != nil {
 		return err
 	}
@@ -273,7 +273,7 @@ func (s *Service) Unpost(ctx context.Context, docID id.ID) error {
 // Used when creating and posting in one operation.
 func (s *Service) PostAndSave(ctx context.Context, doc *GoodsReceipt) error {
 	// Resolve currency
-	currencyID, err := s.resolver.ResolveForDocument(ctx, doc.CurrencyID, doc.WarehouseID, doc.OrganizationID)
+	currencyID, err := s.resolver.ResolveForDocument(ctx, doc.CurrencyID, doc.ContractID, doc.OrganizationID)
 	if err != nil {
 		return err
 	}

@@ -35,7 +35,7 @@ func (r *CreateUnitRequest) ToEntity() *unit.Unit {
 	}
 	u.IsBase = r.IsBase
 	u.Description = r.Description
-	u.ParentID = r.ParentID
+	u.ParentID = stringPtrToIDPtr(r.ParentID)
 	u.IsFolder = r.IsFolder
 	u.Attributes = r.Attributes
 	return u
@@ -69,7 +69,7 @@ func (r *UpdateUnitRequest) ApplyTo(u *unit.Unit) {
 	u.ConversionFactor = r.ConversionFactor
 	u.IsBase = r.IsBase
 	u.Description = r.Description
-	u.ParentID = r.ParentID
+	u.ParentID = stringPtrToIDPtr(r.ParentID)
 	u.IsFolder = r.IsFolder
 	u.Attributes = r.Attributes
 	u.Version = r.Version
@@ -109,7 +109,7 @@ func FromUnit(u *unit.Unit) *UnitResponse {
 		ConversionFactor:  u.ConversionFactor,
 		IsBase:            u.IsBase,
 		Description:       u.Description,
-		ParentID:          u.ParentID,
+		ParentID:          idToStringPtr(u.ParentID),
 		IsFolder:          u.IsFolder,
 		DeletionMark:      u.DeletionMark,
 		Version:           u.Version,

@@ -115,29 +115,41 @@ func (e *Engine) OnAfterPost(hook PostHook) {
 //
 // If the document is already posted, it will be re-posted (like 1C behavior).
 func (e *Engine) Post(ctx context.Context, doc Postable, updateDoc func(context.Context) error) error {
-	// If already posted, do repost (перепроведение like in 1C)
-	if doc.IsPosted() {
-		return e.Repost(ctx, doc, updateDoc)
-	}
+	return e.doPost(ctx, doc, updateDoc)
+}
 
-	// 2. Validate document can be posted
+// doPost is the unified posting implementation.
+// Handles both first-time posting and re-posting (перепроведение).
+// If the document is already posted, old movements are reversed before recording new ones.
+func (e *Engine) doPost(ctx context.Context, doc Postable, updateDoc func(context.Context) error) error {
+	isRepost := doc.IsPosted()
+
+	// Validate document can be posted
 	if err := doc.CanPost(ctx); err != nil {
 		return fmt.Errorf("cannot post: %w", err)
 	}
 
-	// 3. Run before-post hooks
+	// Run before-post hooks
 	for _, hook := range e.beforePost {
 		if err := hook(ctx, doc); err != nil {
 			return fmt.Errorf("before-post hook: %w", err)
 		}
 	}
 
-	// 4. Execute posting in transaction
+	// Execute posting in transaction
 	txm, err := tenant.GetTxManager(ctx)
 	if err != nil {
 		return apperror.NewInternal(err).WithDetail("missing", "tx_manager")
 	}
 	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		// If re-posting, reverse old movements first
+		if isRepost {
+			oldVersion := doc.GetPostedVersion()
+			if err := e.stockService.ReverseMovements(ctx, doc.GetID(), oldVersion+1); err != nil {
+				return fmt.Errorf("reverse old movements: %w", err)
+			}
+		}
+
 		// Generate movements
 		movements, err := doc.GenerateMovements(ctx)
 		if err != nil {
@@ -173,7 +185,7 @@ func (e *Engine) Post(ctx context.Context, doc Postable, updateDoc func(context.
 		return err
 	}
 
-	// 5. Run after-post hooks (outside transaction)
+	// Run after-post hooks (outside transaction)
 	for _, hook := range e.afterPost {
 		if hookErr := hook(ctx, doc); hookErr != nil {
 			logger.Error(ctx, "after-post hook failed",
@@ -182,7 +194,11 @@ func (e *Engine) Post(ctx context.Context, doc Postable, updateDoc func(context.
 		}
 	}
 
-	logger.Info(ctx, "document posted",
+	action := "posted"
+	if isRepost {
+		action = "reposted"
+	}
+	logger.Info(ctx, "document "+action,
 		"document_id", doc.GetID(),
 		"document_type", doc.GetDocumentType(),
 		"version", doc.GetPostedVersion())
@@ -230,71 +246,10 @@ func (e *Engine) Unpost(ctx context.Context, doc Postable, updateDoc func(contex
 	return nil
 }
 
-// Repost re-posts a document (unpost + post in single transaction).
-// Used when document data changes while posted.
-func (e *Engine) Repost(ctx context.Context, doc Postable, updateDoc func(context.Context) error) error {
-	if !doc.IsPosted() {
-		// If not posted, just post
-		return e.Post(ctx, doc, updateDoc)
-	}
-
-	// Validate first
-	if err := doc.CanPost(ctx); err != nil {
-		return fmt.Errorf("cannot repost: %w", err)
-	}
-
-	txm, err := tenant.GetTxManager(ctx)
-	if err != nil {
-		return apperror.NewInternal(err).WithDetail("missing", "tx_manager")
-	}
-	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
-		// 1. Delete old movements (but don't change posted state yet)
-		oldVersion := doc.GetPostedVersion()
-		if err := e.stockService.ReverseMovements(ctx, doc.GetID(), oldVersion+1); err != nil {
-			return fmt.Errorf("reverse old movements: %w", err)
-		}
-
-		// 2. Generate new movements
-		movements, err := doc.GenerateMovements(ctx)
-		if err != nil {
-			return fmt.Errorf("generate movements: %w", err)
-		}
-
-		// 3. Validate stock availability
-		if err := e.validateStockAvailability(ctx, movements.StockMovements); err != nil {
-			return err
-		}
-
-		// 4. Record new movements
-		if err := e.recordMovements(ctx, movements); err != nil {
-			return fmt.Errorf("record movements: %w", err)
-		}
-
-		// 5. Update document (increments posted version)
-		doc.MarkPosted()
-		if err := updateDoc(ctx); err != nil {
-			return fmt.Errorf("update document: %w", err)
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return err
-	}
-
-	logger.Info(ctx, "document reposted",
-		"document_id", doc.GetID(),
-		"document_type", doc.GetDocumentType(),
-		"version", doc.GetPostedVersion())
-
-	return nil
-}
-
 // validateStockAvailability checks if there's enough stock for expense movements.
 func (e *Engine) validateStockAvailability(ctx context.Context, movements []entity.StockMovement) error {
 	// Collect expense movements by warehouse+product
-	reserves := make(map[string]stock.StockReservation)
+	reserves := make(map[string]*stock.StockReservation)
 
 	for _, m := range movements {
 		if m.RecordType != entity.RecordTypeExpense {
@@ -304,9 +259,8 @@ func (e *Engine) validateStockAvailability(ctx context.Context, movements []enti
 		key := m.WarehouseID.String() + ":" + m.ProductID.String()
 		if existing, ok := reserves[key]; ok {
 			existing.RequiredQty += m.Quantity
-			reserves[key] = existing
 		} else {
-			reserves[key] = stock.StockReservation{
+			reserves[key] = &stock.StockReservation{
 				WarehouseID: m.WarehouseID,
 				ProductID:   m.ProductID,
 				RequiredQty: m.Quantity,
@@ -321,7 +275,7 @@ func (e *Engine) validateStockAvailability(ctx context.Context, movements []enti
 	// Convert to slice and check availability
 	items := make([]stock.StockReservation, 0, len(reserves))
 	for _, r := range reserves {
-		items = append(items, r)
+		items = append(items, *r)
 	}
 
 	// IMPORTANT: Lock balances in deterministic order to prevent deadlocks.

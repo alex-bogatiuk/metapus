@@ -64,8 +64,13 @@ func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) List(c *gin.Context) {
 	filter.OrderBy = c.DefaultQuery("orderBy", "name")
 	filter.IncludeDeleted = c.Query("includeDeleted") == "true"
 
-	if parentID := c.Query("parentId"); parentID != "" {
-		filter.ParentID = &parentID
+	if parentIDStr := c.Query("parentId"); parentIDStr != "" {
+		parsed, err := id.Parse(parentIDStr)
+		if err != nil {
+			h.Error(c, apperror.NewValidation("invalid parentId format"))
+			return
+		}
+		filter.ParentID = &parsed
 	}
 
 	if isFolder := c.Query("isFolder"); isFolder != "" {

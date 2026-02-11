@@ -1207,18 +1207,12 @@
                   },
                   {
                     "key": "X-Tenant-ID",
-                    "value": "{{tenantId}}",
-                    "disabled": true
-                  },
-                  {
-                    "key": "Idempotency-Key",
-                    "value": "{{$guid}}",
-                    "disabled": true
+                    "value": "{{tenantId}}"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n    \"date\": \"2026-01-03T15:04:05Z\",\n    \"organizationId\": \"019b2822-51ab-7bf6-9be9-b0eb664c6b3f\",\n    \"warehouseId\": \"019b2822-51df-7330-a254-aa47286d3b39\",\n    \"supplierID\": \"019b88b6-01ef-768c-a45b-4430f3cb8bb5\",\n    \"description\": \"Поступление от поставщика\",\n    \"lines\": [\n        {\n            \"productId\": \"019b85ae-af98-74d0-b79d-20fd8ec9205d\",\n            \"quantity\": 100,\n            \"unitPrice\": 150,\n            \"vatRate\": \"20\"\n        },\n        {\n            \"productId\": \"019b2822-520b-7229-9f21-f2085bca80e6\",\n            \"quantity\": 1,\n            \"unitPrice\": 150,\n            \"vatRate\": \"0\"\n        }\n    ]\n}"
+                  "raw": "{\n    \"date\": \"2026-01-03T15:04:05Z\",\n    \"organizationId\": \"019b2822-51ab-7bf6-9be9-b0eb664c6b3f\",\n    \"warehouseId\": \"019b2822-51df-7330-a254-aa47286d3b39\",\n    \"supplierID\": \"019b88b6-01ef-768c-a45b-4430f3cb8bb5\",\n    \"description\": \"Поступление от поставщика\",\n    \"lines\": [\n        {\n            \"productId\": \"019b85ae-af98-74d0-b79d-20fd8ec9205d\",\n            \"quantity\": 100,\n            \"unitPrice\": 150.5,\n            \"vatRate\": \"20\"\n        },\n        {\n            \"productId\": \"019b2822-520b-7229-9f21-f2085bca80e6\",\n            \"quantity\": 1,\n            \"unitPrice\": 150,\n            \"vatRate\": \"0\"\n        }\n    ]\n}"
                 },
                 "url": {
                   "raw": "{{baseUrl}}/api/v1/document/goods-receipt",
@@ -1364,129 +1358,6 @@
                     "copy"
                   ]
                 }
-              },
-              "response": []
-            },
-            {
-              "name": "1. Unpost (Required before Edit/Delete)",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "X-Tenant-ID",
-                    "value": "{{tenantId}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{receiptId}}/unpost",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "api",
-                    "v1",
-                    "document",
-                    "goods-receipt",
-                    "{{receiptId}}",
-                    "unpost"
-                  ]
-                },
-                "description": "ЭТОТ ЗАПРОС УДАЛЯЕТ ДВИЖЕНИЯ.\nСогласно коду (service.go), нельзя удалить или изменить проведенный документ. Сначала нужно вызвать этот метод."
-              },
-              "response": []
-            },
-            {
-              "name": "2a. Update Content (Edit)",
-              "request": {
-                "method": "PUT",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "X-Tenant-ID",
-                    "value": "{{tenantId}}"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n    \"comment\": \"Исправлено количество и цена\",\n    \"lines\": [\n        {\n            \"productId\": \"{{productId}}\",\n            \"quantity\": 150,\n            \"unitPrice\": 14500,\n            \"vatRate\": \"20\"\n        }\n    ]\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                },
-                "url": {
-                  "raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{receiptId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "api",
-                    "v1",
-                    "document",
-                    "goods-receipt",
-                    "{{receiptId}}"
-                  ]
-                },
-                "description": "Работает только если документ НЕ проведен (или после Unpost)."
-              },
-              "response": []
-            },
-            {
-              "name": "2b. Repost (After Edit)",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "X-Tenant-ID",
-                    "value": "{{tenantId}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{receiptId}}/post",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "api",
-                    "v1",
-                    "document",
-                    "goods-receipt",
-                    "{{receiptId}}",
-                    "post"
-                  ]
-                },
-                "description": "Формирует новые движения на основе обновленных данных."
-              },
-              "response": []
-            },
-            {
-              "name": "3. Set Deletion Mark",
-              "request": {
-                "method": "DELETE",
-                "header": [
-                  {
-                    "key": "X-Tenant-ID",
-                    "value": "{{tenantId}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{receiptId}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "api",
-                    "v1",
-                    "document",
-                    "goods-receipt",
-                    "{{receiptId}}"
-                  ]
-                },
-                "description": "Устанавливает deletion_mark = true. Сработает ТОЛЬКО если документ не проведен (выполнен шаг 1)."
               },
               "response": []
             }
@@ -1936,6 +1807,10 @@
     },
     {
       "key": "goodsIssueId",
+      "value": ""
+    },
+    {
+      "key": "inventoryId",
       "value": ""
     },
     {

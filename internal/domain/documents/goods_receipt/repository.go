@@ -36,6 +36,7 @@ type ListFilter struct {
 	// Document-specific filters
 	SupplierID  *id.ID
 	WarehouseID *id.ID
+	ContractID  *id.ID
 	Posted      *bool
 	DateFrom    *time.Time
 	DateTo      *time.Time

@@ -8,7 +8,6 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
 )
 
 // WarehouseType defines the type of warehouse.
@@ -46,9 +45,6 @@ type Warehouse struct {
 
 	// Description
 	Description *string `db:"description" json:"description,omitempty"`
-
-	// DefaultCurrencyID is the default currency for documents on this warehouse
-	DefaultCurrencyID *id.ID `db:"default_currency_id" json:"defaultCurrencyId,omitempty"`
 }
 
 // NewWarehouse creates a new Warehouse with required fields.

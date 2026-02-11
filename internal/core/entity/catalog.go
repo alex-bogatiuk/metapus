@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"metapus/internal/core/apperror"
+	"metapus/internal/core/id"
 )
 
 // Catalog is the base type for reference data (Справочники).
@@ -18,7 +19,7 @@ type Catalog struct {
 	Name string `db:"name" json:"name"`
 
 	// ParentID for hierarchical catalogs (nullable)
-	ParentID *string `db:"parent_id" json:"parentId,omitempty"`
+	ParentID *id.ID `db:"parent_id" json:"parentId,omitempty"`
 
 	// IsFolder indicates if this is a group (folder) in hierarchy
 	IsFolder bool `db:"is_folder" json:"isFolder"`
@@ -48,15 +49,20 @@ func (c *Catalog) Validate(ctx context.Context) error {
 }
 
 // SetParent sets the parent reference.
-func (c *Catalog) SetParent(parentID string) {
-	if parentID == "" {
+func (c *Catalog) SetParent(parentID id.ID) {
+	if id.IsNil(parentID) {
 		c.ParentID = nil
 	} else {
 		c.ParentID = &parentID
 	}
 }
 
+// ClearParent removes the parent reference.
+func (c *Catalog) ClearParent() {
+	c.ParentID = nil
+}
+
 // IsRoot returns true if catalog has no parent.
 func (c *Catalog) IsRoot() bool {
-	return c.ParentID == nil || *c.ParentID == ""
+	return c.ParentID == nil || id.IsNil(*c.ParentID)
 }

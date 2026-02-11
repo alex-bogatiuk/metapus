@@ -18,7 +18,7 @@ type CreateNomenclatureRequest struct {
 	Barcode         *string                       `json:"barcode"`
 	BaseUnitID      *string                       `json:"baseUnitId"`
 	BaseUnitName    string                        `json:"baseUnitName"`
-	VATRate         nomenclature.VATRate          `json:"vatRate"`
+	DefaultVatRateID *string                      `json:"defaultVatRateId"`
 	Weight          decimal.Decimal               `json:"weight"`
 	Volume          decimal.Decimal               `json:"volume"`
 	Description     *string                       `json:"description"`
@@ -39,9 +39,7 @@ func (r *CreateNomenclatureRequest) ToEntity() *nomenclature.Nomenclature {
 	item.Article = r.Article
 	item.Barcode = r.Barcode
 	item.BaseUnitID = r.BaseUnitID
-	if r.VATRate != "" {
-		item.VATRate = r.VATRate
-	}
+	item.DefaultVatRateID = stringPtrToIDPtr(r.DefaultVatRateID)
 	item.Weight = r.Weight
 	item.Volume = r.Volume
 	item.Description = r.Description
@@ -51,7 +49,7 @@ func (r *CreateNomenclatureRequest) ToEntity() *nomenclature.Nomenclature {
 	item.TrackSerial = r.TrackSerial
 	item.TrackBatch = r.TrackBatch
 	item.ImageURL = r.ImageURL
-	item.ParentID = r.ParentID
+	item.ParentID = stringPtrToIDPtr(r.ParentID)
 	item.IsFolder = r.IsFolder
 	item.Attributes = r.Attributes
 	return item
@@ -64,21 +62,21 @@ type UpdateNomenclatureRequest struct {
 	Type            nomenclature.NomenclatureType `json:"type" binding:"required"`
 	Article         *string                       `json:"article"`
 	Barcode         *string                       `json:"barcode"`
-	BaseUnitID      *string                       `json:"baseUnitId"`
-	VATRate         nomenclature.VATRate          `json:"vatRate"`
-	Weight          decimal.Decimal               `json:"weight"`
-	Volume          decimal.Decimal               `json:"volume"`
-	Description     *string                       `json:"description"`
-	ManufacturerID  *string                       `json:"manufacturerId"`
-	CountryOfOrigin *string                       `json:"countryOfOrigin"`
-	IsWeighed       bool                          `json:"isWeighed"`
-	TrackSerial     bool                          `json:"trackSerial"`
-	TrackBatch      bool                          `json:"trackBatch"`
-	ImageURL        *string                       `json:"imageUrl"`
-	ParentID        *string                       `json:"parentId"`
-	IsFolder        bool                          `json:"isFolder"`
-	Attributes      entity.Attributes             `json:"attributes"`
-	Version         int                           `json:"version" binding:"required"`
+	BaseUnitID       *string                       `json:"baseUnitId"`
+	DefaultVatRateID *string                       `json:"defaultVatRateId"`
+	Weight           decimal.Decimal               `json:"weight"`
+	Volume           decimal.Decimal               `json:"volume"`
+	Description      *string                       `json:"description"`
+	ManufacturerID   *string                       `json:"manufacturerId"`
+	CountryOfOrigin  *string                       `json:"countryOfOrigin"`
+	IsWeighed        bool                          `json:"isWeighed"`
+	TrackSerial      bool                          `json:"trackSerial"`
+	TrackBatch       bool                          `json:"trackBatch"`
+	ImageURL         *string                       `json:"imageUrl"`
+	ParentID         *string                       `json:"parentId"`
+	IsFolder         bool                          `json:"isFolder"`
+	Attributes       entity.Attributes             `json:"attributes"`
+	Version          int                           `json:"version" binding:"required"`
 }
 
 // ApplyTo applies update DTO to existing entity.
@@ -89,7 +87,7 @@ func (r *UpdateNomenclatureRequest) ApplyTo(item *nomenclature.Nomenclature) {
 	item.Article = r.Article
 	item.Barcode = r.Barcode
 	item.BaseUnitID = r.BaseUnitID
-	item.VATRate = r.VATRate
+	item.DefaultVatRateID = stringPtrToIDPtr(r.DefaultVatRateID)
 	item.Weight = r.Weight
 	item.Volume = r.Volume
 	item.Description = r.Description
@@ -99,7 +97,7 @@ func (r *UpdateNomenclatureRequest) ApplyTo(item *nomenclature.Nomenclature) {
 	item.TrackSerial = r.TrackSerial
 	item.TrackBatch = r.TrackBatch
 	item.ImageURL = r.ImageURL
-	item.ParentID = r.ParentID
+	item.ParentID = stringPtrToIDPtr(r.ParentID)
 	item.IsFolder = r.IsFolder
 	item.Attributes = r.Attributes
 	item.Version = r.Version
@@ -115,8 +113,8 @@ type NomenclatureResponse struct {
 	Type            nomenclature.NomenclatureType `json:"type"`
 	Article         *string                       `json:"article,omitempty"`
 	Barcode         *string                       `json:"barcode,omitempty"`
-	BaseUnitID      *string                       `json:"baseUnitId,omitempty"`
-	VATRate         nomenclature.VATRate          `json:"vatRate"`
+	BaseUnitID       *string                       `json:"baseUnitId,omitempty"`
+	DefaultVatRateID *string                       `json:"defaultVatRateId,omitempty"`
 	Weight          decimal.Decimal               `json:"weight"`
 	Volume          decimal.Decimal               `json:"volume"`
 	Description     *string                       `json:"description,omitempty"`
@@ -142,8 +140,8 @@ func FromNomenclature(item *nomenclature.Nomenclature) *NomenclatureResponse {
 		Type:            item.Type,
 		Article:         item.Article,
 		Barcode:         item.Barcode,
-		BaseUnitID:      item.BaseUnitID,
-		VATRate:         item.VATRate,
+		BaseUnitID:       item.BaseUnitID,
+		DefaultVatRateID: idToStringPtr(item.DefaultVatRateID),
 		Weight:          item.Weight,
 		Volume:          item.Volume,
 		Description:     item.Description,
@@ -153,7 +151,7 @@ func FromNomenclature(item *nomenclature.Nomenclature) *NomenclatureResponse {
 		TrackSerial:     item.TrackSerial,
 		TrackBatch:      item.TrackBatch,
 		ImageURL:        item.ImageURL,
-		ParentID:        item.ParentID,
+		ParentID:        idToStringPtr(item.ParentID),
 		IsFolder:        item.IsFolder,
 		DeletionMark:    item.DeletionMark,
 		Version:         item.Version,

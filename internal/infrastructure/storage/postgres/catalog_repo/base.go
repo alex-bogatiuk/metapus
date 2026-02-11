@@ -374,7 +374,7 @@ func (r *BaseCatalogRepo[T]) buildAdvancedFilterConditions(filters []filter.Item
 			cteSQL := fmt.Sprintf(`
                 id IN (
                     WITH RECURSIVE hierarchy AS (
-                        SELECT id FROM %s WHERE id = ? 
+                        SELECT id FROM %s WHERE id = $1 
                         UNION ALL 
                         SELECT t.id FROM %s t JOIN hierarchy h ON t.parent_id = h.id
                     ) 
@@ -386,7 +386,7 @@ func (r *BaseCatalogRepo[T]) buildAdvancedFilterConditions(filters []filter.Item
 			cteSQL := fmt.Sprintf(`
                 id NOT IN (
                     WITH RECURSIVE hierarchy AS (
-                        SELECT id FROM %s WHERE id = ? 
+                        SELECT id FROM %s WHERE id = $1 
                         UNION ALL 
                         SELECT t.id FROM %s t JOIN hierarchy h ON t.parent_id = h.id
                     ) 

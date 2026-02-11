@@ -94,14 +94,14 @@ func (c *Currency) Format(amount decimal.Decimal) string {
 	return formatted + *c.Symbol
 }
 
-// ToMinorUnits converts major units to minor units using currency's decimal places.
-func (c *Currency) ToMinorUnits(major float64) types.MinorUnits {
-	return types.NewMinorUnitsFromMajor(major, c.DecimalPlaces)
+// ToMinorUnits converts major units (decimal) to minor units using currency's decimal places.
+func (c *Currency) ToMinorUnits(major decimal.Decimal) types.MinorUnits {
+	return types.NewMinorUnitsFromDecimal(major, c.DecimalPlaces)
 }
 
-// FromMinorUnits converts minor units to major units for display.
-func (c *Currency) FromMinorUnits(minor types.MinorUnits) float64 {
-	return minor.ToMajor(c.DecimalPlaces)
+// FromMinorUnits converts minor units to major units as decimal.Decimal.
+func (c *Currency) FromMinorUnits(minor types.MinorUnits) decimal.Decimal {
+	return minor.ToDecimal(c.DecimalPlaces)
 }
 
 // --- Validation Helpers ---

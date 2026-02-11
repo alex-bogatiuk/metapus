@@ -126,11 +126,16 @@ type CatalogResponse struct {
 
 // FromCatalog creates CatalogResponse from entity.Catalog.
 func FromCatalog(c entity.Catalog) CatalogResponse {
+	var parentID *string
+	if c.ParentID != nil {
+		s := c.ParentID.String()
+		parentID = &s
+	}
 	return CatalogResponse{
 		BaseResponse: FromBaseCatalog(c.BaseCatalog),
 		Code:         c.Code,
 		Name:         c.Name,
-		ParentID:     c.ParentID,
+		ParentID:     parentID,
 		IsFolder:     c.IsFolder,
 	}
 }
@@ -212,4 +217,27 @@ type ErrorResponse struct {
 // --- Deletion ---
 type SetDeletionMarkRequest struct {
 	Marked bool `json:"marked"`
+}
+
+// --- ID Conversion Helpers ---
+
+// idToStringPtr converts *id.ID to *string for JSON response.
+func idToStringPtr(v *id.ID) *string {
+	if v == nil {
+		return nil
+	}
+	s := v.String()
+	return &s
+}
+
+// stringPtrToIDPtr converts *string to *id.ID for entity mapping.
+func stringPtrToIDPtr(s *string) *id.ID {
+	if s == nil || *s == "" {
+		return nil
+	}
+	parsed, err := id.Parse(*s)
+	if err != nil {
+		return nil
+	}
+	return &parsed
 }

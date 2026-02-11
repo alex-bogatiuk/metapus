@@ -46,6 +46,15 @@ func NewBaseEntity() BaseEntity {
 	}
 }
 
+// NewBaseEntityWithID creates a new BaseEntity with a specific ID.
+// Use in tests for deterministic entity creation.
+func NewBaseEntityWithID(entityID id.ID) BaseEntity {
+	return BaseEntity{
+		ID:      entityID,
+		Version: 1,
+	}
+}
+
 // Touch increments version (for optimistic locking).
 func (b *BaseEntity) Touch() {
 	b.Version++
@@ -93,8 +102,8 @@ type BaseDocument struct {
 	// Audit fields
 	CreatedAt time.Time `db:"created_at" json:"createdAt"`
 	UpdatedAt time.Time `db:"updated_at" json:"updatedAt"`
-	CreatedBy string    `db:"created_by" json:"createdBy,omitempty"`
-	UpdatedBy string    `db:"updated_by" json:"updatedBy,omitempty"`
+	CreatedBy id.ID     `db:"created_by" json:"createdBy,omitempty"`
+	UpdatedBy id.ID     `db:"updated_by" json:"updatedBy,omitempty"`
 }
 
 // NewBaseDocument creates a new BaseDocument with generated ID and timestamps.
@@ -102,6 +111,26 @@ func NewBaseDocument() BaseDocument {
 	now := time.Now().UTC()
 	return BaseDocument{
 		BaseEntity: NewBaseEntity(),
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+}
+
+// NewBaseDocumentAt creates a new BaseDocument with specific timestamps.
+// Use in tests for deterministic document creation.
+func NewBaseDocumentAt(now time.Time) BaseDocument {
+	return BaseDocument{
+		BaseEntity: NewBaseEntity(),
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+}
+
+// NewBaseDocumentWithIDAt creates a new BaseDocument with specific ID and timestamps.
+// Use in tests for fully deterministic document creation.
+func NewBaseDocumentWithIDAt(entityID id.ID, now time.Time) BaseDocument {
+	return BaseDocument{
+		BaseEntity: NewBaseEntityWithID(entityID),
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}

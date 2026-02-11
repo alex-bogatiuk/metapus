@@ -3,6 +3,8 @@ package dto
 import (
 	"time"
 
+	"github.com/shopspring/decimal"
+
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/documents/goods_receipt"
@@ -16,10 +18,13 @@ type CreateGoodsReceiptRequest struct {
 	Date              time.Time                 `json:"date" binding:"required"`
 	OrganizationID    string                    `json:"organizationId" binding:"required"`
 	SupplierID        string                    `json:"supplierId" binding:"required"`
+	ContractID        *string                   `json:"contractId,omitempty"`
 	WarehouseID       string                    `json:"warehouseId" binding:"required"`
 	SupplierDocNumber string                    `json:"supplierDocNumber,omitempty"`
 	SupplierDocDate   *time.Time                `json:"supplierDocDate,omitempty"`
+	IncomingNumber    *string                   `json:"incomingNumber,omitempty"`
 	CurrencyID        string                    `json:"currencyId,omitempty"`
+	AmountIncludesVAT bool                      `json:"amountIncludesVat"`
 	Description       string                    `json:"description,omitempty"`
 	Lines             []GoodsReceiptLineRequest `json:"lines" binding:"required,min=1,dive"`
 	PostImmediately   bool                      `json:"postImmediately,omitempty"`
@@ -27,10 +32,14 @@ type CreateGoodsReceiptRequest struct {
 
 // GoodsReceiptLineRequest represents a line in create/update request.
 type GoodsReceiptLineRequest struct {
-	ProductID string           `json:"productId" binding:"required"`
-	Quantity  types.Quantity   `json:"quantity" binding:"required,gt=0"`
-	UnitPrice types.MinorUnits `json:"unitPrice" binding:"required,gte=0"`
-	VATRate   string           `json:"vatRate,omitempty"`
+	ProductID       string           `json:"productId" binding:"required"`
+	UnitID          string           `json:"unitId" binding:"required"`
+	Coefficient     decimal.Decimal  `json:"coefficient"`
+	Quantity        types.Quantity   `json:"quantity" binding:"required,gt=0"`
+	UnitPrice       types.MinorUnits `json:"unitPrice" binding:"required,gte=0"`
+	VATRateID       string           `json:"vatRateId" binding:"required"`
+	VATPercent      int              `json:"vatPercent"`
+	DiscountPercent decimal.Decimal  `json:"discountPercent"`
 }
 
 // ToEntity converts request to domain entity.
@@ -44,7 +53,14 @@ func (r *CreateGoodsReceiptRequest) ToEntity() *goods_receipt.GoodsReceipt {
 	doc.Date = r.Date
 	doc.SupplierDocNumber = r.SupplierDocNumber
 	doc.SupplierDocDate = r.SupplierDocDate
+	doc.IncomingNumber = r.IncomingNumber
+	doc.AmountIncludesVAT = r.AmountIncludesVAT
 	doc.Description = r.Description
+
+	if r.ContractID != nil {
+		contractID, _ := id.Parse(*r.ContractID)
+		doc.ContractID = &contractID
+	}
 
 	if r.CurrencyID != "" {
 		currencyID, _ := id.Parse(r.CurrencyID)
@@ -53,11 +69,13 @@ func (r *CreateGoodsReceiptRequest) ToEntity() *goods_receipt.GoodsReceipt {
 
 	for _, line := range r.Lines {
 		productID, _ := id.Parse(line.ProductID)
-		vatRate := line.VATRate
-		if vatRate == "" {
-			vatRate = "20"
+		unitID, _ := id.Parse(line.UnitID)
+		vatRateID, _ := id.Parse(line.VATRateID)
+		coefficient := line.Coefficient
+		if coefficient.IsZero() {
+			coefficient = decimal.NewFromInt(1)
 		}
-		doc.AddLine(productID, line.Quantity, line.UnitPrice, vatRate)
+		doc.AddLine(productID, unitID, coefficient, line.Quantity, line.UnitPrice, vatRateID, line.VATPercent, line.DiscountPercent)
 	}
 
 	return doc
@@ -69,10 +87,13 @@ type UpdateGoodsReceiptRequest struct {
 	Date              *time.Time                `json:"date,omitempty"`
 	OrganizationID    *string                   `json:"organizationId,omitempty"`
 	SupplierID        *string                   `json:"supplierId,omitempty"`
+	ContractID        *string                   `json:"contractId,omitempty"`
 	WarehouseID       *string                   `json:"warehouseId,omitempty"`
 	SupplierDocNumber *string                   `json:"supplierDocNumber,omitempty"`
 	SupplierDocDate   *time.Time                `json:"supplierDocDate,omitempty"`
+	IncomingNumber    *string                   `json:"incomingNumber,omitempty"`
 	CurrencyID        *string                   `json:"currencyId,omitempty"`
+	AmountIncludesVAT *bool                     `json:"amountIncludesVat,omitempty"`
 	Description       *string                   `json:"description,omitempty"`
 	Lines             []GoodsReceiptLineRequest `json:"lines,omitempty"`
 }
@@ -93,6 +114,10 @@ func (r *UpdateGoodsReceiptRequest) ApplyTo(doc *goods_receipt.GoodsReceipt) {
 		supplierID, _ := id.Parse(*r.SupplierID)
 		doc.SupplierID = supplierID
 	}
+	if r.ContractID != nil {
+		contractID, _ := id.Parse(*r.ContractID)
+		doc.ContractID = &contractID
+	}
 	if r.WarehouseID != nil {
 		warehouseID, _ := id.Parse(*r.WarehouseID)
 		doc.WarehouseID = warehouseID
@@ -103,9 +128,15 @@ func (r *UpdateGoodsReceiptRequest) ApplyTo(doc *goods_receipt.GoodsReceipt) {
 	if r.SupplierDocDate != nil {
 		doc.SupplierDocDate = r.SupplierDocDate
 	}
+	if r.IncomingNumber != nil {
+		doc.IncomingNumber = r.IncomingNumber
+	}
 	if r.CurrencyID != nil {
 		currencyID, _ := id.Parse(*r.CurrencyID)
 		doc.CurrencyID = currencyID
+	}
+	if r.AmountIncludesVAT != nil {
+		doc.AmountIncludesVAT = *r.AmountIncludesVAT
 	}
 	if r.Description != nil {
 		doc.Description = *r.Description
@@ -116,12 +147,13 @@ func (r *UpdateGoodsReceiptRequest) ApplyTo(doc *goods_receipt.GoodsReceipt) {
 		doc.Lines = make([]goods_receipt.GoodsReceiptLine, 0, len(r.Lines))
 		for _, line := range r.Lines {
 			productID, _ := id.Parse(line.ProductID)
-			vatRate := line.VATRate
-			if vatRate == "" {
-				vatRate = "20"
+			unitID, _ := id.Parse(line.UnitID)
+			vatRateID, _ := id.Parse(line.VATRateID)
+			coefficient := line.Coefficient
+			if coefficient.IsZero() {
+				coefficient = decimal.NewFromInt(1)
 			}
-			doc.AddLine(productID, line.Quantity, line.UnitPrice, vatRate)
-
+			doc.AddLine(productID, unitID, coefficient, line.Quantity, line.UnitPrice, vatRateID, line.VATPercent, line.DiscountPercent)
 		}
 	}
 }
@@ -137,10 +169,13 @@ type GoodsReceiptResponse struct {
 	PostedVersion     int                        `json:"postedVersion,omitempty"`
 	OrganizationID    string                     `json:"organizationId"`
 	SupplierID        string                     `json:"supplierId"`
+	ContractID        *string                    `json:"contractId,omitempty"`
 	WarehouseID       string                     `json:"warehouseId"`
 	SupplierDocNumber string                     `json:"supplierDocNumber,omitempty"`
 	SupplierDocDate   *time.Time                 `json:"supplierDocDate,omitempty"`
+	IncomingNumber    *string                    `json:"incomingNumber,omitempty"`
 	CurrencyID        string                     `json:"currencyId"`
+	AmountIncludesVAT bool                       `json:"amountIncludesVat"`
 	TotalQuantity     types.Quantity             `json:"totalQuantity"`
 	TotalAmount       types.MinorUnits           `json:"totalAmount"`
 	TotalVAT          types.MinorUnits           `json:"totalVat"`
@@ -153,14 +188,18 @@ type GoodsReceiptResponse struct {
 
 // GoodsReceiptLineResponse represents a line in API responses.
 type GoodsReceiptLineResponse struct {
-	LineID    string           `json:"lineId"`
-	LineNo    int              `json:"lineNo"`
-	ProductID string           `json:"productId"`
-	Quantity  types.Quantity   `json:"quantity"`
-	UnitPrice types.MinorUnits `json:"unitPrice"`
-	VATRate   string           `json:"vatRate"`
-	VATAmount types.MinorUnits `json:"vatAmount"`
-	Amount    types.MinorUnits `json:"amount"`
+	LineID          string           `json:"lineId"`
+	LineNo          int              `json:"lineNo"`
+	ProductID       string           `json:"productId"`
+	UnitID          string           `json:"unitId"`
+	Coefficient     decimal.Decimal  `json:"coefficient"`
+	Quantity        types.Quantity   `json:"quantity"`
+	UnitPrice       types.MinorUnits `json:"unitPrice"`
+	DiscountPercent decimal.Decimal  `json:"discountPercent"`
+	DiscountAmount  types.MinorUnits `json:"discountAmount"`
+	VATRateID       string           `json:"vatRateId"`
+	VATAmount       types.MinorUnits `json:"vatAmount"`
+	Amount          types.MinorUnits `json:"amount"`
 }
 
 // FromGoodsReceipt converts domain entity to response DTO.
@@ -175,7 +214,9 @@ func FromGoodsReceipt(doc *goods_receipt.GoodsReceipt) *GoodsReceiptResponse {
 		WarehouseID:       doc.WarehouseID.String(),
 		SupplierDocNumber: doc.SupplierDocNumber,
 		SupplierDocDate:   doc.SupplierDocDate,
+		IncomingNumber:    doc.IncomingNumber,
 		CurrencyID:        doc.CurrencyID.String(),
+		AmountIncludesVAT: doc.AmountIncludesVAT,
 		TotalQuantity:     doc.TotalQuantity,
 		TotalAmount:       doc.TotalAmount,
 		TotalVAT:          doc.TotalVAT,
@@ -185,17 +226,26 @@ func FromGoodsReceipt(doc *goods_receipt.GoodsReceipt) *GoodsReceiptResponse {
 		UpdatedAt:         doc.UpdatedAt,
 	}
 
+	if doc.ContractID != nil {
+		s := doc.ContractID.String()
+		resp.ContractID = &s
+	}
+
 	resp.Lines = make([]GoodsReceiptLineResponse, len(doc.Lines))
 	for i, line := range doc.Lines {
 		resp.Lines[i] = GoodsReceiptLineResponse{
-			LineID:    line.LineID.String(),
-			LineNo:    line.LineNo,
-			ProductID: line.ProductID.String(),
-			Quantity:  line.Quantity,
-			UnitPrice: line.UnitPrice,
-			VATRate:   line.VATRate,
-			VATAmount: line.VATAmount,
-			Amount:    line.Amount,
+			LineID:          line.LineID.String(),
+			LineNo:          line.LineNo,
+			ProductID:       line.ProductID.String(),
+			UnitID:          line.UnitID.String(),
+			Coefficient:     line.Coefficient,
+			Quantity:        line.Quantity,
+			UnitPrice:       line.UnitPrice,
+			DiscountPercent: line.DiscountPercent,
+			DiscountAmount:  line.DiscountAmount,
+			VATRateID:       line.VATRateID.String(),
+			VATAmount:       line.VATAmount,
+			Amount:         line.Amount,
 		}
 	}
 

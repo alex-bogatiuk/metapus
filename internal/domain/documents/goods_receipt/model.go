@@ -5,6 +5,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/shopspring/decimal"
+
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
@@ -20,6 +22,9 @@ type GoodsReceipt struct {
 	// Supplier reference
 	SupplierID id.ID `db:"supplier_id" json:"supplierId"`
 
+	// Contract / Agreement reference
+	ContractID *id.ID `db:"contract_id" json:"contractId,omitempty"`
+
 	// Warehouse where goods are received
 	WarehouseID id.ID `db:"warehouse_id" json:"warehouseId"`
 
@@ -27,8 +32,14 @@ type GoodsReceipt struct {
 	SupplierDocNumber string     `db:"supplier_doc_number" json:"supplierDocNumber,omitempty"`
 	SupplierDocDate   *time.Time `db:"supplier_doc_date" json:"supplierDocDate,omitempty"`
 
+	// Internal incoming document registration number
+	IncomingNumber *string `db:"incoming_number" json:"incomingNumber,omitempty"`
+
 	// Currency support trait
 	entity.CurrencyAware
+
+	// AmountIncludesVAT indicates whether prices are VAT-inclusive (gross) or VAT-exclusive (net)
+	AmountIncludesVAT bool `db:"amount_includes_vat" json:"amountIncludesVat"`
 
 	// Totals (calculated from lines)
 	TotalQuantity types.Quantity   `db:"total_quantity" json:"totalQuantity"`
@@ -48,44 +59,108 @@ type GoodsReceiptLine struct {
 	// Product reference
 	ProductID id.ID `db:"product_id" json:"productId"`
 
-	// Quantity and pricing
-	Quantity  types.Quantity   `db:"quantity" json:"quantity"`
-	UnitPrice types.MinorUnits `db:"unit_price" json:"unitPrice"` // in minor units
-	VATRate   string           `db:"vat_rate" json:"vatRate"`     // "0", "10", "20"
+	// Unit of measurement (e.g., box, pallet)
+	UnitID id.ID `db:"unit_id" json:"unitId"`
+
+	// Coefficient for conversion to base unit (e.g., 12 if 1 box = 12 pcs)
+	Coefficient decimal.Decimal `db:"coefficient" json:"coefficient"`
+
+	// Quantity in UnitID
+	Quantity types.Quantity `db:"quantity" json:"quantity"`
+
+	// Price per UnitID (in minor units)
+	UnitPrice types.MinorUnits `db:"unit_price" json:"unitPrice"`
+
+	// Discount
+	DiscountPercent decimal.Decimal  `db:"discount_percent" json:"discountPercent"`
+	DiscountAmount  types.MinorUnits `db:"discount_amount" json:"discountAmount"`
+
+	// VAT (reference to cat_vat_rates)
+	VATRateID id.ID            `db:"vat_rate_id" json:"vatRateId"`
 	VATAmount types.MinorUnits `db:"vat_amount" json:"vatAmount"`
-	Amount    types.MinorUnits `db:"amount" json:"amount"` // total with VAT
+
+	// Total amount for this line
+	Amount types.MinorUnits `db:"amount" json:"amount"`
 }
 
 func NewGoodsReceipt(organizationID id.ID, supplierID, warehouseID id.ID) *GoodsReceipt {
 	return &GoodsReceipt{
-		Document:    entity.NewDocument(organizationID),
-		SupplierID:  supplierID,
-		WarehouseID: warehouseID,
-		Lines:       make([]GoodsReceiptLine, 0),
+		Document:          entity.NewDocument(organizationID),
+		SupplierID:        supplierID,
+		WarehouseID:       warehouseID,
+		AmountIncludesVAT: false,
+		Lines:             make([]GoodsReceiptLine, 0),
 	}
 }
 
 // AddLine adds a line to the goods receipt and recalculates totals.
-func (g *GoodsReceipt) AddLine(productID id.ID, quantity types.Quantity, unitPrice types.MinorUnits, vatRate string) {
+func (g *GoodsReceipt) AddLine(
+	productID id.ID,
+	unitID id.ID,
+	coefficient decimal.Decimal,
+	quantity types.Quantity,
+	unitPrice types.MinorUnits,
+	vatRateID id.ID,
+	vatPercent int,
+	discountPercent decimal.Decimal,
+) {
 	lineNo := len(g.Lines) + 1
 
-	// Calculate VAT
-	// Quantity is scaled by 10000. UnitPrice is in minor units.
-	// baseAmount (minor units) = (QuantityScaled * UnitPrice) / 10000
-	vatPercent := vatRateToPercent(vatRate)
-	baseAmount := types.MinorUnits((quantity.Int64Scaled() * int64(unitPrice)) / 10000)
-	vatAmount := baseAmount * types.MinorUnits(vatPercent) / 100
-	totalAmount := baseAmount + vatAmount
+	// Ensure coefficient is at least 1
+	if coefficient.LessThanOrEqual(decimal.Zero) {
+		coefficient = decimal.NewFromInt(1)
+	}
+
+	// All intermediate calculations use decimal.Decimal to avoid truncation.
+	// Final results are rounded to nearest integer (banker's rounding).
+	scaleDec := decimal.NewFromInt(types.QuantityScale)
+	qtyDec := decimal.NewFromInt(quantity.Int64Scaled())
+	priceDec := decimal.NewFromInt(int64(unitPrice))
+
+	// baseAmount = quantity * unitPrice (quantity is scaled by 10000)
+	baseAmountDec := qtyDec.Mul(priceDec).Div(scaleDec)
+
+	// Apply discount
+	discountAmountDec := decimal.Zero
+	if discountPercent.IsPositive() {
+		discountAmountDec = baseAmountDec.Mul(discountPercent).Div(decimal.NewFromInt(100))
+	}
+	netAmountDec := baseAmountDec.Sub(discountAmountDec)
+	discountAmount := types.MinorUnits(discountAmountDec.Round(0).IntPart())
+	netAmount := types.MinorUnits(netAmountDec.Round(0).IntPart())
+
+	// Calculate VAT based on AmountIncludesVAT flag
+	var vatAmount types.MinorUnits
+	var totalAmount types.MinorUnits
+	vatPercentDec := decimal.NewFromInt(int64(vatPercent))
+	if g.AmountIncludesVAT {
+		// Price includes VAT: extract VAT from net amount
+		// vatAmount = netAmount * vatPercent / (100 + vatPercent)
+		if vatPercent > 0 {
+			vatAmountDec := netAmountDec.Mul(vatPercentDec).Div(decimal.NewFromInt(int64(100 + vatPercent)))
+			vatAmount = types.MinorUnits(vatAmountDec.Round(0).IntPart())
+		}
+		totalAmount = netAmount
+	} else {
+		// Price excludes VAT: add VAT on top
+		vatAmountDec := netAmountDec.Mul(vatPercentDec).Div(decimal.NewFromInt(100))
+		vatAmount = types.MinorUnits(vatAmountDec.Round(0).IntPart())
+		totalAmount = netAmount + vatAmount
+	}
 
 	line := GoodsReceiptLine{
-		LineID:    id.New(),
-		LineNo:    lineNo,
-		ProductID: productID,
-		Quantity:  quantity,
-		UnitPrice: unitPrice,
-		VATRate:   vatRate,
-		VATAmount: vatAmount,
-		Amount:    totalAmount,
+		LineID:          id.New(),
+		LineNo:          lineNo,
+		ProductID:       productID,
+		UnitID:          unitID,
+		Coefficient:     coefficient,
+		Quantity:        quantity,
+		UnitPrice:       unitPrice,
+		DiscountPercent: discountPercent,
+		DiscountAmount:  discountAmount,
+		VATRateID:       vatRateID,
+		VATAmount:       vatAmount,
+		Amount:          totalAmount,
 	}
 
 	g.Lines = append(g.Lines, line)
@@ -136,8 +211,23 @@ func (g *GoodsReceipt) Validate(ctx context.Context) error {
 				WithDetail("field", "lines").
 				WithDetail("lineNo", i+1)
 		}
+		if id.IsNil(line.UnitID) {
+			return apperror.NewValidation("unit is required").
+				WithDetail("field", "lines").
+				WithDetail("lineNo", i+1)
+		}
+		if line.Coefficient.LessThanOrEqual(decimal.Zero) {
+			return apperror.NewValidation("coefficient must be positive").
+				WithDetail("field", "lines").
+				WithDetail("lineNo", i+1)
+		}
 		if line.Quantity <= 0 {
 			return apperror.NewValidation("quantity must be positive").
+				WithDetail("field", "lines").
+				WithDetail("lineNo", i+1)
+		}
+		if id.IsNil(line.VATRateID) {
+			return apperror.NewValidation("VAT rate is required").
 				WithDetail("field", "lines").
 				WithDetail("lineNo", i+1)
 		}
@@ -155,13 +245,20 @@ func (g *GoodsReceipt) GetDocumentType() string {
 }
 
 // GenerateMovements creates register movements for this document.
+// Quantity written to stock register is in base units: line.Quantity * line.Coefficient.
 func (g *GoodsReceipt) GenerateMovements(ctx context.Context) (*posting.MovementSet, error) {
 	movements := posting.NewMovementSet()
 
 	newVersion := g.PostedVersion + 1
 
 	for _, line := range g.Lines {
-		// Stock movement: receipt to warehouse
+		// Convert to base unit quantity: Quantity * Coefficient
+		// Quantity is scaled x10000 internally. Coefficient is decimal.
+		// baseQty = Quantity * Coefficient
+		baseQtyDecimal := decimal.NewFromInt(line.Quantity.Int64Scaled()).Mul(line.Coefficient)
+		baseQty := types.NewQuantityFromInt64Scaled(baseQtyDecimal.IntPart())
+
+		// Stock movement: receipt to warehouse (in base units)
 		stockMovement := entity.NewStockMovement(
 			g.ID,
 			g.GetDocumentType(),
@@ -170,25 +267,13 @@ func (g *GoodsReceipt) GenerateMovements(ctx context.Context) (*posting.Movement
 			entity.RecordTypeReceipt,
 			g.WarehouseID,
 			line.ProductID,
-			line.Quantity,
+			baseQty,
 		)
 
 		movements.AddStock(stockMovement)
 	}
 
 	return movements, nil
-}
-
-// Helper function
-func vatRateToPercent(rate string) int {
-	switch rate {
-	case "10":
-		return 10
-	case "20":
-		return 20
-	default:
-		return 0
-	}
 }
 
 // Ensure interface compliance at compile time.

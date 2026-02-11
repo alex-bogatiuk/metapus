@@ -23,7 +23,7 @@ type ListFilter struct {
 	IncludeDeleted bool
 
 	// ParentID filters by parent (for hierarchical catalogs)
-	ParentID *string
+	ParentID *id.ID
 
 	// IsFolder filters folders only or items only
 	IsFolder *bool

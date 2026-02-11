@@ -11,6 +11,7 @@ import (
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/tx"
+	"metapus/pkg/logger"
 )
 
 // CatalogService provides business logic for catalog entities.
@@ -113,8 +114,7 @@ func (s *CatalogService[T]) Create(ctx context.Context, entity T) error {
 
 	// 4. Run after-create hooks (outside transaction)
 	if err := s.hooks.RunAfterCreate(ctx, entity); err != nil {
-		// Log but don't fail - entity is already created
-		// logger.Warn(ctx, "after-create hook failed", "error", err)
+		logger.Warn(ctx, "after-create hook failed", "entity", s.entityName, "error", err)
 	}
 
 	return nil
@@ -167,7 +167,7 @@ func (s *CatalogService[T]) Update(ctx context.Context, entity T) error {
 
 	// 4. Run after-update hooks
 	if err := s.hooks.RunAfterUpdate(ctx, entity); err != nil {
-		// Log but don't fail
+		logger.Warn(ctx, "after-update hook failed", "entity", s.entityName, "error", err)
 	}
 
 	return nil
@@ -203,7 +203,7 @@ func (s *CatalogService[T]) Delete(ctx context.Context, entityID id.ID) error {
 
 	// 4. Run after-delete hooks
 	if err := s.hooks.RunAfterDelete(ctx, entity); err != nil {
-		// Log but don't fail
+		logger.Warn(ctx, "after-delete hook failed", "entity", s.entityName, "error", err)
 	}
 
 	return nil

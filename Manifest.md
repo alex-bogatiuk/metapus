@@ -481,7 +481,15 @@ metapus/
 │   │   │   │   └── service.go
 │   │   │   ├── warehouse/
 │   │   │   ├── currency/
-│   │   │   └── unit/
+│   │   │   ├── unit/
+│   │   │   ├── vat_rate/
+│   │   │   │   ├── model.go      # Ставки НДС (Rate, IsTaxExempt)
+│   │   │   │   ├── repo.go
+│   │   │   │   └── service.go
+│   │   │   └── contract/
+│   │   │       ├── model.go      # Договоры контрагентов (CounterpartyID, Type, CurrencyID, ValidFrom/To)
+│   │   │       ├── repo.go
+│   │   │       └── service.go
 │   │   │
 │   │   ├── documents/
 │   │   │   ├── goods_receipt/
@@ -1533,6 +1541,8 @@ func (p *OutboxPublisher) Publish(ctx context.Context, event DomainEvent) error 
 │  │ cat_    │ Справочники           │ cat_counterparties             │   │
 │  │         │                       │ cat_nomenclature               │   │
 │  │         │                       │ cat_warehouses                 │   │
+│  │         │                       │ cat_vat_rates                  │   │
+│  │         │                       │ cat_contracts                  │   │
 │  ├─────────┼───────────────────────┼────────────────────────────────┤   │
 │  │ doc_    │ Документы (шапка)     │ doc_invoice                    │   │
 │  │         │                       │ doc_goods_receipt              │   │
@@ -2030,13 +2040,259 @@ func (w *MultiTenantWorker) Run(ctx context.Context) error {
 }
 ```
 
+## 14. Составной тип ссылки (Composite Reference / Полиморфная ссылка)
+
+### 14.1. Проблема
+
+В бизнес-приложениях часто встречается ситуация, когда поле может ссылаться на **разные типы** объектов.
+Аналог в 1С: **Составной тип** (например, поле «Документ-основание» может быть ссылкой на `ПоступлениеТоваров` ИЛИ `РасходТоваров`).
+
+**Пример:** Документ «РеестрНакладных» содержит табличную часть, где каждая строка ссылается
+на приходную ИЛИ расходную накладную.
+
+### 14.2. Решение: Дискриминатор + ID (Discriminator Pattern)
+
+Храним **два поля** вместо одной ссылки:
+- `{prefix}_doc_type` — строка-дискриминатор (тип документа)
+- `{prefix}_doc_id` — UUID ссылки
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│              СОСТАВНОЙ ТИП: ДИСКРИМИНАТОР + ID                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  Обычная ссылка (простой тип):                                          │
+│  ┌──────────────────────────────────────────┐                           │
+│  │  warehouse_id  UUID  → cat_warehouses    │  Всегда один тип          │
+│  └──────────────────────────────────────────┘                           │
+│                                                                          │
+│  Составная ссылка (полиморфный тип):                                    │
+│  ┌──────────────────────────────────────────┐                           │
+│  │  source_doc_type  VARCHAR(50)            │  "goods_receipt"          │
+│  │  source_doc_id    UUID                   │   или "goods_issue"       │
+│  └──────────────────────────────────────────┘                           │
+│                                                                          │
+│  ┌────────────────────────────────────────────────────────────────┐    │
+│  │  Строка 1:  source_doc_type = "goods_receipt"                   │    │
+│  │             source_doc_id   = 550e8400-...                      │    │
+│  │                   ──► doc_goods_receipt (Поступление №12)       │    │
+│  ├────────────────────────────────────────────────────────────────┤    │
+│  │  Строка 2:  source_doc_type = "goods_issue"                     │    │
+│  │             source_doc_id   = 6ba7b810-...                      │    │
+│  │                   ──► doc_goods_issue (Расход №7)               │    │
+│  ├────────────────────────────────────────────────────────────────┤    │
+│  │  Строка 3:  source_doc_type = "goods_receipt"                   │    │
+│  │             source_doc_id   = 7c9e6679-...                      │    │
+│  │                   ──► doc_goods_receipt (Поступление №15)       │    │
+│  └────────────────────────────────────────────────────────────────┘    │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 14.3. Value Object в Go
+
+```go
+// internal/core/entity/document_ref.go
+
+// DocumentRef — полиморфная ссылка на документ (составной тип).
+// Хранит тип документа (дискриминатор) и его ID.
+// Аналог составного типа из 1С:Предприятие.
+type DocumentRef struct {
+    // DocType — строковый идентификатор типа документа.
+    // Должен совпадать с именем из metadata.Registry (например "goods_receipt").
+    DocType string `db:"doc_type" json:"docType"`
+
+    // DocID — UUID документа, на который указывает ссылка.
+    DocID id.ID `db:"doc_id" json:"docId"`
+}
+
+func NewDocumentRef(docType string, docID id.ID) DocumentRef {
+    return DocumentRef{DocType: docType, DocID: docID}
+}
+
+func (r DocumentRef) IsZero() bool {
+    return r.DocType == "" || id.IsNil(r.DocID)
+}
+
+func (r DocumentRef) Validate() error {
+    if r.DocType == "" {
+        return apperror.NewValidation("document reference type is required")
+    }
+    if id.IsNil(r.DocID) {
+        return apperror.NewValidation("document reference ID is required")
+    }
+    return nil
+}
+```
+
+### 14.4. Использование в модели документа
+
+```go
+// internal/domain/documents/invoice_registry/model.go
+
+type InvoiceRegistry struct {
+    entity.Document
+
+    // Table part: список накладных
+    Lines []InvoiceRegistryLine `db:"-" json:"lines"`
+}
+
+type InvoiceRegistryLine struct {
+    LineID id.ID `db:"line_id" json:"lineId"`
+    LineNo int   `db:"line_no" json:"lineNo"`
+
+    // Составная ссылка на документ-основание (GoodsReceipt ИЛИ GoodsIssue)
+    SourceDocType string `db:"source_doc_type" json:"sourceDocType"`
+    SourceDocID   id.ID  `db:"source_doc_id"   json:"sourceDocId"`
+
+    // ... прочие поля строки ...
+}
+```
+
+> **Важно:** В Go-структуре составная ссылка представлена двумя отдельными полями
+> (`SourceDocType` + `SourceDocID`), а не встроенным `DocumentRef`, чтобы `db`-теги
+> корректно маппились на конкретные колонки таблицы и работали с `pgxscan`/`StructToMap`.
+
+### 14.5. Миграция БД
+
+```sql
+-- db/migrations/XXXXX_doc_invoice_registry.sql
+
+CREATE TABLE doc_invoice_registry (
+    -- Base Document fields
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
+    number          VARCHAR(20) NOT NULL,
+    date            TIMESTAMPTZ NOT NULL,
+    posted          BOOLEAN NOT NULL DEFAULT FALSE,
+    posted_version  INT NOT NULL DEFAULT 0,
+    organization_id UUID NOT NULL,
+    description     TEXT DEFAULT '',
+    deletion_mark   BOOLEAN NOT NULL DEFAULT FALSE,
+    version         INT NOT NULL DEFAULT 1,
+    attributes      JSONB DEFAULT '{}',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by      UUID,
+    updated_by      UUID
+);
+
+CREATE TABLE doc_invoice_registry_lines (
+    document_id      UUID NOT NULL REFERENCES doc_invoice_registry(id) ON DELETE CASCADE,
+    line_id          UUID NOT NULL DEFAULT gen_random_uuid_v7(),
+    line_no          INT  NOT NULL,
+
+    -- Составная ссылка (Composite Reference)
+    source_doc_type  VARCHAR(50) NOT NULL,
+    source_doc_id    UUID        NOT NULL,
+
+    -- ... прочие поля строки ...
+
+    PRIMARY KEY (document_id, line_id),
+
+    -- Ограничение допустимых типов документов
+    CONSTRAINT chk_source_doc_type CHECK (
+        source_doc_type IN ('goods_receipt', 'goods_issue')
+    )
+);
+
+-- Индекс для обратного поиска: "В каких реестрах участвует данный документ?"
+CREATE INDEX idx_inv_reg_lines_source
+    ON doc_invoice_registry_lines(source_doc_type, source_doc_id);
+```
+
+> **Примечание:** Native FK невозможен для полиморфной ссылки (UUID указывает на разные таблицы).
+> Целостность обеспечивается:
+> 1. `CHECK` на допустимые значения `source_doc_type`
+> 2. Application-level валидация при записи (сервис проверяет существование документа)
+> 3. Опционально: PostgreSQL trigger для строгой проверки
+
+### 14.6. Резолвинг ссылки в сервисе
+
+```go
+// internal/domain/documents/invoice_registry/service.go
+
+// resolveSourceDoc загружает документ по составной ссылке.
+func (s *Service) resolveSourceDoc(ctx context.Context, docType string, docID id.ID) (any, error) {
+    switch docType {
+    case "goods_receipt":
+        return s.goodsReceiptRepo.GetByID(ctx, docID)
+    case "goods_issue":
+        return s.goodsIssueRepo.GetByID(ctx, docID)
+    default:
+        return nil, apperror.NewValidation("unknown source document type: " + docType)
+    }
+}
+
+// validateLines проверяет, что все ссылки в строках указывают на существующие документы.
+func (s *Service) validateLines(ctx context.Context, lines []InvoiceRegistryLine) error {
+    for i, line := range lines {
+        if _, err := s.resolveSourceDoc(ctx, line.SourceDocType, line.SourceDocID); err != nil {
+            return apperror.NewValidation(
+                fmt.Sprintf("line %d: invalid source document reference", i+1),
+            ).WithDetail("sourceDocType", line.SourceDocType).
+              WithDetail("sourceDocId", line.SourceDocID.String())
+        }
+    }
+    return nil
+}
+```
+
+### 14.7. Расширение Metadata Registry
+
+Для поддержки составного типа в metadata-driven UI добавляется новый `FieldType`:
+
+```go
+// internal/metadata/registry.go
+
+const (
+    // ... existing types ...
+    TypeCompositeRef FieldType = "compositeRef" // Составной тип (полиморфная ссылка)
+)
+
+// FieldDef — расширенное определение поля.
+type FieldDef struct {
+    Name           string    `json:"name"`
+    Label          string    `json:"label,omitempty"`
+    Type           FieldType `json:"type"`
+    ReferenceType  string    `json:"referenceType,omitempty"`  // Для простых ссылок
+    ReferenceTypes []string  `json:"referenceTypes,omitempty"` // Для составных ссылок (NEW)
+    Required       bool      `json:"required,omitempty"`
+    ReadOnly       bool      `json:"readOnly,omitempty"`
+    Scale          int       `json:"scale,omitempty"`
+    Options        []string  `json:"options,omitempty"`
+}
+```
+
+**Metadata API response для составного поля:**
+```json
+{
+  "name": "sourceDoc",
+  "label": "Документ-основание",
+  "type": "compositeRef",
+  "referenceTypes": ["goods_receipt", "goods_issue"],
+  "required": true
+}
+```
+
+Frontend рендерит такое поле как **два связанных контрола**:
+1. Выпадающий список для выбора типа документа
+2. ReferenceSelect для выбора конкретного документа (список зависит от выбранного типа)
+
+### 14.8. Правила применения
+
+1. **Именование:** Пара колонок именуется `{prefix}_doc_type` + `{prefix}_doc_id` (например `source_doc_type`, `basis_doc_type`)
+2. **Значения дискриминатора:** Совпадают с именами сущностей в `metadata.Registry` (snake_case)
+3. **Валидация:** Обязательная проверка существования документа при записи (в сервисе)
+4. **Индексация:** Составной индекс `(doc_type, doc_id)` для обратного поиска
+5. **CHECK constraint:** Перечисляет все допустимые типы; расширяется через миграцию при добавлении нового типа
+
 ---
 
 # Часть VI. Observability и Production
 
-## 14. Метрики и Мониторинг
+## 15. Метрики и Мониторинг
 
-### 14.1. Обязательные Prometheus метрики
+### 15.1. Обязательные Prometheus метрики
 
 ```yaml
 # Runtime
@@ -2065,7 +2321,7 @@ func (w *MultiTenantWorker) Run(ctx context.Context) error {
 - tenant_worker_iterations_total{worker, tenant_slug}
 ```
 
-### 14.2. Healthcheck Endpoints
+### 15.2. Healthcheck Endpoints
 
 ```
 GET /live    → Приложение запущено (для Kubernetes liveness probe)
@@ -2073,9 +2329,9 @@ GET /ready   → Приложение готово принимать запро
               Проверяет: DB connection, Redis, etc.
 ```
 
-## 15. Аудит и Ретенция
+## 16. Аудит и Ретенция
 
-### 15.1. Таблица аудита с партиционированием
+### 16.1. Таблица аудита с партиционированием
 
 ```sql
 CREATE TABLE sys_audit (
@@ -2095,7 +2351,7 @@ CREATE TABLE sys_audit_y2024m01 PARTITION OF sys_audit
     FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
 ```
 
-### 15.2. Audit Cleaner Worker
+### 16.2. Audit Cleaner Worker
 
 ```go
 // infrastructure/worker/audit_cleaner.go
@@ -2123,9 +2379,9 @@ func (w *AuditCleaner) Run(ctx context.Context) error {
 
 # Часть VII. Frontend и UI
 
-## 16. Metadata-Driven UI
+## 17. Metadata-Driven UI
 
-### 16.1. Endpoint для подсказок UI
+### 17.1. Endpoint для подсказок UI
 
 ```
 GET /api/v1/meta/layouts/{entity}
@@ -2175,7 +2431,7 @@ GET /api/v1/meta/layouts/{entity}
 }
 ```
 
-### 16.2. Структура Web-приложения
+### 17.2. Структура Web-приложения
 
 ```
 /web
@@ -2213,13 +2469,14 @@ GET /api/v1/meta/layouts/{entity}
 
 # Часть VIII. Словарь Терминов
 
-## 17. Mapping концепций
+## 18. Mapping концепций
 
 | Концепция | Реализация в Go | Расположение |
 |-----------|-----------------|--------------|
 | **Объект** | `struct` с тегами `db` | `domain/{type}/{name}/model.go` |
 | **Табличная часть** | `[]Struct` (слайс) | Внутри структуры документа |
-| **Ссылка (Ref)** | `string` (UUID) | Поля `SomeID` |
+| **Ссылка (Ref)** | `id.ID` (UUIDv7) | Поля `SomeID` |
+| **Составной тип (Composite Ref)** | `{prefix}_doc_type` + `{prefix}_doc_id` | Пара полей `string` + `id.ID` (§14) |
 | **Менеджер** | `Repository Interface` | `domain/{type}/{name}/repo.go` |
 | **Модуль объекта** | Методы структуры | `model.go` |
 | **Проведение** | `Post()` в Service | `domain/documents/{name}/service/posting.go` |
@@ -2230,7 +2487,7 @@ GET /api/v1/meta/layouts/{entity}
 
 # Часть IX. Чеклисты
 
-## 18. Чеклист добавления нового справочника
+## 19. Чеклист добавления нового справочника
 
 - [ ] Создать миграцию `db/migrations/XXX_cat_{name}.sql`
 - [ ] Создать `internal/domain/catalogs/{name}/model.go`
@@ -2243,7 +2500,7 @@ GET /api/v1/meta/layouts/{entity}
 - [ ] Зарегистрировать маршруты в `router.go`
 - [ ] Написать интеграционные тесты
 
-## 19. Чеклист добавления нового документа
+## 20. Чеклист добавления нового документа
 
 - [ ] Создать миграции: шапка + табличные части
 - [ ] Создать `model.go` с шапкой и табличными частями

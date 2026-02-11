@@ -12,11 +12,13 @@ import (
 	"metapus/internal/core/tenant"
 	"metapus/internal/domain/audit"
 	"metapus/internal/domain/auth"
+	"metapus/internal/domain/catalogs/contract"
 	"metapus/internal/domain/catalogs/counterparty"
 	"metapus/internal/domain/catalogs/currency"
 	"metapus/internal/domain/catalogs/nomenclature"
 	"metapus/internal/domain/catalogs/organization"
 	"metapus/internal/domain/catalogs/unit"
+	"metapus/internal/domain/catalogs/vat_rate"
 	"metapus/internal/domain/catalogs/warehouse"
 	"metapus/internal/domain/documents"
 	"metapus/internal/domain/documents/goods_issue"
@@ -199,6 +201,22 @@ func registerCatalogRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 		handler := handlers.NewOrganizationHandler(baseHandler, service)
 		RegisterCatalogRoutes(catalogs.Group("/organizations"), handler, "catalog:organization")
 	}
+
+	// --- VAT RATES ---
+	{
+		repo := catalog_repo.NewVATRateRepo()
+		service := vat_rate.NewService(repo, cfg.Numerator)
+		handler := handlers.NewVATRateHandler(baseHandler, service)
+		RegisterCatalogRoutes(catalogs.Group("/vat-rates"), handler, "catalog:vat_rate")
+	}
+
+	// --- CONTRACTS ---
+	{
+		repo := catalog_repo.NewContractRepo()
+		service := contract.NewService(repo, cfg.Numerator)
+		handler := handlers.NewContractHandler(baseHandler, service)
+		RegisterCatalogRoutes(catalogs.Group("/contracts"), handler, "catalog:contract")
+	}
 }
 
 // registerDocumentRoutes registers document endpoints.
@@ -211,11 +229,11 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 	stockService := stock.NewService(stockRepo)
 	postingEngine := posting.NewEngine(stockService)
 
-	// Shared resolver for currencies
-	whRepo := catalog_repo.NewWarehouseRepo() // We need repos for resolver
+	// Shared resolver for currencies (1C-style: Document → Contract → Organization → System base)
+	contractRepo := catalog_repo.NewContractRepo()
 	orgRepo := catalog_repo.NewOrganizationRepo()
 	curRepo := catalog_repo.NewCurrencyRepo()
-	currencyResolver := documents.NewCurrencyResolver(whRepo, orgRepo, curRepo)
+	currencyResolver := documents.NewCurrencyResolver(contractRepo, orgRepo, curRepo)
 
 	// --- GOODS RECEIPT ---
 	{

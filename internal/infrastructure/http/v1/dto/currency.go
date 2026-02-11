@@ -36,7 +36,7 @@ func (r *CreateCurrencyRequest) ToEntity() *currency.Currency {
 	}
 	c.IsBase = r.IsBase
 	c.Country = r.Country
-	c.ParentID = r.ParentID
+	c.ParentID = stringPtrToIDPtr(r.ParentID)
 	c.IsFolder = r.IsFolder
 	c.Attributes = r.Attributes
 	return c
@@ -68,7 +68,7 @@ func (r *UpdateCurrencyRequest) ApplyTo(c *currency.Currency) {
 	c.DecimalPlaces = r.DecimalPlaces
 	c.IsBase = r.IsBase
 	c.Country = r.Country
-	c.ParentID = r.ParentID
+	c.ParentID = stringPtrToIDPtr(r.ParentID)
 	c.IsFolder = r.IsFolder
 	c.Attributes = r.Attributes
 	c.Version = r.Version
@@ -112,7 +112,7 @@ func FromCurrency(c *currency.Currency) *CurrencyResponse {
 		DecimalPlaces:  c.DecimalPlaces,
 		IsBase:         c.IsBase,
 		Country:        c.Country,
-		ParentID:       c.ParentID,
+		ParentID:       idToStringPtr(c.ParentID),
 		IsFolder:       c.IsFolder,
 		DeletionMark:   c.DeletionMark,
 		Version:        c.Version,

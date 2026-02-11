@@ -25,13 +25,20 @@ func RequirePermission(permission string) gin.HandlerFunc {
 			return
 		}
 
-		// Check if user has the required permission
-		// Permissions are loaded from JWT claims
+		// Check if user has the required permission (O(1) via set)
 		hasPermission := false
-		for _, perm := range getUserPermissions(c) {
-			if perm == permission {
-				hasPermission = true
-				break
+		if permSet, exists := c.Get("permissions_set"); exists {
+			if ps, ok := permSet.(map[string]struct{}); ok {
+				_, hasPermission = ps[permission]
+			}
+		}
+		if !hasPermission {
+			// Fallback to linear search if set is not available
+			for _, perm := range getUserPermissions(c) {
+				if perm == permission {
+					hasPermission = true
+					break
+				}
 			}
 		}
 

@@ -190,15 +190,29 @@ func parseQuantityString(s string) (Quantity, error) {
 // Example: 123.45 RUB → 12345 (kopecks), 0.001 BTC → 100000 (satoshi)
 type MinorUnits int64
 
-// NewMinorUnitsFromMajor creates MinorUnits from a major unit amount and decimal places.
-func NewMinorUnitsFromMajor(major float64, decimalPlaces int) MinorUnits {
-	multiplier := math.Pow10(decimalPlaces)
-	return MinorUnits(math.Round(major * multiplier))
+// NewMinorUnitsFromDecimal creates MinorUnits from a decimal.Decimal major amount and decimal places.
+// This is the preferred constructor — no floating-point precision loss.
+func NewMinorUnitsFromDecimal(major decimal.Decimal, decimalPlaces int) MinorUnits {
+	multiplier := decimal.NewFromInt(int64(math.Pow10(decimalPlaces)))
+	return MinorUnits(major.Mul(multiplier).Round(0).IntPart())
 }
 
-// ToMajor converts minor units back to major units for display.
+// ToDecimal converts minor units back to major units as decimal.Decimal.
+func (m MinorUnits) ToDecimal(decimalPlaces int) decimal.Decimal {
+	multiplier := decimal.NewFromInt(int64(math.Pow10(decimalPlaces)))
+	return decimal.NewFromInt(int64(m)).Div(multiplier)
+}
+
+// NewMinorUnitsFromMajor creates MinorUnits from a float64 major amount.
+// Deprecated: prefer NewMinorUnitsFromDecimal to avoid floating-point errors.
+func NewMinorUnitsFromMajor(major float64, decimalPlaces int) MinorUnits {
+	return NewMinorUnitsFromDecimal(decimal.NewFromFloat(major), decimalPlaces)
+}
+
+// ToMajor converts minor units back to major units as float64.
+// Deprecated: prefer ToDecimal to avoid floating-point errors.
 func (m MinorUnits) ToMajor(decimalPlaces int) float64 {
-	return float64(m) / math.Pow10(decimalPlaces)
+	return m.ToDecimal(decimalPlaces).InexactFloat64()
 }
 
 func (m MinorUnits) IsZero() bool     { return m == 0 }
@@ -210,4 +224,31 @@ func (m MinorUnits) Abs() MinorUnits {
 		return -m
 	}
 	return m
+}
+
+// MarshalJSON encodes MinorUnits as a JSON number.
+func (m MinorUnits) MarshalJSON() ([]byte, error) {
+	return []byte(strconv.FormatInt(int64(m), 10)), nil
+}
+
+// UnmarshalJSON decodes MinorUnits from a JSON number or string.
+func (m *MinorUnits) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		*m = 0
+		return nil
+	}
+
+	// Strip quotes if string
+	s := string(data)
+	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+		s = s[1 : len(s)-1]
+	}
+
+	v, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
+	if err != nil {
+		return fmt.Errorf("parse MinorUnits: %w", err)
+	}
+	*m = MinorUnits(v)
+	return nil
 }

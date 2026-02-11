@@ -9,6 +9,7 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
+	"metapus/internal/core/id"
 )
 
 // NomenclatureType defines the type of item.
@@ -21,15 +22,6 @@ const (
 	TypeMaterial    NomenclatureType = "material" // Материал
 	TypeSemiProduct NomenclatureType = "semi"     // Полуфабрикат
 	TypeProduct     NomenclatureType = "product"  // Продукция
-)
-
-// VATRate defines VAT (НДС) rate.
-type VATRate string
-
-const (
-	VAT0  VATRate = "0"  // Без НДС
-	VAT10 VATRate = "10" // 10%
-	VAT20 VATRate = "20" // 20%
 )
 
 // Nomenclature represents a product, good, service, or other item.
@@ -48,8 +40,8 @@ type Nomenclature struct {
 	// BaseUnitID is the reference to base unit of measure
 	BaseUnitID *string `db:"base_unit_id" json:"baseUnitId,omitempty"`
 
-	// VATRate is the default VAT rate
-	VATRate VATRate `db:"vat_rate" json:"vatRate"`
+	// DefaultVatRateID is the reference to default VAT rate from cat_vat_rates
+	DefaultVatRateID *id.ID `db:"default_vat_rate_id" json:"defaultVatRateId,omitempty"`
 
 	// Weight in kg (for logistics)
 	Weight decimal.Decimal `db:"weight" json:"weight"`
@@ -84,7 +76,6 @@ func NewNomenclature(code, name string, itemType NomenclatureType) *Nomenclature
 	return &Nomenclature{
 		Catalog: entity.NewCatalog(code, name),
 		Type:    itemType,
-		VATRate: VAT20, // Default VAT rate
 		Weight:  decimal.Zero,
 		Volume:  decimal.Zero,
 	}
@@ -102,13 +93,6 @@ func (n *Nomenclature) Validate(ctx context.Context) error {
 		return apperror.NewValidation("invalid nomenclature type").
 			WithDetail("field", "type").
 			WithDetail("value", string(n.Type))
-	}
-
-	// VAT rate validation
-	if !isValidVATRate(n.VATRate) {
-		return apperror.NewValidation("invalid VAT rate").
-			WithDetail("field", "vatRate").
-			WithDetail("value", string(n.VATRate))
 	}
 
 	// Weight must be non-negative
@@ -144,18 +128,6 @@ func (n *Nomenclature) IsTracked() bool {
 	return n.TrackSerial || n.TrackBatch
 }
 
-// GetVATMultiplier returns VAT multiplier for calculations.
-func (n *Nomenclature) GetVATMultiplier() decimal.Decimal {
-	switch n.VATRate {
-	case VAT10:
-		return decimal.NewFromFloat(0.10)
-	case VAT20:
-		return decimal.NewFromFloat(0.20)
-	default:
-		return decimal.Zero
-	}
-}
-
 // --- Validation Helpers ---
 
 func isValidNomenclatureType(t NomenclatureType) bool {
@@ -166,10 +138,3 @@ func isValidNomenclatureType(t NomenclatureType) bool {
 	return false
 }
 
-func isValidVATRate(r VATRate) bool {
-	switch r {
-	case VAT0, VAT10, VAT20:
-		return true
-	}
-	return false
-}

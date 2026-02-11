@@ -29,6 +29,7 @@ type ListFilter struct {
 
 	CustomerID  *id.ID
 	WarehouseID *id.ID
+	ContractID  *id.ID
 	Posted      *bool
 	DateFrom    *time.Time
 	DateTo      *time.Time

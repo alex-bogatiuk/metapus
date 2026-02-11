@@ -18,7 +18,8 @@ func WithUserID(ctx context.Context, userID string) context.Context {
 //
 //	userID := security.GetUserID(ctx)
 //	if userID != "" {
-//	    entity.CreatedBy = userID
+//	    parsed, _ := id.Parse(userID)
+//	    entity.CreatedBy = parsed
 //	}
 func GetUserID(ctx context.Context) string {
 	if uid, ok := ctx.Value(userIDKey{}).(string); ok {
