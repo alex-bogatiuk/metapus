@@ -26,6 +26,7 @@ func NewUnitRepo() *UnitRepo {
 			unitTable,
 			postgres.ExtractDBColumns[unit.Unit](),
 			func() *unit.Unit { return &unit.Unit{} },
+			false, // flat catalog: units don't support hierarchy
 		),
 	}
 }

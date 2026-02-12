@@ -27,19 +27,22 @@ import (
 // - TxManager is obtained from context per-request
 // - No tenant filtering in queries (isolation is physical)
 type BaseCatalogRepo[T any] struct {
-	tableName  string
-	selectCols []string
-	newFn      func() T
-	validCols  map[string]struct{}
-	orderCols  map[string]struct{}
+	tableName    string
+	selectCols   []string
+	newFn        func() T
+	validCols    map[string]struct{}
+	orderCols    map[string]struct{}
+	hierarchical bool // true = supports parent_id/is_folder hierarchy
 }
 
 // NewBaseCatalogRepo creates a new base catalog repository.
 // Note: TxManager is obtained from context, not stored in struct.
+// The hierarchical flag controls whether parent_id/is_folder are valid for filtering.
 func NewBaseCatalogRepo[T any](
 	tableName string,
 	selectCols []string,
 	newFn func() T,
+	hierarchical bool,
 ) *BaseCatalogRepo[T] {
 	validCols := make(map[string]struct{}, len(selectCols)+4)
 	orderCols := make(map[string]struct{}, len(selectCols)+6)
@@ -48,7 +51,9 @@ func NewBaseCatalogRepo[T any](
 		orderCols[col] = struct{}{}
 	}
 	validCols["id"] = struct{}{}
-	validCols["parent_id"] = struct{}{}
+	if hierarchical {
+		validCols["parent_id"] = struct{}{}
+	}
 
 	orderCols["id"] = struct{}{}
 	orderCols["code"] = struct{}{}
@@ -57,11 +62,12 @@ func NewBaseCatalogRepo[T any](
 	orderCols["updated_at"] = struct{}{}
 
 	return &BaseCatalogRepo[T]{
-		tableName:  tableName,
-		selectCols: selectCols,
-		newFn:      newFn,
-		validCols:  validCols,
-		orderCols:  orderCols,
+		tableName:    tableName,
+		selectCols:   selectCols,
+		newFn:        newFn,
+		validCols:    validCols,
+		orderCols:    orderCols,
+		hierarchical: hierarchical,
 	}
 }
 
@@ -201,11 +207,11 @@ func (r *BaseCatalogRepo[T]) buildWhereConditions(filter domain.ListFilter) ([]s
 		conditions = append(conditions, squirrel.Eq{"id": filter.IDs})
 	}
 
-	if filter.ParentID != nil {
+	if filter.ParentID != nil && r.hierarchical {
 		conditions = append(conditions, squirrel.Eq{"parent_id": *filter.ParentID})
 	}
 
-	if filter.IsFolder != nil {
+	if filter.IsFolder != nil && r.hierarchical {
 		conditions = append(conditions, squirrel.Eq{"is_folder": *filter.IsFolder})
 	}
 
@@ -510,7 +516,12 @@ func (r *BaseCatalogRepo[T]) SetDeletionMark(ctx context.Context, entityID id.ID
 }
 
 // GetTree retrieves hierarchical structure using recursive CTE.
+// Returns error if the catalog is not hierarchical.
 func (r *BaseCatalogRepo[T]) GetTree(ctx context.Context, rootID *id.ID) ([]T, error) {
+	if !r.hierarchical {
+		return nil, fmt.Errorf("GetTree is not supported for non-hierarchical catalogs")
+	}
+
 	var items []T
 
 	rootCond, rootArgs := r.rootCondition(rootID)
@@ -543,7 +554,12 @@ func (r *BaseCatalogRepo[T]) GetTree(ctx context.Context, rootID *id.ID) ([]T, e
 }
 
 // GetPath retrieves path from root to entity.
+// Returns error if the catalog is not hierarchical.
 func (r *BaseCatalogRepo[T]) GetPath(ctx context.Context, entityID id.ID) ([]T, error) {
+	if !r.hierarchical {
+		return nil, fmt.Errorf("GetPath is not supported for non-hierarchical catalogs")
+	}
+
 	var items []T
 
 	args := []any{entityID}

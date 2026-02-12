@@ -62,26 +62,44 @@ db/
 ├── meta/                     # Миграции Meta-database (реестр тенантов)
 │   └── 00001_tenants.sql     # Схема для управления тенантами
 ├── migrations/               # SQL миграции для tenant databases (goose)
-│   ├── 00001_init_extensions.sql      # Расширения (UUIDv7, pg_trgm)
-│   ├── 00002_sys_sequences.sql        # Автонумерация
-│   ├── 00003_sys_outbox.sql           # Transactional Outbox
-│   ├── 00004_sys_audit.sql            # Аудит
-│   ├── 00005_sys_sessions.sql         # Сессии
-│   ├── 00010_cat_counterparties.sql   # Справочник контрагентов
-│   ├── 00011_cat_nomenclature.sql     # Справочник номенклатуры
-│   ├── 00012_cat_warehouses.sql       # Справочник складов
-│   ├── 00020_doc_goods_receipt.sql    # Документ поступления
-│   ├── 00021_doc_invoice.sql          # Документ реализации
-│   ├── 00030_reg_stock.sql            # Регистр товаров на складах
-│   └── ...
+│   ├── 00001_init_extensions.sql          # Расширения (UUIDv7, pg_trgm)
+│   ├── 00002_sys_sequences.sql            # Автонумерация
+│   ├── 00003_sys_outbox.sql               # Transactional Outbox
+│   ├── 00004_sys_idempotency.sql          # Идемпотентность
+│   ├── 00005_sys_audit.sql                # Аудит
+│   ├── 00006_sys_sessions.sql             # Сессии
+│   ├── 00007_sys_custom_fields.sql        # Пользовательские поля
+│   ├── 00008_sys_feature_flags.sql        # Feature flags
+│   ├── 00009_base_indexes.sql             # Базовые индексы
+│   ├── 00010_auth_users.sql               # Пользователи и аутентификация
+│   ├── 00011_cat_currencies.sql           # Справочник валют
+│   ├── 00012_cat_organizations.sql        # Справочник организаций
+│   ├── 00013_cat_counterparties.sql       # Справочник контрагентов
+│   ├── 00014_cat_units.sql                # Справочник единиц измерения
+│   ├── 00015_cat_warehouses.sql           # Справочник складов
+│   ├── 00016_cat_vat_rates.sql            # Справочник ставок НДС
+│   ├── 00017_cat_nomenclature.sql         # Справочник номенклатуры
+│   ├── 00018_cat_contracts.sql            # Справочник договоров
+│   ├── 00020_doc_goods_receipt.sql        # Документ поступления товаров
+│   ├── 00021_doc_goods_issue.sql          # Документ отгрузки товаров
+│   ├── 00022_auth_seed_permissions.sql    # Seed: базовые разрешения
+│   ├── 00023_auth_seed_roles.sql          # Seed: базовые роли
+│   ├── 00024_auth_seed_document_permissions.sql  # Seed: разрешения документов
+│   ├── 00025_auth_seed_report_permissions.sql    # Seed: разрешения отчётов
+│   ├── 00026_auth_seed_docs_permissions.sql      # Seed: доп. разрешения документов
+│   ├── 00027_seed_default_roles.sql       # Seed: роли по умолчанию
+│   ├── 00028_reg_stock.sql                # Регистр товаров на складах
+│   └── 00029_add_cdc_to_entities.sql      # CDC-колонки для сущностей
 └── seeds/                    # Начальные данные
 ```
 
 **Нумерация миграций:**
-- `00001–00009` — системные таблицы (`sys_*`)
-- `00010–00019` — справочники (`cat_*`)
-- `00020–00029` — документы (`doc_*`)
-- `00030–00039` — регистры (`reg_*`)
+- `00001–00009` — системные таблицы (`sys_*`, расширения, индексы)
+- `00010`       — аутентификация (`auth_users`)
+- `00011–00018` — справочники (`cat_*`)
+- `00020–00021` — документы (`doc_*`)
+- `00022–00027` — seed-данные (разрешения, роли)
+- `00028–00029` — регистры (`reg_*`) и CDC
 
 ---
 

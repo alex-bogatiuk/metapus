@@ -26,6 +26,7 @@ func NewContractRepo() *ContractRepo {
 			contractTable,
 			postgres.ExtractDBColumns[contract.Contract](),
 			func() *contract.Contract { return &contract.Contract{} },
+			false, // flat catalog: contracts don't support hierarchy
 		),
 	}
 }

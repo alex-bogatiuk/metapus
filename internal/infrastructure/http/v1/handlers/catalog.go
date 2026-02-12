@@ -5,8 +5,9 @@ import (
 	"net/http"
 
 	"encoding/json"
-	"github.com/gin-gonic/gin"
 	domainFilter "metapus/internal/domain/filter"
+
+	"github.com/gin-gonic/gin"
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
@@ -232,6 +233,8 @@ func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) SetDeletionMark(c *gin.Context
 }
 
 // GetTree handles GET /{entity}/tree - get hierarchical structure.
+// Returns a nested tree with "children" arrays for frontend consumption.
+// For flat catalogs, returns 400 Bad Request (handled by CatalogService).
 func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) GetTree(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -251,11 +254,25 @@ func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) GetTree(c *gin.Context) {
 		return
 	}
 
-	// Map to DTOs
-	dtos := make([]any, len(items))
+	// Build TreeNodes: map DTOs and extract hierarchy info from entities
+	nodes := make([]*TreeNode, len(items))
 	for i, item := range items {
-		dtos[i] = h.mapToDTO(item)
+		node := &TreeNode{
+			Data: h.mapToDTO(item),
+		}
+		// Extract hierarchy fields via ParentAccessor interface
+		if accessor, ok := any(item).(interface {
+			GetID() id.ID
+			GetParentID() *id.ID
+			GetIsFolder() bool
+		}); ok {
+			node.ID = accessor.GetID()
+			node.ParentID = accessor.GetParentID()
+			node.IsFolder = accessor.GetIsFolder()
+		}
+		nodes[i] = node
 	}
 
-	c.JSON(http.StatusOK, gin.H{"items": dtos})
+	tree := BuildTreeFromNodes(nodes)
+	c.JSON(http.StatusOK, gin.H{"items": tree})
 }

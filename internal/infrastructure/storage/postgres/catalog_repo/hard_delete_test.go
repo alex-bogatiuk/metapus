@@ -6,7 +6,7 @@ import (
 )
 
 func TestBaseCatalogRepo_Delete_SQL(t *testing.T) {
-	repo := NewBaseCatalogRepo[any]("test_table", []string{"id", "name"}, func() any { return nil })
+	repo := NewBaseCatalogRepo[any]("test_table", []string{"id", "name"}, func() any { return nil }, false)
 	entityID := id.New()
 
 	q := repo.Builder().

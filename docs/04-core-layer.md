@@ -39,34 +39,41 @@ type Attributes map[string]any
 
 ---
 
-## BaseCatalog — стандарт для справочников
+## Catalog — единый тип справочника с metadata-driven иерархией
 
 ```go
-type BaseCatalog struct {
-    BaseEntity
-    Code string `db:"code" json:"code"`
-    Name string `db:"name" json:"name"`
-}
-
 type Catalog struct {
     BaseCatalog
+    Code     string `db:"code" json:"code"`
+    Name     string `db:"name" json:"name"`
+    ParentID *id.ID `db:"parent_id" json:"parentId,omitempty"`
+    IsFolder bool   `db:"is_folder" json:"isFolder"`
 }
 ```
 
-**Особенность:** audit-поля (`CreatedAt`, `UpdatedAt`, `CreatedBy`) **не входят** в `BaseCatalog` — для справочников это избыточно. Если нужно "кто менял" — смотрим `sys_audit` или централизованные логи.
-
-## HierarchicalCatalog — иерархические справочники
+**Иерархия управляется метаданными**, а не типом struct. Поля `ParentID`/`IsFolder` присутствуют в **всех** справочниках на уровне БД, но активируются только через `CatalogMeta`:
 
 ```go
-type HierarchicalCatalog struct {
-    BaseCatalog
-    ParentID  *id.ID `db:"parent_id" json:"parentId,omitempty"`
-    Level     int    `db:"level" json:"level"`
-    Path      string `db:"path" json:"path"`     // Materialized path
-    IsFolder  bool   `db:"is_folder" json:"isFolder"`
-    SortOrder int    `db:"sort_order" json:"sortOrder"`
+type CatalogMeta struct {
+    Hierarchical       bool          // Поддерживает ли иерархию
+    HierarchyType      HierarchyType // groups_and_items | items_only
+    MaxDepth           int           // Лимит вложенности (0 = без лимита)
+    FolderAsParentOnly bool          // Parent может быть только папкой
 }
 ```
+
+**Реестр метаданных** (`catalog_meta.go`):
+- Иерархические: `nomenclature`, `counterparty`, `warehouse`
+- Плоские: `organization`, `currency`, `unit`, `vat_rate`, `contract`
+
+Для плоских каталогов `GetTree`/`GetPath` возвращают `400 Bad Request`.
+Расширение: `RegisterCatalogMeta("new_catalog", CatalogMeta{...})`.
+
+**Валидация иерархии** (`HierarchyValidator`):
+- Обнаружение циклов (обход вверх по parent chain)
+- Контроль глубины вложенности (`MaxDepth`)
+- Проверка «parent должен быть папкой» (для `GroupsAndItems`)
+
 
 ## BaseDocument — стандарт для документов
 

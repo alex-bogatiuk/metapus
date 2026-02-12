@@ -63,6 +63,24 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Tenants Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/tenants",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health",
+                "tenants"
+              ]
+            }
+          },
+          "response": []
         }
       ]
     },
@@ -155,7 +173,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"Admin123!\"\n}"
+              "raw": "{\n  \"email\": \"admin@metapus.io\",\n  \"password\": \"Admin123!\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/auth/login",
@@ -296,6 +314,94 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Revoke Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/revoke-role",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "revoke-role"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"{{userId}}\",\n    \"roleCode\": \"admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Roles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/roles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "roles"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/permissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "permissions"
+              ]
+            }
+          },
+          "response": []
         }
       ]
     },
@@ -317,9 +423,7 @@
                       "    pm.collectionVariables.set('unitId', jsonData.id);",
                       "}"
                     ],
-                    "type": "text/javascript",
-                    "packages": {},
-                    "requests": {}
+                    "type": "text/javascript"
                   }
                 }
               ],
@@ -332,13 +436,17 @@
                   },
                   {
                     "key": "X-Tenant-ID",
-                    "value": "{{tenantId}}",
-                    "disabled": true
+                    "value": "{{tenantId}}"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n    \"name\": \"тест\",\n    \"code\": \"тест\",\n    \"parentId\": null,\n    \"type\": \"volume\",\n    \"symbol\": \"тест\",\n    \"international_code\": null,\n    \"base_unit_id\": null,\n    \"conversion_factor\": 1,\n    \"isBase\": true,\n    \"isFolder\": false\n}"
+                  "raw": "{\n    \"name\": \"Килограмм\",\n    \"type\": \"weight\",\n    \"symbol\": \"кг\",\n    \"internationalCode\": \"KGM\",\n    \"baseUnitId\": null,\n    \"conversionFactor\": 1,\n    \"isBase\": true,\n    \"isFolder\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 },
                 "url": {
                   "raw": "{{baseUrl}}/api/v1/catalog/units",
@@ -375,6 +483,190 @@
                     "v1",
                     "catalog",
                     "units"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Unit",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/units/{{unitId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "units",
+                    "{{unitId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Unit",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/units/{{unitId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "units",
+                    "{{unitId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"code\": \"UNT-2026-00001\",\n    \"name\": \"Килограмм\",\n    \"type\": \"weight\",\n    \"symbol\": \"кг\",\n    \"internationalCode\": \"KGM\",\n    \"baseUnitId\": null,\n    \"conversionFactor\": 1,\n    \"isBase\": true,\n    \"isFolder\": false,\n    \"version\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Обновляет данные. Требует поле 'version', соответствующее текущему в БД."
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Unit",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/units/{{unitId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "units",
+                    "{{unitId}}"
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 204\", function () {",
+                      "    pm.response.to.have.status(204);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Set Deletion Mark",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/units/{{unitId}}/deletion-mark",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "units",
+                    "{{unitId}}",
+                    "deletion-mark"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"marked\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 204\", function () {",
+                      "    pm.response.to.have.status(204);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Tree",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/units/tree",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "units",
+                    "tree"
                   ]
                 }
               },
@@ -460,21 +752,112 @@
               "response": []
             },
             {
-              "name": "Set Exchange Rate",
+              "name": "Get Currency",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/currencies/{{currencyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "currencies",
+                    "{{currencyId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Currency",
               "request": {
                 "method": "PUT",
-                "header": [],
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/currencies/{{currencyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "currencies",
+                    "{{currencyId}}"
+                  ]
+                },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n    \"rate\": \"92.50\",\n    \"date\": \"2024-01-25T12:00:00Z\"\n}",
+                  "raw": "{\n    \"code\": \"USD\",\n    \"name\": \"Доллар США\",\n    \"isoCode\": \"USD\",\n    \"isoNumericCode\": \"840\",\n    \"symbol\": \"$\",\n    \"decimalPlaces\": 2,\n    \"isBase\": false,\n    \"isFolder\": false,\n    \"version\": 1\n}",
                   "options": {
                     "raw": {
                       "language": "json"
                     }
                   }
-                },
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Currency",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
                 "url": {
-                  "raw": "{{baseUrl}}/api/v1/catalog/currencies/{{currencyId}}/rate",
+                  "raw": "{{baseUrl}}/api/v1/catalog/currencies/{{currencyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "currencies",
+                    "{{currencyId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Set Deletion Mark",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/currencies/{{currencyId}}/deletion-mark",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -484,7 +867,42 @@
                     "catalog",
                     "currencies",
                     "{{currencyId}}",
-                    "rate"
+                    "deletion-mark"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"marked\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Tree",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/currencies/tree",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "currencies",
+                    "tree"
                   ]
                 }
               },
@@ -522,13 +940,17 @@
                   },
                   {
                     "key": "X-Tenant-ID",
-                    "value": "{{tenantId}}",
-                    "disabled": true
+                    "value": "{{tenantId}}"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n    \"name\": \"Основной склад\",\n    \"address\": \"г. Москва, ул. Складская, д. 1\",\n    \"type\": \"retail\",\n    \"organization_id\": \"019b2822-51ab-7bf6-9be9-b0eb664c6b3f\",\n    \"allow_negative_stock\": \"false\",\n    \"is_folder\": \"false\",\n    \"is_default\": \"false\"\n}"
+                  "raw": "{\n    \"name\": \"Основной склад\",\n    \"type\": \"retail\",\n    \"address\": \"г. Москва, ул. Складская, д. 1\",\n    \"isActive\": true,\n    \"allowNegativeStock\": false,\n    \"isDefault\": false,\n    \"organizationId\": \"019b2822-51ab-7bf6-9be9-b0eb664c6b3f\",\n    \"isFolder\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 },
                 "url": {
                   "raw": "{{baseUrl}}/api/v1/catalog/warehouses",
@@ -552,8 +974,7 @@
                 "header": [
                   {
                     "key": "X-Tenant-ID",
-                    "value": "{{tenantId}}",
-                    "disabled": true
+                    "value": "{{tenantId}}"
                   }
                 ],
                 "url": {
@@ -566,6 +987,163 @@
                     "v1",
                     "catalog",
                     "warehouses"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Warehouse",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/warehouses/{{warehouseId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "warehouses",
+                    "{{warehouseId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Warehouse",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/warehouses/{{warehouseId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "warehouses",
+                    "{{warehouseId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"code\": \"WH-2026-00001\",\n    \"name\": \"Основной склад\",\n    \"type\": \"retail\",\n    \"address\": \"г. Москва, ул. Складская, д. 1\",\n    \"isActive\": true,\n    \"allowNegativeStock\": false,\n    \"isDefault\": false,\n    \"organizationId\": \"019b2822-51ab-7bf6-9be9-b0eb664c6b3f\",\n    \"isFolder\": false,\n    \"version\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Warehouse",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/warehouses/{{warehouseId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "warehouses",
+                    "{{warehouseId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Set Deletion Mark",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/warehouses/{{warehouseId}}/deletion-mark",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "warehouses",
+                    "{{warehouseId}}",
+                    "deletion-mark"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"marked\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Tree",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/warehouses/tree",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "warehouses",
+                    "tree"
                   ]
                 }
               },
@@ -830,7 +1408,7 @@
                       }
                     ],
                     "url": {
-                      "raw": "{{baseUrl}}/api/v1/catalog/counterparties?search=Доставка",
+                      "raw": "{{baseUrl}}/api/v1/catalog/counterparties?search=Тест",
                       "host": [
                         "{{baseUrl}}"
                       ],
@@ -843,7 +1421,7 @@
                       "query": [
                         {
                           "key": "search",
-                          "value": "Доставка"
+                          "value": "Тест"
                         }
                       ]
                     }
@@ -896,6 +1474,32 @@
                     "v1",
                     "catalog",
                     "counterparties"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Counterparty",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/counterparties/{{counterpartyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "counterparties",
+                    "{{counterpartyId}}"
                   ]
                 }
               },
@@ -1017,20 +1621,31 @@
                       "    pm.response.to.have.status(204);",
                       "});"
                     ],
-                    "type": "text/javascript"
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
                   }
                 }
               ],
               "request": {
-                "method": "DELETE",
+                "method": "POST",
                 "header": [
                   {
                     "key": "X-Tenant-ID",
                     "value": "{{tenantId}}"
                   }
                 ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"marked\": true\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
                 "url": {
-                  "raw": "{{baseUrl}}/api/v1/catalog/counterparties/{{counterpartyId}}",
+                  "raw": "{{baseUrl}}/api/v1/catalog/counterparties/{{counterpartyId}}/deletion-mark",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -1039,10 +1654,37 @@
                     "v1",
                     "catalog",
                     "counterparties",
-                    "{{counterpartyId}}"
+                    "{{counterpartyId}}",
+                    "deletion-mark"
                   ]
                 },
                 "description": "Устанавливает флаг deletion_mark = true."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Tree",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/counterparties/tree",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "counterparties",
+                    "tree"
+                  ]
+                }
               },
               "response": []
             }
@@ -1083,7 +1725,12 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n    \"code\": \"NM-00010\",\n    \"name\": \"Тестовая номенклатура\",\n    \"type\": \"goods\",\n    \"article\": \"PAP-A5\",\n    \"barcode\": \"4600000000011\",\n    \"baseUnitId\": \"019b2822-51cd-7a81-b4e1-6915c3110e02\",\n    \"vatRate\": \"20\",\n    \"weight\": \"0\",\n    \"volume\": \"0\",\n    \"isWeighed\": false,\n    \"trackSerial\": false,\n    \"trackBatch\": false,\n    \"isFolder\": false\n}"
+                  "raw": "{\n    \"name\": \"Тестовая номенклатура\",\n    \"type\": \"goods\",\n    \"article\": \"PAP-A5\",\n    \"barcode\": \"4600000000011\",\n    \"baseUnitId\": \"019c24b1-2acc-7aab-98ec-1079a521007a\",\n    \"defaultVatRateId\": null,\n    \"weight\": 0,\n    \"volume\": 0,\n    \"isWeighed\": false,\n    \"trackSerial\": false,\n    \"trackBatch\": false,\n    \"isFolder\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 },
                 "url": {
                   "raw": "{{baseUrl}}/api/v1/catalog/nomenclature",
@@ -1136,7 +1783,7 @@
               "response": []
             },
             {
-              "name": "Get Product by Barcode",
+              "name": "Get Product",
               "request": {
                 "method": "GET",
                 "header": [
@@ -1146,7 +1793,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/api/v1/catalog/nomenclature/by-barcode/4600000000001",
+                  "raw": "{{baseUrl}}/api/v1/catalog/nomenclature/{{productId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -1155,18 +1802,857 @@
                     "v1",
                     "catalog",
                     "nomenclature",
-                    "by-barcode",
-                    "4600000000001"
+                    "{{productId}}"
                   ]
                 }
               },
               "response": []
             },
             {
-              "name": "1: Найти все товары (Type = \"goods\")",
+              "name": "Update Product",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/nomenclature/{{productId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "nomenclature",
+                    "{{productId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"code\": \"NM-2026-00001\",\n    \"name\": \"Тестовая номенклатура\",\n    \"type\": \"goods\",\n    \"article\": \"PAP-A5\",\n    \"barcode\": \"4600000000011\",\n    \"baseUnitId\": \"019c24b1-2acc-7aab-98ec-1079a521007a\",\n    \"weight\": 0,\n    \"volume\": 0,\n    \"isWeighed\": false,\n    \"trackSerial\": false,\n    \"trackBatch\": false,\n    \"isFolder\": false,\n    \"version\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Product",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/nomenclature/{{productId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "nomenclature",
+                    "{{productId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Set Deletion Mark",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/nomenclature/{{productId}}/deletion-mark",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "nomenclature",
+                    "{{productId}}",
+                    "deletion-mark"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"marked\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Tree",
               "request": {
                 "method": "GET",
-                "header": []
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/nomenclature/tree",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "nomenclature",
+                    "tree"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Organizations",
+          "item": [
+            {
+              "name": "Create Organization",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/organizations",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "organizations"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"ООО Тест\",\n    \"fullName\": \"Общество с ограниченной ответственностью Тест\",\n    \"inn\": \"7710151579\",\n    \"kpp\": \"771001001\",\n    \"baseCurrencyId\": \"{{currencyId}}\",\n    \"isDefault\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.collectionVariables.set('organizationId', jsonData.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "List Organizations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/organizations",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "organizations"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Organization",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/organizations/{{organizationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "organizations",
+                    "{{organizationId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Organization",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/organizations/{{organizationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "organizations",
+                    "{{organizationId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"id\": \"{{organizationId}}\",\n    \"version\": 1,\n    \"name\": \"ООО Тест Обновлено\",\n    \"inn\": \"7710151579\",\n    \"kpp\": \"771001001\",\n    \"baseCurrencyId\": \"{{currencyId}}\",\n    \"isDefault\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Organization",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/organizations/{{organizationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "organizations",
+                    "{{organizationId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Set Deletion Mark",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/organizations/{{organizationId}}/deletion-mark",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "organizations",
+                    "{{organizationId}}",
+                    "deletion-mark"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"marked\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Tree",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/organizations/tree",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "organizations",
+                    "tree"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "VAT Rates",
+          "item": [
+            {
+              "name": "Create VAT Rate",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/vat-rates",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "vat-rates"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"НДС 20%\",\n    \"rate\": 20,\n    \"isTaxExempt\": false,\n    \"isFolder\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.collectionVariables.set('vatRateId', jsonData.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "List VAT Rates",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/vat-rates",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "vat-rates"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get VAT Rate",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/vat-rates/{{vatRateId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "vat-rates",
+                    "{{vatRateId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update VAT Rate",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/vat-rates/{{vatRateId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "vat-rates",
+                    "{{vatRateId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"code\": \"VR-2026-00001\",\n    \"name\": \"НДС 20%\",\n    \"rate\": 20,\n    \"isTaxExempt\": false,\n    \"isFolder\": false,\n    \"version\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete VAT Rate",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/vat-rates/{{vatRateId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "vat-rates",
+                    "{{vatRateId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Set Deletion Mark",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/vat-rates/{{vatRateId}}/deletion-mark",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "vat-rates",
+                    "{{vatRateId}}",
+                    "deletion-mark"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"marked\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Tree",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/vat-rates/tree",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "vat-rates",
+                    "tree"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Contracts",
+          "item": [
+            {
+              "name": "Create Contract",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/contracts",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "contracts"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"Договор поставки №1\",\n    \"counterpartyId\": \"{{counterpartyId}}\",\n    \"type\": \"supply\",\n    \"currencyId\": \"{{currencyId}}\",\n    \"paymentTermDays\": 30,\n    \"isFolder\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.collectionVariables.set('contractId', jsonData.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "List Contracts",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/contracts",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "contracts"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Contract",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/contracts/{{contractId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "contracts",
+                    "{{contractId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Contract",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/contracts/{{contractId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "contracts",
+                    "{{contractId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"code\": \"CT-2026-00001\",\n    \"name\": \"Договор поставки №1 (обновлён)\",\n    \"counterpartyId\": \"{{counterpartyId}}\",\n    \"type\": \"supply\",\n    \"currencyId\": \"{{currencyId}}\",\n    \"paymentTermDays\": 45,\n    \"isFolder\": false,\n    \"version\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Contract",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/contracts/{{contractId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "contracts",
+                    "{{contractId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Set Deletion Mark",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/contracts/{{contractId}}/deletion-mark",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "contracts",
+                    "{{contractId}}",
+                    "deletion-mark"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"marked\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Tree",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/catalog/contracts/tree",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "catalog",
+                    "contracts",
+                    "tree"
+                  ]
+                }
               },
               "response": []
             }
@@ -1212,7 +2698,12 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n    \"date\": \"2026-01-03T15:04:05Z\",\n    \"organizationId\": \"019b2822-51ab-7bf6-9be9-b0eb664c6b3f\",\n    \"warehouseId\": \"019b2822-51df-7330-a254-aa47286d3b39\",\n    \"supplierID\": \"019b88b6-01ef-768c-a45b-4430f3cb8bb5\",\n    \"description\": \"Поступление от поставщика\",\n    \"lines\": [\n        {\n            \"productId\": \"019b85ae-af98-74d0-b79d-20fd8ec9205d\",\n            \"quantity\": 100,\n            \"unitPrice\": 150.5,\n            \"vatRate\": \"20\"\n        },\n        {\n            \"productId\": \"019b2822-520b-7229-9f21-f2085bca80e6\",\n            \"quantity\": 1,\n            \"unitPrice\": 150,\n            \"vatRate\": \"0\"\n        }\n    ]\n}"
+                  "raw": "{\n    \"date\": \"2026-01-04T15:04:05Z\",\n    \"organizationId\": \"019b2822-51ab-7bf6-9be9-b0eb664c6b3f\",\n    \"supplierId\": \"019b88b6-01ef-768c-a45b-4430f3cb8bb5\",\n    \"warehouseId\": \"019b2822-51df-7330-a254-aa47286d3b39\",\n    \"description\": \"Поступление от поставщика\",\n    \"amountIncludesVat\": false,\n    \"lines\": [\n        {\n            \"productId\": \"019b85ae-af98-74d0-b79d-20fd8ec9205d\",\n            \"unitId\": \"019c24b1-2acc-7aab-98ec-1079a521007a\",\n            \"quantity\": 10,\n            \"unitPrice\": 15000,\n            \"vatRateId\": \"{{vatRateId}}\"\n        },\n        {\n            \"productId\": \"019b2822-520b-7229-9f21-f2085bca80e6\",\n            \"unitId\": \"019c24b1-2acc-7aab-98ec-1079a521007a\",\n            \"quantity\": 6,\n            \"unitPrice\": 15000,\n            \"vatRateId\": \"{{vatRateId}}\"\n        }\n    ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 },
                 "url": {
                   "raw": "{{baseUrl}}/api/v1/document/goods-receipt",
@@ -1276,6 +2767,45 @@
                     "goods-receipt",
                     "{{goodsReceiptId}}"
                   ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update GoodsReceipt",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{goodsReceiptId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-receipt",
+                    "{{goodsReceiptId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"date\": \"2026-01-04T15:04:05Z\",\n    \"supplierId\": \"019b88b6-01ef-768c-a45b-4430f3cb8bb5\",\n    \"warehouseId\": \"019b2822-51df-7330-a254-aa47286d3b39\",\n    \"description\": \"Поступление от поставщика (обновлено)\",\n    \"lines\": [\n        {\n            \"productId\": \"019b85ae-af98-74d0-b79d-20fd8ec9205d\",\n            \"unitId\": \"019c24b1-2acc-7aab-98ec-1079a521007a\",\n            \"quantity\": 20,\n            \"unitPrice\": 15000,\n            \"vatRateId\": \"{{vatRateId}}\"\n        }\n    ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 }
               },
               "response": []
@@ -1360,6 +2890,42 @@
                 }
               },
               "response": []
+            },
+            {
+              "name": "Deletion-mark",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n  \"marked\": true\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-receipt/{{goodsReceiptId}}/deletion-mark",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-receipt",
+                    "{{goodsReceiptId}}",
+                    "deletion-mark"
+                  ]
+                }
+              },
+              "response": []
             }
           ]
         },
@@ -1400,7 +2966,12 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n    \"warehouseId\": \"{{warehouseId}}\",\n    \"counterpartyId\": \"{{counterpartyId}}\",\n    \"comment\": \"Отгрузка покупателю\",\n    \"lines\": [\n        {\n            \"productId\": \"{{productId}}\",\n            \"quantity\": 10,\n            \"price\": 200.00,\n            \"vatRate\": \"20\"\n        }\n    ]\n}"
+                  "raw": "{\n    \"date\": \"2026-01-05T10:00:00Z\",\n    \"organizationId\": \"019b2822-51ab-7bf6-9be9-b0eb664c6b3f\",\n    \"customerId\": \"{{counterpartyId}}\",\n    \"warehouseId\": \"{{warehouseId}}\",\n    \"description\": \"Отгрузка покупателю\",\n    \"amountIncludesVat\": false,\n    \"lines\": [\n        {\n            \"productId\": \"{{productId}}\",\n            \"unitId\": \"019c24b1-2acc-7aab-98ec-1079a521007a\",\n            \"quantity\": 10,\n            \"unitPrice\": 20000,\n            \"vatRateId\": \"{{vatRateId}}\"\n        }\n    ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 },
                 "url": {
                   "raw": "{{baseUrl}}/api/v1/document/goods-issue",
@@ -1465,6 +3036,191 @@
                     "{{goodsIssueId}}",
                     "post"
                   ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get GoodsIssue",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-issue/{{goodsIssueId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-issue",
+                    "{{goodsIssueId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update GoodsIssue",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-issue/{{goodsIssueId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-issue",
+                    "{{goodsIssueId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"date\": \"2026-01-05T10:00:00Z\",\n    \"customerId\": \"{{counterpartyId}}\",\n    \"warehouseId\": \"{{warehouseId}}\",\n    \"description\": \"Отгрузка покупателю (обновлено)\",\n    \"lines\": [\n        {\n            \"productId\": \"{{productId}}\",\n            \"unitId\": \"019c24b1-2acc-7aab-98ec-1079a521007a\",\n            \"quantity\": 5,\n            \"unitPrice\": 20000,\n            \"vatRateId\": \"{{vatRateId}}\"\n        }\n    ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete GoodsIssue",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-issue/{{goodsIssueId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-issue",
+                    "{{goodsIssueId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Unpost GoodsIssue",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-issue/{{goodsIssueId}}/unpost",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-issue",
+                    "{{goodsIssueId}}",
+                    "unpost"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Copy GoodsIssue",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-issue/{{goodsIssueId}}/copy",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-issue",
+                    "{{goodsIssueId}}",
+                    "copy"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Deletion-mark",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenantId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/document/goods-issue/{{goodsIssueId}}/deletion-mark",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "document",
+                    "goods-issue",
+                    "{{goodsIssueId}}",
+                    "deletion-mark"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"marked\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 }
               },
               "response": []
@@ -1728,6 +3484,60 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Meta",
+      "item": [
+        {
+          "name": "List Entities",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/meta",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "meta"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Entity",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/meta/counterparty",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "meta",
+                "counterparty"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "auth": {
@@ -1815,6 +3625,18 @@
     },
     {
       "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "organizationId",
+      "value": ""
+    },
+    {
+      "key": "vatRateId",
+      "value": ""
+    },
+    {
+      "key": "contractId",
       "value": ""
     }
   ]

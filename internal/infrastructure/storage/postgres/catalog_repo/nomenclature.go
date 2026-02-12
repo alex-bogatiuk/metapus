@@ -27,6 +27,7 @@ func NewNomenclatureRepo() *NomenclatureRepo {
 			nomenclatureTable,
 			postgres.ExtractDBColumns[nomenclature.Nomenclature](),
 			func() *nomenclature.Nomenclature { return &nomenclature.Nomenclature{} },
+			true, // hierarchical: nomenclature supports folders/groups
 		),
 	}
 }

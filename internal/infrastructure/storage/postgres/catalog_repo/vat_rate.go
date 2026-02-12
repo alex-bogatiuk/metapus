@@ -25,6 +25,7 @@ func NewVATRateRepo() *VATRateRepo {
 			vatRateTable,
 			postgres.ExtractDBColumns[vat_rate.VATRate](),
 			func() *vat_rate.VATRate { return &vat_rate.VATRate{} },
+			false, // flat catalog: VAT rates don't support hierarchy
 		),
 	}
 }

@@ -24,6 +24,7 @@ func NewCounterpartyRepo() *CounterpartyRepo {
 			counterpartyTable,
 			postgres.ExtractDBColumns[counterparty.Counterparty](),
 			func() *counterparty.Counterparty { return &counterparty.Counterparty{} },
+			true, // hierarchical: counterparties support folders/groups
 		),
 	}
 }

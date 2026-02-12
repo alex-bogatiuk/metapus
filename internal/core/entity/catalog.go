@@ -66,3 +66,18 @@ func (c *Catalog) ClearParent() {
 func (c *Catalog) IsRoot() bool {
 	return c.ParentID == nil || id.IsNil(*c.ParentID)
 }
+
+// GetID returns the entity ID (implements ParentAccessor).
+func (c *Catalog) GetID() id.ID {
+	return c.ID
+}
+
+// GetParentID returns the parent ID (implements ParentAccessor).
+func (c *Catalog) GetParentID() *id.ID {
+	return c.ParentID
+}
+
+// GetIsFolder returns whether this is a folder (implements ParentAccessor).
+func (c *Catalog) GetIsFolder() bool {
+	return c.IsFolder
+}

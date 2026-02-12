@@ -24,6 +24,12 @@ type CatalogService[T entity.Validatable] struct {
 
 	// entityName for error messages and numerator prefix
 	entityName string
+
+	// meta contains hierarchy and other metadata configuration
+	meta entity.CatalogMeta
+
+	// hierarchyValidator validates hierarchy constraints (nil for flat catalogs)
+	hierarchyValidator *HierarchyValidator
 }
 
 // CatalogServiceConfig configures the catalog service.
@@ -35,13 +41,23 @@ type CatalogServiceConfig[T entity.Validatable] struct {
 }
 
 // NewCatalogService creates a new catalog service.
+// CatalogMeta is automatically resolved from the entity registry.
 func NewCatalogService[T entity.Validatable](cfg CatalogServiceConfig[T]) *CatalogService[T] {
+	meta := entity.GetCatalogMeta(cfg.EntityName)
+
+	var hv *HierarchyValidator
+	if meta.Hierarchical {
+		hv = NewHierarchyValidator(meta)
+	}
+
 	return &CatalogService[T]{
-		repo:       cfg.Repo,
-		txManager:  cfg.TxManager,
-		numerator:  cfg.Numerator,
-		hooks:      NewHookRegistry[T](),
-		entityName: cfg.EntityName,
+		repo:               cfg.Repo,
+		txManager:          cfg.TxManager,
+		numerator:          cfg.Numerator,
+		hooks:              NewHookRegistry[T](),
+		entityName:         cfg.EntityName,
+		meta:               meta,
+		hierarchyValidator: hv,
 	}
 }
 
@@ -92,12 +108,17 @@ func (s *CatalogService[T]) Create(ctx context.Context, entity T) error {
 		return s.normalizeValidationErr(err)
 	}
 
-	// 2. Run before-create hooks
+	// 2. Validate hierarchy constraints (if hierarchical catalog)
+	if err := s.validateHierarchy(ctx, entity); err != nil {
+		return err
+	}
+
+	// 3. Run before-create hooks
 	if err := s.hooks.RunBeforeCreate(ctx, entity); err != nil {
 		return err
 	}
 
-	// 3. Create in transaction
+	// 4. Create in transaction
 	txm, err := s.getTxManager(ctx)
 	if err != nil {
 		return apperror.NewInternal(err).WithDetail("missing", "tx_manager")
@@ -112,7 +133,7 @@ func (s *CatalogService[T]) Create(ctx context.Context, entity T) error {
 		return err
 	}
 
-	// 4. Run after-create hooks (outside transaction)
+	// 5. Run after-create hooks (outside transaction)
 	if err := s.hooks.RunAfterCreate(ctx, entity); err != nil {
 		logger.Warn(ctx, "after-create hook failed", "entity", s.entityName, "error", err)
 	}
@@ -145,12 +166,17 @@ func (s *CatalogService[T]) Update(ctx context.Context, entity T) error {
 		return s.normalizeValidationErr(err)
 	}
 
-	// 2. Run before-update hooks
+	// 2. Validate hierarchy constraints (if hierarchical catalog)
+	if err := s.validateHierarchy(ctx, entity); err != nil {
+		return err
+	}
+
+	// 3. Run before-update hooks
 	if err := s.hooks.RunBeforeUpdate(ctx, entity); err != nil {
 		return err
 	}
 
-	// 3. Update in transaction
+	// 4. Update in transaction
 	txm, err := s.getTxManager(ctx)
 	if err != nil {
 		return apperror.NewInternal(err).WithDetail("missing", "tx_manager")
@@ -165,7 +191,7 @@ func (s *CatalogService[T]) Update(ctx context.Context, entity T) error {
 		return err
 	}
 
-	// 4. Run after-update hooks
+	// 5. Run after-update hooks
 	if err := s.hooks.RunAfterUpdate(ctx, entity); err != nil {
 		logger.Warn(ctx, "after-update hook failed", "entity", s.entityName, "error", err)
 	}
@@ -224,6 +250,56 @@ func (s *CatalogService[T]) Exists(ctx context.Context, entityID id.ID) (bool, e
 }
 
 // GetTree retrieves hierarchical structure.
+// Returns error for flat (non-hierarchical) catalogs.
 func (s *CatalogService[T]) GetTree(ctx context.Context, rootID *id.ID) ([]T, error) {
+	if !s.meta.Hierarchical {
+		return nil, apperror.NewValidation(
+			fmt.Sprintf("%s is a flat catalog and does not support hierarchy", s.entityName),
+		)
+	}
 	return s.repo.GetTree(ctx, rootID)
+}
+
+// GetPath retrieves the path from root to entity.
+// Returns error for flat (non-hierarchical) catalogs.
+func (s *CatalogService[T]) GetPath(ctx context.Context, entityID id.ID) ([]T, error) {
+	if !s.meta.Hierarchical {
+		return nil, apperror.NewValidation(
+			fmt.Sprintf("%s is a flat catalog and does not support hierarchy", s.entityName),
+		)
+	}
+	return s.repo.GetPath(ctx, entityID)
+}
+
+// Meta returns the catalog metadata configuration.
+func (s *CatalogService[T]) Meta() entity.CatalogMeta {
+	return s.meta
+}
+
+// validateHierarchy checks hierarchy constraints if the entity implements ParentAccessor.
+func (s *CatalogService[T]) validateHierarchy(ctx context.Context, ent T) error {
+	if s.hierarchyValidator == nil {
+		return nil
+	}
+
+	accessor, ok := any(ent).(ParentAccessor)
+	if !ok {
+		// Entity doesn't implement ParentAccessor — skip hierarchy validation
+		return nil
+	}
+
+	// Adapter: bridge repo.GetByID to ParentAccessor
+	getByID := func(ctx context.Context, entID id.ID) (ParentAccessor, error) {
+		result, err := s.repo.GetByID(ctx, entID)
+		if err != nil {
+			return nil, err
+		}
+		pa, ok := any(result).(ParentAccessor)
+		if !ok {
+			return nil, fmt.Errorf("entity does not implement ParentAccessor")
+		}
+		return pa, nil
+	}
+
+	return s.hierarchyValidator.ValidateHierarchy(ctx, accessor, getByID)
 }

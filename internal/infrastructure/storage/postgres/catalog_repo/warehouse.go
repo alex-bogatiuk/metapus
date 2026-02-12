@@ -24,6 +24,7 @@ func NewWarehouseRepo() *WarehouseRepo {
 			warehouseTable,
 			postgres.ExtractDBColumns[warehouse.Warehouse](),
 			func() *warehouse.Warehouse { return &warehouse.Warehouse{} },
+			true, // hierarchical: warehouses support folders/groups
 		),
 	}
 }

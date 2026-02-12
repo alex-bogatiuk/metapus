@@ -27,6 +27,7 @@ func NewOrganizationRepo() *OrganizationRepo {
 			organizationTable,
 			postgres.ExtractDBColumns[organization.Organization](),
 			func() *organization.Organization { return &organization.Organization{} },
+			false, // flat catalog: organizations don't support hierarchy
 		),
 	}
 }

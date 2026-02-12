@@ -30,6 +30,7 @@ func NewCurrencyRepo() *CurrencyRepo {
 			currencyTable,
 			postgres.ExtractDBColumns[currency.Currency](),
 			func() *currency.Currency { return &currency.Currency{} },
+			false, // flat catalog: currencies don't support hierarchy
 		),
 	}
 }
