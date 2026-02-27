@@ -8,6 +8,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/documents/goods_receipt"
+	"metapus/internal/infrastructure/storage/postgres"
 )
 
 // --- Request DTOs ---
@@ -184,6 +185,13 @@ type GoodsReceiptResponse struct {
 	DeletionMark      bool                       `json:"deletionMark,omitempty"`
 	CreatedAt         time.Time                  `json:"createdAt"`
 	UpdatedAt         time.Time                  `json:"updatedAt"`
+
+	// Resolved reference display names (populated by handler, not stored in DB)
+	Organization *postgres.RefDisplay `json:"organization,omitempty"`
+	Supplier     *postgres.RefDisplay `json:"supplier,omitempty"`
+	Contract     *postgres.RefDisplay `json:"contract,omitempty"`
+	Warehouse    *postgres.RefDisplay `json:"warehouse,omitempty"`
+	Currency     *postgres.RefDisplay `json:"currency,omitempty"`
 }
 
 // GoodsReceiptLineResponse represents a line in API responses.
@@ -200,10 +208,48 @@ type GoodsReceiptLineResponse struct {
 	VATRateID       string           `json:"vatRateId"`
 	VATAmount       types.MinorUnits `json:"vatAmount"`
 	Amount          types.MinorUnits `json:"amount"`
+
+	// Resolved reference display names
+	Product *postgres.RefDisplay `json:"product,omitempty"`
+	Unit    *postgres.RefDisplay `json:"unit,omitempty"`
+	VATRate *postgres.RefDisplay `json:"vatRate,omitempty"`
+}
+
+// Table name constants for reference resolution.
+const (
+	TableOrganizations  = "cat_organizations"
+	TableCounterparties = "cat_counterparties"
+	TableContracts      = "cat_contracts"
+	TableWarehouses     = "cat_warehouses"
+	TableCurrencies     = "cat_currencies"
+	TableNomenclature   = "cat_nomenclature"
+	TableUnits          = "cat_units"
+	TableVATRates       = "cat_vat_rates"
+)
+
+// CollectGoodsReceiptRefs registers all reference IDs from a GoodsReceipt
+// into the resolver for batch resolution.
+func CollectGoodsReceiptRefs(resolver *postgres.ReferenceResolver, doc *goods_receipt.GoodsReceipt) {
+	resolver.Add(TableOrganizations, doc.OrganizationID)
+	resolver.Add(TableCounterparties, doc.SupplierID)
+	resolver.AddPtr(TableContracts, doc.ContractID)
+	resolver.Add(TableWarehouses, doc.WarehouseID)
+	resolver.Add(TableCurrencies, doc.CurrencyID)
+
+	for _, line := range doc.Lines {
+		resolver.Add(TableNomenclature, line.ProductID)
+		resolver.Add(TableUnits, line.UnitID)
+		resolver.Add(TableVATRates, line.VATRateID)
+	}
 }
 
 // FromGoodsReceipt converts domain entity to response DTO.
-func FromGoodsReceipt(doc *goods_receipt.GoodsReceipt) *GoodsReceiptResponse {
+// Pass nil for refs if reference resolution is not needed (e.g., create response).
+func FromGoodsReceipt(doc *goods_receipt.GoodsReceipt, refs ...postgres.ResolvedRefs) *GoodsReceiptResponse {
+	var resolved postgres.ResolvedRefs
+	if len(refs) > 0 {
+		resolved = refs[0]
+	}
 	resp := &GoodsReceiptResponse{
 		ID:                doc.ID.String(),
 		Number:            doc.Number,
@@ -231,9 +277,22 @@ func FromGoodsReceipt(doc *goods_receipt.GoodsReceipt) *GoodsReceiptResponse {
 		resp.ContractID = &s
 	}
 
+	// Populate resolved reference display names
+	if resolved != nil {
+		org := resolved.Get(TableOrganizations, doc.OrganizationID)
+		resp.Organization = &org
+		sup := resolved.Get(TableCounterparties, doc.SupplierID)
+		resp.Supplier = &sup
+		wh := resolved.Get(TableWarehouses, doc.WarehouseID)
+		resp.Warehouse = &wh
+		cur := resolved.Get(TableCurrencies, doc.CurrencyID)
+		resp.Currency = &cur
+		resp.Contract = resolved.GetPtr(TableContracts, doc.ContractID)
+	}
+
 	resp.Lines = make([]GoodsReceiptLineResponse, len(doc.Lines))
 	for i, line := range doc.Lines {
-		resp.Lines[i] = GoodsReceiptLineResponse{
+		lineResp := GoodsReceiptLineResponse{
 			LineID:          line.LineID.String(),
 			LineNo:          line.LineNo,
 			ProductID:       line.ProductID.String(),
@@ -245,8 +304,19 @@ func FromGoodsReceipt(doc *goods_receipt.GoodsReceipt) *GoodsReceiptResponse {
 			DiscountAmount:  line.DiscountAmount,
 			VATRateID:       line.VATRateID.String(),
 			VATAmount:       line.VATAmount,
-			Amount:         line.Amount,
+			Amount:          line.Amount,
 		}
+
+		if resolved != nil {
+			prod := resolved.Get(TableNomenclature, line.ProductID)
+			lineResp.Product = &prod
+			unit := resolved.Get(TableUnits, line.UnitID)
+			lineResp.Unit = &unit
+			vr := resolved.Get(TableVATRates, line.VATRateID)
+			lineResp.VATRate = &vr
+		}
+
+		resp.Lines[i] = lineResp
 	}
 
 	return resp

@@ -5,6 +5,13 @@
 
 // ── Common ──────────────────────────────────────────────────────────────
 
+/** Lightweight display representation of a referenced catalog entity.
+ *  Mirrors: internal/infrastructure/storage/postgres.RefDisplay */
+export interface RefDisplay {
+    id: string
+    name: string
+}
+
 /** Possible document statuses (derived from `posted` boolean). */
 export type DocumentStatus = "draft" | "posted"
 
@@ -29,6 +36,10 @@ export interface GoodsReceiptLineResponse {
     vatRateId: string
     vatAmount: number       // int64
     amount: number          // int64
+    // Resolved reference display names
+    product?: RefDisplay
+    unit?: RefDisplay
+    vatRate?: RefDisplay
 }
 
 /** Response DTO for a goods receipt document. Mirrors GoodsReceiptResponse. */
@@ -55,6 +66,12 @@ export interface GoodsReceiptResponse {
     deletionMark: boolean
     createdAt: string       // ISO datetime
     updatedAt: string       // ISO datetime
+    // Resolved reference display names
+    organization?: RefDisplay
+    supplier?: RefDisplay
+    contract?: RefDisplay
+    warehouse?: RefDisplay
+    currency?: RefDisplay
 }
 
 // ── Goods Receipt — Requests ────────────────────────────────────────────

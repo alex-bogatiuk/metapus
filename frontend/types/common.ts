@@ -14,6 +14,20 @@ export interface SortParams {
 
 // ── Pagination ──────────────────────────────────────────────────────────
 
+/** Comparison operator for advanced filters (mirrors backend filter.ComparisonType). */
+export type ComparisonOperator =
+    | "eq" | "neq" | "lt" | "lte" | "gt" | "gte"
+    | "in" | "nin" | "contains" | "ncontains"
+    | "null" | "not_null"
+    | "in_hierarchy" | "nin_hierarchy"
+
+/** Single advanced filter item sent to the backend as part of ?filter= JSON. */
+export interface AdvancedFilterItem {
+    field: string
+    operator: ComparisonOperator
+    value?: unknown
+}
+
 /** Paginated list response envelope from the API. */
 export interface ListResponse<T> {
     items: T[]
@@ -31,6 +45,8 @@ export interface ListParams {
     sortOrder?: SortDirection
     /** Include soft-deleted (deletion-marked) items */
     includeDeleted?: boolean
+    /** Advanced filters — serialized as JSON in ?filter= query param */
+    filter?: AdvancedFilterItem[]
 }
 
 // ── Base entity fields ──────────────────────────────────────────────────

@@ -8,12 +8,12 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
-	"metapus/internal/domain"
 	"metapus/internal/domain/documents/goods_issue"
 	"metapus/internal/infrastructure/http/v1/dto"
 )
 
 // GoodsIssueHandler handles HTTP requests for GoodsIssue documents.
+// List() is inherited from BaseDocumentHandler (universal filter engine).
 type GoodsIssueHandler struct {
 	*BaseDocumentHandler[*goods_issue.GoodsIssue, dto.CreateGoodsIssueRequest, dto.UpdateGoodsIssueRequest]
 	service *goods_issue.Service
@@ -55,7 +55,6 @@ func (h *GoodsIssueHandler) Create(c *gin.Context) {
 
 	doc := req.ToEntity()
 
-	// doc created above
 	var err error
 	if req.PostImmediately {
 		err = h.service.PostAndSave(ctx, doc)
@@ -105,65 +104,6 @@ func (h *GoodsIssueHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-func (h *GoodsIssueHandler) List(c *gin.Context) {
-	ctx := c.Request.Context()
-
-	filter := goods_issue.ListFilter{
-		ListFilter: domain.DefaultListFilter(),
-	}
-	filter.Search = c.Query("search")
-	filter.Limit = h.ParseIntQuery(c, "limit", 50)
-	filter.Offset = h.ParseIntQuery(c, "offset", 0)
-	filter.OrderBy = c.DefaultQuery("orderBy", "-date")
-	filter.IncludeDeleted = c.Query("includeDeleted") == "true"
-
-	if customerID := c.Query("customerId"); customerID != "" {
-		parsed, err := id.Parse(customerID)
-		if err == nil {
-			filter.CustomerID = &parsed
-		}
-	}
-
-	if warehouseID := c.Query("warehouseId"); warehouseID != "" {
-		parsed, err := id.Parse(warehouseID)
-		if err == nil {
-			filter.WarehouseID = &parsed
-		}
-	}
-
-	if contractID := c.Query("contractId"); contractID != "" {
-		parsed, err := id.Parse(contractID)
-		if err == nil {
-			filter.ContractID = &parsed
-		}
-	}
-
-	if posted := c.Query("posted"); posted != "" {
-		val := posted == "true"
-		filter.Posted = &val
-	}
-
-	if dateFrom := c.Query("dateFrom"); dateFrom != "" {
-		if parsed, err := time.Parse(time.RFC3339, dateFrom); err == nil {
-			filter.DateFrom = &parsed
-		}
-	}
-
-	if dateTo := c.Query("dateTo"); dateTo != "" {
-		if parsed, err := time.Parse(time.RFC3339, dateTo); err == nil {
-			filter.DateTo = &parsed
-		}
-	}
-
-	result, err := h.service.List(ctx, filter)
-	if err != nil {
-		h.Error(c, err)
-		return
-	}
-
-	h.respondList(c, result)
-}
-
 func (h *GoodsIssueHandler) Copy(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -201,32 +141,22 @@ func (h *GoodsIssueHandler) Copy(c *gin.Context) {
 	c.JSON(http.StatusCreated, response)
 }
 
-func (h *GoodsIssueHandler) respondList(c *gin.Context, result domain.ListResult[*goods_issue.GoodsIssue]) {
-	items := make([]*dto.GoodsIssueResponse, len(result.Items))
-	for i, doc := range result.Items {
-		items[i] = dto.FromGoodsIssue(doc)
-	}
-
-	c.JSON(http.StatusOK, dto.GoodsIssueListResponse{
-		Items:      items,
-		TotalCount: int(result.TotalCount),
-		Limit:      result.Limit,
-		Offset:     result.Offset,
-	})
-}
-
 // RegisterRoutes registers goods issue routes.
 func (h *GoodsIssueHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	// Standard methods from Base
+	// Standard methods from Base (includes List)
 	rg.GET("/:id", h.BaseDocumentHandler.Get)
 	rg.DELETE("/:id", h.BaseDocumentHandler.Delete)
 	rg.POST("/:id/post", h.BaseDocumentHandler.Post)
 	rg.POST("/:id/unpost", h.BaseDocumentHandler.Unpost)
 	rg.POST("/:id/deletion-mark", h.BaseDocumentHandler.SetDeletionMark)
 
-	// Overrides and specific methods
-	rg.GET("", h.List)
+	// List uses base handler's universal filter engine
+	rg.GET("", h.BaseDocumentHandler.List)
+
+	// Overridden methods
 	rg.POST("", h.Create)
 	rg.PUT("/:id", h.Update)
+
+	// Entity-specific methods
 	rg.POST("/:id/copy", h.Copy)
 }

@@ -307,6 +307,6 @@ func (s *Service) PostAndSave(ctx context.Context, doc *GoodsReceipt) error {
 }
 
 // List retrieves goods receipts with filtering.
-func (s *Service) List(ctx context.Context, filter ListFilter) (domain.ListResult[*GoodsReceipt], error) {
+func (s *Service) List(ctx context.Context, filter domain.ListFilter) (domain.ListResult[*GoodsReceipt], error) {
 	return s.repo.List(ctx, filter)
 }

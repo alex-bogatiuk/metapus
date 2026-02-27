@@ -108,8 +108,14 @@ func inspectColumns(t reflect.Type) []FieldDef {
 func mapFieldType(def *FieldDef, field reflect.StructField) {
 	t := field.Type
 
-	// Handle ID -> Reference
-	if t == reflect.TypeOf(id.ID{}) {
+	// Dereference pointer types so *id.ID and *time.Time are handled correctly.
+	actual := t
+	if actual.Kind() == reflect.Ptr {
+		actual = actual.Elem()
+	}
+
+	// Handle ID -> Reference (both id.ID and *id.ID)
+	if actual == reflect.TypeOf(id.ID{}) {
 		def.Type = TypeReference
 		// Guess reference type from name: e.g. "WarehouseID" -> "warehouse"
 		name := field.Name
@@ -120,12 +126,12 @@ func mapFieldType(def *FieldDef, field reflect.StructField) {
 		return
 	}
 
-	if t == reflect.TypeOf(time.Time{}) {
+	if actual == reflect.TypeOf(time.Time{}) {
 		def.Type = TypeDate
 		return
 	}
 
-	switch t.Kind() {
+	switch actual.Kind() {
 	case reflect.String:
 		def.Type = TypeString
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:

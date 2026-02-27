@@ -12,6 +12,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { FormToolbar } from "@/components/shared/form-toolbar"
+import { ReferenceField } from "@/components/shared/reference-field"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -19,8 +20,10 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useTabDirty } from "@/hooks/useTabDirty"
+import { useTabTitle } from "@/hooks/useTabTitle"
 import { cn } from "@/lib/utils"
 import { api } from "@/lib/api"
 import type { GoodsReceiptResponse, GoodsReceiptLineRequest, UpdateGoodsReceiptRequest } from "@/types/document"
@@ -85,17 +88,23 @@ export default function GoodsReceiptFormPage() {
   const [nextKey, setNextKey] = useState(1)
 
   // ── Header fields ─────────────────────────────────────────────────────
-  const [date, setDate] = useState("")
+  const [date, setDate] = useState<Date | undefined>(undefined)
   const [organizationId, setOrganizationId] = useState("")
+  const [organizationName, setOrganizationName] = useState("")
   const [supplierId, setSupplierId] = useState("")
+  const [supplierName, setSupplierName] = useState("")
   const [warehouseId, setWarehouseId] = useState("")
+  const [warehouseName, setWarehouseName] = useState("")
   const [currencyId, setCurrencyId] = useState("")
+  const [currencyName, setCurrencyName] = useState("")
   const [contractId, setContractId] = useState("")
+  const [contractName, setContractName] = useState("")
   const [supplierDocNumber, setSupplierDocNumber] = useState("")
   const [incomingNumber, setIncomingNumber] = useState("")
   const [amountIncludesVat, setAmountIncludesVat] = useState(true)
   const [description, setDescription] = useState("")
   const [lines, setLines] = useState<FormLine[]>([])
+  useTabTitle(doc?.number || undefined, "Приходная накладная")
 
   useEffect(() => {
     const stored = localStorage.getItem(SIDEBAR_KEY)
@@ -108,12 +117,17 @@ export default function GoodsReceiptFormPage() {
     setLoading(true)
     api.goodsReceipts.get(params.id).then((d) => {
       setDoc(d)
-      setDate(d.date ? d.date.slice(0, 10) : "")
+      setDate(d.date ? new Date(d.date) : undefined)
       setOrganizationId(d.organizationId)
+      setOrganizationName(d.organization?.name || "")
       setSupplierId(d.supplierId)
+      setSupplierName(d.supplier?.name || "")
       setWarehouseId(d.warehouseId)
+      setWarehouseName(d.warehouse?.name || "")
       setCurrencyId(d.currencyId || "")
+      setCurrencyName(d.currency?.name || "")
       setContractId(d.contractId || "")
+      setContractName(d.contract?.name || "")
       setSupplierDocNumber(d.supplierDocNumber || "")
       setIncomingNumber(d.incomingNumber || "")
       setAmountIncludesVat(d.amountIncludesVat)
@@ -184,7 +198,7 @@ export default function GoodsReceiptFormPage() {
   }, [lines, amountIncludesVat, doc])
 
   const buildUpdatePayload = (): UpdateGoodsReceiptRequest => ({
-    date: new Date(date).toISOString(),
+    date: date ? date.toISOString() : new Date().toISOString(),
     organizationId,
     supplierId,
     warehouseId,
@@ -310,31 +324,75 @@ export default function GoodsReceiptFormPage() {
             <div className="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2 lg:grid-cols-3">
               <div>
                 <Label className="text-xs text-muted-foreground">Организация</Label>
-                <Input className="mt-1" value={organizationId} onChange={(e) => { setOrganizationId(e.target.value); handleChange() }} />
+                <div className="mt-1">
+                  <ReferenceField
+                    value={organizationId}
+                    displayName={organizationName}
+                    apiEndpoint="/catalog/organizations"
+                    placeholder="Выберите организацию"
+                    onChange={(id, name) => { setOrganizationId(id); setOrganizationName(name); handleChange() }}
+                  />
+                </div>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">Поставщик</Label>
-                <Input className="mt-1" value={supplierId} onChange={(e) => { setSupplierId(e.target.value); handleChange() }} />
+                <div className="mt-1">
+                  <ReferenceField
+                    value={supplierId}
+                    displayName={supplierName}
+                    apiEndpoint="/catalog/counterparties"
+                    placeholder="Выберите поставщика"
+                    onChange={(id, name) => { setSupplierId(id); setSupplierName(name); handleChange() }}
+                  />
+                </div>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">Номер</Label>
                 <div className="mt-1 flex items-center gap-2">
                   <Input value={doc?.number || ""} className="flex-1 bg-muted/30" readOnly />
                   <Label className="shrink-0 text-xs text-muted-foreground">от:</Label>
-                  <Input type="date" className="w-36" value={date} onChange={(e) => { setDate(e.target.value); handleChange() }} />
+                  <DatePicker
+                    value={date}
+                    onChange={(d) => { setDate(d); handleChange() }}
+                    className="w-44 h-9"
+                  />
                 </div>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">Склад</Label>
-                <Input className="mt-1" value={warehouseId} onChange={(e) => { setWarehouseId(e.target.value); handleChange() }} />
+                <div className="mt-1">
+                  <ReferenceField
+                    value={warehouseId}
+                    displayName={warehouseName}
+                    apiEndpoint="/catalog/warehouses"
+                    placeholder="Выберите склад"
+                    onChange={(id, name) => { setWarehouseId(id); setWarehouseName(name); handleChange() }}
+                  />
+                </div>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">Договор</Label>
-                <Input className="mt-1" value={contractId} onChange={(e) => { setContractId(e.target.value); handleChange() }} />
+                <div className="mt-1">
+                  <ReferenceField
+                    value={contractId}
+                    displayName={contractName}
+                    apiEndpoint="/catalog/contracts"
+                    placeholder="Выберите договор"
+                    onChange={(id, name) => { setContractId(id); setContractName(name); handleChange() }}
+                  />
+                </div>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">Валюта</Label>
-                <Input className="mt-1" value={currencyId} onChange={(e) => { setCurrencyId(e.target.value); handleChange() }} />
+                <div className="mt-1">
+                  <ReferenceField
+                    value={currencyId}
+                    displayName={currencyName}
+                    apiEndpoint="/catalog/currencies"
+                    placeholder="Выберите валюту"
+                    onChange={(id, name) => { setCurrencyId(id); setCurrencyName(name); handleChange() }}
+                  />
+                </div>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">№ вх. документа</Label>
@@ -377,8 +435,8 @@ export default function GoodsReceiptFormPage() {
                       <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-sm">
                         <tr>
                           <th className="w-10 border-b px-2 py-2 text-center text-[11px] font-semibold text-muted-foreground">N</th>
-                          <th className="min-w-[160px] border-b px-3 py-2 text-left text-[11px] font-semibold text-muted-foreground">Товар (ID)</th>
-                          <th className="w-[120px] border-b px-3 py-2 text-left text-[11px] font-semibold text-muted-foreground">Ед. изм. (ID)</th>
+                          <th className="min-w-[160px] border-b px-3 py-2 text-left text-[11px] font-semibold text-muted-foreground">Товар</th>
+                          <th className="w-[140px] border-b px-3 py-2 text-left text-[11px] font-semibold text-muted-foreground">Ед. изм.</th>
                           <th className="w-24 border-b px-3 py-2 text-right text-[11px] font-semibold text-muted-foreground">Кол-во</th>
                           <th className="w-24 border-b px-3 py-2 text-right text-[11px] font-semibold text-muted-foreground">Цена</th>
                           <th className="w-24 border-b px-3 py-2 text-right text-[11px] font-semibold text-muted-foreground">Сумма</th>
@@ -398,13 +456,40 @@ export default function GoodsReceiptFormPage() {
                         {lines.map((line, idx) => (
                           <tr key={line._key} className="group hover:bg-primary/5 transition-colors">
                             <td className="px-2 py-1.5 text-center text-xs text-muted-foreground">{idx + 1}</td>
-                            <td className="px-1 py-1"><Input className="h-7 text-xs" value={line.productId} onChange={(e) => updateLine(line._key, "productId", e.target.value)} /></td>
-                            <td className="px-1 py-1"><Input className="h-7 text-xs" value={line.unitId} onChange={(e) => updateLine(line._key, "unitId", e.target.value)} /></td>
+                            <td className="px-1 py-1">
+                              <ReferenceField
+                                compact
+                                value={line.productId}
+                                displayName={(doc?.lines ?? []).find(l => l.productId === line.productId)?.product?.name}
+                                apiEndpoint="/catalog/nomenclature"
+                                placeholder="Номенклатура"
+                                onChange={(id) => updateLine(line._key, "productId", id)}
+                              />
+                            </td>
+                            <td className="px-1 py-1">
+                              <ReferenceField
+                                compact
+                                value={line.unitId}
+                                displayName={(doc?.lines ?? []).find(l => l.unitId === line.unitId)?.unit?.name}
+                                apiEndpoint="/catalog/units"
+                                placeholder="Ед. изм."
+                                onChange={(id) => updateLine(line._key, "unitId", id)}
+                              />
+                            </td>
                             <td className="px-1 py-1"><Input className="h-7 text-right font-mono text-xs" type="number" step="0.001" value={line.quantity} onChange={(e) => updateLine(line._key, "quantity", e.target.value)} /></td>
                             <td className="px-1 py-1"><Input className="h-7 text-right font-mono text-xs" type="number" step="0.01" value={line.unitPrice} onChange={(e) => updateLine(line._key, "unitPrice", e.target.value)} /></td>
                             <td className="px-1 py-1 text-right font-mono text-xs text-muted-foreground">{line.amount !== undefined ? fmtAmount(line.amount) : "—"}</td>
                             <td className="px-1 py-1 text-right font-mono text-xs text-muted-foreground">{line.vatAmount !== undefined ? fmtAmount(line.vatAmount) : "—"}</td>
-                            <td className="px-1 py-1"><Input className="h-7 text-xs" value={line.vatRateId} onChange={(e) => updateLine(line._key, "vatRateId", e.target.value)} /></td>
+                            <td className="px-1 py-1">
+                              <ReferenceField
+                                compact
+                                value={line.vatRateId}
+                                displayName={(doc?.lines ?? []).find(l => l.vatRateId === line.vatRateId)?.vatRate?.name}
+                                apiEndpoint="/catalog/vat-rates"
+                                placeholder="Ставка НДС"
+                                onChange={(id) => updateLine(line._key, "vatRateId", id)}
+                              />
+                            </td>
                             <td className="px-1 py-1">
                               <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeLine(line._key)}>
                                 <Trash2 className="h-4 w-4 text-destructive/70" />

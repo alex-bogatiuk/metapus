@@ -2,7 +2,6 @@ package goods_issue
 
 import (
 	"context"
-	"time"
 
 	"metapus/internal/core/id"
 	"metapus/internal/domain"
@@ -19,18 +18,7 @@ type Repository interface {
 	GetLines(ctx context.Context, docID id.ID) ([]GoodsIssueLine, error)
 	SaveLines(ctx context.Context, docID id.ID, lines []GoodsIssueLine) error
 
-	List(ctx context.Context, filter ListFilter) (domain.ListResult[*GoodsIssue], error)
+	// List operations — uses universal filter engine via domain.ListFilter.AdvancedFilters
+	List(ctx context.Context, filter domain.ListFilter) (domain.ListResult[*GoodsIssue], error)
 	GetForUpdate(ctx context.Context, docID id.ID) (*GoodsIssue, error)
-}
-
-// ListFilter for filtering goods issues.
-type ListFilter struct {
-	domain.ListFilter
-
-	CustomerID  *id.ID
-	WarehouseID *id.ID
-	ContractID  *id.ID
-	Posted      *bool
-	DateFrom    *time.Time
-	DateTo      *time.Time
 }

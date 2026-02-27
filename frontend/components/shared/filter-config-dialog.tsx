@@ -52,6 +52,8 @@ export interface FilterFieldMeta {
     fieldType: FieldType
     /** Group label (e.g. "Товары", "Услуги") — acts like a folder */
     group?: string
+    /** API endpoint path for reference fields, e.g. "/catalog/warehouses" */
+    refEndpoint?: string
 }
 
 interface FilterConfigDialogProps {

@@ -15,6 +15,7 @@ import (
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/domain"
+	"metapus/internal/domain/filter"
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
@@ -26,19 +27,33 @@ type BaseDocumentRepo[T any] struct {
 	tableName  string
 	selectCols []string
 	newFn      func() T
+	validCols  map[string]struct{} // whitelist for advanced filter columns
+	orderCols  map[string]struct{} // whitelist for ORDER BY columns
 }
 
 // NewBaseDocumentRepo creates a new base document repository.
 // Note: TxManager is obtained from context, not stored in struct.
+// Automatically builds validCols and orderCols from selectCols
+// plus standard document columns.
 func NewBaseDocumentRepo[T any](
 	tableName string,
 	selectCols []string,
 	newFn func() T,
 ) *BaseDocumentRepo[T] {
+	// Standard document columns always valid for filtering
+	extraFilterCols := []string{"id", "number", "date", "posted", "deletion_mark"}
+	validCols := filter.BuildValidCols(selectCols, extraFilterCols...)
+
+	// Standard document columns always valid for ordering
+	extraOrderCols := []string{"id", "number", "date", "created_at", "updated_at", "version"}
+	orderCols := filter.BuildOrderCols(selectCols, extraOrderCols...)
+
 	return &BaseDocumentRepo[T]{
 		tableName:  tableName,
 		selectCols: selectCols,
 		newFn:      newFn,
+		validCols:  validCols,
+		orderCols:  orderCols,
 	}
 }
 
@@ -254,24 +269,56 @@ func (r *BaseDocumentRepo[T]) GetForUpdate(ctx context.Context, entityID id.ID) 
 	return entity, nil
 }
 
-// List retrieves documents with standard filtering.
-func (r *BaseDocumentRepo[T]) List(ctx context.Context, filter domain.ListFilter) (domain.ListResult[T], error) {
+// buildWhereConditions builds WHERE conditions from domain.ListFilter.
+// Handles standard filters (search, deletion_mark) and advanced filters.
+func (r *BaseDocumentRepo[T]) buildWhereConditions(f domain.ListFilter) ([]squirrel.Sqlizer, error) {
+	var conditions []squirrel.Sqlizer
+
+	if !f.IncludeDeleted {
+		conditions = append(conditions, squirrel.Eq{"deletion_mark": false})
+	}
+
+	if f.Search != "" {
+		conditions = append(conditions, squirrel.ILike{"number": "%" + f.Search + "%"})
+	}
+
+	fmt.Printf("DEBUG repo ListFilter: %+v\n", f)
+
+	// Apply advanced filters via shared engine
+	if len(f.AdvancedFilters) > 0 {
+		advConditions, err := filter.BuildConditions(f.AdvancedFilters, r.validCols, r.tableName)
+		fmt.Printf("DEBUG BuildConditions result: %d conditions, err: %v\n", len(advConditions), err)
+		if err != nil {
+			return nil, err
+		}
+		conditions = append(conditions, advConditions...)
+	}
+
+	fmt.Printf("DEBUG Final Where conditions count: %d\n", len(conditions))
+
+	return conditions, nil
+}
+
+// List retrieves documents with standard filtering and advanced filters.
+func (r *BaseDocumentRepo[T]) List(ctx context.Context, f domain.ListFilter) (domain.ListResult[T], error) {
 	result := domain.ListResult[T]{
-		Limit:  filter.Limit,
-		Offset: filter.Offset,
+		Limit:  f.Limit,
+		Offset: f.Offset,
 	}
 
+	// Build WHERE conditions
+	conditions, err := r.buildWhereConditions(f)
+	if err != nil {
+		return result, err
+	}
+
+	// Build base SELECT and apply conditions
 	q := r.baseSelect(ctx)
-
-	if !filter.IncludeDeleted {
-		q = q.Where(squirrel.Eq{"deletion_mark": false})
+	for _, cond := range conditions {
+		q = q.Where(cond)
 	}
 
-	if filter.Search != "" {
-		q = q.Where(squirrel.ILike{"number": "%" + filter.Search + "%"})
-	}
-
-	// Count
+	// Count total (before pagination)
 	countQ := r.Builder().Select("COUNT(*)").FromSelect(q, "sub")
 	countSQL, countArgs, err := countQ.ToSql()
 	if err != nil {
@@ -284,18 +331,18 @@ func (r *BaseDocumentRepo[T]) List(ctx context.Context, filter domain.ListFilter
 	}
 
 	// Order
-	orderBy, err := r.parseOrderBy(filter.OrderBy)
+	orderBy, err := r.parseOrderBy(f.OrderBy)
 	if err != nil {
 		return result, err
 	}
 	q = q.OrderBy(orderBy)
 
 	// Page
-	if filter.Limit > 0 {
-		q = q.Limit(uint64(filter.Limit))
+	if f.Limit > 0 {
+		q = q.Limit(uint64(f.Limit))
 	}
-	if filter.Offset > 0 {
-		q = q.Offset(uint64(filter.Offset))
+	if f.Offset > 0 {
+		q = q.Offset(uint64(f.Offset))
 	}
 
 	sql, args, err := q.ToSql()
@@ -311,18 +358,6 @@ func (r *BaseDocumentRepo[T]) List(ctx context.Context, filter domain.ListFilter
 }
 
 func (r *BaseDocumentRepo[T]) parseOrderBy(orderBy string) (string, error) {
-	allowed := make(map[string]struct{}, len(r.selectCols)+6)
-	for _, col := range r.selectCols {
-		allowed[col] = struct{}{}
-	}
-	// Common document columns (safe even if not in selectCols for some doc types)
-	allowed["id"] = struct{}{}
-	allowed["number"] = struct{}{}
-	allowed["date"] = struct{}{}
-	allowed["created_at"] = struct{}{}
-	allowed["updated_at"] = struct{}{}
-	allowed["version"] = struct{}{}
-
 	if strings.TrimSpace(orderBy) == "" {
 		return "date DESC", nil
 	}
@@ -341,7 +376,7 @@ func (r *BaseDocumentRepo[T]) parseOrderBy(orderBy string) (string, error) {
 		return "", apperror.NewValidation("invalid orderBy").WithDetail("orderBy", orderBy)
 	}
 
-	if _, ok := allowed[field]; !ok {
+	if _, ok := r.orderCols[field]; !ok {
 		return "", apperror.NewValidation("invalid orderBy").WithDetail("orderBy", orderBy).WithDetail("field", field)
 	}
 

@@ -19,6 +19,8 @@ interface TabsState {
   closeTab: (id: string) => void
   /** Marks a tab as dirty (unsaved changes) or clean. */
   setTabDirty: (id: string, isDirty: boolean) => void
+  /** Updates the title of a tab (e.g. after loading entity data). */
+  updateTabTitle: (id: string, title: string) => void
 }
 
 const DEFAULT_TAB: Tab = {
@@ -67,6 +69,12 @@ export const useTabsStore = create<TabsState>((set, get) => ({
   setTabDirty: (id, isDirty) => {
     set((state) => ({
       tabs: state.tabs.map((t) => (t.id === id ? { ...t, isDirty } : t)),
+    }))
+  },
+
+  updateTabTitle: (id, title) => {
+    set((state) => ({
+      tabs: state.tabs.map((t) => (t.id === id ? { ...t, title } : t)),
     }))
   },
 }))

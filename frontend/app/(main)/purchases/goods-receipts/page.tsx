@@ -1,18 +1,19 @@
 "use client"
 
-import { useEffect, useState, useMemo, useCallback } from "react"
+import { useEffect, useState, useMemo, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { CircleCheck, Circle, Loader2 } from "lucide-react"
 import { DataToolbar } from "@/components/shared/data-toolbar"
 import { FilterSidebar } from "@/components/shared/filter-sidebar"
 import { DataTable, Column } from "@/components/shared/data-table"
-import type { FilterFieldMeta } from "@/components/shared/filter-config-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useListSelection } from "@/hooks/useListSelection"
 import { useUrlSort } from "@/hooks/useUrlSort"
+import { useEntityFiltersMeta } from "@/hooks/useEntityFiltersMeta"
 import { api } from "@/lib/api"
+import { buildFilterItems, type FilterValues } from "@/lib/filter-utils"
 import type { GoodsReceiptResponse } from "@/types/document"
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -30,40 +31,14 @@ function formatDate(iso: string): string {
 
 // ── Filters ─────────────────────────────────────────────────────────────
 
-const docFilters = [
-  {
-    key: "period",
-    label: "Период",
-    type: "date-range" as const,
-  },
-  {
-    key: "posted",
-    label: "Статус",
-    type: "select" as const,
-    options: [
-      { value: "all", label: "Все" },
-      { value: "posted", label: "Проведён" },
-      { value: "draft", label: "Черновик" },
-    ],
-    defaultValue: "all",
-  },
-]
+// Default filters shown on page load (keys from fieldsMeta)
+const defaultFilterKeys = ["date", "posted"]
 
-// ── Document field metadata (for filter configuration dialog) ───────────
-
-const goodsReceiptFieldsMeta: FilterFieldMeta[] = [
-  { key: "number", label: "Номер", fieldType: "string" },
-  { key: "date", label: "Дата", fieldType: "date" },
-  { key: "incomingNumber", label: "№ вх. документа", fieldType: "string" },
-  { key: "supplierId", label: "Поставщик", fieldType: "reference" },
-  { key: "warehouseId", label: "Склад", fieldType: "reference" },
-  { key: "posted", label: "Проведен", fieldType: "boolean" },
-  { key: "deletionMark", label: "Пометка удаления", fieldType: "boolean" },
-  { key: "lines.productId", label: "Номенклатура", fieldType: "reference", group: "Товары" },
-  { key: "lines.quantity", label: "Количество", fieldType: "number", group: "Товары" },
-  { key: "lines.unitPrice", label: "Цена", fieldType: "number", group: "Товары" },
-  { key: "lines.amount", label: "Сумма", fieldType: "number", group: "Товары" },
-]
+// ── Document field metadata — fetched dynamically from backend ──────────
+// The backend metadata registry (GET /api/v1/meta/GoodsReceipt/filters)
+// is the single source of truth for the document structure.
+// When a new field is added to the Go struct, only the backend label map
+// needs updating — the frontend adapts automatically.
 
 // ── Columns ─────────────────────────────────────────────────────────────
 
@@ -83,6 +58,26 @@ const columns: Column<GoodsReceiptResponse>[] = [
     render: (doc) => (
       <span className="font-mono text-xs font-medium text-foreground">
         {doc.number}
+      </span>
+    ),
+  },
+  {
+    key: "supplierId",
+    label: "Поставщик",
+    sortable: false,
+    render: (doc) => (
+      <span className="text-xs truncate max-w-[180px] block">
+        {doc.supplier?.name || "—"}
+      </span>
+    ),
+  },
+  {
+    key: "warehouseId",
+    label: "Склад",
+    sortable: false,
+    render: (doc) => (
+      <span className="text-xs truncate max-w-[140px] block">
+        {doc.warehouse?.name || "—"}
       </span>
     ),
   },
@@ -131,26 +126,49 @@ const columns: Column<GoodsReceiptResponse>[] = [
 export default function GoodsReceiptsListPage() {
   const router = useRouter()
 
+  // Fetch filter field metadata from backend (single source of truth)
+  const { fieldsMeta } = useEntityFiltersMeta("GoodsReceipt")
+
   const [items, setItems] = useState<GoodsReceiptResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchData = useCallback(async () => {
+  // Track current filter values for API calls
+  const filterValuesRef = useRef<FilterValues>({})
+
+  const fetchData = useCallback(async (filterValues?: FilterValues) => {
     setLoading(true)
     setError(null)
     try {
-      const res = await api.goodsReceipts.list({ limit: 100, offset: 0 })
+      // Build advanced filter items from sidebar values
+      const advancedFilters = filterValues
+        ? buildFilterItems(filterValues, fieldsMeta, "date")
+        : []
+
+      const res = await api.goodsReceipts.list({
+        limit: 100,
+        offset: 0,
+        filter: advancedFilters.length > 0 ? advancedFilters : undefined,
+      })
       setItems(res.items ?? [])
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка загрузки данных")
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [fieldsMeta])
 
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  const handleFilterValuesChange = useCallback(
+    (values: FilterValues) => {
+      filterValuesRef.current = values
+      fetchData(values)
+    },
+    [fetchData]
+  )
 
   const visibleIds = useMemo(() => items.map((d) => d.id), [items])
 
@@ -180,7 +198,7 @@ export default function GoodsReceiptsListPage() {
         title="Приходные накладные"
         onCreateHref="/purchases/goods-receipts/new"
         extraButtons={
-          <Button variant="outline" size="sm" onClick={fetchData}>
+          <Button variant="outline" size="sm" onClick={() => fetchData(filterValuesRef.current)}>
             Обновить
           </Button>
         }
@@ -196,7 +214,7 @@ export default function GoodsReceiptsListPage() {
           ) : error ? (
             <div className="flex flex-col items-center justify-center gap-2 py-20 text-destructive">
               <p>{error}</p>
-              <Button variant="outline" size="sm" onClick={fetchData}>
+              <Button variant="outline" size="sm" onClick={() => fetchData(filterValuesRef.current)}>
                 Повторить
               </Button>
             </div>
@@ -231,13 +249,15 @@ export default function GoodsReceiptsListPage() {
         </div>
 
         <FilterSidebar
-          filters={docFilters}
           showGroups={false}
           showDetails
-          fieldsMeta={goodsReceiptFieldsMeta}
+          fieldsMeta={fieldsMeta}
+          defaultSelectedKeys={defaultFilterKeys}
+          periodField="date"
           onFilterConfigChange={(keys) => {
             console.log("Selected filter keys:", keys)
           }}
+          onFilterValuesChange={handleFilterValuesChange}
         />
       </div>
     </div>

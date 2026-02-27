@@ -37,3 +37,16 @@ func (h *MetadataHandler) GetEntity(c *gin.Context) {
 		c.Status(http.StatusNotFound)
 	}
 }
+
+// GetEntityFilters returns a flat list of FilterFieldMeta for a specific entity.
+// This is the contract between backend and frontend for the filter configuration dialog.
+// GET /api/v1/meta/:name/filters
+func (h *MetadataHandler) GetEntityFilters(c *gin.Context) {
+	name := c.Param("name")
+	def, ok := h.registry.Get(name)
+	if !ok {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	c.JSON(http.StatusOK, def.ToFilterMeta())
+}

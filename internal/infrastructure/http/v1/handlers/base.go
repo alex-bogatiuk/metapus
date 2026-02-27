@@ -1,13 +1,16 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	
+
 	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
+	"metapus/internal/domain"
+	domainFilter "metapus/internal/domain/filter"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/storage/postgres"
 )
@@ -112,4 +115,33 @@ func (h *BaseHandler) Success(c *gin.Context, message string) {
 	response := dto.SuccessResponse{Success: true, Message: message}
 	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
 	c.JSON(http.StatusOK, response)
+}
+
+// ParseListFilter parses standard query params for List requests.
+// This is the single entry point for parsing filters across all catalogs and documents.
+// defaultOrderBy is the default ORDER BY field (e.g., "name" for catalogs, "-date" for documents).
+func (h *BaseHandler) ParseListFilter(c *gin.Context, defaultOrderBy string) (domain.ListFilter, error) {
+	filter := domain.DefaultListFilter()
+	filter.Search = c.Query("search")
+	filter.Limit = h.ParseIntQuery(c, "limit", 50)
+	filter.Offset = h.ParseIntQuery(c, "offset", 0)
+	filter.OrderBy = c.DefaultQuery("orderBy", defaultOrderBy)
+	filter.IncludeDeleted = c.Query("includeDeleted") == "true"
+
+	// Parse advanced filters from JSON
+	filterJSON := c.Query("filter")
+	if filterJSON != "" {
+		var advFilters []domainFilter.Item
+		if err := json.Unmarshal([]byte(filterJSON), &advFilters); err != nil {
+			return filter, apperror.NewValidation("invalid filter format (json expected)").
+				WithDetail("error", err.Error())
+		}
+		if err := domainFilter.ValidateItems(advFilters); err != nil {
+			return filter, apperror.NewValidation("invalid filter").
+				WithDetail("error", err.Error())
+		}
+		filter.AdvancedFilters = advFilters
+	}
+
+	return filter, nil
 }

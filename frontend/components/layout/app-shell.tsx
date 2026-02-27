@@ -11,6 +11,9 @@ import { useTabsStore } from "@/stores/useTabsStore"
 const breadcrumbMap: Record<string, string> = {
   catalogs: "Справочники",
   nomenclature: "Номенклатура",
+  counterparties: "Контрагенты",
+  warehouses: "Склады",
+  organizations: "Организации",
   purchases: "Закупки",
   "goods-receipts": "Поступления товаров",
   new: "Новый",
@@ -27,7 +30,26 @@ function resolveTitleFromUrl(pathname: string): string {
   if (pathname === "/") return "Главное"
   const segments = pathname.split("/").filter(Boolean)
   const lastSegment = segments[segments.length - 1]
-  return breadcrumbMap[lastSegment] || lastSegment
+
+  // /…/new → "Новый (ParentLabel)"
+  if (lastSegment === "new" && segments.length >= 2) {
+    const parentSegment = segments[segments.length - 2]
+    const parentLabel = breadcrumbMap[parentSegment]
+    if (parentLabel) return `Новый (${parentLabel})`
+    return "Новый"
+  }
+
+  // Known segment → list page title
+  if (breadcrumbMap[lastSegment]) return breadcrumbMap[lastSegment]
+
+  // UUID ([id] page) — temporary title until useTabTitle updates it
+  if (segments.length >= 2) {
+    const parentSegment = segments[segments.length - 2]
+    const parentLabel = breadcrumbMap[parentSegment]
+    if (parentLabel) return `${parentLabel}…`
+  }
+
+  return lastSegment
 }
 
 /**

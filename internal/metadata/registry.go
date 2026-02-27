@@ -30,6 +30,11 @@ type EntityDef struct {
 	TableName  string         `json:"-"`
 	Fields     []FieldDef     `json:"fields"`
 	TableParts []TablePartDef `json:"tableParts,omitempty"`
+
+	// RefEndpoints maps referenceType → API endpoint path for filter UI.
+	// E.g. "warehouse" → "/catalog/warehouses".
+	// Set via SetRefEndpoints(); used by ToFilterMeta().
+	RefEndpoints map[string]string `json:"-"`
 }
 
 // TablePartDef describes a nested collection (lines).
@@ -49,6 +54,118 @@ type FieldDef struct {
 	ReadOnly      bool      `json:"readOnly,omitempty"`
 	Scale         int       `json:"scale,omitempty"` // For numbers
 	Options       []string  `json:"options,omitempty"`
+}
+
+// FilterFieldMeta is a flat, frontend-compatible representation of a filterable field.
+// Matches the frontend FilterFieldMeta interface in filter-config-dialog.tsx.
+type FilterFieldMeta struct {
+	Key         string `json:"key"`
+	Label       string `json:"label"`
+	FieldType   string `json:"fieldType"` // string | number | date | boolean | reference | enum
+	Group       string `json:"group,omitempty"`
+	RefEndpoint string `json:"refEndpoint,omitempty"` // API path for reference fields, e.g. "/catalog/warehouses"
+}
+
+// filterFieldType maps internal FieldType to the simplified frontend filter types.
+func filterFieldType(ft FieldType) string {
+	switch ft {
+	case TypeString:
+		return "string"
+	case TypeInteger, TypeNumber, TypeMoney:
+		return "number"
+	case TypeDate:
+		return "date"
+	case TypeBoolean:
+		return "boolean"
+	case TypeReference:
+		return "reference"
+	case TypeEnum:
+		return "enum"
+	default:
+		return "string"
+	}
+}
+
+// skipFilterFields are system/audit fields that should not appear in filter UI.
+var skipFilterFields = map[string]bool{
+	"id": true, "version": true, "attributes": true,
+	"createdAt": true, "updatedAt": true,
+	"createdBy": true, "updatedBy": true,
+	"postedVersion": true,
+	"txid":          true, "deletedAt": true,
+}
+
+// ToFilterMeta converts EntityDef into a flat list of FilterFieldMeta
+// suitable for the frontend filter configuration dialog.
+func (d *EntityDef) ToFilterMeta() []FilterFieldMeta {
+	result := make([]FilterFieldMeta, 0, len(d.Fields))
+
+	// Header fields (no group)
+	for _, f := range d.Fields {
+		if skipFilterFields[f.Name] {
+			continue
+		}
+		meta := FilterFieldMeta{
+			Key:       f.Name,
+			Label:     f.Label,
+			FieldType: filterFieldType(f.Type),
+		}
+		if f.Type == TypeReference && d.RefEndpoints != nil {
+			meta.RefEndpoint = d.RefEndpoints[f.ReferenceType]
+		}
+		result = append(result, meta)
+	}
+
+	// Table parts → each column becomes a filter field with group = table part label
+	for _, tp := range d.TableParts {
+		groupLabel := tp.Label
+		for _, col := range tp.Columns {
+			if skipFilterFields[col.Name] {
+				continue
+			}
+			meta := FilterFieldMeta{
+				Key:       tp.Name + "." + col.Name,
+				Label:     col.Label,
+				FieldType: filterFieldType(col.Type),
+				Group:     groupLabel,
+			}
+			if col.Type == TypeReference && d.RefEndpoints != nil {
+				meta.RefEndpoint = d.RefEndpoints[col.ReferenceType]
+			}
+			result = append(result, meta)
+		}
+	}
+
+	return result
+}
+
+// SetRefEndpoints configures the referenceType → API endpoint mapping.
+// Called during registry setup so that ToFilterMeta() can emit refEndpoint for reference fields.
+func (d *EntityDef) SetRefEndpoints(endpoints map[string]string) {
+	d.RefEndpoints = endpoints
+}
+
+// SetFieldLabels applies a map of jsonName → label to the entity's fields and table part columns.
+// This is the primary mechanism for injecting human-readable (e.g. Russian) labels.
+func (d *EntityDef) SetFieldLabels(labels map[string]string) {
+	for i := range d.Fields {
+		if lbl, ok := labels[d.Fields[i].Name]; ok {
+			d.Fields[i].Label = lbl
+		}
+	}
+	for i := range d.TableParts {
+		// Table part name label
+		if lbl, ok := labels[d.TableParts[i].Name]; ok {
+			d.TableParts[i].Label = lbl
+		}
+		// Column labels: use "tablePart.column" key
+		for j := range d.TableParts[i].Columns {
+			compound := d.TableParts[i].Name + "." + d.TableParts[i].Columns[j].Name
+			if lbl, ok := labels[compound]; ok {
+				d.TableParts[i].Columns[j].Label = lbl
+			}
+		}
+	}
 }
 
 // Registry stores entity definitions.

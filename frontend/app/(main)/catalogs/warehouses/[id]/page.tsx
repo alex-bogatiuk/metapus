@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useTabDirty } from "@/hooks/useTabDirty"
+import { useTabTitle } from "@/hooks/useTabTitle"
 import { api } from "@/lib/api"
 import type { WarehouseResponse, WarehouseType } from "@/types/catalog"
 import { WAREHOUSE_TYPE_LABELS } from "@/types/catalog"
@@ -40,6 +41,7 @@ export default function EditWarehousePage() {
   const [organizationId, setOrganizationId] = useState("")
   const [description, setDescription] = useState("")
   const [version, setVersion] = useState(0)
+  useTabTitle(name || undefined, "Склад")
 
   useEffect(() => {
     if (!params.id) return

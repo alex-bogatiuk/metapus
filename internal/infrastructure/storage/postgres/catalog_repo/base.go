@@ -341,69 +341,9 @@ func (r *BaseCatalogRepo[T]) List(ctx context.Context, filter domain.ListFilter)
 }
 
 // buildAdvancedFilterConditions builds conditions from advanced filters.
+// Delegates to the shared filter.BuildConditions engine.
 func (r *BaseCatalogRepo[T]) buildAdvancedFilterConditions(filters []filter.Item) ([]squirrel.Sqlizer, error) {
-	var conditions []squirrel.Sqlizer
-
-	for _, item := range filters {
-		if _, ok := r.validCols[item.Field]; !ok {
-			return nil, fmt.Errorf("invalid filter column: %s", item.Field)
-		}
-
-		switch item.Operator {
-		case filter.Equal:
-			conditions = append(conditions, squirrel.Eq{item.Field: item.Value})
-		case filter.NotEqual:
-			conditions = append(conditions, squirrel.NotEq{item.Field: item.Value})
-		case filter.LessOrEqual:
-			conditions = append(conditions, squirrel.LtOrEq{item.Field: item.Value})
-		case filter.GreaterOrEqual:
-			conditions = append(conditions, squirrel.GtOrEq{item.Field: item.Value})
-		case filter.Less:
-			conditions = append(conditions, squirrel.Lt{item.Field: item.Value})
-		case filter.Greater:
-			conditions = append(conditions, squirrel.Gt{item.Field: item.Value})
-		case filter.InList:
-			conditions = append(conditions, squirrel.Eq{item.Field: item.Value})
-		case filter.NotInList:
-			conditions = append(conditions, squirrel.NotEq{item.Field: item.Value})
-		case filter.IsNull:
-			conditions = append(conditions, squirrel.Eq{item.Field: nil})
-		case filter.IsNotNull:
-			conditions = append(conditions, squirrel.NotEq{item.Field: nil})
-		case filter.Contains:
-			val := fmt.Sprintf("%%%v%%", item.Value)
-			conditions = append(conditions, squirrel.ILike{item.Field: val})
-		case filter.NotContains:
-			val := fmt.Sprintf("%%%v%%", item.Value)
-			conditions = append(conditions, squirrel.NotILike{item.Field: val})
-		case filter.InHierarchy:
-			cteSQL := fmt.Sprintf(`
-                id IN (
-                    WITH RECURSIVE hierarchy AS (
-                        SELECT id FROM %s WHERE id = $1 
-                        UNION ALL 
-                        SELECT t.id FROM %s t JOIN hierarchy h ON t.parent_id = h.id
-                    ) 
-                    SELECT id FROM hierarchy
-                )
-            `, r.tableName, r.tableName)
-			conditions = append(conditions, squirrel.Expr(cteSQL, item.Value))
-		case filter.NotInHierarchy:
-			cteSQL := fmt.Sprintf(`
-                id NOT IN (
-                    WITH RECURSIVE hierarchy AS (
-                        SELECT id FROM %s WHERE id = $1 
-                        UNION ALL 
-                        SELECT t.id FROM %s t JOIN hierarchy h ON t.parent_id = h.id
-                    ) 
-                    SELECT id FROM hierarchy
-                )
-            `, r.tableName, r.tableName)
-			conditions = append(conditions, squirrel.Expr(cteSQL, item.Value))
-		}
-	}
-
-	return conditions, nil
+	return filter.BuildConditions(filters, r.validCols, r.tableName)
 }
 
 // Exists checks if entity exists.

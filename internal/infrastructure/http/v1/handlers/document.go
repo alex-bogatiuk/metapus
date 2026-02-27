@@ -8,6 +8,7 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/domain"
 	"metapus/internal/infrastructure/http/v1/dto"
 )
 
@@ -21,6 +22,7 @@ type DocumentService[T any] interface {
 	Unpost(ctx context.Context, id id.ID) error
 	PostAndSave(ctx context.Context, entity T) error
 	SetDeletionMark(ctx context.Context, id id.ID, marked bool) error
+	List(ctx context.Context, filter domain.ListFilter) (domain.ListResult[T], error)
 }
 
 // BaseDocumentHandler provides generic HTTP handlers for document entities.
@@ -282,8 +284,40 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) SetDeletionMark(c *gin.Co
 	c.JSON(http.StatusOK, response)
 }
 
+// List handles GET /{entity} — list with filtering and pagination.
+// Uses the universal filter engine via ParseListFilter.
+func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) List(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	filter, err := h.ParseListFilter(c, "-date")
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	result, err := h.service.List(ctx, filter)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	// Map entities to DTOs
+	items := make([]any, len(result.Items))
+	for i, item := range result.Items {
+		items[i] = h.mapToDTO(item)
+	}
+
+	c.JSON(http.StatusOK, dto.ListResponse{
+		Items:      items,
+		TotalCount: result.TotalCount,
+		Limit:      result.Limit,
+		Offset:     result.Offset,
+	})
+}
+
 // RegisterRoutes registers standard routes.
 func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("", h.List)
 	rg.POST("", h.Create)
 	rg.GET("/:id", h.Get)
 	rg.PUT("/:id", h.Update)

@@ -13,25 +13,14 @@ import { useUrlSort } from "@/hooks/useUrlSort"
 import { api } from "@/lib/api"
 import type { NomenclatureResponse } from "@/types/catalog"
 import { NOMENCLATURE_TYPE_LABELS } from "@/types/catalog"
+import type { FilterFieldMeta } from "@/components/shared/filter-config-dialog"
 
 // ── Filters ─────────────────────────────────────────────────────────────
 
-const nomenclatureFilters = [
-  {
-    key: "type",
-    label: "Тип",
-    type: "select" as const,
-    options: [
-      { value: "all", label: "Все" },
-      { value: "goods", label: "Товар" },
-      { value: "service", label: "Услуга" },
-      { value: "work", label: "Работа" },
-      { value: "material", label: "Материал" },
-      { value: "semi", label: "Полуфабрикат" },
-      { value: "product", label: "Продукция" },
-    ],
-    defaultValue: "all",
-  },
+const nomenclatureFieldsMeta: FilterFieldMeta[] = [
+  { key: "type", label: "Тип", fieldType: "enum" },
+  { key: "code", label: "Код", fieldType: "string" },
+  { key: "name", label: "Наименование", fieldType: "string" },
 ]
 
 // ── Columns ─────────────────────────────────────────────────────────────
@@ -174,7 +163,8 @@ export default function NomenclatureListPage() {
         </div>
 
         <FilterSidebar
-          filters={nomenclatureFilters}
+          fieldsMeta={nomenclatureFieldsMeta}
+          defaultSelectedKeys={["type"]}
           showGroups
           showDetails
         />

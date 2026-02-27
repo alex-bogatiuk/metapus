@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useTabDirty } from "@/hooks/useTabDirty"
+import { useTabTitle } from "@/hooks/useTabTitle"
 import { api } from "@/lib/api"
 import type { NomenclatureType, NomenclatureResponse, UpdateNomenclatureRequest } from "@/types/catalog"
 import { NOMENCLATURE_TYPE_LABELS } from "@/types/catalog"
@@ -39,6 +40,7 @@ export default function NomenclatureItemPage() {
   const [trackBatch, setTrackBatch] = useState(false)
   const [version, setVersion] = useState(0)
   const [deletionMark, setDeletionMark] = useState(false)
+  useTabTitle(name || undefined, "Номенклатура")
 
   const populateForm = useCallback((item: NomenclatureResponse) => {
     setCode(item.code)

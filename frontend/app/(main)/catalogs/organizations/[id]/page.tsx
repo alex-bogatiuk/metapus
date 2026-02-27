@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useTabDirty } from "@/hooks/useTabDirty"
+import { useTabTitle } from "@/hooks/useTabTitle"
 import { api } from "@/lib/api"
 import type { OrganizationResponse } from "@/types/catalog"
 
@@ -29,6 +30,7 @@ export default function EditOrganizationPage() {
   const [baseCurrencyId, setBaseCurrencyId] = useState("")
   const [isDefault, setIsDefault] = useState(false)
   const [version, setVersion] = useState(0)
+  useTabTitle(name || undefined, "Организация")
 
   useEffect(() => {
     if (!params.id) return

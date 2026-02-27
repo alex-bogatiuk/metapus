@@ -286,6 +286,6 @@ func (s *Service) PostAndSave(ctx context.Context, doc *GoodsIssue) error {
 }
 
 // List retrieves goods issues with filtering.
-func (s *Service) List(ctx context.Context, filter ListFilter) (domain.ListResult[*GoodsIssue], error) {
+func (s *Service) List(ctx context.Context, filter domain.ListFilter) (domain.ListResult[*GoodsIssue], error) {
 	return s.repo.List(ctx, filter)
 }

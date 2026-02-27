@@ -169,6 +169,28 @@ async function apiFetch<T>(
 
 // ── Resource endpoints ──────────────────────────────────────────────────
 
+/**
+ * Build query string from ListParams.
+ * - Serializes `filter` array as JSON in `?filter=` param
+ * - Other params are passed as regular query params
+ */
+function buildListQS(params?: ListParams): string {
+    if (!params) return ""
+    const entries: [string, string][] = []
+    for (const [k, v] of Object.entries(params)) {
+        if (v === undefined || v === null) continue
+        if (k === "filter") {
+            // Serialize filter array as JSON
+            if (Array.isArray(v) && v.length > 0) {
+                entries.push(["filter", JSON.stringify(v)])
+            }
+        } else {
+            entries.push([k, String(v)])
+        }
+    }
+    return entries.length > 0 ? "?" + new URLSearchParams(entries).toString() : ""
+}
+
 // Extend this object as new resources are added.
 export const api = {
     auth: {
@@ -316,14 +338,8 @@ export const api = {
     },
 
     goodsReceipts: {
-        list: (params?: ListParams) => {
-            const qs = params ? "?" + new URLSearchParams(
-                Object.entries(params)
-                    .filter(([, v]) => v !== undefined && v !== null)
-                    .map(([k, v]) => [k, String(v)])
-            ).toString() : ""
-            return apiFetch<ListResponse<GoodsReceiptResponse>>(`/document/goods-receipt${qs}`)
-        },
+        list: (params?: ListParams) =>
+            apiFetch<ListResponse<GoodsReceiptResponse>>(`/document/goods-receipt${buildListQS(params)}`),
         get: (id: string) =>
             apiFetch<GoodsReceiptResponse>(`/document/goods-receipt/${id}`),
         create: (data: CreateGoodsReceiptRequest) =>
@@ -352,6 +368,13 @@ export const api = {
                 body: JSON.stringify(data),
             }),
     },
+    meta: {
+        getFilters: (entityName: string) =>
+            apiFetch<import("@/components/shared/filter-config-dialog").FilterFieldMeta[]>(
+                `/meta/${entityName}/filters`
+            ),
+    },
+
     settings: {
         get: () =>
             apiFetch<import("@/types/settings").SystemSettings>("/settings"),

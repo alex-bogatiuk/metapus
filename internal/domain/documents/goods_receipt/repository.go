@@ -3,7 +3,6 @@ package goods_receipt
 
 import (
 	"context"
-	"time"
 
 	"metapus/internal/core/id"
 	"metapus/internal/domain"
@@ -17,27 +16,14 @@ type Repository interface {
 	GetByNumber(ctx context.Context, number string) (*GoodsReceipt, error)
 	Update(ctx context.Context, doc *GoodsReceipt) error
 	Delete(ctx context.Context, docID id.ID) error
-	
+
 	// Line operations
 	GetLines(ctx context.Context, docID id.ID) ([]GoodsReceiptLine, error)
 	SaveLines(ctx context.Context, docID id.ID, lines []GoodsReceiptLine) error
-	
-	// List operations
-	List(ctx context.Context, filter ListFilter) (domain.ListResult[*GoodsReceipt], error)
-	
+
+	// List operations — uses universal filter engine via domain.ListFilter.AdvancedFilters
+	List(ctx context.Context, filter domain.ListFilter) (domain.ListResult[*GoodsReceipt], error)
+
 	// Locking
 	GetForUpdate(ctx context.Context, docID id.ID) (*GoodsReceipt, error)
-}
-
-// ListFilter for filtering goods receipts.
-type ListFilter struct {
-	domain.ListFilter
-	
-	// Document-specific filters
-	SupplierID  *id.ID
-	WarehouseID *id.ID
-	ContractID  *id.ID
-	Posted      *bool
-	DateFrom    *time.Time
-	DateTo      *time.Time
 }

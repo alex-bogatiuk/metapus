@@ -305,6 +305,7 @@ func registerMetaRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 	{
 		meta.GET("", handler.ListEntities)
 		meta.GET("/:name", handler.GetEntity)
+		meta.GET("/:name/filters", handler.GetEntityFilters)
 	}
 }
 

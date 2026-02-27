@@ -8,7 +8,6 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 
 	"metapus/internal/core/id"
-	"metapus/internal/domain"
 	"metapus/internal/domain/documents/goods_issue"
 	"metapus/internal/infrastructure/storage/postgres"
 )
@@ -19,6 +18,7 @@ const (
 )
 
 // GoodsIssueRepo implements goods_issue.Repository.
+// List() is inherited from BaseDocumentRepo (universal filter engine).
 type GoodsIssueRepo struct {
 	*BaseDocumentRepo[*goods_issue.GoodsIssue]
 }
@@ -103,84 +103,4 @@ func (r *GoodsIssueRepo) SaveLines(ctx context.Context, docID id.ID, lines []goo
 	}
 
 	return nil
-}
-
-func (r *GoodsIssueRepo) List(ctx context.Context, filter goods_issue.ListFilter) (domain.ListResult[*goods_issue.GoodsIssue], error) {
-	result := domain.ListResult[*goods_issue.GoodsIssue]{
-		Limit:  filter.Limit,
-		Offset: filter.Offset,
-	}
-
-	q := r.baseSelect(ctx)
-
-	if !filter.IncludeDeleted {
-		q = q.Where(squirrel.Eq{"deletion_mark": false})
-	}
-
-	if filter.CustomerID != nil {
-		q = q.Where(squirrel.Eq{"customer_id": *filter.CustomerID})
-	}
-
-	if filter.WarehouseID != nil {
-		q = q.Where(squirrel.Eq{"warehouse_id": *filter.WarehouseID})
-	}
-
-	if filter.ContractID != nil {
-		q = q.Where(squirrel.Eq{"contract_id": *filter.ContractID})
-	}
-
-	if filter.Posted != nil {
-		q = q.Where(squirrel.Eq{"posted": *filter.Posted})
-	}
-
-	if filter.DateFrom != nil {
-		q = q.Where(squirrel.GtOrEq{"date": *filter.DateFrom})
-	}
-
-	if filter.DateTo != nil {
-		q = q.Where(squirrel.LtOrEq{"date": *filter.DateTo})
-	}
-
-	if filter.Search != "" {
-		searchPattern := "%" + filter.Search + "%"
-		q = q.Where(squirrel.Or{
-			squirrel.ILike{"number": searchPattern},
-			squirrel.ILike{"customer_order_number": searchPattern},
-		})
-	}
-
-	countQ := r.Builder().Select("COUNT(*)").FromSelect(q, "sub")
-	countSQL, countArgs, err := countQ.ToSql()
-	if err != nil {
-		return result, fmt.Errorf("build count: %w", err)
-	}
-
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
-	if err := querier.QueryRow(ctx, countSQL, countArgs...).Scan(&result.TotalCount); err != nil {
-		return result, fmt.Errorf("count: %w", err)
-	}
-
-	orderBy, err := r.parseOrderBy(filter.OrderBy)
-	if err != nil {
-		return result, err
-	}
-	q = q.OrderBy(orderBy)
-
-	if filter.Limit > 0 {
-		q = q.Limit(uint64(filter.Limit))
-	}
-	if filter.Offset > 0 {
-		q = q.Offset(uint64(filter.Offset))
-	}
-
-	sql, args, err := q.ToSql()
-	if err != nil {
-		return result, fmt.Errorf("build query: %w", err)
-	}
-
-	if err := pgxscan.Select(ctx, querier, &result.Items, sql, args...); err != nil {
-		return result, fmt.Errorf("select: %w", err)
-	}
-
-	return result, nil
 }

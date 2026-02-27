@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -8,12 +9,14 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
-	"metapus/internal/domain"
+	"metapus/internal/core/tenant"
 	"metapus/internal/domain/documents/goods_receipt"
 	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/storage/postgres"
 )
 
 // GoodsReceiptHandler handles HTTP requests for GoodsReceipt documents.
+// Overrides all response methods to resolve reference IDs → display names.
 type GoodsReceiptHandler struct {
 	*BaseDocumentHandler[*goods_receipt.GoodsReceipt, dto.CreateGoodsReceiptRequest, dto.UpdateGoodsReceiptRequest]
 	service *goods_receipt.Service
@@ -45,7 +48,80 @@ func NewGoodsReceiptHandler(base *BaseHandler, service *goods_receipt.Service) *
 	}
 }
 
-// Create override to handle UserID injection
+// resolveDocRefs batch-resolves all reference IDs for a list of documents.
+// Returns ResolvedRefs that can be passed to dto.FromGoodsReceipt.
+func (h *GoodsReceiptHandler) resolveDocRefs(ctx context.Context, docs ...*goods_receipt.GoodsReceipt) (postgres.ResolvedRefs, error) {
+	resolver := postgres.NewReferenceResolver()
+	for _, doc := range docs {
+		dto.CollectGoodsReceiptRefs(resolver, doc)
+	}
+
+	pool := tenant.MustGetPool(ctx)
+	return resolver.Resolve(ctx, pool)
+}
+
+// Get handles GET /document/goods-receipt/:id — with resolved references.
+func (h *GoodsReceiptHandler) Get(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	docID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid id format"))
+		return
+	}
+
+	doc, err := h.service.GetByID(ctx, docID)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	refs, err := h.resolveDocRefs(ctx, doc)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.FromGoodsReceipt(doc, refs))
+}
+
+// List handles GET /document/goods-receipt — with resolved references.
+func (h *GoodsReceiptHandler) List(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	filter, err := h.ParseListFilter(c, "-date")
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	result, err := h.service.List(ctx, filter)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	// Batch-resolve references for all documents in the list
+	refs, err := h.resolveDocRefs(ctx, result.Items...)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	items := make([]any, len(result.Items))
+	for i, item := range result.Items {
+		items[i] = dto.FromGoodsReceipt(item, refs)
+	}
+
+	c.JSON(http.StatusOK, dto.ListResponse{
+		Items:      items,
+		TotalCount: result.TotalCount,
+		Limit:      result.Limit,
+		Offset:     result.Offset,
+	})
+}
+
+// Create handles POST /document/goods-receipt — with resolved references.
 func (h *GoodsReceiptHandler) Create(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req dto.CreateGoodsReceiptRequest
@@ -67,12 +143,13 @@ func (h *GoodsReceiptHandler) Create(c *gin.Context) {
 		return
 	}
 
-	response := dto.FromGoodsReceipt(doc)
+	refs, _ := h.resolveDocRefs(ctx, doc)
+	response := dto.FromGoodsReceipt(doc, refs)
 	h.CompleteIdempotency(c, http.StatusCreated, "application/json", response)
 	c.JSON(http.StatusCreated, response)
 }
 
-// Update override to handle UserID injection
+// Update handles PUT /document/goods-receipt/:id — with resolved references.
 func (h *GoodsReceiptHandler) Update(c *gin.Context) {
 	ctx := c.Request.Context()
 	docID, err := id.Parse(c.Param("id"))
@@ -99,73 +176,96 @@ func (h *GoodsReceiptHandler) Update(c *gin.Context) {
 		return
 	}
 
-	response := dto.FromGoodsReceipt(doc)
+	refs, _ := h.resolveDocRefs(ctx, doc)
+	response := dto.FromGoodsReceipt(doc, refs)
 	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
 	c.JSON(http.StatusOK, response)
 }
 
-// List handles GET /document/goods-receipt - list with filtering.
-func (h *GoodsReceiptHandler) List(c *gin.Context) {
+// Post handles POST /document/goods-receipt/:id/post — with resolved references.
+func (h *GoodsReceiptHandler) Post(c *gin.Context) {
 	ctx := c.Request.Context()
-
-	filter := goods_receipt.ListFilter{
-		ListFilter: domain.DefaultListFilter(),
-	}
-	filter.Search = c.Query("search")
-	filter.Limit = h.ParseIntQuery(c, "limit", 50)
-	filter.Offset = h.ParseIntQuery(c, "offset", 0)
-	filter.OrderBy = c.DefaultQuery("orderBy", "-date")
-	filter.IncludeDeleted = c.Query("includeDeleted") == "true"
-
-	// Parse optional filters
-	if supplierID := c.Query("supplierId"); supplierID != "" {
-		parsed, err := id.Parse(supplierID)
-		if err == nil {
-			filter.SupplierID = &parsed
-		}
+	docID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid id format"))
+		return
 	}
 
-	if warehouseID := c.Query("warehouseId"); warehouseID != "" {
-		parsed, err := id.Parse(warehouseID)
-		if err == nil {
-			filter.WarehouseID = &parsed
-		}
+	if err := h.service.Post(ctx, docID); err != nil {
+		h.Error(c, err)
+		return
 	}
 
-	if contractID := c.Query("contractId"); contractID != "" {
-		parsed, err := id.Parse(contractID)
-		if err == nil {
-			filter.ContractID = &parsed
-		}
-	}
-
-	if posted := c.Query("posted"); posted != "" {
-		val := posted == "true"
-		filter.Posted = &val
-	}
-
-	if dateFrom := c.Query("dateFrom"); dateFrom != "" {
-		if parsed, err := time.Parse(time.RFC3339, dateFrom); err == nil {
-			filter.DateFrom = &parsed
-		}
-	}
-
-	if dateTo := c.Query("dateTo"); dateTo != "" {
-		if parsed, err := time.Parse(time.RFC3339, dateTo); err == nil {
-			filter.DateTo = &parsed
-		}
-	}
-
-	result, err := h.service.List(ctx, filter)
+	doc, err := h.service.GetByID(ctx, docID)
 	if err != nil {
 		h.Error(c, err)
 		return
 	}
 
-	h.respondList(c, result)
+	refs, _ := h.resolveDocRefs(ctx, doc)
+	response := dto.FromGoodsReceipt(doc, refs)
+	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
+	c.JSON(http.StatusOK, response)
 }
 
-// Copy handles POST /document/goods-receipt/:id/copy
+// Unpost handles POST /document/goods-receipt/:id/unpost — with resolved references.
+func (h *GoodsReceiptHandler) Unpost(c *gin.Context) {
+	ctx := c.Request.Context()
+	docID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid id format"))
+		return
+	}
+
+	if err := h.service.Unpost(ctx, docID); err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	doc, err := h.service.GetByID(ctx, docID)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	refs, _ := h.resolveDocRefs(ctx, doc)
+	response := dto.FromGoodsReceipt(doc, refs)
+	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
+	c.JSON(http.StatusOK, response)
+}
+
+// SetDeletionMark handles POST /document/goods-receipt/:id/deletion-mark — with resolved references.
+func (h *GoodsReceiptHandler) SetDeletionMark(c *gin.Context) {
+	ctx := c.Request.Context()
+	docID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid id format"))
+		return
+	}
+
+	var req dto.SetDeletionMarkRequest
+	if !h.BindJSON(c, &req) {
+		return
+	}
+
+	if err := h.service.SetDeletionMark(ctx, docID, req.Marked); err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	doc, err := h.service.GetByID(ctx, docID)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	refs, _ := h.resolveDocRefs(ctx, doc)
+	response := dto.FromGoodsReceipt(doc, refs)
+	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
+	c.JSON(http.StatusOK, response)
+}
+
+// Copy handles POST /document/goods-receipt/:id/copy — with resolved references.
 func (h *GoodsReceiptHandler) Copy(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -175,14 +275,12 @@ func (h *GoodsReceiptHandler) Copy(c *gin.Context) {
 		return
 	}
 
-	// Get source document
 	source, err := h.service.GetByID(ctx, docID)
 	if err != nil {
 		h.Error(c, err)
 		return
 	}
 
-	// Create copy (no tenantID needed in Database-per-Tenant)
 	copy := goods_receipt.NewGoodsReceipt(source.OrganizationID, source.SupplierID, source.WarehouseID)
 	copy.Date = time.Now()
 	copy.ContractID = source.ContractID
@@ -192,7 +290,6 @@ func (h *GoodsReceiptHandler) Copy(c *gin.Context) {
 	copy.AmountIncludesVAT = source.AmountIncludesVAT
 	copy.Description = source.Description
 
-	// Copy lines
 	for _, line := range source.Lines {
 		copy.AddLine(line.ProductID, line.UnitID, line.Coefficient, line.Quantity, line.UnitPrice, line.VATRateID, 0, line.DiscountPercent)
 	}
@@ -202,52 +299,22 @@ func (h *GoodsReceiptHandler) Copy(c *gin.Context) {
 		return
 	}
 
-	response := dto.FromGoodsReceipt(copy)
+	refs, _ := h.resolveDocRefs(ctx, copy)
+	response := dto.FromGoodsReceipt(copy, refs)
 	h.CompleteIdempotency(c, http.StatusCreated, "application/json", response)
 	c.JSON(http.StatusCreated, response)
 }
 
 // RegisterRoutes registers goods receipt routes.
+// All methods are overridden to include reference resolution.
 func (h *GoodsReceiptHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	h.BaseDocumentHandler.RegisterRoutes(rg)
 	rg.GET("", h.List)
-	// Create/Update overrides are registered via BaseDocumentHandler if we embed pointer?
-	// No, BaseDocumentHandler registers its OWN methods.
-	// Use h.Create to register h.Create (which is the override).
-	// But h.BaseDocumentHandler.RegisterRoutes registers h.BaseDocumentHandler.Create.
-	// We need to check how RegisterRoutes is implemented.
-	// It uses `h.Create`. Since `h` is `*BaseDocumentHandler`, it uses base method.
-	// We should invoke our own registration or manual registration if we override.
-
-	// Manual registration for overridden methods:
-	rg.POST("", h.Create)    // Uses GoodsReceiptHandler.Create
-	rg.PUT("/:id", h.Update) // Uses GoodsReceiptHandler.Update
-
-	// For other methods, we can use base or re-register.
-	// BaseDocumentHandler.RegisterRoutes registers all CRUD.
-	// If we call it, it will register base methods.
-	// We should probably NOT call base.RegisterRoutes if we want to override some.
-	// OR we register specific ones.
-
-	rg.GET("/:id", h.Get)                              // Base
-	rg.DELETE("/:id", h.Delete)                        // Base
-	rg.POST("/:id/post", h.Post)                       // Base
-	rg.POST("/:id/unpost", h.Unpost)                   // Base
-	rg.POST("/:id/deletion-mark", h.SetDeletionMark)   // Base
+	rg.POST("", h.Create)
+	rg.GET("/:id", h.Get)
+	rg.PUT("/:id", h.Update)
+	rg.DELETE("/:id", h.BaseDocumentHandler.Delete)
+	rg.POST("/:id/post", h.Post)
+	rg.POST("/:id/unpost", h.Unpost)
+	rg.POST("/:id/deletion-mark", h.SetDeletionMark)
 	rg.POST("/:id/copy", h.Copy)
-}
-
-// respondList sends paginated list response.
-func (h *GoodsReceiptHandler) respondList(c *gin.Context, result domain.ListResult[*goods_receipt.GoodsReceipt]) {
-	items := make([]*dto.GoodsReceiptResponse, len(result.Items))
-	for i, doc := range result.Items {
-		items[i] = dto.FromGoodsReceipt(doc)
-	}
-
-	c.JSON(http.StatusOK, dto.GoodsReceiptListResponse{
-		Items:      items,
-		TotalCount: int(result.TotalCount),
-		Limit:      result.Limit,
-		Offset:     result.Offset,
-	})
 }

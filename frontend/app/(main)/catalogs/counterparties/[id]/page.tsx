@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useTabDirty } from "@/hooks/useTabDirty"
+import { useTabTitle } from "@/hooks/useTabTitle"
 import { api } from "@/lib/api"
 import type { CounterpartyResponse, CounterpartyType, LegalForm } from "@/types/catalog"
 import { COUNTERPARTY_TYPE_LABELS, LEGAL_FORM_LABELS } from "@/types/catalog"
@@ -44,6 +45,7 @@ export default function EditCounterpartyPage() {
   const [contactPerson, setContactPerson] = useState("")
   const [comment, setComment] = useState("")
   const [version, setVersion] = useState(0)
+  useTabTitle(name || undefined, "Контрагент")
 
   useEffect(() => {
     if (!params.id) return

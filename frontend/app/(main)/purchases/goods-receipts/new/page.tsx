@@ -14,6 +14,7 @@ import {
   Info,
 } from "lucide-react"
 import { FormToolbar } from "@/components/shared/form-toolbar"
+import { ReferenceField } from "@/components/shared/reference-field"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -21,6 +22,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useTabDirty } from "@/hooks/useTabDirty"
 import { cn } from "@/lib/utils"
@@ -71,7 +73,7 @@ export default function NewGoodsReceiptPage() {
   const [nextKey, setNextKey] = useState(1)
 
   // ── Header fields ─────────────────────────────────────────────────────
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState<Date | undefined>(() => new Date())
   const [organizationId, setOrganizationId] = useState("")
   const [supplierId, setSupplierId] = useState("")
   const [warehouseId, setWarehouseId] = useState("")
@@ -133,7 +135,7 @@ export default function NewGoodsReceiptPage() {
   }, [lines, amountIncludesVat])
 
   const buildPayload = (postImmediately: boolean): CreateGoodsReceiptRequest => ({
-    date: new Date(date).toISOString(),
+    date: date ? date.toISOString() : new Date().toISOString(),
     organizationId,
     supplierId,
     warehouseId,
@@ -210,27 +212,66 @@ export default function NewGoodsReceiptPage() {
             <div className="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2 lg:grid-cols-3">
               <div>
                 <Label className="text-xs text-muted-foreground">Организация *</Label>
-                <Input className="mt-1" placeholder="ID организации" value={organizationId} onChange={(e) => { setOrganizationId(e.target.value); handleChange() }} />
+                <div className="mt-1">
+                  <ReferenceField
+                    value={organizationId}
+                    apiEndpoint="/catalog/organizations"
+                    placeholder="Выберите организацию"
+                    onChange={(id) => { setOrganizationId(id); handleChange() }}
+                  />
+                </div>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">Поставщик *</Label>
-                <Input className="mt-1" placeholder="ID поставщика" value={supplierId} onChange={(e) => { setSupplierId(e.target.value); handleChange() }} />
+                <div className="mt-1">
+                  <ReferenceField
+                    value={supplierId}
+                    apiEndpoint="/catalog/counterparties"
+                    placeholder="Выберите поставщика"
+                    onChange={(id) => { setSupplierId(id); handleChange() }}
+                  />
+                </div>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">Дата *</Label>
-                <Input type="date" className="mt-1" value={date} onChange={(e) => { setDate(e.target.value); handleChange() }} />
+                <DatePicker
+                  value={date}
+                  onChange={(d) => { setDate(d); handleChange() }}
+                  className="mt-1 h-9"
+                />
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">Склад *</Label>
-                <Input className="mt-1" placeholder="ID склада" value={warehouseId} onChange={(e) => { setWarehouseId(e.target.value); handleChange() }} />
+                <div className="mt-1">
+                  <ReferenceField
+                    value={warehouseId}
+                    apiEndpoint="/catalog/warehouses"
+                    placeholder="Выберите склад"
+                    onChange={(id) => { setWarehouseId(id); handleChange() }}
+                  />
+                </div>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">Договор</Label>
-                <Input className="mt-1" placeholder="ID договора" value={contractId} onChange={(e) => { setContractId(e.target.value); handleChange() }} />
+                <div className="mt-1">
+                  <ReferenceField
+                    value={contractId}
+                    apiEndpoint="/catalog/contracts"
+                    placeholder="Выберите договор"
+                    onChange={(id) => { setContractId(id); handleChange() }}
+                  />
+                </div>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">Валюта</Label>
-                <Input className="mt-1" placeholder="ID валюты" value={currencyId} onChange={(e) => { setCurrencyId(e.target.value); handleChange() }} />
+                <div className="mt-1">
+                  <ReferenceField
+                    value={currencyId}
+                    apiEndpoint="/catalog/currencies"
+                    placeholder="Выберите валюту"
+                    onChange={(id) => { setCurrencyId(id); handleChange() }}
+                  />
+                </div>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">№ вх. документа</Label>
@@ -271,11 +312,11 @@ export default function NewGoodsReceiptPage() {
                       <thead>
                         <tr className="border-b bg-muted/70">
                           <th className="w-10 px-2 py-2 text-center text-xs font-medium text-muted-foreground">N</th>
-                          <th className="min-w-[160px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">Товар (ID)</th>
-                          <th className="w-[120px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">Ед. изм. (ID)</th>
+                          <th className="min-w-[160px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">Товар</th>
+                          <th className="w-[140px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">Ед. изм.</th>
                           <th className="w-24 px-3 py-2 text-right text-xs font-medium text-muted-foreground">Кол-во</th>
                           <th className="w-24 px-3 py-2 text-right text-xs font-medium text-muted-foreground">Цена</th>
-                          <th className="w-[100px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">Ставка НДС (ID)</th>
+                          <th className="w-[120px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">Ставка НДС</th>
                           <th className="w-16 px-3 py-2 text-right text-xs font-medium text-muted-foreground">% НДС</th>
                           <th className="w-8" />
                         </tr>
@@ -291,11 +332,17 @@ export default function NewGoodsReceiptPage() {
                         {lines.map((line, idx) => (
                           <tr key={line._key} className="border-b hover:bg-muted/30 transition-colors">
                             <td className="px-2 py-1.5 text-center text-xs text-muted-foreground">{idx + 1}</td>
-                            <td className="px-1 py-1"><Input className="h-7 text-xs" placeholder="ID номенклатуры" value={line.productId} onChange={(e) => updateLine(line._key, "productId", e.target.value)} /></td>
-                            <td className="px-1 py-1"><Input className="h-7 text-xs" placeholder="ID ед. изм." value={line.unitId} onChange={(e) => updateLine(line._key, "unitId", e.target.value)} /></td>
+                            <td className="px-1 py-1">
+                              <ReferenceField compact value={line.productId} apiEndpoint="/catalog/nomenclature" placeholder="Номенклатура" onChange={(id) => updateLine(line._key, "productId", id)} />
+                            </td>
+                            <td className="px-1 py-1">
+                              <ReferenceField compact value={line.unitId} apiEndpoint="/catalog/units" placeholder="Ед. изм." onChange={(id) => updateLine(line._key, "unitId", id)} />
+                            </td>
                             <td className="px-1 py-1"><Input className="h-7 text-right font-mono text-xs" type="number" step="0.001" value={line.quantity} onChange={(e) => updateLine(line._key, "quantity", e.target.value)} /></td>
                             <td className="px-1 py-1"><Input className="h-7 text-right font-mono text-xs" type="number" step="0.01" value={line.unitPrice} onChange={(e) => updateLine(line._key, "unitPrice", e.target.value)} /></td>
-                            <td className="px-1 py-1"><Input className="h-7 text-xs" placeholder="ID ставки" value={line.vatRateId} onChange={(e) => updateLine(line._key, "vatRateId", e.target.value)} /></td>
+                            <td className="px-1 py-1">
+                              <ReferenceField compact value={line.vatRateId} apiEndpoint="/catalog/vat-rates" placeholder="Ставка НДС" onChange={(id) => updateLine(line._key, "vatRateId", id)} />
+                            </td>
                             <td className="px-1 py-1"><Input className="h-7 text-right font-mono text-xs" type="number" value={line.vatPercent} onChange={(e) => updateLine(line._key, "vatPercent", e.target.value)} /></td>
                             <td className="px-1 py-1">
                               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeLine(line._key)}>

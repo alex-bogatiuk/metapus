@@ -4,9 +4,6 @@ package handlers
 import (
 	"net/http"
 
-	"encoding/json"
-	domainFilter "metapus/internal/domain/filter"
-
 	"github.com/gin-gonic/gin"
 
 	"metapus/internal/core/apperror"
@@ -57,14 +54,14 @@ func NewCatalogHandler[T entity.Validatable, CreateDTO any, UpdateDTO any](
 func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) List(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	// Parse filter from query params
-	filter := domain.DefaultListFilter()
-	filter.Search = c.Query("search")
-	filter.Limit = h.ParseIntQuery(c, "limit", 50)
-	filter.Offset = h.ParseIntQuery(c, "offset", 0)
-	filter.OrderBy = c.DefaultQuery("orderBy", "name")
-	filter.IncludeDeleted = c.Query("includeDeleted") == "true"
+	// Parse common filter params via shared helper
+	filter, err := h.ParseListFilter(c, "name")
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
 
+	// Catalog-specific: hierarchical filters
 	if parentIDStr := c.Query("parentId"); parentIDStr != "" {
 		parsed, err := id.Parse(parentIDStr)
 		if err != nil {
@@ -77,17 +74,6 @@ func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) List(c *gin.Context) {
 	if isFolder := c.Query("isFolder"); isFolder != "" {
 		val := isFolder == "true"
 		filter.IsFolder = &val
-	}
-
-	// Парсинг JSON-фильтра
-	filterJson := c.Query("filter")
-	if filterJson != "" {
-		var advFilters []domainFilter.Item // используем alias для пакета filter
-		if err := json.Unmarshal([]byte(filterJson), &advFilters); err != nil {
-			h.Error(c, apperror.NewValidation("invalid filter format (json expected)"))
-			return
-		}
-		filter.AdvancedFilters = advFilters
 	}
 
 	result, err := h.service.List(ctx, filter)
