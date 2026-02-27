@@ -30,7 +30,9 @@ func (r *CreateWarehouseRequest) ToEntity() *warehouse.Warehouse {
 	wh.IsActive = r.IsActive
 	wh.AllowNegativeStock = r.AllowNegativeStock
 	wh.IsDefault = r.IsDefault
-	wh.OrganizationID = r.OrganizationID
+	if r.OrganizationID != "" {
+		wh.OrganizationID = r.OrganizationID
+	}
 	wh.Description = r.Description
 	wh.ParentID = stringPtrToIDPtr(r.ParentID)
 	wh.IsFolder = r.IsFolder
@@ -64,7 +66,9 @@ func (r *UpdateWarehouseRequest) ApplyTo(wh *warehouse.Warehouse) {
 	wh.IsActive = r.IsActive
 	wh.AllowNegativeStock = r.AllowNegativeStock
 	wh.IsDefault = r.IsDefault
-	wh.OrganizationID = r.OrganizationID
+	if r.OrganizationID != "" {
+		wh.OrganizationID = r.OrganizationID
+	}
 	wh.Description = r.Description
 	wh.ParentID = stringPtrToIDPtr(r.ParentID)
 	wh.IsFolder = r.IsFolder

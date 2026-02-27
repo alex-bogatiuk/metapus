@@ -114,7 +114,7 @@ func (h *GoodsIssueHandler) List(c *gin.Context) {
 	filter.Search = c.Query("search")
 	filter.Limit = h.ParseIntQuery(c, "limit", 50)
 	filter.Offset = h.ParseIntQuery(c, "offset", 0)
-	filter.OrderBy = c.DefaultQuery("orderBy", "date DESC")
+	filter.OrderBy = c.DefaultQuery("orderBy", "-date")
 	filter.IncludeDeleted = c.Query("includeDeleted") == "true"
 
 	if customerID := c.Query("customerId"); customerID != "" {
