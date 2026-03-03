@@ -3,7 +3,6 @@ import type {
   SystemSettings,
   OrganizationSettings,
   AccountingSettings,
-  InterfaceSettings,
 } from "@/types/settings"
 import { defaultSystemSettings } from "@/types/settings"
 
@@ -21,9 +20,6 @@ interface SettingsState {
 
   /** Partially updates accounting section. */
   updateAccounting: (patch: Partial<AccountingSettings>) => void
-
-  /** Partially updates interface section. */
-  updateInterface: (patch: Partial<InterfaceSettings>) => void
 
   setLoading: (v: boolean) => void
   setSaving: (v: boolean) => void
@@ -51,14 +47,6 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       settings: {
         ...state.settings,
         accounting: { ...state.settings.accounting, ...patch },
-      },
-    })),
-
-  updateInterface: (patch) =>
-    set((state) => ({
-      settings: {
-        ...state.settings,
-        interface: { ...state.settings.interface, ...patch },
       },
     })),
 

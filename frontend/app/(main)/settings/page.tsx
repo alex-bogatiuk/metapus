@@ -13,9 +13,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { OrganizationSection } from "@/components/settings/organization-section"
 import { AccountingSection } from "@/components/settings/accounting-section"
 import { UsersRolesSection } from "@/components/settings/users-roles-section"
-import { InterfaceSection } from "@/components/settings/interface-section"
 
-type SettingsSection = "organization" | "accounting" | "users" | "interface"
+type SettingsSection = "organization" | "accounting" | "users"
 
 interface SectionItem {
   id: SettingsSection
@@ -43,19 +42,12 @@ const sections: SectionItem[] = [
     description: "Управление доступом и правами",
     icon: Users,
   },
-  {
-    id: "interface",
-    title: "Интерфейс",
-    description: "Тема, язык, формат отображения",
-    icon: Palette,
-  },
 ]
 
 const sectionComponents: Record<SettingsSection, React.ComponentType> = {
   organization: OrganizationSection,
   accounting: AccountingSection,
   users: UsersRolesSection,
-  interface: InterfaceSection,
 }
 
 export default function SettingsPage() {

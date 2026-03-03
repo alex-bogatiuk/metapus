@@ -29,6 +29,7 @@ import (
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/auth_repo"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
@@ -110,6 +111,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		registerRegisterRoutes(protected, cfg)
 		registerReportRoutes(protected, cfg)
 		registerMetaRoutes(protected, cfg)
+		registerUserPrefsRoutes(protected)
 	}
 
 	return router
@@ -321,4 +323,12 @@ func registerReportRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 	reportsGroup.GET("/stock-balance", middleware.RequirePermission("report:stock:read"), reportHandler.GetStockBalance)
 	reportsGroup.GET("/stock-turnover", middleware.RequirePermission("report:stock:read"), reportHandler.GetStockTurnover)
 	reportsGroup.GET("/document-journal", middleware.RequirePermission("report:documents:read"), reportHandler.GetDocumentJournal)
+}
+
+// registerUserPrefsRoutes registers user preferences endpoints.
+func registerUserPrefsRoutes(rg *gin.RouterGroup) {
+	baseHandler := handlers.NewBaseHandler()
+	repo := auth_repo.NewUserPrefsRepo()
+	handler := handlers.NewUserPrefsHandler(baseHandler, repo)
+	handler.RegisterRoutes(rg)
 }

@@ -44,3 +44,20 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     }
   )
 )
+
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === "metapus-auth" && e.newValue) {
+      try {
+        const stored = JSON.parse(e.newValue)
+        if (stored?.state) {
+          useAuthStore.setState(stored.state)
+        }
+      } catch (err) {
+        // ignore parsing errors
+      }
+    } else if (e.key === "metapus-auth" && !e.newValue) {
+      useAuthStore.getState().logout()
+    }
+  })
+}

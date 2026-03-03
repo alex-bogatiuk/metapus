@@ -12,9 +12,9 @@ import (
 
 // JWTConfig holds JWT configuration.
 type JWTConfig struct {
-	Secret          string
-	Issuer          string
-	AccessTokenTTL  time.Duration
+	Secret         string
+	Issuer         string
+	AccessTokenTTL time.Duration
 }
 
 // DefaultJWTConfig returns default JWT configuration.
@@ -101,12 +101,12 @@ func (s *JWTService) ValidateToken(tokenString string) (*appctx.UserContext, err
 	}
 
 	return &appctx.UserContext{
-		UserID:   claims.UserID,
-		TenantID: claims.TenantID,
-		Email:    claims.Email,
-		Roles:    claims.Roles,
+		UserID:      claims.UserID,
+		TenantID:    claims.TenantID,
+		Email:       claims.Email,
+		Roles:       claims.Roles,
 		Permissions: claims.Permissions,
-		OrgIDs:   claims.OrgIDs,
-		IsAdmin:  claims.IsAdmin,
+		OrgIDs:      claims.OrgIDs,
+		IsAdmin:     claims.IsAdmin,
 	}, nil
 }

@@ -55,22 +55,54 @@ export interface DataTableProps<T extends { id: string }> {
 
 type SortDir = "asc" | "desc"
 
+function toComparableDate(value: unknown): number | null {
+    if (typeof value !== "string") return null
+
+    const raw = value.trim()
+
+    // Limit date parsing to ISO-like values to avoid false positives.
+    if (!/^\d{4}-\d{2}-\d{2}(?:[T\s].*)?$/.test(raw)) return null
+
+    const ts = Date.parse(raw)
+    return Number.isNaN(ts) ? null : ts
+}
+
+function toComparableNumber(value: unknown): number | null {
+    if (typeof value === "number") {
+        return Number.isFinite(value) ? value : null
+    }
+
+    if (typeof value !== "string") return null
+
+    const normalized = value.trim().replace(/\s/g, "").replace(",", ".")
+    if (!/^-?\d+(?:\.\d+)?$/.test(normalized)) return null
+
+    const parsed = Number(normalized)
+    return Number.isFinite(parsed) ? parsed : null
+}
+
 function compareValues(a: unknown, b: unknown, dir: SortDir): number {
     const valA = a ?? ""
     const valB = b ?? ""
 
-    // Try numeric comparison first
-    const numA = typeof valA === "string" ? parseFloat(valA.replace(/\s/g, "").replace(",", ".")) : Number(valA)
-    const numB = typeof valB === "string" ? parseFloat(valB.replace(/\s/g, "").replace(",", ".")) : Number(valB)
+    // Compare ISO-like date strings first.
+    const dateA = toComparableDate(valA)
+    const dateB = toComparableDate(valB)
+    if (dateA !== null && dateB !== null) {
+        return dir === "asc" ? dateA - dateB : dateB - dateA
+    }
 
-    if (!isNaN(numA) && !isNaN(numB)) {
+    // Then compare strict numeric values.
+    const numA = toComparableNumber(valA)
+    const numB = toComparableNumber(valB)
+    if (numA !== null && numB !== null) {
         return dir === "asc" ? numA - numB : numB - numA
     }
 
     // Fallback to string comparison
     const strA = String(valA).toLowerCase()
     const strB = String(valB).toLowerCase()
-    const cmp = strA.localeCompare(strB, "ru")
+    const cmp = strA.localeCompare(strB, "ru", { numeric: true })
     return dir === "asc" ? cmp : -cmp
 }
 

@@ -205,9 +205,6 @@ API контракт -- **единственный источник правды
 5. Исправь, начиная с корневой причины (обычно backend)
 6. Убедись, что frontend корректно обрабатывает исправленный ответ
 ```
-
----
-
 ## Architecture Rules (Quick Reference)
 
 ### Backend
@@ -278,7 +275,6 @@ npm run build
 - [ ] Документация (`docs/`) актуальна
 
 ---
-
 ## Order of Operations
 
 При fullstack-задаче используй следующий порядок:
@@ -293,11 +289,9 @@ npm run build
 7. QUALITY     → Lint + typecheck + tests (оба слоя)
 8. DOCS        → Обнови документацию при изменении архитектуры
 ```
-
 **Если задача затрагивает один слой** -- используй узкий workflow (Backend или Frontend).
 
 ---
-
 ## Environment
 
 ```bash
@@ -308,6 +302,6 @@ DATABASE_URL=postgres://metapus:metapus@localhost:5432/metapus?sslmode=disable
 JWT_SECRET=<change-in-production>  APP_PORT=8080
 # Frontend
 NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
-NEXT_PUBLIC_TENANT_ID=<tenant-uuid>
+NEXT_PUBLIC_TENANT_ID=dcb99555-5a92-427f-b5b8-79686379b8da
 # Test: admin@metapus.io / Admin123!
 ```

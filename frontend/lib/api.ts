@@ -65,6 +65,25 @@ async function doRefreshToken(): Promise<TokenResponse | null> {
     }
 
     try {
+        // 1. Check if another tab recently refreshed the token
+        if (typeof window !== "undefined") {
+            const storedStr = localStorage.getItem("metapus-auth")
+            if (storedStr) {
+                try {
+                    const stored = JSON.parse(storedStr)
+                    const storedTokens = stored.state?.tokens
+                    if (storedTokens && storedTokens.refreshToken !== tokens.refreshToken) {
+                        // Another tab already refreshed the token. Absorb it.
+                        setTokens(storedTokens)
+                        return storedTokens
+                    }
+                } catch (e) {
+                    // Ignore parsing errors
+                }
+            }
+        }
+
+        // 2. Perform the refresh request
         const res = await fetch(`${API_BASE}/auth/refresh`, {
             method: "POST",
             headers: {
@@ -75,7 +94,11 @@ async function doRefreshToken(): Promise<TokenResponse | null> {
         })
 
         if (!res.ok) {
-            logout()
+            // Only log out if it's a definitive token rejection (4xx errors)
+            // Ignore 5xx server errors or network drops to avoid spurious logouts
+            if (res.status >= 400 && res.status < 500) {
+                logout()
+            }
             return null
         }
 
@@ -83,7 +106,7 @@ async function doRefreshToken(): Promise<TokenResponse | null> {
         setTokens(newTokens)
         return newTokens
     } catch {
-        logout()
+        // Network error / failed to fetch - preserve session, don't logout
         return null
     }
 }
@@ -373,6 +396,29 @@ export const api = {
             apiFetch<import("@/components/shared/filter-config-dialog").FilterFieldMeta[]>(
                 `/meta/${entityName}/filters`
             ),
+    },
+
+    preferences: {
+        get: () =>
+            apiFetch<import("@/types/user-prefs").UserPreferencesResponse>("/me/preferences"),
+
+        saveInterface: (data: Partial<import("@/types/user-prefs").InterfacePrefs>) =>
+            apiFetch<void>("/me/preferences/interface", {
+                method: "PUT",
+                body: JSON.stringify(data),
+            }),
+
+        saveListFilters: (entityType: string, data: import("@/lib/filter-utils").FilterValues) =>
+            apiFetch<void>(`/me/preferences/list-filters/${entityType}`, {
+                method: "PUT",
+                body: JSON.stringify(data),
+            }),
+
+        saveListColumns: (entityType: string, columns: string[]) =>
+            apiFetch<void>(`/me/preferences/list-columns/${entityType}`, {
+                method: "PUT",
+                body: JSON.stringify(columns),
+            }),
     },
 
     settings: {

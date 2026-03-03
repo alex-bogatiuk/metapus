@@ -26,7 +26,8 @@ const (
 
 // Item представляет одну строку отбора.
 type Item struct {
-	Field    string         `json:"field"`    // Имя поля (snake_case)
-	Operator ComparisonType `json:"operator"` // Вид сравнения
-	Value    any            `json:"value"`    // Значение (строка, число, массив ID)
+	Field     string         `json:"field"`               // Имя поля (snake_case)
+	FieldType string         `json:"fieldType,omitempty"` // Тип поля (например, date)
+	Operator  ComparisonType `json:"operator"`            // Вид сравнения
+	Value     any            `json:"value"`               // Значение (строка, число, массив ID)
 }

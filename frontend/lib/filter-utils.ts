@@ -22,6 +22,14 @@ export function camelToSnake(key: string): string {
     return key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
 }
 
+/** Format JS Date to "YYYY-MM-DD" using LOCAL time to avoid timezone offset bugs */
+export function formatLocalYYYYMMDD(d: Date): string {
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, "0")
+    const day = String(d.getDate()).padStart(2, "0")
+    return `${year}-${month}-${day}`
+}
+
 // ── Operator definitions per field type ─────────────────────────────────
 
 export interface OperatorOption {
@@ -60,8 +68,11 @@ const NUMBER_OPERATORS: OperatorOption[] = [
 
 const DATE_OPERATORS: OperatorOption[] = [
     { value: "eq", label: "Равно" },
-    { value: "gte", label: "Начиная с" },
-    { value: "lte", label: "До" },
+    { value: "neq", label: "Не равно" },
+    { value: "gt", label: "Больше" },
+    { value: "gte", label: "Больше или равно" },
+    { value: "lt", label: "Меньше" },
+    { value: "lte", label: "Меньше или равно" },
     { value: "null", label: "Не заполнено" },
     { value: "not_null", label: "Заполнено" },
 ]
@@ -83,12 +94,12 @@ const ENUM_OPERATORS: OperatorOption[] = [
 export function getOperatorsForType(fieldType: FieldType): OperatorOption[] {
     switch (fieldType) {
         case "reference": return REF_OPERATORS
-        case "string":    return STRING_OPERATORS
-        case "number":    return NUMBER_OPERATORS
-        case "date":      return DATE_OPERATORS
-        case "boolean":   return BOOLEAN_OPERATORS
-        case "enum":      return ENUM_OPERATORS
-        default:          return STRING_OPERATORS
+        case "string": return STRING_OPERATORS
+        case "number": return NUMBER_OPERATORS
+        case "date": return DATE_OPERATORS
+        case "boolean": return BOOLEAN_OPERATORS
+        case "enum": return ENUM_OPERATORS
+        default: return STRING_OPERATORS
     }
 }
 
@@ -96,12 +107,12 @@ export function getOperatorsForType(fieldType: FieldType): OperatorOption[] {
 export function getDefaultOperator(fieldType: FieldType): ComparisonOperator {
     switch (fieldType) {
         case "reference": return "eq"
-        case "string":    return "contains"
-        case "number":    return "eq"
-        case "date":      return "gte"
-        case "boolean":   return "eq"
-        case "enum":      return "eq"
-        default:          return "contains"
+        case "string": return "contains"
+        case "number": return "eq"
+        case "date": return "eq"
+        case "boolean": return "eq"
+        case "enum": return "eq"
+        default: return "contains"
     }
 }
 
@@ -164,9 +175,18 @@ export function buildFilterItems(
             ? (periodField ?? "date")
             : camelToSnake(key)
 
+        // Look up the field logic type from metadata
+        let fieldType: string | undefined
+        if (key === PERIOD_FILTER_KEY) {
+            fieldType = "date"
+        } else {
+            const meta = _fieldsMeta.find(m => m.key === key)
+            fieldType = meta?.fieldType
+        }
+
         // Nullary operators — no value required
         if (isNullaryOperator(operator)) {
-            items.push({ field: dbField, operator })
+            items.push({ field: dbField, fieldType, operator })
             continue
         }
 
@@ -182,18 +202,18 @@ export function buildFilterItems(
                         ? (v as { id: string }).id
                         : v
                 )
-                items.push({ field: dbField, operator, value: ids })
+                items.push({ field: dbField, fieldType, operator, value: ids })
             }
             continue
         }
 
         // Boolean: convert string "true"/"false" to actual boolean
         if (typeof value === "string" && (value === "true" || value === "false")) {
-            items.push({ field: dbField, operator, value: value === "true" })
+            items.push({ field: dbField, fieldType, operator, value: value === "true" })
             continue
         }
         if (typeof value === "boolean") {
-            items.push({ field: dbField, operator, value })
+            items.push({ field: dbField, fieldType, operator, value })
             continue
         }
 
@@ -201,7 +221,7 @@ export function buildFilterItems(
         if (typeof value === "object" && value !== null && "id" in value && "name" in value) {
             const id = (value as { id: string }).id
             if (id) {
-                items.push({ field: dbField, operator, value: id })
+                items.push({ field: dbField, fieldType, operator, value: id })
             }
             continue
         }
@@ -210,19 +230,19 @@ export function buildFilterItems(
         if (typeof value === "object" && value !== null && ("from" in value || "to" in value)) {
             const range = value as { from?: string; to?: string }
             if (range.from) {
-                items.push({ field: dbField, operator: "gte", value: range.from })
+                items.push({ field: dbField, fieldType, operator: "gte", value: range.from })
             }
             if (range.to) {
-                items.push({ field: dbField, operator: "lte", value: range.to })
+                items.push({ field: dbField, fieldType, operator: "lte", value: range.to })
             }
             continue
         }
 
         // Scalar values (string, number)
         if (typeof value === "string" && value.trim()) {
-            items.push({ field: dbField, operator, value: value.trim() })
+            items.push({ field: dbField, fieldType, operator, value: value.trim() })
         } else if (typeof value === "number") {
-            items.push({ field: dbField, operator, value })
+            items.push({ field: dbField, fieldType, operator, value })
         }
     }
 

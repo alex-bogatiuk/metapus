@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -22,6 +22,7 @@ import {
   getDefaultOperator,
   isNullaryOperator,
   isListOperator,
+  formatLocalYYYYMMDD,
 } from "@/lib/filter-utils"
 import type { ComparisonOperator } from "@/types/common"
 
@@ -43,6 +44,8 @@ interface FilterSidebarProps {
   onFilterConfigChange?: (selectedKeys: string[]) => void
   /** Callback when filter VALUES change — use this to refetch data */
   onFilterValuesChange?: (values: FilterValues) => void
+  /** Initial values to restore saved filter settings */
+  initialFilterValues?: FilterValues
 }
 
 const STORAGE_KEY = "metapus-filter-sidebar-collapsed"
@@ -55,15 +58,23 @@ export function FilterSidebar({
   periodField,
   onFilterConfigChange,
   onFilterValuesChange,
+  initialFilterValues,
 }: FilterSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(true)
   const [filterDialogOpen, setFilterDialogOpen] = useState(false)
-  const [selectedFilterKeys, setSelectedFilterKeys] = useState<string[]>(
-    () => defaultSelectedKeys ?? []
-  )
 
   // ── Filter values state (FilterEntry per key) ───────────────────────
-  const [filterValues, setFilterValues] = useState<FilterValues>({})
+  const [filterValues, setFilterValues] = useState<FilterValues>(() => initialFilterValues ?? {})
+
+  const [selectedFilterKeys, setSelectedFilterKeys] = useState<string[]>(
+    () => {
+      if (initialFilterValues && Object.keys(initialFilterValues).length > 0) {
+        return Object.keys(initialFilterValues).filter(k => k !== PERIOD_FILTER_KEY)
+      }
+      return defaultSelectedKeys ?? []
+    }
+  )
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Emit filter changes with debounce (300ms)
@@ -148,6 +159,7 @@ export function FilterSidebar({
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored !== null) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsCollapsed(stored === "true")
     }
   }, [])
@@ -184,7 +196,7 @@ export function FilterSidebar({
   function getEntry(meta: FilterFieldMeta): FilterEntry {
     return filterValues[meta.key] ?? {
       operator: getDefaultOperator(meta.fieldType),
-      value: meta.fieldType === "boolean" ? true : undefined,
+      value: undefined,
     }
   }
 
@@ -237,17 +249,43 @@ export function FilterSidebar({
   // ── Value renderers per field type ───────────────────────────────
 
   function renderBooleanValue(meta: FilterFieldMeta, entry: FilterEntry) {
-    const checked = entry.value === true || entry.value === "true"
+    let stringValue = "null"
+    if (entry.value === true || entry.value === "true") stringValue = "true"
+    else if (entry.value === false || entry.value === "false") stringValue = "false"
+
     return (
-      <div className="flex items-center gap-2">
-        <Switch
-          checked={checked}
-          onCheckedChange={(val) => updateFilterEntry(meta.key, { operator: "eq", value: val })}
-        />
-        <span className="text-xs text-muted-foreground">
-          {checked ? "Да" : "Нет"}
-        </span>
-      </div>
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        value={stringValue}
+        onValueChange={(val) => {
+          if (!val) val = "null"
+          let nextValue: boolean | undefined = undefined
+          if (val === "true") nextValue = true
+          else if (val === "false") nextValue = false
+          updateFilterEntry(meta.key, { operator: "eq", value: nextValue })
+        }}
+        className="w-full gap-0 -space-x-px"
+      >
+        <ToggleGroupItem
+          value="null"
+          className="h-7 text-[11px] px-2 flex-1 rounded-none rounded-l-md data-[state=on]:z-10"
+        >
+          Не выбрано
+        </ToggleGroupItem>
+        <ToggleGroupItem
+          value="true"
+          className="h-7 text-[11px] px-2 flex-1 rounded-none data-[state=on]:z-10"
+        >
+          Да
+        </ToggleGroupItem>
+        <ToggleGroupItem
+          value="false"
+          className="h-7 text-[11px] px-2 flex-1 rounded-none rounded-r-md data-[state=on]:z-10"
+        >
+          Нет
+        </ToggleGroupItem>
+      </ToggleGroup>
     )
   }
 
@@ -284,7 +322,7 @@ export function FilterSidebar({
       <DatePicker
         value={dateObj}
         onChange={(d) => {
-          const val = d ? d.toISOString() : undefined
+          const val = d ? formatLocalYYYYMMDD(d) : undefined
           updateFilterEntry(meta.key, { operator: entry.operator, value: val })
         }}
         placeholder={meta.label}
@@ -308,9 +346,9 @@ export function FilterSidebar({
           value={
             range
               ? {
-                  from: range.from ? new Date(range.from) : undefined,
-                  to: range.to ? new Date(range.to) : undefined,
-                }
+                from: range.from ? new Date(range.from) : undefined,
+                to: range.to ? new Date(range.to) : undefined,
+              }
               : undefined
           }
           onChange={(val: DateRangeValue | undefined) => {
@@ -320,8 +358,8 @@ export function FilterSidebar({
               updateFilterEntry(PERIOD_FILTER_KEY, {
                 operator: "gte",
                 value: {
-                  from: val.from?.toISOString(),
-                  to: val.to?.toISOString(),
+                  from: val.from ? formatLocalYYYYMMDD(val.from) : undefined,
+                  to: val.to ? formatLocalYYYYMMDD(val.to) : undefined,
                 },
               })
             }
@@ -562,6 +600,27 @@ export function FilterSidebar({
                   onApply={(keys) => {
                     setSelectedFilterKeys(keys)
                     onFilterConfigChange?.(keys)
+                    setFilterValues((prev) => {
+                      const next = { ...prev }
+                      // Ensure all selected keys exist in filterValues
+                      keys.forEach((k) => {
+                        if (!next[k]) {
+                          const meta = fieldsMeta.find((m) => m.key === k)
+                          next[k] = {
+                            operator: getDefaultOperator(meta?.fieldType || "string"),
+                            value: undefined,
+                          }
+                        }
+                      })
+                      // Remove keys that are unselected
+                      Object.keys(next).forEach((k) => {
+                        if (k !== PERIOD_FILTER_KEY && !keys.includes(k)) {
+                          delete next[k]
+                        }
+                      })
+                      emitFilterChange(next)
+                      return next
+                    })
                   }}
                 />
               )}

@@ -252,6 +252,11 @@ func (s *Service) Unpost(ctx context.Context, docID id.ID) error {
 
 // PostAndSave posts document and saves changes atomically.
 func (s *Service) PostAndSave(ctx context.Context, doc *GoodsIssue) error {
+	// Run before-create hooks (for enrichment: CreatedBy, UpdatedBy, etc.)
+	if err := s.hooks.RunBeforeCreate(ctx, doc); err != nil {
+		return err
+	}
+
 	// Resolve currency
 	currencyID, err := s.resolver.ResolveForDocument(ctx, doc.CurrencyID, doc.ContractID, doc.OrganizationID)
 	if err != nil {

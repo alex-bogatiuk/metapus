@@ -160,10 +160,21 @@ export function ReferenceField({
           </span>
           <span className="flex items-center gap-0.5 shrink-0 ml-1">
             {value && !disabled && (
-              <X
-                className="h-3 w-3 text-muted-foreground/60 hover:text-destructive cursor-pointer"
+              <div
+                role="button"
+                tabIndex={0}
+                className="flex items-center justify-center p-1 -mr-1 rounded-sm hover:bg-muted/50 cursor-pointer"
                 onClick={handleClear}
-              />
+                onPointerDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.stopPropagation()
+                    onChange("", "")
+                  }
+                }}
+              >
+                <X className="h-3.5 w-3.5 text-muted-foreground/60 hover:text-destructive" />
+              </div>
             )}
             <ChevronsUpDown className="h-3 w-3 text-muted-foreground/60" />
           </span>

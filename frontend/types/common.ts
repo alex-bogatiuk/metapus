@@ -24,6 +24,7 @@ export type ComparisonOperator =
 /** Single advanced filter item sent to the backend as part of ?filter= JSON. */
 export interface AdvancedFilterItem {
     field: string
+    fieldType?: string
     operator: ComparisonOperator
     value?: unknown
 }

@@ -31,7 +31,6 @@ interface FormToolbarProps {
   sticky?: boolean
 }
 
-import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
 export function FormToolbar({
@@ -61,15 +60,17 @@ export function FormToolbar({
         <div className="mr-4 flex items-center gap-2">
           <h1 className="text-sm font-semibold text-foreground">{title}</h1>
           {status && (
-            <Badge
-              variant={status.variant as any || "outline"}
+            <div
               className={cn(
-                "h-5 px-1.5 text-[10px] font-bold uppercase tracking-wider",
-                status.variant === "success" && "bg-emerald-500/15 text-emerald-600 border-emerald-500/20"
+                "inline-flex h-6 items-center px-2.5 rounded-full border text-[11px] font-bold uppercase tracking-wider",
+                status.variant === "success" && "border-success text-success bg-transparent",
+                status.variant === "destructive" && "border-destructive text-destructive bg-transparent",
+                (status.variant === "outline" || !status.variant) && "border-muted-foreground text-muted-foreground bg-transparent",
+                status.variant === "default" && "border-primary text-primary bg-transparent"
               )}
             >
               {status.label}
-            </Badge>
+            </div>
           )}
         </div>
 

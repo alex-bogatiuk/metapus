@@ -36,16 +36,19 @@ const SIDEBAR_KEY = "metapus-form-sidebar-collapsed"
 interface FormLine {
   _key: number // local UI key
   productId: string
+  productName: string
   unitId: string
+  unitName: string
   quantity: string   // display value, will convert to int64
   unitPrice: string  // display value (major units, e.g. "11.00"), convert to MinorUnits
   vatRateId: string
+  vatRateName: string
   vatPercent: string
   discountPercent: string
 }
 
 function emptyLine(key: number): FormLine {
-  return { _key: key, productId: "", unitId: "", quantity: "", unitPrice: "", vatRateId: "", vatPercent: "20", discountPercent: "0" }
+  return { _key: key, productId: "", productName: "", unitId: "", unitName: "", quantity: "", unitPrice: "", vatRateId: "", vatRateName: "", vatPercent: "20", discountPercent: "0" }
 }
 
 /** Convert display quantity (e.g. "5") to Quantity int64 (×10000). */
@@ -75,10 +78,15 @@ export default function NewGoodsReceiptPage() {
   // ── Header fields ─────────────────────────────────────────────────────
   const [date, setDate] = useState<Date | undefined>(() => new Date())
   const [organizationId, setOrganizationId] = useState("")
+  const [organizationName, setOrganizationName] = useState("")
   const [supplierId, setSupplierId] = useState("")
+  const [supplierName, setSupplierName] = useState("")
   const [warehouseId, setWarehouseId] = useState("")
+  const [warehouseName, setWarehouseName] = useState("")
   const [currencyId, setCurrencyId] = useState("")
+  const [currencyName, setCurrencyName] = useState("")
   const [contractId, setContractId] = useState("")
+  const [contractName, setContractName] = useState("")
   const [supplierDocNumber, setSupplierDocNumber] = useState("")
   const [incomingNumber, setIncomingNumber] = useState("")
   const [amountIncludesVat, setAmountIncludesVat] = useState(true)
@@ -215,9 +223,10 @@ export default function NewGoodsReceiptPage() {
                 <div className="mt-1">
                   <ReferenceField
                     value={organizationId}
+                    displayName={organizationName}
                     apiEndpoint="/catalog/organizations"
                     placeholder="Выберите организацию"
-                    onChange={(id) => { setOrganizationId(id); handleChange() }}
+                    onChange={(id, name) => { setOrganizationId(id); setOrganizationName(name); handleChange() }}
                   />
                 </div>
               </div>
@@ -226,9 +235,10 @@ export default function NewGoodsReceiptPage() {
                 <div className="mt-1">
                   <ReferenceField
                     value={supplierId}
+                    displayName={supplierName}
                     apiEndpoint="/catalog/counterparties"
                     placeholder="Выберите поставщика"
-                    onChange={(id) => { setSupplierId(id); handleChange() }}
+                    onChange={(id, name) => { setSupplierId(id); setSupplierName(name); handleChange() }}
                   />
                 </div>
               </div>
@@ -245,9 +255,10 @@ export default function NewGoodsReceiptPage() {
                 <div className="mt-1">
                   <ReferenceField
                     value={warehouseId}
+                    displayName={warehouseName}
                     apiEndpoint="/catalog/warehouses"
                     placeholder="Выберите склад"
-                    onChange={(id) => { setWarehouseId(id); handleChange() }}
+                    onChange={(id, name) => { setWarehouseId(id); setWarehouseName(name); handleChange() }}
                   />
                 </div>
               </div>
@@ -256,9 +267,10 @@ export default function NewGoodsReceiptPage() {
                 <div className="mt-1">
                   <ReferenceField
                     value={contractId}
+                    displayName={contractName}
                     apiEndpoint="/catalog/contracts"
                     placeholder="Выберите договор"
-                    onChange={(id) => { setContractId(id); handleChange() }}
+                    onChange={(id, name) => { setContractId(id); setContractName(name); handleChange() }}
                   />
                 </div>
               </div>
@@ -267,9 +279,10 @@ export default function NewGoodsReceiptPage() {
                 <div className="mt-1">
                   <ReferenceField
                     value={currencyId}
+                    displayName={currencyName}
                     apiEndpoint="/catalog/currencies"
                     placeholder="Выберите валюту"
-                    onChange={(id) => { setCurrencyId(id); handleChange() }}
+                    onChange={(id, name) => { setCurrencyId(id); setCurrencyName(name); handleChange() }}
                   />
                 </div>
               </div>
@@ -333,15 +346,15 @@ export default function NewGoodsReceiptPage() {
                           <tr key={line._key} className="border-b hover:bg-muted/30 transition-colors">
                             <td className="px-2 py-1.5 text-center text-xs text-muted-foreground">{idx + 1}</td>
                             <td className="px-1 py-1">
-                              <ReferenceField compact value={line.productId} apiEndpoint="/catalog/nomenclature" placeholder="Номенклатура" onChange={(id) => updateLine(line._key, "productId", id)} />
+                              <ReferenceField compact value={line.productId} displayName={line.productName} apiEndpoint="/catalog/nomenclature" placeholder="Номенклатура" onChange={(id, name) => { updateLine(line._key, "productId", id); setLines(prev => prev.map(l => l._key === line._key ? { ...l, productName: name } : l)) }} />
                             </td>
                             <td className="px-1 py-1">
-                              <ReferenceField compact value={line.unitId} apiEndpoint="/catalog/units" placeholder="Ед. изм." onChange={(id) => updateLine(line._key, "unitId", id)} />
+                              <ReferenceField compact value={line.unitId} displayName={line.unitName} apiEndpoint="/catalog/units" placeholder="Ед. изм." onChange={(id, name) => { updateLine(line._key, "unitId", id); setLines(prev => prev.map(l => l._key === line._key ? { ...l, unitName: name } : l)) }} />
                             </td>
                             <td className="px-1 py-1"><Input className="h-7 text-right font-mono text-xs" type="number" step="0.001" value={line.quantity} onChange={(e) => updateLine(line._key, "quantity", e.target.value)} /></td>
                             <td className="px-1 py-1"><Input className="h-7 text-right font-mono text-xs" type="number" step="0.01" value={line.unitPrice} onChange={(e) => updateLine(line._key, "unitPrice", e.target.value)} /></td>
                             <td className="px-1 py-1">
-                              <ReferenceField compact value={line.vatRateId} apiEndpoint="/catalog/vat-rates" placeholder="Ставка НДС" onChange={(id) => updateLine(line._key, "vatRateId", id)} />
+                              <ReferenceField compact value={line.vatRateId} displayName={line.vatRateName} apiEndpoint="/catalog/vat-rates" placeholder="Ставка НДС" onChange={(id, name) => { updateLine(line._key, "vatRateId", id); setLines(prev => prev.map(l => l._key === line._key ? { ...l, vatRateName: name } : l)) }} />
                             </td>
                             <td className="px-1 py-1"><Input className="h-7 text-right font-mono text-xs" type="number" value={line.vatPercent} onChange={(e) => updateLine(line._key, "vatPercent", e.target.value)} /></td>
                             <td className="px-1 py-1">

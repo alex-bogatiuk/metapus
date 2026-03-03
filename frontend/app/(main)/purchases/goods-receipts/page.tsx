@@ -6,12 +6,12 @@ import { CircleCheck, Circle, Loader2 } from "lucide-react"
 import { DataToolbar } from "@/components/shared/data-toolbar"
 import { FilterSidebar } from "@/components/shared/filter-sidebar"
 import { DataTable, Column } from "@/components/shared/data-table"
-import { Badge } from "@/components/ui/badge"
+
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useListSelection } from "@/hooks/useListSelection"
 import { useUrlSort } from "@/hooks/useUrlSort"
 import { useEntityFiltersMeta } from "@/hooks/useEntityFiltersMeta"
+import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 import { api } from "@/lib/api"
 import { buildFilterItems, type FilterValues } from "@/lib/filter-utils"
 import type { GoodsReceiptResponse } from "@/types/document"
@@ -32,7 +32,7 @@ function formatDate(iso: string): string {
 // ── Filters ─────────────────────────────────────────────────────────────
 
 // Default filters shown on page load (keys from fieldsMeta)
-const defaultFilterKeys = ["date", "posted"]
+const defaultFilterKeys: string[] = []
 
 // ── Document field metadata — fetched dynamically from backend ──────────
 // The backend metadata registry (GET /api/v1/meta/GoodsReceipt/filters)
@@ -99,16 +99,7 @@ const columns: Column<GoodsReceiptResponse>[] = [
       <span className="font-mono text-xs text-muted-foreground">{formatAmount(doc.totalVat)}</span>
     ),
   },
-  {
-    key: "posted",
-    label: "Статус",
-    sortable: true,
-    render: (doc) => (
-      <Badge variant={doc.posted ? "default" : "secondary"} className="text-[10px]">
-        {doc.posted ? "Проведён" : "Черновик"}
-      </Badge>
-    ),
-  },
+
   {
     key: "description",
     label: "Описание",
@@ -136,6 +127,10 @@ export default function GoodsReceiptsListPage() {
   // Track current filter values for API calls
   const filterValuesRef = useRef<FilterValues>({})
 
+  const isPrefsLoaded = useUserPrefsStore((s) => s.isLoaded)
+  const initialListFilters = useUserPrefsStore((s) => s.listFilters["GoodsReceipt"])
+  const setListFilters = useUserPrefsStore((s) => s.setListFilters)
+
   const fetchData = useCallback(async (filterValues?: FilterValues) => {
     setLoading(true)
     setError(null)
@@ -158,16 +153,26 @@ export default function GoodsReceiptsListPage() {
     }
   }, [fieldsMeta])
 
+  const initialized = useRef(false)
+
   useEffect(() => {
-    fetchData()
-  }, [fetchData])
+    if (isPrefsLoaded && !initialized.current) {
+      initialized.current = true
+      const initial = initialListFilters ?? {}
+      filterValuesRef.current = initial
+      fetchData(initial)
+    }
+    // Explicitly run only when `isPrefsLoaded` becomes true to avoid constant refetching
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPrefsLoaded, fetchData])
 
   const handleFilterValuesChange = useCallback(
     (values: FilterValues) => {
       filterValuesRef.current = values
+      setListFilters("GoodsReceipt", values)
       fetchData(values)
     },
-    [fetchData]
+    [fetchData, setListFilters]
   )
 
   const visibleIds = useMemo(() => items.map((d) => d.id), [items])
@@ -184,15 +189,6 @@ export default function GoodsReceiptsListPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b bg-card px-4 py-1">
-        <Tabs defaultValue="receipts">
-          <TabsList className="h-8">
-            <TabsTrigger value="receipts" className="text-xs">
-              Приходные накладные
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
 
       <DataToolbar
         title="Приходные накладные"
@@ -248,18 +244,19 @@ export default function GoodsReceiptsListPage() {
           )}
         </div>
 
-        <FilterSidebar
-          showGroups={false}
-          showDetails
-          fieldsMeta={fieldsMeta}
-          defaultSelectedKeys={defaultFilterKeys}
-          periodField="date"
-          onFilterConfigChange={(keys) => {
-            console.log("Selected filter keys:", keys)
-          }}
-          onFilterValuesChange={handleFilterValuesChange}
-        />
+        {isPrefsLoaded && (
+          <FilterSidebar
+            key="goods-receipt-filters"
+            showGroups={false}
+            showDetails
+            fieldsMeta={fieldsMeta}
+            defaultSelectedKeys={defaultFilterKeys}
+            periodField="date"
+            onFilterValuesChange={handleFilterValuesChange}
+            initialFilterValues={initialListFilters ?? {}}
+          />
+        )}
       </div>
-    </div>
+    </div >
   )
 }

@@ -64,33 +64,50 @@ func BuildConditions(items []Item, validCols map[string]struct{}, tableName stri
 			return nil, fmt.Errorf("invalid filter column: %s", item.Field)
 		}
 
+		fieldExpr := item.Field
+		if item.FieldType == "date" {
+			fieldExpr = "DATE(" + item.Field + ")"
+		}
+
 		switch item.Operator {
 		case Equal:
-			conditions = append(conditions, squirrel.Eq{item.Field: item.Value})
+			conditions = append(conditions, squirrel.Eq{fieldExpr: item.Value})
 		case NotEqual:
-			conditions = append(conditions, squirrel.NotEq{item.Field: item.Value})
+			// (field <> value OR field IS NULL) — include rows where field is NULL
+			conditions = append(conditions, squirrel.Or{
+				squirrel.NotEq{fieldExpr: item.Value},
+				squirrel.Eq{fieldExpr: nil},
+			})
 		case LessOrEqual:
-			conditions = append(conditions, squirrel.LtOrEq{item.Field: item.Value})
+			conditions = append(conditions, squirrel.LtOrEq{fieldExpr: item.Value})
 		case GreaterOrEqual:
-			conditions = append(conditions, squirrel.GtOrEq{item.Field: item.Value})
+			conditions = append(conditions, squirrel.GtOrEq{fieldExpr: item.Value})
 		case Less:
-			conditions = append(conditions, squirrel.Lt{item.Field: item.Value})
+			conditions = append(conditions, squirrel.Lt{fieldExpr: item.Value})
 		case Greater:
-			conditions = append(conditions, squirrel.Gt{item.Field: item.Value})
+			conditions = append(conditions, squirrel.Gt{fieldExpr: item.Value})
 		case InList:
-			conditions = append(conditions, squirrel.Eq{item.Field: item.Value})
+			conditions = append(conditions, squirrel.Eq{fieldExpr: item.Value})
 		case NotInList:
-			conditions = append(conditions, squirrel.NotEq{item.Field: item.Value})
+			// (field NOT IN (...) OR field IS NULL) — include rows where field is NULL
+			conditions = append(conditions, squirrel.Or{
+				squirrel.NotEq{fieldExpr: item.Value},
+				squirrel.Eq{fieldExpr: nil},
+			})
 		case IsNull:
-			conditions = append(conditions, squirrel.Eq{item.Field: nil})
+			conditions = append(conditions, squirrel.Eq{fieldExpr: nil})
 		case IsNotNull:
-			conditions = append(conditions, squirrel.NotEq{item.Field: nil})
+			conditions = append(conditions, squirrel.NotEq{fieldExpr: nil})
 		case Contains:
 			val := fmt.Sprintf("%%%v%%", item.Value)
-			conditions = append(conditions, squirrel.ILike{item.Field: val})
+			conditions = append(conditions, squirrel.ILike{fieldExpr: val})
 		case NotContains:
+			// (field NOT ILIKE '%val%' OR field IS NULL) — include rows where field is NULL
 			val := fmt.Sprintf("%%%v%%", item.Value)
-			conditions = append(conditions, squirrel.NotILike{item.Field: val})
+			conditions = append(conditions, squirrel.Or{
+				squirrel.NotILike{fieldExpr: val},
+				squirrel.Eq{fieldExpr: nil},
+			})
 		case InHierarchy:
 			cteSQL := fmt.Sprintf(`
                 id IN (
@@ -105,14 +122,14 @@ func BuildConditions(items []Item, validCols map[string]struct{}, tableName stri
 			conditions = append(conditions, squirrel.Expr(cteSQL, item.Value))
 		case NotInHierarchy:
 			cteSQL := fmt.Sprintf(`
-                id NOT IN (
+                (id NOT IN (
                     WITH RECURSIVE hierarchy AS (
                         SELECT id FROM %s WHERE id = $1 
                         UNION ALL 
                         SELECT t.id FROM %s t JOIN hierarchy h ON t.parent_id = h.id
                     ) 
                     SELECT id FROM hierarchy
-                )
+                ) OR id IS NULL)
             `, tableName, tableName)
 			conditions = append(conditions, squirrel.Expr(cteSQL, item.Value))
 		}

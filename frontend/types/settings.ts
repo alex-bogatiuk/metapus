@@ -99,48 +99,17 @@ export interface RoleRecord {
   isSystem: boolean
 }
 
-// ── Interface ───────────────────────────────────────────────────────────
-
-export type ThemeMode = "light" | "dark" | "system"
-export type DateFormat = "dd.MM.yyyy" | "yyyy-MM-dd" | "MM/dd/yyyy"
-export type NumberFormat = "space" | "comma" | "none"
-
-export interface InterfaceSettings {
-  theme: ThemeMode
-  language: string
-  dateFormat: DateFormat
-  numberFormat: NumberFormat
-  pageSize: number
-  showTooltips: boolean
-  compactMode: boolean
-  sidebarCollapsed: boolean
-}
-
-export function defaultInterfaceSettings(): InterfaceSettings {
-  return {
-    theme: "light",
-    language: "ru",
-    dateFormat: "dd.MM.yyyy",
-    numberFormat: "space",
-    pageSize: 25,
-    showTooltips: true,
-    compactMode: false,
-    sidebarCollapsed: false,
-  }
-}
-
 // ── Combined ────────────────────────────────────────────────────────────
 
 export interface SystemSettings {
   organization: OrganizationSettings
   accounting: AccountingSettings
-  interface: InterfaceSettings
 }
 
 export function defaultSystemSettings(): SystemSettings {
   return {
     organization: defaultOrganizationSettings(),
     accounting: defaultAccountingSettings(),
-    interface: defaultInterfaceSettings(),
   }
 }
+

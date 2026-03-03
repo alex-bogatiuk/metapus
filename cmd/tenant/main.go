@@ -1,8 +1,9 @@
 // Package main provides CLI for tenant management.
 // Usage: tenant create --slug acme --name "ACME Corp"
-//        tenant list
-//        tenant migrate --all
-//        tenant suspend <tenant-id>
+//
+//	tenant list
+//	tenant migrate --all
+//	tenant suspend <tenant-id>
 package main
 
 import (
@@ -77,8 +78,9 @@ Examples:
 func getMetaPool(ctx context.Context) *pgxpool.Pool {
 	metaDSN := os.Getenv("META_DATABASE_URL")
 	if metaDSN == "" {
-		fmt.Println("Error: META_DATABASE_URL environment variable is required")
-		os.Exit(1)
+		metaDSN = "postgres://metapus:metapus@localhost:5432/tenants?sslmode=disable"
+		//fmt.Println("Error: META_DATABASE_URL environment variable is required")
+		//os.Exit(1)
 	}
 
 	pool, err := pgxpool.New(ctx, metaDSN)

@@ -74,11 +74,14 @@ export function OrganizationSection() {
       <div className="flex items-start gap-4">
         <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/40">
           {org.logoUrl ? (
-            <img
-              src={org.logoUrl}
-              alt="Логотип"
-              className="h-full w-full rounded-lg object-contain"
-            />
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={org.logoUrl}
+                alt="Логотип"
+                className="h-full w-full rounded-lg object-contain"
+              />
+            </>
           ) : (
             <Building2 className="h-8 w-8 text-muted-foreground/50" />
           )}

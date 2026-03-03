@@ -292,7 +292,7 @@ export default function GoodsReceiptFormPage() {
         title={`Приходная накладная ${doc?.number || ""}`}
         status={
           doc?.posted
-            ? { label: "Проведён", variant: "default" as const }
+            ? { label: "Проведён", variant: "success" as const }
             : doc?.deletionMark
               ? { label: "Помечен на удаление", variant: "destructive" as const }
               : { label: "Черновик", variant: "outline" as const }
