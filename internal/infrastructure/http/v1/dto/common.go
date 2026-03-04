@@ -8,6 +8,18 @@ import (
 	"metapus/internal/core/id"
 )
 
+// Table name constants for reference resolution.
+const (
+	TableOrganizations  = "cat_organizations"
+	TableCounterparties = "cat_counterparties"
+	TableContracts      = "cat_contracts"
+	TableWarehouses     = "cat_warehouses"
+	TableCurrencies     = "cat_currencies"
+	TableNomenclature   = "cat_nomenclature"
+	TableUnits          = "cat_units"
+	TableVATRates       = "cat_vat_rates"
+)
+
 // --- Pagination ---
 
 // PaginationRequest contains pagination parameters.

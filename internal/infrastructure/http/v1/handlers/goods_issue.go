@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -8,8 +9,10 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/core/tenant"
 	"metapus/internal/domain/documents/goods_issue"
 	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/storage/postgres"
 )
 
 // GoodsIssueHandler handles HTTP requests for GoodsIssue documents.
@@ -32,7 +35,7 @@ func NewGoodsIssueHandler(base *BaseHandler, service *goods_issue.Service) *Good
 			return existing
 		},
 		MapToDTO: func(entity *goods_issue.GoodsIssue) any {
-			return dto.FromGoodsIssue(entity)
+			return dto.FromGoodsIssue(entity, nil)
 		},
 		IsPostImmediately: func(req dto.CreateGoodsIssueRequest) bool {
 			return req.PostImmediately
@@ -43,6 +46,81 @@ func NewGoodsIssueHandler(base *BaseHandler, service *goods_issue.Service) *Good
 		BaseDocumentHandler: NewBaseDocumentHandler(base, cfg),
 		service:             service,
 	}
+}
+
+// resolveDocRefs batch-resolves all reference IDs for a list of documents.
+// Returns ResolvedRefs that can be passed to dto.FromGoodsIssue.
+func (h *GoodsIssueHandler) resolveDocRefs(ctx context.Context, docs ...*goods_issue.GoodsIssue) (postgres.ResolvedRefs, error) {
+	resolver := postgres.NewReferenceResolver()
+	for _, doc := range docs {
+		dto.CollectGoodsIssueRefs(resolver, doc)
+	}
+
+	pool := tenant.MustGetPool(ctx)
+	querier := postgres.NewTxManagerFromRawPool(pool).GetQuerier(ctx)
+
+	return resolver.Resolve(ctx, querier)
+}
+
+// Get handles GET /document/goods-issue/:id — with resolved references.
+func (h *GoodsIssueHandler) Get(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	docID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid id format"))
+		return
+	}
+
+	doc, err := h.service.GetByID(ctx, docID)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	refs, err := h.resolveDocRefs(ctx, doc)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.FromGoodsIssue(doc, refs))
+}
+
+// List handles GET /document/goods-issue — with resolved references.
+func (h *GoodsIssueHandler) List(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	filter, err := h.ParseListFilter(c, "-date")
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	result, err := h.service.List(ctx, filter)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	// Batch-resolve references for all documents in the list
+	refs, err := h.resolveDocRefs(ctx, result.Items...)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	items := make([]any, len(result.Items))
+	for i, item := range result.Items {
+		items[i] = dto.FromGoodsIssue(item, refs)
+	}
+
+	c.JSON(http.StatusOK, dto.ListResponse{
+		Items:      items,
+		TotalCount: result.TotalCount,
+		Limit:      result.Limit,
+		Offset:     result.Offset,
+	})
 }
 
 // Create override to handle UserID injection
@@ -67,7 +145,13 @@ func (h *GoodsIssueHandler) Create(c *gin.Context) {
 		return
 	}
 
-	response := dto.FromGoodsIssue(doc)
+	refs, err := h.resolveDocRefs(ctx, doc)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	response := dto.FromGoodsIssue(doc, refs)
 	h.CompleteIdempotency(c, http.StatusCreated, "application/json", response)
 	c.JSON(http.StatusCreated, response)
 }
@@ -99,7 +183,114 @@ func (h *GoodsIssueHandler) Update(c *gin.Context) {
 		return
 	}
 
-	response := dto.FromGoodsIssue(doc)
+	refs, err := h.resolveDocRefs(ctx, doc)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	response := dto.FromGoodsIssue(doc, refs)
+	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
+	c.JSON(http.StatusOK, response)
+}
+
+// Post handles POST /document/goods-issue/:id/post — with resolved references.
+func (h *GoodsIssueHandler) Post(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	docID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid id format"))
+		return
+	}
+
+	if err := h.service.Post(ctx, docID); err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	doc, err := h.service.GetByID(ctx, docID)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	refs, err := h.resolveDocRefs(ctx, doc)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	response := dto.FromGoodsIssue(doc, refs)
+	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
+	c.JSON(http.StatusOK, response)
+}
+
+// Unpost handles POST /document/goods-issue/:id/unpost — with resolved references.
+func (h *GoodsIssueHandler) Unpost(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	docID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid id format"))
+		return
+	}
+
+	if err := h.service.Unpost(ctx, docID); err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	doc, err := h.service.GetByID(ctx, docID)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	refs, err := h.resolveDocRefs(ctx, doc)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	response := dto.FromGoodsIssue(doc, refs)
+	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
+	c.JSON(http.StatusOK, response)
+}
+
+// SetDeletionMark handles POST /document/goods-issue/:id/deletion-mark — with resolved references.
+func (h *GoodsIssueHandler) SetDeletionMark(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	docID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid id format"))
+		return
+	}
+
+	var req dto.SetDeletionMarkRequest
+	if !h.BindJSON(c, &req) {
+		return
+	}
+
+	if err := h.service.SetDeletionMark(ctx, docID, req.Marked); err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	doc, err := h.service.GetByID(ctx, docID)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	refs, err := h.resolveDocRefs(ctx, doc)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	response := dto.FromGoodsIssue(doc, refs)
 	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
 	c.JSON(http.StatusOK, response)
 }
@@ -136,26 +327,29 @@ func (h *GoodsIssueHandler) Copy(c *gin.Context) {
 		return
 	}
 
-	response := dto.FromGoodsIssue(copy)
+	refs, err := h.resolveDocRefs(ctx, copy)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	response := dto.FromGoodsIssue(copy, refs)
 	h.CompleteIdempotency(c, http.StatusCreated, "application/json", response)
 	c.JSON(http.StatusCreated, response)
 }
 
 // RegisterRoutes registers goods issue routes.
 func (h *GoodsIssueHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	// Standard methods from Base (includes List)
-	rg.GET("/:id", h.BaseDocumentHandler.Get)
 	rg.DELETE("/:id", h.BaseDocumentHandler.Delete)
-	rg.POST("/:id/post", h.BaseDocumentHandler.Post)
-	rg.POST("/:id/unpost", h.BaseDocumentHandler.Unpost)
-	rg.POST("/:id/deletion-mark", h.BaseDocumentHandler.SetDeletionMark)
 
-	// List uses base handler's universal filter engine
-	rg.GET("", h.BaseDocumentHandler.List)
-
-	// Overridden methods
+	// Overridden methods to include reference resolution
+	rg.GET("/:id", h.Get)
+	rg.GET("", h.List)
 	rg.POST("", h.Create)
 	rg.PUT("/:id", h.Update)
+	rg.POST("/:id/post", h.Post)
+	rg.POST("/:id/unpost", h.Unpost)
+	rg.POST("/:id/deletion-mark", h.SetDeletionMark)
 
 	// Entity-specific methods
 	rg.POST("/:id/copy", h.Copy)

@@ -8,6 +8,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/documents/goods_issue"
+	"metapus/internal/infrastructure/storage/postgres"
 )
 
 // --- Request DTOs ---
@@ -148,6 +149,22 @@ func (r *UpdateGoodsIssueRequest) ApplyTo(doc *goods_issue.GoodsIssue) {
 
 // --- Response DTOs ---
 
+// CollectGoodsIssueRefs registers all reference IDs from a GoodsIssue
+// into the resolver for batch resolution.
+func CollectGoodsIssueRefs(resolver *postgres.ReferenceResolver, doc *goods_issue.GoodsIssue) {
+	resolver.Add(TableOrganizations, doc.OrganizationID)
+	resolver.Add(TableCounterparties, doc.CustomerID)
+	resolver.AddPtr(TableContracts, doc.ContractID)
+	resolver.Add(TableWarehouses, doc.WarehouseID)
+	resolver.Add(TableCurrencies, doc.CurrencyID)
+
+	for _, line := range doc.Lines {
+		resolver.Add(TableNomenclature, line.ProductID)
+		resolver.Add(TableUnits, line.UnitID)
+		resolver.Add(TableVATRates, line.VATRateID)
+	}
+}
+
 type GoodsIssueResponse struct {
 	ID                  string                   `json:"id"`
 	Number              string                   `json:"number"`
@@ -170,6 +187,13 @@ type GoodsIssueResponse struct {
 	DeletionMark        bool                     `json:"deletionMark,omitempty"`
 	CreatedAt           time.Time                `json:"createdAt"`
 	UpdatedAt           time.Time                `json:"updatedAt"`
+
+	// Resolved reference display names (populated by handler, not stored in DB)
+	Organization *postgres.RefDisplay `json:"organization,omitempty"`
+	Customer     *postgres.RefDisplay `json:"customer,omitempty"`
+	Contract     *postgres.RefDisplay `json:"contract,omitempty"`
+	Warehouse    *postgres.RefDisplay `json:"warehouse,omitempty"`
+	Currency     *postgres.RefDisplay `json:"currency,omitempty"`
 }
 
 type GoodsIssueLineResponse struct {
@@ -185,9 +209,16 @@ type GoodsIssueLineResponse struct {
 	VATRateID       string           `json:"vatRateId"`
 	VATAmount       types.MinorUnits `json:"vatAmount"`
 	Amount          types.MinorUnits `json:"amount"`
+
+	// Resolved reference display names
+	Product *postgres.RefDisplay `json:"product,omitempty"`
+	Unit    *postgres.RefDisplay `json:"unit,omitempty"`
+	VATRate *postgres.RefDisplay `json:"vatRate,omitempty"`
 }
 
-func FromGoodsIssue(doc *goods_issue.GoodsIssue) *GoodsIssueResponse {
+// FromGoodsIssue converts domain entity to response DTO.
+// Pass nil for refs if reference resolution is not needed (e.g., create response).
+func FromGoodsIssue(doc *goods_issue.GoodsIssue, refs postgres.ResolvedRefs) *GoodsIssueResponse {
 	resp := &GoodsIssueResponse{
 		ID:                  doc.ID.String(),
 		Number:              doc.Number,
@@ -210,6 +241,14 @@ func FromGoodsIssue(doc *goods_issue.GoodsIssue) *GoodsIssueResponse {
 		UpdatedAt:           doc.UpdatedAt,
 	}
 
+	if refs != nil {
+		resp.Organization = refs.GetPtr(TableOrganizations, &doc.OrganizationID)
+		resp.Customer = refs.GetPtr(TableCounterparties, &doc.CustomerID)
+		resp.Contract = refs.GetPtr(TableContracts, doc.ContractID)
+		resp.Warehouse = refs.GetPtr(TableWarehouses, &doc.WarehouseID)
+		resp.Currency = refs.GetPtr(TableCurrencies, &doc.CurrencyID)
+	}
+
 	if doc.ContractID != nil {
 		s := doc.ContractID.String()
 		resp.ContractID = &s
@@ -230,6 +269,12 @@ func FromGoodsIssue(doc *goods_issue.GoodsIssue) *GoodsIssueResponse {
 			VATRateID:       line.VATRateID.String(),
 			VATAmount:       line.VATAmount,
 			Amount:          line.Amount,
+		}
+
+		if refs != nil {
+			resp.Lines[i].Product = refs.GetPtr(TableNomenclature, &line.ProductID)
+			resp.Lines[i].Unit = refs.GetPtr(TableUnits, &line.UnitID)
+			resp.Lines[i].VATRate = refs.GetPtr(TableVATRates, &line.VATRateID)
 		}
 	}
 
