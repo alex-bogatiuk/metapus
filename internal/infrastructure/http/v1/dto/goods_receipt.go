@@ -215,18 +215,6 @@ type GoodsReceiptLineResponse struct {
 	VATRate *postgres.RefDisplay `json:"vatRate,omitempty"`
 }
 
-// Table name constants for reference resolution.
-const (
-	TableOrganizations  = "cat_organizations"
-	TableCounterparties = "cat_counterparties"
-	TableContracts      = "cat_contracts"
-	TableWarehouses     = "cat_warehouses"
-	TableCurrencies     = "cat_currencies"
-	TableNomenclature   = "cat_nomenclature"
-	TableUnits          = "cat_units"
-	TableVATRates       = "cat_vat_rates"
-)
-
 // CollectGoodsReceiptRefs registers all reference IDs from a GoodsReceipt
 // into the resolver for batch resolution.
 func CollectGoodsReceiptRefs(resolver *postgres.ReferenceResolver, doc *goods_receipt.GoodsReceipt) {
