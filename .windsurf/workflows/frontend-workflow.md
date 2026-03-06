@@ -46,6 +46,36 @@ description: Metapus Frontend — Rules & Developer Role
 
 ---
 
+## Workflow: Проверка окружения (ОБЯЗАТЕЛЬНО, ПЕРВЫЙ ШАГ)
+
+При получении **любой** задачи, **до начала работы**, проверь, что серверы запущены:
+
+### Шаг 0: Проверь и запусти серверы
+
+```powershell
+# Проверить, слушает ли Go backend порт 8080
+netstat -ano | findstr ":8080"
+
+# Проверить, слушает ли Next.js frontend порт 3000
+netstat -ano | findstr ":3000"
+```
+
+- Если **Go backend (порт 8080) не запущен** — запусти его **неблокирующей командой** из корня репозитория:
+  ```powershell
+  $env:META_DATABASE_URL="postgres://metapus:metapus@localhost:5432/tenants?sslmode=disable"; $env:TENANT_DB_USER="metapus"; $env:TENANT_DB_PASSWORD="metapus"; $env:DATABASE_URL="postgres://metapus:metapus@localhost:5432/metapus?sslmode=disable"; $env:JWT_SECRET="dev-secret"; $env:APP_PORT="8080"; $env:APP_ENV="development"; $env:LOG_LEVEL="info"; go run ./cmd/server
+  ```
+  *(Blocking: false, cwd: корень репозитория)*
+- Если **Next.js frontend (порт 3000) не запущен** — запусти его **неблокирующей командой** из папки `frontend/`:
+  ```powershell
+  npm run dev
+  ```
+  *(Blocking: false, cwd: frontend/)*
+- После запуска подожди 3–5 секунд и убедись, что порты появились в `netstat` перед продолжением.
+- Логин в приложение: `admin@metapus.io` / `Admin123!`
+- NEXT_PUBLIC_TENANT_ID=dcb99555-5a92-427f-b5b8-79686379b8da
+
+---
+
 ## Workflow: Перед началом работы
 
 ### Шаг 1: Определи тип задачи
@@ -326,12 +356,3 @@ npm run build
 |-----|-----------|-------|
 | E2E | Playwright | Пользовательские сценарии (Happy Path) |
 | Unit | Vitest/Jest | Сложная логика утилит и хуков |
-
----
-
-## Доступы для отладки
-
-```
-Email: admin@metapus.io
-Password: Admin123!
-```

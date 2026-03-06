@@ -101,9 +101,9 @@ export interface UpdateNomenclatureRequest {
     version: number
 }
 
-/** Request DTO for setting/clearing deletion mark. */
+/** Request DTO for setting/clearing deletion mark. Mirrors dto.SetDeletionMarkRequest (json:"marked"). */
 export interface SetDeletionMarkRequest {
-    deletionMark: boolean
+    marked: boolean
 }
 
 // ── Counterparty ────────────────────────────────────────────────────────

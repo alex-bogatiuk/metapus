@@ -25,7 +25,7 @@ export function useTabDirty() {
     const { setTabDirty, tabs } = useTabsStore()
 
     // Find the tab that matches the current pathname
-    const currentTab = tabs.find((t) => t.url === pathname)
+    const currentTab = tabs.find((t) => t.id === pathname)
     const tabId = currentTab?.id
 
     const markDirty = useCallback(() => {

@@ -11,6 +11,7 @@ import (
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
+	"metapus/internal/domain" // Add domain import for ValidateDocumentLines
 	"metapus/internal/domain/posting"
 )
 
@@ -76,8 +77,9 @@ type GoodsReceiptLine struct {
 	DiscountAmount  types.MinorUnits `db:"discount_amount" json:"discountAmount"`
 
 	// VAT (reference to cat_vat_rates)
-	VATRateID id.ID            `db:"vat_rate_id" json:"vatRateId"`
-	VATAmount types.MinorUnits `db:"vat_amount" json:"vatAmount"`
+	VATRateID  id.ID            `db:"vat_rate_id" json:"vatRateId"`
+	VATPercent int              `db:"vat_percent" json:"vatPercent"`
+	VATAmount  types.MinorUnits `db:"vat_amount" json:"vatAmount"`
 
 	// Total amount for this line
 	Amount types.MinorUnits `db:"amount" json:"amount"`
@@ -159,6 +161,7 @@ func (g *GoodsReceipt) AddLine(
 		DiscountPercent: discountPercent,
 		DiscountAmount:  discountAmount,
 		VATRateID:       vatRateID,
+		VATPercent:      vatPercent,
 		VATAmount:       vatAmount,
 		Amount:          totalAmount,
 	}
@@ -200,41 +203,36 @@ func (g *GoodsReceipt) Validate(ctx context.Context) error {
 			WithDetail("field", "warehouseId")
 	}
 
-	if len(g.Lines) == 0 {
-		return apperror.NewValidation("at least one line is required").
-			WithDetail("field", "lines")
-	}
-
-	for i, line := range g.Lines {
-		if id.IsNil(line.ProductID) {
-			return apperror.NewValidation("product is required").
-				WithDetail("field", "lines").
-				WithDetail("lineNo", i+1)
-		}
-		if id.IsNil(line.UnitID) {
-			return apperror.NewValidation("unit is required").
-				WithDetail("field", "lines").
-				WithDetail("lineNo", i+1)
-		}
-		if line.Coefficient.LessThanOrEqual(decimal.Zero) {
-			return apperror.NewValidation("coefficient must be positive").
-				WithDetail("field", "lines").
-				WithDetail("lineNo", i+1)
-		}
-		if line.Quantity <= 0 {
-			return apperror.NewValidation("quantity must be positive").
-				WithDetail("field", "lines").
-				WithDetail("lineNo", i+1)
-		}
-		if id.IsNil(line.VATRateID) {
-			return apperror.NewValidation("VAT rate is required").
-				WithDetail("field", "lines").
-				WithDetail("lineNo", i+1)
-		}
-	}
-
-	return nil
+	// Common line validation strategy
+	return domain.ValidateDocumentLines(g.Lines)
 }
+
+// --- LinesAccessor implementation ---
+
+// GetLines returns the document lines.
+func (g *GoodsReceipt) GetLines() []GoodsReceiptLine {
+	return g.Lines
+}
+
+// SetLines replaces the document lines.
+func (g *GoodsReceipt) SetLines(lines []GoodsReceiptLine) {
+	g.Lines = lines
+}
+
+// --- CurrencyAwareDoc implementation ---
+
+// GetContractID returns the contract ID (may be nil).
+func (g *GoodsReceipt) GetContractID() *id.ID {
+	return g.ContractID
+}
+
+// --- ValidatableDocLine implementation for GoodsReceiptLine ---
+
+func (l GoodsReceiptLine) GetProductID() id.ID             { return l.ProductID }
+func (l GoodsReceiptLine) GetUnitID() id.ID                { return l.UnitID }
+func (l GoodsReceiptLine) GetCoefficient() decimal.Decimal { return l.Coefficient }
+func (l GoodsReceiptLine) GetQuantity() types.Quantity     { return l.Quantity }
+func (l GoodsReceiptLine) GetVATRateID() id.ID             { return l.VATRateID }
 
 // --- Postable interface implementation ---
 // GetID, GetPostedVersion, IsPosted, CanPost are inherited from entity.Document
@@ -244,22 +242,19 @@ func (g *GoodsReceipt) GetDocumentType() string {
 	return "GoodsReceipt"
 }
 
-// GenerateMovements creates register movements for this document.
-// Quantity written to stock register is in base units: line.Quantity * line.Coefficient.
-func (g *GoodsReceipt) GenerateMovements(ctx context.Context) (*posting.MovementSet, error) {
-	movements := posting.NewMovementSet()
-
+// GenerateStockMovements implements posting.StockMovementSource.
+// Creates RECEIPT movements — quantity in base units: line.Quantity * line.Coefficient.
+func (g *GoodsReceipt) GenerateStockMovements(ctx context.Context) ([]entity.StockMovement, error) {
 	newVersion := g.PostedVersion + 1
+	movements := make([]entity.StockMovement, 0, len(g.Lines))
 
 	for _, line := range g.Lines {
 		// Convert to base unit quantity: Quantity * Coefficient
 		// Quantity is scaled x10000 internally. Coefficient is decimal.
-		// baseQty = Quantity * Coefficient
 		baseQtyDecimal := decimal.NewFromInt(line.Quantity.Int64Scaled()).Mul(line.Coefficient)
 		baseQty := types.NewQuantityFromInt64Scaled(baseQtyDecimal.IntPart())
 
-		// Stock movement: receipt to warehouse (in base units)
-		stockMovement := entity.NewStockMovement(
+		movements = append(movements, entity.NewStockMovement(
 			g.ID,
 			g.GetDocumentType(),
 			newVersion,
@@ -268,9 +263,7 @@ func (g *GoodsReceipt) GenerateMovements(ctx context.Context) (*posting.Movement
 			g.WarehouseID,
 			line.ProductID,
 			baseQty,
-		)
-
-		movements.AddStock(stockMovement)
+		))
 	}
 
 	return movements, nil
@@ -278,3 +271,4 @@ func (g *GoodsReceipt) GenerateMovements(ctx context.Context) (*posting.Movement
 
 // Ensure interface compliance at compile time.
 var _ posting.Postable = (*GoodsReceipt)(nil)
+var _ posting.StockMovementSource = (*GoodsReceipt)(nil)

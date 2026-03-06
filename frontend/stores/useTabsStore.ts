@@ -21,6 +21,8 @@ interface TabsState {
   setTabDirty: (id: string, isDirty: boolean) => void
   /** Updates the title of a tab (e.g. after loading entity data). */
   updateTabTitle: (id: string, title: string) => void
+  /** Updates the URL of a tab (e.g. when search params change). */
+  updateTabUrl: (id: string, url: string) => void
 }
 
 const DEFAULT_TAB: Tab = {
@@ -75,6 +77,12 @@ export const useTabsStore = create<TabsState>((set, get) => ({
   updateTabTitle: (id, title) => {
     set((state) => ({
       tabs: state.tabs.map((t) => (t.id === id ? { ...t, title } : t)),
+    }))
+  },
+
+  updateTabUrl: (id, url) => {
+    set((state) => ({
+      tabs: state.tabs.map((t) => (t.id === id ? { ...t, url } : t)),
     }))
   },
 }))

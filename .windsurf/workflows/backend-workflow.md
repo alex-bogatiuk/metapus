@@ -30,6 +30,36 @@ description: Metapus Backend — Rules & Developer Role
 
 ---
 
+## Workflow: Проверка окружения (ОБЯЗАТЕЛЬНО, ПЕРВЫЙ ШАГ)
+
+При получении **любой** задачи, **до начала работы**, проверь, что серверы запущены:
+
+### Шаг 0: Проверь и запусти серверы
+
+```powershell
+# Проверить, слушает ли Go backend порт 8080
+netstat -ano | findstr ":8080"
+
+# Проверить, слушает ли Next.js frontend порт 3000
+netstat -ano | findstr ":3000"
+```
+
+- Если **Go backend (порт 8080) не запущен** — запусти его **неблокирующей командой** из корня репозитория:
+  ```powershell
+  $env:META_DATABASE_URL="postgres://metapus:metapus@localhost:5432/tenants?sslmode=disable"; $env:TENANT_DB_USER="metapus"; $env:TENANT_DB_PASSWORD="metapus"; $env:DATABASE_URL="postgres://metapus:metapus@localhost:5432/metapus?sslmode=disable"; $env:JWT_SECRET="dev-secret"; $env:APP_PORT="8080"; $env:APP_ENV="development"; $env:LOG_LEVEL="info"; go run ./cmd/server
+  ```
+  *(Blocking: false, cwd: корень репозитория)*
+- Если **Next.js frontend (порт 3000) не запущен** — запусти его **неблокирующей командой** из папки `frontend/`:
+  ```powershell
+  npm run dev
+  ```
+  *(Blocking: false, cwd: frontend/)*
+- После запуска подожди 3–5 секунд и убедись, что порты появились в `netstat` перед продолжением.
+- Логин в приложение: `admin@metapus.io` / `Admin123!`
+- NEXT_PUBLIC_TENANT_ID=dcb99555-5a92-427f-b5b8-79686379b8da
+
+---
+
 ## Workflow: Documentation Router (ОБЯЗАТЕЛЬНО)
 
 При получении **любой** задачи, связанной с кодом проекта, **до начала работы** выполни:
@@ -242,21 +272,6 @@ go vet ./...
 | Domain service (use case) | Mock Repository через interface |
 | Integration (repo + DB) | `testcontainers-go` + реальный PostgreSQL |
 | `TxManager` | Mock/fake в unit-тестах |
-
----
-
-## Environment Variables
-
-```bash
-META_DATABASE_URL=postgres://metapus:metapus@localhost:5432/tenants?sslmode=disable
-TENANT_DB_USER=metapus
-TENANT_DB_PASSWORD=metapus
-DATABASE_URL=postgres://metapus:metapus@localhost:5432/metapus?sslmode=disable
-JWT_SECRET=<change-in-production>
-APP_PORT=8080
-APP_ENV=development
-LOG_LEVEL=info
-```
 
 ---
 

@@ -2,8 +2,9 @@
 package v1
 
 import (
-	"github.com/gin-gonic/gin"
 	"metapus/internal/infrastructure/http/v1/middleware"
+
+	"github.com/gin-gonic/gin"
 )
 
 // CatalogRouteHandler defines the interface for catalog handlers.
@@ -34,6 +35,12 @@ type DocumentRouteHandler interface {
 // DocumentCopyHandler is an optional interface for documents that support copying.
 type DocumentCopyHandler interface {
 	Copy(c *gin.Context)
+}
+
+// DocumentRepostHandler is an optional interface for documents that support
+// atomic update-and-repost (1C-style "Записать проведённый документ").
+type DocumentRepostHandler interface {
+	UpdateAndRepost(c *gin.Context)
 }
 
 // RegisterCatalogRoutes registers standard CRUD routes for a catalog.
@@ -78,5 +85,10 @@ func RegisterDocumentRoutes(group *gin.RouterGroup, handler DocumentRouteHandler
 	// Register Copy route if handler supports it (optional)
 	if copyHandler, ok := handler.(DocumentCopyHandler); ok {
 		group.POST("/:id/copy", middleware.RequirePermission(permission+":create"), copyHandler.Copy)
+	}
+
+	// Register Repost route if handler supports it (optional)
+	if repostHandler, ok := handler.(DocumentRepostHandler); ok {
+		group.PUT("/:id/repost", middleware.RequirePermission(permission+":post"), repostHandler.UpdateAndRepost)
 	}
 }

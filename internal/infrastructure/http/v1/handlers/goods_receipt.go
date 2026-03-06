@@ -10,6 +10,7 @@ import (
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
+	"metapus/internal/domain"
 	"metapus/internal/domain/documents/goods_receipt"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/storage/postgres"
@@ -19,11 +20,12 @@ import (
 // Overrides all response methods to resolve reference IDs → display names.
 type GoodsReceiptHandler struct {
 	*BaseDocumentHandler[*goods_receipt.GoodsReceipt, dto.CreateGoodsReceiptRequest, dto.UpdateGoodsReceiptRequest]
-	service *goods_receipt.Service
+	service domain.DocumentService[*goods_receipt.GoodsReceipt]
 }
 
 // NewGoodsReceiptHandler creates a new goods receipt handler.
-func NewGoodsReceiptHandler(base *BaseHandler, service *goods_receipt.Service) *GoodsReceiptHandler {
+// Accepts domain.DocumentService interface — can be a concrete service or a decorated wrapper.
+func NewGoodsReceiptHandler(base *BaseHandler, service domain.DocumentService[*goods_receipt.GoodsReceipt]) *GoodsReceiptHandler {
 	cfg := BaseDocumentHandlerConfig[*goods_receipt.GoodsReceipt, dto.CreateGoodsReceiptRequest, dto.UpdateGoodsReceiptRequest]{
 		Service:    service,
 		EntityName: "goods-receipt",
@@ -35,7 +37,7 @@ func NewGoodsReceiptHandler(base *BaseHandler, service *goods_receipt.Service) *
 			return existing
 		},
 		MapToDTO: func(entity *goods_receipt.GoodsReceipt) any {
-			return dto.FromGoodsReceipt(entity)
+			return dto.FromGoodsReceipt(entity, nil)
 		},
 		IsPostImmediately: func(req dto.CreateGoodsReceiptRequest) bool {
 			return req.PostImmediately
@@ -49,15 +51,23 @@ func NewGoodsReceiptHandler(base *BaseHandler, service *goods_receipt.Service) *
 }
 
 // resolveDocRefs batch-resolves all reference IDs for a list of documents.
-// Returns ResolvedRefs that can be passed to dto.FromGoodsReceipt.
-func (h *GoodsReceiptHandler) resolveDocRefs(ctx context.Context, docs ...*goods_receipt.GoodsReceipt) (postgres.ResolvedRefs, error) {
+// Returns ResolvedRefs + ResolvedCurrencyRefs (with decimalPlaces, symbol).
+func (h *GoodsReceiptHandler) resolveDocRefs(ctx context.Context, docs ...*goods_receipt.GoodsReceipt) (postgres.ResolvedRefs, postgres.ResolvedCurrencyRefs, error) {
 	resolver := postgres.NewReferenceResolver()
 	for _, doc := range docs {
 		dto.CollectGoodsReceiptRefs(resolver, doc)
 	}
 
 	pool := tenant.MustGetPool(ctx)
-	return resolver.Resolve(ctx, pool)
+	refs, err := resolver.Resolve(ctx, pool)
+	if err != nil {
+		return nil, nil, err
+	}
+	currencyRefs, err := resolver.ResolveCurrencies(ctx, pool)
+	if err != nil {
+		return nil, nil, err
+	}
+	return refs, currencyRefs, nil
 }
 
 // Get handles GET /document/goods-receipt/:id — with resolved references.
@@ -76,13 +86,13 @@ func (h *GoodsReceiptHandler) Get(c *gin.Context) {
 		return
 	}
 
-	refs, err := h.resolveDocRefs(ctx, doc)
+	refs, currencyRefs, err := h.resolveDocRefs(ctx, doc)
 	if err != nil {
 		h.Error(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.FromGoodsReceipt(doc, refs))
+	c.JSON(http.StatusOK, dto.FromGoodsReceipt(doc, refs, currencyRefs))
 }
 
 // List handles GET /document/goods-receipt — with resolved references.
@@ -102,7 +112,7 @@ func (h *GoodsReceiptHandler) List(c *gin.Context) {
 	}
 
 	// Batch-resolve references for all documents in the list
-	refs, err := h.resolveDocRefs(ctx, result.Items...)
+	refs, currencyRefs, err := h.resolveDocRefs(ctx, result.Items...)
 	if err != nil {
 		h.Error(c, err)
 		return
@@ -110,7 +120,7 @@ func (h *GoodsReceiptHandler) List(c *gin.Context) {
 
 	items := make([]any, len(result.Items))
 	for i, item := range result.Items {
-		items[i] = dto.FromGoodsReceipt(item, refs)
+		items[i] = dto.FromGoodsReceipt(item, refs, currencyRefs)
 	}
 
 	c.JSON(http.StatusOK, dto.ListResponse{
@@ -143,8 +153,8 @@ func (h *GoodsReceiptHandler) Create(c *gin.Context) {
 		return
 	}
 
-	refs, _ := h.resolveDocRefs(ctx, doc)
-	response := dto.FromGoodsReceipt(doc, refs)
+	refs, currencyRefs, _ := h.resolveDocRefs(ctx, doc)
+	response := dto.FromGoodsReceipt(doc, refs, currencyRefs)
 	h.CompleteIdempotency(c, http.StatusCreated, "application/json", response)
 	c.JSON(http.StatusCreated, response)
 }
@@ -176,8 +186,8 @@ func (h *GoodsReceiptHandler) Update(c *gin.Context) {
 		return
 	}
 
-	refs, _ := h.resolveDocRefs(ctx, doc)
-	response := dto.FromGoodsReceipt(doc, refs)
+	refs, currencyRefs, _ := h.resolveDocRefs(ctx, doc)
+	response := dto.FromGoodsReceipt(doc, refs, currencyRefs)
 	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
 	c.JSON(http.StatusOK, response)
 }
@@ -202,8 +212,8 @@ func (h *GoodsReceiptHandler) Post(c *gin.Context) {
 		return
 	}
 
-	refs, _ := h.resolveDocRefs(ctx, doc)
-	response := dto.FromGoodsReceipt(doc, refs)
+	refs, currencyRefs, _ := h.resolveDocRefs(ctx, doc)
+	response := dto.FromGoodsReceipt(doc, refs, currencyRefs)
 	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
 	c.JSON(http.StatusOK, response)
 }
@@ -228,8 +238,8 @@ func (h *GoodsReceiptHandler) Unpost(c *gin.Context) {
 		return
 	}
 
-	refs, _ := h.resolveDocRefs(ctx, doc)
-	response := dto.FromGoodsReceipt(doc, refs)
+	refs, currencyRefs, _ := h.resolveDocRefs(ctx, doc)
+	response := dto.FromGoodsReceipt(doc, refs, currencyRefs)
 	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
 	c.JSON(http.StatusOK, response)
 }
@@ -259,8 +269,42 @@ func (h *GoodsReceiptHandler) SetDeletionMark(c *gin.Context) {
 		return
 	}
 
-	refs, _ := h.resolveDocRefs(ctx, doc)
-	response := dto.FromGoodsReceipt(doc, refs)
+	refs, currencyRefs, _ := h.resolveDocRefs(ctx, doc)
+	response := dto.FromGoodsReceipt(doc, refs, currencyRefs)
+	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
+	c.JSON(http.StatusOK, response)
+}
+
+// UpdateAndRepost handles PUT /document/goods-receipt/:id/repost — atomic update + re-post.
+// Accepts the same body as Update. The document is updated and re-posted in a single transaction.
+func (h *GoodsReceiptHandler) UpdateAndRepost(c *gin.Context) {
+	ctx := c.Request.Context()
+	docID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid id format"))
+		return
+	}
+
+	var req dto.UpdateGoodsReceiptRequest
+	if !h.BindJSON(c, &req) {
+		return
+	}
+
+	doc, err := h.service.GetByID(ctx, docID)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	req.ApplyTo(doc)
+
+	if err := h.service.UpdateAndRepost(ctx, doc); err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	refs, currencyRefs, _ := h.resolveDocRefs(ctx, doc)
+	response := dto.FromGoodsReceipt(doc, refs, currencyRefs)
 	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
 	c.JSON(http.StatusOK, response)
 }
@@ -299,8 +343,8 @@ func (h *GoodsReceiptHandler) Copy(c *gin.Context) {
 		return
 	}
 
-	refs, _ := h.resolveDocRefs(ctx, copy)
-	response := dto.FromGoodsReceipt(copy, refs)
+	refs, currencyRefs, _ := h.resolveDocRefs(ctx, copy)
+	response := dto.FromGoodsReceipt(copy, refs, currencyRefs)
 	h.CompleteIdempotency(c, http.StatusCreated, "application/json", response)
 	c.JSON(http.StatusCreated, response)
 }

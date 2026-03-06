@@ -46,6 +46,8 @@ interface FilterSidebarProps {
   onFilterValuesChange?: (values: FilterValues) => void
   /** Initial values to restore saved filter settings */
   initialFilterValues?: FilterValues
+  /** Content to render inside the "Детали" tab (e.g. document preview). */
+  detailsContent?: React.ReactNode
 }
 
 const STORAGE_KEY = "metapus-filter-sidebar-collapsed"
@@ -59,6 +61,7 @@ export function FilterSidebar({
   onFilterConfigChange,
   onFilterValuesChange,
   initialFilterValues,
+  detailsContent,
 }: FilterSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(true)
   const [filterDialogOpen, setFilterDialogOpen] = useState(false)
@@ -458,8 +461,8 @@ export function FilterSidebar({
         {/* String */}
         {!nullary && meta.fieldType === "string" && renderStringValue(meta, entry)}
 
-        {/* Number */}
-        {!nullary && meta.fieldType === "number" && renderNumberValue(meta, entry)}
+        {/* Number / Money */}
+        {!nullary && (meta.fieldType === "number" || meta.fieldType === "money") && renderNumberValue(meta, entry)}
 
         {/* Date */}
         {!nullary && meta.fieldType === "date" && renderDateValue(meta, entry)}
@@ -629,9 +632,11 @@ export function FilterSidebar({
 
           {showDetails && (
             <TabsContent value="details" className="p-3">
-              <p className="text-sm text-muted-foreground">
-                Выберите элемент для просмотра деталей
-              </p>
+              {detailsContent ?? (
+                <p className="text-sm text-muted-foreground">
+                  Выберите элемент для просмотра деталей
+                </p>
+              )}
             </TabsContent>
           )}
         </Tabs>

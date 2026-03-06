@@ -21,6 +21,8 @@ type InterfacePrefs struct {
 	ShowTooltips     *bool  `json:"showTooltips,omitempty"`
 	CompactMode      *bool  `json:"compactMode,omitempty"`
 	SidebarCollapsed *bool  `json:"sidebarCollapsed,omitempty"`
+	// Per-entity toggle: show deletion-marked items in list views. Key = entity type (e.g. "GoodsReceipt").
+	ShowDeletedEntities map[string]bool `json:"showDeletedEntities,omitempty"`
 }
 
 // UserPreferences represents all preferences for a single user (1 row in DB).

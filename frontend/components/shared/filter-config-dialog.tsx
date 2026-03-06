@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils"
 export type FieldType =
     | "string"
     | "number"
+    | "money"
     | "date"
     | "boolean"
     | "reference"
@@ -54,6 +55,8 @@ export interface FilterFieldMeta {
     group?: string
     /** API endpoint path for reference fields, e.g. "/catalog/warehouses" */
     refEndpoint?: string
+    /** Storage multiplier for scaled numeric types (e.g. 10000 for Quantity, 100 for Money). 0 = no scaling. */
+    valueScale?: number
 }
 
 interface FilterConfigDialogProps {
@@ -72,6 +75,7 @@ interface FilterConfigDialogProps {
 const FIELD_TYPE_ICONS: Record<FieldType, string> = {
     string: "Abc",
     number: "123",
+    money: "💰",
     date: "📅",
     boolean: "☑",
     reference: "🔗",
@@ -85,7 +89,7 @@ function FieldTypeIcon({ type }: { type: FieldType }) {
             className={cn(
                 "inline-flex h-4 w-4 items-center justify-center rounded-[3px] text-[9px] font-bold shrink-0",
                 type === "string" && "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-                type === "number" && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+                (type === "number" || type === "money") && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
                 type === "date" && "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
                 type === "boolean" && "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
                 type === "reference" && "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",
@@ -126,11 +130,14 @@ export function FilterConfigDialog({
         onOpenChange(isOpen)
     }
 
+    // ⚡ Perf: O(1) lookup Set for selected keys — avoids O(N) .includes() in filter loop.
+    const selectedSet = useMemo(() => new Set(selected), [selected])
+
     // Build grouped structure for available fields
     const groupedAvailable = useMemo(() => {
         const query = searchQuery.toLowerCase()
         const filtered = availableFields.filter((f) => {
-            if (selected.includes(f.key)) return false
+            if (selectedSet.has(f.key)) return false
             if (query && !f.label.toLowerCase().includes(query)) return false
             return true
         })
@@ -148,7 +155,7 @@ export function FilterConfigDialog({
         }
 
         return { groups, ungrouped }
-    }, [availableFields, selected, searchQuery])
+    }, [availableFields, selectedSet, searchQuery])
 
     // Selected fields in order
     const selectedFields = useMemo(() => {
@@ -168,7 +175,7 @@ export function FilterConfigDialog({
     // ── Actions ─────
 
     const moveToSelected = () => {
-        if (!availableHighlight || selected.includes(availableHighlight)) return
+        if (!availableHighlight || selectedSet.has(availableHighlight)) return
         setSelected((prev) => [...prev, availableHighlight])
         setAvailableHighlight(null)
     }
@@ -262,7 +269,7 @@ export function FilterConfigDialog({
                                         onClick={() => setAvailableHighlight(field.key)}
                                         onDoubleClick={() => {
                                             setAvailableHighlight(field.key)
-                                            if (!selected.includes(field.key)) {
+                                            if (!selectedSet.has(field.key)) {
                                                 setSelected((prev) => [...prev, field.key])
                                             }
                                         }}
@@ -299,7 +306,7 @@ export function FilterConfigDialog({
                                                     onClick={() => setAvailableHighlight(field.key)}
                                                     onDoubleClick={() => {
                                                         setAvailableHighlight(field.key)
-                                                        if (!selected.includes(field.key)) {
+                                                        if (!selectedSet.has(field.key)) {
                                                             setSelected((prev) => [...prev, field.key])
                                                         }
                                                     }}

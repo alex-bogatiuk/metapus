@@ -54,6 +54,12 @@ type FieldDef struct {
 	ReadOnly      bool      `json:"readOnly,omitempty"`
 	Scale         int       `json:"scale,omitempty"` // For numbers
 	Options       []string  `json:"options,omitempty"`
+
+	// ValueScale is the storage multiplier for filter value conversion.
+	// User-visible values are multiplied by this before DB comparison.
+	// E.g. Quantity (×10000), MinorUnits/Money (×100).
+	// 0 means no scaling.
+	ValueScale int `json:"valueScale,omitempty"`
 }
 
 // FilterFieldMeta is a flat, frontend-compatible representation of a filterable field.
@@ -64,6 +70,7 @@ type FilterFieldMeta struct {
 	FieldType   string `json:"fieldType"` // string | number | date | boolean | reference | enum
 	Group       string `json:"group,omitempty"`
 	RefEndpoint string `json:"refEndpoint,omitempty"` // API path for reference fields, e.g. "/catalog/warehouses"
+	ValueScale  int    `json:"valueScale,omitempty"`  // storage multiplier (e.g. 10000 for Quantity, 100 for Money)
 }
 
 // filterFieldType maps internal FieldType to the simplified frontend filter types.
@@ -71,8 +78,10 @@ func filterFieldType(ft FieldType) string {
 	switch ft {
 	case TypeString:
 		return "string"
-	case TypeInteger, TypeNumber, TypeMoney:
+	case TypeInteger, TypeNumber:
 		return "number"
+	case TypeMoney:
+		return "money"
 	case TypeDate:
 		return "date"
 	case TypeBoolean:
@@ -106,9 +115,10 @@ func (d *EntityDef) ToFilterMeta() []FilterFieldMeta {
 			continue
 		}
 		meta := FilterFieldMeta{
-			Key:       f.Name,
-			Label:     f.Label,
-			FieldType: filterFieldType(f.Type),
+			Key:        f.Name,
+			Label:      f.Label,
+			FieldType:  filterFieldType(f.Type),
+			ValueScale: f.ValueScale,
 		}
 		if f.Type == TypeReference && d.RefEndpoints != nil {
 			meta.RefEndpoint = d.RefEndpoints[f.ReferenceType]
@@ -124,10 +134,11 @@ func (d *EntityDef) ToFilterMeta() []FilterFieldMeta {
 				continue
 			}
 			meta := FilterFieldMeta{
-				Key:       tp.Name + "." + col.Name,
-				Label:     col.Label,
-				FieldType: filterFieldType(col.Type),
-				Group:     groupLabel,
+				Key:        tp.Name + "." + col.Name,
+				Label:      col.Label,
+				FieldType:  filterFieldType(col.Type),
+				Group:      groupLabel,
+				ValueScale: col.ValueScale,
 			}
 			if col.Type == TypeReference && d.RefEndpoints != nil {
 				meta.RefEndpoint = d.RefEndpoints[col.ReferenceType]

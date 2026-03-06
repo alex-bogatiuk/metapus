@@ -252,50 +252,197 @@ GET    /api/v1/catalog/your-entities/tree     — Tree view
 
 ### Модель
 
+Embed `entity.Document` + `entity.CurrencyAware` + табличная часть.
+Реализовать `domain.DocumentEntity[L]`: `GetLines`, `SetLines`, `GetContractID`, и `posting.Postable`.
+
 ```go
 type YourDocument struct {
     entity.Document
-    CustomField string         `db:"custom_field" json:"customField"`
-    Lines       []YourDocLine  `db:"-" json:"lines"` // Табличная часть
+    entity.CurrencyAware
+    CounterpartyID id.ID          `db:"counterparty_id" json:"counterpartyId"`
+    ContractID     *id.ID         `db:"contract_id" json:"contractId,omitempty"`
+    WarehouseID    id.ID          `db:"warehouse_id" json:"warehouseId"`
+    Lines          []YourDocLine  `db:"-" json:"lines"`
 }
 
 type YourDocLine struct {
-    LineID    id.ID  `db:"line_id" json:"lineId"`
-    LineNo    int    `db:"line_no" json:"lineNo"`
-    ProductID id.ID  `db:"product_id" json:"productId"`
+    LineID      id.ID            `db:"line_id" json:"lineId"`
+    LineNo      int              `db:"line_no" json:"lineNo"`
+    ProductID   id.ID            `db:"product_id" json:"productId"`
+    UnitID      id.ID            `db:"unit_id" json:"unitId"`
+    Coefficient decimal.Decimal  `db:"coefficient" json:"coefficient"`
+    Quantity    types.Quantity   `db:"quantity" json:"quantity"`
+    VATRateID   id.ID            `db:"vat_rate_id" json:"vatRateId"`
+}
+
+// --- LinesAccessor ---
+func (d *YourDocument) GetLines() []YourDocLine    { return d.Lines }
+func (d *YourDocument) SetLines(l []YourDocLine)   { d.Lines = l }
+
+// --- CurrencyAwareDoc ---
+func (d *YourDocument) GetContractID() *id.ID      { return d.ContractID }
+
+// --- ValidatableDocLine (Strategy) ---
+func (l YourDocLine) GetProductID() id.ID              { return l.ProductID }
+func (l YourDocLine) GetUnitID() id.ID                 { return l.UnitID }
+func (l YourDocLine) GetCoefficient() decimal.Decimal   { return l.Coefficient }
+func (l YourDocLine) GetQuantity() types.Quantity       { return l.Quantity }
+func (l YourDocLine) GetVATRateID() id.ID               { return l.VATRateID }
+
+// В Validate():
+return domain.ValidateDocumentLines(d.Lines)  // общая валидация строк бесплатно
+```
+
+### Репозиторий
+
+Интерфейс должен соответствовать `domain.DocumentRepository[T, L]`:
+
+```go
+type Repository interface {
+    Create(ctx context.Context, doc *YourDocument) error
+    GetByID(ctx context.Context, docID id.ID) (*YourDocument, error)
+    GetByNumber(ctx context.Context, number string) (*YourDocument, error)
+    Update(ctx context.Context, doc *YourDocument) error
+    Delete(ctx context.Context, docID id.ID) error
+    GetLines(ctx context.Context, docID id.ID) ([]YourDocLine, error)
+    SaveLines(ctx context.Context, docID id.ID, lines []YourDocLine) error
+    List(ctx context.Context, filter domain.ListFilter) (domain.ListResult[*YourDocument], error)
+    GetForUpdate(ctx context.Context, docID id.ID) (*YourDocument, error)
 }
 ```
 
 ### Сервис
 
+Embed `domain.BaseDocumentService[T, L]` — все CRUD + проведение + нумерация автоматически:
+
 ```go
-func NewService(repo Repository, postingEngine *posting.Engine, numerator *numerator.Service) *Service {
-    base := domain.NewDocumentService(domain.DocumentServiceConfig[*YourDocument]{
-        Repo:          repo,
-        PostingEngine: postingEngine,
-        Numerator:     numerator,
-        EntityName:    "your_document",
+type Service struct {
+    *domain.BaseDocumentService[*YourDocument, YourDocLine]
+}
+
+func NewService(repo Repository, engine *posting.Engine, num numerator.Generator, txm tx.Manager, currencyStrategy domain.CurrencyResolveStrategy) *Service {
+    base := domain.NewBaseDocumentService(domain.BaseDocumentServiceConfig[*YourDocument, YourDocLine]{
+        Repo:              repo,
+        PostingEngine:     engine,
+        Numerator:         num,
+        TxManager:         txm,
+        CurrencyResolver:  currencyStrategy,
+        NumeratorPrefix:   "YD",
+        NumeratorStrategy: NumeratorStrategy,
+        EntityName:        "your document",
     })
-    return &Service{DocumentService: base, repo: repo}
+    return &Service{BaseDocumentService: base}
+}
+
+func (s *Service) Hooks() *domain.HookRegistry[*YourDocument] {
+    return s.BaseDocumentService.GetHooks()
 }
 ```
 
-### Репозиторий (дополнительные методы)
+Методы, доступные из коробки (через embedding):
+`Create`, `GetByID`, `Update`, `Delete`, `List`, `Post`, `Unpost`, `PostAndSave`, `UpdateAndRepost`, `SetDeletionMark`
+
+### Регистрация (Abstract Factory)
+
+Документы регистрируются через паттерн **Abstract Factory** (`document_factory.go`).
+Каждый тип документа реализует интерфейс `DocumentRegistration`:
 
 ```go
-func (r *YourDocRepo) GetLines(ctx, docID id.ID) ([]YourDocLine, error) { ... }
-func (r *YourDocRepo) SaveLines(ctx, docID id.ID, lines []YourDocLine) error { ... }
-```
+// internal/infrastructure/http/v1/document_factory.go
 
-### Регистрация
+type YourDocRegistration struct{}
 
-```go
-{
+func (r *YourDocRegistration) RoutePrefix() string { return "your-docs" }
+func (r *YourDocRegistration) Permission() string  { return "document:your_doc" }
+
+func (r *YourDocRegistration) Build(deps DocumentDeps) DocumentRouteHandler {
     repo := document_repo.NewYourDocRepo()
-    service := your_doc.NewService(repo, postingEngine, cfg.Numerator)
-    handler := handlers.NewYourDocHandler(baseHandler, service)
-    RegisterDocumentRoutes(documents.Group("/your-docs"), handler, "document:your_doc")
+    service := your_doc.NewService(repo, deps.PostingEngine, deps.Numerator, nil, deps.CurrencyResolver)
+
+    // Audit hooks
+    service.Hooks().OnBeforeCreate(func(ctx context.Context, doc *your_doc.YourDocument) error {
+        audit.EnrichCreatedByDirect(ctx, &doc.CreatedBy, &doc.UpdatedBy)
+        return nil
+    })
+    service.Hooks().OnBeforeUpdate(func(ctx context.Context, doc *your_doc.YourDocument) error {
+        audit.EnrichUpdatedByDirect(ctx, &doc.UpdatedBy)
+        return nil
+    })
+
+    return handlers.NewYourDocHandler(deps.BaseHandler, service)
 }
+```
+
+Затем добавить фабрику в реестр:
+
+```go
+var documentFactories = []DocumentRegistration{
+    &GoodsReceiptRegistration{},
+    &GoodsIssueRegistration{},
+    &YourDocRegistration{},        // ← добавить сюда
+}
+```
+
+Роуты, permissions и shared dependencies подключатся автоматически через `RegisterDocumentRoutes`.
+
+### Движения по регистрам (Visitor)
+
+Документ реализует **source-интерфейсы** для нужных регистров (`posting/visitor.go`):
+
+```go
+// Для товарных остатков:
+func (d *YourDocument) GenerateStockMovements(ctx context.Context) ([]entity.StockMovement, error) {
+    newVersion := d.PostedVersion + 1
+    var movements []entity.StockMovement
+    for _, line := range d.Lines {
+        movements = append(movements, entity.NewStockMovement(
+            d.ID, d.GetDocumentType(), newVersion, d.Date,
+            entity.RecordTypeReceipt, // или RecordTypeExpense
+            d.WarehouseID, line.ProductID, baseQty,
+        ))
+    }
+    return movements, nil
+}
+
+// Compile-time check:
+var _ posting.StockMovementSource = (*YourDocument)(nil)
+```
+
+Engine автоматически обнаружит source-интерфейс через `StockVisitor` (type-assertion).
+Для будущих регистров (cost, settlement) — реализовать соответствующий `XxxMovementSource`.
+
+### Builder (для тестов и seed'ов)
+
+Создать файл `builder.go` с fluent API:
+
+```go
+type Builder struct {
+    doc *YourDocument
+}
+
+func NewBuilder(organizationID, counterpartyID, warehouseID id.ID) *Builder {
+    return &Builder{doc: NewYourDocument(organizationID, counterpartyID, warehouseID)}
+}
+
+func (b *Builder) WithCurrency(id id.ID) *Builder   { b.doc.CurrencyID = id; return b }
+func (b *Builder) WithDescription(d string) *Builder { b.doc.Description = d; return b }
+
+// AddLine — упрощённый (coefficient=1, discount=0)
+func (b *Builder) AddLine(productID, unitID id.ID, qty int, price types.MinorUnits, vatRateID id.ID, vatPct int) *Builder {
+    b.doc.AddLine(productID, unitID, decimal.NewFromInt(1), types.NewQuantityFromFloat64(float64(qty)), price, vatRateID, vatPct, decimal.Zero)
+    return b
+}
+
+func (b *Builder) Build() *YourDocument      { return b.doc }
+func (b *Builder) MustBuild() *YourDocument   { /* panic on missing required */ return b.doc }
+```
+
+Использование:
+```go
+doc := your_doc.NewBuilder(orgID, cpID, whID).
+    WithCurrency(rubID).
+    AddLine(productID, unitID, 10, 15000, vatRateID, 20).
+    MustBuild()
 ```
 
 ---
@@ -334,7 +481,9 @@ group.GET("/:id/custom", middleware.RequirePermission("..."), handler.CustomMeth
 - [ ] DTO (`internal/infrastructure/http/v1/dto/`)
   - [ ] CreateXRequest, UpdateXRequest, XResponse
 - [ ] Handler (`internal/infrastructure/http/v1/handlers/`)
-- [ ] Регистрация роутов в `router.go`
+- [ ] Builder (`builder.go` в пакете документа) — fluent API для тестов и seed'ов
+- [ ] Регистрация: `DocumentRegistration` в `document_factory.go` + добавить в `documentFactories`
+- [ ] Декоратор: обернуть сервис `domain.WithLogging[T](name)(service)` в `Build()` фабрики
 - [ ] Permissions в seed миграцию
 - [ ] Проверить компиляцию: `go build ./cmd/server`
 - [ ] Протестировать API

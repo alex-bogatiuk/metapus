@@ -1,30 +1,16 @@
 package goods_issue
 
 import (
-	"context"
-	"fmt"
-	"time"
-
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
 	"metapus/internal/core/numerator"
-	"metapus/internal/core/tenant"
 	"metapus/internal/core/tx"
 	"metapus/internal/domain"
-	"metapus/internal/domain/documents"
 	"metapus/internal/domain/posting"
-	"metapus/pkg/logger"
 )
 
 // Service provides business operations for goods issue documents.
-// In Database-per-Tenant architecture, TxManager is obtained from context.
+// Embeds BaseDocumentService for common CRUD + posting logic.
 type Service struct {
-	repo          Repository
-	postingEngine *posting.Engine
-	numerator     numerator.Generator
-	txManager     tx.Manager // Optional for Database-per-Tenant mode
-	resolver      *documents.CurrencyResolver
-	hooks         *domain.HookRegistry[*GoodsIssue]
+	*domain.BaseDocumentService[*GoodsIssue, GoodsIssueLine]
 }
 
 // NewService creates a new goods issue service.
@@ -32,265 +18,24 @@ type Service struct {
 func NewService(
 	repo Repository,
 	postingEngine *posting.Engine,
-	numerator numerator.Generator,
+	num numerator.Generator,
 	txManager tx.Manager,
-	resolver *documents.CurrencyResolver,
+	currencyStrategy domain.CurrencyResolveStrategy,
 ) *Service {
-	return &Service{
-		repo:          repo,
-		postingEngine: postingEngine,
-		numerator:     numerator,
-		txManager:     txManager,
-		resolver:      resolver,
-		hooks:         domain.NewHookRegistry[*GoodsIssue](),
-	}
+	base := domain.NewBaseDocumentService(domain.BaseDocumentServiceConfig[*GoodsIssue, GoodsIssueLine]{
+		Repo:              repo,
+		PostingEngine:     postingEngine,
+		Numerator:         num,
+		TxManager:         txManager,
+		CurrencyResolver:  currencyStrategy,
+		NumeratorPrefix:   "GI",
+		NumeratorStrategy: NumeratorStrategy,
+		EntityName:        "goods issue",
+	})
+	return &Service{BaseDocumentService: base}
 }
 
 // Hooks returns the hook registry for registering callbacks.
 func (s *Service) Hooks() *domain.HookRegistry[*GoodsIssue] {
-	return s.hooks
-}
-
-func (s *Service) getTxManager(ctx context.Context) (tx.Manager, error) {
-	if s.txManager != nil {
-		return s.txManager, nil
-	}
-	return tenant.GetTxManager(ctx)
-}
-
-// Create creates a new goods issue document.
-func (s *Service) Create(ctx context.Context, doc *GoodsIssue) error {
-	// Run before-create hooks
-	if err := s.hooks.RunBeforeCreate(ctx, doc); err != nil {
-		return err
-	}
-
-	// Resolve currency
-	currencyID, err := s.resolver.ResolveForDocument(ctx, doc.CurrencyID, doc.ContractID, doc.OrganizationID)
-	if err != nil {
-		return err
-	}
-	doc.CurrencyID = currencyID
-
-	if err := doc.Validate(ctx); err != nil {
-		return err
-	}
-
-	if doc.Number == "" {
-		cfg := numerator.DefaultConfig("GI")
-		number, err := s.numerator.GetNextNumber(ctx, cfg, &numerator.Options{Strategy: NumeratorStrategy}, time.Now())
-		if err != nil {
-			return fmt.Errorf("generate number: %w", err)
-		}
-		doc.Number = number
-	}
-
-	txm, err := s.getTxManager(ctx)
-	if err != nil {
-		return apperror.NewInternal(err).WithDetail("missing", "tx_manager")
-	}
-	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
-		if err := s.repo.Create(ctx, doc); err != nil {
-			return fmt.Errorf("create document: %w", err)
-		}
-		if err := s.repo.SaveLines(ctx, doc.ID, doc.Lines); err != nil {
-			return fmt.Errorf("save lines: %w", err)
-		}
-		return nil
-	})
-
-	if err != nil {
-		return err
-	}
-
-	// Run after-create hooks
-	if err := s.hooks.RunAfterCreate(ctx, doc); err != nil {
-		logger.Warn(ctx, "after-create hook failed", "error", err)
-	}
-
-	logger.Info(ctx, "goods issue created", "id", doc.ID, "number", doc.Number)
-	return nil
-}
-
-// GetByID retrieves a goods issue with lines.
-func (s *Service) GetByID(ctx context.Context, docID id.ID) (*GoodsIssue, error) {
-	doc, err := s.repo.GetByID(ctx, docID)
-	if err != nil {
-		return nil, err
-	}
-
-	lines, err := s.repo.GetLines(ctx, docID)
-	if err != nil {
-		return nil, fmt.Errorf("get lines: %w", err)
-	}
-	doc.Lines = lines
-
-	return doc, nil
-}
-
-// Update updates a goods issue document.
-func (s *Service) Update(ctx context.Context, doc *GoodsIssue) error {
-	// Run before-update hooks
-	if err := s.hooks.RunBeforeUpdate(ctx, doc); err != nil {
-		return err
-	}
-
-	if err := doc.CanModify(); err != nil {
-		return err
-	}
-
-	if err := doc.Validate(ctx); err != nil {
-		return err
-	}
-
-	txm, err := s.getTxManager(ctx)
-	if err != nil {
-		return apperror.NewInternal(err).WithDetail("missing", "tx_manager")
-	}
-	return txm.RunInTransaction(ctx, func(ctx context.Context) error {
-		if err := s.repo.Update(ctx, doc); err != nil {
-			return fmt.Errorf("update document: %w", err)
-		}
-		if err := s.repo.SaveLines(ctx, doc.ID, doc.Lines); err != nil {
-			return fmt.Errorf("save lines: %w", err)
-		}
-		return nil
-	})
-}
-
-// Delete soft-deletes a goods issue.
-func (s *Service) Delete(ctx context.Context, docID id.ID) error {
-	doc, err := s.repo.GetByID(ctx, docID)
-	if err != nil {
-		return err
-	}
-
-	if doc.Posted {
-		return doc.CanModify()
-	}
-
-	return s.repo.Delete(ctx, docID)
-}
-
-// SetDeletionMark sets or clears the deletion mark on a goods issue.
-// 1C-style logic:
-//   - If marking for deletion (marked=true) and document is posted: unpost first, then mark deleted (atomic).
-//   - If marking for deletion (marked=true) and document is NOT posted: just mark deleted.
-//   - If clearing the mark (marked=false): clear the flag, document stays unposted (draft state).
-func (s *Service) SetDeletionMark(ctx context.Context, docID id.ID, marked bool) error {
-	doc, err := s.GetByID(ctx, docID)
-	if err != nil {
-		return err
-	}
-
-	// No-op if state already matches
-	if doc.DeletionMark == marked {
-		return nil
-	}
-
-	if marked {
-		// Setting deletion mark
-		if doc.Posted {
-			// Unpost + mark deleted in one transaction via postingEngine.Unpost
-			updateDocAndMark := func(ctx context.Context) error {
-				doc.MarkDeleted()
-				return s.repo.Update(ctx, doc)
-			}
-			return s.postingEngine.Unpost(ctx, doc, updateDocAndMark)
-		}
-
-		// Not posted — just mark in a transaction
-		txm, err := s.getTxManager(ctx)
-		if err != nil {
-			return apperror.NewInternal(err).WithDetail("missing", "tx_manager")
-		}
-		return txm.RunInTransaction(ctx, func(ctx context.Context) error {
-			doc.MarkDeleted()
-			return s.repo.Update(ctx, doc)
-		})
-	}
-
-	// Clearing deletion mark (marked=false)
-	txm, err := s.getTxManager(ctx)
-	if err != nil {
-		return apperror.NewInternal(err).WithDetail("missing", "tx_manager")
-	}
-	return txm.RunInTransaction(ctx, func(ctx context.Context) error {
-		doc.Undelete()
-		return s.repo.Update(ctx, doc)
-	})
-}
-
-// Post records document movements to registers.
-// Will fail if insufficient stock (negative balance prevention).
-func (s *Service) Post(ctx context.Context, docID id.ID) error {
-	doc, err := s.GetByID(ctx, docID)
-	if err != nil {
-		return err
-	}
-
-	updateDoc := func(ctx context.Context) error {
-		return s.repo.Update(ctx, doc)
-	}
-
-	return s.postingEngine.Post(ctx, doc, updateDoc)
-}
-
-// Unpost reverses document movements.
-func (s *Service) Unpost(ctx context.Context, docID id.ID) error {
-	doc, err := s.GetByID(ctx, docID)
-	if err != nil {
-		return err
-	}
-
-	updateDoc := func(ctx context.Context) error {
-		return s.repo.Update(ctx, doc)
-	}
-
-	return s.postingEngine.Unpost(ctx, doc, updateDoc)
-}
-
-// PostAndSave posts document and saves changes atomically.
-func (s *Service) PostAndSave(ctx context.Context, doc *GoodsIssue) error {
-	// Run before-create hooks (for enrichment: CreatedBy, UpdatedBy, etc.)
-	if err := s.hooks.RunBeforeCreate(ctx, doc); err != nil {
-		return err
-	}
-
-	// Resolve currency
-	currencyID, err := s.resolver.ResolveForDocument(ctx, doc.CurrencyID, doc.ContractID, doc.OrganizationID)
-	if err != nil {
-		return err
-	}
-	doc.CurrencyID = currencyID
-
-	if err := doc.Validate(ctx); err != nil {
-		return err
-	}
-
-	if doc.Number == "" {
-		cfg := numerator.DefaultConfig("GI")
-		number, err := s.numerator.GetNextNumber(ctx, cfg, &numerator.Options{Strategy: NumeratorStrategy}, time.Now())
-		if err != nil {
-			return fmt.Errorf("generate number: %w", err)
-		}
-		doc.Number = number
-	}
-
-	updateDoc := func(ctx context.Context) error {
-		if doc.Version == 1 {
-			if err := s.repo.Create(ctx, doc); err != nil {
-				return err
-			}
-			return s.repo.SaveLines(ctx, doc.ID, doc.Lines)
-		}
-		return s.repo.Update(ctx, doc)
-	}
-
-	return s.postingEngine.Post(ctx, doc, updateDoc)
-}
-
-// List retrieves goods issues with filtering.
-func (s *Service) List(ctx context.Context, filter domain.ListFilter) (domain.ListResult[*GoodsIssue], error) {
-	return s.repo.List(ctx, filter)
+	return s.BaseDocumentService.GetHooks()
 }

@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { FormToolbar } from "@/components/shared/form-toolbar"
 import { Input } from "@/components/ui/input"
@@ -13,68 +12,71 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useTabDirty } from "@/hooks/useTabDirty"
+import { useCatalogForm } from "@/hooks/useCatalogForm"
 import { api } from "@/lib/api"
 import type { CounterpartyType, LegalForm } from "@/types/catalog"
 import { COUNTERPARTY_TYPE_LABELS, LEGAL_FORM_LABELS } from "@/types/catalog"
 
+interface CounterpartyFormState {
+  name: string
+  code: string
+  type: CounterpartyType
+  legalForm: LegalForm
+  fullName: string
+  inn: string
+  kpp: string
+  ogrn: string
+  legalAddress: string
+  actualAddress: string
+  phone: string
+  email: string
+  contactPerson: string
+  comment: string
+  [key: string]: unknown
+}
+
+const INITIAL_STATE: CounterpartyFormState = {
+  name: "",
+  code: "",
+  type: "supplier",
+  legalForm: "company",
+  fullName: "",
+  inn: "",
+  kpp: "",
+  ogrn: "",
+  legalAddress: "",
+  actualAddress: "",
+  phone: "",
+  email: "",
+  contactPerson: "",
+  comment: "",
+}
+
 export default function NewCounterpartyPage() {
   const router = useRouter()
-  const { markDirty, markClean } = useTabDirty()
-
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const [name, setName] = useState("")
-  const [code, setCode] = useState("")
-  const [type, setType] = useState<CounterpartyType>("supplier")
-  const [legalForm, setLegalForm] = useState<LegalForm>("company")
-  const [fullName, setFullName] = useState("")
-  const [inn, setInn] = useState("")
-  const [kpp, setKpp] = useState("")
-  const [ogrn, setOgrn] = useState("")
-  const [legalAddress, setLegalAddress] = useState("")
-  const [actualAddress, setActualAddress] = useState("")
-  const [phone, setPhone] = useState("")
-  const [email, setEmail] = useState("")
-  const [contactPerson, setContactPerson] = useState("")
-  const [comment, setComment] = useState("")
-
-  const handleChange = () => markDirty()
-
-  const handleSave = async (andClose: boolean) => {
-    if (!name) { setError("Укажите наименование"); return }
-    setSaving(true)
-    setError(null)
-    try {
-      const created = await api.counterparties.create({
-        name,
-        code: code || undefined,
-        type,
-        legalForm,
-        fullName: fullName || null,
-        inn: inn || null,
-        kpp: kpp || null,
-        ogrn: ogrn || null,
-        legalAddress: legalAddress || null,
-        actualAddress: actualAddress || null,
-        phone: phone || null,
-        email: email || null,
-        contactPerson: contactPerson || null,
-        comment: comment || null,
-      })
-      markClean()
-      if (andClose) {
-        router.push("/catalogs/counterparties")
-      } else {
-        router.replace(`/catalogs/counterparties/${created.id}`)
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка сохранения")
-    } finally {
-      setSaving(false)
-    }
-  }
+  const { f, update, handleChange, handleSave, saving, error } = useCatalogForm({
+    entityName: "Контрагент",
+    initialState: INITIAL_STATE,
+    api: { create: api.counterparties.create },
+    listPath: "/catalogs/counterparties",
+    validate: (s) => !s.name ? "Укажите наименование" : null,
+    mapToCreate: (s) => ({
+      name: s.name,
+      code: s.code || undefined,
+      type: s.type,
+      legalForm: s.legalForm,
+      fullName: s.fullName || null,
+      inn: s.inn || null,
+      kpp: s.kpp || null,
+      ogrn: s.ogrn || null,
+      legalAddress: s.legalAddress || null,
+      actualAddress: s.actualAddress || null,
+      phone: s.phone || null,
+      email: s.email || null,
+      contactPerson: s.contactPerson || null,
+      comment: s.comment || null,
+    }),
+  })
 
   return (
     <div className="flex h-full flex-col">
@@ -101,15 +103,15 @@ export default function NewCounterpartyPage() {
           <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
             <div>
               <Label className="text-xs text-muted-foreground">Наименование *</Label>
-              <Input className="mt-1" value={name} onChange={(e) => { setName(e.target.value); handleChange() }} />
+              <Input className="mt-1" value={f.name} onChange={(e) => { update({ name: e.target.value }); handleChange() }} />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Код</Label>
-              <Input className="mt-1" value={code} onChange={(e) => { setCode(e.target.value); handleChange() }} placeholder="Авто" />
+              <Input className="mt-1" value={f.code} onChange={(e) => { update({ code: e.target.value }); handleChange() }} placeholder="Авто" />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Тип *</Label>
-              <Select value={type} onValueChange={(v) => { setType(v as CounterpartyType); handleChange() }}>
+              <Select value={f.type} onValueChange={(v) => { update({ type: v as CounterpartyType }); handleChange() }}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(COUNTERPARTY_TYPE_LABELS).map(([k, label]) => (
@@ -120,7 +122,7 @@ export default function NewCounterpartyPage() {
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Правовая форма *</Label>
-              <Select value={legalForm} onValueChange={(v) => { setLegalForm(v as LegalForm); handleChange() }}>
+              <Select value={f.legalForm} onValueChange={(v) => { update({ legalForm: v as LegalForm }); handleChange() }}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(LEGAL_FORM_LABELS).map(([k, label]) => (
@@ -131,51 +133,51 @@ export default function NewCounterpartyPage() {
             </div>
             <div className="md:col-span-2">
               <Label className="text-xs text-muted-foreground">Полное наименование</Label>
-              <Input className="mt-1" value={fullName} onChange={(e) => { setFullName(e.target.value); handleChange() }} />
+              <Input className="mt-1" value={f.fullName} onChange={(e) => { update({ fullName: e.target.value }); handleChange() }} />
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-3">
             <div>
               <Label className="text-xs text-muted-foreground">ИНН</Label>
-              <Input className="mt-1" value={inn} onChange={(e) => { setInn(e.target.value); handleChange() }} />
+              <Input className="mt-1" value={f.inn} onChange={(e) => { update({ inn: e.target.value }); handleChange() }} />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">КПП</Label>
-              <Input className="mt-1" value={kpp} onChange={(e) => { setKpp(e.target.value); handleChange() }} />
+              <Input className="mt-1" value={f.kpp} onChange={(e) => { update({ kpp: e.target.value }); handleChange() }} />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">ОГРН</Label>
-              <Input className="mt-1" value={ogrn} onChange={(e) => { setOgrn(e.target.value); handleChange() }} />
+              <Input className="mt-1" value={f.ogrn} onChange={(e) => { update({ ogrn: e.target.value }); handleChange() }} />
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
             <div>
               <Label className="text-xs text-muted-foreground">Юридический адрес</Label>
-              <Input className="mt-1" value={legalAddress} onChange={(e) => { setLegalAddress(e.target.value); handleChange() }} />
+              <Input className="mt-1" value={f.legalAddress} onChange={(e) => { update({ legalAddress: e.target.value }); handleChange() }} />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Фактический адрес</Label>
-              <Input className="mt-1" value={actualAddress} onChange={(e) => { setActualAddress(e.target.value); handleChange() }} />
+              <Input className="mt-1" value={f.actualAddress} onChange={(e) => { update({ actualAddress: e.target.value }); handleChange() }} />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Телефон</Label>
-              <Input className="mt-1" value={phone} onChange={(e) => { setPhone(e.target.value); handleChange() }} />
+              <Input className="mt-1" value={f.phone} onChange={(e) => { update({ phone: e.target.value }); handleChange() }} />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Email</Label>
-              <Input className="mt-1" type="email" value={email} onChange={(e) => { setEmail(e.target.value); handleChange() }} />
+              <Input className="mt-1" type="email" value={f.email} onChange={(e) => { update({ email: e.target.value }); handleChange() }} />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Контактное лицо</Label>
-              <Input className="mt-1" value={contactPerson} onChange={(e) => { setContactPerson(e.target.value); handleChange() }} />
+              <Input className="mt-1" value={f.contactPerson} onChange={(e) => { update({ contactPerson: e.target.value }); handleChange() }} />
             </div>
           </div>
 
           <div>
             <Label className="text-xs text-muted-foreground">Комментарий</Label>
-            <Textarea rows={3} className="mt-1" value={comment} onChange={(e) => { setComment(e.target.value); handleChange() }} />
+            <Textarea rows={3} className="mt-1" value={f.comment} onChange={(e) => { update({ comment: e.target.value }); handleChange() }} />
           </div>
         </div>
       </div>

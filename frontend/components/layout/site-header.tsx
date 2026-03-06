@@ -16,6 +16,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useTabsStore, type Tab } from "@/stores/useTabsStore"
+import { useFormDraftStore } from "@/stores/useFormDraftStore"
 
 export function SiteHeader() {
     const router = useRouter()
@@ -30,7 +31,7 @@ export function SiteHeader() {
 
     // Sync: when pathname changes externally, update active tab
     React.useEffect(() => {
-        const matchingTab = tabs.find((t) => t.url === pathname)
+        const matchingTab = tabs.find((t) => t.id === pathname)
         if (matchingTab && matchingTab.id !== activeTabId) {
             setActiveTab(matchingTab.id)
         }
@@ -53,10 +54,13 @@ export function SiteHeader() {
         doCloseTab(tab.id)
     }
 
+    const clearDraft = useFormDraftStore((s) => s.clearDraft)
+
     const doCloseTab = (id: string) => {
         const isActive = id === activeTabId
 
         closeTab(id)
+        clearDraft(id)
 
         // Navigate to the new active tab if we closed the current one
         if (isActive) {

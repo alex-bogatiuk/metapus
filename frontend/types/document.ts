@@ -12,12 +12,21 @@ export interface RefDisplay {
     name: string
 }
 
+/** Currency reference with formatting metadata.
+ *  Mirrors: internal/infrastructure/storage/postgres.CurrencyRefDisplay */
+export interface CurrencyRefDisplay {
+    id: string
+    name: string
+    decimalPlaces: number
+    symbol: string
+}
+
 /** Possible document statuses (derived from `posted` boolean). */
 export type DocumentStatus = "draft" | "posted"
 
-/** Request DTO for setting/clearing deletion mark on a document. */
+/** Request DTO for setting/clearing deletion mark on a document. Mirrors dto.SetDeletionMarkRequest (json:"marked"). */
 export interface SetDocumentDeletionMarkRequest {
-    deletionMark: boolean
+    marked: boolean
 }
 
 // ── Goods Receipt — Response ────────────────────────────────────────────
@@ -29,11 +38,12 @@ export interface GoodsReceiptLineResponse {
     productId: string
     unitId: string
     coefficient: string   // decimal
-    quantity: number       // int64 (Quantity scaled ×10000)
+    quantity: number       // decimal (e.g. 5.0000 — backend scales internally)
     unitPrice: number      // int64 (MinorUnits — kopecks)
     discountPercent: string // decimal
     discountAmount: number  // int64
     vatRateId: string
+    vatPercent: number      // int (snapshot of rate at document time)
     vatAmount: number       // int64
     amount: number          // int64
     // Resolved reference display names
@@ -58,7 +68,7 @@ export interface GoodsReceiptResponse {
     incomingNumber?: string | null
     currencyId: string
     amountIncludesVat: boolean
-    totalQuantity: number   // int64 (Quantity)
+    totalQuantity: number   // decimal (Quantity, e.g. 5.0000)
     totalAmount: number     // int64 (MinorUnits)
     totalVat: number        // int64 (MinorUnits)
     description?: string
@@ -66,12 +76,14 @@ export interface GoodsReceiptResponse {
     deletionMark: boolean
     createdAt: string       // ISO datetime
     updatedAt: string       // ISO datetime
+    createdByUser?: RefDisplay
+    updatedByUser?: RefDisplay
     // Resolved reference display names
     organization?: RefDisplay
     supplier?: RefDisplay
     contract?: RefDisplay
     warehouse?: RefDisplay
-    currency?: RefDisplay
+    currency?: CurrencyRefDisplay
 }
 
 // ── Goods Receipt — Requests ────────────────────────────────────────────
@@ -81,7 +93,7 @@ export interface GoodsReceiptLineRequest {
     productId: string
     unitId: string
     coefficient?: string    // decimal, defaults to "1"
-    quantity: number        // int64 (Quantity)
+    quantity: number        // decimal (Quantity, e.g. 5 or 2.5 — backend scales internally)
     unitPrice: number       // int64 (MinorUnits)
     vatRateId: string
     vatPercent?: number

@@ -11,6 +11,7 @@ import (
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
+	"metapus/internal/domain" // <--- Added import
 	"metapus/internal/domain/posting"
 )
 
@@ -197,75 +198,68 @@ func (g *GoodsIssue) Validate(ctx context.Context) error {
 			WithDetail("field", "warehouseId")
 	}
 
-	if len(g.Lines) == 0 {
-		return apperror.NewValidation("at least one line is required").
-			WithDetail("field", "lines")
-	}
-
-	for i, line := range g.Lines {
-		if id.IsNil(line.ProductID) {
-			return apperror.NewValidation("product is required").
-				WithDetail("field", "lines").
-				WithDetail("lineNo", i+1)
-		}
-		if id.IsNil(line.UnitID) {
-			return apperror.NewValidation("unit is required").
-				WithDetail("field", "lines").
-				WithDetail("lineNo", i+1)
-		}
-		if line.Coefficient.LessThanOrEqual(decimal.Zero) {
-			return apperror.NewValidation("coefficient must be positive").
-				WithDetail("field", "lines").
-				WithDetail("lineNo", i+1)
-		}
-		if line.Quantity <= 0 {
-			return apperror.NewValidation("quantity must be positive").
-				WithDetail("field", "lines").
-				WithDetail("lineNo", i+1)
-		}
-		if id.IsNil(line.VATRateID) {
-			return apperror.NewValidation("VAT rate is required").
-				WithDetail("field", "lines").
-				WithDetail("lineNo", i+1)
-		}
-	}
-
-	return nil
+	// Common line validation strategy
+	return domain.ValidateDocumentLines(g.Lines)
 }
+
+// --- LinesAccessor implementation ---
+
+// GetLines returns the document lines.
+func (g *GoodsIssue) GetLines() []GoodsIssueLine {
+	return g.Lines
+}
+
+// SetLines replaces the document lines.
+func (g *GoodsIssue) SetLines(lines []GoodsIssueLine) {
+	g.Lines = lines
+}
+
+// --- CurrencyAwareDoc implementation ---
+
+// GetContractID returns the contract ID (may be nil).
+func (g *GoodsIssue) GetContractID() *id.ID {
+	return g.ContractID
+}
+
+// --- ValidatableDocLine implementation for GoodsIssueLine ---
+
+func (l GoodsIssueLine) GetProductID() id.ID             { return l.ProductID }
+func (l GoodsIssueLine) GetUnitID() id.ID                { return l.UnitID }
+func (l GoodsIssueLine) GetCoefficient() decimal.Decimal { return l.Coefficient }
+func (l GoodsIssueLine) GetQuantity() types.Quantity     { return l.Quantity }
+func (l GoodsIssueLine) GetVATRateID() id.ID             { return l.VATRateID }
 
 // --- Postable interface implementation ---
 // GetID, GetPostedVersion, IsPosted, CanPost, MarkPosted, MarkUnposted are inherited from entity.Document
 
 func (g *GoodsIssue) GetDocumentType() string { return "GoodsIssue" }
 
-// GenerateMovements creates register movements for this document.
-// GoodsIssue creates EXPENSE movements (reduces stock).
-// Quantity written to stock register is in base units: line.Quantity * line.Coefficient.
-func (g *GoodsIssue) GenerateMovements(ctx context.Context) (*posting.MovementSet, error) {
-	movements := posting.NewMovementSet()
+// GenerateStockMovements implements posting.StockMovementSource.
+// Creates EXPENSE movements (reduces stock) — quantity in base units: line.Quantity * line.Coefficient.
+func (g *GoodsIssue) GenerateStockMovements(ctx context.Context) ([]entity.StockMovement, error) {
 	newVersion := g.PostedVersion + 1
+	movements := make([]entity.StockMovement, 0, len(g.Lines))
 
 	for _, line := range g.Lines {
 		// Convert to base unit quantity: Quantity * Coefficient
 		baseQtyDecimal := decimal.NewFromInt(line.Quantity.Int64Scaled()).Mul(line.Coefficient)
 		baseQty := types.NewQuantityFromInt64Scaled(baseQtyDecimal.IntPart())
 
-		// Stock movement: expense from warehouse (in base units)
-		stockMovement := entity.NewStockMovement(
+		movements = append(movements, entity.NewStockMovement(
 			g.ID,
 			g.GetDocumentType(),
 			newVersion,
 			g.Date,
-			entity.RecordTypeExpense, // <-- KEY DIFFERENCE from GoodsReceipt
+			entity.RecordTypeExpense,
 			g.WarehouseID,
 			line.ProductID,
 			baseQty,
-		)
-
-		movements.AddStock(stockMovement)
+		))
 	}
 
 	return movements, nil
 }
 
+// Ensure interface compliance at compile time.
 var _ posting.Postable = (*GoodsIssue)(nil)
+var _ posting.StockMovementSource = (*GoodsIssue)(nil)

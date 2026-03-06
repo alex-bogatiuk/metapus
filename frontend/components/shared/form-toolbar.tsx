@@ -10,6 +10,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
+export interface FormToolbarMenuItem {
+  label: string
+  onClick?: () => void
+  destructive?: boolean
+}
+
 interface FormToolbarProps {
   title: string
   status?: {
@@ -26,6 +32,7 @@ interface FormToolbarProps {
     onClick?: () => void
     hideOnDesktop?: boolean
   }[]
+  extraMenuItems?: FormToolbarMenuItem[]
   backHref?: string
   onClose?: () => void
   sticky?: boolean
@@ -38,6 +45,7 @@ export function FormToolbar({
   status,
   primaryAction,
   secondaryActions = [],
+  extraMenuItems,
   backHref,
   onClose,
   sticky = true,
@@ -112,9 +120,15 @@ export function FormToolbar({
                     {action.label}
                   </DropdownMenuItem>
                 ))}
-              <DropdownMenuItem>Скопировать</DropdownMenuItem>
-              <DropdownMenuItem>Пометить на удаление</DropdownMenuItem>
-              <DropdownMenuItem>История изменений</DropdownMenuItem>
+              {(extraMenuItems ?? []).map((item, i) => (
+                <DropdownMenuItem
+                  key={`extra-${i}`}
+                  onClick={item.onClick}
+                  className={item.destructive ? "text-destructive focus:text-destructive" : undefined}
+                >
+                  {item.label}
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
 

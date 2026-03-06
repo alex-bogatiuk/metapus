@@ -27,6 +27,11 @@ func (c *CurrencyAware) GetCurrencyID() id.ID {
 	return c.CurrencyID
 }
 
+// SetCurrencyID sets the currency ID.
+func (c *CurrencyAware) SetCurrencyID(currencyID id.ID) {
+	c.CurrencyID = currencyID
+}
+
 // ICurrencyAware is an interface for any document that has a currency.
 type ICurrencyAware interface {
 	GetCurrencyID() id.ID

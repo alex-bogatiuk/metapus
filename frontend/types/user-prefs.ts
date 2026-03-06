@@ -23,6 +23,8 @@ export interface InterfacePrefs {
     showTooltips?: boolean
     compactMode?: boolean
     sidebarCollapsed?: boolean
+    /** Per-entity toggle: show deletion-marked items in list views. Key = entity type (e.g. "GoodsReceipt"). */
+    showDeletedEntities?: Record<string, boolean>
 }
 
 // ── API response ────────────────────────────────────────────────────────

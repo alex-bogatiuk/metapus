@@ -23,6 +23,7 @@ const (
 	CodeBusinessRule           = "BUSINESS_RULE_VIOLATION"
 	CodeInsufficientStock      = "INSUFFICIENT_STOCK"
 	CodeDocumentPosted         = "DOCUMENT_ALREADY_POSTED"
+	CodeDocumentDeletionMarked = "DOCUMENT_DELETION_MARKED"
 	CodePeriodClosed           = "PERIOD_CLOSED"
 	CodeConcurrentModification = "CONCURRENT_MODIFICATION"
 

@@ -4,6 +4,11 @@ import React, { useMemo } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
+import {
+    ContextMenu,
+    ContextMenuTrigger,
+    ContextMenuContent,
+} from "@/components/ui/context-menu"
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -44,11 +49,24 @@ export interface DataTableProps<T extends { id: string }> {
     onSort?: (key: string) => void
 
     // ── Row actions ────────────────────────────────────────────────────
+    /** Called on single-click of a row (focus / preview). */
+    onRowClick?: (item: T) => void
     /** Called on double-click of a row. */
     onRowDoubleClick?: (item: T) => void
+    /** ID of the currently focused (previewed) row. */
+    focusedId?: string | null
 
     // ── Optional prefix column (e.g. status icon) ─────────────────────
     renderPrefix?: (item: T) => React.ReactNode
+
+    // ── Optional context menu (right-click) ──────────────────────────
+    /** When provided, right-clicking a row shows a custom context menu
+     *  instead of the browser default. Return ContextMenuItem nodes. */
+    renderContextMenu?: (item: T) => React.ReactNode
+
+    // ── Optional per-row className (e.g. deletion mark styling) ─────
+    /** When provided, the returned className is applied to the row <tr>. */
+    rowClassName?: (item: T) => string | undefined
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -119,8 +137,12 @@ export function DataTable<T extends { id: string }>({
     sortColumn = null,
     sortDirection = "asc",
     onSort,
+    onRowClick,
     onRowDoubleClick,
+    focusedId = null,
     renderPrefix,
+    renderContextMenu,
+    rowClassName,
 }: DataTableProps<T>) {
 
     // Sort data
@@ -134,6 +156,10 @@ export function DataTable<T extends { id: string }>({
             )
         )
     }, [data, sortColumn, sortDirection])
+
+    // ⚡ Perf: O(1) selection lookup via Set instead of O(N) Array.includes() per row.
+    // Before: N × includes() = O(N²). After: 1 Set build + N × has() = O(N).
+    const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
 
     // Determine the checked state for the header checkbox
     const headerChecked = isAllSelected
@@ -198,15 +224,23 @@ export function DataTable<T extends { id: string }>({
             </thead>
             <tbody>
                 {sortedData.map((item) => {
-                    const isSelected = selectedIds.includes(item.id)
+                    const isSelected = selectedSet.has(item.id)
 
-                    return (
+                    const isFocused = focusedId === item.id
+
+                    const row = (
                         <tr
                             key={item.id}
                             className={cn(
                                 "border-b transition-colors cursor-pointer",
-                                isSelected ? "bg-primary/10" : "hover:bg-primary/5"
+                                isFocused
+                                    ? "bg-primary/15 ring-1 ring-inset ring-primary/30"
+                                    : isSelected
+                                        ? "bg-primary/10"
+                                        : "hover:bg-primary/5",
+                                rowClassName?.(item)
                             )}
+                            onClick={() => onRowClick?.(item)}
                             onDoubleClick={() => onRowDoubleClick?.(item)}
                         >
                             {/* Checkbox cell — same fixed width as header, centered */}
@@ -249,6 +283,21 @@ export function DataTable<T extends { id: string }>({
                             ))}
                         </tr>
                     )
+
+                    if (renderContextMenu) {
+                        return (
+                            <ContextMenu key={item.id}>
+                                <ContextMenuTrigger asChild>
+                                    {row}
+                                </ContextMenuTrigger>
+                                <ContextMenuContent className="w-56">
+                                    {renderContextMenu(item)}
+                                </ContextMenuContent>
+                            </ContextMenu>
+                        )
+                    }
+
+                    return row
                 })}
             </tbody>
         </table>

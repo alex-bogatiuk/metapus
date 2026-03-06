@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/command"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { api } from "@/lib/api"
+import { apiFetch } from "@/lib/api"
 import type { ListResponse } from "@/types/common"
 
 /**
@@ -45,8 +45,21 @@ interface ReferenceFieldProps {
   disabled?: boolean
 }
 
+// ── Module-level cache: endpoint:id → name ─────────────────────────────
+// Shared across all ReferenceField instances on the page.
+// Avoids duplicate fetches when the same reference appears in multiple rows.
+const _refNameCache = new Map<string, string>()
+
+function cacheKey(endpoint: string, id: string): string {
+  return `${endpoint}:${id}`
+}
+
 /**
  * ReferenceField — combobox with search for selecting catalog references.
+ *
+ * Self-resolving: the component internally remembers selected names and
+ * auto-resolves unknown IDs from the API, so parent components never need
+ * to manage display names manually.
  *
  * Analogous to:
  * - 1С: "Поле ввода" with type restriction to a catalog
@@ -56,6 +69,7 @@ interface ReferenceFieldProps {
  * Features:
  * - Type-ahead search against the catalog API
  * - Displays name (not UUID) for selected value
+ * - Self-resolving: remembers name after selection + auto-fetches on mount
  * - Clear button
  * - Keyboard navigable (Enter to open, type to search)
  */
@@ -75,8 +89,64 @@ export function ReferenceField({
   const [loading, setLoading] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Display text: resolved name, or fallback to truncated ID
-  const displayText = displayName || (value ? `${value.slice(0, 8)}…` : "")
+  // ── Self-resolution: internal name tracking ──────────────────────────
+  // Stores the display name for the currently selected value.
+  // Priority: displayName prop > internalName > auto-resolve > truncated UUID.
+  const [internalName, setInternalName] = useState<string>(() => {
+    if (value) {
+      const cached = _refNameCache.get(cacheKey(apiEndpoint, value))
+      if (cached) return cached
+    }
+    return ""
+  })
+  const [resolving, setResolving] = useState(false)
+
+  // Auto-resolve: when value is present but no name is known, fetch from API
+  useEffect(() => {
+    if (!value || displayName || internalName) return
+
+    const key = cacheKey(apiEndpoint, value)
+    const cached = _refNameCache.get(key)
+    if (cached) {
+      setInternalName(cached)
+      return
+    }
+
+    let cancelled = false
+    setResolving(true)
+
+    apiFetch<{ name?: string }>(`${apiEndpoint}/${value}`)
+      .then((data) => {
+        if (cancelled) return
+        if (data?.name) {
+          _refNameCache.set(key, data.name)
+          setInternalName(data.name)
+        }
+      })
+      .catch(() => { /* ignore — fallback to truncated UUID */ })
+      .finally(() => { if (!cancelled) setResolving(false) })
+
+    return () => { cancelled = true }
+  }, [value, apiEndpoint]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset internal name when value changes to a different ID
+  const prevValueRef = useRef(value)
+  useEffect(() => {
+    if (prevValueRef.current !== value) {
+      prevValueRef.current = value
+      if (!value) {
+        setInternalName("")
+      } else {
+        // Check cache for new value
+        const cached = _refNameCache.get(cacheKey(apiEndpoint, value))
+        setInternalName(cached ?? "")
+      }
+    }
+  }, [value, apiEndpoint])
+
+  // Display text: displayName prop > internalName > resolving spinner > truncated ID
+  const resolvedName = displayName || internalName
+  const displayText = resolvedName || (resolving ? "" : (value ? `${value.slice(0, 8)}…` : ""))
 
   // Fetch options from the catalog API with search
   const fetchOptions = useCallback(
@@ -88,14 +158,7 @@ export function ReferenceField({
           params.search = query.trim()
         }
         const qs = new URLSearchParams(params).toString()
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL ?? "/api/v1"}${apiEndpoint}?${qs}`,
-          {
-            headers: buildAuthHeaders(),
-          }
-        )
-        if (!res.ok) throw new Error("Failed to fetch")
-        const data: ListResponse<ReferenceOption> = await res.json()
+        const data = await apiFetch<ListResponse<ReferenceOption>>(`${apiEndpoint}?${qs}`)
         setOptions(data.items ?? [])
       } catch {
         setOptions([])
@@ -106,9 +169,24 @@ export function ReferenceField({
     [apiEndpoint]
   )
 
-  // Debounced search
+  // ⚡ Perf: single merged effect replaces two separate effects that both fired on open,
+  // causing duplicate API calls. Now: immediate fetch on open, debounced on search changes.
+  const wasOpenRef = useRef(false)
+
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      wasOpenRef.current = false
+      return
+    }
+
+    // Just opened — fetch immediately without debounce delay
+    if (!wasOpenRef.current) {
+      wasOpenRef.current = true
+      fetchOptions(search)
+      return
+    }
+
+    // Search text changed while already open — debounce
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       fetchOptions(search)
@@ -118,14 +196,10 @@ export function ReferenceField({
     }
   }, [search, open, fetchOptions])
 
-  // Load initial options when opening
-  useEffect(() => {
-    if (open) {
-      fetchOptions("")
-    }
-  }, [open, fetchOptions])
-
   const handleSelect = (option: ReferenceOption) => {
+    // Store in internal state + module cache so name is never lost
+    setInternalName(option.name)
+    _refNameCache.set(cacheKey(apiEndpoint, option.id), option.name)
     onChange(option.id, option.name)
     setOpen(false)
     setSearch("")
@@ -133,6 +207,7 @@ export function ReferenceField({
 
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation()
+    setInternalName("")
     onChange("", "")
   }
 
@@ -156,7 +231,13 @@ export function ReferenceField({
           )}
         >
           <span className="truncate flex-1 text-left">
-            {displayText || placeholder}
+            {resolving && !resolvedName ? (
+              <span className="inline-flex items-center gap-1 text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+              </span>
+            ) : (
+              displayText || placeholder
+            )}
           </span>
           <span className="flex items-center gap-0.5 shrink-0 ml-1">
             {value && !disabled && (
@@ -224,30 +305,4 @@ export function ReferenceField({
       </PopoverContent>
     </Popover>
   )
-}
-
-// ── Auth header helper (reuses store tokens) ──────────────────────────
-
-function buildAuthHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  }
-
-  const tenantId = process.env.NEXT_PUBLIC_TENANT_ID ?? ""
-  if (tenantId) {
-    headers["X-Tenant-ID"] = tenantId
-  }
-
-  // Access auth store for token
-  try {
-    const { useAuthStore } = require("@/stores/useAuthStore")
-    const tokens = useAuthStore.getState().tokens
-    if (tokens?.accessToken) {
-      headers["Authorization"] = `${tokens.tokenType || "Bearer"} ${tokens.accessToken}`
-    }
-  } catch {
-    // Auth store not available, skip
-  }
-
-  return headers
 }

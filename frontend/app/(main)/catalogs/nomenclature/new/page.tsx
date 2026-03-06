@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { FormToolbar } from "@/components/shared/form-toolbar"
+import { ReferenceField } from "@/components/shared/reference-field"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -10,45 +11,73 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useTabDirty } from "@/hooks/useTabDirty"
+import { useFormDraft } from "@/hooks/useFormDraft"
 import { api } from "@/lib/api"
 import type { NomenclatureType, CreateNomenclatureRequest } from "@/types/catalog"
 import { NOMENCLATURE_TYPE_LABELS } from "@/types/catalog"
 
+interface NomenclatureFormState {
+  name: string
+  type: NomenclatureType
+  article: string
+  barcode: string
+  baseUnitId: string
+  baseUnitName: string
+  defaultVatRateId: string
+  defaultVatRateName: string
+  description: string
+  weight: string
+  volume: string
+  isWeighed: boolean
+  trackSerial: boolean
+  trackBatch: boolean
+}
+
+const INITIAL_STATE: NomenclatureFormState = {
+  name: "",
+  type: "goods",
+  article: "",
+  barcode: "",
+  baseUnitId: "",
+  baseUnitName: "",
+  defaultVatRateId: "",
+  defaultVatRateName: "",
+  description: "",
+  weight: "",
+  volume: "",
+  isWeighed: false,
+  trackSerial: false,
+  trackBatch: false,
+}
+
 export default function NewNomenclaturePage() {
   const router = useRouter()
+  const pathname = usePathname()
   const { markDirty, markClean } = useTabDirty()
+  const { state: f, update, clear } = useFormDraft<NomenclatureFormState>(pathname, INITIAL_STATE)
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  // ── Form state matching CreateNomenclatureRequest ──────────────────────
-  const [name, setName] = useState("")
-  const [type, setType] = useState<NomenclatureType>("goods")
-  const [article, setArticle] = useState("")
-  const [barcode, setBarcode] = useState("")
-  const [description, setDescription] = useState("")
-  const [weight, setWeight] = useState("")
-  const [volume, setVolume] = useState("")
-  const [isWeighed, setIsWeighed] = useState(false)
-  const [trackSerial, setTrackSerial] = useState(false)
-  const [trackBatch, setTrackBatch] = useState(false)
 
   const handleChange = () => markDirty()
 
   const buildPayload = (): CreateNomenclatureRequest => ({
-    name,
-    type,
-    article: article || null,
-    barcode: barcode || null,
-    description: description || null,
-    weight: weight || "0",
-    volume: volume || "0",
-    isWeighed,
-    trackSerial,
-    trackBatch,
+    name: f.name,
+    type: f.type,
+    article: f.article || null,
+    barcode: f.barcode || null,
+    baseUnitId: f.baseUnitId || null,
+    defaultVatRateId: f.defaultVatRateId || null,
+    description: f.description || null,
+    weight: f.weight || "0",
+    volume: f.volume || "0",
+    isWeighed: f.isWeighed,
+    trackSerial: f.trackSerial,
+    trackBatch: f.trackBatch,
   })
 
   const handleSave = async (andClose: boolean) => {
-    if (!name.trim()) {
+    if (!f.name.trim()) {
       setError("Наименование обязательно")
       return
     }
@@ -56,6 +85,7 @@ export default function NewNomenclaturePage() {
     setError(null)
     try {
       const created = await api.nomenclature.create(buildPayload())
+      clear()
       markClean()
       if (andClose) {
         router.push("/catalogs/nomenclature")
@@ -112,13 +142,13 @@ export default function NewNomenclaturePage() {
                       className="mt-1"
                       placeholder="Введите наименование"
                       autoFocus
-                      value={name}
-                      onChange={(e) => { setName(e.target.value); handleChange() }}
+                      value={f.name}
+                      onChange={(e) => { update({ name: e.target.value }); handleChange() }}
                     />
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">Тип *</Label>
-                    <Select value={type} onValueChange={(v) => { setType(v as NomenclatureType); handleChange() }}>
+                    <Select value={f.type} onValueChange={(v) => { update({ type: v as NomenclatureType }); handleChange() }}>
                       <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {Object.entries(NOMENCLATURE_TYPE_LABELS).map(([k, v]) => (
@@ -129,20 +159,47 @@ export default function NewNomenclaturePage() {
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">Артикул</Label>
-                    <Input className="mt-1" value={article} onChange={(e) => { setArticle(e.target.value); handleChange() }} />
+                    <Input className="mt-1" value={f.article} onChange={(e) => { update({ article: e.target.value }); handleChange() }} />
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">Штрихкод</Label>
-                    <Input className="mt-1" value={barcode} onChange={(e) => { setBarcode(e.target.value); handleChange() }} />
+                    <Input className="mt-1" value={f.barcode} onChange={(e) => { update({ barcode: e.target.value }); handleChange() }} />
                   </div>
+
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Базовая ед. изм.</Label>
+                    <div className="mt-1">
+                      <ReferenceField
+                        value={f.baseUnitId}
+                        displayName={f.baseUnitName}
+                        apiEndpoint="/catalog/units"
+                        placeholder="Выберите ед. изм."
+                        onChange={(id, name) => { update({ baseUnitId: id, baseUnitName: name }); handleChange() }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Ставка НДС</Label>
+                    <div className="mt-1">
+                      <ReferenceField
+                        value={f.defaultVatRateId}
+                        displayName={f.defaultVatRateName}
+                        apiEndpoint="/catalog/vat-rates"
+                        placeholder="Выберите ставку НДС"
+                        onChange={(id, name) => { update({ defaultVatRateId: id, defaultVatRateName: name }); handleChange() }}
+                      />
+                    </div>
+                  </div>
+
                   <div className="md:col-span-2">
                     <Label className="text-xs text-muted-foreground">Описание</Label>
                     <Textarea
                       rows={4}
                       className="mt-1"
                       placeholder="Описание номенклатуры..."
-                      value={description}
-                      onChange={(e) => { setDescription(e.target.value); handleChange() }}
+                      value={f.description}
+                      onChange={(e) => { update({ description: e.target.value }); handleChange() }}
                     />
                   </div>
                 </div>
@@ -154,11 +211,11 @@ export default function NewNomenclaturePage() {
             <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
               <div>
                 <Label className="text-xs text-muted-foreground">Вес, кг</Label>
-                <Input className="mt-1" type="number" step="0.001" value={weight} onChange={(e) => { setWeight(e.target.value); handleChange() }} />
+                <Input className="mt-1" type="number" step="0.001" value={f.weight} onChange={(e) => { update({ weight: e.target.value }); handleChange() }} />
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">Объем, м³</Label>
-                <Input className="mt-1" type="number" step="0.001" value={volume} onChange={(e) => { setVolume(e.target.value); handleChange() }} />
+                <Input className="mt-1" type="number" step="0.001" value={f.volume} onChange={(e) => { update({ volume: e.target.value }); handleChange() }} />
               </div>
             </div>
           </TabsContent>
@@ -166,15 +223,15 @@ export default function NewNomenclaturePage() {
           <TabsContent value="additional">
             <div className="mt-4 space-y-4">
               <div className="flex items-center gap-3">
-                <Switch checked={isWeighed} onCheckedChange={(v) => { setIsWeighed(v); handleChange() }} />
+                <Switch checked={f.isWeighed} onCheckedChange={(v) => { update({ isWeighed: v }); handleChange() }} />
                 <Label>Весовой товар</Label>
               </div>
               <div className="flex items-center gap-3">
-                <Switch checked={trackSerial} onCheckedChange={(v) => { setTrackSerial(v); handleChange() }} />
+                <Switch checked={f.trackSerial} onCheckedChange={(v) => { update({ trackSerial: v }); handleChange() }} />
                 <Label>Учет серийных номеров</Label>
               </div>
               <div className="flex items-center gap-3">
-                <Switch checked={trackBatch} onCheckedChange={(v) => { setTrackBatch(v); handleChange() }} />
+                <Switch checked={f.trackBatch} onCheckedChange={(v) => { update({ trackBatch: v }); handleChange() }} />
                 <Label>Учет партий</Label>
               </div>
             </div>

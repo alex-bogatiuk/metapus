@@ -27,6 +27,8 @@ export interface AdvancedFilterItem {
     fieldType?: string
     operator: ComparisonOperator
     value?: unknown
+    /** Storage multiplier for scaled numeric types (e.g. 10000 for Quantity, 100 for Money). */
+    scale?: number
 }
 
 /** Paginated list response envelope from the API. */

@@ -30,4 +30,13 @@ type Item struct {
 	FieldType string         `json:"fieldType,omitempty"` // Тип поля (например, date)
 	Operator  ComparisonType `json:"operator"`            // Вид сравнения
 	Value     any            `json:"value"`               // Значение (строка, число, массив ID)
+	Scale     int            `json:"scale,omitempty"`     // Storage multiplier (e.g. 10000 for Quantity, 100 for Money)
+}
+
+// TablePartInfo describes a child table (table part / tabular section)
+// for generating EXISTS subqueries when filtering by table part columns.
+type TablePartInfo struct {
+	TableName  string              // SQL table name, e.g. "doc_goods_receipt_lines"
+	ForeignKey string              // FK column linking to parent, e.g. "document_id"
+	ValidCols  map[string]struct{} // allowed filter columns in this table part
 }

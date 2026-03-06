@@ -27,8 +27,9 @@ type BaseDocumentRepo[T any] struct {
 	tableName  string
 	selectCols []string
 	newFn      func() T
-	validCols  map[string]struct{} // whitelist for advanced filter columns
-	orderCols  map[string]struct{} // whitelist for ORDER BY columns
+	validCols  map[string]struct{}             // whitelist for advanced filter columns
+	orderCols  map[string]struct{}             // whitelist for ORDER BY columns
+	tableParts map[string]filter.TablePartInfo // table part name → child table info (for EXISTS subqueries)
 }
 
 // NewBaseDocumentRepo creates a new base document repository.
@@ -54,6 +55,29 @@ func NewBaseDocumentRepo[T any](
 		newFn:      newFn,
 		validCols:  validCols,
 		orderCols:  orderCols,
+	}
+}
+
+// RegisterTablePart registers a child table (table part / tabular section)
+// so that dot-notation filters like "lines.product_id" are translated into
+// EXISTS subqueries instead of direct WHERE conditions on the main table.
+//
+// partName is the snake_case name that arrives from frontend (e.g. "lines").
+// childTable is the SQL table name (e.g. "doc_goods_receipt_lines").
+// foreignKey is the FK column in the child table (e.g. "document_id").
+// columns are the DB column names allowed for filtering.
+func (r *BaseDocumentRepo[T]) RegisterTablePart(partName, childTable, foreignKey string, columns []string) {
+	if r.tableParts == nil {
+		r.tableParts = make(map[string]filter.TablePartInfo)
+	}
+	validCols := make(map[string]struct{}, len(columns))
+	for _, col := range columns {
+		validCols[col] = struct{}{}
+	}
+	r.tableParts[partName] = filter.TablePartInfo{
+		TableName:  childTable,
+		ForeignKey: foreignKey,
+		ValidCols:  validCols,
 	}
 }
 
@@ -282,19 +306,29 @@ func (r *BaseDocumentRepo[T]) buildWhereConditions(f domain.ListFilter) ([]squir
 		conditions = append(conditions, squirrel.ILike{"number": "%" + f.Search + "%"})
 	}
 
-	fmt.Printf("DEBUG repo ListFilter: %+v\n", f)
-
-	// Apply advanced filters via shared engine
+	// Apply advanced filters: separate header filters from table-part filters (dot notation)
 	if len(f.AdvancedFilters) > 0 {
-		advConditions, err := filter.BuildConditions(f.AdvancedFilters, r.validCols, r.tableName)
-		fmt.Printf("DEBUG BuildConditions result: %d conditions, err: %v\n", len(advConditions), err)
-		if err != nil {
-			return nil, err
+		var headerFilters []filter.Item
+		for _, item := range f.AdvancedFilters {
+			if strings.Contains(item.Field, ".") {
+				// Table part filter → EXISTS subquery
+				cond, err := r.buildTablePartCondition(item)
+				if err != nil {
+					return nil, err
+				}
+				conditions = append(conditions, cond)
+			} else {
+				headerFilters = append(headerFilters, item)
+			}
 		}
-		conditions = append(conditions, advConditions...)
+		if len(headerFilters) > 0 {
+			advConditions, err := filter.BuildConditions(headerFilters, r.validCols, r.tableName)
+			if err != nil {
+				return nil, err
+			}
+			conditions = append(conditions, advConditions...)
+		}
 	}
-
-	fmt.Printf("DEBUG Final Where conditions count: %d\n", len(conditions))
 
 	return conditions, nil
 }
@@ -355,6 +389,25 @@ func (r *BaseDocumentRepo[T]) List(ctx context.Context, f domain.ListFilter) (do
 	}
 
 	return result, nil
+}
+
+// buildTablePartCondition resolves a dot-notation filter field (e.g. "lines.product_id")
+// into an EXISTS subquery against the registered child table.
+func (r *BaseDocumentRepo[T]) buildTablePartCondition(item filter.Item) (squirrel.Sqlizer, error) {
+	parts := strings.SplitN(item.Field, ".", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid table part filter field: %s", item.Field)
+	}
+
+	partName := parts[0]
+	columnName := parts[1]
+
+	tp, ok := r.tableParts[partName]
+	if !ok {
+		return nil, fmt.Errorf("unknown table part: %s", partName)
+	}
+
+	return filter.BuildTablePartCondition(item, r.tableName, tp, columnName)
 }
 
 func (r *BaseDocumentRepo[T]) parseOrderBy(orderBy string) (string, error) {

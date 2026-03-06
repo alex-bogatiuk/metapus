@@ -27,6 +27,7 @@
 | 16 | [16-roadmap.md](16-roadmap.md) | Этапы разработки, метрики готовности | roadmap, этапы, mvp, beta, milestone |
 | 17 | [17-development-rules.md](17-development-rules.md) | Правила разработки: стиль, ошибки, тестируемость, concurrency | rules, стиль, тесты, goroutine, context, миграции, cdc |
 | 18 | [18-migration-status.md](18-migration-status.md) | Статус миграции DB-per-Tenant, env variables, CLI | migration, status, env, cli, tenant, goose, docker |
+| 19 | [19-filtering.md](19-filtering.md) | Система фильтрации: metadata → frontend → SQL, масштабирование, табличные части | filter, отбор, advanced filter, money, quantity, exists, metadata-driven, scale |
 
 ---
 
@@ -49,6 +50,7 @@
 - **Узнать правила именования** → [15-naming-conventions.md](15-naming-conventions.md)
 - **Посмотреть roadmap** → [16-roadmap.md](16-roadmap.md)
 - **Настроить БД и окружение** → [18-migration-status.md](18-migration-status.md)
+- **Понять систему фильтрации списков** → [19-filtering.md](19-filtering.md)
 
 ---
 

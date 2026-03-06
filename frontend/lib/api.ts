@@ -34,7 +34,6 @@ import type {
     GoodsReceiptResponse,
     CreateGoodsReceiptRequest,
     UpdateGoodsReceiptRequest,
-    SetDocumentDeletionMarkRequest,
 } from "@/types/document"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1"
@@ -42,14 +41,27 @@ const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? ""
 
 // ── Generic fetcher ─────────────────────────────────────────────────────
 
+export interface ApiErrorBody {
+    code?: string
+    message?: string
+    details?: Record<string, unknown>
+}
+
 export class ApiError extends Error {
+    public readonly parsedBody?: ApiErrorBody
+
     constructor(
         public status: number,
         public statusText: string,
         public body?: unknown
     ) {
-        super(`API ${status}: ${statusText}`)
+        let parsed: ApiErrorBody | undefined
+        if (typeof body === "string" && body) {
+            try { parsed = JSON.parse(body) } catch { /* ignore */ }
+        }
+        super(parsed?.message ?? `API ${status}: ${statusText}`)
         this.name = "ApiError"
+        this.parsedBody = parsed
     }
 }
 
@@ -143,7 +155,7 @@ function buildHeaders(optHeaders?: HeadersInit): Record<string, string> {
     }
 }
 
-async function apiFetch<T>(
+export async function apiFetch<T>(
     path: string,
     options?: RequestInit
 ): Promise<T> {
@@ -203,7 +215,6 @@ function buildListQS(params?: ListParams): string {
     for (const [k, v] of Object.entries(params)) {
         if (v === undefined || v === null) continue
         if (k === "filter") {
-            // Serialize filter array as JSON
             if (Array.isArray(v) && v.length > 0) {
                 entries.push(["filter", JSON.stringify(v)])
             }
@@ -212,6 +223,57 @@ function buildListQS(params?: ListParams): string {
         }
     }
     return entries.length > 0 ? "?" + new URLSearchParams(entries).toString() : ""
+}
+
+// ── Generic CRUD factory ────────────────────────────────────────────────
+// Analogous to backend BaseCatalogRepo[T] — zero boilerplate per entity.
+
+export interface CatalogApi<TRes, TCreate, TUpdate> {
+    list: (params?: ListParams) => Promise<ListResponse<TRes>>
+    get: (id: string) => Promise<TRes>
+    create: (data: TCreate) => Promise<TRes>
+    update: (id: string, data: TUpdate) => Promise<TRes>
+    delete: (id: string) => Promise<void>
+    setDeletionMark: (id: string, data: SetDeletionMarkRequest) => Promise<void>
+}
+
+function createCatalogApi<TRes, TCreate, TUpdate>(basePath: string): CatalogApi<TRes, TCreate, TUpdate> {
+    return {
+        list: (params?: ListParams) =>
+            apiFetch<ListResponse<TRes>>(`${basePath}${buildListQS(params)}`),
+        get: (id: string) =>
+            apiFetch<TRes>(`${basePath}/${id}`),
+        create: (data: TCreate) =>
+            apiFetch<TRes>(basePath, { method: "POST", body: JSON.stringify(data) }),
+        update: (id: string, data: TUpdate) =>
+            apiFetch<TRes>(`${basePath}/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+        delete: (id: string) =>
+            apiFetch<void>(`${basePath}/${id}`, { method: "DELETE" }),
+        setDeletionMark: (id: string, data: SetDeletionMarkRequest) =>
+            apiFetch<void>(`${basePath}/${id}/deletion-mark`, { method: "POST", body: JSON.stringify(data) }),
+    }
+}
+
+// ── Generic Document CRUD factory ────────────────────────────────────────
+// Extends CatalogApi with document lifecycle methods (post, unpost, repost).
+// Analogous to backend BaseDocumentHandler[T].
+
+export interface DocumentApi<TRes, TCreate, TUpdate> extends CatalogApi<TRes, TCreate, TUpdate> {
+    post: (id: string) => Promise<void>
+    unpost: (id: string) => Promise<void>
+    updateAndRepost: (id: string, data: TUpdate) => Promise<TRes>
+}
+
+function createDocumentApi<TRes, TCreate, TUpdate>(basePath: string): DocumentApi<TRes, TCreate, TUpdate> {
+    return {
+        ...createCatalogApi<TRes, TCreate, TUpdate>(basePath),
+        post: (id: string) =>
+            apiFetch<void>(`${basePath}/${id}/post`, { method: "POST" }),
+        unpost: (id: string) =>
+            apiFetch<void>(`${basePath}/${id}/unpost`, { method: "POST" }),
+        updateAndRepost: (id: string, data: TUpdate) =>
+            apiFetch<TRes>(`${basePath}/${id}/repost`, { method: "PUT", body: JSON.stringify(data) }),
+    }
 }
 
 // Extend this object as new resources are added.
@@ -238,159 +300,25 @@ export const api = {
             apiFetch<import("@/types/auth").AuthUserResponse>("/auth/me"),
     },
 
+    // ── Catalogs (1 line per entity via generic factory) ────────────────
     nomenclature: {
-        list: (params?: ListParams) => {
-            const qs = params ? "?" + new URLSearchParams(
-                Object.entries(params)
-                    .filter(([, v]) => v !== undefined && v !== null)
-                    .map(([k, v]) => [k, String(v)])
-            ).toString() : ""
-            return apiFetch<ListResponse<NomenclatureResponse>>(`/catalog/nomenclature${qs}`)
-        },
-        get: (id: string) =>
-            apiFetch<NomenclatureResponse>(`/catalog/nomenclature/${id}`),
-        create: (data: CreateNomenclatureRequest) =>
-            apiFetch<NomenclatureResponse>("/catalog/nomenclature", {
-                method: "POST",
-                body: JSON.stringify(data),
-            }),
-        update: (id: string, data: UpdateNomenclatureRequest) =>
-            apiFetch<NomenclatureResponse>(`/catalog/nomenclature/${id}`, {
-                method: "PUT",
-                body: JSON.stringify(data),
-            }),
-        delete: (id: string) =>
-            apiFetch<void>(`/catalog/nomenclature/${id}`, { method: "DELETE" }),
-        setDeletionMark: (id: string, data: SetDeletionMarkRequest) =>
-            apiFetch<void>(`/catalog/nomenclature/${id}/deletion-mark`, {
-                method: "POST",
-                body: JSON.stringify(data),
-            }),
-        tree: () =>
-            apiFetch<NomenclatureResponse[]>("/catalog/nomenclature/tree"),
+        ...createCatalogApi<NomenclatureResponse, CreateNomenclatureRequest, UpdateNomenclatureRequest>("/catalog/nomenclature"),
+        tree: () => apiFetch<NomenclatureResponse[]>("/catalog/nomenclature/tree"),
     },
 
-    counterparties: {
-        list: (params?: ListParams) => {
-            const qs = params ? "?" + new URLSearchParams(
-                Object.entries(params)
-                    .filter(([, v]) => v !== undefined && v !== null)
-                    .map(([k, v]) => [k, String(v)])
-            ).toString() : ""
-            return apiFetch<ListResponse<CounterpartyResponse>>(`/catalog/counterparties${qs}`)
-        },
+    counterparties: createCatalogApi<CounterpartyResponse, CreateCounterpartyRequest, UpdateCounterpartyRequest>("/catalog/counterparties"),
+
+    warehouses: createCatalogApi<WarehouseResponse, CreateWarehouseRequest, UpdateWarehouseRequest>("/catalog/warehouses"),
+
+    organizations: createCatalogApi<OrganizationResponse, CreateOrganizationRequest, UpdateOrganizationRequest>("/catalog/organizations"),
+
+    vatRates: {
         get: (id: string) =>
-            apiFetch<CounterpartyResponse>(`/catalog/counterparties/${id}`),
-        create: (data: CreateCounterpartyRequest) =>
-            apiFetch<CounterpartyResponse>("/catalog/counterparties", {
-                method: "POST",
-                body: JSON.stringify(data),
-            }),
-        update: (id: string, data: UpdateCounterpartyRequest) =>
-            apiFetch<CounterpartyResponse>(`/catalog/counterparties/${id}`, {
-                method: "PUT",
-                body: JSON.stringify(data),
-            }),
-        delete: (id: string) =>
-            apiFetch<void>(`/catalog/counterparties/${id}`, { method: "DELETE" }),
-        setDeletionMark: (id: string, data: SetDeletionMarkRequest) =>
-            apiFetch<void>(`/catalog/counterparties/${id}/deletion-mark`, {
-                method: "POST",
-                body: JSON.stringify(data),
-            }),
+            apiFetch<{ id: string; name: string; rate: string; isTaxExempt: boolean }>(`/catalog/vat-rates/${id}`),
     },
 
-    warehouses: {
-        list: (params?: ListParams) => {
-            const qs = params ? "?" + new URLSearchParams(
-                Object.entries(params)
-                    .filter(([, v]) => v !== undefined && v !== null)
-                    .map(([k, v]) => [k, String(v)])
-            ).toString() : ""
-            return apiFetch<ListResponse<WarehouseResponse>>(`/catalog/warehouses${qs}`)
-        },
-        get: (id: string) =>
-            apiFetch<WarehouseResponse>(`/catalog/warehouses/${id}`),
-        create: (data: CreateWarehouseRequest) =>
-            apiFetch<WarehouseResponse>("/catalog/warehouses", {
-                method: "POST",
-                body: JSON.stringify(data),
-            }),
-        update: (id: string, data: UpdateWarehouseRequest) =>
-            apiFetch<WarehouseResponse>(`/catalog/warehouses/${id}`, {
-                method: "PUT",
-                body: JSON.stringify(data),
-            }),
-        delete: (id: string) =>
-            apiFetch<void>(`/catalog/warehouses/${id}`, { method: "DELETE" }),
-        setDeletionMark: (id: string, data: SetDeletionMarkRequest) =>
-            apiFetch<void>(`/catalog/warehouses/${id}/deletion-mark`, {
-                method: "POST",
-                body: JSON.stringify(data),
-            }),
-    },
-
-    organizations: {
-        list: (params?: ListParams) => {
-            const qs = params ? "?" + new URLSearchParams(
-                Object.entries(params)
-                    .filter(([, v]) => v !== undefined && v !== null)
-                    .map(([k, v]) => [k, String(v)])
-            ).toString() : ""
-            return apiFetch<ListResponse<OrganizationResponse>>(`/catalog/organizations${qs}`)
-        },
-        get: (id: string) =>
-            apiFetch<OrganizationResponse>(`/catalog/organizations/${id}`),
-        create: (data: CreateOrganizationRequest) =>
-            apiFetch<OrganizationResponse>("/catalog/organizations", {
-                method: "POST",
-                body: JSON.stringify(data),
-            }),
-        update: (id: string, data: UpdateOrganizationRequest) =>
-            apiFetch<OrganizationResponse>(`/catalog/organizations/${id}`, {
-                method: "PUT",
-                body: JSON.stringify(data),
-            }),
-        delete: (id: string) =>
-            apiFetch<void>(`/catalog/organizations/${id}`, { method: "DELETE" }),
-        setDeletionMark: (id: string, data: SetDeletionMarkRequest) =>
-            apiFetch<void>(`/catalog/organizations/${id}/deletion-mark`, {
-                method: "POST",
-                body: JSON.stringify(data),
-            }),
-    },
-
-    goodsReceipts: {
-        list: (params?: ListParams) =>
-            apiFetch<ListResponse<GoodsReceiptResponse>>(`/document/goods-receipt${buildListQS(params)}`),
-        get: (id: string) =>
-            apiFetch<GoodsReceiptResponse>(`/document/goods-receipt/${id}`),
-        create: (data: CreateGoodsReceiptRequest) =>
-            apiFetch<GoodsReceiptResponse>("/document/goods-receipt", {
-                method: "POST",
-                body: JSON.stringify(data),
-            }),
-        update: (id: string, data: UpdateGoodsReceiptRequest) =>
-            apiFetch<GoodsReceiptResponse>(`/document/goods-receipt/${id}`, {
-                method: "PUT",
-                body: JSON.stringify(data),
-            }),
-        delete: (id: string) =>
-            apiFetch<void>(`/document/goods-receipt/${id}`, { method: "DELETE" }),
-        post: (id: string) =>
-            apiFetch<void>(`/document/goods-receipt/${id}/post`, {
-                method: "POST",
-            }),
-        unpost: (id: string) =>
-            apiFetch<void>(`/document/goods-receipt/${id}/unpost`, {
-                method: "POST",
-            }),
-        setDeletionMark: (id: string, data: SetDocumentDeletionMarkRequest) =>
-            apiFetch<void>(`/document/goods-receipt/${id}/deletion-mark`, {
-                method: "POST",
-                body: JSON.stringify(data),
-            }),
-    },
+    // ── Documents (1 line per entity via generic factory) ────────────────
+    goodsReceipts: createDocumentApi<GoodsReceiptResponse, CreateGoodsReceiptRequest, UpdateGoodsReceiptRequest>("/document/goods-receipt"),
     meta: {
         getFilters: (entityName: string) =>
             apiFetch<import("@/components/shared/filter-config-dialog").FilterFieldMeta[]>(

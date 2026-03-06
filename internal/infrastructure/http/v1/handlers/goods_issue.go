@@ -8,6 +8,7 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/domain"
 	"metapus/internal/domain/documents/goods_issue"
 	"metapus/internal/infrastructure/http/v1/dto"
 )
@@ -16,11 +17,12 @@ import (
 // List() is inherited from BaseDocumentHandler (universal filter engine).
 type GoodsIssueHandler struct {
 	*BaseDocumentHandler[*goods_issue.GoodsIssue, dto.CreateGoodsIssueRequest, dto.UpdateGoodsIssueRequest]
-	service *goods_issue.Service
+	service domain.DocumentService[*goods_issue.GoodsIssue]
 }
 
 // NewGoodsIssueHandler creates a new goods issue handler.
-func NewGoodsIssueHandler(base *BaseHandler, service *goods_issue.Service) *GoodsIssueHandler {
+// Accepts domain.DocumentService interface — can be a concrete service or a decorated wrapper.
+func NewGoodsIssueHandler(base *BaseHandler, service domain.DocumentService[*goods_issue.GoodsIssue]) *GoodsIssueHandler {
 	cfg := BaseDocumentHandlerConfig[*goods_issue.GoodsIssue, dto.CreateGoodsIssueRequest, dto.UpdateGoodsIssueRequest]{
 		Service:    service,
 		EntityName: "goods-issue",
@@ -95,6 +97,39 @@ func (h *GoodsIssueHandler) Update(c *gin.Context) {
 	req.ApplyTo(doc)
 
 	if err := h.service.Update(ctx, doc); err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	response := dto.FromGoodsIssue(doc)
+	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
+	c.JSON(http.StatusOK, response)
+}
+
+// UpdateAndRepost handles PUT /document/goods-issue/:id/repost — atomic update + re-post.
+// Accepts the same body as Update. The document is updated and re-posted in a single transaction.
+func (h *GoodsIssueHandler) UpdateAndRepost(c *gin.Context) {
+	ctx := c.Request.Context()
+	docID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid id format"))
+		return
+	}
+
+	var req dto.UpdateGoodsIssueRequest
+	if !h.BindJSON(c, &req) {
+		return
+	}
+
+	doc, err := h.service.GetByID(ctx, docID)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	req.ApplyTo(doc)
+
+	if err := h.service.UpdateAndRepost(ctx, doc); err != nil {
 		h.Error(c, err)
 		return
 	}

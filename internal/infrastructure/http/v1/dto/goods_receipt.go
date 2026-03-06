@@ -187,11 +187,13 @@ type GoodsReceiptResponse struct {
 	UpdatedAt         time.Time                  `json:"updatedAt"`
 
 	// Resolved reference display names (populated by handler, not stored in DB)
-	Organization *postgres.RefDisplay `json:"organization,omitempty"`
-	Supplier     *postgres.RefDisplay `json:"supplier,omitempty"`
-	Contract     *postgres.RefDisplay `json:"contract,omitempty"`
-	Warehouse    *postgres.RefDisplay `json:"warehouse,omitempty"`
-	Currency     *postgres.RefDisplay `json:"currency,omitempty"`
+	Organization  *postgres.RefDisplay         `json:"organization,omitempty"`
+	Supplier      *postgres.RefDisplay         `json:"supplier,omitempty"`
+	Contract      *postgres.RefDisplay         `json:"contract,omitempty"`
+	Warehouse     *postgres.RefDisplay         `json:"warehouse,omitempty"`
+	Currency      *postgres.CurrencyRefDisplay `json:"currency,omitempty"`
+	CreatedByUser *postgres.RefDisplay         `json:"createdByUser,omitempty"`
+	UpdatedByUser *postgres.RefDisplay         `json:"updatedByUser,omitempty"`
 }
 
 // GoodsReceiptLineResponse represents a line in API responses.
@@ -206,6 +208,7 @@ type GoodsReceiptLineResponse struct {
 	DiscountPercent decimal.Decimal  `json:"discountPercent"`
 	DiscountAmount  types.MinorUnits `json:"discountAmount"`
 	VATRateID       string           `json:"vatRateId"`
+	VATPercent      int              `json:"vatPercent"`
 	VATAmount       types.MinorUnits `json:"vatAmount"`
 	Amount          types.MinorUnits `json:"amount"`
 
@@ -225,6 +228,7 @@ const (
 	TableNomenclature   = "cat_nomenclature"
 	TableUnits          = "cat_units"
 	TableVATRates       = "cat_vat_rates"
+	TableUsers          = "users"
 )
 
 // CollectGoodsReceiptRefs registers all reference IDs from a GoodsReceipt
@@ -235,6 +239,8 @@ func CollectGoodsReceiptRefs(resolver *postgres.ReferenceResolver, doc *goods_re
 	resolver.AddPtr(TableContracts, doc.ContractID)
 	resolver.Add(TableWarehouses, doc.WarehouseID)
 	resolver.Add(TableCurrencies, doc.CurrencyID)
+	resolver.Add(TableUsers, doc.CreatedBy)
+	resolver.Add(TableUsers, doc.UpdatedBy)
 
 	for _, line := range doc.Lines {
 		resolver.Add(TableNomenclature, line.ProductID)
@@ -245,11 +251,9 @@ func CollectGoodsReceiptRefs(resolver *postgres.ReferenceResolver, doc *goods_re
 
 // FromGoodsReceipt converts domain entity to response DTO.
 // Pass nil for refs if reference resolution is not needed (e.g., create response).
-func FromGoodsReceipt(doc *goods_receipt.GoodsReceipt, refs ...postgres.ResolvedRefs) *GoodsReceiptResponse {
-	var resolved postgres.ResolvedRefs
-	if len(refs) > 0 {
-		resolved = refs[0]
-	}
+// Optional currencyRefs provides enriched currency display (decimalPlaces, symbol).
+func FromGoodsReceipt(doc *goods_receipt.GoodsReceipt, refs postgres.ResolvedRefs, currencyRefs ...postgres.ResolvedCurrencyRefs) *GoodsReceiptResponse {
+	resolved := refs
 	resp := &GoodsReceiptResponse{
 		ID:                doc.ID.String(),
 		Number:            doc.Number,
@@ -285,9 +289,20 @@ func FromGoodsReceipt(doc *goods_receipt.GoodsReceipt, refs ...postgres.Resolved
 		resp.Supplier = &sup
 		wh := resolved.Get(TableWarehouses, doc.WarehouseID)
 		resp.Warehouse = &wh
-		cur := resolved.Get(TableCurrencies, doc.CurrencyID)
-		resp.Currency = &cur
+		// Use enriched currency ref if available, fall back to generic RefDisplay
+		if len(currencyRefs) > 0 && currencyRefs[0] != nil {
+			cr := currencyRefs[0].Get(doc.CurrencyID)
+			resp.Currency = &cr
+		} else {
+			generic := resolved.Get(TableCurrencies, doc.CurrencyID)
+			resp.Currency = &postgres.CurrencyRefDisplay{ID: generic.ID, Name: generic.Name, DecimalPlaces: 2}
+		}
 		resp.Contract = resolved.GetPtr(TableContracts, doc.ContractID)
+
+		createdBy := doc.CreatedBy
+		updatedBy := doc.UpdatedBy
+		resp.CreatedByUser = resolved.GetPtr(TableUsers, &createdBy)
+		resp.UpdatedByUser = resolved.GetPtr(TableUsers, &updatedBy)
 	}
 
 	resp.Lines = make([]GoodsReceiptLineResponse, len(doc.Lines))
@@ -303,6 +318,7 @@ func FromGoodsReceipt(doc *goods_receipt.GoodsReceipt, refs ...postgres.Resolved
 			DiscountPercent: line.DiscountPercent,
 			DiscountAmount:  line.DiscountAmount,
 			VATRateID:       line.VATRateID.String(),
+			VATPercent:      line.VATPercent,
 			VATAmount:       line.VATAmount,
 			Amount:          line.Amount,
 		}

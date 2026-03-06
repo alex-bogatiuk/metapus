@@ -18,6 +18,9 @@ description: Frontend Debugging via Browser MCP (обязательный реж
 ## Workflow
 
 1. Подготовка окружения
+   - Проверить, что Go backend (порт 8080) запущен: `netstat -ano | findstr ":8080"`. Если нет — запустить неблокирующей командой (Blocking: false, cwd: корень репозитория): `$env:META_DATABASE_URL="postgres://metapus:metapus@localhost:5432/tenants?sslmode=disable"; $env:TENANT_DB_USER="metapus"; $env:TENANT_DB_PASSWORD="metapus"; $env:DATABASE_URL="postgres://metapus:metapus@localhost:5432/metapus?sslmode=disable"; $env:JWT_SECRET="dev-secret"; $env:APP_PORT="8080"; $env:APP_ENV="development"; $env:LOG_LEVEL="info"; go run ./cmd/server`
+   - Проверить, что Next.js frontend (порт 3000) запущен: `netstat -ano | findstr ":3000"`. Если нет — запустить неблокирующей командой (`npm run dev`, Blocking: false, cwd: frontend/).
+   - После запуска подождать 3–5 секунд и убедиться, что порты появились в `netstat`.
    - Убедиться, что `browsermcp` включен в MCP.
    - Открыть нужную вкладку приложения.
    - В расширении Browser MCP нажать `Connect`.

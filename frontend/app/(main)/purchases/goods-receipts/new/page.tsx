@@ -1,19 +1,20 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import { useCollapsible } from "@/hooks/useCollapsible"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import {
   ArrowUp,
   ArrowDown,
   Plus,
   Copy,
   Trash2,
-  Paperclip,
-  PanelRightClose,
-  PanelRightOpen,
-  Info,
+  Loader2,
+  ChevronsUp,
+  ChevronsDown,
 } from "lucide-react"
 import { FormToolbar } from "@/components/shared/form-toolbar"
+import { FormSidebar } from "@/components/shared/form-sidebar"
 import { ReferenceField } from "@/components/shared/reference-field"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -23,142 +24,167 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { DatePicker } from "@/components/ui/date-picker"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useTabDirty } from "@/hooks/useTabDirty"
+import { useFormDraft } from "@/hooks/useFormDraft"
 import { cn } from "@/lib/utils"
 import { api } from "@/lib/api"
-import type { GoodsReceiptLineRequest, CreateGoodsReceiptRequest } from "@/types/document"
+import { fromQuantity, fromMinorUnits, toQuantity, toMinorUnits, moneyStep } from "@/lib/format"
+import { useCurrencyScale } from "@/hooks/useCurrencyScale"
+import { type FormLine, emptyLine, fetchVatRatePercent, computeTotals } from "@/lib/document-form"
+import { DocumentTotalsFooter } from "@/components/shared/document-totals-footer"
+import type { GoodsReceiptLineRequest, CreateGoodsReceiptRequest, GoodsReceiptResponse } from "@/types/document"
 
-const SIDEBAR_KEY = "metapus-form-sidebar-collapsed"
+const SIDEBAR_STORAGE_KEY = "metapus-form-sidebar-collapsed"
+const HEADER_STORAGE_KEY = "metapus-form-header-collapsed"
 
-// ── Local line state (UI-friendly, converted to DTO on save) ────────────
+// ── Form state (single typed object for draft persistence) ────────────
 
-interface FormLine {
-  _key: number // local UI key
-  productId: string
-  productName: string
-  unitId: string
-  unitName: string
-  quantity: string   // display value, will convert to int64
-  unitPrice: string  // display value (major units, e.g. "11.00"), convert to MinorUnits
-  vatRateId: string
-  vatRateName: string
-  vatPercent: string
-  discountPercent: string
+interface GoodsReceiptFormState {
+  date: string | undefined
+  organizationId: string
+  organizationName: string
+  supplierId: string
+  supplierName: string
+  warehouseId: string
+  warehouseName: string
+  currencyId: string
+  currencyName: string
+  contractId: string
+  contractName: string
+  supplierDocNumber: string
+  incomingNumber: string
+  amountIncludesVat: boolean
+  description: string
+  lines: FormLine[]
+  nextKey: number
 }
 
-function emptyLine(key: number): FormLine {
-  return { _key: key, productId: "", productName: "", unitId: "", unitName: "", quantity: "", unitPrice: "", vatRateId: "", vatRateName: "", vatPercent: "20", discountPercent: "0" }
-}
-
-/** Convert display quantity (e.g. "5") to Quantity int64 (×10000). */
-function toQuantity(s: string): number {
-  return Math.round(parseFloat(s || "0") * 10000)
-}
-
-/** Convert display price (e.g. "11.50") to MinorUnits int64 (kopecks). */
-function toMinorUnits(s: string): number {
-  return Math.round(parseFloat(s || "0") * 100)
-}
-
-/** Format MinorUnits to display. */
-function fmtAmount(minor: number): string {
-  return (minor / 100).toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const INITIAL_FORM_STATE: GoodsReceiptFormState = {
+  date: new Date().toISOString(),
+  organizationId: "", organizationName: "",
+  supplierId: "", supplierName: "",
+  warehouseId: "", warehouseName: "",
+  currencyId: "", currencyName: "",
+  contractId: "", contractName: "",
+  supplierDocNumber: "", incomingNumber: "",
+  amountIncludesVat: true, description: "",
+  lines: [], nextKey: 1,
 }
 
 export default function NewGoodsReceiptPage() {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { markDirty, markClean } = useTabDirty()
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
-  const [nextKey, setNextKey] = useState(1)
+  const [sidebarCollapsed, toggleSidebar] = useCollapsible(SIDEBAR_STORAGE_KEY, true)
+  const [headerCollapsed, toggleHeader] = useCollapsible(HEADER_STORAGE_KEY, false)
+  const [copyLoading, setCopyLoading] = useState(false)
 
-  // ── Header fields ─────────────────────────────────────────────────────
-  const [date, setDate] = useState<Date | undefined>(() => new Date())
-  const [organizationId, setOrganizationId] = useState("")
-  const [organizationName, setOrganizationName] = useState("")
-  const [supplierId, setSupplierId] = useState("")
-  const [supplierName, setSupplierName] = useState("")
-  const [warehouseId, setWarehouseId] = useState("")
-  const [warehouseName, setWarehouseName] = useState("")
-  const [currencyId, setCurrencyId] = useState("")
-  const [currencyName, setCurrencyName] = useState("")
-  const [contractId, setContractId] = useState("")
-  const [contractName, setContractName] = useState("")
-  const [supplierDocNumber, setSupplierDocNumber] = useState("")
-  const [incomingNumber, setIncomingNumber] = useState("")
-  const [amountIncludesVat, setAmountIncludesVat] = useState(true)
-  const [description, setDescription] = useState("")
+  // ── Single typed form state with automatic draft persistence ────────
+  const { state: f, update, replace, clear, hasDraft } = useFormDraft<GoodsReceiptFormState>(
+    pathname,
+    INITIAL_FORM_STATE,
+    { shouldPersist: (s) => !!(s.organizationId || s.supplierId || s.warehouseId || s.lines.length > 0) },
+  )
 
-  // ── Lines ─────────────────────────────────────────────────────────────
-  const [lines, setLines] = useState<FormLine[]>([])
+  // Convenience: Date object from ISO string
+  const date = f.date ? new Date(f.date) : undefined
 
+  // Dynamic currency scale for monetary fields
+  const { decimalPlaces, symbol: currencySymbol } = useCurrencyScale(f.currencyId || undefined)
+
+  // ── Copy from existing document (аналог 1С ОбработкаЗаполнения) ─────
+  // Skipped if draft was restored (user was editing, switched tab, came back)
   useEffect(() => {
-    const stored = localStorage.getItem(SIDEBAR_KEY)
-    if (stored !== null) setSidebarCollapsed(stored === "true")
-  }, [])
+    if (hasDraft) { markDirty(); return }
 
-  const toggleSidebar = () => {
-    const next = !sidebarCollapsed
-    setSidebarCollapsed(next)
-    localStorage.setItem(SIDEBAR_KEY, String(next))
-  }
+    const copyFromId = searchParams.get("copyFrom")
+    if (!copyFromId) return
+
+    setCopyLoading(true)
+    api.goodsReceipts.get(copyFromId)
+      .then((src: GoodsReceiptResponse) => {
+        const mapped = (src.lines ?? []).map((l, i): FormLine => ({
+          _key: i + 1,
+          productId: l.productId,
+          productName: l.product?.name || "",
+          unitId: l.unitId,
+          unitName: l.unit?.name || "",
+          quantity: fromQuantity(l.quantity),
+          unitPrice: fromMinorUnits(l.unitPrice, decimalPlaces),
+          vatRateId: l.vatRateId,
+          vatRateName: l.vatRate?.name || "",
+          vatPercent: String(l.vatPercent ?? 0),
+          discountPercent: l.discountPercent || "0",
+        }))
+        replace({
+          ...INITIAL_FORM_STATE,
+          organizationId: src.organizationId,
+          organizationName: src.organization?.name || "",
+          supplierId: src.supplierId,
+          supplierName: src.supplier?.name || "",
+          warehouseId: src.warehouseId,
+          warehouseName: src.warehouse?.name || "",
+          currencyId: src.currencyId || "",
+          currencyName: src.currency?.name || "",
+          contractId: src.contractId || "",
+          contractName: src.contract?.name || "",
+          supplierDocNumber: src.supplierDocNumber || "",
+          incomingNumber: src.incomingNumber || "",
+          amountIncludesVat: src.amountIncludesVat,
+          description: src.description || "",
+          lines: mapped,
+          nextKey: mapped.length + 1,
+        })
+        markDirty()
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Ошибка копирования документа")
+      })
+      .finally(() => setCopyLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleChange = () => markDirty()
 
   const addLine = () => {
-    setLines([...lines, emptyLine(nextKey)])
-    setNextKey(nextKey + 1)
+    update({ lines: [...f.lines, emptyLine(f.nextKey)], nextKey: f.nextKey + 1 })
     markDirty()
   }
 
   const removeLine = (key: number) => {
-    setLines(lines.filter((l) => l._key !== key))
+    update({ lines: f.lines.filter((l) => l._key !== key) })
     markDirty()
   }
 
   const updateLine = (key: number, field: keyof FormLine, value: string) => {
-    setLines(lines.map((l) => l._key === key ? { ...l, [field]: value } : l))
+    update({ lines: f.lines.map((l) => l._key === key ? { ...l, [field]: value } : l) })
     markDirty()
   }
 
   // ── Computed totals ───────────────────────────────────────────────────
-  const totals = useMemo(() => {
-    let totalAmount = 0
-    let totalVat = 0
-    for (const l of lines) {
-      const qty = parseFloat(l.quantity || "0")
-      const price = parseFloat(l.unitPrice || "0")
-      const lineAmount = qty * price * 100 // in minor units
-      const vatPct = parseInt(l.vatPercent || "0")
-      const vat = amountIncludesVat
-        ? lineAmount - lineAmount / (1 + vatPct / 100)
-        : lineAmount * vatPct / 100
-      totalAmount += lineAmount
-      totalVat += vat
-    }
-    return { totalAmount: Math.round(totalAmount), totalVat: Math.round(totalVat) }
-  }, [lines, amountIncludesVat])
+  const totals = useMemo(() => computeTotals(f.lines, f.amountIncludesVat, decimalPlaces), [f.lines, f.amountIncludesVat, decimalPlaces])
 
   const buildPayload = (postImmediately: boolean): CreateGoodsReceiptRequest => ({
-    date: date ? date.toISOString() : new Date().toISOString(),
-    organizationId,
-    supplierId,
-    warehouseId,
-    currencyId: currencyId || undefined,
-    contractId: contractId || null,
-    supplierDocNumber: supplierDocNumber || undefined,
-    incomingNumber: incomingNumber || null,
-    amountIncludesVat,
-    description: description || undefined,
+    date: f.date || new Date().toISOString(),
+    organizationId: f.organizationId,
+    supplierId: f.supplierId,
+    warehouseId: f.warehouseId,
+    currencyId: f.currencyId || undefined,
+    contractId: f.contractId || null,
+    supplierDocNumber: f.supplierDocNumber || undefined,
+    incomingNumber: f.incomingNumber || null,
+    amountIncludesVat: f.amountIncludesVat,
+    description: f.description || undefined,
     postImmediately,
-    lines: lines.map((l): GoodsReceiptLineRequest => ({
+    lines: f.lines.map((l): GoodsReceiptLineRequest => ({
       productId: l.productId,
       unitId: l.unitId,
       quantity: toQuantity(l.quantity),
-      unitPrice: toMinorUnits(l.unitPrice),
+      unitPrice: toMinorUnits(l.unitPrice, decimalPlaces),
       vatRateId: l.vatRateId,
       vatPercent: parseInt(l.vatPercent || "0"),
       discountPercent: l.discountPercent || "0",
@@ -166,11 +192,11 @@ export default function NewGoodsReceiptPage() {
   })
 
   const handleSave = async (postImmediately: boolean, andClose: boolean) => {
-    if (!supplierId || !warehouseId || !organizationId) {
+    if (!f.supplierId || !f.warehouseId || !f.organizationId) {
       setError("Укажите поставщика, склад и организацию")
       return
     }
-    if (lines.length === 0) {
+    if (f.lines.length === 0) {
       setError("Добавьте хотя бы одну строку товаров")
       return
     }
@@ -179,6 +205,7 @@ export default function NewGoodsReceiptPage() {
     try {
       const created = await api.goodsReceipts.create(buildPayload(postImmediately))
       markClean()
+      clear()
       if (andClose) {
         router.push("/purchases/goods-receipts")
       } else {
@@ -191,10 +218,21 @@ export default function NewGoodsReceiptPage() {
     }
   }
 
+  const isCopy = !!searchParams.get("copyFrom")
+
+  if (copyLoading) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+        Копирование документа…
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-full flex-col">
       <FormToolbar
-        title="Приходная накладная (создание)"
+        title={isCopy ? "Приходная накладная (копирование)" : "Приходная накладная (создание)"}
         primaryAction={{
           label: saving ? "Сохранение…" : "Провести и закрыть",
           variant: "default",
@@ -216,17 +254,17 @@ export default function NewGoodsReceiptPage() {
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex flex-1 flex-col overflow-hidden relative">
-          <div className="border-b bg-card p-4 shrink-0">
+          {!headerCollapsed && <div className="border-b bg-card p-4 shrink-0">
             <div className="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2 lg:grid-cols-3">
               <div>
                 <Label className="text-xs text-muted-foreground">Организация *</Label>
                 <div className="mt-1">
                   <ReferenceField
-                    value={organizationId}
-                    displayName={organizationName}
+                    value={f.organizationId}
+                    displayName={f.organizationName}
                     apiEndpoint="/catalog/organizations"
                     placeholder="Выберите организацию"
-                    onChange={(id, name) => { setOrganizationId(id); setOrganizationName(name); handleChange() }}
+                    onChange={(id, name) => { update({ organizationId: id, organizationName: name }); markDirty() }}
                   />
                 </div>
               </div>
@@ -234,11 +272,11 @@ export default function NewGoodsReceiptPage() {
                 <Label className="text-xs text-muted-foreground">Поставщик *</Label>
                 <div className="mt-1">
                   <ReferenceField
-                    value={supplierId}
-                    displayName={supplierName}
+                    value={f.supplierId}
+                    displayName={f.supplierName}
                     apiEndpoint="/catalog/counterparties"
                     placeholder="Выберите поставщика"
-                    onChange={(id, name) => { setSupplierId(id); setSupplierName(name); handleChange() }}
+                    onChange={(id, name) => { update({ supplierId: id, supplierName: name }); markDirty() }}
                   />
                 </div>
               </div>
@@ -246,7 +284,7 @@ export default function NewGoodsReceiptPage() {
                 <Label className="text-xs text-muted-foreground">Дата *</Label>
                 <DatePicker
                   value={date}
-                  onChange={(d) => { setDate(d); handleChange() }}
+                  onChange={(d) => { update({ date: d?.toISOString() }); markDirty() }}
                   className="mt-1 h-9"
                 />
               </div>
@@ -254,11 +292,11 @@ export default function NewGoodsReceiptPage() {
                 <Label className="text-xs text-muted-foreground">Склад *</Label>
                 <div className="mt-1">
                   <ReferenceField
-                    value={warehouseId}
-                    displayName={warehouseName}
+                    value={f.warehouseId}
+                    displayName={f.warehouseName}
                     apiEndpoint="/catalog/warehouses"
                     placeholder="Выберите склад"
-                    onChange={(id, name) => { setWarehouseId(id); setWarehouseName(name); handleChange() }}
+                    onChange={(id, name) => { update({ warehouseId: id, warehouseName: name }); markDirty() }}
                   />
                 </div>
               </div>
@@ -266,11 +304,11 @@ export default function NewGoodsReceiptPage() {
                 <Label className="text-xs text-muted-foreground">Договор</Label>
                 <div className="mt-1">
                   <ReferenceField
-                    value={contractId}
-                    displayName={contractName}
+                    value={f.contractId}
+                    displayName={f.contractName}
                     apiEndpoint="/catalog/contracts"
                     placeholder="Выберите договор"
-                    onChange={(id, name) => { setContractId(id); setContractName(name); handleChange() }}
+                    onChange={(id, name) => { update({ contractId: id, contractName: name }); markDirty() }}
                   />
                 </div>
               </div>
@@ -278,38 +316,47 @@ export default function NewGoodsReceiptPage() {
                 <Label className="text-xs text-muted-foreground">Валюта</Label>
                 <div className="mt-1">
                   <ReferenceField
-                    value={currencyId}
-                    displayName={currencyName}
+                    value={f.currencyId}
+                    displayName={f.currencyName}
                     apiEndpoint="/catalog/currencies"
                     placeholder="Выберите валюту"
-                    onChange={(id, name) => { setCurrencyId(id); setCurrencyName(name); handleChange() }}
+                    onChange={(id, name) => { update({ currencyId: id, currencyName: name }); markDirty() }}
                   />
                 </div>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">№ вх. документа</Label>
-                <Input className="mt-1" value={supplierDocNumber} onChange={(e) => { setSupplierDocNumber(e.target.value); handleChange() }} />
+                <Input className="mt-1" value={f.supplierDocNumber} onChange={(e) => { update({ supplierDocNumber: e.target.value }); markDirty() }} />
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">Вх. номер</Label>
-                <Input className="mt-1" value={incomingNumber} onChange={(e) => { setIncomingNumber(e.target.value); handleChange() }} />
+                <Input className="mt-1" value={f.incomingNumber} onChange={(e) => { update({ incomingNumber: e.target.value }); markDirty() }} />
               </div>
               <div className="flex items-center gap-3 mt-5">
-                <Switch checked={amountIncludesVat} onCheckedChange={(v) => { setAmountIncludesVat(v); handleChange() }} />
+                <Switch checked={f.amountIncludesVat} onCheckedChange={(v) => { update({ amountIncludesVat: v }); markDirty() }} />
                 <Label className="text-xs">НДС включён в сумму</Label>
               </div>
             </div>
-          </div>
+          </div>}
 
           <div className="flex-1 min-h-0 grid grid-rows-[auto_1fr] border-t">
             <Tabs defaultValue="goods" className="contents">
-              <div className="flex flex-col border-b bg-card px-4 row-start-1 col-start-1">
+              <div className="flex items-center border-b bg-card px-4 row-start-1 col-start-1">
                 <TabsList variant="line" className="border-b-0 h-11 self-start">
                   <TabsTrigger value="goods" variant="line" className="text-xs">
-                    Товары ({lines.length})
+                    Товары ({f.lines.length})
                   </TabsTrigger>
                   <TabsTrigger value="additional" variant="line" className="text-xs">Дополнительно</TabsTrigger>
                 </TabsList>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="ml-auto h-7 w-7 text-muted-foreground hover:text-foreground"
+                  onClick={toggleHeader}
+                  title={headerCollapsed ? "Развернуть шапку" : "Свернуть шапку"}
+                >
+                  {headerCollapsed ? <ChevronsDown className="h-4 w-4" /> : <ChevronsUp className="h-4 w-4" />}
+                </Button>
               </div>
 
               <TabsContent value="goods" className="mt-0 overflow-hidden row-start-2 col-start-1">
@@ -335,26 +382,35 @@ export default function NewGoodsReceiptPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {lines.length === 0 && (
+                        {f.lines.length === 0 && (
                           <tr>
                             <td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">
                               Нажмите &quot;Добавить&quot; для добавления строки
                             </td>
                           </tr>
                         )}
-                        {lines.map((line, idx) => (
+                        {f.lines.map((line, idx) => (
                           <tr key={line._key} className="border-b hover:bg-muted/30 transition-colors">
                             <td className="px-2 py-1.5 text-center text-xs text-muted-foreground">{idx + 1}</td>
                             <td className="px-1 py-1">
-                              <ReferenceField compact value={line.productId} displayName={line.productName} apiEndpoint="/catalog/nomenclature" placeholder="Номенклатура" onChange={(id, name) => { updateLine(line._key, "productId", id); setLines(prev => prev.map(l => l._key === line._key ? { ...l, productName: name } : l)) }} />
+                              {/* ⚡ Perf: single setLines call instead of updateLine() + setLines() (was 2 array traversals, now 1) */}
+                              <ReferenceField compact value={line.productId} displayName={line.productName} apiEndpoint="/catalog/nomenclature" placeholder="Номенклатура" onChange={(id, name) => { update({ lines: f.lines.map(l => l._key === line._key ? { ...l, productId: id, productName: name } : l) }); markDirty() }} />
                             </td>
                             <td className="px-1 py-1">
-                              <ReferenceField compact value={line.unitId} displayName={line.unitName} apiEndpoint="/catalog/units" placeholder="Ед. изм." onChange={(id, name) => { updateLine(line._key, "unitId", id); setLines(prev => prev.map(l => l._key === line._key ? { ...l, unitName: name } : l)) }} />
+                              <ReferenceField compact value={line.unitId} displayName={line.unitName} apiEndpoint="/catalog/units" placeholder="Ед. изм." onChange={(id, name) => { update({ lines: f.lines.map(l => l._key === line._key ? { ...l, unitId: id, unitName: name } : l) }); markDirty() }} />
                             </td>
                             <td className="px-1 py-1"><Input className="h-7 text-right font-mono text-xs" type="number" step="0.001" value={line.quantity} onChange={(e) => updateLine(line._key, "quantity", e.target.value)} /></td>
-                            <td className="px-1 py-1"><Input className="h-7 text-right font-mono text-xs" type="number" step="0.01" value={line.unitPrice} onChange={(e) => updateLine(line._key, "unitPrice", e.target.value)} /></td>
+                            <td className="px-1 py-1"><Input className="h-7 text-right font-mono text-xs" type="number" step={moneyStep(decimalPlaces)} value={line.unitPrice} onChange={(e) => updateLine(line._key, "unitPrice", e.target.value)} /></td>
                             <td className="px-1 py-1">
-                              <ReferenceField compact value={line.vatRateId} displayName={line.vatRateName} apiEndpoint="/catalog/vat-rates" placeholder="Ставка НДС" onChange={(id, name) => { updateLine(line._key, "vatRateId", id); setLines(prev => prev.map(l => l._key === line._key ? { ...l, vatRateName: name } : l)) }} />
+                              <ReferenceField compact value={line.vatRateId} displayName={line.vatRateName} apiEndpoint="/catalog/vat-rates" placeholder="Ставка НДС" onChange={(id, name) => {
+                                update({ lines: f.lines.map(l => l._key === line._key ? { ...l, vatRateId: id, vatRateName: name } : l) })
+                                markDirty()
+                                if (id) {
+                                  fetchVatRatePercent(id).then(pct => {
+                                    update((prev) => ({ lines: prev.lines.map(l => l._key === line._key ? { ...l, vatPercent: pct } : l) }))
+                                  })
+                                }
+                              }} />
                             </td>
                             <td className="px-1 py-1"><Input className="h-7 text-right font-mono text-xs" type="number" value={line.vatPercent} onChange={(e) => updateLine(line._key, "vatPercent", e.target.value)} /></td>
                             <td className="px-1 py-1">
@@ -373,85 +429,18 @@ export default function NewGoodsReceiptPage() {
               <TabsContent value="additional" className="mt-0 p-4 overflow-auto row-start-2 col-start-1">
                 <div>
                   <Label className="text-xs text-muted-foreground">Описание</Label>
-                  <Textarea rows={4} className="mt-1" value={description} onChange={(e) => { setDescription(e.target.value); handleChange() }} placeholder="Комментарий к документу..." />
+                  <Textarea rows={4} className="mt-1" value={f.description} onChange={(e) => { update({ description: e.target.value }); markDirty() }} placeholder="Комментарий к документу..." />
                 </div>
               </TabsContent>
             </Tabs>
           </div>
 
           {/* Footer with totals */}
-          <div className="shrink-0 border-t bg-background px-4 py-2 shadow-[0_-4px_8px_-2px_rgba(0,0,0,0.05)] z-20 relative">
-            <div className="flex items-center gap-6 justify-end text-xs">
-              <div className="flex items-center gap-1.5">
-                <span className="text-muted-foreground">НДС:</span>
-                <span className="font-mono text-[11px] font-medium">{fmtAmount(totals.totalVat)} Р</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-semibold">ИТОГО:</span>
-                <span className="text-xl font-bold tracking-tight">{fmtAmount(totals.totalAmount)}</span>
-                <span className="text-sm font-semibold text-muted-foreground">Р</span>
-              </div>
-            </div>
-          </div>
+          <DocumentTotalsFooter totalAmount={totals.totalAmount} totalVat={totals.totalVat} decimalPlaces={decimalPlaces} currencySymbol={currencySymbol} />
         </div>
 
         {/* Right Sidebar — collapsible */}
-        <div
-          className={cn(
-            "flex flex-col shrink-0 border-l border-border bg-card/30 transition-all duration-300 ease-in-out overflow-hidden",
-            sidebarCollapsed ? "w-9" : "w-72"
-          )}
-        >
-          <div
-            className={cn(
-              "flex items-center justify-center border-b shrink-0 bg-muted/20 transition-all duration-300",
-              !sidebarCollapsed ? "h-0 opacity-0 pointer-events-none border-b-0" : "h-11 opacity-100"
-            )}
-          >
-            <TooltipProvider delayDuration={300}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-transparent" onClick={toggleSidebar}>
-                    <Info className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="left">Развернуть панель</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-
-          <div className={cn("flex-1 overflow-y-auto transition-opacity duration-200", sidebarCollapsed ? "opacity-0 pointer-events-none" : "opacity-100")}>
-            <div className="p-4 space-y-6">
-              <div>
-                <div className="flex items-center justify-between text-muted-foreground mb-3">
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <Paperclip className="h-4 w-4" />
-                    Файлы
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-6 w-6"><Plus className="h-4 w-4" /></Button>
-                </div>
-                <div className="text-xs text-muted-foreground/60 text-center py-4">Нет прикрепленных файлов</div>
-              </div>
-            </div>
-            <div className="p-4 border-t border-border/50 text-xs text-muted-foreground space-y-2">
-              <div><span className="block text-muted-foreground/70 mb-0.5">Изменено:</span><span className="text-foreground/80">—</span></div>
-              <div><span className="block text-muted-foreground/70 mb-0.5">Создано:</span><span className="text-foreground/80">—</span></div>
-            </div>
-          </div>
-
-          <div className={cn("flex items-center border-t h-9 mt-auto shrink-0", sidebarCollapsed ? "justify-center" : "justify-end px-2")}>
-            <TooltipProvider delayDuration={300}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={toggleSidebar}>
-                    {sidebarCollapsed ? <PanelRightOpen className="h-4 w-4" /> : <PanelRightClose className="h-4 w-4" />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="left">{sidebarCollapsed ? "Показать панель" : "Скрыть панель"}</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        </div>
+        <FormSidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
       </div>
     </div>
   )

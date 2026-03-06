@@ -96,6 +96,7 @@ export function getOperatorsForType(fieldType: FieldType): OperatorOption[] {
         case "reference": return REF_OPERATORS
         case "string": return STRING_OPERATORS
         case "number": return NUMBER_OPERATORS
+        case "money": return NUMBER_OPERATORS
         case "date": return DATE_OPERATORS
         case "boolean": return BOOLEAN_OPERATORS
         case "enum": return ENUM_OPERATORS
@@ -109,6 +110,7 @@ export function getDefaultOperator(fieldType: FieldType): ComparisonOperator {
         case "reference": return "eq"
         case "string": return "contains"
         case "number": return "eq"
+        case "money": return "eq"
         case "date": return "eq"
         case "boolean": return "eq"
         case "enum": return "eq"
@@ -175,18 +177,23 @@ export function buildFilterItems(
             ? (periodField ?? "date")
             : camelToSnake(key)
 
-        // Look up the field logic type from metadata
+        // Look up the field logic type and valueScale from metadata
         let fieldType: string | undefined
+        let valueScale: number | undefined
         if (key === PERIOD_FILTER_KEY) {
             fieldType = "date"
         } else {
             const meta = _fieldsMeta.find(m => m.key === key)
             fieldType = meta?.fieldType
+            valueScale = meta?.valueScale
         }
+
+        // Helper: attach scale only when non-zero
+        const scaleOpt = valueScale ? { scale: valueScale } : {}
 
         // Nullary operators — no value required
         if (isNullaryOperator(operator)) {
-            items.push({ field: dbField, fieldType, operator })
+            items.push({ field: dbField, fieldType, operator, ...scaleOpt })
             continue
         }
 
@@ -202,18 +209,18 @@ export function buildFilterItems(
                         ? (v as { id: string }).id
                         : v
                 )
-                items.push({ field: dbField, fieldType, operator, value: ids })
+                items.push({ field: dbField, fieldType, operator, value: ids, ...scaleOpt })
             }
             continue
         }
 
         // Boolean: convert string "true"/"false" to actual boolean
         if (typeof value === "string" && (value === "true" || value === "false")) {
-            items.push({ field: dbField, fieldType, operator, value: value === "true" })
+            items.push({ field: dbField, fieldType, operator, value: value === "true", ...scaleOpt })
             continue
         }
         if (typeof value === "boolean") {
-            items.push({ field: dbField, fieldType, operator, value })
+            items.push({ field: dbField, fieldType, operator, value, ...scaleOpt })
             continue
         }
 
@@ -221,7 +228,7 @@ export function buildFilterItems(
         if (typeof value === "object" && value !== null && "id" in value && "name" in value) {
             const id = (value as { id: string }).id
             if (id) {
-                items.push({ field: dbField, fieldType, operator, value: id })
+                items.push({ field: dbField, fieldType, operator, value: id, ...scaleOpt })
             }
             continue
         }
@@ -230,19 +237,19 @@ export function buildFilterItems(
         if (typeof value === "object" && value !== null && ("from" in value || "to" in value)) {
             const range = value as { from?: string; to?: string }
             if (range.from) {
-                items.push({ field: dbField, fieldType, operator: "gte", value: range.from })
+                items.push({ field: dbField, fieldType, operator: "gte", value: range.from, ...scaleOpt })
             }
             if (range.to) {
-                items.push({ field: dbField, fieldType, operator: "lte", value: range.to })
+                items.push({ field: dbField, fieldType, operator: "lte", value: range.to, ...scaleOpt })
             }
             continue
         }
 
         // Scalar values (string, number)
         if (typeof value === "string" && value.trim()) {
-            items.push({ field: dbField, fieldType, operator, value: value.trim() })
+            items.push({ field: dbField, fieldType, operator, value: value.trim(), ...scaleOpt })
         } else if (typeof value === "number") {
-            items.push({ field: dbField, fieldType, operator, value })
+            items.push({ field: dbField, fieldType, operator, value, ...scaleOpt })
         }
     }
 

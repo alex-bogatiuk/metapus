@@ -25,13 +25,23 @@ type GoodsReceiptRepo struct {
 
 // NewGoodsReceiptRepo creates a new goods receipt repository.
 func NewGoodsReceiptRepo() *GoodsReceiptRepo {
-	return &GoodsReceiptRepo{
+	repo := &GoodsReceiptRepo{
 		BaseDocumentRepo: NewBaseDocumentRepo[*goods_receipt.GoodsReceipt](
 			goodsReceiptsTable,
 			postgres.ExtractDBColumns[goods_receipt.GoodsReceipt](),
 			func() *goods_receipt.GoodsReceipt { return &goods_receipt.GoodsReceipt{} },
 		),
 	}
+
+	// Register table part "lines" for filtering by tabular section columns.
+	// Column names match DB columns in doc_goods_receipt_lines.
+	repo.RegisterTablePart("lines", goodsReceiptLinesTable, "document_id", []string{
+		"product_id", "unit_id", "quantity", "unit_price",
+		"discount_percent", "discount_amount",
+		"vat_rate_id", "vat_percent", "vat_amount", "amount",
+	})
+
+	return repo
 }
 
 // GetLines retrieves lines for a goods receipt.
@@ -42,7 +52,7 @@ func (r *GoodsReceiptRepo) GetLines(ctx context.Context, docID id.ID) ([]goods_r
 			"unit_id", "coefficient",
 			"quantity", "unit_price",
 			"discount_percent", "discount_amount",
-			"vat_rate_id", "vat_amount", "amount",
+			"vat_rate_id", "vat_percent", "vat_amount", "amount",
 		).
 		From(goodsReceiptLinesTable).
 		Where(squirrel.Eq{"document_id": docID}).
@@ -84,7 +94,7 @@ func (r *GoodsReceiptRepo) SaveLines(ctx context.Context, docID id.ID, lines []g
 			"unit_id", "coefficient",
 			"quantity", "unit_price",
 			"discount_percent", "discount_amount",
-			"vat_rate_id", "vat_amount", "amount",
+			"vat_rate_id", "vat_percent", "vat_amount", "amount",
 		)
 
 	for _, line := range lines {
@@ -93,7 +103,7 @@ func (r *GoodsReceiptRepo) SaveLines(ctx context.Context, docID id.ID, lines []g
 			line.UnitID, line.Coefficient,
 			line.Quantity, line.UnitPrice,
 			line.DiscountPercent, line.DiscountAmount,
-			line.VATRateID, line.VATAmount, line.Amount,
+			line.VATRateID, line.VATPercent, line.VATAmount, line.Amount,
 		)
 	}
 

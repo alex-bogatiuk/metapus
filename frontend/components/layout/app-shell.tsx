@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { AppSidebar } from "./app-sidebar"
 import { SiteHeader } from "./site-header"
@@ -58,21 +58,29 @@ function resolveTitleFromUrl(pathname: string): string {
  */
 function RouteSync() {
   const pathname = usePathname()
-  const { tabs, openTab, setActiveTab } = useTabsStore()
+  const searchParams = useSearchParams()
+  const { tabs, openTab, setActiveTab, updateTabUrl } = useTabsStore()
 
   useEffect(() => {
-    const matchingTab = tabs.find((t) => t.url === pathname)
+    const search = searchParams.toString()
+    const fullUrl = search ? `${pathname}?${search}` : pathname
+
+    const matchingTab = tabs.find((t) => t.id === pathname)
     if (matchingTab) {
       setActiveTab(matchingTab.id)
+      // Keep tab URL in sync (e.g. ?copyFrom= added)
+      if (matchingTab.url !== fullUrl) {
+        updateTabUrl(matchingTab.id, fullUrl)
+      }
     } else {
       // Auto-open a tab for this URL (e.g. browser back/forward)
       openTab({
         id: pathname,
         title: resolveTitleFromUrl(pathname),
-        url: pathname,
+        url: fullUrl,
       })
     }
-  }, [pathname]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pathname, searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return null
 }

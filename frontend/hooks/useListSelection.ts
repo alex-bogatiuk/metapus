@@ -28,14 +28,17 @@ export function useListSelection(visibleIds: string[]): UseListSelectionReturn {
     // We use a ref so it doesn't trigger re-renders; it's only read during click.
     const lastClickedIdRef = useRef<string | null>(null)
 
+    // ⚡ Perf: O(1) lookup Set — avoids O(N²) from .includes() in isAllSelected / isIndeterminate.
+    const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
+
     const isAllSelected = useMemo(
-        () => visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id)),
-        [visibleIds, selectedIds]
+        () => visibleIds.length > 0 && visibleIds.every((id) => selectedSet.has(id)),
+        [visibleIds, selectedSet]
     )
 
     const isIndeterminate = useMemo(
-        () => !isAllSelected && visibleIds.some((id) => selectedIds.includes(id)),
-        [visibleIds, selectedIds, isAllSelected]
+        () => !isAllSelected && visibleIds.some((id) => selectedSet.has(id)),
+        [visibleIds, selectedSet, isAllSelected]
     )
 
     const toggleItem = useCallback(
@@ -74,7 +77,9 @@ export function useListSelection(visibleIds: string[]): UseListSelectionReturn {
     const toggleAll = useCallback(() => {
         if (isAllSelected) {
             // Deselect all visible items (keep items from other pages if any)
-            setSelectedIds((prev) => prev.filter((id) => !visibleIds.includes(id)))
+            // ⚡ Perf: use Set for O(1) lookups instead of O(N) .includes() per item
+            const visibleSet = new Set(visibleIds)
+            setSelectedIds((prev) => prev.filter((id) => !visibleSet.has(id)))
         } else {
             // Select all visible items (merge with already selected)
             setSelectedIds((prev) => {

@@ -15,6 +15,13 @@ import (
 	"metapus/pkg/logger"
 )
 
+// DocumentLocker acquires an exclusive transactional lock on a document.
+// Prevents concurrent posting/unposting of the same document (double-click, parallel tabs).
+// Must be called inside a transaction — the lock is released on COMMIT/ROLLBACK.
+type DocumentLocker interface {
+	LockDocument(ctx context.Context, docType string, docID id.ID) error
+}
+
 // Postable is implemented by documents that can generate register movements.
 type Postable interface {
 	// GetID returns the document ID
@@ -31,10 +38,6 @@ type Postable interface {
 
 	// CanPost validates if document can be posted
 	CanPost(ctx context.Context) error
-
-	// GenerateMovements creates register movements for this document
-	// Called within a transaction during posting
-	GenerateMovements(ctx context.Context) (*MovementSet, error)
 
 	// MarkPosted updates the document's posted state
 	MarkPosted()
@@ -72,10 +75,12 @@ func (m *MovementSet) TotalCount() int {
 
 // Engine orchestrates document posting operations.
 // It coordinates validation, movement generation, and register updates.
+// Movement generation is delegated to RegisterVisitor instances (Visitor pattern).
 // In Database-per-Tenant architecture, TxManager is obtained from context.
 type Engine struct {
 	stockService *stock.Service
-	// Future: costService, settlementService
+	docLocker    DocumentLocker // optional; nil = no advisory lock
+	visitors     []RegisterVisitor
 
 	// Hooks for extensibility
 	beforePost []PostHook
@@ -87,12 +92,24 @@ type PostHook func(ctx context.Context, doc Postable) error
 
 // NewEngine creates a new posting engine.
 // In Database-per-Tenant, TxManager is obtained from context.
+// docLocker is optional — pass nil to skip advisory locking (e.g. in tests).
 func NewEngine(
 	stockService *stock.Service,
+	docLocker DocumentLocker,
 ) *Engine {
-	return &Engine{
+	e := &Engine{
 		stockService: stockService,
+		docLocker:    docLocker,
 	}
+	// Register built-in visitors
+	e.visitors = append(e.visitors, &StockVisitor{})
+	return e
+}
+
+// AddVisitor registers an additional register visitor.
+// Use this to extend the engine with new register types (cost, settlement, etc.).
+func (e *Engine) AddVisitor(v RegisterVisitor) {
+	e.visitors = append(e.visitors, v)
 }
 
 // OnBeforePost registers a hook to run before posting.
@@ -142,6 +159,13 @@ func (e *Engine) doPost(ctx context.Context, doc Postable, updateDoc func(contex
 		return apperror.NewInternal(err).WithDetail("missing", "tx_manager")
 	}
 	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		// Advisory lock: prevent concurrent posting of the same document
+		if e.docLocker != nil {
+			if err := e.docLocker.LockDocument(ctx, doc.GetDocumentType(), doc.GetID()); err != nil {
+				return fmt.Errorf("lock document: %w", err)
+			}
+		}
+
 		// If re-posting, reverse old movements first
 		if isRepost {
 			oldVersion := doc.GetPostedVersion()
@@ -150,10 +174,10 @@ func (e *Engine) doPost(ctx context.Context, doc Postable, updateDoc func(contex
 			}
 		}
 
-		// Generate movements
-		movements, err := doc.GenerateMovements(ctx)
+		// Collect movements via registered visitors (Visitor pattern)
+		movements, err := e.collectMovements(ctx, doc)
 		if err != nil {
-			return fmt.Errorf("generate movements: %w", err)
+			return fmt.Errorf("collect movements: %w", err)
 		}
 
 		if movements.IsEmpty() {
@@ -220,6 +244,13 @@ func (e *Engine) Unpost(ctx context.Context, doc Postable, updateDoc func(contex
 		return apperror.NewInternal(err).WithDetail("missing", "tx_manager")
 	}
 	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		// Advisory lock: prevent concurrent unposting of the same document
+		if e.docLocker != nil {
+			if err := e.docLocker.LockDocument(ctx, doc.GetDocumentType(), doc.GetID()); err != nil {
+				return fmt.Errorf("lock document: %w", err)
+			}
+		}
+
 		// Delete movements for this document version
 		// This uses recorder_id + recorder_version for efficient cleanup
 		if err := e.stockService.ReverseMovements(ctx, doc.GetID(), doc.GetPostedVersion()+1); err != nil {
@@ -287,6 +318,17 @@ func (e *Engine) validateStockAvailability(ctx context.Context, movements []enti
 	})
 
 	return e.stockService.CheckAndReserveStock(ctx, items)
+}
+
+// collectMovements iterates all registered visitors to collect register movements.
+func (e *Engine) collectMovements(ctx context.Context, doc Postable) (*MovementSet, error) {
+	set := NewMovementSet()
+	for _, v := range e.visitors {
+		if err := v.CollectMovements(ctx, doc, set); err != nil {
+			return nil, fmt.Errorf("visitor %s: %w", v.Name(), err)
+		}
+	}
+	return set, nil
 }
 
 // recordMovements saves movements to all registers.

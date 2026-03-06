@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { FormToolbar } from "@/components/shared/form-toolbar"
+import { ReferenceField } from "@/components/shared/reference-field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -15,83 +15,80 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useTabDirty } from "@/hooks/useTabDirty"
-import { useTabTitle } from "@/hooks/useTabTitle"
+import { useCatalogForm } from "@/hooks/useCatalogForm"
 import { api } from "@/lib/api"
-import type { WarehouseResponse, WarehouseType } from "@/types/catalog"
+import type { WarehouseType } from "@/types/catalog"
 import { WAREHOUSE_TYPE_LABELS } from "@/types/catalog"
+
+interface WarehouseEditState {
+  name: string
+  code: string
+  type: WarehouseType
+  address: string
+  isActive: boolean
+  allowNegativeStock: boolean
+  isDefault: boolean
+  organizationId: string
+  organizationName: string
+  description: string
+  version: number
+  [key: string]: unknown
+}
+
+const INITIAL_STATE: WarehouseEditState = {
+  name: "",
+  code: "",
+  type: "main",
+  address: "",
+  isActive: true,
+  allowNegativeStock: false,
+  isDefault: false,
+  organizationId: "",
+  organizationName: "",
+  description: "",
+  version: 0,
+}
 
 export default function EditWarehousePage() {
   const router = useRouter()
-  const params = useParams<{ id: string }>()
-  const { markDirty, markClean } = useTabDirty()
-
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [doc, setDoc] = useState<WarehouseResponse | null>(null)
-
-  const [name, setName] = useState("")
-  const [code, setCode] = useState("")
-  const [type, setType] = useState<WarehouseType>("main")
-  const [address, setAddress] = useState("")
-  const [isActive, setIsActive] = useState(true)
-  const [allowNegativeStock, setAllowNegativeStock] = useState(false)
-  const [isDefault, setIsDefault] = useState(false)
-  const [organizationId, setOrganizationId] = useState("")
-  const [description, setDescription] = useState("")
-  const [version, setVersion] = useState(0)
-  useTabTitle(name || undefined, "Склад")
-
-  useEffect(() => {
-    if (!params.id) return
-    setLoading(true)
-    api.warehouses.get(params.id).then((d) => {
-      setDoc(d)
-      setName(d.name)
-      setCode(d.code)
-      setType(d.type)
-      setAddress(d.address || "")
-      setIsActive(d.isActive)
-      setAllowNegativeStock(d.allowNegativeStock)
-      setIsDefault(d.isDefault)
-      setOrganizationId(d.organizationId || "")
-      setDescription(d.description || "")
-      setVersion(d.version)
-    }).catch((err) => {
-      setError(err instanceof Error ? err.message : "Ошибка загрузки")
-    }).finally(() => setLoading(false))
-  }, [params.id])
-
-  const handleChange = () => markDirty()
-
-  const handleSave = async (andClose: boolean) => {
-    if (!name) { setError("Укажите наименование"); return }
-    setSaving(true)
-    setError(null)
-    try {
-      const updated = await api.warehouses.update(params.id, {
-        name,
-        code,
-        type,
-        address: address || null,
-        isActive,
-        allowNegativeStock,
-        isDefault,
-        organizationId: organizationId || undefined,
-        description: description || null,
-        version,
-      })
-      setDoc(updated)
-      setVersion(updated.version)
-      markClean()
-      if (andClose) router.push("/catalogs/warehouses")
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка сохранения")
-    } finally {
-      setSaving(false)
-    }
-  }
+  const { f, update, handleChange, handleSave, saving, error, loading, deletionMark } = useCatalogForm({
+    entityName: "Склад",
+    initialState: INITIAL_STATE,
+    api: {
+      get: api.warehouses.get,
+      update: api.warehouses.update,
+    },
+    listPath: "/catalogs/warehouses",
+    validate: (s) => !s.name ? "Укажите наименование" : null,
+    titleField: (s) => s.name || undefined,
+    mapFromResponse: (d) => ({
+      name: d.name,
+      code: d.code,
+      type: d.type,
+      address: d.address || "",
+      isActive: d.isActive,
+      allowNegativeStock: d.allowNegativeStock,
+      isDefault: d.isDefault,
+      organizationId: d.organizationId || "",
+      organizationName: "",
+      description: d.description || "",
+      version: d.version,
+    }),
+    mapToUpdate: (s) => ({
+      name: s.name,
+      code: s.code,
+      type: s.type,
+      address: s.address || null,
+      isActive: s.isActive,
+      allowNegativeStock: s.allowNegativeStock,
+      isDefault: s.isDefault,
+      organizationId: s.organizationId || undefined,
+      description: s.description || null,
+      version: s.version,
+    }),
+    getVersion: (d) => d.version,
+    getDeletionMark: (d) => d.deletionMark,
+  })
 
   if (loading) {
     return (
@@ -104,9 +101,9 @@ export default function EditWarehousePage() {
   return (
     <div className="flex h-full flex-col">
       <FormToolbar
-        title={`Склад: ${doc?.name || ""}`}
+        title={`Склад: ${f.name || ""}`}
         status={
-          doc?.deletionMark
+          deletionMark
             ? { label: "Помечен на удаление", variant: "destructive" as const }
             : undefined
         }
@@ -131,15 +128,15 @@ export default function EditWarehousePage() {
           <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
             <div>
               <Label className="text-xs text-muted-foreground">Наименование *</Label>
-              <Input className="mt-1" value={name} onChange={(e) => { setName(e.target.value); handleChange() }} />
+              <Input className="mt-1" value={f.name} onChange={(e) => { update({ name: e.target.value }); handleChange() }} />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Код</Label>
-              <Input className="mt-1" value={code} onChange={(e) => { setCode(e.target.value); handleChange() }} />
+              <Input className="mt-1" value={f.code} onChange={(e) => { update({ code: e.target.value }); handleChange() }} />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Тип *</Label>
-              <Select value={type} onValueChange={(v) => { setType(v as WarehouseType); handleChange() }}>
+              <Select value={f.type} onValueChange={(v) => { update({ type: v as WarehouseType }); handleChange() }}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(WAREHOUSE_TYPE_LABELS).map(([k, label]) => (
@@ -149,33 +146,41 @@ export default function EditWarehousePage() {
               </Select>
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground">Организация (ID)</Label>
-              <Input className="mt-1" value={organizationId} onChange={(e) => { setOrganizationId(e.target.value); handleChange() }} />
+              <Label className="text-xs text-muted-foreground">Организация</Label>
+              <div className="mt-1">
+                <ReferenceField
+                  value={f.organizationId}
+                  displayName={f.organizationName}
+                  apiEndpoint="/catalog/organizations"
+                  placeholder="Выберите организацию"
+                  onChange={(id, name) => { update({ organizationId: id, organizationName: name }); handleChange() }}
+                />
+              </div>
             </div>
             <div className="md:col-span-2">
               <Label className="text-xs text-muted-foreground">Адрес</Label>
-              <Input className="mt-1" value={address} onChange={(e) => { setAddress(e.target.value); handleChange() }} />
+              <Input className="mt-1" value={f.address} onChange={(e) => { update({ address: e.target.value }); handleChange() }} />
             </div>
           </div>
 
           <div className="flex flex-wrap gap-6">
             <div className="flex items-center gap-2">
-              <Switch checked={isActive} onCheckedChange={(v) => { setIsActive(v); handleChange() }} />
+              <Switch checked={f.isActive} onCheckedChange={(v) => { update({ isActive: v }); handleChange() }} />
               <Label className="text-xs">Активен</Label>
             </div>
             <div className="flex items-center gap-2">
-              <Switch checked={allowNegativeStock} onCheckedChange={(v) => { setAllowNegativeStock(v); handleChange() }} />
+              <Switch checked={f.allowNegativeStock} onCheckedChange={(v) => { update({ allowNegativeStock: v }); handleChange() }} />
               <Label className="text-xs">Отрицательные остатки</Label>
             </div>
             <div className="flex items-center gap-2">
-              <Switch checked={isDefault} onCheckedChange={(v) => { setIsDefault(v); handleChange() }} />
+              <Switch checked={f.isDefault} onCheckedChange={(v) => { update({ isDefault: v }); handleChange() }} />
               <Label className="text-xs">По умолчанию</Label>
             </div>
           </div>
 
           <div>
             <Label className="text-xs text-muted-foreground">Описание</Label>
-            <Textarea rows={3} className="mt-1" value={description} onChange={(e) => { setDescription(e.target.value); handleChange() }} />
+            <Textarea rows={3} className="mt-1" value={f.description} onChange={(e) => { update({ description: e.target.value }); handleChange() }} />
           </div>
         </div>
       </div>

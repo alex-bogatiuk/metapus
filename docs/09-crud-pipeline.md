@@ -215,7 +215,140 @@ UPDATE SET deletion_mark = true WHERE id = $1
 - `PUT "/:id"` + `RequirePermission("catalog:counterparty:update")` → Update
 - `DELETE "/:id"` + `RequirePermission("catalog:counterparty:delete")` → Delete
 
-Документы аналогично + shared dependencies (stockRepo, stockService, postingEngine).
+Документы аналогично + shared dependencies (stockRepo, stockService, postingEngine):
+
+```go
+{
+    repo := document_repo.NewGoodsReceiptRepo()
+    service := goods_receipt.NewService(repo, postingEngine, cfg.Numerator, nil, currencyResolver)
+    // Audit hooks
+    service.Hooks().OnBeforeCreate(func(ctx context.Context, doc *goods_receipt.GoodsReceipt) error {
+        audit.EnrichCreatedByDirect(ctx, &doc.CreatedBy, &doc.UpdatedBy)
+        return nil
+    })
+    handler := handlers.NewGoodsReceiptHandler(baseHandler, service)
+    RegisterDocumentRoutes(docsGroup.Group("/goods-receipt"), handler, "document:goods_receipt")
+}
+```
+
+`BaseDocumentService[T, L]` предоставляет единый pipeline для документов (аналог `CatalogService[T]`):
+
+**Create pipeline:**
+1. `hooks.RunBeforeCreate(ctx, doc)` — enrichment (CreatedBy, UpdatedBy)
+2. `ResolveCurrency(ctx, doc)` — цепочка: Document → Contract → Organization → System
+3. `doc.Validate(ctx)` — внутренняя валидация
+4. `GenerateNumber(ctx, doc)` — автонумерация (если номер пуст)
+5. `tx { repo.Create + repo.SaveLines }` — атомарная запись
+6. `hooks.RunAfterCreate(ctx, doc)` — уведомления (ошибки логируются)
+
+**Дополнительные методы:** `Post`, `Unpost`, `PostAndSave`, `UpdateAndRepost`, `SetDeletionMark`
+
+### Abstract Factory — регистрация документов
+
+Каждый тип документа регистрируется через `DocumentRegistration` (Abstract Factory, `document_factory.go`):
+
+```go
+type DocumentRegistration interface {
+    RoutePrefix() string                              // "goods-receipt"
+    Permission() string                               // "document:goods_receipt"
+    Build(deps DocumentDeps) DocumentRouteHandler     // repo → service → handler
+}
+```
+
+Реестр (`documentFactories`) итерируется в `registerDocumentRoutes`:
+```go
+for _, factory := range documentFactories {
+    handler := factory.Build(deps)
+    RegisterDocumentRoutes(docsGroup.Group("/"+factory.RoutePrefix()), handler, factory.Permission())
+}
+```
+
+Добавление нового документа: реализовать `DocumentRegistration` и добавить в `documentFactories`.
+
+### Visitor — мультирегистровые движения
+
+Генерация движений по регистрам реализована через паттерн **Visitor** (`posting/visitor.go`).
+
+**Участники:**
+- `RegisterVisitor` — интерфейс посетителя (`Name()`, `CollectMovements(ctx, doc, set)`)
+- `StockMovementSource` — интерфейс-источник, реализуемый документами (`GenerateStockMovements`)
+- `StockVisitor` — конкретный посетитель для регистра товарных остатков
+- `Engine.visitors` — реестр посетителей; итерируется при проведении
+
+**Как работает:**
+
+```
+Engine.doPost(doc)
+  → engine.collectMovements(doc)
+      → for each visitor:
+           visitor.CollectMovements(ctx, doc, set)
+             → type-assert doc.(StockMovementSource)
+             → doc.GenerateStockMovements(ctx) → []StockMovement
+  → engine.validateStockAvailability(set)
+  → engine.recordMovements(set)
+```
+
+**Расширение (новый регистр):**
+1. Определить `XxxMovementSource` interface в `posting/visitor.go`
+2. Создать `XxxVisitor` реализующий `RegisterVisitor`
+3. Зарегистрировать: `engine.AddVisitor(&XxxVisitor{})`
+4. Документы реализуют `XxxMovementSource` для генерации движений
+
+Документы НЕ знают обо всех регистрах — они реализуют только те source-интерфейсы, которые им нужны.
+
+### Decorator — middleware-обёртки сервисов
+
+Сервисы документов работают через каноничный интерфейс `domain.DocumentService[T]` (`document_middleware.go`).
+Декораторы оборачивают интерфейс для cross-cutting concerns без изменения бизнес-логики.
+
+**Встроенные декораторы:**
+- `LoggingDocumentService[T]` — логирует method, duration, error для каждого вызова
+
+**Wiring в document_factory.go:**
+```go
+// 1. Создать concrete service + hooks
+service := goods_receipt.NewService(repo, engine, numerator, nil, currencyResolver)
+service.Hooks().OnBeforeCreate(...)
+
+// 2. Обернуть декоратором
+decorated := domain.WithLogging[*goods_receipt.GoodsReceipt]("goods-receipt")(service)
+
+// 3. Передать decorated в handler (через интерфейс)
+return handlers.NewGoodsReceiptHandler(base, decorated)
+```
+
+**Композиция нескольких middleware:**
+```go
+decorated := domain.Chain[*GoodsReceipt](
+    domain.WithLogging[*GoodsReceipt]("goods-receipt"),
+    // domain.WithMetrics[*GoodsReceipt]("goods-receipt"),
+)(service)
+```
+
+**Добавление нового middleware:**
+1. Реализовать `domain.DocumentService[T]` с полем `next DocumentService[T]`
+2. Каждый метод: вызов `next.Xxx(...)` + доп. логика (before/after/defer)
+3. Создать `WithXxx[T]() ServiceMiddleware[T]` конструктор
+
+### State — жизненный цикл документов
+
+Документ хранит два boolean-флага (`Posted`, `DeletionMark`), из которых выводится состояние.
+Паттерн **State** (`entity/document_state.go`) централизует все проверки допустимости операций:
+
+```go
+// entity.Document делегирует проверки текущему состоянию
+func (d *Document) CanModify() error { return d.State().CanModify() }
+func (d *Document) CanPost(ctx) error {
+    if err := d.State().CanPost(); err != nil { return err }
+    return d.Validate(ctx)
+}
+
+// BaseDocumentService использует State вместо if doc.IsPosted()
+if err := doc.State().CanDelete(); err != nil { return err }
+```
+
+Три состояния: `StateDraft`, `StatePosted`, `StateMarkedForDeletion` — stateless singletons.
+Подробности и таблица переходов → [05-domain-layer.md](05-domain-layer.md).
 
 ---
 

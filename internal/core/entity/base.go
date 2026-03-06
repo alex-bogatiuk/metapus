@@ -75,6 +75,16 @@ func (b *BaseEntity) SetVersion(v int) {
 	b.Version = v
 }
 
+// GetVersion returns the current version (for generic service logic).
+func (b *BaseEntity) GetVersion() int {
+	return b.Version
+}
+
+// IsDeletionMarked returns true if the entity has a deletion mark.
+func (b *BaseEntity) IsDeletionMarked() bool {
+	return b.DeletionMark
+}
+
 // SetAttribute is a convenience method for setting custom fields.
 func (b *BaseEntity) SetAttribute(key string, value any) {
 	if b.Attributes == nil {

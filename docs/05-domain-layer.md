@@ -150,15 +150,214 @@ func (i *Invoice) Calculate() {
 
 ### Сервис документа
 
-Включает `CatalogService` + методы проведения:
+Документы используют `domain.BaseDocumentService[T, L]` — generic сервис по аналогии с `CatalogService[T]`:
 
+```go
+type Service struct {
+    *domain.BaseDocumentService[*GoodsReceipt, GoodsReceiptLine]
+}
+
+func NewService(repo Repository, engine *posting.Engine, num numerator.Generator, txm tx.Manager, currencyStrategy domain.CurrencyResolveStrategy) *Service {
+    base := domain.NewBaseDocumentService(domain.BaseDocumentServiceConfig[*GoodsReceipt, GoodsReceiptLine]{
+        Repo:              repo,
+        PostingEngine:     engine,
+        Numerator:         num,
+        TxManager:         txm,
+        CurrencyResolver:  currencyStrategy,
+        NumeratorPrefix:   "GR",
+        NumeratorStrategy: NumeratorStrategy,
+        EntityName:        "goods receipt",
+    })
+    return &Service{BaseDocumentService: base}
+}
+
+func (s *Service) Hooks() *domain.HookRegistry[*GoodsReceipt] {
+    return s.BaseDocumentService.GetHooks()
+}
 ```
-service/
-├── crud.go     # Create, Update, Delete (generic pipeline)
-└── posting.go  # Post, Unpost (через posting.Engine)
+
+`BaseDocumentService` предоставляет:
+- **CRUD**: `Create`, `GetByID`, `Update`, `Delete`, `List`
+- **Проведение**: `Post`, `Unpost`, `PostAndSave`, `UpdateAndRepost`
+- **Пометка удаления**: `SetDeletionMark` (1С-стиль: снятие проведения + пометка атомарно)
+- **Валюта**: автоматическое разрешение через `CurrencyResolveStrategy` (Strategy pattern)
+- **Нумерация**: автогенерация номера через `numerator.Generator`
+- **Хуки**: `BeforeCreate`, `AfterCreate`, `BeforeUpdate`, `AfterUpdate`
+
+Модель документа должна реализовать `domain.DocumentEntity[L]`:
+- `entity.Validatable` — валидация (рекомендуется `domain.ValidateDocumentLines` для строк)
+- `posting.Postable` — проведение
+- `domain.LinesAccessor[L]` — доступ к табличной части (`GetLines`, `SetLines`)
+- `domain.CurrencyAwareDoc` — валюта (`GetCurrencyID`, `SetCurrencyID`, `GetContractID`, `GetOrganizationID`)
+- `domain.ValidatableDocLine` — строки реализуют для общей валидации (`GetProductID`, `GetUnitID`, `GetCoefficient`, `GetQuantity`, `GetVATRateID`)
+
+### Стратегия (Strategy) — CurrencyResolveStrategy
+
+Разрешение валюты документа вынесено в интерфейс-стратегию:
+
+```go
+type CurrencyResolveStrategy interface {
+    ResolveForDocument(ctx, explicitCurrencyID, contractID, organizationID) (id.ID, error)
+}
 ```
+
+Встроенная реализация — `documents.CurrencyResolver` (1С-стиль: Document → Contract → Organization → System).
+Можно подключить альтернативную стратегию (e.g. `FixedCurrencyResolver` для внутренних перемещений).
+
+### Стратегия (Strategy) — ValidateDocumentLines
+
+Общая валидация строк табличных частей вынесена в `domain.ValidateDocumentLines[L]`:
+
+```go
+// Строка реализует ValidatableDocLine:
+func (l GoodsReceiptLine) GetProductID() id.ID  { return l.ProductID }
+func (l GoodsReceiptLine) GetUnitID() id.ID     { return l.UnitID }
+// ... и т.д.
+
+// В Validate() модели:
+return domain.ValidateDocumentLines(g.Lines)
+```
+
+Правила: непустой список строк, обязательность product/unit/vatRate, coefficient > 0, quantity > 0.
+Новые типы строк получают валидацию бесплатно, реализовав `ValidatableDocLine`.
+
+### Строитель (Builder) — для создания документов
+
+Каждый тип документа предоставляет `Builder` с fluent API для тестов, seed'ов и программного создания:
+
+```go
+doc := goods_receipt.NewBuilder(orgID, supplierID, warehouseID).
+    WithCurrency(rubID).
+    WithContract(&contractID).
+    WithDescription("Поступление канцтоваров").
+    AddLine(productID, unitID, 10, 15000, vatRateID, 20). // qty, price, vatRateID, %
+    AddLine(productID2, unitID, 5, 8000, vatRateID, 20).
+    Build()
+```
+
+Ключевые методы:
+- `AddLine(product, unit, qty, price, vatRate, vatPercent)` — упрощённый (coefficient=1, discount=0)
+- `AddLineDetailed(...)` — полный контроль над всеми полями
+- `Build()` — возвращает документ, `MustBuild()` — с паникой при пустых обязательных полях
+- `WithID`, `WithDate`, `WithNumber`, `WithCreatedBy` — удобно для детерминированных тестов
+- `NewTestLine(productID, unitID, vatRateID)` — хелпер для минимальной строки в unit-тестах
 
 Проведение делегируется централизованному `posting.Engine`. Подробнее: [10-posting-engine.md](10-posting-engine.md).
+
+### Посетитель (Visitor) — мультирегистровые движения
+
+Генерация движений при проведении документов использует паттерн **Visitor** (`posting/visitor.go`):
+
+```go
+// Интерфейс посетителя — один на каждый тип регистра
+type RegisterVisitor interface {
+    Name() string
+    CollectMovements(ctx context.Context, doc Postable, set *MovementSet) error
+}
+
+// Интерфейс-источник — реализуется документами
+type StockMovementSource interface {
+    GenerateStockMovements(ctx context.Context) ([]entity.StockMovement, error)
+}
+```
+
+Документы реализуют **source-интерфейсы** для нужных регистров (opt-in):
+- `StockMovementSource` → GoodsReceipt (receipt), GoodsIssue (expense)
+- Future: `CostMovementSource`, `SettlementMovementSource`
+
+Engine итерирует зарегистрированных посетителей; каждый проверяет документ через type-assertion.
+Расширение: `engine.AddVisitor(&XxxVisitor{})` — без изменения существующих документов.
+
+### Декоратор (Decorator) — middleware-обёртки сервисов
+
+Сервисы документов работают через каноничный интерфейс `DocumentService[T]` (`document_middleware.go`):
+
+```go
+type DocumentService[T any] interface {
+    Create(ctx, entity T) error
+    GetByID(ctx, id) (T, error)
+    Update(ctx, entity T) error
+    Delete(ctx, id) error
+    Post(ctx, id) error
+    Unpost(ctx, id) error
+    PostAndSave(ctx, entity T) error
+    UpdateAndRepost(ctx, entity T) error
+    SetDeletionMark(ctx, id, marked) error
+    List(ctx, filter) (ListResult[T], error)
+}
+```
+
+**Декораторы** оборачивают `DocumentService[T]` для добавления cross-cutting concerns:
+
+```go
+// Логирование — каждый вызов логируется с method, duration, error
+decorated := domain.WithLogging[*GoodsReceipt]("goods-receipt")(service)
+
+// Композиция нескольких middleware
+decorated := domain.Chain[*GoodsReceipt](
+    domain.WithLogging[*GoodsReceipt]("goods-receipt"),
+    // future: domain.WithMetrics, domain.WithTracing, ...
+)(service)
+```
+
+**Wiring (document_factory.go):**
+1. Создать concrete service + зарегистрировать hooks
+2. Обернуть декоратором: `decorated := domain.WithLogging[T](name)(service)`
+3. Передать `decorated` в handler constructor
+
+Handlers принимают `domain.DocumentService[T]` — не конкретные типы сервисов.
+Добавление нового middleware: реализовать `DocumentService[T]`, делегировать `next`.
+
+### Состояние (State) — жизненный цикл документов
+
+Каждый документ имеет lifecycle-состояние, определяемое флагами `Posted` и `DeletionMark`.
+Вместо разбросанных `if d.Posted { ... }` проверок используется паттерн **State** (`document_state.go`):
+
+```
+┌───────────┐  Post   ┌──────────┐  Unpost  ┌───────────┐
+│   Draft   │ ──────→ │  Posted  │ ──────→  │   Draft   │
+│ !P && !DM │         │ P && !DM │          │ !P && !DM │
+└───────────┘         └──────────┘          └───────────┘
+      │                     │
+      │ SetDeletionMark     │ SetDeletionMark (auto-unpost)
+      ▼                     ▼
+┌─────────────────────┐
+│  MarkedForDeletion  │
+│   !P && DM          │
+└─────────────────────┘
+```
+
+**Интерфейс `DocumentState`:**
+```go
+type DocumentState interface {
+    Name() DocumentStateName   // "draft" | "posted" | "marked_for_deletion"
+    CanModify() error          // Можно ли редактировать?
+    CanPost() error            // Можно ли провести?
+    CanUnpost() error          // Можно ли отменить проведение?
+    CanDelete() error          // Можно ли удалить?
+}
+```
+
+| Операция   | Draft | Posted | MarkedForDeletion |
+|------------|-------|--------|-------------------|
+| CanModify  | ✅    | ✗      | ✅                |
+| CanPost    | ✅    | ✅ (repost) | ✗            |
+| CanUnpost  | ✗     | ✅     | ✗                 |
+| CanDelete  | ✅    | ✗      | ✅                |
+
+**Использование:**
+```go
+// В entity — делегация к текущему состоянию
+func (d *Document) State() DocumentState {
+    return ResolveDocumentState(d.Posted, d.DeletionMark)
+}
+func (d *Document) CanModify() error { return d.State().CanModify() }
+
+// В сервисе — вместо doc.IsPosted()
+if err := doc.State().CanDelete(); err != nil { return err }
+```
+
+Состояния — stateless singletons; `ResolveDocumentState()` возвращает нужное по флагам.
 
 ---
 

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -12,24 +11,11 @@ import (
 	"metapus/internal/infrastructure/http/v1/dto"
 )
 
-// DocumentService defines the interface that services must implement for BaseDocumentHandler.
-type DocumentService[T any] interface {
-	GetByID(ctx context.Context, id id.ID) (T, error)
-	Create(ctx context.Context, entity T) error
-	Update(ctx context.Context, entity T) error
-	Delete(ctx context.Context, id id.ID) error
-	Post(ctx context.Context, id id.ID) error
-	Unpost(ctx context.Context, id id.ID) error
-	PostAndSave(ctx context.Context, entity T) error
-	SetDeletionMark(ctx context.Context, id id.ID, marked bool) error
-	List(ctx context.Context, filter domain.ListFilter) (domain.ListResult[T], error)
-}
-
 // BaseDocumentHandler provides generic HTTP handlers for document entities.
 // In Database-per-Tenant architecture, tenantID is not needed (isolation is physical).
 type BaseDocumentHandler[T any, CreateDTO any, UpdateDTO any] struct {
 	*BaseHandler
-	service    DocumentService[T]
+	service    domain.DocumentService[T]
 	entityName string
 
 	// Mapper functions
@@ -41,7 +27,7 @@ type BaseDocumentHandler[T any, CreateDTO any, UpdateDTO any] struct {
 
 // BaseDocumentHandlerConfig configures the document handler.
 type BaseDocumentHandlerConfig[T any, CreateDTO any, UpdateDTO any] struct {
-	Service           DocumentService[T]
+	Service           domain.DocumentService[T]
 	EntityName        string
 	MapCreateDTO      func(dto CreateDTO) T
 	MapUpdateDTO      func(dto UpdateDTO, existing T) T

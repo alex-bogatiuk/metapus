@@ -22,6 +22,16 @@ type RefDisplay struct {
 	Name string `json:"name"`
 }
 
+// CurrencyRefDisplay extends RefDisplay with currency-specific fields.
+// Used in CurrencyAware document responses so the frontend knows how to
+// format monetary values (decimal places, symbol) without extra API calls.
+type CurrencyRefDisplay struct {
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	DecimalPlaces int    `json:"decimalPlaces"`
+	Symbol        string `json:"symbol"`
+}
+
 // ReferenceResolver batch-resolves catalog IDs to display names.
 // It collects IDs per table, executes one SELECT per table, and returns a map.
 //
@@ -89,6 +99,29 @@ func (rr ResolvedRefs) GetPtr(table string, entityID *id.ID) *RefDisplay {
 	return &d
 }
 
+// ResolvedCurrencyRefs maps id_string → CurrencyRefDisplay.
+type ResolvedCurrencyRefs map[string]CurrencyRefDisplay
+
+// Get returns the CurrencyRefDisplay for a given ID. Returns empty struct if not found.
+func (cr ResolvedCurrencyRefs) Get(entityID id.ID) CurrencyRefDisplay {
+	if id.IsNil(entityID) {
+		return CurrencyRefDisplay{}
+	}
+	if d, ok := cr[entityID.String()]; ok {
+		return d
+	}
+	return CurrencyRefDisplay{ID: entityID.String()}
+}
+
+// GetPtr returns a *CurrencyRefDisplay for an optional reference. Returns nil if ID is nil.
+func (cr ResolvedCurrencyRefs) GetPtr(entityID *id.ID) *CurrencyRefDisplay {
+	if entityID == nil || id.IsNil(*entityID) {
+		return nil
+	}
+	d := cr.Get(*entityID)
+	return &d
+}
+
 // Resolve executes batch queries to resolve all pending IDs.
 // Uses one SELECT per table: SELECT id, name FROM <table> WHERE id IN (...)
 func (r *ReferenceResolver) Resolve(ctx context.Context, querier Querier) (ResolvedRefs, error) {
@@ -114,6 +147,23 @@ func (r *ReferenceResolver) Resolve(ctx context.Context, querier Querier) (Resol
 	return result, nil
 }
 
+// ResolveCurrencies batch-resolves currency IDs with extra fields (decimal_places, symbol).
+// This is the systematic way for any CurrencyAware document to get formatting metadata.
+func (r *ReferenceResolver) ResolveCurrencies(ctx context.Context, querier Querier) (ResolvedCurrencyRefs, error) {
+	const table = "cat_currencies"
+	idSet := r.pending[table]
+	if len(idSet) == 0 {
+		return ResolvedCurrencyRefs{}, nil
+	}
+
+	ids := make([]id.ID, 0, len(idSet))
+	for eid := range idSet {
+		ids = append(ids, eid)
+	}
+
+	return batchResolveCurrency(ctx, querier, ids)
+}
+
 // batchResolveName fetches id + name for a batch of IDs from a single table.
 // Uses the package-level Querier interface from tx_manager.go.
 func batchResolveName(ctx context.Context, q Querier, table string, ids []id.ID) (map[string]RefDisplay, error) {
@@ -121,9 +171,9 @@ func batchResolveName(ctx context.Context, q Querier, table string, ids []id.ID)
 		return nil, nil
 	}
 
-	// Determine the display column: catalogs have "name", some tables might differ.
-	// For now we use COALESCE(name, code, id::text) as a safe fallback.
-	displayCol := fmt.Sprintf("COALESCE(name, code, id::text)")
+	// Determine the display expression per table.
+	// Most catalogs expose "name" (or "code"), while users require full name composition.
+	displayCol := displayExprForTable(table)
 
 	// Build query: SELECT id, <displayCol> FROM <table> WHERE id = ANY($1)
 	// We use raw SQL here for simplicity — table names are controlled by code, not user input.
@@ -155,6 +205,61 @@ func batchResolveName(ctx context.Context, q Querier, table string, ids []id.ID)
 		result[eid.String()] = RefDisplay{
 			ID:   eid.String(),
 			Name: name,
+		}
+	}
+
+	return result, rows.Err()
+}
+
+func displayExprForTable(table string) string {
+	switch table {
+	case "users":
+		// Required format for audit labels: "Фамилия Имя".
+		// Fallback to email, then raw ID for robustness.
+		return "COALESCE(NULLIF(TRIM(CONCAT_WS(' ', NULLIF(last_name, ''), NULLIF(first_name, ''))), ''), email, id::text)"
+	default:
+		return "COALESCE(name, code, id::text)"
+	}
+}
+
+// batchResolveCurrency fetches id, name, decimal_places, symbol for a batch of currency IDs.
+func batchResolveCurrency(ctx context.Context, q Querier, ids []id.ID) (ResolvedCurrencyRefs, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, eid := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = eid
+	}
+
+	query := fmt.Sprintf(
+		"SELECT id, COALESCE(name, code, id::text), decimal_places, COALESCE(symbol, '') FROM cat_currencies WHERE id IN (%s)",
+		strings.Join(placeholders, ","),
+	)
+
+	rows, err := q.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query cat_currencies: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(ResolvedCurrencyRefs, len(ids))
+	for rows.Next() {
+		var eid id.ID
+		var name string
+		var decimalPlaces int
+		var symbol string
+		if err := rows.Scan(&eid, &name, &decimalPlaces, &symbol); err != nil {
+			return nil, fmt.Errorf("scan cat_currencies: %w", err)
+		}
+		result[eid.String()] = CurrencyRefDisplay{
+			ID:            eid.String(),
+			Name:          name,
+			DecimalPlaces: decimalPlaces,
+			Symbol:        symbol,
 		}
 	}
 

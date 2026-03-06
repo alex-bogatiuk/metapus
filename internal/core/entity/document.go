@@ -58,16 +58,16 @@ func (d *Document) Validate(ctx context.Context) error {
 	return nil
 }
 
+// State returns the current lifecycle state of the document (State pattern).
+// The state is derived from the Posted and DeletionMark flags.
+func (d *Document) State() DocumentState {
+	return ResolveDocumentState(d.Posted, d.DeletionMark)
+}
+
 // CanModify checks if document can be modified.
-// Posted documents require unposting first.
+// Delegates to the current lifecycle state.
 func (d *Document) CanModify() error {
-	if d.Posted {
-		return apperror.NewBusinessRule(
-			apperror.CodeDocumentPosted,
-			"Cannot modify posted document. Unpost first.",
-		).WithDetail("document_id", d.ID.String())
-	}
-	return nil
+	return d.State().CanModify()
 }
 
 // MarkPosted sets the posted flag and increments version.
@@ -105,8 +105,27 @@ func (d *Document) IsPosted() bool {
 	return d.Posted
 }
 
+// GetNumber returns the document number.
+func (d *Document) GetNumber() string {
+	return d.Number
+}
+
+// SetNumber sets the document number.
+func (d *Document) SetNumber(n string) {
+	d.Number = n
+}
+
+// GetOrganizationID returns the organization ID.
+func (d *Document) GetOrganizationID() id.ID {
+	return d.OrganizationID
+}
+
 // CanPost validates if document can be posted (Postable interface default).
+// Delegates state check to the current lifecycle state, then validates entity invariants.
 // Override in specific document types if additional validation is needed.
 func (d *Document) CanPost(ctx context.Context) error {
+	if err := d.State().CanPost(); err != nil {
+		return err
+	}
 	return d.Validate(ctx)
 }

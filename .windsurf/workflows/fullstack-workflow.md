@@ -14,7 +14,7 @@ description: Metapus Fullstack — Rules & Developer Role
 
 **Backend:**
 - Go (Clean Architecture, DDD, generics, concurrency), PostgreSQL (pgx, squirrel, CTE, triggers)
-- Metadata-driven ERP-системы: 1С, ERPNext, Odoo, SAP S/4HANA
+- Metadata-driven ERP-системы: 1С, ERPNext, Odoo, SAP
 - Multi-tenancy (Database-per-Tenant), CQRS, Posting Engine
 
 **Frontend:**
@@ -53,6 +53,36 @@ description: Metapus Fullstack — Rules & Developer Role
 ├── configs/               # Environment config
 └── docs/                  # Architecture documentation
 ```
+
+---
+
+## Workflow: Проверка окружения (ОБЯЗАТЕЛЬНО, ПЕРВЫЙ ШАГ)
+
+При получении **любой** задачи, **до начала работы**, проверь, что серверы запущены:
+
+### Шаг 0: Проверь и запусти серверы
+
+```powershell
+# Проверить, слушает ли Go backend порт 8080
+netstat -ano | findstr ":8080"
+
+# Проверить, слушает ли Next.js frontend порт 3000
+netstat -ano | findstr ":3000"
+```
+
+- Если **Go backend (порт 8080) не запущен** — запусти его **неблокирующей командой** из корня репозитория:
+  ```powershell
+  $env:META_DATABASE_URL="postgres://metapus:metapus@localhost:5432/tenants?sslmode=disable"; $env:TENANT_DB_USER="metapus"; $env:TENANT_DB_PASSWORD="metapus"; $env:DATABASE_URL="postgres://metapus:metapus@localhost:5432/metapus?sslmode=disable"; $env:JWT_SECRET="dev-secret"; $env:APP_PORT="8080"; $env:APP_ENV="development"; $env:LOG_LEVEL="info"; go run ./cmd/server
+  ```
+  *(Blocking: false, cwd: корень репозитория)*
+- Если **Next.js frontend (порт 3000) не запущен** — запусти его **неблокирующей командой** из папки `frontend/`:
+  ```powershell
+  npm run dev
+  ```
+  *(Blocking: false, cwd: frontend/)*
+- После запуска подожди 3–5 секунд и убедись, что порты появились в `netstat` перед продолжением.
+- Логин в приложение: `admin@metapus.io` / `Admin123!`
+- NEXT_PUBLIC_TENANT_ID=dcb99555-5a92-427f-b5b8-79686379b8da
 
 ---
 
@@ -233,24 +263,6 @@ API контракт -- **единственный источник правды
 
 ---
 
-## Quality Gates
-
-### Backend
-```bash
-go build ./...
-golangci-lint run ./...
-go test ./... -race -count=1
-go vet ./...
-```
-
-### Frontend
-```bash
-cd frontend
-npx tsc --noEmit
-npm run lint
-npm run build
-```
-
 ## Code Review Checklist (Fullstack)
 
 **Backend** — см. backend-workflow.md + убедись:
@@ -290,18 +302,3 @@ npm run build
 8. DOCS        → Обнови документацию при изменении архитектуры
 ```
 **Если задача затрагивает один слой** -- используй узкий workflow (Backend или Frontend).
-
----
-## Environment
-
-```bash
-# Backend
-META_DATABASE_URL=postgres://metapus:metapus@localhost:5432/tenants?sslmode=disable
-TENANT_DB_USER=metapus  TENANT_DB_PASSWORD=metapus
-DATABASE_URL=postgres://metapus:metapus@localhost:5432/metapus?sslmode=disable
-JWT_SECRET=<change-in-production>  APP_PORT=8080
-# Frontend
-NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
-NEXT_PUBLIC_TENANT_ID=dcb99555-5a92-427f-b5b8-79686379b8da
-# Test: admin@metapus.io / Admin123!
-```

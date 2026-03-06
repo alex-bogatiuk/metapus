@@ -7,6 +7,13 @@ import (
 	"unicode"
 
 	"metapus/internal/core/id"
+	"metapus/internal/core/types"
+)
+
+// Reflect types for storage-scaled numeric types.
+var (
+	quantityType   = reflect.TypeOf(types.Quantity(0))
+	minorUnitsType = reflect.TypeOf(types.MinorUnits(0))
 )
 
 // Inspect analyzes a struct and returns its EntityDef.
@@ -128,6 +135,19 @@ func mapFieldType(def *FieldDef, field reflect.StructField) {
 
 	if actual == reflect.TypeOf(time.Time{}) {
 		def.Type = TypeDate
+		return
+	}
+
+	// Detect storage-scaled numeric types before the Kind() switch.
+	if actual == quantityType {
+		def.Type = TypeNumber
+		def.ValueScale = int(types.QuantityScale) // 10000
+		return
+	}
+	if actual == minorUnitsType {
+		def.Type = TypeMoney
+		// No static ValueScale — MinorUnits scale depends on the document's currency
+		// (cat_currencies.minor_multiplier). Resolved dynamically at SQL level.
 		return
 	}
 
