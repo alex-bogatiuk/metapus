@@ -96,7 +96,7 @@ func (s *Service) prepareForUpdate(ctx context.Context, item *Nomenclature) erro
 // --- Entity-specific methods ---
 
 // FindLowStock retrieves items with stock below minimum.
-func (s *Service) FindLowStock(ctx context.Context, filter domain.ListFilter) (domain.ListResult[*Nomenclature], error) {
+func (s *Service) FindLowStock(ctx context.Context, filter domain.ListFilter) (domain.CursorListResult[*Nomenclature], error) {
 	return s.repo.FindLowStock(ctx, filter)
 }
 

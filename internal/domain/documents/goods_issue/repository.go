@@ -19,6 +19,6 @@ type Repository interface {
 	SaveLines(ctx context.Context, docID id.ID, lines []GoodsIssueLine) error
 
 	// List operations — uses universal filter engine via domain.ListFilter.AdvancedFilters
-	List(ctx context.Context, filter domain.ListFilter) (domain.ListResult[*GoodsIssue], error)
+	List(ctx context.Context, filter domain.ListFilter) (domain.CursorListResult[*GoodsIssue], error)
 	GetForUpdate(ctx context.Context, docID id.ID) (*GoodsIssue, error)
 }

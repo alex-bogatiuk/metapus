@@ -128,6 +128,7 @@ export default function EditOrganizationPage() {
           { label: "Записать", onClick: () => handleSave(false) },
         ]}
         backHref="/catalogs/organizations"
+        backTargetId={params.id}
         onClose={() => router.push("/catalogs/organizations")}
       />
 

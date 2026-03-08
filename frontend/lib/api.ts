@@ -14,7 +14,7 @@
 
 import { useAuthStore } from "@/stores/useAuthStore"
 import type { TokenResponse } from "@/types/auth"
-import type { ListResponse, ListParams } from "@/types/common"
+import type { CursorListResponse, CursorListParams } from "@/types/common"
 import type {
     NomenclatureResponse,
     CreateNomenclatureRequest,
@@ -209,7 +209,7 @@ export async function apiFetch<T>(
  * - Serializes `filter` array as JSON in `?filter=` param
  * - Other params are passed as regular query params
  */
-function buildListQS(params?: ListParams): string {
+function buildListQS(params?: CursorListParams): string {
     if (!params) return ""
     const entries: [string, string][] = []
     for (const [k, v] of Object.entries(params)) {
@@ -229,7 +229,7 @@ function buildListQS(params?: ListParams): string {
 // Analogous to backend BaseCatalogRepo[T] — zero boilerplate per entity.
 
 export interface CatalogApi<TRes, TCreate, TUpdate> {
-    list: (params?: ListParams) => Promise<ListResponse<TRes>>
+    list: (params?: CursorListParams) => Promise<CursorListResponse<TRes>>
     get: (id: string) => Promise<TRes>
     create: (data: TCreate) => Promise<TRes>
     update: (id: string, data: TUpdate) => Promise<TRes>
@@ -239,8 +239,8 @@ export interface CatalogApi<TRes, TCreate, TUpdate> {
 
 function createCatalogApi<TRes, TCreate, TUpdate>(basePath: string): CatalogApi<TRes, TCreate, TUpdate> {
     return {
-        list: (params?: ListParams) =>
-            apiFetch<ListResponse<TRes>>(`${basePath}${buildListQS(params)}`),
+        list: (params?: CursorListParams) =>
+            apiFetch<CursorListResponse<TRes>>(`${basePath}${buildListQS(params)}`),
         get: (id: string) =>
             apiFetch<TRes>(`${basePath}/${id}`),
         create: (data: TCreate) =>

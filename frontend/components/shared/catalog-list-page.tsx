@@ -55,6 +55,7 @@ export function CatalogListPage<T extends { id: string }>({
     sortColumn,
     sortDirection,
     handleSort,
+    focusedId,
   } = useListPage({ fetcher: config.fetcher, limit: config.limit })
 
   const { selectedIds, isAllSelected, isIndeterminate, toggleItem, toggleAll } = selection
@@ -91,6 +92,7 @@ export function CatalogListPage<T extends { id: string }>({
               sortColumn={sortColumn}
               sortDirection={sortDirection}
               onSort={handleSort}
+              focusedId={focusedId}
               onRowDoubleClick={(item) => router.push(config.editHref(item))}
             />
           </ListContent>

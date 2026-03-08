@@ -1,9 +1,12 @@
 "use client"
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react"
+import { usePathname, useSearchParams } from "next/navigation"
 import { useListSelection } from "@/hooks/useListSelection"
 import { useUrlSort } from "@/hooks/useUrlSort"
 import { useEntityFiltersMeta } from "@/hooks/useEntityFiltersMeta"
+import { useTabState, useHasTabCache } from "@/hooks/useTabState"
+import { useTabStateStore } from "@/stores/useTabStateStore"
 import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 import { buildFilterItems, type FilterValues } from "@/lib/filter-utils"
 import type { FilterFieldMeta } from "@/components/shared/filter-config-dialog"
@@ -13,15 +16,23 @@ import type { AdvancedFilterItem } from "@/types/common"
 
 interface ListResponse<T> {
   items: T[]
-  total?: number
+  totalCount?: number
+  nextCursor?: string
+  prevCursor?: string
+  hasMore?: boolean
+  hasPrev?: boolean
+  targetIndex?: number
 }
 
 interface DocumentListApi<T> {
   list: (params?: {
     limit?: number
-    offset?: number
+    orderBy?: string
     filter?: AdvancedFilterItem[]
     includeDeleted?: boolean
+    after?: string
+    before?: string
+    around?: string
   }) => Promise<ListResponse<T>>
 }
 
@@ -39,8 +50,15 @@ interface UseDocumentListPageOptions<T extends { id: string }> {
 interface UseDocumentListPageReturn<T extends { id: string }> {
   items: T[]
   loading: boolean
+  loadingMore: boolean
   error: string | null
   refresh: () => void
+  // Cursor pagination
+  hasMore: boolean
+  hasPrev: boolean
+  totalCount: number
+  loadMore: () => void
+  loadPrev: () => void
   // Selection
   selectedIds: string[]
   isAllSelected: boolean
@@ -62,6 +80,8 @@ interface UseDocumentListPageReturn<T extends { id: string }> {
   // Focus
   focusedId: string | null
   setFocusedId: (id: string | null) => void
+  // Around / teleportation
+  targetIndex: number | null
 }
 
 // ── Hook ────────────────────────────────────────────────────────────────
@@ -85,16 +105,44 @@ export function useDocumentListPage<T extends { id: string }>(
 ): UseDocumentListPageReturn<T> {
   const { entityKey, api: docApi, periodField = "date", limit = 100 } = options
 
+  // ── URL search params (for ?around= teleportation) ─────────────────
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const aroundId = searchParams.get("around")
+
+  // ── Sorting (read early — orderBy needed by fetch callbacks) ───────
+  const { sortColumn, sortDirection, handleSort, orderBy } = useUrlSort()
+
   // ── Filter metadata from backend ─────────────────────────────────────
   const { fieldsMeta } = useEntityFiltersMeta(entityKey)
 
-  // ── State ────────────────────────────────────────────────────────────
-  const [items, setItems] = useState<T[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [focusedId, setFocusedId] = useState<string | null>(null)
+  // ── Tab-cached state (persists across tab switches) ────────────────
+  const [items, setItems] = useTabState<T[]>("items", [])
+  const [hasMore, setHasMore] = useTabState("hasMore", false)
+  const [hasPrev, setHasPrev] = useTabState("hasPrev", false)
+  const [totalCount, setTotalCount] = useTabState("totalCount", 0)
+  const [focusedId, setFocusedId] = useTabState<string | null>("focusedId", null)
 
-  const filterValuesRef = useRef<FilterValues>({})
+  // Check if we have cached data (for skipping initial fetch)
+  const hasCachedItems = useHasTabCache("items")
+
+  // ── Transient state (not cached — derived from cache hit) ──────────
+  const [loading, setLoading] = useState(!hasCachedItems)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [targetIndex, setTargetIndex] = useState<number | null>(null)
+
+  // ── Refs — initialize from tab cache if available ──────────────────
+  const getTabCache = (key: string) => useTabStateStore.getState().get(pathname, key)
+  const setTabCache = (key: string, value: unknown) => useTabStateStore.getState().set(pathname, key, value)
+
+  const nextCursorRef = useRef<string | undefined>(getTabCache("nextCursor") as string | undefined)
+  const prevCursorRef = useRef<string | undefined>(getTabCache("prevCursor") as string | undefined)
+  const busyRef = useRef(false)
+  const orderByRef = useRef<string | undefined>(orderBy)
+  const filterValuesRef = useRef<FilterValues>(
+    (getTabCache("filterValues") as FilterValues) ?? {},
+  )
 
   // ── User prefs ───────────────────────────────────────────────────────
   const isPrefsLoaded = useUserPrefsStore((s) => s.isLoaded)
@@ -118,29 +166,68 @@ export function useDocumentListPage<T extends { id: string }>(
           : []
         const res = await docApi.list({
           limit,
-          offset: 0,
+          orderBy: orderByRef.current,
           filter: advancedFilters.length > 0 ? advancedFilters : undefined,
           includeDeleted: showDeletedRef.current || undefined,
         })
         setItems(res.items ?? [])
+        setHasMore(res.hasMore ?? false)
+        setHasPrev(res.hasPrev ?? false)
+        setTotalCount(res.totalCount ?? 0)
+        setTargetIndex(null)
+        nextCursorRef.current = res.nextCursor
+        prevCursorRef.current = res.prevCursor
+        setTabCache("nextCursor", res.nextCursor)
+        setTabCache("prevCursor", res.prevCursor)
       } catch (err) {
         setError(err instanceof Error ? err.message : "Ошибка загрузки данных")
       } finally {
         setLoading(false)
       }
     },
-    [docApi, fieldsMeta, periodField, limit],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [docApi, fieldsMeta, periodField, limit, setItems, setHasMore, setHasPrev, setTotalCount],
   )
 
   // ── Init (wait for prefs) ────────────────────────────────────────────
-  const initialized = useRef(false)
+  // If we have cached data from a previous tab visit, skip the initial fetch
+  const initialized = useRef(hasCachedItems)
 
   useEffect(() => {
     if (isPrefsLoaded && !initialized.current) {
       initialized.current = true
       const initial = initialListFilters ?? {}
       filterValuesRef.current = initial
-      fetchData(initial)
+      setTabCache("filterValues", initial)
+
+      if (aroundId) {
+        // Teleport: fetch items around the target ID
+        setLoading(true)
+        setError(null)
+        docApi.list({
+          limit,
+          orderBy: orderByRef.current,
+          includeDeleted: showDeletedRef.current || undefined,
+          around: aroundId,
+        }).then((res) => {
+          setItems(res.items ?? [])
+          setHasMore(res.hasMore ?? false)
+          setHasPrev(res.hasPrev ?? false)
+          setTotalCount(res.totalCount ?? 0)
+          setTargetIndex(res.targetIndex ?? null)
+          nextCursorRef.current = res.nextCursor
+          prevCursorRef.current = res.prevCursor
+          setTabCache("nextCursor", res.nextCursor)
+          setTabCache("prevCursor", res.prevCursor)
+          setFocusedId(aroundId)
+        }).catch((err) => {
+          setError(err instanceof Error ? err.message : "Ошибка загрузки данных")
+        }).finally(() => {
+          setLoading(false)
+        })
+      } else {
+        fetchData(initial)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPrefsLoaded, fetchData])
@@ -149,9 +236,11 @@ export function useDocumentListPage<T extends { id: string }>(
   const handleFilterValuesChange = useCallback(
     (values: FilterValues) => {
       filterValuesRef.current = values
+      setTabCache("filterValues", values)
       setListFilters(entityKey, values)
       fetchData(values)
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [fetchData, setListFilters, entityKey],
   )
 
@@ -167,19 +256,95 @@ export function useDocumentListPage<T extends { id: string }>(
     setTimeout(() => fetchData(filterValuesRef.current), 0)
   }, [entityKey, showDeleted, updateInterface, fetchData])
 
+  // ── Load more (forward cursor) ──────────────────────────────────────
+  const loadMore = useCallback(async () => {
+    if (!nextCursorRef.current || busyRef.current) return
+    busyRef.current = true
+    setLoadingMore(true)
+    try {
+      const advancedFilters = filterValuesRef.current
+        ? buildFilterItems(filterValuesRef.current, fieldsMeta, periodField)
+        : []
+      const res = await docApi.list({
+        limit,
+        orderBy: orderByRef.current,
+        filter: advancedFilters.length > 0 ? advancedFilters : undefined,
+        includeDeleted: showDeletedRef.current || undefined,
+        after: nextCursorRef.current,
+      })
+      setItems((prev) => [...prev, ...(res.items ?? [])])
+      setHasMore(res.hasMore ?? false)
+      nextCursorRef.current = res.nextCursor
+      setTabCache("nextCursor", res.nextCursor)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка загрузки данных")
+    } finally {
+      busyRef.current = false
+      setLoadingMore(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docApi, fieldsMeta, periodField, limit, setItems, setHasMore])
+
+  // ── Load prev (backward cursor) ─────────────────────────────────────
+  const loadPrev = useCallback(async () => {
+    if (!prevCursorRef.current || busyRef.current) return
+    busyRef.current = true
+    setLoadingMore(true)
+    try {
+      const advancedFilters = filterValuesRef.current
+        ? buildFilterItems(filterValuesRef.current, fieldsMeta, periodField)
+        : []
+      const res = await docApi.list({
+        limit,
+        orderBy: orderByRef.current,
+        filter: advancedFilters.length > 0 ? advancedFilters : undefined,
+        includeDeleted: showDeletedRef.current || undefined,
+        before: prevCursorRef.current,
+      })
+      setItems((prev) => [...(res.items ?? []), ...prev])
+      setHasPrev(res.hasPrev ?? false)
+      prevCursorRef.current = res.prevCursor
+      setTabCache("prevCursor", res.prevCursor)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка загрузки данных")
+    } finally {
+      busyRef.current = false
+      setLoadingMore(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docApi, fieldsMeta, periodField, limit, setItems, setHasPrev])
+
+  // ── Re-fetch on sort change (reset cursors — they encode sort order) ─
+  const prevOrderByRef = useRef(orderBy)
+  useEffect(() => {
+    if (prevOrderByRef.current === orderBy) return
+    prevOrderByRef.current = orderBy
+    orderByRef.current = orderBy
+    // Cursors are invalid after sort change — reset to first page
+    nextCursorRef.current = undefined
+    prevCursorRef.current = undefined
+    setTabCache("nextCursor", undefined)
+    setTabCache("prevCursor", undefined)
+    fetchData(filterValuesRef.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderBy, fetchData])
+
   // ── Selection ────────────────────────────────────────────────────────
   const visibleIds = useMemo(() => items.map((d) => d.id), [items])
   const { selectedIds, isAllSelected, isIndeterminate, toggleItem, toggleAll } =
     useListSelection(visibleIds)
 
-  // ── Sorting ──────────────────────────────────────────────────────────
-  const { sortColumn, sortDirection, handleSort } = useUrlSort()
-
   return {
     items,
     loading,
+    loadingMore,
     error,
     refresh,
+    hasMore,
+    hasPrev,
+    totalCount,
+    loadMore,
+    loadPrev,
     selectedIds,
     isAllSelected,
     isIndeterminate,
@@ -196,5 +361,6 @@ export function useDocumentListPage<T extends { id: string }>(
     toggleShowDeleted,
     focusedId,
     setFocusedId,
+    targetIndex,
   }
 }

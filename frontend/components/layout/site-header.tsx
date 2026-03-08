@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useTabsStore, type Tab } from "@/stores/useTabsStore"
 import { useFormDraftStore } from "@/stores/useFormDraftStore"
+import { useTabStateStore } from "@/stores/useTabStateStore"
 
 export function SiteHeader() {
     const router = useRouter()
@@ -55,12 +56,14 @@ export function SiteHeader() {
     }
 
     const clearDraft = useFormDraftStore((s) => s.clearDraft)
+    const clearTabState = useTabStateStore((s) => s.clearTab)
 
     const doCloseTab = (id: string) => {
         const isActive = id === activeTabId
 
         closeTab(id)
         clearDraft(id)
+        clearTabState(id)
 
         // Navigate to the new active tab if we closed the current one
         if (isActive) {

@@ -1,8 +1,10 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
+import { useSearchParams } from "next/navigation"
 import { useListSelection } from "@/hooks/useListSelection"
 import { useUrlSort } from "@/hooks/useUrlSort"
+import { useTabState, useHasTabCache } from "@/hooks/useTabState"
 import type { ListParams, ListResponse } from "@/types/common"
 import type { UseListSelectionReturn } from "@/hooks/useListSelection"
 
@@ -25,6 +27,7 @@ interface UseListPageReturn<T extends { id: string }> {
   sortColumn: string | null
   sortDirection: "asc" | "desc"
   handleSort: (column: string) => void
+  focusedId: string | null
 }
 
 /**
@@ -47,29 +50,57 @@ export function useListPage<T extends { id: string }>(
   options: UseListPageOptions<T>,
 ): UseListPageReturn<T> {
   const { fetcher, limit = 200 } = options
+  const searchParams = useSearchParams()
+  const aroundId = searchParams.get("around")
 
-  const [items, setItems] = useState<T[]>([])
-  const [loading, setLoading] = useState(true)
+  // ── Sorting (read early — orderBy needed by fetch callback) ──────
+  const { sortColumn, sortDirection, handleSort, orderBy } = useUrlSort()
+  const orderByRef = useRef<string | undefined>(orderBy)
+
+  // Tab-cached state (persists across tab switches)
+  const [items, setItems] = useTabState<T[]>("items", [])
+  const [focusedId, setFocusedId] = useTabState<string | null>("focusedId", aroundId)
+
+  // Transient state (not cached — derived from cache hit)
+  const hasCachedItems = useHasTabCache("items")
+  const [loading, setLoading] = useState(!hasCachedItems)
   const [error, setError] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetcher({ limit, offset: 0 })
+      const res = await fetcher({ limit, orderBy: orderByRef.current, around: aroundId || undefined })
       setItems(res.items ?? [])
+      setFocusedId(aroundId)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка загрузки")
     } finally {
       setLoading(false)
     }
-  }, [fetcher, limit])
+  }, [fetcher, limit, aroundId, setItems, setFocusedId])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  // Skip initial fetch if we have cached items from a previous tab visit
+  const skipInitRef = useRef(hasCachedItems)
+  useEffect(() => {
+    if (skipInitRef.current) {
+      skipInitRef.current = false
+      return
+    }
+    fetchData()
+  }, [fetchData])
+
+  // Re-fetch when sort changes
+  const prevOrderByRef = useRef(orderBy)
+  useEffect(() => {
+    if (prevOrderByRef.current === orderBy) return
+    prevOrderByRef.current = orderBy
+    orderByRef.current = orderBy
+    fetchData()
+  }, [orderBy, fetchData])
 
   const visibleIds = useMemo(() => items.map((d) => d.id), [items])
   const selection = useListSelection(visibleIds)
-  const { sortColumn, sortDirection, handleSort } = useUrlSort()
 
   return {
     items,
@@ -80,5 +111,6 @@ export function useListPage<T extends { id: string }>(
     sortColumn,
     sortDirection,
     handleSort,
+    focusedId,
   }
 }

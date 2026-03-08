@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"time"
 
@@ -14,9 +15,35 @@ import (
 
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
+	"metapus/internal/core/types"
+	"metapus/internal/domain/documents/goods_receipt"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/pkg/logger"
 )
+
+const (
+	generatedCounterpartyCount = 300
+	generatedNomenclatureCount = 300
+	generatedGoodsReceiptCount = 2000
+)
+
+type generatedCounterparty struct {
+	ID   id.ID
+	Name string
+	Type string
+}
+
+type generatedProduct struct {
+	ID     id.ID
+	Name   string
+	UnitID id.ID
+}
+
+type generatedWarehouse struct {
+	ID   id.ID
+	Name string
+}
 
 func main() {
 	log, err := logger.New(logger.Config{
@@ -317,43 +344,9 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 	}
 
 	// 5. Seed Counterparties
-	counterparties := []struct {
-		name      string
-		ctype     string // customer, supplier, both
-		legalForm string // company, individual
-		inn       string
-	}{
-		{"ООО 'Поставщик Плюс'", "supplier", "company", "7707083893"},
-		{"ООО 'Закупщик'", "customer", "company", "7710140679"},
-		{"ИП Иванов И.И.", "both", "individual", "772300001234"},
-	}
-
-	counterpartyIDs := make(map[string]id.ID)
-
-	for i, cp := range counterparties {
-		cpID := id.New()
-		code := fmt.Sprintf("CP-%03d", i+1)
-		commandTag, err := pool.Pool.Exec(ctx, `
-			INSERT INTO cat_counterparties (id, code, name, type, legal_form, inn, full_name, version, deletion_mark, attributes)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, 1, false, '{}')
-			ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
-		`, cpID, code, cp.name, cp.ctype, cp.legalForm, cp.inn, cp.name)
-		if err != nil {
-			log.Warnw("failed to seed counterparty", "name", cp.name, "error", err)
-			continue
-		}
-
-		if commandTag.RowsAffected() == 0 {
-			err = pool.Pool.QueryRow(ctx, `
-				SELECT id FROM cat_counterparties WHERE code = $1 AND deletion_mark = FALSE
-			`, code).Scan(&cpID)
-			if err != nil {
-				log.Warnw("failed to fetch existing counterparty id", "code", code, "error", err)
-				continue
-			}
-		}
-
-		counterpartyIDs[cp.ctype] = cpID
+	counterpartyIDs, err := seedGeneratedCounterparties(ctx, pool, log)
+	if err != nil {
+		return err
 	}
 
 	// 6. Seed Contracts
@@ -406,50 +399,384 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 		log.Warnw("failed to fetch default VAT rate, nomenclature will have NULL default_vat_rate_id", "error", err)
 	}
 
-	products := []struct {
-		name       string
-		article    string
-		barcode    string
-		ntype      string // goods, service
-		unitSymbol string
-	}{
-		{"Бумага офисная А4", "PAP-A4", "4600000000001", "goods", "уп"},
-		{"Ручка шариковая синяя", "PEN-BLU", "4600000000002", "goods", "шт"},
-		{"Степлер настольный", "STP-001", "4600000000003", "goods", "шт"},
-		{"Скрепки 28мм (100шт)", "CLP-028", "4600000000004", "goods", "уп"},
-		{"Папка-регистратор", "FOL-REG", "4600000000005", "goods", "шт"},
-		{"Доставка груза", "DELIVERY", "", "service", "шт"}, // Example service
+	if id.IsNil(defaultVatRateID) {
+		return fmt.Errorf("default VAT rate VR-001 not found")
 	}
 
-	for i, p := range products {
-		prodID := id.New()
-		code := fmt.Sprintf("NM-%05d", i+1)
+	if err := seedGeneratedNomenclature(ctx, pool, log, unitIDs, defaultVatRateID); err != nil {
+		return err
+	}
 
-		// Find Unit ID
-		unitID, ok := unitIDs[p.unitSymbol]
-		if !ok {
-			// Fallback to 'piece' if specific unit not found
-			unitID = unitIDs["шт"]
-		}
-
-		var vatRateValue interface{}
-		if !id.IsNil(defaultVatRateID) {
-			vatRateValue = defaultVatRateID
-		}
-
-		_, err := pool.Pool.Exec(ctx, `
-			INSERT INTO cat_nomenclature (id, code, name, type, article, barcode, base_unit_id, default_vat_rate_id, version, deletion_mark, attributes)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, false, '{}')
-			ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
-		`, prodID, code, p.name, p.ntype, p.article, p.barcode, unitID, vatRateValue)
-
-		if err != nil {
-			log.Warnw("failed to seed product", "name", p.name, "error", err)
-		}
+	rubID, ok := currencyIDs["RUB"]
+	if !ok || id.IsNil(rubID) {
+		return fmt.Errorf("RUB currency not found")
+	}
+	if !orgAvailable || id.IsNil(orgID) {
+		return fmt.Errorf("organization ORG-001 not found")
+	}
+	if err := seedGeneratedGoodsReceipts(ctx, pool, log, adminUserID, orgID, rubID, defaultVatRateID); err != nil {
+		return err
 	}
 
 	log.Info("demo data seeded successfully")
 	return nil
+}
+
+func seedGeneratedCounterparties(ctx context.Context, pool *postgres.Pool, log *logger.Logger) (map[string]id.ID, error) {
+	typesList := []string{"supplier", "customer", "both"}
+	companyPrefixes := []string{"Альфа", "Бета", "Вектор", "Гарант", "Профи", "Север", "Восток", "Глобал", "Оптима", "Премьер"}
+	companyDomains := []string{"Снабжение", "Трейд", "Логистик", "Поставка", "Ресурс", "Комплект", "Маркет", "Сервис", "Инвест", "Партнёр"}
+	companyRegions := []string{"Столица", "Волга", "Урал"}
+	surnames := []string{"Иванов", "Петров", "Сидоров", "Смирнов", "Кузнецов", "Попов", "Соколов", "Лебедев", "Новиков", "Фёдоров"}
+	firstNames := []string{"Иван", "Алексей", "Дмитрий", "Сергей", "Андрей", "Павел", "Николай", "Роман", "Егор", "Максим"}
+	middleNames := []string{"Иванович", "Петрович", "Алексеевич", "Сергеевич", "Андреевич", "Павлович", "Николаевич", "Романович", "Егорович", "Максимович"}
+	cities := []string{"Москва", "Санкт-Петербург", "Казань", "Екатеринбург", "Новосибирск", "Самара", "Нижний Новгород", "Челябинск", "Краснодар", "Ростов-на-Дону"}
+	counterpartyIDs := make(map[string]id.ID, len(typesList))
+
+	for i := 1; i <= generatedCounterpartyCount; i++ {
+		cpID := id.New()
+		code := fmt.Sprintf("CP-GEN-%03d", i)
+		ctype := typesList[(i-1)%len(typesList)]
+		mode := (i - 1) % 4
+		city := cities[(i-1)%len(cities)]
+		surname := surnames[(i-1)%len(surnames)]
+		firstName := firstNames[((i-1)/len(surnames))%len(firstNames)]
+		middleName := middleNames[((i-1)/(len(surnames)*len(firstNames)))%len(middleNames)]
+
+		legalForm := "company"
+		name := ""
+		fullName := ""
+		inn := ""
+		var kpp any
+		var ogrn any
+		contactPerson := any(fmt.Sprintf("%s %s", surname, firstName))
+
+		switch mode {
+		case 0, 1:
+			prefix := companyPrefixes[(i-1)%len(companyPrefixes)]
+			domain := companyDomains[((i-1)/len(companyPrefixes))%len(companyDomains)]
+			region := companyRegions[((i-1)/(len(companyPrefixes)*len(companyDomains)))%len(companyRegions)]
+			baseName := fmt.Sprintf("%s %s %s", prefix, domain, region)
+			if mode == 0 {
+				name = fmt.Sprintf("ООО \"%s\"", baseName)
+				fullName = fmt.Sprintf("Общество с ограниченной ответственностью \"%s\"", baseName)
+			} else {
+				name = fmt.Sprintf("АО \"%s\"", baseName)
+				fullName = fmt.Sprintf("Акционерное общество \"%s\"", baseName)
+			}
+			inn = fmt.Sprintf("77%08d", i)
+			kpp = fmt.Sprintf("%04d%05d", 7700+((i-1)%200), (i*37)%100000)
+			ogrn = fmt.Sprintf("10%011d", i)
+		case 2:
+			legalForm = "sole_trader"
+			name = fmt.Sprintf("ИП %s %s. %s.", surname, string([]rune(firstName)[0]), string([]rune(middleName)[0]))
+			fullName = fmt.Sprintf("Индивидуальный предприниматель %s %s %s", surname, firstName, middleName)
+			inn = fmt.Sprintf("77%010d", i)
+			ogrn = fmt.Sprintf("30%013d", i)
+		case 3:
+			legalForm = "individual"
+			name = fmt.Sprintf("%s %s %s", surname, firstName, middleName)
+			fullName = name
+			inn = fmt.Sprintf("50%010d", i)
+			contactPerson = any(name)
+		}
+
+		email := fmt.Sprintf("cp%03d@seed.metapus.io", i)
+		phone := fmt.Sprintf("+7 (9%02d) %03d-%02d-%02d", 10+((i-1)%90), (i*37)%1000, (i*13)%100, (i*29)%100)
+		legalAddress := fmt.Sprintf("г. %s, ул. %s, д. %d", city, companyDomains[(i-1)%len(companyDomains)], (i%120)+1)
+		actualAddress := fmt.Sprintf("г. %s, пр-т %s, д. %d", city, companyPrefixes[(i-1)%len(companyPrefixes)], (i%90)+1)
+
+		commandTag, err := pool.Pool.Exec(ctx, `
+			INSERT INTO cat_counterparties (
+				id, code, name, type, legal_form, inn, kpp, ogrn, full_name,
+				legal_address, actual_address, phone, email, contact_person,
+				version, deletion_mark, attributes
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 1, false, '{}')
+			ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
+		`, cpID, code, name, ctype, legalForm, inn, kpp, ogrn, fullName, legalAddress, actualAddress, phone, email, contactPerson)
+		if err != nil {
+			return nil, fmt.Errorf("insert counterparty %s: %w", code, err)
+		}
+
+		if commandTag.RowsAffected() == 0 {
+			err = pool.Pool.QueryRow(ctx, `
+				SELECT id FROM cat_counterparties WHERE code = $1 AND deletion_mark = FALSE
+			`, code).Scan(&cpID)
+			if err != nil {
+				return nil, fmt.Errorf("fetch counterparty %s: %w", code, err)
+			}
+		}
+
+		counterpartyIDs[ctype] = cpID
+	}
+
+	log.Infow("counterparties seeded", "count", generatedCounterpartyCount)
+	return counterpartyIDs, nil
+}
+
+func seedGeneratedNomenclature(ctx context.Context, pool *postgres.Pool, log *logger.Logger, unitIDs map[string]id.ID, defaultVatRateID id.ID) error {
+	templates := []struct {
+		name       string
+		unitSymbol string
+	}{
+		{name: "Бумага офисная А4", unitSymbol: "уп"},
+		{name: "Ручка шариковая", unitSymbol: "шт"},
+		{name: "Маркер перманентный", unitSymbol: "шт"},
+		{name: "Папка-регистратор", unitSymbol: "шт"},
+		{name: "Картридж лазерный", unitSymbol: "шт"},
+		{name: "Кабель силовой", unitSymbol: "м"},
+		{name: "Лампа светодиодная", unitSymbol: "шт"},
+		{name: "Перчатки рабочие", unitSymbol: "уп"},
+		{name: "Клей монтажный", unitSymbol: "шт"},
+		{name: "Розетка электрическая", unitSymbol: "шт"},
+		{name: "Выключатель одноклавишный", unitSymbol: "шт"},
+		{name: "Труба полипропиленовая", unitSymbol: "м"},
+		{name: "Смеситель кухонный", unitSymbol: "шт"},
+		{name: "Шуруп универсальный", unitSymbol: "уп"},
+		{name: "Краска интерьерная", unitSymbol: "л"},
+		{name: "Герметик санитарный", unitSymbol: "шт"},
+		{name: "Насос циркуляционный", unitSymbol: "шт"},
+		{name: "Автоматический выключатель", unitSymbol: "шт"},
+		{name: "Коврик диэлектрический", unitSymbol: "шт"},
+		{name: "Лента изоляционная", unitSymbol: "шт"},
+	}
+	brands := []string{"NordLine", "Volta", "OfficePro", "StroyMax", "PrimeTech"}
+	series := []string{"Базовая серия", "Проф серия", "Комфорт серия"}
+	countries := []string{"RU", "BY", "KZ", "CN", "TR"}
+
+	for i := 1; i <= generatedNomenclatureCount; i++ {
+		prodID := id.New()
+		code := fmt.Sprintf("NM-GEN-%03d", i)
+		template := templates[(i-1)%len(templates)]
+		brand := brands[((i-1)/len(templates))%len(brands)]
+		serie := series[((i-1)/(len(templates)*len(brands)))%len(series)]
+		name := fmt.Sprintf("%s %s %s", template.name, brand, serie)
+		article := fmt.Sprintf("ART-%03d-%02d", i, ((i-1)%97)+1)
+		barcode := fmt.Sprintf("469%010d", i)
+		unitID, ok := unitIDs[template.unitSymbol]
+		if !ok {
+			unitID = unitIDs["шт"]
+		}
+		description := fmt.Sprintf("%s, торговая марка %s", template.name, brand)
+		country := countries[(i-1)%len(countries)]
+		isWeighed := template.unitSymbol == "кг" || template.unitSymbol == "л"
+		trackBatch := template.unitSymbol == "л" || template.unitSymbol == "уп"
+
+		_, err := pool.Pool.Exec(ctx, `
+			INSERT INTO cat_nomenclature (
+				id, code, name, type, article, barcode, base_unit_id, default_vat_rate_id,
+				description, country_of_origin, is_weighed, track_batch,
+				version, deletion_mark, attributes
+			)
+			VALUES ($1, $2, $3, 'goods', $4, $5, $6, $7, $8, $9, $10, $11, 1, false, '{}')
+			ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
+		`, prodID, code, name, article, barcode, unitID, defaultVatRateID, description, country, isWeighed, trackBatch)
+		if err != nil {
+			return fmt.Errorf("insert nomenclature %s: %w", code, err)
+		}
+	}
+
+	log.Infow("nomenclature seeded", "count", generatedNomenclatureCount)
+	return nil
+}
+
+func seedGeneratedGoodsReceipts(ctx context.Context, pool *postgres.Pool, log *logger.Logger, adminUserID, orgID, currencyID, defaultVatRateID id.ID) error {
+	existingNumbers, err := loadExistingSeededGoodsReceiptNumbers(ctx, pool)
+	if err != nil {
+		return err
+	}
+	if len(existingNumbers) >= generatedGoodsReceiptCount {
+		log.Infow("goods receipts already seeded", "count", len(existingNumbers))
+		return nil
+	}
+
+	suppliers, err := loadGeneratedSuppliers(ctx, pool)
+	if err != nil {
+		return err
+	}
+	if len(suppliers) == 0 {
+		return fmt.Errorf("no generated suppliers found")
+	}
+
+	products, err := loadGeneratedProducts(ctx, pool)
+	if err != nil {
+		return err
+	}
+	if len(products) == 0 {
+		return fmt.Errorf("no generated nomenclature found")
+	}
+
+	warehouses, err := loadWarehouses(ctx, pool)
+	if err != nil {
+		return err
+	}
+	if len(warehouses) == 0 {
+		return fmt.Errorf("no warehouses found")
+	}
+
+	txm := postgres.NewTxManager(pool)
+	ctx = tenant.WithTxManager(ctx, txm)
+	repo := document_repo.NewGoodsReceiptRepo()
+	rng := rand.New(rand.NewSource(20260306))
+	created := 0
+
+	for i := 1; i <= generatedGoodsReceiptCount; i++ {
+		number := fmt.Sprintf("GR-SEED-%05d", i)
+		if existingNumbers[number] {
+			continue
+		}
+
+		supplier := suppliers[rng.Intn(len(suppliers))]
+		warehouse := warehouses[rng.Intn(len(warehouses))]
+		docDate := time.Now().UTC().AddDate(0, 0, -rng.Intn(540))
+		supplierDocDate := docDate.AddDate(0, 0, -rng.Intn(10))
+		incomingNumber := fmt.Sprintf("IN-SEED-%05d", i)
+
+		builder := goods_receipt.NewBuilder(orgID, supplier.ID, warehouse.ID).
+			WithNumber(number).
+			WithDate(docDate).
+			WithCurrency(currencyID).
+			WithSupplierDoc(fmt.Sprintf("SUP-%04d-%05d", rng.Intn(9000)+1000, i), &supplierDocDate).
+			WithIncomingNumber(incomingNumber).
+			WithCreatedBy(adminUserID).
+			WithDescription(fmt.Sprintf("Поступление на %s от %s", warehouse.Name, supplier.Name))
+
+		lineCount := 2 + rng.Intn(5)
+		usedProducts := make(map[string]struct{}, lineCount)
+		for lineNo := 0; lineNo < lineCount; lineNo++ {
+			product := products[rng.Intn(len(products))]
+			for len(usedProducts) < len(products) {
+				if _, exists := usedProducts[product.ID.String()]; !exists {
+					break
+				}
+				product = products[rng.Intn(len(products))]
+			}
+			usedProducts[product.ID.String()] = struct{}{}
+
+			quantity := 1 + rng.Intn(48)
+			unitPrice := types.MinorUnits(500 + rng.Intn(149500))
+			builder.AddLine(product.ID, product.UnitID, quantity, unitPrice, defaultVatRateID, 20)
+		}
+
+		doc := builder.MustBuild()
+		if err := doc.Validate(ctx); err != nil {
+			return fmt.Errorf("validate goods receipt %s: %w", number, err)
+		}
+
+		if err := txm.RunInTransaction(ctx, func(txCtx context.Context) error {
+			if err := repo.Create(txCtx, doc); err != nil {
+				return err
+			}
+			if err := repo.SaveLines(txCtx, doc.ID, doc.Lines); err != nil {
+				return err
+			}
+			return nil
+		}); err != nil {
+			return fmt.Errorf("create goods receipt %s: %w", number, err)
+		}
+
+		created++
+		if created%250 == 0 {
+			log.Infow("goods receipts seeding progress", "created", created, "target", generatedGoodsReceiptCount)
+		}
+	}
+
+	log.Infow("goods receipts seeded", "created", created, "target", generatedGoodsReceiptCount)
+	return nil
+}
+
+func loadExistingSeededGoodsReceiptNumbers(ctx context.Context, pool *postgres.Pool) (map[string]bool, error) {
+	rows, err := pool.Pool.Query(ctx, `
+		SELECT number FROM doc_goods_receipts WHERE number LIKE 'GR-SEED-%'
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query existing goods receipts: %w", err)
+	}
+	defer rows.Close()
+
+	numbers := make(map[string]bool)
+	for rows.Next() {
+		var number string
+		if err := rows.Scan(&number); err != nil {
+			return nil, fmt.Errorf("scan existing goods receipt number: %w", err)
+		}
+		numbers[number] = true
+	}
+
+	return numbers, rows.Err()
+}
+
+func loadGeneratedSuppliers(ctx context.Context, pool *postgres.Pool) ([]generatedCounterparty, error) {
+	rows, err := pool.Pool.Query(ctx, `
+		SELECT id, name, type
+		FROM cat_counterparties
+		WHERE code LIKE 'CP-GEN-%' AND deletion_mark = FALSE AND type IN ('supplier', 'both')
+		ORDER BY code
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query generated suppliers: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]generatedCounterparty, 0, generatedCounterpartyCount)
+	for rows.Next() {
+		var item generatedCounterparty
+		if err := rows.Scan(&item.ID, &item.Name, &item.Type); err != nil {
+			return nil, fmt.Errorf("scan generated supplier: %w", err)
+		}
+		items = append(items, item)
+	}
+
+	return items, rows.Err()
+}
+
+func loadGeneratedProducts(ctx context.Context, pool *postgres.Pool) ([]generatedProduct, error) {
+	rows, err := pool.Pool.Query(ctx, `
+		SELECT id, name, base_unit_id
+		FROM cat_nomenclature
+		WHERE code LIKE 'NM-GEN-%' AND deletion_mark = FALSE
+		ORDER BY code
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query generated nomenclature: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]generatedProduct, 0, generatedNomenclatureCount)
+	for rows.Next() {
+		var item generatedProduct
+		if err := rows.Scan(&item.ID, &item.Name, &item.UnitID); err != nil {
+			return nil, fmt.Errorf("scan generated nomenclature: %w", err)
+		}
+		items = append(items, item)
+	}
+
+	return items, rows.Err()
+}
+
+func loadWarehouses(ctx context.Context, pool *postgres.Pool) ([]generatedWarehouse, error) {
+	rows, err := pool.Pool.Query(ctx, `
+		SELECT id, name
+		FROM cat_warehouses
+		WHERE deletion_mark = FALSE
+		ORDER BY code
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query warehouses: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]generatedWarehouse, 0, 8)
+	for rows.Next() {
+		var item generatedWarehouse
+		if err := rows.Scan(&item.ID, &item.Name); err != nil {
+			return nil, fmt.Errorf("scan warehouse: %w", err)
+		}
+		items = append(items, item)
+	}
+
+	return items, rows.Err()
 }
 
 func seedTenantRegistry(ctx context.Context, dbURL string, log *logger.Logger) error {

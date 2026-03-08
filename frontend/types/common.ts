@@ -31,26 +31,39 @@ export interface AdvancedFilterItem {
     scale?: number
 }
 
-/** Paginated list response envelope from the API. */
-export interface ListResponse<T> {
+/** Cursor-paginated list response envelope from the API. */
+export interface CursorListResponse<T> {
     items: T[]
+    nextCursor?: string
+    prevCursor?: string
+    hasMore: boolean
+    hasPrev: boolean
+    targetIndex?: number
     totalCount: number
-    limit: number
-    offset: number
 }
 
-/** Query parameters for paginated list endpoints. */
-export interface ListParams {
+/** @deprecated Use CursorListResponse<T> */
+export type ListResponse<T> = CursorListResponse<T>
+
+/** Query parameters for cursor-paginated list endpoints. */
+export interface CursorListParams {
     limit?: number
-    offset?: number
     search?: string
-    sortBy?: string
-    sortOrder?: SortDirection
+    orderBy?: string
     /** Include soft-deleted (deletion-marked) items */
     includeDeleted?: boolean
     /** Advanced filters — serialized as JSON in ?filter= query param */
     filter?: AdvancedFilterItem[]
+    /** Opaque cursor — load items AFTER this cursor (scroll down) */
+    after?: string
+    /** Opaque cursor — load items BEFORE this cursor (scroll up) */
+    before?: string
+    /** Target ID — teleport to this item in the list */
+    around?: string
 }
+
+/** @deprecated Use CursorListParams */
+export type ListParams = CursorListParams
 
 // ── Base entity fields ──────────────────────────────────────────────────
 

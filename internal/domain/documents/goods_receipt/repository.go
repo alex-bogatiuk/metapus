@@ -22,7 +22,7 @@ type Repository interface {
 	SaveLines(ctx context.Context, docID id.ID, lines []GoodsReceiptLine) error
 
 	// List operations — uses universal filter engine via domain.ListFilter.AdvancedFilters
-	List(ctx context.Context, filter domain.ListFilter) (domain.ListResult[*GoodsReceipt], error)
+	List(ctx context.Context, filter domain.ListFilter) (domain.CursorListResult[*GoodsReceipt], error)
 
 	// Locking
 	GetForUpdate(ctx context.Context, docID id.ID) (*GoodsReceipt, error)

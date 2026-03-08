@@ -59,6 +59,6 @@ func (r *OrganizationRepo) GetDefault(ctx context.Context) (*organization.Organi
 }
 
 // List implements organization.Repository.
-func (r *OrganizationRepo) List(ctx context.Context, filter domain.ListFilter) (domain.ListResult[*organization.Organization], error) {
+func (r *OrganizationRepo) List(ctx context.Context, filter domain.ListFilter) (domain.CursorListResult[*organization.Organization], error) {
 	return r.BaseCatalogRepo.List(ctx, filter)
 }

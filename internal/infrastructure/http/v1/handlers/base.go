@@ -10,6 +10,7 @@ import (
 	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
 	"metapus/internal/domain"
+	"metapus/internal/domain/cursor"
 	domainFilter "metapus/internal/domain/filter"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/storage/postgres"
@@ -120,13 +121,28 @@ func (h *BaseHandler) Success(c *gin.Context, message string) {
 // ParseListFilter parses standard query params for List requests.
 // This is the single entry point for parsing filters across all catalogs and documents.
 // defaultOrderBy is the default ORDER BY field (e.g., "name" for catalogs, "-date" for documents).
+//
+// Cursor params (mutually exclusive): after, before, around.
 func (h *BaseHandler) ParseListFilter(c *gin.Context, defaultOrderBy string) (domain.ListFilter, error) {
 	filter := domain.DefaultListFilter()
 	filter.Search = c.Query("search")
 	filter.Limit = h.ParseIntQuery(c, "limit", 50)
-	filter.Offset = h.ParseIntQuery(c, "offset", 0)
 	filter.OrderBy = c.DefaultQuery("orderBy", defaultOrderBy)
 	filter.IncludeDeleted = c.Query("includeDeleted") == "true"
+
+	// Parse cursor-based pagination params
+	afterToken := c.Query("after")
+	beforeToken := c.Query("before")
+	aroundID := c.Query("around")
+
+	switch {
+	case afterToken != "":
+		filter.CursorReq = &cursor.Request{Direction: cursor.DirAfter, Token: afterToken}
+	case beforeToken != "":
+		filter.CursorReq = &cursor.Request{Direction: cursor.DirBefore, Token: beforeToken}
+	case aroundID != "":
+		filter.CursorReq = &cursor.Request{Direction: cursor.DirAround, TargetID: aroundID}
+	}
 
 	// Parse advanced filters from JSON
 	filterJSON := c.Query("filter")

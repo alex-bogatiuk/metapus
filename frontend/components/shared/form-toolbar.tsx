@@ -34,6 +34,7 @@ interface FormToolbarProps {
   }[]
   extraMenuItems?: FormToolbarMenuItem[]
   backHref?: string
+  backTargetId?: string
   onClose?: () => void
   sticky?: boolean
 }
@@ -47,16 +48,23 @@ export function FormToolbar({
   secondaryActions = [],
   extraMenuItems,
   backHref,
+  backTargetId,
   onClose,
   sticky = true,
 }: FormToolbarProps) {
+  const resolvedBackHref = backHref
+    ? backTargetId
+      ? `${backHref}?around=${encodeURIComponent(backTargetId)}`
+      : backHref
+    : undefined
+
   return (
     <div className={cn("border-b bg-card", sticky && "sticky top-0 z-20 shadow-sm")}>
       <div className="flex items-center gap-2 px-4 py-2">
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-7 w-7" asChild={!!backHref}>
-            {backHref ? (
-              <Link href={backHref}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" asChild={!!resolvedBackHref}>
+            {resolvedBackHref ? (
+              <Link href={resolvedBackHref}>
                 <ArrowLeft className="h-3.5 w-3.5" />
               </Link>
             ) : (

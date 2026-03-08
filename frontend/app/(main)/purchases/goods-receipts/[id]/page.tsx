@@ -103,7 +103,7 @@ export default function GoodsReceiptFormPage() {
   useEffect(() => {
     if (!params.id) return
 
-    if (hasDraft) { setLoading(false); markDirty(); return }
+    if (hasDraft) { setLoading(false); return }
 
     setLoading(true)
     api.goodsReceipts.get(params.id).then((d) => {
@@ -364,6 +364,7 @@ export default function GoodsReceiptFormPage() {
           },
         ]}
         backHref="/purchases/goods-receipts"
+        backTargetId={params.id}
         onClose={() => router.push("/purchases/goods-receipts")}
       />
 

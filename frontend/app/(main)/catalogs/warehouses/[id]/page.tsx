@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { useRouter, useParams } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { FormToolbar } from "@/components/shared/form-toolbar"
 import { ReferenceField } from "@/components/shared/reference-field"
@@ -51,6 +51,7 @@ const INITIAL_STATE: WarehouseEditState = {
 
 export default function EditWarehousePage() {
   const router = useRouter()
+  const params = useParams<{ id: string }>()
   const { f, update, handleChange, handleSave, saving, error, loading, deletionMark } = useCatalogForm({
     entityName: "Склад",
     initialState: INITIAL_STATE,
@@ -116,6 +117,7 @@ export default function EditWarehousePage() {
           { label: "Записать", onClick: () => handleSave(false) },
         ]}
         backHref="/catalogs/warehouses"
+        backTargetId={params.id}
         onClose={() => router.push("/catalogs/warehouses")}
       />
 

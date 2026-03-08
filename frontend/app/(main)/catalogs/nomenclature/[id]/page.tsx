@@ -171,6 +171,7 @@ export default function NomenclatureItemPage() {
         }}
         secondaryActions={[{ label: "Записать", onClick: () => handleSave(false) }]}
         backHref="/catalogs/nomenclature"
+        backTargetId={params.id}
         onClose={() => router.push("/catalogs/nomenclature")}
       />
 

@@ -383,7 +383,7 @@ func (s *BaseDocumentService[T, L]) UpdateAndRepost(ctx context.Context, doc T) 
 	return s.PostingEngine.Post(ctx, doc, updateDoc)
 }
 
-// List retrieves documents with filtering.
-func (s *BaseDocumentService[T, L]) List(ctx context.Context, filter ListFilter) (ListResult[T], error) {
+// List retrieves documents with cursor-based pagination.
+func (s *BaseDocumentService[T, L]) List(ctx context.Context, filter ListFilter) (CursorListResult[T], error) {
 	return s.Repo.List(ctx, filter)
 }

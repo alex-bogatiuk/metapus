@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo, useCallback } from "react"
+import { useEffect, useState, useMemo, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { CircleCheck, Circle, Loader2, Plus, Copy, Pencil, Trash2, CircleCheckBig, CircleOff, Ban } from "lucide-react"
 import { DataToolbar } from "@/components/shared/data-toolbar"
@@ -15,6 +15,7 @@ import {
   ContextMenuShortcut,
 } from "@/components/ui/context-menu"
 import { useDocumentListPage } from "@/hooks/useDocumentListPage"
+import { ScrollSentinel } from "@/components/shared/scroll-sentinel"
 import { api } from "@/lib/api"
 import { fmtAmount, fmtDate, DEFAULT_DECIMAL_PLACES } from "@/lib/format"
 import { toast } from "sonner"
@@ -24,6 +25,8 @@ import type { GoodsReceiptResponse } from "@/types/document"
 
 // Default filters shown on page load (keys from fieldsMeta)
 const defaultFilterKeys: string[] = []
+const PAGE_SIZE = 100
+const PREFETCH_ROOT_MARGIN = `0px 0px 2000px 0px`
 
 // ── Columns ─────────────────────────────────────────────────────────────
 
@@ -101,9 +104,11 @@ const columns: Column<GoodsReceiptResponse>[] = [
 
 export default function GoodsReceiptsListPage() {
   const router = useRouter()
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const {
-    items, loading, error, refresh,
+    items, loading, loadingMore, error, refresh,
+    hasMore, loadMore,
     selectedIds, isAllSelected, isIndeterminate, toggleItem, toggleAll,
     sortColumn, sortDirection, handleSort,
     fieldsMeta, isPrefsLoaded, initialFilterValues, handleFilterValuesChange,
@@ -113,7 +118,7 @@ export default function GoodsReceiptsListPage() {
     entityKey: "GoodsReceipt",
     api: api.goodsReceipts,
     periodField: "date",
-    limit: 100,
+    limit: PAGE_SIZE,
   })
 
   // ── Row focus & document preview ────────────────────────────────────
@@ -252,7 +257,7 @@ export default function GoodsReceiptsListPage() {
       />
 
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 overflow-auto">
+        <div ref={scrollContainerRef} className="flex-1 overflow-auto">
           {loading ? (
             <div className="flex items-center justify-center py-20 text-muted-foreground">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -337,6 +342,13 @@ export default function GoodsReceiptsListPage() {
               )}
             />
           )}
+          <ScrollSentinel
+            onIntersect={loadMore}
+            loading={loadingMore}
+            enabled={hasMore}
+            rootMargin={PREFETCH_ROOT_MARGIN}
+            scrollContainer={scrollContainerRef}
+          />
         </div>
 
         {isPrefsLoaded && (

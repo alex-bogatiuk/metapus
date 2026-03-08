@@ -21,5 +21,5 @@ type Repository interface {
 	GetForUpdate(ctx context.Context, id id.ID) (*Nomenclature, error)
 
 	// FindLowStock retrieves items with stock below minimum.
-	FindLowStock(ctx context.Context, filter domain.ListFilter) (domain.ListResult[*Nomenclature], error)
+	FindLowStock(ctx context.Context, filter domain.ListFilter) (domain.CursorListResult[*Nomenclature], error)
 }

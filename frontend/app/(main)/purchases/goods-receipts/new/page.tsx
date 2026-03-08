@@ -99,7 +99,7 @@ export default function NewGoodsReceiptPage() {
   // ── Copy from existing document (аналог 1С ОбработкаЗаполнения) ─────
   // Skipped if draft was restored (user was editing, switched tab, came back)
   useEffect(() => {
-    if (hasDraft) { markDirty(); return }
+    if (hasDraft) { return }
 
     const copyFromId = searchParams.get("copyFrom")
     if (!copyFromId) return

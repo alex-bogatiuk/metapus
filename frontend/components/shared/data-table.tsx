@@ -69,61 +69,6 @@ export interface DataTableProps<T extends { id: string }> {
     rowClassName?: (item: T) => string | undefined
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────
-
-type SortDir = "asc" | "desc"
-
-function toComparableDate(value: unknown): number | null {
-    if (typeof value !== "string") return null
-
-    const raw = value.trim()
-
-    // Limit date parsing to ISO-like values to avoid false positives.
-    if (!/^\d{4}-\d{2}-\d{2}(?:[T\s].*)?$/.test(raw)) return null
-
-    const ts = Date.parse(raw)
-    return Number.isNaN(ts) ? null : ts
-}
-
-function toComparableNumber(value: unknown): number | null {
-    if (typeof value === "number") {
-        return Number.isFinite(value) ? value : null
-    }
-
-    if (typeof value !== "string") return null
-
-    const normalized = value.trim().replace(/\s/g, "").replace(",", ".")
-    if (!/^-?\d+(?:\.\d+)?$/.test(normalized)) return null
-
-    const parsed = Number(normalized)
-    return Number.isFinite(parsed) ? parsed : null
-}
-
-function compareValues(a: unknown, b: unknown, dir: SortDir): number {
-    const valA = a ?? ""
-    const valB = b ?? ""
-
-    // Compare ISO-like date strings first.
-    const dateA = toComparableDate(valA)
-    const dateB = toComparableDate(valB)
-    if (dateA !== null && dateB !== null) {
-        return dir === "asc" ? dateA - dateB : dateB - dateA
-    }
-
-    // Then compare strict numeric values.
-    const numA = toComparableNumber(valA)
-    const numB = toComparableNumber(valB)
-    if (numA !== null && numB !== null) {
-        return dir === "asc" ? numA - numB : numB - numA
-    }
-
-    // Fallback to string comparison
-    const strA = String(valA).toLowerCase()
-    const strB = String(valB).toLowerCase()
-    const cmp = strA.localeCompare(strB, "ru", { numeric: true })
-    return dir === "asc" ? cmp : -cmp
-}
-
 // ── Component ───────────────────────────────────────────────────────────
 
 export function DataTable<T extends { id: string }>({
@@ -144,18 +89,6 @@ export function DataTable<T extends { id: string }>({
     renderContextMenu,
     rowClassName,
 }: DataTableProps<T>) {
-
-    // Sort data
-    const sortedData = useMemo(() => {
-        if (!sortColumn) return data
-        return [...data].sort((a, b) =>
-            compareValues(
-                (a as Record<string, unknown>)[sortColumn],
-                (b as Record<string, unknown>)[sortColumn],
-                sortDirection
-            )
-        )
-    }, [data, sortColumn, sortDirection])
 
     // ⚡ Perf: O(1) selection lookup via Set instead of O(N) Array.includes() per row.
     // Before: N × includes() = O(N²). After: 1 Set build + N × has() = O(N).
@@ -223,7 +156,7 @@ export function DataTable<T extends { id: string }>({
                 </tr>
             </thead>
             <tbody>
-                {sortedData.map((item) => {
+                {data.map((item) => {
                     const isSelected = selectedSet.has(item.id)
 
                     const isFocused = focusedId === item.id

@@ -293,11 +293,14 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) List(c *gin.Context) {
 		items[i] = h.mapToDTO(item)
 	}
 
-	c.JSON(http.StatusOK, dto.ListResponse{
-		Items:      items,
-		TotalCount: result.TotalCount,
-		Limit:      result.Limit,
-		Offset:     result.Offset,
+	c.JSON(http.StatusOK, dto.CursorListResponse{
+		Items:       items,
+		NextCursor:  result.NextCursor,
+		PrevCursor:  result.PrevCursor,
+		HasMore:     result.HasMore,
+		HasPrev:     result.HasPrev,
+		TargetIndex: result.TargetIndex,
+		TotalCount:  result.TotalCount,
 	})
 }
 

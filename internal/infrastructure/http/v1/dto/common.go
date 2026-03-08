@@ -55,12 +55,15 @@ func NewPaginationResponse(page, pageSize int, totalItems int64) PaginationRespo
 
 // --- List Response ---
 
-// ListResponse wraps list results with pagination.
-type ListResponse struct {
-	Items      any   `json:"items"`
-	TotalCount int64 `json:"totalCount"`
-	Limit      int   `json:"limit"`
-	Offset     int   `json:"offset"`
+// CursorListResponse wraps cursor-paginated list results.
+type CursorListResponse struct {
+	Items       any    `json:"items"`
+	NextCursor  string `json:"nextCursor,omitempty"`
+	PrevCursor  string `json:"prevCursor,omitempty"`
+	HasMore     bool   `json:"hasMore"`
+	HasPrev     bool   `json:"hasPrev"`
+	TargetIndex *int   `json:"targetIndex,omitempty"`
+	TotalCount  int64  `json:"totalCount"`
 }
 
 // GenericListResponse wraps list results with pagination (generic version).

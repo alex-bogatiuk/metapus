@@ -33,11 +33,8 @@ func NewNomenclatureRepo() *NomenclatureRepo {
 }
 
 // FindLowStock retrieves items with stock below minimum.
-func (r *NomenclatureRepo) FindLowStock(ctx context.Context, filter domain.ListFilter) (domain.ListResult[*nomenclature.Nomenclature], error) {
-	result := domain.ListResult[*nomenclature.Nomenclature]{
-		Limit:  filter.Limit,
-		Offset: filter.Offset,
-	}
+func (r *NomenclatureRepo) FindLowStock(ctx context.Context, filter domain.ListFilter) (domain.CursorListResult[*nomenclature.Nomenclature], error) {
+	var result domain.CursorListResult[*nomenclature.Nomenclature]
 
 	q := r.baseSelect(ctx).
 		Where(squirrel.Eq{"deletion_mark": false}).
@@ -45,9 +42,6 @@ func (r *NomenclatureRepo) FindLowStock(ctx context.Context, filter domain.ListF
 
 	if filter.Limit > 0 {
 		q = q.Limit(uint64(filter.Limit))
-	}
-	if filter.Offset > 0 {
-		q = q.Offset(uint64(filter.Offset))
 	}
 
 	sql, args, _ := q.ToSql()

@@ -3,6 +3,7 @@ package domain
 
 import (
 	"context"
+	"metapus/internal/domain/cursor"
 	"metapus/internal/domain/filter"
 
 	"metapus/internal/core/entity"
@@ -12,6 +13,7 @@ import (
 // --- Filter & Pagination ---
 
 // ListFilter contains common filtering options for list operations.
+// Uses cursor-based (keyset) pagination — no Offset.
 type ListFilter struct {
 	// Search performs full-text search on searchable fields
 	Search string
@@ -34,9 +36,11 @@ type ListFilter struct {
 	// OrderBy specifies sorting (e.g., "name", "-created_at")
 	OrderBy string
 
-	// Pagination
-	Limit  int
-	Offset int
+	// Limit is the max number of items to return per page
+	Limit int
+
+	// CursorReq contains cursor-based pagination parameters (after/before/around)
+	CursorReq *cursor.Request
 }
 
 // DefaultListFilter returns sensible defaults.
@@ -47,12 +51,15 @@ func DefaultListFilter() ListFilter {
 	}
 }
 
-// ListResult contains paginated results.
-type ListResult[T any] struct {
-	Items      []T   `json:"items"`
-	TotalCount int64 `json:"totalCount"`
-	Limit      int   `json:"limit"`
-	Offset     int   `json:"offset"`
+// CursorListResult contains cursor-paginated results.
+type CursorListResult[T any] struct {
+	Items       []T    `json:"items"`
+	NextCursor  string `json:"nextCursor,omitempty"`
+	PrevCursor  string `json:"prevCursor,omitempty"`
+	HasMore     bool   `json:"hasMore"`
+	HasPrev     bool   `json:"hasPrev"`
+	TargetIndex *int   `json:"targetIndex,omitempty"`
+	TotalCount  int64  `json:"totalCount"`
 }
 
 // --- Repository Interfaces ---
@@ -77,8 +84,8 @@ type CatalogRepository[T entity.Validatable] interface {
 	// SetDeletionMark устанавливает или снимает пометку удаления
 	SetDeletionMark(ctx context.Context, id id.ID, marked bool) error
 
-	// List retrieves entities with filtering and pagination
-	List(ctx context.Context, filter ListFilter) (ListResult[T], error)
+	// List retrieves entities with cursor-based pagination
+	List(ctx context.Context, filter ListFilter) (CursorListResult[T], error)
 
 	// Exists checks if entity with given ID exists
 	Exists(ctx context.Context, id id.ID) (bool, error)

@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { useRouter, useParams } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { FormToolbar } from "@/components/shared/form-toolbar"
 import { Input } from "@/components/ui/input"
@@ -57,6 +57,7 @@ const INITIAL_STATE: CounterpartyEditState = {
 
 export default function EditCounterpartyPage() {
   const router = useRouter()
+  const params = useParams<{ id: string }>()
   const { f, update, handleChange, handleSave, saving, error, loading, deletionMark } = useCatalogForm({
     entityName: "Контрагент",
     initialState: INITIAL_STATE,
@@ -131,6 +132,7 @@ export default function EditCounterpartyPage() {
           { label: "Записать", onClick: () => handleSave(false) },
         ]}
         backHref="/catalogs/counterparties"
+        backTargetId={params.id}
         onClose={() => router.push("/catalogs/counterparties")}
       />
 

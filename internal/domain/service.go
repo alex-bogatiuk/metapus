@@ -239,8 +239,8 @@ func (s *CatalogService[T]) SetDeletionMark(ctx context.Context, entityID id.ID,
 	return s.repo.SetDeletionMark(ctx, entityID, marked)
 }
 
-// List retrieves entities with filtering.
-func (s *CatalogService[T]) List(ctx context.Context, filter ListFilter) (ListResult[T], error) {
+// List retrieves entities with cursor-based pagination.
+func (s *CatalogService[T]) List(ctx context.Context, filter ListFilter) (CursorListResult[T], error) {
 	return s.repo.List(ctx, filter)
 }
 

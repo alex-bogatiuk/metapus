@@ -15,8 +15,10 @@ import (
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/domain"
+	"metapus/internal/domain/cursor"
 	"metapus/internal/domain/filter"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/keyset"
 )
 
 // BaseDocumentRepo provides common CRUD operations for document entities.
@@ -333,11 +335,14 @@ func (r *BaseDocumentRepo[T]) buildWhereConditions(f domain.ListFilter) ([]squir
 	return conditions, nil
 }
 
-// List retrieves documents with standard filtering and advanced filters.
-func (r *BaseDocumentRepo[T]) List(ctx context.Context, f domain.ListFilter) (domain.ListResult[T], error) {
-	result := domain.ListResult[T]{
-		Limit:  f.Limit,
-		Offset: f.Offset,
+// List retrieves documents with cursor-based (keyset) pagination.
+func (r *BaseDocumentRepo[T]) List(ctx context.Context, f domain.ListFilter) (domain.CursorListResult[T], error) {
+	var result domain.CursorListResult[T]
+
+	// Parse sort spec (documents default to date DESC)
+	spec, err := keyset.ParseOrderBy(f.OrderBy, "date", "DESC", r.orderCols)
+	if err != nil {
+		return result, err
 	}
 
 	// Build WHERE conditions
@@ -346,49 +351,261 @@ func (r *BaseDocumentRepo[T]) List(ctx context.Context, f domain.ListFilter) (do
 		return result, err
 	}
 
-	// Build base SELECT and apply conditions
-	q := r.baseSelect(ctx)
-	for _, cond := range conditions {
-		q = q.Where(cond)
+	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	limit := f.Limit
+	if limit <= 0 {
+		limit = 50
 	}
 
-	// Count total (before pagination)
-	countQ := r.Builder().Select("COUNT(*)").FromSelect(q, "sub")
+	// Dispatch based on cursor direction
+	if f.CursorReq != nil {
+		switch f.CursorReq.Direction {
+		case cursor.DirAround:
+			return r.listAround(ctx, f, spec, conditions, limit)
+		case cursor.DirAfter:
+			return r.listForward(ctx, spec, conditions, f.CursorReq.Token, limit, true)
+		case cursor.DirBefore:
+			return r.listBackward(ctx, spec, conditions, f.CursorReq.Token, limit)
+		}
+	}
+
+	// First page (no cursor) — count total + forward from start
+	baseQ := r.baseSelect(ctx)
+	for _, cond := range conditions {
+		baseQ = baseQ.Where(cond)
+	}
+	countQ := r.Builder().Select("COUNT(*)").FromSelect(baseQ, "sub")
 	countSQL, countArgs, err := countQ.ToSql()
 	if err != nil {
 		return result, fmt.Errorf("build count: %w", err)
 	}
-
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
 	if err := querier.QueryRow(ctx, countSQL, countArgs...).Scan(&result.TotalCount); err != nil {
 		return result, fmt.Errorf("count: %w", err)
 	}
 
-	// Order
-	orderBy, err := r.parseOrderBy(f.OrderBy)
-	if err != nil {
-		return result, err
+	// Fetch limit+1 rows to detect hasMore
+	q := r.baseSelect(ctx)
+	for _, cond := range conditions {
+		q = q.Where(cond)
 	}
-	q = q.OrderBy(orderBy)
-
-	// Page
-	if f.Limit > 0 {
-		q = q.Limit(uint64(f.Limit))
-	}
-	if f.Offset > 0 {
-		q = q.Offset(uint64(f.Offset))
-	}
+	q = q.OrderBy(spec.OrderByClause()).Limit(uint64(limit + 1))
 
 	sql, args, err := q.ToSql()
 	if err != nil {
 		return result, fmt.Errorf("build query: %w", err)
 	}
-
 	if err := pgxscan.Select(ctx, querier, &result.Items, sql, args...); err != nil {
 		return result, fmt.Errorf("list: %w", err)
 	}
 
+	if len(result.Items) > limit {
+		result.Items = result.Items[:limit]
+		result.HasMore = true
+	}
+	result.HasPrev = false
+
+	if len(result.Items) > 0 {
+		r.setCursors(&result, spec)
+	}
 	return result, nil
+}
+
+// listForward fetches items after a cursor (scroll down).
+func (r *BaseDocumentRepo[T]) listForward(ctx context.Context, spec keyset.SortSpec, conditions []squirrel.Sqlizer, token string, limit int, setPrev bool) (domain.CursorListResult[T], error) {
+	var result domain.CursorListResult[T]
+
+	values, err := keyset.DecodeCursor(token, spec)
+	if err != nil {
+		return result, err
+	}
+
+	q := r.baseSelect(ctx)
+	for _, cond := range conditions {
+		q = q.Where(cond)
+	}
+	q = q.Where(keyset.TupleCondition(spec, values, true))
+	q = q.OrderBy(spec.OrderByClause()).Limit(uint64(limit + 1))
+
+	sql, args, err := q.ToSql()
+	if err != nil {
+		return result, fmt.Errorf("build forward query: %w", err)
+	}
+
+	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	if err := pgxscan.Select(ctx, querier, &result.Items, sql, args...); err != nil {
+		return result, fmt.Errorf("list forward: %w", err)
+	}
+
+	if len(result.Items) > limit {
+		result.Items = result.Items[:limit]
+		result.HasMore = true
+	}
+	result.HasPrev = setPrev
+
+	if len(result.Items) > 0 {
+		r.setCursors(&result, spec)
+	}
+	return result, nil
+}
+
+// listBackward fetches items before a cursor (scroll up).
+func (r *BaseDocumentRepo[T]) listBackward(ctx context.Context, spec keyset.SortSpec, conditions []squirrel.Sqlizer, token string, limit int) (domain.CursorListResult[T], error) {
+	var result domain.CursorListResult[T]
+
+	values, err := keyset.DecodeCursor(token, spec)
+	if err != nil {
+		return result, err
+	}
+
+	q := r.baseSelect(ctx)
+	for _, cond := range conditions {
+		q = q.Where(cond)
+	}
+	q = q.Where(keyset.TupleCondition(spec, values, false))
+	q = q.OrderBy(spec.InvertedOrderByClause()).Limit(uint64(limit + 1))
+
+	sql, args, err := q.ToSql()
+	if err != nil {
+		return result, fmt.Errorf("build backward query: %w", err)
+	}
+
+	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	if err := pgxscan.Select(ctx, querier, &result.Items, sql, args...); err != nil {
+		return result, fmt.Errorf("list backward: %w", err)
+	}
+
+	if len(result.Items) > limit {
+		result.Items = result.Items[:limit]
+		result.HasPrev = true
+	}
+	result.HasMore = true
+
+	reverseSlice(result.Items)
+
+	if len(result.Items) > 0 {
+		r.setCursors(&result, spec)
+	}
+	return result, nil
+}
+
+// listAround fetches items around a target ID (teleportation / "show in list").
+func (r *BaseDocumentRepo[T]) listAround(ctx context.Context, f domain.ListFilter, spec keyset.SortSpec, conditions []squirrel.Sqlizer, limit int) (domain.CursorListResult[T], error) {
+	var result domain.CursorListResult[T]
+	half := limit / 2
+	if half < 1 {
+		half = 1
+	}
+
+	targetID, err := id.Parse(f.CursorReq.TargetID)
+	if err != nil {
+		return result, apperror.NewValidation("invalid around target ID")
+	}
+
+	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	var sortValue any
+	lookupSQL := fmt.Sprintf("SELECT %s FROM %s WHERE id = $1", spec.Field, r.tableName)
+	if err := querier.QueryRow(ctx, lookupSQL, targetID).Scan(&sortValue); err != nil {
+		return result, apperror.NewNotFound(r.tableName, targetID.String())
+	}
+
+	targetValues := []any{sortValue, targetID}
+
+	// Fetch rows <= target in inverted order (includes target)
+	qBefore := r.baseSelect(ctx)
+	for _, cond := range conditions {
+		qBefore = qBefore.Where(cond)
+	}
+	qBefore = qBefore.Where(keyset.TupleConditionInclusive(spec, targetValues, false))
+	qBefore = qBefore.OrderBy(spec.InvertedOrderByClause()).Limit(uint64(half + 1))
+
+	sqlBefore, argsBefore, err := qBefore.ToSql()
+	if err != nil {
+		return result, fmt.Errorf("build around-before query: %w", err)
+	}
+	var beforeItems []T
+	if err := pgxscan.Select(ctx, querier, &beforeItems, sqlBefore, argsBefore...); err != nil {
+		return result, fmt.Errorf("around before: %w", err)
+	}
+
+	hasPrev := false
+	if len(beforeItems) > half {
+		beforeItems = beforeItems[:half]
+		hasPrev = true
+	}
+	reverseSlice(beforeItems)
+
+	// Fetch rows after target (exclusive)
+	qAfter := r.baseSelect(ctx)
+	for _, cond := range conditions {
+		qAfter = qAfter.Where(cond)
+	}
+	qAfter = qAfter.Where(keyset.TupleCondition(spec, targetValues, true))
+	qAfter = qAfter.OrderBy(spec.OrderByClause()).Limit(uint64(half + 1))
+
+	sqlAfter, argsAfter, err := qAfter.ToSql()
+	if err != nil {
+		return result, fmt.Errorf("build around-after query: %w", err)
+	}
+	var afterItems []T
+	if err := pgxscan.Select(ctx, querier, &afterItems, sqlAfter, argsAfter...); err != nil {
+		return result, fmt.Errorf("around after: %w", err)
+	}
+
+	hasMore := false
+	if len(afterItems) > half {
+		afterItems = afterItems[:half]
+		hasMore = true
+	}
+
+	result.Items = make([]T, 0, len(beforeItems)+len(afterItems))
+	result.Items = append(result.Items, beforeItems...)
+
+	targetIdx := len(beforeItems) - 1
+	if targetIdx >= 0 {
+		result.TargetIndex = &targetIdx
+	}
+
+	result.Items = append(result.Items, afterItems...)
+	result.HasPrev = hasPrev
+	result.HasMore = hasMore
+
+	if len(result.Items) > 0 {
+		r.setCursors(&result, spec)
+	}
+	return result, nil
+}
+
+// setCursors sets prevCursor and nextCursor on the result based on first/last items.
+func (r *BaseDocumentRepo[T]) setCursors(result *domain.CursorListResult[T], spec keyset.SortSpec) {
+	if len(result.Items) == 0 {
+		return
+	}
+	first := result.Items[0]
+	last := result.Items[len(result.Items)-1]
+
+	firstMap := postgres.StructToMap(first)
+	lastMap := postgres.StructToMap(last)
+
+	if sv, ok := firstMap[spec.Field]; ok {
+		if idv, ok := firstMap["id"]; ok {
+			if c, err := keyset.BuildCursorFromRow(spec, sv, idv); err == nil {
+				result.PrevCursor = c
+			}
+		}
+	}
+	if sv, ok := lastMap[spec.Field]; ok {
+		if idv, ok := lastMap["id"]; ok {
+			if c, err := keyset.BuildCursorFromRow(spec, sv, idv); err == nil {
+				result.NextCursor = c
+			}
+		}
+	}
+}
+
+func reverseSlice[T any](s []T) {
+	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+		s[i], s[j] = s[j], s[i]
+	}
 }
 
 // buildTablePartCondition resolves a dot-notation filter field (e.g. "lines.product_id")
@@ -408,30 +625,4 @@ func (r *BaseDocumentRepo[T]) buildTablePartCondition(item filter.Item) (squirre
 	}
 
 	return filter.BuildTablePartCondition(item, r.tableName, tp, columnName)
-}
-
-func (r *BaseDocumentRepo[T]) parseOrderBy(orderBy string) (string, error) {
-	if strings.TrimSpace(orderBy) == "" {
-		return "date DESC", nil
-	}
-
-	direction := "ASC"
-	field := orderBy
-	if strings.HasPrefix(orderBy, "-") {
-		direction = "DESC"
-		field = strings.TrimPrefix(orderBy, "-")
-	} else if strings.HasPrefix(orderBy, "+") {
-		field = strings.TrimPrefix(orderBy, "+")
-	}
-
-	field = strings.TrimSpace(field)
-	if field == "" {
-		return "", apperror.NewValidation("invalid orderBy").WithDetail("orderBy", orderBy)
-	}
-
-	if _, ok := r.orderCols[field]; !ok {
-		return "", apperror.NewValidation("invalid orderBy").WithDetail("orderBy", orderBy).WithDetail("field", field)
-	}
-
-	return field + " " + direction, nil
 }

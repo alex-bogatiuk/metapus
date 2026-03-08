@@ -31,8 +31,8 @@ type DocumentRepository[T any, L any] interface {
 	// SaveLines replaces all lines for a document (delete + insert)
 	SaveLines(ctx context.Context, docID id.ID, lines []L) error
 
-	// List retrieves documents with filtering and pagination
-	List(ctx context.Context, filter ListFilter) (ListResult[T], error)
+	// List retrieves documents with cursor-based pagination
+	List(ctx context.Context, filter ListFilter) (CursorListResult[T], error)
 
 	// GetForUpdate retrieves document with pessimistic lock (SELECT … FOR UPDATE)
 	GetForUpdate(ctx context.Context, docID id.ID) (T, error)
