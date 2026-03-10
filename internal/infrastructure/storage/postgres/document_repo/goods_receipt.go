@@ -83,7 +83,9 @@ func (r *GoodsReceiptRepo) GetLines(ctx context.Context, docID id.ID) ([]goods_r
 	return lines, nil
 }
 
-// SaveLines saves lines for a goods receipt (delete existing + insert new).
+// SaveLines saves lines for a goods receipt (delete existing + COPY new).
+// Uses PostgreSQL COPY protocol to avoid the 65,535 parameter limit
+// and for higher throughput on large tabular sections.
 func (r *GoodsReceiptRepo) SaveLines(ctx context.Context, docID id.ID, lines []goods_receipt.GoodsReceiptLine) error {
 	querier := r.getTxManager(ctx).GetQuerier(ctx)
 
@@ -97,34 +99,30 @@ func (r *GoodsReceiptRepo) SaveLines(ctx context.Context, docID id.ID, lines []g
 		return nil
 	}
 
-	// Insert new lines
-	q := r.Builder().
-		Insert(goodsReceiptLinesTable).
-		Columns(
-			"line_id", "document_id", "line_no", "product_id",
-			"unit_id", "coefficient",
-			"quantity", "unit_price",
-			"discount_percent", "discount_amount",
-			"vat_rate_id", "vat_percent", "vat_amount", "amount",
-		)
+	// Batch insert new lines via COPY protocol.
+	columns := []string{
+		"line_id", "document_id", "line_no", "product_id",
+		"unit_id", "coefficient",
+		"quantity", "unit_price",
+		"discount_percent", "discount_amount",
+		"vat_rate_id", "vat_percent", "vat_amount", "amount",
+	}
 
+	rows := make([][]any, 0, len(lines))
 	for _, line := range lines {
-		q = q.Values(
+		rows = append(rows, []any{
 			line.LineID, docID, line.LineNo, line.ProductID,
 			line.UnitID, line.Coefficient,
 			line.Quantity, line.UnitPrice,
 			line.DiscountPercent, line.DiscountAmount,
 			line.VATRateID, line.VATPercent, line.VATAmount, line.Amount,
-		)
+		})
 	}
 
-	sql, args, err := q.ToSql()
-	if err != nil {
-		return fmt.Errorf("build insert lines: %w", err)
-	}
-
-	if _, err := querier.Exec(ctx, sql, args...); err != nil {
-		return fmt.Errorf("insert lines: %w", err)
+	txm := r.getTxManager(ctx)
+	inserter := postgres.NewBatchInserter(txm)
+	if _, err := inserter.CopyFromSlice(ctx, goodsReceiptLinesTable, columns, rows); err != nil {
+		return fmt.Errorf("copy lines: %w", err)
 	}
 
 	return nil

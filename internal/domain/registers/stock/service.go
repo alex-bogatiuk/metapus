@@ -71,18 +71,44 @@ func (s *Service) ReverseMovements(ctx context.Context, recorderID id.ID, before
 
 // CheckAndReserveStock validates stock availability with pessimistic locking.
 // Should be called within a transaction before creating expense movements.
+// Uses a single batch query (GetBalancesForUpdate) instead of N individual queries.
 func (s *Service) CheckAndReserveStock(ctx context.Context, items []StockReservation) error {
-	for _, item := range items {
-		balance, err := s.repo.GetBalanceForUpdate(ctx, item.WarehouseID, item.ProductID)
-		if err != nil {
-			return fmt.Errorf("get balance for %s: %w", item.ProductID, err)
-		}
+	if len(items) == 0 {
+		return nil
+	}
 
-		if balance.Quantity < item.RequiredQty {
+	// Build BalanceKey slice for batch lookup.
+	keys := make([]BalanceKey, len(items))
+	for i, item := range items {
+		keys[i] = BalanceKey{
+			WarehouseID: item.WarehouseID,
+			ProductID:   item.ProductID,
+		}
+	}
+
+	// Single DB roundtrip: lock all rows in deterministic order.
+	balances, err := s.repo.GetBalancesForUpdate(ctx, keys)
+	if err != nil {
+		return fmt.Errorf("get balances for update: %w", err)
+	}
+
+	// Build a lookup map: (warehouseID, productID) → balance.
+	type dimKey struct {
+		w, p id.ID
+	}
+	balanceMap := make(map[dimKey]types.Quantity, len(balances))
+	for _, b := range balances {
+		balanceMap[dimKey{b.WarehouseID, b.ProductID}] = b.Quantity
+	}
+
+	// Validate each reservation.
+	for _, item := range items {
+		available := balanceMap[dimKey{item.WarehouseID, item.ProductID}]
+		if available < item.RequiredQty {
 			return apperror.NewInsufficientStock(
 				item.ProductID.String(),
 				item.RequiredQty.Float64(),
-				balance.Quantity.Float64(),
+				available.Float64(),
 			)
 		}
 	}

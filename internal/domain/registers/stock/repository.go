@@ -32,6 +32,11 @@ type Repository interface {
 	// GetBalanceForUpdate returns balance with row lock for stock control
 	GetBalanceForUpdate(ctx context.Context, warehouseID, productID id.ID) (entity.StockBalance, error)
 
+	// GetBalancesForUpdate returns balances for multiple warehouse+product pairs with row locks.
+	// Results are locked in deterministic order (warehouse_id, product_id ASC) to prevent deadlocks.
+	// Keys not found in reg_stock_balances are returned with Quantity=0.
+	GetBalancesForUpdate(ctx context.Context, keys []BalanceKey) ([]entity.StockBalance, error)
+
 	// GetBalancesByWarehouse returns all non-zero balances for a warehouse
 	GetBalancesByWarehouse(ctx context.Context, warehouseID id.ID, filter BalanceFilter) ([]entity.StockBalance, error)
 
@@ -56,6 +61,12 @@ type Repository interface {
 
 	// CheckStockAvailability checks if required quantity is available (with lock)
 	CheckStockAvailability(ctx context.Context, warehouseID, productID id.ID, requiredQty types.Quantity) error
+}
+
+// BalanceKey represents a unique dimension key for stock balance lookup.
+type BalanceKey struct {
+	WarehouseID id.ID
+	ProductID   id.ID
 }
 
 // BalanceFilter for filtering balance queries.

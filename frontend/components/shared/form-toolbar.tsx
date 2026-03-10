@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { ArrowLeft, ArrowRight, MoreHorizontal, HelpCircle, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -76,17 +77,19 @@ export function FormToolbar({
         <div className="mr-4 flex items-center gap-2">
           <h1 className="text-sm font-semibold text-foreground">{title}</h1>
           {status && (
-            <div
+            <Badge
+              variant="secondary"
               className={cn(
-                "inline-flex h-6 items-center px-2.5 rounded-full border text-[11px] font-bold uppercase tracking-wider",
-                status.variant === "success" && "border-success text-success bg-transparent",
-                status.variant === "destructive" && "border-destructive text-destructive bg-transparent",
-                (status.variant === "outline" || !status.variant) && "border-muted-foreground text-muted-foreground bg-transparent",
-                status.variant === "default" && "border-primary text-primary bg-transparent"
+                "h-6 rounded-full px-2.5 text-[11px] font-bold uppercase tracking-wider",
+                status.variant === "success" && "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300",
+                status.variant === "destructive" && "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300",
+                (status.variant === "outline" || !status.variant) && "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+                status.variant === "default" && "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+                status.variant === "secondary" && "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
               )}
             >
               {status.label}
-            </div>
+            </Badge>
           )}
         </div>
 

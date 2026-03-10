@@ -204,6 +204,73 @@ func (r *StockRepo) GetBalanceForUpdate(ctx context.Context, warehouseID, produc
 	return balance, nil
 }
 
+// GetBalancesForUpdate returns balances for multiple warehouse+product pairs
+// with pessimistic locking in deterministic key order (deadlock-safe).
+// Keys not found in reg_stock_balances are returned with Quantity=0.
+func (r *StockRepo) GetBalancesForUpdate(ctx context.Context, keys []stock.BalanceKey) ([]entity.StockBalance, error) {
+	if len(keys) == 0 {
+		return nil, nil
+	}
+
+	// Single-key fast path: reuse existing method.
+	if len(keys) == 1 {
+		b, err := r.GetBalanceForUpdate(ctx, keys[0].WarehouseID, keys[0].ProductID)
+		if err != nil {
+			return nil, err
+		}
+		return []entity.StockBalance{b}, nil
+	}
+
+	// Build arrays for unnest.
+	warehouseIDs := make([]id.ID, len(keys))
+	productIDs := make([]id.ID, len(keys))
+	for i, k := range keys {
+		warehouseIDs[i] = k.WarehouseID
+		productIDs[i] = k.ProductID
+	}
+
+	// Lock existing rows in deterministic order (Resource Ordering).
+	//   SELECT ... FROM reg_stock_balances WHERE (warehouse_id, product_id) IN (...)
+	//   ORDER BY warehouse_id, product_id FOR UPDATE
+	sql := `
+		SELECT b.warehouse_id, b.product_id, b.quantity, b.last_movement_at, b.updated_at
+		FROM reg_stock_balances b
+		JOIN unnest($1::uuid[], $2::uuid[]) AS k(wid, pid)
+		  ON b.warehouse_id = k.wid AND b.product_id = k.pid
+		ORDER BY b.warehouse_id, b.product_id
+		FOR UPDATE
+	`
+
+	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	var found []entity.StockBalance
+	if err := pgxscan.Select(ctx, querier, &found, sql, warehouseIDs, productIDs); err != nil {
+		return nil, fmt.Errorf("get balances for update: %w", err)
+	}
+
+	// Build a lookup set of found keys.
+	type dimKey struct {
+		w, p id.ID
+	}
+	foundSet := make(map[dimKey]struct{}, len(found))
+	for _, b := range found {
+		foundSet[dimKey{b.WarehouseID, b.ProductID}] = struct{}{}
+	}
+
+	// Append zero-balances for keys not found in DB (same behaviour as single-key method).
+	for _, k := range keys {
+		dk := dimKey{k.WarehouseID, k.ProductID}
+		if _, ok := foundSet[dk]; !ok {
+			found = append(found, entity.StockBalance{
+				WarehouseID: k.WarehouseID,
+				ProductID:   k.ProductID,
+				Quantity:    0,
+			})
+		}
+	}
+
+	return found, nil
+}
+
 // GetBalancesByWarehouse returns balances for a warehouse.
 func (r *StockRepo) GetBalancesByWarehouse(ctx context.Context, warehouseID id.ID, filter stock.BalanceFilter) ([]entity.StockBalance, error) {
 	q := r.builder.Select(

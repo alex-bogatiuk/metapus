@@ -1,11 +1,10 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { useCollapsible } from "@/hooks/useCollapsible"
 import { useRouter, useParams, usePathname } from "next/navigation"
 import {
   Plus,
-  Trash2,
   Loader2,
   ChevronsUp,
   ChevronsDown,
@@ -13,22 +12,21 @@ import {
 import { FormToolbar } from "@/components/shared/form-toolbar"
 import { FormSidebar } from "@/components/shared/form-sidebar"
 import { ReferenceField } from "@/components/shared/reference-field"
+import { DocumentLineRow } from "@/components/shared/document-line-row"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { DatePicker } from "@/components/ui/date-picker"
 import { useTabDirty } from "@/hooks/useTabDirty"
 import { useTabTitle } from "@/hooks/useTabTitle"
 import { useFormDraft } from "@/hooks/useFormDraft"
-import { cn } from "@/lib/utils"
 import { api } from "@/lib/api"
-import { fmtAmount, fmtDate, fromQuantity, fromMinorUnits, toQuantity, toMinorUnits, moneyStep, DEFAULT_DECIMAL_PLACES } from "@/lib/format"
+import { fromQuantity, fromMinorUnits, toQuantity, toMinorUnits, DEFAULT_DECIMAL_PLACES } from "@/lib/format"
 import { useCurrencyScale } from "@/hooks/useCurrencyScale"
-import { type FormLine, emptyLine, fetchVatRatePercent, calcLineAmounts, computeTotals } from "@/lib/document-form"
+import { type FormLine, emptyLine, fetchVatRatePercent, computeTotals } from "@/lib/document-form"
 import { DocumentTotalsFooter } from "@/components/shared/document-totals-footer"
 import { toast } from "sonner"
 import type { GoodsReceiptResponse, GoodsReceiptLineRequest, UpdateGoodsReceiptRequest } from "@/types/document"
@@ -158,15 +156,10 @@ export default function GoodsReceiptFormPage() {
     markDirty()
   }
 
-  const removeLine = (key: number) => {
-    update({ lines: f.lines.filter((l) => l._key !== key) })
-    markDirty()
-  }
-
-  const editableFields: (keyof FormLine)[] = ["quantity", "unitPrice", "vatPercent", "discountPercent"]
-
-  const updateLine = (key: number, field: keyof FormLine, value: string) => {
-    update({ lines: f.lines.map((l) => {
+  // ── Stable callbacks for DocumentLineRow (React.memo-safe) ──────────
+  const handleUpdateField = useCallback((key: number, field: keyof FormLine, value: string) => {
+    const editableFields: (keyof FormLine)[] = ["quantity", "unitPrice", "vatPercent", "discountPercent"]
+    update((prev) => ({ lines: prev.lines.map((l) => {
       if (l._key !== key) return l
       const updated = { ...l, [field]: value }
       if (editableFields.includes(field)) {
@@ -174,9 +167,29 @@ export default function GoodsReceiptFormPage() {
         updated.vatAmount = undefined
       }
       return updated
-    }) })
+    }) }))
     markDirty()
-  }
+  }, [update, markDirty])
+
+  const handleUpdateRef = useCallback((key: number, patch: Partial<FormLine>) => {
+    update((prev) => ({ lines: prev.lines.map((l) => l._key === key ? { ...l, ...patch, amount: undefined, vatAmount: undefined } : l) }))
+    markDirty()
+  }, [update, markDirty])
+
+  const handleUpdateVatRate = useCallback((key: number, id: string, name: string) => {
+    update((prev) => ({ lines: prev.lines.map((l) => l._key === key ? { ...l, vatRateId: id, vatRateName: name, amount: undefined, vatAmount: undefined } : l) }))
+    markDirty()
+    if (id) {
+      fetchVatRatePercent(id).then((pct) => {
+        update((prev) => ({ lines: prev.lines.map((l) => l._key === key ? { ...l, vatPercent: pct, amount: undefined, vatAmount: undefined } : l) }))
+      })
+    }
+  }, [update, markDirty])
+
+  const handleRemoveLine = useCallback((key: number) => {
+    update((prev) => ({ lines: prev.lines.filter((l) => l._key !== key) }))
+    markDirty()
+  }, [update, markDirty])
 
   const totals = useMemo(() => {
     if (doc && !f.lines.some((l) => l.amount === undefined)) {
@@ -519,56 +532,18 @@ export default function GoodsReceiptFormPage() {
                           </tr>
                         )}
                         {f.lines.map((line, idx) => (
-                          <tr key={line._key} className="group hover:bg-primary/5 transition-colors">
-                            <td className="px-2 py-1.5 text-center text-xs text-muted-foreground">{idx + 1}</td>
-                            <td className="px-1 py-1">
-                              <ReferenceField
-                                compact
-                                value={line.productId}
-                                displayName={line.productName}
-                                apiEndpoint="/catalog/nomenclature"
-                                placeholder="Номенклатура"
-                                onChange={(id, name) => { update({ lines: f.lines.map(l => l._key === line._key ? { ...l, productId: id, productName: name } : l) }); markDirty() }}
-                              />
-                            </td>
-                            <td className="px-1 py-1">
-                              <ReferenceField
-                                compact
-                                value={line.unitId}
-                                displayName={line.unitName}
-                                apiEndpoint="/catalog/units"
-                                placeholder="Ед. изм."
-                                onChange={(id, name) => { update({ lines: f.lines.map(l => l._key === line._key ? { ...l, unitId: id, unitName: name } : l) }); markDirty() }}
-                              />
-                            </td>
-                            <td className="px-1 py-1"><Input className="h-7 text-right font-mono text-xs" type="number" step="0.001" value={line.quantity} onChange={(e) => updateLine(line._key, "quantity", e.target.value)} /></td>
-                            <td className="px-1 py-1"><Input className="h-7 text-right font-mono text-xs" type="number" step={moneyStep(decimalPlaces)} value={line.unitPrice} onChange={(e) => updateLine(line._key, "unitPrice", e.target.value)} /></td>
-                            <td className="px-1 py-1 text-right font-mono text-xs text-muted-foreground">{(() => { const a = line.amount !== undefined ? line.amount : calcLineAmounts(line, f.amountIncludesVat, decimalPlaces).amount; return fmtAmount(a, decimalPlaces) })()}</td>
-                            <td className="px-1 py-1 text-right font-mono text-xs text-muted-foreground">{(() => { const v = line.vatAmount !== undefined ? line.vatAmount : calcLineAmounts(line, f.amountIncludesVat, decimalPlaces).vatAmount; return fmtAmount(v, decimalPlaces) })()}</td>
-                            <td className="px-1 py-1">
-                              <ReferenceField
-                                compact
-                                value={line.vatRateId}
-                                displayName={line.vatRateName}
-                                apiEndpoint="/catalog/vat-rates"
-                                placeholder="Ставка НДС"
-                                onChange={(id, name) => {
-                                  update({ lines: f.lines.map(l => l._key === line._key ? { ...l, vatRateId: id, vatRateName: name, amount: undefined, vatAmount: undefined } : l) })
-                                  markDirty()
-                                  if (id) {
-                                    fetchVatRatePercent(id).then(pct => {
-                                      update((prev) => ({ lines: prev.lines.map(l => l._key === line._key ? { ...l, vatPercent: pct, amount: undefined, vatAmount: undefined } : l) }))
-                                    })
-                                  }
-                                }}
-                              />
-                            </td>
-                            <td className="px-1 py-1">
-                              <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeLine(line._key)}>
-                                <Trash2 className="h-4 w-4 text-destructive/70" />
-                              </Button>
-                            </td>
-                          </tr>
+                          <DocumentLineRow
+                            key={line._key}
+                            line={line}
+                            rowNumber={idx + 1}
+                            decimalPlaces={decimalPlaces}
+                            amountIncludesVat={f.amountIncludesVat}
+                            onUpdateField={handleUpdateField}
+                            onUpdateRef={handleUpdateRef}
+                            onUpdateVatRate={handleUpdateVatRate}
+                            onRemove={handleRemoveLine}
+                            showAmounts
+                          />
                         ))}
                       </tbody>
                     </table>

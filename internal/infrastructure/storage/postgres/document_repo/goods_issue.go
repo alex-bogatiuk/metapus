@@ -92,33 +92,30 @@ func (r *GoodsIssueRepo) SaveLines(ctx context.Context, docID id.ID, lines []goo
 		return nil
 	}
 
-	q := r.Builder().
-		Insert(goodsIssueLinesTable).
-		Columns(
-			"line_id", "document_id", "line_no", "product_id",
-			"unit_id", "coefficient",
-			"quantity", "unit_price",
-			"discount_percent", "discount_amount",
-			"vat_rate_id", "vat_amount", "amount",
-		)
+	// Batch insert via COPY protocol (no 65,535 parameter limit).
+	columns := []string{
+		"line_id", "document_id", "line_no", "product_id",
+		"unit_id", "coefficient",
+		"quantity", "unit_price",
+		"discount_percent", "discount_amount",
+		"vat_rate_id", "vat_amount", "amount",
+	}
 
+	rows := make([][]any, 0, len(lines))
 	for _, line := range lines {
-		q = q.Values(
+		rows = append(rows, []any{
 			line.LineID, docID, line.LineNo, line.ProductID,
 			line.UnitID, line.Coefficient,
 			line.Quantity, line.UnitPrice,
 			line.DiscountPercent, line.DiscountAmount,
 			line.VATRateID, line.VATAmount, line.Amount,
-		)
+		})
 	}
 
-	sql, args, err := q.ToSql()
-	if err != nil {
-		return fmt.Errorf("build insert lines: %w", err)
-	}
-
-	if _, err := querier.Exec(ctx, sql, args...); err != nil {
-		return fmt.Errorf("insert lines: %w", err)
+	txm := r.getTxManager(ctx)
+	inserter := postgres.NewBatchInserter(txm)
+	if _, err := inserter.CopyFromSlice(ctx, goodsIssueLinesTable, columns, rows); err != nil {
+		return fmt.Errorf("copy lines: %w", err)
 	}
 
 	return nil
