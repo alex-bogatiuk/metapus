@@ -47,6 +47,8 @@ WHERE r.code = 'manager'
     p.code LIKE 'catalog:%'
     OR p.code LIKE 'document:%:read'
     OR p.code LIKE 'document:%:create'
+    OR p.code LIKE 'document:%:update'
+    OR p.code LIKE 'document:%:delete'
     OR p.code LIKE 'register:%:read'
   )
 ON CONFLICT DO NOTHING;

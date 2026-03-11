@@ -25,7 +25,7 @@ type GoodsIssueHandler struct {
 func NewGoodsIssueHandler(base *BaseHandler, service domain.DocumentService[*goods_issue.GoodsIssue]) *GoodsIssueHandler {
 	cfg := BaseDocumentHandlerConfig[*goods_issue.GoodsIssue, dto.CreateGoodsIssueRequest, dto.UpdateGoodsIssueRequest]{
 		Service:    service,
-		EntityName: "goods-issue",
+		EntityName: "goods_issue",
 		MapCreateDTO: func(req dto.CreateGoodsIssueRequest) *goods_issue.GoodsIssue {
 			return req.ToEntity()
 		},

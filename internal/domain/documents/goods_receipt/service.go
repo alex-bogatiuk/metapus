@@ -31,7 +31,7 @@ func NewService(
 		CurrencyResolver:  currencyStrategy,
 		NumeratorPrefix:   "GR",
 		NumeratorStrategy: NumeratorStrategy,
-		EntityName:        "goods receipt",
+		EntityName:        "goods_receipt",
 	})
 	return &Service{BaseDocumentService: base}
 }

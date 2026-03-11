@@ -30,7 +30,7 @@ func NewService(
 		CurrencyResolver:  currencyStrategy,
 		NumeratorPrefix:   "GI",
 		NumeratorStrategy: NumeratorStrategy,
-		EntityName:        "goods issue",
+		EntityName:        "goods_issue",
 	})
 	return &Service{BaseDocumentService: base}
 }

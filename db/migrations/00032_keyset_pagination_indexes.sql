@@ -1,6 +1,9 @@
+-- +goose NO TRANSACTION
 -- Composite indexes for cursor-based (keyset) pagination.
 -- Each index covers the tuple comparison pattern: (sort_field, id) > ($val, $id)
 -- with matching sort direction for efficient index-only scans.
+
+-- +goose Up
 
 -- ── Catalogs: default sort by (name ASC, id ASC) ─────────────────────────
 
@@ -43,3 +46,18 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_doc_goods_receipts_created_id
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_doc_goods_issues_created_id
     ON doc_goods_issues (created_at DESC, id DESC);
+
+-- +goose Down
+
+DROP INDEX CONCURRENTLY IF EXISTS idx_cat_currencies_name_id;
+DROP INDEX CONCURRENTLY IF EXISTS idx_cat_organizations_name_id;
+DROP INDEX CONCURRENTLY IF EXISTS idx_cat_counterparties_name_id;
+DROP INDEX CONCURRENTLY IF EXISTS idx_cat_units_name_id;
+DROP INDEX CONCURRENTLY IF EXISTS idx_cat_warehouses_name_id;
+DROP INDEX CONCURRENTLY IF EXISTS idx_cat_vat_rates_name_id;
+DROP INDEX CONCURRENTLY IF EXISTS idx_cat_nomenclature_name_id;
+DROP INDEX CONCURRENTLY IF EXISTS idx_cat_contracts_name_id;
+DROP INDEX CONCURRENTLY IF EXISTS idx_doc_goods_receipts_date_id;
+DROP INDEX CONCURRENTLY IF EXISTS idx_doc_goods_issues_date_id;
+DROP INDEX CONCURRENTLY IF EXISTS idx_doc_goods_receipts_created_id;
+DROP INDEX CONCURRENTLY IF EXISTS idx_doc_goods_issues_created_id;

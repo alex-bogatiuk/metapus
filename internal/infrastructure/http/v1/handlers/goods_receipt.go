@@ -9,6 +9,7 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/core/security"
 	"metapus/internal/core/tenant"
 	"metapus/internal/domain"
 	"metapus/internal/domain/documents/goods_receipt"
@@ -28,7 +29,7 @@ type GoodsReceiptHandler struct {
 func NewGoodsReceiptHandler(base *BaseHandler, service domain.DocumentService[*goods_receipt.GoodsReceipt]) *GoodsReceiptHandler {
 	cfg := BaseDocumentHandlerConfig[*goods_receipt.GoodsReceipt, dto.CreateGoodsReceiptRequest, dto.UpdateGoodsReceiptRequest]{
 		Service:    service,
-		EntityName: "goods-receipt",
+		EntityName: "goods_receipt",
 		MapCreateDTO: func(req dto.CreateGoodsReceiptRequest) *goods_receipt.GoodsReceipt {
 			return req.ToEntity()
 		},
@@ -86,6 +87,9 @@ func (h *GoodsReceiptHandler) Get(c *gin.Context) {
 		return
 	}
 
+	// FLS: mask restricted fields before DTO mapping
+	h.applyFLSRead(c, doc)
+
 	refs, currencyRefs, err := h.resolveDocRefs(ctx, doc)
 	if err != nil {
 		h.Error(c, err)
@@ -118,8 +122,15 @@ func (h *GoodsReceiptHandler) List(c *gin.Context) {
 		return
 	}
 
+	// FLS: mask restricted fields before DTO mapping
+	policy := security.GetFieldPolicy(ctx, h.entityName, "read")
+	masker := security.NewFieldMasker()
+
 	items := make([]any, len(result.Items))
 	for i, item := range result.Items {
+		if policy != nil {
+			masker.MaskForRead(item, policy)
+		}
 		items[i] = dto.FromGoodsReceipt(item, refs, currencyRefs)
 	}
 
