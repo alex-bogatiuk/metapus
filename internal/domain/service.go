@@ -9,6 +9,7 @@ import (
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/numerator"
+	"metapus/internal/core/security"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/tx"
 	"metapus/pkg/logger"
@@ -17,10 +18,11 @@ import (
 // CatalogService provides business logic for catalog entities.
 // In Database-per-Tenant architecture, TxManager can be nil - it will be obtained from context.
 type CatalogService[T entity.Validatable] struct {
-	repo      CatalogRepository[T]
-	txManager tx.Manager // Optional - if nil, obtained from context
-	numerator numerator.Generator
-	hooks     *HookRegistry[T]
+	repo         CatalogRepository[T]
+	txManager    tx.Manager // Optional - if nil, obtained from context
+	numerator    numerator.Generator
+	policyEngine *security.PolicyEngine
+	hooks        *HookRegistry[T]
 
 	// entityName for error messages and numerator prefix
 	entityName string
@@ -34,10 +36,11 @@ type CatalogService[T entity.Validatable] struct {
 
 // CatalogServiceConfig configures the catalog service.
 type CatalogServiceConfig[T entity.Validatable] struct {
-	Repo       CatalogRepository[T]
-	TxManager  tx.Manager // Optional for Database-per-Tenant
-	Numerator  numerator.Generator
-	EntityName string
+	Repo         CatalogRepository[T]
+	TxManager    tx.Manager // Optional for Database-per-Tenant
+	Numerator    numerator.Generator
+	PolicyEngine *security.PolicyEngine // Optional — CEL policy evaluation
+	EntityName   string
 }
 
 // NewCatalogService creates a new catalog service.
@@ -54,6 +57,7 @@ func NewCatalogService[T entity.Validatable](cfg CatalogServiceConfig[T]) *Catal
 		repo:               cfg.Repo,
 		txManager:          cfg.TxManager,
 		numerator:          cfg.Numerator,
+		policyEngine:       cfg.PolicyEngine,
 		hooks:              NewHookRegistry[T](),
 		entityName:         cfg.EntityName,
 		meta:               meta,
@@ -73,6 +77,11 @@ func (s *CatalogService[T]) getTxManager(ctx context.Context) (tx.Manager, error
 // Hooks returns the hook registry for external registration.
 func (s *CatalogService[T]) Hooks() *HookRegistry[T] {
 	return s.hooks
+}
+
+// SetPolicyEngine sets the CEL policy engine after construction.
+func (s *CatalogService[T]) SetPolicyEngine(engine *security.PolicyEngine) {
+	s.policyEngine = engine
 }
 
 func (s *CatalogService[T]) normalizeValidationErr(err error) error {
@@ -101,11 +110,52 @@ func (s *CatalogService[T]) normalizeGetErr(err error, idOrCode any) error {
 	return apperror.NewInternal(err).WithDetail("entity", s.entityName).WithDetail("id", idOrCode)
 }
 
+// checkCELPolicy evaluates CEL policy rules for the given action and entity.
+// Returns nil if no PolicyEngine is configured or no rules match.
+func (s *CatalogService[T]) checkCELPolicy(ctx context.Context, action string, ent T) error {
+	if s.policyEngine == nil {
+		return nil
+	}
+	rules := security.GetApplicableRules(ctx, s.entityName, action)
+	if len(rules) == 0 {
+		return nil
+	}
+	return s.policyEngine.Evaluate(ctx, rules, action, ent)
+}
+
+// checkRLSAccess checks if the current DataScope allows access to the entity.
+// Uses type assertion — only entities implementing RLSDimensionable are checked.
+func (s *CatalogService[T]) checkRLSAccess(ctx context.Context, ent T) error {
+	scope := security.GetDataScope(ctx)
+	if scope == nil || scope.IsAdmin {
+		return nil
+	}
+	if dimensionable, ok := any(ent).(security.RLSDimensionable); ok {
+		if !scope.CanAccessRecord(dimensionable.GetRLSDimensions()) {
+			return apperror.NewForbidden("access denied by security policy")
+		}
+	}
+	return nil
+}
+
 // Create creates a new catalog entity.
 func (s *CatalogService[T]) Create(ctx context.Context, entity T) error {
+	// RLS: check write permission
+	if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+		return err
+	}
+	if err := s.checkRLSAccess(ctx, entity); err != nil {
+		return err
+	}
+
 	// 1. Validate entity invariants
 	if err := entity.Validate(ctx); err != nil {
 		return s.normalizeValidationErr(err)
+	}
+
+	// CEL policy check
+	if err := s.checkCELPolicy(ctx, "create", entity); err != nil {
+		return err
 	}
 
 	// 2. Validate hierarchy constraints (if hierarchical catalog)
@@ -147,6 +197,16 @@ func (s *CatalogService[T]) GetByID(ctx context.Context, entityID id.ID) (T, err
 	if err != nil {
 		return entity, s.normalizeGetErr(err, entityID.String())
 	}
+	// RLS: point-check after fetch
+	if err := s.checkRLSAccess(ctx, entity); err != nil {
+		var zero T
+		return zero, err
+	}
+	// CEL policy check for read
+	if err := s.checkCELPolicy(ctx, "read", entity); err != nil {
+		var zero T
+		return zero, err
+	}
 	return entity, nil
 }
 
@@ -161,6 +221,30 @@ func (s *CatalogService[T]) GetByCode(ctx context.Context, code string) (T, erro
 
 // Update updates an existing entity.
 func (s *CatalogService[T]) Update(ctx context.Context, entity T) error {
+	// RLS: check write permission and record access
+	if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+		return err
+	}
+	if err := s.checkRLSAccess(ctx, entity); err != nil {
+		return err
+	}
+
+	// CEL policy check
+	if err := s.checkCELPolicy(ctx, "update", entity); err != nil {
+		return err
+	}
+
+	// FLS: validate that no restricted fields were modified
+	if writePolicy := security.GetFieldPolicy(ctx, s.entityName, "write"); writePolicy != nil {
+		oldEntity, err := s.repo.GetByID(ctx, any(entity).(interface{ GetID() id.ID }).GetID())
+		if err != nil {
+			return fmt.Errorf("fls: fetch old entity: %w", err)
+		}
+		if err := security.NewFieldMasker().ValidateWrite(oldEntity, entity, writePolicy); err != nil {
+			return err
+		}
+	}
+
 	// 1. Validate entity invariants
 	if err := entity.Validate(ctx); err != nil {
 		return s.normalizeValidationErr(err)
@@ -201,10 +285,23 @@ func (s *CatalogService[T]) Update(ctx context.Context, entity T) error {
 
 // Delete performs soft delete.
 func (s *CatalogService[T]) Delete(ctx context.Context, entityID id.ID) error {
-	// 1. Get entity first (for hooks)
+	// RLS: check write permission
+	if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+		return err
+	}
+
+	// 1. Get entity first (for hooks + RLS point-check)
 	entity, err := s.repo.GetByID(ctx, entityID)
 	if err != nil {
 		return s.normalizeGetErr(err, entityID.String())
+	}
+	if err := s.checkRLSAccess(ctx, entity); err != nil {
+		return err
+	}
+
+	// CEL policy check
+	if err := s.checkCELPolicy(ctx, "delete", entity); err != nil {
+		return err
 	}
 
 	// 2. Run before-delete hooks
@@ -236,11 +333,20 @@ func (s *CatalogService[T]) Delete(ctx context.Context, entityID id.ID) error {
 }
 
 func (s *CatalogService[T]) SetDeletionMark(ctx context.Context, entityID id.ID, marked bool) error {
+	// RLS: check write permission
+	if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+		return err
+	}
 	return s.repo.SetDeletionMark(ctx, entityID, marked)
 }
 
 // List retrieves entities with cursor-based pagination.
+// Defense-in-depth: if DataScope was not injected by handler (ParseListFilter),
+// fall back to context — ensures RLS is enforced even for direct service calls.
 func (s *CatalogService[T]) List(ctx context.Context, filter ListFilter) (CursorListResult[T], error) {
+	if filter.DataScope == nil {
+		filter.DataScope = security.GetDataScope(ctx)
+	}
 	return s.repo.List(ctx, filter)
 }
 

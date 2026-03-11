@@ -7,6 +7,7 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/core/security"
 	"metapus/internal/domain"
 	"metapus/internal/infrastructure/http/v1/dto"
 )
@@ -51,6 +52,17 @@ func NewBaseDocumentHandler[T any, CreateDTO any, UpdateDTO any](
 	}
 }
 
+// applyFLSRead applies field-level security masking for read operations.
+// Masks restricted fields on the domain entity before DTO mapping.
+func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) applyFLSRead(c *gin.Context, entity any) {
+	policy := security.GetFieldPolicy(c.Request.Context(), h.entityName, "read")
+	if policy == nil {
+		return
+	}
+	masker := security.NewFieldMasker()
+	masker.MaskForRead(entity, policy)
+}
+
 // Get handles GET /{entity}/:id
 func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) Get(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -66,6 +78,9 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) Get(c *gin.Context) {
 		h.Error(c, err)
 		return
 	}
+
+	// FLS: mask restricted fields before DTO mapping
+	h.applyFLSRead(c, doc)
 
 	c.JSON(http.StatusOK, h.mapToDTO(doc))
 }
@@ -287,9 +302,10 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) List(c *gin.Context) {
 		return
 	}
 
-	// Map entities to DTOs
+	// Map entities to DTOs (with FLS masking)
 	items := make([]any, len(result.Items))
 	for i, item := range result.Items {
+		h.applyFLSRead(c, item)
 		items[i] = h.mapToDTO(item)
 	}
 

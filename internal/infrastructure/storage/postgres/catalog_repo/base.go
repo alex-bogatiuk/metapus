@@ -36,6 +36,11 @@ type BaseCatalogRepo[T any] struct {
 	orderCols       map[string]struct{}
 	hierarchical    bool                                 // true = supports parent_id/is_folder hierarchy
 	referenceFields map[string]filter.ReferenceFieldInfo // field name → reference catalog info (for deep filtering)
+
+	// rlsDimensions maps security dimension names to DB column names.
+	// Configured via RegisterRLSDimension. At query time, DataScope.ApplyConditions
+	// uses this map to inject WHERE conditions for matching dimensions.
+	rlsDimensions map[string]string // e.g. {"organization": "organization_id"}
 }
 
 // NewBaseCatalogRepo creates a new base catalog repository.
@@ -72,6 +77,19 @@ func NewBaseCatalogRepo[T any](
 		orderCols:    orderCols,
 		hierarchical: hierarchical,
 	}
+}
+
+// RegisterRLSDimension registers a security dimension for row-level filtering.
+// dimensionName is a logical name (e.g., "organization", "counterparty", "cost_article").
+// dbColumn is the actual DB column name in this entity's table (e.g., "organization_id").
+//
+// At query time, if the user's DataScope has allowed values for this dimension,
+// a WHERE dbColumn IN (...) condition is added automatically.
+func (r *BaseCatalogRepo[T]) RegisterRLSDimension(dimensionName, dbColumn string) {
+	if r.rlsDimensions == nil {
+		r.rlsDimensions = make(map[string]string)
+	}
+	r.rlsDimensions[dimensionName] = dbColumn
 }
 
 // getTxManager retrieves TxManager from context.
@@ -234,6 +252,12 @@ func (r *BaseCatalogRepo[T]) buildWhereConditions(filter domain.ListFilter) ([]s
 
 	if filter.IsFolder != nil && r.hierarchical {
 		conditions = append(conditions, squirrel.Eq{"is_folder": *filter.IsFolder})
+	}
+
+	// Apply RLS DataScope conditions
+	if filter.DataScope != nil && len(r.rlsDimensions) > 0 {
+		rlsConditions := filter.DataScope.ApplyConditions(r.rlsDimensions)
+		conditions = append(conditions, rlsConditions...)
 	}
 
 	// Apply advanced filters

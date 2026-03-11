@@ -52,6 +52,9 @@ func NewGoodsReceiptRepo() *GoodsReceiptRepo {
 		"type", "currency_id",
 	})
 
+	// Register RLS dimensions for DataScope filtering.
+	repo.RegisterRLSDimension("organization", "organization_id")
+
 	return repo
 }
 

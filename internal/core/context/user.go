@@ -12,9 +12,9 @@ type UserContext struct {
 	Email     string
 	Roles     []string
 	Permissions []string
-	OrgIDs    []string // Organizations user has access to
-	IsAdmin   bool
-	SessionID string
+	OrgIDs      []string // Organizations user has access to
+	IsAdmin     bool
+	SessionID   string
 }
 
 type userContextKey struct{}

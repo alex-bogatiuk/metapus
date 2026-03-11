@@ -13,11 +13,14 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"metapus/internal/core/security"
 	"metapus/internal/core/tenant"
 	"metapus/internal/domain/auth"
+	"metapus/internal/domain/security_profile"
 	v1 "metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres/auth_repo"
+	"metapus/internal/infrastructure/storage/postgres/security_repo"
 	"metapus/pkg/logger"
 )
 
@@ -110,6 +113,17 @@ func main() {
 	// Note: Numerator will need to be updated to work with context-based TxManager
 	numeratorService := numerator.NewFromContext()
 
+	// --- Security Profile Provider (cached) ---
+	profileRepo := security_repo.NewProfileRepo()
+	profileCacheTTL := getEnvDuration("SECURITY_PROFILE_CACHE_TTL", 5*time.Minute)
+	profileProvider := security_profile.NewCachedProfileProvider(profileRepo, profileCacheTTL)
+
+	// --- CEL Policy Engine ---
+	policyEngine, err := security.NewPolicyEngine()
+	if err != nil {
+		log.Fatal("failed to create policy engine", "error", err)
+	}
+
 	// --- Router ---
 	router := v1.NewRouter(v1.RouterConfig{
 		TenantManager:      tenantManager,
@@ -119,6 +133,8 @@ func main() {
 		AuthService:        authService,
 		Numerator:          numeratorService,
 		IdempotencyEnabled: getEnv("IDEMPOTENCY_ENABLED", "false") == "true",
+		ProfileProvider:    profileProvider,
+		PolicyEngine:       policyEngine,
 	})
 
 	// --- HTTP Server ---

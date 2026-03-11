@@ -33,6 +33,11 @@ type BaseDocumentRepo[T any] struct {
 	orderCols       map[string]struct{}                  // whitelist for ORDER BY columns
 	tableParts      map[string]filter.TablePartInfo      // table part name → child table info (for EXISTS subqueries)
 	referenceFields map[string]filter.ReferenceFieldInfo // field name → reference catalog info (for deep filtering)
+
+	// rlsDimensions maps security dimension names to DB column names.
+	// Configured via RegisterRLSDimension. At query time, DataScope.ApplyConditions
+	// uses this map to inject WHERE conditions for matching dimensions.
+	rlsDimensions map[string]string // e.g. {"organization": "organization_id"}
 }
 
 // NewBaseDocumentRepo creates a new base document repository.
@@ -59,6 +64,19 @@ func NewBaseDocumentRepo[T any](
 		validCols:  validCols,
 		orderCols:  orderCols,
 	}
+}
+
+// RegisterRLSDimension registers a security dimension for row-level filtering.
+// dimensionName is a logical name (e.g., "organization", "counterparty", "cost_article").
+// dbColumn is the actual DB column name in this entity's table (e.g., "organization_id").
+//
+// At query time, if the user's DataScope has allowed values for this dimension,
+// a WHERE dbColumn IN (...) condition is added automatically.
+func (r *BaseDocumentRepo[T]) RegisterRLSDimension(dimensionName, dbColumn string) {
+	if r.rlsDimensions == nil {
+		r.rlsDimensions = make(map[string]string)
+	}
+	r.rlsDimensions[dimensionName] = dbColumn
 }
 
 // RegisterTablePart registers a child table (table part / tabular section)
@@ -320,7 +338,7 @@ func (r *BaseDocumentRepo[T]) GetForUpdate(ctx context.Context, entityID id.ID) 
 }
 
 // buildWhereConditions builds WHERE conditions from domain.ListFilter.
-// Handles standard filters (search, deletion_mark) and advanced filters.
+// Handles standard filters (search, deletion_mark), RLS DataScope, and advanced filters.
 func (r *BaseDocumentRepo[T]) buildWhereConditions(f domain.ListFilter) ([]squirrel.Sqlizer, error) {
 	var conditions []squirrel.Sqlizer
 
@@ -330,6 +348,12 @@ func (r *BaseDocumentRepo[T]) buildWhereConditions(f domain.ListFilter) ([]squir
 
 	if f.Search != "" {
 		conditions = append(conditions, squirrel.ILike{"number": "%" + f.Search + "%"})
+	}
+
+	// Apply RLS DataScope conditions
+	if f.DataScope != nil && len(r.rlsDimensions) > 0 {
+		rlsConditions := f.DataScope.ApplyConditions(r.rlsDimensions)
+		conditions = append(conditions, rlsConditions...)
 	}
 
 	// Apply advanced filters: separate header filters from table-part and reference filters (dot notation)

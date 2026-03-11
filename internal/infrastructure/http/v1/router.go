@@ -8,12 +8,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"metapus/internal/core/numerator"
+	"metapus/internal/core/security"
 	"metapus/internal/core/tenant"
 	"metapus/internal/domain/auth"
 	"metapus/internal/domain/documents"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/stock"
 	"metapus/internal/domain/reports"
+	"metapus/internal/domain/security_profile"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
@@ -21,6 +23,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
 	"metapus/internal/infrastructure/storage/postgres/report_repo"
+	"metapus/internal/infrastructure/storage/postgres/security_repo"
 	"metapus/internal/metadata"
 	"metapus/pkg/logger"
 )
@@ -47,6 +50,12 @@ type RouterConfig struct {
 
 	// IdempotencyEnabled enables idempotency middleware
 	IdempotencyEnabled bool
+
+	// ProfileProvider provides cached security profiles for RLS/FLS
+	ProfileProvider security_profile.ProfileProvider
+
+	// PolicyEngine for CEL-based fine-grained authorization (optional)
+	PolicyEngine *security.PolicyEngine
 }
 
 // NewRouter creates and configures the Gin router for multi-tenant architecture.
@@ -86,6 +95,9 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		protected.Use(middleware.TenantDB(cfg.TenantManager)) // 1. Resolve tenant, get DB pool
 		protected.Use(middleware.Auth(cfg.JWTValidator))      // 2. Validate JWT
 		protected.Use(middleware.UserContext())               // 3. Add UserID to context for domain layer
+		if cfg.ProfileProvider != nil {
+			protected.Use(middleware.SecurityContext(cfg.ProfileProvider)) // 4. Build DataScope + FieldPolicies
+		}
 
 		// Apply idempotency middleware for mutating operations
 		if cfg.IdempotencyEnabled {
@@ -99,6 +111,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		registerReportRoutes(protected, cfg)
 		registerMetaRoutes(protected, reg)
 		registerUserPrefsRoutes(protected)
+		registerSecurityRoutes(protected, cfg)
 	}
 
 	return router
@@ -142,8 +155,9 @@ func registerCatalogRoutes(rg *gin.RouterGroup, cfg RouterConfig, reg *metadata.
 	catalogs := rg.Group("/catalog")
 
 	deps := CatalogDeps{
-		BaseHandler: handlers.NewBaseHandler(),
-		Numerator:   cfg.Numerator,
+		BaseHandler:  handlers.NewBaseHandler(),
+		Numerator:    cfg.Numerator,
+		PolicyEngine: cfg.PolicyEngine,
 	}
 
 	// Build refEndpoints from factory declarations
@@ -196,6 +210,7 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, reg *metadata
 		PostingEngine:    postingEngine,
 		Numerator:        cfg.Numerator,
 		CurrencyResolver: currencyResolver,
+		PolicyEngine:     cfg.PolicyEngine,
 	}
 
 	// Build refEndpoints from catalog factories for document metadata
@@ -263,6 +278,33 @@ func registerReportRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 	reportsGroup.GET("/stock-balance", middleware.RequirePermission("report:stock:read"), reportHandler.GetStockBalance)
 	reportsGroup.GET("/stock-turnover", middleware.RequirePermission("report:stock:read"), reportHandler.GetStockTurnover)
 	reportsGroup.GET("/document-journal", middleware.RequirePermission("report:documents:read"), reportHandler.GetDocumentJournal)
+}
+
+// registerSecurityRoutes registers CEL policy rule management endpoints.
+func registerSecurityRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
+	if cfg.PolicyEngine == nil {
+		return
+	}
+
+	policyRuleRepo := security_repo.NewPolicyRuleRepo()
+	policyRuleHandler := handlers.NewPolicyRuleHandler(policyRuleRepo, cfg.PolicyEngine)
+
+	secGroup := rg.Group("/security")
+	{
+		// CEL expression validation (no profile context needed)
+		secGroup.POST("/rules/validate", middleware.RequireRole("admin"), policyRuleHandler.ValidateExpression)
+
+		// Profile-scoped rule CRUD
+		rulesGroup := secGroup.Group("/profiles/:profileId/rules")
+		rulesGroup.Use(middleware.RequireRole("admin"))
+		{
+			rulesGroup.GET("", policyRuleHandler.List)
+			rulesGroup.POST("", policyRuleHandler.Create)
+			rulesGroup.GET("/:ruleId", policyRuleHandler.Get)
+			rulesGroup.PUT("/:ruleId", policyRuleHandler.Update)
+			rulesGroup.DELETE("/:ruleId", policyRuleHandler.Delete)
+		}
+	}
 }
 
 // registerUserPrefsRoutes registers user preferences endpoints.

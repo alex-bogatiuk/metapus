@@ -120,6 +120,15 @@ func (d *Document) GetOrganizationID() id.ID {
 	return d.OrganizationID
 }
 
+// GetRLSDimensions implements security.RLSDimensionable.
+// Base implementation returns the organization dimension.
+// Document-specific types should override to add extra dimensions (supplier, customer, etc.).
+func (d *Document) GetRLSDimensions() map[string]string {
+	return map[string]string{
+		"organization": d.OrganizationID.String(),
+	}
+}
+
 // CanPost validates if document can be posted (Postable interface default).
 // Delegates state check to the current lifecycle state, then validates entity invariants.
 // Override in specific document types if additional validation is needed.

@@ -229,6 +229,15 @@ func (l GoodsIssueLine) GetCoefficient() decimal.Decimal { return l.Coefficient 
 func (l GoodsIssueLine) GetQuantity() types.Quantity     { return l.Quantity }
 func (l GoodsIssueLine) GetVATRateID() id.ID             { return l.VATRateID }
 
+// --- RLSDimensionable override ---
+
+// GetRLSDimensions overrides entity.Document to add customer dimension.
+func (g *GoodsIssue) GetRLSDimensions() map[string]string {
+	dims := g.Document.GetRLSDimensions()
+	dims["counterparty"] = g.CustomerID.String()
+	return dims
+}
+
 // --- Postable interface implementation ---
 // GetID, GetPostedVersion, IsPosted, CanPost, MarkPosted, MarkUnposted are inherited from entity.Document
 

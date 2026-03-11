@@ -9,6 +9,7 @@ import (
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
+	"metapus/internal/core/security"
 	"metapus/internal/domain"
 	"metapus/internal/infrastructure/http/v1/dto"
 )
@@ -82,9 +83,14 @@ func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) List(c *gin.Context) {
 		return
 	}
 
-	// Map entities to DTOs
+	// Map entities to DTOs (with FLS masking)
+	policy := security.GetFieldPolicy(ctx, h.entityName, "read")
+	masker := security.NewFieldMasker()
 	items := make([]any, len(result.Items))
 	for i, item := range result.Items {
+		if policy != nil {
+			masker.MaskForRead(item, policy)
+		}
 		items[i] = h.mapToDTO(item)
 	}
 
@@ -113,6 +119,11 @@ func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) Get(c *gin.Context) {
 	if err != nil {
 		h.Error(c, err)
 		return
+	}
+
+	// FLS: mask restricted fields before DTO mapping
+	if policy := security.GetFieldPolicy(ctx, h.entityName, "read"); policy != nil {
+		security.NewFieldMasker().MaskForRead(entity, policy)
 	}
 
 	c.JSON(http.StatusOK, h.mapToDTO(entity))

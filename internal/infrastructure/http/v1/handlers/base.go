@@ -9,6 +9,7 @@ import (
 
 	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
+	"metapus/internal/core/security"
 	"metapus/internal/domain"
 	"metapus/internal/domain/cursor"
 	domainFilter "metapus/internal/domain/filter"
@@ -158,6 +159,9 @@ func (h *BaseHandler) ParseListFilter(c *gin.Context, defaultOrderBy string) (do
 		}
 		filter.AdvancedFilters = advFilters
 	}
+
+	// Inject RLS DataScope from context (populated by SecurityContext middleware)
+	filter.DataScope = security.GetDataScope(c.Request.Context())
 
 	return filter, nil
 }

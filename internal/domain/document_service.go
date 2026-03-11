@@ -9,6 +9,7 @@ import (
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/numerator"
+	"metapus/internal/core/security"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/tx"
 	"metapus/internal/domain/posting"
@@ -40,6 +41,7 @@ type BaseDocumentServiceConfig[T DocumentEntity[L], L any] struct {
 	Numerator         numerator.Generator
 	TxManager         tx.Manager // Optional for Database-per-Tenant
 	CurrencyResolver  CurrencyResolveStrategy
+	PolicyEngine      *security.PolicyEngine // Optional — CEL policy evaluation
 	NumeratorPrefix   string
 	NumeratorStrategy numerator.Strategy
 	EntityName        string // for logging (e.g., "goods receipt", "goods issue")
@@ -54,6 +56,7 @@ type BaseDocumentService[T DocumentEntity[L], L any] struct {
 	Numerator         numerator.Generator
 	TxManager         tx.Manager
 	CurrencyResolver  CurrencyResolveStrategy
+	PolicyEngine      *security.PolicyEngine
 	hooks             *HookRegistry[T]
 	NumeratorPrefix   string
 	NumeratorStrategy numerator.Strategy
@@ -68,6 +71,7 @@ func NewBaseDocumentService[T DocumentEntity[L], L any](cfg BaseDocumentServiceC
 		Numerator:         cfg.Numerator,
 		TxManager:         cfg.TxManager,
 		CurrencyResolver:  cfg.CurrencyResolver,
+		PolicyEngine:      cfg.PolicyEngine,
 		hooks:             NewHookRegistry[T](),
 		NumeratorPrefix:   cfg.NumeratorPrefix,
 		NumeratorStrategy: cfg.NumeratorStrategy,
@@ -78,6 +82,11 @@ func NewBaseDocumentService[T DocumentEntity[L], L any](cfg BaseDocumentServiceC
 // GetHooks returns the hook registry for external registration.
 func (s *BaseDocumentService[T, L]) GetHooks() *HookRegistry[T] {
 	return s.hooks
+}
+
+// SetPolicyEngine sets the CEL policy engine after construction.
+func (s *BaseDocumentService[T, L]) SetPolicyEngine(engine *security.PolicyEngine) {
+	s.PolicyEngine = engine
 }
 
 // GetTxManager returns TxManager from config or context.
@@ -117,8 +126,41 @@ func (s *BaseDocumentService[T, L]) GenerateNumber(ctx context.Context, doc T) e
 	return nil
 }
 
+// checkRLSAccess verifies that the current user's DataScope allows access to the document.
+// Uses the RLSDimensionable interface if the document implements it.
+func (s *BaseDocumentService[T, L]) checkRLSAccess(ctx context.Context, doc T) error {
+	scope := security.GetDataScope(ctx)
+	if scope == nil || scope.IsAdmin {
+		return nil
+	}
+	if dimensionable, ok := any(doc).(security.RLSDimensionable); ok {
+		if !scope.CanAccessRecord(dimensionable.GetRLSDimensions()) {
+			return apperror.NewForbidden("access denied by row-level security")
+		}
+	}
+	return nil
+}
+
+// checkCELPolicy evaluates CEL policy rules for the given action and document.
+// Returns nil if no PolicyEngine is configured or no rules match.
+func (s *BaseDocumentService[T, L]) checkCELPolicy(ctx context.Context, action string, doc T) error {
+	if s.PolicyEngine == nil {
+		return nil
+	}
+	rules := security.GetApplicableRules(ctx, s.EntityName, action)
+	if len(rules) == 0 {
+		return nil
+	}
+	return s.PolicyEngine.Evaluate(ctx, rules, action, doc)
+}
+
 // Create creates a new document with lines in a transaction.
 func (s *BaseDocumentService[T, L]) Create(ctx context.Context, doc T) error {
+	// RLS: check write permission
+	if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+		return err
+	}
+
 	// Run before-create hooks (for enrichment, validation, etc.)
 	if err := s.hooks.RunBeforeCreate(ctx, doc); err != nil {
 		return err
@@ -131,6 +173,11 @@ func (s *BaseDocumentService[T, L]) Create(ctx context.Context, doc T) error {
 
 	// Validate
 	if err := doc.Validate(ctx); err != nil {
+		return err
+	}
+
+	// CEL policy check
+	if err := s.checkCELPolicy(ctx, "create", doc); err != nil {
 		return err
 	}
 
@@ -170,10 +217,23 @@ func (s *BaseDocumentService[T, L]) Create(ctx context.Context, doc T) error {
 }
 
 // GetByID retrieves a document with its lines.
+// Performs RLS point-check after loading the document.
 func (s *BaseDocumentService[T, L]) GetByID(ctx context.Context, docID id.ID) (T, error) {
 	doc, err := s.Repo.GetByID(ctx, docID)
 	if err != nil {
 		return doc, err
+	}
+
+	// RLS point-check: verify user can access this specific record
+	if err := s.checkRLSAccess(ctx, doc); err != nil {
+		var zero T
+		return zero, err
+	}
+
+	// CEL policy check for read
+	if err := s.checkCELPolicy(ctx, "read", doc); err != nil {
+		var zero T
+		return zero, err
 	}
 
 	lines, err := s.Repo.GetLines(ctx, docID)
@@ -188,6 +248,30 @@ func (s *BaseDocumentService[T, L]) GetByID(ctx context.Context, docID id.ID) (T
 
 // Update updates a document (must be unposted).
 func (s *BaseDocumentService[T, L]) Update(ctx context.Context, doc T) error {
+	// RLS: check write permission and record access
+	if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+		return err
+	}
+	if err := s.checkRLSAccess(ctx, doc); err != nil {
+		return err
+	}
+
+	// FLS: validate that no restricted fields were modified
+	if writePolicy := security.GetFieldPolicy(ctx, s.EntityName, "write"); writePolicy != nil {
+		oldDoc, err := s.Repo.GetByID(ctx, doc.GetID())
+		if err != nil {
+			return fmt.Errorf("fls: fetch old document: %w", err)
+		}
+		if err := security.NewFieldMasker().ValidateWrite(oldDoc, doc, writePolicy); err != nil {
+			return err
+		}
+	}
+
+	// CEL policy check
+	if err := s.checkCELPolicy(ctx, "update", doc); err != nil {
+		return err
+	}
+
 	// Run before-update hooks
 	if err := s.hooks.RunBeforeUpdate(ctx, doc); err != nil {
 		return err
@@ -222,8 +306,23 @@ func (s *BaseDocumentService[T, L]) Update(ctx context.Context, doc T) error {
 // Delete soft-deletes a document (must be unposted).
 // Delegates permission check to the document's lifecycle state.
 func (s *BaseDocumentService[T, L]) Delete(ctx context.Context, docID id.ID) error {
+	// RLS: check write permission
+	if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+		return err
+	}
+
 	doc, err := s.Repo.GetByID(ctx, docID)
 	if err != nil {
+		return err
+	}
+
+	// RLS point-check
+	if err := s.checkRLSAccess(ctx, doc); err != nil {
+		return err
+	}
+
+	// CEL policy check
+	if err := s.checkCELPolicy(ctx, "delete", doc); err != nil {
 		return err
 	}
 
@@ -294,6 +393,11 @@ func (s *BaseDocumentService[T, L]) Post(ctx context.Context, docID id.ID) error
 		return err
 	}
 
+	// CEL policy check
+	if err := s.checkCELPolicy(ctx, "post", doc); err != nil {
+		return err
+	}
+
 	updateDoc := func(ctx context.Context) error {
 		return s.Repo.Update(ctx, doc)
 	}
@@ -305,6 +409,11 @@ func (s *BaseDocumentService[T, L]) Post(ctx context.Context, docID id.ID) error
 func (s *BaseDocumentService[T, L]) Unpost(ctx context.Context, docID id.ID) error {
 	doc, err := s.GetByID(ctx, docID)
 	if err != nil {
+		return err
+	}
+
+	// CEL policy check
+	if err := s.checkCELPolicy(ctx, "unpost", doc); err != nil {
 		return err
 	}
 
@@ -358,6 +467,19 @@ func (s *BaseDocumentService[T, L]) PostAndSave(ctx context.Context, doc T) erro
 //
 // If the document is not posted, behaves like Update + Post.
 func (s *BaseDocumentService[T, L]) UpdateAndRepost(ctx context.Context, doc T) error {
+	// RLS: check write permission and record access
+	if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+		return err
+	}
+	if err := s.checkRLSAccess(ctx, doc); err != nil {
+		return err
+	}
+
+	// CEL policy check
+	if err := s.checkCELPolicy(ctx, "update", doc); err != nil {
+		return err
+	}
+
 	// Run before-update hooks
 	if err := s.hooks.RunBeforeUpdate(ctx, doc); err != nil {
 		return err
@@ -384,6 +506,11 @@ func (s *BaseDocumentService[T, L]) UpdateAndRepost(ctx context.Context, doc T) 
 }
 
 // List retrieves documents with cursor-based pagination.
+// Defense-in-depth: if DataScope was not injected by handler (ParseListFilter),
+// fall back to context — ensures RLS is enforced even for direct service calls.
 func (s *BaseDocumentService[T, L]) List(ctx context.Context, filter ListFilter) (CursorListResult[T], error) {
+	if filter.DataScope == nil {
+		filter.DataScope = security.GetDataScope(ctx)
+	}
 	return s.Repo.List(ctx, filter)
 }

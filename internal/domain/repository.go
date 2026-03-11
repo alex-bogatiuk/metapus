@@ -8,6 +8,7 @@ import (
 
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
+	"metapus/internal/core/security"
 )
 
 // --- Filter & Pagination ---
@@ -41,6 +42,11 @@ type ListFilter struct {
 
 	// CursorReq contains cursor-based pagination parameters (after/before/around)
 	CursorReq *cursor.Request
+
+	// DataScope provides row-level security constraints.
+	// When set, repositories use it to add WHERE conditions limiting
+	// visibility by organization_id, counterparty_id, etc.
+	DataScope *security.DataScope
 }
 
 // DefaultListFilter returns sensible defaults.

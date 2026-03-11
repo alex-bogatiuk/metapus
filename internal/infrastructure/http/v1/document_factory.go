@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"metapus/internal/core/numerator"
+	"metapus/internal/core/security"
 	"metapus/internal/domain"
 	"metapus/internal/domain/audit"
 	"metapus/internal/domain/documents/goods_issue"
@@ -20,6 +21,7 @@ type DocumentDeps struct {
 	PostingEngine    *posting.Engine
 	Numerator        numerator.Generator
 	CurrencyResolver domain.CurrencyResolveStrategy
+	PolicyEngine     *security.PolicyEngine
 }
 
 // DocumentRegistration is the Abstract Factory interface for document types.
@@ -59,15 +61,18 @@ var documentFactories = []DocumentRegistration{
 // GoodsReceiptRegistration wires the GoodsReceipt document type.
 type GoodsReceiptRegistration struct{}
 
-func (r *GoodsReceiptRegistration) RoutePrefix() string        { return "goods-receipt" }
-func (r *GoodsReceiptRegistration) Permission() string         { return "document:goods_receipt" }
-func (r *GoodsReceiptRegistration) EntityName() string         { return "GoodsReceipt" }
-func (r *GoodsReceiptRegistration) EntityLabel() string        { return "Поступление товаров" }
+func (r *GoodsReceiptRegistration) RoutePrefix() string { return "goods-receipt" }
+func (r *GoodsReceiptRegistration) Permission() string  { return "document:goods_receipt" }
+func (r *GoodsReceiptRegistration) EntityName() string  { return "GoodsReceipt" }
+func (r *GoodsReceiptRegistration) EntityLabel() string {
+	return "Поступление товаров"
+}
 func (r *GoodsReceiptRegistration) EntityStruct() interface{} { return goods_receipt.GoodsReceipt{} }
 
 func (r *GoodsReceiptRegistration) Build(deps DocumentDeps) DocumentRouteHandler {
 	repo := document_repo.NewGoodsReceiptRepo()
 	service := goods_receipt.NewService(repo, deps.PostingEngine, deps.Numerator, nil, deps.CurrencyResolver)
+	service.SetPolicyEngine(deps.PolicyEngine)
 
 	// Audit hooks — identical for all document types
 	service.Hooks().OnBeforeCreate(func(ctx context.Context, doc *goods_receipt.GoodsReceipt) error {
@@ -88,15 +93,16 @@ func (r *GoodsReceiptRegistration) Build(deps DocumentDeps) DocumentRouteHandler
 // GoodsIssueRegistration wires the GoodsIssue document type.
 type GoodsIssueRegistration struct{}
 
-func (r *GoodsIssueRegistration) RoutePrefix() string        { return "goods-issue" }
-func (r *GoodsIssueRegistration) Permission() string         { return "document:goods_issue" }
-func (r *GoodsIssueRegistration) EntityName() string         { return "GoodsIssue" }
-func (r *GoodsIssueRegistration) EntityLabel() string        { return "Реализация товаров" }
+func (r *GoodsIssueRegistration) RoutePrefix() string       { return "goods-issue" }
+func (r *GoodsIssueRegistration) Permission() string        { return "document:goods_issue" }
+func (r *GoodsIssueRegistration) EntityName() string        { return "GoodsIssue" }
+func (r *GoodsIssueRegistration) EntityLabel() string       { return "Реализация товаров" }
 func (r *GoodsIssueRegistration) EntityStruct() interface{} { return goods_issue.GoodsIssue{} }
 
 func (r *GoodsIssueRegistration) Build(deps DocumentDeps) DocumentRouteHandler {
 	repo := document_repo.NewGoodsIssueRepo()
 	service := goods_issue.NewService(repo, deps.PostingEngine, deps.Numerator, nil, deps.CurrencyResolver)
+	service.SetPolicyEngine(deps.PolicyEngine)
 
 	// Audit hooks — identical for all document types
 	service.Hooks().OnBeforeCreate(func(ctx context.Context, doc *goods_issue.GoodsIssue) error {
