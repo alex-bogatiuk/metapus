@@ -10,6 +10,7 @@ import (
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/auth"
+	"metapus/internal/domain/security_profile"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/http/v1/middleware"
 )
@@ -17,14 +18,16 @@ import (
 // AuthHandler handles authentication endpoints.
 type AuthHandler struct {
 	*BaseHandler
-	service *auth.Service
+	service     *auth.Service
+	profileRepo security_profile.Repository
 }
 
 // NewAuthHandler creates a new auth handler.
-func NewAuthHandler(base *BaseHandler, service *auth.Service) *AuthHandler {
+func NewAuthHandler(base *BaseHandler, service *auth.Service, profileRepo security_profile.Repository) *AuthHandler {
 	return &AuthHandler{
 		BaseHandler: base,
 		service:     service,
+		profileRepo: profileRepo,
 	}
 }
 
@@ -190,6 +193,200 @@ func (h *AuthHandler) RevokeRole(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "role revoked successfully"})
 }
 
+// GetUser handles GET /auth/users/:userId (admin only)
+func (h *AuthHandler) GetUser(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	userID, err := id.Parse(c.Param("userId"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid userId"))
+		return
+	}
+
+	user, err := h.service.GetUserByID(ctx, userID)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.FromUser(user))
+}
+
+// UpdateUser handles PUT /auth/users/:userId (admin only)
+func (h *AuthHandler) UpdateUser(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	userID, err := id.Parse(c.Param("userId"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid userId"))
+		return
+	}
+
+	var req dto.UpdateUserRequest
+	if !h.BindJSON(c, &req) {
+		return
+	}
+
+	user, err := h.service.UpdateUser(ctx, userID, req.FirstName, req.LastName, req.IsActive, req.IsAdmin)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.FromUser(user))
+}
+
+// CreateUserByAdmin handles POST /auth/users (admin only)
+func (h *AuthHandler) CreateUserByAdmin(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	var req dto.CreateUserAdminRequest
+	if !h.BindJSON(c, &req) {
+		return
+	}
+
+	domainReq := auth.RegisterRequest{
+		Email:     req.Email,
+		Password:  req.Password,
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+	}
+
+	user, err := h.service.CreateUserByAdmin(ctx, domainReq, req.RoleCodes)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, dto.FromUser(user))
+}
+
+// ListRolePermissions handles GET /auth/roles/:roleId/permissions
+func (h *AuthHandler) ListRolePermissions(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	roleID, err := id.Parse(c.Param("roleId"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid roleId"))
+		return
+	}
+
+	permissions, err := h.service.ListRolePermissions(ctx, roleID)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	response := make([]*dto.PermissionResponse, len(permissions))
+	for i := range permissions {
+		response[i] = dto.FromPermission(&permissions[i])
+	}
+
+	c.JSON(http.StatusOK, gin.H{"items": response})
+}
+
+// GetEffectiveAccess handles GET /auth/users/:userId/effective-access (admin only).
+// Returns the combined RBAC permissions, RLS dimensions, FLS policies, and CEL rules for a user.
+func (h *AuthHandler) GetEffectiveAccess(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	userID, err := id.Parse(c.Param("userId"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid userId"))
+		return
+	}
+
+	user, err := h.service.GetUserByID(ctx, userID)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	resp := dto.EffectiveAccessResponse{
+		User:        dto.FromUser(user),
+		Permissions: user.Permissions,
+	}
+
+	// Load security profile for RLS/FLS/CEL
+	if h.profileRepo != nil {
+		profile, err := h.profileRepo.GetByUserID(ctx, userID)
+		if err == nil && profile != nil {
+			// RLS dimensions (unresolved — just IDs for now)
+			if len(profile.Dimensions) > 0 {
+				dims := make(map[string][]dto.RLSDimensionItem, len(profile.Dimensions))
+				for dimName, ids := range profile.Dimensions {
+					items := make([]dto.RLSDimensionItem, len(ids))
+					for i, id := range ids {
+						items[i] = dto.RLSDimensionItem{ID: id}
+					}
+					dims[dimName] = items
+				}
+				resp.RLSDimensions = dims
+			}
+
+			// FLS policies — extract hidden fields
+			if len(profile.FieldPolicies) > 0 {
+				for _, fp := range profile.FieldPolicies {
+					hidden := []string{}
+					for _, f := range fp.AllowedFields {
+						if len(f) > 1 && f[0] == '-' {
+							hidden = append(hidden, f[1:])
+						}
+					}
+					if len(hidden) > 0 {
+						resp.FLSPolicies = append(resp.FLSPolicies, dto.EffectiveFLSPolicy{
+							EntityName:   fp.EntityName,
+							Action:       fp.Action,
+							HiddenFields: hidden,
+						})
+					}
+				}
+			}
+
+			// CEL rules
+			if len(profile.PolicyRules) > 0 {
+				for _, rule := range profile.PolicyRules {
+					if !rule.Enabled {
+						continue
+					}
+					resp.CELRules = append(resp.CELRules, dto.EffectiveCELRule{
+						Name:       rule.Name,
+						EntityName: rule.EntityName,
+						Effect:     rule.Effect,
+						Expression: rule.Expression,
+						Priority:   rule.Priority,
+					})
+				}
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// ListUsers handles GET /auth/users (admin only)
+func (h *AuthHandler) ListUsers(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	filter := auth.UserFilter{
+		Search: c.Query("search"),
+		Limit:  100,
+	}
+
+	users, total, err := h.service.ListUsers(ctx, filter)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	response := make([]*dto.UserResponse, len(users))
+	for i := range users {
+		response[i] = dto.FromUser(&users[i])
+	}
+
+	c.JSON(http.StatusOK, gin.H{"items": response, "total": total})
+}
+
 // ListRoles handles GET /auth/roles
 func (h *AuthHandler) ListRoles(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -238,6 +435,12 @@ func (h *AuthHandler) RegisterRoutes(public, protected *gin.RouterGroup) {
 	// NOTE: These endpoints are privileged. Keep them protected from privilege escalation.
 	protected.POST("/assign-role", middleware.RequireRole("admin"), h.AssignRole)
 	protected.POST("/revoke-role", middleware.RequireRole("admin"), h.RevokeRole)
+	protected.GET("/users", middleware.RequireRole("admin"), h.ListUsers)
+	protected.POST("/users", middleware.RequireRole("admin"), h.CreateUserByAdmin)
+	protected.GET("/users/:userId", middleware.RequireRole("admin"), h.GetUser)
+	protected.PUT("/users/:userId", middleware.RequireRole("admin"), h.UpdateUser)
+	protected.GET("/users/:userId/effective-access", middleware.RequireRole("admin"), h.GetEffectiveAccess)
 	protected.GET("/roles", h.ListRoles)
+	protected.GET("/roles/:roleId/permissions", h.ListRolePermissions)
 	protected.GET("/permissions", h.ListPermissions)
 }

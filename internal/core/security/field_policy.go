@@ -17,8 +17,8 @@ import (
 // can be modified. Key = table part name (e.g. "items"), value = allowed column names.
 type FieldPolicy struct {
 	EntityName    string
-	Action        string            // "read" or "write"
-	AllowedFields []string          // field-level whitelist/blacklist DSL
+	Action        string              // "read" or "write"
+	AllowedFields []string            // field-level whitelist/blacklist DSL
 	TableParts    map[string][]string // table part name → allowed columns
 }
 
@@ -59,26 +59,40 @@ func (p *FieldPolicy) IsFieldAllowed(field string) bool {
 }
 
 // IsTablePartFieldAllowed checks if a column in a table part is allowed.
-// If the table part is not mentioned in policy, all columns are denied (fail-closed).
+// Uses the same DSL as IsFieldAllowed: ["*"], ["*", "-unit_price"], ["quantity", "amount"].
+// If the table part is not mentioned in policy, all columns are allowed (open by default).
+// If the table part IS mentioned, the DSL determines which columns are allowed.
 func (p *FieldPolicy) IsTablePartFieldAllowed(partName, column string) bool {
 	if p == nil || p.TableParts == nil {
-		return false
+		return true // no table part restrictions = allow all
 	}
 
 	allowedCols, ok := p.TableParts[partName]
 	if !ok {
-		return false
+		return true // part not mentioned = allow all columns
 	}
+
+	hasWildcard := false
+	exclusions := make(map[string]struct{})
+	inclusions := make(map[string]struct{})
 
 	for _, col := range allowedCols {
 		if col == "*" {
-			return true
-		}
-		if col == column {
-			return true
+			hasWildcard = true
+		} else if strings.HasPrefix(col, "-") {
+			exclusions[col[1:]] = struct{}{}
+		} else {
+			inclusions[col] = struct{}{}
 		}
 	}
-	return false
+
+	if hasWildcard {
+		_, excluded := exclusions[column]
+		return !excluded
+	}
+
+	_, included := inclusions[column]
+	return included
 }
 
 // ValidateFieldChanges compares two maps of field values (old vs new) and returns

@@ -412,5 +412,72 @@ func (r *ProfileRepo) loadPolicyRules(ctx context.Context, querier postgres.Quer
 	return nil
 }
 
+// ListUsersByProfileID returns users assigned to a specific profile.
+func (r *ProfileRepo) ListUsersByProfileID(ctx context.Context, profileID id.ID) ([]security_profile.ProfileUser, error) {
+	querier := r.getTxManager(ctx).GetQuerier(ctx)
+
+	query := `
+		SELECT u.id, u.email, u.first_name, u.last_name, u.is_active
+		FROM users u
+		INNER JOIN user_security_profiles usp ON u.id = usp.user_id
+		WHERE usp.profile_id = $1 AND u.deletion_mark = FALSE
+		ORDER BY u.email ASC
+	`
+
+	rows, err := querier.Query(ctx, query, profileID)
+	if err != nil {
+		return nil, fmt.Errorf("query profile users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []security_profile.ProfileUser
+	for rows.Next() {
+		var u security_profile.ProfileUser
+		if err := rows.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.IsActive); err != nil {
+			return nil, fmt.Errorf("scan profile user: %w", err)
+		}
+		users = append(users, u)
+	}
+
+	return users, rows.Err()
+}
+
+// GetProfileBriefByUserIDs returns a map of userID → profile brief for batch enrichment.
+func (r *ProfileRepo) GetProfileBriefByUserIDs(ctx context.Context, userIDs []id.ID) (map[id.ID]*security_profile.ProfileBrief, error) {
+	if len(userIDs) == 0 {
+		return nil, nil
+	}
+	querier := r.getTxManager(ctx).GetQuerier(ctx)
+
+	query := `
+		SELECT usp.user_id, sp.id, sp.code, sp.name
+		FROM user_security_profiles usp
+		INNER JOIN security_profiles sp ON sp.id = usp.profile_id
+		WHERE usp.user_id = ANY($1)
+	`
+
+	rows, err := querier.Query(ctx, query, userIDs)
+	if err != nil {
+		return nil, fmt.Errorf("query user profiles: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[id.ID]*security_profile.ProfileBrief)
+	for rows.Next() {
+		var userID, profileID id.ID
+		var code, name string
+		if err := rows.Scan(&userID, &profileID, &code, &name); err != nil {
+			return nil, fmt.Errorf("scan user profile: %w", err)
+		}
+		result[userID] = &security_profile.ProfileBrief{
+			ID:   profileID,
+			Code: code,
+			Name: name,
+		}
+	}
+
+	return result, rows.Err()
+}
+
 // Compile-time check.
 var _ security_profile.Repository = (*ProfileRepo)(nil)

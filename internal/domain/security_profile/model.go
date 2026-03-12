@@ -86,6 +86,38 @@ func (p *SecurityProfile) GetFieldPolicy(entityName, action string) *security.Fi
 	return p.FieldPolicies[entityName+":"+action]
 }
 
+// ─── Lightweight types for cross-domain queries ─────────────────────
+
+// ProfileUser represents a user assigned to a security profile (for the Users tab).
+type ProfileUser struct {
+	ID        id.ID  `db:"id"`
+	Email     string `db:"email"`
+	FirstName string `db:"first_name"`
+	LastName  string `db:"last_name"`
+	IsActive  bool   `db:"is_active"`
+}
+
+// FullName returns user's display name.
+func (u *ProfileUser) FullName() string {
+	if u.FirstName == "" && u.LastName == "" {
+		return u.Email
+	}
+	if u.LastName == "" {
+		return u.FirstName
+	}
+	if u.FirstName == "" {
+		return u.LastName
+	}
+	return u.FirstName + " " + u.LastName
+}
+
+// ProfileBrief is a lightweight profile reference for batch enrichment.
+type ProfileBrief struct {
+	ID   id.ID  `db:"id"`
+	Code string `db:"code"`
+	Name string `db:"name"`
+}
+
 // ─── Dimension DB row (for scanning) ────────────────────────────────
 
 // DimensionRow represents a single row from security_profile_dimensions.

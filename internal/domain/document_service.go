@@ -256,19 +256,23 @@ func (s *BaseDocumentService[T, L]) Update(ctx context.Context, doc T) error {
 		return err
 	}
 
+	// Fetch existing document for FLS validation and CEL evaluation.
+	// CEL rules must evaluate against the existing state (e.g. doc.posted == true),
+	// not the input entity where fields default to zero values.
+	oldDoc, err := s.Repo.GetByID(ctx, doc.GetID())
+	if err != nil {
+		return fmt.Errorf("fetch existing document: %w", err)
+	}
+
 	// FLS: validate that no restricted fields were modified
 	if writePolicy := security.GetFieldPolicy(ctx, s.EntityName, "write"); writePolicy != nil {
-		oldDoc, err := s.Repo.GetByID(ctx, doc.GetID())
-		if err != nil {
-			return fmt.Errorf("fls: fetch old document: %w", err)
-		}
 		if err := security.NewFieldMasker().ValidateWrite(oldDoc, doc, writePolicy); err != nil {
 			return err
 		}
 	}
 
-	// CEL policy check
-	if err := s.checkCELPolicy(ctx, "update", doc); err != nil {
+	// CEL policy check — evaluate against existing document state
+	if err := s.checkCELPolicy(ctx, "update", oldDoc); err != nil {
 		return err
 	}
 
@@ -475,8 +479,14 @@ func (s *BaseDocumentService[T, L]) UpdateAndRepost(ctx context.Context, doc T) 
 		return err
 	}
 
-	// CEL policy check
-	if err := s.checkCELPolicy(ctx, "update", doc); err != nil {
+	// Fetch existing document for CEL evaluation against current state.
+	oldDoc, err := s.Repo.GetByID(ctx, doc.GetID())
+	if err != nil {
+		return fmt.Errorf("fetch existing document: %w", err)
+	}
+
+	// CEL policy check — evaluate against existing document state
+	if err := s.checkCELPolicy(ctx, "update", oldDoc); err != nil {
 		return err
 	}
 

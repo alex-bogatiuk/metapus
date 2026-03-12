@@ -70,6 +70,7 @@ func TestFieldPolicy_IsTablePartFieldAllowed(t *testing.T) {
 		TableParts: map[string][]string{
 			"items": {"quantity", "price"},
 			"taxes": {"*"},
+			"lines": {"*", "-unit_price", "-discount_amount"},
 		},
 	}
 
@@ -82,7 +83,10 @@ func TestFieldPolicy_IsTablePartFieldAllowed(t *testing.T) {
 		{"allowed column", "items", "quantity", true},
 		{"denied column", "items", "status", false},
 		{"wildcard part", "taxes", "any_column", true},
-		{"unknown part", "unknown", "col", false},
+		{"unknown part — open by default", "unknown", "col", true},
+		{"wildcard with exclusion — allowed", "lines", "quantity", true},
+		{"wildcard with exclusion — denied", "lines", "unit_price", false},
+		{"wildcard with exclusion — denied 2", "lines", "discount_amount", false},
 	}
 
 	for _, tt := range tests {
@@ -92,9 +96,14 @@ func TestFieldPolicy_IsTablePartFieldAllowed(t *testing.T) {
 		})
 	}
 
-	t.Run("nil policy denies all", func(t *testing.T) {
+	t.Run("nil policy allows all", func(t *testing.T) {
 		var p *FieldPolicy
-		assert.False(t, p.IsTablePartFieldAllowed("items", "qty"))
+		assert.True(t, p.IsTablePartFieldAllowed("items", "qty"))
+	})
+
+	t.Run("nil TableParts allows all", func(t *testing.T) {
+		p := &FieldPolicy{AllowedFields: []string{"*"}}
+		assert.True(t, p.IsTablePartFieldAllowed("items", "qty"))
 	})
 }
 

@@ -5,7 +5,7 @@ import {
   Building2,
   Calculator,
   Users,
-  Palette,
+  ShieldCheck,
   ChevronRight,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -13,8 +13,9 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { OrganizationSection } from "@/components/settings/organization-section"
 import { AccountingSection } from "@/components/settings/accounting-section"
 import { UsersRolesSection } from "@/components/settings/users-roles-section"
+import { SecurityProfilesSection } from "@/components/settings/security-profiles-section"
 
-type SettingsSection = "organization" | "accounting" | "users"
+type SettingsSection = "organization" | "accounting" | "users" | "security"
 
 interface SectionItem {
   id: SettingsSection
@@ -42,12 +43,19 @@ const sections: SectionItem[] = [
     description: "Управление доступом и правами",
     icon: Users,
   },
+  {
+    id: "security",
+    title: "Профили безопасности",
+    description: "RLS, FLS и CEL-правила доступа",
+    icon: ShieldCheck,
+  },
 ]
 
 const sectionComponents: Record<SettingsSection, React.ComponentType> = {
   organization: OrganizationSection,
   accounting: AccountingSection,
   users: UsersRolesSection,
+  security: SecurityProfilesSection,
 }
 
 export default function SettingsPage() {

@@ -355,14 +355,153 @@ func (s *Service) GetUserByID(ctx context.Context, userID id.ID) (*User, error) 
 	return user, nil
 }
 
-// ListUsers lists users with filtering.
+// UpdateUser updates user profile fields (admin operation).
+func (s *Service) UpdateUser(ctx context.Context, userID id.ID, firstName, lastName *string, isActive, isAdmin *bool) (*User, error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get user for update", "user_id", userID, "error", err)
+		}
+		return nil, apperror.NewNotFound("user", userID.String()).WithCause(err)
+	}
+
+	if firstName != nil {
+		user.FirstName = *firstName
+	}
+	if lastName != nil {
+		user.LastName = *lastName
+	}
+	if isActive != nil {
+		user.IsActive = *isActive
+	}
+	if isAdmin != nil {
+		user.IsAdmin = *isAdmin
+	}
+
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return nil, fmt.Errorf("update user: %w", err)
+	}
+
+	// Load relations
+	roles, _ := s.userRepo.LoadRoles(ctx, user.ID)
+	user.Roles = roles
+
+	logger.Info(ctx, "user updated", "user_id", userID)
+	return user, nil
+}
+
+// CreateUserByAdmin creates a user by an admin (with optional roles).
+func (s *Service) CreateUserByAdmin(ctx context.Context, req RegisterRequest, roleCodes []string) (*User, error) {
+	if _, err := s.requireTenantID(ctx); err != nil {
+		return nil, err
+	}
+
+	if req.Email == "" {
+		return nil, apperror.NewValidation("email is required").WithDetail("field", "email")
+	}
+	if len(req.Password) < s.config.PasswordMinLength {
+		return nil, apperror.NewValidation(
+			fmt.Sprintf("password must be at least %d characters", s.config.PasswordMinLength),
+		).WithDetail("field", "password")
+	}
+
+	exists, err := s.userRepo.Exists(ctx, req.Email)
+	if err != nil {
+		return nil, fmt.Errorf("check email exists: %w", err)
+	}
+	if exists {
+		return nil, apperror.NewConflict("email already registered").WithDetail("email", req.Email)
+	}
+
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("hash password: %w", err)
+	}
+
+	user := NewUser(req.Email, string(passwordHash))
+	user.FirstName = req.FirstName
+	user.LastName = req.LastName
+
+	currentUser := appctx.GetUser(ctx)
+	var grantedBy id.ID
+	if currentUser != nil {
+		grantedBy, _ = id.Parse(currentUser.UserID)
+	}
+
+	txm, err := s.getTxManager(ctx)
+	if err != nil {
+		return nil, apperror.NewInternal(err).WithDetail("missing", "tx_manager")
+	}
+	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		if err := s.userRepo.Create(ctx, user); err != nil {
+			return fmt.Errorf("create user: %w", err)
+		}
+
+		for _, roleCode := range roleCodes {
+			role, err := s.roleRepo.GetByCode(ctx, roleCode)
+			if err != nil {
+				logger.Warn(ctx, "role not found for admin create", "role_code", roleCode, "error", err)
+				continue
+			}
+			if err := s.userRepo.AssignRole(ctx, user.ID, role.ID, grantedBy); err != nil {
+				logger.Warn(ctx, "failed to assign role", "role_code", roleCode, "error", err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Load relations
+	roles, _ := s.userRepo.LoadRoles(ctx, user.ID)
+	user.Roles = roles
+
+	logger.Info(ctx, "user created by admin", "user_id", user.ID, "email", user.Email)
+	return user, nil
+}
+
+// ListUsers lists users with filtering, including their roles.
 func (s *Service) ListUsers(ctx context.Context, filter UserFilter) ([]User, int, error) {
-	return s.userRepo.List(ctx, filter)
+	users, total, err := s.userRepo.List(ctx, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Enrich each user with roles
+	for i := range users {
+		roles, err := s.userRepo.LoadRoles(ctx, users[i].ID)
+		if err != nil {
+			return nil, 0, err
+		}
+		users[i].Roles = roles
+	}
+
+	return users, total, nil
 }
 
 // ListRoles lists all roles (within tenant database).
 func (s *Service) ListRoles(ctx context.Context) ([]Role, error) {
 	return s.roleRepo.List(ctx)
+}
+
+// ListRolePermissions returns permissions for a specific role.
+func (s *Service) ListRolePermissions(ctx context.Context, roleID id.ID) ([]Permission, error) {
+	// Ensure role exists
+	_, err := s.roleRepo.GetByID(ctx, roleID)
+	if err != nil {
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get role for permissions", "role_id", roleID, "error", err)
+		}
+		return nil, apperror.NewNotFound("role", roleID.String()).WithCause(err)
+	}
+
+	permissions, err := s.roleRepo.LoadPermissions(ctx, roleID)
+	if err != nil {
+		return nil, fmt.Errorf("load role permissions: %w", err)
+	}
+
+	return permissions, nil
 }
 
 // ListPermissions lists all permissions.

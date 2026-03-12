@@ -52,7 +52,31 @@ type AssignRoleRequest struct {
 	RoleCode string `json:"roleCode" binding:"required"`
 }
 
+// UpdateUserRequest for admin user update.
+type UpdateUserRequest struct {
+	FirstName *string `json:"firstName"`
+	LastName  *string `json:"lastName"`
+	IsActive  *bool   `json:"isActive"`
+	IsAdmin   *bool   `json:"isAdmin"`
+}
+
+// CreateUserAdminRequest for admin user creation.
+type CreateUserAdminRequest struct {
+	Email     string   `json:"email" binding:"required,email"`
+	Password  string   `json:"password" binding:"required,min=8"`
+	FirstName string   `json:"firstName,omitempty"`
+	LastName  string   `json:"lastName,omitempty"`
+	RoleCodes []string `json:"roleCodes,omitempty"`
+}
+
 // --- Response DTOs ---
+
+// SecurityProfileBrief is a lightweight profile reference for user responses.
+type SecurityProfileBrief struct {
+	ID   string `json:"id"`
+	Code string `json:"code"`
+	Name string `json:"name"`
+}
 
 // TokenResponse represents token pair response.
 type TokenResponse struct {
@@ -74,16 +98,17 @@ func FromTokenPair(tp *auth.TokenPair) *TokenResponse {
 
 // UserResponse represents user in API response.
 type UserResponse struct {
-	ID            string         `json:"id"`
-	Email         string         `json:"email"`
-	FirstName     string         `json:"firstName,omitempty"`
-	LastName      string         `json:"lastName,omitempty"`
-	FullName      string         `json:"fullName"`
-	IsActive      bool           `json:"isActive"`
-	IsAdmin       bool           `json:"isAdmin"`
-	EmailVerified bool           `json:"emailVerified"`
-	Roles         []RoleResponse `json:"roles,omitempty"`
-	CreatedAt     time.Time      `json:"createdAt"`
+	ID              string                `json:"id"`
+	Email           string                `json:"email"`
+	FirstName       string                `json:"firstName,omitempty"`
+	LastName        string                `json:"lastName,omitempty"`
+	FullName        string                `json:"fullName"`
+	IsActive        bool                  `json:"isActive"`
+	IsAdmin         bool                  `json:"isAdmin"`
+	EmailVerified   bool                  `json:"emailVerified"`
+	Roles           []RoleResponse        `json:"roles,omitempty"`
+	SecurityProfile *SecurityProfileBrief `json:"securityProfile,omitempty"`
+	CreatedAt       time.Time             `json:"createdAt"`
 }
 
 // FromUser creates response from domain user.
@@ -146,6 +171,37 @@ func FromPermission(p *auth.Permission) *PermissionResponse {
 		Resource:    p.Resource,
 		Action:      p.Action,
 	}
+}
+
+// EffectiveAccessResponse shows the combined result of RBAC + RLS + FLS + CEL for a user.
+type EffectiveAccessResponse struct {
+	User          *UserResponse                 `json:"user"`
+	Permissions   []string                      `json:"permissions"`
+	RLSDimensions map[string][]RLSDimensionItem `json:"rlsDimensions,omitempty"`
+	FLSPolicies   []EffectiveFLSPolicy          `json:"flsPolicies,omitempty"`
+	CELRules      []EffectiveCELRule            `json:"celRules,omitempty"`
+}
+
+// RLSDimensionItem is a resolved RLS dimension value (ID + name).
+type RLSDimensionItem struct {
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"`
+}
+
+// EffectiveFLSPolicy shows which fields are hidden for an entity+action.
+type EffectiveFLSPolicy struct {
+	EntityName   string   `json:"entityName"`
+	Action       string   `json:"action"`
+	HiddenFields []string `json:"hiddenFields,omitempty"`
+}
+
+// EffectiveCELRule is a simplified CEL rule for the effective access view.
+type EffectiveCELRule struct {
+	Name       string `json:"name"`
+	EntityName string `json:"entityName"`
+	Effect     string `json:"effect"`
+	Expression string `json:"expression"`
+	Priority   int    `json:"priority"`
 }
 
 // LoginResponse includes tokens and user info.

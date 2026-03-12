@@ -229,17 +229,21 @@ func (s *CatalogService[T]) Update(ctx context.Context, entity T) error {
 		return err
 	}
 
-	// CEL policy check
-	if err := s.checkCELPolicy(ctx, "update", entity); err != nil {
+	// Fetch existing entity for CEL evaluation and FLS validation.
+	// CEL rules must evaluate against the existing state,
+	// not the input entity where fields default to zero values.
+	oldEntity, err := s.repo.GetByID(ctx, any(entity).(interface{ GetID() id.ID }).GetID())
+	if err != nil {
+		return fmt.Errorf("fetch existing entity: %w", err)
+	}
+
+	// CEL policy check — evaluate against existing entity state
+	if err := s.checkCELPolicy(ctx, "update", oldEntity); err != nil {
 		return err
 	}
 
 	// FLS: validate that no restricted fields were modified
 	if writePolicy := security.GetFieldPolicy(ctx, s.entityName, "write"); writePolicy != nil {
-		oldEntity, err := s.repo.GetByID(ctx, any(entity).(interface{ GetID() id.ID }).GetID())
-		if err != nil {
-			return fmt.Errorf("fls: fetch old entity: %w", err)
-		}
 		if err := security.NewFieldMasker().ValidateWrite(oldEntity, entity, writePolicy); err != nil {
 			return err
 		}

@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -184,4 +186,58 @@ func (h *PolicyRuleHandler) ValidateExpression(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, dto.ValidateExpressionResponse{Valid: true})
+}
+
+// TestExpression compiles and evaluates a CEL expression against sample data.
+// POST /api/v1/security/rules/test
+func (h *PolicyRuleHandler) TestExpression(c *gin.Context) {
+	var req dto.TestExpressionRequest
+	if !h.BindJSON(c, &req) {
+		return
+	}
+
+	// First validate the expression compiles
+	if err := h.policyEngine.Compile(req.Expression); err != nil {
+		c.JSON(http.StatusOK, dto.TestExpressionResponse{
+			Result: false,
+			Error:  fmt.Sprintf("compile error: %v", err),
+		})
+		return
+	}
+
+	// Build activation map matching CEL environment variables
+	action := req.Action
+	if action == "" {
+		action = "read"
+	}
+	doc := req.Doc
+	if doc == nil {
+		doc = map[string]any{}
+	}
+
+	activation := map[string]any{
+		"doc":    doc,
+		"user":   map[string]any{"id": "", "email": "", "roles": []any{}, "orgIds": []any{}, "isAdmin": false},
+		"action": action,
+		"now":    time.Now().UTC(),
+	}
+
+	// Evaluate
+	start := time.Now()
+	result, evalErr := h.policyEngine.EvalExpression(req.Expression, activation)
+	elapsed := time.Since(start)
+
+	if evalErr != nil {
+		c.JSON(http.StatusOK, dto.TestExpressionResponse{
+			Result:  false,
+			Error:   fmt.Sprintf("eval error: %v", evalErr),
+			Elapsed: elapsed.String(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.TestExpressionResponse{
+		Result:  result,
+		Elapsed: elapsed.String(),
+	})
 }

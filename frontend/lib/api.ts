@@ -298,6 +298,16 @@ export const api = {
             apiFetch<void>("/auth/logout", { method: "POST" }),
         me: () =>
             apiFetch<import("@/types/auth").AuthUserResponse>("/auth/me"),
+        assignRole: (data: { userId: string; roleCode: string }) =>
+            apiFetch<{ message: string }>("/auth/assign-role", {
+                method: "POST",
+                body: JSON.stringify(data),
+            }),
+        revokeRole: (data: { userId: string; roleCode: string }) =>
+            apiFetch<{ message: string }>("/auth/revoke-role", {
+                method: "POST",
+                body: JSON.stringify(data),
+            }),
     },
 
     // ── Catalogs (1 line per entity via generic factory) ────────────────
@@ -323,6 +333,10 @@ export const api = {
         getFilters: (entityName: string) =>
             apiFetch<import("@/components/shared/filter-config-dialog").FilterFieldMeta[]>(
                 `/meta/${entityName}/filters`
+            ),
+        getEntity: (entityName: string) =>
+            apiFetch<{ name: string; label?: string; type: string; fields: { name: string; label?: string; type: string }[]; tableParts?: { name: string; label?: string; columns: { name: string; label?: string; type: string }[] }[] }>(
+                `/meta/${entityName}`
             ),
     },
 
@@ -360,40 +374,99 @@ export const api = {
     },
 
     users: {
-        list: () =>
-            apiFetch<import("@/types/settings").UserRecord[]>("/users"),
+        list: (search?: string) =>
+            apiFetch<{ items: import("@/types/security").UserResponse[]; total: number }>(
+                `/auth/users${search ? `?search=${encodeURIComponent(search)}` : ""}`
+            ),
         get: (id: string) =>
-            apiFetch<import("@/types/settings").UserRecord>(`/users/${id}`),
-        create: (data: unknown) =>
-            apiFetch<import("@/types/settings").UserRecord>("/users", {
+            apiFetch<import("@/types/security").UserResponse>(`/auth/users/${id}`),
+        create: (data: import("@/types/security").CreateUserAdminRequest) =>
+            apiFetch<import("@/types/security").UserResponse>("/auth/users", {
                 method: "POST",
                 body: JSON.stringify(data),
             }),
-        update: (id: string, data: unknown) =>
-            apiFetch<import("@/types/settings").UserRecord>(`/users/${id}`, {
+        update: (id: string, data: import("@/types/security").UpdateUserRequest) =>
+            apiFetch<import("@/types/security").UserResponse>(`/auth/users/${id}`, {
                 method: "PUT",
                 body: JSON.stringify(data),
             }),
-        delete: (id: string) =>
-            apiFetch<void>(`/users/${id}`, { method: "DELETE" }),
+        effectiveAccess: (id: string) =>
+            apiFetch<import("@/types/security").EffectiveAccessResponse>(`/auth/users/${id}/effective-access`),
     },
 
     roles: {
         list: () =>
-            apiFetch<import("@/types/settings").RoleRecord[]>("/roles"),
-        get: (id: string) =>
-            apiFetch<import("@/types/settings").RoleRecord>(`/roles/${id}`),
-        create: (data: unknown) =>
-            apiFetch<import("@/types/settings").RoleRecord>("/roles", {
-                method: "POST",
-                body: JSON.stringify(data),
-            }),
-        update: (id: string, data: unknown) =>
-            apiFetch<import("@/types/settings").RoleRecord>(`/roles/${id}`, {
-                method: "PUT",
-                body: JSON.stringify(data),
-            }),
-        delete: (id: string) =>
-            apiFetch<void>(`/roles/${id}`, { method: "DELETE" }),
+            apiFetch<{ items: import("@/types/security").RoleResponse[] }>("/auth/roles"),
+        getPermissions: (roleId: string) =>
+            apiFetch<{ items: import("@/types/security").PermissionResponse[] }>(`/auth/roles/${roleId}/permissions`),
+    },
+
+    permissions: {
+        list: () =>
+            apiFetch<{ items: import("@/types/security").PermissionResponse[] }>("/auth/permissions"),
+    },
+
+    security: {
+        profiles: {
+            list: () =>
+                apiFetch<{ items: import("@/types/security").SecurityProfileResponse[] }>("/security/profiles"),
+            get: (id: string) =>
+                apiFetch<import("@/types/security").SecurityProfileResponse>(`/security/profiles/${id}`),
+            create: (data: import("@/types/security").CreateSecurityProfileRequest) =>
+                apiFetch<import("@/types/security").SecurityProfileResponse>("/security/profiles", {
+                    method: "POST",
+                    body: JSON.stringify(data),
+                }),
+            update: (id: string, data: import("@/types/security").UpdateSecurityProfileRequest) =>
+                apiFetch<import("@/types/security").SecurityProfileResponse>(`/security/profiles/${id}`, {
+                    method: "PUT",
+                    body: JSON.stringify(data),
+                }),
+            delete: (id: string) =>
+                apiFetch<void>(`/security/profiles/${id}`, { method: "DELETE" }),
+            listUsers: (profileId: string) =>
+                apiFetch<{ items: import("@/types/security").ProfileUserItem[] }>(`/security/profiles/${profileId}/users`),
+            assignUser: (profileId: string, userId: string) =>
+                apiFetch<void>(`/security/profiles/${profileId}/users`, {
+                    method: "POST",
+                    body: JSON.stringify({ userId }),
+                }),
+            removeUser: (profileId: string, userId: string) =>
+                apiFetch<void>(`/security/profiles/${profileId}/users/${userId}`, {
+                    method: "DELETE",
+                }),
+            auditHistory: (profileId: string, limit?: number) =>
+                apiFetch<{ items: import("@/types/security").AuditEntryResponse[] }>(
+                    `/security/profiles/${profileId}/audit${limit ? `?limit=${limit}` : ""}`
+                ),
+        },
+        rules: {
+            list: (profileId: string) =>
+                apiFetch<import("@/types/security").PolicyRuleResponse[]>(`/security/profiles/${profileId}/rules`),
+            create: (profileId: string, data: import("@/types/security").CreatePolicyRuleRequest) =>
+                apiFetch<import("@/types/security").PolicyRuleResponse>(`/security/profiles/${profileId}/rules`, {
+                    method: "POST",
+                    body: JSON.stringify(data),
+                }),
+            update: (profileId: string, ruleId: string, data: import("@/types/security").UpdatePolicyRuleRequest) =>
+                apiFetch<import("@/types/security").PolicyRuleResponse>(`/security/profiles/${profileId}/rules/${ruleId}`, {
+                    method: "PUT",
+                    body: JSON.stringify(data),
+                }),
+            delete: (profileId: string, ruleId: string) =>
+                apiFetch<void>(`/security/profiles/${profileId}/rules/${ruleId}`, {
+                    method: "DELETE",
+                }),
+            validate: (expression: string) =>
+                apiFetch<import("@/types/security").ValidateExpressionResponse>("/security/rules/validate", {
+                    method: "POST",
+                    body: JSON.stringify({ expression }),
+                }),
+            test: (expression: string, doc?: Record<string, unknown>, action?: string) =>
+                apiFetch<import("@/types/security").TestExpressionResponse>("/security/rules/test", {
+                    method: "POST",
+                    body: JSON.stringify({ expression, doc, action }),
+                }),
+        },
     },
 } as const

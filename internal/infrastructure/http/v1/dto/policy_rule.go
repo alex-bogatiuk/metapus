@@ -11,16 +11,16 @@ import (
 
 // PolicyRuleResponse is the API representation of a CEL policy rule.
 type PolicyRuleResponse struct {
-	ID          string   `json:"id"`
-	ProfileID   string   `json:"profileId"`
-	Name        string   `json:"name"`
-	Description string   `json:"description,omitempty"`
-	EntityName  string   `json:"entityName"`
-	Actions     []string `json:"actions"`
-	Expression  string   `json:"expression"`
-	Effect      string   `json:"effect"`
-	Priority    int      `json:"priority"`
-	Enabled     bool     `json:"enabled"`
+	ID          string    `json:"id"`
+	ProfileID   string    `json:"profileId"`
+	Name        string    `json:"name"`
+	Description string    `json:"description,omitempty"`
+	EntityName  string    `json:"entityName"`
+	Actions     []string  `json:"actions"`
+	Expression  string    `json:"expression"`
+	Effect      string    `json:"effect"`
+	Priority    int       `json:"priority"`
+	Enabled     bool      `json:"enabled"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
@@ -130,6 +130,20 @@ type ValidateExpressionRequest struct {
 
 // ValidateExpressionResponse is the response for CEL expression validation.
 type ValidateExpressionResponse struct {
-	Valid   bool   `json:"valid"`
+	Valid bool   `json:"valid"`
+	Error string `json:"error,omitempty"`
+}
+
+// TestExpressionRequest is the request body for testing a CEL expression against sample data.
+type TestExpressionRequest struct {
+	Expression string         `json:"expression" binding:"required"`
+	Doc        map[string]any `json:"doc"`
+	Action     string         `json:"action"`
+}
+
+// TestExpressionResponse is the response for CEL expression testing.
+type TestExpressionResponse struct {
+	Result  bool   `json:"result"`
 	Error   string `json:"error,omitempty"`
+	Elapsed string `json:"elapsed"` // human-readable duration
 }

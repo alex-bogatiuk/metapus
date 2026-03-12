@@ -49,27 +49,28 @@ type AuditEntry struct {
 }
 
 // AuditService provides audit logging functionality.
+// It resolves the per-tenant TxManager from context at runtime (multi-tenant safe).
 type AuditService struct {
-	txManager  *TxManager
-	encoder    *zstd.Encoder
-	decoder    *zstd.Decoder
+	encoder           *zstd.Encoder
+	decoder           *zstd.Decoder
 	compressThreshold int // bytes, default 10KB
 }
 
 // NewAuditService creates a new audit service.
-func NewAuditService(txManager *TxManager) (*AuditService, error) {
+// The service is stateless w.r.t. database connections — it resolves
+// the per-tenant TxManager from request context on every call.
+func NewAuditService() (*AuditService, error) {
 	encoder, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))
 	if err != nil {
 		return nil, fmt.Errorf("create zstd encoder: %w", err)
 	}
-	
+
 	decoder, err := zstd.NewReader(nil)
 	if err != nil {
 		return nil, fmt.Errorf("create zstd decoder: %w", err)
 	}
-	
+
 	return &AuditService{
-		txManager:         txManager,
 		encoder:           encoder,
 		decoder:           decoder,
 		compressThreshold: 10 * 1024, // 10KB
@@ -84,17 +85,17 @@ func (s *AuditService) Log(ctx context.Context, entry AuditEntry) error {
 			entry.UserID = scope.UserID
 		}
 	}
-	
+
 	// Generate ID if not set
 	if id.IsNil(entry.ID) {
 		entry.ID = id.New()
 	}
-	
+
 	// Set timestamp
 	if entry.CreatedAt.IsZero() {
 		entry.CreatedAt = time.Now().UTC()
 	}
-	
+
 	// Compress large changes
 	entry.CompressionAlgo = CompressionNone
 	if len(entry.Changes) > s.compressThreshold {
@@ -103,7 +104,7 @@ func (s *AuditService) Log(ctx context.Context, entry AuditEntry) error {
 		entry.Changes = nil
 		entry.CompressionAlgo = CompressionZstd
 	}
-	
+
 	// Insert
 	sql := `
 		INSERT INTO sys_audit (
@@ -112,15 +113,15 @@ func (s *AuditService) Log(ctx context.Context, entry AuditEntry) error {
 			created_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
-	
-	querier := s.txManager.GetQuerier(ctx)
+
+	querier := MustGetTxManager(ctx).GetQuerier(ctx)
 	_, err := querier.Exec(ctx, sql,
 		entry.ID, entry.EntityType, entry.EntityID, entry.Action,
 		entry.UserID, entry.UserEmail,
 		entry.Changes, entry.ChangesCompressed, entry.CompressionAlgo,
 		entry.Metadata, entry.CreatedAt,
 	)
-	
+
 	return err
 }
 
@@ -136,7 +137,7 @@ func (s *AuditService) LogChange(
 	if err != nil {
 		return fmt.Errorf("marshal changes: %w", err)
 	}
-	
+
 	return s.Log(ctx, AuditEntry{
 		EntityType: entityType,
 		EntityID:   entityID,
@@ -161,13 +162,13 @@ func (s *AuditService) GetEntityHistory(
 		ORDER BY created_at DESC
 		LIMIT $3
 	`
-	
-	rows, err := s.txManager.GetQuerier(ctx).Query(ctx, sql, entityType, entityID, limit)
+
+	rows, err := MustGetTxManager(ctx).GetQuerier(ctx).Query(ctx, sql, entityType, entityID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("query history: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var entries []AuditEntry
 	for rows.Next() {
 		var e AuditEntry
@@ -179,7 +180,7 @@ func (s *AuditService) GetEntityHistory(
 		if err != nil {
 			return nil, fmt.Errorf("scan entry: %w", err)
 		}
-		
+
 		// Decompress if needed
 		if e.CompressionAlgo == CompressionZstd && len(e.ChangesCompressed) > 0 {
 			decompressed, err := s.decoder.DecodeAll(e.ChangesCompressed, nil)
@@ -189,17 +190,17 @@ func (s *AuditService) GetEntityHistory(
 			e.Changes = decompressed
 			e.ChangesCompressed = nil
 		}
-		
+
 		entries = append(entries, e)
 	}
-	
+
 	return entries, rows.Err()
 }
 
 // Diff calculates the difference between old and new entity states.
 func Diff(oldState, newState map[string]any) map[string]any {
 	changes := make(map[string]any)
-	
+
 	// Find changed and new fields
 	for key, newVal := range newState {
 		oldVal, exists := oldState[key]
@@ -209,14 +210,14 @@ func Diff(oldState, newState map[string]any) map[string]any {
 			changes[key] = map[string]any{"old": oldVal, "new": newVal}
 		}
 	}
-	
+
 	// Find deleted fields
 	for key, oldVal := range oldState {
 		if _, exists := newState[key]; !exists {
 			changes[key] = map[string]any{"old": oldVal, "new": nil}
 		}
 	}
-	
+
 	return changes
 }
 

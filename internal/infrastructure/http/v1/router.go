@@ -135,7 +135,8 @@ func registerAuthRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 	}
 
 	baseHandler := handlers.NewBaseHandler()
-	authHandler := handlers.NewAuthHandler(baseHandler, cfg.AuthService)
+	profileRepo := security_repo.NewProfileRepo()
+	authHandler := handlers.NewAuthHandler(baseHandler, cfg.AuthService, profileRepo)
 
 	// Public auth endpoints (no JWT required, but need tenant for DB access)
 	publicAuth := rg.Group("/auth")
@@ -280,29 +281,51 @@ func registerReportRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 	reportsGroup.GET("/document-journal", middleware.RequirePermission("report:documents:read"), reportHandler.GetDocumentJournal)
 }
 
-// registerSecurityRoutes registers CEL policy rule management endpoints.
+// registerSecurityRoutes registers security profile and CEL policy rule management endpoints.
 func registerSecurityRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
-	if cfg.PolicyEngine == nil {
-		return
-	}
+	profileRepo := security_repo.NewProfileRepo()
 
-	policyRuleRepo := security_repo.NewPolicyRuleRepo()
-	policyRuleHandler := handlers.NewPolicyRuleHandler(policyRuleRepo, cfg.PolicyEngine)
+	// Audit service (best-effort — handler works without it)
+	auditSvc, _ := postgres.NewAuditService()
+
+	profileHandler := handlers.NewSecurityProfileHandler(profileRepo, auditSvc)
 
 	secGroup := rg.Group("/security")
+	secGroup.Use(middleware.RequireRole("admin"))
 	{
-		// CEL expression validation (no profile context needed)
-		secGroup.POST("/rules/validate", middleware.RequireRole("admin"), policyRuleHandler.ValidateExpression)
+		// Security profile CRUD
+		secGroup.GET("/profiles", profileHandler.List)
+		secGroup.POST("/profiles", profileHandler.Create)
+		secGroup.GET("/profiles/:profileId", profileHandler.Get)
+		secGroup.PUT("/profiles/:profileId", profileHandler.Update)
+		secGroup.DELETE("/profiles/:profileId", profileHandler.Delete)
 
-		// Profile-scoped rule CRUD
-		rulesGroup := secGroup.Group("/profiles/:profileId/rules")
-		rulesGroup.Use(middleware.RequireRole("admin"))
-		{
-			rulesGroup.GET("", policyRuleHandler.List)
-			rulesGroup.POST("", policyRuleHandler.Create)
-			rulesGroup.GET("/:ruleId", policyRuleHandler.Get)
-			rulesGroup.PUT("/:ruleId", policyRuleHandler.Update)
-			rulesGroup.DELETE("/:ruleId", policyRuleHandler.Delete)
+		// User assignment to profiles
+		secGroup.GET("/profiles/:profileId/users", profileHandler.ListProfileUsers)
+		secGroup.POST("/profiles/:profileId/users", profileHandler.AssignUser)
+		secGroup.DELETE("/profiles/:profileId/users/:userId", profileHandler.RemoveUser)
+
+		// Audit history
+		secGroup.GET("/profiles/:profileId/audit", profileHandler.GetAuditHistory)
+
+		// CEL policy rules (require PolicyEngine)
+		if cfg.PolicyEngine != nil {
+			policyRuleRepo := security_repo.NewPolicyRuleRepo()
+			policyRuleHandler := handlers.NewPolicyRuleHandler(policyRuleRepo, cfg.PolicyEngine)
+
+			// CEL expression validation and testing (no profile context needed)
+			secGroup.POST("/rules/validate", policyRuleHandler.ValidateExpression)
+			secGroup.POST("/rules/test", policyRuleHandler.TestExpression)
+
+			// Profile-scoped rule CRUD
+			rulesGroup := secGroup.Group("/profiles/:profileId/rules")
+			{
+				rulesGroup.GET("", policyRuleHandler.List)
+				rulesGroup.POST("", policyRuleHandler.Create)
+				rulesGroup.GET("/:ruleId", policyRuleHandler.Get)
+				rulesGroup.PUT("/:ruleId", policyRuleHandler.Update)
+				rulesGroup.DELETE("/:ruleId", policyRuleHandler.Delete)
+			}
 		}
 	}
 }

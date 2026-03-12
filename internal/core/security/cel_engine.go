@@ -12,8 +12,8 @@ import (
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 
-	appctx "metapus/internal/core/context"
 	"metapus/internal/core/apperror"
+	appctx "metapus/internal/core/context"
 )
 
 // PolicyRule is a minimal interface to avoid circular imports with security_profile package.
@@ -21,7 +21,7 @@ import (
 type PolicyRule interface {
 	GetID() string
 	GetExpression() string
-	GetEffect() string       // "deny" or "allow"
+	GetEffect() string // "deny" or "allow"
 	GetPriority() int
 	GetEnabled() bool
 	MatchesAction(action string) bool
@@ -212,6 +212,32 @@ func (e *PolicyEngine) getOrCompile(rule PolicyRule) (cel.Program, error) {
 	return program, nil
 }
 
+// EvalExpression compiles and evaluates a single CEL expression against the given activation map.
+// Used by the CEL sandbox for testing expressions without requiring a full PolicyRule.
+// Returns the boolean result or an error.
+func (e *PolicyEngine) EvalExpression(expression string, activation map[string]any) (bool, error) {
+	ast, issues := e.env.Compile(expression)
+	if issues != nil && issues.Err() != nil {
+		return false, fmt.Errorf("compile: %w", issues.Err())
+	}
+
+	program, err := e.env.Program(ast)
+	if err != nil {
+		return false, fmt.Errorf("program: %w", err)
+	}
+
+	out, _, err := program.Eval(activation)
+	if err != nil {
+		return false, fmt.Errorf("eval: %w", err)
+	}
+
+	b, ok := out.Value().(bool)
+	if !ok {
+		return false, fmt.Errorf("expression returned %T, expected bool", out.Value())
+	}
+	return b, nil
+}
+
 // InvalidateCache removes a cached program for a rule (e.g., after rule update).
 func (e *PolicyEngine) InvalidateCache(ruleID string) {
 	e.programCache.Delete(ruleID)
@@ -268,7 +294,7 @@ func entityToCELMap(entity any) map[string]any {
 			continue
 		}
 
-		field := v.Field(fm.Index)
+		field := v.FieldByIndex(fm.Index)
 		result[key] = toCELValue(field)
 	}
 
