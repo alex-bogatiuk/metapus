@@ -34,6 +34,9 @@ type SecurityProfile struct {
 
 	// CEL policy rules for fine-grained authorization.
 	PolicyRules []*PolicyRule `db:"-" json:"policyRules,omitempty"`
+
+	// UserCount is the number of users assigned to this profile (populated in List).
+	UserCount int `db:"-" json:"-"`
 }
 
 // Validate performs domain-level validation (no DB access).

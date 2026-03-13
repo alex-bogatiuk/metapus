@@ -147,6 +147,7 @@ func (s *AuditService) LogChange(
 }
 
 // GetEntityHistory retrieves audit history for an entity.
+// JOINs with users table to resolve author email when user_email was not stored.
 func (s *AuditService) GetEntityHistory(
 	ctx context.Context,
 	entityType string,
@@ -154,12 +155,14 @@ func (s *AuditService) GetEntityHistory(
 	limit int,
 ) ([]AuditEntry, error) {
 	sql := `
-		SELECT id, entity_type, entity_id, action, user_id, user_email,
-			   changes, changes_compressed, compression_algo, metadata,
-			   created_at
-		FROM sys_audit
-		WHERE entity_type = $1 AND entity_id = $2
-		ORDER BY created_at DESC
+		SELECT a.id, a.entity_type, a.entity_id, a.action, a.user_id,
+			   COALESCE(NULLIF(a.user_email, ''), u.email, a.user_id) AS user_email,
+			   a.changes, a.changes_compressed, a.compression_algo, a.metadata,
+			   a.created_at
+		FROM sys_audit a
+		LEFT JOIN users u ON u.id::text = a.user_id
+		WHERE a.entity_type = $1 AND a.entity_id = $2
+		ORDER BY a.created_at DESC
 		LIMIT $3
 	`
 

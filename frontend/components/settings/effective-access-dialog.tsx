@@ -103,7 +103,7 @@ export function EffectiveAccessDialog({ user, onClose }: EffectiveAccessDialogPr
               <AccordionTrigger className="py-2 text-sm hover:no-underline">
                 <div className="flex items-center gap-2">
                   <Eye className="h-3.5 w-3.5 text-primary" />
-                  <span>Видимость данных (RLS)</span>
+                  <span>Доступ к данным (по организациям/складам)</span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="pb-3">
@@ -133,7 +133,7 @@ export function EffectiveAccessDialog({ user, onClose }: EffectiveAccessDialogPr
               <AccordionTrigger className="py-2 text-sm hover:no-underline">
                 <div className="flex items-center gap-2">
                   <EyeOff className="h-3.5 w-3.5 text-primary" />
-                  <span>Скрытые поля (FLS)</span>
+                  <span>Скрытие полей и запрет редактирования</span>
                   {(data.flsPolicies?.length ?? 0) > 0 && (
                     <Badge variant="secondary" className="text-[10px] h-4 ml-1">
                       {data.flsPolicies!.length}
@@ -170,7 +170,7 @@ export function EffectiveAccessDialog({ user, onClose }: EffectiveAccessDialogPr
               <AccordionTrigger className="py-2 text-sm hover:no-underline">
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="h-3.5 w-3.5 text-primary" />
-                  <span>Бизнес-правила (CEL)</span>
+                  <span>Сложные условия (CEL)</span>
                   {(data.celRules?.length ?? 0) > 0 && (
                     <Badge variant="secondary" className="text-[10px] h-4 ml-1">
                       {data.celRules!.length}

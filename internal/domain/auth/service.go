@@ -521,6 +521,59 @@ func (s *Service) CreateRole(ctx context.Context, code, name, description string
 	return role, nil
 }
 
+// Impersonate generates tokens for a target user (admin-only impersonation).
+// The caller must be an admin. Returns tokens that allow acting as the target user.
+func (s *Service) Impersonate(ctx context.Context, targetUserID id.ID, info SessionInfo) (*TokenPair, *User, error) {
+	if _, err := s.requireTenantID(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	// Verify caller is admin
+	caller := appctx.GetUser(ctx)
+	if caller == nil || !caller.IsAdmin {
+		return nil, nil, apperror.NewForbidden("only admins can impersonate users")
+	}
+
+	// Prevent self-impersonation
+	if caller.UserID == targetUserID.String() {
+		return nil, nil, apperror.NewValidation("cannot impersonate yourself")
+	}
+
+	// Load target user with all relations
+	user, err := s.userRepo.GetByID(ctx, targetUserID)
+	if err != nil {
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get user for impersonation", "target_user_id", targetUserID, "error", err)
+		}
+		return nil, nil, apperror.NewNotFound("user", targetUserID.String()).WithCause(err)
+	}
+
+	if !user.IsActive {
+		return nil, nil, apperror.NewValidation("cannot impersonate inactive user")
+	}
+
+	// Load roles, permissions, orgs
+	roles, _ := s.userRepo.LoadRoles(ctx, user.ID)
+	user.Roles = roles
+	permissions, _ := s.userRepo.LoadPermissions(ctx, user.ID)
+	user.Permissions = permissions
+	orgIDs, _ := s.userRepo.LoadOrganizations(ctx, user.ID)
+	user.OrgIDs = orgIDs
+
+	// Generate tokens for target user
+	tokens, err := s.generateTokenPair(ctx, user, info)
+	if err != nil {
+		return nil, nil, fmt.Errorf("generate impersonation tokens: %w", err)
+	}
+
+	logger.Info(ctx, "user impersonated",
+		"admin_id", caller.UserID,
+		"target_user_id", targetUserID,
+		"target_email", user.Email)
+
+	return tokens, user, nil
+}
+
 // generateTokenPair creates access and refresh tokens.
 func (s *Service) generateTokenPair(ctx context.Context, user *User, info SessionInfo) (*TokenPair, error) {
 	tenantID, err := s.requireTenantID(ctx)

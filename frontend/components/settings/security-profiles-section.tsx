@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   Plus,
   MoreHorizontal,
@@ -10,6 +11,7 @@ import {
   Trash2,
   Copy,
   Loader2,
+  Users,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -36,8 +38,8 @@ import { cn } from "@/lib/utils"
 import { api } from "@/lib/api"
 import { toast } from "sonner"
 import type { SecurityProfileResponse } from "@/types/security"
-import { SecurityProfileSheet } from "@/components/settings/security-profile-sheet"
 import { ProfilePresetPicker, type ProfilePreset } from "@/components/settings/profile-presets"
+import { useProfilePresetStore } from "@/stores/useProfilePresetStore"
 import {
   Dialog,
   DialogContent,
@@ -46,14 +48,12 @@ import {
 } from "@/components/ui/dialog"
 
 export function SecurityProfilesSection() {
+  const router = useRouter()
   const [profiles, setProfiles] = useState<SecurityProfileResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
-  const [editingProfile, setEditingProfile] = useState<SecurityProfileResponse | null>(null)
-  const [sheetOpen, setSheetOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<SecurityProfileResponse | null>(null)
   const [presetOpen, setPresetOpen] = useState(false)
-  const [presetData, setPresetData] = useState<ProfilePreset | null>(null)
 
   const loadProfiles = useCallback(async () => {
     try {
@@ -75,22 +75,18 @@ export function SecurityProfilesSection() {
   }
 
   const handlePresetSelect = (preset: ProfilePreset) => {
-    setPresetData(preset)
     setPresetOpen(false)
-    setEditingProfile(null)
-    setSheetOpen(true)
+    useProfilePresetStore.getState().setPreset(preset)
+    router.push("/settings/security-profiles/new")
   }
 
   const handlePresetSkip = () => {
-    setPresetData(null)
     setPresetOpen(false)
-    setEditingProfile(null)
-    setSheetOpen(true)
+    router.push("/settings/security-profiles/new")
   }
 
   const handleEdit = (profile: SecurityProfileResponse) => {
-    setEditingProfile(profile)
-    setSheetOpen(true)
+    router.push(`/settings/security-profiles/${profile.id}`)
   }
 
   const handleDuplicate = async (profile: SecurityProfileResponse) => {
@@ -119,12 +115,6 @@ export function SecurityProfilesSection() {
     } catch {
       toast.error("Не удалось удалить профиль")
     }
-  }
-
-  const handleSheetClose = (saved: boolean) => {
-    setSheetOpen(false)
-    setEditingProfile(null)
-    if (saved) loadProfiles()
   }
 
   const filtered = profiles.filter(
@@ -169,7 +159,7 @@ export function SecurityProfilesSection() {
           </p>
           {!search && (
             <p className="text-xs text-muted-foreground/60">
-              Профиль объединяет RLS, FLS и CEL-правила для управления доступом
+              Профиль объединяет доступ к данным, скрытие полей и условия для управления правами
             </p>
           )}
         </div>
@@ -196,14 +186,6 @@ export function SecurityProfilesSection() {
           <ProfilePresetPicker onSelect={handlePresetSelect} onSkip={handlePresetSkip} />
         </DialogContent>
       </Dialog>
-
-      {/* Edit/Create sheet */}
-      <SecurityProfileSheet
-        open={sheetOpen}
-        profile={editingProfile}
-        presetData={presetData}
-        onClose={handleSheetClose}
-      />
 
       {/* Delete confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
@@ -309,22 +291,26 @@ function ProfileCard({
 
       {/* Stats badges */}
       <div className="mt-3 flex items-center gap-2 flex-wrap">
+        <Badge variant="outline" className="text-[10px] h-5 font-normal gap-1">
+          <Users className="h-3 w-3 text-muted-foreground" />
+          {profile.userCount} {profile.userCount === 1 ? "пользователь" : profile.userCount >= 2 && profile.userCount <= 4 ? "пользователя" : "пользователей"}
+        </Badge>
         {dimCount > 0 && (
           <Badge variant="outline" className="text-[10px] h-5 font-normal gap-1">
-            <span className="font-semibold text-blue-600">RLS</span>
-            {dimCount}
+            <span className="font-semibold text-blue-600">Доступ</span>
+            {dimCount} огр.
           </Badge>
         )}
         {flsCount > 0 && (
           <Badge variant="outline" className="text-[10px] h-5 font-normal gap-1">
-            <span className="font-semibold text-violet-600">FLS</span>
-            {flsCount}
+            <span className="font-semibold text-violet-600">Поля</span>
+            {flsCount} огр.
           </Badge>
         )}
         {ruleCount > 0 && (
           <Badge variant="outline" className="text-[10px] h-5 font-normal gap-1">
             <span className="font-semibold text-amber-600">CEL</span>
-            {ruleCount}
+            {ruleCount} усл.
           </Badge>
         )}
         {dimCount === 0 && flsCount === 0 && ruleCount === 0 && (

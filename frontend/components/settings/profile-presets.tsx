@@ -28,13 +28,13 @@ export const PROFILE_PRESETS: ProfilePreset[] = [
     dimensions: {},
     fieldPolicies: [
       {
-        entityName: "goods_receipt",
+        entityName: "GoodsReceipt",
         action: "read",
         allowedFields: ["*", "-total_amount", "-total_vat"],
         tableParts: { lines: ["*", "-unit_price", "-amount", "-vat_amount"] },
       },
       {
-        entityName: "goods_issue",
+        entityName: "GoodsIssue",
         action: "read",
         allowedFields: ["*", "-total_amount", "-total_vat"],
         tableParts: { lines: ["*", "-unit_price", "-amount", "-vat_amount"] },
@@ -65,13 +65,13 @@ export const PROFILE_PRESETS: ProfilePreset[] = [
     dimensions: { warehouse: [] },
     fieldPolicies: [
       {
-        entityName: "goods_receipt",
+        entityName: "GoodsReceipt",
         action: "read",
         allowedFields: ["*", "-total_amount", "-total_vat"],
         tableParts: { lines: ["*", "-unit_price", "-amount", "-vat_amount"] },
       },
       {
-        entityName: "goods_receipt",
+        entityName: "GoodsReceipt",
         action: "write",
         allowedFields: ["*", "-total_amount", "-total_vat"],
         tableParts: { lines: ["*", "-unit_price", "-amount", "-vat_amount"] },

@@ -67,6 +67,14 @@ func (r *ProfileRepo) GetByID(ctx context.Context, profileID id.ID) (*security_p
 		return nil, err
 	}
 
+	// Load user count
+	var userCount int
+	if err := querier.QueryRow(ctx,
+		`SELECT COUNT(*) FROM user_security_profiles WHERE profile_id = $1`, profileID,
+	).Scan(&userCount); err == nil {
+		profile.UserCount = userCount
+	}
+
 	return profile, nil
 }
 
@@ -127,7 +135,7 @@ func (r *ProfileRepo) List(ctx context.Context) ([]*security_profile.SecurityPro
 		return nil, fmt.Errorf("list profiles: %w", err)
 	}
 
-	// Load dimensions + field policies for each profile
+	// Load dimensions + field policies + policy rules for each profile
 	for _, p := range profiles {
 		if err := r.loadDimensions(ctx, querier, p); err != nil {
 			return nil, err
@@ -135,6 +143,18 @@ func (r *ProfileRepo) List(ctx context.Context) ([]*security_profile.SecurityPro
 		if err := r.loadFieldPolicies(ctx, querier, p); err != nil {
 			return nil, err
 		}
+		if err := r.loadPolicyRules(ctx, querier, p); err != nil {
+			return nil, err
+		}
+	}
+
+	// Load user counts per profile
+	userCounts, err := r.loadUserCounts(ctx, querier)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range profiles {
+		p.UserCount = userCounts[p.ID.String()]
 	}
 
 	return profiles, nil
@@ -410,6 +430,27 @@ func (r *ProfileRepo) loadPolicyRules(ctx context.Context, querier postgres.Quer
 	}
 	profile.PolicyRules = rules
 	return nil
+}
+
+// loadUserCounts returns a map of profileID (string) → user count.
+func (r *ProfileRepo) loadUserCounts(ctx context.Context, querier postgres.Querier) (map[string]int, error) {
+	query := `SELECT profile_id, COUNT(*) FROM user_security_profiles GROUP BY profile_id`
+	rows, err := querier.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("query user counts: %w", err)
+	}
+	defer rows.Close()
+
+	counts := make(map[string]int)
+	for rows.Next() {
+		var profileID id.ID
+		var count int
+		if err := rows.Scan(&profileID, &count); err != nil {
+			return nil, fmt.Errorf("scan user count: %w", err)
+		}
+		counts[profileID.String()] = count
+	}
+	return counts, rows.Err()
 }
 
 // ListUsersByProfileID returns users assigned to a specific profile.

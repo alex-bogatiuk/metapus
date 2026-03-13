@@ -6,6 +6,7 @@ import {
   Calculator,
   Users,
   ShieldCheck,
+  LayoutGrid,
   ChevronRight,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -14,8 +15,9 @@ import { OrganizationSection } from "@/components/settings/organization-section"
 import { AccountingSection } from "@/components/settings/accounting-section"
 import { UsersRolesSection } from "@/components/settings/users-roles-section"
 import { SecurityProfilesSection } from "@/components/settings/security-profiles-section"
+import { AccessMatrix } from "@/components/settings/access-matrix"
 
-type SettingsSection = "organization" | "accounting" | "users" | "security"
+type SettingsSection = "organization" | "accounting" | "users" | "security" | "matrix"
 
 interface SectionItem {
   id: SettingsSection
@@ -46,8 +48,14 @@ const sections: SectionItem[] = [
   {
     id: "security",
     title: "Профили безопасности",
-    description: "RLS, FLS и CEL-правила доступа",
+    description: "Доступ к данным, скрытие полей, условия",
     icon: ShieldCheck,
+  },
+  {
+    id: "matrix",
+    title: "Матрица доступа",
+    description: "Сводная таблица прав по ролям и профилям",
+    icon: LayoutGrid,
   },
 ]
 
@@ -56,6 +64,7 @@ const sectionComponents: Record<SettingsSection, React.ComponentType> = {
   accounting: AccountingSection,
   users: UsersRolesSection,
   security: SecurityProfilesSection,
+  matrix: AccessMatrix,
 }
 
 export default function SettingsPage() {

@@ -22,6 +22,7 @@ type SecurityProfileResponse struct {
 	Dimensions    map[string][]string   `json:"dimensions,omitempty"`
 	FieldPolicies []FieldPolicyResponse `json:"fieldPolicies,omitempty"`
 	PolicyRules   []PolicyRuleResponse  `json:"policyRules,omitempty"`
+	UserCount     int                   `json:"userCount"`
 }
 
 // FieldPolicyResponse is the API representation of a field policy.
@@ -43,6 +44,7 @@ func FromSecurityProfile(p *security_profile.SecurityProfile) SecurityProfileRes
 		CreatedAt:   p.CreatedAt,
 		UpdatedAt:   p.UpdatedAt,
 		Dimensions:  p.Dimensions,
+		UserCount:   p.UserCount,
 	}
 
 	// Convert field policies map to slice

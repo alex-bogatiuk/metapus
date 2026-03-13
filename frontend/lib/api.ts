@@ -338,6 +338,10 @@ export const api = {
             apiFetch<{ name: string; label?: string; type: string; fields: { name: string; label?: string; type: string }[]; tableParts?: { name: string; label?: string; columns: { name: string; label?: string; type: string }[] }[] }>(
                 `/meta/${entityName}`
             ),
+        getMock: (entityName: string) =>
+            apiFetch<Record<string, unknown>>(
+                `/meta/${entityName}/mock`
+            ),
     },
 
     preferences: {
@@ -392,6 +396,10 @@ export const api = {
             }),
         effectiveAccess: (id: string) =>
             apiFetch<import("@/types/security").EffectiveAccessResponse>(`/auth/users/${id}/effective-access`),
+        impersonate: (id: string) =>
+            apiFetch<{ tokens: { accessToken: string; refreshToken: string; expiresAt: string; tokenType: string }; user: import("@/types/security").UserResponse }>(`/auth/users/${id}/impersonate`, {
+                method: "POST",
+            }),
     },
 
     roles: {

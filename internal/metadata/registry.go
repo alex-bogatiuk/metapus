@@ -1,5 +1,7 @@
 package metadata
 
+import "strings"
+
 // EntityType defines the category of the entity.
 type EntityType string
 
@@ -204,7 +206,59 @@ func (d *EntityDef) SetRefEndpoints(endpoints map[string]string) {
 	d.RefEndpoints = endpoints
 }
 
+// GenerateMock builds a sample JSON-compatible map with realistic placeholder values
+// for each field based on its FieldType. Used by the CEL sandbox to auto-populate
+// sample documents so users don't have to write JSON manually.
+func (d *EntityDef) GenerateMock() map[string]interface{} {
+	mock := make(map[string]interface{})
+	for _, f := range d.Fields {
+		mock[f.Name] = mockValue(f)
+	}
+	for _, tp := range d.TableParts {
+		row := make(map[string]interface{})
+		for _, col := range tp.Columns {
+			row[col.Name] = mockValue(col)
+		}
+		mock[tp.Name] = []interface{}{row}
+	}
+	return mock
+}
 
+func mockValue(f FieldDef) interface{} {
+	switch f.Type {
+	case TypeString:
+		if f.Name == "code" || f.Name == "number" {
+			return "DOC-001"
+		}
+		if f.Name == "name" {
+			return "Пример"
+		}
+		if f.Name == "status" {
+			return "draft"
+		}
+		return "example"
+	case TypeInteger:
+		return 1
+	case TypeNumber:
+		return 100.50
+	case TypeMoney:
+		return 5000000
+	case TypeBoolean:
+		if f.Name == "posted" || f.Name == "deletionMark" {
+			return false
+		}
+		if f.Name == "isActive" {
+			return true
+		}
+		return false
+	case TypeDate:
+		return "2025-01-15T10:00:00Z"
+	case TypeReference:
+		return "00000000-0000-0000-0000-000000000001"
+	default:
+		return nil
+	}
+}
 
 // Registry stores entity definitions and reference type mappings.
 type Registry struct {
@@ -231,8 +285,17 @@ func (r *Registry) RegisterReferenceMapping(refType, entityName string) {
 }
 
 func (r *Registry) Get(name string) (EntityDef, bool) {
-	d, ok := r.entities[name]
-	return d, ok
+	if d, ok := r.entities[name]; ok {
+		return d, true
+	}
+	// Fallback: case-insensitive lookup
+	lower := strings.ToLower(name)
+	for k, d := range r.entities {
+		if strings.ToLower(k) == lower {
+			return d, true
+		}
+	}
+	return EntityDef{}, false
 }
 
 func (r *Registry) List() []EntityDef {

@@ -237,8 +237,11 @@ export function AccountingSection() {
         </div>
       </div>
 
-      {/* Save button */}
-      <div className="flex items-center gap-3 pt-2">
+      {/* Spacer so content doesn't hide behind sticky footer */}
+      <div className="h-16" />
+
+      {/* Sticky Save footer */}
+      <div className="sticky bottom-0 -mx-6 border-t bg-background px-6 py-3 flex items-center gap-3">
         <Button disabled={isSaving}>
           {isSaving ? "Сохранение..." : "Сохранить"}
         </Button>

@@ -263,6 +263,7 @@ func registerMetaRoutes(rg *gin.RouterGroup, reg *metadata.Registry) {
 	{
 		meta.GET("", handler.ListEntities)
 		meta.GET("/:name", handler.GetEntity)
+		meta.GET("/:name/mock", handler.GetEntityMock)
 		meta.GET("/:name/filters", handler.GetEntityFilters)
 	}
 }

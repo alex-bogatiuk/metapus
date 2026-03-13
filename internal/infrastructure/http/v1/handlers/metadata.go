@@ -38,6 +38,19 @@ func (h *MetadataHandler) GetEntity(c *gin.Context) {
 	}
 }
 
+// GetEntityMock returns a sample JSON document for a specific entity.
+// Used by the CEL sandbox to auto-populate sample data.
+// GET /api/v1/meta/:name/mock
+func (h *MetadataHandler) GetEntityMock(c *gin.Context) {
+	name := c.Param("name")
+	def, ok := h.registry.Get(name)
+	if !ok {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	c.JSON(http.StatusOK, def.GenerateMock())
+}
+
 // GetEntityFilters returns a flat list of FilterFieldMeta for a specific entity.
 // This is the contract between backend and frontend for the filter configuration dialog.
 // GET /api/v1/meta/:name/filters

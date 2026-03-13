@@ -6,6 +6,7 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { AppSidebar } from "./app-sidebar"
 import { SiteHeader } from "./site-header"
 import { useTabsStore } from "@/stores/useTabsStore"
+import { ImpersonationBanner } from "./impersonation-banner"
 
 /** breadcrumb label resolver to derive tab titles from URL segments */
 const breadcrumbMap: Record<string, string> = {
@@ -22,6 +23,7 @@ const breadcrumbMap: Record<string, string> = {
   finance: "Деньги",
   company: "Компания",
   settings: "Настройки",
+  "security-profiles": "Профили безопасности",
   crm: "CRM",
   help: "Помощь",
 }
@@ -90,6 +92,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
+        <ImpersonationBanner />
         <RouteSync />
         <SiteHeader />
         <div className="flex flex-1 flex-col min-h-0 overflow-hidden">

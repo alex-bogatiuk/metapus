@@ -64,6 +64,7 @@ export interface SecurityProfileResponse {
   dimensions?: Record<string, string[]>
   fieldPolicies?: FieldPolicyItem[]
   policyRules?: PolicyRuleResponse[]
+  userCount: number
 }
 
 export interface CreateSecurityProfileRequest {

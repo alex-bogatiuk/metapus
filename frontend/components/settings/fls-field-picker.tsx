@@ -4,9 +4,8 @@ import { useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Input } from "@/components/ui/input"
 import { api } from "@/lib/api"
+import type { FieldPolicyItem } from "@/types/security"
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -32,15 +31,15 @@ interface EntityMeta {
 
 // ── Props ────────────────────────────────────────────────────────────
 
-interface FlsFieldPickerProps {
+interface FlsFieldMatrixProps {
   entityName: string
-  allowedFields: string[]
-  tableParts?: Record<string, string[]>
-  onChangeFields: (fields: string[]) => void
-  onChangeTableParts: (parts: Record<string, string[]>) => void
+  /** Read + Write policies for this entity (0-2 items) */
+  readPolicy?: FieldPolicyItem
+  writePolicy?: FieldPolicyItem
+  onChange: (read: FieldPolicyItem | undefined, write: FieldPolicyItem | undefined) => void
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────
+// ── DSL Helpers ─────────────────────────────────────────────────────
 
 function parseDsl(dsl: string[]): { allAllowed: boolean; excluded: Set<string>; included: Set<string> } {
   const hasWildcard = dsl.includes("*")
@@ -64,26 +63,34 @@ function buildDsl(allFields: string[], checkedFields: Set<string>): string[] {
   if (checkedFields.size === 0) return []
 
   const unchecked = allFields.filter((f) => !checkedFields.has(f))
-  // If most are checked, use wildcard + exclusions
   if (checkedFields.size > allFields.length / 2) {
     return ["*", ...unchecked.map((f) => `-${f}`)]
   }
-  // Otherwise list included
   return [...checkedFields]
+}
+
+function isChecked(dsl: string[] | undefined, fieldName: string): boolean {
+  if (!dsl || dsl.length === 0) return true // no policy = all allowed
+  const { allAllowed, excluded, included } = parseDsl(dsl)
+  if (allAllowed) return !excluded.has(fieldName)
+  return included.has(fieldName)
+}
+
+function isCheckedTp(policy: FieldPolicyItem | undefined, partName: string, colName: string): boolean {
+  const partDsl = policy?.tableParts?.[partName] ?? ["*"]
+  return isChecked(partDsl, colName)
 }
 
 // ── Component ────────────────────────────────────────────────────────
 
-export function FlsFieldPicker({
+export function FlsFieldMatrix({
   entityName,
-  allowedFields,
-  tableParts,
-  onChangeFields,
-  onChangeTableParts,
-}: FlsFieldPickerProps) {
+  readPolicy,
+  writePolicy,
+  onChange,
+}: FlsFieldMatrixProps) {
   const [meta, setMeta] = useState<EntityMeta | null>(null)
-  const [loading, setLoading] = useState(!!entityName)
-  const [dslMode, setDslMode] = useState(false)
+  const [loadState, setLoadState] = useState<"idle" | "loading" | "done">(entityName ? "loading" : "idle")
 
   useEffect(() => {
     if (!entityName) return
@@ -91,9 +98,11 @@ export function FlsFieldPicker({
     api.meta.getEntity(entityName)
       .then((data) => { if (!cancelled) setMeta(data as EntityMeta) })
       .catch(() => { if (!cancelled) setMeta(null) })
-      .finally(() => { if (!cancelled) setLoading(false) })
+      .finally(() => { if (!cancelled) setLoadState("done") })
     return () => { cancelled = true }
   }, [entityName])
+
+  const loading = loadState === "loading"
 
   if (loading) {
     return (
@@ -104,107 +113,127 @@ export function FlsFieldPicker({
     )
   }
 
-  if (!meta || dslMode) {
-    // Fallback: raw DSL input
+  if (!meta) {
     return (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label className="text-[11px] text-muted-foreground">Поля шапки (DSL)</Label>
-          {meta && (
-            <button
-              className="text-[10px] text-primary hover:underline"
-              onClick={() => setDslMode(false)}
-            >
-              Визуальный режим
-            </button>
-          )}
-        </div>
-        <Input
-          value={allowedFields.join(", ")}
-          onChange={(e) => {
-            const fields = e.target.value.split(",").map((s) => s.trim()).filter(Boolean)
-            onChangeFields(fields)
-          }}
-          placeholder="*, -unit_price, -total_amount"
-          className="h-8 text-xs font-mono"
-        />
-      </div>
+      <p className="text-xs text-muted-foreground py-2">
+        Не удалось загрузить метаданные сущности
+      </p>
     )
   }
 
-  const { allAllowed, excluded, included } = parseDsl(allowedFields)
   const headerFields = meta.fields.filter((f) => f.name !== "id" && f.name !== "version")
+  const tablePartMeta = meta.tableParts ?? []
+  const allFieldNames = headerFields.map((f) => f.name)
 
-  const isFieldChecked = (fieldName: string): boolean => {
-    if (allAllowed) return !excluded.has(fieldName)
-    return included.has(fieldName)
-  }
-
-  const toggleField = (fieldName: string) => {
-    const checkedSet = new Set(headerFields.filter((f) => isFieldChecked(f.name)).map((f) => f.name))
+  const toggleHeader = (fieldName: string, action: "read" | "write") => {
+    const policy = action === "read" ? readPolicy : writePolicy
+    const dsl = policy?.allowedFields ?? ["*"]
+    const checkedSet = new Set(allFieldNames.filter((f) => isChecked(dsl, f)))
     if (checkedSet.has(fieldName)) {
       checkedSet.delete(fieldName)
     } else {
       checkedSet.add(fieldName)
     }
-    onChangeFields(buildDsl(headerFields.map((f) => f.name), checkedSet))
+    const newDsl = buildDsl(allFieldNames, checkedSet)
+    const allAllowed = newDsl.length === 1 && newDsl[0] === "*"
+    const tpUnchanged = !policy?.tableParts || Object.keys(policy.tableParts).length === 0
+    const noRestriction = allAllowed && tpUnchanged
+    const newPolicy: FieldPolicyItem | undefined = noRestriction
+      ? undefined
+      : {
+          entityName,
+          action,
+          allowedFields: newDsl,
+          tableParts: policy?.tableParts ?? {},
+        }
+    if (action === "read") onChange(newPolicy, writePolicy)
+    else onChange(readPolicy, newPolicy)
   }
 
-  // Table parts
-  const tablePartMeta = meta.tableParts ?? []
-
-  const isTablePartFieldChecked = (partName: string, colName: string): boolean => {
-    const partDsl = tableParts?.[partName] ?? ["*"]
-    const parsed = parseDsl(partDsl)
-    if (parsed.allAllowed) return !parsed.excluded.has(colName)
-    return parsed.included.has(colName)
-  }
-
-  const toggleTablePartField = (partName: string, colName: string) => {
+  const toggleTp = (partName: string, colName: string, action: "read" | "write") => {
+    const policy = action === "read" ? readPolicy : writePolicy
     const part = tablePartMeta.find((tp) => tp.name === partName)
     if (!part) return
     const allCols = part.columns.filter((c) => c.name !== "id").map((c) => c.name)
-    const checkedSet = new Set(allCols.filter((c) => isTablePartFieldChecked(partName, c)))
+    const partDsl = policy?.tableParts?.[partName] ?? ["*"]
+    const checkedSet = new Set(allCols.filter((c) => isChecked(partDsl, c)))
     if (checkedSet.has(colName)) {
       checkedSet.delete(colName)
     } else {
       checkedSet.add(colName)
     }
-    onChangeTableParts({
-      ...(tableParts ?? {}),
+    const newTp = {
+      ...(policy?.tableParts ?? {}),
       [partName]: buildDsl(allCols, checkedSet),
-    })
+    }
+    // Clean up table parts that are all-allowed
+    for (const [k, v] of Object.entries(newTp)) {
+      if (v.length === 1 && v[0] === "*") delete newTp[k]
+    }
+    const headerDsl = policy?.allowedFields ?? ["*"]
+    const allHeaderAllowed = headerDsl.length === 1 && headerDsl[0] === "*"
+    const noRestriction = allHeaderAllowed && Object.keys(newTp).length === 0
+    const newPolicy: FieldPolicyItem | undefined = noRestriction
+      ? undefined
+      : {
+          entityName,
+          action,
+          allowedFields: headerDsl,
+          tableParts: newTp,
+        }
+    if (action === "read") onChange(newPolicy, writePolicy)
+    else onChange(readPolicy, newPolicy)
   }
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <Label className="text-[11px] text-muted-foreground">Видимые поля шапки</Label>
-        <button
-          className="text-[10px] text-primary hover:underline"
-          onClick={() => setDslMode(true)}
-        >
-          Режим DSL
-        </button>
-      </div>
-
-      {/* Header fields */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-        {headerFields.map((field) => (
-          <label
-            key={field.name}
-            className="flex items-center gap-2 text-xs cursor-pointer hover:text-foreground transition-colors"
-          >
-            <Checkbox
-              checked={isFieldChecked(field.name)}
-              onCheckedChange={() => toggleField(field.name)}
-              className="h-3.5 w-3.5"
-            />
-            <span className={isFieldChecked(field.name) ? "text-foreground" : "text-muted-foreground line-through"}>
-              {field.label || field.name}
-            </span>
-          </label>
-        ))}
+      {/* Header fields matrix */}
+      <div className="rounded border">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b bg-muted/40">
+              <th className="px-3 py-1.5 text-left text-[11px] font-medium text-muted-foreground">
+                Поле
+              </th>
+              <th className="px-3 py-1.5 text-center text-[11px] font-medium text-muted-foreground w-20">
+                Просмотр
+              </th>
+              <th className="px-3 py-1.5 text-center text-[11px] font-medium text-muted-foreground w-24">
+                Редактирование
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {headerFields.map((field) => {
+              const readOk = isChecked(readPolicy?.allowedFields, field.name)
+              const writeOk = isChecked(writePolicy?.allowedFields, field.name)
+              return (
+                <tr key={field.name} className="border-b last:border-b-0 hover:bg-muted/20">
+                  <td className="px-3 py-1.5">
+                    <span className={!readOk && !writeOk ? "text-muted-foreground line-through" : "text-foreground"}>
+                      {field.label || field.name}
+                    </span>
+                    <span className="ml-1.5 text-[10px] text-muted-foreground/60 font-mono">{field.type}</span>
+                  </td>
+                  <td className="px-3 py-1.5 text-center">
+                    <Checkbox
+                      checked={readOk}
+                      onCheckedChange={() => toggleHeader(field.name, "read")}
+                      className="h-3.5 w-3.5"
+                    />
+                  </td>
+                  <td className="px-3 py-1.5 text-center">
+                    <Checkbox
+                      checked={writeOk}
+                      onCheckedChange={() => toggleHeader(field.name, "write")}
+                      className="h-3.5 w-3.5"
+                    />
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
 
       {/* Table parts */}
@@ -212,27 +241,48 @@ export function FlsFieldPicker({
         const cols = tp.columns.filter((c) => c.name !== "id")
         if (cols.length === 0) return null
         return (
-          <div key={tp.name} className="rounded border bg-muted/30 p-2 space-y-2">
-            <Label className="text-[11px] text-muted-foreground">
+          <div key={tp.name} className="rounded border bg-muted/30 overflow-hidden">
+            <Label className="block text-[11px] text-muted-foreground px-3 py-1.5 bg-muted/40 border-b">
               {tp.label || tp.name}
             </Label>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-              {cols.map((col) => (
-                <label
-                  key={col.name}
-                  className="flex items-center gap-2 text-xs cursor-pointer hover:text-foreground transition-colors"
-                >
-                  <Checkbox
-                    checked={isTablePartFieldChecked(tp.name, col.name)}
-                    onCheckedChange={() => toggleTablePartField(tp.name, col.name)}
-                    className="h-3.5 w-3.5"
-                  />
-                  <span className={isTablePartFieldChecked(tp.name, col.name) ? "text-foreground" : "text-muted-foreground line-through"}>
-                    {col.label || col.name}
-                  </span>
-                </label>
-              ))}
-            </div>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b bg-muted/20">
+                  <th className="px-3 py-1 text-left text-[10px] font-medium text-muted-foreground">Поле</th>
+                  <th className="px-3 py-1 text-center text-[10px] font-medium text-muted-foreground w-20">Просмотр</th>
+                  <th className="px-3 py-1 text-center text-[10px] font-medium text-muted-foreground w-24">Редактирование</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cols.map((col) => {
+                  const readOk = isCheckedTp(readPolicy, tp.name, col.name)
+                  const writeOk = isCheckedTp(writePolicy, tp.name, col.name)
+                  return (
+                    <tr key={col.name} className="border-b last:border-b-0 hover:bg-muted/20">
+                      <td className="px-3 py-1">
+                        <span className={!readOk && !writeOk ? "text-muted-foreground line-through" : "text-foreground"}>
+                          {col.label || col.name}
+                        </span>
+                      </td>
+                      <td className="px-3 py-1 text-center">
+                        <Checkbox
+                          checked={readOk}
+                          onCheckedChange={() => toggleTp(tp.name, col.name, "read")}
+                          className="h-3.5 w-3.5"
+                        />
+                      </td>
+                      <td className="px-3 py-1 text-center">
+                        <Checkbox
+                          checked={writeOk}
+                          onCheckedChange={() => toggleTp(tp.name, col.name, "write")}
+                          className="h-3.5 w-3.5"
+                        />
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )
       })}

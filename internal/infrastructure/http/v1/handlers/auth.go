@@ -2,6 +2,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -384,6 +385,27 @@ func (h *AuthHandler) ListUsers(c *gin.Context) {
 		response[i] = dto.FromUser(&users[i])
 	}
 
+	// Enrich with security profile briefs (best-effort)
+	if repo, ok := h.profileRepo.(interface {
+		GetProfileBriefByUserIDs(ctx context.Context, userIDs []id.ID) (map[id.ID]*security_profile.ProfileBrief, error)
+	}); ok && len(users) > 0 {
+		userIDs := make([]id.ID, len(users))
+		for i := range users {
+			userIDs[i] = users[i].ID
+		}
+		if briefs, err := repo.GetProfileBriefByUserIDs(ctx, userIDs); err == nil {
+			for i := range users {
+				if brief, ok := briefs[users[i].ID]; ok {
+					response[i].SecurityProfile = &dto.SecurityProfileBrief{
+						ID:   brief.ID.String(),
+						Code: brief.Code,
+						Name: brief.Name,
+					}
+				}
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{"items": response, "total": total})
 }
 
@@ -422,6 +444,34 @@ func (h *AuthHandler) ListPermissions(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": response})
 }
 
+// Impersonate handles POST /auth/users/:userId/impersonate (admin only).
+// Returns tokens that allow acting as the target user.
+func (h *AuthHandler) Impersonate(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	targetUserID, err := id.Parse(c.Param("userId"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid userId"))
+		return
+	}
+
+	info := auth.SessionInfo{
+		UserAgent: c.Request.UserAgent(),
+		IPAddress: c.ClientIP(),
+	}
+
+	tokens, user, err := h.service.Impersonate(ctx, targetUserID, info)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.LoginResponse{
+		Tokens: dto.FromTokenPair(tokens),
+		User:   dto.FromUser(user),
+	})
+}
+
 // RegisterRoutes registers auth routes.
 func (h *AuthHandler) RegisterRoutes(public, protected *gin.RouterGroup) {
 	// Public routes (no auth required)
@@ -440,6 +490,7 @@ func (h *AuthHandler) RegisterRoutes(public, protected *gin.RouterGroup) {
 	protected.GET("/users/:userId", middleware.RequireRole("admin"), h.GetUser)
 	protected.PUT("/users/:userId", middleware.RequireRole("admin"), h.UpdateUser)
 	protected.GET("/users/:userId/effective-access", middleware.RequireRole("admin"), h.GetEffectiveAccess)
+	protected.POST("/users/:userId/impersonate", middleware.RequireRole("admin"), h.Impersonate)
 	protected.GET("/roles", h.ListRoles)
 	protected.GET("/roles/:roleId/permissions", h.ListRolePermissions)
 	protected.GET("/permissions", h.ListPermissions)
