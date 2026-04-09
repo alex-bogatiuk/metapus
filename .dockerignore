@@ -1,0 +1,15 @@
+.git
+.github
+.agents
+.windsurf
+.kiro
+frontend
+node_modules
+*.md
+docs
+plans
+other
+api/postman_collection
+single-tenant-deployment
+deployments
+deploy

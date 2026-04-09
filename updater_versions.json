@@ -1,0 +1,5 @@
+{
+  "message": "Package not found.",
+  "documentation_url": "https://docs.github.com/rest/packages/packages#list-package-versions-for-a-package-owned-by-a-user",
+  "status": "404"
+}

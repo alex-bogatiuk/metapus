@@ -1,0 +1,172 @@
+# Metapus Single-Tenant Deployment (local build)
+#
+# First-time setup:
+#   1. Copy .env.example to .env and edit values
+#   2. docker compose build
+#   3. docker compose up -d postgres
+#      (creates 'tenants' meta-database and schema via init-meta.sql automatically)
+#   4. docker compose --profile init run --rm init create --slug default --name "My Company"
+#      (creates mt_default database, runs migrations, registers tenant — note the Tenant ID)
+#   5. Set TENANT_ID in .env, then: docker compose build frontend
+#   6. docker compose up -d
+#
+# Login: admin@metapus.io / Admin123!
+
+services:
+  # --- PostgreSQL ---
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: metapus
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-metapus}
+      POSTGRES_DB: tenants
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-meta.sql:/docker-entrypoint-initdb.d/init-meta.sql:ro
+    networks:
+      - metapus-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U metapus"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --- One-time init (tenant CLI with shell) ---
+  # Usage: docker compose --profile init run --rm init init-meta
+  #        docker compose --profile init run --rm init create --slug default --name "My Company"
+  #        docker compose --profile init run --rm init migrate --all
+  init:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: init
+      args:
+        VERSION: ${METAPUS_VERSION:-dev}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      META_DATABASE_URL: postgres://metapus:${POSTGRES_PASSWORD:-metapus}@postgres:5432/tenants?sslmode=disable
+      TENANT_DB_USER: metapus
+      TENANT_DB_PASSWORD: ${POSTGRES_PASSWORD:-metapus}
+      TENANT_DB_HOST: postgres
+    networks:
+      - metapus-net
+    profiles:
+      - init
+
+  # --- Metapus API Server ---
+  metapus-app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${METAPUS_VERSION:-dev}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_PORT: "8080"
+      APP_ENV: "production"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      META_DATABASE_URL: postgres://metapus:${POSTGRES_PASSWORD:-metapus}@postgres:5432/tenants?sslmode=disable
+      DATABASE_URL: postgres://metapus:${POSTGRES_PASSWORD:-metapus}@postgres:5432/mt_default?sslmode=disable
+      TENANT_DB_USER: metapus
+      TENANT_DB_PASSWORD: ${POSTGRES_PASSWORD:-metapus}
+      TENANT_DB_HOST: postgres
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    networks:
+      metapus-net:
+        aliases:
+          - metapus-app
+    healthcheck:
+      test: ["CMD", "./healthcheck", "http://localhost:8080/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # --- Background Worker ---
+  metapus-worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${METAPUS_VERSION:-dev}
+    restart: unless-stopped
+    entrypoint: ["./worker"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      META_DATABASE_URL: postgres://metapus:${POSTGRES_PASSWORD:-metapus}@postgres:5432/tenants?sslmode=disable
+      TENANT_DB_USER: metapus
+      TENANT_DB_PASSWORD: ${POSTGRES_PASSWORD:-metapus}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    networks:
+      - metapus-net
+
+  # --- Updater Agent ---
+  updater:
+    build:
+      context: ..
+      dockerfile: cmd/updater/Dockerfile
+      args:
+        VERSION: ${METAPUS_VERSION:-dev}
+    restart: unless-stopped
+    depends_on:
+      metapus-app:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - updater-data:/data
+    environment:
+      UPDATER_PORT: "9090"
+      SERVER_URL: http://metapus-app:8080
+      TENANT_ID: ${TENANT_ID:?TENANT_ID is required}
+      REGISTRY_IMAGE: ${METAPUS_IMAGE:-ghcr.io/alex-bogatiuk/metapus}
+      REGISTRY_TOKEN: ${REGISTRY_TOKEN:-}
+      DOCKER_NETWORK: ${COMPOSE_PROJECT_NAME:-single-tenant-deployment}_metapus-net
+      CONTAINER_NAME: single-tenant-deployment-metapus-app-1
+      STATE_FILE: /data/state.json
+      HEALTH_TIMEOUT: "60s"
+      DRAIN_TIMEOUT: "30s"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "${UPDATER_PORT:-9090}:9090"
+    networks:
+      - metapus-net
+
+  # --- Frontend (Next.js) ---
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_TENANT_ID: ${TENANT_ID:-}
+        NEXT_PUBLIC_UPDATER_URL: http://localhost:${UPDATER_PORT:-9090}
+        API_PROXY_URL: http://metapus-app:8080
+    restart: unless-stopped
+    depends_on:
+      metapus-app:
+        condition: service_healthy
+    environment:
+      NEXT_PUBLIC_TENANT_ID: ${TENANT_ID:-}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    networks:
+      - metapus-net
+
+networks:
+  metapus-net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  updater-data:

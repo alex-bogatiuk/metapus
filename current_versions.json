@@ -1,0 +1,20 @@
+[
+  {
+    "id": 776997031,
+    "name": "sha256:aca6b673115d6143f8e42131217f770a26baa616d521f967355b0992e7cfa4e4",
+    "url": "https://api.github.com/users/alex-bogatiuk/packages/container/metapus/versions/776997031",
+    "package_html_url": "https://github.com/users/alex-bogatiuk/packages/container/package/metapus",
+    "created_at": "2026-04-04T12:31:33Z",
+    "updated_at": "2026-04-04T12:31:33Z",
+    "html_url": "https://github.com/users/alex-bogatiuk/packages/container/metapus/776997031",
+    "metadata": {
+      "package_type": "container",
+      "container": {
+        "tags": [
+          "latest",
+          "v1.0.0"
+        ]
+      }
+    }
+  }
+]

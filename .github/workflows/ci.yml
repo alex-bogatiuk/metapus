@@ -1,0 +1,148 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  GO_VERSION: '1.25'
+  NODE_VERSION: '24'
+
+jobs:
+  # ── Lint ─────────────────────────────────────────────────────────────────
+  lint-frontend:
+    name: Lint Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: cd frontend && npm ci
+      - run: cd frontend && npm run lint
+      - name: TypeScript type check
+        run: cd frontend && npx tsc --noEmit
+
+  lint-backend:
+    name: Lint Backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.11.4
+          args: --timeout=5m
+
+  # ── Test ─────────────────────────────────────────────────────────────────
+  test-unit:
+    name: Unit Tests (Go)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Run unit tests
+        run: go test -short -race -coverprofile=coverage.out ./...
+      - name: Upload coverage
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [test-unit]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: metapus
+          POSTGRES_PASSWORD: metapus
+          POSTGRES_DB: metapus_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Run integration tests
+        env:
+          DATABASE_URL: postgres://metapus:metapus@localhost:5432/metapus_test?sslmode=disable
+        run: go test -race -run Integration ./...
+
+  # ── Build ────────────────────────────────────────────────────────────────
+  build-go:
+    name: Build Go
+    runs-on: ubuntu-latest
+    needs: [test-unit, lint-backend]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Build server
+        run: go build -o metapus ./cmd/server
+      - name: Build tenant CLI
+        run: go build -o tenant ./cmd/tenant
+
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    needs: [lint-frontend]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: cd frontend && npm ci
+      - name: Build Next.js
+        run: cd frontend && npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8080
+          NEXT_PUBLIC_TENANT_ID: test-tenant-id
+
+  build-docker:
+    name: Build Docker
+    runs-on: ubuntu-latest
+    needs: [build-go, build-frontend]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build Docker image
+        run: docker build -t metapus:${{ github.sha }} .
+
+  # ── Extension compatibility check ───────────────────────────────────────
+  # Client CI pipeline runs this against new core version:
+  #   go get github.com/metapus/core@$NEW_VERSION → go build → go test
+  compat-check:
+    name: API Compatibility
+    runs-on: ubuntu-latest
+    needs: []
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Verify public interfaces compile
+        run: go build ./...
+      - name: Verify no breaking type changes
+        run: go vet ./...

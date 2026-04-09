@@ -1,0 +1,4 @@
+app/(main)/documents/goods-issues/new/page.tsx(65,3): error TS2353: Object literal may only specify known properties, and 'basisType' does not exist in type 'GoodsIssueFormState'.
+app/(main)/documents/goods-issues/new/page.tsx(170,13): error TS2353: Object literal may only specify known properties, and 'basisType' does not exist in type 'GoodsIssueFormState'.
+app/(main)/documents/goods-issues/new/page.tsx(227,18): error TS2339: Property 'basisType' does not exist on type 'GoodsIssueFormState'.
+app/(main)/documents/goods-issues/new/page.tsx(228,16): error TS2339: Property 'basisId' does not exist on type 'GoodsIssueFormState'.

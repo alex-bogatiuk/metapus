@@ -1,0 +1,37 @@
+[
+  {
+    "id": 773418487,
+    "name": "sha256:2dff86abcc90f77e081c6ced9dd179f057e880c19d217f0bd2ecd842358df3b7",
+    "url": "https://api.github.com/users/alex-bogatiuk/packages/container/metapus/versions/773418487",
+    "package_html_url": "https://github.com/users/alex-bogatiuk/packages/container/package/metapus",
+    "created_at": "2026-04-02T12:06:06Z",
+    "updated_at": "2026-04-02T12:06:06Z",
+    "html_url": "https://github.com/users/alex-bogatiuk/packages/container/metapus/773418487",
+    "metadata": {
+      "package_type": "container",
+      "container": {
+        "tags": [
+          "v1.6.0"
+        ]
+      }
+    }
+  },
+  {
+    "id": 770862793,
+    "name": "sha256:17a9c12bed390738853d4ede353627d2df113325501e96af15017a5be2543c51",
+    "url": "https://api.github.com/users/alex-bogatiuk/packages/container/metapus/versions/770862793",
+    "package_html_url": "https://github.com/users/alex-bogatiuk/packages/container/package/metapus",
+    "created_at": "2026-04-01T10:42:05Z",
+    "updated_at": "2026-04-01T10:42:05Z",
+    "html_url": "https://github.com/users/alex-bogatiuk/packages/container/metapus/770862793",
+    "metadata": {
+      "package_type": "container",
+      "container": {
+        "tags": [
+          "v1.5.0",
+          "v1.4.0"
+        ]
+      }
+    }
+  }
+]

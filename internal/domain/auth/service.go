@@ -1,0 +1,756 @@
+// Package auth provides authentication and authorization domain logic.
+package auth
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"time"
+
+	"golang.org/x/crypto/bcrypt"
+
+	"metapus/internal/core/apperror"
+	appctx "metapus/internal/core/context"
+	"metapus/internal/core/id"
+	"metapus/internal/core/tenant"
+	"metapus/internal/core/tx"
+	"metapus/pkg/logger"
+)
+
+// ServiceConfig holds auth service configuration.
+type ServiceConfig struct {
+	MaxLoginAttempts   int
+	LockDuration       time.Duration
+	PasswordMinLength  int
+	RefreshTokenExpiry time.Duration
+}
+
+// DefaultServiceConfig returns default configuration.
+func DefaultServiceConfig() ServiceConfig {
+	return ServiceConfig{
+		MaxLoginAttempts:   5,
+		LockDuration:       15 * time.Minute,
+		PasswordMinLength:  8,
+		RefreshTokenExpiry: 7 * 24 * time.Hour, // 7 days
+	}
+}
+
+// Service provides authentication and authorization logic.
+type Service struct {
+	userRepo   UserRepository
+	roleRepo   RoleRepository
+	permRepo   PermissionRepository
+	tokenRepo  TokenRepository
+	txManager  tx.Manager
+	jwtService *JWTService
+	config     ServiceConfig
+}
+
+// NewService creates a new auth service.
+func NewService(
+	userRepo UserRepository,
+	roleRepo RoleRepository,
+	permRepo PermissionRepository,
+	tokenRepo TokenRepository,
+	txManager tx.Manager,
+	jwtService *JWTService,
+	config ServiceConfig,
+) *Service {
+	return &Service{
+		userRepo:   userRepo,
+		roleRepo:   roleRepo,
+		permRepo:   permRepo,
+		tokenRepo:  tokenRepo,
+		txManager:  txManager,
+		jwtService: jwtService,
+		config:     config,
+	}
+}
+
+func (s *Service) getTxManager(ctx context.Context) (tx.Manager, error) {
+	if s.txManager != nil {
+		return s.txManager, nil
+	}
+	return tenant.GetTxManager(ctx)
+}
+
+func (s *Service) requireTenantID(ctx context.Context) (string, error) {
+	tenantID := tenant.GetTenantID(ctx)
+	if tenantID == "" {
+		// Should be prevented by TenantDB middleware; treat as bad request if it happens.
+		return "", apperror.NewValidation("tenant is required").
+			WithDetail("header", "X-Tenant-ID")
+	}
+	return tenantID, nil
+}
+
+// Register registers a new user.
+func (s *Service) Register(ctx context.Context, req RegisterRequest) (*User, error) {
+	if _, err := s.requireTenantID(ctx); err != nil {
+		return nil, err
+	}
+
+	// Validate email
+	if req.Email == "" {
+		return nil, apperror.NewValidation("email is required").WithDetail("field", "email")
+	}
+
+	// Validate password
+	if len(req.Password) < s.config.PasswordMinLength {
+		return nil, apperror.NewValidation(
+			fmt.Sprintf("password must be at least %d characters", s.config.PasswordMinLength),
+		).WithDetail("field", "password")
+	}
+
+	// Check if email already exists
+	exists, err := s.userRepo.Exists(ctx, req.Email)
+	if err != nil {
+		return nil, fmt.Errorf("check email exists: %w", err)
+	}
+	if exists {
+		return nil, apperror.NewConflict("email already registered").WithDetail("email", req.Email)
+	}
+
+	// Hash password
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("hash password: %w", err)
+	}
+
+	// Create user
+	user := NewUser(req.Email, string(passwordHash))
+	user.FirstName = req.FirstName
+	user.LastName = req.LastName
+
+	// Save in transaction
+	txm, err := s.getTxManager(ctx)
+	if err != nil {
+		return nil, apperror.NewInternal(err).WithDetail("missing", "tx_manager")
+	}
+	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		if err := s.userRepo.Create(ctx, user); err != nil {
+			return fmt.Errorf("create user: %w", err)
+		}
+
+		// Assign default role (if exists)
+		defaultRole, err := s.roleRepo.GetByCode(ctx, "user")
+		if err == nil && defaultRole != nil {
+			if err := s.userRepo.AssignRole(ctx, user.ID, defaultRole.ID, id.ID{}); err != nil {
+				logger.Warn(ctx, "failed to assign default role", "error", err)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info(ctx, "user registered",
+		"user_id", user.ID,
+		"email", user.Email)
+
+	return user, nil
+}
+
+// Login authenticates user and returns tokens.
+func (s *Service) Login(ctx context.Context, creds Credentials, info SessionInfo) (*TokenPair, *User, error) {
+	if _, err := s.requireTenantID(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	// Find user
+	user, err := s.userRepo.GetByEmail(ctx, creds.Email)
+	if err != nil {
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get user by email", "email", creds.Email, "error", err)
+		}
+		return nil, nil, apperror.NewUnauthorized("invalid credentials").WithCause(err)
+	}
+	// Check if can login
+	if err := user.CanLogin(); err != nil {
+		return nil, nil, err
+	}
+
+	// Verify password
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(creds.Password)); err != nil {
+		// Record failed attempt
+		user.RecordFailedLogin(s.config.MaxLoginAttempts, s.config.LockDuration)
+		_ = s.userRepo.Update(ctx, user)
+		return nil, nil, apperror.NewUnauthorized("invalid credentials")
+	}
+
+	// Load roles and permissions
+	roles, err := s.userRepo.LoadRoles(ctx, user.ID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load roles: %w", err)
+	}
+	user.Roles = roles
+
+	permissions, err := s.userRepo.LoadPermissions(ctx, user.ID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load permissions: %w", err)
+	}
+	user.Permissions = permissions
+
+	// Generate tokens
+	tokens, err := s.generateTokenPair(ctx, user, info)
+	if err != nil {
+		return nil, nil, fmt.Errorf("generate tokens: %w", err)
+	}
+
+	// Record successful login
+	user.RecordSuccessfulLogin()
+	_ = s.userRepo.Update(ctx, user)
+
+	logger.Info(ctx, "user logged in",
+		"user_id", user.ID,
+		"email", user.Email)
+
+	return tokens, user, nil
+}
+
+// RefreshToken refreshes access token using refresh token.
+func (s *Service) RefreshToken(ctx context.Context, refreshToken string, info SessionInfo) (*TokenPair, error) {
+	// Hash token to lookup
+	tokenHash := hashToken(refreshToken)
+
+	// Find token
+	token, err := s.tokenRepo.GetRefreshToken(ctx, tokenHash)
+	if err != nil {
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get refresh token", "error", err)
+		}
+		return nil, apperror.NewUnauthorized("invalid refresh token").WithCause(err)
+	}
+
+	// Validate token
+	if !token.IsValid() {
+		return nil, apperror.NewUnauthorized("refresh token expired or revoked")
+	}
+
+	// Get user
+	user, err := s.userRepo.GetByID(ctx, token.UserID)
+	if err != nil {
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get user by ID for refresh", "user_id", token.UserID, "error", err)
+		}
+		return nil, apperror.NewUnauthorized("user not found").WithCause(err)
+	}
+
+	// Check if user can login
+	if err := user.CanLogin(); err != nil {
+		return nil, err
+	}
+
+	// Load roles and permissions
+	roles, _ := s.userRepo.LoadRoles(ctx, user.ID)
+	user.Roles = roles
+	permissions, _ := s.userRepo.LoadPermissions(ctx, user.ID)
+	user.Permissions = permissions
+
+	// Revoke old refresh token
+	_ = s.tokenRepo.RevokeRefreshToken(ctx, token.ID, "refreshed")
+
+	// Generate new token pair
+	return s.generateTokenPair(ctx, user, info)
+}
+
+// Logout revokes all user's refresh tokens.
+func (s *Service) Logout(ctx context.Context, userID id.ID) error {
+	return s.tokenRepo.RevokeAllUserTokens(ctx, userID, "logout")
+}
+
+// AssignRole assigns a role to a user.
+func (s *Service) AssignRole(ctx context.Context, userID id.ID, roleCode string) error {
+	// Get current user for audit
+	currentUser := appctx.GetUser(ctx)
+	var grantedBy id.ID
+	if currentUser != nil {
+		grantedBy, _ = id.Parse(currentUser.UserID)
+	}
+
+	// Ensure user exists
+	_, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get user for role assignment", "user_id", userID, "error", err)
+		}
+		return apperror.NewNotFound("user", userID.String()).WithCause(err)
+	}
+
+	// Find role
+	role, err := s.roleRepo.GetByCode(ctx, roleCode)
+	if err != nil {
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get role by code", "role_code", roleCode, "error", err)
+		}
+		return apperror.NewNotFound("role", roleCode).WithCause(err)
+	}
+
+	// Assign role
+	if err := s.userRepo.AssignRole(ctx, userID, role.ID, grantedBy); err != nil {
+		return fmt.Errorf("assign role: %w", err)
+	}
+
+	logger.Info(ctx, "role assigned",
+		"user_id", userID,
+		"role", roleCode,
+		"granted_by", grantedBy)
+
+	return nil
+}
+
+// RevokeRole revokes a role from a user.
+func (s *Service) RevokeRole(ctx context.Context, userID id.ID, roleCode string) error {
+	// Ensure user exists
+	_, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get user for role revocation", "user_id", userID, "error", err)
+		}
+		return apperror.NewNotFound("user", userID.String()).WithCause(err)
+	}
+
+	role, err := s.roleRepo.GetByCode(ctx, roleCode)
+	if err != nil {
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get role by code", "role_code", roleCode, "error", err)
+		}
+		return apperror.NewNotFound("role", roleCode).WithCause(err)
+	}
+
+	return s.userRepo.RevokeRole(ctx, userID, role.ID)
+}
+
+// GetUserByID retrieves user with roles and permissions.
+func (s *Service) GetUserByID(ctx context.Context, userID id.ID) (*User, error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get user by ID", "user_id", userID, "error", err)
+		}
+		return nil, apperror.NewNotFound("user", userID.String()).WithCause(err)
+	}
+
+	// Load relations
+	roles, _ := s.userRepo.LoadRoles(ctx, user.ID)
+	user.Roles = roles
+	permissions, _ := s.userRepo.LoadPermissions(ctx, user.ID)
+	user.Permissions = permissions
+
+	return user, nil
+}
+
+// UpdateUser updates user profile fields (admin operation).
+func (s *Service) UpdateUser(ctx context.Context, userID id.ID, firstName, lastName *string, isActive, isAdmin *bool) (*User, error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get user for update", "user_id", userID, "error", err)
+		}
+		return nil, apperror.NewNotFound("user", userID.String()).WithCause(err)
+	}
+
+	if firstName != nil {
+		user.FirstName = *firstName
+	}
+	if lastName != nil {
+		user.LastName = *lastName
+	}
+	if isActive != nil {
+		user.IsActive = *isActive
+	}
+	if isAdmin != nil {
+		user.IsAdmin = *isAdmin
+	}
+
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return nil, fmt.Errorf("update user: %w", err)
+	}
+
+	// Load relations
+	roles, _ := s.userRepo.LoadRoles(ctx, user.ID)
+	user.Roles = roles
+
+	logger.Info(ctx, "user updated", "user_id", userID)
+	return user, nil
+}
+
+// CreateUserByAdmin creates a user by an admin (with optional roles).
+func (s *Service) CreateUserByAdmin(ctx context.Context, req RegisterRequest, roleCodes []string) (*User, error) {
+	if _, err := s.requireTenantID(ctx); err != nil {
+		return nil, err
+	}
+
+	if req.Email == "" {
+		return nil, apperror.NewValidation("email is required").WithDetail("field", "email")
+	}
+	if len(req.Password) < s.config.PasswordMinLength {
+		return nil, apperror.NewValidation(
+			fmt.Sprintf("password must be at least %d characters", s.config.PasswordMinLength),
+		).WithDetail("field", "password")
+	}
+
+	exists, err := s.userRepo.Exists(ctx, req.Email)
+	if err != nil {
+		return nil, fmt.Errorf("check email exists: %w", err)
+	}
+	if exists {
+		return nil, apperror.NewConflict("email already registered").WithDetail("email", req.Email)
+	}
+
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("hash password: %w", err)
+	}
+
+	user := NewUser(req.Email, string(passwordHash))
+	user.FirstName = req.FirstName
+	user.LastName = req.LastName
+
+	currentUser := appctx.GetUser(ctx)
+	var grantedBy id.ID
+	if currentUser != nil {
+		grantedBy, _ = id.Parse(currentUser.UserID)
+	}
+
+	txm, err := s.getTxManager(ctx)
+	if err != nil {
+		return nil, apperror.NewInternal(err).WithDetail("missing", "tx_manager")
+	}
+	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		if err := s.userRepo.Create(ctx, user); err != nil {
+			return fmt.Errorf("create user: %w", err)
+		}
+
+		for _, roleCode := range roleCodes {
+			role, err := s.roleRepo.GetByCode(ctx, roleCode)
+			if err != nil {
+				logger.Warn(ctx, "role not found for admin create", "role_code", roleCode, "error", err)
+				continue
+			}
+			if err := s.userRepo.AssignRole(ctx, user.ID, role.ID, grantedBy); err != nil {
+				logger.Warn(ctx, "failed to assign role", "role_code", roleCode, "error", err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Load relations
+	roles, _ := s.userRepo.LoadRoles(ctx, user.ID)
+	user.Roles = roles
+
+	logger.Info(ctx, "user created by admin", "user_id", user.ID, "email", user.Email)
+	return user, nil
+}
+
+// ListUsers lists users with filtering, including their roles.
+func (s *Service) ListUsers(ctx context.Context, filter UserFilter) ([]User, int, error) {
+	users, total, err := s.userRepo.List(ctx, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Enrich each user with roles
+	for i := range users {
+		roles, err := s.userRepo.LoadRoles(ctx, users[i].ID)
+		if err != nil {
+			return nil, 0, err
+		}
+		users[i].Roles = roles
+	}
+
+	return users, total, nil
+}
+
+// ListRoles lists all roles (within tenant database).
+func (s *Service) ListRoles(ctx context.Context) ([]Role, error) {
+	return s.roleRepo.List(ctx)
+}
+
+// ListRolePermissions returns permissions for a specific role.
+func (s *Service) ListRolePermissions(ctx context.Context, roleID id.ID) ([]Permission, error) {
+	// Ensure role exists
+	_, err := s.roleRepo.GetByID(ctx, roleID)
+	if err != nil {
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get role for permissions", "role_id", roleID, "error", err)
+		}
+		return nil, apperror.NewNotFound("role", roleID.String()).WithCause(err)
+	}
+
+	permissions, err := s.roleRepo.LoadPermissions(ctx, roleID)
+	if err != nil {
+		return nil, fmt.Errorf("load role permissions: %w", err)
+	}
+
+	return permissions, nil
+}
+
+// ListPermissions lists all permissions.
+func (s *Service) ListPermissions(ctx context.Context) ([]Permission, error) {
+	return s.permRepo.List(ctx)
+}
+
+// CreateRole creates a new role.
+func (s *Service) CreateRole(ctx context.Context, code, name, description string) (*Role, error) {
+	if code == "" {
+		return nil, apperror.NewValidation("code is required").WithDetail("field", "code")
+	}
+	if name == "" {
+		return nil, apperror.NewValidation("name is required").WithDetail("field", "name")
+	}
+
+	// Check uniqueness
+	existing, err := s.roleRepo.GetByCode(ctx, code)
+	if err == nil && existing != nil {
+		return nil, apperror.NewConflict("role with this code already exists").WithDetail("code", code)
+	}
+
+	role := NewRole(code, name)
+	role.Description = description
+
+	if err := s.roleRepo.Create(ctx, role); err != nil {
+		return nil, fmt.Errorf("create role: %w", err)
+	}
+
+	logger.Info(ctx, "role created", "role_id", role.ID, "code", code)
+	return role, nil
+}
+
+// UpdateRole updates a role's name and description.
+func (s *Service) UpdateRole(ctx context.Context, roleID id.ID, name, description string) (*Role, error) {
+	role, err := s.roleRepo.GetByID(ctx, roleID)
+	if err != nil {
+		return nil, apperror.NewNotFound("role", roleID.String()).WithCause(err)
+	}
+
+	if name == "" {
+		return nil, apperror.NewValidation("name is required").WithDetail("field", "name")
+	}
+
+	role.Name = name
+	role.Description = description
+
+	if err := s.roleRepo.Update(ctx, role); err != nil {
+		return nil, fmt.Errorf("update role: %w", err)
+	}
+
+	logger.Info(ctx, "role updated", "role_id", roleID, "name", name)
+	return role, nil
+}
+
+// DeleteRole deletes a non-system role, checking for user dependencies.
+func (s *Service) DeleteRole(ctx context.Context, roleID id.ID) (int, error) {
+	role, err := s.roleRepo.GetByID(ctx, roleID)
+	if err != nil {
+		return 0, apperror.NewNotFound("role", roleID.String()).WithCause(err)
+	}
+
+	if role.IsSystem {
+		return 0, apperror.NewBusinessRule("CANNOT_DELETE_SYSTEM_ROLE", "Cannot delete system role")
+	}
+
+	// Count affected users for the response
+	userCount, err := s.roleRepo.CountUsersByRoleID(ctx, roleID)
+	if err != nil {
+		return 0, fmt.Errorf("count users: %w", err)
+	}
+
+	// Revoke refresh tokens for affected users before deleting
+	if userCount > 0 {
+		userIDs, err := s.roleRepo.ListUserIDsByRoleID(ctx, roleID)
+		if err != nil {
+			return 0, fmt.Errorf("list user ids: %w", err)
+		}
+		for _, uid := range userIDs {
+			_ = s.tokenRepo.RevokeAllUserTokens(ctx, uid, "role_deleted")
+		}
+	}
+
+	if err := s.roleRepo.Delete(ctx, roleID); err != nil {
+		return 0, err
+	}
+
+	logger.Info(ctx, "role deleted", "role_id", roleID, "code", role.Code, "affected_users", userCount)
+	return userCount, nil
+}
+
+// GetRole retrieves a role by ID with permissions and user count.
+func (s *Service) GetRole(ctx context.Context, roleID id.ID) (*Role, []Permission, int, error) {
+	role, err := s.roleRepo.GetByID(ctx, roleID)
+	if err != nil {
+		return nil, nil, 0, apperror.NewNotFound("role", roleID.String()).WithCause(err)
+	}
+
+	permissions, err := s.roleRepo.LoadPermissions(ctx, roleID)
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("load permissions: %w", err)
+	}
+
+	userCount, err := s.roleRepo.CountUsersByRoleID(ctx, roleID)
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("count users: %w", err)
+	}
+
+	return role, permissions, userCount, nil
+}
+
+// SetRolePermissions replaces all permissions for a role. Revokes refresh tokens for affected users.
+func (s *Service) SetRolePermissions(ctx context.Context, roleID id.ID, permissionIDs []id.ID) error {
+	// Verify role exists
+	_, err := s.roleRepo.GetByID(ctx, roleID)
+	if err != nil {
+		return apperror.NewNotFound("role", roleID.String()).WithCause(err)
+	}
+
+	txm, err := s.getTxManager(ctx)
+	if err != nil {
+		return apperror.NewInternal(err).WithDetail("missing", "tx_manager")
+	}
+
+	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		return s.roleRepo.SetPermissions(ctx, roleID, permissionIDs)
+	})
+	if err != nil {
+		return fmt.Errorf("set role permissions: %w", err)
+	}
+
+	// Revoke refresh tokens for users with this role so they get updated claims on next refresh
+	userIDs, err := s.roleRepo.ListUserIDsByRoleID(ctx, roleID)
+	if err != nil {
+		logger.Warn(ctx, "failed to list users for token revocation", "role_id", roleID, "error", err)
+	} else {
+		for _, uid := range userIDs {
+			_ = s.tokenRepo.RevokeAllUserTokens(ctx, uid, "role_permissions_changed")
+		}
+		if len(userIDs) > 0 {
+			logger.Info(ctx, "revoked tokens for role permission change", "role_id", roleID, "affected_users", len(userIDs))
+		}
+	}
+
+	logger.Info(ctx, "role permissions updated", "role_id", roleID, "permission_count", len(permissionIDs))
+	return nil
+}
+
+// Impersonate generates tokens for a target user (admin-only impersonation).
+// The caller must be an admin. Returns tokens that allow acting as the target user.
+func (s *Service) Impersonate(ctx context.Context, targetUserID id.ID, info SessionInfo) (*TokenPair, *User, error) {
+	if _, err := s.requireTenantID(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	// Verify caller is admin
+	caller := appctx.GetUser(ctx)
+	if caller == nil || !caller.IsAdmin {
+		return nil, nil, apperror.NewForbidden("only admins can impersonate users")
+	}
+
+	// Prevent self-impersonation
+	if caller.UserID == targetUserID.String() {
+		return nil, nil, apperror.NewValidation("cannot impersonate yourself")
+	}
+
+	// Load target user with all relations
+	user, err := s.userRepo.GetByID(ctx, targetUserID)
+	if err != nil {
+		if !apperror.IsNotFound(err) {
+			logger.Error(ctx, "failed to get user for impersonation", "target_user_id", targetUserID, "error", err)
+		}
+		return nil, nil, apperror.NewNotFound("user", targetUserID.String()).WithCause(err)
+	}
+
+	if !user.IsActive {
+		return nil, nil, apperror.NewValidation("cannot impersonate inactive user")
+	}
+
+	// Load roles, permissions, orgs
+	roles, _ := s.userRepo.LoadRoles(ctx, user.ID)
+	user.Roles = roles
+	permissions, _ := s.userRepo.LoadPermissions(ctx, user.ID)
+	user.Permissions = permissions
+
+	// Generate tokens for target user
+	tokens, err := s.generateTokenPair(ctx, user, info)
+	if err != nil {
+		return nil, nil, fmt.Errorf("generate impersonation tokens: %w", err)
+	}
+
+	logger.Info(ctx, "user impersonated",
+		"admin_id", caller.UserID,
+		"target_user_id", targetUserID,
+		"target_email", user.Email)
+
+	return tokens, user, nil
+}
+
+// generateTokenPair creates access and refresh tokens.
+func (s *Service) generateTokenPair(ctx context.Context, user *User, info SessionInfo) (*TokenPair, error) {
+	tenantID, err := s.requireTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract role codes
+	roleCodes := make([]string, len(user.Roles))
+	for i, r := range user.Roles {
+		roleCodes[i] = r.Code
+	}
+
+	// Generate access token
+	accessToken, expiresAt, err := s.jwtService.GenerateAccessToken(user.ID.String(), tenantID, user.Email, roleCodes, user.Permissions, user.IsAdmin)
+	if err != nil {
+		return nil, fmt.Errorf("generate access token: %w", err)
+	}
+
+	// Generate refresh token
+	refreshTokenRaw, err := generateRandomToken(32)
+	if err != nil {
+		return nil, fmt.Errorf("generate refresh token: %w", err)
+	}
+	refreshTokenHash := hashToken(refreshTokenRaw)
+
+	// Save refresh token
+	refreshToken := &RefreshToken{
+		ID:        id.New(),
+		UserID:    user.ID,
+		TokenHash: refreshTokenHash,
+		ExpiresAt: time.Now().Add(s.config.RefreshTokenExpiry),
+		CreatedAt: time.Now(),
+		UserAgent: info.UserAgent,
+		IPAddress: info.IPAddress,
+	}
+
+	if err := s.tokenRepo.SaveRefreshToken(ctx, refreshToken); err != nil {
+		return nil, fmt.Errorf("save refresh token: %w", err)
+	}
+
+	return &TokenPair{
+		AccessToken:  accessToken,
+		RefreshToken: refreshTokenRaw,
+		ExpiresAt:    expiresAt,
+		TokenType:    "Bearer",
+	}, nil
+}
+
+// hashToken creates SHA256 hash of token.
+func hashToken(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(hash[:])
+}
+
+// generateRandomToken generates a random token string.
+func generateRandomToken(length int) (string, error) {
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
+}

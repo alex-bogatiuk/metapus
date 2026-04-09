@@ -1,0 +1,296 @@
+"use client"
+
+/**
+ * AutoForm — metadata-driven form generator.
+ *
+ * Generates a form from the /api/v1/meta/:name endpoint.
+ * Used as fallback when an entity has no custom formComponent registered
+ * in the UIRegistry. Analogous to ERPNext's auto-rendered DocType forms.
+ *
+ * Field type → Component mapping:
+ *   string     → <Input />
+ *   boolean    → <Switch />
+ *   reference  → <Input /> (ID input for now, ReferenceSelect in future)
+ *   date       → <Input type="date" />
+ *   money      → <Input type="number" />
+ *   integer    → <Input type="number" />
+ *   number     → <Input type="number" />
+ */
+
+import { useEffect, useState, useCallback } from "react"
+import { useRouter } from "next/navigation"
+import { api, apiFetch, ApiError } from "@/lib/api"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { Button } from "@/components/ui/button"
+import { FormToolbar } from "@/components/shared/form-toolbar"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Loader2, Save, ArrowLeft } from "lucide-react"
+import { toast } from "sonner"
+
+interface FieldDef {
+    name: string
+    label?: string
+    type: string
+    required?: boolean
+    readOnly?: boolean
+    referenceType?: string
+    scale?: number
+}
+
+interface TablePartDef {
+    name: string
+    label?: string
+    columns: FieldDef[]
+}
+
+interface EntityMetaDef {
+    name: string
+    type: string
+    fields: FieldDef[]
+    tableParts?: TablePartDef[]
+    presentation?: {
+        singular?: string
+        plural?: string
+        new?: string
+    }
+}
+
+interface AutoFormProps {
+    /** Entity name for metadata lookup (e.g. "Vehicle", "Counterparty") */
+    entityName: string
+    /** Entity ID — undefined means "create new" */
+    id?: string
+    /** Entity type for API path construction */
+    entityType: "catalog" | "document"
+    /** Route prefix for API path (e.g. "vehicles", "counterparties") */
+    routePrefix: string
+}
+
+/** System/auto-managed fields that should not appear in the form */
+const HIDDEN_FIELDS = new Set([
+    "id", "version", "deletionMark", "attributes",
+    "createdAt", "updatedAt", "createdBy", "updatedBy",
+    "posted", "postedVersion", "txid", "deletedAt",
+    "basisType", "basisId",
+])
+
+function fieldToInput(
+    field: FieldDef,
+    value: unknown,
+    onChange: (name: string, val: unknown) => void,
+    disabled: boolean
+) {
+    const v = value ?? ""
+    const handleChange = (val: unknown) => onChange(field.name, val)
+
+    switch (field.type) {
+        case "boolean":
+            return (
+                <Switch
+                    checked={!!v}
+                    onCheckedChange={handleChange}
+                    disabled={disabled || field.readOnly}
+                />
+            )
+        case "date":
+        case "datetime":
+            return (
+                <Input
+                    type="datetime-local"
+                    value={typeof v === "string" ? v.slice(0, 16) : ""}
+                    onChange={(e) => handleChange(e.target.value ? new Date(e.target.value).toISOString() : "")}
+                    disabled={disabled || field.readOnly}
+                />
+            )
+        case "integer":
+        case "number":
+        case "money":
+        case "decimal":
+            return (
+                <Input
+                    type="number"
+                    value={String(v)}
+                    onChange={(e) => handleChange(e.target.value === "" ? 0 : Number(e.target.value))}
+                    disabled={disabled || field.readOnly}
+                    step={field.type === "integer" ? 1 : "any"}
+                />
+            )
+        default:
+            return (
+                <Input
+                    type="text"
+                    value={String(v)}
+                    onChange={(e) => handleChange(e.target.value)}
+                    disabled={disabled || field.readOnly}
+                />
+            )
+    }
+}
+
+export default function AutoForm({ entityName, id, entityType, routePrefix }: AutoFormProps) {
+    const router = useRouter()
+    const [meta, setMeta] = useState<EntityMetaDef | null>(null)
+    const [formData, setFormData] = useState<Record<string, unknown>>({})
+    const [loading, setLoading] = useState(true)
+    const [saving, setSaving] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const isNew = !id || id === "new"
+
+    const basePath = entityType === "catalog" ? `/catalog/${routePrefix}` : `/document/${routePrefix}`
+
+    // Load metadata + entity data
+    useEffect(() => {
+        let cancelled = false
+        async function load() {
+            setLoading(true)
+            setError(null)
+            try {
+                const metaData = await api.meta.getEntity(entityName)
+                if (cancelled) return
+                setMeta(metaData as EntityMetaDef)
+
+                if (!isNew && id) {
+                    const entity = await apiFetch<Record<string, unknown>>(`${basePath}/${id}`)
+                    if (cancelled) return
+                    setFormData(entity)
+                }
+            } catch (err) {
+                if (!cancelled) {
+                    setError(err instanceof Error ? err.message : "Failed to load")
+                }
+            } finally {
+                if (!cancelled) setLoading(false)
+            }
+        }
+        load()
+        return () => { cancelled = true }
+    }, [entityName, id, isNew, basePath])
+
+    const handleFieldChange = useCallback((name: string, value: unknown) => {
+        setFormData((prev) => ({ ...prev, [name]: value }))
+    }, [])
+
+    const handleSave = async () => {
+        setSaving(true)
+        try {
+            if (isNew) {
+                const result = await apiFetch<Record<string, unknown>>(basePath, {
+                    method: "POST",
+                    body: JSON.stringify(formData),
+                })
+                toast.success("Создано")
+                if (result?.id) {
+                    const listPath = entityType === "catalog"
+                        ? `/catalogs/${routePrefix}/${result.id}`
+                        : `/documents/${routePrefix}/${result.id}`
+                    router.push(listPath)
+                }
+            } else {
+                await apiFetch(`${basePath}/${id}`, {
+                    method: "PUT",
+                    body: JSON.stringify(formData),
+                })
+                toast.success("Сохранено")
+            }
+        } catch (err) {
+            if (err instanceof ApiError) {
+                toast.error(err.parsedBody?.message ?? `Ошибка ${err.status}`)
+            } else {
+                toast.error("Ошибка сохранения")
+            }
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+        )
+    }
+
+    if (error || !meta) {
+        return (
+            <div className="p-6 text-center text-destructive">
+                {error || "Метаданные не найдены"}
+            </div>
+        )
+    }
+
+    const editableFields = meta.fields.filter((f) => !HIDDEN_FIELDS.has(f.name))
+    const title = isNew
+        ? (meta.presentation?.new ?? `Новый: ${meta.presentation?.singular ?? entityName}`)
+        : (meta.presentation?.singular ?? entityName)
+
+    return (
+        <div className="flex h-full flex-col">
+            <FormToolbar
+                title={title}
+                primaryAction={{
+                    label: saving ? "Сохранение…" : "Записать и закрыть",
+                    onClick: handleSave,
+                }}
+                secondaryActions={[
+                    { label: "Записать", onClick: handleSave },
+                ]}
+                backHref={`/${entityType}s/${routePrefix}`}
+                backTargetId={id === "new" ? undefined : id}
+                onClose={() => router.push(`/${entityType}s/${routePrefix}`)}
+            />
+
+            <ScrollArea className="flex-1">
+                <div className="p-6">
+                    <div className="max-w-3xl space-y-6">
+                        {/* Auto-generated fields */}
+                        <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
+                            {editableFields.map((field) => (
+                                <div key={field.name} className={field.type === "string" && field.name === "comment" ? "md:col-span-2" : ""}>
+                                    <Label htmlFor={field.name} className="text-xs text-muted-foreground">
+                                        {field.label || field.name}
+                                        {field.required && <span className="ml-0.5 text-destructive">*</span>}
+                                    </Label>
+                                    <div className="mt-1">
+                                        {fieldToInput(field, formData[field.name], handleFieldChange, saving)}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Table parts */}
+                        {meta.tableParts?.map((tp) => (
+                            <div key={tp.name} className="space-y-2 mt-8">
+                                <Label className="text-sm font-semibold">{tp.label || tp.name}</Label>
+                                <div className="rounded border text-sm">
+                                    <div className="grid border-b bg-muted/50 px-3 py-2 font-medium" style={{
+                                        gridTemplateColumns: `repeat(${tp.columns.filter(c => !HIDDEN_FIELDS.has(c.name)).length}, 1fr)`,
+                                    }}>
+                                        {tp.columns.filter(c => !HIDDEN_FIELDS.has(c.name)).map((col) => (
+                                            <div key={col.name}>{col.label || col.name}</div>
+                                        ))}
+                                    </div>
+                                    {Array.isArray(formData[tp.name]) && (formData[tp.name] as Record<string, unknown>[]).length > 0 ? (
+                                        (formData[tp.name] as Record<string, unknown>[]).map((row, idx) => (
+                                            <div key={idx} className="grid border-b px-3 py-2 last:border-0" style={{
+                                                gridTemplateColumns: `repeat(${tp.columns.filter(c => !HIDDEN_FIELDS.has(c.name)).length}, 1fr)`,
+                                            }}>
+                                                {tp.columns.filter(c => !HIDDEN_FIELDS.has(c.name)).map((col) => (
+                                                    <div key={col.name} className="truncate">{String(row[col.name] ?? "")}</div>
+                                                ))}
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="px-3 py-4 text-center text-muted-foreground">Нет строк</div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </ScrollArea>
+        </div>
+    )
+}

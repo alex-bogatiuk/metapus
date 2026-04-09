@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ .FormLabel }} {{ with .Doc }}{{ .Number }}{{ end }}</title>
+  {{template "styles" .}}
+</head>
+<body>
+<div class="page">
+
+  {{template "print_bar" .}}
+
+  {{with .Doc}}
+
+  <div class="doc-title">{{ $.FormLabel }}</div>
+  <div class="doc-subtitle">
+    № <strong>{{ .Number }}</strong> от <strong>{{ formatDate .Date }}</strong>
+  </div>
+
+  <table class="header-table">
+    <tr>
+      <td class="label">Организация:</td>
+      <td class="value">{{ with .Organization }}{{ .Name }}{{ end }}</td>
+      <td width="10mm"></td>
+      <td class="label">Склад:</td>
+      <td class="value">{{ with .Warehouse }}{{ .Name }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td class="label">Покупатель:</td>
+      <td class="value">{{ with .Customer }}{{ .Name }}{{ end }}</td>
+      <td></td>
+      <td class="label">Договор:</td>
+      <td class="value">{{ with .Contract }}{{ .Name }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td class="label">Валюта:</td>
+      <td class="value">{{ with .Currency }}{{ .Name }}{{ end }}</td>
+      <td></td>
+      {{ if .CustomerOrderNumber }}
+      <td class="label">Заказ покупателя:</td>
+      <td class="value">{{ .CustomerOrderNumber }}{{ if .CustomerOrderDate }} от {{ formatDatePtr .CustomerOrderDate }}{{ end }}</td>
+      {{ else }}
+      <td class="label"></td>
+      <td class="value"></td>
+      {{ end }}
+    </tr>
+  </table>
+
+  <table class="lines-table">
+    <thead>
+      <tr>
+        <th class="num">№</th>
+        <th>Номенклатура</th>
+        <th style="width:22mm">Ед.изм.</th>
+        <th style="width:22mm">Кол-во</th>
+        {{ if $.ShowPrices }}
+        <th style="width:26mm">Цена</th>
+        <th style="width:26mm">Сумма</th>
+        <th style="width:24mm">НДС</th>
+        {{ end }}
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .Lines }}
+      <tr>
+        <td class="num">{{ .LineNo }}</td>
+        <td>{{ with .Product }}{{ .Name }}{{ end }}</td>
+        <td class="center">{{ with .Unit }}{{ .Name }}{{ end }}</td>
+        <td class="qty">{{ formatQty .Quantity }}</td>
+        {{ if $.ShowPrices }}
+        <td class="money">{{ formatMoney .UnitPrice $.DecimalPlaces }}</td>
+        <td class="money">{{ formatMoney .Amount $.DecimalPlaces }}</td>
+        <td class="money">{{ formatMoney .VATAmount $.DecimalPlaces }}</td>
+        {{ end }}
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+
+  {{ if $.ShowPrices }}
+  <div class="totals-section">
+    <table>
+      <tr>
+        <td class="total-label">Итого:</td>
+        <td class="total-value total-grand">{{ formatMoney .TotalAmount $.DecimalPlaces }} {{ $.CurrencySymbol }}</td>
+      </tr>
+      <tr>
+        <td class="total-label">В том числе НДС:</td>
+        <td class="total-value">{{ formatMoney .TotalVAT $.DecimalPlaces }} {{ $.CurrencySymbol }}</td>
+      </tr>
+    </table>
+  </div>
+  {{ end }}
+
+  <div class="signatures">
+    <div class="sig-block">
+      <div class="sig-role">Отпустил:</div>
+      <div class="sig-line"></div>
+      <div class="sig-hint">подпись / расшифровка</div>
+    </div>
+    <div class="sig-block">
+      <div class="sig-role">Получил (покупатель):</div>
+      <div class="sig-line"></div>
+      <div class="sig-hint">подпись / расшифровка</div>
+    </div>
+    <div class="sig-block">
+      <div class="sig-role">Материально-ответственное лицо:</div>
+      <div class="sig-line"></div>
+      <div class="sig-hint">подпись / расшифровка</div>
+    </div>
+  </div>
+
+  {{ end }}{{/* end with .Doc */}}
+
+  <div class="doc-footer">
+    Сформировано автоматически системой Metapus
+  </div>
+
+</div>
+</body>
+</html>

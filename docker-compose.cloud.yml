@@ -1,0 +1,144 @@
+# Metapus Cloud Deployment — Multi-Version Docker Compose
+#
+# This file demonstrates running multiple server versions simultaneously,
+# each serving only tenants assigned to its version group.
+#
+# Usage:
+#   docker compose -f docker-compose.cloud.yml up -d
+#
+# Workflow:
+#   1. Build images:  docker build --build-arg VERSION=v1.3.0 -t metapus:v1.3.0 .
+#   2. Start stack:   docker compose -f docker-compose.cloud.yml up -d
+#   3. Assign tenant:  go run cmd/tenant/main.go promote --id <uuid> --to v1.3.0
+#   4. Migrate tenant: go run cmd/tenant/main.go migrate --id <uuid>
+#   5. Nginx routes automatically by X-Tenant-ID → version_group
+
+services:
+  # ── PostgreSQL ───────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: metapus
+      POSTGRES_PASSWORD: metapus
+      POSTGRES_DB: metapus_meta
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U metapus -d metapus_meta"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Router Instance ──────────────────────────────────────────────────
+  # Handles /internal/route lookups for Nginx.
+  # Also serves /health/* and /api/v1/system/version.
+  # Can be ANY version — only reads the tenants table.
+  metapus-router:
+    image: metapus:latest
+    restart: unless-stopped
+    environment:
+      META_DATABASE_URL: postgres://metapus:metapus@postgres:5432/metapus_meta?sslmode=disable
+      TENANT_DB_USER: metapus
+      TENANT_DB_PASSWORD: metapus
+      APP_PORT: "8080"
+      LOG_LEVEL: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Server v1.2.0 ───────────────────────────────────────────────────
+  # Serves tenants with version_group = 'v1.2.0'
+  metapus-v1_2_0:
+    image: metapus:v1.2.0
+    restart: unless-stopped
+    environment:
+      META_DATABASE_URL: postgres://metapus:metapus@postgres:5432/metapus_meta?sslmode=disable
+      TENANT_DB_USER: metapus
+      TENANT_DB_PASSWORD: metapus
+      VERSION_GROUP: "v1.2.0"
+      APP_PORT: "8080"
+      LOG_LEVEL: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Server v1.3.0 ───────────────────────────────────────────────────
+  # Serves tenants with version_group = 'v1.3.0'
+  metapus-v1_3_0:
+    image: metapus:v1.3.0
+    restart: unless-stopped
+    environment:
+      META_DATABASE_URL: postgres://metapus:metapus@postgres:5432/metapus_meta?sslmode=disable
+      TENANT_DB_USER: metapus
+      TENANT_DB_PASSWORD: metapus
+      VERSION_GROUP: "v1.3.0"
+      APP_PORT: "8080"
+      LOG_LEVEL: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Default Server ──────────────────────────────────────────────────
+  # Serves tenants with version_group = '' (empty = self-hosted or unassigned)
+  metapus-default:
+    image: metapus:latest
+    restart: unless-stopped
+    environment:
+      META_DATABASE_URL: postgres://metapus:metapus@postgres:5432/metapus_meta?sslmode=disable
+      TENANT_DB_USER: metapus
+      TENANT_DB_PASSWORD: metapus
+      APP_PORT: "8080"
+      LOG_LEVEL: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Worker v1.2.0 ───────────────────────────────────────────────────
+  worker-v1_2_0:
+    image: metapus:v1.2.0
+    entrypoint: ["/worker"]
+    restart: unless-stopped
+    environment:
+      META_DATABASE_URL: postgres://metapus:metapus@postgres:5432/metapus_meta?sslmode=disable
+      TENANT_DB_USER: metapus
+      TENANT_DB_PASSWORD: metapus
+      VERSION_GROUP: "v1.2.0"
+      LOG_LEVEL: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Worker v1.3.0 ───────────────────────────────────────────────────
+  worker-v1_3_0:
+    image: metapus:v1.3.0
+    entrypoint: ["/worker"]
+    restart: unless-stopped
+    environment:
+      META_DATABASE_URL: postgres://metapus:metapus@postgres:5432/metapus_meta?sslmode=disable
+      TENANT_DB_USER: metapus
+      TENANT_DB_PASSWORD: metapus
+      VERSION_GROUP: "v1.3.0"
+      LOG_LEVEL: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Nginx Reverse Proxy ─────────────────────────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx/metapus.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - metapus-router
+      - metapus-default
+      - metapus-v1_2_0
+      - metapus-v1_3_0
+
+volumes:
+  postgres_data:
