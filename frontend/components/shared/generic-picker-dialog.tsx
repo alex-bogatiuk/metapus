@@ -32,6 +32,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { apiFetch } from "@/lib/api"
 import { resolveEntityFromEndpoint } from "@/lib/reference-utils"
@@ -86,32 +87,55 @@ export function GenericPickerDialog({
     const displayTitle = titleOverride ?? autoTitle
 
     // ── Data via shared hook ────────────────────────────────────────────
-    const picker = usePickerDialog({ apiEndpoint, open })
+    const {
+        items: pickerItems,
+        loading: pickerLoading,
+        loadingMore: pickerLoadingMore,
+        totalCount: pickerTotalCount,
+        hasMore: pickerHasMore,
+        search: pickerSearch,
+        setSearch: pickerSetSearch,
+        sortField: pickerSortField,
+        sortDir: pickerSortDir,
+        handleSort: pickerHandleSort,
+        focusedId: pickerFocusedId,
+        setFocusedId: pickerSetFocusedId,
+        quantities: pickerQuantities,
+        setQuantity: pickerSetQuantity,
+        pickedCount: pickerPickedCount,
+        fetchMore: pickerFetchMore,
+        handleKeyDown: pickerHandleKeyDown,
+        scrollContainerRef: pickerScrollContainerRef,
+        tableContainerRef: pickerTableContainerRef,
+    } = usePickerDialog({ apiEndpoint, open })
 
     // ── Metadata columns ────────────────────────────────────────────────
-    const [columns, setColumns] = useState<AutoColumn[]>(() =>
-        _metaColumnsCache.get(entityName) ?? [],
+    // Use cache-derived initial value to avoid synchronous setState in effect
+    const cachedColumns = useMemo(
+        () => _metaColumnsCache.get(entityName) ?? null,
+        [entityName],
     )
-    const [columnsLoading, setColumnsLoading] = useState(false)
+    const [fetchedColumns, setFetchedColumns] = useState<AutoColumn[] | null>(null)
+    // columnsLoading starts true if no cache — effect will set to false after fetch
+    const [columnsLoading, setColumnsLoading] = useState(!cachedColumns)
+
+    const columns = useMemo(
+        () => fetchedColumns ?? cachedColumns ?? [],
+        [fetchedColumns, cachedColumns],
+    )
 
     useEffect(() => {
         if (!open || !entityName) return
-
-        const cached = _metaColumnsCache.get(entityName)
-        if (cached) {
-            setColumns(cached)
-            return
-        }
+        if (_metaColumnsCache.has(entityName)) return
 
         let cancelled = false
-        setColumnsLoading(true)
 
         apiFetch<{ fields: MetadataField[] }>(`/meta/${entityName}`)
             .then((meta) => {
                 if (cancelled) return
                 const cols = buildColumnsFromFields(meta.fields, 6)
                 _metaColumnsCache.set(entityName, cols)
-                setColumns(cols)
+                setFetchedColumns(cols)
             })
             .catch(() => {
                 if (cancelled) return
@@ -119,7 +143,7 @@ export function GenericPickerDialog({
                     { key: "code", label: "Код", type: "string" },
                     { key: "name", label: "Наименование", type: "string" },
                 ]
-                setColumns(fallback)
+                setFetchedColumns(fallback)
             })
             .finally(() => {
                 if (!cancelled) setColumnsLoading(false)
@@ -157,8 +181,8 @@ export function GenericPickerDialog({
 
     const handleToggleItem = (item: Record<string, unknown> & { id: string }) => {
         if (multiSelect) {
-            const current = picker.quantities.get(item.id) || 0
-            picker.setQuantity(item.id, current > 0 ? 0 : 1)
+            const current = pickerQuantities.get(item.id) || 0
+            pickerSetQuantity(item.id, current > 0 ? 0 : 1)
         } else {
             // Single-select: immediately pick
             onPick([{ id: item.id, name: getDisplayName(item), quantity: 1 }])
@@ -166,12 +190,12 @@ export function GenericPickerDialog({
     }
 
     const handleConfirm = () => {
-        const pickedItems: PickedItem[] = []
-        for (const [id, qty] of picker.quantities.entries()) {
+        const picked: PickedItem[] = []
+        for (const [id, qty] of pickerQuantities.entries()) {
             if (qty <= 0) continue
-            const item = picker.items.find((i) => i.id === id)
+            const item = pickerItems.find((i) => i.id === id)
             if (item) {
-                pickedItems.push({
+                picked.push({
                     id: item.id,
                     name: getDisplayName(item),
                     code: item.code != null ? String(item.code) : undefined,
@@ -179,28 +203,28 @@ export function GenericPickerDialog({
                 })
             }
         }
-        onPick(pickedItems)
+        onPick(picked)
     }
 
     // ── Keyboard: Enter = toggle in multi-select, pick in single-select ─
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "Enter") {
             e.preventDefault()
-            if (picker.focusedId) {
-                const item = picker.items.find((i) => i.id === picker.focusedId)
+            if (pickerFocusedId) {
+                const item = pickerItems.find((i) => i.id === pickerFocusedId)
                 if (item) handleToggleItem(item)
             }
             return
         }
-        picker.handleKeyDown(e)
+        pickerHandleKeyDown(e)
     }
 
     // ── Sort icon ───────────────────────────────────────────────────────
     const SortIcon = ({ colKey }: { colKey: string }) => {
-        if (picker.sortField !== colKey) {
+        if (pickerSortField !== colKey) {
             return <ArrowUpDown className="ml-1 inline h-3 w-3 shrink-0 opacity-0 group-hover:opacity-40" />
         }
-        return picker.sortDir === "asc" ? (
+        return pickerSortDir === "asc" ? (
             <ArrowUp className="ml-1 inline h-3 w-3 shrink-0 text-primary" />
         ) : (
             <ArrowDown className="ml-1 inline h-3 w-3 shrink-0 text-primary" />
@@ -208,12 +232,12 @@ export function GenericPickerDialog({
     }
 
     // ── Render ───────────────────────────────────────────────────────────
-    const showInitialLoading = picker.loading && picker.items.length === 0
+    const showInitialLoading = pickerLoading && pickerItems.length === 0
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent
-                className="max-w-4xl w-[90vw] flex flex-col gap-0 p-0"
+                className="max-w-5xl w-[90vw] flex flex-col gap-0 p-0"
                 onOpenAutoFocus={(e) => e.preventDefault()}
             >
                 <DialogHeader className="px-6 pt-6 pb-3">
@@ -226,8 +250,8 @@ export function GenericPickerDialog({
                         <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             placeholder="Поиск…"
-                            value={picker.search}
-                            onChange={(e) => picker.setSearch(e.target.value)}
+                            value={pickerSearch}
+                            onChange={(e) => pickerSetSearch(e.target.value)}
                             className="pl-8 h-9"
                             autoFocus
                         />
@@ -236,14 +260,14 @@ export function GenericPickerDialog({
 
                 {/* Table */}
                 <div
-                    ref={picker.tableContainerRef}
+                    ref={pickerTableContainerRef}
                     className="flex-1 min-h-0 px-6"
                     onKeyDown={handleKeyDown}
                     tabIndex={0}
                 >
-                    <div
-                        ref={picker.scrollContainerRef}
-                        className="h-[55vh] overflow-auto rounded-md border"
+                    <ScrollArea
+                        viewportRef={pickerScrollContainerRef}
+                        className="h-[55vh] rounded-md border"
                     >
                         <table
                             className={cn(
@@ -269,7 +293,7 @@ export function GenericPickerDialog({
                                                 "relative px-4 py-2 text-xs font-medium text-muted-foreground select-none cursor-pointer group hover:text-foreground transition-colors",
                                                 col.align === "right" ? "text-right" : "text-left",
                                             )}
-                                            onClick={() => { if (!isResizing) picker.handleSort(col.key) }}
+                                            onClick={() => { if (!isResizing) pickerHandleSort(col.key) }}
                                         >
                                             <div className="truncate">
                                                 {col.label}
@@ -293,7 +317,7 @@ export function GenericPickerDialog({
                                             <Loader2 className="inline-block h-5 w-5 animate-spin text-muted-foreground" />
                                         </td>
                                     </tr>
-                                ) : picker.items.length === 0 ? (
+                                ) : pickerItems.length === 0 ? (
                                     <tr>
                                         <td
                                             colSpan={columns.length + (multiSelect ? 1 : 0)}
@@ -303,9 +327,9 @@ export function GenericPickerDialog({
                                         </td>
                                     </tr>
                                 ) : (
-                                    picker.items.map((item) => {
-                                        const isFocused = picker.focusedId === item.id
-                                        const isSelected = (picker.quantities.get(item.id) || 0) > 0
+                                    pickerItems.map((item) => {
+                                        const isFocused = pickerFocusedId === item.id
+                                        const isSelected = (pickerQuantities.get(item.id) || 0) > 0
                                         return (
                                             <tr
                                                 key={item.id}
@@ -318,7 +342,7 @@ export function GenericPickerDialog({
                                                             ? "bg-emerald-50/50 dark:bg-emerald-950/20"
                                                             : "hover:bg-primary/5",
                                                 )}
-                                                onClick={() => picker.setFocusedId(item.id)}
+                                                onClick={() => pickerSetFocusedId(item.id)}
                                                 onDoubleClick={() => handleToggleItem(item)}
                                             >
                                                 {multiSelect && (
@@ -347,22 +371,23 @@ export function GenericPickerDialog({
                         </table>
 
                         <ScrollSentinel
-                            onIntersect={picker.fetchMore}
-                            loading={picker.loadingMore}
-                            enabled={picker.hasMore && !picker.loading}
-                            scrollContainer={picker.scrollContainerRef}
+                            onIntersect={pickerFetchMore}
+                            loading={pickerLoadingMore}
+                            enabled={pickerHasMore && !pickerLoading}
+                            scrollContainer={pickerScrollContainerRef}
                             rootMargin="100px"
                         />
-                    </div>
+                        <ScrollBar orientation="horizontal" />
+                    </ScrollArea>
                 </div>
 
                 {/* Footer */}
                 <DialogFooter className="px-6 py-3 border-t flex-row items-center justify-between sm:justify-between">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Показано: {picker.items.length} из {picker.totalCount}</span>
-                        {multiSelect && picker.pickedCount > 0 && (
+                        <span>Показано: {pickerItems.length} из {pickerTotalCount}</span>
+                        {multiSelect && pickerPickedCount > 0 && (
                             <Badge variant="secondary" className="text-[10px]">
-                                Выбрано: {picker.pickedCount}
+                                Выбрано: {pickerPickedCount}
                             </Badge>
                         )}
                     </div>
@@ -377,18 +402,18 @@ export function GenericPickerDialog({
                         {multiSelect ? (
                             <Button
                                 size="sm"
-                                disabled={picker.pickedCount === 0}
+                                disabled={pickerPickedCount === 0}
                                 onClick={handleConfirm}
                             >
-                                Добавить ({picker.pickedCount})
+                                Добавить ({pickerPickedCount})
                             </Button>
                         ) : (
                             <Button
                                 size="sm"
-                                disabled={!picker.focusedId}
+                                disabled={!pickerFocusedId}
                                 onClick={() => {
-                                    if (picker.focusedId) {
-                                        const item = picker.items.find((i) => i.id === picker.focusedId)
+                                    if (pickerFocusedId) {
+                                        const item = pickerItems.find((i) => i.id === pickerFocusedId)
                                         if (item) handleToggleItem(item)
                                     }
                                 }}

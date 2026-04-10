@@ -405,6 +405,16 @@ export const api = {
     // ── Documents (1 line per entity via generic factory) ────────────────
     goodsReceipts: createDocumentApi<GoodsReceiptResponse, CreateGoodsReceiptRequest, UpdateGoodsReceiptRequest>("/document/goods-receipt"),
     goodsIssues: createDocumentApi<GoodsIssueResponse, CreateGoodsIssueRequest, UpdateGoodsIssueRequest>("/document/goods-issue"),
+
+    // ── Registers (stock) ───────────────────────────────────────────────
+    stock: {
+        /** Get stock balances for a warehouse. Returns { items: [{ productId, quantity, ... }] }. */
+        getBalancesByWarehouse: (warehouseId: string) =>
+            apiFetch<{ items: { warehouseId: string; productId: string; quantity: number; lastMovementAt?: string }[] }>(
+                `/registers/stock/balances?warehouseId=${encodeURIComponent(warehouseId)}`
+            ),
+    },
+
     meta: {
         listEntities: () =>
             apiFetch<import("@/types/metadata").EntityMeta[]>("/meta/entities"),

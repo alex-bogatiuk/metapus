@@ -505,6 +505,7 @@ export default function NewGoodsIssuePage() {
         onOpenChange={setPickerOpen}
         onPick={handlePick}
         existingLines={existingPickerLines}
+        warehouseId={f.warehouseId || undefined}
       />
     </div>
   )

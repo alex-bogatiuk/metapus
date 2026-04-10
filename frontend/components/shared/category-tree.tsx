@@ -82,14 +82,10 @@ export function CategoryTree({ selectedId, onSelect, className }: CategoryTreePr
 
     // Fetch tree once
     useEffect(() => {
-        if (_treeCache) {
-            setTree(_treeCache)
-            setLoading(false)
-            return
-        }
+        // If cache exists, state was already initialized from it
+        if (_treeCache) return
 
         let cancelled = false
-        setLoading(true)
 
         apiFetch<NomenclatureResponse[]>("/catalog/nomenclature/tree")
             .then((data) => {

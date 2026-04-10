@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { apiFetch } from "@/lib/api"
 import { resolveEntityFromEndpoint } from "@/lib/reference-utils"
@@ -299,15 +300,15 @@ export function ReferencePickerDialog({
         )
     }
 
-    const handleSelectItem = (item: RowData) => {
+    const handleSelectItem = useCallback((item: RowData) => {
         onSelect(item.id, getDisplayName(item))
-    }
+    }, [onSelect])
 
-    const handleSelectFocused = () => {
+    const handleSelectFocused = useCallback(() => {
         if (!focusedId) return
         const item = items.find((i) => i.id === focusedId)
         if (item) handleSelectItem(item)
-    }
+    }, [focusedId, items, handleSelectItem])
 
     // ── Keyboard navigation ─────────────────────────────────────────────
     const tableContainerRef = useRef<HTMLDivElement>(null)
@@ -371,7 +372,7 @@ export function ReferencePickerDialog({
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent
-                className="max-w-4xl w-[90vw] flex flex-col gap-0 p-0"
+                className="max-w-5xl w-[90vw] flex flex-col gap-0 p-0"
                 onOpenAutoFocus={(e) => e.preventDefault()}
             >
                 <DialogHeader className="px-6 pt-6 pb-3">
@@ -399,9 +400,9 @@ export function ReferencePickerDialog({
                     onKeyDown={handleKeyDown}
                     tabIndex={0}
                 >
-                    <div
-                        ref={scrollContainerRef}
-                        className="h-[55vh] overflow-auto rounded-md border"
+                    <ScrollArea
+                        viewportRef={scrollContainerRef}
+                        className="h-[55vh] rounded-md border"
                     >
                         <table
                             className={cn(
@@ -505,7 +506,8 @@ export function ReferencePickerDialog({
                             scrollContainer={scrollContainerRef}
                             rootMargin="100px"
                         />
-                    </div>
+                        <ScrollBar orientation="horizontal" />
+                    </ScrollArea>
                 </div>
 
                 {/* Footer */}

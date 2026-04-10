@@ -15,7 +15,7 @@
 "use client"
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react"
-import { apiFetch } from "@/lib/api"
+import { apiFetch, api } from "@/lib/api"
 import type { CursorListResponse } from "@/types/common"
 
 // ── Types ───────────────────────────────────────────────────────────────
@@ -43,6 +43,8 @@ interface UsePickerDialogOptions {
     extraParams?: Record<string, string>
     /** Initial items to pre-populate quantities (from existing document lines) */
     initialData?: PickerInitialItem[]
+    /** Warehouse ID for stock balance display (from document header) */
+    warehouseId?: string
 }
 
 interface UsePickerDialogResult {
@@ -74,6 +76,10 @@ interface UsePickerDialogResult {
     clearQuantities: () => void
     pickedCount: number
 
+    // ── Stock balances ──
+    /** Map of productId → stock quantity (from warehouse). Undefined = not loaded yet. */
+    balanceMap: Map<string, number>
+
     // ── Infinite scroll ──
     fetchMore: () => void
 
@@ -95,6 +101,7 @@ export function usePickerDialog({
     limit = DEFAULT_LIMIT,
     extraParams,
     initialData,
+    warehouseId,
 }: UsePickerDialogOptions): UsePickerDialogResult {
     // ── Data state ──────────────────────────────────────────────────────
     const [items, setItems] = useState<RowData[]>([])
@@ -108,9 +115,13 @@ export function usePickerDialog({
     const [search, setSearch] = useState("")
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-    // ── Sort ────────────────────────────────────────────────────────────
-    const [sortField, setSortField] = useState("name")
-    const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
+    // ── Sort (combined state for atomic updates — avoids stale-state race) ──
+    const [sortState, setSortState] = useState<{ field: string; dir: "asc" | "desc" }>({ field: "name", dir: "asc" })
+    const sortField = sortState.field
+    const sortDir = sortState.dir
+
+    // ── Stock balances ──────────────────────────────────────────────────
+    const [balanceMap, setBalanceMap] = useState<Map<string, number>>(new Map())
 
     // ── Selection ───────────────────────────────────────────────────────
     const [focusedId, setFocusedId] = useState<string | null>(null)
@@ -253,14 +264,14 @@ export function usePickerDialog({
         if (!open) {
             initialLoadRef.current = false
             setSearch("")
-            setSortField("name")
-            setSortDir("asc")
+            setSortState({ field: "name", dir: "asc" })
             setItems([])
             setFocusedId(null)
             setNextCursor(null)
             setHasMore(false)
             setQuantities(new Map())
             setPickedItems(new Map())
+            setBalanceMap(new Map())
             return
         }
 
@@ -295,17 +306,15 @@ export function usePickerDialog({
         return () => {
             if (debounceRef.current) clearTimeout(debounceRef.current)
         }
-    }, [open, fetchData])
+    }, [open, fetchData, initialData])
 
-    // ── Sort ────────────────────────────────────────────────────────────
+    // ── Sort (atomic update — fixes toggling asc/desc) ────────────────
     const handleSort = useCallback((key: string) => {
-        setSortField((prev) => {
-            if (prev === key) {
-                setSortDir((d) => (d === "asc" ? "desc" : "asc"))
-                return prev
+        setSortState((prev) => {
+            if (prev.field === key) {
+                return { field: key, dir: prev.dir === "asc" ? "desc" : "asc" }
             }
-            setSortDir("asc")
-            return key
+            return { field: key, dir: "asc" }
         })
     }, [])
 
@@ -344,6 +353,24 @@ export function usePickerDialog({
         [items, focusedId],
     )
 
+    // ── Load stock balances when warehouse changes or dialog opens ────
+    useEffect(() => {
+        if (!open || !warehouseId) {
+            setBalanceMap(new Map())
+            return
+        }
+        api.stock.getBalancesByWarehouse(warehouseId).then((res) => {
+            const map = new Map<string, number>()
+            for (const item of res.items) {
+                map.set(item.productId, item.quantity)
+            }
+            setBalanceMap(map)
+        }).catch(() => {
+            // Silently fail — balance is informational only
+            setBalanceMap(new Map())
+        })
+    }, [open, warehouseId])
+
     return {
         items,
         loading,
@@ -362,6 +389,7 @@ export function usePickerDialog({
         setQuantity,
         clearQuantities,
         pickedCount,
+        balanceMap,
         fetchMore,
         handleKeyDown,
         scrollContainerRef,

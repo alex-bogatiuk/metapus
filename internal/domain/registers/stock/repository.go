@@ -43,6 +43,12 @@ type Repository interface {
 	// GetBalancesByProduct returns balances across all warehouses for a product
 	GetBalancesByProduct(ctx context.Context, productID id.ID) ([]entity.StockBalance, error)
 
+	// GetBalancesByProductIDs returns total stock quantity for multiple products.
+	// If warehouseID is non-nil, returns balances only for that warehouse;
+	// otherwise sums across all warehouses.
+	// Used by the product picker dialog to show stock availability.
+	GetBalancesByProductIDs(ctx context.Context, productIDs []id.ID, warehouseID *id.ID) (map[id.ID]types.Quantity, error)
+
 	// GetBalancesAtDate calculates balances as of a specific date (for reports)
 	GetBalancesAtDate(ctx context.Context, warehouseID, productID id.ID, date time.Time) (types.Quantity, error)
 

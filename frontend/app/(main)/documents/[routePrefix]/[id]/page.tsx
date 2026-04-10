@@ -7,9 +7,13 @@
  * Route: /documents/[routePrefix]/[id]
  *
  * [id] can be a UUID (edit existing) or "new" (create).
+ *
+ * If routePrefix is not found in entityRegistry or metadata store,
+ * the page returns 404 to prevent arbitrary slugs from rendering.
  */
 
 import { Suspense, use } from "react"
+import { notFound } from "next/navigation"
 import { entityRegistry } from "@/lib/entity-registry"
 import { registerFromMetadata } from "@/lib/entity-registry-defaults"
 import { useMetadataStore } from "@/stores/useMetadataStore"
@@ -54,7 +58,13 @@ export default function DocumentCatchAllFormPage({ params }: PageProps) {
     }
 
     const entity = getEntityByRoute(routePrefix)
-    const entityName = registration?.entityName ?? entity?.key ?? toPascalCase(routePrefix)
+
+    // 404 if routePrefix is not registered in either registry or metadata
+    if (!registration && !entity) {
+        notFound()
+    }
+
+    const entityName = registration?.entityName ?? entity?.key ?? routePrefix
 
     return (
         <Suspense fallback={<LoadingFallback />}>
@@ -66,12 +76,4 @@ export default function DocumentCatchAllFormPage({ params }: PageProps) {
             />
         </Suspense>
     )
-}
-
-/** Convert kebab-case route prefix to PascalCase entity name */
-function toPascalCase(s: string): string {
-    return s
-        .split("-")
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join("")
 }

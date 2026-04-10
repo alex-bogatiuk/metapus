@@ -271,6 +271,48 @@ func (r *StockRepo) GetBalancesByProduct(ctx context.Context, productID id.ID) (
 	return balances, nil
 }
 
+// GetBalancesByProductIDs returns total stock quantity for multiple products.
+// If warehouseID is non-nil, filters by that warehouse; otherwise sums across all warehouses.
+func (r *StockRepo) GetBalancesByProductIDs(ctx context.Context, productIDs []id.ID, warehouseID *id.ID) (map[id.ID]types.Quantity, error) {
+	if len(productIDs) == 0 {
+		return map[id.ID]types.Quantity{}, nil
+	}
+
+	q := r.Builder().Select(
+		"product_id",
+		"SUM(quantity) AS total_qty",
+	).From(stockBalancesTable).
+		Where(squirrel.Eq{"product_id": productIDs}).
+		GroupBy("product_id")
+
+	if warehouseID != nil {
+		q = q.Where(squirrel.Eq{"warehouse_id": *warehouseID})
+	}
+
+	sql, args, err := q.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build query: %w", err)
+	}
+
+	type row struct {
+		ProductID id.ID          `db:"product_id"`
+		TotalQty  types.Quantity `db:"total_qty"`
+	}
+
+	var rows []row
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
+	if err := pgxscan.Select(ctx, querier, &rows, sql, args...); err != nil {
+		return nil, fmt.Errorf("select batch balances: %w", err)
+	}
+
+	result := make(map[id.ID]types.Quantity, len(rows))
+	for _, r := range rows {
+		result[r.ProductID] = r.TotalQty
+	}
+
+	return result, nil
+}
+
 // GetBalancesAtDate calculates balance as of a specific date.
 func (r *StockRepo) GetBalancesAtDate(ctx context.Context, warehouseID, productID id.ID, date time.Time) (types.Quantity, error) {
 	sql := `

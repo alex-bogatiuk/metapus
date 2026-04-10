@@ -655,6 +655,7 @@ export default function GoodsReceiptFormPage() {
         onOpenChange={setPickerOpen}
         onPick={handlePick}
         existingLines={existingPickerLines}
+        warehouseId={f.warehouseId || undefined}
       />
     </div>
   )

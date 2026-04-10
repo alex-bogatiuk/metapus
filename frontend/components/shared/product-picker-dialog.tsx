@@ -23,7 +23,7 @@
  * Pattern #4: Shared Components — reuses document-form types for integration.
  */
 
-import { useState, useCallback, useMemo, useEffect } from "react"
+import { useState, useCallback, useMemo } from "react"
 import {
     Search,
     Check,
@@ -53,10 +53,53 @@ import { cn } from "@/lib/utils"
 import { CategoryTree } from "@/components/shared/category-tree"
 import { ScrollSentinel } from "@/components/shared/scroll-sentinel"
 import { usePickerDialog } from "@/hooks/usePickerDialog"
+import { useColumnResize, type ColumnResizeDef } from "@/hooks/useColumnResize"
 import type { PickerInitialItem } from "@/hooks/usePickerDialog"
 import type { ProductPickerDialogProps, PickedItem } from "@/types/picker"
 
 type PickerTab = "selection" | "order"
+
+// ── Column definitions ──────────────────────────────────────────────────
+
+interface PickerColumnDef {
+    key: string
+    label: string
+    width: number
+    minWidth?: number
+    sortable?: boolean
+    align?: "left" | "right" | "center"
+    className?: string
+}
+
+const PICKER_COLUMNS: PickerColumnDef[] = [
+    { key: "code", label: "Код", width: 70, minWidth: 50, sortable: true },
+    { key: "name", label: "Наименование", width: 280, minWidth: 100, sortable: true },
+    { key: "unit", label: "Ед.", width: 40, minWidth: 30, align: "center" },
+    { key: "article", label: "Артикул", width: 100, minWidth: 50 },
+    { key: "balance", label: "Остаток", width: 80, minWidth: 50, align: "right" },
+    { key: "quantity", label: "Заказать", width: 100, minWidth: 80, align: "center", className: "bg-primary/5" },
+]
+
+const PICKER_RESIZE_DEFS: ColumnResizeDef[] = PICKER_COLUMNS.map((col) => ({
+    key: col.key,
+    width: col.width,
+    minWidth: col.minWidth ?? 40,
+}))
+
+const COL_WIDTHS_STORAGE_KEY = "metapus-ppicker-colwidths"
+
+function getStoredPickerWidths(): Record<string, number> | undefined {
+    if (typeof window === "undefined") return undefined
+    try {
+        const raw = localStorage.getItem(COL_WIDTHS_STORAGE_KEY)
+        return raw ? JSON.parse(raw) as Record<string, number> : undefined
+    } catch { return undefined }
+}
+
+function savePickerWidths(widths: Record<string, number>): void {
+    if (typeof window === "undefined") return
+    try { localStorage.setItem(COL_WIDTHS_STORAGE_KEY, JSON.stringify(widths)) } catch { /* ignore */ }
+}
 
 // ── Component ───────────────────────────────────────────────────────────
 
@@ -65,6 +108,39 @@ export function ProductPickerDialog({
     onOpenChange,
     onPick,
     existingLines,
+    warehouseId,
+}: ProductPickerDialogProps) {
+    // ── Reset key — increments each time the dialog closes, so all inner state resets on next open ──
+    const [resetKey, setResetKey] = useState(0)
+
+    const handleOpenChange = useCallback((value: boolean) => {
+        if (!value) {
+            // Dialog is closing — bump key for next open
+            setResetKey((k) => k + 1)
+        }
+        onOpenChange(value)
+    }, [onOpenChange])
+
+    if (!open) return null
+
+    return (
+        <ProductPickerDialogInner
+            key={resetKey}
+            open={open}
+            onOpenChange={handleOpenChange}
+            onPick={onPick}
+            existingLines={existingLines}
+            warehouseId={warehouseId}
+        />
+    )
+}
+
+function ProductPickerDialogInner({
+    open,
+    onOpenChange,
+    onPick,
+    existingLines,
+    warehouseId,
 }: ProductPickerDialogProps) {
     // ── Tabs ────────────────────────────────────────────────────────────
     const [activeTab, setActiveTab] = useState<PickerTab>("selection")
@@ -74,15 +150,6 @@ export function ProductPickerDialog({
 
     // ── Quick filters ───────────────────────────────────────────────────
     const [showOnlyWithOrder, setShowOnlyWithOrder] = useState(false)
-
-    // Reset state when dialog closes
-    useEffect(() => {
-        if (!open) {
-            setSelectedCategory("all")
-            setActiveTab("selection")
-            setShowOnlyWithOrder(false)
-        }
-    }, [open])
 
     // ── Extra params based on category ──────────────────────────────────
     const extraParams = useMemo(() => {
@@ -106,25 +173,60 @@ export function ProductPickerDialog({
     }, [existingLines])
 
     // ── Data via shared hook ────────────────────────────────────────────
-    const picker = usePickerDialog({
+    const {
+        items: pickerItems,
+        loading: pickerLoading,
+        loadingMore: pickerLoadingMore,
+        totalCount: pickerTotalCount,
+        hasMore: pickerHasMore,
+        search: pickerSearch,
+        setSearch: pickerSetSearch,
+        sortField: pickerSortField,
+        sortDir: pickerSortDir,
+        handleSort: pickerHandleSort,
+        focusedId: pickerFocusedId,
+        setFocusedId: pickerSetFocusedId,
+        quantities: pickerQuantities,
+        pickedItems: pickerPickedItems,
+        setQuantity: pickerSetQuantity,
+        pickedCount: pickerPickedCount,
+        balanceMap: pickerBalanceMap,
+        fetchMore: pickerFetchMore,
+        handleKeyDown: pickerHandleKeyDown,
+        scrollContainerRef: pickerScrollContainerRef,
+        tableContainerRef: pickerTableContainerRef,
+    } = usePickerDialog({
         apiEndpoint: "/catalog/nomenclature",
         open,
         extraParams,
         initialData,
+        warehouseId,
+    })
+
+    // ── Column resize (persisted to localStorage) ────────────────────────
+    const storedWidths = useMemo(() => getStoredPickerWidths(), [])
+    const handleWidthsChange = useCallback(
+        (widths: Record<string, number>) => savePickerWidths(widths),
+        [],
+    )
+    const { colWidths, onResizeStart, isResizing } = useColumnResize({
+        columns: PICKER_RESIZE_DEFS,
+        storedWidths,
+        onWidthsChange: handleWidthsChange,
     })
 
     // ── Filtered items (for "С заказом" filter) ──────────────────────────
     const displayItems = useMemo(() => {
-        if (!showOnlyWithOrder) return picker.items
-        return picker.items.filter((item) => (picker.quantities.get(item.id) || 0) > 0)
-    }, [picker.items, showOnlyWithOrder, picker.quantities])
+        if (!showOnlyWithOrder) return pickerItems
+        return pickerItems.filter((item) => (pickerQuantities.get(item.id) || 0) > 0)
+    }, [pickerItems, showOnlyWithOrder, pickerQuantities])
 
     // ── Order lines (for "Заказ" tab) ───────────────────────────────────
     const orderLines = useMemo(() => {
         const lines: Array<{ id: string; name: string; code: string; unitId: string; quantity: number }> = []
-        for (const [id, qty] of picker.quantities.entries()) {
+        for (const [id, qty] of pickerQuantities.entries()) {
             if (qty <= 0) continue
-            const item = picker.pickedItems.get(id)
+            const item = pickerPickedItems.get(id)
             if (item) {
                 lines.push({
                     id: item.id,
@@ -136,7 +238,7 @@ export function ProductPickerDialog({
             }
         }
         return lines
-    }, [picker.quantities, picker.pickedItems])
+    }, [pickerQuantities, pickerPickedItems])
 
     // ── Keyboard: Product-specific extensions ───────────────────────────
     const handleKeyDown = useCallback(
@@ -145,8 +247,8 @@ export function ProductPickerDialog({
             const tag = (e.target as HTMLElement).tagName
             if (tag === "INPUT" || tag === "TEXTAREA") return
 
-            const currentIndex = picker.focusedId
-                ? displayItems.findIndex((i) => i.id === picker.focusedId)
+            const currentIndex = pickerFocusedId
+                ? displayItems.findIndex((i) => i.id === pickerFocusedId)
                 : -1
             const currentItem = currentIndex >= 0 ? displayItems[currentIndex] : null
 
@@ -154,8 +256,8 @@ export function ProductPickerDialog({
                 case "Enter": {
                     e.preventDefault()
                     if (currentItem) {
-                        const current = picker.quantities.get(currentItem.id) || 0
-                        picker.setQuantity(currentItem.id, current + 1)
+                        const current = pickerQuantities.get(currentItem.id) || 0
+                        pickerSetQuantity(currentItem.id, current + 1)
                     }
                     break
                 }
@@ -163,32 +265,32 @@ export function ProductPickerDialog({
                 case "=": {
                     e.preventDefault()
                     if (currentItem) {
-                        const current = picker.quantities.get(currentItem.id) || 0
-                        picker.setQuantity(currentItem.id, current + 1)
+                        const current = pickerQuantities.get(currentItem.id) || 0
+                        pickerSetQuantity(currentItem.id, current + 1)
                     }
                     break
                 }
                 case "-": {
                     e.preventDefault()
                     if (currentItem) {
-                        const current = picker.quantities.get(currentItem.id) || 0
-                        picker.setQuantity(currentItem.id, Math.max(0, current - 1))
+                        const current = pickerQuantities.get(currentItem.id) || 0
+                        pickerSetQuantity(currentItem.id, Math.max(0, current - 1))
                     }
                     break
                 }
                 default:
-                    picker.handleKeyDown(e)
+                    pickerHandleKeyDown(e)
             }
         },
-        [picker, displayItems],
+        [pickerFocusedId, pickerQuantities, pickerSetQuantity, pickerHandleKeyDown, displayItems],
     )
 
     // ── Confirm ─────────────────────────────────────────────────────────
     const handleConfirm = useCallback(() => {
         const result: PickedItem[] = []
-        for (const [id, qty] of picker.quantities.entries()) {
+        for (const [id, qty] of pickerQuantities.entries()) {
             if (qty <= 0) continue
-            const item = picker.pickedItems.get(id)
+            const item = pickerPickedItems.get(id)
             if (item) {
                 result.push({
                     id: item.id,
@@ -201,16 +303,16 @@ export function ProductPickerDialog({
         }
         onPick(result)
         onOpenChange(false)
-    }, [picker.quantities, picker.pickedItems, onPick, onOpenChange])
+    }, [pickerQuantities, pickerPickedItems, onPick, onOpenChange])
 
     // ── Computed totals ─────────────────────────────────────────────────
     const totalQty = useMemo(() => {
         let sum = 0
-        for (const qty of picker.quantities.values()) sum += qty
+        for (const qty of pickerQuantities.values()) sum += qty
         return sum
-    }, [picker.quantities])
+    }, [pickerQuantities])
 
-    const showInitialLoading = picker.loading && picker.items.length === 0
+    const showInitialLoading = pickerLoading && pickerItems.length === 0
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -235,9 +337,9 @@ export function ProductPickerDialog({
                                     <TabsTrigger value="order" className="h-6 px-3 text-xs">
                                         <ShoppingCart className="h-3 w-3 mr-1.5" />
                                         Заказ
-                                        {picker.pickedCount > 0 && (
+                                        {pickerPickedCount > 0 && (
                                             <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[10px] min-w-[16px]">
-                                                {picker.pickedCount}
+                                                {pickerPickedCount}
                                             </Badge>
                                         )}
                                     </TabsTrigger>
@@ -253,7 +355,7 @@ export function ProductPickerDialog({
                             {/* Always-visible summary — SAP Fiori pattern */}
                             <div className="flex items-center gap-3 text-xs">
                                 <span className="text-muted-foreground">
-                                    Позиций: <span className="font-medium text-foreground">{picker.pickedCount}</span>
+                                    Позиций: <span className="font-medium text-foreground">{pickerPickedCount}</span>
                                 </span>
                                 <span className="text-muted-foreground">
                                     Кол-во: <span className="font-semibold text-foreground">{totalQty}</span>
@@ -270,8 +372,8 @@ export function ProductPickerDialog({
                         <OrderTab
                             lines={orderLines}
                             totalQty={totalQty}
-                            onQuantityChange={(id, qty) => picker.setQuantity(id, qty)}
-                            onRemove={(id) => picker.setQuantity(id, 0)}
+                            onQuantityChange={(id, qty) => pickerSetQuantity(id, qty)}
+                            onRemove={(id) => pickerSetQuantity(id, 0)}
                         />
                     ) : (
                         /* ── SELECTION TAB ──────────────────────────────────── */
@@ -291,16 +393,16 @@ export function ProductPickerDialog({
                                         <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                                         <Input
                                             placeholder="Поиск по названию, коду, штрихкоду…"
-                                            value={picker.search}
-                                            onChange={(e) => picker.setSearch(e.target.value)}
+                                            value={pickerSearch}
+                                            onChange={(e) => pickerSetSearch(e.target.value)}
                                             className="h-7 pl-7 text-xs"
                                         />
-                                        {picker.search && (
+                                        {pickerSearch && (
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
                                                 className="absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5"
-                                                onClick={() => picker.setSearch("")}
+                                                onClick={() => pickerSetSearch("")}
                                             >
                                                 <X className="h-3 w-3" />
                                             </Button>
@@ -322,60 +424,71 @@ export function ProductPickerDialog({
                                     <div className="flex-1" />
 
                                     <span className="text-xs text-muted-foreground">
-                                        Найдено: {picker.totalCount}
+                                        Найдено: {pickerTotalCount}
                                     </span>
                                 </div>
 
                                 {/* Products table */}
                                 <div
-                                    ref={picker.tableContainerRef}
+                                    ref={pickerTableContainerRef}
                                     className="flex-1 overflow-hidden"
                                     onKeyDown={handleKeyDown}
                                     tabIndex={0}
                                 >
                                     <div
-                                        ref={picker.scrollContainerRef}
+                                        ref={pickerScrollContainerRef}
                                         className="h-full overflow-auto"
                                     >
-                                        <table className="w-full text-xs border-collapse">
+                                <table className={cn("w-full text-xs border-collapse table-fixed", isResizing && "select-none")}>
+                                            <colgroup>
+                                                <col style={{ width: 28 }} />
+                                                {PICKER_COLUMNS.map((col, i) => (
+                                                    <col key={col.key} style={{ width: colWidths[i] ?? col.width }} />
+                                                ))}
+                                            </colgroup>
                                             <thead className="bg-muted/50 sticky top-0 z-10">
                                                 <tr>
                                                     <th className="text-left font-medium px-2 py-1.5 w-[28px]" />
-                                                    <th
-                                                        className="text-left font-medium px-2 py-1.5 w-[70px] cursor-pointer hover:text-foreground transition-colors"
-                                                        onClick={() => picker.handleSort("code")}
-                                                    >
-                                                        <span>Код</span>
-                                                        <SortIndicator field="code" sortField={picker.sortField} sortDir={picker.sortDir} />
-                                                    </th>
-                                                    <th
-                                                        className="text-left font-medium px-2 py-1.5 cursor-pointer hover:text-foreground transition-colors"
-                                                        onClick={() => picker.handleSort("name")}
-                                                    >
-                                                        <span>Наименование</span>
-                                                        <SortIndicator field="name" sortField={picker.sortField} sortDir={picker.sortDir} />
-                                                    </th>
-                                                    <th className="text-center font-medium px-2 py-1.5 w-[40px]">
-                                                        Ед.
-                                                    </th>
-                                                    <th className="text-left font-medium px-2 py-1.5 w-[100px]">
-                                                        Артикул
-                                                    </th>
-                                                    <th className="text-center font-medium px-2 py-1.5 w-[100px] bg-primary/5">
-                                                        Заказать
-                                                    </th>
+                                                    {PICKER_COLUMNS.map((col, colIndex) => (
+                                                        <th
+                                                            key={col.key}
+                                                            className={cn(
+                                                                "relative text-left font-medium px-2 py-1.5 select-none transition-colors",
+                                                                col.sortable && "cursor-pointer hover:text-foreground",
+                                                                col.align === "right" && "text-right",
+                                                                col.align === "center" && "text-center",
+                                                                col.className,
+                                                            )}
+                                                            onClick={col.sortable ? () => { if (!isResizing) pickerHandleSort(col.key) } : undefined}
+                                                        >
+                                                            <div className="truncate">
+                                                                {col.label}
+                                                                {col.sortable && (
+                                                                    <SortIndicator field={col.key} sortField={pickerSortField} sortDir={pickerSortDir} />
+                                                                )}
+                                                            </div>
+                                                            {/* Resize handle */}
+                                                            <div
+                                                                className="absolute right-0 top-0 h-full w-[5px] cursor-col-resize z-20 group/resize hover:bg-primary/30 active:bg-primary/50"
+                                                                onMouseDown={(e) => onResizeStart(colIndex, e)}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            >
+                                                                <div className="absolute right-0 top-1/4 h-1/2 w-[1px] bg-border group-hover/resize:bg-primary/60" />
+                                                            </div>
+                                                        </th>
+                                                    ))}
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {showInitialLoading ? (
                                                     <tr>
-                                                        <td colSpan={6} className="py-12 text-center">
+                                                        <td colSpan={8} className="py-12 text-center">
                                                             <Loader2 className="inline-block h-5 w-5 animate-spin text-muted-foreground" />
                                                         </td>
                                                     </tr>
                                                 ) : displayItems.length === 0 ? (
                                                     <tr>
-                                                        <td colSpan={6} className="text-center py-12 text-muted-foreground">
+                                                        <td colSpan={8} className="text-center py-12 text-muted-foreground">
                                                             <Package className="h-8 w-8 mx-auto mb-2 opacity-30" />
                                                             <p className="text-sm">Ничего не найдено</p>
                                                             <p className="text-xs mt-0.5">
@@ -390,10 +503,11 @@ export function ProductPickerDialog({
                                                         <ProductRow
                                                             key={item.id}
                                                             item={item}
-                                                            isFocused={picker.focusedId === item.id}
-                                                            quantity={picker.quantities.get(item.id) || 0}
-                                                            onFocus={() => picker.setFocusedId(item.id)}
-                                                            onQuantityChange={(qty) => picker.setQuantity(item.id, qty)}
+                                                            isFocused={pickerFocusedId === item.id}
+                                                            quantity={pickerQuantities.get(item.id) || 0}
+                                                            balance={pickerBalanceMap.get(item.id)}
+                                                            onFocus={() => pickerSetFocusedId(item.id)}
+                                                            onQuantityChange={(qty) => pickerSetQuantity(item.id, qty)}
                                                         />
                                                     ))
                                                 )}
@@ -401,10 +515,10 @@ export function ProductPickerDialog({
                                         </table>
 
                                         <ScrollSentinel
-                                            onIntersect={picker.fetchMore}
-                                            loading={picker.loadingMore}
-                                            enabled={picker.hasMore && !picker.loading}
-                                            scrollContainer={picker.scrollContainerRef}
+                                            onIntersect={pickerFetchMore}
+                                            loading={pickerLoadingMore}
+                                            enabled={pickerHasMore && !pickerLoading}
+                                            scrollContainer={pickerScrollContainerRef}
                                             rootMargin="100px"
                                         />
                                     </div>
@@ -434,7 +548,7 @@ export function ProductPickerDialog({
                     <div className="flex items-center gap-3 text-xs">
                         {activeTab === "selection" && (
                             <span className="text-muted-foreground">
-                                Показано: <span className="font-medium text-foreground">{displayItems.length}</span> из {picker.totalCount}
+                                Показано: <span className="font-medium text-foreground">{displayItems.length}</span> из {pickerTotalCount}
                             </span>
                         )}
                     </div>
@@ -448,10 +562,10 @@ export function ProductPickerDialog({
                         </Button>
                         <Button
                             size="sm"
-                            disabled={picker.pickedCount === 0}
+                            disabled={pickerPickedCount === 0}
                             onClick={handleConfirm}
                         >
-                            Добавить ({picker.pickedCount})
+                            Добавить ({pickerPickedCount})
                         </Button>
                     </div>
                 </DialogFooter>
@@ -482,7 +596,7 @@ function OrderTab({
                     <thead className="bg-muted/50 sticky top-0">
                         <tr className="border-b">
                             <th className="text-left font-medium px-2 py-1.5 w-[40px]">№</th>
-                            <th className="text-left font-medium px-2 py-1.5 w-[70px]">Код</th>
+                            <th className="text-left font-medium px-2 py-1.5 w-[110px]">Код</th>
                             <th className="text-left font-medium px-2 py-1.5">Наименование</th>
                             <th className="text-right font-medium px-2 py-1.5 w-[100px]">Кол-во</th>
                             <th className="w-[36px]" />
@@ -501,10 +615,10 @@ function OrderTab({
                             </tr>
                         ) : (
                             lines.map((line, idx) => (
-                                <tr key={line.id} className="border-b hover:bg-muted/30">
-                                    <td className="px-2 py-1 text-muted-foreground">{idx + 1}</td>
-                                    <td className="px-2 py-1 font-mono text-muted-foreground">{line.code}</td>
-                                    <td className="px-2 py-1 truncate max-w-[300px]">{line.name}</td>
+                                    <tr key={line.id} className="border-b hover:bg-muted/30 h-8">
+                                    <td className="px-2 py-0.5 text-muted-foreground">{idx + 1}</td>
+                                    <td className="px-2 py-0.5 font-mono text-muted-foreground whitespace-nowrap">{line.code}</td>
+                                    <td className="px-2 py-0.5 truncate max-w-[300px]" title={line.name}>{line.name}</td>
                                     <td className="px-2 py-1 text-right">
                                         <Input
                                             type="number"
@@ -578,12 +692,14 @@ function ProductRow({
     item,
     isFocused,
     quantity,
+    balance,
     onFocus,
     onQuantityChange,
 }: {
     item: Record<string, unknown> & { id: string }
     isFocused: boolean
     quantity: number
+    balance: number | undefined
     onFocus: () => void
     onQuantityChange: (qty: number) => void
 }) {
@@ -592,32 +708,44 @@ function ProductRow({
     const unitName = String(item.baseUnitName ?? item.unitName ?? "")
     const unitShort = UNIT_LABELS[unitName.toLowerCase()] ?? unitName.slice(0, 3) ?? ""
 
+    // Format balance display
+    const balanceDisplay = balance === undefined ? "—" : balance === 0 ? "0" : String(balance)
+    const balanceColor =
+        balance === undefined || balance === 0
+            ? "text-muted-foreground"
+            : balance > 0
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-destructive"
+
     return (
         <tr
             data-row-id={item.id}
             onClick={onFocus}
             onDoubleClick={() => onQuantityChange(quantity + 1)}
             className={cn(
-                "border-b cursor-pointer transition-colors",
+                "border-b cursor-pointer transition-colors h-8",
                 isFocused && "bg-primary/10 outline outline-1 outline-primary/30",
                 hasQty && !isFocused && "bg-emerald-50/50 dark:bg-emerald-950/20",
                 !isFocused && !hasQty && "hover:bg-muted/30",
             )}
         >
-            <td className="px-2 py-1">
+            <td className="px-2 py-0.5 w-[28px]">
                 {hasQty && <Check className="h-3 w-3 text-emerald-600" />}
             </td>
-            <td className="px-2 py-1 font-mono text-muted-foreground">
-                {String(item.code ?? "")}
+            <td className="px-2 py-0.5 font-mono text-muted-foreground overflow-hidden" title={String(item.code ?? "")}>
+                <div className="truncate">{String(item.code ?? "")}</div>
             </td>
-            <td className="px-2 py-1 truncate max-w-[300px]" title={String(item.name ?? "")}>
-                {String(item.name ?? "")}
+            <td className="px-2 py-0.5 overflow-hidden" title={String(item.name ?? "")}>
+                <div className="truncate">{String(item.name ?? "")}</div>
             </td>
-            <td className="px-2 py-1 text-center text-muted-foreground">
+            <td className="px-2 py-0.5 text-center text-muted-foreground overflow-hidden">
                 {unitShort}
             </td>
-            <td className="px-2 py-1 font-mono text-muted-foreground">
-                {String(item.article ?? "")}
+            <td className="px-2 py-0.5 font-mono text-muted-foreground overflow-hidden">
+                <div className="truncate">{String(item.article ?? "")}</div>
+            </td>
+            <td className={cn("px-2 py-0.5 text-right tabular-nums text-xs font-medium overflow-hidden", balanceColor)}>
+                {balanceDisplay}
             </td>
             <td className="px-1 py-0.5 bg-primary/5">
                 <div className="flex items-center justify-center gap-1">
