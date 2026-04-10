@@ -8,6 +8,7 @@ import {
   Loader2,
   ChevronsUp,
   ChevronsDown,
+  Search,
 } from "lucide-react"
 import { FormToolbar } from "@/components/shared/form-toolbar"
 import { FormSidebar } from "@/components/shared/form-sidebar"
@@ -28,10 +29,12 @@ import { useFormDraft } from "@/hooks/useFormDraft"
 import { api } from "@/lib/api"
 import { fromQuantity, fromMinorUnits, toQuantity, toMinorUnits } from "@/lib/format"
 import { useCurrencyScale } from "@/hooks/useCurrencyScale"
-import { type FormLine, emptyLine, fetchVatRatePercent, computeTotals } from "@/lib/document-form"
+import { type FormLine, emptyLine, fetchVatRatePercent, computeTotals, linesToExistingPickerLines, mergePickedIntoLines } from "@/lib/document-form"
 import { DocumentTotalsFooter } from "@/components/shared/document-totals-footer"
 import type { GoodsIssueLineRequest, CreateGoodsIssueRequest, GoodsIssueResponse } from "@/types/document"
 import { useMetadataStore } from "@/stores/useMetadataStore"
+import { ProductPickerDialog } from "@/components/shared/product-picker-dialog"
+import type { PickedItem } from "@/types/picker"
 
 const SIDEBAR_STORAGE_KEY = "metapus-form-sidebar-collapsed"
 const HEADER_STORAGE_KEY = "metapus-form-header-collapsed"
@@ -84,6 +87,7 @@ export default function NewGoodsIssuePage() {
   const [sidebarCollapsed, toggleSidebar] = useCollapsible(SIDEBAR_STORAGE_KEY, true)
   const [headerCollapsed, toggleHeader] = useCollapsible(HEADER_STORAGE_KEY, false)
   const [copyLoading, setCopyLoading] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   // ── Single typed form state with automatic draft persistence ────────
   const { state: f, update, replace, clear, hasDraft } = useFormDraft<GoodsIssueFormState>(
@@ -114,6 +118,7 @@ export default function NewGoodsIssuePage() {
           _key: i + 1,
           productId: l.productId,
           productName: l.product?.name || "",
+          productCode: l.product?.code || "",
           unitId: l.unitId,
           unitName: l.unit?.name || "",
           quantity: fromQuantity(l.quantity),
@@ -155,6 +160,7 @@ export default function NewGoodsIssuePage() {
             _key: i + 1,
             productId: l.productId,
             productName: l.product?.name || "",
+            productCode: l.product?.code || "",
             unitId: l.unitId,
             unitName: l.unit?.name || "",
             quantity: fromQuantity(l.quantity),
@@ -192,6 +198,14 @@ export default function NewGoodsIssuePage() {
     update({ lines: [...f.lines, emptyLine(f.nextKey)], nextKey: f.nextKey + 1 })
     markDirty()
   }
+
+  const existingPickerLines = useMemo(() => linesToExistingPickerLines(f.lines), [f.lines])
+
+  const handlePick = useCallback((items: PickedItem[]) => {
+    const knownIds = new Set(existingPickerLines.map((l) => l.productId))
+    update((prev) => mergePickedIntoLines(prev.lines, items, prev.nextKey, knownIds))
+    markDirty()
+  }, [update, markDirty, existingPickerLines])
 
   // ── Stable callbacks for DocumentLineRow (React.memo-safe) ──────────
   const handleUpdateField = useCallback((key: number, field: keyof FormLine, value: string) => {
@@ -419,6 +433,10 @@ export default function NewGoodsIssuePage() {
                       <Plus className="mr-1 h-3 w-3" />
                       Добавить
                     </Button>
+                    <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
+                      <Search className="mr-1 h-3 w-3" />
+                      Подбор
+                    </Button>
                   </div>
                   <ScrollArea className="flex-1">
                     <table className="w-full text-sm border-separate border-spacing-0">
@@ -479,9 +497,15 @@ export default function NewGoodsIssuePage() {
           <DocumentTotalsFooter totalAmount={totals.totalAmount} totalVat={totals.totalVat} decimalPlaces={decimalPlaces} currencySymbol={currencySymbol} />
         </div>
 
-        {/* Right Sidebar — collapsible */}
         <FormSidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
       </div>
+
+      <ProductPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onPick={handlePick}
+        existingLines={existingPickerLines}
+      />
     </div>
   )
 }

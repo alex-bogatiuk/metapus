@@ -18,6 +18,7 @@ import (
 type RefDisplay struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+	Code string `json:"code,omitempty"`
 }
 
 // CurrencyRefDisplay extends RefDisplay with currency-specific fields.
@@ -162,7 +163,7 @@ func (r *ReferenceResolver) ResolveCurrencies(ctx context.Context, querier Queri
 	return batchResolveCurrency(ctx, querier, ids)
 }
 
-// batchResolveName fetches id + name for a batch of IDs from a single table.
+// batchResolveName fetches id + name + code for a batch of IDs from a single table.
 // Uses the package-level Querier interface from tx_manager.go.
 func batchResolveName(ctx context.Context, q Querier, table string, ids []id.ID) (map[string]RefDisplay, error) {
 	if len(ids) == 0 {
@@ -172,8 +173,9 @@ func batchResolveName(ctx context.Context, q Querier, table string, ids []id.ID)
 	// Determine the display expression per table.
 	// Most catalogs expose "name" (or "code"), while users require full name composition.
 	displayCol := displayExprForTable(table)
+	codeCol := codeExprForTable(table)
 
-	// Build query: SELECT id, <displayCol> FROM <table> WHERE id = ANY($1)
+	// Build query: SELECT id, <displayCol>, <codeCol> FROM <table> WHERE id IN (...)
 	// We use raw SQL here for simplicity — table names are controlled by code, not user input.
 	placeholders := make([]string, len(ids))
 	args := make([]any, len(ids))
@@ -183,8 +185,8 @@ func batchResolveName(ctx context.Context, q Querier, table string, ids []id.ID)
 	}
 
 	query := fmt.Sprintf(
-		"SELECT id, %s AS display_name FROM %s WHERE id IN (%s)",
-		displayCol, table, strings.Join(placeholders, ","),
+		"SELECT id, %s AS display_name, %s AS code FROM %s WHERE id IN (%s)",
+		displayCol, codeCol, table, strings.Join(placeholders, ","),
 	)
 
 	rows, err := q.Query(ctx, query, args...)
@@ -196,13 +198,14 @@ func batchResolveName(ctx context.Context, q Querier, table string, ids []id.ID)
 	result := make(map[string]RefDisplay, len(ids))
 	for rows.Next() {
 		var eid id.ID
-		var name string
-		if err := rows.Scan(&eid, &name); err != nil {
+		var name, code string
+		if err := rows.Scan(&eid, &name, &code); err != nil {
 			return nil, fmt.Errorf("scan %s: %w", table, err)
 		}
 		result[eid.String()] = RefDisplay{
 			ID:   eid.String(),
 			Name: name,
+			Code: code,
 		}
 	}
 
@@ -217,6 +220,17 @@ func displayExprForTable(table string) string {
 		return "COALESCE(NULLIF(TRIM(CONCAT_WS(' ', NULLIF(last_name, ''), NULLIF(first_name, ''))), ''), email, id::text)"
 	default:
 		return "COALESCE(name, code, id::text)"
+	}
+}
+
+// codeExprForTable returns the SQL expression for the "code" column.
+// Tables that do not have a "code" column return an empty string literal.
+func codeExprForTable(table string) string {
+	switch table {
+	case "users":
+		return "''"
+	default:
+		return "COALESCE(code, '')"
 	}
 }
 

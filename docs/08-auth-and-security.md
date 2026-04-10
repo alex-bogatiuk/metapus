@@ -289,7 +289,7 @@ security_profile_field_policies — FLS: profile_id, entity_name, action, allowe
 user_security_profiles         — связь user ↔ profile (M:N)
 ```
 
-> **Примечание:** Таблица `user_organizations` удалена (миграция `00037`). Организационный доступ управляется через `security_profile_dimensions` с `dimension_name = 'organization'`.
+> **Примечание:** Организационный доступ управляется через `security_profile_dimensions` с `dimension_name = 'organization'`.
 
 Миграция: `db/migrations/00033_security_profiles.sql`, `00037_remove_user_organizations_add_entity_dimensions.sql`
 

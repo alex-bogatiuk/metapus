@@ -6,6 +6,7 @@ export interface FormLine {
   _key: number
   productId: string
   productName: string
+  productCode: string
   unitId: string
   unitName: string
   quantity: string
@@ -20,7 +21,7 @@ export interface FormLine {
 }
 
 export function emptyLine(key: number): FormLine {
-  return { _key: key, productId: "", productName: "", unitId: "", unitName: "", quantity: "", unitPrice: "", vatRateId: "", vatRateName: "", vatPercent: "20", discountPercent: "0" }
+  return { _key: key, productId: "", productName: "", productCode: "", unitId: "", unitName: "", quantity: "", unitPrice: "", vatRateId: "", vatRateName: "", vatPercent: "20", discountPercent: "0" }
 }
 
 // ── VAT rate helpers ────────────────────────────────────────────────────
@@ -70,4 +71,104 @@ export function computeTotals(
     totalVat += vatAmount
   }
   return { totalAmount, totalVat }
+}
+
+// ── Picker ↔ FormLine integration ───────────────────────────────────────
+
+import type { PickedItem, ExistingPickerLine } from "@/types/picker"
+
+/**
+ * Convert current form lines to ExistingPickerLine[] for pre-populating the picker.
+ * Aggregates quantities per productId (in case the same product appears on multiple lines).
+ */
+export function linesToExistingPickerLines(lines: FormLine[]): ExistingPickerLine[] {
+  const map = new Map<string, ExistingPickerLine>()
+  for (const l of lines) {
+    if (!l.productId) continue
+    const qty = parseFloat(l.quantity || "0")
+    if (qty <= 0) continue
+    const existing = map.get(l.productId)
+    if (existing) {
+      existing.quantity += qty
+    } else {
+      map.set(l.productId, {
+        productId: l.productId,
+        productName: l.productName,
+        productCode: l.productCode || undefined,
+        unitId: l.unitId || undefined,
+        unitName: l.unitName || undefined,
+        quantity: qty,
+      })
+    }
+  }
+  return Array.from(map.values())
+}
+
+/**
+ * Merge picker results into existing form lines.
+ *
+ * Logic:
+ *   - If an existing line's productId is in pickedItems → update its quantity
+ *   - If a pickedItem is NOT in existing lines → add a new line
+ *   - If an existing line's productId is in knownProductIds but NOT in pickedItems
+ *     → user removed it in the picker → delete the line
+ *   - Lines whose productId was NOT in the picker at all → keep untouched
+ *
+ * @param knownProductIds — IDs of products that were pre-loaded into the picker
+ *   (from existingLines → linesToExistingPickerLines). Enables distinguishing
+ *   "removed in picker" from "not touched by picker".
+ *
+ * Returns { lines, nextKey } for spreading into form state.
+ */
+export function mergePickedIntoLines(
+  existingLines: FormLine[],
+  pickedItems: PickedItem[],
+  nextKey: number,
+  knownProductIds?: Set<string>,
+): { lines: FormLine[]; nextKey: number } {
+  const pickedMap = new Map<string, PickedItem>()
+  for (const item of pickedItems) {
+    pickedMap.set(item.id, item)
+  }
+
+  // Track which picked items were matched to existing lines
+  const matchedIds = new Set<string>()
+  let key = nextKey
+
+  // Update existing lines
+  const updatedLines: FormLine[] = []
+  for (const line of existingLines) {
+    const picked = line.productId ? pickedMap.get(line.productId) : undefined
+    if (picked) {
+      // Product exists in picker results → update quantity
+      matchedIds.add(picked.id)
+      updatedLines.push({
+        ...line,
+        quantity: String(picked.quantity),
+        // Reset computed amounts so they get recalculated
+        amount: undefined,
+        vatAmount: undefined,
+      })
+    } else if (knownProductIds && line.productId && knownProductIds.has(line.productId)) {
+      // Product was in the picker but removed (qty set to 0) → skip (delete line)
+    } else {
+      // Product not touched by picker → keep line as-is
+      updatedLines.push(line)
+    }
+  }
+
+  // Add new lines for unmatched picker items
+  for (const item of pickedItems) {
+    if (matchedIds.has(item.id)) continue
+    updatedLines.push({
+      ...emptyLine(key++),
+      productId: item.id,
+      productName: item.name,
+      unitId: item.unitId ?? "",
+      unitName: item.unitName ?? "",
+      quantity: String(item.quantity),
+    })
+  }
+
+  return { lines: updatedLines, nextKey: key }
 }

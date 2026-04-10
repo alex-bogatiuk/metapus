@@ -10,6 +10,7 @@ import {
   ChevronsDown,
   ArrowRightLeft,
   Network,
+  Search,
 } from "lucide-react"
 import { FormToolbar } from "@/components/shared/form-toolbar"
 import { FormSidebar } from "@/components/shared/form-sidebar"
@@ -31,11 +32,13 @@ import { useFormDraft } from "@/hooks/useFormDraft"
 import { api } from "@/lib/api"
 import { fromQuantity, fromMinorUnits, toQuantity, toMinorUnits, DEFAULT_DECIMAL_PLACES } from "@/lib/format"
 import { useCurrencyScale } from "@/hooks/useCurrencyScale"
-import { type FormLine, emptyLine, fetchVatRatePercent, computeTotals } from "@/lib/document-form"
+import { type FormLine, emptyLine, fetchVatRatePercent, computeTotals, linesToExistingPickerLines, mergePickedIntoLines } from "@/lib/document-form"
 import { DocumentTotalsFooter } from "@/components/shared/document-totals-footer"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import { toast } from "sonner"
 import { PrintMenuButton } from "@/components/shared/print-menu-button"
+import { ProductPickerDialog } from "@/components/shared/product-picker-dialog"
+import type { PickedItem } from "@/types/picker"
 import type { GoodsIssueResponse, GoodsIssueLineRequest, UpdateGoodsIssueRequest } from "@/types/document"
 
 const SIDEBAR_STORAGE_KEY = "metapus-form-sidebar-collapsed"
@@ -81,6 +84,7 @@ function mapDocToState(d: GoodsIssueResponse): GoodsIssueEditFormState {
     _key: i + 1,
     productId: l.productId,
     productName: l.product?.name || "",
+    productCode: l.product?.code || "",
     unitId: l.unitId,
     unitName: l.unit?.name || "",
     quantity: fromQuantity(l.quantity),
@@ -125,6 +129,7 @@ export default function GoodsIssueFormPage() {
   const [error, setError] = useState<string | null>(null)
   const [sidebarCollapsed, toggleSidebar] = useCollapsible(SIDEBAR_STORAGE_KEY, true)
   const [headerCollapsed, toggleHeader] = useCollapsible(HEADER_STORAGE_KEY, false)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   // ── Single typed form state with automatic draft persistence ────────
   const { state: f, update, replace, clear, hasDraft } = useFormDraft<GoodsIssueEditFormState>(
@@ -164,6 +169,14 @@ export default function GoodsIssueFormPage() {
     update({ lines: [...f.lines, emptyLine(f.nextKey)], nextKey: f.nextKey + 1 })
     markDirty()
   }
+
+  const existingPickerLines = useMemo(() => linesToExistingPickerLines(f.lines), [f.lines])
+
+  const handlePick = useCallback((items: PickedItem[]) => {
+    const knownIds = new Set(existingPickerLines.map((l) => l.productId))
+    update((prev) => mergePickedIntoLines(prev.lines, items, prev.nextKey, knownIds))
+    markDirty()
+  }, [update, markDirty, existingPickerLines])
 
   // ── Stable callbacks for DocumentLineRow (React.memo-safe) ──────────
   const handleUpdateField = useCallback((key: number, field: keyof FormLine, value: string) => {
@@ -507,6 +520,10 @@ export default function GoodsIssueFormPage() {
                       <Plus className="mr-1 h-3 w-3" />
                       Добавить
                     </Button>
+                    <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
+                      <Search className="mr-1 h-3 w-3" />
+                      Подбор
+                    </Button>
                   </div>
                   <ScrollArea className="flex-1">
                     <table className="w-full text-sm border-separate border-spacing-0">
@@ -586,6 +603,13 @@ export default function GoodsIssueFormPage() {
 
         </FormSidebar>
       </div>
+
+      <ProductPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onPick={handlePick}
+        existingLines={existingPickerLines}
+      />
     </div>
   )
 }

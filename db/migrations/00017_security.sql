@@ -21,40 +21,43 @@ CREATE TRIGGER trg_security_profiles_updated_at
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ── RLS Dimensions (row-level security) ────────────────────────────────────
+-- One row per (profile, entity_name, dimension_name) with an array of allowed IDs.
+-- entity_name = '' means the dimension applies globally to all entities.
 CREATE TABLE security_profile_dimensions (
-    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    profile_id  UUID        NOT NULL REFERENCES security_profiles(id) ON DELETE CASCADE,
-    entity_name VARCHAR(50) NOT NULL DEFAULT '*',
-    dimension   VARCHAR(50) NOT NULL,
-    value_id    UUID        NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_dim UNIQUE (profile_id, entity_name, dimension, value_id)
+    id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id      UUID        NOT NULL REFERENCES security_profiles(id) ON DELETE CASCADE,
+    entity_name     VARCHAR(50) NOT NULL DEFAULT '',
+    dimension_name  VARCHAR(50) NOT NULL,
+    allowed_ids     TEXT[]      NOT NULL DEFAULT '{}',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_dim UNIQUE (profile_id, entity_name, dimension_name)
 );
 
 CREATE INDEX idx_spd_profile   ON security_profile_dimensions (profile_id);
-CREATE INDEX idx_spd_dimension ON security_profile_dimensions (dimension, value_id);
+CREATE INDEX idx_spd_dimension ON security_profile_dimensions (dimension_name);
 
 COMMENT ON TABLE security_profile_dimensions IS 'RLS dimensions — grants access to specific entity IDs per dimension';
-COMMENT ON COLUMN security_profile_dimensions.entity_name IS 'Entity scope (* = all, or specific like goods_receipt)';
-COMMENT ON COLUMN security_profile_dimensions.dimension IS 'Dimension name (organization, warehouse, counterparty)';
-COMMENT ON COLUMN security_profile_dimensions.value_id IS 'Allowed entity ID for this dimension';
+COMMENT ON COLUMN security_profile_dimensions.entity_name IS 'Entity scope (empty = all, or specific like goods_receipt)';
+COMMENT ON COLUMN security_profile_dimensions.dimension_name IS 'Dimension name (organization, warehouse, counterparty)';
+COMMENT ON COLUMN security_profile_dimensions.allowed_ids IS 'Array of allowed entity IDs for this dimension';
 
 -- ── FLS Field Policies (field-level security) ──────────────────────────────
+-- One row per (profile, entity_name, action) with array of allowed fields + table parts JSONB.
 CREATE TABLE security_profile_field_policies (
-    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    profile_id  UUID        NOT NULL REFERENCES security_profiles(id) ON DELETE CASCADE,
-    entity_name VARCHAR(50) NOT NULL,
-    field_name  VARCHAR(50) NOT NULL,
-    visibility  VARCHAR(20) NOT NULL DEFAULT 'visible',
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT chk_visibility CHECK (visibility IN ('visible', 'hidden', 'readonly')),
-    CONSTRAINT uq_fls UNIQUE (profile_id, entity_name, field_name)
+    id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id      UUID        NOT NULL REFERENCES security_profiles(id) ON DELETE CASCADE,
+    entity_name     VARCHAR(50) NOT NULL,
+    action          VARCHAR(20) NOT NULL,
+    allowed_fields  TEXT[]      NOT NULL DEFAULT '{}',
+    table_parts     JSONB       NOT NULL DEFAULT '{}',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_fls UNIQUE (profile_id, entity_name, action)
 );
 
 CREATE INDEX idx_fls_profile ON security_profile_field_policies (profile_id);
 CREATE INDEX idx_fls_entity  ON security_profile_field_policies (entity_name);
 
-COMMENT ON TABLE security_profile_field_policies IS 'FLS — controls field visibility/editability per entity';
+COMMENT ON TABLE security_profile_field_policies IS 'FLS — controls field-level access per entity and action';
 
 -- ── User ↔ Security Profile (M2M) ─────────────────────────────────────────
 CREATE TABLE user_security_profiles (
@@ -77,14 +80,14 @@ CREATE TABLE security_policy_rules (
     effect      VARCHAR(10) NOT NULL DEFAULT 'deny',
     expression  TEXT        NOT NULL,
     priority    INT         NOT NULL DEFAULT 0,
-    is_active   BOOLEAN     NOT NULL DEFAULT TRUE,
+    enabled     BOOLEAN     NOT NULL DEFAULT TRUE,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT chk_effect CHECK (effect IN ('deny', 'allow'))
 );
 
 CREATE INDEX idx_spr_profile ON security_policy_rules (profile_id);
-CREATE INDEX idx_spr_entity  ON security_policy_rules (entity_name) WHERE is_active = TRUE;
+CREATE INDEX idx_spr_entity  ON security_policy_rules (entity_name) WHERE enabled = TRUE;
 
 CREATE TRIGGER trg_security_policy_rules_updated_at
     BEFORE UPDATE ON security_policy_rules
@@ -99,16 +102,10 @@ INSERT INTO security_profiles (id, code, name, description, is_system) VALUES
     ('a0000000-0000-0000-0000-000000000001', 'full_access', 'Full Access', 'No restrictions — all dimensions, all fields', TRUE),
     ('a0000000-0000-0000-0000-000000000002', 'viewer', 'Viewer (Read-Only)', 'Read-only with hidden financial fields', TRUE);
 
--- Viewer FLS: hide financial fields
-INSERT INTO security_profile_field_policies (profile_id, entity_name, field_name, visibility) VALUES
-    ('a0000000-0000-0000-0000-000000000002', 'goods_receipt', 'unit_price', 'hidden'),
-    ('a0000000-0000-0000-0000-000000000002', 'goods_receipt', 'amount', 'hidden'),
-    ('a0000000-0000-0000-0000-000000000002', 'goods_receipt', 'total_amount', 'hidden'),
-    ('a0000000-0000-0000-0000-000000000002', 'goods_receipt', 'total_vat', 'hidden'),
-    ('a0000000-0000-0000-0000-000000000002', 'goods_issue', 'unit_price', 'hidden'),
-    ('a0000000-0000-0000-0000-000000000002', 'goods_issue', 'amount', 'hidden'),
-    ('a0000000-0000-0000-0000-000000000002', 'goods_issue', 'total_amount', 'hidden'),
-    ('a0000000-0000-0000-0000-000000000002', 'goods_issue', 'total_vat', 'hidden');
+-- Viewer FLS: hide financial fields (allowed_fields with '-' prefix = hidden)
+INSERT INTO security_profile_field_policies (profile_id, entity_name, action, allowed_fields) VALUES
+    ('a0000000-0000-0000-0000-000000000002', 'goods_receipt', 'read', ARRAY['-unit_price', '-amount', '-total_amount', '-total_vat']),
+    ('a0000000-0000-0000-0000-000000000002', 'goods_issue',   'read', ARRAY['-unit_price', '-amount', '-total_amount', '-total_vat']);
 
 SELECT pg_advisory_unlock(hashtext('metapus_migrations'));
 

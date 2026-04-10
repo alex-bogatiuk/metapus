@@ -10,6 +10,7 @@
 export interface RefDisplay {
     id: string
     name: string
+    code?: string
 }
 
 /** Currency reference with formatting metadata.

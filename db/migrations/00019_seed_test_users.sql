@@ -132,38 +132,30 @@ ON CONFLICT DO NOTHING;
 -- ════════════════════════════════════════════════════════════════════════════
 -- 7. RLS dimensions — restrict accountant, manager, warehouse to ORG-001
 -- ════════════════════════════════════════════════════════════════════════════
-INSERT INTO security_profile_dimensions (profile_id, entity_name, dimension, value_id) VALUES
+INSERT INTO security_profile_dimensions (profile_id, entity_name, dimension_name, allowed_ids) VALUES
     -- Accountant: ORG-001 only
-    ('a0000000-0000-0000-0000-000000000010', '*', 'organization', 'd0000000-0000-0000-0000-000000000001'),
+    ('a0000000-0000-0000-0000-000000000010', '', 'organization', ARRAY['d0000000-0000-0000-0000-000000000001']),
     -- Manager: ORG-001 only
-    ('a0000000-0000-0000-0000-000000000011', '*', 'organization', 'd0000000-0000-0000-0000-000000000001'),
+    ('a0000000-0000-0000-0000-000000000011', '', 'organization', ARRAY['d0000000-0000-0000-0000-000000000001']),
     -- Warehouse: ORG-001 only
-    ('a0000000-0000-0000-0000-000000000012', '*', 'organization', 'd0000000-0000-0000-0000-000000000001'),
+    ('a0000000-0000-0000-0000-000000000012', '', 'organization', ARRAY['d0000000-0000-0000-0000-000000000001']),
     -- Limited: ORG-001 only
-    ('a0000000-0000-0000-0000-000000000013', '*', 'organization', 'd0000000-0000-0000-0000-000000000001')
+    ('a0000000-0000-0000-0000-000000000013', '', 'organization', ARRAY['d0000000-0000-0000-0000-000000000001'])
 ON CONFLICT DO NOTHING;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- 8. FLS field policies
 -- ════════════════════════════════════════════════════════════════════════════
 -- Manager: hide unit_price in documents
-INSERT INTO security_profile_field_policies (profile_id, entity_name, field_name, visibility) VALUES
-    ('a0000000-0000-0000-0000-000000000011', 'goods_receipt', 'unit_price', 'hidden'),
-    ('a0000000-0000-0000-0000-000000000011', 'goods_issue',   'unit_price', 'hidden')
+INSERT INTO security_profile_field_policies (profile_id, entity_name, action, allowed_fields) VALUES
+    ('a0000000-0000-0000-0000-000000000011', 'goods_receipt', 'read', ARRAY['-unit_price']),
+    ('a0000000-0000-0000-0000-000000000011', 'goods_issue',   'read', ARRAY['-unit_price'])
 ON CONFLICT DO NOTHING;
 
 -- Warehouse: hide all financial fields
-INSERT INTO security_profile_field_policies (profile_id, entity_name, field_name, visibility) VALUES
-    ('a0000000-0000-0000-0000-000000000012', 'goods_receipt', 'unit_price',    'hidden'),
-    ('a0000000-0000-0000-0000-000000000012', 'goods_receipt', 'amount',        'hidden'),
-    ('a0000000-0000-0000-0000-000000000012', 'goods_receipt', 'vat_amount',    'hidden'),
-    ('a0000000-0000-0000-0000-000000000012', 'goods_receipt', 'total_amount',  'hidden'),
-    ('a0000000-0000-0000-0000-000000000012', 'goods_receipt', 'total_vat',     'hidden'),
-    ('a0000000-0000-0000-0000-000000000012', 'goods_issue',   'unit_price',    'hidden'),
-    ('a0000000-0000-0000-0000-000000000012', 'goods_issue',   'amount',        'hidden'),
-    ('a0000000-0000-0000-0000-000000000012', 'goods_issue',   'vat_amount',    'hidden'),
-    ('a0000000-0000-0000-0000-000000000012', 'goods_issue',   'total_amount',  'hidden'),
-    ('a0000000-0000-0000-0000-000000000012', 'goods_issue',   'total_vat',     'hidden')
+INSERT INTO security_profile_field_policies (profile_id, entity_name, action, allowed_fields) VALUES
+    ('a0000000-0000-0000-0000-000000000012', 'goods_receipt', 'read', ARRAY['-unit_price', '-amount', '-vat_amount', '-total_amount', '-total_vat']),
+    ('a0000000-0000-0000-0000-000000000012', 'goods_issue',   'read', ARRAY['-unit_price', '-amount', '-vat_amount', '-total_amount', '-total_vat'])
 ON CONFLICT DO NOTHING;
 
 -- ════════════════════════════════════════════════════════════════════════════
