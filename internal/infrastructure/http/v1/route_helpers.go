@@ -73,6 +73,14 @@ type DocumentBatchHandler interface {
 	BatchAction(c *gin.Context)
 }
 
+// DocumentBatchByFilterHandler is an optional interface for filter-based batch operations.
+// When a handler implements this interface, RegisterDocumentRoutes automatically adds
+// POST /batch-action-by-filter requiring the entity post permission.
+// Used for virtual "select all" — the server resolves matching IDs from filters.
+type DocumentBatchByFilterHandler interface {
+	BatchActionByFilter(c *gin.Context)
+}
+
 // RegisterCatalogRoutes registers standard CRUD routes for a catalog.
 // This eliminates the need to manually wire up routes for each catalog.
 //
@@ -141,5 +149,11 @@ func RegisterDocumentRoutes(group *gin.RouterGroup, handler DocumentRouteHandler
 	// Mounted on /batch-action (no :id) — permission checked per-action inside handler.
 	if batchHandler, ok := handler.(DocumentBatchHandler); ok {
 		group.POST("/batch-action", middleware.RequirePermission(permission+":post"), batchHandler.BatchAction)
+	}
+
+	// Register BatchActionByFilter route if handler supports it (optional).
+	// Used for virtual "select all" — the server resolves matching IDs from filters.
+	if batchFilterHandler, ok := handler.(DocumentBatchByFilterHandler); ok {
+		group.POST("/batch-action-by-filter", middleware.RequirePermission(permission+":post"), batchFilterHandler.BatchActionByFilter)
 	}
 }

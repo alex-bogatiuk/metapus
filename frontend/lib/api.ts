@@ -281,11 +281,16 @@ export interface DocumentApi<TRes, TCreate, TUpdate> extends CatalogApi<TRes, TC
     getMovements: (id: string) => Promise<import("@/types/common").DocumentMovementsResponse>
     /** Batch action: post/unpost/setDeletionMark/clearDeletionMark for multiple documents in one HTTP call. */
     batchAction: (ids: string[], action: import("@/types/common").BatchActionType) => Promise<import("@/types/common").BatchActionResponse>
+    /** Filter-based batch action: server resolves matching IDs from filter (virtual "select all"). */
+    batchActionByFilter: (req: import("@/types/common").BatchActionByFilterRequest) => Promise<import("@/types/common").BatchActionResponse>
+    /** Base API path (used by SSE streaming). */
+    _basePath: string
 }
 
 function createDocumentApi<TRes, TCreate, TUpdate>(basePath: string): DocumentApi<TRes, TCreate, TUpdate> {
     return {
         ...createCatalogApi<TRes, TCreate, TUpdate>(basePath),
+        _basePath: basePath,
         post: (id: string) =>
             apiFetch<void>(`${basePath}/${id}/post`, { method: "POST" }),
         unpost: (id: string) =>
@@ -300,6 +305,11 @@ function createDocumentApi<TRes, TCreate, TUpdate>(basePath: string): DocumentAp
             apiFetch<import("@/types/common").BatchActionResponse>(`${basePath}/batch-action`, {
                 method: "POST",
                 body: JSON.stringify({ ids, action }),
+            }),
+        batchActionByFilter: (req: import("@/types/common").BatchActionByFilterRequest) =>
+            apiFetch<import("@/types/common").BatchActionResponse>(`${basePath}/batch-action-by-filter`, {
+                method: "POST",
+                body: JSON.stringify(req),
             }),
     }
 }
@@ -494,10 +504,10 @@ export const api = {
     settings: {
         get: () =>
             apiFetch<import("@/types/settings").SystemSettings>("/settings"),
-        update: (data: Partial<import("@/types/settings").SystemSettings>) =>
-            apiFetch<import("@/types/settings").SystemSettings>("/settings", {
-                method: "PUT",
-                body: JSON.stringify(data),
+        updateSection: (section: string, data: unknown, version: number) =>
+            apiFetch<import("@/types/settings").SystemSettings>(`/settings/${section}`, {
+                method: "PATCH",
+                body: JSON.stringify({ data, version }),
             }),
     },
 

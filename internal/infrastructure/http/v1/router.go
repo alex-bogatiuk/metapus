@@ -195,6 +195,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		registerMetaRoutes(protected, reg, cfg.SchemaCache)
 		registerRefResolverRoutes(protected, reg)
 		registerUserPrefsRoutes(protected)
+		registerSettingsRoutes(protected)
 		registerSecurityRoutes(protected, cfg)
 		registerSystemRoutes(protected, eventLogRepo, cfg.SchemaCache, reg)
 	}
@@ -346,6 +347,7 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 			settlementService,
 		},
 		MovementRefResolver: postgres.NewRefResolverRepo(reg),
+		SettingsRepo:        postgres.NewSettingsRepo(),
 	}
 
 	// Build refEndpoints from catalog factories for document metadata
@@ -521,6 +523,14 @@ func registerUserPrefsRoutes(rg *gin.RouterGroup) {
 	baseHandler := handlers.NewBaseHandler()
 	repo := auth_repo.NewUserPrefsRepo()
 	handler := handlers.NewUserPrefsHandler(baseHandler, repo)
+	handler.RegisterRoutes(rg)
+}
+
+// registerSettingsRoutes registers system settings endpoints.
+func registerSettingsRoutes(rg *gin.RouterGroup) {
+	baseHandler := handlers.NewBaseHandler()
+	repo := postgres.NewSettingsRepo()
+	handler := handlers.NewSettingsHandler(baseHandler, repo)
 	handler.RegisterRoutes(rg)
 }
 

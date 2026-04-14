@@ -52,7 +52,7 @@ func (r *GoodsReceiptRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteH
 		domain.WithEventLog[*goods_receipt.GoodsReceipt]("goods_receipt", deps.EventWriter),
 	)(service)
 
-	return handlers.NewGoodsReceiptHandler(deps.BaseHandler, decorated, deps.PrintRegistry, deps.PrintRenderer, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver)
+	return handlers.NewGoodsReceiptHandler(deps.BaseHandler, decorated, deps.PrintRegistry, deps.PrintRenderer, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)
 }
 
 // ---------------------------------------------------------------------------
@@ -94,5 +94,5 @@ func (r *GoodsIssueRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHan
 		domain.WithEventLog[*goods_issue.GoodsIssue]("goods_issue", deps.EventWriter),
 	)(service)
 
-	return handlers.NewGoodsIssueHandler(deps.BaseHandler, decorated, deps.PrintRegistry, deps.PrintRenderer, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver)
+	return handlers.NewGoodsIssueHandler(deps.BaseHandler, decorated, deps.PrintRegistry, deps.PrintRenderer, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)
 }

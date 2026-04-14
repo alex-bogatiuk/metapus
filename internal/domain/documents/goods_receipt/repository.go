@@ -24,6 +24,9 @@ type Repository interface {
 	// List operations — uses universal filter engine via domain.ListFilter.AdvancedFilters
 	List(ctx context.Context, filter domain.ListFilter) (domain.CursorListResult[*GoodsReceipt], error)
 
+	// ListIDs returns all document IDs matching the filter (for filter-based batch operations).
+	ListIDs(ctx context.Context, filter domain.ListFilter, maxIDs int) ([]id.ID, error)
+
 	// Locking
 	GetForUpdate(ctx context.Context, docID id.ID) (*GoodsReceipt, error)
 }

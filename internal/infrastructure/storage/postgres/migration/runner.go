@@ -133,13 +133,18 @@ func openDB(dsn string) (*sql.DB, error) {
 }
 
 // newProvider creates a goose.Provider for a specific migration directory.
+// WithAllowMissing is required because core and extension directories share
+// a single goose_db_version table — extensions may have higher version numbers
+// than newly-added core migrations.
 func newProvider(dir string, db *sql.DB) (*goose.Provider, error) {
 	dirFS, err := fsForDir(dir)
 	if err != nil {
 		return nil, err
 	}
 
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, dirFS)
+	provider, err := goose.NewProvider(goose.DialectPostgres, db, dirFS,
+		goose.WithAllowOutofOrder(true),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("create goose provider for %s: %w", dir, err)
 	}

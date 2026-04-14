@@ -15,6 +15,7 @@ import (
 	"metapus/internal/domain"
 	"metapus/internal/domain/documents/goods_receipt"
 	"metapus/internal/domain/printing"
+	"metapus/internal/domain/settings"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/storage/postgres"
 )
@@ -59,6 +60,7 @@ func NewGoodsReceiptHandler(
 	relatedDocFinder domain.RelatedDocFinder,
 	movementProviders []entity.MovementProvider,
 	movementRefResolver domain.RefResolver,
+	settingsRepo settings.Repository,
 ) *GoodsReceiptHandler {
 	cfg := BaseDocumentHandlerConfig[*goods_receipt.GoodsReceipt, dto.CreateGoodsReceiptRequest, dto.UpdateGoodsReceiptRequest]{
 		Service:    service,
@@ -83,6 +85,7 @@ func NewGoodsReceiptHandler(
 		},
 		MovementProviders:   movementProviders,
 		MovementRefResolver: movementRefResolver,
+		SettingsRepo:        settingsRepo,
 	}
 
 	h := &GoodsReceiptHandler{

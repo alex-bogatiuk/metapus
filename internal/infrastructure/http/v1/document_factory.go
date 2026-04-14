@@ -11,6 +11,7 @@ import (
 	"metapus/internal/domain"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/printing"
+	"metapus/internal/domain/settings"
 	"metapus/internal/infrastructure/http/v1/handlers"
 )
 
@@ -29,6 +30,10 @@ type DocumentDeps struct {
 	// MovementProviders allow cross-register movement rendering
 	MovementProviders   []entity.MovementProvider
 	MovementRefResolver domain.RefResolver
+
+	// SettingsRepo provides tenant-level settings (batch concurrency, etc.).
+	// If nil, default values are used in handlers.
+	SettingsRepo settings.Repository
 }
 
 // DocumentRegistration is the Abstract Factory interface for document types.

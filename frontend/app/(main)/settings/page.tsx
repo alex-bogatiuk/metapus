@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useTabState } from "@/hooks/useTabState"
 import {
@@ -14,6 +15,7 @@ import {
   Info,
   Cloud,
   Package,
+  Gauge,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -25,8 +27,10 @@ import { AccessMatrix } from "@/components/settings/access-matrix"
 import { SystemInfoSection } from "@/components/settings/system-info-section"
 import { ControlPlaneSection } from "@/components/settings/control-plane-section"
 import { UpdatePageSection } from "@/components/settings/update-page-section"
+import { PerformanceSection } from "@/components/settings/performance-section"
+import { useSettingsStore } from "@/stores/useSettingsStore"
 
-type SettingsSection = "organization" | "accounting" | "users" | "security" | "matrix" | "system" | "tenants" | "update"
+type SettingsSection = "organization" | "accounting" | "performance" | "users" | "security" | "matrix" | "system" | "tenants" | "update"
 
 interface SectionItem {
   id: SettingsSection
@@ -47,6 +51,12 @@ const sections: SectionItem[] = [
     title: "Учёт и параметры",
     description: "Валюта, налоги, учётная политика",
     icon: Calculator,
+  },
+  {
+    id: "performance",
+    title: "Производительность",
+    description: "Параллелизм и лимиты обработки",
+    icon: Gauge,
   },
   {
     id: "users",
@@ -89,6 +99,7 @@ const sections: SectionItem[] = [
 const sectionComponents: Record<SettingsSection, React.ComponentType> = {
   organization: OrganizationSection,
   accounting: AccountingSection,
+  performance: PerformanceSection,
   users: UsersRolesSection,
   security: SecurityProfilesSection,
   matrix: AccessMatrix,
@@ -101,6 +112,12 @@ export default function SettingsPage() {
   const router = useRouter()
   const [activeSection, setActiveSection] =
     useTabState<SettingsSection>("activeSection", "organization")
+
+  const fetchSettings = useSettingsStore((s) => s.fetchSettings)
+
+  useEffect(() => {
+    fetchSettings()
+  }, [fetchSettings])
 
   const ActiveComponent = sectionComponents[activeSection]
   const activeMeta = sections.find((s) => s.id === activeSection)!

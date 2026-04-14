@@ -2,7 +2,11 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -11,6 +15,8 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/security"
 	"metapus/internal/domain"
+	domainFilter "metapus/internal/domain/filter"
+	"metapus/internal/domain/settings"
 	"metapus/internal/infrastructure/http/v1/dto"
 )
 
@@ -38,6 +44,10 @@ type BaseDocumentHandler[T any, CreateDTO any, UpdateDTO any] struct {
 	// Movement providers for the document
 	movementProviders    []entity.MovementProvider
 	movementRefResolver  domain.RefResolver
+
+	// settingsRepo reads tenant-level settings (batch concurrency, etc.).
+	// If nil, default values are used.
+	settingsRepo settings.Repository
 }
 
 // BaseDocumentHandlerConfig configures the document handler.
@@ -60,6 +70,10 @@ type BaseDocumentHandlerConfig[T any, CreateDTO any, UpdateDTO any] struct {
 	// MovementProviders allow the handler to resolve cross-register movements
 	MovementProviders   []entity.MovementProvider
 	MovementRefResolver domain.RefResolver
+
+	// SettingsRepo reads tenant-level settings for batch concurrency.
+	// If nil, default values (5) are used.
+	SettingsRepo settings.Repository
 }
 
 // NewBaseDocumentHandler creates a new base document handler.
@@ -79,6 +93,7 @@ func NewBaseDocumentHandler[T any, CreateDTO any, UpdateDTO any](
 		mapToDTOWithRefs:  cfg.MapToDTOWithRefs,
 		movementProviders:   cfg.MovementProviders,
 		movementRefResolver: cfg.MovementRefResolver,
+		settingsRepo:        cfg.SettingsRepo,
 	}
 }
 
@@ -484,12 +499,80 @@ type batchActionResponse struct {
 	Failed  int                 `json:"failed"`
 }
 
+// ── Worker Pool for Concurrent Batch Processing ─────────────────────────
+
+// defaultBatchConcurrency is used when settings are unavailable.
+const defaultBatchConcurrency = 5
+
+// maxConnsPerTenant must match tenant.Manager config. Used for clamping.
+const maxConnsPerTenant = 10
+
+// getBatchConcurrency reads the configured concurrency from tenant settings.
+// Falls back to defaultBatchConcurrency on any error or if settingsRepo is nil.
+func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) getBatchConcurrency(ctx context.Context) int {
+	if h.settingsRepo == nil {
+		return defaultBatchConcurrency
+	}
+	s, err := h.settingsRepo.Get(ctx)
+	if err != nil || s.Performance.BatchConcurrency == 0 {
+		return defaultBatchConcurrency
+	}
+	return settings.ClampBatchConcurrency(s.Performance.BatchConcurrency, maxConnsPerTenant)
+}
+
+// batchWorkerResult is sent from worker goroutines back to the main goroutine.
+type batchWorkerResult struct {
+	idx int    // original position in the input slice (for ordered results)
+	id  id.ID  // document ID
+	err error  // nil on success
+}
+
+// executeBatchConcurrent fans out document processing to a bounded worker pool.
+// Results are streamed back via the returned channel in completion order.
+// The channel is closed after all documents are processed or ctx is cancelled.
+func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) executeBatchConcurrent(
+	ctx context.Context, ids []id.ID, action string, concurrency int,
+) <-chan batchWorkerResult {
+	results := make(chan batchWorkerResult, concurrency*2)
+	sem := make(chan struct{}, concurrency)
+
+	go func() {
+		defer close(results)
+		var wg sync.WaitGroup
+
+		for i, docID := range ids {
+			// Stop launching new workers if ctx is cancelled
+			select {
+			case <-ctx.Done():
+				wg.Wait()
+				return
+			case sem <- struct{}{}: // acquire worker slot
+			}
+
+			wg.Add(1)
+			go func(idx int, did id.ID) {
+				defer func() {
+					<-sem // release worker slot
+					wg.Done()
+				}()
+				err := h.executeAction(ctx, did, action)
+				results <- batchWorkerResult{idx: idx, id: did, err: err}
+			}(i, docID)
+		}
+
+		wg.Wait()
+	}()
+
+	return results
+}
+
 // BatchAction handles POST /{entity}/batch-action
 //
 // Processes each document independently (partial mode):
 //   - One failure does not roll back others
 //   - Returns per-item results for the client to display
 //   - Permission checks are performed per-action inside the service layer
+//   - Documents are processed concurrently via worker pool
 func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) BatchAction(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -498,34 +581,158 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) BatchAction(c *gin.Contex
 		return
 	}
 
-	results := make([]batchActionResult, 0, len(req.IDs))
-	successCount := 0
-
+	// Pre-validate IDs and build typed slice
+	parsedIDs := make([]id.ID, 0, len(req.IDs))
+	invalidResults := make([]batchActionResult, 0)
 	for _, rawID := range req.IDs {
 		docID, err := id.Parse(rawID)
 		if err != nil {
-			results = append(results, batchActionResult{ID: rawID, Error: "invalid id format"})
+			invalidResults = append(invalidResults, batchActionResult{ID: rawID, Error: "invalid id format"})
 			continue
 		}
+		parsedIDs = append(parsedIDs, docID)
+	}
 
-		switch req.Action {
-		case "post":
-			err = h.service.Post(ctx, docID)
-		case "unpost":
-			err = h.service.Unpost(ctx, docID)
-		case "setDeletionMark":
-			err = h.service.SetDeletionMark(ctx, docID, true)
-		case "clearDeletionMark":
-			err = h.service.SetDeletionMark(ctx, docID, false)
+	// Process valid IDs concurrently
+	results := make([]batchActionResult, len(parsedIDs))
+	successCount := 0
+
+	for r := range h.executeBatchConcurrent(ctx, parsedIDs, req.Action, h.getBatchConcurrency(ctx)) {
+		results[r.idx] = batchActionResult{
+			ID:      r.id.String(),
+			Success: r.err == nil,
 		}
-
-		r := batchActionResult{ID: rawID, Success: err == nil}
-		if err != nil {
-			r.Error = err.Error()
+		if r.err != nil {
+			results[r.idx].Error = r.err.Error()
 		} else {
 			successCount++
 		}
-		results = append(results, r)
+	}
+
+	// Merge invalid + valid results
+	allResults := append(invalidResults, results...)
+	c.JSON(http.StatusOK, batchActionResponse{
+		Results: allResults,
+		Total:   len(allResults),
+		Success: successCount,
+		Failed:  len(allResults) - successCount,
+	})
+}
+
+// ── Batch Action By Filter ──────────────────────────────────────────────
+
+// DefaultBatchFilterLimit is the default safety limit for filter-based batch operations.
+// Can be overridden per-handler via SetBatchFilterLimit.
+const DefaultBatchFilterLimit = 100000
+
+// batchActionByFilterRequest is the DTO for filter-based batch operations.
+// Instead of specifying IDs explicitly, the client sends the same filter
+// used by the list view. The server resolves matching IDs.
+type batchActionByFilterRequest struct {
+	Filter         json.RawMessage `json:"filter"`                    // JSON-encoded []filter.Item
+	Action         string          `json:"action" binding:"required,oneof=post unpost setDeletionMark clearDeletionMark"`
+	ExcludeIDs     []string        `json:"excludeIds"`                // IDs to skip (user manually unchecked)
+	IncludeDeleted bool            `json:"includeDeleted"`            // match current list view
+	OrderBy        string          `json:"orderBy"`                   // current sort (for filter consistency)
+	Search         string          `json:"search"`                    // current search text
+}
+
+// BatchActionByFilter handles POST /{entity}/batch-action-by-filter
+//
+// Virtual "select all" workflow:
+//  1. Client clicks "Select all N by filter" → sends current filters + action
+//  2. Server resolves matching IDs via ListIDs (SELECT id WHERE ...)
+//  3. Removes excludeIDs (user manually unchecked individual items)
+//  4. Processes each document independently (partial mode, same as BatchAction)
+//
+// If the client sends Accept: text/event-stream, the handler streams progress
+// via Server-Sent Events (SSE). Otherwise, returns a single JSON response.
+func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) BatchActionByFilter(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	var req batchActionByFilterRequest
+	if !h.BindJSON(c, &req) {
+		return
+	}
+
+	// Build ListFilter from request
+	listFilter := domain.DefaultListFilter()
+	listFilter.IncludeDeleted = req.IncludeDeleted
+	listFilter.Search = req.Search
+	listFilter.OrderBy = req.OrderBy
+	if listFilter.OrderBy == "" {
+		listFilter.OrderBy = "-date"
+	}
+
+	// Parse advanced filters from JSON
+	if len(req.Filter) > 0 && string(req.Filter) != "null" {
+		var advFilters []domainFilter.Item
+		if err := json.Unmarshal(req.Filter, &advFilters); err != nil {
+			h.Error(c, apperror.NewValidation("invalid filter format").
+				WithDetail("error", err.Error()))
+			return
+		}
+		if err := domainFilter.ValidateItems(advFilters); err != nil {
+			h.Error(c, apperror.NewValidation("invalid filter").
+				WithDetail("error", err.Error()))
+			return
+		}
+		listFilter.AdvancedFilters = advFilters
+	}
+
+	// Inject RLS DataScope from context
+	listFilter.DataScope = security.GetDataScope(ctx)
+
+	// Resolve matching IDs via service (applies RLS)
+	ids, err := h.service.ListIDs(ctx, listFilter, DefaultBatchFilterLimit)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	// Remove excluded IDs (user manually unchecked)
+	if len(req.ExcludeIDs) > 0 {
+		excludeSet := make(map[string]struct{}, len(req.ExcludeIDs))
+		for _, eid := range req.ExcludeIDs {
+			excludeSet[eid] = struct{}{}
+		}
+		filtered := ids[:0]
+		for _, docID := range ids {
+			if _, excluded := excludeSet[docID.String()]; !excluded {
+				filtered = append(filtered, docID)
+			}
+		}
+		ids = filtered
+	}
+
+	// Dispatch based on Accept header
+	if c.GetHeader("Accept") == "text/event-stream" {
+		h.streamBatchAction(c, ids, req.Action)
+		return
+	}
+
+	// Sync JSON mode (backward compatible)
+	h.syncBatchAction(c, ids, req.Action)
+}
+
+// syncBatchAction processes all documents concurrently and returns a single JSON response.
+func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) syncBatchAction(
+	c *gin.Context, ids []id.ID, action string,
+) {
+	ctx := c.Request.Context()
+	results := make([]batchActionResult, len(ids))
+	successCount := 0
+
+	for r := range h.executeBatchConcurrent(ctx, ids, action, h.getBatchConcurrency(ctx)) {
+		results[r.idx] = batchActionResult{
+			ID:      r.id.String(),
+			Success: r.err == nil,
+		}
+		if r.err != nil {
+			results[r.idx].Error = r.err.Error()
+		} else {
+			successCount++
+		}
 	}
 
 	c.JSON(http.StatusOK, batchActionResponse{
@@ -534,5 +741,112 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) BatchAction(c *gin.Contex
 		Success: successCount,
 		Failed:  len(results) - successCount,
 	})
+}
+
+// ── SSE Streaming ───────────────────────────────────────────────────────
+
+const sseProgressInterval = 50 // emit progress event every N processed documents
+
+// sseEvent represents a Server-Sent Event for batch progress.
+type sseEvent struct {
+	Type      string `json:"type"`                // started | progress | completed | cancelled
+	Processed int    `json:"processed,omitempty"` // documents processed so far
+	Success   int    `json:"success,omitempty"`   // successful operations
+	Failed    int    `json:"failed,omitempty"`    // failed operations
+	Total     int    `json:"total"`               // total documents to process
+}
+
+// streamBatchAction processes documents and streams SSE progress events.
+// Supports cancellation via client disconnect (ctx.Done).
+func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) streamBatchAction(
+	c *gin.Context, ids []id.ID, action string,
+) {
+	ctx := c.Request.Context()
+
+	// Extend write deadline for SSE — the default server WriteTimeout (30s) is
+	// too short for long-running batch operations. Go 1.20+ ResponseController
+	// overrides the deadline per-request without affecting other handlers.
+	rc := http.NewResponseController(c.Writer)
+	_ = rc.SetWriteDeadline(time.Time{}) // no deadline for streaming
+
+	// Set SSE headers
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no") // disable nginx buffering
+	c.Status(http.StatusOK)
+
+	total := len(ids)
+	processed, success, failed := 0, 0, 0
+
+	// Send "started" event
+	writeSSE(c, sseEvent{Type: "started", Total: total})
+
+	// Consume results from the concurrent worker pool.
+	// All SSE writes happen here (main goroutine) — no concurrent writes.
+	for r := range h.executeBatchConcurrent(ctx, ids, action, h.getBatchConcurrency(ctx)) {
+		processed++
+		if r.err != nil {
+			failed++
+		} else {
+			success++
+		}
+
+		// Emit progress every N docs or at the end
+		if processed%sseProgressInterval == 0 || processed == total {
+			writeSSE(c, sseEvent{
+				Type:      "progress",
+				Processed: processed,
+				Success:   success,
+				Failed:    failed,
+				Total:     total,
+			})
+		}
+	}
+
+	// Determine final event type
+	select {
+	case <-ctx.Done():
+		writeSSE(c, sseEvent{
+			Type:      "cancelled",
+			Processed: processed,
+			Success:   success,
+			Failed:    failed,
+			Total:     total,
+		})
+	default:
+		writeSSE(c, sseEvent{
+			Type:      "completed",
+			Processed: processed,
+			Success:   success,
+			Failed:    failed,
+			Total:     total,
+		})
+	}
+}
+
+// writeSSE writes a single SSE event to the response stream and flushes.
+func writeSSE(c *gin.Context, event sseEvent) {
+	data, _ := json.Marshal(event)
+	fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+	c.Writer.Flush()
+}
+
+// executeAction runs a single batch action on one document.
+func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) executeAction(
+	ctx context.Context, docID id.ID, action string,
+) error {
+	switch action {
+	case "post":
+		return h.service.Post(ctx, docID)
+	case "unpost":
+		return h.service.Unpost(ctx, docID)
+	case "setDeletionMark":
+		return h.service.SetDeletionMark(ctx, docID, true)
+	case "clearDeletionMark":
+		return h.service.SetDeletionMark(ctx, docID, false)
+	default:
+		return apperror.NewValidation("unknown action: " + action)
+	}
 }
 

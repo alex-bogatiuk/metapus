@@ -65,6 +65,11 @@ interface UseEntityListPageReturn<T extends { id: string }> {
   isIndeterminate: boolean
   toggleItem: (id: string, shiftKey: boolean) => void
   toggleAll: () => void
+  // Virtual select-all (Gmail-style)
+  selectAllByFilter: boolean
+  excludedIds: string[]
+  activateSelectAll: () => void
+  clearSelection: () => void
   // Sorting
   sortColumn: string | null
   sortDirection: "asc" | "desc"
@@ -74,6 +79,8 @@ interface UseEntityListPageReturn<T extends { id: string }> {
   isPrefsLoaded: boolean
   initialFilterValues: FilterValues
   handleFilterValuesChange: (values: FilterValues) => void
+  /** Current resolved advanced filter items (for filter-based batch operations). */
+  currentFilters: AdvancedFilterItem[]
   // Show deleted
   showDeleted: boolean
   toggleShowDeleted: () => void
@@ -347,8 +354,10 @@ export function useEntityListPage<T extends { id: string }>(
 
   // ── Selection ────────────────────────────────────────────────────────
   const visibleIds = useMemo(() => items.map((d) => d.id), [items])
-  const { selectedIds, isAllSelected, isIndeterminate, toggleItem, toggleAll } =
-    useListSelection(visibleIds)
+  const {
+    selectedIds, isAllSelected, isIndeterminate, toggleItem, toggleAll,
+    selectAllByFilter, excludedIds, activateSelectAll, clearSelection,
+  } = useListSelection(visibleIds)
 
   // ── In-place item replacement (no scroll reset) ───────────────────
   const replaceItems = useCallback(
@@ -358,6 +367,13 @@ export function useEntityListPage<T extends { id: string }>(
       setItems((prev) => prev.map((item) => map.get(item.id) ?? item))
     },
     [setItems],
+  )
+
+  // ── Current filters (for filter-based batch operations) ─────────────
+  const currentFilters = useMemo(
+    () => buildFilterItems(filterValuesRef.current, fieldsMeta, periodField),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, fieldsMeta, periodField],
   )
 
   return {
@@ -376,6 +392,10 @@ export function useEntityListPage<T extends { id: string }>(
     isIndeterminate,
     toggleItem,
     toggleAll,
+    selectAllByFilter,
+    excludedIds,
+    activateSelectAll,
+    clearSelection,
     sortColumn,
     sortDirection,
     handleSort,
@@ -383,6 +403,7 @@ export function useEntityListPage<T extends { id: string }>(
     isPrefsLoaded,
     initialFilterValues: initialListFilters ?? {},
     handleFilterValuesChange,
+    currentFilters,
     showDeleted,
     toggleShowDeleted,
     focusedId,

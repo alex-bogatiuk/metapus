@@ -575,3 +575,12 @@ func (s *BaseDocumentService[T, L]) List(ctx context.Context, filter ListFilter)
 
 	return result, nil
 }
+
+// ListIDs returns all document IDs matching the filter.
+// Used for filter-based batch operations (virtual "select all").
+func (s *BaseDocumentService[T, L]) ListIDs(ctx context.Context, filter ListFilter, maxIDs int) ([]id.ID, error) {
+	if filter.DataScope == nil {
+		filter.DataScope = security.GetDataScope(ctx)
+	}
+	return s.Repo.ListIDs(ctx, filter, maxIDs)
+}

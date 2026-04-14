@@ -682,3 +682,55 @@ func reverseSlice[T any](s []T) {
 	}
 }
 
+// ListIDs returns all document IDs matching the filter (no pagination, no full data).
+// SELECT id only — no JOINs, no full rows. Used for filter-based batch operations.
+// maxIDs is a safety limit: if more rows match, returns apperror.
+func (r *BaseDocumentRepo[T]) ListIDs(ctx context.Context, f domain.ListFilter, maxIDs int) ([]id.ID, error) {
+	conditions, err := r.buildWhereConditions(f)
+	if err != nil {
+		return nil, err
+	}
+
+	// SELECT id with safety limit (maxIDs + 1 to detect overflow)
+	q := r.Builder().
+		Select("id").
+		From(r.tableName)
+	for _, cond := range conditions {
+		q = q.Where(cond)
+	}
+	q = q.Limit(uint64(maxIDs + 1))
+
+	sql, args, err := q.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build list_ids query: %w", err)
+	}
+
+	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	rows, err := querier.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list_ids query: %w", err)
+	}
+	defer rows.Close()
+
+	ids := make([]id.ID, 0, min(maxIDs, 1000))
+	for rows.Next() {
+		var docID id.ID
+		if err := rows.Scan(&docID); err != nil {
+			return nil, fmt.Errorf("list_ids scan: %w", err)
+		}
+		ids = append(ids, docID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list_ids rows: %w", err)
+	}
+
+	if len(ids) > maxIDs {
+		return nil, apperror.NewBusinessRule(
+			"TOO_MANY_RESULTS",
+			fmt.Sprintf("Filter matches more than %d documents. Narrow your selection.", maxIDs),
+		).WithDetail("limit", fmt.Sprintf("%d", maxIDs))
+	}
+
+	return ids, nil
+}
+

@@ -60,7 +60,7 @@ func (r *GoodsReceiptRegistration) Build(deps DocumentDeps) DocumentRouteHandler
 		domain.WithEventLog[*goods_receipt.GoodsReceipt]("goods_receipt", deps.EventWriter),
 	)(service)
 
-	return handlers.NewGoodsReceiptHandler(deps.BaseHandler, decorated, deps.PrintRegistry, deps.PrintRenderer, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver)
+	return handlers.NewGoodsReceiptHandler(deps.BaseHandler, decorated, deps.PrintRegistry, deps.PrintRenderer, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)
 }
 
 // GoodsIssueRegistration wires the GoodsIssue document type.
@@ -101,5 +101,5 @@ func (r *GoodsIssueRegistration) Build(deps DocumentDeps) DocumentRouteHandler {
 		domain.WithEventLog[*goods_issue.GoodsIssue]("goods_issue", deps.EventWriter),
 	)(service)
 
-	return handlers.NewGoodsIssueHandler(deps.BaseHandler, decorated, deps.PrintRegistry, deps.PrintRenderer, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver)
+	return handlers.NewGoodsIssueHandler(deps.BaseHandler, decorated, deps.PrintRegistry, deps.PrintRenderer, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)
 }

@@ -24,6 +24,8 @@ type DocumentService[T any] interface {
 	UpdateAndRepost(ctx context.Context, entity T) error
 	SetDeletionMark(ctx context.Context, id id.ID, marked bool) error
 	List(ctx context.Context, filter ListFilter) (CursorListResult[T], error)
+	// ListIDs returns all IDs matching filter (for filter-based batch operations).
+	ListIDs(ctx context.Context, filter ListFilter, maxIDs int) ([]id.ID, error)
 }
 
 // ServiceMiddleware is a function that wraps a DocumentService with additional behaviour.
@@ -132,4 +134,9 @@ func (s *LoggingDocumentService[T]) SetDeletionMark(ctx context.Context, docID i
 func (s *LoggingDocumentService[T]) List(ctx context.Context, filter ListFilter) (result CursorListResult[T], err error) {
 	defer func(start time.Time) { s.log(ctx, "List", start, err) }(time.Now())
 	return s.next.List(ctx, filter)
+}
+
+func (s *LoggingDocumentService[T]) ListIDs(ctx context.Context, filter ListFilter, maxIDs int) (result []id.ID, err error) {
+	defer func(start time.Time) { s.log(ctx, "ListIDs", start, err) }(time.Now())
+	return s.next.ListIDs(ctx, filter, maxIDs)
 }

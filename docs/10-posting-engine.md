@@ -303,6 +303,284 @@ Service.Unpost(docID)
 
 ---
 
+## Пакетные операции (Batch Actions)
+
+Пакетные операции позволяют провести/отменить проведение/пометить на удаление сразу множество документов. Поддерживаются два режима:
+
+### Режим 1: Явные ID (BatchAction)
+
+```
+POST /api/v1/document/{entity}/batch-action
+Content-Type: application/json
+
+{
+  "ids": ["uuid1", "uuid2", ...],    // max 500
+  "action": "post"                    // post | unpost | setDeletionMark | clearDeletionMark
+}
+```
+
+Клиент передаёт конкретный список ID (до 500 штук). Используется при ручном выделении строк на текущей странице.
+
+### Режим 2: По фильтру — Virtual Select All (BatchActionByFilter)
+
+```
+POST /api/v1/document/{entity}/batch-action-by-filter
+Content-Type: application/json
+Accept: text/event-stream          // ← опционально, включает SSE-стриминг
+
+{
+  "filter": [...],                  // JSON-encoded []filter.Item (текущие фильтры списка)
+  "action": "post",
+  "excludeIds": ["uuid3"],          // ID, которые пользователь вручную снял
+  "includeDeleted": false,
+  "orderBy": "-date",
+  "search": ""
+}
+```
+
+Используется при "виртуальном выделении всех" — клиент нажимает «Выбрать все N документов», сервер сам разрешает ID:
+
+```
+Client: «Выбрать все 2 000»
+  ↓
+Server: ListIDs(filter, limit=100000)    → []id.ID
+  ↓ remove excludeIds
+  ↓ dispatch by Accept header
+  ├── Accept: text/event-stream → SSE streaming
+  └── default → JSON response
+```
+
+**Safety limit:** `DefaultBatchFilterLimit = 100 000` — максимальное количество ID, разрешаемых за один запрос.
+
+---
+
+## Параллельная обработка (Worker Pool)
+
+Все batch-операции обрабатываются **параллельно** через bounded worker pool.
+
+### Архитектура
+
+```
+Main goroutine                    Worker Pool (sem = 5)
+┌──────────────────┐              ┌──────────────────────────┐
+│ for r := range   │◄── results ──│ goroutine 1: Post(doc_1) │
+│   results {      │    channel   │ goroutine 2: Post(doc_2) │
+│   processed++    │              │ goroutine 3: Post(doc_3) │
+│   writeSSE(...)  │              │ goroutine 4: Post(doc_4) │
+│ }                │              │ goroutine 5: Post(doc_5) │
+└──────────────────┘              └──────────────────────────┘
+```
+
+### Ключевые свойства
+
+- **`batchConcurrency`** — настраивается через `Настройки → Производительность` (по умолчанию 5). Ограничивается `ClampBatchConcurrency(value, maxConnsPerTenant/2)` для защиты от исчерпания пула подключений.
+- **Каждый документ — отдельная транзакция.** Ошибка в одном документе не откатывает другие.
+- **Advisory Lock** на документ (`LockDocument`) предотвращает двойное проведение одного и того же документа.
+- **SSE-записи** происходят **только** на main goroutine — нет concurrent writes в response writer.
+- **Отмена (Cancellation):** при `ctx.Done()` новые workers не запускаются, in-flight workers завершаются (их DB-операции получают context cancellation).
+- **Graceful fallback:** если `sys_settings` недоступна — используется `defaultBatchConcurrency = 5`.
+
+### Производительность
+
+| Документов | Sequential (1 worker) | Parallel (5 workers) | Ускорение |
+|-----------|----------------------|---------------------|-----------|
+| 2 000     | ~120 сек             | ~27 сек             | ~4.5x     |
+
+### Реализация
+
+```go
+// internal/infrastructure/http/v1/handlers/document.go
+
+// Concurrency now read dynamically from sys_settings.performance.batchConcurrency
+// with clamp and fallback:
+func (h *BaseDocumentHandler[T, C, U]) getBatchConcurrency(ctx context.Context) int {
+    if h.settingsRepo == nil { return defaultBatchConcurrency } // 5
+    s, _ := h.settingsRepo.Get(ctx)
+    return settings.ClampBatchConcurrency(s.Performance.BatchConcurrency, maxConnsPerTenant)
+}
+
+func (h *BaseDocumentHandler[T, C, U]) executeBatchConcurrent(
+    ctx context.Context, ids []id.ID, action string, concurrency int,
+) <-chan batchWorkerResult {
+    results := make(chan batchWorkerResult, concurrency*2)
+    sem := make(chan struct{}, concurrency)
+
+    go func() {
+        defer close(results)
+        var wg sync.WaitGroup
+
+        for i, docID := range ids {
+            select {
+            case <-ctx.Done():
+                wg.Wait()
+                return
+            case sem <- struct{}{}: // acquire
+            }
+
+            wg.Add(1)
+            go func(idx int, did id.ID) {
+                defer func() { <-sem; wg.Done() }()
+                err := h.executeAction(ctx, did, action)
+                results <- batchWorkerResult{idx: idx, id: did, err: err}
+            }(i, docID)
+        }
+        wg.Wait()
+    }()
+    return results
+}
+```
+
+---
+
+## SSE-стриминг прогресса
+
+При передаче `Accept: text/event-stream` сервер переключается в режим SSE — поток событий прогресса вместо одного JSON-ответа.
+
+### Протокол
+
+```
+Content-Type: text/event-stream
+Cache-Control: no-cache
+Connection: keep-alive
+X-Accel-Buffering: no                // отключает буферизацию Nginx
+
+data: {"type":"started","total":2000}
+
+data: {"type":"progress","processed":50,"success":48,"failed":2,"total":2000}
+data: {"type":"progress","processed":100,"success":95,"failed":5,"total":2000}
+...
+data: {"type":"completed","processed":2000,"success":1980,"failed":20,"total":2000}
+```
+
+### Типы событий
+
+| Тип | Когда | Поля |
+|-----|-------|------|
+| `started` | В начале | `total` |
+| `progress` | Каждые 50 документов | `processed`, `success`, `failed`, `total` |
+| `completed` | По завершении | `processed`, `success`, `failed`, `total` |
+| `cancelled` | При отмене клиентом | `processed`, `success`, `failed`, `total` |
+
+**Интервал прогресса:** `sseProgressInterval = 50` — событие `progress` отправляется каждые 50 обработанных документов.
+
+### Обработка таймаутов
+
+Go `http.Server.WriteTimeout` (30 сек по умолчанию) убивает долгие SSE-соединения. Решение — снятие deadline для конкретного запроса:
+
+```go
+// Для SSE-запросов: снимаем write deadline
+rc := http.NewResponseController(c.Writer)
+_ = rc.SetWriteDeadline(time.Time{})   // Go 1.20+, per-request override
+```
+
+### Клиентская отмена
+
+Клиент может прервать операцию через `AbortController`:
+
+```typescript
+const controller = new AbortController();
+fetchSSE(url, body, {
+  signal: controller.signal,
+  onEvent: (event) => { /* update progress toast */ },
+});
+// Отмена:
+controller.abort();
+```
+
+При разрыве соединения:
+1. `ctx.Done()` срабатывает на сервере
+2. Новые workers не запускаются
+3. In-flight workers получают контекст отмены и завершаются
+4. Отправляется финальное событие `cancelled`
+
+---
+
+## Фронтенд: Virtual Select All
+
+### UX-поток (Gmail-style)
+
+```
+1. Пользователь нажимает ☑ в заголовке → выделяются строки текущей страницы
+2. Появляется баннер: «Выбраны все 100 на странице. Выбрать все 2 000?»
+3. Клик → virtual mode ON (selectedIds пустой, excludedIds пустой)
+4. Можно снять ☑ с отдельных строк → они попадают в excludeIds
+5. Контекстное меню: «Провести (1 999)» (2000 − 1 excluded)
+6. Клик → POST batch-action-by-filter с excludeIds + Accept: text/event-stream
+7. Прогресс-toast: «Проведено: 200 / 1 999 (10%)» + кнопка «Отмена»
+```
+
+### Ключевые хуки
+
+| Хук | Ответственность |
+|-----|----------------|
+| `useListSelection` | Состояние выделения: `selectedIds`, `excludedIds`, `virtualMode`, `virtualTotal` |
+| `useDocumentBatchActions` | Оркестрация batch-вызовов, SSE-прогресс, toast, отмена |
+
+### SSE-клиент
+
+```typescript
+// frontend/lib/sse-fetch.ts
+// POST-based SSE клиент через fetch + ReadableStream
+// Поддержка: auth headers, tenant context, AbortSignal, JSON fallback
+```
+
+---
+
+## Системные настройки (sys_settings)
+
+Таблица `sys_settings` — single-row tenant-level конфигурация (аналог "Константы" в 1С:Предприятие).
+
+### Архитектура
+
+```
+┌─────────────────────────────────────────────────────┐
+│ sys_settings (singleton = TRUE)                    │
+├─────────────┬───────────────────────────────────────┤
+│ organization│ JSONB: company, INN, KPP, contacts    │
+│ accounting  │ JSONB: tax, VAT, currency, numbering  │
+│ performance │ JSONB: {"batchConcurrency": 5}        │
+│ version     │ INT: optimistic locking counter       │
+│ updated_at  │ TIMESTAMPTZ                           │
+└─────────────┴───────────────────────────────────────┘
+```
+
+### API
+
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| `GET` | `/api/v1/settings` | Получить все секции |
+| `PATCH` | `/api/v1/settings/:section` | Обновить секцию с оптимистичной блокировкой |
+
+### Оптимистичная блокировка
+
+```
+PATCH /api/v1/settings/performance
+{
+  "data": {"batchConcurrency": 3},
+  "version": 1
+}
+
+→ 200 OK             // version → 2
+→ 409 Conflict       // другой пользователь обновил раньше
+```
+
+### Safety Clamp
+
+```go
+// internal/domain/settings/model.go
+func ClampBatchConcurrency(value, maxConnsPerTenant int) int {
+    maxPoolHalf := maxConnsPerTenant / 2   // 10/2 = 5
+    return max(1, min(value, maxPoolHalf))
+}
+```
+
+### Frontend
+
+Секция `Настройки → Производительность` с ползунком 1–5 и рекомендацией.
+Сохранение через `useSettingsStore.saveSection("performance")`.
+
+---
+
 ## Связанные документы
 
 - [05-domain-layer.md](05-domain-layer.md) — GenerateMovements в моделях документов

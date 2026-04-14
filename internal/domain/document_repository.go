@@ -34,6 +34,11 @@ type DocumentRepository[T any, L any] interface {
 	// List retrieves documents with cursor-based pagination
 	List(ctx context.Context, filter ListFilter) (CursorListResult[T], error)
 
+	// ListIDs returns all document IDs matching the filter (no pagination, no full data).
+	// Used for filter-based batch operations (virtual "select all").
+	// Safety limit: returns at most maxIDs results. If more match, returns ErrTooManyResults.
+	ListIDs(ctx context.Context, filter ListFilter, maxIDs int) ([]id.ID, error)
+
 	// GetForUpdate retrieves document with pessimistic lock (SELECT … FOR UPDATE)
 	GetForUpdate(ctx context.Context, docID id.ID) (T, error)
 }

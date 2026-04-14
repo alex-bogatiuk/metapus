@@ -1,6 +1,6 @@
 /**
  * Settings types for the system configuration page.
- * Mirrors backend tenant.Settings JSONB structure.
+ * Mirrors backend sys_settings JSONB structure.
  */
 
 // ── Organization ────────────────────────────────────────────────────────
@@ -76,6 +76,19 @@ export function defaultAccountingSettings(): AccountingSettings {
   }
 }
 
+// ── Performance ─────────────────────────────────────────────────────────
+
+export interface PerformanceSettings {
+  /** Number of documents processed in parallel during batch operations (1–10). */
+  batchConcurrency: number
+}
+
+export function defaultPerformanceSettings(): PerformanceSettings {
+  return {
+    batchConcurrency: 5,
+  }
+}
+
 // ── Users & Roles ───────────────────────────────────────────────────────
 
 export type UserStatus = "active" | "blocked" | "invited"
@@ -104,12 +117,17 @@ export interface RoleRecord {
 export interface SystemSettings {
   organization: OrganizationSettings
   accounting: AccountingSettings
+  performance: PerformanceSettings
+  version: number
+  updatedAt: string
 }
 
 export function defaultSystemSettings(): SystemSettings {
   return {
     organization: defaultOrganizationSettings(),
     accounting: defaultAccountingSettings(),
+    performance: defaultPerformanceSettings(),
+    version: 1,
+    updatedAt: new Date().toISOString(),
   }
 }
-

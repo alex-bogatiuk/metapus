@@ -251,3 +251,27 @@ export interface BatchActionResponse {
     failed: number
 }
 
+/** Request for POST /document/{type}/batch-action-by-filter. */
+export interface BatchActionByFilterRequest {
+    /** JSON-encoded filter items matching the current list view. */
+    filter: AdvancedFilterItem[]
+    /** Action to perform on all matching documents. */
+    action: BatchActionType
+    /** IDs to exclude (user manually unchecked during virtual select all). */
+    excludeIds?: string[]
+    /** Whether to include deleted items (match current list view). */
+    includeDeleted?: boolean
+    /** Current sort order (for filter consistency). */
+    orderBy?: string
+    /** Current search text. */
+    search?: string
+}
+
+/** SSE event emitted during streaming batch operations. */
+export interface BatchProgressEvent {
+    type: "started" | "progress" | "completed" | "cancelled"
+    processed: number
+    success: number
+    failed: number
+    total: number
+}

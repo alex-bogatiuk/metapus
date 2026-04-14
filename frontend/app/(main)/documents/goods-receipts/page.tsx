@@ -8,7 +8,9 @@ import { FilterSidebar } from "@/components/shared/filter-sidebar"
 import { DataTable, Column } from "@/components/shared/data-table"
 import { ColumnChooserPopover } from "@/components/shared/column-chooser-popover"
 import { DocumentDetailsPanel, type TableSection } from "@/components/shared/document-details-panel"
+import { SelectAllBanner } from "@/components/shared/select-all-banner"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { useDocumentBatchActions } from "@/hooks/useDocumentBatchActions"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -23,7 +25,6 @@ import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 import { ScrollSentinel } from "@/components/shared/scroll-sentinel"
 import { api } from "@/lib/api"
 import { fmtAmount, fmtDate, DEFAULT_DECIMAL_PLACES } from "@/lib/format"
-import { toast } from "sonner"
 import type { GoodsReceiptResponse } from "@/types/document"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 
@@ -144,10 +145,12 @@ export default function GoodsReceiptsListPage() {
 
   const {
     items, loading, loadingMore, error, refresh,
-    hasMore, loadMore,
+    hasMore, loadMore, totalCount,
     selectedIds, isAllSelected, isIndeterminate, toggleItem, toggleAll,
+    selectAllByFilter, excludedIds, activateSelectAll, clearSelection,
     sortColumn, sortDirection, handleSort,
     fieldsMeta, isPrefsLoaded, initialFilterValues, handleFilterValuesChange,
+    currentFilters,
     showDeleted, toggleShowDeleted,
     focusedId, setFocusedId,
     replaceItems,
@@ -199,67 +202,23 @@ export default function GoodsReceiptsListPage() {
     }
   }, [focusedId, router])
 
-  // ── Helpers: re-fetch specific docs & patch in-place ────────────────
-  const refetchAndPatch = useCallback(async (ids: string[]) => {
-    const results = await Promise.allSettled(
-      ids.map((id) => api.goodsReceipts.get(id)),
-    )
-    const updated = results
-      .filter((r): r is PromiseFulfilledResult<GoodsReceiptResponse> => r.status === "fulfilled")
-      .map((r) => r.value)
-    if (updated.length > 0) replaceItems(updated)
-  }, [replaceItems])
-
-  // ── Document actions (batch-aware, point-update) ─────────────────
-  const handlePostBatch = useCallback(async (docs: GoodsReceiptResponse[]) => {
-    const toPost = docs.filter((d) => !d.posted && !d.deletionMark)
-    if (toPost.length === 0) return
-    const ids = toPost.map((d) => d.id)
-    try {
-      const result = await api.goodsReceipts.batchAction(ids, "post")
-      await refetchAndPatch(ids)
-      if (result.failed > 0) {
-        toast.warning(`Проведено: ${result.success}, ошибок: ${result.failed}`)
-      } else if (result.success > 1) {
-        toast.success(`Проведено: ${result.success}`)
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Ошибка проведения")
-    }
-  }, [refetchAndPatch])
-
-  const handleUnpostBatch = useCallback(async (docs: GoodsReceiptResponse[]) => {
-    const toUnpost = docs.filter((d) => d.posted)
-    if (toUnpost.length === 0) return
-    const ids = toUnpost.map((d) => d.id)
-    try {
-      const result = await api.goodsReceipts.batchAction(ids, "unpost")
-      await refetchAndPatch(ids)
-      if (result.failed > 0) {
-        toast.warning(`Отменено: ${result.success}, ошибок: ${result.failed}`)
-      } else if (result.success > 1) {
-        toast.success(`Отменено проведение: ${result.success}`)
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Ошибка отмены проведения")
-    }
-  }, [refetchAndPatch])
-
-  const handleToggleDeletionMarkBatch = useCallback(async (docs: GoodsReceiptResponse[], mark: boolean) => {
-    const ids = docs.map((d) => d.id)
-    const action = mark ? "setDeletionMark" as const : "clearDeletionMark" as const
-    try {
-      const result = await api.goodsReceipts.batchAction(ids, action)
-      await refetchAndPatch(ids)
-      if (result.failed > 0) {
-        toast.warning(`Обработано: ${result.success}, ошибок: ${result.failed}`)
-      } else if (result.success > 1) {
-        toast.success(mark ? `Помечено на удаление: ${result.success}` : `Снято пометок: ${result.success}`)
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Ошибка")
-    }
-  }, [refetchAndPatch])
+  // ── Batch document actions (shared hook) ──────────────────────────────
+  const {
+    handlePostBatch, handleUnpostBatch, handleToggleDeletionMarkBatch,
+    getBatchMenuCounts,
+  } = useDocumentBatchActions({
+    api: api.goodsReceipts,
+    replaceItems,
+    refresh,
+    items,
+    selectedIds,
+    focusedId,
+    selectAllByFilter,
+    excludedIds,
+    currentFilters,
+    showDeleted,
+    clearSelection,
+  })
 
   // ── Keyboard shortcuts: F9 = copy, Delete = toggle deletion mark ────
   useEffect(() => {
@@ -399,6 +358,15 @@ export default function GoodsReceiptsListPage() {
               Нет документов. Создайте первое поступление товара.
             </div>
           ) : (
+            <>
+            <SelectAllBanner
+              selectedCount={selectedIds.length}
+              totalCount={totalCount}
+              selectAllByFilter={selectAllByFilter}
+              excludedCount={excludedIds.length}
+              onSelectAll={activateSelectAll}
+              onClearAll={clearSelection}
+            />
             <DataTable
               data={items}
               columns={visibleColumns}
@@ -431,12 +399,14 @@ export default function GoodsReceiptsListPage() {
                 doc.deletionMark ? "opacity-60 line-through decoration-destructive/40" : undefined
               }
               renderContextMenu={(doc, targets) => {
-                const isBatch = targets.length > 1
-                const suffix = isBatch ? ` (${targets.length})` : ""
-                const hasUnposted = targets.some((d) => !d.posted && !d.deletionMark)
-                const hasPosted = targets.some((d) => d.posted)
-                const hasUnmarked = targets.some((d) => !d.deletionMark)
-                const hasMarked = targets.some((d) => d.deletionMark)
+                const isBatch = selectAllByFilter || targets.length > 1
+                const { postableCount, unpostableCount, markableCount, unmarkeableCount } = getBatchMenuCounts(targets)
+                // In virtual select-all mode, show total count (server resolves actual IDs)
+                const virtualTotal = totalCount - excludedIds.length
+                const fmtCount = (n: number) =>
+                  selectAllByFilter
+                    ? ` (${virtualTotal.toLocaleString("ru-RU")})`
+                    : isBatch ? ` (${n})` : ""
 
                 return (
                   <>
@@ -460,37 +430,38 @@ export default function GoodsReceiptsListPage() {
                       </ContextMenuItem>
                     )}
                     <ContextMenuSeparator />
-                    {hasUnmarked && (
+                    {markableCount > 0 && (
                       <ContextMenuItem onClick={() => handleToggleDeletionMarkBatch(targets.filter((d) => !d.deletionMark), true)}>
                         <Trash2 className="mr-2 h-4 w-4" />
-                        Пометить на удаление{suffix}
+                        Пометить на удаление{fmtCount(markableCount)}
                         {!isBatch && <ContextMenuShortcut>Del</ContextMenuShortcut>}
                       </ContextMenuItem>
                     )}
-                    {hasMarked && (
+                    {unmarkeableCount > 0 && (
                       <ContextMenuItem onClick={() => handleToggleDeletionMarkBatch(targets.filter((d) => d.deletionMark), false)}>
                         <Trash2 className="mr-2 h-4 w-4" />
-                        Снять пометку удаления{suffix}
+                        Снять пометку удаления{fmtCount(unmarkeableCount)}
                         {!isBatch && <ContextMenuShortcut>Del</ContextMenuShortcut>}
                       </ContextMenuItem>
                     )}
                     <ContextMenuSeparator />
-                    {hasUnposted && (
+                    {postableCount > 0 && (
                       <ContextMenuItem onClick={() => handlePostBatch(targets)}>
                         <CircleCheckBig className="mr-2 h-4 w-4" />
-                        Провести{suffix}
+                        Провести{fmtCount(postableCount)}
                       </ContextMenuItem>
                     )}
-                    {hasPosted && (
+                    {unpostableCount > 0 && (
                       <ContextMenuItem onClick={() => handleUnpostBatch(targets)}>
                         <CircleOff className="mr-2 h-4 w-4" />
-                        Отменить проведение{suffix}
+                        Отменить проведение{fmtCount(unpostableCount)}
                       </ContextMenuItem>
                     )}
                   </>
                 )
               }}
             />
+            </>
           )}
           <ScrollSentinel
             onIntersect={loadMore}

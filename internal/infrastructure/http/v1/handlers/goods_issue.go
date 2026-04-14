@@ -15,6 +15,7 @@ import (
 	"metapus/internal/domain"
 	"metapus/internal/domain/documents/goods_issue"
 	"metapus/internal/domain/printing"
+	"metapus/internal/domain/settings"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/storage/postgres"
 )
@@ -59,6 +60,7 @@ func NewGoodsIssueHandler(
 	relatedDocFinder domain.RelatedDocFinder,
 	movementProviders []entity.MovementProvider,
 	movementRefResolver domain.RefResolver,
+	settingsRepo settings.Repository,
 ) *GoodsIssueHandler {
 	cfg := BaseDocumentHandlerConfig[*goods_issue.GoodsIssue, dto.CreateGoodsIssueRequest, dto.UpdateGoodsIssueRequest]{
 		Service:    service,
@@ -83,6 +85,7 @@ func NewGoodsIssueHandler(
 		},
 		MovementProviders:   movementProviders,
 		MovementRefResolver: movementRefResolver,
+		SettingsRepo:        settingsRepo,
 	}
 
 	h := &GoodsIssueHandler{

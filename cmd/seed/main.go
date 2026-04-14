@@ -18,7 +18,6 @@ import (
 	"metapus/internal/core/types"
 	"metapus/internal/domain/documents/goods_receipt"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/pkg/logger"
 )
 
@@ -425,6 +424,16 @@ func seedGeneratedCounterparties(ctx context.Context, pool *postgres.Pool, log *
 	cities := []string{"Москва", "Санкт-Петербург", "Казань", "Екатеринбург", "Новосибирск", "Самара", "Нижний Новгород", "Челябинск", "Краснодар", "Ростов-на-Дону"}
 	counterpartyIDs := make(map[string]id.ID, len(typesList))
 
+	// Collect data for all counterparties first, then batch-insert via pgx.Batch.
+	// This sends all INSERTs in a single network round-trip (1 instead of 300).
+	type cpRow struct {
+		id    id.ID
+		code  string
+		ctype string
+	}
+	rows := make([]cpRow, 0, generatedCounterpartyCount)
+	batch := &pgx.Batch{}
+
 	for i := 1; i <= generatedCounterpartyCount; i++ {
 		cpID := id.New()
 		code := fmt.Sprintf("CP-GEN-%03d", i)
@@ -478,7 +487,7 @@ func seedGeneratedCounterparties(ctx context.Context, pool *postgres.Pool, log *
 		legalAddress := fmt.Sprintf("г. %s, ул. %s, д. %d", city, companyDomains[(i-1)%len(companyDomains)], (i%120)+1)
 		actualAddress := fmt.Sprintf("г. %s, пр-т %s, д. %d", city, companyPrefixes[(i-1)%len(companyPrefixes)], (i%90)+1)
 
-		commandTag, err := pool.Exec(ctx, `
+		batch.Queue(`
 			INSERT INTO cat_counterparties (
 				id, code, name, type, legal_form, inn, kpp, ogrn, full_name,
 				legal_address, actual_address, phone, email, contact_person,
@@ -487,23 +496,44 @@ func seedGeneratedCounterparties(ctx context.Context, pool *postgres.Pool, log *
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 1, false, '{}')
 			ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
 		`, cpID, code, name, ctype, legalForm, inn, kpp, ogrn, fullName, legalAddress, actualAddress, phone, email, contactPerson)
-		if err != nil {
-			return nil, fmt.Errorf("insert counterparty %s: %w", code, err)
-		}
 
-		if commandTag.RowsAffected() == 0 {
-			err = pool.QueryRow(ctx, `
-				SELECT id FROM cat_counterparties WHERE code = $1 AND deletion_mark = FALSE
-			`, code).Scan(&cpID)
-			if err != nil {
-				return nil, fmt.Errorf("fetch counterparty %s: %w", code, err)
-			}
-		}
-
-		counterpartyIDs[ctype] = cpID
+		rows = append(rows, cpRow{id: cpID, code: code, ctype: ctype})
 	}
 
-	log.Infow("counterparties seeded", "count", generatedCounterpartyCount)
+	// Execute entire batch in a single network round-trip.
+	results := pool.SendBatch(ctx, batch)
+	for _, row := range rows {
+		commandTag, err := results.Exec()
+		if err != nil {
+			_ = results.Close()
+			return nil, fmt.Errorf("insert counterparty %s: %w", row.code, err)
+		}
+		if commandTag.RowsAffected() > 0 {
+			counterpartyIDs[row.ctype] = row.id
+		}
+	}
+	if err := results.Close(); err != nil {
+		return nil, fmt.Errorf("close counterparty batch: %w", err)
+	}
+
+	// For rows that were skipped (ON CONFLICT), fetch existing IDs in one query.
+	for _, tp := range typesList {
+		if _, ok := counterpartyIDs[tp]; !ok {
+			// Find any generated counterparty of this type.
+			var cpID id.ID
+			err := pool.QueryRow(ctx, `
+				SELECT id FROM cat_counterparties
+				WHERE code LIKE 'CP-GEN-%' AND type = $1 AND deletion_mark = FALSE
+				LIMIT 1
+			`, tp).Scan(&cpID)
+			if err != nil {
+				return nil, fmt.Errorf("fetch existing counterparty type %s: %w", tp, err)
+			}
+			counterpartyIDs[tp] = cpID
+		}
+	}
+
+	log.Infow("counterparties seeded (batch)", "count", generatedCounterpartyCount)
 	return counterpartyIDs, nil
 }
 
@@ -537,6 +567,9 @@ func seedGeneratedNomenclature(ctx context.Context, pool *postgres.Pool, log *lo
 	series := []string{"Базовая серия", "Проф серия", "Комфорт серия"}
 	countries := []string{"RU", "BY", "KZ", "CN", "TR"}
 
+	// Batch-insert all nomenclature via pgx.Batch (single network round-trip).
+	batch := &pgx.Batch{}
+
 	for i := 1; i <= generatedNomenclatureCount; i++ {
 		prodID := id.New()
 		code := fmt.Sprintf("NM-GEN-%03d", i)
@@ -555,7 +588,7 @@ func seedGeneratedNomenclature(ctx context.Context, pool *postgres.Pool, log *lo
 		isWeighed := template.unitSymbol == "кг" || template.unitSymbol == "л"
 		trackBatch := template.unitSymbol == "л" || template.unitSymbol == "уп"
 
-		_, err := pool.Exec(ctx, `
+		batch.Queue(`
 			INSERT INTO cat_nomenclature (
 				id, code, name, type, article, barcode, base_unit_id, default_vat_rate_id,
 				description, country_of_origin, is_weighed, track_batch,
@@ -564,14 +597,27 @@ func seedGeneratedNomenclature(ctx context.Context, pool *postgres.Pool, log *lo
 			VALUES ($1, $2, $3, 'goods', $4, $5, $6, $7, $8, $9, $10, $11, 1, false, '{}')
 			ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
 		`, prodID, code, name, article, barcode, unitID, defaultVatRateID, description, country, isWeighed, trackBatch)
-		if err != nil {
-			return fmt.Errorf("insert nomenclature %s: %w", code, err)
-		}
 	}
 
-	log.Infow("nomenclature seeded", "count", generatedNomenclatureCount)
+	// Execute entire batch in a single network round-trip.
+	results := pool.SendBatch(ctx, batch)
+	for i := 1; i <= generatedNomenclatureCount; i++ {
+		if _, err := results.Exec(); err != nil {
+			_ = results.Close()
+			return fmt.Errorf("insert nomenclature NM-GEN-%03d: %w", i, err)
+		}
+	}
+	if err := results.Close(); err != nil {
+		return fmt.Errorf("close nomenclature batch: %w", err)
+	}
+
+	log.Infow("nomenclature seeded (batch)", "count", generatedNomenclatureCount)
 	return nil
 }
+
+// goodsReceiptBatchSize controls how many documents are inserted per transaction batch.
+// Each batch uses CopyFromSlice for headers and lines — dramatically reducing round-trips.
+const goodsReceiptBatchSize = 100
 
 func seedGeneratedGoodsReceipts(ctx context.Context, pool *postgres.Pool, log *logger.Logger, adminUserID, orgID, currencyID, defaultVatRateID id.ID) error {
 	existingNumbers, err := loadExistingSeededGoodsReceiptNumbers(ctx, pool)
@@ -609,9 +655,11 @@ func seedGeneratedGoodsReceipts(ctx context.Context, pool *postgres.Pool, log *l
 
 	txm := postgres.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
-	repo := document_repo.NewGoodsReceiptRepo()
 	rng := rand.New(rand.NewSource(20260306))
 	created := 0
+
+	// Build all documents in memory first, then flush in batches.
+	var pendingDocs []*goods_receipt.GoodsReceipt
 
 	for i := 1; i <= generatedGoodsReceiptCount; i++ {
 		number := fmt.Sprintf("GR-SEED-%05d", i)
@@ -656,26 +704,101 @@ func seedGeneratedGoodsReceipts(ctx context.Context, pool *postgres.Pool, log *l
 			return fmt.Errorf("validate goods receipt %s: %w", number, err)
 		}
 
-		if err := txm.RunInTransaction(ctx, func(txCtx context.Context) error {
-			if err := repo.Create(txCtx, doc); err != nil {
-				return err
-			}
-			if err := repo.SaveLines(txCtx, doc.ID, doc.Lines); err != nil {
-				return err
-			}
-			return nil
-		}); err != nil {
-			return fmt.Errorf("create goods receipt %s: %w", number, err)
-		}
+		pendingDocs = append(pendingDocs, doc)
 
-		created++
-		if created%250 == 0 {
-			log.Infow("goods receipts seeding progress", "created", created, "target", generatedGoodsReceiptCount)
+		// Flush batch when full.
+		if len(pendingDocs) >= goodsReceiptBatchSize {
+			if err := flushGoodsReceiptBatch(ctx, txm, pendingDocs); err != nil {
+				return err
+			}
+			created += len(pendingDocs)
+			pendingDocs = pendingDocs[:0]
+
+			if created%500 == 0 {
+				log.Infow("goods receipts seeding progress", "created", created, "target", generatedGoodsReceiptCount)
+			}
 		}
 	}
 
-	log.Infow("goods receipts seeded", "created", created, "target", generatedGoodsReceiptCount)
+	// Flush remaining.
+	if len(pendingDocs) > 0 {
+		if err := flushGoodsReceiptBatch(ctx, txm, pendingDocs); err != nil {
+			return err
+		}
+		created += len(pendingDocs)
+	}
+
+	log.Infow("goods receipts seeded (batch)", "created", created, "target", generatedGoodsReceiptCount)
 	return nil
+}
+
+// flushGoodsReceiptBatch inserts a batch of documents and their lines
+// in a single transaction using CopyFromSlice (COPY protocol).
+// This replaces N individual transactions with 1, and N individual INSERTs
+// with 2 COPY operations (headers + lines).
+func flushGoodsReceiptBatch(ctx context.Context, txm *postgres.TxManager, docs []*goods_receipt.GoodsReceipt) error {
+	return txm.RunInTransaction(ctx, func(txCtx context.Context) error {
+		inserter := postgres.NewBatchInserter(txm)
+
+		// 1. COPY document headers
+		headerCols := []string{
+			"id", "number", "date", "posted", "posted_version",
+			"organization_id", "basis_type", "basis_id", "description",
+			"supplier_id", "contract_id", "warehouse_id",
+			"supplier_doc_number", "supplier_doc_date", "incoming_number",
+			"currency_id", "amount_includes_vat",
+			"total_quantity", "total_amount", "total_vat",
+			"deletion_mark", "version", "attributes",
+			"created_at", "updated_at", "created_by", "updated_by",
+		}
+		headerRows := make([][]any, 0, len(docs))
+		for _, doc := range docs {
+			headerRows = append(headerRows, []any{
+				doc.ID, doc.Number, doc.Date, doc.Posted, doc.PostedVersion,
+				doc.OrganizationID, doc.BasisType, doc.BasisID, doc.Description,
+				doc.SupplierID, doc.ContractID, doc.WarehouseID,
+				doc.SupplierDocNumber, doc.SupplierDocDate, doc.IncomingNumber,
+				doc.CurrencyID, doc.AmountIncludesVAT,
+				doc.TotalQuantity, doc.TotalAmount, doc.TotalVAT,
+				doc.DeletionMark, doc.Version, doc.Attributes,
+				doc.CreatedAt, doc.UpdatedAt, doc.CreatedBy, doc.UpdatedBy,
+			})
+		}
+		if _, err := inserter.CopyFromSlice(txCtx, "doc_goods_receipts", headerCols, headerRows); err != nil {
+			return fmt.Errorf("copy goods receipt headers: %w", err)
+		}
+
+		// 2. COPY all lines from all documents in the batch.
+		lineCols := []string{
+			"line_id", "document_id", "line_no", "product_id",
+			"unit_id", "coefficient",
+			"quantity", "unit_price",
+			"discount_percent", "discount_amount",
+			"vat_rate_id", "vat_percent", "vat_amount", "amount",
+		}
+		// Pre-count total lines for allocation.
+		totalLines := 0
+		for _, doc := range docs {
+			totalLines += len(doc.Lines)
+		}
+		lineRows := make([][]any, 0, totalLines)
+		for _, doc := range docs {
+			for _, line := range doc.Lines {
+				lineRows = append(lineRows, []any{
+					line.LineID, doc.ID, line.LineNo, line.ProductID,
+					line.UnitID, line.Coefficient,
+					line.Quantity, line.UnitPrice,
+					line.DiscountPercent, line.DiscountAmount,
+					line.VATRateID, line.VATPercent, line.VATAmount, line.Amount,
+				})
+			}
+		}
+		if _, err := inserter.CopyFromSlice(txCtx, "doc_goods_receipt_lines", lineCols, lineRows); err != nil {
+			return fmt.Errorf("copy goods receipt lines: %w", err)
+		}
+
+		return nil
+	})
 }
 
 func loadExistingSeededGoodsReceiptNumbers(ctx context.Context, pool *postgres.Pool) (map[string]bool, error) {

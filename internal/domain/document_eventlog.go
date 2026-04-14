@@ -155,3 +155,7 @@ func (s *EventLogDocumentService[T]) SetDeletionMark(ctx context.Context, docID 
 func (s *EventLogDocumentService[T]) List(ctx context.Context, filter ListFilter) (CursorListResult[T], error) {
 	return s.next.List(ctx, filter)
 }
+
+func (s *EventLogDocumentService[T]) ListIDs(ctx context.Context, filter ListFilter, maxIDs int) ([]id.ID, error) {
+	return s.next.ListIDs(ctx, filter, maxIDs)
+}

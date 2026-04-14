@@ -113,7 +113,7 @@ function SwitchField({
 }
 
 export function AccountingSection() {
-  const { settings, updateAccounting, isSaving } = useSettingsStore()
+  const { settings, updateAccounting, saveSection, isSaving } = useSettingsStore()
   const { markDirty } = useTabDirty()
   const acc = settings.accounting
 
@@ -242,7 +242,7 @@ export function AccountingSection() {
 
       {/* Sticky Save footer */}
       <div className="sticky bottom-0 -mx-6 border-t bg-background px-6 py-3 flex items-center gap-3">
-        <Button disabled={isSaving}>
+        <Button onClick={() => saveSection("accounting")} disabled={isSaving}>
           {isSaving ? "Сохранение..." : "Сохранить"}
         </Button>
         <p className="text-xs text-muted-foreground">
