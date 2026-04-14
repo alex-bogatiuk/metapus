@@ -5,6 +5,8 @@ import { Trash2 } from "lucide-react"
 import { ReferenceField } from "@/components/shared/reference-field"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+import { useCompactMode } from "@/hooks/useCompactMode"
 import { fmtAmount, moneyStep } from "@/lib/format"
 import { type FormLine, fetchVatRatePercent, calcLineAmounts } from "@/lib/document-form"
 
@@ -102,10 +104,15 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
       : fmtAmount(calcLineAmounts(line, amountIncludesVat, decimalPlaces).vatAmount, decimalPlaces)
     : null
 
+  const compact = useCompactMode()
+  const cellPy = compact ? "py-0.5" : "py-1"
+  const inputH = compact ? "h-6" : "h-7"
+  const btnSize = compact ? "h-6 w-6" : "h-7 w-7"
+
   return (
     <tr className="group border-b hover:bg-primary/5 transition-colors">
-      <td className="px-2 py-1.5 text-center text-xs text-muted-foreground">{rowNumber}</td>
-      <td className="px-1 py-1">
+      <td className={cn("px-2 text-center text-xs text-muted-foreground", compact ? "py-1" : "py-1.5")}>{rowNumber}</td>
+      <td className={cn("px-1", cellPy)}>
         <ReferenceField
           compact
           value={line.productId}
@@ -115,7 +122,7 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
           onChange={handleProductChange}
         />
       </td>
-      <td className="px-1 py-1">
+      <td className={cn("px-1", cellPy)}>
         <ReferenceField
           compact
           value={line.unitId}
@@ -125,18 +132,18 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
           onChange={handleUnitChange}
         />
       </td>
-      <td className="px-1 py-1">
+      <td className={cn("px-1", cellPy)}>
         <Input
-          className="h-7 text-right font-mono text-xs"
+          className={cn(inputH, "text-right font-mono text-xs")}
           type="number"
           step="0.001"
           value={line.quantity}
           onChange={handleQuantityChange}
         />
       </td>
-      <td className="px-1 py-1">
+      <td className={cn("px-1", cellPy)}>
         <Input
-          className="h-7 text-right font-mono text-xs"
+          className={cn(inputH, "text-right font-mono text-xs")}
           type="number"
           step={moneyStep(decimalPlaces)}
           value={line.unitPrice}
@@ -145,15 +152,15 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
       </td>
       {showAmounts && (
         <>
-          <td className="px-1 py-1 text-right font-mono text-xs text-muted-foreground">
+          <td className={cn("px-1 text-right font-mono text-xs text-muted-foreground", cellPy)}>
             {displayAmount}
           </td>
-          <td className="px-1 py-1 text-right font-mono text-xs text-muted-foreground">
+          <td className={cn("px-1 text-right font-mono text-xs text-muted-foreground", cellPy)}>
             {displayVat}
           </td>
         </>
       )}
-      <td className="px-1 py-1">
+      <td className={cn("px-1", cellPy)}>
         <ReferenceField
           compact
           value={line.vatRateId}
@@ -164,20 +171,20 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
         />
       </td>
       {!showAmounts && (
-        <td className="px-1 py-1">
+        <td className={cn("px-1", cellPy)}>
           <Input
-            className="h-7 text-right font-mono text-xs"
+            className={cn(inputH, "text-right font-mono text-xs")}
             type="number"
             value={line.vatPercent}
             onChange={handleVatPercentChange}
           />
         </td>
       )}
-      <td className="px-1 py-1">
+      <td className={cn("px-1", cellPy)}>
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+          className={cn(btnSize, "opacity-0 group-hover:opacity-100 transition-opacity")}
           onClick={handleRemove}
         >
           <Trash2 className="h-4 w-4 text-destructive/70" />

@@ -107,6 +107,10 @@ export const useUserPrefsStore = create<UserPrefsState>()(
                         listColumnWidths,
                         isLoaded: true,
                     })
+                    // Apply compact mode attribute to DOM (same as theme/accent in updateInterface)
+                    if (typeof document !== "undefined" && data.interface?.compactMode !== undefined) {
+                        document.documentElement.toggleAttribute("data-compact", !!data.interface.compactMode)
+                    }
                 } catch (err) {
                     console.error("Failed to load preferences:", err)
                     // Mark as loaded even on failure — use localStorage fallback
@@ -139,6 +143,9 @@ export const useUserPrefsStore = create<UserPrefsState>()(
                     } else {
                         root.setAttribute("data-accent", patch.accentColor)
                     }
+                }
+                if (patch.compactMode !== undefined) {
+                    document.documentElement.toggleAttribute("data-compact", !!patch.compactMode)
                 }
             },
 

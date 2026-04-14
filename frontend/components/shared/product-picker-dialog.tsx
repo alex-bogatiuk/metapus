@@ -50,6 +50,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
+import { useCompactMode } from "@/hooks/useCompactMode"
 import { CategoryTree } from "@/components/shared/category-tree"
 import { ScrollSentinel } from "@/components/shared/scroll-sentinel"
 import { usePickerDialog } from "@/hooks/usePickerDialog"
@@ -589,6 +590,7 @@ function OrderTab({
     onQuantityChange: (id: string, qty: number) => void
     onRemove: (id: string) => void
 }) {
+    const compact = useCompactMode()
     return (
         <div className="flex-1 flex flex-col overflow-hidden">
             <div className="flex-1 overflow-auto">
@@ -615,7 +617,7 @@ function OrderTab({
                             </tr>
                         ) : (
                             lines.map((line, idx) => (
-                                    <tr key={line.id} className="border-b hover:bg-muted/30 h-8">
+                                    <tr key={line.id} className={cn("border-b hover:bg-muted/30", compact ? "h-7" : "h-8")}>
                                     <td className="px-2 py-0.5 text-muted-foreground">{idx + 1}</td>
                                     <td className="px-2 py-0.5 font-mono text-muted-foreground whitespace-nowrap">{line.code}</td>
                                     <td className="px-2 py-0.5 truncate max-w-[300px]" title={line.name}>{line.name}</td>
@@ -704,6 +706,7 @@ function ProductRow({
     onQuantityChange: (qty: number) => void
 }) {
     const hasQty = quantity > 0
+    const compact = useCompactMode()
     // Show unit short label if available
     const unitName = String(item.baseUnitName ?? item.unitName ?? "")
     const unitShort = UNIT_LABELS[unitName.toLowerCase()] ?? unitName.slice(0, 3) ?? ""
@@ -723,7 +726,8 @@ function ProductRow({
             onClick={onFocus}
             onDoubleClick={() => onQuantityChange(quantity + 1)}
             className={cn(
-                "border-b cursor-pointer transition-colors h-8",
+                "border-b cursor-pointer transition-colors",
+                compact ? "h-7" : "h-8",
                 isFocused && "bg-primary/10 outline outline-1 outline-primary/30",
                 hasQty && !isFocused && "bg-emerald-50/50 dark:bg-emerald-950/20",
                 !isFocused && !hasQty && "hover:bg-muted/30",

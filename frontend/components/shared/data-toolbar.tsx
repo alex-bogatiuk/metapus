@@ -1,7 +1,10 @@
 "use client"
 
+import { useCompactMode } from "@/hooks/useCompactMode"
+
 import Link from "next/link"
 import { Plus, Search, SlidersHorizontal, MoreHorizontal, Copy } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -42,8 +45,9 @@ export function DataToolbar({
   menuItems,
   onColumnChooserClick,
 }: DataToolbarProps) {
+  const compact = useCompactMode()
   return (
-    <div className="flex items-center justify-between border-b bg-card px-4 py-2">
+    <div className={cn("flex items-center justify-between border-b bg-card px-4", compact ? "py-1" : "py-2")}>
       <div className="flex items-center gap-2">
         {onCreateHref && (
           <Button size="sm" asChild>

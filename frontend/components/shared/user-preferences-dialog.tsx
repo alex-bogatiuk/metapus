@@ -310,7 +310,7 @@ export function UserPreferencesDialog({ open, onOpenChange }: UserPreferencesDia
 
                             <SwitchField
                                 label="Компактный режим"
-                                description="Уменьшенные отступы и размер шрифта в таблицах"
+                                description="Уменьшенные отступы и размер шрифта в таблицах и формах"
                                 checked={ui.compactMode ?? false}
                                 onCheckedChange={(v) => update("compactMode", v)}
                             />

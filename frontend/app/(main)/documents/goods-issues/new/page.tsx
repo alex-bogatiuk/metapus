@@ -1,5 +1,8 @@
 "use client"
 
+import { cn } from "@/lib/utils"
+import { useCompactMode } from "@/hooks/useCompactMode"
+
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { useCollapsible } from "@/hooks/useCollapsible"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
@@ -290,6 +293,7 @@ export default function NewGoodsIssuePage() {
   }
 
   const isCopy = !!searchParams.get("copyFrom")
+  const compact = useCompactMode()
 
   if (copyLoading) {
     return (
@@ -325,8 +329,8 @@ export default function NewGoodsIssuePage() {
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex flex-1 flex-col overflow-hidden relative">
-          {!headerCollapsed && <div className="border-b bg-card p-4 shrink-0">
-            <div className="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2 lg:grid-cols-3">
+          {!headerCollapsed && <div className={cn("border-b bg-card shrink-0", compact ? "p-2" : "p-4")}>
+            <div className={cn("grid grid-cols-1 gap-x-6 md:grid-cols-2 lg:grid-cols-3", compact ? "gap-y-1.5" : "gap-y-3")}>
               <div>
                 <Label className="text-xs text-muted-foreground">Организация *</Label>
                 <div className="mt-1">
@@ -356,7 +360,7 @@ export default function NewGoodsIssuePage() {
                 <DatePicker
                   value={date}
                   onChange={(d) => { update({ date: d?.toISOString() }); markDirty() }}
-                  className="mt-1 h-9"
+                  className={cn("mt-1", compact ? "h-7" : "h-9")}
                 />
               </div>
               <div>
@@ -397,7 +401,7 @@ export default function NewGoodsIssuePage() {
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">№ заказа покупателя</Label>
-                <Input className="mt-1" value={f.customerOrderNumber} onChange={(e) => { update({ customerOrderNumber: e.target.value }); markDirty() }} />
+                <Input className={cn("mt-1", compact && "h-7")} value={f.customerOrderNumber} onChange={(e) => { update({ customerOrderNumber: e.target.value }); markDirty() }} />
               </div>
               <div className="flex items-center gap-3 mt-5">
                 <Switch checked={f.amountIncludesVat} onCheckedChange={(v) => { update({ amountIncludesVat: v }); markDirty() }} />
@@ -409,7 +413,7 @@ export default function NewGoodsIssuePage() {
           <div className="flex-1 min-h-0 grid grid-rows-[auto_1fr] border-t">
             <Tabs defaultValue="goods" className="contents">
               <div className="flex items-center border-b bg-card px-4 row-start-1 col-start-1">
-                <TabsList variant="line" className="border-b-0 h-11 self-start">
+                <TabsList variant="line" className={cn("border-b-0 self-start", compact ? "h-9" : "h-11")}>
                   <TabsTrigger value="goods" variant="line" className="text-xs">
                     Товары ({f.lines.length})
                   </TabsTrigger>
@@ -442,13 +446,13 @@ export default function NewGoodsIssuePage() {
                     <table className="w-full text-sm border-separate border-spacing-0">
                       <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-sm">
                         <tr>
-                          <th className="w-10 border-b px-2 py-2 text-center text-[11px] font-semibold text-muted-foreground">N</th>
-                          <th className="min-w-[160px] border-b px-3 py-2 text-left text-[11px] font-semibold text-muted-foreground">Товар</th>
-                          <th className="w-[140px] border-b px-3 py-2 text-left text-[11px] font-semibold text-muted-foreground">Ед. изм.</th>
-                          <th className="w-24 border-b px-3 py-2 text-right text-[11px] font-semibold text-muted-foreground">Кол-во</th>
-                          <th className="w-24 border-b px-3 py-2 text-right text-[11px] font-semibold text-muted-foreground">Цена</th>
-                          <th className="w-[120px] border-b px-3 py-2 text-left text-[11px] font-semibold text-muted-foreground">Ставка НДС</th>
-                          <th className="w-16 border-b px-3 py-2 text-right text-[11px] font-semibold text-muted-foreground">% НДС</th>
+                          <th className={cn("w-10 border-b px-2 text-center text-muted-foreground font-semibold", compact ? "py-1 text-[10px]" : "py-2 text-[11px]")}>N</th>
+                          <th className={cn("min-w-[160px] border-b px-3 text-left text-muted-foreground font-semibold", compact ? "py-1 text-[10px]" : "py-2 text-[11px]")}>Товар</th>
+                          <th className={cn("w-[140px] border-b px-3 text-left text-muted-foreground font-semibold", compact ? "py-1 text-[10px]" : "py-2 text-[11px]")}>Ед. изм.</th>
+                          <th className={cn("w-24 border-b px-3 text-right text-muted-foreground font-semibold", compact ? "py-1 text-[10px]" : "py-2 text-[11px]")}>Кол-во</th>
+                          <th className={cn("w-24 border-b px-3 text-right text-muted-foreground font-semibold", compact ? "py-1 text-[10px]" : "py-2 text-[11px]")}>Цена</th>
+                          <th className={cn("w-[120px] border-b px-3 text-left text-muted-foreground font-semibold", compact ? "py-1 text-[10px]" : "py-2 text-[11px]")}>Ставка НДС</th>
+                          <th className={cn("w-16 border-b px-3 text-right text-muted-foreground font-semibold", compact ? "py-1 text-[10px]" : "py-2 text-[11px]")}>% НДС</th>
                           <th className="w-8 border-b" />
                         </tr>
                       </thead>

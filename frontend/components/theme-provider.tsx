@@ -51,5 +51,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         }
     }, [accentColor])
 
+    // Compact mode — data-compact attribute for CSS density adjustments
+    const compactMode = useUserPrefsStore((s) => s.interface.compactMode)
+
+    useEffect(() => {
+        document.documentElement.toggleAttribute("data-compact", !!compactMode)
+    }, [compactMode])
+
     return <>{children}</>
 }

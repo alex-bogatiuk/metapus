@@ -35,6 +35,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { apiFetch } from "@/lib/api"
+import { useCompactMode } from "@/hooks/useCompactMode"
 import { resolveEntityFromEndpoint } from "@/lib/reference-utils"
 import {
     buildColumnsFromFields,
@@ -234,6 +235,10 @@ export function GenericPickerDialog({
     // ── Render ───────────────────────────────────────────────────────────
     const showInitialLoading = pickerLoading && pickerItems.length === 0
 
+    const compact = useCompactMode()
+    const rowH = compact ? "h-7" : "h-9"
+    const cellPx = compact ? "px-2" : "px-4"
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent
@@ -290,7 +295,8 @@ export function GenericPickerDialog({
                                         <th
                                             key={col.key}
                                             className={cn(
-                                                "relative px-4 py-2 text-xs font-medium text-muted-foreground select-none cursor-pointer group hover:text-foreground transition-colors",
+                                                "relative text-xs font-medium text-muted-foreground select-none cursor-pointer group hover:text-foreground transition-colors",
+                                                cellPx, compact ? "py-1" : "py-2",
                                                 col.align === "right" ? "text-right" : "text-left",
                                             )}
                                             onClick={() => { if (!isResizing) pickerHandleSort(col.key) }}
@@ -335,7 +341,8 @@ export function GenericPickerDialog({
                                                 key={item.id}
                                                 data-row-id={item.id}
                                                 className={cn(
-                                                    "border-b transition-colors cursor-pointer h-9",
+                                                    "border-b transition-colors cursor-pointer",
+                                                    rowH,
                                                     isFocused
                                                         ? "bg-primary/15 ring-1 ring-inset ring-primary/30"
                                                         : isSelected
@@ -346,7 +353,7 @@ export function GenericPickerDialog({
                                                 onDoubleClick={() => handleToggleItem(item)}
                                             >
                                                 {multiSelect && (
-                                                    <td className="px-2 py-0 h-9 text-center">
+                                                    <td className={cn("py-0 text-center", cellPx, rowH)}>
                                                         {isSelected && <Check className="h-3.5 w-3.5 text-emerald-600 inline-block" />}
                                                     </td>
                                                 )}
@@ -354,11 +361,12 @@ export function GenericPickerDialog({
                                                     <td
                                                         key={col.key}
                                                         className={cn(
-                                                            "px-4 py-0 h-9 max-h-9",
+                                                            "py-0",
+                                                            cellPx, rowH,
                                                             col.align === "right" ? "text-right" : "text-left",
                                                         )}
                                                     >
-                                                        <div className="flex items-center h-9 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis">
+                                                        <div className={cn("flex items-center min-w-0 whitespace-nowrap overflow-hidden text-ellipsis", rowH)}>
                                                             {formatCellValue(item[col.key], col.type)}
                                                         </div>
                                                     </td>

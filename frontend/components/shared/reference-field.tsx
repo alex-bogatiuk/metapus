@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { apiFetch } from "@/lib/api"
+import { useCompactMode } from "@/hooks/useCompactMode"
 import { resolveReferenceUrl } from "@/lib/reference-utils"
 import { resolveTitleFromUrl } from "@/lib/tab-utils"
 import { useTabsStore } from "@/stores/useTabsStore"
@@ -296,7 +297,12 @@ export function ReferenceField({
     onChange("", "")
   }
 
-  const triggerHeight = compact ? "h-7" : "h-9"
+  const globalCompact = useCompactMode()
+  // compact prop = table cell context; globalCompact = user preference.
+  // Table cell: h-7 normal → h-6 compact. Form field: h-9 normal → h-7 compact.
+  const triggerHeight = compact
+    ? (globalCompact ? "h-6" : "h-7")
+    : (globalCompact ? "h-7" : "h-9")
   const textSize = compact ? "text-xs" : "text-sm"
 
   return (

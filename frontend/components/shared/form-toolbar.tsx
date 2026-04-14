@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback } from "react"
+import { useCompactMode } from "@/hooks/useCompactMode"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, MoreHorizontal, HelpCircle, Link2 } from "lucide-react"
@@ -94,9 +95,11 @@ export function FormToolbar({
       : backHref
     : undefined
 
+  const compact = useCompactMode()
+
   return (
     <div className={cn("border-b bg-card", sticky && "sticky top-0 z-20 shadow-sm")}>
-      <div className="flex items-center gap-2 px-4 py-2">
+      <div className={cn("flex items-center gap-2 px-4", compact ? "py-1" : "py-2")}>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" className="h-7 w-7" asChild={!!resolvedBackHref}>
             {resolvedBackHref ? (
@@ -110,12 +113,13 @@ export function FormToolbar({
         </div>
 
         <div className="mr-4 flex items-center gap-2">
-          <h1 className="text-sm font-semibold text-foreground">{title}</h1>
+          <h1 className={cn("font-semibold text-foreground", compact ? "text-xs" : "text-sm")}>{title}</h1>
           {status && (
             <Badge
               variant="secondary"
               className={cn(
-                "h-6 rounded-full px-2.5 text-[11px] font-bold uppercase tracking-wider",
+                "rounded-full px-2.5 text-[11px] font-bold uppercase tracking-wider",
+                compact ? "h-5" : "h-6",
                 status.variant === "success" && "bg-success/10 text-success",
                 status.variant === "destructive" && "bg-destructive/10 text-destructive",
                 (status.variant === "outline" || !status.variant) && "bg-muted text-muted-foreground",

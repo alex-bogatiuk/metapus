@@ -47,6 +47,9 @@ const themeScript = `
     if (accent && accent !== 'yellow') {
       document.documentElement.setAttribute('data-accent', accent);
     }
+    if (iface.compactMode) {
+      document.documentElement.setAttribute('data-compact', '');
+    }
   } catch(e) {}
 })();
 `

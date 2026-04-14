@@ -4,6 +4,7 @@ import React, { useMemo } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
+import { useCompactMode } from "@/hooks/useCompactMode"
 import {
     ContextMenu,
     ContextMenuTrigger,
@@ -109,6 +110,12 @@ export function DataTable<T extends { id: string }>({
     isResizing,
 }: DataTableProps<T>) {
 
+    const compact = useCompactMode()
+    const rowH = compact ? "h-7" : "h-9"
+    const cellPx = compact ? "px-2" : "px-4"
+    const thPy = compact ? "py-1" : "py-2"
+    const fontSize = compact ? "text-xs" : "text-sm"
+
     // ⚡ Perf: O(1) selection lookup via Set instead of O(N) Array.includes() per row.
     // Before: N × includes() = O(N²). After: 1 Set build + N × has() = O(N).
     const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
@@ -140,7 +147,8 @@ export function DataTable<T extends { id: string }>({
     return (
         <table
             className={cn(
-                "w-full text-sm table-fixed",
+                "w-full table-fixed",
+                fontSize,
                 isResizing && "select-none"
             )}
         >
@@ -164,7 +172,7 @@ export function DataTable<T extends { id: string }>({
             <thead className="sticky top-0 z-10">
                 <tr className="border-b bg-muted/70">
                     {/* Checkbox column — fixed width, centered */}
-                    <th className="w-[40px] min-w-[40px] max-w-[40px] px-0 py-2">
+                    <th className={cn("w-[40px] min-w-[40px] max-w-[40px] px-0", thPy)}>
                         <div className="flex items-center justify-center">
                             <Checkbox
                                 checked={headerChecked}
@@ -175,7 +183,7 @@ export function DataTable<T extends { id: string }>({
 
                     {/* Optional prefix column (status icon, etc.) */}
                     {renderPrefix && (
-                        <th className="w-[32px] min-w-[32px] max-w-[32px] px-1 py-2" />
+                        <th className={cn("w-[32px] min-w-[32px] max-w-[32px] px-1", thPy)} />
                     )}
 
                     {/* Data columns with resize handles */}
@@ -183,7 +191,8 @@ export function DataTable<T extends { id: string }>({
                         <th
                             key={col.key}
                             className={cn(
-                                "relative px-4 py-2 text-xs font-medium text-muted-foreground select-none",
+                                "relative text-xs font-medium text-muted-foreground select-none",
+                                cellPx, thPy,
                                 alignClass(col.align),
                                 col.sortable && "cursor-pointer group hover:text-foreground transition-colors",
                                 col.className
@@ -219,7 +228,8 @@ export function DataTable<T extends { id: string }>({
                         <tr
                             key={item.id}
                             className={cn(
-                                "border-b transition-colors cursor-pointer h-9",
+                                "border-b transition-colors cursor-pointer",
+                                rowH,
                                 isFocused
                                     ? "bg-primary/15 ring-1 ring-inset ring-primary/30"
                                     : isSelected
@@ -232,7 +242,7 @@ export function DataTable<T extends { id: string }>({
                         >
                             {/* Checkbox cell — same fixed width as header, centered */}
                             <td className="w-[40px] min-w-[40px] max-w-[40px] px-0 py-0">
-                                <div className="flex items-center justify-center h-9">
+                                <div className={cn("flex items-center justify-center", rowH)}>
                                     <Checkbox
                                         checked={isSelected}
                                         onClick={(e: React.MouseEvent) => {
@@ -249,7 +259,7 @@ export function DataTable<T extends { id: string }>({
                             {/* Optional prefix cell */}
                             {renderPrefix && (
                                 <td className="w-[32px] min-w-[32px] max-w-[32px] px-1 py-0">
-                                    <div className="flex items-center h-9">
+                                    <div className={cn("flex items-center", rowH)}>
                                         {renderPrefix(item)}
                                     </div>
                                 </td>
@@ -260,12 +270,14 @@ export function DataTable<T extends { id: string }>({
                                 <td
                                     key={col.key}
                                     className={cn(
-                                        "px-4 py-0 h-9 max-h-9",
+                                        "py-0",
+                                        cellPx, rowH,
+                                        `max-${rowH}`,
                                         alignClass(col.align),
                                         col.className
                                     )}
                                 >
-                                    <div className="flex items-center h-9 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis">
+                                    <div className={cn("flex items-center min-w-0 whitespace-nowrap overflow-hidden text-ellipsis", rowH)}>
                                         {col.render
                                             ? col.render(item)
                                             : String((item as Record<string, unknown>)[col.key] ?? "")}
