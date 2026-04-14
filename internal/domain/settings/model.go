@@ -1,49 +1,33 @@
 // Package settings provides the domain model for tenant-level system settings.
-// Settings are stored as a single row in sys_settings (analogous to 1C "Constants").
+// Settings are stored as a single row in sys_settings.
+// Organization-specific settings (requisites, accounting policy) live in cat_organizations.
 package settings
 
 import "time"
 
-// Settings represents the full tenant configuration.
+// Settings represents the tenant-wide system configuration.
+// Only system-level settings remain here; org-specific data is in cat_organizations.
 type Settings struct {
-	Organization OrganizationSettings `json:"organization"`
-	Accounting   AccountingSettings   `json:"accounting"`
-	Performance  PerformanceSettings  `json:"performance"`
-	Version      int                  `json:"version"`
-	UpdatedAt    time.Time            `json:"updatedAt"`
+	Numbering   NumberingSettings   `json:"numbering"`
+	Performance PerformanceSettings `json:"performance"`
+	Version     int                 `json:"version"`
+	UpdatedAt   time.Time           `json:"updatedAt"`
 }
 
-// ── Organization ────────────────────────────────────────────────────────
+// ── Numbering ───────────────────────────────────────────────────────────
 
-// OrganizationSettings holds company identification and contacts.
-type OrganizationSettings struct {
-	CompanyName   string `json:"companyName"`
-	ShortName     string `json:"shortName"`
-	INN           string `json:"inn"`
-	KPP           string `json:"kpp"`
-	OGRN          string `json:"ogrn"`
-	LegalAddress  string `json:"legalAddress"`
-	ActualAddress string `json:"actualAddress"`
-	Phone         string `json:"phone"`
-	Email         string `json:"email"`
-	Website       string `json:"website"`
-	Director      string `json:"director"`
-	Accountant    string `json:"accountant"`
-	LogoURL       string `json:"logoUrl"`
+// NumberingSettings holds document auto-numbering parameters (system-wide).
+type NumberingSettings struct {
+	AutoNumbering bool   `json:"autoNumbering"`
+	NumberPrefix  string `json:"numberPrefix"`
 }
 
-// ── Accounting ──────────────────────────────────────────────────────────
-
-// AccountingSettings holds tax, VAT, inventory, and numbering parameters.
-type AccountingSettings struct {
-	DefaultCurrency string `json:"defaultCurrency"`
-	TaxSystem       string `json:"taxSystem"`
-	VatPayer        bool   `json:"vatPayer"`
-	DefaultVatRate  string `json:"defaultVatRate"`
-	InventoryMethod string `json:"inventoryMethod"`
-	FiscalYearStart string `json:"fiscalYearStart"`
-	AutoNumbering   bool   `json:"autoNumbering"`
-	NumberPrefix    string `json:"numberPrefix"`
+// DefaultNumbering returns sensible defaults for numbering settings.
+func DefaultNumbering() NumberingSettings {
+	return NumberingSettings{
+		AutoNumbering: true,
+		NumberPrefix:  "",
+	}
 }
 
 // ── Performance ─────────────────────────────────────────────────────────

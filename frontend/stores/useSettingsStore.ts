@@ -1,8 +1,7 @@
 import { create } from "zustand"
 import type {
   SystemSettings,
-  OrganizationSettings,
-  AccountingSettings,
+  NumberingSettings,
   PerformanceSettings,
 } from "@/types/settings"
 import { defaultSystemSettings } from "@/types/settings"
@@ -10,7 +9,7 @@ import { api } from "@/lib/api"
 import { toast } from "sonner"
 import { ApiError } from "@/lib/api"
 
-type SettingsSection = "organization" | "accounting" | "performance"
+type SettingsSection = "numbering" | "performance"
 
 interface SettingsState {
   settings: SystemSettings
@@ -27,11 +26,8 @@ interface SettingsState {
   /** Replaces all settings at once (e.g. after fetch). */
   setSettings: (settings: SystemSettings) => void
 
-  /** Partially updates organization section (local state). */
-  updateOrganization: (patch: Partial<OrganizationSettings>) => void
-
-  /** Partially updates accounting section (local state). */
-  updateAccounting: (patch: Partial<AccountingSettings>) => void
+  /** Partially updates numbering section (local state). */
+  updateNumbering: (patch: Partial<NumberingSettings>) => void
 
   /** Partially updates performance section (local state). */
   updatePerformance: (patch: Partial<PerformanceSettings>) => void
@@ -83,19 +79,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setSettings: (settings) => set({ settings }),
 
-  updateOrganization: (patch) =>
+  updateNumbering: (patch) =>
     set((state) => ({
       settings: {
         ...state.settings,
-        organization: { ...state.settings.organization, ...patch },
-      },
-    })),
-
-  updateAccounting: (patch) =>
-    set((state) => ({
-      settings: {
-        ...state.settings,
-        accounting: { ...state.settings.accounting, ...patch },
+        numbering: { ...state.settings.numbering, ...patch },
       },
     })),
 

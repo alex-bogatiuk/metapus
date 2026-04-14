@@ -416,12 +416,12 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 func seedGeneratedCounterparties(ctx context.Context, pool *postgres.Pool, log *logger.Logger) (map[string]id.ID, error) {
 	typesList := []string{"supplier", "customer", "both"}
 	companyPrefixes := []string{"Альфа", "Бета", "Вектор", "Гарант", "Профи", "Север", "Восток", "Глобал", "Оптима", "Премьер"}
-	companyDomains := []string{"Снабжение", "Трейд", "Логистик", "Поставка", "Ресурс", "Комплект", "Маркет", "Сервис", "Инвест", "Партнёр"}
-	companyRegions := []string{"Столица", "Волга", "Урал"}
-	surnames := []string{"Иванов", "Петров", "Сидоров", "Смирнов", "Кузнецов", "Попов", "Соколов", "Лебедев", "Новиков", "Фёдоров"}
-	firstNames := []string{"Иван", "Алексей", "Дмитрий", "Сергей", "Андрей", "Павел", "Николай", "Роман", "Егор", "Максим"}
+	companyDomains := []string{"Снабжение", "Трейд", "Логистик", "Поставка", "Ресурс", "Комплект", "Маркет", "Сервис", "Инвест", "Партнёр", "Транс", "Авиа"}
+	companyRegions := []string{"Столица", "Волга", "Урал", "Сибирь", "Дальний Восток", "Северный Кавказ", "Юг", "Запад", "Восток", "Центр"}
+	surnames := []string{"Иванов", "Петров", "Сидоров", "Смирнов", "Кузнецов", "Попов", "Соколов", "Лебедев", "Новиков", "Фёдоров", "Козлов", "Морозов", "Волков", "Алексеев", "Семёнов", "Егоров", "Павлов", "Ковалёв", "Орлов"}
+	firstNames := []string{"Иван", "Алексей", "Дмитрий", "Сергей", "Андрей", "Павел", "Николай", "Роман", "Егор", "Максим", "Владимир", "Михаил", "Александр", "Евгений", "Виктор", "Олег", "Игорь", "Денис", "Антон", "Кирилл"}
 	middleNames := []string{"Иванович", "Петрович", "Алексеевич", "Сергеевич", "Андреевич", "Павлович", "Николаевич", "Романович", "Егорович", "Максимович"}
-	cities := []string{"Москва", "Санкт-Петербург", "Казань", "Екатеринбург", "Новосибирск", "Самара", "Нижний Новгород", "Челябинск", "Краснодар", "Ростов-на-Дону"}
+	cities := []string{"Москва", "Санкт-Петербург", "Бобруйск", "Казань", "Екатеринбург", "Новосибирск", "Самара", "Нижний Новгород", "Челябинск", "Краснодар", "Ростов-на-Дону", "Минск", "Брест", "Витебск", "Гомель", "Гродно", "Могилёв"}
 	counterpartyIDs := make(map[string]id.ID, len(typesList))
 
 	// Collect data for all counterparties first, then batch-insert via pgx.Batch.
@@ -562,6 +562,31 @@ func seedGeneratedNomenclature(ctx context.Context, pool *postgres.Pool, log *lo
 		{name: "Автоматический выключатель", unitSymbol: "шт"},
 		{name: "Коврик диэлектрический", unitSymbol: "шт"},
 		{name: "Лента изоляционная", unitSymbol: "шт"},
+		{name: "Пакет полиэтиленовый", unitSymbol: "шт"},
+		{name: "Ведро строительное", unitSymbol: "шт"},
+		{name: "Уровень строительный", unitSymbol: "шт"},
+		{name: "Мастерок", unitSymbol: "шт"},
+		{name: "Шпатель малярный", unitSymbol: "шт"},
+		{name: "Мастика битумная", unitSymbol: "кг"},
+		{name: "Масло моторное", unitSymbol: "л"},
+		{name: "Лом", unitSymbol: "шт"},
+		{name: "Молоток", unitSymbol: "шт"},
+		{name: "Отвертка", unitSymbol: "шт"},
+		{name: "Плоскогубцы", unitSymbol: "шт"},
+		{name: "Кусачки", unitSymbol: "шт"},
+		{name: "Ключ гаечный", unitSymbol: "шт"},
+		{name: "Ключ разводной", unitSymbol: "шт"},
+		{name: "Ключ торцевой", unitSymbol: "шт"},
+		{name: "Ключ накидной", unitSymbol: "шт"},
+		{name: "Ключ рожковый", unitSymbol: "шт"},
+		{name: "Ключ комбинированный", unitSymbol: "шт"},
+		{name: "Ключ трубный", unitSymbol: "шт"},
+		{name: "Ключ разводной", unitSymbol: "шт"},
+		{name: "Ключ торцевой", unitSymbol: "шт"},
+		{name: "Ключ накидной", unitSymbol: "шт"},
+		{name: "Ключ рожковый", unitSymbol: "шт"},
+		{name: "Ключ комбинированный", unitSymbol: "шт"},
+		{name: "Ключ трубный", unitSymbol: "шт"},
 	}
 	brands := []string{"NordLine", "Volta", "OfficePro", "StroyMax", "PrimeTech"}
 	series := []string{"Базовая серия", "Проф серия", "Комфорт серия"}

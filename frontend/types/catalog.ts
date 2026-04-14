@@ -262,18 +262,63 @@ export interface UpdateWarehouseRequest {
 
 // ── Organization ────────────────────────────────────────────────────────
 
+/** Tax system enum — mirrors domain TaxSystem. */
+export type TaxSystem =
+    | "osno"
+    | "usn_income"
+    | "usn_income_expense"
+    | "envd"
+    | "patent"
+
+export const TAX_SYSTEM_LABELS: Record<TaxSystem, string> = {
+    osno: "ОСНО",
+    usn_income: "УСН (доходы)",
+    usn_income_expense: "УСН (доходы − расходы)",
+    envd: "ЕНВД",
+    patent: "Патент",
+}
+
+/** Inventory method enum — mirrors domain InventoryMethod. */
+export type InventoryMethod = "fifo" | "average" | "specific"
+
+export const INVENTORY_METHOD_LABELS: Record<InventoryMethod, string> = {
+    fifo: "ФИФО",
+    average: "Средняя",
+    specific: "По партиям",
+}
+
 /** Response DTO for an organization. */
 export interface OrganizationResponse {
     id: string
     version: number
     code: string
     name: string
+    // Requisites
     fullName: string
     inn: string
     kpp: string
+    ogrn: string
+    // Addresses
+    legalAddress: string
+    actualAddress: string
+    // Contacts
+    phone: string
+    email: string
+    website: string
+    // Currency & default
     baseCurrencyId: string
     isDefault: boolean
     deletionMark: boolean
+    // Responsible persons
+    director: string
+    accountant: string
+    logoUrl: string
+    // Accounting policy
+    taxSystem: string
+    vatPayer: boolean
+    defaultVatRateId: string
+    inventoryMethod: string
+    fiscalYearStart: string
 }
 
 /** Request DTO for creating an organization. */
@@ -283,8 +328,22 @@ export interface CreateOrganizationRequest {
     fullName?: string
     inn?: string
     kpp?: string
+    ogrn?: string
+    legalAddress?: string
+    actualAddress?: string
+    phone?: string
+    email?: string
+    website?: string
     baseCurrencyId: string
     isDefault?: boolean
+    director?: string
+    accountant?: string
+    logoUrl?: string
+    taxSystem?: string
+    vatPayer?: boolean
+    defaultVatRateId?: string
+    inventoryMethod?: string
+    fiscalYearStart?: string
 }
 
 /** Request DTO for updating an organization. */
@@ -296,9 +355,23 @@ export interface UpdateOrganizationRequest {
     fullName?: string
     inn?: string
     kpp?: string
+    ogrn?: string
+    legalAddress?: string
+    actualAddress?: string
+    phone?: string
+    email?: string
+    website?: string
     baseCurrencyId: string
     isDefault?: boolean
     deletionMark?: boolean
+    director?: string
+    accountant?: string
+    logoUrl?: string
+    taxSystem?: string
+    vatPayer?: boolean
+    defaultVatRateId?: string
+    inventoryMethod?: string
+    fiscalYearStart?: string
 }
 
 // ── Unit ───────────────────────────────────────────────────────────────

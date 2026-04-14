@@ -1,76 +1,18 @@
 /**
  * Settings types for the system configuration page.
  * Mirrors backend sys_settings JSONB structure.
+ * Organization-specific settings (requisites, accounting policy) are in catalog.ts.
  */
 
-// ── Organization ────────────────────────────────────────────────────────
+// ── Numbering ───────────────────────────────────────────────────────────
 
-export interface OrganizationSettings {
-  companyName: string
-  shortName: string
-  inn: string
-  kpp: string
-  ogrn: string
-  legalAddress: string
-  actualAddress: string
-  phone: string
-  email: string
-  website: string
-  director: string
-  accountant: string
-  logoUrl: string
-}
-
-export function defaultOrganizationSettings(): OrganizationSettings {
-  return {
-    companyName: "",
-    shortName: "",
-    inn: "",
-    kpp: "",
-    ogrn: "",
-    legalAddress: "",
-    actualAddress: "",
-    phone: "",
-    email: "",
-    website: "",
-    director: "",
-    accountant: "",
-    logoUrl: "",
-  }
-}
-
-// ── Accounting ──────────────────────────────────────────────────────────
-
-export type TaxSystem =
-  | "osno"
-  | "usn_income"
-  | "usn_income_expense"
-  | "envd"
-  | "patent"
-
-export type InventoryMethod = "fifo" | "average" | "specific"
-
-export type VatRate = "0" | "10" | "20" | "none"
-
-export interface AccountingSettings {
-  defaultCurrency: string
-  taxSystem: TaxSystem
-  vatPayer: boolean
-  defaultVatRate: VatRate
-  inventoryMethod: InventoryMethod
-  fiscalYearStart: string
+export interface NumberingSettings {
   autoNumbering: boolean
   numberPrefix: string
 }
 
-export function defaultAccountingSettings(): AccountingSettings {
+export function defaultNumberingSettings(): NumberingSettings {
   return {
-    defaultCurrency: "RUB",
-    taxSystem: "osno",
-    vatPayer: true,
-    defaultVatRate: "20",
-    inventoryMethod: "fifo",
-    fiscalYearStart: "01-01",
     autoNumbering: true,
     numberPrefix: "",
   }
@@ -115,8 +57,7 @@ export interface RoleRecord {
 // ── Combined ────────────────────────────────────────────────────────────
 
 export interface SystemSettings {
-  organization: OrganizationSettings
-  accounting: AccountingSettings
+  numbering: NumberingSettings
   performance: PerformanceSettings
   version: number
   updatedAt: string
@@ -124,8 +65,7 @@ export interface SystemSettings {
 
 export function defaultSystemSettings(): SystemSettings {
   return {
-    organization: defaultOrganizationSettings(),
-    accounting: defaultAccountingSettings(),
+    numbering: defaultNumberingSettings(),
     performance: defaultPerformanceSettings(),
     version: 1,
     updatedAt: new Date().toISOString(),

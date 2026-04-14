@@ -33,8 +33,21 @@ CREATE TABLE cat_organizations (
     actual_address   TEXT,
     phone            VARCHAR(50),
     email            VARCHAR(255),
+    website          VARCHAR(255),
     base_currency_id UUID REFERENCES cat_currencies(id),
-    is_default       BOOLEAN NOT NULL DEFAULT FALSE
+    is_default       BOOLEAN NOT NULL DEFAULT FALSE,
+
+    -- Responsible persons (moved from sys_settings.organization)
+    director         VARCHAR(255),
+    accountant       VARCHAR(255),
+    logo_url         TEXT,
+
+    -- Accounting policy (moved from sys_settings.accounting)
+    tax_system            VARCHAR(50)  NOT NULL DEFAULT 'osno',
+    vat_payer             BOOLEAN      NOT NULL DEFAULT FALSE,
+    default_vat_rate_id   UUID REFERENCES cat_vat_rates(id),
+    inventory_method      VARCHAR(50)  NOT NULL DEFAULT 'fifo',
+    fiscal_year_start     VARCHAR(10)  NOT NULL DEFAULT '01-01'
 );
 
 -- Unique indexes

@@ -83,7 +83,7 @@ interface CategoryBlock {
 
 // ── Constants ────────────────────────────────────────────────────────
 
-const ACTION_ORDER = ["list", "read", "create", "update", "delete", "post", "unpost", "manage"]
+const ACTION_ORDER = ["list", "read", "create", "update", "delete", "post", "unpost", "manage", "users", "roles"]
 
 const ACTION_LABELS: Record<string, string> = {
   list: "Список",
@@ -94,6 +94,8 @@ const ACTION_LABELS: Record<string, string> = {
   post: "Проведение",
   unpost: "Отмена пров.",
   manage: "Управление",
+  users: "Пользователи",
+  roles: "Роли",
 }
 
 const ACTION_STYLE: Record<string, string> = {
@@ -119,34 +121,30 @@ const CATEGORY_META: Record<string, { label: string; icon: React.ElementType }> 
 
 const FALLBACK_LABELS: Record<string, string> = {
   admin: "Система",
-  "admin:users": "Пользователи (адм.)",
-  "admin:roles": "Роли (адм.)",
-  "report:stock": "Отчёт по остаткам",
-  "report:documents": "Журнал документов",
-  "register:stock": "Регистр остатков",
+  register_stock: "Регистр остатков",
+  report_stock: "Отчёт по остаткам",
+  report_documents: "Журнал документов",
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-function categorize(resource: string): string {
-  if (resource.startsWith("catalog")) return "catalog"
-  if (resource.startsWith("document")) return "document"
+function categorizeResource(
+  resource: string,
+  getEntity: (key: string) => import("@/types/metadata").EntityMeta | undefined,
+): string {
+  const meta = getEntity(resource)
+  if (meta) return meta.type // "catalog" | "document"
   if (resource.startsWith("register")) return "register"
   if (resource.startsWith("report")) return "report"
+  if (resource === "admin") return "admin"
   return "admin"
-}
-
-function parsePermCode(code: string) {
-  const parts = code.split(":")
-  if (parts.length >= 3) return { type: parts[0], entity: parts[1], action: parts[2] }
-  if (parts.length === 2) return { type: parts[0], entity: "", action: parts[1] }
-  return { type: "other", entity: "", action: parts[0] }
 }
 
 // ── Component ────────────────────────────────────────────────────────
 
 export function RoleEditorSheet({ role, permissions, rolePerms, onClose }: RoleEditorSheetProps) {
   const getLabel = useMetadataStore((s) => s.getLabel)
+  const getEntity = useMetadataStore((s) => s.getEntity)
   const metaLoaded = useMetadataStore((s) => s.loaded)
 
   const isNew = role === "new"
@@ -217,35 +215,39 @@ export function RoleEditorSheet({ role, permissions, rolePerms, onClose }: RoleE
   const categories: CategoryBlock[] = useMemo(() => {
     if (!permissions.length) return []
 
-    const entityMap = new Map<string, { entityKey: string; actions: Map<string, { permId: string; code: string }> }>()
+    const entityMap = new Map<string, { resource: string; actions: Map<string, { permId: string; code: string }> }>()
     for (const perm of permissions) {
-      const parsed = parsePermCode(perm.code)
-      const groupKey = parsed.entity ? `${parsed.type}:${parsed.entity}` : parsed.type
-      if (!entityMap.has(groupKey)) {
-        entityMap.set(groupKey, { entityKey: parsed.entity || parsed.type, actions: new Map() })
+      const resource = perm.resource
+      const action = perm.action
+      if (!entityMap.has(resource)) {
+        entityMap.set(resource, { resource, actions: new Map() })
       }
-      const entry = entityMap.get(groupKey)!
-      if (!entry.actions.has(parsed.action)) {
-        entry.actions.set(parsed.action, { permId: perm.id, code: perm.code })
+      const entry = entityMap.get(resource)!
+      if (!entry.actions.has(action)) {
+        entry.actions.set(action, { permId: perm.id, code: perm.code })
       }
     }
 
     const groupMap = new Map<string, EntityActions[]>()
 
-    for (const [groupKey, { entityKey, actions }] of entityMap) {
-      const cat = categorize(groupKey)
+    for (const [resource, { actions }] of entityMap) {
+      const cat = categorizeResource(resource, getEntity)
       if (!groupMap.has(cat)) groupMap.set(cat, [])
 
-      let label = groupKey
-      if (metaLoaded && entityKey) {
-        const metaLabel = getLabel(entityKey, "plural")
-        if (metaLabel !== entityKey) label = metaLabel
+      let label: string | undefined
+      if (metaLoaded) {
+        const metaLabel = getLabel(resource, "plural")
+        if (metaLabel !== resource) label = metaLabel
       }
-      if (label === groupKey) label = FALLBACK_LABELS[groupKey] ?? groupKey
+      if (!label) label = FALLBACK_LABELS[resource] ?? resource
 
       const sortedActions = [...actions.entries()]
         .map(([action, { permId, code }]) => ({ action, permId, code }))
-        .sort((a, b) => (ACTION_ORDER.indexOf(a.action) ?? 99) - (ACTION_ORDER.indexOf(b.action) ?? 99))
+        .sort((a, b) => {
+          const ai = ACTION_ORDER.indexOf(a.action)
+          const bi = ACTION_ORDER.indexOf(b.action)
+          return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+        })
 
       const mapped = sortedActions.map((a) => ({
         ...a,
@@ -253,7 +255,7 @@ export function RoleEditorSheet({ role, permissions, rolePerms, onClose }: RoleE
       }))
 
       groupMap.get(cat)!.push({
-        id: groupKey,
+        id: resource,
         label,
         actions: mapped,
         allGranted: mapped.every((a) => a.has),
@@ -280,7 +282,7 @@ export function RoleEditorSheet({ role, permissions, rolePerms, onClose }: RoleE
           totalActions,
         }
       })
-  }, [permissions, grantedPerms, metaLoaded, getLabel])
+  }, [permissions, grantedPerms, metaLoaded, getLabel, getEntity])
 
   // ── Dirty check ──
   const isDirty = useMemo(() => {

@@ -5,7 +5,7 @@ import { Pencil, Check, RotateCcw, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useDashboardStore } from "@/stores/useDashboardStore"
 import { WidgetGrid } from "@/components/dashboard/widgets/widget-grid"
-import { WidgetGallerySheet } from "@/components/dashboard/widgets/widget-gallery-sheet"
+import { WidgetGalleryDialog } from "@/components/dashboard/widgets/widget-gallery-dialog"
 
 export default function DashboardPage() {
   const [galleryOpen, setGalleryOpen] = useState(false)
@@ -49,6 +49,14 @@ export default function DashboardPage() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => setGalleryOpen(true)}
+              >
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                Добавить виджет
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => useDashboardStore.getState().resetToDefault()}
               >
                 <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
@@ -84,15 +92,8 @@ export default function DashboardPage() {
 
       <WidgetGrid />
 
-      {isEditMode && (
-        <div className="mt-4 flex justify-center">
-          <Button variant="outline" size="sm" onClick={() => setGalleryOpen(true)}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            Добавить виджет
-          </Button>
-          <WidgetGallerySheet open={galleryOpen} onOpenChange={setGalleryOpen} />
-        </div>
-      )}
+      <WidgetGalleryDialog open={galleryOpen} onOpenChange={setGalleryOpen} />
     </div>
   )
 }
+

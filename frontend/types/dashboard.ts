@@ -105,3 +105,38 @@ export interface WidgetRenderProps<T extends WidgetType = WidgetType> {
     isEditMode: boolean
     onConfigChange: (config: WidgetConfigMap[T]) => void
 }
+
+// ── Shared Constants ────────────────────────────────────────────────
+
+export const CATEGORY_LABELS: Record<WidgetCategory, string> = {
+    kpi: "Показатели",
+    lists: "Списки",
+    charts: "Графики",
+    actions: "Действия",
+    system: "Система",
+}
+
+export const SIZE_TO_WH: Record<WidgetSize, { w: number; h: number }> = {
+    "2x1": { w: 3, h: 1 },
+    "3x1": { w: 4, h: 1 },
+    "4x1": { w: 6, h: 1 },
+    "2x2": { w: 4, h: 2 },
+    "3x2": { w: 6, h: 2 },
+    "4x2": { w: 8, h: 2 },
+    "4x3": { w: 8, h: 3 },
+    "4x4": { w: 12, h: 4 },
+}
+
+export const SIZE_LABELS: Record<WidgetSize, string> = {
+    "2x1": "2×1",
+    "3x1": "3×1",
+    "4x1": "4×1",
+    "2x2": "2×2",
+    "3x2": "3×2",
+    "4x2": "4×2",
+    "4x3": "4×3",
+    "4x4": "4×4",
+}
+
+export const GRID_ROW_HEIGHT = 120
+export const GRID_MARGIN = 12

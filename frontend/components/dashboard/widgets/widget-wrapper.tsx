@@ -88,7 +88,10 @@ export function WidgetWrapper({ placement, isEditMode }: WidgetWrapperProps) {
                 </>
             )}
 
-            <div className={cn("flex-1 overflow-hidden", isEditMode && "pointer-events-none opacity-60")}>
+            <div className={cn(
+                "flex-1 overflow-hidden transition-[padding] duration-200",
+                isEditMode && "pointer-events-none opacity-60 group-hover:pt-7"
+            )}>
                 <ErrorBoundary FallbackComponent={ErrorFallback}>
                     <Suspense fallback={<LoadingFallback />}>
                         <Component

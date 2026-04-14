@@ -107,26 +107,30 @@ const CATEGORY_META: Record<string, { label: string; icon: React.ElementType; de
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-/** Parse "catalog:nomenclature:read" → { type: "catalog", entity: "nomenclature", action: "read" } */
-function parsePermCode(code: string) {
-  const parts = code.split(":")
-  if (parts.length >= 3) {
-    return { type: parts[0], entity: parts[1], action: parts[2] }
-  }
-  if (parts.length === 2) {
-    return { type: parts[0], entity: "", action: parts[1] }
-  }
-  return { type: "other", entity: "", action: parts[0] }
-}
-
-/** Determine which category a permission resource belongs to */
-function categorize(resource: string): string {
-  if (resource.startsWith("catalog")) return "catalog"
-  if (resource.startsWith("document")) return "document"
+/** Determine which category a permission resource belongs to using metadata store.
+ *  resource is the raw value from the permission record (e.g. "nomenclature", "goods_receipt",
+ *  "register_stock", "report_stock", "admin").
+ */
+function categorizeResource(
+  resource: string,
+  getEntity: (key: string) => import("@/types/metadata").EntityMeta | undefined,
+): string {
+  // 1. Try metadata store — it knows catalog vs document
+  const meta = getEntity(resource)
+  if (meta) return meta.type // "catalog" | "document"
+  // 2. Prefix-based fallbacks for non-entity resources
   if (resource.startsWith("register")) return "register"
   if (resource.startsWith("report")) return "report"
   if (resource === "admin") return "admin"
   return "admin"
+}
+
+// Fallback labels for non-entity resources that are not in the metadata store
+const RESOURCE_FALLBACK_LABELS: Record<string, string> = {
+  admin: "Система",
+  register_stock: "Регистр остатков",
+  report_stock: "Отчёт по остаткам",
+  report_documents: "Журнал документов",
 }
 
 // ── Component ────────────────────────────────────────────────────────
@@ -139,6 +143,7 @@ export function AccessMatrix() {
   const [selectedRole, setSelectedRole] = useState<RoleResponse | null>(null)
 
   const getLabel = useMetadataStore((s) => s.getLabel)
+  const getEntity = useMetadataStore((s) => s.getEntity)
   const metaLoaded = useMetadataStore((s) => s.loaded)
 
   const load = useCallback(async () => {
@@ -176,63 +181,57 @@ export function AccessMatrix() {
   useEffect(() => { load() }, [load])
 
   // ── Build category groups from permissions ──
+  // Uses `resource` and `action` fields from PermissionResponse directly
+  // (NOT parsing the `code` field, which uses dot notation e.g. "nomenclature.read").
 
   const categories: CategoryGroup[] = useMemo(() => {
     if (!data) return []
 
-    // Group permissions by code prefix (type:entity), NOT by resource field.
-    // The resource field is inconsistent across migrations (e.g. "catalog" vs "catalog:nomenclature").
-    // The code format is always "type:entity:action", so we parse the code to derive the grouping key.
-    const entityMap = new Map<string, { entityKey: string; actions: Map<string, string> }>()
+    // Group permissions by resource (e.g. "nomenclature", "goods_receipt", "admin")
+    const entityMap = new Map<string, { resource: string; actions: Map<string, string> }>()
 
     for (const perm of data.permissions) {
-      const parsed = parsePermCode(perm.code)
-      // Grouping key: "catalog:nomenclature", "document:goods_receipt", "admin:users", etc.
-      const groupKey = parsed.entity ? `${parsed.type}:${parsed.entity}` : parsed.type
+      const resource = perm.resource  // e.g. "nomenclature", "goods_receipt", "admin"
+      const action = perm.action      // e.g. "read", "create", "users"
 
-      if (!entityMap.has(groupKey)) {
-        entityMap.set(groupKey, { entityKey: parsed.entity || parsed.type, actions: new Map() })
+      if (!entityMap.has(resource)) {
+        entityMap.set(resource, { resource, actions: new Map() })
       }
       // Deduplicate by action — first code wins
-      const entry = entityMap.get(groupKey)!
-      if (!entry.actions.has(parsed.action)) {
-        entry.actions.set(parsed.action, perm.code)
+      const entry = entityMap.get(resource)!
+      if (!entry.actions.has(action)) {
+        entry.actions.set(action, perm.code)
       }
     }
 
     // Categorize and build groups
     const groupMap = new Map<string, EntityRow[]>()
 
-    for (const [groupKey, { entityKey, actions }] of entityMap) {
-      const cat = categorize(groupKey)
+    for (const [resource, { actions }] of entityMap) {
+      const cat = categorizeResource(resource, getEntity)
       if (!groupMap.has(cat)) groupMap.set(cat, [])
 
-      // Resolve label: metadata store first, fallback
-      let label = groupKey
-      if (metaLoaded && entityKey) {
-        const metaLabel = getLabel(entityKey, "plural")
-        if (metaLabel !== entityKey) label = metaLabel
+      // Resolve label: metadata store first, then fallback map, then raw resource key
+      let label: string | undefined
+      if (metaLoaded) {
+        const metaLabel = getLabel(resource, "plural")
+        if (metaLabel !== resource) label = metaLabel
       }
-      // Fallback labels for non-entity resources
-      if (label === groupKey) {
-        const fallback: Record<string, string> = {
-          admin: "Система",
-          "admin:users": "Пользователи (адм.)",
-          "admin:roles": "Роли (адм.)",
-          "report:stock": "Отчёт по остаткам",
-          "report:documents": "Журнал документов",
-          "register:stock": "Регистр остатков",
-        }
-        label = fallback[groupKey] ?? groupKey
+      if (!label) {
+        label = RESOURCE_FALLBACK_LABELS[resource] ?? resource
       }
 
       // Sort actions in a logical order
-      const actionOrder = ["list", "read", "create", "update", "delete", "post", "unpost", "manage"]
+      const actionOrder = ["list", "read", "create", "update", "delete", "post", "unpost", "manage", "users", "roles"]
       const sortedActions = [...actions.entries()]
         .map(([action, code]) => ({ action, code }))
-        .sort((a, b) => (actionOrder.indexOf(a.action) ?? 99) - (actionOrder.indexOf(b.action) ?? 99))
+        .sort((a, b) => {
+          const ai = actionOrder.indexOf(a.action)
+          const bi = actionOrder.indexOf(b.action)
+          return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+        })
 
-      groupMap.get(cat)!.push({ id: groupKey, label, actions: sortedActions })
+      groupMap.get(cat)!.push({ id: resource, label, actions: sortedActions })
     }
 
     // Sort entities alphabetically within each group
@@ -250,7 +249,7 @@ export function AccessMatrix() {
         defaultOpen: CATEGORY_META[cat].defaultOpen,
         entities: groupMap.get(cat)!,
       }))
-  }, [data, metaLoaded, getLabel])
+  }, [data, metaLoaded, getLabel, getEntity])
 
   // ── Search filtering ──
 

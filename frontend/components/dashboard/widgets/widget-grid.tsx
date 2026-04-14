@@ -5,13 +5,13 @@ import { ResponsiveGridLayout, useContainerWidth, type Layout, type ResponsiveLa
 import "react-grid-layout/css/styles.css"
 import "react-resizable/css/styles.css"
 import { useDashboardStore } from "@/stores/useDashboardStore"
+import { GRID_ROW_HEIGHT, GRID_MARGIN } from "@/types/dashboard"
 import { WidgetWrapper } from "./widget-wrapper"
 import type { WidgetPlacement } from "@/types/dashboard"
 
 const BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480 }
 const COLS = { lg: 12, md: 8, sm: 4, xs: 1 }
-const ROW_HEIGHT = 120
-const MARGIN: [number, number] = [12, 12]
+const MARGIN: [number, number] = [GRID_MARGIN, GRID_MARGIN]
 
 export function WidgetGrid() {
     const layout = useDashboardStore((s) => s.layout)
@@ -68,7 +68,7 @@ export function WidgetGrid() {
                     layouts={{ lg: gridLayout }}
                     breakpoints={BREAKPOINTS}
                     cols={COLS}
-                    rowHeight={ROW_HEIGHT}
+                    rowHeight={GRID_ROW_HEIGHT}
                     margin={MARGIN}
                     dragConfig={{ enabled: isEditMode, handle: ".drag-handle" }}
                     resizeConfig={{ enabled: isEditMode }}

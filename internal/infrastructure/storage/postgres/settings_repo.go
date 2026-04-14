@@ -19,9 +19,8 @@ func NewSettingsRepo() *SettingsRepo {
 
 // validSections is the whitelist of updatable JSONB columns.
 var validSections = map[string]bool{
-	"organization": true,
-	"accounting":   true,
-	"performance":  true,
+	"numbering":   true,
+	"performance": true,
 }
 
 // Get returns the current settings from sys_settings (single-row table).
@@ -30,27 +29,24 @@ func (r *SettingsRepo) Get(ctx context.Context) (*settings.Settings, error) {
 	q := txm.GetQuerier(ctx)
 
 	query := `
-		SELECT organization, accounting, performance, version, updated_at
+		SELECT numbering, performance, version, updated_at
 		FROM sys_settings
 		WHERE singleton = TRUE
 	`
 
-	var orgJSON, accJSON, perfJSON []byte
+	var numJSON, perfJSON []byte
 	var s settings.Settings
 
 	err := q.QueryRow(ctx, query).Scan(
-		&orgJSON, &accJSON, &perfJSON,
+		&numJSON, &perfJSON,
 		&s.Version, &s.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query sys_settings: %w", err)
 	}
 
-	if err := json.Unmarshal(orgJSON, &s.Organization); err != nil {
-		return nil, fmt.Errorf("unmarshal organization: %w", err)
-	}
-	if err := json.Unmarshal(accJSON, &s.Accounting); err != nil {
-		return nil, fmt.Errorf("unmarshal accounting: %w", err)
+	if err := json.Unmarshal(numJSON, &s.Numbering); err != nil {
+		return nil, fmt.Errorf("unmarshal numbering: %w", err)
 	}
 	if err := json.Unmarshal(perfJSON, &s.Performance); err != nil {
 		return nil, fmt.Errorf("unmarshal performance: %w", err)
@@ -76,14 +72,14 @@ func (r *SettingsRepo) UpdateSection(ctx context.Context, section string, data j
 		    version = version + 1,
 		    updated_at = NOW()
 		WHERE singleton = TRUE AND version = $2
-		RETURNING organization, accounting, performance, version, updated_at
+		RETURNING numbering, performance, version, updated_at
 	`, section)
 
-	var orgJSON, accJSON, perfJSON []byte
+	var numJSON, perfJSON []byte
 	var s settings.Settings
 
 	err := q.QueryRow(ctx, query, data, version).Scan(
-		&orgJSON, &accJSON, &perfJSON,
+		&numJSON, &perfJSON,
 		&s.Version, &s.UpdatedAt,
 	)
 	if err != nil {
@@ -94,11 +90,8 @@ func (r *SettingsRepo) UpdateSection(ctx context.Context, section string, data j
 		return nil, fmt.Errorf("update sys_settings.%s: %w", section, err)
 	}
 
-	if err := json.Unmarshal(orgJSON, &s.Organization); err != nil {
-		return nil, fmt.Errorf("unmarshal organization: %w", err)
-	}
-	if err := json.Unmarshal(accJSON, &s.Accounting); err != nil {
-		return nil, fmt.Errorf("unmarshal accounting: %w", err)
+	if err := json.Unmarshal(numJSON, &s.Numbering); err != nil {
+		return nil, fmt.Errorf("unmarshal numbering: %w", err)
 	}
 	if err := json.Unmarshal(perfJSON, &s.Performance); err != nil {
 		return nil, fmt.Errorf("unmarshal performance: %w", err)
