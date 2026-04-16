@@ -40,7 +40,8 @@ export interface CursorListResponse<T> {
     hasMore: boolean
     hasPrev: boolean
     targetIndex?: number
-    totalCount: number
+    /** Total count. null means COUNT was skipped (skipCount=true or cursor navigation). */
+    totalCount: number | null
 }
 
 
@@ -59,6 +60,8 @@ export interface CursorListParams {
     before?: string
     /** Target ID — teleport to this item in the list */
     around?: string
+    /** Skip COUNT(*) for performance. Frontend sets this to skip expensive count on sort-only changes. */
+    skipCount?: boolean
 }
 
 

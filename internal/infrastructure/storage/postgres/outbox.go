@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"metapus/internal/core/id"
+	"metapus/internal/domain"
 )
 
 // OutboxStatus represents the state of an outbox message.
@@ -36,28 +37,21 @@ type OutboxMessage struct {
 	PublishedAt   *time.Time   `db:"published_at"`
 }
 
-// DomainEvent represents an event to be published via outbox.
-type DomainEvent struct {
-	AggregateType string
-	AggregateID   id.ID
-	EventType     string
-	Payload       any
-}
+// DomainEvent is imported from domain package.
 
 // OutboxPublisher writes events to the outbox table.
-type OutboxPublisher struct {
-	txManager *TxManager
-}
+type OutboxPublisher struct{}
 
 // NewOutboxPublisher creates a new outbox publisher.
-func NewOutboxPublisher(txManager *TxManager) *OutboxPublisher {
-	return &OutboxPublisher{txManager: txManager}
+func NewOutboxPublisher() *OutboxPublisher {
+	return &OutboxPublisher{}
 }
 
 // Publish writes an event to the outbox within the current transaction.
 // MUST be called inside a transaction context.
-func (p *OutboxPublisher) Publish(ctx context.Context, event DomainEvent) error {
-	tx := p.txManager.GetTx(ctx)
+func (p *OutboxPublisher) Publish(ctx context.Context, event domain.DomainEvent) error {
+	txManager := MustGetTxManager(ctx)
+	tx := txManager.GetTx(ctx)
 	if tx == nil {
 		return fmt.Errorf("outbox publish requires transaction context")
 	}
@@ -80,8 +74,9 @@ func (p *OutboxPublisher) Publish(ctx context.Context, event DomainEvent) error 
 }
 
 // PublishBatch writes multiple events to the outbox.
-func (p *OutboxPublisher) PublishBatch(ctx context.Context, events []DomainEvent) (retErr error) {
-	tx := p.txManager.GetTx(ctx)
+func (p *OutboxPublisher) PublishBatch(ctx context.Context, events []domain.DomainEvent) (retErr error) {
+	txManager := MustGetTxManager(ctx)
+	tx := txManager.GetTx(ctx)
 	if tx == nil {
 		return fmt.Errorf("outbox publish requires transaction context")
 	}

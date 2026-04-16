@@ -226,6 +226,13 @@ func mapFieldType(def *FieldDef, field reflect.StructField) {
 		return
 	}
 
+	// Dynamic Enum lookup from the metadata registry
+	if enumDef, ok := lookupEnum(actual); ok {
+		def.Type = TypeEnum
+		def.EnumValues = enumDef.Values
+		return
+	}
+
 	switch actual.Kind() {
 	case reflect.String:
 		def.Type = TypeString

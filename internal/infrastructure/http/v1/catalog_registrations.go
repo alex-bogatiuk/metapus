@@ -21,6 +21,79 @@ import (
 	"metapus/internal/metadata"
 )
 
+func init() {
+	// Register Enum metadata globally for automatic filter UI dropdown resolution.
+
+	// Nomenclature Types
+	metadata.RegisterEnum[nomenclature.NomenclatureType]([]metadata.EnumValue{
+		{Value: "goods", Label: "Товар"},
+		{Value: "service", Label: "Услуга"},
+		{Value: "work", Label: "Работа"},
+		{Value: "material", Label: "Материал"},
+		{Value: "semi", Label: "Полуфабрикат"},
+		{Value: "product", Label: "Продукция"},
+	})
+
+	// Counterparty Types
+	metadata.RegisterEnum[counterparty.CounterpartyType]([]metadata.EnumValue{
+		{Value: "customer", Label: "Покупатель"},
+		{Value: "supplier", Label: "Поставщик"},
+		{Value: "both", Label: "Покупатель и Поставщик"},
+		{Value: "other", Label: "Прочие"},
+	})
+
+	// Legal Forms
+	metadata.RegisterEnum[counterparty.LegalForm]([]metadata.EnumValue{
+		{Value: "individual", Label: "Физлицо"},
+		{Value: "sole_trader", Label: "ИП"},
+		{Value: "company", Label: "Юрлицо"},
+		{Value: "government", Label: "Гос. орган"},
+	})
+
+	// Warehouse Types
+	metadata.RegisterEnum[warehouse.WarehouseType]([]metadata.EnumValue{
+		{Value: "main", Label: "Основной"},
+		{Value: "distribution", Label: "Распределительный"},
+		{Value: "retail", Label: "Розничный"},
+		{Value: "production", Label: "Производственный"},
+		{Value: "transit", Label: "Транзитный"},
+	})
+
+	// Unit Types
+	metadata.RegisterEnum[unit.UnitType]([]metadata.EnumValue{
+		{Value: "piece", Label: "Штуки"},
+		{Value: "weight", Label: "Вес"},
+		{Value: "length", Label: "Длина"},
+		{Value: "area", Label: "Площадь"},
+		{Value: "volume", Label: "Объем"},
+		{Value: "time", Label: "Время"},
+		{Value: "pack", Label: "Упаковки"},
+	})
+
+	// Contract Types
+	metadata.RegisterEnum[contract.ContractType]([]metadata.EnumValue{
+		{Value: "supply", Label: "С поставщиком"},
+		{Value: "sale", Label: "С покупателем"},
+		{Value: "other", Label: "Прочее"},
+	})
+
+	// Organization Tax Systems
+	metadata.RegisterEnum[organization.TaxSystem]([]metadata.EnumValue{
+		{Value: "osno", Label: "ОСНО"},
+		{Value: "usn_income", Label: "УСН (доходы)"},
+		{Value: "usn_income_expense", Label: "УСН (доходы − расходы)"},
+		{Value: "envd", Label: "ЕНВД"},
+		{Value: "patent", Label: "Патент"},
+	})
+
+	// Organization Inventory Methods
+	metadata.RegisterEnum[organization.InventoryMethod]([]metadata.EnumValue{
+		{Value: "fifo", Label: "ФИФО"},
+		{Value: "average", Label: "Средняя"},
+		{Value: "specific", Label: "По партиям"},
+	})
+}
+
 // ---------------------------------------------------------------------------
 // Concrete factories (business content)
 // ---------------------------------------------------------------------------

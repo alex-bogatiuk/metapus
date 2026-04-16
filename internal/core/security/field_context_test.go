@@ -26,6 +26,7 @@ func TestWithFieldPolicies_AndGetFieldPolicy(t *testing.T) {
 	p := GetFieldPolicy(ctx, "goods_receipt", "read")
 	if p == nil {
 		t.Fatal("expected read policy")
+		return
 	}
 	if p.EntityName != "goods_receipt" {
 		t.Fatalf("expected entity goods_receipt, got %s", p.EntityName)

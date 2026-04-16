@@ -207,7 +207,7 @@ export function ReferencePickerDialog({
                     `${apiEndpoint}?${params.toString()}`
                 )
                 setItems(result.items ?? [])
-                setTotalCount(result.totalCount)
+                setTotalCount(result.totalCount ?? 0)
                 setHasMore(result.hasMore)
                 setNextCursor(result.nextCursor ?? null)
 

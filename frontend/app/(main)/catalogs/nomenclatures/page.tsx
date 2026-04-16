@@ -5,11 +5,12 @@ import { CatalogListPage } from "@/components/shared/catalog-list-page"
 import type { Column } from "@/components/shared/data-table"
 import { api } from "@/lib/api"
 import type { NomenclatureResponse } from "@/types/catalog"
-import { NOMENCLATURE_TYPE_LABELS } from "@/types/catalog"
+import { useEnumFormatter } from "@/hooks/useEntityFiltersMeta"
+import { useMemo } from "react"
 
 // ── Columns ─────────────────────────────────────────────────────────────
 
-const ALL_COLUMNS: Column<NomenclatureResponse>[] = [
+const ALL_COLUMNS = (formatEnum: (k: string, v: string) => string): Column<NomenclatureResponse>[] => [
   {
     key: "code",
     label: "Код",
@@ -42,7 +43,7 @@ const ALL_COLUMNS: Column<NomenclatureResponse>[] = [
     sortable: true,
     render: (item) => (
       <Badge variant="secondary" className="text-[10px]">
-        {NOMENCLATURE_TYPE_LABELS[item.type] ?? item.type}
+        {formatEnum("type", item.type)}
       </Badge>
     ),
   },
@@ -95,6 +96,9 @@ const DEFAULT_VISIBLE_KEYS = ["code", "name", "article", "type", "barcode"]
 // ── Page ────────────────────────────────────────────────────────────────
 
 export default function NomenclatureListPage() {
+  const formatEnum = useEnumFormatter("Nomenclature")
+  const columns = useMemo(() => ALL_COLUMNS(formatEnum), [formatEnum])
+
   return (
     <CatalogListPage
       config={{
@@ -102,8 +106,8 @@ export default function NomenclatureListPage() {
         entityKey: "nomenclature",
         createHref: "/catalogs/nomenclatures/new",
         editHref: (item) => `/catalogs/nomenclatures/${item.id}`,
-        columns: ALL_COLUMNS,
-        allColumns: ALL_COLUMNS,
+        columns: columns,
+        allColumns: columns,
         defaultVisibleKeys: DEFAULT_VISIBLE_KEYS,
         fetcher: api.nomenclature.list,
         limit: 100,

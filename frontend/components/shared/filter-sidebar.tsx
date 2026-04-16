@@ -523,6 +523,33 @@ export function FilterSidebar({
 
   // ── Render a single filter widget ─────────────────────────────────
 
+  function renderEnumValue(meta: FilterFieldMeta, entry: FilterEntry, accentCls?: string) {
+    if (!meta.enumValues || meta.enumValues.length === 0) {
+      return renderStringValue(meta, entry, accentCls)
+    }
+    const valStr = typeof entry.value === "string" ? entry.value : "null"
+    return (
+      <Select
+        value={valStr}
+        onValueChange={(val) => {
+          updateFilterEntry(meta.key, { operator: entry.operator, value: val === "null" ? undefined : val })
+        }}
+      >
+        <SelectTrigger className={cn("h-7 text-xs", accentCls)}>
+          <SelectValue placeholder="Не выбрано" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="null" className="text-xs text-muted-foreground">Не выбрано</SelectItem>
+          {meta.enumValues.map(ev => (
+            <SelectItem key={ev.value} value={ev.value} className="text-xs">
+              {ev.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    )
+  }
+
   function renderFilter(meta: FilterFieldMeta) {
     const entry = getEntry(meta)
     const active = isEntryActive(filterValues[meta.key])
@@ -549,7 +576,7 @@ export function FilterSidebar({
     ) : list && meta.fieldType === "reference" ? (
       renderReferenceList(meta, entry, accentCls)
     ) : !list && !between && meta.fieldType === "enum" ? (
-      renderStringValue(meta, entry, accentCls)
+      renderEnumValue(meta, entry, accentCls)
     ) : null
 
     return (

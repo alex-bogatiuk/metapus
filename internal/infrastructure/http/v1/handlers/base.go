@@ -130,6 +130,7 @@ func (h *BaseHandler) ParseListFilter(c *gin.Context, defaultOrderBy string) (do
 	filter.Limit = h.ParseIntQuery(c, "limit", 50)
 	filter.OrderBy = c.DefaultQuery("orderBy", defaultOrderBy)
 	filter.IncludeDeleted = c.Query("includeDeleted") == "true"
+	filter.SkipCount = c.Query("skipCount") == "true"
 
 	// Parse cursor-based pagination params
 	afterToken := c.Query("after")

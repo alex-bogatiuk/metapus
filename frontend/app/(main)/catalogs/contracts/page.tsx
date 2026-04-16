@@ -5,11 +5,12 @@ import { CatalogListPage } from "@/components/shared/catalog-list-page"
 import type { Column } from "@/components/shared/data-table"
 import { api } from "@/lib/api"
 import type { ContractResponse } from "@/types/catalog"
-import { CONTRACT_TYPE_LABELS } from "@/types/catalog"
+import { useEnumFormatter } from "@/hooks/useEntityFiltersMeta"
+import { useMemo } from "react"
 
 // ── Columns ─────────────────────────────────────────────────────────────
 
-const ALL_COLUMNS: Column<ContractResponse>[] = [
+const ALL_COLUMNS = (formatEnum: (k: string, v: string) => string): Column<ContractResponse>[] => [
   {
     key: "code",
     label: "Код",
@@ -32,7 +33,7 @@ const ALL_COLUMNS: Column<ContractResponse>[] = [
     sortable: true,
     render: (item) => (
       <Badge variant="outline" className="text-[10px]">
-        {CONTRACT_TYPE_LABELS[item.type] ?? item.type}
+        {formatEnum("type", item.type)}
       </Badge>
     ),
   },
@@ -71,6 +72,9 @@ const DEFAULT_VISIBLE_KEYS = ["code", "name", "type", "validFrom", "validTo"]
 // ── Page ────────────────────────────────────────────────────────────────
 
 export default function ContractsListPage() {
+  const formatEnum = useEnumFormatter("Contract")
+  const columns = useMemo(() => ALL_COLUMNS(formatEnum), [formatEnum])
+
   return (
     <CatalogListPage
       config={{
@@ -78,8 +82,8 @@ export default function ContractsListPage() {
         entityKey: "contract",
         createHref: "/catalogs/contracts/new",
         editHref: (item) => `/catalogs/contracts/${item.id}`,
-        columns: ALL_COLUMNS,
-        allColumns: ALL_COLUMNS,
+        columns: columns,
+        allColumns: columns,
         defaultVisibleKeys: DEFAULT_VISIBLE_KEYS,
         fetcher: api.contracts.list,
         emptyMessage: "Нет договоров. Создайте первый.",

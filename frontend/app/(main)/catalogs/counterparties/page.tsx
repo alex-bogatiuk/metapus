@@ -5,14 +5,12 @@ import { CatalogListPage } from "@/components/shared/catalog-list-page"
 import type { Column } from "@/components/shared/data-table"
 import { api } from "@/lib/api"
 import type { CounterpartyResponse } from "@/types/catalog"
-import {
-  COUNTERPARTY_TYPE_LABELS as TYPE_LABELS,
-  LEGAL_FORM_LABELS as FORM_LABELS,
-} from "@/types/catalog"
+import { useEnumFormatter } from "@/hooks/useEntityFiltersMeta"
+import { useMemo } from "react"
 
 // ── Columns ─────────────────────────────────────────────────────────────
 
-const ALL_COLUMNS: Column<CounterpartyResponse>[] = [
+const ALL_COLUMNS = (formatEnum: (k: string, v: string) => string): Column<CounterpartyResponse>[] => [
   {
     key: "code",
     label: "Код",
@@ -38,7 +36,7 @@ const ALL_COLUMNS: Column<CounterpartyResponse>[] = [
     width: 120,
     render: (item) => (
       <Badge variant="outline" className="text-[10px]">
-        {TYPE_LABELS[item.type] ?? item.type}
+        {formatEnum("type", item.type)}
       </Badge>
     ),
   },
@@ -49,7 +47,7 @@ const ALL_COLUMNS: Column<CounterpartyResponse>[] = [
     width: 140,
     render: (item) => (
       <span className="text-muted-foreground text-xs">
-        {FORM_LABELS[item.legalForm] ?? item.legalForm}
+        {formatEnum("legalForm", item.legalForm)}
       </span>
     ),
   },
@@ -107,6 +105,9 @@ const DEFAULT_VISIBLE_KEYS = ["code", "name", "type", "legalForm", "inn", "phone
 // ── Page ────────────────────────────────────────────────────────────────
 
 export default function CounterpartiesListPage() {
+  const formatEnum = useEnumFormatter("Counterparty")
+  const columns = useMemo(() => ALL_COLUMNS(formatEnum), [formatEnum])
+
   return (
     <CatalogListPage
       config={{
@@ -114,8 +115,8 @@ export default function CounterpartiesListPage() {
         entityKey: "counterparty",
         createHref: "/catalogs/counterparties/new",
         editHref: (item) => `/catalogs/counterparties/${item.id}`,
-        columns: ALL_COLUMNS,
-        allColumns: ALL_COLUMNS,
+        columns: columns,
+        allColumns: columns,
         defaultVisibleKeys: DEFAULT_VISIBLE_KEYS,
         fetcher: api.counterparties.list,
         emptyMessage: "Нет контрагентов. Создайте первого.",

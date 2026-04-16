@@ -18,21 +18,26 @@ type JWTValidator interface {
 // Auth middleware validates JWT tokens and populates user context.
 func Auth(validator JWTValidator) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Extract token from Authorization header
+		var tokenString string
+
+		// 1. Try Authorization header
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			abortUnauthorized(c, "missing authorization header")
-			return
+		if authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) == 2 && strings.EqualFold(parts[0], "bearer") {
+				tokenString = parts[1]
+			}
 		}
 
-		// Check Bearer prefix
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
-			abortUnauthorized(c, "invalid authorization header format")
-			return
+		// 2. Try URI query param (useful for WebSockets)
+		if tokenString == "" {
+			tokenString = c.Query("token")
 		}
 
-		tokenString := parts[1]
+		if tokenString == "" {
+			abortUnauthorized(c, "missing authorization header or token param")
+			return
+		}
 
 		// Validate token
 		user, err := validator.ValidateToken(tokenString)

@@ -16,9 +16,9 @@ import { useTabDirty } from "@/hooks/useTabDirty"
 import { useTabTitle } from "@/hooks/useTabTitle"
 import { useFormDraft } from "@/hooks/useFormDraft"
 import { useMetadataStore } from "@/stores/useMetadataStore"
+import { useEntityFiltersMeta } from "@/hooks/useEntityFiltersMeta"
 import { api } from "@/lib/api"
 import type { NomenclatureType, UpdateNomenclatureRequest } from "@/types/catalog"
-import { NOMENCLATURE_TYPE_LABELS } from "@/types/catalog"
 
 interface NomenclatureEditState {
   code: string
@@ -70,6 +70,10 @@ export default function NomenclatureItemPage() {
   const [loading, setLoading] = useState(!hasDraft)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const { fieldsMeta, loading: filtersLoading } = useEntityFiltersMeta("Nomenclature")
+  const typeFieldMeta = fieldsMeta.find((f) => f.key === "type")
+
   const nomLabel = useMetadataStore((s) => s.getLabel("nomenclature", "singular"))
   useTabTitle(f.name || undefined, nomLabel)
 
@@ -222,9 +226,13 @@ export default function NomenclatureItemPage() {
                       <Select value={f.type} onValueChange={(v) => { update({ type: v as NomenclatureType }); handleChange() }}>
                         <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {Object.entries(NOMENCLATURE_TYPE_LABELS).map(([k, v]) => (
-                            <SelectItem key={k} value={k}>{v}</SelectItem>
-                          ))}
+                          {filtersLoading ? (
+                            <SelectItem value={f.type} disabled>Загрузка...</SelectItem>
+                          ) : (
+                            typeFieldMeta?.enumValues?.map(ev => (
+                              <SelectItem key={ev.value} value={ev.value}>{ev.label}</SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                     </div>

@@ -19,6 +19,7 @@ import { useCloseTab } from "@/hooks/useCloseTab"
 import { TabBar } from "./tab-bar"
 import { TabOverflow } from "./tab-overflow"
 import { OpenUrlPopover } from "./open-url-popover"
+import { NotificationBell } from "./notification-bell"
 
 /** Pending close state — single tab or batch (with dirty-tab list). */
 type PendingClose =
@@ -215,10 +216,11 @@ export function SiteHeader() {
                     onCloseRight={handleCloseRight}
                 />
 
-                {/* Tab overflow dropdown + Open URL button — outside scroll container */}
+                {/* Tab overflow dropdown + Open URL + Notification Bell */}
                 <TooltipProvider delayDuration={300}>
-                    <div className="flex shrink-0 items-end">
+                    <div className="flex shrink-0 items-center justify-end px-2 mb-1 gap-1">
                         <TabOverflow onTabClick={handleTabClick} onCloseAll={handleCloseAll} />
+                        <NotificationBell />
                         <OpenUrlPopover triggerRef={openUrlTriggerRef} />
                     </div>
                 </TooltipProvider>

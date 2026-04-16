@@ -133,7 +133,7 @@ func (h *EventLogHandler) List(c *gin.Context) {
 		PrevCursor: result.PrevCursor,
 		HasMore:    result.HasMore,
 		HasPrev:    result.HasPrev,
-		TotalCount: result.TotalCount,
+		TotalCount: &result.TotalCount,
 	})
 }
 

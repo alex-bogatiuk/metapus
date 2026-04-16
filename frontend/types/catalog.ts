@@ -14,15 +14,7 @@ export type NomenclatureType =
     | "semi"
     | "product"
 
-/** Labels for NomenclatureType values (for UI display). */
-export const NOMENCLATURE_TYPE_LABELS: Record<NomenclatureType, string> = {
-    goods: "Товар",
-    service: "Услуга",
-    work: "Работа",
-    material: "Материал",
-    semi: "Полуфабрикат",
-    product: "Продукция",
-}
+
 
 /** Attributes — arbitrary key-value map (mirrors entity.Attributes). */
 export type Attributes = Record<string, unknown>
@@ -111,22 +103,12 @@ export interface SetDeletionMarkRequest {
 /** Counterparty type enum — mirrors domain CounterpartyType. */
 export type CounterpartyType = "customer" | "supplier" | "both" | "other"
 
-export const COUNTERPARTY_TYPE_LABELS: Record<CounterpartyType, string> = {
-    customer: "Покупатель",
-    supplier: "Поставщик",
-    both: "Покупатель и Поставщик",
-    other: "Прочие",
-}
+
 
 /** Legal form enum — mirrors domain LegalForm. */
 export type LegalForm = "individual" | "sole_trader" | "company" | "government"
 
-export const LEGAL_FORM_LABELS: Record<LegalForm, string> = {
-    individual: "Физлицо",
-    sole_trader: "ИП",
-    company: "Юрлицо",
-    government: "Гос. орган",
-}
+
 
 /** Response DTO for a counterparty. */
 export interface CounterpartyResponse {
@@ -200,13 +182,7 @@ export interface UpdateCounterpartyRequest {
 /** Warehouse type enum — mirrors domain WarehouseType. */
 export type WarehouseType = "main" | "distribution" | "retail" | "production" | "transit"
 
-export const WAREHOUSE_TYPE_LABELS: Record<WarehouseType, string> = {
-    main: "Основной",
-    distribution: "Распределительный",
-    retail: "Розничный",
-    production: "Производственный",
-    transit: "Транзитный",
-}
+
 
 /** Response DTO for a warehouse. */
 export interface WarehouseResponse {
@@ -270,22 +246,12 @@ export type TaxSystem =
     | "envd"
     | "patent"
 
-export const TAX_SYSTEM_LABELS: Record<TaxSystem, string> = {
-    osno: "ОСНО",
-    usn_income: "УСН (доходы)",
-    usn_income_expense: "УСН (доходы − расходы)",
-    envd: "ЕНВД",
-    patent: "Патент",
-}
+
 
 /** Inventory method enum — mirrors domain InventoryMethod. */
 export type InventoryMethod = "fifo" | "average" | "specific"
 
-export const INVENTORY_METHOD_LABELS: Record<InventoryMethod, string> = {
-    fifo: "ФИФО",
-    average: "Средняя",
-    specific: "По партиям",
-}
+
 
 /** Response DTO for an organization. */
 export interface OrganizationResponse {
@@ -378,15 +344,7 @@ export interface UpdateOrganizationRequest {
 
 export type UnitType = "piece" | "weight" | "length" | "area" | "volume" | "time" | "pack"
 
-export const UNIT_TYPE_LABELS: Record<UnitType, string> = {
-    piece: "Штуки",
-    weight: "Вес",
-    length: "Длина",
-    area: "Площадь",
-    volume: "Объем",
-    time: "Время",
-    pack: "Упаковки",
-}
+
 
 export interface UnitResponse {
     id: string
@@ -472,11 +430,7 @@ export interface UpdateCurrencyRequest {
 
 export type ContractType = "supply" | "sale" | "other"
 
-export const CONTRACT_TYPE_LABELS: Record<ContractType, string> = {
-    supply: "С поставщиком",
-    sale: "С покупателем",
-    other: "Прочее",
-}
+
 
 export interface ContractResponse {
     id: string

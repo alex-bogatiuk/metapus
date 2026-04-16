@@ -425,6 +425,18 @@ export const api = {
             ),
     },
 
+    // ── Integrations ──────────────────────────────────────────────────
+    serviceAccounts: createCatalogApi<import("@/types/service-account").ServiceAccount, import("@/types/service-account").CreateServiceAccountRequest, import("@/types/service-account").UpdateServiceAccountRequest>("/system/service-accounts"),
+    
+    automationRules: {
+        ...createCatalogApi<import("@/types/automation").AutomationRule, import("@/types/automation").CreateAutomationRuleRequest, import("@/types/automation").UpdateAutomationRuleRequest>("/system/automation-rules"),
+        test: (id: string, data: import("@/types/automation").TestRuleRequest) =>
+            apiFetch<import("@/types/automation").TestRuleResponse>(`/system/automation-rules/${id}/test`, {
+                method: "POST",
+                body: JSON.stringify(data),
+            }),
+    },
+
     meta: {
         listEntities: () =>
             apiFetch<import("@/types/metadata").EntityMeta[]>("/meta/entities"),
@@ -616,6 +628,43 @@ export const api = {
                     method: "POST",
                     body: JSON.stringify({ items }),
                 }),
+        },
+        serviceAccounts: {
+            list: () =>
+                apiFetch<import("@/types/service-account").ServiceAccount[]>("/system/service-accounts"),
+            get: (id: string) =>
+                apiFetch<import("@/types/service-account").ServiceAccount>(`/system/service-accounts/${id}`),
+            create: (data: import("@/types/service-account").CreateServiceAccountRequest) =>
+                apiFetch<{ id: string }>("/system/service-accounts", {
+                    method: "POST",
+                    body: JSON.stringify(data),
+                }),
+            update: (id: string, data: import("@/types/service-account").UpdateServiceAccountRequest) =>
+                apiFetch<import("@/types/service-account").ServiceAccount>(`/system/service-accounts/${id}`, {
+                    method: "PUT",
+                    body: JSON.stringify(data),
+                }),
+            delete: (id: string) =>
+                apiFetch<void>(`/system/service-accounts/${id}`, { method: "DELETE" }),
+            updateCredentials: (id: string, credentials: string) =>
+                apiFetch<void>(`/system/service-accounts/${id}/credentials`, {
+                    method: "PUT",
+                    body: JSON.stringify({ credentials }),
+                }),
+            test: (id: string) =>
+                apiFetch<{ message?: string }>(`/system/service-accounts/${id}/test`, { method: "POST" }),
+        },
+        notifications: {
+            list: (params?: { limit?: number; unreadOnly?: boolean }) => {
+                const qs = new URLSearchParams()
+                if (params?.limit) qs.set("limit", params.limit.toString())
+                if (params?.unreadOnly) qs.set("unreadOnly", "true")
+                return apiFetch<import("@/types/notification").NotificationListResponse>(`/system/notifications?${qs.toString()}`)
+            },
+            markAsRead: (id: string) =>
+                apiFetch<void>(`/system/notifications/${id}/read`, { method: "PUT" }),
+            markAllAsRead: () =>
+                apiFetch<void>(`/system/notifications/mark-all-read`, { method: "PUT" }),
         },
     },
 

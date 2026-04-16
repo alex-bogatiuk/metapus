@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -13,8 +14,11 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"metapus/internal/core/automation"
+	"metapus/internal/core/automation/adapters"
 	"metapus/internal/core/tenant"
 	"metapus/internal/infrastructure/storage/postgres"
+	ws "metapus/internal/infrastructure/websocket"
 	"metapus/pkg/logger"
 )
 
@@ -180,6 +184,17 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 
 	txManager := postgres.NewTxManagerFromRawPool(mp.Pool())
 
+	// Initialize automation engine ONCE per tenant worker lifecycle.
+	// All repos are stateless (they extract pool from ctx), so reuse is safe.
+	engine, err := w.buildAutomationEngine()
+	if err != nil {
+		w.log.Errorw("failed to initialize automation engine", "tenant_id", t.ID, "error", err)
+		return
+	}
+
+	handler := &automationOutboxHandler{engine: engine, log: w.log}
+	relay := postgres.NewOutboxRelay(mp.Pool(), 100, handler)
+
 	pollInterval := 500 * time.Millisecond
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
@@ -187,44 +202,58 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 	cleanupTicker := time.NewTicker(1 * time.Hour)
 	defer cleanupTicker.Stop()
 
+	// Suppress unused variable
+	_ = txManager
+
 	for {
 		select {
 		case <-ctx.Done():
 			w.log.Infow("stopping worker for tenant", "tenant_id", t.ID)
 			return
 		case <-ticker.C:
-			w.processOutbox(ctx, mp.Pool(), txManager, t.ID)
+			processed, err := relay.ProcessBatch(ctx)
+			if err != nil {
+				w.log.Errorw("failed to process outbox batch", "tenant_id", t.ID, "error", err)
+			} else if processed > 0 {
+				w.log.Debugw("processed outbox batch", "tenant_id", t.ID, "count", processed)
+			}
 		case <-cleanupTicker.C:
 			w.cleanupSessions(ctx, mp.Pool(), t.ID)
 			w.cleanupIdempotency(ctx, mp.Pool(), t.ID)
+			w.cleanupAutomationHistory(ctx, mp.Pool(), t.ID)
+			w.cleanupNotifications(ctx, mp.Pool(), t.ID)
 		}
 	}
 }
 
-func (w *MultiTenantWorker) processOutbox(ctx context.Context, pool *pgxpool.Pool, txManager *postgres.TxManager, tenantID string) {
-	rows, err := pool.Query(ctx, `
-		SELECT id, aggregate_type, aggregate_id, event_type, payload, created_at
-		FROM sys_outbox
-		WHERE status = 'pending'
-		ORDER BY created_at
-		LIMIT 100
-		FOR UPDATE SKIP LOCKED
-	`)
-	if err != nil {
-		w.log.Debugw("outbox query failed (table may not exist)", "tenant_id", tenantID)
-		return
-	}
-	defer rows.Close()
+// buildAutomationEngine creates a reusable Engine with all adapters.
+func (w *MultiTenantWorker) buildAutomationEngine() (*automation.Engine, error) {
+	ruleRepo := postgres.NewAutomationRuleRepo()
+	accountRepo := postgres.NewServiceAccountRepo()
+	historyRepo := postgres.NewAutomationHistoryRepo()
 
-	count := 0
-	for rows.Next() {
-		count++
-		// Process each message - implement actual processing logic here
+	adapterMap := map[string]automation.Adapter{
+		"webhook":  automation.NewWebhookAdapter(),
+		"telegram": automation.NewTelegramAdapter(),
+		adapters.InternalNotificationProvider: adapters.NewInternalNotificationAdapter(postgres.NewNotificationRepo(), ws.GlobalHub),
 	}
 
-	if count > 0 {
-		w.log.Debugw("processed outbox batch", "tenant_id", tenantID, "count", count)
+	return automation.NewEngine(ruleRepo, historyRepo, accountRepo, accountRepo, adapterMap)
+}
+
+type automationOutboxHandler struct {
+	engine *automation.Engine
+	log    *logger.Logger
+}
+
+func (h *automationOutboxHandler) Handle(ctx context.Context, msg *postgres.OutboxMessage) error {
+	var payload map[string]any
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		h.log.Errorw("failed to unmarshal outbox payload", "error", err, "msg_id", msg.ID)
+		// Returning error will make it fail. If payload is garbage, we should just drop it or fail it permanently.
+		return fmt.Errorf("unmarshal payload: %w", err)
 	}
+	return h.engine.HandleEvent(ctx, msg.EventType, payload)
 }
 
 func (w *MultiTenantWorker) cleanupSessions(ctx context.Context, pool *pgxpool.Pool, tenantID string) {
@@ -252,6 +281,36 @@ func (w *MultiTenantWorker) cleanupIdempotency(ctx context.Context, pool *pgxpoo
 
 	if result.RowsAffected() > 0 {
 		w.log.Infow("cleaned up idempotency keys", "tenant_id", tenantID, "count", result.RowsAffected())
+	}
+}
+
+func (w *MultiTenantWorker) cleanupAutomationHistory(ctx context.Context, pool *pgxpool.Pool, tenantID string) {
+	result, err := pool.Exec(ctx, `
+		DELETE FROM sys_automation_history 
+		WHERE created_at < NOW() - INTERVAL '30 days'
+	`)
+	if err != nil {
+		w.log.Errorw("failed to cleanup automation history", "tenant_id", tenantID, "error", err)
+		return
+	}
+
+	if result.RowsAffected() > 0 {
+		w.log.Infow("cleaned up automation history", "tenant_id", tenantID, "count", result.RowsAffected())
+	}
+}
+
+func (w *MultiTenantWorker) cleanupNotifications(ctx context.Context, pool *pgxpool.Pool, tenantID string) {
+	result, err := pool.Exec(ctx, `
+		DELETE FROM sys_notifications 
+		WHERE is_read = true AND created_at < NOW() - INTERVAL '30 days'
+	`)
+	if err != nil {
+		w.log.Errorw("failed to cleanup notifications", "tenant_id", tenantID, "error", err)
+		return
+	}
+
+	if result.RowsAffected() > 0 {
+		w.log.Infow("cleaned up old read notifications", "tenant_id", tenantID, "count", result.RowsAffected())
 	}
 }
 

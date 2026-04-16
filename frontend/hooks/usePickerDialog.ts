@@ -207,7 +207,7 @@ export function usePickerDialog({
             )
             const fetchedItems = result.items ?? []
             setItems(fetchedItems)
-            setTotalCount(result.totalCount)
+            setTotalCount(result.totalCount ?? 0)
             setHasMore(result.hasMore)
             setNextCursor(result.nextCursor ?? null)
 

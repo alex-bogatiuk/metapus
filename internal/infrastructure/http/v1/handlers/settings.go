@@ -66,7 +66,7 @@ func (h *SettingsHandler) UpdateSection(c *gin.Context) {
 		return
 	}
 
-	if req.Data == nil || len(req.Data) == 0 {
+	if len(req.Data) == 0 {
 		h.Error(c, apperror.NewValidation("data field is required"))
 		return
 	}

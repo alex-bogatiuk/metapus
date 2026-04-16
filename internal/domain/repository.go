@@ -47,6 +47,12 @@ type ListFilter struct {
 	// When set, repositories use it to add WHERE conditions limiting
 	// visibility by organization_id, counterparty_id, etc.
 	DataScope *security.DataScope
+
+	// SkipCount controls whether the repository should skip COUNT(*).
+	// Default false = always count (backwards-compatible).
+	// When true, TotalCount in the result will be nil (unknown).
+	// Frontend uses this to skip expensive COUNT on sort-only changes.
+	SkipCount bool
 }
 
 // DefaultListFilter returns sensible defaults.
@@ -65,7 +71,9 @@ type CursorListResult[T any] struct {
 	HasMore     bool   `json:"hasMore"`
 	HasPrev     bool   `json:"hasPrev"`
 	TargetIndex *int   `json:"targetIndex,omitempty"`
-	TotalCount  int64  `json:"totalCount"`
+	// TotalCount is the total number of matching records.
+	// nil means COUNT was skipped (SkipCount=true or cursor-based navigation).
+	TotalCount *int64 `json:"totalCount"`
 }
 
 // --- Repository Interfaces ---

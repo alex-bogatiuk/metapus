@@ -5,11 +5,12 @@ import { CatalogListPage } from "@/components/shared/catalog-list-page"
 import type { Column } from "@/components/shared/data-table"
 import { api } from "@/lib/api"
 import type { WarehouseResponse } from "@/types/catalog"
-import { WAREHOUSE_TYPE_LABELS } from "@/types/catalog"
+import { useEnumFormatter } from "@/hooks/useEntityFiltersMeta"
+import { useMemo } from "react"
 
 // ── Columns ─────────────────────────────────────────────────────────────
 
-const ALL_COLUMNS: Column<WarehouseResponse>[] = [
+const ALL_COLUMNS = (formatEnum: (k: string, v: string) => string): Column<WarehouseResponse>[] => [
   {
     key: "code",
     label: "Код",
@@ -32,7 +33,7 @@ const ALL_COLUMNS: Column<WarehouseResponse>[] = [
     sortable: true,
     render: (item) => (
       <Badge variant="outline" className="text-[10px]">
-        {WAREHOUSE_TYPE_LABELS[item.type] ?? item.type}
+        {formatEnum("type", item.type)}
       </Badge>
     ),
   },
@@ -95,6 +96,9 @@ const DEFAULT_VISIBLE_KEYS = ["code", "name", "type", "isActive", "address"]
 // ── Page ────────────────────────────────────────────────────────────────
 
 export default function WarehousesListPage() {
+  const formatEnum = useEnumFormatter("Warehouse")
+  const columns = useMemo(() => ALL_COLUMNS(formatEnum), [formatEnum])
+
   return (
     <CatalogListPage
       config={{
@@ -102,8 +106,8 @@ export default function WarehousesListPage() {
         entityKey: "warehouse",
         createHref: "/catalogs/warehouses/new",
         editHref: (item) => `/catalogs/warehouses/${item.id}`,
-        columns: ALL_COLUMNS,
-        allColumns: ALL_COLUMNS,
+        columns: columns,
+        allColumns: columns,
         defaultVisibleKeys: DEFAULT_VISIBLE_KEYS,
         fetcher: api.warehouses.list,
         emptyMessage: "Нет складов. Создайте первый.",

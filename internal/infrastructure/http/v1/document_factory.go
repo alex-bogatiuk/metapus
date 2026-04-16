@@ -23,6 +23,7 @@ type DocumentDeps struct {
 	CurrencyResolver domain.CurrencyResolveStrategy
 	PolicyEngine     *security.PolicyEngine
 	EventWriter      eventlog.Writer // optional — nil disables event logging
+	OutboxPublisher  domain.OutboxPublisher // optional — nil disables outbox events
 	PrintRegistry    *printing.PrintFormRegistry
 	PrintRenderer    *printing.Renderer      // nil disables print route
 	RelatedDocFinder domain.RelatedDocFinder // optional — nil disables related documents route

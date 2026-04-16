@@ -63,7 +63,7 @@ type CursorListResponse struct {
 	HasMore     bool   `json:"hasMore"`
 	HasPrev     bool   `json:"hasPrev"`
 	TargetIndex *int   `json:"targetIndex,omitempty"`
-	TotalCount  int64  `json:"totalCount"`
+	TotalCount  *int64 `json:"totalCount"`
 }
 
 // GenericListResponse wraps list results with pagination (generic version).

@@ -15,9 +15,9 @@ import {
 } from "@/components/ui/select"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useCatalogForm } from "@/hooks/useCatalogForm"
+import { useEntityFiltersMeta } from "@/hooks/useEntityFiltersMeta"
 import { api } from "@/lib/api"
 import type { CounterpartyResponse, CounterpartyType, LegalForm } from "@/types/catalog"
-import { COUNTERPARTY_TYPE_LABELS, LEGAL_FORM_LABELS } from "@/types/catalog"
 
 interface CounterpartyEditState {
   name: string
@@ -59,6 +59,9 @@ const INITIAL_STATE: CounterpartyEditState = {
 export default function EditCounterpartyPage() {
   const router = useRouter()
   const params = useParams<{ id: string }>()
+  const { fieldsMeta, loading: filtersLoading } = useEntityFiltersMeta("Counterparty")
+  const typeFieldMeta = fieldsMeta.find((f) => f.key === "type")
+  const legalFormFieldMeta = fieldsMeta.find((f) => f.key === "legalForm")
   const { f, update, handleChange, handleSave, saving, error, loading, deletionMark, entityLabel } = useCatalogForm({
     entityName: "Контрагент",
     entityKey: "counterparty",
@@ -159,9 +162,13 @@ export default function EditCounterpartyPage() {
               <Select value={f.type} onValueChange={(v) => { update({ type: v as CounterpartyType }); handleChange() }}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {Object.entries(COUNTERPARTY_TYPE_LABELS).map(([k, label]) => (
-                    <SelectItem key={k} value={k}>{label}</SelectItem>
-                  ))}
+                  {filtersLoading ? (
+                    <SelectItem value={f.type} disabled>Загрузка...</SelectItem>
+                  ) : (
+                    typeFieldMeta?.enumValues?.map(ev => (
+                      <SelectItem key={ev.value} value={ev.value}>{ev.label}</SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -170,9 +177,13 @@ export default function EditCounterpartyPage() {
               <Select value={f.legalForm} onValueChange={(v) => { update({ legalForm: v as LegalForm }); handleChange() }}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {Object.entries(LEGAL_FORM_LABELS).map(([k, label]) => (
-                    <SelectItem key={k} value={k}>{label}</SelectItem>
-                  ))}
+                  {filtersLoading ? (
+                    <SelectItem value={f.legalForm} disabled>Загрузка...</SelectItem>
+                  ) : (
+                    legalFormFieldMeta?.enumValues?.map(ev => (
+                      <SelectItem key={ev.value} value={ev.value}>{ev.label}</SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>

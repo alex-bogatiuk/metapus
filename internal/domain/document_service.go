@@ -571,7 +571,10 @@ func (s *BaseDocumentService[T, L]) List(ctx context.Context, filter ListFilter)
 	// Apply CEL read rules to filter out denied documents
 	filtered, removed := security.FilterByReadPolicy(ctx, s.PolicyEngine, s.EntityName, result.Items)
 	result.Items = filtered
-	result.TotalCount -= int64(removed)
+	if result.TotalCount != nil && removed > 0 {
+		adjusted := *result.TotalCount - int64(removed)
+		result.TotalCount = &adjusted
+	}
 
 	return result, nil
 }

@@ -15,10 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  TAX_SYSTEM_LABELS,
-  INVENTORY_METHOD_LABELS,
-} from "@/types/catalog"
+import { useEntityFiltersMeta } from "@/hooks/useEntityFiltersMeta"
 import type { TaxSystem, InventoryMethod } from "@/types/catalog"
 
 // ── Shared form state ────────────────────────────────────────────────────
@@ -122,6 +119,10 @@ interface OrganizationFormTabsProps {
 }
 
 export function OrganizationFormTabs({ f, update, onChange }: OrganizationFormTabsProps) {
+  const { fieldsMeta, loading: filtersLoading } = useEntityFiltersMeta("Organization")
+  const taxSystemFieldMeta = fieldsMeta.find((f) => f.key === "taxSystem")
+  const inventoryMethodFieldMeta = fieldsMeta.find((f) => f.key === "inventoryMethod")
+
   const set = (patch: Partial<OrganizationFormState>) => {
     update(patch)
     onChange()
@@ -191,9 +192,13 @@ export function OrganizationFormTabs({ f, update, onChange }: OrganizationFormTa
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(TAX_SYSTEM_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
-                ))}
+                {filtersLoading ? (
+                  <SelectItem value={f.taxSystem} disabled>Загрузка...</SelectItem>
+                ) : (
+                  taxSystemFieldMeta?.enumValues?.map(ev => (
+                    <SelectItem key={ev.value} value={ev.value}>{ev.label}</SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -206,9 +211,13 @@ export function OrganizationFormTabs({ f, update, onChange }: OrganizationFormTa
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(INVENTORY_METHOD_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
-                ))}
+                {filtersLoading ? (
+                  <SelectItem value={f.inventoryMethod} disabled>Загрузка...</SelectItem>
+                ) : (
+                  inventoryMethodFieldMeta?.enumValues?.map(ev => (
+                    <SelectItem key={ev.value} value={ev.value}>{ev.label}</SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>

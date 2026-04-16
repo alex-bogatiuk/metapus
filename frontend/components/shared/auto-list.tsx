@@ -141,7 +141,7 @@ export default function AutoList({ entityName, entityType, routePrefix }: AutoLi
                 `${basePath}?${params.toString()}`
             )
             setItems(result.items ?? [])
-            setTotalCount(result.totalCount)
+            setTotalCount(result.totalCount ?? 0)
             setHasMore(result.hasMore)
             setHasPrev(result.hasPrev)
             setNextCursor(result.nextCursor ?? null)

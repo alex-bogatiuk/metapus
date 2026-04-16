@@ -828,7 +828,7 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) streamBatchAction(
 // writeSSE writes a single SSE event to the response stream and flushes.
 func writeSSE(c *gin.Context, event sseEvent) {
 	data, _ := json.Marshal(event)
-	fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+	_, _ = fmt.Fprintf(c.Writer, "data: %s\n\n", data)
 	c.Writer.Flush()
 }
 

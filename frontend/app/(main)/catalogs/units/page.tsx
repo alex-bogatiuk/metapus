@@ -5,11 +5,12 @@ import { CatalogListPage } from "@/components/shared/catalog-list-page"
 import type { Column } from "@/components/shared/data-table"
 import { api } from "@/lib/api"
 import type { UnitResponse } from "@/types/catalog"
-import { UNIT_TYPE_LABELS } from "@/types/catalog"
+import { useEnumFormatter } from "@/hooks/useEntityFiltersMeta"
+import { useMemo } from "react"
 
 // ── Columns ─────────────────────────────────────────────────────────────
 
-const ALL_COLUMNS: Column<UnitResponse>[] = [
+const ALL_COLUMNS = (formatEnum: (k: string, v: string) => string): Column<UnitResponse>[] => [
   {
     key: "code",
     label: "Код",
@@ -32,7 +33,7 @@ const ALL_COLUMNS: Column<UnitResponse>[] = [
     sortable: true,
     render: (item) => (
       <Badge variant="outline" className="text-[10px]">
-        {UNIT_TYPE_LABELS[item.type] ?? item.type}
+        {formatEnum("type", item.type)}
       </Badge>
     ),
   },
@@ -77,6 +78,9 @@ const DEFAULT_VISIBLE_KEYS = ["code", "name", "type", "symbol", "isBase"]
 // ── Page ────────────────────────────────────────────────────────────────
 
 export default function UnitsListPage() {
+  const formatEnum = useEnumFormatter("Unit")
+  const columns = useMemo(() => ALL_COLUMNS(formatEnum), [formatEnum])
+
   return (
     <CatalogListPage
       config={{
@@ -84,8 +88,8 @@ export default function UnitsListPage() {
         entityKey: "unit",
         createHref: "/catalogs/units/new",
         editHref: (item) => `/catalogs/units/${item.id}`,
-        columns: ALL_COLUMNS,
-        allColumns: ALL_COLUMNS,
+        columns: columns,
+        allColumns: columns,
         defaultVisibleKeys: DEFAULT_VISIBLE_KEYS,
         fetcher: api.units.list,
         emptyMessage: "Нет единиц измерения. Создайте первую.",

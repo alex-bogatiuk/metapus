@@ -320,10 +320,10 @@ export function AccessMatrix() {
         </div>
 
         {/* Matrix */}
-        <ScrollArea className="rounded-md border max-h-[calc(100vh-220px)]">
-          <table className="w-full text-xs border-collapse">
+        <ScrollArea className="rounded-md border h-[calc(100vh-260px)] min-h-[400px] w-full">
+          <table className="w-full text-xs border-collapse min-w-[max-content]">
             {/* Sticky header */}
-            <thead className="sticky top-0 z-20">
+            <thead className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm shadow-sm">
               <tr className="bg-muted/60 backdrop-blur-sm border-b">
                 <th className="px-3 py-2.5 text-left text-[11px] font-medium text-muted-foreground sticky left-0 z-30 bg-muted/60 backdrop-blur-sm min-w-[200px] border-r">
                   Сущность

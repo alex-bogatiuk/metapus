@@ -16,7 +16,7 @@ import type { AdvancedFilterItem } from "@/types/common"
 
 interface ListResponse<T> {
   items: T[]
-  totalCount?: number
+  totalCount?: number | null
   nextCursor?: string
   prevCursor?: string
   hasMore?: boolean
@@ -33,6 +33,7 @@ interface EntityListApi<T> {
     after?: string
     before?: string
     around?: string
+    skipCount?: boolean
   }) => Promise<ListResponse<T>>
 }
 
@@ -170,11 +171,32 @@ export function useEntityListPage<T extends { id: string }>(
   const showDeletedRef = useRef(showDeleted)
   showDeletedRef.current = showDeleted
 
+  // ── Filter fingerprint (for skipCount optimization) ──────────────────
+  // Tracks a deterministic hash of {filterValues, showDeleted}.
+  // When only sort changes, fingerprint stays the same → skipCount=true.
+  const filterFingerprintRef = useRef<string>("")
+
+  const computeFingerprint = useCallback((filterValues: FilterValues, deleted: boolean): string => {
+    const entries = Object.entries(filterValues)
+      .filter(([, v]) => v !== undefined && v !== null)
+      .sort(([a], [b]) => a.localeCompare(b))
+    return JSON.stringify([entries, deleted])
+  }, [])
+
   // ── Fetch ────────────────────────────────────────────────────────────
   const fetchData = useCallback(
-    async (filterValues?: FilterValues) => {
+    async (filterValues?: FilterValues, opts?: { skipCount?: boolean }) => {
       setLoading(true)
       setError(null)
+
+      // Compute fingerprint and decide whether to skip COUNT
+      const currentFP = computeFingerprint(filterValues ?? {}, showDeletedRef.current)
+      const shouldSkipCount = opts?.skipCount ?? false
+      // If fingerprint changed → must recount. Otherwise respect caller's hint.
+      const fpChanged = currentFP !== filterFingerprintRef.current
+      filterFingerprintRef.current = currentFP
+      const skipCount = fpChanged ? false : shouldSkipCount
+
       try {
         const advancedFilters = filterValues
           ? buildFilterItems(filterValues, fieldsMeta, periodField)
@@ -184,11 +206,15 @@ export function useEntityListPage<T extends { id: string }>(
           orderBy: orderByRef.current,
           filter: advancedFilters.length > 0 ? advancedFilters : undefined,
           includeDeleted: showDeletedRef.current || undefined,
+          skipCount: skipCount || undefined,
         })
         setItems(res.items ?? [])
         setHasMore(res.hasMore ?? false)
         setHasPrev(res.hasPrev ?? false)
-        setTotalCount(res.totalCount ?? 0)
+        // Only update totalCount when backend actually returned it
+        if (res.totalCount != null) {
+          setTotalCount(res.totalCount)
+        }
         setTargetIndex(null)
         nextCursorRef.current = res.nextCursor
         prevCursorRef.current = res.prevCursor
@@ -201,7 +227,7 @@ export function useEntityListPage<T extends { id: string }>(
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [entityApi, fieldsMeta, periodField, limit, setItems, setHasMore, setHasPrev, setTotalCount],
+    [entityApi, fieldsMeta, periodField, limit, computeFingerprint, setItems, setHasMore, setHasPrev, setTotalCount],
   )
 
   // ── Init (wait for prefs) ────────────────────────────────────────────
@@ -228,7 +254,9 @@ export function useEntityListPage<T extends { id: string }>(
           setItems(res.items ?? [])
           setHasMore(res.hasMore ?? false)
           setHasPrev(res.hasPrev ?? false)
-          setTotalCount(res.totalCount ?? 0)
+          if (res.totalCount != null) {
+            setTotalCount(res.totalCount)
+          }
           setTargetIndex(res.targetIndex ?? null)
           nextCursorRef.current = res.nextCursor
           prevCursorRef.current = res.prevCursor
@@ -348,7 +376,8 @@ export function useEntityListPage<T extends { id: string }>(
     prevCursorRef.current = undefined
     setTabCache("nextCursor", undefined)
     setTabCache("prevCursor", undefined)
-    fetchData(filterValuesRef.current)
+    // Sort change doesn't affect total count → hint to skip COUNT
+    fetchData(filterValuesRef.current, { skipCount: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderBy, fetchData])
 

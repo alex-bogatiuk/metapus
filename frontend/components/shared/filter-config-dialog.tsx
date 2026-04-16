@@ -62,6 +62,8 @@ export interface FilterFieldMeta {
     refFields?: FilterFieldMeta[]
     /** Storage multiplier for scaled numeric types (e.g. 10000 for Quantity, 100 for Money). 0 = no scaling. */
     valueScale?: number
+    /** Dropdown values (value, label) for enum types */
+    enumValues?: { value: string; label: string }[]
 }
 
 interface FilterConfigDialogProps {

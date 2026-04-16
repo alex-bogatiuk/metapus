@@ -37,6 +37,8 @@ export interface UseCursorListReturn<T> {
     includeDeleted?: boolean
     orderBy?: string
     search?: string
+    /** Skip COUNT(*) — use when only sort changed and totalCount is still valid. */
+    skipCount?: boolean
   }) => Promise<void>
   /** Teleport to a specific item by ID. */
   loadAround: (targetId: string) => Promise<void>
@@ -91,8 +93,8 @@ export function useCursorList<T>(
     setHasPrev(res.hasPrev)
     setTargetIndex(res.targetIndex ?? null)
 
-    if (mode === "replace") {
-      // First page — totalCount is set by backend
+    if (mode === "replace" && res.totalCount != null) {
+      // First page — totalCount is set by backend (only when not skipped)
       setTotalCount(res.totalCount)
       nextCursorRef.current = res.nextCursor
       prevCursorRef.current = res.prevCursor
@@ -111,14 +113,15 @@ export function useCursorList<T>(
     includeDeleted?: boolean
     orderBy?: string
     search?: string
+    skipCount?: boolean
   }) => {
-    const p = params ?? {}
-    currentParamsRef.current = p
+    const { skipCount, ...filterParams } = params ?? {}
+    currentParamsRef.current = filterParams
     setLoading(true)
     setError(null)
     setTargetIndex(null)
     try {
-      const res = await fetcher({ limit, ...p })
+      const res = await fetcher({ limit, ...filterParams, skipCount })
       applyResult(res, "replace")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка загрузки")

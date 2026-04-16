@@ -361,17 +361,21 @@ func (r *BaseCatalogRepo[T]) List(ctx context.Context, f domain.ListFilter) (dom
 		}
 	}
 
-	// First page (no cursor) — count total + forward from start
-	countQ := r.Builder().Select("COUNT(*)").From(r.tableName)
-	for _, cond := range conditions {
-		countQ = countQ.Where(cond)
-	}
-	countSQL, countArgs, err := countQ.ToSql()
-	if err != nil {
-		return result, fmt.Errorf("build count: %w", err)
-	}
-	if err := querier.QueryRow(ctx, countSQL, countArgs...).Scan(&result.TotalCount); err != nil {
-		return result, fmt.Errorf("count: %w", err)
+	// First page (no cursor) — count total (unless skipped) + forward from start
+	if !f.SkipCount {
+		countQ := r.Builder().Select("COUNT(*)").From(r.tableName)
+		for _, cond := range conditions {
+			countQ = countQ.Where(cond)
+		}
+		countSQL, countArgs, err := countQ.ToSql()
+		if err != nil {
+			return result, fmt.Errorf("build count: %w", err)
+		}
+		var total int64
+		if err := querier.QueryRow(ctx, countSQL, countArgs...).Scan(&total); err != nil {
+			return result, fmt.Errorf("count: %w", err)
+		}
+		result.TotalCount = &total
 	}
 
 	// Fetch limit+1 rows to detect hasMore

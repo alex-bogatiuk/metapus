@@ -14,9 +14,9 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { useTabDirty } from "@/hooks/useTabDirty"
 import { useFormDraft } from "@/hooks/useFormDraft"
 import { useMetadataStore } from "@/stores/useMetadataStore"
+import { useEntityFiltersMeta } from "@/hooks/useEntityFiltersMeta"
 import { api } from "@/lib/api"
 import type { NomenclatureType, CreateNomenclatureRequest } from "@/types/catalog"
-import { NOMENCLATURE_TYPE_LABELS } from "@/types/catalog"
 
 interface NomenclatureFormState {
   name: string
@@ -60,6 +60,9 @@ export default function NewNomenclaturePage() {
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const { fieldsMeta, loading: filtersLoading } = useEntityFiltersMeta("Nomenclature")
+  const typeFieldMeta = fieldsMeta.find((f) => f.key === "type")
 
   const handleChange = () => markDirty()
 
@@ -153,9 +156,13 @@ export default function NewNomenclaturePage() {
                     <Select value={f.type} onValueChange={(v) => { update({ type: v as NomenclatureType }); handleChange() }}>
                       <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {Object.entries(NOMENCLATURE_TYPE_LABELS).map(([k, v]) => (
-                          <SelectItem key={k} value={k}>{v}</SelectItem>
-                        ))}
+                        {filtersLoading ? (
+                          <SelectItem value={f.type} disabled>Загрузка...</SelectItem>
+                        ) : (
+                          typeFieldMeta?.enumValues?.map(ev => (
+                            <SelectItem key={ev.value} value={ev.value}>{ev.label}</SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   </div>

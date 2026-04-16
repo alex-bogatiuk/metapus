@@ -183,10 +183,179 @@ StructToMap → filter (exclude id, version)
 → ErrNoRows → ConcurrentModification (409)
 ```
 
-### List (с пагинацией и фильтрацией)
-- WHERE: search, parentId, isFolder, deletionMark, advancedFilters
-- ORDER BY, LIMIT, OFFSET
-- COUNT(*) для totalCount (отдельный запрос)
+### List (курсорная пагинация с бесконечным скроллом)
+
+Списки используют **курсорную пагинацию** (keyset pagination) вместо OFFSET/LIMIT.
+Это обеспечивает стабильную производительность на больших объёмах данных и корректное
+поведение при параллельных вставках/удалениях.
+
+#### Общая архитектура
+
+```
+Frontend (useEntityListPage)          Backend (BaseCatalogRepo / BaseDocumentRepo)
+┌──────────────────────────┐          ┌──────────────────────────────────────────┐
+│ 1. Initial load:         │          │                                          │
+│    GET ?limit=100        │────────► │ SELECT ... WHERE ... ORDER BY           │
+│                          │          │ + COUNT(*) → totalCount                  │
+│                          │ ◄────────│ → items + nextCursor + totalCount       │
+│                          │          │                                          │
+│ 2. Scroll down:          │          │                                          │
+│    GET ?after=<cursor>   │────────► │ SELECT ... WHERE (col,id)>(v1,v2)       │
+│                          │ ◄────────│ → items + nextCursor  (NO COUNT)        │
+│                          │          │                                          │
+│ 3. Sort change:          │          │                                          │
+│    GET ?orderBy=name     │          │                                          │
+│    &skipCount=true       │────────► │ SELECT ... ORDER BY name               │
+│                          │ ◄────────│ → items + nextCursor  (NO COUNT)        │
+│                          │          │                                          │
+│ 4. Filter change:        │          │                                          │
+│    GET ?filter=[...]     │────────► │ SELECT ... WHERE <filters>              │
+│                          │          │ + COUNT(*) → totalCount                  │
+│                          │ ◄────────│ → items + nextCursor + totalCount       │
+└──────────────────────────┘          └──────────────────────────────────────────┘
+```
+
+#### Курсоры
+
+Курсор — base64-encoded JSON с последним значением сортировки и ID:
+```json
+{"v":["code","id"],"d":["NM-GEN-100","019d8ae1-dbc6-7e5b-..."]}
+```
+
+Навигация по курсорам:
+- `?after=<cursor>` — загрузить следующую страницу (scroll down)
+- `?before=<cursor>` — загрузить предыдущую страницу (scroll up)
+- `?around=<id>` — телепортация к конкретному элементу (например, «показать в списке» из формы)
+
+При cursor-запросах (`after`/`before`) COUNT(\*) **никогда не выполняется** — это основа
+производительности бесконечного скролла.
+
+#### Оптимизация подсчёта — `skipCount`
+
+`COUNT(*)` — дорогая операция на больших таблицах. Система оптимизирует её через параметр
+`?skipCount=true`, который позволяет пропустить подсчёт общего количества записей.
+
+**Backend:**
+
+```go
+// domain/repository.go
+type ListFilter struct {
+    // ...
+    SkipCount bool  // Если true — COUNT(*) не выполняется
+}
+
+type CursorListResult[T any] struct {
+    Items      []T
+    TotalCount *int64  // nil = подсчёт был пропущен
+    // ...
+}
+```
+
+```go
+// catalog_repo/base.go — условный COUNT
+if !f.SkipCount && f.After == "" && f.Before == "" {
+    err := countQuery.RunWith(querier).QueryRowContext(ctx).Scan(&totalCount)
+    result.TotalCount = &totalCount
+}
+// Если SkipCount=true или cursor-запрос → TotalCount остаётся nil
+```
+
+Параметр `?skipCount=true` парсится в `BaseHandler.ParseListFilter()`.
+
+**Frontend — Filter Fingerprint:**
+
+Фронтенд использует **filter fingerprint** — детерминированный хеш текущих фильтров —
+чтобы определить, нужен ли пересчёт:
+
+```typescript
+// hooks/useEntityListPage.ts
+const computeFingerprint = (filterValues, showDeleted) => {
+  const entries = Object.entries(filterValues)
+    .filter(([, v]) => v !== undefined && v !== null)
+    .sort(([a], [b]) => a.localeCompare(b))
+  return JSON.stringify([entries, showDeleted])
+}
+```
+
+| Триггер | Fingerprint изм.? | skipCount | COUNT(\*) |
+|---------|-------------------|-----------|-----------|
+| Начальная загрузка | да (пустой → начальный) | `false` | ✅ выполняется |
+| Смена фильтра | да | `false` | ✅ выполняется |
+| Переключение «Показать удалённые» | да | `false` | ✅ выполняется |
+| Смена сортировки | **нет** | `true` | ❌ пропускается |
+| Scroll down/up (cursor) | — | — | ❌ пропускается |
+
+**Nullable totalCount:**
+
+Тип `TotalCount` — указатель `*int64` (Go) / `number | null` (TypeScript).
+Когда COUNT пропущен, API возвращает `"totalCount": null`. Фронтенд сохраняет
+предыдущее значение `totalCount` и не обнуляет его:
+
+```typescript
+// applyResult в useCursorList / useEntityListPage
+if (res.totalCount != null) {
+  setTotalCount(res.totalCount)
+}
+// Если null — totalCount остаётся прежним
+```
+
+#### API ответ — `CursorListResponse`
+
+```json
+{
+  "items": [...],
+  "nextCursor": "base64...",
+  "prevCursor": "base64...",
+  "hasMore": true,
+  "hasPrev": false,
+  "totalCount": 300,
+  "targetIndex": null
+}
+```
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `items` | `T[]` | Элементы текущей страницы |
+| `nextCursor` | `string?` | Курсор для следующей страницы |
+| `prevCursor` | `string?` | Курсор для предыдущей страницы |
+| `hasMore` | `bool` | Есть ли ещё записи вперёд |
+| `hasPrev` | `bool` | Есть ли записи назад |
+| `totalCount` | `int \| null` | Общее кол-во записей (null = COUNT пропущен) |
+| `targetIndex` | `int?` | Индекс целевого элемента при `?around=` |
+
+#### Frontend-хуки
+
+| Хук | Назначение |
+|-----|-----------|
+| `useCursorList` | Low-level хук: items, loadMore, loadPrev, reset, loadAround |
+| `useEntityListPage` | High-level хук: фильтры, сортировка, selection, fingerprint, skipCount |
+
+#### SQL (пример)
+
+```sql
+-- Первая страница (no cursor, no skipCount)
+SELECT id, code, name, ... FROM cat_nomenclature
+WHERE deletion_mark = false
+ORDER BY name ASC, id ASC
+LIMIT 101;                         -- limit+1 для определения hasMore
+
+SELECT COUNT(*) FROM cat_nomenclature WHERE deletion_mark = false;
+
+-- Scroll down (after cursor)
+SELECT id, code, name, ... FROM cat_nomenclature
+WHERE deletion_mark = false
+  AND (name, id) > ('Бумага...', '019d8ae1-...')   -- keyset condition
+ORDER BY name ASC, id ASC
+LIMIT 101;
+-- COUNT НЕ выполняется
+
+-- Sort change (skipCount=true)
+SELECT id, code, name, ... FROM cat_nomenclature
+WHERE deletion_mark = false
+ORDER BY code ASC, id ASC
+LIMIT 101;
+-- COUNT НЕ выполняется (skipCount=true)
+```
 
 ### Delete (soft)
 ```sql

@@ -671,15 +671,6 @@ function OrderTab({
 
 // ── Product Row ─────────────────────────────────────────────────────────
 
-const NOMENCLATURE_TYPE_LABELS: Record<string, string> = {
-    goods: "Товар",
-    service: "Услуга",
-    work: "Работа",
-    material: "Материал",
-    semi: "Полуфабрикат",
-    product: "Продукция",
-}
-
 const UNIT_LABELS: Record<string, string> = {
     pcs: "шт",
     kg: "кг",

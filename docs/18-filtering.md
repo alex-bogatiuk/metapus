@@ -205,6 +205,7 @@ func (h *BaseHandler) ParseListFilter(c *gin.Context, defaultOrderBy string) (do
     filter.Offset = h.ParseIntQuery(c, "offset", 0)
     filter.OrderBy = c.DefaultQuery("orderBy", defaultOrderBy)
     filter.IncludeDeleted = c.Query("includeDeleted") == "true"
+    filter.SkipCount = c.Query("skipCount") == "true"
 
     filterJSON := c.Query("filter")
     if filterJSON != "" {
@@ -230,6 +231,7 @@ type ListFilter struct {
     OrderBy         string        // Сортировка ("-date", "name")
     Limit           int           // Пагинация
     Offset          int
+    SkipCount       bool          // Пропустить COUNT(*) — см. 09-crud-pipeline.md
 }
 ```
 
@@ -481,6 +483,8 @@ repo.RegisterTablePart("lines", goodsReceiptLinesTable, "document_id", []string{
 - `"+code"` → `ORDER BY code ASC`
 
 Допустимые колонки сортировки проверяются по отдельному whitelist `orderCols`, который включает `selectCols` + стандартные (`id`, `code`, `name`, `created_at`, `updated_at`, `version`).
+
+> **См. также:** Подробности о курсорной пагинации, бесконечном скролле и оптимизации `skipCount` — [09-crud-pipeline.md](09-crud-pipeline.md#list-курсорная-пагинация-с-бесконечным-скроллом).
 
 ---
 

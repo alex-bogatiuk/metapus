@@ -369,7 +369,10 @@ func (s *CatalogService[T]) List(ctx context.Context, filter ListFilter) (Cursor
 	// Apply CEL read rules to filter out denied entities
 	filtered, removed := security.FilterByReadPolicy(ctx, s.policyEngine, s.entityName, result.Items)
 	result.Items = filtered
-	result.TotalCount -= int64(removed)
+	if result.TotalCount != nil && removed > 0 {
+		adjusted := *result.TotalCount - int64(removed)
+		result.TotalCount = &adjusted
+	}
 
 	return result, nil
 }

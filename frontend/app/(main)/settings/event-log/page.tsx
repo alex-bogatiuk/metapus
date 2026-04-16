@@ -158,7 +158,7 @@ export default function EventLogPage() {
         const result = await api.system.eventLog.list(buildParams())
         setItems(result.items)
         setHasMore(result.hasMore)
-        setTotalCount(result.totalCount)
+        setTotalCount(result.totalCount ?? 0)
         nextCursorRef.current = result.nextCursor ?? ""
       } catch (err) {
         console.error("EventLog fetch error:", err)

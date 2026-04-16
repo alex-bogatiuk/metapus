@@ -105,8 +105,11 @@ type FieldDef struct {
 	// ValueScale is the storage multiplier for filter value conversion.
 	// User-visible values are multiplied by this before DB comparison.
 	// E.g. Quantity (×10000), MinorUnits/Money (×100).
-	// 0 means no scaling.
+	// Array value scale parsing, or defaults to 0
 	ValueScale int `json:"valueScale,omitempty"`
+
+	// Dropdown choices and label hints strictly for the frontend Filter Sidebar Select component
+	EnumValues []EnumValue `json:"enumValues,omitempty"`
 }
 
 // FilterFieldMeta is a flat, frontend-compatible representation of a filterable field.
@@ -120,6 +123,7 @@ type FilterFieldMeta struct {
 	RefEntityName string            `json:"refEntityName,omitempty"` // referenced entity name, e.g. "Counterparty"
 	RefFields     []FilterFieldMeta `json:"refFields,omitempty"`     // filterable fields of the referenced entity
 	ValueScale    int               `json:"valueScale,omitempty"`    // storage multiplier
+	EnumValues    []EnumValue       `json:"enumValues,omitempty"`
 }
 
 // filterFieldType maps internal FieldType to the simplified frontend filter types.
@@ -172,6 +176,7 @@ func (d *EntityDef) ToFilterMeta(reg *Registry) []FilterFieldMeta {
 			Label:      f.Label,
 			FieldType:  filterFieldType(f.Type),
 			ValueScale: f.ValueScale,
+			EnumValues: f.EnumValues,
 		}
 		if f.Type == TypeReference && d.RefEndpoints != nil {
 			meta.RefEndpoint = d.RefEndpoints[f.ReferenceType]

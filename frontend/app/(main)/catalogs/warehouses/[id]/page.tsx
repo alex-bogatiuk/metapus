@@ -17,9 +17,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useCatalogForm } from "@/hooks/useCatalogForm"
+import { useEntityFiltersMeta } from "@/hooks/useEntityFiltersMeta"
 import { api } from "@/lib/api"
 import type { WarehouseType } from "@/types/catalog"
-import { WAREHOUSE_TYPE_LABELS } from "@/types/catalog"
 
 interface WarehouseEditState {
   name: string
@@ -53,6 +53,8 @@ const INITIAL_STATE: WarehouseEditState = {
 export default function EditWarehousePage() {
   const router = useRouter()
   const params = useParams<{ id: string }>()
+  const { fieldsMeta, loading: filtersLoading } = useEntityFiltersMeta("Warehouse")
+  const typeFieldMeta = fieldsMeta.find((f) => f.key === "type")
   const { f, update, handleChange, handleSave, saving, error, loading, deletionMark, entityLabel } = useCatalogForm({
     entityName: "Склад",
     entityKey: "warehouse",
@@ -144,9 +146,13 @@ export default function EditWarehousePage() {
               <Select value={f.type} onValueChange={(v) => { update({ type: v as WarehouseType }); handleChange() }}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {Object.entries(WAREHOUSE_TYPE_LABELS).map(([k, label]) => (
-                    <SelectItem key={k} value={k}>{label}</SelectItem>
-                  ))}
+                  {filtersLoading ? (
+                    <SelectItem value={f.type} disabled>Загрузка...</SelectItem>
+                  ) : (
+                    typeFieldMeta?.enumValues?.map(ev => (
+                      <SelectItem key={ev.value} value={ev.value}>{ev.label}</SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>

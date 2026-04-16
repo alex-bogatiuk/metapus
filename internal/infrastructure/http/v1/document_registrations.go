@@ -54,10 +54,11 @@ func (r *GoodsReceiptRegistration) Build(deps DocumentDeps) DocumentRouteHandler
 		return nil
 	})
 
-	// Decorators: logging + event log
+	// Decorators: logging + event log + outbox events
 	decorated := domain.Chain[*goods_receipt.GoodsReceipt](
 		domain.WithLogging[*goods_receipt.GoodsReceipt]("goods-receipt"),
 		domain.WithEventLog[*goods_receipt.GoodsReceipt]("goods_receipt", deps.EventWriter),
+		domain.WithOutboxEvents[*goods_receipt.GoodsReceipt]("goods_receipt", deps.OutboxPublisher),
 	)(service)
 
 	return handlers.NewGoodsReceiptHandler(deps.BaseHandler, decorated, deps.PrintRegistry, deps.PrintRenderer, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)
@@ -95,10 +96,11 @@ func (r *GoodsIssueRegistration) Build(deps DocumentDeps) DocumentRouteHandler {
 		return nil
 	})
 
-	// Decorators: logging + event log
+	// Decorators: logging + event log + outbox events
 	decorated := domain.Chain[*goods_issue.GoodsIssue](
 		domain.WithLogging[*goods_issue.GoodsIssue]("goods-issue"),
 		domain.WithEventLog[*goods_issue.GoodsIssue]("goods_issue", deps.EventWriter),
+		domain.WithOutboxEvents[*goods_issue.GoodsIssue]("goods_issue", deps.OutboxPublisher),
 	)(service)
 
 	return handlers.NewGoodsIssueHandler(deps.BaseHandler, decorated, deps.PrintRegistry, deps.PrintRenderer, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)

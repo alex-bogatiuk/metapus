@@ -15,6 +15,7 @@ import {
   Package,
   Gauge,
   Hash,
+  Plug,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -26,9 +27,10 @@ import { ControlPlaneSection } from "@/components/settings/control-plane-section
 import { UpdatePageSection } from "@/components/settings/update-page-section"
 import { PerformanceSection } from "@/components/settings/performance-section"
 import { NumberingSection } from "@/components/settings/numbering-section"
+import { IntegrationsSection } from "@/components/settings/integrations-section"
 import { useSettingsStore } from "@/stores/useSettingsStore"
 
-type SettingsSection = "numbering" | "performance" | "users" | "security" | "matrix" | "system" | "tenants" | "update"
+type SettingsSection = "numbering" | "performance" | "integrations" | "users" | "security" | "matrix" | "system" | "tenants" | "update"
 
 interface SectionItem {
   id: SettingsSection
@@ -55,6 +57,12 @@ const sections: SectionItem[] = [
     title: "Пользователи и роли",
     description: "Управление доступом и правами",
     icon: Users,
+  },
+  {
+    id: "integrations",
+    title: "Интеграции",
+    description: "Настройка сервисных аккаунтов и каналов связи",
+    icon: Plug,
   },
   {
     id: "security",
@@ -91,6 +99,7 @@ const sections: SectionItem[] = [
 const sectionComponents: Record<SettingsSection, React.ComponentType> = {
   numbering: NumberingSection,
   performance: PerformanceSection,
+  integrations: IntegrationsSection,
   users: UsersRolesSection,
   security: SecurityProfilesSection,
   matrix: AccessMatrix,

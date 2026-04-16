@@ -43,3 +43,18 @@ export function useEntityFiltersMeta(entityName: string) {
 
     return { fieldsMeta, loading, error }
 }
+
+/**
+ * Helper hook to dynamically format enum values using backend metadata.
+ */
+export function useEnumFormatter(entityName: string) {
+    const { fieldsMeta } = useEntityFiltersMeta(entityName)
+
+    return function formatEnum(fieldKey: string, value: string): string {
+        if (!value) return value
+        const fieldMeta = fieldsMeta.find(f => f.key === fieldKey)
+        if (!fieldMeta || !fieldMeta.enumValues) return value
+        const enumObj = fieldMeta.enumValues.find(e => e.value === value)
+        return enumObj ? enumObj.label : value
+    }
+}

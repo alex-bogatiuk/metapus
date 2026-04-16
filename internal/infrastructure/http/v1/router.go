@@ -338,6 +338,7 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 		CurrencyResolver: currencyResolver,
 		PolicyEngine:     cfg.PolicyEngine,
 		EventWriter:      eventWriter,
+		OutboxPublisher:  postgres.NewOutboxPublisher(),
 		PrintRegistry:    printRegistry,
 		PrintRenderer:    printRenderer,
 		RelatedDocFinder: postgres.NewRelatedDocRepo(reg),
@@ -496,6 +497,19 @@ func registerSystemRoutes(rg *gin.RouterGroup, eventLogReader eventlog.Reader, s
 		cfGroup.DELETE("/:id", customFieldHandler.Delete)
 	}
 
+	// Notifications & Real-Time Hub
+	notificationRepo := postgres.NewNotificationRepo()
+	notifHandler := handlers.NewNotificationHandler(notificationRepo)
+	
+	// WebSockets
+	rg.GET("/ws", notifHandler.ServeWS)
+
+	// REST API for notifications (under /api/v1/system/notifications)
+	notifUserGroup := rg.Group("/system/notifications")
+	notifUserGroup.GET("", notifHandler.List)
+	notifUserGroup.PUT("/:id/read", notifHandler.MarkAsRead)
+	notifUserGroup.PUT("/mark-all-read", notifHandler.MarkAllAsRead)
+
 	// Processing: Find References (Найти ссылки на объект)
 	refFinderRepo := postgres.NewRefFinderRepo(reg)
 	refFinderHandler := handlers.NewRefFinderHandler(refFinderRepo)
@@ -506,6 +520,16 @@ func registerSystemRoutes(rg *gin.RouterGroup, eventLogReader eventlog.Reader, s
 	markedHandler := handlers.NewMarkedObjectsHandler(markedRepo)
 	sysGroup.GET("/marked-objects", markedHandler.List)
 	sysGroup.POST("/marked-objects/delete", markedHandler.Delete)
+
+	// Admin Integrations: Service Accounts
+	serviceAccountRepo := postgres.NewServiceAccountRepo()
+	serviceAccountHandler := handlers.NewServiceAccountHandler(handlers.NewBaseHandler(), serviceAccountRepo, serviceAccountRepo)
+	serviceAccountHandler.RegisterRoutes(sysGroup)
+
+	// Admin Automations: Rules
+	automationRuleRepo := postgres.NewAutomationRuleRepo()
+	automationRuleHandler := handlers.NewAutomationRuleHandler(handlers.NewBaseHandler(), automationRuleRepo)
+	automationRuleHandler.RegisterRoutes(sysGroup)
 }
 
 // deriveEntityKey extracts the snake_case entity key from a permission prefix.
