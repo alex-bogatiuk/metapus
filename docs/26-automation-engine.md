@@ -1,72 +1,262 @@
-# 26. Подсистема Автоматизации (Automation Engine)
+# 26. Подсистема Автоматизации (Automation Engine v2)
 
-Подсистема Автоматизации (Automation Engine) — это отказоустойчивый и изолированный по тенантам механизм, который позволяет пользователям Metapus (и системным адаптерам) реагировать на бизнес-события и выполнять произвольные действия по заданным условиям.
+Подсистема Автоматизации — отказоустойчивый, изолированный по тенантам механизм реагирования на бизнес-события. Версия 2 вводит трёхуровневую модель доставки (**Account → Channel → Subscriber**), двухфазный движок, CRON-планировщик и AES-256-GCM шифрование учётных данных.
 
-## 1. Архитектура и Жизненный Цикл Событий
+## 1. Архитектура
 
-Автоматизация построена на принципах асинхронности и паттерне Outbox, гарантируя доставку сообщений (At-Least-Once Delivery).
+```
+┌────────────────────────────────────────────────────────────────┐
+│  CRUD Pipeline / Posting Engine                                │
+│  ─────────────────────────────────                             │
+│  Генерирует событие в Outbox:                                  │
+│  { doc: {...}, action: "posted", entityType: "goods_receipt" } │
+└────────────────────┬───────────────────────────────────────────┘
+                     │
+                     ▼
+┌────────────────────────────────────────────────────────────────┐
+│  Background Worker (Outbox Consumer)                           │
+│  ─────────────────────────────────                             │
+│  1. Вычитывает событие из Outbox                               │
+│  2. Инициализирует tenant-контекст                             │
+│  3. Вызывает Engine.HandleEvent(ctx, eventType, payload)       │
+└────────────────────┬───────────────────────────────────────────┘
+                     │
+         ┌───────────┴───────────┐
+         ▼                       ▼
+  Phase 1: EVALUATE        Phase 2: DELIVER
+  (CPU-bound)              (I/O-bound)
+  ─ Fetch active rules     ─ Resolve subscribers
+  ─ Check cooldowns        ─ Execute adapters
+  ─ Evaluate CEL           ─ Record history
+  ─ Render templates       ─ Update rule stats
+```
 
-1. **Генерация События (Event Dispatcher)**: В CRUD-пайплайнах (или при проведении документов) генерируются события в формате: 
-   `{ doc: { ... }, action: "created", entityType: "counterparty" }`
-2. **Postgres Outbox**: Событие сохраняется локально в транзакционной таблице (Postgres relay), что исключает риск потери события в случае падения процесса до "коммита" бизнес-логики.
-3. **Background Worker**: Изолированный процесс (воркер) вычитывает события из Outbox, инициализирует транзакционный контекст для тенанта и направляет payload в `Automation Engine`.
-4. **Engine Processing**: `HandleEvent(ctx, eventType, payload)`.
+### Гарантии:
+- **At-Least-Once Delivery** через Postgres Outbox.
+- **Tenant Isolation**: каждый тенант имеет свою БД-схему.
+- **Immutable Ledger**: записи истории не обновляются, только вставляются.
 
-## 2. Модель: Automation Rule
+## 2. Трёхуровневая модель доставки
 
-Правила хранятся в БД таблице `sys_automation_rules` и описывают логику бизнес-процесса.
-Структура:
-- `TargetEntityName`: имя сущности в метаданных (например, `goods_receipt`).
-- `TriggerType`: `on_create`, `on_update`, `on_post`, `on_unpost` и т.д.
-- `ConditionCEL` (Опционально): Условие фильтрации на языке CEL (Common Expression Language).
-- `ActionType`: Тип исполняемого адаптера (например, `webhook`, `telegram`, `internal_notification`).
-- `ServiceAccountID`: ID сервисного аккаунта (ключи/секреты) из подсистемы Integrations. *Может быть `null` для внутренних системных адаптеров*.
-- `ActionTemplate`: Шаблон (также с поддержкой CEL интерполяции) генерируемого тела/параметров для адаптера.
+### Account (Аккаунт)
+Централизованное хранилище учётных данных отправителя.
 
-## 3. Обработка Выражений (CEL-Go)
+| Поле | Описание |
+|------|----------|
+| `code` | Уникальный код (например, `tg_main`) |
+| `name` | Человекочитаемое имя |
+| `account_type` | `telegram`, `email`, `webhook`, `rocketchat`, `slack` |
+| `config` | JSONB параметры (base_url, timeout и т.д.) |
+| `credentials_enc` | Зашифрованные учётные данные (AES-256-GCM) |
+| `status` | `active`, `error`, `disabled` |
+| `version` | Optimistic Locking |
 
-Вся фильтрация и шаблонизация прогоняется через движок [CEL (Common Expression Language)](https://github.com/google/cel-spec) от Google. Этот язык:
-- Быстрый и безопасный.
-- Тюринг-неполный (нет бесконечных циклов).
-- Имеет строгую типизацию.
+**Один Account** (один Bot Token) → **много Channels** (много Chat ID).
 
-**Окружение CEL** (`Engine` инициализирует конфигурацию переменных):
-- `doc`: Динамический тип (`cel.DynType`), содержащий DTO документа.
-- `action`: Строка, тип действия (`created`, `updated`, и т.д.).
-- `entityType`: Строка, системное имя (например, `goods_receipt`).
+### Channel (Канал)
+Конкретный адрес доставки, ссылающийся на Account для получения учётных данных.
 
-### Условие (Condition)
-Движок (`engine.go`) вызывает функцию `EvaluateCEL`. Если она возвращает `true`, 엔진 продолжает работу. Ошибки парсинга логируются, и процесс идет дальше без прерывания Outbox-воркера.
-Пример условия: `doc.totalAmount > 100000 && doc.status == "approved"`.
+| Поле | Описание |
+|------|----------|
+| `code` | Уникальный код (например, `ch_finance_alerts`) |
+| `name` | Человекочитаемое имя |
+| `account_id` | FK → Account (наследует тип и credentials) |
+| `destination` | JSONB: `{ "chat_id": "-100xxx" }` / `{ "email": "..." }` / `{ "url": "..." }` |
+| `version` | Optimistic Locking |
 
-### Шаблон (Template)
-Функция `RenderTemplate` заменяет маркеры `${...}` внутри JSON на результаты CEL-выполнения.
-Например: `{"message": "Сумма составила ${doc.totalAmount}"}`
+### Subscriber (Подписчик)
+Полиморфная привязка правила к целевому получателю. Хранится как **табличная часть** правила.
 
-## 4. Паттерн: Адаптеры Действий (Adapter Interface)
+| Тип | Описание | Ключевое поле |
+|-----|----------|---------------|
+| `channel` | Внешний канал (Telegram, Email, Webhook) | `channel_id` |
+| `user` | Конкретный пользователь (UI-нотификация) | `user_id` |
+| `role` | Все пользователи с данной ролью | `role_name` |
+| `doc_field` | ID пользователя из поля документа | `doc_field_path` |
 
-Поведения, которые должны произойти при успешном срабатывании правила, абстрагированы через `Adapter`.
+## 3. Rule (Правило автоматизации)
+
+Правило описывает цепочку: **событие → условие → реакция**.
+
+### Ключевые поля:
+
+| Поле | Описание |
+|------|----------|
+| `trigger_type` | `entity_event`, `business_event`, `scheduled`, `incoming_webhook` |
+| `event_type` | Тип события (например, `document.goods_receipt.posted`) |
+| `condition_cel` | CEL-выражение фильтрации (опционально) |
+| `reaction_type` | `notify`, `webhook_call`, `chain`, `create_record` |
+| `message_format` | `text`, `html`, `markdown` |
+| `action_template` | Go Template шаблон сообщения |
+| `priority` | Порядок выполнения (0–100) |
+| `max_retries` | Лимит повторов при ошибке (по умолчанию 3) |
+| `cooldown_seconds` | Минимальный интервал между срабатываниями |
+| `chain_rule_ids` | UUID[] для цепных реакций (`reaction_type = chain`) |
+
+### CRON-правила:
+Для `trigger_type = scheduled` поле `event_type` должно начинаться с `cron:`:
+```
+cron:0 */5 * * * *    — каждые 5 минут (6-field формат с секундами)
+cron:0 0 9 * * 1-5    — в 09:00 по будням
+```
+
+Планировщик (`robfig/cron/v3`) динамически обновляет расписание каждый час.
+
+## 4. Двухфазный движок
+
+### Phase 1: Evaluate (CPU-bound)
+```go
+func (e *Engine) Evaluate(ctx context.Context, eventType string, payload map[string]any) []EvalResult
+```
+
+1. Загружает все активные правила по `event_type`.
+2. Проверяет cooldown: `now - last_executed_at > cooldown_seconds`.
+3. Вычисляет CEL-условие через кэшированную AST-программу.
+4. Рендерит Go Template (`text/template`) с payload-данными.
+5. Возвращает `[]EvalResult` — список готовых к доставке сообщений.
+
+### Phase 2: Deliver (I/O-bound)
+```go
+func (e *Engine) Deliver(ctx context.Context, results []EvalResult) []DeliveryResult
+```
+
+1. Для каждого subscriber резолвит Channel → Account → Credentials.
+2. Вызывает соответствующий адаптер.
+3. Записывает `HistoryEntry` с `duration_ms`, `status`, `error_text`.
+4. Обновляет статистику правила (`IncrementStats`).
+5. Обновляет статус аккаунта (`UpdateLastResult`).
+6. При `reaction_type = chain` публикует новое событие через `OutboxPublisher`.
+
+## 5. Адаптеры
+
+Каждый адаптер реализует интерфейс v2:
 
 ```go
 type Adapter interface {
-	Execute(ctx context.Context, config map[string]interface{}, credentials []byte, payload string) error
+    Deliver(ctx context.Context, destination, accountConfig map[string]any,
+            credentials []byte, payload string) error
 }
 ```
 
-Адаптеры регистрируются в `main.go` воркера, передаваясь в конструктор `NewEngine(adapters)`. 
-Это позволяет добавлять неограниченное множество интеграций (например, отправка HTTP Webhook, отправка в Slack, рассылка email, запись во внутренние очереди) без изменения самого `Engine`.
+### Встроенные адаптеры:
 
-### Связь с Integrations (Credentials)
-Для внешних действий адаптер запрашивает учетные данные из `ServiceAccounts`. Пароли дешифруются на лету (`integrations.CredentialManager`) перед передачей в метод `Execute`. Для внутренних действий (например, `internal_notification`) токен/секреты могут быть пустыми.
+| Адаптер | Описание | destination |
+|---------|----------|-------------|
+| `TelegramAdapter` | Отправка через Telegram Bot API | `chat_id`, `disable_web_page_preview` |
+| `EmailAdapter` | Отправка через SMTP (`net/smtp`) | `email`, `subject` (или 1-я строка payload) |
+| `WebhookAdapter` | HTTP POST/PUT/GET к внешнему URL | `url`, `method`, `headers`, `auth_type` |
+| `InternalNotificationAdapter` | Запись в `sys_notifications` (UI) | — (используется для `user`/`role` subscribers) |
 
-## 5. Обсервабилити и Логирование
+## 6. Шифрование учётных данных
 
-Работа автоматизации критична для бизнеса, поэтому система ведет подробную историю выполнений.
+Все credentials шифруются **AES-256-GCM** перед записью в БД.
 
-Для каждого срабатывания в таблице `sys_automation_execution_history` (сущность `ExecutionHistory`) сохраняется:
-- `RuleID`, `EventType`, `AggregateID`
-- `Success` (Выполнился адаптер или нет)
-- `RequestPayload`: Итоговый JSON/Payload после рендеринга шаблона.
-- `ErrorMessage`: Причина сброса, если адаптер вернул ошибку.
+```
+Формат хранения: nonce (12 bytes) || ciphertext || auth_tag (16 bytes)
+```
 
-> **Важно по архитектуре**: Если внешнее действие (webhook) упадет, транзакция Outbox не откатывается (ведь правило мы вычли). Выполненная запись истории просто получает статус `Success: false`, чтобы пользователь мог увидеть это в логах системы и принять ручные меры, либо включить автоматические Retries (в будущем).
+- Ключ: переменная окружения `AUTOMATION_ENCRYPTION_KEY` (ровно 32 байта).
+- Nonce генерируется `crypto/rand` при каждом шифровании (гарантия уникальности).
+- GCM обеспечивает как шифрование, так и проверку целостности (AEAD).
+
+**Важно**: Credentials никогда не возвращаются в API-ответах. Для обновления пользователь отправляет новый plaintext через `PATCH /credentials`.
+
+## 7. CEL (Common Expression Language)
+
+[CEL](https://github.com/google/cel-spec) — быстрый, безопасный, Тьюринг-неполный язык выражений от Google.
+
+### Окружение:
+| Переменная | Тип | Описание |
+|------------|-----|----------|
+| `doc` | `dyn` | DTO документа/сущности |
+| `action` | `string` | Тип действия (`created`, `posted`, ...) |
+| `entityType` | `string` | Системное имя сущности |
+
+### Примеры:
+```cel
+doc.totalAmount > 100000 && action == "posted"
+doc.counterpartyId != "" && doc.status == "approved"
+has(doc.lines) && size(doc.lines) > 0
+```
+
+CEL-программы кэшируются. При обновлении правила кэш инвалидируется через `InvalidateCELCache()`.
+
+## 8. История и Обсервабилити
+
+Каждое срабатывание записывается в `sys_automation_history`:
+
+| Поле | Описание |
+|------|----------|
+| `rule_id` | FK → Rule |
+| `subscriber_id` | FK → Subscriber |
+| `event_type` | Тип события |
+| `aggregate_id` | ID документа/сущности |
+| `status` | `success`, `error`, `skipped` |
+| `request_payload` | Отрендеренный текст сообщения |
+| `error_text` | Текст ошибки (если `status = error`) |
+| `duration_ms` | Время выполнения адаптера |
+| `attempt` | Номер попытки (1..max_retries) |
+
+> **Архитектурное решение**: записи истории **иммутабельны** (Immutable Ledger). При ошибке адаптера транзакция Outbox не откатывается — создаётся запись с `status = error`, пользователь видит её в логах и может настроить Retries.
+
+## 9. Миграции БД
+
+| Миграция | Таблица | Описание |
+|----------|---------|----------|
+| `00025` | `sys_automation_accounts` | Аккаунты с зашифрованными credentials |
+| `00026` | `sys_automation_rules` | Правила v2 (trigger_type, reaction_type, ...) |
+| `00027` | `sys_automation_channels` | Каналы доставки |
+| `00029` | `sys_automation_subscribers` | Полиморфные подписчики |
+| `00030` | `sys_automation_history` | История выполнений |
+| `00031` | (seed) | Права доступа (CRUD) для ролей Admin/Accountant |
+
+## 10. API Endpoints
+
+```
+# Accounts
+GET    /api/v1/automation/accounts
+POST   /api/v1/automation/accounts
+GET    /api/v1/automation/accounts/:id
+PUT    /api/v1/automation/accounts/:id
+DELETE /api/v1/automation/accounts/:id
+PATCH  /api/v1/automation/accounts/:id/credentials
+
+# Channels
+GET    /api/v1/automation/channels
+POST   /api/v1/automation/channels
+GET    /api/v1/automation/channels/:id
+PUT    /api/v1/automation/channels/:id
+DELETE /api/v1/automation/channels/:id
+
+# Rules (subscribers are inline)
+GET    /api/v1/automation/rules
+POST   /api/v1/automation/rules
+GET    /api/v1/automation/rules/:id
+PUT    /api/v1/automation/rules/:id
+DELETE /api/v1/automation/rules/:id
+PATCH  /api/v1/automation/rules/:id/toggle
+POST   /api/v1/automation/rules/test
+
+# History
+GET    /api/v1/automation/history
+
+# Meta (enum values for UI)
+GET    /api/v1/automation-meta
+```
+
+## 11. Переменные окружения
+
+| Переменная | Обязательна | Описание |
+|------------|-------------|----------|
+| `AUTOMATION_ENCRYPTION_KEY` | Да (для worker) | 32 байта для AES-256-GCM |
+
+## 12. Тестирование
+
+Unit-тесты покрывают:
+- `internal/core/crypto/aes_test.go` — Round-trip шифрование, уникальность nonce, ошибки ключа, повреждение ciphertext.
+- `internal/domain/automations/validation_test.go` — Валидация всех моделей (Account, Channel, Rule, Subscriber) с позитивными и негативными сценариями.
+
+```bash
+go test -v ./internal/core/crypto/...
+go test -v ./internal/domain/automations/...
+```

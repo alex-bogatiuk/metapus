@@ -202,8 +202,13 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 	cleanupTicker := time.NewTicker(1 * time.Hour)
 	defer cleanupTicker.Stop()
 
-	// Suppress unused variable
-	_ = txManager
+	// Enrich context with Pool and TxManager so that repos can access them.
+	ctx = tenant.WithPool(ctx, mp.Pool())
+	ctx = tenant.WithTxManager(ctx, txManager)
+
+	// Start CRON scheduler for scheduled rules (runs in background goroutine).
+	scheduler := automation.NewScheduler(engine, postgres.NewAutomationRuleRepo())
+	go scheduler.Start(ctx) // Will stop when ctx is cancelled
 
 	for {
 		select {
@@ -222,6 +227,8 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 			w.cleanupIdempotency(ctx, mp.Pool(), t.ID)
 			w.cleanupAutomationHistory(ctx, mp.Pool(), t.ID)
 			w.cleanupNotifications(ctx, mp.Pool(), t.ID)
+			// Refresh scheduler jobs (picks up new/deactivated scheduled rules)
+			scheduler.Refresh(ctx)
 		}
 	}
 }
@@ -229,16 +236,19 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 // buildAutomationEngine creates a reusable Engine with all adapters.
 func (w *MultiTenantWorker) buildAutomationEngine() (*automation.Engine, error) {
 	ruleRepo := postgres.NewAutomationRuleRepo()
-	accountRepo := postgres.NewServiceAccountRepo()
+	accountRepo := postgres.NewAutomationAccountRepo()
+	channelRepo := postgres.NewAutomationChannelRepo()
 	historyRepo := postgres.NewAutomationHistoryRepo()
 
 	adapterMap := map[string]automation.Adapter{
 		"webhook":  automation.NewWebhookAdapter(),
 		"telegram": automation.NewTelegramAdapter(),
+		"email":    automation.NewEmailAdapter(),
 		adapters.InternalNotificationProvider: adapters.NewInternalNotificationAdapter(postgres.NewNotificationRepo(), ws.GlobalHub),
 	}
 
-	return automation.NewEngine(ruleRepo, historyRepo, accountRepo, accountRepo, adapterMap)
+	// OutboxPublisher is nil for now — chain reactions will be wired in a future iteration.
+	return automation.NewEngine(ruleRepo, historyRepo, accountRepo, accountRepo, channelRepo, adapterMap, nil)
 }
 
 type automationOutboxHandler struct {

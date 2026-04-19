@@ -2,9 +2,9 @@ package domain
 
 import (
 	"context"
-	"fmt"
 
 	"metapus/internal/core/id"
+	"metapus/internal/core/tenant"
 	"metapus/pkg/logger"
 )
 
@@ -42,45 +42,68 @@ func WithOutboxEvents[T any](entityName string, publisher OutboxPublisher) Servi
 	}
 }
 
-// emit writes an event to the outbox. MUST run inside the transaction context!
-func (d *DocumentOutboxDecorator[T]) emit(ctx context.Context, action string, entity T) {
-	// Only publish if we have an ID
+// buildEvent creates a DomainEvent from the entity and action.
+func (d *DocumentOutboxDecorator[T]) buildEvent(action string, entity T) *DomainEvent {
 	eid := extractID(entity)
 	if eid == nil {
-		return
+		return nil
 	}
 
-	eventType := fmt.Sprintf("document.%s.%s", d.entityName, action)
-	
-	// Create payload with document snapshot and action
-	payload := map[string]any{
-		"entityType": d.entityName,
-		"entityId":   eid.String(),
-		"action":     action,
-		"doc":        entity,
-	}
+	eventType := action // "posted", "created", "updated", etc.
 
-	err := d.publisher.Publish(ctx, DomainEvent{
+	return &DomainEvent{
 		AggregateType: d.entityName,
 		AggregateID:   *eid,
 		EventType:     eventType,
-		Payload:       payload,
-	})
+		Payload: map[string]any{
+			"entityType": d.entityName,
+			"entityId":   eid.String(),
+			"action":     action,
+			"doc":        entity,
+		},
+	}
+}
 
+// emit writes an event to the outbox. MUST run inside an existing transaction context!
+// Used by Create/Update/Delete which run inside BaseDocumentService's own transaction.
+func (d *DocumentOutboxDecorator[T]) emit(ctx context.Context, action string, entity T) {
+	ev := d.buildEvent(action, entity)
+	if ev == nil {
+		return
+	}
+
+	if err := d.publisher.Publish(ctx, *ev); err != nil {
+		logger.Error(ctx, "failed to publish outbox event", "error", err, "eventType", ev.EventType)
+	}
+}
+
+// emitInOwnTx writes an outbox event in its OWN transaction.
+// Required for Post/Unpost/PostAndSave/UpdateAndRepost because PostingEngine
+// opens and commits its own transaction, so by the time the decorator's method
+// runs, there is no open transaction for the outbox INSERT.
+func (d *DocumentOutboxDecorator[T]) emitInOwnTx(ctx context.Context, action string, entity T) {
+	ev := d.buildEvent(action, entity)
+	if ev == nil {
+		return
+	}
+
+	txm, err := tenant.GetTxManager(ctx)
 	if err != nil {
-		// In a transactional outbox, failing to write the outbox event MUST fail the entire transaction.
-		// However, emit is called AFTER next.Create(), which might not return an error, but the transaction
-		// is still open. Since this decorator intercepts inside Chain (which runs inside transaction), this is safe,
-		// but we can't easily bubble the error if we do this defer/async.
-		// Wait, we call emit synchronously, so we should bubble the error!
-		logger.Error(ctx, "failed to publish outbox event", "error", err, "eventType", eventType)
+		logger.Error(ctx, "failed to get tx manager for outbox event", "error", err, "eventType", ev.EventType)
+		return
+	}
+
+	if txErr := txm.RunInTransaction(ctx, func(txCtx context.Context) error {
+		return d.publisher.Publish(txCtx, *ev)
+	}); txErr != nil {
+		logger.Error(ctx, "failed to publish outbox event in own tx", "error", txErr, "eventType", ev.EventType)
 	}
 }
 
 func (d *DocumentOutboxDecorator[T]) Create(ctx context.Context, entity T) (err error) {
 	err = d.next.Create(ctx, entity)
 	if err == nil {
-		d.emit(ctx, "created", entity)
+		d.emitInOwnTx(ctx, "created", entity)
 	}
 	return
 }
@@ -88,7 +111,7 @@ func (d *DocumentOutboxDecorator[T]) Create(ctx context.Context, entity T) (err 
 func (d *DocumentOutboxDecorator[T]) Update(ctx context.Context, entity T) (err error) {
 	err = d.next.Update(ctx, entity)
 	if err == nil {
-		d.emit(ctx, "updated", entity)
+		d.emitInOwnTx(ctx, "updated", entity)
 	}
 	return
 }
@@ -96,19 +119,25 @@ func (d *DocumentOutboxDecorator[T]) Update(ctx context.Context, entity T) (err 
 func (d *DocumentOutboxDecorator[T]) Delete(ctx context.Context, entityID id.ID) (err error) {
 	err = d.next.Delete(ctx, entityID)
 	if err == nil {
-		eventType := fmt.Sprintf("document.%s.deleted", d.entityName)
-		pubErr := d.publisher.Publish(ctx, DomainEvent{
+		ev := &DomainEvent{
 			AggregateType: d.entityName,
 			AggregateID:   entityID,
-			EventType:     eventType,
+			EventType:     "deleted",
 			Payload: map[string]any{
 				"entityType": d.entityName,
 				"entityId":   entityID.String(),
 				"action":     "deleted",
 			},
-		})
-		if pubErr != nil {
-			logger.Error(ctx, "failed to publish outbox event", "error", pubErr, "eventType", eventType)
+		}
+		txm, txErr := tenant.GetTxManager(ctx)
+		if txErr != nil {
+			logger.Error(ctx, "failed to get tx manager for outbox delete event", "error", txErr)
+			return
+		}
+		if pubErr := txm.RunInTransaction(ctx, func(txCtx context.Context) error {
+			return d.publisher.Publish(txCtx, *ev)
+		}); pubErr != nil {
+			logger.Error(ctx, "failed to publish outbox delete event", "error", pubErr)
 		}
 	}
 	return
@@ -117,8 +146,9 @@ func (d *DocumentOutboxDecorator[T]) Delete(ctx context.Context, entityID id.ID)
 func (d *DocumentOutboxDecorator[T]) Post(ctx context.Context, entityID id.ID) (err error) {
 	err = d.next.Post(ctx, entityID)
 	if err == nil {
+		// PostingEngine commits its own tx, so we emit in a separate tx.
 		if doc, fetchErr := d.next.GetByID(ctx, entityID); fetchErr == nil {
-			d.emit(ctx, "posted", doc)
+			d.emitInOwnTx(ctx, "posted", doc)
 		} else {
 			logger.Error(ctx, "failed to fetch doc for outbox post event", "error", fetchErr)
 		}
@@ -130,7 +160,7 @@ func (d *DocumentOutboxDecorator[T]) Unpost(ctx context.Context, entityID id.ID)
 	err = d.next.Unpost(ctx, entityID)
 	if err == nil {
 		if doc, fetchErr := d.next.GetByID(ctx, entityID); fetchErr == nil {
-			d.emit(ctx, "unposted", doc)
+			d.emitInOwnTx(ctx, "unposted", doc)
 		}
 	}
 	return
@@ -139,7 +169,7 @@ func (d *DocumentOutboxDecorator[T]) Unpost(ctx context.Context, entityID id.ID)
 func (d *DocumentOutboxDecorator[T]) PostAndSave(ctx context.Context, entity T) (err error) {
 	err = d.next.PostAndSave(ctx, entity)
 	if err == nil {
-		d.emit(ctx, "posted", entity)
+		d.emitInOwnTx(ctx, "posted", entity)
 	}
 	return
 }
@@ -147,8 +177,8 @@ func (d *DocumentOutboxDecorator[T]) PostAndSave(ctx context.Context, entity T) 
 func (d *DocumentOutboxDecorator[T]) UpdateAndRepost(ctx context.Context, entity T) (err error) {
 	err = d.next.UpdateAndRepost(ctx, entity)
 	if err == nil {
-		d.emit(ctx, "updated", entity)
-		d.emit(ctx, "posted", entity)
+		d.emitInOwnTx(ctx, "updated", entity)
+		d.emitInOwnTx(ctx, "posted", entity)
 	}
 	return
 }
@@ -160,8 +190,9 @@ func (d *DocumentOutboxDecorator[T]) SetDeletionMark(ctx context.Context, entity
 		if !marked {
 			action = "deletion_cleared"
 		}
+		// SetDeletionMark may go through PostingEngine.Unpost, so use own tx.
 		if doc, fetchErr := d.next.GetByID(ctx, entityID); fetchErr == nil {
-			d.emit(ctx, action, doc)
+			d.emitInOwnTx(ctx, action, doc)
 		}
 	}
 	return

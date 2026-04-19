@@ -1,99 +1,23 @@
-# Metapus Single-Tenant Deployment
+version: '3.8'
+
 services:
-  # --- База данных ---
-  postgres:
-    image: postgres:17-alpine
-    restart: unless-stopped
+  metapus-db:
+    image: postgres:latest
+    container_name: metapus-db
+    restart: always
     environment:
       POSTGRES_USER: metapus
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-metapus}
-      POSTGRES_DB: tenants
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    networks:
-      - metapus-net
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U metapus"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  # --- Сервер Metapus ---
-  metapus-app:
-    image: ${METAPUS_IMAGE:-ghcr.io/alex-bogatiuk/metapus}:${METAPUS_TAG:-latest}
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      APP_PORT: "8080"
-      APP_ENV: "production"
-      LOG_LEVEL: "info"
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
-      META_DATABASE_URL: postgres://metapus:${POSTGRES_PASSWORD:-metapus}@postgres:5432/tenants?sslmode=disable
-      DATABASE_URL: postgres://metapus:${POSTGRES_PASSWORD:-metapus}@postgres:5432/mt_default?sslmode=disable
-      TENANT_DB_USER: metapus
-      TENANT_DB_PASSWORD: ${POSTGRES_PASSWORD:-metapus}
-      TENANT_DB_HOST: postgres
+      POSTGRES_PASSWORD: metapus
+      POSTGRES_DB: mt_default
     ports:
-      - "${APP_PORT:-8080}:8080"
-    networks:
-      metapus-net:
-        aliases:
-          - metapus-app
-    healthcheck:
-      test: ["CMD", "/healthcheck", "http://localhost:8080/health/live"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-
-  # --- Фоновые задачи ---
-  metapus-worker:
-    image: ${METAPUS_IMAGE:-ghcr.io/alex-bogatiuk/metapus}:${METAPUS_TAG:-latest}
-    restart: unless-stopped
-    entrypoint: ["/worker"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      META_DATABASE_URL: postgres://metapus:${POSTGRES_PASSWORD:-metapus}@postgres:5432/tenants?sslmode=disable
-      TENANT_DB_USER: metapus
-      TENANT_DB_PASSWORD: ${POSTGRES_PASSWORD:-metapus}
-      LOG_LEVEL: "info"
-    networks:
-      - metapus-net
-
-  # --- Агент обновлений ---
-  updater:
-    image: ${UPDATER_IMAGE:-ghcr.io/alex-bogatiuk/metapus-updater}:${UPDATER_TAG:-latest}
-    restart: unless-stopped
-    depends_on:
-      metapus-app:
-        condition: service_healthy
+      - "5432:5432"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - updater-data:/data
-    environment:
-      UPDATER_PORT: "9090"
-      SERVER_URL: http://metapus-app:8080
-      TENANT_ID: ${TENANT_ID:?TENANT_ID is required}
-      REGISTRY_IMAGE: ${METAPUS_IMAGE:-ghcr.io/alex-bogatiuk/metapus}
-      DOCKER_NETWORK: ${COMPOSE_PROJECT_NAME:-metapus}_metapus-net
-      CONTAINER_NAME: metapus-app
-      STATE_FILE: /data/state.json
-      HEALTH_TIMEOUT: "60s"
-      DRAIN_TIMEOUT: "30s"
-      LOG_LEVEL: "info"
-    ports:
-      - "${UPDATER_PORT:-9090}:9090"
-    networks:
-      - metapus-net
-
-networks:
-  metapus-net:
-    driver: bridge
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U metapus -d mt_default" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
-  pgdata:
-  updater-data:
+  postgres_data:

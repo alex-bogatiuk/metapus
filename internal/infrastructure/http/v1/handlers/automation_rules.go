@@ -14,14 +14,18 @@ import (
 // AutomationRuleHandler handles API endpoints for automation rules.
 type AutomationRuleHandler struct {
 	*BaseHandler
-	repo automations.Repository
+	repo       automations.RuleRepository
+	testEngine *automation.Engine // Shared engine for /test endpoint (CEL + template only)
 }
 
 // NewAutomationRuleHandler creates a new handler.
-func NewAutomationRuleHandler(base *BaseHandler, repo automations.Repository) *AutomationRuleHandler {
+func NewAutomationRuleHandler(base *BaseHandler, repo automations.RuleRepository) *AutomationRuleHandler {
+	// Pre-initialize a test engine (CEL env creation is expensive — avoid per-request)
+	testEngine, _ := automation.NewEngine(nil, nil, nil, nil, nil, nil, nil)
 	return &AutomationRuleHandler{
 		BaseHandler: base,
 		repo:        repo,
+		testEngine:  testEngine,
 	}
 }
 
@@ -41,13 +45,13 @@ func (h *AutomationRuleHandler) List(c *gin.Context) {
 	}
 
 	if rules == nil {
-		rules = []automations.AutomationRule{}
+		rules = []automations.Rule{}
 	}
 
 	h.OK(c, rules)
 }
 
-// Get returns a single automation rule.
+// Get returns a single automation rule (with subscribers).
 func (h *AutomationRuleHandler) Get(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -136,27 +140,42 @@ func (h *AutomationRuleHandler) Delete(c *gin.Context) {
 	h.NoContent(c)
 }
 
+// Toggle switches a rule's is_active flag.
+func (h *AutomationRuleHandler) Toggle(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	ruleID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid id parameter").WithDetail("id", c.Param("id")))
+		return
+	}
+
+	isActive, err := h.repo.Toggle(ctx, ruleID)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	h.OK(c, gin.H{"isActive": isActive})
+}
+
 // Test evaluates a rule's condition and renders its template using provided payload.
 func (h *AutomationRuleHandler) Test(c *gin.Context) {
-	// 1. Bind JSON request
 	var req automations.TestRuleRequest
 	if !h.BindJSON(c, &req) {
 		return
 	}
 
-	// 2. Create minimal engine for testing
-	engine, err := automation.NewEngine(nil, nil, nil, nil, nil)
-	if err != nil {
-		h.Error(c, fmt.Errorf("failed to init test engine: %w", err))
+	if h.testEngine == nil {
+		h.Error(c, fmt.Errorf("test engine not initialized"))
 		return
 	}
 
 	resp := automations.TestRuleResponse{
-		ConditionMatched: true, // Default to true if no CEL condition
+		ConditionMatched: true,
 	}
 
-	// Unpack variables if available
-	var vars map[string]any = make(map[string]any)
+	vars := make(map[string]any)
 	if req.Payload != nil {
 		doc := req.Payload["doc"]
 		action, _ := req.Payload["action"].(string)
@@ -168,9 +187,8 @@ func (h *AutomationRuleHandler) Test(c *gin.Context) {
 		}
 	}
 
-	// 3. Evaluate CEL
 	if req.ConditionCEL != nil && *req.ConditionCEL != "" {
-		matched, evalErr := engine.EvaluateCEL(*req.ConditionCEL, vars)
+		matched, evalErr := h.testEngine.EvaluateCEL(*req.ConditionCEL, vars)
 		if evalErr != nil {
 			resp.ConditionMatched = false
 			resp.ConditionError = evalErr.Error()
@@ -179,9 +197,8 @@ func (h *AutomationRuleHandler) Test(c *gin.Context) {
 		}
 	}
 
-	// 4. Render Template
 	if req.ActionTemplate != "" {
-		rendered, renderErr := engine.RenderTemplate(req.ActionTemplate, req.Payload)
+		rendered, renderErr := h.testEngine.RenderTemplate(req.ActionTemplate, req.Payload)
 		if renderErr != nil {
 			resp.RenderError = renderErr.Error()
 		} else {
@@ -201,6 +218,7 @@ func (h *AutomationRuleHandler) RegisterRoutes(rg *gin.RouterGroup) {
 		rules.GET("/:id", h.Get)
 		rules.PUT("/:id", h.Update)
 		rules.DELETE("/:id", h.Delete)
+		rules.POST("/:id/toggle", h.Toggle)
 		rules.POST("/test", h.Test)
 	}
 }

@@ -49,6 +49,8 @@ interface ReferenceFieldProps {
   compact?: boolean
   /** Disabled state */
   disabled?: boolean
+  /** Error message to display and style the field with a red border */
+  error?: string
 }
 
 // ── Module-level cache: endpoint:id → name ─────────────────────────────
@@ -115,6 +117,7 @@ export function ReferenceField({
   className,
   compact = false,
   disabled = false,
+  error,
 }: ReferenceFieldProps) {
   const [open, setOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -186,11 +189,46 @@ export function ReferenceField({
           setInternalName(data.name)
         }
       })
-      .catch(() => { /* ignore — fallback to truncated UUID */ })
+      .catch((err) => {
+        if (err?.status === 404) {
+          onChange("", "")
+          const recent = getRecentSelections(apiEndpoint)
+          const cleaned = recent.filter((r) => r.id !== value)
+          localStorage.setItem(RECENT_STORAGE_PREFIX + apiEndpoint, JSON.stringify(cleaned))
+        }
+      })
       .finally(() => { if (!cancelled) setResolving(false) })
 
     return () => { cancelled = true }
   }, [value, apiEndpoint]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Self-heal localStorage recent cache when a fresh displayName arrives for the same value
+  // (e.g. after save, server returns updated names that differ from what's cached)
+  useEffect(() => {
+    if (!value || !displayName) return
+    // Update module-level cache
+    _refNameCache.set(cacheKey(apiEndpoint, value), displayName)
+    // Update localStorage recent entries if the name changed
+    const recent = getRecentSelections(apiEndpoint)
+    const existing = recent.find((r) => r.id === value)
+    if (existing && existing.name !== displayName) {
+      const updated = recent.map((r) => r.id === value ? { ...r, name: displayName } : r)
+      localStorage.setItem(RECENT_STORAGE_PREFIX + apiEndpoint, JSON.stringify(updated))
+    }
+  }, [value, displayName, apiEndpoint])
+
+  // If an external error is provided (e.g. backend FK violation) for a specific value,
+  // it indicates the value was likely deleted or invalid on the backend.
+  // Remove it from recents so it doesn't get suggested again.
+  useEffect(() => {
+    if (error && value) {
+      const recent = getRecentSelections(apiEndpoint)
+      if (recent.some((r) => r.id === value)) {
+        const cleaned = recent.filter((r) => r.id !== value)
+        localStorage.setItem(RECENT_STORAGE_PREFIX + apiEndpoint, JSON.stringify(cleaned))
+      }
+    }
+  }, [error, value, apiEndpoint])
 
   // Reset internal name when value changes to a different ID
   const prevValueRef = useRef(value)
@@ -315,11 +353,12 @@ export function ReferenceField({
           aria-expanded={open}
           disabled={disabled}
           className={cn(
-            "w-full justify-between font-normal",
+            "w-full justify-between truncate font-normal",
             triggerHeight,
             textSize,
             !value && "text-muted-foreground",
-            className
+            error && "border-destructive focus-visible:ring-destructive",
+            className,
           )}
         >
           <span className="truncate flex-1 text-left">
@@ -484,6 +523,11 @@ export function ReferenceField({
         </Command>
       </PopoverContent>
     </Popover>
+    {error && (
+      <div className="text-[0.8rem] font-medium text-destructive mt-1">
+        {error}
+      </div>
+    )}
 
     {/* Picker dialog — metadata-driven full list with search, sort, pagination */}
     <ReferencePickerDialog

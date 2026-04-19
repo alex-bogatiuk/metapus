@@ -32,8 +32,10 @@ import { useFormDraft } from "@/hooks/useFormDraft"
 import { api } from "@/lib/api"
 import { fromQuantity, fromMinorUnits, toQuantity, toMinorUnits } from "@/lib/format"
 import { useCurrencyScale } from "@/hooks/useCurrencyScale"
-import { type FormLine, emptyLine, fetchVatRatePercent, computeTotals, linesToExistingPickerLines, mergePickedIntoLines } from "@/lib/document-form"
+import { type FormLine, computeTotals, mapLinesToFormLines } from "@/lib/document-form"
+import { useDocumentLineActions, useExistingPickerLines } from "@/hooks/useDocumentLineActions"
 import { DocumentTotalsFooter } from "@/components/shared/document-totals-footer"
+import { useDocumentErrorHandler } from "@/hooks/useDocumentErrorHandler"
 import type { GoodsIssueLineRequest, CreateGoodsIssueRequest, GoodsIssueResponse } from "@/types/document"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import { ProductPickerDialog } from "@/components/shared/product-picker-dialog"
@@ -86,7 +88,7 @@ export default function NewGoodsIssuePage() {
   const { closeOne } = useCloseTab()
 
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { error, setError, fieldErrors, setFieldErrors, handleError, clearErrors } = useDocumentErrorHandler()
   const [sidebarCollapsed, toggleSidebar] = useCollapsible(SIDEBAR_STORAGE_KEY, true)
   const [headerCollapsed, toggleHeader] = useCollapsible(HEADER_STORAGE_KEY, false)
   const [copyLoading, setCopyLoading] = useState(false)
@@ -117,20 +119,7 @@ export default function NewGoodsIssuePage() {
       setCopyLoading(true)
       api.goodsIssues.get(copyFromId)
       .then((src: GoodsIssueResponse) => {
-        const mapped = (src.lines ?? []).map((l, i): FormLine => ({
-          _key: i + 1,
-          productId: l.productId,
-          productName: l.product?.name || "",
-          productCode: l.product?.code || "",
-          unitId: l.unitId,
-          unitName: l.unit?.name || "",
-          quantity: fromQuantity(l.quantity),
-          unitPrice: fromMinorUnits(l.unitPrice, decimalPlaces),
-          vatRateId: l.vatRateId,
-          vatRateName: l.vatRate?.name || "",
-          vatPercent: String(l.vatPercent ?? 0),
-          discountPercent: l.discountPercent || "0",
-        }))
+        const { mapped, nextKey } = mapLinesToFormLines(src.lines ?? [], decimalPlaces)
         replace({
           ...INITIAL_FORM_STATE,
           organizationId: src.organizationId,
@@ -147,7 +136,7 @@ export default function NewGoodsIssuePage() {
           amountIncludesVat: src.amountIncludesVat,
           description: src.description || "",
           lines: mapped,
-          nextKey: mapped.length + 1,
+          nextKey,
         })
         markDirty()
       })
@@ -159,20 +148,7 @@ export default function NewGoodsIssuePage() {
       setCopyLoading(true)
       api.goodsReceipts.get(basisId)
         .then((src) => {
-          const mapped = (src.lines ?? []).map((l, i): FormLine => ({
-            _key: i + 1,
-            productId: l.productId,
-            productName: l.product?.name || "",
-            productCode: l.product?.code || "",
-            unitId: l.unitId,
-            unitName: l.unit?.name || "",
-            quantity: fromQuantity(l.quantity),
-            unitPrice: fromMinorUnits(l.unitPrice, decimalPlaces),
-            vatRateId: l.vatRateId,
-            vatRateName: l.vatRate?.name || "",
-            vatPercent: String(l.vatPercent ?? 0),
-            discountPercent: l.discountPercent || "0",
-          }))
+          const { mapped, nextKey } = mapLinesToFormLines(src.lines ?? [], decimalPlaces)
           replace({
             ...INITIAL_FORM_STATE,
             organizationId: src.organizationId,
@@ -185,7 +161,7 @@ export default function NewGoodsIssuePage() {
             basisType,
             basisId,
             lines: mapped,
-            nextKey: mapped.length + 1,
+            nextKey,
           })
           markDirty()
         })
@@ -197,44 +173,10 @@ export default function NewGoodsIssuePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const addLine = () => {
-    update({ lines: [...f.lines, emptyLine(f.nextKey)], nextKey: f.nextKey + 1 })
-    markDirty()
-  }
-
-  const existingPickerLines = useMemo(() => linesToExistingPickerLines(f.lines), [f.lines])
-
-  const handlePick = useCallback((items: PickedItem[]) => {
-    const knownIds = new Set(existingPickerLines.map((l) => l.productId))
-    update((prev) => mergePickedIntoLines(prev.lines, items, prev.nextKey, knownIds))
-    markDirty()
-  }, [update, markDirty, existingPickerLines])
-
-  // ── Stable callbacks for DocumentLineRow (React.memo-safe) ──────────
-  const handleUpdateField = useCallback((key: number, field: keyof FormLine, value: string) => {
-    update((prev) => ({ lines: prev.lines.map((l) => l._key === key ? { ...l, [field]: value } : l) }))
-    markDirty()
-  }, [update, markDirty])
-
-  const handleUpdateRef = useCallback((key: number, patch: Partial<FormLine>) => {
-    update((prev) => ({ lines: prev.lines.map((l) => l._key === key ? { ...l, ...patch } : l) }))
-    markDirty()
-  }, [update, markDirty])
-
-  const handleUpdateVatRate = useCallback((key: number, id: string, name: string) => {
-    update((prev) => ({ lines: prev.lines.map((l) => l._key === key ? { ...l, vatRateId: id, vatRateName: name } : l) }))
-    markDirty()
-    if (id) {
-      fetchVatRatePercent(id).then((pct) => {
-        update((prev) => ({ lines: prev.lines.map((l) => l._key === key ? { ...l, vatPercent: pct } : l) }))
-      })
-    }
-  }, [update, markDirty])
-
-  const handleRemoveLine = useCallback((key: number) => {
-    update((prev) => ({ lines: prev.lines.filter((l) => l._key !== key) }))
-    markDirty()
-  }, [update, markDirty])
+  // ── Line actions (generic hook) ───────────────────────────────────────
+  const { addLine, handlePick: pickLines, handleUpdateField, handleUpdateRef, handleUpdateVatRate, handleRemoveLine } = useDocumentLineActions(update, markDirty)
+  const existingPickerLines = useExistingPickerLines(f.lines)
+  const handlePick = useCallback((items: PickedItem[]) => pickLines(items, f.lines), [pickLines, f.lines])
 
   // ── Computed totals ───────────────────────────────────────────────────
   const totals = useMemo(() => computeTotals(f.lines, f.amountIncludesVat, decimalPlaces), [f.lines, f.amountIncludesVat, decimalPlaces])
@@ -273,7 +215,7 @@ export default function NewGoodsIssuePage() {
       return
     }
     setSaving(true)
-    setError(null)
+    clearErrors()
     try {
       const created = await api.goodsIssues.create(buildPayload(postImmediately))
       markClean()
@@ -286,7 +228,7 @@ export default function NewGoodsIssuePage() {
         router.replace(`/documents/goods-issues/${created.id}`)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка сохранения")
+      handleError(err, "Ошибка сохранения")
     } finally {
       setSaving(false)
     }
@@ -339,7 +281,8 @@ export default function NewGoodsIssuePage() {
                     displayName={f.organizationName}
                     apiEndpoint="/catalog/organizations"
                     placeholder="Выберите организацию"
-                    onChange={(id, name) => { update({ organizationId: id, organizationName: name }); markDirty() }}
+                    error={fieldErrors.organizationId}
+                    onChange={(id, name) => { update({ organizationId: id, organizationName: name }); markDirty(); setFieldErrors(prev => ({...prev, organizationId: ""})) }}
                   />
                 </div>
               </div>
@@ -351,7 +294,8 @@ export default function NewGoodsIssuePage() {
                     displayName={f.customerName}
                     apiEndpoint="/catalog/counterparties"
                     placeholder="Выберите покупателя"
-                    onChange={(id, name) => { update({ customerId: id, customerName: name }); markDirty() }}
+                    error={fieldErrors.customerId}
+                    onChange={(id, name) => { update({ customerId: id, customerName: name }); markDirty(); setFieldErrors(prev => ({...prev, customerId: ""})) }}
                   />
                 </div>
               </div>
@@ -371,7 +315,8 @@ export default function NewGoodsIssuePage() {
                     displayName={f.warehouseName}
                     apiEndpoint="/catalog/warehouses"
                     placeholder="Выберите склад"
-                    onChange={(id, name) => { update({ warehouseId: id, warehouseName: name }); markDirty() }}
+                    error={fieldErrors.warehouseId}
+                    onChange={(id, name) => { update({ warehouseId: id, warehouseName: name }); markDirty(); setFieldErrors(prev => ({...prev, warehouseId: ""})) }}
                   />
                 </div>
               </div>
@@ -383,7 +328,8 @@ export default function NewGoodsIssuePage() {
                     displayName={f.contractName}
                     apiEndpoint="/catalog/contracts"
                     placeholder="Выберите договор"
-                    onChange={(id, name) => { update({ contractId: id, contractName: name }); markDirty() }}
+                    error={fieldErrors.contractId}
+                    onChange={(id, name) => { update({ contractId: id, contractName: name }); markDirty(); setFieldErrors(prev => ({...prev, contractId: ""})) }}
                   />
                 </div>
               </div>
@@ -395,7 +341,8 @@ export default function NewGoodsIssuePage() {
                     displayName={f.currencyName}
                     apiEndpoint="/catalog/currencies"
                     placeholder="Выберите валюту"
-                    onChange={(id, name) => { update({ currencyId: id, currencyName: name }); markDirty() }}
+                    error={fieldErrors.currencyId}
+                    onChange={(id, name) => { update({ currencyId: id, currencyName: name }); markDirty(); setFieldErrors(prev => ({...prev, currencyId: ""})) }}
                   />
                 </div>
               </div>

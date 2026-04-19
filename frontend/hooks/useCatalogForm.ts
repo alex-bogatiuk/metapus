@@ -58,6 +58,8 @@ interface UseCatalogFormReturn<TState> {
   saving: boolean
   /** Current error message, if any. */
   error: string | null
+  /** Map of field-specific errors from backend validation. */
+  fieldErrors: Record<string, string>
   /** Whether entity is loading (edit mode). */
   loading: boolean
   /** Whether entity has deletionMark (edit mode). */
@@ -121,6 +123,7 @@ export function useCatalogForm<
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(isEditMode && !hasDraft)
   const [deletionMark, setDeletionMark] = useState(false)
 
@@ -166,6 +169,7 @@ export function useCatalogForm<
 
       setSaving(true)
       setError(null)
+      setFieldErrors({})
 
       try {
         if (isEditMode && entityId && entityApi.update && mapToUpdate) {
@@ -193,8 +197,13 @@ export function useCatalogForm<
             router.replace(`${listPath}/${createdId}`)
           }
         }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Ошибка сохранения")
+      } catch (err: any) {
+        if (err?.parsedBody?.code === "INVALID_REFERENCE" && err.parsedBody.details?.field) {
+          setFieldErrors({ [err.parsedBody.details.field]: err.message })
+          setError(`Ошибка в поле: ${err.parsedBody.details.field}`)
+        } else {
+          setError(err instanceof Error ? err.message : "Ошибка сохранения")
+        }
       } finally {
         setSaving(false)
       }
@@ -213,6 +222,7 @@ export function useCatalogForm<
     handleSave,
     saving,
     error,
+    fieldErrors,
     loading,
     deletionMark,
     isEditMode,

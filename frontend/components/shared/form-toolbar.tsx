@@ -50,6 +50,7 @@ interface FormToolbarProps {
   backTargetId?: string
   onClose?: () => void
   sticky?: boolean
+  children?: React.ReactNode
 }
 
 import { cn } from "@/lib/utils"
@@ -88,6 +89,7 @@ export function FormToolbar({
   backTargetId,
   onClose,
   sticky = true,
+  children,
 }: FormToolbarProps) {
   const resolvedBackHref = backHref
     ? backTargetId
@@ -140,6 +142,8 @@ export function FormToolbar({
           >
             {primaryAction.label}
           </Button>
+
+          {children}
 
           {secondaryActions
             .filter((a) => !a.hideOnDesktop)

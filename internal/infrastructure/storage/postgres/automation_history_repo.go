@@ -4,72 +4,165 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Masterminds/squirrel"
-	
+	"github.com/jackc/pgx/v5"
+
+	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
 	"metapus/internal/domain/automations"
 )
 
-// AutomationHistoryRepo implements automations.HistoryRepository
+// AutomationHistoryRepo implements automations.HistoryRepository (append-only).
 type AutomationHistoryRepo struct{}
 
+// NewAutomationHistoryRepo creates a new repository.
 func NewAutomationHistoryRepo() *AutomationHistoryRepo {
 	return &AutomationHistoryRepo{}
 }
 
-func (r *AutomationHistoryRepo) Create(ctx context.Context, history *automations.ExecutionHistory) error {
-	q := tenant.MustGetPool(ctx)
+const historySelectCols = `id, rule_id, rule_name, event_type, aggregate_id, aggregate_name,
+	status, channel_id, channel_name, account_name,
+	rendered_payload, error_text, duration_ms, created_at`
 
-	history.ID = id.New()
-	
-	query, args, err := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).
-		Insert("sys_automation_history").
-		Columns("id", "rule_id", "event_type", "aggregate_id", "success", "error_message", "request_payload").
-		Values(history.ID, history.RuleID, history.EventType, history.AggregateID, history.Success, history.ErrorMessage, history.RequestPayload).
-		ToSql()
-	
-	if err != nil {
-		return fmt.Errorf("build query: %w", err)
-	}
+// Create saves a new history entry.
+func (r *AutomationHistoryRepo) Create(ctx context.Context, entry *automations.HistoryEntry) error {
+	txm := MustGetTxManager(ctx)
+	q := txm.GetQuerier(ctx)
 
-	_, err = q.Exec(ctx, query, args...)
+	entry.ID = id.New()
+
+	query := `
+		INSERT INTO sys_automation_history (
+			id, rule_id, rule_name, event_type, aggregate_id, aggregate_name,
+			status, channel_id, channel_name, account_name,
+			rendered_payload, error_text, duration_ms
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+	`
+
+	_, err := q.Exec(ctx, query,
+		entry.ID, entry.RuleID, entry.RuleName, entry.EventType, entry.AggregateID, entry.AggregateName,
+		entry.Status, entry.ChannelID, entry.ChannelName, entry.AccountName,
+		entry.RenderedPayload, entry.ErrorText, entry.DurationMs,
+	)
 	if err != nil {
-		return fmt.Errorf("exec insert: %w", err)
+		return fmt.Errorf("insert history: %w", err)
 	}
 
 	return nil
 }
 
-func (r *AutomationHistoryRepo) ListByRuleID(ctx context.Context, ruleID id.ID, limit int) ([]automations.ExecutionHistory, error) {
-	q := tenant.MustGetPool(ctx)
+// List returns filtered and paginated history entries.
+func (r *AutomationHistoryRepo) List(ctx context.Context, filter automations.HistoryFilter) ([]automations.HistoryEntry, int, error) {
+	txm := MustGetTxManager(ctx)
+	q := txm.GetQuerier(ctx)
 
-	query, args, err := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).
-		Select("id", "rule_id", "event_type", "aggregate_id", "success", "error_message", "request_payload", "created_at").
-		From("sys_automation_history").
-		Where(squirrel.Eq{"rule_id": ruleID}).
-		OrderBy("created_at DESC").
-		Limit(uint64(limit)).
-		ToSql()
+	// Build WHERE clause dynamically
+	where := "WHERE 1=1"
+	args := []any{}
+	argIdx := 1
 
-	if err != nil {
-		return nil, fmt.Errorf("build query: %w", err)
+	if filter.RuleID != nil {
+		where += fmt.Sprintf(" AND rule_id = $%d", argIdx)
+		args = append(args, *filter.RuleID)
+		argIdx++
+	}
+	if filter.Status != nil {
+		where += fmt.Sprintf(" AND status = $%d", argIdx)
+		args = append(args, *filter.Status)
+		argIdx++
+	}
+	if filter.ChannelID != nil {
+		where += fmt.Sprintf(" AND channel_id = $%d", argIdx)
+		args = append(args, *filter.ChannelID)
+		argIdx++
+	}
+	if filter.From != nil {
+		where += fmt.Sprintf(" AND created_at >= $%d", argIdx)
+		args = append(args, *filter.From)
+		argIdx++
+	}
+	if filter.To != nil {
+		where += fmt.Sprintf(" AND created_at <= $%d", argIdx)
+		args = append(args, *filter.To)
 	}
 
-	rows, err := q.Query(ctx, query, args...)
+	// Count query
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM sys_automation_history %s", where)
+	var total int
+	if err := q.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count history: %w", err)
+	}
+
+	// Data query
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	dataQuery := fmt.Sprintf(`
+		SELECT %s
+		FROM sys_automation_history %s
+		ORDER BY created_at DESC
+		LIMIT %d OFFSET %d
+	`, historySelectCols, where, limit, offset)
+
+	rows, err := q.Query(ctx, dataQuery, args...)
 	if err != nil {
-		return nil, fmt.Errorf("query rows: %w", err)
+		return nil, 0, fmt.Errorf("query history: %w", err)
 	}
 	defer rows.Close()
 
-	var result []automations.ExecutionHistory
+	var entries []automations.HistoryEntry
 	for rows.Next() {
-		var h automations.ExecutionHistory
-		if err := rows.Scan(&h.ID, &h.RuleID, &h.EventType, &h.AggregateID, &h.Success, &h.ErrorMessage, &h.RequestPayload, &h.CreatedAt); err != nil {
-			return nil, fmt.Errorf("scan row: %w", err)
+		e, scanErr := scanHistoryRow(rows)
+		if scanErr != nil {
+			return nil, 0, fmt.Errorf("scan history: %w", scanErr)
 		}
-		result = append(result, h)
+		entries = append(entries, *e)
 	}
 
-	return result, nil
+	return entries, total, nil
 }
+
+// GetByID retrieves a single history entry.
+func (r *AutomationHistoryRepo) GetByID(ctx context.Context, entryID id.ID) (*automations.HistoryEntry, error) {
+	txm := MustGetTxManager(ctx)
+	q := txm.GetQuerier(ctx)
+
+	query := fmt.Sprintf(`SELECT %s FROM sys_automation_history WHERE id = $1`, historySelectCols)
+
+	var e automations.HistoryEntry
+	err := q.QueryRow(ctx, query, entryID).Scan(
+		&e.ID, &e.RuleID, &e.RuleName, &e.EventType, &e.AggregateID, &e.AggregateName,
+		&e.Status, &e.ChannelID, &e.ChannelName, &e.AccountName,
+		&e.RenderedPayload, &e.ErrorText, &e.DurationMs, &e.CreatedAt,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, apperror.NewNotFound("sys_automation_history", entryID)
+		}
+		return nil, fmt.Errorf("get history by id: %w", err)
+	}
+
+	return &e, nil
+}
+
+// scanHistoryRow scans a pgx.Rows row into a HistoryEntry.
+func scanHistoryRow(rows pgx.Rows) (*automations.HistoryEntry, error) {
+	var e automations.HistoryEntry
+	err := rows.Scan(
+		&e.ID, &e.RuleID, &e.RuleName, &e.EventType, &e.AggregateID, &e.AggregateName,
+		&e.Status, &e.ChannelID, &e.ChannelName, &e.AccountName,
+		&e.RenderedPayload, &e.ErrorText, &e.DurationMs, &e.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &e, nil
+}
+
+// Ensure interface compliance
+var _ automations.HistoryRepository = (*AutomationHistoryRepo)(nil)

@@ -60,8 +60,8 @@ const sections: SectionItem[] = [
   },
   {
     id: "integrations",
-    title: "Интеграции",
-    description: "Настройка сервисных аккаунтов и каналов связи",
+    title: "Интеграции и автоматизации",
+    description: "Каналы доставки, правила обработки событий",
     icon: Plug,
   },
   {

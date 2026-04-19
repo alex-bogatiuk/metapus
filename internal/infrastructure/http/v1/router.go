@@ -521,15 +521,29 @@ func registerSystemRoutes(rg *gin.RouterGroup, eventLogReader eventlog.Reader, s
 	sysGroup.GET("/marked-objects", markedHandler.List)
 	sysGroup.POST("/marked-objects/delete", markedHandler.Delete)
 
-	// Admin Integrations: Service Accounts
-	serviceAccountRepo := postgres.NewServiceAccountRepo()
-	serviceAccountHandler := handlers.NewServiceAccountHandler(handlers.NewBaseHandler(), serviceAccountRepo, serviceAccountRepo)
-	serviceAccountHandler.RegisterRoutes(sysGroup)
+	// Admin Automations: Accounts (replaces old Service Accounts)
+	automationAccountRepo := postgres.NewAutomationAccountRepo()
+	automationAccountHandler := handlers.NewAutomationAccountHandler(handlers.NewBaseHandler(), automationAccountRepo, automationAccountRepo)
+	automationAccountHandler.RegisterRoutes(sysGroup)
+
+	// Admin Automations: Channels
+	automationChannelRepo := postgres.NewAutomationChannelRepo()
+	automationChannelHandler := handlers.NewAutomationChannelHandler(handlers.NewBaseHandler(), automationChannelRepo)
+	automationChannelHandler.RegisterRoutes(sysGroup)
 
 	// Admin Automations: Rules
 	automationRuleRepo := postgres.NewAutomationRuleRepo()
 	automationRuleHandler := handlers.NewAutomationRuleHandler(handlers.NewBaseHandler(), automationRuleRepo)
 	automationRuleHandler.RegisterRoutes(sysGroup)
+
+	// Admin Automations: History
+	automationHistoryRepo := postgres.NewAutomationHistoryRepo()
+	automationHistoryHandler := handlers.NewAutomationHistoryHandler(handlers.NewBaseHandler(), automationHistoryRepo)
+	automationHistoryHandler.RegisterRoutes(sysGroup)
+
+	// Admin Automations: Meta (enum values for UI)
+	automationMetaHandler := handlers.NewAutomationMetaHandler(handlers.NewBaseHandler())
+	automationMetaHandler.RegisterRoutes(sysGroup)
 }
 
 // deriveEntityKey extracts the snake_case entity key from a permission prefix.

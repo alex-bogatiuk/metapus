@@ -24,6 +24,7 @@ let reconnectAttempts = 0
 
 function buildWsUrl(token: string): string {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api/v1"
+    const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID || ""
     const isWss = window.location.protocol === "https:"
     const protocol = isWss ? "wss:" : "ws:"
 
@@ -34,7 +35,11 @@ function buildWsUrl(token: string): string {
         wsUrl = `${protocol}//${window.location.host}${API_BASE.startsWith("/") ? API_BASE : `/${API_BASE}`}`
     }
 
-    return `${wsUrl}/ws?token=${encodeURIComponent(token)}`
+    let url = `${wsUrl}/ws?token=${encodeURIComponent(token)}`
+    if (TENANT_ID) {
+        url += `&tenant=${encodeURIComponent(TENANT_ID)}`
+    }
+    return url
 }
 
 export const useWebSocketStore = create<WebSocketState & WebSocketActions>()(

@@ -425,16 +425,111 @@ export const api = {
             ),
     },
 
-    // ── Integrations ──────────────────────────────────────────────────
-    serviceAccounts: createCatalogApi<import("@/types/service-account").ServiceAccount, import("@/types/service-account").CreateServiceAccountRequest, import("@/types/service-account").UpdateServiceAccountRequest>("/system/service-accounts"),
-    
-    automationRules: {
-        ...createCatalogApi<import("@/types/automation").AutomationRule, import("@/types/automation").CreateAutomationRuleRequest, import("@/types/automation").UpdateAutomationRuleRequest>("/system/automation-rules"),
-        test: (id: string, data: import("@/types/automation").TestRuleRequest) =>
-            apiFetch<import("@/types/automation").TestRuleResponse>(`/system/automation-rules/${id}/test`, {
-                method: "POST",
-                body: JSON.stringify(data),
-            }),
+    // ── Automations ──────────────────────────────────────────────────────
+    automation: {
+        // Accounts
+        accounts: {
+            list: () =>
+                apiFetch<import("@/types/automation").AutomationAccount[]>("/system/automation-accounts"),
+            get: (id: string) =>
+                apiFetch<import("@/types/automation").AutomationAccount>(`/system/automation-accounts/${id}`),
+            create: (data: import("@/types/automation").CreateAccountRequest) =>
+                apiFetch<{ id: string }>("/system/automation-accounts", {
+                    method: "POST",
+                    body: JSON.stringify(data),
+                }),
+            update: (id: string, data: import("@/types/automation").UpdateAccountRequest) =>
+                apiFetch<import("@/types/automation").AutomationAccount>(`/system/automation-accounts/${id}`, {
+                    method: "PUT",
+                    body: JSON.stringify(data),
+                }),
+            delete: (id: string) =>
+                apiFetch<void>(`/system/automation-accounts/${id}`, { method: "DELETE" }),
+            updateCredentials: (id: string, credentials: string) =>
+                apiFetch<void>(`/system/automation-accounts/${id}/credentials`, {
+                    method: "PUT",
+                    body: JSON.stringify({ credentials }),
+                }),
+            test: (id: string) =>
+                apiFetch<{ message?: string }>(`/system/automation-accounts/${id}/test`, { method: "POST" }),
+        },
+        // Channels
+        channels: {
+            list: (accountId?: string) => {
+                const qs = accountId ? `?accountId=${encodeURIComponent(accountId)}` : ""
+                return apiFetch<import("@/types/automation").AutomationChannel[]>(`/system/automation-channels${qs}`)
+            },
+            get: (id: string) =>
+                apiFetch<import("@/types/automation").AutomationChannel>(`/system/automation-channels/${id}`),
+            create: (data: import("@/types/automation").CreateChannelRequest) =>
+                apiFetch<{ id: string }>("/system/automation-channels", {
+                    method: "POST",
+                    body: JSON.stringify(data),
+                }),
+            update: (id: string, data: import("@/types/automation").UpdateChannelRequest) =>
+                apiFetch<import("@/types/automation").AutomationChannel>(`/system/automation-channels/${id}`, {
+                    method: "PUT",
+                    body: JSON.stringify(data),
+                }),
+            delete: (id: string) =>
+                apiFetch<void>(`/system/automation-channels/${id}`, { method: "DELETE" }),
+        },
+        // Rules
+        rules: {
+            list: (eventType?: string) => {
+                const qs = eventType ? `?eventType=${encodeURIComponent(eventType)}` : ""
+                return apiFetch<import("@/types/automation").AutomationRule[]>(`/system/automation-rules${qs}`)
+            },
+            get: (id: string) =>
+                apiFetch<import("@/types/automation").AutomationRule>(`/system/automation-rules/${id}`),
+            create: (data: import("@/types/automation").CreateRuleRequest) =>
+                apiFetch<{ id: string }>("/system/automation-rules", {
+                    method: "POST",
+                    body: JSON.stringify(data),
+                }),
+            update: (id: string, data: import("@/types/automation").UpdateRuleRequest) =>
+                apiFetch<import("@/types/automation").AutomationRule>(`/system/automation-rules/${id}`, {
+                    method: "PUT",
+                    body: JSON.stringify(data),
+                }),
+            delete: (id: string) =>
+                apiFetch<void>(`/system/automation-rules/${id}`, { method: "DELETE" }),
+            toggle: (id: string) =>
+                apiFetch<{ isActive: boolean }>(`/system/automation-rules/${id}/toggle`, { method: "POST" }),
+            test: (data: import("@/types/automation").TestRuleRequest) =>
+                apiFetch<import("@/types/automation").TestRuleResponse>("/system/automation-rules/test", {
+                    method: "POST",
+                    body: JSON.stringify(data),
+                }),
+        },
+        // History
+        history: {
+            list: (params?: { limit?: number; offset?: number; ruleId?: string; status?: string; channelId?: string; from?: string; to?: string }) => {
+                const entries: [string, string][] = []
+                if (params?.limit) entries.push(["limit", String(params.limit)])
+                if (params?.offset) entries.push(["offset", String(params.offset)])
+                if (params?.ruleId) entries.push(["ruleId", params.ruleId])
+                if (params?.status) entries.push(["status", params.status])
+                if (params?.channelId) entries.push(["channelId", params.channelId])
+                if (params?.from) entries.push(["from", params.from])
+                if (params?.to) entries.push(["to", params.to])
+                const qs = entries.length > 0 ? "?" + new URLSearchParams(entries).toString() : ""
+                return apiFetch<import("@/types/automation").HistoryListResponse>(`/system/automation-history${qs}`)
+            },
+            get: (id: string) =>
+                apiFetch<import("@/types/automation").AutomationHistoryEntry>(`/system/automation-history/${id}`),
+            replay: (id: string) =>
+                apiFetch<{ id: string }>(`/system/automation-history/${id}/replay`, { method: "POST" }),
+        },
+        // Meta (enum values + event types)
+        meta: {
+            get: () =>
+                apiFetch<import("@/types/automation").AutomationMeta>("/system/automation-meta"),
+            eventTypes: () =>
+                apiFetch<import("@/types/automation").EventTypeGroup[]>("/system/automation/meta/event-types"),
+            entityFields: (entityType: string) =>
+                apiFetch<{ name: string; label: string; type: string }[]>(`/system/automation/meta/entity-fields/${encodeURIComponent(entityType)}`),
+        },
     },
 
     meta: {
@@ -628,31 +723,6 @@ export const api = {
                     method: "POST",
                     body: JSON.stringify({ items }),
                 }),
-        },
-        serviceAccounts: {
-            list: () =>
-                apiFetch<import("@/types/service-account").ServiceAccount[]>("/system/service-accounts"),
-            get: (id: string) =>
-                apiFetch<import("@/types/service-account").ServiceAccount>(`/system/service-accounts/${id}`),
-            create: (data: import("@/types/service-account").CreateServiceAccountRequest) =>
-                apiFetch<{ id: string }>("/system/service-accounts", {
-                    method: "POST",
-                    body: JSON.stringify(data),
-                }),
-            update: (id: string, data: import("@/types/service-account").UpdateServiceAccountRequest) =>
-                apiFetch<import("@/types/service-account").ServiceAccount>(`/system/service-accounts/${id}`, {
-                    method: "PUT",
-                    body: JSON.stringify(data),
-                }),
-            delete: (id: string) =>
-                apiFetch<void>(`/system/service-accounts/${id}`, { method: "DELETE" }),
-            updateCredentials: (id: string, credentials: string) =>
-                apiFetch<void>(`/system/service-accounts/${id}/credentials`, {
-                    method: "PUT",
-                    body: JSON.stringify({ credentials }),
-                }),
-            test: (id: string) =>
-                apiFetch<{ message?: string }>(`/system/service-accounts/${id}/test`, { method: "POST" }),
         },
         notifications: {
             list: (params?: { limit?: number; unreadOnly?: boolean }) => {

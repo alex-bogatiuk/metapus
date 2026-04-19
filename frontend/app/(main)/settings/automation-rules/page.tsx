@@ -26,11 +26,11 @@ const ALL_COLUMNS: Column<AutomationRule>[] = [
     ),
   },
   {
-    key: "actionType",
+    key: "reactionType",
     label: "Действие",
     sortable: true,
     render: (item) => (
-      <span className="text-xs text-muted-foreground">{item.actionType}</span>
+      <span className="text-xs text-muted-foreground">{item.reactionType}</span>
     ),
   },
   {
@@ -70,7 +70,10 @@ export default function AutomationRulesListPage() {
         columns: ALL_COLUMNS,
         allColumns: ALL_COLUMNS,
         defaultVisibleKeys: DEFAULT_VISIBLE_KEYS,
-        fetcher: api.automationRules.list,
+        fetcher: async () => {
+          const items = await api.automation.rules.list()
+          return { items, totalCount: items.length, hasMore: false, hasPrev: false }
+        },
         emptyMessage: "Нет правил автоматизации. Создайте первое правило.",
       }}
     />

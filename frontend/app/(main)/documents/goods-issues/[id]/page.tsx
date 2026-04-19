@@ -27,19 +27,17 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { DatePicker } from "@/components/ui/date-picker"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { useTabDirty } from "@/hooks/useTabDirty"
-import { useCloseTab } from "@/hooks/useCloseTab"
-import { useTabStateStore } from "@/stores/useTabStateStore"
+import { useDocumentFormSync } from "@/hooks/useDocumentFormSync"
 import { useTabTitle } from "@/hooks/useTabTitle"
-import { useFormDraft } from "@/hooks/useFormDraft"
 import { api } from "@/lib/api"
 import { fromQuantity, fromMinorUnits, toQuantity, toMinorUnits, DEFAULT_DECIMAL_PLACES } from "@/lib/format"
 import { useCurrencyScale } from "@/hooks/useCurrencyScale"
-import { type FormLine, emptyLine, fetchVatRatePercent, computeTotals, linesToExistingPickerLines, mergePickedIntoLines } from "@/lib/document-form"
+import { type FormLine, computeTotals, mapLinesToFormLines } from "@/lib/document-form"
+import { useDocumentLineActions, useExistingPickerLines } from "@/hooks/useDocumentLineActions"
 import { DocumentTotalsFooter } from "@/components/shared/document-totals-footer"
 import { useMetadataStore } from "@/stores/useMetadataStore"
-import { toast } from "sonner"
 import { PrintMenuButton } from "@/components/shared/print-menu-button"
+import { useDocumentErrorHandler } from "@/hooks/useDocumentErrorHandler"
 import { ProductPickerDialog } from "@/components/shared/product-picker-dialog"
 import type { PickedItem } from "@/types/picker"
 import type { GoodsIssueResponse, GoodsIssueLineRequest, UpdateGoodsIssueRequest } from "@/types/document"
@@ -83,22 +81,8 @@ const INITIAL_EDIT_STATE: GoodsIssueEditFormState = {
 }
 
 function mapDocToState(d: GoodsIssueResponse): GoodsIssueEditFormState {
-  const mapped = (d.lines ?? []).map((l, i) => ({
-    _key: i + 1,
-    productId: l.productId,
-    productName: l.product?.name || "",
-    productCode: l.product?.code || "",
-    unitId: l.unitId,
-    unitName: l.unit?.name || "",
-    quantity: fromQuantity(l.quantity),
-    unitPrice: fromMinorUnits(l.unitPrice, d.currency?.decimalPlaces ?? DEFAULT_DECIMAL_PLACES),
-    vatRateId: l.vatRateId,
-    vatRateName: l.vatRate?.name || "",
-    vatPercent: String(l.vatPercent ?? 0),
-    discountPercent: l.discountPercent || "0",
-    amount: l.amount,
-    vatAmount: l.vatAmount,
-  }))
+  const dp = d.currency?.decimalPlaces ?? DEFAULT_DECIMAL_PLACES
+  const { mapped, nextKey } = mapLinesToFormLines(d.lines ?? [], dp, { preserveAmounts: true })
   return {
     _doc: d,
     date: d.date || undefined,
@@ -116,33 +100,33 @@ function mapDocToState(d: GoodsIssueResponse): GoodsIssueEditFormState {
     amountIncludesVat: d.amountIncludesVat,
     description: d.description || "",
     lines: mapped,
-    nextKey: mapped.length + 1,
+    nextKey,
   }
 }
 
 export default function GoodsIssueFormPage() {
   const router = useRouter()
-  const pathname = usePathname()
   const params = useParams<{ id: string }>()
-  const { markDirty, markClean } = useTabDirty()
-  const { closeOne } = useCloseTab()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { error, setError, fieldErrors, setFieldErrors, handleError, clearErrors } = useDocumentErrorHandler()
   const [sidebarCollapsed, toggleSidebar] = useCollapsible(SIDEBAR_STORAGE_KEY, true)
   const [headerCollapsed, toggleHeader] = useCollapsible(HEADER_STORAGE_KEY, false)
   const [pickerOpen, setPickerOpen] = useState(false)
 
-  // ── Single typed form state with automatic draft persistence ────────
-  const { state: f, update, replace, clear, hasDraft } = useFormDraft<GoodsIssueEditFormState>(
-    pathname,
+  // ── Single typed form state with automatic draft persistence + dirty sync ──
+  const {
+    state: f, doc, update, replace, syncFromServer, markDirty,
+    clear, hasDraft, pathname, closeAndCleanup,
+  } = useDocumentFormSync<GoodsIssueEditFormState, GoodsIssueResponse>(
     INITIAL_EDIT_STATE,
+    mapDocToState,
+    "/documents/goods-issues",
     { shouldPersist: (s) => !!(s._doc && (s.organizationId || s.customerId || s.warehouseId || s.lines.length > 0)) },
   )
 
   // Convenience aliases
-  const doc = f._doc
   const date = f.date ? new Date(f.date) : undefined
   const giLabel = useMetadataStore((s) => s.getLabel("goods_issue", "singular"))
   useTabTitle(doc?.number || undefined, giLabel)
@@ -158,8 +142,7 @@ export default function GoodsIssueFormPage() {
 
     setLoading(true)
     api.goodsIssues.get(params.id).then((d) => {
-      replace(mapDocToState(d))
-      markClean()
+      syncFromServer(d)
     }).catch((err) => {
       setError(err instanceof Error ? err.message : "Ошибка загрузки")
     }).finally(() => {
@@ -168,53 +151,10 @@ export default function GoodsIssueFormPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id])
 
-  const addLine = () => {
-    update({ lines: [...f.lines, emptyLine(f.nextKey)], nextKey: f.nextKey + 1 })
-    markDirty()
-  }
-
-  const existingPickerLines = useMemo(() => linesToExistingPickerLines(f.lines), [f.lines])
-
-  const handlePick = useCallback((items: PickedItem[]) => {
-    const knownIds = new Set(existingPickerLines.map((l) => l.productId))
-    update((prev) => mergePickedIntoLines(prev.lines, items, prev.nextKey, knownIds))
-    markDirty()
-  }, [update, markDirty, existingPickerLines])
-
-  // ── Stable callbacks for DocumentLineRow (React.memo-safe) ──────────
-  const handleUpdateField = useCallback((key: number, field: keyof FormLine, value: string) => {
-    const editableFields: (keyof FormLine)[] = ["quantity", "unitPrice", "vatPercent", "discountPercent"]
-    update((prev) => ({ lines: prev.lines.map((l) => {
-      if (l._key !== key) return l
-      const updated = { ...l, [field]: value }
-      if (editableFields.includes(field)) {
-        updated.amount = undefined
-        updated.vatAmount = undefined
-      }
-      return updated
-    }) }))
-    markDirty()
-  }, [update, markDirty])
-
-  const handleUpdateRef = useCallback((key: number, patch: Partial<FormLine>) => {
-    update((prev) => ({ lines: prev.lines.map((l) => l._key === key ? { ...l, ...patch, amount: undefined, vatAmount: undefined } : l) }))
-    markDirty()
-  }, [update, markDirty])
-
-  const handleUpdateVatRate = useCallback((key: number, id: string, name: string) => {
-    update((prev) => ({ lines: prev.lines.map((l) => l._key === key ? { ...l, vatRateId: id, vatRateName: name, amount: undefined, vatAmount: undefined } : l) }))
-    markDirty()
-    if (id) {
-      fetchVatRatePercent(id).then((pct) => {
-        update((prev) => ({ lines: prev.lines.map((l) => l._key === key ? { ...l, vatPercent: pct, amount: undefined, vatAmount: undefined } : l) }))
-      })
-    }
-  }, [update, markDirty])
-
-  const handleRemoveLine = useCallback((key: number) => {
-    update((prev) => ({ lines: prev.lines.filter((l) => l._key !== key) }))
-    markDirty()
-  }, [update, markDirty])
+  // ── Line actions (generic hook) ───────────────────────────────────────
+  const { addLine, handlePick: pickLines, handleUpdateField, handleUpdateRef, handleUpdateVatRate, handleRemoveLine } = useDocumentLineActions(update, markDirty, { resetAmountsOnEdit: true })
+  const existingPickerLines = useExistingPickerLines(f.lines)
+  const handlePick = useCallback((items: PickedItem[]) => pickLines(items, f.lines), [pickLines, f.lines])
 
   const totals = useMemo(() => {
     const serverLinesCount = doc?.lines?.length ?? 0
@@ -248,7 +188,7 @@ export default function GoodsIssueFormPage() {
 
   const handleSave = async (andClose: boolean) => {
     setSaving(true)
-    setError(null)
+    clearErrors()
     try {
       let updated: GoodsIssueResponse
       if (doc?.posted) {
@@ -256,16 +196,14 @@ export default function GoodsIssueFormPage() {
       } else {
         updated = await api.goodsIssues.update(params.id, buildUpdatePayload())
       }
-      update({ _doc: updated })
-      markClean()
+      syncFromServer(updated)
       clear()
       if (andClose) {
-        useTabStateStore.getState().clearTab("/documents/goods-issues")
-        closeOne(pathname)
+        closeAndCleanup()
         return
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка сохранения")
+      handleError(err, "Ошибка сохранения")
       try { const r = await api.goodsIssues.get(params.id); update({ _doc: r }) } catch { /* ignore */ }
     } finally {
       setSaving(false)
@@ -274,13 +212,13 @@ export default function GoodsIssueFormPage() {
 
   const handlePost = async () => {
     setSaving(true)
-    setError(null)
+    clearErrors()
     try {
       await api.goodsIssues.post(params.id)
       const updated = await api.goodsIssues.get(params.id)
-      update({ _doc: updated })
+      syncFromServer(updated)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Ошибка проведения")
+      handleError(err, "Ошибка проведения", true)
     } finally {
       setSaving(false)
     }
@@ -288,13 +226,13 @@ export default function GoodsIssueFormPage() {
 
   const handleUnpost = async () => {
     setSaving(true)
-    setError(null)
+    clearErrors()
     try {
       await api.goodsIssues.unpost(params.id)
       const updated = await api.goodsIssues.get(params.id)
-      update({ _doc: updated })
+      syncFromServer(updated)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Ошибка отмены проведения")
+      handleError(err, "Ошибка отмены проведения", true)
     } finally {
       setSaving(false)
     }
@@ -303,14 +241,13 @@ export default function GoodsIssueFormPage() {
   const handleToggleDeletionMark = async () => {
     if (!doc) return
     setSaving(true)
-    setError(null)
+    clearErrors()
     try {
       await api.goodsIssues.setDeletionMark(params.id, { marked: !doc.deletionMark })
       const updated = await api.goodsIssues.get(params.id)
-      replace(mapDocToState(updated))
-      markClean()
+      syncFromServer(updated)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Ошибка")
+      handleError(err, "Ошибка", true)
     } finally {
       setSaving(false)
     }
@@ -318,15 +255,12 @@ export default function GoodsIssueFormPage() {
 
   const handlePostAndClose = async () => {
     setSaving(true)
-    setError(null)
+    clearErrors()
     try {
       await api.goodsIssues.updateAndRepost(params.id, buildUpdatePayload())
-      markClean()
-      clear()
-      useTabStateStore.getState().clearTab("/documents/goods-issues")
-      closeOne(pathname)
+      closeAndCleanup()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка")
+      handleError(err, "Ошибка")
       try { const r = await api.goodsIssues.get(params.id); update({ _doc: r }) } catch { /* ignore */ }
     } finally {
       setSaving(false)
@@ -421,7 +355,8 @@ export default function GoodsIssueFormPage() {
                     displayName={f.organizationName}
                     apiEndpoint="/catalog/organizations"
                     placeholder="Выберите организацию"
-                    onChange={(id, name) => { update({ organizationId: id, organizationName: name }); markDirty() }}
+                    error={fieldErrors.organizationId}
+                    onChange={(id, name) => { update({ organizationId: id, organizationName: name }); markDirty(); setFieldErrors(prev => ({...prev, organizationId: ""})) }}
                   />
                 </div>
               </div>
@@ -433,7 +368,8 @@ export default function GoodsIssueFormPage() {
                     displayName={f.customerName}
                     apiEndpoint="/catalog/counterparties"
                     placeholder="Выберите покупателя"
-                    onChange={(id, name) => { update({ customerId: id, customerName: name }); markDirty() }}
+                    error={fieldErrors.customerId}
+                    onChange={(id, name) => { update({ customerId: id, customerName: name }); markDirty(); setFieldErrors(prev => ({...prev, customerId: ""})) }}
                   />
                 </div>
               </div>
@@ -457,7 +393,8 @@ export default function GoodsIssueFormPage() {
                     displayName={f.warehouseName}
                     apiEndpoint="/catalog/warehouses"
                     placeholder="Выберите склад"
-                    onChange={(id, name) => { update({ warehouseId: id, warehouseName: name }); markDirty() }}
+                    error={fieldErrors.warehouseId}
+                    onChange={(id, name) => { update({ warehouseId: id, warehouseName: name }); markDirty(); setFieldErrors(prev => ({...prev, warehouseId: ""})) }}
                   />
                 </div>
               </div>
@@ -469,7 +406,8 @@ export default function GoodsIssueFormPage() {
                     displayName={f.contractName}
                     apiEndpoint="/catalog/contracts"
                     placeholder="Выберите договор"
-                    onChange={(id, name) => { update({ contractId: id, contractName: name }); markDirty() }}
+                    error={fieldErrors.contractId}
+                    onChange={(id, name) => { update({ contractId: id, contractName: name }); markDirty(); setFieldErrors(prev => ({...prev, contractId: ""})) }}
                   />
                 </div>
               </div>
@@ -481,7 +419,8 @@ export default function GoodsIssueFormPage() {
                     displayName={f.currencyName}
                     apiEndpoint="/catalog/currencies"
                     placeholder="Выберите валюту"
-                    onChange={(id, name) => { update({ currencyId: id, currencyName: name }); markDirty() }}
+                    error={fieldErrors.currencyId}
+                    onChange={(id, name) => { update({ currencyId: id, currencyName: name }); markDirty(); setFieldErrors(prev => ({...prev, currencyId: ""})) }}
                   />
                 </div>
               </div>

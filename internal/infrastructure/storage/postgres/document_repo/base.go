@@ -169,6 +169,11 @@ func (r *BaseDocumentRepo[T]) Create(ctx context.Context, entity T) error {
 	querier := r.getTxManager(ctx).GetQuerier(ctx)
 	_, err = querier.Exec(ctx, sql, args...)
 	if err != nil {
+		if postgres.IsForeignKeyViolation(err) {
+			field := postgres.ExtractForeignKeyField(err, r.tableName)
+			return apperror.NewBusinessRule("INVALID_REFERENCE", "Выбранный связанный элемент был удален из базы данных.").
+				WithDetail("field", field)
+		}
 		return fmt.Errorf("insert %s: %w", r.tableName, err)
 	}
 
@@ -229,6 +234,11 @@ func (r *BaseDocumentRepo[T]) Update(ctx context.Context, entity T) error {
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return apperror.NewConcurrentModification(r.tableName, entityID)
+		}
+		if postgres.IsForeignKeyViolation(err) {
+			field := postgres.ExtractForeignKeyField(err, r.tableName)
+			return apperror.NewBusinessRule("INVALID_REFERENCE", "Выбранный связанный элемент был удален из базы данных.").
+				WithDetail("field", field)
 		}
 		return fmt.Errorf("update %s: %w", r.tableName, err)
 	}

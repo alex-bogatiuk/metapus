@@ -33,6 +33,9 @@ func TenantDB(manager *tenant.Manager) gin.HandlerFunc {
 		// 1. Extract tenant UUID from header
 		rawTenantID := c.GetHeader(TenantHeader)
 		if rawTenantID == "" {
+			rawTenantID = c.Query("tenant")
+		}
+		if rawTenantID == "" {
 			_ = c.Error(
 				apperror.NewValidation("tenant is required").
 					WithDetail("header", TenantHeader),

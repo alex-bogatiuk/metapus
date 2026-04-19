@@ -3,7 +3,7 @@
 
 CREATE TABLE sys_notifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
-    user_id UUID NOT NULL REFERENCES sys_users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
     link VARCHAR(255),
@@ -26,7 +26,7 @@ CREATE INDEX idx_sys_notifications_txid ON sys_notifications(_txid);
 CREATE TRIGGER update_sys_notifications_modtime
     BEFORE UPDATE ON sys_notifications
     FOR EACH ROW
-    EXECUTE FUNCTION update_modified_column();
+    EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER set_sys_notifications_txid
     BEFORE INSERT OR UPDATE ON sys_notifications

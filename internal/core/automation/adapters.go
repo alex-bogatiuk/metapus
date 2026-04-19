@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/smtp"
+	"strings"
 	"time"
 
 	"metapus/pkg/logger"
@@ -21,16 +23,17 @@ type WebhookAdapter struct {
 func NewWebhookAdapter() *WebhookAdapter {
 	return &WebhookAdapter{
 		client: &http.Client{
-			Timeout: 10 * time.Second, // Prevent hanging requests
+			Timeout: 10 * time.Second,
 		},
 	}
 }
 
-// Execute performs the HTTP request.
-func (a *WebhookAdapter) Execute(ctx context.Context, config map[string]interface{}, credentials []byte, payload string) error {
-	urlRaw, ok := config["url"].(string)
+// Deliver sends the payload to the webhook URL from the channel destination.
+func (a *WebhookAdapter) Deliver(ctx context.Context, destination map[string]any, accountConfig map[string]any, credentials []byte, payload string) error {
+	// URL comes from Channel.Destination
+	urlRaw, ok := destination["url"].(string)
 	if !ok || urlRaw == "" {
-		return fmt.Errorf("missing or invalid 'url' in webhook config")
+		return fmt.Errorf("missing 'url' in channel destination")
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, urlRaw, bytes.NewBufferString(payload))
@@ -38,16 +41,31 @@ func (a *WebhookAdapter) Execute(ctx context.Context, config map[string]interfac
 		return fmt.Errorf("create request: %w", err)
 	}
 
-	// Default headers
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "Metapus-AutomationEngine/1.0")
+	req.Header.Set("User-Agent", "Metapus-AutomationEngine/2.0")
 
-	// If credentials exist, assume it's a Bearer token or Secret
-	secret := string(credentials)
-	if secret != "" {
-		// As a simple example, we use Bearer. For advanced webhooks like HMAC, 
-		// we could check config["auth_type"] = "hmac_sha256" and generate signature header.
-		req.Header.Set("Authorization", "Bearer "+secret)
+	// Credentials: Bearer token or API secret
+	if secret := string(credentials); secret != "" {
+		authType, _ := accountConfig["auth_type"].(string)
+		switch authType {
+		case "header":
+			headerName, _ := accountConfig["header_name"].(string)
+			if headerName == "" {
+				headerName = "X-Webhook-Secret"
+			}
+			req.Header.Set(headerName, secret)
+		default:
+			req.Header.Set("Authorization", "Bearer "+secret)
+		}
+	}
+
+	// Custom headers from account config
+	if headers, ok := accountConfig["headers"].(map[string]any); ok {
+		for k, v := range headers {
+			if sv, ok := v.(string); ok {
+				req.Header.Set(k, sv)
+			}
+		}
 	}
 
 	resp, err := a.client.Do(req)
@@ -57,14 +75,14 @@ func (a *WebhookAdapter) Execute(ctx context.Context, config map[string]interfac
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	return nil
 }
 
-// TelegramAdapter sends a message to a telegram chat.
+// TelegramAdapter sends a message to a Telegram chat via Bot API.
 type TelegramAdapter struct {
 	client *http.Client
 }
@@ -78,39 +96,35 @@ func NewTelegramAdapter() *TelegramAdapter {
 	}
 }
 
-// Execute sends the message to the Telegram Bot API.
-func (a *TelegramAdapter) Execute(ctx context.Context, config map[string]interface{}, credentials []byte, payload string) error {
-	chatID, ok := config["chat_id"]
-	if !ok {
-		return fmt.Errorf("missing 'chat_id' in telegram config")
+// Deliver sends the message to a Telegram chat.
+// destination["chat_id"]: the target chat (from Channel)
+// credentials: Bot Token (from Account)
+// accountConfig["parse_mode"]: optional (Markdown, HTML, MarkdownV2)
+func (a *TelegramAdapter) Deliver(ctx context.Context, destination map[string]any, accountConfig map[string]any, credentials []byte, payload string) error {
+	chatID := destination["chat_id"]
+	if chatID == nil {
+		return fmt.Errorf("missing 'chat_id' in channel destination")
 	}
 
 	botToken := string(credentials)
 	if botToken == "" {
-		return fmt.Errorf("missing bot token in telegram credentials")
+		return fmt.Errorf("missing bot token in account credentials")
 	}
 
-	// Payload contains the rendered message text
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", botToken)
 
-	// Format request body
 	bodyMap := map[string]interface{}{
 		"chat_id": chatID,
-		"text":    payload, // Assuming template renders pure text or markup
+		"text":    payload,
 	}
-	// Support optional parse_mode
-	if pm, ok := config["parse_mode"].(string); ok && pm != "" {
+	if pm, ok := accountConfig["parse_mode"].(string); ok && pm != "" {
 		bodyMap["parse_mode"] = pm
 	}
+	// Allow disabling link previews
+	if disable, ok := accountConfig["disable_web_page_preview"].(bool); ok && disable {
+		bodyMap["disable_web_page_preview"] = true
+	}
 
-	// If the template wanted to emit JSON natively, we could just pass payload,
-	// but normally for Telegram people write text templates and we form the JSON wrapper here.
-	
-	// Check if the payload is ALREADY JSON containing chat_id/text.
-	// This happens if the user used `{{ json . }}` to make a full tg payload.
-	// We'll assume the user typed pure text in the template, so we wrap it.
-	
-	// Wrap
 	reqBody, err := json.Marshal(bodyMap)
 	if err != nil {
 		return fmt.Errorf("marshal telegram payload: %w", err)
@@ -129,9 +143,92 @@ func (a *TelegramAdapter) Execute(ctx context.Context, config map[string]interfa
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		logger.Error(ctx, "telegram API error", "status", resp.StatusCode, "response", string(respBody))
 		return fmt.Errorf("telegram API returned status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
+// EmailAdapter sends emails via net/smtp.
+type EmailAdapter struct{}
+
+// NewEmailAdapter creates a new Email adapter.
+func NewEmailAdapter() *EmailAdapter {
+	return &EmailAdapter{}
+}
+
+// Deliver sends an email message.
+// accountConfig: {"smtp_host": "...", "smtp_port": "587", "from": "noreply@example.com"}
+// credentials: SMTP password
+// destination: {"to": "user@example.com"} or {"to": ["a@x.com", "b@x.com"]}
+// payload: email body (subject extracted via --- separator or from first line)
+func (a *EmailAdapter) Deliver(ctx context.Context, destination map[string]any, accountConfig map[string]any, credentials []byte, payload string) error {
+	smtpHost, _ := accountConfig["smtp_host"].(string)
+	smtpPort, _ := accountConfig["smtp_port"].(string)
+	from, _ := accountConfig["from"].(string)
+
+	if smtpHost == "" || from == "" {
+		return fmt.Errorf("missing smtp_host or from in account config")
+	}
+	if smtpPort == "" {
+		smtpPort = "587"
+	}
+
+	// Parse recipients
+	var recipients []string
+	switch to := destination["to"].(type) {
+	case string:
+		recipients = []string{to}
+	case []interface{}:
+		for _, v := range to {
+			if s, ok := v.(string); ok {
+				recipients = append(recipients, s)
+			}
+		}
+	case []string:
+		recipients = to
+	default:
+		return fmt.Errorf("missing or invalid 'to' in channel destination")
+	}
+
+	if len(recipients) == 0 {
+		return fmt.Errorf("no recipients specified")
+	}
+
+	// Parse subject from payload: first line = subject, rest = body
+	subject := "Notification"
+	body := payload
+	if idx := strings.Index(payload, "\n"); idx > 0 {
+		subject = strings.TrimSpace(payload[:idx])
+		body = strings.TrimSpace(payload[idx+1:])
+	}
+
+	// Build email message
+	contentType, _ := accountConfig["content_type"].(string)
+	if contentType == "" {
+		contentType = "text/plain"
+	}
+
+	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: %s; charset=UTF-8\r\n\r\n%s",
+		from,
+		strings.Join(recipients, ", "),
+		subject,
+		contentType,
+		body,
+	)
+
+	// SMTP auth
+	var auth smtp.Auth
+	password := string(credentials)
+	if password != "" {
+		auth = smtp.PlainAuth("", from, password, smtpHost)
+	}
+
+	addr := fmt.Sprintf("%s:%s", smtpHost, smtpPort)
+	if err := smtp.SendMail(addr, auth, from, recipients, []byte(msg)); err != nil {
+		return fmt.Errorf("smtp send: %w", err)
 	}
 
 	return nil

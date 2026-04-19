@@ -5,27 +5,27 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
-	"metapus/internal/domain/integrations"
+	"metapus/internal/domain/automations"
 )
 
-// ServiceAccountHandler handles API endpoints for service accounts.
-type ServiceAccountHandler struct {
+// AutomationAccountHandler handles API endpoints for automation accounts.
+type AutomationAccountHandler struct {
 	*BaseHandler
-	repo    integrations.Repository
-	credMgr integrations.CredentialManager
+	repo    automations.AccountRepository
+	credMgr automations.CredentialManager
 }
 
-// NewServiceAccountHandler creates a new handler.
-func NewServiceAccountHandler(base *BaseHandler, repo integrations.Repository, credMgr integrations.CredentialManager) *ServiceAccountHandler {
-	return &ServiceAccountHandler{
+// NewAutomationAccountHandler creates a new handler.
+func NewAutomationAccountHandler(base *BaseHandler, repo automations.AccountRepository, credMgr automations.CredentialManager) *AutomationAccountHandler {
+	return &AutomationAccountHandler{
 		BaseHandler: base,
 		repo:        repo,
 		credMgr:     credMgr,
 	}
 }
 
-// List returns all service accounts.
-func (h *ServiceAccountHandler) List(c *gin.Context) {
+// List returns all automation accounts.
+func (h *AutomationAccountHandler) List(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	accounts, err := h.repo.List(ctx)
@@ -34,16 +34,15 @@ func (h *ServiceAccountHandler) List(c *gin.Context) {
 		return
 	}
 
-	// Always return an array, even if empty
 	if accounts == nil {
-		accounts = []integrations.ServiceAccount{}
+		accounts = []automations.Account{}
 	}
 
 	h.OK(c, accounts)
 }
 
-// Get returns a single service account.
-func (h *ServiceAccountHandler) Get(c *gin.Context) {
+// Get returns a single automation account.
+func (h *AutomationAccountHandler) Get(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	accountID, err := id.Parse(c.Param("id"))
@@ -61,11 +60,11 @@ func (h *ServiceAccountHandler) Get(c *gin.Context) {
 	h.OK(c, account)
 }
 
-// Create handles the creation of a new service account.
-func (h *ServiceAccountHandler) Create(c *gin.Context) {
+// Create handles the creation of a new automation account.
+func (h *AutomationAccountHandler) Create(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	var req integrations.CreateRequest
+	var req automations.CreateAccountRequest
 	if !h.BindJSON(c, &req) {
 		return
 	}
@@ -81,11 +80,11 @@ func (h *ServiceAccountHandler) Create(c *gin.Context) {
 		return
 	}
 
-	h.Created(c, account.ID.String()) // Or return full object? Usually we return ID in Metapus.
+	h.Created(c, account.ID.String())
 }
 
-// Update modifies an existing service account (excluding credentials).
-func (h *ServiceAccountHandler) Update(c *gin.Context) {
+// Update modifies an existing automation account (excluding credentials).
+func (h *AutomationAccountHandler) Update(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	accountID, err := id.Parse(c.Param("id"))
@@ -94,7 +93,7 @@ func (h *ServiceAccountHandler) Update(c *gin.Context) {
 		return
 	}
 
-	var req integrations.UpdateRequest
+	var req automations.UpdateAccountRequest
 	if !h.BindJSON(c, &req) {
 		return
 	}
@@ -113,8 +112,8 @@ func (h *ServiceAccountHandler) Update(c *gin.Context) {
 	h.OK(c, account)
 }
 
-// Delete removes a service account.
-func (h *ServiceAccountHandler) Delete(c *gin.Context) {
+// Delete removes an automation account.
+func (h *AutomationAccountHandler) Delete(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	accountID, err := id.Parse(c.Param("id"))
@@ -131,8 +130,8 @@ func (h *ServiceAccountHandler) Delete(c *gin.Context) {
 	h.NoContent(c)
 }
 
-// UpdateCredentials updates only the encrypted credentials for a service account.
-func (h *ServiceAccountHandler) UpdateCredentials(c *gin.Context) {
+// UpdateCredentials updates only the encrypted credentials for an account.
+func (h *AutomationAccountHandler) UpdateCredentials(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	accountID, err := id.Parse(c.Param("id"))
@@ -141,12 +140,14 @@ func (h *ServiceAccountHandler) UpdateCredentials(c *gin.Context) {
 		return
 	}
 
-	var req integrations.UpdateCredentialsRequest
+	var req struct {
+		Credentials string `json:"credentials"`
+	}
 	if !h.BindJSON(c, &req) {
 		return
 	}
 
-	if err := h.credMgr.WriteCredentials(ctx, accountID, req.Credentials); err != nil {
+	if err := h.credMgr.WriteCredentials(ctx, accountID, []byte(req.Credentials)); err != nil {
 		h.Error(c, err)
 		return
 	}
@@ -154,22 +155,21 @@ func (h *ServiceAccountHandler) UpdateCredentials(c *gin.Context) {
 	h.NoContent(c)
 }
 
-// TestConnection is a stub for testing out a service account connection.
-func (h *ServiceAccountHandler) TestConnection(c *gin.Context) {
-	// For API stubbing in Phase 1
+// TestConnection is a stub for testing an account connection.
+func (h *AutomationAccountHandler) TestConnection(c *gin.Context) {
 	h.Success(c, "Connection successful (stub)")
 }
 
 // RegisterRoutes registers the handlers to the Gin router group.
-func (h *ServiceAccountHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	accounts := rg.Group("/service-accounts")
+func (h *AutomationAccountHandler) RegisterRoutes(rg *gin.RouterGroup) {
+	accounts := rg.Group("/automation-accounts")
 	{
 		accounts.GET("", h.List)
 		accounts.POST("", h.Create)
 		accounts.GET("/:id", h.Get)
 		accounts.PUT("/:id", h.Update)
 		accounts.DELETE("/:id", h.Delete)
-		
+
 		accounts.PUT("/:id/credentials", h.UpdateCredentials)
 		accounts.POST("/:id/test", h.TestConnection)
 	}

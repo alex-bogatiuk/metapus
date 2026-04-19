@@ -2,16 +2,19 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/lib/pq"
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/automations"
 )
 
-// AutomationRuleRepo implements automations.Repository
+// AutomationRuleRepo implements automations.RuleRepository.
 type AutomationRuleRepo struct{}
 
 // NewAutomationRuleRepo creates a new repository.
@@ -19,17 +22,56 @@ func NewAutomationRuleRepo() *AutomationRuleRepo {
 	return &AutomationRuleRepo{}
 }
 
-// List returns all rules.
-func (r *AutomationRuleRepo) List(ctx context.Context, eventType *string) ([]automations.AutomationRule, error) {
+const ruleSelectCols = `id, name, description, trigger_type, event_type, target_entities, 
+	condition_cel, reaction_type, message_format, action_template, chain_rule_ids,
+	priority, max_retries, cooldown_seconds, organization_id, is_active,
+	execution_count, error_count, last_executed_at,
+	deletion_mark, version, created_at, updated_at`
+
+// scanRule scans a pgx.Row (also satisfied by pgx.Rows) into a Rule struct.
+func scanRule(row pgx.Row) (*automations.Rule, error) {
+	var r automations.Rule
+	var targetEntities []string
+	var chainIDsJSON []byte
+
+	err := row.Scan(
+		&r.ID, &r.Name, &r.Description, &r.TriggerType, &r.EventType, pq.Array(&targetEntities),
+		&r.ConditionCEL, &r.ReactionType, &r.MessageFormat, &r.ActionTemplate, &chainIDsJSON,
+		&r.Priority, &r.MaxRetries, &r.CooldownSecs, &r.OrganizationID, &r.IsActive,
+		&r.ExecutionCount, &r.ErrorCount, &r.LastExecutedAt,
+		&r.DeletionMark, &r.Version, &r.CreatedAt, &r.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	r.TargetEntities = targetEntities
+
+	if len(chainIDsJSON) > 0 {
+		var chainStrings []string
+		if err := json.Unmarshal(chainIDsJSON, &chainStrings); err == nil {
+			for _, s := range chainStrings {
+				parsed, parseErr := id.Parse(s)
+				if parseErr == nil {
+					r.ChainRuleIDs = append(r.ChainRuleIDs, parsed)
+				}
+			}
+		}
+	}
+
+	return &r, nil
+}
+
+// List returns all non-deleted rules.
+func (r *AutomationRuleRepo) List(ctx context.Context, eventType *string) ([]automations.Rule, error) {
 	txm := MustGetTxManager(ctx)
 	q := txm.GetQuerier(ctx)
 
-	query := `
-		SELECT id, name, organization_id, event_type, condition_cel, action_type, action_template, service_account_id, is_active, created_at, updated_at
+	query := fmt.Sprintf(`
+		SELECT %s
 		FROM sys_automation_rules
-		WHERE ($1::text IS NULL OR event_type = $1)
-		ORDER BY created_at DESC
-	`
+		WHERE deletion_mark = FALSE AND ($1::text IS NULL OR event_type = $1)
+		ORDER BY priority DESC, created_at DESC
+	`, ruleSelectCols)
 
 	rows, err := q.Query(ctx, query, eventType)
 	if err != nil {
@@ -37,85 +79,155 @@ func (r *AutomationRuleRepo) List(ctx context.Context, eventType *string) ([]aut
 	}
 	defer rows.Close()
 
-	var rules []automations.AutomationRule
+	var rules []automations.Rule
+	var ruleIDs []id.ID
 	for rows.Next() {
-		var rule automations.AutomationRule
-		var orgID *string
-		err := rows.Scan(
-			&rule.ID, &rule.Name, &orgID, &rule.EventType, &rule.ConditionCEL,
-			&rule.ActionType, &rule.ActionTemplate, &rule.ServiceAccountID,
-			&rule.IsActive, &rule.CreatedAt, &rule.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("scan list rules: %w", err)
+		rule, scanErr := scanRule(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("scan rule: %w", scanErr)
 		}
-		if orgID != nil {
-			parsedID, err := id.Parse(*orgID)
-			if err == nil {
-				rule.OrganizationID = &parsedID
-			}
-		}
-		rules = append(rules, rule)
+		ruleIDs = append(ruleIDs, rule.ID)
+		rules = append(rules, *rule)
+	}
+
+	if len(rules) == 0 {
+		return rules, nil
+	}
+
+	// Batch-load all subscribers in one query instead of N+1
+	allSubs, subErr := r.loadSubscribersBatch(ctx, ruleIDs)
+	if subErr != nil {
+		return nil, fmt.Errorf("batch load subscribers: %w", subErr)
+	}
+
+	// Group subscribers by rule ID
+	subsByRule := make(map[id.ID][]automations.Subscriber, len(ruleIDs))
+	for _, s := range allSubs {
+		subsByRule[s.RuleID] = append(subsByRule[s.RuleID], s)
+	}
+	for i := range rules {
+		rules[i].Subscribers = subsByRule[rules[i].ID]
 	}
 
 	return rules, nil
 }
 
-// ListActiveByEventType returns active rules for a specific event type.
-func (r *AutomationRuleRepo) ListActiveByEventType(ctx context.Context, eventType string) ([]automations.AutomationRule, error) {
+// ListActiveByEvent is the hot path for Engine.Evaluate.
+// Matches rules where event_type equals the given action AND
+// (target_entities is NULL/wildcard OR contains the given entityName).
+// Uses batch subscriber loading to avoid N+1 queries.
+func (r *AutomationRuleRepo) ListActiveByEvent(ctx context.Context, eventType string, entityName string) ([]automations.Rule, error) {
 	txm := MustGetTxManager(ctx)
 	q := txm.GetQuerier(ctx)
 
-	// Since we are running in a shared tenant context, the row level security will handle
-	// visibility of the rows if applicable. If rules are tenant-specific, this is safe.
-	// We might want to eagerly load the active flag here.
-	query := `
-		SELECT id, name, organization_id, event_type, condition_cel, action_type, action_template, service_account_id, is_active, created_at, updated_at
+	query := fmt.Sprintf(`
+		SELECT %s
 		FROM sys_automation_rules
-		WHERE event_type = $1 AND is_active = TRUE
-		ORDER BY created_at ASC
-	`
+		WHERE event_type = $1
+		  AND (target_entities IS NULL OR $2 = ANY(target_entities))
+		  AND is_active = TRUE AND deletion_mark = FALSE
+		ORDER BY priority DESC, created_at ASC
+	`, ruleSelectCols)
 
-	rows, err := q.Query(ctx, query, eventType)
+	rows, err := q.Query(ctx, query, eventType, entityName)
 	if err != nil {
-		return nil, fmt.Errorf("query list active rules by event type: %w", err)
+		return nil, fmt.Errorf("query active rules by event: %w", err)
 	}
 	defer rows.Close()
 
-	var rules []automations.AutomationRule
+	var rules []automations.Rule
+	var ruleIDs []id.ID
 	for rows.Next() {
-		var rule automations.AutomationRule
-		err := rows.Scan(
-			&rule.ID, &rule.Name, &rule.OrganizationID, &rule.EventType, &rule.ConditionCEL,
-			&rule.ActionType, &rule.ActionTemplate, &rule.ServiceAccountID,
-			&rule.IsActive, &rule.CreatedAt, &rule.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("scan active rule: %w", err)
+		rule, scanErr := scanRule(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("scan active rule: %w", scanErr)
 		}
-		rules = append(rules, rule)
+		ruleIDs = append(ruleIDs, rule.ID)
+		rules = append(rules, *rule)
+	}
+
+	if len(rules) == 0 {
+		return rules, nil
+	}
+
+	// Batch-load all subscribers in one query instead of N+1
+	allSubs, subErr := r.loadSubscribersBatch(ctx, ruleIDs)
+	if subErr != nil {
+		return nil, fmt.Errorf("batch load subscribers: %w", subErr)
+	}
+
+	// Group subscribers by rule ID
+	subsByRule := make(map[id.ID][]automations.Subscriber, len(ruleIDs))
+	for _, s := range allSubs {
+		subsByRule[s.RuleID] = append(subsByRule[s.RuleID], s)
+	}
+	for i := range rules {
+		rules[i].Subscribers = subsByRule[rules[i].ID]
 	}
 
 	return rules, nil
 }
 
-// GetByID retrieves a rule by ID.
-func (r *AutomationRuleRepo) GetByID(ctx context.Context, ruleID id.ID) (*automations.AutomationRule, error) {
+// ListActiveByTriggerType returns active rules by trigger type (e.g. "scheduled").
+// Uses batch subscriber loading to avoid N+1 queries (same as ListActiveByEventType).
+func (r *AutomationRuleRepo) ListActiveByTriggerType(ctx context.Context, triggerType automations.TriggerType) ([]automations.Rule, error) {
 	txm := MustGetTxManager(ctx)
 	q := txm.GetQuerier(ctx)
 
-	query := `
-		SELECT id, name, organization_id, event_type, condition_cel, action_type, action_template, service_account_id, is_active, created_at, updated_at
+	query := fmt.Sprintf(`
+		SELECT %s
 		FROM sys_automation_rules
-		WHERE id = $1
-	`
+		WHERE trigger_type = $1 AND is_active = TRUE AND deletion_mark = FALSE
+		ORDER BY priority DESC
+	`, ruleSelectCols)
 
-	var rule automations.AutomationRule
-	err := q.QueryRow(ctx, query, ruleID).Scan(
-		&rule.ID, &rule.Name, &rule.OrganizationID, &rule.EventType, &rule.ConditionCEL,
-		&rule.ActionType, &rule.ActionTemplate, &rule.ServiceAccountID,
-		&rule.IsActive, &rule.CreatedAt, &rule.UpdatedAt,
-	)
+	rows, err := q.Query(ctx, query, triggerType)
+	if err != nil {
+		return nil, fmt.Errorf("query active rules by trigger type: %w", err)
+	}
+	defer rows.Close()
+
+	var rules []automations.Rule
+	var ruleIDs []id.ID
+	for rows.Next() {
+		rule, scanErr := scanRule(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("scan rule: %w", scanErr)
+		}
+		ruleIDs = append(ruleIDs, rule.ID)
+		rules = append(rules, *rule)
+	}
+
+	if len(rules) == 0 {
+		return rules, nil
+	}
+
+	// Batch-load all subscribers in one query instead of N+1
+	allSubs, subErr := r.loadSubscribersBatch(ctx, ruleIDs)
+	if subErr != nil {
+		return nil, fmt.Errorf("batch load subscribers: %w", subErr)
+	}
+
+	// Group subscribers by rule ID
+	subsByRule := make(map[id.ID][]automations.Subscriber, len(ruleIDs))
+	for _, s := range allSubs {
+		subsByRule[s.RuleID] = append(subsByRule[s.RuleID], s)
+	}
+	for i := range rules {
+		rules[i].Subscribers = subsByRule[rules[i].ID]
+	}
+
+	return rules, nil
+}
+
+// GetByID retrieves a rule with its subscribers.
+func (r *AutomationRuleRepo) GetByID(ctx context.Context, ruleID id.ID) (*automations.Rule, error) {
+	txm := MustGetTxManager(ctx)
+	q := txm.GetQuerier(ctx)
+
+	query := fmt.Sprintf(`SELECT %s FROM sys_automation_rules WHERE id = $1 AND deletion_mark = FALSE`, ruleSelectCols)
+
+	rule, err := scanRule(q.QueryRow(ctx, query, ruleID))
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, apperror.NewNotFound("sys_automation_rules", ruleID)
@@ -123,78 +235,133 @@ func (r *AutomationRuleRepo) GetByID(ctx context.Context, ruleID id.ID) (*automa
 		return nil, fmt.Errorf("query rule by id: %w", err)
 	}
 
-	return &rule, nil
+	// Load subscribers
+	subs, subErr := r.loadSubscribers(ctx, ruleID)
+	if subErr != nil {
+		return nil, fmt.Errorf("load subscribers: %w", subErr)
+	}
+	rule.Subscribers = subs
+
+	return rule, nil
 }
 
-// Create creates a new rule.
-func (r *AutomationRuleRepo) Create(ctx context.Context, req automations.CreateRuleRequest) (*automations.AutomationRule, error) {
+// Create creates a rule and its subscribers in a single transaction.
+func (r *AutomationRuleRepo) Create(ctx context.Context, req automations.CreateRuleRequest) (*automations.Rule, error) {
 	txm := MustGetTxManager(ctx)
 	q := txm.GetQuerier(ctx)
 
-	query := `
-		INSERT INTO sys_automation_rules (
-			name, organization_id, event_type, condition_cel, action_type, action_template, service_account_id, is_active
-		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8
-		)
-		RETURNING id, name, organization_id, event_type, condition_cel, action_type, action_template, service_account_id, is_active, created_at, updated_at
-	`
-
-	var rule automations.AutomationRule
-	err := q.QueryRow(ctx, query,
-		req.Name, req.OrganizationID, req.EventType, req.ConditionCEL, req.ActionType, req.ActionTemplate, req.ServiceAccountID, req.IsActive,
-	).Scan(
-		&rule.ID, &rule.Name, &rule.OrganizationID, &rule.EventType, &rule.ConditionCEL,
-		&rule.ActionType, &rule.ActionTemplate, &rule.ServiceAccountID,
-		&rule.IsActive, &rule.CreatedAt, &rule.UpdatedAt,
-	)
-	if err != nil {
-		// Could handle foreign key violations here (e.g. invalid service_account_id)
-		return nil, fmt.Errorf("create automation rule: %w", err)
+	var chainIDStrings []string
+	for _, cid := range req.ChainRuleIDs {
+		chainIDStrings = append(chainIDStrings, cid.String())
 	}
 
-	return &rule, nil
+	query := fmt.Sprintf(`
+		INSERT INTO sys_automation_rules (
+			name, description, trigger_type, event_type, target_entities,
+			condition_cel, reaction_type, message_format, action_template, chain_rule_ids,
+			priority, max_retries, cooldown_seconds, organization_id, is_active
+		) VALUES (
+			$1, $2, $3, $4, $5,
+			$6, $7, $8, $9, $10,
+			$11, $12, $13, $14, $15
+		)
+		RETURNING %s
+	`, ruleSelectCols)
+
+	// Convert targetEntities to pq.StringArray; nil for wildcard (empty slice → NULL)
+	var targetEntities *pq.StringArray
+	if len(req.TargetEntities) > 0 {
+		a := pq.StringArray(req.TargetEntities)
+		targetEntities = &a
+	}
+
+	rule, err := scanRule(q.QueryRow(ctx, query,
+		req.Name, req.Description, req.TriggerType, req.EventType, targetEntities,
+		req.ConditionCEL, req.ReactionType, req.MessageFormat, req.ActionTemplate, pq.Array(chainIDStrings),
+		req.Priority, req.MaxRetries, req.CooldownSecs, req.OrganizationID, req.IsActive,
+	))
+	if err != nil {
+		return nil, fmt.Errorf("create rule: %w", err)
+	}
+
+	// Insert subscribers
+	subs, subErr := r.insertSubscribers(ctx, rule.ID, req.Subscribers)
+	if subErr != nil {
+		return nil, fmt.Errorf("insert subscribers: %w", subErr)
+	}
+	rule.Subscribers = subs
+
+	return rule, nil
 }
 
-// Update modifies an existing rule.
-func (r *AutomationRuleRepo) Update(ctx context.Context, ruleID id.ID, req automations.UpdateRuleRequest) (*automations.AutomationRule, error) {
+// Update updates a rule and replaces all subscribers atomically.
+func (r *AutomationRuleRepo) Update(ctx context.Context, ruleID id.ID, req automations.UpdateRuleRequest) (*automations.Rule, error) {
 	txm := MustGetTxManager(ctx)
 	q := txm.GetQuerier(ctx)
 
-	query := `
-		UPDATE sys_automation_rules
-		SET name = $1, organization_id = $2, event_type = $3, condition_cel = $4, action_type = $5, action_template = $6, service_account_id = $7, is_active = $8, updated_at = NOW()
-		WHERE id = $9
-		RETURNING id, name, organization_id, event_type, condition_cel, action_type, action_template, service_account_id, is_active, created_at, updated_at
-	`
+	var chainIDStrings []string
+	for _, cid := range req.ChainRuleIDs {
+		chainIDStrings = append(chainIDStrings, cid.String())
+	}
 
-	var rule automations.AutomationRule
-	err := q.QueryRow(ctx, query,
-		req.Name, req.OrganizationID, req.EventType, req.ConditionCEL, req.ActionType, req.ActionTemplate, req.ServiceAccountID, req.IsActive, ruleID,
-	).Scan(
-		&rule.ID, &rule.Name, &rule.OrganizationID, &rule.EventType, &rule.ConditionCEL,
-		&rule.ActionType, &rule.ActionTemplate, &rule.ServiceAccountID,
-		&rule.IsActive, &rule.CreatedAt, &rule.UpdatedAt,
-	)
+	query := fmt.Sprintf(`
+		UPDATE sys_automation_rules
+		SET name = $1, description = $2, trigger_type = $3, event_type = $4, target_entities = $5,
+			condition_cel = $6, reaction_type = $7, message_format = $8, action_template = $9, chain_rule_ids = $10,
+			priority = $11, max_retries = $12, cooldown_seconds = $13, organization_id = $14, is_active = $15,
+			version = version + 1
+		WHERE id = $16 AND version = $17 AND deletion_mark = FALSE
+		RETURNING %s
+	`, ruleSelectCols)
+
+	// Convert targetEntities to pq.StringArray; nil for wildcard (empty slice → NULL)
+	var targetEntities *pq.StringArray
+	if len(req.TargetEntities) > 0 {
+		a := pq.StringArray(req.TargetEntities)
+		targetEntities = &a
+	}
+
+	rule, err := scanRule(q.QueryRow(ctx, query,
+		req.Name, req.Description, req.TriggerType, req.EventType, targetEntities,
+		req.ConditionCEL, req.ReactionType, req.MessageFormat, req.ActionTemplate, pq.Array(chainIDStrings),
+		req.Priority, req.MaxRetries, req.CooldownSecs, req.OrganizationID, req.IsActive,
+		ruleID, req.Version,
+	))
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, apperror.NewNotFound("sys_automation_rules", ruleID)
+			return nil, apperror.NewConcurrentModification("sys_automation_rules", ruleID)
 		}
-		return nil, fmt.Errorf("update automation rule: %w", err)
+		return nil, fmt.Errorf("update rule: %w", err)
 	}
 
-	return &rule, nil
+	// Replace subscribers: delete all + insert new
+	if _, delErr := q.Exec(ctx, `DELETE FROM sys_automation_subscribers WHERE rule_id = $1`, ruleID); delErr != nil {
+		return nil, fmt.Errorf("delete old subscribers: %w", delErr)
+	}
+
+	subs, subErr := r.insertSubscribers(ctx, ruleID, req.Subscribers)
+	if subErr != nil {
+		return nil, fmt.Errorf("insert subscribers: %w", subErr)
+	}
+	rule.Subscribers = subs
+
+	return rule, nil
 }
 
-// Delete removes a rule.
+// Delete marks a rule for soft deletion (cascades to subscribers via DB FK).
 func (r *AutomationRuleRepo) Delete(ctx context.Context, ruleID id.ID) error {
 	txm := MustGetTxManager(ctx)
 	q := txm.GetQuerier(ctx)
 
-	query := `DELETE FROM sys_automation_rules WHERE id = $1`
+	// Hard-delete subscribers first (they have no standalone lifecycle)
+	if _, err := q.Exec(ctx, `DELETE FROM sys_automation_subscribers WHERE rule_id = $1`, ruleID); err != nil {
+		return fmt.Errorf("delete subscribers: %w", err)
+	}
+
+	query := `UPDATE sys_automation_rules SET deletion_mark = TRUE WHERE id = $1 AND deletion_mark = FALSE`
 	cmdTag, err := q.Exec(ctx, query, ruleID)
 	if err != nil {
-		return fmt.Errorf("delete automation rule: %w", err)
+		return fmt.Errorf("delete rule: %w", err)
 	}
 	if cmdTag.RowsAffected() == 0 {
 		return apperror.NewNotFound("sys_automation_rules", ruleID)
@@ -203,5 +370,190 @@ func (r *AutomationRuleRepo) Delete(ctx context.Context, ruleID id.ID) error {
 	return nil
 }
 
+// Toggle switches is_active and returns the new state.
+func (r *AutomationRuleRepo) Toggle(ctx context.Context, ruleID id.ID) (bool, error) {
+	txm := MustGetTxManager(ctx)
+	q := txm.GetQuerier(ctx)
+
+	query := `
+		UPDATE sys_automation_rules
+		SET is_active = NOT is_active, version = version + 1
+		WHERE id = $1 AND deletion_mark = FALSE
+		RETURNING is_active
+	`
+
+	var isActive bool
+	if err := q.QueryRow(ctx, query, ruleID).Scan(&isActive); err != nil {
+		if err == pgx.ErrNoRows {
+			return false, apperror.NewNotFound("sys_automation_rules", ruleID)
+		}
+		return false, fmt.Errorf("toggle rule: %w", err)
+	}
+
+	return isActive, nil
+}
+
+// IncrementStats atomically increments execution_count (and error_count if isError).
+func (r *AutomationRuleRepo) IncrementStats(ctx context.Context, ruleID id.ID, isError bool) error {
+	txm := MustGetTxManager(ctx)
+	q := txm.GetQuerier(ctx)
+
+	query := `
+		UPDATE sys_automation_rules
+		SET execution_count = execution_count + 1,
+			error_count = error_count + CASE WHEN $1 THEN 1 ELSE 0 END,
+			last_executed_at = NOW()
+		WHERE id = $2
+	`
+
+	_, err := q.Exec(ctx, query, isError, ruleID)
+	return err
+}
+
+// loadSubscribers loads all subscribers for a rule with denormalized display names.
+func (r *AutomationRuleRepo) loadSubscribers(ctx context.Context, ruleID id.ID) ([]automations.Subscriber, error) {
+	txm := MustGetTxManager(ctx)
+	q := txm.GetQuerier(ctx)
+
+	query := `
+		SELECT s.id, s.rule_id, s.subscriber_type, s.channel_id, s.user_id,
+			s.role_name, s.doc_field_path, s.delivery_method, s.idx,
+			c.name AS channel_name,
+			CONCAT_WS(' ', u.first_name, u.last_name) AS user_name
+		FROM sys_automation_subscribers s
+		LEFT JOIN sys_automation_channels c ON c.id = s.channel_id
+		LEFT JOIN users u ON u.id = s.user_id
+		WHERE s.rule_id = $1
+		ORDER BY s.idx
+	`
+
+	rows, err := q.Query(ctx, query, ruleID)
+	if err != nil {
+		return nil, fmt.Errorf("query subscribers: %w", err)
+	}
+	defer rows.Close()
+
+	var subs []automations.Subscriber
+	for rows.Next() {
+		var s automations.Subscriber
+		err := rows.Scan(
+			&s.ID, &s.RuleID, &s.SubscriberType, &s.ChannelID, &s.UserID,
+			&s.RoleName, &s.DocFieldPath, &s.DeliveryMethod, &s.Idx,
+			&s.ChannelName, &s.UserName,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan subscriber: %w", err)
+		}
+		subs = append(subs, s)
+	}
+
+	return subs, nil
+}
+
+// loadSubscribersBatch loads subscribers for multiple rules in a single query.
+// Used by ListActiveByEventType to avoid N+1 queries on the hot path.
+func (r *AutomationRuleRepo) loadSubscribersBatch(ctx context.Context, ruleIDs []id.ID) ([]automations.Subscriber, error) {
+	if len(ruleIDs) == 0 {
+		return nil, nil
+	}
+
+	txm := MustGetTxManager(ctx)
+	q := txm.GetQuerier(ctx)
+
+	query := `
+		SELECT s.id, s.rule_id, s.subscriber_type, s.channel_id, s.user_id,
+			s.role_name, s.doc_field_path, s.delivery_method, s.idx,
+			c.name AS channel_name,
+			CONCAT_WS(' ', u.first_name, u.last_name) AS user_name
+		FROM sys_automation_subscribers s
+		LEFT JOIN sys_automation_channels c ON c.id = s.channel_id
+		LEFT JOIN users u ON u.id = s.user_id
+		WHERE s.rule_id = ANY($1)
+		ORDER BY s.rule_id, s.idx
+	`
+
+	rows, err := q.Query(ctx, query, ruleIDs)
+	if err != nil {
+		return nil, fmt.Errorf("query subscribers batch: %w", err)
+	}
+	defer rows.Close()
+
+	var subs []automations.Subscriber
+	for rows.Next() {
+		var s automations.Subscriber
+		err := rows.Scan(
+			&s.ID, &s.RuleID, &s.SubscriberType, &s.ChannelID, &s.UserID,
+			&s.RoleName, &s.DocFieldPath, &s.DeliveryMethod, &s.Idx,
+			&s.ChannelName, &s.UserName,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan subscriber: %w", err)
+		}
+		subs = append(subs, s)
+	}
+
+	return subs, nil
+}
+
+// insertSubscribers inserts all subscriber rows in a single multi-VALUES INSERT.
+func (r *AutomationRuleRepo) insertSubscribers(ctx context.Context, ruleID id.ID, inputs []automations.SubscriberInput) ([]automations.Subscriber, error) {
+	if len(inputs) == 0 {
+		return nil, nil
+	}
+
+	txm := MustGetTxManager(ctx)
+	q := txm.GetQuerier(ctx)
+
+	// Build multi-VALUES INSERT: ($1,$2,...,$8), ($9,$10,...,$16), ...
+	const colsPerRow = 8
+	var sb strings.Builder
+	sb.WriteString(`INSERT INTO sys_automation_subscribers (
+		rule_id, subscriber_type, channel_id, user_id, role_name, doc_field_path, delivery_method, idx
+	) VALUES `)
+
+	args := make([]any, 0, len(inputs)*colsPerRow)
+	for i, input := range inputs {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		base := i * colsPerRow
+		fmt.Fprintf(&sb, "($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8)
+		args = append(args, ruleID, input.SubscriberType, input.ChannelID, input.UserID,
+			input.RoleName, input.DocFieldPath, input.DeliveryMethod, input.Idx)
+	}
+	sb.WriteString(" RETURNING id")
+
+	rows, err := q.Query(ctx, sb.String(), args...)
+	if err != nil {
+		return nil, fmt.Errorf("batch insert subscribers: %w", err)
+	}
+	defer rows.Close()
+
+	subs := make([]automations.Subscriber, 0, len(inputs))
+	i := 0
+	for rows.Next() {
+		var subID id.ID
+		if err := rows.Scan(&subID); err != nil {
+			return nil, fmt.Errorf("scan subscriber id: %w", err)
+		}
+		input := inputs[i]
+		subs = append(subs, automations.Subscriber{
+			ID:             subID,
+			RuleID:         ruleID,
+			SubscriberType: input.SubscriberType,
+			ChannelID:      input.ChannelID,
+			UserID:         input.UserID,
+			RoleName:       input.RoleName,
+			DocFieldPath:   input.DocFieldPath,
+			DeliveryMethod: input.DeliveryMethod,
+			Idx:            input.Idx,
+		})
+		i++
+	}
+
+	return subs, nil
+}
+
 // Ensure interface compliance
-var _ automations.Repository = (*AutomationRuleRepo)(nil)
+var _ automations.RuleRepository = (*AutomationRuleRepo)(nil)

@@ -1,4 +1,6 @@
+import { fromQuantity, fromMinorUnits, DEFAULT_DECIMAL_PLACES } from "@/lib/format"
 import { api } from "@/lib/api"
+import type { RefDisplay } from "@/types/document"
 
 // ── Shared line state for document forms ────────────────────────────────
 
@@ -22,6 +24,67 @@ export interface FormLine {
 
 export function emptyLine(key: number): FormLine {
   return { _key: key, productId: "", productName: "", productCode: "", unitId: "", unitName: "", quantity: "", unitPrice: "", vatRateId: "", vatRateName: "", vatPercent: "20", discountPercent: "0" }
+}
+
+// ── Generic document line response → FormLine mapping ───────────────────
+
+/**
+ * Common shape for document line responses (GoodsReceiptLineResponse,
+ * GoodsIssueLineResponse, etc.). Any line response conforming to this
+ * shape can be mapped via `mapLinesToFormLines`.
+ */
+export interface DocumentLineResponseLike {
+  productId: string
+  unitId: string
+  quantity: number
+  unitPrice: number
+  vatRateId: string
+  vatPercent: number
+  discountPercent: string
+  amount: number
+  vatAmount: number
+  product?: RefDisplay
+  unit?: RefDisplay
+  vatRate?: RefDisplay
+}
+
+/**
+ * Map server line responses → FormLine[].
+ *
+ * Used in:
+ * - `mapDocToState()` on `[id]` pages (preserveAmounts = true)
+ * - `copyFrom` on `new` pages (preserveAmounts = false, default)
+ *
+ * @param lines         — raw line responses from the server
+ * @param decimalPlaces — currency scale for unitPrice conversion
+ * @param options       — preserveAmounts: keep server-computed amount/vatAmount
+ *                        startKey: starting _key (defaults to 1)
+ */
+export function mapLinesToFormLines(
+  lines: DocumentLineResponseLike[],
+  decimalPlaces: number = DEFAULT_DECIMAL_PLACES,
+  options?: { preserveAmounts?: boolean; startKey?: number },
+): { mapped: FormLine[]; nextKey: number } {
+  const startKey = options?.startKey ?? 1
+  const preserveAmounts = options?.preserveAmounts ?? false
+
+  const mapped = lines.map((l, i): FormLine => ({
+    _key: startKey + i,
+    productId: l.productId,
+    productName: l.product?.name || "",
+    productCode: l.product?.code || "",
+    unitId: l.unitId,
+    unitName: l.unit?.name || "",
+    quantity: fromQuantity(l.quantity),
+    unitPrice: fromMinorUnits(l.unitPrice, decimalPlaces),
+    vatRateId: l.vatRateId,
+    vatRateName: l.vatRate?.name || "",
+    vatPercent: String(l.vatPercent ?? 0),
+    discountPercent: l.discountPercent || "0",
+    ...(preserveAmounts ? { amount: l.amount, vatAmount: l.vatAmount } : {}),
+  }))
+
+  return { mapped, nextKey: startKey + mapped.length }
 }
 
 // ── VAT rate helpers ────────────────────────────────────────────────────
