@@ -23,7 +23,7 @@ import { SubscriberList } from "@/components/settings/subscriber-list"
 import { ScheduleButton } from "@/components/settings/schedule-configurator"
 import { Checkbox } from "@/components/ui/checkbox"
 import type { AutomationChannel, UpdateRuleRequest } from "@/types/automation"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { toast } from "sonner"
 import {
   INITIAL_RULE_STATE, ENTITY_EVENT_ACTIONS, TRIGGER_TYPE_OPTIONS,
@@ -41,7 +41,8 @@ export default function EditAutomationRulePage() {
   const router = useRouter()
   const [channels, setChannels] = useState<AutomationChannel[]>([])
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const documentEntities = useMetadataStore(s => s.getEntitiesByType("document"))
+  const allEntities = useMetadataStore(s => s.entities)
+  const documentEntities = useMemo(() => allEntities.filter(e => e.type === "document"), [allEntities])
 
   useEffect(() => {
     api.automation.channels.list().then(setChannels).catch(console.error)

@@ -100,9 +100,7 @@ func (s *Scheduler) Refresh(ctx context.Context) {
 
 		// event_type stores the CRON expression for scheduled rules (format: "cron:<expr>")
 		cronExpr := rule.EventType
-		if strings.HasPrefix(cronExpr, "cron:") {
-			cronExpr = strings.TrimPrefix(cronExpr, "cron:")
-		}
+		cronExpr = strings.TrimPrefix(cronExpr, "cron:")
 		if cronExpr == "" {
 			logger.Warn(ctx, "scheduler: scheduled rule has empty cron expression", "ruleId", rule.ID)
 			continue

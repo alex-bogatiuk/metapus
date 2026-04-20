@@ -64,18 +64,7 @@ func (d *DocumentOutboxDecorator[T]) buildEvent(action string, entity T) *Domain
 	}
 }
 
-// emit writes an event to the outbox. MUST run inside an existing transaction context!
-// Used by Create/Update/Delete which run inside BaseDocumentService's own transaction.
-func (d *DocumentOutboxDecorator[T]) emit(ctx context.Context, action string, entity T) {
-	ev := d.buildEvent(action, entity)
-	if ev == nil {
-		return
-	}
 
-	if err := d.publisher.Publish(ctx, *ev); err != nil {
-		logger.Error(ctx, "failed to publish outbox event", "error", err, "eventType", ev.EventType)
-	}
-}
 
 // emitInOwnTx writes an outbox event in its OWN transaction.
 // Required for Post/Unpost/PostAndSave/UpdateAndRepost because PostingEngine

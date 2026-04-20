@@ -68,7 +68,9 @@ func (r *NotificationRepo) CreateBatch(ctx context.Context, notifs []*notificati
 	}
 
 	results := pool.SendBatch(ctx, b)
-	defer results.Close()
+	defer func() {
+		_ = results.Close()
+	}()
 
 	for i := 0; i < len(notifs); i++ {
 		_, err := results.Exec()

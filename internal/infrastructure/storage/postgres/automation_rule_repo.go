@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/lib/pq"
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
@@ -35,7 +34,7 @@ func scanRule(row pgx.Row) (*automations.Rule, error) {
 	var chainIDsJSON []byte
 
 	err := row.Scan(
-		&r.ID, &r.Name, &r.Description, &r.TriggerType, &r.EventType, pq.Array(&targetEntities),
+		&r.ID, &r.Name, &r.Description, &r.TriggerType, &r.EventType, &targetEntities,
 		&r.ConditionCEL, &r.ReactionType, &r.MessageFormat, &r.ActionTemplate, &chainIDsJSON,
 		&r.Priority, &r.MaxRetries, &r.CooldownSecs, &r.OrganizationID, &r.IsActive,
 		&r.ExecutionCount, &r.ErrorCount, &r.LastExecutedAt,
@@ -268,16 +267,15 @@ func (r *AutomationRuleRepo) Create(ctx context.Context, req automations.CreateR
 		RETURNING %s
 	`, ruleSelectCols)
 
-	// Convert targetEntities to pq.StringArray; nil for wildcard (empty slice → NULL)
-	var targetEntities *pq.StringArray
+	// For wildcard matching, empty target_entities should be inserted as NULL
+	var targetEntities []string
 	if len(req.TargetEntities) > 0 {
-		a := pq.StringArray(req.TargetEntities)
-		targetEntities = &a
+		targetEntities = req.TargetEntities
 	}
 
 	rule, err := scanRule(q.QueryRow(ctx, query,
 		req.Name, req.Description, req.TriggerType, req.EventType, targetEntities,
-		req.ConditionCEL, req.ReactionType, req.MessageFormat, req.ActionTemplate, pq.Array(chainIDStrings),
+		req.ConditionCEL, req.ReactionType, req.MessageFormat, req.ActionTemplate, chainIDStrings,
 		req.Priority, req.MaxRetries, req.CooldownSecs, req.OrganizationID, req.IsActive,
 	))
 	if err != nil {
@@ -314,16 +312,15 @@ func (r *AutomationRuleRepo) Update(ctx context.Context, ruleID id.ID, req autom
 		RETURNING %s
 	`, ruleSelectCols)
 
-	// Convert targetEntities to pq.StringArray; nil for wildcard (empty slice → NULL)
-	var targetEntities *pq.StringArray
+	// For wildcard matching, empty target_entities should be updated to NULL
+	var targetEntities []string
 	if len(req.TargetEntities) > 0 {
-		a := pq.StringArray(req.TargetEntities)
-		targetEntities = &a
+		targetEntities = req.TargetEntities
 	}
 
 	rule, err := scanRule(q.QueryRow(ctx, query,
 		req.Name, req.Description, req.TriggerType, req.EventType, targetEntities,
-		req.ConditionCEL, req.ReactionType, req.MessageFormat, req.ActionTemplate, pq.Array(chainIDStrings),
+		req.ConditionCEL, req.ReactionType, req.MessageFormat, req.ActionTemplate, chainIDStrings,
 		req.Priority, req.MaxRetries, req.CooldownSecs, req.OrganizationID, req.IsActive,
 		ruleID, req.Version,
 	))
