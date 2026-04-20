@@ -268,7 +268,7 @@ func MaskForRead(entity any, policy *FieldPolicy) {
 		if !policy.IsFieldAllowed(fieldName) {
 			field := v.FieldByIndex(fm.Index)
 			if field.CanSet() {
-				field.Set(reflect.Zero(field.Type()))
+				field.SetZero()
 			}
 		}
 	}
@@ -305,7 +305,7 @@ func MaskForRead(entity any, policy *FieldPolicy) {
 				if !policy.IsTablePartFieldAllowed(part.PartName, colName) {
 					field := elem.FieldByIndex(fm.Index)
 					if field.CanSet() {
-						field.Set(reflect.Zero(field.Type()))
+						field.SetZero()
 					}
 				}
 			}

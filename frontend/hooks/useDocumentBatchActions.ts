@@ -21,6 +21,7 @@ interface DocumentLike {
 /** Narrow API surface — only the methods the hook actually calls. */
 interface BatchCapableApi<T> {
     get: (id: string) => Promise<T>
+    list?: (params?: { limit?: number; filter?: AdvancedFilterItem[] }) => Promise<{ items: T[] }>
     batchAction: (ids: string[], action: BatchActionType) => Promise<BatchActionResponse>
     batchActionByFilter: (req: import("@/types/common").BatchActionByFilterRequest) => Promise<BatchActionResponse>
     /** Base API path (used by SSE streaming). */
@@ -104,21 +105,23 @@ export function useDocumentBatchActions<T extends DocumentLike>(
     // ── Adaptive refetch ────────────────────────────────────────────────
     const refetchAfterBatch = useCallback(
         async (ids: string[]) => {
-            if (ids.length > POINT_UPDATE_THRESHOLD) {
+            if (ids.length > POINT_UPDATE_THRESHOLD || !docApi.list) {
                 // Large batch → single list refresh (no N+1)
                 refresh()
             } else {
                 // Small batch → point-update (preserves scroll)
-                const results = await Promise.allSettled(
-                    ids.map((id) => docApi.get(id)),
-                )
-                const updated = results
-                    .filter(
-                        (r): r is PromiseFulfilledResult<Awaited<T>> =>
-                            r.status === "fulfilled",
-                    )
-                    .map((r) => r.value)
-                if (updated.length > 0) replaceItems(updated as T[])
+                // ERP Rule: NEVER do API calls in a loop. Use a single list request with 'in' operator.
+                try {
+                    const res = await docApi.list({
+                        limit: ids.length,
+                        filter: [{ id: "id_filter", field: "id", operator: "in", value: ids }],
+                    })
+                    if (res.items && res.items.length > 0) {
+                        replaceItems(res.items)
+                    }
+                } catch (err) {
+                    refresh() // Fallback to full refresh on error
+                }
             }
         },
         [docApi, replaceItems, refresh],

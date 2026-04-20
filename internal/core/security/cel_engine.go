@@ -38,7 +38,7 @@ type PolicyRule interface {
 type PolicyEngine struct {
 	env          *cel.Env
 	programCache sync.Map // ruleID+expression hash → *cachedProgram
-	stopEviction  context.CancelFunc
+	stopEviction context.CancelFunc
 }
 
 type cachedProgram struct {
@@ -174,7 +174,7 @@ func (e *PolicyEngine) Evaluate(ctx context.Context, rules []PolicyRule, action 
 
 // EvaluateForList filters a slice of entities, removing those denied by "read" rules.
 // Entities that cause evaluation errors are also removed (fail-closed).
-// Optimized: user/action/now activation parts are built once outside the entity loop.
+// Optimized: user/action/now activation parts and doc map are built once to eliminate O(N) map allocations.
 func (e *PolicyEngine) EvaluateForList(ctx context.Context, rules []PolicyRule, entities []any) []any {
 	applicable := filterAndSort(rules, "read")
 	if len(applicable) == 0 {
@@ -185,14 +185,18 @@ func (e *PolicyEngine) EvaluateForList(ctx context.Context, rules []PolicyRule, 
 	userMap := userContextToCELMap(ctx)
 	now := time.Now().UTC()
 
+	// Reuse a single map for the entity fields to avoid allocations per iteration
+	docMap := make(map[string]any, 100)
+	activation := map[string]any{
+		"doc":    docMap,
+		"user":   userMap,
+		"action": "read",
+		"now":    now,
+	}
+
 	result := make([]any, 0, len(entities))
 	for _, ent := range entities {
-		activation := map[string]any{
-			"doc":    entityToCELMap(ent),
-			"user":   userMap,
-			"action": "read",
-			"now":    now,
-		}
+		entityToCELMapReuse(ent, docMap)
 		if e.isAllowedByRules(applicable, activation) {
 			result = append(result, ent)
 		}
@@ -344,17 +348,32 @@ func entityToCELMap(entity any) map[string]any {
 	if entity == nil {
 		return map[string]any{}
 	}
+	// Approximate initial capacity
+	result := make(map[string]any, 30)
+	entityToCELMapReuse(entity, result)
+	return result
+}
+
+// entityToCELMapReuse populates an existing map, clearing it first, to avoid map allocations.
+func entityToCELMapReuse(entity any, result map[string]any) {
+	// Clear the map (Go 1.21+ clear(result) or fallback to loop)
+	for k := range result {
+		delete(result, k)
+	}
+
+	if entity == nil {
+		return
+	}
 
 	v := reflect.ValueOf(entity)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
 	if v.Kind() != reflect.Struct {
-		return map[string]any{}
+		return
 	}
 
 	fields := globalFieldCache.getFields(v.Type())
-	result := make(map[string]any, len(fields)*2)
 
 	for _, fm := range fields {
 		if fm.JSONName == "" && fm.DBName == "" {
@@ -373,8 +392,6 @@ func entityToCELMap(entity any) map[string]any {
 			result[fm.DBName] = val
 		}
 	}
-
-	return result
 }
 
 // toCELValue converts a reflect.Value to a CEL-friendly Go value.

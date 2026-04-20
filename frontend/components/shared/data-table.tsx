@@ -116,8 +116,7 @@ export function DataTable<T extends { id: string }>({
     const thPy = compact ? "py-1" : "py-2"
     const fontSize = compact ? "text-xs" : "text-sm"
 
-    // ⚡ Perf: O(1) selection lookup via Set instead of O(N) Array.includes() per row.
-    // Before: N × includes() = O(N²). After: 1 Set build + N × has() = O(N).
+    // O(1) selection lookup via Set instead of O(N) Array.includes() per row.
     const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
 
     // Determine the checked state for the header checkbox

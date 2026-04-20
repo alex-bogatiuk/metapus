@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"metapus/internal/core/id"
 	"metapus/internal/domain"
@@ -119,7 +120,22 @@ func (r *RelatedDocRepo) FindRelatedDocuments(ctx context.Context, req domain.Re
 				parentRef{entityName: node.key.entityName, entityID: node.key.entityID, node: node})
 		}
 
-		// For each document type, query all parents of all types at once
+		// Collect all basis_types and basis_ids from this level
+		var basisTypes []string
+		var basisIDs []id.ID
+		for basisType, refs := range parentsByType {
+			for _, ref := range refs {
+				basisTypes = append(basisTypes, basisType)
+				basisIDs = append(basisIDs, ref.entityID)
+			}
+		}
+
+		if len(basisIDs) == 0 {
+			break
+		}
+
+		// Single UNION ALL query per BFS level (eliminates N+1 queries)
+		var unionQueries []string
 		for _, def := range r.registry.List() {
 			if def.Type != metadata.TypeDocument || totalNodes >= maxTreeNodes {
 				continue
@@ -128,74 +144,60 @@ func (r *RelatedDocRepo) FindRelatedDocuments(ctx context.Context, req domain.Re
 			if tableName == "" {
 				continue
 			}
+			unionQueries = append(unionQueries, fmt.Sprintf(
+				`SELECT '%s' as child_type, id, basis_type, basis_id FROM %s WHERE (basis_type, basis_id) IN (SELECT unnest($1::text[]), unnest($2::uuid[]))`,
+				def.Name, tableName,
+			))
+		}
 
-			// Collect all basis_types and basis_ids from this level
-			var basisTypes []string
-			var basisIDs []id.ID
-			for basisType, refs := range parentsByType {
-				for _, ref := range refs {
-					basisTypes = append(basisTypes, basisType)
-					basisIDs = append(basisIDs, ref.entityID)
-				}
-				_ = basisType // used above
+		if len(unionQueries) == 0 {
+			break
+		}
+
+		query := fmt.Sprintf("%s LIMIT %d", strings.Join(unionQueries, " UNION ALL "), maxTreeNodes-totalNodes)
+		rows, err := querier.Query(ctx, query, basisTypes, basisIDs)
+		if err != nil {
+			logger.Warn(ctx, "RelatedDocRepo BFS child scan failed", "error", err)
+			continue
+		}
+
+		for rows.Next() {
+			if totalNodes >= maxTreeNodes {
+				break
 			}
-
-			if len(basisIDs) == 0 {
+			var childType string
+			var childID id.ID
+			var basisType string
+			var basisID id.ID
+			if err := rows.Scan(&childType, &childID, &basisType, &basisID); err != nil {
+				continue
+			}
+			childKey := treeKey{entityName: childType, entityID: childID}
+			if allKeysSet[childKey] {
 				continue
 			}
 
-			// Single query per document type per BFS level
-			// Uses (basis_type, basis_id) IN (VALUES ...) pattern via unnest for batch matching
-			query := fmt.Sprintf(
-				`SELECT id, basis_type, basis_id FROM %s
-				 WHERE (basis_type, basis_id) IN (SELECT unnest($1::text[]), unnest($2::uuid[]))
-				 ORDER BY date, id LIMIT %d`,
-				tableName, maxTreeNodes-totalNodes,
-			)
-			rows, err := querier.Query(ctx, query, basisTypes, basisIDs)
-			if err != nil {
-				logger.Warn(ctx, "RelatedDocRepo BFS child scan failed", "table", tableName, "error", err)
-				continue
-			}
-			for rows.Next() {
-				if totalNodes >= maxTreeNodes {
+			// Find parent node by basisType + basisID
+			var parentNode *rawTreeNode
+			for _, ref := range parentsByType[basisType] {
+				if ref.entityID == basisID {
+					parentNode = ref.node
 					break
 				}
-				var childID id.ID
-				var basisType string
-				var basisID id.ID
-				if err := rows.Scan(&childID, &basisType, &basisID); err != nil {
-					continue
-				}
-				childKey := treeKey{entityName: def.Name, entityID: childID}
-				if allKeysSet[childKey] {
-					continue
-				}
-
-				// Find parent node by basisType + basisID
-				parentKey := treeKey{entityName: basisType, entityID: basisID}
-				var parentNode *rawTreeNode
-				for _, ref := range parentsByType[basisType] {
-					if ref.entityID == basisID {
-						parentNode = ref.node
-						break
-					}
-				}
-				if parentNode == nil {
-					// Shouldn't happen, but safety fallback
-					_ = parentKey
-					continue
-				}
-
-				child := &rawTreeNode{key: childKey, def: def}
-				parentNode.children = append(parentNode.children, child)
-				queue = append(queue, child)
-				allKeys = append(allKeys, childKey)
-				allKeysSet[childKey] = true
-				totalNodes++
 			}
-			rows.Close()
+			if parentNode == nil {
+				continue
+			}
+
+			def, _ := r.registry.Get(childType)
+			child := &rawTreeNode{key: childKey, def: def}
+			parentNode.children = append(parentNode.children, child)
+			queue = append(queue, child)
+			allKeys = append(allKeys, childKey)
+			allKeysSet[childKey] = true
+			totalNodes++
 		}
+		rows.Close()
 	}
 
 	// ── Step 3: Batch-resolve all nodes ──

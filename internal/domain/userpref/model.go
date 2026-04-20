@@ -18,7 +18,6 @@ type InterfacePrefs struct {
 	Language         string `json:"language,omitempty"`
 	DateFormat       string `json:"dateFormat,omitempty"`
 	NumberFormat     string `json:"numberFormat,omitempty"`
-	PageSize         int    `json:"pageSize,omitempty"`
 	ShowTooltips     *bool  `json:"showTooltips,omitempty"`
 	CompactMode      *bool  `json:"compactMode,omitempty"`
 	SidebarCollapsed *bool  `json:"sidebarCollapsed,omitempty"`

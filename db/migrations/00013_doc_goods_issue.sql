@@ -86,6 +86,7 @@ CREATE INDEX idx_goods_issues_posted      ON doc_goods_issues (posted) WHERE pos
 CREATE INDEX idx_goods_issues_created_by  ON doc_goods_issues (created_by);
 CREATE INDEX idx_goods_issues_updated_by  ON doc_goods_issues (updated_by);
 CREATE INDEX idx_goods_issues_created_at  ON doc_goods_issues (created_at DESC);
+CREATE INDEX idx_goods_issues_number_trgm ON doc_goods_issues USING gin (number gin_trgm_ops);
 
 -- CDC indexes & triggers
 CREATE INDEX idx_doc_goods_issues_txid ON doc_goods_issues (_txid) WHERE _deleted_at IS NULL;

@@ -17,7 +17,7 @@ import (
 
 // CatalogService provides business logic for catalog entities.
 // In Database-per-Tenant architecture, TxManager can be nil - it will be obtained from context.
-type CatalogService[T entity.Validatable] struct {
+type CatalogService[T entity.CatalogEntity] struct {
 	repo         CatalogRepository[T]
 	txManager    tx.Manager // Optional - if nil, obtained from context
 	numerator    numerator.Generator
@@ -35,7 +35,7 @@ type CatalogService[T entity.Validatable] struct {
 }
 
 // CatalogServiceConfig configures the catalog service.
-type CatalogServiceConfig[T entity.Validatable] struct {
+type CatalogServiceConfig[T entity.CatalogEntity] struct {
 	Repo         CatalogRepository[T]
 	TxManager    tx.Manager // Optional for Database-per-Tenant
 	Numerator    numerator.Generator
@@ -45,7 +45,7 @@ type CatalogServiceConfig[T entity.Validatable] struct {
 
 // NewCatalogService creates a new catalog service.
 // CatalogMeta is automatically resolved from the entity registry.
-func NewCatalogService[T entity.Validatable](cfg CatalogServiceConfig[T]) *CatalogService[T] {
+func NewCatalogService[T entity.CatalogEntity](cfg CatalogServiceConfig[T]) *CatalogService[T] {
 	meta := entity.GetCatalogMeta(cfg.EntityName)
 
 	var hv *HierarchyValidator
@@ -224,7 +224,7 @@ func (s *CatalogService[T]) Update(ctx context.Context, entity T) error {
 	// Fetch existing entity for CEL evaluation and FLS validation.
 	// CEL rules must evaluate against the existing state,
 	// not the input entity where fields default to zero values.
-	oldEntity, err := s.repo.GetByID(ctx, any(entity).(interface{ GetID() id.ID }).GetID())
+	oldEntity, err := s.repo.GetByID(ctx, entity.GetID())
 	if err != nil {
 		return fmt.Errorf("fetch existing entity: %w", err)
 	}
@@ -410,6 +410,42 @@ func (s *CatalogService[T]) GetTree(ctx context.Context, rootID *id.ID) ([]T, er
 
 	// CEL: filter out entities denied by read rules
 	items, _ = security.FilterByReadPolicy(ctx, s.policyEngine, s.entityName, items)
+
+	// ERP Fix: Prune orphaned branches.
+	// If a parent folder was filtered out by RLS/CEL, we must also remove its children,
+	// otherwise the UI tree will break (children pointing to non-existent parents).
+	if len(items) > 0 {
+		allowedIDs := make(map[id.ID]bool, len(items))
+		idToParent := make(map[id.ID]*id.ID, len(items))
+		for _, ent := range items {
+			eID := ent.GetID()
+			allowedIDs[eID] = true
+			if pAcc, ok := any(ent).(ParentAccessor); ok {
+				idToParent[eID] = pAcc.GetParentID()
+			}
+		}
+
+		pruned := make([]T, 0, len(items))
+		for _, ent := range items {
+			eID := ent.GetID()
+			keep := true
+			currPID := idToParent[eID]
+			for currPID != nil {
+				if rootID != nil && *currPID == *rootID {
+					break
+				}
+				if !allowedIDs[*currPID] {
+					keep = false
+					break
+				}
+				currPID = idToParent[*currPID]
+			}
+			if keep {
+				pruned = append(pruned, ent)
+			}
+		}
+		items = pruned
+	}
 
 	return items, nil
 }

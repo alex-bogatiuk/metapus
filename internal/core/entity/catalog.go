@@ -7,6 +7,13 @@ import (
 	"metapus/internal/core/id"
 )
 
+// CatalogEntity is the constraint for catalog entities.
+// It ensures that any entity used in CatalogService provides self-validation and an ID.
+type CatalogEntity interface {
+	Validatable
+	GetID() id.ID
+}
+
 // Catalog is the base type for reference data (Catalogs).
 // Examples: Nomenclature, Counterparties, Warehouses, Organizations.
 type Catalog struct {

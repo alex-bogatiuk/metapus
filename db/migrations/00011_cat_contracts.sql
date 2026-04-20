@@ -46,6 +46,8 @@ CREATE INDEX idx_cat_contracts_counterparty ON cat_contracts (counterparty_id);
 CREATE INDEX idx_cat_contracts_type         ON cat_contracts (type);
 CREATE INDEX idx_cat_contracts_currency     ON cat_contracts (currency_id) WHERE currency_id IS NOT NULL;
 CREATE INDEX idx_cat_contracts_parent       ON cat_contracts (parent_id) WHERE parent_id IS NOT NULL;
+CREATE INDEX idx_cat_contracts_name         ON cat_contracts USING gin (name gin_trgm_ops);
+CREATE INDEX idx_cat_contracts_code_trgm    ON cat_contracts USING gin (code gin_trgm_ops);
 
 -- CDC indexes & triggers
 CREATE INDEX idx_cat_contracts_txid ON cat_contracts (_txid) WHERE _deleted_at IS NULL;

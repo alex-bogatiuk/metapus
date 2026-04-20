@@ -76,6 +76,20 @@ type Engine struct {
 	celMu       sync.Mutex
 	celLookup   map[string]*list.Element // expr → list element
 	celOrder    *list.List               // front = most recently used
+
+	// Bounded LRU cache for parsed Templates.
+	tmplMu     sync.Mutex
+	tmplLookup map[string]*list.Element // text → list element
+	tmplOrder  *list.List
+}
+
+// tmplCacheMaxSize is the maximum number of parsed templates to cache.
+const tmplCacheMaxSize = 512
+
+// tmplCacheEntry holds a cached parsed template with LRU metadata.
+type tmplCacheEntry struct {
+	text string
+	tmpl *template.Template
 }
 
 // NewEngine creates a new automation engine.
@@ -113,6 +127,8 @@ func NewEngine(
 		celEnv:      env,
 		celLookup:   make(map[string]*list.Element, celCacheMaxSize),
 		celOrder:    list.New(),
+		tmplLookup:  make(map[string]*list.Element, tmplCacheMaxSize),
+		tmplOrder:   list.New(),
 	}, nil
 }
 
@@ -265,7 +281,7 @@ func (e *Engine) Evaluate(ctx context.Context, eventType string, payload map[str
 }
 
 // deliveryCache holds preloaded data for a batch of DeliveryTasks.
-// Eliminates N+1 queries: Channel→Account→Credentials loaded once per unique ID.
+// Reduces queries by deduplicating IDs. TODO: Implement ListByIDs in repos to eliminate N+1 completely.
 type deliveryCache struct {
 	channels    map[id.ID]*automations.Channel
 	accounts    map[id.ID]*automations.Account
@@ -446,21 +462,22 @@ func (e *Engine) handleChainReaction(ctx context.Context, rule *automations.Rule
 		return
 	}
 
+	// Optimize: Marshal the event payload once, as it's identical for all chain rules
+	chainEvent := map[string]any{
+		"sourceRuleId":    rule.ID.String(),
+		"sourceEventType": eventType,
+		"doc":             renderedPayload,
+		"action":          "chain",
+		"entityType":      "automation",
+	}
+
+	eventPayload, err := json.Marshal(chainEvent)
+	if err != nil {
+		logger.Error(ctx, "chain reaction: marshal failed", "ruleId", rule.ID, "error", err)
+		return
+	}
+
 	for _, chainRuleID := range rule.ChainRuleIDs {
-		chainEvent := map[string]any{
-			"sourceRuleId":    rule.ID.String(),
-			"sourceEventType": eventType,
-			"doc":             renderedPayload,
-			"action":          "chain",
-			"entityType":      "automation",
-		}
-
-		eventPayload, err := json.Marshal(chainEvent)
-		if err != nil {
-			logger.Error(ctx, "chain reaction: marshal failed", "ruleId", rule.ID, "chainRuleId", chainRuleID, "error", err)
-			continue
-		}
-
 		// Publish as a new event that will be picked up by the target rule
 		chainEventType := fmt.Sprintf("automation.chain.%s", chainRuleID)
 		if pubErr := e.publisher.Publish(ctx, chainEventType, eventPayload); pubErr != nil {
@@ -737,12 +754,54 @@ func parseTime(v any) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+// getOrParseTemplate returns a cached or newly parsed template.
+// Uses a bounded LRU cache to prevent unbounded memory growth.
+func (e *Engine) getOrParseTemplate(tmplText string) (*template.Template, error) {
+	e.tmplMu.Lock()
+	if elem, ok := e.tmplLookup[tmplText]; ok {
+		e.tmplOrder.MoveToFront(elem)
+		e.tmplMu.Unlock()
+		return elem.Value.(*tmplCacheEntry).tmpl, nil
+	}
+	e.tmplMu.Unlock()
+
+	// Parse outside the lock (expensive operation)
+	tmpl, err := template.New("action").Option("missingkey=zero").Funcs(safeFuncMap).Parse(tmplText)
+	if err != nil {
+		return nil, fmt.Errorf("parse template: %w", err)
+	}
+
+	e.tmplMu.Lock()
+	defer e.tmplMu.Unlock()
+
+	// Double-check after reacquiring lock
+	if elem, ok := e.tmplLookup[tmplText]; ok {
+		e.tmplOrder.MoveToFront(elem)
+		return elem.Value.(*tmplCacheEntry).tmpl, nil
+	}
+
+	// Evict LRU if at capacity
+	if e.tmplOrder.Len() >= tmplCacheMaxSize {
+		oldest := e.tmplOrder.Back()
+		if oldest != nil {
+			entry := oldest.Value.(*tmplCacheEntry)
+			delete(e.tmplLookup, entry.text)
+			e.tmplOrder.Remove(oldest)
+		}
+	}
+
+	elem := e.tmplOrder.PushFront(&tmplCacheEntry{text: tmplText, tmpl: tmpl})
+	e.tmplLookup[tmplText] = elem
+
+	return tmpl, nil
+}
+
 // RenderTemplate renders a Go text/template against data with safety limits.
 // Uses a restricted FuncMap (no `call`) and enforces output size limits.
 func (e *Engine) RenderTemplate(tmplText string, data map[string]any) (string, error) {
-	tmpl, err := template.New("action").Option("missingkey=zero").Funcs(safeFuncMap).Parse(tmplText)
+	tmpl, err := e.getOrParseTemplate(tmplText)
 	if err != nil {
-		return "", fmt.Errorf("parse template: %w", err)
+		return "", err
 	}
 
 	var buf bytes.Buffer

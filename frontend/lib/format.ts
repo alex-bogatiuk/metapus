@@ -5,36 +5,50 @@
  * All formatters use cached Intl instances for performance.
  */
 
+import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
+import { format as dateFnsFormat } from "date-fns"
+
 /** Default decimal places for most currencies (RUB, USD, EUR). */
 export const DEFAULT_DECIMAL_PLACES = 2
 
-// ⚡ Perf: cached formatters — one per decimalPlaces value, created on demand.
-const amountFormatters = new Map<number, Intl.NumberFormat>()
-function getAmountFormatter(dp: number): Intl.NumberFormat {
-  let fmt = amountFormatters.get(dp)
+// cached formatters — key is dp + format style
+const amountFormatters = new Map<string, Intl.NumberFormat>()
+function getAmountFormatter(dp: number, formatStyle: string): Intl.NumberFormat {
+  const key = `${dp}-${formatStyle}`
+  let fmt = amountFormatters.get(key)
   if (!fmt) {
-    fmt = new Intl.NumberFormat("ru-RU", { minimumFractionDigits: dp, maximumFractionDigits: dp })
-    amountFormatters.set(dp, fmt)
+    let locale = "ru-RU"
+    let useGrouping = true
+
+    if (formatStyle === "comma") {
+      locale = "en-US"
+    } else if (formatStyle === "none") {
+      useGrouping = false
+    }
+
+    fmt = new Intl.NumberFormat(locale, {
+      minimumFractionDigits: dp,
+      maximumFractionDigits: dp,
+      useGrouping
+    })
+    amountFormatters.set(key, fmt)
   }
   return fmt
 }
 
-/** Format MinorUnits to display string with correct decimals (e.g. 1000, 2 → "10,00"). */
+/** Format MinorUnits to display string with correct decimals dynamically. */
 export function fmtAmount(minor: number, decimalPlaces = DEFAULT_DECIMAL_PLACES): string {
   const divisor = Math.pow(10, decimalPlaces)
-  return getAmountFormatter(decimalPlaces).format(minor / divisor)
+  const formatStyle = useUserPrefsStore.getState().interface.numberFormat ?? "space"
+  return getAmountFormatter(decimalPlaces, formatStyle).format(minor / divisor)
 }
 
-const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-})
-
-/** Format ISO date string to dd.mm.yyyy. */
-export function fmtDate(iso: string): string {
+/** Format ISO date string dynamically based on user format. */
+export function fmtDate(iso: string | Date | undefined | null): string {
   if (!iso) return ""
-  return dateFormatter.format(new Date(iso))
+  const d = typeof iso === "string" ? new Date(iso) : iso
+  const dateFormat = useUserPrefsStore.getState().interface.dateFormat ?? "dd.MM.yyyy"
+  return dateFnsFormat(d, dateFormat)
 }
 
 /** Convert backend Quantity (decimal, e.g. 5.0000) to display string. */

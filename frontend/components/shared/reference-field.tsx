@@ -291,7 +291,7 @@ export function ReferenceField({
     [apiEndpoint]
   )
 
-  // ⚡ Perf: single merged effect replaces two separate effects that both fired on open,
+  // Single merged effect replaces two separate effects that both fired on open,
   // causing duplicate API calls. Now: immediate fetch on open, debounced on search changes.
   const wasOpenRef = useRef(false)
 

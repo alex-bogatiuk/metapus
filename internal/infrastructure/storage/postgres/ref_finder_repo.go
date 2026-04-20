@@ -49,14 +49,28 @@ func (r *RefFinderRepo) FindReferences(ctx context.Context, req domain.FindRefer
 	results := make([]domain.FoundReference, 0, len(specs))
 	resolveReqs := make([]domain.RefResolveRequest, 0, len(specs))
 
+	b := &pgx.Batch{}
 	for _, spec := range specs {
-		ids, err := r.queryReferencingIDs(ctx, querier, spec, req)
+		sql, args := r.buildFindQuery(spec, req)
+		b.Queue(sql, args...)
+	}
+
+	br := querier.SendBatch(ctx, b)
+	defer br.Close()
+
+	for i := 0; i < len(specs); i++ {
+		spec := specs[i]
+		rows, err := br.Query()
 		if err != nil {
-			logger.Warn(ctx, "FindReferences skipped table", "table", spec.tableName, "column", spec.dbColumn, "error", err)
-			continue // skip on error, don't fail entire scan
+			logger.Warn(ctx, "FindReferences skipped table", "table", spec.tableName, "error", err)
+			continue
 		}
 
-		for _, sourceID := range ids {
+		for rows.Next() {
+			var sourceID id.ID
+			if err := rows.Scan(&sourceID); err != nil {
+				continue
+			}
 			ref := domain.FoundReference{
 				SourceEntityName: spec.entityDef.Name,
 				SourceEntityType: string(spec.entityDef.Type),
@@ -66,6 +80,7 @@ func (r *RefFinderRepo) FindReferences(ctx context.Context, req domain.FindRefer
 			results = append(results, ref)
 			resolveReqs = append(resolveReqs, domain.RefResolveRequest{RefType: spec.entityDef.Name, RefID: sourceID})
 		}
+		rows.Close()
 	}
 
 	if len(resolveReqs) > 0 {
@@ -277,13 +292,8 @@ func (r *RefFinderRepo) refTypeMatchesEntity(refType, targetEntityName string) b
 	return strings.EqualFold(refType, targetEntityName)
 }
 
-// queryReferencingIDs finds all entity IDs in a table that reference the target.
-func (r *RefFinderRepo) queryReferencingIDs(
-	ctx context.Context,
-	querier Querier,
-	spec refFieldSpec,
-	req domain.FindReferencesRequest,
-) ([]id.ID, error) {
+// buildFindQuery builds the SQL query for finding references to the target.
+func (r *RefFinderRepo) buildFindQuery(spec refFieldSpec, req domain.FindReferencesRequest) (string, []any) {
 	var sql string
 	var args []any
 
@@ -307,22 +317,7 @@ func (r *RefFinderRepo) queryReferencingIDs(
 		args = []any{req.EntityID}
 	}
 
-	rows, err := querier.Query(ctx, sql, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	ids := make([]id.ID, 0, 16)
-	for rows.Next() {
-		var uid id.ID
-		if err := rows.Scan(&uid); err != nil {
-			continue
-		}
-		ids = append(ids, uid)
-	}
-
-	return ids, rows.Err()
+	return sql, args
 }
 
 // buildCountQuery builds the SQL query for counting references to the target (fast path).

@@ -11,16 +11,19 @@ import (
 
 // ── Type Constraints ────────────────────────────────────────────────────
 
+// CatalogEntity is the constraint for catalog entities.
+type CatalogEntity = entity.CatalogEntity
+
 // Validatable is the constraint for entities that can validate themselves.
 type Validatable = entity.Validatable
 
 // ── Service Types ───────────────────────────────────────────────────────
 
 // CatalogService is the generic service for catalog CRUD operations.
-type CatalogService[T entity.Validatable] = domain.CatalogService[T]
+type CatalogService[T entity.CatalogEntity] = domain.CatalogService[T]
 
 // CatalogServiceConfig configures a CatalogService instance.
-type CatalogServiceConfig[T entity.Validatable] = domain.CatalogServiceConfig[T]
+type CatalogServiceConfig[T entity.CatalogEntity] = domain.CatalogServiceConfig[T]
 
 // CatalogRepository is the generic repository interface for catalogs.
-type CatalogRepository[T entity.Validatable] = domain.CatalogRepository[T]
+type CatalogRepository[T entity.CatalogEntity] = domain.CatalogRepository[T]

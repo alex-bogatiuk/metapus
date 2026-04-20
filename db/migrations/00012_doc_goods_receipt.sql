@@ -87,6 +87,7 @@ CREATE INDEX idx_goods_receipts_posted      ON doc_goods_receipts (posted) WHERE
 CREATE INDEX idx_goods_receipts_created_by  ON doc_goods_receipts (created_by);
 CREATE INDEX idx_goods_receipts_updated_by  ON doc_goods_receipts (updated_by);
 CREATE INDEX idx_goods_receipts_created_at  ON doc_goods_receipts (created_at DESC);
+CREATE INDEX idx_goods_receipts_number_trgm ON doc_goods_receipts USING gin (number gin_trgm_ops);
 
 -- CDC indexes & triggers
 CREATE INDEX idx_doc_goods_receipts_txid ON doc_goods_receipts (_txid) WHERE _deleted_at IS NULL;

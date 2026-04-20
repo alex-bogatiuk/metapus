@@ -8,6 +8,7 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/core/tenant"
 	"metapus/internal/domain/catalogs/contract"
 	"metapus/internal/domain/catalogs/currency"
 	"metapus/internal/domain/catalogs/organization"
@@ -34,10 +35,9 @@ type CurrencyResolver struct {
 	orgs       organization.Repository
 	currencies currency.Repository
 
-	// baseCurrency cache — avoids repeated DB lookups for the rarely-changing system currency.
-	baseMu     sync.RWMutex
-	baseID     id.ID
-	baseCached bool
+	// baseCurrencyCache caches system base currency ID by tenant ID.
+	// Key: string (tenantID), Value: *cachedCurrencyID
+	baseCurrencyCache sync.Map
 
 	// contractCurrencyCache caches Contract.CurrencyID by contract ID.
 	// Key: id.ID, Value: *cachedCurrencyID
@@ -195,41 +195,41 @@ func (r *CurrencyResolver) resolveOrgCurrency(ctx context.Context, orgID id.ID) 
 }
 
 // getBaseCurrency returns the cached system base currency, fetching from DB on first call.
-// Uses double-check locking pattern for thread safety with minimal contention.
+// Caches per-tenant to prevent multi-tenancy data leaks.
 func (r *CurrencyResolver) getBaseCurrency(ctx context.Context) (id.ID, error) {
-	// Fast path: read lock
-	r.baseMu.RLock()
-	if r.baseCached {
-		cached := r.baseID
-		r.baseMu.RUnlock()
-		return cached, nil
-	}
-	r.baseMu.RUnlock()
+	tenantID := tenant.GetTenantID(ctx)
 
-	// Slow path: write lock + double-check
-	r.baseMu.Lock()
-	defer r.baseMu.Unlock()
-
-	if r.baseCached {
-		return r.baseID, nil
+	// Fast path: check cache
+	if cached, ok := r.baseCurrencyCache.Load(tenantID); ok {
+		entry := cached.(*cachedCurrencyID)
+		if time.Now().Before(entry.expiresAt) {
+			if entry.hasValue {
+				return entry.currencyID, nil
+			}
+			return id.Nil(), fmt.Errorf("base currency not set")
+		}
 	}
 
+	// Slow path: DB lookup
 	base, err := r.currencies.GetBaseCurrency(ctx)
 	if err != nil {
 		return id.Nil(), fmt.Errorf("failed to determine currency: %w", err)
 	}
 
-	r.baseID = base.ID
-	r.baseCached = true
+	r.baseCurrencyCache.Store(tenantID, &cachedCurrencyID{
+		currencyID: base.ID,
+		hasValue:   true,
+		expiresAt:  time.Now().Add(currencyTTL),
+	})
+
 	return base.ID, nil
 }
 
-// InvalidateBaseCurrency clears the cached base currency.
+// InvalidateBaseCurrency clears the cached base currency for a tenant.
 // Call this when the system base currency is changed (e.g., in currency catalog hooks).
-func (r *CurrencyResolver) InvalidateBaseCurrency() {
-	r.baseMu.Lock()
-	r.baseCached = false
-	r.baseMu.Unlock()
+func (r *CurrencyResolver) InvalidateBaseCurrency(ctx context.Context) {
+	tenantID := tenant.GetTenantID(ctx)
+	r.baseCurrencyCache.Delete(tenantID)
 }
 
 // InvalidateContractCurrency removes a specific contract from the currency cache.

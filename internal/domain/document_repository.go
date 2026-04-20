@@ -74,5 +74,6 @@ type CurrencyResolveStrategy interface {
 type CurrencyCacheInvalidator interface {
 	InvalidateContractCurrency(contractID id.ID)
 	InvalidateOrgCurrency(orgID id.ID)
+	InvalidateBaseCurrency(ctx context.Context)
 }
 

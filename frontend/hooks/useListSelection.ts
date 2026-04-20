@@ -39,7 +39,7 @@ export function useListSelection(visibleIds: string[]): UseListSelectionReturn {
     // We use a ref so it doesn't trigger re-renders; it's only read during click.
     const lastClickedIdRef = useRef<string | null>(null)
 
-    // ⚡ Perf: O(1) lookup Set — avoids O(N²) from .includes() in isAllSelected / isIndeterminate.
+    // O(1) lookup Set — avoids O(N²) from .includes() in isAllSelected / isIndeterminate.
     const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
     const excludedSet = useMemo(() => new Set(excludedIds), [excludedIds])
 
@@ -123,7 +123,7 @@ export function useListSelection(visibleIds: string[]): UseListSelectionReturn {
 
         if (isAllSelected) {
             // Deselect all visible items (keep items from other pages if any)
-            // ⚡ Perf: use Set for O(1) lookups instead of O(N) .includes() per item
+            // Use Set for O(1) lookups .includes() per item
             const visibleSet = new Set(visibleIds)
             setSelectedIds((prev) => prev.filter((id) => !visibleSet.has(id)))
         } else {

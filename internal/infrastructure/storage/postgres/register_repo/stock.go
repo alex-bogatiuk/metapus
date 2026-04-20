@@ -5,6 +5,7 @@ package register_repo
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/Masterminds/squirrel"
@@ -157,54 +158,66 @@ func (r *StockRepo) GetBalancesForUpdate(ctx context.Context, keys []stock.Balan
 		return []entity.StockBalance{b}, nil
 	}
 
-	// Build arrays for unnest.
-	warehouseIDs := make([]id.ID, len(keys))
-	productIDs := make([]id.ID, len(keys))
-	for i, k := range keys {
-		warehouseIDs[i] = k.WarehouseID
-		productIDs[i] = k.ProductID
-	}
+	// Lock existing rows in deterministic order (Resource Ordering)
+	// Sort keys in memory to prevent deadlocks (PostgreSQL FOR UPDATE does not guarantee ORDER BY order).
+	sortedKeys := make([]stock.BalanceKey, len(keys))
+	copy(sortedKeys, keys)
+	sort.Slice(sortedKeys, func(i, j int) bool {
+		if sortedKeys[i].WarehouseID == sortedKeys[j].WarehouseID {
+			return sortedKeys[i].ProductID.String() < sortedKeys[j].ProductID.String()
+		}
+		return sortedKeys[i].WarehouseID.String() < sortedKeys[j].WarehouseID.String()
+	})
 
-	// Lock existing rows in deterministic order (Resource Ordering).
-	//   SELECT ... FROM reg_stock_balances WHERE (warehouse_id, product_id) IN (...)
-	//   ORDER BY warehouse_id, product_id FOR UPDATE
 	sql := `
-		SELECT b.warehouse_id, b.product_id, b.quantity, b.last_movement_at, b.updated_at
-		FROM reg_stock_balances b
-		JOIN unnest($1::uuid[], $2::uuid[]) AS k(wid, pid)
-		  ON b.warehouse_id = k.wid AND b.product_id = k.pid
-		ORDER BY b.warehouse_id, b.product_id
+		SELECT warehouse_id, product_id, quantity, last_movement_at, updated_at
+		FROM reg_stock_balances
+		WHERE warehouse_id = $1 AND product_id = $2
 		FOR UPDATE
 	`
 
 	querier := r.GetTxManager(ctx).GetQuerier(ctx)
-	var found []entity.StockBalance
-	if err := pgxscan.Select(ctx, querier, &found, sql, warehouseIDs, productIDs); err != nil {
-		return nil, fmt.Errorf("get balances for update: %w", err)
+	b := &pgx.Batch{}
+	for _, k := range sortedKeys {
+		b.Queue(sql, k.WarehouseID, k.ProductID)
 	}
 
-	// Build a lookup set of found keys.
-	type dimKey struct {
-		w, p id.ID
-	}
-	foundSet := make(map[dimKey]struct{}, len(found))
-	for _, b := range found {
-		foundSet[dimKey{b.WarehouseID, b.ProductID}] = struct{}{}
+	br := querier.SendBatch(ctx, b)
+	defer br.Close()
+
+	loaded := make(map[string]entity.StockBalance, len(sortedKeys))
+	for _, k := range sortedKeys {
+		var balance entity.StockBalance
+		rows, err := br.Query()
+		if err != nil {
+			return nil, fmt.Errorf("batch query error: %w", err)
+		}
+		
+		if rows.Next() {
+			if err := pgxscan.ScanRow(&balance, rows); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("scan balance: %w", err)
+			}
+			loaded[k.WarehouseID.String()+"-"+k.ProductID.String()] = balance
+		}
+		rows.Close()
 	}
 
-	// Append zero-balances for keys not found in DB (same behaviour as single-key method).
-	for _, k := range keys {
-		dk := dimKey{k.WarehouseID, k.ProductID}
-		if _, ok := foundSet[dk]; !ok {
-			found = append(found, entity.StockBalance{
+	result := make([]entity.StockBalance, len(keys))
+	for i, k := range keys {
+		keyStr := k.WarehouseID.String() + "-" + k.ProductID.String()
+		if balance, ok := loaded[keyStr]; ok {
+			result[i] = balance
+		} else {
+			result[i] = entity.StockBalance{
 				WarehouseID: k.WarehouseID,
 				ProductID:   k.ProductID,
 				Quantity:    0,
-			})
+			}
 		}
 	}
 
-	return found, nil
+	return result, nil
 }
 
 // GetBalancesByWarehouse returns balances for a warehouse.

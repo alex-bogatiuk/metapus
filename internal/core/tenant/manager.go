@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/sync/singleflight"
 
 	"metapus/pkg/logger"
 )
@@ -93,6 +94,8 @@ type Manager struct {
 	pools     sync.Map // map[tenantID]*ManagedPool
 	poolCount atomic.Int32
 
+	sf singleflight.Group
+
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -151,99 +154,107 @@ func (m *Manager) GetPool(ctx context.Context, tenantID string) (*ManagedPool, e
 
 // createPool creates a new connection pool for tenant.
 func (m *Manager) createPool(ctx context.Context, tenantID string) (*ManagedPool, error) {
-	// Reserve pool slot (pre-increment to prevent TOCTOU race).
-	// If we fail to create the pool or another goroutine wins LoadOrStore,
-	// we rollback by decrementing.
-	if m.config.MaxTotalPools > 0 {
-		newCount := m.poolCount.Add(1)
-		if int(newCount) > m.config.MaxTotalPools {
-			m.poolCount.Add(-1)
-			return nil, fmt.Errorf("%w (%d)", ErrMaxPoolLimit, m.config.MaxTotalPools)
-		}
-	}
-
-	// rollbackSlot decrements poolCount if we reserved a slot but failed to use it.
-	rollbackSlot := func() {
+	v, err, _ := m.sf.Do(tenantID, func() (any, error) {
+		// Reserve pool slot (pre-increment to prevent TOCTOU race).
+		// If we fail to create the pool or another goroutine wins LoadOrStore,
+		// we rollback by decrementing.
 		if m.config.MaxTotalPools > 0 {
-			m.poolCount.Add(-1)
+			newCount := m.poolCount.Add(1)
+			if int(newCount) > m.config.MaxTotalPools {
+				m.poolCount.Add(-1)
+				return nil, fmt.Errorf("%w (%d)", ErrMaxPoolLimit, m.config.MaxTotalPools)
+			}
 		}
-	}
 
-	// Get tenant info from registry
-	tenant, err := m.registry.GetByID(ctx, tenantID)
-	if err != nil {
-		rollbackSlot()
-		if errors.Is(err, ErrTenantNotFound) {
-			return nil, err
+		// rollbackSlot decrements poolCount if we reserved a slot but failed to use it.
+		rollbackSlot := func() {
+			if m.config.MaxTotalPools > 0 {
+				m.poolCount.Add(-1)
+			}
 		}
-		return nil, fmt.Errorf("tenant lookup failed: %w", err)
-	}
 
-	if !tenant.CanCreatePool() {
-		rollbackSlot()
-		return nil, fmt.Errorf("%w: status=%s", ErrTenantNotActive, tenant.Status)
-	}
+		// Get tenant info from registry
+		tenant, err := m.registry.GetByID(ctx, tenantID)
+		if err != nil {
+			rollbackSlot()
+			if errors.Is(err, ErrTenantNotFound) {
+				return nil, err
+			}
+			return nil, fmt.Errorf("tenant lookup failed: %w", err)
+		}
 
-	// Version gate: in cloud mode, reject tenants from other version groups.
-	if m.config.VersionGroup != "" && tenant.VersionGroup != m.config.VersionGroup {
-		rollbackSlot()
-		return nil, fmt.Errorf("%w: server=%s, tenant=%s",
-			ErrTenantVersionMismatch, m.config.VersionGroup, tenant.VersionGroup)
-	}
+		if !tenant.CanCreatePool() {
+			rollbackSlot()
+			return nil, fmt.Errorf("%w: status=%s", ErrTenantNotActive, tenant.Status)
+		}
 
-	// Build DSN and create pool config
-	dsn := tenant.DSN(m.config.DBUser, m.config.DBPassword)
+		// Version gate: in cloud mode, reject tenants from other version groups.
+		if m.config.VersionGroup != "" && tenant.VersionGroup != m.config.VersionGroup {
+			rollbackSlot()
+			return nil, fmt.Errorf("%w: server=%s, tenant=%s",
+				ErrTenantVersionMismatch, m.config.VersionGroup, tenant.VersionGroup)
+		}
 
-	poolCfg, err := pgxpool.ParseConfig(dsn)
+		// Build DSN and create pool config
+		dsn := tenant.DSN(m.config.DBUser, m.config.DBPassword)
+
+		poolCfg, err := pgxpool.ParseConfig(dsn)
+		if err != nil {
+			rollbackSlot()
+			return nil, fmt.Errorf("parse dsn for tenant %s: %w", tenantID, err)
+		}
+
+		poolCfg.MaxConns = m.config.MaxConnsPerTenant
+		poolCfg.MinConns = m.config.MinConnsPerTenant
+		poolCfg.HealthCheckPeriod = m.config.HealthCheckPeriod
+		poolCfg.ConnConfig.ConnectTimeout = m.config.ConnectTimeout
+
+		// Create pool with timeout
+		createCtx, cancel := context.WithTimeout(ctx, m.config.ConnectTimeout)
+		defer cancel()
+
+		pool, err := pgxpool.NewWithConfig(createCtx, poolCfg)
+		if err != nil {
+			rollbackSlot()
+			return nil, fmt.Errorf("create pool for tenant %s: %w", tenantID, err)
+		}
+
+		// Verify connection
+		if err := pool.Ping(createCtx); err != nil {
+			pool.Close()
+			rollbackSlot()
+			return nil, fmt.Errorf("ping tenant %s: %w", tenantID, err)
+		}
+
+		mp := &ManagedPool{
+			pool:   pool,
+			tenant: tenant,
+		}
+		mp.Touch()
+
+		// Store (handle race condition — another goroutine might have created it
+		// just before we entered singleflight, or if singleflight is bypassed)
+		actual, loaded := m.pools.LoadOrStore(tenantID, mp)
+		if loaded {
+			// Another goroutine created pool first, close ours and return theirs
+			pool.Close()
+			rollbackSlot() // release our reserved slot
+			return actual.(*ManagedPool), nil
+		}
+
+		m.log.Info("created pool for tenant",
+			"tenant_id", tenantID,
+			"db_name", tenant.DBName,
+			"total_pools", m.poolCount.Load(),
+		)
+
+		return mp, nil
+	})
+
 	if err != nil {
-		rollbackSlot()
-		return nil, fmt.Errorf("parse dsn for tenant %s: %w", tenantID, err)
+		return nil, err
 	}
-
-	poolCfg.MaxConns = m.config.MaxConnsPerTenant
-	poolCfg.MinConns = m.config.MinConnsPerTenant
-	poolCfg.HealthCheckPeriod = m.config.HealthCheckPeriod
-	poolCfg.ConnConfig.ConnectTimeout = m.config.ConnectTimeout
-
-	// Create pool with timeout
-	createCtx, cancel := context.WithTimeout(ctx, m.config.ConnectTimeout)
-	defer cancel()
-
-	pool, err := pgxpool.NewWithConfig(createCtx, poolCfg)
-	if err != nil {
-		rollbackSlot()
-		return nil, fmt.Errorf("create pool for tenant %s: %w", tenantID, err)
-	}
-
-	// Verify connection
-	if err := pool.Ping(createCtx); err != nil {
-		pool.Close()
-		rollbackSlot()
-		return nil, fmt.Errorf("ping tenant %s: %w", tenantID, err)
-	}
-
-	mp := &ManagedPool{
-		pool:   pool,
-		tenant: tenant,
-	}
-	mp.Touch()
-
-	// Store (handle race condition — another goroutine might have created it)
-	actual, loaded := m.pools.LoadOrStore(tenantID, mp)
-	if loaded {
-		// Another goroutine created pool first, close ours and return theirs
-		pool.Close()
-		rollbackSlot() // release our reserved slot
-		return actual.(*ManagedPool), nil
-	}
-
-	m.log.Info("created pool for tenant",
-		"tenant_id", tenantID,
-		"db_name", tenant.DBName,
-		"total_pools", m.poolCount.Load(),
-	)
-
-	return mp, nil
+	return v.(*ManagedPool), nil
 }
 
 // evictionLoop closes idle pools periodically.
@@ -309,12 +320,13 @@ func (m *Manager) healthCheckLoop() {
 
 // checkPoolsHealth pings all pools and closes unhealthy ones.
 func (m *Manager) checkPoolsHealth() {
-	ctx, cancel := context.WithTimeout(m.ctx, 5*time.Second)
-	defer cancel()
-
 	m.pools.Range(func(key, value any) bool {
 		tenantID := key.(string)
 		mp := value.(*ManagedPool)
+
+		// Create timeout per pool, not globally, to prevent cascading failures
+		ctx, cancel := context.WithTimeout(m.ctx, 5*time.Second)
+		defer cancel()
 
 		if err := mp.pool.Ping(ctx); err != nil {
 			if mp.unhealthySince.Load() == 0 {

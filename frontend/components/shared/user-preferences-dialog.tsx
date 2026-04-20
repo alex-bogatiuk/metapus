@@ -53,8 +53,6 @@ const NUMBER_FORMATS: {
         { value: "none", label: "Без разделителя", example: "1234567,89" },
     ]
 
-const PAGE_SIZES = [10, 25, 50, 100]
-
 const LANGUAGES = [
     { value: "ru", label: "Русский" },
     { value: "en", label: "English" },
@@ -296,17 +294,6 @@ export function UserPreferencesDialog({ open, onOpenChange }: UserPreferencesDia
                             <h3 className="text-sm font-semibold text-foreground">
                                 Таблицы и отображение
                             </h3>
-
-                            <SelectField
-                                label="Строк на странице"
-                                description="Количество записей в таблицах по умолчанию"
-                                value={String(ui.pageSize ?? 25)}
-                                onValueChange={(v) => update("pageSize", Number(v))}
-                                options={PAGE_SIZES.map((n) => ({
-                                    value: String(n),
-                                    label: String(n),
-                                }))}
-                            />
 
                             <SwitchField
                                 label="Компактный режим"

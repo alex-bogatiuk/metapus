@@ -14,7 +14,7 @@ import (
 // EventLogCatalogService is a decorator that records data events
 // to sys_event_log for every mutating catalog operation.
 // It wraps a CatalogService (not an interface — catalogs don't have a middleware chain).
-type EventLogCatalogService[T entity.Validatable] struct {
+type EventLogCatalogService[T entity.CatalogEntity] struct {
 	inner      *CatalogService[T]
 	writer     eventlog.Writer
 	entityName string
@@ -22,7 +22,7 @@ type EventLogCatalogService[T entity.Validatable] struct {
 
 // NewEventLogCatalogService registers event log hooks on a CatalogService.
 // If writer is nil, this is a no-op.
-func NewEventLogCatalogService[T entity.Validatable](svc *CatalogService[T], entityName string, writer eventlog.Writer) {
+func NewEventLogCatalogService[T entity.CatalogEntity](svc *CatalogService[T], entityName string, writer eventlog.Writer) {
 	if writer == nil {
 		return
 	}
@@ -31,15 +31,18 @@ func NewEventLogCatalogService[T entity.Validatable](svc *CatalogService[T], ent
 	// Register after-hooks on the inner service to capture events.
 	// This uses the existing HookRegistry pattern — no new interfaces needed.
 	svc.Hooks().OnAfterCreate(func(ctx context.Context, ent T) error {
-		wrapper.emit(ctx, eventlog.EventCatalogCreate, extractCatalogID(ent), time.Now(), nil)
+		eid := ent.GetID()
+		wrapper.emit(ctx, eventlog.EventCatalogCreate, &eid, time.Now(), nil)
 		return nil
 	})
 	svc.Hooks().OnAfterUpdate(func(ctx context.Context, ent T) error {
-		wrapper.emit(ctx, eventlog.EventCatalogUpdate, extractCatalogID(ent), time.Now(), nil)
+		eid := ent.GetID()
+		wrapper.emit(ctx, eventlog.EventCatalogUpdate, &eid, time.Now(), nil)
 		return nil
 	})
 	svc.Hooks().OnAfterDelete(func(ctx context.Context, ent T) error {
-		wrapper.emit(ctx, eventlog.EventCatalogDelete, extractCatalogID(ent), time.Now(), nil)
+		eid := ent.GetID()
+		wrapper.emit(ctx, eventlog.EventCatalogDelete, &eid, time.Now(), nil)
 		return nil
 	})
 }
@@ -83,11 +86,4 @@ func (s *EventLogCatalogService[T]) emit(ctx context.Context, eventType eventlog
 	}
 }
 
-// extractCatalogID extracts ID from a catalog entity.
-func extractCatalogID[T any](ent T) *id.ID {
-	if getter, ok := any(ent).(interface{ GetID() id.ID }); ok {
-		eid := getter.GetID()
-		return &eid
-	}
-	return nil
-}
+// (extractCatalogID removed as it is no longer needed)

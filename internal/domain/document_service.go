@@ -258,6 +258,14 @@ func (s *BaseDocumentService[T, L]) Update(ctx context.Context, doc T) error {
 		return err
 	}
 
+	// Sync lifecycle state from DB.
+	// Client cannot arbitrarily change posted state or business state via CRUD Update.
+	if oldDoc.IsPosted() {
+		doc.MarkPosted()
+	} else {
+		doc.MarkUnposted()
+	}
+
 	// Run before-update hooks
 	if err := s.hooks.RunBeforeUpdate(ctx, doc); err != nil {
 		return err
@@ -486,7 +494,10 @@ func (s *BaseDocumentService[T, L]) PostAndSave(ctx context.Context, doc T) erro
 			return s.Repo.SaveLines(ctx, doc.GetID(), doc.GetLines())
 		}
 		// Existing document - update
-		return s.Repo.Update(ctx, doc)
+		if err := s.Repo.Update(ctx, doc); err != nil {
+			return err
+		}
+		return s.Repo.SaveLines(ctx, doc.GetID(), doc.GetLines())
 	}
 
 	return s.PostingEngine.Post(ctx, doc, updateDoc)
@@ -526,6 +537,14 @@ func (s *BaseDocumentService[T, L]) UpdateAndRepost(ctx context.Context, doc T) 
 		if err := security.ValidateWrite(oldDoc, doc, writePolicy); err != nil {
 			return err
 		}
+	}
+
+	// Sync lifecycle state from DB.
+	// We MUST use the true DB state to determine if old movements need reversal.
+	if oldDoc.IsPosted() {
+		doc.MarkPosted()
+	} else {
+		doc.MarkUnposted()
 	}
 
 	// Run before-update hooks

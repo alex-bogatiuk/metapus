@@ -79,7 +79,7 @@ type CursorListResult[T any] struct {
 // --- Repository Interfaces ---
 
 // CatalogRepository defines CRUD operations for catalog entities.
-type CatalogRepository[T entity.Validatable] interface {
+type CatalogRepository[T entity.CatalogEntity] interface {
 	// Create inserts a new entity
 	Create(ctx context.Context, entity T) error
 

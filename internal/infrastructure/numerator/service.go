@@ -21,6 +21,7 @@ type Querier interface {
 }
 
 type cachedRange struct {
+	mu      sync.Mutex
 	current int64
 	max     int64
 }
@@ -133,17 +134,20 @@ func (s *Service) getNextStrict(ctx context.Context, key string) (int64, error) 
 
 
 // getNextCached fetches next number from memory, refilling from DB if needed.
-// Uses per-shard locking to reduce contention across tenants.
+// Uses per-key locking to reduce contention across tenants and sequences.
 func (s *Service) getNextCached(ctx context.Context, dbKey, cacheKey string, opts *corenumerator.Options) (int64, error) {
 	sh := s.getShard(cacheKey)
+	
 	sh.mu.Lock()
-	defer sh.mu.Unlock()
-
 	rng, exists := sh.ranges[cacheKey]
 	if !exists {
 		rng = &cachedRange{}
 		sh.ranges[cacheKey] = rng
 	}
+	sh.mu.Unlock()
+
+	rng.mu.Lock()
+	defer rng.mu.Unlock()
 
 	// allocate new range if needed
 	if rng.current >= rng.max {

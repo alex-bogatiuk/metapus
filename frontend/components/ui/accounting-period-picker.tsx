@@ -10,8 +10,16 @@ import {
   isSameDay,
   isBefore,
   isAfter,
+  startOfWeek,
+  endOfWeek,
+  startOfQuarter,
+  endOfQuarter,
+  startOfYear,
+  endOfYear,
 } from "date-fns"
 import { CalendarIcon, XIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
+
+import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -45,8 +53,6 @@ export interface AccountingPeriodPickerProps {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const DATE_FORMAT = "dd.MM.yyyy"
-
 const MONTH_LABELS = [
   "Янв", "Фев", "Мар",
   "Апр", "Май", "Июн",
@@ -54,91 +60,108 @@ const MONTH_LABELS = [
   "Окт", "Ноя", "Дек",
 ]
 
-/** Apply a dd.MM.yyyy mask as the user types digits */
-function applyDateMask(raw: string): string {
+/** Apply a date mask dynamically based on user format */
+function applyDateMask(raw: string, dateFormat: string): string {
   const digits = raw.replace(/\D/g, "").slice(0, 8)
   let result = ""
-  for (let i = 0; i < digits.length; i++) {
-    if (i === 2 || i === 4) result += "."
-    result += digits[i]
+  
+  if (dateFormat === "yyyy-MM-dd") {
+    // mask: ####-##-##
+    for (let i = 0; i < digits.length; i++) {
+      if (i === 4 || i === 6) result += "-"
+      result += digits[i]
+    }
+  } else if (dateFormat === "MM/dd/yyyy") {
+    // mask: ##/##/####
+    for (let i = 0; i < digits.length; i++) {
+      if (i === 2 || i === 4) result += "/"
+      result += digits[i]
+    }
+  } else {
+    // mask: ##.##.####
+    for (let i = 0; i < digits.length; i++) {
+      if (i === 2 || i === 4) result += "."
+      result += digits[i]
+    }
   }
   return result
 }
 
-/** Try to parse a dd.MM.yyyy string into a valid Date */
-function tryParse(text: string): Date | undefined {
+/** Try to parse a string into a valid Date */
+function tryParse(text: string, dateFormat: string): Date | undefined {
   if (text.length !== 10) return undefined
-  const d = parse(text, DATE_FORMAT, new Date())
+  const d = parse(text, dateFormat, new Date())
   return isValid(d) ? d : undefined
 }
 
-/** Format a Date to dd.MM.yyyy, or return empty string */
-function fmt(date: Date | undefined): string {
+/** Format a Date to the user's format, or return empty string */
+function fmt(date: Date | undefined, dateFormat: string): string {
   if (!date) return ""
-  return format(date, DATE_FORMAT)
+  return format(date, dateFormat)
 }
 
 /** 
- * Smart parsing for 1C-style date entry.
- * Takes a raw input string (can be partial digits like "0503" or "5")
- * and attempts to expand it to a full dd.MM.yyyy string based on current date.
+ * Smart parsing for date entry.
+ * Adapts to the user's date format left-to-right.
  */
-function parseSmartDate(raw: string): string | null {
+function parseSmartDate(raw: string, dateFormat: string): string | null {
   const digits = raw.replace(/\D/g, "")
   if (!digits) return null
 
   const now = new Date()
-  const currentMonth = format(now, "MM")
-  const currentYearStr = format(now, "yyyy")
+  let d = format(now, "dd")
+  let m = format(now, "MM")
+  let y = format(now, "yyyy")
 
-  let dStr = "", mStr = "", yStr = ""
+  const isYMD = dateFormat === "yyyy-MM-dd"
+  const isMDY = dateFormat === "MM/dd/yyyy"
 
-  if (digits.length <= 2) {
-    // Only day provided (e.g. "5" -> 05.currentMonth.currentYear)
-    dStr = digits.padStart(2, "0")
-    mStr = currentMonth
-    yStr = currentYearStr
-  } else if (digits.length <= 4) {
-    // Day and month provided (e.g. "0503" -> 05.03.currentYear or "53" -> 05.03.currentYear)
-    dStr = digits.slice(0, 2).padStart(2, "0")
-    if (digits.length === 3) {
-      // e.g., "503" -> 05.03.currentYear
-      dStr = `0${digits[0]}`
-      mStr = digits.slice(1, 3).padStart(2, "0")
+  if (isYMD) {
+    if (digits.length <= 2) {
+      y = `20${digits}`
+    } else if (digits.length <= 4) {
+      y = digits.padEnd(4, "0")
+    } else if (digits.length <= 6) {
+      if (digits.startsWith("20")) {
+        y = digits.slice(0, 4)
+        m = digits.slice(4, 6).padStart(2, "0")
+      } else {
+        y = `20${digits.slice(0, 2)}`
+        m = digits.slice(2, 4).padStart(2, "0")
+        d = digits.slice(4, 6).padStart(2, "0")
+      }
     } else {
-      mStr = digits.slice(2, 4).padStart(2, "0")
-    }
-    yStr = currentYearStr
-  } else if (digits.length <= 6) {
-    // Day, month, and short year (e.g. "050325" -> 05.03.2025)
-    dStr = digits.slice(0, 2).padStart(2, "0")
-    // handle 5 digits like 05.03.2 -> not standard, let's just pad
-    if (digits.length === 5) {
-      mStr = digits.slice(2, 4).padStart(2, "0")
-      yStr = `200${digits[4]}`
-    } else {
-      mStr = digits.slice(2, 4).padStart(2, "0")
-      yStr = `20${digits.slice(4, 6)}` // Assume 20xx for 2-digit years
+      y = digits.slice(0, 4)
+      m = digits.slice(4, 6).padStart(2, "0")
+      d = digits.slice(6, 8).padStart(2, "0")
     }
   } else {
-    // Full date provided (7-8 digits)
-    dStr = digits.slice(0, 2).padStart(2, "0")
-    if (digits.length === 7) {
-      mStr = digits.slice(2, 4).padStart(2, "0")
-      // if they typed 0503202 instead of 2026, let's just use what they typed
-      yStr = digits.slice(4, 8).padEnd(4, "0")
+    const first = digits.slice(0, 2).padStart(2, "0")
+    const second = digits.length > 2 ? digits.slice(2, 4).padStart(2, "0") : (isMDY ? d : m)
+    const thirdStr = digits.slice(4, 8)
+    const third = thirdStr ? (thirdStr.length === 2 ? `20${thirdStr}` : thirdStr.padEnd(4, "0")) : y
+
+    if (isMDY) {
+      m = first
+      if (digits.length > 2) d = second
+      if (digits.length > 4) y = third
     } else {
-      mStr = digits.slice(2, 4).padStart(2, "0")
-      yStr = digits.slice(4, 8)
+      d = first
+      if (digits.length > 2) m = second
+      if (digits.length > 4) y = third
     }
   }
 
-  const formatted = `${dStr}.${mStr}.${yStr}`
+  let formatted = ""
+  if (isYMD) formatted = `${y}-${m}-${d}`
+  else if (isMDY) formatted = `${m}/${d}/${y}`
+  else formatted = `${d}.${m}.${y}`
 
-  // Verify it's an actually valid calendar date by parsing it back
-  const parsedDate = parse(formatted, DATE_FORMAT, new Date())
-  if (!isValid(parsedDate)) {
-    return null
+  const parsedDate = parse(formatted, dateFormat, new Date())
+  if (!isValid(parsedDate)) return null
+  
+  if (format(parsedDate, "dd") !== d || format(parsedDate, "MM") !== m || format(parsedDate, "yyyy") !== y) {
+      return null
   }
 
   return formatted
@@ -191,9 +214,10 @@ interface DateInputFieldProps {
   onChange: (v: string) => void
   onClear: () => void
   placeholder?: string
+  dateFormat: string
 }
 
-function DateInputField({ value, onChange, onClear, placeholder }: DateInputFieldProps) {
+function DateInputField({ value, onChange, onClear, placeholder, dateFormat }: DateInputFieldProps) {
   // Local state for the input field to allow partial typing
   const [localValue, setLocalValue] = React.useState(value)
 
@@ -203,8 +227,8 @@ function DateInputField({ value, onChange, onClear, placeholder }: DateInputFiel
   }, [value])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Allow typing, applying the visual dot mask immediately
-    setLocalValue(applyDateMask(e.target.value))
+    // Allow typing, applying the visual mask immediately based on dateFormat
+    setLocalValue(applyDateMask(e.target.value, dateFormat))
   }
 
   const handleCommit = () => {
@@ -218,7 +242,7 @@ function DateInputField({ value, onChange, onClear, placeholder }: DateInputFiel
     }
 
     // Try to smart parse
-    const smartParsed = parseSmartDate(localValue)
+    const smartParsed = parseSmartDate(localValue, dateFormat)
     if (smartParsed) {
       setLocalValue(smartParsed)
       onChange(smartParsed)
@@ -243,7 +267,7 @@ function DateInputField({ value, onChange, onClear, placeholder }: DateInputFiel
         onChange={handleChange}
         onBlur={handleCommit}
         onKeyDown={handleKeyDown}
-        placeholder={placeholder ?? "дд.мм.гггг"}
+        placeholder={placeholder ?? dateFormat.toLowerCase()}
         className="pl-8 pr-8 w-[160px] font-mono text-sm"
         maxLength={10}
       />
@@ -370,6 +394,9 @@ function AccountingPeriodPicker({
 }: AccountingPeriodPickerProps) {
   const [open, setOpen] = React.useState(false)
 
+  // React hydration safety for persisted Zustand store
+  const dateFormat = useUserPrefsStore((s) => s.interface.dateFormat) ?? "dd.MM.yyyy"
+
   // Draft string values for the inputs (only committed on "Выбрать")
   const [draftFromText, setDraftFromText] = React.useState("")
   const [draftToText, setDraftToText] = React.useState("")
@@ -384,8 +411,8 @@ function AccountingPeriodPicker({
   // Sync draft from value when popover opens
   React.useEffect(() => {
     if (open) {
-      setDraftFromText(fmt(value?.from))
-      setDraftToText(fmt(value?.to))
+      setDraftFromText(fmt(value?.from, dateFormat))
+      setDraftToText(fmt(value?.to, dateFormat))
       // If we already have a complete range, next click starts fresh
       setRangeStep(value?.from && value?.to ? "start" : value?.from ? "end" : "start")
       // Reset baseYear to current year (or year of selected "from" date)
@@ -399,8 +426,8 @@ function AccountingPeriodPicker({
   }, [open])
 
   // Derived parsed dates from draft text
-  const draftFrom = tryParse(draftFromText)
-  const draftTo = tryParse(draftToText)
+  const draftFrom = tryParse(draftFromText, dateFormat)
+  const draftTo = tryParse(draftToText, dateFormat)
 
   // Handlers
   const handleMonthClick = (year: number, monthIndex: number) => {
@@ -409,20 +436,20 @@ function AccountingPeriodPicker({
 
     if (rangeStep === "start") {
       // First click: set "from", clear "to", move to step "end"
-      setDraftFromText(fmt(clickedStart))
+      setDraftFromText(fmt(clickedStart, dateFormat))
       setDraftToText("")
       setRangeStep("end")
     } else {
       // Second click: set "to"
       // If the clicked month is before the current "from", swap them
       if (draftFrom && isBefore(clickedStart, draftFrom)) {
-        setDraftToText(fmt(endOfMonth(draftFrom)))
-        setDraftFromText(fmt(clickedStart))
+        setDraftToText(fmt(endOfMonth(draftFrom), dateFormat))
+        setDraftFromText(fmt(clickedStart, dateFormat))
       } else if (draftFrom && isSameDay(clickedStart, startOfMonth(draftFrom))) {
         // Same month clicked again — select just that one month
-        setDraftToText(fmt(clickedEnd))
+        setDraftToText(fmt(clickedEnd, dateFormat))
       } else {
-        setDraftToText(fmt(clickedEnd))
+        setDraftToText(fmt(clickedEnd, dateFormat))
       }
       setRangeStep("start")
     }
@@ -443,15 +470,55 @@ function AccountingPeriodPicker({
     setOpen(false)
   }
 
+  const handlePresetClick = (preset: string) => {
+    const now = new Date()
+    let from: Date | undefined
+    let to: Date | undefined
+
+    switch (preset) {
+      case "today":
+        from = now
+        to = now
+        break
+      case "thisWeek":
+        from = startOfWeek(now, { weekStartsOn: 1 })
+        to = endOfWeek(now, { weekStartsOn: 1 })
+        break
+      case "thisMonth":
+        from = startOfMonth(now)
+        to = endOfMonth(now)
+        break
+      case "lastMonth": {
+        const d = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        from = startOfMonth(d)
+        to = endOfMonth(d)
+        break
+      }
+      case "thisQuarter":
+        from = startOfQuarter(now)
+        to = endOfQuarter(now)
+        break
+      case "thisYear":
+        from = startOfYear(now)
+        to = endOfYear(now)
+        break
+    }
+
+    if (from && to) {
+      onChange?.({ from, to })
+      setOpen(false)
+    }
+  }
+
   // Build trigger label
   const triggerLabel = React.useMemo(() => {
     if (value?.from && value?.to) {
-      return `${fmt(value.from)} – ${fmt(value.to)}`
+      return `${fmt(value.from, dateFormat)} – ${fmt(value.to, dateFormat)}`
     }
-    if (value?.from) return `с ${fmt(value.from)}`
-    if (value?.to) return `по ${fmt(value.to)}`
+    if (value?.from) return `с ${fmt(value.from, dateFormat)}`
+    if (value?.to) return `по ${fmt(value.to, dateFormat)}`
     return placeholder ?? "Выберите период"
-  }, [value, placeholder])
+  }, [value, placeholder, dateFormat])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -482,12 +549,14 @@ function AccountingPeriodPicker({
               value={draftFromText}
               onChange={(v) => { setDraftFromText(v); setRangeStep("start") }}
               onClear={() => { setDraftFromText(""); setRangeStep("start") }}
+              dateFormat={dateFormat}
             />
             <span className="text-muted-foreground text-sm select-none">–</span>
             <DateInputField
               value={draftToText}
               onChange={(v) => { setDraftToText(v); setRangeStep("start") }}
               onClear={() => { setDraftToText(""); setRangeStep("start") }}
+              dateFormat={dateFormat}
             />
             <Button
               type="button"
@@ -498,6 +567,16 @@ function AccountingPeriodPicker({
             >
               Очистить период
             </Button>
+          </div>
+
+          {/* ── Quick Presets ── */}
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" size="sm" onClick={() => handlePresetClick("today")}>Сегодня</Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => handlePresetClick("thisWeek")}>Эта неделя</Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => handlePresetClick("thisMonth")}>Этот месяц</Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => handlePresetClick("lastMonth")}>Прошлый месяц</Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => handlePresetClick("thisQuarter")}>Этот квартал</Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => handlePresetClick("thisYear")}>Этот год</Button>
           </div>
 
           {/* ── Middle block: 3-column month grid ── */}

@@ -16,7 +16,7 @@ import (
 
 // CatalogHandler provides generic HTTP handlers for catalog entities.
 // In Database-per-Tenant architecture, tenantID is not needed (isolation is physical).
-type CatalogHandler[T entity.Validatable, CreateDTO any, UpdateDTO any] struct {
+type CatalogHandler[T entity.CatalogEntity, CreateDTO any, UpdateDTO any] struct {
 	*BaseHandler
 	service    *domain.CatalogService[T]
 	entityName string
@@ -28,7 +28,7 @@ type CatalogHandler[T entity.Validatable, CreateDTO any, UpdateDTO any] struct {
 }
 
 // CatalogHandlerConfig configures the catalog handler.
-type CatalogHandlerConfig[T entity.Validatable, CreateDTO any, UpdateDTO any] struct {
+type CatalogHandlerConfig[T entity.CatalogEntity, CreateDTO any, UpdateDTO any] struct {
 	Service      *domain.CatalogService[T]
 	EntityName   string
 	MapCreateDTO func(dto CreateDTO) T
@@ -37,7 +37,7 @@ type CatalogHandlerConfig[T entity.Validatable, CreateDTO any, UpdateDTO any] st
 }
 
 // NewCatalogHandler creates a new catalog handler.
-func NewCatalogHandler[T entity.Validatable, CreateDTO any, UpdateDTO any](
+func NewCatalogHandler[T entity.CatalogEntity, CreateDTO any, UpdateDTO any](
 	base *BaseHandler,
 	cfg CatalogHandlerConfig[T, CreateDTO, UpdateDTO],
 ) *CatalogHandler[T, CreateDTO, UpdateDTO] {

@@ -22,7 +22,6 @@ export interface InterfacePrefs {
     language?: string
     dateFormat?: DateFormat
     numberFormat?: NumberFormat
-    pageSize?: number
     showTooltips?: boolean
     compactMode?: boolean
     sidebarCollapsed?: boolean
