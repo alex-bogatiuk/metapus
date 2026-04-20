@@ -183,7 +183,9 @@ func (r *StockRepo) GetBalancesForUpdate(ctx context.Context, keys []stock.Balan
 	}
 
 	br := querier.SendBatch(ctx, b)
-	defer br.Close()
+	defer func() {
+		_ = br.Close()
+	}()
 
 	loaded := make(map[string]entity.StockBalance, len(sortedKeys))
 	for _, k := range sortedKeys {

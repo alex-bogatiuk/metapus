@@ -24,7 +24,7 @@
  *   else { ... } // fallback to AutoForm
  */
 
-import type { ComponentType, LazyExoticComponent } from "react"
+import type { ComponentType, LazyExoticComponent, ReactNode } from "react"
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -36,14 +36,28 @@ export interface AutoListColumn {
     key: string
     /** Display header label */
     label: string
-    /** Column type controls rendering (default: "string") */
+    /** Column type controls formatting fallback when render is not provided (default: "string") */
     type?: "string" | "number" | "money" | "date" | "boolean" | "reference"
     /** For reference columns: the reference endpoint to resolve names */
     refEndpoint?: string
-    /** Column width CSS (e.g. "200px", "1fr") */
-    width?: string
+    /** Column width in pixels (used as initial width for resize). */
+    width?: number
+    /** Minimum width in pixels for resize. Default = 60. */
+    minWidth?: number
     /** Whether this column is sortable (default: true) */
     sortable?: boolean
+    /** Text alignment. Default = 'left'. */
+    align?: "left" | "right" | "center"
+    /** Extra className applied to both th and td. */
+    className?: string
+    /** Custom cell renderer. When provided, takes priority over type-based formatting. */
+    render?: (item: Record<string, unknown>) => ReactNode
+    /**
+     * When set, the column value is displayed as a Badge with enum label resolution.
+     * Value is the PascalCase entity name for useEnumFormatter (e.g. "Counterparty").
+     * The column `key` is used as the enum field key.
+     */
+    enumEntity?: string
 }
 
 /** Props passed to custom form components rendered via UIRegistry */
@@ -62,8 +76,14 @@ export interface EntityUIRegistration {
     entityName: string
     /** URL path segment matching backend RoutePrefix (e.g. "counterparties", "goods-receipt") */
     routePrefix: string
+    /** snake_case entity key for metadata/API (e.g. "counterparty", "goods_receipt"). Falls back to routePrefix. */
+    entityKey?: string
     /** Custom list columns. If undefined → auto-generate from metadata fields */
     listColumns?: AutoListColumn[]
+    /** Default visible column keys (for Column Chooser). If undefined → all columns visible. */
+    defaultVisibleKeys?: string[]
+    /** Default selected filter keys (for FilterSidebar). */
+    defaultFilterKeys?: string[]
     /** Lazy-loaded custom form component. If undefined → use AutoForm */
     formComponent?: LazyExoticComponent<ComponentType<EntityFormProps>>
     /** Lazy-loaded custom list component. If undefined → use AutoList */

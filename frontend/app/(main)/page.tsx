@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Pencil, Check, RotateCcw, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { useDashboardStore } from "@/stores/useDashboardStore"
 import { WidgetGrid } from "@/components/dashboard/widgets/widget-grid"
 import { WidgetGalleryDialog } from "@/components/dashboard/widgets/widget-gallery-dialog"
@@ -33,67 +34,69 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex-1 overflow-auto p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">
-            Начальная страница
-          </h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {today} — Metapus ERP
-          </p>
+    <ScrollArea className="flex-1">
+      <div className="p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-foreground">
+              Начальная страница
+            </h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {today} — Metapus ERP
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {isEditMode ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setGalleryOpen(true)}
+                >
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  Добавить виджет
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => useDashboardStore.getState().resetToDefault()}
+                >
+                  <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                  Сбросить
+                </Button>
+                <Button size="sm" onClick={() => setEditMode(false)}>
+                  <Check className="mr-1.5 h-3.5 w-3.5" />
+                  Готово
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => loadLayout()}
+                >
+                  <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                  Обновить
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditMode(true)}
+                >
+                  <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                  Настроить
+                </Button>
+              </>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {isEditMode ? (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setGalleryOpen(true)}
-              >
-                <Plus className="mr-1.5 h-3.5 w-3.5" />
-                Добавить виджет
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => useDashboardStore.getState().resetToDefault()}
-              >
-                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-                Сбросить
-              </Button>
-              <Button size="sm" onClick={() => setEditMode(false)}>
-                <Check className="mr-1.5 h-3.5 w-3.5" />
-                Готово
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => loadLayout()}
-              >
-                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-                Обновить
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setEditMode(true)}
-              >
-                <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                Настроить
-              </Button>
-            </>
-          )}
-        </div>
+
+        <WidgetGrid />
+
+        <WidgetGalleryDialog open={galleryOpen} onOpenChange={setGalleryOpen} />
       </div>
-
-      <WidgetGrid />
-
-      <WidgetGalleryDialog open={galleryOpen} onOpenChange={setGalleryOpen} />
-    </div>
+    </ScrollArea>
   )
 }
 

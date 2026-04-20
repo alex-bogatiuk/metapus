@@ -218,7 +218,7 @@ export default function SettingsPage() {
 
       {/* Right content — active section */}
       <ScrollArea className="flex-1">
-        <div className={cn("mx-auto px-6 py-6", activeSection === "matrix" ? "max-w-6xl" : "max-w-3xl")}>
+        <div className={cn("mx-auto px-6 py-6", activeSection === "matrix" ? "max-w-6xl" : "max-w-4xl")}>
           <div className="mb-6">
             <h2 className="text-lg font-semibold text-foreground">
               {activeMeta.title}

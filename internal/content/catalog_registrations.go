@@ -7,6 +7,8 @@
 package content
 
 import (
+	"context"
+
 	"metapus/internal/domain"
 	"metapus/internal/domain/catalogs/contract"
 	"metapus/internal/domain/catalogs/counterparty"
@@ -17,10 +19,84 @@ import (
 	"metapus/internal/domain/catalogs/vat_rate"
 	"metapus/internal/domain/catalogs/warehouse"
 	v1 "metapus/internal/infrastructure/http/v1"
+	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/metadata"
 )
+
+func init() {
+	// Register Enum metadata globally for automatic filter UI dropdown resolution.
+
+	// Nomenclature Types
+	metadata.RegisterEnum[nomenclature.NomenclatureType]([]metadata.EnumValue{
+		{Value: "goods", Label: "Товар"},
+		{Value: "service", Label: "Услуга"},
+		{Value: "work", Label: "Работа"},
+		{Value: "material", Label: "Материал"},
+		{Value: "semi", Label: "Полуфабрикат"},
+		{Value: "product", Label: "Продукция"},
+	})
+
+	// Counterparty Types
+	metadata.RegisterEnum[counterparty.CounterpartyType]([]metadata.EnumValue{
+		{Value: "customer", Label: "Покупатель"},
+		{Value: "supplier", Label: "Поставщик"},
+		{Value: "both", Label: "Покупатель и Поставщик"},
+		{Value: "other", Label: "Прочие"},
+	})
+
+	// Legal Forms
+	metadata.RegisterEnum[counterparty.LegalForm]([]metadata.EnumValue{
+		{Value: "individual", Label: "Физлицо"},
+		{Value: "sole_trader", Label: "ИП"},
+		{Value: "company", Label: "Юрлицо"},
+		{Value: "government", Label: "Гос. орган"},
+	})
+
+	// Warehouse Types
+	metadata.RegisterEnum[warehouse.WarehouseType]([]metadata.EnumValue{
+		{Value: "main", Label: "Основной"},
+		{Value: "distribution", Label: "Распределительный"},
+		{Value: "retail", Label: "Розничный"},
+		{Value: "production", Label: "Производственный"},
+		{Value: "transit", Label: "Транзитный"},
+	})
+
+	// Unit Types
+	metadata.RegisterEnum[unit.UnitType]([]metadata.EnumValue{
+		{Value: "piece", Label: "Штуки"},
+		{Value: "weight", Label: "Вес"},
+		{Value: "length", Label: "Длина"},
+		{Value: "area", Label: "Площадь"},
+		{Value: "volume", Label: "Объем"},
+		{Value: "time", Label: "Время"},
+		{Value: "pack", Label: "Упаковки"},
+	})
+
+	// Contract Types
+	metadata.RegisterEnum[contract.ContractType]([]metadata.EnumValue{
+		{Value: "supply", Label: "С поставщиком"},
+		{Value: "sale", Label: "С покупателем"},
+		{Value: "other", Label: "Прочее"},
+	})
+
+	// Organization Tax Systems
+	metadata.RegisterEnum[organization.TaxSystem]([]metadata.EnumValue{
+		{Value: "osno", Label: "ОСНО"},
+		{Value: "usn_income", Label: "УСН (доходы)"},
+		{Value: "usn_income_expense", Label: "УСН (доходы − расходы)"},
+		{Value: "envd", Label: "ЕНВД"},
+		{Value: "patent", Label: "Патент"},
+	})
+
+	// Organization Inventory Methods
+	metadata.RegisterEnum[organization.InventoryMethod]([]metadata.EnumValue{
+		{Value: "fifo", Label: "ФИФО"},
+		{Value: "average", Label: "Средняя"},
+		{Value: "specific", Label: "По партиям"},
+	})
+}
 
 // ---------------------------------------------------------------------------
 // Counterparty
@@ -48,7 +124,19 @@ func (r *CounterpartyRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHan
 	service := counterparty.NewService(repo, deps.Numerator)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	domain.NewEventLogCatalogService(service.CatalogService, "counterparty", deps.EventWriter)
-	return handlers.NewCounterpartyHandler(deps.BaseHandler, service)
+	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
+		*counterparty.Counterparty,
+		dto.CreateCounterpartyRequest,
+		dto.UpdateCounterpartyRequest,
+	]{
+		Service:    service.CatalogService,
+		EntityName: "counterparty",
+		MapCreateDTO: func(req dto.CreateCounterpartyRequest) *counterparty.Counterparty { return req.ToEntity() },
+		MapUpdateDTO: func(req dto.UpdateCounterpartyRequest, existing *counterparty.Counterparty) *counterparty.Counterparty {
+			req.ApplyTo(existing); return existing
+		},
+		MapToDTO: func(entity *counterparty.Counterparty) any { return dto.FromCounterparty(entity) },
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -77,7 +165,19 @@ func (r *NomenclatureRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHan
 	service := nomenclature.NewService(repo, deps.Numerator)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	domain.NewEventLogCatalogService(service.CatalogService, "nomenclature", deps.EventWriter)
-	return handlers.NewNomenclatureHandler(deps.BaseHandler, service)
+	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
+		*nomenclature.Nomenclature,
+		dto.CreateNomenclatureRequest,
+		dto.UpdateNomenclatureRequest,
+	]{
+		Service:    service.CatalogService,
+		EntityName: "nomenclature",
+		MapCreateDTO: func(req dto.CreateNomenclatureRequest) *nomenclature.Nomenclature { return req.ToEntity() },
+		MapUpdateDTO: func(req dto.UpdateNomenclatureRequest, existing *nomenclature.Nomenclature) *nomenclature.Nomenclature {
+			req.ApplyTo(existing); return existing
+		},
+		MapToDTO: func(entity *nomenclature.Nomenclature) any { return dto.FromNomenclature(entity) },
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -106,7 +206,19 @@ func (r *WarehouseRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandle
 	service := warehouse.NewService(repo, deps.Numerator)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	domain.NewEventLogCatalogService(service.CatalogService, "warehouse", deps.EventWriter)
-	return handlers.NewWarehouseHandler(deps.BaseHandler, service)
+	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
+		*warehouse.Warehouse,
+		dto.CreateWarehouseRequest,
+		dto.UpdateWarehouseRequest,
+	]{
+		Service:    service.CatalogService,
+		EntityName: "warehouse",
+		MapCreateDTO: func(req dto.CreateWarehouseRequest) *warehouse.Warehouse { return req.ToEntity() },
+		MapUpdateDTO: func(req dto.UpdateWarehouseRequest, existing *warehouse.Warehouse) *warehouse.Warehouse {
+			req.ApplyTo(existing); return existing
+		},
+		MapToDTO: func(entity *warehouse.Warehouse) any { return dto.FromWarehouse(entity) },
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -135,7 +247,19 @@ func (r *UnitRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 	service := unit.NewService(repo, deps.Numerator)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	domain.NewEventLogCatalogService(service.CatalogService, "unit", deps.EventWriter)
-	return handlers.NewUnitHandler(deps.BaseHandler, service)
+	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
+		*unit.Unit,
+		dto.CreateUnitRequest,
+		dto.UpdateUnitRequest,
+	]{
+		Service:    service.CatalogService,
+		EntityName: "unit",
+		MapCreateDTO: func(req dto.CreateUnitRequest) *unit.Unit { return req.ToEntity() },
+		MapUpdateDTO: func(req dto.UpdateUnitRequest, existing *unit.Unit) *unit.Unit {
+			req.ApplyTo(existing); return existing
+		},
+		MapToDTO: func(entity *unit.Unit) any { return dto.FromUnit(entity) },
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -164,7 +288,19 @@ func (r *CurrencyRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler
 	service := currency.NewService(repo, deps.Numerator)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	domain.NewEventLogCatalogService(service.CatalogService, "currency", deps.EventWriter)
-	return handlers.NewCurrencyHandler(deps.BaseHandler, service)
+	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
+		*currency.Currency,
+		dto.CreateCurrencyRequest,
+		dto.UpdateCurrencyRequest,
+	]{
+		Service:    service.CatalogService,
+		EntityName: "currency",
+		MapCreateDTO: func(req dto.CreateCurrencyRequest) *currency.Currency { return req.ToEntity() },
+		MapUpdateDTO: func(req dto.UpdateCurrencyRequest, existing *currency.Currency) *currency.Currency {
+			req.ApplyTo(existing); return existing
+		},
+		MapToDTO: func(entity *currency.Currency) any { return dto.FromCurrency(entity) },
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -193,7 +329,29 @@ func (r *OrganizationRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHan
 	service := organization.NewService(repo, deps.Numerator)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	domain.NewEventLogCatalogService(service.CatalogService, "organization", deps.EventWriter)
-	return handlers.NewOrganizationHandler(deps.BaseHandler, service)
+
+	// Invalidate CurrencyResolver cache when org's base currency changes
+	if deps.CurrencyCacheInvalidator != nil {
+		inv := deps.CurrencyCacheInvalidator
+		service.Hooks().OnAfterUpdate(func(_ context.Context, org *organization.Organization) error {
+			inv.InvalidateOrgCurrency(org.ID)
+			return nil
+		})
+	}
+
+	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
+		*organization.Organization,
+		dto.CreateOrganizationRequest,
+		dto.UpdateOrganizationRequest,
+	]{
+		Service:    service.CatalogService,
+		EntityName: "organization",
+		MapCreateDTO: func(req dto.CreateOrganizationRequest) *organization.Organization { return req.ToEntity() },
+		MapUpdateDTO: func(req dto.UpdateOrganizationRequest, existing *organization.Organization) *organization.Organization {
+			req.ApplyTo(existing); return existing
+		},
+		MapToDTO: func(entity *organization.Organization) any { return dto.FromOrganization(entity) },
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -222,7 +380,19 @@ func (r *VATRateRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler 
 	service := vat_rate.NewService(repo, deps.Numerator)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	domain.NewEventLogCatalogService(service.CatalogService, "vat_rate", deps.EventWriter)
-	return handlers.NewVATRateHandler(deps.BaseHandler, service)
+	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
+		*vat_rate.VATRate,
+		dto.CreateVATRateRequest,
+		dto.UpdateVATRateRequest,
+	]{
+		Service:    service.CatalogService,
+		EntityName: "vat_rate",
+		MapCreateDTO: func(req dto.CreateVATRateRequest) *vat_rate.VATRate { return req.ToEntity() },
+		MapUpdateDTO: func(req dto.UpdateVATRateRequest, existing *vat_rate.VATRate) *vat_rate.VATRate {
+			req.ApplyTo(existing); return existing
+		},
+		MapToDTO: func(entity *vat_rate.VATRate) any { return dto.FromVATRate(entity) },
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -251,5 +421,27 @@ func (r *ContractRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler
 	service := contract.NewService(repo, deps.Numerator)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	domain.NewEventLogCatalogService(service.CatalogService, "contract", deps.EventWriter)
-	return handlers.NewContractHandler(deps.BaseHandler, service)
+
+	// Invalidate CurrencyResolver cache when contract's currency changes
+	if deps.CurrencyCacheInvalidator != nil {
+		inv := deps.CurrencyCacheInvalidator
+		service.Hooks().OnAfterUpdate(func(_ context.Context, c *contract.Contract) error {
+			inv.InvalidateContractCurrency(c.ID)
+			return nil
+		})
+	}
+
+	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
+		*contract.Contract,
+		dto.CreateContractRequest,
+		dto.UpdateContractRequest,
+	]{
+		Service:    service.CatalogService,
+		EntityName: "contract",
+		MapCreateDTO: func(req dto.CreateContractRequest) *contract.Contract { return req.ToEntity() },
+		MapUpdateDTO: func(req dto.UpdateContractRequest, existing *contract.Contract) *contract.Contract {
+			req.ApplyTo(existing); return existing
+		},
+		MapToDTO: func(entity *contract.Contract) any { return dto.FromContract(entity) },
+	})
 }

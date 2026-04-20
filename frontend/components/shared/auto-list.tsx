@@ -3,43 +3,32 @@
 /**
  * AutoList — metadata-driven list page generator.
  *
- * Generates a list page from UIRegistry columns or /api/v1/meta/:name endpoint.
- * Used as fallback when an entity has no custom listComponent registered.
+ * Thin wrapper over CatalogListPage that resolves columns and fetcher
+ * from UIRegistry / backend metadata. Used as fallback when an entity
+ * has no custom listComponent registered.
  *
- * Features:
- *   - Cursor-based pagination (useEntityListPage pattern)
- *   - Search with debounce
- *   - Sorting by column
- *   - Create new button → navigates to /ext/:type/:prefix/new
+ * Features (inherited from CatalogListPage):
+ *   - DataTable with checkboxes, column resize, compact mode
+ *   - Infinite scroll (ScrollSentinel)
+ *   - FilterSidebar (metadata-driven)
+ *   - Column Chooser (reorder + show/hide)
+ *   - Enum Badge rendering via enumEntity column marker
  */
 
-import { useEffect, useState, useMemo, useCallback } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { apiFetch, ApiError } from "@/lib/api"
+import React, { useMemo, useCallback, useEffect, useState } from "react"
+import { apiFetch } from "@/lib/api"
 import { buildColumnsFromFields, formatCellValue, type MetadataField } from "@/lib/metadata-columns"
 import { entityRegistry, type AutoListColumn } from "@/lib/entity-registry"
+import { registerFromMetadata } from "@/lib/entity-registry-defaults"
 import { useMetadataStore } from "@/stores/useMetadataStore"
-import type { CursorListResponse } from "@/types/common"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow
-} from "@/components/ui/table"
-import {
-    Loader2,
-    Plus,
-    ChevronLeft,
-    ChevronRight,
-    Search,
-    ArrowUp,
-    ArrowDown,
-} from "lucide-react"
+import { useEnumFormatter } from "@/hooks/useEntityFiltersMeta"
+import { CatalogListPage } from "@/components/shared/catalog-list-page"
+import type { Column } from "@/components/shared/data-table"
+import type { CursorListParams, CursorListResponse } from "@/types/common"
+import { buildListQS } from "@/lib/api"
 
+/** Dynamic row type: always has `id`, all other fields are unknown. */
+type DynamicRow = Record<string, unknown> & { id: string }
 
 interface AutoListProps {
     /** PascalCase entity name (e.g. "Vehicle") */
@@ -50,250 +39,156 @@ interface AutoListProps {
     routePrefix: string
 }
 
-const DEFAULT_LIMIT = 50
+/**
+ * Converts AutoListColumn[] to Column<Record<string, unknown>>[]
+ * with enum label resolution via useEnumFormatter.
+ */
+function useResolvedColumns(
+    rawColumns: AutoListColumn[],
+): Column<DynamicRow>[] {
+    // Collect unique enumEntity values for batch resolution
+    const enumEntities = useMemo(
+        () => [...new Set(rawColumns.filter(c => c.enumEntity).map(c => c.enumEntity!))],
+        [rawColumns],
+    )
 
-/** Format a cell value for display based on column type */
-function formatCell(value: unknown, col: AutoListColumn): string {
-    return formatCellValue(value, col.type ?? "string")
+    // Create formatters for each unique enum entity
+    // (useEnumFormatter is called per entity — safe because enumEntities is stable)
+    const formatEnum0 = useEnumFormatter(enumEntities[0] ?? "")
+    const formatEnum1 = useEnumFormatter(enumEntities[1] ?? "")
+    const formatEnum2 = useEnumFormatter(enumEntities[2] ?? "")
+
+    const formatters = useMemo(() => {
+        const map = new Map<string, (key: string, value: string) => string>()
+        if (enumEntities[0]) map.set(enumEntities[0], formatEnum0)
+        if (enumEntities[1]) map.set(enumEntities[1], formatEnum1)
+        if (enumEntities[2]) map.set(enumEntities[2], formatEnum2)
+        return map
+    }, [enumEntities, formatEnum0, formatEnum1, formatEnum2])
+
+    return useMemo(() =>
+        rawColumns.map((col): Column<Record<string, unknown>> => {
+            // Priority 1: explicit render function
+            if (col.render) {
+                return {
+                    key: col.key,
+                    label: col.label,
+                    sortable: col.sortable,
+                    width: col.width,
+                    minWidth: col.minWidth,
+                    align: col.align,
+                    className: col.className,
+                    render: col.render,
+                }
+            }
+
+            // Priority 2: enumEntity → Badge with resolved label
+            if (col.enumEntity) {
+                const fmt = formatters.get(col.enumEntity)
+                return {
+                    key: col.key,
+                    label: col.label,
+                    sortable: col.sortable,
+                    width: col.width ?? 120,
+                    render: (item) => {
+                        const raw = String(item[col.key] ?? "")
+                        const label = fmt ? fmt(col.key, raw) : raw
+                        return React.createElement("span", {
+                            className: "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold transition-colors border-border",
+                        }, label)
+                    },
+                }
+            }
+
+            // Priority 3: type-based formatting
+            return {
+                key: col.key,
+                label: col.label,
+                sortable: col.sortable,
+                width: col.width,
+                minWidth: col.minWidth,
+                align: col.align,
+                className: col.className,
+                render: (item) => {
+                    const value = item[col.key]
+                    return React.createElement("span", {
+                        className: "text-xs",
+                    }, formatCellValue(value, col.type ?? "string"))
+                },
+            }
+        }),
+    [rawColumns, formatters])
 }
 
 export default function AutoList({ entityName, entityType, routePrefix }: AutoListProps) {
-    const router = useRouter()
-    const searchParams = useSearchParams()
+    // Ensure entity registry is populated from metadata store (idempotent)
+    registerFromMetadata()
 
-    const [items, setItems] = useState<Record<string, unknown>[]>([])
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
-    const [totalCount, setTotalCount] = useState(0)
-    const [hasMore, setHasMore] = useState(false)
-    const [hasPrev, setHasPrev] = useState(false)
-    const [nextCursor, setNextCursor] = useState<string | null>(null)
-    const [prevCursor, setPrevCursor] = useState<string | null>(null)
-    const [search, setSearch] = useState(searchParams.get("search") ?? "")
-    const [sortField, setSortField] = useState(searchParams.get("sort") ?? "name")
-    const [sortDir, setSortDir] = useState<"asc" | "desc">(
-        searchParams.get("dir") === "desc" ? "desc" : "asc"
-    )
+    // Resolve UIRegistry entry (contains column overlays, entityKey, etc.)
+    const regEntry = entityRegistry.getByRoute(routePrefix)
+    const entityKey = regEntry?.entityKey ?? routePrefix
 
-    // Get metadata for presentation labels
-    const metaStore = useMetadataStore()
-    const entityMeta = metaStore.getEntityByName?.(entityName)
-    const label = entityMeta?.presentation?.plural ?? entityName
-
-    // Resolve columns: UIRegistry custom → metadata fallback → generic
+    // Metadata-generated columns (fallback when no overlay in registry)
     const [metaColumns, setMetaColumns] = useState<AutoListColumn[]>([])
 
-    const regEntry = entityRegistry.getByRoute(routePrefix)
-    const columns = useMemo<AutoListColumn[]>(() => {
-        if (regEntry?.listColumns?.length) return regEntry.listColumns
-        if (metaColumns.length) return metaColumns
-        // Absolute fallback: code + name
-        return [
-            { key: "code", label: "Код", width: "120px" },
-            { key: "name", label: "Наименование" },
-        ]
-    }, [regEntry, metaColumns])
-
-    // Load metadata columns if not provided via UIRegistry
     useEffect(() => {
         if (regEntry?.listColumns?.length) return
         let cancelled = false
         async function loadMeta() {
             try {
-                const meta = await apiFetch<{
-                    fields: MetadataField[]
-                }>(`/meta/${entityName}`)
+                const meta = await apiFetch<{ fields: MetadataField[] }>(`/meta/${entityName}`)
                 if (cancelled) return
-
                 const cols = buildColumnsFromFields(meta.fields, 8)
-                setMetaColumns(
-                    cols.map((c) => ({
-                        key: c.key,
-                        label: c.label,
-                        type: c.type,
-                    }))
-                )
-            } catch {
-                // Ignore — will use fallback columns
-            }
+                setMetaColumns(cols.map(c => ({ key: c.key, label: c.label, type: c.type, sortable: true })))
+            } catch { /* fallback columns */ }
         }
         loadMeta()
         return () => { cancelled = true }
     }, [entityName, regEntry])
 
-    // Fetch list data
-    const fetchData = useCallback(async (cursor?: string, direction?: "after" | "before") => {
-        setLoading(true)
-        setError(null)
-        try {
+    // Choose column source: registry overlay → metadata → fallback
+    const rawColumns = useMemo<AutoListColumn[]>(() => {
+        if (regEntry?.listColumns?.length) return regEntry.listColumns
+        if (metaColumns.length) return metaColumns
+        return [
+            { key: "code", label: "Код", sortable: true, width: 120 },
+            { key: "name", label: "Наименование", sortable: true },
+        ]
+    }, [regEntry, metaColumns])
+
+    // Convert to DataTable Column[] with enum resolution
+    const columns = useResolvedColumns(rawColumns)
+
+    // Build generic fetcher from entityType + routePrefix
+    const fetcher = useCallback(
+        (params?: CursorListParams) => {
             const basePath = entityType === "catalog"
                 ? `/catalog/${routePrefix}`
                 : `/document/${routePrefix}`
+            return apiFetch<CursorListResponse<DynamicRow>>(`${basePath}${buildListQS(params)}`)
+        },
+        [entityType, routePrefix],
+    )
 
-            const params = new URLSearchParams()
-            params.set("limit", String(DEFAULT_LIMIT))
-            if (search) params.set("search", search)
-            const orderBy = sortDir === "desc" ? `-${sortField}` : sortField
-            params.set("orderBy", orderBy)
-            if (cursor) params.set(direction === "before" ? "before" : "after", cursor)
-
-            const result = await apiFetch<CursorListResponse<Record<string, unknown>>>(
-                `${basePath}?${params.toString()}`
-            )
-            setItems(result.items ?? [])
-            setTotalCount(result.totalCount ?? 0)
-            setHasMore(result.hasMore)
-            setHasPrev(result.hasPrev)
-            setNextCursor(result.nextCursor ?? null)
-            setPrevCursor(result.prevCursor ?? null)
-        } catch (err) {
-            if (err instanceof ApiError) {
-                setError(err.parsedBody?.message ?? `Ошибка ${err.status}`)
-            } else {
-                setError("Ошибка загрузки данных")
-            }
-        } finally {
-            setLoading(false)
-        }
-    }, [entityType, routePrefix, search, sortField, sortDir])
-
-    // Debounced search
-    useEffect(() => {
-        const timer = setTimeout(() => fetchData(), 300)
-        return () => clearTimeout(timer)
-    }, [fetchData])
-
-    const handleSort = (key: string) => {
-        if (sortField === key) {
-            setSortDir((d) => (d === "asc" ? "desc" : "asc"))
-        } else {
-            setSortField(key)
-            setSortDir("asc")
-        }
-    }
-
-    const handleRowClick = (item: Record<string, unknown>) => {
-        if (!item.id) return
-        const path = entityType === "catalog"
-            ? `/catalogs/${routePrefix}/${item.id}`
-            : `/documents/${routePrefix}/${item.id}`
-        router.push(path)
-    }
-
-    const handleCreate = () => {
-        const path = entityType === "catalog"
-            ? `/catalogs/${routePrefix}/new`
-            : `/documents/${routePrefix}/new`
-        router.push(path)
-    }
+    // Resolve navigation paths
+    const pathPrefix = entityType === "catalog" ? "catalogs" : "documents"
+    const metaLabel = useMetadataStore(s => s.getLabel(entityKey, "plural"))
+    const title = metaLabel || entityName
 
     return (
-        <div className="flex flex-col gap-4 p-4">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <h1 className="text-lg font-semibold">{label}</h1>
-                <Button onClick={handleCreate} size="sm">
-                    <Plus className="mr-2 h-4 w-4" /> Создать
-                </Button>
-            </div>
-
-            {/* Search */}
-            <div className="relative max-w-sm">
-                <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                    placeholder="Поиск..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-8"
-                />
-            </div>
-
-            {/* Table */}
-            {error ? (
-                <div className="rounded border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">
-                    {error}
-                </div>
-            ) : (
-                <div className="rounded-md border">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                {columns.map((col) => (
-                                    <TableHead
-                                        key={col.key}
-                                        className="cursor-pointer select-none"
-                                        style={{ width: col.width }}
-                                        onClick={() => col.sortable !== false && handleSort(col.key)}
-                                    >
-                                        <div className="flex items-center gap-1">
-                                            {col.label}
-                                            {sortField === col.key && (
-                                                sortDir === "asc"
-                                                    ? <ArrowUp className="h-3 w-3" />
-                                                    : <ArrowDown className="h-3 w-3" />
-                                            )}
-                                        </div>
-                                    </TableHead>
-                                ))}
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {loading ? (
-                                <TableRow>
-                                    <TableCell colSpan={columns.length} className="py-10 text-center">
-                                        <Loader2 className="inline-block h-5 w-5 animate-spin text-muted-foreground" />
-                                    </TableCell>
-                                </TableRow>
-                            ) : items.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={columns.length} className="py-10 text-center text-muted-foreground">
-                                        Нет данных
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                items.map((item, idx) => (
-                                    <TableRow
-                                        key={item.id ? String(item.id) : idx}
-                                        className="cursor-pointer hover:bg-muted/50"
-                                        onClick={() => handleRowClick(item)}
-                                    >
-                                        {columns.map((col) => (
-                                            <TableCell key={col.key} className="truncate">
-                                                {formatCell(item[col.key], col)}
-                                            </TableCell>
-                                        ))}
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-            )}
-
-            {/* Pagination */}
-            <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>Всего: {totalCount}</span>
-                <div className="flex gap-1">
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        disabled={!hasPrev || loading}
-                        onClick={() => prevCursor && fetchData(prevCursor, "before")}
-                    >
-                        <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        disabled={!hasMore || loading}
-                        onClick={() => nextCursor && fetchData(nextCursor, "after")}
-                    >
-                        <ChevronRight className="h-4 w-4" />
-                    </Button>
-                </div>
-            </div>
-        </div>
+        <CatalogListPage
+            config={{
+                title,
+                entityKey,
+                createHref: `/${pathPrefix}/${routePrefix}/new`,
+                editHref: (item) => `/${pathPrefix}/${routePrefix}/${item.id}`,
+                columns,
+                allColumns: columns,
+                defaultVisibleKeys: regEntry?.defaultVisibleKeys ?? columns.map(c => c.key),
+                defaultFilterKeys: regEntry?.defaultFilterKeys,
+                fetcher,
+                limit: 100,
+            }}
+        />
     )
 }

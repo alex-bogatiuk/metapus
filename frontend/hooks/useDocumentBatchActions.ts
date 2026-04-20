@@ -114,7 +114,7 @@ export function useDocumentBatchActions<T extends DocumentLike>(
                 try {
                     const res = await docApi.list({
                         limit: ids.length,
-                        filter: [{ id: "id_filter", field: "id", operator: "in", value: ids }],
+                        filter: [{ field: "id", operator: "in", value: ids }],
                     })
                     if (res.items && res.items.length > 0) {
                         replaceItems(res.items)

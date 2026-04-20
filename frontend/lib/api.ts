@@ -224,7 +224,7 @@ export async function apiFetch<T>(
  * - Serializes `filter` array as JSON in `?filter=` param
  * - Other params are passed as regular query params
  */
-function buildListQS(params?: CursorListParams): string {
+export function buildListQS(params?: CursorListParams): string {
     if (!params) return ""
     const entries: [string, string][] = []
     for (const [k, v] of Object.entries(params)) {

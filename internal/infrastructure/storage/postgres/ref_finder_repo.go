@@ -56,7 +56,9 @@ func (r *RefFinderRepo) FindReferences(ctx context.Context, req domain.FindRefer
 	}
 
 	br := querier.SendBatch(ctx, b)
-	defer br.Close()
+	defer func() {
+		_ = br.Close()
+	}()
 
 	for i := 0; i < len(specs); i++ {
 		spec := specs[i]
