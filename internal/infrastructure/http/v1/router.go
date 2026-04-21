@@ -407,10 +407,33 @@ func registerMetaRoutes(rg *gin.RouterGroup, reg *metadata.Registry, schemaCache
 }
 
 // registerReportRoutes registers report endpoints via the factory registry.
+// Supports both legacy RouteRegistration reports and typed ReportRegistration[F,R].
 func registerReportRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *FactoryRegistry) {
 	reportsGroup := rg.Group("/reports")
+
+	// Legacy reports (backward compat)
 	for _, reg := range factoryReg.Reports() {
 		reg.RegisterRoutes(reportsGroup.Group("/"+reg.RoutePrefix()), cfg)
+	}
+
+	// Typed reports — auto-wired by platform
+	baseHandler := handlers.NewBaseHandler()
+	for _, adapter := range factoryReg.TypedReports() {
+		h := handlers.NewReportHandler(baseHandler, adapter)
+		group := reportsGroup.Group("/" + adapter.RoutePrefix())
+		group.Use(middleware.RequirePermission(adapter.Permission()))
+		{
+			group.GET("", h.HandleExecute)
+			group.GET("/metadata", h.HandleMeta)
+			group.GET("/export", h.HandleExport)
+		}
+	}
+
+	// Also mount metadata under /metadata/reports/{key} for discoverability
+	metaGroup := rg.Group("/metadata/reports")
+	for _, adapter := range factoryReg.TypedReports() {
+		h := handlers.NewReportHandler(baseHandler, adapter)
+		metaGroup.GET("/"+adapter.RoutePrefix(), h.HandleMeta)
 	}
 }
 

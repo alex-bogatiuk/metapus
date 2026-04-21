@@ -5,6 +5,9 @@ package v1
 
 import (
 	"github.com/gin-gonic/gin"
+
+	"metapus/internal/infrastructure/http/v1/handlers"
+	"metapus/internal/platform"
 )
 
 // RouteRegistration is a generic interface for route groups that don't follow
@@ -31,10 +34,11 @@ type RouteRegistration interface {
 //	    // ...
 //	})
 type FactoryRegistry struct {
-	catalogs  []CatalogRegistration
-	documents []DocumentRegistration
-	registers []RouteRegistration
-	reports   []RouteRegistration
+	catalogs     []CatalogRegistration
+	documents    []DocumentRegistration
+	registers    []RouteRegistration
+	reports      []RouteRegistration                // legacy (non-typed)
+	typedReports []platform.ReportRouteAdapter       // new typed reports
 }
 
 // NewFactoryRegistry creates an empty registry.
@@ -57,9 +61,19 @@ func (r *FactoryRegistry) RegisterRegister(reg RouteRegistration) {
 	r.registers = append(r.registers, reg)
 }
 
-// RegisterReport adds a report route registration.
+// RegisterReport adds a report route registration (legacy, non-typed).
 func (r *FactoryRegistry) RegisterReport(reg RouteRegistration) {
 	r.reports = append(r.reports, reg)
+}
+
+// RegisterTypedReport wraps a typed ReportRegistration into the registry.
+// The platform automatically creates:
+//   - GET /reports/{prefix}          → Execute()
+//   - GET /reports/{prefix}/metadata → Meta()
+//   - RequirePermission(Permission())
+func RegisterTypedReport[F any, R any](reg *FactoryRegistry, report platform.ReportRegistration[F, R]) {
+	adapter := handlers.WrapReportRegistration(report)
+	reg.typedReports = append(reg.typedReports, adapter)
 }
 
 // Catalogs returns all registered catalog factories.
@@ -77,7 +91,12 @@ func (r *FactoryRegistry) Registers() []RouteRegistration {
 	return r.registers
 }
 
-// Reports returns all registered report route registrations.
+// Reports returns all registered report route registrations (legacy).
 func (r *FactoryRegistry) Reports() []RouteRegistration {
 	return r.reports
+}
+
+// TypedReports returns all registered typed report adapters.
+func (r *FactoryRegistry) TypedReports() []platform.ReportRouteAdapter {
+	return r.typedReports
 }

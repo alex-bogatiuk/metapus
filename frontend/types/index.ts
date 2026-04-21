@@ -17,3 +17,4 @@ export * from "./picker";
 export * from "./event-log";
 export * from "./user-prefs";
 export * from "./automation";
+export * from "./report-meta";
