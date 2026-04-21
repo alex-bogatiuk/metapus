@@ -306,13 +306,7 @@ export default function GoodsReceiptFormPage() {
             : [{ label: "Провести", onClick: handlePost }]),
         ]}
         printMenu={
-          <PrintMenuButton
-            config={{
-              formLabel: grLabel || "Поступление товаров",
-              documentId: params.id,
-              documentType: "goods-receipt",
-            }}
-          />
+          <PrintMenuButton documentType="goods-receipt" documentId={params.id} />
         }
         toolbarIcons={[
           ...(doc?.posted ? [{

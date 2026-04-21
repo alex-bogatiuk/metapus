@@ -33,6 +33,9 @@
 | 22 | [22-cloud-deployment.md](22-cloud-deployment.md)         | Cloud Deployment: multi-version, nginx routing, version groups | cloud, saas, deployment, nginx, version group, routing, docker, multi-version |
 | 23 | [23-operational-modes.md](23-operational-modes.md)       | Операционные режимы (SaaS, Standalone Multi-Tenant, Dedicated) | mode, isolation, saas, cloud, on-premise, dedicated, shared DB |
 | 24 | [24-updater-agent.md](24-updater-agent.md)               | Updater Agent: обновление из UI, Docker orchestration, state machine | updater, sidecar, docker, blue-green, rollback, state machine, WAL |
+| 25 | [25-realtime-notifications.md](25-realtime-notifications.md) | Real-time notifications: SSE, EventStream, client hooks | sse, event, notification, real-time, stream, push |
+| 26 | [26-automation-engine.md](26-automation-engine.md)       | Automation Engine: triggers, actions, schedules | automation, trigger, action, schedule, workflow |
+| 27 | [27-printing-system.md](27-printing-system.md)           | Система печатных форм: макеты, реестр, рендеринг | print, печать, шаблон, gohtml, pdf, docx, registry |
 | — | [UPGRADE.md](UPGRADE.md)                                | Гайд по обновлению: совместимость, breaking changes, миграция | upgrade, обновление, совместимость, breaking change, semver |
 
 ---
@@ -57,6 +60,7 @@
 - **Настроить БД и окружение** → [17-migration-status.md](17-migration-status.md)
 - **Понять систему фильтрации списков** → [18-filtering.md](18-filtering.md)
 - **Создать виджет дашборда** → [19-dashboard-widgets.md](19-dashboard-widgets.md)
+- **Добавить печатную форму** → [27-printing-system.md](27-printing-system.md)
 - **Расширить систему для клиента (extension)** → [21-extension-api.md](21-extension-api.md), [UPGRADE.md](UPGRADE.md)
 - **Добавить новый регистр накопления** → [21-extension-api.md](21-extension-api.md) (Visitor+Recorder), [10-posting-engine.md](10-posting-engine.md)
 - **Обновиться на новую версию ядра** → [UPGRADE.md](UPGRADE.md)

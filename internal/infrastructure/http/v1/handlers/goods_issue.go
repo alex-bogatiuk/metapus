@@ -153,6 +153,16 @@ func (h *GoodsIssueHandler) Print(c *gin.Context) {
 	h.printHandler.Print(c)
 }
 
+// ListPrintForms handles GET /document/goods-issue/print-forms.
+// Implements DocumentPrintFormsListHandler (auto-registered by RegisterDocumentRoutes).
+func (h *GoodsIssueHandler) ListPrintForms(c *gin.Context) {
+	if h.printHandler == nil {
+		c.JSON(http.StatusOK, []printing.PrintFormSummary{})
+		return
+	}
+	h.printHandler.ListPrintForms(c)
+}
+
 // UpdateAndRepost handles PUT /document/goods-issue/:id/repost — atomic update + re-post.
 // Accepts the same body as Update. The document is updated and re-posted in a single transaction.
 func (h *GoodsIssueHandler) UpdateAndRepost(c *gin.Context) {

@@ -283,6 +283,8 @@ export interface DocumentApi<TRes, TCreate, TUpdate> extends CatalogApi<TRes, TC
     batchAction: (ids: string[], action: import("@/types/common").BatchActionType) => Promise<import("@/types/common").BatchActionResponse>
     /** Filter-based batch action: server resolves matching IDs from filter (virtual "select all"). */
     batchActionByFilter: (req: import("@/types/common").BatchActionByFilterRequest) => Promise<import("@/types/common").BatchActionResponse>
+    /** List available print forms for this document type. */
+    listPrintForms: () => Promise<import("@/types/print").PrintFormSummary[]>
     /** Base API path (used by SSE streaming). */
     _basePath: string
 }
@@ -311,6 +313,8 @@ function createDocumentApi<TRes, TCreate, TUpdate>(basePath: string): DocumentAp
                 method: "POST",
                 body: JSON.stringify(req),
             }),
+        listPrintForms: () =>
+            apiFetch<import("@/types/print").PrintFormSummary[]>(`${basePath}/print-forms`),
     }
 }
 

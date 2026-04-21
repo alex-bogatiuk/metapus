@@ -3,7 +3,20 @@
 // not rows in a database.
 package printing
 
-import "sync"
+import (
+	"slices"
+	"sync"
+)
+
+// PrintFormCategory distinguishes between built-in and custom print forms.
+type PrintFormCategory string
+
+const (
+	// CategoryStandard marks a built-in (platform) print form.
+	CategoryStandard PrintFormCategory = "standard"
+	// CategoryCustom marks a customer-added print form.
+	CategoryCustom PrintFormCategory = "custom"
+)
 
 // PrintFormDef defines a single print form for a document type.
 type PrintFormDef struct {
@@ -15,6 +28,10 @@ type PrintFormDef struct {
 	Template string
 	// PaperSize is the CSS @page paper size hint, e.g. "A4".
 	PaperSize string
+	// Category groups forms in the UI (standard = built-in, custom = customer-added).
+	Category PrintFormCategory
+	// SortOrder controls the display order within a category (lower = first).
+	SortOrder int
 }
 
 // PrintFormRegistry stores available print forms per document type.
@@ -34,12 +51,16 @@ func NewPrintFormRegistry() *PrintFormRegistry {
 		Label:     "Поступление товаров",
 		Template:  "goods_receipt.gohtml",
 		PaperSize: "A4",
+		Category:  CategoryStandard,
+		SortOrder: 0,
 	})
 	r.Register("goods_issue", PrintFormDef{
 		Name:      "standard",
 		Label:     "Реализация товаров",
 		Template:  "goods_issue.gohtml",
 		PaperSize: "A4",
+		Category:  CategoryStandard,
+		SortOrder: 0,
 	})
 	return r
 }
@@ -75,18 +96,27 @@ func (r *PrintFormRegistry) GetForm(docType, name string) (PrintFormDef, bool) {
 
 // PrintFormSummary is a lightweight descriptor for the API list endpoint.
 type PrintFormSummary struct {
-	Name  string `json:"name"`
-	Label string `json:"label"`
+	Name     string            `json:"name"`
+	Label    string            `json:"label"`
+	Category PrintFormCategory `json:"category"`
 }
 
-// ListForms returns summary descriptors for all forms of a document type.
+// ListForms returns summary descriptors for all forms of a document type,
+// sorted by SortOrder for stable UI display.
 func (r *PrintFormRegistry) ListForms(docType string) []PrintFormSummary {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	forms := r.forms[docType]
-	out := make([]PrintFormSummary, len(forms))
-	for i, f := range forms {
-		out[i] = PrintFormSummary{Name: f.Name, Label: f.Label}
+
+	sorted := make([]PrintFormDef, len(forms))
+	copy(sorted, forms)
+	slices.SortStableFunc(sorted, func(a, b PrintFormDef) int {
+		return a.SortOrder - b.SortOrder
+	})
+
+	out := make([]PrintFormSummary, len(sorted))
+	for i, f := range sorted {
+		out[i] = PrintFormSummary{Name: f.Name, Label: f.Label, Category: f.Category}
 	}
 	return out
 }

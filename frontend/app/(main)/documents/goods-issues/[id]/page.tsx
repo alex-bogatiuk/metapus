@@ -301,13 +301,7 @@ export default function GoodsIssueFormPage() {
             : [{ label: "Провести", onClick: handlePost }]),
         ]}
         printMenu={
-          <PrintMenuButton
-            config={{
-              formLabel: giLabel || "Реализация товаров",
-              documentId: params.id,
-              documentType: "goods-issue",
-            }}
-          />
+          <PrintMenuButton documentType="goods-issue" documentId={params.id} />
         }
         toolbarIcons={[
           ...(doc?.posted ? [{

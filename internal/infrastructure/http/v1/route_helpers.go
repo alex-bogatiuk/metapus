@@ -44,6 +44,13 @@ type DocumentPrintHandlerInterface interface {
 	Print(c *gin.Context)
 }
 
+// DocumentPrintFormsListHandler is an optional interface for listing available print forms.
+// When a handler implements this interface, RegisterDocumentRoutes automatically adds
+// GET /print-forms requiring the entity read permission.
+type DocumentPrintFormsListHandler interface {
+	ListPrintForms(c *gin.Context)
+}
+
 // DocumentRepostHandler is an optional interface for documents that support
 // atomic update-and-repost (1C-style "Write and post document").
 type DocumentRepostHandler interface {
@@ -133,6 +140,11 @@ func RegisterDocumentRoutes(group *gin.RouterGroup, handler DocumentRouteHandler
 	// Register Print route if handler supports it (optional)
 	if printHandler, ok := handler.(DocumentPrintHandlerInterface); ok {
 		group.GET("/:id/print", middleware.RequirePermission(permission+":read"), printHandler.Print)
+	}
+
+	// Register Print Forms List route if handler supports it (optional)
+	if listFormsHandler, ok := handler.(DocumentPrintFormsListHandler); ok {
+		group.GET("/print-forms", middleware.RequirePermission(permission+":read"), listFormsHandler.ListPrintForms)
 	}
 
 	// Register Related Documents route if handler supports it (optional)

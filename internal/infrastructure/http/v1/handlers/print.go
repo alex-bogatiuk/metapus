@@ -151,6 +151,13 @@ func (h *DocumentPrintHandler[T]) Print(c *gin.Context) {
 	_, _ = c.Writer.Write(buf.Bytes())
 }
 
+// ListPrintForms handles GET /document/{type}/print-forms
+// Returns []PrintFormSummary with available print forms for the document type.
+func (h *DocumentPrintHandler[T]) ListPrintForms(c *gin.Context) {
+	forms := h.cfg.Registry.ListForms(h.cfg.DocType)
+	c.JSON(http.StatusOK, forms)
+}
+
 // contentDisposition builds a Content-Disposition header with RFC 5987 encoding
 // for non-ASCII filenames. The `ext` parameter is the file extension without dot.
 func contentDisposition(name, ext string) string {

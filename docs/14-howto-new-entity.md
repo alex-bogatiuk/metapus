@@ -261,6 +261,11 @@ GET    /api/v1/catalog/your-entities/tree     — Tree view
 
 ## Новый документ (Document) — дополнительно
 
+> [!TIP]
+> **Печатные формы:**
+> Как добавить печатные формы для нового документа читайте в отдельном руководстве: [27-printing-system.md](27-printing-system.md).
+
+
 ### Модель
 
 Embed `entity.Document` + `entity.CurrencyAware` + табличная часть.

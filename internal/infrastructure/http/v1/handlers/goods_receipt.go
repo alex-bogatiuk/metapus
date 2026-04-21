@@ -153,6 +153,16 @@ func (h *GoodsReceiptHandler) Print(c *gin.Context) {
 	h.printHandler.Print(c)
 }
 
+// ListPrintForms handles GET /document/goods-receipt/print-forms.
+// Implements DocumentPrintFormsListHandler (auto-registered by RegisterDocumentRoutes).
+func (h *GoodsReceiptHandler) ListPrintForms(c *gin.Context) {
+	if h.printHandler == nil {
+		c.JSON(http.StatusOK, []printing.PrintFormSummary{})
+		return
+	}
+	h.printHandler.ListPrintForms(c)
+}
+
 // UpdateAndRepost handles PUT /document/goods-receipt/:id/repost — atomic update + re-post.
 // Accepts the same body as Update. The document is updated and re-posted in a single transaction.
 func (h *GoodsReceiptHandler) UpdateAndRepost(c *gin.Context) {
