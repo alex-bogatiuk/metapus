@@ -10,6 +10,7 @@ import { buildEntityUrl } from "@/lib/entity-url"
 import type { WidgetRenderProps } from "@/types/dashboard"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { DocumentJournalItem } from "@/types/reports"
+import { fmtDate, fmtAmount } from "@/lib/format"
 
 export default function RecentDocsRenderer({ config, isEditMode }: WidgetRenderProps<"recent-documents">) {
     const limit = config.limit ?? 5
@@ -67,7 +68,7 @@ export default function RecentDocsRenderer({ config, isEditMode }: WidgetRenderP
                                 <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Номер</th>
                                 <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Дата</th>
                                 <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Контрагент</th>
-                                <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Кол-во</th>
+                                <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Сумма</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -86,9 +87,11 @@ export default function RecentDocsRenderer({ config, isEditMode }: WidgetRenderP
                                         <span className="truncate">{formatDocType(doc.documentType)}</span>
                                     </td>
                                     <td className="px-4 py-2.5 font-mono text-xs text-foreground">{doc.number}</td>
-                                    <td className="px-4 py-2.5 text-muted-foreground">{formatDate(doc.date)}</td>
+                                    <td className="px-4 py-2.5 text-muted-foreground">{fmtDate(doc.date)}</td>
                                     <td className="px-4 py-2.5 text-foreground truncate max-w-[200px]">{doc.counterpartyName || "—"}</td>
-                                    <td className="px-4 py-2.5 text-right font-mono text-foreground">{doc.totalQuantity}</td>
+                                    <td className="px-4 py-2.5 text-right font-mono text-foreground">
+                                        {fmtAmount(doc.totalAmount || 0)} {doc.currency}
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
@@ -112,12 +115,4 @@ function formatDocType(type: string): string {
 function docHref(doc: DocumentJournalItem): string {
     const url = buildEntityUrl(doc.documentType, doc.id)
     return url ?? "#"
-}
-
-function formatDate(iso: string): string {
-    try {
-        return new Date(iso).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })
-    } catch {
-        return iso
-    }
 }

@@ -75,7 +75,7 @@ export default function EditWarehousePage() {
       allowNegativeStock: d.allowNegativeStock,
       isDefault: d.isDefault,
       organizationId: d.organizationId || "",
-      organizationName: "",
+      organizationName: d.organization?.name || "",
       description: d.description || "",
       version: d.version,
     }),

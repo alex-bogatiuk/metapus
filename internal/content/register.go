@@ -2,9 +2,6 @@ package content
 
 import (
 	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/storage/postgres/report_repo"
-
-	"metapus/internal/domain/reports"
 )
 
 // RegisterDefaults populates the registry with all built-in (core) entity factories.
@@ -33,9 +30,9 @@ func RegisterDefaults(reg *v1.FactoryRegistry) {
 	// Registers
 	reg.RegisterRegister(&StockRegisterRegistration{})
 
-	// Reports (typed — platform auto-wires handler + metadata + permission)
-	reportRepo := report_repo.NewReportRepo()
-	v1.RegisterTypedReport(reg, reports.NewStockBalanceExecutor(reportRepo))
-	v1.RegisterTypedReport(reg, reports.NewStockTurnoverExecutor(reportRepo))
-	v1.RegisterTypedReport(reg, reports.NewDocumentJournalExecutor(reportRepo))
+	// Datasets — declarative, metadata-driven reports (replaces legacy RegisterTypedReport)
+	reg.RegisterDataset(&StockBalanceDataset)
+	reg.RegisterDataset(&StockTurnoverDataset)
+	reg.RegisterDataset(&DocumentJournalDataset)
 }
+

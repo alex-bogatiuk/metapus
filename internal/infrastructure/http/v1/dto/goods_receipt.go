@@ -256,7 +256,7 @@ const (
 	TableContracts      = "cat_contracts"
 	TableWarehouses     = "cat_warehouses"
 	TableCurrencies     = "cat_currencies"
-	TableNomenclature   = "cat_nomenclature"
+	TableNomenclature   = "cat_nomenclatures"
 	TableUnits          = "cat_units"
 	TableVATRates       = "cat_vat_rates"
 	TableUsers          = "users"

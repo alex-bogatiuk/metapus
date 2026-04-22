@@ -398,8 +398,8 @@ export const api = {
 
     // ── Catalogs (1 line per entity via generic factory) ────────────────
     nomenclature: {
-        ...createCatalogApi<NomenclatureResponse, CreateNomenclatureRequest, UpdateNomenclatureRequest>("/catalog/nomenclature"),
-        tree: () => apiFetch<NomenclatureResponse[]>("/catalog/nomenclature/tree"),
+        ...createCatalogApi<NomenclatureResponse, CreateNomenclatureRequest, UpdateNomenclatureRequest>("/catalog/nomenclatures"),
+        tree: () => apiFetch<NomenclatureResponse[]>("/catalog/nomenclatures/tree"),
     },
 
     counterparties: createCatalogApi<CounterpartyResponse, CreateCounterpartyRequest, UpdateCounterpartyRequest>("/catalog/counterparties"),
@@ -600,15 +600,42 @@ export const api = {
             return apiFetch<import("@/types/reports").StockTurnoverReportResponse>(`/reports/stock-turnover${qs}`)
         },
 
-        getDocumentJournal: (params?: { fromDate?: string; toDate?: string; documentType?: string[]; posted?: boolean; limit?: number }) => {
-            const entries: [string, string][] = []
-            if (params?.fromDate) entries.push(["fromDate", params.fromDate])
-            if (params?.toDate) entries.push(["toDate", params.toDate])
-            if (params?.documentType) params.documentType.forEach((t) => entries.push(["documentType", t]))
-            if (params?.posted !== undefined) entries.push(["posted", String(params.posted)])
-            if (params?.limit) entries.push(["limit", String(params.limit)])
-            const qs = entries.length > 0 ? "?" + new URLSearchParams(entries).toString() : ""
-            return apiFetch<import("@/types/reports").DocumentJournalResponse>(`/reports/document-journal${qs}`)
+        getDocumentJournal: async (params?: { fromDate?: string; toDate?: string; documentType?: string[]; posted?: boolean; limit?: number }) => {
+            const filters: Record<string, unknown> = {}
+            if (params?.fromDate) filters.from_date = params.fromDate
+            if (params?.toDate) filters.to_date = params.toDate
+            // Although dataset executor doesn't process documentType natively, we can pass it if we want
+            // but the legacy endpoint did have it.
+            if (params?.documentType) filters.document_type = params.documentType
+            if (params?.posted !== undefined) filters.posted = params.posted
+
+            const res = await apiFetch<{ items: any[]; totalItems: number }>(`/reports/document-journal`, {
+                method: "POST",
+                body: JSON.stringify({
+                    dataset: "document-journal",
+                    limit: params?.limit,
+                    filters,
+                }),
+            })
+
+            return {
+                items: res.items.map((i) => ({
+                    id: i.id,
+                    documentType: i.document_type,
+                    number: i.number,
+                    date: i.date,
+                    posted: i.posted,
+                    counterpartyName: i.counterparty_name,
+                    warehouseName: i.warehouse_name,
+                    totalAmount: i.total_amount || 0,
+                    totalQuantity: i.total_quantity || 0, // Fallback as it's missing in dataset
+                    currency: i.currency,
+                    description: i.description,
+                })) as import("@/types/reports").DocumentJournalItem[],
+                totalCount: res.totalItems,
+                limit: params?.limit || 0,
+                offset: 0,
+            } as import("@/types/reports").DocumentJournalResponse
         },
     },
 

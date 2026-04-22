@@ -15,6 +15,8 @@ export interface NavSectionItem {
   entityKey: string
   fallback: string
   description?: string
+  /** Explicit URL overrides entityKey resolution */
+  url?: string
 }
 
 export interface NavSectionGroup {

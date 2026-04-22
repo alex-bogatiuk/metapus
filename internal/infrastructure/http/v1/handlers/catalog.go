@@ -2,6 +2,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -25,6 +26,11 @@ type CatalogHandler[T entity.CatalogEntity, CreateDTO any, UpdateDTO any] struct
 	mapCreateDTO func(dto CreateDTO) T
 	mapUpdateDTO func(dto UpdateDTO, existing T) T
 	mapToDTO     func(entity T) any
+
+	// ResolveRefs batch-resolves FK → display names. Returns an opaque refs bag.
+	// If nil, no resolution is performed (same pattern as BaseDocumentHandler).
+	resolveRefs      func(ctx context.Context, entities ...T) (any, error)
+	mapToDTOWithRefs func(entity T, refs any) any
 }
 
 // CatalogHandlerConfig configures the catalog handler.
@@ -34,6 +40,14 @@ type CatalogHandlerConfig[T entity.CatalogEntity, CreateDTO any, UpdateDTO any] 
 	MapCreateDTO func(dto CreateDTO) T
 	MapUpdateDTO func(dto UpdateDTO, existing T) T
 	MapToDTO     func(entity T) any
+
+	// ResolveRefs batch-resolves FK → display names. Returns an opaque refs bag.
+	// If nil, no resolution is performed. Called before FLS masking and DTO mapping.
+	ResolveRefs func(ctx context.Context, entities ...T) (any, error)
+
+	// MapToDTOWithRefs is an enhanced mapper that receives the resolved refs bag.
+	// Used instead of MapToDTO when ResolveRefs is configured.
+	MapToDTOWithRefs func(entity T, refs any) any
 }
 
 // NewCatalogHandler creates a new catalog handler.
@@ -42,13 +56,24 @@ func NewCatalogHandler[T entity.CatalogEntity, CreateDTO any, UpdateDTO any](
 	cfg CatalogHandlerConfig[T, CreateDTO, UpdateDTO],
 ) *CatalogHandler[T, CreateDTO, UpdateDTO] {
 	return &CatalogHandler[T, CreateDTO, UpdateDTO]{
-		BaseHandler:  base,
-		service:      cfg.Service,
-		entityName:   cfg.EntityName,
-		mapCreateDTO: cfg.MapCreateDTO,
-		mapUpdateDTO: cfg.MapUpdateDTO,
-		mapToDTO:     cfg.MapToDTO,
+		BaseHandler:      base,
+		service:          cfg.Service,
+		entityName:       cfg.EntityName,
+		mapCreateDTO:     cfg.MapCreateDTO,
+		mapUpdateDTO:     cfg.MapUpdateDTO,
+		mapToDTO:         cfg.MapToDTO,
+		resolveRefs:      cfg.ResolveRefs,
+		mapToDTOWithRefs: cfg.MapToDTOWithRefs,
 	}
+}
+
+// toDTO maps entity to DTO using the appropriate mapper.
+// If refs is non-nil and mapToDTOWithRefs is configured, uses the enhanced mapper.
+func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) toDTO(entity T, refs any) any {
+	if h.mapToDTOWithRefs != nil && refs != nil {
+		return h.mapToDTOWithRefs(entity, refs)
+	}
+	return h.mapToDTO(entity)
 }
 
 // List handles GET /{entity} - list with filtering and pagination.
@@ -83,6 +108,17 @@ func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) List(c *gin.Context) {
 		return
 	}
 
+	// Resolve FK references for all items in batch (if configured)
+	var refs any
+	if h.resolveRefs != nil {
+		var err2 error
+		refs, err2 = h.resolveRefs(ctx, result.Items...)
+		if err2 != nil {
+			h.Error(c, err2)
+			return
+		}
+	}
+
 	// Map entities to DTOs (with FLS masking)
 	policy := security.GetFieldPolicy(ctx, h.entityName, "read")
 	items := make([]any, len(result.Items))
@@ -90,7 +126,7 @@ func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) List(c *gin.Context) {
 		if policy != nil {
 			security.MaskForRead(item, policy)
 		}
-		items[i] = h.mapToDTO(item)
+		items[i] = h.toDTO(item, refs)
 	}
 
 	c.JSON(http.StatusOK, dto.CursorListResponse{
@@ -120,12 +156,22 @@ func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) Get(c *gin.Context) {
 		return
 	}
 
+	// Resolve FK references (if configured)
+	var refs any
+	if h.resolveRefs != nil {
+		refs, err = h.resolveRefs(ctx, entity)
+		if err != nil {
+			h.Error(c, err)
+			return
+		}
+	}
+
 	// FLS: mask restricted fields before DTO mapping
 	if policy := security.GetFieldPolicy(ctx, h.entityName, "read"); policy != nil {
 		security.MaskForRead(entity, policy)
 	}
 
-	c.JSON(http.StatusOK, h.mapToDTO(entity))
+	c.JSON(http.StatusOK, h.toDTO(entity, refs))
 }
 
 // Create handles POST /{entity} - create new entity.
@@ -146,10 +192,15 @@ func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) Create(c *gin.Context) {
 		return
 	}
 
-	// Complete idempotency with created entity
-	h.CompleteIdempotency(c, http.StatusCreated, "application/json", h.mapToDTO(entity))
+	// Resolve FK references (if configured)
+	var refs any
+	if h.resolveRefs != nil {
+		refs, _ = h.resolveRefs(ctx, entity)
+	}
 
-	c.JSON(http.StatusCreated, h.mapToDTO(entity))
+	response := h.toDTO(entity, refs)
+	h.CompleteIdempotency(c, http.StatusCreated, "application/json", response)
+	c.JSON(http.StatusCreated, response)
 }
 
 // Update handles PUT /{entity}/:id - update existing entity.
@@ -182,10 +233,15 @@ func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) Update(c *gin.Context) {
 		return
 	}
 
-	// Complete idempotency
-	h.CompleteIdempotency(c, http.StatusOK, "application/json", h.mapToDTO(updated))
+	// Resolve FK references (if configured)
+	var refs any
+	if h.resolveRefs != nil {
+		refs, _ = h.resolveRefs(ctx, updated)
+	}
 
-	c.JSON(http.StatusOK, h.mapToDTO(updated))
+	response := h.toDTO(updated, refs)
+	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
+	c.JSON(http.StatusOK, response)
 }
 
 // Delete handles DELETE /{entity}/:id - soft delete entity.
@@ -253,11 +309,17 @@ func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) GetTree(c *gin.Context) {
 		return
 	}
 
+	// Resolve FK references for all tree items in batch (if configured)
+	var refs any
+	if h.resolveRefs != nil {
+		refs, _ = h.resolveRefs(ctx, items...)
+	}
+
 	// Build TreeNodes: map DTOs and extract hierarchy info from entities
 	nodes := make([]*TreeNode, len(items))
 	for i, item := range items {
 		node := &TreeNode{
-			Data: h.mapToDTO(item),
+			Data: h.toDTO(item, refs),
 		}
 		// Extract hierarchy fields via ParentAccessor interface
 		if accessor, ok := any(item).(interface {

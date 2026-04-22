@@ -1,4 +1,6 @@
-package reports
+// Package export provides metadata-driven CSV and XLSX export for reports.
+// Decoupled from domain/reports to avoid circular imports with compiler.
+package export
 
 import (
 	"encoding/csv"
@@ -10,17 +12,10 @@ import (
 	"metapus/internal/platform"
 )
 
-// ---------------------------------------------------------------------------
-// Report Export Engine
-// ---------------------------------------------------------------------------
-// Metadata-driven export: CSV and XLSX from ReportMeta + flat items.
-// Streams rows directly to io.Writer (CSV) or builds excelize File (XLSX)
-// to avoid OOM on large datasets.
-
-// ExportCSV writes report items as CSV to the given writer.
+// CSV writes report items as CSV to the given writer.
 // Columns are determined by meta.Columns (visible only).
 // Streams row-by-row — safe for any dataset size.
-func ExportCSV(w io.Writer, meta platform.ReportMeta, items []map[string]interface{}) error {
+func CSV(w io.Writer, meta platform.ReportMeta, items []map[string]interface{}) error {
 	writer := csv.NewWriter(w)
 	defer writer.Flush()
 
@@ -50,15 +45,16 @@ func ExportCSV(w io.Writer, meta platform.ReportMeta, items []map[string]interfa
 	return nil
 }
 
-// ExportXLSX creates an XLSX file from report items and writes to the writer.
-// Uses excelize (already a project dependency via printing/xlsx_renderer.go).
-func ExportXLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{}) error {
+// XLSX creates an XLSX file from report items and writes to the writer.
+func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{}) (retErr error) {
 	f := excelize.NewFile()
-	defer f.Close()
+	defer func() {
+		if cErr := f.Close(); cErr != nil && retErr == nil {
+			retErr = fmt.Errorf("xlsx close: %w", cErr)
+		}
+	}()
 
 	sheet := "Sheet1"
-
-	// Column definitions
 	columns := visibleColumns(meta)
 
 	// ── Styles ────────────────────────────────────────────────────────
@@ -83,22 +79,31 @@ func ExportXLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interf
 	titleStyle, _ := f.NewStyle(&excelize.Style{
 		Font: &excelize.Font{Bold: true, Size: 14},
 	})
-	f.SetCellValue(sheet, "A1", meta.Name)
-	f.SetCellStyle(sheet, "A1", "A1", titleStyle)
+	if err := f.SetCellValue(sheet, "A1", meta.Name); err != nil {
+		return fmt.Errorf("xlsx set title value: %w", err)
+	}
+	if err := f.SetCellStyle(sheet, "A1", "A1", titleStyle); err != nil {
+		return fmt.Errorf("xlsx set title style: %w", err)
+	}
 
 	// ── Header row (row 3) ────────────────────────────────────────────
 	headerRow := 3
 	for i, col := range columns {
 		cell := cellName(i, headerRow)
-		f.SetCellValue(sheet, cell, col.Label)
-		f.SetCellStyle(sheet, cell, cell, headerStyle)
-		// Auto-width hint
+		if err := f.SetCellValue(sheet, cell, col.Label); err != nil {
+			return fmt.Errorf("xlsx set header value: %w", err)
+		}
+		if err := f.SetCellStyle(sheet, cell, cell, headerStyle); err != nil {
+			return fmt.Errorf("xlsx set header style: %w", err)
+		}
 		width := float64(len(col.Label)) * 1.3
 		if width < 12 {
 			width = 12
 		}
 		colLetter, _ := excelize.ColumnNumberToName(i + 1)
-		f.SetColWidth(sheet, colLetter, colLetter, width)
+		if err := f.SetColWidth(sheet, colLetter, colLetter, width); err != nil {
+			return fmt.Errorf("xlsx set col width: %w", err)
+		}
 	}
 
 	// ── Data rows ─────────────────────────────────────────────────────
@@ -108,22 +113,28 @@ func ExportXLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interf
 			cell := cellName(colIdx, row)
 			val := item[col.Key]
 
-			// Write typed value for numeric columns
 			switch col.Type {
 			case "quantity", "money":
 				if num, ok := toFloat64(val); ok {
-					f.SetCellValue(sheet, cell, num)
-					f.SetCellStyle(sheet, cell, cell, cellRightStyle)
+					if err := f.SetCellValue(sheet, cell, num); err != nil {
+						return fmt.Errorf("xlsx set numeric value: %w", err)
+					}
+					if err := f.SetCellStyle(sheet, cell, cell, cellRightStyle); err != nil {
+						return fmt.Errorf("xlsx set numeric style: %w", err)
+					}
 					continue
 				}
 			}
 
-			f.SetCellValue(sheet, cell, formatExportValue(val, col))
-			f.SetCellStyle(sheet, cell, cell, cellStyle)
+			if err := f.SetCellValue(sheet, cell, formatExportValue(val, col)); err != nil {
+				return fmt.Errorf("xlsx set cell value: %w", err)
+			}
+			if err := f.SetCellStyle(sheet, cell, cell, cellStyle); err != nil {
+				return fmt.Errorf("xlsx set cell style: %w", err)
+			}
 		}
 	}
 
-	// Write to output
 	return f.Write(w)
 }
 

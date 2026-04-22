@@ -10,7 +10,8 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/security"
-	"metapus/internal/domain/reports"
+	"metapus/internal/domain/reports/compiler"
+	"metapus/internal/domain/reports/export"
 	"metapus/internal/platform"
 )
 
@@ -110,8 +111,11 @@ func (h *ReportHandler) HandleExport(c *gin.Context) {
 		c.Header("Content-Type", "text/csv; charset=utf-8")
 		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 		// Write BOM for Excel UTF-8 compatibility
-		c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
-		if err := reports.ExportCSV(c.Writer, meta, items); err != nil {
+		if _, err := c.Writer.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
+			_ = c.Error(err)
+			return
+		}
+		if err := export.CSV(c.Writer, meta, items); err != nil {
 			// Already started writing — can't send error JSON.
 			// Log and abort.
 			_ = c.Error(err)
@@ -122,11 +126,60 @@ func (h *ReportHandler) HandleExport(c *gin.Context) {
 		filename := fmt.Sprintf("%s.xlsx", meta.Key)
 		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
-		if err := reports.ExportXLSX(c.Writer, meta, items); err != nil {
+		if err := export.XLSX(c.Writer, meta, items); err != nil {
 			_ = c.Error(err)
 			return
 		}
 	}
+}
+
+// HandleGrouped serves GET /{prefix}/grouped?groupBy=col1&groupBy=col2&sortBy=col&sortDir=asc|desc.
+// Server-side grouping fallback for datasets > 5000 rows.
+// Executes the report, then applies grouping/sorting on the Go side,
+// returning pre-built DisplayRow[] identical to what the frontend would compute.
+func (h *ReportHandler) HandleGrouped(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	if err := h.checkRLSAccess(ctx); err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	queryBinder := func(dst any) error {
+		return c.ShouldBindQuery(dst)
+	}
+
+	result, err := h.adapter.HandleExecute(ctx, queryBinder)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	items, err := resultToMaps(result)
+	if err != nil {
+		h.Error(c, apperror.NewInternal(fmt.Errorf("failed to prepare grouped data: %w", err)))
+		return
+	}
+
+	meta := h.adapter.Meta()
+
+	// Parse groupBy and sort from query params
+	groupByKeys := c.QueryArray("groupBy")
+	sortBy := c.Query("sortBy")
+	sortDir := c.DefaultQuery("sortDir", "asc")
+
+	// Apply sorting
+	if sortBy != "" {
+		items = compiler.SortItems(items, sortBy, sortDir)
+	}
+
+	// Build grouped display rows (server-side)
+	displayRows := compiler.BuildDisplayRows(items, groupByKeys, meta.Totals)
+
+	c.JSON(http.StatusOK, gin.H{
+		"rows":       displayRows,
+		"totalItems": len(items),
+	})
 }
 
 // checkRLSAccess verifies the user's DataScope against the report's ScopeDimensions.

@@ -6,6 +6,7 @@ import (
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/catalogs/contract"
+	"metapus/internal/infrastructure/storage/postgres"
 )
 
 // --- Request DTOs ---
@@ -103,10 +104,15 @@ type ContractResponse struct {
 	DeletionMark    bool                  `json:"deletionMark"`
 	Version         int                   `json:"version"`
 	Attributes      entity.Attributes     `json:"attributes,omitempty"`
+
+	// Resolved reference display names (populated by ResolveRefs)
+	Counterparty *postgres.RefDisplay         `json:"counterparty,omitempty"`
+	Currency     *postgres.CurrencyRefDisplay `json:"currency,omitempty"`
 }
 
 // FromContract creates response DTO from domain entity.
-func FromContract(c *contract.Contract) *ContractResponse {
+// Pass nil for refs if reference resolution is not needed.
+func FromContract(c *contract.Contract, refs ...postgres.ResolvedRefs) *ContractResponse {
 	resp := &ContractResponse{
 		ID:              c.ID.String(),
 		Code:            c.Code,
@@ -127,5 +133,30 @@ func FromContract(c *contract.Contract) *ContractResponse {
 		s := c.CurrencyID.String()
 		resp.CurrencyID = &s
 	}
+
+	// Populate resolved reference display names
+	if len(refs) > 0 && refs[0] != nil {
+		resolved := refs[0]
+		d := resolved.Get(TableCounterparties, c.CounterpartyID)
+		if d.ID != "" {
+			resp.Counterparty = &d
+		}
+		if c.CurrencyID != nil {
+			currD := resolved.Get(TableCurrencies, *c.CurrencyID)
+			if currD.ID != "" {
+				resp.Currency = &postgres.CurrencyRefDisplay{
+					ID: currD.ID, Name: currD.Name,
+				}
+			}
+		}
+	}
+
 	return resp
+}
+
+// CollectContractRefs registers all reference IDs from a Contract
+// into the resolver for batch resolution.
+func CollectContractRefs(resolver *postgres.ReferenceResolver, c *contract.Contract) {
+	resolver.Add(TableCounterparties, c.CounterpartyID)
+	resolver.AddPtr(TableCurrencies, c.CurrencyID)
 }

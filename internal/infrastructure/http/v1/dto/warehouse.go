@@ -2,7 +2,9 @@ package dto
 
 import (
 	"metapus/internal/core/entity"
+	"metapus/internal/core/id"
 	"metapus/internal/domain/catalogs/warehouse"
+	"metapus/internal/infrastructure/storage/postgres"
 )
 
 // --- Request DTOs ---
@@ -95,11 +97,15 @@ type WarehouseResponse struct {
 	DeletionMark       bool                    `json:"deletionMark"`
 	Version            int                     `json:"version"`
 	Attributes         entity.Attributes       `json:"attributes,omitempty"`
+
+	// Resolved reference display names (populated by ResolveRefs)
+	Organization *postgres.RefDisplay `json:"organization,omitempty"`
 }
 
 // FromWarehouse creates response DTO from domain entity.
-func FromWarehouse(wh *warehouse.Warehouse) *WarehouseResponse {
-	return &WarehouseResponse{
+// Pass nil for refs if reference resolution is not needed.
+func FromWarehouse(wh *warehouse.Warehouse, refs ...postgres.ResolvedRefs) *WarehouseResponse {
+	resp := &WarehouseResponse{
 		ID:                 wh.ID.String(),
 		Code:               wh.Code,
 		Name:               wh.Name,
@@ -115,5 +121,30 @@ func FromWarehouse(wh *warehouse.Warehouse) *WarehouseResponse {
 		DeletionMark:       wh.DeletionMark,
 		Version:            wh.Version,
 		Attributes:         wh.Attributes,
+	}
+
+	// Populate resolved reference display names
+	if len(refs) > 0 && refs[0] != nil {
+		resolved := refs[0]
+		if wh.OrganizationID != "" {
+			if orgID, err := id.Parse(wh.OrganizationID); err == nil {
+				d := resolved.Get(TableOrganizations, orgID)
+				if d.ID != "" {
+					resp.Organization = &d
+				}
+			}
+		}
+	}
+
+	return resp
+}
+
+// CollectWarehouseRefs registers all reference IDs from a Warehouse
+// into the resolver for batch resolution.
+func CollectWarehouseRefs(resolver *postgres.ReferenceResolver, wh *warehouse.Warehouse) {
+	if wh.OrganizationID != "" {
+		if orgID, err := id.Parse(wh.OrganizationID); err == nil {
+			resolver.Add(TableOrganizations, orgID)
+		}
 	}
 }

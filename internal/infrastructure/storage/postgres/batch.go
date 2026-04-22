@@ -31,7 +31,7 @@ func NewBatchInserter(txManager *TxManager) *BatchInserter {
 //	    }
 //	    close(rows)
 //	}()
-//	err := inserter.CopyFromRows(ctx, "cat_nomenclature", []string{"id", "name", "quantity"}, rows)
+//	err := inserter.CopyFromRows(ctx, "cat_nomenclatures", []string{"id", "name", "quantity"}, rows)
 func (b *BatchInserter) CopyFromRows(ctx context.Context, table string, columns []string, rows <-chan []any) (int64, error) {
 	tx := b.txManager.GetTx(ctx)
 	if tx == nil {

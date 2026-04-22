@@ -3,6 +3,7 @@ package dto
 import (
 	"metapus/internal/core/id"
 	"metapus/internal/domain/catalogs/organization"
+	"metapus/internal/infrastructure/storage/postgres"
 )
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -217,10 +218,16 @@ type OrganizationResponse struct {
 	DefaultVatRateID id.ID  `json:"defaultVatRateId"`
 	InventoryMethod  string `json:"inventoryMethod"`
 	FiscalYearStart  string `json:"fiscalYearStart"`
+
+	// Resolved reference display names (populated by ResolveRefs)
+	BaseCurrency   *postgres.CurrencyRefDisplay `json:"baseCurrency,omitempty"`
+	DefaultVatRate *postgres.RefDisplay          `json:"defaultVatRate,omitempty"`
 }
 
-func FromOrganization(org *organization.Organization) OrganizationResponse {
-	return OrganizationResponse{
+// FromOrganization creates response DTO from domain entity.
+// Pass nil for refs if reference resolution is not needed.
+func FromOrganization(org *organization.Organization, refs ...postgres.ResolvedRefs) OrganizationResponse {
+	resp := OrganizationResponse{
 		ID:               org.ID,
 		Version:          org.Version,
 		Code:             org.Code,
@@ -246,4 +253,25 @@ func FromOrganization(org *organization.Organization) OrganizationResponse {
 		InventoryMethod:  string(org.InventoryMethod),
 		FiscalYearStart:  org.FiscalYearStart,
 	}
+
+	// Populate resolved reference display names
+	if len(refs) > 0 && refs[0] != nil {
+		resolved := refs[0]
+		if !id.IsNil(org.BaseCurrencyID) {
+			d := resolved.Get(TableCurrencies, org.BaseCurrencyID)
+			resp.BaseCurrency = &postgres.CurrencyRefDisplay{
+				ID: d.ID, Name: d.Name,
+			}
+		}
+		resp.DefaultVatRate = resolved.GetPtr(TableVATRates, org.DefaultVatRateID)
+	}
+
+	return resp
+}
+
+// CollectOrganizationRefs registers all reference IDs from an Organization
+// into the resolver for batch resolution.
+func CollectOrganizationRefs(resolver *postgres.ReferenceResolver, org *organization.Organization) {
+	resolver.Add(TableCurrencies, org.BaseCurrencyID)
+	resolver.AddPtr(TableVATRates, org.DefaultVatRateID)
 }

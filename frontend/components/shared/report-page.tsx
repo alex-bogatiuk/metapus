@@ -9,7 +9,7 @@
  * No report-specific code — driven entirely by useReportPage hook.
  */
 
-import React, { useMemo, useState } from "react"
+import React, { useCallback, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -37,10 +37,11 @@ import {
 } from "@/components/ui/sheet"
 import {
     Loader2, Play, Download, Columns3, Layers, AlertCircle, Inbox,
-    ChevronDown, Link2, Save, BookmarkCheck, Trash2, Table2, BarChart3, X,
+    ChevronDown, ChevronRight, Link2, Save, BookmarkCheck, Trash2, Table2, BarChart3, X,
+    ListTree,
 } from "lucide-react"
 import type { UseReportPageReturn } from "@/hooks/useReportPage"
-import type { DisplayRow, ReportColumnDef } from "@/types/report-meta"
+import type { DisplayRow, ReportColumnDef, FieldTreeNode } from "@/types/report-meta"
 
 // ── Props ───────────────────────────────────────────────────────────────
 
@@ -106,6 +107,11 @@ export function ReportPage({ report, filterSlot, headerSlot }: ReportPageProps) 
                 {/* Column chooser */}
                 <ColumnChooserDropdown report={report} />
 
+                {/* Field chooser (Query Engine mode) */}
+                {report.availableFields && report.availableFields.length > 0 && (
+                    <FieldChooserDropdown report={report} />
+                )}
+
                 {/* Variants [#14] */}
                 <VariantsDropdown report={report} />
 
@@ -130,8 +136,14 @@ export function ReportPage({ report, filterSlot, headerSlot }: ReportPageProps) 
                     onClick={generate}
                     disabled={status === "loading"}
                     size="sm"
-                    className="gap-1.5"
+                    className="gap-1.5 relative"
                 >
+                    {report.isDirty && status !== "loading" && (
+                        <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                        </span>
+                    )}
                     {status === "loading" ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
@@ -141,8 +153,21 @@ export function ReportPage({ report, filterSlot, headerSlot }: ReportPageProps) 
                 </Button>
             </div>
 
+            {/* Stale Data Warning */}
+            {report.isDirty && status !== "idle" && status !== "loading" && (
+                <div className="bg-amber-50/80 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900/50 px-4 py-2 text-sm text-amber-800 dark:text-amber-300 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4" />
+                        <span>Настройки отчета были изменены. Показаны устаревшие данные.</span>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={generate} className="h-6 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50">
+                        Обновить
+                    </Button>
+                </div>
+            )}
+
             {/* Content */}
-            <div className="flex-1 overflow-auto relative">
+            <div className="flex-1 overflow-auto min-h-0 bg-muted/10 relative">
                 <ReportContent report={report} />
             </div>
 
@@ -186,6 +211,31 @@ function ReportContent({ report }: { report: UseReportPageReturn }) {
                     <p>Нет данных по заданным параметрам</p>
                 </div>
             )
+        case "export-only":
+            return (
+                <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
+                    <Download className="h-10 w-10 opacity-30" />
+                    <p className="text-center max-w-md">
+                        Результат содержит более 50 000 строк и не может быть отображён интерактивно.
+                        <br />
+                        Используйте экспорт для получения данных.
+                    </p>
+                    <div className="flex gap-2 mt-2">
+                        {meta?.exportFormats.map((fmt) => (
+                            <Button
+                                key={fmt}
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5"
+                                onClick={() => report.exportReport(fmt)}
+                            >
+                                <Download className="h-4 w-4" />
+                                {fmt.toUpperCase()}
+                            </Button>
+                        ))}
+                    </div>
+                </div>
+            )
         case "done":
             return (
                 <>
@@ -197,7 +247,7 @@ function ReportContent({ report }: { report: UseReportPageReturn }) {
                     ) : (
                         <ReportTable
                             rows={displayRows}
-                            columns={meta?.columns ?? []}
+                            columns={report.effectiveColumns}
                             visibleKeys={report.visibleColumnKeys}
                             sortColumn={report.sortColumn}
                             sortDirection={report.sortDirection}
@@ -238,6 +288,57 @@ function ReportTable({
             .filter((c): c is ReportColumnDef => c !== undefined)
     }, [columns, visibleKeys])
 
+    // Track collapsed group indices
+    const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set())
+
+    const toggleGroup = useCallback((groupIndex: number) => {
+        setCollapsedGroups((prev) => {
+            const next = new Set(prev)
+            if (next.has(groupIndex)) {
+                next.delete(groupIndex)
+            } else {
+                next.add(groupIndex)
+            }
+            return next
+        })
+    }, [])
+
+    // Compute visible rows: skip children of collapsed groups
+    const visibleRows = useMemo(() => {
+        const result: { row: DisplayRow; originalIndex: number }[] = []
+        let skipDepth: number | null = null
+
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i]
+
+            // If we're skipping children of a collapsed group
+            if (skipDepth !== null) {
+                // Footer rows have no depth — they end at the same level as data
+                if (row.kind === "footer") {
+                    skipDepth = null
+                    result.push({ row, originalIndex: i })
+                    continue
+                }
+                const rowDepth = row.kind === "group" ? row.depth : row.kind === "data" ? row.depth : row.kind === "subtotal" ? row.depth : 0
+                
+                // Skip children (greater depth) AND the subtotal row of the collapsed group itself
+                if (rowDepth > skipDepth || (row.kind === "subtotal" && rowDepth === skipDepth)) {
+                    continue // Skip this child
+                } else {
+                    skipDepth = null // End of collapsed region
+                }
+            }
+
+            result.push({ row, originalIndex: i })
+
+            // If this is a collapsed group, start skipping its children
+            if (row.kind === "group" && collapsedGroups.has(i)) {
+                skipDepth = row.depth
+            }
+        }
+        return result
+    }, [rows, collapsedGroups])
+
     return (
         <div className="overflow-auto">
             <table className="w-full text-sm">
@@ -262,8 +363,15 @@ function ReportTable({
                     </tr>
                 </thead>
                 <tbody>
-                    {rows.map((row, idx) => (
-                        <ReportRow key={idx} row={row} columns={visibleColumns} onRowClick={onRowClick} />
+                    {visibleRows.map(({ row, originalIndex }) => (
+                        <ReportRow
+                            key={originalIndex}
+                            row={row}
+                            columns={visibleColumns}
+                            onRowClick={onRowClick}
+                            isCollapsed={row.kind === "group" && collapsedGroups.has(originalIndex)}
+                            onToggleGroup={row.kind === "group" ? () => toggleGroup(originalIndex) : undefined}
+                        />
                     ))}
                 </tbody>
             </table>
@@ -277,18 +385,29 @@ function ReportRow({
     row,
     columns,
     onRowClick,
+    isCollapsed,
+    onToggleGroup,
 }: {
     row: DisplayRow
     columns: ReportColumnDef[]
     onRowClick?: (row: Record<string, unknown> | null) => void
+    isCollapsed?: boolean
+    onToggleGroup?: () => void
 }) {
     switch (row.kind) {
         case "group":
             return (
-                <tr className="bg-muted/50 font-medium">
+                <tr
+                    className="bg-muted/50 font-medium cursor-pointer hover:bg-muted/70 transition-colors"
+                    onClick={onToggleGroup}
+                >
                     <td colSpan={columns.length} className="px-3 py-1.5" style={{ paddingLeft: `${12 + row.depth * 20}px` }}>
                         <span className="inline-flex items-center gap-1.5">
-                            <ChevronDown className="h-3.5 w-3.5" />
+                            {isCollapsed ? (
+                                <ChevronRight className="h-3.5 w-3.5" />
+                            ) : (
+                                <ChevronDown className="h-3.5 w-3.5" />
+                            )}
                             {row.label}
                             <Badge variant="secondary" className="text-xs font-normal">
                                 {row.count}
@@ -314,7 +433,9 @@ function ReportRow({
                     ))}
                 </tr>
             )
-        case "subtotal":
+        case "subtotal": {
+            // Find the first column that does NOT have a computed total — use it for the label
+            const subtotalLabelIdx = columns.findIndex((col) => row.totals[col.key] === undefined)
             return (
                 <tr className="bg-muted/30 font-medium text-sm border-b">
                     {columns.map((col, i) => (
@@ -322,12 +443,16 @@ function ReportRow({
                             key={col.key}
                             className={`px-3 py-1 ${col.align === "right" ? "text-right tabular-nums" : ""}`}
                         >
-                            {i === 0 ? "Итого по группе" : (row.totals[col.key] !== undefined ? formatNumber(row.totals[col.key]) : "")}
+                            {row.totals[col.key] !== undefined
+                                ? formatNumber(row.totals[col.key])
+                                : (i === subtotalLabelIdx ? "Итого по группе" : "")}
                         </td>
                     ))}
                 </tr>
             )
-        case "footer":
+        }
+        case "footer": {
+            const footerLabelIdx = columns.findIndex((col) => row.totals[col.key] === undefined)
             return (
                 <tr className="bg-muted font-semibold border-t-2">
                     {columns.map((col, i) => (
@@ -335,11 +460,14 @@ function ReportRow({
                             key={col.key}
                             className={`px-3 py-2 ${col.align === "right" ? "text-right tabular-nums" : ""}`}
                         >
-                            {i === 0 ? "ИТОГО" : (row.totals[col.key] !== undefined ? formatNumber(row.totals[col.key]) : "")}
+                            {row.totals[col.key] !== undefined
+                                ? formatNumber(row.totals[col.key])
+                                : (i === footerLabelIdx ? "ИТОГО" : "")}
                         </td>
                     ))}
                 </tr>
             )
+        }
     }
 }
 
@@ -544,7 +672,7 @@ function ColumnChooserDropdown({ report }: { report: UseReportPageReturn }) {
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="max-h-[300px] overflow-y-auto">
-                {report.meta?.columns.map((col) => (
+                {report.effectiveColumns.map((col) => (
                     <DropdownMenuCheckboxItem
                         key={col.key}
                         checked={report.visibleColumnKeys.includes(col.key)}
@@ -729,3 +857,114 @@ function ReportFilterControls({ report }: { report: UseReportPageReturn }) {
         </div>
     )
 }
+
+// ── Field Chooser (Query Engine) ────────────────────────────────────────
+
+function FieldChooserDropdown({ report }: { report: UseReportPageReturn }) {
+    const { availableFields, selectedFields, toggleField } = report
+    if (!availableFields) return null
+
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5">
+                    <ListTree className="h-4 w-4" />
+                    Поля
+                    <Badge variant="secondary" className="ml-1 text-xs">
+                        {selectedFields.length}
+                    </Badge>
+                    <ChevronDown className="h-3 w-3 opacity-50" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72 max-h-96 overflow-y-auto">
+                <DropdownMenuLabel>Доступные поля</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {availableFields.map((node) => (
+                    <FieldTreeItem
+                        key={node.key}
+                        node={node}
+                        selectedFields={selectedFields}
+                        toggleField={toggleField}
+                        depth={0}
+                    />
+                ))}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    )
+}
+
+FieldChooserDropdown.displayName = "FieldChooserDropdown"
+
+function FieldTreeItem({
+    node,
+    selectedFields,
+    toggleField,
+    depth,
+}: {
+    node: FieldTreeNode
+    selectedFields: string[]
+    toggleField: (key: string) => void
+    depth: number
+}) {
+    const [expanded, setExpanded] = useState(false)
+    const hasChildren = node.children && node.children.length > 0
+    const isSelected = selectedFields.includes(node.key)
+
+    return (
+        <div>
+            <div
+                className="flex items-center gap-1 px-2 py-1 hover:bg-accent rounded-sm cursor-pointer text-sm"
+                style={{ paddingLeft: `${8 + depth * 16}px` }}
+            >
+                {/* Expand/collapse for ref nodes */}
+                {hasChildren ? (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setExpanded(!expanded) }}
+                        className="p-0.5 hover:bg-muted rounded"
+                    >
+                        {expanded
+                            ? <ChevronDown className="h-3 w-3" />
+                            : <ChevronRight className="h-3 w-3" />
+                        }
+                    </button>
+                ) : (
+                    <span className="w-4" />
+                )}
+
+                {/* Checkbox */}
+                <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleField(node.key)}
+                    className="rounded border"
+                />
+
+                {/* Label */}
+                <span
+                    className="flex-1 truncate"
+                    onClick={() => toggleField(node.key)}
+                >
+                    {node.label}
+                </span>
+
+                {/* Type badge */}
+                <span className="text-xs text-muted-foreground">
+                    {node.type === "ref" ? "↗" : ""}
+                </span>
+            </div>
+
+            {/* Children */}
+            {hasChildren && expanded && node.children!.map((child) => (
+                <FieldTreeItem
+                    key={child.key}
+                    node={child}
+                    selectedFields={selectedFields}
+                    toggleField={toggleField}
+                    depth={depth + 1}
+                />
+            ))}
+        </div>
+    )
+}
+
+FieldTreeItem.displayName = "FieldTreeItem"

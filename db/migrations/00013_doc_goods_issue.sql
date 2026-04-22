@@ -54,7 +54,7 @@ CREATE TABLE doc_goods_issue_lines (
     document_id UUID    NOT NULL REFERENCES doc_goods_issues(id) ON DELETE CASCADE,
     line_no     INTEGER NOT NULL,
 
-    product_id UUID    NOT NULL REFERENCES cat_nomenclature(id),
+    product_id UUID    NOT NULL REFERENCES cat_nomenclatures(id),
     unit_id    UUID,
     coefficient NUMERIC(15,6) NOT NULL DEFAULT 1,
 

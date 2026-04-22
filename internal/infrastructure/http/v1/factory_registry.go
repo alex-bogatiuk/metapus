@@ -6,6 +6,7 @@ package v1
 import (
 	"github.com/gin-gonic/gin"
 
+	"metapus/internal/domain/reports/schema"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/platform"
 )
@@ -38,7 +39,8 @@ type FactoryRegistry struct {
 	documents    []DocumentRegistration
 	registers    []RouteRegistration
 	reports      []RouteRegistration                // legacy (non-typed)
-	typedReports []platform.ReportRouteAdapter       // new typed reports
+	typedReports []platform.ReportRouteAdapter       // legacy typed reports (deprecated)
+	datasets     []*schema.Dataset                   // new: declarative datasets
 }
 
 // NewFactoryRegistry creates an empty registry.
@@ -96,7 +98,17 @@ func (r *FactoryRegistry) Reports() []RouteRegistration {
 	return r.reports
 }
 
-// TypedReports returns all registered typed report adapters.
+// TypedReports returns all registered typed report adapters (legacy).
 func (r *FactoryRegistry) TypedReports() []platform.ReportRouteAdapter {
 	return r.typedReports
+}
+
+// RegisterDataset adds a declarative dataset to the registry.
+func (r *FactoryRegistry) RegisterDataset(ds *schema.Dataset) {
+	r.datasets = append(r.datasets, ds)
+}
+
+// Datasets returns all registered datasets.
+func (r *FactoryRegistry) Datasets() []*schema.Dataset {
+	return r.datasets
 }

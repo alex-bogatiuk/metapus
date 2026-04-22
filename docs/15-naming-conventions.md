@@ -20,7 +20,7 @@
 
 | Префикс | Тип объекта | Примеры |
 |---------|-------------|---------|
-| `cat_` | Справочники | `cat_counterparties`, `cat_nomenclature`, `cat_warehouses`, `cat_vat_rates`, `cat_contracts` |
+| `cat_` | Справочники | `cat_counterparties`, `cat_nomenclatures`, `cat_warehouses`, `cat_vat_rates`, `cat_contracts` |
 | `doc_` | Документы (шапка) | `doc_invoice`, `doc_goods_receipt` |
 | `doc_` | Табличные части | `doc_invoice_items`, `doc_goods_receipt_goods` |
 | `reg_` | Регистры накопления (движения) | `reg_stock_movements` |

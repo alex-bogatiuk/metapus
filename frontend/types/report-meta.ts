@@ -19,6 +19,26 @@ export interface ReportMeta {
     exportFormats: string[]
     scopeDimensions: string[]
     defaultSort?: ReportSortDef
+    /** Auto-discovery tree of selectable fields (from Query Engine). */
+    availableFields?: FieldTreeNode[]
+}
+
+/** Node in the field selection tree for the Report Builder UI. */
+export interface FieldTreeNode {
+    /** Full dot-separated path, e.g. "product_id.brand_id.name" */
+    key: string
+    /** Short field name, e.g. "name" */
+    name: string
+    /** Human-readable label, e.g. "Наименование" */
+    label: string
+    /** Field data type: "string", "quantity", "ref", etc. */
+    type: string
+    /** Field role: "dimension", "measure", "attribute" */
+    kind: string
+    /** Nested fields for ref-type nodes */
+    children?: FieldTreeNode[]
+    /** Whether the field supports sorting */
+    sortable?: boolean
 }
 
 export interface ReportFilterDef {
@@ -72,4 +92,4 @@ export type DisplayRow =
 
 // ── Report Status ───────────────────────────────────────────────────────
 
-export type ReportStatus = "idle" | "loading" | "done" | "empty" | "error"
+export type ReportStatus = "idle" | "loading" | "done" | "empty" | "error" | "export-only"

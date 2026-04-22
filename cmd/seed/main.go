@@ -614,7 +614,7 @@ func seedGeneratedNomenclature(ctx context.Context, pool *postgres.Pool, log *lo
 		trackBatch := template.unitSymbol == "л" || template.unitSymbol == "уп"
 
 		batch.Queue(`
-			INSERT INTO cat_nomenclature (
+			INSERT INTO cat_nomenclatures (
 				id, code, name, type, article, barcode, base_unit_id, default_vat_rate_id,
 				description, country_of_origin, is_weighed, track_batch,
 				version, deletion_mark, attributes
@@ -874,7 +874,7 @@ func loadGeneratedSuppliers(ctx context.Context, pool *postgres.Pool) ([]generat
 func loadGeneratedProducts(ctx context.Context, pool *postgres.Pool) ([]generatedProduct, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT id, name, base_unit_id
-		FROM cat_nomenclature
+		FROM cat_nomenclatures
 		WHERE code LIKE 'NM-GEN-%' AND deletion_mark = FALSE
 		ORDER BY code
 	`)

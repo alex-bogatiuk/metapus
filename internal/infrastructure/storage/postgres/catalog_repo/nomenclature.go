@@ -13,7 +13,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
-const nomenclatureTable = "cat_nomenclature"
+const nomenclatureTable = "cat_nomenclatures"
 
 // NomenclatureRepo implements nomenclature.Repository.
 type NomenclatureRepo struct {

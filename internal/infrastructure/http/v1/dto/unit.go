@@ -4,7 +4,9 @@ import (
 	"github.com/shopspring/decimal"
 
 	"metapus/internal/core/entity"
+	"metapus/internal/core/id"
 	"metapus/internal/domain/catalogs/unit"
+	"metapus/internal/infrastructure/storage/postgres"
 )
 
 // --- Request DTOs ---
@@ -94,11 +96,15 @@ type UnitResponse struct {
 	DeletionMark      bool              `json:"deletionMark"`
 	Version           int               `json:"version"`
 	Attributes        entity.Attributes `json:"attributes,omitempty"`
+
+	// Resolved reference display names (populated by ResolveRefs)
+	BaseUnit *postgres.RefDisplay `json:"baseUnit,omitempty"`
 }
 
 // FromUnit creates response DTO from domain entity.
-func FromUnit(u *unit.Unit) *UnitResponse {
-	return &UnitResponse{
+// Pass nil for refs if reference resolution is not needed.
+func FromUnit(u *unit.Unit, refs ...postgres.ResolvedRefs) *UnitResponse {
+	resp := &UnitResponse{
 		ID:                u.ID.String(),
 		Code:              u.Code,
 		Name:              u.Name,
@@ -114,5 +120,27 @@ func FromUnit(u *unit.Unit) *UnitResponse {
 		DeletionMark:      u.DeletionMark,
 		Version:           u.Version,
 		Attributes:        u.Attributes,
+	}
+
+	// Populate resolved reference display names
+	if len(refs) > 0 && refs[0] != nil {
+		resolved := refs[0]
+		if u.BaseUnitID != nil {
+			if uid, err := id.Parse(*u.BaseUnitID); err == nil {
+				resp.BaseUnit = resolved.GetPtr(TableUnits, &uid)
+			}
+		}
+	}
+
+	return resp
+}
+
+// CollectUnitRefs registers all reference IDs from a Unit
+// into the resolver for batch resolution.
+func CollectUnitRefs(resolver *postgres.ReferenceResolver, u *unit.Unit) {
+	if u.BaseUnitID != nil {
+		if uid, err := id.Parse(*u.BaseUnitID); err == nil {
+			resolver.Add(TableUnits, uid)
+		}
 	}
 }

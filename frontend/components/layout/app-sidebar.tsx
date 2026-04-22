@@ -123,11 +123,24 @@ const navSections: NavSection[] = [
     icon: Warehouse,
     groups: [
       {
+        label: "Документы",
+        items: [
+          { entityKey: "inventory_adjustment", fallback: "Складские акты" },
+        ],
+      },
+      {
         label: "Справочники",
         items: [
           { entityKey: "warehouse", fallback: "Склады" },
           { entityKey: "nomenclature", fallback: "Номенклатура" },
           { entityKey: "unit", fallback: "Единицы измерения" },
+        ],
+      },
+      {
+        label: "Отчёты",
+        items: [
+          { entityKey: "report-stock-balance", fallback: "Остатки товаров", url: "/reports/stock-balance" },
+          { entityKey: "report-stock-turnover", fallback: "Оборотная ведомость", url: "/reports/stock-turnover" },
         ],
       },
     ],
@@ -159,6 +172,12 @@ const navSections: NavSection[] = [
           { entityKey: "unit", fallback: "Единицы измерения" },
           { entityKey: "vat_rate", fallback: "Ставки НДС" },
           { entityKey: "contract", fallback: "Договоры" },
+        ],
+      },
+      {
+        label: "Система",
+        items: [
+          { entityKey: "report-document-journal", fallback: "Журнал документов", url: "/reports/document-journal" },
         ],
       },
     ],
@@ -200,6 +219,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         icon: section.icon,
         groups: section.groups.map((group) => {
           const resolvedItems = group.items.map((item) => {
+            if (item.url) {
+              return { title: item.fallback, url: item.url, description: item.description }
+            }
             const entity = getEntity(item.entityKey)
             const title = entity?.presentation.plural ?? item.fallback
             const routePrefix = entity?.routePrefix ?? item.entityKey

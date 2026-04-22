@@ -9,6 +9,7 @@ package content
 import (
 	"context"
 
+	"metapus/internal/core/tenant"
 	"metapus/internal/domain"
 	"metapus/internal/domain/catalogs/contract"
 	"metapus/internal/domain/catalogs/counterparty"
@@ -21,6 +22,7 @@ import (
 	v1 "metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/http/v1/handlers"
+	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/metadata"
 )
@@ -145,7 +147,7 @@ func (r *CounterpartyRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHan
 
 type NomenclatureRegistration struct{}
 
-func (r *NomenclatureRegistration) RoutePrefix() string      { return "nomenclature" }
+func (r *NomenclatureRegistration) RoutePrefix() string      { return "nomenclatures" }
 func (r *NomenclatureRegistration) Permission() string       { return "catalog:nomenclature" }
 func (r *NomenclatureRegistration) ReferenceTypes() []string { return []string{"product"} }
 func (r *NomenclatureRegistration) EntityName() string       { return "Nomenclature" }
@@ -177,6 +179,10 @@ func (r *NomenclatureRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHan
 			req.ApplyTo(existing); return existing
 		},
 		MapToDTO: func(entity *nomenclature.Nomenclature) any { return dto.FromNomenclature(entity) },
+		ResolveRefs: resolveNomenclatureRefs,
+		MapToDTOWithRefs: func(entity *nomenclature.Nomenclature, refs any) any {
+			return dto.FromNomenclature(entity, refs.(postgres.ResolvedRefs))
+		},
 	})
 }
 
@@ -218,6 +224,10 @@ func (r *WarehouseRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandle
 			req.ApplyTo(existing); return existing
 		},
 		MapToDTO: func(entity *warehouse.Warehouse) any { return dto.FromWarehouse(entity) },
+		ResolveRefs: resolveWarehouseRefs,
+		MapToDTOWithRefs: func(entity *warehouse.Warehouse, refs any) any {
+			return dto.FromWarehouse(entity, refs.(postgres.ResolvedRefs))
+		},
 	})
 }
 
@@ -259,6 +269,10 @@ func (r *UnitRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 			req.ApplyTo(existing); return existing
 		},
 		MapToDTO: func(entity *unit.Unit) any { return dto.FromUnit(entity) },
+		ResolveRefs: resolveUnitRefs,
+		MapToDTOWithRefs: func(entity *unit.Unit, refs any) any {
+			return dto.FromUnit(entity, refs.(postgres.ResolvedRefs))
+		},
 	})
 }
 
@@ -351,6 +365,10 @@ func (r *OrganizationRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHan
 			req.ApplyTo(existing); return existing
 		},
 		MapToDTO: func(entity *organization.Organization) any { return dto.FromOrganization(entity) },
+		ResolveRefs: resolveOrganizationRefs,
+		MapToDTOWithRefs: func(entity *organization.Organization, refs any) any {
+			return dto.FromOrganization(entity, refs.(postgres.ResolvedRefs))
+		},
 	})
 }
 
@@ -443,5 +461,40 @@ func (r *ContractRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler
 			req.ApplyTo(existing); return existing
 		},
 		MapToDTO: func(entity *contract.Contract) any { return dto.FromContract(entity) },
+		ResolveRefs: resolveContractRefs,
+		MapToDTOWithRefs: func(entity *contract.Contract, refs any) any {
+			return dto.FromContract(entity, refs.(postgres.ResolvedRefs))
+		},
 	})
+}
+
+// ── ResolveRefs callbacks for catalogs with FK references ───────────────
+
+func resolveCatalogRefs[T any](ctx context.Context, collect func(*postgres.ReferenceResolver, T), entities ...T) (any, error) {
+	resolver := postgres.NewReferenceResolver()
+	for _, e := range entities {
+		collect(resolver, e)
+	}
+	pool := tenant.MustGetPool(ctx)
+	return resolver.Resolve(ctx, pool)
+}
+
+func resolveNomenclatureRefs(ctx context.Context, entities ...*nomenclature.Nomenclature) (any, error) {
+	return resolveCatalogRefs(ctx, dto.CollectNomenclatureRefs, entities...)
+}
+
+func resolveOrganizationRefs(ctx context.Context, entities ...*organization.Organization) (any, error) {
+	return resolveCatalogRefs(ctx, dto.CollectOrganizationRefs, entities...)
+}
+
+func resolveWarehouseRefs(ctx context.Context, entities ...*warehouse.Warehouse) (any, error) {
+	return resolveCatalogRefs(ctx, dto.CollectWarehouseRefs, entities...)
+}
+
+func resolveUnitRefs(ctx context.Context, entities ...*unit.Unit) (any, error) {
+	return resolveCatalogRefs(ctx, dto.CollectUnitRefs, entities...)
+}
+
+func resolveContractRefs(ctx context.Context, entities ...*contract.Contract) (any, error) {
+	return resolveCatalogRefs(ctx, dto.CollectContractRefs, entities...)
 }

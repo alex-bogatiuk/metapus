@@ -30,9 +30,45 @@ import { buildDisplayRows, getDefaultGroupByKeys, sortItems } from "@/lib/report
 import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 import type {
     ReportMeta,
+    ReportColumnDef,
     ReportStatus,
     DisplayRow,
+    FieldTreeNode,
 } from "@/types/report-meta"
+
+// ── Helpers for dynamic column generation ───────────────────────────────
+
+/** Recursively find a FieldTreeNode by its dot-separated key. */
+function findFieldNode(nodes: FieldTreeNode[], key: string): FieldTreeNode | null {
+    for (const node of nodes) {
+        if (node.key === key) return node
+        if (node.children) {
+            const found = findFieldNode(node.children, key)
+            if (found) return found
+        }
+    }
+    return null
+}
+
+/** Build a human-readable label like "Товар → Артикул" from a nested field key. */
+function buildFieldLabel(node: FieldTreeNode, fullKey: string): string {
+    const parts = fullKey.split(".")
+    if (parts.length <= 1) return node.label
+    // Use the last part's label from the node, prefix not needed for simple cases
+    return node.label
+}
+
+/** Map field tree node type to ReportColumnDef type. */
+function mapFieldType(type?: string): ReportColumnDef["type"] {
+    switch (type) {
+        case "quantity": return "quantity"
+        case "money": return "money"
+        case "date": case "datetime": return "date"
+        case "boolean": return "boolean"
+        case "ref": return "reference"
+        default: return "string"
+    }
+}
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -42,8 +78,36 @@ export type ReportFilterValues = Record<string, unknown>
 /** Generic report result with items array. */
 interface ReportResult {
     items: Record<string, unknown>[]
+    totalItems?: number
     [key: string]: unknown
 }
+
+/** QueryRequest body for POST-based dataset execution. */
+interface QueryRequest {
+    dataset: string
+    select?: string[]
+    groupBy?: string[]
+    orderBy?: string
+    orderDir?: string
+    filters?: Record<string, unknown>
+    limit?: number
+    offset?: number
+}
+
+/** Server-side grouped response from /grouped endpoint. */
+interface GroupedResponse {
+    rows: DisplayRow[]
+    totalItems: number
+}
+
+/**
+ * Threshold for client vs server grouping.
+ * Below this: buildDisplayRows() runs in the browser (~50ms).
+ * Above this: we delegate to GET /reports/{key}/grouped.
+ * Above 50000: export-only mode (no interactive table).
+ */
+const CLIENT_GROUPING_THRESHOLD = 5000
+const MAX_INTERACTIVE_ROWS = 50000
 
 /** Named report variant (saved preset). */
 export interface ReportVariant {
@@ -115,6 +179,20 @@ export interface UseReportPageReturn {
     // ── Wave 3: View Mode (#16) ──────────────────────────────────────
     viewMode: ReportViewMode
     setViewMode: (mode: ReportViewMode) => void
+
+    // ── Query Engine: Field Selection ────────────────────────────────
+    /** Tree of available fields from Auto-Discovery (null = legacy mode). */
+    availableFields: FieldTreeNode[] | null
+    /** Currently selected field paths (dot-separated). */
+    selectedFields: string[]
+    /** Toggle a field path in the selection. */
+    toggleField: (fieldKey: string) => void
+    /** Effective columns (static + dynamically generated for extra selected fields). */
+    effectiveColumns: ReportColumnDef[]
+
+    // ── Stale State ──────────────────────────────────────────────────
+    /** True if filters or selected fields changed since last generate. */
+    isDirty: boolean
 }
 
 // ── Hook ────────────────────────────────────────────────────────────────
@@ -128,9 +206,71 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
     const [meta, setMeta] = useState<ReportMeta | null>(null)
     const [metaLoading, setMetaLoading] = useState(true)
 
+    const [isDirty, setIsDirty] = useState(false)
+
+    // Hoisted above metadata useEffect that references these setters
+    const [activeGroupBy, setActiveGroupBy] = useState<string[]>([])
+    const [visibleColumnKeys, setVisibleColumnKeys] = useState<string[]>([])
+    const [sortColumn, setSortColumn] = useState<string | null>(null)
+    const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+    const sortInitialized = useRef(false)
+
+    // ── Query Engine: Selected Fields ────────────────────────────────
+    const [selectedFields, setSelectedFields] = useState<string[]>([])
+
+    const toggleField = useCallback((fieldKey: string) => {
+        // Convert field key (dot-separated) to column key (__-separated)
+        const colKey = fieldKey.replaceAll(".", "__")
+        setSelectedFields((prev) => {
+            const isRemoving = prev.includes(fieldKey)
+            const next = isRemoving
+                ? prev.filter((k) => k !== fieldKey)
+                : [...prev, fieldKey]
+
+            // Auto-sync visible column keys
+            setVisibleColumnKeys((cols) => {
+                if (isRemoving) {
+                    return cols.filter((k) => k !== colKey)
+                }
+                return cols.includes(colKey) ? cols : [...cols, colKey]
+            })
+
+            return next
+        })
+        setIsDirty(true)
+    }, [])
+
+    const availableFields = useMemo(() => meta?.availableFields ?? null, [meta])
+    const isQueryEngine = !!availableFields && availableFields.length > 0
+
+    // Build effective columns: merge static meta.columns with dynamic columns
+    // for fields that are selected but not in the static columns list.
+    const effectiveColumns = useMemo(() => {
+        if (!meta) return []
+        const staticKeys = new Set(meta.columns.map((c) => c.key))
+        const dynamicCols: typeof meta.columns = []
+
+        for (const fieldKey of selectedFields) {
+            const colKey = fieldKey.replaceAll(".", "__")
+            if (!staticKeys.has(colKey)) {
+                // Generate a column definition from the field tree node
+                const node = findFieldNode(availableFields ?? [], fieldKey)
+                dynamicCols.push({
+                    key: colKey,
+                    label: node ? buildFieldLabel(node, fieldKey) : colKey,
+                    type: mapFieldType(node?.type),
+                    sortable: node?.sortable,
+                    align: (node?.type === "quantity" || node?.type === "money" || node?.type === "number") ? "right" : undefined,
+                })
+            }
+        }
+
+        return [...meta.columns, ...dynamicCols]
+    }, [meta, selectedFields, availableFields])
+
     useEffect(() => {
         let cancelled = false
-        setMetaLoading(true)
+        // metaLoading is initialized as `true`, no need to set it again here
         apiFetch<ReportMeta>(`/reports/${reportKey}/metadata`)
             .then((data) => {
                 if (!cancelled) {
@@ -141,6 +281,27 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
                         .map((c) => c.key)
                     const saved = useUserPrefsStore.getState().listColumns[`report:${reportKey}`]
                     setVisibleColumnKeys(saved && saved.length > 0 ? saved : defaultKeys)
+                    // Initialize default sort from metadata (avoids a separate effect)
+                    if (data.defaultSort && !sortInitialized.current) {
+                        sortInitialized.current = true
+                        setSortColumn(data.defaultSort.column)
+                        setSortDirection(data.defaultSort.direction)
+                    }
+                    // Initialize selected fields from availableFields (Query Engine mode)
+                    // defaultKeys use __ (column keys), but selectedFields stores dot-separated paths
+                    if (data.availableFields && data.availableFields.length > 0) {
+                        setSelectedFields(defaultKeys.map((k) => k.replaceAll("__", ".")))
+                    }
+                    // Apply default filter values from metadata (only if not overridden by URL)
+                    setFilterValues((prev) => {
+                        const merged = { ...prev }
+                        for (const f of data.filters) {
+                            if (f.default !== undefined && f.default !== null && !(f.key in merged)) {
+                                merged[f.key] = f.default
+                            }
+                        }
+                        return merged
+                    })
                 }
             })
             .catch(() => { /* metadata load failure handled gracefully */ })
@@ -176,10 +337,12 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             }
             return { ...prev, [key]: value }
         })
+        setIsDirty(true)
     }, [])
 
     const resetFilters = useCallback(() => {
         setFilterValues({})
+        setIsDirty(true)
     }, [])
 
     // Sync filters to URL
@@ -204,38 +367,72 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
     const [resultExtras, setResultExtras] = useState<Record<string, unknown>>({})
 
     const generate = useCallback(async () => {
+        if (!meta) return
+
+        setIsDirty(false)
         setStatus("loading")
         setError(null)
+        setServerDisplayRows(null)
         syncToUrl(filterValues)
 
         try {
-            const params = new URLSearchParams()
-            for (const [key, value] of Object.entries(filterValues)) {
-                if (value === undefined || value === null) continue
-                if (Array.isArray(value)) {
-                    for (const v of value) params.append(key, String(v))
-                } else {
-                    params.set(key, String(value))
+            let result: ReportResult
+
+            if (isQueryEngine) {
+                // Query Engine mode: POST with QueryRequest body
+                // selectedFields already stores dot-separated paths (e.g. "warehouse_id.name")
+                const selectPaths = selectedFields.length > 0
+                    ? selectedFields
+                    : undefined
+                const body: QueryRequest = {
+                    dataset: reportKey,
+                    select: selectPaths,
+                    orderBy: sortColumn ? sortColumn.replace(/__/g, ".") : undefined,
+                    orderDir: sortDirection,
+                    filters: filterValues,
+                    limit: MAX_INTERACTIVE_ROWS + 1,
                 }
+                result = await apiFetch<ReportResult>(
+                    `/reports/${reportKey}`,
+                    { method: "POST", body: JSON.stringify(body) }
+                )
+            } else {
+                // Legacy mode: GET with query params
+                const params = new URLSearchParams()
+                for (const [key, value] of Object.entries(filterValues)) {
+                    if (value === undefined || value === null) continue
+                    if (Array.isArray(value)) {
+                        for (const v of value) params.append(key, String(v))
+                    } else {
+                        params.set(key, String(value))
+                    }
+                }
+                params.set("limit", String(MAX_INTERACTIVE_ROWS + 1))
+                const qs = params.toString()
+                result = await apiFetch<ReportResult>(
+                    `/reports/${reportKey}${qs ? `?${qs}` : ""}`
+                )
             }
-            const qs = params.toString()
-            const result = await apiFetch<ReportResult>(
-                `/reports/${reportKey}${qs ? `?${qs}` : ""}`
-            )
 
             const reportItems = result.items ?? []
-            setItems(reportItems)
+            const totalCount = result.totalItems ?? reportItems.length
+
+            if (totalCount > MAX_INTERACTIVE_ROWS) {
+                setItems([])
+                setStatus("export-only")
+            } else {
+                setItems(reportItems)
+                setStatus(reportItems.length > 0 ? "done" : "empty")
+            }
 
             const { items: _, ...extras } = result
             setResultExtras(extras)
-
-            setStatus(reportItems.length > 0 ? "done" : "empty")
         } catch (e) {
             const msg = e instanceof Error ? e.message : "Ошибка формирования отчёта"
             setError(msg)
             setStatus("error")
         }
-    }, [reportKey, filterValues, syncToUrl])
+    }, [reportKey, filterValues, syncToUrl, isQueryEngine, selectedFields, sortColumn, sortDirection])
 
     // ── Auto-generate on URL open [#15] ──────────────────────────────
     // If URL has filter params (f.*), auto-generate report on mount.
@@ -245,7 +442,8 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
         const hasUrlFilters = Array.from(searchParams.keys()).some((k) => k.startsWith("f."))
         if (hasUrlFilters) {
             autoGenerated.current = true
-            generate()
+            // Defer to avoid synchronous setState inside effect body
+            queueMicrotask(() => generate())
         }
     }, [metaLoading, meta, searchParams, generate])
 
@@ -269,7 +467,6 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
     }, [filterValues, pathname])
 
     // ── Grouping (client-side) ───────────────────────────────────────
-    const [activeGroupBy, setActiveGroupBy] = useState<string[]>([])
 
     const toggleGroupBy = useCallback((key: string) => {
         setActiveGroupBy((prev) =>
@@ -280,17 +477,6 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
     }, [])
 
     // ── Sorting (client-side) ────────────────────────────────────────
-    const [sortColumn, setSortColumn] = useState<string | null>(null)
-    const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
-
-    const sortInitialized = useRef(false)
-    useEffect(() => {
-        if (meta?.defaultSort && !sortInitialized.current) {
-            sortInitialized.current = true
-            setSortColumn(meta.defaultSort.column)
-            setSortDirection(meta.defaultSort.direction)
-        }
-    }, [meta])
 
     const handleSort = useCallback((key: string) => {
         setSortColumn((prev) => {
@@ -304,7 +490,6 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
     }, [])
 
     // ── Column visibility ────────────────────────────────────────────
-    const [visibleColumnKeys, setVisibleColumnKeys] = useState<string[]>([])
     const setListColumns = useUserPrefsStore((s) => s.setListColumns)
 
     const toggleColumn = useCallback((key: string) => {
@@ -389,17 +574,83 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
     // ── View Mode [#16] ──────────────────────────────────────────────
     const [viewMode, setViewMode] = useState<ReportViewMode>("table")
 
-    // ── Computed: sorted + grouped display rows ──────────────────────
+    // ── Server-grouped rows (Wave 4) ─────────────────────────────────
+    const [serverDisplayRows, setServerDisplayRows] = useState<DisplayRow[] | null>(null)
+    const serverGroupingInFlight = useRef(false)
+
+    // Fetch server-side grouped rows when items > threshold
+    const fetchGroupedRows = useCallback(async () => {
+        if (items.length <= CLIENT_GROUPING_THRESHOLD) return
+        if (serverGroupingInFlight.current) return
+        serverGroupingInFlight.current = true
+
+        try {
+            const params = new URLSearchParams()
+            for (const [key, value] of Object.entries(filterValues)) {
+                if (value === undefined || value === null) continue
+                if (Array.isArray(value)) {
+                    for (const v of value) params.append(key, String(v))
+                } else {
+                    params.set(key, String(value))
+                }
+            }
+            for (const g of activeGroupBy) {
+                params.append("groupBy", g)
+            }
+            if (sortColumn) {
+                params.set("sortBy", sortColumn.replace(/__/g, "."))
+                params.set("sortDir", sortDirection)
+            }
+
+            const qs = params.toString()
+            const result = await apiFetch<GroupedResponse>(
+                `/reports/${reportKey}/grouped${qs ? `?${qs}` : ""}`
+            )
+            setServerDisplayRows(result.rows)
+        } catch {
+            // Fallback: if server grouping fails, use client-side
+            setServerDisplayRows(null)
+        } finally {
+            serverGroupingInFlight.current = false
+        }
+    }, [reportKey, filterValues, activeGroupBy, sortColumn, sortDirection, items.length])
+
+    // Trigger server grouping when groupBy/sort changes and items > threshold
+    useEffect(() => {
+        if (items.length > CLIENT_GROUPING_THRESHOLD && status === "done") {
+            fetchGroupedRows()
+        } else {
+            setServerDisplayRows(null)
+        }
+    }, [items.length, status, activeGroupBy, sortColumn, sortDirection]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── Computed: sorted + grouped display rows (adaptive) ───────────
     const displayRows = useMemo(() => {
         if (items.length === 0) return []
 
+        // Server-side grouping: use pre-built rows from /grouped
+        if (items.length > CLIENT_GROUPING_THRESHOLD && serverDisplayRows) {
+            return serverDisplayRows
+        }
+
+        // Client-side grouping (≤5000 rows)
         let sorted = items
         if (sortColumn) {
             sorted = sortItems(items, sortColumn, sortDirection)
         }
 
-        return buildDisplayRows(sorted, activeGroupBy, meta?.totals ?? [])
-    }, [items, sortColumn, sortDirection, activeGroupBy, meta?.totals])
+        const groupByDataKeys = activeGroupBy.map((groupKey) => {
+            // First check if a dynamic column explicitly matches the path (e.g. warehouse_id)
+            const dynamicCol = effectiveColumns.find((c) => c.key === groupKey)
+            if (dynamicCol && dynamicCol.key) return dynamicCol.key
+            
+            // If it's a base column, the backend appends __name to references
+            const baseCol = meta?.columns.find((c) => c.key === groupKey || c.key === `${groupKey}__name`)
+            return baseCol ? baseCol.key : groupKey
+        })
+
+        return buildDisplayRows(sorted, groupByDataKeys, meta?.totals ?? [])
+    }, [items, sortColumn, sortDirection, activeGroupBy, meta?.totals, serverDisplayRows, effectiveColumns, meta?.columns])
 
     return {
         meta,
@@ -447,5 +698,11 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
         copyShareLink,
         viewMode,
         setViewMode,
+        // Query Engine
+        availableFields,
+        selectedFields,
+        toggleField,
+        effectiveColumns,
+        isDirty,
     }
 }

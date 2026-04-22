@@ -3,7 +3,7 @@
 -- +goose StatementBegin
 SELECT pg_advisory_lock(hashtext('metapus_migrations'));
 
-CREATE TABLE cat_nomenclature (
+CREATE TABLE cat_nomenclatures (
     -- Base fields
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid_v7(),
     deletion_mark BOOLEAN     NOT NULL DEFAULT FALSE,
@@ -21,7 +21,7 @@ CREATE TABLE cat_nomenclature (
     -- Catalog fields
     code      VARCHAR(50)  NOT NULL,
     name      VARCHAR(255) NOT NULL,
-    parent_id UUID REFERENCES cat_nomenclature(id),
+    parent_id UUID REFERENCES cat_nomenclatures(id),
     is_folder BOOLEAN      NOT NULL DEFAULT FALSE,
 
     -- Nomenclature-specific fields
@@ -46,37 +46,37 @@ CREATE TABLE cat_nomenclature (
 );
 
 -- Unique indexes
-CREATE UNIQUE INDEX idx_cat_nomenclature_code    ON cat_nomenclature (code) WHERE deletion_mark = FALSE;
-CREATE UNIQUE INDEX idx_cat_nomenclature_article ON cat_nomenclature (article) WHERE deletion_mark = FALSE AND article IS NOT NULL AND article != '';
-CREATE UNIQUE INDEX idx_cat_nomenclature_barcode ON cat_nomenclature (barcode) WHERE deletion_mark = FALSE AND barcode IS NOT NULL AND barcode != '';
+CREATE UNIQUE INDEX idx_cat_nomenclatures_code    ON cat_nomenclatures (code) WHERE deletion_mark = FALSE;
+CREATE UNIQUE INDEX idx_cat_nomenclatures_article ON cat_nomenclatures (article) WHERE deletion_mark = FALSE AND article IS NOT NULL AND article != '';
+CREATE UNIQUE INDEX idx_cat_nomenclatures_barcode ON cat_nomenclatures (barcode) WHERE deletion_mark = FALSE AND barcode IS NOT NULL AND barcode != '';
 
 -- Search / filter indexes
-CREATE INDEX idx_cat_nomenclature_name         ON cat_nomenclature USING gin (name gin_trgm_ops);
-CREATE INDEX idx_cat_nomenclature_type         ON cat_nomenclature (type) WHERE deletion_mark = FALSE;
-CREATE INDEX idx_cat_nomenclature_parent       ON cat_nomenclature (parent_id) WHERE deletion_mark = FALSE;
-CREATE INDEX idx_cat_nomenclature_manufacturer ON cat_nomenclature (manufacturer_id) WHERE manufacturer_id IS NOT NULL;
-CREATE INDEX idx_cat_nomenclature_vat_rate     ON cat_nomenclature (default_vat_rate_id) WHERE default_vat_rate_id IS NOT NULL;
-CREATE INDEX idx_cat_nomenclature_attrs        ON cat_nomenclature USING gin (attributes);
+CREATE INDEX idx_cat_nomenclatures_name         ON cat_nomenclatures USING gin (name gin_trgm_ops);
+CREATE INDEX idx_cat_nomenclatures_type         ON cat_nomenclatures (type) WHERE deletion_mark = FALSE;
+CREATE INDEX idx_cat_nomenclatures_parent       ON cat_nomenclatures (parent_id) WHERE deletion_mark = FALSE;
+CREATE INDEX idx_cat_nomenclatures_manufacturer ON cat_nomenclatures (manufacturer_id) WHERE manufacturer_id IS NOT NULL;
+CREATE INDEX idx_cat_nomenclatures_vat_rate     ON cat_nomenclatures (default_vat_rate_id) WHERE default_vat_rate_id IS NOT NULL;
+CREATE INDEX idx_cat_nomenclatures_attrs        ON cat_nomenclatures USING gin (attributes);
 
 -- CDC indexes & triggers
-CREATE INDEX idx_cat_nomenclature_txid ON cat_nomenclature (_txid) WHERE _deleted_at IS NULL;
+CREATE INDEX idx_cat_nomenclatures_txid ON cat_nomenclatures (_txid) WHERE _deleted_at IS NULL;
 
-CREATE TRIGGER trg_cat_nomenclature_txid
-    BEFORE UPDATE ON cat_nomenclature
+CREATE TRIGGER trg_cat_nomenclatures_txid
+    BEFORE UPDATE ON cat_nomenclatures
     FOR EACH ROW EXECUTE FUNCTION update_txid_column();
 
-CREATE TRIGGER trg_cat_nomenclature_soft_delete
-    BEFORE UPDATE OF deletion_mark ON cat_nomenclature
+CREATE TRIGGER trg_cat_nomenclatures_soft_delete
+    BEFORE UPDATE OF deletion_mark ON cat_nomenclatures
     FOR EACH ROW EXECUTE FUNCTION soft_delete_with_timestamp();
 
-CREATE TRIGGER trg_cat_nomenclature_updated_at
-    BEFORE UPDATE ON cat_nomenclature
+CREATE TRIGGER trg_cat_nomenclatures_updated_at
+    BEFORE UPDATE ON cat_nomenclatures
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Keyset pagination
-CREATE INDEX idx_cat_nomenclature_name_id ON cat_nomenclature (name ASC, id ASC);
+CREATE INDEX idx_cat_nomenclatures_name_id ON cat_nomenclatures (name ASC, id ASC);
 
-COMMENT ON TABLE cat_nomenclature IS 'Справочник Номенклатура — товары, услуги, материалы';
+COMMENT ON TABLE cat_nomenclatures IS 'Справочник Номенклатура — товары, услуги, материалы';
 
 SELECT pg_advisory_unlock(hashtext('metapus_migrations'));
 -- +goose StatementEnd
@@ -84,6 +84,6 @@ SELECT pg_advisory_unlock(hashtext('metapus_migrations'));
 -- +goose Down
 -- +goose StatementBegin
 SELECT pg_advisory_lock(hashtext('metapus_migrations'));
-DROP TABLE IF EXISTS cat_nomenclature CASCADE;
+DROP TABLE IF EXISTS cat_nomenclatures CASCADE;
 SELECT pg_advisory_unlock(hashtext('metapus_migrations'));
 -- +goose StatementEnd

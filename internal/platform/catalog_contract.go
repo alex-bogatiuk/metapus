@@ -30,3 +30,10 @@ type Labeled interface {
 type ReferenceProvider interface {
 	ReferenceTypes() []string
 }
+
+// TableNameProvider allows a factory to explicitly specify its database table name.
+// If not implemented, the table name is derived from RoutePrefix (e.g. cat_{routePrefix}).
+type TableNameProvider interface {
+	TableName() string
+}
+

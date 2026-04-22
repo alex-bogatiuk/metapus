@@ -434,9 +434,9 @@ func buildMoneyCondition(fieldExpr string, op ComparisonType, value any, tableNa
 -- in_hierarchy: все элементы в группе и подгруппах
 id IN (
     WITH RECURSIVE hierarchy AS (
-        SELECT id FROM cat_nomenclature WHERE id = $1
+        SELECT id FROM cat_nomenclatures WHERE id = $1
         UNION ALL
-        SELECT t.id FROM cat_nomenclature t
+        SELECT t.id FROM cat_nomenclatures t
         JOIN hierarchy h ON t.parent_id = h.id
     )
     SELECT id FROM hierarchy

@@ -59,6 +59,31 @@ type ReportMeta struct {
 	ExportFormats   []string         `json:"exportFormats,omitempty"`
 	ScopeDimensions []string         `json:"scopeDimensions,omitempty"`
 	DefaultSort     *ReportSort      `json:"defaultSort,omitempty"`
+
+	// AvailableFields is the auto-discovery tree of selectable fields.
+	// Built by compiler.BuildFieldTree() from Dataset + metadata.Registry.
+	// Root nodes are dataset fields; children are referenced entity attributes.
+	AvailableFields []FieldTreeNode `json:"availableFields,omitempty"`
+}
+
+// FieldTreeNode describes a node in the field selection tree for the Report Builder UI.
+// Root nodes represent dataset fields. For reference (ref) fields, Children contains
+// the attributes of the referenced entity, resolved recursively up to MaxJoinDepth.
+type FieldTreeNode struct {
+	// Key is the full dot-separated path, e.g. "product_id.brand_id.name".
+	Key string `json:"key"`
+	// Name is the short field name, e.g. "name".
+	Name string `json:"name"`
+	// Label is the human-readable display name, e.g. "Наименование".
+	Label string `json:"label"`
+	// Type is the field data type: "string", "quantity", "ref", etc.
+	Type string `json:"type"`
+	// Kind is the field role: "dimension", "measure", "attribute".
+	Kind string `json:"kind"`
+	// Children are nested fields for ref-type nodes.
+	Children []FieldTreeNode `json:"children,omitempty"`
+	// Sortable indicates the field supports ORDER BY.
+	Sortable bool `json:"sortable,omitempty"`
 }
 
 // ReportFilter describes a single filter control in the sidebar.

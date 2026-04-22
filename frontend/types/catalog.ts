@@ -3,6 +3,8 @@
  * Mirrors: internal/infrastructure/http/v1/dto/nomenclature.go
  */
 
+import { RefDisplay, CurrencyRefDisplay } from "@/types/common"
+
 // ── Nomenclature ────────────────────────────────────────────────────────
 
 /** Nomenclature type enum — mirrors domain NomenclatureType. */
@@ -43,6 +45,11 @@ export interface NomenclatureResponse {
     deletionMark: boolean
     version: number
     attributes?: Attributes | null
+
+    // Resolved reference display names
+    baseUnit?: RefDisplay
+    defaultVatRate?: RefDisplay
+    manufacturer?: RefDisplay
 }
 
 /** Request DTO for creating a nomenclature item. */
@@ -201,6 +208,9 @@ export interface WarehouseResponse {
     deletionMark: boolean
     version: number
     attributes?: Attributes | null
+
+    // Resolved reference display names
+    organization?: RefDisplay
 }
 
 /** Request DTO for creating a warehouse. */
@@ -285,6 +295,10 @@ export interface OrganizationResponse {
     defaultVatRateId: string
     inventoryMethod: string
     fiscalYearStart: string
+
+    // Resolved reference display names
+    baseCurrency?: CurrencyRefDisplay
+    defaultVatRate?: RefDisplay
 }
 
 /** Request DTO for creating an organization. */
@@ -359,6 +373,9 @@ export interface UnitResponse {
     description?: string | null
     deletionMark: boolean
     version: number
+
+    // Resolved reference display names
+    baseUnit?: RefDisplay
 }
 
 export interface CreateUnitRequest {
@@ -445,6 +462,10 @@ export interface ContractResponse {
     description?: string | null
     deletionMark: boolean
     version: number
+
+    // Resolved reference display names
+    counterparty?: RefDisplay
+    currency?: CurrencyRefDisplay
 }
 
 export interface CreateContractRequest {

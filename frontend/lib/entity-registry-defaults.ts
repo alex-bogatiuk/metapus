@@ -31,17 +31,21 @@ function cellName(item: Record<string, unknown>) {
 }
 
 function cellMuted(key: string) {
-    return (item: Record<string, unknown>) =>
+    const Cell = (item: Record<string, unknown>) =>
         React.createElement("span", { className: "text-xs text-muted-foreground" }, String(item[key] ?? "") || "—")
+    Cell.displayName = `CellMuted(${key})`
+    return Cell
 }
 
 function cellMono(key: string) {
-    return (item: Record<string, unknown>) =>
+    const Cell = (item: Record<string, unknown>) =>
         React.createElement("span", { className: "font-mono text-xs text-muted-foreground" }, String(item[key] ?? "") || "—")
+    Cell.displayName = `CellMono(${key})`
+    return Cell
 }
 
 function cellBoolBadge(key: string, yesLabel = "Да") {
-    return (item: Record<string, unknown>) => {
+    const Cell = (item: Record<string, unknown>) => {
         const value = item[key]
         if (value) {
             return React.createElement("span", {
@@ -50,10 +54,12 @@ function cellBoolBadge(key: string, yesLabel = "Да") {
         }
         return React.createElement("span", { className: "text-xs text-muted-foreground" }, "—")
     }
+    Cell.displayName = `CellBoolBadge(${key})`
+    return Cell
 }
 
 function cellDate(key: string) {
-    return (item: Record<string, unknown>) => {
+    const Cell = (item: Record<string, unknown>) => {
         const value = item[key]
         if (!value) return React.createElement("span", { className: "text-xs text-muted-foreground" }, "—")
         try {
@@ -63,14 +69,18 @@ function cellDate(key: string) {
             return React.createElement("span", { className: "text-xs text-muted-foreground" }, String(value))
         }
     }
+    Cell.displayName = `CellDate(${key})`
+    return Cell
 }
 
 function cellTruncated(key: string, maxW = 200) {
-    return (item: Record<string, unknown>) =>
+    const Cell = (item: Record<string, unknown>) =>
         React.createElement("span", {
             className: `text-xs text-muted-foreground truncate block`,
             style: { maxWidth: maxW },
         }, String(item[key] ?? "") || "—")
+    Cell.displayName = `CellTruncated(${key})`
+    return Cell
 }
 
 // ── Column Overlay Configs ──────────────────────────────────────────────

@@ -4,7 +4,9 @@ import (
 	"github.com/shopspring/decimal"
 
 	"metapus/internal/core/entity"
+	"metapus/internal/core/id"
 	"metapus/internal/domain/catalogs/nomenclature"
+	"metapus/internal/infrastructure/storage/postgres"
 )
 
 // --- Request DTOs ---
@@ -129,11 +131,17 @@ type NomenclatureResponse struct {
 	DeletionMark     bool                          `json:"deletionMark"`
 	Version          int                           `json:"version"`
 	Attributes       entity.Attributes             `json:"attributes,omitempty"`
+
+	// Resolved reference display names (populated by ResolveRefs)
+	BaseUnit       *postgres.RefDisplay `json:"baseUnit,omitempty"`
+	DefaultVatRate *postgres.RefDisplay `json:"defaultVatRate,omitempty"`
+	Manufacturer   *postgres.RefDisplay `json:"manufacturer,omitempty"`
 }
 
 // FromNomenclature creates response DTO from domain entity.
-func FromNomenclature(item *nomenclature.Nomenclature) *NomenclatureResponse {
-	return &NomenclatureResponse{
+// Pass nil for refs if reference resolution is not needed.
+func FromNomenclature(item *nomenclature.Nomenclature, refs ...postgres.ResolvedRefs) *NomenclatureResponse {
+	resp := &NomenclatureResponse{
 		ID:               item.ID.String(),
 		Code:             item.Code,
 		Name:             item.Name,
@@ -156,5 +164,39 @@ func FromNomenclature(item *nomenclature.Nomenclature) *NomenclatureResponse {
 		DeletionMark:     item.DeletionMark,
 		Version:          item.Version,
 		Attributes:       item.Attributes,
+	}
+
+	// Populate resolved reference display names
+	if len(refs) > 0 && refs[0] != nil {
+		resolved := refs[0]
+		if item.BaseUnitID != nil {
+			if uid, err := id.Parse(*item.BaseUnitID); err == nil {
+				resp.BaseUnit = resolved.GetPtr(TableUnits, &uid)
+			}
+		}
+		resp.DefaultVatRate = resolved.GetPtr(TableVATRates, item.DefaultVatRateID)
+		if item.ManufacturerID != nil {
+			if mid, err := id.Parse(*item.ManufacturerID); err == nil {
+				resp.Manufacturer = resolved.GetPtr(TableCounterparties, &mid)
+			}
+		}
+	}
+
+	return resp
+}
+
+// CollectNomenclatureRefs registers all reference IDs from a Nomenclature
+// into the resolver for batch resolution.
+func CollectNomenclatureRefs(resolver *postgres.ReferenceResolver, item *nomenclature.Nomenclature) {
+	if item.BaseUnitID != nil {
+		if uid, err := id.Parse(*item.BaseUnitID); err == nil {
+			resolver.Add(TableUnits, uid)
+		}
+	}
+	resolver.AddPtr(TableVATRates, item.DefaultVatRateID)
+	if item.ManufacturerID != nil {
+		if mid, err := id.Parse(*item.ManufacturerID); err == nil {
+			resolver.Add(TableCounterparties, mid)
+		}
 	}
 }

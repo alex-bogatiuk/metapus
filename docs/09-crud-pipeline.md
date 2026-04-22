@@ -334,15 +334,15 @@ if (res.totalCount != null) {
 
 ```sql
 -- Первая страница (no cursor, no skipCount)
-SELECT id, code, name, ... FROM cat_nomenclature
+SELECT id, code, name, ... FROM cat_nomenclatures
 WHERE deletion_mark = false
 ORDER BY name ASC, id ASC
 LIMIT 101;                         -- limit+1 для определения hasMore
 
-SELECT COUNT(*) FROM cat_nomenclature WHERE deletion_mark = false;
+SELECT COUNT(*) FROM cat_nomenclatures WHERE deletion_mark = false;
 
 -- Scroll down (after cursor)
-SELECT id, code, name, ... FROM cat_nomenclature
+SELECT id, code, name, ... FROM cat_nomenclatures
 WHERE deletion_mark = false
   AND (name, id) > ('Бумага...', '019d8ae1-...')   -- keyset condition
 ORDER BY name ASC, id ASC
@@ -350,7 +350,7 @@ LIMIT 101;
 -- COUNT НЕ выполняется
 
 -- Sort change (skipCount=true)
-SELECT id, code, name, ... FROM cat_nomenclature
+SELECT id, code, name, ... FROM cat_nomenclatures
 WHERE deletion_mark = false
 ORDER BY code ASC, id ASC
 LIMIT 101;

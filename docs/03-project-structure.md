@@ -78,7 +78,7 @@ db/
 │   ├── 00014_cat_units.sql                # Справочник единиц измерения
 │   ├── 00015_cat_warehouses.sql           # Справочник складов
 │   ├── 00016_cat_vat_rates.sql            # Справочник ставок НДС
-│   ├── 00017_cat_nomenclature.sql         # Справочник номенклатуры
+│   ├── 00017_cat_nomenclatures.sql         # Справочник номенклатуры
 │   ├── 00018_cat_contracts.sql            # Справочник договоров
 │   ├── 00020_doc_goods_receipt.sql        # Документ поступления товаров
 │   ├── 00021_doc_goods_issue.sql          # Документ отгрузки товаров

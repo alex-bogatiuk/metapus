@@ -21,6 +21,7 @@ import (
 	"metapus/internal/domain/registers/cost"
 	"metapus/internal/domain/registers/settlement"
 	"metapus/internal/domain/registers/stock"
+	"metapus/internal/domain/reports/compiler"
 	"metapus/internal/domain/security_profile"
 	"metapus/internal/infrastructure/cache"
 	"metapus/internal/infrastructure/http/v1/handlers"
@@ -191,7 +192,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		registerCatalogRoutes(protected, cfg, factoryReg, reg, eventLogRepo, currencyInvalidator)
 		registerDocumentRoutes(protected, cfg, factoryReg, reg, eventLogRepo)
 		registerRegisterRoutes(protected, cfg, factoryReg)
-		registerReportRoutes(protected, cfg, factoryReg)
+		registerReportRoutes(protected, cfg, factoryReg, reg)
 		registerMetaRoutes(protected, reg, cfg.SchemaCache)
 		registerRefResolverRoutes(protected, reg)
 		registerUserPrefsRoutes(protected)
@@ -294,6 +295,9 @@ func registerCatalogRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *Fa
 		if pres, ok := factory.(platform.Presentable); ok {
 			def.Presentation = pres.EntityPresentation()
 		}
+		if tp, ok := factory.(platform.TableNameProvider); ok {
+			def.TableName = tp.TableName()
+		}
 		def.Key = deriveEntityKey(factory.Permission())
 		def.RoutePrefix = factory.RoutePrefix()
 		def.SetRefEndpoints(refEndpoints)
@@ -378,6 +382,9 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 		if pres, ok := factory.(platform.Presentable); ok {
 			def.Presentation = pres.EntityPresentation()
 		}
+		if tp, ok := factory.(platform.TableNameProvider); ok {
+			def.TableName = tp.TableName()
+		}
 		def.Key = deriveEntityKey(factory.Permission())
 		def.RoutePrefix = factory.RoutePrefix()
 		def.SetRefEndpoints(refEndpoints)
@@ -407,16 +414,16 @@ func registerMetaRoutes(rg *gin.RouterGroup, reg *metadata.Registry, schemaCache
 }
 
 // registerReportRoutes registers report endpoints via the factory registry.
-// Supports both legacy RouteRegistration reports and typed ReportRegistration[F,R].
-func registerReportRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *FactoryRegistry) {
+// Supports legacy RouteRegistration, typed ReportRegistration[F,R], and new Datasets.
+func registerReportRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *FactoryRegistry, reg *metadata.Registry) {
 	reportsGroup := rg.Group("/reports")
 
 	// Legacy reports (backward compat)
-	for _, reg := range factoryReg.Reports() {
-		reg.RegisterRoutes(reportsGroup.Group("/"+reg.RoutePrefix()), cfg)
+	for _, r := range factoryReg.Reports() {
+		r.RegisterRoutes(reportsGroup.Group("/"+r.RoutePrefix()), cfg)
 	}
 
-	// Typed reports — auto-wired by platform
+	// Legacy typed reports (backward compat, deprecated)
 	baseHandler := handlers.NewBaseHandler()
 	for _, adapter := range factoryReg.TypedReports() {
 		h := handlers.NewReportHandler(baseHandler, adapter)
@@ -426,14 +433,39 @@ func registerReportRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *Fac
 			group.GET("", h.HandleExecute)
 			group.GET("/metadata", h.HandleMeta)
 			group.GET("/export", h.HandleExport)
+			group.GET("/grouped", h.HandleGrouped)
 		}
 	}
 
-	// Also mount metadata under /metadata/reports/{key} for discoverability
-	metaGroup := rg.Group("/metadata/reports")
+	// New: Dataset-based reports (Query Engine)
+	datasets := factoryReg.Datasets()
+	if len(datasets) > 0 {
+		comp := compiler.NewCompiler(reg, datasets)
+		dsHandler := handlers.NewDatasetReportHandler(baseHandler, comp, reg)
+
+		for _, ds := range datasets {
+			group := reportsGroup.Group("/" + ds.Key)
+			group.Use(middleware.RequirePermission(ds.Permission))
+			{
+				group.GET("/metadata", dsHandler.HandleMeta(ds.Key))
+				group.POST("", dsHandler.HandleExecute)
+				group.POST("/export", dsHandler.HandleExport(ds.Key))
+				group.POST("/grouped", dsHandler.HandleGrouped(ds.Key))
+			}
+		}
+
+		// Mount metadata under /metadata/reports/{key} for discoverability
+		metaGroup := rg.Group("/metadata/reports")
+		for _, ds := range datasets {
+			metaGroup.GET("/"+ds.Key, dsHandler.HandleMeta(ds.Key))
+		}
+	}
+
+	// Legacy metadata mount
+	legacyMetaGroup := rg.Group("/metadata/reports")
 	for _, adapter := range factoryReg.TypedReports() {
 		h := handlers.NewReportHandler(baseHandler, adapter)
-		metaGroup.GET("/"+adapter.RoutePrefix(), h.HandleMeta)
+		legacyMetaGroup.GET("/"+adapter.RoutePrefix(), h.HandleMeta)
 	}
 }
 

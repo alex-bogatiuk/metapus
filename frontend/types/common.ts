@@ -6,6 +6,21 @@
 /** Sort direction for list views. */
 export type SortDirection = "asc" | "desc"
 
+/** Lightweight display representation of a referenced catalog entity. */
+export interface RefDisplay {
+    id: string
+    name: string
+    code?: string
+}
+
+/** Currency reference with formatting metadata. */
+export interface CurrencyRefDisplay {
+    id: string
+    name: string
+    decimalPlaces: number
+    symbol: string
+}
+
 /** Generic sort parameters stored in URL search params. */
 export interface SortParams {
     column: string | null

@@ -9,6 +9,8 @@ import (
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
+
+	"github.com/shopspring/decimal"
 )
 
 // Reflect types for storage-scaled numeric types and compound references.
@@ -16,6 +18,7 @@ var (
 	quantityType   = reflect.TypeOf(types.Quantity(0))
 	minorUnitsType = reflect.TypeOf(types.MinorUnits(0))
 	typedRefType   = reflect.TypeOf(entity.TypedRef{})
+	decimalType    = reflect.TypeOf(decimal.Decimal{})
 )
 
 // Inspect analyzes a struct and returns its EntityDef.
@@ -230,6 +233,13 @@ func mapFieldType(def *FieldDef, field reflect.StructField) {
 	if enumDef, ok := lookupEnum(actual); ok {
 		def.Type = TypeEnum
 		def.EnumValues = enumDef.Values
+		return
+	}
+
+	// Handle shopspring/decimal.Decimal → TypeDecimal (number)
+	if actual == decimalType {
+		def.Type = TypeDecimal
+		def.Scale = 4
 		return
 	}
 

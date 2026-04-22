@@ -3,24 +3,11 @@
  * Mirrors: internal/infrastructure/http/v1/dto/goods_receipt.go
  */
 
+import { RefDisplay, CurrencyRefDisplay } from "@/types/common"
+
+export type { RefDisplay, CurrencyRefDisplay }
+
 // ── Common ──────────────────────────────────────────────────────────────
-
-/** Lightweight display representation of a referenced catalog entity.
- *  Mirrors: internal/infrastructure/storage/postgres.RefDisplay */
-export interface RefDisplay {
-    id: string
-    name: string
-    code?: string
-}
-
-/** Currency reference with formatting metadata.
- *  Mirrors: internal/infrastructure/storage/postgres.CurrencyRefDisplay */
-export interface CurrencyRefDisplay {
-    id: string
-    name: string
-    decimalPlaces: number
-    symbol: string
-}
 
 /** Possible document statuses (derived from `posted` boolean). */
 export type DocumentStatus = "draft" | "posted"
