@@ -8,8 +8,12 @@ import (
 
 	"github.com/Masterminds/squirrel"
 
+	"metapus/internal/core/types"
 	"metapus/internal/domain/reports/schema"
 )
+
+// qtyScale is the SQL fragment for dividing stored quantity by the scale constant.
+var qtyScale = fmt.Sprintf("::float8 / %d.0", types.QuantityScale)
 
 // ---------------------------------------------------------------------------
 // Stock Balance Dataset
@@ -68,7 +72,7 @@ func (e *stockBalanceExecutor) BuildQuery(ctx context.Context, params map[string
 		SELECT 
 			m.warehouse_id,
 			m.product_id,
-			SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END)::float8 / 10000.0 as quantity
+			SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END)` + qtyScale + ` as quantity
 		FROM reg_stock_movements m
 		WHERE m.period <= $1`
 
@@ -120,7 +124,7 @@ func (e *stockBalanceExecutor) BuildQuery(ctx context.Context, params map[string
 			builder.Select(
 				"m.warehouse_id",
 				"m.product_id",
-				"SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END)::float8 / 10000.0 as quantity",
+				"SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END)" + qtyScale + " as quantity",
 			).
 				From("reg_stock_movements m").
 				Where(squirrel.LtOrEq{"m.period": asOfDate}).
@@ -190,7 +194,7 @@ func (e *stockTurnoverExecutor) BuildQuery(ctx context.Context, params map[strin
 	openingSub := builder.Select(
 		"m.warehouse_id",
 		"m.product_id",
-		"SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END)::float8 / 10000.0 as opening_qty",
+		"SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END)" + qtyScale + " as opening_qty",
 	).From("reg_stock_movements m").
 		Where(squirrel.Lt{"m.period": fromDate}).
 		GroupBy("m.warehouse_id", "m.product_id")
@@ -198,8 +202,8 @@ func (e *stockTurnoverExecutor) BuildQuery(ctx context.Context, params map[strin
 	mainSub := builder.Select(
 		"m.warehouse_id",
 		"m.product_id",
-		"SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE 0 END)::float8 / 10000.0 as receipt",
-		"SUM(CASE WHEN m.record_type = 'expense' THEN m.quantity ELSE 0 END)::float8 / 10000.0 as expense",
+		"SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE 0 END)" + qtyScale + " as receipt",
+		"SUM(CASE WHEN m.record_type = 'expense' THEN m.quantity ELSE 0 END)" + qtyScale + " as expense",
 	).From("reg_stock_movements m").
 		Where(squirrel.And{
 			squirrel.GtOrEq{"m.period": fromDate},
@@ -428,8 +432,12 @@ func reNumberPlaceholders(sql string, offset int) string {
 			}
 			numStr := sql[i+1 : j]
 			var num int
-			fmt.Sscanf(numStr, "%d", &num)
-			result.WriteString(fmt.Sprintf("$%d", num+offset))
+			if _, err := fmt.Sscanf(numStr, "%d", &num); err != nil {
+				result.WriteString(sql[i:j])
+				i = j
+				continue
+			}
+			fmt.Fprintf(&result, "$%d", num+offset)
 			i = j
 		} else {
 			result.WriteByte(sql[i])

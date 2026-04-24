@@ -199,3 +199,4 @@ worker/
 - [11-transactions.md](11-transactions.md) — TxManager в деталях
 - [09-crud-pipeline.md](09-crud-pipeline.md) — generic handler/service/repo pipeline
 - [07-multi-tenancy.md](07-multi-tenancy.md) — как TenantDB middleware работает
+- [28-reporting-system.md](28-reporting-system.md) — Query Engine, DatasetReportHandler, Export

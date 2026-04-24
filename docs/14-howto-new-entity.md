@@ -557,3 +557,4 @@ group.GET("/:id/custom", middleware.RequirePermission("..."), handler.CustomMeth
 - [15-naming-conventions.md](15-naming-conventions.md) — правила именования таблиц
 - [17-development-rules.md](17-development-rules.md) — правила миграций
 - [12-numerator.md](12-numerator.md) — автонумерация
+- [28-reporting-system.md](28-reporting-system.md) — как добавить новый отчёт (Dataset)

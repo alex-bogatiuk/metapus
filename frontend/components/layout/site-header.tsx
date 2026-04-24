@@ -20,6 +20,7 @@ import { TabBar } from "./tab-bar"
 import { TabOverflow } from "./tab-overflow"
 import { OpenUrlPopover } from "./open-url-popover"
 import { NotificationBell } from "./notification-bell"
+import { useShortcut } from "@/hooks/useShortcut"
 
 /** Pending close state — single tab or batch (with dirty-tab list). */
 type PendingClose =
@@ -131,73 +132,46 @@ export function SiteHeader() {
         }
     }, [pendingClose, tabs])
 
-    // ── Keyboard shortcuts ──
+    // ── Keyboard shortcuts (centralized via useShortcut) ──
 
-    React.useEffect(() => {
-        const handler = (e: KeyboardEvent) => {
-            // Alt+W — close active tab
-            if (e.altKey && e.key.toLowerCase() === "w") {
-                e.preventDefault()
-                const active = tabs.find((t) => t.id === activeTabId)
-                if (active) {
-                    if (active.isDirty) {
-                        setPendingClose({ kind: "single", tabId: active.id })
-                    } else {
-                        closeOne(active.id)
-                    }
-                }
-                return
-            }
-
-            // Ctrl+W — best-effort close (may not work in all browsers)
-            if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "w") {
-                e.preventDefault()
-                const active = tabs.find((t) => t.id === activeTabId)
-                if (active) {
-                    if (active.isDirty) {
-                        setPendingClose({ kind: "single", tabId: active.id })
-                    } else {
-                        closeOne(active.id)
-                    }
-                }
-                return
-            }
-
-            // Alt+← — previous tab
-            if (e.altKey && e.key === "ArrowLeft") {
-                e.preventDefault()
-                const idx = tabs.findIndex((t) => t.id === activeTabId)
-                if (idx > 0) {
-                    const prev = tabs[idx - 1]
-                    setActiveTab(prev.id)
-                    router.push(prev.url)
-                }
-                return
-            }
-
-            // Alt+→ — next tab
-            if (e.altKey && e.key === "ArrowRight") {
-                e.preventDefault()
-                const idx = tabs.findIndex((t) => t.id === activeTabId)
-                if (idx < tabs.length - 1) {
-                    const next = tabs[idx + 1]
-                    setActiveTab(next.id)
-                    router.push(next.url)
-                }
-                return
-            }
-
-            // Ctrl+L — open URL popover
-            if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "l") {
-                e.preventDefault()
-                openUrlTriggerRef.current?.click()
-                return
+    const handleCloseActiveTab = React.useCallback(() => {
+        const active = tabs.find((t) => t.id === activeTabId)
+        if (active) {
+            if (active.isDirty) {
+                setPendingClose({ kind: "single", tabId: active.id })
+            } else {
+                closeOne(active.id)
             }
         }
+    }, [tabs, activeTabId, closeOne])
 
-        document.addEventListener("keydown", handler)
-        return () => document.removeEventListener("keydown", handler)
-    }, [tabs, activeTabId, closeOne, setActiveTab, router])
+    const handlePrevTab = React.useCallback(() => {
+        const idx = tabs.findIndex((t) => t.id === activeTabId)
+        if (idx > 0) {
+            const prev = tabs[idx - 1]
+            setActiveTab(prev.id)
+            router.push(prev.url)
+        }
+    }, [tabs, activeTabId, setActiveTab, router])
+
+    const handleNextTab = React.useCallback(() => {
+        const idx = tabs.findIndex((t) => t.id === activeTabId)
+        if (idx < tabs.length - 1) {
+            const next = tabs[idx + 1]
+            setActiveTab(next.id)
+            router.push(next.url)
+        }
+    }, [tabs, activeTabId, setActiveTab, router])
+
+    const handleOpenUrl = React.useCallback(() => {
+        openUrlTriggerRef.current?.click()
+    }, [])
+
+    useShortcut("nav.close-tab", "alt+w", "Закрыть вкладку", "navigation", handleCloseActiveTab)
+    useShortcut("nav.close-tab-ctrl", "mod+w", "Закрыть вкладку", "navigation", handleCloseActiveTab)
+    useShortcut("nav.prev-tab", "alt+arrowleft", "Предыдущая вкладка", "navigation", handlePrevTab)
+    useShortcut("nav.next-tab", "alt+arrowright", "Следующая вкладка", "navigation", handleNextTab)
+    useShortcut("nav.open-url", "mod+l", "Открыть по ссылке", "navigation", handleOpenUrl)
 
     return (
         <>

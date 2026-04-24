@@ -26,7 +26,8 @@ import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { FormToolbar } from "@/components/shared/form-toolbar"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Loader2, Save, ArrowLeft } from "lucide-react"
+import { Save, ArrowLeft } from "lucide-react"
+import { FormSkeleton } from "@/components/shared/form-skeleton"
 import { toast } from "sonner"
 
 interface FieldDef {
@@ -206,11 +207,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix }: Au
     }
 
     if (loading) {
-        return (
-            <div className="flex items-center justify-center py-20">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-        )
+        return <FormSkeleton variant={entityType} />
     }
 
     if (error || !meta) {
@@ -227,7 +224,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix }: Au
         : (meta.presentation?.singular ?? entityName)
 
     return (
-        <div className="flex h-full flex-col">
+        <div className="flex h-full flex-col animate-skeleton-fade-in">
             <FormToolbar
                 title={title}
                 primaryAction={{

@@ -36,6 +36,8 @@
 | 25 | [25-realtime-notifications.md](25-realtime-notifications.md) | Real-time notifications: SSE, EventStream, client hooks | sse, event, notification, real-time, stream, push |
 | 26 | [26-automation-engine.md](26-automation-engine.md)       | Automation Engine: triggers, actions, schedules | automation, trigger, action, schedule, workflow |
 | 27 | [27-printing-system.md](27-printing-system.md)           | Система печатных форм: макеты, реестр, рендеринг | print, печать, шаблон, gohtml, pdf, docx, registry |
+| 28 | [28-reporting-system.md](28-reporting-system.md)         | Reporting System (Query Engine): Dataset, Compiler, Export, Variants | report, отчёт, dataset, compiler, query engine, скд, export, xlsx, grouping, variant |
+| 29 | [29-keyboard-shortcuts.md](29-keyboard-shortcuts.md)     | Keyboard Shortcuts: реестр, useShortcut, Help Dialog (Ctrl+/) | keyboard, shortcut, горячие клавиши, useShortcut, help dialog, ctrl, mod |
 | — | [UPGRADE.md](UPGRADE.md)                                | Гайд по обновлению: совместимость, breaking changes, миграция | upgrade, обновление, совместимость, breaking change, semver |
 
 ---
@@ -63,6 +65,9 @@
 - **Добавить печатную форму** → [27-printing-system.md](27-printing-system.md)
 - **Расширить систему для клиента (extension)** → [21-extension-api.md](21-extension-api.md), [UPGRADE.md](UPGRADE.md)
 - **Добавить новый регистр накопления** → [21-extension-api.md](21-extension-api.md) (Visitor+Recorder), [10-posting-engine.md](10-posting-engine.md)
+- **Создать отчёт / добавить Dataset** → [28-reporting-system.md](28-reporting-system.md)
+- **Разобраться с Query Engine (СКД)** → [28-reporting-system.md](28-reporting-system.md)
+- **Добавить горячую клавишу (shortcut)** → [29-keyboard-shortcuts.md](29-keyboard-shortcuts.md)
 - **Обновиться на новую версию ядра** → [UPGRADE.md](UPGRADE.md)
 - **Развернуть Cloud/SaaS (multi-version)** → [22-cloud-deployment.md](22-cloud-deployment.md)
 - **Изучить варианты развертывания (On-Premise, SaaS)** → [23-operational-modes.md](23-operational-modes.md)

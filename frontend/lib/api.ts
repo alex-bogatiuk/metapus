@@ -217,6 +217,47 @@ export async function apiFetch<T>(
     return res.json() as Promise<T>
 }
 
+/**
+ * apiFetchBlob — same as apiFetch but returns a Blob instead of parsed JSON.
+ * Used for binary downloads (CSV, XLSX export).
+ * Supports 401 → token refresh retry, identical to apiFetch.
+ */
+export async function apiFetchBlob(
+    path: string,
+    options?: RequestInit
+): Promise<{ blob: Blob; filename: string }> {
+    const { headers: optHeaders, ...restOptions } = options ?? {}
+
+    let res = await fetch(`${API_BASE}${path}`, {
+        ...restOptions,
+        headers: buildHeaders(optHeaders),
+    })
+
+    // ── 401 → attempt token refresh & retry once ────────────────────────
+    if (res.status === 401 && !NO_RETRY_PATHS.includes(path)) {
+        const newTokens = await refreshAccessToken()
+        if (newTokens) {
+            res = await fetch(`${API_BASE}${path}`, {
+                ...restOptions,
+                headers: buildHeaders(optHeaders),
+            })
+        }
+    }
+
+    if (!res.ok) {
+        const body = await res.text().catch(() => undefined)
+        throw new ApiError(res.status, res.statusText, body)
+    }
+
+    // Extract filename from Content-Disposition header
+    const disposition = res.headers.get("Content-Disposition") ?? ""
+    const match = disposition.match(/filename="?([^";\n]+)"?/)
+    const filename = match?.[1] ?? "export"
+
+    const blob = await res.blob()
+    return { blob, filename }
+}
+
 // ── Resource endpoints ──────────────────────────────────────────────────
 
 /**
@@ -524,6 +565,22 @@ export const api = {
                 apiFetch<import("@/types/automation").AutomationHistoryEntry>(`/system/automation-history/${id}`),
             replay: (id: string) =>
                 apiFetch<{ id: string }>(`/system/automation-history/${id}/replay`, { method: "POST" }),
+            stats: (params?: { ruleId?: string; channelId?: string; from?: string; to?: string }) => {
+                const entries: [string, string][] = []
+                if (params?.ruleId) entries.push(["ruleId", params.ruleId])
+                if (params?.channelId) entries.push(["channelId", params.channelId])
+                if (params?.from) entries.push(["from", params.from])
+                if (params?.to) entries.push(["to", params.to])
+                const qs = entries.length > 0 ? "?" + new URLSearchParams(entries).toString() : ""
+                return apiFetch<import("@/types/automation").HistoryStatsResponse>(`/system/automation-history/stats${qs}`)
+            },
+            batchReplay: (params?: { ruleId?: string; channelId?: string }) => {
+                const entries: [string, string][] = []
+                if (params?.ruleId) entries.push(["ruleId", params.ruleId])
+                if (params?.channelId) entries.push(["channelId", params.channelId])
+                const qs = entries.length > 0 ? "?" + new URLSearchParams(entries).toString() : ""
+                return apiFetch<{ queued: number }>(`/system/automation-history/batch-replay${qs}`, { method: "POST" })
+            },
         },
         // Meta (enum values + event types)
         meta: {
@@ -583,6 +640,24 @@ export const api = {
     },
 
     reports: {
+        variants: {
+            list: (datasetKey: string) =>
+                apiFetch<import("@/types/report-variant").ReportVariant[]>(`/reports/${datasetKey}/variants`),
+            create: (data: import("@/types/report-variant").CreateVariantRequest) =>
+                apiFetch<import("@/types/report-variant").ReportVariant>("/reports/variants", {
+                    method: "POST",
+                    body: JSON.stringify(data),
+                }),
+            update: (id: string, data: import("@/types/report-variant").UpdateVariantRequest) =>
+                apiFetch<void>(`/reports/variants/${id}`, {
+                    method: "PUT",
+                    body: JSON.stringify(data),
+                }),
+            delete: (id: string) =>
+                apiFetch<void>(`/reports/variants/${id}`, {
+                    method: "DELETE",
+                }),
+        },
         getStockBalance: (params?: { warehouseId?: string[]; productId?: string[]; excludeZero?: boolean }) => {
             const entries: [string, string][] = []
             if (params?.warehouseId) params.warehouseId.forEach((id) => entries.push(["warehouseId", id]))
@@ -615,6 +690,18 @@ export const api = {
                     dataset: "document-journal",
                     limit: params?.limit,
                     filters,
+                    select: [
+                        "id",
+                        "document_type",
+                        "number",
+                        "date",
+                        "posted",
+                        "counterparty_name",
+                        "warehouse_name",
+                        "total_amount",
+                        "currency",
+                        "description"
+                    ]
                 }),
             })
 
@@ -870,4 +957,5 @@ export const api = {
                 }),
         },
     },
+
 } as const

@@ -4,7 +4,6 @@ import (
 	"github.com/shopspring/decimal"
 
 	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
 	"metapus/internal/domain/catalogs/unit"
 	"metapus/internal/infrastructure/storage/postgres"
 )
@@ -31,7 +30,7 @@ type CreateUnitRequest struct {
 func (r *CreateUnitRequest) ToEntity() *unit.Unit {
 	u := unit.NewUnit(r.Code, r.Name, r.Symbol, r.Type)
 	u.InternationalCode = r.InternationalCode
-	u.BaseUnitID = r.BaseUnitID
+	u.BaseUnitID = stringPtrToIDPtr(r.BaseUnitID)
 	if !r.ConversionFactor.IsZero() {
 		u.ConversionFactor = r.ConversionFactor
 	}
@@ -67,7 +66,7 @@ func (r *UpdateUnitRequest) ApplyTo(u *unit.Unit) {
 	u.Type = r.Type
 	u.Symbol = r.Symbol
 	u.InternationalCode = r.InternationalCode
-	u.BaseUnitID = r.BaseUnitID
+	u.BaseUnitID = stringPtrToIDPtr(r.BaseUnitID)
 	u.ConversionFactor = r.ConversionFactor
 	u.IsBase = r.IsBase
 	u.Description = r.Description
@@ -111,7 +110,7 @@ func FromUnit(u *unit.Unit, refs ...postgres.ResolvedRefs) *UnitResponse {
 		Type:              u.Type,
 		Symbol:            u.Symbol,
 		InternationalCode: u.InternationalCode,
-		BaseUnitID:        u.BaseUnitID,
+		BaseUnitID:        idToStringPtr(u.BaseUnitID),
 		ConversionFactor:  u.ConversionFactor,
 		IsBase:            u.IsBase,
 		Description:       u.Description,
@@ -125,11 +124,7 @@ func FromUnit(u *unit.Unit, refs ...postgres.ResolvedRefs) *UnitResponse {
 	// Populate resolved reference display names
 	if len(refs) > 0 && refs[0] != nil {
 		resolved := refs[0]
-		if u.BaseUnitID != nil {
-			if uid, err := id.Parse(*u.BaseUnitID); err == nil {
-				resp.BaseUnit = resolved.GetPtr(TableUnits, &uid)
-			}
-		}
+		resp.BaseUnit = resolved.GetPtr(TableUnits, u.BaseUnitID)
 	}
 
 	return resp
@@ -138,9 +133,5 @@ func FromUnit(u *unit.Unit, refs ...postgres.ResolvedRefs) *UnitResponse {
 // CollectUnitRefs registers all reference IDs from a Unit
 // into the resolver for batch resolution.
 func CollectUnitRefs(resolver *postgres.ReferenceResolver, u *unit.Unit) {
-	if u.BaseUnitID != nil {
-		if uid, err := id.Parse(*u.BaseUnitID); err == nil {
-			resolver.Add(TableUnits, uid)
-		}
-	}
+	resolver.AddPtr(TableUnits, u.BaseUnitID)
 }

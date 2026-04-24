@@ -36,6 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { DatePicker } from "@/components/ui/date-picker"
 
 interface ScheduleConfiguratorProps {
   value?: string
@@ -87,54 +88,7 @@ function TimeInput({
   )
 }
 
-// Компонент выбора даты с кнопкой очистки
-function DatePickerField({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: Date | null
-  onChange: (date: Date | null) => void
-  placeholder: string
-}) {
-  return (
-    <div className="flex items-center gap-1">
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            className={cn(
-              "w-[180px] justify-start text-left font-normal",
-              !value && "text-muted-foreground"
-            )}
-          >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {value ? format(value, "dd.MM.yyyy", { locale: ru }) : placeholder}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            mode="single"
-            selected={value ?? undefined}
-            onSelect={(date) => onChange(date ?? null)}
-            locale={ru}
-            initialFocus
-          />
-        </PopoverContent>
-      </Popover>
-      {value && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={() => onChange(null)}
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      )}
-    </div>
-  )
-}
+
 
 export function ScheduleConfigurator({
   value = "0 0 9 * * *",
@@ -226,20 +180,22 @@ export function ScheduleConfigurator({
             {/* Дата начала */}
             <div className="grid grid-cols-[140px_1fr] items-center gap-4">
               <Label className="text-sm">Дата начала:</Label>
-              <DatePickerField
+              <DatePicker
                 value={config.startDate}
-                onChange={(date) => updateConfig({ startDate: date })}
+                onChange={(date) => updateConfig({ startDate: date ?? null })}
                 placeholder=". ."
+                className="w-[180px]"
               />
             </div>
 
             {/* Дата окончания */}
             <div className="grid grid-cols-[140px_1fr] items-center gap-4">
               <Label className="text-sm">Дата окончания:</Label>
-              <DatePickerField
+              <DatePicker
                 value={config.endDate}
-                onChange={(date) => updateConfig({ endDate: date })}
+                onChange={(date) => updateConfig({ endDate: date ?? null })}
                 placeholder=". ."
+                className="w-[180px]"
               />
             </div>
 

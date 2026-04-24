@@ -229,6 +229,11 @@ func (s *CatalogService[T]) Update(ctx context.Context, entity T) error {
 		return fmt.Errorf("fetch existing entity: %w", err)
 	}
 
+	// SECURITY FIX: Ensure the user actually has access to the original record in the DB!
+	if err := s.checkRLSAccess(ctx, oldEntity); err != nil {
+		return err
+	}
+
 	// CEL policy check — evaluate against existing entity state
 	if err := s.checkCELPolicy(ctx, "update", oldEntity); err != nil {
 		return err

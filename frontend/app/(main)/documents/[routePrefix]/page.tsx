@@ -16,7 +16,7 @@ import { entityRegistry } from "@/lib/entity-registry"
 import { registerFromMetadata } from "@/lib/entity-registry-defaults"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import AutoList from "@/components/shared/auto-list"
-import { Loader2 } from "lucide-react"
+import { DataTableSkeleton } from "@/components/shared/data-table-skeleton"
 
 // Auto-discover entities from backend metadata
 registerFromMetadata()
@@ -28,11 +28,7 @@ interface PageProps {
 }
 
 function LoadingFallback() {
-    return (
-        <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-    )
+    return <DataTableSkeleton />
 }
 
 export default function DocumentCatchAllPage({ params }: PageProps) {

@@ -246,6 +246,11 @@ func (s *BaseDocumentService[T, L]) Update(ctx context.Context, doc T) error {
 		return fmt.Errorf("fetch existing document: %w", err)
 	}
 
+	// SECURITY FIX: Ensure the user actually has access to the original record in the DB!
+	if err := s.checkRLSAccess(ctx, oldDoc); err != nil {
+		return err
+	}
+
 	// FLS: validate that no restricted fields were modified
 	if writePolicy := security.GetFieldPolicy(ctx, s.EntityName, "write"); writePolicy != nil {
 		if err := security.ValidateWrite(oldDoc, doc, writePolicy); err != nil {
@@ -525,6 +530,11 @@ func (s *BaseDocumentService[T, L]) UpdateAndRepost(ctx context.Context, doc T) 
 	oldDoc, err := s.Repo.GetByID(ctx, doc.GetID())
 	if err != nil {
 		return fmt.Errorf("fetch existing document: %w", err)
+	}
+
+	// SECURITY FIX: Ensure the user actually has access to the original record in the DB!
+	if err := s.checkRLSAccess(ctx, oldDoc); err != nil {
+		return err
 	}
 
 	// CEL policy check — evaluate against existing document state

@@ -9,6 +9,7 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
+	"metapus/internal/core/id"
 )
 
 // UnitType defines the type of measurement unit.
@@ -38,7 +39,7 @@ type Unit struct {
 	InternationalCode *string `db:"international_code" json:"internationalCode,omitempty" meta:"label:Код ОКЕИ"`
 
 	// BaseUnitID is reference to base unit for conversions
-	BaseUnitID *string `db:"base_unit_id" json:"baseUnitId,omitempty" meta:"label:Базовая единица"`
+	BaseUnitID *id.ID `db:"base_unit_id" json:"baseUnitId,omitempty" meta:"label:Базовая единица,ref:unit"`
 
 	// ConversionFactor is the multiplier to convert to base unit
 	// e.g., for "gram" with base "kilogram": factor = 0.001
@@ -89,7 +90,7 @@ func (u *Unit) Validate(ctx context.Context) error {
 	}
 
 	// If base unit is set, this is not a base unit
-	if u.BaseUnitID != nil && *u.BaseUnitID != "" && u.IsBase {
+	if u.BaseUnitID != nil && !id.IsNil(*u.BaseUnitID) && u.IsBase {
 		return apperror.NewValidation("unit with base unit reference cannot be marked as base").
 			WithDetail("field", "isBase")
 	}

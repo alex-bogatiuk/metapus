@@ -30,12 +30,25 @@ func DatasetToMeta(ds *schema.Dataset, reg *metadata.Registry) platform.ReportMe
 
 		key := f.OutputName()
 		colType := fieldTypeToColumnType(f.Type)
+		var refIdKey, refRoute string
 
 		// For ref fields, the default SELECT auto-dereferences to ".name",
 		// producing SQL alias "warehouse_id__name". Match the column key to that.
 		if f.Type == schema.TypeRef && f.RefEntity != "" {
+			refIdKey = f.Name // raw UUID column
 			key = f.Name + "__name"
-			colType = "string" // the dereferenced value is a string (name)
+			colType = "reference" // keep as reference so frontend knows it's navigable
+
+			// Resolve route prefix for navigation
+			if reg != nil {
+				entityName, ok := reg.GetEntityByRefType(f.RefEntity)
+				if !ok {
+					entityName = f.RefEntity
+				}
+				if entityDef, found := reg.Get(entityName); found && entityDef.RoutePrefix != "" {
+					refRoute = entityDef.RoutePrefix
+				}
+			}
 		}
 
 		col := platform.ReportColumn{
@@ -44,6 +57,8 @@ func DatasetToMeta(ds *schema.Dataset, reg *metadata.Registry) platform.ReportMe
 			Type:          colType,
 			Sortable:      f.Sortable,
 			DefaultHidden: f.Hidden,
+			RefIdKey:      refIdKey,
+			RefRoute:      refRoute,
 		}
 		if f.Type == schema.TypeQuantity || f.Type == schema.TypeMoney || f.Type == schema.TypeNumber {
 			col.Align = "right"

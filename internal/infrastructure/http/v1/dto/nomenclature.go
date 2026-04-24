@@ -4,7 +4,6 @@ import (
 	"github.com/shopspring/decimal"
 
 	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
 	"metapus/internal/domain/catalogs/nomenclature"
 	"metapus/internal/infrastructure/storage/postgres"
 )
@@ -40,12 +39,12 @@ func (r *CreateNomenclatureRequest) ToEntity() *nomenclature.Nomenclature {
 	item := nomenclature.NewNomenclature(r.Code, r.Name, r.Type)
 	item.Article = r.Article
 	item.Barcode = r.Barcode
-	item.BaseUnitID = r.BaseUnitID
+	item.BaseUnitID = stringPtrToIDPtr(r.BaseUnitID)
 	item.DefaultVatRateID = stringPtrToIDPtr(r.DefaultVatRateID)
 	item.Weight = r.Weight
 	item.Volume = r.Volume
 	item.Description = r.Description
-	item.ManufacturerID = r.ManufacturerID
+	item.ManufacturerID = stringPtrToIDPtr(r.ManufacturerID)
 	item.CountryOfOrigin = r.CountryOfOrigin
 	item.IsWeighed = r.IsWeighed
 	item.TrackSerial = r.TrackSerial
@@ -88,12 +87,12 @@ func (r *UpdateNomenclatureRequest) ApplyTo(item *nomenclature.Nomenclature) {
 	item.Type = r.Type
 	item.Article = r.Article
 	item.Barcode = r.Barcode
-	item.BaseUnitID = r.BaseUnitID
+	item.BaseUnitID = stringPtrToIDPtr(r.BaseUnitID)
 	item.DefaultVatRateID = stringPtrToIDPtr(r.DefaultVatRateID)
 	item.Weight = r.Weight
 	item.Volume = r.Volume
 	item.Description = r.Description
-	item.ManufacturerID = r.ManufacturerID
+	item.ManufacturerID = stringPtrToIDPtr(r.ManufacturerID)
 	item.CountryOfOrigin = r.CountryOfOrigin
 	item.IsWeighed = r.IsWeighed
 	item.TrackSerial = r.TrackSerial
@@ -148,12 +147,12 @@ func FromNomenclature(item *nomenclature.Nomenclature, refs ...postgres.Resolved
 		Type:             item.Type,
 		Article:          item.Article,
 		Barcode:          item.Barcode,
-		BaseUnitID:       item.BaseUnitID,
+		BaseUnitID:       idToStringPtr(item.BaseUnitID),
 		DefaultVatRateID: idToStringPtr(item.DefaultVatRateID),
 		Weight:           item.Weight,
 		Volume:           item.Volume,
 		Description:      item.Description,
-		ManufacturerID:   item.ManufacturerID,
+		ManufacturerID:   idToStringPtr(item.ManufacturerID),
 		CountryOfOrigin:  item.CountryOfOrigin,
 		IsWeighed:        item.IsWeighed,
 		TrackSerial:      item.TrackSerial,
@@ -169,17 +168,9 @@ func FromNomenclature(item *nomenclature.Nomenclature, refs ...postgres.Resolved
 	// Populate resolved reference display names
 	if len(refs) > 0 && refs[0] != nil {
 		resolved := refs[0]
-		if item.BaseUnitID != nil {
-			if uid, err := id.Parse(*item.BaseUnitID); err == nil {
-				resp.BaseUnit = resolved.GetPtr(TableUnits, &uid)
-			}
-		}
+		resp.BaseUnit = resolved.GetPtr(TableUnits, item.BaseUnitID)
 		resp.DefaultVatRate = resolved.GetPtr(TableVATRates, item.DefaultVatRateID)
-		if item.ManufacturerID != nil {
-			if mid, err := id.Parse(*item.ManufacturerID); err == nil {
-				resp.Manufacturer = resolved.GetPtr(TableCounterparties, &mid)
-			}
-		}
+		resp.Manufacturer = resolved.GetPtr(TableCounterparties, item.ManufacturerID)
 	}
 
 	return resp
@@ -188,15 +179,7 @@ func FromNomenclature(item *nomenclature.Nomenclature, refs ...postgres.Resolved
 // CollectNomenclatureRefs registers all reference IDs from a Nomenclature
 // into the resolver for batch resolution.
 func CollectNomenclatureRefs(resolver *postgres.ReferenceResolver, item *nomenclature.Nomenclature) {
-	if item.BaseUnitID != nil {
-		if uid, err := id.Parse(*item.BaseUnitID); err == nil {
-			resolver.Add(TableUnits, uid)
-		}
-	}
+	resolver.AddPtr(TableUnits, item.BaseUnitID)
 	resolver.AddPtr(TableVATRates, item.DefaultVatRateID)
-	if item.ManufacturerID != nil {
-		if mid, err := id.Parse(*item.ManufacturerID); err == nil {
-			resolver.Add(TableCounterparties, mid)
-		}
-	}
+	resolver.AddPtr(TableCounterparties, item.ManufacturerID)
 }

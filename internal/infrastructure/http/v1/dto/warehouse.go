@@ -33,7 +33,10 @@ func (r *CreateWarehouseRequest) ToEntity() *warehouse.Warehouse {
 	wh.AllowNegativeStock = r.AllowNegativeStock
 	wh.IsDefault = r.IsDefault
 	if r.OrganizationID != "" {
-		wh.OrganizationID = r.OrganizationID
+		orgID, err := id.Parse(r.OrganizationID)
+		if err == nil {
+			wh.OrganizationID = orgID
+		}
 	}
 	wh.Description = r.Description
 	wh.ParentID = stringPtrToIDPtr(r.ParentID)
@@ -69,7 +72,10 @@ func (r *UpdateWarehouseRequest) ApplyTo(wh *warehouse.Warehouse) {
 	wh.AllowNegativeStock = r.AllowNegativeStock
 	wh.IsDefault = r.IsDefault
 	if r.OrganizationID != "" {
-		wh.OrganizationID = r.OrganizationID
+		orgID, err := id.Parse(r.OrganizationID)
+		if err == nil {
+			wh.OrganizationID = orgID
+		}
 	}
 	wh.Description = r.Description
 	wh.ParentID = stringPtrToIDPtr(r.ParentID)
@@ -114,7 +120,7 @@ func FromWarehouse(wh *warehouse.Warehouse, refs ...postgres.ResolvedRefs) *Ware
 		IsActive:           wh.IsActive,
 		AllowNegativeStock: wh.AllowNegativeStock,
 		IsDefault:          wh.IsDefault,
-		OrganizationID:     wh.OrganizationID,
+		OrganizationID:     wh.OrganizationID.String(),
 		Description:        wh.Description,
 		ParentID:           idToStringPtr(wh.ParentID),
 		IsFolder:           wh.IsFolder,
@@ -126,12 +132,10 @@ func FromWarehouse(wh *warehouse.Warehouse, refs ...postgres.ResolvedRefs) *Ware
 	// Populate resolved reference display names
 	if len(refs) > 0 && refs[0] != nil {
 		resolved := refs[0]
-		if wh.OrganizationID != "" {
-			if orgID, err := id.Parse(wh.OrganizationID); err == nil {
-				d := resolved.Get(TableOrganizations, orgID)
-				if d.ID != "" {
-					resp.Organization = &d
-				}
+		if !id.IsNil(wh.OrganizationID) {
+			d := resolved.Get(TableOrganizations, wh.OrganizationID)
+			if d.ID != "" {
+				resp.Organization = &d
 			}
 		}
 	}
@@ -142,9 +146,7 @@ func FromWarehouse(wh *warehouse.Warehouse, refs ...postgres.ResolvedRefs) *Ware
 // CollectWarehouseRefs registers all reference IDs from a Warehouse
 // into the resolver for batch resolution.
 func CollectWarehouseRefs(resolver *postgres.ReferenceResolver, wh *warehouse.Warehouse) {
-	if wh.OrganizationID != "" {
-		if orgID, err := id.Parse(wh.OrganizationID); err == nil {
-			resolver.Add(TableOrganizations, orgID)
-		}
+	if !id.IsNil(wh.OrganizationID) {
+		resolver.Add(TableOrganizations, wh.OrganizationID)
 	}
 }

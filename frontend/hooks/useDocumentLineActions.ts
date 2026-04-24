@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react"
+import { arrayMove } from "@dnd-kit/sortable"
 import { type FormLine, emptyLine, fetchVatRatePercent, linesToExistingPickerLines, mergePickedIntoLines } from "@/lib/document-form"
 import type { PickedItem } from "@/types/picker"
 
@@ -122,6 +123,32 @@ export function useDocumentLineActions<T extends LinesFormState>(
     markDirty()
   }, [update, markDirty])
 
+  /** Reorder lines via drag-and-drop (called from SortableDocumentLines). */
+  const handleReorderLines = useCallback((oldIndex: number, newIndex: number) => {
+    update((prev) => ({
+      lines: arrayMove(prev.lines, oldIndex, newIndex),
+    } as Partial<T>))
+    markDirty()
+  }, [update, markDirty])
+
+  /** Move line at index up by 1 (keyboard Alt+↑). */
+  const handleMoveLineUp = useCallback((index: number) => {
+    if (index <= 0) return
+    update((prev) => ({
+      lines: arrayMove(prev.lines, index, index - 1),
+    } as Partial<T>))
+    markDirty()
+  }, [update, markDirty])
+
+  /** Move line at index down by 1 (keyboard Alt+↓). */
+  const handleMoveLineDown = useCallback((index: number, totalLines: number) => {
+    if (index >= totalLines - 1) return
+    update((prev) => ({
+      lines: arrayMove(prev.lines, index, index + 1),
+    } as Partial<T>))
+    markDirty()
+  }, [update, markDirty])
+
   return {
     addLine,
     handlePick,
@@ -129,6 +156,9 @@ export function useDocumentLineActions<T extends LinesFormState>(
     handleUpdateRef,
     handleUpdateVatRate,
     handleRemoveLine,
+    handleReorderLines,
+    handleMoveLineUp,
+    handleMoveLineDown,
   }
 }
 

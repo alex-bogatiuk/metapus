@@ -130,25 +130,53 @@ func (a *TelegramAdapter) Deliver(ctx context.Context, destination map[string]an
 		return fmt.Errorf("marshal telegram payload: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
+	maxAttempts := 3
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqBody))
+		if err != nil {
+			return fmt.Errorf("create request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
 
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("do request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
+		resp, err := a.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("do request: %w", err)
+		}
 
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		if resp.StatusCode == http.StatusOK {
+			_ = resp.Body.Close()
+			return nil
+		}
+
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		_ = resp.Body.Close()
+
+		if resp.StatusCode == http.StatusTooManyRequests {
+			var errResp struct {
+				Parameters struct {
+					RetryAfter int `json:"retry_after"`
+				} `json:"parameters"`
+			}
+			if err := json.Unmarshal(respBody, &errResp); err == nil && errResp.Parameters.RetryAfter > 0 {
+				if attempt < maxAttempts {
+					logger.Warn(ctx, "telegram rate limit hit, sleeping", "retry_after", errResp.Parameters.RetryAfter, "attempt", attempt)
+					
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-time.After(time.Duration(errResp.Parameters.RetryAfter) * time.Second):
+					}
+					
+					continue
+				}
+			}
+		}
+
 		logger.Error(ctx, "telegram API error", "status", resp.StatusCode, "response", string(respBody))
 		return fmt.Errorf("telegram API returned status %d: %s", resp.StatusCode, string(respBody))
 	}
 
-	return nil
+	return fmt.Errorf("telegram API failed after %d attempts", maxAttempts)
 }
 
 // EmailAdapter sends emails via net/smtp.

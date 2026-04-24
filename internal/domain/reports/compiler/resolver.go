@@ -78,6 +78,14 @@ func (r *resolver) ResolveForOrderBy(path string) (string, error) {
 	return expr, err
 }
 
+// ResolveForWhere resolves a field path for WHERE clause.
+// Returns the bare SQL expression (no alias) and registers necessary JOINs.
+// Used by applyAdvancedFilters to compile FilterSidebar conditions into SQL.
+func (r *resolver) ResolveForWhere(path string) (string, error) {
+	expr, _, err := r.resolvePath(path, true)
+	return expr, err
+}
+
 // resolvePath does the actual path resolution.
 // If bare=true, returns without AS alias (for GROUP BY / ORDER BY).
 func (r *resolver) resolvePath(path string, bare bool) (string, string, error) {
@@ -91,7 +99,7 @@ func (r *resolver) resolvePath(path string, bare bool) (string, string, error) {
 		}
 		expr := "base." + field.Name
 		if !bare && field.Alias != "" {
-			expr += " AS " + field.Alias
+			expr += " AS \"" + field.Alias + "\""
 		}
 		return expr, field.OutputName(), nil
 	}
@@ -199,7 +207,7 @@ func (r *resolver) resolvePath(path string, bare bool) (string, string, error) {
 	colName := r.fieldToColumn(finalField)
 	expr := currentAlias + "." + colName
 	if !bare {
-		expr += " AS " + outputAlias
+		expr += " AS \"" + outputAlias + "\""
 	}
 
 	return expr, outputAlias, nil

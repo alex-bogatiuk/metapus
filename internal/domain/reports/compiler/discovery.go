@@ -59,10 +59,23 @@ func fieldToTreeNode(f schema.Field, prefix string, reg *metadata.Registry, maxD
 	}
 
 	// Recursively resolve ref fields
-	if f.Type == schema.TypeRef && f.RefEntity != "" && currentDepth < maxDepth {
-		children := resolveRefChildren(f.RefEntity, key, reg, maxDepth, currentDepth+1)
-		if len(children) > 0 {
-			node.Children = children
+	if f.Type == schema.TypeRef && f.RefEntity != "" {
+		if currentDepth < maxDepth {
+			children := resolveRefChildren(f.RefEntity, key, reg, maxDepth, currentDepth+1)
+			if len(children) > 0 {
+				node.Children = children
+			}
+		}
+
+		// Resolve route prefix for UI navigation
+		if reg != nil {
+			entityName, ok := reg.GetEntityByRefType(f.RefEntity)
+			if !ok {
+				entityName = f.RefEntity
+			}
+			if entityDef, found := reg.Get(entityName); found && entityDef.RoutePrefix != "" {
+				node.RefRoute = entityDef.RoutePrefix
+			}
 		}
 	}
 

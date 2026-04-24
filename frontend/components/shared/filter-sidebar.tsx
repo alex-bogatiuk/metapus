@@ -376,7 +376,6 @@ export function FilterSidebar({
           const val = d ? formatLocalYYYYMMDD(d) : undefined
           updateFilterEntry(meta.key, { operator: entry.operator, value: val })
         }}
-        placeholder={meta.label}
         className={cn("h-7 text-xs", accentCls)}
       />
     )
@@ -397,7 +396,6 @@ export function FilterSidebar({
               value: { ...range, from },
             })
           }}
-          placeholder="от"
           className={cn("h-7 text-xs flex-1", accentCls)}
         />
         <span className="text-[10px] text-muted-foreground shrink-0">—</span>
@@ -410,7 +408,6 @@ export function FilterSidebar({
               value: { ...range, to },
             })
           }}
-          placeholder="до"
           className={cn("h-7 text-xs flex-1", accentCls)}
         />
       </div>

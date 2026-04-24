@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useCompactMode } from "@/hooks/useCompactMode"
 import { fmtAmount, moneyStep } from "@/lib/format"
-import { type FormLine, fetchVatRatePercent, calcLineAmounts } from "@/lib/document-form"
+import { type FormLine, calcLineAmounts } from "@/lib/document-form"
 
 // ── Props ────────────────────────────────────────────────────────────────
 
@@ -35,6 +35,14 @@ export interface DocumentLineRowProps {
    * When false, those columns are hidden (create mode has no server values).
    */
   showAmounts?: boolean
+
+  // ── Drag-and-drop (optional) ─────────────────────────────────────────
+  /** Ref from useSortable — attach to the <tr> element */
+  dragRef?: (node: HTMLElement | null) => void
+  /** Style from useSortable — transform/transition for drag animation */
+  dragStyle?: React.CSSProperties
+  /** Drag handle slot — rendered inside the N cell, appears on group hover */
+  dragHandleSlot?: React.ReactNode
 }
 
 // ── Component (memoised) ─────────────────────────────────────────────────
@@ -49,6 +57,9 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
   onUpdateVatRate,
   onRemove,
   showAmounts = false,
+  dragRef,
+  dragStyle,
+  dragHandleSlot,
 }: DocumentLineRowProps) {
   // ── Stable callbacks that delegate to parent via _key ────────────────
   const handleProductChange = useCallback(
@@ -110,8 +121,13 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
   const btnSize = compact ? "h-6 w-6" : "h-7 w-7"
 
   return (
-    <tr className="group border-b hover:bg-primary/5 transition-colors">
-      <td className={cn("px-2 text-center text-xs text-muted-foreground", compact ? "py-1" : "py-1.5")}>{rowNumber}</td>
+    <tr ref={dragRef} style={dragStyle} className="group border-b hover:bg-primary/5 transition-colors">
+      <td className={cn("px-2 text-center text-xs text-muted-foreground", compact ? "py-1" : "py-1.5")}>
+        <span className="inline-flex items-center gap-0.5">
+          {dragHandleSlot}
+          {rowNumber}
+        </span>
+      </td>
       <td className={cn("px-1", cellPy)}>
         <ReferenceField
           compact

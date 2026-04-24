@@ -25,9 +25,14 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import { useSearchParams, useRouter, usePathname } from "next/navigation"
-import { apiFetch } from "@/lib/api"
+import { useTabState, useHasTabCache } from "@/hooks/useTabState"
+import { api, apiFetch, apiFetchBlob } from "@/lib/api"
+import { toast } from "sonner"
 import { buildDisplayRows, getDefaultGroupByKeys, sortItems } from "@/lib/report-grouping"
 import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
+import { buildFilterItems, type FilterValues } from "@/lib/filter-utils"
+import { reportMetaToFilterFieldsMeta } from "@/lib/report-filter-adapter"
+import type { FilterFieldMeta } from "@/components/shared/filter-config-dialog"
 import type {
     ReportMeta,
     ReportColumnDef,
@@ -35,6 +40,7 @@ import type {
     DisplayRow,
     FieldTreeNode,
 } from "@/types/report-meta"
+import type { AdvancedFilterItem } from "@/types/common"
 
 // ── Helpers for dynamic column generation ───────────────────────────────
 
@@ -50,12 +56,27 @@ function findFieldNode(nodes: FieldTreeNode[], key: string): FieldTreeNode | nul
     return null
 }
 
-/** Build a human-readable label like "Товар → Артикул" from a nested field key. */
-function buildFieldLabel(node: FieldTreeNode, fullKey: string): string {
+/** Build a human-readable label like "Товар.Артикул" from a nested field key. */
+function buildFieldLabel(nodes: FieldTreeNode[], fullKey: string): string {
     const parts = fullKey.split(".")
-    if (parts.length <= 1) return node.label
-    // Use the last part's label from the node, prefix not needed for simple cases
-    return node.label
+    if (parts.length <= 1) {
+        const node = findFieldNode(nodes, fullKey)
+        return node?.label ?? fullKey
+    }
+
+    const labels: string[] = []
+    let currentPath = ""
+    for (let i = 0; i < parts.length; i++) {
+        currentPath = currentPath ? `${currentPath}.${parts[i]}` : parts[i]
+        const node = findFieldNode(nodes, currentPath)
+        if (node) {
+            labels.push(node.label)
+        } else {
+            labels.push(parts[i])
+        }
+    }
+    
+    return labels.join(".")
 }
 
 /** Map field tree node type to ReportColumnDef type. */
@@ -90,8 +111,11 @@ interface QueryRequest {
     orderBy?: string
     orderDir?: string
     filters?: Record<string, unknown>
+    advancedFilters?: AdvancedFilterItem[]
     limit?: number
     offset?: number
+    exportColumns?: string[]
+    exportGroupBy?: string[]
 }
 
 /** Server-side grouped response from /grouped endpoint. */
@@ -109,15 +133,7 @@ interface GroupedResponse {
 const CLIENT_GROUPING_THRESHOLD = 5000
 const MAX_INTERACTIVE_ROWS = 50000
 
-/** Named report variant (saved preset). */
-export interface ReportVariant {
-    name: string
-    filters: ReportFilterValues
-    groupBy: string[]
-    visibleColumns: string[]
-    sortColumn: string | null
-    sortDirection: "asc" | "desc"
-}
+import type { ReportVariant } from "@/types/report-variant"
 
 /** View mode for report display. */
 export type ReportViewMode = "table" | "chart"
@@ -143,7 +159,7 @@ export interface UseReportPageReturn {
 
     // Actions
     generate: () => Promise<void>
-    exportReport: (format: string) => void
+    exportReport: () => Promise<void> | void
 
     // Grouping
     activeGroupBy: string[]
@@ -158,20 +174,26 @@ export interface UseReportPageReturn {
     visibleColumnKeys: string[]
     toggleColumn: (key: string) => void
     resetColumns: () => void
+    reorderColumn: (fromIndex: number, toIndex: number) => void
 
     // Report result extras (totalQuantity, totalCost, etc.)
     resultExtras: Record<string, unknown>
 
     // ── Wave 3: Report Variants (#14) ────────────────────────────────
     variants: ReportVariant[]
-    activeVariantName: string | null
-    saveVariant: (name: string) => void
-    loadVariant: (name: string) => void
-    deleteVariant: (name: string) => void
+    activeVariantId: string | null
+    saveVariant: (name: string, visibility: import("@/types/report-variant").VariantVisibility, isDefault: boolean) => Promise<void>
+    updateVariant: (id: string, name: string, visibility: import("@/types/report-variant").VariantVisibility, isDefault: boolean) => Promise<void>
+    loadVariant: (id: string) => void
+    deleteVariant: (id: string) => Promise<void>
 
-    // ── Wave 3: Drill-Down (#13) ─────────────────────────────────────
-    selectedRow: Record<string, unknown> | null
-    selectRow: (row: Record<string, unknown> | null) => void
+    // ── Cell Selection ────────────────────────────────────────────────
+    selectionRange: { start: { r: number, c: number }, end: { r: number, c: number } } | null
+    isDraggingSelection: boolean
+    onSelectionStart: (r: number, c: number) => void
+    onSelectionMove: (r: number, c: number) => void
+    onSelectionEnd: () => void
+    resetSelection: () => void
 
     // ── Wave 3: URL Sharing (#15) ────────────────────────────────────
     copyShareLink: () => void
@@ -190,6 +212,14 @@ export interface UseReportPageReturn {
     /** Effective columns (static + dynamically generated for extra selected fields). */
     effectiveColumns: ReportColumnDef[]
 
+    // ── Advanced Filters (FilterSidebar integration) ─────────────────
+    /** FilterFieldMeta[] for FilterSidebar (computed from report meta). */
+    filterFieldsMeta: FilterFieldMeta[]
+    /** Advanced filter values from FilterSidebar. */
+    advancedFilterValues: FilterValues
+    /** Callback for FilterSidebar's onFilterValuesChange. */
+    onAdvancedFilterValuesChange: (values: FilterValues) => void
+
     // ── Stale State ──────────────────────────────────────────────────
     /** True if filters or selected fields changed since last generate. */
     isDirty: boolean
@@ -203,29 +233,40 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
     const searchParams = useSearchParams()
 
     // ── Metadata ─────────────────────────────────────────────────────
-    const [meta, setMeta] = useState<ReportMeta | null>(null)
-    const [metaLoading, setMetaLoading] = useState(true)
+    const hasCachedMeta = useHasTabCache("meta")
+    const [meta, setMeta] = useTabState<ReportMeta | null>("meta", null)
+    const [metaLoading, setMetaLoading] = useTabState("metaLoading", !hasCachedMeta)
 
-    const [isDirty, setIsDirty] = useState(false)
+    const [isDirty, setIsDirty] = useTabState("isDirty", false)
 
     // Hoisted above metadata useEffect that references these setters
-    const [activeGroupBy, setActiveGroupBy] = useState<string[]>([])
-    const [visibleColumnKeys, setVisibleColumnKeys] = useState<string[]>([])
-    const [sortColumn, setSortColumn] = useState<string | null>(null)
-    const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
-    const sortInitialized = useRef(false)
+    const [activeGroupBy, setActiveGroupBy] = useTabState<string[]>("activeGroupBy", [])
+    const [visibleColumnKeys, setVisibleColumnKeys] = useTabState<string[]>("visibleColumnKeys", [])
+    const [sortColumn, setSortColumn] = useTabState<string | null>("sortColumn", null)
+    const [sortDirection, setSortDirection] = useTabState<"asc" | "desc">("sortDirection", "asc")
+    const sortInitialized = useRef(hasCachedMeta)
 
     // ── Query Engine: Selected Fields ────────────────────────────────
-    const [selectedFields, setSelectedFields] = useState<string[]>([])
+    const [selectedFields, setSelectedFields] = useTabState<string[]>("selectedFields", [])
+
+    const availableFields = useMemo(() => meta?.availableFields ?? null, [meta])
+
 
     const toggleField = useCallback((fieldKey: string) => {
-        // Convert field key (dot-separated) to column key (__-separated)
-        const colKey = fieldKey.replaceAll(".", "__")
+        // For root ref fields (e.g. "warehouse_id"), toggling means toggling
+        // "warehouse_id.name" — the default human-readable representation.
+        // This matches 1C behavior: selecting a ref field = show its Представление().
+        const node = findFieldNode(availableFields ?? [], fieldKey)
+        const effectiveFieldKey = (node?.type === "ref" && !fieldKey.includes("."))
+            ? fieldKey + ".name"
+            : fieldKey
+
+        const colKey = effectiveFieldKey.replaceAll(".", "__")
         setSelectedFields((prev) => {
-            const isRemoving = prev.includes(fieldKey)
+            const isRemoving = prev.includes(effectiveFieldKey)
             const next = isRemoving
-                ? prev.filter((k) => k !== fieldKey)
-                : [...prev, fieldKey]
+                ? prev.filter((k) => k !== effectiveFieldKey)
+                : [...prev, effectiveFieldKey]
 
             // Auto-sync visible column keys
             setVisibleColumnKeys((cols) => {
@@ -238,10 +279,20 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             return next
         })
         setIsDirty(true)
-    }, [])
+    }, [availableFields])
 
-    const availableFields = useMemo(() => meta?.availableFields ?? null, [meta])
-    const isQueryEngine = !!availableFields && availableFields.length > 0
+    // ── Advanced Filters (FilterSidebar integration) ─────────────────
+    const [advancedFilterValues, setAdvancedFilterValues] = useTabState<FilterValues>("advancedFilterValues", {})
+
+    const filterFieldsMeta = useMemo<FilterFieldMeta[]>(() =>
+        meta ? reportMetaToFilterFieldsMeta(meta) : [],
+        [meta]
+    )
+
+    const onAdvancedFilterValuesChange = useCallback((values: FilterValues) => {
+        setAdvancedFilterValues(values)
+        setIsDirty(true)
+    }, [])
 
     // Build effective columns: merge static meta.columns with dynamic columns
     // for fields that are selected but not in the static columns list.
@@ -255,12 +306,30 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             if (!staticKeys.has(colKey)) {
                 // Generate a column definition from the field tree node
                 const node = findFieldNode(availableFields ?? [], fieldKey)
+                let type = mapFieldType(node?.type)
+                let refIdKey = type === "reference" ? colKey : undefined
+                let refRoute = node?.refRoute
+
+                // If this is a ".name" field of a reference, map it as a reference
+                // so the user can double-click it to open the entity.
+                if (fieldKey.endsWith(".name")) {
+                    const parentKey = fieldKey.slice(0, -5)
+                    const parentNode = findFieldNode(availableFields ?? [], parentKey)
+                    if (parentNode?.type === "ref") {
+                        type = "reference"
+                        refIdKey = parentKey.replaceAll(".", "__")
+                        refRoute = parentNode.refRoute
+                    }
+                }
+
                 dynamicCols.push({
                     key: colKey,
-                    label: node ? buildFieldLabel(node, fieldKey) : colKey,
-                    type: mapFieldType(node?.type),
+                    label: buildFieldLabel(availableFields ?? [], fieldKey),
+                    type: type,
                     sortable: node?.sortable,
                     align: (node?.type === "quantity" || node?.type === "money" || node?.type === "number") ? "right" : undefined,
+                    refIdKey: refIdKey,
+                    refRoute: refRoute,
                 })
             }
         }
@@ -268,12 +337,17 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
         return [...meta.columns, ...dynamicCols]
     }, [meta, selectedFields, availableFields])
 
+    const metaInitialized = useRef(hasCachedMeta)
+
     useEffect(() => {
+        if (metaInitialized.current) return
+        
         let cancelled = false
         // metaLoading is initialized as `true`, no need to set it again here
         apiFetch<ReportMeta>(`/reports/${reportKey}/metadata`)
             .then((data) => {
                 if (!cancelled) {
+                    metaInitialized.current = true
                     setMeta(data)
                     setActiveGroupBy(getDefaultGroupByKeys(data.groupBy))
                     const defaultKeys = data.columns
@@ -310,7 +384,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
     }, [reportKey])
 
     // ── Filter values (URL-backed) [#15] ─────────────────────────────
-    const [filterValues, setFilterValues] = useState<ReportFilterValues>(() => {
+    const initialFilters = useMemo(() => {
         const initial: ReportFilterValues = {}
         searchParams.forEach((value, key) => {
             if (key.startsWith("f.")) {
@@ -326,7 +400,8 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             }
         })
         return initial
-    })
+    }, [searchParams])
+    const [filterValues, setFilterValues] = useTabState<ReportFilterValues>("filterValues", initialFilters)
 
     const setFilterValue = useCallback((key: string, value: unknown) => {
         setFilterValues((prev) => {
@@ -361,10 +436,10 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
     }, [router, pathname])
 
     // ── Report execution ─────────────────────────────────────────────
-    const [status, setStatus] = useState<ReportStatus>("idle")
-    const [error, setError] = useState<string | null>(null)
-    const [items, setItems] = useState<Record<string, unknown>[]>([])
-    const [resultExtras, setResultExtras] = useState<Record<string, unknown>>({})
+    const [status, setStatus] = useTabState<ReportStatus>("status", "idle")
+    const [error, setError] = useTabState<string | null>("error", null)
+    const [items, setItems] = useTabState<Record<string, unknown>[]>("items", [])
+    const [resultExtras, setResultExtras] = useTabState<Record<string, unknown>>("resultExtras", {})
 
     const generate = useCallback(async () => {
         if (!meta) return
@@ -373,46 +448,44 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
         setStatus("loading")
         setError(null)
         setServerDisplayRows(null)
+        // Clear selection on new generation
+        setSelectionRange(null)
         syncToUrl(filterValues)
 
         try {
-            let result: ReportResult
-
-            if (isQueryEngine) {
-                // Query Engine mode: POST with QueryRequest body
-                // selectedFields already stores dot-separated paths (e.g. "warehouse_id.name")
-                const selectPaths = selectedFields.length > 0
-                    ? selectedFields
-                    : undefined
-                const body: QueryRequest = {
-                    dataset: reportKey,
-                    select: selectPaths,
-                    orderBy: sortColumn ? sortColumn.replace(/__/g, ".") : undefined,
-                    orderDir: sortDirection,
-                    filters: filterValues,
-                    limit: MAX_INTERACTIVE_ROWS + 1,
-                }
-                result = await apiFetch<ReportResult>(
-                    `/reports/${reportKey}`,
-                    { method: "POST", body: JSON.stringify(body) }
-                )
-            } else {
-                // Legacy mode: GET with query params
-                const params = new URLSearchParams()
-                for (const [key, value] of Object.entries(filterValues)) {
-                    if (value === undefined || value === null) continue
-                    if (Array.isArray(value)) {
-                        for (const v of value) params.append(key, String(v))
-                    } else {
-                        params.set(key, String(value))
+            // POST with QueryRequest body
+            // selectedFields stores dot-separated paths (e.g. "warehouse_id.name")
+            // For ref .name fields, also include the parent UUID field for dblclick navigation.
+            let selectPaths: string[] | undefined
+            if (selectedFields.length > 0) {
+                const expanded = new Set<string>()
+                for (const fieldKey of selectedFields) {
+                    expanded.add(fieldKey)
+                    // If field ends with ".name" and the parent is a ref field,
+                    // also include the UUID field for navigation
+                    if (fieldKey.endsWith(".name")) {
+                        const parentKey = fieldKey.slice(0, -5) // remove ".name"
+                        const parentNode = findFieldNode(availableFields ?? [], parentKey)
+                        if (parentNode?.type === "ref") {
+                            expanded.add(parentKey) // add UUID field
+                        }
                     }
                 }
-                params.set("limit", String(MAX_INTERACTIVE_ROWS + 1))
-                const qs = params.toString()
-                result = await apiFetch<ReportResult>(
-                    `/reports/${reportKey}${qs ? `?${qs}` : ""}`
-                )
+                selectPaths = Array.from(expanded)
             }
+            const body: QueryRequest = {
+                dataset: reportKey,
+                select: selectPaths,
+                orderBy: sortColumn ? sortColumn.replace(/__/g, ".") : undefined,
+                orderDir: sortDirection,
+                filters: filterValues,
+                advancedFilters: buildFilterItems(advancedFilterValues, filterFieldsMeta),
+                limit: MAX_INTERACTIVE_ROWS + 1,
+            }
+            const result = await apiFetch<ReportResult>(
+                `/reports/${reportKey}`,
+                { method: "POST", body: JSON.stringify(body) }
+            )
 
             const reportItems = result.items ?? []
             const totalCount = result.totalItems ?? reportItems.length
@@ -432,11 +505,12 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             setError(msg)
             setStatus("error")
         }
-    }, [reportKey, filterValues, syncToUrl, isQueryEngine, selectedFields, sortColumn, sortDirection])
+    }, [reportKey, filterValues, advancedFilterValues, filterFieldsMeta, syncToUrl, selectedFields, sortColumn, sortDirection, meta])
 
     // ── Auto-generate on URL open [#15] ──────────────────────────────
     // If URL has filter params (f.*), auto-generate report on mount.
-    const autoGenerated = useRef(false)
+    // If we have cached items, we are returning to the tab, so skip.
+    const autoGenerated = useRef(useHasTabCache("items"))
     useEffect(() => {
         if (autoGenerated.current || metaLoading || !meta) return
         const hasUrlFilters = Array.from(searchParams.keys()).some((k) => k.startsWith("f."))
@@ -479,12 +553,13 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
     // ── Sorting (client-side) ────────────────────────────────────────
 
     const handleSort = useCallback((key: string) => {
+        setSelectionRange(null)
         setSortColumn((prev) => {
             if (prev === key) {
-                setSortDirection((d) => (d === "asc" ? "desc" : "asc"))
+                queueMicrotask(() => setSortDirection((d) => (d === "asc" ? "desc" : "asc")))
                 return key
             }
-            setSortDirection("asc")
+            queueMicrotask(() => setSortDirection("asc"))
             return key
         })
     }, [])
@@ -497,7 +572,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             const next = prev.includes(key)
                 ? prev.filter((k) => k !== key)
                 : [...prev, key]
-            setListColumns(`report:${reportKey}`, next)
+            queueMicrotask(() => setListColumns(`report:${reportKey}`, next))
             return next
         })
     }, [reportKey, setListColumns])
@@ -509,73 +584,165 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
         setListColumns(`report:${reportKey}`, defaults)
     }, [meta, reportKey, setListColumns])
 
-    // ── Report Variants [#14] ────────────────────────────────────────
-    // Variants are stored in user prefs under `report:{key}:variants` as JSON.
-    const variantsKey = `report:${reportKey}:variants`
-    const [variants, setVariants] = useState<ReportVariant[]>(() => {
-        try {
-            const raw = useUserPrefsStore.getState().listColumns[variantsKey]
-            if (raw && typeof raw === "string") {
-                return JSON.parse(raw as unknown as string) as ReportVariant[]
-            }
-        } catch { /* ignore */ }
-        return []
-    })
-    const [activeVariantName, setActiveVariantName] = useState<string | null>(null)
-
-    const saveVariant = useCallback((name: string) => {
-        const variant: ReportVariant = {
-            name,
-            filters: filterValues,
-            groupBy: activeGroupBy,
-            visibleColumns: visibleColumnKeys,
-            sortColumn,
-            sortDirection,
-        }
-        setVariants((prev) => {
-            const next = prev.filter((v) => v.name !== name)
-            next.push(variant)
-            // Persist as JSON string in listColumns store
-            setListColumns(variantsKey, [JSON.stringify(next)])
+    const reorderColumn = useCallback((fromIndex: number, toIndex: number) => {
+        setSelectionRange(null)
+        setVisibleColumnKeys((prev) => {
+            const next = [...prev]
+            const [moved] = next.splice(fromIndex, 1)
+            next.splice(toIndex, 0, moved)
+            // Defer store persistence to avoid setState-during-render
+            queueMicrotask(() => setListColumns(`report:${reportKey}`, next))
             return next
         })
-        setActiveVariantName(name)
-    }, [filterValues, activeGroupBy, visibleColumnKeys, sortColumn, sortDirection, variantsKey, setListColumns])
+    }, [reportKey, setListColumns])
 
-    const loadVariant = useCallback((name: string) => {
-        const variant = variants.find((v) => v.name === name)
+    // ── Report Variants [#14] ────────────────────────────────────────
+    const [variants, setVariants] = useTabState<ReportVariant[]>("variants", [])
+    const [activeVariantId, setActiveVariantId] = useTabState<string | null>("activeVariantId", null)
+
+    // Load variants from backend on mount or reportKey change
+    useEffect(() => {
+        api.reports.variants.list(reportKey).then((data) => {
+            setVariants(data)
+            // If there's a default variant and no active variant is set, we could auto-load it
+            // but for now let's just keep the list
+        }).catch(console.error)
+    }, [reportKey])
+
+    const saveVariant = useCallback(async (name: string, visibility: import("@/types/report-variant").VariantVisibility, isDefault: boolean) => {
+        try {
+            const config = {
+                selectedFields,
+                visibleColumns: visibleColumnKeys,
+                groupBy: activeGroupBy,
+                sortColumn,
+                sortDirection,
+                filters: { ...filterValues, __advancedState: advancedFilterValues },
+                advancedFilters: buildFilterItems(advancedFilterValues, filterFieldsMeta) as any[],
+            }
+
+            const newVariant = await api.reports.variants.create({
+                datasetKey: reportKey,
+                name,
+                visibility,
+                isDefault,
+                config,
+            })
+
+            setVariants((prev) => [...prev, newVariant])
+            setActiveVariantId(newVariant.id)
+            toast.success("Вариант отчета сохранен")
+        } catch (e) {
+            console.error(e)
+            toast.error("Ошибка при сохранении варианта отчета")
+        }
+    }, [reportKey, selectedFields, visibleColumnKeys, activeGroupBy, sortColumn, sortDirection, filterValues, advancedFilterValues])
+
+    const loadVariant = useCallback((id: string) => {
+        const variant = variants.find((v) => v.id === id)
         if (!variant) return
-        setFilterValues(variant.filters)
-        setActiveGroupBy(variant.groupBy)
-        setVisibleColumnKeys(variant.visibleColumns)
-        setSortColumn(variant.sortColumn)
-        setSortDirection(variant.sortDirection)
-        setActiveVariantName(name)
+        
+        setSelectedFields(variant.config.selectedFields || [])
+        setVisibleColumnKeys(variant.config.visibleColumns || [])
+        setActiveGroupBy(variant.config.groupBy || [])
+        setSortColumn(variant.config.sortColumn || null)
+        setSortDirection(variant.config.sortDirection || "asc")
+        
+        const { __advancedState, ...restFilters } = variant.config.filters || {}
+        setFilterValues(restFilters)
+        if (__advancedState) {
+            setAdvancedFilterValues(__advancedState as FilterValues)
+        } else {
+            setAdvancedFilterValues({})
+        }
+        
+        setIsDirty(true) // Loading variant makes state dirty, needing generate()
+        setActiveVariantId(id)
     }, [variants])
 
-    const deleteVariant = useCallback((name: string) => {
-        setVariants((prev) => {
-            const next = prev.filter((v) => v.name !== name)
-            setListColumns(variantsKey, [JSON.stringify(next)])
-            return next
-        })
-        if (activeVariantName === name) {
-            setActiveVariantName(null)
+    const deleteVariant = useCallback(async (id: string) => {
+        try {
+            await api.reports.variants.delete(id)
+            setVariants((prev) => prev.filter((v) => v.id !== id))
+            if (activeVariantId === id) {
+                setActiveVariantId(null)
+            }
+            toast.success("Вариант отчета удален")
+        } catch (e) {
+            console.error(e)
+            toast.error("Ошибка при удалении варианта")
         }
-    }, [activeVariantName, variantsKey, setListColumns])
+    }, [activeVariantId])
 
-    // ── Drill-Down [#13] ─────────────────────────────────────────────
-    const [selectedRow, setSelectedRow] = useState<Record<string, unknown> | null>(null)
+    const updateVariant = useCallback(async (id: string, name: string, visibility: import("@/types/report-variant").VariantVisibility, isDefault: boolean) => {
+        const existing = variants.find((v) => v.id === id)
+        if (!existing) return
 
-    const selectRow = useCallback((row: Record<string, unknown> | null) => {
-        setSelectedRow(row)
+        try {
+            const config = {
+                selectedFields,
+                visibleColumns: visibleColumnKeys,
+                groupBy: activeGroupBy,
+                sortColumn,
+                sortDirection,
+                filters: { ...filterValues, __advancedState: advancedFilterValues },
+                advancedFilters: buildFilterItems(advancedFilterValues, filterFieldsMeta) as any[],
+            }
+
+            await api.reports.variants.update(id, {
+                name,
+                visibility,
+                isDefault,
+                config,
+                version: existing.version,
+            })
+
+            // Refresh list from server to get updated version
+            const refreshed = await api.reports.variants.list(reportKey)
+            setVariants(refreshed)
+            setActiveVariantId(id)
+            toast.success("Вариант отчета обновлён")
+        } catch (e) {
+            console.error(e)
+            toast.error("Ошибка при обновлении варианта отчета")
+        }
+    }, [variants, reportKey, selectedFields, visibleColumnKeys, activeGroupBy, sortColumn, sortDirection, filterValues, advancedFilterValues, filterFieldsMeta])
+
+    // ── Cell Selection ───────────────────────────────────────────────
+    const [selectionRange, setSelectionRange] = useState<{ start: { r: number, c: number }, end: { r: number, c: number } } | null>(null)
+    const [isDraggingSelection, setIsDraggingSelection] = useState(false)
+
+    const onSelectionStart = useCallback((r: number, c: number) => {
+        setSelectionRange({ start: { r, c }, end: { r, c } })
+        setIsDraggingSelection(true)
+    }, [])
+
+    const onSelectionMove = useCallback((r: number, c: number) => {
+        setIsDraggingSelection((dragging: boolean) => {
+            if (dragging) {
+                setSelectionRange((prev: { start: { r: number, c: number }, end: { r: number, c: number } } | null) => {
+                    if (!prev) return null
+                    return { start: prev.start, end: { r, c } }
+                })
+            }
+            return dragging
+        })
+    }, [])
+
+    const onSelectionEnd = useCallback(() => {
+        setIsDraggingSelection(false)
+    }, [])
+
+    const resetSelection = useCallback(() => {
+        setSelectionRange(null)
+        setIsDraggingSelection(false)
     }, [])
 
     // ── View Mode [#16] ──────────────────────────────────────────────
-    const [viewMode, setViewMode] = useState<ReportViewMode>("table")
+    const [viewMode, setViewMode] = useTabState<ReportViewMode>("viewMode", "table")
 
     // ── Server-grouped rows (Wave 4) ─────────────────────────────────
-    const [serverDisplayRows, setServerDisplayRows] = useState<DisplayRow[] | null>(null)
+    const [serverDisplayRows, setServerDisplayRows] = useTabState<DisplayRow[] | null>("serverDisplayRows", null)
     const serverGroupingInFlight = useRef(false)
 
     // Fetch server-side grouped rows when items > threshold
@@ -664,19 +831,42 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
         setFilterValue,
         resetFilters,
         generate,
-        exportReport: (format: string) => {
-            const params = new URLSearchParams()
-            for (const [key, value] of Object.entries(filterValues)) {
-                if (value === undefined || value === null) continue
-                if (Array.isArray(value)) {
-                    for (const v of value) params.append(key, String(v))
-                } else {
-                    params.set(key, String(value))
-                }
+        exportReport: async () => {
+            const groupByDataKeys = activeGroupBy.map((groupKey) => {
+                const dynamicCol = effectiveColumns.find((c) => c.key === groupKey)
+                if (dynamicCol && dynamicCol.key) return dynamicCol.key
+                const baseCol = meta?.columns.find((c) => c.key === groupKey || c.key === `${groupKey}__name`)
+                return baseCol ? baseCol.key : groupKey
+            })
+
+            const body: QueryRequest = {
+                dataset: reportKey,
+                select: selectedFields.length > 0 ? selectedFields : undefined,
+                orderBy: sortColumn ? sortColumn.replace(/__/g, ".") : undefined,
+                orderDir: sortDirection,
+                filters: filterValues,
+                advancedFilters: buildFilterItems(advancedFilterValues, filterFieldsMeta),
+                exportColumns: visibleColumnKeys,
+                exportGroupBy: groupByDataKeys,
             }
-            params.set("format", format)
-            const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1"
-            window.open(`${apiBase}/reports/${reportKey}/export?${params.toString()}`, "_blank")
+            const exportPromise = apiFetchBlob(
+                `/reports/${reportKey}/export`,
+                { method: "POST", body: JSON.stringify(body) }
+            ).then(({ blob, filename }) => {
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement("a")
+                a.href = url
+                a.download = filename
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                URL.revokeObjectURL(url)
+            })
+            toast.promise(exportPromise, {
+                loading: "Экспорт отчёта…",
+                success: "Файл скачан",
+                error: (e) => e instanceof Error ? e.message : "Ошибка экспорта",
+            })
         },
         activeGroupBy,
         toggleGroupBy,
@@ -686,15 +876,21 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
         visibleColumnKeys,
         toggleColumn,
         resetColumns,
+        reorderColumn,
         resultExtras,
         // Wave 3
         variants,
-        activeVariantName,
+        activeVariantId,
         saveVariant,
+        updateVariant,
         loadVariant,
         deleteVariant,
-        selectedRow,
-        selectRow,
+        selectionRange,
+        isDraggingSelection,
+        onSelectionStart,
+        onSelectionMove,
+        onSelectionEnd,
+        resetSelection,
         copyShareLink,
         viewMode,
         setViewMode,
@@ -703,6 +899,10 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
         selectedFields,
         toggleField,
         effectiveColumns,
+        // Advanced Filters (FilterSidebar)
+        filterFieldsMeta,
+        advancedFilterValues,
+        onAdvancedFilterValuesChange,
         isDirty,
     }
 }

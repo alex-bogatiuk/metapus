@@ -8,17 +8,18 @@ import { useCollapsible } from "@/hooks/useCollapsible"
 import { useRouter, useParams, usePathname } from "next/navigation"
 import {
   Plus,
-  Loader2,
   ChevronsUp,
   ChevronsDown,
   ArrowRightLeft,
   Network,
   Search,
 } from "lucide-react"
+import { FormSkeleton } from "@/components/shared/form-skeleton"
 import { FormToolbar } from "@/components/shared/form-toolbar"
 import { FormSidebar } from "@/components/shared/form-sidebar"
 import { ReferenceField } from "@/components/shared/reference-field"
 import { DocumentLineRow } from "@/components/shared/document-line-row"
+import { DocumentLinesDndProvider, SortableDocumentLinesBody, DragHandleButton } from "@/components/shared/sortable-document-lines"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -38,6 +39,7 @@ import { DocumentTotalsFooter } from "@/components/shared/document-totals-footer
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import { PrintMenuButton } from "@/components/shared/print-menu-button"
 import { useDocumentErrorHandler } from "@/hooks/useDocumentErrorHandler"
+import { useShortcut } from "@/hooks/useShortcut"
 import { ProductPickerDialog } from "@/components/shared/product-picker-dialog"
 import type { PickedItem } from "@/types/picker"
 import type { GoodsIssueResponse, GoodsIssueLineRequest, UpdateGoodsIssueRequest } from "@/types/document"
@@ -152,9 +154,30 @@ export default function GoodsIssueFormPage() {
   }, [params.id])
 
   // ── Line actions (generic hook) ───────────────────────────────────────
-  const { addLine, handlePick: pickLines, handleUpdateField, handleUpdateRef, handleUpdateVatRate, handleRemoveLine } = useDocumentLineActions(update, markDirty, { resetAmountsOnEdit: true })
+  const { addLine, handlePick: pickLines, handleUpdateField, handleUpdateRef, handleUpdateVatRate, handleRemoveLine, handleReorderLines, handleMoveLineUp, handleMoveLineDown } = useDocumentLineActions(update, markDirty, { resetAmountsOnEdit: true })
   const existingPickerLines = useExistingPickerLines(f.lines)
   const handlePick = useCallback((items: PickedItem[]) => pickLines(items, f.lines), [pickLines, f.lines])
+
+  // ── Focused line index for keyboard reorder ────────────────────────────
+  const [focusedLineIdx, setFocusedLineIdx] = useState<number | null>(null)
+
+  // ── Keyboard shortcuts for line reorder (Alt+↑/↓) ─────────────────────
+  useShortcut(
+    "doc-lines.move-up",
+    "alt+arrowup",
+    "Переместить строку вверх",
+    "editing",
+    () => { if (focusedLineIdx !== null) handleMoveLineUp(focusedLineIdx) },
+    { enabled: focusedLineIdx !== null && focusedLineIdx > 0 },
+  )
+  useShortcut(
+    "doc-lines.move-down",
+    "alt+arrowdown",
+    "Переместить строку вниз",
+    "editing",
+    () => { if (focusedLineIdx !== null) handleMoveLineDown(focusedLineIdx, f.lines.length) },
+    { enabled: focusedLineIdx !== null && focusedLineIdx < f.lines.length - 1 },
+  )
 
   const totals = useMemo(() => {
     const serverLinesCount = doc?.lines?.length ?? 0
@@ -270,16 +293,11 @@ export default function GoodsIssueFormPage() {
   const compact = useCompactMode()
 
   if (loading) {
-    return (
-      <div className="flex h-full items-center justify-center text-muted-foreground">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-        Загрузка документа…
-      </div>
-    )
+    return <FormSkeleton variant="document" />
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col animate-skeleton-fade-in">
       <FormToolbar
         title={`${giLabel} ${doc?.number || ""}`}
         status={
@@ -464,6 +482,7 @@ export default function GoodsIssueFormPage() {
                     </Button>
                   </div>
                   <ScrollArea className="flex-1">
+                  <DocumentLinesDndProvider items={f.lines} onReorder={handleReorderLines}>
                     <table className="w-full text-sm border-separate border-spacing-0">
                       <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-sm">
                         <tr>
@@ -478,19 +497,20 @@ export default function GoodsIssueFormPage() {
                           <th className="w-10 border-b" />
                         </tr>
                       </thead>
-                      <tbody className="divide-y">
-                        {f.lines.length === 0 && (
+                      <SortableDocumentLinesBody
+                        items={f.lines}
+                        emptyContent={
                           <tr>
                             <td colSpan={9} className="px-4 py-8 text-center text-sm text-muted-foreground">
                               Нажмите &quot;Добавить&quot; для добавления строки
                             </td>
                           </tr>
-                        )}
-                        {f.lines.map((line, idx) => (
+                        }
+                        renderRow={({ line, index, setNodeRef, style, dragHandleProps, isDragging }) => (
                           <DocumentLineRow
                             key={line._key}
                             line={line}
-                            rowNumber={idx + 1}
+                            rowNumber={index + 1}
                             decimalPlaces={decimalPlaces}
                             amountIncludesVat={f.amountIncludesVat}
                             onUpdateField={handleUpdateField}
@@ -498,10 +518,16 @@ export default function GoodsIssueFormPage() {
                             onUpdateVatRate={handleUpdateVatRate}
                             onRemove={handleRemoveLine}
                             showAmounts
+                            dragRef={setNodeRef}
+                            dragStyle={style}
+                            dragHandleSlot={
+                              <DragHandleButton dragHandleProps={dragHandleProps} compact={compact} />
+                            }
                           />
-                        ))}
-                      </tbody>
+                        )}
+                      />
                     </table>
+                  </DocumentLinesDndProvider>
                     <ScrollBar orientation="horizontal" />
                   </ScrollArea>
                 </div>

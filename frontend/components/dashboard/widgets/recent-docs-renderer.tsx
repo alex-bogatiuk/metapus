@@ -74,7 +74,7 @@ export default function RecentDocsRenderer({ config, isEditMode }: WidgetRenderP
                         <tbody>
                             {items.map((doc) => (
                                 <tr
-                                    key={doc.id}
+                                    key={`${doc.documentType}-${doc.id}`}
                                     className="border-b last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
                                     onClick={() => router.push(docHref(doc))}
                                 >

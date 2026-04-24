@@ -1,14 +1,17 @@
 "use client"
 
-import { useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { AppSidebar } from "./app-sidebar"
 import { SiteHeader } from "./site-header"
+import { ShortcutManager } from "./shortcut-manager"
+import { ShortcutHelpDialog } from "./shortcut-help-dialog"
 import { useTabsStore } from "@/stores/useTabsStore"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import { ImpersonationBanner } from "./impersonation-banner"
 import { resolveTitleFromUrl } from "@/lib/tab-utils"
+import { useShortcut } from "@/hooks/useShortcut"
 import { toast } from "sonner"
 
 /**
@@ -52,8 +55,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Rehydrate persisted tabs (must happen client-side to avoid hydration mismatch)
   useEffect(() => { useTabsStore.persist.rehydrate() }, [])
 
+  // ── Keyboard shortcuts: Help Dialog (Ctrl+/) ──────────────────────────
+  const [helpOpen, setHelpOpen] = useState(false)
+  const openHelp = useCallback(() => setHelpOpen(true), [])
+  useShortcut("general.help", "mod+/", "Горячие клавиши", "general", openHelp)
+
   return (
     <SidebarProvider>
+      <ShortcutManager />
+      <ShortcutHelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
       <AppSidebar />
       <SidebarInset>
         <ImpersonationBanner />

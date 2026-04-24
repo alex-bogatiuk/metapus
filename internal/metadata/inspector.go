@@ -190,6 +190,23 @@ func metaLabel(field reflect.StructField) string {
 	return ""
 }
 
+// metaRefType extracts the reference entity key from the "meta" struct tag.
+// Supports format: meta:"ref:vat_rate" or meta:"label:Ставка НДС,ref:vat_rate".
+// Returns "" if no meta tag or no ref: prefix found.
+func metaRefType(field reflect.StructField) string {
+	tag, ok := field.Tag.Lookup("meta")
+	if !ok {
+		return ""
+	}
+	for _, part := range strings.Split(tag, ",") {
+		part = strings.TrimSpace(part)
+		if strings.HasPrefix(part, "ref:") {
+			return strings.TrimPrefix(part, "ref:")
+		}
+	}
+	return ""
+}
+
 func mapFieldType(def *FieldDef, field reflect.StructField) {
 	t := field.Type
 
@@ -202,11 +219,13 @@ func mapFieldType(def *FieldDef, field reflect.StructField) {
 	// Handle ID -> Reference (both id.ID and *id.ID)
 	if actual == reflect.TypeOf(id.ID{}) {
 		def.Type = TypeReference
-		// Guess reference type from name: e.g. "WarehouseID" -> "warehouse"
-		name := field.Name
-		if strings.HasSuffix(name, "ID") {
-			baseName := strings.TrimSuffix(name, "ID")
-			def.ReferenceType = strings.ToLower(baseName) // simple heuristic
+		// First: check explicit meta:"ref:xxx" tag
+		if refKey := metaRefType(field); refKey != "" {
+			def.ReferenceType = refKey
+		} else if strings.HasSuffix(field.Name, "ID") {
+			// Fallback heuristic: e.g. "WarehouseID" -> "warehouse"
+			baseName := strings.TrimSuffix(field.Name, "ID")
+			def.ReferenceType = strings.ToLower(baseName)
 		}
 		return
 	}

@@ -159,8 +159,10 @@ internal/domain/
 │       ├── currency_rates/
 │       └── barcodes/
 ├── reports/
-│   ├── stock_balance/
-│   └── sales_turnover/
+│   ├── schema/                # Dataset, Field, FilterDef, DatasetExecutor
+│   ├── compiler/              # Query Engine: Compiler, Resolver, Discovery, MetaBuilder, Grouping
+│   ├── export/                # Streaming XLSX export (excelize StreamWriter)
+│   └── variants/              # ReportVariant model, repository, service
 ├── posting/
 │   ├── engine.go             # Движок проведения документов
 │   └── recorder.go           # RegisterRecorder + PostingValidator + встроенные адаптеры
@@ -206,6 +208,8 @@ internal/infrastructure/
 │       ├── handlers/             # HTTP handlers
 │       │   ├── catalog.go        # CatalogHandler[T] (generic)
 │       │   ├── document.go       # BaseDocumentHandler[T] (generic)
+│       │   ├── dataset_handler.go  # DatasetReportHandler (Query Engine)
+│       │   ├── report_variant_handler.go # ReportVariantHandler
 │       │   └── health.go
 │       └── middleware/
 │           ├── recovery.go       # Panic recovery

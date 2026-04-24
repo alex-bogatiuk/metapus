@@ -55,35 +55,7 @@ func (r *AutomationHistoryRepo) List(ctx context.Context, filter automations.His
 	txm := MustGetTxManager(ctx)
 	q := txm.GetQuerier(ctx)
 
-	// Build WHERE clause dynamically
-	where := "WHERE 1=1"
-	args := []any{}
-	argIdx := 1
-
-	if filter.RuleID != nil {
-		where += fmt.Sprintf(" AND rule_id = $%d", argIdx)
-		args = append(args, *filter.RuleID)
-		argIdx++
-	}
-	if filter.Status != nil {
-		where += fmt.Sprintf(" AND status = $%d", argIdx)
-		args = append(args, *filter.Status)
-		argIdx++
-	}
-	if filter.ChannelID != nil {
-		where += fmt.Sprintf(" AND channel_id = $%d", argIdx)
-		args = append(args, *filter.ChannelID)
-		argIdx++
-	}
-	if filter.From != nil {
-		where += fmt.Sprintf(" AND created_at >= $%d", argIdx)
-		args = append(args, *filter.From)
-		argIdx++
-	}
-	if filter.To != nil {
-		where += fmt.Sprintf(" AND created_at <= $%d", argIdx)
-		args = append(args, *filter.To)
-	}
+	where, args := buildHistoryWhere(filter)
 
 	// Count query
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM sys_automation_history %s", where)
@@ -162,6 +134,105 @@ func scanHistoryRow(rows pgx.Rows) (*automations.HistoryEntry, error) {
 		return nil, err
 	}
 	return &e, nil
+}
+
+// buildHistoryWhere builds shared WHERE clause and args from HistoryFilter.
+func buildHistoryWhere(filter automations.HistoryFilter) (string, []any) {
+	where := "WHERE 1=1"
+	args := []any{}
+	argIdx := 1
+
+	if filter.RuleID != nil {
+		where += fmt.Sprintf(" AND rule_id = $%d", argIdx)
+		args = append(args, *filter.RuleID)
+		argIdx++
+	}
+	if filter.Status != nil {
+		where += fmt.Sprintf(" AND status = $%d", argIdx)
+		args = append(args, *filter.Status)
+		argIdx++
+	}
+	if filter.ChannelID != nil {
+		where += fmt.Sprintf(" AND channel_id = $%d", argIdx)
+		args = append(args, *filter.ChannelID)
+		argIdx++
+	}
+	if filter.From != nil {
+		where += fmt.Sprintf(" AND created_at >= $%d", argIdx)
+		args = append(args, *filter.From)
+		argIdx++
+	}
+	if filter.To != nil {
+		where += fmt.Sprintf(" AND created_at <= $%d", argIdx)
+		args = append(args, *filter.To)
+	}
+
+	return where, args
+}
+
+// CountByStatus returns aggregated counts grouped by status.
+func (r *AutomationHistoryRepo) CountByStatus(ctx context.Context, filter automations.HistoryFilter) (*automations.HistoryStats, error) {
+	txm := MustGetTxManager(ctx)
+	q := txm.GetQuerier(ctx)
+
+	// For stats we ignore Status filter — we want ALL statuses counted
+	filterNoStatus := filter
+	filterNoStatus.Status = nil
+	where, args := buildHistoryWhere(filterNoStatus)
+
+	query := fmt.Sprintf(`SELECT status, COUNT(*) FROM sys_automation_history %s GROUP BY status`, where)
+
+	rows, err := q.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("count history by status: %w", err)
+	}
+	defer rows.Close()
+
+	stats := &automations.HistoryStats{
+		ByStatus: make(map[automations.HistoryStatus]int),
+	}
+	for rows.Next() {
+		var status automations.HistoryStatus
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, fmt.Errorf("scan history stats: %w", err)
+		}
+		stats.ByStatus[status] = count
+		stats.Total += count
+	}
+
+	return stats, nil
+}
+
+// ListIDsByStatus returns IDs of entries matching the filter. Used for batch replay.
+func (r *AutomationHistoryRepo) ListIDsByStatus(ctx context.Context, filter automations.HistoryFilter, limit int) ([]id.ID, error) {
+	txm := MustGetTxManager(ctx)
+	q := txm.GetQuerier(ctx)
+
+	where, args := buildHistoryWhere(filter)
+
+	if limit <= 0 {
+		limit = 200
+	}
+
+	query := fmt.Sprintf(`SELECT id FROM sys_automation_history %s ORDER BY created_at DESC LIMIT %d`, where, limit)
+
+	rows, err := q.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list history ids: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []id.ID
+	for rows.Next() {
+		var entryID id.ID
+		if err := rows.Scan(&entryID); err != nil {
+			return nil, fmt.Errorf("scan history id: %w", err)
+		}
+		ids = append(ids, entryID)
+	}
+
+	return ids, nil
 }
 
 // Ensure interface compliance

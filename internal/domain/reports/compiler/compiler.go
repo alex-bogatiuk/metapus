@@ -26,6 +26,7 @@ import (
 	"github.com/Masterminds/squirrel"
 
 	"metapus/internal/core/apperror"
+	"metapus/internal/domain/filter"
 	"metapus/internal/domain/reports/schema"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/metadata"
@@ -55,15 +56,32 @@ type QueryRequest struct {
 	// OrderDir is "asc" or "desc". Defaults to "asc".
 	OrderDir string `json:"orderDir,omitempty"`
 
-	// Filters contains filter values keyed by filter/field name.
+	// Filters contains dataset-level parameter values (used by Executors to shape CTEs).
 	// E.g. {"warehouse_id": ["uuid1"], "as_of_date": "2025-01-01"}
 	Filters map[string]interface{} `json:"filters,omitempty"`
+
+	// AdvancedFilters are typed filter conditions from FilterSidebar.
+	// Each item's Field can be a dot-path (e.g. "product_id.brand_id.name"),
+	// resolved via the path resolver with automatic JOIN generation.
+	// All conditions are compiled into SQL WHERE clauses (push-down).
+	AdvancedFilters []filter.Item `json:"advancedFilters,omitempty"`
 
 	// Limit caps the number of rows returned.
 	Limit int `json:"limit,omitempty"`
 
 	// Offset for pagination.
 	Offset int `json:"offset,omitempty"`
+
+	// ExportColumns is an ordered list of column keys for export.
+	// Determines the column order and visibility in CSV/XLSX output.
+	// If empty, the default meta.Columns order is used (visible only).
+	// Sent by the frontend from the user's current column configuration.
+	ExportColumns []string `json:"exportColumns,omitempty"`
+
+	// ExportGroupBy is an ordered list of group keys for export.
+	// Used to trigger Control Breaks and insert Subtotals during streaming.
+	// The backend will automatically prepend these to the SQL ORDER BY.
+	ExportGroupBy []string `json:"exportGroupBy,omitempty"`
 }
 
 // QueryResult is the response returned to the frontend.
@@ -152,6 +170,17 @@ func (c *Compiler) Execute(ctx context.Context, req QueryRequest) (*QueryResult,
 	qb = qb.Columns(selectExprs...)
 
 	// 5. Append LEFT JOINs from resolver
+	// 5b. Apply advanced filters (from FilterSidebar) — must happen BEFORE
+	// appending JOINs, because filter resolution may register additional JOINs.
+	if len(req.AdvancedFilters) > 0 {
+		var err error
+		qb, err = c.applyAdvancedFilters(qb, resolver, req.AdvancedFilters)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// 5c. Append LEFT JOINs from resolver (includes JOINs from select + filters)
 	for _, join := range resolver.Joins() {
 		joinClause := fmt.Sprintf("%s AS %s ON %s.%s = %s.id",
 			join.Table, join.Alias, join.ParentAlias, join.JoinKey, join.Alias)
@@ -172,6 +201,21 @@ func (c *Compiler) Execute(ctx context.Context, req QueryRequest) (*QueryResult,
 	}
 
 	// 7. ORDER BY
+	// If ExportGroupBy is present, these keys MUST be the primary sort keys (ASC)
+	// so that streaming control breaks can detect group changes.
+	if len(req.ExportGroupBy) > 0 {
+		for _, gPath := range req.ExportGroupBy {
+			// Frontend sends display keys with __, resolver expects dot notation
+			sqlPath := strings.ReplaceAll(gPath, "__", ".")
+			orderExpr, err := resolver.ResolveForOrderBy(sqlPath)
+			if err != nil {
+				return nil, apperror.NewInternal(fmt.Errorf("invalid exportGroupBy path %q: %v", gPath, err))
+			}
+			// Groups are always sorted ascending to keep hierarchy stable
+			qb = qb.OrderBy(orderExpr + " ASC")
+		}
+	}
+
 	if req.OrderBy != "" {
 		orderExpr, err := resolver.ResolveForOrderBy(req.OrderBy)
 		if err != nil {
@@ -199,7 +243,7 @@ func (c *Compiler) Execute(ctx context.Context, req QueryRequest) (*QueryResult,
 	}
 
 	// 9. Execute
-	query, args, err := qb.ToSql(); fmt.Println("DEBUG SQL:", query)
+	query, args, err := qb.ToSql()
 	if err != nil {
 		return nil, apperror.NewValidation(fmt.Sprintf("build SQL: %v", err))
 	}
@@ -209,7 +253,7 @@ func (c *Compiler) Execute(ctx context.Context, req QueryRequest) (*QueryResult,
 
 	rows, err := querier.Query(ctx, query, args...)
 	if err != nil {
-		return nil, apperror.NewValidation(fmt.Sprintf("execute query: %w", err))
+		return nil, apperror.NewValidation(fmt.Sprintf("execute query: %v", err))
 	}
 	defer rows.Close()
 
@@ -238,6 +282,45 @@ func (c *Compiler) Execute(ctx context.Context, req QueryRequest) (*QueryResult,
 		Items:      items,
 		TotalItems: len(items),
 	}, nil
+}
+
+// applyAdvancedFilters compiles typed filter conditions (from FilterSidebar)
+// into SQL WHERE clauses. Each filter's Field is resolved via the path resolver,
+// which validates the path against metadata and registers necessary JOINs.
+//
+// This enables filtering by nested reference fields:
+//   "product_id.brand_id.name" → LEFT JOIN + WHERE j2.name ILIKE '%...'
+//
+// All filtering happens at the SQL level (push-down) — zero post-fetch filtering.
+func (c *Compiler) applyAdvancedFilters(
+	qb squirrel.SelectBuilder,
+	r *resolver,
+	items []filter.Item,
+) (squirrel.SelectBuilder, error) {
+	if err := filter.ValidateItems(items); err != nil {
+		return qb, apperror.NewValidation(fmt.Sprintf("invalid filter: %v", err))
+	}
+
+	for _, item := range items {
+		// Resolve the field path → SQL expression + register JOINs
+		sqlExpr, err := r.ResolveForWhere(item.Field)
+		if err != nil {
+			return qb, apperror.NewValidation(fmt.Sprintf("filter field %q: %v", item.Field, err))
+		}
+
+		// Date fields need DATE() wrapper for date-only comparison
+		if item.FieldType == "date" {
+			sqlExpr = "DATE(" + sqlExpr + ")"
+		}
+
+		// Delegate operator→SQL to the shared filter package
+		cond, err := filter.BuildSingleCondition(item, sqlExpr)
+		if err != nil {
+			return qb, apperror.NewValidation(fmt.Sprintf("filter %q: %v", item.Field, err))
+		}
+		qb = qb.Where(cond)
+	}
+	return qb, nil
 }
 
 // applySimpleFilters adds WHERE clauses for simple (non-executor) datasets.

@@ -3,50 +3,21 @@
 package export
 
 import (
-	"encoding/csv"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/xuri/excelize/v2"
 
 	"metapus/internal/platform"
 )
 
-// CSV writes report items as CSV to the given writer.
-// Columns are determined by meta.Columns (visible only).
-// Streams row-by-row — safe for any dataset size.
-func CSV(w io.Writer, meta platform.ReportMeta, items []map[string]interface{}) error {
-	writer := csv.NewWriter(w)
-	defer writer.Flush()
 
-	// Visible columns only (exclude defaultHidden)
-	columns := visibleColumns(meta)
-
-	// Header row
-	header := make([]string, len(columns))
-	for i, col := range columns {
-		header[i] = col.Label
-	}
-	if err := writer.Write(header); err != nil {
-		return fmt.Errorf("csv write header: %w", err)
-	}
-
-	// Data rows
-	row := make([]string, len(columns))
-	for _, item := range items {
-		for i, col := range columns {
-			row[i] = formatExportValue(item[col.Key], col)
-		}
-		if err := writer.Write(row); err != nil {
-			return fmt.Errorf("csv write row: %w", err)
-		}
-	}
-
-	return nil
-}
 
 // XLSX creates an XLSX file from report items and writes to the writer.
-func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{}) (retErr error) {
+// If exportColumnKeys is provided, columns are output in that order.
+// Uses a StreamWriter for O(1) memory consumption and supports Control Breaks (Subtotals).
+func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{}, exportColumnKeys []string, exportGroupByKeys []string) (retErr error) {
 	f := excelize.NewFile()
 	defer func() {
 		if cErr := f.Close(); cErr != nil && retErr == nil {
@@ -55,92 +26,244 @@ func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{})
 	}()
 
 	sheet := "Sheet1"
-	columns := visibleColumns(meta)
+	columns := resolveExportColumns(meta, exportColumnKeys)
+
+	sw, err := f.NewStreamWriter(sheet)
+	if err != nil {
+		return fmt.Errorf("new stream writer: %w", err)
+	}
 
 	// ── Styles ────────────────────────────────────────────────────────
-	headerStyle, _ := f.NewStyle(&excelize.Style{
+	headerStyleID, _ := f.NewStyle(&excelize.Style{
 		Font:      &excelize.Font{Bold: true, Size: 10},
 		Fill:      excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"E8E8E8"}},
 		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center", WrapText: true},
 		Border:    thinBorders(),
 	})
-	cellStyle, _ := f.NewStyle(&excelize.Style{
+	cellStyleID, _ := f.NewStyle(&excelize.Style{
 		Font:   &excelize.Font{Size: 10},
 		Border: thinBorders(),
 	})
-	cellRightStyle, _ := f.NewStyle(&excelize.Style{
+	cellRightStyleID, _ := f.NewStyle(&excelize.Style{
 		Font:      &excelize.Font{Size: 10},
 		Border:    thinBorders(),
 		Alignment: &excelize.Alignment{Horizontal: "right"},
 		NumFmt:    4, // #,##0.00
 	})
-
-	// ── Title row ─────────────────────────────────────────────────────
-	titleStyle, _ := f.NewStyle(&excelize.Style{
+	titleStyleID, _ := f.NewStyle(&excelize.Style{
 		Font: &excelize.Font{Bold: true, Size: 14},
 	})
-	if err := f.SetCellValue(sheet, "A1", meta.Name); err != nil {
-		return fmt.Errorf("xlsx set title value: %w", err)
-	}
-	if err := f.SetCellStyle(sheet, "A1", "A1", titleStyle); err != nil {
-		return fmt.Errorf("xlsx set title style: %w", err)
+	groupHeaderStyleID, _ := f.NewStyle(&excelize.Style{
+		Font:   &excelize.Font{Bold: true, Size: 10},
+		Fill:   excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"F5F5F5"}},
+		Border: thinBorders(),
+	})
+	subtotalStyleID, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 10},
+		Fill:      excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"F5F5F5"}},
+		Alignment: &excelize.Alignment{Horizontal: "right"},
+		Border:    thinBorders(),
+	})
+	subtotalNumStyleID, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 10},
+		Fill:      excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"F5F5F5"}},
+		Alignment: &excelize.Alignment{Horizontal: "right"},
+		NumFmt:    4,
+		Border:    thinBorders(),
+	})
+
+	// Pre-calc numeric cols
+	numericCols := make([]bool, len(columns))
+	for i, col := range columns {
+		if col.Type == "quantity" || col.Type == "money" || col.Type == "number" {
+			numericCols[i] = true
+		}
 	}
 
-	// ── Header row (row 3) ────────────────────────────────────────────
-	headerRow := 3
+	rowNum := 1
+
+	// Title
+	sw.SetRow("A1", []interface{}{excelize.Cell{Value: meta.Name, StyleID: titleStyleID}})
+	rowNum += 2 // Blank row
+
+	// Header & Column Widths
+	headerRow := make([]interface{}, len(columns))
 	for i, col := range columns {
-		cell := cellName(i, headerRow)
-		if err := f.SetCellValue(sheet, cell, col.Label); err != nil {
-			return fmt.Errorf("xlsx set header value: %w", err)
-		}
-		if err := f.SetCellStyle(sheet, cell, cell, headerStyle); err != nil {
-			return fmt.Errorf("xlsx set header style: %w", err)
-		}
+		headerRow[i] = excelize.Cell{Value: col.Label, StyleID: headerStyleID}
+		colLetter, _ := excelize.ColumnNumberToName(i + 1)
 		width := float64(len(col.Label)) * 1.3
 		if width < 12 {
 			width = 12
 		}
-		colLetter, _ := excelize.ColumnNumberToName(i + 1)
-		if err := f.SetColWidth(sheet, colLetter, colLetter, width); err != nil {
-			return fmt.Errorf("xlsx set col width: %w", err)
+		f.SetColWidth(sheet, colLetter, colLetter, width)
+	}
+	sw.SetRow(fmt.Sprintf("A%d", rowNum), headerRow)
+	rowNum++
+
+	// ── Grouping & Control Breaks ─────────────────────────────────────
+	type groupState struct {
+		Key       string
+		ColMeta   platform.ReportColumn
+		Value     string
+		Subtotals []float64
+	}
+	var groups []*groupState
+	for _, key := range exportGroupByKeys {
+		groups = append(groups, &groupState{
+			Key:       key,
+			ColMeta:   getColMeta(meta, key),
+			Value:     "",
+			Subtotals: make([]float64, len(columns)),
+		})
+	}
+	grandTotals := make([]float64, len(columns))
+	firstRow := true
+
+	for _, item := range items {
+		// 1. Detect break
+		breakIdx := -1
+		if !firstRow {
+			for i, g := range groups {
+				val := formatExportValue(item[g.Key], g.ColMeta)
+				if val != g.Value {
+					breakIdx = i
+					break
+				}
+			}
+		}
+
+		// 2. Output Subtotals (bottom-up)
+		if breakIdx != -1 {
+			for i := len(groups) - 1; i >= breakIdx; i-- {
+				g := groups[i]
+				subRow := make([]interface{}, len(columns))
+				subRow[0] = excelize.Cell{Value: fmt.Sprintf("Итого %s", g.Value), StyleID: subtotalStyleID}
+				for cIdx, isNum := range numericCols {
+					if isNum {
+						subRow[cIdx] = excelize.Cell{Value: g.Subtotals[cIdx], StyleID: subtotalNumStyleID}
+					}
+					g.Subtotals[cIdx] = 0 // Reset
+				}
+				sw.SetRow(fmt.Sprintf("A%d", rowNum), subRow, excelize.RowOpts{OutlineLevel: i})
+				rowNum++
+			}
+		}
+
+		// 3. Update group values & Output new Headers (top-down)
+		if firstRow || breakIdx != -1 {
+			startIdx := 0
+			if !firstRow {
+				startIdx = breakIdx
+			}
+			for i := startIdx; i < len(groups); i++ {
+				g := groups[i]
+				val := formatExportValue(item[g.Key], g.ColMeta)
+				g.Value = val
+
+				hdrRow := make([]interface{}, len(columns))
+				indent := strings.Repeat("   ", i)
+				hdrRow[0] = excelize.Cell{Value: indent + val, StyleID: groupHeaderStyleID}
+				sw.SetRow(fmt.Sprintf("A%d", rowNum), hdrRow, excelize.RowOpts{OutlineLevel: i})
+				rowNum++
+			}
+			firstRow = false
+		}
+
+		// 4. Detail Row
+		detRow := make([]interface{}, len(columns))
+		for cIdx, col := range columns {
+			val := item[col.Key]
+			if numericCols[cIdx] {
+				if num, ok := toFloat64(val); ok {
+					detRow[cIdx] = excelize.Cell{Value: num, StyleID: cellRightStyleID}
+					for _, g := range groups {
+						g.Subtotals[cIdx] += num
+					}
+					grandTotals[cIdx] += num
+				}
+			} else {
+				detRow[cIdx] = excelize.Cell{Value: formatExportValue(val, col), StyleID: cellStyleID}
+			}
+		}
+		sw.SetRow(fmt.Sprintf("A%d", rowNum), detRow, excelize.RowOpts{OutlineLevel: len(groups)})
+		rowNum++
+	}
+
+	// 5. Remaining Subtotals (if there were items)
+	if !firstRow {
+		for i := len(groups) - 1; i >= 0; i-- {
+			g := groups[i]
+			subRow := make([]interface{}, len(columns))
+			subRow[0] = excelize.Cell{Value: fmt.Sprintf("Итого %s", g.Value), StyleID: subtotalStyleID}
+			for cIdx, isNum := range numericCols {
+				if isNum {
+					subRow[cIdx] = excelize.Cell{Value: g.Subtotals[cIdx], StyleID: subtotalNumStyleID}
+				}
+			}
+			sw.SetRow(fmt.Sprintf("A%d", rowNum), subRow, excelize.RowOpts{OutlineLevel: i})
+			rowNum++
 		}
 	}
 
-	// ── Data rows ─────────────────────────────────────────────────────
-	for rowIdx, item := range items {
-		row := headerRow + 1 + rowIdx
-		for colIdx, col := range columns {
-			cell := cellName(colIdx, row)
-			val := item[col.Key]
-
-			switch col.Type {
-			case "quantity", "money":
-				if num, ok := toFloat64(val); ok {
-					if err := f.SetCellValue(sheet, cell, num); err != nil {
-						return fmt.Errorf("xlsx set numeric value: %w", err)
-					}
-					if err := f.SetCellStyle(sheet, cell, cell, cellRightStyle); err != nil {
-						return fmt.Errorf("xlsx set numeric style: %w", err)
-					}
-					continue
-				}
-			}
-
-			if err := f.SetCellValue(sheet, cell, formatExportValue(val, col)); err != nil {
-				return fmt.Errorf("xlsx set cell value: %w", err)
-			}
-			if err := f.SetCellStyle(sheet, cell, cell, cellStyle); err != nil {
-				return fmt.Errorf("xlsx set cell style: %w", err)
+	// 6. Grand Totals
+	if len(items) > 0 {
+		gtRow := make([]interface{}, len(columns))
+		gtRow[0] = excelize.Cell{Value: "Итого по отчету", StyleID: subtotalStyleID}
+		for cIdx, isNum := range numericCols {
+			if isNum {
+				gtRow[cIdx] = excelize.Cell{Value: grandTotals[cIdx], StyleID: subtotalNumStyleID}
 			}
 		}
+		sw.SetRow(fmt.Sprintf("A%d", rowNum), gtRow)
+	}
+
+	if err := sw.Flush(); err != nil {
+		return fmt.Errorf("stream flush: %w", err)
 	}
 
 	return f.Write(w)
 }
 
+func getColMeta(meta platform.ReportMeta, key string) platform.ReportColumn {
+	for _, c := range meta.Columns {
+		if c.Key == key {
+			return c
+		}
+	}
+	return platform.ReportColumn{Key: key, Type: "string", Label: key}
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+// resolveExportColumns returns columns in the order specified by exportColumnKeys.
+// If exportColumnKeys is empty, falls back to all visible (non-hidden) columns.
+// Unknown keys are silently skipped.
+func resolveExportColumns(meta platform.ReportMeta, exportColumnKeys []string) []platform.ReportColumn {
+	if len(exportColumnKeys) == 0 {
+		return visibleColumns(meta)
+	}
+
+	// Build lookup map: key → column
+	colMap := make(map[string]platform.ReportColumn, len(meta.Columns))
+	for _, c := range meta.Columns {
+		colMap[c.Key] = c
+	}
+
+	// Resolve in user's order
+	cols := make([]platform.ReportColumn, 0, len(exportColumnKeys))
+	for _, key := range exportColumnKeys {
+		if col, ok := colMap[key]; ok {
+			cols = append(cols, col)
+		}
+	}
+
+	if len(cols) == 0 {
+		return visibleColumns(meta)
+	}
+	return cols
+}
 
 func visibleColumns(meta platform.ReportMeta) []platform.ReportColumn {
 	cols := make([]platform.ReportColumn, 0, len(meta.Columns))

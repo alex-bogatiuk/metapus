@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"text/template"
@@ -107,6 +108,8 @@ func NewEngine(
 		cel.Variable("doc", cel.DynType),
 		cel.Variable("action", cel.StringType),
 		cel.Variable("entityType", cel.StringType),
+		cel.Variable("currency", cel.DynType),
+		cel.Variable("humanAmounts", cel.DynType),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CEL env: %w", err)
@@ -148,6 +151,43 @@ func (e *Engine) HandleEvent(ctx context.Context, eventType string, payload map[
 	// Phase 2: Deliver
 	e.Deliver(ctx, tasks)
 
+	return nil
+}
+
+// DeliverReplay replays a failed message using its history entry ID.
+func (e *Engine) DeliverReplay(ctx context.Context, historyID id.ID) error {
+	entry, err := e.historyRepo.GetByID(ctx, historyID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch history entry: %w", err)
+	}
+
+	if entry.RenderedPayload == nil || *entry.RenderedPayload == "" {
+		return fmt.Errorf("cannot replay history entry with empty payload")
+	}
+
+	rule := &automations.Rule{
+		ID:   entry.RuleID,
+		Name: entry.RuleName,
+	}
+
+	subscriber := automations.Subscriber{}
+	if entry.ChannelID != nil {
+		subscriber.SubscriberType = automations.SubChannel
+		subscriber.ChannelID = entry.ChannelID
+	} else {
+		return fmt.Errorf("replay is only supported for channel-based deliveries")
+	}
+
+	task := DeliveryTask{
+		Rule:            rule,
+		Subscriber:      subscriber,
+		RenderedPayload: *entry.RenderedPayload,
+		EventType:       entry.EventType,
+		AggregateID:     entry.AggregateID,
+		AggregateName:   entry.AggregateName,
+	}
+
+	e.Deliver(ctx, []DeliveryTask{task})
 	return nil
 }
 
@@ -210,6 +250,13 @@ func (e *Engine) Evaluate(ctx context.Context, eventType string, payload map[str
 		"doc":        doc,
 		"action":     action,
 		"entityType": entityType,
+	}
+
+	if curr, ok := payload["currency"]; ok {
+		vars["currency"] = curr
+	}
+	if ha, ok := payload["humanAmounts"]; ok {
+		vars["humanAmounts"] = ha
 	}
 
 	var aggregateID *id.ID
@@ -640,13 +687,65 @@ var safeFuncMap = template.FuncMap{
 		}
 		return val
 	},
+	// truncate cuts string to maxLen and appends ellipsis
 	"truncate": func(maxLen int, s string) string {
 		if len(s) <= maxLen {
 			return s
 		}
 		return s[:maxLen] + "…"
 	},
-	// currency formats a number with two decimal places and thousand separators (space).
+	// money converts MinorUnits to human-readable string with proper decimal places and thousand separators.
+	// Usage: {{money .doc.totalAmount .currency.decimalPlaces}}
+	"money": func(rawAmount any, dp any) string {
+		var minor float64
+		switch n := rawAmount.(type) {
+		case float64: minor = n
+		case float32: minor = float64(n)
+		case int: minor = float64(n)
+		case int64: minor = float64(n)
+		case json.Number: minor, _ = n.Float64()
+		default: return fmt.Sprintf("%v", rawAmount)
+		}
+		
+		decimalPlaces := 2 // default
+		switch d := dp.(type) {
+		case float64: decimalPlaces = int(d)
+		case int: decimalPlaces = d
+		case int64: decimalPlaces = int(d)
+		case json.Number: 
+			if df, err := d.Float64(); err == nil {
+				decimalPlaces = int(df)
+			}
+		}
+
+		f := minor / math.Pow10(decimalPlaces)
+
+		// Format with proper decimals, then insert thousand separators
+		format := fmt.Sprintf("%%.%df", decimalPlaces)
+		raw := fmt.Sprintf(format, f)
+		parts := strings.SplitN(raw, ".", 2)
+		intPart := parts[0]
+		// Insert space every 3 digits from right
+		negative := ""
+		if strings.HasPrefix(intPart, "-") {
+			negative = "-"
+			intPart = intPart[1:]
+		}
+		var result []byte
+		for i, c := range intPart {
+			if i > 0 && (len(intPart)-i)%3 == 0 {
+				result = append(result, ' ')
+			}
+			result = append(result, byte(c))
+		}
+		
+		if len(parts) > 1 {
+			// use comma for decimal separator
+			return negative + string(result) + "," + parts[1]
+		}
+		return negative + string(result)
+	},
+	// currency (legacy) formats a number with two decimal places and thousand separators (space).
 	// Example: 150000 → "150 000.00", 1234.5 → "1 234.50"
 	"currency": func(v any) string {
 		var f float64

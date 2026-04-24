@@ -59,7 +59,7 @@ type Organization struct {
 	// ── Accounting policy ───────────────────────────────────────────────
 	TaxSystem         TaxSystem       `db:"tax_system" json:"taxSystem" meta:"label:Система налогообложения"`
 	VatPayer          bool            `db:"vat_payer" json:"vatPayer" meta:"label:Плательщик НДС"`
-	DefaultVatRateID  *id.ID          `db:"default_vat_rate_id" json:"defaultVatRateId,omitempty" meta:"label:Ставка НДС по умолчанию"`
+	DefaultVatRateID  *id.ID          `db:"default_vat_rate_id" json:"defaultVatRateId,omitempty" meta:"label:Ставка НДС по умолчанию,ref:vat_rate"`
 	InventoryMethod   InventoryMethod `db:"inventory_method" json:"inventoryMethod" meta:"label:Метод учёта запасов"`
 	FiscalYearStart   string          `db:"fiscal_year_start" json:"fiscalYearStart" meta:"label:Начало фискального года"`
 }

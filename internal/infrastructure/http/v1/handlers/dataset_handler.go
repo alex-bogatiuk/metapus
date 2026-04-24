@@ -59,7 +59,7 @@ func (h *DatasetReportHandler) HandleExecute(c *gin.Context) {
 
 	result, err := h.compiler.Execute(ctx, req)
 	if err != nil {
-		h.Error(c, apperror.NewValidation("DEBUG: "+err.Error()))
+		h.Error(c, apperror.NewInternal(err))
 		return
 	}
 
@@ -71,11 +71,6 @@ func (h *DatasetReportHandler) HandleExport(datasetKey string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := c.Request.Context()
 
-		format := c.DefaultQuery("format", "csv")
-		if format != "csv" && format != "xlsx" {
-			h.Error(c, apperror.NewValidation("unsupported export format: "+format))
-			return
-		}
 
 		var req compiler.QueryRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -87,35 +82,19 @@ func (h *DatasetReportHandler) HandleExport(datasetKey string) gin.HandlerFunc {
 
 		result, err := h.compiler.Execute(ctx, req)
 		if err != nil {
-			h.Error(c, apperror.NewValidation("DEBUG: "+err.Error()))
+			h.Error(c, apperror.NewInternal(err))
 			return
 		}
 
 		ds := h.compiler.GetDataset(datasetKey)
 		meta := compiler.DatasetToMeta(ds, h.registry)
 
-		switch format {
-		case "csv":
-			filename := fmt.Sprintf("%s.csv", meta.Key)
-			c.Header("Content-Type", "text/csv; charset=utf-8")
-			c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
-			// BOM for Excel UTF-8 compat
-			if _, err := c.Writer.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
-				_ = c.Error(err)
-				return
-			}
-			if err := export.CSV(c.Writer, meta, result.Items); err != nil {
-				_ = c.Error(err)
-				return
-			}
-		case "xlsx":
-			filename := fmt.Sprintf("%s.xlsx", meta.Key)
-			c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-			c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
-			if err := export.XLSX(c.Writer, meta, result.Items); err != nil {
-				_ = c.Error(err)
-				return
-			}
+		filename := fmt.Sprintf("%s.xlsx", meta.Key)
+		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+		if err := export.XLSX(c.Writer, meta, result.Items, req.ExportColumns, req.ExportGroupBy); err != nil {
+			_ = c.Error(err)
+			return
 		}
 	}
 }
@@ -134,7 +113,7 @@ func (h *DatasetReportHandler) HandleGrouped(datasetKey string) gin.HandlerFunc 
 
 		result, err := h.compiler.Execute(ctx, req)
 		if err != nil {
-			h.Error(c, apperror.NewValidation("DEBUG: "+err.Error()))
+			h.Error(c, apperror.NewInternal(err))
 			return
 		}
 

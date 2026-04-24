@@ -38,10 +38,10 @@ type Nomenclature struct {
 	Barcode *string `db:"barcode" json:"barcode,omitempty" meta:"label:Штрихкод"`
 
 	// BaseUnitID is the reference to base unit of measure
-	BaseUnitID *string `db:"base_unit_id" json:"baseUnitId,omitempty" meta:"label:Базовая единица"`
+	BaseUnitID *id.ID `db:"base_unit_id" json:"baseUnitId,omitempty" meta:"label:Базовая единица,ref:unit"`
 
 	// DefaultVatRateID is the reference to default VAT rate from cat_vat_rates
-	DefaultVatRateID *id.ID `db:"default_vat_rate_id" json:"defaultVatRateId,omitempty" meta:"label:Ставка НДС"`
+	DefaultVatRateID *id.ID `db:"default_vat_rate_id" json:"defaultVatRateId,omitempty" meta:"label:Ставка НДС,ref:vat_rate"`
 
 	// Weight in kg (for logistics)
 	Weight decimal.Decimal `db:"weight" json:"weight" meta:"label:Вес"`
@@ -53,7 +53,7 @@ type Nomenclature struct {
 	Description *string `db:"description" json:"description,omitempty" meta:"label:Описание"`
 
 	// ManufacturerID is reference to manufacturer (counterparty)
-	ManufacturerID *string `db:"manufacturer_id" json:"manufacturerId,omitempty" meta:"label:Производитель"`
+	ManufacturerID *id.ID `db:"manufacturer_id" json:"manufacturerId,omitempty" meta:"label:Производитель,ref:counterparty"`
 
 	// CountryOfOrigin is the country code (ISO 3166-1 alpha-2)
 	CountryOfOrigin *string `db:"country_of_origin" json:"countryOfOrigin,omitempty" meta:"label:Страна происхождения"`

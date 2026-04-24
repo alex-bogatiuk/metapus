@@ -7,6 +7,7 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
+	"metapus/internal/core/id"
 )
 
 // WarehouseType defines the type of warehouse.
@@ -40,7 +41,7 @@ type Warehouse struct {
 	IsDefault bool `db:"is_default" json:"isDefault" meta:"label:Is Main"`
 
 	// OrganizationID is reference to owning organization
-	OrganizationID string `db:"organization_id" json:"organizationId,omitempty" meta:"label:Organization"`
+	OrganizationID id.ID `db:"organization_id" json:"organizationId,omitempty" meta:"label:Organization"`
 
 	// Description
 	Description *string `db:"description" json:"description,omitempty" meta:"label:Description"`

@@ -206,6 +206,11 @@ export interface HistoryListResponse {
   total: number
 }
 
+export interface HistoryStatsResponse {
+  total: number
+  byStatus: Partial<Record<HistoryStatus, number>>
+}
+
 // ── Automation Meta ─────────────────────────────────────────────────────
 
 export interface EnumOption {

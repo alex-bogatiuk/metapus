@@ -9,7 +9,10 @@
  * No report-specific code — driven entirely by useReportPage hook.
  */
 
-import React, { useCallback, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
+import { format } from "date-fns"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -40,8 +43,27 @@ import {
     ChevronDown, ChevronRight, Link2, Save, BookmarkCheck, Trash2, Table2, BarChart3, X,
     ListTree,
 } from "lucide-react"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { DatePicker } from "@/components/ui/date-picker"
 import type { UseReportPageReturn } from "@/hooks/useReportPage"
 import type { DisplayRow, ReportColumnDef, FieldTreeNode } from "@/types/report-meta"
+import { FilterSidebar } from "@/components/shared/filter-sidebar"
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+    SortableContext,
+    horizontalListSortingStrategy,
+    useSortable,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import Decimal from "decimal.js"
 
 // ── Props ───────────────────────────────────────────────────────────────
 
@@ -127,9 +149,16 @@ export function ReportPage({ report, filterSlot, headerSlot }: ReportPageProps) 
                 </Button>
 
                 {/* Export */}
-                {meta.exportFormats.length > 0 && (
-                    <ExportDropdown report={report} />
-                )}
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={report.status !== "done"}
+                    onClick={() => report.exportReport()}
+                >
+                    <Download className="h-4 w-4" />
+                    Экспорт
+                </Button>
 
                 {/* Generate button */}
                 <Button
@@ -153,26 +182,40 @@ export function ReportPage({ report, filterSlot, headerSlot }: ReportPageProps) 
                 </Button>
             </div>
 
-            {/* Stale Data Warning */}
-            {report.isDirty && status !== "idle" && status !== "loading" && (
-                <div className="bg-amber-50/80 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900/50 px-4 py-2 text-sm text-amber-800 dark:text-amber-300 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <AlertCircle className="h-4 w-4" />
-                        <span>Настройки отчета были изменены. Показаны устаревшие данные.</span>
+            {/* Main content + FilterSidebar */}
+            <div className="flex flex-1 overflow-hidden min-h-0">
+                {/* Main content area */}
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                    {/* Stale Data Warning */}
+                    {report.isDirty && status !== "idle" && status !== "loading" && (
+                        <div className="bg-amber-50/80 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900/50 px-4 py-2 text-sm text-amber-800 dark:text-amber-300 flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-2">
+                                <AlertCircle className="h-4 w-4" />
+                                <span>Настройки отчета были изменены. Показаны устаревшие данные.</span>
+                            </div>
+                            <Button variant="ghost" size="sm" onClick={generate} className="h-6 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50">
+                                Обновить
+                            </Button>
+                        </div>
+                    )}
+
+                    {/* Content */}
+                    <div className="flex-1 overflow-auto min-h-0 bg-muted/10 relative flex flex-col">
+                        <ReportContent report={report} />
                     </div>
-                    <Button variant="ghost" size="sm" onClick={generate} className="h-6 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50">
-                        Обновить
-                    </Button>
                 </div>
-            )}
 
-            {/* Content */}
-            <div className="flex-1 overflow-auto min-h-0 bg-muted/10 relative">
-                <ReportContent report={report} />
+                {/* Right sidebar: FilterSidebar (reused from entity lists) */}
+                {report.filterFieldsMeta.length > 0 && (
+                    <FilterSidebar
+                        showGroups={false}
+                        showDetails={false}
+                        fieldsMeta={report.filterFieldsMeta}
+                        onFilterValuesChange={report.onAdvancedFilterValuesChange}
+                        initialFilterValues={report.advancedFilterValues}
+                    />
+                )}
             </div>
-
-            {/* Drill-down panel [#13] */}
-            <DrillDownPanel report={report} />
         </div>
     )
 }
@@ -221,18 +264,15 @@ function ReportContent({ report }: { report: UseReportPageReturn }) {
                         Используйте экспорт для получения данных.
                     </p>
                     <div className="flex gap-2 mt-2">
-                        {meta?.exportFormats.map((fmt) => (
-                            <Button
-                                key={fmt}
-                                variant="outline"
-                                size="sm"
-                                className="gap-1.5"
-                                onClick={() => report.exportReport(fmt)}
-                            >
-                                <Download className="h-4 w-4" />
-                                {fmt.toUpperCase()}
-                            </Button>
-                        ))}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => report.exportReport()}
+                        >
+                            <Download className="h-4 w-4" />
+                            Экспорт (Excel)
+                        </Button>
                     </div>
                 </div>
             )
@@ -252,7 +292,12 @@ function ReportContent({ report }: { report: UseReportPageReturn }) {
                             sortColumn={report.sortColumn}
                             sortDirection={report.sortDirection}
                             onSort={report.handleSort}
-                            onRowClick={report.selectRow}
+                            onReorderColumn={report.reorderColumn}
+                            selectionRange={report.selectionRange}
+                            isDraggingSelection={report.isDraggingSelection}
+                            onSelectionStart={report.onSelectionStart}
+                            onSelectionMove={report.onSelectionMove}
+                            onSelectionEnd={report.onSelectionEnd}
                         />
                     )}
                 </>
@@ -269,7 +314,12 @@ interface ReportTableProps {
     sortColumn: string | null
     sortDirection: "asc" | "desc"
     onSort: (key: string) => void
-    onRowClick?: (row: Record<string, unknown> | null) => void
+    onReorderColumn?: (fromIndex: number, toIndex: number) => void
+    selectionRange: { start: { r: number, c: number }, end: { r: number, c: number } } | null
+    isDraggingSelection: boolean
+    onSelectionStart: (r: number, c: number) => void
+    onSelectionMove: (r: number, c: number) => void
+    onSelectionEnd: () => void
 }
 
 function ReportTable({
@@ -279,7 +329,12 @@ function ReportTable({
     sortColumn,
     sortDirection,
     onSort,
-    onRowClick,
+    onReorderColumn,
+    selectionRange,
+    isDraggingSelection,
+    onSelectionStart,
+    onSelectionMove,
+    onSelectionEnd,
 }: ReportTableProps) {
     const visibleColumns = useMemo(() => {
         const colMap = new Map(columns.map((c) => [c.key, c]))
@@ -339,43 +394,209 @@ function ReportTable({
         return result
     }, [rows, collapsedGroups])
 
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+        useSensor(KeyboardSensor),
+    )
+
+    const handleDragEnd = useCallback((event: DragEndEvent) => {
+        const { active, over } = event
+        if (!over || active.id === over.id || !onReorderColumn) return
+        const oldIndex = visibleKeys.indexOf(active.id as string)
+        const newIndex = visibleKeys.indexOf(over.id as string)
+        if (oldIndex !== -1 && newIndex !== -1) {
+            onReorderColumn(oldIndex, newIndex)
+        }
+    }, [visibleKeys, onReorderColumn])
+
+    useEffect(() => {
+        if (isDraggingSelection) {
+            window.addEventListener("mouseup", onSelectionEnd)
+            return () => window.removeEventListener("mouseup", onSelectionEnd)
+        }
+    }, [isDraggingSelection, onSelectionEnd])
+
+    const minR = selectionRange ? Math.min(selectionRange.start.r, selectionRange.end.r) : -1
+    const maxR = selectionRange ? Math.max(selectionRange.start.r, selectionRange.end.r) : -1
+    const minC = selectionRange ? Math.min(selectionRange.start.c, selectionRange.end.c) : -1
+    const maxC = selectionRange ? Math.max(selectionRange.start.c, selectionRange.end.c) : -1
+
+    // ── Ctrl+C: Copy selected cells to clipboard ─────────────────────
+    useEffect(() => {
+        function handleKeyDown(e: KeyboardEvent) {
+            // Check for Ctrl+C. Use e.code="KeyC" to support Russian keyboard layout
+            // where e.key is "с" (cyrillic). We also check e.key for broad compatibility.
+            const isCopy = (e.ctrlKey || e.metaKey) && (e.code === "KeyC" || e.key.toLowerCase() === "c" || e.key.toLowerCase() === "с")
+            if (!isCopy) return
+            
+            if (minR < 0 || maxR < 0 || minC < 0 || maxC < 0) return
+
+            e.preventDefault()
+
+            const selectedRows = visibleRows.slice(minR, maxR + 1)
+            const selectedCols = visibleColumns.slice(minC, maxC + 1)
+
+            const lines: string[] = []
+            for (const { row } of selectedRows) {
+                if (row.kind !== "data") continue
+                const cells = selectedCols.map(col => {
+                    const val = row.item[col.key]
+                    const formatted = formatCellValue(val, col)
+                    return String(formatted)
+                })
+                lines.push(cells.join("\t"))
+            }
+            if (lines.length === 0) return
+
+            const tsv = lines.join("\n")
+
+            // Try modern API first, fall back to execCommand
+            if (navigator.clipboard?.writeText) {
+                navigator.clipboard.writeText(tsv).then(
+                    () => toast.success(`Скопировано ${lines.length} строк`),
+                    () => fallbackCopy(tsv, lines.length),
+                )
+            } else {
+                fallbackCopy(tsv, lines.length)
+            }
+        }
+
+        function fallbackCopy(text: string, lineCount: number) {
+            const ta = document.createElement("textarea")
+            ta.value = text
+            ta.style.position = "fixed"
+            ta.style.left = "-9999px"
+            document.body.appendChild(ta)
+            ta.select()
+            try {
+                document.execCommand("copy")
+                toast.success(`Скопировано ${lineCount} строк`)
+            } catch {
+                toast.error("Не удалось скопировать")
+            }
+            document.body.removeChild(ta)
+        }
+
+        window.addEventListener("keydown", handleKeyDown)
+        return () => window.removeEventListener("keydown", handleKeyDown)
+    }, [visibleRows, visibleColumns, minR, maxR, minC, maxC])
+
+    const router = useRouter()
+
     return (
-        <div className="overflow-auto">
-            <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-background border-b z-10">
-                    <tr>
-                        {visibleColumns.map((col) => (
-                            <th
-                                key={col.key}
-                                className={`px-3 py-2 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none whitespace-nowrap ${
-                                    col.align === "right" ? "text-right" : "text-left"
-                                }`}
-                                onClick={() => col.sortable && onSort(col.key)}
-                            >
-                                <span className="inline-flex items-center gap-1">
-                                    {col.label}
-                                    {sortColumn === col.key && (
-                                        <span className="text-xs">{sortDirection === "asc" ? "↑" : "↓"}</span>
-                                    )}
-                                </span>
-                            </th>
-                        ))}
-                    </tr>
-                </thead>
+        <div className="flex flex-col flex-1 overflow-hidden min-h-0 bg-background">
+            <ScrollArea className="flex-1">
+            <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+            >
+                <table className="w-full text-sm select-none border-separate border-spacing-0">
+                    <thead className="sticky top-0 bg-background border-b z-10">
+                        <SortableContext
+                            items={visibleKeys}
+                            strategy={horizontalListSortingStrategy}
+                        >
+                            <tr>
+                                {visibleColumns.map((col) => (
+                                    <SortableColumnHeader
+                                        key={col.key}
+                                        column={col}
+                                        isSorted={sortColumn === col.key}
+                                        sortDirection={sortDirection}
+                                        onSort={onSort}
+                                    />
+                                ))}
+                            </tr>
+                        </SortableContext>
+                    </thead>
                 <tbody>
-                    {visibleRows.map(({ row, originalIndex }) => (
+                    {visibleRows.map(({ row, originalIndex }, rowIndex) => (
                         <ReportRow
                             key={originalIndex}
+                            rowIndex={rowIndex}
                             row={row}
                             columns={visibleColumns}
-                            onRowClick={onRowClick}
                             isCollapsed={row.kind === "group" && collapsedGroups.has(originalIndex)}
                             onToggleGroup={row.kind === "group" ? () => toggleGroup(originalIndex) : undefined}
+                            minR={minR}
+                            maxR={maxR}
+                            minC={minC}
+                            maxC={maxC}
+                            onSelectionStart={onSelectionStart}
+                            onSelectionMove={onSelectionMove}
+                            router={router}
                         />
                     ))}
                 </tbody>
             </table>
+            </DndContext>
+            <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+            
+            <ReportStatusBar 
+                selectionRange={selectionRange} 
+                visibleRows={visibleRows} 
+                visibleColumns={visibleColumns} 
+            />
         </div>
+    )
+}
+
+// ── Sortable Column Header ──────────────────────────────────────────────
+
+function SortableColumnHeader({
+    column,
+    isSorted,
+    sortDirection,
+    onSort,
+}: {
+    column: ReportColumnDef
+    isSorted: boolean
+    sortDirection: "asc" | "desc"
+    onSort: (key: string) => void
+}) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: column.key })
+
+    const style: React.CSSProperties = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 20 : undefined,
+    }
+
+    return (
+        <th
+            ref={setNodeRef}
+            style={style}
+            className={`px-3 py-2 font-medium text-muted-foreground select-none whitespace-nowrap ${
+                column.align === "right" ? "text-right" : "text-left"
+            } ${column.sortable ? "cursor-pointer hover:text-foreground" : ""}`}
+            onClick={() => column.sortable && onSort(column.key)}
+        >
+            <span className="inline-flex items-center gap-1">
+                <span
+                    {...attributes}
+                    {...listeners}
+                    className="cursor-grab text-muted-foreground/40 hover:text-muted-foreground/80 touch-none"
+                    onClick={(e) => e.stopPropagation()}
+                    title="Перетащите для изменения порядка"
+                >
+                    ⠿
+                </span>
+                {column.label}
+                {isSorted && (
+                    <span className="text-xs">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                )}
+            </span>
+        </th>
     )
 }
 
@@ -383,16 +604,30 @@ function ReportTable({
 
 function ReportRow({
     row,
+    rowIndex,
     columns,
-    onRowClick,
     isCollapsed,
     onToggleGroup,
+    minR,
+    maxR,
+    minC,
+    maxC,
+    onSelectionStart,
+    onSelectionMove,
+    router,
 }: {
     row: DisplayRow
+    rowIndex: number
     columns: ReportColumnDef[]
-    onRowClick?: (row: Record<string, unknown> | null) => void
     isCollapsed?: boolean
     onToggleGroup?: () => void
+    minR: number
+    maxR: number
+    minC: number
+    maxC: number
+    onSelectionStart: (r: number, c: number) => void
+    onSelectionMove: (r: number, c: number) => void
+    router: ReturnType<typeof useRouter>
 }) {
     switch (row.kind) {
         case "group":
@@ -401,7 +636,7 @@ function ReportRow({
                     className="bg-muted/50 font-medium cursor-pointer hover:bg-muted/70 transition-colors"
                     onClick={onToggleGroup}
                 >
-                    <td colSpan={columns.length} className="px-3 py-1.5" style={{ paddingLeft: `${12 + row.depth * 20}px` }}>
+                    <td colSpan={columns.length} className="px-3 py-1.5 border-b" style={{ paddingLeft: `${12 + row.depth * 20}px` }}>
                         <span className="inline-flex items-center gap-1.5">
                             {isCollapsed ? (
                                 <ChevronRight className="h-3.5 w-3.5" />
@@ -418,19 +653,35 @@ function ReportRow({
             )
         case "data":
             return (
-                <tr
-                    className="border-b hover:bg-muted/30 transition-colors cursor-pointer"
-                    onClick={() => onRowClick?.(row.item)}
-                >
-                    {columns.map((col) => (
-                        <td
-                            key={col.key}
-                            className={`px-3 py-1.5 ${col.align === "right" ? "text-right tabular-nums" : ""}`}
-                            style={{ paddingLeft: col === columns[0] ? `${12 + row.depth * 20}px` : undefined }}
-                        >
-                            {formatCellValue(row.item[col.key], col)}
-                        </td>
-                    ))}
+                <tr className="border-b transition-colors cursor-cell hover:bg-muted/30">
+                    {columns.map((col, colIndex) => {
+                        const isSelected = rowIndex >= minR && rowIndex <= maxR && colIndex >= minC && colIndex <= maxC
+                        const isRef = col.type === "reference" && col.refRoute
+                        return (
+                            <td
+                                key={col.key}
+                                onMouseDown={(e) => {
+                                    if (e.button !== 0) return // Only left click
+                                    onSelectionStart(rowIndex, colIndex)
+                                }}
+                                onMouseEnter={() => onSelectionMove(rowIndex, colIndex)}
+                                onDoubleClick={() => {
+                                    if (isRef) {
+                                        const uuid = row.item[col.refIdKey ?? ""] as string | undefined
+                                        if (uuid) {
+                                            router.push(`/catalogs/${col.refRoute}/${uuid}`)
+                                        }
+                                    }
+                                }}
+                                className={`px-3 py-1.5 ${col.align === "right" ? "text-right tabular-nums" : ""} ${
+                                    isSelected ? "bg-primary/20 ring-1 ring-inset ring-primary/40" : ""
+                                } ${isRef ? "hover:underline decoration-primary/50 cursor-pointer" : ""}`}
+                                style={{ paddingLeft: col === columns[0] ? `${12 + row.depth * 20}px` : undefined }}
+                            >
+                                {formatCellValue(row.item[col.key], col)}
+                            </td>
+                        )
+                    })}
                 </tr>
             )
         case "subtotal": {
@@ -541,42 +792,97 @@ function ReportChartPlaceholder({ report }: { report: UseReportPageReturn }) {
     )
 }
 
-// ── Drill-Down Panel [#13] ──────────────────────────────────────────────
+// ── Report Status Bar (Aggregations) ────────────────────────────────────
 
-function DrillDownPanel({ report }: { report: UseReportPageReturn }) {
-    const { selectedRow, selectRow, meta } = report
+function ReportStatusBar({ 
+    selectionRange, 
+    visibleRows, 
+    visibleColumns 
+}: { 
+    selectionRange: { start: { r: number, c: number }, end: { r: number, c: number } } | null
+    visibleRows: { row: DisplayRow; originalIndex: number }[]
+    visibleColumns: ReportColumnDef[]
+}) {
+    if (!selectionRange) return null
 
-    if (!selectedRow || !meta) return null
+    const minR = Math.min(selectionRange.start.r, selectionRange.end.r)
+    const maxR = Math.max(selectionRange.start.r, selectionRange.end.r)
+    const minC = Math.min(selectionRange.start.c, selectionRange.end.c)
+    const maxC = Math.max(selectionRange.start.c, selectionRange.end.c)
 
-    const visibleColumns = meta.columns.filter((c) => !c.defaultHidden)
+    // Cell selection implies at least one cell. We don't need size > 1 restriction 
+    // if the user deliberately selects a single cell, but usually we aggregate on >1.
+    // Let's show it even for 1 cell if it's a measure, it helps verify values.
+
+    const selectedCols = visibleColumns.slice(minC, maxC + 1)
+    const aggregatableColumns = selectedCols.filter(
+        c => c.type === "money" || c.type === "quantity"
+    )
+
+    if (aggregatableColumns.length === 0) return null
+
+    const selectedItems = visibleRows
+        .slice(minR, maxR + 1)
+        .map(r => r.row)
+        .filter(r => r.kind === "data")
+        .map(r => r.item)
+
+    if (selectedItems.length === 0) return null
+
+    const aggregations = aggregatableColumns.map(col => {
+        let sum = new Decimal(0)
+        let count = 0
+        for (const item of selectedItems) {
+            const val = item[col.key]
+            if (val !== undefined && val !== null && val !== "") {
+                try {
+                    sum = sum.plus(new Decimal(String(val)))
+                    count++
+                } catch {
+                    // Ignore non-numeric values
+                }
+            }
+        }
+        const avg = count > 0 ? sum.dividedBy(count) : new Decimal(0)
+        
+        return {
+            col,
+            sum,
+            avg,
+            count
+        }
+    }).filter(agg => agg.count > 0)
+
+    if (aggregations.length === 0) return null
 
     return (
-        <Sheet open={!!selectedRow} onOpenChange={(open) => { if (!open) selectRow(null) }}>
-            <SheetContent side="right" className="w-[400px] sm:w-[480px]">
-                <SheetHeader>
-                    <SheetTitle className="flex items-center gap-2">
-                        Детали строки
-                        <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto" onClick={() => selectRow(null)}>
-                            <X className="h-4 w-4" />
-                        </Button>
-                    </SheetTitle>
-                </SheetHeader>
-                <div className="mt-4 space-y-3">
-                    {meta.columns.map((col) => {
-                        const value = selectedRow[col.key]
-                        if (value === undefined || value === null) return null
-                        return (
-                            <div key={col.key} className="grid grid-cols-[140px_1fr] gap-2 text-sm">
-                                <span className="text-muted-foreground font-medium truncate">{col.label}</span>
-                                <span className={col.align === "right" ? "text-right tabular-nums" : ""}>
-                                    {formatCellValue(value, col)}
-                                </span>
-                            </div>
-                        )
-                    })}
+        <div className="sticky bottom-0 bg-background border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20 flex flex-wrap gap-x-6 gap-y-2 items-center text-sm shrink-0 px-4 py-2 mt-auto">
+            <div className="font-medium flex items-center gap-2 text-muted-foreground mr-2 border-r pr-4">
+                <Table2 className="h-4 w-4" />
+                Ячеек выделено: {selectedItems.length * selectedCols.length}
+            </div>
+            
+            {aggregations.map(({ col, sum, avg, count }) => (
+                <div key={col.key} className="flex items-center gap-4">
+                    <span className="text-muted-foreground">{col.label}:</span>
+                    <div className="flex items-center gap-3">
+                        <span title="Сумма (Sum)" className="inline-flex items-center gap-1.5">
+                            <span className="text-muted-foreground text-[10px] uppercase font-semibold">Sum</span>
+                            <span className="font-medium tabular-nums">{sum.toNumber().toLocaleString("ru-RU", { maximumFractionDigits: 4 })}</span>
+                        </span>
+                        {count > 1 && (
+                            <span title="Среднее (Avg)" className="inline-flex items-center gap-1.5 border-l pl-3">
+                                <span className="text-muted-foreground text-[10px] uppercase font-semibold">Avg</span>
+                                <span className="tabular-nums opacity-90">{avg.toNumber().toLocaleString("ru-RU", { maximumFractionDigits: 4 })}</span>
+                            </span>
+                        )}
+                        <Badge variant="outline" className="text-[10px] font-normal h-5 px-1.5 border-dashed" title="Количество значений (Count)">
+                            {count}
+                        </Badge>
+                    </div>
                 </div>
-            </SheetContent>
-        </Sheet>
+            ))}
+        </div>
     )
 }
 
@@ -690,38 +996,47 @@ function ColumnChooserDropdown({ report }: { report: UseReportPageReturn }) {
     )
 }
 
-function ExportDropdown({ report }: { report: UseReportPageReturn }) {
-    return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1.5" disabled={report.status !== "done"}>
-                    <Download className="h-4 w-4" />
-                    Экспорт
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-                {report.meta?.exportFormats.map((fmt) => (
-                    <DropdownMenuItem key={fmt} onClick={() => report.exportReport(fmt)}>
-                        {fmt.toUpperCase()}
-                    </DropdownMenuItem>
-                ))}
-            </DropdownMenuContent>
-        </DropdownMenu>
-    )
-}
+
 
 // ── Report Variants Dropdown [#14] ──────────────────────────────────────
+
+import type { VariantVisibility } from "@/types/report-variant"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 
 function VariantsDropdown({ report }: { report: UseReportPageReturn }) {
     const [saveOpen, setSaveOpen] = useState(false)
     const [variantName, setVariantName] = useState("")
+    const [visibility, setVisibility] = useState<VariantVisibility>("personal")
+    const [isDefault, setIsDefault] = useState(false)
 
-    const handleSave = () => {
-        if (variantName.trim()) {
-            report.saveVariant(variantName.trim())
+    const activeVariant = report.variants.find((v) => v.id === report.activeVariantId)
+
+    // Pre-fill form fields from active variant when opening dialog
+    const openSaveDialog = useCallback(() => {
+        if (activeVariant) {
+            setVariantName(activeVariant.name)
+            setVisibility(activeVariant.visibility as VariantVisibility)
+            setIsDefault(activeVariant.isDefault)
+        } else {
             setVariantName("")
-            setSaveOpen(false)
+            setVisibility("personal")
+            setIsDefault(false)
         }
+        setSaveOpen(true)
+    }, [activeVariant])
+
+    const handleSave = async () => {
+        const name = variantName.trim()
+        if (!name) return
+
+        // If the active variant exists and name hasn't changed — overwrite (update)
+        if (activeVariant && name === activeVariant.name) {
+            await report.updateVariant(activeVariant.id, name, visibility, isDefault)
+        } else {
+            await report.saveVariant(name, visibility, isDefault)
+        }
+        setSaveOpen(false)
     }
 
     return (
@@ -731,9 +1046,9 @@ function VariantsDropdown({ report }: { report: UseReportPageReturn }) {
                     <Button variant="outline" size="sm" className="gap-1.5">
                         <BookmarkCheck className="h-4 w-4" />
                         Варианты
-                        {report.activeVariantName && (
+                        {activeVariant && (
                             <Badge variant="secondary" className="text-xs ml-1 max-w-[100px] truncate">
-                                {report.activeVariantName}
+                                {activeVariant.name}
                             </Badge>
                         )}
                     </Button>
@@ -748,18 +1063,22 @@ function VariantsDropdown({ report }: { report: UseReportPageReturn }) {
                     ) : (
                         report.variants.map((v) => (
                             <DropdownMenuItem
-                                key={v.name}
+                                key={v.id}
                                 className="flex items-center justify-between"
-                                onClick={() => report.loadVariant(v.name)}
+                                onClick={() => report.loadVariant(v.id)}
                             >
-                                <span className="truncate">{v.name}</span>
+                                <span className="truncate">
+                                    {v.name}
+                                    {v.visibility === "shared" && <Badge variant="outline" className="ml-2 text-[10px] uppercase">Общий</Badge>}
+                                    {v.visibility === "system" && <Badge variant="outline" className="ml-2 text-[10px] uppercase border-primary text-primary">Системный</Badge>}
+                                </span>
                                 <Button
                                     variant="ghost"
                                     size="icon"
                                     className="h-5 w-5 shrink-0 ml-2"
                                     onClick={(e) => {
                                         e.stopPropagation()
-                                        report.deleteVariant(v.name)
+                                        report.deleteVariant(v.id)
                                     }}
                                 >
                                     <Trash2 className="h-3 w-3 text-muted-foreground" />
@@ -768,7 +1087,7 @@ function VariantsDropdown({ report }: { report: UseReportPageReturn }) {
                         ))
                     )}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => setSaveOpen(true)}>
+                    <DropdownMenuItem onClick={openSaveDialog}>
                         <Save className="h-4 w-4 mr-2" />
                         Сохранить текущий…
                     </DropdownMenuItem>
@@ -781,14 +1100,35 @@ function VariantsDropdown({ report }: { report: UseReportPageReturn }) {
                     <DialogHeader>
                         <DialogTitle>Сохранить вариант отчёта</DialogTitle>
                     </DialogHeader>
-                    <div className="py-3">
-                        <Input
-                            placeholder="Название варианта"
-                            value={variantName}
-                            onChange={(e) => setVariantName(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && handleSave()}
-                            autoFocus
-                        />
+                    <div className="py-3 space-y-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Название варианта</label>
+                            <Input
+                                placeholder="Мой вариант"
+                                value={variantName}
+                                onChange={(e) => setVariantName(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && handleSave()}
+                                autoFocus
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Доступность</label>
+                            <Select value={visibility} onValueChange={(val: VariantVisibility) => setVisibility(val)}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="personal">Личный (только для меня)</SelectItem>
+                                    <SelectItem value="shared">Общий (для всех пользователей)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Checkbox id="is-default-variant" checked={isDefault} onCheckedChange={(c) => setIsDefault(!!c)} />
+                            <label htmlFor="is-default-variant" className="text-sm font-medium leading-none cursor-pointer">
+                                Использовать по умолчанию
+                            </label>
+                        </div>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" size="sm" onClick={() => setSaveOpen(false)}>
@@ -816,15 +1156,14 @@ function ReportFilterControls({ report }: { report: UseReportPageReturn }) {
                 switch (filter.type) {
                     case "date":
                         return (
-                            <input
-                                key={filter.key}
-                                type="date"
-                                placeholder={filter.label}
-                                className="h-8 px-2 text-sm border rounded-md bg-background"
-                                value={String(filterValues[filter.key] ?? "")}
-                                onChange={(e) => setFilterValue(filter.key, e.target.value || undefined)}
-                                title={filter.label}
-                            />
+                            <div key={filter.key} className="flex items-center gap-2">
+                                <span className="text-sm text-muted-foreground">{filter.label}</span>
+                                <DatePicker
+                                    value={filterValues[filter.key] ? new Date(String(filterValues[filter.key])) : undefined}
+                                    onChange={(date) => setFilterValue(filter.key, date ? format(date, "yyyy-MM-dd") : undefined)}
+                                    className="w-[140px]"
+                                />
+                            </div>
                         )
                     case "boolean":
                         return (
@@ -908,7 +1247,12 @@ function FieldTreeItem({
 }) {
     const [expanded, setExpanded] = useState(false)
     const hasChildren = node.children && node.children.length > 0
-    const isSelected = selectedFields.includes(node.key)
+    // For root ref nodes, "selected" means the .name path is in selectedFields
+    // (e.g. node.key="warehouse_id" → check for "warehouse_id.name")
+    const effectiveKey = (node.type === "ref" && !node.key.includes("."))
+        ? node.key + ".name"
+        : node.key
+    const isSelected = selectedFields.includes(effectiveKey)
 
     return (
         <div>

@@ -16,6 +16,7 @@ import (
 
 	"metapus/internal/core/automation"
 	"metapus/internal/core/automation/adapters"
+	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/infrastructure/storage/postgres"
 	ws "metapus/internal/infrastructure/websocket"
@@ -182,6 +183,11 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 		return
 	}
 
+	// Hold a reference so the eviction loop doesn't close our pool.
+	// evictIdlePools() skips pools with refCount > 0.
+	mp.AcquireRef()
+	defer mp.ReleaseRef()
+
 	txManager := postgres.NewTxManagerFromRawPool(mp.Pool())
 
 	// Initialize automation engine ONCE per tenant worker lifecycle.
@@ -216,6 +222,9 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 			w.log.Infow("stopping worker for tenant", "tenant_id", t.ID)
 			return
 		case <-ticker.C:
+			// Keep pool alive — prevent idle eviction.
+			mp.Touch()
+
 			processed, err := relay.ProcessBatch(ctx)
 			if err != nil {
 				w.log.Errorw("failed to process outbox batch", "tenant_id", t.ID, "error", err)
@@ -223,6 +232,7 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 				w.log.Debugw("processed outbox batch", "tenant_id", t.ID, "count", processed)
 			}
 		case <-cleanupTicker.C:
+			mp.Touch()
 			w.cleanupSessions(ctx, mp.Pool(), t.ID)
 			w.cleanupIdempotency(ctx, mp.Pool(), t.ID)
 			w.cleanupAutomationHistory(ctx, mp.Pool(), t.ID)
@@ -260,9 +270,23 @@ func (h *automationOutboxHandler) Handle(ctx context.Context, msg *postgres.Outb
 	var payload map[string]any
 	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
 		h.log.Errorw("failed to unmarshal outbox payload", "error", err, "msg_id", msg.ID)
-		// Returning error will make it fail. If payload is garbage, we should just drop it or fail it permanently.
 		return fmt.Errorf("unmarshal payload: %w", err)
 	}
+
+	if msg.AggregateType == "automation_history" && msg.EventType == "replay" {
+		historyIDStr, _ := payload["history_id"].(string)
+		historyID, err := id.Parse(historyIDStr)
+		if err != nil {
+			h.log.Errorw("invalid history_id for replay", "error", err)
+			return nil
+		}
+		if err := h.engine.DeliverReplay(ctx, historyID); err != nil {
+			h.log.Errorw("failed to replay automation", "history_id", historyID, "error", err)
+			return err
+		}
+		return nil
+	}
+
 	return h.engine.HandleEvent(ctx, msg.EventType, payload)
 }
 

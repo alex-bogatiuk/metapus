@@ -48,6 +48,62 @@ func ValidateItems(items []Item) error {
 	return nil
 }
 
+// BuildSingleCondition translates a single filter Item into a squirrel.Sqlizer condition.
+//
+// sqlExpr is the fully resolved SQL expression for the field, e.g.:
+//   - "base.warehouse_id"           (direct column)
+//   - "j1.name"                     (joined reference attribute)
+//   - "DATE(base.date)"             (date-wrapped)
+//
+// This function is the shared operator→SQL core, used by:
+//   - BuildConditions (catalog/document list filters — flat columns)
+//   - Compiler.applyAdvancedFilters (report filters — resolver-provided paths)
+//
+// Note: InHierarchy/NotInHierarchy are not supported here (they require tableName).
+// Use BuildConditions for those.
+func BuildSingleCondition(item Item, sqlExpr string) (squirrel.Sqlizer, error) {
+	// Apply static storage scale to the user-visible value (e.g. Quantity ×10000).
+	val := scaleFilterValue(item.Value, item.Scale)
+
+	switch item.Operator {
+	case Equal:
+		return squirrel.Eq{sqlExpr: val}, nil
+	case NotEqual:
+		return squirrel.Or{
+			squirrel.NotEq{sqlExpr: val},
+			squirrel.Eq{sqlExpr: nil},
+		}, nil
+	case LessOrEqual:
+		return squirrel.LtOrEq{sqlExpr: val}, nil
+	case GreaterOrEqual:
+		return squirrel.GtOrEq{sqlExpr: val}, nil
+	case Less:
+		return squirrel.Lt{sqlExpr: val}, nil
+	case Greater:
+		return squirrel.Gt{sqlExpr: val}, nil
+	case InList:
+		return squirrel.Eq{sqlExpr: val}, nil
+	case NotInList:
+		return squirrel.Or{
+			squirrel.NotEq{sqlExpr: val},
+			squirrel.Eq{sqlExpr: nil},
+		}, nil
+	case IsNull:
+		return squirrel.Eq{sqlExpr: nil}, nil
+	case IsNotNull:
+		return squirrel.NotEq{sqlExpr: nil}, nil
+	case Contains:
+		return squirrel.ILike{sqlExpr: fmt.Sprintf("%%%v%%", item.Value)}, nil
+	case NotContains:
+		return squirrel.Or{
+			squirrel.NotILike{sqlExpr: fmt.Sprintf("%%%v%%", item.Value)},
+			squirrel.Eq{sqlExpr: nil},
+		}, nil
+	default:
+		return nil, fmt.Errorf("unsupported operator for BuildSingleCondition: %s", item.Operator)
+	}
+}
+
 // BuildConditions translates []Item into []squirrel.Sqlizer.
 //
 // validCols is a whitelist of allowed column names (SQL injection protection).
@@ -68,7 +124,6 @@ func BuildConditions(items []Item, validCols map[string]struct{}, tableName stri
 		}
 
 		// Money fields use dynamic SQL-side scaling via currency_id → cat_currencies.minor_multiplier.
-		// The scale depends on the document's currency, not a static constant.
 		if item.FieldType == "money" {
 			cond, err := buildMoneyCondition(item.Field, item.Operator, item.Value, tableName)
 			if err != nil {
@@ -78,55 +133,32 @@ func BuildConditions(items []Item, validCols map[string]struct{}, tableName stri
 			continue
 		}
 
-		// Apply static storage scale to the user-visible value (e.g. Quantity ×10000).
-		val := scaleFilterValue(item.Value, item.Scale)
+		// Hierarchy operators need tableName — handle separately.
+		if item.Operator == InHierarchy || item.Operator == NotInHierarchy {
+			cond := buildHierarchyCondition(item, tableName)
+			conditions = append(conditions, cond)
+			continue
+		}
 
 		fieldExpr := item.Field
 		if item.FieldType == "date" {
 			fieldExpr = "DATE(" + item.Field + ")"
 		}
 
-		switch item.Operator {
-		case Equal:
-			conditions = append(conditions, squirrel.Eq{fieldExpr: val})
-		case NotEqual:
-			// (field <> value OR field IS NULL) — include rows where field is NULL
-			conditions = append(conditions, squirrel.Or{
-				squirrel.NotEq{fieldExpr: val},
-				squirrel.Eq{fieldExpr: nil},
-			})
-		case LessOrEqual:
-			conditions = append(conditions, squirrel.LtOrEq{fieldExpr: val})
-		case GreaterOrEqual:
-			conditions = append(conditions, squirrel.GtOrEq{fieldExpr: val})
-		case Less:
-			conditions = append(conditions, squirrel.Lt{fieldExpr: val})
-		case Greater:
-			conditions = append(conditions, squirrel.Gt{fieldExpr: val})
-		case InList:
-			conditions = append(conditions, squirrel.Eq{fieldExpr: val})
-		case NotInList:
-			// (field NOT IN (...) OR field IS NULL) — include rows where field is NULL
-			conditions = append(conditions, squirrel.Or{
-				squirrel.NotEq{fieldExpr: val},
-				squirrel.Eq{fieldExpr: nil},
-			})
-		case IsNull:
-			conditions = append(conditions, squirrel.Eq{fieldExpr: nil})
-		case IsNotNull:
-			conditions = append(conditions, squirrel.NotEq{fieldExpr: nil})
-		case Contains:
-			val := fmt.Sprintf("%%%v%%", item.Value)
-			conditions = append(conditions, squirrel.ILike{fieldExpr: val})
-		case NotContains:
-			// (field NOT ILIKE '%val%' OR field IS NULL) — include rows where field is NULL
-			val := fmt.Sprintf("%%%v%%", item.Value)
-			conditions = append(conditions, squirrel.Or{
-				squirrel.NotILike{fieldExpr: val},
-				squirrel.Eq{fieldExpr: nil},
-			})
-		case InHierarchy:
-			cteSQL := fmt.Sprintf(`
+		cond, err := BuildSingleCondition(item, fieldExpr)
+		if err != nil {
+			return nil, err
+		}
+		conditions = append(conditions, cond)
+	}
+
+	return conditions, nil
+}
+
+// buildHierarchyCondition generates a recursive CTE condition for InHierarchy/NotInHierarchy.
+func buildHierarchyCondition(item Item, tableName string) squirrel.Sqlizer {
+	if item.Operator == InHierarchy {
+		cteSQL := fmt.Sprintf(`
                 id IN (
                     WITH RECURSIVE hierarchy AS (
                         SELECT id FROM %s WHERE id = $1 
@@ -136,9 +168,10 @@ func BuildConditions(items []Item, validCols map[string]struct{}, tableName stri
                     SELECT id FROM hierarchy
                 )
             `, tableName, tableName)
-			conditions = append(conditions, squirrel.Expr(cteSQL, item.Value))
-		case NotInHierarchy:
-			cteSQL := fmt.Sprintf(`
+		return squirrel.Expr(cteSQL, item.Value)
+	}
+	// NotInHierarchy
+	cteSQL := fmt.Sprintf(`
                 (id NOT IN (
                     WITH RECURSIVE hierarchy AS (
                         SELECT id FROM %s WHERE id = $1 
@@ -148,11 +181,7 @@ func BuildConditions(items []Item, validCols map[string]struct{}, tableName stri
                     SELECT id FROM hierarchy
                 ) OR id IS NULL)
             `, tableName, tableName)
-			conditions = append(conditions, squirrel.Expr(cteSQL, item.Value))
-		}
-	}
-
-	return conditions, nil
+	return squirrel.Expr(cteSQL, item.Value)
 }
 
 // BuildTablePartCondition generates an EXISTS (or NOT EXISTS) subquery

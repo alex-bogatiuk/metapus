@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useState, useMemo, useCallback, useRef } from "react"
+import { useState, useMemo, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { CircleCheck, Circle, Loader2, Plus, Copy, Pencil, Trash2, CircleCheckBig, CircleOff, Ban } from "lucide-react"
+import { CircleCheck, Circle, Plus, Copy, Pencil, Trash2, CircleCheckBig, CircleOff, Ban } from "lucide-react"
+import { DataTableSkeleton } from "@/components/shared/data-table-skeleton"
 import { DataToolbar } from "@/components/shared/data-toolbar"
 import { FilterSidebar } from "@/components/shared/filter-sidebar"
 import { DataTable, Column } from "@/components/shared/data-table"
@@ -11,6 +12,7 @@ import { DocumentDetailsPanel, type TableSection } from "@/components/shared/doc
 import { SelectAllBanner } from "@/components/shared/select-all-banner"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useDocumentBatchActions } from "@/hooks/useDocumentBatchActions"
+import { useShortcut } from "@/hooks/useShortcut"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -220,28 +222,18 @@ export default function GoodsReceiptsListPage() {
     clearSelection,
   })
 
-  // ── Keyboard shortcuts: F9 = copy, Delete = toggle deletion mark ────
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "F9") {
-        e.preventDefault()
-        if (focusedId) handleCopy()
-      }
-      if (e.key === "Delete") {
-        e.preventDefault()
-        // Batch-aware: if items are selected, toggle for all selected;
-        // otherwise toggle for the focused row only.
-        const targets = selectedIds.length > 0
-          ? items.filter((d) => selectedIds.includes(d.id))
-          : items.filter((d) => d.id === focusedId)
-        if (targets.length === 0) return
-        const shouldMark = targets.some((d) => !d.deletionMark)
-        handleToggleDeletionMarkBatch(targets, shouldMark)
-      }
-    }
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [focusedId, handleCopy, items, selectedIds, handleToggleDeletionMarkBatch])
+  // ── Keyboard shortcuts (centralized via useShortcut) ────────────────────
+  const handleDeleteMark = useCallback(() => {
+    const targets = selectedIds.length > 0
+      ? items.filter((d) => selectedIds.includes(d.id))
+      : items.filter((d) => d.id === focusedId)
+    if (targets.length === 0) return
+    const shouldMark = targets.some((d) => !d.deletionMark)
+    handleToggleDeletionMarkBatch(targets, shouldMark)
+  }, [focusedId, items, selectedIds, handleToggleDeletionMarkBatch])
+
+  useShortcut("list.copy", "f9", "Копировать", "list", handleCopy)
+  useShortcut("list.delete", "delete", "Пометить на удаление", "list", handleDeleteMark)
 
   const fetchDetail = useCallback((id: string) => {
     pendingDetailIdRef.current = null
@@ -342,10 +334,7 @@ export default function GoodsReceiptsListPage() {
       <div className="flex flex-1 overflow-hidden">
         <ScrollArea className="flex-1" viewportRef={scrollContainerRef}>
           {loading ? (
-            <div className="flex items-center justify-center py-20 text-muted-foreground">
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Загрузка…
-            </div>
+            <DataTableSkeleton showToolbar={false} showPrefix />
           ) : error ? (
             <div className="flex flex-col items-center justify-center gap-2 py-20 text-destructive">
               <p>{error}</p>
@@ -358,7 +347,7 @@ export default function GoodsReceiptsListPage() {
               Нет документов. Создайте первое поступление товара.
             </div>
           ) : (
-            <>
+            <div className="animate-skeleton-fade-in">
             <SelectAllBanner
               selectedCount={selectedIds.length}
               totalCount={totalCount}
@@ -461,7 +450,7 @@ export default function GoodsReceiptsListPage() {
                 )
               }}
             />
-            </>
+            </div>
           )}
           <ScrollSentinel
             onIntersect={loadMore}

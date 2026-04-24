@@ -21,6 +21,7 @@ type DocumentDeps struct {
 	PostingEngine    *posting.Engine
 	Numerator        numerator.Generator
 	CurrencyResolver domain.CurrencyResolveStrategy
+	CurrencyMetadataResolver domain.CurrencyMetadataResolver // Added for automation outbox
 	PolicyEngine     *security.PolicyEngine
 	EventWriter      eventlog.Writer // optional — nil disables event logging
 	OutboxPublisher  domain.OutboxPublisher // optional — nil disables outbox events

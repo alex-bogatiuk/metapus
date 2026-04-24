@@ -18,7 +18,7 @@ import { entityRegistry } from "@/lib/entity-registry"
 import { registerFromMetadata } from "@/lib/entity-registry-defaults"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import AutoForm from "@/components/shared/auto-form"
-import { Loader2 } from "lucide-react"
+import { FormSkeleton } from "@/components/shared/form-skeleton"
 
 // Auto-discover entities from backend metadata
 registerFromMetadata()
@@ -31,11 +31,7 @@ interface PageProps {
 }
 
 function LoadingFallback() {
-    return (
-        <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-    )
+    return <FormSkeleton variant="catalog" />
 }
 
 export default function CatalogCatchAllFormPage({ params }: PageProps) {

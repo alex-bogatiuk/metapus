@@ -48,6 +48,12 @@ type HistoryFilter struct {
 	Offset    int
 }
 
+// HistoryStats holds aggregated counts by status.
+type HistoryStats struct {
+	Total    int                      `json:"total"`
+	ByStatus map[HistoryStatus]int    `json:"byStatus"`
+}
+
 // HistoryRepository provides access to rule execution logs.
 type HistoryRepository interface {
 	// Create saves a new history entry (append-only).
@@ -58,4 +64,10 @@ type HistoryRepository interface {
 
 	// GetByID retrieves a single history entry by ID.
 	GetByID(ctx context.Context, entryID id.ID) (*HistoryEntry, error)
+
+	// CountByStatus returns aggregated counts grouped by status, respecting the same filter as List.
+	CountByStatus(ctx context.Context, filter HistoryFilter) (*HistoryStats, error)
+
+	// ListIDsByStatus returns IDs of entries matching the filter. Used for batch replay.
+	ListIDsByStatus(ctx context.Context, filter HistoryFilter, limit int) ([]id.ID, error)
 }

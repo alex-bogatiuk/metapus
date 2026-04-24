@@ -2,11 +2,29 @@ package domain
 
 import (
 	"context"
+	"math"
+	"reflect"
+	"strings"
 
+	core_entity "metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
+	"metapus/internal/core/types"
 	"metapus/pkg/logger"
 )
+
+// CurrencyInfo holds minimal currency metadata for event enrichment.
+type CurrencyInfo struct {
+	DecimalPlaces int    `json:"decimalPlaces"`
+	Symbol        string `json:"symbol"`
+	Name          string `json:"name"`
+}
+
+// CurrencyMetadataResolver resolves currency metadata by ID.
+// Used by DocumentOutboxDecorator to enrich event payloads.
+type CurrencyMetadataResolver interface {
+	ResolveCurrency(ctx context.Context, currencyID id.ID) (*CurrencyInfo, error)
+}
 
 // DomainEvent represents an event to be published via outbox.
 type DomainEvent struct {
@@ -26,24 +44,25 @@ type OutboxPublisher interface {
 // to sys_outbox for every successful mutating document operation.
 // Unlike EventLog, we only record successful operations!
 type DocumentOutboxDecorator[T any] struct {
-	next       DocumentService[T]
-	publisher  OutboxPublisher
-	entityName string
+	next             DocumentService[T]
+	publisher        OutboxPublisher
+	entityName       string
+	currencyResolver CurrencyMetadataResolver
 }
 
 // WithOutboxEvents returns a ServiceMiddleware that records successfully completed 
 // business operations to the transactional outbox system for automation.
-func WithOutboxEvents[T any](entityName string, publisher OutboxPublisher) ServiceMiddleware[T] {
+func WithOutboxEvents[T any](entityName string, publisher OutboxPublisher, currencyResolver CurrencyMetadataResolver) ServiceMiddleware[T] {
 	return func(next DocumentService[T]) DocumentService[T] {
 		if publisher == nil {
 			return next
 		}
-		return &DocumentOutboxDecorator[T]{next: next, publisher: publisher, entityName: entityName}
+		return &DocumentOutboxDecorator[T]{next: next, publisher: publisher, entityName: entityName, currencyResolver: currencyResolver}
 	}
 }
 
 // buildEvent creates a DomainEvent from the entity and action.
-func (d *DocumentOutboxDecorator[T]) buildEvent(action string, entity T) *DomainEvent {
+func (d *DocumentOutboxDecorator[T]) buildEvent(ctx context.Context, action string, entity T) *DomainEvent {
 	eid := extractID(entity)
 	if eid == nil {
 		return nil
@@ -51,17 +70,86 @@ func (d *DocumentOutboxDecorator[T]) buildEvent(action string, entity T) *Domain
 
 	eventType := action // "posted", "created", "updated", etc.
 
+	payload := map[string]any{
+		"entityType": d.entityName,
+		"entityId":   eid.String(),
+		"action":     action,
+		"doc":        entity,
+	}
+
+	// Enrich with currency metadata if the entity is CurrencyAware
+	var currencyInfo *CurrencyInfo
+	if currAware, ok := any(entity).(core_entity.ICurrencyAware); ok && d.currencyResolver != nil {
+		currID := currAware.GetCurrencyID()
+		if !id.IsNil(currID) {
+			if info, err := d.currencyResolver.ResolveCurrency(ctx, currID); err == nil {
+				currencyInfo = info
+				payload["currency"] = info
+			} else {
+				logger.Warn(ctx, "failed to resolve currency metadata for outbox event", "currencyId", currID, "error", err)
+			}
+		}
+	}
+
+	// Extract top-level MinorUnits fields into human-readable floats
+	humanAmounts := extractHumanAmounts(entity, currencyInfo)
+	if len(humanAmounts) > 0 {
+		payload["humanAmounts"] = humanAmounts
+	}
+
 	return &DomainEvent{
 		AggregateType: d.entityName,
 		AggregateID:   *eid,
 		EventType:     eventType,
-		Payload: map[string]any{
-			"entityType": d.entityName,
-			"entityId":   eid.String(),
-			"action":     action,
-			"doc":        entity,
-		},
+		Payload:       payload,
 	}
+}
+
+// extractHumanAmounts uses reflection to find all types.MinorUnits fields on the top-level struct
+// and converts them to human-readable float64 values based on the currency's decimal places.
+func extractHumanAmounts(entity any, currencyInfo *CurrencyInfo) map[string]float64 {
+	result := make(map[string]float64)
+	
+	val := reflect.ValueOf(entity)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	
+	if val.Kind() != reflect.Struct {
+		return result
+	}
+	
+	typ := val.Type()
+	
+	// Default to 2 decimal places if no currency metadata
+	decimalPlaces := 2
+	if currencyInfo != nil {
+		decimalPlaces = currencyInfo.DecimalPlaces
+	}
+	
+	divisor := math.Pow10(decimalPlaces)
+	
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		fieldVal := val.Field(i)
+		
+		// Look for fields of type types.MinorUnits
+		if field.Type == reflect.TypeOf(types.MinorUnits(0)) {
+			// Get JSON tag name for the field
+			jsonTag := field.Tag.Get("json")
+			if jsonTag == "-" || jsonTag == "" {
+				continue
+			}
+			
+			// Extract just the name from tag (e.g., "totalAmount,omitempty" -> "totalAmount")
+			name := strings.Split(jsonTag, ",")[0]
+			
+			minorUnits := fieldVal.Int()
+			result[name] = float64(minorUnits) / divisor
+		}
+	}
+	
+	return result
 }
 
 
@@ -71,7 +159,7 @@ func (d *DocumentOutboxDecorator[T]) buildEvent(action string, entity T) *Domain
 // opens and commits its own transaction, so by the time the decorator's method
 // runs, there is no open transaction for the outbox INSERT.
 func (d *DocumentOutboxDecorator[T]) emitInOwnTx(ctx context.Context, action string, entity T) {
-	ev := d.buildEvent(action, entity)
+	ev := d.buildEvent(ctx, action, entity)
 	if ev == nil {
 		return
 	}

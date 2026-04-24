@@ -19,6 +19,7 @@ import { useCatalogForm } from "@/hooks/useCatalogForm"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import { api } from "@/lib/api"
 import Editor from "@monaco-editor/react"
+import { useCelCompletions } from "@/hooks/useCelCompletions"
 import { SubscriberList } from "@/components/settings/subscriber-list"
 import { ScheduleButton } from "@/components/settings/schedule-configurator"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -62,6 +63,8 @@ export default function EditAutomationRulePage() {
     getVersion: (r: unknown) => (r as Record<string, unknown>).version as number ?? 1,
     titleField: (s) => s.name || undefined,
   })
+
+  const { handleEditorMount } = useCelCompletions(f.targetEntities)
 
   // ── Test ────────────────────────────────────────────────────────────────
   const [isTesting, setIsTesting] = useState(false)
@@ -319,11 +322,12 @@ export default function EditAutomationRulePage() {
                   defaultLanguage="go"
                   value={f.conditionCel || ""}
                   onChange={(v) => { update({ conditionCel: v || "" }); handleChange() }}
-                  options={{ minimap: { enabled: false }, lineNumbers: "off", scrollBeyondLastLine: false, fontSize: 13 }}
+                  onMount={handleEditorMount}
+                  options={{ minimap: { enabled: false }, lineNumbers: "off", scrollBeyondLastLine: false, fontSize: 13, quickSuggestions: true, suggestOnTriggerCharacters: true }}
                 />
               </div>
               <p className="text-[10px] text-muted-foreground">
-                Пример: <code>doc.totalAmount &gt; 100000 &amp;&amp; action == &apos;posted&apos;</code>
+                Введите <code>doc.</code> для автозаполнения полей сущности. Пример: <code>humanAmounts.totalAmount &gt; 10000 &amp;&amp; action == &apos;posted&apos;</code>
               </p>
             </div>
           )}

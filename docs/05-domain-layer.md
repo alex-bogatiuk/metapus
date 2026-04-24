@@ -434,7 +434,7 @@ type StockBalance struct {
 
 ## Правила Domain слоя
 
-- **Bounded context = подкаталог** (`catalogs/*`, `documents/*`, `registers/*`, `auth/*`)
+- **Bounded context = подкаталог** (`catalogs/*`, `documents/*`, `registers/*`, `reports/*`, `auth/*`)
 - Доменные типы **самодостаточны**: инварианты в `Validate(ctx)`, бизнес-методы на структурах
 - Сервис **не знает** о конкретных провайдерах/транспорте
 - `Validate(ctx)` **не ходит** в БД/сеть
@@ -449,3 +449,4 @@ type StockBalance struct {
 - [09-crud-pipeline.md](09-crud-pipeline.md) — полный CRUD pipeline с хуками
 - [10-posting-engine.md](10-posting-engine.md) — проведение документов
 - [14-howto-new-entity.md](14-howto-new-entity.md) — пошаговое добавление сущности
+- [28-reporting-system.md](28-reporting-system.md) — Query Engine, Datasets, экспорт, варианты отчётов

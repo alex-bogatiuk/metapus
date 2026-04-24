@@ -380,7 +380,8 @@ type VATRateRegistration struct{}
 
 func (r *VATRateRegistration) RoutePrefix() string      { return "vat-rates" }
 func (r *VATRateRegistration) Permission() string       { return "catalog:vat_rate" }
-func (r *VATRateRegistration) ReferenceTypes() []string { return []string{"vatrate"} }
+func (r *VATRateRegistration) ReferenceTypes() []string { return []string{"vatrate", "vat_rate"} }
+func (r *VATRateRegistration) TableName() string         { return "cat_vat_rates" }
 func (r *VATRateRegistration) EntityName() string       { return "VATRate" }
 func (r *VATRateRegistration) EntityLabel() string      { return "Ставки НДС" }
 func (r *VATRateRegistration) EntityPresentation() metadata.Presentation {

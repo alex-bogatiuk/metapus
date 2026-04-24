@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useShortcutStore } from "@/stores/useShortcutStore"
 import {
     Tooltip,
     TooltipContent,
@@ -96,20 +97,17 @@ const SidebarProvider = React.forwardRef<
                 : setOpen((open) => !open)
         }, [isMobile, setOpen, setOpenMobile])
 
-        // Adds a keyboard shortcut to toggle the sidebar.
+        // Register sidebar toggle shortcut in the centralized registry.
+        // Use direct store access since SidebarProvider is a forwardRef wrapper.
         React.useEffect(() => {
-            const handleKeyDown = (event: KeyboardEvent) => {
-                if (
-                    event.key === SIDEBAR_KEYBOARD_SHORTCUT &&
-                    (event.metaKey || event.ctrlKey)
-                ) {
-                    event.preventDefault()
-                    toggleSidebar()
-                }
-            }
-
-            window.addEventListener("keydown", handleKeyDown)
-            return () => window.removeEventListener("keydown", handleKeyDown)
+            useShortcutStore.getState().register({
+                id: "nav.toggle-sidebar",
+                keys: "mod+b",
+                label: "Боковая панель",
+                group: "navigation" as const,
+                action: toggleSidebar,
+            })
+            return () => useShortcutStore.getState().unregister("nav.toggle-sidebar")
         }, [toggleSidebar])
 
         // We add a state so that we can do data-state="expanded" or "collapsed".

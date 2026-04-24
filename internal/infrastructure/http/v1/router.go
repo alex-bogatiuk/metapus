@@ -22,6 +22,7 @@ import (
 	"metapus/internal/domain/registers/settlement"
 	"metapus/internal/domain/registers/stock"
 	"metapus/internal/domain/reports/compiler"
+	"metapus/internal/domain/reports/variants"
 	"metapus/internal/domain/security_profile"
 	"metapus/internal/infrastructure/cache"
 	"metapus/internal/infrastructure/http/v1/handlers"
@@ -81,6 +82,10 @@ type RouterConfig struct {
 	// CurrencyResolver resolves document currency (optional).
 	// If nil, the default 1C-style chain resolver is created (Document → Contract → Org → System).
 	CurrencyResolver domain.CurrencyResolveStrategy
+
+	// CurrencyMetadataResolver resolves currency metadata (decimalPlaces, symbol).
+	// Used by outbox decorators to enrich automation events.
+	CurrencyMetadataResolver domain.CurrencyMetadataResolver
 
 	// SchemaCache for metadata-driven features (optional).
 	// Provides custom fields merge with static metadata.
@@ -353,6 +358,7 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 		},
 		MovementRefResolver: postgres.NewRefResolverRepo(reg),
 		SettingsRepo:        postgres.NewSettingsRepo(),
+		CurrencyMetadataResolver: cfg.CurrencyMetadataResolver,
 	}
 
 	// Build refEndpoints from catalog factories for document metadata
@@ -414,58 +420,44 @@ func registerMetaRoutes(rg *gin.RouterGroup, reg *metadata.Registry, schemaCache
 }
 
 // registerReportRoutes registers report endpoints via the factory registry.
-// Supports legacy RouteRegistration, typed ReportRegistration[F,R], and new Datasets.
+// All reports use the Dataset-based Query Engine.
 func registerReportRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *FactoryRegistry, reg *metadata.Registry) {
 	reportsGroup := rg.Group("/reports")
 
-	// Legacy reports (backward compat)
-	for _, r := range factoryReg.Reports() {
-		r.RegisterRoutes(reportsGroup.Group("/"+r.RoutePrefix()), cfg)
-	}
-
-	// Legacy typed reports (backward compat, deprecated)
-	baseHandler := handlers.NewBaseHandler()
-	for _, adapter := range factoryReg.TypedReports() {
-		h := handlers.NewReportHandler(baseHandler, adapter)
-		group := reportsGroup.Group("/" + adapter.RoutePrefix())
-		group.Use(middleware.RequirePermission(adapter.Permission()))
-		{
-			group.GET("", h.HandleExecute)
-			group.GET("/metadata", h.HandleMeta)
-			group.GET("/export", h.HandleExport)
-			group.GET("/grouped", h.HandleGrouped)
-		}
-	}
-
-	// New: Dataset-based reports (Query Engine)
 	datasets := factoryReg.Datasets()
-	if len(datasets) > 0 {
-		comp := compiler.NewCompiler(reg, datasets)
-		dsHandler := handlers.NewDatasetReportHandler(baseHandler, comp, reg)
+	if len(datasets) == 0 {
+		return
+	}
 
-		for _, ds := range datasets {
-			group := reportsGroup.Group("/" + ds.Key)
-			group.Use(middleware.RequirePermission(ds.Permission))
-			{
-				group.GET("/metadata", dsHandler.HandleMeta(ds.Key))
-				group.POST("", dsHandler.HandleExecute)
-				group.POST("/export", dsHandler.HandleExport(ds.Key))
-				group.POST("/grouped", dsHandler.HandleGrouped(ds.Key))
-			}
-		}
+	baseHandler := handlers.NewBaseHandler()
+	comp := compiler.NewCompiler(reg, datasets)
+	dsHandler := handlers.NewDatasetReportHandler(baseHandler, comp, reg)
 
-		// Mount metadata under /metadata/reports/{key} for discoverability
-		metaGroup := rg.Group("/metadata/reports")
-		for _, ds := range datasets {
-			metaGroup.GET("/"+ds.Key, dsHandler.HandleMeta(ds.Key))
+	variantRepo := postgres.NewReportVariantRepo()
+	variantSvc := variants.NewService(variantRepo)
+	variantHandler := handlers.NewReportVariantHandler(baseHandler, variantSvc)
+
+	for _, ds := range datasets {
+		group := reportsGroup.Group("/" + ds.Key)
+		group.Use(middleware.RequirePermission(ds.Permission))
+		{
+			group.GET("/metadata", dsHandler.HandleMeta(ds.Key))
+			group.POST("", dsHandler.HandleExecute)
+			group.POST("/export", dsHandler.HandleExport(ds.Key))
+			group.POST("/grouped", dsHandler.HandleGrouped(ds.Key))
+			
+			group.GET("/variants", variantHandler.GetList(ds.Key))
 		}
 	}
 
-	// Legacy metadata mount
-	legacyMetaGroup := rg.Group("/metadata/reports")
-	for _, adapter := range factoryReg.TypedReports() {
-		h := handlers.NewReportHandler(baseHandler, adapter)
-		legacyMetaGroup.GET("/"+adapter.RoutePrefix(), h.HandleMeta)
+	reportsGroup.POST("/variants", variantHandler.Create)
+	reportsGroup.PUT("/variants/:id", variantHandler.Update)
+	reportsGroup.DELETE("/variants/:id", variantHandler.Delete)
+
+	// Mount metadata under /metadata/reports/{key} for discoverability
+	metaGroup := rg.Group("/metadata/reports")
+	for _, ds := range datasets {
+		metaGroup.GET("/"+ds.Key, dsHandler.HandleMeta(ds.Key))
 	}
 }
 

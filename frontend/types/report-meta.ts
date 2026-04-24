@@ -39,6 +39,8 @@ export interface FieldTreeNode {
     children?: FieldTreeNode[]
     /** Whether the field supports sorting */
     sortable?: boolean
+    /** Route prefix for navigation (only for type="ref") */
+    refRoute?: string
 }
 
 export interface ReportFilterDef {
@@ -62,6 +64,10 @@ export interface ReportColumnDef {
     sortable?: boolean
     defaultHidden?: boolean
     format?: "number" | "currency" | "percent"
+    /** For reference columns: the column key containing the raw UUID (e.g. "warehouse_id") */
+    refIdKey?: string
+    /** For reference columns: entity route prefix for navigation (e.g. "warehouses") */
+    refRoute?: string
 }
 
 export interface ReportGroupByDef {
