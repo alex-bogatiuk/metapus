@@ -23,7 +23,7 @@ export interface RefreshTokenRequest {
 
 // ── Response DTOs ───────────────────────────────────────────────────────
 
-// F-09: refreshToken is now delivered via httpOnly cookie, not in JSON response.
+// refreshToken is now delivered via httpOnly cookie, not in JSON response.
 export interface TokenResponse {
   accessToken: string
   expiresAt: string

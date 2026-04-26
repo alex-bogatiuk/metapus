@@ -3,8 +3,8 @@
 /**
  * ReportPage — generic container for all metadata-driven reports.
  *
- * Wave 1: Core layout (toolbar, filter controls, data table)
- * Wave 3: Drill-down panel, report variants, URL sharing, view toggle
+ * Core layout (toolbar, filter controls, data table)
+ * Drill-down panel, report variants, URL sharing, view toggle
  *
  * No report-specific code — driven entirely by useReportPage hook.
  */
@@ -118,7 +118,7 @@ export function ReportPage({ report, filterSlot, headerSlot }: ReportPageProps) 
 
                 <div className="flex-1" />
 
-                {/* View mode toggle [#16] */}
+                {/* View mode toggle */}
                 <ViewModeToggle report={report} />
 
                 {/* Grouping toggle */}
@@ -134,10 +134,10 @@ export function ReportPage({ report, filterSlot, headerSlot }: ReportPageProps) 
                     <FieldChooserDropdown report={report} />
                 )}
 
-                {/* Variants [#14] */}
+                {/* Variants */}
                 <VariantsDropdown report={report} />
 
-                {/* Share link [#15] */}
+                {/* Share link */}
                 <Button
                     variant="outline"
                     size="sm"
@@ -722,7 +722,7 @@ function ReportRow({
     }
 }
 
-// ── Chart Placeholder [#16] ─────────────────────────────────────────────
+// ── Chart Placeholder ─────────────────────────────────────────────
 
 function ReportChartPlaceholder({ report }: { report: UseReportPageReturn }) {
     const { items, meta } = report
@@ -998,7 +998,7 @@ function ColumnChooserDropdown({ report }: { report: UseReportPageReturn }) {
 
 
 
-// ── Report Variants Dropdown [#14] ──────────────────────────────────────
+// ── Report Variants Dropdown ──────────────────────────────────────
 
 import type { VariantVisibility } from "@/types/report-variant"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"

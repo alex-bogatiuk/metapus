@@ -27,7 +27,7 @@ func NewNotificationHandler(repo notifications.Repository, ticketStore *auth.WST
 	}
 }
 
-// ServeWS upgrades to WebSocket using ticket-based auth (F-05).
+// ServeWS upgrades to WebSocket using ticket-based auth.
 // Flow: client obtains ticket via POST /auth/ws-ticket, then connects with ?ticket=<ticket>.
 func (h *NotificationHandler) ServeWS(c *gin.Context) {
 	ticket := c.Query("ticket")

@@ -270,7 +270,7 @@ func (r *RelatedDocRepo) FindRelatedDocuments(ctx context.Context, req domain.Re
 
 	refs, err := r.finder.FindReferences(ctx, domain.FindReferencesRequest(req))
 	if err == nil {
-		// Phase 1: Collect unique FK refs for batch resolve
+		// Collect unique FK refs for batch resolve
 		type fkEntry struct {
 			entityName string
 			sourceID   id.ID
@@ -295,7 +295,7 @@ func (r *RelatedDocRepo) FindRelatedDocuments(ctx context.Context, req domain.Re
 			})
 		}
 
-		// Phase 2: Batch resolve all FK refs in one call
+		// Batch resolve all FK refs in one call
 		resolvedFK := make(map[treeKey]domain.RefResolveResult, len(fkEntries))
 		if len(fkEntries) > 0 {
 			resolveReqs := make([]domain.RefResolveRequest, len(fkEntries))
@@ -308,7 +308,7 @@ func (r *RelatedDocRepo) FindRelatedDocuments(ctx context.Context, req domain.Re
 			}
 		}
 
-		// Phase 3: Build groups from resolved data
+		// Build groups from resolved data
 		type groupAcc struct {
 			items []domain.RelatedDocItem
 			def   metadata.EntityDef

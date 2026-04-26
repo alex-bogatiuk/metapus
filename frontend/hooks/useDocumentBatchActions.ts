@@ -164,7 +164,7 @@ export function useDocumentBatchActions<T extends DocumentLike>(
         [docApi, refetchAfterBatch],
     )
 
-    // ── Filter-based batch executor with SSE progress (Phase 2) ────────
+    // ── Filter-based batch executor with SSE progress ────────
     const executeFilterBatch = useCallback(
         async (
             action: BatchActionType,

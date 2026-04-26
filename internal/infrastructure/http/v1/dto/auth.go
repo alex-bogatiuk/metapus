@@ -97,10 +97,10 @@ type SecurityProfileBrief struct {
 }
 
 // TokenResponse represents token pair response.
-// F-09: refreshToken is now delivered via httpOnly cookie, not JSON.
+// refreshToken is now delivered via httpOnly cookie, not JSON.
 type TokenResponse struct {
 	AccessToken  string    `json:"accessToken"`
-	RefreshToken string    `json:"-"` // F-09: excluded from JSON — delivered via httpOnly cookie
+	RefreshToken string    `json:"-"` // excluded from JSON — delivered via httpOnly cookie
 	ExpiresAt    time.Time `json:"expiresAt"`
 	TokenType    string    `json:"tokenType"`
 }

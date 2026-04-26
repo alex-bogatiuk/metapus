@@ -416,7 +416,7 @@ func (s *Service) CreateUserByAdmin(ctx context.Context, req RegisterRequest, ro
 	user := NewUser(req.Email, string(passwordHash))
 	user.FirstName = req.FirstName
 	user.LastName = req.LastName
-	user.EmailVerified = true // Admin-created users are implicitly verified (F-16)
+	user.EmailVerified = true // Admin-created users are implicitly verified
 
 	currentUser := appctx.GetUser(ctx)
 	var grantedBy id.ID

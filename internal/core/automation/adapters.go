@@ -39,7 +39,7 @@ func (a *WebhookAdapter) Deliver(ctx context.Context, destination map[string]any
 		return fmt.Errorf("missing 'url' in channel destination")
 	}
 
-	// F-03: Validate URL to prevent SSRF to internal networks.
+	// Validate URL to prevent SSRF to internal networks.
 	if err := validateWebhookURL(urlRaw); err != nil {
 		return fmt.Errorf("webhook url validation: %w", err)
 	}
@@ -255,7 +255,7 @@ func (a *EmailAdapter) Deliver(ctx context.Context, destination map[string]any, 
 		body,
 	)
 
-	// F-10: Mandatory TLS for SMTP to prevent credential leakage via MITM.
+	// Mandatory TLS for SMTP to prevent credential leakage via MITM.
 	var auth smtp.Auth
 	password := string(credentials)
 	if password != "" {

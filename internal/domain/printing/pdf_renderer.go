@@ -41,14 +41,14 @@ func RenderPDF(w io.Writer, htmlContent []byte) error {
 	args := []string{
 		"--headless",
 		"--disable-gpu",
-		"--disable-javascript",                  // F-04: Prevent script execution in user-controlled HTML
+		"--disable-javascript",                  // Prevent script execution in user-controlled HTML
 		"--disable-software-rasterizer",
 		"--run-all-compositor-stages-before-draw",
 		"--print-to-pdf=" + pdfPath,
 		"--no-pdf-header-footer",
 		"--print-to-pdf-no-header",
 	}
-	// F-04: --no-sandbox only when explicitly opted in (e.g., Docker root user).
+	// --no-sandbox only when explicitly opted in (e.g., Docker root user).
 	// In production prefer running Chrome as non-root with seccomp profile.
 	if os.Getenv("CHROME_NO_SANDBOX") == "true" {
 		args = append(args, "--no-sandbox")

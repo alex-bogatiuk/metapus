@@ -53,7 +53,7 @@ async function executePrint(
 
   if (output === "html") {
     const html = await res.text()
-    // F-06: Use sandboxed iframe instead of document.write to prevent XSS
+    // Use sandboxed iframe instead of document.write to prevent XSS
     // from unescaped user data in print templates.
     const iframe = document.createElement("iframe")
     iframe.style.position = "fixed"

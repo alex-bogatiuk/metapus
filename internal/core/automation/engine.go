@@ -19,11 +19,11 @@ import (
 	"metapus/pkg/logger"
 )
 
-// maxDeliveryConcurrency limits parallel adapter calls in Phase 2 (Deliver).
+// maxDeliveryConcurrency limits parallel adapter calls in Deliver .
 // Prevents overwhelming external APIs while still improving throughput over sequential.
 const maxDeliveryConcurrency = 10
 
-// DeliveryTask is the output of Phase 1 (Evaluate) and input of Phase 2 (Deliver).
+// DeliveryTask is the output of Evaluate and input of Deliver .
 // One Rule may produce multiple DeliveryTasks (one per subscriber).
 type DeliveryTask struct {
 	Rule            *automations.Rule
@@ -69,8 +69,8 @@ type celCacheEntry struct {
 
 // Engine is the core automation component with two-phase processing:
 //
-//	Phase 1 (Evaluate): CPU-bound — CEL condition check, template rendering.
-//	Phase 2 (Deliver): I/O-bound — adapter execution, history recording.
+//	Evaluate: CPU-bound — CEL condition check, template rendering.
+//	Deliver: I/O-bound — adapter execution, history recording.
 type Engine struct {
 	ruleRepo     automations.RuleRepository
 	historyRepo  automations.HistoryRepository
@@ -147,9 +147,9 @@ func NewEngine(
 }
 
 // HandleEvent is the main entry point. Called by OutboxRelay for each event.
-// Orchestrates Phase 1 (Evaluate) → Phase 2 (Deliver) → Stats update.
+// Orchestrates Evaluate → Deliver → Stats update.
 func (e *Engine) HandleEvent(ctx context.Context, eventType string, payload map[string]any) error {
-	// Phase 1: Evaluate
+	// Evaluate
 	tasks, err := e.Evaluate(ctx, eventType, payload)
 	if err != nil {
 		return fmt.Errorf("evaluate: %w", err)
@@ -159,7 +159,7 @@ func (e *Engine) HandleEvent(ctx context.Context, eventType string, payload map[
 		return nil
 	}
 
-	// Phase 2: Deliver
+	// Deliver
 	e.Deliver(ctx, tasks)
 
 	return nil
@@ -240,8 +240,8 @@ func (e *Engine) HandleScheduledRule(ctx context.Context, rule automations.Rule,
 	return nil
 }
 
-// Evaluate is Phase 1 (CPU-bound): fetch rules, check cooldowns, evaluate CEL, render templates.
-// Returns a list of DeliveryTasks ready for Phase 2.
+// Evaluate is CPU-bound: fetch rules, check cooldowns, evaluate CEL, render templates.
+// Returns a list of DeliveryTasks ready for delivery.
 func (e *Engine) Evaluate(ctx context.Context, eventType string, payload map[string]any) ([]DeliveryTask, error) {
 	entityType, _ := payload["entityType"].(string)
 	rules, err := e.ruleRepo.ListActiveByEvent(ctx, eventType, entityType)
@@ -398,7 +398,7 @@ func (e *Engine) preloadDeliveryData(ctx context.Context, tasks []DeliveryTask) 
 	return cache
 }
 
-// Deliver is Phase 2 (I/O-bound): execute adapters in parallel, record history, update stats.
+// Deliver is I/O-bound: execute adapters in parallel, record history, update stats.
 // Uses bounded concurrency (maxDeliveryConcurrency) to prevent overwhelming external APIs.
 func (e *Engine) Deliver(ctx context.Context, tasks []DeliveryTask) {
 	// Preload channel/account/credentials to avoid N+1 in the delivery loop

@@ -29,7 +29,7 @@ func Auth(validator JWTValidator) gin.HandlerFunc {
 			}
 		}
 
-		// F-05: Removed c.Query("token") — JWT in URL leaks to logs/history/Referer.
+		// Removed c.Query("token") — JWT in URL leaks to logs/history/Referer.
 		// WebSocket auth uses ticket-based flow via POST /auth/ws-ticket.
 
 		if tokenString == "" {

@@ -71,7 +71,7 @@ func (u *User) CanLogin() error {
 	if u.IsLocked() {
 		return apperror.NewForbidden("account is temporarily locked")
 	}
-	// F-16: Require email verification for non-admin users.
+	// Require email verification for non-admin users.
 	// Admin users and admin-created users bypass this check.
 	if !u.EmailVerified && !u.IsAdmin {
 		return apperror.NewForbidden("email not verified").

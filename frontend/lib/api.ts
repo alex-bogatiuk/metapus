@@ -88,7 +88,7 @@ async function doRefreshToken(): Promise<TokenResponse | null> {
     const { setTokens, logout } = useAuthStore.getState()
 
     try {
-        // F-09: refreshToken is now in httpOnly cookie — browser sends it automatically
+        // refreshToken is now in httpOnly cookie — browser sends it automatically
         // with credentials: 'include'. No need to read from JS or localStorage.
         const res = await fetch(`${API_BASE}/auth/refresh`, {
             method: "POST",
@@ -96,7 +96,7 @@ async function doRefreshToken(): Promise<TokenResponse | null> {
                 "Content-Type": "application/json",
                 ...(TENANT_ID ? { "X-Tenant-ID": TENANT_ID } : {}),
             },
-            credentials: "include", // F-09: send httpOnly cookie
+            credentials: "include", // send httpOnly cookie
             body: JSON.stringify({}), // empty body — token comes from cookie
         })
 
@@ -158,7 +158,7 @@ export async function apiFetch<T>(
 
     const res = await fetch(`${API_BASE}${path}`, {
         ...restOptions,
-        credentials: "include", // F-09: send/receive httpOnly cookies
+        credentials: "include", // send/receive httpOnly cookies
         headers: buildHeaders(optHeaders),
     })
 

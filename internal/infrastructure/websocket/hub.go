@@ -31,7 +31,7 @@ func checkOrigin(r *http.Request) bool {
 
 	allowed := os.Getenv("APP_ALLOWED_ORIGINS")
 	if allowed == "" {
-		return false // F-15: Fail-closed in production — require explicit origin whitelist
+		return false // Fail-closed in production — require explicit origin whitelist
 	}
 
 	origin := r.Header.Get("Origin")

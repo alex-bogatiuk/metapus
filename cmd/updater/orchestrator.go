@@ -243,7 +243,7 @@ func (o *Orchestrator) CheckAvailable(ctx context.Context) (*AvailableUpdate, er
 func (o *Orchestrator) runPhases(ctx context.Context, targetImage, targetTag string) {
 	var err error
 
-	// Phase 1: Pull image
+	// Pull image
 	o.state.AppendLog("pulling image " + targetImage)
 	if err = o.state.Transition(PhasePulling); err != nil {
 		o.failUpdate(err)
@@ -266,7 +266,7 @@ func (o *Orchestrator) runPhases(ctx context.Context, targetImage, targetTag str
 	o.state.AppendLog("image pulled successfully")
 	_ = o.state.Update(func(s *UpdateState) { s.PhaseDetail = "" })
 
-	// Phase 2: Discover old container
+	// Discover old container
 	oldInfo, err := o.docker.InspectContainer(ctx, o.cfg.ContainerName)
 	if err != nil {
 		o.failUpdate(fmt.Errorf("inspect current container: %w", err))
@@ -280,7 +280,7 @@ func (o *Orchestrator) runPhases(ctx context.Context, targetImage, targetTag str
 	}
 	o.state.AppendLog(fmt.Sprintf("current container: %s (%s)", oldInfo.Name, oldInfo.ID[:12]))
 
-	// Phase 3: Start new container (WITHOUT host port bindings — old is still using them).
+	// Start new container (WITHOUT host port bindings — old is still using them).
 	if err = o.state.Transition(PhaseStarting); err != nil {
 		o.failUpdate(err)
 		return
@@ -302,7 +302,7 @@ func (o *Orchestrator) runPhases(ctx context.Context, targetImage, targetTag str
 	}
 	o.state.AppendLog(fmt.Sprintf("new container started: %s", newID[:12]))
 
-	// Phase 4: Health check
+	// Health check
 	if err = o.state.Transition(PhaseHealthWait); err != nil {
 		o.cleanupNewContainer(ctx, newID)
 		o.failUpdate(err)
@@ -321,7 +321,7 @@ func (o *Orchestrator) runPhases(ctx context.Context, targetImage, targetTag str
 	o.state.AppendLog("health check passed")
 	_ = o.state.Update(func(s *UpdateState) { s.PhaseDetail = "" })
 
-	// Phase 5: Switch traffic (connect-first)
+	// Switch traffic (connect-first)
 	if err = o.state.Transition(PhaseSwitching); err != nil {
 		o.cleanupNewContainer(ctx, newID)
 		o.failUpdate(err)
@@ -346,7 +346,7 @@ func (o *Orchestrator) runPhases(ctx context.Context, targetImage, targetTag str
 	}
 	o.state.AppendLog("traffic switched to new container")
 
-	// Phase 6: Trigger DB migration on new server
+	// Trigger DB migration on new server
 	if err = o.state.Transition(PhaseMigrating); err != nil {
 		o.failUpdate(err)
 		return
@@ -362,7 +362,7 @@ func (o *Orchestrator) runPhases(ctx context.Context, targetImage, targetTag str
 	o.state.AppendLog("database migration completed")
 	_ = o.state.Update(func(s *UpdateState) { s.PhaseDetail = "" })
 
-	// Phase 7: Done — stop old container, then recreate new with host port bindings.
+	// Done — stop old container, then recreate new with host port bindings.
 	if err = o.state.Transition(PhaseDone); err != nil {
 		o.state.AppendLog(fmt.Sprintf("warning: transition to done: %s", err))
 	}

@@ -104,7 +104,7 @@ type RouterConfig struct {
 	// Created in main.go, backed by meta-database.
 	MigrationStateStore tenant.MigrationStateStore
 
-	// WSTicketStore for WebSocket ticket-based authentication (F-05).
+	// WSTicketStore for WebSocket ticket-based authentication.
 	WSTicketStore *auth.WSTicketStore
 }
 
@@ -138,7 +138,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		health.GET("/live", healthHandler.Live)
 		health.GET("/ready", healthHandler.Ready)
 		health.GET("/info", healthHandler.Info)
-		// NOTE: /tenants moved to admin group (F-11: prevents unauthenticated tenant enumeration)
+		// NOTE: /tenants moved to admin group (prevents unauthenticated tenant enumeration)
 	}
 
 	// Internal endpoints (for reverse proxy, not exposed publicly)
@@ -174,7 +174,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		protected.Use(middleware.TenantDB(cfg.TenantManager))      // 1. Resolve tenant, get DB pool
 		protected.Use(middleware.Auth(cfg.JWTValidator))             // 2. Validate JWT
 		protected.Use(middleware.RequireActiveTenant())              // 3. Block business requests for migration_failed
-		// Security profiles are mandatory — fail-fast if misconfigured (F-07).
+		// Security profiles are mandatory — fail-fast if misconfigured.
 		if cfg.ProfileProvider == nil {
 			panic("v1.NewRouter: cfg.ProfileProvider must not be nil — security profiles are required for DataScope")
 		}
@@ -250,7 +250,7 @@ func registerAuthRoutes(rg *gin.RouterGroup, cfg RouterConfig, eventWriter event
 	authHandler := handlers.NewAuthHandler(baseHandler, cfg.AuthService, profileRepo, eventWriter, cfg.WSTicketStore)
 
 	// Public auth endpoints (no JWT required, but need tenant for DB access)
-	// F-08: Rate limit login/register/refresh to prevent brute-force and credential stuffing.
+	// Rate limit login/register/refresh to prevent brute-force and credential stuffing.
 	publicAuth := rg.Group("/auth")
 	publicAuth.Use(middleware.TenantDB(cfg.TenantManager))
 	publicAuth.Use(middleware.RateLimit(1, 5)) // 1 req/sec sustained, burst 5
@@ -558,7 +558,7 @@ func registerSystemRoutes(rg *gin.RouterGroup, eventLogReader eventlog.Reader, s
 	notificationRepo := postgres.NewNotificationRepo()
 	notifHandler := handlers.NewNotificationHandler(notificationRepo, wsTicketStore)
 	
-	// WebSockets — uses ticket-based auth, not JWT middleware (F-05)
+	// WebSockets — uses ticket-based auth, not JWT middleware
 	rg.GET("/ws", notifHandler.ServeWS)
 
 	// REST API for notifications (under /api/v1/system/notifications)
@@ -657,7 +657,7 @@ func registerAdminTenantRoutes(rg *gin.RouterGroup, cfg RouterConfig, stateStore
 		admin.GET("/:tenantId/migration-status", h.MigrationStatus)
 	}
 
-	// Tenant health stats — admin-only (F-11: moved from public /health group)
+	// Tenant health stats — admin-only (moved from public /health group)
 	adminHealth := rg.Group("/admin")
 	adminHealth.Use(middleware.RequireRole("admin"))
 	adminHealth.GET("/health/tenants", healthHandler.TenantsStats)
@@ -666,7 +666,7 @@ func registerAdminTenantRoutes(rg *gin.RouterGroup, cfg RouterConfig, stateStore
 // registerInternalUpdaterRoutes registers internal endpoints for the Updater Agent.
 // No auth required — secured by Docker network isolation (internal network trust).
 func registerInternalUpdaterRoutes(rg *gin.RouterGroup, cfg RouterConfig, stateStore tenant.MigrationStateStore) {
-	// F-02: Shared secret middleware — defense-in-depth beyond Docker network isolation.
+	// Shared secret middleware — defense-in-depth beyond Docker network isolation.
 	// If INTERNAL_API_SECRET is set, require it in X-Internal-Secret header.
 	if secret := os.Getenv("INTERNAL_API_SECRET"); secret != "" {
 		rg.Use(func(c *gin.Context) {
