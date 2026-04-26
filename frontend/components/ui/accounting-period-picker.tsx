@@ -505,7 +505,7 @@ function AccountingPeriodPicker({
                 size="sm"
                 onClick={handleCancel}
               >
-                Отмена
+                Отменить
               </Button>
             </div>
           </div>

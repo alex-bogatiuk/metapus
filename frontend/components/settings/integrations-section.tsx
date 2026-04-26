@@ -749,7 +749,7 @@ export function IntegrationsSection() {
           <div className="grid grid-cols-4 gap-3">
             {([
               { key: "", label: "Всего", count: historyStats?.total ?? 0, color: "text-foreground" },
-              { key: "success", label: "Успешно", count: historyStats?.byStatus?.success ?? 0, color: "text-green-600 dark:text-green-400" },
+              { key: "success", label: "Выполнено", count: historyStats?.byStatus?.success ?? 0, color: "text-green-600 dark:text-green-400" },
               { key: "error", label: "Ошибки", count: historyStats?.byStatus?.error ?? 0, color: "text-red-600 dark:text-red-400" },
               { key: "skipped", label: "Пропущено", count: (historyStats?.byStatus?.skipped ?? 0) + (historyStats?.byStatus?.condition_false ?? 0), color: "text-muted-foreground" },
             ] as const).map((card) => (
@@ -772,7 +772,7 @@ export function IntegrationsSection() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Все статусы</SelectItem>
-                <SelectItem value="success">Успешно</SelectItem>
+                <SelectItem value="success">Выполнено</SelectItem>
                 <SelectItem value="error">Ошибка</SelectItem>
                 <SelectItem value="condition_false">Условие не выполнено</SelectItem>
                 <SelectItem value="skipped">Пропущено</SelectItem>
@@ -973,7 +973,7 @@ export function IntegrationsSection() {
                 )}
               </Label>
               <Input
-                placeholder="Введите секретный ключ..."
+                placeholder="Секретный ключ API"
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
                 type="password"
@@ -981,7 +981,7 @@ export function IntegrationsSection() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>Отмена</Button>
+            <Button variant="outline" onClick={closeDialog}>Отменить</Button>
             <Button onClick={handleSaveAccount} disabled={saving}>
               {saving ? "Сохранение…" : dialogMode === "create" ? "Создать" : "Сохранить"}
             </Button>
@@ -1098,7 +1098,7 @@ export function IntegrationsSection() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={closeChDialog}>Отмена</Button>
+            <Button variant="outline" onClick={closeChDialog}>Отменить</Button>
             <Button onClick={handleSaveChannel} disabled={chSaving || !chName || !chAccountId}>
               {chSaving ? "Сохранение…" : chDialogMode === "create" ? "Создать" : "Сохранить"}
             </Button>

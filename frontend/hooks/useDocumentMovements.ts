@@ -37,7 +37,7 @@ export function useDocumentMovements({ fetcher, documentId, enabled = true }: Us
                 })
                 .catch((err) => {
                     if (isMounted) {
-                        setError(err instanceof Error ? err.message : "Ошибка загрузки движений")
+                        setError(err instanceof Error ? err.message : "Не удалось загрузить движения. Проверьте соединение или обновите страницу.")
                         setLoading(false)
                     }
                 })

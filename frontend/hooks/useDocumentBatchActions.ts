@@ -154,7 +154,7 @@ export function useDocumentBatchActions<T extends DocumentLike>(
                 }
             } catch (err) {
                 toast.error(
-                    err instanceof Error ? err.message : "Ошибка операции",
+                    err instanceof Error ? err.message : "Действие отклонено. Проверьте права доступа и состояние документа.",
                 )
             } finally {
                 busyRef.current = false
@@ -177,7 +177,7 @@ export function useDocumentBatchActions<T extends DocumentLike>(
             const abortController = new AbortController()
             const toastId = toast.loading("Подготовка...", {
                 cancel: {
-                    label: "Отмена",
+                    label: "Отменить",
                     onClick: () => abortController.abort(),
                 },
                 duration: Infinity,
@@ -203,7 +203,7 @@ export function useDocumentBatchActions<T extends DocumentLike>(
                                     {
                                         id: toastId,
                                         cancel: {
-                                            label: "Отмена",
+                                            label: "Отменить",
                                             onClick: () => abortController.abort(),
                                         },
                                         duration: Infinity,
@@ -217,7 +217,7 @@ export function useDocumentBatchActions<T extends DocumentLike>(
                                     {
                                         id: toastId,
                                         cancel: {
-                                            label: "Отмена",
+                                            label: "Отменить",
                                             onClick: () => abortController.abort(),
                                         },
                                         duration: Infinity,
@@ -258,7 +258,7 @@ export function useDocumentBatchActions<T extends DocumentLike>(
                     toast.warning("Операция отменена пользователем", { id: toastId })
                 } else {
                     toast.error(
-                        err instanceof Error ? err.message : "Ошибка операции",
+                        err instanceof Error ? err.message : "Действие отклонено. Проверьте права доступа и состояние документа.",
                         { id: toastId },
                     )
                 }

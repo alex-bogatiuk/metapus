@@ -393,7 +393,7 @@ export function UserSettingsSheet({ user, onClose }: UserSettingsSheetProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogCancel>Отменить</AlertDialogCancel>
             <AlertDialogAction
               className={user?.isActive
                 ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"

@@ -310,7 +310,7 @@ export default function NewAutomationRulePage() {
                 />
               </div>
               <p className="text-[10px] text-muted-foreground">
-                Введите <code>doc.</code> для автозаполнения полей сущности. Пример: <code>humanAmounts.totalAmount &gt; 10000 &amp;&amp; action == &apos;posted&apos;</code>
+                Используйте <code>doc.</code> для автозаполнения полей сущности. Пример: <code>humanAmounts.totalAmount &gt; 10000 &amp;&amp; action == &apos;posted&apos;</code>
               </p>
             </div>
           )}

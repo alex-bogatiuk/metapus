@@ -459,7 +459,7 @@ function CreateUserDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => onClose(false)}>
-            Отмена
+            Отменить
           </Button>
           <Button size="sm" onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}

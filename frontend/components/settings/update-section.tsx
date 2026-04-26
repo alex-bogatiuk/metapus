@@ -485,7 +485,7 @@ export function UpdateSection({ updaterUrl }: UpdateSectionProps) {
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmOpen(false)}>
-              Отмена
+              Отменить
             </Button>
             <Button onClick={handleStart} disabled={loading}>
               {loading && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
@@ -511,7 +511,7 @@ export function UpdateSection({ updaterUrl }: UpdateSectionProps) {
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRollbackOpen(false)} disabled={loading}>
-              Отмена
+              Отменить
             </Button>
             <Button variant="destructive" onClick={handleRollback} disabled={loading}>
               {loading && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}

@@ -145,7 +145,7 @@ export default function NewNomenclaturePage() {
                     <Label className="text-xs text-muted-foreground">Наименование *</Label>
                     <Input
                       className="mt-1"
-                      placeholder="Введите наименование"
+                      placeholder="Наименование"
                       autoFocus
                       value={f.name}
                       onChange={(e) => { update({ name: e.target.value }); handleChange() }}

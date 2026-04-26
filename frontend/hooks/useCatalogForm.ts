@@ -144,7 +144,7 @@ export function useCatalogForm<
         if (getDeletionMark) setDeletionMark(getDeletionMark(res))
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : "Ошибка загрузки")
+        setError(err instanceof Error ? err.message : "Не удалось загрузить карточку. Проверьте соединение или обновите страницу.")
       })
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -202,7 +202,7 @@ export function useCatalogForm<
           setFieldErrors({ [err.parsedBody.details.field]: err.message })
           setError(`Ошибка в поле: ${err.parsedBody.details.field}`)
         } else {
-          setError(err instanceof Error ? err.message : "Ошибка сохранения")
+          setError(err instanceof Error ? err.message : "Не удалось сохранить изменения. Проверьте правильность заполнения полей.")
         }
       } finally {
         setSaving(false)

@@ -1132,7 +1132,7 @@ function VariantsDropdown({ report }: { report: UseReportPageReturn }) {
                     </div>
                     <DialogFooter>
                         <Button variant="outline" size="sm" onClick={() => setSaveOpen(false)}>
-                            Отмена
+                            Отменить
                         </Button>
                         <Button size="sm" onClick={handleSave} disabled={!variantName.trim()}>
                             Сохранить

@@ -25,11 +25,11 @@ import { useAuthStore } from "@/stores/useAuthStore"
 const loginSchema = z.object({
   email: z
     .string()
-    .min(1, "Введите адрес электронной почты")
+    .min(1, "Электронная почта не указана")
     .email("Некорректный адрес электронной почты"),
   password: z
     .string()
-    .min(1, "Введите пароль"),
+    .min(1, "Пароль не указан"),
 })
 
 type LoginFormValues = z.infer<typeof loginSchema>
@@ -86,7 +86,7 @@ export function LoginForm() {
         </div>
         <CardTitle className="text-2xl">Metapus</CardTitle>
         <CardDescription>
-          Введите учётные данные для входа в систему
+          Учётные данные для входа в систему
         </CardDescription>
       </CardHeader>
 
@@ -119,7 +119,7 @@ export function LoginForm() {
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
-                placeholder="Введите пароль"
+                placeholder="Пароль"
                 autoComplete="current-password"
                 className="pr-10"
                 {...register("password")}

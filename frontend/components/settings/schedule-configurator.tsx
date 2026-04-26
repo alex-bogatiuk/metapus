@@ -423,7 +423,7 @@ export function ScheduleConfigurator({
           {dialogContent}
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Отмена
+              Отменить
             </Button>
             <Button onClick={handleSave} disabled={isInvalidTimeRange}>
               OK

@@ -1610,7 +1610,7 @@ function RulesSection({
                 setValidationResult(null)
               }}
             >
-              Отмена
+              Отменить
             </Button>
             <Button
               size="sm"

@@ -405,7 +405,7 @@ export function GenericPickerDialog({
                             size="sm"
                             onClick={() => onOpenChange(false)}
                         >
-                            Отмена
+                            Отменить
                         </Button>
                         {multiSelect ? (
                             <Button

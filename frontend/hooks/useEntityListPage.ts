@@ -221,7 +221,7 @@ export function useEntityListPage<T extends { id: string }>(
         setTabCache("nextCursor", res.nextCursor)
         setTabCache("prevCursor", res.prevCursor)
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Ошибка загрузки данных")
+        setError(err instanceof Error ? err.message : "Не удалось загрузить список. Проверьте соединение или обновите страницу.")
       } finally {
         setLoading(false)
       }
@@ -264,7 +264,7 @@ export function useEntityListPage<T extends { id: string }>(
           setTabCache("prevCursor", res.prevCursor)
           setFocusedId(aroundId)
         }).catch((err) => {
-          setError(err instanceof Error ? err.message : "Ошибка загрузки данных")
+          setError(err instanceof Error ? err.message : "Не удалось загрузить список. Проверьте соединение или обновите страницу.")
         }).finally(() => {
           setLoading(false)
         })
@@ -324,7 +324,7 @@ export function useEntityListPage<T extends { id: string }>(
       nextCursorRef.current = res.nextCursor
       setTabCache("nextCursor", res.nextCursor)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка загрузки данных")
+      setError(err instanceof Error ? err.message : "Не удалось загрузить список. Проверьте соединение или обновите страницу.")
     } finally {
       busyRef.current = false
       setLoadingMore(false)
@@ -357,7 +357,7 @@ export function useEntityListPage<T extends { id: string }>(
       prevCursorRef.current = res.prevCursor
       setTabCache("prevCursor", res.prevCursor)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка загрузки данных")
+      setError(err instanceof Error ? err.message : "Не удалось загрузить список. Проверьте соединение или обновите страницу.")
     } finally {
       busyRef.current = false
       setLoadingMore(false)

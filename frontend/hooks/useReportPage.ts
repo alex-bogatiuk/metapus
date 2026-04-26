@@ -501,7 +501,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             const { items: _, ...extras } = result
             setResultExtras(extras)
         } catch (e) {
-            const msg = e instanceof Error ? e.message : "Ошибка формирования отчёта"
+            const msg = e instanceof Error ? e.message : "Не удалось сформировать отчёт. Проверьте настройки фильтров и попробуйте снова."
             setError(msg)
             setStatus("error")
         }
@@ -634,7 +634,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             toast.success("Вариант отчета сохранен")
         } catch (e) {
             console.error(e)
-            toast.error("Ошибка при сохранении варианта отчета")
+            toast.error("Не удалось сохранить вариант. Проверьте соединение или попробуйте позже.")
         }
     }, [reportKey, selectedFields, visibleColumnKeys, activeGroupBy, sortColumn, sortDirection, filterValues, advancedFilterValues])
 
@@ -670,7 +670,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             toast.success("Вариант отчета удален")
         } catch (e) {
             console.error(e)
-            toast.error("Ошибка при удалении варианта")
+            toast.error("Не удалось удалить вариант. Проверьте соединение или попробуйте позже.")
         }
     }, [activeVariantId])
 
@@ -704,7 +704,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             toast.success("Вариант отчета обновлён")
         } catch (e) {
             console.error(e)
-            toast.error("Ошибка при обновлении варианта отчета")
+            toast.error("Не удалось обновить вариант. Проверьте соединение или попробуйте позже.")
         }
     }, [variants, reportKey, selectedFields, visibleColumnKeys, activeGroupBy, sortColumn, sortDirection, filterValues, advancedFilterValues, filterFieldsMeta])
 

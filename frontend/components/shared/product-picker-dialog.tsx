@@ -559,7 +559,7 @@ function ProductPickerDialogInner({
                             size="sm"
                             onClick={() => onOpenChange(false)}
                         >
-                            Отмена
+                            Отменить
                         </Button>
                         <Button
                             size="sm"

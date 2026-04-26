@@ -105,7 +105,7 @@ export function useRelatedDocuments({
             })
             .catch((err) => {
                 if (controller.signal.aborted) return
-                setError(err instanceof Error ? err.message : "Ошибка загрузки связей")
+                setError(err instanceof Error ? err.message : "Не удалось загрузить связи. Проверьте соединение или обновите страницу.")
             })
             .finally(() => {
                 if (controller.signal.aborted) return

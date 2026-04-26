@@ -571,7 +571,7 @@ export function RoleEditorSheet({ role, permissions, rolePerms, onClose }: RoleE
               className="text-xs"
               onClick={() => onClose(false)}
             >
-              Отмена
+              Отменить
             </Button>
             {!readOnly && (
               <Button
@@ -604,7 +604,7 @@ export function RoleEditorSheet({ role, permissions, rolePerms, onClose }: RoleE
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>Отменить</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={deleting}

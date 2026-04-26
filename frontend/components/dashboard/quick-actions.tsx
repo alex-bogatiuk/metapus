@@ -5,22 +5,22 @@ import { Button } from "@/components/ui/button"
 
 const actions = [
   {
-    label: "Поступление товара",
+    label: "Создать поступление",
     href: "/documents/goods-receipts/new",
     icon: ArrowDownToLine,
   },
   {
-    label: "Расходная накладная",
+    label: "Создать расходную накладную",
     href: "/documents/goods-issues/new",
     icon: ArrowUpFromLine,
   },
   {
-    label: "Новый контрагент",
+    label: "Создать контрагента",
     href: "/catalogs/counterparties/new",
     icon: Users,
   },
   {
-    label: "Новая номенклатура",
+    label: "Создать номенклатуру",
     href: "/catalogs/nomenclatures/new",
     icon: Package,
   },

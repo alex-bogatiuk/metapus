@@ -218,7 +218,7 @@ export function SiteHeader() {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel onClick={() => setPendingClose(null)}>
-                            Отмена
+                            Отменить
                         </AlertDialogCancel>
                         <AlertDialogAction
                             onClick={handleConfirmClose}

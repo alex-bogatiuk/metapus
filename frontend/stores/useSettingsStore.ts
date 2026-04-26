@@ -49,7 +49,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const data = await api.settings.get()
       set({ settings: data, isLoading: false })
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Ошибка загрузки настроек"
+      const msg = err instanceof Error ? err.message : "Не удалось загрузить настройки. Проверьте соединение или обновите страницу."
       set({ error: msg, isLoading: false })
     }
   },
@@ -71,7 +71,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       if (err instanceof ApiError && err.status === 409) {
         toast.error("Настройки были изменены другим пользователем. Обновите страницу.")
       } else {
-        const msg = err instanceof Error ? err.message : "Ошибка сохранения"
+        const msg = err instanceof Error ? err.message : "Не удалось сохранить настройки. Проверьте соединение или попробуйте позже."
         toast.error(msg)
       }
     }

@@ -236,7 +236,7 @@ function PromoteDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Отмена
+            Отменить
           </Button>
           <Button onClick={handlePromote} disabled={saving || !versionGroup.trim()}>
             {saving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
@@ -620,7 +620,7 @@ export function ControlPlaneSection() {
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRollbackOpen(false)} disabled={rollbackLoading}>
-              Отмена
+              Отменить
             </Button>
             <Button variant="destructive" onClick={handleRollbackUpdate} disabled={rollbackLoading}>
               {rollbackLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}

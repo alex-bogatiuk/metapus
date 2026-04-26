@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button"
 import type { WidgetRenderProps } from "@/types/dashboard"
 
 const DEFAULT_ACTIONS = [
-    { label: "Поступление товара", href: "/documents/goods-receipts/new", icon: "ArrowDownToLine" },
-    { label: "Расходная накладная", href: "/documents/goods-issues/new", icon: "ArrowUpFromLine" },
-    { label: "Новый контрагент", href: "/catalogs/counterparties/new", icon: "Users" },
-    { label: "Новая номенклатура", href: "/catalogs/nomenclatures/new", icon: "Package" },
+    { label: "Создать поступление", href: "/documents/goods-receipts/new", icon: "ArrowDownToLine" },
+    { label: "Создать расходную накладную", href: "/documents/goods-issues/new", icon: "ArrowUpFromLine" },
+    { label: "Создать контрагента", href: "/catalogs/counterparties/new", icon: "Users" },
+    { label: "Создать номенклатуру", href: "/catalogs/nomenclatures/new", icon: "Package" },
 ]
 
 const ICON_MAP: Record<string, React.ElementType> = {

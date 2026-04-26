@@ -124,7 +124,7 @@ export function useCursorList<T>(
       const res = await fetcher({ limit, ...filterParams, skipCount })
       applyResult(res, "replace")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка загрузки")
+      setError(err instanceof Error ? err.message : "Не удалось загрузить данные. Проверьте соединение или обновите страницу.")
     } finally {
       setLoading(false)
     }
@@ -143,7 +143,7 @@ export function useCursorList<T>(
       })
       applyResult(res, "append")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка загрузки")
+      setError(err instanceof Error ? err.message : "Не удалось загрузить данные. Проверьте соединение или обновите страницу.")
     } finally {
       setLoading(false)
     }
@@ -162,7 +162,7 @@ export function useCursorList<T>(
       })
       applyResult(res, "prepend")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка загрузки")
+      setError(err instanceof Error ? err.message : "Не удалось загрузить данные. Проверьте соединение или обновите страницу.")
     } finally {
       setLoading(false)
     }
@@ -180,7 +180,7 @@ export function useCursorList<T>(
       })
       applyResult(res, "replace")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка загрузки")
+      setError(err instanceof Error ? err.message : "Не удалось загрузить данные. Проверьте соединение или обновите страницу.")
     } finally {
       setLoading(false)
     }

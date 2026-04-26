@@ -648,7 +648,7 @@ export function FilterConfigDialog({
                 {/* Footer */}
                 <DialogFooter className="px-5 py-3">
                     <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-                        Отмена
+                        Отменить
                     </Button>
                     <Button size="sm" onClick={handleApply}>
                         Завершить редактирование
