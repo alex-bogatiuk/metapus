@@ -21,7 +21,7 @@ interface DocumentLike {
 /** Narrow API surface — only the methods the hook actually calls. */
 interface BatchCapableApi<T> {
     get: (id: string) => Promise<T>
-    list?: (params?: { limit?: number; filter?: AdvancedFilterItem[] }) => Promise<{ items: T[] }>
+    list?: (params?: { limit?: number; filter?: AdvancedFilterItem[]; includeDeleted?: boolean }) => Promise<{ items: T[] }>
     batchAction: (ids: string[], action: BatchActionType) => Promise<BatchActionResponse>
     batchActionByFilter: (req: import("@/types/common").BatchActionByFilterRequest) => Promise<BatchActionResponse>
     /** Base API path (used by SSE streaming). */
@@ -115,6 +115,7 @@ export function useDocumentBatchActions<T extends DocumentLike>(
                     const res = await docApi.list({
                         limit: ids.length,
                         filter: [{ field: "id", operator: "in", value: ids }],
+                        includeDeleted: true,
                     })
                     if (res.items && res.items.length > 0) {
                         replaceItems(res.items)

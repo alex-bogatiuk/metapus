@@ -313,7 +313,7 @@ export default function NotificationsPage() {
     }, [items])
 
     return (
-        <div className="flex flex-1 min-h-0 flex-col gap-4 p-4 max-w-[900px] mx-auto overflow-hidden">
+        <div className="flex flex-1 min-h-0 flex-col gap-4 p-4 max-w-5xl w-full mx-auto overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">

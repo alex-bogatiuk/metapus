@@ -120,7 +120,7 @@ export function NotificationPanel() {
                 className="flex w-full flex-col gap-0 p-0 sm:max-w-[400px]"
             >
                 {/* Header */}
-                <SheetHeader className="flex-row items-center justify-between gap-2 border-b px-4 py-3 space-y-0">
+                <SheetHeader className="flex-row items-center justify-between gap-2 border-b pl-4 pr-10 py-3 space-y-0">
                     <div className="flex items-center gap-2">
                         <SheetTitle className="text-base">Уведомления</SheetTitle>
                         {unreadCount > 0 && (

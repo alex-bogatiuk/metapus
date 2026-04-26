@@ -87,6 +87,18 @@ type Field struct {
 	// FilterOnly marks a field that is used for filtering but never appears in SELECT.
 	// E.g. "as_of_date" in StockBalance — a parameter, not a column.
 	FilterOnly bool `json:"filterOnly,omitempty"`
+
+	// EnumValues holds the allowed values for Type==TypeEnum.
+	// Propagated from metadata.FieldDef.EnumValues during Auto-Discovery
+	// so the frontend can render a <Select> dropdown instead of a text input.
+	EnumValues []EnumValue `json:"enumValues,omitempty"`
+}
+
+// EnumValue represents a single enum option with backend value and display label.
+// Mirrors metadata.EnumValue for cross-layer propagation.
+type EnumValue struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
 }
 
 // Dataset describes a single data source for the Query Engine.

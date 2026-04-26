@@ -12,7 +12,6 @@ import (
 // One Account (Bot Token) → many Channels (different Chat IDs / email addresses / URLs).
 type Channel struct {
 	ID           id.ID          `json:"id"`
-	Code         string         `json:"code"`
 	Name         string         `json:"name"`
 	AccountID    id.ID          `json:"accountId"`
 	Destination  map[string]any `json:"destination"`
@@ -32,7 +31,6 @@ type Channel struct {
 
 // CreateChannelRequest encapsulates data for creating a new channel.
 type CreateChannelRequest struct {
-	Code        string         `json:"code"`
 	Name        string         `json:"name"`
 	AccountID   id.ID          `json:"accountId"`
 	Destination map[string]any `json:"destination"`
@@ -41,9 +39,6 @@ type CreateChannelRequest struct {
 
 // Validate checks if the CreateChannelRequest is valid.
 func (r *CreateChannelRequest) Validate(_ context.Context) error {
-	if r.Code == "" {
-		return apperror.NewValidation("code is required").WithDetail("field", "code")
-	}
 	if r.Name == "" {
 		return apperror.NewValidation("name is required").WithDetail("field", "name")
 	}

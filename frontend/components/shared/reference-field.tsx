@@ -353,7 +353,7 @@ export function ReferenceField({
           aria-expanded={open}
           disabled={disabled}
           className={cn(
-            "w-full justify-between truncate font-normal",
+            "w-full justify-between font-normal overflow-hidden",
             triggerHeight,
             textSize,
             !value && "text-muted-foreground",

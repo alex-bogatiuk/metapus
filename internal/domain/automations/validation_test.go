@@ -65,7 +65,6 @@ func TestCreateAccountRequest_AllAccountTypes(t *testing.T) {
 func TestCreateChannelRequest_Validate_OK(t *testing.T) {
 	accID := id.New()
 	req := &CreateChannelRequest{
-		Code:        "ch_main",
 		Name:        "Main Chat",
 		AccountID:   accID,
 		Destination: map[string]any{"chat_id": "-100123"},
@@ -73,6 +72,10 @@ func TestCreateChannelRequest_Validate_OK(t *testing.T) {
 	}
 	if err := req.Validate(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	// Destination should be preserved
+	if req.Destination == nil {
+		t.Fatal("Destination should not be nil")
 	}
 }
 
@@ -82,9 +85,8 @@ func TestCreateChannelRequest_Validate_Errors(t *testing.T) {
 		name string
 		req  CreateChannelRequest
 	}{
-		{"empty code", CreateChannelRequest{Name: "x", AccountID: accID}},
-		{"empty name", CreateChannelRequest{Code: "x", AccountID: accID}},
-		{"nil accountId", CreateChannelRequest{Code: "x", Name: "y"}},
+		{"empty name", CreateChannelRequest{AccountID: accID}},
+		{"nil accountId", CreateChannelRequest{Name: "y"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -94,6 +96,7 @@ func TestCreateChannelRequest_Validate_Errors(t *testing.T) {
 		})
 	}
 }
+
 
 func TestUpdateChannelRequest_Validate_VersionRequired(t *testing.T) {
 	accID := id.New()

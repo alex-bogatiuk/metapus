@@ -49,6 +49,14 @@ type FieldTreeNode struct {
 	Sortable bool `json:"sortable,omitempty"`
 	// RefRoute is the route prefix for navigation (only for type="ref").
 	RefRoute string `json:"refRoute,omitempty"`
+	// EnumValues holds allowed options for type="enum" fields.
+	EnumValues []EnumValue `json:"enumValues,omitempty"`
+}
+
+// EnumValue represents a single enum option with its backend value and display label.
+type EnumValue struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
 }
 
 // ReportFilter describes a single filter control in the sidebar.

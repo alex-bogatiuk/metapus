@@ -199,10 +199,11 @@ export default function GoodsReceiptsListPage() {
 
   // ── Copy handler ─────────────────────────────────────────────────────
   const handleCopy = useCallback(() => {
-    if (focusedId) {
-      router.push(`/documents/goods-receipts/new?copyFrom=${focusedId}`)
+    const targetId = focusedId ?? (selectedIds.length === 1 ? selectedIds[0] : null)
+    if (targetId) {
+      router.push(`/documents/goods-receipts/new?copyFrom=${targetId}`)
     }
-  }, [focusedId, router])
+  }, [focusedId, selectedIds, router])
 
   // ── Batch document actions (shared hook) ──────────────────────────────
   const {
@@ -315,7 +316,7 @@ export default function GoodsReceiptsListPage() {
       <DataToolbar
         title={useMetadataStore.getState().getLabel("goods_receipt", "plural")}
         onCreateHref="/documents/goods-receipts/new"
-        onCopyClick={focusedId ? handleCopy : null}
+        onCopyClick={(focusedId || selectedIds.length === 1) ? handleCopy : null}
         extraButtons={
           <Button variant="outline" size="sm" onClick={refresh}>
             Обновить

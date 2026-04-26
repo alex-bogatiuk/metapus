@@ -100,7 +100,7 @@ export function IntegrationsSection() {
   // Dialog state — Channel
   const [chDialogMode, setChDialogMode] = useState<"create" | "edit" | null>(null)
   const [chEditingId, setChEditingId] = useState<string | null>(null)
-  const [chCode, setChCode] = useState("")
+
   const [chName, setChName] = useState("")
   const [chAccountId, setChAccountId] = useState("")
   const [chIsActive, setChIsActive] = useState(true)
@@ -344,7 +344,6 @@ export function IntegrationsSection() {
   const openChCreateDialog = () => {
     setChDialogMode("create")
     setChEditingId(null)
-    setChCode("")
     setChName("")
     setChAccountId(accounts.length > 0 ? accounts[0].id : "")
     setChIsActive(true)
@@ -354,7 +353,6 @@ export function IntegrationsSection() {
   const openChEditDialog = (ch: AutomationChannel) => {
     setChDialogMode("edit")
     setChEditingId(ch.id)
-    setChCode(ch.code)
     setChName(ch.name)
     setChAccountId(ch.accountId)
     setChIsActive(ch.isActive)
@@ -377,7 +375,6 @@ export function IntegrationsSection() {
       const dest: Record<string, unknown> = { ...chDestination }
       if (chDialogMode === "create") {
         const payload: CreateChannelRequest = {
-          code: chCode,
           name: chName,
           accountId: chAccountId,
           destination: dest,
@@ -1004,16 +1001,7 @@ export function IntegrationsSection() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {chDialogMode === "create" && (
-              <div className="space-y-2">
-                <Label>Код</Label>
-                <Input
-                  placeholder="Например: tg-main-chat"
-                  value={chCode}
-                  onChange={(e) => setChCode(e.target.value)}
-                />
-              </div>
-            )}
+
             <div className="space-y-2">
               <Label>Наименование</Label>
               <Input

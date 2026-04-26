@@ -44,7 +44,6 @@ export interface UpdateAccountRequest {
 
 export interface AutomationChannel {
   id: string
-  code: string
   name: string
   accountId: string
   destination: Record<string, unknown>
@@ -61,7 +60,6 @@ export interface AutomationChannel {
 }
 
 export interface CreateChannelRequest {
-  code: string
   name: string
   accountId: string
   destination: Record<string, unknown>

@@ -4,7 +4,6 @@
 
 CREATE TABLE sys_automation_channels (
     id                UUID          PRIMARY KEY DEFAULT gen_random_uuid_v7(),
-    code              VARCHAR(50)   NOT NULL,
     name              VARCHAR(255)  NOT NULL,
 
     account_id        UUID          NOT NULL REFERENCES sys_automation_accounts(id) ON DELETE RESTRICT,
@@ -25,9 +24,6 @@ CREATE TABLE sys_automation_channels (
     _deleted_at       TIMESTAMPTZ,
     _txid             BIGINT        DEFAULT txid_current()
 );
-
-CREATE UNIQUE INDEX idx_sys_auto_channels_code
-    ON sys_automation_channels(code) WHERE deletion_mark = FALSE;
 
 CREATE INDEX idx_sys_auto_channels_account
     ON sys_automation_channels(account_id);

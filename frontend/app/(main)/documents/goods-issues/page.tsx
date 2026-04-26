@@ -198,10 +198,11 @@ export default function GoodsIssuesListPage() {
 
   // ── Copy handler ─────────────────────────────────────────────────────
   const handleCopy = useCallback(() => {
-    if (focusedId) {
-      router.push(`/documents/goods-issues/new?copyFrom=${focusedId}`)
+    const targetId = focusedId ?? (selectedIds.length === 1 ? selectedIds[0] : null)
+    if (targetId) {
+      router.push(`/documents/goods-issues/new?copyFrom=${targetId}`)
     }
-  }, [focusedId, router])
+  }, [focusedId, selectedIds, router])
 
   // ── Batch document actions (shared hook) ──────────────────────────────
   const {
@@ -314,7 +315,7 @@ export default function GoodsIssuesListPage() {
       <DataToolbar
         title={useMetadataStore.getState().getLabel("goods_issue", "plural")}
         onCreateHref="/documents/goods-issues/new"
-        onCopyClick={focusedId ? handleCopy : null}
+        onCopyClick={(focusedId || selectedIds.length === 1) ? handleCopy : null}
         extraButtons={
           <Button variant="outline" size="sm" onClick={refresh}>
             Обновить

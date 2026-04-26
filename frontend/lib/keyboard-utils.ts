@@ -71,11 +71,32 @@ export function parseCombo(combo: string): ParsedCombo {
 
 // ── Key code mapping ────────────────────────────────────────────────────
 
-/** Map from lowercase key name → KeyboardEvent.code for letter keys */
+/**
+ * Map from lowercase key name → KeyboardEvent.code.
+ *
+ * Covers letters, digits, and common punctuation.
+ * Using e.code makes shortcuts layout-independent:
+ *   - Letters: Ctrl+S works in Russian layout (physical KeyS, e.key = "ы")
+ *   - Punctuation: Ctrl+/ works in Russian layout (physical Slash, e.key = ".")
+ */
+const PUNCTUATION_TO_CODE: Record<string, string> = {
+  "/": "Slash",
+  "\\": "Backslash",
+  "[": "BracketLeft",
+  "]": "BracketRight",
+  ";": "Semicolon",
+  "'": "Quote",
+  ",": "Comma",
+  ".": "Period",
+  "-": "Minus",
+  "=": "Equal",
+  "`": "Backquote",
+}
+
 function keyToCode(key: string): string | undefined {
   if (/^[a-z]$/.test(key)) return `Key${key.toUpperCase()}`
   if (/^[0-9]$/.test(key)) return `Digit${key}`
-  return undefined
+  return PUNCTUATION_TO_CODE[key]
 }
 
 /**

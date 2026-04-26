@@ -41,6 +41,8 @@ export interface FieldTreeNode {
     sortable?: boolean
     /** Route prefix for navigation (only for type="ref") */
     refRoute?: string
+    /** Allowed options for type="enum" fields (dropdown values) */
+    enumValues?: { value: string; label: string }[]
 }
 
 export interface ReportFilterDef {

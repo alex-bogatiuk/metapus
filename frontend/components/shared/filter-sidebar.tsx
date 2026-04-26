@@ -588,7 +588,7 @@ export function FilterSidebar({
     <div
       className={cn(
         "flex flex-col shrink-0 border-l bg-card transition-all duration-300 ease-in-out overflow-hidden",
-        isCollapsed ? "w-9" : "w-72"
+        isCollapsed ? "w-9 max-w-9" : "w-72 max-w-72"
       )}
     >
       {/* Top action button — visible only when collapsed */}
@@ -623,7 +623,7 @@ export function FilterSidebar({
       {/* Content — hidden when collapsed */}
       <ScrollArea
         className={cn(
-          "flex-1 transition-opacity duration-200",
+          "flex-1 transition-opacity duration-200 [&_[data-radix-scroll-area-viewport]>div]:!block [&_[data-radix-scroll-area-viewport]>div]:!min-w-0",
           isCollapsed ? "opacity-0 pointer-events-none" : "opacity-100"
         )}
       >

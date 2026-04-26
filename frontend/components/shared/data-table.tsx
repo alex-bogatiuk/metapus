@@ -244,6 +244,7 @@ export function DataTable<T extends { id: string }>({
                                 <div className={cn("flex items-center justify-center", rowH)}>
                                     <Checkbox
                                         checked={isSelected}
+                                        tabIndex={-1}
                                         onClick={(e: React.MouseEvent) => {
                                             e.stopPropagation()
                                             onToggleItem(item.id, e.shiftKey)

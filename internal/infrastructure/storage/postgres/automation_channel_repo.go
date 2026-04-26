@@ -20,7 +20,7 @@ func NewAutomationChannelRepo() *AutomationChannelRepo {
 	return &AutomationChannelRepo{}
 }
 
-const channelSelectCols = `c.id, c.code, c.name, c.account_id, c.destination, c.is_active, c.deletion_mark, c.version, c.created_at, c.updated_at`
+const channelSelectCols = `c.id, c.name, c.account_id, c.destination, c.is_active, c.deletion_mark, c.version, c.created_at, c.updated_at`
 
 // List returns all non-deleted channels, optionally filtered by accountID.
 func (r *AutomationChannelRepo) List(ctx context.Context, accountID *id.ID) ([]automations.Channel, error) {
@@ -94,23 +94,20 @@ func (r *AutomationChannelRepo) Create(ctx context.Context, req automations.Crea
 	}
 
 	query := `
-		INSERT INTO sys_automation_channels (code, name, account_id, destination, is_active)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, code, name, account_id, destination, is_active, deletion_mark, version, created_at, updated_at
+		INSERT INTO sys_automation_channels (name, account_id, destination, is_active)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, name, account_id, destination, is_active, deletion_mark, version, created_at, updated_at
 	`
 
 	var ch automations.Channel
 	var destScanBytes []byte
 	err = q.QueryRow(ctx, query,
-		req.Code, req.Name, req.AccountID, destBytes, req.IsActive,
+		req.Name, req.AccountID, destBytes, req.IsActive,
 	).Scan(
-		&ch.ID, &ch.Code, &ch.Name, &ch.AccountID, &destScanBytes,
+		&ch.ID, &ch.Name, &ch.AccountID, &destScanBytes,
 		&ch.IsActive, &ch.DeletionMark, &ch.Version, &ch.CreatedAt, &ch.UpdatedAt,
 	)
 	if err != nil {
-		if IsUniqueViolation(err) {
-			return nil, apperror.NewValidation("Channel with this code already exists.")
-		}
 		if IsForeignKeyViolation(err) {
 			return nil, apperror.NewValidation("Referenced account does not exist.")
 		}
@@ -138,7 +135,7 @@ func (r *AutomationChannelRepo) Update(ctx context.Context, channelID id.ID, req
 		UPDATE sys_automation_channels
 		SET name = $1, account_id = $2, destination = $3, is_active = $4, version = version + 1
 		WHERE id = $5 AND version = $6 AND deletion_mark = FALSE
-		RETURNING id, code, name, account_id, destination, is_active, deletion_mark, version, created_at, updated_at
+		RETURNING id, name, account_id, destination, is_active, deletion_mark, version, created_at, updated_at
 	`
 
 	var ch automations.Channel
@@ -147,7 +144,7 @@ func (r *AutomationChannelRepo) Update(ctx context.Context, channelID id.ID, req
 		req.Name, req.AccountID, destBytes, req.IsActive,
 		channelID, req.Version,
 	).Scan(
-		&ch.ID, &ch.Code, &ch.Name, &ch.AccountID, &destScanBytes,
+		&ch.ID, &ch.Name, &ch.AccountID, &destScanBytes,
 		&ch.IsActive, &ch.DeletionMark, &ch.Version, &ch.CreatedAt, &ch.UpdatedAt,
 	)
 	if err != nil {
@@ -189,7 +186,7 @@ func scanChannelRow(row pgx.Row) (*automations.Channel, error) {
 	var ch automations.Channel
 	var destBytes []byte
 	err := row.Scan(
-		&ch.ID, &ch.Code, &ch.Name, &ch.AccountID, &destBytes,
+		&ch.ID, &ch.Name, &ch.AccountID, &destBytes,
 		&ch.IsActive, &ch.DeletionMark, &ch.Version, &ch.CreatedAt, &ch.UpdatedAt,
 		&ch.AccountName, &ch.AccountType,
 		&ch.RuleCount,

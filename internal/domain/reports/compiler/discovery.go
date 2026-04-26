@@ -58,6 +58,14 @@ func fieldToTreeNode(f schema.Field, prefix string, reg *metadata.Registry, maxD
 		Sortable: f.Sortable,
 	}
 
+	// Propagate enum options for dropdown rendering
+	if f.Type == schema.TypeEnum && len(f.EnumValues) > 0 {
+		node.EnumValues = make([]platform.EnumValue, len(f.EnumValues))
+		for i, ev := range f.EnumValues {
+			node.EnumValues[i] = platform.EnumValue{Value: ev.Value, Label: ev.Label}
+		}
+	}
+
 	// Recursively resolve ref fields
 	if f.Type == schema.TypeRef && f.RefEntity != "" {
 		if currentDepth < maxDepth {
@@ -153,6 +161,13 @@ func metaFieldToSchemaField(mf metadata.FieldDef) schema.Field {
 		f.RefEntity = mf.ReferenceType
 	case metadata.TypeEnum:
 		f.Type = schema.TypeEnum
+		// Propagate enum options so the frontend can render a dropdown
+		if len(mf.EnumValues) > 0 {
+			f.EnumValues = make([]schema.EnumValue, len(mf.EnumValues))
+			for i, ev := range mf.EnumValues {
+				f.EnumValues[i] = schema.EnumValue{Value: ev.Value, Label: ev.Label}
+			}
+		}
 	default:
 		f.Type = schema.TypeString
 	}

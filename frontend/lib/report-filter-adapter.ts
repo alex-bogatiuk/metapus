@@ -72,6 +72,11 @@ function fieldTreeNodeToFilterMeta(
         fieldType,
     }
 
+    // Propagate enum options for dropdown rendering
+    if (node.enumValues && node.enumValues.length > 0) {
+        meta.enumValues = node.enumValues
+    }
+
     if (refEndpoint) {
         meta.refEndpoint = refEndpoint
     }
@@ -131,24 +136,26 @@ function mapReportTypeToFieldType(type: string): FieldType | null {
 
 /**
  * Resolve the API endpoint for a reference field.
- * Priority: explicit filterDef.ref → node type === "ref" → null
+ * Priority: node.refRoute (Auto-Discovery) → explicit filterDef.ref → null
+ *
+ * node.refRoute is the real RoutePrefix resolved by backend's BuildFieldTree()
+ * via metadata.Registry (e.g. "nomenclatures" for product_id).
+ *
+ * filterDef.ref is the RefEntity name (e.g. "nomenclature") which does NOT
+ * always match the route prefix — use it only as a fallback.
  */
 function resolveRefEndpoint(
     node: FieldTreeNode,
     filterDef: ReportFilterDef | undefined,
 ): string | undefined {
-    // Explicit filter def with ref entity name
-    if (filterDef?.ref) {
-        return `/catalog/${filterDef.ref}`
+    // Prefer refRoute from Auto-Discovery (always matches real RoutePrefix)
+    if (node.type === "ref" && node.refRoute) {
+        return `/catalog/${node.refRoute}`
     }
 
-    // For ref-type nodes, derive endpoint from the field key.
-    // Convention: field key like "warehouse_id" → entity "warehouse"
-    if (node.type === "ref" && node.key.endsWith("_id")) {
-        const entityName = node.key
-            .replace(/_id$/, "")
-            .replace(/_/g, "-")
-        return `/catalog/${entityName}`
+    // Fallback: explicit filter def with ref entity name
+    if (filterDef?.ref) {
+        return `/catalog/${filterDef.ref}`
     }
 
     return undefined
