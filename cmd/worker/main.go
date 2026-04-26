@@ -19,6 +19,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/auth_repo"
 	ws "metapus/internal/infrastructure/websocket"
 	"metapus/pkg/logger"
 )
@@ -257,8 +258,13 @@ func (w *MultiTenantWorker) buildAutomationEngine() (*automation.Engine, error) 
 		adapters.InternalNotificationProvider: adapters.NewInternalNotificationAdapter(postgres.NewNotificationRepo(), ws.GlobalHub),
 	}
 
+	// Resolve user/role subscribers to user IDs for internal notifications.
+	roleRepo := auth_repo.NewRoleRepo()
+	roleAdapter := adapters.NewAuthRoleAdapter(roleRepo)
+	userResolver := automation.NewRoleUserResolver(roleAdapter)
+
 	// OutboxPublisher is nil for now — chain reactions will be wired in a future iteration.
-	return automation.NewEngine(ruleRepo, historyRepo, accountRepo, accountRepo, channelRepo, adapterMap, nil)
+	return automation.NewEngine(ruleRepo, historyRepo, accountRepo, accountRepo, channelRepo, adapterMap, nil, userResolver)
 }
 
 type automationOutboxHandler struct {

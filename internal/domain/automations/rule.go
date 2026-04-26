@@ -41,6 +41,7 @@ type Rule struct {
 	TargetEntities []string     `json:"targetEntities"`
 	ConditionCEL   *string      `json:"conditionCel,omitempty"`
 	ReactionType   ReactionType `json:"reactionType"`
+	NotifSeverity  string       `json:"notifSeverity,omitempty"`
 	MessageFormat  string       `json:"messageFormat"`
 	ActionTemplate string       `json:"actionTemplate"`
 	ChainRuleIDs   []id.ID      `json:"chainRuleIds,omitempty"`
@@ -70,6 +71,7 @@ type CreateRuleRequest struct {
 	TargetEntities []string          `json:"targetEntities"`
 	ConditionCEL   *string           `json:"conditionCel,omitempty"`
 	ReactionType   ReactionType      `json:"reactionType"`
+	NotifSeverity  string            `json:"notifSeverity,omitempty"`
 	MessageFormat  string            `json:"messageFormat"`
 	ActionTemplate string            `json:"actionTemplate"`
 	ChainRuleIDs   []id.ID           `json:"chainRuleIds,omitempty"`
@@ -160,6 +162,7 @@ type UpdateRuleRequest struct {
 	TargetEntities []string          `json:"targetEntities"`
 	ConditionCEL   *string           `json:"conditionCel,omitempty"`
 	ReactionType   ReactionType      `json:"reactionType"`
+	NotifSeverity  string            `json:"notifSeverity,omitempty"`
 	MessageFormat  string            `json:"messageFormat"`
 	ActionTemplate string            `json:"actionTemplate"`
 	ChainRuleIDs   []id.ID           `json:"chainRuleIds,omitempty"`

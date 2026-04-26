@@ -827,14 +827,19 @@ export const api = {
                 }),
         },
         notifications: {
-            list: (params?: { limit?: number; unreadOnly?: boolean }) => {
+            list: (params?: { limit?: number; offset?: number; unreadOnly?: boolean }) => {
                 const qs = new URLSearchParams()
                 if (params?.limit) qs.set("limit", params.limit.toString())
+                if (params?.offset) qs.set("offset", params.offset.toString())
                 if (params?.unreadOnly) qs.set("unreadOnly", "true")
                 return apiFetch<import("@/types/notification").NotificationListResponse>(`/system/notifications?${qs.toString()}`)
             },
             markAsRead: (id: string) =>
                 apiFetch<void>(`/system/notifications/${id}/read`, { method: "PUT" }),
+            markAsUnread: (id: string) =>
+                apiFetch<void>(`/system/notifications/${id}/unread`, { method: "PUT" }),
+            delete: (id: string) =>
+                apiFetch<void>(`/system/notifications/${id}`, { method: "DELETE" }),
             markAllAsRead: () =>
                 apiFetch<void>(`/system/notifications/mark-all-read`, { method: "PUT" }),
         },

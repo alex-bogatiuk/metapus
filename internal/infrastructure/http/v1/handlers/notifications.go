@@ -157,3 +157,68 @@ func (h *NotificationHandler) MarkAllAsRead(c *gin.Context) {
 
 	c.Status(http.StatusNoContent)
 }
+
+func (h *NotificationHandler) MarkAsUnread(c *gin.Context) {
+	userIDStr := h.BaseHandler.GetUserID(c)
+	if userIDStr == "" {
+		_ = c.Error(apperror.NewUnauthorized("authentication required"))
+		c.Abort()
+		return
+	}
+
+	userID, err := id.Parse(userIDStr)
+	if err != nil {
+		_ = c.Error(apperror.NewUnauthorized("invalid user identity"))
+		c.Abort()
+		return
+	}
+
+	notifID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		_ = c.Error(apperror.NewValidation("invalid notification ID").WithDetail("error", err.Error()))
+		c.Abort()
+		return
+	}
+
+	err = h.repo.MarkAsUnread(c.Request.Context(), notifID, userID)
+	if err != nil {
+		_ = c.Error(apperror.NewInternal(err))
+		c.Abort()
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+func (h *NotificationHandler) Delete(c *gin.Context) {
+	userIDStr := h.BaseHandler.GetUserID(c)
+	if userIDStr == "" {
+		_ = c.Error(apperror.NewUnauthorized("authentication required"))
+		c.Abort()
+		return
+	}
+
+	userID, err := id.Parse(userIDStr)
+	if err != nil {
+		_ = c.Error(apperror.NewUnauthorized("invalid user identity"))
+		c.Abort()
+		return
+	}
+
+	notifID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		_ = c.Error(apperror.NewValidation("invalid notification ID").WithDetail("error", err.Error()))
+		c.Abort()
+		return
+	}
+
+	err = h.repo.Delete(c.Request.Context(), notifID, userID)
+	if err != nil {
+		_ = c.Error(apperror.NewInternal(err))
+		c.Abort()
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+

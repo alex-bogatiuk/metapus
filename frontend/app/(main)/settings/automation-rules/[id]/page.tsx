@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Play, ChevronDown, Clock, FileText, Activity } from "lucide-react"
+import { Play, ChevronDown, Clock, FileText, Activity, Info, AlertTriangle, AlertCircle, CheckCircle2 } from "lucide-react"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
@@ -27,7 +27,7 @@ import type { AutomationChannel, UpdateRuleRequest } from "@/types/automation"
 import { useState, useEffect, useMemo } from "react"
 import { toast } from "sonner"
 import {
-  INITIAL_RULE_STATE, ENTITY_EVENT_ACTIONS, TRIGGER_TYPE_OPTIONS,
+  INITIAL_RULE_STATE, ENTITY_EVENT_ACTIONS, TRIGGER_TYPE_OPTIONS, SEVERITY_OPTIONS,
   mapRuleToUpdate, mapRuleFromResponse, validateRule,
   type RuleFormState, type SubscriberFormEntry,
 } from "@/lib/automation-rule-form"
@@ -293,22 +293,51 @@ export default function EditAutomationRulePage() {
           <div className="space-y-4 rounded-lg border p-4">
             <Label className="text-sm font-semibold">Действие</Label>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
                 <Label className="text-xs text-muted-foreground">Тип действия *</Label>
                 <Select value={f.reactionType} onValueChange={(v) => { update({ reactionType: v as RuleFormState["reactionType"] }); handleChange() }}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="notify">Telegram / Email</SelectItem>
-                    <SelectItem value="webhook_call">Webhook API</SelectItem>
+                    <SelectItem value="notify" description="UI уведомления + внешние каналы">Уведомление</SelectItem>
+                    <SelectItem value="webhook_call" description="HTTP POST/PUT/GET">Webhook API</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Severity selector — shown for notify reaction type */}
+              {f.reactionType === "notify" && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Важность</Label>
+                  <Select value={f.notifSeverity || "info"} onValueChange={(v) => { update({ notifSeverity: v }); handleChange() }}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SEVERITY_OPTIONS.map(opt => {
+                        const SevIcon = opt.value === "error" ? AlertCircle
+                          : opt.value === "warning" ? AlertTriangle
+                          : opt.value === "success" ? CheckCircle2
+                          : Info
+                        return (
+                          <SelectItem key={opt.value} value={opt.value} description={opt.description}>
+                            <span className="flex items-center gap-1.5">
+                              <SevIcon className="h-3.5 w-3.5" />
+                              {opt.label}
+                            </span>
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             <SubscriberList
               subscribers={f.subscribers}
               channels={channels}
+              reactionType={f.reactionType}
               onChange={handleSubscribersChange}
             />
           </div>

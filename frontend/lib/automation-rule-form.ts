@@ -20,6 +20,7 @@ export interface RuleFormState {
   targetEntities: string[]
   cronExpression: string
   reactionType: ReactionType
+  notifSeverity: string
   conditionCel: string
   actionTemplate: string
   isActive: boolean
@@ -50,6 +51,7 @@ export const INITIAL_RULE_STATE: RuleFormState = {
   targetEntities: [],
   cronExpression: "0 0 9 * * *",
   reactionType: "notify",
+  notifSeverity: "info",
   conditionCel: "doc.totalAmount > 0",
   actionTemplate: 'Проведение документа #{{ .doc.number }}, сумма: {{ .doc.totalAmount }}',
   isActive: true,
@@ -114,6 +116,21 @@ export function getActionLabel(action: string): string {
   return ENTITY_EVENT_ACTIONS.find(a => a.value === action)?.label ?? action
 }
 
+// ── Severity Options ────────────────────────────────────────────────────
+
+export interface SeverityOption {
+  value: string
+  label: string
+  description: string
+}
+
+export const SEVERITY_OPTIONS: SeverityOption[] = [
+  { value: "info",    label: "Информация",    description: "Стандартное уведомление" },
+  { value: "warning", label: "Предупреждение", description: "Требует внимания" },
+  { value: "error",   label: "Ошибка",        description: "Критическое событие" },
+  { value: "success", label: "Успех",         description: "Операция выполнена" },
+]
+
 // ── Mappers ──────────────────────────────────────────────────────────────
 
 function buildSubscribers(entries: SubscriberFormEntry[]): SubscriberInput[] {
@@ -143,6 +160,7 @@ export function mapRuleToCreate(s: RuleFormState): CreateRuleRequest {
     eventType: resolveEventType(s),
     targetEntities: s.targetEntities,
     reactionType: s.reactionType,
+    notifSeverity: s.notifSeverity || undefined,
     conditionCel: s.triggerType !== "scheduled" ? (s.conditionCel || undefined) : undefined,
     actionTemplate: s.actionTemplate,
     isActive: s.isActive,
@@ -191,6 +209,7 @@ export function mapRuleFromResponse(r: Record<string, unknown>): RuleFormState {
     targetEntities,
     cronExpression,
     reactionType: (r.reactionType as ReactionType) || "notify",
+    notifSeverity: (r.notifSeverity as string) || "info",
     conditionCel: (r.conditionCel as string) || "",
     actionTemplate: (r.actionTemplate as string) || "",
     isActive: (r.isActive as boolean) ?? true,

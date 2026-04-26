@@ -20,6 +20,7 @@ import { TabBar } from "./tab-bar"
 import { TabOverflow } from "./tab-overflow"
 import { OpenUrlPopover } from "./open-url-popover"
 import { NotificationBell } from "./notification-bell"
+import { NotificationPanel } from "./notification-panel"
 import { useShortcut } from "@/hooks/useShortcut"
 
 /** Pending close state — single tab or batch (with dirty-tab list). */
@@ -195,6 +196,7 @@ export function SiteHeader() {
                     <div className="flex shrink-0 items-center justify-end px-2 mb-1 gap-1">
                         <TabOverflow onTabClick={handleTabClick} onCloseAll={handleCloseAll} />
                         <NotificationBell />
+                        <NotificationPanel />
                         <OpenUrlPopover triggerRef={openUrlTriggerRef} />
                     </div>
                 </TooltipProvider>

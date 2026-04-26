@@ -92,8 +92,11 @@ export const useWebSocketStore = create<WebSocketState & WebSocketActions>()(
                 }
             }
 
-            socket.onerror = (err) => {
-                console.error("[WebSocket] Error:", err)
+            socket.onerror = () => {
+                // onerror is always followed by onclose (per spec).
+                // Browser hides error details for security — the Event is always {}.
+                // Reconnect logic is in onclose, so this is purely informational.
+                console.warn("[WebSocket] Connection error (reconnect handled by onclose)")
             }
         },
 

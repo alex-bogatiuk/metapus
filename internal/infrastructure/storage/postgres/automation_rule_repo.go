@@ -22,7 +22,7 @@ func NewAutomationRuleRepo() *AutomationRuleRepo {
 }
 
 const ruleSelectCols = `id, name, description, trigger_type, event_type, target_entities, 
-	condition_cel, reaction_type, message_format, action_template, chain_rule_ids,
+	condition_cel, reaction_type, notif_severity, message_format, action_template, chain_rule_ids,
 	priority, max_retries, cooldown_seconds, organization_id, is_active,
 	execution_count, error_count, last_executed_at,
 	deletion_mark, version, created_at, updated_at`
@@ -35,7 +35,7 @@ func scanRule(row pgx.Row) (*automations.Rule, error) {
 
 	err := row.Scan(
 		&r.ID, &r.Name, &r.Description, &r.TriggerType, &r.EventType, &targetEntities,
-		&r.ConditionCEL, &r.ReactionType, &r.MessageFormat, &r.ActionTemplate, &chainIDsJSON,
+		&r.ConditionCEL, &r.ReactionType, &r.NotifSeverity, &r.MessageFormat, &r.ActionTemplate, &chainIDsJSON,
 		&r.Priority, &r.MaxRetries, &r.CooldownSecs, &r.OrganizationID, &r.IsActive,
 		&r.ExecutionCount, &r.ErrorCount, &r.LastExecutedAt,
 		&r.DeletionMark, &r.Version, &r.CreatedAt, &r.UpdatedAt,
@@ -257,12 +257,12 @@ func (r *AutomationRuleRepo) Create(ctx context.Context, req automations.CreateR
 	query := fmt.Sprintf(`
 		INSERT INTO sys_automation_rules (
 			name, description, trigger_type, event_type, target_entities,
-			condition_cel, reaction_type, message_format, action_template, chain_rule_ids,
+			condition_cel, reaction_type, notif_severity, message_format, action_template, chain_rule_ids,
 			priority, max_retries, cooldown_seconds, organization_id, is_active
 		) VALUES (
 			$1, $2, $3, $4, $5,
-			$6, $7, $8, $9, $10,
-			$11, $12, $13, $14, $15
+			$6, $7, $8, $9, $10, $11,
+			$12, $13, $14, $15, $16
 		)
 		RETURNING %s
 	`, ruleSelectCols)
@@ -275,7 +275,7 @@ func (r *AutomationRuleRepo) Create(ctx context.Context, req automations.CreateR
 
 	rule, err := scanRule(q.QueryRow(ctx, query,
 		req.Name, req.Description, req.TriggerType, req.EventType, targetEntities,
-		req.ConditionCEL, req.ReactionType, req.MessageFormat, req.ActionTemplate, chainIDStrings,
+		req.ConditionCEL, req.ReactionType, req.NotifSeverity, req.MessageFormat, req.ActionTemplate, chainIDStrings,
 		req.Priority, req.MaxRetries, req.CooldownSecs, req.OrganizationID, req.IsActive,
 	))
 	if err != nil {
@@ -305,10 +305,10 @@ func (r *AutomationRuleRepo) Update(ctx context.Context, ruleID id.ID, req autom
 	query := fmt.Sprintf(`
 		UPDATE sys_automation_rules
 		SET name = $1, description = $2, trigger_type = $3, event_type = $4, target_entities = $5,
-			condition_cel = $6, reaction_type = $7, message_format = $8, action_template = $9, chain_rule_ids = $10,
-			priority = $11, max_retries = $12, cooldown_seconds = $13, organization_id = $14, is_active = $15,
+			condition_cel = $6, reaction_type = $7, notif_severity = $8, message_format = $9, action_template = $10, chain_rule_ids = $11,
+			priority = $12, max_retries = $13, cooldown_seconds = $14, organization_id = $15, is_active = $16,
 			version = version + 1
-		WHERE id = $16 AND version = $17 AND deletion_mark = FALSE
+		WHERE id = $17 AND version = $18 AND deletion_mark = FALSE
 		RETURNING %s
 	`, ruleSelectCols)
 
@@ -320,7 +320,7 @@ func (r *AutomationRuleRepo) Update(ctx context.Context, ruleID id.ID, req autom
 
 	rule, err := scanRule(q.QueryRow(ctx, query,
 		req.Name, req.Description, req.TriggerType, req.EventType, targetEntities,
-		req.ConditionCEL, req.ReactionType, req.MessageFormat, req.ActionTemplate, chainIDStrings,
+		req.ConditionCEL, req.ReactionType, req.NotifSeverity, req.MessageFormat, req.ActionTemplate, chainIDStrings,
 		req.Priority, req.MaxRetries, req.CooldownSecs, req.OrganizationID, req.IsActive,
 		ruleID, req.Version,
 	))

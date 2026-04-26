@@ -122,6 +122,7 @@ export interface AutomationRule {
   targetEntities: string[]
   conditionCel: string | null
   reactionType: ReactionType
+  notifSeverity: string
   messageFormat: MessageFormat
   actionTemplate: string
   chainRuleIds: string[]
@@ -148,6 +149,7 @@ export interface CreateRuleRequest {
   targetEntities: string[]
   conditionCel?: string | null
   reactionType: ReactionType
+  notifSeverity?: string
   messageFormat: MessageFormat
   actionTemplate: string
   chainRuleIds?: string[]

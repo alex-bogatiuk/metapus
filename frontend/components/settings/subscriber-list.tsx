@@ -1,17 +1,22 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Plus, X, Radio, User, Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
+import { UserPicker } from "@/components/shared/user-picker"
+import { api } from "@/lib/api"
 import type { AutomationChannel } from "@/types/automation"
 import type { SubscriberFormEntry } from "@/lib/automation-rule-form"
 
 interface SubscriberListProps {
   subscribers: SubscriberFormEntry[]
   channels: AutomationChannel[]
+  /** Current reaction type — hides channel option when "notify" (internal only) */
+  reactionType?: string
   onChange: (subscribers: SubscriberFormEntry[]) => void
 }
 
@@ -21,18 +26,57 @@ const SUB_TYPE_META: Record<string, { label: string; icon: typeof Radio }> = {
   role:    { label: "Роль", icon: Shield },
 }
 
-export function SubscriberList({ subscribers, channels, onChange }: SubscriberListProps) {
+interface RoleOption {
+  id: string
+  code: string
+  name: string
+}
+
+export function SubscriberList({ subscribers, channels, reactionType, onChange }: SubscriberListProps) {
+  const [roles, setRoles] = useState<RoleOption[]>([])
+
+  // Load roles on mount (for role subscriber type)
+  useEffect(() => {
+    api.roles.list()
+      .then((res) => {
+        setRoles(
+          (res.items ?? []).map((r) => ({
+            id: r.id,
+            code: r.code,
+            name: r.name,
+          }))
+        )
+      })
+      .catch(console.error)
+  }, [])
+
+  // All subscriber types are available for all reaction types.
+  // "notify" supports both internal (user/role → UI) and external (channel → Telegram/Email).
+  const allowedTypes = (["channel", "user", "role"] as const)
+  const defaultSubType = channels.length > 0 ? "channel" : "user"
+
   const handleAdd = () => {
-    const first = channels[0]
-    onChange([
-      ...subscribers,
-      {
-        subscriberType: "channel",
-        channelId: first?.id ?? "",
-        deliveryMethod: "push",
-        displayName: first?.name ?? "",
-      },
-    ])
+    if (defaultSubType === "channel") {
+      const first = channels[0]
+      onChange([
+        ...subscribers,
+        {
+          subscriberType: "channel",
+          channelId: first?.id ?? "",
+          deliveryMethod: "push",
+          displayName: first?.name ?? "",
+        },
+      ])
+    } else {
+      onChange([
+        ...subscribers,
+        {
+          subscriberType: "user",
+          deliveryMethod: "push",
+          displayName: "",
+        },
+      ])
+    }
   }
 
   const handleRemove = (idx: number) => {
@@ -44,6 +88,8 @@ export function SubscriberList({ subscribers, channels, onChange }: SubscriberLi
     updated[idx] = {
       subscriberType: type,
       channelId: type === "channel" ? (channels[0]?.id ?? "") : undefined,
+      userId: undefined,
+      roleName: undefined,
       deliveryMethod: "push",
       displayName: type === "channel" ? (channels[0]?.name ?? "") : "",
     }
@@ -57,6 +103,27 @@ export function SubscriberList({ subscribers, channels, onChange }: SubscriberLi
       ...updated[idx],
       channelId,
       displayName: ch?.name ?? "",
+    }
+    onChange(updated)
+  }
+
+  const handleUserChange = (idx: number, userId: string, displayName: string) => {
+    const updated = [...subscribers]
+    updated[idx] = {
+      ...updated[idx],
+      userId,
+      displayName,
+    }
+    onChange(updated)
+  }
+
+  const handleRoleChange = (idx: number, roleName: string) => {
+    const role = roles.find(r => r.code === roleName)
+    const updated = [...subscribers]
+    updated[idx] = {
+      ...updated[idx],
+      roleName,
+      displayName: role?.name ?? roleName,
     }
     onChange(updated)
   }
@@ -83,7 +150,7 @@ export function SubscriberList({ subscribers, channels, onChange }: SubscriberLi
         <div className="rounded-lg border border-dashed p-6 text-center">
           <Radio className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
           <p className="text-xs text-muted-foreground">
-            Нет подписчиков. Добавьте канал доставки.
+            Нет подписчиков. Добавьте канал доставки, пользователя или роль.
           </p>
         </div>
       ) : (
@@ -101,17 +168,19 @@ export function SubscriberList({ subscribers, channels, onChange }: SubscriberLi
                   value={sub.subscriberType}
                   onValueChange={(v) => handleTypeChange(idx, v as "channel" | "user" | "role")}
                 >
-                  <SelectTrigger className="h-8 w-[120px] text-xs">
+                  <SelectTrigger className="h-8 w-[140px] text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="channel">Канал</SelectItem>
-                    <SelectItem value="user">Пользователь</SelectItem>
-                    <SelectItem value="role">Роль</SelectItem>
+                    {allowedTypes.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {SUB_TYPE_META[t]?.label ?? t}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
 
-                {/* Channel selector (only for channel type) */}
+                {/* Channel selector */}
                 {sub.subscriberType === "channel" && (
                   <Select
                     value={sub.channelId ?? ""}
@@ -133,16 +202,37 @@ export function SubscriberList({ subscribers, channels, onChange }: SubscriberLi
                   </Select>
                 )}
 
-                {/* Placeholder for user/role — simple text for now */}
+                {/* User picker */}
                 {sub.subscriberType === "user" && (
-                  <span className="flex-1 text-xs text-muted-foreground italic">
-                    Выбор пользователей — в следующей итерации
-                  </span>
+                  <UserPicker
+                    value={sub.userId ?? ""}
+                    displayName={sub.displayName}
+                    onChange={(userId, displayName) => handleUserChange(idx, userId, displayName)}
+                    placeholder="Выберите пользователя…"
+                    className="h-8 flex-1 text-xs"
+                  />
                 )}
+
+                {/* Role selector */}
                 {sub.subscriberType === "role" && (
-                  <span className="flex-1 text-xs text-muted-foreground italic">
-                    Выбор ролей — в следующей итерации
-                  </span>
+                  <Select
+                    value={sub.roleName ?? ""}
+                    onValueChange={(v) => handleRoleChange(idx, v)}
+                  >
+                    <SelectTrigger className="h-8 flex-1 text-xs">
+                      <SelectValue placeholder="Выберите роль…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {roles.map(role => (
+                        <SelectItem key={role.code} value={role.code}>
+                          {role.name}
+                          <span className="ml-2 text-muted-foreground">
+                            ({role.code})
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
 
                 {/* Remove */}

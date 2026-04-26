@@ -252,16 +252,16 @@ export function cronToConfig(cron: string): ScheduleConfig {
 export function getNextRunDates(config: ScheduleConfig, count: number = 5): Date[] {
   const dates: Date[] = []
   const now = new Date()
-  let current = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
+  let currentDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
   
   // Проверяем дату начала
-  if (config.startDate && config.startDate > current) {
-    current = new Date(config.startDate)
+  if (config.startDate && config.startDate > currentDay) {
+    currentDay = new Date(config.startDate)
   }
   
-  for (let i = 0; i < 365 && dates.length < count; i++) {
-    const candidate = new Date(current)
-    candidate.setDate(candidate.getDate() + i)
+  for (let dayOffset = 0; dayOffset < 365 && dates.length < count; dayOffset++) {
+    const candidate = new Date(currentDay)
+    candidate.setDate(candidate.getDate() + dayOffset)
     
     // Проверяем дату окончания
     if (config.endDate && candidate > config.endDate) {
@@ -285,11 +285,32 @@ export function getNextRunDates(config: ScheduleConfig, count: number = 5): Date
       if (config.months.length > 0 && !config.months.includes(candidate.getMonth() + 1)) continue
     }
     
-    // Добавляем время
-    candidate.setHours(config.dailyTime.hour, config.dailyTime.minute, config.dailyTime.second)
-    
-    if (candidate > new Date()) {
-      dates.push(candidate)
+    if (config.dailyMode === "interval") {
+      // Interval mode: generate multiple runs within the time window
+      const startH = config.intervalStartTime.hour
+      const startM = config.intervalStartTime.minute
+      const endH = config.intervalEndTime.hour
+      const endM = config.intervalEndTime.minute
+      const interval = config.intervalMinutes
+      
+      const startTotalMin = startH * 60 + startM
+      const endTotalMin = endH * 60 + endM
+      
+      for (let min = startTotalMin; min <= endTotalMin && dates.length < count; min += interval) {
+        const runDate = new Date(candidate)
+        runDate.setHours(Math.floor(min / 60), min % 60, 0)
+        
+        if (runDate > now) {
+          dates.push(runDate)
+        }
+      }
+    } else {
+      // Single run mode
+      candidate.setHours(config.dailyTime.hour, config.dailyTime.minute, config.dailyTime.second)
+      
+      if (candidate > now) {
+        dates.push(candidate)
+      }
     }
   }
   

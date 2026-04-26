@@ -564,8 +564,10 @@ func registerSystemRoutes(rg *gin.RouterGroup, eventLogReader eventlog.Reader, s
 	// REST API for notifications (under /api/v1/system/notifications)
 	notifUserGroup := rg.Group("/system/notifications")
 	notifUserGroup.GET("", notifHandler.List)
+	notifUserGroup.PUT("/mark-all-read", notifHandler.MarkAllAsRead) // static before /:id
 	notifUserGroup.PUT("/:id/read", notifHandler.MarkAsRead)
-	notifUserGroup.PUT("/mark-all-read", notifHandler.MarkAllAsRead)
+	notifUserGroup.PUT("/:id/unread", notifHandler.MarkAsUnread)
+	notifUserGroup.DELETE("/:id", notifHandler.Delete)
 
 	// Processing: Find References (Найти ссылки на объект)
 	refFinderRepo := postgres.NewRefFinderRepo(reg)

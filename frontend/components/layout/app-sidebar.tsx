@@ -57,6 +57,7 @@ import { LogoIcon } from "@/components/icons/logo"
 import { useTabsStore } from "@/stores/useTabsStore"
 import { useAuthStore } from "@/stores/useAuthStore"
 import { useMetadataStore } from "@/stores/useMetadataStore"
+import { useNotificationStore } from "@/stores/useNotificationStore"
 import { buildEntityUrlByRoute } from "@/lib/entity-url"
 import { api } from "@/lib/api"
 import { UserPreferencesDialog } from "@/components/shared/user-preferences-dialog"
@@ -196,8 +197,7 @@ const navBottom: NavItem[] = [
   { title: "Помощь", url: "/help", icon: HelpCircle },
 ]
 
-/** Demo notification count; replace with real data source */
-const NOTIFICATION_COUNT = 3
+
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
@@ -209,6 +209,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const metaLoaded = useMetadataStore((s) => s.loaded)
   const [prefsOpen, setPrefsOpen] = useState(false)
   const [activeSection, setActiveSection] = useState<ResolvedNavSection | null>(null)
+  const unreadCount = useNotificationStore((s) => s.unreadCount)
+  const setPanelOpen = useNotificationStore((s) => s.setPanelOpen)
 
   // ── Resolve section groups from metadata ───────────────────────────
   const resolvedSections = useMemo(() => {
@@ -473,15 +475,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   align="end"
                   sideOffset={4}
                 >
-                  <DropdownMenuItem className="gap-2">
+                  <DropdownMenuItem className="gap-2" onSelect={() => setPanelOpen(true)}>
                     <Bell className="h-4 w-4" />
                     <span className="flex-1">Уведомления</span>
-                    {NOTIFICATION_COUNT > 0 && (
+                    {unreadCount > 0 && (
                       <Badge
                         variant="destructive"
                         className="ml-auto h-5 min-w-[1.25rem] justify-center px-1 text-[10px]"
                       >
-                        {NOTIFICATION_COUNT}
+                        {unreadCount > 99 ? "99+" : unreadCount}
                       </Badge>
                     )}
                   </DropdownMenuItem>

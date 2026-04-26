@@ -50,6 +50,14 @@ type OutboxPublisher interface {
 	Publish(ctx context.Context, eventType string, payload []byte) error
 }
 
+// UserResolver resolves user IDs from subscriber metadata (user ID, role code).
+// Used by deliverInternal to build target_users for InternalNotificationAdapter.
+// Defined as interface to avoid importing auth domain.
+type UserResolver interface {
+	// ResolveUserIDsByRole returns all user IDs assigned to a role code.
+	ResolveUserIDsByRole(ctx context.Context, roleCode string) ([]id.ID, error)
+}
+
 // celCacheMaxSize is the maximum number of compiled CEL programs to cache.
 const celCacheMaxSize = 512
 
@@ -64,14 +72,15 @@ type celCacheEntry struct {
 //	Phase 1 (Evaluate): CPU-bound — CEL condition check, template rendering.
 //	Phase 2 (Deliver): I/O-bound — adapter execution, history recording.
 type Engine struct {
-	ruleRepo    automations.RuleRepository
-	historyRepo automations.HistoryRepository
-	credManager automations.CredentialManager
-	accountRepo automations.AccountRepository
-	channelRepo automations.ChannelRepository
-	adapters    map[string]Adapter
-	publisher   OutboxPublisher // For chain reactions
-	celEnv      *cel.Env
+	ruleRepo     automations.RuleRepository
+	historyRepo  automations.HistoryRepository
+	credManager  automations.CredentialManager
+	accountRepo  automations.AccountRepository
+	channelRepo  automations.ChannelRepository
+	adapters     map[string]Adapter
+	publisher    OutboxPublisher // For chain reactions
+	userResolver UserResolver    // For resolving user/role subscribers → target_users
+	celEnv       *cel.Env
 
 	// Bounded LRU cache for compiled CEL programs.
 	celMu       sync.Mutex
@@ -102,6 +111,7 @@ func NewEngine(
 	channelRepo automations.ChannelRepository,
 	adapters map[string]Adapter,
 	publisher OutboxPublisher,
+	userResolver UserResolver,
 ) (*Engine, error) {
 	// Initialize CEL environment with standard document variables.
 	env, err := cel.NewEnv(
@@ -120,18 +130,19 @@ func NewEngine(
 	}
 
 	return &Engine{
-		ruleRepo:    ruleRepo,
-		historyRepo: historyRepo,
-		credManager: credManager,
-		accountRepo: accountRepo,
-		channelRepo: channelRepo,
-		adapters:    adapters,
-		publisher:   publisher,
-		celEnv:      env,
-		celLookup:   make(map[string]*list.Element, celCacheMaxSize),
-		celOrder:    list.New(),
-		tmplLookup:  make(map[string]*list.Element, tmplCacheMaxSize),
-		tmplOrder:   list.New(),
+		ruleRepo:     ruleRepo,
+		historyRepo:  historyRepo,
+		credManager:  credManager,
+		accountRepo:  accountRepo,
+		channelRepo:  channelRepo,
+		adapters:     adapters,
+		publisher:    publisher,
+		userResolver: userResolver,
+		celEnv:       env,
+		celLookup:    make(map[string]*list.Element, celCacheMaxSize),
+		celOrder:     list.New(),
+		tmplLookup:   make(map[string]*list.Element, tmplCacheMaxSize),
+		tmplOrder:    list.New(),
 	}, nil
 }
 
@@ -494,12 +505,78 @@ func (e *Engine) deliverToChannelCached(ctx context.Context, task DeliveryTask, 
 }
 
 // deliverInternal handles user/role/doc_field subscribers via internal notification adapter.
+// It resolves target_users from subscriber metadata and wraps the rendered template
+// into the JSON payload expected by InternalNotificationAdapter.
 func (e *Engine) deliverInternal(ctx context.Context, task DeliveryTask) error {
 	adapter, ok := e.adapters["internal_notification"]
 	if !ok {
 		return fmt.Errorf("internal_notification adapter not registered")
 	}
-	return adapter.Deliver(ctx, nil, nil, nil, task.RenderedPayload)
+
+	// Resolve target user IDs based on subscriber type
+	var targetUsers []string
+
+	switch task.Subscriber.SubscriberType {
+	case automations.SubUser:
+		if task.Subscriber.UserID != nil {
+			targetUsers = []string{task.Subscriber.UserID.String()}
+		}
+	case automations.SubRole:
+		if task.Subscriber.RoleName != nil && e.userResolver != nil {
+			userIDs, err := e.userResolver.ResolveUserIDsByRole(ctx, *task.Subscriber.RoleName)
+			if err != nil {
+				return fmt.Errorf("resolve role %q users: %w", *task.Subscriber.RoleName, err)
+			}
+			for _, uid := range userIDs {
+				targetUsers = append(targetUsers, uid.String())
+			}
+		}
+	case automations.SubDocField:
+		// doc_field subscriber: target_users should be in the rendered payload JSON.
+		// Fall through to raw delivery.
+		return adapter.Deliver(ctx, nil, nil, nil, task.RenderedPayload)
+	}
+
+	if len(targetUsers) == 0 {
+		logger.Warn(ctx, "deliverInternal: no target users resolved",
+			"ruleId", task.Rule.ID,
+			"subscriberType", task.Subscriber.SubscriberType)
+		return nil
+	}
+
+	// Try to parse rendered payload as JSON (user may have provided structured payload)
+	var existingPayload map[string]any
+	if err := json.Unmarshal([]byte(task.RenderedPayload), &existingPayload); err == nil {
+		// Structured JSON — inject target_users if missing
+		if _, hasTargets := existingPayload["target_users"]; !hasTargets {
+			existingPayload["target_users"] = targetUsers
+		}
+		// Inject severity from rule config if not already set
+		if _, hasSeverity := existingPayload["severity"]; !hasSeverity && task.Rule.NotifSeverity != "" {
+			existingPayload["severity"] = task.Rule.NotifSeverity
+		}
+		enriched, marshalErr := json.Marshal(existingPayload)
+		if marshalErr == nil {
+			return adapter.Deliver(ctx, nil, nil, nil, string(enriched))
+		}
+	}
+
+	// Plain text template — wrap into ActionPayload JSON
+	notifPayload := map[string]any{
+		"target_users": targetUsers,
+		"title":        task.Rule.Name,
+		"message":      task.RenderedPayload,
+	}
+	if task.Rule.NotifSeverity != "" {
+		notifPayload["severity"] = task.Rule.NotifSeverity
+	}
+
+	payloadBytes, err := json.Marshal(notifPayload)
+	if err != nil {
+		return fmt.Errorf("marshal notification payload: %w", err)
+	}
+
+	return adapter.Deliver(ctx, nil, nil, nil, string(payloadBytes))
 }
 
 // handleChainReaction publishes a new event to the outbox for each chain_rule_id.

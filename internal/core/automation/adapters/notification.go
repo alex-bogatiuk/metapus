@@ -20,6 +20,7 @@ type ActionPayload struct {
 	TargetUsers []string               `json:"target_users"`
 	Title       string                 `json:"title"`
 	Message     string                 `json:"message"`
+	Severity    string                 `json:"severity,omitempty"`
 	Link        string                 `json:"link,omitempty"`
 	Attributes  map[string]interface{} `json:"attributes,omitempty"`
 }
@@ -50,6 +51,12 @@ func (a *InternalNotificationAdapter) Deliver(ctx context.Context, destination m
 		return fmt.Errorf("no target users specified in notification payload")
 	}
 
+	// Resolve severity (default to "info")
+	severity := notifications.Severity(act.Severity)
+	if severity == "" {
+		severity = notifications.SeverityInfo
+	}
+
 	notifs := make([]*notifications.Notification, 0, len(act.TargetUsers))
 
 	// Create notification entities
@@ -66,6 +73,7 @@ func (a *InternalNotificationAdapter) Deliver(ctx context.Context, destination m
 			UserID:     userID,
 			Title:      act.Title,
 			Message:    act.Message,
+			Severity:   severity,
 			Link:       &act.Link,
 			Attributes: act.Attributes,
 			IsRead:     false,

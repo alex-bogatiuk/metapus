@@ -6,6 +6,7 @@ CREATE TABLE sys_notifications (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
+    severity VARCHAR(16) NOT NULL DEFAULT 'info' CHECK (severity IN ('info', 'warning', 'error', 'success')),
     link VARCHAR(255),
     is_read BOOLEAN NOT NULL DEFAULT false,
     attributes JSONB DEFAULT '{}'::jsonb,

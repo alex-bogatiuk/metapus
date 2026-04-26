@@ -21,7 +21,7 @@ type AutomationRuleHandler struct {
 // NewAutomationRuleHandler creates a new handler.
 func NewAutomationRuleHandler(base *BaseHandler, repo automations.RuleRepository) *AutomationRuleHandler {
 	// Pre-initialize a test engine (CEL env creation is expensive — avoid per-request)
-	testEngine, _ := automation.NewEngine(nil, nil, nil, nil, nil, nil, nil)
+	testEngine, _ := automation.NewEngine(nil, nil, nil, nil, nil, nil, nil, nil)
 	return &AutomationRuleHandler{
 		BaseHandler: base,
 		repo:        repo,
