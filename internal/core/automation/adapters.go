@@ -3,11 +3,14 @@ package automation
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/smtp"
+	"net/url"
 	"strings"
 	"time"
 
@@ -34,6 +37,11 @@ func (a *WebhookAdapter) Deliver(ctx context.Context, destination map[string]any
 	urlRaw, ok := destination["url"].(string)
 	if !ok || urlRaw == "" {
 		return fmt.Errorf("missing 'url' in channel destination")
+	}
+
+	// F-03: Validate URL to prevent SSRF to internal networks.
+	if err := validateWebhookURL(urlRaw); err != nil {
+		return fmt.Errorf("webhook url validation: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, urlRaw, bytes.NewBufferString(payload))
@@ -247,17 +255,125 @@ func (a *EmailAdapter) Deliver(ctx context.Context, destination map[string]any, 
 		body,
 	)
 
-	// SMTP auth
+	// F-10: Mandatory TLS for SMTP to prevent credential leakage via MITM.
 	var auth smtp.Auth
 	password := string(credentials)
 	if password != "" {
 		auth = smtp.PlainAuth("", from, password, smtpHost)
 	}
 
-	addr := fmt.Sprintf("%s:%s", smtpHost, smtpPort)
-	if err := smtp.SendMail(addr, auth, from, recipients, []byte(msg)); err != nil {
-		return fmt.Errorf("smtp send: %w", err)
+	addr := net.JoinHostPort(smtpHost, smtpPort)
+
+	// Use explicit TLS connection (port 465) or STARTTLS (port 587) with verification.
+	tlsConfig := &tls.Config{ServerName: smtpHost}
+
+	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: 10 * time.Second}, "tcp", addr, tlsConfig)
+	if err != nil {
+		// Fallback: try STARTTLS for port 587
+		plainConn, dialErr := net.DialTimeout("tcp", addr, 10*time.Second)
+		if dialErr != nil {
+			return fmt.Errorf("smtp dial: %w", dialErr)
+		}
+		client, clientErr := smtp.NewClient(plainConn, smtpHost)
+		if clientErr != nil {
+			_ = plainConn.Close()
+			return fmt.Errorf("smtp new client: %w", clientErr)
+		}
+		// Require STARTTLS — fail if server doesn't support it.
+		if err := client.StartTLS(tlsConfig); err != nil {
+			_ = client.Close()
+			return fmt.Errorf("smtp STARTTLS required but failed: %w", err)
+		}
+		if auth != nil {
+			if err := client.Auth(auth); err != nil {
+				_ = client.Close()
+				return fmt.Errorf("smtp auth: %w", err)
+			}
+		}
+		if err := client.Mail(from); err != nil {
+			_ = client.Close()
+			return fmt.Errorf("smtp mail: %w", err)
+		}
+		for _, rcpt := range recipients {
+			if err := client.Rcpt(rcpt); err != nil {
+				_ = client.Close()
+				return fmt.Errorf("smtp rcpt: %w", err)
+			}
+		}
+		wc, err := client.Data()
+		if err != nil {
+			_ = client.Close()
+			return fmt.Errorf("smtp data: %w", err)
+		}
+		if _, err := wc.Write([]byte(msg)); err != nil {
+			_ = wc.Close()
+			_ = client.Close()
+			return fmt.Errorf("smtp write: %w", err)
+		}
+		_ = wc.Close()
+		return client.Quit()
 	}
 
+	// Direct TLS connection succeeded (port 465).
+	client, err := smtp.NewClient(conn, smtpHost)
+	if err != nil {
+		_ = conn.Close()
+		return fmt.Errorf("smtp new client (tls): %w", err)
+	}
+	if auth != nil {
+		if err := client.Auth(auth); err != nil {
+			_ = client.Close()
+			return fmt.Errorf("smtp auth: %w", err)
+		}
+	}
+	if err := client.Mail(from); err != nil {
+		_ = client.Close()
+		return fmt.Errorf("smtp mail: %w", err)
+	}
+	for _, rcpt := range recipients {
+		if err := client.Rcpt(rcpt); err != nil {
+			_ = client.Close()
+			return fmt.Errorf("smtp rcpt: %w", err)
+		}
+	}
+	wc, err := client.Data()
+	if err != nil {
+		_ = client.Close()
+		return fmt.Errorf("smtp data: %w", err)
+	}
+	if _, err := wc.Write([]byte(msg)); err != nil {
+		_ = wc.Close()
+		_ = client.Close()
+		return fmt.Errorf("smtp write: %w", err)
+	}
+	_ = wc.Close()
+	return client.Quit()
+}
+
+// validateWebhookURL prevents SSRF by rejecting URLs targeting internal networks.
+// Checks: scheme must be http/https, host must not resolve to private/loopback/link-local IPs.
+func validateWebhookURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid url: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("webhook url must use http or https scheme, got %q", u.Scheme)
+	}
+	host := u.Hostname()
+	if host == "" {
+		return fmt.Errorf("webhook url has empty host")
+	}
+
+	// Resolve DNS to check actual IPs (prevents DNS rebinding with static check).
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return fmt.Errorf("cannot resolve webhook host %q: %w", host, err)
+	}
+	for _, ip := range ips {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+			return fmt.Errorf("webhook url must not target internal network (resolved to %s)", ip)
+		}
+	}
 	return nil
 }

@@ -81,9 +81,16 @@ func (h *UserPrefsHandler) SaveListFilters(c *gin.Context) {
 		return
 	}
 
-	body, err := io.ReadAll(c.Request.Body)
+	const maxPrefsBody = 1 << 20 // 1 MiB
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxPrefsBody+1))
 	if err != nil {
 		h.Error(c, apperror.NewValidation("failed to read request body"))
+		return
+	}
+	if len(body) > maxPrefsBody {
+		appErr := apperror.NewValidation("request body too large")
+		appErr.HTTPStatus = http.StatusRequestEntityTooLarge
+		h.Error(c, appErr)
 		return
 	}
 
@@ -116,9 +123,16 @@ func (h *UserPrefsHandler) SaveListColumns(c *gin.Context) {
 		return
 	}
 
-	body, err := io.ReadAll(c.Request.Body)
+	const maxPrefsBody = 1 << 20 // 1 MiB
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxPrefsBody+1))
 	if err != nil {
 		h.Error(c, apperror.NewValidation("failed to read request body"))
+		return
+	}
+	if len(body) > maxPrefsBody {
+		appErr := apperror.NewValidation("request body too large")
+		appErr.HTTPStatus = http.StatusRequestEntityTooLarge
+		h.Error(c, appErr)
 		return
 	}
 
@@ -144,9 +158,16 @@ func (h *UserPrefsHandler) SaveDashboardLayout(c *gin.Context) {
 		return
 	}
 
-	body, err := io.ReadAll(c.Request.Body)
+	const maxPrefsBody = 1 << 20 // 1 MiB
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxPrefsBody+1))
 	if err != nil {
 		h.Error(c, apperror.NewValidation("failed to read request body"))
+		return
+	}
+	if len(body) > maxPrefsBody {
+		appErr := apperror.NewValidation("request body too large")
+		appErr.HTTPStatus = http.StatusRequestEntityTooLarge
+		h.Error(c, appErr)
 		return
 	}
 

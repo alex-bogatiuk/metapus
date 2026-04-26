@@ -20,7 +20,7 @@ func Auth(validator JWTValidator) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var tokenString string
 
-		// 1. Try Authorization header
+		// 1. Try Authorization header (only secure method)
 		authHeader := c.GetHeader("Authorization")
 		if authHeader != "" {
 			parts := strings.SplitN(authHeader, " ", 2)
@@ -29,10 +29,8 @@ func Auth(validator JWTValidator) gin.HandlerFunc {
 			}
 		}
 
-		// 2. Try URI query param (useful for WebSockets)
-		if tokenString == "" {
-			tokenString = c.Query("token")
-		}
+		// F-05: Removed c.Query("token") — JWT in URL leaks to logs/history/Referer.
+		// WebSocket auth uses ticket-based flow via POST /auth/ws-ticket.
 
 		if tokenString == "" {
 			abortUnauthorized(c, "missing authorization header or token param")

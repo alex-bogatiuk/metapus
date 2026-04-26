@@ -8,33 +8,43 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/domain/auth"
 	"metapus/internal/domain/notifications"
 	ws "metapus/internal/infrastructure/websocket"
 )
 
 type NotificationHandler struct {
-	BaseHandler *BaseHandler
-	repo        notifications.Repository
+	BaseHandler   *BaseHandler
+	repo          notifications.Repository
+	wsTicketStore *auth.WSTicketStore
 }
 
-func NewNotificationHandler(repo notifications.Repository) *NotificationHandler {
+func NewNotificationHandler(repo notifications.Repository, ticketStore *auth.WSTicketStore) *NotificationHandler {
 	return &NotificationHandler{
-		BaseHandler: NewBaseHandler(),
-		repo:        repo,
+		BaseHandler:   NewBaseHandler(),
+		repo:          repo,
+		wsTicketStore: ticketStore,
 	}
 }
 
+// ServeWS upgrades to WebSocket using ticket-based auth (F-05).
+// Flow: client obtains ticket via POST /auth/ws-ticket, then connects with ?ticket=<ticket>.
 func (h *NotificationHandler) ServeWS(c *gin.Context) {
-	userIDStr := h.BaseHandler.GetUserID(c)
-	tenantStr := h.BaseHandler.GetTenantID(c)
-
-	if userIDStr == "" || tenantStr == "" {
-		_ = c.Error(apperror.NewUnauthorized("unauthorized or missing tenant"))
+	ticket := c.Query("ticket")
+	if ticket == "" {
+		_ = c.Error(apperror.NewUnauthorized("missing ticket parameter — obtain via POST /auth/ws-ticket"))
 		c.Abort()
 		return
 	}
 
-	ws.ServeWS(c.Writer, c.Request, tenantStr, userIDStr)
+	userID, tenantID, ok := h.wsTicketStore.ValidateTicket(ticket)
+	if !ok {
+		_ = c.Error(apperror.NewUnauthorized("invalid or expired ticket"))
+		c.Abort()
+		return
+	}
+
+	ws.ServeWS(c.Writer, c.Request, tenantID, userID)
 }
 
 func (h *NotificationHandler) List(c *gin.Context) {

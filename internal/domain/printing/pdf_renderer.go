@@ -38,17 +38,24 @@ func RenderPDF(w io.Writer, htmlContent []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, browserPath,
+	args := []string{
 		"--headless",
 		"--disable-gpu",
-		"--no-sandbox",
+		"--disable-javascript",                  // F-04: Prevent script execution in user-controlled HTML
 		"--disable-software-rasterizer",
 		"--run-all-compositor-stages-before-draw",
-		"--print-to-pdf="+pdfPath,
+		"--print-to-pdf=" + pdfPath,
 		"--no-pdf-header-footer",
 		"--print-to-pdf-no-header",
-		"file://"+filepath.ToSlash(htmlPath),
-	)
+	}
+	// F-04: --no-sandbox only when explicitly opted in (e.g., Docker root user).
+	// In production prefer running Chrome as non-root with seccomp profile.
+	if os.Getenv("CHROME_NO_SANDBOX") == "true" {
+		args = append(args, "--no-sandbox")
+	}
+	args = append(args, "file://"+filepath.ToSlash(htmlPath))
+
+	cmd := exec.CommandContext(ctx, browserPath, args...)
 	cmd.Stderr = io.Discard
 	cmd.Stdout = io.Discard
 

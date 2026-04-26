@@ -9,6 +9,7 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/domain/settings"
+	"metapus/internal/infrastructure/http/v1/middleware"
 )
 
 // SettingsHandler handles system settings endpoints.
@@ -54,9 +55,16 @@ func (h *SettingsHandler) UpdateSection(c *gin.Context) {
 		return
 	}
 
-	body, err := io.ReadAll(c.Request.Body)
+	const maxSettingsBody = 1 << 20 // 1 MiB
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxSettingsBody+1))
 	if err != nil {
 		h.Error(c, apperror.NewValidation("failed to read request body"))
+		return
+	}
+	if len(body) > maxSettingsBody {
+		appErr := apperror.NewValidation("request body too large")
+		appErr.HTTPStatus = http.StatusRequestEntityTooLarge
+		h.Error(c, appErr)
 		return
 	}
 
@@ -83,6 +91,7 @@ func (h *SettingsHandler) UpdateSection(c *gin.Context) {
 // RegisterRoutes registers settings routes on the given router group.
 func (h *SettingsHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	sg := rg.Group("/settings")
+	sg.Use(middleware.RequireRole("admin"))
 	{
 		sg.GET("", h.Get)
 		sg.PATCH("/:section", h.UpdateSection)

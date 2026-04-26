@@ -22,6 +22,7 @@ var upgrader = websocket.Upgrader{
 
 // checkOrigin validates the Origin header against allowed origins.
 // In development (APP_ENV=development or empty), all origins are allowed.
+// In production, APP_ALLOWED_ORIGINS must be explicitly configured (fail-closed).
 func checkOrigin(r *http.Request) bool {
 	env := os.Getenv("APP_ENV")
 	if env == "" || env == "development" {
@@ -30,12 +31,12 @@ func checkOrigin(r *http.Request) bool {
 
 	allowed := os.Getenv("APP_ALLOWED_ORIGINS")
 	if allowed == "" {
-		return true // No restriction configured
+		return false // F-15: Fail-closed in production — require explicit origin whitelist
 	}
 
 	origin := r.Header.Get("Origin")
 	if origin == "" {
-		return true // Non-browser clients
+		return true // Non-browser clients (curl, server-to-server)
 	}
 
 	for _, o := range strings.Split(allowed, ",") {

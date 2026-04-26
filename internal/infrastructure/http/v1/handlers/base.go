@@ -128,6 +128,12 @@ func (h *BaseHandler) ParseListFilter(c *gin.Context, defaultOrderBy string) (do
 	filter := domain.DefaultListFilter()
 	filter.Search = c.Query("search")
 	filter.Limit = h.ParseIntQuery(c, "limit", 50)
+	if filter.Limit < 1 {
+		filter.Limit = 1
+	}
+	if filter.Limit > 500 {
+		filter.Limit = 500
+	}
 	filter.OrderBy = c.DefaultQuery("orderBy", defaultOrderBy)
 	filter.IncludeDeleted = c.Query("includeDeleted") == "true"
 	filter.SkipCount = c.Query("skipCount") == "true"

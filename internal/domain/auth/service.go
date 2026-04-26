@@ -19,6 +19,11 @@ import (
 	"metapus/pkg/logger"
 )
 
+// BcryptCost is the bcrypt work factor for password hashing.
+// OWASP recommends >= 12. Higher values increase brute-force resistance
+// at the cost of ~150ms additional latency per login.
+const BcryptCost = 12
+
 // ServiceConfig holds auth service configuration.
 type ServiceConfig struct {
 	MaxLoginAttempts   int
@@ -114,7 +119,7 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*User, err
 	}
 
 	// Hash password
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(req.Password), BcryptCost)
 	if err != nil {
 		return nil, fmt.Errorf("hash password: %w", err)
 	}
@@ -403,7 +408,7 @@ func (s *Service) CreateUserByAdmin(ctx context.Context, req RegisterRequest, ro
 		return nil, apperror.NewConflict("email already registered").WithDetail("email", req.Email)
 	}
 
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(req.Password), BcryptCost)
 	if err != nil {
 		return nil, fmt.Errorf("hash password: %w", err)
 	}
@@ -411,6 +416,7 @@ func (s *Service) CreateUserByAdmin(ctx context.Context, req RegisterRequest, ro
 	user := NewUser(req.Email, string(passwordHash))
 	user.FirstName = req.FirstName
 	user.LastName = req.LastName
+	user.EmailVerified = true // Admin-created users are implicitly verified (F-16)
 
 	currentUser := appctx.GetUser(ctx)
 	var grantedBy id.ID

@@ -85,39 +85,19 @@ export class ApiError extends Error {
 let refreshPromise: Promise<TokenResponse | null> | null = null
 
 async function doRefreshToken(): Promise<TokenResponse | null> {
-    const { tokens, setTokens, logout } = useAuthStore.getState()
-    if (!tokens?.refreshToken) {
-        logout()
-        return null
-    }
+    const { setTokens, logout } = useAuthStore.getState()
 
     try {
-        // 1. Check if another tab recently refreshed the token
-        if (typeof window !== "undefined") {
-            const storedStr = localStorage.getItem("metapus-auth")
-            if (storedStr) {
-                try {
-                    const stored = JSON.parse(storedStr)
-                    const storedTokens = stored.state?.tokens
-                    if (storedTokens && storedTokens.refreshToken !== tokens.refreshToken) {
-                        // Another tab already refreshed the token. Absorb it.
-                        setTokens(storedTokens)
-                        return storedTokens
-                    }
-                } catch (e) {
-                    // Ignore parsing errors
-                }
-            }
-        }
-
-        // 2. Perform the refresh request
+        // F-09: refreshToken is now in httpOnly cookie — browser sends it automatically
+        // with credentials: 'include'. No need to read from JS or localStorage.
         const res = await fetch(`${API_BASE}/auth/refresh`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 ...(TENANT_ID ? { "X-Tenant-ID": TENANT_ID } : {}),
             },
-            body: JSON.stringify({ refreshToken: tokens.refreshToken }),
+            credentials: "include", // F-09: send httpOnly cookie
+            body: JSON.stringify({}), // empty body — token comes from cookie
         })
 
         if (!res.ok) {
@@ -178,6 +158,7 @@ export async function apiFetch<T>(
 
     const res = await fetch(`${API_BASE}${path}`, {
         ...restOptions,
+        credentials: "include", // F-09: send/receive httpOnly cookies
         headers: buildHeaders(optHeaders),
     })
 
@@ -187,6 +168,7 @@ export async function apiFetch<T>(
         if (newTokens) {
             const retryRes = await fetch(`${API_BASE}${path}`, {
                 ...restOptions,
+                credentials: "include",
                 headers: buildHeaders(optHeaders),
             })
 
@@ -230,6 +212,7 @@ export async function apiFetchBlob(
 
     let res = await fetch(`${API_BASE}${path}`, {
         ...restOptions,
+        credentials: "include",
         headers: buildHeaders(optHeaders),
     })
 
@@ -239,6 +222,7 @@ export async function apiFetchBlob(
         if (newTokens) {
             res = await fetch(`${API_BASE}${path}`, {
                 ...restOptions,
+                credentials: "include",
                 headers: buildHeaders(optHeaders),
             })
         }
@@ -756,7 +740,7 @@ export const api = {
         effectiveAccess: (id: string) =>
             apiFetch<import("@/types/security").EffectiveAccessResponse>(`/auth/users/${id}/effective-access`),
         impersonate: (id: string) =>
-            apiFetch<{ tokens: { accessToken: string; refreshToken: string; expiresAt: string; tokenType: string }; user: import("@/types/security").UserResponse }>(`/auth/users/${id}/impersonate`, {
+            apiFetch<{ tokens: { accessToken: string; expiresAt: string; tokenType: string }; user: import("@/types/security").UserResponse }>(`/auth/users/${id}/impersonate`, {
                 method: "POST",
             }),
     },

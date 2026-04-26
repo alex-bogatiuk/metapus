@@ -53,10 +53,29 @@ async function executePrint(
 
   if (output === "html") {
     const html = await res.text()
-    const w = window.open("", "_blank")
-    if (w) {
-      w.document.write(html)
-      w.document.close()
+    // F-06: Use sandboxed iframe instead of document.write to prevent XSS
+    // from unescaped user data in print templates.
+    const iframe = document.createElement("iframe")
+    iframe.style.position = "fixed"
+    iframe.style.top = "0"
+    iframe.style.left = "0"
+    iframe.style.width = "100%"
+    iframe.style.height = "100%"
+    iframe.style.zIndex = "99999"
+    iframe.style.border = "none"
+    iframe.style.background = "white"
+    iframe.setAttribute("sandbox", "allow-same-origin allow-modals")
+    iframe.srcdoc = html
+    document.body.appendChild(iframe)
+
+    iframe.onload = () => {
+      iframe.contentWindow?.print()
+      // Remove iframe after print dialog closes
+      const cleanup = () => {
+        document.body.removeChild(iframe)
+        window.removeEventListener("focus", cleanup)
+      }
+      window.addEventListener("focus", cleanup)
     }
   } else {
     const blob = await res.blob()

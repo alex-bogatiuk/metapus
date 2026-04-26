@@ -2,6 +2,9 @@
 package v1
 
 import (
+	"crypto/subtle"
+	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -100,6 +103,9 @@ type RouterConfig struct {
 	// MigrationStateStore manages pre-update version persistence for rollback support.
 	// Created in main.go, backed by meta-database.
 	MigrationStateStore tenant.MigrationStateStore
+
+	// WSTicketStore for WebSocket ticket-based authentication (F-05).
+	WSTicketStore *auth.WSTicketStore
 }
 
 // NewRouter creates and configures the Gin router for multi-tenant architecture.
@@ -132,7 +138,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		health.GET("/live", healthHandler.Live)
 		health.GET("/ready", healthHandler.Ready)
 		health.GET("/info", healthHandler.Info)
-		health.GET("/tenants", healthHandler.TenantsStats) // Admin endpoint for tenant stats
+		// NOTE: /tenants moved to admin group (F-11: prevents unauthenticated tenant enumeration)
 	}
 
 	// Internal endpoints (for reverse proxy, not exposed publicly)
@@ -168,9 +174,11 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		protected.Use(middleware.TenantDB(cfg.TenantManager))      // 1. Resolve tenant, get DB pool
 		protected.Use(middleware.Auth(cfg.JWTValidator))             // 2. Validate JWT
 		protected.Use(middleware.RequireActiveTenant())              // 3. Block business requests for migration_failed
-		if cfg.ProfileProvider != nil {
-			protected.Use(middleware.SecurityContext(cfg.ProfileProvider)) // 4. Build DataScope + FieldPolicies
+		// Security profiles are mandatory — fail-fast if misconfigured (F-07).
+		if cfg.ProfileProvider == nil {
+			panic("v1.NewRouter: cfg.ProfileProvider must not be nil — security profiles are required for DataScope")
 		}
+		protected.Use(middleware.SecurityContext(cfg.ProfileProvider))
 
 		// Apply idempotency middleware for mutating operations
 		if cfg.IdempotencyEnabled {
@@ -203,7 +211,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		registerUserPrefsRoutes(protected)
 		registerSettingsRoutes(protected)
 		registerSecurityRoutes(protected, cfg)
-		registerSystemRoutes(protected, eventLogRepo, cfg.SchemaCache, reg)
+		registerSystemRoutes(protected, eventLogRepo, cfg.SchemaCache, reg, cfg.WSTicketStore)
 	}
 
 	// Admin tenant management (Cloud Control Plane) — separate group with Auth,
@@ -212,9 +220,9 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 	adminAuthGroup := v1.Group("")
 	adminAuthGroup.Use(middleware.TenantDB(cfg.TenantManager)) // still needed for X-Tenant-ID to resolve JWT
 	adminAuthGroup.Use(middleware.Auth(cfg.JWTValidator))
-	registerAdminTenantRoutes(adminAuthGroup, cfg, cfg.MigrationStateStore)
+	registerAdminTenantRoutes(adminAuthGroup, cfg, cfg.MigrationStateStore, healthHandler)
 
-	// Internal endpoints for Updater Agent (no auth — internal network trust)
+	// Internal endpoints for Updater Agent (shared secret — defense-in-depth beyond network isolation)
 	registerInternalUpdaterRoutes(internal, cfg, cfg.MigrationStateStore)
 
 	return router
@@ -239,11 +247,13 @@ func registerAuthRoutes(rg *gin.RouterGroup, cfg RouterConfig, eventWriter event
 
 	baseHandler := handlers.NewBaseHandler()
 	profileRepo := security_repo.NewProfileRepo()
-	authHandler := handlers.NewAuthHandler(baseHandler, cfg.AuthService, profileRepo, eventWriter)
+	authHandler := handlers.NewAuthHandler(baseHandler, cfg.AuthService, profileRepo, eventWriter, cfg.WSTicketStore)
 
 	// Public auth endpoints (no JWT required, but need tenant for DB access)
+	// F-08: Rate limit login/register/refresh to prevent brute-force and credential stuffing.
 	publicAuth := rg.Group("/auth")
 	publicAuth.Use(middleware.TenantDB(cfg.TenantManager))
+	publicAuth.Use(middleware.RateLimit(1, 5)) // 1 req/sec sustained, burst 5
 
 	// Protected auth endpoints (JWT required)
 	protectedAuth := rg.Group("/auth")
@@ -520,7 +530,7 @@ func registerSecurityRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 }
 
 // registerSystemRoutes registers system administration endpoints (event log, custom fields, processing).
-func registerSystemRoutes(rg *gin.RouterGroup, eventLogReader eventlog.Reader, schemaCache *cache.SchemaCache, reg *metadata.Registry) {
+func registerSystemRoutes(rg *gin.RouterGroup, eventLogReader eventlog.Reader, schemaCache *cache.SchemaCache, reg *metadata.Registry, wsTicketStore *auth.WSTicketStore) {
 	sysGroup := rg.Group("/system")
 	sysGroup.Use(middleware.RequireRole("admin"))
 
@@ -546,9 +556,9 @@ func registerSystemRoutes(rg *gin.RouterGroup, eventLogReader eventlog.Reader, s
 
 	// Notifications & Real-Time Hub
 	notificationRepo := postgres.NewNotificationRepo()
-	notifHandler := handlers.NewNotificationHandler(notificationRepo)
+	notifHandler := handlers.NewNotificationHandler(notificationRepo, wsTicketStore)
 	
-	// WebSockets
+	// WebSockets — uses ticket-based auth, not JWT middleware (F-05)
 	rg.GET("/ws", notifHandler.ServeWS)
 
 	// REST API for notifications (under /api/v1/system/notifications)
@@ -625,7 +635,7 @@ func registerSettingsRoutes(rg *gin.RouterGroup) {
 // IMPORTANT: This function is NOT called inside the `protected` group.
 // Admin tenant endpoints operate on the meta-database, not tenant databases.
 // They must remain accessible even when a tenant is in migration_failed status.
-func registerAdminTenantRoutes(rg *gin.RouterGroup, cfg RouterConfig, stateStore tenant.MigrationStateStore) {
+func registerAdminTenantRoutes(rg *gin.RouterGroup, cfg RouterConfig, stateStore tenant.MigrationStateStore, healthHandler *handlers.MultiTenantHealthHandler) {
 	base := handlers.NewBaseHandler()
 	registry := cfg.TenantManager.GetRegistry()
 	updater := migration.NewTenantUpdater(registry, cfg.TenantManager, stateStore, cfg.Logger)
@@ -644,11 +654,29 @@ func registerAdminTenantRoutes(rg *gin.RouterGroup, cfg RouterConfig, stateStore
 		admin.POST("/:tenantId/rollback-update", h.RollbackUpdate)
 		admin.GET("/:tenantId/migration-status", h.MigrationStatus)
 	}
+
+	// Tenant health stats — admin-only (F-11: moved from public /health group)
+	adminHealth := rg.Group("/admin")
+	adminHealth.Use(middleware.RequireRole("admin"))
+	adminHealth.GET("/health/tenants", healthHandler.TenantsStats)
 }
 
 // registerInternalUpdaterRoutes registers internal endpoints for the Updater Agent.
 // No auth required — secured by Docker network isolation (internal network trust).
 func registerInternalUpdaterRoutes(rg *gin.RouterGroup, cfg RouterConfig, stateStore tenant.MigrationStateStore) {
+	// F-02: Shared secret middleware — defense-in-depth beyond Docker network isolation.
+	// If INTERNAL_API_SECRET is set, require it in X-Internal-Secret header.
+	if secret := os.Getenv("INTERNAL_API_SECRET"); secret != "" {
+		rg.Use(func(c *gin.Context) {
+			// SEC-03: constant-time comparison prevents timing side-channel attacks.
+			if subtle.ConstantTimeCompare([]byte(c.GetHeader("X-Internal-Secret")), []byte(secret)) != 1 {
+				c.AbortWithStatus(http.StatusForbidden)
+				return
+			}
+			c.Next()
+		})
+	}
+
 	base := handlers.NewBaseHandler()
 	registry := cfg.TenantManager.GetRegistry()
 	updater := migration.NewTenantUpdater(registry, cfg.TenantManager, stateStore, cfg.Logger)

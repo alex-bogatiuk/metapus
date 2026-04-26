@@ -162,6 +162,10 @@ func main() {
 	// Client extensions — uncomment to enable:
 	// vehicle.Register(factoryReg, platform.ExtensionConfig{})
 
+	// --- WebSocket Ticket Store (F-05) ---
+	wsTicketStore := auth.NewWSTicketStore()
+	defer wsTicketStore.Stop()
+
 	// --- Router ---
 	router := v1.NewRouter(v1.RouterConfig{
 		TenantManager:       tenantManager,
@@ -177,16 +181,18 @@ func main() {
 		Version:             Version,
 		BuildTime:           BuildTime,
 		MigrationStateStore: migrationStateStore,
+		WSTicketStore:       wsTicketStore,
 	})
 
 	// --- HTTP Server ---
 	port := getEnv("APP_PORT", "8080")
 	server := &http.Server{
-		Addr:         ":" + port,
-		Handler:      router,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:           ":" + port,
+		Handler:        http.MaxBytesHandler(router, 10<<20), // F-17: 10 MiB global body limit
+		ReadTimeout:    15 * time.Second,
+		WriteTimeout:   30 * time.Second,
+		IdleTimeout:    60 * time.Second,
+		MaxHeaderBytes: 1 << 20, // F-17: 1 MiB max header size
 	}
 
 	// Start server in goroutine

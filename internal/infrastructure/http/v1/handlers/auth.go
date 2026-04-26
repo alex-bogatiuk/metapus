@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 
@@ -22,18 +23,20 @@ import (
 // AuthHandler handles authentication endpoints.
 type AuthHandler struct {
 	*BaseHandler
-	service     *auth.Service
-	profileRepo security_profile.Repository
-	eventWriter eventlog.Writer
+	service        *auth.Service
+	profileRepo    security_profile.Repository
+	eventWriter    eventlog.Writer
+	wsTicketStore  *auth.WSTicketStore
 }
 
 // NewAuthHandler creates a new auth handler.
-func NewAuthHandler(base *BaseHandler, service *auth.Service, profileRepo security_profile.Repository, eventWriter eventlog.Writer) *AuthHandler {
+func NewAuthHandler(base *BaseHandler, service *auth.Service, profileRepo security_profile.Repository, eventWriter eventlog.Writer, wsTicketStore *auth.WSTicketStore) *AuthHandler {
 	return &AuthHandler{
-		BaseHandler: base,
-		service:     service,
-		profileRepo: profileRepo,
-		eventWriter: eventWriter,
+		BaseHandler:   base,
+		service:       service,
+		profileRepo:   profileRepo,
+		eventWriter:   eventWriter,
+		wsTicketStore: wsTicketStore,
 	}
 }
 
@@ -58,6 +61,37 @@ func (h *AuthHandler) emitSessionEvent(ctx context.Context, eventType eventlog.E
 			"error", err,
 		)
 	}
+}
+
+// setRefreshTokenCookie sets the refresh token as an httpOnly cookie (F-09).
+// This prevents XSS-based token theft — JavaScript cannot read httpOnly cookies.
+func (h *AuthHandler) setRefreshTokenCookie(c *gin.Context, refreshToken string) {
+	secure := os.Getenv("APP_ENV") != "development"
+	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie(
+		"refreshToken",
+		refreshToken,
+		7*24*3600,     // 7 days (matches RefreshTokenExpiry)
+		"/api/v1/auth", // scoped to auth endpoints only
+		"",             // domain: auto-detect
+		secure,         // Secure: true in production
+		true,           // HttpOnly: always true
+	)
+}
+
+// clearRefreshTokenCookie clears the refresh token cookie (F-09).
+func (h *AuthHandler) clearRefreshTokenCookie(c *gin.Context) {
+	secure := os.Getenv("APP_ENV") != "development"
+	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie(
+		"refreshToken",
+		"",
+		-1,             // expire immediately
+		"/api/v1/auth",
+		"",
+		secure,
+		true,
+	)
 }
 
 // Register handles POST /auth/register
@@ -109,6 +143,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		map[string]any{"email": user.Email, "user_id": user.ID.String(), "user_agent": c.Request.UserAgent()},
 	)
 
+	// F-09: Set refresh token as httpOnly cookie (not in JSON body).
+	h.setRefreshTokenCookie(c, tokens.RefreshToken)
+
 	c.JSON(http.StatusOK, dto.LoginResponse{
 		Tokens: dto.FromTokenPair(tokens),
 		User:   dto.FromUser(user),
@@ -116,11 +153,16 @@ func (h *AuthHandler) Login(c *gin.Context) {
 }
 
 // Refresh handles POST /auth/refresh
+// F-09: Reads refresh token exclusively from httpOnly cookie.
+// SEC-02: JSON body fallback removed — it would bypass httpOnly protection.
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	var req dto.RefreshTokenRequest
-	if !h.BindJSON(c, &req) {
+	// F-09 / SEC-02: Only accept refresh token from httpOnly cookie.
+	// JSON body fallback was removed to prevent XSS-based token replay.
+	refreshToken, err := c.Cookie("refreshToken")
+	if err != nil || refreshToken == "" {
+		h.Error(c, apperror.NewUnauthorized("missing refresh token cookie"))
 		return
 	}
 
@@ -129,8 +171,10 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		IPAddress: c.ClientIP(),
 	}
 
-	tokens, err := h.service.RefreshToken(ctx, req.RefreshToken, info)
+	tokens, err := h.service.RefreshToken(ctx, refreshToken, info)
 	if err != nil {
+		// Clear invalid cookie on failure
+		h.clearRefreshTokenCookie(c)
 		h.Error(c, err)
 		return
 	}
@@ -140,6 +184,9 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		"Token refreshed",
 		map[string]any{"user_agent": c.Request.UserAgent()},
 	)
+
+	// F-09: Set new refresh token cookie.
+	h.setRefreshTokenCookie(c, tokens.RefreshToken)
 
 	c.JSON(http.StatusOK, dto.FromTokenPair(tokens))
 }
@@ -164,6 +211,9 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		h.Error(c, err)
 		return
 	}
+
+	// F-09: Clear refresh token cookie on logout.
+	h.clearRefreshTokenCookie(c)
 
 	h.emitSessionEvent(ctx, eventlog.EventSessionLogout, eventlog.SeverityInfo,
 		user.Email, c.ClientIP(),
@@ -650,6 +700,9 @@ func (h *AuthHandler) Impersonate(c *gin.Context) {
 		},
 	)
 
+	// SEC-01: Set refresh token as httpOnly cookie (same as Login/Refresh).
+	h.setRefreshTokenCookie(c, tokens.RefreshToken)
+
 	c.JSON(http.StatusOK, dto.LoginResponse{
 		Tokens: dto.FromTokenPair(tokens),
 		User:   dto.FromUser(user),
@@ -683,4 +736,28 @@ func (h *AuthHandler) RegisterRoutes(public, protected *gin.RouterGroup) {
 	protected.GET("/roles/:roleId/permissions", h.ListRolePermissions)
 	protected.PUT("/roles/:roleId/permissions", middleware.RequireRole("admin"), h.SetRolePermissions)
 	protected.GET("/permissions", h.ListPermissions)
+
+	// F-05: WebSocket ticket issuer (requires JWT auth)
+	if h.wsTicketStore != nil {
+		protected.POST("/ws-ticket", h.IssueWSTicket)
+	}
+}
+
+// IssueWSTicket handles POST /auth/ws-ticket — returns a single-use ticket for WebSocket auth.
+func (h *AuthHandler) IssueWSTicket(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	user := appctx.GetUser(ctx)
+	if user == nil {
+		h.Error(c, apperror.NewUnauthorized("not authenticated"))
+		return
+	}
+
+	ticket, err := h.wsTicketStore.IssueTicket(user.UserID, user.TenantID)
+	if err != nil {
+		h.Error(c, apperror.NewInternal(err))
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ticket": ticket})
 }
