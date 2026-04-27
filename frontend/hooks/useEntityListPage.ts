@@ -27,6 +27,7 @@ interface ListResponse<T> {
 interface EntityListApi<T> {
   list: (params?: {
     limit?: number
+    search?: string
     orderBy?: string
     filter?: AdvancedFilterItem[]
     includeDeleted?: boolean
@@ -93,6 +94,11 @@ interface UseEntityListPageReturn<T extends { id: string }> {
   // In-place updates (avoids full list refresh)
   /** Replace matching items by ID in the current list (preserves scroll & focus). */
   replaceItems: (updated: T[]) => void
+  // Search
+  /** Current search text (instant, not debounced). */
+  searchQuery: string
+  /** Update search text — triggers debounced refetch. */
+  setSearchQuery: (q: string) => void
 }
 
 // ── Hook ────────────────────────────────────────────────────────────────
@@ -147,6 +153,11 @@ export function useEntityListPage<T extends { id: string }>(
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [targetIndex, setTargetIndex] = useState<number | null>(null)
+
+  // ── Search (M5) ─────────────────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState("")
+  const searchRef = useRef("")
+  searchRef.current = searchQuery
 
   // ── Refs — initialize from tab cache if available ──────────────────
   const getTabCache = (key: string) => useTabStateStore.getState().get(pathname, key)
@@ -207,6 +218,7 @@ export function useEntityListPage<T extends { id: string }>(
           filter: advancedFilters.length > 0 ? advancedFilters : undefined,
           includeDeleted: showDeletedRef.current || undefined,
           skipCount: skipCount || undefined,
+          search: searchRef.current || undefined,
         })
         setItems(res.items ?? [])
         setHasMore(res.hasMore ?? false)
@@ -299,6 +311,26 @@ export function useEntityListPage<T extends { id: string }>(
     setTimeout(() => fetchData(filterValuesRef.current), 0)
   }, [entityKey, showDeleted, updateInterface, fetchData])
 
+  // ── Debounced search refetch (M5) ──────────────────────────────────
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    // Skip the initial mount (empty → empty)
+    if (!initialized.current) return
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => {
+      // Reset cursors because search changes result set
+      nextCursorRef.current = undefined
+      prevCursorRef.current = undefined
+      setTabCache("nextCursor", undefined)
+      setTabCache("prevCursor", undefined)
+      fetchData(filterValuesRef.current)
+    }, 300)
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery])
+
   // ── Load more (forward cursor) ──────────────────────────────────────
   const loadMore = useCallback(async () => {
     if (!nextCursorRef.current || busyRef.current) return
@@ -314,6 +346,7 @@ export function useEntityListPage<T extends { id: string }>(
         filter: advancedFilters.length > 0 ? advancedFilters : undefined,
         includeDeleted: showDeletedRef.current || undefined,
         after: nextCursorRef.current,
+        search: searchRef.current || undefined,
       })
       setItems((prev) => {
         const existingIds = new Set(prev.map((i) => i.id))
@@ -347,6 +380,7 @@ export function useEntityListPage<T extends { id: string }>(
         filter: advancedFilters.length > 0 ? advancedFilters : undefined,
         includeDeleted: showDeletedRef.current || undefined,
         before: prevCursorRef.current,
+        search: searchRef.current || undefined,
       })
       setItems((prev) => {
         const existingIds = new Set(prev.map((i) => i.id))
@@ -439,5 +473,7 @@ export function useEntityListPage<T extends { id: string }>(
     setFocusedId,
     targetIndex,
     replaceItems,
+    searchQuery,
+    setSearchQuery,
   }
 }

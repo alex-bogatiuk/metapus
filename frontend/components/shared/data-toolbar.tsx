@@ -29,6 +29,12 @@ interface DataToolbarProps {
   onCreateHref?: string
   onCopyClick?: (() => void) | null
   showSearch?: boolean
+  /** Current search text (controlled). */
+  searchValue?: string
+  /** Called on every keystroke in the search input. */
+  onSearchChange?: (value: string) => void
+  /** Ref callback for the search <input> — allows parent to focus it (e.g. Ctrl+F). */
+  searchInputRef?: React.RefCallback<HTMLInputElement>
   extraButtons?: React.ReactNode
   /** Custom items rendered at the top of the "More" dropdown. */
   menuItems?: DataToolbarMenuItem[]
@@ -41,6 +47,9 @@ export function DataToolbar({
   onCreateHref,
   onCopyClick,
   showSearch = true,
+  searchValue,
+  onSearchChange,
+  searchInputRef,
   extraButtons,
   menuItems,
   onColumnChooserClick,
@@ -117,7 +126,13 @@ export function DataToolbar({
       {showSearch && (
         <div className="relative w-60">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Поиск (Ctrl+F)" className="h-8 pl-8 text-sm" />
+          <Input
+            ref={searchInputRef}
+            placeholder="Поиск (Ctrl+F)"
+            className="h-8 pl-8 text-sm"
+            value={searchValue ?? ""}
+            onChange={(e) => onSearchChange?.(e.target.value)}
+          />
         </div>
       )}
     </div>

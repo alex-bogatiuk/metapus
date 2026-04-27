@@ -14,6 +14,7 @@ import { useEntityListPage } from "@/hooks/useEntityListPage"
 import { useColumnResize } from "@/hooks/useColumnResize"
 import { useVisibleColumns } from "@/hooks/useVisibleColumns"
 import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
+import { useShortcut } from "@/hooks/useShortcut"
 import type { CursorListParams, CursorListResponse } from "@/types/common"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 
@@ -79,6 +80,8 @@ export function CatalogListPage<T extends { id: string }>({
     showDeleted,
     toggleShowDeleted,
     focusedId,
+    searchQuery,
+    setSearchQuery,
   } = useEntityListPage<T>({
     entityKey: config.entityKey,
     api: { list: config.fetcher },
@@ -119,11 +122,21 @@ export function CatalogListPage<T extends { id: string }>({
     onWidthsChange: handleWidthsChange,
   })
 
+  // ── Ctrl+F → focus search input (M5) ──────────────────────────────
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
+  useShortcut("list.search", "ctrl+f", "Поиск", "list", () => {
+    searchInputRef.current?.focus()
+    searchInputRef.current?.select()
+  })
+
   return (
     <div className="flex h-full flex-col">
       <DataToolbar
         title={title}
         onCreateHref={config.createHref}
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchInputRef={(el) => { searchInputRef.current = el }}
         extraButtons={
           <Button variant="outline" size="sm" onClick={refresh}>
             Обновить
