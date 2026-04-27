@@ -291,7 +291,7 @@ func deriveTableName(def metadata.EntityDef) string {
 func pluralizeKey(key string) string {
 	irregulars := map[string]string{
 		"counterparty":  "counterparties",
-		"nomenclature":  "nomenclature",
+		"nomenclature":  "nomenclatures",
 		"warehouse":     "warehouses",
 		"currency":      "currencies",
 		"organization":  "organizations",

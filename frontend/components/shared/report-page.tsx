@@ -856,7 +856,7 @@ function ReportStatusBar({
     if (aggregations.length === 0) return null
 
     return (
-        <div className="sticky bottom-0 bg-background border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20 flex flex-wrap gap-x-6 gap-y-2 items-center text-sm shrink-0 px-4 py-2 mt-auto">
+        <div className="sticky bottom-0 bg-background border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20 flex flex-wrap gap-x-6 gap-y-2 items-center text-sm shrink-0 px-4 h-9 mt-auto">
             <div className="font-medium flex items-center gap-2 text-muted-foreground mr-2 border-r pr-4">
                 <Table2 className="h-4 w-4" />
                 Ячеек выделено: {selectedItems.length * selectedCols.length}
