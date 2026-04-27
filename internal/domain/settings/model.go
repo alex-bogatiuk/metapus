@@ -8,10 +8,17 @@ import "time"
 // Settings represents the tenant-wide system configuration.
 // Only system-level settings remain here; org-specific data is in cat_organizations.
 type Settings struct {
+	// General
 	Numbering   NumberingSettings   `json:"numbering"`
 	Performance PerformanceSettings `json:"performance"`
-	Version     int                 `json:"version"`
-	UpdatedAt   time.Time           `json:"updatedAt"`
+
+	// Module-scoped
+	Warehouse  WarehouseSettings  `json:"warehouse"`
+	Sales      SalesSettings      `json:"sales"`
+	Purchasing PurchasingSettings `json:"purchasing"`
+
+	Version   int       `json:"version"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // ── Numbering ───────────────────────────────────────────────────────────
@@ -60,4 +67,61 @@ func ClampBatchConcurrency(value, maxConnsPerTenant int) int {
 		return maxPoolHalf
 	}
 	return value
+}
+
+// ── Warehouse ───────────────────────────────────────────────────────────
+
+// WarehouseSettings holds inventory and stock management parameters.
+type WarehouseSettings struct {
+	// InventoryMethod defines the costing method: "fifo" or "weighted_average".
+	InventoryMethod string `json:"inventoryMethod"`
+	// NegativeStockControl prevents posting when stock would go below zero.
+	NegativeStockControl bool `json:"negativeStockControl"`
+	// AutoPostReceipts automatically posts goods receipts upon saving.
+	AutoPostReceipts bool `json:"autoPostReceipts"`
+}
+
+// DefaultWarehouse returns sensible defaults for warehouse settings.
+func DefaultWarehouse() WarehouseSettings {
+	return WarehouseSettings{
+		InventoryMethod:      "fifo",
+		NegativeStockControl: true,
+		AutoPostReceipts:     false,
+	}
+}
+
+// ── Sales ────────────────────────────────────────────────────────────────
+
+// SalesSettings holds sales module parameters.
+type SalesSettings struct {
+	// DefaultPaymentTermDays is the default payment deadline in days for new invoices.
+	DefaultPaymentTermDays int `json:"defaultPaymentTermDays"`
+	// AutoReserveStock automatically reserves stock when a sales order is confirmed.
+	AutoReserveStock bool `json:"autoReserveStock"`
+}
+
+// DefaultSales returns sensible defaults for sales settings.
+func DefaultSales() SalesSettings {
+	return SalesSettings{
+		DefaultPaymentTermDays: 30,
+		AutoReserveStock:       false,
+	}
+}
+
+// ── Purchasing ──────────────────────────────────────────────────────────
+
+// PurchasingSettings holds purchasing module parameters.
+type PurchasingSettings struct {
+	// DefaultPaymentTermDays is the default payment deadline in days for purchase orders.
+	DefaultPaymentTermDays int `json:"defaultPaymentTermDays"`
+	// RequireApproval requires manager approval for purchase orders above a threshold.
+	RequireApproval bool `json:"requireApproval"`
+}
+
+// DefaultPurchasing returns sensible defaults for purchasing settings.
+func DefaultPurchasing() PurchasingSettings {
+	return PurchasingSettings{
+		DefaultPaymentTermDays: 30,
+		RequireApproval:        false,
+	}
 }

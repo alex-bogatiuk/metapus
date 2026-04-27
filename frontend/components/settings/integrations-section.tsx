@@ -660,7 +660,7 @@ export function IntegrationsSection() {
             <p className="text-sm text-muted-foreground">
               Правило определяет, при каком событии и куда отправлять уведомление
             </p>
-            <Button size="sm" onClick={() => router.push("/settings/automation-rules/new")}>
+            <Button size="sm" onClick={() => router.push("/admin/automation-rules/new")}>
               <Plus className="h-4 w-4 mr-1.5" />
               Создать правило
             </Button>
@@ -695,7 +695,7 @@ export function IntegrationsSection() {
                       <TableRow
                         key={rule.id}
                         className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => router.push(`/settings/automation-rules/${rule.id}`)}
+                        onClick={() => router.push(`/admin/automation-rules/${rule.id}`)}
                       >
                         <TableCell className="font-medium text-sm">{rule.name}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">

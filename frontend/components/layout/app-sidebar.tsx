@@ -21,6 +21,7 @@ import {
   MoreHorizontal,
   LogOut,
   Puzzle,
+  ShieldCheck,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -192,8 +193,9 @@ const navFlat: NavItem[] = [
 
 /** Bottom-section flat items */
 const navBottom: NavItem[] = [
-  { title: "Журнал событий", url: "/settings/event-log", icon: ScrollText },
   { title: "Настройки", url: "/settings", icon: Settings },
+  { title: "Администрирование", url: "/admin", icon: ShieldCheck },
+  { title: "Журнал событий", url: "/admin/event-log", icon: ScrollText },
   { title: "Помощь", url: "/help", icon: HelpCircle },
 ]
 

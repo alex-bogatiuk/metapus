@@ -1,6 +1,8 @@
 import { useCallback, useMemo } from "react"
 import { arrayMove } from "@dnd-kit/sortable"
 import { type FormLine, emptyLine, fetchVatRatePercent, linesToExistingPickerLines, mergePickedIntoLines } from "@/lib/document-form"
+import { apiFetch } from "@/lib/api"
+import type { NomenclatureResponse } from "@/types/catalog"
 import type { PickedItem } from "@/types/picker"
 import type { ResolvedPasteLine } from "@/lib/clipboard-paste"
 
@@ -95,6 +97,65 @@ export function useDocumentLineActions<T extends LinesFormState>(
     markDirty()
   }, [update, markDirty, amountReset])
 
+  /**
+   * Cascading product selection.
+   *
+   * 1. Immediately saves productId + productName
+   * 2. Async-fetches the nomenclature card
+   * 3. Cascade-fills: unitId, unitName, vatRateId, vatRateName, vatPercent
+   *    from product defaults (baseUnitId, defaultVatRateId)
+   *
+   * Returns a Promise that resolves after all cascading is complete,
+   * so the caller can trigger smart-advance to the first empty field.
+   */
+  const handleProductSelect = useCallback(async (key: number, id: string, name: string): Promise<void> => {
+    // 1. Save product immediately
+    update((prev) => ({
+      lines: prev.lines.map((l) =>
+        l._key === key ? { ...l, productId: id, productName: name, ...amountReset } : l,
+      ),
+    } as Partial<T>))
+    markDirty()
+
+    if (!id) return
+
+    // 2. Fetch nomenclature for cascade defaults
+    try {
+      const product = await apiFetch<NomenclatureResponse>(`/catalog/nomenclatures/${id}`)
+      const patch: Partial<FormLine> = {}
+
+      if (product.baseUnitId && product.baseUnit) {
+        patch.unitId = product.baseUnitId
+        patch.unitName = product.baseUnit.name
+      }
+      if (product.defaultVatRateId && product.defaultVatRate) {
+        patch.vatRateId = product.defaultVatRateId
+        patch.vatRateName = product.defaultVatRate.name
+      }
+
+      // 3. Apply cascade patch if any defaults were found
+      if (Object.keys(patch).length > 0) {
+        update((prev) => ({
+          lines: prev.lines.map((l) =>
+            l._key === key ? { ...l, ...patch, ...amountReset } : l,
+          ),
+        } as Partial<T>))
+      }
+
+      // 4. Resolve vatPercent from vatRateId
+      if (patch.vatRateId) {
+        const pct = await fetchVatRatePercent(patch.vatRateId)
+        update((prev) => ({
+          lines: prev.lines.map((l) =>
+            l._key === key ? { ...l, vatPercent: pct, ...amountReset } : l,
+          ),
+        } as Partial<T>))
+      }
+    } catch {
+      // Cascade fill is best-effort — if fetch fails, user fills manually
+    }
+  }, [update, markDirty, amountReset])
+
   const handleUpdateVatRate = useCallback((key: number, id: string, name: string) => {
     update((prev) => ({
       lines: prev.lines.map((l) =>
@@ -182,6 +243,7 @@ export function useDocumentLineActions<T extends LinesFormState>(
     handlePick,
     handleUpdateField,
     handleUpdateRef,
+    handleProductSelect,
     handleUpdateVatRate,
     handleRemoveLine,
     handleReorderLines,

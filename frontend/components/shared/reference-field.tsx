@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { advanceToNextField } from "@/lib/table-field-navigation"
 import { useRouter } from "next/navigation"
 import { ChevronsUpDown, X, Loader2, ExternalLink } from "lucide-react"
 import { ReferencePickerDialog } from "./reference-picker-dialog"
@@ -51,6 +52,13 @@ interface ReferenceFieldProps {
   disabled?: boolean
   /** Error message to display and style the field with a red border */
   error?: string
+  /**
+   * When true, after user selects a value from the dropdown, automatically
+   * advance to the next editable field in the same table row.
+   * Combobox → clicks to open, input → focuses.
+   * Use in document line rows for fluid data entry.
+   */
+  autoAdvance?: boolean
 }
 
 // ── Module-level cache: endpoint:id → name ─────────────────────────────
@@ -118,7 +126,9 @@ export function ReferenceField({
   compact = false,
   disabled = false,
   error,
+  autoAdvance = false,
 }: ReferenceFieldProps) {
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [search, setSearch] = useState("")
@@ -327,6 +337,15 @@ export function ReferenceField({
     onChange(option.id, option.name)
     setOpen(false)
     setSearch("")
+
+    // Auto-advance: after popover closes, move to next editable field in the row
+    if (autoAdvance && triggerRef.current) {
+      requestAnimationFrame(() => {
+        if (triggerRef.current) {
+          advanceToNextField(triggerRef.current)
+        }
+      })
+    }
   }
 
   const handleClear = (e: React.MouseEvent) => {
@@ -348,10 +367,12 @@ export function ReferenceField({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          ref={triggerRef}
           variant="outline"
           role="combobox"
           aria-expanded={open}
           disabled={disabled}
+          data-has-value={value ? "true" : undefined}
           className={cn(
             "w-full justify-between font-normal overflow-hidden",
             triggerHeight,
@@ -374,7 +395,7 @@ export function ReferenceField({
             {value && !disabled && referenceUrl && (
               <div
                 role="button"
-                tabIndex={0}
+                tabIndex={-1}
                 className={cn(
                   "flex items-center justify-center p-1 rounded-sm hover:bg-muted/50 cursor-pointer transition-opacity",
                   compact && "opacity-0 group-hover:opacity-100",
@@ -394,7 +415,7 @@ export function ReferenceField({
             {value && !disabled && (
               <div
                 role="button"
-                tabIndex={0}
+                tabIndex={-1}
                 className="flex items-center justify-center p-1 -mr-1 rounded-sm hover:bg-muted/50 cursor-pointer"
                 onClick={handleClear}
                 onPointerDown={(e) => e.stopPropagation()}

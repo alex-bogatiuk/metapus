@@ -120,7 +120,7 @@ function RelatedDocGroupView({ group }: { group: RelatedDocGroup }) {
                 })}
                 {hasMore && (
                     <Link
-                        href={`/settings/find-references`}
+                        href={`/admin/find-references`}
                         className="flex items-center px-2 py-1 text-[11px] text-primary/70 hover:text-primary transition-colors"
                     >
                         и ещё {group.totalCount - group.items.length}…

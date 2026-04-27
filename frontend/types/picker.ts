@@ -26,7 +26,7 @@ export interface PickedItem {
 export interface GenericPickerDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
-    /** API endpoint path, e.g. "/catalog/nomenclature" */
+    /** API endpoint path, e.g. "/catalog/nomenclatures" */
     apiEndpoint: string
     /** Callback when user confirms selection */
     onPick: (items: PickedItem[]) => void

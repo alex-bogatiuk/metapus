@@ -33,7 +33,7 @@ export interface PickerInitialItem {
 }
 
 interface UsePickerDialogOptions {
-    /** API endpoint path, e.g. "/catalog/nomenclature" */
+    /** API endpoint path, e.g. "/catalog/nomenclatures" */
     apiEndpoint: string
     /** Whether the dialog is open */
     open: boolean

@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils"
 import { useCompactMode } from "@/hooks/useCompactMode"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useCollapsible } from "@/hooks/useCollapsible"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import {
@@ -35,6 +35,7 @@ import { fromQuantity, fromMinorUnits, toQuantity, toMinorUnits } from "@/lib/fo
 import { useCurrencyScale } from "@/hooks/useCurrencyScale"
 import { type FormLine, computeTotals, mapLinesToFormLines } from "@/lib/document-form"
 import { useDocumentLineActions, useExistingPickerLines } from "@/hooks/useDocumentLineActions"
+import { useAddLineFocus } from "@/hooks/useAddLineFocus"
 import { DocumentTotalsFooter } from "@/components/shared/document-totals-footer"
 import { useDocumentErrorHandler } from "@/hooks/useDocumentErrorHandler"
 import { useShortcut } from "@/hooks/useShortcut"
@@ -180,9 +181,11 @@ export default function NewGoodsIssuePage() {
   }, [])
 
   // ── Line actions (generic hook) ───────────────────────────────────────
-  const { addLine, handlePick: pickLines, handleUpdateField, handleUpdateRef, handleUpdateVatRate, handleRemoveLine, handleReorderLines, handleMoveLineUp, handleMoveLineDown, handlePasteLines } = useDocumentLineActions(update, markDirty)
+  const { addLine, handlePick: pickLines, handleUpdateField, handleUpdateRef, handleProductSelect, handleUpdateVatRate, handleRemoveLine, handleReorderLines, handleMoveLineUp, handleMoveLineDown, handlePasteLines } = useDocumentLineActions(update, markDirty)
   const existingPickerLines = useExistingPickerLines(f.lines)
   const handlePick = useCallback((items: PickedItem[]) => pickLines(items, f.lines), [pickLines, f.lines])
+  const tableRef = useRef<HTMLTableElement>(null)
+  const { addLineAndFocus } = useAddLineFocus(addLine, tableRef)
 
   // ── Focused line index for keyboard reorder ────────────────────────────
   const [focusedLineIdx, setFocusedLineIdx] = useState<number | null>(null)
@@ -408,7 +411,7 @@ export default function NewGoodsIssuePage() {
               <TabsContent value="goods" className="mt-0 overflow-hidden row-start-2 col-start-1">
                 <div className="h-full flex flex-col">
                   <div className="flex items-center gap-1 p-2 bg-card/50 border-b shrink-0">
-                    <Button variant="outline" size="sm" onClick={addLine}>
+                    <Button variant="outline" size="sm" onClick={addLineAndFocus}>
                       <Plus className="mr-1 h-3 w-3" />
                       Добавить
                     </Button>
@@ -419,7 +422,7 @@ export default function NewGoodsIssuePage() {
                   </div>
                   <ScrollArea className="flex-1">
                   <DocumentLinesDndProvider items={f.lines} onReorder={handleReorderLines} onPasteLines={handlePasteLines}>
-                    <table className="w-full text-sm border-separate border-spacing-0">
+                    <table ref={tableRef} className="w-full text-sm border-separate border-spacing-0">
                       <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-sm">
                         <tr>
                           <th className={cn("w-10 border-b px-2 text-center text-muted-foreground font-semibold", compact ? "py-1 text-[10px]" : "py-2 text-[11px]")}>N</th>
@@ -450,6 +453,7 @@ export default function NewGoodsIssuePage() {
                             amountIncludesVat={f.amountIncludesVat}
                             onUpdateField={handleUpdateField}
                             onUpdateRef={handleUpdateRef}
+                            onProductSelect={handleProductSelect}
                             onUpdateVatRate={handleUpdateVatRate}
                             onRemove={handleRemoveLine}
                             isLastRow={index === f.lines.length - 1}

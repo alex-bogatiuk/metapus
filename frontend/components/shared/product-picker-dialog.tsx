@@ -49,6 +49,7 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { useCompactMode } from "@/hooks/useCompactMode"
 import { CategoryTree } from "@/components/shared/category-tree"
@@ -197,7 +198,7 @@ function ProductPickerDialogInner({
         scrollContainerRef: pickerScrollContainerRef,
         tableContainerRef: pickerTableContainerRef,
     } = usePickerDialog({
-        apiEndpoint: "/catalog/nomenclature",
+        apiEndpoint: "/catalog/nomenclatures",
         open,
         extraParams,
         initialData,
@@ -436,9 +437,9 @@ function ProductPickerDialogInner({
                                     onKeyDown={handleKeyDown}
                                     tabIndex={0}
                                 >
-                                    <div
-                                        ref={pickerScrollContainerRef}
-                                        className="h-full overflow-auto"
+                                    <ScrollArea
+                                        viewportRef={pickerScrollContainerRef}
+                                        className="h-full"
                                     >
                                 <table className={cn("w-full text-xs border-collapse table-fixed", isResizing && "select-none")}>
                                             <colgroup>
@@ -522,7 +523,8 @@ function ProductPickerDialogInner({
                                             scrollContainer={pickerScrollContainerRef}
                                             rootMargin="100px"
                                         />
-                                    </div>
+                                        <ScrollBar orientation="horizontal" />
+                                    </ScrollArea>
                                 </div>
 
                                 {/* Keyboard hints */}
@@ -593,7 +595,7 @@ function OrderTab({
     const compact = useCompactMode()
     return (
         <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-auto">
+            <ScrollArea className="flex-1">
                 <table className="w-full text-xs">
                     <thead className="bg-muted/50 sticky top-0">
                         <tr className="border-b">
@@ -664,7 +666,7 @@ function OrderTab({
                         </tfoot>
                     )}
                 </table>
-            </div>
+            </ScrollArea>
         </div>
     )
 }

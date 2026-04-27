@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback } from "react"
+import React, { useCallback, useRef } from "react"
 import { Trash2 } from "lucide-react"
 import { ReferenceField } from "@/components/shared/reference-field"
 import { Input } from "@/components/ui/input"
@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import { useCompactMode } from "@/hooks/useCompactMode"
 import { fmtAmount, moneyStep } from "@/lib/format"
 import { type FormLine, calcLineAmounts } from "@/lib/document-form"
+import { advanceToNextField, activateFirstField, advanceToFirstEmptyField } from "@/lib/table-field-navigation"
 
 // ── Props ────────────────────────────────────────────────────────────────
 
@@ -25,6 +26,11 @@ export interface DocumentLineRowProps {
   onUpdateField: (key: number, field: keyof FormLine, value: string) => void
   /** Update a reference field (id + name) on this line */
   onUpdateRef: (key: number, patch: Partial<FormLine>) => void
+  /**
+   * Cascading product selection: saves product, async-fetches nomenclature,
+   * cascade-fills unit + vatRate. Returns Promise so caller can smart-advance.
+   */
+  onProductSelect: (key: number, id: string, name: string) => Promise<void>
   /** Update a reference field and then async-resolve VAT percent */
   onUpdateVatRate: (key: number, id: string, name: string) => void
   /** Remove this line */
@@ -60,6 +66,7 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
   amountIncludesVat,
   onUpdateField,
   onUpdateRef,
+  onProductSelect,
   onUpdateVatRate,
   onRemove,
   showAmounts = false,
@@ -69,11 +76,23 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
   isLastRow,
   onTabToNextRow,
 }: DocumentLineRowProps) {
+  const rowRef = useRef<HTMLTableRowElement>(null)
+
   // ── Stable callbacks that delegate to parent via _key ────────────────
+  // Product selection: cascade-fill from nomenclature, then smart-advance
   const handleProductChange = useCallback(
-    (id: string, name: string) =>
-      onUpdateRef(line._key, { productId: id, productName: name }),
-    [line._key, onUpdateRef],
+    async (id: string, name: string) => {
+      await onProductSelect(line._key, id, name)
+      // After cascade completes + React re-renders, advance to first empty field
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (rowRef.current) {
+            advanceToFirstEmptyField(rowRef.current)
+          }
+        })
+      })
+    },
+    [line._key, onProductSelect],
   )
 
   const handleUnitChange = useCallback(
@@ -110,39 +129,51 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
     [line._key, onRemove],
   )
 
-  // ── Tab traversal (M8 + M9) ──────────────────────────────────────────
-  // On Tab from the last focusable input in a row:
-  //   - last row → auto-create new row + focus first input (M9)
-  //   - any row  → focus first input of next row (M8)
+  // ── Tab traversal ─────────────────────────────────────────────────────
+  // Handles Tab from plain <input> fields (quantity, price, vat%).
+  // If the next editable field is a combobox → click it (opens dropdown).
+  // If it's another input → let browser Tab handle it naturally.
+  // At end of row → advance to first field of next row (or create new row).
   const handleTabTraversal = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key !== "Tab" || e.shiftKey) return
-      const tr = (e.target as HTMLElement).closest("tr")
+      const target = e.target as HTMLElement
+      const td = target.closest("td")
+      if (!td) return
+
+      // Check if the next field in the row is a combobox
+      let nextTd = td.nextElementSibling as HTMLElement | null
+      while (nextTd) {
+        const combobox = nextTd.querySelector<HTMLElement>("[role=combobox]")
+        if (combobox) {
+          // Next field is a combobox — click to open dropdown
+          e.preventDefault()
+          combobox.click()
+          return
+        }
+        const input = nextTd.querySelector<HTMLInputElement>("input:not([type=hidden])")
+        if (input) {
+          // Next field is a plain input — let browser default Tab work
+          return
+        }
+        // Cell has no editable field (e.g. read-only amount) — skip it
+        nextTd = nextTd.nextElementSibling as HTMLElement | null
+      }
+
+      // No more fields in this row — move to next row
+      e.preventDefault()
+      const tr = target.closest("tr")
       if (!tr) return
 
-      // All focusable inputs in this row (excluding buttons like delete)
-      const inputs = Array.from(
-        tr.querySelectorAll<HTMLElement>("input, [role=combobox]"),
-      )
-      const currentIdx = inputs.indexOf(e.target as HTMLElement)
-      // Not the last input in row → let browser handle Tab normally
-      if (currentIdx < inputs.length - 1) return
-
-      e.preventDefault()
       if (isLastRow && onTabToNextRow) {
-        // M9: Create new row, then focus its first input.
-        // Double rAF ensures React has committed the DOM update before we query it.
         onTabToNextRow()
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            const nextTr = tr.nextElementSibling
-            nextTr?.querySelector<HTMLElement>("input, [role=combobox]")?.focus()
+            activateFirstField(tr.nextElementSibling)
           })
         })
       } else {
-        // M8: Focus first input of the next row
-        const nextTr = tr.nextElementSibling
-        nextTr?.querySelector<HTMLElement>("input, [role=combobox]")?.focus()
+        activateFirstField(tr.nextElementSibling)
       }
     },
     [isLastRow, onTabToNextRow],
@@ -167,7 +198,7 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
   const btnSize = compact ? "h-6 w-6" : "h-7 w-7"
 
   return (
-    <tr ref={dragRef} style={dragStyle} className="group border-b hover:bg-primary/5 transition-colors animate-row-in">
+    <tr ref={(node) => { rowRef.current = node; dragRef?.(node) }} style={dragStyle} className="group border-b hover:bg-primary/5 transition-colors animate-row-in">
       <td className={cn("px-2 text-center text-xs text-muted-foreground", compact ? "py-1" : "py-1.5")}>
         <span className="inline-flex items-center gap-0.5">
           {dragHandleSlot}
@@ -179,7 +210,7 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
           compact
           value={line.productId}
           displayName={line.productName}
-          apiEndpoint="/catalog/nomenclature"
+          apiEndpoint="/catalog/nomenclatures"
           placeholder="Номенклатура"
           onChange={handleProductChange}
         />
@@ -187,6 +218,7 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
       <td className={cn("px-1", cellPy)}>
         <ReferenceField
           compact
+          autoAdvance
           value={line.unitId}
           displayName={line.unitName}
           apiEndpoint="/catalog/units"
@@ -227,6 +259,7 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
       <td className={cn("px-1", cellPy)}>
         <ReferenceField
           compact
+          autoAdvance
           value={line.vatRateId}
           displayName={line.vatRateName}
           apiEndpoint="/catalog/vat-rates"
@@ -249,6 +282,7 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
         <Button
           variant="ghost"
           size="icon"
+          tabIndex={-1}
           className={cn(btnSize, "opacity-0 group-hover:opacity-100 transition-opacity")}
           onClick={handleRemove}
         >

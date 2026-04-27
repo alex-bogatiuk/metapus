@@ -87,7 +87,7 @@ export function CategoryTree({ selectedId, onSelect, className }: CategoryTreePr
 
         let cancelled = false
 
-        apiFetch<NomenclatureResponse[]>("/catalog/nomenclature/tree")
+        apiFetch<NomenclatureResponse[]>("/catalog/nomenclatures/tree")
             .then((data) => {
                 if (cancelled) return
                 const built = buildTree(data)

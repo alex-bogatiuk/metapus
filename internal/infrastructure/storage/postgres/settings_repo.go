@@ -21,24 +21,26 @@ func NewSettingsRepo() *SettingsRepo {
 var validSections = map[string]bool{
 	"numbering":   true,
 	"performance": true,
+	"warehouse":   true,
+	"sales":       true,
+	"purchasing":  true,
 }
+
+// allColumns lists all JSONB setting columns in scan order.
+const settingsSelectCols = `numbering, performance, warehouse, sales, purchasing, version, updated_at`
 
 // Get returns the current settings from sys_settings (single-row table).
 func (r *SettingsRepo) Get(ctx context.Context) (*settings.Settings, error) {
 	txm := MustGetTxManager(ctx)
 	q := txm.GetQuerier(ctx)
 
-	query := `
-		SELECT numbering, performance, version, updated_at
-		FROM sys_settings
-		WHERE singleton = TRUE
-	`
+	query := `SELECT ` + settingsSelectCols + ` FROM sys_settings WHERE singleton = TRUE`
 
-	var numJSON, perfJSON []byte
+	var numJSON, perfJSON, whJSON, salesJSON, purchJSON []byte
 	var s settings.Settings
 
 	err := q.QueryRow(ctx, query).Scan(
-		&numJSON, &perfJSON,
+		&numJSON, &perfJSON, &whJSON, &salesJSON, &purchJSON,
 		&s.Version, &s.UpdatedAt,
 	)
 	if err != nil {
@@ -50,6 +52,15 @@ func (r *SettingsRepo) Get(ctx context.Context) (*settings.Settings, error) {
 	}
 	if err := json.Unmarshal(perfJSON, &s.Performance); err != nil {
 		return nil, fmt.Errorf("unmarshal performance: %w", err)
+	}
+	if err := json.Unmarshal(whJSON, &s.Warehouse); err != nil {
+		return nil, fmt.Errorf("unmarshal warehouse: %w", err)
+	}
+	if err := json.Unmarshal(salesJSON, &s.Sales); err != nil {
+		return nil, fmt.Errorf("unmarshal sales: %w", err)
+	}
+	if err := json.Unmarshal(purchJSON, &s.Purchasing); err != nil {
+		return nil, fmt.Errorf("unmarshal purchasing: %w", err)
 	}
 
 	return &s, nil
@@ -72,14 +83,14 @@ func (r *SettingsRepo) UpdateSection(ctx context.Context, section string, data j
 		    version = version + 1,
 		    updated_at = NOW()
 		WHERE singleton = TRUE AND version = $2
-		RETURNING numbering, performance, version, updated_at
+		RETURNING `+settingsSelectCols+`
 	`, section)
 
-	var numJSON, perfJSON []byte
+	var numJSON, perfJSON, whJSON, salesJSON, purchJSON []byte
 	var s settings.Settings
 
 	err := q.QueryRow(ctx, query, data, version).Scan(
-		&numJSON, &perfJSON,
+		&numJSON, &perfJSON, &whJSON, &salesJSON, &purchJSON,
 		&s.Version, &s.UpdatedAt,
 	)
 	if err != nil {
@@ -95,6 +106,15 @@ func (r *SettingsRepo) UpdateSection(ctx context.Context, section string, data j
 	}
 	if err := json.Unmarshal(perfJSON, &s.Performance); err != nil {
 		return nil, fmt.Errorf("unmarshal performance: %w", err)
+	}
+	if err := json.Unmarshal(whJSON, &s.Warehouse); err != nil {
+		return nil, fmt.Errorf("unmarshal warehouse: %w", err)
+	}
+	if err := json.Unmarshal(salesJSON, &s.Sales); err != nil {
+		return nil, fmt.Errorf("unmarshal sales: %w", err)
+	}
+	if err := json.Unmarshal(purchJSON, &s.Purchasing); err != nil {
+		return nil, fmt.Errorf("unmarshal purchasing: %w", err)
 	}
 
 	return &s, nil

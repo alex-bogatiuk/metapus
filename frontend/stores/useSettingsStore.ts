@@ -3,13 +3,16 @@ import type {
   SystemSettings,
   NumberingSettings,
   PerformanceSettings,
+  WarehouseSettings,
+  SalesSettings,
+  PurchasingSettings,
 } from "@/types/settings"
 import { defaultSystemSettings } from "@/types/settings"
 import { api } from "@/lib/api"
 import { toast } from "sonner"
 import { ApiError } from "@/lib/api"
 
-type SettingsSection = "numbering" | "performance"
+type SettingsSection = "numbering" | "performance" | "warehouse" | "sales" | "purchasing"
 
 interface SettingsState {
   settings: SystemSettings
@@ -26,16 +29,22 @@ interface SettingsState {
   /** Replaces all settings at once (e.g. after fetch). */
   setSettings: (settings: SystemSettings) => void
 
-  /** Partially updates numbering section (local state). */
+  /** Partially updates a section (local state). */
   updateNumbering: (patch: Partial<NumberingSettings>) => void
-
-  /** Partially updates performance section (local state). */
   updatePerformance: (patch: Partial<PerformanceSettings>) => void
+  updateWarehouse: (patch: Partial<WarehouseSettings>) => void
+  updateSales: (patch: Partial<SalesSettings>) => void
+  updatePurchasing: (patch: Partial<PurchasingSettings>) => void
+
+  /** Generic section updater for metadata-driven renderer. */
+  updateSection: (section: SettingsSection, key: string, value: unknown) => void
 
   setLoading: (v: boolean) => void
   setSaving: (v: boolean) => void
   setError: (v: string | null) => void
 }
+
+export type { SettingsSection }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: defaultSystemSettings(),
@@ -69,7 +78,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     } catch (err) {
       set({ isSaving: false })
       if (err instanceof ApiError && err.status === 409) {
-        toast.error("Настройки были изменены другим пользователем. Обновите страницу.")
+        toast.error("Настройки изменены другим пользователем. Обновите страницу.")
       } else {
         const msg = err instanceof Error ? err.message : "Не удалось сохранить настройки. Проверьте соединение или попробуйте позже."
         toast.error(msg)
@@ -92,6 +101,42 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       settings: {
         ...state.settings,
         performance: { ...state.settings.performance, ...patch },
+      },
+    })),
+
+  updateWarehouse: (patch) =>
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        warehouse: { ...state.settings.warehouse, ...patch },
+      },
+    })),
+
+  updateSales: (patch) =>
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        sales: { ...state.settings.sales, ...patch },
+      },
+    })),
+
+  updatePurchasing: (patch) =>
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        purchasing: { ...state.settings.purchasing, ...patch },
+      },
+    })),
+
+  /** Generic section updater — used by the metadata-driven renderer. */
+  updateSection: (section, key, value) =>
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        [section]: {
+          ...state.settings[section],
+          [key]: value,
+        },
       },
     })),
 

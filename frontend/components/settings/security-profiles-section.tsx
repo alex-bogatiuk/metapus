@@ -79,16 +79,16 @@ export function SecurityProfilesSection() {
   const handlePresetSelect = (preset: ProfilePreset) => {
     setPresetOpen(false)
     useProfilePresetStore.getState().setPreset(preset)
-    router.push("/settings/security-profiles/new")
+    router.push("/admin/security-profiles/new")
   }
 
   const handlePresetSkip = () => {
     setPresetOpen(false)
-    router.push("/settings/security-profiles/new")
+    router.push("/admin/security-profiles/new")
   }
 
   const handleEdit = (profile: SecurityProfileResponse) => {
-    router.push(`/settings/security-profiles/${profile.id}`)
+    router.push(`/admin/security-profiles/${profile.id}`)
   }
 
   const handleDuplicate = async (profile: SecurityProfileResponse) => {
