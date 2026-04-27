@@ -381,7 +381,8 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             .catch(() => { /* metadata load failure handled gracefully */ })
             .finally(() => { if (!cancelled) setMetaLoading(false) })
         return () => { cancelled = true }
-    }, [reportKey, setMeta, setActiveGroupBy, setVisibleColumnKeys, setSortColumn, setSortDirection, setSelectedFields, setFilterValues, setMetaLoading])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setFilterValues is stable (useTabState) but declared after this hook
+    }, [reportKey, setMeta, setActiveGroupBy, setVisibleColumnKeys, setSortColumn, setSortDirection, setSelectedFields, setMetaLoading])
 
     // ── Filter values (URL-backed) ─────────────────────────────
     const initialFilters = useMemo(() => {
@@ -505,7 +506,8 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             setError(msg)
             setStatus("error")
         }
-    }, [reportKey, filterValues, advancedFilterValues, filterFieldsMeta, syncToUrl, selectedFields, sortColumn, sortDirection, meta, availableFields, setIsDirty, setStatus, setError, setItems, setResultExtras, setServerDisplayRows])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setServerDisplayRows is stable (useTabState) but declared after this hook
+    }, [reportKey, filterValues, advancedFilterValues, filterFieldsMeta, syncToUrl, selectedFields, sortColumn, sortDirection, meta, availableFields, setIsDirty, setStatus, setError, setItems, setResultExtras])
 
     // ── Auto-generate on URL open ──────────────────────────────
     // If URL has filter params (f.*), auto-generate report on mount.
