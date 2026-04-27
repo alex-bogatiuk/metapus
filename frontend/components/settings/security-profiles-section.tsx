@@ -193,14 +193,14 @@ export function SecurityProfilesSection() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Удалить профиль?</AlertDialogTitle>
+            <AlertDialogTitle>Удаление профиля</AlertDialogTitle>
             <AlertDialogDescription>
               Профиль «{deleteTarget?.name}» будет удалён. Все привязки пользователей к этому
               профилю будут сняты. Это действие необратимо.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Отменить</AlertDialogCancel>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleDelete}

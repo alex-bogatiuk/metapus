@@ -55,16 +55,16 @@ func (r *ReportVariant) Validate(ctx context.Context) error {
 	}
 	if r.Name == "" {
 		if err == nil { err = apperror.NewValidation("validation failed") }
-		err.WithDetail("name", "required")
+		err = err.WithDetail("name", "required")
 	}
 	if r.Visibility != VisibilityPersonal && r.Visibility != VisibilityShared && r.Visibility != VisibilitySystem {
 		if err == nil { err = apperror.NewValidation("validation failed") }
-		err.WithDetail("visibility", "invalid visibility type")
+		err = err.WithDetail("visibility", "invalid visibility type")
 	}
 
 	if r.Visibility == VisibilityPersonal && r.AuthorID == nil {
 		if err == nil { err = apperror.NewValidation("validation failed") }
-		err.WithDetail("authorId", "personal variants must have an author")
+		err = err.WithDetail("authorId", "personal variants must have an author")
 	}
 
 	if err != nil {

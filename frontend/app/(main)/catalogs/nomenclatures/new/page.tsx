@@ -98,7 +98,7 @@ export default function NewNomenclaturePage() {
         router.replace(`/catalogs/nomenclatures/${created.id}`)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка сохранения")
+      setError(err instanceof Error ? err.message : "Не удалось сохранить данные")
     } finally {
       setSaving(false)
     }

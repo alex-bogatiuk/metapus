@@ -9,6 +9,60 @@ import (
 	"github.com/Masterminds/squirrel"
 )
 
+// ExtractSearchQuery removes the __search pseudo-item from a filter slice,
+// returning the search query and the remaining "real" items.
+func ExtractSearchQuery(items []Item) (string, []Item) {
+	var query string
+	filtered := make([]Item, 0, len(items))
+	for _, item := range items {
+		if item.Field == SearchFieldName {
+			if s, ok := item.Value.(string); ok {
+				query = s
+			}
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return strings.TrimSpace(query), filtered
+}
+
+// BuildSearchConditions generates AND-combined ILIKE conditions for fuzzy search (1С-style).
+//
+// Example: query="красн авто", searchCols=["name"] →
+//
+//	name ILIKE '%красн%' AND name ILIKE '%авто%'
+//
+// Each token (space-separated word) must match at least one of the searchCols (OR).
+// Between tokens — AND (all tokens must be present).
+// Works with pg_trgm GIN indexes for fast ILIKE on large tables.
+func BuildSearchConditions(query string, searchCols []string) squirrel.Sqlizer {
+	tokens := strings.Fields(query)
+	if len(tokens) == 0 || len(searchCols) == 0 {
+		return nil
+	}
+
+	ands := make(squirrel.And, 0, len(tokens))
+	for _, token := range tokens {
+		escaped := escapeLikePattern(token)
+		pattern := "%" + escaped + "%"
+		ors := make(squirrel.Or, 0, len(searchCols))
+		for _, col := range searchCols {
+			ors = append(ors, squirrel.ILike{col: pattern})
+		}
+		ands = append(ands, ors)
+	}
+	return ands
+}
+
+// escapeLikePattern escapes SQL LIKE special characters (%, _, \)
+// so that user input is treated as literal text, not wildcards.
+func escapeLikePattern(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
+}
+
 // BuildValidCols constructs a whitelist of valid column names from selectCols
 // plus any extra columns. Used for SQL injection protection in filters.
 func BuildValidCols(selectCols []string, extra ...string) map[string]struct{} {

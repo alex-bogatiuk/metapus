@@ -251,7 +251,7 @@ function ReportContent({ report }: { report: UseReportPageReturn }) {
             return (
                 <div className="flex flex-col items-center justify-center h-64 gap-2 text-muted-foreground">
                     <Inbox className="h-10 w-10 opacity-30" />
-                    <p>Нет данных по заданным параметрам</p>
+                    <p>Нет данных. Измените параметры фильтра.</p>
                 </div>
             )
         case "export-only":

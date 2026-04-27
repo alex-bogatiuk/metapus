@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"metapus/internal/domain/cursor"
-	"metapus/internal/domain/filter"
+	filterPkg "metapus/internal/domain/filter"
 	"strings"
 
 	"github.com/Masterminds/squirrel"
@@ -35,7 +35,7 @@ type BaseCatalogRepo[T any] struct {
 	validCols       map[string]struct{}
 	orderCols       map[string]struct{}
 	hierarchical    bool                                 // true = supports parent_id/is_folder hierarchy
-	referenceFields map[string]filter.ReferenceFieldInfo // field name → reference catalog info (for deep filtering)
+	referenceFields map[string]filterPkg.ReferenceFieldInfo // field name → reference catalog info (for deep filtering)
 
 	// entityName is the logical entity name (e.g. "organization") used for per-entity RLS.
 	entityName string
@@ -116,13 +116,13 @@ func (r *BaseCatalogRepo[T]) Builder() squirrel.StatementBuilderType {
 // EXISTS subqueries on the reference catalog table.
 func (r *BaseCatalogRepo[T]) RegisterReferenceField(fieldName, refTableName, foreignKey string, columns []string) {
 	if r.referenceFields == nil {
-		r.referenceFields = make(map[string]filter.ReferenceFieldInfo)
+		r.referenceFields = make(map[string]filterPkg.ReferenceFieldInfo)
 	}
 	validCols := make(map[string]struct{}, len(columns))
 	for _, col := range columns {
 		validCols[col] = struct{}{}
 	}
-	r.referenceFields[fieldName] = filter.ReferenceFieldInfo{
+	r.referenceFields[fieldName] = filterPkg.ReferenceFieldInfo{
 		TableName:  refTableName,
 		ForeignKey: foreignKey,
 		ValidCols:  validCols,
@@ -158,7 +158,7 @@ func (r *BaseCatalogRepo[T]) Create(ctx context.Context, entity T) error {
 	if err != nil {
 		if postgres.IsForeignKeyViolation(err) {
 			field := postgres.ExtractForeignKeyField(err, r.tableName)
-			return apperror.NewBusinessRule("INVALID_REFERENCE", "Выбранный связанный элемент был удален из базы данных.").
+			return apperror.NewBusinessRule("INVALID_REFERENCE", "Связанный элемент удален. Выберите другой.").
 				WithDetail("field", field)
 		}
 		return fmt.Errorf("insert %s: %w", r.tableName, err)
@@ -221,7 +221,7 @@ func (r *BaseCatalogRepo[T]) Update(ctx context.Context, entity T) error {
 		}
 		if postgres.IsForeignKeyViolation(err) {
 			field := postgres.ExtractForeignKeyField(err, r.tableName)
-			return apperror.NewBusinessRule("INVALID_REFERENCE", "Выбранный связанный элемент был удален из базы данных.").
+			return apperror.NewBusinessRule("INVALID_REFERENCE", "Связанный элемент удален. Выберите другой.").
 				WithDetail("field", field)
 		}
 		return fmt.Errorf("update %s: %w", r.tableName, err)
@@ -253,11 +253,10 @@ func (r *BaseCatalogRepo[T]) buildWhereConditions(filter domain.ListFilter) ([]s
 	}
 
 	if filter.Search != "" {
-		pattern := "%" + filter.Search + "%"
-		conditions = append(conditions, squirrel.Or{
-			squirrel.ILike{"name": pattern},
-			squirrel.ILike{"code": pattern},
-		})
+		// M5: 1С-style fuzzy search — split by spaces, AND between tokens, OR between searchable columns
+		if cond := filterPkg.BuildSearchConditions(filter.Search, []string{"name", "code"}); cond != nil {
+			conditions = append(conditions, cond)
+		}
 	}
 
 	if len(filter.IDs) > 0 {
@@ -278,8 +277,20 @@ func (r *BaseCatalogRepo[T]) buildWhereConditions(filter domain.ListFilter) ([]s
 		conditions = append(conditions, rlsConditions...)
 	}
 
-	// Apply advanced filters
-	advConditions, err := r.buildAdvancedFilterConditions(filter.AdvancedFilters)
+	// Apply advanced filters — extract __search pseudo-field first (M5)
+	advFilters := filter.AdvancedFilters
+	if searchQuery, remaining := filterPkg.ExtractSearchQuery(advFilters); searchQuery != "" {
+		// __search from AdvancedFilters is applied only if f.Search was empty
+		// to prevent duplicate conditions when both are present
+		if filter.Search == "" {
+			if cond := filterPkg.BuildSearchConditions(searchQuery, []string{"name", "code"}); cond != nil {
+				conditions = append(conditions, cond)
+			}
+		}
+		advFilters = remaining
+	}
+
+	advConditions, err := r.buildAdvancedFilterConditions(advFilters)
 	if err != nil {
 		return nil, err
 	}
@@ -630,13 +641,13 @@ func reverseSlice[T any](s []T) {
 
 // buildAdvancedFilterConditions builds conditions from advanced filters.
 // Delegates to the shared filter.BuildConditions engine and handles nested reference fields.
-func (r *BaseCatalogRepo[T]) buildAdvancedFilterConditions(filters []filter.Item) ([]squirrel.Sqlizer, error) {
+func (r *BaseCatalogRepo[T]) buildAdvancedFilterConditions(filters []filterPkg.Item) ([]squirrel.Sqlizer, error) {
 	if len(filters) == 0 {
 		return nil, nil
 	}
 
 	conditions := make([]squirrel.Sqlizer, 0, len(filters))
-	baseFilters := make([]filter.Item, 0, len(filters))
+	baseFilters := make([]filterPkg.Item, 0, len(filters))
 
 	for _, item := range filters {
 		if strings.Contains(item.Field, ".") {
@@ -644,7 +655,7 @@ func (r *BaseCatalogRepo[T]) buildAdvancedFilterConditions(filters []filter.Item
 			prefix, subfield := parts[0], parts[1]
 
 			if ref, ok := r.referenceFields[prefix]; ok {
-				cond, err := filter.BuildReferenceFieldCondition(item, r.tableName, ref, subfield)
+				cond, err := filterPkg.BuildReferenceFieldCondition(item, r.tableName, ref, subfield)
 				if err != nil {
 					return nil, err
 				}
@@ -658,7 +669,7 @@ func (r *BaseCatalogRepo[T]) buildAdvancedFilterConditions(filters []filter.Item
 	}
 
 	if len(baseFilters) > 0 {
-		advConditions, err := filter.BuildConditions(baseFilters, r.validCols, r.tableName)
+		advConditions, err := filterPkg.BuildConditions(baseFilters, r.validCols, r.tableName)
 		if err != nil {
 			return nil, err
 		}
@@ -737,7 +748,7 @@ func (r *BaseCatalogRepo[T]) Delete(ctx context.Context, entityID id.ID) error {
 		// Check for foreign key violation (23503)
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
-			return apperror.NewConflict("Нельзя удалить: объект используется в других документах или справочниках").
+			return apperror.NewConflict("Объект используется в других документах. Удаление невозможно.").
 				WithDetail("entity", r.tableName).
 				WithDetail("id", entityID.String()).
 				WithCause(err)

@@ -38,6 +38,7 @@ import { useDocumentLineActions, useExistingPickerLines } from "@/hooks/useDocum
 import { DocumentTotalsFooter } from "@/components/shared/document-totals-footer"
 import { useDocumentErrorHandler } from "@/hooks/useDocumentErrorHandler"
 import { useShortcut } from "@/hooks/useShortcut"
+import { useLastUsedDefaults, saveLastUsed } from "@/hooks/useLastUsedValues"
 import type { GoodsReceiptLineRequest, CreateGoodsReceiptRequest, GoodsReceiptResponse } from "@/types/document"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import { ProductPickerDialog } from "@/components/shared/product-picker-dialog"
@@ -94,10 +95,13 @@ export default function NewGoodsReceiptPage() {
   const [copyLoading, setCopyLoading] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
 
+  // M1: Sticky defaults — pre-fill warehouse, organization, currency from last save
+  const stickyDefaults = useLastUsedDefaults<GoodsReceiptFormState>("goods_receipt")
+
   // ── Single typed form state with automatic draft persistence ────────
   const { state: f, update, replace, clear, hasDraft } = useFormDraft<GoodsReceiptFormState>(
     pathname,
-    INITIAL_FORM_STATE,
+    { ...INITIAL_FORM_STATE, ...stickyDefaults },
     { shouldPersist: (s) => !!(s.organizationId || s.supplierId || s.warehouseId || s.lines.length > 0) },
   )
 
@@ -141,7 +145,7 @@ export default function NewGoodsReceiptPage() {
         markDirty()
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : "Ошибка копирования документа")
+        setError(err instanceof Error ? err.message : "Не удалось скопировать документ")
       })
       .finally(() => setCopyLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -150,7 +154,7 @@ export default function NewGoodsReceiptPage() {
   const handleChange = () => markDirty()
 
   // ── Line actions (generic hook) ───────────────────────────────────────
-  const { addLine, handlePick: pickLines, handleUpdateField, handleUpdateRef, handleUpdateVatRate, handleRemoveLine, handleReorderLines, handleMoveLineUp, handleMoveLineDown } = useDocumentLineActions(update, markDirty)
+  const { addLine, handlePick: pickLines, handleUpdateField, handleUpdateRef, handleUpdateVatRate, handleRemoveLine, handleReorderLines, handleMoveLineUp, handleMoveLineDown, handlePasteLines } = useDocumentLineActions(update, markDirty)
   const existingPickerLines = useExistingPickerLines(f.lines)
   const handlePick = useCallback((items: PickedItem[]) => pickLines(items, f.lines), [pickLines, f.lines])
 
@@ -216,6 +220,12 @@ export default function NewGoodsReceiptPage() {
       const created = await api.goodsReceipts.create(buildPayload(postImmediately))
       markClean()
       clear()
+      // M1: Remember last-used header fields for next document
+      saveLastUsed("goods_receipt", {
+        organizationId: f.organizationId, organizationName: f.organizationName,
+        warehouseId: f.warehouseId, warehouseName: f.warehouseName,
+        currencyId: f.currencyId, currencyName: f.currencyName,
+      })
       if (andClose) {
         useTabStateStore.getState().clearTab("/documents/goods-receipts")
         closeOne(pathname)
@@ -224,7 +234,7 @@ export default function NewGoodsReceiptPage() {
         router.replace(`/documents/goods-receipts/${created.id}`)
       }
     } catch (err) {
-      handleError(err, "Ошибка сохранения")
+      handleError(err, "Не удалось сохранить документ")
     } finally {
       setSaving(false)
     }
@@ -385,7 +395,7 @@ export default function NewGoodsReceiptPage() {
                     </Button>
                   </div>
                   <ScrollArea className="flex-1">
-                  <DocumentLinesDndProvider items={f.lines} onReorder={handleReorderLines}>
+                  <DocumentLinesDndProvider items={f.lines} onReorder={handleReorderLines} onPasteLines={handlePasteLines}>
                     <table className="w-full text-sm border-separate border-spacing-0">
                       <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-sm">
                         <tr>
@@ -419,6 +429,8 @@ export default function NewGoodsReceiptPage() {
                             onUpdateRef={handleUpdateRef}
                             onUpdateVatRate={handleUpdateVatRate}
                             onRemove={handleRemoveLine}
+                            isLastRow={index === f.lines.length - 1}
+                            onTabToNextRow={addLine}
                             dragRef={setNodeRef}
                             dragStyle={style}
                             dragHandleSlot={

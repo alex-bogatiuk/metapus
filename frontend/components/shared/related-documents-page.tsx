@@ -154,7 +154,7 @@ export function RelatedDocumentsPage({
         setError(null)
         fetcher(documentId)
             .then((res) => setData(res))
-            .catch((e) => setError(e instanceof Error ? e.message : "Ошибка загрузки"))
+            .catch((e) => setError(e instanceof Error ? e.message : "Не удалось загрузить данные"))
             .finally(() => setLoading(false))
     }, [documentId, fetcher])
 
@@ -186,7 +186,7 @@ export function RelatedDocumentsPage({
             toast.success(successMessage)
             doFetch() // auto-refresh
         } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Ошибка выполнения действия")
+            toast.error(e instanceof Error ? e.message : "Не удалось выполнить действие")
         } finally {
             setActionLoading(false)
         }

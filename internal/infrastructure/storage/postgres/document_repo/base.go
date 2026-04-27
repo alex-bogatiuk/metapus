@@ -171,7 +171,7 @@ func (r *BaseDocumentRepo[T]) Create(ctx context.Context, entity T) error {
 	if err != nil {
 		if postgres.IsForeignKeyViolation(err) {
 			field := postgres.ExtractForeignKeyField(err, r.tableName)
-			return apperror.NewBusinessRule("INVALID_REFERENCE", "Выбранный связанный элемент был удален из базы данных.").
+			return apperror.NewBusinessRule("INVALID_REFERENCE", "Связанный элемент удален. Выберите другой.").
 				WithDetail("field", field)
 		}
 		return fmt.Errorf("insert %s: %w", r.tableName, err)
@@ -237,7 +237,7 @@ func (r *BaseDocumentRepo[T]) Update(ctx context.Context, entity T) error {
 		}
 		if postgres.IsForeignKeyViolation(err) {
 			field := postgres.ExtractForeignKeyField(err, r.tableName)
-			return apperror.NewBusinessRule("INVALID_REFERENCE", "Выбранный связанный элемент был удален из базы данных.").
+			return apperror.NewBusinessRule("INVALID_REFERENCE", "Связанный элемент удален. Выберите другой.").
 				WithDetail("field", field)
 		}
 		return fmt.Errorf("update %s: %w", r.tableName, err)
@@ -365,7 +365,10 @@ func (r *BaseDocumentRepo[T]) buildWhereConditions(f domain.ListFilter) ([]squir
 	}
 
 	if f.Search != "" {
-		conditions = append(conditions, squirrel.ILike{"number": "%" + f.Search + "%"})
+		// M5: 1С-style fuzzy search on document number
+		if cond := filter.BuildSearchConditions(f.Search, []string{"number"}); cond != nil {
+			conditions = append(conditions, cond)
+		}
 	}
 
 	// Apply RLS DataScope conditions
@@ -374,10 +377,22 @@ func (r *BaseDocumentRepo[T]) buildWhereConditions(f domain.ListFilter) ([]squir
 		conditions = append(conditions, rlsConditions...)
 	}
 
-	// Apply advanced filters: separate header filters from table-part and reference filters (dot notation)
-	if len(f.AdvancedFilters) > 0 {
-		headerFilters := make([]filter.Item, 0, len(f.AdvancedFilters))
-		for _, item := range f.AdvancedFilters {
+	// Apply advanced filters — extract __search pseudo-field first (M5)
+	advFilters := f.AdvancedFilters
+	if searchQuery, remaining := filter.ExtractSearchQuery(advFilters); searchQuery != "" {
+		// __search from AdvancedFilters is applied only if f.Search was empty
+		// to prevent duplicate conditions when both are present
+		if f.Search == "" {
+			if cond := filter.BuildSearchConditions(searchQuery, []string{"number"}); cond != nil {
+				conditions = append(conditions, cond)
+			}
+		}
+		advFilters = remaining
+	}
+
+	if len(advFilters) > 0 {
+		headerFilters := make([]filter.Item, 0, len(advFilters))
+		for _, item := range advFilters {
 			if strings.Contains(item.Field, ".") {
 				parts := strings.SplitN(item.Field, ".", 2)
 				prefix, subfield := parts[0], parts[1]

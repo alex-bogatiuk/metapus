@@ -148,7 +148,7 @@ function StatusBadge({ status }: { status: string }) {
     active: "Активен",
     suspended: "Приостановлен",
     updating: "Обновляется...",
-    migration_failed: "Ошибка миграции",
+    migration_failed: "Сбой миграции",
   }
   const Icon = icons[status]
 
@@ -190,7 +190,7 @@ function PromoteDialog({
       onOpenChange(false)
       onPromoted()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка")
+      setError(err instanceof Error ? err.message : "Не удалось назначить группу версий")
     } finally {
       setSaving(false)
     }
@@ -292,7 +292,7 @@ export function ControlPlaneSection() {
       )
       setUpdatingIds(updating)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка загрузки")
+      setError(err instanceof Error ? err.message : "Не удалось загрузить данные")
     } finally {
       setLoading(false)
     }
@@ -334,7 +334,7 @@ export function ControlPlaneSection() {
       await refreshData()
     } catch (err) {
       await refreshData()
-      alert(err instanceof Error ? err.message : "Ошибка запуска обновления")
+      alert(err instanceof Error ? err.message : "Не удалось запустить обновление")
     }
   }
 
@@ -345,7 +345,7 @@ export function ControlPlaneSection() {
       await refreshData()
     } catch (err) {
       await refreshData()
-      alert(err instanceof Error ? err.message : "Ошибка повторной миграции")
+      alert(err instanceof Error ? err.message : "Не удалось запустить миграцию")
     }
   }
 
@@ -358,7 +358,7 @@ export function ControlPlaneSection() {
       setRollbackTarget(null)
       await refreshData()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Ошибка отката")
+      alert(err instanceof Error ? err.message : "Не удалось выполнить откат миграции")
     } finally {
       setRollbackLoading(false)
     }

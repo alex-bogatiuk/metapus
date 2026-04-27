@@ -43,6 +43,12 @@ export interface DocumentLineRowProps {
   dragStyle?: React.CSSProperties
   /** Drag handle slot — rendered inside the N cell, appears on group hover */
   dragHandleSlot?: React.ReactNode
+
+  // ── Tab traversal (M8 + M9) ──────────────────────────────────────────
+  /** Whether this is the last row in the table (triggers auto-create on Tab) */
+  isLastRow?: boolean
+  /** Called when user presses Tab from the last input of the last row */
+  onTabToNextRow?: () => void
 }
 
 // ── Component (memoised) ─────────────────────────────────────────────────
@@ -60,6 +66,8 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
   dragRef,
   dragStyle,
   dragHandleSlot,
+  isLastRow,
+  onTabToNextRow,
 }: DocumentLineRowProps) {
   // ── Stable callbacks that delegate to parent via _key ────────────────
   const handleProductChange = useCallback(
@@ -102,6 +110,44 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
     [line._key, onRemove],
   )
 
+  // ── Tab traversal (M8 + M9) ──────────────────────────────────────────
+  // On Tab from the last focusable input in a row:
+  //   - last row → auto-create new row + focus first input (M9)
+  //   - any row  → focus first input of next row (M8)
+  const handleTabTraversal = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key !== "Tab" || e.shiftKey) return
+      const tr = (e.target as HTMLElement).closest("tr")
+      if (!tr) return
+
+      // All focusable inputs in this row (excluding buttons like delete)
+      const inputs = Array.from(
+        tr.querySelectorAll<HTMLElement>("input, [role=combobox]"),
+      )
+      const currentIdx = inputs.indexOf(e.target as HTMLElement)
+      // Not the last input in row → let browser handle Tab normally
+      if (currentIdx < inputs.length - 1) return
+
+      e.preventDefault()
+      if (isLastRow && onTabToNextRow) {
+        // M9: Create new row, then focus its first input.
+        // Double rAF ensures React has committed the DOM update before we query it.
+        onTabToNextRow()
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const nextTr = tr.nextElementSibling
+            nextTr?.querySelector<HTMLElement>("input, [role=combobox]")?.focus()
+          })
+        })
+      } else {
+        // M8: Focus first input of the next row
+        const nextTr = tr.nextElementSibling
+        nextTr?.querySelector<HTMLElement>("input, [role=combobox]")?.focus()
+      }
+    },
+    [isLastRow, onTabToNextRow],
+  )
+
   // ── Computed amounts (only when showAmounts=true) ────────────────────
   const displayAmount = showAmounts
     ? line.amount !== undefined
@@ -121,7 +167,7 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
   const btnSize = compact ? "h-6 w-6" : "h-7 w-7"
 
   return (
-    <tr ref={dragRef} style={dragStyle} className="group border-b hover:bg-primary/5 transition-colors">
+    <tr ref={dragRef} style={dragStyle} className="group border-b hover:bg-primary/5 transition-colors animate-row-in">
       <td className={cn("px-2 text-center text-xs text-muted-foreground", compact ? "py-1" : "py-1.5")}>
         <span className="inline-flex items-center gap-0.5">
           {dragHandleSlot}
@@ -155,6 +201,7 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
           step="0.001"
           value={line.quantity}
           onChange={handleQuantityChange}
+          onKeyDown={handleTabTraversal}
         />
       </td>
       <td className={cn("px-1", cellPy)}>
@@ -164,6 +211,7 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
           step={moneyStep(decimalPlaces)}
           value={line.unitPrice}
           onChange={handlePriceChange}
+          onKeyDown={handleTabTraversal}
         />
       </td>
       {showAmounts && (
@@ -193,6 +241,7 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
             type="number"
             value={line.vatPercent}
             onChange={handleVatPercentChange}
+            onKeyDown={handleTabTraversal}
           />
         </td>
       )}

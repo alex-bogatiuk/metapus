@@ -55,7 +55,7 @@ export function DocumentMovementsPage({ documentId, backHref, documentTitle, fet
             setLoading(true)
             fetcher(documentId)
                 .then((res) => { if (isMounted) setMovements(res.movements ?? []) })
-                .catch((e) => { if (isMounted) setError(e instanceof Error ? e.message : "Ошибка загрузки") })
+                .catch((e) => { if (isMounted) setError(e instanceof Error ? e.message : "Не удалось загрузить данные") })
                 .finally(() => { if (isMounted) setLoading(false) })
         })
         return () => { isMounted = false }

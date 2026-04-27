@@ -70,7 +70,7 @@ export function LoginForm() {
         } else if (error.status === 403) {
           setServerError("Учётная запись заблокирована. Обратитесь к администратору")
         } else {
-          setServerError("Ошибка сервера. Попробуйте позже")
+          setServerError("Произошёл сбой на сервере. Попробуйте позже")
         }
       } else {
         setServerError("Не удалось подключиться к серверу")

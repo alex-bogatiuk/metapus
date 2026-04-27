@@ -279,7 +279,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             return next
         })
         setIsDirty(true)
-    }, [availableFields])
+    }, [availableFields, setSelectedFields, setVisibleColumnKeys, setIsDirty])
 
     // ── Advanced Filters (FilterSidebar integration) ─────────────────
     const [advancedFilterValues, setAdvancedFilterValues] = useTabState<FilterValues>("advancedFilterValues", {})
@@ -292,7 +292,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
     const onAdvancedFilterValuesChange = useCallback((values: FilterValues) => {
         setAdvancedFilterValues(values)
         setIsDirty(true)
-    }, [])
+    }, [setAdvancedFilterValues, setIsDirty])
 
     // Build effective columns: merge static meta.columns with dynamic columns
     // for fields that are selected but not in the static columns list.
@@ -381,7 +381,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             .catch(() => { /* metadata load failure handled gracefully */ })
             .finally(() => { if (!cancelled) setMetaLoading(false) })
         return () => { cancelled = true }
-    }, [reportKey])
+    }, [reportKey, setMeta, setActiveGroupBy, setVisibleColumnKeys, setSortColumn, setSortDirection, setSelectedFields, setFilterValues, setMetaLoading])
 
     // ── Filter values (URL-backed) ─────────────────────────────
     const initialFilters = useMemo(() => {
@@ -413,12 +413,12 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             return { ...prev, [key]: value }
         })
         setIsDirty(true)
-    }, [])
+    }, [setFilterValues, setIsDirty])
 
     const resetFilters = useCallback(() => {
         setFilterValues({})
         setIsDirty(true)
-    }, [])
+    }, [setFilterValues, setIsDirty])
 
     // Sync filters to URL
     const syncToUrl = useCallback((filters: ReportFilterValues) => {
@@ -505,7 +505,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             setError(msg)
             setStatus("error")
         }
-    }, [reportKey, filterValues, advancedFilterValues, filterFieldsMeta, syncToUrl, selectedFields, sortColumn, sortDirection, meta])
+    }, [reportKey, filterValues, advancedFilterValues, filterFieldsMeta, syncToUrl, selectedFields, sortColumn, sortDirection, meta, availableFields, setIsDirty, setStatus, setError, setItems, setResultExtras, setServerDisplayRows])
 
     // ── Auto-generate on URL open ──────────────────────────────
     // If URL has filter params (f.*), auto-generate report on mount.
@@ -548,7 +548,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
                 ? prev.filter((k) => k !== key)
                 : [...prev, key]
         )
-    }, [])
+    }, [setActiveGroupBy])
 
     // ── Sorting (client-side) ────────────────────────────────────────
 
@@ -562,7 +562,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             queueMicrotask(() => setSortDirection("asc"))
             return key
         })
-    }, [])
+    }, [setSortColumn, setSortDirection])
 
     // ── Column visibility ────────────────────────────────────────────
     const setListColumns = useUserPrefsStore((s) => s.setListColumns)
@@ -575,14 +575,14 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             queueMicrotask(() => setListColumns(`report:${reportKey}`, next))
             return next
         })
-    }, [reportKey, setListColumns])
+    }, [reportKey, setListColumns, setVisibleColumnKeys])
 
     const resetColumns = useCallback(() => {
         if (!meta) return
         const defaults = meta.columns.filter((c) => !c.defaultHidden).map((c) => c.key)
         setVisibleColumnKeys(defaults)
         setListColumns(`report:${reportKey}`, defaults)
-    }, [meta, reportKey, setListColumns])
+    }, [meta, reportKey, setListColumns, setVisibleColumnKeys])
 
     const reorderColumn = useCallback((fromIndex: number, toIndex: number) => {
         setSelectionRange(null)
@@ -594,7 +594,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             queueMicrotask(() => setListColumns(`report:${reportKey}`, next))
             return next
         })
-    }, [reportKey, setListColumns])
+    }, [reportKey, setListColumns, setVisibleColumnKeys])
 
     // ── Report Variants ────────────────────────────────────────
     const [variants, setVariants] = useTabState<ReportVariant[]>("variants", [])
@@ -607,7 +607,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             // If there's a default variant and no active variant is set, we could auto-load it
             // but for now let's just keep the list
         }).catch(console.error)
-    }, [reportKey])
+    }, [reportKey, setVariants])
 
     const saveVariant = useCallback(async (name: string, visibility: import("@/types/report-variant").VariantVisibility, isDefault: boolean) => {
         try {
@@ -636,7 +636,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             console.error(e)
             toast.error("Не удалось сохранить вариант. Проверьте соединение или попробуйте позже.")
         }
-    }, [reportKey, selectedFields, visibleColumnKeys, activeGroupBy, sortColumn, sortDirection, filterValues, advancedFilterValues])
+    }, [reportKey, selectedFields, visibleColumnKeys, activeGroupBy, sortColumn, sortDirection, filterValues, advancedFilterValues, filterFieldsMeta, setVariants, setActiveVariantId])
 
     const loadVariant = useCallback((id: string) => {
         const variant = variants.find((v) => v.id === id)
@@ -658,7 +658,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
         
         setIsDirty(true) // Loading variant makes state dirty, needing generate()
         setActiveVariantId(id)
-    }, [variants])
+    }, [variants, setSelectedFields, setVisibleColumnKeys, setActiveGroupBy, setSortColumn, setSortDirection, setFilterValues, setAdvancedFilterValues, setIsDirty, setActiveVariantId])
 
     const deleteVariant = useCallback(async (id: string) => {
         try {
@@ -672,7 +672,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             console.error(e)
             toast.error("Не удалось удалить вариант. Проверьте соединение или попробуйте позже.")
         }
-    }, [activeVariantId])
+    }, [activeVariantId, setVariants, setActiveVariantId])
 
     const updateVariant = useCallback(async (id: string, name: string, visibility: import("@/types/report-variant").VariantVisibility, isDefault: boolean) => {
         const existing = variants.find((v) => v.id === id)
@@ -706,7 +706,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             console.error(e)
             toast.error("Не удалось обновить вариант. Проверьте соединение или попробуйте позже.")
         }
-    }, [variants, reportKey, selectedFields, visibleColumnKeys, activeGroupBy, sortColumn, sortDirection, filterValues, advancedFilterValues, filterFieldsMeta])
+    }, [variants, reportKey, selectedFields, visibleColumnKeys, activeGroupBy, sortColumn, sortDirection, filterValues, advancedFilterValues, filterFieldsMeta, setVariants, setActiveVariantId])
 
     // ── Cell Selection ───────────────────────────────────────────────
     const [selectionRange, setSelectionRange] = useState<{ start: { r: number, c: number }, end: { r: number, c: number } } | null>(null)
@@ -780,7 +780,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
         } finally {
             serverGroupingInFlight.current = false
         }
-    }, [reportKey, filterValues, activeGroupBy, sortColumn, sortDirection, items.length])
+    }, [reportKey, filterValues, activeGroupBy, sortColumn, sortDirection, items.length, setServerDisplayRows])
 
     // Trigger server grouping when groupBy/sort changes and items > threshold
     useEffect(() => {

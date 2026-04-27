@@ -109,7 +109,7 @@ export default function NomenclatureItemPage() {
       })
       .catch((err) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Ошибка загрузки")
+          setError(err instanceof Error ? err.message : "Не удалось загрузить данные")
           setLoading(false)
         }
       })
@@ -151,7 +151,7 @@ export default function NomenclatureItemPage() {
         router.push("/catalogs/nomenclatures")
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка сохранения")
+      setError(err instanceof Error ? err.message : "Не удалось сохранить данные")
     } finally {
       setSaving(false)
     }

@@ -67,7 +67,7 @@ export default function EditOrganizationPage() {
       setDoc(d)
       replace(mapFromResponse(d))
     }).catch((err) => {
-      setError(err instanceof Error ? err.message : "Ошибка загрузки")
+      setError(err instanceof Error ? err.message : "Не удалось загрузить данные")
     }).finally(() => setLoading(false))
   }, [params.id, hasDraft, replace])
 
@@ -109,7 +109,7 @@ export default function EditOrganizationPage() {
       markClean()
       if (andClose) router.push("/catalogs/organizations")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка сохранения")
+      setError(err instanceof Error ? err.message : "Не удалось сохранить данные")
     } finally {
       setSaving(false)
     }

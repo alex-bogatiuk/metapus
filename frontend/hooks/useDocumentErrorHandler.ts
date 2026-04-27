@@ -57,7 +57,7 @@ export function useDocumentErrorHandler(): UseDocumentErrorHandlerReturn {
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
-  const handleError = useCallback((err: unknown, fallbackMsg = "Ошибка", useToast = false) => {
+  const handleError = useCallback((err: unknown, fallbackMsg = "Не удалось выполнить действие", useToast = false) => {
     const apiErr = err as ApiError | undefined
     if (apiErr?.parsedBody?.code === "INVALID_REFERENCE" && apiErr.parsedBody.details?.field) {
       const fieldName = apiErr.parsedBody.details.field

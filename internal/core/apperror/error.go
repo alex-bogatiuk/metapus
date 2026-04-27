@@ -102,7 +102,7 @@ func NewValidation(message string) *AppError {
 func NewNotFound(entity string, id any) *AppError {
 	return &AppError{
 		Code:       CodeNotFound,
-		Message:    fmt.Sprintf("%s not found", entity),
+		Message:    "Запись не найдена. Возможно, она была удалена.",
 		HTTPStatus: http.StatusNotFound,
 		Details:    map[string]any{"entity": entity, "id": id},
 	}
@@ -121,7 +121,7 @@ func NewBusinessRule(code, message string) *AppError {
 func NewInsufficientStock(productID string, requested, available float64) *AppError {
 	return &AppError{
 		Code:       CodeInsufficientStock,
-		Message:    "Insufficient stock",
+		Message:    "Не хватает остатков на складе. Уменьшите количество или смените склад.",
 		HTTPStatus: http.StatusUnprocessableEntity,
 		Details: map[string]any{
 			"product_id": productID,
@@ -135,7 +135,7 @@ func NewInsufficientStock(productID string, requested, available float64) *AppEr
 func NewConcurrentModification(entity string, id any) *AppError {
 	return &AppError{
 		Code:       CodeConcurrentModification,
-		Message:    "Record was modified by another user. Please refresh and try again.",
+		Message:    "Документ изменен другим пользователем. Обновите страницу.",
 		HTTPStatus: http.StatusConflict,
 		Details:    map[string]any{"entity": entity, "id": id},
 	}
@@ -145,7 +145,7 @@ func NewConcurrentModification(entity string, id any) *AppError {
 func NewInternal(err error) *AppError {
 	return &AppError{
 		Code:       CodeInternal,
-		Message:    "Internal server error",
+		Message:    "Внутренняя ошибка сервера. Обратитесь к администратору.",
 		HTTPStatus: http.StatusInternalServerError,
 		Err:        err,
 	}
@@ -173,7 +173,7 @@ func NewForbidden(message string) *AppError {
 func NewIdempotencyConflict(key string) *AppError {
 	return &AppError{
 		Code:       CodeIdempotency,
-		Message:    "Operation already in progress or completed",
+		Message:    "Операция уже выполняется или завершена.",
 		HTTPStatus: http.StatusConflict,
 		Details:    map[string]any{"idempotency_key": key},
 	}
@@ -184,7 +184,7 @@ func NewIdempotencyConflict(key string) *AppError {
 func NewIdempotencyMismatch(key string) *AppError {
 	return &AppError{
 		Code:       CodeIdempotency,
-		Message:    "Idempotency key mismatch",
+		Message:    "Ключ идемпотентности не совпадает.",
 		HTTPStatus: http.StatusConflict,
 		Details:    map[string]any{"idempotency_key": key},
 	}
@@ -194,7 +194,7 @@ func NewIdempotencyMismatch(key string) *AppError {
 func NewPeriodClosed(period string) *AppError {
 	return &AppError{
 		Code:       CodePeriodClosed,
-		Message:    fmt.Sprintf("Period %s is closed for modifications", period),
+		Message:    fmt.Sprintf("Период %s закрыт. Изменение данных запрещено.", period),
 		HTTPStatus: http.StatusUnprocessableEntity,
 		Details:    map[string]any{"period": period},
 	}
@@ -213,7 +213,7 @@ func NewConflict(message string) *AppError {
 func NewDuplicate(entity, field, value string) *AppError {
 	return &AppError{
 		Code:       CodeDuplicate,
-		Message:    fmt.Sprintf("%s with this %s already exists", entity, field),
+		Message:    fmt.Sprintf("Запись с таким значением поля '%s' уже существует.", field),
 		HTTPStatus: http.StatusConflict,
 		Details:    map[string]any{"entity": entity, "field": field, "value": value},
 	}

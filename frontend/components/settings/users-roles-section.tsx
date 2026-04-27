@@ -404,7 +404,7 @@ function CreateUserDialog({
       setLastName("")
       onClose(true)
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Ошибка создания пользователя")
+      toast.error(e instanceof ApiError ? e.message : "Не удалось создать пользователя")
     } finally {
       setSaving(false)
     }
@@ -459,7 +459,7 @@ function CreateUserDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => onClose(false)}>
-            Отменить
+            Отмена
           </Button>
           <Button size="sm" onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}

@@ -273,15 +273,15 @@ func buildGoodsIssueTable(resp *dto.GoodsIssueResponse, dp int, currSymbol strin
 
 	t.HeaderRows = [][]printing.PrintHeaderField{
 		{
-			{Label: "Организация:", Value: orgName},
-			{Label: "Склад:", Value: whName},
+			{Label: "Организация", Value: orgName},
+			{Label: "Склад", Value: whName},
 		},
 		{
-			{Label: "Покупатель:", Value: custName},
-			{Label: "Договор:", Value: contractName},
+			{Label: "Покупатель", Value: custName},
+			{Label: "Договор", Value: contractName},
 		},
 		{
-			{Label: "Валюта:", Value: curName},
+			{Label: "Валюта", Value: curName},
 		},
 	}
 
@@ -325,16 +325,16 @@ func buildGoodsIssueTable(resp *dto.GoodsIssueResponse, dp int, currSymbol strin
 	// Totals
 	if showPrices {
 		t.Totals = []printing.PrintTotalLine{
-			{Label: "Итого:", Value: printing.FormatMoney(resp.TotalAmount, dp) + " " + currSymbol, Grand: true},
-			{Label: "В том числе НДС:", Value: printing.FormatMoney(resp.TotalVAT, dp) + " " + currSymbol},
+			{Label: "Итого", Value: printing.FormatMoney(resp.TotalAmount, dp) + " " + currSymbol, Grand: true},
+			{Label: "В том числе НДС", Value: printing.FormatMoney(resp.TotalVAT, dp) + " " + currSymbol},
 		}
 	}
 
 	// Signatures (horizontal layout matching HTML print form)
 	t.SignatureBlock = printing.HorizontalSignatures(
-		"Отпустил:",
-		"Получил (покупатель):",
-		"Материально-ответственное лицо:",
+		"Отпустил",
+		"Получил (покупатель)",
+		"Материально ответственное лицо",
 	)
 
 	return t

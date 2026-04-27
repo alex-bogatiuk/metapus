@@ -29,7 +29,7 @@ func (h *ReportVariantHandler) GetList(datasetKey string) gin.HandlerFunc {
 
 		list, err := h.service.GetList(ctx, datasetKey)
 		if err != nil {
-			c.Error(err)
+			_ = c.Error(err)
 			c.Abort()
 			return
 		}
@@ -55,7 +55,7 @@ func (h *ReportVariantHandler) Create(c *gin.Context) {
 	}
 
 	if err := h.service.Create(ctx, variant); err != nil {
-		c.Error(err)
+		_ = c.Error(err)
 		c.Abort()
 		return
 	}
@@ -87,7 +87,7 @@ func (h *ReportVariantHandler) Update(c *gin.Context) {
 	}
 
 	if err := h.service.Update(ctx, variant); err != nil {
-		c.Error(err)
+		_ = c.Error(err)
 		c.Abort()
 		return
 	}
@@ -105,7 +105,7 @@ func (h *ReportVariantHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.service.Delete(ctx, id); err != nil {
-		c.Error(err)
+		_ = c.Error(err)
 		c.Abort()
 		return
 	}

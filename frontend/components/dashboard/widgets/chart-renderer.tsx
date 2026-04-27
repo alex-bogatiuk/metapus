@@ -44,7 +44,7 @@ export default function ChartRenderer({ config, isEditMode }: WidgetRenderProps<
                     </div>
                 ) : chartData.length === 0 ? (
                     <div className="flex h-full items-center justify-center">
-                        <p className="text-sm text-muted-foreground">Нет данных</p>
+                        <p className="text-sm text-muted-foreground">Нет данных для отображения</p>
                     </div>
                 ) : (
                     <ResponsiveContainer width="100%" height="100%">

@@ -120,7 +120,7 @@ export function FormToolbar({
             <Badge
               variant="secondary"
               className={cn(
-                "rounded-full px-2.5 text-[11px] font-bold uppercase tracking-wider",
+                "rounded-full px-2.5 text-[11px] font-bold uppercase tracking-wider animate-badge-in",
                 compact ? "h-5" : "h-6",
                 status.variant === "success" && "bg-success/10 text-success",
                 status.variant === "destructive" && "bg-destructive/10 text-destructive",

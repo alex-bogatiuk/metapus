@@ -81,7 +81,8 @@ function fieldToInput(
     field: FieldDef,
     value: unknown,
     onChange: (name: string, val: unknown) => void,
-    disabled: boolean
+    disabled: boolean,
+    isFirstEditable = false,
 ) {
     const v = value ?? ""
     const handleChange = (val: unknown) => onChange(field.name, val)
@@ -103,6 +104,7 @@ function fieldToInput(
                     value={typeof v === "string" ? v.slice(0, 16) : ""}
                     onChange={(e) => handleChange(e.target.value ? new Date(e.target.value).toISOString() : "")}
                     disabled={disabled || field.readOnly}
+                    autoFocus={isFirstEditable}
                 />
             )
         case "integer":
@@ -116,6 +118,7 @@ function fieldToInput(
                     onChange={(e) => handleChange(e.target.value === "" ? 0 : Number(e.target.value))}
                     disabled={disabled || field.readOnly}
                     step={field.type === "integer" ? 1 : "any"}
+                    autoFocus={isFirstEditable}
                 />
             )
         default:
@@ -125,6 +128,7 @@ function fieldToInput(
                     value={String(v)}
                     onChange={(e) => handleChange(e.target.value)}
                     disabled={disabled || field.readOnly}
+                    autoFocus={isFirstEditable}
                 />
             )
     }
@@ -181,7 +185,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix }: Au
                     method: "POST",
                     body: JSON.stringify(formData),
                 })
-                toast.success("Создано")
+                toast.success("Записано")
                 if (result?.id) {
                     const listPath = entityType === "catalog"
                         ? `/catalogs/${routePrefix}/${result.id}`
@@ -193,13 +197,13 @@ export default function AutoForm({ entityName, id, entityType, routePrefix }: Au
                     method: "PUT",
                     body: JSON.stringify(formData),
                 })
-                toast.success("Сохранено")
+                toast.success("Записано")
             }
         } catch (err) {
             if (err instanceof ApiError) {
-                toast.error(err.parsedBody?.message ?? `Ошибка ${err.status}`)
+                toast.error(err.parsedBody?.message ?? `Не удалось сохранить данные (код ${err.status})`)
             } else {
-                toast.error("Ошибка сохранения")
+                toast.error("Не удалось сохранить данные")
             }
         } finally {
             setSaving(false)
@@ -244,17 +248,23 @@ export default function AutoForm({ entityName, id, entityType, routePrefix }: Au
                     <div className="max-w-3xl space-y-6">
                         {/* Auto-generated fields */}
                         <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
-                            {editableFields.map((field) => (
-                                <div key={field.name} className={field.type === "string" && field.name === "comment" ? "md:col-span-2" : ""}>
-                                    <Label htmlFor={field.name} className="text-xs text-muted-foreground">
-                                        {field.label || field.name}
-                                        {field.required && <span className="ml-0.5 text-destructive">*</span>}
-                                    </Label>
-                                    <div className="mt-1">
-                                        {fieldToInput(field, formData[field.name], handleFieldChange, saving)}
+                            {editableFields.map((field, idx) => {
+                                // M7: autoFocus on first editable non-boolean field for new entities
+                                const isFirstEditable = isNew && idx === editableFields.findIndex(
+                                    (f) => !f.readOnly && f.type !== "boolean"
+                                )
+                                return (
+                                    <div key={field.name} className={field.type === "string" && field.name === "comment" ? "md:col-span-2" : ""}>
+                                        <Label htmlFor={field.name} className="text-xs text-muted-foreground">
+                                            {field.label || field.name}
+                                            {field.required && <span className="ml-0.5 text-destructive">*</span>}
+                                        </Label>
+                                        <div className="mt-1">
+                                            {fieldToInput(field, formData[field.name], handleFieldChange, saving, isFirstEditable)}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                )
+                            })}
                         </div>
 
                         {/* Table parts */}

@@ -32,7 +32,9 @@ export function useShortcut(
 ): void {
   const { enabled = true, priority, passive } = options ?? {}
   const actionRef = useRef(action)
-  actionRef.current = action
+  useEffect(() => {
+    actionRef.current = action
+  })
 
   useEffect(() => {
     if (!enabled) {

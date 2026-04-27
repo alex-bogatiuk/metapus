@@ -83,7 +83,9 @@ func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{},
 	rowNum := 1
 
 	// Title
-	sw.SetRow("A1", []interface{}{excelize.Cell{Value: meta.Name, StyleID: titleStyleID}})
+	if err := sw.SetRow("A1", []interface{}{excelize.Cell{Value: meta.Name, StyleID: titleStyleID}}); err != nil {
+		return fmt.Errorf("set title row: %w", err)
+	}
 	rowNum += 2 // Blank row
 
 	// Header & Column Widths
@@ -95,9 +97,13 @@ func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{},
 		if width < 12 {
 			width = 12
 		}
-		f.SetColWidth(sheet, colLetter, colLetter, width)
+		if wErr := f.SetColWidth(sheet, colLetter, colLetter, width); wErr != nil {
+			return fmt.Errorf("set col width %s: %w", colLetter, wErr)
+		}
 	}
-	sw.SetRow(fmt.Sprintf("A%d", rowNum), headerRow)
+	if err := sw.SetRow(fmt.Sprintf("A%d", rowNum), headerRow); err != nil {
+		return fmt.Errorf("set header row: %w", err)
+	}
 	rowNum++
 
 	// ── Grouping & Control Breaks ─────────────────────────────────────
@@ -144,7 +150,9 @@ func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{},
 					}
 					g.Subtotals[cIdx] = 0 // Reset
 				}
-				sw.SetRow(fmt.Sprintf("A%d", rowNum), subRow, excelize.RowOpts{OutlineLevel: i})
+				if err := sw.SetRow(fmt.Sprintf("A%d", rowNum), subRow, excelize.RowOpts{OutlineLevel: i}); err != nil {
+					return fmt.Errorf("set subtotal row %d: %w", rowNum, err)
+				}
 				rowNum++
 			}
 		}
@@ -163,7 +171,9 @@ func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{},
 				hdrRow := make([]interface{}, len(columns))
 				indent := strings.Repeat("   ", i)
 				hdrRow[0] = excelize.Cell{Value: indent + val, StyleID: groupHeaderStyleID}
-				sw.SetRow(fmt.Sprintf("A%d", rowNum), hdrRow, excelize.RowOpts{OutlineLevel: i})
+				if err := sw.SetRow(fmt.Sprintf("A%d", rowNum), hdrRow, excelize.RowOpts{OutlineLevel: i}); err != nil {
+					return fmt.Errorf("set group header row %d: %w", rowNum, err)
+				}
 				rowNum++
 			}
 			firstRow = false
@@ -185,7 +195,9 @@ func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{},
 				detRow[cIdx] = excelize.Cell{Value: formatExportValue(val, col), StyleID: cellStyleID}
 			}
 		}
-		sw.SetRow(fmt.Sprintf("A%d", rowNum), detRow, excelize.RowOpts{OutlineLevel: len(groups)})
+		if err := sw.SetRow(fmt.Sprintf("A%d", rowNum), detRow, excelize.RowOpts{OutlineLevel: len(groups)}); err != nil {
+			return fmt.Errorf("set detail row %d: %w", rowNum, err)
+		}
 		rowNum++
 	}
 
@@ -200,7 +212,9 @@ func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{},
 					subRow[cIdx] = excelize.Cell{Value: g.Subtotals[cIdx], StyleID: subtotalNumStyleID}
 				}
 			}
-			sw.SetRow(fmt.Sprintf("A%d", rowNum), subRow, excelize.RowOpts{OutlineLevel: i})
+			if err := sw.SetRow(fmt.Sprintf("A%d", rowNum), subRow, excelize.RowOpts{OutlineLevel: i}); err != nil {
+				return fmt.Errorf("set final subtotal row %d: %w", rowNum, err)
+			}
 			rowNum++
 		}
 	}
@@ -214,7 +228,9 @@ func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{},
 				gtRow[cIdx] = excelize.Cell{Value: grandTotals[cIdx], StyleID: subtotalNumStyleID}
 			}
 		}
-		sw.SetRow(fmt.Sprintf("A%d", rowNum), gtRow)
+		if err := sw.SetRow(fmt.Sprintf("A%d", rowNum), gtRow); err != nil {
+			return fmt.Errorf("set grand total row: %w", err)
+		}
 	}
 
 	if err := sw.Flush(); err != nil {
@@ -312,10 +328,7 @@ func toFloat64(v interface{}) (float64, bool) {
 	}
 }
 
-func cellName(col, row int) string {
-	colLetter, _ := excelize.ColumnNumberToName(col + 1)
-	return fmt.Sprintf("%s%d", colLetter, row)
-}
+
 
 func thinBorders() []excelize.Border {
 	return []excelize.Border{

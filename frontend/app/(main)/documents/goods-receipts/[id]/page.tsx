@@ -148,7 +148,7 @@ export default function GoodsReceiptFormPage() {
     api.goodsReceipts.get(params.id).then((d) => {
       syncFromServer(d)
     }).catch((err) => {
-      setError(err instanceof Error ? err.message : "Ошибка загрузки")
+      setError(err instanceof Error ? err.message : "Не удалось загрузить данные")
     }).finally(() => {
       setLoading(false)
     })
@@ -158,7 +158,7 @@ export default function GoodsReceiptFormPage() {
   const handleChange = () => markDirty()
 
   // ── Line actions (generic hook) ───────────────────────────────────────
-  const { addLine, handlePick: pickLines, handleUpdateField, handleUpdateRef, handleUpdateVatRate, handleRemoveLine, handleReorderLines, handleMoveLineUp, handleMoveLineDown } = useDocumentLineActions(update, markDirty, { resetAmountsOnEdit: true })
+  const { addLine, handlePick: pickLines, handleUpdateField, handleUpdateRef, handleUpdateVatRate, handleRemoveLine, handleReorderLines, handleMoveLineUp, handleMoveLineDown, handlePasteLines } = useDocumentLineActions(update, markDirty, { resetAmountsOnEdit: true })
   const existingPickerLines = useExistingPickerLines(f.lines)
   const handlePick = useCallback((items: PickedItem[]) => pickLines(items, f.lines), [pickLines, f.lines])
 
@@ -231,7 +231,7 @@ export default function GoodsReceiptFormPage() {
         return
       }
     } catch (err) {
-      handleError(err, "Ошибка сохранения")
+      handleError(err, "Не удалось сохранить документ")
       try { const r = await api.goodsReceipts.get(params.id); update({ _doc: r }) } catch { /* ignore */ }
     } finally {
       setSaving(false)
@@ -246,7 +246,7 @@ export default function GoodsReceiptFormPage() {
       const updated = await api.goodsReceipts.get(params.id)
       syncFromServer(updated)
     } catch (err) {
-      handleError(err, "Ошибка проведения", true)
+      handleError(err, "Не удалось провести документ", true)
     } finally {
       setSaving(false)
     }
@@ -260,7 +260,7 @@ export default function GoodsReceiptFormPage() {
       const updated = await api.goodsReceipts.get(params.id)
       syncFromServer(updated)
     } catch (err) {
-      handleError(err, "Ошибка отмены проведения", true)
+      handleError(err, "Не удалось отменить проведение", true)
     } finally {
       setSaving(false)
     }
@@ -275,7 +275,7 @@ export default function GoodsReceiptFormPage() {
       const updated = await api.goodsReceipts.get(params.id)
       syncFromServer(updated)
     } catch (err) {
-      handleError(err, "Ошибка", true)
+      handleError(err, "Не удалось изменить пометку удаления", true)
     } finally {
       setSaving(false)
     }
@@ -288,7 +288,7 @@ export default function GoodsReceiptFormPage() {
       await api.goodsReceipts.updateAndRepost(params.id, buildUpdatePayload())
       closeAndCleanup()
     } catch (err) {
-      handleError(err, "Ошибка")
+      handleError(err, "Не удалось провести документ")
       try { const r = await api.goodsReceipts.get(params.id); update({ _doc: r }) } catch { /* ignore */ }
     } finally {
       setSaving(false)
@@ -495,7 +495,7 @@ export default function GoodsReceiptFormPage() {
                     </Button>
                   </div>
                   <ScrollArea className="flex-1">
-                  <DocumentLinesDndProvider items={f.lines} onReorder={handleReorderLines}>
+                  <DocumentLinesDndProvider items={f.lines} onReorder={handleReorderLines} onPasteLines={handlePasteLines}>
                     <table className="w-full text-sm border-separate border-spacing-0">
                       <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-sm">
                         <tr>
@@ -531,6 +531,8 @@ export default function GoodsReceiptFormPage() {
                             onUpdateVatRate={handleUpdateVatRate}
                             onRemove={handleRemoveLine}
                             showAmounts
+                            isLastRow={index === f.lines.length - 1}
+                            onTabToNextRow={addLine}
                             dragRef={setNodeRef}
                             dragStyle={style}
                             dragHandleSlot={

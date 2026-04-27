@@ -183,7 +183,7 @@ export function PrintMenuButton({
       try {
         await executePrint(documentType, documentId, formName, output)
       } catch {
-        toast.error("Ошибка при формировании печатной формы")
+        toast.error("Не удалось сформировать печатную форму")
       } finally {
         setLoadingKey(null)
       }

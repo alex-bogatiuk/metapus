@@ -18,7 +18,7 @@ export function ListContent({
   error,
   isEmpty,
   onRetry,
-  emptyMessage = "Нет данных.",
+  emptyMessage = "Список пуст.",
   children,
 }: ListContentProps) {
   if (loading) {

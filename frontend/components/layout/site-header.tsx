@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import { useRouter, usePathname } from "next/navigation"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useTabsStore, type Tab } from "@/stores/useTabsStore"
 import { useCloseTab } from "@/hooks/useCloseTab"
+import { useBeforeUnload } from "@/hooks/useBeforeUnload"
 import { TabBar } from "./tab-bar"
 import { TabOverflow } from "./tab-overflow"
 import { OpenUrlPopover } from "./open-url-popover"
@@ -37,6 +39,9 @@ export function SiteHeader() {
     const [pendingClose, setPendingClose] = React.useState<PendingClose | null>(null)
     const openUrlTriggerRef = React.useRef<HTMLButtonElement>(null)
 
+    // M13: Protect all dirty tabs from accidental F5 / browser close
+    useBeforeUnload(tabs.some((t) => t.isDirty))
+
     // Sync: when pathname changes externally, update active tab
     React.useEffect(() => {
         const matchingTab = tabs.find((t) => t.id === pathname)
@@ -49,7 +54,14 @@ export function SiteHeader() {
 
     const handleTabClick = React.useCallback(
         (tab: Tab) => {
-            if (tab.id === activeTabId) return
+            if (tab.id === activeTabId) {
+                // M14: Click on already-active tab → copy title (document number)
+                navigator.clipboard.writeText(tab.title).then(
+                    () => toast.success("Скопировано: " + tab.title),
+                    () => { /* non-secure context — silently ignore */ },
+                )
+                return
+            }
             setActiveTab(tab.id)
             router.push(tab.url)
         },

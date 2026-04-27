@@ -347,7 +347,7 @@ export function RoleEditorSheet({ role, permissions, rolePerms, onClose }: RoleE
       }
       onClose(true)
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Ошибка сохранения")
+      toast.error(e instanceof ApiError ? e.message : "Не удалось сохранить роль")
     } finally {
       setSaving(false)
     }
@@ -367,7 +367,7 @@ export function RoleEditorSheet({ role, permissions, rolePerms, onClose }: RoleE
       setDeleteOpen(false)
       onClose(true)
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Ошибка удаления")
+      toast.error(e instanceof ApiError ? e.message : "Не удалось удалить роль")
     } finally {
       setDeleting(false)
     }
@@ -571,7 +571,7 @@ export function RoleEditorSheet({ role, permissions, rolePerms, onClose }: RoleE
               className="text-xs"
               onClick={() => onClose(false)}
             >
-              Отменить
+              Отмена
             </Button>
             {!readOnly && (
               <Button
@@ -596,7 +596,7 @@ export function RoleEditorSheet({ role, permissions, rolePerms, onClose }: RoleE
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Удалить роль «{roleData?.name}»?</AlertDialogTitle>
+            <AlertDialogTitle>Удаление роли «{roleData?.name}»</AlertDialogTitle>
             <AlertDialogDescription>
               {userCount > 0
                 ? `У этой роли ${userCount} пользователь(ей). Они потеряют все привязанные разрешения. Их сессии будут завершены.`
@@ -604,7 +604,7 @@ export function RoleEditorSheet({ role, permissions, rolePerms, onClose }: RoleE
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Отменить</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={deleting}

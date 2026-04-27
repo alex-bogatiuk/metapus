@@ -158,7 +158,7 @@ export function UserSettingsSheet({ user, onClose }: UserSettingsSheetProps) {
       toast.success("Настройки пользователя сохранены")
       onClose(true)
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Ошибка сохранения")
+      toast.error(e instanceof ApiError ? e.message : "Не удалось сохранить пользователя")
     } finally {
       setSaving(false)
     }
@@ -172,7 +172,7 @@ export function UserSettingsSheet({ user, onClose }: UserSettingsSheetProps) {
       setBlockConfirmOpen(false)
       onClose(true)
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Ошибка")
+      toast.error(e instanceof ApiError ? e.message : "Не удалось изменить статус")
     }
   }
 
@@ -384,7 +384,7 @@ export function UserSettingsSheet({ user, onClose }: UserSettingsSheetProps) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {user?.isActive ? "Заблокировать пользователя?" : "Разблокировать пользователя?"}
+              {user?.isActive ? "Блокировка пользователя" : "Разблокировка пользователя"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {user?.isActive
@@ -393,7 +393,7 @@ export function UserSettingsSheet({ user, onClose }: UserSettingsSheetProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Отменить</AlertDialogCancel>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
             <AlertDialogAction
               className={user?.isActive
                 ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"

@@ -9,8 +9,7 @@ export function isMac(): boolean {
   if (typeof navigator === "undefined") return false
   // navigator.platform is deprecated but widely supported;
   // fall back to userAgentData when available.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ua = (navigator as any).userAgentData
+  const ua = (navigator as unknown as { userAgentData?: { platform?: string } }).userAgentData
   if (ua?.platform) return /mac/i.test(ua.platform)
   return /mac/i.test(navigator.platform)
 }

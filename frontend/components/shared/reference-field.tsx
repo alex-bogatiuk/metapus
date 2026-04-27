@@ -479,7 +479,7 @@ export function ReferenceField({
                 }
                 return (
                   <div className="py-4 text-center text-xs text-muted-foreground">
-                    Нет данных
+                    Ничего не найдено.
                   </div>
                 )
               })()

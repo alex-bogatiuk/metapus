@@ -26,6 +26,8 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import { GripVertical } from "lucide-react"
 import type { FormLine } from "@/lib/document-form"
+import { useClipboardPaste } from "@/hooks/useClipboardPaste"
+import { PastePreviewDialog } from "@/components/shared/paste-preview-dialog"
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -123,18 +125,28 @@ export function DragHandleButton({
 // DndContext renders hidden <div> elements for accessibility (HiddenText,
 // LiveRegion). These CANNOT be children of <table>. So DndContext must
 // wrap the <table>, not be inside it.
+//
+// When `onPasteLines` is provided, the provider also handles Ctrl+V paste
+// from Excel / Google Sheets — parses TSV, shows preview dialog, resolves
+// references, and adds lines. Zero boilerplate per document.
 
 interface DocumentLinesDndProviderProps {
   /** Lines array — used to resolve drag IDs to indices */
   items: FormLine[]
   /** Called when drag completes with (oldIndex, newIndex) */
   onReorder: (oldIndex: number, newIndex: number) => void
+  /**
+   * When provided, enables Ctrl+V paste from clipboard (Excel / Google Sheets).
+   * Pass `handlePasteLines` from `useDocumentLineActions` — that's it.
+   */
+  onPasteLines?: (lines: import("@/lib/clipboard-paste").ResolvedPasteLine[]) => void
   children: React.ReactNode
 }
 
 export function DocumentLinesDndProvider({
   items,
   onReorder,
+  onPasteLines,
   children,
 }: DocumentLinesDndProviderProps) {
   const sortableIds = useMemo(() => items.map((l) => l._key), [items])
@@ -162,13 +174,37 @@ export function DocumentLinesDndProvider({
     [sortableIds, onReorder],
   )
 
+  // ── Clipboard paste (only when onPasteLines is provided) ──────────
+  const paste = useClipboardPaste(onPasteLines)
+
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
     >
-      {children}
+      {onPasteLines ? (
+        <div
+          {...paste.pasteContainerProps}
+          className="contents"
+          style={{ outline: "none" }}
+        >
+          {children}
+        </div>
+      ) : (
+        children
+      )}
+
+      {/* Paste preview dialog — rendered inside DndContext but outside table */}
+      <PastePreviewDialog
+        state={paste.previewState}
+        onClose={paste.closePreview}
+        onConfirm={paste.confirmPaste}
+        onToggleHeader={paste.toggleHeader}
+        onUpdateMapping={paste.updateMapping}
+        onReResolve={paste.reResolve}
+        onPickSuggestion={paste.pickSuggestion}
+      />
     </DndContext>
   )
 }

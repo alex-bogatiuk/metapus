@@ -38,6 +38,7 @@ import { useDocumentLineActions, useExistingPickerLines } from "@/hooks/useDocum
 import { DocumentTotalsFooter } from "@/components/shared/document-totals-footer"
 import { useDocumentErrorHandler } from "@/hooks/useDocumentErrorHandler"
 import { useShortcut } from "@/hooks/useShortcut"
+import { useLastUsedDefaults, saveLastUsed } from "@/hooks/useLastUsedValues"
 import type { GoodsIssueLineRequest, CreateGoodsIssueRequest, GoodsIssueResponse } from "@/types/document"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import { ProductPickerDialog } from "@/components/shared/product-picker-dialog"
@@ -96,10 +97,13 @@ export default function NewGoodsIssuePage() {
   const [copyLoading, setCopyLoading] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
 
+  // M1: Sticky defaults — pre-fill warehouse, organization, currency from last save
+  const stickyDefaults = useLastUsedDefaults<GoodsIssueFormState>("goods_issue")
+
   // ── Single typed form state with automatic draft persistence ────────
   const { state: f, update, replace, clear, hasDraft } = useFormDraft<GoodsIssueFormState>(
     pathname,
-    INITIAL_FORM_STATE,
+    { ...INITIAL_FORM_STATE, ...stickyDefaults },
     { shouldPersist: (s) => !!(s.organizationId || s.customerId || s.warehouseId || s.lines.length > 0) },
   )
 
@@ -143,7 +147,7 @@ export default function NewGoodsIssuePage() {
         markDirty()
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : "Ошибка копирования документа")
+        setError(err instanceof Error ? err.message : "Не удалось скопировать документ")
       })
       .finally(() => setCopyLoading(false))
     } else if (basisType === "GoodsReceipt" && basisId) {
@@ -168,7 +172,7 @@ export default function NewGoodsIssuePage() {
           markDirty()
         })
         .catch((err) => {
-          setError(err instanceof Error ? err.message : "Ошибка загрузки документа-основания")
+          setError(err instanceof Error ? err.message : "Не удалось загрузить документ-основание")
         })
         .finally(() => setCopyLoading(false))
     }
@@ -176,7 +180,7 @@ export default function NewGoodsIssuePage() {
   }, [])
 
   // ── Line actions (generic hook) ───────────────────────────────────────
-  const { addLine, handlePick: pickLines, handleUpdateField, handleUpdateRef, handleUpdateVatRate, handleRemoveLine, handleReorderLines, handleMoveLineUp, handleMoveLineDown } = useDocumentLineActions(update, markDirty)
+  const { addLine, handlePick: pickLines, handleUpdateField, handleUpdateRef, handleUpdateVatRate, handleRemoveLine, handleReorderLines, handleMoveLineUp, handleMoveLineDown, handlePasteLines } = useDocumentLineActions(update, markDirty)
   const existingPickerLines = useExistingPickerLines(f.lines)
   const handlePick = useCallback((items: PickedItem[]) => pickLines(items, f.lines), [pickLines, f.lines])
 
@@ -243,6 +247,12 @@ export default function NewGoodsIssuePage() {
       const created = await api.goodsIssues.create(buildPayload(postImmediately))
       markClean()
       clear()
+      // M1: Remember last-used header fields for next document
+      saveLastUsed("goods_issue", {
+        organizationId: f.organizationId, organizationName: f.organizationName,
+        warehouseId: f.warehouseId, warehouseName: f.warehouseName,
+        currencyId: f.currencyId, currencyName: f.currencyName,
+      })
       if (andClose) {
         useTabStateStore.getState().clearTab("/documents/goods-issues")
         closeOne(pathname)
@@ -251,7 +261,7 @@ export default function NewGoodsIssuePage() {
         router.replace(`/documents/goods-issues/${created.id}`)
       }
     } catch (err) {
-      handleError(err, "Ошибка сохранения")
+      handleError(err, "Не удалось сохранить документ")
     } finally {
       setSaving(false)
     }
@@ -408,7 +418,7 @@ export default function NewGoodsIssuePage() {
                     </Button>
                   </div>
                   <ScrollArea className="flex-1">
-                  <DocumentLinesDndProvider items={f.lines} onReorder={handleReorderLines}>
+                  <DocumentLinesDndProvider items={f.lines} onReorder={handleReorderLines} onPasteLines={handlePasteLines}>
                     <table className="w-full text-sm border-separate border-spacing-0">
                       <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-sm">
                         <tr>
@@ -442,6 +452,8 @@ export default function NewGoodsIssuePage() {
                             onUpdateRef={handleUpdateRef}
                             onUpdateVatRate={handleUpdateVatRate}
                             onRemove={handleRemoveLine}
+                            isLastRow={index === f.lines.length - 1}
+                            onTabToNextRow={addLine}
                             dragRef={setNodeRef}
                             dragStyle={style}
                             dragHandleSlot={

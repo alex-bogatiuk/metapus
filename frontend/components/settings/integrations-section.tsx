@@ -215,7 +215,7 @@ export function IntegrationsSection() {
       fetchHistory()
       fetchHistoryStats()
     } catch {
-      toast.error("Ошибка массовой повторной отправки")
+      toast.error("Не удалось выполнить повторную отправку")
     }
   }
 
@@ -287,7 +287,7 @@ export function IntegrationsSection() {
       closeDialog()
       await fetchAccounts()
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Ошибка сохранения"
+      const msg = e instanceof Error ? e.message : "Не удалось сохранить настройки"
       toast.error(msg)
     } finally {
       setSaving(false)
@@ -322,7 +322,7 @@ export function IntegrationsSection() {
       setSelectedHistory(null)
       fetchHistory()
     } catch (e: any) {
-      toast.error(e.message || "Ошибка повторной отправки")
+      toast.error(e.message || "Не удалось отправить сообщение")
     } finally {
       setIsReplaying(false)
     }
@@ -397,7 +397,7 @@ export function IntegrationsSection() {
       closeChDialog()
       await fetchChannels()
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Ошибка сохранения"
+      const msg = e instanceof Error ? e.message : "Не удалось сохранить настройки"
       toast.error(msg)
     } finally {
       setChSaving(false)
@@ -1149,7 +1149,7 @@ export function IntegrationsSection() {
                       className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity bg-background/50 hover:bg-background"
                       onClick={() => {
                         navigator.clipboard.writeText(selectedHistory.errorText!)
-                        toast.success("Ошибка скопирована")
+                        toast.success("Текст ошибки скопирован")
                       }}
                     >
                       <Copy className="h-3 w-3" />

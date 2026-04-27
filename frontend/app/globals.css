@@ -226,4 +226,32 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  /* Badge appear animation (status badges, counters) */
+  .animate-badge-in {
+    animation: badge-in 200ms ease-out;
+  }
+  @keyframes badge-in {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  /* Row slide-in (new document line added) */
+  .animate-row-in {
+    animation: row-in 200ms ease-out;
+  }
+  @keyframes row-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Shake for validation error feedback */
+  .animate-shake {
+    animation: shake 300ms ease-in-out;
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
 }

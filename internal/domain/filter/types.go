@@ -24,6 +24,11 @@ const (
 	IsNotNull ComparisonType = "not_null" // Filled (not null)
 )
 
+// SearchFieldName is the special pseudo-field name used by the frontend
+// to pass a fuzzy search query. It is NOT a real column — it must be
+// intercepted before reaching BuildConditions and handled via BuildSearchConditions.
+const SearchFieldName = "__search"
+
 // Item represents a single filter condition.
 type Item struct {
 	Field     string         `json:"field"`               // Field name (snake_case)

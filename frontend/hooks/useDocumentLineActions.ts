@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react"
 import { arrayMove } from "@dnd-kit/sortable"
 import { type FormLine, emptyLine, fetchVatRatePercent, linesToExistingPickerLines, mergePickedIntoLines } from "@/lib/document-form"
 import type { PickedItem } from "@/types/picker"
+import type { ResolvedPasteLine } from "@/lib/clipboard-paste"
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -149,6 +150,33 @@ export function useDocumentLineActions<T extends LinesFormState>(
     markDirty()
   }, [update, markDirty])
 
+  /** Bulk-add resolved paste lines from clipboard (Excel / Google Sheets). */
+  const handlePasteLines = useCallback((pastedLines: ResolvedPasteLine[]) => {
+    if (pastedLines.length === 0) return
+    update((prev) => {
+      let key = prev.nextKey
+      const newLines: FormLine[] = pastedLines.map((p) => ({
+        ...emptyLine(key++),
+        productId: p.productId,
+        productName: p.productName,
+        productCode: p.productCode,
+        unitId: p.unitId,
+        unitName: p.unitName,
+        quantity: p.quantity,
+        unitPrice: p.unitPrice,
+        vatRateId: p.vatRateId,
+        vatRateName: p.vatRateName,
+        vatPercent: p.vatPercent || "20",
+        discountPercent: p.discountPercent || "0",
+      }))
+      return {
+        lines: [...prev.lines, ...newLines],
+        nextKey: key,
+      } as Partial<T>
+    })
+    markDirty()
+  }, [update, markDirty])
+
   return {
     addLine,
     handlePick,
@@ -159,6 +187,7 @@ export function useDocumentLineActions<T extends LinesFormState>(
     handleReorderLines,
     handleMoveLineUp,
     handleMoveLineDown,
+    handlePasteLines,
   }
 }
 

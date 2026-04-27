@@ -111,7 +111,7 @@ export function SystemInfoSection() {
       if (ver.status === "fulfilled") setVersionInfo(ver.value)
       if (health.status === "fulfilled" && health.value) setHealthInfo(health.value)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка загрузки")
+      setError(err instanceof Error ? err.message : "Не удалось загрузить данные")
     } finally {
       setLoading(false)
     }

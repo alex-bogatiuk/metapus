@@ -271,7 +271,7 @@ export default function SecurityProfilePage() {
         toast.success("Профиль сохранён")
       }
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Ошибка сохранения")
+      toast.error(e instanceof ApiError ? e.message : "Не удалось сохранить профиль")
     } finally {
       setSaving(false)
     }

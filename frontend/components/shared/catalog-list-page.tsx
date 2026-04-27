@@ -146,7 +146,7 @@ export function CatalogListPage<T extends { id: string }>({
             error={error}
             isEmpty={items.length === 0}
             onRetry={refresh}
-            emptyMessage={config.emptyMessage ?? "Нет данных."}
+            emptyMessage={config.emptyMessage ?? "Список пуст."}
           >
             <DataTable
               data={items}
