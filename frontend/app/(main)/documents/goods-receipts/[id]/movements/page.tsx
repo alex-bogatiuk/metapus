@@ -11,7 +11,8 @@ export default function GoodsReceiptMovementsRoute() {
         <DocumentMovementsPage
             documentId={params.id}
             backHref={`/documents/goods-receipts/${params.id}`}
-            documentTitle={`Поступление ${params.id.slice(0, 8)}…`}
+            documentLabel="Поступление"
+            numberFetcher={(id) => api.goodsReceipts.get(id)}
             fetcher={(id) => api.goodsReceipts.getMovements(id)}
         />
     )

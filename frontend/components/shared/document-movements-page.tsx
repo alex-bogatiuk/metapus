@@ -39,7 +39,10 @@ const ALL_TAB_KEY = "__all__"
 interface DocumentMovementsPageProps {
     documentId: string
     backHref: string
-    documentTitle: string
+    /** Human-readable document type label, e.g. "Поступление", "Реализация" */
+    documentLabel: string
+    /** Fetcher to load the document header (only `number` field is used) */
+    numberFetcher: (id: string) => Promise<{ number: string }>
     fetcher: (id: string) => Promise<DocumentMovementsResponse>
 }
 
@@ -48,28 +51,49 @@ interface DocumentMovementsPageProps {
 interface CellCoord { r: number; c: number }
 interface SelectionRange { start: CellCoord; end: CellCoord }
 
+interface StatusBarData {
+    selectionRange: SelectionRange
+    rows: DocumentMovement[]
+    columns: MovementColumnDef[]
+    decimalPlaces: number
+}
+
 type SortDir = "asc" | "desc" | null
 interface SortState { column: string; dir: SortDir }
 
 // ── Main Component ──────────────────────────────────────────────────────
 
-export function DocumentMovementsPage({ documentId, backHref, documentTitle, fetcher }: DocumentMovementsPageProps) {
+export function DocumentMovementsPage({ documentId, backHref, documentLabel, numberFetcher, fetcher }: DocumentMovementsPageProps) {
     const [movements, setMovements] = useState<DocumentMovement[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [statusBarData, setStatusBarData] = useState<StatusBarData | null>(null)
+    const [docNumber, setDocNumber] = useState<string | null>(null)
 
     useEffect(() => {
         let isMounted = true
-        void Promise.resolve().then(() => {
-            if (!isMounted) return
-            setLoading(true)
-            fetcher(documentId)
-                .then((res) => { if (isMounted) setMovements(res.movements ?? []) })
-                .catch((e) => { if (isMounted) setError(e instanceof Error ? e.message : "Не удалось загрузить данные") })
-                .finally(() => { if (isMounted) setLoading(false) })
-        })
+        setLoading(true)
+
+        // Fetch movements + document number in parallel
+        const movementsPromise = fetcher(documentId)
+        const numberPromise = numberFetcher(documentId)
+
+        Promise.all([movementsPromise, numberPromise])
+            .then(([movRes, docRes]) => {
+                if (!isMounted) return
+                setMovements(movRes.movements ?? [])
+                setDocNumber(docRes.number)
+            })
+            .catch((e) => {
+                if (!isMounted) return
+                setError(e instanceof Error ? e.message : "Не удалось загрузить данные")
+            })
+            .finally(() => {
+                if (isMounted) setLoading(false)
+            })
+
         return () => { isMounted = false }
-    }, [documentId, fetcher])
+    }, [documentId, fetcher, numberFetcher])
 
     // Group movements by registerName
     const grouped = useMemo(() => {
@@ -94,7 +118,7 @@ export function DocumentMovementsPage({ documentId, backHref, documentTitle, fet
                     </Button>
                     <h1 className="text-sm font-semibold">Движения документа</h1>
                     <Badge variant="secondary" className="h-6 rounded-full px-2.5 text-[11px] font-medium">
-                        {documentTitle}
+                        {documentLabel}{docNumber ? ` №${docNumber}` : ""}
                     </Badge>
                     <span className="ml-auto text-xs text-muted-foreground tabular-nums">
                         Всего записей: {movements.length}
@@ -125,6 +149,7 @@ export function DocumentMovementsPage({ documentId, backHref, documentTitle, fet
 
             {/* Content with Tabs */}
             {!loading && !error && movements.length > 0 && (
+                <>
                 <Tabs defaultValue={ALL_TAB_KEY} className="flex flex-1 flex-col overflow-hidden min-h-0">
                     <div className="px-4 border-b bg-card">
                         <TabsList variant="line" className="h-9">
@@ -156,6 +181,7 @@ export function DocumentMovementsPage({ documentId, backHref, documentTitle, fet
                                         items={grouped[name]}
                                         showHeader
                                         fillHeight={false}
+                                        onStatusBarData={setStatusBarData}
                                     />
                                 ))}
                             </div>
@@ -171,11 +197,16 @@ export function DocumentMovementsPage({ documentId, backHref, documentTitle, fet
                                     items={grouped[name]}
                                     showHeader={false}
                                     fillHeight={false}
+                                    onStatusBarData={setStatusBarData}
                                 />
                             </ScrollArea>
                         </TabsContent>
                     ))}
                 </Tabs>
+
+                {/* Single page-level status bar — sticky to bottom */}
+                <MovementStatusBar data={statusBarData} />
+                </>
             )}
         </div>
     )
@@ -188,12 +219,15 @@ function RegisterGroupTable({
     items,
     showHeader,
     fillHeight = true,
+    onStatusBarData,
 }: {
     registerName: string
     items: DocumentMovement[]
     showHeader: boolean
     /** When true, table fills available height (flex-1). When false, uses auto height. */
     fillHeight?: boolean
+    /** Callback to report selection data to the page-level status bar */
+    onStatusBarData?: (data: StatusBarData | null) => void
 }) {
     const [sort, setSort] = useState<SortState>({ column: "", dir: null })
 
@@ -329,6 +363,16 @@ function RegisterGroupTable({
         return () => window.removeEventListener("keydown", handleKeyDown)
     }, [sorted, columns, minR, maxR, minC, maxC, decimalPlaces])
 
+    // Report selection data to the page-level status bar
+    useEffect(() => {
+        if (!onStatusBarData) return
+        if (selectionRange) {
+            onStatusBarData({ selectionRange, rows: sorted, columns, decimalPlaces })
+        } else {
+            onStatusBarData(null)
+        }
+    }, [selectionRange, sorted, columns, decimalPlaces, onStatusBarData])
+
     return (
         <div className={fillHeight ? "flex flex-col flex-1 overflow-hidden min-h-0" : "flex flex-col"}>
             {/* Register header (only in "All" tab) */}
@@ -374,14 +418,6 @@ function RegisterGroupTable({
                     onSelectionStart={onSelectionStart} onSelectionMove={onSelectionMove}
                 />
             )}
-
-            {/* Status bar — Sum/Avg/Count */}
-            <MovementStatusBar
-                selectionRange={selectionRange}
-                rows={sorted}
-                columns={columns}
-                decimalPlaces={decimalPlaces}
-            />
         </div>
     )
 }
@@ -545,18 +581,10 @@ function CellValue({ val, col, decimalPlaces }: {
 
 // ── Status Bar (Sum / Avg / Count) ──────────────────────────────────────
 
-function MovementStatusBar({
-    selectionRange,
-    rows,
-    columns,
-    decimalPlaces,
-}: {
-    selectionRange: SelectionRange | null
-    rows: DocumentMovement[]
-    columns: MovementColumnDef[]
-    decimalPlaces: number
-}) {
-    if (!selectionRange) return null
+function MovementStatusBar({ data }: { data: StatusBarData | null }) {
+    if (!data) return null
+
+    const { selectionRange, rows, columns, decimalPlaces } = data
 
     const minR = Math.min(selectionRange.start.r, selectionRange.end.r)
     const maxR = Math.max(selectionRange.start.r, selectionRange.end.r)

@@ -11,7 +11,8 @@ export default function GoodsIssueMovementsRoute() {
         <DocumentMovementsPage
             documentId={params.id}
             backHref={`/documents/goods-issues/${params.id}`}
-            documentTitle={`Реализация ${params.id.slice(0, 8)}…`}
+            documentLabel="Реализация"
+            numberFetcher={(id) => api.goodsIssues.get(id)}
             fetcher={(id) => api.goodsIssues.getMovements(id)}
         />
     )
