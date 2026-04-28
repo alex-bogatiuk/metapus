@@ -23,12 +23,12 @@ type Repository interface {
 
 	// Balance operations
 
-	// GetBalance returns current balance for warehouse+product+currency
-	GetBalance(ctx context.Context, warehouseID, productID, currencyID id.ID) (entity.CostBalance, error)
+	// GetBalance returns current balance for warehouse+nomenclature+currency
+	GetBalance(ctx context.Context, warehouseID, nomenclatureID, currencyID id.ID) (entity.CostBalance, error)
 
 	// GetBalancesByWarehouse returns all non-zero balances for a warehouse
 	GetBalancesByWarehouse(ctx context.Context, warehouseID id.ID) ([]entity.CostBalance, error)
 
-	// GetBalancesByProduct returns balances across all warehouses for a product
-	GetBalancesByProduct(ctx context.Context, productID id.ID) ([]entity.CostBalance, error)
+	// GetBalancesByNomenclature returns balances across all warehouses for a nomenclature
+	GetBalancesByNomenclature(ctx context.Context, nomenclatureID id.ID) ([]entity.CostBalance, error)
 }

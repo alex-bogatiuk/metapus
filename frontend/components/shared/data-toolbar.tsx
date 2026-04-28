@@ -3,7 +3,7 @@
 import { useCompactMode } from "@/hooks/useCompactMode"
 
 import Link from "next/link"
-import { Plus, Search, SlidersHorizontal, MoreHorizontal, Copy } from "lucide-react"
+import { Plus, Search, MoreHorizontal, Copy, FileSpreadsheet, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
@@ -40,6 +40,10 @@ interface DataToolbarProps {
   menuItems?: DataToolbarMenuItem[]
   /** Called when user clicks "Настройка списка" in the More menu. */
   onColumnChooserClick?: () => void
+  /** Called when user clicks "Экспорт в Excel". */
+  onExportClick?: () => void
+  /** True while export is in progress. */
+  exporting?: boolean
 }
 
 export function DataToolbar({
@@ -53,6 +57,8 @@ export function DataToolbar({
   extraButtons,
   menuItems,
   onColumnChooserClick,
+  onExportClick,
+  exporting,
 }: DataToolbarProps) {
   const compact = useCompactMode()
   return (
@@ -116,7 +122,13 @@ export function DataToolbar({
               )
             )}
             {menuItems && menuItems.length > 0 && <DropdownMenuSeparator />}
-            <DropdownMenuItem>Экспорт в Excel</DropdownMenuItem>
+            <DropdownMenuItem onClick={onExportClick} disabled={exporting || !onExportClick}>
+              {exporting ? (
+                <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Экспорт...</>
+              ) : (
+                <><FileSpreadsheet className="mr-2 h-3.5 w-3.5" />Экспорт в Excel</>
+              )}
+            </DropdownMenuItem>
             <DropdownMenuItem>Печать списка</DropdownMenuItem>
             <DropdownMenuItem onClick={onColumnChooserClick}>Настройка списка</DropdownMenuItem>
           </DropdownMenuContent>

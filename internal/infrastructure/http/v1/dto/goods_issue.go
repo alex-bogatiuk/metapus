@@ -1,4 +1,4 @@
-﻿package dto
+package dto
 
 import (
 	"time"
@@ -199,7 +199,7 @@ type GoodsIssueResponse struct {
 
 	// Resolved reference display names (populated by handler, not stored in DB)
 	Organization  *postgres.RefDisplay         `json:"organization,omitempty"`
-	Customer      *postgres.RefDisplay         `json:"customer,omitempty"`
+	Counterparty  *postgres.RefDisplay         `json:"counterparty,omitempty"`
 	Contract      *postgres.RefDisplay         `json:"contract,omitempty"`
 	Warehouse     *postgres.RefDisplay         `json:"warehouse,omitempty"`
 	Currency      *postgres.CurrencyRefDisplay `json:"currency,omitempty"`
@@ -223,7 +223,7 @@ type GoodsIssueLineResponse struct {
 	Amount          types.MinorUnits `json:"amount"`
 
 	// Resolved reference display names
-	Product *postgres.RefDisplay `json:"product,omitempty"`
+	Nomenclature *postgres.RefDisplay `json:"nomenclature,omitempty"`
 	Unit    *postgres.RefDisplay `json:"unit,omitempty"`
 	VATRate *postgres.RefDisplay `json:"vatRate,omitempty"`
 }
@@ -290,7 +290,7 @@ func FromGoodsIssue(doc *goods_issue.GoodsIssue, refs postgres.ResolvedRefs, cur
 		org := resolved.Get(TableOrganizations, doc.OrganizationID)
 		resp.Organization = &org
 		cust := resolved.Get(TableCounterparties, doc.CounterpartyID)
-		resp.Customer = &cust
+		resp.Counterparty = &cust
 		wh := resolved.Get(TableWarehouses, doc.WarehouseID)
 		resp.Warehouse = &wh
 		if len(currencyRefs) > 0 && currencyRefs[0] != nil {
@@ -327,7 +327,7 @@ func FromGoodsIssue(doc *goods_issue.GoodsIssue, refs postgres.ResolvedRefs, cur
 
 		if resolved != nil {
 			prod := resolved.Get(TableNomenclature, line.NomenclatureID)
-			lineResp.Product = &prod
+			lineResp.Nomenclature = &prod
 			unit := resolved.Get(TableUnits, line.UnitID)
 			lineResp.Unit = &unit
 			vr := resolved.Get(TableVATRates, line.VATRateID)

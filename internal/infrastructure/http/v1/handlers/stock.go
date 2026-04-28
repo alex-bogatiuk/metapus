@@ -1,4 +1,4 @@
-﻿package handlers
+package handlers
 
 import (
 	"net/http"
@@ -43,7 +43,7 @@ func (h *StockHandler) GetBalances(c *gin.Context) {
 		warehouseID = &parsed
 	}
 
-	// Parse optional product filter
+	// Parse optional nomenclature filter
 	var nomenclatureID *id.ID
 	if pStr := c.Query("nomenclatureId"); pStr != "" {
 		parsed, err := id.Parse(pStr)
@@ -75,7 +75,7 @@ func (h *StockHandler) GetBalances(c *gin.Context) {
 			balances[i] = dto.FromStockBalance(b)
 		}
 	} else if nomenclatureID != nil {
-		entityBalances, err := h.repo.GetBalancesByProduct(ctx, *nomenclatureID)
+		entityBalances, err := h.repo.GetBalancesByNomenclature(ctx, *nomenclatureID)
 		if err != nil {
 			h.Error(c, err)
 			return
@@ -97,7 +97,7 @@ func (h *StockHandler) GetBalances(c *gin.Context) {
 func (h *StockHandler) GetMovements(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	// Product is required for movement history
+	// Nomenclature is required for movement history
 	nomenclatureIDStr := c.Query("nomenclatureId")
 	if nomenclatureIDStr == "" {
 		h.Error(c, apperror.NewValidation("nomenclatureId is required"))
@@ -191,7 +191,7 @@ func (h *StockHandler) GetTurnovers(c *gin.Context) {
 		}
 	}
 
-	// Parse optional product filter
+	// Parse optional nomenclature filter
 	if pStr := c.Query("nomenclatureId"); pStr != "" {
 		parsed, err := id.Parse(pStr)
 		if err == nil {

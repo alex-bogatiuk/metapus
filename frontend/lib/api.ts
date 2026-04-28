@@ -1,4 +1,4 @@
-﻿/**
+/**
  * API Client – single point of contact for the backend REST API.
  *
  * All fetch calls go through `apiFetch()` which:
@@ -275,10 +275,13 @@ export interface CatalogApi<TRes, TCreate, TUpdate> {
     update: (id: string, data: TUpdate) => Promise<TRes>
     delete: (id: string) => Promise<void>
     setDeletionMark: (id: string, data: SetDeletionMarkRequest) => Promise<void>
+    /** Base API path (used by export and SSE streaming). */
+    _basePath: string
 }
 
 function createCatalogApi<TRes, TCreate, TUpdate>(basePath: string): CatalogApi<TRes, TCreate, TUpdate> {
     return {
+        _basePath: basePath,
         list: (params?: CursorListParams) =>
             apiFetch<CursorListResponse<TRes>>(`${basePath}${buildListQS(params)}`),
         get: (id: string) =>

@@ -1,4 +1,4 @@
-﻿package handlers
+package handlers
 
 import (
 	"context"
@@ -258,8 +258,8 @@ func buildGoodsIssueTable(resp *dto.GoodsIssueResponse, dp int, currSymbol strin
 	if resp.Organization != nil {
 		orgName = resp.Organization.Name
 	}
-	if resp.Customer != nil {
-		custName = resp.Customer.Name
+	if resp.Counterparty != nil {
+		custName = resp.Counterparty.Name
 	}
 	if resp.Warehouse != nil {
 		whName = resp.Warehouse.Name
@@ -294,8 +294,8 @@ func buildGoodsIssueTable(resp *dto.GoodsIssueResponse, dp int, currSymbol strin
 
 	for _, line := range resp.Lines {
 		prodName, unitName := "", ""
-		if line.Product != nil {
-			prodName = line.Product.Name
+		if line.Nomenclature != nil {
+			prodName = line.Nomenclature.Name
 		}
 		if line.Unit != nil {
 			unitName = line.Unit.Name

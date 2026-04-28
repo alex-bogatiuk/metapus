@@ -13,6 +13,7 @@ import { ScrollSentinel } from "@/components/shared/scroll-sentinel"
 import { useEntityListPage } from "@/hooks/useEntityListPage"
 import { useColumnResize } from "@/hooks/useColumnResize"
 import { useVisibleColumns } from "@/hooks/useVisibleColumns"
+import { useListExport, type ExportColumn } from "@/hooks/useListExport"
 import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 import { useShortcut } from "@/hooks/useShortcut"
 import { useScrollRestore } from "@/hooks/useScrollRestore"
@@ -46,6 +47,8 @@ export interface CatalogListPageConfig<T extends { id: string }> {
   allColumns?: Column<T>[]
   /** Default visible column keys. Required when allColumns is provided. */
   defaultVisibleKeys?: string[]
+  /** API base path for export (e.g. "/catalog/nomenclatures"). If omitted, export is disabled. */
+  basePath?: string
 }
 
 // ── Component ───────────────────────────────────────────────────────────
@@ -83,6 +86,7 @@ export function CatalogListPage<T extends { id: string }>({
     focusedId,
     searchQuery,
     setSearchQuery,
+    currentFilters,
   } = useEntityListPage<T>({
     entityKey: config.entityKey,
     api: { list: config.fetcher },
@@ -102,6 +106,25 @@ export function CatalogListPage<T extends { id: string }>({
   })
   const effectiveColumns = hasColumnChooser ? colChooser.visibleColumns : config.columns
   const [columnChooserOpen, setColumnChooserOpen] = useState(false)
+
+  // ── List Export ────────────────────────────────────────────────────────
+  const { exportToExcel, exporting } = useListExport({
+    basePath: config.basePath ?? "",
+  })
+
+  const handleExport = useCallback(() => {
+    const cols: ExportColumn[] = effectiveColumns.map((c) => ({
+      key: c.key,
+      label: c.label,
+    }))
+    exportToExcel({
+      columns: cols,
+      filters: currentFilters,
+      orderBy: sortColumn ? `${sortDirection === "desc" ? "-" : ""}${sortColumn}` : undefined,
+      includeDeleted: showDeleted,
+      search: searchQuery,
+    })
+  }, [effectiveColumns, exportToExcel, sortColumn, sortDirection, showDeleted, searchQuery, currentFilters])
 
   // ── Column resize with persistence ────────────────────────────────────
   const storedWidths = useUserPrefsStore((s) => s.getListColumnWidths(config.entityKey))
@@ -130,6 +153,11 @@ export function CatalogListPage<T extends { id: string }>({
     searchInputRef.current?.select()
   })
 
+  // ── Ctrl+Shift+E → export to Excel ────────────────────────────────
+  useShortcut("list.export", "ctrl+shift+e", "Экспорт в Excel", "list", () => {
+    if (config.basePath && !exporting) handleExport()
+  })
+
   // ── Scroll restoration on tab switch (M2) ─────────────────────────
   useScrollRestore(scrollContainerRef)
 
@@ -154,6 +182,8 @@ export function CatalogListPage<T extends { id: string }>({
           },
         ]}
         onColumnChooserClick={hasColumnChooser ? () => setColumnChooserOpen(true) : undefined}
+        onExportClick={config.basePath ? handleExport : undefined}
+        exporting={exporting}
       />
 
       <div className="flex flex-1 overflow-hidden">

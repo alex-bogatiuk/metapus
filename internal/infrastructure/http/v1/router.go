@@ -212,6 +212,9 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		registerSettingsRoutes(protected)
 		registerSecurityRoutes(protected, cfg)
 		registerSystemRoutes(protected, eventLogRepo, cfg.SchemaCache, reg, cfg.WSTicketStore)
+
+		// Stateless XLSX renderer for document table parts (no entity binding needed).
+		protected.POST("/export-table-part", handlers.ExportTablePart)
 	}
 
 	// Admin tenant management (Cloud Control Plane) — separate group with Auth,

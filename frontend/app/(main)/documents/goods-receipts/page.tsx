@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useMemo, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
@@ -24,6 +24,7 @@ import {
 import { useEntityListPage } from "@/hooks/useEntityListPage"
 import { useColumnResize } from "@/hooks/useColumnResize"
 import { useVisibleColumns } from "@/hooks/useVisibleColumns"
+import { useListExport, type ExportColumn } from "@/hooks/useListExport"
 import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 import { ScrollSentinel } from "@/components/shared/scroll-sentinel"
 import { api } from "@/lib/api"
@@ -245,6 +246,23 @@ export default function GoodsReceiptsListPage() {
     searchInputRef.current?.select()
   })
 
+  // ── Ctrl+Shift+E → export to Excel ──────────────────────────────────
+  const { exportToExcel, exporting } = useListExport({ basePath: api.goodsReceipts._basePath })
+  const handleExport = useCallback(() => {
+    const cols: ExportColumn[] = visibleColumns.map((c) => ({ key: c.key, label: c.label }))
+    exportToExcel({
+      columns: cols,
+      filters: currentFilters,
+      orderBy: sortColumn ? `${sortDirection === "desc" ? "-" : ""}${sortColumn}` : undefined,
+      includeDeleted: showDeleted,
+      search: searchQuery,
+    })
+  }, [visibleColumns, exportToExcel, currentFilters, sortColumn, sortDirection, showDeleted, searchQuery])
+
+  useShortcut("list.export", "ctrl+shift+e", "Экспорт в Excel", "list", () => {
+    if (!exporting) handleExport()
+  })
+
   // ── M2 Scroll restoration on tab switch ─────────────────────────────
   useScrollRestore(scrollContainerRef)
 
@@ -300,12 +318,12 @@ export default function GoodsReceiptsListPage() {
       {
         title: "Товары",
         columns: [
-          { key: "product", label: "Номенклатура" },
+          { key: "nomenclature", label: "Номенклатура" },
           { key: "quantity", label: "Кол-во", align: "right" as const },
           { key: "amount", label: "Сумма", align: "right" as const },
         ],
         rows: (detailDoc.lines ?? []).map((line) => ({
-          product: line.nomenclature?.name || "—",
+          nomenclature: line.nomenclature?.name || "—",
           quantity: String(line.quantity),
           amount: fmtAmount(line.amount, detailDoc.currency?.decimalPlaces ?? DEFAULT_DECIMAL_PLACES),
         })),
@@ -345,6 +363,8 @@ export default function GoodsReceiptsListPage() {
           },
         ]}
         onColumnChooserClick={() => setColumnChooserOpen(true)}
+        onExportClick={handleExport}
+        exporting={exporting}
       />
 
       <div className="flex flex-1 overflow-hidden">

@@ -1,9 +1,9 @@
-﻿/**
+/**
  * Shared types for the picker dialog system.
  *
  * Two layers:
  *   1) GenericPickerDialog — metadata-driven, works for any entity
- *   2) ProductPickerDialog — specialized for nomenclature (category tree, stock, qty entry)
+ *   2) NomenclaturePickerDialog — specialized for nomenclature (category tree, stock, qty entry)
  *
  * Mirrors: no direct backend DTO — these are frontend-only orchestration types.
  */
@@ -48,9 +48,9 @@ export interface ExistingPickerLine {
     quantity: number
 }
 
-// ── Product Picker Props ────────────────────────────────────────────────
+// ── Nomenclature Picker Props ────────────────────────────────────────────
 
-export interface ProductPickerDialogProps {
+export interface NomenclaturePickerDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     /** Callback when user confirms selection */

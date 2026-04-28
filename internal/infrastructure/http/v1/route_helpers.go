@@ -88,6 +88,13 @@ type DocumentBatchByFilterHandler interface {
 	BatchActionByFilter(c *gin.Context)
 }
 
+// ListExportHandler is an optional interface for exporting a list to XLSX.
+// When a handler implements this interface, RegisterCatalogRoutes / RegisterDocumentRoutes
+// automatically adds POST /export-list requiring the entity read permission.
+type ListExportHandler interface {
+	ExportList(c *gin.Context)
+}
+
 // RegisterCatalogRoutes registers standard CRUD routes for a catalog.
 // This eliminates the need to manually wire up routes for each catalog.
 //
@@ -105,6 +112,11 @@ func RegisterCatalogRoutes(group *gin.RouterGroup, handler CatalogRouteHandler, 
 	group.DELETE("/:id", middleware.RequirePermission(permission+":delete"), handler.Delete)
 	group.POST("/:id/deletion-mark", middleware.RequirePermission(permission+":delete"), handler.SetDeletionMark)
 	group.GET("/tree", middleware.RequirePermission(permission+":read"), handler.GetTree)
+
+	// Register ExportList route if handler supports it (optional)
+	if exportHandler, ok := handler.(ListExportHandler); ok {
+		group.POST("/export-list", middleware.RequirePermission(permission+":read"), exportHandler.ExportList)
+	}
 }
 
 // RegisterDocumentRoutes registers standard CRUD + posting routes for a document.
@@ -167,5 +179,10 @@ func RegisterDocumentRoutes(group *gin.RouterGroup, handler DocumentRouteHandler
 	// Used for virtual "select all" — the server resolves matching IDs from filters.
 	if batchFilterHandler, ok := handler.(DocumentBatchByFilterHandler); ok {
 		group.POST("/batch-action-by-filter", middleware.RequirePermission(permission+":post"), batchFilterHandler.BatchActionByFilter)
+	}
+
+	// Register ExportList route if handler supports it (optional)
+	if exportHandler, ok := handler.(ListExportHandler); ok {
+		group.POST("/export-list", middleware.RequirePermission(permission+":read"), exportHandler.ExportList)
 	}
 }

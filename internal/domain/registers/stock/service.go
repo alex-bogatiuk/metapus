@@ -125,7 +125,7 @@ type StockReservation struct {
 
 // GetNomenclatureAvailability returns available quantity across warehouses.
 func (s *Service) GetNomenclatureAvailability(ctx context.Context, nomenclatureID id.ID) (types.Quantity, error) {
-	balances, err := s.repo.GetBalancesByProduct(ctx, nomenclatureID)
+	balances, err := s.repo.GetBalancesByNomenclature(ctx, nomenclatureID)
 	if err != nil {
 		return 0, fmt.Errorf("get balances: %w", err)
 	}

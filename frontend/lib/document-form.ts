@@ -1,4 +1,4 @@
-﻿import { fromQuantity, fromMinorUnits, DEFAULT_DECIMAL_PLACES } from "@/lib/format"
+import { fromQuantity, fromMinorUnits, DEFAULT_DECIMAL_PLACES } from "@/lib/format"
 import { api } from "@/lib/api"
 import type { RefDisplay } from "@/types/document"
 
@@ -234,4 +234,75 @@ export function mergePickedIntoLines(
   }
 
   return { lines: updatedLines, nextKey: key }
+}
+
+// ── Table part export helpers ───────────────────────────────────────────
+
+import type { TablePartExportColumn } from "@/hooks/useTablePartExport"
+
+/** Standard export column presets for goods-type lines (Товары). */
+export const GOODS_LINE_EXPORT_COLUMNS = {
+  /** Columns with computed amounts (edit pages with server-computed data) */
+  withAmounts: [
+    { key: "rowNumber", label: "N" },
+    { key: "nomenclatureName", label: "Товар" },
+    { key: "unitName", label: "Ед. изм." },
+    { key: "quantity", label: "Кол-во" },
+    { key: "unitPrice", label: "Цена" },
+    { key: "amount", label: "Сумма" },
+    { key: "vatAmount", label: "НДС" },
+    { key: "vatRateName", label: "Ставка НДС" },
+    { key: "discountPercent", label: "Скидка %" },
+  ] satisfies TablePartExportColumn[],
+  /** Columns without amounts (new documents, no server data yet) */
+  withoutAmounts: [
+    { key: "rowNumber", label: "N" },
+    { key: "nomenclatureName", label: "Товар" },
+    { key: "unitName", label: "Ед. изм." },
+    { key: "quantity", label: "Кол-во" },
+    { key: "unitPrice", label: "Цена" },
+    { key: "vatRateName", label: "Ставка НДС" },
+    { key: "discountPercent", label: "Скидка %" },
+  ] satisfies TablePartExportColumn[],
+} as const
+
+/**
+ * Map FormLine[] → export-ready flat rows for XLSX rendering.
+ *
+ * Used by `useDocumentLinesExport` hook — centralizes all FormLine → export
+ * transformation logic so document pages have zero duplication.
+ *
+ * @param lines              — form state lines
+ * @param decimalPlaces      — currency scale for amount conversion
+ * @param amountIncludesVat  — whether prices include VAT
+ * @param options.includeAmounts — include amount/vatAmount (edit pages)
+ */
+export function buildLinesExportRows(
+  lines: FormLine[],
+  decimalPlaces: number,
+  amountIncludesVat: boolean,
+  options?: { includeAmounts?: boolean },
+): Record<string, unknown>[] {
+  const includeAmounts = options?.includeAmounts ?? false
+  const divisor = Math.pow(10, decimalPlaces)
+
+  return lines.map((l, i) => {
+    const base: Record<string, unknown> = {
+      rowNumber: i + 1,
+      nomenclatureName: l.nomenclatureName,
+      unitName: l.unitName,
+      quantity: parseFloat(l.quantity || "0"),
+      unitPrice: parseFloat(l.unitPrice || "0"),
+      vatRateName: l.vatRateName,
+      discountPercent: l.discountPercent || "0",
+    }
+
+    if (includeAmounts) {
+      const computed = calcLineAmounts(l, amountIncludesVat, decimalPlaces)
+      base.amount = (l.amount ?? computed.amount) / divisor
+      base.vatAmount = (l.vatAmount ?? computed.vatAmount) / divisor
+    }
+
+    return base
+  })
 }

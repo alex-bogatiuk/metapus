@@ -1,4 +1,4 @@
-﻿package dto
+package dto
 
 import (
 	"time"
@@ -212,7 +212,7 @@ type GoodsReceiptResponse struct {
 
 	// Resolved reference display names (populated by handler, not stored in DB)
 	Organization  *postgres.RefDisplay         `json:"organization,omitempty"`
-	Supplier      *postgres.RefDisplay         `json:"supplier,omitempty"`
+	Counterparty  *postgres.RefDisplay         `json:"counterparty,omitempty"`
 	Contract      *postgres.RefDisplay         `json:"contract,omitempty"`
 	Warehouse     *postgres.RefDisplay         `json:"warehouse,omitempty"`
 	Currency      *postgres.CurrencyRefDisplay `json:"currency,omitempty"`
@@ -237,7 +237,7 @@ type GoodsReceiptLineResponse struct {
 	Amount          types.MinorUnits `json:"amount"`
 
 	// Resolved reference display names
-	Product *postgres.RefDisplay `json:"product,omitempty"`
+	Nomenclature *postgres.RefDisplay `json:"nomenclature,omitempty"`
 	Unit    *postgres.RefDisplay `json:"unit,omitempty"`
 	VATRate *postgres.RefDisplay `json:"vatRate,omitempty"`
 }
@@ -324,7 +324,7 @@ func FromGoodsReceipt(doc *goods_receipt.GoodsReceipt, refs postgres.ResolvedRef
 		org := resolved.Get(TableOrganizations, doc.OrganizationID)
 		resp.Organization = &org
 		sup := resolved.Get(TableCounterparties, doc.CounterpartyID)
-		resp.Supplier = &sup
+		resp.Counterparty = &sup
 		wh := resolved.Get(TableWarehouses, doc.WarehouseID)
 		resp.Warehouse = &wh
 		// Use enriched currency ref if available, fall back to generic RefDisplay
@@ -363,7 +363,7 @@ func FromGoodsReceipt(doc *goods_receipt.GoodsReceipt, refs postgres.ResolvedRef
 
 		if resolved != nil {
 			prod := resolved.Get(TableNomenclature, line.NomenclatureID)
-			lineResp.Product = &prod
+			lineResp.Nomenclature = &prod
 			unit := resolved.Get(TableUnits, line.UnitID)
 			lineResp.Unit = &unit
 			vr := resolved.Get(TableVATRates, line.VATRateID)

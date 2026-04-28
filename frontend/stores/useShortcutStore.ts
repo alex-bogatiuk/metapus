@@ -24,7 +24,7 @@ export interface ShortcutEntry {
   action: () => void
   /**
    * If true, shortcut is shown in help dialog but NOT dispatched by ShortcutManager.
-   * Used for scoped shortcuts (e.g. ProductPickerDialog onKeyDown).
+   * Used for scoped shortcuts (e.g. NomenclaturePickerDialog onKeyDown).
    */
   passive: boolean
 }

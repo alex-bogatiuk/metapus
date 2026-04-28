@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { cn } from "@/lib/utils"
 import { useCompactMode } from "@/hooks/useCompactMode"
@@ -7,12 +7,10 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useCollapsible } from "@/hooks/useCollapsible"
 import { useRouter, useParams, usePathname } from "next/navigation"
 import {
-  Plus,
   ChevronsUp,
   ChevronsDown,
   ArrowRightLeft,
   Network,
-  Search,
 } from "lucide-react"
 import { FormSkeleton } from "@/components/shared/form-skeleton"
 import { FormToolbar } from "@/components/shared/form-toolbar"
@@ -20,6 +18,7 @@ import { FormSidebar } from "@/components/shared/form-sidebar"
 import { ReferenceField } from "@/components/shared/reference-field"
 import { DocumentLineRow } from "@/components/shared/document-line-row"
 import { DocumentLinesDndProvider, SortableDocumentLinesBody, DragHandleButton } from "@/components/shared/sortable-document-lines"
+import { DocumentLinesToolbar } from "@/components/shared/document-lines-toolbar"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -31,7 +30,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { useDocumentFormSync } from "@/hooks/useDocumentFormSync"
 import { useTabTitle } from "@/hooks/useTabTitle"
 import { api } from "@/lib/api"
-import { fromQuantity, fromMinorUnits, toQuantity, toMinorUnits, DEFAULT_DECIMAL_PLACES } from "@/lib/format"
+import { fromQuantity, fromMinorUnits, toQuantity, toMinorUnits, DEFAULT_DECIMAL_PLACES, fmtDate } from "@/lib/format"
 import { useCurrencyScale } from "@/hooks/useCurrencyScale"
 import { type FormLine, computeTotals, mapLinesToFormLines } from "@/lib/document-form"
 import { useDocumentLineActions, useExistingPickerLines } from "@/hooks/useDocumentLineActions"
@@ -41,7 +40,8 @@ import { useMetadataStore } from "@/stores/useMetadataStore"
 import { PrintMenuButton } from "@/components/shared/print-menu-button"
 import { useDocumentErrorHandler } from "@/hooks/useDocumentErrorHandler"
 import { useShortcut } from "@/hooks/useShortcut"
-import { ProductPickerDialog } from "@/components/shared/product-picker-dialog"
+import { useDocumentLinesExport } from "@/hooks/useDocumentLinesExport"
+import { NomenclaturePickerDialog } from "@/components/shared/nomenclature-picker-dialog"
 import type { PickedItem } from "@/types/picker"
 import type { GoodsIssueResponse, GoodsIssueLineRequest, UpdateGoodsIssueRequest } from "@/types/document"
 
@@ -189,6 +189,16 @@ export default function GoodsIssueFormPage() {
     }
     return computeTotals(f.lines, f.amountIncludesVat, decimalPlaces)
   }, [f.lines, f.amountIncludesVat, doc, decimalPlaces])
+
+  // ── Table part export (universal hook) ─────────────────────────────────
+  const { handleExport: handleExportLines, exporting: exportingLines } = useDocumentLinesExport({
+    lines: f.lines,
+    documentTitle: `${giLabel} ${doc?.number || ""} от ${f.date ? fmtDate(f.date) : ""}`,
+    tablePartTitle: "Товары",
+    decimalPlaces,
+    amountIncludesVat: f.amountIncludesVat,
+    includeAmounts: true,
+  })
 
   const buildUpdatePayload = (): UpdateGoodsIssueRequest => ({
     version: doc?.version ?? 1,
@@ -474,16 +484,13 @@ export default function GoodsIssueFormPage() {
 
               <TabsContent value="goods" className="mt-0 overflow-hidden row-start-2 col-start-1">
                 <div className="h-full flex flex-col">
-                  <div className="flex items-center gap-1 p-2 bg-card/50 border-b shrink-0">
-                    <Button variant="outline" size="sm" onClick={addLineAndFocus}>
-                      <Plus className="mr-1 h-3 w-3" />
-                      Добавить
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
-                      <Search className="mr-1 h-3 w-3" />
-                      Подбор
-                    </Button>
-                  </div>
+                  <DocumentLinesToolbar
+                    onAddLine={addLineAndFocus}
+                    onOpenPicker={() => setPickerOpen(true)}
+                    onExport={handleExportLines}
+                    exporting={exportingLines}
+                    linesCount={f.lines.length}
+                  />
                   <ScrollArea className="flex-1">
                   <DocumentLinesDndProvider items={f.lines} onReorder={handleReorderLines} onPasteLines={handlePasteLines}>
                     <table ref={tableRef} className="w-full text-sm border-separate border-spacing-0">
@@ -574,7 +581,7 @@ export default function GoodsIssueFormPage() {
         </FormSidebar>
       </div>
 
-      <ProductPickerDialog
+      <NomenclaturePickerDialog
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         onPick={handlePick}

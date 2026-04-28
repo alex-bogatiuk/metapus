@@ -476,6 +476,45 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) List(c *gin.Context) {
 	})
 }
 
+// ExportList handles POST /{entity}/export-list — exports the current list view to XLSX.
+// Reuses the same List pipeline (filters, sorting, RLS, FLS, FK resolution)
+// but without pagination (capped at ExportMaxRows).
+func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) ExportList(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	req, filter, err := parseExportRequest(c)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	// Documents default to -date sort
+	if req.OrderBy == "" && filter.OrderBy == "name" {
+		filter.OrderBy = "-date"
+	}
+
+	result, err := h.service.List(ctx, filter)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	// Resolve FK references for all items in batch (if configured)
+	var refs any
+	if h.resolveRefs != nil {
+		refs, _ = h.resolveRefs(ctx, result.Items...)
+	}
+
+	// Map entities to DTOs (with FLS masking)
+	dtoItems := make([]any, len(result.Items))
+	for i, item := range result.Items {
+		h.applyFLSRead(c, item)
+		dtoItems[i] = h.toDTO(item, refs)
+	}
+
+	writeExportXLSX(c, h.entityName, req, dtoItems)
+}
+
 // ── Batch Operations ────────────────────────────────────────────────────
 
 // batchActionRequest is the DTO for batch document operations.

@@ -1,4 +1,4 @@
-﻿package register_repo
+package register_repo
 
 import (
 	"context"
@@ -71,7 +71,7 @@ func (r *CostRepo) GetMovementsByRecorder(ctx context.Context, recorderID id.ID)
 	return movements, nil
 }
 
-// GetBalance returns current balance for warehouse+product+currency.
+// GetBalance returns current balance for warehouse+nomenclature+currency.
 func (r *CostRepo) GetBalance(ctx context.Context, warehouseID, nomenclatureID, currencyID id.ID) (entity.CostBalance, error) {
 	var balance entity.CostBalance
 
@@ -131,8 +131,8 @@ func (r *CostRepo) GetBalancesByWarehouse(ctx context.Context, warehouseID id.ID
 	return balances, nil
 }
 
-// GetBalancesByProduct returns balances across all warehouses for a product.
-func (r *CostRepo) GetBalancesByProduct(ctx context.Context, nomenclatureID id.ID) ([]entity.CostBalance, error) {
+// GetBalancesByNomenclature returns balances across all warehouses for a nomenclature.
+func (r *CostRepo) GetBalancesByNomenclature(ctx context.Context, nomenclatureID id.ID) ([]entity.CostBalance, error) {
 	q := r.Builder().Select(
 		"warehouse_id", "nomenclature_id", "currency_id",
 		"quantity", "amount", "last_movement_at", "updated_at",

@@ -337,3 +337,40 @@ func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) GetTree(c *gin.Context) {
 	tree := BuildTreeFromNodes(nodes)
 	c.JSON(http.StatusOK, gin.H{"items": tree})
 }
+
+// ExportList handles POST /{entity}/export-list — exports the current list view to XLSX.
+// Reuses the same List pipeline (filters, sorting, RLS, FLS, FK resolution)
+// but without pagination (capped at ExportMaxRows).
+func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) ExportList(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	req, filter, err := parseExportRequest(c)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	result, err := h.service.List(ctx, filter)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	// Resolve FK references for all items in batch (if configured)
+	var refs any
+	if h.resolveRefs != nil {
+		refs, _ = h.resolveRefs(ctx, result.Items...)
+	}
+
+	// Map entities to DTOs (with FLS masking)
+	policy := security.GetFieldPolicy(ctx, h.entityName, "read")
+	dtoItems := make([]any, len(result.Items))
+	for i, item := range result.Items {
+		if policy != nil {
+			security.MaskForRead(item, policy)
+		}
+		dtoItems[i] = h.toDTO(item, refs)
+	}
+
+	writeExportXLSX(c, h.entityName, req, dtoItems)
+}

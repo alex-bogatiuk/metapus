@@ -1,9 +1,7 @@
-﻿"use client"
+"use client"
 
 /**
- * ProductPickerDialog — specialized nomenclature picker for goods receipt/issue documents.
- *
- * Based on the lsFusion-inspired prototype, adapted to the Metapus design system.
+ * NomenclaturePickerDialog — specialized nomenclature picker for goods receipt/issue documents.
  *
  * Key UX features (matching prototype):
  *   - "Заказ" / "Подбор" tabs — view current order without closing dialog
@@ -15,9 +13,9 @@
  *   - Visual feedback: rows with qty > 0 highlighted green
  *
  * UX patterns:
- *   - 1С: tree of categories on the left, Enter to add
- *   - SAP Fiori: always-visible summary counters
- *   - lsFusion: Заказ/Подбор tabs without closing modal
+ *   - tree of categories on the left, Enter to add
+ *   - always-visible summary counters
+ *   - Заказ/Подбор tabs without closing modal
  *
  * Pattern #6: Composition — reuses usePickerDialog + CategoryTree + ScrollSentinel.
  * Pattern #4: Shared Components — reuses document-form types for integration.
@@ -57,7 +55,7 @@ import { ScrollSentinel } from "@/components/shared/scroll-sentinel"
 import { usePickerDialog } from "@/hooks/usePickerDialog"
 import { useColumnResize, type ColumnResizeDef } from "@/hooks/useColumnResize"
 import type { PickerInitialItem } from "@/hooks/usePickerDialog"
-import type { ProductPickerDialogProps, PickedItem } from "@/types/picker"
+import type { NomenclaturePickerDialogProps, PickedItem } from "@/types/picker"
 
 type PickerTab = "selection" | "order"
 
@@ -105,13 +103,13 @@ function savePickerWidths(widths: Record<string, number>): void {
 
 // ── Component ───────────────────────────────────────────────────────────
 
-export function ProductPickerDialog({
+export function NomenclaturePickerDialog({
     open,
     onOpenChange,
     onPick,
     existingLines,
     warehouseId,
-}: ProductPickerDialogProps) {
+}: NomenclaturePickerDialogProps) {
     // ── Reset key — increments each time the dialog closes, so all inner state resets on next open ──
     const [resetKey, setResetKey] = useState(0)
 
@@ -126,7 +124,7 @@ export function ProductPickerDialog({
     if (!open) return null
 
     return (
-        <ProductPickerDialogInner
+        <NomenclaturePickerDialogInner
             key={resetKey}
             open={open}
             onOpenChange={handleOpenChange}
@@ -137,13 +135,13 @@ export function ProductPickerDialog({
     )
 }
 
-function ProductPickerDialogInner({
+function NomenclaturePickerDialogInner({
     open,
     onOpenChange,
     onPick,
     existingLines,
     warehouseId,
-}: ProductPickerDialogProps) {
+}: NomenclaturePickerDialogProps) {
     // ── Tabs ────────────────────────────────────────────────────────────
     const [activeTab, setActiveTab] = useState<PickerTab>("selection")
 
@@ -333,7 +331,7 @@ function ProductPickerDialogInner({
                         </div>
 
                         <div className="flex items-center gap-3 mr-8">
-                            {/* Заказ / Подбор tabs — lsFusion pattern */}
+                            {/* Заказ / Подбор tabs — pattern */}
                             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as PickerTab)}>
                                 <TabsList className="h-7 p-0.5">
                                     <TabsTrigger value="order" className="h-6 px-3 text-xs">
@@ -354,7 +352,7 @@ function ProductPickerDialogInner({
 
                             <Separator orientation="vertical" className="h-5" />
 
-                            {/* Always-visible summary — SAP Fiori pattern */}
+                            {/* Always-visible summary — pattern */}
                             <div className="flex items-center gap-3 text-xs">
                                 <span className="text-muted-foreground">
                                     Позиций: <span className="font-medium text-foreground">{pickerPickedCount}</span>
@@ -430,7 +428,7 @@ function ProductPickerDialogInner({
                                     </span>
                                 </div>
 
-                                {/* Products table */}
+                                {/* Nomenclature table */}
                                 <div
                                     ref={pickerTableContainerRef}
                                     className="flex-1 overflow-hidden"
@@ -502,7 +500,7 @@ function ProductPickerDialogInner({
                                                     </tr>
                                                 ) : (
                                                     displayItems.map((item) => (
-                                                        <ProductRow
+                                                        <NomenclatureRow
                                                             key={item.id}
                                                             item={item}
                                                             isFocused={pickerFocusedId === item.id}
@@ -579,7 +577,7 @@ function ProductPickerDialogInner({
 
 // ── Order Tab ────────────────────────────────────────────────────────────
 // Shows current order contents — can be viewed without closing the picker.
-// lsFusion pattern: "Заказ" tab alongside "Подбор".
+// "Заказ" tab alongside "Подбор".
 
 function OrderTab({
     lines,
@@ -671,7 +669,7 @@ function OrderTab({
     )
 }
 
-// ── Product Row ─────────────────────────────────────────────────────────
+// ── Nomenclature Row ─────────────────────────────────────────────────────
 
 const UNIT_LABELS: Record<string, string> = {
     pcs: "шт",
@@ -683,7 +681,7 @@ const UNIT_LABELS: Record<string, string> = {
     t: "т",
 }
 
-function ProductRow({
+function NomenclatureRow({
     item,
     isFocused,
     quantity,

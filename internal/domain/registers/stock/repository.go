@@ -1,4 +1,4 @@
-﻿// Package stock provides the stock accumulation register.
+// Package stock provides the stock accumulation register.
 package stock
 
 import (
@@ -40,8 +40,8 @@ type Repository interface {
 	// GetBalancesByWarehouse returns all non-zero balances for a warehouse
 	GetBalancesByWarehouse(ctx context.Context, warehouseID id.ID, filter BalanceFilter) ([]entity.StockBalance, error)
 
-	// GetBalancesByProduct returns balances across all warehouses for a product
-	GetBalancesByProduct(ctx context.Context, nomenclatureID id.ID) ([]entity.StockBalance, error)
+	// GetBalancesByNomenclature returns balances across all warehouses for a nomenclature
+	GetBalancesByNomenclature(ctx context.Context, nomenclatureID id.ID) ([]entity.StockBalance, error)
 
 	// GetBalancesByNomenclatureIDs returns total stock quantity for multiple products.
 	// If warehouseID is non-nil, returns balances only for that warehouse;

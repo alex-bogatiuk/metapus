@@ -1,4 +1,4 @@
-﻿// Package register_repo provides PostgreSQL implementations for register repositories.
+// Package register_repo provides PostgreSQL implementations for register repositories.
 // In Database-per-Tenant architecture, TxManager is obtained from context.
 package register_repo
 
@@ -262,8 +262,8 @@ func (r *StockRepo) GetBalancesByWarehouse(ctx context.Context, warehouseID id.I
 	return balances, nil
 }
 
-// GetBalancesByProduct returns balances for a product across warehouses.
-func (r *StockRepo) GetBalancesByProduct(ctx context.Context, nomenclatureID id.ID) ([]entity.StockBalance, error) {
+// GetBalancesByNomenclature returns balances for a nomenclature across warehouses.
+func (r *StockRepo) GetBalancesByNomenclature(ctx context.Context, nomenclatureID id.ID) ([]entity.StockBalance, error) {
 	q := r.Builder().Select(
 		"warehouse_id", "nomenclature_id",
 		"quantity", "last_movement_at", "updated_at",

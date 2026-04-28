@@ -1,4 +1,4 @@
-﻿/**
+/**
  * usePickerDialog — shared hook for picker dialog data loading + keyboard navigation.
  *
  * Encapsulates:
@@ -8,7 +8,7 @@
  *   - keyboard row navigation (ArrowUp/Down, Enter)
  *   - picked items map (id → quantity)
  *
- * Used by GenericPickerDialog and ProductPickerDialog.
+ * Used by GenericPickerDialog and NomenclaturePickerDialog.
  * Pattern #3: Custom Hooks as orchestration layer.
  */
 
