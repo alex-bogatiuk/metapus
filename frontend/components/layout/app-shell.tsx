@@ -6,6 +6,7 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { AppSidebar } from "./app-sidebar"
 import { SiteHeader } from "./site-header"
 import { ShortcutManager } from "./shortcut-manager"
+import { CommandPalette } from "./command-palette"
 import { ShortcutHelpDialog } from "./shortcut-help-dialog"
 import { useTabsStore } from "@/stores/useTabsStore"
 import { useMetadataStore } from "@/stores/useMetadataStore"
@@ -64,6 +65,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <ShortcutManager />
       <ShortcutHelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
+      <CommandPalette />
       <AppSidebar />
       <SidebarInset>
         <ImpersonationBanner />

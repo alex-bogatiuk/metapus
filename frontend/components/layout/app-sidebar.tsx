@@ -67,7 +67,7 @@ import {
   type NavSection,
   type ResolvedNavSection,
 } from "@/components/layout/section-panel"
-import { SidebarFavorites } from "@/components/layout/sidebar-favorites"
+
 
 // ── Navigation structure ────────────────────────────────────────────────
 
@@ -331,11 +331,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarHeader>
 
         <SidebarContent>
-          {/* ── Favorites (bookmarked entities) ── */}
-          <SidebarFavorites
-            currentPath={pathname}
-            onItemClick={handleNavClick}
-          />
 
           {/* ── Top flat items (Главное) ── */}
           <SidebarGroup>

@@ -3,8 +3,14 @@
 import * as React from "react"
 import { toast } from "sonner"
 import { useRouter, usePathname } from "next/navigation"
+import { Button } from "@/components/ui/button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -23,7 +29,10 @@ import { TabOverflow } from "./tab-overflow"
 import { OpenUrlPopover } from "./open-url-popover"
 import { NotificationBell } from "./notification-bell"
 import { NotificationPanel } from "./notification-panel"
+import { useRecentStore } from "@/stores/useRecentStore"
 import { useShortcut } from "@/hooks/useShortcut"
+import { useCommandPaletteStore } from "@/stores/useCommandPaletteStore"
+import { Search } from "lucide-react"
 
 /** Pending close state — single tab or batch (with dirty-tab list). */
 type PendingClose =
@@ -63,6 +72,10 @@ export function SiteHeader() {
                 return
             }
             setActiveTab(tab.id)
+            // Record tab activation as recent visit (updates visitedAt)
+            if (tab.id !== "/") {
+                useRecentStore.getState().addRecent({ url: tab.url, title: tab.title })
+            }
             router.push(tab.url)
         },
         [activeTabId, setActiveTab, router],
@@ -207,6 +220,24 @@ export function SiteHeader() {
                 <TooltipProvider delayDuration={300}>
                     <div className="flex shrink-0 items-center justify-end px-2 mb-1 gap-1">
                         <TabOverflow onTabClick={handleTabClick} onCloseAll={handleCloseAll} />
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    id="command-palette-trigger"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+                                    onClick={() => useCommandPaletteStore.getState().setOpen(true)}
+                                >
+                                    <Search className="h-3.5 w-3.5" />
+                                    <span className="hidden sm:inline">Поиск</span>
+                                    <kbd className="pointer-events-none hidden h-5 select-none items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:inline-flex">
+                                        Ctrl K
+                                    </kbd>
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">Командная строка (Ctrl+K)</TooltipContent>
+                        </Tooltip>
                         <NotificationBell />
                         <NotificationPanel />
                         <OpenUrlPopover triggerRef={openUrlTriggerRef} />

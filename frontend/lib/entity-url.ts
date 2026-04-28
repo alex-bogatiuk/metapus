@@ -81,3 +81,54 @@ export function buildEntityUrlByRoute(
 export function buildDocumentListUrl(entityKey: string): string {
   return buildEntityUrl(entityKey) ?? "#"
 }
+
+// ── Reverse URL parsing ──────────────────────────────────────────────────
+
+/**
+ * Static fallback: pluralized route segment → entity key.
+ * Used when metadata store hasn't loaded yet.
+ */
+const _routeSegmentToEntity: Record<string, string> = {
+  counterparties: "counterparty",
+  warehouses: "warehouse",
+  organizations: "organization",
+  nomenclatures: "nomenclature",
+  "goods-receipts": "goods_receipt",
+  "goods-issues": "goods_issue",
+  contracts: "contract",
+  currencies: "currency",
+  units: "unit",
+  "vat-rates": "vat_rate",
+}
+
+/**
+ * Parse entity key from a canonical URL.
+ *
+ * @example
+ *   parseEntityTypeFromUrl("/catalogs/counterparties/uuid") → "counterparty"
+ *   parseEntityTypeFromUrl("/documents/goods-receipts/uuid") → "goods_receipt"
+ *   parseEntityTypeFromUrl("/settings")                      → undefined
+ */
+export function parseEntityTypeFromUrl(url: string): string | undefined {
+  const segments = url.split("/").filter(Boolean)
+  // Expected: ["catalogs"|"documents", routePrefix, ...rest]
+  if (segments.length < 2) return undefined
+
+  const section = segments[0]
+  if (section !== "catalogs" && section !== "documents") return undefined
+
+  const routeSegment = segments[1]
+
+  // Try metadata store first (dynamic, includes extensions)
+  const { byRoute } = useMetadataStore.getState()
+  // byRoute is indexed by singular routePrefix (e.g. "goods-receipt")
+  // URL has pluralized segment, so try both forms
+  const singular = routeSegment.endsWith("s")
+    ? routeSegment.slice(0, -1)
+    : routeSegment
+  const fromMeta = byRoute[singular] ?? byRoute[routeSegment]
+  if (fromMeta) return fromMeta.key
+
+  // Static fallback
+  return _routeSegmentToEntity[routeSegment]
+}
