@@ -16,7 +16,7 @@ import (
 
 // currencyTTL is the cache lifetime for contract/organization currency lookups.
 // These rarely change, so a 5-minute cache is safe and eliminates N+1 in batch operations.
-const currencyTTL = 5 * time.Minute
+const _currencyTTL = 5 * time.Minute
 
 // cachedCurrencyID stores a resolved currency ID with an expiration time.
 type cachedCurrencyID struct {
@@ -127,7 +127,7 @@ func (r *CurrencyResolver) resolveContractCurrency(ctx context.Context, contract
 			// Cache the "not found" to avoid repeated lookups for invalid contract IDs
 			r.contractCurrencyCache.Store(contractID, &cachedCurrencyID{
 				hasValue:  false,
-				expiresAt: time.Now().Add(currencyTTL),
+				expiresAt: time.Now().Add(_currencyTTL),
 			})
 			return id.Nil(), false, nil
 		}
@@ -138,7 +138,7 @@ func (r *CurrencyResolver) resolveContractCurrency(ctx context.Context, contract
 		r.contractCurrencyCache.Store(contractID, &cachedCurrencyID{
 			currencyID: *c.CurrencyID,
 			hasValue:   true,
-			expiresAt:  time.Now().Add(currencyTTL),
+			expiresAt:  time.Now().Add(_currencyTTL),
 		})
 		return *c.CurrencyID, true, nil
 	}
@@ -146,7 +146,7 @@ func (r *CurrencyResolver) resolveContractCurrency(ctx context.Context, contract
 	// Contract exists but has no currency — cache negative result
 	r.contractCurrencyCache.Store(contractID, &cachedCurrencyID{
 		hasValue:  false,
-		expiresAt: time.Now().Add(currencyTTL),
+		expiresAt: time.Now().Add(_currencyTTL),
 	})
 	return id.Nil(), false, nil
 }
@@ -171,7 +171,7 @@ func (r *CurrencyResolver) resolveOrgCurrency(ctx context.Context, orgID id.ID) 
 		if apperror.IsNotFound(err) {
 			r.orgCurrencyCache.Store(orgID, &cachedCurrencyID{
 				hasValue:  false,
-				expiresAt: time.Now().Add(currencyTTL),
+				expiresAt: time.Now().Add(_currencyTTL),
 			})
 			return id.Nil(), false, nil
 		}
@@ -182,14 +182,14 @@ func (r *CurrencyResolver) resolveOrgCurrency(ctx context.Context, orgID id.ID) 
 		r.orgCurrencyCache.Store(orgID, &cachedCurrencyID{
 			currencyID: org.BaseCurrencyID,
 			hasValue:   true,
-			expiresAt:  time.Now().Add(currencyTTL),
+			expiresAt:  time.Now().Add(_currencyTTL),
 		})
 		return org.BaseCurrencyID, true, nil
 	}
 
 	r.orgCurrencyCache.Store(orgID, &cachedCurrencyID{
 		hasValue:  false,
-		expiresAt: time.Now().Add(currencyTTL),
+		expiresAt: time.Now().Add(_currencyTTL),
 	})
 	return id.Nil(), false, nil
 }
@@ -219,7 +219,7 @@ func (r *CurrencyResolver) getBaseCurrency(ctx context.Context) (id.ID, error) {
 	r.baseCurrencyCache.Store(tenantID, &cachedCurrencyID{
 		currencyID: base.ID,
 		hasValue:   true,
-		expiresAt:  time.Now().Add(currencyTTL),
+		expiresAt:  time.Now().Add(_currencyTTL),
 	})
 
 	return base.ID, nil

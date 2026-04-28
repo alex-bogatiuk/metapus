@@ -11,6 +11,7 @@ import { ListContent } from "@/components/shared/list-content"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ScrollSentinel } from "@/components/shared/scroll-sentinel"
 import { useEntityListPage } from "@/hooks/useEntityListPage"
+import { useListViews } from "@/hooks/useListViews"
 import { useColumnResize } from "@/hooks/useColumnResize"
 import { useVisibleColumns } from "@/hooks/useVisibleColumns"
 import { useListExport, type ExportColumn } from "@/hooks/useListExport"
@@ -18,6 +19,7 @@ import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 import { useShortcut } from "@/hooks/useShortcut"
 import { useScrollRestore } from "@/hooks/useScrollRestore"
 import type { CursorListParams, CursorListResponse } from "@/types/common"
+import type { ListViewConfig } from "@/types/list-view"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 
 // ── Config ──────────────────────────────────────────────────────────────
@@ -161,6 +163,37 @@ export function CatalogListPage<T extends { id: string }>({
   // ── Scroll restoration on tab switch (M2) ─────────────────────────
   useScrollRestore(scrollContainerRef)
 
+  // ── Saved Views ───────────────────────────────────────────────────
+  const getCurrentConfig = useCallback((): ListViewConfig => ({
+    filters: initialFilterValues,
+    columns: hasColumnChooser ? colChooser.visibleKeys : effectiveColumns.map((c) => c.key),
+    sortColumn: sortColumn ?? null,
+    sortDir: sortDirection,
+  }), [initialFilterValues, hasColumnChooser, colChooser.visibleKeys, effectiveColumns, sortColumn, sortDirection])
+
+  const [viewResetKey, setViewResetKey] = useState(0)
+
+  const handleApplyViewConfig = useCallback((viewConfig: ListViewConfig) => {
+    // Apply filters
+    handleFilterValuesChange(viewConfig.filters ?? {})
+    // Apply columns (if column chooser enabled)
+    if (hasColumnChooser && viewConfig.columns?.length > 0) {
+      colChooser.reorderColumns(viewConfig.columns)
+    }
+    // Apply sort
+    if (viewConfig.sortColumn) {
+      handleSort(viewConfig.sortColumn)
+    }
+    // Force FilterSidebar remount to pick up new initialFilterValues from store.
+    setViewResetKey((k) => k + 1)
+  }, [handleFilterValuesChange, hasColumnChooser, colChooser, handleSort])
+
+  const listViewsHook = useListViews({
+    entityType: config.entityKey,
+    onApplyConfig: handleApplyViewConfig,
+    getCurrentConfig,
+  })
+
   return (
     <div className="flex h-full flex-col">
       <DataToolbar
@@ -224,7 +257,7 @@ export function CatalogListPage<T extends { id: string }>({
 
         {isPrefsLoaded && fieldsMeta.length > 0 && (
           <FilterSidebar
-            key={`${config.entityKey}-filters`}
+            key={`${config.entityKey}-filters-${viewResetKey}`}
             showGroups={false}
             showDetails={false}
             fieldsMeta={fieldsMeta}
@@ -232,6 +265,14 @@ export function CatalogListPage<T extends { id: string }>({
             periodField={config.periodField}
             onFilterValuesChange={handleFilterValuesChange}
             initialFilterValues={initialFilterValues}
+            savedViews={listViewsHook.views}
+            activeViewId={listViewsHook.activeViewId}
+            onSelectView={listViewsHook.selectView}
+            onSaveView={listViewsHook.saveCurrentAsView}
+            onOverwriteView={listViewsHook.overwriteView}
+            onRenameView={listViewsHook.renameView}
+            onDeleteView={listViewsHook.deleteView}
+            onSetDefaultView={listViewsHook.setDefault}
           />
         )}
       </div>

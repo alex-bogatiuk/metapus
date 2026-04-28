@@ -21,7 +21,7 @@ import (
 
 // maxDeliveryConcurrency limits parallel adapter calls in Deliver .
 // Prevents overwhelming external APIs while still improving throughput over sequential.
-const maxDeliveryConcurrency = 10
+const _maxDeliveryConcurrency = 10
 
 // DeliveryTask is the output of Evaluate and input of Deliver .
 // One Rule may produce multiple DeliveryTasks (one per subscriber).
@@ -59,7 +59,7 @@ type UserResolver interface {
 }
 
 // celCacheMaxSize is the maximum number of compiled CEL programs to cache.
-const celCacheMaxSize = 512
+const _celCacheMaxSize = 512
 
 // celCacheEntry holds a cached CEL program with LRU metadata.
 type celCacheEntry struct {
@@ -94,7 +94,7 @@ type Engine struct {
 }
 
 // tmplCacheMaxSize is the maximum number of parsed templates to cache.
-const tmplCacheMaxSize = 512
+const _tmplCacheMaxSize = 512
 
 // tmplCacheEntry holds a cached parsed template with LRU metadata.
 type tmplCacheEntry struct {
@@ -139,9 +139,9 @@ func NewEngine(
 		publisher:    publisher,
 		userResolver: userResolver,
 		celEnv:       env,
-		celLookup:    make(map[string]*list.Element, celCacheMaxSize),
+		celLookup:    make(map[string]*list.Element, _celCacheMaxSize),
 		celOrder:     list.New(),
-		tmplLookup:   make(map[string]*list.Element, tmplCacheMaxSize),
+		tmplLookup:   make(map[string]*list.Element, _tmplCacheMaxSize),
 		tmplOrder:    list.New(),
 	}, nil
 }
@@ -408,7 +408,7 @@ func (e *Engine) Deliver(ctx context.Context, tasks []DeliveryTask) {
 		mu         sync.Mutex
 		ruleErrors = make(map[id.ID]bool) // ruleID → hadError
 		wg         sync.WaitGroup
-		sem        = make(chan struct{}, maxDeliveryConcurrency)
+		sem        = make(chan struct{}, _maxDeliveryConcurrency)
 	)
 
 	for _, task := range tasks {
@@ -716,7 +716,7 @@ func (e *Engine) getOrCompileCEL(expr string) (cel.Program, error) {
 	}
 
 	// Evict LRU if at capacity
-	if e.celOrder.Len() >= celCacheMaxSize {
+	if e.celOrder.Len() >= _celCacheMaxSize {
 		oldest := e.celOrder.Back()
 		if oldest != nil {
 			entry := oldest.Value.(*celCacheEntry)
@@ -742,7 +742,7 @@ func (e *Engine) InvalidateCELCache(expr string) {
 }
 
 // maxTemplateOutputSize is the maximum rendered output size (64KB).
-const maxTemplateOutputSize = 64 * 1024
+const _maxTemplateOutputSize = 64 * 1024
 
 // safeFuncMap contains whitelisted template functions.
 // Deliberately excludes `call` and other potentially dangerous builtins.
@@ -957,7 +957,7 @@ func (e *Engine) getOrParseTemplate(tmplText string) (*template.Template, error)
 	}
 
 	// Evict LRU if at capacity
-	if e.tmplOrder.Len() >= tmplCacheMaxSize {
+	if e.tmplOrder.Len() >= _tmplCacheMaxSize {
 		oldest := e.tmplOrder.Back()
 		if oldest != nil {
 			entry := oldest.Value.(*tmplCacheEntry)
@@ -985,8 +985,8 @@ func (e *Engine) RenderTemplate(tmplText string, data map[string]any) (string, e
 		return "", fmt.Errorf("execute template: %w", err)
 	}
 
-	if buf.Len() > maxTemplateOutputSize {
-		return "", fmt.Errorf("rendered output exceeds %d bytes limit", maxTemplateOutputSize)
+	if buf.Len() > _maxTemplateOutputSize {
+		return "", fmt.Errorf("rendered output exceeds %d bytes limit", _maxTemplateOutputSize)
 	}
 
 	return buf.String(), nil

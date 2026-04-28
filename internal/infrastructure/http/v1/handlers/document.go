@@ -540,23 +540,23 @@ type batchActionResponse struct {
 
 // ── Worker Pool for Concurrent Batch Processing ─────────────────────────
 
-// defaultBatchConcurrency is used when settings are unavailable.
-const defaultBatchConcurrency = 5
+// _defaultBatchConcurrency is used when settings are unavailable.
+const _defaultBatchConcurrency = 5
 
-// maxConnsPerTenant must match tenant.Manager config. Used for clamping.
-const maxConnsPerTenant = 10
+// _maxConnsPerTenant must match tenant.Manager config. Used for clamping.
+const _maxConnsPerTenant = 10
 
 // getBatchConcurrency reads the configured concurrency from tenant settings.
 // Falls back to defaultBatchConcurrency on any error or if settingsRepo is nil.
 func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) getBatchConcurrency(ctx context.Context) int {
 	if h.settingsRepo == nil {
-		return defaultBatchConcurrency
+		return _defaultBatchConcurrency
 	}
 	s, err := h.settingsRepo.Get(ctx)
 	if err != nil || s.Performance.BatchConcurrency == 0 {
-		return defaultBatchConcurrency
+		return _defaultBatchConcurrency
 	}
-	return settings.ClampBatchConcurrency(s.Performance.BatchConcurrency, maxConnsPerTenant)
+	return settings.ClampBatchConcurrency(s.Performance.BatchConcurrency, _maxConnsPerTenant)
 }
 
 // batchWorkerResult is sent from worker goroutines back to the main goroutine.
@@ -784,7 +784,7 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) syncBatchAction(
 
 // ── SSE Streaming ───────────────────────────────────────────────────────
 
-const sseProgressInterval = 50 // emit progress event every N processed documents
+const _sseProgressInterval = 50 // emit progress event every N processed documents
 
 // sseEvent represents a Server-Sent Event for batch progress.
 type sseEvent struct {
@@ -832,7 +832,7 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) streamBatchAction(
 		}
 
 		// Emit progress every N docs or at the end
-		if processed%sseProgressInterval == 0 || processed == total {
+		if processed%_sseProgressInterval == 0 || processed == total {
 			writeSSE(c, sseEvent{
 				Type:      "progress",
 				Processed: processed,

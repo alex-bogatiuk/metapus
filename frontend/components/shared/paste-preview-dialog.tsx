@@ -119,32 +119,34 @@ export function PastePreviewDialog({
             <ClipboardPaste className="h-5 w-5 text-primary" />
             Вставка из буфера обмена
           </DialogTitle>
-          <DialogDescription className="flex items-center gap-3">
-            <span>{totalDataRows} {pluralRows(totalDataRows)} для добавления</span>
-            {hasRefColumns && !resolving && (
-              <>
-                {refStats.resolved > 0 && (
-                  <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-200">
-                    <Check className="h-3 w-3" /> {refStats.resolved} найдено
-                  </Badge>
-                )}
-                {refStats.ambiguous > 0 && (
-                  <Badge variant="outline" className="gap-1 text-amber-600 border-amber-200">
-                    <AlertTriangle className="h-3 w-3" /> {refStats.ambiguous} неточно
-                  </Badge>
-                )}
-                {refStats.notFound > 0 && (
-                  <Badge variant="outline" className="gap-1 text-destructive border-destructive/20">
-                    <X className="h-3 w-3" /> {refStats.notFound} не найдено
-                  </Badge>
-                )}
-              </>
-            )}
-            {resolving && (
-              <Badge variant="outline" className="gap-1 text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" /> Поиск справочников…
-              </Badge>
-            )}
+          <DialogDescription asChild>
+            <div className="text-sm text-muted-foreground flex items-center gap-3">
+              <span>{totalDataRows} {pluralRows(totalDataRows)} для добавления</span>
+              {hasRefColumns && !resolving && (
+                <>
+                  {refStats.resolved > 0 && (
+                    <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-200">
+                      <Check className="h-3 w-3" /> {refStats.resolved} найдено
+                    </Badge>
+                  )}
+                  {refStats.ambiguous > 0 && (
+                    <Badge variant="outline" className="gap-1 text-amber-600 border-amber-200">
+                      <AlertTriangle className="h-3 w-3" /> {refStats.ambiguous} неточно
+                    </Badge>
+                  )}
+                  {refStats.notFound > 0 && (
+                    <Badge variant="outline" className="gap-1 text-destructive border-destructive/20">
+                      <X className="h-3 w-3" /> {refStats.notFound} не найдено
+                    </Badge>
+                  )}
+                </>
+              )}
+              {resolving && (
+                <Badge variant="outline" className="gap-1 text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Поиск справочников…
+                </Badge>
+              )}
+            </div>
           </DialogDescription>
         </DialogHeader>
 

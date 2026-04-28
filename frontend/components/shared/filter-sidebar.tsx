@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -8,12 +8,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Filter, FolderOpen, FileText, PanelRightClose, PanelRightOpen, X, RotateCcw, Search } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Filter, FolderOpen, FileText, PanelRightClose, PanelRightOpen, X, RotateCcw, Search, Bookmark, Save, MoreHorizontal, Check, Pencil, Trash2, RefreshCw, Star } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { AccountingPeriodPicker, type DateRangeValue } from "@/components/ui/accounting-period-picker"
 import { DatePicker } from "@/components/ui/date-picker"
 import { FilterConfigDialog, type FilterFieldMeta } from "@/components/shared/filter-config-dialog"
+import { SaveViewDialog } from "@/components/shared/save-view-dialog"
 import { ReferenceField, type ReferenceOption } from "@/components/shared/reference-field"
 import {
   type FilterValues,
@@ -27,6 +45,7 @@ import {
   formatLocalYYYYMMDD,
 } from "@/lib/filter-utils"
 import type { ComparisonOperator } from "@/types/common"
+import type { ListView, ViewVisibility } from "@/types/list-view"
 
 interface FilterSidebarProps {
   showGroups?: boolean
@@ -52,6 +71,24 @@ interface FilterSidebarProps {
   detailsContent?: React.ReactNode
   /** Called when the user switches between sidebar tabs ("groups" | "filters" | "details"). */
   onActiveTabChange?: (tab: string) => void
+
+  // ── Saved Views ─────────────────────────────────────────────────────
+  /** Available saved views for this entity. */
+  savedViews?: ListView[]
+  /** Currently active view ID. */
+  activeViewId?: string | null
+  /** Called when the user selects a saved view (or null to clear). */
+  onSelectView?: (id: string | null) => void
+  /** Called when the user wants to save current filters as a new view. */
+  onSaveView?: (name: string, visibility: ViewVisibility) => Promise<void>
+  /** Called when the user wants to overwrite a view with current filters. */
+  onOverwriteView?: (id: string) => Promise<void>
+  /** Called when the user renames a view. */
+  onRenameView?: (id: string, name: string) => Promise<void>
+  /** Called when the user deletes a view. */
+  onDeleteView?: (id: string) => Promise<void>
+  /** Called when the user sets a view as default. */
+  onSetDefaultView?: (id: string) => Promise<void>
 }
 
 const STORAGE_KEY = "metapus-filter-sidebar-collapsed"
@@ -67,6 +104,14 @@ export function FilterSidebar({
   initialFilterValues,
   detailsContent,
   onActiveTabChange,
+  savedViews = [],
+  activeViewId,
+  onSelectView,
+  onSaveView,
+  onOverwriteView,
+  onRenameView,
+  onDeleteView,
+  onSetDefaultView,
 }: FilterSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(() => {
     if (typeof window === "undefined") return true
@@ -74,6 +119,10 @@ export function FilterSidebar({
     return stored !== null ? stored === "true" : true
   })
   const [filterDialogOpen, setFilterDialogOpen] = useState(false)
+  const [saveViewDialogOpen, setSaveViewDialogOpen] = useState(false)
+  const [renamingViewId, setRenamingViewId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState("")
+  const [deletingViewId, setDeletingViewId] = useState<string | null>(null)
 
   // ── Filter values state (FilterEntry per key) ───────────────────────
   const [filterValues, setFilterValues] = useState<FilterValues>(() => initialFilterValues ?? {})
@@ -667,6 +716,182 @@ export function FilterSidebar({
                 if (e.key === "Enter") { e.preventDefault(); applyFilters() }
               }}
             >
+              {/* ── Saved Views dropdown ──────────────────────────────── */}
+              {(savedViews.length > 0 || onSaveView) && (
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs text-muted-foreground">Сохранённые виды</Label>
+                  <div className="flex items-center gap-1">
+                    <Select
+                      value={activeViewId ?? "__none__"}
+                      onValueChange={(val) => {
+                        onSelectView?.(val === "__none__" ? null : val)
+                      }}
+                    >
+                      <SelectTrigger className="h-7 text-xs flex-1">
+                        <SelectValue placeholder="Выбрать вид" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__" className="text-xs text-muted-foreground">
+                          Без вида
+                        </SelectItem>
+                        {savedViews.map((view) => (
+                          <SelectItem key={view.id} value={view.id} className="text-xs">
+                            <span className="flex items-center gap-1.5">
+                              {view.isDefault && <Star className="h-3 w-3 text-primary shrink-0 fill-primary" />}
+                              {view.name}
+                              {view.visibility === "shared" && (
+                                <span className="text-[9px] text-muted-foreground">(общий)</span>
+                              )}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {/* Save / Actions menu */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="icon" className="h-7 w-7 shrink-0">
+                          <Bookmark className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {onSaveView && (
+                          <DropdownMenuItem onClick={() => setSaveViewDialogOpen(true)}>
+                            <Save className="mr-2 h-3.5 w-3.5" />
+                            Сохранить как новый вид
+                          </DropdownMenuItem>
+                        )}
+                        {activeViewId && onOverwriteView && (
+                          <DropdownMenuItem onClick={() => onOverwriteView(activeViewId)}>
+                            <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                            Обновить текущий вид
+                          </DropdownMenuItem>
+                        )}
+                        {activeViewId && (
+                          <>
+                            <DropdownMenuSeparator />
+                            {onRenameView && (
+                              <DropdownMenuItem onClick={() => {
+                                const view = savedViews.find((v) => v.id === activeViewId)
+                                if (view) {
+                                  setRenamingViewId(view.id)
+                                  setRenameValue(view.name)
+                                }
+                              }}>
+                                <Pencil className="mr-2 h-3.5 w-3.5" />
+                                Переименовать
+                              </DropdownMenuItem>
+                            )}
+                            {onSetDefaultView && (
+                              <DropdownMenuItem onClick={() => onSetDefaultView(activeViewId)}>
+                                <Star className="mr-2 h-3.5 w-3.5" />
+                                Сделать по умолчанию
+                              </DropdownMenuItem>
+                            )}
+                            {onDeleteView && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => setDeletingViewId(activeViewId)}
+                                >
+                                  <Trash2 className="mr-2 h-3.5 w-3.5" />
+                                  Удалить
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+
+                  {/* Inline rename */}
+                  {renamingViewId && onRenameView && (
+                    <div
+                      className="flex items-center gap-1"
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <Input
+                        className="h-7 text-xs flex-1"
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && renameValue.trim()) {
+                            e.preventDefault()
+                            onRenameView(renamingViewId, renameValue.trim())
+                            setRenamingViewId(null)
+                          }
+                          if (e.key === "Escape") setRenamingViewId(null)
+                        }}
+                        autoFocus
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0"
+                        onClick={() => {
+                          if (renameValue.trim()) {
+                            onRenameView(renamingViewId, renameValue.trim())
+                          }
+                          setRenamingViewId(null)
+                        }}
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 text-muted-foreground"
+                        onClick={() => setRenamingViewId(null)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Delete view confirmation */}
+              {deletingViewId && onDeleteView && (
+                <AlertDialog open onOpenChange={(open) => { if (!open) setDeletingViewId(null) }}>
+                  <AlertDialogContent className="sm:max-w-[360px]">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="text-sm">
+                        Удалить вид «{savedViews.find((v) => v.id === deletingViewId)?.name}»?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription className="text-xs">
+                        Сохранённый набор фильтров и настроек будет удалён без возможности восстановления.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel className="h-8 text-xs">
+                        Отмена
+                      </AlertDialogCancel>
+                      <AlertDialogAction
+                        className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={() => {
+                          onDeleteView(deletingViewId)
+                          setDeletingViewId(null)
+                        }}
+                      >
+                        Удалить
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+
+              {/* Save view dialog */}
+              {onSaveView && (
+                <SaveViewDialog
+                  open={saveViewDialogOpen}
+                  onOpenChange={setSaveViewDialogOpen}
+                  onSave={onSaveView}
+                />
+              )}
+
               {/* Toolbar: configure + apply + reset */}
               <div className="flex items-center gap-1.5">
                 <Button

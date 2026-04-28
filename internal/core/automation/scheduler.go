@@ -33,7 +33,7 @@ func NewScheduler(engine *Engine, ruleRepo automations.RuleRepository) *Schedule
 	}
 }
 // refreshInterval is how often the scheduler re-syncs rules from DB.
-const refreshInterval = 60 * time.Second
+const _refreshInterval = 60 * time.Second
 
 // Start begins the scheduler. Should be called once per tenant worker.
 // ctx MUST contain Pool and TxManager (enriched by runTenantWorker).
@@ -46,7 +46,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 	logger.Info(ctx, "automation scheduler started", "jobCount", len(s.jobs))
 
 	// Periodic refresh to pick up rule changes without restart
-	ticker := time.NewTicker(refreshInterval)
+	ticker := time.NewTicker(_refreshInterval)
 	defer ticker.Stop()
 
 	for {

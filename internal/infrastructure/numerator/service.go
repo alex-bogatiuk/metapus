@@ -28,7 +28,7 @@ type cachedRange struct {
 
 // numShards is the number of independent lock shards.
 // 16 is a good trade-off between contention reduction and memory overhead.
-const numShards = 16
+const _numShards = 16
 
 // shard holds a mutex and a ranges map for a subset of cache keys.
 type shard struct {
@@ -41,7 +41,7 @@ type shard struct {
 // Cache keys are sharded across 16 independent mutexes to reduce lock contention
 // when multiple tenants generate numbers concurrently.
 type Service struct {
-	shards [numShards]shard
+	shards [_numShards]shard
 	// querierFn overrides the default querier resolution (for testing only).
 	querierFn func(ctx context.Context) Querier
 }
@@ -63,7 +63,7 @@ func New() *Service {
 func (s *Service) getShard(key string) *shard {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(key))
-	return &s.shards[h.Sum32()%numShards]
+	return &s.shards[h.Sum32()%_numShards]
 }
 
 // getQuerier returns the querier for the current context.

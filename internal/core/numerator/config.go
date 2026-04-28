@@ -8,7 +8,7 @@ const (
 	// StrategyStrict uses UPDATE ... RETURNING for every number.
 	// Guarantees sequential numbers without gaps.
 	// Slower, suitable for invoices and accounting documents.
-	StrategyStrict Strategy = iota
+	StrategyStrict Strategy = iota + 1
 
 	// StrategyCached allocates ranges of numbers in memory.
 	// Much faster, but may produce gaps if application restarts.

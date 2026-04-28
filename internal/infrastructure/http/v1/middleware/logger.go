@@ -12,7 +12,7 @@ import (
 )
 
 // slowRequestThreshold defines latency above which a request is logged as api.slow_request.
-const slowRequestThreshold = 3 * time.Second
+const _slowRequestThreshold = 3 * time.Second
 
 // Logger middleware logs HTTP requests with timing and status.
 // Also writes event log entries for 5xx errors and slow requests.
@@ -71,7 +71,7 @@ func Logger(log *logger.Logger, eventWriter eventlog.DirectWriter) gin.HandlerFu
 					"error":  c.Errors.ByType(gin.ErrorTypePrivate).String(),
 				},
 			})
-		} else if latency >= slowRequestThreshold {
+		} else if latency >= _slowRequestThreshold {
 			_ = eventWriter.WriteDirect(ctx, pool, eventlog.Event{
 				Category:   eventlog.CategoryAPI,
 				Severity:   eventlog.SeverityWarning,

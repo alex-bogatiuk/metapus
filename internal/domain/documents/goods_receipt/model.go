@@ -209,14 +209,17 @@ func (g *GoodsReceipt) Validate(ctx context.Context) error {
 
 // --- LinesAccessor implementation ---
 
-// GetLines returns the document lines.
+// GetLines returns the document lines (defensive copy).
 func (g *GoodsReceipt) GetLines() []GoodsReceiptLine {
-	return g.Lines
+	out := make([]GoodsReceiptLine, len(g.Lines))
+	copy(out, g.Lines)
+	return out
 }
 
-// SetLines replaces the document lines.
+// SetLines replaces the document lines (defensive copy).
 func (g *GoodsReceipt) SetLines(lines []GoodsReceiptLine) {
-	g.Lines = lines
+	g.Lines = make([]GoodsReceiptLine, len(lines))
+	copy(g.Lines, lines)
 }
 
 // --- CurrencyAwareDoc implementation ---

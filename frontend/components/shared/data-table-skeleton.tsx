@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton"
  * Default number of ghost rows rendered by DataTableSkeleton.
  * Extracted as a constant for easy tuning later (e.g. from user prefs or viewport height).
  */
-export const DEFAULT_SKELETON_ROWS = 8
+export const DEFAULT_SKELETON_ROWS = 11
 
 /**
  * Pre-defined width patterns for skeleton cells.

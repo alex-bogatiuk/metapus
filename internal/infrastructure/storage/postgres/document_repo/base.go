@@ -5,6 +5,7 @@ package document_repo
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -757,7 +758,7 @@ func (r *BaseDocumentRepo[T]) ListIDs(ctx context.Context, f domain.ListFilter, 
 		return nil, apperror.NewBusinessRule(
 			"TOO_MANY_RESULTS",
 			fmt.Sprintf("Filter matches more than %d documents. Narrow your selection.", maxIDs),
-		).WithDetail("limit", fmt.Sprintf("%d", maxIDs))
+		).WithDetail("limit", strconv.Itoa(maxIDs))
 	}
 
 	return ids, nil

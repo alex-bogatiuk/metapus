@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -143,7 +144,7 @@ func formatIntSpaces(n int64) string {
 	if n == 0 {
 		return "0"
 	}
-	s := fmt.Sprintf("%d", n)
+	s := strconv.FormatInt(n, 10)
 	var sb strings.Builder
 	start := len(s) % 3
 	if start > 0 {

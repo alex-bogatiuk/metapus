@@ -13,13 +13,13 @@ import (
 )
 
 // maxTreeDepth is the maximum depth of the subordination tree traversal.
-const maxTreeDepth = 10
+const _maxTreeDepth = 10
 
 // maxTreeNodes is the maximum total nodes in the tree (safety limit).
-const maxTreeNodes = 100
+const _maxTreeNodes = 100
 
 // maxItemsPerGroup is the maximum number of items returned per flat group.
-const maxItemsPerGroup = 5
+const _maxItemsPerGroup = 5
 
 // RelatedDocRepo adapts RefFinderRepo to provide the document subordination tree.
 // It traverses basis_type / basis_id links to build a hierarchical tree
@@ -66,7 +66,7 @@ func (r *RelatedDocRepo) FindRelatedDocuments(ctx context.Context, req domain.Re
 	rootKey := treeKey{entityName: req.EntityName, entityID: req.EntityID}
 	visited := map[treeKey]bool{rootKey: true}
 
-	for depth := 0; depth < maxTreeDepth; depth++ {
+	for depth := 0; depth < _maxTreeDepth; depth++ {
 		def, ok := r.registry.Get(rootKey.entityName)
 		if !ok || def.Type != metadata.TypeDocument {
 			break
@@ -103,7 +103,7 @@ func (r *RelatedDocRepo) FindRelatedDocuments(ctx context.Context, req domain.Re
 	allKeys := []treeKey{rootKey}
 	allKeysSet := map[treeKey]bool{rootKey: true}
 
-	for len(queue) > 0 && totalNodes < maxTreeNodes {
+	for len(queue) > 0 && totalNodes < _maxTreeNodes {
 		// Process entire BFS level at once: collect all parent nodes
 		currentLevel := queue
 		queue = nil
@@ -137,7 +137,7 @@ func (r *RelatedDocRepo) FindRelatedDocuments(ctx context.Context, req domain.Re
 		// Single UNION ALL query per BFS level (eliminates N+1 queries)
 		var unionQueries []string
 		for _, def := range r.registry.List() {
-			if def.Type != metadata.TypeDocument || totalNodes >= maxTreeNodes {
+			if def.Type != metadata.TypeDocument || totalNodes >= _maxTreeNodes {
 				continue
 			}
 			tableName := deriveTableName(def)
@@ -154,7 +154,7 @@ func (r *RelatedDocRepo) FindRelatedDocuments(ctx context.Context, req domain.Re
 			break
 		}
 
-		query := fmt.Sprintf("%s LIMIT %d", strings.Join(unionQueries, " UNION ALL "), maxTreeNodes-totalNodes)
+		query := fmt.Sprintf("%s LIMIT %d", strings.Join(unionQueries, " UNION ALL "), _maxTreeNodes-totalNodes)
 		rows, err := querier.Query(ctx, query, basisTypes, basisIDs)
 		if err != nil {
 			logger.Warn(ctx, "RelatedDocRepo BFS child scan failed", "error", err)
@@ -162,7 +162,7 @@ func (r *RelatedDocRepo) FindRelatedDocuments(ctx context.Context, req domain.Re
 		}
 
 		for rows.Next() {
-			if totalNodes >= maxTreeNodes {
+			if totalNodes >= _maxTreeNodes {
 				break
 			}
 			var childType string
@@ -359,8 +359,8 @@ func (r *RelatedDocRepo) FindRelatedDocuments(ctx context.Context, req domain.Re
 				RoutePrefix:  acc.def.RoutePrefix,
 				TotalCount:   len(acc.items),
 			}
-			if len(acc.items) > maxItemsPerGroup {
-				group.Items = acc.items[:maxItemsPerGroup]
+			if len(acc.items) > _maxItemsPerGroup {
+				group.Items = acc.items[:_maxItemsPerGroup]
 			} else {
 				group.Items = acc.items
 			}

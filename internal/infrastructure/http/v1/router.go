@@ -25,6 +25,7 @@ import (
 	"metapus/internal/domain/registers/settlement"
 	"metapus/internal/domain/registers/stock"
 	"metapus/internal/domain/reports/compiler"
+	"metapus/internal/domain/listview"
 	"metapus/internal/domain/reports/variants"
 	"metapus/internal/domain/security_profile"
 	"metapus/internal/infrastructure/cache"
@@ -209,6 +210,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		registerMetaRoutes(protected, reg, cfg.SchemaCache)
 		registerRefResolverRoutes(protected, reg)
 		registerUserPrefsRoutes(protected)
+		registerListViewRoutes(protected)
 		registerSettingsRoutes(protected)
 		registerSecurityRoutes(protected, cfg)
 		registerSystemRoutes(protected, eventLogRepo, cfg.SchemaCache, reg, cfg.WSTicketStore)
@@ -624,6 +626,14 @@ func registerUserPrefsRoutes(rg *gin.RouterGroup) {
 	repo := auth_repo.NewUserPrefsRepo()
 	handler := handlers.NewUserPrefsHandler(baseHandler, repo)
 	handler.RegisterRoutes(rg)
+}
+
+// registerListViewRoutes registers saved list view (filter presets) endpoints.
+func registerListViewRoutes(rg *gin.RouterGroup) {
+	repo := postgres.NewListViewRepo()
+	svc := listview.NewService(repo)
+	handler := handlers.NewListViewHandler(handlers.NewBaseHandler(), svc)
+	handlers.RegisterListViewRoutes(rg, handler)
 }
 
 // registerSettingsRoutes registers system settings endpoints.

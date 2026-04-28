@@ -626,6 +626,29 @@ export const api = {
             }),
     },
 
+    listViews: {
+        list: (entityType: string) =>
+            apiFetch<import("@/types/list-view").ListView[]>(`/me/list-views/${entityType}`),
+
+        create: (data: import("@/types/list-view").CreateListViewRequest) =>
+            apiFetch<import("@/types/list-view").ListView>("/me/list-views", {
+                method: "POST",
+                body: JSON.stringify(data),
+            }),
+
+        update: (id: string, data: import("@/types/list-view").UpdateListViewRequest) =>
+            apiFetch<import("@/types/list-view").ListView>(`/me/list-views/${id}`, {
+                method: "PUT",
+                body: JSON.stringify(data),
+            }),
+
+        delete: (id: string) =>
+            apiFetch<void>(`/me/list-views/${id}`, { method: "DELETE" }),
+
+        setDefault: (id: string) =>
+            apiFetch<void>(`/me/list-views/${id}/default`, { method: "PUT" }),
+    },
+
     reports: {
         variants: {
             list: (datasetKey: string) =>

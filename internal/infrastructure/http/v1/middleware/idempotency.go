@@ -15,7 +15,7 @@ import (
 )
 
 const HeaderIdempotencyKey = "X-Idempotency-Key"
-const maxIdempotencyBodyBytes = 1 << 20 // 1 MiB
+const _maxIdempotencyBodyBytes = 1 << 20 // 1 MiB
 
 // Idempotency middleware protects against duplicate requests.
 // Used for POST/PUT/PATCH operations that should be idempotent.
@@ -43,17 +43,17 @@ func Idempotency(store *postgres.IdempotencyStore) gin.HandlerFunc {
 		}
 
 		// Hash request body
-		limited := io.LimitReader(c.Request.Body, maxIdempotencyBodyBytes+1)
+		limited := io.LimitReader(c.Request.Body, _maxIdempotencyBodyBytes+1)
 		body, err := io.ReadAll(limited)
 		if err != nil {
 			_ = c.Error(apperror.NewInternal(err).WithDetail("component", "idempotency_read_body"))
 			c.Abort()
 			return
 		}
-		if len(body) > maxIdempotencyBodyBytes {
+		if len(body) > _maxIdempotencyBodyBytes {
 			appErr := apperror.NewValidation("request body too large for idempotency")
 			appErr.HTTPStatus = http.StatusRequestEntityTooLarge
-			_ = c.Error(appErr.WithDetail("max_bytes", maxIdempotencyBodyBytes))
+			_ = c.Error(appErr.WithDetail("max_bytes", _maxIdempotencyBodyBytes))
 			c.Abort()
 			return
 		}

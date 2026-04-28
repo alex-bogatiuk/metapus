@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -303,7 +304,7 @@ func buildGoodsIssueTable(resp *dto.GoodsIssueResponse, dp int, currSymbol strin
 		row := printing.PrintTableRow{}
 		if showPrices {
 			row.Values = []string{
-				fmt.Sprintf("%d", line.LineNo),
+				strconv.Itoa(line.LineNo),
 				prodName,
 				unitName,
 				printing.FormatQty(line.Quantity),
@@ -313,7 +314,7 @@ func buildGoodsIssueTable(resp *dto.GoodsIssueResponse, dp int, currSymbol strin
 			}
 		} else {
 			row.Values = []string{
-				fmt.Sprintf("%d", line.LineNo),
+				strconv.Itoa(line.LineNo),
 				prodName,
 				unitName,
 				printing.FormatQty(line.Quantity),
