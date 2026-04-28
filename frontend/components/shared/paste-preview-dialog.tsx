@@ -59,9 +59,9 @@ export function PastePreviewDialog({
   onReResolve,
   onPickSuggestion,
 }: PastePreviewDialogProps) {
-  const mappings = state?.mappings ?? []
-  const dataRows = state?.dataRows ?? []
-  const resolutions = state?.resolutions ?? new Map()
+  const mappings = useMemo(() => state?.mappings ?? [], [state?.mappings])
+  const dataRows = useMemo(() => state?.dataRows ?? [], [state?.dataRows])
+  const resolutions = useMemo(() => state?.resolutions ?? new Map(), [state?.resolutions])
 
   // Build column index → mapping lookup
   const mappingByIndex = useMemo(() => {

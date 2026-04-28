@@ -32,7 +32,6 @@ export function useLastUsedDefaults<T>(
       return {} as Partial<T>
     }
   // Read once on mount — stable reference
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entityType])
 }
 

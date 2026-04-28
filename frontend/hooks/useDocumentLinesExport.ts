@@ -82,17 +82,7 @@ export function useDocumentLinesExport(
       columns,
       rows,
     })
-  }, [
-    options.lines,
-    options.documentTitle,
-    options.tablePartTitle,
-    options.decimalPlaces,
-    options.amountIncludesVat,
-    options.includeAmounts,
-    options.columns,
-    options.buildRows,
-    exportTablePart,
-  ])
+  }, [options, exportTablePart])
 
   // Register Ctrl+Shift+E shortcut (auto-unregisters on unmount)
   useShortcut(

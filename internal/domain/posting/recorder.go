@@ -1,4 +1,4 @@
-﻿// Package posting — recorder.go provides the RegisterRecorder abstraction.
+// Package posting — recorder.go provides the RegisterRecorder abstraction.
 // RegisterRecorder decouples the Engine from concrete register services,
 // enabling client extensions to add new register types without modifying core.
 package posting

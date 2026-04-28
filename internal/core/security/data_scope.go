@@ -1,4 +1,4 @@
-﻿// Package security provides authorization and access control.
+// Package security provides authorization and access control.
 package security
 
 import (

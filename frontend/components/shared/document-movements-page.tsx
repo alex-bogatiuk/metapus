@@ -65,15 +65,18 @@ interface SortState { column: string; dir: SortDir }
 // ── Main Component ──────────────────────────────────────────────────────
 
 export function DocumentMovementsPage({ documentId, backHref, documentLabel, numberFetcher, fetcher }: DocumentMovementsPageProps) {
-    const [movements, setMovements] = useState<DocumentMovement[]>([])
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
+    const [fetchResult, setFetchResult] = useState<{
+        movements: DocumentMovement[]
+        docNumber: string | null
+        error: string | null
+        /** Tracks which documentId this result belongs to */
+        resolvedId: string | null
+    }>({ movements: [], docNumber: null, error: null, resolvedId: null })
+
     const [statusBarData, setStatusBarData] = useState<StatusBarData | null>(null)
-    const [docNumber, setDocNumber] = useState<string | null>(null)
 
     useEffect(() => {
         let isMounted = true
-        setLoading(true)
 
         // Fetch movements + document number in parallel
         const movementsPromise = fetcher(documentId)
@@ -82,19 +85,28 @@ export function DocumentMovementsPage({ documentId, backHref, documentLabel, num
         Promise.all([movementsPromise, numberPromise])
             .then(([movRes, docRes]) => {
                 if (!isMounted) return
-                setMovements(movRes.movements ?? [])
-                setDocNumber(docRes.number)
+                setFetchResult({
+                    movements: movRes.movements ?? [],
+                    docNumber: docRes.number,
+                    error: null,
+                    resolvedId: documentId,
+                })
             })
             .catch((e) => {
                 if (!isMounted) return
-                setError(e instanceof Error ? e.message : "Не удалось загрузить данные")
-            })
-            .finally(() => {
-                if (isMounted) setLoading(false)
+                setFetchResult(prev => ({
+                    ...prev,
+                    error: e instanceof Error ? e.message : "Не удалось загрузить данные",
+                    resolvedId: documentId,
+                }))
             })
 
         return () => { isMounted = false }
     }, [documentId, fetcher, numberFetcher])
+
+    const { movements, docNumber, error } = fetchResult
+    // Derive loading: result hasn't caught up to the current documentId yet
+    const loading = fetchResult.resolvedId !== documentId
 
     // Update tab title: "Движения: №GR-SEED-01371 (Поступление)"
     useTabTitle(

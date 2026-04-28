@@ -1,4 +1,4 @@
-﻿package filter
+package filter
 
 // ComparisonType defines the comparison modes.
 type ComparisonType string

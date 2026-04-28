@@ -58,6 +58,12 @@ func XLSX(w io.Writer, title string, columns []Column, rows []map[string]any) (r
 		Alignment: &excelize.Alignment{Horizontal: "right"},
 		NumFmt:    4, // #,##0.00
 	})
+	cellIntStyleID, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Size: 10},
+		Border:    thinBorders(),
+		Alignment: &excelize.Alignment{Horizontal: "right"},
+		NumFmt:    1, // 0 (integer)
+	})
 
 	// ── Column widths ─────────────────────────────────────────────────
 	for i, col := range columns {
@@ -97,7 +103,7 @@ func XLSX(w io.Writer, title string, columns []Column, rows []map[string]any) (r
 		dataRow := make([]interface{}, len(columns))
 		for i, col := range columns {
 			val := row[col.Key]
-			cell := formatCell(val, cellStyleID, cellRightStyleID)
+			cell := formatCell(val, cellStyleID, cellRightStyleID, cellIntStyleID)
 			dataRow[i] = cell
 		}
 		if err := sw.SetRow(fmt.Sprintf("A%d", rowNum), dataRow); err != nil {
@@ -114,12 +120,16 @@ func XLSX(w io.Writer, title string, columns []Column, rows []map[string]any) (r
 }
 
 // formatCell converts a value to an excelize.Cell with appropriate style.
-func formatCell(val any, textStyle, numStyle int) excelize.Cell {
+func formatCell(val any, textStyle, numStyle, intStyle int) excelize.Cell {
 	if val == nil {
 		return excelize.Cell{Value: "", StyleID: textStyle}
 	}
 	switch v := val.(type) {
 	case float64:
+		// Whole numbers (row numbers, counts) → integer format
+		if v == float64(int64(v)) {
+			return excelize.Cell{Value: int64(v), StyleID: intStyle}
+		}
 		return excelize.Cell{Value: v, StyleID: numStyle}
 	case float32:
 		return excelize.Cell{Value: float64(v), StyleID: numStyle}

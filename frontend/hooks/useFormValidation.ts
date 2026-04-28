@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -111,7 +111,9 @@ export function useFormValidation<TState>(
   const { rules } = options
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const rulesRef = useRef(rules)
-  rulesRef.current = rules
+  useEffect(() => {
+    rulesRef.current = rules
+  })
 
   const setFieldError = useCallback((field: string, message: string) => {
     setFieldErrors((prev) => ({ ...prev, [field]: message }))
