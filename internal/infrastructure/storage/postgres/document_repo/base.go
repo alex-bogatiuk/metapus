@@ -1,4 +1,4 @@
-﻿// Package document_repo provides PostgreSQL implementations for document repositories.
+// Package document_repo provides PostgreSQL implementations for document repositories.
 // In Database-per-Tenant architecture, TxManager is obtained from context per-request.
 package document_repo
 

@@ -1,4 +1,4 @@
-﻿// Package postgres provides the generic ReferenceResolver for batch-resolving
+// Package postgres provides the generic ReferenceResolver for batch-resolving
 // catalog IDs to their display names. This eliminates N+1 queries when
 // building response DTOs that contain reference fields.
 //

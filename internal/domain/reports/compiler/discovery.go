@@ -1,4 +1,4 @@
-﻿package compiler
+package compiler
 
 import (
 	"metapus/internal/domain/reports/schema"

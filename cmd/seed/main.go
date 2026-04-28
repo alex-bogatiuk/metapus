@@ -1,4 +1,4 @@
-﻿// Package main provides a CLI tool for seeding the database with initial data.
+// Package main provides a CLI tool for seeding the database with initial data.
 package main
 
 import (

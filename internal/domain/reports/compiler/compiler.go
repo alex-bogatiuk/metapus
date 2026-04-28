@@ -1,4 +1,4 @@
-﻿// Package compiler implements the Metapus Query Engine — a metadata-driven
+// Package compiler implements the Metapus Query Engine — a metadata-driven
 // SQL query builder that translates frontend QueryRequest into optimized SQL.
 //
 // Architecture:
