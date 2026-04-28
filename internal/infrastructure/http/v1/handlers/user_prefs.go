@@ -184,6 +184,41 @@ func (h *UserPrefsHandler) SaveDashboardLayout(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// SaveFavorites handles PUT /me/preferences/favorites
+func (h *UserPrefsHandler) SaveFavorites(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	userID, err := h.requireUserID(c)
+	if err != nil {
+		return
+	}
+
+	const maxPrefsBody = 1 << 20 // 1 MiB
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxPrefsBody+1))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("failed to read request body"))
+		return
+	}
+	if len(body) > maxPrefsBody {
+		appErr := apperror.NewValidation("request body too large")
+		appErr.HTTPStatus = http.StatusRequestEntityTooLarge
+		h.Error(c, appErr)
+		return
+	}
+
+	if !json.Valid(body) {
+		h.Error(c, apperror.NewValidation("request body must be valid JSON"))
+		return
+	}
+
+	if err := h.repo.SaveFavorites(ctx, userID, json.RawMessage(body)); err != nil {
+		h.Error(c, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 // requireUserID extracts and parses user ID from context, sending error if absent.
 func (h *UserPrefsHandler) requireUserID(c *gin.Context) (id.ID, error) {
 	raw := h.GetUserID(c)
@@ -212,5 +247,6 @@ func (h *UserPrefsHandler) RegisterRoutes(rg *gin.RouterGroup) {
 		me.PUT("/list-filters/:entityType", h.SaveListFilters)
 		me.PUT("/list-columns/:entityType", h.SaveListColumns)
 		me.PUT("/dashboard-layout", h.SaveDashboardLayout)
+		me.PUT("/favorites", h.SaveFavorites)
 	}
 }

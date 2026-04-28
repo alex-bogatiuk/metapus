@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useMemo, useCallback, useRef } from "react"
+import { useListViews } from "@/hooks/useListViews"
+import type { ListViewConfig } from "@/types/list-view"
 import { useRouter } from "next/navigation"
 import { CircleCheck, Circle, Plus, Copy, Pencil, Trash2, CircleCheckBig, CircleOff, Ban } from "lucide-react"
 import { DataTableSkeleton } from "@/components/shared/data-table-skeleton"
@@ -266,6 +268,33 @@ export default function GoodsReceiptsListPage() {
   // ── M2 Scroll restoration on tab switch ─────────────────────────────
   useScrollRestore(scrollContainerRef)
 
+  // ── Saved Views ───────────────────────────────────────────────────
+  const getCurrentConfig = useCallback((): ListViewConfig => ({
+    filters: initialFilterValues,
+    columns: visibleKeys,
+    sortColumn: sortColumn ?? null,
+    sortDir: sortDirection,
+  }), [initialFilterValues, visibleKeys, sortColumn, sortDirection])
+
+  const [viewResetKey, setViewResetKey] = useState(0)
+
+  const handleApplyViewConfig = useCallback((viewConfig: ListViewConfig) => {
+    handleFilterValuesChange(viewConfig.filters ?? {})
+    if (viewConfig.columns?.length > 0) {
+      reorderColumns(viewConfig.columns)
+    }
+    if (viewConfig.sortColumn) {
+      handleSort(viewConfig.sortColumn)
+    }
+    setViewResetKey((k) => k + 1)
+  }, [handleFilterValuesChange, reorderColumns, handleSort])
+
+  const listViewsHook = useListViews({
+    entityType: "GoodsReceipt",
+    onApplyConfig: handleApplyViewConfig,
+    getCurrentConfig,
+  })
+
   const fetchDetail = useCallback((id: string) => {
     pendingDetailIdRef.current = null
     setDetailLoading(true)
@@ -499,7 +528,7 @@ export default function GoodsReceiptsListPage() {
 
         {isPrefsLoaded && (
           <FilterSidebar
-            key="goods-receipt-filters"
+            key={`goods-receipt-filters-${viewResetKey}`}
             showGroups={false}
             showDetails
             fieldsMeta={fieldsMeta}
@@ -509,6 +538,14 @@ export default function GoodsReceiptsListPage() {
             initialFilterValues={initialFilterValues}
             detailsContent={detailsContent}
             onActiveTabChange={handleSidebarTabChange}
+            savedViews={listViewsHook.views}
+            activeViewId={listViewsHook.activeViewId}
+            onSelectView={listViewsHook.selectView}
+            onSaveView={listViewsHook.saveCurrentAsView}
+            onOverwriteView={listViewsHook.overwriteView}
+            onRenameView={listViewsHook.renameView}
+            onDeleteView={listViewsHook.deleteView}
+            onSetDefaultView={listViewsHook.setDefault}
           />
         )}
       </div>

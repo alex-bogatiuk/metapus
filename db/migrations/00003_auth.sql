@@ -90,6 +90,7 @@ CREATE TABLE user_preferences (
     list_filters     JSONB       NOT NULL DEFAULT '{}',
     list_columns     JSONB       NOT NULL DEFAULT '{}',
     dashboard_layout JSONB       NOT NULL DEFAULT 'null',
+    favorites        JSONB       NOT NULL DEFAULT '[]',
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (user_id)
 );
@@ -103,6 +104,7 @@ COMMENT ON COLUMN user_preferences.interface    IS 'Typed UI settings: theme, la
 COMMENT ON COLUMN user_preferences.list_filters IS 'Saved list filters per entity type (opaque JSON)';
 COMMENT ON COLUMN user_preferences.list_columns IS 'Visible column keys per entity type';
 COMMENT ON COLUMN user_preferences.dashboard_layout IS 'Per-user dashboard widget layout (opaque JSON, frontend owns schema)';
+COMMENT ON COLUMN user_preferences.favorites        IS 'Per-user bookmarked entities (opaque JSON array, frontend owns schema)';
 
 SELECT pg_advisory_unlock(hashtext('metapus_migrations'));
 

@@ -179,6 +179,12 @@ export default function NomenclatureItemPage() {
         backHref="/catalogs/nomenclatures"
         backTargetId={params.id}
         onClose={() => router.push("/catalogs/nomenclatures")}
+        favoriteTarget={{
+          entityType: "nomenclature",
+          entityId: params.id,
+          title: f.name || "",
+          url: `/catalogs/nomenclatures/${params.id}`,
+        }}
       />
 
       {error && (

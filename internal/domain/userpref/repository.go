@@ -23,4 +23,7 @@ type Repository interface {
 
 	// SaveDashboardLayout atomically upserts the dashboard layout section (full replace).
 	SaveDashboardLayout(ctx context.Context, userID id.ID, data json.RawMessage) error
+
+	// SaveFavorites atomically upserts the favorites section (full replace).
+	SaveFavorites(ctx context.Context, userID id.ID, data json.RawMessage) error
 }

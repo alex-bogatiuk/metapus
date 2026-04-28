@@ -369,6 +369,12 @@ export default function GoodsReceiptFormPage() {
         backHref="/documents/goods-receipts"
         backTargetId={params.id}
         onClose={() => router.push("/documents/goods-receipts")}
+        favoriteTarget={{
+          entityType: "goods_receipt",
+          entityId: params.id,
+          title: `${grLabel} ${doc?.number || ""}`,
+          url: `/documents/goods-receipts/${params.id}`,
+        }}
       />
 
       {error && (

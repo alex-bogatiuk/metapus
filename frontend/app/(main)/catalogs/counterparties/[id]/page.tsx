@@ -139,6 +139,12 @@ export default function EditCounterpartyPage() {
         backHref="/catalogs/counterparties"
         backTargetId={params.id}
         onClose={() => router.push("/catalogs/counterparties")}
+        favoriteTarget={{
+          entityType: "counterparty",
+          entityId: params.id,
+          title: f.name || "",
+          url: `/catalogs/counterparties/${params.id}`,
+        }}
       />
 
       {error && (

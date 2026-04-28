@@ -32,6 +32,7 @@ type UserPreferences struct {
 	ListFilters     json.RawMessage `db:"list_filters"      json:"listFilters"`     // opaque JSON, frontend owns schema
 	ListColumns     json.RawMessage `db:"list_columns"      json:"listColumns"`     // opaque JSON
 	DashboardLayout json.RawMessage `db:"dashboard_layout"  json:"dashboardLayout"` // opaque JSON, frontend owns schema
+	Favorites       json.RawMessage `db:"favorites"         json:"favorites"`       // opaque JSON array, frontend owns schema
 	UpdatedAt       time.Time       `db:"updated_at"        json:"updatedAt"`
 }
 
@@ -43,5 +44,6 @@ func NewDefault(userID id.ID) *UserPreferences {
 		ListFilters:     json.RawMessage("{}"),
 		ListColumns:     json.RawMessage("{}"),
 		DashboardLayout: json.RawMessage("null"),
+		Favorites:       json.RawMessage("[]"),
 	}
 }

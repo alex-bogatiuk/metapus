@@ -8,6 +8,7 @@ import { ArrowLeft, MoreHorizontal, HelpCircle, Link2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { FavoriteButton } from "@/components/shared/favorite-button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,6 +51,13 @@ interface FormToolbarProps {
   backTargetId?: string
   onClose?: () => void
   sticky?: boolean
+  /** If provided, renders a ⭐ favorite toggle button. */
+  favoriteTarget?: {
+    entityType: string
+    entityId: string
+    title: string
+    url: string
+  }
   children?: React.ReactNode
 }
 
@@ -89,6 +97,7 @@ export function FormToolbar({
   backTargetId,
   onClose,
   sticky = true,
+  favoriteTarget,
   children,
 }: FormToolbarProps) {
   const resolvedBackHref = backHref
@@ -207,6 +216,14 @@ export function FormToolbar({
         </div>
 
         <CopyLinkButton />
+        {favoriteTarget && favoriteTarget.entityId && (
+          <FavoriteButton
+            entityType={favoriteTarget.entityType}
+            entityId={favoriteTarget.entityId}
+            title={favoriteTarget.title}
+            url={favoriteTarget.url}
+          />
+        )}
       </div>
     </div>
   )

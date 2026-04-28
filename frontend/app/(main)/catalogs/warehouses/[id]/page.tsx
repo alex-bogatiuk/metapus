@@ -123,6 +123,12 @@ export default function EditWarehousePage() {
         backHref="/catalogs/warehouses"
         backTargetId={params.id}
         onClose={() => router.push("/catalogs/warehouses")}
+        favoriteTarget={{
+          entityType: "warehouse",
+          entityId: params.id,
+          title: f.name || "",
+          url: `/catalogs/warehouses/${params.id}`,
+        }}
       />
 
       {error && (

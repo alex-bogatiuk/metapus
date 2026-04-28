@@ -360,6 +360,12 @@ export default function GoodsIssueFormPage() {
         backHref="/documents/goods-issues"
         backTargetId={params.id}
         onClose={() => router.push("/documents/goods-issues")}
+        favoriteTarget={{
+          entityType: "goods_issue",
+          entityId: params.id,
+          title: `${giLabel} ${doc?.number || ""}`,
+          url: `/documents/goods-issues/${params.id}`,
+        }}
       />
 
       {error && (

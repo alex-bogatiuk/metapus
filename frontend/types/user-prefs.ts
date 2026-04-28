@@ -29,6 +29,17 @@ export interface InterfacePrefs {
     showDeletedEntities?: Record<string, boolean>
 }
 
+// ── Favorites ───────────────────────────────────────────────────────────
+
+/** A bookmarked entity. Title is cached at add-time and self-heals on next open. */
+export interface FavoriteItem {
+    entityType: string   // registry key: "counterparty" | "goods_receipt" | …
+    entityId: string     // UUID
+    title: string        // cached presentation (self-heals on form open)
+    url: string          // direct link (e.g. "/catalogs/counterparties/uuid")
+    addedAt: string      // ISO 8601
+}
+
 // ── API response ────────────────────────────────────────────────────────
 
 export interface UserPreferencesResponse {
@@ -38,5 +49,6 @@ export interface UserPreferencesResponse {
     listColumns: Record<string, string[]>
     listColumnWidths: Record<string, Record<string, number>>
     dashboardLayout: import("@/types/dashboard").DashboardLayout | null
+    favorites: FavoriteItem[]
     updatedAt: string
 }

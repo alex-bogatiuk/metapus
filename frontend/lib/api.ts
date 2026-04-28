@@ -624,6 +624,12 @@ export const api = {
                 method: "PUT",
                 body: JSON.stringify(layout),
             }),
+
+        saveFavorites: (items: import("@/types/user-prefs").FavoriteItem[]) =>
+            apiFetch<void>("/me/preferences/favorites", {
+                method: "PUT",
+                body: JSON.stringify(items),
+            }),
     },
 
     listViews: {

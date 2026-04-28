@@ -38,16 +38,16 @@ func (r *UserPrefsRepo) GetOrCreate(ctx context.Context, userID id.ID) (*userpre
 	}
 
 	selectQuery := `
-		SELECT user_id, interface, list_filters, list_columns, dashboard_layout, updated_at
+		SELECT user_id, interface, list_filters, list_columns, dashboard_layout, favorites, updated_at
 		FROM user_preferences
 		WHERE user_id = $1
 	`
 
 	var p userpref.UserPreferences
-	var ifaceJSON, filtersJSON, columnsJSON, dashboardJSON []byte
+	var ifaceJSON, filtersJSON, columnsJSON, dashboardJSON, favoritesJSON []byte
 
 	err := q.QueryRow(ctx, selectQuery, userID).Scan(
-		&p.UserID, &ifaceJSON, &filtersJSON, &columnsJSON, &dashboardJSON, &p.UpdatedAt,
+		&p.UserID, &ifaceJSON, &filtersJSON, &columnsJSON, &dashboardJSON, &favoritesJSON, &p.UpdatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -62,6 +62,7 @@ func (r *UserPrefsRepo) GetOrCreate(ctx context.Context, userID id.ID) (*userpre
 	p.ListFilters = filtersJSON
 	p.ListColumns = columnsJSON
 	p.DashboardLayout = dashboardJSON
+	p.Favorites = favoritesJSON
 
 	return &p, nil
 }
@@ -140,6 +141,24 @@ func (r *UserPrefsRepo) SaveDashboardLayout(ctx context.Context, userID id.ID, d
 
 	if _, err := q.Exec(ctx, query, userID, data); err != nil {
 		return fmt.Errorf("upsert dashboard_layout: %w", err)
+	}
+
+	return nil
+}
+
+// SaveFavorites atomically upserts the favorites section (full replace).
+func (r *UserPrefsRepo) SaveFavorites(ctx context.Context, userID id.ID, data json.RawMessage) error {
+	q := r.getTxManager(ctx).GetQuerier(ctx)
+
+	query := `
+		INSERT INTO user_preferences (user_id, favorites)
+		VALUES ($1, $2)
+		ON CONFLICT (user_id) DO UPDATE
+		SET favorites = $2, updated_at = NOW()
+	`
+
+	if _, err := q.Exec(ctx, query, userID, data); err != nil {
+		return fmt.Errorf("upsert favorites: %w", err)
 	}
 
 	return nil

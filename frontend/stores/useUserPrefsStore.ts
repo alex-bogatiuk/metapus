@@ -12,6 +12,7 @@ import { persist } from "zustand/middleware"
 import type { InterfacePrefs } from "@/types/user-prefs"
 import type { FilterValues } from "@/lib/filter-utils"
 import { api } from "@/lib/api"
+import { useFavoritesStore } from "@/stores/useFavoritesStore"
 
 // ── Debounce helpers ────────────────────────────────────────────────────
 
@@ -111,6 +112,8 @@ export const useUserPrefsStore = create<UserPrefsState>()(
                     if (typeof document !== "undefined" && data.interface?.compactMode !== undefined) {
                         document.documentElement.toggleAttribute("data-compact", !!data.interface.compactMode)
                     }
+                    // Initialize favorites store from the same response (no extra API call)
+                    useFavoritesStore.getState().load(data.favorites ?? [])
                 } catch (err) {
                     console.error("Failed to load preferences:", err)
                     // Mark as loaded even on failure — use localStorage fallback
