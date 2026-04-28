@@ -1,4 +1,4 @@
-// Package document_repo provides PostgreSQL implementations for document repositories.
+﻿// Package document_repo provides PostgreSQL implementations for document repositories.
 // In Database-per-Tenant architecture, TxManager is obtained from context per-request.
 package document_repo
 
@@ -88,7 +88,7 @@ func (r *BaseDocumentRepo[T]) RegisterRLSDimension(dimensionName, dbColumn strin
 }
 
 // RegisterTablePart registers a child table (table part / tabular section)
-// so that dot-notation filters like "lines.product_id" are translated into
+// so that dot-notation filters like "lines.nomenclature_id" are translated into
 // EXISTS subqueries instead of direct WHERE conditions on the main table.
 //
 // partName is the snake_case name that arrives from frontend (e.g. "lines").
@@ -110,13 +110,13 @@ func (r *BaseDocumentRepo[T]) RegisterTablePart(partName, childTable, foreignKey
 	}
 }
 
-// RegisterReferenceField registers a reference field (e.g., supplier_id)
-// so that dot-notation filters like "supplier_id.inn" are translated into
+// RegisterReferenceField registers a reference field (e.g., counterparty_id)
+// so that dot-notation filters like "counterparty_id.inn" are translated into
 // EXISTS subqueries on the catalog table.
 //
-// fieldName is the parent's struct field name in snake_case (e.g. "supplier_id").
+// fieldName is the parent's struct field name in snake_case (e.g. "counterparty_id").
 // refTableName is the SQL table name of the catalog (e.g. "cat_counterparties").
-// foreignKey is the column name in the primary table (e.g. "supplier_id").
+// foreignKey is the column name in the primary table (e.g. "counterparty_id").
 // columns are the DB column names allowed for filtering in the catalog.
 func (r *BaseDocumentRepo[T]) RegisterReferenceField(fieldName, refTableName, foreignKey string, columns []string) {
 	if r.referenceFields == nil {

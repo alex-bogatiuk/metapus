@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Clipboard paste utilities for document table parts.
  *
  * Parses TSV data from clipboard (Excel / Google Sheets) and maps columns
@@ -24,7 +24,7 @@ export interface ParsedClipboard {
 export type PasteColumnType = "text" | "number" | "ref"
 
 export interface PasteColumnDef {
-  /** FormLine field key (e.g. "productName", "quantity") */
+  /** FormLine field key (e.g. "nomenclatureName", "quantity") */
   key: string
   /** Display label for mapping UI */
   label: string
@@ -62,9 +62,9 @@ export interface PasteResolution {
 
 /** Data for a single resolved paste line, ready to become FormLine. */
 export interface ResolvedPasteLine {
-  productId: string
-  productName: string
-  productCode: string
+  nomenclatureId: string
+  nomenclatureName: string
+  nomenclatureCode: string
   unitId: string
   unitName: string
   quantity: string
@@ -78,7 +78,7 @@ export interface ResolvedPasteLine {
 // ── Column definitions for standard document lines ──────────────────────
 
 export const DOCUMENT_LINE_PASTE_COLUMNS: PasteColumnDef[] = [
-  { key: "productName", label: "Товар", type: "ref", refEndpoint: "/catalog/nomenclatures", idField: "productId" },
+  { key: "nomenclatureName", label: "Товар", type: "ref", refEndpoint: "/catalog/nomenclatures", idField: "nomenclatureId" },
   { key: "unitName", label: "Ед. изм.", type: "ref", refEndpoint: "/catalog/units", idField: "unitId" },
   { key: "quantity", label: "Количество", type: "number" },
   { key: "unitPrice", label: "Цена", type: "number" },
@@ -89,7 +89,7 @@ export const DOCUMENT_LINE_PASTE_COLUMNS: PasteColumnDef[] = [
 
 /** Column header aliases for fuzzy matching (normalized lowercase). */
 const COLUMN_ALIASES: Record<string, string[]> = {
-  productName: ["товар", "наименование", "номенклатура", "product", "name", "item", "название"],
+  nomenclatureName: ["товар", "наименование", "номенклатура", "product", "name", "item", "название"],
   unitName: ["единица", "ед", "ед изм", "единица измерения", "unit", "uom"],
   quantity: ["количество", "кол-во", "кол", "qty", "quantity", "count"],
   unitPrice: ["цена", "price", "unit price", "стоимость", "цена за ед"],
@@ -294,13 +294,13 @@ export function autoMapColumns(
 
 /**
  * Positional auto-map when no header is detected.
- * Priority order: productName → quantity → unitPrice → unitName → ...
+ * Priority order: nomenclatureName → quantity → unitPrice → unitName → ...
  */
 export function autoMapByPosition(
   columnDefs: PasteColumnDef[],
   columnCount: number,
 ): ColumnMapping[] {
-  const priority = ["productName", "quantity", "unitPrice", "unitName", "vatPercent", "discountPercent", "vatRateName"]
+  const priority = ["nomenclatureName", "quantity", "unitPrice", "unitName", "vatPercent", "discountPercent", "vatRateName"]
   const sorted = [...columnDefs].sort((a, b) => {
     const ai = priority.indexOf(a.key)
     const bi = priority.indexOf(b.key)
@@ -401,7 +401,7 @@ export function buildResolvedLines(
 ): ResolvedPasteLine[] {
   return dataRows.map((row) => {
     const line: ResolvedPasteLine = {
-      productId: "", productName: "", productCode: "",
+      nomenclatureId: "", nomenclatureName: "", nomenclatureCode: "",
       unitId: "", unitName: "",
       quantity: "", unitPrice: "",
       vatRateId: "", vatRateName: "", vatPercent: "20",
@@ -422,8 +422,8 @@ export function buildResolvedLines(
         if (resolution?.resolved) {
           setLineField(line, def.idField, resolution.resolved.id)
           setLineField(line, def.key, resolution.resolved.name)
-          if (def.key === "productName" && resolution.resolved.code) {
-            line.productCode = resolution.resolved.code
+          if (def.key === "nomenclatureName" && resolution.resolved.code) {
+            line.nomenclatureCode = resolution.resolved.code
           }
         }
       } else if (def.type === "number") {

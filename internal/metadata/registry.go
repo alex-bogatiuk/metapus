@@ -45,9 +45,9 @@ type Presentation struct {
 // (e.g. hover card in Related Documents). Auto-populated by Inspect() for all
 // reference fields in the document header. Can be overridden via meta:"preview:false".
 type PreviewFieldDef struct {
-	Name          string `json:"name"`          // JSON field name, e.g. "supplierId"
+	Name          string `json:"name"`          // JSON field name, e.g. "counterpartyId"
 	Label         string `json:"label"`         // Human label, e.g. "Поставщик"
-	Column        string `json:"column"`        // DB column name, e.g. "supplier_id"
+	Column        string `json:"column"`        // DB column name, e.g. "counterparty_id"
 	ReferenceType string `json:"referenceType"` // e.g. "supplier" — resolves via cat_{plural}.name
 }
 

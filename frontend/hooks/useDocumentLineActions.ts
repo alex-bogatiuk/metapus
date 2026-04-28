@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react"
+﻿import { useCallback, useMemo } from "react"
 import { arrayMove } from "@dnd-kit/sortable"
 import { type FormLine, emptyLine, fetchVatRatePercent, linesToExistingPickerLines, mergePickedIntoLines } from "@/lib/document-form"
 import { apiFetch } from "@/lib/api"
@@ -66,7 +66,7 @@ export function useDocumentLineActions<T extends LinesFormState>(
 
   const handlePick = useCallback((items: PickedItem[], existingLines: FormLine[]) => {
     const knownIds = new Set(
-      linesToExistingPickerLines(existingLines).map((l) => l.productId),
+      linesToExistingPickerLines(existingLines).map((l) => l.nomenclatureId),
     )
     update((prev) => mergePickedIntoLines(prev.lines, items, prev.nextKey, knownIds) as Partial<T>)
     markDirty()
@@ -100,7 +100,7 @@ export function useDocumentLineActions<T extends LinesFormState>(
   /**
    * Cascading product selection.
    *
-   * 1. Immediately saves productId + productName
+   * 1. Immediately saves nomenclatureId + nomenclatureName
    * 2. Async-fetches the nomenclature card
    * 3. Cascade-fills: unitId, unitName, vatRateId, vatRateName, vatPercent
    *    from product defaults (baseUnitId, defaultVatRateId)
@@ -112,7 +112,7 @@ export function useDocumentLineActions<T extends LinesFormState>(
     // 1. Save product immediately
     update((prev) => ({
       lines: prev.lines.map((l) =>
-        l._key === key ? { ...l, productId: id, productName: name, ...amountReset } : l,
+        l._key === key ? { ...l, nomenclatureId: id, nomenclatureName: name, ...amountReset } : l,
       ),
     } as Partial<T>))
     markDirty()
@@ -218,9 +218,9 @@ export function useDocumentLineActions<T extends LinesFormState>(
       let key = prev.nextKey
       const newLines: FormLine[] = pastedLines.map((p) => ({
         ...emptyLine(key++),
-        productId: p.productId,
-        productName: p.productName,
-        productCode: p.productCode,
+        nomenclatureId: p.nomenclatureId,
+        nomenclatureName: p.nomenclatureName,
+        nomenclatureCode: p.nomenclatureCode,
         unitId: p.unitId,
         unitName: p.unitName,
         quantity: p.quantity,

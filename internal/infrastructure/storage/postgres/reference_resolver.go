@@ -1,4 +1,4 @@
-// Package postgres provides the generic ReferenceResolver for batch-resolving
+﻿// Package postgres provides the generic ReferenceResolver for batch-resolving
 // catalog IDs to their display names. This eliminates N+1 queries when
 // building response DTOs that contain reference fields.
 //
@@ -37,10 +37,10 @@ type CurrencyRefDisplay struct {
 // Usage:
 //
 //	resolver := NewReferenceResolver()
-//	resolver.Add("cat_counterparties", doc.SupplierID)
+//	resolver.Add("cat_counterparties", doc.CounterpartyID)
 //	resolver.Add("cat_warehouses", doc.WarehouseID)
 //	resolved, err := resolver.Resolve(ctx, querier)
-//	supplierName := resolved["cat_counterparties"][doc.SupplierID.String()]
+//	supplierName := resolved["cat_counterparties"][doc.CounterpartyID.String()]
 type ReferenceResolver struct {
 	// table → set of IDs to resolve
 	pending map[string]map[id.ID]struct{}

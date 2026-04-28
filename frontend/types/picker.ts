@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Shared types for the picker dialog system.
  *
  * Two layers:
@@ -40,9 +40,9 @@ export interface GenericPickerDialogProps {
 
 /** A line from the existing document, used to initialize the picker quantities. */
 export interface ExistingPickerLine {
-    productId: string
-    productName: string
-    productCode?: string
+    nomenclatureId: string
+    nomenclatureName: string
+    nomenclatureCode?: string
     unitId?: string
     unitName?: string
     quantity: number

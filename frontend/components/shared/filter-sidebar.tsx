@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -138,7 +138,7 @@ export function FilterSidebar({
   }, [onFilterValuesChange])
 
     // ── Flatten fieldsMeta to include nested refFields ──────────────────
-    // This allows lookup of dotted keys like "supplierId.inn" by composing
+    // This allows lookup of dotted keys like "counterpartyId.inn" by composing
     // the parent key + child key, and prepending the parent label for context.
 
     const flatFieldsMetaMap = useMemo(() => {

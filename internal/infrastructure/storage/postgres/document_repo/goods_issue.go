@@ -1,4 +1,4 @@
-package document_repo
+﻿package document_repo
 
 import (
 	"context"
@@ -37,13 +37,13 @@ func NewGoodsIssueRepo() *GoodsIssueRepo {
 	}
 
 	repo.RegisterTablePart("lines", goodsIssueLinesTable, "document_id", []string{
-		"product_id", "unit_id", "quantity", "unit_price",
+		"nomenclature_id", "unit_id", "quantity", "unit_price",
 		"discount_percent", "discount_amount",
 		"vat_rate_id", "vat_amount", "amount",
 	})
 
 	// Register reference fields for deep filtering
-	repo.RegisterReferenceField("customer_id", "cat_counterparties", "customer_id",
+	repo.RegisterReferenceField("counterparty_id", "cat_counterparties", "counterparty_id",
 		postgres.ExtractDBColumns[counterparty.Counterparty]())
 	repo.RegisterReferenceField("warehouse_id", "cat_warehouses", "warehouse_id",
 		postgres.ExtractDBColumns[warehouse.Warehouse]())
@@ -59,7 +59,7 @@ func NewGoodsIssueRepo() *GoodsIssueRepo {
 func (r *GoodsIssueRepo) GetLines(ctx context.Context, docID id.ID) ([]goods_issue.GoodsIssueLine, error) {
 	q := r.Builder().
 		Select(
-			"line_id", "line_no", "product_id",
+			"line_id", "line_no", "nomenclature_id",
 			"unit_id", "coefficient",
 			"quantity", "unit_price",
 			"discount_percent", "discount_amount",
@@ -97,7 +97,7 @@ func (r *GoodsIssueRepo) SaveLines(ctx context.Context, docID id.ID, lines []goo
 
 	// Batch insert via COPY protocol (no 65,535 parameter limit).
 	columns := []string{
-		"line_id", "document_id", "line_no", "product_id",
+		"line_id", "document_id", "line_no", "nomenclature_id",
 		"unit_id", "coefficient",
 		"quantity", "unit_price",
 		"discount_percent", "discount_amount",
@@ -107,7 +107,7 @@ func (r *GoodsIssueRepo) SaveLines(ctx context.Context, docID id.ID, lines []goo
 	rows := make([][]any, 0, len(lines))
 	for _, line := range lines {
 		rows = append(rows, []any{
-			line.LineID, docID, line.LineNo, line.ProductID,
+			line.LineID, docID, line.LineNo, line.NomenclatureID,
 			line.UnitID, line.Coefficient,
 			line.Quantity, line.UnitPrice,
 			line.DiscountPercent, line.DiscountAmount,

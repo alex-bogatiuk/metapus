@@ -13,7 +13,7 @@ import (
 // ValidatableDocLine provides access to common line fields for reusable validation.
 // Document line types implement this to benefit from ValidateDocumentLines.
 type ValidatableDocLine interface {
-	GetProductID() id.ID
+	GetNomenclatureID() id.ID
 	GetUnitID() id.ID
 	GetCoefficient() decimal.Decimal
 	GetQuantity() types.Quantity
@@ -35,7 +35,7 @@ func RunValidationRules[T any](ctx context.Context, doc T, rules ...ValidationRu
 }
 
 // ValidateDocumentLines validates common fields across all document line types.
-// Checks: non-empty lines, product, unit, coefficient > 0, quantity > 0, VAT rate.
+// Checks: non-empty lines, nomenclature, unit, coefficient > 0, quantity > 0, VAT rate.
 func ValidateDocumentLines[L ValidatableDocLine](lines []L) error {
 	if len(lines) == 0 {
 		return apperror.NewValidation("at least one line is required").
@@ -45,8 +45,8 @@ func ValidateDocumentLines[L ValidatableDocLine](lines []L) error {
 	for i, line := range lines {
 		lineNo := i + 1
 
-		if id.IsNil(line.GetProductID()) {
-			return apperror.NewValidation("product is required").
+		if id.IsNil(line.GetNomenclatureID()) {
+			return apperror.NewValidation("nomenclature is required").
 				WithDetail("field", "lines").
 				WithDetail("lineNo", lineNo)
 		}

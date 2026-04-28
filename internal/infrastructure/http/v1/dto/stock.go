@@ -1,4 +1,4 @@
-package dto
+﻿package dto
 
 import (
 	"time"
@@ -13,7 +13,7 @@ import (
 // StockBalanceResponse represents stock balance in API responses.
 type StockBalanceResponse struct {
 	WarehouseID    string     `json:"warehouseId"`
-	ProductID      string     `json:"productId"`
+	NomenclatureID      string     `json:"nomenclatureId"`
 	Quantity       float64    `json:"quantity"`
 	LastMovementAt *time.Time `json:"lastMovementAt,omitempty"`
 }
@@ -32,7 +32,7 @@ func FromStockBalance(b entity.StockBalance) StockBalanceResponse {
 
 	return StockBalanceResponse{
 		WarehouseID:    b.WarehouseID.String(),
-		ProductID:      b.ProductID.String(),
+		NomenclatureID:      b.NomenclatureID.String(),
 		Quantity:       b.Quantity.Float64(),
 		LastMovementAt: lastMovement,
 	}
@@ -47,7 +47,7 @@ type StockMovementResponse struct {
 	Period          time.Time `json:"period"`
 	RecordType      string    `json:"recordType"`
 	WarehouseID     string    `json:"warehouseId"`
-	ProductID       string    `json:"productId"`
+	NomenclatureID       string    `json:"nomenclatureId"`
 	Quantity        float64   `json:"quantity"`
 	CreatedAt       time.Time `json:"createdAt"`
 }
@@ -62,7 +62,7 @@ func FromStockMovement(m entity.StockMovement) StockMovementResponse {
 		Period:          m.Period,
 		RecordType:      string(m.RecordType),
 		WarehouseID:     m.WarehouseID.String(),
-		ProductID:       m.ProductID.String(),
+		NomenclatureID:       m.NomenclatureID.String(),
 		Quantity:        m.Quantity.Float64(),
 		CreatedAt:       m.CreatedAt,
 	}
@@ -73,7 +73,7 @@ func FromStockMovement(m entity.StockMovement) StockMovementResponse {
 // StockTurnoverResponse represents stock turnover report.
 type StockTurnoverResponse struct {
 	WarehouseID    string  `json:"warehouseId,omitempty"`
-	ProductID      string  `json:"productId,omitempty"`
+	NomenclatureID      string  `json:"nomenclatureId,omitempty"`
 	OpeningBalance float64 `json:"openingBalance"`
 	Receipt        float64 `json:"receipt"`
 	Expense        float64 `json:"expense"`
@@ -91,8 +91,8 @@ func FromStockTurnover(t stock.Turnover) StockTurnoverResponse {
 	if !id.IsNil(t.WarehouseID) {
 		resp.WarehouseID = t.WarehouseID.String()
 	}
-	if !id.IsNil(t.ProductID) {
-		resp.ProductID = t.ProductID.String()
+	if !id.IsNil(t.NomenclatureID) {
+		resp.NomenclatureID = t.NomenclatureID.String()
 	}
 	return resp
 }

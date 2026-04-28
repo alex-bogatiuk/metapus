@@ -1,4 +1,4 @@
-package register_repo
+﻿package register_repo
 
 import (
 	"context"
@@ -21,7 +21,7 @@ const (
 var costMovementColumns = []string{
 	"line_id", "recorder_id", "recorder_type", "recorder_version",
 	"period", "record_type",
-	"warehouse_id", "product_id", "currency_id", "quantity", "amount", "created_at",
+	"warehouse_id", "nomenclature_id", "currency_id", "quantity", "amount", "created_at",
 }
 
 // costMovementRowMapper converts a CostMovement to a flat row.
@@ -29,7 +29,7 @@ func costMovementRowMapper(m entity.CostMovement) []any {
 	return []any{
 		m.LineID, m.RecorderID, m.RecorderType, m.RecorderVersion,
 		m.Period, m.RecordType,
-		m.WarehouseID, m.ProductID, m.CurrencyID, m.Quantity, m.Amount, m.CreatedAt,
+		m.WarehouseID, m.NomenclatureID, m.CurrencyID, m.Quantity, m.Amount, m.CreatedAt,
 	}
 }
 
@@ -72,16 +72,16 @@ func (r *CostRepo) GetMovementsByRecorder(ctx context.Context, recorderID id.ID)
 }
 
 // GetBalance returns current balance for warehouse+product+currency.
-func (r *CostRepo) GetBalance(ctx context.Context, warehouseID, productID, currencyID id.ID) (entity.CostBalance, error) {
+func (r *CostRepo) GetBalance(ctx context.Context, warehouseID, nomenclatureID, currencyID id.ID) (entity.CostBalance, error) {
 	var balance entity.CostBalance
 
 	q := r.Builder().Select(
-		"warehouse_id", "product_id", "currency_id",
+		"warehouse_id", "nomenclature_id", "currency_id",
 		"quantity", "amount", "last_movement_at", "updated_at",
 	).From(costBalancesTable).
 		Where(squirrel.Eq{
 			"warehouse_id": warehouseID,
-			"product_id":   productID,
+			"nomenclature_id":   nomenclatureID,
 			"currency_id":  currencyID,
 		}).Limit(1)
 
@@ -95,7 +95,7 @@ func (r *CostRepo) GetBalance(ctx context.Context, warehouseID, productID, curre
 		if pgxscan.NotFound(err) {
 			return entity.CostBalance{
 				WarehouseID: warehouseID,
-				ProductID:   productID,
+				NomenclatureID:   nomenclatureID,
 				CurrencyID:  currencyID,
 				Quantity:    0,
 				Amount:      0,
@@ -110,12 +110,12 @@ func (r *CostRepo) GetBalance(ctx context.Context, warehouseID, productID, curre
 // GetBalancesByWarehouse returns all non-zero balances for a warehouse.
 func (r *CostRepo) GetBalancesByWarehouse(ctx context.Context, warehouseID id.ID) ([]entity.CostBalance, error) {
 	q := r.Builder().Select(
-		"warehouse_id", "product_id", "currency_id",
+		"warehouse_id", "nomenclature_id", "currency_id",
 		"quantity", "amount", "last_movement_at", "updated_at",
 	).From(costBalancesTable).
 		Where(squirrel.Eq{"warehouse_id": warehouseID}).
 		Where(squirrel.NotEq{"quantity": int64(0)}).
-		OrderBy("product_id")
+		OrderBy("nomenclature_id")
 
 	sql, args, err := q.ToSql()
 	if err != nil {
@@ -132,12 +132,12 @@ func (r *CostRepo) GetBalancesByWarehouse(ctx context.Context, warehouseID id.ID
 }
 
 // GetBalancesByProduct returns balances across all warehouses for a product.
-func (r *CostRepo) GetBalancesByProduct(ctx context.Context, productID id.ID) ([]entity.CostBalance, error) {
+func (r *CostRepo) GetBalancesByProduct(ctx context.Context, nomenclatureID id.ID) ([]entity.CostBalance, error) {
 	q := r.Builder().Select(
-		"warehouse_id", "product_id", "currency_id",
+		"warehouse_id", "nomenclature_id", "currency_id",
 		"quantity", "amount", "last_movement_at", "updated_at",
 	).From(costBalancesTable).
-		Where(squirrel.Eq{"product_id": productID}).
+		Where(squirrel.Eq{"nomenclature_id": nomenclatureID}).
 		Where(squirrel.NotEq{"quantity": int64(0)}).
 		OrderBy("warehouse_id")
 

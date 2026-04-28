@@ -1,4 +1,4 @@
-package compiler
+﻿package compiler
 
 import (
 	"fmt"
@@ -51,13 +51,13 @@ func (r *resolver) Joins() []JoinStep {
 	return r.joins
 }
 
-// Resolve resolves a field path like "product_id.brand_id.name" into a SQL expression.
+// Resolve resolves a field path like "nomenclature_id.brand_id.name" into a SQL expression.
 //
 // Returns the fully qualified SQL expression, e.g.:
 //   - "base.quantity"              (simple field)
 //   - "base.warehouse_id"         (ref field, no dereference)
 //   - "j1.name"                   (dereferenced: warehouse_id.name)
-//   - "j2.name"                   (deeply dereferenced: product_id.brand_id.name)
+//   - "j2.name"                   (deeply dereferenced: nomenclature_id.brand_id.name)
 //
 // Side effect: registers necessary JoinSteps for referenced tables.
 func (r *resolver) Resolve(path string) (string, error) {
@@ -202,7 +202,7 @@ func (r *resolver) resolvePath(path string, bare bool) (string, string, error) {
 		return "", "", fmt.Errorf("field %q not found in entity %q", lastSeg, currentEntityDef.Name)
 	}
 
-	// Build the output alias: "product_id__brand_id__name"
+	// Build the output alias: "nomenclature_id__brand_id__name"
 	outputAlias := strings.Join(segments, "__")
 	colName := r.fieldToColumn(finalField)
 	expr := currentAlias + "." + colName

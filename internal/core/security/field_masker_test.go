@@ -1,4 +1,4 @@
-package security
+﻿package security
 
 import (
 	"testing"
@@ -67,7 +67,7 @@ func TestFieldMasker_MaskForRead(t *testing.T) {
 // testLine mimics a document line for testing table part masking.
 type testLine struct {
 	LineID    string `db:"line_id" json:"lineId"`
-	ProductID string `db:"product_id" json:"productId"`
+	NomenclatureID string `db:"nomenclature_id" json:"nomenclatureId"`
 	Quantity  int    `db:"quantity" json:"quantity"`
 	UnitPrice int    `db:"unit_price" json:"unitPrice"`
 	Amount    int    `db:"amount" json:"amount"`
@@ -100,8 +100,8 @@ func TestFieldMasker_MaskForRead_TableParts(t *testing.T) {
 		doc := &testDocWithLines{
 			Name: "Doc", Amount: 1000,
 			Lines: []testLine{
-				{LineID: "l1", ProductID: "p1", Quantity: 10, UnitPrice: 500, Amount: 5000},
-				{LineID: "l2", ProductID: "p2", Quantity: 5, UnitPrice: 300, Amount: 1500},
+				{LineID: "l1", NomenclatureID: "p1", Quantity: 10, UnitPrice: 500, Amount: 5000},
+				{LineID: "l2", NomenclatureID: "p2", Quantity: 5, UnitPrice: 300, Amount: 1500},
 			},
 		}
 		policy := &FieldPolicy{
@@ -117,12 +117,12 @@ func TestFieldMasker_MaskForRead_TableParts(t *testing.T) {
 		assert.Equal(t, 1000, doc.Amount)
 
 		// Line fields: unit_price and amount zeroed
-		assert.Equal(t, "p1", doc.Lines[0].ProductID)
+		assert.Equal(t, "p1", doc.Lines[0].NomenclatureID)
 		assert.Equal(t, 10, doc.Lines[0].Quantity)
 		assert.Equal(t, 0, doc.Lines[0].UnitPrice) // masked
 		assert.Equal(t, 0, doc.Lines[0].Amount)    // masked
 
-		assert.Equal(t, "p2", doc.Lines[1].ProductID)
+		assert.Equal(t, "p2", doc.Lines[1].NomenclatureID)
 		assert.Equal(t, 5, doc.Lines[1].Quantity)
 		assert.Equal(t, 0, doc.Lines[1].UnitPrice) // masked
 		assert.Equal(t, 0, doc.Lines[1].Amount)    // masked
@@ -132,19 +132,19 @@ func TestFieldMasker_MaskForRead_TableParts(t *testing.T) {
 		doc := &testDocWithLines{
 			Name: "Doc",
 			Lines: []testLine{
-				{LineID: "l1", ProductID: "p1", Quantity: 10, UnitPrice: 500, Amount: 5000},
+				{LineID: "l1", NomenclatureID: "p1", Quantity: 10, UnitPrice: 500, Amount: 5000},
 			},
 		}
 		policy := &FieldPolicy{
 			AllowedFields: []string{"*"},
 			TableParts: map[string][]string{
-				"lines": {"line_id", "product_id", "quantity"},
+				"lines": {"line_id", "nomenclature_id", "quantity"},
 			},
 		}
 		MaskForRead(doc, policy)
 
 		assert.Equal(t, "l1", doc.Lines[0].LineID)
-		assert.Equal(t, "p1", doc.Lines[0].ProductID)
+		assert.Equal(t, "p1", doc.Lines[0].NomenclatureID)
 		assert.Equal(t, 10, doc.Lines[0].Quantity)
 		assert.Equal(t, 0, doc.Lines[0].UnitPrice) // not in list — zeroed
 		assert.Equal(t, 0, doc.Lines[0].Amount)    // not in list — zeroed

@@ -1,4 +1,4 @@
-// Package stock provides the stock accumulation register.
+﻿// Package stock provides the stock accumulation register.
 package stock
 
 import (
@@ -27,13 +27,13 @@ type Repository interface {
 	// Balance operations
 
 	// GetBalance returns current balance for warehouse+product
-	GetBalance(ctx context.Context, warehouseID, productID id.ID) (entity.StockBalance, error)
+	GetBalance(ctx context.Context, warehouseID, nomenclatureID id.ID) (entity.StockBalance, error)
 
 	// GetBalanceForUpdate returns balance with row lock for stock control
-	GetBalanceForUpdate(ctx context.Context, warehouseID, productID id.ID) (entity.StockBalance, error)
+	GetBalanceForUpdate(ctx context.Context, warehouseID, nomenclatureID id.ID) (entity.StockBalance, error)
 
 	// GetBalancesForUpdate returns balances for multiple warehouse+product pairs with row locks.
-	// Results are locked in deterministic order (warehouse_id, product_id ASC) to prevent deadlocks.
+	// Results are locked in deterministic order (warehouse_id, nomenclature_id ASC) to prevent deadlocks.
 	// Keys not found in reg_stock_balances are returned with Quantity=0.
 	GetBalancesForUpdate(ctx context.Context, keys []BalanceKey) ([]entity.StockBalance, error)
 
@@ -41,21 +41,21 @@ type Repository interface {
 	GetBalancesByWarehouse(ctx context.Context, warehouseID id.ID, filter BalanceFilter) ([]entity.StockBalance, error)
 
 	// GetBalancesByProduct returns balances across all warehouses for a product
-	GetBalancesByProduct(ctx context.Context, productID id.ID) ([]entity.StockBalance, error)
+	GetBalancesByProduct(ctx context.Context, nomenclatureID id.ID) ([]entity.StockBalance, error)
 
-	// GetBalancesByProductIDs returns total stock quantity for multiple products.
+	// GetBalancesByNomenclatureIDs returns total stock quantity for multiple products.
 	// If warehouseID is non-nil, returns balances only for that warehouse;
 	// otherwise sums across all warehouses.
 	// Used by the product picker dialog to show stock availability.
-	GetBalancesByProductIDs(ctx context.Context, productIDs []id.ID, warehouseID *id.ID) (map[id.ID]types.Quantity, error)
+	GetBalancesByNomenclatureIDs(ctx context.Context, nomenclatureIDs []id.ID, warehouseID *id.ID) (map[id.ID]types.Quantity, error)
 
 	// GetBalancesAtDate calculates balances as of a specific date (for reports)
-	GetBalancesAtDate(ctx context.Context, warehouseID, productID id.ID, date time.Time) (types.Quantity, error)
+	GetBalancesAtDate(ctx context.Context, warehouseID, nomenclatureID id.ID, date time.Time) (types.Quantity, error)
 
 	// Reporting
 
 	// GetMovementHistory returns movement history for a product
-	GetMovementHistory(ctx context.Context, productID id.ID, filter MovementFilter) ([]entity.StockMovement, error)
+	GetMovementHistory(ctx context.Context, nomenclatureID id.ID, filter MovementFilter) ([]entity.StockMovement, error)
 
 	// GetTurnover calculates receipt and expense totals for period
 	GetTurnover(ctx context.Context, filter TurnoverFilter) (Turnover, error)
@@ -63,21 +63,21 @@ type Repository interface {
 	// Maintenance
 
 	// RecalculateBalances rebuilds balance table from movements
-	RecalculateBalances(ctx context.Context, warehouseID, productID *id.ID) error
+	RecalculateBalances(ctx context.Context, warehouseID, nomenclatureID *id.ID) error
 
 	// CheckStockAvailability checks if required quantity is available (with lock)
-	CheckStockAvailability(ctx context.Context, warehouseID, productID id.ID, requiredQty types.Quantity) error
+	CheckStockAvailability(ctx context.Context, warehouseID, nomenclatureID id.ID, requiredQty types.Quantity) error
 }
 
 // BalanceKey represents a unique dimension key for stock balance lookup.
 type BalanceKey struct {
 	WarehouseID id.ID
-	ProductID   id.ID
+	NomenclatureID   id.ID
 }
 
 // BalanceFilter for filtering balance queries.
 type BalanceFilter struct {
-	ProductIDs  []id.ID
+	NomenclatureIDs  []id.ID
 	ExcludeZero bool
 	MinQuantity *types.Quantity
 	MaxQuantity *types.Quantity
@@ -98,7 +98,7 @@ type MovementFilter struct {
 // TurnoverFilter for turnover reports.
 type TurnoverFilter struct {
 	WarehouseID *id.ID
-	ProductID   *id.ID
+	NomenclatureID   *id.ID
 	FromDate    time.Time
 	ToDate      time.Time
 }
@@ -106,7 +106,7 @@ type TurnoverFilter struct {
 // Turnover represents receipt/expense totals.
 type Turnover struct {
 	WarehouseID    id.ID          `json:"warehouseId,omitempty"`
-	ProductID      id.ID          `json:"productId,omitempty"`
+	NomenclatureID      id.ID          `json:"nomenclatureId,omitempty"`
 	OpeningBalance types.Quantity `json:"openingBalance"`
 	Receipt        types.Quantity `json:"receipt"`
 	Expense        types.Quantity `json:"expense"`

@@ -118,15 +118,15 @@ func NewBusinessRule(code, message string) *AppError {
 }
 
 // NewInsufficientStock creates a stock shortage error
-func NewInsufficientStock(productID string, requested, available float64) *AppError {
+func NewInsufficientStock(nomenclatureID string, requested, available float64) *AppError {
 	return &AppError{
 		Code:       CodeInsufficientStock,
 		Message:    "Не хватает остатков на складе. Уменьшите количество или смените склад.",
 		HTTPStatus: http.StatusUnprocessableEntity,
 		Details: map[string]any{
-			"product_id": productID,
-			"requested":  requested,
-			"available":  available,
+			"nomenclature_id": nomenclatureID,
+			"requested":       requested,
+			"available":       available,
 		},
 	}
 }

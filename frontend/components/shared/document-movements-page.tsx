@@ -18,6 +18,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback } from "react"
+import { useTabTitle } from "@/hooks/useTabTitle"
 import Link from "next/link"
 import { ArrowLeft, Loader2, ArrowUpRight, ArrowDownRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -94,6 +95,12 @@ export function DocumentMovementsPage({ documentId, backHref, documentLabel, num
 
         return () => { isMounted = false }
     }, [documentId, fetcher, numberFetcher])
+
+    // Update tab title: "Движения: №GR-SEED-01371 (Поступление)"
+    useTabTitle(
+        docNumber ? `Движения: №${docNumber}` : undefined,
+        documentLabel,
+    )
 
     // Group movements by registerName
     const grouped = useMemo(() => {

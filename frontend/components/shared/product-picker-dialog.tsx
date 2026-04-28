@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 /**
  * ProductPickerDialog — specialized nomenclature picker for goods receipt/issue documents.
@@ -163,11 +163,11 @@ function ProductPickerDialogInner({
     const initialData = useMemo((): PickerInitialItem[] | undefined => {
         if (!existingLines || existingLines.length === 0) return undefined
         return existingLines
-            .filter((l) => l.productId && l.quantity > 0)
+            .filter((l) => l.nomenclatureId && l.quantity > 0)
             .map((l) => ({
-                id: l.productId,
-                name: l.productName,
-                code: l.productCode,
+                id: l.nomenclatureId,
+                name: l.nomenclatureName,
+                code: l.nomenclatureCode,
                 unitId: l.unitId,
                 unitName: l.unitName,
                 quantity: l.quantity,

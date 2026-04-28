@@ -61,3 +61,20 @@
 | Репозиторий | `repo.go` | `counterparty/repo.go` |
 | Бизнес-логика | `service.go` | `counterparty/service.go` |
 | Тесты | `*_test.go` | `service_test.go` |
+
+## 5. Внешние ключи (FK) — строгое правило
+
+**Принцип:** FK-поле обязано называться по имени таблицы, на которую ссылается. Отображаемое имя (label) — задача UI-слоя (`meta:"label:..."`, фронтенд), а не базы данных.
+
+| Правило | Пример | Пояснение |
+|---------|--------|-----------|
+| FK = имя таблицы | `nomenclature_id` → `cat_nomenclatures` | Однозначная связь |
+| Композитное имя при нескольких ролях | `sender_counterparty_id`, `receiver_counterparty_id` | Суффикс `_counterparty_id` сохраняет связь с таблицей |
+| REFERENCES обязателен | `counterparty_id UUID NOT NULL REFERENCES cat_counterparties(id)` | DDL-уровень гарантии |
+| Label — это UI, не БД | DB: `counterparty_id`, Go: `meta:"label:Поставщик"` | Роль определяется типом документа |
+
+> [!CAUTION]
+> Запрещены «бытовые» синонимы, не совпадающие с именем таблицы:
+> - ❌ `product_id` → `cat_nomenclatures` (справочник называется «Номенклатура», не «Продукты»)
+> - ❌ `supplier_id` → `cat_counterparties` (используйте `counterparty_id`)
+> - ❌ `customer_id` → `cat_counterparties` (используйте `counterparty_id`)

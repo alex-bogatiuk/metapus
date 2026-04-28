@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { cn } from "@/lib/utils"
 import { useCompactMode } from "@/hooks/useCompactMode"
@@ -54,8 +54,8 @@ interface GoodsIssueFormState {
   date: string | undefined
   organizationId: string
   organizationName: string
-  customerId: string
-  customerName: string
+  counterpartyId: string
+  counterpartyName: string
   warehouseId: string
   warehouseName: string
   currencyId: string
@@ -74,7 +74,7 @@ interface GoodsIssueFormState {
 const INITIAL_FORM_STATE: GoodsIssueFormState = {
   date: new Date().toISOString(),
   organizationId: "", organizationName: "",
-  customerId: "", customerName: "",
+  counterpartyId: "", counterpartyName: "",
   warehouseId: "", warehouseName: "",
   currencyId: "", currencyName: "",
   contractId: "", contractName: "",
@@ -105,7 +105,7 @@ export default function NewGoodsIssuePage() {
   const { state: f, update, replace, clear, hasDraft } = useFormDraft<GoodsIssueFormState>(
     pathname,
     { ...INITIAL_FORM_STATE, ...stickyDefaults },
-    { shouldPersist: (s) => !!(s.organizationId || s.customerId || s.warehouseId || s.lines.length > 0) },
+    { shouldPersist: (s) => !!(s.organizationId || s.counterpartyId || s.warehouseId || s.lines.length > 0) },
   )
 
   // Convenience: Date object from ISO string
@@ -131,8 +131,8 @@ export default function NewGoodsIssuePage() {
           ...INITIAL_FORM_STATE,
           organizationId: src.organizationId,
           organizationName: src.organization?.name || "",
-          customerId: src.customerId,
-          customerName: src.customer?.name || "",
+          counterpartyId: src.counterpartyId,
+          counterpartyName: src.counterparty?.name || "",
           warehouseId: src.warehouseId,
           warehouseName: src.warehouse?.name || "",
           currencyId: src.currencyId || "",
@@ -214,7 +214,7 @@ export default function NewGoodsIssuePage() {
   const buildPayload = (postImmediately: boolean): CreateGoodsIssueRequest => ({
     date: f.date || new Date().toISOString(),
     organizationId: f.organizationId,
-    customerId: f.customerId,
+    counterpartyId: f.counterpartyId,
     warehouseId: f.warehouseId,
     currencyId: f.currencyId || undefined,
     contractId: f.contractId || null,
@@ -225,7 +225,7 @@ export default function NewGoodsIssuePage() {
     description: f.description || undefined,
     postImmediately,
     lines: f.lines.map((l): GoodsIssueLineRequest => ({
-      productId: l.productId,
+      nomenclatureId: l.nomenclatureId,
       unitId: l.unitId,
       quantity: toQuantity(l.quantity),
       unitPrice: toMinorUnits(l.unitPrice, decimalPlaces),
@@ -236,7 +236,7 @@ export default function NewGoodsIssuePage() {
   })
 
   const handleSave = async (postImmediately: boolean, andClose: boolean) => {
-    if (!f.customerId || !f.warehouseId || !f.organizationId) {
+    if (!f.counterpartyId || !f.warehouseId || !f.organizationId) {
       setError("Укажите покупателя, склад и организацию")
       return
     }
@@ -321,12 +321,12 @@ export default function NewGoodsIssuePage() {
                 <Label className="text-xs text-muted-foreground">Покупатель *</Label>
                 <div className="mt-1">
                   <ReferenceField
-                    value={f.customerId}
-                    displayName={f.customerName}
+                    value={f.counterpartyId}
+                    displayName={f.counterpartyName}
                     apiEndpoint="/catalog/counterparties"
                     placeholder="Выберите покупателя"
-                    error={fieldErrors.customerId}
-                    onChange={(id, name) => { update({ customerId: id, customerName: name }); markDirty(); setFieldErrors(prev => ({...prev, customerId: ""})) }}
+                    error={fieldErrors.counterpartyId}
+                    onChange={(id, name) => { update({ counterpartyId: id, counterpartyName: name }); markDirty(); setFieldErrors(prev => ({...prev, counterpartyId: ""})) }}
                   />
                 </div>
               </div>

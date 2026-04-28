@@ -1,4 +1,4 @@
-package postgres
+﻿package postgres
 
 import (
 	"errors"
@@ -31,7 +31,7 @@ func ExtractForeignKeyField(err error, tableName string) string {
 		constraint := pgErr.ConstraintName
 		
 		// Typically constraints are named: {tableName}_{columnName}_fkey
-		// E.g., doc_goods_receipt_supplier_id_fkey
+		// E.g., doc_goods_receipt_counterparty_id_fkey
 		
 		field := strings.TrimPrefix(constraint, tableName+"_")
 		field = strings.TrimSuffix(field, "_fkey")

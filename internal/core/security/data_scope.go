@@ -1,4 +1,4 @@
-// Package security provides authorization and access control.
+﻿// Package security provides authorization and access control.
 package security
 
 import (
@@ -93,7 +93,7 @@ func (ds *DataScope) SetDimension(name string, ids []string) {
 //
 // Example dimColumns:
 //
-//	{"organization": "organization_id", "counterparty": "supplier_id"}
+//	{"organization": "organization_id", "counterparty": "counterparty_id"}
 //
 // If effective dimensions have "organization" = ["org-1","org-2"], this produces:
 //
@@ -164,7 +164,7 @@ func (ds *DataScope) EffectiveDimensions(entityName string) map[string][]string 
 //
 //	scope.CanAccessRecord(map[string]string{
 //	    "organization":  doc.OrganizationID.String(),
-//	    "counterparty":  doc.SupplierID.String(),
+//	    "counterparty":  doc.CounterpartyID.String(),
 //	})
 //
 // CanAccessRecord checks if the current scope allows accessing a specific record.

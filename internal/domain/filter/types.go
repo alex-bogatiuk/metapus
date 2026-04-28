@@ -1,4 +1,4 @@
-package filter
+﻿package filter
 
 // ComparisonType defines the comparison modes.
 type ComparisonType string
@@ -50,6 +50,6 @@ type TablePartInfo struct {
 // for generating EXISTS subqueries when filtering by nested reference fields.
 type ReferenceFieldInfo struct {
 	TableName  string              // SQL table name of the reference entity, e.g. "cat_counterparties"
-	ForeignKey string              // FK column in the parent entity linking to the reference, e.g. "supplier_id"
+	ForeignKey string              // FK column in the parent entity linking to the reference, e.g. "counterparty_id"
 	ValidCols  map[string]struct{} // allowed filter columns in the reference entity
 }

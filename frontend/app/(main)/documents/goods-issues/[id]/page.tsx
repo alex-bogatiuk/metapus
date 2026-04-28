@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { cn } from "@/lib/utils"
 import { useCompactMode } from "@/hooks/useCompactMode"
@@ -55,8 +55,8 @@ interface GoodsIssueEditFormState {
   date: string | undefined
   organizationId: string
   organizationName: string
-  customerId: string
-  customerName: string
+  counterpartyId: string
+  counterpartyName: string
   warehouseId: string
   warehouseName: string
   currencyId: string
@@ -74,7 +74,7 @@ const INITIAL_EDIT_STATE: GoodsIssueEditFormState = {
   _doc: null,
   date: undefined,
   organizationId: "", organizationName: "",
-  customerId: "", customerName: "",
+  counterpartyId: "", counterpartyName: "",
   warehouseId: "", warehouseName: "",
   currencyId: "", currencyName: "",
   contractId: "", contractName: "",
@@ -91,8 +91,8 @@ function mapDocToState(d: GoodsIssueResponse): GoodsIssueEditFormState {
     date: d.date || undefined,
     organizationId: d.organizationId,
     organizationName: d.organization?.name || "",
-    customerId: d.customerId,
-    customerName: d.customer?.name || "",
+    counterpartyId: d.counterpartyId,
+    counterpartyName: d.counterparty?.name || "",
     warehouseId: d.warehouseId,
     warehouseName: d.warehouse?.name || "",
     currencyId: d.currencyId || "",
@@ -126,7 +126,7 @@ export default function GoodsIssueFormPage() {
     INITIAL_EDIT_STATE,
     mapDocToState,
     "/documents/goods-issues",
-    { shouldPersist: (s) => !!(s._doc && (s.organizationId || s.customerId || s.warehouseId || s.lines.length > 0)) },
+    { shouldPersist: (s) => !!(s._doc && (s.organizationId || s.counterpartyId || s.warehouseId || s.lines.length > 0)) },
   )
 
   // Convenience aliases
@@ -194,7 +194,7 @@ export default function GoodsIssueFormPage() {
     version: doc?.version ?? 1,
     date: f.date || new Date().toISOString(),
     organizationId: f.organizationId,
-    customerId: f.customerId,
+    counterpartyId: f.counterpartyId,
     warehouseId: f.warehouseId,
     currencyId: f.currencyId || null,
     contractId: f.contractId || null,
@@ -202,7 +202,7 @@ export default function GoodsIssueFormPage() {
     amountIncludesVat: f.amountIncludesVat,
     description: f.description || null,
     lines: f.lines.map((l): GoodsIssueLineRequest => ({
-      productId: l.productId,
+      nomenclatureId: l.nomenclatureId,
       unitId: l.unitId,
       quantity: toQuantity(l.quantity),
       unitPrice: toMinorUnits(l.unitPrice, decimalPlaces),
@@ -379,12 +379,12 @@ export default function GoodsIssueFormPage() {
                 <Label className="text-xs text-muted-foreground">Покупатель</Label>
                 <div className="mt-1">
                   <ReferenceField
-                    value={f.customerId}
-                    displayName={f.customerName}
+                    value={f.counterpartyId}
+                    displayName={f.counterpartyName}
                     apiEndpoint="/catalog/counterparties"
                     placeholder="Выберите покупателя"
-                    error={fieldErrors.customerId}
-                    onChange={(id, name) => { update({ customerId: id, customerName: name }); markDirty(); setFieldErrors(prev => ({...prev, customerId: ""})) }}
+                    error={fieldErrors.counterpartyId}
+                    onChange={(id, name) => { update({ counterpartyId: id, counterpartyName: name }); markDirty(); setFieldErrors(prev => ({...prev, counterpartyId: ""})) }}
                   />
                 </div>
               </div>

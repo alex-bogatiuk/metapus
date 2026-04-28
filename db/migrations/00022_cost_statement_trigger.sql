@@ -1,7 +1,7 @@
 -- +goose Up
 -- Description: Optimize cost balance trigger from row-level to statement-level.
 -- Same optimization as 00021 for stock: transition tables aggregate N movements
--- into 1 UPSERT per dimension (warehouse_id, product_id, currency_id).
+-- into 1 UPSERT per dimension (warehouse_id, nomenclature_id, currency_id).
 -- Also fixes: DELETE path now uses GREATEST for last_movement_at consistency.
 
 SELECT pg_advisory_lock(hashtext('metapus_migrations'));
@@ -15,18 +15,18 @@ DROP FUNCTION IF EXISTS update_cost_balance();
 CREATE OR REPLACE FUNCTION update_cost_balance_on_insert()
 RETURNS TRIGGER AS $func$
 BEGIN
-    INSERT INTO reg_cost_balances (warehouse_id, product_id, currency_id, quantity, amount, last_movement_at, updated_at)
+    INSERT INTO reg_cost_balances (warehouse_id, nomenclature_id, currency_id, quantity, amount, last_movement_at, updated_at)
     SELECT
         warehouse_id,
-        product_id,
+        nomenclature_id,
         currency_id,
         SUM(CASE WHEN record_type = 'receipt' THEN quantity ELSE -quantity END),
         SUM(CASE WHEN record_type = 'receipt' THEN amount ELSE -amount END),
         MAX(period),
         NOW()
     FROM new_rows
-    GROUP BY warehouse_id, product_id, currency_id
-    ON CONFLICT (warehouse_id, product_id, currency_id) DO UPDATE SET
+    GROUP BY warehouse_id, nomenclature_id, currency_id
+    ON CONFLICT (warehouse_id, nomenclature_id, currency_id) DO UPDATE SET
         quantity = reg_cost_balances.quantity + EXCLUDED.quantity,
         amount   = reg_cost_balances.amount + EXCLUDED.amount,
         last_movement_at = GREATEST(reg_cost_balances.last_movement_at, EXCLUDED.last_movement_at),
@@ -48,18 +48,18 @@ CREATE TRIGGER trg_cost_movements_balance_insert
 CREATE OR REPLACE FUNCTION update_cost_balance_on_delete()
 RETURNS TRIGGER AS $func$
 BEGIN
-    INSERT INTO reg_cost_balances (warehouse_id, product_id, currency_id, quantity, amount, last_movement_at, updated_at)
+    INSERT INTO reg_cost_balances (warehouse_id, nomenclature_id, currency_id, quantity, amount, last_movement_at, updated_at)
     SELECT
         warehouse_id,
-        product_id,
+        nomenclature_id,
         currency_id,
         SUM(CASE WHEN record_type = 'receipt' THEN -quantity ELSE quantity END),
         SUM(CASE WHEN record_type = 'receipt' THEN -amount ELSE amount END),
         NOW(),
         NOW()
     FROM old_rows
-    GROUP BY warehouse_id, product_id, currency_id
-    ON CONFLICT (warehouse_id, product_id, currency_id) DO UPDATE SET
+    GROUP BY warehouse_id, nomenclature_id, currency_id
+    ON CONFLICT (warehouse_id, nomenclature_id, currency_id) DO UPDATE SET
         quantity = reg_cost_balances.quantity + EXCLUDED.quantity,
         amount   = reg_cost_balances.amount + EXCLUDED.amount,
         updated_at = NOW();
@@ -102,9 +102,9 @@ BEGIN
             v_signed_amt := OLD.amount;
         END IF;
 
-        INSERT INTO reg_cost_balances (warehouse_id, product_id, currency_id, quantity, amount, last_movement_at, updated_at)
-        VALUES (OLD.warehouse_id, OLD.product_id, OLD.currency_id, v_signed_qty, v_signed_amt, OLD.period, NOW())
-        ON CONFLICT (warehouse_id, product_id, currency_id) DO UPDATE SET
+        INSERT INTO reg_cost_balances (warehouse_id, nomenclature_id, currency_id, quantity, amount, last_movement_at, updated_at)
+        VALUES (OLD.warehouse_id, OLD.nomenclature_id, OLD.currency_id, v_signed_qty, v_signed_amt, OLD.period, NOW())
+        ON CONFLICT (warehouse_id, nomenclature_id, currency_id) DO UPDATE SET
             quantity = reg_cost_balances.quantity + v_signed_qty,
             amount   = reg_cost_balances.amount + v_signed_amt,
             updated_at = NOW();
@@ -119,9 +119,9 @@ BEGIN
             v_signed_amt := -NEW.amount;
         END IF;
 
-        INSERT INTO reg_cost_balances (warehouse_id, product_id, currency_id, quantity, amount, last_movement_at, updated_at)
-        VALUES (NEW.warehouse_id, NEW.product_id, NEW.currency_id, v_signed_qty, v_signed_amt, NEW.period, NOW())
-        ON CONFLICT (warehouse_id, product_id, currency_id) DO UPDATE SET
+        INSERT INTO reg_cost_balances (warehouse_id, nomenclature_id, currency_id, quantity, amount, last_movement_at, updated_at)
+        VALUES (NEW.warehouse_id, NEW.nomenclature_id, NEW.currency_id, v_signed_qty, v_signed_amt, NEW.period, NOW())
+        ON CONFLICT (warehouse_id, nomenclature_id, currency_id) DO UPDATE SET
             quantity = reg_cost_balances.quantity + v_signed_qty,
             amount   = reg_cost_balances.amount + v_signed_amt,
             last_movement_at = GREATEST(reg_cost_balances.last_movement_at, NEW.period),

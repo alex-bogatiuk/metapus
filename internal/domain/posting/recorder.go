@@ -1,4 +1,4 @@
-// Package posting — recorder.go provides the RegisterRecorder abstraction.
+﻿// Package posting — recorder.go provides the RegisterRecorder abstraction.
 // RegisterRecorder decouples the Engine from concrete register services,
 // enabling client extensions to add new register types without modifying core.
 package posting
@@ -143,7 +143,7 @@ func DefaultRecorders(
 // stockDimKey is a composite map key for grouping movements by warehouse+product.
 // Uses struct key instead of string concatenation — consistent with dimKey in CheckAndReserveStock.
 type stockDimKey struct {
-	warehouseID, productID id.ID
+	warehouseID, nomenclatureID id.ID
 }
 
 // validateStockAvailability checks if there's enough stock for expense movements.
@@ -156,13 +156,13 @@ func validateStockAvailability(stockService *stock.Service, ctx context.Context,
 			continue
 		}
 
-		key := stockDimKey{m.WarehouseID, m.ProductID}
+		key := stockDimKey{m.WarehouseID, m.NomenclatureID}
 		if existing, ok := reserves[key]; ok {
 			existing.RequiredQty += m.Quantity
 		} else {
 			reserves[key] = &stock.StockReservation{
 				WarehouseID: m.WarehouseID,
-				ProductID:   m.ProductID,
+				NomenclatureID:   m.NomenclatureID,
 				RequiredQty: m.Quantity,
 			}
 		}
@@ -183,7 +183,7 @@ func validateStockAvailability(stockService *stock.Service, ctx context.Context,
 		if c := bytes.Compare(items[i].WarehouseID[:], items[j].WarehouseID[:]); c != 0 {
 			return c < 0
 		}
-		return bytes.Compare(items[i].ProductID[:], items[j].ProductID[:]) < 0
+		return bytes.Compare(items[i].NomenclatureID[:], items[j].NomenclatureID[:]) < 0
 	})
 
 	return stockService.CheckAndReserveStock(ctx, items)

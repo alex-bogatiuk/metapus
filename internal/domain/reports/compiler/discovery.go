@@ -1,4 +1,4 @@
-package compiler
+﻿package compiler
 
 import (
 	"metapus/internal/domain/reports/schema"
@@ -16,7 +16,7 @@ import (
 //	├── name (Наименование) [string]
 //	├── code (Код) [string]
 //	└── ...
-//	product_id (Товар) [ref]
+//	nomenclature_id (Товар) [ref]
 //	├── name (Наименование) [string]
 //	├── article (Артикул) [string]
 //	├── brand_id (Бренд) [ref]

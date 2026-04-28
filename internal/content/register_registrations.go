@@ -1,4 +1,4 @@
-package content
+﻿package content
 
 import (
 	"github.com/gin-gonic/gin"
@@ -28,5 +28,5 @@ func (r *StockRegisterRegistration) RegisterRoutes(group *gin.RouterGroup, cfg v
 	group.GET("/balances", middleware.RequirePermission("register:stock:read"), stockHandler.GetBalances)
 	group.GET("/movements", middleware.RequirePermission("register:stock:read"), stockHandler.GetMovements)
 	group.GET("/turnovers", middleware.RequirePermission("register:stock:read"), stockHandler.GetTurnovers)
-	group.GET("/availability/:productId", middleware.RequirePermission("register:stock:read"), stockHandler.GetProductAvailability)
+	group.GET("/availability/:nomenclatureId", middleware.RequirePermission("register:stock:read"), stockHandler.GetNomenclatureAvailability)
 }

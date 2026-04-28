@@ -82,7 +82,7 @@ func (s *Service) CheckAndReserveStock(ctx context.Context, items []StockReserva
 	for i, item := range items {
 		keys[i] = BalanceKey{
 			WarehouseID: item.WarehouseID,
-			ProductID:   item.ProductID,
+			NomenclatureID:   item.NomenclatureID,
 		}
 	}
 
@@ -92,21 +92,21 @@ func (s *Service) CheckAndReserveStock(ctx context.Context, items []StockReserva
 		return fmt.Errorf("get balances for update: %w", err)
 	}
 
-	// Build a lookup map: (warehouseID, productID) → balance.
+	// Build a lookup map: (warehouseID, nomenclatureID) → balance.
 	type dimKey struct {
 		w, p id.ID
 	}
 	balanceMap := make(map[dimKey]types.Quantity, len(balances))
 	for _, b := range balances {
-		balanceMap[dimKey{b.WarehouseID, b.ProductID}] = b.Quantity
+		balanceMap[dimKey{b.WarehouseID, b.NomenclatureID}] = b.Quantity
 	}
 
 	// Validate each reservation.
 	for _, item := range items {
-		available := balanceMap[dimKey{item.WarehouseID, item.ProductID}]
+		available := balanceMap[dimKey{item.WarehouseID, item.NomenclatureID}]
 		if available < item.RequiredQty {
 			return apperror.NewInsufficientStock(
-				item.ProductID.String(),
+				item.NomenclatureID.String(),
 				item.RequiredQty.Float64(),
 				available.Float64(),
 			)
@@ -119,13 +119,13 @@ func (s *Service) CheckAndReserveStock(ctx context.Context, items []StockReserva
 // StockReservation represents a stock check request.
 type StockReservation struct {
 	WarehouseID id.ID
-	ProductID   id.ID
+	NomenclatureID   id.ID
 	RequiredQty types.Quantity
 }
 
-// GetProductAvailability returns available quantity across warehouses.
-func (s *Service) GetProductAvailability(ctx context.Context, productID id.ID) (types.Quantity, error) {
-	balances, err := s.repo.GetBalancesByProduct(ctx, productID)
+// GetNomenclatureAvailability returns available quantity across warehouses.
+func (s *Service) GetNomenclatureAvailability(ctx context.Context, nomenclatureID id.ID) (types.Quantity, error) {
+	balances, err := s.repo.GetBalancesByProduct(ctx, nomenclatureID)
 	if err != nil {
 		return 0, fmt.Errorf("get balances: %w", err)
 	}
@@ -165,7 +165,7 @@ func (s *Service) GetDocumentMovements(ctx context.Context, recorderID id.ID) ([
 	}
 
 	columns := []entity.MovementColumnDef{
-		{Key: "product", Label: "Товар", Type: "ref"},
+		{Key: "nomenclature", Label: "Номенклатура", Type: "ref"},
 		{Key: "warehouse", Label: "Склад", Type: "ref"},
 		{Key: "quantity", Label: "Количество", Type: "quantity"},
 	}
@@ -173,7 +173,7 @@ func (s *Service) GetDocumentMovements(ctx context.Context, recorderID id.ID) ([
 	result := make([]entity.DocumentMovement, 0, len(movements))
 	for _, m := range movements {
 		data := map[string]interface{}{
-			"product":   entity.MovementRefValue{ID: m.ProductID.String(), Name: m.ProductID.String()},
+			"nomenclature": entity.MovementRefValue{ID: m.NomenclatureID.String(), Name: m.NomenclatureID.String()},
 			"warehouse": entity.MovementRefValue{ID: m.WarehouseID.String(), Name: m.WarehouseID.String()},
 			"quantity":  m.Quantity.Float64(),
 		}

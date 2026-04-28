@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useMemo, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
@@ -13,6 +13,7 @@ import { SelectAllBanner } from "@/components/shared/select-all-banner"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useDocumentBatchActions } from "@/hooks/useDocumentBatchActions"
 import { useShortcut } from "@/hooks/useShortcut"
+import { useScrollRestore } from "@/hooks/useScrollRestore"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -60,13 +61,13 @@ const ALL_COLUMNS: Column<GoodsIssueResponse>[] = [
     ),
   },
   {
-    key: "customerId",
+    key: "counterpartyId",
     label: "Покупатель",
     sortable: false,
     width: 200,
     render: (doc) => (
       <span className="text-xs">
-        {doc.customer?.name || "—"}
+        {doc.counterparty?.name || "—"}
       </span>
     ),
   },
@@ -136,7 +137,7 @@ const ALL_COLUMNS: Column<GoodsIssueResponse>[] = [
   },
 ]
 
-const DEFAULT_VISIBLE_KEYS = ["date", "number", "customerId", "warehouseId", "totalAmount", "totalVat", "description"]
+const DEFAULT_VISIBLE_KEYS = ["date", "number", "counterpartyId", "warehouseId", "totalAmount", "totalVat", "description"]
 
 // ── Page ────────────────────────────────────────────────────────────────
 
@@ -155,6 +156,7 @@ export default function GoodsIssuesListPage() {
     showDeleted, toggleShowDeleted,
     focusedId, setFocusedId,
     replaceItems,
+    searchQuery, setSearchQuery,
   } = useEntityListPage<GoodsIssueResponse>({
     entityKey: "GoodsIssue",
     api: api.goodsIssues,
@@ -235,6 +237,16 @@ export default function GoodsIssuesListPage() {
   useShortcut("list.copy", "f9", "Копировать", "list", handleCopy)
   useShortcut("list.delete", "delete", "Пометить на удаление", "list", handleDeleteMark)
 
+  // ── M5 Search: Ctrl+F → focus search input ──────────────────────────
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
+  useShortcut("list.search", "ctrl+f", "Поиск", "list", () => {
+    searchInputRef.current?.focus()
+    searchInputRef.current?.select()
+  })
+
+  // ── M2 Scroll restoration on tab switch ─────────────────────────────
+  useScrollRestore(scrollContainerRef)
+
   const fetchDetail = useCallback((id: string) => {
     pendingDetailIdRef.current = null
     setDetailLoading(true)
@@ -273,7 +285,7 @@ export default function GoodsIssuesListPage() {
     }
 
     const headerFields = [
-      { label: "Покупатель", value: detailDoc.customer?.name || "—" },
+      { label: "Покупатель", value: detailDoc.counterparty?.name || "—" },
       { label: "Склад", value: detailDoc.warehouse?.name || "—" },
       { label: "Организация", value: detailDoc.organization?.name || "—" },
       ...(detailDoc.description
@@ -292,7 +304,7 @@ export default function GoodsIssuesListPage() {
           { key: "amount", label: "Сумма", align: "right" as const },
         ],
         rows: (detailDoc.lines ?? []).map((line) => ({
-          product: line.product?.name || "—",
+          product: line.nomenclature?.name || "—",
           quantity: String(line.quantity),
           amount: fmtAmount(line.amount, detailDoc.currency?.decimalPlaces ?? DEFAULT_DECIMAL_PLACES),
         })),
@@ -316,6 +328,9 @@ export default function GoodsIssuesListPage() {
         title={useMetadataStore.getState().getLabel("goods_issue", "plural")}
         onCreateHref="/documents/goods-issues/new"
         onCopyClick={(focusedId || selectedIds.length === 1) ? handleCopy : null}
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchInputRef={(el) => { searchInputRef.current = el }}
         extraButtons={
           <Button variant="outline" size="sm" onClick={refresh}>
             Обновить

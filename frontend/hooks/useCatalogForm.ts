@@ -5,6 +5,7 @@ import { useRouter, usePathname, useParams } from "next/navigation"
 import { useTabDirty } from "@/hooks/useTabDirty"
 import { useTabTitle } from "@/hooks/useTabTitle"
 import { useFormDraft } from "@/hooks/useFormDraft"
+import { useFormValidation, type FieldRule } from "@/hooks/useFormValidation"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 
 // ── Types ───────────────────────────────────────────────────────────────
@@ -37,6 +38,12 @@ interface UseCatalogFormOptions<TState, TRes, TCreate, TUpdate> {
   mapFromResponse?: (response: TRes) => TState
   /** Validate form state before save. Return error string or null. */
   validate?: (state: TState) => string | null
+  /**
+   * Per-field validation rules for on-blur validation with shake animation (M15).
+   * When provided, fields with `data-field` attributes will validate on blur.
+   * All rules run on submit with auto-scroll to first error.
+   */
+  fieldRules?: FieldRule<TState>[]
   /** Extract display title from form state (e.g. entity name). */
   titleField?: (state: TState) => string | undefined
   /** Extract version from response for optimistic concurrency. */
@@ -58,7 +65,7 @@ interface UseCatalogFormReturn<TState> {
   saving: boolean
   /** Current error message, if any. */
   error: string | null
-  /** Map of field-specific errors from backend validation. */
+  /** Map of field-specific errors (merged: on-blur M15 + backend). */
   fieldErrors: Record<string, string>
   /** Whether entity is loading (edit mode). */
   loading: boolean
@@ -68,6 +75,14 @@ interface UseCatalogFormReturn<TState> {
   isEditMode: boolean
   /** Resolved entity display name (from metadata store or fallback). */
   entityLabel: string
+  /**
+   * Generate data-field + onBlur props for a form field (M15).
+   * Usage: <Input {...fieldProps("name", f)} value={f.name} />
+   */
+  fieldProps: (field: string) => {
+    "data-field": string
+    onBlur: () => void
+  }
 }
 
 // ── Hook ────────────────────────────────────────────────────────────────
@@ -104,6 +119,7 @@ export function useCatalogForm<
     mapToUpdate,
     mapFromResponse,
     validate,
+    fieldRules,
     titleField,
     getVersion,
     getDeletionMark,
@@ -123,9 +139,14 @@ export function useCatalogForm<
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [backendFieldErrors, setBackendFieldErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(isEditMode && !hasDraft)
   const [deletionMark, setDeletionMark] = useState(false)
+
+  // ── M15: On-blur field validation with shake + scroll-to-error ──────
+  const validation = useFormValidation<TState>({
+    rules: fieldRules ?? [],
+  })
 
   // Tab title — resolve from metadata store when entityKey is provided
   const metaLabel = useMetadataStore((s) => options.entityKey ? s.getLabel(options.entityKey, "singular") : undefined)
@@ -161,7 +182,10 @@ export function useCatalogForm<
 
   const handleSave = useCallback(
     async (andClose: boolean) => {
-      // Validate
+      // Validate (M15: field-level rules → then legacy string validate)
+      if (fieldRules && fieldRules.length > 0) {
+        if (!validation.validateAll(f)) return
+      }
       if (validate) {
         const err = validate(f)
         if (err) { setError(err); return }
@@ -169,7 +193,8 @@ export function useCatalogForm<
 
       setSaving(true)
       setError(null)
-      setFieldErrors({})
+      setBackendFieldErrors({})
+      validation.clearAllErrors()
 
       try {
         if (isEditMode && entityId && entityApi.update && mapToUpdate) {
@@ -199,7 +224,7 @@ export function useCatalogForm<
         }
       } catch (err: any) {
         if (err?.parsedBody?.code === "INVALID_REFERENCE" && err.parsedBody.details?.field) {
-          setFieldErrors({ [err.parsedBody.details.field]: err.message })
+          setBackendFieldErrors({ [err.parsedBody.details.field]: err.message })
           setError(`Ошибка в поле: ${err.parsedBody.details.field}`)
         } else {
           setError(err instanceof Error ? err.message : "Не удалось сохранить изменения. Проверьте правильность заполнения полей.")
@@ -210,9 +235,21 @@ export function useCatalogForm<
     },
     [
       f, isEditMode, entityId, entityApi, mapToCreate, mapToUpdate,
-      validate, getVersion, getDeletionMark,
+      validate, fieldRules, validation, getVersion, getDeletionMark,
       clear, markClean, draftUpdate, router, listPath,
     ],
+  )
+
+  // Merge field errors: M15 validation errors + backend response errors
+  const mergedFieldErrors = {
+    ...validation.fieldErrors,
+    ...backendFieldErrors,
+  }
+
+  // fieldProps wrapper: binds current form state so consumer only passes field name
+  const fieldProps = useCallback(
+    (field: string) => validation.fieldProps(field, f),
+    [validation, f],
   )
 
   return {
@@ -222,10 +259,11 @@ export function useCatalogForm<
     handleSave,
     saving,
     error,
-    fieldErrors,
+    fieldErrors: mergedFieldErrors,
     loading,
     deletionMark,
     isEditMode,
     entityLabel: resolvedEntityName,
+    fieldProps,
   }
 }

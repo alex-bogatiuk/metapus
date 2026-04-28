@@ -1,4 +1,4 @@
-package dto
+﻿package dto
 
 import (
 	"time"
@@ -18,7 +18,7 @@ type CreateGoodsReceiptRequest struct {
 	Number            string                    `json:"number,omitempty"`
 	Date              time.Time                 `json:"date" binding:"required"`
 	OrganizationID    string                    `json:"organizationId" binding:"required"`
-	SupplierID        string                    `json:"supplierId" binding:"required"`
+	CounterpartyID        string                    `json:"counterpartyId" binding:"required"`
 	ContractID        *string                   `json:"contractId,omitempty"`
 	WarehouseID       string                    `json:"warehouseId" binding:"required"`
 	SupplierDocNumber string                    `json:"supplierDocNumber,omitempty"`
@@ -35,7 +35,7 @@ type CreateGoodsReceiptRequest struct {
 
 // GoodsReceiptLineRequest represents a line in create/update request.
 type GoodsReceiptLineRequest struct {
-	ProductID       string           `json:"productId" binding:"required"`
+	NomenclatureID       string           `json:"nomenclatureId" binding:"required"`
 	UnitID          string           `json:"unitId" binding:"required"`
 	Coefficient     decimal.Decimal  `json:"coefficient"`
 	Quantity        types.Quantity   `json:"quantity" binding:"required,gt=0"`
@@ -47,7 +47,7 @@ type GoodsReceiptLineRequest struct {
 
 // ToEntity converts request to domain entity.
 func (r *CreateGoodsReceiptRequest) ToEntity() *goods_receipt.GoodsReceipt {
-	supplierID, _ := id.Parse(r.SupplierID)
+	supplierID, _ := id.Parse(r.CounterpartyID)
 	warehouseID, _ := id.Parse(r.WarehouseID)
 
 	orgID, _ := id.Parse(r.OrganizationID)
@@ -77,14 +77,14 @@ func (r *CreateGoodsReceiptRequest) ToEntity() *goods_receipt.GoodsReceipt {
 	}
 
 	for _, line := range r.Lines {
-		productID, _ := id.Parse(line.ProductID)
+		nomenclatureID, _ := id.Parse(line.NomenclatureID)
 		unitID, _ := id.Parse(line.UnitID)
 		vatRateID, _ := id.Parse(line.VATRateID)
 		coefficient := line.Coefficient
 		if coefficient.IsZero() {
 			coefficient = decimal.NewFromInt(1)
 		}
-		doc.AddLine(productID, unitID, coefficient, line.Quantity, line.UnitPrice, vatRateID, line.VATPercent, line.DiscountPercent)
+		doc.AddLine(nomenclatureID, unitID, coefficient, line.Quantity, line.UnitPrice, vatRateID, line.VATPercent, line.DiscountPercent)
 	}
 
 	return doc
@@ -96,7 +96,7 @@ type UpdateGoodsReceiptRequest struct {
 	Number            *string                   `json:"number,omitempty"`
 	Date              *time.Time                `json:"date,omitempty"`
 	OrganizationID    *string                   `json:"organizationId,omitempty"`
-	SupplierID        *string                   `json:"supplierId,omitempty"`
+	CounterpartyID        *string                   `json:"counterpartyId,omitempty"`
 	ContractID        *string                   `json:"contractId,omitempty"`
 	WarehouseID       *string                   `json:"warehouseId,omitempty"`
 	SupplierDocNumber *string                   `json:"supplierDocNumber,omitempty"`
@@ -125,9 +125,9 @@ func (r *UpdateGoodsReceiptRequest) ApplyTo(doc *goods_receipt.GoodsReceipt) {
 		orgID, _ := id.Parse(*r.OrganizationID)
 		doc.OrganizationID = orgID
 	}
-	if r.SupplierID != nil {
-		supplierID, _ := id.Parse(*r.SupplierID)
-		doc.SupplierID = supplierID
+	if r.CounterpartyID != nil {
+		supplierID, _ := id.Parse(*r.CounterpartyID)
+		doc.CounterpartyID = supplierID
 	}
 	if r.ContractID != nil {
 		contractID, _ := id.Parse(*r.ContractID)
@@ -168,14 +168,14 @@ func (r *UpdateGoodsReceiptRequest) ApplyTo(doc *goods_receipt.GoodsReceipt) {
 	if r.Lines != nil {
 		doc.Lines = make([]goods_receipt.GoodsReceiptLine, 0, len(r.Lines))
 		for _, line := range r.Lines {
-			productID, _ := id.Parse(line.ProductID)
+			nomenclatureID, _ := id.Parse(line.NomenclatureID)
 			unitID, _ := id.Parse(line.UnitID)
 			vatRateID, _ := id.Parse(line.VATRateID)
 			coefficient := line.Coefficient
 			if coefficient.IsZero() {
 				coefficient = decimal.NewFromInt(1)
 			}
-			doc.AddLine(productID, unitID, coefficient, line.Quantity, line.UnitPrice, vatRateID, line.VATPercent, line.DiscountPercent)
+			doc.AddLine(nomenclatureID, unitID, coefficient, line.Quantity, line.UnitPrice, vatRateID, line.VATPercent, line.DiscountPercent)
 		}
 	}
 }
@@ -190,7 +190,7 @@ type GoodsReceiptResponse struct {
 	Posted            bool                       `json:"posted"`
 	PostedVersion     int                        `json:"postedVersion,omitempty"`
 	OrganizationID    string                     `json:"organizationId"`
-	SupplierID        string                     `json:"supplierId"`
+	CounterpartyID        string                     `json:"counterpartyId"`
 	ContractID        *string                    `json:"contractId,omitempty"`
 	WarehouseID       string                     `json:"warehouseId"`
 	SupplierDocNumber string                     `json:"supplierDocNumber,omitempty"`
@@ -224,7 +224,7 @@ type GoodsReceiptResponse struct {
 type GoodsReceiptLineResponse struct {
 	LineID          string           `json:"lineId"`
 	LineNo          int              `json:"lineNo"`
-	ProductID       string           `json:"productId"`
+	NomenclatureID       string           `json:"nomenclatureId"`
 	UnitID          string           `json:"unitId"`
 	Coefficient     decimal.Decimal  `json:"coefficient"`
 	Quantity        types.Quantity   `json:"quantity"`
@@ -266,7 +266,7 @@ const (
 // into the resolver for batch resolution.
 func CollectGoodsReceiptRefs(resolver *postgres.ReferenceResolver, doc *goods_receipt.GoodsReceipt) {
 	resolver.Add(TableOrganizations, doc.OrganizationID)
-	resolver.Add(TableCounterparties, doc.SupplierID)
+	resolver.Add(TableCounterparties, doc.CounterpartyID)
 	resolver.AddPtr(TableContracts, doc.ContractID)
 	resolver.Add(TableWarehouses, doc.WarehouseID)
 	resolver.Add(TableCurrencies, doc.CurrencyID)
@@ -274,7 +274,7 @@ func CollectGoodsReceiptRefs(resolver *postgres.ReferenceResolver, doc *goods_re
 	resolver.Add(TableUsers, doc.UpdatedBy)
 
 	for _, line := range doc.Lines {
-		resolver.Add(TableNomenclature, line.ProductID)
+		resolver.Add(TableNomenclature, line.NomenclatureID)
 		resolver.Add(TableUnits, line.UnitID)
 		resolver.Add(TableVATRates, line.VATRateID)
 	}
@@ -291,7 +291,7 @@ func FromGoodsReceipt(doc *goods_receipt.GoodsReceipt, refs postgres.ResolvedRef
 		Date:              doc.Date,
 		Posted:            doc.Posted,
 		OrganizationID:    doc.OrganizationID.String(),
-		SupplierID:        doc.SupplierID.String(),
+		CounterpartyID:        doc.CounterpartyID.String(),
 		WarehouseID:       doc.WarehouseID.String(),
 		SupplierDocNumber: doc.SupplierDocNumber,
 		SupplierDocDate:   doc.SupplierDocDate,
@@ -323,7 +323,7 @@ func FromGoodsReceipt(doc *goods_receipt.GoodsReceipt, refs postgres.ResolvedRef
 	if resolved != nil {
 		org := resolved.Get(TableOrganizations, doc.OrganizationID)
 		resp.Organization = &org
-		sup := resolved.Get(TableCounterparties, doc.SupplierID)
+		sup := resolved.Get(TableCounterparties, doc.CounterpartyID)
 		resp.Supplier = &sup
 		wh := resolved.Get(TableWarehouses, doc.WarehouseID)
 		resp.Warehouse = &wh
@@ -348,7 +348,7 @@ func FromGoodsReceipt(doc *goods_receipt.GoodsReceipt, refs postgres.ResolvedRef
 		lineResp := GoodsReceiptLineResponse{
 			LineID:          line.LineID.String(),
 			LineNo:          line.LineNo,
-			ProductID:       line.ProductID.String(),
+			NomenclatureID:       line.NomenclatureID.String(),
 			UnitID:          line.UnitID.String(),
 			Coefficient:     line.Coefficient,
 			Quantity:        line.Quantity,
@@ -362,7 +362,7 @@ func FromGoodsReceipt(doc *goods_receipt.GoodsReceipt, refs postgres.ResolvedRef
 		}
 
 		if resolved != nil {
-			prod := resolved.Get(TableNomenclature, line.ProductID)
+			prod := resolved.Get(TableNomenclature, line.NomenclatureID)
 			lineResp.Product = &prod
 			unit := resolved.Get(TableUnits, line.UnitID)
 			lineResp.Unit = &unit

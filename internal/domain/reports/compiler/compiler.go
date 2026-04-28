@@ -1,4 +1,4 @@
-// Package compiler implements the Metapus Query Engine — a metadata-driven
+﻿// Package compiler implements the Metapus Query Engine — a metadata-driven
 // SQL query builder that translates frontend QueryRequest into optimized SQL.
 //
 // Architecture:
@@ -33,7 +33,7 @@ import (
 )
 
 // MaxJoinDepth is the maximum depth for reference field resolution.
-// Paths like "product_id.brand_id.country_id.name" have depth 3.
+// Paths like "nomenclature_id.brand_id.country_id.name" have depth 3.
 const MaxJoinDepth = 3
 
 // QueryRequest is the JSON body sent by the frontend to execute a report.
@@ -43,7 +43,7 @@ type QueryRequest struct {
 
 	// Select lists field paths to include in the result.
 	// Simple fields: "quantity", "warehouse_id"
-	// Dereferenced: "warehouse_id.name", "product_id.brand_id.name"
+	// Dereferenced: "warehouse_id.name", "nomenclature_id.brand_id.name"
 	// If empty, all non-hidden fields are selected.
 	Select []string `json:"select,omitempty"`
 
@@ -61,7 +61,7 @@ type QueryRequest struct {
 	Filters map[string]interface{} `json:"filters,omitempty"`
 
 	// AdvancedFilters are typed filter conditions from FilterSidebar.
-	// Each item's Field can be a dot-path (e.g. "product_id.brand_id.name"),
+	// Each item's Field can be a dot-path (e.g. "nomenclature_id.brand_id.name"),
 	// resolved via the path resolver with automatic JOIN generation.
 	// All conditions are compiled into SQL WHERE clauses (push-down).
 	AdvancedFilters []filter.Item `json:"advancedFilters,omitempty"`
@@ -289,7 +289,7 @@ func (c *Compiler) Execute(ctx context.Context, req QueryRequest) (*QueryResult,
 // which validates the path against metadata and registers necessary JOINs.
 //
 // This enables filtering by nested reference fields:
-//   "product_id.brand_id.name" → LEFT JOIN + WHERE j2.name ILIKE '%...'
+//   "nomenclature_id.brand_id.name" → LEFT JOIN + WHERE j2.name ILIKE '%...'
 //
 // All filtering happens at the SQL level (push-down) — zero post-fetch filtering.
 func (c *Compiler) applyAdvancedFilters(

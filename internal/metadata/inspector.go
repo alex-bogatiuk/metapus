@@ -1,4 +1,4 @@
-package metadata
+﻿package metadata
 
 import (
 	"reflect"
@@ -323,7 +323,7 @@ func guessLabel(name string) string {
 }
 
 // dbColumnName extracts the DB column name from the "db" struct tag.
-// E.g. `db:"supplier_id"` → "supplier_id".
+// E.g. `db:"counterparty_id"` → "counterparty_id".
 func dbColumnName(field reflect.StructField) string {
 	if tag, ok := field.Tag.Lookup("db"); ok {
 		parts := strings.Split(tag, ",")
@@ -349,7 +349,7 @@ func metaHasPreviewFalse(field reflect.StructField) bool {
 }
 
 // toSnakeCase converts CamelCase to snake_case.
-// E.g. "SupplierID" → "supplier_id", "WarehouseID" → "warehouse_id".
+// E.g. "CounterpartyID" → "counterparty_id", "WarehouseID" → "warehouse_id".
 func toSnakeCase(s string) string {
 	var result []rune
 	for i, r := range s {

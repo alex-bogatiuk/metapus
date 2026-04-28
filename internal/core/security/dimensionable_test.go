@@ -1,24 +1,24 @@
-package security
+﻿package security
 
 import "testing"
 
 // testDimensionable is a simple test struct implementing RLSDimensionable.
 type testDimensionable struct {
 	OrgID      string
-	SupplierID string
+	CounterpartyID string
 }
 
 func (t *testDimensionable) GetRLSDimensions() map[string]string {
 	return map[string]string{
 		"organization": t.OrgID,
-		"counterparty": t.SupplierID,
+		"counterparty": t.CounterpartyID,
 	}
 }
 
 func TestRLSDimensionable_WithDataScope(t *testing.T) {
 	entity := &testDimensionable{
 		OrgID:      "org-1",
-		SupplierID: "cp-5",
+		CounterpartyID: "cp-5",
 	}
 
 	// Admin scope — always allowed

@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { cn } from "@/lib/utils"
 import { useCompactMode } from "@/hooks/useCompactMode"
@@ -38,6 +38,7 @@ import { useDocumentLineActions, useExistingPickerLines } from "@/hooks/useDocum
 import { useAddLineFocus } from "@/hooks/useAddLineFocus"
 import { DocumentTotalsFooter } from "@/components/shared/document-totals-footer"
 import { useDocumentErrorHandler } from "@/hooks/useDocumentErrorHandler"
+import { useFormValidation } from "@/hooks/useFormValidation"
 import { useShortcut } from "@/hooks/useShortcut"
 import { useLastUsedDefaults, saveLastUsed } from "@/hooks/useLastUsedValues"
 import type { GoodsReceiptLineRequest, CreateGoodsReceiptRequest, GoodsReceiptResponse } from "@/types/document"
@@ -54,8 +55,8 @@ interface GoodsReceiptFormState {
   date: string | undefined
   organizationId: string
   organizationName: string
-  supplierId: string
-  supplierName: string
+  counterpartyId: string
+  counterpartyName: string
   warehouseId: string
   warehouseName: string
   currencyId: string
@@ -73,7 +74,7 @@ interface GoodsReceiptFormState {
 const INITIAL_FORM_STATE: GoodsReceiptFormState = {
   date: new Date().toISOString(),
   organizationId: "", organizationName: "",
-  supplierId: "", supplierName: "",
+  counterpartyId: "", counterpartyName: "",
   warehouseId: "", warehouseName: "",
   currencyId: "", currencyName: "",
   contractId: "", contractName: "",
@@ -96,6 +97,16 @@ export default function NewGoodsReceiptPage() {
   const [copyLoading, setCopyLoading] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
 
+  // ── M15: Declarative field validation with on-blur shake + scroll-to-error ──
+  const validation = useFormValidation<GoodsReceiptFormState>({
+    rules: [
+      { field: "organizationId", validate: (s) => s.organizationId ? null : "Укажите организацию" },
+      { field: "counterpartyId", validate: (s) => s.counterpartyId ? null : "Укажите поставщика" },
+      { field: "warehouseId", validate: (s) => s.warehouseId ? null : "Укажите склад" },
+      { field: "lines", trigger: "submit", validate: (s) => s.lines.length > 0 ? null : "Добавьте хотя бы одну строку товаров" },
+    ],
+  })
+
   // M1: Sticky defaults — pre-fill warehouse, organization, currency from last save
   const stickyDefaults = useLastUsedDefaults<GoodsReceiptFormState>("goods_receipt")
 
@@ -103,7 +114,7 @@ export default function NewGoodsReceiptPage() {
   const { state: f, update, replace, clear, hasDraft } = useFormDraft<GoodsReceiptFormState>(
     pathname,
     { ...INITIAL_FORM_STATE, ...stickyDefaults },
-    { shouldPersist: (s) => !!(s.organizationId || s.supplierId || s.warehouseId || s.lines.length > 0) },
+    { shouldPersist: (s) => !!(s.organizationId || s.counterpartyId || s.warehouseId || s.lines.length > 0) },
   )
 
   // Convenience: Date object from ISO string
@@ -128,8 +139,8 @@ export default function NewGoodsReceiptPage() {
           ...INITIAL_FORM_STATE,
           organizationId: src.organizationId,
           organizationName: src.organization?.name || "",
-          supplierId: src.supplierId,
-          supplierName: src.supplier?.name || "",
+          counterpartyId: src.counterpartyId,
+          counterpartyName: src.counterparty?.name || "",
           warehouseId: src.warehouseId,
           warehouseName: src.warehouse?.name || "",
           currencyId: src.currencyId || "",
@@ -188,7 +199,7 @@ export default function NewGoodsReceiptPage() {
   const buildPayload = (postImmediately: boolean): CreateGoodsReceiptRequest => ({
     date: f.date || new Date().toISOString(),
     organizationId: f.organizationId,
-    supplierId: f.supplierId,
+    counterpartyId: f.counterpartyId,
     warehouseId: f.warehouseId,
     currencyId: f.currencyId || undefined,
     contractId: f.contractId || null,
@@ -198,7 +209,7 @@ export default function NewGoodsReceiptPage() {
     description: f.description || undefined,
     postImmediately,
     lines: f.lines.map((l): GoodsReceiptLineRequest => ({
-      productId: l.productId,
+      nomenclatureId: l.nomenclatureId,
       unitId: l.unitId,
       quantity: toQuantity(l.quantity),
       unitPrice: toMinorUnits(l.unitPrice, decimalPlaces),
@@ -209,16 +220,12 @@ export default function NewGoodsReceiptPage() {
   })
 
   const handleSave = async (postImmediately: boolean, andClose: boolean) => {
-    if (!f.supplierId || !f.warehouseId || !f.organizationId) {
-      setError("Укажите поставщика, склад и организацию")
-      return
-    }
-    if (f.lines.length === 0) {
-      setError("Добавьте хотя бы одну строку товаров")
-      return
-    }
+    // M15: validate all fields with shake + scroll-to-error
+    if (!validation.validateAll(f)) return
+
     setSaving(true)
     clearErrors()
+    validation.clearAllErrors()
     try {
       const created = await api.goodsReceipts.create(buildPayload(postImmediately))
       markClean()
@@ -277,7 +284,7 @@ export default function NewGoodsReceiptPage() {
         <div className="flex flex-1 flex-col overflow-hidden relative">
           {!headerCollapsed && <div className={cn("border-b bg-card shrink-0", compact ? "p-2" : "p-4")}>
             <div className={cn("grid grid-cols-1 gap-x-6 md:grid-cols-2 lg:grid-cols-3", compact ? "gap-y-1.5" : "gap-y-3")}>
-              <div>
+              <div data-field="organizationId">
                 <Label className="text-xs text-muted-foreground">Организация *</Label>
                 <div className="mt-1">
                   <ReferenceField
@@ -285,21 +292,23 @@ export default function NewGoodsReceiptPage() {
                     displayName={f.organizationName}
                     apiEndpoint="/catalog/organizations"
                     placeholder="Выберите организацию"
-                    error={fieldErrors.organizationId}
-                    onChange={(id, name) => { update({ organizationId: id, organizationName: name }); markDirty(); setFieldErrors(prev => ({...prev, organizationId: ""})) }}
+                    error={fieldErrors.organizationId || validation.fieldErrors.organizationId}
+                    onChange={(id, name) => { update({ organizationId: id, organizationName: name }); markDirty(); setFieldErrors(prev => ({...prev, organizationId: ""})); validation.clearFieldError("organizationId") }}
+                    onBlur={() => validation.handleBlur("organizationId", f)}
                   />
                 </div>
               </div>
-              <div>
+              <div data-field="counterpartyId">
                 <Label className="text-xs text-muted-foreground">Поставщик *</Label>
                 <div className="mt-1">
                   <ReferenceField
-                    value={f.supplierId}
-                    displayName={f.supplierName}
+                    value={f.counterpartyId}
+                    displayName={f.counterpartyName}
                     apiEndpoint="/catalog/counterparties"
                     placeholder="Выберите поставщика"
-                    error={fieldErrors.supplierId}
-                    onChange={(id, name) => { update({ supplierId: id, supplierName: name }); markDirty(); setFieldErrors(prev => ({...prev, supplierId: ""})) }}
+                    error={fieldErrors.counterpartyId || validation.fieldErrors.counterpartyId}
+                    onChange={(id, name) => { update({ counterpartyId: id, counterpartyName: name }); markDirty(); setFieldErrors(prev => ({...prev, counterpartyId: ""})); validation.clearFieldError("counterpartyId") }}
+                    onBlur={() => validation.handleBlur("counterpartyId", f)}
                   />
                 </div>
               </div>
@@ -311,7 +320,7 @@ export default function NewGoodsReceiptPage() {
                   className={cn("mt-1", compact ? "h-7" : "h-9")}
                 />
               </div>
-              <div>
+              <div data-field="warehouseId">
                 <Label className="text-xs text-muted-foreground">Склад *</Label>
                 <div className="mt-1">
                   <ReferenceField
@@ -319,8 +328,9 @@ export default function NewGoodsReceiptPage() {
                     displayName={f.warehouseName}
                     apiEndpoint="/catalog/warehouses"
                     placeholder="Выберите склад"
-                    error={fieldErrors.warehouseId}
-                    onChange={(id, name) => { update({ warehouseId: id, warehouseName: name }); markDirty(); setFieldErrors(prev => ({...prev, warehouseId: ""})) }}
+                    error={fieldErrors.warehouseId || validation.fieldErrors.warehouseId}
+                    onChange={(id, name) => { update({ warehouseId: id, warehouseName: name }); markDirty(); setFieldErrors(prev => ({...prev, warehouseId: ""})); validation.clearFieldError("warehouseId") }}
+                    onBlur={() => validation.handleBlur("warehouseId", f)}
                   />
                 </div>
               </div>

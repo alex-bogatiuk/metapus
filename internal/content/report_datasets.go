@@ -1,4 +1,4 @@
-package content
+﻿package content
 
 import (
 	"context"
@@ -27,7 +27,7 @@ var StockBalanceDataset = schema.Dataset{
 	Permission:  "report:stock:read",
 	Fields: []schema.Field{
 		{Name: "warehouse_id", Label: "Склад", Kind: schema.FieldDimension, Type: schema.TypeRef, RefEntity: "warehouse", Sortable: true},
-		{Name: "product_id", Label: "Товар", Kind: schema.FieldDimension, Type: schema.TypeRef, RefEntity: "nomenclature", Sortable: true},
+		{Name: "nomenclature_id", Label: "Товар", Kind: schema.FieldDimension, Type: schema.TypeRef, RefEntity: "nomenclature", Sortable: true},
 		{Name: "quantity", Label: "Остаток", Kind: schema.FieldMeasure, Type: schema.TypeQuantity, Agg: schema.AggSum, Sortable: true, Scale: 4},
 	},
 	Filters: []schema.FilterDef{
@@ -71,7 +71,7 @@ func (e *stockBalanceExecutor) BuildQuery(ctx context.Context, params map[string
 	cteSQL := `
 		SELECT 
 			m.warehouse_id,
-			m.product_id,
+			m.nomenclature_id,
 			SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END)` + qtyScale + ` as quantity
 		FROM reg_stock_movements m
 		WHERE m.period <= $1`
@@ -88,14 +88,14 @@ func (e *stockBalanceExecutor) BuildQuery(ctx context.Context, params map[string
 	}
 
 	// Product filter
-	if productIDs, ok := extractIDSlice(params, "product_id"); ok && len(productIDs) > 0 {
+	if productIDs, ok := extractIDSlice(params, "nomenclature_id"); ok && len(productIDs) > 0 {
 		placeholders := make([]string, len(productIDs))
 		for i, pid := range productIDs {
 			placeholders[i] = fmt.Sprintf("$%d", argIdx)
 			args = append(args, pid)
 			argIdx++
 		}
-		cteSQL += fmt.Sprintf(" AND m.product_id IN (%s)", strings.Join(placeholders, ","))
+		cteSQL += fmt.Sprintf(" AND m.nomenclature_id IN (%s)", strings.Join(placeholders, ","))
 	}
 
 	havingClause := ""
@@ -103,7 +103,7 @@ func (e *stockBalanceExecutor) BuildQuery(ctx context.Context, params map[string
 		havingClause = " HAVING SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END) != 0"
 	}
 
-	cteSQL += " GROUP BY m.warehouse_id, m.product_id" + havingClause
+	cteSQL += " GROUP BY m.warehouse_id, m.nomenclature_id" + havingClause
 
 	// Wrap CTE as subquery aliased as "base"
 	subquery := fmt.Sprintf("(%s) AS base", cteSQL)
@@ -123,12 +123,12 @@ func (e *stockBalanceExecutor) BuildQuery(ctx context.Context, params map[string
 		FromSelect(
 			builder.Select(
 				"m.warehouse_id",
-				"m.product_id",
+				"m.nomenclature_id",
 				"SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END)" + qtyScale + " as quantity",
 			).
 				From("reg_stock_movements m").
 				Where(squirrel.LtOrEq{"m.period": asOfDate}).
-				GroupBy("m.warehouse_id", "m.product_id"),
+				GroupBy("m.warehouse_id", "m.nomenclature_id"),
 			"base",
 		)
 
@@ -138,8 +138,8 @@ func (e *stockBalanceExecutor) BuildQuery(ctx context.Context, params map[string
 	}
 
 	// Apply product filter
-	if productIDs, ok := extractIDSlice(params, "product_id"); ok && len(productIDs) > 0 {
-		rawQB = rawQB.Where(squirrel.Eq{"base.product_id": productIDs})
+	if productIDs, ok := extractIDSlice(params, "nomenclature_id"); ok && len(productIDs) > 0 {
+		rawQB = rawQB.Where(squirrel.Eq{"base.nomenclature_id": productIDs})
 	}
 
 	if excludeZero {
@@ -161,7 +161,7 @@ var StockTurnoverDataset = schema.Dataset{
 	Permission:  "report:stock:read",
 	Fields: []schema.Field{
 		{Name: "warehouse_id", Label: "Склад", Kind: schema.FieldDimension, Type: schema.TypeRef, RefEntity: "warehouse", Sortable: true},
-		{Name: "product_id", Label: "Товар", Kind: schema.FieldDimension, Type: schema.TypeRef, RefEntity: "nomenclature", Sortable: true},
+		{Name: "nomenclature_id", Label: "Товар", Kind: schema.FieldDimension, Type: schema.TypeRef, RefEntity: "nomenclature", Sortable: true},
 		{Name: "opening_balance", Label: "Нач. остаток", Kind: schema.FieldMeasure, Type: schema.TypeQuantity, Agg: schema.AggSum, Sortable: true, Scale: 4},
 		{Name: "receipt", Label: "Приход", Kind: schema.FieldMeasure, Type: schema.TypeQuantity, Agg: schema.AggSum, Sortable: true, Scale: 4},
 		{Name: "expense", Label: "Расход", Kind: schema.FieldMeasure, Type: schema.TypeQuantity, Agg: schema.AggSum, Sortable: true, Scale: 4},
@@ -193,15 +193,15 @@ func (e *stockTurnoverExecutor) BuildQuery(ctx context.Context, params map[strin
 	// Build subquery SQL strings with args
 	openingSub := builder.Select(
 		"m.warehouse_id",
-		"m.product_id",
+		"m.nomenclature_id",
 		"SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END)" + qtyScale + " as opening_qty",
 	).From("reg_stock_movements m").
 		Where(squirrel.Lt{"m.period": fromDate}).
-		GroupBy("m.warehouse_id", "m.product_id")
+		GroupBy("m.warehouse_id", "m.nomenclature_id")
 
 	mainSub := builder.Select(
 		"m.warehouse_id",
-		"m.product_id",
+		"m.nomenclature_id",
 		"SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE 0 END)" + qtyScale + " as receipt",
 		"SUM(CASE WHEN m.record_type = 'expense' THEN m.quantity ELSE 0 END)" + qtyScale + " as expense",
 	).From("reg_stock_movements m").
@@ -209,7 +209,7 @@ func (e *stockTurnoverExecutor) BuildQuery(ctx context.Context, params map[strin
 			squirrel.GtOrEq{"m.period": fromDate},
 			squirrel.Lt{"m.period": toDate},
 		}).
-		GroupBy("m.warehouse_id", "m.product_id")
+		GroupBy("m.warehouse_id", "m.nomenclature_id")
 
 	openingSQL, openingArgs, _ := openingSub.ToSql()
 	mainSQL, mainArgs, _ := mainSub.ToSql()
@@ -226,14 +226,14 @@ func (e *stockTurnoverExecutor) BuildQuery(ctx context.Context, params map[strin
 	combinedSQL := fmt.Sprintf(
 		`SELECT
 			COALESCE(t.warehouse_id, o.warehouse_id) as warehouse_id,
-			COALESCE(t.product_id, o.product_id) as product_id,
+			COALESCE(t.nomenclature_id, o.nomenclature_id) as nomenclature_id,
 			COALESCE(o.opening_qty, 0) as opening_balance,
 			COALESCE(t.receipt, 0) as receipt,
 			COALESCE(t.expense, 0) as expense,
 			COALESCE(o.opening_qty, 0) + COALESCE(t.receipt, 0) - COALESCE(t.expense, 0) as closing_balance
 		FROM (%s) t
 		FULL OUTER JOIN (%s) o
-			ON t.warehouse_id = o.warehouse_id AND t.product_id = o.product_id`,
+			ON t.warehouse_id = o.warehouse_id AND t.nomenclature_id = o.nomenclature_id`,
 		mainSQL, reNumberedOpening,
 	)
 
@@ -306,7 +306,7 @@ func (e *documentJournalExecutor) BuildQuery(ctx context.Context, params map[str
 	).From("doc_goods_receipts d").
 		LeftJoin("cat_currencies cur ON d.currency_id = cur.id").
 		LeftJoin("cat_warehouses w ON d.warehouse_id = w.id").
-		LeftJoin("cat_counterparties cp ON d.supplier_id = cp.id").
+		LeftJoin("cat_counterparties cp ON d.counterparty_id = cp.id").
 		Where("d.deletion_mark = false")
 
 	// Goods Issue
@@ -321,7 +321,7 @@ func (e *documentJournalExecutor) BuildQuery(ctx context.Context, params map[str
 	).From("doc_goods_issues d").
 		LeftJoin("cat_currencies cur ON d.currency_id = cur.id").
 		LeftJoin("cat_warehouses w ON d.warehouse_id = w.id").
-		LeftJoin("cat_counterparties cp ON d.customer_id = cp.id").
+		LeftJoin("cat_counterparties cp ON d.counterparty_id = cp.id").
 		Where("d.deletion_mark = false")
 
 	// Apply date filters

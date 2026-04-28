@@ -1,4 +1,4 @@
-package handlers
+﻿package handlers
 
 import (
 	"net/http"
@@ -44,14 +44,14 @@ func (h *StockHandler) GetBalances(c *gin.Context) {
 	}
 
 	// Parse optional product filter
-	var productID *id.ID
-	if pStr := c.Query("productId"); pStr != "" {
+	var nomenclatureID *id.ID
+	if pStr := c.Query("nomenclatureId"); pStr != "" {
 		parsed, err := id.Parse(pStr)
 		if err != nil {
-			h.Error(c, apperror.NewValidation("invalid productId format"))
+			h.Error(c, apperror.NewValidation("invalid nomenclatureId format"))
 			return
 		}
-		productID = &parsed
+		nomenclatureID = &parsed
 	}
 
 	var balances []dto.StockBalanceResponse
@@ -60,8 +60,8 @@ func (h *StockHandler) GetBalances(c *gin.Context) {
 		filter := stock.BalanceFilter{
 			ExcludeZero: c.Query("excludeZero") != "false",
 		}
-		if productID != nil {
-			filter.ProductIDs = []id.ID{*productID}
+		if nomenclatureID != nil {
+			filter.NomenclatureIDs = []id.ID{*nomenclatureID}
 		}
 
 		entityBalances, err := h.repo.GetBalancesByWarehouse(ctx, *warehouseID, filter)
@@ -74,8 +74,8 @@ func (h *StockHandler) GetBalances(c *gin.Context) {
 		for i, b := range entityBalances {
 			balances[i] = dto.FromStockBalance(b)
 		}
-	} else if productID != nil {
-		entityBalances, err := h.repo.GetBalancesByProduct(ctx, *productID)
+	} else if nomenclatureID != nil {
+		entityBalances, err := h.repo.GetBalancesByProduct(ctx, *nomenclatureID)
 		if err != nil {
 			h.Error(c, err)
 			return
@@ -86,7 +86,7 @@ func (h *StockHandler) GetBalances(c *gin.Context) {
 			balances[i] = dto.FromStockBalance(b)
 		}
 	} else {
-		h.Error(c, apperror.NewValidation("warehouseId or productId is required"))
+		h.Error(c, apperror.NewValidation("warehouseId or nomenclatureId is required"))
 		return
 	}
 
@@ -98,15 +98,15 @@ func (h *StockHandler) GetMovements(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	// Product is required for movement history
-	productIDStr := c.Query("productId")
-	if productIDStr == "" {
-		h.Error(c, apperror.NewValidation("productId is required"))
+	nomenclatureIDStr := c.Query("nomenclatureId")
+	if nomenclatureIDStr == "" {
+		h.Error(c, apperror.NewValidation("nomenclatureId is required"))
 		return
 	}
 
-	productID, err := id.Parse(productIDStr)
+	nomenclatureID, err := id.Parse(nomenclatureIDStr)
 	if err != nil {
-		h.Error(c, apperror.NewValidation("invalid productId format"))
+		h.Error(c, apperror.NewValidation("invalid nomenclatureId format"))
 		return
 	}
 
@@ -136,7 +136,7 @@ func (h *StockHandler) GetMovements(c *gin.Context) {
 		}
 	}
 
-	movements, err := h.repo.GetMovementHistory(ctx, productID, filter)
+	movements, err := h.repo.GetMovementHistory(ctx, nomenclatureID, filter)
 	if err != nil {
 		h.Error(c, err)
 		return
@@ -192,10 +192,10 @@ func (h *StockHandler) GetTurnovers(c *gin.Context) {
 	}
 
 	// Parse optional product filter
-	if pStr := c.Query("productId"); pStr != "" {
+	if pStr := c.Query("nomenclatureId"); pStr != "" {
 		parsed, err := id.Parse(pStr)
 		if err == nil {
-			filter.ProductID = &parsed
+			filter.NomenclatureID = &parsed
 		}
 	}
 
@@ -208,24 +208,24 @@ func (h *StockHandler) GetTurnovers(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.FromStockTurnover(turnover))
 }
 
-// GetProductAvailability handles GET /registers/stock/availability/:productId
-func (h *StockHandler) GetProductAvailability(c *gin.Context) {
+// GetNomenclatureAvailability handles GET /registers/stock/availability/:nomenclatureId
+func (h *StockHandler) GetNomenclatureAvailability(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	productID, err := id.Parse(c.Param("productId"))
+	nomenclatureID, err := id.Parse(c.Param("nomenclatureId"))
 	if err != nil {
-		h.Error(c, apperror.NewValidation("invalid productId format"))
+		h.Error(c, apperror.NewValidation("invalid nomenclatureId format"))
 		return
 	}
 
-	quantity, err := h.service.GetProductAvailability(ctx, productID)
+	quantity, err := h.service.GetNomenclatureAvailability(ctx, nomenclatureID)
 	if err != nil {
 		h.Error(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"productId": productID.String(),
+		"nomenclatureId": nomenclatureID.String(),
 		"quantity":  quantity.Float64(),
 	})
 }
@@ -235,5 +235,5 @@ func (h *StockHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/balances", h.GetBalances)
 	rg.GET("/movements", h.GetMovements)
 	rg.GET("/turnovers", h.GetTurnovers)
-	rg.GET("/availability/:productId", h.GetProductAvailability)
+	rg.GET("/availability/:nomenclatureId", h.GetNomenclatureAvailability)
 }

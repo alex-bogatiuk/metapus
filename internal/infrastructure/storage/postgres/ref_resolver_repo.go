@@ -1,4 +1,4 @@
-// Package postgres provides PostgreSQL repository implementations.
+﻿// Package postgres provides PostgreSQL repository implementations.
 package postgres
 
 import (
@@ -106,7 +106,7 @@ func (r *RefResolverRepo) ResolveRefs(ctx context.Context, refs []domain.RefReso
 				selectCols += ", d.currency_id"
 			}
 
-			// Dynamic JOINs for preview fields (e.g. supplier_id → cat_counterparties.name)
+			// Dynamic JOINs for preview fields (e.g. counterparty_id → cat_counterparties.name)
 			type previewJoin struct {
 				alias string
 				label string

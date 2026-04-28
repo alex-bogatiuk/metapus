@@ -30,7 +30,7 @@ CREATE TABLE doc_goods_receipts (
     description     TEXT,
 
     -- GoodsReceipt-specific fields
-    supplier_id       UUID        NOT NULL REFERENCES cat_counterparties(id),
+    counterparty_id       UUID        NOT NULL REFERENCES cat_counterparties(id),
     contract_id       UUID REFERENCES cat_contracts(id),
     warehouse_id      UUID        NOT NULL REFERENCES cat_warehouses(id),
     supplier_doc_number VARCHAR(50),
@@ -55,7 +55,7 @@ CREATE TABLE doc_goods_receipt_lines (
     document_id UUID    NOT NULL REFERENCES doc_goods_receipts(id) ON DELETE CASCADE,
     line_no     INT     NOT NULL,
 
-    product_id UUID    NOT NULL REFERENCES cat_nomenclatures(id),
+    nomenclature_id UUID    NOT NULL REFERENCES cat_nomenclatures(id),
     unit_id    UUID,
     coefficient NUMERIC(15,6) NOT NULL DEFAULT 1,
 
@@ -79,7 +79,7 @@ CREATE TABLE doc_goods_receipt_lines (
 
 -- Header indexes
 CREATE INDEX idx_goods_receipts_date        ON doc_goods_receipts (date DESC);
-CREATE INDEX idx_goods_receipts_supplier    ON doc_goods_receipts (supplier_id);
+CREATE INDEX idx_goods_receipts_counterparty    ON doc_goods_receipts (counterparty_id);
 CREATE INDEX idx_goods_receipts_contract    ON doc_goods_receipts (contract_id) WHERE contract_id IS NOT NULL;
 CREATE INDEX idx_goods_receipts_warehouse   ON doc_goods_receipts (warehouse_id);
 CREATE INDEX idx_doc_goods_receipts_currency_id ON doc_goods_receipts (currency_id);
@@ -102,7 +102,7 @@ CREATE TRIGGER trg_doc_goods_receipts_soft_delete
 
 -- Line indexes
 CREATE INDEX idx_goods_receipt_lines_doc      ON doc_goods_receipt_lines (document_id);
-CREATE INDEX idx_goods_receipt_lines_product  ON doc_goods_receipt_lines (product_id);
+CREATE INDEX idx_goods_receipt_lines_nomenclature  ON doc_goods_receipt_lines (nomenclature_id);
 CREATE INDEX idx_goods_receipt_lines_vat_rate ON doc_goods_receipt_lines (vat_rate_id);
 CREATE INDEX idx_goods_receipt_lines_unit     ON doc_goods_receipt_lines (unit_id) WHERE unit_id IS NOT NULL;
 

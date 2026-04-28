@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Shared types for Document entities.
  * Mirrors: internal/infrastructure/http/v1/dto/goods_receipt.go
  */
@@ -23,7 +23,7 @@ export interface SetDocumentDeletionMarkRequest {
 export interface GoodsReceiptLineResponse {
     lineId: string
     lineNo: number
-    productId: string
+    nomenclatureId: string
     unitId: string
     coefficient: string   // decimal
     quantity: number       // decimal (e.g. 5.0000 — backend scales internally)
@@ -35,7 +35,7 @@ export interface GoodsReceiptLineResponse {
     vatAmount: number       // int64
     amount: number          // int64
     // Resolved reference display names
-    product?: RefDisplay
+    nomenclature?: RefDisplay
     unit?: RefDisplay
     vatRate?: RefDisplay
 }
@@ -48,7 +48,7 @@ export interface GoodsReceiptResponse {
     posted: boolean
     postedVersion?: number
     organizationId: string
-    supplierId: string
+    counterpartyId: string
     contractId?: string | null
     warehouseId: string
     supplierDocNumber?: string
@@ -71,7 +71,7 @@ export interface GoodsReceiptResponse {
     updatedByUser?: RefDisplay
     // Resolved reference display names
     organization?: RefDisplay
-    supplier?: RefDisplay
+    counterparty?: RefDisplay
     contract?: RefDisplay
     warehouse?: RefDisplay
     currency?: CurrencyRefDisplay
@@ -81,7 +81,7 @@ export interface GoodsReceiptResponse {
 
 /** Request DTO for a goods receipt line (create/update). */
 export interface GoodsReceiptLineRequest {
-    productId: string
+    nomenclatureId: string
     unitId: string
     coefficient?: string    // decimal, defaults to "1"
     quantity: number        // decimal (Quantity, e.g. 5 or 2.5 — backend scales internally)
@@ -96,7 +96,7 @@ export interface CreateGoodsReceiptRequest {
     number?: string
     date: string            // ISO datetime
     organizationId: string
-    supplierId: string
+    counterpartyId: string
     contractId?: string | null
     warehouseId: string
     supplierDocNumber?: string
@@ -117,7 +117,7 @@ export interface UpdateGoodsReceiptRequest {
     number?: string | null
     date?: string | null
     organizationId?: string | null
-    supplierId?: string | null
+    counterpartyId?: string | null
     contractId?: string | null
     warehouseId?: string | null
     supplierDocNumber?: string | null
@@ -137,7 +137,7 @@ export interface UpdateGoodsReceiptRequest {
 export interface GoodsIssueLineResponse {
     lineId: string
     lineNo: number
-    productId: string
+    nomenclatureId: string
     unitId: string
     coefficient: string   // decimal
     quantity: number       // decimal (Quantity)
@@ -149,7 +149,7 @@ export interface GoodsIssueLineResponse {
     vatAmount: number       // int64
     amount: number          // int64
     // Resolved reference display names
-    product?: RefDisplay
+    nomenclature?: RefDisplay
     unit?: RefDisplay
     vatRate?: RefDisplay
 }
@@ -162,7 +162,7 @@ export interface GoodsIssueResponse {
     posted: boolean
     postedVersion?: number
     organizationId: string
-    customerId: string
+    counterpartyId: string
     contractId?: string | null
     warehouseId: string
     customerOrderNumber?: string
@@ -184,7 +184,7 @@ export interface GoodsIssueResponse {
     updatedByUser?: RefDisplay
     // Resolved reference display names
     organization?: RefDisplay
-    customer?: RefDisplay
+    counterparty?: RefDisplay
     contract?: RefDisplay
     warehouse?: RefDisplay
     currency?: CurrencyRefDisplay
@@ -194,7 +194,7 @@ export interface GoodsIssueResponse {
 
 /** Request DTO for a goods issue line (create/update). */
 export interface GoodsIssueLineRequest {
-    productId: string
+    nomenclatureId: string
     unitId: string
     coefficient?: string
     quantity: number
@@ -209,7 +209,7 @@ export interface CreateGoodsIssueRequest {
     number?: string
     date: string
     organizationId: string
-    customerId: string
+    counterpartyId: string
     contractId?: string | null
     warehouseId: string
     customerOrderNumber?: string
@@ -229,7 +229,7 @@ export interface UpdateGoodsIssueRequest {
     number?: string | null
     date?: string | null
     organizationId?: string | null
-    customerId?: string | null
+    counterpartyId?: string | null
     contractId?: string | null
     warehouseId?: string | null
     customerOrderNumber?: string | null

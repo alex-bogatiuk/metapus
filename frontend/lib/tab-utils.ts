@@ -62,7 +62,19 @@ export function resolveTitleFromUrl(pathname: string): string {
 
   // Known segment → list page title
   const label = resolveSegmentLabel(lastSegment)
-  if (label) return label
+  if (label) {
+    // For sub-pages like /documents/goods-receipts/{uuid}/movements,
+    // include the parent entity type so the tab is identifiable before data loads.
+    if ((lastSegment === "movements" || lastSegment === "related") && segments.length >= 3) {
+      const entitySegment = segments[segments.length - 3]
+      const entityLabel = resolveSegmentLabel(entitySegment)
+      if (entityLabel) {
+        const prefix = lastSegment === "movements" ? "Движения" : "Связанные"
+        return `${prefix}: ${entityLabel}…`
+      }
+    }
+    return label
+  }
 
   // UUID ([id] page) — temporary title until useTabTitle updates it
   if (segments.length >= 2) {

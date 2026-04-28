@@ -1,4 +1,4 @@
-import { fromQuantity, fromMinorUnits, DEFAULT_DECIMAL_PLACES } from "@/lib/format"
+﻿import { fromQuantity, fromMinorUnits, DEFAULT_DECIMAL_PLACES } from "@/lib/format"
 import { api } from "@/lib/api"
 import type { RefDisplay } from "@/types/document"
 
@@ -6,9 +6,9 @@ import type { RefDisplay } from "@/types/document"
 
 export interface FormLine {
   _key: number
-  productId: string
-  productName: string
-  productCode: string
+  nomenclatureId: string
+  nomenclatureName: string
+  nomenclatureCode: string
   unitId: string
   unitName: string
   quantity: string
@@ -23,7 +23,7 @@ export interface FormLine {
 }
 
 export function emptyLine(key: number): FormLine {
-  return { _key: key, productId: "", productName: "", productCode: "", unitId: "", unitName: "", quantity: "", unitPrice: "", vatRateId: "", vatRateName: "", vatPercent: "20", discountPercent: "0" }
+  return { _key: key, nomenclatureId: "", nomenclatureName: "", nomenclatureCode: "", unitId: "", unitName: "", quantity: "", unitPrice: "", vatRateId: "", vatRateName: "", vatPercent: "20", discountPercent: "0" }
 }
 
 // ── Generic document line response → FormLine mapping ───────────────────
@@ -34,7 +34,7 @@ export function emptyLine(key: number): FormLine {
  * shape can be mapped via `mapLinesToFormLines`.
  */
 export interface DocumentLineResponseLike {
-  productId: string
+  nomenclatureId: string
   unitId: string
   quantity: number
   unitPrice: number
@@ -43,7 +43,7 @@ export interface DocumentLineResponseLike {
   discountPercent: string
   amount: number
   vatAmount: number
-  product?: RefDisplay
+  nomenclature?: RefDisplay
   unit?: RefDisplay
   vatRate?: RefDisplay
 }
@@ -70,9 +70,9 @@ export function mapLinesToFormLines(
 
   const mapped = lines.map((l, i): FormLine => ({
     _key: startKey + i,
-    productId: l.productId,
-    productName: l.product?.name || "",
-    productCode: l.product?.code || "",
+    nomenclatureId: l.nomenclatureId,
+    nomenclatureName: l.nomenclature?.name || "",
+    nomenclatureCode: l.nomenclature?.code || "",
     unitId: l.unitId,
     unitName: l.unit?.name || "",
     quantity: fromQuantity(l.quantity),
@@ -142,22 +142,22 @@ import type { PickedItem, ExistingPickerLine } from "@/types/picker"
 
 /**
  * Convert current form lines to ExistingPickerLine[] for pre-populating the picker.
- * Aggregates quantities per productId (in case the same product appears on multiple lines).
+ * Aggregates quantities per nomenclatureId (in case the same product appears on multiple lines).
  */
 export function linesToExistingPickerLines(lines: FormLine[]): ExistingPickerLine[] {
   const map = new Map<string, ExistingPickerLine>()
   for (const l of lines) {
-    if (!l.productId) continue
+    if (!l.nomenclatureId) continue
     const qty = parseFloat(l.quantity || "0")
     if (qty <= 0) continue
-    const existing = map.get(l.productId)
+    const existing = map.get(l.nomenclatureId)
     if (existing) {
       existing.quantity += qty
     } else {
-      map.set(l.productId, {
-        productId: l.productId,
-        productName: l.productName,
-        productCode: l.productCode || undefined,
+      map.set(l.nomenclatureId, {
+        nomenclatureId: l.nomenclatureId,
+        nomenclatureName: l.nomenclatureName,
+        nomenclatureCode: l.nomenclatureCode || undefined,
         unitId: l.unitId || undefined,
         unitName: l.unitName || undefined,
         quantity: qty,
@@ -171,11 +171,11 @@ export function linesToExistingPickerLines(lines: FormLine[]): ExistingPickerLin
  * Merge picker results into existing form lines.
  *
  * Logic:
- *   - If an existing line's productId is in pickedItems → update its quantity
+ *   - If an existing line's nomenclatureId is in pickedItems → update its quantity
  *   - If a pickedItem is NOT in existing lines → add a new line
- *   - If an existing line's productId is in knownProductIds but NOT in pickedItems
+ *   - If an existing line's nomenclatureId is in knownProductIds but NOT in pickedItems
  *     → user removed it in the picker → delete the line
- *   - Lines whose productId was NOT in the picker at all → keep untouched
+ *   - Lines whose nomenclatureId was NOT in the picker at all → keep untouched
  *
  * @param knownProductIds — IDs of products that were pre-loaded into the picker
  *   (from existingLines → linesToExistingPickerLines). Enables distinguishing
@@ -201,7 +201,7 @@ export function mergePickedIntoLines(
   // Update existing lines
   const updatedLines: FormLine[] = []
   for (const line of existingLines) {
-    const picked = line.productId ? pickedMap.get(line.productId) : undefined
+    const picked = line.nomenclatureId ? pickedMap.get(line.nomenclatureId) : undefined
     if (picked) {
       // Product exists in picker results → update quantity
       matchedIds.add(picked.id)
@@ -212,7 +212,7 @@ export function mergePickedIntoLines(
         amount: undefined,
         vatAmount: undefined,
       })
-    } else if (knownProductIds && line.productId && knownProductIds.has(line.productId)) {
+    } else if (knownProductIds && line.nomenclatureId && knownProductIds.has(line.nomenclatureId)) {
       // Product was in the picker but removed (qty set to 0) → skip (delete line)
     } else {
       // Product not touched by picker → keep line as-is
@@ -225,8 +225,8 @@ export function mergePickedIntoLines(
     if (matchedIds.has(item.id)) continue
     updatedLines.push({
       ...emptyLine(key++),
-      productId: item.id,
-      productName: item.name,
+      nomenclatureId: item.id,
+      nomenclatureName: item.name,
       unitId: item.unitId ?? "",
       unitName: item.unitName ?? "",
       quantity: String(item.quantity),

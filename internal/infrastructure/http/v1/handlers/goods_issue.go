@@ -1,4 +1,4 @@
-package handlers
+﻿package handlers
 
 import (
 	"context"
@@ -218,7 +218,7 @@ func (h *GoodsIssueHandler) Copy(c *gin.Context) {
 		return
 	}
 
-	copy := goods_issue.NewGoodsIssue(source.OrganizationID, source.CustomerID, source.WarehouseID)
+	copy := goods_issue.NewGoodsIssue(source.OrganizationID, source.CounterpartyID, source.WarehouseID)
 	copy.Date = time.Now()
 	copy.ContractID = source.ContractID
 	copy.CustomerOrderNumber = source.CustomerOrderNumber
@@ -227,7 +227,7 @@ func (h *GoodsIssueHandler) Copy(c *gin.Context) {
 	copy.Description = source.Description
 
 	for _, line := range source.Lines {
-		copy.AddLine(line.ProductID, line.UnitID, line.Coefficient, line.Quantity, line.UnitPrice, line.VATRateID, 0, line.DiscountPercent)
+		copy.AddLine(line.NomenclatureID, line.UnitID, line.Coefficient, line.Quantity, line.UnitPrice, line.VATRateID, 0, line.DiscountPercent)
 	}
 
 	if err := h.service.Create(ctx, copy); err != nil {

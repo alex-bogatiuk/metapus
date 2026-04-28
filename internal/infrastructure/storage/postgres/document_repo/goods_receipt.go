@@ -1,4 +1,4 @@
-package document_repo
+﻿package document_repo
 
 import (
 	"context"
@@ -39,13 +39,13 @@ func NewGoodsReceiptRepo() *GoodsReceiptRepo {
 	// Register table part "lines" for filtering by tabular section columns.
 	// Column names match DB columns in doc_goods_receipt_lines.
 	repo.RegisterTablePart("lines", goodsReceiptLinesTable, "document_id", []string{
-		"product_id", "unit_id", "quantity", "unit_price",
+		"nomenclature_id", "unit_id", "quantity", "unit_price",
 		"discount_percent", "discount_amount",
 		"vat_rate_id", "vat_percent", "vat_amount", "amount",
 	})
 
 	// Register reference fields for deep filtering
-	repo.RegisterReferenceField("supplier_id", "cat_counterparties", "supplier_id",
+	repo.RegisterReferenceField("counterparty_id", "cat_counterparties", "counterparty_id",
 		postgres.ExtractDBColumns[counterparty.Counterparty]())
 	repo.RegisterReferenceField("warehouse_id", "cat_warehouses", "warehouse_id",
 		postgres.ExtractDBColumns[warehouse.Warehouse]())
@@ -62,7 +62,7 @@ func NewGoodsReceiptRepo() *GoodsReceiptRepo {
 func (r *GoodsReceiptRepo) GetLines(ctx context.Context, docID id.ID) ([]goods_receipt.GoodsReceiptLine, error) {
 	q := r.Builder().
 		Select(
-			"line_id", "line_no", "product_id",
+			"line_id", "line_no", "nomenclature_id",
 			"unit_id", "coefficient",
 			"quantity", "unit_price",
 			"discount_percent", "discount_amount",
@@ -104,7 +104,7 @@ func (r *GoodsReceiptRepo) SaveLines(ctx context.Context, docID id.ID, lines []g
 
 	// Batch insert new lines via COPY protocol.
 	columns := []string{
-		"line_id", "document_id", "line_no", "product_id",
+		"line_id", "document_id", "line_no", "nomenclature_id",
 		"unit_id", "coefficient",
 		"quantity", "unit_price",
 		"discount_percent", "discount_amount",
@@ -114,7 +114,7 @@ func (r *GoodsReceiptRepo) SaveLines(ctx context.Context, docID id.ID, lines []g
 	rows := make([][]any, 0, len(lines))
 	for _, line := range lines {
 		rows = append(rows, []any{
-			line.LineID, docID, line.LineNo, line.ProductID,
+			line.LineID, docID, line.LineNo, line.NomenclatureID,
 			line.UnitID, line.Coefficient,
 			line.Quantity, line.UnitPrice,
 			line.DiscountPercent, line.DiscountAmount,

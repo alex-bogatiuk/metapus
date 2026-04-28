@@ -51,6 +51,7 @@
 | Файл | Описание | Ключевые слова |
 |------|----------|----------------|
 | [howto/cloud-deployment.md](howto/cloud-deployment.md) | Облачное SaaS-развертывание (Multi-Version) | cloud, deploy, saas, nginx, router, version |
+| [howto/new-document.md](howto/new-document.md) | Инструкция по добавлению нового документа | new, document, migration, posting, validation, M15 |
 | [howto/new-entity.md](howto/new-entity.md) | Инструкция по добавлению справочника/документа | new, entity, catalog, document, tutorial |
 
 ## 4. Справочник (Reference)

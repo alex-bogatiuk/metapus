@@ -1,4 +1,4 @@
-package security
+﻿package security
 
 import (
 	"testing"
@@ -177,7 +177,7 @@ func TestDataScope_ApplyConditions(t *testing.T) {
 		}}
 		conditions := scope.ApplyConditions("", dimCols(
 			"organization", "organization_id",
-			"counterparty", "supplier_id",
+			"counterparty", "counterparty_id",
 		))
 		assert.Len(t, conditions, 2)
 	})
@@ -189,7 +189,7 @@ func TestDataScope_ApplyConditions(t *testing.T) {
 		// Entity has counterparty column but user has no counterparty restriction
 		conditions := scope.ApplyConditions("", dimCols(
 			"organization", "organization_id",
-			"counterparty", "supplier_id",
+			"counterparty", "counterparty_id",
 		))
 		assert.Len(t, conditions, 1) // only org
 	})

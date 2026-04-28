@@ -1,4 +1,4 @@
-/**
+﻿/**
  * API Client – single point of contact for the backend REST API.
  *
  * All fetch calls go through `apiFetch()` which:
@@ -447,9 +447,9 @@ export const api = {
 
     // ── Registers (stock) ───────────────────────────────────────────────
     stock: {
-        /** Get stock balances for a warehouse. Returns { items: [{ productId, quantity, ... }] }. */
+        /** Get stock balances for a warehouse. Returns { items: [{ nomenclatureId, quantity, ... }] }. */
         getBalancesByWarehouse: (warehouseId: string) =>
-            apiFetch<{ items: { warehouseId: string; productId: string; quantity: number; lastMovementAt?: string }[] }>(
+            apiFetch<{ items: { warehouseId: string; nomenclatureId: string; quantity: number; lastMovementAt?: string }[] }>(
                 `/registers/stock/balances?warehouseId=${encodeURIComponent(warehouseId)}`
             ),
     },
@@ -642,19 +642,19 @@ export const api = {
                     method: "DELETE",
                 }),
         },
-        getStockBalance: (params?: { warehouseId?: string[]; productId?: string[]; excludeZero?: boolean }) => {
+        getStockBalance: (params?: { warehouseId?: string[]; nomenclatureId?: string[]; excludeZero?: boolean }) => {
             const entries: [string, string][] = []
             if (params?.warehouseId) params.warehouseId.forEach((id) => entries.push(["warehouseId", id]))
-            if (params?.productId) params.productId.forEach((id) => entries.push(["productId", id]))
+            if (params?.nomenclatureId) params.nomenclatureId.forEach((id) => entries.push(["nomenclatureId", id]))
             if (params?.excludeZero !== undefined) entries.push(["excludeZero", String(params.excludeZero)])
             const qs = entries.length > 0 ? "?" + new URLSearchParams(entries).toString() : ""
             return apiFetch<import("@/types/reports").StockBalanceReportResponse>(`/reports/stock-balance${qs}`)
         },
 
-        getStockTurnover: (params: { fromDate: string; toDate: string; warehouseId?: string[]; productId?: string[] }) => {
+        getStockTurnover: (params: { fromDate: string; toDate: string; warehouseId?: string[]; nomenclatureId?: string[] }) => {
             const entries: [string, string][] = [["fromDate", params.fromDate], ["toDate", params.toDate]]
             if (params.warehouseId) params.warehouseId.forEach((id) => entries.push(["warehouseId", id]))
-            if (params.productId) params.productId.forEach((id) => entries.push(["productId", id]))
+            if (params.nomenclatureId) params.nomenclatureId.forEach((id) => entries.push(["nomenclatureId", id]))
             const qs = "?" + new URLSearchParams(entries).toString()
             return apiFetch<import("@/types/reports").StockTurnoverReportResponse>(`/reports/stock-turnover${qs}`)
         },

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Report types — mirrors backend dto/reports.go
  */
 
@@ -14,9 +14,9 @@ export interface StockBalanceReportResponse {
 export interface StockBalanceReportItem {
     warehouseId: string
     warehouseName: string
-    productId: string
-    productName: string
-    productSku?: string
+    nomenclatureId: string
+    nomenclatureName: string
+    nomenclatureSku?: string
     unitName?: string
     quantity: number
 }
@@ -37,9 +37,9 @@ export interface StockTurnoverReportResponse {
 export interface StockTurnoverReportItem {
     warehouseId?: string
     warehouseName?: string
-    productId?: string
-    productName?: string
-    productSku?: string
+    nomenclatureId?: string
+    nomenclatureName?: string
+    nomenclatureSku?: string
     unitName?: string
     openingBalance: number
     receipt: number

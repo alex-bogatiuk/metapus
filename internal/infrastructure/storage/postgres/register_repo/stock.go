@@ -1,4 +1,4 @@
-// Package register_repo provides PostgreSQL implementations for register repositories.
+﻿// Package register_repo provides PostgreSQL implementations for register repositories.
 // In Database-per-Tenant architecture, TxManager is obtained from context.
 package register_repo
 
@@ -28,7 +28,7 @@ const (
 var stockMovementColumns = []string{
 	"line_id", "recorder_id", "recorder_type", "recorder_version",
 	"period", "record_type",
-	"warehouse_id", "product_id", "quantity", "created_at",
+	"warehouse_id", "nomenclature_id", "quantity", "created_at",
 }
 
 // stockMovementRowMapper converts a StockMovement to a flat row.
@@ -36,7 +36,7 @@ func stockMovementRowMapper(m entity.StockMovement) []any {
 	return []any{
 		m.LineID, m.RecorderID, m.RecorderType, m.RecorderVersion,
 		m.Period, m.RecordType,
-		m.WarehouseID, m.ProductID, m.Quantity, m.CreatedAt,
+		m.WarehouseID, m.NomenclatureID, m.Quantity, m.CreatedAt,
 	}
 }
 
@@ -62,7 +62,7 @@ func (r *StockRepo) GetMovementsByRecorder(ctx context.Context, recorderID id.ID
 	q := r.Builder().Select(
 		"line_id", "recorder_id", "recorder_type", "recorder_version",
 		"period", "record_type",
-		"warehouse_id", "product_id", "quantity", "created_at",
+		"warehouse_id", "nomenclature_id", "quantity", "created_at",
 	).From(stockMovementsTable).
 		Where(squirrel.Eq{"recorder_id": recorderID}).
 		OrderBy("created_at")
@@ -82,16 +82,16 @@ func (r *StockRepo) GetMovementsByRecorder(ctx context.Context, recorderID id.ID
 }
 
 // GetBalance returns current balance for warehouse+product.
-func (r *StockRepo) GetBalance(ctx context.Context, warehouseID, productID id.ID) (entity.StockBalance, error) {
+func (r *StockRepo) GetBalance(ctx context.Context, warehouseID, nomenclatureID id.ID) (entity.StockBalance, error) {
 	var balance entity.StockBalance
 
 	q := r.Builder().Select(
-		"warehouse_id", "product_id",
+		"warehouse_id", "nomenclature_id",
 		"quantity", "last_movement_at", "updated_at",
 	).From(stockBalancesTable).
 		Where(squirrel.Eq{
 			"warehouse_id": warehouseID,
-			"product_id":   productID,
+			"nomenclature_id":   nomenclatureID,
 		}).Limit(1)
 
 	sql, args, err := q.ToSql()
@@ -104,7 +104,7 @@ func (r *StockRepo) GetBalance(ctx context.Context, warehouseID, productID id.ID
 		if pgxscan.NotFound(err) {
 			return entity.StockBalance{
 				WarehouseID: warehouseID,
-				ProductID:   productID,
+				NomenclatureID:   nomenclatureID,
 				Quantity:    0,
 			}, nil
 		}
@@ -115,23 +115,23 @@ func (r *StockRepo) GetBalance(ctx context.Context, warehouseID, productID id.ID
 }
 
 // GetBalanceForUpdate returns balance with pessimistic lock.
-func (r *StockRepo) GetBalanceForUpdate(ctx context.Context, warehouseID, productID id.ID) (entity.StockBalance, error) {
+func (r *StockRepo) GetBalanceForUpdate(ctx context.Context, warehouseID, nomenclatureID id.ID) (entity.StockBalance, error) {
 	var balance entity.StockBalance
 
 	sql := `
-		SELECT warehouse_id, product_id, quantity, last_movement_at, updated_at
+		SELECT warehouse_id, nomenclature_id, quantity, last_movement_at, updated_at
 		FROM reg_stock_balances
-		WHERE warehouse_id = $1 AND product_id = $2
+		WHERE warehouse_id = $1 AND nomenclature_id = $2
 		FOR UPDATE
 	`
 
 	querier := r.GetTxManager(ctx).GetQuerier(ctx)
-	err := pgxscan.Get(ctx, querier, &balance, sql, warehouseID, productID)
+	err := pgxscan.Get(ctx, querier, &balance, sql, warehouseID, nomenclatureID)
 	if err != nil {
 		if pgxscan.NotFound(err) {
 			return entity.StockBalance{
 				WarehouseID: warehouseID,
-				ProductID:   productID,
+				NomenclatureID:   nomenclatureID,
 				Quantity:    0,
 			}, nil
 		}
@@ -151,7 +151,7 @@ func (r *StockRepo) GetBalancesForUpdate(ctx context.Context, keys []stock.Balan
 
 	// Single-key fast path: reuse existing method.
 	if len(keys) == 1 {
-		b, err := r.GetBalanceForUpdate(ctx, keys[0].WarehouseID, keys[0].ProductID)
+		b, err := r.GetBalanceForUpdate(ctx, keys[0].WarehouseID, keys[0].NomenclatureID)
 		if err != nil {
 			return nil, err
 		}
@@ -164,22 +164,22 @@ func (r *StockRepo) GetBalancesForUpdate(ctx context.Context, keys []stock.Balan
 	copy(sortedKeys, keys)
 	sort.Slice(sortedKeys, func(i, j int) bool {
 		if sortedKeys[i].WarehouseID == sortedKeys[j].WarehouseID {
-			return sortedKeys[i].ProductID.String() < sortedKeys[j].ProductID.String()
+			return sortedKeys[i].NomenclatureID.String() < sortedKeys[j].NomenclatureID.String()
 		}
 		return sortedKeys[i].WarehouseID.String() < sortedKeys[j].WarehouseID.String()
 	})
 
 	sql := `
-		SELECT warehouse_id, product_id, quantity, last_movement_at, updated_at
+		SELECT warehouse_id, nomenclature_id, quantity, last_movement_at, updated_at
 		FROM reg_stock_balances
-		WHERE warehouse_id = $1 AND product_id = $2
+		WHERE warehouse_id = $1 AND nomenclature_id = $2
 		FOR UPDATE
 	`
 
 	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	b := &pgx.Batch{}
 	for _, k := range sortedKeys {
-		b.Queue(sql, k.WarehouseID, k.ProductID)
+		b.Queue(sql, k.WarehouseID, k.NomenclatureID)
 	}
 
 	br := querier.SendBatch(ctx, b)
@@ -200,20 +200,20 @@ func (r *StockRepo) GetBalancesForUpdate(ctx context.Context, keys []stock.Balan
 				rows.Close()
 				return nil, fmt.Errorf("scan balance: %w", err)
 			}
-			loaded[k.WarehouseID.String()+"-"+k.ProductID.String()] = balance
+			loaded[k.WarehouseID.String()+"-"+k.NomenclatureID.String()] = balance
 		}
 		rows.Close()
 	}
 
 	result := make([]entity.StockBalance, len(keys))
 	for i, k := range keys {
-		keyStr := k.WarehouseID.String() + "-" + k.ProductID.String()
+		keyStr := k.WarehouseID.String() + "-" + k.NomenclatureID.String()
 		if balance, ok := loaded[keyStr]; ok {
 			result[i] = balance
 		} else {
 			result[i] = entity.StockBalance{
 				WarehouseID: k.WarehouseID,
-				ProductID:   k.ProductID,
+				NomenclatureID:   k.NomenclatureID,
 				Quantity:    0,
 			}
 		}
@@ -225,7 +225,7 @@ func (r *StockRepo) GetBalancesForUpdate(ctx context.Context, keys []stock.Balan
 // GetBalancesByWarehouse returns balances for a warehouse.
 func (r *StockRepo) GetBalancesByWarehouse(ctx context.Context, warehouseID id.ID, filter stock.BalanceFilter) ([]entity.StockBalance, error) {
 	q := r.Builder().Select(
-		"warehouse_id", "product_id",
+		"warehouse_id", "nomenclature_id",
 		"quantity", "last_movement_at", "updated_at",
 	).From(stockBalancesTable).
 		Where(squirrel.Eq{"warehouse_id": warehouseID})
@@ -234,8 +234,8 @@ func (r *StockRepo) GetBalancesByWarehouse(ctx context.Context, warehouseID id.I
 		q = q.Where(squirrel.NotEq{"quantity": int64(0)})
 	}
 
-	if len(filter.ProductIDs) > 0 {
-		q = q.Where(squirrel.Eq{"product_id": filter.ProductIDs})
+	if len(filter.NomenclatureIDs) > 0 {
+		q = q.Where(squirrel.Eq{"nomenclature_id": filter.NomenclatureIDs})
 	}
 
 	if filter.MinQuantity != nil {
@@ -246,7 +246,7 @@ func (r *StockRepo) GetBalancesByWarehouse(ctx context.Context, warehouseID id.I
 		q = q.Where(squirrel.LtOrEq{"quantity": filter.MaxQuantity.Int64Scaled()})
 	}
 
-	q = q.OrderBy("product_id")
+	q = q.OrderBy("nomenclature_id")
 
 	sql, args, err := q.ToSql()
 	if err != nil {
@@ -263,12 +263,12 @@ func (r *StockRepo) GetBalancesByWarehouse(ctx context.Context, warehouseID id.I
 }
 
 // GetBalancesByProduct returns balances for a product across warehouses.
-func (r *StockRepo) GetBalancesByProduct(ctx context.Context, productID id.ID) ([]entity.StockBalance, error) {
+func (r *StockRepo) GetBalancesByProduct(ctx context.Context, nomenclatureID id.ID) ([]entity.StockBalance, error) {
 	q := r.Builder().Select(
-		"warehouse_id", "product_id",
+		"warehouse_id", "nomenclature_id",
 		"quantity", "last_movement_at", "updated_at",
 	).From(stockBalancesTable).
-		Where(squirrel.Eq{"product_id": productID}).
+		Where(squirrel.Eq{"nomenclature_id": nomenclatureID}).
 		Where(squirrel.NotEq{"quantity": int64(0)}).
 		OrderBy("warehouse_id")
 
@@ -286,19 +286,19 @@ func (r *StockRepo) GetBalancesByProduct(ctx context.Context, productID id.ID) (
 	return balances, nil
 }
 
-// GetBalancesByProductIDs returns total stock quantity for multiple products.
+// GetBalancesByNomenclatureIDs returns total stock quantity for multiple products.
 // If warehouseID is non-nil, filters by that warehouse; otherwise sums across all warehouses.
-func (r *StockRepo) GetBalancesByProductIDs(ctx context.Context, productIDs []id.ID, warehouseID *id.ID) (map[id.ID]types.Quantity, error) {
-	if len(productIDs) == 0 {
+func (r *StockRepo) GetBalancesByNomenclatureIDs(ctx context.Context, nomenclatureIDs []id.ID, warehouseID *id.ID) (map[id.ID]types.Quantity, error) {
+	if len(nomenclatureIDs) == 0 {
 		return map[id.ID]types.Quantity{}, nil
 	}
 
 	q := r.Builder().Select(
-		"product_id",
+		"nomenclature_id",
 		"SUM(quantity) AS total_qty",
 	).From(stockBalancesTable).
-		Where(squirrel.Eq{"product_id": productIDs}).
-		GroupBy("product_id")
+		Where(squirrel.Eq{"nomenclature_id": nomenclatureIDs}).
+		GroupBy("nomenclature_id")
 
 	if warehouseID != nil {
 		q = q.Where(squirrel.Eq{"warehouse_id": *warehouseID})
@@ -310,7 +310,7 @@ func (r *StockRepo) GetBalancesByProductIDs(ctx context.Context, productIDs []id
 	}
 
 	type row struct {
-		ProductID id.ID          `db:"product_id"`
+		NomenclatureID id.ID          `db:"nomenclature_id"`
 		TotalQty  types.Quantity `db:"total_qty"`
 	}
 
@@ -322,14 +322,14 @@ func (r *StockRepo) GetBalancesByProductIDs(ctx context.Context, productIDs []id
 
 	result := make(map[id.ID]types.Quantity, len(rows))
 	for _, r := range rows {
-		result[r.ProductID] = r.TotalQty
+		result[r.NomenclatureID] = r.TotalQty
 	}
 
 	return result, nil
 }
 
 // GetBalancesAtDate calculates balance as of a specific date.
-func (r *StockRepo) GetBalancesAtDate(ctx context.Context, warehouseID, productID id.ID, date time.Time) (types.Quantity, error) {
+func (r *StockRepo) GetBalancesAtDate(ctx context.Context, warehouseID, nomenclatureID id.ID, date time.Time) (types.Quantity, error) {
 	sql := `
 		SELECT COALESCE(
 			SUM(CASE WHEN record_type = 'receipt' THEN quantity ELSE -quantity END),
@@ -337,13 +337,13 @@ func (r *StockRepo) GetBalancesAtDate(ctx context.Context, warehouseID, productI
 		)
 		FROM reg_stock_movements
 		WHERE warehouse_id = $1 
-		  AND product_id = $2 
+		  AND nomenclature_id = $2 
 		  AND period <= $3
 	`
 
 	var balanceScaled int64
 	querier := r.GetTxManager(ctx).GetQuerier(ctx)
-	err := querier.QueryRow(ctx, sql, warehouseID, productID, date).Scan(&balanceScaled)
+	err := querier.QueryRow(ctx, sql, warehouseID, nomenclatureID, date).Scan(&balanceScaled)
 	if err != nil && err != pgx.ErrNoRows {
 		return 0, fmt.Errorf("calculate balance at date: %w", err)
 	}
@@ -352,13 +352,13 @@ func (r *StockRepo) GetBalancesAtDate(ctx context.Context, warehouseID, productI
 }
 
 // GetMovementHistory returns movement history for a product.
-func (r *StockRepo) GetMovementHistory(ctx context.Context, productID id.ID, filter stock.MovementFilter) ([]entity.StockMovement, error) {
+func (r *StockRepo) GetMovementHistory(ctx context.Context, nomenclatureID id.ID, filter stock.MovementFilter) ([]entity.StockMovement, error) {
 	q := r.Builder().Select(
 		"line_id", "recorder_id", "recorder_type", "recorder_version",
 		"period", "record_type",
-		"warehouse_id", "product_id", "quantity", "created_at",
+		"warehouse_id", "nomenclature_id", "quantity", "created_at",
 	).From(stockMovementsTable).
-		Where(squirrel.Eq{"product_id": productID})
+		Where(squirrel.Eq{"nomenclature_id": nomenclatureID})
 
 	if filter.WarehouseID != nil {
 		q = q.Where(squirrel.Eq{"warehouse_id": *filter.WarehouseID})
@@ -414,10 +414,10 @@ func (r *StockRepo) GetTurnover(ctx context.Context, filter stock.TurnoverFilter
 		argIndex++
 	}
 
-	if filter.ProductID != nil {
-		baseConditions += fmt.Sprintf(" AND product_id = $%d", argIndex)
-		args = append(args, *filter.ProductID)
-		result.ProductID = *filter.ProductID
+	if filter.NomenclatureID != nil {
+		baseConditions += fmt.Sprintf(" AND nomenclature_id = $%d", argIndex)
+		args = append(args, *filter.NomenclatureID)
+		result.NomenclatureID = *filter.NomenclatureID
 	}
 
 	sql := fmt.Sprintf(`
@@ -448,9 +448,9 @@ func (r *StockRepo) GetTurnover(ctx context.Context, filter stock.TurnoverFilter
 		argIndex++
 	}
 
-	if filter.ProductID != nil {
-		openingConditions += fmt.Sprintf(" AND product_id = $%d", argIndex)
-		openingArgs = append(openingArgs, *filter.ProductID)
+	if filter.NomenclatureID != nil {
+		openingConditions += fmt.Sprintf(" AND nomenclature_id = $%d", argIndex)
+		openingArgs = append(openingArgs, *filter.NomenclatureID)
 	}
 
 	openingSQL := fmt.Sprintf(`
@@ -475,21 +475,21 @@ func (r *StockRepo) GetTurnover(ctx context.Context, filter stock.TurnoverFilter
 }
 
 // RecalculateBalances rebuilds balance table from movements.
-func (r *StockRepo) RecalculateBalances(ctx context.Context, warehouseID, productID *id.ID) error {
+func (r *StockRepo) RecalculateBalances(ctx context.Context, warehouseID, nomenclatureID *id.ID) error {
 	// This would call a stored procedure
 	// For now, skip implementation
 	return nil
 }
 
 // CheckStockAvailability checks if required quantity is available.
-func (r *StockRepo) CheckStockAvailability(ctx context.Context, warehouseID, productID id.ID, requiredQty types.Quantity) error {
-	balance, err := r.GetBalanceForUpdate(ctx, warehouseID, productID)
+func (r *StockRepo) CheckStockAvailability(ctx context.Context, warehouseID, nomenclatureID id.ID, requiredQty types.Quantity) error {
+	balance, err := r.GetBalanceForUpdate(ctx, warehouseID, nomenclatureID)
 	if err != nil {
 		return fmt.Errorf("get balance: %w", err)
 	}
 
 	if balance.Quantity < requiredQty {
-		return apperror.NewInsufficientStock(productID.String(), requiredQty.Float64(), balance.Quantity.Float64())
+		return apperror.NewInsufficientStock(nomenclatureID.String(), requiredQty.Float64(), balance.Quantity.Float64())
 	}
 
 	return nil

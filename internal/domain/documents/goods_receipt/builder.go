@@ -19,8 +19,8 @@ import (
 //	    WithCurrency(rubID).
 //	    WithContract(&contractID).
 //	    WithDescription("Stationery Receipt").
-//	    AddLine(productID, unitID, 10, 15000, vatRateID, 20). // qty, price (minor), vatRateID, vatPercent
-//	    AddLine(productID2, unitID, 5, 8000, vatRateID, 20).
+//	    AddLine(nomenclatureID, unitID, 10, 15000, vatRateID, 20). // qty, price (minor), vatRateID, vatPercent
+//	    AddLine(nomenclatureID2, unitID, 5, 8000, vatRateID, 20).
 //	    Build()
 type Builder struct {
 	doc *GoodsReceipt
@@ -98,9 +98,9 @@ func (b *Builder) WithCreatedBy(userID id.ID) *Builder {
 // AddLine adds a line with common defaults (coefficient=1, discount=0).
 // quantity is in human units (e.g., 10 means 10 pieces).
 // unitPrice is in minor units (e.g., 15000 = 150.00 RUB).
-func (b *Builder) AddLine(productID, unitID id.ID, quantity int, unitPrice types.MinorUnits, vatRateID id.ID, vatPercent int) *Builder {
+func (b *Builder) AddLine(nomenclatureID, unitID id.ID, quantity int, unitPrice types.MinorUnits, vatRateID id.ID, vatPercent int) *Builder {
 	b.doc.AddLine(
-		productID,
+		nomenclatureID,
 		unitID,
 		decimal.NewFromInt(1), // coefficient
 		types.NewQuantityFromFloat64(float64(quantity)),
@@ -114,7 +114,7 @@ func (b *Builder) AddLine(productID, unitID id.ID, quantity int, unitPrice types
 
 // AddLineDetailed adds a line with full control over all fields.
 func (b *Builder) AddLineDetailed(
-	productID, unitID id.ID,
+	nomenclatureID, unitID id.ID,
 	coefficient decimal.Decimal,
 	quantity types.Quantity,
 	unitPrice types.MinorUnits,
@@ -122,7 +122,7 @@ func (b *Builder) AddLineDetailed(
 	vatPercent int,
 	discountPercent decimal.Decimal,
 ) *Builder {
-	b.doc.AddLine(productID, unitID, coefficient, quantity, unitPrice, vatRateID, vatPercent, discountPercent)
+	b.doc.AddLine(nomenclatureID, unitID, coefficient, quantity, unitPrice, vatRateID, vatPercent, discountPercent)
 	return b
 }
 
@@ -138,8 +138,8 @@ func (b *Builder) MustBuild() *GoodsReceipt {
 	if id.IsNil(doc.OrganizationID) {
 		panic("goods_receipt.Builder: organizationID is required")
 	}
-	if id.IsNil(doc.SupplierID) {
-		panic("goods_receipt.Builder: supplierID is required")
+	if id.IsNil(doc.CounterpartyID) {
+		panic("goods_receipt.Builder: counterpartyID is required")
 	}
 	if id.IsNil(doc.WarehouseID) {
 		panic("goods_receipt.Builder: warehouseID is required")
@@ -153,11 +153,11 @@ func (b *Builder) MustBuild() *GoodsReceipt {
 // --- Helpers for tests ---
 
 // NewTestLine creates a minimal line for unit tests.
-func NewTestLine(productID, unitID, vatRateID id.ID) GoodsReceiptLine {
+func NewTestLine(nomenclatureID, unitID, vatRateID id.ID) GoodsReceiptLine {
 	return GoodsReceiptLine{
 		LineID:      id.New(),
 		LineNo:      1,
-		ProductID:   productID,
+		NomenclatureID:   nomenclatureID,
 		UnitID:      unitID,
 		Coefficient: decimal.NewFromInt(1),
 		Quantity:    types.NewQuantityFromFloat64(1),
@@ -171,7 +171,7 @@ func NewTestLine(productID, unitID, vatRateID id.ID) GoodsReceiptLine {
 
 // Ensure GoodsReceiptLine satisfies ValidatableDocLine at compile time.
 var _ interface {
-	GetProductID() id.ID
+	GetNomenclatureID() id.ID
 	GetUnitID() id.ID
 	GetCoefficient() decimal.Decimal
 	GetQuantity() types.Quantity

@@ -80,7 +80,7 @@ func (s *Service) GetDocumentMovements(ctx context.Context, recorderID id.ID) ([
 	}
 
 	columns := []entity.MovementColumnDef{
-		{Key: "product", Label: "Товар", Type: "ref"},
+		{Key: "nomenclature", Label: "Номенклатура", Type: "ref"},
 		{Key: "warehouse", Label: "Склад", Type: "ref"},
 		{Key: "currency", Label: "Валюта", Type: "ref"},
 		{Key: "quantity", Label: "Количество", Type: "quantity"},
@@ -90,7 +90,7 @@ func (s *Service) GetDocumentMovements(ctx context.Context, recorderID id.ID) ([
 	result := make([]entity.DocumentMovement, 0, len(movements))
 	for _, m := range movements {
 		data := map[string]interface{}{
-			"product":   entity.MovementRefValue{ID: m.ProductID.String(), Name: m.ProductID.String()},
+			"nomenclature": entity.MovementRefValue{ID: m.NomenclatureID.String(), Name: m.NomenclatureID.String()},
 			"warehouse": entity.MovementRefValue{ID: m.WarehouseID.String(), Name: m.WarehouseID.String()},
 			"currency":  entity.MovementRefValue{ID: m.CurrencyID.String(), Name: m.CurrencyID.String()},
 			"quantity":  m.Quantity.Float64(),

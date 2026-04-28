@@ -59,6 +59,8 @@ interface ReferenceFieldProps {
    * Use in document line rows for fluid data entry.
    */
   autoAdvance?: boolean
+  /** Called when the field loses focus (popover closes without selection). Used for M15 on-blur validation. */
+  onBlur?: () => void
 }
 
 // ── Module-level cache: endpoint:id → name ─────────────────────────────
@@ -127,6 +129,7 @@ export function ReferenceField({
   disabled = false,
   error,
   autoAdvance = false,
+  onBlur,
 }: ReferenceFieldProps) {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
@@ -364,7 +367,11 @@ export function ReferenceField({
 
   return (
     <>
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(isOpen) => {
+      setOpen(isOpen)
+      // When popover closes, trigger on-blur validation (M15)
+      if (!isOpen && onBlur) onBlur()
+    }}>
       <PopoverTrigger asChild>
         <Button
           ref={triggerRef}

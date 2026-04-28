@@ -15,6 +15,7 @@ import { useColumnResize } from "@/hooks/useColumnResize"
 import { useVisibleColumns } from "@/hooks/useVisibleColumns"
 import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 import { useShortcut } from "@/hooks/useShortcut"
+import { useScrollRestore } from "@/hooks/useScrollRestore"
 import type { CursorListParams, CursorListResponse } from "@/types/common"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 
@@ -128,6 +129,9 @@ export function CatalogListPage<T extends { id: string }>({
     searchInputRef.current?.focus()
     searchInputRef.current?.select()
   })
+
+  // ── Scroll restoration on tab switch (M2) ─────────────────────────
+  useScrollRestore(scrollContainerRef)
 
   return (
     <div className="flex h-full flex-col">

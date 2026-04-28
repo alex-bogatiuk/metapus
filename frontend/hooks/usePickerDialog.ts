@@ -1,4 +1,4 @@
-/**
+﻿/**
  * usePickerDialog — shared hook for picker dialog data loading + keyboard navigation.
  *
  * Encapsulates:
@@ -77,7 +77,7 @@ interface UsePickerDialogResult {
     pickedCount: number
 
     // ── Stock balances ──
-    /** Map of productId → stock quantity (from warehouse). Undefined = not loaded yet. */
+    /** Map of nomenclatureId → stock quantity (from warehouse). Undefined = not loaded yet. */
     balanceMap: Map<string, number>
 
     // ── Infinite scroll ──
@@ -362,7 +362,7 @@ export function usePickerDialog({
         api.stock.getBalancesByWarehouse(warehouseId).then((res) => {
             const map = new Map<string, number>()
             for (const item of res.items) {
-                map.set(item.productId, item.quantity)
+                map.set(item.nomenclatureId, item.quantity)
             }
             setBalanceMap(map)
         }).catch(() => {

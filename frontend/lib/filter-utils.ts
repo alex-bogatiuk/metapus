@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Filter utilities for building backend-compatible filter items
  * from the frontend sidebar widget state.
  *
@@ -17,7 +17,7 @@ export const PERIOD_FILTER_KEY = "__period__"
 
 // ── Key Mapping ─────────────────────────────────────────────────────────
 
-/** Convert camelCase to snake_case: "supplierId" → "supplier_id" */
+/** Convert camelCase to snake_case: "counterpartyId" → "supplier_id" */
 export function camelToSnake(key: string): string {
     return key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
 }
@@ -191,7 +191,7 @@ export function buildFilterItems(
             fieldType = "date"
         } else {
             let meta = _fieldsMeta.find(m => m.key === key)
-            // If not found directly, it might be a nested reference field (e.g., supplierId.inn)
+            // If not found directly, it might be a nested reference field (e.g., counterpartyId.inn)
             if (!meta && key.includes(".")) {
                 const [parentKey, childKey] = key.split(".")
                 const parentMeta = _fieldsMeta.find(m => m.key === parentKey)

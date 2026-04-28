@@ -20,8 +20,8 @@ import (
 type GoodsReceipt struct {
 	entity.Document
 
-	// Supplier reference
-	SupplierID id.ID `db:"supplier_id" json:"supplierId" meta:"label:Поставщик"`
+	// Counterparty reference (role: supplier)
+	CounterpartyID id.ID `db:"counterparty_id" json:"counterpartyId" meta:"label:Поставщик"`
 
 	// Contract / Agreement reference
 	ContractID *id.ID `db:"contract_id" json:"contractId,omitempty" meta:"label:Договор"`
@@ -58,7 +58,7 @@ type GoodsReceiptLine struct {
 	LineNo int   `db:"line_no" json:"lineNo" meta:"label:№ строки"`
 
 	// Product reference
-	ProductID id.ID `db:"product_id" json:"productId" meta:"label:Номенклатура"`
+	NomenclatureID id.ID `db:"nomenclature_id" json:"nomenclatureId" meta:"label:Номенклатура"`
 
 	// Unit of measurement (e.g., box, pallet)
 	UnitID id.ID `db:"unit_id" json:"unitId" meta:"label:Единица"`
@@ -85,10 +85,10 @@ type GoodsReceiptLine struct {
 	Amount types.MinorUnits `db:"amount" json:"amount" meta:"label:Сумма"`
 }
 
-func NewGoodsReceipt(organizationID id.ID, supplierID, warehouseID id.ID) *GoodsReceipt {
+func NewGoodsReceipt(organizationID id.ID, counterpartyID, warehouseID id.ID) *GoodsReceipt {
 	return &GoodsReceipt{
 		Document:          entity.NewDocument(organizationID),
-		SupplierID:        supplierID,
+		CounterpartyID:    counterpartyID,
 		WarehouseID:       warehouseID,
 		AmountIncludesVAT: false,
 		Lines:             make([]GoodsReceiptLine, 0),
@@ -97,7 +97,7 @@ func NewGoodsReceipt(organizationID id.ID, supplierID, warehouseID id.ID) *Goods
 
 // AddLine adds a line to the goods receipt and recalculates totals.
 func (g *GoodsReceipt) AddLine(
-	productID id.ID,
+	nomenclatureID id.ID,
 	unitID id.ID,
 	coefficient decimal.Decimal,
 	quantity types.Quantity,
@@ -153,7 +153,7 @@ func (g *GoodsReceipt) AddLine(
 	line := GoodsReceiptLine{
 		LineID:          id.New(),
 		LineNo:          lineNo,
-		ProductID:       productID,
+		NomenclatureID:  nomenclatureID,
 		UnitID:          unitID,
 		Coefficient:     coefficient,
 		Quantity:        quantity,
@@ -193,9 +193,9 @@ func (g *GoodsReceipt) Validate(ctx context.Context) error {
 		return err
 	}
 
-	if id.IsNil(g.SupplierID) {
-		return apperror.NewValidation("supplier is required").
-			WithDetail("field", "supplierId")
+	if id.IsNil(g.CounterpartyID) {
+		return apperror.NewValidation("counterparty is required").
+			WithDetail("field", "counterpartyId")
 	}
 
 	if id.IsNil(g.WarehouseID) {
@@ -228,7 +228,7 @@ func (g *GoodsReceipt) GetContractID() *id.ID {
 
 // --- ValidatableDocLine implementation for GoodsReceiptLine ---
 
-func (l GoodsReceiptLine) GetProductID() id.ID             { return l.ProductID }
+func (l GoodsReceiptLine) GetNomenclatureID() id.ID        { return l.NomenclatureID }
 func (l GoodsReceiptLine) GetUnitID() id.ID                { return l.UnitID }
 func (l GoodsReceiptLine) GetCoefficient() decimal.Decimal { return l.Coefficient }
 func (l GoodsReceiptLine) GetQuantity() types.Quantity     { return l.Quantity }
@@ -239,7 +239,7 @@ func (l GoodsReceiptLine) GetVATRateID() id.ID             { return l.VATRateID 
 // GetRLSDimensions overrides entity.Document to add supplier dimension.
 func (g *GoodsReceipt) GetRLSDimensions() map[string]string {
 	dims := g.Document.GetRLSDimensions()
-	dims["counterparty"] = g.SupplierID.String()
+	dims["counterparty"] = g.CounterpartyID.String()
 	return dims
 }
 
@@ -270,7 +270,7 @@ func (g *GoodsReceipt) GenerateStockMovements(ctx context.Context) ([]entity.Sto
 			g.Date,
 			entity.RecordTypeReceipt,
 			g.WarehouseID,
-			line.ProductID,
+			line.NomenclatureID,
 			baseQty,
 		))
 	}
@@ -300,7 +300,7 @@ func (g *GoodsReceipt) GenerateCostMovements(ctx context.Context) ([]entity.Cost
 			g.Date,
 			entity.RecordTypeReceipt,
 			g.WarehouseID,
-			line.ProductID,
+			line.NomenclatureID,
 			g.CurrencyID,
 			baseQty,
 			costAmount,
@@ -325,7 +325,7 @@ func (g *GoodsReceipt) GenerateSettlementMovements(ctx context.Context) ([]entit
 		newVersion,
 		g.Date,
 		entity.RecordTypeReceipt,
-		g.SupplierID,
+		g.CounterpartyID,
 		g.ContractID,
 		g.CurrencyID,
 		g.TotalAmount,

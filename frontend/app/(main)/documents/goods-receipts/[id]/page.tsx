@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { cn } from "@/lib/utils"
 import { useCompactMode } from "@/hooks/useCompactMode"
@@ -55,8 +55,8 @@ interface GoodsReceiptEditFormState {
   date: string | undefined
   organizationId: string
   organizationName: string
-  supplierId: string
-  supplierName: string
+  counterpartyId: string
+  counterpartyName: string
   warehouseId: string
   warehouseName: string
   currencyId: string
@@ -75,7 +75,7 @@ const INITIAL_EDIT_STATE: GoodsReceiptEditFormState = {
   _doc: null,
   date: undefined,
   organizationId: "", organizationName: "",
-  supplierId: "", supplierName: "",
+  counterpartyId: "", counterpartyName: "",
   warehouseId: "", warehouseName: "",
   currencyId: "", currencyName: "",
   contractId: "", contractName: "",
@@ -92,8 +92,8 @@ function mapDocToState(d: GoodsReceiptResponse): GoodsReceiptEditFormState {
     date: d.date || undefined,
     organizationId: d.organizationId,
     organizationName: d.organization?.name || "",
-    supplierId: d.supplierId,
-    supplierName: d.supplier?.name || "",
+    counterpartyId: d.counterpartyId,
+    counterpartyName: d.counterparty?.name || "",
     warehouseId: d.warehouseId,
     warehouseName: d.warehouse?.name || "",
     currencyId: d.currencyId || "",
@@ -128,7 +128,7 @@ export default function GoodsReceiptFormPage() {
     INITIAL_EDIT_STATE,
     mapDocToState,
     "/documents/goods-receipts",
-    { shouldPersist: (s) => !!(s._doc && (s.organizationId || s.supplierId || s.warehouseId || s.lines.length > 0)) },
+    { shouldPersist: (s) => !!(s._doc && (s.organizationId || s.counterpartyId || s.warehouseId || s.lines.length > 0)) },
   )
 
   // Convenience aliases
@@ -198,7 +198,7 @@ export default function GoodsReceiptFormPage() {
     version: doc?.version ?? 1,
     date: f.date || new Date().toISOString(),
     organizationId: f.organizationId,
-    supplierId: f.supplierId,
+    counterpartyId: f.counterpartyId,
     warehouseId: f.warehouseId,
     currencyId: f.currencyId || null,
     contractId: f.contractId || null,
@@ -207,7 +207,7 @@ export default function GoodsReceiptFormPage() {
     amountIncludesVat: f.amountIncludesVat,
     description: f.description || null,
     lines: f.lines.map((l): GoodsReceiptLineRequest => ({
-      productId: l.productId,
+      nomenclatureId: l.nomenclatureId,
       unitId: l.unitId,
       quantity: toQuantity(l.quantity),
       unitPrice: toMinorUnits(l.unitPrice, decimalPlaces),
@@ -388,12 +388,12 @@ export default function GoodsReceiptFormPage() {
                 <Label className="text-xs text-muted-foreground">Поставщик</Label>
                 <div className="mt-1">
                   <ReferenceField
-                    value={f.supplierId}
-                    displayName={f.supplierName}
+                    value={f.counterpartyId}
+                    displayName={f.counterpartyName}
                     apiEndpoint="/catalog/counterparties"
                     placeholder="Выберите поставщика"
-                    error={fieldErrors.supplierId}
-                    onChange={(id, name) => { update({ supplierId: id, supplierName: name }); markDirty(); setFieldErrors(prev => ({...prev, supplierId: ""})) }}
+                    error={fieldErrors.counterpartyId}
+                    onChange={(id, name) => { update({ counterpartyId: id, counterpartyName: name }); markDirty(); setFieldErrors(prev => ({...prev, counterpartyId: ""})) }}
                   />
                 </div>
               </div>

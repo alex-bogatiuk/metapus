@@ -1,4 +1,4 @@
-// Package main provides a CLI tool for seeding the database with initial data.
+﻿// Package main provides a CLI tool for seeding the database with initial data.
 package main
 
 import (
@@ -769,7 +769,7 @@ func flushGoodsReceiptBatch(ctx context.Context, txm *postgres.TxManager, docs [
 		headerCols := []string{
 			"id", "number", "date", "posted", "posted_version",
 			"organization_id", "basis_type", "basis_id", "description",
-			"supplier_id", "contract_id", "warehouse_id",
+			"counterparty_id", "contract_id", "warehouse_id",
 			"supplier_doc_number", "supplier_doc_date", "incoming_number",
 			"currency_id", "amount_includes_vat",
 			"total_quantity", "total_amount", "total_vat",
@@ -781,7 +781,7 @@ func flushGoodsReceiptBatch(ctx context.Context, txm *postgres.TxManager, docs [
 			headerRows = append(headerRows, []any{
 				doc.ID, doc.Number, doc.Date, doc.Posted, doc.PostedVersion,
 				doc.OrganizationID, doc.BasisType, doc.BasisID, doc.Description,
-				doc.SupplierID, doc.ContractID, doc.WarehouseID,
+				doc.CounterpartyID, doc.ContractID, doc.WarehouseID,
 				doc.SupplierDocNumber, doc.SupplierDocDate, doc.IncomingNumber,
 				doc.CurrencyID, doc.AmountIncludesVAT,
 				doc.TotalQuantity, doc.TotalAmount, doc.TotalVAT,
@@ -795,7 +795,7 @@ func flushGoodsReceiptBatch(ctx context.Context, txm *postgres.TxManager, docs [
 
 		// 2. COPY all lines from all documents in the batch.
 		lineCols := []string{
-			"line_id", "document_id", "line_no", "product_id",
+			"line_id", "document_id", "line_no", "nomenclature_id",
 			"unit_id", "coefficient",
 			"quantity", "unit_price",
 			"discount_percent", "discount_amount",
@@ -810,7 +810,7 @@ func flushGoodsReceiptBatch(ctx context.Context, txm *postgres.TxManager, docs [
 		for _, doc := range docs {
 			for _, line := range doc.Lines {
 				lineRows = append(lineRows, []any{
-					line.LineID, doc.ID, line.LineNo, line.ProductID,
+					line.LineID, doc.ID, line.LineNo, line.NomenclatureID,
 					line.UnitID, line.Coefficient,
 					line.Quantity, line.UnitPrice,
 					line.DiscountPercent, line.DiscountAmount,

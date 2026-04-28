@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useState, useCallback } from "react"
+import { useTabTitle } from "@/hooks/useTabTitle"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -173,6 +174,12 @@ export function RelatedDocumentsPage({
 
     // Count total items
     const totalItems = data?.total ?? 0
+
+    // Update tab title: "Связанные: №GR-SEED-01371 (Поступление товаров)"
+    useTabTitle(
+        rootDoc?.number ? `Связанные: №${rootDoc.number}` : undefined,
+        entityTypeLabel,
+    )
 
     // ── Quick actions ───────────────────────────────────────────────────
 

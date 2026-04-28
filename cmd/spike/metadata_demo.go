@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"encoding/json"
@@ -37,7 +37,7 @@ func main() {
 			defGR.Fields[i].Label = "Номер"
 		case "date":
 			defGR.Fields[i].Label = "Дата"
-		case "supplierId":
+		case "counterpartyId":
 			defGR.Fields[i].Label = "Поставщик"
 			defGR.Fields[i].ReferenceType = "counterparty"
 		case "warehouseId":
@@ -52,7 +52,7 @@ func main() {
 		tp.Label = "Товары"
 		for i, c := range tp.Columns {
 			switch c.Name {
-			case "productId":
+			case "nomenclatureId":
 				tp.Columns[i].Label = "Номенклатура"
 				tp.Columns[i].ReferenceType = "nomenclature"
 			case "quantity":

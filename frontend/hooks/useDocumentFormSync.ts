@@ -1,4 +1,4 @@
-import { useCallback } from "react"
+﻿import { useCallback } from "react"
 import { usePathname } from "next/navigation"
 import { useFormDraft } from "./useFormDraft"
 import { useTabDirty } from "./useTabDirty"
@@ -32,7 +32,7 @@ import { useTabStateStore } from "@/stores/useTabStateStore"
  * syncFromServer(updated)   // ← atomic: replace + markClean
  *
  * // After field change:
- * update({ supplierId: id }); markDirty()
+ * update({ counterpartyId: id }); markDirty()
  * ```
  *
  * @param initial         — default state for a fresh form

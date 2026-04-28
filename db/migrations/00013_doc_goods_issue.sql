@@ -30,7 +30,7 @@ CREATE TABLE doc_goods_issues (
     description     TEXT         DEFAULT '',
 
     -- GoodsIssue-specific fields
-    customer_id           UUID NOT NULL REFERENCES cat_counterparties(id),
+    counterparty_id           UUID NOT NULL REFERENCES cat_counterparties(id),
     contract_id           UUID REFERENCES cat_contracts(id),
     warehouse_id          UUID NOT NULL REFERENCES cat_warehouses(id),
     customer_order_number VARCHAR(100),
@@ -54,7 +54,7 @@ CREATE TABLE doc_goods_issue_lines (
     document_id UUID    NOT NULL REFERENCES doc_goods_issues(id) ON DELETE CASCADE,
     line_no     INTEGER NOT NULL,
 
-    product_id UUID    NOT NULL REFERENCES cat_nomenclatures(id),
+    nomenclature_id UUID    NOT NULL REFERENCES cat_nomenclatures(id),
     unit_id    UUID,
     coefficient NUMERIC(15,6) NOT NULL DEFAULT 1,
 
@@ -78,7 +78,7 @@ CREATE TABLE doc_goods_issue_lines (
 
 -- Header indexes
 CREATE INDEX idx_goods_issues_date        ON doc_goods_issues (date DESC);
-CREATE INDEX idx_goods_issues_customer    ON doc_goods_issues (customer_id);
+CREATE INDEX idx_goods_issues_counterparty    ON doc_goods_issues (counterparty_id);
 CREATE INDEX idx_goods_issues_contract    ON doc_goods_issues (contract_id) WHERE contract_id IS NOT NULL;
 CREATE INDEX idx_goods_issues_warehouse   ON doc_goods_issues (warehouse_id);
 CREATE INDEX idx_doc_goods_issues_currency_id ON doc_goods_issues (currency_id);
@@ -101,7 +101,7 @@ CREATE TRIGGER trg_doc_goods_issues_soft_delete
 
 -- Line indexes
 CREATE INDEX idx_goods_issue_lines_doc      ON doc_goods_issue_lines (document_id);
-CREATE INDEX idx_goods_issue_lines_product  ON doc_goods_issue_lines (product_id);
+CREATE INDEX idx_goods_issue_lines_nomenclature  ON doc_goods_issue_lines (nomenclature_id);
 CREATE INDEX idx_goods_issue_lines_vat_rate ON doc_goods_issue_lines (vat_rate_id);
 CREATE INDEX idx_goods_issue_lines_unit     ON doc_goods_issue_lines (unit_id) WHERE unit_id IS NOT NULL;
 

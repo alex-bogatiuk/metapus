@@ -20,8 +20,8 @@ import (
 type GoodsIssue struct {
 	entity.Document
 
-	// Customer reference
-	CustomerID id.ID `db:"customer_id" json:"customerId" meta:"label:Покупатель"`
+	// Counterparty reference (role: customer)
+	CounterpartyID id.ID `db:"counterparty_id" json:"counterpartyId" meta:"label:Покупатель"`
 
 	// Contract / Agreement reference
 	ContractID *id.ID `db:"contract_id" json:"contractId,omitempty" meta:"label:Договор"`
@@ -55,7 +55,7 @@ type GoodsIssueLine struct {
 	LineNo int   `db:"line_no" json:"lineNo" meta:"label:№ строки"`
 
 	// Product reference
-	ProductID id.ID `db:"product_id" json:"productId" meta:"label:Номенклатура"`
+	NomenclatureID id.ID `db:"nomenclature_id" json:"nomenclatureId" meta:"label:Номенклатура"`
 
 	// Unit of measurement (e.g., box, pallet)
 	UnitID id.ID `db:"unit_id" json:"unitId" meta:"label:Единица"`
@@ -82,10 +82,10 @@ type GoodsIssueLine struct {
 }
 
 // NewGoodsIssue creates a new goods issue document.
-func NewGoodsIssue(organizationID id.ID, customerID, warehouseID id.ID) *GoodsIssue {
+func NewGoodsIssue(organizationID id.ID, counterpartyID, warehouseID id.ID) *GoodsIssue {
 	return &GoodsIssue{
 		Document:          entity.NewDocument(organizationID),
-		CustomerID:        customerID,
+		CounterpartyID:    counterpartyID,
 		WarehouseID:       warehouseID,
 		AmountIncludesVAT: false,
 		Lines:             make([]GoodsIssueLine, 0),
@@ -94,7 +94,7 @@ func NewGoodsIssue(organizationID id.ID, customerID, warehouseID id.ID) *GoodsIs
 
 // AddLine adds a line to the goods issue and recalculates totals.
 func (g *GoodsIssue) AddLine(
-	productID id.ID,
+	nomenclatureID id.ID,
 	unitID id.ID,
 	coefficient decimal.Decimal,
 	quantity types.Quantity,
@@ -150,7 +150,7 @@ func (g *GoodsIssue) AddLine(
 	line := GoodsIssueLine{
 		LineID:          id.New(),
 		LineNo:          lineNo,
-		ProductID:       productID,
+		NomenclatureID:  nomenclatureID,
 		UnitID:          unitID,
 		Coefficient:     coefficient,
 		Quantity:        quantity,
@@ -188,9 +188,9 @@ func (g *GoodsIssue) Validate(ctx context.Context) error {
 		return err
 	}
 
-	if id.IsNil(g.CustomerID) {
-		return apperror.NewValidation("customer is required").
-			WithDetail("field", "customerId")
+	if id.IsNil(g.CounterpartyID) {
+		return apperror.NewValidation("counterparty is required").
+			WithDetail("field", "counterpartyId")
 	}
 
 	if id.IsNil(g.WarehouseID) {
@@ -223,7 +223,7 @@ func (g *GoodsIssue) GetContractID() *id.ID {
 
 // --- ValidatableDocLine implementation for GoodsIssueLine ---
 
-func (l GoodsIssueLine) GetProductID() id.ID             { return l.ProductID }
+func (l GoodsIssueLine) GetNomenclatureID() id.ID        { return l.NomenclatureID }
 func (l GoodsIssueLine) GetUnitID() id.ID                { return l.UnitID }
 func (l GoodsIssueLine) GetCoefficient() decimal.Decimal { return l.Coefficient }
 func (l GoodsIssueLine) GetQuantity() types.Quantity     { return l.Quantity }
@@ -234,7 +234,7 @@ func (l GoodsIssueLine) GetVATRateID() id.ID             { return l.VATRateID }
 // GetRLSDimensions overrides entity.Document to add customer dimension.
 func (g *GoodsIssue) GetRLSDimensions() map[string]string {
 	dims := g.Document.GetRLSDimensions()
-	dims["counterparty"] = g.CustomerID.String()
+	dims["counterparty"] = g.CounterpartyID.String()
 	return dims
 }
 
@@ -261,7 +261,7 @@ func (g *GoodsIssue) GenerateStockMovements(ctx context.Context) ([]entity.Stock
 			g.Date,
 			entity.RecordTypeExpense,
 			g.WarehouseID,
-			line.ProductID,
+			line.NomenclatureID,
 			baseQty,
 		))
 	}

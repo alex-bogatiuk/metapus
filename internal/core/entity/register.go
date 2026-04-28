@@ -75,8 +75,8 @@ type StockMovement struct {
 	MovementBase
 
 	// Dimensions
-	WarehouseID id.ID `db:"warehouse_id" json:"warehouseId"`
-	ProductID   id.ID `db:"product_id" json:"productId"`
+	WarehouseID    id.ID `db:"warehouse_id" json:"warehouseId"`
+	NomenclatureID id.ID `db:"nomenclature_id" json:"nomenclatureId"`
 
 	// Resources
 	Quantity types.Quantity `db:"quantity" json:"quantity"`
@@ -89,13 +89,13 @@ func NewStockMovement(
 	recorderVersion int,
 	period time.Time,
 	recordType RecordType,
-	warehouseID, productID id.ID,
+	warehouseID, nomenclatureID id.ID,
 	quantity types.Quantity,
 ) StockMovement {
 	return StockMovement{
 		MovementBase: NewMovementBase(recorderID, recorderType, recorderVersion, period, recordType),
-		WarehouseID:  warehouseID,
-		ProductID:    productID,
+		WarehouseID:    warehouseID,
+		NomenclatureID: nomenclatureID,
 		Quantity:     quantity,
 	}
 }
@@ -113,8 +113,8 @@ func (m *StockMovement) SignedQuantity() types.Quantity {
 // This is a materialized/cached view for fast balance queries.
 type StockBalance struct {
 	// Dimensions
-	WarehouseID id.ID `db:"warehouse_id" json:"warehouseId"`
-	ProductID   id.ID `db:"product_id" json:"productId"`
+	WarehouseID    id.ID `db:"warehouse_id" json:"warehouseId"`
+	NomenclatureID id.ID `db:"nomenclature_id" json:"nomenclatureId"`
 
 	// Balances
 	Quantity types.Quantity `db:"quantity" json:"quantity"`
@@ -134,9 +134,9 @@ type CostMovement struct {
 	MovementBase
 
 	// Dimensions
-	WarehouseID id.ID `db:"warehouse_id" json:"warehouseId"`
-	ProductID   id.ID `db:"product_id" json:"productId"`
-	CurrencyID  id.ID `db:"currency_id" json:"currencyId"`
+	WarehouseID    id.ID `db:"warehouse_id" json:"warehouseId"`
+	NomenclatureID id.ID `db:"nomenclature_id" json:"nomenclatureId"`
+	CurrencyID     id.ID `db:"currency_id" json:"currencyId"`
 
 	// Resources
 	Quantity types.Quantity   `db:"quantity" json:"quantity"`
@@ -150,15 +150,15 @@ func NewCostMovement(
 	recorderVersion int,
 	period time.Time,
 	recordType RecordType,
-	warehouseID, productID, currencyID id.ID,
+	warehouseID, nomenclatureID, currencyID id.ID,
 	quantity types.Quantity,
 	amount types.MinorUnits,
 ) CostMovement {
 	return CostMovement{
 		MovementBase: NewMovementBase(recorderID, recorderType, recorderVersion, period, recordType),
-		WarehouseID:  warehouseID,
-		ProductID:    productID,
-		CurrencyID:   currencyID,
+		WarehouseID:    warehouseID,
+		NomenclatureID: nomenclatureID,
+		CurrencyID:     currencyID,
 		Quantity:     quantity,
 		Amount:       amount,
 	}
@@ -175,9 +175,9 @@ func (m *CostMovement) SignedAmount() types.MinorUnits {
 // CostBalance represents current balance in the cost register.
 type CostBalance struct {
 	// Dimensions
-	WarehouseID id.ID `db:"warehouse_id" json:"warehouseId"`
-	ProductID   id.ID `db:"product_id" json:"productId"`
-	CurrencyID  id.ID `db:"currency_id" json:"currencyId"`
+	WarehouseID    id.ID `db:"warehouse_id" json:"warehouseId"`
+	NomenclatureID id.ID `db:"nomenclature_id" json:"nomenclatureId"`
+	CurrencyID     id.ID `db:"currency_id" json:"currencyId"`
 
 	// Balances
 	Quantity types.Quantity   `db:"quantity" json:"quantity"`
@@ -284,7 +284,7 @@ type MovementColumnDef struct {
 type MovementRefValue struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
-	URL  string `json:"url,omitempty"` // e.g. "/catalogs/products/019d..."
+	URL  string `json:"url,omitempty"` // e.g. "/catalogs/nomenclatures/019d..."
 }
 
 // MovementProvider defines an interface for any register service that can

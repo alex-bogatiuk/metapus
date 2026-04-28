@@ -1,4 +1,4 @@
-package dto
+﻿package dto
 
 import (
 	"time"
@@ -17,7 +17,7 @@ type CreateGoodsIssueRequest struct {
 	Number              string                  `json:"number,omitempty"`
 	Date                time.Time               `json:"date" binding:"required"`
 	OrganizationID      string                  `json:"organizationId" binding:"required"`
-	CustomerID          string                  `json:"customerId" binding:"required"`
+	CounterpartyID          string                  `json:"counterpartyId" binding:"required"`
 	ContractID          *string                 `json:"contractId,omitempty"`
 	WarehouseID         string                  `json:"warehouseId" binding:"required"`
 	CustomerOrderNumber string                  `json:"customerOrderNumber,omitempty"`
@@ -32,7 +32,7 @@ type CreateGoodsIssueRequest struct {
 }
 
 type GoodsIssueLineRequest struct {
-	ProductID       string           `json:"productId" binding:"required"`
+	NomenclatureID       string           `json:"nomenclatureId" binding:"required"`
 	UnitID          string           `json:"unitId" binding:"required"`
 	Coefficient     decimal.Decimal  `json:"coefficient"`
 	Quantity        types.Quantity   `json:"quantity" binding:"required,gt=0"`
@@ -43,7 +43,7 @@ type GoodsIssueLineRequest struct {
 }
 
 func (r *CreateGoodsIssueRequest) ToEntity() *goods_issue.GoodsIssue {
-	customerID, _ := id.Parse(r.CustomerID)
+	customerID, _ := id.Parse(r.CounterpartyID)
 	warehouseID, _ := id.Parse(r.WarehouseID)
 
 	orgID, _ := id.Parse(r.OrganizationID)
@@ -72,14 +72,14 @@ func (r *CreateGoodsIssueRequest) ToEntity() *goods_issue.GoodsIssue {
 	}
 
 	for _, line := range r.Lines {
-		productID, _ := id.Parse(line.ProductID)
+		nomenclatureID, _ := id.Parse(line.NomenclatureID)
 		unitID, _ := id.Parse(line.UnitID)
 		vatRateID, _ := id.Parse(line.VATRateID)
 		coefficient := line.Coefficient
 		if coefficient.IsZero() {
 			coefficient = decimal.NewFromInt(1)
 		}
-		doc.AddLine(productID, unitID, coefficient, line.Quantity, line.UnitPrice, vatRateID, line.VATPercent, line.DiscountPercent)
+		doc.AddLine(nomenclatureID, unitID, coefficient, line.Quantity, line.UnitPrice, vatRateID, line.VATPercent, line.DiscountPercent)
 	}
 
 	return doc
@@ -90,7 +90,7 @@ type UpdateGoodsIssueRequest struct {
 	Number              *string                 `json:"number,omitempty"`
 	Date                *time.Time              `json:"date,omitempty"`
 	OrganizationID      *string                 `json:"organizationId,omitempty"`
-	CustomerID          *string                 `json:"customerId,omitempty"`
+	CounterpartyID          *string                 `json:"counterpartyId,omitempty"`
 	ContractID          *string                 `json:"contractId,omitempty"`
 	WarehouseID         *string                 `json:"warehouseId,omitempty"`
 	CustomerOrderNumber *string                 `json:"customerOrderNumber,omitempty"`
@@ -118,9 +118,9 @@ func (r *UpdateGoodsIssueRequest) ApplyTo(doc *goods_issue.GoodsIssue) {
 		orgID, _ := id.Parse(*r.OrganizationID)
 		doc.OrganizationID = orgID
 	}
-	if r.CustomerID != nil {
-		customerID, _ := id.Parse(*r.CustomerID)
-		doc.CustomerID = customerID
+	if r.CounterpartyID != nil {
+		customerID, _ := id.Parse(*r.CounterpartyID)
+		doc.CounterpartyID = customerID
 	}
 	if r.ContractID != nil {
 		contractID, _ := id.Parse(*r.ContractID)
@@ -157,14 +157,14 @@ func (r *UpdateGoodsIssueRequest) ApplyTo(doc *goods_issue.GoodsIssue) {
 	if r.Lines != nil {
 		doc.Lines = make([]goods_issue.GoodsIssueLine, 0, len(r.Lines))
 		for _, line := range r.Lines {
-			productID, _ := id.Parse(line.ProductID)
+			nomenclatureID, _ := id.Parse(line.NomenclatureID)
 			unitID, _ := id.Parse(line.UnitID)
 			vatRateID, _ := id.Parse(line.VATRateID)
 			coefficient := line.Coefficient
 			if coefficient.IsZero() {
 				coefficient = decimal.NewFromInt(1)
 			}
-			doc.AddLine(productID, unitID, coefficient, line.Quantity, line.UnitPrice, vatRateID, line.VATPercent, line.DiscountPercent)
+			doc.AddLine(nomenclatureID, unitID, coefficient, line.Quantity, line.UnitPrice, vatRateID, line.VATPercent, line.DiscountPercent)
 		}
 	}
 }
@@ -178,7 +178,7 @@ type GoodsIssueResponse struct {
 	Posted              bool                     `json:"posted"`
 	PostedVersion       int                      `json:"postedVersion,omitempty"`
 	OrganizationID      string                   `json:"organizationId"`
-	CustomerID          string                   `json:"customerId"`
+	CounterpartyID          string                   `json:"counterpartyId"`
 	ContractID          *string                  `json:"contractId,omitempty"`
 	WarehouseID         string                   `json:"warehouseId"`
 	CustomerOrderNumber string                   `json:"customerOrderNumber,omitempty"`
@@ -210,7 +210,7 @@ type GoodsIssueResponse struct {
 type GoodsIssueLineResponse struct {
 	LineID          string           `json:"lineId"`
 	LineNo          int              `json:"lineNo"`
-	ProductID       string           `json:"productId"`
+	NomenclatureID       string           `json:"nomenclatureId"`
 	UnitID          string           `json:"unitId"`
 	Coefficient     decimal.Decimal  `json:"coefficient"`
 	Quantity        types.Quantity   `json:"quantity"`
@@ -232,7 +232,7 @@ type GoodsIssueLineResponse struct {
 // into the resolver for batch resolution.
 func CollectGoodsIssueRefs(resolver *postgres.ReferenceResolver, doc *goods_issue.GoodsIssue) {
 	resolver.Add(TableOrganizations, doc.OrganizationID)
-	resolver.Add(TableCounterparties, doc.CustomerID)
+	resolver.Add(TableCounterparties, doc.CounterpartyID)
 	resolver.AddPtr(TableContracts, doc.ContractID)
 	resolver.Add(TableWarehouses, doc.WarehouseID)
 	resolver.Add(TableCurrencies, doc.CurrencyID)
@@ -240,7 +240,7 @@ func CollectGoodsIssueRefs(resolver *postgres.ReferenceResolver, doc *goods_issu
 	resolver.Add(TableUsers, doc.UpdatedBy)
 
 	for _, line := range doc.Lines {
-		resolver.Add(TableNomenclature, line.ProductID)
+		resolver.Add(TableNomenclature, line.NomenclatureID)
 		resolver.Add(TableUnits, line.UnitID)
 		resolver.Add(TableVATRates, line.VATRateID)
 	}
@@ -257,7 +257,7 @@ func FromGoodsIssue(doc *goods_issue.GoodsIssue, refs postgres.ResolvedRefs, cur
 		Posted:              doc.Posted,
 		PostedVersion:       doc.PostedVersion,
 		OrganizationID:      doc.OrganizationID.String(),
-		CustomerID:          doc.CustomerID.String(),
+		CounterpartyID:          doc.CounterpartyID.String(),
 		WarehouseID:         doc.WarehouseID.String(),
 		CustomerOrderNumber: doc.CustomerOrderNumber,
 		CustomerOrderDate:   doc.CustomerOrderDate,
@@ -289,7 +289,7 @@ func FromGoodsIssue(doc *goods_issue.GoodsIssue, refs postgres.ResolvedRefs, cur
 	if resolved != nil {
 		org := resolved.Get(TableOrganizations, doc.OrganizationID)
 		resp.Organization = &org
-		cust := resolved.Get(TableCounterparties, doc.CustomerID)
+		cust := resolved.Get(TableCounterparties, doc.CounterpartyID)
 		resp.Customer = &cust
 		wh := resolved.Get(TableWarehouses, doc.WarehouseID)
 		resp.Warehouse = &wh
@@ -313,7 +313,7 @@ func FromGoodsIssue(doc *goods_issue.GoodsIssue, refs postgres.ResolvedRefs, cur
 		lineResp := GoodsIssueLineResponse{
 			LineID:          line.LineID.String(),
 			LineNo:          line.LineNo,
-			ProductID:       line.ProductID.String(),
+			NomenclatureID:       line.NomenclatureID.String(),
 			UnitID:          line.UnitID.String(),
 			Coefficient:     line.Coefficient,
 			Quantity:        line.Quantity,
@@ -326,7 +326,7 @@ func FromGoodsIssue(doc *goods_issue.GoodsIssue, refs postgres.ResolvedRefs, cur
 		}
 
 		if resolved != nil {
-			prod := resolved.Get(TableNomenclature, line.ProductID)
+			prod := resolved.Get(TableNomenclature, line.NomenclatureID)
 			lineResp.Product = &prod
 			unit := resolved.Get(TableUnits, line.UnitID)
 			lineResp.Unit = &unit

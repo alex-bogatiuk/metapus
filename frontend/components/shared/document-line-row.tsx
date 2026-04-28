@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import React, { useCallback, useRef } from "react"
 import { Trash2 } from "lucide-react"
@@ -208,8 +208,8 @@ export const DocumentLineRow = React.memo(function DocumentLineRow({
       <td className={cn("px-1", cellPy)}>
         <ReferenceField
           compact
-          value={line.productId}
-          displayName={line.productName}
+          value={line.nomenclatureId}
+          displayName={line.nomenclatureName}
           apiEndpoint="/catalog/nomenclatures"
           placeholder="Номенклатура"
           onChange={handleProductChange}

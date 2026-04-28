@@ -14,7 +14,7 @@ var refKeyToEntityName = map[string]struct {
 	EntityName string
 	URLPrefix  string // URL prefix for building frontend links
 }{
-	"product":      {EntityName: "Nomenclature", URLPrefix: "/catalogs/products"},
+	"nomenclature":  {EntityName: "Nomenclature", URLPrefix: "/catalogs/nomenclatures"},
 	"warehouse":    {EntityName: "Warehouse", URLPrefix: "/catalogs/warehouses"},
 	"currency":     {EntityName: "Currency", URLPrefix: "/catalogs/currencies"},
 	"counterparty": {EntityName: "Counterparty", URLPrefix: "/catalogs/counterparties"},
