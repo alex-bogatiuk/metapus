@@ -32,6 +32,9 @@ func (r *GoodsReceiptRegistration) EntityPresentation() metadata.Presentation {
 	}
 }
 func (r *GoodsReceiptRegistration) EntityStruct() interface{} { return goods_receipt.GoodsReceipt{} }
+func (r *GoodsReceiptRegistration) RLSDimensions() map[string]string {
+	return map[string]string{"organization": "organization_id"}
+}
 
 func (r *GoodsReceiptRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
 	repo := document_repo.NewGoodsReceiptRepo()
@@ -75,6 +78,9 @@ func (r *GoodsIssueRegistration) EntityPresentation() metadata.Presentation {
 	}
 }
 func (r *GoodsIssueRegistration) EntityStruct() interface{} { return goods_issue.GoodsIssue{} }
+func (r *GoodsIssueRegistration) RLSDimensions() map[string]string {
+	return map[string]string{"organization": "organization_id"}
+}
 
 func (r *GoodsIssueRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
 	repo := document_repo.NewGoodsIssueRepo()

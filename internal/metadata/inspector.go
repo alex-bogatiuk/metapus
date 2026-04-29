@@ -116,22 +116,32 @@ func inspectStruct(t reflect.Type, def *EntityDef, topLevel bool) {
 
 		def.Fields = append(def.Fields, fDef)
 
-		// Auto-collect preview fields: reference fields from document headers
-		// (top-level only, not table parts). Skip system fields.
-		if topLevel && def.Type == TypeDocument && fDef.Type == TypeReference &&
-			fDef.ReferenceType != "" && !previewSkipFields[fDef.Name] &&
-			!metaHasPreviewFalse(field) {
-
+		// Auto-collect preview fields (top-level only, not table parts).
+		if topLevel && !previewSkipFields[fDef.Name] && !metaHasPreviewFalse(field) {
 			dbCol := dbColumnName(field)
 			if dbCol == "" {
 				dbCol = toSnakeCase(field.Name)
 			}
-			def.PreviewFields = append(def.PreviewFields, PreviewFieldDef{
-				Name:          fDef.Name,
-				Label:         label,
-				Column:        dbCol,
-				ReferenceType: fDef.ReferenceType,
-			})
+
+			// Case 1: Reference fields (id.ID) on documents — auto-collected.
+			if def.Type == TypeDocument && fDef.Type == TypeReference && fDef.ReferenceType != "" {
+				def.PreviewFields = append(def.PreviewFields, PreviewFieldDef{
+					Name:          fDef.Name,
+					Label:         label,
+					Column:        dbCol,
+					ReferenceType: fDef.ReferenceType,
+				})
+			}
+
+			// Case 2: Scalar fields with explicit meta:"preview:true" — any entity type.
+			if fDef.Type != TypeReference && metaHasPreviewTrue(field) {
+				def.PreviewFields = append(def.PreviewFields, PreviewFieldDef{
+					Name:   fDef.Name,
+					Label:  label,
+					Column: dbCol,
+					// ReferenceType empty → scalar field, read directly from table
+				})
+			}
 		}
 	}
 }
@@ -342,6 +352,21 @@ func metaHasPreviewFalse(field reflect.StructField) bool {
 	}
 	for _, part := range strings.Split(tag, ",") {
 		if strings.TrimSpace(part) == "preview:false" {
+			return true
+		}
+	}
+	return false
+}
+
+// metaHasPreviewTrue checks if field has meta:"preview:true" to opt in for preview cards.
+// Used for scalar fields (INN, phone, email) that should appear in preview.
+func metaHasPreviewTrue(field reflect.StructField) bool {
+	tag, ok := field.Tag.Lookup("meta")
+	if !ok {
+		return false
+	}
+	for _, part := range strings.Split(tag, ",") {
+		if strings.TrimSpace(part) == "preview:true" {
 			return true
 		}
 	}

@@ -25,6 +25,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/metadata"
+	"metapus/internal/platform"
 )
 
 func init() {
@@ -120,6 +121,13 @@ func (r *CounterpartyRegistration) EntityPresentation() metadata.Presentation {
 	}
 }
 func (r *CounterpartyRegistration) EntityStruct() interface{} { return counterparty.Counterparty{} }
+func (r *CounterpartyRegistration) SearchableFields() platform.SearchFields {
+	return platform.SearchFields{
+		SearchCols:  []string{"name", "code", "inn", "phone", "email"},
+		TitleCol:    "name",
+		SubtitleCol: "code",
+	}
+}
 
 func (r *CounterpartyRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 	repo := catalog_repo.NewCounterpartyRepo()

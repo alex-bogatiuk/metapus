@@ -457,6 +457,18 @@ export const api = {
             ),
     },
 
+    // ── Global Search (Ctrl+K) ──────────────────────────────────────────
+    search: {
+        query: (q: string, limit?: number) =>
+            apiFetch<import("@/types/search").SearchResponse>(
+                `/search?q=${encodeURIComponent(q)}&limit=${limit ?? 5}`
+            ),
+        preview: (entityType: string, entityKey: string, id: string) =>
+            apiFetch<import("@/types/search").PreviewResponse>(
+                `/search/preview?entityType=${encodeURIComponent(entityType)}&entityKey=${encodeURIComponent(entityKey)}&id=${encodeURIComponent(id)}`
+            ),
+    },
+
     // ── Automations ──────────────────────────────────────────────────────
     automation: {
         // Accounts

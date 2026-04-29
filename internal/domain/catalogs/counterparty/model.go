@@ -52,7 +52,7 @@ type Counterparty struct {
 	FullName *string `db:"full_name" json:"fullName" meta:"label:Полное наименование"`
 
 	// INN - Tax Identification Number
-	INN *string `db:"inn" json:"inn" meta:"label:ИНН"`
+	INN *string `db:"inn" json:"inn" meta:"label:ИНН,preview:true"`
 
 	// KPP - Tax Registration Reason Code (for companies)
 	KPP *string `db:"kpp" json:"kpp,omitempty" meta:"label:КПП"`
@@ -67,10 +67,10 @@ type Counterparty struct {
 	ActualAddress *string `db:"actual_address" json:"actualAddress,omitempty" meta:"label:Факт. адрес"`
 
 	// Phone is the primary contact phone
-	Phone *string `db:"phone" json:"phone,omitempty" meta:"label:Телефон"`
+	Phone *string `db:"phone" json:"phone,omitempty" meta:"label:Телефон,preview:true"`
 
 	// Email is the primary contact email
-	Email *string `db:"email" json:"email,omitempty" meta:"label:Email"`
+	Email *string `db:"email" json:"email,omitempty" meta:"label:Email,preview:true"`
 
 	// ContactPerson is the primary contact name
 	ContactPerson *string `db:"contact_person" json:"contactPerson,omitempty" meta:"label:Контактное лицо"`

@@ -27,6 +27,7 @@
 | [systems/automation-engine.md](systems/automation-engine.md) | Движок автоматизации, события, правила | automation, engine, rules, events |
 | [systems/core-layer.md](systems/core-layer.md) | Базовые примитивы, BaseEntity, BaseCatalog | core, entity, base, catalog, document |
 | [systems/crud-pipeline.md](systems/crud-pipeline.md) | Generic CRUD pipeline, обработка запросов | crud, generic, pipeline, factory, handler |
+| [systems/command-palette.md](systems/command-palette.md) | Command Palette (Ctrl+K), навигация, калькулятор, глобальный поиск по данным | command palette, ctrl+k, search, calculator, actions, global search, data search, SearchFieldsProvider, RLS |
 | [systems/dashboard-widgets.md](systems/dashboard-widgets.md) | Дашборды, виджеты, layout пользователя | dashboard, widgets, UI, preferences |
 | [systems/domain-layer.md](systems/domain-layer.md) | Бизнес-логика, сервисы, хуки | domain, services, hooks, logic, repository |
 | [systems/extension-api.md](systems/extension-api.md) | Плагины, кастомные расширения, модули | extensions, plugins, api, modules, custom |
@@ -38,7 +39,7 @@
 | [systems/posting-engine.md](systems/posting-engine.md) | Движок проведения, Visitor pattern | posting, engine, visitor, stock, balances, movements |
 | [systems/printing-system.md](systems/printing-system.md) | Печатные формы, шаблоны HTML/PDF | printing, templates, pdf, gohtml, export |
 | [systems/realtime-notifications.md](systems/realtime-notifications.md) | Push-уведомления, WebSockets | realtime, websockets, notifications, sse, push |
-| [systems/related-documents.md](systems/related-documents.md) | Дерево подчиненности, превью карточек | related, documents, tree, links, subordination |
+| [systems/related-documents.md](systems/related-documents.md) | Дерево подчиненности, превью карточек, context menu, API-контракт | related, documents, tree, links, subordination, preview, hover card, context menu, basis_id, FK-references |
 | [systems/reporting-system.md](systems/reporting-system.md) | Query Engine, сборка отчетов, СКД | reporting, query engine, xlsx, variants |
 | [systems/settings-system.md](systems/settings-system.md) | Системные и пользовательские настройки | settings, configuration, ui, metadata |
 | [systems/smart-data-entry.md](systems/smart-data-entry.md) | Каскадное автозаполнение, UX-фокус | smart entry, autofill, ux, focus, cascade |

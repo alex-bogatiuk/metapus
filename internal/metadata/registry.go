@@ -75,6 +75,24 @@ type EntityDef struct {
 	// CustomFields are dynamically-defined fields from sys_custom_field_schemas,
 	// merged at runtime via MergeCustomFields(). They extend core Fields.
 	CustomFields []FieldDef `json:"customFields,omitempty"`
+
+	// RLSDimensions maps security dimension names to DB column names.
+	// Used by global search to inject WHERE conditions from DataScope.
+	// E.g. {"organization": "organization_id"}.
+	// Populated via platform.RLSProvider during factory registration.
+	RLSDimensions map[string]string `json:"-"`
+
+	// SearchColumns configures which DB columns are searchable in global search.
+	// If nil, defaults are used: catalogs → name+code, documents → number.
+	// Populated via platform.SearchFieldsProvider during factory registration.
+	SearchColumns *SearchColumns `json:"-"`
+}
+
+// SearchColumns mirrors platform.SearchFields for storage in EntityDef.
+type SearchColumns struct {
+	SearchCols  []string // DB columns for ILIKE matching
+	TitleCol    string   // column for display title
+	SubtitleCol string   // column for secondary text (empty = none)
 }
 
 // TablePartDef describes a nested collection (lines).

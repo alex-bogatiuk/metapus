@@ -27,6 +27,7 @@ import (
 	"metapus/internal/domain/reports/compiler"
 	"metapus/internal/domain/listview"
 	"metapus/internal/domain/reports/variants"
+	"metapus/internal/domain/search"
 	"metapus/internal/domain/security_profile"
 	"metapus/internal/infrastructure/cache"
 	"metapus/internal/infrastructure/http/v1/handlers"
@@ -215,6 +216,16 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		registerSecurityRoutes(protected, cfg)
 		registerSystemRoutes(protected, eventLogRepo, cfg.SchemaCache, reg, cfg.WSTicketStore)
 
+		// Global data search (Ctrl+K) — available to all authenticated users.
+		// Must be registered after entity routes so metadata.Registry is populated.
+		searchService := search.NewService(reg)
+		searchHandler := handlers.NewGlobalSearchHandler(searchService)
+		protected.GET("/search", searchHandler.Search)
+
+		// Entity preview (Command Palette → ArrowRight) — single entity preview card.
+		previewHandler := handlers.NewEntityPreviewHandler(searchService)
+		protected.GET("/search/preview", previewHandler.Preview)
+
 		// Stateless XLSX renderer for document table parts (no entity binding needed).
 		protected.POST("/export-table-part", handlers.ExportTablePart)
 	}
@@ -317,10 +328,24 @@ func registerCatalogRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *Fa
 		}
 		if tp, ok := factory.(platform.TableNameProvider); ok {
 			def.TableName = tp.TableName()
+		} else {
+			// Derive table name from convention: cat_{routePrefix} (e.g. cat_counterparties)
+			def.TableName = "cat_" + strings.ReplaceAll(factory.RoutePrefix(), "-", "_")
 		}
 		def.Key = deriveEntityKey(factory.Permission())
 		def.RoutePrefix = factory.RoutePrefix()
 		def.SetRefEndpoints(refEndpoints)
+		if rls, ok := factory.(platform.RLSProvider); ok {
+			def.RLSDimensions = rls.RLSDimensions()
+		}
+		if sf, ok := factory.(platform.SearchFieldsProvider); ok {
+			fields := sf.SearchableFields()
+			def.SearchColumns = &metadata.SearchColumns{
+				SearchCols:  fields.SearchCols,
+				TitleCol:    fields.TitleCol,
+				SubtitleCol: fields.SubtitleCol,
+			}
+		}
 		reg.Register(def)
 	}
 }
@@ -403,12 +428,26 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 		if pres, ok := factory.(platform.Presentable); ok {
 			def.Presentation = pres.EntityPresentation()
 		}
-		if tp, ok := factory.(platform.TableNameProvider); ok {
-			def.TableName = tp.TableName()
-		}
 		def.Key = deriveEntityKey(factory.Permission())
 		def.RoutePrefix = factory.RoutePrefix()
+		if tp, ok := factory.(platform.TableNameProvider); ok {
+			def.TableName = tp.TableName()
+		} else {
+			// Derive table name from convention: doc_{entityKey}s (e.g. doc_goods_receipts)
+			def.TableName = "doc_" + def.Key + "s"
+		}
 		def.SetRefEndpoints(refEndpoints)
+		if rls, ok := factory.(platform.RLSProvider); ok {
+			def.RLSDimensions = rls.RLSDimensions()
+		}
+		if sf, ok := factory.(platform.SearchFieldsProvider); ok {
+			fields := sf.SearchableFields()
+			def.SearchColumns = &metadata.SearchColumns{
+				SearchCols:  fields.SearchCols,
+				TitleCol:    fields.TitleCol,
+				SubtitleCol: fields.SubtitleCol,
+			}
+		}
 		reg.Register(def)
 	}
 }
