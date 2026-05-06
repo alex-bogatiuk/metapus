@@ -26,9 +26,6 @@ type Document struct {
 	// Incremented each time document is posted/modified while posted
 	PostedVersion int `db:"posted_version" json:"postedVersion"`
 
-	// OrganizationID is the owning organization (required for multi-org support)
-	OrganizationID id.ID `db:"organization_id" json:"organizationId" meta:"label:Организация"`
-
 	// Basis document reference ("документ-основание" in 1C terms).
 	// Stores a polymorphic reference to the parent document this one was created from.
 	// E.g. a GoodsIssue created from a GoodsReceipt: BasisType="GoodsReceipt", BasisID=<uuid>.
@@ -40,22 +37,17 @@ type Document struct {
 }
 
 // NewDocument creates a new Document with generated ID.
-// In Database-per-Tenant architecture, tenantID is not required.
-func NewDocument(organizationID id.ID) Document {
+// Organization is NOT part of the base Document — concrete document types
+// (e.g., GoodsReceipt) add it as their own field when needed.
+func NewDocument() Document {
 	return Document{
-		BaseDocument:   NewBaseDocument(),
-		Date:           time.Now().UTC(),
-		OrganizationID: organizationID,
+		BaseDocument: NewBaseDocument(),
+		Date:         time.Now().UTC(),
 	}
 }
 
 // Validate implements Validatable interface.
 func (d *Document) Validate(ctx context.Context) error {
-	if id.IsNil(d.OrganizationID) {
-		return apperror.NewValidation("organization is required").
-			WithDetail("field", "organizationId")
-	}
-
 	if d.Date.IsZero() {
 		return apperror.NewValidation("date is required").
 			WithDetail("field", "date")
@@ -121,18 +113,12 @@ func (d *Document) SetNumber(n string) {
 	d.Number = n
 }
 
-// GetOrganizationID returns the organization ID.
-func (d *Document) GetOrganizationID() id.ID {
-	return d.OrganizationID
-}
-
 // GetRLSDimensions implements security.RLSDimensionable.
-// Base implementation returns the organization dimension.
-// Document-specific types should override to add extra dimensions (supplier, customer, etc.).
+// Base implementation returns an empty map — no dimensions at the base level.
+// Document-specific types override to add their dimensions
+// (e.g., organization for ERP docs, merchant for crypto docs).
 func (d *Document) GetRLSDimensions() map[string]string {
-	return map[string]string{
-		"organization": d.OrganizationID.String(),
-	}
+	return map[string]string{}
 }
 
 // CanPost validates if document can be posted (Postable interface default).

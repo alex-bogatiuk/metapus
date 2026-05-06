@@ -167,24 +167,22 @@ type UpdateCatalogRequest struct {
 // DocumentResponse contains document fields.
 type DocumentResponse struct {
 	BaseResponse
-	Number         string    `json:"number"`
-	Date           time.Time `json:"date"`
-	Posted         bool      `json:"posted"`
-	PostedVersion  int       `json:"postedVersion"`
-	OrganizationID string    `json:"organizationId"`
-	Description    string    `json:"description,omitempty"`
+	Number        string    `json:"number"`
+	Date          time.Time `json:"date"`
+	Posted        bool      `json:"posted"`
+	PostedVersion int       `json:"postedVersion"`
+	Description   string    `json:"description,omitempty"`
 }
 
 // FromDocument creates DocumentResponse from entity.Document.
 func FromDocument(d entity.Document) DocumentResponse {
 	return DocumentResponse{
-		BaseResponse:   FromBaseDocument(d.BaseDocument),
-		Number:         d.Number,
-		Date:           d.Date,
-		Posted:         d.Posted,
-		PostedVersion:  d.PostedVersion,
-		OrganizationID: d.OrganizationID.String(),
-		Description:    d.Description,
+		BaseResponse:  FromBaseDocument(d.BaseDocument),
+		Number:        d.Number,
+		Date:          d.Date,
+		Posted:        d.Posted,
+		PostedVersion: d.PostedVersion,
+		Description:   d.Description,
 	}
 }
 

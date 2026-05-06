@@ -39,6 +39,7 @@ type EventProcessor struct {
 	txManager      tx.Manager
 	numerator      numerator.Generator
 	dustThreshold  types.CryptoAmount
+	sweepResolver  *SweepConfigResolver
 }
 
 // EventProcessorConfig holds dependencies for the event processor.
@@ -50,6 +51,7 @@ type EventProcessorConfig struct {
 	PostingEngine *posting.Engine
 	TxManager     tx.Manager
 	Numerator     numerator.Generator
+	SweepResolver *SweepConfigResolver
 	// DustThreshold is the minimum amount to accept. Zero = use default (1000 minor units).
 	DustThreshold types.CryptoAmount
 }
@@ -70,6 +72,7 @@ func NewEventProcessor(cfg EventProcessorConfig) *EventProcessor {
 		txManager:      cfg.TxManager,
 		numerator:      cfg.Numerator,
 		dustThreshold:  threshold,
+		sweepResolver:  cfg.SweepResolver,
 	}
 }
 
@@ -114,7 +117,16 @@ func (p *EventProcessor) processEventInTx(ctx context.Context, event BlockchainE
 		return nil
 	}
 
-	// Step 1: Match wallet
+	// Step 1: Idempotency check — do we already have a payment for this tx?
+	// This MUST come before wallet lookup so that confirmation re-polls
+	// (which may not carry ToAddress) can update existing payments.
+	existing, err := p.paymentRepo.FindByTxHash(ctx, event.TxHash)
+	if err == nil && existing != nil {
+		// Existing payment — update confirmations
+		return p.handleConfirmationUpdate(ctx, existing, event)
+	}
+
+	// Step 2: Match wallet (only needed for new payments)
 	w, err := p.walletSvc.FindByAddress(ctx, event.NetworkID, event.ToAddress)
 	if err != nil {
 		// Not our wallet — skip silently (normal for chain watchers monitoring many addresses)
@@ -123,13 +135,6 @@ func (p *EventProcessor) processEventInTx(ctx context.Context, event BlockchainE
 			"tx_hash", event.TxHash,
 		)
 		return nil
-	}
-
-	// Step 2: Idempotency check — do we already have a payment for this tx?
-	existing, err := p.paymentRepo.FindByTxHash(ctx, event.TxHash)
-	if err == nil && existing != nil {
-		// Existing payment — update confirmations
-		return p.handleConfirmationUpdate(ctx, existing, event)
 	}
 
 	// Step 3: Reorg handling
@@ -153,7 +158,6 @@ func (p *EventProcessor) processEventInTx(ctx context.Context, event BlockchainE
 
 	// Step 5: Create new CryptoPayment
 	payment := crypto_payment.NewCryptoPayment(
-		invoice.OrganizationID,
 		invoice.ID,
 		invoice.MerchantID,
 		invoice.TokenID,
@@ -269,9 +273,9 @@ func (p *EventProcessor) processConfirmations(
 				return fmt.Errorf("post payment: %w", err)
 			}
 
-			// Mark wallet for sweep
-			if err := p.walletSvc.MarkSweepPending(ctx, payment.WalletID); err != nil {
-				logger.Error(ctx, "failed to mark wallet sweep pending",
+			// Handle wallet status after payment confirmed
+			if err := p.handleWalletAfterConfirm(ctx, payment); err != nil {
+				logger.Error(ctx, "failed to handle wallet after confirm",
 					"wallet_id", payment.WalletID,
 					"error", err,
 				)
@@ -372,4 +376,56 @@ func (p *EventProcessor) findActiveInvoice(ctx context.Context, w *wallet.Wallet
 	}
 
 	return invoice, nil
+}
+
+// handleWalletAfterConfirm decides wallet status after a payment is confirmed.
+//
+// Logic:
+//   - threshold=0 → sweep immediately (legacy behavior, backward compatible)
+//   - threshold>0, transient wallet → release to free (available for new invoices);
+//     sweep evaluation job will handle sweep_pending when balance reaches threshold
+//   - persistent wallet → never released (stays assigned to customer)
+func (p *EventProcessor) handleWalletAfterConfirm(ctx context.Context, payment *crypto_payment.CryptoPayment) error {
+	// If no sweep resolver is configured, fall back to legacy behavior
+	if p.sweepResolver == nil {
+		return p.walletSvc.MarkSweepPending(ctx, payment.WalletID)
+	}
+
+	sweepCfg, err := p.sweepResolver.Resolve(ctx, payment.MerchantID, payment.TokenID)
+	if err != nil {
+		// On error, fall back to legacy behavior
+		logger.Warn(ctx, "sweep config resolve failed, using legacy sweep",
+			"merchant_id", payment.MerchantID,
+			"token_id", payment.TokenID,
+			"error", err,
+		)
+		return p.walletSvc.MarkSweepPending(ctx, payment.WalletID)
+	}
+
+	if sweepCfg.IsZeroThreshold() {
+		// Legacy behavior: sweep after every payment
+		return p.walletSvc.MarkSweepPending(ctx, payment.WalletID)
+	}
+
+	// Threshold mode: check wallet allocation
+	w, err := p.walletSvc.GetByID(ctx, payment.WalletID)
+	if err != nil {
+		return fmt.Errorf("get wallet %s: %w", payment.WalletID, err)
+	}
+
+	if w.IsTransient() {
+		// Release transient wallet → free (available for new invoices)
+		// Sweep evaluation job will check accumulated balance periodically
+		w.Release()
+		return p.walletSvc.Update(ctx, w)
+	}
+
+	// Persistent wallets: no status change (stays 'assigned')
+	// Sweep evaluation job handles them the same way
+	logger.Debug(ctx, "persistent wallet stays assigned after confirm",
+		"wallet_id", w.ID,
+		"customer_ref", w.CustomerRef,
+	)
+
+	return nil
 }

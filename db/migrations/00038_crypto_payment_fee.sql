@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS doc_crypto_payments (
     id                UUID PRIMARY KEY,
     number            TEXT NOT NULL DEFAULT '',
     date              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    organization_id   UUID NOT NULL,
     basis_type        TEXT NOT NULL DEFAULT '',
     basis_id          UUID,
     posted            BOOLEAN NOT NULL DEFAULT FALSE,

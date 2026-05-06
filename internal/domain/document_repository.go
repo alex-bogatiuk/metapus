@@ -56,6 +56,12 @@ type CurrencyAwareDoc interface {
 	entity.ICurrencyAware
 	SetCurrencyID(currencyID id.ID)
 	GetContractID() *id.ID
+}
+
+// OrganizationOwned is implemented by documents that belong to an organization.
+// Used by CurrencyResolver for the org → base currency fallback chain.
+// Not all documents have an organization (e.g., crypto documents use merchant instead).
+type OrganizationOwned interface {
 	GetOrganizationID() id.ID
 }
 

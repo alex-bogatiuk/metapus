@@ -85,14 +85,18 @@ type CryptoPaymentLine struct {
 
 // NewCryptoPayment creates a new CryptoPayment in Detected state.
 func NewCryptoPayment(
-	organizationID, invoiceID, merchantID, tokenID, walletID id.ID,
+	invoiceID, merchantID, tokenID, walletID id.ID,
 	txHash, fromAddress string,
 	amount types.CryptoAmount,
 	blockNumber int64,
 	requiredConfs int,
 ) *CryptoPayment {
+	doc := entity.NewDocument()
+	doc.BasisType = "CryptoInvoice"
+	doc.BasisID = &invoiceID
+
 	return &CryptoPayment{
-		Document:      entity.NewDocument(organizationID),
+		Document:      doc,
 		InvoiceID:     invoiceID,
 		MerchantID:    merchantID,
 		TokenID:       tokenID,
@@ -168,6 +172,15 @@ func (p *CryptoPayment) GetCurrencyID() id.ID                    { return id.ID{
 func (p *CryptoPayment) SetCurrencyID(_ id.ID)                    {}
 func (p *CryptoPayment) ValidateCurrency(_ context.Context) error { return nil }
 func (p *CryptoPayment) GetContractID() *id.ID                    { return nil }
+
+// --- RLSDimensionable override ---
+
+// GetRLSDimensions returns merchant dimension for RLS filtering.
+func (p *CryptoPayment) GetRLSDimensions() map[string]string {
+	return map[string]string{
+		"merchant": p.MerchantID.String(),
+	}
+}
 
 // --- Postable interface ---
 

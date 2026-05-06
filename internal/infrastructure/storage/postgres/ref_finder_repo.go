@@ -290,8 +290,20 @@ func (r *RefFinderRepo) fieldToSpec(
 }
 
 // refTypeMatchesEntity checks if a reference type maps to the target entity name.
+// Handles both single-word ("merchant" ↔ "Merchant" via EqualFold) and
+// multi-word ("crypto_invoice" ↔ "CryptoInvoice" via registry Key→Name lookup).
 func (r *RefFinderRepo) refTypeMatchesEntity(refType, targetEntityName string) bool {
-	return strings.EqualFold(refType, targetEntityName)
+	// Direct case-insensitive match (single-word entities)
+	if strings.EqualFold(refType, targetEntityName) {
+		return true
+	}
+	// Registry lookup: snake_case ref tag → entity Key → entity Name
+	for _, def := range r.registry.List() {
+		if def.Key == refType && def.Name == targetEntityName {
+			return true
+		}
+	}
+	return false
 }
 
 // buildFindQuery builds the SQL query for finding references to the target.

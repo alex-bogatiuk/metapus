@@ -963,11 +963,13 @@ func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger
 		INSERT INTO cat_tokens (
 			id, code, name, symbol, network_id,
 			contract_address, decimal_places, token_standard, is_active,
+			sweep_threshold, sweep_max_age_hours,
 			version, deletion_mark, attributes
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, 1, false, '{}')
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9, $10, 1, false, '{}')
 		ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
 	`, tokenID, tokenCode, "Tether USD (TRC-20)", "USDT", networkID,
-		"TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs", 6, "TRC-20")
+		"TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs", 6, "TRC-20",
+		"10000000", 1) // sweep_threshold=10 USDT (minor units), max_age=1 hour (for testing)
 	if err != nil {
 		return fmt.Errorf("seed token: %w", err)
 	}
@@ -1023,12 +1025,12 @@ func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger
 
 	batch := &pgx.Batch{}
 	for _, w := range wallets {
-		batch.Queue(`
+	batch.Queue(`
 			INSERT INTO cat_wallets (
 				id, code, name, address, network_id,
-				derivation_path, tier, status,
+				derivation_path, tier, status, allocation_mode,
 				version, deletion_mark, attributes
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, false, '{}')
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'transient', 1, false, '{}')
 			ON CONFLICT DO NOTHING
 		`, id.New(), w.code, w.name, w.address, networkID, w.path, w.tier, w.status)
 	}

@@ -31,7 +31,6 @@ CREATE TABLE doc_crypto_invoices (
     date            TIMESTAMPTZ  NOT NULL,
     posted          BOOLEAN      NOT NULL DEFAULT FALSE,
     posted_version  INT          NOT NULL DEFAULT 0,
-    organization_id UUID         NOT NULL REFERENCES cat_organizations(id),
     basis_type      TEXT         NOT NULL DEFAULT '',
     basis_id        UUID,
     description     TEXT,
@@ -49,7 +48,7 @@ CREATE TABLE doc_crypto_invoices (
     order_id       TEXT    NOT NULL DEFAULT '',
     customer_email TEXT    NOT NULL DEFAULT '',
 
-    CONSTRAINT uq_crypto_invoice_number UNIQUE (organization_id, number),
+    CONSTRAINT uq_crypto_invoice_number UNIQUE (number),
     CONSTRAINT chk_expected_amount_positive CHECK (expected_amount > 0),
     CONSTRAINT chk_received_amount_nonneg CHECK (received_amount >= 0),
     CONSTRAINT chk_status_valid CHECK (status IN ('created','partially_paid','paid','confirmed','expired','cancelled')),

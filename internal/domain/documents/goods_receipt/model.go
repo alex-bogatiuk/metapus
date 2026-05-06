@@ -20,6 +20,9 @@ import (
 type GoodsReceipt struct {
 	entity.Document
 
+	// OrganizationID is the owning organization (required for multi-org ERP)
+	OrganizationID id.ID `db:"organization_id" json:"organizationId" meta:"label:Организация"`
+
 	// Counterparty reference (role: supplier)
 	CounterpartyID id.ID `db:"counterparty_id" json:"counterpartyId" meta:"label:Поставщик"`
 
@@ -87,7 +90,8 @@ type GoodsReceiptLine struct {
 
 func NewGoodsReceipt(organizationID id.ID, counterpartyID, warehouseID id.ID) *GoodsReceipt {
 	return &GoodsReceipt{
-		Document:          entity.NewDocument(organizationID),
+		Document:          entity.NewDocument(),
+		OrganizationID:    organizationID,
 		CounterpartyID:    counterpartyID,
 		WarehouseID:       warehouseID,
 		AmountIncludesVAT: false,
@@ -189,6 +193,11 @@ func (g *GoodsReceipt) Validate(ctx context.Context) error {
 		return err
 	}
 
+	if id.IsNil(g.OrganizationID) {
+		return apperror.NewValidation("organization is required").
+			WithDetail("field", "organizationId")
+	}
+
 	if err := g.ValidateCurrency(ctx); err != nil {
 		return err
 	}
@@ -237,13 +246,21 @@ func (l GoodsReceiptLine) GetCoefficient() decimal.Decimal { return l.Coefficien
 func (l GoodsReceiptLine) GetQuantity() types.Quantity     { return l.Quantity }
 func (l GoodsReceiptLine) GetVATRateID() id.ID             { return l.VATRateID }
 
+// --- OrganizationOwned implementation ---
+
+// GetOrganizationID implements domain.OrganizationOwned.
+func (g *GoodsReceipt) GetOrganizationID() id.ID {
+	return g.OrganizationID
+}
+
 // --- RLSDimensionable override ---
 
-// GetRLSDimensions overrides entity.Document to add supplier dimension.
+// GetRLSDimensions overrides entity.Document to add organization + supplier dimensions.
 func (g *GoodsReceipt) GetRLSDimensions() map[string]string {
-	dims := g.Document.GetRLSDimensions()
-	dims["counterparty"] = g.CounterpartyID.String()
-	return dims
+	return map[string]string{
+		"organization": g.OrganizationID.String(),
+		"counterparty": g.CounterpartyID.String(),
+	}
 }
 
 // --- Postable interface implementation ---

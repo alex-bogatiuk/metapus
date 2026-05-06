@@ -29,4 +29,5 @@ type Repository interface {
 
 	// Crypto-specific
 	FindByTxHash(ctx context.Context, txHash string) (*CryptoPayment, error)
+	ListByStatus(ctx context.Context, status PaymentStatus) ([]*CryptoPayment, error)
 }

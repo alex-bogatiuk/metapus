@@ -20,6 +20,9 @@ import (
 type GoodsIssue struct {
 	entity.Document
 
+	// OrganizationID is the owning organization (required for multi-org ERP)
+	OrganizationID id.ID `db:"organization_id" json:"organizationId" meta:"label:Организация"`
+
 	// Counterparty reference (role: customer)
 	CounterpartyID id.ID `db:"counterparty_id" json:"counterpartyId" meta:"label:Покупатель"`
 
@@ -84,7 +87,8 @@ type GoodsIssueLine struct {
 // NewGoodsIssue creates a new goods issue document.
 func NewGoodsIssue(organizationID id.ID, counterpartyID, warehouseID id.ID) *GoodsIssue {
 	return &GoodsIssue{
-		Document:          entity.NewDocument(organizationID),
+		Document:          entity.NewDocument(),
+		OrganizationID:    organizationID,
 		CounterpartyID:    counterpartyID,
 		WarehouseID:       warehouseID,
 		AmountIncludesVAT: false,
@@ -184,6 +188,11 @@ func (g *GoodsIssue) Validate(ctx context.Context) error {
 		return err
 	}
 
+	if id.IsNil(g.OrganizationID) {
+		return apperror.NewValidation("organization is required").
+			WithDetail("field", "organizationId")
+	}
+
 	if err := g.ValidateCurrency(ctx); err != nil {
 		return err
 	}
@@ -232,13 +241,21 @@ func (l GoodsIssueLine) GetCoefficient() decimal.Decimal { return l.Coefficient 
 func (l GoodsIssueLine) GetQuantity() types.Quantity     { return l.Quantity }
 func (l GoodsIssueLine) GetVATRateID() id.ID             { return l.VATRateID }
 
+// --- OrganizationOwned implementation ---
+
+// GetOrganizationID implements domain.OrganizationOwned.
+func (g *GoodsIssue) GetOrganizationID() id.ID {
+	return g.OrganizationID
+}
+
 // --- RLSDimensionable override ---
 
-// GetRLSDimensions overrides entity.Document to add customer dimension.
+// GetRLSDimensions overrides entity.Document to add organization + customer dimensions.
 func (g *GoodsIssue) GetRLSDimensions() map[string]string {
-	dims := g.Document.GetRLSDimensions()
-	dims["counterparty"] = g.CounterpartyID.String()
-	return dims
+	return map[string]string{
+		"organization": g.OrganizationID.String(),
+		"counterparty": g.CounterpartyID.String(),
+	}
 }
 
 // --- Postable interface implementation ---

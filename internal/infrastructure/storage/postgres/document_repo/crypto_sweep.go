@@ -31,8 +31,7 @@ func NewCryptoSweepRepo() *CryptoSweepRepo {
 			func() *crypto_sweep.CryptoSweep { return &crypto_sweep.CryptoSweep{} },
 		),
 	}
-	// System document — only organization RLS, no merchant
-	repo.RegisterRLSDimension("organization", "organization_id")
+	// System document — no RLS dimensions (admin-only)
 	return repo
 }
 

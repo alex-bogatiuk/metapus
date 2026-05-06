@@ -103,11 +103,15 @@ func (s *BaseDocumentService[T, L]) ResolveCurrency(ctx context.Context, doc T) 
 	if s.CurrencyResolver == nil {
 		return nil
 	}
+	var orgID id.ID
+	if orgOwned, ok := any(doc).(OrganizationOwned); ok {
+		orgID = orgOwned.GetOrganizationID()
+	}
 	currencyID, err := s.CurrencyResolver.ResolveForDocument(
 		ctx,
 		doc.GetCurrencyID(),
 		doc.GetContractID(),
-		doc.GetOrganizationID(),
+		orgID,
 	)
 	if err != nil {
 		return err

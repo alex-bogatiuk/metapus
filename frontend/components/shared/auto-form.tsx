@@ -29,10 +29,11 @@ import { FormToolbar } from "@/components/shared/form-toolbar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ReferenceField } from "@/components/shared/reference-field"
 import { useMetadataStore } from "@/stores/useMetadataStore"
-import { Save, ArrowLeft } from "lucide-react"
+import { Save, ArrowLeft, ArrowRightLeft, Network } from "lucide-react"
 import { FormSkeleton } from "@/components/shared/form-skeleton"
 import { toast } from "sonner"
 import { useTabTitle } from "@/hooks/useTabTitle"
+import { useTabDirty } from "@/hooks/useTabDirty"
 
 interface FieldDef {
     name: string
@@ -238,15 +239,33 @@ export default function AutoForm({ entityName, id, entityType, routePrefix }: Au
     }, [entityName, id, isNew, basePath])
 
     // Update tab title when entity data loads (e.g. "CP-001 (Крипто-платежи)")
-    const entityLabel = getLabel(entityName, "singular")
+    // entityName may be PascalCase (from registry) or snake_case (from metadata key) —
+    // resolve via byName first, then byKey, then fall back to meta.presentation.
+    const getEntityByName = useMetadataStore((s) => s.getEntityByName)
+    const entityMeta = getEntityByName(entityName) ?? useMetadataStore.getState().byKey[entityName]
+    const entityLabel = entityMeta?.presentation?.singular
+        ?? meta?.presentation?.singular
+        ?? getLabel(entityName, "singular")
     const displayNumber = isNew ? undefined : (formData.number as string | undefined) || (formData.name as string | undefined)
     useTabTitle(displayNumber, entityLabel)
 
+    const isDocument = entityType === "document"
+    const { markDirty, markClean } = useTabDirty()
+
     const handleFieldChange = useCallback((name: string, value: unknown) => {
         setFormData((prev) => ({ ...prev, [name]: value }))
-    }, [])
+        if (isDocument) markDirty()
+    }, [isDocument, markDirty])
 
-    const handleSave = async () => {
+    // ── Refetch helper (document mode) ───────────────────────────────────
+    const refetchDoc = useCallback(async () => {
+        if (!id || isNew) return
+        const entity = await apiFetch<Record<string, unknown>>(`${basePath}/${id}`)
+        setFormData(entity)
+        markClean()
+    }, [id, isNew, basePath, markClean])
+
+    const handleSave = async (andClose: boolean = false) => {
         setSaving(true)
         try {
             if (isNew) {
@@ -255,6 +274,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix }: Au
                     body: JSON.stringify(formData),
                 })
                 toast.success("Записано")
+                markClean()
                 if (result?.id) {
                     const listPath = entityType === "catalog"
                         ? `/catalogs/${routePrefix}/${result.id}`
@@ -262,17 +282,118 @@ export default function AutoForm({ entityName, id, entityType, routePrefix }: Au
                     router.push(listPath)
                 }
             } else {
-                await apiFetch(`${basePath}/${id}`, {
-                    method: "PUT",
-                    body: JSON.stringify(formData),
-                })
-                toast.success("Записано")
+                // For posted documents: save = update + repost
+                if (isDocument && formData.posted) {
+                    const updated = await apiFetch<Record<string, unknown>>(`${basePath}/${id}/repost`, {
+                        method: "PUT",
+                        body: JSON.stringify(formData),
+                    })
+                    setFormData(updated)
+                    markClean()
+                    toast.success("Записано и перепроведено")
+                } else {
+                    const updated = await apiFetch<Record<string, unknown>>(`${basePath}/${id}`, {
+                        method: "PUT",
+                        body: JSON.stringify(formData),
+                    })
+                    setFormData(updated)
+                    markClean()
+                    toast.success("Записано")
+                }
+                if (andClose) {
+                    const listPath = `/${entityType}s/${routePrefix}`
+                    router.push(listPath)
+                    return
+                }
             }
         } catch (err) {
             if (err instanceof ApiError) {
                 toast.error(err.parsedBody?.message ?? `Не удалось сохранить данные (код ${err.status})`)
             } else {
                 toast.error("Не удалось сохранить данные")
+            }
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    // ── Document-mode: Post and Close ────────────────────────────────────
+    const handlePostAndClose = async () => {
+        if (!isDocument || isNew) return
+        setSaving(true)
+        try {
+            await apiFetch(`${basePath}/${id}/repost`, {
+                method: "PUT",
+                body: JSON.stringify(formData),
+            })
+            markClean()
+            router.push(`/${entityType}s/${routePrefix}`)
+        } catch (err) {
+            if (err instanceof ApiError) {
+                toast.error(err.parsedBody?.message ?? "Не удалось провести документ")
+            } else {
+                toast.error("Не удалось провести документ")
+            }
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    // ── Document-mode: Post (without closing) ───────────────────────────
+    const handlePost = async () => {
+        if (!isDocument || isNew) return
+        setSaving(true)
+        try {
+            await apiFetch(`${basePath}/${id}/post`, { method: "POST" })
+            await refetchDoc()
+            toast.success("Проведено")
+        } catch (err) {
+            if (err instanceof ApiError) {
+                toast.error(err.parsedBody?.message ?? "Не удалось провести документ")
+            } else {
+                toast.error("Не удалось провести документ")
+            }
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    // ── Document-mode: Unpost ────────────────────────────────────────────
+    const handleUnpost = async () => {
+        if (!isDocument || isNew) return
+        setSaving(true)
+        try {
+            await apiFetch(`${basePath}/${id}/unpost`, { method: "POST" })
+            await refetchDoc()
+            toast.success("Проведение отменено")
+        } catch (err) {
+            if (err instanceof ApiError) {
+                toast.error(err.parsedBody?.message ?? "Не удалось отменить проведение")
+            } else {
+                toast.error("Не удалось отменить проведение")
+            }
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    // ── Document-mode: Toggle Deletion Mark ──────────────────────────────
+    const handleToggleDeletionMark = async () => {
+        if (!isDocument || isNew) return
+        setSaving(true)
+        try {
+            const marked = !formData.deletionMark
+            await apiFetch(`${basePath}/${id}/deletion-mark`, {
+                method: "POST",
+                body: JSON.stringify({ marked }),
+            })
+            await refetchDoc()
+            toast.success(marked ? "Помечен на удаление" : "Пометка снята")
+        } catch (err) {
+            if (err instanceof ApiError) {
+                toast.error(err.parsedBody?.message ?? "Не удалось изменить пометку")
+            } else {
+                toast.error("Не удалось изменить пометку")
             }
         } finally {
             setSaving(false)
@@ -296,20 +417,77 @@ export default function AutoForm({ entityName, id, entityType, routePrefix }: Au
         ? (meta.presentation?.new ?? `Новый: ${meta.presentation?.singular ?? entityName}`)
         : (meta.presentation?.singular ?? entityName)
 
+    // ── Build document status badge ──────────────────────────────────────
+    const docStatus = isDocument && !isNew
+        ? formData.posted
+            ? { label: "Проведён", variant: "success" as const }
+            : formData.deletionMark
+                ? { label: "Помечен на удаление", variant: "destructive" as const }
+                : { label: "Черновик", variant: "outline" as const }
+        : undefined
+
+    // ── Build toolbar props based on entity type ─────────────────────────
+    const toolbarPrimaryAction = isDocument && !isNew
+        ? {
+            label: saving ? "Сохранение…" : "Провести и закрыть",
+            variant: "default" as const,
+            onClick: handlePostAndClose,
+        }
+        : {
+            label: saving ? "Сохранение…" : "Записать и закрыть",
+            onClick: () => handleSave(true),
+        }
+
+    const toolbarSecondaryActions = isDocument && !isNew
+        ? [
+            { label: "Записать", onClick: () => handleSave(false) },
+            ...(formData.posted
+                ? [{ label: "Отменить проведение", onClick: handleUnpost }]
+                : [{ label: "Провести", onClick: handlePost }]),
+        ]
+        : [
+            { label: "Записать", onClick: () => handleSave(false) },
+        ]
+
+    const toolbarExtraMenuItems = isDocument && !isNew
+        ? [
+            {
+                label: formData.deletionMark ? "Снять пометку удаления" : "Пометить на удаление",
+                onClick: handleToggleDeletionMark,
+                destructive: !formData.deletionMark,
+            },
+        ]
+        : undefined
+
     return (
         <div className="flex h-full flex-col animate-skeleton-fade-in">
             <FormToolbar
                 title={title}
-                primaryAction={{
-                    label: saving ? "Сохранение…" : "Записать и закрыть",
-                    onClick: handleSave,
-                }}
-                secondaryActions={[
-                    { label: "Записать", onClick: handleSave },
-                ]}
+                status={docStatus}
+                primaryAction={toolbarPrimaryAction}
+                secondaryActions={toolbarSecondaryActions}
+                extraMenuItems={toolbarExtraMenuItems}
+                toolbarIcons={isDocument && !isNew ? [
+                    ...(formData.posted ? [{
+                        icon: <ArrowRightLeft className="h-3.5 w-3.5" />,
+                        title: "Движения документа",
+                        onClick: () => router.push(`/documents/${routePrefix}/${id}/movements`),
+                    }] : []),
+                    {
+                        icon: <Network className="h-3.5 w-3.5" />,
+                        title: "Связанные документы",
+                        onClick: () => router.push(`/documents/${routePrefix}/${id}/related`),
+                    },
+                ] : undefined}
                 backHref={`/${entityType}s/${routePrefix}`}
                 backTargetId={id === "new" ? undefined : id}
                 onClose={() => router.push(`/${entityType}s/${routePrefix}`)}
+                favoriteTarget={!isNew && id ? {
+                    entityType: entityName,
+                    entityId: id,
+                    title: `${entityLabel} ${displayNumber || ""}`,
+                    url: `/${entityType}s/${routePrefix}/${id}`,
+                } : undefined}
             />
 
             <ScrollArea className="flex-1">

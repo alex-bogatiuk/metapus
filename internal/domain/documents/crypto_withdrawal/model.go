@@ -66,12 +66,12 @@ type CryptoWithdrawalLine struct {
 
 // NewCryptoWithdrawal creates a new CryptoWithdrawal in Created state.
 func NewCryptoWithdrawal(
-	organizationID, merchantID, tokenID, sourceWalletID id.ID,
+	merchantID, tokenID, sourceWalletID id.ID,
 	destAddress string,
 	amount types.CryptoAmount,
 ) *CryptoWithdrawal {
 	return &CryptoWithdrawal{
-		Document:       entity.NewDocument(organizationID),
+		Document:       entity.NewDocument(),
 		MerchantID:     merchantID,
 		TokenID:        tokenID,
 		SourceWalletID: sourceWalletID,
@@ -126,6 +126,15 @@ func (w *CryptoWithdrawal) GetCurrencyID() id.ID                    { return id.
 func (w *CryptoWithdrawal) SetCurrencyID(_ id.ID)                    {}
 func (w *CryptoWithdrawal) ValidateCurrency(_ context.Context) error { return nil }
 func (w *CryptoWithdrawal) GetContractID() *id.ID                    { return nil }
+
+// --- RLSDimensionable override ---
+
+// GetRLSDimensions returns merchant dimension for RLS filtering.
+func (w *CryptoWithdrawal) GetRLSDimensions() map[string]string {
+	return map[string]string{
+		"merchant": w.MerchantID.String(),
+	}
+}
 
 // --- Postable interface ---
 

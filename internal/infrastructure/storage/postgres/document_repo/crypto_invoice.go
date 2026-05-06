@@ -35,7 +35,7 @@ func NewCryptoInvoiceRepo() *CryptoInvoiceRepo {
 	}
 
 	// Register RLS dimensions
-	repo.RegisterRLSDimension("organization", "organization_id")
+	repo.RegisterRLSDimension("merchant", "merchant_id")
 
 	return repo
 }

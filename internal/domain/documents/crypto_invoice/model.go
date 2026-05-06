@@ -77,9 +77,9 @@ type CryptoInvoiceLine struct {
 }
 
 // NewCryptoInvoice creates a new CryptoInvoice with required fields.
-func NewCryptoInvoice(organizationID, merchantID, tokenID id.ID, expectedAmount types.CryptoAmount) *CryptoInvoice {
+func NewCryptoInvoice(merchantID, tokenID id.ID, expectedAmount types.CryptoAmount) *CryptoInvoice {
 	return &CryptoInvoice{
-		Document:       entity.NewDocument(organizationID),
+		Document:       entity.NewDocument(),
 		MerchantID:     merchantID,
 		TokenID:        tokenID,
 		ExpectedAmount: expectedAmount,
@@ -135,6 +135,15 @@ func (inv *CryptoInvoice) GetCurrencyID() id.ID          { return id.ID{} }
 func (inv *CryptoInvoice) SetCurrencyID(_ id.ID)          {}
 func (inv *CryptoInvoice) ValidateCurrency(_ context.Context) error { return nil }
 func (inv *CryptoInvoice) GetContractID() *id.ID          { return nil }
+
+// --- RLSDimensionable override ---
+
+// GetRLSDimensions returns merchant dimension for RLS filtering.
+func (inv *CryptoInvoice) GetRLSDimensions() map[string]string {
+	return map[string]string{
+		"merchant": inv.MerchantID.String(),
+	}
+}
 
 // --- Postable interface ---
 

@@ -104,7 +104,13 @@ CREATE TABLE cat_tokens (
     token_standard   VARCHAR(20)  NOT NULL,              -- "native", "TRC-20", "ERC-20"
     is_active        BOOLEAN      NOT NULL DEFAULT TRUE,
 
-    CONSTRAINT chk_token_decimals CHECK (decimal_places >= 0 AND decimal_places <= 18)
+    -- Sweep defaults (merchant can override via reg_merchant_token_config)
+    sweep_threshold     NUMERIC  NOT NULL DEFAULT 0,     -- min balance for sweep (minor units). 0 = sweep after every payment
+    sweep_max_age_hours INT      NOT NULL DEFAULT 0,     -- max hours before forced sweep. 0 = disabled
+
+    CONSTRAINT chk_token_decimals CHECK (decimal_places >= 0 AND decimal_places <= 18),
+    CONSTRAINT chk_sweep_threshold CHECK (sweep_threshold >= 0),
+    CONSTRAINT chk_sweep_max_age CHECK (sweep_max_age_hours >= 0)
 );
 
 -- Unique indexes

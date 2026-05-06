@@ -33,7 +33,6 @@ func NewCryptoPaymentRepo() *CryptoPaymentRepo {
 	}
 
 	// Register RLS dimensions
-	repo.RegisterRLSDimension("organization", "organization_id")
 	repo.RegisterRLSDimension("merchant", "merchant_id")
 
 	return repo
@@ -112,4 +111,26 @@ func (r *CryptoPaymentRepo) FindByTxHash(ctx context.Context, txHash string) (*c
 	}
 
 	return &p, nil
+}
+
+// ListByStatus returns all crypto payments in a given status (e.g. "confirming").
+func (r *CryptoPaymentRepo) ListByStatus(ctx context.Context, status crypto_payment.PaymentStatus) ([]*crypto_payment.CryptoPayment, error) {
+	q := r.Builder().Select("*").
+		From(_cryptoPaymentsTable).
+		Where(squirrel.Eq{"status": string(status)}).
+		Where(squirrel.Eq{"deletion_mark": false}).
+		OrderBy("created_at ASC")
+
+	sql, args, err := q.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build query: %w", err)
+	}
+
+	var payments []*crypto_payment.CryptoPayment
+	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	if err := pgxscan.Select(ctx, querier, &payments, sql, args...); err != nil {
+		return nil, fmt.Errorf("list by status: %w", err)
+	}
+
+	return payments, nil
 }

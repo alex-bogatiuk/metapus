@@ -16,7 +16,6 @@ import (
 type CreateCryptoInvoiceRequest struct {
 	Number         string                       `json:"number,omitempty"`
 	Date           time.Time                    `json:"date" binding:"required"`
-	OrganizationID string                       `json:"organizationId" binding:"required"`
 	MerchantID     string                       `json:"merchantId" binding:"required"`
 	TokenID        string                       `json:"tokenId" binding:"required"`
 	ExpectedAmount string                       `json:"expectedAmount" binding:"required"` // string for CryptoAmount
@@ -38,12 +37,11 @@ type CryptoInvoiceLineRequest struct {
 
 // ToEntity converts request to domain entity.
 func (r *CreateCryptoInvoiceRequest) ToEntity() *crypto_invoice.CryptoInvoice {
-	orgID, _ := id.Parse(r.OrganizationID)
 	merchantID, _ := id.Parse(r.MerchantID)
 	tokenID, _ := id.Parse(r.TokenID)
 	expectedAmount, _ := types.NewCryptoAmountFromString(r.ExpectedAmount)
 
-	doc := crypto_invoice.NewCryptoInvoice(orgID, merchantID, tokenID, expectedAmount)
+	doc := crypto_invoice.NewCryptoInvoice(merchantID, tokenID, expectedAmount)
 	doc.Number = r.Number
 	doc.Date = r.Date
 	doc.CallbackURL = r.CallbackURL
@@ -74,7 +72,6 @@ type UpdateCryptoInvoiceRequest struct {
 	Version        int                          `json:"version" binding:"required,min=1"`
 	Number         *string                      `json:"number,omitempty"`
 	Date           *time.Time                   `json:"date,omitempty"`
-	OrganizationID *string                      `json:"organizationId,omitempty"`
 	MerchantID     *string                      `json:"merchantId,omitempty"`
 	TokenID        *string                      `json:"tokenId,omitempty"`
 	ExpectedAmount *string                      `json:"expectedAmount,omitempty"`
@@ -95,10 +92,6 @@ func (r *UpdateCryptoInvoiceRequest) ApplyTo(doc *crypto_invoice.CryptoInvoice) 
 	}
 	if r.Date != nil {
 		doc.Date = *r.Date
-	}
-	if r.OrganizationID != nil {
-		orgID, _ := id.Parse(*r.OrganizationID)
-		doc.OrganizationID = orgID
 	}
 	if r.MerchantID != nil {
 		merchantID, _ := id.Parse(*r.MerchantID)
@@ -155,7 +148,6 @@ type CryptoInvoiceResponse struct {
 	Date           time.Time                      `json:"date"`
 	Posted         bool                           `json:"posted"`
 	PostedVersion  int                            `json:"postedVersion,omitempty"`
-	OrganizationID string                         `json:"organizationId"`
 	MerchantID     string                         `json:"merchantId"`
 	TokenID        string                         `json:"tokenId"`
 	WalletID       *string                        `json:"walletId,omitempty"`
@@ -177,7 +169,6 @@ type CryptoInvoiceResponse struct {
 	UpdatedAt      time.Time                      `json:"updatedAt"`
 
 	// Resolved references
-	Organization *postgres.RefDisplay `json:"organization,omitempty"`
 	Merchant     *postgres.RefDisplay `json:"merchant,omitempty"`
 	Token        *postgres.RefDisplay `json:"token,omitempty"`
 }
@@ -199,7 +190,6 @@ func FromCryptoInvoice(doc *crypto_invoice.CryptoInvoice, refs postgres.Resolved
 		Date:           doc.Date,
 		Posted:         doc.Posted,
 		PostedVersion:  doc.PostedVersion,
-		OrganizationID: doc.OrganizationID.String(),
 		MerchantID:     doc.MerchantID.String(),
 		TokenID:        doc.TokenID.String(),
 		ExpectedAmount: doc.ExpectedAmount.String(),
@@ -226,8 +216,6 @@ func FromCryptoInvoice(doc *crypto_invoice.CryptoInvoice, refs postgres.Resolved
 
 	// Resolved references
 	if refs != nil {
-		org := refs.Get(TableOrganizations, doc.OrganizationID)
-		resp.Organization = &org
 		merch := refs.Get(TableMerchants, doc.MerchantID)
 		resp.Merchant = &merch
 		tok := refs.Get(TableTokens, doc.TokenID)
@@ -249,7 +237,6 @@ func FromCryptoInvoice(doc *crypto_invoice.CryptoInvoice, refs postgres.Resolved
 
 // CollectCryptoInvoiceRefs registers reference IDs for batch resolution.
 func CollectCryptoInvoiceRefs(resolver *postgres.ReferenceResolver, doc *crypto_invoice.CryptoInvoice) {
-	resolver.Add(TableOrganizations, doc.OrganizationID)
 	resolver.Add(TableMerchants, doc.MerchantID)
 	resolver.Add(TableTokens, doc.TokenID)
 }

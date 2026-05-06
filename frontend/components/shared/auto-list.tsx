@@ -195,6 +195,9 @@ export default function AutoList({ entityName, entityType, routePrefix }: AutoLi
             item.deletionMark ? "opacity-60 line-through decoration-destructive/40" : undefined
     }, [isDocument])
 
+    // Document-mode: API base path for batch operations
+    const docBasePath = isDocument ? `/document/${routePrefix}` : undefined
+
     return (
         <CatalogListPage
             config={{
@@ -208,8 +211,11 @@ export default function AutoList({ entityName, entityType, routePrefix }: AutoLi
                 defaultFilterKeys: regEntry?.defaultFilterKeys,
                 fetcher,
                 limit: 100,
+                basePath: docBasePath,
+                periodField: isDocument ? "date" : undefined,
                 renderPrefix,
                 rowClassName,
+                documentMode: docBasePath ? { basePath: docBasePath } : undefined,
             }}
         />
     )

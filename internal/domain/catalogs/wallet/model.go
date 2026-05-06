@@ -17,7 +17,8 @@ type WalletStatus string
 
 const (
 	WalletStatusFree         WalletStatus = "free"          // available for lease
-	WalletStatusLeased       WalletStatus = "leased"        // assigned to an invoice
+	WalletStatusLeased       WalletStatus = "leased"        // assigned to an invoice (transient)
+	WalletStatusAssigned     WalletStatus = "assigned"       // assigned to a customer (persistent)
 	WalletStatusSweepPending WalletStatus = "sweep_pending" // awaiting sweep to hot wallet
 	WalletStatusFrozen       WalletStatus = "frozen"        // manually frozen (compliance)
 )
@@ -32,12 +33,27 @@ const (
 	WalletTierCold WalletTier = "cold" // long-term cold storage
 )
 
+// AllocationMode defines how a pool wallet is assigned.
+type AllocationMode string
+
+const (
+	// AllocationModeTransient — wallet is leased per invoice, released after payment confirmed.
+	AllocationModeTransient AllocationMode = "transient"
+	// AllocationModePersistent — wallet is assigned to a customer permanently.
+	AllocationModePersistent AllocationMode = "persistent"
+)
+
 var _validWalletTiers = map[WalletTier]bool{
 	WalletTierPool: true, WalletTierHot: true, WalletTierWarm: true, WalletTierCold: true,
 }
 
 var _validWalletStatuses = map[WalletStatus]bool{
-	WalletStatusFree: true, WalletStatusLeased: true, WalletStatusSweepPending: true, WalletStatusFrozen: true,
+	WalletStatusFree: true, WalletStatusLeased: true, WalletStatusAssigned: true,
+	WalletStatusSweepPending: true, WalletStatusFrozen: true,
+}
+
+var _validAllocationModes = map[AllocationMode]bool{
+	AllocationModeTransient: true, AllocationModePersistent: true,
 }
 
 // Wallet represents a blockchain address managed by the platform.
@@ -70,6 +86,15 @@ type Wallet struct {
 
 	// IsActive enables/disables the wallet.
 	IsActive bool `db:"is_active" json:"isActive" meta:"label:Активен"`
+
+	// AllocationMode defines whether the wallet is transient (per-invoice) or persistent (per-customer).
+	AllocationMode AllocationMode `db:"allocation_mode" json:"allocationMode" meta:"label:Режим аллокации"`
+
+	// CustomerRef is the external customer identifier for persistent wallets.
+	CustomerRef string `db:"customer_ref" json:"customerRef,omitempty" meta:"label:ID клиента"`
+
+	// LastSweptAt is when the wallet was last swept. Used for max-age sweep evaluation.
+	LastSweptAt *time.Time `db:"last_swept_at" json:"lastSweptAt,omitempty" meta:"label:Последний свип"`
 }
 
 // NewWallet creates a new pool wallet for a specific network.
@@ -81,6 +106,7 @@ func NewWallet(code, name string, networkID id.ID, address, derivationPath strin
 		DerivationPath: derivationPath,
 		Tier:           WalletTierPool,
 		Status:         WalletStatusFree,
+		AllocationMode: AllocationModeTransient,
 		IsActive:       true,
 	}
 }
@@ -88,12 +114,13 @@ func NewWallet(code, name string, networkID id.ID, address, derivationPath strin
 // NewSystemWallet creates a system wallet (hot/warm/cold) without merchant binding.
 func NewSystemWallet(code, name string, networkID id.ID, address string, tier WalletTier) *Wallet {
 	return &Wallet{
-		Catalog:   entity.NewCatalog(code, name),
-		NetworkID: networkID,
-		Address:   address,
-		Tier:      tier,
-		Status:    WalletStatusFree,
-		IsActive:  true,
+		Catalog:        entity.NewCatalog(code, name),
+		NetworkID:      networkID,
+		Address:        address,
+		Tier:           tier,
+		Status:         WalletStatusFree,
+		AllocationMode: AllocationModeTransient,
+		IsActive:       true,
 	}
 }
 
@@ -123,10 +150,21 @@ func (w *Wallet) Validate(ctx context.Context) error {
 			WithDetail("field", "status")
 	}
 
+	if !_validAllocationModes[w.AllocationMode] {
+		return apperror.NewValidation("invalid allocation mode").
+			WithDetail("field", "allocationMode")
+	}
+
 	// Pool wallets must have a derivation path
 	if w.Tier == WalletTierPool && w.DerivationPath == "" {
 		return apperror.NewValidation("derivation path is required for pool wallets").
 			WithDetail("field", "derivationPath")
+	}
+
+	// Persistent wallets must have a customer reference
+	if w.AllocationMode == AllocationModePersistent && w.CustomerRef == "" {
+		return apperror.NewValidation("customer ref is required for persistent wallets").
+			WithDetail("field", "customerRef")
 	}
 
 	return nil
@@ -140,6 +178,16 @@ func (w *Wallet) IsFree() bool {
 // IsSystemWallet returns true for hot/warm/cold wallets.
 func (w *Wallet) IsSystemWallet() bool {
 	return w.Tier != WalletTierPool
+}
+
+// IsTransient returns true if this wallet uses per-invoice allocation.
+func (w *Wallet) IsTransient() bool {
+	return w.AllocationMode == AllocationModeTransient
+}
+
+// IsPersistent returns true if this wallet is permanently assigned to a customer.
+func (w *Wallet) IsPersistent() bool {
+	return w.AllocationMode == AllocationModePersistent
 }
 
 // Lease marks the wallet as leased for a specific invoice until the given time.

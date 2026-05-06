@@ -19,12 +19,14 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/tx"
+	"metapus/internal/core/types"
 	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/domain/documents/crypto_payment"
 	"metapus/internal/domain/posting"
 	"metapus/internal/infrastructure/blockchain/tron"
+	infraNumerator "metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
@@ -33,9 +35,11 @@ import (
 )
 
 const (
-	_eventChannelBuffer   = 100
-	_addressRefreshPeriod = 5 * time.Minute
-	_expirationCheckPeriod = 1 * time.Minute
+	_eventChannelBuffer      = 100
+	_addressRefreshPeriod    = 5 * time.Minute
+	_expirationCheckPeriod   = 1 * time.Minute
+	_confirmationPollPeriod  = 10 * time.Second
+	_sweepEvalPeriod         = 1 * time.Minute
 )
 
 // CryptoProcessorConfig holds configuration for the crypto processor.
@@ -62,6 +66,12 @@ type CryptoProcessor struct {
 
 	// Domain
 	eventProcessor *crypto.EventProcessor
+	walletSvc      *wallet.Service
+	sweepResolver  *crypto.SweepConfigResolver
+
+	// Chain watchers per network (for confirmation re-checks)
+	mu             sync.Mutex
+	chainWatchers  map[id.ID]crypto.ChainWatcher
 }
 
 // NewCryptoProcessor creates a new crypto processor.
@@ -83,6 +93,11 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 	eventRepo := crypto_repo.NewPaymentEventRepo()
 	fsm := crypto.NewPaymentFSM(paymentRepo, eventRepo)
 
+	// Sweep config resolver (token defaults + merchant overrides)
+	tokenRepo := catalog_repo.NewTokenRepo()
+	merchantTokenCfgRepo := crypto_repo.NewMerchantTokenConfigRepo()
+	sweepResolver := crypto.NewSweepConfigResolver(merchantTokenCfgRepo, tokenRepo)
+
 	// Event Processor — TxManager is extracted from context at runtime.
 	// Numerator generates sequential document numbers (CP-2026-00001).
 	num := infraNumerator.New()
@@ -94,6 +109,7 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 		PostingEngine: postingEngine,
 		TxManager:     contextTxManager{},
 		Numerator:     num,
+		SweepResolver: sweepResolver,
 	})
 
 	return &CryptoProcessor{
@@ -104,6 +120,9 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 		paymentRepo:    paymentRepo,
 		stateRepo:      stateRepo,
 		eventProcessor: ep,
+		walletSvc:      walletSvc,
+		sweepResolver:  sweepResolver,
+		chainWatchers:  make(map[id.ID]crypto.ChainWatcher),
 	}
 }
 
@@ -176,6 +195,20 @@ func (p *CryptoProcessor) Start(ctx context.Context) {
 		p.runExpirationLoop(ctx)
 	}()
 
+	// Start confirmation poll loop (re-checks confirming payments)
+	consumerWg.Add(1)
+	go func() {
+		defer consumerWg.Done()
+		p.runConfirmationLoop(ctx)
+	}()
+
+	// Start sweep evaluation loop (checks accumulated balances against thresholds)
+	consumerWg.Add(1)
+	go func() {
+		defer consumerWg.Done()
+		p.runSweepEvaluationLoop(ctx)
+	}()
+
 	p.log.Infow("crypto processor started",
 		"networks", len(networks),
 	)
@@ -213,6 +246,11 @@ func (p *CryptoProcessor) runTRONWatcher(ctx context.Context, net networkInfo, e
 		ContractAddress:       net.tokenContract,
 		RequiredConfirmations: net.requiredConfs,
 	}, p.stateRepo)
+
+	// Register watcher for confirmation re-checks
+	p.mu.Lock()
+	p.chainWatchers[net.id] = watcher
+	p.mu.Unlock()
 
 	p.log.Infow("starting TRON watcher",
 		"network", net.code,
@@ -280,6 +318,237 @@ func (p *CryptoProcessor) expireInvoices(ctx context.Context) error {
 		p.log.Infow("expired invoices",
 			"count", count,
 		)
+	}
+
+	return nil
+}
+
+// runConfirmationLoop periodically re-checks confirmations for payments in "confirming" status.
+// When a payment reaches RequiredConfs, EventProcessor drives it to "confirmed" + posting + sweep.
+func (p *CryptoProcessor) runConfirmationLoop(ctx context.Context) {
+	ticker := time.NewTicker(_confirmationPollPeriod)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := p.pollConfirmations(ctx); err != nil {
+				p.log.Errorw("failed to poll confirmations", "error", err)
+			}
+		}
+	}
+}
+
+// pollConfirmations loads all "confirming" payments and re-checks their on-chain confirmation count.
+func (p *CryptoProcessor) pollConfirmations(ctx context.Context) error {
+	payments, err := p.paymentRepo.ListByStatus(ctx, crypto_payment.PaymentStatusConfirming)
+	if err != nil {
+		return fmt.Errorf("list confirming payments: %w", err)
+	}
+
+	if len(payments) == 0 {
+		return nil
+	}
+
+	p.log.Debugw("confirmation poll: found confirming payments",
+		"count", len(payments),
+	)
+
+	// Snapshot watchers under lock
+	p.mu.Lock()
+	watchers := make([]struct {
+		networkID id.ID
+		watcher   crypto.ChainWatcher
+	}, 0, len(p.chainWatchers))
+	for netID, w := range p.chainWatchers {
+		watchers = append(watchers, struct {
+			networkID id.ID
+			watcher   crypto.ChainWatcher
+		}{netID, w})
+	}
+	p.mu.Unlock()
+
+	for _, payment := range payments {
+		var confs int
+		var matchedNetworkID id.ID
+
+		// Try each chain watcher (typically just one) to get confirmations
+		for _, w := range watchers {
+			c, err := w.watcher.GetConfirmations(ctx, payment.TxHash)
+			if err != nil {
+				continue // not on this network
+			}
+			if c > 0 {
+				confs = c
+				matchedNetworkID = w.networkID
+				break
+			}
+		}
+
+		// Only process if confirmations increased
+		if confs <= payment.Confirmations {
+			continue
+		}
+
+		// Feed a synthetic event to EventProcessor — it handles idempotency via FindByTxHash
+		event := crypto.BlockchainEvent{
+			NetworkID:     matchedNetworkID,
+			TxHash:        payment.TxHash,
+			Amount:        payment.Amount,
+			BlockNumber:   payment.BlockNumber,
+			Confirmations: confs,
+			RequiredConfs: payment.RequiredConfs,
+			EventType:     crypto.EventTypeTransfer,
+		}
+
+		if err := p.eventProcessor.ProcessEvent(ctx, event); err != nil {
+			p.log.Errorw("failed to process confirmation update",
+				"payment_id", payment.ID,
+				"tx_hash", payment.TxHash,
+				"confirmations", confs,
+				"error", err,
+			)
+		}
+	}
+
+	return nil
+}
+
+// ── Sweep Evaluation ────────────────────────────────────────────────────
+
+// runSweepEvaluationLoop periodically checks pool wallets for threshold-based sweep.
+// Wallets with accumulated balance ≥ threshold (or exceeding max age) are marked sweep_pending.
+func (p *CryptoProcessor) runSweepEvaluationLoop(ctx context.Context) {
+	ticker := time.NewTicker(_sweepEvalPeriod)
+	defer ticker.Stop()
+
+	p.log.Info("sweep evaluation loop started")
+
+	for {
+		select {
+		case <-ctx.Done():
+			p.log.Info("sweep evaluation loop stopped")
+			return
+		case <-ticker.C:
+			if err := p.evaluateSweeps(ctx); err != nil {
+				p.log.Errorw("sweep evaluation failed", "error", err)
+			}
+		}
+	}
+}
+
+// sweepCandidate holds wallet info with its accumulated balance metadata.
+type sweepCandidate struct {
+	walletID    id.ID
+	merchantID  *id.ID
+	tokenID     id.ID
+	balance     types.CryptoAmount
+	lastSweptAt *time.Time
+}
+
+// evaluateSweeps queries pool wallets and checks if any should be swept.
+func (p *CryptoProcessor) evaluateSweeps(ctx context.Context) error {
+	txm := postgres.MustGetTxManager(ctx)
+	querier := txm.GetQuerier(ctx)
+
+	// Query pool wallets with accumulated confirmed payments since last sweep.
+	// Only wallets NOT already in sweep_pending or frozen.
+	// Groups by wallet to sum all confirmed payments since last_swept_at.
+	const query = `
+		SELECT w.id AS wallet_id,
+		       w.merchant_id,
+		       w.last_swept_at,
+		       p.token_id,
+		       COALESCE(SUM(p.amount), 0) AS balance
+		FROM cat_wallets w
+		INNER JOIN doc_crypto_payments p ON p.wallet_id = w.id
+		WHERE w.tier = 'pool'
+		  AND w.status IN ('free', 'assigned')
+		  AND w.is_active = TRUE
+		  AND w.deletion_mark = FALSE
+		  AND p.status = 'confirmed'
+		  AND p.confirmed_at > COALESCE(w.last_swept_at, '1970-01-01'::timestamptz)
+		GROUP BY w.id, w.merchant_id, w.last_swept_at, p.token_id
+		HAVING COALESCE(SUM(p.amount), 0) > 0
+	`
+
+	rows, err := querier.Query(ctx, query)
+	if err != nil {
+		return fmt.Errorf("query sweep candidates: %w", err)
+	}
+	defer rows.Close()
+
+	var candidates []sweepCandidate
+	for rows.Next() {
+		var c sweepCandidate
+		if err := rows.Scan(&c.walletID, &c.merchantID, &c.lastSweptAt, &c.tokenID, &c.balance); err != nil {
+			return fmt.Errorf("scan sweep candidate: %w", err)
+		}
+		candidates = append(candidates, c)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate sweep candidates: %w", err)
+	}
+
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	p.log.Infow("evaluating sweep candidates", "count", len(candidates))
+
+	for _, c := range candidates {
+		merchantID := id.Nil()
+		if c.merchantID != nil {
+			merchantID = *c.merchantID
+		}
+
+		// Resolve effective sweep config (merchant override → token default)
+		cfg, err := p.sweepResolver.Resolve(ctx, merchantID, c.tokenID)
+		if err != nil {
+			p.log.Errorw("failed to resolve sweep config",
+				"wallet_id", c.walletID,
+				"token_id", c.tokenID,
+				"error", err,
+			)
+			continue
+		}
+
+		// Skip zero-threshold — those wallets are already handled immediately in EventProcessor
+		if cfg.IsZeroThreshold() {
+			continue
+		}
+
+		// Check threshold
+		thresholdMet := c.balance.Cmp(cfg.Threshold) >= 0
+
+		// Check max age (if configured)
+		ageMet := false
+		if cfg.MaxAgeHours > 0 && c.lastSweptAt != nil {
+			ageMet = time.Since(*c.lastSweptAt) > time.Duration(cfg.MaxAgeHours)*time.Hour
+		}
+		// If never swept and max age is configured, check from first payment
+		if cfg.MaxAgeHours > 0 && c.lastSweptAt == nil {
+			ageMet = true // Never swept + max age configured → force sweep
+		}
+
+		if thresholdMet || ageMet {
+			p.log.Infow("marking wallet for sweep",
+				"wallet_id", c.walletID,
+				"balance", c.balance.String(),
+				"threshold", cfg.Threshold.String(),
+				"threshold_met", thresholdMet,
+				"age_met", ageMet,
+			)
+
+			if err := p.walletSvc.MarkSweepPending(ctx, c.walletID); err != nil {
+				p.log.Errorw("failed to mark wallet sweep pending",
+					"wallet_id", c.walletID,
+					"error", err,
+				)
+			}
+		}
 	}
 
 	return nil

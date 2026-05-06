@@ -43,6 +43,7 @@ func (r *WalletRepo) LeaseForInvoice(ctx context.Context, invoiceID, networkID i
 		WHERE network_id = $1
 		  AND status = $2
 		  AND tier = $3
+		  AND allocation_mode = 'transient'
 		  AND is_active = true
 		  AND deletion_mark = false
 		ORDER BY id

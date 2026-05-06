@@ -14,7 +14,6 @@ import (
 // CreateCryptoWithdrawalRequest is the request body for creating a withdrawal.
 type CreateCryptoWithdrawalRequest struct {
 	Date           time.Time                     `json:"date" binding:"required"`
-	OrganizationID string                        `json:"organizationId" binding:"required"`
 	MerchantID     string                        `json:"merchantId" binding:"required"`
 	TokenID        string                        `json:"tokenId" binding:"required"`
 	SourceWalletID string                        `json:"sourceWalletId" binding:"required"`
@@ -32,13 +31,12 @@ type CryptoWithdrawalLineRequest struct {
 
 // ToEntity converts request to domain entity.
 func (r *CreateCryptoWithdrawalRequest) ToEntity() *crypto_withdrawal.CryptoWithdrawal {
-	orgID, _ := id.Parse(r.OrganizationID)
 	merchantID, _ := id.Parse(r.MerchantID)
 	tokenID, _ := id.Parse(r.TokenID)
 	sourceWalletID, _ := id.Parse(r.SourceWalletID)
 	amount, _ := types.NewCryptoAmountFromString(r.Amount)
 
-	doc := crypto_withdrawal.NewCryptoWithdrawal(orgID, merchantID, tokenID, sourceWalletID, r.DestAddress, amount)
+	doc := crypto_withdrawal.NewCryptoWithdrawal(merchantID, tokenID, sourceWalletID, r.DestAddress, amount)
 	doc.Date = r.Date
 	doc.Description = r.Description
 

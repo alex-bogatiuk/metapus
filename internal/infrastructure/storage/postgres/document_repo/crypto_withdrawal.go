@@ -31,7 +31,6 @@ func NewCryptoWithdrawalRepo() *CryptoWithdrawalRepo {
 			func() *crypto_withdrawal.CryptoWithdrawal { return &crypto_withdrawal.CryptoWithdrawal{} },
 		),
 	}
-	repo.RegisterRLSDimension("organization", "organization_id")
 	repo.RegisterRLSDimension("merchant", "merchant_id")
 	return repo
 }

@@ -60,9 +60,9 @@ type CryptoSweepLine struct {
 }
 
 // NewCryptoSweep creates a new CryptoSweep in Created state.
-func NewCryptoSweep(organizationID, tokenID, hotWalletID id.ID) *CryptoSweep {
+func NewCryptoSweep(tokenID, hotWalletID id.ID) *CryptoSweep {
 	return &CryptoSweep{
-		Document:    entity.NewDocument(organizationID),
+		Document:    entity.NewDocument(),
 		TokenID:     tokenID,
 		HotWalletID: hotWalletID,
 		TotalAmount: types.ZeroCryptoAmount(),

@@ -2,15 +2,23 @@
 
 import React, { useMemo, useCallback, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import { Plus, Copy, Pencil, Trash2, CircleCheckBig, CircleOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DataToolbar } from "@/components/shared/data-toolbar"
 import { DataTable, type Column } from "@/components/shared/data-table"
 import { ColumnChooserPopover } from "@/components/shared/column-chooser-popover"
 import { FilterSidebar } from "@/components/shared/filter-sidebar"
 import { ListContent } from "@/components/shared/list-content"
+import { SelectAllBanner } from "@/components/shared/select-all-banner"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ScrollSentinel } from "@/components/shared/scroll-sentinel"
+import {
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+} from "@/components/ui/context-menu"
 import { useEntityListPage } from "@/hooks/useEntityListPage"
+import { useDocumentBatchActions } from "@/hooks/useDocumentBatchActions"
 import { useListViews } from "@/hooks/useListViews"
 import { useColumnResize } from "@/hooks/useColumnResize"
 import { useVisibleColumns } from "@/hooks/useVisibleColumns"
@@ -18,9 +26,10 @@ import { useListExport, type ExportColumn } from "@/hooks/useListExport"
 import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 import { useShortcut } from "@/hooks/useShortcut"
 import { useScrollRestore } from "@/hooks/useScrollRestore"
-import type { CursorListParams, CursorListResponse } from "@/types/common"
+import type { CursorListParams, CursorListResponse, AdvancedFilterItem, BatchActionResponse, BatchActionType, BatchActionByFilterRequest } from "@/types/common"
 import type { ListViewConfig } from "@/types/list-view"
 import { useMetadataStore } from "@/stores/useMetadataStore"
+import { apiFetch, buildListQS } from "@/lib/api"
 
 // ── Config ──────────────────────────────────────────────────────────────
 
@@ -55,9 +64,31 @@ export interface CatalogListPageConfig<T extends { id: string }> {
   renderPrefix?: (item: T) => React.ReactNode
   /** Optional row className (e.g., opacity+strikethrough for deletion-marked documents). */
   rowClassName?: (item: T) => string | undefined
+  /** Optional context menu renderer — enables right-click menus on rows (custom override). */
+  renderContextMenu?: (item: T, targets: T[]) => React.ReactNode
+  /** Optional row click handler — enables row focus highlighting (custom override). */
+  onRowClick?: (item: T) => void
+  /** Optional copy button handler — enables "Copy" toolbar button (custom override). */
+  onCopyClick?: (() => void) | null
+  /**
+   * Document mode: enables batch actions, context menu, keyboard shortcuts,
+   * select-all banner, and row focus — matching the goods-receipts reference.
+   * When set, `renderContextMenu`, `onRowClick`, `onCopyClick` are auto-generated.
+   */
+  documentMode?: {
+    /** API base path for batch operations (e.g. "/document/crypto-invoice"). */
+    basePath: string
+  }
 }
 
 // ── Component ───────────────────────────────────────────────────────────
+
+/** Minimal document shape for batch actions (documents always have these fields). */
+interface DocumentLike {
+  id: string
+  posted: boolean
+  deletionMark: boolean
+}
 
 export function CatalogListPage<T extends { id: string }>({
   config,
@@ -90,15 +121,171 @@ export function CatalogListPage<T extends { id: string }>({
     showDeleted,
     toggleShowDeleted,
     focusedId,
+    setFocusedId,
     searchQuery,
     setSearchQuery,
     currentFilters,
+    totalCount,
+    selectAllByFilter,
+    excludedIds,
+    activateSelectAll,
+    clearSelection,
+    replaceItems,
   } = useEntityListPage<T>({
     entityKey: config.entityKey,
     api: { list: config.fetcher },
     periodField: config.periodField,
     limit: config.limit ?? 100,
   })
+
+  // ── Document mode: batch actions + context menu ──────────────────────
+  const isDocumentMode = !!config.documentMode
+  const docBasePath = config.documentMode?.basePath ?? ""
+
+  // Build a batch-capable API adapter from basePath (generic — works for any document entity)
+  const batchApi = useMemo(() => {
+    if (!isDocumentMode) return null
+    return {
+      get: (id: string) => apiFetch<DocumentLike>(`${docBasePath}/${id}`),
+      list: (params?: { limit?: number; filter?: AdvancedFilterItem[]; includeDeleted?: boolean }) =>
+        apiFetch<{ items: DocumentLike[] }>(`${docBasePath}${buildListQS(params)}`),
+      batchAction: (ids: string[], action: BatchActionType) =>
+        apiFetch<BatchActionResponse>(`${docBasePath}/batch-action`, {
+          method: "POST",
+          body: JSON.stringify({ ids, action }),
+        }),
+      batchActionByFilter: (req: BatchActionByFilterRequest) =>
+        apiFetch<BatchActionResponse>(`${docBasePath}/batch-action-by-filter`, {
+          method: "POST",
+          body: JSON.stringify(req),
+        }),
+      _basePath: docBasePath,
+    }
+  }, [isDocumentMode, docBasePath])
+
+  // Cast items to DocumentLike for batch actions (safe: backend guarantees posted/deletionMark for documents)
+  const docItems = items as unknown as DocumentLike[]
+
+  const _noopResponse: BatchActionResponse = { results: [], total: 0, success: 0, failed: 0 }
+  const batchActions = useDocumentBatchActions<DocumentLike>({
+    api: batchApi ?? { get: async () => ({} as DocumentLike), batchAction: async () => _noopResponse, batchActionByFilter: async () => _noopResponse, _basePath: "" },
+    replaceItems: replaceItems as unknown as (updated: DocumentLike[]) => void,
+    refresh,
+    items: docItems,
+    selectedIds,
+    focusedId,
+    selectAllByFilter,
+    excludedIds,
+    currentFilters,
+    showDeleted,
+    clearSelection,
+  })
+
+  // ── Document mode: row click handler ───────────────────────────────
+  const handleDocRowClick = useCallback((item: T) => {
+    setFocusedId(item.id)
+  }, [setFocusedId])
+
+  // ── Document mode: copy handler ───────────────────────────────────
+  const handleDocCopy = useCallback(() => {
+    const targetId = focusedId ?? (selectedIds.length === 1 ? selectedIds[0] : null)
+    if (targetId && config.editHref) {
+      // Derive the "new" page from editHref pattern
+      const editUrl = config.editHref({ id: targetId } as T)
+      const listBase = editUrl.substring(0, editUrl.lastIndexOf("/"))
+      router.push(`${listBase}/new?copyFrom=${targetId}`)
+    }
+  }, [focusedId, selectedIds, config, router])
+
+  // ── Document mode: deletion mark handler ──────────────────────────
+  const handleDocDeleteMark = useCallback(() => {
+    if (!isDocumentMode) return
+    const targets = selectedIds.length > 0
+      ? docItems.filter((d) => selectedIds.includes(d.id))
+      : docItems.filter((d) => d.id === focusedId)
+    if (targets.length === 0) return
+    const shouldMark = targets.some((d) => !d.deletionMark)
+    batchActions.handleToggleDeletionMarkBatch(targets, shouldMark)
+  }, [isDocumentMode, focusedId, docItems, selectedIds, batchActions])
+
+  // ── Document mode: keyboard shortcuts ──────────────────────────────
+  useShortcut("list.copy", "f9", "Копировать", "list", isDocumentMode ? handleDocCopy : () => {})
+  useShortcut("list.delete", "delete", "Пометить на удаление", "list", isDocumentMode ? handleDocDeleteMark : () => {})
+
+  // ── Document mode: context menu ───────────────────────────────────
+  const renderDocContextMenu = useCallback((item: T, targets: T[]) => {
+    if (!isDocumentMode) return null
+    const docTargets = targets as unknown as DocumentLike[]
+    const isBatch = selectAllByFilter || targets.length > 1
+    const { postableCount, unpostableCount, markableCount, unmarkeableCount } = batchActions.getBatchMenuCounts(docTargets)
+    const virtualTotal = totalCount - excludedIds.length
+    const fmtCount = (n: number) =>
+      selectAllByFilter
+        ? ` (${virtualTotal.toLocaleString("ru-RU")})`
+        : isBatch ? ` (${n})` : ""
+
+    return (
+      <>
+        <ContextMenuItem onClick={() => router.push(config.createHref)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Создать
+          <ContextMenuShortcut>Ins</ContextMenuShortcut>
+        </ContextMenuItem>
+        {!isBatch && (
+          <ContextMenuItem onClick={() => {
+            const editUrl = config.editHref(item)
+            const listBase = editUrl.substring(0, editUrl.lastIndexOf("/"))
+            router.push(`${listBase}/new?copyFrom=${item.id}`)
+          }}>
+            <Copy className="mr-2 h-4 w-4" />
+            Скопировать
+            <ContextMenuShortcut>F9</ContextMenuShortcut>
+          </ContextMenuItem>
+        )}
+        {!isBatch && (
+          <ContextMenuItem onClick={() => router.push(config.editHref(item))}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Изменить
+            <ContextMenuShortcut>F2</ContextMenuShortcut>
+          </ContextMenuItem>
+        )}
+        <ContextMenuSeparator />
+        {markableCount > 0 && (
+          <ContextMenuItem onClick={() => batchActions.handleToggleDeletionMarkBatch(docTargets.filter((d) => !d.deletionMark), true)}>
+            <Trash2 className="mr-2 h-4 w-4" />
+            Пометить на удаление{fmtCount(markableCount)}
+            {!isBatch && <ContextMenuShortcut>Del</ContextMenuShortcut>}
+          </ContextMenuItem>
+        )}
+        {unmarkeableCount > 0 && (
+          <ContextMenuItem onClick={() => batchActions.handleToggleDeletionMarkBatch(docTargets.filter((d) => d.deletionMark), false)}>
+            <Trash2 className="mr-2 h-4 w-4" />
+            Снять пометку удаления{fmtCount(unmarkeableCount)}
+            {!isBatch && <ContextMenuShortcut>Del</ContextMenuShortcut>}
+          </ContextMenuItem>
+        )}
+        <ContextMenuSeparator />
+        {postableCount > 0 && (
+          <ContextMenuItem onClick={() => batchActions.handlePostBatch(docTargets)}>
+            <CircleCheckBig className="mr-2 h-4 w-4" />
+            Провести{fmtCount(postableCount)}
+          </ContextMenuItem>
+        )}
+        {unpostableCount > 0 && (
+          <ContextMenuItem onClick={() => batchActions.handleUnpostBatch(docTargets)}>
+            <CircleOff className="mr-2 h-4 w-4" />
+            Отменить проведение{fmtCount(unpostableCount)}
+          </ContextMenuItem>
+        )}
+      </>
+    )
+  }, [isDocumentMode, batchActions, selectAllByFilter, totalCount, excludedIds, config, router])
+
+  // ── Resolve effective handlers (document mode auto-generated vs custom override) ──
+  const effectiveOnRowClick = config.onRowClick ?? (isDocumentMode ? handleDocRowClick : undefined)
+  const effectiveRenderContextMenu = config.renderContextMenu ?? (isDocumentMode ? renderDocContextMenu : undefined)
+  const effectiveCopyClick = config.onCopyClick !== undefined ? config.onCopyClick : (isDocumentMode && (focusedId || selectedIds.length === 1) ? handleDocCopy : null)
+  const effectiveSelectAll = isDocumentMode ? { totalCount, selectAllByFilter, excludedIds, activateSelectAll, clearSelection } : undefined
 
   const metaLabel = useMetadataStore((s) => s.getLabel(config.entityKey, "plural"))
   const title = metaLabel || config.title
@@ -203,6 +390,7 @@ export function CatalogListPage<T extends { id: string }>({
       <DataToolbar
         title={title}
         onCreateHref={config.createHref}
+        onCopyClick={effectiveCopyClick}
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
         searchInputRef={(el) => { searchInputRef.current = el }}
@@ -232,6 +420,16 @@ export function CatalogListPage<T extends { id: string }>({
             onRetry={refresh}
             emptyMessage={config.emptyMessage ?? "Список пуст."}
           >
+            {effectiveSelectAll && (
+              <SelectAllBanner
+                selectedCount={selectedIds.length}
+                totalCount={effectiveSelectAll.totalCount}
+                selectAllByFilter={effectiveSelectAll.selectAllByFilter}
+                excludedCount={effectiveSelectAll.excludedIds.length}
+                onSelectAll={effectiveSelectAll.activateSelectAll}
+                onClearAll={effectiveSelectAll.clearSelection}
+              />
+            )}
             <DataTable
               data={items}
               columns={effectiveColumns}
@@ -244,12 +442,14 @@ export function CatalogListPage<T extends { id: string }>({
               sortDirection={sortDirection}
               onSort={handleSort}
               focusedId={focusedId}
+              onRowClick={effectiveOnRowClick}
               onRowDoubleClick={(item) => router.push(config.editHref(item))}
               colWidths={colWidths}
               onResizeStart={onResizeStart}
               isResizing={isResizing}
               renderPrefix={config.renderPrefix}
               rowClassName={config.rowClassName}
+              renderContextMenu={effectiveRenderContextMenu}
             />
           </ListContent>
           <ScrollSentinel

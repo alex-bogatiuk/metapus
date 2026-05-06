@@ -8,6 +8,7 @@ import (
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
+	"metapus/internal/core/types"
 )
 
 // TokenStandard defines the token protocol standard.
@@ -44,6 +45,15 @@ type Token struct {
 
 	// IsActive enables/disables the token for processing
 	IsActive bool `db:"is_active" json:"isActive" meta:"label:Активен"`
+
+	// SweepThreshold is the minimum accumulated balance on a pool wallet
+	// before a sweep is triggered (in minor units). 0 = sweep after every payment.
+	// Merchant can override via reg_merchant_token_config.
+	SweepThreshold types.CryptoAmount `db:"sweep_threshold" json:"sweepThreshold" meta:"label:Порог свипа"`
+
+	// SweepMaxAgeHours is the maximum time (hours) before a forced sweep
+	// regardless of threshold. 0 = disabled (only threshold-based sweep).
+	SweepMaxAgeHours int `db:"sweep_max_age_hours" json:"sweepMaxAgeHours" meta:"label:Макс. возраст свипа (ч)"`
 }
 
 // NewToken creates a new Token with required fields.
@@ -88,6 +98,16 @@ func (t *Token) Validate(ctx context.Context) error {
 	if t.Standard != TokenStandardNative && t.ContractAddress == "" {
 		return apperror.NewValidation("contract address is required for non-native tokens").
 			WithDetail("field", "contractAddress")
+	}
+
+	if t.SweepThreshold.IsNegative() {
+		return apperror.NewValidation("sweep threshold must be non-negative").
+			WithDetail("field", "sweepThreshold")
+	}
+
+	if t.SweepMaxAgeHours < 0 {
+		return apperror.NewValidation("sweep max age must be non-negative").
+			WithDetail("field", "sweepMaxAgeHours")
 	}
 
 	return nil
