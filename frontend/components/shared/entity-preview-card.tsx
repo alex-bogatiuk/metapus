@@ -35,6 +35,15 @@ interface EntityPreviewCardProps {
 
 // ── Component ───────────────────────────────────────────────────────────
 
+/** Module-level sub-component — uses createElement to avoid static-components lint. */
+function EntityIcon({ entityKey }: { entityKey: string }) {
+    return React.createElement(getEntityIcon(entityKey), {
+        className: "h-5 w-5 text-muted-foreground mt-0.5 shrink-0",
+    })
+}
+
+// ── Main ────────────────────────────────────────────────────────────────
+
 export function EntityPreviewCard({
     entityType,
     entityKey,
@@ -93,8 +102,6 @@ export function EntityPreviewCard({
 
     // ── Resolved data ───────────────────────────────────────────────────
 
-    const IconComponent = getEntityIcon(data.entityKey)
-
     // Find status field if present
     const statusField = data.fields.find((f) => f.label === "Статус")
     const statusVariant = statusField
@@ -110,7 +117,7 @@ export function EntityPreviewCard({
             {/* ── Header ─────────────────────────────────────────── */}
             <div className="px-4 pt-4 pb-3 space-y-2">
                 <div className="flex items-start gap-2">
-                    <IconComponent className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                    <EntityIcon entityKey={data.entityKey} />
                     <div className="min-w-0">
                         <h3 className="text-sm font-semibold truncate">{data.title}</h3>
                         {data.subtitle && (

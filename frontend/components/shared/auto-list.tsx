@@ -182,7 +182,7 @@ export default function AutoList({ entityName, entityType, routePrefix }: AutoLi
 
     const renderPrefix = useMemo(() => {
         if (!isDocument) return undefined
-        return (item: DynamicRow) => {
+        return function DocumentStatusIcon(item: DynamicRow) {
             if (item.deletionMark) return React.createElement(Ban, { className: "h-4 w-4 text-destructive" })
             if (item.posted) return React.createElement(CircleCheck, { className: "h-4 w-4 text-success" })
             return React.createElement(Circle, { className: "h-4 w-4 text-muted-foreground" })

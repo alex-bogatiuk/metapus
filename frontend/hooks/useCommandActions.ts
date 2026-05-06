@@ -29,7 +29,10 @@ export function useCommandActions(
   // Keep a stable ref to avoid unnecessary re-registrations.
   // We still re-register when the actions array identity changes.
   const actionsRef = useRef(actions)
-  actionsRef.current = actions
+
+  useEffect(() => {
+    actionsRef.current = actions
+  })
 
   useEffect(() => {
     useCommandPaletteStore.getState().registerActions(sourceId, actionsRef.current)

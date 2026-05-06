@@ -285,7 +285,7 @@ export function ReferencePickerDialog({
         return () => {
             if (debounceRef.current) clearTimeout(debounceRef.current)
         }
-    }, [open, fetchData])
+    }, [open, fetchData, defaultSortField, defaultSortDir])
 
     // ── Sort handler (resets to first page) ─────────────────────────────
     const handleSort = (key: string) => {

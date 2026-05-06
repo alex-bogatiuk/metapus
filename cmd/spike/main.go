@@ -18,7 +18,7 @@ const (
 var token string
 
 func main() {
-	fmt.Println("=== Verify Fix: Merchant ref + DeletionMark ===\n")
+	fmt.Println("=== Verify Fix: Merchant ref + DeletionMark ===")
 	token = doLogin()
 	if token == "" {
 		fmt.Println("FAIL: login")
@@ -107,7 +107,10 @@ func doLogin() string {
 	req, _ := http.NewRequest("POST", baseURL+"/auth/login", bytes.NewReader(d))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Tenant-ID", tenantID)
-	resp, _ := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return ""
+	}
 	defer resp.Body.Close()
 	var r map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&r)
