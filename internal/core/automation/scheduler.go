@@ -2,6 +2,7 @@ package automation
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -109,6 +110,7 @@ func (s *Scheduler) Refresh(ctx context.Context) {
 		// Capture rule for closure
 		capturedRule := rule
 		entryID, err := s.cron.AddFunc(cronExpr, func() {
+			fmt.Println("[DEBUG] cron fired for rule:", capturedRule.ID, "at", time.Now().Format("15:04:05"))
 			// Derive from parentCtx (not context.Background) to preserve Pool/TxManager.
 			// WithTimeout ensures the cron job doesn't hang indefinitely.
 			execCtx, cancel := context.WithTimeout(s.parentCtx, 30*time.Second)
@@ -131,6 +133,15 @@ func (s *Scheduler) Refresh(ctx context.Context) {
 // expression in event_type, which is not a matchable event string.
 func (s *Scheduler) executeScheduledRule(ctx context.Context, rule automations.Rule) {
 	now := time.Now()
+
+	// Route generate_report rules to the specialized handler
+	if rule.ReactionType == automations.ReactionGenerateReport {
+		if err := s.engine.HandleScheduledReportRule(ctx, rule, now); err != nil {
+			logger.Error(ctx, "scheduler: report rule execution failed", "ruleId", rule.ID, "error", err)
+		}
+		return
+	}
+
 	payload := map[string]any{
 		"action":     "scheduled",
 		"entityType": "automation",

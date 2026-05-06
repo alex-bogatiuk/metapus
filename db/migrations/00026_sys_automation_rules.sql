@@ -19,11 +19,15 @@ CREATE TABLE sys_automation_rules (
 
     -- REACTION
     reaction_type      VARCHAR(30)   NOT NULL DEFAULT 'notify',
-    -- notify | webhook_call | chain | create_record
+    -- notify | webhook_call | chain | create_record | generate_report
     notif_severity     VARCHAR(16)   NOT NULL DEFAULT 'info' CHECK (notif_severity IN ('info', 'warning', 'error', 'success')),
     message_format     VARCHAR(20)   NOT NULL DEFAULT 'text',
     -- text | markdown | html
     action_template    TEXT          NOT NULL DEFAULT '',
+
+    -- REPORT (only for reaction_type = 'generate_report')
+    report_config      JSONB,
+    -- { "datasetKey", "variantId", "periodType", "customDays", "extraFilters", "fileFormat", "includeEmptyReport", "timezone" }
 
     -- CHAIN (only for reaction_type = 'chain')
     chain_rule_ids     UUID[],

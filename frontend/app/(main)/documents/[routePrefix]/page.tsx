@@ -55,13 +55,16 @@ export default function DocumentCatchAllPage({ params }: PageProps) {
     }
 
     const entityName = registration?.entityName ?? entity?.key ?? routePrefix
+    // Use canonical singular routePrefix from metadata for API calls,
+    // not the pluralized URL segment (e.g. "crypto-invoice" not "crypto-invoices").
+    const canonicalPrefix = entity?.routePrefix ?? registration?.routePrefix ?? routePrefix
 
     return (
         <Suspense fallback={<LoadingFallback />}>
             <AutoList
                 entityName={entityName}
                 entityType="document"
-                routePrefix={routePrefix}
+                routePrefix={canonicalPrefix}
             />
         </Suspense>
     )

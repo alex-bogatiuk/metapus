@@ -16,6 +16,7 @@
  */
 
 import React, { useMemo, useCallback, useEffect, useState } from "react"
+import { Ban, CircleCheck, Circle } from "lucide-react"
 import { apiFetch } from "@/lib/api"
 import { buildColumnsFromFields, formatCellValue, type MetadataField } from "@/lib/metadata-columns"
 import { entityRegistry, type AutoListColumn } from "@/lib/entity-registry"
@@ -175,6 +176,25 @@ export default function AutoList({ entityName, entityType, routePrefix }: AutoLi
     const metaLabel = useMetadataStore(s => s.getLabel(entityKey, "plural"))
     const title = metaLabel || entityName
 
+    // Document-mode: renderPrefix icons and rowClassName for deletion mark styling.
+    // Matches the pattern from dedicated pages (goods-receipts, goods-issues).
+    const isDocument = entityType === "document"
+
+    const renderPrefix = useMemo(() => {
+        if (!isDocument) return undefined
+        return (item: DynamicRow) => {
+            if (item.deletionMark) return React.createElement(Ban, { className: "h-4 w-4 text-destructive" })
+            if (item.posted) return React.createElement(CircleCheck, { className: "h-4 w-4 text-success" })
+            return React.createElement(Circle, { className: "h-4 w-4 text-muted-foreground" })
+        }
+    }, [isDocument])
+
+    const rowClassName = useMemo(() => {
+        if (!isDocument) return undefined
+        return (item: DynamicRow) =>
+            item.deletionMark ? "opacity-60 line-through decoration-destructive/40" : undefined
+    }, [isDocument])
+
     return (
         <CatalogListPage
             config={{
@@ -188,6 +208,8 @@ export default function AutoList({ entityName, entityType, routePrefix }: AutoLi
                 defaultFilterKeys: regEntry?.defaultFilterKeys,
                 fetcher,
                 limit: 100,
+                renderPrefix,
+                rowClassName,
             }}
         />
     )

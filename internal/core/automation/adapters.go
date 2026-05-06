@@ -4,18 +4,26 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/smtp"
+	"net/textproto"
 	"net/url"
 	"strings"
 	"time"
 
 	"metapus/pkg/logger"
 )
+
+// newMIMEWriter wraps multipart.NewWriter for use in Telegram sendDocument.
+func newMIMEWriter(buf *bytes.Buffer) *multipart.Writer {
+	return multipart.NewWriter(buf)
+}
 
 // WebhookAdapter sends an HTTP POST request with the rendered payload.
 type WebhookAdapter struct {
@@ -32,7 +40,7 @@ func NewWebhookAdapter() *WebhookAdapter {
 }
 
 // Deliver sends the payload to the webhook URL from the channel destination.
-func (a *WebhookAdapter) Deliver(ctx context.Context, destination map[string]any, accountConfig map[string]any, credentials []byte, payload string) error {
+func (a *WebhookAdapter) Deliver(ctx context.Context, destination map[string]any, accountConfig map[string]any, credentials []byte, payload string, _ []Attachment) error {
 	// URL comes from Channel.Destination
 	urlRaw, ok := destination["url"].(string)
 	if !ok || urlRaw == "" {
@@ -108,7 +116,7 @@ func NewTelegramAdapter() *TelegramAdapter {
 // destination["chat_id"]: the target chat (from Channel)
 // credentials: Bot Token (from Account)
 // accountConfig["parse_mode"]: optional (Markdown, HTML, MarkdownV2)
-func (a *TelegramAdapter) Deliver(ctx context.Context, destination map[string]any, accountConfig map[string]any, credentials []byte, payload string) error {
+func (a *TelegramAdapter) Deliver(ctx context.Context, destination map[string]any, accountConfig map[string]any, credentials []byte, payload string, attachments []Attachment) error {
 	chatID := destination["chat_id"]
 	if chatID == nil {
 		return fmt.Errorf("missing 'chat_id' in channel destination")
@@ -117,6 +125,16 @@ func (a *TelegramAdapter) Deliver(ctx context.Context, destination map[string]an
 	botToken := string(credentials)
 	if botToken == "" {
 		return fmt.Errorf("missing bot token in account credentials")
+	}
+
+	// If attachments present, use sendDocument API
+	if len(attachments) > 0 {
+		for _, att := range attachments {
+			if err := a.sendDocument(ctx, chatID, botToken, att, payload); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", botToken)
@@ -187,6 +205,60 @@ func (a *TelegramAdapter) Deliver(ctx context.Context, destination map[string]an
 	return fmt.Errorf("telegram API failed after %d attempts", maxAttempts)
 }
 
+// sendDocument sends a file via Telegram Bot API's sendDocument endpoint.
+func (a *TelegramAdapter) sendDocument(ctx context.Context, chatID any, botToken string, att Attachment, caption string) error {
+	apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendDocument", botToken)
+
+	var body bytes.Buffer
+	writer := newMIMEWriter(&body)
+
+	// chat_id field
+	fw, err := writer.CreateFormField("chat_id")
+	if err != nil {
+		return fmt.Errorf("create chat_id field: %w", err)
+	}
+	fmt.Fprintf(fw, "%v", chatID)
+
+	// caption field (truncated to 1024 chars per Telegram limit)
+	if caption != "" {
+		captionTrunc := caption
+		if len(captionTrunc) > 1024 {
+			captionTrunc = captionTrunc[:1021] + "…"
+		}
+		cw, _ := writer.CreateFormField("caption")
+		fmt.Fprint(cw, captionTrunc)
+	}
+
+	// document file
+	fw, err = writer.CreateFormFile("document", att.FileName)
+	if err != nil {
+		return fmt.Errorf("create document field: %w", err)
+	}
+	if _, err := fw.Write(att.Data); err != nil {
+		return fmt.Errorf("write document data: %w", err)
+	}
+	writer.Close()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, &body)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("do sendDocument request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("sendDocument failed status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
 // EmailAdapter sends emails via net/smtp.
 type EmailAdapter struct{}
 
@@ -200,7 +272,7 @@ func NewEmailAdapter() *EmailAdapter {
 // credentials: SMTP password
 // destination: {"to": "user@example.com"} or {"to": ["a@x.com", "b@x.com"]}
 // payload: email body (subject extracted via --- separator or from first line)
-func (a *EmailAdapter) Deliver(ctx context.Context, destination map[string]any, accountConfig map[string]any, credentials []byte, payload string) error {
+func (a *EmailAdapter) Deliver(ctx context.Context, destination map[string]any, accountConfig map[string]any, credentials []byte, payload string, attachments []Attachment) error {
 	smtpHost, _ := accountConfig["smtp_host"].(string)
 	smtpPort, _ := accountConfig["smtp_port"].(string)
 	from, _ := accountConfig["from"].(string)
@@ -247,13 +319,51 @@ func (a *EmailAdapter) Deliver(ctx context.Context, destination map[string]any, 
 		contentType = "text/plain"
 	}
 
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: %s; charset=UTF-8\r\n\r\n%s",
-		from,
-		strings.Join(recipients, ", "),
-		subject,
-		contentType,
-		body,
-	)
+	var msgBuf bytes.Buffer
+
+	if len(attachments) == 0 {
+		// Simple email without attachments
+		fmt.Fprintf(&msgBuf, "From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: %s; charset=UTF-8\r\n\r\n%s",
+			from,
+			strings.Join(recipients, ", "),
+			subject,
+			contentType,
+			body,
+		)
+	} else {
+		// MIME multipart/mixed with attachments
+		mpWriter := multipart.NewWriter(&msgBuf)
+		boundary := mpWriter.Boundary()
+
+		fmt.Fprintf(&msgBuf, "From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=%s\r\n\r\n",
+			from,
+			strings.Join(recipients, ", "),
+			subject,
+			boundary,
+		)
+
+		// Body part
+		bodyHeader := make(textproto.MIMEHeader)
+		bodyHeader.Set("Content-Type", contentType+"; charset=UTF-8")
+		bodyPart, _ := mpWriter.CreatePart(bodyHeader)
+		fmt.Fprint(bodyPart, body)
+
+		// Attachment parts
+		for _, att := range attachments {
+			attHeader := make(textproto.MIMEHeader)
+			attHeader.Set("Content-Type", att.MimeType)
+			attHeader.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", att.FileName))
+			attHeader.Set("Content-Transfer-Encoding", "base64")
+
+			attPart, _ := mpWriter.CreatePart(attHeader)
+			encoder := base64.NewEncoder(base64.StdEncoding, attPart)
+			_, _ = encoder.Write(att.Data)
+			_ = encoder.Close()
+		}
+		_ = mpWriter.Close()
+	}
+
+	msg := msgBuf.String()
 
 	// Mandatory TLS for SMTP to prevent credential leakage via MITM.
 	var auth smtp.Auth

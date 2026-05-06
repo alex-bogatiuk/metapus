@@ -48,6 +48,7 @@ type DataScope struct {
 // New dimensions can be added by simply using new string constants.
 const (
 	DimOrganization = "organization"
+	DimMerchant     = "merchant"
 	// Future dimensions added via SecurityProfile (DB/cache):
 	// DimCounterparty  = "counterparty"
 	// DimCostArticle   = "cost_article"

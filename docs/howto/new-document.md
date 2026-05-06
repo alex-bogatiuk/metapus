@@ -119,9 +119,9 @@ import (
 type PurchaseReturn struct {
     entity.Document
 
-    SupplierID  id.ID  `db:"supplier_id" json:"supplierId" meta:"label:Поставщик"`
-    WarehouseID id.ID  `db:"warehouse_id" json:"warehouseId" meta:"label:Склад"`
-    ContractID  *id.ID `db:"contract_id" json:"contractId,omitempty" meta:"label:Договор"`
+    SupplierID  id.ID  `db:"supplier_id" json:"supplierId" meta:"label:Поставщик,ref:supplier"`
+    WarehouseID id.ID  `db:"warehouse_id" json:"warehouseId" meta:"label:Склад,ref:warehouse"`
+    ContractID  *id.ID `db:"contract_id" json:"contractId,omitempty" meta:"label:Договор,ref:contract"`
     Reason      string `db:"reason" json:"reason,omitempty" meta:"label:Причина возврата"`
 
     entity.CurrencyAware
@@ -169,6 +169,7 @@ var _ posting.Postable = (*PurchaseReturn)(nil)
 | `Validate()` — без БД | Тестируемость. FK-валидация — в infrastructure слое |
 | `WithDetail("field", "...")` | Фронтенд отображает ошибку под конкретным полем |
 | `domain.ValidateDocumentLines()` | Единая стратегия проверки строк для всех документов |
+| **`meta:"ref:..."` на FK-полях** | Без `ref:` AutoForm отрисует UUID как текст вместо combobox. См. [ссылочные поля](new-entity.md#ссылочные-поля-meta-ref-теги) |
 
 ---
 
@@ -405,6 +406,7 @@ Frontend:
 
 - [ ] Миграция: таблицы `doc_*` и `doc_*_lines` с GIN-индексом
 - [ ] Модель: `entity.Document` embed, `Validate()` без БД
+- [ ] Модель: **все FK-поля (`id.ID`/`*id.ID`) имеют `ref:<refType>` в `meta`-теге** (см. [new-entity.md#ссылочные-поля](new-entity.md#ссылочные-поля-meta-ref-теги))
 - [ ] Движения: `GenerateStockMovements()` детерминированна
 - [ ] Регистрация: `RegisterDocument()` в `register.go`
 - [ ] DTO: `Create`, `Update`, `Response` — поля совпадают с TypeScript

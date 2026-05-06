@@ -2,9 +2,9 @@
 // Eliminates duplication between new/page.tsx and [id]/page.tsx.
 
 import type {
-  TriggerType, ReactionType, MessageFormat,
+  TriggerType, ReactionType, MessageFormat, PeriodType,
   CreateRuleRequest, UpdateRuleRequest,
-  SubscriberInput,
+  SubscriberInput, ReportActionConfig,
 } from "@/types/automation"
 
 // ── Form State ──────────────────────────────────────────────────────────
@@ -30,6 +30,13 @@ export interface RuleFormState {
   cooldownSeconds: number
   version: number
   subscribers: SubscriberFormEntry[]
+  // Report generation fields (only used when reactionType === 'generate_report')
+  reportDatasetKey: string
+  reportVariantId: string
+  reportPeriodType: PeriodType
+  reportCustomDays: number
+  reportTimezone: string
+  reportSkipEmpty: boolean
 }
 
 /** Inline subscriber entry in the form (simplified for UI). */
@@ -61,6 +68,12 @@ export const INITIAL_RULE_STATE: RuleFormState = {
   cooldownSeconds: 0,
   version: 1,
   subscribers: [],
+  reportDatasetKey: "",
+  reportVariantId: "",
+  reportPeriodType: "today",
+  reportCustomDays: 7,
+  reportTimezone: "",
+  reportSkipEmpty: true,
 }
 
 // ── Trigger Type Options ────────────────────────────────────────────────
@@ -131,6 +144,24 @@ export const SEVERITY_OPTIONS: SeverityOption[] = [
   { value: "success", label: "Успех",         description: "Операция выполнена" },
 ]
 
+// ── Period Type Options (for generate_report reaction) ──────────────────
+
+export interface PeriodTypeOption {
+  value: PeriodType
+  label: string
+}
+
+export const PERIOD_TYPE_OPTIONS: PeriodTypeOption[] = [
+  { value: "today",         label: "Сегодня" },
+  { value: "yesterday",     label: "Вчера" },
+  { value: "current_week",  label: "Текущая неделя" },
+  { value: "last_week",     label: "Прошлая неделя" },
+  { value: "current_month", label: "Текущий месяц" },
+  { value: "last_month",    label: "Прошлый месяц" },
+  { value: "as_of_now",     label: "На текущий момент" },
+  { value: "custom_days",   label: "Последние N дней" },
+]
+
 // ── Mappers ──────────────────────────────────────────────────────────────
 
 function buildSubscribers(entries: SubscriberFormEntry[]): SubscriberInput[] {
@@ -153,7 +184,7 @@ function resolveEventType(s: RuleFormState): string {
 }
 
 export function mapRuleToCreate(s: RuleFormState): CreateRuleRequest {
-  return {
+  const base: CreateRuleRequest = {
     name: s.name,
     description: s.description || undefined,
     triggerType: s.triggerType,
@@ -170,6 +201,19 @@ export function mapRuleToCreate(s: RuleFormState): CreateRuleRequest {
     cooldownSeconds: s.cooldownSeconds,
     subscribers: buildSubscribers(s.subscribers),
   }
+
+  if (s.reactionType === "generate_report" && s.reportDatasetKey) {
+    base.reportConfig = {
+      datasetKey: s.reportDatasetKey,
+      variantId: s.reportVariantId || undefined,
+      periodType: s.reportPeriodType,
+      customDays: s.reportPeriodType === "custom_days" ? s.reportCustomDays : undefined,
+      timezone: s.reportTimezone || undefined,
+      skipEmpty: s.reportSkipEmpty,
+    }
+  }
+
+  return base
 }
 
 export function mapRuleToUpdate(s: RuleFormState): UpdateRuleRequest {
@@ -200,6 +244,9 @@ export function mapRuleFromResponse(r: Record<string, unknown>): RuleFormState {
     cronExpression = eventType.slice(5) // strip "cron:"
   }
 
+  // Extract report config (may be null)
+  const rc = r.reportConfig as ReportActionConfig | null | undefined
+
   return {
     id: r.id as string,
     name: (r.name as string) || "",
@@ -219,6 +266,13 @@ export function mapRuleFromResponse(r: Record<string, unknown>): RuleFormState {
     cooldownSeconds: (r.cooldownSeconds as number) || 0,
     version: (r.version as number) || 1,
     subscribers: entries,
+    // Report config fields
+    reportDatasetKey: rc?.datasetKey || "",
+    reportVariantId: rc?.variantId || "",
+    reportPeriodType: (rc?.periodType as PeriodType) || "today",
+    reportCustomDays: rc?.customDays || 7,
+    reportTimezone: rc?.timezone || "",
+    reportSkipEmpty: rc?.skipEmpty ?? true,
   }
 }
 
@@ -234,6 +288,14 @@ export function validateRule(s: RuleFormState): string | null {
   }
 
   if (!s.reactionType) return "Укажите тип действия"
+
+  if (s.reactionType === "generate_report") {
+    if (!s.reportDatasetKey) return "Выберите набор данных для отчёта"
+    if (s.reportPeriodType === "custom_days" && (!s.reportCustomDays || s.reportCustomDays < 1)) {
+      return "Укажите количество дней для периода"
+    }
+  }
+
   if (s.subscribers.length === 0) return "Добавьте хотя бы одного подписчика"
   return null
 }

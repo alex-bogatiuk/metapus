@@ -98,7 +98,11 @@ func (s *BaseDocumentService[T, L]) GetTxManager(ctx context.Context) (tx.Manage
 }
 
 // ResolveCurrency resolves the document currency using the resolution chain.
+// No-op when CurrencyResolver is nil (e.g., crypto documents use tokens, not currencies).
 func (s *BaseDocumentService[T, L]) ResolveCurrency(ctx context.Context, doc T) error {
+	if s.CurrencyResolver == nil {
+		return nil
+	}
 	currencyID, err := s.CurrencyResolver.ResolveForDocument(
 		ctx,
 		doc.GetCurrencyID(),

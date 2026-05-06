@@ -409,6 +409,11 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 		return err
 	}
 
+	// 8. Seed Crypto Processing data (Networks, Tokens, Merchants, Wallets)
+	if err := seedCryptoData(ctx, pool, log); err != nil {
+		return err
+	}
+
 	log.Info("demo data seeded successfully")
 	return nil
 }
@@ -917,6 +922,135 @@ func loadWarehouses(ctx context.Context, pool *postgres.Pool) ([]generatedWareho
 	}
 
 	return items, rows.Err()
+}
+
+// seedCryptoData creates the crypto processing reference data:
+// 1 blockchain network (TRON Shasta) → 1 token (USDT-TRC20) → 1 merchant → 4 wallets.
+func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger) error {
+	log.Info("seeding crypto processing data...")
+
+	// ── Blockchain Network: TRON Shasta Testnet ────────────────────────
+	networkID := id.New()
+	networkCode := "TRON-SHASTA"
+
+	commandTag, err := pool.Exec(ctx, `
+		INSERT INTO cat_blockchain_networks (
+			id, code, name, chain_id,
+			native_token_symbol, native_decimals, block_time_seconds,
+			confirmations_needed, explorer_url, is_active,
+			version, deletion_mark, attributes
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, 1, false, '{}')
+		ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
+	`, networkID, networkCode, "TRON Shasta Testnet", "shasta",
+		"TRX", 6, 3, 19, "https://shasta.tronscan.org")
+	if err != nil {
+		return fmt.Errorf("seed blockchain network: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		err = pool.QueryRow(ctx, `
+			SELECT id FROM cat_blockchain_networks WHERE code = $1 AND deletion_mark = FALSE
+		`, networkCode).Scan(&networkID)
+		if err != nil {
+			return fmt.Errorf("fetch existing network: %w", err)
+		}
+	}
+
+	// ── Token: USDT-TRC20 ──────────────────────────────────────────────
+	tokenID := id.New()
+	tokenCode := "USDT-TRC20"
+
+	commandTag, err = pool.Exec(ctx, `
+		INSERT INTO cat_tokens (
+			id, code, name, symbol, network_id,
+			contract_address, decimal_places, token_standard, is_active,
+			version, deletion_mark, attributes
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, 1, false, '{}')
+		ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
+	`, tokenID, tokenCode, "Tether USD (TRC-20)", "USDT", networkID,
+		"TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs", 6, "TRC-20")
+	if err != nil {
+		return fmt.Errorf("seed token: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		err = pool.QueryRow(ctx, `
+			SELECT id FROM cat_tokens WHERE code = $1 AND deletion_mark = FALSE
+		`, tokenCode).Scan(&tokenID)
+		if err != nil {
+			return fmt.Errorf("fetch existing token: %w", err)
+		}
+	}
+
+	// ── Merchant: Test Merchant ─────────────────────────────────────────
+	merchantID := id.New()
+	merchantCode := "MERCHANT-001"
+
+	commandTag, err = pool.Exec(ctx, `
+		INSERT INTO cat_merchants (
+			id, code, name, legal_name,
+			webhook_url, commission_rate, kyb_status, is_active,
+			version, deletion_mark, attributes
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, true, 1, false, '{}')
+		ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
+	`, merchantID, merchantCode, "Test Merchant (Dev)", "Test Merchant LLC",
+		"https://webhook.site/test", 150, "approved") // 150 bp = 1.5%, kyb = Approved
+	if err != nil {
+		return fmt.Errorf("seed merchant: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		err = pool.QueryRow(ctx, `
+			SELECT id FROM cat_merchants WHERE code = $1 AND deletion_mark = FALSE
+		`, merchantCode).Scan(&merchantID)
+		if err != nil {
+			return fmt.Errorf("fetch existing merchant: %w", err)
+		}
+	}
+
+	// ── Wallets: 1 Hot + 3 Pool ─────────────────────────────────────────
+	type walletSeed struct {
+		code    string
+		name    string
+		address string
+		path    string
+		tier    string // "pool", "hot", "warm", "cold"
+		status  string // "free", "leased", "sweep_pending", "frozen"
+	}
+
+	wallets := []walletSeed{
+		{"HOT-TRON-001", "TRON Hot Wallet", "TYDzsYUEgfGRreSR7oqKMo7pqdXxnPH1Hh", "m/44'/195'/0'/0/0", "hot", "leased"},
+		{"POOL-TRON-001", "Pool Wallet #1", "TVgY6mWpDGGCtPRBxuMSjitVHfPkpJuVRG", "m/44'/195'/0'/0/1", "pool", "free"},
+		{"POOL-TRON-002", "Pool Wallet #2", "TMXMyg87BiHCVfkwvVj3T32SWDSuRQqsPx", "m/44'/195'/0'/0/2", "pool", "free"},
+	}
+
+	batch := &pgx.Batch{}
+	for _, w := range wallets {
+		batch.Queue(`
+			INSERT INTO cat_wallets (
+				id, code, name, address, network_id,
+				derivation_path, tier, status,
+				version, deletion_mark, attributes
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, false, '{}')
+			ON CONFLICT DO NOTHING
+		`, id.New(), w.code, w.name, w.address, networkID, w.path, w.tier, w.status)
+	}
+
+	results := pool.SendBatch(ctx, batch)
+	for _, w := range wallets {
+		if _, err := results.Exec(); err != nil {
+			_ = results.Close()
+			return fmt.Errorf("seed wallet %s: %w", w.code, err)
+		}
+	}
+	if err := results.Close(); err != nil {
+		return fmt.Errorf("close wallet batch: %w", err)
+	}
+
+	log.Infow("crypto data seeded",
+		"network", networkCode,
+		"token", tokenCode,
+		"merchant", merchantCode,
+		"wallets", len(wallets),
+	)
+	return nil
 }
 
 func seedTenantRegistry(ctx context.Context, dbURL string, log *logger.Logger) error {

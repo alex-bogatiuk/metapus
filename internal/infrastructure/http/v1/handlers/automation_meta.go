@@ -2,16 +2,19 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
+
+	"metapus/internal/domain/reports/compiler"
 )
 
 // AutomationMetaHandler serves static metadata for automation UI.
 type AutomationMetaHandler struct {
 	*BaseHandler
+	compiler *compiler.Compiler // nil-safe — datasets endpoint returns empty list if not set
 }
 
 // NewAutomationMetaHandler creates a new handler.
-func NewAutomationMetaHandler(base *BaseHandler) *AutomationMetaHandler {
-	return &AutomationMetaHandler{BaseHandler: base}
+func NewAutomationMetaHandler(base *BaseHandler, comp *compiler.Compiler) *AutomationMetaHandler {
+	return &AutomationMetaHandler{BaseHandler: base, compiler: comp}
 }
 
 // GetMeta returns all automation metadata in one call (account types, trigger types, reaction types, etc.).
@@ -32,6 +35,7 @@ func (h *AutomationMetaHandler) GetMeta(c *gin.Context) {
 		"reactionTypes": []map[string]string{
 			{"value": "notify", "label": "Send Notification"},
 			{"value": "webhook_call", "label": "Call Webhook"},
+			{"value": "generate_report", "label": "Generate & Send Report"},
 			{"value": "chain", "label": "Chain Reaction"},
 			{"value": "create_record", "label": "Create Record"},
 		},
@@ -61,7 +65,33 @@ func (h *AutomationMetaHandler) GetMeta(c *gin.Context) {
 	})
 }
 
+// GetDatasets returns available report datasets for the report configuration UI.
+// Used when reaction_type = 'generate_report' to populate the dataset selector.
+func (h *AutomationMetaHandler) GetDatasets(c *gin.Context) {
+	type datasetSummary struct {
+		Key  string `json:"key"`
+		Name string `json:"name"`
+	}
+
+	if h.compiler == nil {
+		h.OK(c, []datasetSummary{})
+		return
+	}
+
+	all := h.compiler.AllDatasets()
+	result := make([]datasetSummary, 0, len(all))
+	for _, ds := range all {
+		result = append(result, datasetSummary{
+			Key:  ds.Key,
+			Name: ds.Name,
+		})
+	}
+
+	h.OK(c, result)
+}
+
 // RegisterRoutes registers the meta endpoints.
 func (h *AutomationMetaHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/automation-meta", h.GetMeta)
+	rg.GET("/automation-meta/datasets", h.GetDatasets)
 }

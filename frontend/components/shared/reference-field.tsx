@@ -31,6 +31,13 @@ export interface ReferenceOption {
   id: string
   name: string
   code?: string
+  /** Documents use `number` instead of `name` */
+  number?: string
+}
+
+/** Returns display text for a reference option: name ?? number ?? id */
+function getOptionDisplay(opt: ReferenceOption): string {
+  return opt.name || opt.number || opt.id
 }
 
 interface ReferenceFieldProps {
@@ -194,12 +201,13 @@ export function ReferenceField({
     let cancelled = false
     setResolving(true)
 
-    apiFetch<{ name?: string }>(`${apiEndpoint}/${value}`)
+    apiFetch<{ name?: string; number?: string }>(`${apiEndpoint}/${value}`)
       .then((data) => {
         if (cancelled) return
-        if (data?.name) {
-          _refNameCache.set(key, data.name)
-          setInternalName(data.name)
+        const resolved = data?.name || data?.number
+        if (resolved) {
+          _refNameCache.set(key, resolved)
+          setInternalName(resolved)
         }
       })
       .catch((err) => {
@@ -333,11 +341,12 @@ export function ReferenceField({
 
   const handleSelect = (option: ReferenceOption) => {
     // Store in internal state + module cache so name is never lost
-    setInternalName(option.name)
-    _refNameCache.set(cacheKey(apiEndpoint, option.id), option.name)
+    const display = getOptionDisplay(option)
+    setInternalName(display)
+    _refNameCache.set(cacheKey(apiEndpoint, option.id), display)
     // Save to recent selections history (like 1C)
     pushRecentSelection(apiEndpoint, option)
-    onChange(option.id, option.name)
+    onChange(option.id, getOptionDisplay(option))
     setOpen(false)
     setSearch("")
 
@@ -474,7 +483,7 @@ export function ReferenceField({
                                 {opt.code}
                               </span>
                             )}
-                            <span className="truncate">{opt.name}</span>
+                            <span className="truncate">{getOptionDisplay(opt)}</span>
                           </div>
                         </CommandItem>
                       ))}
@@ -498,7 +507,7 @@ export function ReferenceField({
                                 {opt.code}
                               </span>
                             )}
-                            <span className="truncate">{opt.name}</span>
+                            <span className="truncate">{getOptionDisplay(opt)}</span>
                           </div>
                         </CommandItem>
                       ))}
@@ -530,7 +539,7 @@ export function ReferenceField({
                           {opt.code}
                         </span>
                       )}
-                      <span className="truncate">{opt.name}</span>
+                      <span className="truncate">{getOptionDisplay(opt)}</span>
                     </div>
                   </CommandItem>
                 ))}

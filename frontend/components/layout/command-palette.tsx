@@ -27,6 +27,7 @@ import {
   Equal,
   Loader2,
   Eye,
+  ChevronRight,
 } from "lucide-react"
 
 import type { SearchResultItem } from "@/types/search"
@@ -61,6 +62,7 @@ import {
   evaluateExpression,
   type CalcResult,
 } from "@/lib/calc-engine"
+import { parseEntityTypeFromUrl } from "@/lib/entity-url"
 import { cn } from "@/lib/utils"
 
 // ── Constants ───────────────────────────────────────────────────────────
@@ -76,12 +78,66 @@ const _minPreviewWidth = 1024
 /** Prefix character that activates global data search mode. */
 const _dataSearchPrefix = ">"
 
+/** UUID v4/v7 pattern — guards preview to entity detail pages only. */
+const _uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 // ── Preview target type ─────────────────────────────────────────────────
 
 interface PreviewTarget {
   entityType: string
   entityKey: string
   entityId: string
+}
+
+// ── Collapsible Command Group ─────────────────────────────────────────
+
+/**
+ * A cmdk-compatible collapsible group. When collapsed, children
+ * (CommandItems) are not rendered → cmdk skips them in keyboard nav.
+ * Expanded by default.
+ */
+function CollapsibleCommandGroup({
+  heading,
+  children,
+  defaultOpen = true,
+}: {
+  heading: string
+  children: React.ReactNode
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = React.useState(defaultOpen)
+
+  return (
+    <div className="overflow-hidden p-1 text-foreground" cmdk-group="">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex w-full items-center gap-1 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors select-none"
+        // Prevent cmdk from treating this as an item selection
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            e.stopPropagation()
+            setOpen((prev) => !prev)
+          }
+        }}
+        tabIndex={-1}
+      >
+        <ChevronRight
+          className={cn(
+            "h-3 w-3 shrink-0 transition-transform duration-150",
+            open && "rotate-90",
+          )}
+        />
+        {heading}
+      </button>
+      {open && (
+        <div cmdk-group-items="">
+          {children}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Component ───────────────────────────────────────────────────────────
@@ -247,8 +303,81 @@ export function CommandPalette() {
   const searchResultsRef = React.useRef<SearchResultItem[]>(searchResults)
   searchResultsRef.current = searchResults
 
+  /**
+   * Resolve PreviewTarget from the currently selected cmdk item.
+   * Handles three value prefixes:
+   *   - "search:<id> ..."  → lookup in searchResults
+   *   - "fav:<title> ..."  → lookup in favoriteItems by entityId
+   *   - "recent:<title>..." → parse entityKey from URL, extract UUID
+   */
+  const resolvePreviewFromCmdk = React.useCallback(
+    (dataValue: string): PreviewTarget | null => {
+      const getMetadata = useMetadataStore.getState().getEntity
+
+      // 1) Global data search results
+      if (dataValue.startsWith("search:")) {
+        const match = searchResultsRef.current.find((item) =>
+          dataValue.includes(item.entityId),
+        )
+        if (!match) return null
+        return {
+          entityType: match.entityType,
+          entityKey: match.entityKey,
+          entityId: match.entityId,
+        }
+      }
+
+      // 2) Favorites — FavoriteItem has entityType (= entity key) + entityId
+      if (dataValue.startsWith("fav:")) {
+        const fav = favoriteItems.find((f) =>
+          dataValue.includes(f.entityId),
+        )
+        if (!fav) return null
+        const meta = getMetadata(fav.entityType)
+        if (!meta) return null
+        return {
+          entityType: meta.type,
+          entityKey: fav.entityType,
+          entityId: fav.entityId,
+        }
+      }
+
+      // 3) Recent — RecentItem has url + entityType (entity key, optional)
+      if (dataValue.startsWith("recent:")) {
+        const recent = recentItems.find((r) => {
+          const segments = r.url.split("/")
+          const uuid = segments[segments.length - 1]
+          // Only match detail pages (valid UUID), skip list pages
+          return uuid && _uuidRe.test(uuid) && dataValue.includes(uuid)
+        })
+        if (!recent) return null
+        const entityKey =
+          recent.entityType ?? parseEntityTypeFromUrl(recent.url)
+        if (!entityKey) return null
+        const meta = getMetadata(entityKey)
+        if (!meta) return null
+        const segments = recent.url.split("/")
+        const entityId = segments[segments.length - 1]
+        if (!entityId || !_uuidRe.test(entityId)) return null
+        return {
+          entityType: meta.type,
+          entityKey,
+          entityId,
+        }
+      }
+
+      return null
+    },
+    [favoriteItems, recentItems],
+  )
+
+  // Ref avoids adding previewTarget to handleKeyDown deps (keeps callback stable).
+  const previewOpenRef = React.useRef(false)
+  previewOpenRef.current = previewTarget !== null
+
   const handleKeyDown = React.useCallback(
     (e: React.KeyboardEvent) => {
+      // Open preview for the current item
       if (e.key === "ArrowRight" && isDesktop) {
         const selectedEl = document.querySelector<HTMLElement>(
           '[cmdk-item][data-selected="true"]',
@@ -256,22 +385,32 @@ export function CommandPalette() {
         if (!selectedEl) return
 
         const value = selectedEl.getAttribute("data-value") ?? ""
-        // value format: "search:<entityId> <title> <subtitle>" (cmdk may lowercase it)
-        // UUID chars (0-9, a-f, dashes) are already lowercase — safe to match.
-        const match = searchResultsRef.current.find((item) =>
-          value.includes(item.entityId),
-        )
-        if (!match) return
+        const target = resolvePreviewFromCmdk(value)
+        if (!target) return
 
         e.preventDefault()
-        setPreviewTarget({
-          entityType: match.entityType,
-          entityKey: match.entityKey,
-          entityId: match.entityId,
+        setPreviewTarget(target)
+      }
+
+      // Auto-update preview on ↑/↓ when preview panel is already open.
+      // cmdk processes arrow keys in the same tick but DOM updates after,
+      // so we use rAF to read the new data-selected element.
+      if (
+        (e.key === "ArrowUp" || e.key === "ArrowDown") &&
+        previewOpenRef.current
+      ) {
+        requestAnimationFrame(() => {
+          const selectedEl = document.querySelector<HTMLElement>(
+            '[cmdk-item][data-selected="true"]',
+          )
+          if (!selectedEl) return
+          const value = selectedEl.getAttribute("data-value") ?? ""
+          const target = resolvePreviewFromCmdk(value)
+          if (target) setPreviewTarget(target)
         })
       }
     },
-    [isDesktop],
+    [isDesktop, resolvePreviewFromCmdk],
   )
 
   // ── Escape hierarchy: close preview first, then dialog ────────────────
@@ -389,20 +528,27 @@ export function CommandPalette() {
             {hasFavorites && !isDataSearchMode && (
               <>
                 {hasContextActions && <CommandSeparator />}
-                <CommandGroup heading="Избранное">
+                <CollapsibleCommandGroup heading="Избранное">
                   {favoriteItems.slice(0, _maxFavoritesInPalette).map((fav) => {
                     const IconComponent = getEntityIcon(fav.entityType)
                     return (
                       <CommandItem
                         key={`fav:${fav.entityType}:${fav.entityId}`}
-                        value={`fav:${fav.title} ${fav.entityType}`}
+                        value={`fav:${fav.entityId} ${fav.title} ${fav.entityType}`}
                         onSelect={() => navigateTo(fav.url, fav.title)}
                         className="group/fav"
                       >
                         <IconComponent className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
                         <span className="truncate">{fav.title}</span>
+                        {/* Preview hint */}
+                        {isDesktop && (
+                          <span className="ml-auto flex items-center gap-1 text-[10px] shrink-0 transition-opacity opacity-0 group-data-[selected=true]/fav:opacity-60 text-muted-foreground">
+                            <Eye className="h-3 w-3" />
+                            →
+                          </span>
+                        )}
                         <button
-                          className="ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-data-[selected=true]/fav:opacity-100 hover:bg-muted"
+                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-data-[selected=true]/fav:opacity-100 hover:bg-muted"
                           aria-label="Убрать из избранного"
                           onMouseDown={(e) => {
                             // Prevent cmdk from stealing focus / triggering onSelect
@@ -417,7 +563,7 @@ export function CommandPalette() {
                       </CommandItem>
                     )
                   })}
-                </CommandGroup>
+                </CollapsibleCommandGroup>
               </>
             )}
 
@@ -425,25 +571,39 @@ export function CommandPalette() {
             {hasRecent && !isDataSearchMode && (
               <>
                 {(hasContextActions || hasFavorites) && <CommandSeparator />}
-                <CommandGroup heading="Недавние">
+                <CollapsibleCommandGroup heading="Недавние">
                   {recentItems.slice(0, _maxRecentInPalette).map((recent) => {
                     const IconComponent = getEntityIcon(recent.entityType ?? "")
+                    // Extract UUID from URL for cmdk value (needed for preview resolution)
+                    const urlSegments = recent.url.split("/")
+                    const entityUuid = urlSegments[urlSegments.length - 1]
                     return (
                       <CommandItem
                         key={`recent:${recent.url}`}
-                        value={`recent:${recent.title} ${recent.entityType ?? ""}`}
+                        value={`recent:${entityUuid} ${recent.title} ${recent.entityType ?? ""}`}
                         onSelect={() => navigateTo(recent.url, recent.title)}
+                        className="group/recent"
                       >
                         <Clock className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
                         <IconComponent className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
                         <span className="truncate">{recent.title}</span>
-                        <span className="ml-auto text-[10px] text-muted-foreground/60">
+                        {/* Preview hint — only for entity detail pages (valid UUID) */}
+                        {isDesktop && _uuidRe.test(entityUuid) && (
+                          <span className="ml-auto flex items-center gap-1 text-[10px] shrink-0 transition-opacity opacity-0 group-data-[selected=true]/recent:opacity-60 text-muted-foreground">
+                            <Eye className="h-3 w-3" />
+                            →
+                          </span>
+                        )}
+                        <span className={cn(
+                          "text-[10px] text-muted-foreground/60",
+                          isDesktop ? "" : "ml-auto",
+                        )}>
                           {formatCompactTime(recent.visitedAt)}
                         </span>
                       </CommandItem>
                     )
                   })}
-                </CommandGroup>
+                </CollapsibleCommandGroup>
               </>
             )}
 
@@ -503,7 +663,7 @@ export function CommandPalette() {
               const items = navBySection.get(section)
               if (!items || items.length === 0) return null
               return (
-                <CommandGroup key={section} heading={COMMAND_SECTION_LABELS[section]}>
+                <CollapsibleCommandGroup key={section} heading={COMMAND_SECTION_LABELS[section]}>
                   {items.map((item) => (
                     <CommandItem
                       key={item.id}
@@ -515,7 +675,7 @@ export function CommandPalette() {
                       <span>{item.label}</span>
                     </CommandItem>
                   ))}
-                </CommandGroup>
+                </CollapsibleCommandGroup>
               )
             })}
           </CommandList>

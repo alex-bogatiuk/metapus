@@ -65,6 +65,15 @@ export const useMetadataStore = create<MetadataState & MetadataActions>()((set, 
                 byName[e.name] = e
                 if (e.routePrefix) {
                     byRoute[e.routePrefix] = e
+                    // Also index by pluralized form so catch-all [routePrefix] pages
+                    // can resolve pluralized URL segments (e.g. "crypto-invoices").
+                    // Matches pluralizePrefix() in entity-url.ts.
+                    const plural = e.routePrefix.endsWith("s")
+                        ? e.routePrefix
+                        : e.routePrefix + "s"
+                    if (plural !== e.routePrefix) {
+                        byRoute[plural] = e
+                    }
                 }
             }
             set({ entities, byKey, byName, byRoute, loaded: true, loading: false })

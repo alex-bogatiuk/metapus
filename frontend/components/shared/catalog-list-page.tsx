@@ -51,6 +51,10 @@ export interface CatalogListPageConfig<T extends { id: string }> {
   defaultVisibleKeys?: string[]
   /** API base path for export (e.g. "/catalog/nomenclatures"). If omitted, export is disabled. */
   basePath?: string
+  /** Optional row prefix renderer (e.g., posted/deletionMark icons for documents). */
+  renderPrefix?: (item: T) => React.ReactNode
+  /** Optional row className (e.g., opacity+strikethrough for deletion-marked documents). */
+  rowClassName?: (item: T) => string | undefined
 }
 
 // ── Component ───────────────────────────────────────────────────────────
@@ -244,6 +248,8 @@ export function CatalogListPage<T extends { id: string }>({
               colWidths={colWidths}
               onResizeStart={onResizeStart}
               isResizing={isResizing}
+              renderPrefix={config.renderPrefix}
+              rowClassName={config.rowClassName}
             />
           </ListContent>
           <ScrollSentinel

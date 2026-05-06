@@ -14,10 +14,14 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"metapus/internal/content"
 	"metapus/internal/core/automation"
 	"metapus/internal/core/automation/adapters"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
+	"metapus/internal/domain/reports/compiler"
+	"metapus/internal/domain/settings"
+	"metapus/internal/infrastructure/crypto_worker"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/auth_repo"
 	ws "metapus/internal/infrastructure/websocket"
@@ -217,6 +221,17 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 	scheduler := automation.NewScheduler(engine, postgres.NewAutomationRuleRepo())
 	go scheduler.Start(ctx) // Will stop when ctx is cancelled
 
+	// ── Crypto Processing ──────────────────────────────────────────────
+	// Start CryptoProcessor if TRON RPC is configured.
+	cryptoEnabled := getEnv("TRON_RPC_URL", "") != ""
+	if cryptoEnabled {
+		cp := crypto_worker.NewCryptoProcessor(crypto_worker.CryptoProcessorConfig{
+			TRONRpcURL: getEnv("TRON_RPC_URL", ""),
+			TRONApiKey: getEnv("TRON_API_KEY", ""),
+		}, w.log)
+		go cp.Start(ctx) // Will stop when ctx is cancelled
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -237,6 +252,7 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 			w.cleanupSessions(ctx, mp.Pool(), t.ID)
 			w.cleanupIdempotency(ctx, mp.Pool(), t.ID)
 			w.cleanupAutomationHistory(ctx, mp.Pool(), t.ID)
+			w.cleanupAutomationFiles(ctx, mp.Pool(), t.ID)
 			w.cleanupNotifications(ctx, mp.Pool(), t.ID)
 			// Refresh scheduler jobs (picks up new/deactivated scheduled rules)
 			scheduler.Refresh(ctx)
@@ -264,7 +280,38 @@ func (w *MultiTenantWorker) buildAutomationEngine() (*automation.Engine, error) 
 	userResolver := automation.NewRoleUserResolver(roleAdapter)
 
 	// OutboxPublisher is nil for now — chain reactions will be wired in a future iteration.
-	return automation.NewEngine(ruleRepo, historyRepo, accountRepo, accountRepo, channelRepo, adapterMap, nil, userResolver)
+	engine, err := automation.NewEngine(ruleRepo, historyRepo, accountRepo, accountRepo, channelRepo, adapterMap, nil, userResolver)
+	if err != nil {
+		return nil, err
+	}
+
+	// ── Report Generator ────────────────────────────────────────────────
+	// Build Compiler from the same datasets as the HTTP layer.
+	datasets := content.AllDatasets()
+	reportRegistry := content.BuildReportRegistry()
+	comp := compiler.NewCompiler(reportRegistry, datasets)
+
+	fileRepo := postgres.NewAutomationFileRepo()
+	settingsRepo := postgres.NewSettingsRepo()
+	reportGen := automation.NewReportGenerator(comp, nil, fileRepo, &settingsLoaderAdapter{repo: settingsRepo})
+
+	emailRenderer, err := automation.NewEmailTemplateRenderer()
+	if err != nil {
+		return nil, fmt.Errorf("init email renderer: %w", err)
+	}
+
+	engine.SetReportGenerator(reportGen, emailRenderer)
+
+	return engine, nil
+}
+
+// settingsLoaderAdapter bridges postgres.SettingsRepo (Get) → automation.SettingsLoader (GetSettings).
+type settingsLoaderAdapter struct {
+	repo *postgres.SettingsRepo
+}
+
+func (a *settingsLoaderAdapter) GetSettings(ctx context.Context) (*settings.Settings, error) {
+	return a.repo.Get(ctx)
 }
 
 type automationOutboxHandler struct {
@@ -351,6 +398,21 @@ func (w *MultiTenantWorker) cleanupNotifications(ctx context.Context, pool *pgxp
 
 	if result.RowsAffected() > 0 {
 		w.log.Infow("cleaned up old read notifications", "tenant_id", tenantID, "count", result.RowsAffected())
+	}
+}
+
+func (w *MultiTenantWorker) cleanupAutomationFiles(ctx context.Context, pool *pgxpool.Pool, tenantID string) {
+	result, err := pool.Exec(ctx, `
+		DELETE FROM sys_automation_files 
+		WHERE expires_at < NOW()
+	`)
+	if err != nil {
+		w.log.Errorw("failed to cleanup automation files", "tenant_id", tenantID, "error", err)
+		return
+	}
+
+	if result.RowsAffected() > 0 {
+		w.log.Infow("cleaned up expired automation files", "tenant_id", tenantID, "count", result.RowsAffected())
 	}
 }
 

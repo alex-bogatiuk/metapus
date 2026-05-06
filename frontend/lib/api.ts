@@ -589,6 +589,8 @@ export const api = {
                 apiFetch<import("@/types/automation").EventTypeGroup[]>("/system/automation/meta/event-types"),
             entityFields: (entityType: string) =>
                 apiFetch<{ name: string; label: string; type: string }[]>(`/system/automation/meta/entity-fields/${encodeURIComponent(entityType)}`),
+            datasets: () =>
+                apiFetch<{ key: string; name: string }[]>("/system/automation-meta/datasets"),
         },
     },
 

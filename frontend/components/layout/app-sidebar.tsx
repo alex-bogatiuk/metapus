@@ -22,6 +22,7 @@ import {
   LogOut,
   Puzzle,
   ShieldCheck,
+  Bitcoin,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -156,6 +157,30 @@ const navSections: NavSection[] = [
         label: "Справочники",
         items: [
           { entityKey: "currency", fallback: "Валюты" },
+        ],
+      },
+    ],
+  },
+  {
+    title: "Крипто",
+    icon: Bitcoin,
+    groups: [
+      {
+        label: "Документы",
+        items: [
+          { entityKey: "crypto_invoice", fallback: "Крипто-инвойсы" },
+          { entityKey: "crypto_payment", fallback: "Крипто-платежи" },
+          { entityKey: "crypto_withdrawal", fallback: "Крипто-выводы" },
+          { entityKey: "crypto_sweep", fallback: "Крипто-свипы" },
+        ],
+      },
+      {
+        label: "Справочники",
+        items: [
+          { entityKey: "blockchain_network", fallback: "Блокчейн-сети" },
+          { entityKey: "token", fallback: "Токены" },
+          { entityKey: "merchant", fallback: "Мерчанты" },
+          { entityKey: "wallet", fallback: "Кошельки" },
         ],
       },
     ],

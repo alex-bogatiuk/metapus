@@ -58,13 +58,16 @@ export default function CatalogCatchAllPage({ params }: PageProps) {
     }
 
     const entityName = registration?.entityName ?? entity?.key ?? routePrefix
+    // Use canonical singular routePrefix from metadata for API calls,
+    // not the pluralized URL segment (e.g. "blockchain-network" not "blockchain-networks").
+    const canonicalPrefix = entity?.routePrefix ?? registration?.routePrefix ?? routePrefix
 
     return (
         <Suspense fallback={<LoadingFallback />}>
             <AutoList
                 entityName={entityName}
                 entityType="catalog"
-                routePrefix={routePrefix}
+                routePrefix={canonicalPrefix}
             />
         </Suspense>
     )

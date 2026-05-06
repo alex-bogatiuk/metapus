@@ -9,6 +9,7 @@ import "time"
 // Only system-level settings remain here; org-specific data is in cat_organizations.
 type Settings struct {
 	// General
+	General     GeneralSettings     `json:"general"`
 	Numbering   NumberingSettings   `json:"numbering"`
 	Performance PerformanceSettings `json:"performance"`
 
@@ -19,6 +20,22 @@ type Settings struct {
 
 	Version   int       `json:"version"`
 	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// ── General ──────────────────────────────────────────────────────────────
+
+// GeneralSettings holds tenant-wide general configuration.
+type GeneralSettings struct {
+	// Timezone is an IANA timezone identifier, e.g. "Asia/Shanghai", "Europe/Moscow".
+	// Used as the default timezone for scheduled operations (report distribution, etc.).
+	Timezone string `json:"timezone"`
+}
+
+// DefaultGeneral returns sensible defaults for general settings.
+func DefaultGeneral() GeneralSettings {
+	return GeneralSettings{
+		Timezone: "UTC",
+	}
 }
 
 // ── Numbering ───────────────────────────────────────────────────────────

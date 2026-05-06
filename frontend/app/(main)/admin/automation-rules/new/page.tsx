@@ -23,12 +23,14 @@ import { ScheduleButton } from "@/components/settings/schedule-configurator"
 import { Checkbox } from "@/components/ui/checkbox"
 import type { AutomationChannel, CreateRuleRequest } from "@/types/automation"
 import { useState, useEffect, useMemo } from "react"
-import { ChevronDown, Clock, FileText, Activity, Info, AlertTriangle, AlertCircle, CheckCircle2 } from "lucide-react"
+import { ChevronDown, Clock, FileText, Activity, Info, AlertTriangle, AlertCircle, CheckCircle2, BarChart3 } from "lucide-react"
 import {
   INITIAL_RULE_STATE, ENTITY_EVENT_ACTIONS, TRIGGER_TYPE_OPTIONS, SEVERITY_OPTIONS,
+  PERIOD_TYPE_OPTIONS,
   mapRuleToCreate, validateRule,
   type RuleFormState, type SubscriberFormEntry,
 } from "@/lib/automation-rule-form"
+import type { PeriodType } from "@/types/automation"
 
 const TRIGGER_ICONS: Record<string, typeof Clock> = {
   entity_event: FileText,
@@ -45,6 +47,12 @@ export default function NewAutomationRulePage() {
 
   useEffect(() => {
     api.automation.channels.list().then(setChannels).catch(console.error)
+  }, [])
+
+  // Load datasets for generate_report reaction
+  const [datasets, setDatasets] = useState<{ key: string; name: string }[]>([])
+  useEffect(() => {
+    api.automation.meta.datasets().then(setDatasets).catch(console.error)
   }, [])
 
   const { f, update, handleChange, handleSave, saving, error } = useCatalogForm<RuleFormState, unknown, CreateRuleRequest, unknown>({
@@ -254,6 +262,12 @@ export default function NewAutomationRulePage() {
                   <SelectContent>
                     <SelectItem value="notify" description="UI уведомления + внешние каналы">Уведомление</SelectItem>
                     <SelectItem value="webhook_call" description="HTTP POST/PUT/GET">Webhook API</SelectItem>
+                    <SelectItem value="generate_report" description="XLSX отчёт → Email/Telegram">
+                      <span className="flex items-center gap-1.5">
+                        <BarChart3 className="h-3.5 w-3.5" />
+                        Сформировать отчёт
+                      </span>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -294,6 +308,76 @@ export default function NewAutomationRulePage() {
               reactionType={f.reactionType}
               onChange={handleSubscribersChange}
             />
+
+            {/* Report Config — shown for generate_report reaction */}
+            {f.reactionType === "generate_report" && (
+              <div className="mt-4 space-y-4 rounded-md border border-dashed border-primary/30 bg-primary/5 p-4">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-primary" />
+                  <Label className="text-sm font-semibold text-primary">Настройка отчёта</Label>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {/* Dataset selector */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Набор данных *</Label>
+                    <Select value={f.reportDatasetKey} onValueChange={(v) => { update({ reportDatasetKey: v }); handleChange() }}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Выберите отчёт" /></SelectTrigger>
+                      <SelectContent>
+                        {datasets.map(ds => (
+                          <SelectItem key={ds.key} value={ds.key}>{ds.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Period type */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Период *</Label>
+                    <Select value={f.reportPeriodType} onValueChange={(v) => { update({ reportPeriodType: v as PeriodType }); handleChange() }}>
+                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {PERIOD_TYPE_OPTIONS.map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Custom days — shown only for custom_days period */}
+                  {f.reportPeriodType === "custom_days" && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Количество дней *</Label>
+                      <Input
+                        type="number"
+                        className="mt-1"
+                        min={1}
+                        value={f.reportCustomDays}
+                        onChange={(e) => { update({ reportCustomDays: Number(e.target.value) }); handleChange() }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Timezone override */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Часовой пояс</Label>
+                    <Input
+                      className="mt-1"
+                      placeholder="По умолчанию из настроек"
+                      value={f.reportTimezone}
+                      onChange={(e) => { update({ reportTimezone: e.target.value }); handleChange() }}
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">Например: Europe/Moscow. Пусто = из настроек тенанта.</p>
+                  </div>
+                </div>
+
+                {/* Skip empty toggle */}
+                <div className="flex items-center space-x-2">
+                  <Switch checked={f.reportSkipEmpty} onCheckedChange={(v) => { update({ reportSkipEmpty: v }); handleChange() }} />
+                  <Label className="text-sm">Пропускать пустые отчёты</Label>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ── CEL Condition — hidden for scheduled ────────────────── */}

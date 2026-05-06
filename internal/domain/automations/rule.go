@@ -25,10 +25,11 @@ const (
 type ReactionType string
 
 const (
-	ReactionNotify       ReactionType = "notify"
-	ReactionWebhookCall  ReactionType = "webhook_call"
-	ReactionChain        ReactionType = "chain"
-	ReactionCreateRecord ReactionType = "create_record"
+	ReactionNotify         ReactionType = "notify"
+	ReactionWebhookCall    ReactionType = "webhook_call"
+	ReactionChain          ReactionType = "chain"
+	ReactionCreateRecord   ReactionType = "create_record"
+	ReactionGenerateReport ReactionType = "generate_report"
 )
 
 // Rule defines an automation rule: event → condition → reaction.
@@ -44,8 +45,9 @@ type Rule struct {
 	NotifSeverity  string       `json:"notifSeverity,omitempty"`
 	MessageFormat  string       `json:"messageFormat"`
 	ActionTemplate string       `json:"actionTemplate"`
-	ChainRuleIDs   []id.ID      `json:"chainRuleIds,omitempty"`
-	Priority       int          `json:"priority"`
+	ChainRuleIDs   []id.ID             `json:"chainRuleIds,omitempty"`
+	ReportConfig   *ReportActionConfig `json:"reportConfig,omitempty"`
+	Priority       int                 `json:"priority"`
 	MaxRetries     int          `json:"maxRetries"`
 	CooldownSecs   int          `json:"cooldownSeconds"`
 	OrganizationID *id.ID       `json:"organizationId,omitempty"`
@@ -74,8 +76,9 @@ type CreateRuleRequest struct {
 	NotifSeverity  string            `json:"notifSeverity,omitempty"`
 	MessageFormat  string            `json:"messageFormat"`
 	ActionTemplate string            `json:"actionTemplate"`
-	ChainRuleIDs   []id.ID           `json:"chainRuleIds,omitempty"`
-	Priority       int               `json:"priority"`
+	ChainRuleIDs   []id.ID              `json:"chainRuleIds,omitempty"`
+	ReportConfig   *ReportActionConfig  `json:"reportConfig,omitempty"`
+	Priority       int                  `json:"priority"`
 	MaxRetries     int               `json:"maxRetries"`
 	CooldownSecs   int               `json:"cooldownSeconds"`
 	OrganizationID *id.ID            `json:"organizationId,omitempty"`
@@ -100,7 +103,7 @@ func (r *CreateRuleRequest) Validate(_ context.Context) error {
 	}
 
 	switch r.ReactionType {
-	case ReactionNotify, ReactionWebhookCall, ReactionChain, ReactionCreateRecord:
+	case ReactionNotify, ReactionWebhookCall, ReactionChain, ReactionCreateRecord, ReactionGenerateReport:
 		// OK
 	default:
 		return apperror.NewValidation("invalid reaction type").WithDetail("reactionType", string(r.ReactionType))
@@ -137,6 +140,16 @@ func (r *CreateRuleRequest) Validate(_ context.Context) error {
 			WithDetail("field", "chainRuleIds")
 	}
 
+	if r.ReactionType == ReactionGenerateReport {
+		if r.ReportConfig == nil {
+			return apperror.NewValidation("generate_report reaction requires report_config").
+				WithDetail("field", "reportConfig")
+		}
+		if err := r.ReportConfig.Validate(); err != nil {
+			return err
+		}
+	}
+
 	if r.MessageFormat == "" {
 		r.MessageFormat = "text"
 	}
@@ -161,12 +174,13 @@ type UpdateRuleRequest struct {
 	EventType      string            `json:"eventType"`
 	TargetEntities []string          `json:"targetEntities"`
 	ConditionCEL   *string           `json:"conditionCel,omitempty"`
-	ReactionType   ReactionType      `json:"reactionType"`
-	NotifSeverity  string            `json:"notifSeverity,omitempty"`
-	MessageFormat  string            `json:"messageFormat"`
-	ActionTemplate string            `json:"actionTemplate"`
-	ChainRuleIDs   []id.ID           `json:"chainRuleIds,omitempty"`
-	Priority       int               `json:"priority"`
+	ReactionType   ReactionType         `json:"reactionType"`
+	NotifSeverity  string               `json:"notifSeverity,omitempty"`
+	MessageFormat  string               `json:"messageFormat"`
+	ActionTemplate string               `json:"actionTemplate"`
+	ChainRuleIDs   []id.ID              `json:"chainRuleIds,omitempty"`
+	ReportConfig   *ReportActionConfig  `json:"reportConfig,omitempty"`
+	Priority       int                  `json:"priority"`
 	MaxRetries     int               `json:"maxRetries"`
 	CooldownSecs   int               `json:"cooldownSeconds"`
 	OrganizationID *id.ID            `json:"organizationId,omitempty"`
@@ -194,7 +208,7 @@ func (r *UpdateRuleRequest) Validate(_ context.Context) error {
 	}
 
 	switch r.ReactionType {
-	case ReactionNotify, ReactionWebhookCall, ReactionChain, ReactionCreateRecord:
+	case ReactionNotify, ReactionWebhookCall, ReactionChain, ReactionCreateRecord, ReactionGenerateReport:
 	default:
 		return apperror.NewValidation("invalid reaction type").WithDetail("reactionType", string(r.ReactionType))
 	}
@@ -225,6 +239,16 @@ func (r *UpdateRuleRequest) Validate(_ context.Context) error {
 
 	for i := range r.Subscribers {
 		if err := r.Subscribers[i].Validate(); err != nil {
+			return err
+		}
+	}
+
+	if r.ReactionType == ReactionGenerateReport {
+		if r.ReportConfig == nil {
+			return apperror.NewValidation("generate_report reaction requires report_config").
+				WithDetail("field", "reportConfig")
+		}
+		if err := r.ReportConfig.Validate(); err != nil {
 			return err
 		}
 	}

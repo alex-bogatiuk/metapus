@@ -98,6 +98,9 @@ export function ReferencePickerDialog({
     const resolved = useMemo(() => resolveEntityFromEndpoint(apiEndpoint), [apiEndpoint])
     const entityName = resolved?.entityName ?? ""
     const title = resolved?.entity.presentation.plural ?? "Выбор"
+    const isDocument = resolved?.entityType === "document"
+    const defaultSortField = isDocument ? "date" : "name"
+    const defaultSortDir: "asc" | "desc" = isDocument ? "desc" : "asc"
 
     // ── Columns from metadata ───────────────────────────────────────────
     const [columns, setColumns] = useState<AutoColumn[]>(() =>
@@ -182,8 +185,8 @@ export function ReferencePickerDialog({
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     // ── Sort (local state, not URL-based — this is a dialog) ────────────
-    const [sortField, setSortField] = useState("name")
-    const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
+    const [sortField, setSortField] = useState(defaultSortField)
+    const [sortDir, setSortDir] = useState<"asc" | "desc">(defaultSortDir)
 
     // ── Selection ───────────────────────────────────────────────────────
     const [focusedId, setFocusedId] = useState<string | null>(null)
@@ -260,8 +263,8 @@ export function ReferencePickerDialog({
             // Reset state when dialog closes
             initialLoadRef.current = false
             setSearch("")
-            setSortField("name")
-            setSortDir("asc")
+            setSortField(defaultSortField)
+            setSortDir(defaultSortDir)
             setItems([])
             setFocusedId(null)
             setNextCursor(null)

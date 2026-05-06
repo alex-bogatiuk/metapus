@@ -61,13 +61,14 @@ export default function CatalogCatchAllFormPage({ params }: PageProps) {
     }
 
     const entityName = registration?.entityName ?? entity?.key ?? routePrefix
+    const canonicalPrefix = entity?.routePrefix ?? registration?.routePrefix ?? routePrefix
 
     return (
         <Suspense fallback={<LoadingFallback />}>
             <AutoForm
                 entityName={entityName}
                 entityType="catalog"
-                routePrefix={routePrefix}
+                routePrefix={canonicalPrefix}
                 id={id === "new" ? undefined : id}
             />
         </Suspense>

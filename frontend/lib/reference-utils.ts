@@ -2,26 +2,28 @@ import { useMetadataStore } from "@/stores/useMetadataStore"
 import type { EntityMeta, EntityType } from "@/types/metadata"
 
 /**
- * Resolves a catalog API endpoint + entity ID to a frontend page URL.
+ * Resolves an API endpoint + entity ID to a frontend page URL.
  *
  * Convention:
- *   API endpoint: "/catalog/{routePrefix}"
- *   Frontend URL: "/catalogs/{routePrefix}/{id}"
+ *   API endpoint: "/catalog/{routePrefix}"  → Frontend: "/catalogs/{routePrefix}/{id}"
+ *   API endpoint: "/document/{routePrefix}" → Frontend: "/documents/{routePrefix}/{id}"
  *
  * Returns null if the endpoint doesn't match or entity is not in metadata.
  */
 export function resolveReferenceUrl(apiEndpoint: string, id: string): string | null {
   if (!id || !apiEndpoint) return null
 
-  const match = apiEndpoint.match(/\/catalog\/(.+)$/)
+  const match = apiEndpoint.match(/\/(catalog|document)\/(.+)$/)
   if (!match) return null
 
-  const routePrefix = match[1]
+  const entityType = match[1] // "catalog" | "document"
+  const routePrefix = match[2]
   // Verify entity exists in metadata (safety check)
   const entity = useMetadataStore.getState().getEntityByRoute(routePrefix)
   if (!entity) return null
 
-  return `/catalogs/${routePrefix}/${id}`
+  const frontendPrefix = entityType === "document" ? "documents" : "catalogs"
+  return `/${frontendPrefix}/${routePrefix}/${id}`
 }
 
 // ── Endpoint → EntityMeta resolution ────────────────────────────────────

@@ -103,11 +103,13 @@ export function buildColumnsFromFields(
         .map((f) => {
             const type = mapFieldType(f.type)
 
-            // For reference fields, backend returns resolved `{field}Name`
-            // alongside the UUID `{field}Id`. Show the Name column instead.
+            // For reference fields, backend returns a resolved nested object:
+            //   { merchantId: "uuid", merchant: { id: "uuid", name: "Test Merchant" } }
+            // We use the nested object key (without "Id" suffix) as the column key,
+            // and formatCellValue handles extracting `.name` from the object.
             let key = f.name
             if (type === "reference" && key.endsWith("Id")) {
-                key = key.slice(0, -2) + "Name"
+                key = key.slice(0, -2)
             }
 
             return {
@@ -125,6 +127,16 @@ export function buildColumnsFromFields(
  */
 export function formatCellValue(value: unknown, type: ColumnDisplayType): string {
     if (value === null || value === undefined) return "—"
+
+    // Reference fields: backend returns nested RefDisplay { id, name, code? }
+    if (type === "reference") {
+        if (typeof value === "object" && value !== null && "name" in value) {
+            return String((value as { name: string }).name)
+        }
+        // Fallback for flat string values (e.g., pre-resolved names)
+        if (typeof value === "string") return value
+        return "—"
+    }
 
     switch (type) {
         case "boolean":

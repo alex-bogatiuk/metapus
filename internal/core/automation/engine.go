@@ -32,17 +32,19 @@ type DeliveryTask struct {
 	EventType       string
 	AggregateID     *id.ID
 	AggregateName   *string
+	Attachments     []Attachment // Report files to attach (email/Telegram document)
 }
 
 // Adapter defines the interface for external delivery (Telegram, Email, Webhook).
-// v2: destination-aware — takes channel destination separately from account config.
+// v3: attachment-aware — supports file attachments for report distribution.
 type Adapter interface {
 	// Deliver sends the rendered payload through the channel.
 	// destination: channel-specific config (e.g. chat_id, email address, webhook URL)
 	// accountConfig: account-level config (e.g. parse_mode defaults)
 	// credentials: decrypted account credentials (e.g. bot token, SMTP password)
 	// payload: rendered message text
-	Deliver(ctx context.Context, destination map[string]any, accountConfig map[string]any, credentials []byte, payload string) error
+	// attachments: optional file attachments (nil for plain notify)
+	Deliver(ctx context.Context, destination map[string]any, accountConfig map[string]any, credentials []byte, payload string, attachments []Attachment) error
 }
 
 // OutboxPublisher publishes events to the transactional outbox for chain reactions.
@@ -81,6 +83,10 @@ type Engine struct {
 	publisher    OutboxPublisher // For chain reactions
 	userResolver UserResolver    // For resolving user/role subscribers → target_users
 	celEnv       *cel.Env
+
+	// Report generation (optional, nil if not configured)
+	reportGen     *ReportGenerator
+	emailRenderer *EmailTemplateRenderer
 
 	// Bounded LRU cache for compiled CEL programs.
 	celMu       sync.Mutex
@@ -144,6 +150,14 @@ func NewEngine(
 		tmplLookup:   make(map[string]*list.Element, _tmplCacheMaxSize),
 		tmplOrder:    list.New(),
 	}, nil
+}
+
+// SetReportGenerator injects the report generation subsystem into the engine.
+// Called during server bootstrap when the Compiler and FileRepo are available.
+// Separate from NewEngine to avoid circular dependencies and keep the constructor stable.
+func (e *Engine) SetReportGenerator(gen *ReportGenerator, renderer *EmailTemplateRenderer) {
+	e.reportGen = gen
+	e.emailRenderer = renderer
 }
 
 // HandleEvent is the main entry point. Called by OutboxRelay for each event.
@@ -238,6 +252,118 @@ func (e *Engine) HandleScheduledRule(ctx context.Context, rule automations.Rule,
 	e.Deliver(ctx, tasks)
 
 	return nil
+}
+
+// HandleScheduledReportRule generates a report and delivers it to all subscribers
+// as an attachment (email MIME / Telegram document).
+// Called by the Scheduler when a cron-triggered rule has reaction_type = 'generate_report'.
+func (e *Engine) HandleScheduledReportRule(ctx context.Context, rule automations.Rule, triggerTime time.Time) error {
+	eventType := fmt.Sprintf("scheduled.report.%s", rule.ID)
+
+	if e.reportGen == nil {
+		errMsg := "report generator not configured"
+		e.recordHistory(ctx, &rule, nil, eventType, nil, automations.HistoryError, "", &errMsg)
+		return fmt.Errorf("%s", errMsg)
+	}
+
+	// 1. Generate the report (Compiler → XLSX → FileRepo)
+	ref, err := e.reportGen.GenerateAndStore(ctx, &rule, triggerTime)
+	if err != nil {
+		errMsg := err.Error()
+		logger.Error(ctx, "report generation failed", "ruleId", rule.ID, "error", err)
+		e.recordHistory(ctx, &rule, nil, eventType, nil, automations.HistoryError, "", &errMsg)
+		return fmt.Errorf("generate report: %w", err)
+	}
+
+	// 2. Check if report was empty and should be skipped
+	if ref == nil {
+		logger.Info(ctx, "scheduled report rule: empty report, skipping delivery", "ruleId", rule.ID)
+		e.recordHistory(ctx, &rule, nil, eventType, nil, automations.HistorySkipped, "", nil)
+		return nil
+	}
+
+	// 3. Load the file data for attachment
+	fileData, err := e.reportGen.fileRepo.GetByID(ctx, mustParseID(ref.FileID))
+	if err != nil {
+		errMsg := err.Error()
+		e.recordHistory(ctx, &rule, nil, eventType, nil, automations.HistoryError, "", &errMsg)
+		return fmt.Errorf("load report file: %w", err)
+	}
+
+	attachment := Attachment{
+		FileName: fileData.FileName,
+		MimeType: fileData.MimeType,
+		Data:     fileData.FileData,
+	}
+
+	// 4. Render email body (from action_template + HTML wrapper)
+	var renderedPayload string
+	customBody := ""
+	if rule.ActionTemplate != "" {
+		payload := map[string]any{
+			"report":     ref,
+			"periodFrom": ref.Period.From.Format("02.01.2006"),
+			"periodTo":   ref.Period.To.Format("02.01.2006"),
+			"rowCount":   ref.RowCount,
+		}
+		rendered, renderErr := e.RenderTemplate(rule.ActionTemplate, payload)
+		if renderErr == nil {
+			customBody = rendered
+		}
+	}
+
+	if e.emailRenderer != nil {
+		htmlBody, renderErr := e.emailRenderer.RenderReportEmail(ref, customBody)
+		if renderErr == nil {
+			renderedPayload = ref.DatasetName + "\n" + htmlBody
+		} else {
+			logger.Warn(ctx, "email template render failed, using plain text", "error", renderErr)
+			renderedPayload = fmt.Sprintf("%s\nОтчёт: %s\nПериод: %s — %s\nСтрок: %d",
+				ref.DatasetName,
+				ref.DatasetName,
+				ref.Period.From.Format("02.01.2006"),
+				ref.Period.To.Format("02.01.2006"),
+				ref.RowCount)
+		}
+	} else {
+		renderedPayload = fmt.Sprintf("%s\nОтчёт: %s\nПериод: %s — %s\nСтрок: %d",
+			ref.DatasetName,
+			ref.DatasetName,
+			ref.Period.From.Format("02.01.2006"),
+			ref.Period.To.Format("02.01.2006"),
+			ref.RowCount)
+	}
+
+	// 5. Build delivery tasks with attachment
+	tasks := make([]DeliveryTask, 0, len(rule.Subscribers))
+	for _, sub := range rule.Subscribers {
+		tasks = append(tasks, DeliveryTask{
+			Rule:            &rule,
+			Subscriber:      sub,
+			RenderedPayload: renderedPayload,
+			EventType:       eventType,
+			Attachments:     []Attachment{attachment},
+		})
+	}
+
+	if len(tasks) == 0 {
+		logger.Warn(ctx, "scheduled report rule: no subscribers", "ruleId", rule.ID)
+		return nil
+	}
+
+	// 6. Deliver
+	e.Deliver(ctx, tasks)
+
+	return nil
+}
+
+// mustParseID parses a UUID string, panicking on error (only used with known-good IDs from fileRepo).
+func mustParseID(s string) id.ID {
+	parsed, err := id.Parse(s)
+	if err != nil {
+		panic(fmt.Sprintf("mustParseID: invalid ID %q: %v", s, err))
+	}
+	return parsed
 }
 
 // Evaluate is CPU-bound: fetch rules, check cooldowns, evaluate CEL, render templates.
@@ -491,7 +617,7 @@ func (e *Engine) deliverToChannelCached(ctx context.Context, task DeliveryTask, 
 		return fmt.Errorf("no adapter registered for account type %q", account.AccountType)
 	}
 
-	adapterErr := adapter.Deliver(ctx, channel.Destination, account.Config, creds, task.RenderedPayload)
+	adapterErr := adapter.Deliver(ctx, channel.Destination, account.Config, creds, task.RenderedPayload, task.Attachments)
 
 	// Update account last result
 	if adapterErr != nil {
@@ -534,7 +660,7 @@ func (e *Engine) deliverInternal(ctx context.Context, task DeliveryTask) error {
 	case automations.SubDocField:
 		// doc_field subscriber: target_users should be in the rendered payload JSON.
 		// Fall through to raw delivery.
-		return adapter.Deliver(ctx, nil, nil, nil, task.RenderedPayload)
+		return adapter.Deliver(ctx, nil, nil, nil, task.RenderedPayload, nil)
 	}
 
 	if len(targetUsers) == 0 {
@@ -557,7 +683,7 @@ func (e *Engine) deliverInternal(ctx context.Context, task DeliveryTask) error {
 		}
 		enriched, marshalErr := json.Marshal(existingPayload)
 		if marshalErr == nil {
-			return adapter.Deliver(ctx, nil, nil, nil, string(enriched))
+			return adapter.Deliver(ctx, nil, nil, nil, string(enriched), nil)
 		}
 	}
 
@@ -576,7 +702,7 @@ func (e *Engine) deliverInternal(ctx context.Context, task DeliveryTask) error {
 		return fmt.Errorf("marshal notification payload: %w", err)
 	}
 
-	return adapter.Deliver(ctx, nil, nil, nil, string(payloadBytes))
+	return adapter.Deliver(ctx, nil, nil, nil, string(payloadBytes), nil)
 }
 
 // handleChainReaction publishes a new event to the outbox for each chain_rule_id.

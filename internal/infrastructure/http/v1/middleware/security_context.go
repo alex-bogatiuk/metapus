@@ -20,11 +20,12 @@ import (
 //  2. If admin → DataScope{IsAdmin: true}, no FLS.
 //  3. Load SecurityProfile via ProfileProvider (cached).
 //  4. Build DataScope from profile dimensions (profile is sole source of org restrictions).
-//  5. Inject DataScope + FieldPolicies into context.
+//  5. Run DimensionResolvers to dynamically add dimensions (e.g., merchant).
+//  6. Inject DataScope + FieldPolicies into context.
 //
 // Fail-open: no profile assigned (nil, nil) → empty DataScope = no restrictions.
 // Fail-closed: error loading profile → restrictive DataScope with no allowed values.
-func SecurityContext(provider security_profile.ProfileProvider) gin.HandlerFunc {
+func SecurityContext(provider security_profile.ProfileProvider, resolvers ...security_profile.DimensionResolver) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := c.Request.Context()
 		user := appctx.GetUser(ctx)
@@ -74,6 +75,23 @@ func SecurityContext(provider security_profile.ProfileProvider) gin.HandlerFunc 
 		// profile != nil → build from profile dimensions
 		sc := security_profile.BuildSecurityContext(profile, false)
 
+		// Run dynamic dimension resolvers (e.g., merchant association)
+		for _, resolver := range resolvers {
+			ids, err := resolver.Resolve(ctx, userID)
+			if err != nil {
+				logger.Warn(ctx, "dimension resolver failed, skipping",
+					"dimension", resolver.DimensionName(),
+					"user_id", userID,
+					"error", err,
+				)
+				continue
+			}
+			if ids != nil {
+				// ids != nil means dimension applies → set in DataScope
+				sc.DataScope.SetDimension(resolver.DimensionName(), ids)
+			}
+		}
+
 		ctx = security.WithDataScope(ctx, sc.DataScope)
 		ctx = security.WithFieldPolicies(ctx, sc.FieldPolicies)
 		ctx = security.WithPolicyRules(ctx, sc.PolicyRules)
@@ -82,3 +100,4 @@ func SecurityContext(provider security_profile.ProfileProvider) gin.HandlerFunc 
 		c.Next()
 	}
 }
+

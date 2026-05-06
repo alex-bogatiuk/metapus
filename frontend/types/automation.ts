@@ -108,7 +108,7 @@ export interface SubscriberInput {
 // Synced with Go: internal/domain/automations/rule.go
 
 export type TriggerType = "entity_event" | "business_event" | "scheduled" | "incoming_webhook"
-export type ReactionType = "notify" | "webhook_call" | "chain" | "create_record"
+export type ReactionType = "notify" | "webhook_call" | "chain" | "create_record" | "generate_report"
 export type MessageFormat = "text" | "markdown" | "html"
 
 export interface AutomationRule {
@@ -133,6 +133,7 @@ export interface AutomationRule {
   errorCount: number
   lastExecutedAt: string | null
   subscribers: AutomationSubscriber[]
+  reportConfig: ReportActionConfig | null
   deletionMark: boolean
   version: number
   createdAt: string
@@ -157,10 +158,33 @@ export interface CreateRuleRequest {
   organizationId?: string | null
   isActive: boolean
   subscribers: SubscriberInput[]
+  reportConfig?: ReportActionConfig | null
 }
 
 export interface UpdateRuleRequest extends CreateRuleRequest {
   version: number
+}
+
+// ── Report Action Config ────────────────────────────────────────────────
+// Synced with Go: internal/domain/automations/report_config.go
+
+export type PeriodType =
+  | "today"
+  | "yesterday"
+  | "current_week"
+  | "last_week"
+  | "current_month"
+  | "last_month"
+  | "as_of_now"
+  | "custom_days"
+
+export interface ReportActionConfig {
+  datasetKey: string
+  variantId?: string | null
+  periodType: PeriodType
+  customDays?: number
+  timezone?: string
+  skipEmpty?: boolean
 }
 
 // ── Test Rule ───────────────────────────────────────────────────────────

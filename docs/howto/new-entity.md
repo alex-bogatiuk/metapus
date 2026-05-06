@@ -44,11 +44,17 @@ CREATE TRIGGER trg_cat_vehicles_soft_delete BEFORE UPDATE OF deletion_mark ON ca
 ```go
 type Vehicle struct {
     entity.Catalog
-    PlateNumber string `db:"plate_number" json:"plateNumber"`
+    PlateNumber  string `db:"plate_number"  json:"plateNumber"  meta:"label:Гос. номер"`
+    WarehouseID  *id.ID `db:"warehouse_id"  json:"warehouseId,omitempty" meta:"label:Гараж,ref:warehouse"`
 }
 
 func (Vehicle) TableName() string { return "cat_vehicles" }
 ```
+
+> [!IMPORTANT]
+> **Каждое поле** типа `id.ID` / `*id.ID`, ссылающееся на другую сущность, **обязано** иметь `ref:<refType>` в `meta`-теге.
+> Без него AutoForm отрисует UUID как текстовое поле вместо combobox-пикера.
+> Подробнее — в секции [Ссылочные поля](#ссылочные-поля-meta-ref-теги).
 
 ## Шаг 3: DTO и Validation
 
@@ -94,3 +100,79 @@ factoryReg.RegisterCatalog(&vehicle.Registration{})
 
 **Готово!**
 Фронтенд автоматически увидит `Vehicle` через эндпоинт метаданных и сгенерирует страницу списка, форму добавления и элементы бокового меню.
+
+---
+
+## Ссылочные поля (meta ref-теги)
+
+Каждое поле модели, ссылающееся на другую сущность (`id.ID` или `*id.ID` с FK), **обязано** содержать `ref:<refType>` в struct-теге `meta`. Это критически важно — без `ref:` тега:
+
+- **AutoForm** рендерит UUID как текстовый `<Input>` вместо `<ReferenceField>` (combobox с поиском)
+- **Списки** не резолвят имя связанной сущности (показывают UUID или пустое поле)
+- **FilterSidebar** не сможет предложить фильтр по ссылочному полю
+
+### Формат meta-тега
+
+```
+meta:"label:<Отображаемое имя>,ref:<referenceType>"
+```
+
+| Часть | Описание | Пример |
+|-------|----------|--------|
+| `label:` | Название поля в UI | `label:Поставщик` |
+| `ref:` | Ключ регистрации (`ReferenceTypes()`) | `ref:supplier` |
+
+### Как определить правильный `ref:<refType>`
+
+`refType` — это строка, возвращаемая методом `ReferenceTypes()` регистрации целевого справочника.
+Найдите в `internal/content/catalog_registrations.go`:
+
+```go
+func (r *CounterpartyRegistration) ReferenceTypes() []string { return []string{"supplier", "customer"} }
+func (r *WarehouseRegistration)    ReferenceTypes() []string { return []string{"warehouse"} }
+func (r *NomenclatureRegistration) ReferenceTypes() []string { return []string{"product"} }
+func (r *UnitRegistration)         ReferenceTypes() []string { return []string{"unit"} }
+func (r *CurrencyRegistration)     ReferenceTypes() []string { return []string{"currency"} }
+func (r *TokenRegistration)        ReferenceTypes() []string { return []string{"token"} }
+func (r *BlockchainNetworkRegistration) ReferenceTypes() []string { return []string{"blockchain_network"} }
+func (r *MerchantRegistration)     ReferenceTypes() []string { return []string{"merchant"} }
+func (r *WalletRegistration)       ReferenceTypes() []string { return []string{"wallet"} }
+```
+
+### Примеры
+
+```go
+// ✅ Правильно — ref: тег указан
+SupplierID  id.ID  `db:"supplier_id"  json:"supplierId"  meta:"label:Поставщик,ref:supplier"`
+WarehouseID id.ID  `db:"warehouse_id" json:"warehouseId" meta:"label:Склад,ref:warehouse"`
+ContractID  *id.ID `db:"contract_id"  json:"contractId,omitempty" meta:"label:Договор,ref:contract"`
+NetworkID   id.ID  `db:"network_id"   json:"networkId"   meta:"label:Сеть,ref:blockchain_network"`
+
+// ❌ Неправильно — AutoForm покажет UUID как текст
+SupplierID  id.ID  `db:"supplier_id"  json:"supplierId"  meta:"label:Поставщик"`
+NetworkID   id.ID  `db:"network_id"   json:"networkId"   meta:"label:Сеть"`
+```
+
+> [!CAUTION]
+> **Пропуск `ref:` — частая ошибка.** Данные в API и БД будут корректны, но UI будет показывать сырые UUID вместо человекочитаемых имён. Ошибка часто обнаруживается поздно — только при тестировании форм.
+
+### Как работает цепочка
+
+```
+Go: meta:"ref:warehouse"  →  Metadata API: {type: "reference", referenceType: "warehouse"}
+  →  Frontend AutoForm: resolveRefEndpoint("warehouse")
+    →  useMetadataStore.byKey["warehouse"] → routePrefix: "warehouses"
+      →  ReferenceField apiEndpoint="/catalog/warehouses"
+```
+
+---
+
+## Чеклист
+
+- [ ] Миграция: таблица `cat_*` с CDC-колонками и триггерами
+- [ ] Модель: `entity.Catalog` embed, **все FK-поля имеют `ref:` в `meta`-теге**
+- [ ] Validate: чистая функция без обращений к БД
+- [ ] Service / Repo: embed `BaseCatalogRepo[T]`, `CatalogService[T]`
+- [ ] Регистрация: `ReferenceTypes()` возвращает корректные ключи
+- [ ] Проверка: `go build ./... && golangci-lint run ./...`
+- [ ] Проверка: открыть форму в UI — ссылочные поля отображаются как combobox, не как текст

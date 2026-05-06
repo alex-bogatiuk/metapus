@@ -222,6 +222,31 @@ type SetDeletionMarkRequest struct {
 	Marked bool `json:"marked"`
 }
 
+// --- Reference Resolution Table Constants ---
+// Centralized table names for postgres.ReferenceResolver / ResolvedRefs.
+// Used by CollectXxxRefs and FromXxx functions across all entity DTOs.
+
+const (
+	// Core catalogs
+	TableOrganizations     = "cat_organizations"
+	TableCounterparties    = "cat_counterparties"
+	TableWarehouses        = "cat_warehouses"
+	TableNomenclature   = "cat_nomenclatures"
+	TableUnits             = "cat_units"
+	TableVATRates          = "cat_vat_rates"
+	TableCurrencies        = "cat_currencies"
+	TableContracts         = "cat_contracts"
+
+	// Crypto catalogs
+	TableMerchants         = "cat_merchants"
+	TableBlockchainNetworks = "cat_blockchain_networks"
+	TableTokens            = "cat_tokens"
+	TableWallets           = "cat_wallets"
+
+	// System
+	TableUsers             = "users"
+)
+
 // --- ID Conversion Helpers ---
 
 // idToStringPtr converts *id.ID to *string for JSON response.

@@ -29,6 +29,13 @@ import {
   FileText,
   Plus,
   BarChart3,
+  Bitcoin,
+  Coins,
+  Store,
+  Receipt,
+  CreditCard,
+  ArrowUpRight,
+  RefreshCw,
 } from "lucide-react"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import { buildEntityUrlByRoute } from "@/lib/entity-url"
@@ -66,11 +73,23 @@ const _staticItems: CommandNavItem[] = [
   { id: "nav:vat-rates",     label: "Ставки НДС",             url: "/catalogs/vat-rates",        icon: Package,         keywords: "ндс ставки vat rate",                             section: "navigate" },
   { id: "nav:contracts",     label: "Договоры",               url: "/catalogs/contracts",        icon: FileText,        keywords: "договоры contract",                               section: "navigate" },
 
+  // Crypto processing
+  { id: "nav:crypto-invoices",     label: "Крипто-инвойсы",        url: "/documents/crypto-invoice",      icon: Receipt,       keywords: "крипто инвойс invoice платёж payment",                section: "navigate" },
+  { id: "nav:crypto-payments",     label: "Крипто-платежи",        url: "/documents/crypto-payment",      icon: CreditCard,    keywords: "крипто платёж payment blockchain",                    section: "navigate" },
+  { id: "nav:crypto-withdrawals",  label: "Крипто-выводы",         url: "/documents/crypto-withdrawal",   icon: ArrowUpRight,  keywords: "крипто вывод withdrawal",                             section: "navigate" },
+  { id: "nav:crypto-sweeps",       label: "Крипто-свипы",          url: "/documents/crypto-sweep",        icon: RefreshCw,     keywords: "крипто свип sweep консолидация",                      section: "navigate" },
+  { id: "nav:blockchain-networks", label: "Блокчейн-сети",         url: "/catalogs/blockchain-networks", icon: Bitcoin,        keywords: "блокчейн сети blockchain network tron ethereum",      section: "navigate" },
+  { id: "nav:tokens",              label: "Токены",                url: "/catalogs/tokens",              icon: Coins,         keywords: "токены token usdt usdc crypto",                       section: "navigate" },
+  { id: "nav:merchants",           label: "Мерчанты",              url: "/catalogs/merchants",           icon: Store,         keywords: "мерчанты merchant магазин",                           section: "navigate" },
+  { id: "nav:wallets",             label: "Кошельки",              url: "/catalogs/wallets",             icon: Wallet,        keywords: "кошельки wallet адрес address",                       section: "navigate" },
+
   // Create (quick actions)
   { id: "create:goods-receipt",  label: "Создать поступление",    url: "/documents/goods-receipts/new", icon: Plus,  keywords: "создать новый поступление receipt",   section: "create" },
   { id: "create:goods-issue",    label: "Создать реализацию",     url: "/documents/goods-issues/new",   icon: Plus,  keywords: "создать новый реализация issue sale",  section: "create" },
   { id: "create:counterparty",   label: "Создать контрагента",    url: "/catalogs/counterparties/new",  icon: Plus,  keywords: "создать новый контрагент",              section: "create" },
   { id: "create:nomenclature",   label: "Создать номенклатуру",   url: "/catalogs/nomenclatures/new",   icon: Plus,  keywords: "создать новый номенклатура товар",      section: "create" },
+  { id: "create:crypto-invoice",  label: "Создать крипто-инвойс", url: "/documents/crypto-invoice/new", icon: Plus,  keywords: "создать новый крипто инвойс invoice",   section: "create" },
+  { id: "create:crypto-withdrawal", label: "Создать крипто-вывод", url: "/documents/crypto-withdrawal/new", icon: Plus, keywords: "создать новый крипто вывод withdrawal", section: "create" },
 
   // Reports
   { id: "report:stock-balance",  label: "Остатки товаров",       url: "/reports/stock-balance",    icon: BarChart3, keywords: "остатки товаров отчёт баланс stock balance report",    section: "report" },

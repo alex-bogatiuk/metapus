@@ -10,7 +10,7 @@
  * Field type → Component mapping:
  *   string     → <Input />
  *   boolean    → <Switch />
- *   reference  → <Input /> (ID input for now, ReferenceSelect in future)
+ *   reference  → <ReferenceField /> (combobox with search)
  *   date       → <Input type="date" />
  *   money      → <Input type="number" />
  *   integer    → <Input type="number" />
@@ -22,13 +22,17 @@ import { useRouter } from "next/navigation"
 import { api, apiFetch, ApiError } from "@/lib/api"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { FormToolbar } from "@/components/shared/form-toolbar"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { ReferenceField } from "@/components/shared/reference-field"
+import { useMetadataStore } from "@/stores/useMetadataStore"
 import { Save, ArrowLeft } from "lucide-react"
 import { FormSkeleton } from "@/components/shared/form-skeleton"
 import { toast } from "sonner"
+import { useTabTitle } from "@/hooks/useTabTitle"
 
 interface FieldDef {
     name: string
@@ -38,6 +42,7 @@ interface FieldDef {
     readOnly?: boolean
     referenceType?: string
     scale?: number
+    enumValues?: { value: string; label: string }[]
 }
 
 interface TablePartDef {
@@ -76,6 +81,17 @@ const HIDDEN_FIELDS = new Set([
     "posted", "postedVersion", "txid", "deletedAt",
     "basisType", "basisId",
 ])
+
+/**
+ * Resolve a referenceType to an API endpoint path.
+ * Uses metadata store (byKey) to find entity type + routePrefix.
+ */
+function resolveRefEndpoint(referenceType: string): string | null {
+    const entity = useMetadataStore.getState().byKey[referenceType]
+    if (!entity?.routePrefix) return null
+    const prefix = entity.type === "document" ? "/document" : "/catalog"
+    return `${prefix}/${entity.routePrefix}`
+}
 
 function fieldToInput(
     field: FieldDef,
@@ -121,7 +137,54 @@ function fieldToInput(
                     autoFocus={isFirstEditable}
                 />
             )
+        case "reference": {
+            if (field.referenceType && field.referenceType !== "parent") {
+                const endpoint = resolveRefEndpoint(field.referenceType)
+                if (endpoint) {
+                    return (
+                        <ReferenceField
+                            value={typeof v === "string" ? v : ""}
+                            onChange={(id) => handleChange(id)}
+                            apiEndpoint={endpoint}
+                            placeholder="Выберите…"
+                            disabled={disabled || field.readOnly}
+                        />
+                    )
+                }
+            }
+            // Fallback: unresolvable ref or parent — show text input
+            return (
+                <Input
+                    type="text"
+                    value={String(v)}
+                    onChange={(e) => handleChange(e.target.value)}
+                    disabled={disabled || field.readOnly}
+                    autoFocus={isFirstEditable}
+                />
+            )
+        }
         default:
+            // Enum fields: render as dropdown when enumValues are available
+            if (field.enumValues && field.enumValues.length > 0) {
+                return (
+                    <Select
+                        value={String(v)}
+                        onValueChange={handleChange}
+                        disabled={disabled || field.readOnly}
+                    >
+                        <SelectTrigger>
+                            <SelectValue placeholder="Выберите…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {field.enumValues.map((ev) => (
+                                <SelectItem key={ev.value} value={ev.value}>
+                                    {ev.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                )
+            }
             return (
                 <Input
                     type="text"
@@ -142,6 +205,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix }: Au
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const isNew = !id || id === "new"
+    const getLabel = useMetadataStore((s) => s.getLabel)
 
     const basePath = entityType === "catalog" ? `/catalog/${routePrefix}` : `/document/${routePrefix}`
 
@@ -172,6 +236,11 @@ export default function AutoForm({ entityName, id, entityType, routePrefix }: Au
         load()
         return () => { cancelled = true }
     }, [entityName, id, isNew, basePath])
+
+    // Update tab title when entity data loads (e.g. "CP-001 (Крипто-платежи)")
+    const entityLabel = getLabel(entityName, "singular")
+    const displayNumber = isNew ? undefined : (formData.number as string | undefined) || (formData.name as string | undefined)
+    useTabTitle(displayNumber, entityLabel)
 
     const handleFieldChange = useCallback((name: string, value: unknown) => {
         setFormData((prev) => ({ ...prev, [name]: value }))

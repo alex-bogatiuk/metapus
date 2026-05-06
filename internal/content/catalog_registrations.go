@@ -11,13 +11,17 @@ import (
 
 	"metapus/internal/core/tenant"
 	"metapus/internal/domain"
+	"metapus/internal/domain/catalogs/blockchain_network"
 	"metapus/internal/domain/catalogs/contract"
 	"metapus/internal/domain/catalogs/counterparty"
 	"metapus/internal/domain/catalogs/currency"
+	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/catalogs/nomenclature"
 	"metapus/internal/domain/catalogs/organization"
+	"metapus/internal/domain/catalogs/token"
 	"metapus/internal/domain/catalogs/unit"
 	"metapus/internal/domain/catalogs/vat_rate"
+	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/domain/catalogs/warehouse"
 	v1 "metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/http/v1/dto"
@@ -98,6 +102,29 @@ func init() {
 		{Value: "fifo", Label: "ФИФО"},
 		{Value: "average", Label: "Средняя"},
 		{Value: "specific", Label: "По партиям"},
+	})
+
+	// Merchant KYB Status
+	metadata.RegisterEnum[merchant.KYBStatus]([]metadata.EnumValue{
+		{Value: "pending", Label: "Ожидает верификации"},
+		{Value: "approved", Label: "Верифицирован"},
+		{Value: "rejected", Label: "Отклонён"},
+	})
+
+	// Wallet Tier
+	metadata.RegisterEnum[wallet.WalletTier]([]metadata.EnumValue{
+		{Value: "pool", Label: "Pool"},
+		{Value: "hot", Label: "Hot"},
+		{Value: "warm", Label: "Warm"},
+		{Value: "cold", Label: "Cold"},
+	})
+
+	// Wallet Status
+	metadata.RegisterEnum[wallet.WalletStatus]([]metadata.EnumValue{
+		{Value: "free", Label: "Свободен"},
+		{Value: "leased", Label: "Арендован"},
+		{Value: "sweep_pending", Label: "Ожидает sweep"},
+		{Value: "frozen", Label: "Заморожен"},
 	})
 }
 
@@ -506,4 +533,190 @@ func resolveUnitRefs(ctx context.Context, entities ...*unit.Unit) (any, error) {
 
 func resolveContractRefs(ctx context.Context, entities ...*contract.Contract) (any, error) {
 	return resolveCatalogRefs(ctx, dto.CollectContractRefs, entities...)
+}
+
+// ---------------------------------------------------------------------------
+// BlockchainNetwork
+// ---------------------------------------------------------------------------
+
+type BlockchainNetworkRegistration struct{}
+
+func (r *BlockchainNetworkRegistration) RoutePrefix() string      { return "blockchain-networks" }
+func (r *BlockchainNetworkRegistration) Permission() string       { return "catalog:blockchain_network" }
+func (r *BlockchainNetworkRegistration) ReferenceTypes() []string { return []string{"blockchain_network"} }
+func (r *BlockchainNetworkRegistration) EntityName() string       { return "BlockchainNetwork" }
+func (r *BlockchainNetworkRegistration) EntityLabel() string      { return "Блокчейн-сети" }
+func (r *BlockchainNetworkRegistration) EntityPresentation() metadata.Presentation {
+	return metadata.Presentation{
+		Singular: "Блокчейн-сеть",
+		Plural:   "Блокчейн-сети",
+		NewLabel: "Новая блокчейн-сеть",
+		Genitive: "блокчейн-сети",
+	}
+}
+func (r *BlockchainNetworkRegistration) EntityStruct() interface{} {
+	return blockchain_network.BlockchainNetwork{}
+}
+
+func (r *BlockchainNetworkRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
+	repo := catalog_repo.NewBlockchainNetworkRepo()
+	service := blockchain_network.NewService(repo, deps.Numerator)
+	service.SetPolicyEngine(deps.PolicyEngine)
+	domain.NewEventLogCatalogService(service.CatalogService, "blockchain_network", deps.EventWriter)
+	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
+		*blockchain_network.BlockchainNetwork,
+		dto.CreateBlockchainNetworkRequest,
+		dto.UpdateBlockchainNetworkRequest,
+	]{
+		Service:    service.CatalogService,
+		EntityName: "blockchain_network",
+		MapCreateDTO: func(req dto.CreateBlockchainNetworkRequest) *blockchain_network.BlockchainNetwork {
+			return req.ToEntity()
+		},
+		MapUpdateDTO: func(req dto.UpdateBlockchainNetworkRequest, existing *blockchain_network.BlockchainNetwork) *blockchain_network.BlockchainNetwork {
+			req.ApplyTo(existing); return existing
+		},
+		MapToDTO: func(entity *blockchain_network.BlockchainNetwork) any {
+			return dto.FromBlockchainNetwork(entity)
+		},
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Token
+// ---------------------------------------------------------------------------
+
+type TokenRegistration struct{}
+
+func (r *TokenRegistration) RoutePrefix() string      { return "tokens" }
+func (r *TokenRegistration) Permission() string       { return "catalog:token" }
+func (r *TokenRegistration) ReferenceTypes() []string { return []string{"token"} }
+func (r *TokenRegistration) EntityName() string       { return "Token" }
+func (r *TokenRegistration) EntityLabel() string      { return "Токены" }
+func (r *TokenRegistration) EntityPresentation() metadata.Presentation {
+	return metadata.Presentation{
+		Singular: "Токен",
+		Plural:   "Токены",
+		NewLabel: "Новый токен",
+		Genitive: "токена",
+	}
+}
+func (r *TokenRegistration) EntityStruct() interface{} { return token.Token{} }
+
+func (r *TokenRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
+	repo := catalog_repo.NewTokenRepo()
+	service := token.NewService(repo, deps.Numerator)
+	service.SetPolicyEngine(deps.PolicyEngine)
+	domain.NewEventLogCatalogService(service.CatalogService, "token", deps.EventWriter)
+	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
+		*token.Token,
+		dto.CreateTokenRequest,
+		dto.UpdateTokenRequest,
+	]{
+		Service:    service.CatalogService,
+		EntityName: "token",
+		MapCreateDTO: func(req dto.CreateTokenRequest) *token.Token { return req.ToEntity() },
+		MapUpdateDTO: func(req dto.UpdateTokenRequest, existing *token.Token) *token.Token {
+			req.ApplyTo(existing); return existing
+		},
+		MapToDTO: func(entity *token.Token) any { return dto.FromToken(entity) },
+		ResolveRefs: resolveTokenRefs,
+		MapToDTOWithRefs: func(entity *token.Token, refs any) any {
+			return dto.FromToken(entity, refs.(postgres.ResolvedRefs))
+		},
+	})
+}
+
+func resolveTokenRefs(ctx context.Context, entities ...*token.Token) (any, error) {
+	return resolveCatalogRefs(ctx, dto.CollectTokenRefs, entities...)
+}
+
+// ---------------------------------------------------------------------------
+// Merchant
+// ---------------------------------------------------------------------------
+
+type MerchantRegistration struct{}
+
+func (r *MerchantRegistration) RoutePrefix() string      { return "merchants" }
+func (r *MerchantRegistration) Permission() string       { return "catalog:merchant" }
+func (r *MerchantRegistration) ReferenceTypes() []string { return []string{"merchant"} }
+func (r *MerchantRegistration) EntityName() string       { return "Merchant" }
+func (r *MerchantRegistration) EntityLabel() string      { return "Мерчанты" }
+func (r *MerchantRegistration) EntityPresentation() metadata.Presentation {
+	return metadata.Presentation{
+		Singular: "Мерчант",
+		Plural:   "Мерчанты",
+		NewLabel: "Новый мерчант",
+		Genitive: "мерчанта",
+	}
+}
+func (r *MerchantRegistration) EntityStruct() interface{} { return merchant.Merchant{} }
+
+func (r *MerchantRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
+	repo := catalog_repo.NewMerchantRepo()
+	service := merchant.NewService(repo, deps.Numerator)
+	service.SetPolicyEngine(deps.PolicyEngine)
+	domain.NewEventLogCatalogService(service.CatalogService, "merchant", deps.EventWriter)
+	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
+		*merchant.Merchant,
+		dto.CreateMerchantRequest,
+		dto.UpdateMerchantRequest,
+	]{
+		Service:    service.CatalogService,
+		EntityName: "merchant",
+		MapCreateDTO: func(req dto.CreateMerchantRequest) *merchant.Merchant { return req.ToEntity() },
+		MapUpdateDTO: func(req dto.UpdateMerchantRequest, existing *merchant.Merchant) *merchant.Merchant {
+			req.ApplyTo(existing); return existing
+		},
+		MapToDTO: func(entity *merchant.Merchant) any { return dto.FromMerchant(entity) },
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Wallet
+// ---------------------------------------------------------------------------
+
+type WalletRegistration struct{}
+
+func (r *WalletRegistration) RoutePrefix() string      { return "wallets" }
+func (r *WalletRegistration) Permission() string       { return "catalog:wallet" }
+func (r *WalletRegistration) ReferenceTypes() []string { return []string{"wallet"} }
+func (r *WalletRegistration) EntityName() string       { return "Wallet" }
+func (r *WalletRegistration) EntityLabel() string      { return "Кошельки" }
+func (r *WalletRegistration) EntityPresentation() metadata.Presentation {
+	return metadata.Presentation{
+		Singular: "Кошелёк",
+		Plural:   "Кошельки",
+		NewLabel: "Новый кошелёк",
+		Genitive: "кошелька",
+	}
+}
+func (r *WalletRegistration) EntityStruct() interface{} { return wallet.Wallet{} }
+
+func (r *WalletRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
+	repo := catalog_repo.NewWalletRepo()
+	service := wallet.NewService(repo, deps.Numerator)
+	service.SetPolicyEngine(deps.PolicyEngine)
+	domain.NewEventLogCatalogService(service.CatalogService, "wallet", deps.EventWriter)
+	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
+		*wallet.Wallet,
+		dto.CreateWalletRequest,
+		dto.UpdateWalletRequest,
+	]{
+		Service:    service.CatalogService,
+		EntityName: "wallet",
+		MapCreateDTO: func(req dto.CreateWalletRequest) *wallet.Wallet { return req.ToEntity() },
+		MapUpdateDTO: func(req dto.UpdateWalletRequest, existing *wallet.Wallet) *wallet.Wallet {
+			req.ApplyTo(existing); return existing
+		},
+		MapToDTO: func(entity *wallet.Wallet) any { return dto.FromWallet(entity) },
+		ResolveRefs: resolveWalletRefs,
+		MapToDTOWithRefs: func(entity *wallet.Wallet, refs any) any {
+			return dto.FromWallet(entity, refs.(postgres.ResolvedRefs))
+		},
+	})
+}
+
+func resolveWalletRefs(ctx context.Context, entities ...*wallet.Wallet) (any, error) {
+	return resolveCatalogRefs(ctx, dto.CollectWalletRefs, entities...)
 }

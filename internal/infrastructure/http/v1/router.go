@@ -207,14 +207,14 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		registerCatalogRoutes(protected, cfg, factoryReg, reg, eventLogRepo, currencyInvalidator)
 		registerDocumentRoutes(protected, cfg, factoryReg, reg, eventLogRepo)
 		registerRegisterRoutes(protected, cfg, factoryReg)
-		registerReportRoutes(protected, cfg, factoryReg, reg)
+		reportCompiler := registerReportRoutes(protected, cfg, factoryReg, reg)
 		registerMetaRoutes(protected, reg, cfg.SchemaCache)
 		registerRefResolverRoutes(protected, reg)
 		registerUserPrefsRoutes(protected)
 		registerListViewRoutes(protected)
 		registerSettingsRoutes(protected)
 		registerSecurityRoutes(protected, cfg)
-		registerSystemRoutes(protected, eventLogRepo, cfg.SchemaCache, reg, cfg.WSTicketStore)
+		registerSystemRoutes(protected, eventLogRepo, cfg.SchemaCache, reg, cfg.WSTicketStore, reportCompiler)
 
 		// Global data search (Ctrl+K) — available to all authenticated users.
 		// Must be registered after entity routes so metadata.Registry is populated.
@@ -475,12 +475,12 @@ func registerMetaRoutes(rg *gin.RouterGroup, reg *metadata.Registry, schemaCache
 
 // registerReportRoutes registers report endpoints via the factory registry.
 // All reports use the Dataset-based Query Engine.
-func registerReportRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *FactoryRegistry, reg *metadata.Registry) {
+func registerReportRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *FactoryRegistry, reg *metadata.Registry) *compiler.Compiler {
 	reportsGroup := rg.Group("/reports")
 
 	datasets := factoryReg.Datasets()
 	if len(datasets) == 0 {
-		return
+		return nil
 	}
 
 	baseHandler := handlers.NewBaseHandler()
@@ -513,6 +513,8 @@ func registerReportRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *Fac
 	for _, ds := range datasets {
 		metaGroup.GET("/"+ds.Key, dsHandler.HandleMeta(ds.Key))
 	}
+
+	return comp
 }
 
 // registerRefResolverRoutes registers the batch typed reference resolution endpoint.
@@ -574,7 +576,7 @@ func registerSecurityRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 }
 
 // registerSystemRoutes registers system administration endpoints (event log, custom fields, processing).
-func registerSystemRoutes(rg *gin.RouterGroup, eventLogReader eventlog.Reader, schemaCache *cache.SchemaCache, reg *metadata.Registry, wsTicketStore *auth.WSTicketStore) {
+func registerSystemRoutes(rg *gin.RouterGroup, eventLogReader eventlog.Reader, schemaCache *cache.SchemaCache, reg *metadata.Registry, wsTicketStore *auth.WSTicketStore, reportCompiler *compiler.Compiler) {
 	sysGroup := rg.Group("/system")
 	sysGroup.Use(middleware.RequireRole("admin"))
 
@@ -645,7 +647,7 @@ func registerSystemRoutes(rg *gin.RouterGroup, eventLogReader eventlog.Reader, s
 	automationHistoryHandler.RegisterRoutes(sysGroup)
 
 	// Admin Automations: Meta (enum values for UI)
-	automationMetaHandler := handlers.NewAutomationMetaHandler(handlers.NewBaseHandler())
+	automationMetaHandler := handlers.NewAutomationMetaHandler(handlers.NewBaseHandler(), reportCompiler)
 	automationMetaHandler.RegisterRoutes(sysGroup)
 }
 

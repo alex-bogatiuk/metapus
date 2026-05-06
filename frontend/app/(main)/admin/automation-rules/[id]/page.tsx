@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Play, ChevronDown, Clock, FileText, Activity, Info, AlertTriangle, AlertCircle, CheckCircle2 } from "lucide-react"
+import { Play, ChevronDown, Clock, FileText, Activity, Info, AlertTriangle, AlertCircle, CheckCircle2, BarChart3 } from "lucide-react"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
@@ -28,9 +28,11 @@ import { useState, useEffect, useMemo } from "react"
 import { toast } from "sonner"
 import {
   INITIAL_RULE_STATE, ENTITY_EVENT_ACTIONS, TRIGGER_TYPE_OPTIONS, SEVERITY_OPTIONS,
+  PERIOD_TYPE_OPTIONS,
   mapRuleToUpdate, mapRuleFromResponse, validateRule,
   type RuleFormState, type SubscriberFormEntry,
 } from "@/lib/automation-rule-form"
+import type { PeriodType } from "@/types/automation"
 
 const TRIGGER_ICONS: Record<string, typeof Clock> = {
   entity_event: FileText,
@@ -49,8 +51,14 @@ export default function EditAutomationRulePage() {
     api.automation.channels.list().then(setChannels).catch(console.error)
   }, [])
 
+  // Load datasets for generate_report reaction
+  const [datasets, setDatasets] = useState<{ key: string; name: string }[]>([])
+  useEffect(() => {
+    api.automation.meta.datasets().then(setDatasets).catch(console.error)
+  }, [])
+
   const { f, update, handleChange, handleSave, saving, error, loading, deletionMark, entityLabel } = useCatalogForm<RuleFormState, unknown, unknown, UpdateRuleRequest>({
-    entityName: "╨Я╤А╨░╨▓╨╕╨╗╨╛ ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╨╖╨░╤Ж╨╕╨╕",
+    entityName: "Правило автоматизации",
     initialState: INITIAL_RULE_STATE,
     api: {
       get: api.automation.rules.get,
@@ -66,7 +74,7 @@ export default function EditAutomationRulePage() {
 
   const { handleEditorMount } = useCelCompletions(f.targetEntities)
 
-  // тФАтФА Test тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА
+  // ── Test ────────────────────────────────────────────────────────────────
   const [isTesting, setIsTesting] = useState(false)
 
   const handleTest = async () => {
@@ -77,7 +85,7 @@ export default function EditAutomationRulePage() {
         entityType: f.triggerType === "scheduled" ? "automation" : "document",
         doc: f.triggerType === "scheduled"
           ? { ruleName: f.name, ruleId: f.id || "test" }
-          : { id: "test-doc-123", number: "╨Я╨в-000042", totalAmount: 150000, docTotal: 150000 },
+          : { id: "test-doc-123", number: "ПТ-000042", totalAmount: 150000, docTotal: 150000 },
       }
       const res = await api.automation.rules.test({
         conditionCel: f.conditionCel || undefined,
@@ -86,11 +94,11 @@ export default function EditAutomationRulePage() {
       })
 
       if (f.triggerType !== "scheduled" && !res.conditionMatched) {
-        toast.error(`╨г╤Б╨╗╨╛╨▓╨╕╨╡ ╨╜╨╡ ╨▓╤Л╨┐╨╛╨╗╨╜╨╡╨╜╨╛. ${res.conditionError || "╨а╨╡╨╖╤Г╨╗╤М╤В╨░╤В: false"}`)
+        toast.error(`Условие не выполнено. ${res.conditionError || "Результат: false"}`)
       } else if (res.renderError) {
-        toast.error(`╨Ю╤И╨╕╨▒╨║╨░ ╤И╨░╨▒╨╗╨╛╨╜╨░: ${res.renderError}`)
+        toast.error(`Ошибка шаблона: ${res.renderError}`)
       } else {
-        toast.success("╨и╨░╨▒╨╗╨╛╨╜ ╨╛╤В╤А╨╡╨╜╨┤╨╡╤А╨╡╨╜", {
+        toast.success("Шаблон отрендерен", {
           description: (
             <pre className="text-[10px] mt-2 bg-black text-white p-2 rounded-md overflow-x-auto max-h-[200px]">
               {res.renderedPayload}
@@ -100,14 +108,14 @@ export default function EditAutomationRulePage() {
         })
       }
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "╨Ю╤И╨╕╨▒╨║╨░"
-      toast.error("╨Ю╤И╨╕╨▒╨║╨░ ╤В╨╡╤Б╤В╨╕╤А╨╛╨▓╨░╨╜╨╕╤П: " + msg)
+      const msg = e instanceof Error ? e.message : "Ошибка"
+      toast.error("Ошибка тестирования: " + msg)
     } finally {
       setIsTesting(false)
     }
   }
 
-  // тФАтФА Trigger-specific handlers тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА
+  // ── Trigger-specific handlers ──────────────────────────────────────────
 
   const handleTriggerTypeChange = (value: string) => {
     const tt = value as RuleFormState["triggerType"]
@@ -156,28 +164,28 @@ export default function EditAutomationRulePage() {
   }
 
   if (loading) {
-    return <div className="p-4 text-sm text-muted-foreground">╨Ч╨░╨│╤А╤Г╨╖╨║╨░...</div>
+    return <div className="p-4 text-sm text-muted-foreground">Загрузка...</div>
   }
 
   return (
     <div className="flex h-full flex-col">
       <FormToolbar
-        title={f.name || "╨Э╨╛╨▓╨╛╨╡"}
-        status={deletionMark ? { label: "╨г╨┤╨░╨╗╤С╨╜", variant: "destructive" } : undefined}
+        title={f.name || "Новое"}
+        status={deletionMark ? { label: "Удалён", variant: "destructive" } : undefined}
         primaryAction={{
-          label: saving ? "╨б╨╛╤Е╤А╨░╨╜╨╡╨╜╨╕╨╡тАж" : "╨Ч╨░╨┐╨╕╤Б╨░╤В╤М ╨╕ ╨╖╨░╨║╤А╤Л╤В╤М",
+          label: saving ? "Сохранение…" : "Записать и закрыть",
           variant: "default",
           onClick: () => handleSave(true),
         }}
         secondaryActions={[
-          { label: "╨Ч╨░╨┐╨╕╤Б╨░╤В╤М", onClick: () => handleSave(false) },
+          { label: "Записать", onClick: () => handleSave(false) },
         ]}
         backHref="/admin/automation-rules"
         onClose={() => router.push("/admin/automation-rules")}
       >
         <Button variant="outline" size="sm" onClick={handleTest} disabled={isTesting}>
           <Play className="h-4 w-4 mr-2" />
-          {isTesting ? "╨в╨╡╤Б╤ВтАж" : "╨в╨╡╤Б╤В ╤И╨░╨▒╨╗╨╛╨╜╨░"}
+          {isTesting ? "Тест…" : "Тест шаблона"}
         </Button>
       </FormToolbar>
 
@@ -187,10 +195,10 @@ export default function EditAutomationRulePage() {
 
       <ScrollArea className="flex-1">
         <div className="p-6 max-w-5xl space-y-6">
-          {/* тФАтФА Header: Name + Active тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА */}
+          {/* ── Header: Name + Active ────────────────────────────────── */}
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1">
-              <Label className="text-xs text-muted-foreground">╨Э╨░╨╕╨╝╨╡╨╜╨╛╨▓╨░╨╜╨╕╨╡ *</Label>
+              <Label className="text-xs text-muted-foreground">Наименование *</Label>
               <Input
                 className="mt-1"
                 value={f.name}
@@ -199,20 +207,20 @@ export default function EditAutomationRulePage() {
             </div>
             <div className="flex items-center space-x-2 pt-4">
               <Switch checked={f.isActive} onCheckedChange={(v) => { update({ isActive: v }); handleChange() }} />
-              <Label className="text-sm">╨Р╨║╤В╨╕╨▓╨╜╨╛</Label>
+              <Label className="text-sm">Активно</Label>
             </div>
           </div>
 
-          {/* тФАтФА Trigger Section тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА */}
+          {/* ── Trigger Section ──────────────────────────────────────── */}
           <div className="space-y-4 rounded-lg border p-4">
             <div className="flex items-center gap-2">
               {(() => { const TIcon = TRIGGER_ICONS[f.triggerType] ?? FileText; return <TIcon className="h-4 w-4 text-muted-foreground" /> })()}
-              <Label className="text-sm font-semibold">╨в╤А╨╕╨│╨│╨╡╤А</Label>
+              <Label className="text-sm font-semibold">Триггер</Label>
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <Label className="text-xs text-muted-foreground">╨в╨╕╨┐ ╤В╤А╨╕╨│╨│╨╡╤А╨░ *</Label>
+                <Label className="text-xs text-muted-foreground">Тип триггера *</Label>
                 <Select value={f.triggerType} onValueChange={handleTriggerTypeChange}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -227,9 +235,9 @@ export default function EditAutomationRulePage() {
 
               {f.triggerType === "entity_event" && (
                 <div>
-                  <Label className="text-xs text-muted-foreground">╨б╨╛╨▒╤Л╤В╨╕╨╡ *</Label>
+                  <Label className="text-xs text-muted-foreground">Событие *</Label>
                   <Select value={f.eventType} onValueChange={(v) => { update({ eventType: v }); handleChange() }}>
-                    <SelectTrigger className="mt-1"><SelectValue placeholder="╨Т╤Л╨▒╨╡╤А╨╕╤В╨╡ ╤Б╨╛╨▒╤Л╤В╨╕╨╡" /></SelectTrigger>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Выберите событие" /></SelectTrigger>
                     <SelectContent>
                       {ENTITY_EVENT_ACTIONS.map((a) => (
                         <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
@@ -241,7 +249,7 @@ export default function EditAutomationRulePage() {
 
               {f.triggerType === "business_event" && (
                 <div>
-                  <Label className="text-xs text-muted-foreground">╨в╨╕╨┐ ╤Б╨╛╨▒╤Л╤В╨╕╤П *</Label>
+                  <Label className="text-xs text-muted-foreground">Тип события *</Label>
                   <Input
                     className="mt-1"
                     placeholder="business.currency_rates_loaded"
@@ -253,7 +261,7 @@ export default function EditAutomationRulePage() {
 
               {f.triggerType === "scheduled" && (
                 <div>
-                  <Label className="text-xs text-muted-foreground">╨а╨░╤Б╨┐╨╕╤Б╨░╨╜╨╕╨╡ *</Label>
+                  <Label className="text-xs text-muted-foreground">Расписание *</Label>
                   <ScheduleButton
                     value={f.cronExpression}
                     onChange={handleCronChange}
@@ -263,17 +271,17 @@ export default function EditAutomationRulePage() {
               )}
             </div>
 
-            {/* Entity multi-select тАФ for entity_event */}
+            {/* Entity multi-select — for entity_event */}
             {f.triggerType === "entity_event" && (
               <div className="mt-3">
-                <Label className="text-xs text-muted-foreground">╨б╤Г╤Й╨╜╨╛╤Б╤В╨╕</Label>
+                <Label className="text-xs text-muted-foreground">Сущности</Label>
                 <div className="mt-2 space-y-2 rounded-md border p-3">
                   <label className="flex items-center gap-2 text-sm cursor-pointer">
                     <Checkbox
                       checked={f.targetEntities.length === 0}
                       onCheckedChange={() => handleWildcardToggle()}
                     />
-                    <span className="text-muted-foreground">╨Ы╤О╨▒╨░╤П ╤Б╤Г╤Й╨╜╨╛╤Б╤В╤М</span>
+                    <span className="text-muted-foreground">Любая сущность</span>
                   </label>
                   {documentEntities.map(ent => (
                     <label key={ent.key} className="flex items-center gap-2 text-sm cursor-pointer">
@@ -289,26 +297,32 @@ export default function EditAutomationRulePage() {
             )}
           </div>
 
-          {/* тФАтФА Reaction + Subscribers тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА */}
+          {/* ── Reaction + Subscribers ────────────────────────────────── */}
           <div className="space-y-4 rounded-lg border p-4">
-            <Label className="text-sm font-semibold">╨Ф╨╡╨╣╤Б╤В╨▓╨╕╨╡</Label>
+            <Label className="text-sm font-semibold">Действие</Label>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
-                <Label className="text-xs text-muted-foreground">╨в╨╕╨┐ ╨┤╨╡╨╣╤Б╤В╨▓╨╕╤П *</Label>
+                <Label className="text-xs text-muted-foreground">Тип действия *</Label>
                 <Select value={f.reactionType} onValueChange={(v) => { update({ reactionType: v as RuleFormState["reactionType"] }); handleChange() }}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="notify" description="UI ╤Г╨▓╨╡╨┤╨╛╨╝╨╗╨╡╨╜╨╕╤П + ╨▓╨╜╨╡╤И╨╜╨╕╨╡ ╨║╨░╨╜╨░╨╗╤Л">╨г╨▓╨╡╨┤╨╛╨╝╨╗╨╡╨╜╨╕╨╡</SelectItem>
+                    <SelectItem value="notify" description="UI уведомления + внешние каналы">Уведомление</SelectItem>
                     <SelectItem value="webhook_call" description="HTTP POST/PUT/GET">Webhook API</SelectItem>
+                    <SelectItem value="generate_report" description="XLSX отчёт → Email/Telegram">
+                      <span className="flex items-center gap-1.5">
+                        <BarChart3 className="h-3.5 w-3.5" />
+                        Сформировать отчёт
+                      </span>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Severity selector тАФ shown for notify reaction type */}
+              {/* Severity selector — shown for notify reaction type */}
               {f.reactionType === "notify" && (
                 <div>
-                  <Label className="text-xs text-muted-foreground">╨Т╨░╨╢╨╜╨╛╤Б╤В╤М</Label>
+                  <Label className="text-xs text-muted-foreground">Важность</Label>
                   <Select value={f.notifSeverity || "info"} onValueChange={(v) => { update({ notifSeverity: v }); handleChange() }}>
                     <SelectTrigger className="mt-1">
                       <SelectValue />
@@ -340,12 +354,82 @@ export default function EditAutomationRulePage() {
               reactionType={f.reactionType}
               onChange={handleSubscribersChange}
             />
+
+            {/* Report Config — shown for generate_report reaction */}
+            {f.reactionType === "generate_report" && (
+              <div className="mt-4 space-y-4 rounded-md border border-dashed border-primary/30 bg-primary/5 p-4">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-primary" />
+                  <Label className="text-sm font-semibold text-primary">Настройка отчёта</Label>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {/* Dataset selector */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Набор данных *</Label>
+                    <Select value={f.reportDatasetKey} onValueChange={(v) => { update({ reportDatasetKey: v }); handleChange() }}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Выберите отчёт" /></SelectTrigger>
+                      <SelectContent>
+                        {datasets.map(ds => (
+                          <SelectItem key={ds.key} value={ds.key}>{ds.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Period type */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Период *</Label>
+                    <Select value={f.reportPeriodType} onValueChange={(v) => { update({ reportPeriodType: v as PeriodType }); handleChange() }}>
+                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {PERIOD_TYPE_OPTIONS.map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Custom days — shown only for custom_days period */}
+                  {f.reportPeriodType === "custom_days" && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Количество дней *</Label>
+                      <Input
+                        type="number"
+                        className="mt-1"
+                        min={1}
+                        value={f.reportCustomDays}
+                        onChange={(e) => { update({ reportCustomDays: Number(e.target.value) }); handleChange() }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Timezone override */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Часовой пояс</Label>
+                    <Input
+                      className="mt-1"
+                      placeholder="По умолчанию из настроек"
+                      value={f.reportTimezone}
+                      onChange={(e) => { update({ reportTimezone: e.target.value }); handleChange() }}
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">Например: Europe/Moscow. Пусто = из настроек тенанта.</p>
+                  </div>
+                </div>
+
+                {/* Skip empty toggle */}
+                <div className="flex items-center space-x-2">
+                  <Switch checked={f.reportSkipEmpty} onCheckedChange={(v) => { update({ reportSkipEmpty: v }); handleChange() }} />
+                  <Label className="text-sm">Пропускать пустые отчёты</Label>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* тФАтФА CEL Condition тАФ hidden for scheduled тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА */}
+          {/* ── CEL Condition — hidden for scheduled ────────────────── */}
           {f.triggerType !== "scheduled" && (
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground font-semibold">╨г╤Б╨╗╨╛╨▓╨╕╨╡ ╨▓╤Л╨┐╨╛╨╗╨╜╨╡╨╜╨╕╤П (CEL)</Label>
+              <Label className="text-xs text-muted-foreground font-semibold">Условие выполнения (CEL)</Label>
               <div className="border rounded-md overflow-hidden h-[120px]">
                 <Editor
                   defaultLanguage="go"
@@ -356,14 +440,14 @@ export default function EditAutomationRulePage() {
                 />
               </div>
               <p className="text-[10px] text-muted-foreground">
-                ╨Ш╤Б╨┐╨╛╨╗╤М╨╖╤Г╨╣╤В╨╡ <code>doc.</code> ╨┤╨╗╤П ╨░╨▓╤В╨╛╨╖╨░╨┐╨╛╨╗╨╜╨╡╨╜╨╕╤П ╨┐╨╛╨╗╨╡╨╣ ╤Б╤Г╤Й╨╜╨╛╤Б╤В╨╕. ╨Я╤А╨╕╨╝╨╡╤А: <code>humanAmounts.totalAmount &gt; 10000 &amp;&amp; action == &apos;posted&apos;</code>
+                Используйте <code>doc.</code> для автозаполнения полей сущности. Пример: <code>humanAmounts.totalAmount &gt; 10000 &amp;&amp; action == &apos;posted&apos;</code>
               </p>
             </div>
           )}
 
-          {/* тФАтФА Message Template тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА */}
+          {/* ── Message Template ──────────────────────────────────────── */}
           <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground font-semibold">╨в╨╡╨║╤Б╤В ╤Б╨╛╨╛╨▒╤Й╨╡╨╜╨╕╤П (Go Text Template)</Label>
+            <Label className="text-xs text-muted-foreground font-semibold">Текст сообщения (Go Text Template)</Label>
             <div className="border rounded-md overflow-hidden h-[200px]">
               <Editor
                 defaultLanguage="handlebars"
@@ -374,47 +458,47 @@ export default function EditAutomationRulePage() {
             </div>
             <p className="text-[10px] text-muted-foreground">
               {f.triggerType === "scheduled"
-                ? <>╨Ф╨╛╤Б╤В╤Г╨┐╨╜╨╛: <code>{"{{ .doc.ruleName }}"}</code>, <code>{"{{ .doc.ruleId }}"}</code>. ╨Ю╨▒╨╛╨│╨░╤Й╨╡╨╜╨╕╨╡ ╨┤╨░╨╜╨╜╤Л╨╝╨╕ ╨╛╤В╤З╤С╤В╨╛╨▓ тАФ ╨▓ ╤Б╨╗╨╡╨┤╤Г╤О╤Й╨╡╨╣ ╨╕╤В╨╡╤А╨░╤Ж╨╕╨╕.</>
-                : <>╨Ф╨╛╤Б╤В╤Г╨┐╨╜╨╛: <code>{"{{ .doc }}"}</code>, <code>{"{{ .action }}"}</code>. ╨д╤Г╨╜╨║╤Ж╨╕╨╕: <code>{"{{ .doc | json }}"}</code></>
+                ? <>Доступно: <code>{"{{ .doc.ruleName }}"}</code>, <code>{"{{ .doc.ruleId }}"}</code>. Обогащение данными отчётов — в следующей итерации.</>
+                : <>Доступно: <code>{"{{ .doc }}"}</code>, <code>{"{{ .action }}"}</code>. Функции: <code>{"{{ .doc | json }}"}</code></>
               }
             </p>
           </div>
 
-          {/* тФАтФА Additional Settings (Collapsible) тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА */}
+          {/* ── Additional Settings (Collapsible) ─────────────────────── */}
           <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
             <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <ChevronDown className={`h-4 w-4 transition-transform ${settingsOpen ? "" : "-rotate-90"}`} />
-              ╨Ф╨╛╨┐╨╛╨╗╨╜╨╕╤В╨╡╨╗╤М╨╜╤Л╨╡ ╨╜╨░╤Б╤В╤А╨╛╨╣╨║╨╕
+              Дополнительные настройки
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-3">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3 rounded-lg border p-4">
                 <div>
-                  <Label className="text-xs text-muted-foreground">╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡</Label>
+                  <Label className="text-xs text-muted-foreground">Описание</Label>
                   <Textarea
                     className="mt-1 h-20"
-                    placeholder="╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡ ╨┐╤А╨░╨▓╨╕╨╗╨░тАж"
+                    placeholder="Описание правила…"
                     value={f.description}
                     onChange={(e) => { update({ description: e.target.value }); handleChange() }}
                   />
                 </div>
                 <div className="space-y-3">
                   <div>
-                    <Label className="text-xs text-muted-foreground">╨Я╤А╨╕╨╛╤А╨╕╤В╨╡╤В</Label>
+                    <Label className="text-xs text-muted-foreground">Приоритет</Label>
                     <Input type="number" className="mt-1" value={f.priority} onChange={(e) => { update({ priority: Number(e.target.value) }); handleChange() }} />
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">╨Ь╨░╨║╤Б. ╤А╨╡╤В╤А╨░╨╡╨▓</Label>
+                    <Label className="text-xs text-muted-foreground">Макс. ретраев</Label>
                     <Input type="number" className="mt-1" value={f.maxRetries} onChange={(e) => { update({ maxRetries: Number(e.target.value) }); handleChange() }} />
                   </div>
                 </div>
                 <div className="space-y-3">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Cooldown (╤Б╨╡╨║.)</Label>
+                    <Label className="text-xs text-muted-foreground">Cooldown (сек.)</Label>
                     <Input type="number" className="mt-1" value={f.cooldownSeconds} onChange={(e) => { update({ cooldownSeconds: Number(e.target.value) }); handleChange() }} />
-                    <p className="text-[10px] text-muted-foreground mt-1">0 = ╨▒╨╡╨╖ ╨╛╨│╤А╨░╨╜╨╕╤З╨╡╨╜╨╕╨╣</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">0 = без ограничений</p>
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">╨д╨╛╤А╨╝╨░╤В</Label>
+                    <Label className="text-xs text-muted-foreground">Формат</Label>
                     <Select value={f.messageFormat} onValueChange={(v) => { update({ messageFormat: v as RuleFormState["messageFormat"] }); handleChange() }}>
                       <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                       <SelectContent>

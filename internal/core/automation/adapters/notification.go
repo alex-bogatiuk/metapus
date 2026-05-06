@@ -41,7 +41,7 @@ func NewInternalNotificationAdapter(repo notifications.Repository, broadcaster a
 }
 
 // Deliver processes the rendered payload and dispatches notifications.
-func (a *InternalNotificationAdapter) Deliver(ctx context.Context, destination map[string]any, accountConfig map[string]any, credentials []byte, payload string) error {
+func (a *InternalNotificationAdapter) Deliver(ctx context.Context, destination map[string]any, accountConfig map[string]any, credentials []byte, payload string, _ []automation.Attachment) error {
 	var act ActionPayload
 	if err := json.Unmarshal([]byte(payload), &act); err != nil {
 		return fmt.Errorf("failed to unmarshal notification payload: %w", err)

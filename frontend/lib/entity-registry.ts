@@ -97,16 +97,25 @@ class UIRegistry {
     private documents = new Map<string, EntityUIRegistration>()
     private byRoute = new Map<string, EntityUIRegistration>()
 
+    /** Index by both singular and pluralized forms of routePrefix. */
+    private indexRoute(routePrefix: string, reg: EntityUIRegistration): void {
+        this.byRoute.set(routePrefix, reg)
+        const plural = routePrefix.endsWith("s") ? routePrefix : routePrefix + "s"
+        if (plural !== routePrefix) {
+            this.byRoute.set(plural, reg)
+        }
+    }
+
     registerCatalog(reg: EntityUIRegistration): void {
         reg.entityType = "catalog"
         this.catalogs.set(reg.entityName, reg)
-        this.byRoute.set(reg.routePrefix, reg)
+        this.indexRoute(reg.routePrefix, reg)
     }
 
     registerDocument(reg: EntityUIRegistration): void {
         reg.entityType = "document"
         this.documents.set(reg.entityName, reg)
-        this.byRoute.set(reg.routePrefix, reg)
+        this.indexRoute(reg.routePrefix, reg)
     }
 
     getCatalog(name: string): EntityUIRegistration | undefined {
