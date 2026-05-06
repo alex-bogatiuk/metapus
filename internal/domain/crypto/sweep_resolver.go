@@ -18,17 +18,24 @@ type MerchantTokenConfigRepository interface {
 	Upsert(ctx context.Context, cfg *MerchantTokenConfig) error
 }
 
+// tokenGetter is a minimal interface for token lookup.
+// Follows Go idiom "accept interfaces, return structs".
+// SweepConfigResolver needs only GetByID — no reason to accept full token.Repository.
+type tokenGetter interface {
+	GetByID(ctx context.Context, id id.ID) (*token.Token, error)
+}
+
 // SweepConfigResolver resolves effective sweep configuration.
 // Priority: MerchantTokenConfig (if non-NULL) → Token defaults.
 type SweepConfigResolver struct {
 	merchantConfigRepo MerchantTokenConfigRepository
-	tokenRepo          token.Repository
+	tokenRepo          tokenGetter
 }
 
 // NewSweepConfigResolver creates a new resolver.
 func NewSweepConfigResolver(
 	merchantConfigRepo MerchantTokenConfigRepository,
-	tokenRepo token.Repository,
+	tokenRepo tokenGetter,
 ) *SweepConfigResolver {
 	return &SweepConfigResolver{
 		merchantConfigRepo: merchantConfigRepo,

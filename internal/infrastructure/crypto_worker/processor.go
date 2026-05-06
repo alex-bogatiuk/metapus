@@ -40,6 +40,7 @@ const (
 	_expirationCheckPeriod   = 1 * time.Minute
 	_confirmationPollPeriod  = 10 * time.Second
 	_sweepEvalPeriod         = 1 * time.Minute
+	_sweepEvalBatchSize      = 500
 )
 
 // CryptoProcessorConfig holds configuration for the crypto processor.
@@ -441,11 +442,12 @@ func (p *CryptoProcessor) runSweepEvaluationLoop(ctx context.Context) {
 
 // sweepCandidate holds wallet info with its accumulated balance metadata.
 type sweepCandidate struct {
-	walletID    id.ID
-	merchantID  *id.ID
-	tokenID     id.ID
-	balance     types.CryptoAmount
-	lastSweptAt *time.Time
+	walletID        id.ID
+	merchantID      *id.ID
+	tokenID         id.ID
+	balance         types.CryptoAmount
+	lastSweptAt     *time.Time
+	oldestPaymentAt *time.Time // MIN(confirmed_at) — for max-age check on never-swept wallets
 }
 
 // evaluateSweeps queries pool wallets and checks if any should be swept.
@@ -461,7 +463,8 @@ func (p *CryptoProcessor) evaluateSweeps(ctx context.Context) error {
 		       w.merchant_id,
 		       w.last_swept_at,
 		       p.token_id,
-		       COALESCE(SUM(p.amount), 0) AS balance
+		       COALESCE(SUM(p.amount), 0) AS balance,
+		       MIN(p.confirmed_at)        AS oldest_payment_at
 		FROM cat_wallets w
 		INNER JOIN doc_crypto_payments p ON p.wallet_id = w.id
 		WHERE w.tier = 'pool'
@@ -472,18 +475,19 @@ func (p *CryptoProcessor) evaluateSweeps(ctx context.Context) error {
 		  AND p.confirmed_at > COALESCE(w.last_swept_at, '1970-01-01'::timestamptz)
 		GROUP BY w.id, w.merchant_id, w.last_swept_at, p.token_id
 		HAVING COALESCE(SUM(p.amount), 0) > 0
+		LIMIT $1
 	`
 
-	rows, err := querier.Query(ctx, query)
+	rows, err := querier.Query(ctx, query, _sweepEvalBatchSize)
 	if err != nil {
 		return fmt.Errorf("query sweep candidates: %w", err)
 	}
 	defer rows.Close()
 
-	var candidates []sweepCandidate
+	candidates := make([]sweepCandidate, 0, _sweepEvalBatchSize)
 	for rows.Next() {
 		var c sweepCandidate
-		if err := rows.Scan(&c.walletID, &c.merchantID, &c.lastSweptAt, &c.tokenID, &c.balance); err != nil {
+		if err := rows.Scan(&c.walletID, &c.merchantID, &c.lastSweptAt, &c.tokenID, &c.balance, &c.oldestPaymentAt); err != nil {
 			return fmt.Errorf("scan sweep candidate: %w", err)
 		}
 		candidates = append(candidates, c)
@@ -525,12 +529,16 @@ func (p *CryptoProcessor) evaluateSweeps(ctx context.Context) error {
 
 		// Check max age (if configured)
 		ageMet := false
-		if cfg.MaxAgeHours > 0 && c.lastSweptAt != nil {
-			ageMet = time.Since(*c.lastSweptAt) > time.Duration(cfg.MaxAgeHours)*time.Hour
-		}
-		// If never swept and max age is configured, check from first payment
-		if cfg.MaxAgeHours > 0 && c.lastSweptAt == nil {
-			ageMet = true // Never swept + max age configured → force sweep
+		if cfg.MaxAgeHours > 0 {
+			maxAge := time.Duration(cfg.MaxAgeHours) * time.Hour
+			if c.lastSweptAt != nil {
+				ageMet = time.Since(*c.lastSweptAt) > maxAge
+			} else if c.oldestPaymentAt != nil {
+				// Never swept: check age from oldest unswept confirmed payment.
+				// Previously this was always-true, causing premature sweep
+				// before threshold was reached.
+				ageMet = time.Since(*c.oldestPaymentAt) > maxAge
+			}
 		}
 
 		if thresholdMet || ageMet {

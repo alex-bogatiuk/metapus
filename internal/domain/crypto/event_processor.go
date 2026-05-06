@@ -40,6 +40,16 @@ type EventProcessor struct {
 	numerator      numerator.Generator
 	dustThreshold  types.CryptoAmount
 	sweepResolver  *SweepConfigResolver
+	nowFunc        func() time.Time // clock source, default time.Now().UTC()
+}
+
+// Option configures EventProcessor. Use with NewEventProcessor.
+type Option func(*EventProcessor)
+
+// WithClock overrides the time source (for testing).
+// In production, leave unset — defaults to time.Now().UTC().
+func WithClock(fn func() time.Time) Option {
+	return func(p *EventProcessor) { p.nowFunc = fn }
 }
 
 // EventProcessorConfig holds dependencies for the event processor.
@@ -57,13 +67,13 @@ type EventProcessorConfig struct {
 }
 
 // NewEventProcessor creates a new event processor.
-func NewEventProcessor(cfg EventProcessorConfig) *EventProcessor {
+func NewEventProcessor(cfg EventProcessorConfig, opts ...Option) *EventProcessor {
 	threshold := cfg.DustThreshold
 	if threshold.IsZero() {
 		threshold = _defaultDustThreshold()
 	}
 
-	return &EventProcessor{
+	p := &EventProcessor{
 		fsm:            cfg.FSM,
 		walletSvc:      cfg.WalletSvc,
 		invoiceRepo:    cfg.InvoiceRepo,
@@ -73,7 +83,12 @@ func NewEventProcessor(cfg EventProcessorConfig) *EventProcessor {
 		numerator:      cfg.Numerator,
 		dustThreshold:  threshold,
 		sweepResolver:  cfg.SweepResolver,
+		nowFunc:        func() time.Time { return time.Now().UTC() },
 	}
+	for _, opt := range opts {
+		opt(p)
+	}
+	return p
 }
 
 // ProcessEvent handles a single blockchain event end-to-end.
@@ -236,79 +251,64 @@ func (p *EventProcessor) handleConfirmationUpdate(
 }
 
 // processConfirmations evaluates whether FSM transitions should occur based on confirmations.
+//
+// Uses sequential if-checks instead of switch+fallthrough to handle the case
+// where a payment goes Detected → Confirming → Confirmed in a single event
+// (e.g., watcher first sees a tx with 20+ confirmations already).
+//
+// All errors are propagated — if any step fails, the entire transaction rolls back
+// and the confirmation poll loop retries on the next tick (10s). This prevents:
+//   - Wallet leak: stuck in 'leased' if MarkSweepPending/Release fails
+//   - Invoice desync: stuck in 'paid' if confirmInvoice fails
 func (p *EventProcessor) processConfirmations(
 	ctx context.Context,
 	payment *crypto_payment.CryptoPayment,
 	event BlockchainEvent,
 ) error {
-	switch payment.Status {
-	case crypto_payment.PaymentStatusDetected:
-		if event.Confirmations >= 1 {
-			if err := p.fsm.Transition(ctx, payment, crypto_payment.PaymentStatusConfirming,
-				"first_confirmation", TransitionMetadata{
-					Confirmations: event.Confirmations,
-					BlockNumber:   event.BlockNumber,
-				}); err != nil {
-				return fmt.Errorf("transition to confirming: %w", err)
-			}
-		}
-		// Fall through to check if already fully confirmed
-		if payment.Status != crypto_payment.PaymentStatusConfirming {
-			return nil
-		}
-		fallthrough
-
-	case crypto_payment.PaymentStatusConfirming:
-		if event.Confirmations >= payment.RequiredConfs {
-			if err := p.fsm.Transition(ctx, payment, crypto_payment.PaymentStatusConfirmed,
-				"confirmed", TransitionMetadata{
-					Confirmations: event.Confirmations,
-					RequiredConfs: payment.RequiredConfs,
-				}); err != nil {
-				return fmt.Errorf("transition to confirmed: %w", err)
-			}
-
-			// Post the payment — record register movements
-			if err := p.postPayment(ctx, payment); err != nil {
-				return fmt.Errorf("post payment: %w", err)
-			}
-
-			// Handle wallet status after payment confirmed
-			if err := p.handleWalletAfterConfirm(ctx, payment); err != nil {
-				logger.Error(ctx, "failed to handle wallet after confirm",
-					"wallet_id", payment.WalletID,
-					"error", err,
-				)
-				// Non-critical: don't fail the payment
-			}
-
-			// Update invoice status to Confirmed
-			if err := p.confirmInvoice(ctx, payment.InvoiceID); err != nil {
-				logger.Error(ctx, "failed to confirm invoice",
-					"invoice_id", payment.InvoiceID,
-					"error", err,
-				)
-			}
+	// Step 1: Detected → Confirming (first confirmation)
+	if payment.Status == crypto_payment.PaymentStatusDetected && event.Confirmations >= 1 {
+		if err := p.fsm.Transition(ctx, payment, crypto_payment.PaymentStatusConfirming,
+			"first_confirmation", TransitionMetadata{
+				Confirmations: event.Confirmations,
+				BlockNumber:   event.BlockNumber,
+			}); err != nil {
+			return fmt.Errorf("transition to confirming: %w", err)
 		}
 	}
 
-	return nil
-}
+	// Step 2: Confirming → Confirmed (reached required confirmations)
+	if payment.Status == crypto_payment.PaymentStatusConfirming && event.Confirmations >= payment.RequiredConfs {
+		// Pre-set posting fields so FSM Transition saves them in one UPDATE.
+		// Previously postPayment did a separate Update — eliminated double write.
+		payment.Posted = true
+		payment.PostedVersion++
 
-// postPayment posts the payment document to record register movements.
-func (p *EventProcessor) postPayment(ctx context.Context, payment *crypto_payment.CryptoPayment) error {
-	// Posting is handled via the posting engine's document posting workflow
-	payment.Posted = true
-	payment.PostedVersion++
+		if err := p.fsm.Transition(ctx, payment, crypto_payment.PaymentStatusConfirmed,
+			"confirmed", TransitionMetadata{
+				Confirmations: event.Confirmations,
+				RequiredConfs: payment.RequiredConfs,
+			}); err != nil {
+			return fmt.Errorf("transition to confirmed: %w", err)
+		}
 
-	if err := p.paymentRepo.Update(ctx, payment); err != nil {
-		return fmt.Errorf("mark payment as posted: %w", err)
+		logger.Info(ctx, "payment posted",
+			"payment_id", payment.ID,
+			"tx_hash", payment.TxHash,
+		)
+
+		// Handle wallet status — MUST propagate errors.
+		// If this fails, tx rolls back → payment stays 'confirming' → retry on next poll.
+		// Without propagation, wallet gets stuck in 'leased' forever (pool leak).
+		if err := p.handleWalletAfterConfirm(ctx, payment); err != nil {
+			return fmt.Errorf("handle wallet after confirm: %w", err)
+		}
+
+		// Confirm invoice — MUST propagate errors.
+		// Without propagation, invoice stays 'paid' → webhook never fires → merchant unaware.
+		if err := p.confirmInvoice(ctx, payment.InvoiceID); err != nil {
+			return fmt.Errorf("confirm invoice %s: %w", payment.InvoiceID, err)
+		}
 	}
-
-	logger.Info(ctx, "payment posted",
-		"payment_id", payment.ID,
-		"tx_hash", payment.TxHash,
-	)
 
 	return nil
 }
@@ -367,7 +367,7 @@ func (p *EventProcessor) findActiveInvoice(ctx context.Context, w *wallet.Wallet
 	}
 
 	// Check expiration
-	if time.Now().UTC().After(invoice.ExpiresAt) && invoice.Status == crypto_invoice.InvoiceStatusCreated {
+	if p.nowFunc().After(invoice.ExpiresAt) && invoice.Status == crypto_invoice.InvoiceStatusCreated {
 		invoice.Status = crypto_invoice.InvoiceStatusExpired
 		if err := p.invoiceRepo.Update(ctx, invoice); err != nil {
 			return nil, fmt.Errorf("expire invoice %s: %w", invoice.ID, err)
@@ -416,8 +416,7 @@ func (p *EventProcessor) handleWalletAfterConfirm(ctx context.Context, payment *
 	if w.IsTransient() {
 		// Release transient wallet → free (available for new invoices)
 		// Sweep evaluation job will check accumulated balance periodically
-		w.Release()
-		return p.walletSvc.Update(ctx, w)
+		return p.walletSvc.ReleaseWallet(ctx, payment.WalletID)
 	}
 
 	// Persistent wallets: no status change (stays 'assigned')

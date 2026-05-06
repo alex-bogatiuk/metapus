@@ -182,19 +182,21 @@ func (r *CryptoInvoiceRegistration) Build(deps v1.DocumentDeps) v1.DocumentRoute
 	service := crypto_invoice.NewService(repo, deps.PostingEngine, deps.Numerator, nil)
 	service.SetPolicyEngine(deps.PolicyEngine)
 
+	// Pre-allocate repos outside hook closure (single allocation, safe for concurrent use).
+	tokenRepo := catalog_repo.NewTokenRepo()
+	walletRepo := catalog_repo.NewWalletRepo()
+	walletSvc := wallet.NewService(walletRepo, numerator.Noop())
+
 	service.Hooks().OnBeforeCreate(func(ctx context.Context, doc *crypto_invoice.CryptoInvoice) error {
 		audit.EnrichCreatedByDirect(ctx, &doc.CreatedBy, &doc.UpdatedBy)
 
 		// Auto-lease a pool wallet for receiving payment.
 		// Resolve token → network, then lease a free pool wallet.
-		tokenRepo := catalog_repo.NewTokenRepo()
 		tok, err := tokenRepo.GetByID(ctx, doc.TokenID)
 		if err != nil {
 			return fmt.Errorf("resolve token for wallet lease: %w", err)
 		}
 
-		walletRepo := catalog_repo.NewWalletRepo()
-		walletSvc := wallet.NewService(walletRepo, numerator.Noop())
 		w, err := walletSvc.LeaseForInvoice(ctx, doc.ID, tok.NetworkID)
 		if err != nil {
 			return fmt.Errorf("lease wallet for invoice: %w", err)

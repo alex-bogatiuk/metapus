@@ -132,8 +132,8 @@ func isCloudMetadataIP(ip net.IP) bool {
 //
 // Headers:
 //   - X-Metapus-Event: event type
-//   - X-Metapus-Signature: HMAC-SHA256(payload, secret)
-//   - X-Metapus-Timestamp: RFC3339 timestamp
+//   - X-Metapus-Signature: HMAC-SHA256(timestamp + "." + payload, secret) (Stripe-pattern)
+//   - X-Metapus-Timestamp: RFC3339 timestamp (include in HMAC to prevent replay)
 //   - X-Metapus-Delivery-ID: unique delivery ID for idempotency
 func (d *WebhookDispatcher) Dispatch(
 	ctx context.Context,
@@ -162,8 +162,9 @@ func (d *WebhookDispatcher) Dispatch(
 		return fmt.Errorf("marshal webhook payload: %w", err)
 	}
 
-	// HMAC-SHA256 signature
-	signature := d.sign(body, webhookSecret)
+	// HMAC-SHA256 signature (Stripe-pattern: includes timestamp to prevent replay)
+	timestampStr := payload.Timestamp.Format(time.RFC3339)
+	signature := d.sign(body, webhookSecret, timestampStr)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, webhookURL, bytes.NewReader(body))
 	if err != nil {
@@ -210,8 +211,12 @@ func (d *WebhookDispatcher) Dispatch(
 }
 
 // sign creates an HMAC-SHA256 signature for the payload.
-func (d *WebhookDispatcher) sign(payload []byte, secret string) string {
+// Includes timestamp in the signed data to prevent replay attacks (Stripe-pattern).
+// Merchant verification: HMAC-SHA256(timestamp + "." + body, secret)
+func (d *WebhookDispatcher) sign(payload []byte, secret string, timestamp string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(timestamp))
+	mac.Write([]byte("."))
 	mac.Write(payload)
 	return hex.EncodeToString(mac.Sum(nil))
 }
