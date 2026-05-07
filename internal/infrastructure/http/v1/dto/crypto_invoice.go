@@ -171,6 +171,7 @@ type CryptoInvoiceResponse struct {
 	// Resolved references
 	Merchant     *postgres.RefDisplay `json:"merchant,omitempty"`
 	Token        *postgres.RefDisplay `json:"token,omitempty"`
+	Wallet       *postgres.RefDisplay `json:"wallet,omitempty"`
 }
 
 // CryptoInvoiceLineResponse represents a line in API responses.
@@ -220,6 +221,7 @@ func FromCryptoInvoice(doc *crypto_invoice.CryptoInvoice, refs postgres.Resolved
 		resp.Merchant = &merch
 		tok := refs.Get(TableTokens, doc.TokenID)
 		resp.Token = &tok
+		resp.Wallet = refs.GetPtr(TableWallets, doc.WalletID)
 	}
 
 	resp.Lines = make([]CryptoInvoiceLineResponse, len(doc.Lines))
@@ -239,4 +241,5 @@ func FromCryptoInvoice(doc *crypto_invoice.CryptoInvoice, refs postgres.Resolved
 func CollectCryptoInvoiceRefs(resolver *postgres.ReferenceResolver, doc *crypto_invoice.CryptoInvoice) {
 	resolver.Add(TableMerchants, doc.MerchantID)
 	resolver.Add(TableTokens, doc.TokenID)
+	resolver.AddPtr(TableWallets, doc.WalletID)
 }

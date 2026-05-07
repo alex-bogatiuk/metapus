@@ -143,6 +143,9 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		// NOTE: /tenants moved to admin group (prevents unauthenticated tenant enumeration)
 	}
 
+	// Public payment page (embedded HTML — served for all /pay/:invoiceId paths)
+	RegisterPaymentPage(router)
+
 	// Internal endpoints (for reverse proxy, not exposed publicly)
 	// Nginx auth_request calls GET /internal/route with X-Tenant-ID header
 	// to determine the version group for upstream routing.
@@ -170,6 +173,16 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		// Public system routes (no auth, no tenant needed)
 		versionHandler := handlers.NewSystemVersionHandler(cfg.Version, cfg.BuildTime)
 		v1.GET("/system/version", versionHandler.Version)
+
+		// Public payment page API (no auth, tenant DB required)
+		// Used by the checkout widget for customer-facing payment flow.
+		paymentPageGroup := v1.Group("/pay")
+		paymentPageGroup.Use(middleware.TenantDB(cfg.TenantManager))
+		{
+			paymentPageHandler := handlers.NewPaymentPageHandler()
+			paymentPageGroup.GET("/:invoiceId", paymentPageHandler.GetPaymentInfo)
+			paymentPageGroup.GET("/:invoiceId/status", paymentPageHandler.GetInvoiceStatus)
+		}
 
 		// Protected endpoints - TenantDB runs first, then Auth
 		protected := v1.Group("")

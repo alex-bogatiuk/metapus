@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Payment — Metapus</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* ── shadcn/ui design tokens (dark mode) ───────────────────── */
+        :root {
+            --background: 240 10% 3.9%;
+            --foreground: 0 0% 98%;
+            --card: 240 10% 3.9%;
+            --card-foreground: 0 0% 98%;
+            --popover: 240 10% 3.9%;
+            --popover-foreground: 0 0% 98%;
+            --primary: 0 0% 98%;
+            --primary-foreground: 240 5.9% 10%;
+            --secondary: 240 3.7% 15.9%;
+            --secondary-foreground: 0 0% 98%;
+            --muted: 240 3.7% 15.9%;
+            --muted-foreground: 240 5% 64.9%;
+            --accent: 240 3.7% 15.9%;
+            --accent-foreground: 0 0% 98%;
+            --destructive: 0 62.8% 30.6%;
+            --destructive-foreground: 0 0% 98%;
+            --border: 240 3.7% 15.9%;
+            --input: 240 3.7% 15.9%;
+            --ring: 240 4.9% 83.9%;
+            --chart-1: 220 70% 50%;
+            --chart-2: 160 60% 45%;
+            --chart-3: 30 80% 55%;
+            --chart-4: 280 65% 60%;
+            --chart-5: 340 75% 55%;
+            --radius: 0.625rem;
+            --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+            --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-sans);
+            background: hsl(var(--background));
+            color: hsl(var(--foreground));
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── Card ───────────────────────────────────────────────────── */
+        .card {
+            width: 100%;
+            max-width: 26rem;
+            border-radius: var(--radius);
+            border: 1px solid hsl(var(--border));
+            background: hsl(var(--card));
+            color: hsl(var(--card-foreground));
+            box-shadow: 0 1px 3px 0 rgba(0,0,0,.1), 0 1px 2px -1px rgba(0,0,0,.1);
+            animation: fadeIn 0.4s ease-out;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
+        .card-header { padding: 1.5rem 1.5rem 0; display: flex; flex-direction: column; gap: 0.375rem; }
+        .card-content { padding: 1.5rem; }
+        .card-footer {
+            padding: 0 1.5rem 1.5rem;
+            display: flex;
+            align-items: center;
+        }
+
+        /* ── Header Row ─────────────────────────────────────────────── */
+        .header-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 0.75rem;
+        }
+        .header-left { display: flex; align-items: center; gap: 0.75rem; }
+        .avatar {
+            width: 2.5rem; height: 2.5rem;
+            border-radius: 50%;
+            background: hsl(var(--muted));
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 600; font-size: 0.875rem;
+            color: hsl(var(--muted-foreground));
+            flex-shrink: 0;
+        }
+        .card-title { font-size: 0.875rem; font-weight: 600; line-height: 1; }
+        .card-description {
+            font-size: 0.75rem;
+            color: hsl(var(--muted-foreground));
+            line-height: 1.4;
+        }
+
+        /* ── Badge ──────────────────────────────────────────────────── */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 9999px;
+            padding: 0.125rem 0.625rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            line-height: 1;
+            white-space: nowrap;
+            transition: color .15s, background .15s;
+        }
+        .badge-default { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+        .badge-secondary { background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); }
+        .badge-outline { background: transparent; border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); }
+        .badge-destructive { background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground)); }
+        .badge-success { background: hsl(160 60% 45% / .15); color: hsl(160 60% 50%); border: 1px solid hsl(160 60% 45% / .3); }
+        .badge-warning { background: hsl(30 80% 55% / .15); color: hsl(30 80% 60%); border: 1px solid hsl(30 80% 55% / .3); }
+        .badge-info { background: hsl(220 70% 50% / .15); color: hsl(220 70% 60%); border: 1px solid hsl(220 70% 50% / .3); }
+
+        /* ── Separator ──────────────────────────────────────────────── */
+        .separator { height: 1px; width: 100%; background: hsl(var(--border)); }
+
+        /* ── Amount ─────────────────────────────────────────────────── */
+        .amount-section {
+            text-align: center;
+            padding: 1.25rem 0;
+        }
+        .amount-label {
+            font-size: 0.8125rem;
+            color: hsl(var(--muted-foreground));
+            margin-bottom: 0.25rem;
+        }
+        .amount-value {
+            font-family: var(--font-mono);
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            line-height: 1.2;
+        }
+        .amount-symbol {
+            font-size: 1rem;
+            font-weight: 500;
+            color: hsl(var(--muted-foreground));
+            margin-left: 0.375rem;
+        }
+        .network-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            margin-top: 0.5rem;
+            padding: 0.125rem 0.5rem;
+            border-radius: var(--radius);
+            background: hsl(var(--secondary));
+            font-size: 0.6875rem;
+            color: hsl(var(--muted-foreground));
+        }
+        .network-dot {
+            width: 0.375rem; height: 0.375rem;
+            border-radius: 50%;
+            background: hsl(160 60% 45%);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .4; }
+        }
+
+        /* ── QR ─────────────────────────────────────────────────────── */
+        .qr-wrap {
+            display: flex;
+            justify-content: center;
+            padding-bottom: 1rem;
+        }
+        .qr-frame {
+            background: #fff;
+            padding: 0.75rem;
+            border-radius: calc(var(--radius) - 2px);
+        }
+        .qr-frame canvas { display: block; }
+
+        /* ── Address (Input-like) ────────────────────────────────────── */
+        .field-label {
+            font-size: 0.8125rem;
+            font-weight: 500;
+            margin-bottom: 0.375rem;
+            color: hsl(var(--foreground));
+        }
+        .input-group {
+            display: flex;
+            align-items: center;
+            border-radius: var(--radius);
+            border: 1px solid hsl(var(--input));
+            background: hsl(var(--background));
+            transition: border-color .15s, box-shadow .15s;
+            cursor: pointer;
+        }
+        .input-group:hover {
+            border-color: hsl(var(--ring));
+        }
+        .input-group:focus-within {
+            border-color: hsl(var(--ring));
+            box-shadow: 0 0 0 2px hsl(var(--ring) / .2);
+        }
+        .input-value {
+            flex: 1;
+            padding: 0.5rem 0.75rem;
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            color: hsl(var(--foreground));
+            background: transparent;
+            border: none;
+            outline: none;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            user-select: all;
+        }
+        .btn-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 2rem; height: 2rem;
+            border-radius: calc(var(--radius) - 2px);
+            background: transparent;
+            border: none;
+            color: hsl(var(--muted-foreground));
+            cursor: pointer;
+            transition: background .15s, color .15s;
+            flex-shrink: 0;
+            margin-right: 0.25rem;
+        }
+        .btn-icon:hover { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
+        .btn-icon svg { width: 1rem; height: 1rem; }
+        .btn-icon.copied { color: hsl(160 60% 45%); }
+
+        /* ── Progress ───────────────────────────────────────────────── */
+        .progress-section {
+            padding-top: 0.75rem;
+        }
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8125rem;
+            margin-bottom: 0.375rem;
+        }
+        .progress-header span:first-child { font-weight: 500; }
+        .progress-header span:last-child { color: hsl(var(--muted-foreground)); font-family: var(--font-mono); font-size: 0.75rem; }
+        .progress-track {
+            height: 0.5rem;
+            width: 100%;
+            border-radius: 9999px;
+            background: hsl(var(--secondary));
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            border-radius: 9999px;
+            background: hsl(var(--foreground));
+            transition: width .6s ease;
+            width: 0%;
+        }
+
+        /* ── Timer ──────────────────────────────────────────────────── */
+        .timer-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding-top: 0.75rem;
+        }
+        .timer-row svg { width: 1rem; height: 1rem; color: hsl(var(--muted-foreground)); flex-shrink: 0; }
+        .timer-label { font-size: 0.8125rem; color: hsl(var(--muted-foreground)); }
+        .timer-value {
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            font-weight: 600;
+        }
+        .timer-urgent { color: hsl(0 62.8% 50%) !important; }
+
+        /* ── Footer ─────────────────────────────────────────────────── */
+        .footer-text {
+            width: 100%;
+            text-align: center;
+            font-size: 0.6875rem;
+            color: hsl(var(--muted-foreground));
+        }
+        .footer-text a {
+            color: hsl(var(--muted-foreground));
+            text-decoration: none;
+            transition: color .15s;
+        }
+        .footer-text a:hover { color: hsl(var(--foreground)); text-decoration: underline; }
+
+        /* ── Overlay ────────────────────────────────────────────────── */
+        .overlay {
+            position: fixed; inset: 0;
+            background: hsl(var(--background) / .8);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 50;
+            backdrop-filter: blur(4px);
+        }
+        .overlay-card {
+            text-align: center;
+            padding: 2rem;
+            animation: fadeIn .3s ease-out;
+        }
+        .overlay-icon { font-size: 3rem; margin-bottom: 1rem; }
+        .overlay-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.25rem; }
+        .overlay-desc { font-size: 0.875rem; color: hsl(var(--muted-foreground)); }
+
+        /* ── Loading ────────────────────────────────────────────────── */
+        .loading { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .spinner {
+            width: 1.5rem; height: 1.5rem;
+            border: 2px solid hsl(var(--muted));
+            border-top-color: hsl(var(--foreground));
+            border-radius: 50%;
+            animation: spin .6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .hidden { display: none !important; }
+
+        /* ── Responsive ─────────────────────────────────────────────── */
+        @media (max-width: 480px) {
+            body { padding: 0.75rem; }
+            .amount-value { font-size: 1.75rem; }
+            .input-value { font-size: 0.6875rem; }
+            .card-header, .card-content, .card-footer { padding-left: 1rem; padding-right: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading" class="loading"><div class="spinner"></div></div>
+
+    <div id="payment-card" class="card hidden">
+        <!-- Card Header -->
+        <div class="card-header">
+            <div class="header-row">
+                <div class="header-left">
+                    <div class="avatar" id="merchant-avatar">M</div>
+                    <div>
+                        <div class="card-title" id="merchant-name">Loading...</div>
+                        <div class="card-description" id="order-description"></div>
+                    </div>
+                </div>
+                <span id="status-badge" class="badge badge-info">WAITING</span>
+            </div>
+        </div>
+
+        <!-- Card Content -->
+        <div class="card-content" style="display:flex;flex-direction:column;gap:1rem;">
+            <div class="separator"></div>
+
+            <!-- Amount -->
+            <div class="amount-section">
+                <div class="amount-label">Pay exactly</div>
+                <div>
+                    <span id="amount-value" class="amount-value">0.00</span>
+                    <span id="amount-symbol" class="amount-symbol">USDT</span>
+                </div>
+                <div id="network-badge" class="network-tag">
+                    <span class="network-dot"></span>
+                    <span id="network-name">TRON</span>
+                </div>
+            </div>
+
+            <!-- QR -->
+            <div class="qr-wrap" id="qr-section">
+                <div class="qr-frame">
+                    <img id="qr-image" width="180" height="180" alt="QR Code" style="display:block;" />
+                </div>
+            </div>
+
+            <div class="separator"></div>
+
+            <!-- Address -->
+            <div id="address-section">
+                <div class="field-label">Wallet address</div>
+                <div class="input-group" onclick="copyAddress()">
+                    <span id="wallet-address" class="input-value">Loading...</span>
+                    <button class="btn-icon" id="copy-btn" title="Copy address">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Progress (hidden by default, shown on payment) -->
+            <div class="progress-section hidden" id="progress-section">
+                <div class="progress-header">
+                    <span>Confirmations</span>
+                    <span><span id="conf-current">0</span> / <span id="conf-required">19</span></span>
+                </div>
+                <div class="progress-track">
+                    <div id="progress-bar" class="progress-bar"></div>
+                </div>
+            </div>
+
+            <!-- Timer -->
+            <div class="timer-row" id="timer-section">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span class="timer-label">Expires in</span>
+                <span id="timer-value" class="timer-value">--:--</span>
+            </div>
+        </div>
+
+        <!-- Card Footer -->
+        <div class="card-footer">
+            <div class="footer-text">
+                <a href="https://metapus.io" target="_blank" rel="noopener">Powered by Metapus</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overlays -->
+    <div id="overlay-confirmed" class="overlay hidden">
+        <div class="overlay-card">
+            <div class="overlay-icon">✅</div>
+            <div class="overlay-title">Payment Confirmed</div>
+            <div class="overlay-desc">Your transaction has been verified on the blockchain.</div>
+        </div>
+    </div>
+    <div id="overlay-expired" class="overlay hidden">
+        <div class="overlay-card">
+            <div class="overlay-icon">⏰</div>
+            <div class="overlay-title">Invoice Expired</div>
+            <div class="overlay-desc">This payment request has expired. Please create a new one.</div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        const pathParts = window.location.pathname.split('/');
+        const invoiceId = pathParts[pathParts.length - 1];
+        const API_BASE = window.location.origin + '/api/v1';
+        const POLL_INTERVAL = 5000;
+        const TENANT_ID = new URLSearchParams(window.location.search).get('tenant') || '';
+
+        let paymentData = null;
+        let pollTimer = null;
+        let countdownTimer = null;
+
+        // ── Init ────────────────────────────────────────────────────
+        async function init() {
+            try {
+                const resp = await fetchAPI('/pay/' + invoiceId);
+                if (!resp.ok) throw new Error('Not found');
+                paymentData = await resp.json();
+                render(paymentData);
+                startPolling();
+                startCountdown();
+            } catch (err) {
+                document.getElementById('loading').innerHTML =
+                    '<div style="text-align:center;color:hsl(var(--muted-foreground))">' +
+                    '<div style="font-size:2.5rem;margin-bottom:1rem">🔍</div>' +
+                    '<div style="font-weight:500">Invoice not found</div>' +
+                    '<div style="font-size:0.75rem;margin-top:0.5rem;font-family:var(--font-mono)">' + invoiceId + '</div></div>';
+            }
+        }
+
+        function fetchAPI(path) {
+            var headers = {};
+            if (TENANT_ID) headers['X-Tenant-ID'] = TENANT_ID;
+            return fetch(API_BASE + path, { headers: headers });
+        }
+
+        // ── Render ──────────────────────────────────────────────────
+        function render(data) {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('payment-card').classList.remove('hidden');
+
+            document.getElementById('merchant-name').textContent = data.merchantName || 'Payment';
+            document.getElementById('merchant-avatar').textContent = (data.merchantName || 'M').charAt(0).toUpperCase();
+            document.getElementById('order-description').textContent =
+                data.description || (data.orderId ? 'Order: ' + data.orderId : '');
+
+            document.getElementById('amount-value').textContent = data.expectedAmount;
+            document.getElementById('amount-symbol').textContent = data.tokenSymbol;
+            document.getElementById('network-name').textContent = data.networkName;
+
+            document.getElementById('wallet-address').textContent = data.walletAddress;
+            document.getElementById('conf-required').textContent = data.requiredConfs;
+
+            updateStatus(data.status, data.confirmations);
+
+            // QR code — rendered server-side as base64 data URL
+            if (data.qrCode && data.status !== 'confirmed' && data.status !== 'expired') {
+                document.getElementById('qr-image').src = data.qrCode;
+            } else if (!data.qrCode) {
+                document.getElementById('qr-section').classList.add('hidden');
+            }
+        }
+
+        function updateStatus(status, confirmations) {
+            var badge = document.getElementById('status-badge');
+            var progressSection = document.getElementById('progress-section');
+            var qrSection = document.getElementById('qr-section');
+            var addressSection = document.getElementById('address-section');
+            var timerSection = document.getElementById('timer-section');
+
+            badge.className = 'badge';
+            progressSection.classList.add('hidden');
+
+            switch (status) {
+                case 'created':
+                    badge.textContent = 'WAITING';
+                    badge.classList.add('badge-info');
+                    break;
+                case 'paid':
+                case 'partially_paid':
+                    badge.textContent = status === 'paid' ? 'RECEIVED' : 'PARTIAL';
+                    badge.classList.add('badge-warning');
+                    progressSection.classList.remove('hidden');
+                    updateProgress(confirmations);
+                    break;
+                case 'confirming':
+                    badge.textContent = 'CONFIRMING';
+                    badge.classList.add('badge-warning');
+                    progressSection.classList.remove('hidden');
+                    updateProgress(confirmations);
+                    break;
+                case 'confirmed':
+                    badge.textContent = 'CONFIRMED';
+                    badge.classList.add('badge-success');
+                    qrSection.classList.add('hidden');
+                    addressSection.classList.add('hidden');
+                    timerSection.classList.add('hidden');
+                    progressSection.classList.remove('hidden');
+                    updateProgress(paymentData.requiredConfs);
+                    showOverlay('overlay-confirmed');
+                    stopPolling();
+                    break;
+                case 'expired':
+                    badge.textContent = 'EXPIRED';
+                    badge.classList.add('badge-destructive');
+                    qrSection.classList.add('hidden');
+                    addressSection.classList.add('hidden');
+                    timerSection.classList.add('hidden');
+                    showOverlay('overlay-expired');
+                    stopPolling();
+                    break;
+            }
+        }
+
+        function updateProgress(confs) {
+            var required = paymentData ? paymentData.requiredConfs : 19;
+            var pct = Math.min(100, (confs / required) * 100);
+            document.getElementById('conf-current').textContent = confs;
+            document.getElementById('progress-bar').style.width = pct + '%';
+        }
+
+        function showOverlay(id) {
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        // ── Polling ─────────────────────────────────────────────────
+        function startPolling() {
+            pollTimer = setInterval(function() {
+                fetchAPI('/pay/' + invoiceId + '/status').then(function(resp) {
+                    if (!resp.ok) return;
+                    return resp.json();
+                }).then(function(data) {
+                    if (!data) return;
+                    updateStatus(data.status, data.confirmations);
+                    if (data.status === 'confirmed' || data.status === 'expired') stopPolling();
+                }).catch(function() {});
+            }, POLL_INTERVAL);
+        }
+
+        function stopPolling() {
+            if (pollTimer) clearInterval(pollTimer);
+            if (countdownTimer) clearInterval(countdownTimer);
+        }
+
+        // ── Countdown ───────────────────────────────────────────────
+        function startCountdown() {
+            if (!paymentData || !paymentData.expiresAt) return;
+            var expiresAt = new Date(paymentData.expiresAt).getTime();
+            if (isNaN(expiresAt)) {
+                document.getElementById('timer-value').textContent = '--:--';
+                return;
+            }
+
+            function tick() {
+                var diff = expiresAt - Date.now();
+                var el = document.getElementById('timer-value');
+                if (diff <= 0) {
+                    el.textContent = '00:00';
+                    el.classList.add('timer-urgent');
+                    return;
+                }
+                var m = Math.floor(diff / 60000);
+                var s = Math.floor((diff % 60000) / 1000);
+                el.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+                if (m < 2) el.classList.add('timer-urgent');
+                else el.classList.remove('timer-urgent');
+            }
+            tick();
+            countdownTimer = setInterval(tick, 1000);
+        }
+
+        // ── Copy ────────────────────────────────────────────────────
+        window.copyAddress = function() {
+            if (!paymentData) return;
+            navigator.clipboard.writeText(paymentData.walletAddress).then(function() {
+                var btn = document.getElementById('copy-btn');
+                btn.classList.add('copied');
+                btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+                setTimeout(function() {
+                    btn.classList.remove('copied');
+                    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+                }, 2000);
+            });
+        };
+
+        init();
+    })();
+    </script>
+</body>
+</html>
