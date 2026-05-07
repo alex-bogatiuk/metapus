@@ -216,7 +216,7 @@ func (c *Client) doRequest(ctx context.Context, url string, target interface{}) 
 		}
 
 		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		if err != nil {
 			lastErr = err

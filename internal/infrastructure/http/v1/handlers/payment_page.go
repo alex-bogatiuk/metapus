@@ -248,9 +248,7 @@ func (h *PaymentPageHandler) GetInvoiceStatus(c *gin.Context) {
 	receivedAmount, _ := types.NewCryptoAmountFromString(receivedAmountStr)
 
 	// Check expiration client-side — return current status from DB
-	if status == string(crypto_invoice.InvoiceStatusCreated) && time.Now().UTC().After(time.Time{}) {
-		// Status is already managed by the expiration loop in crypto_worker
-	}
+	// Status is already managed by the expiration loop in crypto_worker
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":         status,
