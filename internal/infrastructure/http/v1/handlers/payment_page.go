@@ -13,7 +13,6 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/types"
-	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
