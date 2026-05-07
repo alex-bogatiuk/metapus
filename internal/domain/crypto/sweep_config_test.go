@@ -2,7 +2,6 @@
 package crypto
 
 import (
-	"math/big"
 	"testing"
 
 	"metapus/internal/core/types"
@@ -16,12 +15,12 @@ func TestSweepConfig_IsZeroThreshold(t *testing.T) {
 	}{
 		{
 			give: "zero amount → true",
-			cfg:  SweepConfig{Threshold: types.NewCryptoAmount(big.NewInt(0))},
+			cfg:  SweepConfig{Threshold: types.NewCryptoAmountFromInt64(0)},
 			want: true,
 		},
 		{
 			give: "positive amount → false",
-			cfg:  SweepConfig{Threshold: types.NewCryptoAmount(big.NewInt(1000))},
+			cfg:  SweepConfig{Threshold: types.NewCryptoAmountFromInt64(1000)},
 			want: false,
 		},
 		{
@@ -31,12 +30,12 @@ func TestSweepConfig_IsZeroThreshold(t *testing.T) {
 		},
 		{
 			give: "large threshold 10M → false",
-			cfg:  SweepConfig{Threshold: types.NewCryptoAmount(big.NewInt(10_000_000))},
+			cfg:  SweepConfig{Threshold: types.NewCryptoAmountFromInt64(10_000_000)},
 			want: false,
 		},
 		{
 			give: "negative amount → true (treated as non-positive)",
-			cfg:  SweepConfig{Threshold: types.NewCryptoAmount(big.NewInt(-1))},
+			cfg:  SweepConfig{Threshold: types.NewCryptoAmountFromInt64(-1)},
 			want: true,
 		},
 	}

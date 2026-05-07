@@ -4,7 +4,6 @@ package crypto
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"testing"
 	"time"
 
@@ -124,7 +123,7 @@ func TestHandleWalletAfterConfirm(t *testing.T) {
 			give: "positive threshold + transient → release",
 			resolver: &mockSweepResolver{
 				cfg: SweepConfig{
-					Threshold:   types.NewCryptoAmount(big.NewInt(10_000_000)),
+					Threshold:   types.NewCryptoAmountFromInt64(10_000_000),
 					MaxAgeHours: 24,
 				},
 			},
@@ -137,7 +136,7 @@ func TestHandleWalletAfterConfirm(t *testing.T) {
 			give: "positive threshold + persistent → no-op (stays assigned)",
 			resolver: &mockSweepResolver{
 				cfg: SweepConfig{
-					Threshold:   types.NewCryptoAmount(big.NewInt(10_000_000)),
+					Threshold:   types.NewCryptoAmountFromInt64(10_000_000),
 					MaxAgeHours: 24,
 				},
 			},
@@ -271,7 +270,7 @@ func TestDefaultDustThreshold(t *testing.T) {
 	if !threshold.IsPositive() {
 		t.Error("default dust threshold should be positive")
 	}
-	if threshold.BigInt().Int64() != 1000 {
+	if threshold.Int64() != 1000 {
 		t.Errorf("default dust threshold = %s, want 1000", threshold.String())
 	}
 }
@@ -301,7 +300,7 @@ func TestEventType_Values(t *testing.T) {
 
 func TestBlockchainEvent_Fields(t *testing.T) {
 	netID := id.New()
-	amount := types.NewCryptoAmount(big.NewInt(5_000_000))
+	amount := types.NewCryptoAmountFromInt64(5_000_000)
 	ts := time.Now().UTC()
 
 	event := BlockchainEvent{
@@ -322,7 +321,7 @@ func TestBlockchainEvent_Fields(t *testing.T) {
 	if event.NetworkID != netID {
 		t.Errorf("NetworkID = %v, want %v", event.NetworkID, netID)
 	}
-	if event.Amount.BigInt().Int64() != 5_000_000 {
+	if event.Amount.Int64() != 5_000_000 {
 		t.Errorf("Amount = %s, want 5000000", event.Amount.String())
 	}
 	if event.EventType != EventTypeTransfer {

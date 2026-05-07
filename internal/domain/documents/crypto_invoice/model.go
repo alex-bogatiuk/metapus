@@ -21,6 +21,7 @@ const (
 	InvoiceStatusCreated      InvoiceStatus = "created"        // awaiting payment
 	InvoiceStatusPartiallyPaid InvoiceStatus = "partially_paid" // partial payment received
 	InvoiceStatusPaid         InvoiceStatus = "paid"           // full payment, awaiting confirmations
+	InvoiceStatusOverpaid     InvoiceStatus = "overpaid"       // received > expected
 	InvoiceStatusConfirmed    InvoiceStatus = "confirmed"      // confirmed, funds credited
 	InvoiceStatusExpired      InvoiceStatus = "expired"        // TTL expired without payment
 	InvoiceStatusCancelled    InvoiceStatus = "cancelled"      // cancelled by merchant
@@ -45,6 +46,9 @@ type CryptoInvoice struct {
 
 	// Received amount (updated by chain watcher)
 	ReceivedAmount types.CryptoAmount `db:"received_amount" json:"receivedAmount" meta:"label:Полученная сумма"`
+
+	// Overpaid amount: received - expected, when received > expected (zero otherwise)
+	OverpaidAmount types.CryptoAmount `db:"overpaid_amount" json:"overpaidAmount" meta:"label:Сумма переплаты"`
 
 	// Invoice status (FSM)
 	Status InvoiceStatus `db:"status" json:"status" meta:"label:Статус"`
@@ -84,6 +88,7 @@ func NewCryptoInvoice(merchantID, tokenID id.ID, expectedAmount types.CryptoAmou
 		TokenID:        tokenID,
 		ExpectedAmount: expectedAmount,
 		ReceivedAmount: types.ZeroCryptoAmount(),
+		OverpaidAmount: types.ZeroCryptoAmount(),
 		Status:         InvoiceStatusCreated,
 		ExpiresAt:      time.Now().Add(30 * time.Minute), // default 30 min TTL
 		Lines:          make([]CryptoInvoiceLine, 0),

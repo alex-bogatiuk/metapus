@@ -3,7 +3,6 @@ package handlers
 import (
 	"encoding/base64"
 	"fmt"
-	"math/big"
 	"net/http"
 	"time"
 
@@ -36,6 +35,7 @@ type PaymentPageResponse struct {
 	Description    string    `json:"description,omitempty"`
 	Confirmations  int       `json:"confirmations"`     // current confirmations (from payments)
 	RequiredConfs  int       `json:"requiredConfs"`     // required confirmations
+	OverpaidAmount string    `json:"overpaidAmount"`    // human-readable overpaid amount ("0" if none)
 	QRCode         string    `json:"qrCode,omitempty"` // base64 data URL (PNG)
 }
 
@@ -47,6 +47,7 @@ type paymentPageData struct {
 	WalletAddress  string
 	ExpectedAmount types.CryptoAmount
 	ReceivedAmount types.CryptoAmount
+	OverpaidAmount types.CryptoAmount
 	ExpiresAt      time.Time
 	OrderID        string
 	Description    string
@@ -100,6 +101,7 @@ func (h *PaymentPageHandler) GetPaymentInfo(c *gin.Context) {
 		WalletAddress:  data.WalletAddress,
 		ExpectedAmount: formatCryptoAmount(data.ExpectedAmount, data.DecimalPlaces),
 		ReceivedAmount: formatCryptoAmount(data.ReceivedAmount, data.DecimalPlaces),
+		OverpaidAmount: formatCryptoAmount(data.OverpaidAmount, data.DecimalPlaces),
 		TokenSymbol:    data.TokenSymbol,
 		TokenName:      data.TokenName,
 		NetworkName:    data.NetworkName,
@@ -125,6 +127,7 @@ func (h *PaymentPageHandler) fetchPaymentData(ctx interface{ Deadline() (time.Ti
 			COALESCE(w.address, '') AS wallet_address,
 			ci.expected_amount,
 			ci.received_amount,
+			ci.overpaid_amount,
 			ci.expires_at,
 			COALESCE(ci.order_id, '') AS order_id,
 			COALESCE(ci.description, '') AS description,
@@ -149,14 +152,13 @@ func (h *PaymentPageHandler) fetchPaymentData(ctx interface{ Deadline() (time.Ti
 	`
 
 	var data paymentPageData
-	var expectedAmountStr, receivedAmountStr string
-	var status string
 
 	err := pool.QueryRow(ctx, query, invoiceID).Scan(
-		&status,
+		&data.Status,
 		&data.WalletAddress,
-		&expectedAmountStr,
-		&receivedAmountStr,
+		&data.ExpectedAmount,
+		&data.ReceivedAmount,
+		&data.OverpaidAmount,
 		&data.ExpiresAt,
 		&data.OrderID,
 		&data.Description,
@@ -173,28 +175,30 @@ func (h *PaymentPageHandler) fetchPaymentData(ctx interface{ Deadline() (time.Ti
 		return nil, fmt.Errorf("fetch payment page data: %w", err)
 	}
 
-	data.Status = status
-	data.ExpectedAmount, _ = types.NewCryptoAmountFromString(expectedAmountStr)
-	data.ReceivedAmount, _ = types.NewCryptoAmountFromString(receivedAmountStr)
-
 	return &data, nil
 }
 
 // formatCryptoAmount converts minor units to human-readable format.
 // E.g. 5000000 with 6 decimal places → "5.000000"
 func formatCryptoAmount(amount types.CryptoAmount, decimalPlaces int) string {
-	raw := amount.BigInt()
-	if raw == nil {
-		return "0"
+	v := amount.Int64()
+	if decimalPlaces <= 0 {
+		return fmt.Sprintf("%d", v)
 	}
 
-	divisor := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimalPlaces)), nil)
-	whole := new(big.Int).Div(raw, divisor)
-	remainder := new(big.Int).Mod(raw, divisor)
+	divisor := int64(1)
+	for range decimalPlaces {
+		divisor *= 10
+	}
 
-	// Ensure remainder has leading zeros
-	format := fmt.Sprintf("%%s.%%0%dd", decimalPlaces)
-	return fmt.Sprintf(format, whole.String(), remainder.Int64())
+	whole := v / divisor
+	remainder := v % divisor
+	if remainder < 0 {
+		remainder = -remainder
+	}
+
+	format := fmt.Sprintf("%%d.%%0%dd", decimalPlaces)
+	return fmt.Sprintf(format, whole, remainder)
 }
 
 // generateQRDataURL renders a QR code as a base64-encoded PNG data URL.
@@ -223,7 +227,7 @@ func (h *PaymentPageHandler) GetInvoiceStatus(c *gin.Context) {
 	pool := tenant.MustGetPool(ctx)
 
 	var status string
-	var receivedAmountStr string
+	var receivedAmount, overpaidAmount types.CryptoAmount
 	var confirmations int
 	var decimalPlaces int
 
@@ -231,6 +235,7 @@ func (h *PaymentPageHandler) GetInvoiceStatus(c *gin.Context) {
 		SELECT
 			ci.status,
 			ci.received_amount,
+			ci.overpaid_amount,
 			COALESCE((
 				SELECT MAX(cp.confirmations) FROM doc_crypto_payments cp WHERE cp.invoice_id = ci.id
 			), 0),
@@ -238,13 +243,11 @@ func (h *PaymentPageHandler) GetInvoiceStatus(c *gin.Context) {
 		FROM doc_crypto_invoices ci
 		LEFT JOIN cat_tokens t ON t.id = ci.token_id
 		WHERE ci.id = $1
-	`, invoiceID).Scan(&status, &receivedAmountStr, &confirmations, &decimalPlaces)
+	`, invoiceID).Scan(&status, &receivedAmount, &overpaidAmount, &confirmations, &decimalPlaces)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "invoice not found"})
 		return
 	}
-
-	receivedAmount, _ := types.NewCryptoAmountFromString(receivedAmountStr)
 
 	// Check expiration client-side — return current status from DB
 	// Status is already managed by the expiration loop in crypto_worker
@@ -252,6 +255,7 @@ func (h *PaymentPageHandler) GetInvoiceStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":         status,
 		"receivedAmount": formatCryptoAmount(receivedAmount, decimalPlaces),
+		"overpaidAmount": formatCryptoAmount(overpaidAmount, decimalPlaces),
 		"confirmations":  confirmations,
 	})
 }

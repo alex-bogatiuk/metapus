@@ -109,10 +109,11 @@
         .badge-default { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
         .badge-secondary { background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); }
         .badge-outline { background: transparent; border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); }
-        .badge-destructive { background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground)); }
-        .badge-success { background: hsl(160 60% 45% / .15); color: hsl(160 60% 50%); border: 1px solid hsl(160 60% 45% / .3); }
-        .badge-warning { background: hsl(30 80% 55% / .15); color: hsl(30 80% 60%); border: 1px solid hsl(30 80% 55% / .3); }
+        .badge-warning { background: hsl(48 96% 53%); color: hsl(20 14% 4%); }
+        .badge-success { background: hsl(142 76% 36%); color: hsl(0 0% 98%); }
+        .badge-destructive { background: hsl(0 63% 31%); color: hsl(0 0% 98%); }
         .badge-info { background: hsl(220 70% 50% / .15); color: hsl(220 70% 60%); border: 1px solid hsl(220 70% 50% / .3); }
+        .badge-overpaid { background: hsl(25 95% 53%); color: hsl(0 0% 98%); }
 
         /* ── Separator ──────────────────────────────────────────────── */
         .separator { height: 1px; width: 100%; background: hsl(var(--border)); }
@@ -453,15 +454,22 @@
     <div id="overlay-confirmed" class="overlay hidden">
         <div class="overlay-card">
             <div class="overlay-icon">✅</div>
-            <div class="overlay-title">Payment Confirmed</div>
-            <div class="overlay-desc">Your transaction has been verified on the blockchain.</div>
+            <div class="overlay-title">Платёж подтверждён</div>
+            <div class="overlay-desc">Транзакция верифицирована в блокчейне.</div>
         </div>
     </div>
     <div id="overlay-expired" class="overlay hidden">
         <div class="overlay-card">
             <div class="overlay-icon">⏰</div>
-            <div class="overlay-title">Invoice Expired</div>
-            <div class="overlay-desc">This payment request has expired. Please create a new one.</div>
+            <div class="overlay-title">Инвойс просрочен</div>
+            <div class="overlay-desc">Срок оплаты истёк. Запросите новый инвойс у продавца.</div>
+        </div>
+    </div>
+    <div id="overlay-overpaid" class="overlay hidden">
+        <div class="overlay-card">
+            <div class="overlay-icon">⚠️</div>
+            <div class="overlay-title">Зафиксирована переплата</div>
+            <div class="overlay-desc" id="overpaid-desc">Сумма перевода превышает сумму инвойса. Продавец уведомлён.</div>
         </div>
     </div>
 
@@ -521,7 +529,7 @@
             document.getElementById('conf-required').textContent = data.requiredConfs;
 
             updateStatus(data.status, data.confirmations);
-            updatePartialInfo(data.receivedAmount, data.status);
+            updatePartialInfo(data.receivedAmount, data.status, data.overpaidAmount);
 
             // QR code — rendered server-side as base64 data URL
             if (data.qrCode && data.status !== 'confirmed' && data.status !== 'expired') {
@@ -531,29 +539,39 @@
             }
         }
 
-        function updatePartialInfo(receivedAmount, status) {
+        function updatePartialInfo(receivedAmount, status, overpaidAmount) {
             var partialInfo = document.getElementById('partial-info');
             if (!paymentData || !receivedAmount || receivedAmount === '0' || receivedAmount === '0.000000') {
                 partialInfo.classList.add('hidden');
                 return;
             }
             // Show partial info when we have received some amount
-            if (status === 'partially_paid' || status === 'paid' || status === 'confirmed') {
+            if (status === 'partially_paid' || status === 'paid' || status === 'overpaid' || status === 'confirmed') {
                 partialInfo.classList.remove('hidden');
                 var sym = ' ' + paymentData.tokenSymbol;
                 document.getElementById('received-value').textContent = receivedAmount + sym;
-                // Calculate remaining
-                var expected = parseFloat(paymentData.expectedAmount) || 0;
-                var received = parseFloat(receivedAmount) || 0;
-                var remaining = Math.max(0, expected - received);
-                document.getElementById('remaining-value').textContent = remaining.toFixed(paymentData.decimalPlaces) + sym;
-                // Update label
-                if (status === 'partially_paid') {
-                    document.getElementById('amount-label').textContent = 'Total amount';
+
+                if (status === 'overpaid' && overpaidAmount && overpaidAmount !== '0' && overpaidAmount !== '0.000000') {
+                    // Overpaid: show excess instead of remaining
+                    document.getElementById('amount-label').textContent = 'Сумма инвойса';
+                    var remainingEl = document.getElementById('remaining-value');
+                    remainingEl.textContent = '+' + overpaidAmount + sym;
+                    remainingEl.style.color = 'hsl(25 95% 53%)';
+                    document.querySelector('.partial-row:last-child .partial-label').textContent = 'Переплата';
+                } else if (status === 'partially_paid') {
+                    // Partial payment
+                    document.getElementById('amount-label').textContent = 'Сумма инвойса';
+                    var expected = parseFloat(paymentData.expectedAmount) || 0;
+                    var received = parseFloat(receivedAmount) || 0;
+                    var remaining = Math.max(0, expected - received);
+                    document.getElementById('remaining-value').textContent = remaining.toFixed(paymentData.decimalPlaces) + sym;
+                    document.getElementById('remaining-value').style.color = '';
+                    document.querySelector('.partial-row:last-child .partial-label').textContent = 'Остаток';
                 } else {
-                    document.getElementById('amount-label').textContent = 'Paid in full';
+                    document.getElementById('amount-label').textContent = 'Оплачено полностью';
                     document.getElementById('remaining-value').textContent = '0' + sym;
                     document.getElementById('remaining-value').style.color = 'hsl(160 60% 50%)';
+                    document.querySelector('.partial-row:last-child .partial-label').textContent = 'Остаток';
                 }
             } else {
                 partialInfo.classList.add('hidden');
@@ -582,6 +600,12 @@
                     progressSection.classList.remove('hidden');
                     updateProgress(confirmations);
                     break;
+                case 'overpaid':
+                    badge.textContent = 'OVERPAID';
+                    badge.classList.add('badge-overpaid');
+                    progressSection.classList.remove('hidden');
+                    updateProgress(confirmations);
+                    break;
                 case 'confirming':
                     badge.textContent = 'CONFIRMING';
                     badge.classList.add('badge-warning');
@@ -596,7 +620,17 @@
                     timerSection.classList.add('hidden');
                     progressSection.classList.remove('hidden');
                     updateProgress(paymentData.requiredConfs);
-                    showOverlay('overlay-confirmed');
+                    // Show overpaid overlay if there was an overpayment, otherwise show confirmed
+                    var ovp = paymentData && paymentData.overpaidAmount;
+                    var isOverpaid = ovp && ovp !== '0' && ovp !== '0.000000';
+                    if (isOverpaid) {
+                        var sym = paymentData.tokenSymbol || '';
+                        document.getElementById('overpaid-desc').textContent =
+                            'Сумма перевода превышает сумму инвойса. Переплата: ' + ovp + ' ' + sym + '. Продавец уведомлён.';
+                        showOverlay('overlay-overpaid');
+                    } else {
+                        showOverlay('overlay-confirmed');
+                    }
                     stopPolling();
                     break;
                 case 'expired':
@@ -630,8 +664,13 @@
                     return resp.json();
                 }).then(function(data) {
                     if (!data) return;
+                    // Sync polling data back to paymentData so overlay logic uses fresh values
+                    if (paymentData) {
+                        paymentData.overpaidAmount = data.overpaidAmount;
+                        paymentData.receivedAmount = data.receivedAmount;
+                    }
                     updateStatus(data.status, data.confirmations);
-                    updatePartialInfo(data.receivedAmount, data.status);
+                    updatePartialInfo(data.receivedAmount, data.status, data.overpaidAmount);
                     if (data.status === 'confirmed' || data.status === 'expired') stopPolling();
                 }).catch(function() {});
             }, POLL_INTERVAL);

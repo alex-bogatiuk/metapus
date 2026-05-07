@@ -17,10 +17,19 @@ import (
 type OutboxStatus string
 
 const (
-	OutboxStatusPending   OutboxStatus = "pending"
-	OutboxStatusPublished OutboxStatus = "published"
-	OutboxStatusFailed    OutboxStatus = "failed"
+	OutboxStatusPending    OutboxStatus = "pending"
+	OutboxStatusProcessing OutboxStatus = "processing" // claimed by relay, Handle in progress
+	OutboxStatusPublished  OutboxStatus = "published"
+	OutboxStatusFailed     OutboxStatus = "failed"
 )
+
+// _defaultStuckTimeout is how long a message can stay in 'processing'
+// before RecoverStuck resets it to 'pending'. Must be significantly
+// longer than the longest adapter call (Telegram, email, webhook).
+const _defaultStuckTimeout = 5 * time.Minute
+
+// DefaultStuckTimeout returns the default timeout for stuck message recovery.
+func DefaultStuckTimeout() time.Duration { return _defaultStuckTimeout }
 
 // OutboxMessage represents a message in the transactional outbox.
 type OutboxMessage struct {
@@ -135,22 +144,40 @@ func NewOutboxRelay(pool *pgxpool.Pool, batchSize int, handler OutboxHandler) *O
 	}
 }
 
-// ProcessBatch fetches and processes pending messages.
-// Returns number of processed messages.
+// ProcessBatch atomically claims pending messages, then processes them outside any transaction.
+//
+// Two-phase Atomic Claim Pattern:
+//
+//	Phase 1: CTE UPDATE RETURNING — atomically sets status='processing' in a single SQL statement.
+//	         FOR UPDATE SKIP LOCKED inside the CTE prevents concurrent relay instances
+//	         from claiming the same message.
+//	Phase 2: Handle each message (may call external APIs: Telegram, email, webhook).
+//	         Runs outside any transaction — no risk of long tx or statement_timeout.
+//	         On success: mark 'published'. On failure: revert to 'pending' with retry.
+//
+// Returns number of successfully processed messages.
 func (r *OutboxRelay) ProcessBatch(ctx context.Context) (int, error) {
-	// Fetch pending messages with lock to prevent concurrent processing
+	// Phase 1: Atomic claim.
+	// Single SQL statement = implicit transaction = row locks held only for the UPDATE duration.
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, aggregate_type, aggregate_id, event_type, payload, status, 
-		       retry_count, last_error, next_retry_at, created_at, published_at
-		FROM sys_outbox
-		WHERE status = $1 
-		  AND (next_retry_at IS NULL OR next_retry_at <= NOW())
-		ORDER BY created_at
-		LIMIT $2
-		FOR UPDATE SKIP LOCKED
-	`, OutboxStatusPending, r.batchSize)
+		WITH batch AS (
+			SELECT id, created_at
+			FROM sys_outbox
+			WHERE status = $1
+			  AND (next_retry_at IS NULL OR next_retry_at <= NOW())
+			ORDER BY created_at
+			LIMIT $2
+			FOR UPDATE SKIP LOCKED
+		)
+		UPDATE sys_outbox o
+		SET status = $3
+		FROM batch b
+		WHERE o.id = b.id AND o.created_at = b.created_at
+		RETURNING o.id, o.aggregate_type, o.aggregate_id, o.event_type, o.payload,
+		          o.status, o.retry_count, o.last_error, o.next_retry_at, o.created_at, o.published_at
+	`, OutboxStatusPending, r.batchSize, OutboxStatusProcessing)
 	if err != nil {
-		return 0, fmt.Errorf("fetch outbox messages: %w", err)
+		return 0, fmt.Errorf("claim outbox batch: %w", err)
 	}
 	defer rows.Close()
 
@@ -172,6 +199,7 @@ func (r *OutboxRelay) ProcessBatch(ctx context.Context) (int, error) {
 		return 0, fmt.Errorf("iterate outbox messages: %w", err)
 	}
 
+	// Phase 2: Process each claimed message outside any transaction.
 	processed := 0
 	for _, msg := range messages {
 		if err := r.processMessage(ctx, msg); err != nil {
@@ -189,18 +217,19 @@ func (r *OutboxRelay) processMessage(ctx context.Context, msg *OutboxMessage) er
 	err := r.handler.Handle(ctx, msg)
 
 	if err != nil {
-		// Increment retry count and set next retry time (exponential backoff)
+		// Revert to 'pending' (or 'failed' after max retries) so the message
+		// can be picked up again on the next poll cycle.
 		nextRetry := time.Now().Add(time.Duration(msg.RetryCount+1) * time.Minute)
 		errStr := err.Error()
 
 		_, updateErr := r.pool.Exec(ctx, `
 			UPDATE sys_outbox 
-			SET retry_count = retry_count + 1,
-			    last_error = $1,
-			    next_retry_at = $2,
-			    status = CASE WHEN retry_count >= 5 THEN $3 ELSE status END
-			WHERE id = $4
-		`, errStr, nextRetry, OutboxStatusFailed, msg.ID)
+			SET status = CASE WHEN retry_count >= 4 THEN $1 ELSE $2 END,
+			    retry_count = retry_count + 1,
+			    last_error = $3,
+			    next_retry_at = $4
+			WHERE id = $5 AND created_at = $6
+		`, OutboxStatusFailed, OutboxStatusPending, errStr, nextRetry, msg.ID, msg.CreatedAt)
 
 		if updateErr != nil {
 			return fmt.Errorf("update failed message: %w", updateErr)
@@ -213,10 +242,29 @@ func (r *OutboxRelay) processMessage(ctx context.Context, msg *OutboxMessage) er
 	_, err = r.pool.Exec(ctx, `
 		UPDATE sys_outbox 
 		SET status = $1, published_at = $2
-		WHERE id = $3
-	`, OutboxStatusPublished, now, msg.ID)
+		WHERE id = $3 AND created_at = $4
+	`, OutboxStatusPublished, now, msg.ID, msg.CreatedAt)
 
 	return err
+}
+
+// RecoverStuck resets messages stuck in 'processing' (worker crash, OOM, etc.)
+// back to 'pending' so they can be retried.
+// Called periodically by the worker relay loop (e.g. every cleanup cycle).
+func (r *OutboxRelay) RecoverStuck(ctx context.Context, timeout time.Duration) (int64, error) {
+	cutoff := time.Now().Add(-timeout)
+	result, err := r.pool.Exec(ctx, `
+		UPDATE sys_outbox
+		SET status = $1
+		WHERE status = $2
+		  AND created_at < $3
+	`, OutboxStatusPending, OutboxStatusProcessing, cutoff)
+
+	if err != nil {
+		return 0, fmt.Errorf("recover stuck outbox messages: %w", err)
+	}
+
+	return result.RowsAffected(), nil
 }
 
 // MoveToDLQ moves failed messages to dead letter queue.

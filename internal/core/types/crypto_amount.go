@@ -1,57 +1,50 @@
 // Package types provides common type aliases and utilities.
 //
-// CryptoAmount — arbitrary-precision integer for cryptocurrency minor units.
-// int64 (MinorUnits) overflows at ~9.2 ETH in wei (18 decimals).
-// CryptoAmount uses math/big.Int internally and maps to NUMERIC in Postgres.
+// CryptoAmount — int64 type for cryptocurrency minor units.
+// Covers all supported chains: TRON/USDT (6 dec), BTC (8 dec), ETH in gwei (9 dec),
+// SOL (9 dec), TON (9 dec). int64 max ≈ 9.2 × 10¹⁸.
+//
+// For ETH native: store in gwei (10⁹ wei), NOT wei. Token.DecimalPlaces = 9.
 package types
 
 import (
 	"database/sql/driver"
 	"fmt"
-	"math/big"
+	"math"
+	"strconv"
 
 	"github.com/shopspring/decimal"
 )
 
-// CryptoAmount represents a cryptocurrency value in minor units (satoshi, wei, sun, lamport).
-// Uses math/big.Int for arbitrary precision — int64 is NOT sufficient for 18-decimal tokens.
+// CryptoAmount represents a cryptocurrency value in minor units (satoshi, sun, gwei, lamport).
+// Uses int64 — sufficient for all chains when ETH uses gwei (not wei).
 //
-// Storage: Postgres NUMERIC (arbitrary precision).
-// JSON:    string (to avoid JS float64 precision loss for large integers).
-// Go:      immutable value type — all operations return new values.
-type CryptoAmount struct {
-	val *big.Int
-}
-
-// _zeroBig is a shared zero value; never mutated.
-var _zeroBig = new(big.Int)
+// Storage: Postgres BIGINT (8 bytes, indexed natively).
+// JSON:    number (int64 values are always within JS safe integer range for practical amounts).
+// Go:      value type, zero allocs.
+type CryptoAmount int64
 
 // ZeroCryptoAmount returns a zero CryptoAmount.
 func ZeroCryptoAmount() CryptoAmount {
-	return CryptoAmount{val: new(big.Int)}
-}
-
-// NewCryptoAmount creates a CryptoAmount from a big.Int (defensive copy).
-func NewCryptoAmount(v *big.Int) CryptoAmount {
-	if v == nil {
-		return CryptoAmount{val: new(big.Int)}
-	}
-	return CryptoAmount{val: new(big.Int).Set(v)}
+	return 0
 }
 
 // NewCryptoAmountFromInt64 creates a CryptoAmount from an int64.
 func NewCryptoAmountFromInt64(v int64) CryptoAmount {
-	return CryptoAmount{val: big.NewInt(v)}
+	return CryptoAmount(v)
 }
 
 // NewCryptoAmountFromString creates a CryptoAmount from a decimal string of minor units.
-// Returns error if the string is not a valid integer.
+// Returns error if the string is not a valid integer or overflows int64.
 func NewCryptoAmountFromString(s string) (CryptoAmount, error) {
-	v, ok := new(big.Int).SetString(s, 10)
-	if !ok {
-		return CryptoAmount{}, fmt.Errorf("invalid CryptoAmount: %q", s)
+	if s == "" || s == "null" {
+		return 0, nil
 	}
-	return CryptoAmount{val: v}, nil
+	v, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid CryptoAmount: %q: %w", s, err)
+	}
+	return CryptoAmount(v), nil
 }
 
 // MustCryptoAmount creates a CryptoAmount from a string, panics on error.
@@ -64,146 +57,153 @@ func MustCryptoAmount(s string) CryptoAmount {
 	return a
 }
 
-// bigVal returns the underlying big.Int (never nil).
-func (a CryptoAmount) bigVal() *big.Int {
-	if a.val == nil {
-		return _zeroBig
-	}
-	return a.val
-}
+// --- Arithmetic (with overflow detection) ---
 
-// --- Arithmetic (all return new values — immutable) ---
-
-// Add returns a + b.
+// Add returns a + b. Panics on overflow (financial invariant).
 func (a CryptoAmount) Add(b CryptoAmount) CryptoAmount {
-	return CryptoAmount{val: new(big.Int).Add(a.bigVal(), b.bigVal())}
+	result := int64(a) + int64(b)
+	// Overflow: same-sign operands produce different-sign result
+	if (int64(b) > 0 && result < int64(a)) || (int64(b) < 0 && result > int64(a)) {
+		panic(fmt.Sprintf("CryptoAmount overflow: %d + %d", a, b))
+	}
+	return CryptoAmount(result)
 }
 
-// Sub returns a - b.
+// Sub returns a - b. Panics on overflow (financial invariant).
 func (a CryptoAmount) Sub(b CryptoAmount) CryptoAmount {
-	return CryptoAmount{val: new(big.Int).Sub(a.bigVal(), b.bigVal())}
+	result := int64(a) - int64(b)
+	// Overflow: subtraction overflow check
+	if (int64(b) > 0 && result > int64(a)) || (int64(b) < 0 && result < int64(a)) {
+		panic(fmt.Sprintf("CryptoAmount overflow: %d - %d", a, b))
+	}
+	return CryptoAmount(result)
 }
 
-// Neg returns -a.
+// Neg returns -a. Panics on overflow (math.MinInt64).
 func (a CryptoAmount) Neg() CryptoAmount {
-	return CryptoAmount{val: new(big.Int).Neg(a.bigVal())}
+	if int64(a) == math.MinInt64 {
+		panic("CryptoAmount overflow: cannot negate MinInt64")
+	}
+	return CryptoAmount(-int64(a))
 }
 
-// Abs returns |a|.
+// Abs returns |a|. Panics on overflow (math.MinInt64).
 func (a CryptoAmount) Abs() CryptoAmount {
-	return CryptoAmount{val: new(big.Int).Abs(a.bigVal())}
+	if int64(a) < 0 {
+		return a.Neg()
+	}
+	return a
 }
 
 // --- Comparison ---
 
 // Cmp compares a and b: -1 if a < b, 0 if a == b, +1 if a > b.
 func (a CryptoAmount) Cmp(b CryptoAmount) int {
-	return a.bigVal().Cmp(b.bigVal())
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	default:
+		return 0
+	}
 }
 
 // IsZero returns true if a == 0.
 func (a CryptoAmount) IsZero() bool {
-	return a.bigVal().Sign() == 0
+	return a == 0
 }
 
 // IsPositive returns true if a > 0.
 func (a CryptoAmount) IsPositive() bool {
-	return a.bigVal().Sign() > 0
+	return a > 0
 }
 
 // IsNegative returns true if a < 0.
 func (a CryptoAmount) IsNegative() bool {
-	return a.bigVal().Sign() < 0
+	return a < 0
 }
 
 // --- Conversion ---
 
-// BigInt returns a defensive copy of the underlying big.Int.
-func (a CryptoAmount) BigInt() *big.Int {
-	return new(big.Int).Set(a.bigVal())
+// Int64 returns the underlying int64 value.
+func (a CryptoAmount) Int64() int64 {
+	return int64(a)
 }
 
 // ToDecimal converts minor units to major units as decimal.Decimal.
 // Example: CryptoAmount(1_000_000).ToDecimal(6) → 1.000000 (1 USDT).
 func (a CryptoAmount) ToDecimal(decimalPlaces int) decimal.Decimal {
-	return decimal.NewFromBigInt(a.bigVal(), -int32(decimalPlaces))
+	return decimal.New(int64(a), -int32(decimalPlaces))
 }
 
 // String returns the decimal string representation.
 func (a CryptoAmount) String() string {
-	return a.bigVal().String()
+	return strconv.FormatInt(int64(a), 10)
 }
 
-// --- JSON: encode as string to prevent JS float64 precision loss ---
+// --- JSON: encode as number (int64 values are safe for JS) ---
 
-// MarshalJSON encodes CryptoAmount as a JSON string.
-// String encoding prevents precision loss in JavaScript (max safe int = 2^53).
+// MarshalJSON encodes CryptoAmount as a JSON number.
 func (a CryptoAmount) MarshalJSON() ([]byte, error) {
-	return []byte(`"` + a.bigVal().String() + `"`), nil
+	return strconv.AppendInt(nil, int64(a), 10), nil
 }
 
-// UnmarshalJSON decodes CryptoAmount from a JSON string or number.
+// UnmarshalJSON decodes CryptoAmount from a JSON number or string.
 func (a *CryptoAmount) UnmarshalJSON(data []byte) error {
 	s := string(data)
-	// Strip quotes if present
+	// Strip quotes if present (backward compat with old string encoding)
 	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
 		s = s[1 : len(s)-1]
 	}
 	if s == "null" || s == "" {
-		a.val = new(big.Int)
+		*a = 0
 		return nil
 	}
-	v, ok := new(big.Int).SetString(s, 10)
-	if !ok {
-		return fmt.Errorf("CryptoAmount: invalid value %q", s)
+	v, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return fmt.Errorf("CryptoAmount: invalid value %q: %w", s, err)
 	}
-	a.val = v
+	*a = CryptoAmount(v)
 	return nil
 }
 
-// --- SQL: Postgres NUMERIC ↔ big.Int ---
+// --- SQL: Postgres BIGINT ↔ int64 ---
 
-// Value implements driver.Valuer for Postgres NUMERIC.
+// Value implements driver.Valuer for Postgres BIGINT.
 func (a CryptoAmount) Value() (driver.Value, error) {
-	return a.bigVal().String(), nil
+	return int64(a), nil
 }
 
-// Scan implements sql.Scanner for Postgres NUMERIC.
+// Scan implements sql.Scanner for Postgres BIGINT.
 func (a *CryptoAmount) Scan(src any) error {
 	if src == nil {
-		a.val = new(big.Int)
+		*a = 0
 		return nil
 	}
 
-	var s string
 	switch v := src.(type) {
-	case string:
-		s = v
-	case []byte:
-		s = string(v)
 	case int64:
-		a.val = big.NewInt(v)
+		*a = CryptoAmount(v)
 		return nil
 	case float64:
-		// NUMERIC may arrive as float64 from some drivers.
-		// Convert via decimal to avoid precision loss.
-		d := decimal.NewFromFloat(v)
-		a.val = d.BigInt()
+		*a = CryptoAmount(int64(v))
+		return nil
+	case string:
+		parsed, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return fmt.Errorf("CryptoAmount.Scan: invalid string %q: %w", v, err)
+		}
+		*a = CryptoAmount(parsed)
+		return nil
+	case []byte:
+		parsed, err := strconv.ParseInt(string(v), 10, 64)
+		if err != nil {
+			return fmt.Errorf("CryptoAmount.Scan: invalid bytes %q: %w", v, err)
+		}
+		*a = CryptoAmount(parsed)
 		return nil
 	default:
 		return fmt.Errorf("CryptoAmount.Scan: unsupported type %T", src)
 	}
-
-	val, ok := new(big.Int).SetString(s, 10)
-	if !ok {
-		// Try parsing as decimal string (e.g., "1000000.00" from NUMERIC)
-		d, err := decimal.NewFromString(s)
-		if err != nil {
-			return fmt.Errorf("CryptoAmount.Scan: invalid value %q", s)
-		}
-		a.val = d.BigInt()
-		return nil
-	}
-	a.val = val
-	return nil
 }

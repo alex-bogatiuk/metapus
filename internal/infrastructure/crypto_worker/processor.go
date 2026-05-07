@@ -20,6 +20,7 @@ import (
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/tx"
 	"metapus/internal/core/types"
+	"metapus/internal/domain"
 	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_invoice"
@@ -99,13 +100,21 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 	merchantTokenCfgRepo := crypto_repo.NewMerchantTokenConfigRepo()
 	sweepResolver := crypto.NewSweepConfigResolver(merchantTokenCfgRepo, tokenRepo)
 
-	// Event Processor — TxManager is extracted from context at runtime.
-	// Numerator generates sequential document numbers (CP-2026-00001).
+	// Invoice service with outbox decorator.
+	// EventProcessor uses this instead of raw repo so that invoice status changes
+	// (overpaid, confirmed, expired) fire automation events via sys_outbox.
 	num := infraNumerator.New()
+	invoiceService := crypto_invoice.NewService(invoiceRepo, postingEngine, num, contextTxManager{})
+	outboxPublisher := postgres.NewOutboxPublisher()
+	invoiceSvc := domain.Chain[*crypto_invoice.CryptoInvoice](
+		domain.WithOutboxEvents[*crypto_invoice.CryptoInvoice]("crypto_invoice", outboxPublisher, nil),
+	)(invoiceService)
+
+	// Event Processor — TxManager is extracted from context at runtime.
 	ep := crypto.NewEventProcessor(crypto.EventProcessorConfig{
 		FSM:           fsm,
 		WalletSvc:     walletSvc,
-		InvoiceRepo:   invoiceRepo,
+		InvoiceSvc:    invoiceSvc,
 		PaymentRepo:   paymentRepo,
 		PostingEngine: postingEngine,
 		TxManager:     contextTxManager{},

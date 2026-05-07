@@ -33,12 +33,12 @@ CREATE TABLE IF NOT EXISTS doc_crypto_payments (
     wallet_id         UUID NOT NULL,
     tx_hash           TEXT NOT NULL,
     from_address      TEXT NOT NULL DEFAULT '',
-    amount            NUMERIC NOT NULL DEFAULT 0,
+    amount            BIGINT NOT NULL DEFAULT 0,
     block_number      BIGINT NOT NULL DEFAULT 0,
     confirmations     INT NOT NULL DEFAULT 0,
     required_confs    INT NOT NULL DEFAULT 0,
     status            TEXT NOT NULL DEFAULT 'detected' CHECK (status IN ('detected','confirming','confirmed','settled','reorged')),
-    network_fee       NUMERIC NOT NULL DEFAULT 0,
+    network_fee       BIGINT NOT NULL DEFAULT 0,
     detected_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     confirmed_at      TIMESTAMPTZ,
 
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS doc_crypto_payment_lines (
     document_id   UUID NOT NULL REFERENCES doc_crypto_payments(id) ON DELETE CASCADE,
     line_no       INT NOT NULL DEFAULT 0,
     description   TEXT NOT NULL DEFAULT '',
-    amount        NUMERIC NOT NULL DEFAULT 0
+    amount        BIGINT NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_doc_crypto_payment_lines_doc ON doc_crypto_payment_lines (document_id);
@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS reg_crypto_fee_movements (
     fee_type          TEXT NOT NULL CHECK (fee_type IN ('processing','network','withdrawal','sweep')),
 
     -- Resources
-    amount            NUMERIC NOT NULL,
+    amount            BIGINT NOT NULL,
 
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -119,14 +119,14 @@ CREATE TABLE IF NOT EXISTS reg_crypto_fee_balances (
     merchant_id   UUID NOT NULL,
     token_id      UUID NOT NULL,
     fee_type      TEXT NOT NULL,
-    balance       NUMERIC NOT NULL DEFAULT 0,
+    balance       BIGINT NOT NULL DEFAULT 0,
     PRIMARY KEY (merchant_id, token_id, fee_type)
 );
 
 -- Auto-update balance on movement insert/delete
 CREATE OR REPLACE FUNCTION fn_crypto_fee_balance_update() RETURNS TRIGGER AS $$
 DECLARE
-    v_delta NUMERIC;
+    v_delta BIGINT;
 BEGIN
     IF TG_OP = 'DELETE' THEN
         IF OLD.record_type = 'receipt' THEN v_delta := -OLD.amount;

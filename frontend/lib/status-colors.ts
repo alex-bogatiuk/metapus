@@ -28,6 +28,7 @@ const STATUS_CATEGORY_MAP: Record<string, StatusCategory> = {
     "Ожидает оплаты": "warning",
     "Частично оплачен": "info",
     "Оплачен": "success",
+    "Переплата": "warning",
     "Подтверждён": "success",
     "Истёк": "danger",
     "Отменён": "danger",

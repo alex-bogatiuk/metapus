@@ -153,6 +153,7 @@ type CryptoInvoiceResponse struct {
 	WalletID       *string                        `json:"walletId,omitempty"`
 	ExpectedAmount string                         `json:"expectedAmount"` // string for precision
 	ReceivedAmount string                         `json:"receivedAmount"`
+	OverpaidAmount string                         `json:"overpaidAmount"`
 	Status         string                         `json:"status"`
 	StatusName     string                         `json:"statusName"`
 	ExpiresAt      time.Time                      `json:"expiresAt"`
@@ -195,6 +196,7 @@ func FromCryptoInvoice(doc *crypto_invoice.CryptoInvoice, refs postgres.Resolved
 		TokenID:        doc.TokenID.String(),
 		ExpectedAmount: doc.ExpectedAmount.String(),
 		ReceivedAmount: doc.ReceivedAmount.String(),
+		OverpaidAmount: doc.OverpaidAmount.String(),
 		Status:         string(doc.Status),
 		StatusName:     string(doc.Status),
 		ExpiresAt:      doc.ExpiresAt,

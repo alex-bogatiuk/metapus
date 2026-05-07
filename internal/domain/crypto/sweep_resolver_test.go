@@ -4,7 +4,6 @@ package crypto
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"testing"
 
 	"metapus/internal/core/id"
@@ -43,13 +42,13 @@ func (m *mockTokenRepo) GetByID(_ context.Context, _ id.ID) (*token.Token, error
 
 func makeToken(threshold int64, maxAgeHours int) *token.Token {
 	return &token.Token{
-		SweepThreshold:   types.NewCryptoAmount(big.NewInt(threshold)),
+		SweepThreshold:   types.NewCryptoAmountFromInt64(threshold),
 		SweepMaxAgeHours: maxAgeHours,
 	}
 }
 
 func cryptoAmountPtr(v int64) *types.CryptoAmount {
-	a := types.NewCryptoAmount(big.NewInt(v))
+	a := types.NewCryptoAmountFromInt64(v)
 	return &a
 }
 
@@ -177,7 +176,7 @@ func TestSweepConfigResolver_Resolve(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			gotThreshold := cfg.Threshold.BigInt().Int64()
+			gotThreshold := cfg.Threshold.Int64()
 			if gotThreshold != tt.wantThreshold {
 				t.Errorf("Threshold = %d, want %d", gotThreshold, tt.wantThreshold)
 			}

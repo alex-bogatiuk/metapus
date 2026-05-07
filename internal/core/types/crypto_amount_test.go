@@ -3,13 +3,12 @@ package types
 
 import (
 	"encoding/json"
-	"math/big"
 	"testing"
 )
 
 func TestCryptoAmount_Arithmetic(t *testing.T) {
-	a := NewCryptoAmount(big.NewInt(1_000_000))
-	b := NewCryptoAmount(big.NewInt(500_000))
+	a := NewCryptoAmountFromInt64(1_000_000)
+	b := NewCryptoAmountFromInt64(500_000)
 
 	tests := []struct {
 		give string
@@ -24,7 +23,7 @@ func TestCryptoAmount_Arithmetic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.give, func(t *testing.T) {
-			got := tt.fn().BigInt().Int64()
+			got := tt.fn().Int64()
 			if got != tt.want {
 				t.Errorf("%s = %d, want %d", tt.give, got, tt.want)
 			}
@@ -32,10 +31,32 @@ func TestCryptoAmount_Arithmetic(t *testing.T) {
 	}
 }
 
+func TestCryptoAmount_OverflowPanics(t *testing.T) {
+	tests := []struct {
+		give string
+		fn   func()
+	}{
+		{"Add overflow", func() { CryptoAmount(9_223_372_036_854_775_807).Add(1) }},
+		{"Sub overflow", func() { CryptoAmount(-9_223_372_036_854_775_808).Sub(1) }},
+		{"Neg MinInt64", func() { CryptoAmount(-9_223_372_036_854_775_808).Neg() }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.give, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r == nil {
+					t.Error("expected panic, got none")
+				}
+			}()
+			tt.fn()
+		})
+	}
+}
+
 func TestCryptoAmount_Comparison(t *testing.T) {
 	zero := ZeroCryptoAmount()
-	positive := NewCryptoAmount(big.NewInt(100))
-	negative := NewCryptoAmount(big.NewInt(-100))
+	positive := NewCryptoAmountFromInt64(100)
+	negative := NewCryptoAmountFromInt64(-100)
 
 	tests := []struct {
 		give string
@@ -94,32 +115,12 @@ func TestCryptoAmount_Cmp(t *testing.T) {
 }
 
 func TestCryptoAmount_Immutability(t *testing.T) {
-	original := NewCryptoAmount(big.NewInt(1_000_000))
-	_ = original.Add(NewCryptoAmount(big.NewInt(500_000)))
+	original := NewCryptoAmountFromInt64(1_000_000)
+	_ = original.Add(NewCryptoAmountFromInt64(500_000))
 
-	// Original should NOT change (immutable operations)
-	if original.BigInt().Int64() != 1_000_000 {
+	// Original should NOT change (int64 is a value type — inherently immutable)
+	if original.Int64() != 1_000_000 {
 		t.Errorf("original mutated: got %s, want 1000000", original.String())
-	}
-}
-
-func TestCryptoAmount_DefensiveCopy(t *testing.T) {
-	src := big.NewInt(42)
-	a := NewCryptoAmount(src)
-
-	// Mutate source
-	src.SetInt64(999)
-
-	// CryptoAmount should retain the original value
-	if a.BigInt().Int64() != 42 {
-		t.Errorf("CryptoAmount mutated via source: got %s, want 42", a.String())
-	}
-
-	// BigInt() returns a copy — mutating it shouldn't affect CryptoAmount
-	extracted := a.BigInt()
-	extracted.SetInt64(0)
-	if a.BigInt().Int64() != 42 {
-		t.Errorf("CryptoAmount mutated via BigInt(): got %s, want 42", a.String())
 	}
 }
 
@@ -130,13 +131,6 @@ func TestCryptoAmount_ZeroValue(t *testing.T) {
 	}
 	if a.String() != "0" {
 		t.Errorf("String() = %q, want %q", a.String(), "0")
-	}
-}
-
-func TestCryptoAmount_NilInput(t *testing.T) {
-	a := NewCryptoAmount(nil)
-	if !a.IsZero() {
-		t.Error("NewCryptoAmount(nil) should be zero")
 	}
 }
 
@@ -172,15 +166,26 @@ func TestCryptoAmount_JSON_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestCryptoAmount_JSON_StringEncoding(t *testing.T) {
-	// JSON should encode as string (not number) to prevent JS precision loss
-	a := NewCryptoAmountFromInt64(9007199254740993) // > Number.MAX_SAFE_INTEGER
+func TestCryptoAmount_JSON_NumberEncoding(t *testing.T) {
+	// JSON should now encode as number (not string)
+	a := NewCryptoAmountFromInt64(5_000_000)
 	data, _ := json.Marshal(a)
 
 	got := string(data)
-	want := `"9007199254740993"`
+	want := `5000000`
 	if got != want {
-		t.Errorf("JSON encoding = %s, want %s (string, not number)", got, want)
+		t.Errorf("JSON encoding = %s, want %s (number, not string)", got, want)
+	}
+}
+
+func TestCryptoAmount_JSON_BackwardCompat(t *testing.T) {
+	// Should still decode from old string format
+	var a CryptoAmount
+	if err := json.Unmarshal([]byte(`"2000000"`), &a); err != nil {
+		t.Fatalf("Unmarshal from string failed: %v", err)
+	}
+	if a.Int64() != 2_000_000 {
+		t.Errorf("got %d, want 2000000", a.Int64())
 	}
 }
 
@@ -209,8 +214,8 @@ func TestCryptoAmount_FromString(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if a.BigInt().Int64() != tt.want {
-				t.Errorf("got %d, want %d", a.BigInt().Int64(), tt.want)
+			if a.Int64() != tt.want {
+				t.Errorf("got %d, want %d", a.Int64(), tt.want)
 			}
 		})
 	}

@@ -105,7 +105,7 @@ CREATE TABLE cat_tokens (
     is_active        BOOLEAN      NOT NULL DEFAULT TRUE,
 
     -- Sweep defaults (merchant can override via reg_merchant_token_config)
-    sweep_threshold     NUMERIC  NOT NULL DEFAULT 0,     -- min balance for sweep (minor units). 0 = sweep after every payment
+    sweep_threshold     BIGINT   NOT NULL DEFAULT 0,     -- min balance for sweep (minor units). 0 = sweep after every payment
     sweep_max_age_hours INT      NOT NULL DEFAULT 0,     -- max hours before forced sweep. 0 = disabled
 
     CONSTRAINT chk_token_decimals CHECK (decimal_places >= 0 AND decimal_places <= 18),

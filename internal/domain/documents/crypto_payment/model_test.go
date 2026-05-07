@@ -3,7 +3,6 @@ package crypto_payment
 
 import (
 	"context"
-	"math/big"
 	"testing"
 	"time"
 
@@ -16,7 +15,7 @@ func TestNewCryptoPayment(t *testing.T) {
 	merchantID := id.New()
 	tokenID := id.New()
 	walletID := id.New()
-	amount := types.NewCryptoAmount(big.NewInt(5_000_000))
+	amount := types.NewCryptoAmountFromInt64(5_000_000)
 
 	p := NewCryptoPayment(invoiceID, merchantID, tokenID, walletID, "txhash123", "TSender", amount, 12345, 19)
 
@@ -38,7 +37,7 @@ func TestNewCryptoPayment(t *testing.T) {
 	if p.FromAddress != "TSender" {
 		t.Errorf("FromAddress = %q, want %q", p.FromAddress, "TSender")
 	}
-	if p.Amount.BigInt().Int64() != 5_000_000 {
+	if p.Amount.Int64() != 5_000_000 {
 		t.Errorf("Amount = %s, want 5000000", p.Amount.String())
 	}
 	if p.BlockNumber != 12345 {
@@ -72,7 +71,7 @@ func TestCryptoPayment_Validate(t *testing.T) {
 		return NewCryptoPayment(
 			id.New(), id.New(), id.New(), id.New(),
 			"0xabc123", "TSender",
-			types.NewCryptoAmount(big.NewInt(1_000_000)),
+			types.NewCryptoAmountFromInt64(1_000_000),
 			100, 19,
 		)
 	}
@@ -120,7 +119,7 @@ func TestCryptoPayment_Validate(t *testing.T) {
 		{
 			give: "negative amount → error",
 			modify: func(p *CryptoPayment) {
-				p.Amount = types.NewCryptoAmount(big.NewInt(-1))
+				p.Amount = types.NewCryptoAmountFromInt64(-1)
 			},
 			wantErr: true,
 		},
@@ -182,12 +181,12 @@ func TestCryptoPayment_Lines_DefensiveCopy(t *testing.T) {
 	p := NewCryptoPayment(
 		id.New(), id.New(), id.New(), id.New(),
 		"tx1", "sender",
-		types.NewCryptoAmount(big.NewInt(100)),
+		types.NewCryptoAmountFromInt64(100),
 		1, 19,
 	)
 
 	lines := []CryptoPaymentLine{
-		{LineID: id.New(), LineNo: 1, Description: "Payment", Amount: types.NewCryptoAmount(big.NewInt(100))},
+		{LineID: id.New(), LineNo: 1, Description: "Payment", Amount: types.NewCryptoAmountFromInt64(100)},
 	}
 
 	p.SetLines(lines)
@@ -216,7 +215,7 @@ func TestCryptoPayment_GenerateCryptoBalanceMovements(t *testing.T) {
 		p := NewCryptoPayment(
 			id.New(), id.New(), id.New(), id.New(),
 			"tx1", "sender",
-			types.NewCryptoAmount(big.NewInt(5_000_000)),
+			types.NewCryptoAmountFromInt64(5_000_000),
 			100, 19,
 		)
 		p.Date = time.Now().UTC()

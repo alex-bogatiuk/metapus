@@ -3,7 +3,6 @@ package crypto
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"time"
 
 	"metapus/internal/core/id"
@@ -22,7 +21,18 @@ import (
 // Default: 1000 minor units = 0.001 USDT (6 decimals).
 // Override per-processor via EventProcessorConfig.DustThreshold.
 func _defaultDustThreshold() types.CryptoAmount {
-	return types.NewCryptoAmount(big.NewInt(1000))
+	return types.NewCryptoAmountFromInt64(1000)
+}
+
+// InvoiceAccessor provides read/write access to crypto invoices.
+// EventProcessor depends on this narrow interface instead of the raw Repository
+// to ensure that service-layer decorators (logging, outbox, event log) are applied.
+//
+// Satisfied by domain.DocumentService[*crypto_invoice.CryptoInvoice]
+// or by crypto_invoice.Repository (for tests).
+type InvoiceAccessor interface {
+	GetByID(ctx context.Context, id id.ID) (*crypto_invoice.CryptoInvoice, error)
+	Update(ctx context.Context, entity *crypto_invoice.CryptoInvoice) error
 }
 
 // EventProcessor orchestrates the lifecycle of blockchain events:
@@ -33,7 +43,7 @@ func _defaultDustThreshold() types.CryptoAmount {
 type EventProcessor struct {
 	fsm            *PaymentFSM
 	walletSvc      *wallet.Service
-	invoiceRepo    crypto_invoice.Repository
+	invoiceSvc     InvoiceAccessor
 	paymentRepo    crypto_payment.Repository
 	postingEngine  *posting.Engine
 	txManager      tx.Manager
@@ -56,7 +66,7 @@ func WithClock(fn func() time.Time) Option {
 type EventProcessorConfig struct {
 	FSM           *PaymentFSM
 	WalletSvc     *wallet.Service
-	InvoiceRepo   crypto_invoice.Repository
+	InvoiceSvc    InvoiceAccessor
 	PaymentRepo   crypto_payment.Repository
 	PostingEngine *posting.Engine
 	TxManager     tx.Manager
@@ -76,7 +86,7 @@ func NewEventProcessor(cfg EventProcessorConfig, opts ...Option) *EventProcessor
 	p := &EventProcessor{
 		fsm:            cfg.FSM,
 		walletSvc:      cfg.WalletSvc,
-		invoiceRepo:    cfg.InvoiceRepo,
+		invoiceSvc:     cfg.InvoiceSvc,
 		paymentRepo:    cfg.PaymentRepo,
 		postingEngine:  cfg.PostingEngine,
 		txManager:      cfg.TxManager,
@@ -168,7 +178,7 @@ func (p *EventProcessor) processEventInTx(ctx context.Context, event BlockchainE
 			"address", w.Address,
 			"tx_hash", event.TxHash,
 		)
-		return nil // No active invoice — funds will be reconciled later
+		return nil //nolint:nilerr // No active invoice — funds will be reconciled later
 	}
 
 	// Step 5: Create new CryptoPayment
@@ -316,36 +326,90 @@ func (p *EventProcessor) processConfirmations(
 	return nil
 }
 
-// updateInvoiceAmount updates the invoice's received amount and status.
+// updateInvoiceAmount updates the invoice's received amount, status, and overpaid amount.
+//
+// Three-way classification:
+//   - received < expected → partially_paid
+//   - received == expected → paid
+//   - received > expected → overpaid (if excess >= tolerance) or paid (if dust excess)
 func (p *EventProcessor) updateInvoiceAmount(ctx context.Context, invoice *crypto_invoice.CryptoInvoice, event BlockchainEvent) error {
 	// Add received amount
 	invoice.ReceivedAmount = invoice.ReceivedAmount.Add(event.Amount)
 
-	// Update invoice status based on received vs expected
-	if invoice.ReceivedAmount.Cmp(invoice.ExpectedAmount) >= 0 {
+	// Calculate excess
+	excess := invoice.ReceivedAmount.Sub(invoice.ExpectedAmount)
+
+	switch {
+	case excess.IsPositive():
+		// Received > expected — check tolerance before marking overpaid
+		invoice.OverpaidAmount = excess
+
+		if p.isOverpaymentSignificant(ctx, invoice.MerchantID, invoice.TokenID, excess) {
+			invoice.Status = crypto_invoice.InvoiceStatusOverpaid
+			logger.Warn(ctx, "invoice overpaid",
+				"invoice_id", invoice.ID,
+				"expected", invoice.ExpectedAmount.String(),
+				"received", invoice.ReceivedAmount.String(),
+				"overpaid", excess.String(),
+			)
+		} else {
+			// Dust overpayment — treat as exact payment
+			invoice.Status = crypto_invoice.InvoiceStatusPaid
+		}
+	case excess.IsZero():
+		// Exact payment
 		invoice.Status = crypto_invoice.InvoiceStatusPaid
-	} else if invoice.ReceivedAmount.IsPositive() {
-		invoice.Status = crypto_invoice.InvoiceStatusPartiallyPaid
+		invoice.OverpaidAmount = types.ZeroCryptoAmount()
+	default:
+		// Partial payment
+		if invoice.ReceivedAmount.IsPositive() {
+			invoice.Status = crypto_invoice.InvoiceStatusPartiallyPaid
+		}
+		invoice.OverpaidAmount = types.ZeroCryptoAmount()
 	}
 
-	if err := p.invoiceRepo.Update(ctx, invoice); err != nil {
+	if err := p.invoiceSvc.Update(ctx, invoice); err != nil {
 		return fmt.Errorf("update invoice %s: %w", invoice.ID, err)
 	}
 
 	return nil
 }
 
-// confirmInvoice updates the invoice status to Confirmed if it is fully paid.
-// Returns true if the invoice was confirmed (transitioned from paid → confirmed).
+// isOverpaymentSignificant checks if the overpayment exceeds the configured tolerance.
+// Falls back to "any overpayment is significant" if config resolution fails.
+func (p *EventProcessor) isOverpaymentSignificant(ctx context.Context, merchantID, tokenID id.ID, excess types.CryptoAmount) bool {
+	if p.sweepResolver == nil {
+		return excess.IsPositive()
+	}
+
+	cfg, err := p.sweepResolver.Resolve(ctx, merchantID, tokenID)
+	if err != nil {
+		logger.Warn(ctx, "overpayment tolerance resolve failed, treating as significant",
+			"merchant_id", merchantID,
+			"token_id", tokenID,
+			"error", err,
+		)
+		return excess.IsPositive()
+	}
+
+	return cfg.IsOverpaymentSignificant(excess)
+}
+
+// confirmInvoice updates the invoice status to Confirmed if it is fully paid or overpaid.
+// Returns true if the invoice was confirmed (transitioned from paid/overpaid → confirmed).
+// OverpaidAmount is preserved after confirmation as a marker for refund workflows.
 func (p *EventProcessor) confirmInvoice(ctx context.Context, invoiceID id.ID) (bool, error) {
-	invoice, err := p.invoiceRepo.GetByID(ctx, invoiceID)
+	invoice, err := p.invoiceSvc.GetByID(ctx, invoiceID)
 	if err != nil {
 		return false, fmt.Errorf("get invoice %s: %w", invoiceID, err)
 	}
 
-	if invoice.Status == crypto_invoice.InvoiceStatusPaid {
+	// Confirm both exact-paid and overpaid invoices.
+	// OverpaidAmount persists as a marker — it's NOT reset on confirmation.
+	if invoice.Status == crypto_invoice.InvoiceStatusPaid ||
+		invoice.Status == crypto_invoice.InvoiceStatusOverpaid {
 		invoice.Status = crypto_invoice.InvoiceStatusConfirmed
-		if err := p.invoiceRepo.Update(ctx, invoice); err != nil {
+		if err := p.invoiceSvc.Update(ctx, invoice); err != nil {
 			return false, fmt.Errorf("confirm invoice %s: %w", invoiceID, err)
 		}
 		return true, nil
@@ -360,7 +424,7 @@ func (p *EventProcessor) findActiveInvoice(ctx context.Context, w *wallet.Wallet
 		return nil, fmt.Errorf("wallet %s is not leased", w.ID)
 	}
 
-	invoice, err := p.invoiceRepo.GetByID(ctx, *w.LeasedForID)
+	invoice, err := p.invoiceSvc.GetByID(ctx, *w.LeasedForID)
 	if err != nil {
 		return nil, fmt.Errorf("get invoice %s: %w", *w.LeasedForID, err)
 	}
@@ -374,7 +438,7 @@ func (p *EventProcessor) findActiveInvoice(ctx context.Context, w *wallet.Wallet
 	// Check expiration
 	if p.nowFunc().After(invoice.ExpiresAt) && invoice.Status == crypto_invoice.InvoiceStatusCreated {
 		invoice.Status = crypto_invoice.InvoiceStatusExpired
-		if err := p.invoiceRepo.Update(ctx, invoice); err != nil {
+		if err := p.invoiceSvc.Update(ctx, invoice); err != nil {
 			return nil, fmt.Errorf("expire invoice %s: %w", invoice.ID, err)
 		}
 		return nil, fmt.Errorf("invoice %s has expired", invoice.ID)

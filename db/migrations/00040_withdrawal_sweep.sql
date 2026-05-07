@@ -30,8 +30,8 @@ CREATE TABLE IF NOT EXISTS doc_crypto_withdrawals (
     token_id          UUID NOT NULL,
     source_wallet_id  UUID NOT NULL,
     dest_address      TEXT NOT NULL,
-    amount            NUMERIC NOT NULL DEFAULT 0,
-    network_fee       NUMERIC NOT NULL DEFAULT 0,
+    amount            BIGINT NOT NULL DEFAULT 0,
+    network_fee       BIGINT NOT NULL DEFAULT 0,
     tx_hash           TEXT NOT NULL DEFAULT '',
     status            TEXT NOT NULL DEFAULT 'created' CHECK (status IN ('created','signed','broadcast','confirmed','failed')),
 
@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS doc_crypto_withdrawal_lines (
     document_id   UUID NOT NULL REFERENCES doc_crypto_withdrawals(id) ON DELETE CASCADE,
     line_no       INT NOT NULL DEFAULT 0,
     description   TEXT NOT NULL DEFAULT '',
-    amount        NUMERIC NOT NULL DEFAULT 0
+    amount        BIGINT NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_doc_crypto_withdrawal_lines_doc ON doc_crypto_withdrawal_lines (document_id);
@@ -98,8 +98,8 @@ CREATE TABLE IF NOT EXISTS doc_crypto_sweeps (
     -- Sweep-specific
     token_id          UUID NOT NULL,
     hot_wallet_id     UUID NOT NULL,
-    total_amount      NUMERIC NOT NULL DEFAULT 0,
-    total_fee         NUMERIC NOT NULL DEFAULT 0,
+    total_amount      BIGINT NOT NULL DEFAULT 0,
+    total_fee         BIGINT NOT NULL DEFAULT 0,
     status            TEXT NOT NULL DEFAULT 'created' CHECK (status IN ('created','signed','broadcast','confirmed','partial_failed')),
 
     _txid             BIGINT NOT NULL DEFAULT txid_current(),
@@ -135,8 +135,8 @@ CREATE TABLE IF NOT EXISTS doc_crypto_sweep_lines (
     document_id   UUID NOT NULL REFERENCES doc_crypto_sweeps(id) ON DELETE CASCADE,
     line_no       INT NOT NULL DEFAULT 0,
     wallet_id     UUID NOT NULL,
-    amount        NUMERIC NOT NULL DEFAULT 0,
-    network_fee   NUMERIC NOT NULL DEFAULT 0,
+    amount        BIGINT NOT NULL DEFAULT 0,
+    network_fee   BIGINT NOT NULL DEFAULT 0,
     tx_hash       TEXT NOT NULL DEFAULT '',
     confirmed     BOOLEAN NOT NULL DEFAULT FALSE
 );

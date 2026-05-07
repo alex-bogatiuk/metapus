@@ -15,10 +15,11 @@ import (
 
 // Reflect types for storage-scaled numeric types and compound references.
 var (
-	quantityType   = reflect.TypeOf(types.Quantity(0))
-	minorUnitsType = reflect.TypeOf(types.MinorUnits(0))
-	typedRefType   = reflect.TypeOf(entity.TypedRef{})
-	decimalType    = reflect.TypeOf(decimal.Decimal{})
+	quantityType     = reflect.TypeOf(types.Quantity(0))
+	minorUnitsType   = reflect.TypeOf(types.MinorUnits(0))
+	cryptoAmountType = reflect.TypeOf(types.CryptoAmount(0))
+	typedRefType     = reflect.TypeOf(entity.TypedRef{})
+	decimalType      = reflect.TypeOf(decimal.Decimal{})
 )
 
 // Inspect analyzes a struct and returns its EntityDef.
@@ -255,6 +256,12 @@ func mapFieldType(def *FieldDef, field reflect.StructField) {
 		def.Type = TypeMoney
 		// No static ValueScale — MinorUnits scale depends on the document's currency
 		// (cat_currencies.minor_multiplier). Resolved dynamically at SQL level.
+		return
+	}
+	if actual == cryptoAmountType {
+		// CryptoAmount is stored in token minor units (sun/wei) — no currency scaling.
+		// Use TypeInteger for simple numeric comparison (no currency_id lookup).
+		def.Type = TypeInteger
 		return
 	}
 

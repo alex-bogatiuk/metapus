@@ -105,10 +105,18 @@ func (d *DocumentOutboxDecorator[T]) buildEvent(ctx context.Context, action stri
 	}
 }
 
-// extractHumanAmounts uses reflection to find all types.MinorUnits fields on the top-level struct
-// and converts them to human-readable float64 values based on the currency's decimal places.
-func extractHumanAmounts(entity any, currencyInfo *CurrencyInfo) map[string]float64 {
-	result := make(map[string]float64)
+// extractHumanAmounts uses reflection to find MinorUnits and CryptoAmount fields
+// on the top-level struct and converts them to human-readable numeric values.
+//
+// MinorUnits → float64 (divided by currency's decimal places): 150000 → 1500.00
+// CryptoAmount → int64 (raw minor units, no division): 6000000 → 6000000
+//
+// CryptoAmount stays as int64 because:
+//   - crypto invoices have no currency metadata (no decimalPlaces)
+//   - templates render int64 as "6000000", but float64 as "6e+06" (scientific notation bug)
+//   - divisor varies by token and is resolved on frontend, not in templates
+func extractHumanAmounts(entity any, currencyInfo *CurrencyInfo) map[string]any {
+	result := make(map[string]any)
 	
 	val := reflect.ValueOf(entity)
 	if val.Kind() == reflect.Ptr {
@@ -129,23 +137,29 @@ func extractHumanAmounts(entity any, currencyInfo *CurrencyInfo) map[string]floa
 	
 	divisor := math.Pow10(decimalPlaces)
 	
+	minorUnitsType := reflect.TypeOf(types.MinorUnits(0))
+	cryptoAmountType := reflect.TypeOf(types.CryptoAmount(0))
+
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
 		fieldVal := val.Field(i)
 		
-		// Look for fields of type types.MinorUnits
-		if field.Type == reflect.TypeOf(types.MinorUnits(0)) {
-			// Get JSON tag name for the field
-			jsonTag := field.Tag.Get("json")
-			if jsonTag == "-" || jsonTag == "" {
-				continue
-			}
-			
-			// Extract just the name from tag (e.g., "totalAmount,omitempty" -> "totalAmount")
-			name := strings.Split(jsonTag, ",")[0]
-			
-			minorUnits := fieldVal.Int()
-			result[name] = float64(minorUnits) / divisor
+		// Get JSON tag name for the field
+		jsonTag := field.Tag.Get("json")
+		if jsonTag == "-" || jsonTag == "" {
+			continue
+		}
+		
+		// Extract just the name from tag (e.g., "totalAmount,omitempty" -> "totalAmount")
+		name := strings.Split(jsonTag, ",")[0]
+		
+		switch field.Type {
+		case minorUnitsType:
+			// MinorUnits: convert to human-readable float via currency scaling
+			result[name] = float64(fieldVal.Int()) / divisor
+		case cryptoAmountType:
+			// CryptoAmount: raw int64 — no scaling, avoids scientific notation
+			result[name] = fieldVal.Int()
 		}
 	}
 	

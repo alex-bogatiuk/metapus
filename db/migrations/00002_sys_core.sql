@@ -20,7 +20,7 @@ COMMENT ON TABLE sys_sequences IS 'Auto-numbering sequences for documents (INV-2
 COMMENT ON COLUMN sys_sequences.key IS 'Sequence key: {prefix}_{period}, e.g., INVOICE_2024';
 
 -- ── sys_outbox (transactional outbox pattern) ──────────────────────────────
-CREATE TYPE outbox_status AS ENUM ('pending', 'published', 'failed');
+CREATE TYPE outbox_status AS ENUM ('pending', 'processing', 'published', 'failed');
 
 CREATE TABLE sys_outbox (
     id             UUID          NOT NULL,
@@ -41,6 +41,7 @@ CREATE TABLE sys_outbox_default PARTITION OF sys_outbox DEFAULT;
 
 CREATE INDEX idx_outbox_pending ON sys_outbox (created_at) WHERE status = 'pending';
 CREATE INDEX idx_outbox_retry   ON sys_outbox (next_retry_at) WHERE status = 'pending' AND next_retry_at IS NOT NULL;
+CREATE INDEX idx_outbox_stuck   ON sys_outbox (created_at) WHERE status = 'processing';
 
 CREATE TABLE sys_outbox_dlq (
     id             UUID        PRIMARY KEY,

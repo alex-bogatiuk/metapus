@@ -39,8 +39,9 @@ CREATE TABLE doc_crypto_invoices (
     merchant_id    UUID    NOT NULL,                                   -- FK to future cat_merchants
     token_id       UUID    NOT NULL REFERENCES cat_tokens(id),
     wallet_id      UUID,                                               -- assigned during payment setup
-    expected_amount NUMERIC NOT NULL,                                  -- CryptoAmount: NUMERIC for arbitrary precision
-    received_amount NUMERIC NOT NULL DEFAULT 0,
+    expected_amount BIGINT NOT NULL,                                  -- CryptoAmount: BIGINT for arbitrary precision
+    received_amount BIGINT NOT NULL DEFAULT 0,
+    overpaid_amount BIGINT NOT NULL DEFAULT 0,                         -- excess amount: received - expected when received > expected
     status         TEXT     NOT NULL DEFAULT 'created',                 -- InvoiceStatus enum (string)
     expires_at     TIMESTAMPTZ NOT NULL,
     callback_url   TEXT    NOT NULL DEFAULT '',
@@ -51,7 +52,8 @@ CREATE TABLE doc_crypto_invoices (
     CONSTRAINT uq_crypto_invoice_number UNIQUE (number),
     CONSTRAINT chk_expected_amount_positive CHECK (expected_amount > 0),
     CONSTRAINT chk_received_amount_nonneg CHECK (received_amount >= 0),
-    CONSTRAINT chk_status_valid CHECK (status IN ('created','partially_paid','paid','confirmed','expired','cancelled')),
+    CONSTRAINT chk_overpaid_amount_nonneg CHECK (overpaid_amount >= 0),
+    CONSTRAINT chk_status_valid CHECK (status IN ('created','partially_paid','paid','overpaid','confirmed','expired','cancelled')),
     CONSTRAINT fk_crypto_invoices_created_by FOREIGN KEY (created_by) REFERENCES users(id),
     CONSTRAINT fk_crypto_invoices_updated_by FOREIGN KEY (updated_by) REFERENCES users(id)
 );
@@ -63,7 +65,7 @@ CREATE TABLE doc_crypto_invoice_lines (
     line_no     INT     NOT NULL,
 
     description TEXT    NOT NULL DEFAULT '',
-    amount      NUMERIC NOT NULL,                                      -- CryptoAmount
+    amount      BIGINT NOT NULL,                                      -- CryptoAmount
 
     CONSTRAINT chk_crypto_invoice_line_amount CHECK (amount > 0),
     UNIQUE (document_id, line_no)
@@ -74,7 +76,7 @@ CREATE INDEX idx_crypto_invoices_date         ON doc_crypto_invoices (date DESC)
 CREATE INDEX idx_crypto_invoices_merchant     ON doc_crypto_invoices (merchant_id);
 CREATE INDEX idx_crypto_invoices_token        ON doc_crypto_invoices (token_id);
 CREATE INDEX idx_crypto_invoices_wallet       ON doc_crypto_invoices (wallet_id) WHERE wallet_id IS NOT NULL;
-CREATE INDEX idx_crypto_invoices_status       ON doc_crypto_invoices (status) WHERE status IN ('created', 'partially_paid', 'paid');
+CREATE INDEX idx_crypto_invoices_status       ON doc_crypto_invoices (status) WHERE status IN ('created', 'partially_paid', 'paid', 'overpaid');
 CREATE INDEX idx_crypto_invoices_external_id  ON doc_crypto_invoices (external_id) WHERE external_id != '';
 CREATE INDEX idx_crypto_invoices_expires      ON doc_crypto_invoices (expires_at) WHERE status = 'created';
 CREATE INDEX idx_crypto_invoices_posted       ON doc_crypto_invoices (posted) WHERE posted = FALSE;
@@ -100,9 +102,10 @@ CREATE INDEX idx_doc_crypto_invoices_created_id ON doc_crypto_invoices (created_
 
 COMMENT ON TABLE doc_crypto_invoices IS 'Документ Крипто-инвойс — запрос на оплату криптовалютой';
 COMMENT ON TABLE doc_crypto_invoice_lines IS 'Табличная часть документа Крипто-инвойс';
-COMMENT ON COLUMN doc_crypto_invoices.expected_amount IS 'Ожидаемая сумма в минорных единицах токена (NUMERIC для произвольной точности)';
+COMMENT ON COLUMN doc_crypto_invoices.expected_amount IS 'Ожидаемая сумма в минорных единицах токена (BIGINT для произвольной точности)';
 COMMENT ON COLUMN doc_crypto_invoices.received_amount IS 'Фактически полученная сумма';
-COMMENT ON COLUMN doc_crypto_invoices.status IS 'Статус инвойса: created, partially_paid, paid, confirmed, expired, cancelled';
+COMMENT ON COLUMN doc_crypto_invoices.overpaid_amount IS 'Сумма переплаты (received - expected), 0 если переплаты нет';
+COMMENT ON COLUMN doc_crypto_invoices.status IS 'Статус инвойса: created, partially_paid, paid, overpaid, confirmed, expired, cancelled';
 COMMENT ON COLUMN doc_crypto_invoices.external_id IS 'Идемпотентный ключ от мерчанта (Bender pattern)';
 
 
@@ -120,7 +123,7 @@ CREATE TABLE reg_crypto_balance_movements (
     record_type      VARCHAR(10)  NOT NULL,
     wallet_id        UUID         NOT NULL,
     token_id         UUID         NOT NULL REFERENCES cat_tokens(id),
-    amount           NUMERIC      NOT NULL,                            -- CryptoAmount
+    amount           BIGINT      NOT NULL,                            -- CryptoAmount
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     CONSTRAINT chk_crypto_balance_record_type CHECK (record_type IN ('receipt', 'expense')),
     CONSTRAINT chk_crypto_balance_amount_positive CHECK (amount > 0)
@@ -141,7 +144,7 @@ CREATE INDEX idx_reg_crypto_balance_movements_token
 CREATE TABLE reg_crypto_balance_balances (
     wallet_id        UUID        NOT NULL,
     token_id         UUID        NOT NULL REFERENCES cat_tokens(id),
-    amount           NUMERIC     NOT NULL DEFAULT 0,                   -- CryptoAmount
+    amount           BIGINT     NOT NULL DEFAULT 0,                   -- CryptoAmount
     last_movement_at TIMESTAMPTZ,
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (wallet_id, token_id)
@@ -162,7 +165,7 @@ SELECT pg_advisory_unlock(hashtext('metapus_migrations'));
 CREATE OR REPLACE FUNCTION update_crypto_balance()
 RETURNS TRIGGER AS $func$
 DECLARE
-    v_signed_amount NUMERIC;
+    v_signed_amount BIGINT;
     v_wid  UUID;
     v_tid  UUID;
     v_per  TIMESTAMPTZ;

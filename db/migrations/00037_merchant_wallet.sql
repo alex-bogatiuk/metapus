@@ -147,7 +147,7 @@ CREATE TABLE reg_merchant_token_config (
     token_id            UUID NOT NULL REFERENCES cat_tokens(id),
 
     -- Sweep overrides (NULL = use token default)
-    sweep_threshold     NUMERIC,
+    sweep_threshold     BIGINT,
     sweep_max_age_hours INT,
 
     -- Audit

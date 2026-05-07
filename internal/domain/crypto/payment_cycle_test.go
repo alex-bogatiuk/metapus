@@ -3,7 +3,6 @@ package crypto
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"testing"
 	"time"
 
@@ -250,7 +249,7 @@ func setupTestFixture(t *testing.T, sweepThreshold int64) *testFixture {
 
 	// Seed invoice (created, awaiting payment)
 	invoiceRepo := newMemInvoiceRepo()
-	inv := crypto_invoice.NewCryptoInvoice(merchantID, tokenID, types.NewCryptoAmount(big.NewInt(5_000_000)))
+	inv := crypto_invoice.NewCryptoInvoice(merchantID, tokenID, types.NewCryptoAmountFromInt64(5_000_000))
 	inv.ID = invoiceID
 	inv.WalletID = &walletID
 	inv.ExpiresAt = time.Now().Add(30 * time.Minute)
@@ -267,7 +266,7 @@ func setupTestFixture(t *testing.T, sweepThreshold int64) *testFixture {
 	walletSvc := wallet.NewService(walletRepo, nil)
 
 	// Sweep resolver (with threshold)
-	tok := &token.Token{SweepThreshold: types.NewCryptoAmount(big.NewInt(sweepThreshold))}
+	tok := &token.Token{SweepThreshold: types.NewCryptoAmountFromInt64(sweepThreshold)}
 	tok.ID = tokenID
 	mockTokenRepo := &mockTokenRepo{tok: tok}
 	sweepResolver := NewSweepConfigResolver(&mockMerchantConfigRepo{}, mockTokenRepo)
@@ -276,7 +275,7 @@ func setupTestFixture(t *testing.T, sweepThreshold int64) *testFixture {
 	processor := NewEventProcessor(EventProcessorConfig{
 		FSM:           fsm,
 		WalletSvc:     walletSvc,
-		InvoiceRepo:   invoiceRepo,
+		InvoiceSvc:    invoiceRepo,
 		PaymentRepo:   paymentRepo,
 		TxManager:     &noopTxManager{},
 		SweepResolver: sweepResolver,
@@ -304,7 +303,7 @@ func (f *testFixture) makeTransferEvent(amount int64) BlockchainEvent {
 		TxHash:        "0xtesthash_" + id.New().String()[:8],
 		ToAddress:     f.walletAddr,
 		FromAddress:   "TSenderAddress",
-		Amount:        types.NewCryptoAmount(big.NewInt(amount)),
+		Amount:        types.NewCryptoAmountFromInt64(amount),
 		BlockNumber:   100,
 		Confirmations: 0,
 		RequiredConfs: 19,
@@ -319,7 +318,7 @@ func (f *testFixture) makeConfirmationEvent(txHash string, confs int) Blockchain
 		NetworkID:     f.networkID,
 		TxHash:        txHash,
 		ToAddress:     f.walletAddr,
-		Amount:        types.NewCryptoAmount(big.NewInt(5_000_000)),
+		Amount:        types.NewCryptoAmountFromInt64(5_000_000),
 		BlockNumber:   int64(100 + confs),
 		Confirmations: confs,
 		RequiredConfs: 19,
@@ -351,7 +350,7 @@ func TestPaymentCycle_FullFlow(t *testing.T) {
 	if payment.Status != crypto_payment.PaymentStatusDetected {
 		t.Errorf("payment status = %q, want %q", payment.Status, crypto_payment.PaymentStatusDetected)
 	}
-	if payment.Amount.BigInt().Int64() != 5_000_000 {
+	if payment.Amount.Int64() != 5_000_000 {
 		t.Errorf("payment amount = %s, want 5000000", payment.Amount.String())
 	}
 
@@ -360,7 +359,7 @@ func TestPaymentCycle_FullFlow(t *testing.T) {
 	if inv.Status != crypto_invoice.InvoiceStatusPaid {
 		t.Errorf("invoice status = %q, want %q", inv.Status, crypto_invoice.InvoiceStatusPaid)
 	}
-	if inv.ReceivedAmount.BigInt().Int64() != 5_000_000 {
+	if inv.ReceivedAmount.Int64() != 5_000_000 {
 		t.Errorf("invoice receivedAmount = %s, want 5000000", inv.ReceivedAmount.String())
 	}
 

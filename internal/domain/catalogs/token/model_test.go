@@ -3,7 +3,6 @@ package token
 
 import (
 	"context"
-	"math/big"
 	"testing"
 
 	"metapus/internal/core/id"
@@ -28,21 +27,21 @@ func TestToken_Validate_SweepFields(t *testing.T) {
 		{
 			give: "negative sweep threshold → error",
 			modify: func(tok *Token) {
-				tok.SweepThreshold = types.NewCryptoAmount(big.NewInt(-1))
+				tok.SweepThreshold = types.NewCryptoAmountFromInt64(-1)
 			},
 			wantErr: true,
 		},
 		{
 			give: "zero sweep threshold (legacy mode) → OK",
 			modify: func(tok *Token) {
-				tok.SweepThreshold = types.NewCryptoAmount(big.NewInt(0))
+				tok.SweepThreshold = types.NewCryptoAmountFromInt64(0)
 			},
 			wantErr: false,
 		},
 		{
 			give: "positive sweep threshold 10M → OK",
 			modify: func(tok *Token) {
-				tok.SweepThreshold = types.NewCryptoAmount(big.NewInt(10_000_000))
+				tok.SweepThreshold = types.NewCryptoAmountFromInt64(10_000_000)
 			},
 			wantErr: false,
 		},

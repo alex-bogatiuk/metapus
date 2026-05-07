@@ -27,6 +27,7 @@ func init() {
 		{Value: "created", Label: "Создан"},
 		{Value: "partially_paid", Label: "Частично оплачен"},
 		{Value: "paid", Label: "Оплачен"},
+		{Value: "overpaid", Label: "Переплата"},
 		{Value: "confirmed", Label: "Подтверждён"},
 		{Value: "expired", Label: "Истёк"},
 		{Value: "cancelled", Label: "Отменён"},

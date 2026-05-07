@@ -249,6 +249,12 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 			}
 		case <-cleanupTicker.C:
 			mp.Touch()
+			// Recover outbox messages stuck in 'processing' (worker crash, OOM).
+			if stuck, err := relay.RecoverStuck(ctx, postgres.DefaultStuckTimeout()); err != nil {
+				w.log.Errorw("failed to recover stuck outbox messages", "tenant_id", t.ID, "error", err)
+			} else if stuck > 0 {
+				w.log.Warnw("recovered stuck outbox messages", "tenant_id", t.ID, "count", stuck)
+			}
 			w.cleanupSessions(ctx, mp.Pool(), t.ID)
 			w.cleanupIdempotency(ctx, mp.Pool(), t.ID)
 			w.cleanupAutomationHistory(ctx, mp.Pool(), t.ID)
@@ -325,6 +331,10 @@ func (h *automationOutboxHandler) Handle(ctx context.Context, msg *postgres.Outb
 		h.log.Errorw("failed to unmarshal outbox payload", "error", err, "msg_id", msg.ID)
 		return fmt.Errorf("unmarshal payload: %w", err)
 	}
+
+	// Convert float64 → int64 for whole numbers produced by json.Unmarshal.
+	// Without this, large integers render as "1e+07" in Go templates.
+	automation.SanitizePayloadNumbers(payload)
 
 	if msg.AggregateType == "automation_history" && msg.EventType == "replay" {
 		historyIDStr, _ := payload["history_id"].(string)

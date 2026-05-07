@@ -72,6 +72,9 @@ func (r *SweepConfigResolver) Resolve(ctx context.Context, merchantID, tokenID i
 			if override.SweepMaxAgeHours != nil {
 				cfg.MaxAgeHours = *override.SweepMaxAgeHours
 			}
+			if override.OverpaymentTolerance != nil {
+				cfg.OverpaymentTolerance = *override.OverpaymentTolerance
+			}
 		}
 	}
 
