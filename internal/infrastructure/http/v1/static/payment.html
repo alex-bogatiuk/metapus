@@ -162,6 +162,36 @@
             50% { opacity: .4; }
         }
 
+        /* ── Partial Payment Info ───────────────────────────────────── */
+        .partial-info {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-top: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: calc(var(--radius) - 2px);
+            background: hsl(var(--secondary));
+        }
+        .partial-row {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.125rem;
+        }
+        .partial-label {
+            font-size: 0.6875rem;
+            color: hsl(var(--muted-foreground));
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .partial-value {
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            font-weight: 600;
+        }
+        .partial-received { color: hsl(160 60% 50%); }
+        .partial-remaining { color: hsl(30 80% 60%); }
+
         /* ── QR ─────────────────────────────────────────────────────── */
         .qr-wrap {
             display: flex;
@@ -350,10 +380,21 @@
 
             <!-- Amount -->
             <div class="amount-section">
-                <div class="amount-label">Pay exactly</div>
+                <div class="amount-label" id="amount-label">Pay exactly</div>
                 <div>
                     <span id="amount-value" class="amount-value">0.00</span>
                     <span id="amount-symbol" class="amount-symbol">USDT</span>
+                </div>
+                <!-- Partial payment info (hidden by default) -->
+                <div id="partial-info" class="partial-info hidden">
+                    <div class="partial-row">
+                        <span class="partial-label">Received</span>
+                        <span id="received-value" class="partial-value partial-received">0.00</span>
+                    </div>
+                    <div class="partial-row">
+                        <span class="partial-label">Remaining</span>
+                        <span id="remaining-value" class="partial-value partial-remaining">0.00</span>
+                    </div>
                 </div>
                 <div id="network-badge" class="network-tag">
                     <span class="network-dot"></span>
@@ -480,12 +521,42 @@
             document.getElementById('conf-required').textContent = data.requiredConfs;
 
             updateStatus(data.status, data.confirmations);
+            updatePartialInfo(data.receivedAmount, data.status);
 
             // QR code — rendered server-side as base64 data URL
             if (data.qrCode && data.status !== 'confirmed' && data.status !== 'expired') {
                 document.getElementById('qr-image').src = data.qrCode;
             } else if (!data.qrCode) {
                 document.getElementById('qr-section').classList.add('hidden');
+            }
+        }
+
+        function updatePartialInfo(receivedAmount, status) {
+            var partialInfo = document.getElementById('partial-info');
+            if (!paymentData || !receivedAmount || receivedAmount === '0' || receivedAmount === '0.000000') {
+                partialInfo.classList.add('hidden');
+                return;
+            }
+            // Show partial info when we have received some amount
+            if (status === 'partially_paid' || status === 'paid' || status === 'confirmed') {
+                partialInfo.classList.remove('hidden');
+                var sym = ' ' + paymentData.tokenSymbol;
+                document.getElementById('received-value').textContent = receivedAmount + sym;
+                // Calculate remaining
+                var expected = parseFloat(paymentData.expectedAmount) || 0;
+                var received = parseFloat(receivedAmount) || 0;
+                var remaining = Math.max(0, expected - received);
+                document.getElementById('remaining-value').textContent = remaining.toFixed(paymentData.decimalPlaces) + sym;
+                // Update label
+                if (status === 'partially_paid') {
+                    document.getElementById('amount-label').textContent = 'Total amount';
+                } else {
+                    document.getElementById('amount-label').textContent = 'Paid in full';
+                    document.getElementById('remaining-value').textContent = '0' + sym;
+                    document.getElementById('remaining-value').style.color = 'hsl(160 60% 50%)';
+                }
+            } else {
+                partialInfo.classList.add('hidden');
             }
         }
 
@@ -560,6 +631,7 @@
                 }).then(function(data) {
                     if (!data) return;
                     updateStatus(data.status, data.confirmations);
+                    updatePartialInfo(data.receivedAmount, data.status);
                     if (data.status === 'confirmed' || data.status === 'expired') stopPolling();
                 }).catch(function() {});
             }, POLL_INTERVAL);

@@ -29,7 +29,7 @@ func NewWatcherStateRepo() *WatcherStateRepo {
 
 // Get returns the watcher state for a network.
 func (r *WatcherStateRepo) Get(ctx context.Context, networkID id.ID) (*tron.WatcherState, error) {
-	q := r.builder.Select("network_id", "last_block", "last_timestamp", "fingerprint", "updated_at").
+	q := r.builder.Select("network_id", "last_block", "last_timestamp", "updated_at").
 		From(_watcherStateTable).
 		Where(squirrel.Eq{"network_id": networkID}).
 		Limit(1)
@@ -56,7 +56,7 @@ func (r *WatcherStateRepo) Save(ctx context.Context, state *tron.WatcherState) e
 
 	q := r.builder.Insert(_watcherStateTable).
 		Columns("network_id", "last_block", "last_timestamp", "fingerprint", "updated_at").
-		Values(state.NetworkID, state.LastBlock, state.LastTimestamp, state.Fingerprint, state.UpdatedAt).
+		Values(state.NetworkID, state.LastBlock, state.LastTimestamp, "", state.UpdatedAt).
 		Suffix("ON CONFLICT (network_id) DO UPDATE SET last_block = EXCLUDED.last_block, last_timestamp = EXCLUDED.last_timestamp, fingerprint = EXCLUDED.fingerprint, updated_at = EXCLUDED.updated_at")
 
 	sql, args, err := q.ToSql()

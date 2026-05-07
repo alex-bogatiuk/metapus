@@ -46,6 +46,9 @@ type UpdateWalletRequest struct {
 	Address        string            `json:"address" binding:"required"`
 	DerivationPath string            `json:"derivationPath"`
 	Tier           string            `json:"tier" binding:"required"`
+	Status         string            `json:"status"`
+	AllocationMode string            `json:"allocationMode"`
+	CustomerRef    string            `json:"customerRef"`
 	IsActive       bool              `json:"isActive"`
 	ParentID       *string           `json:"parentId"`
 	IsFolder       bool              `json:"isFolder"`
@@ -63,10 +66,21 @@ func (r *UpdateWalletRequest) ApplyTo(w *wallet.Wallet) {
 	w.Address = r.Address
 	w.DerivationPath = r.DerivationPath
 	w.Tier = wallet.WalletTier(r.Tier)
+	if r.Status != "" {
+		w.Status = wallet.WalletStatus(r.Status)
+	}
+	if r.AllocationMode != "" {
+		w.AllocationMode = wallet.AllocationMode(r.AllocationMode)
+	}
+	w.CustomerRef = r.CustomerRef
 	w.IsActive = r.IsActive
 	w.ParentID = stringPtrToIDPtr(r.ParentID)
 	w.IsFolder = r.IsFolder
-	w.Attributes = r.Attributes
+	if r.Attributes != nil {
+		w.Attributes = r.Attributes
+	} else if w.Attributes == nil {
+		w.Attributes = make(entity.Attributes)
+	}
 	w.Version = r.Version
 }
 
@@ -85,6 +99,8 @@ type WalletResponse struct {
 	TierName       string            `json:"tierName"`
 	Status         string            `json:"status"`
 	StatusName     string            `json:"statusName"`
+	AllocationMode string            `json:"allocationMode"`
+	CustomerRef    string            `json:"customerRef,omitempty"`
 	LeasedUntil    *string           `json:"leasedUntil,omitempty"`
 	LeasedForID    *string           `json:"leasedForId,omitempty"`
 	IsActive       bool              `json:"isActive"`
@@ -115,6 +131,8 @@ func FromWallet(w *wallet.Wallet, refs ...postgres.ResolvedRefs) *WalletResponse
 		TierName:       string(w.Tier),
 		Status:         string(w.Status),
 		StatusName:     string(w.Status),
+		AllocationMode: string(w.AllocationMode),
+		CustomerRef:    w.CustomerRef,
 		IsActive:       w.IsActive,
 		ParentID:       idToStringPtr(w.ParentID),
 		IsFolder:       w.IsFolder,

@@ -167,65 +167,77 @@ func (w *Watcher) GetConfirmations(ctx context.Context, txHash string) (int, err
 }
 
 // poll fetches new events since the last checkpoint.
+// TronGrid fingerprints are pagination cursors valid only within a single query
+// (same params). They must NOT be persisted across polls — only used for
+// paginating through multiple pages within one poll() call.
 func (w *Watcher) poll(ctx context.Context, state *WatcherState, events chan<- crypto.BlockchainEvent) (int, error) {
-	resp, err := w.client.GetTRC20Events(ctx, w.cfg.ContractAddress, state.LastTimestamp, state.Fingerprint)
-	if err != nil {
-		return 0, fmt.Errorf("fetch events: %w", err)
-	}
-
-	if !resp.Success {
-		return 0, fmt.Errorf("TronGrid API returned success=false")
-	}
-
 	eventsFound := 0
+	fingerprint := "" // ephemeral — used only for intra-poll pagination
 
-	for _, event := range resp.Data {
-		// Convert hex address from TronGrid events API → base58 for matching
-		toAddr := ConvertTronAddress(event.Result.To)
-		if !w.cfg.MonitoredAddresses[toAddr] {
-			continue
-		}
-
-		// Skip events we've already processed (idempotency by block number)
-		if event.BlockNumber <= state.LastBlock && state.LastBlock > 0 {
-			continue
-		}
-
-		// Convert to normalized event
-		blockchainEvent := w.client.ToBlockchainEvent(event, w.cfg.NetworkID)
-
-		// Fetch confirmation count
-		confs, err := w.client.GetConfirmations(ctx, event.TransactionID)
+	for {
+		resp, err := w.client.GetTRC20Events(ctx, w.cfg.ContractAddress, state.LastTimestamp, fingerprint)
 		if err != nil {
-			logger.Warn(ctx, "failed to get confirmations, defaulting to 0",
-				"tx_hash", event.TransactionID,
-				"error", err,
-			)
-		} else {
-			blockchainEvent.Confirmations = confs
+			return eventsFound, fmt.Errorf("fetch events: %w", err)
 		}
 
-		blockchainEvent.TokenContract = w.cfg.ContractAddress
-		blockchainEvent.RequiredConfs = w.cfg.RequiredConfirmations
-
-		// Emit event
-		select {
-		case events <- blockchainEvent:
-			eventsFound++
-		case <-ctx.Done():
-			return eventsFound, ctx.Err()
+		if !resp.Success {
+			return eventsFound, fmt.Errorf("TronGrid API returned success=false")
 		}
-	}
 
-	// Update checkpoint
-	if len(resp.Data) > 0 {
-		lastEvent := resp.Data[len(resp.Data)-1]
-		state.LastBlock = lastEvent.BlockNumber
-		state.LastTimestamp = lastEvent.BlockTimestamp
-	}
-	state.Fingerprint = resp.Meta.Fingerprint
+		for _, event := range resp.Data {
+			// Convert hex address from TronGrid events API → base58 for matching
+			toAddr := ConvertTronAddress(event.Result.To)
+			if !w.cfg.MonitoredAddresses[toAddr] {
+				continue
+			}
 
-	return eventsFound, nil
+			// Skip events we've already processed (idempotency by block number)
+			if event.BlockNumber <= state.LastBlock && state.LastBlock > 0 {
+				continue
+			}
+
+			// Convert to normalized event
+			blockchainEvent := w.client.ToBlockchainEvent(event, w.cfg.NetworkID)
+
+			// Fetch confirmation count
+			confs, err := w.client.GetConfirmations(ctx, event.TransactionID)
+			if err != nil {
+				logger.Warn(ctx, "failed to get confirmations, defaulting to 0",
+					"tx_hash", event.TransactionID,
+					"error", err,
+				)
+			} else {
+				blockchainEvent.Confirmations = confs
+			}
+
+			blockchainEvent.TokenContract = w.cfg.ContractAddress
+			blockchainEvent.RequiredConfs = w.cfg.RequiredConfirmations
+
+			// Emit event
+			select {
+			case events <- blockchainEvent:
+				eventsFound++
+			case <-ctx.Done():
+				return eventsFound, ctx.Err()
+			}
+		}
+
+		// Update checkpoint from last event in this page
+		if len(resp.Data) > 0 {
+			lastEvent := resp.Data[len(resp.Data)-1]
+			state.LastBlock = lastEvent.BlockNumber
+			state.LastTimestamp = lastEvent.BlockTimestamp
+		}
+
+		// Continue pagination if more pages available
+		if resp.Meta.Fingerprint != "" {
+			fingerprint = resp.Meta.Fingerprint
+			continue
+		}
+
+		// No more pages — done
+		return eventsFound, nil
+	}
 }
 
 // backoff calculates the next poll interval with exponential backoff.

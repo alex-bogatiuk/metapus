@@ -296,17 +296,20 @@ func (p *EventProcessor) processConfirmations(
 			"tx_hash", payment.TxHash,
 		)
 
-		// Handle wallet status — MUST propagate errors.
-		// If this fails, tx rolls back → payment stays 'confirming' → retry on next poll.
-		// Without propagation, wallet gets stuck in 'leased' forever (pool leak).
-		if err := p.handleWalletAfterConfirm(ctx, payment); err != nil {
-			return fmt.Errorf("handle wallet after confirm: %w", err)
+		// Confirm invoice — transitions paid → confirmed.
+		// Returns true if invoice was fully paid and confirmed.
+		invoiceConfirmed, err := p.confirmInvoice(ctx, payment.InvoiceID)
+		if err != nil {
+			return fmt.Errorf("confirm invoice %s: %w", payment.InvoiceID, err)
 		}
 
-		// Confirm invoice — MUST propagate errors.
-		// Without propagation, invoice stays 'paid' → webhook never fires → merchant unaware.
-		if err := p.confirmInvoice(ctx, payment.InvoiceID); err != nil {
-			return fmt.Errorf("confirm invoice %s: %w", payment.InvoiceID, err)
+		// Handle wallet status ONLY when invoice is fully confirmed.
+		// If invoice is partially_paid, wallet must stay leased so subsequent
+		// payments match the same invoice via findActiveInvoice.
+		if invoiceConfirmed {
+			if err := p.handleWalletAfterConfirm(ctx, payment); err != nil {
+				return fmt.Errorf("handle wallet after confirm: %w", err)
+			}
 		}
 	}
 
@@ -332,21 +335,23 @@ func (p *EventProcessor) updateInvoiceAmount(ctx context.Context, invoice *crypt
 	return nil
 }
 
-// confirmInvoice updates the invoice status to Confirmed.
-func (p *EventProcessor) confirmInvoice(ctx context.Context, invoiceID id.ID) error {
+// confirmInvoice updates the invoice status to Confirmed if it is fully paid.
+// Returns true if the invoice was confirmed (transitioned from paid → confirmed).
+func (p *EventProcessor) confirmInvoice(ctx context.Context, invoiceID id.ID) (bool, error) {
 	invoice, err := p.invoiceRepo.GetByID(ctx, invoiceID)
 	if err != nil {
-		return fmt.Errorf("get invoice %s: %w", invoiceID, err)
+		return false, fmt.Errorf("get invoice %s: %w", invoiceID, err)
 	}
 
 	if invoice.Status == crypto_invoice.InvoiceStatusPaid {
 		invoice.Status = crypto_invoice.InvoiceStatusConfirmed
 		if err := p.invoiceRepo.Update(ctx, invoice); err != nil {
-			return fmt.Errorf("confirm invoice %s: %w", invoiceID, err)
+			return false, fmt.Errorf("confirm invoice %s: %w", invoiceID, err)
 		}
+		return true, nil
 	}
 
-	return nil
+	return false, nil
 }
 
 // findActiveInvoice finds the active (leased) invoice for a wallet.

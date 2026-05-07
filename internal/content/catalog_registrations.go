@@ -123,8 +123,15 @@ func init() {
 	metadata.RegisterEnum[wallet.WalletStatus]([]metadata.EnumValue{
 		{Value: "free", Label: "Свободен"},
 		{Value: "leased", Label: "Арендован"},
+		{Value: "assigned", Label: "Назначен"},
 		{Value: "sweep_pending", Label: "Ожидает sweep"},
 		{Value: "frozen", Label: "Заморожен"},
+	})
+
+	// Wallet Allocation Mode
+	metadata.RegisterEnum[wallet.AllocationMode]([]metadata.EnumValue{
+		{Value: "transient", Label: "Временный (per-invoice)"},
+		{Value: "persistent", Label: "Постоянный (per-customer)"},
 	})
 }
 
