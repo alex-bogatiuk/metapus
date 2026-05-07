@@ -33,7 +33,7 @@ func (h *GlobalSearchHandler) Search(c *gin.Context) {
 
 	result, err := h.service.Search(c.Request.Context(), query, limitPerEntity)
 	if err != nil {
-		c.Error(err)
+		_ = c.Error(err)
 		c.Abort()
 		return
 	}

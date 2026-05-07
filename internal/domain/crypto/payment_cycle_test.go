@@ -212,8 +212,6 @@ type testFixture struct {
 	invoiceRepo   *memInvoiceRepo
 	paymentRepo   *memPaymentRepo
 	eventRepo     *memPaymentEventRepo
-	sweepResolver *SweepConfigResolver
-
 	// Seeded entities
 	networkID  id.ID
 	merchantID id.ID

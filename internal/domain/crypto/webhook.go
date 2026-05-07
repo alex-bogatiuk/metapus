@@ -189,7 +189,7 @@ func (d *WebhookDispatcher) Dispatch(
 		)
 		return fmt.Errorf("webhook delivery: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 300 {
 		logger.Warn(ctx, "webhook received non-2xx response",

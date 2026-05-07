@@ -111,7 +111,7 @@ func doLogin() string {
 	if err != nil {
 		return ""
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var r map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&r)
 	t, _ := r["tokens"].(map[string]any)
@@ -134,7 +134,7 @@ func doReq(method, path string, body any) (int, string) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil { return 0, err.Error() }
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	rb, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, string(rb)
 }

@@ -32,7 +32,7 @@ func (h *EntityPreviewHandler) Preview(c *gin.Context) {
 
 	result, err := h.service.Preview(c.Request.Context(), entityType, entityKey, entityID)
 	if err != nil {
-		c.Error(err)
+		_ = c.Error(err)
 		c.Abort()
 		return
 	}

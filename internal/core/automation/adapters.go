@@ -217,7 +217,7 @@ func (a *TelegramAdapter) sendDocument(ctx context.Context, chatID any, botToken
 	if err != nil {
 		return fmt.Errorf("create chat_id field: %w", err)
 	}
-	fmt.Fprintf(fw, "%v", chatID)
+	_, _ = fmt.Fprintf(fw, "%v", chatID)
 
 	// caption field (truncated to 1024 chars per Telegram limit)
 	if caption != "" {
@@ -226,7 +226,7 @@ func (a *TelegramAdapter) sendDocument(ctx context.Context, chatID any, botToken
 			captionTrunc = captionTrunc[:1021] + "…"
 		}
 		cw, _ := writer.CreateFormField("caption")
-		fmt.Fprint(cw, captionTrunc)
+		_, _ = fmt.Fprint(cw, captionTrunc)
 	}
 
 	// document file
@@ -237,7 +237,7 @@ func (a *TelegramAdapter) sendDocument(ctx context.Context, chatID any, botToken
 	if _, err := fw.Write(att.Data); err != nil {
 		return fmt.Errorf("write document data: %w", err)
 	}
-	writer.Close()
+	_ = writer.Close()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, &body)
 	if err != nil {
@@ -346,7 +346,7 @@ func (a *EmailAdapter) Deliver(ctx context.Context, destination map[string]any, 
 		bodyHeader := make(textproto.MIMEHeader)
 		bodyHeader.Set("Content-Type", contentType+"; charset=UTF-8")
 		bodyPart, _ := mpWriter.CreatePart(bodyHeader)
-		fmt.Fprint(bodyPart, body)
+		_, _ = fmt.Fprint(bodyPart, body)
 
 		// Attachment parts
 		for _, att := range attachments {

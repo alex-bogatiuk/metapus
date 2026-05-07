@@ -155,8 +155,8 @@ func (p *CryptoProcessor) Start(ctx context.Context) {
 
 	// Start chain watchers
 	for _, net := range networks {
-		switch {
-		case net.code == "TRON-SHASTA" || net.code == "TRON-MAINNET":
+		switch net.code {
+		case "TRON-SHASTA", "TRON-MAINNET":
 			if p.cfg.TRONRpcURL == "" {
 				p.log.Warnw("TRON RPC URL not configured, skipping TRON watcher",
 					"network", net.code,
