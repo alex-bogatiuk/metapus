@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	qrcode "github.com/skip2/go-qrcode"
 
+	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/types"
@@ -82,7 +83,8 @@ func NewPaymentPageHandler() *PaymentPageHandler {
 func (h *PaymentPageHandler) GetPaymentInfo(c *gin.Context) {
 	invoiceID, err := id.Parse(c.Param("invoiceId"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid invoice ID"})
+		_ = c.Error(apperror.NewValidation("invalid invoice ID"))
+		c.Abort()
 		return
 	}
 
@@ -91,7 +93,8 @@ func (h *PaymentPageHandler) GetPaymentInfo(c *gin.Context) {
 
 	data, err := h.fetchPaymentData(ctx, pool, invoiceID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "invoice not found"})
+		_ = c.Error(apperror.NewNotFound("invoice", invoiceID.String()))
+		c.Abort()
 		return
 	}
 
@@ -219,7 +222,8 @@ func generateQRDataURL(content string) string {
 func (h *PaymentPageHandler) GetInvoiceStatus(c *gin.Context) {
 	invoiceID, err := id.Parse(c.Param("invoiceId"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid invoice ID"})
+		_ = c.Error(apperror.NewValidation("invalid invoice ID"))
+		c.Abort()
 		return
 	}
 
@@ -245,7 +249,8 @@ func (h *PaymentPageHandler) GetInvoiceStatus(c *gin.Context) {
 		WHERE ci.id = $1
 	`, invoiceID).Scan(&status, &receivedAmount, &overpaidAmount, &confirmations, &decimalPlaces)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "invoice not found"})
+		_ = c.Error(apperror.NewNotFound("invoice", invoiceID.String()))
+		c.Abort()
 		return
 	}
 

@@ -15,8 +15,8 @@ func TestValidateWebhookURL(t *testing.T) {
 		wantErr bool
 	}{
 		// Valid
-		{"valid HTTPS URL", "https://merchant.example.com/webhook", false},
-		{"valid HTTPS with path and port", "https://api.merchant.com:8443/v1/webhooks/crypto", false},
+		{"valid HTTPS URL", "https://google.com/webhook", false},
+		{"valid HTTPS with path and port", "https://github.com:443/v1/webhooks/crypto", false},
 		{"empty URL (no webhook configured)", "", false},
 
 		// Protocol violations

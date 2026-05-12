@@ -9,14 +9,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
-	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/core/urlsafe"
 	"metapus/pkg/logger"
 )
 
@@ -59,69 +56,11 @@ func NewWebhookDispatcher() *WebhookDispatcher {
 }
 
 // ValidateWebhookURL validates that a webhook URL is safe to call.
-// Prevents SSRF by enforcing HTTPS and blocking private/loopback/metadata IPs.
+// Delegates to core/urlsafe for full SSRF prevention including DNS resolution.
 //
 // Call this during merchant Create/Update validation.
 func ValidateWebhookURL(rawURL string) error {
-	if rawURL == "" {
-		return nil // empty = no webhook configured
-	}
-
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return apperror.NewValidation("invalid webhook URL").
-			WithDetail("field", "webhookUrl")
-	}
-
-	// Enforce HTTPS only
-	if u.Scheme != "https" {
-		return apperror.NewValidation("webhook URL must use HTTPS").
-			WithDetail("field", "webhookUrl")
-	}
-
-	// Block empty host
-	host := u.Hostname()
-	if host == "" {
-		return apperror.NewValidation("webhook URL must have a valid host").
-			WithDetail("field", "webhookUrl")
-	}
-
-	// Block IP-based URLs that point to private/loopback/metadata ranges
-	if ip := net.ParseIP(host); ip != nil {
-		if isBlockedIP(ip) {
-			return apperror.NewValidation("webhook URL must not point to private or internal addresses").
-				WithDetail("field", "webhookUrl")
-		}
-	}
-
-	// Block well-known metadata hostnames
-	lowerHost := strings.ToLower(host)
-	if lowerHost == "localhost" ||
-		lowerHost == "metadata.google.internal" ||
-		strings.HasSuffix(lowerHost, ".internal") {
-		return apperror.NewValidation("webhook URL must not point to internal hosts").
-			WithDetail("field", "webhookUrl")
-	}
-
-	return nil
-}
-
-// isBlockedIP returns true for IPs that should not be targets of outbound requests.
-func isBlockedIP(ip net.IP) bool {
-	return ip.IsLoopback() ||
-		ip.IsPrivate() ||
-		ip.IsLinkLocalUnicast() ||
-		ip.IsLinkLocalMulticast() ||
-		ip.IsUnspecified() ||
-		isCloudMetadataIP(ip)
-}
-
-// isCloudMetadataIP checks for well-known cloud metadata service IPs.
-// AWS/GCP: 169.254.169.254, Azure: 169.254.169.254 + fd00:ec2::254
-func isCloudMetadataIP(ip net.IP) bool {
-	metadataIPv4 := net.ParseIP("169.254.169.254")
-	metadataIPv6 := net.ParseIP("fd00:ec2::254")
-	return ip.Equal(metadataIPv4) || ip.Equal(metadataIPv6)
+	return urlsafe.ValidatePublicURL(rawURL, "webhookUrl")
 }
 
 // Dispatch sends a webhook event to the given URL with HMAC signature.

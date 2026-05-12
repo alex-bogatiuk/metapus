@@ -497,11 +497,23 @@
                 startPolling();
                 startCountdown();
             } catch (err) {
-                document.getElementById('loading').innerHTML =
-                    '<div style="text-align:center;color:hsl(var(--muted-foreground))">' +
-                    '<div style="font-size:2.5rem;margin-bottom:1rem">🔍</div>' +
-                    '<div style="font-weight:500">Invoice not found</div>' +
-                    '<div style="font-size:0.75rem;margin-top:0.5rem;font-family:var(--font-mono)">' + invoiceId + '</div></div>';
+                var el = document.getElementById('loading');
+                el.textContent = '';
+                el.style.flexDirection = 'column';
+                el.style.textAlign = 'center';
+                el.style.color = 'hsl(var(--muted-foreground))';
+                var icon = document.createElement('div');
+                icon.style.cssText = 'font-size:2.5rem;margin-bottom:1rem';
+                icon.textContent = '🔍';
+                el.appendChild(icon);
+                var title = document.createElement('div');
+                title.style.fontWeight = '500';
+                title.textContent = 'Invoice not found';
+                el.appendChild(title);
+                var detail = document.createElement('div');
+                detail.style.cssText = 'font-size:0.75rem;margin-top:0.5rem;font-family:var(--font-mono)';
+                detail.textContent = invoiceId;  // safe: textContent escapes HTML
+                el.appendChild(detail);
             }
         }
 
