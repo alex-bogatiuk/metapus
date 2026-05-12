@@ -23,8 +23,8 @@ CREATE TABLE doc_crypto_invoices (
     -- Audit fields
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    created_by UUID        NOT NULL,
-    updated_by UUID        NOT NULL,
+    created_by UUID,        -- NULL for merchant API requests (no auth user context)
+    updated_by UUID,
 
     -- Document fields
     number          VARCHAR(20)  NOT NULL,
@@ -49,26 +49,19 @@ CREATE TABLE doc_crypto_invoices (
     order_id       TEXT    NOT NULL DEFAULT '',
     customer_email TEXT    NOT NULL DEFAULT '',
 
+    -- API key audit trail: which merchant API key created this invoice.
+    -- NULL for invoices created via internal/admin flows (JWT user context).
+    -- Chain: api_key_id → cat_merchant_api_keys.created_by_user_id → platform user.
+    api_key_id     UUID,
+
     CONSTRAINT uq_crypto_invoice_number UNIQUE (number),
     CONSTRAINT chk_expected_amount_positive CHECK (expected_amount > 0),
     CONSTRAINT chk_received_amount_nonneg CHECK (received_amount >= 0),
     CONSTRAINT chk_overpaid_amount_nonneg CHECK (overpaid_amount >= 0),
-    CONSTRAINT chk_status_valid CHECK (status IN ('created','partially_paid','paid','overpaid','confirmed','expired','cancelled')),
-    CONSTRAINT fk_crypto_invoices_created_by FOREIGN KEY (created_by) REFERENCES users(id),
-    CONSTRAINT fk_crypto_invoices_updated_by FOREIGN KEY (updated_by) REFERENCES users(id)
-);
-
--- ── Lines ──────────────────────────────────────────────────────────────────
-CREATE TABLE doc_crypto_invoice_lines (
-    line_id     UUID    PRIMARY KEY DEFAULT gen_random_uuid_v7(),
-    document_id UUID    NOT NULL REFERENCES doc_crypto_invoices(id) ON DELETE CASCADE,
-    line_no     INT     NOT NULL,
-
-    description TEXT    NOT NULL DEFAULT '',
-    amount      BIGINT NOT NULL,                                      -- CryptoAmount
-
-    CONSTRAINT chk_crypto_invoice_line_amount CHECK (amount > 0),
-    UNIQUE (document_id, line_no)
+    CONSTRAINT chk_status_valid CHECK (status IN ('created','partially_paid','paid','overpaid','confirmed','expired','cancelled'))
+    -- No FK on created_by/updated_by: merchant API requests have no auth_users entry.
+    -- Audit enrichment is best-effort: set when JWT user is present, NULL otherwise.
+    -- No FK on api_key_id: forward reference (cat_merchant_api_keys defined in migration 00037).
 );
 
 -- Header indexes
@@ -81,6 +74,7 @@ CREATE INDEX idx_crypto_invoices_external_id  ON doc_crypto_invoices (external_i
 CREATE INDEX idx_crypto_invoices_expires      ON doc_crypto_invoices (expires_at) WHERE status = 'created';
 CREATE INDEX idx_crypto_invoices_posted       ON doc_crypto_invoices (posted) WHERE posted = FALSE;
 CREATE INDEX idx_crypto_invoices_number_trgm  ON doc_crypto_invoices USING gin (number gin_trgm_ops);
+CREATE INDEX idx_crypto_invoices_api_key      ON doc_crypto_invoices (api_key_id) WHERE api_key_id IS NOT NULL;
 
 -- CDC indexes & triggers
 CREATE INDEX idx_doc_crypto_invoices_txid ON doc_crypto_invoices (_txid) WHERE _deleted_at IS NULL;
@@ -93,15 +87,11 @@ CREATE TRIGGER trg_doc_crypto_invoices_soft_delete
     BEFORE UPDATE OF deletion_mark ON doc_crypto_invoices
     FOR EACH ROW EXECUTE FUNCTION soft_delete_with_timestamp();
 
--- Line indexes
-CREATE INDEX idx_crypto_invoice_lines_doc ON doc_crypto_invoice_lines (document_id);
-
 -- Keyset pagination
 CREATE INDEX idx_doc_crypto_invoices_date_id    ON doc_crypto_invoices (date DESC, id DESC);
 CREATE INDEX idx_doc_crypto_invoices_created_id ON doc_crypto_invoices (created_at DESC, id DESC);
 
-COMMENT ON TABLE doc_crypto_invoices IS 'Документ Крипто-инвойс — запрос на оплату криптовалютой';
-COMMENT ON TABLE doc_crypto_invoice_lines IS 'Табличная часть документа Крипто-инвойс';
+COMMENT ON TABLE doc_crypto_invoices IS 'Документ Крипто-инвойс — запрос на оплату криптовалютой (без табличной части)';
 COMMENT ON COLUMN doc_crypto_invoices.expected_amount IS 'Ожидаемая сумма в минорных единицах токена (BIGINT для произвольной точности)';
 COMMENT ON COLUMN doc_crypto_invoices.received_amount IS 'Фактически полученная сумма';
 COMMENT ON COLUMN doc_crypto_invoices.overpaid_amount IS 'Сумма переплаты (received - expected), 0 если переплаты нет';
@@ -238,7 +228,6 @@ DROP TRIGGER IF EXISTS trg_crypto_balance_movements_balance ON reg_crypto_balanc
 DROP FUNCTION IF EXISTS update_crypto_balance();
 DROP TABLE IF EXISTS reg_crypto_balance_balances;
 DROP TABLE IF EXISTS reg_crypto_balance_movements;
-DROP TABLE IF EXISTS doc_crypto_invoice_lines;
 DROP TABLE IF EXISTS doc_crypto_invoices;
 SELECT pg_advisory_unlock(hashtext('metapus_migrations'));
 -- +goose StatementEnd

@@ -51,17 +51,6 @@ type CryptoWithdrawal struct {
 
 	// Status is the current lifecycle state
 	Status WithdrawalStatus `db:"status" json:"status" meta:"label:Статус"`
-
-	// Lines (optional breakdown)
-	Lines []CryptoWithdrawalLine `db:"-" json:"lines" meta:"label:Позиции"`
-}
-
-// CryptoWithdrawalLine represents a line item in the withdrawal.
-type CryptoWithdrawalLine struct {
-	LineID      id.ID              `db:"line_id" json:"lineId"`
-	LineNo      int                `db:"line_no" json:"lineNo" meta:"label:№"`
-	Description string             `db:"description" json:"description" meta:"label:Описание"`
-	Amount      types.CryptoAmount `db:"amount" json:"amount" meta:"label:Сумма"`
 }
 
 // NewCryptoWithdrawal creates a new CryptoWithdrawal in Created state.
@@ -79,7 +68,6 @@ func NewCryptoWithdrawal(
 		Amount:         amount,
 		NetworkFee:     types.ZeroCryptoAmount(),
 		Status:         WithdrawalStatusCreated,
-		Lines:          make([]CryptoWithdrawalLine, 0),
 	}
 }
 
@@ -105,19 +93,6 @@ func (w *CryptoWithdrawal) Validate(ctx context.Context) error {
 		return apperror.NewValidation("amount must be positive").WithDetail("field", "amount")
 	}
 	return nil
-}
-
-// --- LinesAccessor ---
-
-func (w *CryptoWithdrawal) GetLines() []CryptoWithdrawalLine {
-	out := make([]CryptoWithdrawalLine, len(w.Lines))
-	copy(out, w.Lines)
-	return out
-}
-
-func (w *CryptoWithdrawal) SetLines(lines []CryptoWithdrawalLine) {
-	w.Lines = make([]CryptoWithdrawalLine, len(lines))
-	copy(w.Lines, lines)
 }
 
 // --- CurrencyAwareDoc stubs ---
@@ -185,10 +160,7 @@ func (w *CryptoWithdrawal) GenerateCryptoFeeMovements(ctx context.Context) ([]en
 	return []entity.CryptoFeeMovement{fee}, nil
 }
 
-func (w *CryptoWithdrawal) GetLineCount() int { return len(w.Lines) }
-
 // Compile-time interface checks.
 var _ posting.Postable = (*CryptoWithdrawal)(nil)
 var _ posting.CryptoBalanceMovementSource = (*CryptoWithdrawal)(nil)
 var _ posting.CryptoFeeMovementSource = (*CryptoWithdrawal)(nil)
-var _ posting.LineCounter = (*CryptoWithdrawal)(nil)

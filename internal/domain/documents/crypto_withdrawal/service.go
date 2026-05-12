@@ -8,8 +8,9 @@ import (
 )
 
 // Service provides business operations for crypto withdrawal documents.
+// Embeds BaseHeaderDocumentService — no line items (header-only).
 type Service struct {
-	*domain.BaseDocumentService[*CryptoWithdrawal, CryptoWithdrawalLine]
+	*domain.BaseHeaderDocumentService[*CryptoWithdrawal]
 }
 
 // NewService creates a new crypto withdrawal service.
@@ -19,7 +20,7 @@ func NewService(
 	num numerator.Generator,
 	txManager tx.Manager,
 ) *Service {
-	base := domain.NewBaseDocumentService(domain.BaseDocumentServiceConfig[*CryptoWithdrawal, CryptoWithdrawalLine]{
+	base := domain.NewBaseHeaderDocumentService(domain.BaseHeaderDocumentServiceConfig[*CryptoWithdrawal]{
 		Repo:              repo,
 		PostingEngine:     postingEngine,
 		Numerator:         num,
@@ -28,7 +29,7 @@ func NewService(
 		NumeratorStrategy: _numeratorStrategy,
 		EntityName:        "crypto_withdrawal",
 	})
-	return &Service{BaseDocumentService: base}
+	return &Service{BaseHeaderDocumentService: base}
 }
 
 // Hooks returns the hook registry.

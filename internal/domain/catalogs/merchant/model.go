@@ -5,6 +5,7 @@ package merchant
 
 import (
 	"context"
+	"time"
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
@@ -25,16 +26,68 @@ type MerchantRole int
 
 const (
 	_                        MerchantRole = iota
-	MerchantRoleOwner                      // владелец — полный доступ
+	MerchantRoleOwner                      // владелец — полный доступ + управление ключами
 	MerchantRoleManager                    // менеджер — операции без настроек
 	MerchantRoleViewer                     // наблюдатель — только чтение
 )
 
+// _merchantRoleMax is the upper bound for valid roles.
+// When adding a new role: declare a const above, increment this value.
+const _merchantRoleMax = int(MerchantRoleViewer)
+
+// IsValid reports whether the role is a known, non-zero value.
+func (r MerchantRole) IsValid() bool {
+	return int(r) >= 1 && int(r) <= _merchantRoleMax
+}
+
+// String returns a human-readable role name.
+func (r MerchantRole) String() string {
+	switch r {
+	case MerchantRoleOwner:
+		return "owner"
+	case MerchantRoleManager:
+		return "manager"
+	case MerchantRoleViewer:
+		return "viewer"
+	default:
+		return "unknown"
+	}
+}
+
 // MerchantUser represents a user-merchant association with a role.
 type MerchantUser struct {
-	UserID     id.ID        `db:"user_id" json:"userId"`
-	MerchantID id.ID        `db:"merchant_id" json:"merchantId"`
-	Role       MerchantRole `db:"role" json:"role"`
+	UserID       id.ID        `db:"user_id"     json:"userId"`
+	MerchantID   id.ID        `db:"merchant_id" json:"merchantId"`
+	Role         MerchantRole `db:"role"        json:"role"`
+	CreatedAt    time.Time    `db:"created_at"  json:"createdAt"`
+	// Enriched fields — populated by ListByMerchant via JOIN with users table.
+	UserEmail    string       `db:"user_email"    json:"userEmail,omitempty"`
+	UserFullName string       `db:"user_fullname" json:"userFullName,omitempty"`
+}
+
+// MerchantUserRepository defines persistence operations for merchant ↔ user associations.
+type MerchantUserRepository interface {
+	// Add grants a user access to a merchant with the given role.
+	// Upserts role if association already exists.
+	Add(ctx context.Context, userID, merchantID id.ID, role MerchantRole) error
+
+	// Remove revokes a user's access to a merchant.
+	// Returns NotFound if no association exists.
+	Remove(ctx context.Context, userID, merchantID id.ID) error
+
+	// UpdateRole changes a user's role within a merchant.
+	// Returns NotFound if no association exists.
+	UpdateRole(ctx context.Context, userID, merchantID id.ID, role MerchantRole) error
+
+	// ListByMerchant returns all users with access to a merchant.
+	ListByMerchant(ctx context.Context, merchantID id.ID) ([]MerchantUser, error)
+
+	// ListByUser returns all merchants a user has access to.
+	ListByUser(ctx context.Context, userID id.ID) ([]MerchantUser, error)
+
+	// GetRole returns the role a user has for a specific merchant.
+	// Returns NotFound if no association exists.
+	GetRole(ctx context.Context, userID, merchantID id.ID) (MerchantRole, error)
 }
 
 // Merchant represents a business client that accepts crypto payments.

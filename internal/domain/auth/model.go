@@ -35,6 +35,10 @@ type User struct {
 	// Loaded relations
 	Roles       []Role   `db:"-" json:"roles,omitempty"`
 	Permissions []string `db:"-" json:"permissions,omitempty"`
+
+	// Portal claims — transient, populated by auth.Service during token generation.
+	MerchantIDs []string `db:"-" json:"-"`
+	PortalRole  int      `db:"-" json:"-"`
 }
 
 // NewUser creates a new user.

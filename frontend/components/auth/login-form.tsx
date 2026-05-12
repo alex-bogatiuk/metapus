@@ -62,7 +62,15 @@ export function LoginForm() {
       })
 
       setAuth(response.tokens, response.user)
-      router.push("/")
+
+      // Smart redirect: portal users → /portal, ERP users → /
+      if (response.user.isAdmin) {
+        router.push("/")
+      } else if ((response.user.merchantIds?.length ?? 0) > 0) {
+        router.push("/portal")
+      } else {
+        router.push("/")
+      }
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.status === 401) {

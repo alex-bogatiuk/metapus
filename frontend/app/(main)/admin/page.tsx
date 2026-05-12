@@ -15,6 +15,7 @@ import {
   Package,
   Plug,
   Pencil,
+  Store,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -26,8 +27,9 @@ import { ControlPlaneSection } from "@/components/settings/control-plane-section
 import { UpdatePageSection } from "@/components/settings/update-page-section"
 import { IntegrationsSection } from "@/components/settings/integrations-section"
 import { useSettingsStore } from "@/stores/useSettingsStore"
+import { MerchantsSection } from "@/components/settings/merchants-section"
 
-type AdminSection = "users" | "security" | "matrix" | "integrations" | "system" | "tenants" | "update"
+type AdminSection = "users" | "security" | "matrix" | "integrations" | "system" | "tenants" | "update" | "merchants"
 
 interface SectionItem {
   id: AdminSection
@@ -86,6 +88,12 @@ const sections: SectionItem[] = [
     description: "Обновление системы из Docker-образа",
     icon: Package,
   },
+  {
+    id: "merchants",
+    title: "Мерчанты",
+    description: "Пользователи и доступ к мерчантам",
+    icon: Store,
+  },
 ]
 
 const tools: ToolItem[] = [
@@ -117,6 +125,7 @@ const sectionComponents: Record<AdminSection, React.ComponentType> = {
   system: SystemInfoSection,
   tenants: ControlPlaneSection,
   update: UpdatePageSection,
+  merchants: MerchantsSection,
 }
 
 export default function AdminPage() {

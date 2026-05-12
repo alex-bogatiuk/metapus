@@ -70,17 +70,6 @@ type CryptoPayment struct {
 
 	// ConfirmedAt is when the transaction reached required confirmations
 	ConfirmedAt *time.Time `db:"confirmed_at" json:"confirmedAt,omitempty" meta:"label:Подтверждён"`
-
-	// Lines (optional breakdown)
-	Lines []CryptoPaymentLine `db:"-" json:"lines" meta:"label:Позиции"`
-}
-
-// CryptoPaymentLine represents a line item in the payment.
-type CryptoPaymentLine struct {
-	LineID      id.ID              `db:"line_id" json:"lineId"`
-	LineNo      int                `db:"line_no" json:"lineNo" meta:"label:№"`
-	Description string             `db:"description" json:"description" meta:"label:Описание"`
-	Amount      types.CryptoAmount `db:"amount" json:"amount" meta:"label:Сумма"`
 }
 
 // NewCryptoPayment creates a new CryptoPayment in Detected state.
@@ -110,7 +99,6 @@ func NewCryptoPayment(
 		Status:        PaymentStatusDetected,
 		NetworkFee:    types.ZeroCryptoAmount(),
 		DetectedAt:    time.Now().UTC(),
-		Lines:         make([]CryptoPaymentLine, 0),
 	}
 }
 
@@ -151,19 +139,6 @@ func (p *CryptoPayment) Validate(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-// --- LinesAccessor implementation ---
-
-func (p *CryptoPayment) GetLines() []CryptoPaymentLine {
-	out := make([]CryptoPaymentLine, len(p.Lines))
-	copy(out, p.Lines)
-	return out
-}
-
-func (p *CryptoPayment) SetLines(lines []CryptoPaymentLine) {
-	p.Lines = make([]CryptoPaymentLine, len(lines))
-	copy(p.Lines, lines)
 }
 
 // --- CurrencyAwareDoc stubs (crypto uses TokenID, not CurrencyID) ---
@@ -216,8 +191,6 @@ func (p *CryptoPayment) GenerateCryptoFeeMovements(ctx context.Context) ([]entit
 	return nil, nil
 }
 
-func (p *CryptoPayment) GetLineCount() int { return len(p.Lines) }
-
 // IsFullyConfirmed returns true if confirmations >= required.
 func (p *CryptoPayment) IsFullyConfirmed() bool {
 	return p.Confirmations >= p.RequiredConfs
@@ -227,4 +200,3 @@ func (p *CryptoPayment) IsFullyConfirmed() bool {
 var _ posting.Postable = (*CryptoPayment)(nil)
 var _ posting.CryptoBalanceMovementSource = (*CryptoPayment)(nil)
 var _ posting.CryptoFeeMovementSource = (*CryptoPayment)(nil)
-var _ posting.LineCounter = (*CryptoPayment)(nil)

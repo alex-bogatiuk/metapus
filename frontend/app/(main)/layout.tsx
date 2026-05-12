@@ -22,11 +22,23 @@ export default function MainLayout({
     setHydrated(true)
   }, [])
 
+  const user = useAuthStore((s) => s.user)
+
   useEffect(() => {
     if (hydrated && !isAuthenticated) {
       router.replace("/login")
     }
   }, [hydrated, isAuthenticated, router])
+
+  // Redirect portal-only users away from ERP layout.
+  useEffect(() => {
+    if (!hydrated || !isAuthenticated || !user) return
+    const hasErpAccess = user.isAdmin || (user.roles?.length ?? 0) > 0
+    const hasPortalAccess = (user.merchantIds?.length ?? 0) > 0
+    if (!hasErpAccess && hasPortalAccess) {
+      router.replace("/portal")
+    }
+  }, [hydrated, isAuthenticated, user, router])
 
   // Load user preferences from server once authenticated
   useEffect(() => {

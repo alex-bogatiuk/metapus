@@ -69,12 +69,6 @@ func (r *memInvoiceRepo) GetByNumber(_ context.Context, _ string) (*crypto_invoi
 	return nil, fmt.Errorf("not implemented")
 }
 func (r *memInvoiceRepo) Delete(_ context.Context, _ id.ID) error { return nil }
-func (r *memInvoiceRepo) GetLines(_ context.Context, _ id.ID) ([]crypto_invoice.CryptoInvoiceLine, error) {
-	return nil, nil
-}
-func (r *memInvoiceRepo) SaveLines(_ context.Context, _ id.ID, _ []crypto_invoice.CryptoInvoiceLine) error {
-	return nil
-}
 func (r *memInvoiceRepo) List(_ context.Context, _ domain.ListFilter) (domain.CursorListResult[*crypto_invoice.CryptoInvoice], error) {
 	return domain.CursorListResult[*crypto_invoice.CryptoInvoice]{}, nil
 }
@@ -131,12 +125,6 @@ func (r *memPaymentRepo) GetByNumber(_ context.Context, _ string) (*crypto_payme
 	return nil, fmt.Errorf("not implemented")
 }
 func (r *memPaymentRepo) Delete(_ context.Context, _ id.ID) error { return nil }
-func (r *memPaymentRepo) GetLines(_ context.Context, _ id.ID) ([]crypto_payment.CryptoPaymentLine, error) {
-	return nil, nil
-}
-func (r *memPaymentRepo) SaveLines(_ context.Context, _ id.ID, _ []crypto_payment.CryptoPaymentLine) error {
-	return nil
-}
 func (r *memPaymentRepo) List(_ context.Context, _ domain.ListFilter) (domain.CursorListResult[*crypto_payment.CryptoPayment], error) {
 	return domain.CursorListResult[*crypto_payment.CryptoPayment]{}, nil
 }

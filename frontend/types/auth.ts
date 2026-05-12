@@ -48,6 +48,8 @@ export interface AuthUserResponse {
   isAdmin: boolean
   emailVerified: boolean
   roles?: AuthRoleResponse[]
+  merchantIds?: string[]
+  portalRole?: number // 1=Owner 2=Manager 3=Viewer
   createdAt: string
 }
 

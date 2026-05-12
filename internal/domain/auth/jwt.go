@@ -35,6 +35,8 @@ type Claims struct {
 	Roles       []string `json:"roles"`
 	Permissions []string `json:"perms,omitempty"`
 	IsAdmin     bool     `json:"adm,omitempty"`
+	MerchantIDs []string `json:"mids,omitempty"`
+	PortalRole  int      `json:"prl,omitempty"`
 }
 
 // JWTService handles JWT operations.
@@ -52,6 +54,8 @@ func (s *JWTService) GenerateAccessToken(
 	userID, tenantID, email string,
 	roles, permissions []string,
 	isAdmin bool,
+	merchantIDs []string,
+	portalRole int,
 ) (string, time.Time, error) {
 	now := time.Now()
 	expiresAt := now.Add(s.config.AccessTokenTTL)
@@ -69,6 +73,8 @@ func (s *JWTService) GenerateAccessToken(
 		Roles:       roles,
 		Permissions: permissions,
 		IsAdmin:     isAdmin,
+		MerchantIDs: merchantIDs,
+		PortalRole:  portalRole,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -105,5 +111,7 @@ func (s *JWTService) ValidateToken(tokenString string) (*appctx.UserContext, err
 		Roles:       claims.Roles,
 		Permissions: claims.Permissions,
 		IsAdmin:     claims.IsAdmin,
+		MerchantIDs: claims.MerchantIDs,
+		PortalRole:  claims.PortalRole,
 	}, nil
 }

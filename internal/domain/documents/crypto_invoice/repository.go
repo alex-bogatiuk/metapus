@@ -7,7 +7,7 @@ import (
 	"metapus/internal/domain"
 )
 
-// Repository defines operations for crypto invoice documents.
+// Repository defines operations for crypto invoice documents (header-only, no lines).
 type Repository interface {
 	// CRUD operations
 	Create(ctx context.Context, doc *CryptoInvoice) error
@@ -15,10 +15,6 @@ type Repository interface {
 	GetByNumber(ctx context.Context, number string) (*CryptoInvoice, error)
 	Update(ctx context.Context, doc *CryptoInvoice) error
 	Delete(ctx context.Context, docID id.ID) error
-
-	// Line operations
-	GetLines(ctx context.Context, docID id.ID) ([]CryptoInvoiceLine, error)
-	SaveLines(ctx context.Context, docID id.ID, lines []CryptoInvoiceLine) error
 
 	// List operations
 	List(ctx context.Context, filter domain.ListFilter) (domain.CursorListResult[*CryptoInvoice], error)

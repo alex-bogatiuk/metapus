@@ -177,36 +177,6 @@ func TestCryptoPayment_GetRLSDimensions(t *testing.T) {
 	}
 }
 
-func TestCryptoPayment_Lines_DefensiveCopy(t *testing.T) {
-	p := NewCryptoPayment(
-		id.New(), id.New(), id.New(), id.New(),
-		"tx1", "sender",
-		types.NewCryptoAmountFromInt64(100),
-		1, 19,
-	)
-
-	lines := []CryptoPaymentLine{
-		{LineID: id.New(), LineNo: 1, Description: "Payment", Amount: types.NewCryptoAmountFromInt64(100)},
-	}
-
-	p.SetLines(lines)
-
-	// Mutate original slice
-	lines[0].Description = "MUTATED"
-
-	// Internal copy should be unaffected (§2.13 defensive copy)
-	got := p.GetLines()
-	if got[0].Description == "MUTATED" {
-		t.Error("SetLines did not perform defensive copy — internal state was mutated")
-	}
-
-	// Mutate returned slice
-	got[0].Description = "ALSO_MUTATED"
-	got2 := p.GetLines()
-	if got2[0].Description == "ALSO_MUTATED" {
-		t.Error("GetLines did not perform defensive copy — internal state was mutated via returned slice")
-	}
-}
 
 func TestCryptoPayment_GenerateCryptoBalanceMovements(t *testing.T) {
 	ctx := context.Background()

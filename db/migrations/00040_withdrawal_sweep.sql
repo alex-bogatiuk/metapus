@@ -63,16 +63,6 @@ CREATE TRIGGER trg_doc_crypto_withdrawals_cdc
     BEFORE UPDATE ON doc_crypto_withdrawals
     FOR EACH ROW EXECUTE FUNCTION fn_doc_crypto_withdrawals_cdc();
 
--- Withdrawal lines
-CREATE TABLE IF NOT EXISTS doc_crypto_withdrawal_lines (
-    line_id       UUID PRIMARY KEY,
-    document_id   UUID NOT NULL REFERENCES doc_crypto_withdrawals(id) ON DELETE CASCADE,
-    line_no       INT NOT NULL DEFAULT 0,
-    description   TEXT NOT NULL DEFAULT '',
-    amount        BIGINT NOT NULL DEFAULT 0
-);
-
-CREATE INDEX IF NOT EXISTS idx_doc_crypto_withdrawal_lines_doc ON doc_crypto_withdrawal_lines (document_id);
 
 -- ═══════════════════════════════════════════════════════════════════════
 -- CRYPTO SWEEP DOCUMENT
@@ -149,5 +139,4 @@ SELECT pg_advisory_unlock(hashtext('metapus_migrations'));
 -- +goose Down
 DROP TABLE IF EXISTS doc_crypto_sweep_lines CASCADE;
 DROP TABLE IF EXISTS doc_crypto_sweeps CASCADE;
-DROP TABLE IF EXISTS doc_crypto_withdrawal_lines CASCADE;
 DROP TABLE IF EXISTS doc_crypto_withdrawals CASCADE;

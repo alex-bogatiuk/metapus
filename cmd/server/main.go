@@ -17,11 +17,16 @@ import (
 	"metapus/internal/core/security"
 	"metapus/internal/core/tenant"
 	"metapus/internal/domain/auth"
+	"metapus/internal/domain/catalogs/wallet"
+	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/domain/security_profile"
 	v1 "metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres/auth_repo"
+	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/migration"
+	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 	"metapus/internal/infrastructure/storage/postgres/security_repo"
 	"metapus/pkg/logger"
 )
@@ -128,12 +133,17 @@ func main() {
 	permRepo := auth_repo.NewPermissionRepo()
 	tokenRepo := auth_repo.NewTokenRepo()
 
+	// MerchantUserRepo is needed by auth.Service to embed portal claims in JWT.
+	// Created early so it can be shared with RouterConfig below.
+	merchantUserRepo := catalog_repo.NewMerchantUserRepo()
+
 	authConfig := auth.DefaultServiceConfig()
 	authService := auth.NewService(
 		userRepo,
 		roleRepo,
 		permRepo,
 		tokenRepo,
+		merchantUserRepo,
 		nil, // TxManager will come from context
 		jwtService,
 		authConfig,
@@ -166,22 +176,59 @@ func main() {
 	wsTicketStore := auth.NewWSTicketStore()
 	defer wsTicketStore.Stop()
 
+	// --- Merchant Public API ---
+	// MerchantAPIKeyRepo and a minimal CryptoInvoice service for /merchant/v1/ endpoints.
+	// Uses the same wallet-lease hook as the ERP service (CryptoInvoiceRegistration.Build)
+	// to ensure invoices created via the public API get a pool wallet assigned.
+	merchantAPIKeyRepo := catalog_repo.NewMerchantAPIKeyRepo()
+	// merchantUserRepo is created above (needed by auth.Service for JWT portal claims).
+	merchantInvoiceRepo := document_repo.NewCryptoInvoiceRepo()
+	merchantInvoiceService := crypto_invoice.NewService(
+		merchantInvoiceRepo,
+		nil, // posting engine — invoices are not posted at creation
+		numeratorService,
+		nil, // TxManager from context
+	)
+
+	// Register wallet-lease hook — same logic as content/document_registrations.go:191-208.
+	// Without this, invoices created via /merchant/v1/ would have wallet_id = NULL.
+	merchantTokenRepo := catalog_repo.NewTokenRepo()
+	merchantWalletRepo := catalog_repo.NewWalletRepo()
+	merchantWalletSvc := wallet.NewService(merchantWalletRepo, numeratorService)
+
+	merchantInvoiceService.Hooks().OnBeforeCreate(func(ctx context.Context, doc *crypto_invoice.CryptoInvoice) error {
+		tok, err := merchantTokenRepo.GetByID(ctx, doc.TokenID)
+		if err != nil {
+			return fmt.Errorf("resolve token for wallet lease: %w", err)
+		}
+		w, err := merchantWalletSvc.LeaseForInvoice(ctx, doc.ID, tok.NetworkID)
+		if err != nil {
+			return fmt.Errorf("lease wallet for invoice: %w", err)
+		}
+		doc.WalletID = &w.ID
+		return nil
+	})
+
 	// --- Router ---
 	router := v1.NewRouter(v1.RouterConfig{
-		TenantManager:       tenantManager,
-		MetaPool:            metaPool,
-		Logger:              log,
-		JWTValidator:        jwtService,
-		AuthService:         authService,
-		Numerator:           numeratorService,
-		IdempotencyEnabled:  getEnv("IDEMPOTENCY_ENABLED", "false") == "true",
-		ProfileProvider:     profileProvider,
-		PolicyEngine:        policyEngine,
-		Registry:            factoryReg,
-		Version:             Version,
-		BuildTime:           BuildTime,
-		MigrationStateStore: migrationStateStore,
-		WSTicketStore:       wsTicketStore,
+		TenantManager:          tenantManager,
+		MetaPool:               metaPool,
+		Logger:                 log,
+		JWTValidator:           jwtService,
+		AuthService:            authService,
+		Numerator:              numeratorService,
+		IdempotencyEnabled:     getEnv("IDEMPOTENCY_ENABLED", "false") == "true",
+		ProfileProvider:        profileProvider,
+		PolicyEngine:           policyEngine,
+		Registry:               factoryReg,
+		Version:                Version,
+		BuildTime:              BuildTime,
+		MigrationStateStore:    migrationStateStore,
+		WSTicketStore:          wsTicketStore,
+		MerchantAPIKeyRepo:     merchantAPIKeyRepo,
+		MerchantUserRepo:       merchantUserRepo,
+		MerchantInvoiceService: merchantInvoiceService,
+		PortalDashboardRepo:   portal_repo.NewDashboardRepo(),
 	})
 
 	// --- HTTP Server ---

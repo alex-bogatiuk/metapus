@@ -23,6 +23,7 @@ import {
   Puzzle,
   ShieldCheck,
   Bitcoin,
+  Activity,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -222,6 +223,7 @@ const navBottom: NavItem[] = [
   { title: "Настройки", url: "/settings", icon: Settings },
   { title: "Администрирование", url: "/admin", icon: ShieldCheck },
   { title: "Журнал событий", url: "/admin/event-log", icon: ScrollText },
+  { title: "Задачи воркера", url: "/admin/worker-jobs", icon: Activity },
   { title: "Помощь", url: "/help", icon: HelpCircle },
 ]
 

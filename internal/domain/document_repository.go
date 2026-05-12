@@ -82,4 +82,33 @@ type CurrencyCacheInvalidator interface {
 	InvalidateOrgCurrency(orgID id.ID)
 	InvalidateBaseCurrency(ctx context.Context)
 }
+// HeaderDocumentRepository defines CRUD operations for header-only documents.
+// Identical to DocumentRepository minus GetLines/SaveLines — header is self-sufficient.
+// Used by BaseHeaderDocumentService[T].
+type HeaderDocumentRepository[T any] interface {
+	// Create inserts a new document
+	Create(ctx context.Context, doc T) error
 
+	// GetByID retrieves document by ID
+	GetByID(ctx context.Context, docID id.ID) (T, error)
+
+	// GetByNumber retrieves document by number
+	GetByNumber(ctx context.Context, number string) (T, error)
+
+	// Update modifies existing document (with optimistic locking)
+	Update(ctx context.Context, doc T) error
+
+	// Delete performs soft removal
+	Delete(ctx context.Context, docID id.ID) error
+
+	// List retrieves documents with cursor-based pagination
+	List(ctx context.Context, filter ListFilter) (CursorListResult[T], error)
+
+	// ListIDs returns all document IDs matching the filter (no pagination, no full data).
+	// Used for filter-based batch operations (virtual "select all").
+	// Safety limit: returns at most maxIDs results. If more match, returns ErrTooManyResults.
+	ListIDs(ctx context.Context, filter ListFilter, maxIDs int) ([]id.ID, error)
+
+	// GetForUpdate retrieves document with pessimistic lock (SELECT … FOR UPDATE)
+	GetForUpdate(ctx context.Context, docID id.ID) (T, error)
+}

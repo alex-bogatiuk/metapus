@@ -34,6 +34,24 @@ type DocumentEntity[L any] interface {
 	GetVersion() int
 }
 
+// HeaderDocumentEntity is the constraint for header-only document types.
+// Identical to DocumentEntity but without LinesAccessor — documents where
+// all business data lives in the header (no tabular part).
+// Used by BaseHeaderDocumentService[T].
+type HeaderDocumentEntity interface {
+	entity.Validatable
+	posting.Postable
+	CurrencyAwareDoc
+	State() entity.DocumentState
+	CanModify() error
+	IsDeletionMarked() bool
+	MarkDeleted()
+	Undelete()
+	GetNumber() string
+	SetNumber(string)
+	GetVersion() int
+}
+
 // BaseDocumentServiceConfig configures the BaseDocumentService.
 type BaseDocumentServiceConfig[T DocumentEntity[L], L any] struct {
 	Repo              DocumentRepository[T, L]

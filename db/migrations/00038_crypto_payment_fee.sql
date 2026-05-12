@@ -76,16 +76,6 @@ CREATE TRIGGER trg_doc_crypto_payments_cdc
     BEFORE UPDATE ON doc_crypto_payments
     FOR EACH ROW EXECUTE FUNCTION fn_doc_crypto_payments_cdc();
 
--- Payment lines (optional breakdown)
-CREATE TABLE IF NOT EXISTS doc_crypto_payment_lines (
-    line_id       UUID PRIMARY KEY,
-    document_id   UUID NOT NULL REFERENCES doc_crypto_payments(id) ON DELETE CASCADE,
-    line_no       INT NOT NULL DEFAULT 0,
-    description   TEXT NOT NULL DEFAULT '',
-    amount        BIGINT NOT NULL DEFAULT 0
-);
-
-CREATE INDEX IF NOT EXISTS idx_doc_crypto_payment_lines_doc ON doc_crypto_payment_lines (document_id);
 
 -- ═══════════════════════════════════════════════════════════════════════
 -- CRYPTO FEE REGISTER
@@ -195,5 +185,4 @@ SELECT pg_advisory_unlock(hashtext('metapus_migrations'));
 DROP TABLE IF EXISTS reg_crypto_payment_events CASCADE;
 DROP TABLE IF EXISTS reg_crypto_fee_balances CASCADE;
 DROP TABLE IF EXISTS reg_crypto_fee_movements CASCADE;
-DROP TABLE IF EXISTS doc_crypto_payment_lines CASCADE;
 DROP TABLE IF EXISTS doc_crypto_payments CASCADE;

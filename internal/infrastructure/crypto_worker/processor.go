@@ -20,6 +20,7 @@ import (
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/tx"
 	"metapus/internal/core/types"
+	"metapus/internal/core/workerjob"
 	"metapus/internal/domain"
 	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/domain/crypto"
@@ -52,6 +53,10 @@ type CryptoProcessorConfig struct {
 
 	// TRONApiKey is the optional TronGrid API key for higher rate limits.
 	TRONApiKey string
+
+	// JobRecorder records background task execution for the /admin/worker-jobs UI.
+	// Optional: if nil, task execution is not recorded.
+	JobRecorder *workerjob.Recorder
 }
 
 // CryptoProcessor manages crypto payment processing for a single tenant.
@@ -70,6 +75,9 @@ type CryptoProcessor struct {
 	eventProcessor *crypto.EventProcessor
 	walletSvc      *wallet.Service
 	sweepResolver  *crypto.SweepConfigResolver
+
+	// Observability
+	recorder *workerjob.Recorder
 
 	// Chain watchers per network (for confirmation re-checks)
 	mu             sync.Mutex
@@ -132,6 +140,7 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 		eventProcessor: ep,
 		walletSvc:      walletSvc,
 		sweepResolver:  sweepResolver,
+		recorder:       cfg.JobRecorder,
 		chainWatchers:  make(map[id.ID]crypto.ChainWatcher),
 	}
 }
@@ -309,7 +318,16 @@ func (p *CryptoProcessor) runExpirationLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := p.expireInvoices(ctx); err != nil {
+			if p.recorder != nil {
+				// RecordIfWork: only log when invoices actually expired (idle ticks skipped).
+				p.recorder.RecordIfWork(ctx, "crypto.expiration", "crypto", func(ctx context.Context) (int, error) {
+					n, err := p.invoiceRepo.ExpireOverdue(ctx)
+					if n > 0 {
+						p.log.Infow("expired invoices", "count", n)
+					}
+					return int(n), err
+				})
+			} else if err := p.expireInvoices(ctx); err != nil {
 				p.log.Errorw("failed to expire invoices", "error", err)
 			}
 		}
@@ -429,7 +447,7 @@ func (p *CryptoProcessor) pollConfirmations(ctx context.Context) error {
 // ── Sweep Evaluation ────────────────────────────────────────────────────
 
 // runSweepEvaluationLoop periodically checks pool wallets for threshold-based sweep.
-// Wallets with accumulated balance ≥ threshold (or exceeding max age) are marked sweep_pending.
+// Wallets with accumulated balance >= threshold (or exceeding max age) are marked sweep_pending.
 func (p *CryptoProcessor) runSweepEvaluationLoop(ctx context.Context) {
 	ticker := time.NewTicker(_sweepEvalPeriod)
 	defer ticker.Stop()
@@ -442,7 +460,12 @@ func (p *CryptoProcessor) runSweepEvaluationLoop(ctx context.Context) {
 			p.log.Info("sweep evaluation loop stopped")
 			return
 		case <-ticker.C:
-			if err := p.evaluateSweeps(ctx); err != nil {
+			if p.recorder != nil {
+				// RecordIfWork: only log when wallets are actually marked sweep_pending.
+				p.recorder.RecordIfWork(ctx, "crypto.sweep_eval", "crypto", func(ctx context.Context) (int, error) {
+					return p.evaluateSweepsWithCount(ctx)
+				})
+			} else if err := p.evaluateSweeps(ctx); err != nil {
 				p.log.Errorw("sweep evaluation failed", "error", err)
 			}
 		}
@@ -569,6 +592,86 @@ func (p *CryptoProcessor) evaluateSweeps(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// evaluateSweepsWithCount is a wrapper for recorder.Record — returns the number of wallets marked sweep_pending.
+func (p *CryptoProcessor) evaluateSweepsWithCount(ctx context.Context) (int, error) {
+	txm := postgres.MustGetTxManager(ctx)
+	querier := txm.GetQuerier(ctx)
+
+	const query = `
+		SELECT w.id AS wallet_id,
+		       w.merchant_id,
+		       w.last_swept_at,
+		       p.token_id,
+		       COALESCE(SUM(p.amount), 0) AS balance,
+		       MIN(p.confirmed_at)        AS oldest_payment_at
+		FROM cat_wallets w
+		INNER JOIN doc_crypto_payments p ON p.wallet_id = w.id
+		WHERE w.tier = 'pool'
+		  AND w.status IN ('free', 'assigned')
+		  AND w.is_active = TRUE
+		  AND w.deletion_mark = FALSE
+		  AND p.status = 'confirmed'
+		  AND p.confirmed_at > COALESCE(w.last_swept_at, '1970-01-01'::timestamptz)
+		GROUP BY w.id, w.merchant_id, w.last_swept_at, p.token_id
+		HAVING COALESCE(SUM(p.amount), 0) > 0
+		LIMIT $1
+	`
+
+	rows, err := querier.Query(ctx, query, _sweepEvalBatchSize)
+	if err != nil {
+		return 0, fmt.Errorf("query sweep candidates (with count): %w", err)
+	}
+	defer rows.Close()
+
+	candidates := make([]sweepCandidate, 0, _sweepEvalBatchSize)
+	for rows.Next() {
+		var c sweepCandidate
+		if err := rows.Scan(&c.walletID, &c.merchantID, &c.lastSweptAt, &c.tokenID, &c.balance, &c.oldestPaymentAt); err != nil {
+			return 0, fmt.Errorf("scan sweep candidate (with count): %w", err)
+		}
+		candidates = append(candidates, c)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("iterate sweep candidates (with count): %w", err)
+	}
+
+	var marked int
+	for _, c := range candidates {
+		merchantID := id.Nil()
+		if c.merchantID != nil {
+			merchantID = *c.merchantID
+		}
+		cfg, err := p.sweepResolver.Resolve(ctx, merchantID, c.tokenID)
+		if err != nil {
+			continue
+		}
+		if cfg.IsZeroThreshold() {
+			continue
+		}
+
+		thresholdMet := c.balance.Cmp(cfg.Threshold) >= 0
+		ageMet := false
+		if cfg.MaxAgeHours > 0 {
+			maxAge := time.Duration(cfg.MaxAgeHours) * time.Hour
+			if c.lastSweptAt != nil {
+				ageMet = time.Since(*c.lastSweptAt) > maxAge
+			} else if c.oldestPaymentAt != nil {
+				ageMet = time.Since(*c.oldestPaymentAt) > maxAge
+			}
+		}
+
+		if thresholdMet || ageMet {
+			if err := p.walletSvc.MarkSweepPending(ctx, c.walletID); err != nil {
+				p.log.Errorw("failed to mark wallet sweep pending", "wallet_id", c.walletID, "error", err)
+				continue
+			}
+			marked++
+		}
+	}
+
+	return marked, nil
 }
 
 // ── Internal helpers ────────────────────────────────────────────────────

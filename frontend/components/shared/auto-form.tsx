@@ -17,7 +17,7 @@
  *   number     → <Input type="number" />
  */
 
-import { useEffect, useState, useCallback } from "react"
+import React, { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { api, apiFetch, ApiError } from "@/lib/api"
 import { Input } from "@/components/ui/input"
@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button"
 import { FormToolbar } from "@/components/shared/form-toolbar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ReferenceField } from "@/components/shared/reference-field"
+import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import { Save, ArrowLeft, ArrowRightLeft, Network } from "lucide-react"
 import { FormSkeleton } from "@/components/shared/form-skeleton"
@@ -73,6 +74,11 @@ interface AutoFormProps {
     entityType: "catalog" | "document"
     /** Route prefix for API path (e.g. "vehicles", "counterparties") */
     routePrefix: string
+    /**
+     * Optional content rendered BELOW the auto-generated form fields.
+     * Use for entity-specific extensions (e.g. API key management for merchants).
+     */
+    appendContent?: React.ReactNode
 }
 
 /** System/auto-managed fields that should not appear in the form */
@@ -116,12 +122,10 @@ function fieldToInput(
         case "date":
         case "datetime":
             return (
-                <Input
-                    type="datetime-local"
-                    value={typeof v === "string" ? v.slice(0, 16) : ""}
-                    onChange={(e) => handleChange(e.target.value ? new Date(e.target.value).toISOString() : "")}
+                <DateTimePicker
+                    value={typeof v === "string" && v ? new Date(v) : undefined}
+                    onChange={(date) => handleChange(date ? date.toISOString() : null)}
                     disabled={disabled || field.readOnly}
-                    autoFocus={isFirstEditable}
                 />
             )
         case "integer":
@@ -198,7 +202,7 @@ function fieldToInput(
     }
 }
 
-export default function AutoForm({ entityName, id, entityType, routePrefix }: AutoFormProps) {
+export default function AutoForm({ entityName, id, entityType, routePrefix, appendContent }: AutoFormProps) {
     const router = useRouter()
     const [meta, setMeta] = useState<EntityMetaDef | null>(null)
     const [formData, setFormData] = useState<Record<string, unknown>>({})
@@ -543,6 +547,14 @@ export default function AutoForm({ entityName, id, entityType, routePrefix }: Au
                             </div>
                         ))}
                     </div>
+
+                    {/* Entity-specific extensions (e.g. API keys, user access).
+                        Rendered inside ScrollArea so they scroll with the form. */}
+                    {appendContent && (
+                        <div className="mt-6 pb-8">
+                            {appendContent}
+                        </div>
+                    )}
                 </div>
             </ScrollArea>
         </div>

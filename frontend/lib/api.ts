@@ -50,8 +50,19 @@ import type {
     CreateGoodsIssueRequest,
     UpdateGoodsIssueRequest,
 } from "@/types/document"
+import type {
+    MerchantAPIKeyListItem,
+    MerchantAPIKeyResponse,
+    CreateMerchantAPIKeyRequest,
+    MerchantAPIKeyListResponse,
+    MerchantUserItem,
+    MerchantUserListResponse,
+    AddMerchantUserRequest,
+    UpdateMerchantUserRoleRequest,
+} from "@/types/merchant-api"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1"
+const PORTAL_BASE = API_BASE.replace(/\/api\/v1$/, "/portal/v1")
 const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? ""
 
 // ── Generic fetcher ─────────────────────────────────────────────────────
@@ -240,6 +251,58 @@ export async function apiFetchBlob(
 
     const blob = await res.blob()
     return { blob, filename }
+}
+
+/**
+ * portalFetch — same as apiFetch but targets /portal/v1 base path.
+ * Used exclusively for merchant portal endpoints.
+ */
+export async function portalFetch<T>(
+    path: string,
+    options?: RequestInit
+): Promise<T> {
+    const { headers: optHeaders, ...restOptions } = options ?? {}
+
+    const res = await fetch(`${PORTAL_BASE}${path}`, {
+        ...restOptions,
+        credentials: "include",
+        headers: buildHeaders(optHeaders),
+    })
+
+    // ── 401 → attempt token refresh & retry once ────────────────────────
+    if (res.status === 401) {
+        const newTokens = await refreshAccessToken()
+        if (newTokens) {
+            const retryRes = await fetch(`${PORTAL_BASE}${path}`, {
+                ...restOptions,
+                credentials: "include",
+                headers: buildHeaders(optHeaders),
+            })
+
+            if (!retryRes.ok) {
+                const body = await retryRes.text().catch(() => undefined)
+                throw new ApiError(retryRes.status, retryRes.statusText, body)
+            }
+
+            if (retryRes.status === 204 || retryRes.headers.get("content-length") === "0") {
+                return undefined as T
+            }
+            return retryRes.json() as Promise<T>
+        }
+        const body = await res.text().catch(() => undefined)
+        throw new ApiError(res.status, res.statusText, body)
+    }
+
+    if (!res.ok) {
+        const body = await res.text().catch(() => undefined)
+        throw new ApiError(res.status, res.statusText, body)
+    }
+
+    if (res.status === 204 || res.headers.get("content-length") === "0") {
+        return undefined as T
+    }
+
+    return res.json() as Promise<T>
 }
 
 // ── Resource endpoints ──────────────────────────────────────────────────
@@ -857,6 +920,25 @@ export const api = {
             },
         },
 
+        workerJobs: {
+            list: (params?: import("@/types/worker-job").WorkerJobFilter) => {
+                const entries: [string, string][] = []
+                if (params?.jobName)     entries.push(["jobName", params.jobName])
+                if (params?.jobCategory) entries.push(["jobCategory", params.jobCategory])
+                if (params?.status)      entries.push(["status", params.status])
+                if (params?.dateFrom)    entries.push(["dateFrom", params.dateFrom])
+                if (params?.dateTo)      entries.push(["dateTo", params.dateTo])
+                if (params?.after)       entries.push(["after", params.after])
+                if (params?.limit)       entries.push(["limit", String(params.limit)])
+                const qs = entries.length > 0 ? "?" + new URLSearchParams(entries).toString() : ""
+                return apiFetch<import("@/types/worker-job").WorkerJobListResponse>(
+                    `/system/worker-jobs${qs}`
+                )
+            },
+            stats: () =>
+                apiFetch<import("@/types/worker-job").WorkerJobStats>("/system/worker-jobs/stats"),
+        },
+
         findReferences: (data: { entityName: string; entityId: string }) =>
             apiFetch<{ items: import("@/types/common").FoundReference[]; total: number }>("/system/find-references", {
                 method: "POST",
@@ -990,6 +1072,83 @@ export const api = {
                     method: "POST",
                     body: JSON.stringify({ expression, doc, action }),
                 }),
+        },
+    },
+
+    // ─── Merchant API Key Management (admin) ─────────────────────────────────
+    // Routes: /api/v1/merchant-admin/merchants/:merchantId/api-keys
+    merchantApiKeys: {
+        list: (merchantId: string): Promise<MerchantAPIKeyListItem[]> =>
+            apiFetch<MerchantAPIKeyListResponse>(`/merchant-admin/merchants/${merchantId}/api-keys`)
+                .then((r) => r.items),
+
+        create: (merchantId: string, body: CreateMerchantAPIKeyRequest): Promise<MerchantAPIKeyResponse> =>
+            apiFetch<MerchantAPIKeyResponse>(`/merchant-admin/merchants/${merchantId}/api-keys`, {
+                method: "POST",
+                body: JSON.stringify(body),
+            }),
+
+        revoke: (merchantId: string, keyId: string): Promise<void> =>
+            apiFetch<void>(`/merchant-admin/merchants/${merchantId}/api-keys/${keyId}`, {
+                method: "DELETE",
+            }),
+    },
+
+    // ─── Merchant User Management (admin) ────────────────────────────────────
+    // Routes: /api/v1/merchant-admin/merchants/:merchantId/users
+    merchantUsers: {
+        list: (merchantId: string): Promise<MerchantUserItem[]> =>
+            apiFetch<MerchantUserListResponse>(`/merchant-admin/merchants/${merchantId}/users`)
+                .then((r) => r.items),
+
+        add: (merchantId: string, body: AddMerchantUserRequest): Promise<void> =>
+            apiFetch<void>(`/merchant-admin/merchants/${merchantId}/users`, {
+                method: "POST",
+                body: JSON.stringify(body),
+            }),
+
+        remove: (merchantId: string, userId: string): Promise<void> =>
+            apiFetch<void>(`/merchant-admin/merchants/${merchantId}/users/${userId}`, {
+                method: "DELETE",
+            }),
+
+        updateRole: (merchantId: string, userId: string, body: UpdateMerchantUserRoleRequest): Promise<void> =>
+            apiFetch<void>(`/merchant-admin/merchants/${merchantId}/users/${userId}/role`, {
+                method: "PATCH",
+                body: JSON.stringify(body),
+            }),
+    },
+
+    // ── Portal API (/portal/v1/) ──────────────────────────────────────────
+    // Uses the portal base path, which is separate from the ERP /api/v1/ base.
+    portal: {
+        merchants: () =>
+            portalFetch<{ items: import("@/types/portal-api").PortalMerchantItem[] }>("/merchants"),
+
+        summary: (merchantId?: string) => {
+            const qs = merchantId ? `?merchant_id=${encodeURIComponent(merchantId)}` : ""
+            return portalFetch<import("@/types/portal-api").PortalSummaryResponse>(`/dashboard/summary${qs}`)
+        },
+
+        currencies: (merchantId?: string) => {
+            const qs = merchantId ? `?merchant_id=${encodeURIComponent(merchantId)}` : ""
+            return portalFetch<{ items: import("@/types/portal-api").PortalCurrencyItem[] }>(`/dashboard/currencies${qs}`)
+        },
+
+        chart: (period: "7d" | "30d" | "90d" = "30d", merchantId?: string) => {
+            const params: string[] = [`period=${period}`]
+            if (merchantId) params.push(`merchant_id=${encodeURIComponent(merchantId)}`)
+            return portalFetch<{ items: import("@/types/portal-api").PortalChartPoint[] }>(`/dashboard/chart?${params.join("&")}`)
+        },
+
+        invoices: (params?: { merchantId?: string; status?: string; limit?: number; offset?: number }) => {
+            const entries: [string, string][] = []
+            if (params?.merchantId) entries.push(["merchant_id", params.merchantId])
+            if (params?.status) entries.push(["status", params.status])
+            if (params?.limit) entries.push(["limit", String(params.limit)])
+            if (params?.offset) entries.push(["offset", String(params.offset)])
+            const qs = entries.length > 0 ? "?" + new URLSearchParams(entries).toString() : ""
+            return portalFetch<import("@/types/portal-api").PortalInvoiceListResponse>(`/invoices${qs}`)
         },
     },
 

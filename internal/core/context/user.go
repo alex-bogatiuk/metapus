@@ -14,6 +14,8 @@ type UserContext struct {
 	Permissions []string
 	IsAdmin     bool
 	SessionID   string
+	MerchantIDs []string // UUID strings; empty = no portal access
+	PortalRole  int      // 1=Owner 2=Manager 3=Viewer; 0=no access
 }
 
 type userContextKey struct{}

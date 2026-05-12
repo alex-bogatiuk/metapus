@@ -1,6 +1,8 @@
 package dto
 
 import (
+	"time"
+
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/catalogs/wallet"
@@ -50,6 +52,7 @@ type UpdateWalletRequest struct {
 	AllocationMode string            `json:"allocationMode"`
 	CustomerRef    string            `json:"customerRef"`
 	IsActive       bool              `json:"isActive"`
+	LastSweptAt    *time.Time        `json:"lastSweptAt,omitempty"`
 	ParentID       *string           `json:"parentId"`
 	IsFolder       bool              `json:"isFolder"`
 	Attributes     entity.Attributes `json:"attributes"`
@@ -74,6 +77,7 @@ func (r *UpdateWalletRequest) ApplyTo(w *wallet.Wallet) {
 	}
 	w.CustomerRef = r.CustomerRef
 	w.IsActive = r.IsActive
+	w.LastSweptAt = r.LastSweptAt // nil clears the field
 	w.ParentID = stringPtrToIDPtr(r.ParentID)
 	w.IsFolder = r.IsFolder
 	if r.Attributes != nil {
@@ -103,6 +107,7 @@ type WalletResponse struct {
 	CustomerRef    string            `json:"customerRef,omitempty"`
 	LeasedUntil    *string           `json:"leasedUntil,omitempty"`
 	LeasedForID    *string           `json:"leasedForId,omitempty"`
+	LastSweptAt    *string           `json:"lastSweptAt,omitempty"`
 	IsActive       bool              `json:"isActive"`
 	ParentID       *string           `json:"parentId,omitempty"`
 	IsFolder       bool              `json:"isFolder"`
@@ -146,6 +151,10 @@ func FromWallet(w *wallet.Wallet, refs ...postgres.ResolvedRefs) *WalletResponse
 		resp.LeasedUntil = &s
 	}
 	resp.LeasedForID = idToStringPtr(w.LeasedForID)
+	if w.LastSweptAt != nil {
+		s := w.LastSweptAt.Format(time.RFC3339)
+		resp.LastSweptAt = &s
+	}
 
 	if len(refs) > 0 {
 		net := refs[0].Get(TableBlockchainNetworks, w.NetworkID)

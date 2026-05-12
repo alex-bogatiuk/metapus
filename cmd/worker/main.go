@@ -19,6 +19,7 @@ import (
 	"metapus/internal/core/automation/adapters"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
+	"metapus/internal/core/workerjob"
 	"metapus/internal/domain/reports/compiler"
 	"metapus/internal/domain/settings"
 	"metapus/internal/infrastructure/crypto_worker"
@@ -195,6 +196,12 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 
 	txManager := postgres.NewTxManagerFromRawPool(mp.Pool())
 
+	// ── Worker Job Recorder (observability) ────────────────────────────
+	// Writes to sys_worker_jobs for the /admin/worker-jobs UI.
+	// Best-effort: never fails the worker on repo errors.
+	jobRepo := postgres.NewWorkerJobRepo(mp.Pool())
+	recorder := workerjob.NewRecorder(jobRepo, w.log)
+
 	// Initialize automation engine ONCE per tenant worker lifecycle.
 	// All repos are stateless (they extract pool from ctx), so reuse is safe.
 	engine, err := w.buildAutomationEngine()
@@ -217,9 +224,19 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 	ctx = tenant.WithPool(ctx, mp.Pool())
 	ctx = tenant.WithTxManager(ctx, txManager)
 
+	// subsWg tracks goroutines (scheduler, crypto processor) that use the
+	// tenant pool. We must wait for them to exit BEFORE defer mp.ReleaseRef()
+	// fires — otherwise the eviction loop can close the pool under them.
+	// The goroutines all receive the same ctx and will stop on ctx.Done().
+	var subsWg sync.WaitGroup
+
 	// Start CRON scheduler for scheduled rules (runs in background goroutine).
 	scheduler := automation.NewScheduler(engine, postgres.NewAutomationRuleRepo())
-	go scheduler.Start(ctx) // Will stop when ctx is cancelled
+	subsWg.Add(1)
+	go func() {
+		defer subsWg.Done()
+		scheduler.Start(ctx) // blocks until ctx is cancelled
+	}()
 
 	// ── Crypto Processing ──────────────────────────────────────────────
 	// Start CryptoProcessor if TRON RPC is configured.
@@ -228,38 +245,57 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 		cp := crypto_worker.NewCryptoProcessor(crypto_worker.CryptoProcessorConfig{
 			TRONRpcURL: getEnv("TRON_RPC_URL", ""),
 			TRONApiKey: getEnv("TRON_API_KEY", ""),
+			JobRecorder: recorder,
 		}, w.log)
-		go cp.Start(ctx) // Will stop when ctx is cancelled
+		subsWg.Add(1)
+		go func() {
+			defer subsWg.Done()
+			cp.Start(ctx) // blocks until ctx is cancelled
+		}()
 	}
 
 	for {
 		select {
 		case <-ctx.Done():
 			w.log.Infow("stopping worker for tenant", "tenant_id", t.ID)
+			subsWg.Wait() // drain scheduler + crypto processor before pool release
 			return
 		case <-ticker.C:
 			// Keep pool alive — prevent idle eviction.
 			mp.Touch()
 
-			processed, err := relay.ProcessBatch(ctx)
-			if err != nil {
-				w.log.Errorw("failed to process outbox batch", "tenant_id", t.ID, "error", err)
-			} else if processed > 0 {
-				w.log.Debugw("processed outbox batch", "tenant_id", t.ID, "count", processed)
-			}
+			// RecordIfWork: skips DB write when outbox is empty (99.9% of 500ms ticks).
+			// Only real processing or errors appear in the worker jobs journal.
+			recorder.RecordIfWork(ctx, "outbox.relay", "outbox", func(ctx context.Context) (int, error) {
+				return relay.ProcessBatch(ctx)
+			})
 		case <-cleanupTicker.C:
 			mp.Touch()
 			// Recover outbox messages stuck in 'processing' (worker crash, OOM).
-			if stuck, err := relay.RecoverStuck(ctx, postgres.DefaultStuckTimeout()); err != nil {
-				w.log.Errorw("failed to recover stuck outbox messages", "tenant_id", t.ID, "error", err)
-			} else if stuck > 0 {
-				w.log.Warnw("recovered stuck outbox messages", "tenant_id", t.ID, "count", stuck)
-			}
-			w.cleanupSessions(ctx, mp.Pool(), t.ID)
-			w.cleanupIdempotency(ctx, mp.Pool(), t.ID)
-			w.cleanupAutomationHistory(ctx, mp.Pool(), t.ID)
-			w.cleanupAutomationFiles(ctx, mp.Pool(), t.ID)
-			w.cleanupNotifications(ctx, mp.Pool(), t.ID)
+			// RecordIfWork: recover_stuck runs hourly but only interesting when something stalled.
+			recorder.RecordIfWork(ctx, "outbox.recover_stuck", "outbox", func(ctx context.Context) (int, error) {
+				stuck, err := relay.RecoverStuck(ctx, postgres.DefaultStuckTimeout())
+				return int(stuck), err
+			})
+			recorder.Record(ctx, "cleanup.sessions", "cleanup", func(ctx context.Context) (int, error) {
+				return w.cleanupSessions(ctx, mp.Pool(), t.ID)
+			})
+			recorder.Record(ctx, "cleanup.idempotency", "cleanup", func(ctx context.Context) (int, error) {
+				return w.cleanupIdempotency(ctx, mp.Pool(), t.ID)
+			})
+			recorder.Record(ctx, "cleanup.automation_history", "cleanup", func(ctx context.Context) (int, error) {
+				return w.cleanupAutomationHistory(ctx, mp.Pool(), t.ID)
+			})
+			recorder.Record(ctx, "cleanup.automation_files", "cleanup", func(ctx context.Context) (int, error) {
+				return w.cleanupAutomationFiles(ctx, mp.Pool(), t.ID)
+			})
+			recorder.Record(ctx, "cleanup.notifications", "cleanup", func(ctx context.Context) (int, error) {
+				return w.cleanupNotifications(ctx, mp.Pool(), t.ID)
+			})
+			recorder.Record(ctx, "cleanup.worker_jobs", "cleanup", func(ctx context.Context) (int, error) {
+				n, err := jobRepo.CleanupOld(ctx, 7*24*time.Hour)
+				return int(n), err
+			})
 			// Refresh scheduler jobs (picks up new/deactivated scheduled rules)
 			scheduler.Refresh(ctx)
 		}
@@ -353,77 +389,79 @@ func (h *automationOutboxHandler) Handle(ctx context.Context, msg *postgres.Outb
 	return h.engine.HandleEvent(ctx, msg.EventType, payload)
 }
 
-func (w *MultiTenantWorker) cleanupSessions(ctx context.Context, pool *pgxpool.Pool, tenantID string) {
+func (w *MultiTenantWorker) cleanupSessions(ctx context.Context, pool *pgxpool.Pool, tenantID string) (int, error) {
 	result, err := pool.Exec(ctx, `
 		DELETE FROM refresh_tokens 
 		WHERE expires_at < NOW() OR revoked = true
 	`)
 	if err != nil {
-		return
+		return 0, err
 	}
-
-	if result.RowsAffected() > 0 {
-		w.log.Infow("cleaned up expired sessions", "tenant_id", tenantID, "count", result.RowsAffected())
+	n := int(result.RowsAffected())
+	if n > 0 {
+		w.log.Infow("cleaned up expired sessions", "tenant_id", tenantID, "count", n)
 	}
+	return n, nil
 }
 
-func (w *MultiTenantWorker) cleanupIdempotency(ctx context.Context, pool *pgxpool.Pool, tenantID string) {
+func (w *MultiTenantWorker) cleanupIdempotency(ctx context.Context, pool *pgxpool.Pool, tenantID string) (int, error) {
 	result, err := pool.Exec(ctx, `
 		DELETE FROM sys_idempotency 
 		WHERE created_at < NOW() - INTERVAL '24 hours'
 	`)
 	if err != nil {
-		return
+		return 0, err
 	}
-
-	if result.RowsAffected() > 0 {
-		w.log.Infow("cleaned up idempotency keys", "tenant_id", tenantID, "count", result.RowsAffected())
+	n := int(result.RowsAffected())
+	if n > 0 {
+		w.log.Infow("cleaned up idempotency keys", "tenant_id", tenantID, "count", n)
 	}
+	return n, nil
 }
 
-func (w *MultiTenantWorker) cleanupAutomationHistory(ctx context.Context, pool *pgxpool.Pool, tenantID string) {
+func (w *MultiTenantWorker) cleanupAutomationHistory(ctx context.Context, pool *pgxpool.Pool, tenantID string) (int, error) {
 	result, err := pool.Exec(ctx, `
 		DELETE FROM sys_automation_history 
 		WHERE created_at < NOW() - INTERVAL '30 days'
 	`)
 	if err != nil {
-		w.log.Errorw("failed to cleanup automation history", "tenant_id", tenantID, "error", err)
-		return
+		return 0, fmt.Errorf("cleanup automation history: %w", err)
 	}
-
-	if result.RowsAffected() > 0 {
-		w.log.Infow("cleaned up automation history", "tenant_id", tenantID, "count", result.RowsAffected())
+	n := int(result.RowsAffected())
+	if n > 0 {
+		w.log.Infow("cleaned up automation history", "tenant_id", tenantID, "count", n)
 	}
+	return n, nil
 }
 
-func (w *MultiTenantWorker) cleanupNotifications(ctx context.Context, pool *pgxpool.Pool, tenantID string) {
+func (w *MultiTenantWorker) cleanupNotifications(ctx context.Context, pool *pgxpool.Pool, tenantID string) (int, error) {
 	result, err := pool.Exec(ctx, `
 		DELETE FROM sys_notifications 
 		WHERE is_read = true AND created_at < NOW() - INTERVAL '30 days'
 	`)
 	if err != nil {
-		w.log.Errorw("failed to cleanup notifications", "tenant_id", tenantID, "error", err)
-		return
+		return 0, fmt.Errorf("cleanup notifications: %w", err)
 	}
-
-	if result.RowsAffected() > 0 {
-		w.log.Infow("cleaned up old read notifications", "tenant_id", tenantID, "count", result.RowsAffected())
+	n := int(result.RowsAffected())
+	if n > 0 {
+		w.log.Infow("cleaned up old read notifications", "tenant_id", tenantID, "count", n)
 	}
+	return n, nil
 }
 
-func (w *MultiTenantWorker) cleanupAutomationFiles(ctx context.Context, pool *pgxpool.Pool, tenantID string) {
+func (w *MultiTenantWorker) cleanupAutomationFiles(ctx context.Context, pool *pgxpool.Pool, tenantID string) (int, error) {
 	result, err := pool.Exec(ctx, `
 		DELETE FROM sys_automation_files 
 		WHERE expires_at < NOW()
 	`)
 	if err != nil {
-		w.log.Errorw("failed to cleanup automation files", "tenant_id", tenantID, "error", err)
-		return
+		return 0, fmt.Errorf("cleanup automation files: %w", err)
 	}
-
-	if result.RowsAffected() > 0 {
-		w.log.Infow("cleaned up expired automation files", "tenant_id", tenantID, "count", result.RowsAffected())
+	n := int(result.RowsAffected())
+	if n > 0 {
+		w.log.Infow("cleaned up expired automation files", "tenant_id", tenantID, "count", n)
 	}
+	return n, nil
 }
 
 func getEnv(key, defaultValue string) string {

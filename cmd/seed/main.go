@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -26,6 +27,11 @@ const (
 	generatedCounterpartyCount = 300
 	generatedNomenclatureCount = 300
 	generatedGoodsReceiptCount = 2000
+
+	// Crypto document generation counts — enough for dashboard charts.
+	_generatedCryptoInvoiceCount    = 500
+	_generatedCryptoWithdrawalCount = 80
+	_cryptoDocBatchSize             = 100
 )
 
 type generatedCounterparty struct {
@@ -411,7 +417,13 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 	}
 
 	// 8. Seed Crypto Processing data (Networks, Tokens, Merchants, Wallets)
-	if err := seedCryptoData(ctx, pool, log); err != nil {
+	cryptoRefs, err := seedCryptoData(ctx, pool, log)
+	if err != nil {
+		return err
+	}
+
+	// 8a. Seed Crypto Documents (Invoices, Payments, Withdrawals) for dashboard charts
+	if err := seedCryptoDocuments(ctx, pool, log, cryptoRefs); err != nil {
 		return err
 	}
 
@@ -930,9 +942,18 @@ func loadWarehouses(ctx context.Context, pool *postgres.Pool) ([]generatedWareho
 	return items, rows.Err()
 }
 
+// cryptoRefs holds IDs from seeded crypto catalog data, used by seedCryptoDocuments.
+type cryptoRefs struct {
+	merchantIDs []id.ID // all active merchants
+	tokenID     id.ID
+	walletIDs   []id.ID // pool wallets (used for invoices)
+	hotWalletID id.ID   // hot wallet (used for withdrawals)
+}
+
 // seedCryptoData creates the crypto processing reference data:
-// 1 blockchain network (TRON Shasta) → 1 token (USDT-TRC20) → 1 merchant → 4 wallets.
-func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger) error {
+// 1 blockchain network (TRON Shasta) → 1 token (USDT-TRC20) → 3 merchants → 7 wallets.
+// Returns cryptoRefs so seedCryptoDocuments can create invoices/payments/withdrawals.
+func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger) (*cryptoRefs, error) {
 	log.Info("seeding crypto processing data...")
 
 	// ── Blockchain Network: TRON Shasta Testnet ────────────────────────
@@ -950,14 +971,14 @@ func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger
 	`, networkID, networkCode, "TRON Shasta Testnet", "shasta",
 		"TRX", 6, 3, 19, "https://shasta.tronscan.org")
 	if err != nil {
-		return fmt.Errorf("seed blockchain network: %w", err)
+		return nil, fmt.Errorf("seed blockchain network: %w", err)
 	}
 	if commandTag.RowsAffected() == 0 {
 		err = pool.QueryRow(ctx, `
 			SELECT id FROM cat_blockchain_networks WHERE code = $1 AND deletion_mark = FALSE
 		`, networkCode).Scan(&networkID)
 		if err != nil {
-			return fmt.Errorf("fetch existing network: %w", err)
+			return nil, fmt.Errorf("fetch existing network: %w", err)
 		}
 	}
 
@@ -977,43 +998,58 @@ func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger
 		"TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs", 6, "TRC-20",
 		"10000000", 1) // sweep_threshold=10 USDT (minor units), max_age=1 hour (for testing)
 	if err != nil {
-		return fmt.Errorf("seed token: %w", err)
+		return nil, fmt.Errorf("seed token: %w", err)
 	}
 	if commandTag.RowsAffected() == 0 {
 		err = pool.QueryRow(ctx, `
 			SELECT id FROM cat_tokens WHERE code = $1 AND deletion_mark = FALSE
 		`, tokenCode).Scan(&tokenID)
 		if err != nil {
-			return fmt.Errorf("fetch existing token: %w", err)
+			return nil, fmt.Errorf("fetch existing token: %w", err)
 		}
 	}
 
-	// ── Merchant: Test Merchant ─────────────────────────────────────────
-	merchantID := id.New()
-	merchantCode := "MERCHANT-001"
-
-	commandTag, err = pool.Exec(ctx, `
-		INSERT INTO cat_merchants (
-			id, code, name, legal_name,
-			webhook_url, commission_rate, kyb_status, is_active,
-			version, deletion_mark, attributes
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, true, 1, false, '{}')
-		ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
-	`, merchantID, merchantCode, "Test Merchant (Dev)", "Test Merchant LLC",
-		"https://webhook.site/test", 150, "approved") // 150 bp = 1.5%, kyb = Approved
-	if err != nil {
-		return fmt.Errorf("seed merchant: %w", err)
+	// ── Merchants: 3 total for chart diversity ──────────────────────────
+	type merchantSeed struct {
+		code           string
+		name           string
+		legalName      string
+		webhookURL     string
+		commissionRate int // basis points
 	}
-	if commandTag.RowsAffected() == 0 {
-		err = pool.QueryRow(ctx, `
-			SELECT id FROM cat_merchants WHERE code = $1 AND deletion_mark = FALSE
-		`, merchantCode).Scan(&merchantID)
-		if err != nil {
-			return fmt.Errorf("fetch existing merchant: %w", err)
+
+	merchants := []merchantSeed{
+		{"MERCHANT-001", "Test Merchant (Dev)", "Test Merchant LLC", "https://webhook.site/test", 150},
+		{"MERCHANT-002", "CryptoGate", "CryptoGate Inc.", "https://webhook.site/cryptogate", 200},
+		{"MERCHANT-003", "BlockPay Express", "BlockPay Express Ltd.", "https://webhook.site/blockpay", 100},
+	}
+
+	merchantIDs := make([]id.ID, 0, len(merchants))
+	for _, m := range merchants {
+		mID := id.New()
+		ct, mErr := pool.Exec(ctx, `
+			INSERT INTO cat_merchants (
+				id, code, name, legal_name,
+				webhook_url, commission_rate, kyb_status, is_active,
+				version, deletion_mark, attributes
+			) VALUES ($1, $2, $3, $4, $5, $6, 'approved', true, 1, false, '{}')
+			ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
+		`, mID, m.code, m.name, m.legalName, m.webhookURL, m.commissionRate)
+		if mErr != nil {
+			return nil, fmt.Errorf("seed merchant %s: %w", m.code, mErr)
 		}
+		if ct.RowsAffected() == 0 {
+			mErr = pool.QueryRow(ctx, `
+				SELECT id FROM cat_merchants WHERE code = $1 AND deletion_mark = FALSE
+			`, m.code).Scan(&mID)
+			if mErr != nil {
+				return nil, fmt.Errorf("fetch existing merchant %s: %w", m.code, mErr)
+			}
+		}
+		merchantIDs = append(merchantIDs, mID)
 	}
 
-	// ── Wallets: 1 Hot + 3 Pool ─────────────────────────────────────────
+	// ── Wallets: 1 Hot + 6 Pool ─────────────────────────────────────────
 	type walletSeed struct {
 		code    string
 		name    string
@@ -1027,38 +1063,86 @@ func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger
 		{"HOT-TRON-001", "TRON Hot Wallet", "TYDzsYUEgfGRreSR7oqKMo7pqdXxnPH1Hh", "m/44'/195'/0'/0/0", "hot", "leased"},
 		{"POOL-TRON-001", "Pool Wallet #1", "TVgY6mWpDGGCtPRBxuMSjitVHfPkpJuVRG", "m/44'/195'/0'/0/1", "pool", "free"},
 		{"POOL-TRON-002", "Pool Wallet #2", "TMXMyg87BiHCVfkwvVj3T32SWDSuRQqsPx", "m/44'/195'/0'/0/2", "pool", "free"},
+		{"POOL-TRON-003", "Pool Wallet #3", "TN3W4H6rK2ce4vX9YnFQHwKENnHjoxb3m9", "m/44'/195'/0'/0/3", "pool", "free"},
+		{"POOL-TRON-004", "Pool Wallet #4", "TSyBKGSVUfJ1Gb4LH4C8u5V8fX9J3wZZp1", "m/44'/195'/0'/0/4", "pool", "free"},
+		{"POOL-TRON-005", "Pool Wallet #5", "TKVBfMrcQZGYPKzqKjZHEMNuQ5gJdvUXs4", "m/44'/195'/0'/0/5", "pool", "free"},
+		{"POOL-TRON-006", "Pool Wallet #6", "TPjhHRPyQ7e8w7JfP3GxBYNYKqWfMr2wAx", "m/44'/195'/0'/0/6", "pool", "free"},
 	}
+
+	walletIDs := make([]id.ID, 0, len(wallets))
+	var hotWalletID id.ID
 
 	batch := &pgx.Batch{}
 	for _, w := range wallets {
-	batch.Queue(`
+		wID := id.New()
+		batch.Queue(`
 			INSERT INTO cat_wallets (
 				id, code, name, address, network_id,
 				derivation_path, tier, status, allocation_mode,
 				version, deletion_mark, attributes
 			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'transient', 1, false, '{}')
 			ON CONFLICT DO NOTHING
-		`, id.New(), w.code, w.name, w.address, networkID, w.path, w.tier, w.status)
+		`, wID, w.code, w.name, w.address, networkID, w.path, w.tier, w.status)
+
+		if w.tier == "hot" {
+			hotWalletID = wID
+		} else {
+			walletIDs = append(walletIDs, wID)
+		}
 	}
 
 	results := pool.SendBatch(ctx, batch)
 	for _, w := range wallets {
 		if _, err := results.Exec(); err != nil {
 			_ = results.Close()
-			return fmt.Errorf("seed wallet %s: %w", w.code, err)
+			return nil, fmt.Errorf("seed wallet %s: %w", w.code, err)
 		}
 	}
 	if err := results.Close(); err != nil {
-		return fmt.Errorf("close wallet batch: %w", err)
+		return nil, fmt.Errorf("close wallet batch: %w", err)
+	}
+
+	// If wallets already existed (ON CONFLICT), fetch IDs from DB.
+	if id.IsNil(hotWalletID) {
+		err = pool.QueryRow(ctx, `
+			SELECT id FROM cat_wallets WHERE code = 'HOT-TRON-001' AND deletion_mark = FALSE
+		`).Scan(&hotWalletID)
+		if err != nil {
+			return nil, fmt.Errorf("fetch hot wallet: %w", err)
+		}
+	}
+	if len(walletIDs) == 0 {
+		rows, rErr := pool.Query(ctx, `
+			SELECT id FROM cat_wallets WHERE tier = 'pool' AND deletion_mark = FALSE ORDER BY code
+		`)
+		if rErr != nil {
+			return nil, fmt.Errorf("query pool wallets: %w", rErr)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var wID id.ID
+			if sErr := rows.Scan(&wID); sErr != nil {
+				return nil, fmt.Errorf("scan pool wallet: %w", sErr)
+			}
+			walletIDs = append(walletIDs, wID)
+		}
+		if rows.Err() != nil {
+			return nil, fmt.Errorf("iterate pool wallets: %w", rows.Err())
+		}
 	}
 
 	log.Infow("crypto data seeded",
 		"network", networkCode,
 		"token", tokenCode,
-		"merchant", merchantCode,
-		"wallets", len(wallets),
+		"merchants", len(merchantIDs),
+		"wallets", len(walletIDs)+1,
 	)
-	return nil
+	return &cryptoRefs{
+		merchantIDs: merchantIDs,
+		tokenID:     tokenID,
+		walletIDs:   walletIDs,
+		hotWalletID: hotWalletID,
+	}, nil
 }
 
 // seedAutomationData creates the automation reference data:
@@ -1285,4 +1369,454 @@ func seedTenantRegistry(ctx context.Context, dbURL string, log *logger.Logger) e
 
 	log.Infow("tenant seeded in registry", "slug", tenantSlug, "tenant_id", newTenant.ID)
 	return nil
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Crypto Documents Seed (Invoices, Payments, Withdrawals)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// seedCryptoDocuments generates realistic crypto document data spanning 6 months
+// for dashboard charts. Creates invoices → payments (linked) → withdrawals.
+func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.Logger, refs *cryptoRefs) error {
+	if refs == nil || len(refs.merchantIDs) == 0 || len(refs.walletIDs) == 0 {
+		log.Warn("skipping crypto documents: no crypto refs available")
+		return nil
+	}
+
+	// Check if already seeded.
+	var existingCount int
+	err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM doc_crypto_invoices WHERE number LIKE 'CI-SEED-%'
+	`).Scan(&existingCount)
+	if err != nil {
+		return fmt.Errorf("check existing crypto invoices: %w", err)
+	}
+	if existingCount >= _generatedCryptoInvoiceCount {
+		log.Infow("crypto documents already seeded", "invoices", existingCount)
+		return nil
+	}
+
+	log.Info("seeding crypto documents for dashboard charts...")
+
+	rng := rand.New(rand.NewSource(20260512))
+	now := time.Now().UTC()
+
+	// ── Phase 1: Generate Invoices ──────────────────────────────────────
+	type invoiceSeed struct {
+		id             id.ID
+		number         string
+		date           time.Time
+		merchantID     id.ID
+		walletID       id.ID
+		expectedAmount int64
+		receivedAmount int64
+		overpaidAmount int64
+		status         string
+		expiresAt      time.Time
+		externalID     string
+		orderID        string
+	}
+
+	invoices := make([]invoiceSeed, 0, _generatedCryptoInvoiceCount)
+
+	// Status distribution weights for realistic data:
+	// 60% confirmed, 15% expired, 10% paid, 5% partially_paid, 5% created, 3% overpaid, 2% cancelled
+	statusWeights := []struct {
+		status string
+		weight int
+	}{
+		{"confirmed", 60},
+		{"expired", 15},
+		{"paid", 10},
+		{"partially_paid", 5},
+		{"created", 5},
+		{"overpaid", 3},
+		{"cancelled", 2},
+	}
+	statusPool := make([]string, 0, 100)
+	for _, sw := range statusWeights {
+		for range sw.weight {
+			statusPool = append(statusPool, sw.status)
+		}
+	}
+
+	for i := 1; i <= _generatedCryptoInvoiceCount; i++ {
+		invID := id.New()
+		number := fmt.Sprintf("CI-SEED-%05d", i)
+
+		// Spread documents over 6 months with slight concentration toward recent dates.
+		daysAgo := rng.Intn(180)
+		hoursOffset := rng.Intn(24)
+		minutesOffset := rng.Intn(60)
+		docDate := now.AddDate(0, 0, -daysAgo).Add(-time.Duration(hoursOffset)*time.Hour - time.Duration(minutesOffset)*time.Minute)
+
+		merchantID := refs.merchantIDs[rng.Intn(len(refs.merchantIDs))]
+		walletID := refs.walletIDs[rng.Intn(len(refs.walletIDs))]
+
+		// Amount 1 – 5000 USDT (in minor units, 6 decimals: 1 USDT = 1_000_000)
+		expectedAmount := int64(1_000_000 + rng.Intn(4_999_000_000)) // 1 to 5000 USDT
+
+		status := statusPool[rng.Intn(len(statusPool))]
+		expiresAt := docDate.Add(30 * time.Minute)
+
+		var receivedAmount, overpaidAmount int64
+		switch status {
+		case "confirmed", "paid":
+			receivedAmount = expectedAmount
+		case "partially_paid":
+			// 20-80% of expected
+			receivedAmount = expectedAmount * int64(20+rng.Intn(60)) / 100
+		case "overpaid":
+			excess := int64(100_000 + rng.Intn(500_000)) // 0.1-0.6 USDT overpayment
+			receivedAmount = expectedAmount + excess
+			overpaidAmount = excess
+		case "expired", "cancelled", "created":
+			receivedAmount = 0
+		}
+
+		invoices = append(invoices, invoiceSeed{
+			id:             invID,
+			number:         number,
+			date:           docDate,
+			merchantID:     merchantID,
+			walletID:       walletID,
+			expectedAmount: expectedAmount,
+			receivedAmount: receivedAmount,
+			overpaidAmount: overpaidAmount,
+			status:         status,
+			expiresAt:      expiresAt,
+			externalID:     "ext-" + strconv.Itoa(i),
+			orderID:        "ORD-" + strconv.Itoa(10000+i),
+		})
+	}
+
+	// Batch-insert invoices.
+	invoiceCreated := 0
+	for batchStart := 0; batchStart < len(invoices); batchStart += _cryptoDocBatchSize {
+		batchEnd := batchStart + _cryptoDocBatchSize
+		if batchEnd > len(invoices) {
+			batchEnd = len(invoices)
+		}
+		chunk := invoices[batchStart:batchEnd]
+
+		batch := &pgx.Batch{}
+		for _, inv := range chunk {
+			batch.Queue(`
+				INSERT INTO doc_crypto_invoices (
+					id, number, date, posted, posted_version,
+					basis_type, description,
+					merchant_id, token_id, wallet_id,
+					expected_amount, received_amount, overpaid_amount,
+					status, expires_at, callback_url, external_id, order_id, customer_email,
+					deletion_mark, version, attributes,
+					created_at, updated_at
+				) VALUES (
+					$1, $2, $3, $4, $5,
+					'', $6,
+					$7, $8, $9,
+					$10, $11, $12,
+					$13, $14, '', $15, $16, '',
+					false, 1, '{}',
+					$3, $3
+				)
+				ON CONFLICT (number) DO NOTHING
+			`,
+				inv.id, inv.number, inv.date,
+				inv.status == "confirmed", // posted only if confirmed
+				boolToInt(inv.status == "confirmed"),
+				"Seed crypto invoice "+inv.number,
+				inv.merchantID, refs.tokenID, inv.walletID,
+				inv.expectedAmount, inv.receivedAmount, inv.overpaidAmount,
+				inv.status, inv.expiresAt, inv.externalID, inv.orderID,
+			)
+		}
+
+		results := pool.SendBatch(ctx, batch)
+		for _, inv := range chunk {
+			if _, err := results.Exec(); err != nil {
+				_ = results.Close()
+				return fmt.Errorf("insert crypto invoice %s: %w", inv.number, err)
+			}
+		}
+		if err := results.Close(); err != nil {
+			return fmt.Errorf("close crypto invoice batch: %w", err)
+		}
+		invoiceCreated += len(chunk)
+		if invoiceCreated%200 == 0 {
+			log.Infow("crypto invoices seeding progress", "created", invoiceCreated, "target", _generatedCryptoInvoiceCount)
+		}
+	}
+
+	log.Infow("crypto invoices seeded", "count", invoiceCreated)
+
+	// ── Phase 2: Generate Payments (linked to confirmed/paid/overpaid invoices) ───
+	type paymentSeed struct {
+		id            id.ID
+		number        string
+		date          time.Time
+		invoiceID     id.ID
+		merchantID    id.ID
+		walletID      id.ID
+		amount        int64
+		txHash        string
+		fromAddress   string
+		blockNumber   int64
+		confirmations int
+		requiredConfs int
+		status        string
+		networkFee    int64
+		detectedAt    time.Time
+		confirmedAt   *time.Time
+	}
+
+	payments := make([]paymentSeed, 0, len(invoices))
+	paymentIdx := 0
+
+	// Fake sender addresses for variety.
+	senders := []string{
+		"TJCnKsPa7y5okkXvQAidZBzqx3QyQ6sxMW",
+		"TX1Kh4JCBbhLNmJrKPbFVq6YdXnUAP7Yeo",
+		"TLkqHjNkfGEdQzJkLzTd4s1j5kB2V1JdUQ",
+		"TVy5VNw7X1FKRmJH6zCqYhHqR9Xt8UBqpR",
+		"TGd4rFJBLN5SNB7rVJ1LFJg6bPDRfLHJQ3",
+		"TAahcmJeDLiTZyCwXyBocPhKR2YNqk7Zac",
+		"TYASr5UV6HEcXatwdFQfmLVUqQQQMUxHLS",
+		"TNaRAoLUyYEV2uF7GUrzSjRQTU8v5ZJ5VR",
+	}
+
+	for _, inv := range invoices {
+		if inv.receivedAmount <= 0 {
+			continue
+		}
+
+		paymentIdx++
+		pID := id.New()
+		detectedAt := inv.date.Add(time.Duration(1+rng.Intn(25)) * time.Minute)
+		blockNum := int64(50_000_000 + rng.Intn(10_000_000))
+		confirmedAt := detectedAt.Add(time.Duration(3*19) * time.Second) // 19 confirmations × 3s block time
+		fee := int64(100_000 + rng.Intn(500_000))                       // 0.1-0.6 TRX network fee
+
+		status := "confirmed"
+		confs := 19
+		if inv.status == "partially_paid" {
+			status = "confirming"
+			confs = 5 + rng.Intn(10)
+		}
+
+		payments = append(payments, paymentSeed{
+			id:            pID,
+			number:        fmt.Sprintf("CP-SEED-%05d", paymentIdx),
+			date:          detectedAt,
+			invoiceID:     inv.id,
+			merchantID:    inv.merchantID,
+			walletID:      inv.walletID,
+			amount:        inv.receivedAmount,
+			txHash:        generateFakeTxHash(rng, paymentIdx),
+			fromAddress:   senders[rng.Intn(len(senders))],
+			blockNumber:   blockNum,
+			confirmations: confs,
+			requiredConfs: 19,
+			status:        status,
+			networkFee:    fee,
+			detectedAt:    detectedAt,
+			confirmedAt:   &confirmedAt,
+		})
+	}
+
+	// Batch-insert payments.
+	paymentCreated := 0
+	for batchStart := 0; batchStart < len(payments); batchStart += _cryptoDocBatchSize {
+		batchEnd := batchStart + _cryptoDocBatchSize
+		if batchEnd > len(payments) {
+			batchEnd = len(payments)
+		}
+		chunk := payments[batchStart:batchEnd]
+
+		batch := &pgx.Batch{}
+		for _, p := range chunk {
+			batch.Queue(`
+				INSERT INTO doc_crypto_payments (
+					id, number, date, posted, posted_version,
+					basis_type, basis_id, description,
+					invoice_id, merchant_id, token_id, wallet_id,
+					tx_hash, from_address, amount,
+					block_number, confirmations, required_confs,
+					status, network_fee, detected_at, confirmed_at,
+					deletion_mark, version, attributes,
+					created_at, updated_at
+				) VALUES (
+					$1, $2, $3, $4, $5,
+					'CryptoInvoice', $6, $7,
+					$6, $8, $9, $10,
+					$11, $12, $13,
+					$14, $15, $16,
+					$17, $18, $19, $20,
+					false, 1, '{}',
+					$3, $3
+				)
+				ON CONFLICT DO NOTHING
+			`,
+				p.id, p.number, p.date,
+				p.status == "confirmed", // posted only if confirmed
+				boolToInt(p.status == "confirmed"),
+				p.invoiceID,
+				"Seed crypto payment "+p.number,
+				p.merchantID, refs.tokenID, p.walletID,
+				p.txHash, p.fromAddress, p.amount,
+				p.blockNumber, p.confirmations, p.requiredConfs,
+				p.status, p.networkFee, p.detectedAt, p.confirmedAt,
+			)
+		}
+
+		results := pool.SendBatch(ctx, batch)
+		for _, p := range chunk {
+			if _, err := results.Exec(); err != nil {
+				_ = results.Close()
+				return fmt.Errorf("insert crypto payment %s: %w", p.number, err)
+			}
+		}
+		if err := results.Close(); err != nil {
+			return fmt.Errorf("close crypto payment batch: %w", err)
+		}
+		paymentCreated += len(chunk)
+	}
+
+	log.Infow("crypto payments seeded", "count", paymentCreated)
+
+	// ── Phase 3: Generate Withdrawals ───────────────────────────────────
+	type withdrawalSeed struct {
+		id             id.ID
+		number         string
+		date           time.Time
+		merchantID     id.ID
+		sourceWalletID id.ID
+		destAddress    string
+		amount         int64
+		networkFee     int64
+		txHash         string
+		status         string
+	}
+
+	withdrawalStatuses := []string{
+		"confirmed", "confirmed", "confirmed", "confirmed", "confirmed", // 62.5%
+		"broadcast",                                   // 12.5%
+		"created", "created",                          // 25%
+	}
+
+	destAddresses := []string{
+		"TUxqPKkAv2efsUYBhUYhvYPdR9QsvkGBnF",
+		"TMwFHYXLJaRUPeW6421aqXL4ZEzPRFGkGT",
+		"TW3kJrEvg9FhbhU7q3VQtC5EL9SDB1d2FE",
+		"TJvKqL4VKVbz2rE6ixfL1h2mSxQGhE3D4F",
+	}
+
+	withdrawals := make([]withdrawalSeed, 0, _generatedCryptoWithdrawalCount)
+	for i := 1; i <= _generatedCryptoWithdrawalCount; i++ {
+		wID := id.New()
+		daysAgo := rng.Intn(180)
+		docDate := now.AddDate(0, 0, -daysAgo).Add(-time.Duration(rng.Intn(24)) * time.Hour)
+		merchantID := refs.merchantIDs[rng.Intn(len(refs.merchantIDs))]
+		amount := int64(5_000_000 + rng.Intn(495_000_000)) // 5-500 USDT
+		fee := int64(1_000_000 + rng.Intn(2_000_000))       // 1-3 TRX
+		status := withdrawalStatuses[rng.Intn(len(withdrawalStatuses))]
+
+		txHash := ""
+		if status == "confirmed" || status == "broadcast" {
+			txHash = generateFakeTxHash(rng, 10000+i)
+		}
+
+		withdrawals = append(withdrawals, withdrawalSeed{
+			id:             wID,
+			number:         fmt.Sprintf("CW-SEED-%05d", i),
+			date:           docDate,
+			merchantID:     merchantID,
+			sourceWalletID: refs.hotWalletID,
+			destAddress:    destAddresses[rng.Intn(len(destAddresses))],
+			amount:         amount,
+			networkFee:     fee,
+			txHash:         txHash,
+			status:         status,
+		})
+	}
+
+	// Batch-insert withdrawals.
+	withdrawalCreated := 0
+	for batchStart := 0; batchStart < len(withdrawals); batchStart += _cryptoDocBatchSize {
+		batchEnd := batchStart + _cryptoDocBatchSize
+		if batchEnd > len(withdrawals) {
+			batchEnd = len(withdrawals)
+		}
+		chunk := withdrawals[batchStart:batchEnd]
+
+		batch := &pgx.Batch{}
+		for _, w := range chunk {
+			batch.Queue(`
+				INSERT INTO doc_crypto_withdrawals (
+					id, number, date, posted, posted_version,
+					basis_type, description,
+					merchant_id, token_id, source_wallet_id,
+					dest_address, amount, network_fee, tx_hash, status,
+					deletion_mark, version, attributes,
+					created_at, updated_at
+				) VALUES (
+					$1, $2, $3, $4, $5,
+					'', $6,
+					$7, $8, $9,
+					$10, $11, $12, $13, $14,
+					false, 1, '{}',
+					$3, $3
+				)
+				ON CONFLICT DO NOTHING
+			`,
+				w.id, w.number, w.date,
+				w.status == "confirmed",
+				boolToInt(w.status == "confirmed"),
+				"Seed withdrawal "+w.number,
+				w.merchantID, refs.tokenID, w.sourceWalletID,
+				w.destAddress, w.amount, w.networkFee, w.txHash, w.status,
+			)
+		}
+
+		results := pool.SendBatch(ctx, batch)
+		for _, w := range chunk {
+			if _, err := results.Exec(); err != nil {
+				_ = results.Close()
+				return fmt.Errorf("insert crypto withdrawal %s: %w", w.number, err)
+			}
+		}
+		if err := results.Close(); err != nil {
+			return fmt.Errorf("close crypto withdrawal batch: %w", err)
+		}
+		withdrawalCreated += len(chunk)
+	}
+
+	log.Infow("crypto withdrawals seeded", "count", withdrawalCreated)
+
+	log.Infow("crypto documents seeded",
+		"invoices", invoiceCreated,
+		"payments", paymentCreated,
+		"withdrawals", withdrawalCreated,
+	)
+	return nil
+}
+
+// boolToInt converts a boolean to 0 or 1 (for posted_version).
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// generateFakeTxHash creates a deterministic fake TRON tx hash for seeding.
+func generateFakeTxHash(rng *rand.Rand, idx int) string {
+	const hexChars = "0123456789abcdef"
+	buf := make([]byte, 64)
+	for i := range buf {
+		buf[i] = hexChars[rng.Intn(len(hexChars))]
+	}
+	// Embed index to guarantee uniqueness.
+	suffix := strconv.Itoa(idx)
+	copy(buf[64-len(suffix):], suffix)
+	return string(buf)
 }

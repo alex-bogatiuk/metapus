@@ -745,3 +745,746 @@ cd frontend && npx tsc --noEmit && npm run lint
 # "sweep evaluation loop started"
 # "starting TRON watcher" addresses=2
 ```
+
+---
+
+## 16. Merchant Public API
+
+### Обзор
+
+Merchant Public API (`/merchant/v1/`) — публичный REST-интерфейс для мерчантов. Полностью изолирован от внутреннего ERP API (`/api/v1/`): использует собственный механизм аутентификации (API-ключи), не требует JWT.
+
+**Разделение ответственности:**
+
+| Маршрут | Аудитория | Auth |
+|---------|-----------|------|
+| `/merchant/v1/*` | Мерчанты (внешние интеграции) | `X-Api-Key` header |
+| `/api/v1/merchant-admin/*` | ERP-операторы (внутренний UI) | JWT + RBAC |
+
+---
+
+### 16.1. Аутентификация (MerchantAPIKey Middleware)
+
+**Файл:** `internal/infrastructure/http/v1/middleware/merchant_auth.go`
+
+Порядок обработки каждого запроса:
+
+```
+X-Api-Key header
+    → SHA-256 hash
+    → repo.GetByHash(ctx, hash)   — partial index, горячий путь
+    → проверка IsExpired()
+    → AcquireRef() на ManagedPool
+    → inject MerchantContext + synthetic UserContext в ctx
+    → go UpdateLastUsed(bgCtx)    — best-effort, не блокирует
+    → c.Next()
+    → defer ReleaseRef()
+```
+
+### 16.2. API-ключи (Domain)
+
+**Файл:** `internal/domain/catalogs/merchant/api_key.go`
+
+#### Структура
+
+```go
+type APIKey struct {
+    ID         id.ID
+    MerchantID id.ID
+    Name       string
+    KeyHash    string         // SHA-256 от plaintext ключа
+    Scopes     []APIKeyScope  // whitelist скоупов
+    ExpiresAt  *time.Time     // nil = бессрочный
+    LastUsedAt *time.Time
+    CreatedAt  time.Time
+    RevokedAt  *time.Time
+}
+```
+
+#### Скоупы (Whitelist)
+
+Авторитетный whitelist определён в `_allowedScopes`:
+
+| Скоуп | Описание |
+|-------|----------|
+| `invoice:create` | Создание инвойсов |
+| `invoice:read` | Чтение инвойсов |
+| `withdrawal:create` | Создание выводов |
+| `balance:read` | Чтение балансов |
+
+> [!IMPORTANT]
+> Новые скоупы ОБЯЗАТЕЛЬНО регистрируются в `_allowedScopes` перед использованием. `Validate()` отклонит любой незарегистрированный скоуп — это предотвращает **privilege escalation** через создание произвольных скоупов.
+
+#### Генерация ключа
+
+```go
+plaintext, key, err := merchant.GenerateKey(merchantID, name, scopes, expiresAt)
+// plaintext — показывается мерчанту единственный раз
+// key.KeyHash = SHA-256(plaintext) — хранится в БД
+```
+
+Ключ показывается мерчанту **только при создании**. Последующие запросы возвращают только метаданные (хэш не раскрывается).
+
+---
+
+### 16.3. Эндпоинты инвойсов
+
+**Файл:** `internal/infrastructure/http/v1/handlers/merchant_invoice.go`
+
+#### POST /merchant/v1/invoices
+
+Создание инвойса. Требует скоуп `invoice:create`.
+
+**Request:**
+
+```json
+{
+  "amount":        "10.500000",
+  "currency":      "USDT_TRC20",
+  "ttlMinutes":    60,
+  "orderId":       "order-123",
+  "description":   "Оплата заказа #123",
+  "callbackUrl":   "https://merchant.example.com/webhook",
+  "customerEmail": "user@example.com"
+}
+```
+
+**Response (201):**
+
+```json
+{
+  "id":            "01960000-...",
+  "status":        "created",
+  "amount":        "10.500000",
+  "currency":      "USDT_TRC20",
+  "network":       "TRON Shasta Testnet",
+  "walletAddress": "TXxx...",
+  "expiresAt":     "2026-05-08T11:00:00Z",
+  "orderId":       "order-123",
+  "createdAt":     "2026-05-08T10:00:00Z"
+}
+```
+
+**Idempotency:** если `orderId` указан и инвойс с таким `orderId` для этого мерчанта уже существует — возвращается существующий (HTTP 200), новый не создаётся.
+
+**TTL ограничения:** min 1 мин, max 10080 мин (7 дней), default 60 мин.
+
+#### GET /merchant/v1/invoices/:id
+
+Получение инвойса по ID. Требует скоуп `invoice:read`. Доступен только инвойс, принадлежащий текущему мерчанту (проверка по `merchant_id`).
+
+---
+
+### 16.4. Admin API (управление API-ключами)
+
+**Маршруты:** `/api/v1/merchant-admin/merchants/:merchantId/api-keys`
+
+
+| Метод | Маршрут | Разрешение |
+|-------|---------|-----------|
+| POST | `/merchants/:merchantId/api-keys` | `merchant_api_keys:create` |
+| GET | `/merchants/:merchantId/api-keys` | `merchant_api_keys:read` |
+| DELETE | `/merchants/:merchantId/api-keys/:keyId` | `merchant_api_keys:delete` |
+
+---
+
+### 16.5. SSRF-защита (ValidateCallbackURL)
+
+**Файл:** `internal/domain/catalogs/merchant/callback_url.go`
+
+Валидация применяется при создании инвойса с `callbackUrl`. Проверки:
+
+1. **Схема** — только `https://`
+2. **Hostname** — блокировка `localhost`, `*.internal`, `metadata.google.internal`
+3. **IP** — DNS-резолвинг + блокировка RFC1918 и специальных диапазонов:
+   - Loopback: `127.0.0.0/8`, `::1/128`
+   - Private: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`
+   - Link-local (AWS metadata): `169.254.0.0/16`, `fe80::/10`
+   - ULA: `fc00::/7`
+
+> [!NOTE]
+> **DNS rebinding** — известное ограничение. Проверка выполняется в момент создания инвойса. При реализации worker'а доставки webhook необходимо повторно вызывать `ValidateCallbackURL` перед каждым HTTP-запросом (defence-in-depth).
+
+---
+
+### 16.6. Файловая карта
+
+```
+Backend:
+  internal/domain/catalogs/merchant/
+  ├── api_key.go              — APIKey model + GenerateKey() + scope whitelist
+  ├── callback_url.go         — ValidateCallbackURL() (SSRF protection)
+  └── model.go                — Merchant model
+  internal/infrastructure/http/v1/
+  ├── middleware/
+  │   └── merchant_auth.go    — MerchantAPIKey middleware (auth + pool ref safety)
+  ├── handlers/
+  │   └── merchant_invoice.go — CreateInvoice, GetInvoice, CreateKey, ListKeys, RevokeKey
+  ├── dto/
+  │   └── merchant_public_api.go — Request/Response DTOs
+  └── router.go
+      ├── /merchant/v1/*             — MerchantAPIKey middleware
+      └── /api/v1/merchant-admin/*   — JWT + RBAC middleware chain
+
+Frontend:
+  frontend/components/catalogs/
+  └── merchant-api-keys-tab.tsx  — UI управления API-ключами (ERP)
+```
+
+---
+
+### 16.7. Сквозной поток: создание инвойса через API
+
+```mermaid
+sequenceDiagram
+    participant M as Merchant App
+    participant GW as Gin (MerchantAPIKey MW)
+    participant H as InvoiceHandler
+    participant S as CryptoInvoiceService
+    participant W as WalletPool
+    participant DB as PostgreSQL
+
+    M->>GW: POST /merchant/v1/invoices<br/>X-Api-Key: mk_live_...
+    GW->>DB: GetByHash(SHA-256(key))
+    DB-->>GW: APIKey {merchantId, scopes}
+    GW->>GW: Check scopes: invoice:create ✓
+    GW->>GW: AcquireRef() + inject ctx
+    GW->>H: c.Next()
+
+    H->>H: Validate (amount, TTL, callbackUrl SSRF)
+    H->>DB: Idempotency check (orderId)
+    H->>DB: resolveTokenByCode("USDT_TRC20")
+    H->>S: Create(ctx, invoice)
+    S->>W: LeaseWallet(invoiceID, tokenID)
+    W-->>S: walletID assigned
+    S->>DB: INSERT doc_crypto_invoices
+    S->>DB: INSERT outbox event
+
+    H->>DB: fetchInvoiceDisplay(invoiceID)
+    DB-->>H: walletAddress, tokenCode, network
+    H-->>M: 201 {id, walletAddress, expiresAt, ...}
+
+    GW->>GW: go UpdateLastUsed(bgCtx) [own AcquireRef/ReleaseRef]
+    GW->>GW: defer ReleaseRef()
+```
+
+---
+
+### 16.8. Архитектурные решения
+
+| Решение | Альтернатива | Обоснование |
+|---------|-------------|-------------|
+| **Отдельный route group** `/merchant/v1/` | Субдомен `api.merchant.metapus.io` | Ранний этап: один сервер, минус операционная сложность |
+| **API-ключи (не OAuth2)** | OAuth2 client credentials | Проще для интеграции. OAuth2 — при enterprise-запросах |
+| **SHA-256 hash в БД** | bcrypt | Bcrypt даёт ~100ms на запрос. SHA-256 + partial index = <1ms |
+| **X-Tenant-ID header** | Mapping table в meta-DB | Ранний этап. Phase 2: автоматический резолвинг по API-ключу |
+| **SSRF на ingress** | Только на delivery | Defence-in-depth: блокируем при регистрации + повторно при доставке |
+| **Scope whitelist** | Открытый список | Предотвращает privilege escalation через неизвестные скоупы |
+
+---
+
+## 17. Merchant Portal API
+
+### Обзор
+
+Merchant Portal (`/portal/v1/`) — B2B-портал для мерчантов. Позволяет просматривать дашборд, статистику платежей и историю инвойсов через веб-интерфейс.
+
+**Отличие от Merchant Public API:**
+
+| Свойство | Portal API (`/portal/v1/`) | Public API (`/merchant/v1/`) |
+|---------|---------------------------|------------------------------|
+| Аудитория | Пользователи-мерчанты (UI) | Внешние интеграции (M2M) |
+| Auth | JWT + `MerchantPortal` middleware | `X-Api-Key` header |
+| Назначение | Чтение дашборда, статистики | Создание инвойсов, чтение |
+| Изоляция | `MerchantScope` из JWT claims | `MerchantContext` из API-ключа |
+
+### 17.1. Аутентификация
+
+Portal API использует стандартный JWT из ERP, расширенный полями мерчанта:
+
+```
+JWT Claims:
+  mids: ["019e0879-ce5b-774f-93ec-b613e24ba32d"]   → MerchantIDs
+  prl:  1                                            → PortalRole (1=viewer, 2=admin)
+```
+
+**Middleware chain:**
+```
+TenantDB → Auth(JWT) → RequireActiveTenant → MerchantPortal
+```
+
+`MerchantPortal` middleware:
+1. Извлекает `MerchantIDs` и `PortalRole` из JWT claims
+2. Проверяет, что у пользователя есть хотя бы один мерчант
+3. Инжектирует `MerchantScope{MerchantIDs, PortalRole}` в context
+4. Все последующие запросы фильтруются по `scope.MerchantIDs`
+
+### 17.2. Эндпоинты
+
+#### GET /portal/v1/merchants
+
+Список мерчантов, доступных текущему пользователю.
+
+```bash
+curl -s http://localhost:8080/portal/v1/merchants \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: $TENANT_ID"
+```
+
+**Response (200):**
+
+```json
+{
+  "items": [
+    {
+      "id": "019e0879-ce5b-774f-93ec-b613e24ba32d",
+      "name": "Test Merchant",
+      "code": "TM-TEST-01"
+    }
+  ]
+}
+```
+
+---
+
+#### GET /portal/v1/dashboard/summary
+
+Агрегированная статистика по инвойсам.
+
+```bash
+curl -s "http://localhost:8080/portal/v1/dashboard/summary?merchant_id=$MERCHANT_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: $TENANT_ID"
+```
+
+| Параметр | Тип | Описание |
+|----------|-----|----------|
+| `merchant_id` | query, optional | UUID мерчанта (фильтр). Если не указан — по всем мерчантам из scope |
+
+**Response (200):**
+
+```json
+{
+  "totalInvoices": 60,
+  "paidInvoices": 52,
+  "pendingInvoices": 2,
+  "totalMinorUnits": "1437824748",
+  "change24hPct": "+100.00"
+}
+```
+
+| Поле | Описание |
+|------|----------|
+| `totalMinorUnits` | Сумма `received_amount` confirmed-инвойсов (строка для точности) |
+| `change24hPct` | Изменение объёма за последние 24ч vs предыдущие 24ч |
+
+---
+
+#### GET /portal/v1/dashboard/currencies
+
+Разбивка по валютам (токенам).
+
+```bash
+curl -s "http://localhost:8080/portal/v1/dashboard/currencies?merchant_id=$MERCHANT_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: $TENANT_ID"
+```
+
+**Response (200):**
+
+```json
+{
+  "items": [
+    {
+      "symbol": "USDT",
+      "network": "TRON Shasta Testnet",
+      "count": 52,
+      "totalMinor": "1437824748",
+      "sharePct": "100.00",
+      "decimalPlaces": 6
+    }
+  ]
+}
+```
+
+---
+
+#### GET /portal/v1/dashboard/chart
+
+Объём депозитов по дням (bar chart data).
+
+```bash
+curl -s "http://localhost:8080/portal/v1/dashboard/chart?period=30d&merchant_id=$MERCHANT_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: $TENANT_ID"
+```
+
+| Параметр | Тип | Описание |
+|----------|-----|----------|
+| `period` | query, required | `7d`, `30d`, `90d` |
+| `merchant_id` | query, optional | UUID мерчанта |
+
+**Response (200):**
+
+```json
+{
+  "items": [
+    { "day": "2026-04-12", "deposits": "45266581" },
+    { "day": "2026-04-13", "deposits": "80657088" },
+    { "day": "2026-04-14", "deposits": "100202081" }
+  ]
+}
+```
+
+> [!NOTE]
+> `deposits` — строка (minor units). Для конвертации в человекочитаемый формат: `deposits / 10^decimalPlaces`. Например, `45266581 / 10^6 = 45.266581 USDT`.
+
+---
+
+#### GET /portal/v1/invoices
+
+Пагинированный список инвойсов.
+
+```bash
+curl -s "http://localhost:8080/portal/v1/invoices?merchant_id=$MERCHANT_ID&status=confirmed&limit=10&offset=0" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: $TENANT_ID"
+```
+
+| Параметр | Тип | Описание |
+|----------|-----|----------|
+| `merchant_id` | query, optional | UUID мерчанта |
+| `status` | query, optional | Фильтр по статусу: `created`, `confirmed`, `expired` |
+| `limit` | query, optional | Размер страницы (1–100, default 20) |
+| `offset` | query, optional | Смещение (default 0) |
+
+**Response (200):**
+
+```json
+{
+  "items": [
+    {
+      "id": "019e17b9-b22f-7bd8-bfd5-aad109b1410b",
+      "number": "CI-2026-00005",
+      "status": "confirmed",
+      "amount": "1000000",
+      "receivedAmount": "1000000",
+      "symbol": "USDT",
+      "network": "TRON Shasta Testnet",
+      "decimalPlaces": 6,
+      "createdAt": "2026-05-11T23:48:26+08:00"
+    }
+  ],
+  "total": 60
+}
+```
+
+### 17.3. Файловая карта
+
+```
+Backend:
+  internal/infrastructure/http/v1/
+  ├── handlers/portal_handler.go         — PortalHandler (thin adapter)
+  ├── dto/portal_api.go                  — PortalSummaryResponse, PortalChartPoint, etc.
+  └── middleware/merchant_portal.go      — MerchantPortal middleware (scope injection)
+  internal/infrastructure/storage/postgres/
+  └── portal_repo/dashboard.go           — DashboardRepo (read-only SQL queries)
+  internal/core/context/user.go          — MerchantScope, MerchantIDs, PortalRole
+  internal/domain/auth/jwt.go            — JWT claims extension (mids, prl)
+
+Frontend:
+  frontend/app/(portal)/
+  ├── layout.tsx                          — Portal layout (sidebar, merchant switcher)
+  └── portal/
+      ├── page.tsx                        — Dashboard page (4 widgets)
+      └── invoices/page.tsx               — Invoices list page
+  frontend/components/portal/
+  ├── balance-summary-card.tsx            — Общий баланс виджет
+  ├── currency-breakdown-card.tsx         — По валютам виджет
+  ├── volume-chart-card.tsx               — Объём депозитов (bar chart)
+  └── recent-invoices-card.tsx            — Инвойсы виджет
+  frontend/stores/usePortalStore.ts       — Zustand store (activeMerchantId)
+  frontend/lib/api.ts                     — portalFetch() + api.portal.*
+```
+
+---
+
+## 18. Интеграция с Merchant Public API
+
+> Руководство для разработчика, интегрирующего свой сервис с криптоплатежами Metapus.
+
+### 18.1. Предварительные условия
+
+1. Войдите в **Merchant Portal** (`/portal`) через браузер
+2. Перейдите в раздел **API-ключи** → **Создать ключ**
+3. Выберите необходимые скоупы и сохраните полученный ключ
+
+> [!IMPORTANT]
+> API-ключ показывается **один раз** при создании. Сохраните его в безопасном месте (secrets manager, env variable). Повторное получение невозможно — только создание нового.
+
+### 18.2. Аутентификация
+
+Все запросы к `/merchant/v1/` аутентифицируются через заголовок `X-Api-Key`:
+
+```bash
+export API_URL=https://your-instance.metapus.io
+export API_KEY=mk_live_AbCdEfGh...   # ключ из портала
+export TENANT_ID=5cfe45cb-...         # ID тенанта (предоставляется при подключении)
+```
+
+| Заголовок | Обязательный | Описание |
+|-----------|:---:|----------|
+| `X-Api-Key` | ✓ | API-ключ мерчанта (`mk_live_...` или `mk_test_...`) |
+| `X-Tenant-ID` | ✓ | Идентификатор тенанта |
+| `Content-Type` | ✓ (POST) | `application/json` |
+
+### 18.3. Создание инвойса
+
+```bash
+curl -s "$API_URL/merchant/v1/invoices" \
+  -X POST \
+  -H "X-Api-Key: $API_KEY" \
+  -H "X-Tenant-ID: $TENANT_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "amount":        "10.500000",
+    "currency":      "USDT_TRC20",
+    "ttlMinutes":    60,
+    "orderId":       "order-abc-123",
+    "description":   "Оплата подписки Pro",
+    "callbackUrl":   "https://your-service.com/webhooks/metapus",
+    "customerEmail": "customer@example.com"
+  }'
+```
+
+**Ответ (201 Created):**
+
+```json
+{
+  "id":            "019e17b9-b22f-7bd8-bfd5-aad109b1410b",
+  "status":        "created",
+  "amount":        "10500000",
+  "currency":      "USDT_TRC20",
+  "network":       "TRON Shasta Testnet",
+  "walletAddress": "TLfG3MEDv4koUoxJnLv5k4jPiaHbRckYbz",
+  "expiresAt":     "2026-05-12T11:00:00Z",
+  "orderId":       "order-abc-123",
+  "createdAt":     "2026-05-12T10:00:00Z"
+}
+```
+
+**Параметры запроса:**
+
+| Поле | Тип | Обязательный | Описание |
+|------|-----|:---:|----------|
+| `amount` | string | ✓ | Сумма в человекочитаемом формате (`"10.500000"`) |
+| `currency` | string | ✓ | Код токена (`USDT_TRC20`) |
+| `ttlMinutes` | int | — | Время жизни инвойса (5–1440 мин, default 60) |
+| `orderId` | string | — | Ваш внешний ID заказа (idempotency key) |
+| `description` | string | — | Описание платежа |
+| `callbackUrl` | string | — | URL для webhook-уведомлений (только HTTPS) |
+| `customerEmail` | string | — | Email плательщика |
+
+**Требуемый скоуп:** `invoice:create`
+
+---
+
+### 18.4. Получение инвойса
+
+```bash
+curl -s "$API_URL/merchant/v1/invoices/019e17b9-b22f-7bd8-bfd5-aad109b1410b" \
+  -H "X-Api-Key: $API_KEY" \
+  -H "X-Tenant-ID: $TENANT_ID"
+```
+
+**Ответ (200 OK):** аналогичен ответу при создании, но `status` отражает текущее состояние.
+
+**Требуемый скоуп:** `invoice:read`
+
+---
+
+### 18.5. Идемпотентность
+
+Если `orderId` указан при создании — повторный запрос с тем же `orderId` **не создаёт дубликат**, а возвращает существующий инвойс:
+
+```bash
+# Первый вызов → 201 Created (новый инвойс)
+curl -s -o /dev/null -w "%{http_code}" "$API_URL/merchant/v1/invoices" \
+  -X POST \
+  -H "X-Api-Key: $API_KEY" \
+  -H "X-Tenant-ID: $TENANT_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"amount":"10.500000","currency":"USDT_TRC20","orderId":"order-abc-123"}'
+# → 201
+
+# Повторный вызов → 200 OK (существующий инвойс)
+curl -s -o /dev/null -w "%{http_code}" "$API_URL/merchant/v1/invoices" \
+  -X POST \
+  -H "X-Api-Key: $API_KEY" \
+  -H "X-Tenant-ID: $TENANT_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"amount":"10.500000","currency":"USDT_TRC20","orderId":"order-abc-123"}'
+# → 200
+```
+
+> [!TIP]
+> Всегда указывайте `orderId` в production. Это защищает от дублирования при сетевых retry и обеспечивает безопасное повторение запросов.
+
+---
+
+### 18.6. Жизненный цикл платежа
+
+После создания инвойса ваша задача — перенаправить клиента на страницу оплаты и дождаться webhook-уведомления.
+
+```
+┌─────────────┐      POST /invoices       ┌──────────────┐
+│  Ваш сервис │ ────────────────────────→  │   Metapus    │
+│             │ ←────────────────────────  │              │
+│             │   {walletAddress, id}      │              │
+│             │                            │              │
+│             │                            │   Blockchain │
+│             │   webhook: invoice.paid    │   watcher    │
+│             │ ←────────────────────────  │   detects tx │
+│             │                            │              │
+│             │   webhook: invoice.confirmed│             │
+│             │ ←────────────────────────  │  ≥ N confs   │
+└─────────────┘                            └──────────────┘
+```
+
+**Статусы инвойса:**
+
+| Статус | Описание | Действие |
+|--------|----------|----------|
+| `created` | Инвойс создан, ожидает оплаты | Покажите `walletAddress` и `amount` клиенту |
+| `partially_paid` | Получена частичная оплата | Ожидайте доплаты или истечения |
+| `paid` | Полная сумма получена, ожидает подтверждений | Не отгружайте — ещё не финализирован |
+| `confirmed` | Платёж подтверждён блокчейном | ✅ **Безопасно отгружать товар/услугу** |
+| `expired` | TTL истёк без оплаты | Создайте новый инвойс |
+| `cancelled` | Отменён | — |
+
+> [!WARNING]
+> **Не отгружайте** товар/услугу до получения статуса `confirmed`. Статус `paid` означает, что транзакция обнаружена, но ещё не набрала достаточно подтверждений блокчейна.
+
+---
+
+### 18.7. Webhook-уведомления
+
+Если при создании инвойса указан `callbackUrl`, Metapus отправит POST-запрос при каждом изменении статуса:
+
+```http
+POST https://your-service.com/webhooks/metapus
+Content-Type: application/json
+X-Metapus-Event: invoice.confirmed
+X-Metapus-Signature: HMAC-SHA256(body, webhookSecret)
+X-Metapus-Timestamp: 2026-05-12T10:05:00Z
+X-Metapus-Delivery-ID: 019e17c1-...
+```
+
+**События:**
+
+| Событие | Когда |
+|---------|-------|
+| `invoice.paid` | Получена полная оплата (ожидает подтверждений) |
+| `invoice.confirmed` | Платёж подтверждён — **финальное событие** |
+| `invoice.expired` | TTL инвойса истёк |
+
+**Верификация подписи (пример на Node.js):**
+
+```javascript
+const crypto = require('crypto');
+
+function verifyWebhook(body, signature, secret) {
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(body)
+    .digest('hex');
+  return crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expected)
+  );
+}
+```
+
+---
+
+### 18.8. Обработка ошибок
+
+Все ошибки возвращаются в едином формате:
+
+```json
+{
+  "code":    "VALIDATION",
+  "message": "unknown currency: BTC_NATIVE",
+  "details": { "field": "currency" }
+}
+```
+
+**HTTP-коды:**
+
+| Код | Описание | Типичная причина |
+|-----|----------|-----------------|
+| `401` | Unauthorized | Невалидный или отозванный API-ключ |
+| `403` | Forbidden | Ключ не имеет нужного скоупа |
+| `404` | Not Found | Инвойс не существует или принадлежит другому мерчанту |
+| `422` | Validation Error | Невалидные параметры запроса |
+| `429` | Too Many Requests | Превышен rate limit |
+
+---
+
+### 18.9. Полный пример интеграции
+
+```bash
+#!/bin/bash
+# ─── Конфигурация ─────────────────────────────────────────────────────
+API_URL="https://your-instance.metapus.io"
+API_KEY="mk_live_..."          # из портала
+TENANT_ID="5cfe45cb-..."       # ID тенанта
+
+# ─── 1. Создать инвойс ───────────────────────────────────────────────
+INVOICE=$(curl -s "$API_URL/merchant/v1/invoices" \
+  -X POST \
+  -H "X-Api-Key: $API_KEY" \
+  -H "X-Tenant-ID: $TENANT_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "amount": "25.000000",
+    "currency": "USDT_TRC20",
+    "ttlMinutes": 30,
+    "orderId": "sub-pro-user42",
+    "callbackUrl": "https://your-service.com/webhooks/metapus"
+  }')
+
+INVOICE_ID=$(echo "$INVOICE" | jq -r '.id')
+WALLET=$(echo "$INVOICE" | jq -r '.walletAddress')
+EXPIRES=$(echo "$INVOICE" | jq -r '.expiresAt')
+
+echo "Инвойс: $INVOICE_ID"
+echo "Адрес для оплаты: $WALLET"
+echo "Истекает: $EXPIRES"
+
+# ─── 2. Проверить статус (polling, альтернатива webhook) ─────────────
+while true; do
+  STATUS=$(curl -s "$API_URL/merchant/v1/invoices/$INVOICE_ID" \
+    -H "X-Api-Key: $API_KEY" \
+    -H "X-Tenant-ID: $TENANT_ID" | jq -r '.status')
+
+  echo "Статус: $STATUS"
+
+  case "$STATUS" in
+    confirmed) echo "✅ Оплата подтверждена!"; break ;;
+    expired)   echo "⏰ Инвойс истёк";         break ;;
+    *)         sleep 10 ;;
+  esac
+done
+```
+
+> [!NOTE]
+> Polling — запасной механизм. В production рекомендуется использовать **webhook** (`callbackUrl`) для получения мгновенных уведомлений о статусе.
+
+### 18.10. Справочник эндпоинтов
+
+| Метод | Маршрут | Скоуп | Описание |
+|-------|---------|-------|----------|
+| `POST` | `/merchant/v1/invoices` | `invoice:create` | Создать инвойс |
+| `GET` | `/merchant/v1/invoices/:id` | `invoice:read` | Получить инвойс по ID |
+

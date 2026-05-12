@@ -41,8 +41,9 @@ type BaseEntity struct {
 // NewBaseEntity creates a new BaseEntity with generated ID.
 func NewBaseEntity() BaseEntity {
 	return BaseEntity{
-		ID:      id.New(),
-		Version: 1,
+		ID:         id.New(),
+		Version:    1,
+		Attributes: make(Attributes), // JSONB NOT NULL — must never be nil
 	}
 }
 
@@ -50,8 +51,9 @@ func NewBaseEntity() BaseEntity {
 // Use in tests for deterministic entity creation.
 func NewBaseEntityWithID(entityID id.ID) BaseEntity {
 	return BaseEntity{
-		ID:      entityID,
-		Version: 1,
+		ID:         entityID,
+		Version:    1,
+		Attributes: make(Attributes),
 	}
 }
 

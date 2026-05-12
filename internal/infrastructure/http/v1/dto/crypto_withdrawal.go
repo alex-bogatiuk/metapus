@@ -13,20 +13,13 @@ import (
 
 // CreateCryptoWithdrawalRequest is the request body for creating a withdrawal.
 type CreateCryptoWithdrawalRequest struct {
-	Date           time.Time                     `json:"date" binding:"required"`
-	MerchantID     string                        `json:"merchantId" binding:"required"`
-	TokenID        string                        `json:"tokenId" binding:"required"`
-	SourceWalletID string                        `json:"sourceWalletId" binding:"required"`
-	DestAddress    string                        `json:"destAddress" binding:"required"`
-	Amount         string                        `json:"amount" binding:"required"`
-	Description    string                        `json:"description,omitempty"`
-	Lines          []CryptoWithdrawalLineRequest `json:"lines,omitempty"`
-}
-
-// CryptoWithdrawalLineRequest represents a line in create/update request.
-type CryptoWithdrawalLineRequest struct {
-	Description string `json:"description"`
-	Amount      string `json:"amount" binding:"required"`
+	Date           time.Time `json:"date" binding:"required"`
+	MerchantID     string    `json:"merchantId" binding:"required"`
+	TokenID        string    `json:"tokenId" binding:"required"`
+	SourceWalletID string    `json:"sourceWalletId" binding:"required"`
+	DestAddress    string    `json:"destAddress" binding:"required"`
+	Amount         string    `json:"amount" binding:"required"`
+	Description    string    `json:"description,omitempty"`
 }
 
 // ToEntity converts request to domain entity.
@@ -39,18 +32,6 @@ func (r *CreateCryptoWithdrawalRequest) ToEntity() *crypto_withdrawal.CryptoWith
 	doc := crypto_withdrawal.NewCryptoWithdrawal(merchantID, tokenID, sourceWalletID, r.DestAddress, amount)
 	doc.Date = r.Date
 	doc.Description = r.Description
-
-	lines := make([]crypto_withdrawal.CryptoWithdrawalLine, 0, len(r.Lines))
-	for i, l := range r.Lines {
-		amt, _ := types.NewCryptoAmountFromString(l.Amount)
-		lines = append(lines, crypto_withdrawal.CryptoWithdrawalLine{
-			LineID:      id.New(),
-			LineNo:      i + 1,
-			Description: l.Description,
-			Amount:      amt,
-		})
-	}
-	doc.SetLines(lines)
 	return doc
 }
 

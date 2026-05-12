@@ -13,10 +13,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
-const (
-	_cryptoInvoicesTable     = "doc_crypto_invoices"
-	_cryptoInvoiceLinesTable = "doc_crypto_invoice_lines"
-)
+const _cryptoInvoicesTable = "doc_crypto_invoices"
 
 // CryptoInvoiceRepo implements crypto_invoice.Repository.
 // List() is inherited from BaseDocumentRepo (universal filter engine).
@@ -38,60 +35,6 @@ func NewCryptoInvoiceRepo() *CryptoInvoiceRepo {
 	repo.RegisterRLSDimension("merchant", "merchant_id")
 
 	return repo
-}
-
-// GetLines retrieves lines for a crypto invoice.
-func (r *CryptoInvoiceRepo) GetLines(ctx context.Context, docID id.ID) ([]crypto_invoice.CryptoInvoiceLine, error) {
-	q := r.Builder().
-		Select("line_id", "line_no", "description", "amount").
-		From(_cryptoInvoiceLinesTable).
-		Where(squirrel.Eq{"document_id": docID}).
-		OrderBy("line_no")
-
-	sql, args, err := q.ToSql()
-	if err != nil {
-		return nil, fmt.Errorf("build query: %w", err)
-	}
-
-	var lines []crypto_invoice.CryptoInvoiceLine
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
-	if err := pgxscan.Select(ctx, querier, &lines, sql, args...); err != nil {
-		return nil, fmt.Errorf("get lines: %w", err)
-	}
-
-	return lines, nil
-}
-
-// SaveLines saves lines for a crypto invoice (delete existing + COPY new).
-func (r *CryptoInvoiceRepo) SaveLines(ctx context.Context, docID id.ID, lines []crypto_invoice.CryptoInvoiceLine) error {
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
-
-	// Delete existing lines
-	deleteSQL := "DELETE FROM " + _cryptoInvoiceLinesTable + " WHERE document_id = $1"
-	if _, err := querier.Exec(ctx, deleteSQL, docID); err != nil {
-		return fmt.Errorf("delete existing lines: %w", err)
-	}
-
-	if len(lines) == 0 {
-		return nil
-	}
-
-	columns := []string{"line_id", "document_id", "line_no", "description", "amount"}
-
-	rows := make([][]any, 0, len(lines))
-	for _, line := range lines {
-		rows = append(rows, []any{
-			line.LineID, docID, line.LineNo, line.Description, line.Amount,
-		})
-	}
-
-	txm := r.getTxManager(ctx)
-	inserter := postgres.NewBatchInserter(txm)
-	if _, err := inserter.CopyFromSlice(ctx, _cryptoInvoiceLinesTable, columns, rows); err != nil {
-		return fmt.Errorf("copy lines: %w", err)
-	}
-
-	return nil
 }
 
 // FindByExternalID finds a crypto invoice by external idempotency key.

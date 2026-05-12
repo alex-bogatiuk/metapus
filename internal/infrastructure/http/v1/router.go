@@ -18,7 +18,9 @@ import (
 	"metapus/internal/core/tenant"
 	"metapus/internal/domain"
 	"metapus/internal/domain/auth"
+	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/documents"
+	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/printing"
 	"metapus/internal/domain/registers/cost"
@@ -33,6 +35,7 @@ import (
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 	"metapus/internal/infrastructure/storage/postgres/auth_repo"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/migration"
@@ -108,6 +111,22 @@ type RouterConfig struct {
 
 	// WSTicketStore for WebSocket ticket-based authentication.
 	WSTicketStore *auth.WSTicketStore
+
+	// MerchantAPIKeyRepo enables the /merchant/v1/ public API.
+	// If set, the merchant invoice routes are registered with API-key auth.
+	MerchantAPIKeyRepo merchant.APIKeyRepository
+
+	// MerchantInvoiceService is the crypto invoice service for the merchant public API.
+	// Required when MerchantAPIKeyRepo is set.
+	MerchantInvoiceService domain.DocumentService[*crypto_invoice.CryptoInvoice]
+
+	// MerchantUserRepo manages user ↔ merchant access associations.
+	// Required for merchant user management endpoints.
+	MerchantUserRepo merchant.MerchantUserRepository
+
+	// PortalDashboardRepo provides portal dashboard queries (scope-filtered).
+	// If set, the /portal/v1/ routes are registered.
+	PortalDashboardRepo *portal_repo.DashboardRepo
 }
 
 // NewRouter creates and configures the Gin router for multi-tenant architecture.
@@ -253,6 +272,13 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 
 	// Internal endpoints for Updater Agent (shared secret — defense-in-depth beyond network isolation)
 	registerInternalUpdaterRoutes(internal, cfg, cfg.MigrationStateStore)
+
+	// ─── Merchant Public API (/merchant/v1/) ──────────────────────────────────
+	// Separate prefix, separate auth (X-Api-Key), no JWT required.
+	// Tenant is resolved from the API key itself (via X-Tenant-ID hint).
+	if cfg.MerchantAPIKeyRepo != nil {
+		registerMerchantPublicRoutes(router, cfg)
+	}
 
 	return router
 }
@@ -662,6 +688,11 @@ func registerSystemRoutes(rg *gin.RouterGroup, eventLogReader eventlog.Reader, s
 	// Admin Automations: Meta (enum values for UI)
 	automationMetaHandler := handlers.NewAutomationMetaHandler(handlers.NewBaseHandler(), reportCompiler)
 	automationMetaHandler.RegisterRoutes(sysGroup)
+
+	// Worker Job observability (/system/worker-jobs)
+	workerJobRepo := postgres.NewWorkerJobReadRepo()
+	workerJobHandler := handlers.NewWorkerJobHandler(workerJobRepo)
+	workerJobHandler.RegisterRoutes(sysGroup)
 }
 
 // deriveEntityKey extracts the snake_case entity key from a permission prefix.
@@ -757,3 +788,105 @@ func registerInternalUpdaterRoutes(rg *gin.RouterGroup, cfg RouterConfig, stateS
 	rg.GET("/tenants/:id/migration-status", h.InternalMigrationStatus)
 }
 
+// registerMerchantPublicRoutes registers the /merchant/v1/ group.
+//
+// Auth: X-Api-Key header (MerchantAPIKey middleware) + X-Tenant-ID hint.
+// These routes are completely isolated from the JWT-authenticated /api/v1/ group.
+func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
+	if cfg.MerchantAPIKeyRepo == nil {
+		return
+	}
+
+	invoiceHandler := handlers.NewMerchantInvoiceHandler(cfg.MerchantInvoiceService, cfg.MerchantAPIKeyRepo)
+	apiKeyHandler := handlers.NewMerchantAPIKeyHandler(cfg.MerchantAPIKeyRepo)
+
+	// /merchant/v1/ — public merchant API (API-key auth)
+	merchantV1 := router.Group("/merchant/v1")
+	merchantV1.Use(middleware.MerchantAPIKey(cfg.MerchantAPIKeyRepo, cfg.TenantManager))
+	{
+		invoices := merchantV1.Group("/invoices")
+		{
+			invoices.POST("", invoiceHandler.CreateInvoice)
+			invoices.GET("/:id", invoiceHandler.GetInvoice)
+		}
+	}
+
+	// /api/v1/merchant-admin/ — admin API for managing merchant API keys and users (JWT auth).
+	// Security chain matches the main protected group:
+	//   TenantDB → Auth → RequireActiveTenant → SecurityContext → RequireMerchantAccess → RequirePermission(per route)
+	// CWE-639 fix: RequireMerchantAccess validates that the authenticated user
+	// has a Manager+ association with the target :merchantId. Global admins bypass.
+	merchantAdmin := router.Group("/api/v1/merchant-admin")
+	merchantAdmin.Use(middleware.TenantDB(cfg.TenantManager))
+	merchantAdmin.Use(middleware.Auth(cfg.JWTValidator))
+	merchantAdmin.Use(middleware.RequireActiveTenant())
+	merchantAdmin.Use(middleware.SecurityContext(cfg.ProfileProvider))
+	{
+		// Sub-group with ownership check: all routes under /merchants/:merchantId
+		// require the user to be associated with that merchant (Owner or Manager).
+		merchantScoped := merchantAdmin.Group("/merchants/:merchantId")
+		if cfg.MerchantUserRepo != nil {
+			merchantScoped.Use(middleware.RequireMerchantAccess(cfg.MerchantUserRepo, merchant.MerchantRoleManager))
+		}
+
+		// ─── API Keys ────────────────────────────────────────────────────────
+		merchantScoped.POST("/api-keys",
+			middleware.RequirePermission("merchant_api_keys:create"),
+			apiKeyHandler.CreateKey,
+		)
+		merchantScoped.GET("/api-keys",
+			middleware.RequirePermission("merchant_api_keys:read"),
+			apiKeyHandler.ListKeys,
+		)
+		merchantScoped.DELETE("/api-keys/:keyId",
+			middleware.RequirePermission("merchant_api_keys:delete"),
+			apiKeyHandler.RevokeKey,
+		)
+
+		// ─── Merchant Users ───────────────────────────────────────────────────
+		if cfg.MerchantUserRepo != nil {
+			userHandler := handlers.NewMerchantUserHandler(cfg.MerchantUserRepo)
+			merchantScoped.GET("/users",
+				middleware.RequirePermission("merchant_users:read"),
+				userHandler.ListUsers,
+			)
+			merchantScoped.POST("/users",
+				middleware.RequirePermission("merchant_users:write"),
+				userHandler.AddUser,
+			)
+			merchantScoped.DELETE("/users/:userId",
+				middleware.RequirePermission("merchant_users:write"),
+				userHandler.RemoveUser,
+			)
+			merchantScoped.PATCH("/users/:userId/role",
+				middleware.RequirePermission("merchant_users:write"),
+				userHandler.UpdateRole,
+			)
+		}
+	}
+
+	// ─── Portal Routes (/portal/v1/) ────────────────────────────────────────
+	// B2B portal for merchants. Isolated from ERP via MerchantPortal middleware.
+	// Security chain: TenantDB → Auth → RequireActiveTenant → MerchantPortal
+	if cfg.PortalDashboardRepo != nil {
+		portalHandler := handlers.NewPortalHandler(cfg.PortalDashboardRepo)
+
+		portalV1 := router.Group("/portal/v1")
+		portalV1.Use(middleware.TenantDB(cfg.TenantManager))
+		portalV1.Use(middleware.Auth(cfg.JWTValidator))
+		portalV1.Use(middleware.RequireActiveTenant())
+		portalV1.Use(middleware.MerchantPortal())
+		{
+			portalV1.GET("/merchants", portalHandler.ListMerchants)
+
+			dashboard := portalV1.Group("/dashboard")
+			{
+				dashboard.GET("/summary", portalHandler.GetSummary)
+				dashboard.GET("/currencies", portalHandler.GetCurrencies)
+				dashboard.GET("/chart", portalHandler.GetChart)
+			}
+
+			portalV1.GET("/invoices", portalHandler.ListInvoices)
+		}
+	}
+}

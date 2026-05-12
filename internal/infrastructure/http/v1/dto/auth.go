@@ -127,6 +127,8 @@ type UserResponse struct {
 	EmailVerified   bool                  `json:"emailVerified"`
 	Roles           []RoleResponse        `json:"roles,omitempty"`
 	SecurityProfile *SecurityProfileBrief `json:"securityProfile,omitempty"`
+	MerchantIDs     []string              `json:"merchantIds,omitempty"`
+	PortalRole      int                   `json:"portalRole,omitempty"`
 	CreatedAt       time.Time             `json:"createdAt"`
 }
 
@@ -147,6 +149,8 @@ func FromUser(u *auth.User) *UserResponse {
 		IsAdmin:       u.IsAdmin,
 		EmailVerified: u.EmailVerified,
 		Roles:         roles,
+		MerchantIDs:   u.MerchantIDs,
+		PortalRole:    u.PortalRole,
 	}
 }
 

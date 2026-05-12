@@ -14,25 +14,18 @@ import (
 
 // CreateCryptoInvoiceRequest is the request body for creating a crypto invoice.
 type CreateCryptoInvoiceRequest struct {
-	Number         string                       `json:"number,omitempty"`
-	Date           time.Time                    `json:"date" binding:"required"`
-	MerchantID     string                       `json:"merchantId" binding:"required"`
-	TokenID        string                       `json:"tokenId" binding:"required"`
-	ExpectedAmount string                       `json:"expectedAmount" binding:"required"` // string for CryptoAmount
-	ExpiresAt      *time.Time                   `json:"expiresAt,omitempty"`
-	CallbackURL    string                       `json:"callbackUrl,omitempty"`
-	ExternalID     string                       `json:"externalId,omitempty"`
-	OrderID        string                       `json:"orderId,omitempty"`
-	CustomerEmail  string                       `json:"customerEmail,omitempty"`
-	Description    string                       `json:"description,omitempty"`
-	Lines          []CryptoInvoiceLineRequest   `json:"lines,omitempty"`
-	PostImmediately bool                        `json:"postImmediately,omitempty"`
-}
-
-// CryptoInvoiceLineRequest represents a line in create/update request.
-type CryptoInvoiceLineRequest struct {
-	Description string `json:"description"`
-	Amount      string `json:"amount" binding:"required"` // string for CryptoAmount
+	Number         string    `json:"number,omitempty"`
+	Date           time.Time `json:"date" binding:"required"`
+	MerchantID     string    `json:"merchantId" binding:"required"`
+	TokenID        string    `json:"tokenId" binding:"required"`
+	ExpectedAmount string    `json:"expectedAmount" binding:"required"` // string for CryptoAmount
+	ExpiresAt      *time.Time `json:"expiresAt,omitempty"`
+	CallbackURL    string    `json:"callbackUrl,omitempty"`
+	ExternalID     string    `json:"externalId,omitempty"`
+	OrderID        string    `json:"orderId,omitempty"`
+	CustomerEmail  string    `json:"customerEmail,omitempty"`
+	Description    string    `json:"description,omitempty"`
+	PostImmediately bool    `json:"postImmediately,omitempty"`
 }
 
 // ToEntity converts request to domain entity.
@@ -54,34 +47,23 @@ func (r *CreateCryptoInvoiceRequest) ToEntity() *crypto_invoice.CryptoInvoice {
 		doc.ExpiresAt = *r.ExpiresAt
 	}
 
-	for i, line := range r.Lines {
-		lineAmount, _ := types.NewCryptoAmountFromString(line.Amount)
-		doc.Lines = append(doc.Lines, crypto_invoice.CryptoInvoiceLine{
-			LineID:      id.New(),
-			LineNo:      i + 1,
-			Description: line.Description,
-			Amount:      lineAmount,
-		})
-	}
-
 	return doc
 }
 
 // UpdateCryptoInvoiceRequest is the request body for updating a crypto invoice.
 type UpdateCryptoInvoiceRequest struct {
-	Version        int                          `json:"version" binding:"required,min=1"`
-	Number         *string                      `json:"number,omitempty"`
-	Date           *time.Time                   `json:"date,omitempty"`
-	MerchantID     *string                      `json:"merchantId,omitempty"`
-	TokenID        *string                      `json:"tokenId,omitempty"`
-	ExpectedAmount *string                      `json:"expectedAmount,omitempty"`
-	ExpiresAt      *time.Time                   `json:"expiresAt,omitempty"`
-	CallbackURL    *string                      `json:"callbackUrl,omitempty"`
-	ExternalID     *string                      `json:"externalId,omitempty"`
-	OrderID        *string                      `json:"orderId,omitempty"`
-	CustomerEmail  *string                      `json:"customerEmail,omitempty"`
-	Description    *string                      `json:"description,omitempty"`
-	Lines          []CryptoInvoiceLineRequest   `json:"lines,omitempty"`
+	Version        int        `json:"version" binding:"required,min=1"`
+	Number         *string    `json:"number,omitempty"`
+	Date           *time.Time `json:"date,omitempty"`
+	MerchantID     *string    `json:"merchantId,omitempty"`
+	TokenID        *string    `json:"tokenId,omitempty"`
+	ExpectedAmount *string    `json:"expectedAmount,omitempty"`
+	ExpiresAt      *time.Time `json:"expiresAt,omitempty"`
+	CallbackURL    *string    `json:"callbackUrl,omitempty"`
+	ExternalID     *string    `json:"externalId,omitempty"`
+	OrderID        *string    `json:"orderId,omitempty"`
+	CustomerEmail  *string    `json:"customerEmail,omitempty"`
+	Description    *string    `json:"description,omitempty"`
 }
 
 // ApplyTo applies updates to an existing entity.
@@ -123,20 +105,6 @@ func (r *UpdateCryptoInvoiceRequest) ApplyTo(doc *crypto_invoice.CryptoInvoice) 
 	if r.Description != nil {
 		doc.Description = *r.Description
 	}
-
-	// Rebuild lines if provided
-	if r.Lines != nil {
-		doc.Lines = make([]crypto_invoice.CryptoInvoiceLine, 0, len(r.Lines))
-		for i, line := range r.Lines {
-			lineAmount, _ := types.NewCryptoAmountFromString(line.Amount)
-			doc.Lines = append(doc.Lines, crypto_invoice.CryptoInvoiceLine{
-				LineID:      id.New(),
-				LineNo:      i + 1,
-				Description: line.Description,
-				Amount:      lineAmount,
-			})
-		}
-	}
 }
 
 // --- Response DTOs ---
@@ -162,7 +130,6 @@ type CryptoInvoiceResponse struct {
 	OrderID        string                         `json:"orderId,omitempty"`
 	CustomerEmail  string                         `json:"customerEmail,omitempty"`
 	Description    string                         `json:"description,omitempty"`
-	Lines          []CryptoInvoiceLineResponse    `json:"lines,omitempty"`
 	Version        int                            `json:"version"`
 	DeletionMark   bool                           `json:"deletionMark"`
 	Attributes     entity.Attributes              `json:"attributes,omitempty"`
@@ -173,14 +140,6 @@ type CryptoInvoiceResponse struct {
 	Merchant     *postgres.RefDisplay `json:"merchant,omitempty"`
 	Token        *postgres.RefDisplay `json:"token,omitempty"`
 	Wallet       *postgres.RefDisplay `json:"wallet,omitempty"`
-}
-
-// CryptoInvoiceLineResponse represents a line in API responses.
-type CryptoInvoiceLineResponse struct {
-	LineID      string `json:"lineId"`
-	LineNo      int    `json:"lineNo"`
-	Description string `json:"description"`
-	Amount      string `json:"amount"` // string for CryptoAmount precision
 }
 
 
@@ -224,16 +183,6 @@ func FromCryptoInvoice(doc *crypto_invoice.CryptoInvoice, refs postgres.Resolved
 		tok := refs.Get(TableTokens, doc.TokenID)
 		resp.Token = &tok
 		resp.Wallet = refs.GetPtr(TableWallets, doc.WalletID)
-	}
-
-	resp.Lines = make([]CryptoInvoiceLineResponse, len(doc.Lines))
-	for i, line := range doc.Lines {
-		resp.Lines[i] = CryptoInvoiceLineResponse{
-			LineID:      line.LineID.String(),
-			LineNo:      line.LineNo,
-			Description: line.Description,
-			Amount:      line.Amount.String(),
-		}
 	}
 
 	return resp

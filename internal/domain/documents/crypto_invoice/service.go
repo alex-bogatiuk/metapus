@@ -9,9 +9,9 @@ import (
 )
 
 // Service provides business operations for crypto invoice documents.
-// Embeds BaseDocumentService for common CRUD + posting logic.
+// Embeds BaseHeaderDocumentService — no line items (header-only).
 type Service struct {
-	*domain.BaseDocumentService[*CryptoInvoice, CryptoInvoiceLine]
+	*domain.BaseHeaderDocumentService[*CryptoInvoice]
 }
 
 // NewService creates a new crypto invoice service.
@@ -21,7 +21,7 @@ func NewService(
 	num numerator.Generator,
 	txManager tx.Manager,
 ) *Service {
-	base := domain.NewBaseDocumentService(domain.BaseDocumentServiceConfig[*CryptoInvoice, CryptoInvoiceLine]{
+	base := domain.NewBaseHeaderDocumentService(domain.BaseHeaderDocumentServiceConfig[*CryptoInvoice]{
 		Repo:              repo,
 		PostingEngine:     postingEngine,
 		Numerator:         num,
@@ -30,7 +30,7 @@ func NewService(
 		NumeratorStrategy: _numeratorStrategy,
 		EntityName:        "crypto_invoice",
 	})
-	return &Service{BaseDocumentService: base}
+	return &Service{BaseHeaderDocumentService: base}
 }
 
 // Hooks returns the hook registry for registering callbacks.

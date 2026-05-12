@@ -68,16 +68,10 @@ type CryptoInvoice struct {
 	// Customer info
 	CustomerEmail string `db:"customer_email" json:"customerEmail,omitempty" meta:"label:Email клиента"`
 
-	// Lines (detailed breakdown — optional for simple invoices)
-	Lines []CryptoInvoiceLine `db:"-" json:"lines" meta:"label:Позиции"`
-}
-
-// CryptoInvoiceLine represents a line item in the invoice.
-type CryptoInvoiceLine struct {
-	LineID      id.ID              `db:"line_id" json:"lineId"`
-	LineNo      int                `db:"line_no" json:"lineNo" meta:"label:№"`
-	Description string             `db:"description" json:"description" meta:"label:Описание"`
-	Amount      types.CryptoAmount `db:"amount" json:"amount" meta:"label:Сумма"`
+	// APIKeyID is the merchant API key used to create this invoice.
+	// NULL for invoices created via the ERP admin interface (JWT user context).
+	// Audit chain: APIKeyID → cat_merchant_api_keys.CreatedByUserID → platform user.
+	APIKeyID *id.ID `db:"api_key_id" json:"apiKeyId,omitempty" meta:"label:API-ключ"`
 }
 
 // NewCryptoInvoice creates a new CryptoInvoice with required fields.
@@ -91,7 +85,6 @@ func NewCryptoInvoice(merchantID, tokenID id.ID, expectedAmount types.CryptoAmou
 		OverpaidAmount: types.ZeroCryptoAmount(),
 		Status:         InvoiceStatusCreated,
 		ExpiresAt:      time.Now().Add(30 * time.Minute), // default 30 min TTL
-		Lines:          make([]CryptoInvoiceLine, 0),
 	}
 }
 
@@ -117,19 +110,6 @@ func (inv *CryptoInvoice) Validate(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-// --- LinesAccessor implementation ---
-
-func (inv *CryptoInvoice) GetLines() []CryptoInvoiceLine {
-	out := make([]CryptoInvoiceLine, len(inv.Lines))
-	copy(out, inv.Lines)
-	return out
-}
-
-func (inv *CryptoInvoice) SetLines(lines []CryptoInvoiceLine) {
-	inv.Lines = make([]CryptoInvoiceLine, len(lines))
-	copy(inv.Lines, lines)
 }
 
 // --- CurrencyAwareDoc stubs (crypto invoice uses TokenID, not CurrencyID) ---
@@ -177,9 +157,6 @@ func (inv *CryptoInvoice) GenerateCryptoBalanceMovements(ctx context.Context) ([
 	return []entity.CryptoBalanceMovement{movement}, nil
 }
 
-func (inv *CryptoInvoice) GetLineCount() int { return len(inv.Lines) }
-
 // Compile-time interface checks.
 var _ posting.Postable = (*CryptoInvoice)(nil)
 var _ posting.CryptoBalanceMovementSource = (*CryptoInvoice)(nil)
-var _ posting.LineCounter = (*CryptoInvoice)(nil)

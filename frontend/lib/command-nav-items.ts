@@ -36,6 +36,7 @@ import {
   CreditCard,
   ArrowUpRight,
   RefreshCw,
+  Activity,
 } from "lucide-react"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import { buildEntityUrlByRoute } from "@/lib/entity-url"
@@ -100,6 +101,7 @@ const _staticItems: CommandNavItem[] = [
   { id: "sys:settings",     label: "Настройки",              url: "/settings",              icon: Settings,    keywords: "настройки settings preferences",        section: "system" },
   { id: "sys:admin",        label: "Администрирование",      url: "/admin",                 icon: ShieldCheck, keywords: "администрирование admin",               section: "system" },
   { id: "sys:event-log",    label: "Журнал событий",         url: "/admin/event-log",       icon: ScrollText,  keywords: "журнал событий лог event log",           section: "system" },
+  { id: "sys:worker-jobs",  label: "Задачи воркера",         url: "/admin/worker-jobs",     icon: Activity,    keywords: "задачи воркер worker jobs фоновые background", section: "system" },
   { id: "sys:help",         label: "Помощь",                 url: "/help",                  icon: HelpCircle,  keywords: "помощь help",                           section: "system" },
 ]
 

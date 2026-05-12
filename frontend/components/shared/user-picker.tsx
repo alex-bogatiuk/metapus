@@ -1,7 +1,17 @@
 "use client"
 
+/**
+ * UserPicker — combobox for selecting platform users.
+ *
+ * Searches against GET /auth/users?search=... which returns UserResponse[].
+ * Displays fullName + email as subtitle. Returns user.id on selection.
+ *
+ * Analogous to ReferenceField, but specialized for the auth users endpoint
+ * which returns {id, email, fullName} instead of {id, name}.
+ */
+
 import { useState, useEffect, useCallback, useRef } from "react"
-import { ChevronsUpDown, X, Loader2 } from "lucide-react"
+import { apiFetch } from "@/lib/api"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Command,
@@ -12,130 +22,92 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { Button } from "@/components/ui/button"
+import { ChevronsUpDown, X, Loader2, User } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { api } from "@/lib/api"
 
-/**
- * UserPicker — combobox for selecting a user from /auth/users.
- *
- * Analogous to 1С's "Поле ввода" restricted to the "Пользователи" catalog.
- * Displays human-readable representation: "FullName (email)".
- *
- * Usage:
- *   <UserPicker
- *     value={userId}
- *     displayName={userDisplayName}
- *     onChange={(id, display) => { setUserId(id); setUserName(display); }}
- *   />
- */
+interface PlatformUser {
+  id: string
+  email: string
+  fullName: string
+  isActive: boolean
+}
+
+interface UserListResponse {
+  items: PlatformUser[]
+  total: number
+}
 
 interface UserPickerProps {
   /** Currently selected user ID */
   value: string
-  /** Human-readable display name (e.g. "Admin Admin (admin@metapus.io)") */
+  /** Display name for the currently selected value (controlled from outside) */
   displayName?: string
-  /** Callback when user selects an item */
-  onChange: (userId: string, displayName: string) => void
-  /** Placeholder */
+  /** Called when user selects an item — passes the user ID and display label */
+  onChange: (id: string, display: string) => void
   placeholder?: string
-  /** Additional CSS classes */
+  disabled?: boolean
   className?: string
 }
 
-interface UserOption {
-  id: string
-  fullName: string
-  email: string
-}
-
-function formatUserDisplay(user: UserOption): string {
-  return user.fullName
-    ? `${user.fullName} (${user.email})`
-    : user.email
-}
-
-// Module-level cache: userId → display name
-const _userNameCache = new Map<string, string>()
+// Module-level cache: id → display label
+const _cache = new Map<string, string>()
 
 export function UserPicker({
   value,
-  displayName,
+  displayName: displayNameProp,
   onChange,
-  placeholder = "Выберите пользователя…",
+  placeholder = "Поиск по имени или email…",
+  disabled = false,
   className,
 }: UserPickerProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
-  const [options, setOptions] = useState<UserOption[]>([])
+  const [options, setOptions] = useState<PlatformUser[]>([])
   const [loading, setLoading] = useState(false)
+  const [displayLabel, setDisplayLabel] = useState<string>(() => displayNameProp ?? _cache.get(value) ?? "")
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Self-resolution: resolve userId → display name
-  const [internalName, setInternalName] = useState<string>(() => {
-    if (value) {
-      const cached = _userNameCache.get(value)
-      if (cached) return cached
-    }
-    return ""
-  })
-  const [resolving, setResolving] = useState(false)
-
-  // Auto-resolve unknown userId
+  // Sync displayLabel when controlled displayName prop changes
   useEffect(() => {
-    if (!value || displayName || internalName) return
+    if (displayNameProp) setDisplayLabel(displayNameProp)
+  }, [displayNameProp])
 
-    const cached = _userNameCache.get(value)
-    if (cached) {
-      setInternalName(cached)
-      return
-    }
+  // Auto-resolve display label when a value is set but label unknown
+  useEffect(() => {
+    if (!value || displayLabel) return
+    const cached = _cache.get(value)
+    if (cached) { setDisplayLabel(cached); return }
 
-    let cancelled = false
-    setResolving(true)
-
-    api.users.get(value)
-      .then((user) => {
-        if (cancelled) return
-        const display = user.fullName
-          ? `${user.fullName} (${user.email})`
-          : user.email
-        _userNameCache.set(value, display)
-        setInternalName(display)
+    apiFetch<PlatformUser>(`/auth/users/${value}`)
+      .then((u) => {
+        const label = u.fullName || u.email
+        _cache.set(value, label)
+        setDisplayLabel(label)
       })
-      .catch(() => { /* fallback to truncated UUID */ })
-      .finally(() => { if (!cancelled) setResolving(false) })
-
-    return () => { cancelled = true }
+      .catch(() => {/* user may have been deleted */})
   }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset internal name when value changes
+  // Reset display label when value cleared externally
   const prevValueRef = useRef(value)
   useEffect(() => {
     if (prevValueRef.current !== value) {
       prevValueRef.current = value
-      if (!value) {
-        setInternalName("")
-      } else {
-        const cached = _userNameCache.get(value)
-        setInternalName(cached ?? "")
+      if (!value) setDisplayLabel("")
+      else {
+        const cached = _cache.get(value)
+        if (cached) setDisplayLabel(cached)
       }
     }
   }, [value])
 
-  const resolvedName = displayName || internalName
-  const displayText = resolvedName || (resolving ? "" : (value ? `${value.slice(0, 8)}…` : ""))
-
-  const fetchOptions = useCallback(async (query: string) => {
+  const fetchUsers = useCallback(async (query: string) => {
     setLoading(true)
     try {
-      const result = await api.users.list(query || undefined)
-      setOptions(
-        (result.items ?? []).map((u) => ({
-          id: u.id,
-          fullName: u.fullName,
-          email: u.email,
-        }))
-      )
+      const qs = query.trim()
+        ? new URLSearchParams({ search: query.trim(), limit: "20" }).toString()
+        : new URLSearchParams({ limit: "10" }).toString()
+      const data = await apiFetch<UserListResponse>(`/auth/users?${qs}`)
+      setOptions(data.items ?? [])
     } catch {
       setOptions([])
     } finally {
@@ -143,37 +115,35 @@ export function UserPicker({
     }
   }, [])
 
-  // Fetch on open + debounced search
   const wasOpenRef = useRef(false)
   useEffect(() => {
-    if (!open) {
-      wasOpenRef.current = false
-      return
-    }
+    if (!open) { wasOpenRef.current = false; return }
     if (!wasOpenRef.current) {
       wasOpenRef.current = true
-      fetchOptions(search)
+      fetchUsers(search)
       return
     }
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => fetchOptions(search), 200)
+    debounceRef.current = setTimeout(() => fetchUsers(search), 200)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [search, open, fetchOptions])
+  }, [search, open, fetchUsers])
 
-  const handleSelect = (opt: UserOption) => {
-    const display = formatUserDisplay(opt)
-    setInternalName(display)
-    _userNameCache.set(opt.id, display)
-    onChange(opt.id, display)
+  const handleSelect = (user: PlatformUser) => {
+    const label = user.fullName || user.email
+    _cache.set(user.id, label)
+    setDisplayLabel(label)
+    onChange(user.id, label)
     setOpen(false)
     setSearch("")
   }
 
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation()
-    setInternalName("")
+    setDisplayLabel("")
     onChange("", "")
   }
+
+  const shownLabel = displayLabel || (value ? `${value.slice(0, 8)}…` : "")
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -182,35 +152,25 @@ export function UserPicker({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          disabled={disabled}
           className={cn(
-            "w-full justify-between font-normal h-9 text-sm",
+            "w-full h-9 justify-between font-normal overflow-hidden text-sm",
             !value && "text-muted-foreground",
             className,
           )}
         >
-          <span className="truncate flex-1 text-left">
-            {resolving && !resolvedName ? (
-              <span className="inline-flex items-center gap-1 text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" />
-              </span>
-            ) : (
-              displayText || placeholder
-            )}
+          <span className="flex items-center gap-2 truncate flex-1 min-w-0">
+            {value && <User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+            <span className="truncate">{shownLabel || placeholder}</span>
           </span>
           <span className="flex items-center gap-0.5 shrink-0 ml-1">
-            {value && (
+            {value && !disabled && (
               <div
                 role="button"
-                tabIndex={0}
+                tabIndex={-1}
                 className="flex items-center justify-center p-1 -mr-1 rounded-sm hover:bg-muted/50 cursor-pointer"
                 onClick={handleClear}
                 onPointerDown={(e) => e.stopPropagation()}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.stopPropagation()
-                    onChange("", "")
-                  }
-                }}
               >
                 <X className="h-3.5 w-3.5 text-muted-foreground/60 hover:text-destructive" />
               </div>
@@ -219,6 +179,7 @@ export function UserPicker({
           </span>
         </Button>
       </PopoverTrigger>
+
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
@@ -239,23 +200,28 @@ export function UserPicker({
               </CommandEmpty>
             ) : (
               <CommandGroup>
-                {options.map((opt) => (
+                {options.map((user) => (
                   <CommandItem
-                    key={opt.id}
-                    value={opt.id}
-                    onSelect={() => handleSelect(opt)}
+                    key={user.id}
+                    value={user.id}
+                    onSelect={() => handleSelect(user)}
                     className="text-xs cursor-pointer"
                   >
-                    <div className="flex flex-col gap-0.5 w-full min-w-0">
-                      <span className="truncate font-medium">
-                        {opt.fullName || opt.email}
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="font-medium truncate">
+                        {user.fullName || user.email}
                       </span>
-                      {opt.fullName && (
-                        <span className="truncate text-[10px] text-muted-foreground">
-                          {opt.email}
+                      {user.fullName && (
+                        <span className="text-[10px] text-muted-foreground truncate">
+                          {user.email}
                         </span>
                       )}
                     </div>
+                    {!user.isActive && (
+                      <span className="ml-2 shrink-0 text-[10px] text-muted-foreground">
+                        неактивен
+                      </span>
+                    )}
                   </CommandItem>
                 ))}
               </CommandGroup>

@@ -184,11 +184,50 @@ CREATE TRIGGER trg_cat_wallets_updated_at
     BEFORE UPDATE ON cat_wallets
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- ═══════════════════════════════════════════════════════════════════════
+-- MERCHANT API KEYS
+-- Stores hashed API keys for the merchant public API (/merchant/v1/).
+-- The plaintext key is shown once at creation and never stored.
+-- key_hash = SHA-256(plaintext) stored as lowercase hex.
+-- ═══════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS cat_merchant_api_keys (
+    id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid_v7(),
+    merchant_id         UUID        NOT NULL REFERENCES cat_merchants(id) ON DELETE CASCADE,
+    name                TEXT        NOT NULL,                   -- human-readable label ("Production Key")
+    key_prefix          VARCHAR(16) NOT NULL,                   -- "mk_" + first 8 chars, for UI display
+    key_hash            CHAR(64)    NOT NULL,                   -- hex(SHA-256(plaintext_key))
+    scopes              TEXT[]      NOT NULL DEFAULT ARRAY['invoice:create','invoice:read'],
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    last_used_at        TIMESTAMPTZ,
+    expires_at          TIMESTAMPTZ,
+    -- Audit: which platform user issued this key (best-effort, no FK — users are in auth schema).
+    -- NULL for keys created before this field was added or via automated processes.
+    created_by_user_id  UUID,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (key_hash)
+);
+
+-- Hot-path: auth lookup by hash (only active keys)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_merchant_api_keys_hash
+    ON cat_merchant_api_keys (key_hash)
+    WHERE is_active = TRUE;
+
+CREATE INDEX IF NOT EXISTS idx_merchant_api_keys_merchant
+    ON cat_merchant_api_keys (merchant_id);
+
+CREATE TRIGGER trg_merchant_api_keys_updated_at
+    BEFORE UPDATE ON cat_merchant_api_keys
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 SELECT pg_advisory_unlock(hashtext('metapus_migrations'));
 -- +goose StatementEnd
 
 -- +goose Down
+DROP TABLE IF EXISTS cat_merchant_api_keys CASCADE;
 DROP TABLE IF EXISTS reg_merchant_token_config CASCADE;
 DROP TABLE IF EXISTS sys_merchant_users CASCADE;
 DROP TABLE IF EXISTS cat_wallets CASCADE;
 DROP TABLE IF EXISTS cat_merchants CASCADE;
+

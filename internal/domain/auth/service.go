@@ -16,6 +16,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/tx"
+	"metapus/internal/domain/catalogs/merchant"
 	"metapus/pkg/logger"
 )
 
@@ -44,13 +45,14 @@ func DefaultServiceConfig() ServiceConfig {
 
 // Service provides authentication and authorization logic.
 type Service struct {
-	userRepo   UserRepository
-	roleRepo   RoleRepository
-	permRepo   PermissionRepository
-	tokenRepo  TokenRepository
-	txManager  tx.Manager
-	jwtService *JWTService
-	config     ServiceConfig
+	userRepo         UserRepository
+	roleRepo         RoleRepository
+	permRepo         PermissionRepository
+	tokenRepo        TokenRepository
+	merchantUserRepo merchant.MerchantUserRepository
+	txManager        tx.Manager
+	jwtService       *JWTService
+	config           ServiceConfig
 }
 
 // NewService creates a new auth service.
@@ -59,18 +61,20 @@ func NewService(
 	roleRepo RoleRepository,
 	permRepo PermissionRepository,
 	tokenRepo TokenRepository,
+	merchantUserRepo merchant.MerchantUserRepository,
 	txManager tx.Manager,
 	jwtService *JWTService,
 	config ServiceConfig,
 ) *Service {
 	return &Service{
-		userRepo:   userRepo,
-		roleRepo:   roleRepo,
-		permRepo:   permRepo,
-		tokenRepo:  tokenRepo,
-		txManager:  txManager,
-		jwtService: jwtService,
-		config:     config,
+		userRepo:         userRepo,
+		roleRepo:         roleRepo,
+		permRepo:         permRepo,
+		tokenRepo:        tokenRepo,
+		merchantUserRepo: merchantUserRepo,
+		txManager:        txManager,
+		jwtService:       jwtService,
+		config:           config,
 	}
 }
 
@@ -710,8 +714,37 @@ func (s *Service) generateTokenPair(ctx context.Context, user *User, info Sessio
 		roleCodes[i] = r.Code
 	}
 
+	// Load merchant associations for portal JWT claims.
+	// Best-effort: if merchantUserRepo is nil or query fails, skip portal claims.
+	var merchantIDs []string
+	var portalRole int
+	if s.merchantUserRepo != nil {
+		assocs, err := s.merchantUserRepo.ListByUser(ctx, user.ID)
+		if err != nil {
+			logger.Warn(ctx, "failed to load merchant associations for JWT",
+				"user_id", user.ID, "error", err)
+		} else if len(assocs) > 0 {
+			merchantIDs = make([]string, 0, len(assocs))
+			for _, a := range assocs {
+				merchantIDs = append(merchantIDs, a.MerchantID.String())
+				// Highest privilege wins: lower int = higher access (Owner=1 < Manager=2 < Viewer=3)
+				if portalRole == 0 || int(a.Role) < portalRole {
+					portalRole = int(a.Role)
+				}
+			}
+		}
+	}
+
+	// Set portal claims on user for DTO serialization.
+	user.MerchantIDs = merchantIDs
+	user.PortalRole = portalRole
+
 	// Generate access token
-	accessToken, expiresAt, err := s.jwtService.GenerateAccessToken(user.ID.String(), tenantID, user.Email, roleCodes, user.Permissions, user.IsAdmin)
+	accessToken, expiresAt, err := s.jwtService.GenerateAccessToken(
+		user.ID.String(), tenantID, user.Email,
+		roleCodes, user.Permissions, user.IsAdmin,
+		merchantIDs, portalRole,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("generate access token: %w", err)
 	}
