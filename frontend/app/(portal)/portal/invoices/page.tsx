@@ -43,13 +43,15 @@ export default function PortalInvoicesPage() {
   const [offset, setOffset] = useState(0)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  // Reset offset & loading when merchant changes (render-time state adjustment)
+  const [prevMerchantId, setPrevMerchantId] = useState(activeMerchantId)
+  if (activeMerchantId !== prevMerchantId) {
+    setPrevMerchantId(activeMerchantId)
+    setOffset(0)
     setLoading(true)
-    setOffset(0) // reset when merchant changes
-  }, [activeMerchantId])
+  }
 
   useEffect(() => {
-    setLoading(true)
     api.portal.invoices({
       merchantId: activeMerchantId ?? undefined,
       limit: PAGE_SIZE,
@@ -151,7 +153,7 @@ export default function PortalInvoicesPage() {
                       variant="outline"
                       size="sm"
                       disabled={offset === 0}
-                      onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+                      onClick={() => { setOffset(Math.max(0, offset - PAGE_SIZE)); setLoading(true) }}
                     >
                       Назад
                     </Button>
@@ -159,7 +161,7 @@ export default function PortalInvoicesPage() {
                       variant="outline"
                       size="sm"
                       disabled={offset + PAGE_SIZE >= total}
-                      onClick={() => setOffset(offset + PAGE_SIZE)}
+                      onClick={() => { setOffset(offset + PAGE_SIZE); setLoading(true) }}
                     >
                       Далее
                     </Button>

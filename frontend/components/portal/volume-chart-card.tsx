@@ -19,8 +19,15 @@ export function VolumeChartCard({ merchantId }: VolumeChartCardProps) {
   const [points, setPoints] = useState<PortalChartPoint[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  // Reset loading when deps change (render-time state adjustment)
+  const fetchKey = `${period}-${merchantId}`
+  const [prevFetchKey, setPrevFetchKey] = useState(fetchKey)
+  if (fetchKey !== prevFetchKey) {
+    setPrevFetchKey(fetchKey)
     setLoading(true)
+  }
+
+  useEffect(() => {
     api.portal.chart(period, merchantId ?? undefined)
       .then((res) => setPoints(res.items))
       .catch(() => setPoints([]))

@@ -16,8 +16,14 @@ export function CurrencyBreakdownCard({ merchantId }: CurrencyBreakdownCardProps
   const [items, setItems] = useState<PortalCurrencyItem[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  // Reset loading when merchantId changes (render-time state adjustment)
+  const [prevMerchantId, setPrevMerchantId] = useState(merchantId)
+  if (merchantId !== prevMerchantId) {
+    setPrevMerchantId(merchantId)
     setLoading(true)
+  }
+
+  useEffect(() => {
     api.portal.currencies(merchantId ?? undefined)
       .then((res) => setItems(res.items))
       .catch(() => setItems([]))

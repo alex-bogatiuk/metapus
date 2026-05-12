@@ -15,8 +15,14 @@ export function BalanceSummaryCard({ merchantId }: BalanceSummaryCardProps) {
   const [data, setData] = useState<PortalSummaryResponse | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  // Reset loading when merchantId changes (render-time state adjustment)
+  const [prevMerchantId, setPrevMerchantId] = useState(merchantId)
+  if (merchantId !== prevMerchantId) {
+    setPrevMerchantId(merchantId)
     setLoading(true)
+  }
+
+  useEffect(() => {
     api.portal.summary(merchantId ?? undefined)
       .then(setData)
       .catch(() => setData(null))

@@ -37,8 +37,15 @@ export function RecentInvoicesCard({ merchantId }: RecentInvoicesCardProps) {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  // Reset loading when deps change (render-time state adjustment)
+  const fetchKey = `${merchantId}-${filter}`
+  const [prevFetchKey, setPrevFetchKey] = useState(fetchKey)
+  if (fetchKey !== prevFetchKey) {
+    setPrevFetchKey(fetchKey)
     setLoading(true)
+  }
+
+  useEffect(() => {
     api.portal.invoices({
       merchantId: merchantId ?? undefined,
       status: filter || undefined,
