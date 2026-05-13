@@ -33,14 +33,6 @@ const (
 type MerchantInvoiceHandler struct {
 	invoiceService domain.DocumentService[*crypto_invoice.CryptoInvoice]
 	apiKeyRepo     merchant.APIKeyRepository
-	tokenResolver  merchantTokenResolver
-}
-
-// merchantTokenResolver resolves token code → (walletAddress, tokenCode, networkName).
-// Filled from a lightweight SQL read (same pattern as payment_page.go).
-type merchantTokenResolver interface {
-	ResolveToken(ctx context.Context, tokenCode string) (tokenID id.ID, err error)
-	FetchInvoiceDisplay(ctx context.Context, invoiceID id.ID) (walletAddress, tokenCode, network string, err error)
 }
 
 // NewMerchantInvoiceHandler creates the handler.
