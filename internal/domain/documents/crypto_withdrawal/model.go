@@ -160,7 +160,31 @@ func (w *CryptoWithdrawal) GenerateCryptoFeeMovements(ctx context.Context) ([]en
 	return []entity.CryptoFeeMovement{fee}, nil
 }
 
+// GenerateCryptoMerchantBalanceMovements creates an EXPENSE movement for the merchant.
+// Expense = platform paid the merchant (debt reduced by withdrawal amount).
+func (w *CryptoWithdrawal) GenerateCryptoMerchantBalanceMovements(ctx context.Context) ([]entity.CryptoMerchantBalanceMovement, error) {
+	if w.Amount.IsZero() {
+		return nil, nil
+	}
+
+	newVersion := w.PostedVersion + 1
+
+	movement := entity.NewCryptoMerchantBalanceMovement(
+		w.ID,
+		w.GetDocumentType(),
+		newVersion,
+		w.Date,
+		entity.RecordTypeExpense,
+		w.MerchantID,
+		w.TokenID,
+		w.Amount,
+	)
+
+	return []entity.CryptoMerchantBalanceMovement{movement}, nil
+}
+
 // Compile-time interface checks.
 var _ posting.Postable = (*CryptoWithdrawal)(nil)
 var _ posting.CryptoBalanceMovementSource = (*CryptoWithdrawal)(nil)
 var _ posting.CryptoFeeMovementSource = (*CryptoWithdrawal)(nil)
+var _ posting.CryptoMerchantBalanceMovementSource = (*CryptoWithdrawal)(nil)

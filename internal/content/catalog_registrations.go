@@ -18,6 +18,7 @@ import (
 	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/catalogs/nomenclature"
 	"metapus/internal/domain/catalogs/organization"
+	"metapus/internal/domain/catalogs/rate_source"
 	"metapus/internal/domain/catalogs/token"
 	"metapus/internal/domain/catalogs/unit"
 	"metapus/internal/domain/catalogs/vat_rate"
@@ -132,6 +133,14 @@ func init() {
 	metadata.RegisterEnum[wallet.AllocationMode]([]metadata.EnumValue{
 		{Value: "transient", Label: "Временный (per-invoice)"},
 		{Value: "persistent", Label: "Постоянный (per-customer)"},
+	})
+
+	// Rate Source Types
+	metadata.RegisterEnum[rate_source.SourceType]([]metadata.EnumValue{
+		{Value: "coingecko", Label: "CoinGecko"},
+		{Value: "binance", Label: "Binance"},
+		{Value: "coinmarketcap", Label: "CoinMarketCap"},
+		{Value: "manual", Label: "Ручной ввод"},
 	})
 }
 
@@ -726,4 +735,45 @@ func (r *WalletRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 
 func resolveWalletRefs(ctx context.Context, entities ...*wallet.Wallet) (any, error) {
 	return resolveCatalogRefs(ctx, dto.CollectWalletRefs, entities...)
+}
+
+// ---------------------------------------------------------------------------
+// RateSource
+// ---------------------------------------------------------------------------
+
+type RateSourceRegistration struct{}
+
+func (r *RateSourceRegistration) RoutePrefix() string      { return "rate-sources" }
+func (r *RateSourceRegistration) Permission() string       { return "catalog:rate_source" }
+func (r *RateSourceRegistration) ReferenceTypes() []string { return []string{"rate_source"} }
+func (r *RateSourceRegistration) EntityName() string       { return "RateSource" }
+func (r *RateSourceRegistration) EntityLabel() string      { return "Источники курсов" }
+func (r *RateSourceRegistration) EntityPresentation() metadata.Presentation {
+	return metadata.Presentation{
+		Singular: "Источник курсов",
+		Plural:   "Источники курсов",
+		NewLabel: "Новый источник курсов",
+		Genitive: "источника курсов",
+	}
+}
+func (r *RateSourceRegistration) EntityStruct() interface{} { return rate_source.RateSource{} }
+
+func (r *RateSourceRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
+	repo := catalog_repo.NewRateSourceRepo()
+	service := rate_source.NewService(repo, deps.Numerator)
+	service.SetPolicyEngine(deps.PolicyEngine)
+	domain.NewEventLogCatalogService(service.CatalogService, "rate_source", deps.EventWriter)
+	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
+		*rate_source.RateSource,
+		dto.CreateRateSourceRequest,
+		dto.UpdateRateSourceRequest,
+	]{
+		Service:    service.CatalogService,
+		EntityName: "rate_source",
+		MapCreateDTO: func(req dto.CreateRateSourceRequest) *rate_source.RateSource { return req.ToEntity() },
+		MapUpdateDTO: func(req dto.UpdateRateSourceRequest, existing *rate_source.RateSource) *rate_source.RateSource {
+			req.ApplyTo(existing); return existing
+		},
+		MapToDTO: func(entity *rate_source.RateSource) any { return dto.FromRateSource(entity) },
+	})
 }

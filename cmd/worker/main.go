@@ -21,10 +21,13 @@ import (
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/workerjob"
 	"metapus/internal/domain/reports/compiler"
+	"metapus/internal/domain/registers/exchange_rate"
 	"metapus/internal/domain/settings"
 	"metapus/internal/infrastructure/crypto_worker"
+	"metapus/internal/infrastructure/rate_feed"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/auth_repo"
+	"metapus/internal/infrastructure/storage/postgres/register_repo"
 	ws "metapus/internal/infrastructure/websocket"
 	"metapus/pkg/logger"
 )
@@ -252,6 +255,38 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 			defer subsWg.Done()
 			cp.Start(ctx) // blocks until ctx is cancelled
 		}()
+	}
+
+	// ── Rate Feed (Exchange Rates) ─────────────────────────────────────
+	// Periodically fetches crypto exchange rates from CoinGecko.
+	// Loads currency→source mappings from reg_rate_source_mappings.
+	{
+		mappings, err := rate_feed.BuildMappingsFromDB(ctx, "coingecko")
+		if err != nil {
+			w.log.Warnw("failed to load rate feed mappings, rate feed disabled",
+				"tenant_id", t.ID, "error", err,
+			)
+		} else if len(mappings) > 0 {
+			rateSvc := exchange_rate.NewService(register_repo.NewExchangeRateRepo())
+			rfWorker := rate_feed.NewWorker(rate_feed.WorkerConfig{
+				BaseCurrency: "usd",
+				Mappings:     mappings,
+			}, rateSvc, recorder, w.log)
+
+			subsWg.Add(1)
+			go func() {
+				defer subsWg.Done()
+				rfWorker.Start(ctx) // blocks until ctx is cancelled
+			}()
+			w.log.Infow("rate feed started",
+				"tenant_id", t.ID,
+				"currencies", len(mappings),
+			)
+		} else {
+			w.log.Infow("no rate source mappings found, rate feed idle",
+				"tenant_id", t.ID,
+			)
+		}
 	}
 
 	for {

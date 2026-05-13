@@ -259,8 +259,9 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 		{"Российский рубль", "RUB", "₽", 2, 100, true},
 		{"Доллар США", "USD", "$", 2, 100, false},
 		{"Евро", "EUR", "€", 2, 100, false},
+		{"Tether (USDT)", "USDT", "₮", 6, 1000000, false},
 		{"Bitcoin", "BTC", "₿", 8, 100000000, false},
-		{"Ethereum", "ETH", "Ξ", 9, 1000000000, false},
+		{"Ethereum", "ETH", "Ξ", 18, 1000000000000000000, false},
 	}
 
 	currencyIDs := make(map[string]id.ID)
@@ -269,8 +270,8 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 		currID := id.New()
 		commandTag, err := pool.Exec(ctx, `
 			INSERT INTO cat_currencies (
-				id, code, name, iso_code, symbol, 
-				decimal_places, minor_multiplier, is_base, 
+				id, code, name, iso_code, symbol,
+				decimal_places, minor_multiplier, is_base,
 				version, deletion_mark, attributes
 			)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, false, '{}')
@@ -294,7 +295,74 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 		currencyIDs[c.isoCode] = currID
 	}
 
-	// 3a. Update organization base_currency_id
+	// 3b. Seed Rate Sources (cat_rate_sources)
+	rateSourceCoinGeckoID := id.New()
+	rateSourceManualID := id.New()
+	{
+		rateSources := []struct {
+			id         id.ID
+			code       string
+			name       string
+			sourceType string
+			baseURL    string
+			priority   int
+		}{
+			{rateSourceCoinGeckoID, "coingecko", "CoinGecko", "coingecko", "https://api.coingecko.com/api/v3", 10},
+			{rateSourceManualID, "manual", "Ручной ввод", "manual", "", 100},
+		}
+
+		for _, rs := range rateSources {
+			var baseURL interface{}
+			if rs.baseURL != "" {
+				baseURL = rs.baseURL
+			}
+			_, err := pool.Exec(ctx, `
+				INSERT INTO cat_rate_sources (
+					id, code, name, source_type, base_url, priority, is_active,
+					version, deletion_mark, attributes
+				)
+				VALUES ($1, $2, $3, $4, $5, $6, TRUE, 1, FALSE, '{}')
+				ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
+			`, rs.id, rs.code, rs.name, rs.sourceType, baseURL, rs.priority)
+			if err != nil {
+				log.Warnw("failed to seed rate source", "code", rs.code, "error", err)
+			}
+		}
+		// Resolve existing IDs if conflict
+		_ = pool.QueryRow(ctx, `SELECT id FROM cat_rate_sources WHERE code = 'coingecko' AND deletion_mark = FALSE`).Scan(&rateSourceCoinGeckoID)
+		_ = pool.QueryRow(ctx, `SELECT id FROM cat_rate_sources WHERE code = 'manual' AND deletion_mark = FALSE`).Scan(&rateSourceManualID)
+		log.Info("rate sources seeded (coingecko, manual)")
+	}
+
+	// 3c. Seed Rate Source Mappings (reg_rate_source_mappings)
+	{
+		mappings := []struct {
+			currencyISO string
+			externalID  string // CoinGecko coin ID
+		}{
+			{"USDT", "tether"},
+			{"BTC", "bitcoin"},
+			{"ETH", "ethereum"},
+		}
+
+		for _, m := range mappings {
+			currID, ok := currencyIDs[m.currencyISO]
+			if !ok {
+				continue
+			}
+			_, err := pool.Exec(ctx, `
+				INSERT INTO reg_rate_source_mappings (currency_id, rate_source_id, external_id, is_active)
+				VALUES ($1, $2, $3, TRUE)
+				ON CONFLICT (currency_id, rate_source_id) DO UPDATE SET external_id = EXCLUDED.external_id
+			`, currID, rateSourceCoinGeckoID, m.externalID)
+			if err != nil {
+				log.Warnw("failed to seed rate source mapping", "currency", m.currencyISO, "error", err)
+			}
+		}
+		log.Info("rate source mappings seeded (USDT→tether, BTC→bitcoin, ETH→ethereum)")
+	}
+
+	// 3d. Update organization base_currency_id
 	if orgAvailable && !id.IsNil(orgID) {
 		if rubID, ok := currencyIDs["RUB"]; ok {
 			_, err := pool.Exec(ctx, `
@@ -417,12 +485,12 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 	}
 
 	// 8. Seed Crypto Processing data (Networks, Tokens, Merchants, Wallets)
-	cryptoRefs, err := seedCryptoData(ctx, pool, log)
+	cryptoRefs, err := seedCryptoData(ctx, pool, log, currencyIDs, rateSourceCoinGeckoID)
 	if err != nil {
 		return err
 	}
 
-	// 8a. Seed Crypto Documents (Invoices, Payments, Withdrawals) for dashboard charts
+	// 8a. Seed Crypto Documents (Invoices, Payments, Withdrawals) + Register Movements
 	if err := seedCryptoDocuments(ctx, pool, log, cryptoRefs); err != nil {
 		return err
 	}
@@ -944,16 +1012,19 @@ func loadWarehouses(ctx context.Context, pool *postgres.Pool) ([]generatedWareho
 
 // cryptoRefs holds IDs from seeded crypto catalog data, used by seedCryptoDocuments.
 type cryptoRefs struct {
-	merchantIDs []id.ID // all active merchants
-	tokenID     id.ID
-	walletIDs   []id.ID // pool wallets (used for invoices)
-	hotWalletID id.ID   // hot wallet (used for withdrawals)
+	merchantIDs          []id.ID          // all active merchants
+	merchantBPs          map[string]int   // merchantID.String() → commission basis points
+	tokenID              id.ID
+	usdtCurrencyID       id.ID            // USDT currency for exchange rate seeding
+	rateSourceCoinGeckoID id.ID           // CoinGecko rate source ID
+	walletIDs            []id.ID          // pool wallets (used for invoices)
+	hotWalletID          id.ID            // hot wallet (used for withdrawals)
 }
 
 // seedCryptoData creates the crypto processing reference data:
 // 1 blockchain network (TRON Shasta) → 1 token (USDT-TRC20) → 3 merchants → 7 wallets.
 // Returns cryptoRefs so seedCryptoDocuments can create invoices/payments/withdrawals.
-func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger) (*cryptoRefs, error) {
+func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, currencyIDs map[string]id.ID, rateSourceCoinGeckoID id.ID) (*cryptoRefs, error) {
 	log.Info("seeding crypto processing data...")
 
 	// ── Blockchain Network: TRON Shasta Testnet ────────────────────────
@@ -986,17 +1057,25 @@ func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger
 	tokenID := id.New()
 	tokenCode := "USDT-TRC20"
 
+	// Link token to USDT currency for balance → fiat conversion.
+	var usdtCurrencyIDVal interface{}
+	usdtCurrencyID := currencyIDs["USDT"]
+	if !id.IsNil(usdtCurrencyID) {
+		usdtCurrencyIDVal = usdtCurrencyID
+	}
+
 	commandTag, err = pool.Exec(ctx, `
 		INSERT INTO cat_tokens (
 			id, code, name, symbol, network_id,
 			contract_address, decimal_places, token_standard, is_active,
 			sweep_threshold, sweep_max_age_hours,
+			currency_id,
 			version, deletion_mark, attributes
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9, $10, 1, false, '{}')
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9, $10, $11, 1, false, '{}')
 		ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
 	`, tokenID, tokenCode, "Tether USD (TRC-20)", "USDT", networkID,
 		"TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs", 6, "TRC-20",
-		"10000000", 1) // sweep_threshold=10 USDT (minor units), max_age=1 hour (for testing)
+		"10000000", 1, usdtCurrencyIDVal) // sweep_threshold=10 USDT (minor units), max_age=1 hour (for testing)
 	if err != nil {
 		return nil, fmt.Errorf("seed token: %w", err)
 	}
@@ -1025,6 +1104,7 @@ func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger
 	}
 
 	merchantIDs := make([]id.ID, 0, len(merchants))
+	merchantBPs := make(map[string]int, len(merchants))
 	for _, m := range merchants {
 		mID := id.New()
 		ct, mErr := pool.Exec(ctx, `
@@ -1047,6 +1127,7 @@ func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger
 			}
 		}
 		merchantIDs = append(merchantIDs, mID)
+		merchantBPs[mID.String()] = m.commissionRate
 	}
 
 	// ── Wallets: 1 Hot + 6 Pool ─────────────────────────────────────────
@@ -1138,10 +1219,13 @@ func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger
 		"wallets", len(walletIDs)+1,
 	)
 	return &cryptoRefs{
-		merchantIDs: merchantIDs,
-		tokenID:     tokenID,
-		walletIDs:   walletIDs,
-		hotWalletID: hotWalletID,
+		merchantIDs:           merchantIDs,
+		merchantBPs:           merchantBPs,
+		tokenID:               tokenID,
+		usdtCurrencyID:        usdtCurrencyID,
+		rateSourceCoinGeckoID: rateSourceCoinGeckoID,
+		walletIDs:             walletIDs,
+		hotWalletID:           hotWalletID,
 	}, nil
 }
 
@@ -1565,6 +1649,7 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 		requiredConfs int
 		status        string
 		networkFee    int64
+		commissionBP  int
 		detectedAt    time.Time
 		confirmedAt   *time.Time
 	}
@@ -1603,6 +1688,9 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 			confs = 5 + rng.Intn(10)
 		}
 
+		// Snapshot merchant commission rate.
+		commBP := refs.merchantBPs[inv.merchantID.String()]
+
 		payments = append(payments, paymentSeed{
 			id:            pID,
 			number:        fmt.Sprintf("CP-SEED-%05d", paymentIdx),
@@ -1618,6 +1706,7 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 			requiredConfs: 19,
 			status:        status,
 			networkFee:    fee,
+			commissionBP:  commBP,
 			detectedAt:    detectedAt,
 			confirmedAt:   &confirmedAt,
 		})
@@ -1641,7 +1730,7 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 					invoice_id, merchant_id, token_id, wallet_id,
 					tx_hash, from_address, amount,
 					block_number, confirmations, required_confs,
-					status, network_fee, detected_at, confirmed_at,
+					status, network_fee, commission_bp, detected_at, confirmed_at,
 					deletion_mark, version, attributes,
 					created_at, updated_at
 				) VALUES (
@@ -1650,7 +1739,7 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 					$6, $8, $9, $10,
 					$11, $12, $13,
 					$14, $15, $16,
-					$17, $18, $19, $20,
+					$17, $18, $19, $20, $21,
 					false, 1, '{}',
 					$3, $3
 				)
@@ -1664,7 +1753,7 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 				p.merchantID, refs.tokenID, p.walletID,
 				p.txHash, p.fromAddress, p.amount,
 				p.blockNumber, p.confirmations, p.requiredConfs,
-				p.status, p.networkFee, p.detectedAt, p.confirmedAt,
+				p.status, p.networkFee, p.commissionBP, p.detectedAt, p.confirmedAt,
 			)
 		}
 
@@ -1792,10 +1881,120 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 
 	log.Infow("crypto withdrawals seeded", "count", withdrawalCreated)
 
+	// ── Phase 4: Seed Exchange Rate for USDT ─────────────────────────────
+	if !id.IsNil(refs.usdtCurrencyID) && !id.IsNil(refs.rateSourceCoinGeckoID) {
+		today := now.Truncate(24 * time.Hour)
+		_, err := pool.Exec(ctx, `
+			INSERT INTO reg_exchange_rates (currency_id, date, rate, multiplier, rate_source_id)
+			VALUES ($1, $2, 0.9997, 1, $3)
+			ON CONFLICT (currency_id, date, rate_source_id) DO UPDATE SET rate = EXCLUDED.rate, updated_at = now()
+		`, refs.usdtCurrencyID, today, refs.rateSourceCoinGeckoID)
+		if err != nil {
+			log.Warnw("failed to seed USDT exchange rate", "error", err)
+		} else {
+			log.Info("USDT exchange rate seeded (0.9997 USD)")
+		}
+	}
+
+	// ── Phase 5: Seed Register Movements (balance, fee, merchant_balance) ─
+	// For confirmed payments: insert balance + fee + merchant_balance movements.
+	// For confirmed withdrawals: insert balance + merchant_balance movements.
+	// This directly populates the registers that BalanceCalculator reads.
+
+	movBatch := &pgx.Batch{}
+	movCount := 0
+
+	for _, p := range payments {
+		if p.status != "confirmed" {
+			continue
+		}
+		lineBase := id.New()
+
+		// 1. reg_crypto_balance_movements — wallet receipt
+		movBatch.Queue(`
+			INSERT INTO reg_crypto_balance_movements (
+				line_id, recorder_id, recorder_type, recorder_version,
+				period, record_type, wallet_id, token_id, amount
+			) VALUES ($1, $2, 'CryptoPayment', 1, $3, 'receipt', $4, $5, $6)
+			ON CONFLICT DO NOTHING
+		`, lineBase, p.id, p.date, p.walletID, refs.tokenID, p.amount)
+
+		// 2. reg_crypto_fee_movements — processing fee
+		feeAmount := p.amount * int64(p.commissionBP) / 10000
+		if feeAmount > 0 {
+			movBatch.Queue(`
+				INSERT INTO reg_crypto_fee_movements (
+					line_id, recorder_id, recorder_type, recorder_version,
+					period, record_type, merchant_id, token_id, fee_type, amount
+				) VALUES ($1, $2, 'CryptoPayment', 1, $3, 'receipt', $4, $5, 'processing', $6)
+				ON CONFLICT DO NOTHING
+			`, id.New(), p.id, p.date, p.merchantID, refs.tokenID, feeAmount)
+		}
+
+		// 3. reg_crypto_merchant_balance_movements — net receipt
+		netAmount := p.amount - feeAmount
+		if netAmount > 0 {
+			movBatch.Queue(`
+				INSERT INTO reg_crypto_merchant_balance_movements (
+					line_id, recorder_id, recorder_type, recorder_version,
+					period, record_type, merchant_id, token_id, amount
+				) VALUES ($1, $2, 'CryptoPayment', 1, $3, 'receipt', $4, $5, $6)
+				ON CONFLICT DO NOTHING
+			`, id.New(), p.id, p.date, p.merchantID, refs.tokenID, netAmount)
+		}
+
+		movCount++
+		// Flush every 200 documents to keep batch size reasonable.
+		if movCount%200 == 0 {
+			results := pool.SendBatch(ctx, movBatch)
+			_ = results.Close()
+			movBatch = &pgx.Batch{}
+		}
+	}
+
+	for _, w := range withdrawals {
+		if w.status != "confirmed" {
+			continue
+		}
+
+		// 1. reg_crypto_balance_movements — wallet expense
+		movBatch.Queue(`
+			INSERT INTO reg_crypto_balance_movements (
+				line_id, recorder_id, recorder_type, recorder_version,
+				period, record_type, wallet_id, token_id, amount
+			) VALUES ($1, $2, 'CryptoWithdrawal', 1, $3, 'expense', $4, $5, $6)
+			ON CONFLICT DO NOTHING
+		`, id.New(), w.id, w.date, w.sourceWalletID, refs.tokenID, w.amount)
+
+		// 2. reg_crypto_merchant_balance_movements — merchant expense
+		movBatch.Queue(`
+			INSERT INTO reg_crypto_merchant_balance_movements (
+				line_id, recorder_id, recorder_type, recorder_version,
+				period, record_type, merchant_id, token_id, amount
+			) VALUES ($1, $2, 'CryptoWithdrawal', 1, $3, 'expense', $4, $5, $6)
+			ON CONFLICT DO NOTHING
+		`, id.New(), w.id, w.date, w.merchantID, refs.tokenID, w.amount)
+
+		movCount++
+	}
+
+	// Final flush.
+	if movBatch.Len() > 0 {
+		results := pool.SendBatch(ctx, movBatch)
+		_ = results.Close()
+	}
+
+	// Recalculate balance snapshots from movements.
+	_, _ = pool.Exec(ctx, `SELECT fn_recalc_crypto_balance()`)
+	_, _ = pool.Exec(ctx, `SELECT fn_recalc_crypto_merchant_balance()`)
+
+	log.Infow("register movements seeded", "documents_processed", movCount)
+
 	log.Infow("crypto documents seeded",
 		"invoices", invoiceCreated,
 		"payments", paymentCreated,
 		"withdrawals", withdrawalCreated,
+		"register_movements", movCount,
 	)
 	return nil
 }

@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS doc_crypto_payments (
     required_confs    INT NOT NULL DEFAULT 0,
     status            TEXT NOT NULL DEFAULT 'detected' CHECK (status IN ('detected','confirming','confirmed','settled','reorged')),
     network_fee       BIGINT NOT NULL DEFAULT 0,
+    commission_bp     INT NOT NULL DEFAULT 0 CHECK (commission_bp >= 0 AND commission_bp <= 10000),
     detected_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     confirmed_at      TIMESTAMPTZ,
 

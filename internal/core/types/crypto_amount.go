@@ -95,6 +95,34 @@ func (a CryptoAmount) Abs() CryptoAmount {
 	return a
 }
 
+// MulDiv computes a * numerator / denominator using integer arithmetic.
+// Floor division (rounds toward zero) — in commission calculation this
+// favors the merchant (fee rounds down).
+// Panics if denominator == 0 or on overflow.
+func (a CryptoAmount) MulDiv(numerator, denominator int64) CryptoAmount {
+	if denominator == 0 {
+		panic("CryptoAmount.MulDiv: division by zero")
+	}
+	product, ok := safeMultiply(int64(a), numerator)
+	if !ok {
+		panic(fmt.Sprintf("CryptoAmount overflow: %d * %d", a, numerator))
+	}
+	return CryptoAmount(product / denominator)
+}
+
+// safeMultiply returns a * b and true if the result fits int64.
+// Returns (0, false) on overflow.
+func safeMultiply(a, b int64) (int64, bool) {
+	if a == 0 || b == 0 {
+		return 0, true
+	}
+	product := a * b
+	if product/a != b {
+		return 0, false
+	}
+	return product, true
+}
+
 // --- Comparison ---
 
 // Cmp compares a and b: -1 if a < b, 0 if a == b, +1 if a > b.

@@ -30,6 +30,7 @@ func RegisterDefaults(reg *v1.FactoryRegistry) {
 	reg.RegisterCatalog(&TokenRegistration{})
 	reg.RegisterCatalog(&MerchantRegistration{})
 	reg.RegisterCatalog(&WalletRegistration{})
+	reg.RegisterCatalog(&RateSourceRegistration{})
 
 	// Documents
 	reg.RegisterDocument(&GoodsReceiptRegistration{})

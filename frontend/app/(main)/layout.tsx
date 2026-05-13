@@ -6,6 +6,7 @@ import { AppShell } from "@/components/layout/app-shell"
 import { useAuthStore } from "@/stores/useAuthStore"
 import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 import { ThemeProvider } from "@/components/theme-provider"
+import { isPortalOnly } from "@/lib/access"
 
 export default function MainLayout({
   children,
@@ -31,14 +32,12 @@ export default function MainLayout({
   }, [hydrated, isAuthenticated, router])
 
   // Redirect portal-only users away from ERP layout.
+  const portalOnly = isPortalOnly(user)
   useEffect(() => {
-    if (!hydrated || !isAuthenticated || !user) return
-    const hasErpAccess = user.isAdmin || (user.roles?.length ?? 0) > 0
-    const hasPortalAccess = (user.merchantIds?.length ?? 0) > 0
-    if (!hasErpAccess && hasPortalAccess) {
+    if (hydrated && isAuthenticated && portalOnly) {
       router.replace("/portal")
     }
-  }, [hydrated, isAuthenticated, user, router])
+  }, [hydrated, isAuthenticated, portalOnly, router])
 
   // Load user preferences from server once authenticated
   useEffect(() => {
@@ -47,7 +46,9 @@ export default function MainLayout({
     }
   }, [hydrated, isAuthenticated, prefsLoaded, loadPreferences])
 
-  if (!hydrated || !isAuthenticated) {
+  // Synchronous render gate: never show ERP shell to portal-only merchants.
+  // The useEffect above handles the actual redirect; this prevents any flash.
+  if (!hydrated || !isAuthenticated || portalOnly) {
     return null
   }
 

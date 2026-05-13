@@ -46,6 +46,10 @@ type Token struct {
 	// IsActive enables/disables the token for processing
 	IsActive bool `db:"is_active" json:"isActive" meta:"label:Активен"`
 
+	// CurrencyID links the token to its currency for exchange rate lookups.
+	// Multiple tokens can reference the same currency (e.g., USDT-TRC20 + USDT-ERC20 → USDT).
+	CurrencyID *id.ID `db:"currency_id" json:"currencyId,omitempty" meta:"label:Валюта,ref:currency"`
+
 	// SweepThreshold is the minimum accumulated balance on a pool wallet
 	// before a sweep is triggered (in minor units). 0 = sweep after every payment.
 	// Merchant can override via reg_merchant_token_config.

@@ -7,6 +7,7 @@ import { usePortalStore } from "@/stores/usePortalStore"
 import { ThemeProvider } from "@/components/theme-provider"
 import { PortalShell } from "@/components/portal/portal-shell"
 import { api } from "@/lib/api"
+import { hasPortalAccess } from "@/lib/access"
 
 const emptySubscribe = () => () => {}
 
@@ -29,18 +30,17 @@ export default function PortalLayout({
   }, [hydrated, isAuthenticated, router])
 
   // Portal access guard: redirect to / if no merchant access
+  const portalAccess = hasPortalAccess(user)
   useEffect(() => {
-    if (hydrated && isAuthenticated && user) {
-      if ((user.merchantIds?.length ?? 0) === 0) {
-        router.replace("/")
-      }
+    if (hydrated && isAuthenticated && !portalAccess) {
+      router.replace("/")
     }
-  }, [hydrated, isAuthenticated, user, router])
+  }, [hydrated, isAuthenticated, portalAccess, router])
 
   // Load available merchants from portal API
   useEffect(() => {
     if (!hydrated || !isAuthenticated || !user) return
-    if ((user.merchantIds?.length ?? 0) === 0) return
+    if ((user?.merchantIds?.length ?? 0) === 0) return
 
     api.portal.merchants()
       .then((res) => setMerchants(res.items))
@@ -49,11 +49,7 @@ export default function PortalLayout({
       })
   }, [hydrated, isAuthenticated, user, setMerchants])
 
-  if (!hydrated || !isAuthenticated) {
-    return null
-  }
-
-  if ((user?.merchantIds?.length ?? 0) === 0) {
+  if (!hydrated || !isAuthenticated || !portalAccess) {
     return null
   }
 

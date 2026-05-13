@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/card"
 import { LogoIcon } from "@/components/icons/logo"
 import { api, ApiError } from "@/lib/api"
+import { isPortalOnly } from "@/lib/access"
 import { useAuthStore } from "@/stores/useAuthStore"
 
 const loginSchema = z.object({
@@ -63,10 +64,8 @@ export function LoginForm() {
 
       setAuth(response.tokens, response.user)
 
-      // Smart redirect: portal users → /portal, ERP users → /
-      if (response.user.isAdmin) {
-        router.push("/")
-      } else if ((response.user.merchantIds?.length ?? 0) > 0) {
+      // Smart redirect: portal-only users → /portal, everyone else → /
+      if (isPortalOnly(response.user)) {
         router.push("/portal")
       } else {
         router.push("/")

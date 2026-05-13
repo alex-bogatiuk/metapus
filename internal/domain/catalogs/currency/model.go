@@ -106,9 +106,13 @@ func (c *Currency) FromMinorUnits(minor types.MinorUnits) decimal.Decimal {
 
 // --- Validation Helpers ---
 
+// _isoCodeRegex validates ISO code: 2–5 uppercase Latin letters.
+// Covers ISO 4217 (USD, EUR) and crypto tickers (USDT, MATIC).
+var _isoCodeRegex = regexp.MustCompile(`^[A-Z]{2,5}$`)
+
 func isValidISOCode(code *string) bool {
 	if code == nil {
 		return false
 	}
-	return regexp.MustCompile(`^[A-Z]{3}$`).MatchString(*code)
+	return _isoCodeRegex.MatchString(*code)
 }

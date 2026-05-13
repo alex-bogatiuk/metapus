@@ -25,7 +25,7 @@ CREATE TABLE cat_currencies (
     is_folder BOOLEAN      NOT NULL DEFAULT FALSE,
 
     -- Currency-specific fields
-    iso_code          VARCHAR(3)  NOT NULL,
+    iso_code          VARCHAR(10) NOT NULL,              -- ISO 4217 or crypto ticker (USD, USDT, MATIC)
     iso_numeric_code  VARCHAR(3),
     symbol            VARCHAR(10) NOT NULL,
     decimal_places    INT         NOT NULL DEFAULT 2,
@@ -33,7 +33,7 @@ CREATE TABLE cat_currencies (
     is_base           BOOLEAN     NOT NULL DEFAULT FALSE,
     country           VARCHAR(100),
 
-    CONSTRAINT chk_iso_code       CHECK (iso_code ~ '^[A-Z]{3}$'),
+    CONSTRAINT chk_iso_code       CHECK (iso_code ~ '^[A-Z]{2,5}$'),
     CONSTRAINT chk_decimal_places CHECK (decimal_places >= 0 AND decimal_places <= 18)
 );
 

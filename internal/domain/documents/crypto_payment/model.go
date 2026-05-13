@@ -65,6 +65,11 @@ type CryptoPayment struct {
 	// NetworkFee is the blockchain fee for this transaction (informational)
 	NetworkFee types.CryptoAmount `db:"network_fee" json:"networkFee" meta:"label:Комиссия сети"`
 
+	// CommissionBP is the platform commission rate in basis points,
+	// snapshotted from merchant config at payment creation time.
+	// 100 bp = 1%. Range [0, 10000].
+	CommissionBP int `db:"commission_bp" json:"commissionBp" meta:"label:Комиссия (bp)"`
+
 	// DetectedAt is when the transaction was first seen
 	DetectedAt time.Time `db:"detected_at" json:"detectedAt" meta:"label:Обнаружен"`
 
@@ -102,6 +107,32 @@ func NewCryptoPayment(
 	}
 }
 
+// SetCommission snapshots the merchant's commission rate (in basis points)
+// onto this payment. Should be called at creation time.
+func (p *CryptoPayment) SetCommission(basisPoints int) {
+	p.CommissionBP = basisPoints
+}
+
+// FeeAmount calculates the platform fee: amount * commissionBP / 10000.
+// Uses integer arithmetic to avoid floating-point precision issues.
+// The fee is always rounded down (floor) to favor the merchant.
+func (p *CryptoPayment) FeeAmount() types.CryptoAmount {
+	if p.CommissionBP <= 0 {
+		return types.ZeroCryptoAmount()
+	}
+	return p.Amount.MulDiv(int64(p.CommissionBP), 10000)
+}
+
+// NetAmount returns amount minus commission fee.
+func (p *CryptoPayment) NetAmount() types.CryptoAmount {
+	fee := p.FeeAmount()
+	net := p.Amount.Sub(fee)
+	if !net.IsPositive() {
+		return types.ZeroCryptoAmount()
+	}
+	return net
+}
+
 // Validate implements entity.Validatable — pure function, no DB calls.
 func (p *CryptoPayment) Validate(ctx context.Context) error {
 	if err := p.Document.Validate(ctx); err != nil {
@@ -136,6 +167,12 @@ func (p *CryptoPayment) Validate(ctx context.Context) error {
 	if !p.Amount.IsPositive() {
 		return apperror.NewValidation("amount must be positive").
 			WithDetail("field", "amount")
+	}
+
+	if p.CommissionBP < 0 || p.CommissionBP > 10000 {
+		return apperror.NewValidation("commission must be between 0 and 10000 basis points").
+			WithDetail("field", "commissionBp").
+			WithDetail("value", p.CommissionBP)
 	}
 
 	return nil
@@ -183,12 +220,54 @@ func (p *CryptoPayment) GenerateCryptoBalanceMovements(ctx context.Context) ([]e
 	return []entity.CryptoBalanceMovement{movement}, nil
 }
 
-// GenerateCryptoFeeMovements creates a RECEIPT movement for processing fees.
+// GenerateCryptoFeeMovements creates a RECEIPT movement for the processing fee.
+// Fee = Amount * CommissionBP / 10000. If CommissionBP == 0, no fee is recorded.
 func (p *CryptoPayment) GenerateCryptoFeeMovements(ctx context.Context) ([]entity.CryptoFeeMovement, error) {
-	// TODO: Calculate fee based on merchant.CommissionRate
-	// For now, return empty — fees will be implemented in Phase 6 when we have
-	// the merchant commission rate lookup integrated
-	return nil, nil
+	feeAmount := p.FeeAmount()
+	if feeAmount.IsZero() {
+		return nil, nil
+	}
+
+	newVersion := p.PostedVersion + 1
+
+	fee := entity.NewCryptoFeeMovement(
+		p.ID,
+		p.GetDocumentType(),
+		newVersion,
+		p.Date,
+		entity.RecordTypeReceipt,
+		p.MerchantID,
+		p.TokenID,
+		entity.FeeTypeProcessing,
+		feeAmount,
+	)
+
+	return []entity.CryptoFeeMovement{fee}, nil
+}
+
+// GenerateCryptoMerchantBalanceMovements creates a RECEIPT movement for the merchant.
+// Receipt = platform owes more to merchant (payment received, net of fees).
+// Net amount = Amount - FeeAmount().
+func (p *CryptoPayment) GenerateCryptoMerchantBalanceMovements(ctx context.Context) ([]entity.CryptoMerchantBalanceMovement, error) {
+	if p.Amount.IsZero() {
+		return nil, nil
+	}
+
+	newVersion := p.PostedVersion + 1
+	netAmount := p.NetAmount()
+
+	movement := entity.NewCryptoMerchantBalanceMovement(
+		p.ID,
+		p.GetDocumentType(),
+		newVersion,
+		p.Date,
+		entity.RecordTypeReceipt,
+		p.MerchantID,
+		p.TokenID,
+		netAmount,
+	)
+
+	return []entity.CryptoMerchantBalanceMovement{movement}, nil
 }
 
 // IsFullyConfirmed returns true if confirmations >= required.
@@ -200,3 +279,4 @@ func (p *CryptoPayment) IsFullyConfirmed() bool {
 var _ posting.Postable = (*CryptoPayment)(nil)
 var _ posting.CryptoBalanceMovementSource = (*CryptoPayment)(nil)
 var _ posting.CryptoFeeMovementSource = (*CryptoPayment)(nil)
+var _ posting.CryptoMerchantBalanceMovementSource = (*CryptoPayment)(nil)

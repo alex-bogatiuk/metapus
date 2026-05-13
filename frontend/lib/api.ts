@@ -1141,6 +1141,19 @@ export const api = {
             return portalFetch<{ items: import("@/types/portal-api").PortalChartPoint[] }>(`/dashboard/chart?${params.join("&")}`)
         },
 
+        funnel: (merchantId?: string) => {
+            const qs = merchantId ? `?merchant_id=${encodeURIComponent(merchantId)}` : ""
+            return portalFetch<import("@/types/portal-api").PortalFunnelResponse>(`/dashboard/funnel${qs}`)
+        },
+
+        balance: (merchantId?: string, source?: string) => {
+            const params: string[] = []
+            if (merchantId) params.push(`merchant_id=${encodeURIComponent(merchantId)}`)
+            if (source) params.push(`source=${encodeURIComponent(source)}`)
+            const qs = params.length > 0 ? `?${params.join("&")}` : ""
+            return portalFetch<import("@/types/portal-api").PortalBalanceResponse>(`/dashboard/balance${qs}`)
+        },
+
         invoices: (params?: { merchantId?: string; status?: string; limit?: number; offset?: number }) => {
             const entries: [string, string][] = []
             if (params?.merchantId) entries.push(["merchant_id", params.merchantId])
@@ -1149,6 +1162,49 @@ export const api = {
             if (params?.offset) entries.push(["offset", String(params.offset)])
             const qs = entries.length > 0 ? "?" + new URLSearchParams(entries).toString() : ""
             return portalFetch<import("@/types/portal-api").PortalInvoiceListResponse>(`/invoices${qs}`)
+        },
+
+        // ── API Keys (self-service) ──────────────────────────────────
+        apiKeys: {
+            list: (merchantId: string) =>
+                portalFetch<{ items: MerchantAPIKeyListItem[]; total: number }>(`/api-keys?merchant_id=${encodeURIComponent(merchantId)}`),
+            create: (merchantId: string, body: CreateMerchantAPIKeyRequest) =>
+                portalFetch<MerchantAPIKeyResponse>(`/api-keys?merchant_id=${encodeURIComponent(merchantId)}`, {
+                    method: "POST",
+                    body: JSON.stringify(body),
+                }),
+            revoke: (merchantId: string, keyId: string) =>
+                portalFetch<void>(`/api-keys/${keyId}?merchant_id=${encodeURIComponent(merchantId)}`, {
+                    method: "DELETE",
+                }),
+        },
+
+        // ── Payment Links ────────────────────────────────────────────
+        paymentLinks: {
+            list: (params?: { merchantId?: string; limit?: number; offset?: number }) => {
+                const entries: [string, string][] = []
+                if (params?.merchantId) entries.push(["merchant_id", params.merchantId])
+                if (params?.limit) entries.push(["limit", String(params.limit)])
+                if (params?.offset) entries.push(["offset", String(params.offset)])
+                const qs = entries.length > 0 ? "?" + new URLSearchParams(entries).toString() : ""
+                return portalFetch<import("@/types/portal-api").PortalPaymentLinkListResponse>(`/payment-links${qs}`)
+            },
+            create: (merchantId: string, body: import("@/types/portal-api").CreatePaymentLinkRequest) =>
+                portalFetch<import("@/types/portal-api").PortalPaymentLinkCreateResponse>(`/payment-links?merchant_id=${encodeURIComponent(merchantId)}`, {
+                    method: "POST",
+                    body: JSON.stringify(body),
+                }),
+        },
+
+        // ── Merchant Settings ────────────────────────────────────────
+        settings: {
+            get: (merchantId: string) =>
+                portalFetch<import("@/types/portal-api").PortalSettingsResponse>(`/settings?merchant_id=${encodeURIComponent(merchantId)}`),
+            update: (merchantId: string, body: import("@/types/portal-api").UpdatePortalSettingsRequest) =>
+                portalFetch<import("@/types/portal-api").PortalSettingsResponse>(`/settings?merchant_id=${encodeURIComponent(merchantId)}`, {
+                    method: "PATCH",
+                    body: JSON.stringify(body),
+                }),
         },
     },
 

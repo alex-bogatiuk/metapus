@@ -20,6 +20,7 @@ type CreateTokenRequest struct {
 	DecimalPlaces    int               `json:"decimalPlaces"`
 	Standard         string            `json:"tokenStandard" binding:"required"`
 	IsActive         bool              `json:"isActive"`
+	CurrencyID       *string           `json:"currencyId"`
 	SweepThreshold   string            `json:"sweepThreshold"`
 	SweepMaxAgeHours int               `json:"sweepMaxAgeHours"`
 	ParentID         *string           `json:"parentId"`
@@ -35,6 +36,7 @@ func (r *CreateTokenRequest) ToEntity() *token.Token {
 	t.IsActive = r.IsActive
 	t.SweepThreshold, _ = types.NewCryptoAmountFromString(r.SweepThreshold)
 	t.SweepMaxAgeHours = r.SweepMaxAgeHours
+	t.CurrencyID = stringPtrToIDPtr(r.CurrencyID)
 	t.ParentID = stringPtrToIDPtr(r.ParentID)
 	t.IsFolder = r.IsFolder
 	t.Attributes = r.Attributes
@@ -51,6 +53,7 @@ type UpdateTokenRequest struct {
 	DecimalPlaces    int               `json:"decimalPlaces"`
 	Standard         string            `json:"tokenStandard" binding:"required"`
 	IsActive         bool              `json:"isActive"`
+	CurrencyID       *string           `json:"currencyId"`
 	SweepThreshold   string            `json:"sweepThreshold"`
 	SweepMaxAgeHours int               `json:"sweepMaxAgeHours"`
 	ParentID         *string           `json:"parentId"`
@@ -72,6 +75,7 @@ func (r *UpdateTokenRequest) ApplyTo(t *token.Token) {
 	t.IsActive = r.IsActive
 	t.SweepThreshold, _ = types.NewCryptoAmountFromString(r.SweepThreshold)
 	t.SweepMaxAgeHours = r.SweepMaxAgeHours
+	t.CurrencyID = stringPtrToIDPtr(r.CurrencyID)
 	t.ParentID = stringPtrToIDPtr(r.ParentID)
 	t.IsFolder = r.IsFolder
 	t.Attributes = r.Attributes
@@ -91,6 +95,7 @@ type CryptoTokenResponse struct {
 	DecimalPlaces    int               `json:"decimalPlaces"`
 	Standard         string            `json:"tokenStandard"`
 	IsActive         bool              `json:"isActive"`
+	CurrencyID       *string           `json:"currencyId,omitempty"`
 	SweepThreshold   string            `json:"sweepThreshold"`
 	SweepMaxAgeHours int               `json:"sweepMaxAgeHours"`
 	ParentID         *string           `json:"parentId,omitempty"`
@@ -100,11 +105,12 @@ type CryptoTokenResponse struct {
 	Attributes       entity.Attributes `json:"attributes,omitempty"`
 
 	// Resolved references
-	Network *postgres.RefDisplay `json:"network,omitempty"`
+	Network  *postgres.RefDisplay `json:"network,omitempty"`
+	Currency *postgres.RefDisplay `json:"currency,omitempty"`
 }
 
 // FromToken creates response DTO from domain entity.
-// Accepts optional resolved refs for network name.
+// Accepts optional resolved refs for network and currency names.
 func FromToken(t *token.Token, refs ...postgres.ResolvedRefs) *CryptoTokenResponse {
 	resp := &CryptoTokenResponse{
 		ID:               t.ID.String(),
@@ -116,6 +122,7 @@ func FromToken(t *token.Token, refs ...postgres.ResolvedRefs) *CryptoTokenRespon
 		DecimalPlaces:    t.DecimalPlaces,
 		Standard:         string(t.Standard),
 		IsActive:         t.IsActive,
+		CurrencyID:       idToStringPtr(t.CurrencyID),
 		SweepThreshold:   t.SweepThreshold.String(),
 		SweepMaxAgeHours: t.SweepMaxAgeHours,
 		ParentID:         idToStringPtr(t.ParentID),
@@ -128,6 +135,11 @@ func FromToken(t *token.Token, refs ...postgres.ResolvedRefs) *CryptoTokenRespon
 	if len(refs) > 0 {
 		net := refs[0].Get(TableBlockchainNetworks, t.NetworkID)
 		resp.Network = &net
+
+		if t.CurrencyID != nil {
+			cur := refs[0].Get(TableCurrencies, *t.CurrencyID)
+			resp.Currency = &cur
+		}
 	}
 
 	return resp
@@ -136,4 +148,7 @@ func FromToken(t *token.Token, refs ...postgres.ResolvedRefs) *CryptoTokenRespon
 // CollectTokenRefs collects FK references for batch resolution.
 func CollectTokenRefs(resolver *postgres.ReferenceResolver, t *token.Token) {
 	resolver.Add(TableBlockchainNetworks, t.NetworkID)
+	if t.CurrencyID != nil {
+		resolver.Add(TableCurrencies, *t.CurrencyID)
+	}
 }

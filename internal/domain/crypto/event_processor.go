@@ -35,6 +35,12 @@ type InvoiceAccessor interface {
 	Update(ctx context.Context, entity *crypto_invoice.CryptoInvoice) error
 }
 
+// CommissionLookup resolves the merchant's commission rate at payment time.
+// Returns basis points (100 = 1%). If the lookup fails or merchant not found, returns 0.
+type CommissionLookup interface {
+	GetCommissionBP(ctx context.Context, merchantID id.ID) (int, error)
+}
+
 // EventProcessor orchestrates the lifecycle of blockchain events:
 // match wallet → find invoice → create/update payment → FSM transition → post.
 //
@@ -50,7 +56,8 @@ type EventProcessor struct {
 	numerator      numerator.Generator
 	dustThreshold  types.CryptoAmount
 	sweepResolver  *SweepConfigResolver
-	nowFunc        func() time.Time // clock source, default time.Now().UTC()
+	commissionLookup CommissionLookup // optional: if nil, commission = 0
+	nowFunc        func() time.Time   // clock source, default time.Now().UTC()
 }
 
 // Option configures EventProcessor. Use with NewEventProcessor.
@@ -64,14 +71,15 @@ func WithClock(fn func() time.Time) Option {
 
 // EventProcessorConfig holds dependencies for the event processor.
 type EventProcessorConfig struct {
-	FSM           *PaymentFSM
-	WalletSvc     *wallet.Service
-	InvoiceSvc    InvoiceAccessor
-	PaymentRepo   crypto_payment.Repository
-	PostingEngine *posting.Engine
-	TxManager     tx.Manager
-	Numerator     numerator.Generator
-	SweepResolver *SweepConfigResolver
+	FSM              *PaymentFSM
+	WalletSvc        *wallet.Service
+	InvoiceSvc       InvoiceAccessor
+	PaymentRepo      crypto_payment.Repository
+	PostingEngine    *posting.Engine
+	TxManager        tx.Manager
+	Numerator        numerator.Generator
+	SweepResolver    *SweepConfigResolver
+	CommissionLookup CommissionLookup // optional: nil → commission = 0
 	// DustThreshold is the minimum amount to accept. Zero = use default (1000 minor units).
 	DustThreshold types.CryptoAmount
 }
@@ -84,16 +92,17 @@ func NewEventProcessor(cfg EventProcessorConfig, opts ...Option) *EventProcessor
 	}
 
 	p := &EventProcessor{
-		fsm:            cfg.FSM,
-		walletSvc:      cfg.WalletSvc,
-		invoiceSvc:     cfg.InvoiceSvc,
-		paymentRepo:    cfg.PaymentRepo,
-		postingEngine:  cfg.PostingEngine,
-		txManager:      cfg.TxManager,
-		numerator:      cfg.Numerator,
-		dustThreshold:  threshold,
-		sweepResolver:  cfg.SweepResolver,
-		nowFunc:        func() time.Time { return time.Now().UTC() },
+		fsm:              cfg.FSM,
+		walletSvc:        cfg.WalletSvc,
+		invoiceSvc:       cfg.InvoiceSvc,
+		paymentRepo:      cfg.PaymentRepo,
+		postingEngine:    cfg.PostingEngine,
+		txManager:        cfg.TxManager,
+		numerator:        cfg.Numerator,
+		dustThreshold:    threshold,
+		sweepResolver:    cfg.SweepResolver,
+		commissionLookup: cfg.CommissionLookup,
+		nowFunc:          func() time.Time { return time.Now().UTC() },
 	}
 	for _, opt := range opts {
 		opt(p)
@@ -195,6 +204,20 @@ func (p *EventProcessor) processEventInTx(ctx context.Context, event BlockchainE
 	)
 	payment.Date = event.Timestamp
 	payment.Confirmations = event.Confirmations
+
+	// Snapshot merchant's commission rate onto the payment.
+	// Fail-soft: if lookup fails, commission = 0 (no fee charged).
+	if p.commissionLookup != nil {
+		bp, err := p.commissionLookup.GetCommissionBP(ctx, invoice.MerchantID)
+		if err != nil {
+			logger.Warn(ctx, "commission lookup failed, using 0",
+				"merchant_id", invoice.MerchantID,
+				"error", err,
+			)
+		} else {
+			payment.SetCommission(bp)
+		}
+	}
 
 	// Generate sequential number via the system numerator (e.g. CP-2026-00001).
 	// Falls back to UUID-based number only if numerator is unavailable.

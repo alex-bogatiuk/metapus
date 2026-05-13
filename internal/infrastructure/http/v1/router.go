@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"metapus/internal/core/entity"
+	appctx "metapus/internal/core/context"
 	"metapus/internal/core/eventlog"
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/security"
@@ -19,13 +20,18 @@ import (
 	"metapus/internal/domain"
 	"metapus/internal/domain/auth"
 	"metapus/internal/domain/catalogs/merchant"
+	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents"
 	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/printing"
 	"metapus/internal/domain/registers/cost"
+	"metapus/internal/domain/registers/exchange_rate"
 	"metapus/internal/domain/registers/settlement"
 	"metapus/internal/domain/registers/stock"
+	"metapus/internal/domain/registers/crypto_balance"
+	"metapus/internal/domain/registers/crypto_fee"
+	"metapus/internal/domain/registers/crypto_merchant_balance"
 	"metapus/internal/domain/reports/compiler"
 	"metapus/internal/domain/listview"
 	"metapus/internal/domain/reports/variants"
@@ -408,6 +414,22 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 		docLocker := postgres.NewDocLocker()
 		recorders := posting.DefaultRecorders(stockService, costService, settlementService)
 		postingEngine = posting.NewEngine(docLocker, recorders...)
+	}
+
+	// ── Crypto register visitors + recorders ───────────────────────────
+	// These extend the posting engine to handle CryptoPayment/CryptoWithdrawal.
+	{
+		cryptoBalSvc := crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())
+		cryptoFeeSvc := crypto_fee.NewService(register_repo.NewCryptoFeeRepo())
+		cryptoMerchantSvc := crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())
+
+		postingEngine.AddVisitor(&posting.CryptoBalanceVisitor{})
+		postingEngine.AddVisitor(&posting.CryptoFeeVisitor{})
+		postingEngine.AddVisitor(&posting.CryptoMerchantBalanceVisitor{})
+
+		postingEngine.AddRecorder(posting.NewCryptoBalanceRecorder(cryptoBalSvc))
+		postingEngine.AddRecorder(posting.NewCryptoFeeRecorder(cryptoFeeSvc))
+		postingEngine.AddRecorder(posting.NewCryptoMerchantBalanceRecorder(cryptoMerchantSvc))
 	}
 
 	// CurrencyResolver is guaranteed non-nil here — created in NewRouter before catalog/document registration.
@@ -869,7 +891,13 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 	// B2B portal for merchants. Isolated from ERP via MerchantPortal middleware.
 	// Security chain: TenantDB → Auth → RequireActiveTenant → MerchantPortal
 	if cfg.PortalDashboardRepo != nil {
-		portalHandler := handlers.NewPortalHandler(cfg.PortalDashboardRepo)
+		// Build BalanceCalculator for fiat valuation of crypto balances.
+		exRateRepo := register_repo.NewExchangeRateRepo()
+		exRateSvc := exchange_rate.NewService(exRateRepo)
+		balanceCalc := crypto.NewBalanceCalculator(exRateSvc)
+		rateSourceResolver := portal_repo.NewRateSourceResolver()
+
+		portalHandler := handlers.NewPortalHandler(cfg.PortalDashboardRepo, cfg.MerchantAPIKeyRepo, balanceCalc, rateSourceResolver)
 
 		portalV1 := router.Group("/portal/v1")
 		portalV1.Use(middleware.TenantDB(cfg.TenantManager))
@@ -884,9 +912,38 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 				dashboard.GET("/summary", portalHandler.GetSummary)
 				dashboard.GET("/currencies", portalHandler.GetCurrencies)
 				dashboard.GET("/chart", portalHandler.GetChart)
+				dashboard.GET("/funnel", portalHandler.GetFunnel)
+				dashboard.GET("/balance", portalHandler.GetBalance)
 			}
 
 			portalV1.GET("/invoices", portalHandler.ListInvoices)
+
+			// ── API Keys (self-service) ──────────────────────────────────
+			// Only registered when MerchantAPIKeyRepo is configured.
+			// Without this guard, nil apiKeyRepo causes runtime panic.
+			if cfg.MerchantAPIKeyRepo != nil {
+				keys := portalV1.Group("/api-keys")
+				{
+					keys.GET("", portalHandler.ListAPIKeys)
+					keys.POST("", middleware.RequirePortalRole(appctx.PortalRoleManager), portalHandler.CreateAPIKey)
+					keys.DELETE("/:keyId", middleware.RequirePortalRole(appctx.PortalRoleManager), portalHandler.RevokeAPIKey)
+				}
+			}
+
+			// ── Payment Links ────────────────────────────────────────────
+			links := portalV1.Group("/payment-links")
+			links.Use(middleware.RequirePortalRole(appctx.PortalRoleManager))
+			{
+				links.GET("", portalHandler.ListPaymentLinks)
+				links.POST("", portalHandler.CreatePaymentLink)
+			}
+
+			// ── Merchant Settings ────────────────────────────────────────
+			portalV1.GET("/settings", portalHandler.GetSettings)
+			portalV1.PATCH("/settings",
+				middleware.RequirePortalRole(appctx.PortalRoleManager),
+				portalHandler.UpdateSettings,
+			)
 		}
 	}
 }

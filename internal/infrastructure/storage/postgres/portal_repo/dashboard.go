@@ -27,6 +27,12 @@ func querier(ctx context.Context) postgres.Querier {
 	return postgres.MustGetTxManager(ctx).GetQuerier(ctx)
 }
 
+// ScopeIDs returns merchant IDs from context. If activeMerchantID is provided
+// and belongs to the scope, returns only that one ID; otherwise returns all.
+func (r *DashboardRepo) ScopeIDs(ctx context.Context, activeMerchantID *id.ID) []id.ID {
+	return scopeIDs(ctx, activeMerchantID)
+}
+
 // scopeIDs returns merchant IDs from context. If activeMerchantID is provided
 // and belongs to the scope, returns only that one ID; otherwise returns all.
 func scopeIDs(ctx context.Context, activeMerchantID *id.ID) []id.ID {

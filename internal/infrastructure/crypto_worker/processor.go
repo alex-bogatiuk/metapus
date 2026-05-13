@@ -27,12 +27,16 @@ import (
 	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/domain/documents/crypto_payment"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/crypto_balance"
+	"metapus/internal/domain/registers/crypto_fee"
+	"metapus/internal/domain/registers/crypto_merchant_balance"
 	"metapus/internal/infrastructure/blockchain/tron"
 	infraNumerator "metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/internal/infrastructure/storage/postgres/register_repo"
 	"metapus/pkg/logger"
 )
 
@@ -95,6 +99,21 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 	// DocLocker is not needed for worker-driven posting — we control the flow.
 	postingEngine := posting.NewEngine(nil) // nil locker: worker doesn't use optimistic lock
 
+	// Register crypto visitors + recorders so payments/withdrawals write to registers.
+	{
+		cryptoBalSvc := crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())
+		cryptoFeeSvc := crypto_fee.NewService(register_repo.NewCryptoFeeRepo())
+		cryptoMerchantSvc := crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())
+
+		postingEngine.AddVisitor(&posting.CryptoBalanceVisitor{})
+		postingEngine.AddVisitor(&posting.CryptoFeeVisitor{})
+		postingEngine.AddVisitor(&posting.CryptoMerchantBalanceVisitor{})
+
+		postingEngine.AddRecorder(posting.NewCryptoBalanceRecorder(cryptoBalSvc))
+		postingEngine.AddRecorder(posting.NewCryptoFeeRecorder(cryptoFeeSvc))
+		postingEngine.AddRecorder(posting.NewCryptoMerchantBalanceRecorder(cryptoMerchantSvc))
+	}
+
 	// Wallet service (for FindByAddress, MarkSweepPending)
 	// Numerator is nil-safe: worker doesn't create wallets.
 	walletSvc := wallet.NewService(walletRepo, numerator.Noop())
@@ -120,14 +139,15 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 
 	// Event Processor — TxManager is extracted from context at runtime.
 	ep := crypto.NewEventProcessor(crypto.EventProcessorConfig{
-		FSM:           fsm,
-		WalletSvc:     walletSvc,
-		InvoiceSvc:    invoiceSvc,
-		PaymentRepo:   paymentRepo,
-		PostingEngine: postingEngine,
-		TxManager:     contextTxManager{},
-		Numerator:     num,
-		SweepResolver: sweepResolver,
+		FSM:              fsm,
+		WalletSvc:        walletSvc,
+		InvoiceSvc:       invoiceSvc,
+		PaymentRepo:      paymentRepo,
+		PostingEngine:    postingEngine,
+		TxManager:        contextTxManager{},
+		Numerator:        num,
+		SweepResolver:    sweepResolver,
+		CommissionLookup: newMerchantCommissionAdapter(),
 	})
 
 	return &CryptoProcessor{

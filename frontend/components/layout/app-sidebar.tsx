@@ -158,6 +158,7 @@ const navSections: NavSection[] = [
         label: "Справочники",
         items: [
           { entityKey: "currency", fallback: "Валюты" },
+          { entityKey: "rate_source", fallback: "Источники курсов" },
         ],
       },
     ],

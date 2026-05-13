@@ -104,6 +104,10 @@ CREATE TABLE cat_tokens (
     token_standard   VARCHAR(20)  NOT NULL,              -- "native", "TRC-20", "ERC-20"
     is_active        BOOLEAN      NOT NULL DEFAULT TRUE,
 
+    -- Currency link: maps token to its currency for exchange rate lookups.
+    -- Multiple tokens can reference the same currency (e.g., USDT-TRC20 + USDT-ERC20 → USDT).
+    currency_id      UUID         REFERENCES cat_currencies(id),
+
     -- Sweep defaults (merchant can override via reg_merchant_token_config)
     sweep_threshold     BIGINT   NOT NULL DEFAULT 0,     -- min balance for sweep (minor units). 0 = sweep after every payment
     sweep_max_age_hours INT      NOT NULL DEFAULT 0,     -- max hours before forced sweep. 0 = disabled
@@ -121,6 +125,7 @@ CREATE UNIQUE INDEX idx_cat_tokens_symbol_network ON cat_tokens (symbol, network
 CREATE INDEX idx_cat_tokens_name    ON cat_tokens USING gin (name gin_trgm_ops);
 CREATE INDEX idx_cat_tokens_parent  ON cat_tokens (parent_id) WHERE deletion_mark = FALSE;
 CREATE INDEX idx_cat_tokens_network ON cat_tokens (network_id) WHERE deletion_mark = FALSE;
+CREATE INDEX idx_cat_tokens_currency ON cat_tokens (currency_id) WHERE deletion_mark = FALSE AND currency_id IS NOT NULL;
 CREATE INDEX idx_cat_tokens_attrs   ON cat_tokens USING gin (attributes);
 
 -- CDC indexes & triggers
