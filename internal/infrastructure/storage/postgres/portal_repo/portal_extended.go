@@ -289,34 +289,26 @@ func (r *DashboardRepo) UpdateMerchantSettings(ctx context.Context, merchantID i
 
 	q := querier(ctx)
 
-	// Build JSONB merge patch
-	patches := make([]string, 0, 2)
+	// Build JSONB merge patch: collect keys + positional args ($1 = merchantID).
+	keys := make([]string, 0, 2)
 	args := []any{merchantID}
-	argIdx := 2
 
 	if req.WebhookURL != nil {
-		patches = append(patches, fmt.Sprintf(`"webhookUrl": $%d`, argIdx))
+		keys = append(keys, "webhookUrl")
 		args = append(args, *req.WebhookURL)
-		argIdx++
 	}
 	if req.DefaultTTLMinutes != nil {
-		patches = append(patches, fmt.Sprintf(`"defaultTtlMinutes": $%d`, argIdx))
+		keys = append(keys, "defaultTtlMinutes")
 		args = append(args, strconv.Itoa(*req.DefaultTTLMinutes))
-		argIdx++
 	}
 
-	if len(patches) == 0 {
+	if len(keys) == 0 {
 		return nil // nothing to update
 	}
 
-	// Use jsonb_set for each field to preserve other attributes
+	// Use jsonb || to merge each field, preserving other attributes.
 	query := `UPDATE cat_merchants SET updated_at = NOW(), attributes = attributes`
-	for i, p := range patches {
-		key := "webhookUrl"
-		if i == 1 || (i == 0 && req.WebhookURL == nil) {
-			key = "defaultTtlMinutes"
-		}
-		_ = p // used for arg indexing
+	for i, key := range keys {
 		query += fmt.Sprintf(` || jsonb_build_object('%s', $%d)`, key, i+2)
 	}
 	query += ` WHERE id = $1 AND _deleted_at IS NULL`

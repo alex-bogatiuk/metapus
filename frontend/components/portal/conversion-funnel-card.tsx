@@ -22,8 +22,14 @@ export function ConversionFunnelCard({ merchantId }: ConversionFunnelCardProps) 
   const [data, setData] = useState<PortalFunnelResponse | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  // Reset loading when merchantId changes (render-time state adjustment)
+  const [prevMerchantId, setPrevMerchantId] = useState(merchantId)
+  if (merchantId !== prevMerchantId) {
+    setPrevMerchantId(merchantId)
     setLoading(true)
+  }
+
+  useEffect(() => {
     api.portal
       .funnel(merchantId)
       .then(setData)
