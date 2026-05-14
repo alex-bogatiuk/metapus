@@ -139,13 +139,17 @@ func (w *Worker) doFetch(ctx context.Context) (int, error) {
 // BuildMappingsFromDB loads currency mappings from the rate source mappings register.
 // Queries reg_rate_source_mappings JOIN cat_rate_sources JOIN cat_currencies
 // for the given sourceType (e.g. "coingecko").
-// Uses minor_multiplier from cat_currencies as the rate multiplier (authoritative source).
+//
+// Rate multiplier (кратность) is always 1 for crypto and most fiat currencies.
+// For low-value currencies (JPY, KRW) it should be set explicitly in reg_rate_source_mappings
+// or a dedicated field in the future. NOT derived from minor_multiplier,
+// which is a completely different concept (major→minor unit conversion factor).
 func BuildMappingsFromDB(ctx context.Context, sourceType string) ([]CurrencyMapping, error) {
 	txm := postgres.MustGetTxManager(ctx)
 	q := txm.GetQuerier(ctx)
 
 	const sql = `
-		SELECT m.external_id, c.id, c.minor_multiplier, rs.id
+		SELECT m.external_id, c.id, rs.id
 		FROM reg_rate_source_mappings m
 		JOIN cat_rate_sources rs ON rs.id = m.rate_source_id
 		JOIN cat_currencies c ON c.id = m.currency_id
@@ -164,25 +168,19 @@ func BuildMappingsFromDB(ctx context.Context, sourceType string) ([]CurrencyMapp
 	var mappings []CurrencyMapping
 	for rows.Next() {
 		var (
-			externalID      string
-			currencyID      id.ID
-			minorMultiplier int64
-			rateSourceID    id.ID
+			externalID   string
+			currencyID   id.ID
+			rateSourceID id.ID
 		)
-		if err := rows.Scan(&externalID, &currencyID, &minorMultiplier, &rateSourceID); err != nil {
+		if err := rows.Scan(&externalID, &currencyID, &rateSourceID); err != nil {
 			return nil, fmt.Errorf("scan rate source mapping: %w", err)
-		}
-
-		multiplier := 1
-		if minorMultiplier >= 100 {
-			multiplier = int(minorMultiplier)
 		}
 
 		mappings = append(mappings, CurrencyMapping{
 			CoinGeckoID:  externalID,
 			CurrencyID:   currencyID,
 			RateSourceID: rateSourceID,
-			Multiplier:   multiplier,
+			Multiplier:   1, // Rate quotation: "per 1 unit". Override when JPY-like currencies are added.
 		})
 	}
 

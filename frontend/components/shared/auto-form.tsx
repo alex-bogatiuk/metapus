@@ -136,7 +136,16 @@ function fieldToInput(
                 <Input
                     type="number"
                     value={String(v)}
-                    onChange={(e) => handleChange(e.target.value === "" ? 0 : Number(e.target.value))}
+                    onChange={(e) => {
+                        const raw = e.target.value
+                        // Preserve original type: if server sent a string (e.g. CryptoAmount),
+                        // keep it as string to match Go DTO contract.
+                        if (typeof value === "string") {
+                            handleChange(raw === "" ? "0" : raw)
+                        } else {
+                            handleChange(raw === "" ? 0 : Number(raw))
+                        }
+                    }}
                     disabled={disabled || field.readOnly}
                     step={field.type === "integer" ? 1 : "any"}
                     autoFocus={isFirstEditable}

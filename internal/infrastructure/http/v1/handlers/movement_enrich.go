@@ -20,6 +20,10 @@ var refKeyToEntityName = map[string]struct {
 	"counterparty": {EntityName: "Counterparty", URLPrefix: "/catalogs/counterparties"},
 	"contract":     {EntityName: "Contract", URLPrefix: "/catalogs/contracts"},
 	"organization": {EntityName: "Organization", URLPrefix: "/catalogs/organizations"},
+	// Crypto processing catalogs
+	"merchant": {EntityName: "Merchant", URLPrefix: "/catalogs/merchants"},
+	"token":    {EntityName: "Token", URLPrefix: "/catalogs/tokens"},
+	"wallet":   {EntityName: "Wallet", URLPrefix: "/catalogs/wallets"},
 }
 
 // enrichMovementRefs batch-resolves all ref-type fields in movement data

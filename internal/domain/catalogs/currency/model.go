@@ -71,9 +71,11 @@ func (c *Currency) Validate(ctx context.Context) error {
 			WithDetail("field", "symbol")
 	}
 
-	// Decimal places must be non-negative
-	if c.DecimalPlaces < 0 || c.DecimalPlaces > 8 {
-		return apperror.NewValidation("decimal places must be between 0 and 8").
+	// Decimal places must be non-negative.
+	// Max 9: supports Gwei precision (10^9 fits int32/int4).
+	// For higher precision crypto (18 decimals), use cat_tokens.decimal_places instead.
+	if c.DecimalPlaces < 0 || c.DecimalPlaces > 9 {
+		return apperror.NewValidation("decimal places must be between 0 and 9").
 			WithDetail("field", "decimalPlaces")
 	}
 

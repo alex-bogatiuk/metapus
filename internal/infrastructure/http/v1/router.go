@@ -417,20 +417,19 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 	}
 
 	// ── Crypto register visitors + recorders ───────────────────────────
-	// These extend the posting engine to handle CryptoPayment/CryptoWithdrawal.
-	{
-		cryptoBalSvc := crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())
-		cryptoFeeSvc := crypto_fee.NewService(register_repo.NewCryptoFeeRepo())
-		cryptoMerchantSvc := crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())
+	// These extend the posting engine to handle CryptoPayment/CryptoWithdrawal/CryptoSweep.
+	// Services are declared at function scope so they can also serve as MovementProviders.
+	cryptoBalSvc := crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())
+	cryptoFeeSvc := crypto_fee.NewService(register_repo.NewCryptoFeeRepo())
+	cryptoMerchantSvc := crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())
 
-		postingEngine.AddVisitor(&posting.CryptoBalanceVisitor{})
-		postingEngine.AddVisitor(&posting.CryptoFeeVisitor{})
-		postingEngine.AddVisitor(&posting.CryptoMerchantBalanceVisitor{})
+	postingEngine.AddVisitor(&posting.CryptoBalanceVisitor{})
+	postingEngine.AddVisitor(&posting.CryptoFeeVisitor{})
+	postingEngine.AddVisitor(&posting.CryptoMerchantBalanceVisitor{})
 
-		postingEngine.AddRecorder(posting.NewCryptoBalanceRecorder(cryptoBalSvc))
-		postingEngine.AddRecorder(posting.NewCryptoFeeRecorder(cryptoFeeSvc))
-		postingEngine.AddRecorder(posting.NewCryptoMerchantBalanceRecorder(cryptoMerchantSvc))
-	}
+	postingEngine.AddRecorder(posting.NewCryptoBalanceRecorder(cryptoBalSvc))
+	postingEngine.AddRecorder(posting.NewCryptoFeeRecorder(cryptoFeeSvc))
+	postingEngine.AddRecorder(posting.NewCryptoMerchantBalanceRecorder(cryptoMerchantSvc))
 
 	// CurrencyResolver is guaranteed non-nil here — created in NewRouter before catalog/document registration.
 	currencyResolver := cfg.CurrencyResolver
@@ -456,6 +455,9 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 			stockService,
 			costService,
 			settlementService,
+			cryptoBalSvc,
+			cryptoFeeSvc,
+			cryptoMerchantSvc,
 		},
 		MovementRefResolver: postgres.NewRefResolverRepo(reg),
 		SettingsRepo:        postgres.NewSettingsRepo(),
