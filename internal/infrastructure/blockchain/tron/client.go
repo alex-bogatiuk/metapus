@@ -98,9 +98,14 @@ type TransactionInfo struct {
 }
 
 // GetTRC20Events fetches TRC-20 Transfer events for a contract since a given timestamp.
-func (c *Client) GetTRC20Events(ctx context.Context, contractAddress string, sinceTimestamp int64, fingerprint string) (*TRC20EventResponse, error) {
+// maxTimestamp limits the upper bound of the query (time-boxing). If 0, no upper bound is set.
+func (c *Client) GetTRC20Events(ctx context.Context, contractAddress string, sinceTimestamp int64, maxTimestamp int64, fingerprint string) (*TRC20EventResponse, error) {
 	url := fmt.Sprintf("%s"+_trc20EventPath+"?event_name=Transfer&min_block_timestamp=%d&order_by=block_timestamp,asc&limit=200",
 		c.baseURL, contractAddress, sinceTimestamp)
+
+	if maxTimestamp > 0 {
+		url += fmt.Sprintf("&max_block_timestamp=%d", maxTimestamp)
+	}
 
 	if fingerprint != "" {
 		url += "&fingerprint=" + fingerprint
@@ -232,7 +237,12 @@ func (c *Client) doRequest(ctx context.Context, url string, target interface{}) 
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			lastErr = fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body[:min(len(body), 200)]))
+			httpErr := fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body[:min(len(body), 200)]))
+			// 4xx (except 429) are client errors — deterministic, not retryable.
+			if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+				return httpErr
+			}
+			lastErr = httpErr
 			continue
 		}
 
@@ -305,6 +315,13 @@ func base58Encode(input []byte) string {
 	}
 
 	return string(result)
+}
+
+// IsFingerprintError returns true if the error is a TronGrid fingerprint
+// mismatch — i.e. the pagination cursor became stale because the underlying
+// result set changed (new blocks arrived between pages).
+func IsFingerprintError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "fingerprint does not match")
 }
 
 // ParseSunAmount converts a TronGrid amount string (in sun/wei) to CryptoAmount.

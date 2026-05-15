@@ -137,8 +137,14 @@ func (w *Watcher) Start(ctx context.Context, addresses []string, events chan<- c
 
 			consecutiveErrors = 0
 
-			// Adaptive polling: speed up if events found, slow down if idle
-			if eventsFound > 0 {
+			// Adaptive polling: speed up if events found or in catch-up mode, slow down if idle
+			now := time.Now().UnixMilli()
+			catchUpThreshold := now - int64(time.Minute.Milliseconds())
+
+			if state.LastTimestamp < catchUpThreshold {
+				// Catch-up mode: turbo polling to catch up with the chain
+				pollInterval = 500 * time.Millisecond
+			} else if eventsFound > 0 {
 				pollInterval = w.cfg.PollInterval // reset to base
 			} else {
 				// Gradually slow down (but don't exceed max)
@@ -174,9 +180,25 @@ func (w *Watcher) poll(ctx context.Context, state *WatcherState, events chan<- c
 	eventsFound := 0
 	fingerprint := "" // ephemeral — used only for intra-poll pagination
 
+	now := time.Now().UnixMilli()
+	maxWindowMs := int64(time.Hour.Milliseconds())
+	maxTimestamp := state.LastTimestamp + maxWindowMs
+	if maxTimestamp > now {
+		maxTimestamp = now
+	}
+
 	for {
-		resp, err := w.client.GetTRC20Events(ctx, w.cfg.ContractAddress, state.LastTimestamp, fingerprint)
+		resp, err := w.client.GetTRC20Events(ctx, w.cfg.ContractAddress, state.LastTimestamp, maxTimestamp, fingerprint)
 		if err != nil {
+			if IsFingerprintError(err) {
+				logger.Warn(ctx, "TronGrid fingerprint expired during pagination, will restart from last checkpoint",
+					"last_timestamp", state.LastTimestamp,
+					"events_found_so_far", eventsFound,
+				)
+				// Returning nil error allows the watcher to save the current progress (updated state)
+				// and cleanly start a fresh poll without the stale fingerprint on the next tick.
+				return eventsFound, nil
+			}
 			return eventsFound, fmt.Errorf("fetch events: %w", err)
 		}
 
@@ -235,7 +257,13 @@ func (w *Watcher) poll(ctx context.Context, state *WatcherState, events chan<- c
 			continue
 		}
 
-		// No more pages — done
+		// No more pages — window complete.
+		// Advance LastTimestamp to the end of the window to ensure we move forward
+		// even if there were no events (or the last event was earlier in the window).
+		if state.LastTimestamp < maxTimestamp {
+			state.LastTimestamp = maxTimestamp
+		}
+
 		return eventsFound, nil
 	}
 }
