@@ -28,7 +28,12 @@ type CryptoPaymentResponse struct {
 	Status        string  `json:"status"`
 	StatusName    string  `json:"statusName"`
 	NetworkFee    string  `json:"networkFee"`
-	CommissionBP  int     `json:"commissionBp"`
+	FeeFixed      string  `json:"feeFixed"`
+	FeePercentBP  int     `json:"feePercentBp"`
+	FeeMin        string  `json:"feeMin"`
+	FeeMax        string  `json:"feeMax"`
+	FeeAmount     string  `json:"feeAmount"`   // calculated fee for display
+	NetAmount     string  `json:"netAmount"`   // amount minus fee for display
 	DetectedAt    string  `json:"detectedAt"`
 	ConfirmedAt   *string `json:"confirmedAt,omitempty"`
 	Posted        bool    `json:"posted"`
@@ -61,7 +66,12 @@ func FromCryptoPayment(p *crypto_payment.CryptoPayment, refs ...postgres.Resolve
 		Status:        string(p.Status),
 		StatusName:    string(p.Status),
 		NetworkFee:    p.NetworkFee.String(),
-		CommissionBP:  p.CommissionBP,
+		FeeFixed:      p.FeeFixed.String(),
+		FeePercentBP:  p.FeePercentBP,
+		FeeMin:        p.FeeMin.String(),
+		FeeMax:        p.FeeMax.String(),
+		FeeAmount:     p.FeeAmount().String(),
+		NetAmount:     p.NetAmount().String(),
 		DetectedAt:    p.DetectedAt.Format(time.RFC3339),
 		Posted:        p.Posted,
 		PostedVersion: p.PostedVersion,

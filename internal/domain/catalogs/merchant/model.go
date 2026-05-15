@@ -7,7 +7,6 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 )
@@ -100,19 +99,12 @@ type Merchant struct {
 	// WebhookURL is the endpoint for payment event callbacks.
 	WebhookURL string `db:"webhook_url" json:"webhookUrl" meta:"label:Webhook URL"`
 
-	// CommissionRate in basis points (100 = 1%). Range [0, 10000].
-	CommissionRate int `db:"commission_rate" json:"commissionRate" meta:"label:Комиссия (bp)"`
-
 	// IsActive enables/disables the merchant for processing.
 	IsActive bool `db:"is_active" json:"isActive" meta:"label:Активен"`
 
 	// KYBStatus is the current verification status.
 	KYBStatus KYBStatus `db:"kyb_status" json:"kybStatus" meta:"label:Статус KYB"`
 }
-
-const (
-	_maxCommissionRate = 10000 // 100% in basis points
-)
 
 // NewMerchant creates a new Merchant with required fields.
 func NewMerchant(code, name string) *Merchant {
@@ -125,14 +117,5 @@ func NewMerchant(code, name string) *Merchant {
 
 // Validate implements entity.Validatable.
 func (m *Merchant) Validate(ctx context.Context) error {
-	if err := m.Catalog.Validate(ctx); err != nil {
-		return err
-	}
-
-	if m.CommissionRate < 0 || m.CommissionRate > _maxCommissionRate {
-		return apperror.NewValidation("commission rate must be between 0 and 10000 basis points").
-			WithDetail("field", "commissionRate")
-	}
-
-	return nil
+	return m.Catalog.Validate(ctx)
 }

@@ -7,12 +7,14 @@ import (
 	"time"
 
 	"metapus/internal/core/id"
+	"metapus/internal/core/tenant"
 	"metapus/internal/core/types"
 	"metapus/internal/domain"
 	"metapus/internal/domain/catalogs/token"
 	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/domain/documents/crypto_payment"
+	"metapus/internal/domain/posting"
 )
 
 // ── In-memory mocks ─────────────────────────────────────────────────────
@@ -20,8 +22,8 @@ import (
 // noopTxManager executes fn directly without a real DB transaction.
 type noopTxManager struct{}
 
-func (n *noopTxManager) RunInTransaction(_ context.Context, fn func(context.Context) error) error {
-	return fn(context.Background())
+func (n *noopTxManager) RunInTransaction(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
 }
 
 // memPaymentEventRepo stores FSM audit events in memory.
@@ -267,6 +269,7 @@ func setupTestFixture(t *testing.T, sweepThreshold int64) *testFixture {
 		PaymentRepo:   paymentRepo,
 		TxManager:     &noopTxManager{},
 		SweepResolver: sweepResolver,
+		PostingEngine: posting.NewEngine(nil), // provide dummy engine
 	})
 
 	return &testFixture{
@@ -320,6 +323,7 @@ func (f *testFixture) makeConfirmationEvent(txHash string, confs int) Blockchain
 // Transfer → Detected → Confirming → Confirmed → Invoice Confirmed → Wallet Released
 func TestPaymentCycle_FullFlow(t *testing.T) {
 	ctx := context.Background()
+	ctx = tenant.WithTxManager(ctx, &noopTxManager{})
 	f := setupTestFixture(t, 10_000_000) // threshold > payment → wallet released (not swept)
 
 	// ── Step 1: Transfer detected (0 confirmations) ────────────────────
@@ -430,6 +434,7 @@ func TestPaymentCycle_FullFlow(t *testing.T) {
 // threshold=0 → MarkSweepPending after confirmation (not Release).
 func TestPaymentCycle_ZeroThreshold_ImmediateSweep(t *testing.T) {
 	ctx := context.Background()
+	ctx = tenant.WithTxManager(ctx, &noopTxManager{})
 	f := setupTestFixture(t, 0) // zero threshold → immediate sweep
 
 	// Transfer with enough confirmations to go Detected → Confirming → Confirmed in one event
@@ -457,6 +462,7 @@ func TestPaymentCycle_ZeroThreshold_ImmediateSweep(t *testing.T) {
 // TestPaymentCycle_DustRejection verifies that sub-threshold amounts are ignored.
 func TestPaymentCycle_DustRejection(t *testing.T) {
 	ctx := context.Background()
+	ctx = tenant.WithTxManager(ctx, &noopTxManager{})
 	f := setupTestFixture(t, 10_000_000)
 
 	// Send dust amount (999 < default dust threshold 1000)
@@ -475,6 +481,7 @@ func TestPaymentCycle_DustRejection(t *testing.T) {
 // TestPaymentCycle_Idempotency verifies that processing the same tx twice doesn't duplicate.
 func TestPaymentCycle_Idempotency(t *testing.T) {
 	ctx := context.Background()
+	ctx = tenant.WithTxManager(ctx, &noopTxManager{})
 	f := setupTestFixture(t, 10_000_000)
 
 	event := f.makeTransferEvent(5_000_000)
@@ -504,6 +511,7 @@ func TestPaymentCycle_Idempotency(t *testing.T) {
 // TestPaymentCycle_ExpiredInvoice verifies that payments to expired invoices are rejected.
 func TestPaymentCycle_ExpiredInvoice(t *testing.T) {
 	ctx := context.Background()
+	ctx = tenant.WithTxManager(ctx, &noopTxManager{})
 	f := setupTestFixture(t, 10_000_000)
 
 	// Expire the invoice
@@ -533,6 +541,7 @@ func TestPaymentCycle_ExpiredInvoice(t *testing.T) {
 // TestPaymentCycle_UnknownWallet verifies events for unknown addresses are silently skipped.
 func TestPaymentCycle_UnknownWallet(t *testing.T) {
 	ctx := context.Background()
+	ctx = tenant.WithTxManager(ctx, &noopTxManager{})
 	f := setupTestFixture(t, 10_000_000)
 
 	event := f.makeTransferEvent(5_000_000)

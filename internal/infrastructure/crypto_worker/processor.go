@@ -147,7 +147,7 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 		TxManager:        contextTxManager{},
 		Numerator:        num,
 		SweepResolver:    sweepResolver,
-		CommissionLookup: newMerchantCommissionAdapter(),
+		FeeResolver:      crypto.NewFeeConfigResolver(crypto_repo.NewFeeScheduleRepo()),
 	})
 
 	return &CryptoProcessor{

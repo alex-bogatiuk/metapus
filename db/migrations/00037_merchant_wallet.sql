@@ -26,7 +26,6 @@ CREATE TABLE IF NOT EXISTS cat_merchants (
     -- Merchant-specific fields
     legal_name      TEXT NOT NULL DEFAULT '',
     webhook_url     TEXT NOT NULL DEFAULT '',
-    commission_rate INT NOT NULL DEFAULT 0 CHECK (commission_rate >= 0 AND commission_rate <= 10000),
     is_active       BOOLEAN NOT NULL DEFAULT TRUE,
     kyb_status      TEXT NOT NULL DEFAULT 'pending' CHECK (kyb_status IN ('pending','approved','rejected')),
 

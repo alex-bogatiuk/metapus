@@ -13,7 +13,6 @@ type CreateMerchantRequest struct {
 	Name           string            `json:"name" binding:"required"`
 	LegalName      string            `json:"legalName"`
 	WebhookURL     string            `json:"webhookUrl"`
-	CommissionRate int               `json:"commissionRate"`
 	IsActive       bool              `json:"isActive"`
 	ParentID       *string           `json:"parentId"`
 	IsFolder       bool              `json:"isFolder"`
@@ -25,7 +24,6 @@ func (r *CreateMerchantRequest) ToEntity() *merchant.Merchant {
 	m := merchant.NewMerchant(r.Code, r.Name)
 	m.LegalName = r.LegalName
 	m.WebhookURL = r.WebhookURL
-	m.CommissionRate = r.CommissionRate
 	m.IsActive = r.IsActive
 	m.ParentID = stringPtrToIDPtr(r.ParentID)
 	m.IsFolder = r.IsFolder
@@ -39,7 +37,6 @@ type UpdateMerchantRequest struct {
 	Name           string            `json:"name" binding:"required"`
 	LegalName      string            `json:"legalName"`
 	WebhookURL     string            `json:"webhookUrl"`
-	CommissionRate int               `json:"commissionRate"`
 	IsActive       bool              `json:"isActive"`
 	KYBStatus      string            `json:"kybStatus"`
 	ParentID       *string           `json:"parentId"`
@@ -54,7 +51,6 @@ func (r *UpdateMerchantRequest) ApplyTo(m *merchant.Merchant) {
 	m.Name = r.Name
 	m.LegalName = r.LegalName
 	m.WebhookURL = r.WebhookURL
-	m.CommissionRate = r.CommissionRate
 	m.IsActive = r.IsActive
 	m.KYBStatus = merchant.KYBStatus(r.KYBStatus)
 	m.ParentID = stringPtrToIDPtr(r.ParentID)
@@ -72,7 +68,6 @@ type MerchantResponse struct {
 	Name           string            `json:"name"`
 	LegalName      string            `json:"legalName"`
 	WebhookURL     string            `json:"webhookUrl,omitempty"`
-	CommissionRate int               `json:"commissionRate"`
 	IsActive       bool              `json:"isActive"`
 	KYBStatus      string            `json:"kybStatus"`
 	KYBStatusName  string            `json:"kybStatusName"`
@@ -91,7 +86,6 @@ func FromMerchant(m *merchant.Merchant) *MerchantResponse {
 		Name:           m.Name,
 		LegalName:      m.LegalName,
 		WebhookURL:     m.WebhookURL,
-		CommissionRate: m.CommissionRate,
 		IsActive:       m.IsActive,
 		KYBStatus:      string(m.KYBStatus),
 		KYBStatusName:  string(m.KYBStatus),

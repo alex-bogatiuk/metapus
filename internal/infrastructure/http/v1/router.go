@@ -44,6 +44,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 	"metapus/internal/infrastructure/storage/postgres/auth_repo"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/migration"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
 	"metapus/internal/infrastructure/storage/postgres/security_repo"
@@ -713,6 +714,16 @@ func registerSystemRoutes(rg *gin.RouterGroup, eventLogReader eventlog.Reader, s
 	automationMetaHandler := handlers.NewAutomationMetaHandler(handlers.NewBaseHandler(), reportCompiler)
 	automationMetaHandler.RegisterRoutes(sysGroup)
 
+	// Fee Schedule — global defaults (system admin)
+	feeScheduleRepo := crypto_repo.NewFeeScheduleRepo()
+	feeScheduleHandler := handlers.NewFeeScheduleHandler(feeScheduleRepo)
+	feeGroup := sysGroup.Group("/fee-schedule")
+	{
+		feeGroup.GET("", feeScheduleHandler.ListGlobal)
+		feeGroup.PUT("", feeScheduleHandler.UpsertGlobal)
+		feeGroup.DELETE("", feeScheduleHandler.DeleteGlobal)
+	}
+
 	// Worker Job observability (/system/worker-jobs)
 	workerJobRepo := postgres.NewWorkerJobReadRepo()
 	workerJobHandler := handlers.NewWorkerJobHandler(workerJobRepo)
@@ -887,6 +898,22 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 				userHandler.UpdateRole,
 			)
 		}
+
+		// ─── Fee Schedule (per-merchant overrides) ───────────────────────────────────
+		feeScheduleRepo := crypto_repo.NewFeeScheduleRepo()
+		feeHandler := handlers.NewFeeScheduleHandler(feeScheduleRepo)
+		merchantScoped.GET("/fee-schedule",
+			middleware.RequirePermission("merchant_fee_schedule:read"),
+			feeHandler.ListByMerchant,
+		)
+		merchantScoped.PUT("/fee-schedule",
+			middleware.RequirePermission("merchant_fee_schedule:write"),
+			feeHandler.UpsertMerchant,
+		)
+		merchantScoped.DELETE("/fee-schedule",
+			middleware.RequirePermission("merchant_fee_schedule:write"),
+			feeHandler.DeleteMerchant,
+		)
 	}
 
 	// ─── Portal Routes (/portal/v1/) ────────────────────────────────────────

@@ -1208,4 +1208,44 @@ export const api = {
         },
     },
 
+    // ─── Fee Schedule (global defaults — system admin) ─────────────────────
+    // Routes: /api/v1/system/fee-schedule
+    feeSchedule: {
+        list: (): Promise<import("@/types/fee-schedule").FeeScheduleListResponse> =>
+            apiFetch<import("@/types/fee-schedule").FeeScheduleListResponse>("/system/fee-schedule"),
+
+        upsert: (body: import("@/types/fee-schedule").FeeScheduleUpsertRequest): Promise<void> =>
+            apiFetch<void>("/system/fee-schedule", {
+                method: "PUT",
+                body: JSON.stringify(body),
+            }),
+
+        delete: (body: import("@/types/fee-schedule").FeeScheduleDeleteRequest): Promise<void> =>
+            apiFetch<void>("/system/fee-schedule", {
+                method: "DELETE",
+                body: JSON.stringify(body),
+            }),
+    },
+
+    // ─── Fee Schedule (merchant overrides) ────────────────────────────────
+    // Routes: /api/v1/merchant-admin/merchants/:merchantId/fee-schedule
+    merchantFeeSchedule: {
+        list: (merchantId: string): Promise<import("@/types/fee-schedule").FeeScheduleListResponse> =>
+            apiFetch<import("@/types/fee-schedule").FeeScheduleListResponse>(
+                `/merchant-admin/merchants/${merchantId}/fee-schedule`
+            ),
+
+        upsert: (merchantId: string, body: import("@/types/fee-schedule").FeeScheduleUpsertRequest): Promise<void> =>
+            apiFetch<void>(`/merchant-admin/merchants/${merchantId}/fee-schedule`, {
+                method: "PUT",
+                body: JSON.stringify(body),
+            }),
+
+        delete: (merchantId: string, body: import("@/types/fee-schedule").FeeScheduleDeleteRequest): Promise<void> =>
+            apiFetch<void>(`/merchant-admin/merchants/${merchantId}/fee-schedule`, {
+                method: "DELETE",
+                body: JSON.stringify(body),
+            }),
+    },
+
 } as const

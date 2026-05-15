@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { ChevronRight, User } from "lucide-react"
+import { ChevronRight, User, Coins } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useSettingsStore } from "@/stores/useSettingsStore"
@@ -11,10 +11,12 @@ import { settingsSections } from "@/lib/settings-registry"
 import type { SettingSectionDef } from "@/lib/settings-registry"
 import { SettingsSectionRenderer } from "@/components/settings/settings-section-renderer"
 import { PreferencesContent } from "@/components/settings/preferences-content"
+import { FeeScheduleTable } from "@/components/catalogs/fee-schedule-table"
 
-// Special pseudo-section for user profile (not stored in sys_settings)
+// Special pseudo-sections (not stored in sys_settings JSONB)
 const PROFILE_ID = "__profile__" as const
-type ActiveSection = SettingsSection | typeof PROFILE_ID
+const FEE_SCHEDULE_ID = "__fee_schedule__" as const
+type ActiveSection = SettingsSection | typeof PROFILE_ID | typeof FEE_SCHEDULE_ID
 
 const generalSections = settingsSections.filter((s) => s.category === "general")
 const moduleSections = settingsSections.filter((s) => s.category === "module")
@@ -75,6 +77,42 @@ export default function SettingsPage() {
           </div>
         )}
 
+        {/* Crypto processing section */}
+        <div className="mt-4 border-t pt-4 px-2">
+          <div className="px-3 mb-2">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+              Криптопроцессинг
+            </span>
+          </div>
+          <nav className="flex flex-col gap-0.5">
+            <button
+              onClick={() => setActiveSection(FEE_SCHEDULE_ID)}
+              className={cn(
+                "flex items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors w-full",
+                activeSection === FEE_SCHEDULE_ID
+                  ? "bg-background text-foreground shadow-sm border border-border"
+                  : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+              )}
+            >
+              <Coins
+                className={cn(
+                  "h-4 w-4 shrink-0",
+                  activeSection === FEE_SCHEDULE_ID ? "text-primary" : "text-muted-foreground"
+                )}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium">Тарифы комиссий</div>
+                <div className="truncate text-[11px] text-muted-foreground">
+                  Глобальные ставки по умолчанию
+                </div>
+              </div>
+              {activeSection === FEE_SCHEDULE_ID && (
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              )}
+            </button>
+          </nav>
+        </div>
+
         {/* Profile section */}
         <div className="mt-4 border-t pt-4 px-2 pb-4">
           <div className="px-3 mb-2">
@@ -127,6 +165,9 @@ export default function SettingsPage() {
               <option key={s.id} value={s.id}>{s.title}</option>
             ))}
           </optgroup>
+          <optgroup label="Криптопроцессинг">
+            <option value={FEE_SCHEDULE_ID}>Тарифы комиссий</option>
+          </optgroup>
           <optgroup label="Персональные">
             <option value={PROFILE_ID}>Профиль</option>
           </optgroup>
@@ -136,7 +177,18 @@ export default function SettingsPage() {
       {/* Right content area */}
       <ScrollArea className="flex-1">
         <div className="mx-auto max-w-4xl px-6 py-6">
-          {activeSection === PROFILE_ID ? (
+          {activeSection === FEE_SCHEDULE_ID ? (
+            <>
+              <div className="mb-6">
+                <h2 className="text-lg font-semibold text-foreground">Тарифы комиссий</h2>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  Глобальные ставки по умолчанию. Применяются ко всем мерчантам,
+                  если у мерчанта нет индивидуальных настроек.
+                </p>
+              </div>
+              <FeeScheduleTable merchantId={null} />
+            </>
+          ) : activeSection === PROFILE_ID ? (
             <>
               <div className="mb-6">
                 <h2 className="text-lg font-semibold text-foreground">Профиль</h2>

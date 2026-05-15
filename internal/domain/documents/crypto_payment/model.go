@@ -65,10 +65,12 @@ type CryptoPayment struct {
 	// NetworkFee is the blockchain fee for this transaction (informational)
 	NetworkFee types.CryptoAmount `db:"network_fee" json:"networkFee" meta:"label:Комиссия сети"`
 
-	// CommissionBP is the platform commission rate in basis points,
-	// snapshotted from merchant config at payment creation time.
-	// 100 bp = 1%. Range [0, 10000].
-	CommissionBP int `db:"commission_bp" json:"commissionBp" meta:"label:Комиссия (bp)"`
+	// Fee snapshot — snapshotted from reg_fee_schedule at payment creation time.
+	// Formula: clamp(FeeFixed + Amount × FeePercentBP / 10000, FeeMin, FeeMax)
+	FeeFixed     types.CryptoAmount `db:"fee_fixed" json:"feeFixed" meta:"label:Комиссия фикс"`
+	FeePercentBP int                `db:"fee_percent_bp" json:"feePercentBp" meta:"label:Комиссия %"`
+	FeeMin       types.CryptoAmount `db:"fee_min" json:"feeMin" meta:"label:Мин. комиссия"`
+	FeeMax       types.CryptoAmount `db:"fee_max" json:"feeMax" meta:"label:Макс. комиссия"`
 
 	// DetectedAt is when the transaction was first seen
 	DetectedAt time.Time `db:"detected_at" json:"detectedAt" meta:"label:Обнаружен"`
@@ -107,20 +109,36 @@ func NewCryptoPayment(
 	}
 }
 
-// SetCommission snapshots the merchant's commission rate (in basis points)
-// onto this payment. Should be called at creation time.
-func (p *CryptoPayment) SetCommission(basisPoints int) {
-	p.CommissionBP = basisPoints
+// SetFeeConfig snapshots the resolved fee configuration onto this payment.
+// Accepts raw values to avoid import cycle with crypto package.
+// Should be called at creation time with the result of FeeConfigResolver.Resolve().
+func (p *CryptoPayment) SetFeeConfig(fixedFee types.CryptoAmount, percentBP int, minFee, maxFee types.CryptoAmount) {
+	p.FeeFixed = fixedFee
+	p.FeePercentBP = percentBP
+	p.FeeMin = minFee
+	p.FeeMax = maxFee
 }
 
-// FeeAmount calculates the platform fee: amount * commissionBP / 10000.
-// Uses integer arithmetic to avoid floating-point precision issues.
-// The fee is always rounded down (floor) to favor the merchant.
+// FeeAmount calculates the platform fee using the snapshotted fee config.
+// Formula: clamp(FeeFixed + Amount × FeePercentBP / 10000, FeeMin, FeeMax)
 func (p *CryptoPayment) FeeAmount() types.CryptoAmount {
-	if p.CommissionBP <= 0 {
-		return types.ZeroCryptoAmount()
+	// Percentage part: amount × percentBP / 10000
+	percentPart := p.Amount.MulDiv(int64(p.FeePercentBP), 10000)
+
+	// Total = fixed + percentage
+	total := p.FeeFixed.Add(percentPart)
+
+	// Clamp: apply min floor
+	if p.FeeMin.IsPositive() && total.Cmp(p.FeeMin) < 0 {
+		total = p.FeeMin
 	}
-	return p.Amount.MulDiv(int64(p.CommissionBP), 10000)
+
+	// Clamp: apply max cap
+	if p.FeeMax.IsPositive() && total.Cmp(p.FeeMax) > 0 {
+		total = p.FeeMax
+	}
+
+	return total
 }
 
 // NetAmount returns amount minus commission fee.
@@ -169,10 +187,10 @@ func (p *CryptoPayment) Validate(ctx context.Context) error {
 			WithDetail("field", "amount")
 	}
 
-	if p.CommissionBP < 0 || p.CommissionBP > 10000 {
-		return apperror.NewValidation("commission must be between 0 and 10000 basis points").
-			WithDetail("field", "commissionBp").
-			WithDetail("value", p.CommissionBP)
+	if p.FeePercentBP < 0 || p.FeePercentBP > 10000 {
+		return apperror.NewValidation("fee percent must be between 0 and 10000 basis points").
+			WithDetail("field", "feePercentBp").
+			WithDetail("value", p.FeePercentBP)
 	}
 
 	return nil
@@ -221,7 +239,7 @@ func (p *CryptoPayment) GenerateCryptoBalanceMovements(ctx context.Context) ([]e
 }
 
 // GenerateCryptoFeeMovements creates a RECEIPT movement for the processing fee.
-// Fee = Amount * CommissionBP / 10000. If CommissionBP == 0, no fee is recorded.
+// Fee = clamp(FeeFixed + Amount × FeePercentBP / 10000, FeeMin, FeeMax).
 func (p *CryptoPayment) GenerateCryptoFeeMovements(ctx context.Context) ([]entity.CryptoFeeMovement, error) {
 	feeAmount := p.FeeAmount()
 	if feeAmount.IsZero() {

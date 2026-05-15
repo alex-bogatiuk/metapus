@@ -35,12 +35,6 @@ type InvoiceAccessor interface {
 	Update(ctx context.Context, entity *crypto_invoice.CryptoInvoice) error
 }
 
-// CommissionLookup resolves the merchant's commission rate at payment time.
-// Returns basis points (100 = 1%). If the lookup fails or merchant not found, returns 0.
-type CommissionLookup interface {
-	GetCommissionBP(ctx context.Context, merchantID id.ID) (int, error)
-}
-
 // EventProcessor orchestrates the lifecycle of blockchain events:
 // match wallet → find invoice → create/update payment → FSM transition → post.
 //
@@ -56,8 +50,8 @@ type EventProcessor struct {
 	numerator      numerator.Generator
 	dustThreshold  types.CryptoAmount
 	sweepResolver  *SweepConfigResolver
-	commissionLookup CommissionLookup // optional: if nil, commission = 0
-	nowFunc        func() time.Time   // clock source, default time.Now().UTC()
+	feeResolver    *FeeConfigResolver   // optional: if nil, fee = 0
+	nowFunc        func() time.Time     // clock source, default time.Now().UTC()
 }
 
 // Option configures EventProcessor. Use with NewEventProcessor.
@@ -79,7 +73,7 @@ type EventProcessorConfig struct {
 	TxManager        tx.Manager
 	Numerator        numerator.Generator
 	SweepResolver    *SweepConfigResolver
-	CommissionLookup CommissionLookup // optional: nil → commission = 0
+	FeeResolver      *FeeConfigResolver // optional: nil → fee = 0
 	// DustThreshold is the minimum amount to accept. Zero = use default (1000 minor units).
 	DustThreshold types.CryptoAmount
 }
@@ -101,7 +95,7 @@ func NewEventProcessor(cfg EventProcessorConfig, opts ...Option) *EventProcessor
 		numerator:        cfg.Numerator,
 		dustThreshold:    threshold,
 		sweepResolver:    cfg.SweepResolver,
-		commissionLookup: cfg.CommissionLookup,
+		feeResolver:      cfg.FeeResolver,
 		nowFunc:          func() time.Time { return time.Now().UTC() },
 	}
 	for _, opt := range opts {
@@ -205,17 +199,18 @@ func (p *EventProcessor) processEventInTx(ctx context.Context, event BlockchainE
 	payment.Date = event.Timestamp
 	payment.Confirmations = event.Confirmations
 
-	// Snapshot merchant's commission rate onto the payment.
-	// Fail-soft: if lookup fails, commission = 0 (no fee charged).
-	if p.commissionLookup != nil {
-		bp, err := p.commissionLookup.GetCommissionBP(ctx, invoice.MerchantID)
+	// Snapshot fee config onto the payment.
+	// Fail-soft: if lookup fails, fee = 0 (no fee charged).
+	if p.feeResolver != nil {
+		fee, err := p.feeResolver.Resolve(ctx, invoice.MerchantID, invoice.TokenID, FeeDirectionProcessing)
 		if err != nil {
-			logger.Warn(ctx, "commission lookup failed, using 0",
+			logger.Warn(ctx, "fee schedule lookup failed, using zero fee",
 				"merchant_id", invoice.MerchantID,
+				"token_id", invoice.TokenID,
 				"error", err,
 			)
 		} else {
-			payment.SetCommission(bp)
+			payment.SetFeeConfig(fee.FixedFee, fee.PercentBP, fee.MinFee, fee.MaxFee)
 		}
 	}
 
@@ -311,23 +306,19 @@ func (p *EventProcessor) processConfirmations(
 
 	// Step 2: Confirming → Confirmed (reached required confirmations)
 	if payment.Status == crypto_payment.PaymentStatusConfirming && event.Confirmations >= payment.RequiredConfs {
-		// Pre-set posting fields so FSM Transition saves them in one UPDATE.
-		// Previously postPayment did a separate Update — eliminated double write.
-		payment.Posted = true
-		payment.PostedVersion++
-
-		if err := p.fsm.Transition(ctx, payment, crypto_payment.PaymentStatusConfirmed,
-			"confirmed", TransitionMetadata{
-				Confirmations: event.Confirmations,
-				RequiredConfs: payment.RequiredConfs,
-			}); err != nil {
-			return fmt.Errorf("transition to confirmed: %w", err)
+		// Use postingEngine to generate and record register movements.
+		// The engine internally sets payment.Posted = true and increments PostedVersion.
+		// We pass fsm.Transition as the update callback to eliminate double-writes:
+		// the FSM transition will persist the new Status and the updated Posted fields in one UPDATE.
+		if err := p.postingEngine.Post(ctx, payment, func(ctx context.Context) error {
+			return p.fsm.Transition(ctx, payment, crypto_payment.PaymentStatusConfirmed,
+				"confirmed", TransitionMetadata{
+					Confirmations: event.Confirmations,
+					RequiredConfs: payment.RequiredConfs,
+				})
+		}); err != nil {
+			return fmt.Errorf("post payment: %w", err)
 		}
-
-		logger.Info(ctx, "payment posted",
-			"payment_id", payment.ID,
-			"tx_hash", payment.TxHash,
-		)
 
 		// Confirm invoice — transitions paid → confirmed.
 		// Returns true if invoice was fully paid and confirmed.

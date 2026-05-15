@@ -73,8 +73,33 @@
 | REFERENCES обязателен | `counterparty_id UUID NOT NULL REFERENCES cat_counterparties(id)` | DDL-уровень гарантии |
 | Label — это UI, не БД | DB: `counterparty_id`, Go: `meta:"label:Поставщик"` | Роль определяется типом документа |
 
-> [!CAUTION]
-> Запрещены «бытовые» синонимы, не совпадающие с именем таблицы:
-> - ❌ `product_id` → `cat_nomenclatures` (справочник называется «Номенклатура», не «Продукты»)
-> - ❌ `supplier_id` → `cat_counterparties` (используйте `counterparty_id`)
 > - ❌ `customer_id` → `cat_counterparties` (используйте `counterparty_id`)
+
+## 6. Именование переменных и полей (Go Variables & Fields)
+
+**Принцип:** Имя переменной должно быть настолько коротким, насколько позволяет её область видимости (scope).
+
+| Сущность | Тип / Интерфейс | Поле структуры (DI) | Локальная переменная | Пример (Неправильно) |
+|----------|-----------------|---------------------|----------------------|----------------------|
+| **Сервис** | `Service` | `...Svc` | `svc` | `authService`, `srv` |
+| **Репозиторий** | `Repository` | `...Repo` | `repo` | `walletRepository` |
+| **Транзакции** | `tx.Manager` | `txManager` | `txm` | `transactionManager` |
+| **Конфигурация** | `Config` | `...Cfg` | `cfg` | `configuration`, `conf` |
+
+**Базовые примитивы (Универсальный стандарт):**
+- `context.Context` → **`ctx`**
+- `error` → **`err`**
+- `sync.Mutex` → **`mu`**
+- `sync.WaitGroup` → **`wg`**
+- `http.Request`, `http.ResponseWriter` → **`req`** (или `r`), **`w`**
+- `*gin.Context` → **`c`**
+
+**Методы-ресиверы (Receivers):**
+Никогда не используйте `this`, `self` или `me`. Используйте 1-2 буквы, производные от типа:
+```go
+// ПРАВИЛЬНО
+func (ep *EventProcessor) Process(...) 
+
+// НЕПРАВИЛЬНО
+func (this *EventProcessor) Process(...)
+```

@@ -1012,13 +1012,13 @@ func loadWarehouses(ctx context.Context, pool *postgres.Pool) ([]generatedWareho
 
 // cryptoRefs holds IDs from seeded crypto catalog data, used by seedCryptoDocuments.
 type cryptoRefs struct {
-	merchantIDs          []id.ID          // all active merchants
-	merchantBPs          map[string]int   // merchantID.String() → commission basis points
-	tokenID              id.ID
-	usdtCurrencyID       id.ID            // USDT currency for exchange rate seeding
+	merchantIDs           []id.ID         // all active merchants
+	merchantFeeBP         map[string]int  // merchantID.String() → snapshotted fee_percent_bp
+	tokenID               id.ID
+	usdtCurrencyID        id.ID           // USDT currency for exchange rate seeding
 	rateSourceCoinGeckoID id.ID           // CoinGecko rate source ID
-	walletIDs            []id.ID          // pool wallets (used for invoices)
-	hotWalletID          id.ID            // hot wallet (used for withdrawals)
+	walletIDs             []id.ID         // pool wallets (used for invoices)
+	hotWalletID           id.ID           // hot wallet (used for withdrawals)
 }
 
 // seedCryptoData creates the crypto processing reference data:
@@ -1090,11 +1090,11 @@ func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger
 
 	// ── Merchants: 3 total for chart diversity ──────────────────────────
 	type merchantSeed struct {
-		code           string
-		name           string
-		legalName      string
-		webhookURL     string
-		commissionRate int // basis points
+		code       string
+		name       string
+		legalName  string
+		webhookURL string
+		feeBP      int // processing fee in basis points (for fee schedule)
 	}
 
 	merchants := []merchantSeed{
@@ -1104,17 +1104,17 @@ func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger
 	}
 
 	merchantIDs := make([]id.ID, 0, len(merchants))
-	merchantBPs := make(map[string]int, len(merchants))
+	merchantFeeBP := make(map[string]int, len(merchants))
 	for _, m := range merchants {
 		mID := id.New()
 		ct, mErr := pool.Exec(ctx, `
 			INSERT INTO cat_merchants (
 				id, code, name, legal_name,
-				webhook_url, commission_rate, kyb_status, is_active,
+				webhook_url, kyb_status, is_active,
 				version, deletion_mark, attributes
-			) VALUES ($1, $2, $3, $4, $5, $6, 'approved', true, 1, false, '{}')
+			) VALUES ($1, $2, $3, $4, $5, 'approved', true, 1, false, '{}')
 			ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
-		`, mID, m.code, m.name, m.legalName, m.webhookURL, m.commissionRate)
+		`, mID, m.code, m.name, m.legalName, m.webhookURL)
 		if mErr != nil {
 			return nil, fmt.Errorf("seed merchant %s: %w", m.code, mErr)
 		}
@@ -1127,7 +1127,7 @@ func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger
 			}
 		}
 		merchantIDs = append(merchantIDs, mID)
-		merchantBPs[mID.String()] = m.commissionRate
+		merchantFeeBP[mID.String()] = m.feeBP
 	}
 
 	// ── Wallets: 1 Hot + 6 Pool ─────────────────────────────────────────
@@ -1212,15 +1212,44 @@ func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger
 		}
 	}
 
+	// ── Fee Schedule: global default + per-merchant overrides ───────────
+	// Global default: 1% processing fee (100 bp)
+	_, fErr := pool.Exec(ctx, `
+		INSERT INTO reg_fee_schedule (
+			merchant_id, token_id, direction,
+			fixed_fee, percent_bp, min_fee, max_fee
+		) VALUES (NULL, $1, 'processing', 0, 100, 0, 0)
+		ON CONFLICT (COALESCE(merchant_id, '00000000-0000-0000-0000-000000000000'::UUID), token_id, direction) DO NOTHING
+	`, tokenID)
+	if fErr != nil {
+		return nil, fmt.Errorf("seed global fee schedule: %w", fErr)
+	}
+
+	// Per-merchant overrides: each merchant has its own processing rate
+	for _, mID := range merchantIDs {
+		bp := merchantFeeBP[mID.String()]
+		_, fErr = pool.Exec(ctx, `
+			INSERT INTO reg_fee_schedule (
+				merchant_id, token_id, direction,
+				fixed_fee, percent_bp, min_fee, max_fee
+			) VALUES ($1, $2, 'processing', 0, $3, 0, 0)
+			ON CONFLICT (COALESCE(merchant_id, '00000000-0000-0000-0000-000000000000'::UUID), token_id, direction) DO NOTHING
+		`, mID, tokenID, bp)
+		if fErr != nil {
+			return nil, fmt.Errorf("seed merchant fee schedule: %w", fErr)
+		}
+	}
+
 	log.Infow("crypto data seeded",
 		"network", networkCode,
 		"token", tokenCode,
 		"merchants", len(merchantIDs),
 		"wallets", len(walletIDs)+1,
+		"feeSchedules", len(merchantIDs)+1,
 	)
 	return &cryptoRefs{
 		merchantIDs:           merchantIDs,
-		merchantBPs:           merchantBPs,
+		merchantFeeBP:         merchantFeeBP,
 		tokenID:               tokenID,
 		usdtCurrencyID:        usdtCurrencyID,
 		rateSourceCoinGeckoID: rateSourceCoinGeckoID,
@@ -1649,7 +1678,7 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 		requiredConfs int
 		status        string
 		networkFee    int64
-		commissionBP  int
+		feePercentBP  int   // compound fee: percent basis points (snapshot)
 		detectedAt    time.Time
 		confirmedAt   *time.Time
 	}
@@ -1688,8 +1717,8 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 			confs = 5 + rng.Intn(10)
 		}
 
-		// Snapshot merchant commission rate.
-		commBP := refs.merchantBPs[inv.merchantID.String()]
+		// Snapshot merchant fee schedule (percent-only for seed data).
+		feeBP := refs.merchantFeeBP[inv.merchantID.String()]
 
 		payments = append(payments, paymentSeed{
 			id:            pID,
@@ -1706,7 +1735,7 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 			requiredConfs: 19,
 			status:        status,
 			networkFee:    fee,
-			commissionBP:  commBP,
+			feePercentBP:  feeBP,
 			detectedAt:    detectedAt,
 			confirmedAt:   &confirmedAt,
 		})
@@ -1730,7 +1759,9 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 					invoice_id, merchant_id, token_id, wallet_id,
 					tx_hash, from_address, amount,
 					block_number, confirmations, required_confs,
-					status, network_fee, commission_bp, detected_at, confirmed_at,
+					status, network_fee,
+					fee_fixed, fee_percent_bp, fee_min, fee_max,
+					detected_at, confirmed_at,
 					deletion_mark, version, attributes,
 					created_at, updated_at
 				) VALUES (
@@ -1739,7 +1770,9 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 					$6, $8, $9, $10,
 					$11, $12, $13,
 					$14, $15, $16,
-					$17, $18, $19, $20, $21,
+					$17, $18,
+					0, $19, 0, 0,
+					$20, $21,
 					false, 1, '{}',
 					$3, $3
 				)
@@ -1753,7 +1786,9 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 				p.merchantID, refs.tokenID, p.walletID,
 				p.txHash, p.fromAddress, p.amount,
 				p.blockNumber, p.confirmations, p.requiredConfs,
-				p.status, p.networkFee, p.commissionBP, p.detectedAt, p.confirmedAt,
+				p.status, p.networkFee,
+				p.feePercentBP,
+				p.detectedAt, p.confirmedAt,
 			)
 		}
 
@@ -1919,8 +1954,8 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 			ON CONFLICT DO NOTHING
 		`, lineBase, p.id, p.date, p.walletID, refs.tokenID, p.amount)
 
-		// 2. reg_crypto_fee_movements — processing fee
-		feeAmount := p.amount * int64(p.commissionBP) / 10000
+		// 2. reg_crypto_fee_movements — processing fee (percent-only in seed)
+		feeAmount := p.amount * int64(p.feePercentBP) / 10000
 		if feeAmount > 0 {
 			movBatch.Queue(`
 				INSERT INTO reg_crypto_fee_movements (

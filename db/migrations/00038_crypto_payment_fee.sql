@@ -39,7 +39,12 @@ CREATE TABLE IF NOT EXISTS doc_crypto_payments (
     required_confs    INT NOT NULL DEFAULT 0,
     status            TEXT NOT NULL DEFAULT 'detected' CHECK (status IN ('detected','confirming','confirmed','settled','reorged')),
     network_fee       BIGINT NOT NULL DEFAULT 0,
-    commission_bp     INT NOT NULL DEFAULT 0 CHECK (commission_bp >= 0 AND commission_bp <= 10000),
+    -- Fee snapshot (from reg_fee_schedule at payment creation time)
+    -- Formula: clamp(fee_fixed + amount × fee_percent_bp / 10000, fee_min, fee_max)
+    fee_fixed         BIGINT NOT NULL DEFAULT 0,
+    fee_percent_bp    INT NOT NULL DEFAULT 0 CHECK (fee_percent_bp >= 0 AND fee_percent_bp <= 10000),
+    fee_min           BIGINT NOT NULL DEFAULT 0,
+    fee_max           BIGINT NOT NULL DEFAULT 0,
     detected_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     confirmed_at      TIMESTAMPTZ,
 
@@ -93,7 +98,7 @@ CREATE TABLE IF NOT EXISTS reg_crypto_fee_movements (
     -- Dimensions
     merchant_id       UUID NOT NULL,
     token_id          UUID NOT NULL,
-    fee_type          TEXT NOT NULL CHECK (fee_type IN ('processing','network','withdrawal','sweep')),
+    fee_type          TEXT NOT NULL CHECK (fee_type IN ('processing','network','withdrawal','sweep','payout','settlement','refund')),
 
     -- Resources
     amount            BIGINT NOT NULL,
@@ -146,6 +151,47 @@ CREATE TRIGGER trg_crypto_fee_balance
     FOR EACH ROW EXECUTE FUNCTION fn_crypto_fee_balance_update();
 
 -- ═══════════════════════════════════════════════════════════════════════
+-- FEE SCHEDULE (Регистр сведений «Тарифы комиссий»)
+-- NULL merchant_id = global default for all merchants
+-- ═══════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS reg_fee_schedule (
+    -- Dimensions
+    merchant_id  UUID REFERENCES cat_merchants(id),   -- NULL = global default
+    token_id     UUID NOT NULL REFERENCES cat_tokens(id),
+    direction    TEXT NOT NULL CHECK (direction IN ('processing', 'withdrawal', 'payout', 'settlement', 'refund')),
+
+    -- Fee formula: clamp(fixed_fee + amount × percent_bp / 10000, min_fee, max_fee)
+    fixed_fee    BIGINT NOT NULL DEFAULT 0,           -- fixed part (token minor units)
+    percent_bp   INT    NOT NULL DEFAULT 0,           -- basis points [0..10000]
+    min_fee      BIGINT NOT NULL DEFAULT 0,           -- minimum fee (0 = no floor)
+    max_fee      BIGINT NOT NULL DEFAULT 0,           -- maximum fee (0 = no cap)
+
+    -- Audit
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_fs_percent CHECK (percent_bp >= 0 AND percent_bp <= 10000),
+    CONSTRAINT chk_fs_fixed   CHECK (fixed_fee >= 0),
+    CONSTRAINT chk_fs_min     CHECK (min_fee >= 0),
+    CONSTRAINT chk_fs_max     CHECK (max_fee >= 0)
+);
+
+-- Composite unique: COALESCE maps NULL merchant_id → zero UUID for uniqueness
+CREATE UNIQUE INDEX IF NOT EXISTS idx_fee_schedule_pk
+    ON reg_fee_schedule (COALESCE(merchant_id, '00000000-0000-0000-0000-000000000000'::UUID), token_id, direction);
+
+COMMENT ON TABLE reg_fee_schedule IS
+    'Регистр сведений: тарифы комиссий. NULL merchant_id = глобальный дефолт.';
+
+-- Fast lookup: merchant-specific fee
+CREATE INDEX IF NOT EXISTS idx_fee_schedule_merchant ON reg_fee_schedule (merchant_id, token_id, direction)
+    WHERE merchant_id IS NOT NULL;
+
+-- Fast lookup: global defaults
+CREATE INDEX IF NOT EXISTS idx_fee_schedule_global ON reg_fee_schedule (token_id, direction)
+    WHERE merchant_id IS NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════
 -- PAYMENT EVENT LOG (FSM audit trail)
 -- ═══════════════════════════════════════════════════════════════════════
 
@@ -183,6 +229,7 @@ SELECT pg_advisory_unlock(hashtext('metapus_migrations'));
 -- +goose StatementEnd
 
 -- +goose Down
+DROP TABLE IF EXISTS reg_fee_schedule CASCADE;
 DROP TABLE IF EXISTS reg_crypto_payment_events CASCADE;
 DROP TABLE IF EXISTS reg_crypto_fee_balances CASCADE;
 DROP TABLE IF EXISTS reg_crypto_fee_movements CASCADE;

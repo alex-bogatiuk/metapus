@@ -17,6 +17,7 @@ import {
   Warehouse,
   ShoppingCart,
   PackageCheck,
+  Coins,
 } from "lucide-react"
 
 // ── Types ───────────────────────────────────────────────────────────────
