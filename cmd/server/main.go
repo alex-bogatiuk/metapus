@@ -124,7 +124,7 @@ func main() {
 	// --- JWT Service ---
 	jwtSecret := mustEnv("JWT_SECRET")
 	jwtConfig := auth.DefaultJWTConfig(jwtSecret)
-	jwtService := auth.NewJWTService(jwtConfig)
+	jwtSvc := auth.NewJWTService(jwtConfig)
 
 	// --- Auth Service ---
 	// Note: Auth repos will get TxManager from context per-request
@@ -138,19 +138,19 @@ func main() {
 	merchantUserRepo := catalog_repo.NewMerchantUserRepo()
 
 	authConfig := auth.DefaultServiceConfig()
-	authService := auth.NewService(
+	authSvc := auth.NewService(
 		userRepo,
 		roleRepo,
 		permRepo,
 		tokenRepo,
 		merchantUserRepo,
 		nil, // TxManager will come from context
-		jwtService,
+		jwtSvc,
 		authConfig,
 	)
 
 	// --- Numerator Service ---
-	numeratorService := numerator.New()
+	numeratorSvc := numerator.New()
 
 	// --- Security Profile Provider (cached) ---
 	profileRepo := security_repo.NewProfileRepo()
@@ -183,10 +183,10 @@ func main() {
 	merchantAPIKeyRepo := catalog_repo.NewMerchantAPIKeyRepo()
 	// merchantUserRepo is created above (needed by auth.Service for JWT portal claims).
 	merchantInvoiceRepo := document_repo.NewCryptoInvoiceRepo()
-	merchantInvoiceService := crypto_invoice.NewService(
+	merchantInvoiceSvc := crypto_invoice.NewService(
 		merchantInvoiceRepo,
 		nil, // posting engine — invoices are not posted at creation
-		numeratorService,
+		numeratorSvc,
 		nil, // TxManager from context
 	)
 
@@ -194,9 +194,9 @@ func main() {
 	// Without this, invoices created via /merchant/v1/ would have wallet_id = NULL.
 	merchantTokenRepo := catalog_repo.NewTokenRepo()
 	merchantWalletRepo := catalog_repo.NewWalletRepo()
-	merchantWalletSvc := wallet.NewService(merchantWalletRepo, numeratorService)
+	merchantWalletSvc := wallet.NewService(merchantWalletRepo, numeratorSvc)
 
-	merchantInvoiceService.Hooks().OnBeforeCreate(func(ctx context.Context, doc *crypto_invoice.CryptoInvoice) error {
+	merchantInvoiceSvc.Hooks().OnBeforeCreate(func(ctx context.Context, doc *crypto_invoice.CryptoInvoice) error {
 		tok, err := merchantTokenRepo.GetByID(ctx, doc.TokenID)
 		if err != nil {
 			return fmt.Errorf("resolve token for wallet lease: %w", err)
@@ -214,9 +214,9 @@ func main() {
 		TenantManager:          tenantManager,
 		MetaPool:               metaPool,
 		Logger:                 log,
-		JWTValidator:           jwtService,
-		AuthService:            authService,
-		Numerator:              numeratorService,
+		JWTValidator:           jwtSvc,
+		AuthSvc:                authSvc,
+		Numerator:              numeratorSvc,
 		IdempotencyEnabled:     getEnv("IDEMPOTENCY_ENABLED", "false") == "true",
 		ProfileProvider:        profileProvider,
 		PolicyEngine:           policyEngine,
@@ -227,7 +227,7 @@ func main() {
 		WSTicketStore:          wsTicketStore,
 		MerchantAPIKeyRepo:     merchantAPIKeyRepo,
 		MerchantUserRepo:       merchantUserRepo,
-		MerchantInvoiceService: merchantInvoiceService,
+		MerchantInvoiceSvc: merchantInvoiceSvc,
 		PortalDashboardRepo:   portal_repo.NewDashboardRepo(),
 	})
 

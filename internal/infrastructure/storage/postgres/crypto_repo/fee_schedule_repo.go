@@ -11,9 +11,6 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
-// _nilMerchantUUID is used in PK COALESCE for global defaults (merchant_id IS NULL).
-const _nilMerchantUUID = "00000000-0000-0000-0000-000000000000"
-
 // FeeScheduleRepo implements crypto.FeeScheduleRepository.
 type FeeScheduleRepo struct{}
 

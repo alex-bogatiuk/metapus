@@ -67,8 +67,8 @@ type RouterConfig struct {
 	// JWTValidator for token validation
 	JWTValidator middleware.JWTValidator
 
-	// AuthService for authentication endpoints
-	AuthService *auth.Service
+	// AuthSvc for authentication endpoints
+	AuthSvc *auth.Service
 
 	// Numerator for document number generation
 	Numerator numerator.Generator
@@ -123,9 +123,9 @@ type RouterConfig struct {
 	// If set, the merchant invoice routes are registered with API-key auth.
 	MerchantAPIKeyRepo merchant.APIKeyRepository
 
-	// MerchantInvoiceService is the crypto invoice service for the merchant public API.
+	// MerchantInvoiceSvc is the crypto invoice service for the merchant public API.
 	// Required when MerchantAPIKeyRepo is set.
-	MerchantInvoiceService domain.DocumentService[*crypto_invoice.CryptoInvoice]
+	MerchantInvoiceSvc domain.DocumentService[*crypto_invoice.CryptoInvoice]
 
 	// MerchantUserRepo manages user ↔ merchant access associations.
 	// Required for merchant user management endpoints.
@@ -257,12 +257,12 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 
 		// Global data search (Ctrl+K) — available to all authenticated users.
 		// Must be registered after entity routes so metadata.Registry is populated.
-		searchService := search.NewService(reg)
-		searchHandler := handlers.NewGlobalSearchHandler(searchService)
+		searchSvc := search.NewService(reg)
+		searchHandler := handlers.NewGlobalSearchHandler(searchSvc)
 		protected.GET("/search", searchHandler.Search)
 
 		// Entity preview (Command Palette → ArrowRight) — single entity preview card.
-		previewHandler := handlers.NewEntityPreviewHandler(searchService)
+		previewHandler := handlers.NewEntityPreviewHandler(searchSvc)
 		protected.GET("/search/preview", previewHandler.Preview)
 
 		// Stateless XLSX renderer for document table parts (no entity binding needed).
@@ -303,13 +303,13 @@ func idempotencyMiddleware(ttl time.Duration) gin.HandlerFunc {
 
 // registerAuthRoutes registers authentication endpoints.
 func registerAuthRoutes(rg *gin.RouterGroup, cfg RouterConfig, eventWriter eventlog.Writer) {
-	if cfg.AuthService == nil {
+	if cfg.AuthSvc == nil {
 		return
 	}
 
 	baseHandler := handlers.NewBaseHandler()
 	profileRepo := security_repo.NewProfileRepo()
-	authHandler := handlers.NewAuthHandler(baseHandler, cfg.AuthService, profileRepo, eventWriter, cfg.WSTicketStore)
+	authHandler := handlers.NewAuthHandler(baseHandler, cfg.AuthSvc, profileRepo, eventWriter, cfg.WSTicketStore)
 
 	// Public auth endpoints (no JWT required, but need tenant for DB access)
 	// Rate limit login/register/refresh to prevent brute-force and credential stuffing.
@@ -403,17 +403,17 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 	docsGroup := rg.Group("/document")
 
 	stockRepo := register_repo.NewStockRepo()
-	stockService := stock.NewService(stockRepo)
+	stockSvc := stock.NewService(stockRepo)
 	costRepo := register_repo.NewCostRepo()
-	costService := cost.NewService(costRepo)
+	costSvc := cost.NewService(costRepo)
 	settlementRepo := register_repo.NewSettlementRepo()
-	settlementService := settlement.NewService(settlementRepo)
+	settlementSvc := settlement.NewService(settlementRepo)
 
 	// Use injected PostingEngine or create default
 	postingEngine := cfg.PostingEngine
 	if postingEngine == nil {
 		docLocker := postgres.NewDocLocker()
-		recorders := posting.DefaultRecorders(stockService, costService, settlementService)
+		recorders := posting.DefaultRecorders(stockSvc, costSvc, settlementSvc)
 		postingEngine = posting.NewEngine(docLocker, recorders...)
 	}
 
@@ -453,9 +453,9 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 		PrintRenderer:    printRenderer,
 		RelatedDocFinder: postgres.NewRelatedDocRepo(reg),
 		MovementProviders: []entity.MovementProvider{
-			stockService,
-			costService,
-			settlementService,
+			stockSvc,
+			costSvc,
+			settlementSvc,
 			cryptoBalSvc,
 			cryptoFeeSvc,
 			cryptoMerchantSvc,
@@ -832,7 +832,7 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 		return
 	}
 
-	invoiceHandler := handlers.NewMerchantInvoiceHandler(cfg.MerchantInvoiceService, cfg.MerchantAPIKeyRepo)
+	invoiceHandler := handlers.NewMerchantInvoiceHandler(cfg.MerchantInvoiceSvc, cfg.MerchantAPIKeyRepo)
 	apiKeyHandler := handlers.NewMerchantAPIKeyHandler(cfg.MerchantAPIKeyRepo)
 
 	// /merchant/v1/ — public merchant API (API-key auth)

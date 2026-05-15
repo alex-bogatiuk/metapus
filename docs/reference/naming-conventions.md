@@ -73,6 +73,10 @@
 | REFERENCES обязателен | `counterparty_id UUID NOT NULL REFERENCES cat_counterparties(id)` | DDL-уровень гарантии |
 | Label — это UI, не БД | DB: `counterparty_id`, Go: `meta:"label:Поставщик"` | Роль определяется типом документа |
 
+> [!CAUTION]
+> Запрещены «бытовые» синонимы, не совпадающие с именем таблицы:
+> - ❌ `product_id` → `cat_nomenclatures` (справочник называется «Номенклатура», не «Продукты»)
+> - ❌ `supplier_id` → `cat_counterparties` (используйте `counterparty_id`)
 > - ❌ `customer_id` → `cat_counterparties` (используйте `counterparty_id`)
 
 ## 6. Именование переменных и полей (Go Variables & Fields)
