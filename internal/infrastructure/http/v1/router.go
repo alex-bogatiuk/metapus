@@ -253,7 +253,13 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		registerListViewRoutes(protected)
 		registerSettingsRoutes(protected)
 		registerSecurityRoutes(protected, cfg)
-		registerSystemRoutes(protected, eventLogRepo, cfg.SchemaCache, reg, cfg.WSTicketStore, reportCompiler)
+
+		// WebSocket group — TenantDB only, no JWT (ticket-based auth in handler).
+		// Must be separate from `protected` to avoid Auth middleware blocking the upgrade.
+		wsGroup := v1.Group("")
+		wsGroup.Use(middleware.TenantDB(cfg.TenantManager))
+
+		registerSystemRoutes(protected, wsGroup, eventLogRepo, cfg.SchemaCache, reg, cfg.WSTicketStore, reportCompiler)
 
 		// Global data search (Ctrl+K) — available to all authenticated users.
 		// Must be registered after entity routes so metadata.Registry is populated.
@@ -640,7 +646,8 @@ func registerSecurityRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 }
 
 // registerSystemRoutes registers system administration endpoints (event log, custom fields, processing).
-func registerSystemRoutes(rg *gin.RouterGroup, eventLogReader eventlog.Reader, schemaCache *cache.SchemaCache, reg *metadata.Registry, wsTicketStore *auth.WSTicketStore, reportCompiler *compiler.Compiler) {
+// wsGroup is a separate group with TenantDB but without Auth middleware — used for ticket-based WebSocket auth.
+func registerSystemRoutes(rg *gin.RouterGroup, wsGroup *gin.RouterGroup, eventLogReader eventlog.Reader, schemaCache *cache.SchemaCache, reg *metadata.Registry, wsTicketStore *auth.WSTicketStore, reportCompiler *compiler.Compiler) {
 	sysGroup := rg.Group("/system")
 	sysGroup.Use(middleware.RequireRole("admin"))
 
@@ -667,9 +674,11 @@ func registerSystemRoutes(rg *gin.RouterGroup, eventLogReader eventlog.Reader, s
 	// Notifications & Real-Time Hub
 	notificationRepo := postgres.NewNotificationRepo()
 	notifHandler := handlers.NewNotificationHandler(notificationRepo, wsTicketStore)
-	
-	// WebSockets — uses ticket-based auth, not JWT middleware
-	rg.GET("/ws", notifHandler.ServeWS)
+
+	// WebSockets — ticket-based auth, bypasses JWT middleware.
+	// Registered on wsGroup (TenantDB only, no Auth) so the handler's
+	// own ValidateTicket() is the sole authentication gate.
+	wsGroup.GET("/ws", notifHandler.ServeWS)
 
 	// REST API for notifications (under /api/v1/system/notifications)
 	notifUserGroup := rg.Group("/system/notifications")

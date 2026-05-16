@@ -62,9 +62,6 @@ type CryptoPayment struct {
 	// Status is the current FSM state
 	Status PaymentStatus `db:"status" json:"status" meta:"label:Статус"`
 
-	// NetworkFee is the blockchain fee for this transaction (informational)
-	NetworkFee types.CryptoAmount `db:"network_fee" json:"networkFee" meta:"label:Комиссия сети"`
-
 	// Fee snapshot — snapshotted from reg_fee_schedule at payment creation time.
 	// Formula: clamp(FeeFixed + Amount × FeePercentBP / 10000, FeeMin, FeeMax)
 	FeeFixed     types.CryptoAmount `db:"fee_fixed" json:"feeFixed" meta:"label:Комиссия фикс"`
@@ -104,7 +101,6 @@ func NewCryptoPayment(
 		Confirmations: 0,
 		RequiredConfs: requiredConfs,
 		Status:        PaymentStatusDetected,
-		NetworkFee:    types.ZeroCryptoAmount(),
 		DetectedAt:    time.Now().UTC(),
 	}
 }

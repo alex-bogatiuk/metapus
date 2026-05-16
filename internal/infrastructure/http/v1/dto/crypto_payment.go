@@ -27,7 +27,6 @@ type CryptoPaymentResponse struct {
 	RequiredConfs int     `json:"requiredConfs"`
 	Status        string  `json:"status"`
 	StatusName    string  `json:"statusName"`
-	NetworkFee    string  `json:"networkFee"`
 	FeeFixed      string  `json:"feeFixed"`
 	FeePercentBP  int     `json:"feePercentBp"`
 	FeeMin        string  `json:"feeMin"`
@@ -65,7 +64,6 @@ func FromCryptoPayment(p *crypto_payment.CryptoPayment, refs ...postgres.Resolve
 		RequiredConfs: p.RequiredConfs,
 		Status:        string(p.Status),
 		StatusName:    string(p.Status),
-		NetworkFee:    p.NetworkFee.String(),
 		FeeFixed:      p.FeeFixed.String(),
 		FeePercentBP:  p.FeePercentBP,
 		FeeMin:        p.FeeMin.String(),

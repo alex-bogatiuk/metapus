@@ -38,7 +38,6 @@ CREATE TABLE IF NOT EXISTS doc_crypto_payments (
     confirmations     INT NOT NULL DEFAULT 0,
     required_confs    INT NOT NULL DEFAULT 0,
     status            TEXT NOT NULL DEFAULT 'detected' CHECK (status IN ('detected','confirming','confirmed','settled','reorged')),
-    network_fee       BIGINT NOT NULL DEFAULT 0,
     -- Fee snapshot (from reg_fee_schedule at payment creation time)
     -- Formula: clamp(fee_fixed + amount × fee_percent_bp / 10000, fee_min, fee_max)
     fee_fixed         BIGINT NOT NULL DEFAULT 0,

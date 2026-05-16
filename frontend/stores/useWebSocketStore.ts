@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { useAuthStore } from "@/stores/useAuthStore"
+import { apiFetch } from "@/lib/api"
 
 export interface WebSocketMessage<T = unknown> {
     type: string
@@ -13,7 +14,7 @@ interface WebSocketState {
 }
 
 interface WebSocketActions {
-    connect: () => void
+    connect: () => Promise<void>
     disconnect: () => void
 }
 
@@ -22,7 +23,7 @@ let ws: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | undefined
 let reconnectAttempts = 0
 
-function buildWsUrl(token: string): string {
+function buildWsUrl(ticket: string): string {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api/v1"
     const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID || ""
     const isWss = window.location.protocol === "https:"
@@ -35,7 +36,7 @@ function buildWsUrl(token: string): string {
         wsUrl = `${protocol}//${window.location.host}${API_BASE.startsWith("/") ? API_BASE : `/${API_BASE}`}`
     }
 
-    let url = `${wsUrl}/ws?token=${encodeURIComponent(token)}`
+    let url = `${wsUrl}/ws?ticket=${encodeURIComponent(ticket)}`
     if (TENANT_ID) {
         url += `&tenant=${encodeURIComponent(TENANT_ID)}`
     }
@@ -47,7 +48,7 @@ export const useWebSocketStore = create<WebSocketState & WebSocketActions>()(
         isConnected: false,
         lastMessage: null,
 
-        connect: () => {
+        connect: async () => {
             // Guard: already connected or connecting
             if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
                 return
@@ -56,7 +57,24 @@ export const useWebSocketStore = create<WebSocketState & WebSocketActions>()(
             const token = useAuthStore.getState().tokens?.accessToken
             if (!token) return
 
-            const url = buildWsUrl(token)
+            let ticket = ""
+            try {
+                // Obtain short-lived ticket via POST /auth/ws-ticket
+                const res = await apiFetch<{ ticket: string }>("/auth/ws-ticket", { method: "POST" })
+                ticket = res.ticket
+            } catch (err) {
+                console.error("[WebSocket] Failed to obtain ticket:", err)
+                // Schedule reconnect
+                const timeout = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000)
+                reconnectAttempts += 1
+                clearTimeout(reconnectTimer)
+                reconnectTimer = setTimeout(() => get().connect(), timeout)
+                return
+            }
+
+            if (!ticket) return
+
+            const url = buildWsUrl(ticket)
             const socket = new WebSocket(url)
             ws = socket
 

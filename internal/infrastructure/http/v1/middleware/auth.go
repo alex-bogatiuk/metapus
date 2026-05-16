@@ -33,7 +33,7 @@ func Auth(validator JWTValidator) gin.HandlerFunc {
 		// WebSocket auth uses ticket-based flow via POST /auth/ws-ticket.
 
 		if tokenString == "" {
-			abortUnauthorized(c, "missing authorization header or token param")
+			abortUnauthorized(c, "missing authorization header")
 			return
 		}
 

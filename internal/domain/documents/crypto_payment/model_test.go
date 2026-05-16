@@ -52,9 +52,6 @@ func TestNewCryptoPayment(t *testing.T) {
 	if p.Confirmations != 0 {
 		t.Errorf("Confirmations = %d, want 0", p.Confirmations)
 	}
-	if !p.NetworkFee.IsZero() {
-		t.Errorf("NetworkFee = %s, want 0", p.NetworkFee.String())
-	}
 	// BasisType and BasisID should be set for subordination
 	if p.BasisType != "CryptoInvoice" {
 		t.Errorf("BasisType = %q, want %q", p.BasisType, "CryptoInvoice")
