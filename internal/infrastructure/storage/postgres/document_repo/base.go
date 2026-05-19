@@ -333,28 +333,6 @@ func (r *BaseDocumentRepo[T]) GetByNumber(ctx context.Context, number string) (T
 	return entity, nil
 }
 
-// GetForUpdate retrieves document with row lock.
-func (r *BaseDocumentRepo[T]) GetForUpdate(ctx context.Context, entityID id.ID) (T, error) {
-	entity := r.newFn()
-	q := r.baseSelect(ctx).
-		Where(squirrel.Eq{"id": entityID}).
-		Suffix("FOR UPDATE")
-
-	sql, args, err := q.ToSql()
-	if err != nil {
-		return entity, fmt.Errorf("build query: %w", err)
-	}
-
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
-	if err := pgxscan.Get(ctx, querier, entity, sql, args...); err != nil {
-		if pgxscan.NotFound(err) {
-			return entity, apperror.NewNotFound(r.tableName, entityID.String())
-		}
-		return entity, fmt.Errorf("get for update: %w", err)
-	}
-
-	return entity, nil
-}
 
 // buildWhereConditions builds WHERE conditions from domain.ListFilter.
 // Handles standard filters (search, deletion_mark), RLS DataScope, and advanced filters.

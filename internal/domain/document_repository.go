@@ -39,8 +39,6 @@ type DocumentRepository[T any, L any] interface {
 	// Safety limit: returns at most maxIDs results. If more match, returns ErrTooManyResults.
 	ListIDs(ctx context.Context, filter ListFilter, maxIDs int) ([]id.ID, error)
 
-	// GetForUpdate retrieves document with pessimistic lock (SELECT … FOR UPDATE)
-	GetForUpdate(ctx context.Context, docID id.ID) (T, error)
 }
 
 // LinesAccessor provides generic access to document lines.
@@ -109,6 +107,4 @@ type HeaderDocumentRepository[T any] interface {
 	// Safety limit: returns at most maxIDs results. If more match, returns ErrTooManyResults.
 	ListIDs(ctx context.Context, filter ListFilter, maxIDs int) ([]id.ID, error)
 
-	// GetForUpdate retrieves document with pessimistic lock (SELECT … FOR UPDATE)
-	GetForUpdate(ctx context.Context, docID id.ID) (T, error)
 }

@@ -3,7 +3,6 @@ package unit
 import (
 	"context"
 
-	"metapus/internal/core/id"
 	"metapus/internal/domain"
 )
 
@@ -14,6 +13,4 @@ type Repository interface {
 	// FindBySymbol retrieves unit by symbol (unique within tenant).
 	FindBySymbol(ctx context.Context, symbol string) (*Unit, error)
 
-	// GetForUpdate retrieves unit with row lock.
-	GetForUpdate(ctx context.Context, id id.ID) (*Unit, error)
 }

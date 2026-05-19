@@ -5,7 +5,6 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"metapus/internal/core/id"
 	"metapus/internal/domain"
 )
 
@@ -16,6 +15,4 @@ type Repository interface {
 	// FindByRate retrieves VAT rate by rate value.
 	FindByRate(ctx context.Context, rate decimal.Decimal) (*VATRate, error)
 
-	// GetForUpdate retrieves VAT rate with row lock.
-	GetForUpdate(ctx context.Context, id id.ID) (*VATRate, error)
 }

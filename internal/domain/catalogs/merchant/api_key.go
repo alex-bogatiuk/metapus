@@ -20,6 +20,7 @@ type APIKeyScope string
 const (
 	ScopeInvoiceCreate APIKeyScope = "invoice:create"
 	ScopeInvoiceRead   APIKeyScope = "invoice:read"
+	ScopeAddressCreate APIKeyScope = "address:create"
 )
 
 // _allowedScopes is the authoritative whitelist of valid API key scopes.
@@ -28,6 +29,7 @@ const (
 var _allowedScopes = map[APIKeyScope]struct{}{
 	ScopeInvoiceCreate: {},
 	ScopeInvoiceRead:   {},
+	ScopeAddressCreate: {},
 }
 
 // AllowedScopes returns a copy of all currently valid scopes (e.g. for docs/UI).

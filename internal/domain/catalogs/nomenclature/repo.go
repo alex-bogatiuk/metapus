@@ -3,7 +3,6 @@ package nomenclature
 import (
 	"context"
 
-	"metapus/internal/core/id"
 	"metapus/internal/domain"
 )
 
@@ -17,8 +16,6 @@ type Repository interface {
 	// FindByBarcode retrieves nomenclature by barcode.
 	FindByBarcode(ctx context.Context, barcode string) (*Nomenclature, error)
 
-	// GetForUpdate retrieves nomenclature with row lock.
-	GetForUpdate(ctx context.Context, id id.ID) (*Nomenclature, error)
 
 	// FindLowStock retrieves items with stock below minimum.
 	FindLowStock(ctx context.Context, filter domain.ListFilter) (domain.CursorListResult[*Nomenclature], error)

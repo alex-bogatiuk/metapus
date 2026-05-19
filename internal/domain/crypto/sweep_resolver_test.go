@@ -38,6 +38,13 @@ func (m *mockTokenRepo) GetByID(_ context.Context, _ id.ID) (*token.Token, error
 	return m.tok, m.err
 }
 
+func (m *mockTokenRepo) FindByContractAndNetwork(_ context.Context, _ string, _ id.ID) (*token.Token, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.tok, nil
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────
 
 func makeToken(threshold int64, maxAgeHours int) *token.Token {

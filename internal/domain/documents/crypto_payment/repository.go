@@ -20,8 +20,6 @@ type Repository interface {
 	List(ctx context.Context, filter domain.ListFilter) (domain.CursorListResult[*CryptoPayment], error)
 	ListIDs(ctx context.Context, filter domain.ListFilter, maxIDs int) ([]id.ID, error)
 
-	// Locking
-	GetForUpdate(ctx context.Context, docID id.ID) (*CryptoPayment, error)
 
 	// Crypto-specific
 	FindByTxHash(ctx context.Context, txHash string) (*CryptoPayment, error)

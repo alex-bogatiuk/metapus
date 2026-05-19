@@ -3,7 +3,6 @@ package counterparty
 import (
 	"context"
 
-	"metapus/internal/core/id"
 	"metapus/internal/domain"
 )
 
@@ -14,6 +13,4 @@ type Repository interface {
 	// FindByINN retrieves counterparty by INN (unique within tenant).
 	FindByINN(ctx context.Context, inn string) (*Counterparty, error)
 
-	// GetForUpdate retrieves counterparty with row lock (for transactional updates).
-	GetForUpdate(ctx context.Context, id id.ID) (*Counterparty, error)
 }

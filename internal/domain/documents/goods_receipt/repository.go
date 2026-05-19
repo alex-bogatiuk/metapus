@@ -27,6 +27,4 @@ type Repository interface {
 	// ListIDs returns all document IDs matching the filter (for filter-based batch operations).
 	ListIDs(ctx context.Context, filter domain.ListFilter, maxIDs int) ([]id.ID, error)
 
-	// Locking
-	GetForUpdate(ctx context.Context, docID id.ID) (*GoodsReceipt, error)
 }

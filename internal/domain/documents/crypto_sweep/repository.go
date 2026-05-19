@@ -20,6 +20,4 @@ type Repository interface {
 
 	List(ctx context.Context, filter domain.ListFilter) (domain.CursorListResult[*CryptoSweep], error)
 	ListIDs(ctx context.Context, filter domain.ListFilter, maxIDs int) ([]id.ID, error)
-
-	GetForUpdate(ctx context.Context, docID id.ID) (*CryptoSweep, error)
 }

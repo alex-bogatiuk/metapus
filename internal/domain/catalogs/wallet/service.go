@@ -23,6 +23,12 @@ type Repository interface {
 
 	// CountFreeByNetwork returns the number of free pool wallets for a network.
 	CountFreeByNetwork(ctx context.Context, networkID id.ID) (int, error)
+
+	// FindPersistentByCustomerRef finds an existing persistent wallet for a customer.
+	FindPersistentByCustomerRef(ctx context.Context, merchantID, networkID id.ID, customerRef string) (*Wallet, error)
+
+	// AssignPersistentAddress atomically assigns a free pool wallet to a customer persistently.
+	AssignPersistentAddress(ctx context.Context, merchantID, networkID id.ID, customerRef string) (*Wallet, error)
 }
 
 // PoolStats holds wallet pool statistics for a blockchain network.
@@ -108,4 +114,20 @@ func (s *Service) FindByAddress(ctx context.Context, networkID id.ID, address st
 // CountFreeByNetwork returns available pool wallets count for a network.
 func (s *Service) CountFreeByNetwork(ctx context.Context, networkID id.ID) (int, error) {
 	return s.repo.CountFreeByNetwork(ctx, networkID)
+}
+
+// AssignPersistentAddress assigns a permanent address to a customer (or returns existing).
+func (s *Service) AssignPersistentAddress(ctx context.Context, merchantID, networkID id.ID, customerRef string) (*Wallet, error) {
+	// 1. Check idempotency
+	existing, err := s.repo.FindPersistentByCustomerRef(ctx, merchantID, networkID, customerRef)
+	if err == nil && existing != nil {
+		return existing, nil
+	}
+
+	// 2. Assign new
+	w, err := s.repo.AssignPersistentAddress(ctx, merchantID, networkID, customerRef)
+	if err != nil {
+		return nil, fmt.Errorf("assign persistent address for customer %s: %w", customerRef, err)
+	}
+	return w, nil
 }

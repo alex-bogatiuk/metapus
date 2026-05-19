@@ -14,6 +14,4 @@ type Repository interface {
 	// FindByCounterparty retrieves contracts for a counterparty.
 	FindByCounterparty(ctx context.Context, counterpartyID id.ID) ([]*Contract, error)
 
-	// GetForUpdate retrieves contract with row lock.
-	GetForUpdate(ctx context.Context, id id.ID) (*Contract, error)
 }

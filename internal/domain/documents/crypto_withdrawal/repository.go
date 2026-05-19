@@ -18,8 +18,6 @@ type Repository interface {
 	List(ctx context.Context, filter domain.ListFilter) (domain.CursorListResult[*CryptoWithdrawal], error)
 	ListIDs(ctx context.Context, filter domain.ListFilter, maxIDs int) ([]id.ID, error)
 
-	GetForUpdate(ctx context.Context, docID id.ID) (*CryptoWithdrawal, error)
-
 	// FindPending returns withdrawals in Created status (for processing queue).
 	FindPending(ctx context.Context, limit int) ([]*CryptoWithdrawal, error)
 }

@@ -45,6 +45,7 @@ import { toast } from "sonner"
 const AVAILABLE_SCOPES: { value: APIKeyScope; label: string }[] = [
   { value: "invoice:create", label: "Создание инвойсов" },
   { value: "invoice:read", label: "Чтение инвойсов" },
+  { value: "address:create", label: "Создание кошельков" },
 ]
 
 export default function APIKeysPage() {

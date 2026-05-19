@@ -12,11 +12,12 @@ export type InvoiceStatus =
   | 'cancelled';
 
 /** API key scope identifiers — must match Go merchant.APIKeyScope constants */
-export type APIKeyScope = 'invoice:create' | 'invoice:read';
+export type APIKeyScope = 'invoice:create' | 'invoice:read' | 'address:create';
 
 export const API_KEY_SCOPES: { value: APIKeyScope; label: string }[] = [
   { value: 'invoice:create', label: 'Создание инвойсов' },
   { value: 'invoice:read',   label: 'Чтение инвойсов' },
+  { value: 'address:create', label: 'Создание кошельков' },
 ];
 
 // ─── Invoice DTOs ───────────────────────────────────────────────────────────

@@ -20,8 +20,6 @@ type Repository interface {
 	List(ctx context.Context, filter domain.ListFilter) (domain.CursorListResult[*CryptoInvoice], error)
 	ListIDs(ctx context.Context, filter domain.ListFilter, maxIDs int) ([]id.ID, error)
 
-	// Locking
-	GetForUpdate(ctx context.Context, docID id.ID) (*CryptoInvoice, error)
 
 	// Crypto-specific
 	FindByExternalID(ctx context.Context, externalID string) (*CryptoInvoice, error)

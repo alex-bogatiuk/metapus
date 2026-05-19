@@ -131,10 +131,12 @@ CREATE INDEX IF NOT EXISTS idx_cat_wallets_merchant ON cat_wallets (merchant_id)
 CREATE INDEX IF NOT EXISTS idx_cat_wallets_name ON cat_wallets (name) WHERE deletion_mark = FALSE;
 CREATE INDEX IF NOT EXISTS idx_cat_wallets_name_id ON cat_wallets (name ASC, id ASC);
 
--- Persistent customer address lookup (Phase 2)
-CREATE INDEX IF NOT EXISTS idx_cat_wallets_customer
-    ON cat_wallets (merchant_id, customer_ref)
-    WHERE allocation_mode = 'persistent' AND deletion_mark = FALSE;
+-- Persistent customer address uniqueness: one wallet per (merchant, network, customer).
+-- Prevents TOCTOU race in AssignPersistentAddress: if two concurrent requests
+-- both pass the idempotency check, the second UPDATE will fail with a unique violation.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cat_wallets_persistent_customer
+    ON cat_wallets (merchant_id, network_id, customer_ref)
+    WHERE allocation_mode = 'persistent' AND deletion_mark = FALSE AND customer_ref != '';
 
 -- ═══════════════════════════════════════════════════════════════════════
 -- Merchant Token Config (Регистр сведений «Настройки токенов мерчанта»)

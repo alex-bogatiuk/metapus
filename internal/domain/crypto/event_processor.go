@@ -9,6 +9,7 @@ import (
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/tx"
 	"metapus/internal/core/types"
+	"metapus/internal/domain/catalogs/token"
 	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/domain/documents/crypto_payment"
@@ -33,6 +34,12 @@ func _defaultDustThreshold() types.CryptoAmount {
 type InvoiceAccessor interface {
 	GetByID(ctx context.Context, id id.ID) (*crypto_invoice.CryptoInvoice, error)
 	Update(ctx context.Context, entity *crypto_invoice.CryptoInvoice) error
+	Create(ctx context.Context, entity *crypto_invoice.CryptoInvoice) error
+}
+
+// TokenResolver provides read access to the token catalog for the event processor.
+type TokenResolver interface {
+	FindByContractAndNetwork(ctx context.Context, contract string, networkID id.ID) (*token.Token, error)
 }
 
 // EventProcessor orchestrates the lifecycle of blockchain events:
@@ -51,6 +58,7 @@ type EventProcessor struct {
 	dustThreshold  types.CryptoAmount
 	sweepResolver  *SweepConfigResolver
 	feeResolver    *FeeConfigResolver   // optional: if nil, fee = 0
+	tokenResolver  TokenResolver        // required for persistent wallet top-ups
 	nowFunc        func() time.Time     // clock source, default time.Now().UTC()
 }
 
@@ -74,6 +82,7 @@ type EventProcessorConfig struct {
 	Numerator        numerator.Generator
 	SweepResolver    *SweepConfigResolver
 	FeeResolver      *FeeConfigResolver // optional: nil → fee = 0
+	TokenResolver    TokenResolver
 	// DustThreshold is the minimum amount to accept. Zero = use default (1000 minor units).
 	DustThreshold types.CryptoAmount
 }
@@ -96,6 +105,7 @@ func NewEventProcessor(cfg EventProcessorConfig, opts ...Option) *EventProcessor
 		dustThreshold:    threshold,
 		sweepResolver:    cfg.SweepResolver,
 		feeResolver:      cfg.FeeResolver,
+		tokenResolver:    cfg.TokenResolver,
 		nowFunc:          func() time.Time { return time.Now().UTC() },
 	}
 	for _, opt := range opts {
@@ -176,12 +186,20 @@ func (p *EventProcessor) processEventInTx(ctx context.Context, event BlockchainE
 	// Step 4: Find the active invoice for this wallet
 	invoice, err := p.findActiveInvoice(ctx, w)
 	if err != nil {
-		logger.Warn(ctx, "no active invoice for wallet",
-			"wallet_id", w.ID,
-			"address", w.Address,
-			"tx_hash", event.TxHash,
-		)
-		return nil //nolint:nilerr // No active invoice — funds will be reconciled later
+		// If wallet is persistent, we generate a Top-Up invoice on the fly
+		if w.IsPersistent() {
+			invoice, err = p.createTopUpInvoice(ctx, w, event)
+			if err != nil {
+				return fmt.Errorf("create top-up invoice: %w", err)
+			}
+		} else {
+			logger.Warn(ctx, "no active invoice for wallet",
+				"wallet_id", w.ID,
+				"address", w.Address,
+				"tx_hash", event.TxHash,
+			)
+			return nil //nolint:nilerr // No active invoice — funds will be reconciled later
+		}
 	}
 
 	// Step 5: Create new CryptoPayment
@@ -430,6 +448,55 @@ func (p *EventProcessor) confirmInvoice(ctx context.Context, invoiceID id.ID) (b
 	}
 
 	return false, nil
+}
+
+// createTopUpInvoice generates a system CryptoInvoice for an incoming payment to a persistent wallet.
+func (p *EventProcessor) createTopUpInvoice(ctx context.Context, w *wallet.Wallet, event BlockchainEvent) (*crypto_invoice.CryptoInvoice, error) {
+	if p.tokenResolver == nil {
+		return nil, fmt.Errorf("tokenResolver is not configured (required for top-ups)")
+	}
+
+	tok, err := p.tokenResolver.FindByContractAndNetwork(ctx, event.TokenContract, w.NetworkID)
+	if err != nil {
+		return nil, fmt.Errorf("resolve token %s on network %s: %w", event.TokenContract, w.NetworkID, err)
+	}
+
+	invoice := crypto_invoice.NewCryptoInvoice(
+		*w.MerchantID,
+		tok.ID,
+		event.Amount,
+	)
+
+	invoice.WalletID = &w.ID
+	invoice.ExternalID = fmt.Sprintf("topup_%s", event.TxHash)
+	invoice.CustomerEmail = w.CustomerRef
+	invoice.Status = crypto_invoice.InvoiceStatusPaid // Start as Paid so it can be Confirmed later
+
+	// Assign a numerator if available
+	if p.numerator != nil {
+		cfg := numerator.DefaultConfig("CI")
+		number, err := p.numerator.GetNextNumber(ctx, cfg, &numerator.Options{Strategy: numerator.StrategyStrict}, p.nowFunc())
+		if err == nil {
+			invoice.Number = number
+		} else {
+			invoice.Number = fmt.Sprintf("CI-%s", id.New().String()[:8])
+		}
+	} else {
+		invoice.Number = fmt.Sprintf("CI-%s", id.New().String()[:8])
+	}
+
+	if err := p.invoiceSvc.Create(ctx, invoice); err != nil {
+		return nil, fmt.Errorf("save top-up invoice: %w", err)
+	}
+
+	logger.Info(ctx, "created top-up invoice for persistent wallet",
+		"invoice_id", invoice.ID,
+		"wallet_id", w.ID,
+		"customer_ref", w.CustomerRef,
+		"amount", event.Amount.String(),
+	)
+
+	return invoice, nil
 }
 
 // findActiveInvoice finds the active (leased) invoice for a wallet.

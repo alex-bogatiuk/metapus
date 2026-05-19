@@ -77,9 +77,6 @@ func (r *memInvoiceRepo) List(_ context.Context, _ domain.ListFilter) (domain.Cu
 func (r *memInvoiceRepo) ListIDs(_ context.Context, _ domain.ListFilter, _ int) ([]id.ID, error) {
 	return nil, nil
 }
-func (r *memInvoiceRepo) GetForUpdate(_ context.Context, docID id.ID) (*crypto_invoice.CryptoInvoice, error) {
-	return r.GetByID(context.Background(), docID)
-}
 func (r *memInvoiceRepo) FindByExternalID(_ context.Context, _ string) (*crypto_invoice.CryptoInvoice, error) {
 	return nil, fmt.Errorf("not found")
 }
@@ -132,9 +129,6 @@ func (r *memPaymentRepo) List(_ context.Context, _ domain.ListFilter) (domain.Cu
 }
 func (r *memPaymentRepo) ListIDs(_ context.Context, _ domain.ListFilter, _ int) ([]id.ID, error) {
 	return nil, nil
-}
-func (r *memPaymentRepo) GetForUpdate(_ context.Context, docID id.ID) (*crypto_payment.CryptoPayment, error) {
-	return r.GetByID(context.Background(), docID)
 }
 func (r *memPaymentRepo) ListByStatus(_ context.Context, _ crypto_payment.PaymentStatus) ([]*crypto_payment.CryptoPayment, error) {
 	return nil, nil
@@ -192,6 +186,13 @@ func (r *memWalletRepo) LeaseForInvoice(_ context.Context, _, _ id.ID) (*wallet.
 	return nil, fmt.Errorf("not impl")
 }
 func (r *memWalletRepo) CountFreeByNetwork(_ context.Context, _ id.ID) (int, error) { return 0, nil }
+
+func (r *memWalletRepo) FindPersistentByCustomerRef(_ context.Context, _, _ id.ID, _ string) (*wallet.Wallet, error) {
+	return nil, fmt.Errorf("not impl")
+}
+func (r *memWalletRepo) AssignPersistentAddress(_ context.Context, _, _ id.ID, _ string) (*wallet.Wallet, error) {
+	return nil, fmt.Errorf("not impl")
+}
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -269,6 +270,7 @@ func setupTestFixture(t *testing.T, sweepThreshold int64) *testFixture {
 		PaymentRepo:   paymentRepo,
 		TxManager:     &noopTxManager{},
 		SweepResolver: sweepResolver,
+		TokenResolver: mockTokenRepo,
 		PostingEngine: posting.NewEngine(nil), // provide dummy engine
 	})
 

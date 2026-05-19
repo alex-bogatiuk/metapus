@@ -20,6 +20,7 @@ import (
 	"metapus/internal/domain"
 	"metapus/internal/domain/auth"
 	"metapus/internal/domain/catalogs/merchant"
+	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents"
 	"metapus/internal/domain/documents/crypto_invoice"
@@ -41,9 +42,9 @@ import (
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 	"metapus/internal/infrastructure/storage/postgres/auth_repo"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/migration"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
@@ -844,6 +845,10 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 	invoiceHandler := handlers.NewMerchantInvoiceHandler(cfg.MerchantInvoiceSvc, cfg.MerchantAPIKeyRepo)
 	apiKeyHandler := handlers.NewMerchantAPIKeyHandler(cfg.MerchantAPIKeyRepo)
 
+	walletRepo := catalog_repo.NewWalletRepo()
+	walletSvc := wallet.NewService(walletRepo, numerator.Noop())
+	addressHandler := handlers.NewMerchantAddressHandler(walletSvc)
+
 	// /merchant/v1/ — public merchant API (API-key auth)
 	merchantV1 := router.Group("/merchant/v1")
 	merchantV1.Use(middleware.MerchantAPIKey(cfg.MerchantAPIKeyRepo, cfg.TenantManager))
@@ -852,6 +857,11 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 		{
 			invoices.POST("", invoiceHandler.CreateInvoice)
 			invoices.GET("/:id", invoiceHandler.GetInvoice)
+		}
+
+		addresses := merchantV1.Group("/addresses")
+		{
+			addresses.POST("", addressHandler.CreateAddress)
 		}
 	}
 
