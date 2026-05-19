@@ -9,7 +9,7 @@ type DocumentStateName string
 
 const (
 	// StateDraft — document is not posted and not marked for deletion.
-	// Allowed: modify, post, delete. Denied: unpost (not posted).
+	// Allowed: modify, post, delete, unpost (idempotent no-op).
 	StateDraft DocumentStateName = "draft"
 
 	// StatePosted — document movements are recorded in registers.
@@ -17,7 +17,7 @@ const (
 	StatePosted DocumentStateName = "posted"
 
 	// StateMarkedForDeletion — document is soft-deleted (not posted).
-	// Allowed: modify, delete, unmark. Denied: post, unpost.
+	// Allowed: modify, delete, unmark, unpost (idempotent no-op). Denied: post.
 	StateMarkedForDeletion DocumentStateName = "marked_for_deletion"
 )
 
@@ -78,10 +78,7 @@ func (s *draftDocumentState) CanModify() error { return nil }
 func (s *draftDocumentState) CanPost() error { return nil }
 
 func (s *draftDocumentState) CanUnpost() error {
-	return apperror.NewBusinessRule(
-		"DOCUMENT_NOT_POSTED",
-		"Document is not posted.",
-	)
+	return nil // Idempotent: already unposted — no-op
 }
 
 func (s *draftDocumentState) CanDelete() error { return nil }
@@ -135,10 +132,7 @@ func (s *markedForDeletionDocumentState) CanPost() error {
 }
 
 func (s *markedForDeletionDocumentState) CanUnpost() error {
-	return apperror.NewBusinessRule(
-		"DOCUMENT_NOT_POSTED",
-		"Document is not posted.",
-	)
+	return nil // Idempotent: already unposted — no-op
 }
 
 func (s *markedForDeletionDocumentState) CanDelete() error { return nil }

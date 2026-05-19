@@ -35,6 +35,7 @@
 | 8 | [Sweep](crypto-processing/08-sweep.md) | Сбор средств с пул-кошельков |
 | 9 | [CryptoAmount](crypto-processing/09-crypto-amount.md) | Типобезопасные деньги (int64) |
 | 10 | [Тестирование](crypto-processing/10-testing.md) | Table-driven тесты, mock'и, E2E |
+| 11 | [Outbox Relay и Вебхуки](crypto-processing/11-outbox-relay-webhooks.md) | Transactional Outbox, HMAC-вебхуки, SSRF-защита |
 
 ### Схема полного цикла крипто-платежа
 
@@ -45,4 +46,5 @@ POST /invoices → Lease Wallet → TRON Watcher polls blockchain
       → FSM: Detected → Confirming → Confirmed
         → PostingEngine: 3 регистра (Balance, Fee, MerchantBalance)
           → Sweep Evaluation → MarkSweepPending → On-chain TX
+            → Outbox Relay → Webhook Dispatch (HMAC-SHA256) → Merchant
 ```

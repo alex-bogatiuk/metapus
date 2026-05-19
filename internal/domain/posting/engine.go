@@ -315,10 +315,12 @@ func (e *Engine) doPost(ctx context.Context, doc Postable, updateDoc func(contex
 // Unpost reverses document movements from registers.
 func (e *Engine) Unpost(ctx context.Context, doc Postable, updateDoc func(context.Context) error) error {
 	if !doc.IsPosted() {
-		return apperror.NewBusinessRule(
-			"DOCUMENT_NOT_POSTED",
-			"Document is not posted",
-		).WithDetail("document_id", doc.GetID().String())
+		// Idempotent no-op: document is already unposted — nothing to do.
+		// Analogous to 1C behavior: "Отменить проведение" on an unposted document is a silent success.
+		logger.Debug(ctx, "unpost skipped: document already unposted",
+			"document_id", doc.GetID(),
+			"document_type", doc.GetDocumentType())
+		return nil
 	}
 
 	txm, err := tenant.GetTxManager(ctx)

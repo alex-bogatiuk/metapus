@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import {
   useShortcutStore,
@@ -72,33 +73,35 @@ export function ShortcutHelpDialog({ open, onOpenChange }: ShortcutHelpDialogPro
 
         <Separator />
 
-        <div className="px-5 py-3 max-h-[60vh] overflow-auto">
-          {!hasAnyEntries ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              Нет активных горячих клавиш
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {GROUP_ORDER.map((group) => {
-                const entries = grouped.get(group)
-                if (!entries || entries.length === 0) return null
+        <ScrollArea className="max-h-[60vh]">
+          <div className="px-5 py-3">
+            {!hasAnyEntries ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Нет активных горячих клавиш
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {GROUP_ORDER.map((group) => {
+                  const entries = grouped.get(group)
+                  if (!entries || entries.length === 0) return null
 
-                return (
-                  <div key={group}>
-                    <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                      {GROUP_LABELS[group]}
-                    </h3>
-                    <div className="space-y-0.5">
-                      {entries.map((entry) => (
-                        <ShortcutRow key={entry.id} entry={entry} />
-                      ))}
+                  return (
+                    <div key={group}>
+                      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                        {GROUP_LABELS[group]}
+                      </h3>
+                      <div className="space-y-0.5">
+                        {entries.map((entry) => (
+                          <ShortcutRow key={entry.id} entry={entry} />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </ScrollArea>
 
         <Separator />
 

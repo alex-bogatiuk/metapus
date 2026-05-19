@@ -194,7 +194,6 @@ export function SiteHeader() {
     }, [])
 
     useShortcut("nav.close-tab", "alt+w", "Закрыть вкладку", "navigation", handleCloseActiveTab)
-    useShortcut("nav.close-tab-ctrl", "mod+w", "Закрыть вкладку", "navigation", handleCloseActiveTab)
     useShortcut("nav.prev-tab", "alt+arrowleft", "Предыдущая вкладка", "navigation", handlePrevTab)
     useShortcut("nav.next-tab", "alt+arrowright", "Следующая вкладка", "navigation", handleNextTab)
     useShortcut("nav.open-url", "mod+l", "Открыть по ссылке", "navigation", handleOpenUrl)
