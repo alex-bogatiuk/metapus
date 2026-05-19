@@ -160,7 +160,14 @@ func (p *EventProcessor) processEventInTx(ctx context.Context, event BlockchainE
 	// (which may not carry ToAddress) can update existing payments.
 	existing, err := p.paymentRepo.FindByTxHash(ctx, event.TxHash)
 	if err == nil && existing != nil {
-		// Existing payment — update confirmations
+		// Lock the payment row to serialize concurrent confirmation updates.
+		// Without this, consumer + confirmation loop can both read status=confirming
+		// and race into Post(), causing duplicate register movements.
+		// Single-row FOR UPDATE on PK — safe from deadlocks.
+		existing, err = p.paymentRepo.GetByIDForUpdate(ctx, existing.ID)
+		if err != nil {
+			return fmt.Errorf("lock payment %s for update: %w", existing.ID, err)
+		}
 		return p.handleConfirmationUpdate(ctx, existing, event)
 	}
 
@@ -227,6 +234,10 @@ func (p *EventProcessor) processEventInTx(ctx context.Context, event BlockchainE
 				"token_id", invoice.TokenID,
 				"error", err,
 			)
+			// Mark payment for ops alerting: fee was not resolved, zero fee applied.
+			// This is a fail-soft approach: better to process a payment with 0 fee
+			// than to lose the payment entirely. The attribute enables reconciliation.
+			payment.SetAttribute("_fee_unresolved", true)
 		} else {
 			payment.SetFeeConfig(fee.FixedFee, fee.PercentBP, fee.MinFee, fee.MaxFee)
 		}

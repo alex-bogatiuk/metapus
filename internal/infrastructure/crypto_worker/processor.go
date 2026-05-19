@@ -505,12 +505,30 @@ type sweepCandidate struct {
 
 // evaluateSweeps queries pool wallets and checks if any should be swept.
 func (p *CryptoProcessor) evaluateSweeps(ctx context.Context) error {
+	candidates, err := p.querySweepCandidates(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = p.evaluateSweepCandidates(ctx, candidates)
+	return err
+}
+
+// evaluateSweepsWithCount is a wrapper for recorder.Record — returns the number of wallets marked sweep_pending.
+func (p *CryptoProcessor) evaluateSweepsWithCount(ctx context.Context) (int, error) {
+	candidates, err := p.querySweepCandidates(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return p.evaluateSweepCandidates(ctx, candidates)
+}
+
+// querySweepCandidates loads pool wallets with accumulated confirmed payments since last sweep.
+// Only wallets NOT already in sweep_pending or frozen.
+// Groups by wallet to sum all confirmed payments since last_swept_at.
+func (p *CryptoProcessor) querySweepCandidates(ctx context.Context) ([]sweepCandidate, error) {
 	txm := postgres.MustGetTxManager(ctx)
 	querier := txm.GetQuerier(ctx)
 
-	// Query pool wallets with accumulated confirmed payments since last sweep.
-	// Only wallets NOT already in sweep_pending or frozen.
-	// Groups by wallet to sum all confirmed payments since last_swept_at.
 	const query = `
 		SELECT w.id AS wallet_id,
 		       w.merchant_id,
@@ -533,7 +551,7 @@ func (p *CryptoProcessor) evaluateSweeps(ctx context.Context) error {
 
 	rows, err := querier.Query(ctx, query, _sweepEvalBatchSize)
 	if err != nil {
-		return fmt.Errorf("query sweep candidates: %w", err)
+		return nil, fmt.Errorf("query sweep candidates: %w", err)
 	}
 	defer rows.Close()
 
@@ -541,20 +559,27 @@ func (p *CryptoProcessor) evaluateSweeps(ctx context.Context) error {
 	for rows.Next() {
 		var c sweepCandidate
 		if err := rows.Scan(&c.walletID, &c.merchantID, &c.lastSweptAt, &c.tokenID, &c.balance, &c.oldestPaymentAt); err != nil {
-			return fmt.Errorf("scan sweep candidate: %w", err)
+			return nil, fmt.Errorf("scan sweep candidate: %w", err)
 		}
 		candidates = append(candidates, c)
 	}
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("iterate sweep candidates: %w", err)
+		return nil, fmt.Errorf("iterate sweep candidates: %w", err)
 	}
 
+	return candidates, nil
+}
+
+// evaluateSweepCandidates checks each candidate against its sweep config and marks eligible wallets.
+// Returns the number of wallets marked sweep_pending.
+func (p *CryptoProcessor) evaluateSweepCandidates(ctx context.Context, candidates []sweepCandidate) (int, error) {
 	if len(candidates) == 0 {
-		return nil
+		return 0, nil
 	}
 
 	p.log.Infow("evaluating sweep candidates", "count", len(candidates))
 
+	var marked int
 	for _, c := range candidates {
 		merchantID := id.Nil()
 		if c.merchantID != nil {
@@ -588,8 +613,6 @@ func (p *CryptoProcessor) evaluateSweeps(ctx context.Context) error {
 				ageMet = time.Since(*c.lastSweptAt) > maxAge
 			} else if c.oldestPaymentAt != nil {
 				// Never swept: check age from oldest unswept confirmed payment.
-				// Previously this was always-true, causing premature sweep
-				// before threshold was reached.
 				ageMet = time.Since(*c.oldestPaymentAt) > maxAge
 			}
 		}
@@ -608,84 +631,6 @@ func (p *CryptoProcessor) evaluateSweeps(ctx context.Context) error {
 					"wallet_id", c.walletID,
 					"error", err,
 				)
-			}
-		}
-	}
-
-	return nil
-}
-
-// evaluateSweepsWithCount is a wrapper for recorder.Record — returns the number of wallets marked sweep_pending.
-func (p *CryptoProcessor) evaluateSweepsWithCount(ctx context.Context) (int, error) {
-	txm := postgres.MustGetTxManager(ctx)
-	querier := txm.GetQuerier(ctx)
-
-	const query = `
-		SELECT w.id AS wallet_id,
-		       w.merchant_id,
-		       w.last_swept_at,
-		       p.token_id,
-		       COALESCE(SUM(p.amount), 0) AS balance,
-		       MIN(p.confirmed_at)        AS oldest_payment_at
-		FROM cat_wallets w
-		INNER JOIN doc_crypto_payments p ON p.wallet_id = w.id
-		WHERE w.tier = 'pool'
-		  AND w.status IN ('free', 'assigned')
-		  AND w.is_active = TRUE
-		  AND w.deletion_mark = FALSE
-		  AND p.status = 'confirmed'
-		  AND p.confirmed_at > COALESCE(w.last_swept_at, '1970-01-01'::timestamptz)
-		GROUP BY w.id, w.merchant_id, w.last_swept_at, p.token_id
-		HAVING COALESCE(SUM(p.amount), 0) > 0
-		LIMIT $1
-	`
-
-	rows, err := querier.Query(ctx, query, _sweepEvalBatchSize)
-	if err != nil {
-		return 0, fmt.Errorf("query sweep candidates (with count): %w", err)
-	}
-	defer rows.Close()
-
-	candidates := make([]sweepCandidate, 0, _sweepEvalBatchSize)
-	for rows.Next() {
-		var c sweepCandidate
-		if err := rows.Scan(&c.walletID, &c.merchantID, &c.lastSweptAt, &c.tokenID, &c.balance, &c.oldestPaymentAt); err != nil {
-			return 0, fmt.Errorf("scan sweep candidate (with count): %w", err)
-		}
-		candidates = append(candidates, c)
-	}
-	if err := rows.Err(); err != nil {
-		return 0, fmt.Errorf("iterate sweep candidates (with count): %w", err)
-	}
-
-	var marked int
-	for _, c := range candidates {
-		merchantID := id.Nil()
-		if c.merchantID != nil {
-			merchantID = *c.merchantID
-		}
-		cfg, err := p.sweepResolver.Resolve(ctx, merchantID, c.tokenID)
-		if err != nil {
-			continue
-		}
-		if cfg.IsZeroThreshold() {
-			continue
-		}
-
-		thresholdMet := c.balance.Cmp(cfg.Threshold) >= 0
-		ageMet := false
-		if cfg.MaxAgeHours > 0 {
-			maxAge := time.Duration(cfg.MaxAgeHours) * time.Hour
-			if c.lastSweptAt != nil {
-				ageMet = time.Since(*c.lastSweptAt) > maxAge
-			} else if c.oldestPaymentAt != nil {
-				ageMet = time.Since(*c.oldestPaymentAt) > maxAge
-			}
-		}
-
-		if thresholdMet || ageMet {
-			if err := p.walletSvc.MarkSweepPending(ctx, c.walletID); err != nil {
-				p.log.Errorw("failed to mark wallet sweep pending", "wallet_id", c.walletID, "error", err)
 				continue
 			}
 			marked++

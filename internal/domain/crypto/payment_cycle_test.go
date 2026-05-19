@@ -133,6 +133,14 @@ func (r *memPaymentRepo) ListIDs(_ context.Context, _ domain.ListFilter, _ int) 
 func (r *memPaymentRepo) ListByStatus(_ context.Context, _ crypto_payment.PaymentStatus) ([]*crypto_payment.CryptoPayment, error) {
 	return nil, nil
 }
+func (r *memPaymentRepo) GetByIDForUpdate(_ context.Context, docID id.ID) (*crypto_payment.CryptoPayment, error) {
+	// In-memory: no locking needed, just delegate to GetByID.
+	p, ok := r.payments[docID]
+	if !ok {
+		return nil, fmt.Errorf("payment %s not found", docID)
+	}
+	return p, nil
+}
 
 // memWalletRepo stores wallets in memory, implementing wallet.Repository.
 type memWalletRepo struct {

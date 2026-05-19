@@ -220,7 +220,7 @@ func (c *Client) doRequest(ctx context.Context, url string, target interface{}) 
 			continue
 		}
 
-		body, err := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB safety limit
 		_ = resp.Body.Close()
 
 		if err != nil {
