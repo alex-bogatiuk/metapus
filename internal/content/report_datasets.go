@@ -42,7 +42,7 @@ var StockBalanceDataset = schema.Dataset{
 // stockBalanceExecutor builds a CTE that calculates stock balance from movements.
 type stockBalanceExecutor struct{}
 
-func (e *stockBalanceExecutor) BuildQuery(ctx context.Context, params map[string]interface{}) (squirrel.SelectBuilder, error) {
+func (e *stockBalanceExecutor) BuildQuery(ctx context.Context, params map[string]any) (squirrel.SelectBuilder, error) {
 	builder := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 
 	asOfDate := time.Now()
@@ -65,7 +65,7 @@ func (e *stockBalanceExecutor) BuildQuery(ctx context.Context, params map[string
 	}
 
 	// Build the CTE SQL
-	args := []interface{}{asOfDate}
+	args := []any{asOfDate}
 	argIdx := 2
 
 	cteSQL := `
@@ -124,7 +124,7 @@ func (e *stockBalanceExecutor) BuildQuery(ctx context.Context, params map[string
 			builder.Select(
 				"m.warehouse_id",
 				"m.nomenclature_id",
-				"SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END)" + qtyScale + " as quantity",
+				"SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END)"+qtyScale+" as quantity",
 			).
 				From("reg_stock_movements m").
 				Where(squirrel.LtOrEq{"m.period": asOfDate}).
@@ -178,7 +178,7 @@ var StockTurnoverDataset = schema.Dataset{
 
 type stockTurnoverExecutor struct{}
 
-func (e *stockTurnoverExecutor) BuildQuery(ctx context.Context, params map[string]interface{}) (squirrel.SelectBuilder, error) {
+func (e *stockTurnoverExecutor) BuildQuery(ctx context.Context, params map[string]any) (squirrel.SelectBuilder, error) {
 	fromDate, err := extractRequiredDate(params, "from_date")
 	if err != nil {
 		return squirrel.SelectBuilder{}, err
@@ -194,7 +194,7 @@ func (e *stockTurnoverExecutor) BuildQuery(ctx context.Context, params map[strin
 	openingSub := builder.Select(
 		"m.warehouse_id",
 		"m.nomenclature_id",
-		"SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END)" + qtyScale + " as opening_qty",
+		"SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE -m.quantity END)"+qtyScale+" as opening_qty",
 	).From("reg_stock_movements m").
 		Where(squirrel.Lt{"m.period": fromDate}).
 		GroupBy("m.warehouse_id", "m.nomenclature_id")
@@ -202,8 +202,8 @@ func (e *stockTurnoverExecutor) BuildQuery(ctx context.Context, params map[strin
 	mainSub := builder.Select(
 		"m.warehouse_id",
 		"m.nomenclature_id",
-		"SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE 0 END)" + qtyScale + " as receipt",
-		"SUM(CASE WHEN m.record_type = 'expense' THEN m.quantity ELSE 0 END)" + qtyScale + " as expense",
+		"SUM(CASE WHEN m.record_type = 'receipt' THEN m.quantity ELSE 0 END)"+qtyScale+" as receipt",
+		"SUM(CASE WHEN m.record_type = 'expense' THEN m.quantity ELSE 0 END)"+qtyScale+" as expense",
 	).From("reg_stock_movements m").
 		Where(squirrel.And{
 			squirrel.GtOrEq{"m.period": fromDate},
@@ -218,7 +218,7 @@ func (e *stockTurnoverExecutor) BuildQuery(ctx context.Context, params map[strin
 	reNumberedOpening := reNumberPlaceholders(openingSQL, len(mainArgs))
 
 	// Combine args: main first, then opening
-	allArgs := make([]interface{}, 0, len(mainArgs)+len(openingArgs))
+	allArgs := make([]any, 0, len(mainArgs)+len(openingArgs))
 	allArgs = append(allArgs, mainArgs...)
 	allArgs = append(allArgs, openingArgs...)
 
@@ -242,7 +242,7 @@ func (e *stockTurnoverExecutor) BuildQuery(ctx context.Context, params map[strin
 	// properly bind args from both subqueries. Then Compiler uses this as base.
 	innerBuilder := builder.
 		Select("*").
-		From("("+combinedSQL+") AS _inner").
+		From("(" + combinedSQL + ") AS _inner").
 		Where(squirrel.Expr("1=1", allArgs...))
 
 	// Wrap the inner builder via FromSelect so squirrel propagates its args
@@ -290,7 +290,7 @@ var DocumentJournalDataset = schema.Dataset{
 
 type documentJournalExecutor struct{}
 
-func (e *documentJournalExecutor) BuildQuery(ctx context.Context, params map[string]interface{}) (squirrel.SelectBuilder, error) {
+func (e *documentJournalExecutor) BuildQuery(ctx context.Context, params map[string]any) (squirrel.SelectBuilder, error) {
 	builder := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 
 	// Build UNION ALL from document tables
@@ -361,16 +361,16 @@ func (e *documentJournalExecutor) BuildQuery(ctx context.Context, params map[str
 // ---------------------------------------------------------------------------
 
 // extractIDSlice extracts a []string of IDs from params.
-func extractIDSlice(params map[string]interface{}, key string) ([]interface{}, bool) {
+func extractIDSlice(params map[string]any, key string) ([]any, bool) {
 	v, ok := params[key]
 	if !ok {
 		return nil, false
 	}
 	switch ids := v.(type) {
-	case []interface{}:
+	case []any:
 		return ids, len(ids) > 0
 	case []string:
-		result := make([]interface{}, len(ids))
+		result := make([]any, len(ids))
 		for i, s := range ids {
 			result[i] = s
 		}
@@ -379,7 +379,7 @@ func extractIDSlice(params map[string]interface{}, key string) ([]interface{}, b
 	return nil, false
 }
 
-func extractRequiredDate(params map[string]interface{}, key string) (time.Time, error) {
+func extractRequiredDate(params map[string]any, key string) (time.Time, error) {
 	v, ok := params[key]
 	if !ok {
 		return time.Time{}, fmt.Errorf("required parameter %q is missing", key)
@@ -397,7 +397,7 @@ func extractRequiredDate(params map[string]interface{}, key string) (time.Time, 
 	return time.Time{}, fmt.Errorf("invalid date format for %q: %s", key, s)
 }
 
-func extractOptionalDate(params map[string]interface{}, key string) (time.Time, bool) {
+func extractOptionalDate(params map[string]any, key string) (time.Time, bool) {
 	v, ok := params[key]
 	if !ok {
 		return time.Time{}, false

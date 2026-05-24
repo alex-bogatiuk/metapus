@@ -93,10 +93,10 @@ func NewStockMovement(
 	quantity types.Quantity,
 ) StockMovement {
 	return StockMovement{
-		MovementBase: NewMovementBase(recorderID, recorderType, recorderVersion, period, recordType),
+		MovementBase:   NewMovementBase(recorderID, recorderType, recorderVersion, period, recordType),
 		WarehouseID:    warehouseID,
 		NomenclatureID: nomenclatureID,
-		Quantity:     quantity,
+		Quantity:       quantity,
 	}
 }
 
@@ -155,12 +155,12 @@ func NewCostMovement(
 	amount types.MinorUnits,
 ) CostMovement {
 	return CostMovement{
-		MovementBase: NewMovementBase(recorderID, recorderType, recorderVersion, period, recordType),
+		MovementBase:   NewMovementBase(recorderID, recorderType, recorderVersion, period, recordType),
 		WarehouseID:    warehouseID,
 		NomenclatureID: nomenclatureID,
 		CurrencyID:     currencyID,
-		Quantity:     quantity,
-		Amount:       amount,
+		Quantity:       quantity,
+		Amount:         amount,
 	}
 }
 
@@ -264,11 +264,11 @@ type SettlementBalance struct {
 // Data values for amount-type columns are raw MinorUnits (int64).
 // Data values for quantity-type columns are float64.
 type DocumentMovement struct {
-	RegisterName string                 `json:"registerName"`
-	RecordType   string                 `json:"recordType"` // "receipt" or "expense"
-	Period       time.Time              `json:"period"`
-	Columns      []MovementColumnDef    `json:"columns"`    // Metadata: label + type per field
-	Data         map[string]interface{} `json:"data"`       // Dynamic fields — enriched values
+	RegisterName string              `json:"registerName"`
+	RecordType   string              `json:"recordType"` // "receipt" or "expense"
+	Period       time.Time           `json:"period"`
+	Columns      []MovementColumnDef `json:"columns"` // Metadata: label + type per field
+	Data         map[string]any      `json:"data"`    // Dynamic fields — enriched values
 }
 
 // MovementColumnDef describes a single column in the movements table.

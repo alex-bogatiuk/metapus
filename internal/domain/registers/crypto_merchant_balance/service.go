@@ -46,7 +46,6 @@ type MerchantBalanceReservation struct {
 	Required   types.CryptoAmount
 }
 
-
 // Service provides business operations for the crypto merchant balance register.
 type Service struct {
 	repo Repository
@@ -229,7 +228,7 @@ func (s *Service) GetDocumentMovements(ctx context.Context, recorderID id.ID) ([
 
 	result := make([]entity.DocumentMovement, 0, len(movements))
 	for _, m := range movements {
-		data := map[string]interface{}{
+		data := map[string]any{
 			"merchant": entity.MovementRefValue{ID: m.MerchantID.String(), Name: m.MerchantID.String()},
 			"token":    entity.MovementRefValue{ID: m.TokenID.String(), Name: m.TokenID.String()},
 			"amount":   m.Amount.String(),

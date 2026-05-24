@@ -111,11 +111,9 @@ func (u *TenantUpdater) StartUpdate(ctx context.Context, tenantID string) error 
 	cfg := u.manager.Config()
 	dsn := t.DSN(cfg.DBUser, cfg.DBPassword)
 
-	u.wg.Add(1)
-	go func() {
-		defer u.wg.Done()
+	u.wg.Go(func() {
 		u.runMigrationBackground(tenantID, t.Slug, dsn)
-	}()
+	})
 
 	return nil
 }
@@ -155,13 +153,11 @@ func (u *TenantUpdater) RetryUpdate(ctx context.Context, tenantID string) error 
 	cfg := u.manager.Config()
 	dsn := t.DSN(cfg.DBUser, cfg.DBPassword)
 
-	u.wg.Add(1)
-	go func() {
-		defer u.wg.Done()
+	u.wg.Go(func() {
 		// Re-use same migration flow — goose up skips already applied.
 		// pre_update_versions are already saved from the first attempt.
 		u.runMigrationBackground(tenantID, t.Slug, dsn)
-	}()
+	})
 
 	return nil
 }
@@ -212,11 +208,9 @@ func (u *TenantUpdater) RollbackUpdate(ctx context.Context, tenantID string) err
 	cfg := u.manager.Config()
 	dsn := t.DSN(cfg.DBUser, cfg.DBPassword)
 
-	u.wg.Add(1)
-	go func() {
-		defer u.wg.Done()
+	u.wg.Go(func() {
 		u.runRollbackBackground(tenantID, t.Slug, dsn, versions)
-	}()
+	})
 
 	return nil
 }

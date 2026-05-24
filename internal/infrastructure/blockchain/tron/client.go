@@ -59,10 +59,10 @@ func NewClient(cfg ClientConfig) *Client {
 
 // TRC20Event represents a TRC-20 Transfer event from TronGrid.
 type TRC20Event struct {
-	TransactionID string `json:"transaction_id"`
-	BlockNumber   int64  `json:"block_number"`
+	TransactionID  string `json:"transaction_id"`
+	BlockNumber    int64  `json:"block_number"`
 	BlockTimestamp int64  `json:"block_timestamp"`
-	Result        struct {
+	Result         struct {
 		From  string `json:"from"`
 		To    string `json:"to"`
 		Value string `json:"value"`
@@ -159,10 +159,7 @@ func (c *Client) GetConfirmations(ctx context.Context, txHash string) (int, erro
 		return 0, nil // tx not yet in a block
 	}
 
-	confs := currentBlock - info.BlockNumber
-	if confs < 0 {
-		confs = 0
-	}
+	confs := max(currentBlock-info.BlockNumber, 0)
 
 	return int(confs), nil
 }
@@ -187,10 +184,10 @@ func (c *Client) ToBlockchainEvent(event TRC20Event, networkID id.ID) crypto.Blo
 }
 
 // doRequest performs an HTTP GET request with retry logic.
-func (c *Client) doRequest(ctx context.Context, url string, target interface{}) error {
+func (c *Client) doRequest(ctx context.Context, url string, target any) error {
 	var lastErr error
 
-	for attempt := 0; attempt < _maxRetries; attempt++ {
+	for attempt := range _maxRetries {
 		if attempt > 0 {
 			delay := _retryBaseDelay * time.Duration(1<<uint(attempt-1))
 			select {

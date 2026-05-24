@@ -3,6 +3,7 @@ package crypto
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"metapus/internal/core/apperror"
@@ -14,9 +15,9 @@ import (
 // TransitionMetadata holds structured context for FSM transitions.
 // Replaces untyped map[string]interface{} for type safety (§2.4).
 type TransitionMetadata struct {
-	Confirmations int   `json:"confirmations,omitempty"`
-	RequiredConfs int   `json:"requiredConfs,omitempty"`
-	BlockNumber   int64 `json:"blockNumber,omitempty"`
+	Confirmations int    `json:"confirmations,omitempty"`
+	RequiredConfs int    `json:"requiredConfs,omitempty"`
+	BlockNumber   int64  `json:"blockNumber,omitempty"`
 	TxHash        string `json:"txHash,omitempty"`
 }
 
@@ -35,9 +36,9 @@ type PaymentEvent struct {
 	PaymentID  id.ID                        `db:"payment_id" json:"paymentId"`
 	FromStatus crypto_payment.PaymentStatus `db:"from_status" json:"fromStatus"`
 	ToStatus   crypto_payment.PaymentStatus `db:"to_status" json:"toStatus"`
-	EventType  string              `db:"event_type" json:"eventType"`
-	Metadata   TransitionMetadata  `db:"metadata" json:"metadata"`
-	CreatedAt  time.Time           `db:"created_at" json:"createdAt"`
+	EventType  string                       `db:"event_type" json:"eventType"`
+	Metadata   TransitionMetadata           `db:"metadata" json:"metadata"`
+	CreatedAt  time.Time                    `db:"created_at" json:"createdAt"`
 }
 
 // PaymentEventRepository persists FSM events for audit trail.
@@ -126,12 +127,7 @@ func (fsm *PaymentFSM) isAllowed(from, to crypto_payment.PaymentStatus) bool {
 	if !ok {
 		return false
 	}
-	for _, s := range allowed {
-		if s == to {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(allowed, to)
 }
 
 // GetHistory returns the FSM event history for a payment.

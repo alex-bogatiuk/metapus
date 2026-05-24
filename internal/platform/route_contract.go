@@ -10,5 +10,5 @@ type RouteRegistration interface {
 	RoutePrefix() string
 	// RegisterRoutes builds the handler and mounts routes on the group.
 	// The cfg parameter provides access to shared services (tenant manager, etc.).
-	RegisterRoutes(group *gin.RouterGroup, cfg interface{})
+	RegisterRoutes(group *gin.RouterGroup, cfg any)
 }

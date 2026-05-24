@@ -20,8 +20,8 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/workerjob"
-	"metapus/internal/domain/reports/compiler"
 	"metapus/internal/domain/registers/exchange_rate"
+	"metapus/internal/domain/reports/compiler"
 	"metapus/internal/domain/settings"
 	"metapus/internal/infrastructure/crypto_worker"
 	"metapus/internal/infrastructure/rate_feed"
@@ -85,11 +85,9 @@ func main() {
 	worker := NewMultiTenantWorker(manager, log)
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		worker.Run(ctx)
-	}()
+	})
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
@@ -235,26 +233,22 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 
 	// Start CRON scheduler for scheduled rules (runs in background goroutine).
 	scheduler := automation.NewScheduler(engine, postgres.NewAutomationRuleRepo())
-	subsWg.Add(1)
-	go func() {
-		defer subsWg.Done()
+	subsWg.Go(func() {
 		scheduler.Start(ctx) // blocks until ctx is cancelled
-	}()
+	})
 
 	// ── Crypto Processing ──────────────────────────────────────────────
 	// Start CryptoProcessor if TRON RPC is configured.
 	cryptoEnabled := getEnv("TRON_RPC_URL", "") != ""
 	if cryptoEnabled {
 		cp := crypto_worker.NewCryptoProcessor(crypto_worker.CryptoProcessorConfig{
-			TRONRpcURL: getEnv("TRON_RPC_URL", ""),
-			TRONApiKey: getEnv("TRON_API_KEY", ""),
+			TRONRpcURL:  getEnv("TRON_RPC_URL", ""),
+			TRONApiKey:  getEnv("TRON_API_KEY", ""),
 			JobRecorder: recorder,
 		}, w.log)
-		subsWg.Add(1)
-		go func() {
-			defer subsWg.Done()
+		subsWg.Go(func() {
 			cp.Start(ctx) // blocks until ctx is cancelled
-		}()
+		})
 	}
 
 	// ── Rate Feed (Exchange Rates) ─────────────────────────────────────
@@ -273,11 +267,9 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 				Mappings:     mappings,
 			}, rateSvc, recorder, w.log)
 
-			subsWg.Add(1)
-			go func() {
-				defer subsWg.Done()
+			subsWg.Go(func() {
 				rfWorker.Start(ctx) // blocks until ctx is cancelled
-			}()
+			})
 			w.log.Infow("rate feed started",
 				"tenant_id", t.ID,
 				"currencies", len(mappings),
@@ -345,9 +337,9 @@ func (w *MultiTenantWorker) buildAutomationEngine() (*automation.Engine, error) 
 	historyRepo := postgres.NewAutomationHistoryRepo()
 
 	adapterMap := map[string]automation.Adapter{
-		"webhook":  automation.NewWebhookAdapter(),
-		"telegram": automation.NewTelegramAdapter(),
-		"email":    automation.NewEmailAdapter(),
+		"webhook":                             automation.NewWebhookAdapter(),
+		"telegram":                            automation.NewTelegramAdapter(),
+		"email":                               automation.NewEmailAdapter(),
 		adapters.InternalNotificationProvider: adapters.NewInternalNotificationAdapter(postgres.NewNotificationRepo(), ws.GlobalHub),
 	}
 

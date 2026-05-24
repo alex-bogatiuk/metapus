@@ -22,7 +22,7 @@ func ExtractDBColumns[T any]() []string {
 // extractColumnsFromType recursively extracts column names from a type.
 func extractColumnsFromType(t reflect.Type) []string {
 	// Dereference pointer types
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -79,7 +79,7 @@ var (
 // First call for a type does full reflection walk (including embedded structs).
 // All subsequent calls return the cached flat list — O(1) lookup + O(N) field access.
 func getOrCreateFlatMetadata(t reflect.Type) *flatTypeMetadata {
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -107,7 +107,7 @@ func flattenFields(t reflect.Type, parentPath []int) []flatFieldInfo {
 
 		if field.Anonymous {
 			ft := field.Type
-			if ft.Kind() == reflect.Ptr {
+			if ft.Kind() == reflect.Pointer {
 				ft = ft.Elem()
 			}
 			if ft.Kind() == reflect.Struct {
@@ -144,7 +144,7 @@ func flattenFields(t reflect.Type, parentPath []int) []flatFieldInfo {
 // FieldByIndex().Interface() for each mapped field.
 func StructToMap(v any) map[string]any {
 	rv := reflect.ValueOf(v)
-	if rv.Kind() == reflect.Ptr {
+	if rv.Kind() == reflect.Pointer {
 		rv = rv.Elem()
 	}
 

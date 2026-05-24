@@ -297,10 +297,7 @@ func (h *SecurityProfileHandler) GetAuditHistory(c *gin.Context) {
 		return
 	}
 
-	limit := h.ParseIntQuery(c, "limit", 50)
-	if limit > 200 {
-		limit = 200
-	}
+	limit := min(h.ParseIntQuery(c, "limit", 50), 200)
 
 	entries, err := h.audit.GetEntityHistory(c.Request.Context(), "security_profile", profileID, limit)
 	if err != nil {

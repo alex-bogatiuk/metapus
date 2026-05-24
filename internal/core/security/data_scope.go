@@ -3,6 +3,8 @@ package security
 
 import (
 	"context"
+	"maps"
+	"slices"
 
 	"github.com/Masterminds/squirrel"
 
@@ -146,12 +148,8 @@ func (ds *DataScope) EffectiveDimensions(entityName string) map[string][]string 
 
 	// Merge: copy global, override with per-entity
 	merged := make(map[string][]string, len(ds.Dimensions)+len(entityDims))
-	for k, v := range ds.Dimensions {
-		merged[k] = v
-	}
-	for k, v := range entityDims {
-		merged[k] = v
-	}
+	maps.Copy(merged, ds.Dimensions)
+	maps.Copy(merged, entityDims)
 	return merged
 }
 
@@ -194,13 +192,7 @@ func (ds *DataScope) CanAccessRecord(entityName string, recordDimensions map[str
 			return false
 		}
 
-		found := false
-		for _, id := range allowedIDs {
-			if id == recordValue {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(allowedIDs, recordValue)
 		if !found {
 			return false
 		}

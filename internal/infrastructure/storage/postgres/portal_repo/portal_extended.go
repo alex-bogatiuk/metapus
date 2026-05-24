@@ -6,7 +6,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	appctx "metapus/internal/core/context"
@@ -231,13 +233,7 @@ type PaymentLinkRow struct {
 func (r *DashboardRepo) GetMerchantSettings(ctx context.Context, merchantID id.ID) (*dto.PortalSettingsResponse, error) {
 	// Verify merchantID is in scope.
 	scope := appctx.MustGetMerchantScope(ctx)
-	inScope := false
-	for _, sid := range scope.MerchantIDs {
-		if sid == merchantID {
-			inScope = true
-			break
-		}
-	}
+	inScope := slices.Contains(scope.MerchantIDs, merchantID)
 	if !inScope {
 		return nil, fmt.Errorf("merchant_id not in scope")
 	}
@@ -261,13 +257,7 @@ func (r *DashboardRepo) GetMerchantSettings(ctx context.Context, merchantID id.I
 func (r *DashboardRepo) UpdateMerchantSettings(ctx context.Context, merchantID id.ID, req dto.UpdatePortalSettingsRequest) error {
 	// Verify scope
 	scope := appctx.MustGetMerchantScope(ctx)
-	inScope := false
-	for _, sid := range scope.MerchantIDs {
-		if sid == merchantID {
-			inScope = true
-			break
-		}
-	}
+	inScope := slices.Contains(scope.MerchantIDs, merchantID)
 	if !inScope {
 		return fmt.Errorf("merchant_id not in scope")
 	}
@@ -307,13 +297,14 @@ func (r *DashboardRepo) UpdateMerchantSettings(ctx context.Context, merchantID i
 	}
 
 	// Use jsonb || to merge each field, preserving other attributes.
-	query := `UPDATE cat_merchants SET updated_at = NOW(), attributes = attributes`
+	var query strings.Builder
+	query.WriteString(`UPDATE cat_merchants SET updated_at = NOW(), attributes = attributes`)
 	for i, key := range keys {
-		query += fmt.Sprintf(` || jsonb_build_object('%s', $%d)`, key, i+2)
+		query.WriteString(fmt.Sprintf(` || jsonb_build_object('%s', $%d)`, key, i+2))
 	}
-	query += ` WHERE id = $1 AND _deleted_at IS NULL`
+	query.WriteString(` WHERE id = $1 AND _deleted_at IS NULL`)
 
-	_, err := q.Exec(ctx, query, args...)
+	_, err := q.Exec(ctx, query.String(), args...)
 	if err != nil {
 		return fmt.Errorf("portal update settings: %w", err)
 	}

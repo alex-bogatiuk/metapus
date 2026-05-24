@@ -58,11 +58,13 @@ func (r *VehicleRegistration) EntityPresentation() metadata.Presentation {
 
 // --- Optional (platform.Inspectable) ---
 
-func (r *VehicleRegistration) EntityStruct() interface{} { return Vehicle{} }
+func (r *VehicleRegistration) EntityStruct() any { return Vehicle{} }
 
 // --- Optional (platform.Labeled) ---
 
-func (r *VehicleRegistration) EntityLabel() string { return "Транспортные средства" }
+func (r *VehicleRegistration) EntityLabel() string {
+	return "Транспортные средства"
+}
 
 // --- Optional (platform.ReferenceProvider) ---
 

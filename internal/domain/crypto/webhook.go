@@ -23,10 +23,10 @@ import (
 type WebhookEventType string
 
 const (
-	WebhookInvoicePaid           WebhookEventType = "invoice.paid"
-	WebhookInvoiceConfirmed      WebhookEventType = "invoice.confirmed"
-	WebhookInvoiceExpired        WebhookEventType = "invoice.expired"
-	WebhookWithdrawalConfirmed   WebhookEventType = "withdrawal.confirmed"
+	WebhookInvoicePaid         WebhookEventType = "invoice.paid"
+	WebhookInvoiceConfirmed    WebhookEventType = "invoice.confirmed"
+	WebhookInvoiceExpired      WebhookEventType = "invoice.expired"
+	WebhookWithdrawalConfirmed WebhookEventType = "withdrawal.confirmed"
 )
 
 // _webhookDialTimeout limits the TCP connect phase.
@@ -37,9 +37,9 @@ const _webhookRequestTimeout = 10 * time.Second
 
 // WebhookPayload is the payload sent to merchant's webhook URL.
 type WebhookPayload struct {
-	Event     WebhookEventType       `json:"event"`
-	Timestamp time.Time              `json:"timestamp"`
-	Data      map[string]interface{} `json:"data"`
+	Event     WebhookEventType `json:"event"`
+	Timestamp time.Time        `json:"timestamp"`
+	Data      map[string]any   `json:"data"`
 }
 
 // WebhookDispatcher sends webhook notifications to merchants.
@@ -124,7 +124,7 @@ func (d *WebhookDispatcher) Dispatch(
 	webhookURL string,
 	webhookSecret string,
 	event WebhookEventType,
-	data map[string]interface{},
+	data map[string]any,
 	attempt int,
 ) (*WebhookDelivery, error) {
 	// Resolve DNS once + validate IP — eliminates DNS rebinding TOCTOU (CWE-367).

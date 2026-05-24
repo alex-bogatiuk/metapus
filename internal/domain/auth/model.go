@@ -3,6 +3,7 @@ package auth
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"metapus/internal/core/apperror"
@@ -117,12 +118,7 @@ func (u *User) HasPermission(permissionCode string) bool {
 	if u.IsAdmin {
 		return true
 	}
-	for _, p := range u.Permissions {
-		if p == permissionCode {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(u.Permissions, permissionCode)
 }
 
 // FullName returns user's full name.

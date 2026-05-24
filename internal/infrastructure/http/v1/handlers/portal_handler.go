@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -27,8 +28,8 @@ import (
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_merchant_balance"
 	"metapus/internal/infrastructure/http/v1/dto"
-	numerator "metapus/internal/platform"
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
+	numerator "metapus/internal/platform"
 )
 
 // _blockchainAddressRe validates blockchain address format: alphanumeric only.
@@ -42,14 +43,14 @@ var _maxInt64Dec = decimal.NewFromInt(math.MaxInt64)
 type PortalHandler struct {
 	repo               *portal_repo.DashboardRepo
 	apiKeyRepo         merchant.APIKeyRepository
-	balanceCalc        *crypto.BalanceCalculator // nil-safe: returns empty balance if not configured
-	rateSourceResolver crypto.RateSourceResolver // resolves source code → UUID
-	webhookDispatcher  *crypto.WebhookDispatcher // nil-safe: test webhook returns error
-	deliveryRepo       crypto.WebhookDeliveryRepository // nil-safe: delivery persistence is best-effort
+	balanceCalc        *crypto.BalanceCalculator                             // nil-safe: returns empty balance if not configured
+	rateSourceResolver crypto.RateSourceResolver                             // resolves source code → UUID
+	webhookDispatcher  *crypto.WebhookDispatcher                             // nil-safe: test webhook returns error
+	deliveryRepo       crypto.WebhookDeliveryRepository                      // nil-safe: delivery persistence is best-effort
 	invoiceService     domain.DocumentService[*crypto_invoice.CryptoInvoice] // for portal invoice creation
-	numeratorService   numerator.Generator // for generating document numbers
-	postingEngine      *posting.Engine // for debit-first withdrawal request posting
-	merchantBalanceSvc *crypto_merchant_balance.Service // for storno movements on rejection
+	numeratorService   numerator.Generator                                   // for generating document numbers
+	postingEngine      *posting.Engine                                       // for debit-first withdrawal request posting
+	merchantBalanceSvc *crypto_merchant_balance.Service                      // for storno movements on rejection
 }
 
 // NewPortalHandler creates a new portal handler.
@@ -79,7 +80,6 @@ func NewPortalHandler(
 	}
 }
 
-
 // parseActiveMerchant reads optional merchant_id query param, validates it belongs to scope.
 func parseActiveMerchant(c *gin.Context) (*id.ID, error) {
 	raw := c.Query("merchant_id")
@@ -96,10 +96,8 @@ func parseActiveMerchant(c *gin.Context) (*id.ID, error) {
 	if !ok {
 		return nil, apperror.NewForbidden("merchant scope not available")
 	}
-	for _, sid := range scope.MerchantIDs {
-		if sid == parsed {
-			return &parsed, nil
-		}
+	if slices.Contains(scope.MerchantIDs, parsed) {
+		return &parsed, nil
 	}
 	return nil, apperror.NewForbidden("merchant_id not in scope")
 }
@@ -776,7 +774,7 @@ func (h *PortalHandler) SendTestWebhook(c *gin.Context) {
 	}
 
 	// Send test payload
-	data := map[string]interface{}{
+	data := map[string]any{
 		"message":    "Test webhook from Metapus",
 		"merchantId": mid.String(),
 	}

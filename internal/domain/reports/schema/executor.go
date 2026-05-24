@@ -45,5 +45,5 @@ type DatasetExecutor interface {
 	//
 	// The builder MUST use "base" as the alias for the main table/subquery
 	// so the Compiler can reference columns as "base.column_name".
-	BuildQuery(ctx context.Context, params map[string]interface{}) (squirrel.SelectBuilder, error)
+	BuildQuery(ctx context.Context, params map[string]any) (squirrel.SelectBuilder, error)
 }

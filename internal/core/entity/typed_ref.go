@@ -2,6 +2,7 @@ package entity
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"metapus/internal/core/apperror"
@@ -73,10 +74,8 @@ func (r *TypedRef) ValidateRef(ctx context.Context, allowedTypes []string) error
 		return nil
 	}
 
-	for _, t := range allowedTypes {
-		if r.RefType == t {
-			return nil
-		}
+	if slices.Contains(allowedTypes, r.RefType) {
+		return nil
 	}
 
 	return apperror.NewValidation("invalid reference type: "+r.RefType).

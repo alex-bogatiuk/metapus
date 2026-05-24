@@ -60,7 +60,7 @@ func (r *RefFinderRepo) FindReferences(ctx context.Context, req domain.FindRefer
 		_ = br.Close()
 	}()
 
-	for i := 0; i < len(specs); i++ {
+	for i := range specs {
 		spec := specs[i]
 		rows, err := br.Query()
 		if err != nil {
@@ -129,7 +129,7 @@ func (r *RefFinderRepo) CountReferences(ctx context.Context, req domain.FindRefe
 		}
 	}()
 
-	for i := 0; i < len(specs); i++ {
+	for range specs {
 		var count int
 		err := br.QueryRow().Scan(&count)
 		if err != nil {
@@ -185,7 +185,7 @@ func (r *RefFinderRepo) CountReferencesBatch(ctx context.Context, targetEntityNa
 		}
 	}()
 
-	for i := 0; i < len(specs); i++ {
+	for range specs {
 		rows, err := br.Query()
 		if err != nil {
 			continue

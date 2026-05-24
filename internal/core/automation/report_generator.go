@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"maps"
 	"time"
 
 	"metapus/internal/domain/automations"
@@ -43,13 +44,13 @@ type VariantLoader interface {
 
 // VariantSnapshot is the minimal set of data needed from a saved variant.
 type VariantSnapshot struct {
-	Name            string
-	SelectedFields  []string
-	VisibleColumns  []string
-	GroupBy         []string
-	SortColumn      *string
-	SortDirection   string
-	Filters         map[string]interface{}
+	Name           string
+	SelectedFields []string
+	VisibleColumns []string
+	GroupBy        []string
+	SortColumn     *string
+	SortDirection  string
+	Filters        map[string]any
 }
 
 // SettingsLoader loads tenant-wide settings for timezone resolution.
@@ -60,9 +61,9 @@ type SettingsLoader interface {
 // ReportGenerator orchestrates report generation for the Automation Engine.
 // It reuses the existing Query Engine (Compiler) and XLSX export pipeline.
 type ReportGenerator struct {
-	compiler     *compiler.Compiler
-	variantLoader VariantLoader
-	fileRepo      automations.FileRepository
+	compiler       *compiler.Compiler
+	variantLoader  VariantLoader
+	fileRepo       automations.FileRepository
 	settingsLoader SettingsLoader
 }
 
@@ -136,9 +137,9 @@ func (g *ReportGenerator) GenerateAndStore(
 	// 9. Save to sys_automation_files
 	fileName := fmt.Sprintf("%s_%s.xlsx", ds.Key, period.To.Format("2006-01-02"))
 	fileMeta := map[string]any{
-		"datasetKey":  config.DatasetKey,
-		"periodFrom":  period.From.Format("2006-01-02"),
-		"periodTo":    period.To.Format("2006-01-02"),
+		"datasetKey": config.DatasetKey,
+		"periodFrom": period.From.Format("2006-01-02"),
+		"periodTo":   period.To.Format("2006-01-02"),
 	}
 	if variantName != "" {
 		fileMeta["variantName"] = variantName
@@ -225,7 +226,7 @@ func (g *ReportGenerator) buildQueryRequest(
 
 	// Ensure filters map exists
 	if req.Filters == nil {
-		req.Filters = make(map[string]interface{})
+		req.Filters = make(map[string]any)
 	}
 
 	// Apply period to filters
@@ -240,9 +241,7 @@ func (g *ReportGenerator) buildQueryRequest(
 	}
 
 	// Merge extra filters (override variant filters)
-	for k, v := range config.ExtraFilters {
-		req.Filters[k] = v
-	}
+	maps.Copy(req.Filters, config.ExtraFilters)
 
 	return req, variantName, nil
 }

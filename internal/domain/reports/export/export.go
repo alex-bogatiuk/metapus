@@ -12,12 +12,10 @@ import (
 	"metapus/internal/platform"
 )
 
-
-
 // XLSX creates an XLSX file from report items and writes to the writer.
 // If exportColumnKeys is provided, columns are output in that order.
 // Uses a StreamWriter for O(1) memory consumption and supports Control Breaks (Subtotals).
-func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{}, exportColumnKeys []string, exportGroupByKeys []string) (retErr error) {
+func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]any, exportColumnKeys []string, exportGroupByKeys []string) (retErr error) {
 	f := excelize.NewFile()
 	defer func() {
 		if cErr := f.Close(); cErr != nil && retErr == nil {
@@ -83,13 +81,13 @@ func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{},
 	rowNum := 1
 
 	// Title
-	if err := sw.SetRow("A1", []interface{}{excelize.Cell{Value: meta.Name, StyleID: titleStyleID}}); err != nil {
+	if err := sw.SetRow("A1", []any{excelize.Cell{Value: meta.Name, StyleID: titleStyleID}}); err != nil {
 		return fmt.Errorf("set title row: %w", err)
 	}
 	rowNum += 2 // Blank row
 
 	// Header & Column Widths
-	headerRow := make([]interface{}, len(columns))
+	headerRow := make([]any, len(columns))
 	for i, col := range columns {
 		headerRow[i] = excelize.Cell{Value: col.Label, StyleID: headerStyleID}
 		colLetter, _ := excelize.ColumnNumberToName(i + 1)
@@ -142,7 +140,7 @@ func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{},
 		if breakIdx != -1 {
 			for i := len(groups) - 1; i >= breakIdx; i-- {
 				g := groups[i]
-				subRow := make([]interface{}, len(columns))
+				subRow := make([]any, len(columns))
 				subRow[0] = excelize.Cell{Value: fmt.Sprintf("Итого %s", g.Value), StyleID: subtotalStyleID}
 				for cIdx, isNum := range numericCols {
 					if isNum {
@@ -168,7 +166,7 @@ func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{},
 				val := formatExportValue(item[g.Key], g.ColMeta)
 				g.Value = val
 
-				hdrRow := make([]interface{}, len(columns))
+				hdrRow := make([]any, len(columns))
 				indent := strings.Repeat("   ", i)
 				hdrRow[0] = excelize.Cell{Value: indent + val, StyleID: groupHeaderStyleID}
 				if err := sw.SetRow(fmt.Sprintf("A%d", rowNum), hdrRow, excelize.RowOpts{OutlineLevel: i}); err != nil {
@@ -180,7 +178,7 @@ func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{},
 		}
 
 		// 4. Detail Row
-		detRow := make([]interface{}, len(columns))
+		detRow := make([]any, len(columns))
 		for cIdx, col := range columns {
 			val := item[col.Key]
 			if numericCols[cIdx] {
@@ -205,7 +203,7 @@ func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{},
 	if !firstRow {
 		for i := len(groups) - 1; i >= 0; i-- {
 			g := groups[i]
-			subRow := make([]interface{}, len(columns))
+			subRow := make([]any, len(columns))
 			subRow[0] = excelize.Cell{Value: fmt.Sprintf("Итого %s", g.Value), StyleID: subtotalStyleID}
 			for cIdx, isNum := range numericCols {
 				if isNum {
@@ -221,7 +219,7 @@ func XLSX(w io.Writer, meta platform.ReportMeta, items []map[string]interface{},
 
 	// 6. Grand Totals
 	if len(items) > 0 {
-		gtRow := make([]interface{}, len(columns))
+		gtRow := make([]any, len(columns))
 		gtRow[0] = excelize.Cell{Value: "Итого по отчету", StyleID: subtotalStyleID}
 		for cIdx, isNum := range numericCols {
 			if isNum {
@@ -291,7 +289,7 @@ func visibleColumns(meta platform.ReportMeta) []platform.ReportColumn {
 	return cols
 }
 
-func formatExportValue(v interface{}, col platform.ReportColumn) string {
+func formatExportValue(v any, col platform.ReportColumn) string {
 	if v == nil {
 		return ""
 	}
@@ -311,7 +309,7 @@ func formatExportValue(v interface{}, col platform.ReportColumn) string {
 	return fmt.Sprintf("%v", v)
 }
 
-func toFloat64(v interface{}) (float64, bool) {
+func toFloat64(v any) (float64, bool) {
 	switch n := v.(type) {
 	case float64:
 		return n, true
@@ -327,8 +325,6 @@ func toFloat64(v interface{}) (float64, bool) {
 		return 0, false
 	}
 }
-
-
 
 func thinBorders() []excelize.Border {
 	return []excelize.Border{

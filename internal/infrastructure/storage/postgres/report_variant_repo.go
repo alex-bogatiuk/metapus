@@ -135,7 +135,7 @@ func scanVariant(row pgx.Row, v *variants.ReportVariant) error {
 		v.Config.AdvancedFilters = make([]filter.Item, 0)
 	}
 	if v.Config.Filters == nil {
-		v.Config.Filters = make(map[string]interface{})
+		v.Config.Filters = make(map[string]any)
 	}
 
 	return nil

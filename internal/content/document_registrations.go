@@ -70,7 +70,9 @@ type GoodsReceiptRegistration struct{}
 func (r *GoodsReceiptRegistration) RoutePrefix() string { return "goods-receipt" }
 func (r *GoodsReceiptRegistration) Permission() string  { return "document:goods_receipt" }
 func (r *GoodsReceiptRegistration) EntityName() string  { return "GoodsReceipt" }
-func (r *GoodsReceiptRegistration) EntityLabel() string { return "Поступление товаров" }
+func (r *GoodsReceiptRegistration) EntityLabel() string {
+	return "Поступление товаров"
+}
 func (r *GoodsReceiptRegistration) EntityPresentation() metadata.Presentation {
 	return metadata.Presentation{
 		Singular: "Поступление товаров",
@@ -79,7 +81,7 @@ func (r *GoodsReceiptRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "поступления товаров",
 	}
 }
-func (r *GoodsReceiptRegistration) EntityStruct() interface{} { return goods_receipt.GoodsReceipt{} }
+func (r *GoodsReceiptRegistration) EntityStruct() any { return goods_receipt.GoodsReceipt{} }
 func (r *GoodsReceiptRegistration) RLSDimensions() map[string]string {
 	return map[string]string{"organization": "organization_id"}
 }
@@ -125,7 +127,7 @@ func (r *GoodsIssueRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "реализации товаров",
 	}
 }
-func (r *GoodsIssueRegistration) EntityStruct() interface{} { return goods_issue.GoodsIssue{} }
+func (r *GoodsIssueRegistration) EntityStruct() any { return goods_issue.GoodsIssue{} }
 func (r *GoodsIssueRegistration) RLSDimensions() map[string]string {
 	return map[string]string{"organization": "organization_id"}
 }
@@ -171,7 +173,7 @@ func (r *CryptoInvoiceRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "крипто-инвойса",
 	}
 }
-func (r *CryptoInvoiceRegistration) EntityStruct() interface{} {
+func (r *CryptoInvoiceRegistration) EntityStruct() any {
 	return crypto_invoice.CryptoInvoice{}
 }
 func (r *CryptoInvoiceRegistration) RLSDimensions() map[string]string {
@@ -238,7 +240,7 @@ func (r *CryptoPaymentRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "крипто-платежа",
 	}
 }
-func (r *CryptoPaymentRegistration) EntityStruct() interface{} {
+func (r *CryptoPaymentRegistration) EntityStruct() any {
 	return crypto_payment.CryptoPayment{}
 }
 func (r *CryptoPaymentRegistration) RLSDimensions() map[string]string {
@@ -286,7 +288,7 @@ func (r *CryptoWithdrawalRegistration) EntityPresentation() metadata.Presentatio
 		Genitive: "крипто-вывода",
 	}
 }
-func (r *CryptoWithdrawalRegistration) EntityStruct() interface{} {
+func (r *CryptoWithdrawalRegistration) EntityStruct() any {
 	return crypto_withdrawal.CryptoWithdrawal{}
 }
 func (r *CryptoWithdrawalRegistration) RLSDimensions() map[string]string {
@@ -334,7 +336,7 @@ func (r *CryptoSweepRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "крипто-свипа",
 	}
 }
-func (r *CryptoSweepRegistration) EntityStruct() interface{} {
+func (r *CryptoSweepRegistration) EntityStruct() any {
 	return crypto_sweep.CryptoSweep{}
 }
 func (r *CryptoSweepRegistration) RLSDimensions() map[string]string {

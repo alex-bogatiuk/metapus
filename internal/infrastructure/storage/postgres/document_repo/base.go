@@ -333,7 +333,6 @@ func (r *BaseDocumentRepo[T]) GetByNumber(ctx context.Context, number string) (T
 	return entity, nil
 }
 
-
 // buildWhereConditions builds WHERE conditions from domain.ListFilter.
 // Handles standard filters (search, deletion_mark), RLS DataScope, and advanced filters.
 func (r *BaseDocumentRepo[T]) buildWhereConditions(f domain.ListFilter) ([]squirrel.Sqlizer, error) {
@@ -573,10 +572,7 @@ func (r *BaseDocumentRepo[T]) listBackward(ctx context.Context, spec keyset.Sort
 // listAround fetches items around a target ID (teleportation / "show in list").
 func (r *BaseDocumentRepo[T]) listAround(ctx context.Context, f domain.ListFilter, spec keyset.SortSpec, conditions []squirrel.Sqlizer, limit int) (domain.CursorListResult[T], error) {
 	var result domain.CursorListResult[T]
-	half := limit / 2
-	if half < 1 {
-		half = 1
-	}
+	half := max(limit/2, 1)
 
 	targetID, err := id.Parse(f.CursorReq.TargetID)
 	if err != nil {
@@ -741,4 +737,3 @@ func (r *BaseDocumentRepo[T]) ListIDs(ctx context.Context, f domain.ListFilter, 
 
 	return ids, nil
 }
-

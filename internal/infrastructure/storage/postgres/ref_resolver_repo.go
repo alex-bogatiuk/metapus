@@ -62,7 +62,6 @@ func (r *RefResolverRepo) ResolveRefs(ctx context.Context, refs []domain.RefReso
 			continue
 		}
 
-
 		// Collect unique IDs for this type
 		ids := make([]id.ID, len(indices))
 		for i, idx := range indices {
@@ -98,12 +97,13 @@ func (r *RefResolverRepo) ResolveRefs(ctx context.Context, refs []domain.RefReso
 			}
 
 			// Build SELECT with JOIN for preview fields
-			selectCols := "d.id, d.number, d.date, d.posted, d.deletion_mark"
+			var selectCols strings.Builder
+			selectCols.WriteString("d.id, d.number, d.date, d.posted, d.deletion_mark")
 			if hasAmount {
-				selectCols += ", d.total_amount"
+				selectCols.WriteString(", d.total_amount")
 			}
 			if hasCurrency {
-				selectCols += ", d.currency_id"
+				selectCols.WriteString(", d.currency_id")
 			}
 
 			// Dynamic JOINs for preview fields (e.g. counterparty_id → cat_counterparties.name)
@@ -133,7 +133,7 @@ func (r *RefResolverRepo) ResolveRefs(ctx context.Context, refs []domain.RefReso
 				}
 
 				alias := fmt.Sprintf("pv%d", i)
-				selectCols += fmt.Sprintf(", %s.name AS %s_name", alias, alias)
+				selectCols.WriteString(fmt.Sprintf(", %s.name AS %s_name", alias, alias))
 				joins = append(joins, fmt.Sprintf(
 					"LEFT JOIN %s %s ON %s.id = d.%s",
 					refTable, alias, alias, pf.Column,
@@ -149,7 +149,7 @@ func (r *RefResolverRepo) ResolveRefs(ctx context.Context, refs []domain.RefReso
 
 			sql := fmt.Sprintf(
 				`SELECT %s FROM %s%s WHERE d.id IN (%s)`,
-				selectCols, fromClause, joinClause, inClause,
+				selectCols.String(), fromClause, joinClause, inClause,
 			)
 			rows, err := querier.Query(ctx, sql, args...)
 			if err != nil {
@@ -191,7 +191,7 @@ func (r *RefResolverRepo) ResolveRefs(ctx context.Context, refs []domain.RefReso
 					logger.Error(ctx, "RefResolverRepo: scan failed", "error", err, "tableName", tableName)
 					continue
 				}
-				
+
 				if hasAmount && amount != nil {
 					fields.Amount = *amount
 				}
@@ -208,7 +208,7 @@ func (r *RefResolverRepo) ResolveRefs(ctx context.Context, refs []domain.RefReso
 						}
 					}
 				}
-				
+
 				presentations[uid] = fields
 			}
 			rows.Close()
@@ -226,7 +226,6 @@ func (r *RefResolverRepo) ResolveRefs(ctx context.Context, refs []domain.RefReso
 					results[idx].PreviewData = f.PreviewData
 				}
 			}
-
 
 		case "catalog":
 			sql := fmt.Sprintf(

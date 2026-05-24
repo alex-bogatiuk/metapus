@@ -7,6 +7,7 @@ import (
 	"encoding/base32"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -57,23 +58,24 @@ const _keyRandomBytes = 32
 // The plaintext key is generated once, shown to the merchant, and never stored.
 //
 // Audit chain:
-//   CreatedByUserID → platform user who issued this key
-//   (from the key) ← doc_crypto_invoices.api_key_id → which key created the invoice
+//
+//	CreatedByUserID → platform user who issued this key
+//	(from the key) ← doc_crypto_invoices.api_key_id → which key created the invoice
 type MerchantAPIKey struct {
-	ID                id.ID         `db:"id"                  json:"id"`
-	MerchantID        id.ID         `db:"merchant_id"         json:"merchantId"`
-	Name              string        `db:"name"                json:"name"`
-	KeyPrefix         string        `db:"key_prefix"          json:"keyPrefix"`          // "mk_" + first 8 chars
-	KeyHash           string        `db:"key_hash"            json:"-"`                  // SHA-256 hex, never sent
-	Scopes            []APIKeyScope `db:"scopes"              json:"scopes"`
-	IsActive          bool          `db:"is_active"           json:"isActive"`
-	LastUsedAt        *time.Time    `db:"last_used_at"        json:"lastUsedAt"`
-	ExpiresAt         *time.Time    `db:"expires_at"          json:"expiresAt"`
+	ID         id.ID         `db:"id"                  json:"id"`
+	MerchantID id.ID         `db:"merchant_id"         json:"merchantId"`
+	Name       string        `db:"name"                json:"name"`
+	KeyPrefix  string        `db:"key_prefix"          json:"keyPrefix"` // "mk_" + first 8 chars
+	KeyHash    string        `db:"key_hash"            json:"-"`         // SHA-256 hex, never sent
+	Scopes     []APIKeyScope `db:"scopes"              json:"scopes"`
+	IsActive   bool          `db:"is_active"           json:"isActive"`
+	LastUsedAt *time.Time    `db:"last_used_at"        json:"lastUsedAt"`
+	ExpiresAt  *time.Time    `db:"expires_at"          json:"expiresAt"`
 	// CreatedByUserID is the platform user who issued this key.
 	// NULL when created via automated processes or before this field was introduced.
-	CreatedByUserID   *id.ID        `db:"created_by_user_id"  json:"createdByUserId,omitempty"`
-	CreatedAt         time.Time     `db:"created_at"          json:"createdAt"`
-	UpdatedAt         time.Time     `db:"updated_at"          json:"updatedAt"`
+	CreatedByUserID *id.ID    `db:"created_by_user_id"  json:"createdByUserId,omitempty"`
+	CreatedAt       time.Time `db:"created_at"          json:"createdAt"`
+	UpdatedAt       time.Time `db:"updated_at"          json:"updatedAt"`
 }
 
 // Validate checks that the API key model is internally consistent.
@@ -104,12 +106,7 @@ func (k *MerchantAPIKey) Validate(_ context.Context) error {
 
 // HasScope returns true if the key has the required scope.
 func (k *MerchantAPIKey) HasScope(scope APIKeyScope) bool {
-	for _, s := range k.Scopes {
-		if s == scope {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(k.Scopes, scope)
 }
 
 // IsExpired returns true if the key has an expiry date that has passed.

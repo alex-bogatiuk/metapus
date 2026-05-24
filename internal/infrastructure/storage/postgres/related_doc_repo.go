@@ -66,7 +66,7 @@ func (r *RelatedDocRepo) FindRelatedDocuments(ctx context.Context, req domain.Re
 	rootKey := treeKey{entityName: req.EntityName, entityID: req.EntityID}
 	visited := map[treeKey]bool{rootKey: true}
 
-	for depth := 0; depth < _maxTreeDepth; depth++ {
+	for range _maxTreeDepth {
 		def, ok := r.registry.Get(rootKey.entityName)
 		if !ok || def.Type != metadata.TypeDocument {
 			break

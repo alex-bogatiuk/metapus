@@ -148,8 +148,8 @@ func parseQuantityString(s string) (Quantity, error) {
 	if strings.HasPrefix(s, "-") {
 		sign = -1
 		s = strings.TrimPrefix(s, "-")
-	} else if strings.HasPrefix(s, "+") {
-		s = strings.TrimPrefix(s, "+")
+	} else if after, ok := strings.CutPrefix(s, "+"); ok {
+		s = after
 	}
 
 	parts := strings.SplitN(s, ".", 2)
@@ -202,7 +202,6 @@ func (m MinorUnits) ToDecimal(decimalPlaces int) decimal.Decimal {
 	multiplier := decimal.NewFromInt(int64(math.Pow10(decimalPlaces)))
 	return decimal.NewFromInt(int64(m)).Div(multiplier)
 }
-
 
 func (m MinorUnits) IsZero() bool     { return m == 0 }
 func (m MinorUnits) IsPositive() bool { return m > 0 }

@@ -29,14 +29,14 @@ const (
 // UpdateState is the persistent state of the current update operation.
 // Written to disk as WAL *before* each phase transition.
 type UpdateState struct {
-	Phase          Phase     `json:"phase"`
-	TargetImage    string    `json:"targetImage,omitempty"`
-	TargetTag      string    `json:"targetTag,omitempty"`
-	OldContainerID string    `json:"oldContainerId,omitempty"`
-	NewContainerID string    `json:"newContainerId,omitempty"`
-	StartedAt      time.Time `json:"startedAt,omitempty"`
-	CompletedAt    time.Time `json:"completedAt,omitempty"`
-	LastError      string    `json:"lastError,omitempty"`
+	Phase          Phase      `json:"phase"`
+	TargetImage    string     `json:"targetImage,omitempty"`
+	TargetTag      string     `json:"targetTag,omitempty"`
+	OldContainerID string     `json:"oldContainerId,omitempty"`
+	NewContainerID string     `json:"newContainerId,omitempty"`
+	StartedAt      time.Time  `json:"startedAt"`
+	CompletedAt    time.Time  `json:"completedAt"`
+	LastError      string     `json:"lastError,omitempty"`
 	Log            []LogEntry `json:"log,omitempty"`
 
 	// PhaseDetail provides a human-readable description of what's happening

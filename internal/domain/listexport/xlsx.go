@@ -83,13 +83,13 @@ func XLSX(w io.Writer, title string, columns []Column, rows []map[string]any) (r
 	rowNum := 1
 
 	// ── Title row ─────────────────────────────────────────────────────
-	if err := sw.SetRow("A1", []interface{}{excelize.Cell{Value: title, StyleID: titleStyleID}}); err != nil {
+	if err := sw.SetRow("A1", []any{excelize.Cell{Value: title, StyleID: titleStyleID}}); err != nil {
 		return fmt.Errorf("set title row: %w", err)
 	}
 	rowNum += 2 // blank row
 
 	// ── Header row ────────────────────────────────────────────────────
-	headerRow := make([]interface{}, len(columns))
+	headerRow := make([]any, len(columns))
 	for i, col := range columns {
 		headerRow[i] = excelize.Cell{Value: col.Label, StyleID: headerStyleID}
 	}
@@ -100,7 +100,7 @@ func XLSX(w io.Writer, title string, columns []Column, rows []map[string]any) (r
 
 	// ── Data rows ─────────────────────────────────────────────────────
 	for _, row := range rows {
-		dataRow := make([]interface{}, len(columns))
+		dataRow := make([]any, len(columns))
 		for i, col := range columns {
 			val := row[col.Key]
 			cell := formatCell(val, cellStyleID, cellRightStyleID, cellIntStyleID)

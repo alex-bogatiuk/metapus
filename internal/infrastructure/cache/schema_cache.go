@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -451,9 +452,7 @@ func (c *SchemaCache) GetFeatureConfig(flagName string) map[string]any {
 		return nil
 	}
 	cfg := make(map[string]any, len(flag.Config))
-	for k, v := range flag.Config {
-		cfg[k] = v
-	}
+	maps.Copy(cfg, flag.Config)
 	return cfg
 }
 

@@ -98,10 +98,7 @@ func (r *DashboardRepo) GetInvoiceDetail(ctx context.Context, invoiceID id.ID, a
 	if paymentAmount != nil && feeFixed != nil && feePercentBP != nil {
 		fee := calculateFee(*feeFixed, *feePercentBP, safeDeref(feeMin), safeDeref(feeMax), *paymentAmount)
 		item.ProcessingFee = strconv.FormatInt(fee, 10)
-		net := *paymentAmount - fee
-		if net < 0 {
-			net = 0
-		}
+		net := max(*paymentAmount-fee, 0)
 		item.NetAmount = strconv.FormatInt(net, 10)
 	}
 
@@ -158,7 +155,7 @@ func (r *DashboardRepo) getInvoiceTimeline(ctx context.Context, invoiceID id.ID)
 
 		// Parse metadata JSON into structured fields.
 		if len(metadataJSON) > 0 {
-			var raw map[string]interface{}
+			var raw map[string]any
 			if err := json.Unmarshal(metadataJSON, &raw); err == nil {
 				if v, ok := raw["confirmations"]; ok {
 					if n, ok := v.(float64); ok {

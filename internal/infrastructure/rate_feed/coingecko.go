@@ -136,10 +136,7 @@ func (f *CoinGeckoFetcher) FetchRates(ctx context.Context, mappings []CurrencyMa
 			continue
 		}
 
-		multiplier := mapping.Multiplier
-		if multiplier < 1 {
-			multiplier = 1
-		}
+		multiplier := max(mapping.Multiplier, 1)
 
 		rates = append(rates, exchange_rate.ExchangeRate{
 			CurrencyID:   mapping.CurrencyID,

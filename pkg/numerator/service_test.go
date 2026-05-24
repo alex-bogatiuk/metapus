@@ -133,7 +133,7 @@ func TestGetNextNumber_Cached(t *testing.T) {
 
 	// 3. Exhaust range
 	// We used 2. Need 8 more to reach 10.
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		_, _ = svc.GetNextNumber(ctx, cfg, opts, time.Now())
 	}
 
