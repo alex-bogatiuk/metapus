@@ -944,8 +944,18 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 		exRateSvc := exchange_rate.NewService(exRateRepo)
 		balanceCalc := crypto.NewBalanceCalculator(exRateSvc)
 		rateSourceResolver := portal_repo.NewRateSourceResolver()
+		webhookDispatcher := crypto.NewWebhookDispatcher()
+		webhookDeliveryRepo := crypto_repo.NewWebhookDeliveryRepo()
 
-		portalHandler := handlers.NewPortalHandler(cfg.PortalDashboardRepo, cfg.MerchantAPIKeyRepo, balanceCalc, rateSourceResolver)
+		// Posting engine for debit-first withdrawal requests.
+		// Only needs CryptoMerchantBalance visitor+recorder (balance check + movement recording).
+		portalDocLocker := postgres.NewDocLocker()
+		portalMerchantSvc := crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())
+		portalPostingEngine := posting.NewEngine(portalDocLocker)
+		portalPostingEngine.AddVisitor(&posting.CryptoMerchantBalanceVisitor{})
+		portalPostingEngine.AddRecorder(posting.NewCryptoMerchantBalanceRecorder(portalMerchantSvc))
+
+		portalHandler := handlers.NewPortalHandler(cfg.PortalDashboardRepo, cfg.MerchantAPIKeyRepo, balanceCalc, rateSourceResolver, webhookDispatcher, webhookDeliveryRepo, cfg.MerchantInvoiceSvc, cfg.Numerator, portalPostingEngine, portalMerchantSvc)
 
 		portalV1 := router.Group("/portal/v1")
 		portalV1.Use(middleware.TenantDB(cfg.TenantManager))
@@ -964,7 +974,56 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 				dashboard.GET("/balance", portalHandler.GetBalance)
 			}
 
+			// ── Balance (dedicated page) ─────────────────────────────────
+			portalV1.GET("/balances", portalHandler.GetBalanceDetailed)
+
 			portalV1.GET("/invoices", portalHandler.ListInvoices)
+			portalV1.GET("/invoices/export", portalHandler.ExportInvoicesCSV)
+			portalV1.POST("/invoices",
+				middleware.RequirePortalRole(appctx.PortalRoleManager),
+				portalHandler.CreateInvoice,
+			)
+			portalV1.GET("/invoices/:id", portalHandler.GetInvoiceDetail) // MUST be after /invoices/export (Gin static-before-param rule)
+
+			// ── Withdrawals ──────────────────────────────────────────────
+			portalV1.GET("/withdrawals", portalHandler.ListWithdrawals)
+
+			// ── Withdrawal Addresses (whitelist) ─────────────────────────
+			addrs := portalV1.Group("/withdrawal-addresses")
+			{
+				addrs.GET("", portalHandler.ListWhitelistedAddresses)
+				addrs.POST("",
+					middleware.RequirePortalRole(appctx.PortalRoleOwner),
+					portalHandler.AddWhitelistedAddress,
+				)
+				addrs.DELETE("/:id",
+					middleware.RequirePortalRole(appctx.PortalRoleOwner),
+					portalHandler.RemoveWhitelistedAddress,
+				)
+			}
+
+			wreqs := portalV1.Group("/withdrawal-requests")
+			{
+				wreqs.GET("", portalHandler.ListWithdrawalRequests)
+				wreqs.POST("",
+					middleware.RequirePortalRole(appctx.PortalRoleManager),
+					portalHandler.CreateWithdrawalRequest,
+				)
+				wreqs.POST("/:id/reject",
+					middleware.RequirePortalRole(appctx.PortalRoleManager),
+					portalHandler.RejectWithdrawalRequest,
+				)
+			}
+
+			// ── Webhooks ─────────────────────────────────────────────────
+			webhooks := portalV1.Group("/webhooks")
+			{
+				webhooks.GET("/deliveries", portalHandler.ListWebhookDeliveries)
+				webhooks.POST("/test",
+					middleware.RequirePortalRole(appctx.PortalRoleManager),
+					portalHandler.SendTestWebhook,
+				)
+			}
 
 			// ── API Keys (self-service) ──────────────────────────────────
 			// Only registered when MerchantAPIKeyRepo is configured.
@@ -992,6 +1051,19 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 				middleware.RequirePortalRole(appctx.PortalRoleManager),
 				portalHandler.UpdateSettings,
 			)
+
+			// Webhook secret — Owner only (sensitive security action)
+			portalV1.POST("/settings/webhook-secret/reveal",
+				middleware.RequirePortalRole(appctx.PortalRoleOwner),
+				portalHandler.RevealWebhookSecret,
+			)
+			portalV1.POST("/settings/webhook-secret/rotate",
+				middleware.RequirePortalRole(appctx.PortalRoleOwner),
+				portalHandler.RotateWebhookSecret,
+			)
+
+			// Fee schedule — read-only, any authenticated portal user
+			portalV1.GET("/settings/fees", portalHandler.GetFeeSchedule)
 		}
 	}
 }

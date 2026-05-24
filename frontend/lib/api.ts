@@ -305,6 +305,48 @@ export async function portalFetch<T>(
     return res.json() as Promise<T>
 }
 
+/**
+ * portalFetchBlob — same as portalFetch but returns a Blob instead of parsed JSON.
+ * Used for binary downloads (CSV export) from portal endpoints.
+ */
+export async function portalFetchBlob(
+    path: string,
+    options?: RequestInit
+): Promise<{ blob: Blob; filename: string }> {
+    const { headers: optHeaders, ...restOptions } = options ?? {}
+
+    let res = await fetch(`${PORTAL_BASE}${path}`, {
+        ...restOptions,
+        credentials: "include",
+        headers: buildHeaders(optHeaders),
+    })
+
+    // ── 401 → attempt token refresh & retry once ────────────────────────
+    if (res.status === 401) {
+        const newTokens = await refreshAccessToken()
+        if (newTokens) {
+            res = await fetch(`${PORTAL_BASE}${path}`, {
+                ...restOptions,
+                credentials: "include",
+                headers: buildHeaders(optHeaders),
+            })
+        }
+    }
+
+    if (!res.ok) {
+        const body = await res.text().catch(() => undefined)
+        throw new ApiError(res.status, res.statusText, body)
+    }
+
+    // Extract filename from Content-Disposition header
+    const disposition = res.headers.get("Content-Disposition") ?? ""
+    const match = disposition.match(/filename="?([^";\n]+)"?/)
+    const filename = match?.[1] ?? "export.csv"
+
+    const blob = await res.blob()
+    return { blob, filename }
+}
+
 // ── Resource endpoints ──────────────────────────────────────────────────
 
 /**
@@ -1154,14 +1196,56 @@ export const api = {
             return portalFetch<import("@/types/portal-api").PortalBalanceResponse>(`/dashboard/balance${qs}`)
         },
 
-        invoices: (params?: { merchantId?: string; status?: string; limit?: number; offset?: number }) => {
+        // ── Balance (dedicated page) ────────────────────────────────
+        balanceDetailed: (merchantId?: string, source?: string) => {
+            const params: string[] = []
+            if (merchantId) params.push(`merchant_id=${encodeURIComponent(merchantId)}`)
+            if (source) params.push(`source=${encodeURIComponent(source)}`)
+            const qs = params.length > 0 ? `?${params.join("&")}` : ""
+            return portalFetch<import("@/types/portal-api").PortalDetailedBalanceResponse>(`/balances${qs}`)
+        },
+
+        invoices: (params?: import("@/types/portal-api").InvoiceFilterParams) => {
             const entries: [string, string][] = []
             if (params?.merchantId) entries.push(["merchant_id", params.merchantId])
             if (params?.status) entries.push(["status", params.status])
+            if (params?.search) entries.push(["search", params.search])
+            if (params?.token) entries.push(["token", params.token])
+            if (params?.dateFrom) entries.push(["dateFrom", params.dateFrom])
+            if (params?.dateTo) entries.push(["dateTo", params.dateTo])
+            if (params?.sort) entries.push(["sort", params.sort])
+            if (params?.order) entries.push(["order", params.order])
             if (params?.limit) entries.push(["limit", String(params.limit)])
             if (params?.offset) entries.push(["offset", String(params.offset)])
             const qs = entries.length > 0 ? "?" + new URLSearchParams(entries).toString() : ""
             return portalFetch<import("@/types/portal-api").PortalInvoiceListResponse>(`/invoices${qs}`)
+        },
+
+        exportInvoicesCsv: async (params?: import("@/types/portal-api").InvoiceFilterParams) => {
+            const entries: [string, string][] = []
+            if (params?.merchantId) entries.push(["merchant_id", params.merchantId])
+            if (params?.status) entries.push(["status", params.status])
+            if (params?.search) entries.push(["search", params.search])
+            if (params?.token) entries.push(["token", params.token])
+            if (params?.dateFrom) entries.push(["dateFrom", params.dateFrom])
+            if (params?.dateTo) entries.push(["dateTo", params.dateTo])
+            const qs = entries.length > 0 ? "?" + new URLSearchParams(entries).toString() : ""
+
+            const { blob, filename } = await portalFetchBlob(`/invoices/export${qs}`)
+
+            // Trigger browser download via <a> element
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement("a")
+            a.href = url
+            a.download = filename
+            document.body.appendChild(a)
+            a.click()
+
+            // Cleanup
+            setTimeout(() => {
+                document.body.removeChild(a)
+                URL.revokeObjectURL(url)
+            }, 100)
         },
 
         // ── API Keys (self-service) ──────────────────────────────────
@@ -1205,7 +1289,91 @@ export const api = {
                     method: "PATCH",
                     body: JSON.stringify(body),
                 }),
+            revealSecret: (merchantId: string) =>
+                portalFetch<import("@/types/portal-api").PortalWebhookSecretResponse>(
+                    `/settings/webhook-secret/reveal?merchant_id=${encodeURIComponent(merchantId)}`,
+                    { method: "POST" },
+                ),
+            rotateSecret: (merchantId: string) =>
+                portalFetch<import("@/types/portal-api").PortalWebhookSecretResponse>(
+                    `/settings/webhook-secret/rotate?merchant_id=${encodeURIComponent(merchantId)}`,
+                    { method: "POST" },
+                ),
+            fees: (merchantId: string) =>
+                portalFetch<import("@/types/portal-api").PortalFeeScheduleResponse>(
+                    `/settings/fees?merchant_id=${encodeURIComponent(merchantId)}`,
+                ),
         },
+
+        // ── Create Invoice (from portal) ─────────────────────────────
+        createInvoice: (merchantId: string, body: import("@/types/portal-api").PortalCreateInvoiceRequest) =>
+            portalFetch<import("@/types/portal-api").PortalCreateInvoiceResponse>(
+                `/invoices?merchant_id=${encodeURIComponent(merchantId)}`,
+                { method: "POST", body: JSON.stringify(body) },
+            ),
+
+        // ── Invoice Detail ──────────────────────────────────────────
+        invoiceDetail: (invoiceId: string, merchantId?: string) => {
+            const qs = merchantId ? `?merchant_id=${encodeURIComponent(merchantId)}` : ""
+            return portalFetch<import("@/types/portal-api").PortalInvoiceDetailResponse>(`/invoices/${invoiceId}${qs}`)
+        },
+
+        // ── Withdrawals (read-only) ─────────────────────────────────
+        withdrawals: (params?: { merchantId?: string; status?: string; sort?: string; order?: "asc" | "desc"; limit?: number; offset?: number }) => {
+            const entries: [string, string][] = []
+            if (params?.merchantId) entries.push(["merchant_id", params.merchantId])
+            if (params?.status) entries.push(["status", params.status])
+            if (params?.sort) entries.push(["sort", params.sort])
+            if (params?.order) entries.push(["order", params.order])
+            if (params?.limit) entries.push(["limit", String(params.limit)])
+            if (params?.offset) entries.push(["offset", String(params.offset)])
+            const qs = entries.length > 0 ? "?" + new URLSearchParams(entries).toString() : ""
+            return portalFetch<import("@/types/portal-api").PortalWithdrawalListResponse>(`/withdrawals${qs}`)
+        },
+
+        // ── Withdrawal Addresses (whitelist) ────────────────────────
+        withdrawalAddresses: (merchantId: string) =>
+            portalFetch<import("@/types/portal-api").PortalWithdrawalAddressListResponse>(
+                `/withdrawal-addresses?merchant_id=${encodeURIComponent(merchantId)}`,
+            ),
+
+        addWithdrawalAddress: (merchantId: string, body: import("@/types/portal-api").PortalAddWithdrawalAddressRequest) =>
+            portalFetch<{ id: string }>(
+                `/withdrawal-addresses?merchant_id=${encodeURIComponent(merchantId)}`,
+                { method: "POST", body: JSON.stringify(body) },
+            ),
+
+        removeWithdrawalAddress: (merchantId: string, addressId: string) =>
+            portalFetch<void>(
+                `/withdrawal-addresses/${addressId}?merchant_id=${encodeURIComponent(merchantId)}`,
+                { method: "DELETE" },
+            ),
+
+        // ── Withdrawal Requests ─────────────────────────────────────
+        withdrawalRequests: (merchantId?: string) => {
+            const qs = merchantId ? `?merchant_id=${encodeURIComponent(merchantId)}` : ""
+            return portalFetch<import("@/types/portal-api").PortalWithdrawalRequestListResponse>(`/withdrawal-requests${qs}`)
+        },
+
+        createWithdrawalRequest: (merchantId: string, body: import("@/types/portal-api").PortalCreateWithdrawalRequest) =>
+            portalFetch<{ id: string; number: string; status: string }>(
+                `/withdrawal-requests?merchant_id=${encodeURIComponent(merchantId)}`,
+                { method: "POST", body: JSON.stringify(body) },
+            ),
+
+        // ── Webhooks ────────────────────────────────────────────────
+        webhookDeliveries: (merchantId: string, params?: { limit?: number; offset?: number }) => {
+            const entries: [string, string][] = [["merchant_id", merchantId]]
+            if (params?.limit) entries.push(["limit", String(params.limit)])
+            if (params?.offset) entries.push(["offset", String(params.offset)])
+            const qs = "?" + new URLSearchParams(entries).toString()
+            return portalFetch<import("@/types/portal-api").PortalWebhookDeliveryListResponse>(`/webhooks/deliveries${qs}`)
+        },
+
+        testWebhook: (merchantId: string) =>
+            portalFetch<import("@/types/portal-api").PortalTestWebhookResponse>(`/webhooks/test?merchant_id=${encodeURIComponent(merchantId)}`, {
+                method: "POST",
+            }),
     },
 
     // ─── Fee Schedule (global defaults — system admin) ─────────────────────

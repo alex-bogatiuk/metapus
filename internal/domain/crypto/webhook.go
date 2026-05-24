@@ -6,9 +6,11 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -27,6 +29,12 @@ const (
 	WebhookWithdrawalConfirmed   WebhookEventType = "withdrawal.confirmed"
 )
 
+// _webhookDialTimeout limits the TCP connect phase.
+const _webhookDialTimeout = 5 * time.Second
+
+// _webhookRequestTimeout limits the entire request (connect + TLS + body).
+const _webhookRequestTimeout = 10 * time.Second
+
 // WebhookPayload is the payload sent to merchant's webhook URL.
 type WebhookPayload struct {
 	Event     WebhookEventType       `json:"event"`
@@ -36,23 +44,18 @@ type WebhookPayload struct {
 
 // WebhookDispatcher sends webhook notifications to merchants.
 // Uses HMAC-SHA256 signing for payload verification.
-type WebhookDispatcher struct {
-	httpClient *http.Client
-}
+//
+// SSRF prevention (defence-in-depth):
+//  1. ValidateWebhookURL at merchant create/update — rejects private IPs & dangerous hosts
+//  2. ResolvePublicURL at dispatch time — resolves DNS once, validates IP, returns pinned IP
+//  3. Custom DialContext with pinned IP — Go HTTP client never does its own DNS lookup
+//  4. CheckRedirect blocks all redirects — prevents redirect-chain SSRF bypass
+//  5. TLS ServerName set to original hostname — ensures SNI matches certificate
+type WebhookDispatcher struct{}
 
 // NewWebhookDispatcher creates a new webhook dispatcher.
-// CheckRedirect blocks all redirects to prevent SSRF bypass via redirect chains.
-// Scenario: attacker sets callback to https://legit.com/redirect?to=http://169.254.169.254
-// Without this, the initial URL passes validation but the redirect reaches cloud metadata.
 func NewWebhookDispatcher() *WebhookDispatcher {
-	return &WebhookDispatcher{
-		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
-			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-				return http.ErrUseLastResponse // block all redirects
-			},
-		},
-	}
+	return &WebhookDispatcher{}
 }
 
 // ValidateWebhookURL validates that a webhook URL is safe to call.
@@ -63,11 +66,50 @@ func ValidateWebhookURL(rawURL string) error {
 	return urlsafe.ValidatePublicURL(rawURL, "webhookUrl")
 }
 
-// Dispatch sends a webhook event to the given URL with HMAC signature.
+// createPinnedClient builds an http.Client that connects only to the given
+// pre-resolved IP, bypassing the Go net package's DNS resolver entirely.
+// This eliminates the DNS rebinding TOCTOU vulnerability (CWE-367/CWE-918):
+// without this, ValidatePublicURL resolves DNS for checking, and http.Client.Do
+// resolves DNS again — an attacker with TTL=0 can return a private IP on the
+// second lookup.
+func createPinnedClient(resolved *urlsafe.ResolvedURL) *http.Client {
+	port := resolved.Parsed.Port()
+	if port == "" {
+		port = "443" // HTTPS-only (enforced by ResolvePublicURL)
+	}
+
+	pinnedAddr := net.JoinHostPort(resolved.ResolvedIP, port)
+
+	return &http.Client{
+		Timeout: _webhookRequestTimeout,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse // block all redirects
+		},
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				// Ignore the addr parameter (which would trigger DNS).
+				// Connect directly to the pre-validated public IP.
+				return (&net.Dialer{Timeout: _webhookDialTimeout}).DialContext(ctx, network, pinnedAddr)
+			},
+			TLSClientConfig: &tls.Config{
+				ServerName: resolved.Host, // SNI must match the certificate
+				MinVersion: tls.VersionTLS12,
+			},
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          1,
+			IdleConnTimeout:       30 * time.Second,
+			TLSHandshakeTimeout:   5 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
+}
+
+// Dispatch sends a webhook event to the given URL with HMAC signature and records the delivery.
 // webhookSecret is the merchant's webhook signing key.
+// Returns the persisted WebhookDelivery record (always non-nil on non-repo error).
 //
-// Defence-in-depth: validates URL before making the request, even though
-// ValidateWebhookURL should have been called during merchant creation.
+// SSRF-safe: resolves DNS once via ResolvePublicURL, then uses a pinned-IP
+// HTTP client — Go's HTTP client never performs its own DNS lookup.
 //
 // Headers:
 //   - X-Metapus-Event: event type
@@ -76,18 +118,23 @@ func ValidateWebhookURL(rawURL string) error {
 //   - X-Metapus-Delivery-ID: unique delivery ID for idempotency
 func (d *WebhookDispatcher) Dispatch(
 	ctx context.Context,
+	deliveryRepo WebhookDeliveryRepository,
+	invoiceID *id.ID,
+	merchantID id.ID,
 	webhookURL string,
 	webhookSecret string,
 	event WebhookEventType,
 	data map[string]interface{},
-) error {
-	// Defence-in-depth: re-validate URL at dispatch time
-	if err := ValidateWebhookURL(webhookURL); err != nil {
+	attempt int,
+) (*WebhookDelivery, error) {
+	// Resolve DNS once + validate IP — eliminates DNS rebinding TOCTOU (CWE-367).
+	resolved, err := urlsafe.ResolvePublicURL(webhookURL, "webhookUrl")
+	if err != nil {
 		logger.Error(ctx, "webhook URL failed validation at dispatch time",
 			"url", webhookURL,
 			"error", err,
 		)
-		return fmt.Errorf("webhook URL validation: %w", err)
+		return nil, fmt.Errorf("webhook URL validation: %w", err)
 	}
 
 	payload := WebhookPayload{
@@ -98,7 +145,7 @@ func (d *WebhookDispatcher) Dispatch(
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("marshal webhook payload: %w", err)
+		return nil, fmt.Errorf("marshal webhook payload: %w", err)
 	}
 
 	// HMAC-SHA256 signature (Stripe-pattern: includes timestamp to prevent replay)
@@ -107,46 +154,94 @@ func (d *WebhookDispatcher) Dispatch(
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, webhookURL, bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("create webhook request: %w", err)
+		return nil, fmt.Errorf("create webhook request: %w", err)
 	}
 
-	deliveryID := id.New().String()
+	deliveryIDStr := id.New().String()
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Metapus-Event", string(event))
 	req.Header.Set("X-Metapus-Signature", signature)
 	req.Header.Set("X-Metapus-Timestamp", payload.Timestamp.Format(time.RFC3339))
-	req.Header.Set("X-Metapus-Delivery-ID", deliveryID)
+	req.Header.Set("X-Metapus-Delivery-ID", deliveryIDStr)
 
-	resp, err := d.httpClient.Do(req)
-	if err != nil {
+	// Use pinned-IP client — no second DNS lookup.
+	pinnedClient := createPinnedClient(resolved)
+
+	// Measure response time.
+	start := time.Now()
+	resp, httpErr := pinnedClient.Do(req)
+	elapsed := int(time.Since(start).Milliseconds())
+
+	// Build delivery record (always persisted, success or failure).
+	delivery := &WebhookDelivery{
+		ID:             id.New(),
+		InvoiceID:      invoiceID,
+		MerchantID:     merchantID,
+		EventType:      event,
+		WebhookURL:     webhookURL,
+		DeliveryID:     deliveryIDStr,
+		ResponseTimeMs: &elapsed,
+		Attempt:        attempt,
+		RequestBody:    body,
+		CreatedAt:      time.Now().UTC(),
+	}
+
+	if httpErr != nil {
+		errMsg := httpErr.Error()
+		delivery.ErrorMessage = &errMsg
+
 		logger.Warn(ctx, "webhook delivery failed",
 			"url", webhookURL,
 			"event", event,
-			"delivery_id", deliveryID,
-			"error", err,
+			"delivery_id", deliveryIDStr,
+			"attempt", attempt,
+			"error", httpErr,
 		)
-		return fmt.Errorf("webhook delivery: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
+	} else {
+		defer func() { _ = resp.Body.Close() }()
+		delivery.StatusCode = &resp.StatusCode
 
+		if resp.StatusCode >= 300 {
+			errMsg := fmt.Sprintf("HTTP %d", resp.StatusCode)
+			delivery.ErrorMessage = &errMsg
+
+			logger.Warn(ctx, "webhook received non-2xx response",
+				"url", webhookURL,
+				"event", event,
+				"delivery_id", deliveryIDStr,
+				"attempt", attempt,
+				"status", resp.StatusCode,
+			)
+		} else {
+			logger.Info(ctx, "webhook delivered",
+				"url", webhookURL,
+				"event", event,
+				"delivery_id", deliveryIDStr,
+				"attempt", attempt,
+			)
+		}
+	}
+
+	// Persist the delivery record.
+	if deliveryRepo != nil {
+		if repoErr := deliveryRepo.Create(ctx, delivery); repoErr != nil {
+			logger.Error(ctx, "failed to persist webhook delivery",
+				"delivery_id", deliveryIDStr,
+				"error", repoErr,
+			)
+			// Don't fail the caller — delivery persistence is best-effort audit.
+		}
+	}
+
+	if httpErr != nil {
+		return delivery, fmt.Errorf("webhook delivery: %w", httpErr)
+	}
 	if resp.StatusCode >= 300 {
-		logger.Warn(ctx, "webhook received non-2xx response",
-			"url", webhookURL,
-			"event", event,
-			"delivery_id", deliveryID,
-			"status", resp.StatusCode,
-		)
-		return fmt.Errorf("webhook returned HTTP %d", resp.StatusCode)
+		return delivery, fmt.Errorf("webhook returned HTTP %d", resp.StatusCode)
 	}
 
-	logger.Info(ctx, "webhook delivered",
-		"url", webhookURL,
-		"event", event,
-		"delivery_id", deliveryID,
-	)
-
-	return nil
+	return delivery, nil
 }
 
 // sign creates an HMAC-SHA256 signature for the payload.

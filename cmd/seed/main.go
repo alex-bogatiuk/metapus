@@ -1677,8 +1677,7 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 		confirmations int
 		requiredConfs int
 		status        string
-		networkFee    int64
-		feePercentBP  int   // compound fee: percent basis points (snapshot)
+		feePercentBP  int // compound fee: percent basis points (snapshot)
 		detectedAt    time.Time
 		confirmedAt   *time.Time
 	}
@@ -1708,7 +1707,6 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 		detectedAt := inv.date.Add(time.Duration(1+rng.Intn(25)) * time.Minute)
 		blockNum := int64(50_000_000 + rng.Intn(10_000_000))
 		confirmedAt := detectedAt.Add(time.Duration(3*19) * time.Second) // 19 confirmations × 3s block time
-		fee := int64(100_000 + rng.Intn(500_000))                       // 0.1-0.6 TRX network fee
 
 		status := "confirmed"
 		confs := 19
@@ -1734,7 +1732,6 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 			confirmations: confs,
 			requiredConfs: 19,
 			status:        status,
-			networkFee:    fee,
 			feePercentBP:  feeBP,
 			detectedAt:    detectedAt,
 			confirmedAt:   &confirmedAt,
@@ -1759,7 +1756,7 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 					invoice_id, merchant_id, token_id, wallet_id,
 					tx_hash, from_address, amount,
 					block_number, confirmations, required_confs,
-					status, network_fee,
+					status,
 					fee_fixed, fee_percent_bp, fee_min, fee_max,
 					detected_at, confirmed_at,
 					deletion_mark, version, attributes,
@@ -1770,9 +1767,9 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 					$6, $8, $9, $10,
 					$11, $12, $13,
 					$14, $15, $16,
-					$17, $18,
-					0, $19, 0, 0,
-					$20, $21,
+					$17,
+					0, $18, 0, 0,
+					$19, $20,
 					false, 1, '{}',
 					$3, $3
 				)
@@ -1786,7 +1783,7 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 				p.merchantID, refs.tokenID, p.walletID,
 				p.txHash, p.fromAddress, p.amount,
 				p.blockNumber, p.confirmations, p.requiredConfs,
-				p.status, p.networkFee,
+				p.status,
 				p.feePercentBP,
 				p.detectedAt, p.confirmedAt,
 			)

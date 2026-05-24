@@ -106,7 +106,9 @@ func (r *DashboardRepo) GetCurrencies(ctx context.Context, activeMerchantID *id.
 	q := querier(ctx)
 
 	const sql = `
-		SELECT t.symbol, COALESCE(n.name, '') AS network, t.decimal_places,
+		SELECT t.id::text AS token_id, t.symbol,
+			t.network_id::text AS network_id, COALESCE(n.name, '') AS network,
+			t.decimal_places,
 			COUNT(i.id) AS cnt,
 			COALESCE(SUM(i.received_amount), 0) AS total_minor,
 			ROUND(COALESCE(SUM(i.received_amount), 0) * 100.0 /
@@ -117,7 +119,7 @@ func (r *DashboardRepo) GetCurrencies(ctx context.Context, activeMerchantID *id.
 		WHERE i.merchant_id = ANY($1)
 			AND i.status = 'confirmed'
 			AND i._deleted_at IS NULL
-		GROUP BY t.id, t.symbol, n.name, t.decimal_places
+		GROUP BY t.id, t.symbol, t.network_id, n.name, t.decimal_places
 		ORDER BY total_minor DESC`
 
 	rows, err := q.Query(ctx, sql, ids)
@@ -132,7 +134,7 @@ func (r *DashboardRepo) GetCurrencies(ctx context.Context, activeMerchantID *id.
 		var totalMinor int64
 		var sharePct float64
 		if err := rows.Scan(
-			&item.Symbol, &item.Network, &item.DecimalPlaces,
+			&item.TokenID, &item.Symbol, &item.NetworkID, &item.Network, &item.DecimalPlaces,
 			&item.Count, &totalMinor, &sharePct,
 		); err != nil {
 			return nil, fmt.Errorf("portal currencies scan: %w", err)
@@ -222,49 +224,113 @@ func (r *DashboardRepo) ListMerchants(ctx context.Context) ([]dto.PortalMerchant
 	return items, rows.Err()
 }
 
+// InvoiceFilter contains filter parameters for the invoice list.
+type InvoiceFilter struct {
+	Status   string // invoice status filter
+	Search   string // free-text search (number, externalId, customerEmail)
+	TokenID  string // token UUID filter
+	DateFrom string // ISO 8601 date (inclusive)
+	DateTo   string // ISO 8601 date (inclusive, end of day)
+	Sort     string // column to sort by (validated in handler)
+	Order    string // "asc" or "desc" (validated in handler)
+}
+
 // ListInvoices returns a page of invoices for the scoped merchants.
-func (r *DashboardRepo) ListInvoices(ctx context.Context, activeMerchantID *id.ID, status string, limit, offset int) ([]dto.PortalInvoiceItem, int, error) {
+// Joins with doc_crypto_payments to provide txHash, fee, and net amount.
+func (r *DashboardRepo) ListInvoices(ctx context.Context, activeMerchantID *id.ID, filter InvoiceFilter, limit, offset int) ([]dto.PortalInvoiceItem, int, error) {
 	ids := scopeIDs(ctx, activeMerchantID)
 	q := querier(ctx)
 
-	// Count total
-	countQ := `
-		SELECT COUNT(*)
-		FROM doc_crypto_invoices
-		WHERE merchant_id = ANY($1)
-			AND _deleted_at IS NULL`
-	countArgs := []any{ids}
-	if status != "" {
-		countQ += ` AND status = $2`
-		countArgs = append(countArgs, status)
+	// ── Build WHERE clause dynamically ──
+	where := `i.merchant_id = ANY($1) AND i._deleted_at IS NULL`
+	args := []any{ids}
+	argIdx := 2
+
+	if filter.Status != "" {
+		where += fmt.Sprintf(` AND i.status = $%d`, argIdx)
+		args = append(args, filter.Status)
+		argIdx++
+	}
+	if filter.Search != "" {
+		pattern := "%" + filter.Search + "%"
+		where += fmt.Sprintf(` AND (i.number ILIKE $%d OR i.external_id ILIKE $%d OR i.customer_email ILIKE $%d)`, argIdx, argIdx, argIdx)
+		args = append(args, pattern)
+		argIdx++
+	}
+	if filter.TokenID != "" {
+		tokenID, err := id.Parse(filter.TokenID)
+		if err == nil {
+			where += fmt.Sprintf(` AND i.token_id = $%d`, argIdx)
+			args = append(args, tokenID)
+			argIdx++
+		}
+	}
+	if filter.DateFrom != "" {
+		where += fmt.Sprintf(` AND i.created_at >= $%d::timestamptz`, argIdx)
+		args = append(args, filter.DateFrom)
+		argIdx++
+	}
+	if filter.DateTo != "" {
+		where += fmt.Sprintf(` AND i.created_at < ($%d::date + 1)::timestamptz`, argIdx)
+		args = append(args, filter.DateTo)
+		argIdx++
 	}
 
+	// ── Count total ──
+	countQ := `SELECT COUNT(*) FROM doc_crypto_invoices i WHERE ` + where
 	var total int
-	if err := q.QueryRow(ctx, countQ, countArgs...).Scan(&total); err != nil {
+	if err := q.QueryRow(ctx, countQ, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("portal invoices count: %w", err)
 	}
 
-	// Fetch page
-	dataQ := `
+	// ── Sort mapping ──
+	sortCol := "i.created_at"
+	switch filter.Sort {
+	case "number":
+		sortCol = "i.number"
+	case "status":
+		sortCol = "i.status"
+	case "amount":
+		sortCol = "i.expected_amount"
+	case "received_amount":
+		sortCol = "i.received_amount"
+	}
+	orderDir := "DESC"
+	if filter.Order == "asc" {
+		orderDir = "ASC"
+	}
+
+	// ── Fetch page with LEFT JOIN to first crypto payment ──
+	dataQ := fmt.Sprintf(`
 		SELECT i.id, i.number, i.status, i.expected_amount, i.received_amount,
 			t.symbol, COALESCE(n.name, '') AS network, t.decimal_places,
-			i.created_at
+			i.created_at,
+			COALESCE(i.external_id, '') AS external_id,
+			COALESCE(i.customer_email, '') AS customer_email,
+			p.tx_hash, p.from_address,
+			p.fee_fixed, p.fee_percent_bp, p.fee_min, p.fee_max,
+			p.amount AS payment_amount,
+			p.confirmed_at
 		FROM doc_crypto_invoices i
 		JOIN cat_tokens t ON t.id = i.token_id
 		LEFT JOIN cat_blockchain_networks n ON n.id = t.network_id
-		WHERE i.merchant_id = ANY($1)
-			AND i._deleted_at IS NULL`
-	dataArgs := []any{ids}
-	argIdx := 2
-	if status != "" {
-		dataQ += fmt.Sprintf(` AND i.status = $%d`, argIdx)
-		dataArgs = append(dataArgs, status)
-		argIdx++
-	}
-	dataQ += fmt.Sprintf(` ORDER BY i.created_at DESC LIMIT $%d OFFSET $%d`, argIdx, argIdx+1)
-	dataArgs = append(dataArgs, limit, offset)
+		LEFT JOIN LATERAL (
+			SELECT tx_hash, from_address,
+				fee_fixed, fee_percent_bp, fee_min, fee_max,
+				amount, confirmed_at
+			FROM doc_crypto_payments
+			WHERE invoice_id = i.id AND _deleted_at IS NULL
+			ORDER BY created_at DESC
+			LIMIT 1
+		) p ON true
+		WHERE %s
+		ORDER BY %s %s
+		LIMIT $%d OFFSET $%d`,
+		where, sortCol, orderDir, argIdx, argIdx+1,
+	)
+	args = append(args, limit, offset)
 
-	rows, err := q.Query(ctx, dataQ, dataArgs...)
+	rows, err := q.Query(ctx, dataQ, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("portal invoices: %w", err)
 	}
@@ -273,22 +339,88 @@ func (r *DashboardRepo) ListInvoices(ctx context.Context, activeMerchantID *id.I
 	items := make([]dto.PortalInvoiceItem, 0, limit)
 	for rows.Next() {
 		var item dto.PortalInvoiceItem
-		var iid id.ID
+		var iid, tokenID id.ID
+		_ = tokenID // suppress unused, used only in scan
 		var amount, received int64
 		var createdAt time.Time
+		var externalID, customerEmail string
+		var txHash, fromAddress *string
+		var feeFixed, feeMin, feeMax, paymentAmount *int64
+		var feePercentBP *int
+		var confirmedAt *time.Time
+
 		if err := rows.Scan(
 			&iid, &item.Number, &item.Status,
 			&amount, &received,
 			&item.Symbol, &item.Network, &item.DecimalPlaces,
 			&createdAt,
+			&externalID, &customerEmail,
+			&txHash, &fromAddress,
+			&feeFixed, &feePercentBP, &feeMin, &feeMax,
+			&paymentAmount,
+			&confirmedAt,
 		); err != nil {
 			return nil, 0, fmt.Errorf("portal invoices scan: %w", err)
 		}
+
 		item.ID = iid.String()
 		item.Amount = strconv.FormatInt(amount, 10)
 		item.ReceivedAmount = strconv.FormatInt(received, 10)
 		item.CreatedAt = createdAt.Format(time.RFC3339)
+		item.ExternalID = externalID
+		item.CustomerEmail = customerEmail
+
+		// Payment details (if joined)
+		if txHash != nil {
+			item.TxHash = *txHash
+		}
+		if fromAddress != nil {
+			item.FromAddress = *fromAddress
+		}
+		if confirmedAt != nil {
+			ts := confirmedAt.Format(time.RFC3339)
+			item.ConfirmedAt = &ts
+		}
+
+		// Calculate processing fee and net amount using the same formula as domain model:
+		// fee = clamp(feeFixed + paymentAmount × feePercentBP / 10000, feeMin, feeMax)
+		if paymentAmount != nil && feeFixed != nil && feePercentBP != nil {
+			fee := calculateFee(*feeFixed, *feePercentBP, safeDeref(feeMin), safeDeref(feeMax), *paymentAmount)
+			item.ProcessingFee = strconv.FormatInt(fee, 10)
+			net := *paymentAmount - fee
+			if net < 0 {
+				net = 0
+			}
+			item.NetAmount = strconv.FormatInt(net, 10)
+		}
+
 		items = append(items, item)
 	}
 	return items, total, rows.Err()
 }
+
+// calculateFee replicates CryptoPayment.FeeAmount() logic in pure Go:
+// clamp(fixed + amount * percentBP / 10000, minFee, maxFee).
+func calculateFee(fixed int64, percentBP int, minFee, maxFee, amount int64) int64 {
+	percentPart := amount * int64(percentBP) / 10000
+	total := fixed + percentPart
+	if minFee > 0 && total < minFee {
+		total = minFee
+	}
+	if maxFee > 0 && total > maxFee {
+		total = maxFee
+	}
+	if total < 0 {
+		return 0
+	}
+	return total
+}
+
+// safeDeref returns the value behind a pointer, or 0 if nil.
+func safeDeref(p *int64) int64 {
+	if p == nil {
+		return 0
+	}
+	return *p
+}
+

@@ -77,3 +77,53 @@ export function toMinorUnits(s: string, decimalPlaces = DEFAULT_DECIMAL_PLACES):
 export function moneyStep(decimalPlaces = DEFAULT_DECIMAL_PLACES): string {
   return (1 / Math.pow(10, decimalPlaces)).toFixed(decimalPlaces)
 }
+
+// ── Portal-specific formatters ────────────────────────────────────────────
+// Used by crypto portal pages (invoices, withdrawals, webhooks).
+// These operate on string-based minor units (blockchain amounts use BigInt-safe strings).
+
+/**
+ * Convert a minor-units string to a human-readable decimal.
+ * Example: formatMinorUnits("1500000", 6) → "1.5"
+ *
+ * Uses pure string arithmetic — no floating point involved.
+ * For blockchain amounts where precision matters (unlike fiat fmtAmount which uses Number).
+ */
+export function formatMinorUnits(minor: string, decimals: number): string {
+  if (!minor || decimals === 0) return minor || "0"
+  const str = minor.padStart(decimals + 1, "0")
+  const intPart = str.slice(0, str.length - decimals)
+  const fracPart = str.slice(str.length - decimals)
+  return `${intPart}.${fracPart}`.replace(/\.?0+$/, "") || "0"
+}
+
+/**
+ * Format an ISO-8601 date string for ru-RU locale with time.
+ * Example: "2026-05-20T13:00:00Z" → "20.05.2026, 21:00"
+ */
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+/**
+ * Format an ISO-8601 date string for ru-RU locale without time.
+ * Example: "2026-05-20T13:00:00Z" → "20.05.2026"
+ */
+export function formatDateOnly(iso: string): string {
+  return new Date(iso).toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  })
+}
+
+/** Copy text to clipboard. Silently fails if clipboard API is unavailable. */
+export function copyToClipboard(text: string): void {
+  navigator.clipboard?.writeText(text)
+}

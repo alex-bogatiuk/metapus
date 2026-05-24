@@ -49,13 +49,75 @@
 
 ---
 
+## 5. Debit-First Posting (Резервирование при создании)
+
+Стандартное проведение предполагает, что движения создаются при переходе документа в финальный статус (например, `Confirmed`). Для отдельных типов документов используется обратный паттерн — **Debit-First**:
+
+> Баланс списывается **в момент создания** документа, а не при одобрении/подтверждении.
+
+### Когда применяется
+
+| Документ | Паттерн | Причина |
+|----------|---------|---------|
+| CryptoInvoice | Standard (credit при Confirmed) | Приход подтверждается блокчейном |
+| **WithdrawalRequest** | **Debit-First** (debit при Pending) | Предотвращает double-spend при параллельных заявках |
+
+### Механизм
+
+```
+Создание заявки:
+  1. Handler → Engine.Post(wrDoc)
+  2. wrDoc.GenerateMovements() → CryptoMerchantBalanceMovement(expense, amount)
+  3. CheckAndReserveMerchantBalance() → SELECT FOR UPDATE + проверка
+  4. pgx.CopyFrom → запись движения
+  5. Документ.Posted = true
+
+Отклонение заявки (Rejected):
+  1. Handler → Service.StornoMovements(docID, newVersion)
+  2. Оригинальное expense-движение остаётся в регистре
+  3. Создаётся сторнирующее receipt-движение с тем же amount
+  4. Триггер БД автоматически увеличивает баланс на INSERT
+
+Распроведение (Unpost):
+  1. Handler → Engine.Unpost(wrDoc)
+  2. ВСЕ движения удаляются (DELETE) — стандартное поведение 1С
+  3. Триггер БД уменьшает баланс на DELETE
+```
+
+### Стратегии отмены: DELETE vs Сторно
+
+| Операция | Стратегия | Когда применяется |
+|----------|-----------|-------------------|
+| **Re-post** (перепроведение) | DELETE + INSERT | Документ изменился, техническая коррекция |
+| **Unpost** (распроведение) | DELETE | Стандартная отмена проведения (как в 1С) |
+| **Business Rejection** | **Сторно** (INSERT) | Бизнес-отмена: rejected/failed. Оригинал остаётся для audit trail |
+
+> [!IMPORTANT]
+> Сторно — это **не часть PostingEngine**. Это кастомная бизнес-логика в handler/service. Engine ничего не знает о сторно. Это предотвращает шум в товарных регистрах при перепроведении.
+
+### Аналоги в индустрии
+
+Stripe, Checkout.com и Square используют аналогичный паттерн для payouts:
+- Средства **холдируются** при создании payout request
+- При отмене/отклонении — compensating entry (сторно), а не DELETE
+- При подтверждении — средства уже зарезервированы, blockchain-транзакция инициируется
+
+### Инвариант: ID документа
+
+> [!WARNING]
+> При debit-first posting ID документа **генерируется Go-кодом** (`id.New()`) до вызова `Engine.Post()`. Движения и документ **обязаны** иметь один и тот же UUID. Обход `BaseDocumentRepo.Create()` (например, raw SQL с `DEFAULT gen_random_uuid()`) создаёт orphan movements.
+
+---
+
 ## Файловая карта
 ```path
 internal/domain/posting/engine.go   — Координатор транзакции проведения
 internal/domain/posting/visitor.go  — Сбор движений из документов
 internal/domain/posting/recorder.go — Запись движений в регистры
 internal/infrastructure/http/v1/handlers/document.go — SSE Batch processing
+internal/domain/registers/crypto_merchant_balance/service.go — CheckAndReserveMerchantBalance + StornoMovements
 ```
 
 ## Связанные документы
 - [transactions.md](transactions.md) — детализация механизмов блокировок (Resource Ordering)
+- [crypto-processing.md](crypto-processing.md) — §3.5 WithdrawalRequest (debit-first use case)

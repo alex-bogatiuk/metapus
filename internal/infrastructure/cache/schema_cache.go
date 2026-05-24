@@ -210,6 +210,7 @@ func (c *SchemaCache) handleNotification(channel, payload string) {
 	// Notify registered listeners with panic recovery (no goroutine fan-out).
 	// This keeps invalidation delivery bounded and avoids goroutine storms on bursts of NOTIFY events.
 	c.listenersMu.RLock()
+	defer c.listenersMu.RUnlock()
 	for _, listener := range c.listeners {
 		func(l InvalidationListener) {
 			defer func() {
@@ -220,7 +221,6 @@ func (c *SchemaCache) handleNotification(channel, payload string) {
 			l(channel, payload)
 		}(listener)
 	}
-	c.listenersMu.RUnlock()
 }
 
 // invalidateCustomFields reloads custom fields for specific entity.
