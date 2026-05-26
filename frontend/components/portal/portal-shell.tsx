@@ -15,6 +15,9 @@ import {
   User,
   MoreHorizontal,
   Palette,
+  ArrowUpRight,
+  Wallet,
+  Webhook,
 } from "lucide-react"
 
 import {
@@ -59,12 +62,15 @@ interface NavItem {
 
 const mainItems: NavItem[] = [
   { title: "Дашборд", href: "/portal", icon: LayoutDashboard },
+  { title: "Баланс", href: "/portal/balances", icon: Wallet },
   { title: "Инвойсы", href: "/portal/invoices", icon: Receipt },
+  { title: "Выводы", href: "/portal/withdrawals", icon: ArrowUpRight },
   { title: "Платёжные ссылки", href: "/portal/payment-links", icon: Link2 },
 ]
 
 const developerItems: NavItem[] = [
   { title: "API-ключи", href: "/portal/developers/keys", icon: KeyRound },
+  { title: "Вебхуки", href: "/portal/developers/webhooks", icon: Webhook },
 ]
 
 const settingsItems: NavItem[] = [

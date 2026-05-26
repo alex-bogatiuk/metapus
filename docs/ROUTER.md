@@ -28,7 +28,7 @@
 | [systems/core-layer.md](systems/core-layer.md) | Базовые примитивы, BaseEntity, BaseCatalog | core, entity, base, catalog, document |
 | [systems/crud-pipeline.md](systems/crud-pipeline.md) | Generic CRUD pipeline, обработка запросов | crud, generic, pipeline, factory, handler |
 | [systems/command-palette.md](systems/command-palette.md) | Command Palette (Ctrl+K), навигация, калькулятор, глобальный поиск по данным | command palette, ctrl+k, search, calculator, actions, global search, data search, SearchFieldsProvider, RLS |
-| [systems/crypto-processing.md](systems/crypto-processing.md) | Криптопроцессинг: chain watcher, FSM, event processor, compliance, settlement, threshold sweep, allocation mode, merchant config, **Merchant Public API**, **Merchant Portal API**, API-ключи, SSRF, BOLA, **curl-примеры** | crypto, payment, blockchain, tron, watcher, fsm, invoice, wallet, webhook, settlement, compliance, sweep, threshold, allocation, merchant config, merchant api, api key, scope, ssrf, bola, portal, portal api, dashboard, curl, examples, balance calculator |
+| [systems/crypto-processing.md](systems/crypto-processing.md) | Криптопроцессинг: chain watcher, FSM, event processor, compliance, settlement, threshold sweep, allocation mode, merchant config, **Merchant Public API**, **Merchant Portal API**, API-ключи, SSRF, BOLA, **Withdrawal**, **Address Whitelist**, **Debit-First Posting**, **curl-примеры** | crypto, payment, blockchain, tron, watcher, fsm, invoice, wallet, webhook, settlement, compliance, sweep, threshold, allocation, merchant config, merchant api, api key, scope, ssrf, bola, portal, portal api, dashboard, curl, examples, balance calculator, withdrawal, withdrawal request, address whitelist, network, debit-first |
 | [systems/dashboard-widgets.md](systems/dashboard-widgets.md) | Дашборды, виджеты, layout пользователя | dashboard, widgets, UI, preferences |
 | [systems/domain-layer.md](systems/domain-layer.md) | Бизнес-логика, сервисы, хуки | domain, services, hooks, logic, repository |
 | [systems/exchange-rates.md](systems/exchange-rates.md) | Курсы валют и источники курсов: ЦБ РФ, CoinGecko, ручной ввод, rate feed worker | exchange rate, rate source, currency, coingecko, binance, cbr, ecb, rate feed, currency mapping, multiplier |
@@ -38,7 +38,7 @@
 | [systems/multi-tenancy.md](systems/multi-tenancy.md) | Физическая изоляция Database-per-Tenant | multi-tenant, tenant, isolation, database |
 | [systems/numerator.md](systems/numerator.md) | Автонумерация, генерация кодов и номеров | numerator, codes, auto-increment, numbering |
 | [systems/operational-modes.md](systems/operational-modes.md) | SaaS, Self-Hosted, Dedicated режимы | saas, dedicated, self-hosted, modes, deployment |
-| [systems/posting-engine.md](systems/posting-engine.md) | Движок проведения, Visitor pattern | posting, engine, visitor, stock, balances, movements |
+| [systems/posting-engine.md](systems/posting-engine.md) | Движок проведения, Visitor pattern, **Debit-First Posting** | posting, engine, visitor, stock, balances, movements, debit-first, withdrawal |
 | [systems/printing-system.md](systems/printing-system.md) | Печатные формы, шаблоны HTML/PDF | printing, templates, pdf, gohtml, export |
 | [systems/realtime-notifications.md](systems/realtime-notifications.md) | Push-уведомления, WebSockets | realtime, websockets, notifications, sse, push |
 | [systems/related-documents.md](systems/related-documents.md) | Дерево подчиненности, превью карточек, context menu, API-контракт | related, documents, tree, links, subordination, preview, hover card, context menu, basis_id, FK-references |
@@ -62,7 +62,7 @@
 
 | Файл | Описание | Ключевые слова |
 |------|----------|----------------|
-| [reference/development-rules.md](reference/development-rules.md) | Строгие архитектурные правила и запреты | rules, development, invariants, limits |
+| [reference/development-rules.md](reference/development-rules.md) | Строгие архитектурные правила и запреты, **CWE-209**, привязка ID документа | rules, development, invariants, limits, cwe-209, error messages, security, document id |
 | [reference/frontend-guidelines.md](reference/frontend-guidelines.md) | Правила фронтенда, Next.js, shadcn/ui | frontend, guidelines, next.js, shadcn, react |
 | [reference/keyboard-shortcuts.md](reference/keyboard-shortcuts.md) | Глобальные горячие клавиши, useShortcut | shortcuts, keyboard, hotkeys, bindings |
 | [reference/naming-conventions.md](reference/naming-conventions.md) | Стандарты именования (БД, Go, API) | naming, conventions, database, api, snake_case |

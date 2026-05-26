@@ -127,6 +127,7 @@ type OutboxRelay struct {
 	pool      *pgxpool.Pool
 	batchSize int
 	handler   OutboxHandler
+	backoff   BackoffStrategy
 }
 
 // OutboxHandler processes outbox messages.
@@ -135,14 +136,80 @@ type OutboxHandler interface {
 	Handle(ctx context.Context, msg *OutboxMessage) error
 }
 
-// NewOutboxRelay creates a new outbox relay.
+// BackoffStrategy computes the next retry delay based on the current retry count (0-indexed).
+// Implementations must be stateless — the retry count is the only input.
+type BackoffStrategy interface {
+	// NextDelay returns the delay before the (retryCount+1)-th retry attempt.
+	// retryCount is 0-based: 0 = first failure, 1 = second failure, etc.
+	NextDelay(retryCount int) time.Duration
+}
+
+// LinearBackoff implements BackoffStrategy with linear intervals: (retryCount+1) * interval.
+// This is the default strategy, preserving backward compatibility.
+type LinearBackoff struct {
+	Interval time.Duration
+}
+
+// NextDelay returns (retryCount+1) * interval.
+func (b LinearBackoff) NextDelay(retryCount int) time.Duration {
+	return time.Duration(retryCount+1) * b.Interval
+}
+
+// _defaultLinearBackoff is the default backoff for all outbox handlers.
+var _defaultLinearBackoff BackoffStrategy = LinearBackoff{Interval: time.Minute}
+
+// TableBackoff implements BackoffStrategy with explicit per-attempt intervals.
+// If retryCount exceeds the table length, the last interval is reused.
+type TableBackoff struct {
+	Intervals []time.Duration
+}
+
+// NextDelay returns the interval for the given retry count.
+// Falls back to the last interval if retryCount >= len(Intervals).
+func (b TableBackoff) NextDelay(retryCount int) time.Duration {
+	if retryCount < len(b.Intervals) {
+		return b.Intervals[retryCount]
+	}
+	if len(b.Intervals) > 0 {
+		return b.Intervals[len(b.Intervals)-1]
+	}
+	return time.Minute // safety fallback
+}
+
+// WebhookBackoff returns the webhook-specific exponential backoff strategy:
+// 1min → 5min → 30min → 2h → 12h (5 attempts total).
+func WebhookBackoff() BackoffStrategy {
+	return TableBackoff{
+		Intervals: []time.Duration{
+			1 * time.Minute,
+			5 * time.Minute,
+			30 * time.Minute,
+			2 * time.Hour,
+			12 * time.Hour,
+		},
+	}
+}
+
+// NewOutboxRelay creates a new outbox relay with the default linear backoff.
 func NewOutboxRelay(pool *pgxpool.Pool, batchSize int, handler OutboxHandler) *OutboxRelay {
 	return &OutboxRelay{
 		pool:      pool,
 		batchSize: batchSize,
 		handler:   handler,
+		backoff:   _defaultLinearBackoff,
 	}
 }
+
+// NewOutboxRelayWithBackoff creates a new outbox relay with a custom backoff strategy.
+func NewOutboxRelayWithBackoff(pool *pgxpool.Pool, batchSize int, handler OutboxHandler, backoff BackoffStrategy) *OutboxRelay {
+	return &OutboxRelay{
+		pool:      pool,
+		batchSize: batchSize,
+		handler:   handler,
+		backoff:   backoff,
+	}
+}
+
 
 // ProcessBatch atomically claims pending messages, then processes them outside any transaction.
 //
@@ -219,7 +286,7 @@ func (r *OutboxRelay) processMessage(ctx context.Context, msg *OutboxMessage) er
 	if err != nil {
 		// Revert to 'pending' (or 'failed' after max retries) so the message
 		// can be picked up again on the next poll cycle.
-		nextRetry := time.Now().Add(time.Duration(msg.RetryCount+1) * time.Minute)
+		nextRetry := time.Now().Add(r.backoff.NextDelay(msg.RetryCount))
 		errStr := err.Error()
 
 		_, updateErr := r.pool.Exec(ctx, `

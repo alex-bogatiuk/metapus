@@ -51,3 +51,36 @@
 - Если нужно добавить поле в `cat_counterparties`, редактируйте существующий файл `00013_cat_counterparties.sql`.
 - Схема базы данных пересоздаётся с нуля командой `make reset-db`. 
 - Все новые таблицы должны содержать CDC-колонки (`created_at`, `updated_at`, `version`) и `TIMESTAMPTZ` (не `TIMESTAMP`).
+
+## 7. Безопасность: сообщения об ошибках (CWE-209)
+
+> [!IMPORTANT]
+> Ошибки, возвращаемые клиенту, **не должны содержать** чувствительную информацию.
+
+- **Запрещено** включать в `apperror.Validation` или `apperror.NotFound`:
+  - Точные суммы балансов, комиссий, лимитов
+  - Внутренние ID (кроме тех, что клиент сам прислал)
+  - SQL-ошибки, stack traces, имена таблиц
+  - Количество записей, метрики системы
+
+- **Правильный паттерн:**
+  ```go
+  // ❌ Утечка баланса
+  apperror.NewValidation(fmt.Sprintf("insufficient balance: available %d, requested %d", avail, req))
+  
+  // ✅ Generic сообщение + серверный лог
+  logger.Warn("insufficient balance", "available", avail, "requested", req, "merchant_id", mid)
+  return apperror.NewValidation("insufficient balance")
+  ```
+
+- Детали логируются **только на сервере** через structured logging (`logger.Warn`/`logger.Error`) для диагностики.
+- Это распространяется на все финансовые операции: балансы, комиссии, лимиты, курсы.
+
+## 8. Документ: привязка ID
+
+> [!WARNING]
+> ID документа **всегда** генерируется на стороне Go (`id.New()`) и передаётся в INSERT. 
+
+- Запрещено использовать `DEFAULT gen_random_uuid()` для документов, участвующих в проведении (Posting Engine). Движения (`reg_*_movements`) записываются с тем же UUID, что и документ — его нельзя генерировать на стороне БД.
+- При обходе `BaseDocumentRepo.Create()` (например, custom SQL в `portal_repo`) — ID обязателен как параметр.
+

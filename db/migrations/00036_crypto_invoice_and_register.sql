@@ -147,6 +147,38 @@ CREATE INDEX idx_reg_crypto_balance_balances_token
 CREATE INDEX idx_reg_crypto_balance_balances_wallet
     ON reg_crypto_balance_balances (wallet_id) WHERE amount != 0;
 
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Webhook Delivery audit trail (Системная таблица «Доставки вебхуков»)
+-- Tracks every webhook delivery attempt for debugging and merchant transparency.
+-- Modeled after Stripe Events API — each attempt is a separate row.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE sys_webhook_deliveries (
+    id               UUID         PRIMARY KEY DEFAULT gen_random_uuid_v7(),
+    invoice_id       UUID         REFERENCES doc_crypto_invoices(id),  -- nullable for test webhooks
+    merchant_id      UUID         NOT NULL,
+    event_type       TEXT         NOT NULL,      -- 'invoice.paid', 'invoice.confirmed', 'test', etc.
+    webhook_url      TEXT         NOT NULL,
+    delivery_id      TEXT         NOT NULL,      -- X-Metapus-Delivery-ID (idempotency)
+    status_code      INT,                        -- HTTP response status (NULL if connection error)
+    response_time_ms INT,                        -- round-trip time in ms
+    attempt          INT          NOT NULL DEFAULT 1,  -- retry attempt number (1-based)
+    error_message    TEXT,                        -- error details on failure
+    request_body     JSONB,                      -- webhook payload (for debugging)
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_webhook_del_invoice   ON sys_webhook_deliveries(invoice_id) WHERE invoice_id IS NOT NULL;
+CREATE INDEX idx_webhook_del_merchant  ON sys_webhook_deliveries(merchant_id);
+CREATE INDEX idx_webhook_del_created   ON sys_webhook_deliveries(created_at DESC);
+CREATE UNIQUE INDEX idx_webhook_del_delivery  ON sys_webhook_deliveries(delivery_id);
+
+COMMENT ON TABLE sys_webhook_deliveries IS 'Audit trail для доставок вебхуков мерчантам (Stripe Events pattern). Каждая попытка — отдельная строка.';
+COMMENT ON COLUMN sys_webhook_deliveries.invoice_id IS 'NULL для тестовых вебхуков (POST /portal/v1/webhooks/test)';
+COMMENT ON COLUMN sys_webhook_deliveries.delivery_id IS 'Уникальный ID доставки, передаётся в заголовке X-Metapus-Delivery-ID';
+
+
 SELECT pg_advisory_unlock(hashtext('metapus_migrations'));
 -- +goose StatementEnd
 
@@ -441,6 +473,7 @@ $func$ LANGUAGE plpgsql;
 -- +goose Down
 -- +goose StatementBegin
 SELECT pg_advisory_lock(hashtext('metapus_migrations'));
+DROP TABLE IF EXISTS sys_webhook_deliveries;
 DROP FUNCTION IF EXISTS recalculate_crypto_merchant_balance();
 DROP TRIGGER IF EXISTS trg_crypto_merchant_balance_movements_balance ON reg_crypto_merchant_balance_movements;
 DROP FUNCTION IF EXISTS update_crypto_merchant_balance();

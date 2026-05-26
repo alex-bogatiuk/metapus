@@ -249,7 +249,99 @@ Sweep переводит средства с пул-кошельков на го
 
 ### 3.4. CryptoWithdrawal — Вывод средств
 
-Вывод средств мерчантом с платформы. Инициируется через API.
+Вывод средств мерчантом с платформы. Инициируется оператором после одобрения `WithdrawalRequest`.
+
+### 3.5. WithdrawalRequest — Заявка на вывод
+
+Создаётся мерчантом через Portal API. Представляет запрос на вывод средств на whitelisted-адрес.
+
+**Жизненный цикл (Debit-First Posting):**
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: Мерчант создаёт заявку
+    note right of Pending: Engine.Post() → списание баланса
+    Pending --> Approved: Оператор одобряет
+    Pending --> Rejected: Оператор отклоняет
+    note right of Rejected: StornoMovements() → возврат баланса (compensating entry)
+    Approved --> Processing: Начат вывод
+    Processing --> Completed: Blockchain tx confirmed
+    Rejected --> [*]
+    Completed --> [*]
+```
+
+**Debit-First Posting Pattern:**
+
+В отличие от классического документа (списание при финальном подтверждении), заявка на вывод использует **debit-first** — баланс мерчанта списывается **в момент создания заявки**, а не при одобрении:
+
+1. Мерчант создаёт заявку → `Engine.Post()` → `CryptoMerchantBalanceMovement(expense)` записывается в `reg_crypto_merchant_balance_movements`
+2. Если заявка отклонена → `StornoMovements()` → создаётся **сторнирующее receipt-движение** (оригинал остаётся для audit trail)
+3. Если заявка одобрена → баланс уже списан, оператор инициирует blockchain-транзакцию
+4. Распроведение (Unpost) → `Engine.Unpost()` → DELETE всех движений (стандартное поведение 1С)
+
+**Почему debit-first:**
+- Предотвращает **бесконечные заявки** (double-spend): мерчант не может создать N заявок на один баланс
+- Аналог `stripe.com` / `checkout.com`: холд средств при создании payout, возврат при отмене
+- Pessimistic lock через `SELECT FOR UPDATE` с resource ordering гарантирует атомарность
+
+**Сторно vs DELETE:**
+- При **отклонении (Rejected)** → сторно (INSERT compensating entry). Audit trail сохраняется: видно что списание было и было отменено
+- При **распроведении (Unpost)** → DELETE (стандартный Engine.Unpost). Все движения удаляются
+
+**Валидация при создании:**
+
+| Проверка | Описание |
+|----------|----------|
+| Token existence | `cat_tokens.id = req.tokenId AND deletion_mark = FALSE` |
+| Address whitelist | `reg_withdrawal_addresses.id = req.addressId AND merchant_id = mid` |
+| **Network match** | `addr.network_id == token.network_id` (cross-network protection) |
+| Amount > 0 | Положительная сумма в human-readable формате |
+| Balance check | `CheckAndReserveMerchantBalance()` — `SELECT FOR UPDATE` + проверка достаточности |
+
+> [!IMPORTANT]
+> Ошибка `CheckAndReserveMerchantBalance` **не раскрывает** точную сумму баланса клиенту (CWE-209). Клиент получает generic `"insufficient balance"`, детали логируются на сервере через `logger.Warn()`.
+
+**Ключевые поля:**
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `MerchantID` | FK | Мерчант-создатель |
+| `TokenID` | FK | Токен для вывода |
+| `AddressID` | FK → reg_withdrawal_addresses | Whitelisted адрес назначения |
+| `Amount` | int64 | Сумма в minor units |
+| `Status` | WithdrawalRequestStatus | pending / approved / rejected / processing / completed |
+
+### 3.6. Withdrawal Address Whitelist — Белый список адресов
+
+Регистр `reg_withdrawal_addresses` хранит whitelisted-адреса для вывода средств.
+
+**Ключевой инвариант: привязка к сети (network), а не к токену.**
+
+Один блокчейн-адрес (например, `T9yD14NrhBe...`) валиден для **всех** токенов в одной сети (USDT-TRC20, TRX, USDC-TRC20). Привязка к `network_id` вместо `token_id`:
+
+- Уменьшает дублирование (один адрес на сеть, а не на каждый токен)
+- Упрощает UX (мерчант выбирает сеть при добавлении адреса)
+- Предотвращает cross-network attack (валидация `addr.network_id == token.network_id`)
+
+**Схема таблицы:**
+
+```sql
+CREATE TABLE reg_withdrawal_addresses (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    merchant_id UUID NOT NULL REFERENCES cat_merchants(id),
+    network_id  UUID NOT NULL REFERENCES cat_blockchain_networks(id),
+    address     TEXT NOT NULL CHECK (length(address) >= 10),
+    label       TEXT NOT NULL DEFAULT '',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    _deleted_at TIMESTAMPTZ,
+    UNIQUE(merchant_id, network_id, address)
+);
+```
+
+**UX-модель (Portal):**
+- **Страница адресов:** мерчант выбирает **сеть** из списка (уникальные сети, полученные из `/dashboard/currencies`) → вводит адрес → добавляет
+- **Страница заявки на вывод:** мерчант выбирает **токен** → адреса фильтруются по совпадению `network_id` токена → выбирает адрес
 
 ---
 
@@ -1166,7 +1258,9 @@ curl -s "http://localhost:8080/portal/v1/dashboard/currencies?merchant_id=$MERCH
 {
   "items": [
     {
+      "tokenId": "019e0879-...",
       "symbol": "USDT",
+      "networkId": "019e0123-...",
       "network": "TRON Shasta Testnet",
       "count": 52,
       "totalMinor": "1437824748",
@@ -1176,6 +1270,9 @@ curl -s "http://localhost:8080/portal/v1/dashboard/currencies?merchant_id=$MERCH
   ]
 }
 ```
+
+> [!NOTE]
+> Поле `networkId` используется фронтендом для привязки whitelisted-адресов к сети. При добавлении адреса мерчант выбирает сеть (уникальные `networkId` из этого списка), а при создании заявки на вывод адреса фильтруются по совпадению `networkId` токена.
 
 ---
 
@@ -1249,7 +1346,115 @@ curl -s "http://localhost:8080/portal/v1/invoices?merchant_id=$MERCHANT_ID&statu
 }
 ```
 
-### 19.3. Файловая карта
+### 19.3. Withdrawal Endpoints
+
+#### GET /portal/v1/balance
+
+Балансы мерчанта с разбивкой по токенам. Используется на странице вывода для отображения доступных средств.
+
+```bash
+curl -s "http://localhost:8080/portal/v1/balance?merchant_id=$MERCHANT_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: $TENANT_ID"
+```
+
+---
+
+#### GET /portal/v1/withdrawal-addresses
+
+Список whitelisted-адресов мерчанта.
+
+```bash
+curl -s "http://localhost:8080/portal/v1/withdrawal-addresses?merchant_id=$MERCHANT_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: $TENANT_ID"
+```
+
+**Response (200):**
+
+```json
+{
+  "items": [
+    {
+      "id": "019e1234-...",
+      "networkId": "019e0123-...",
+      "network": "TRON Shasta Testnet",
+      "address": "T9yD14NrhBe4eG...",
+      "label": "Hot wallet",
+      "createdAt": "2026-05-20T10:00:00Z"
+    }
+  ]
+}
+```
+
+> [!NOTE]
+> Адрес привязан к **сети** (`networkId`), а не к конкретному токену. Один адрес валиден для всех токенов в одной сети.
+
+---
+
+#### POST /portal/v1/withdrawal-addresses
+
+Добавление нового адреса в белый список. Требуется роль Owner.
+
+```json
+{
+  "networkId": "019e0123-...",
+  "address": "T9yD14NrhBe4eG...",
+  "label": "Treasury"
+}
+```
+
+---
+
+#### DELETE /portal/v1/withdrawal-addresses/:addressId
+
+Soft-delete адреса из белого списка.
+
+---
+
+#### POST /portal/v1/withdrawal-requests
+
+Создание заявки на вывод средств. Применяет **debit-first posting** — баланс мерчанта списывается немедленно.
+
+```json
+{
+  "tokenId": "019e0879-...",
+  "amount": "100.500000",
+  "addressId": "019e1234-..."
+}
+```
+
+**Валидация (серверная):**
+1. `tokenId` → resolve token (decimal_places + network_id)
+2. `addressId` → проверка принадлежности мерчанту
+3. `addr.network_id == token.network_id` — cross-network protection
+4. `amount > 0` → конвертация в minor units
+5. `CheckAndReserveMerchantBalance()` → pessimistic lock + списание
+
+**Response (201):**
+
+```json
+{
+  "id": "019e2345-...",
+  "number": "WR-2026-00001"
+}
+```
+
+---
+
+#### GET /portal/v1/withdrawal-requests
+
+Список заявок на вывод средств мерчанта.
+
+---
+
+#### GET /portal/v1/withdrawals
+
+Список завершённых выводов средств.
+
+---
+
+### 19.4. Файловая карта
 
 ```
 Backend:
@@ -1257,8 +1462,11 @@ Backend:
   ├── handlers/portal_handler.go         — PortalHandler (thin adapter)
   ├── dto/portal_api.go                  — PortalSummaryResponse, PortalChartPoint, etc.
   └── middleware/merchant_portal.go      — MerchantPortal middleware (scope injection)
-  internal/infrastructure/storage/postgres/
-  └── portal_repo/dashboard.go           — DashboardRepo (read-only SQL queries)
+  internal/infrastructure/storage/postgres/portal_repo/
+  ├── dashboard.go                       — DashboardRepo (read-only SQL queries)
+  └── portal_withdrawal.go              — Withdrawal addresses, requests, balance queries
+  internal/domain/registers/
+  └── crypto_merchant_balance/service.go — CheckAndReserveMerchantBalance (debit-first)
   internal/core/context/user.go          — MerchantScope, MerchantIDs, PortalRole
   internal/domain/auth/jwt.go            — JWT claims extension (mids, prl)
 
@@ -1267,7 +1475,11 @@ Frontend:
   ├── layout.tsx                          — Portal layout (sidebar, merchant switcher)
   └── portal/
       ├── page.tsx                        — Dashboard page (4 widgets)
-      └── invoices/page.tsx               — Invoices list page
+      ├── invoices/page.tsx               — Invoices list page
+      └── withdrawals/
+          ├── page.tsx                    — Withdrawals list page
+          ├── addresses/page.tsx          — Address whitelist (network selector)
+          └── new/page.tsx               — New withdrawal request (token → address → amount)
   frontend/components/portal/
   ├── balance-summary-card.tsx            — Общий баланс виджет
   ├── currency-breakdown-card.tsx         — По валютам виджет
@@ -1275,6 +1487,7 @@ Frontend:
   └── recent-invoices-card.tsx            — Инвойсы виджет
   frontend/stores/usePortalStore.ts       — Zustand store (activeMerchantId)
   frontend/lib/api.ts                     — portalFetch() + api.portal.*
+  frontend/types/portal-api.ts            — PortalWithdrawalAddress, PortalCreateWithdrawalRequest
 ```
 
 ---
