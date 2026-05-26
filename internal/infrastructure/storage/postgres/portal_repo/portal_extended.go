@@ -300,7 +300,7 @@ func (r *DashboardRepo) UpdateMerchantSettings(ctx context.Context, merchantID i
 	var query strings.Builder
 	query.WriteString(`UPDATE cat_merchants SET updated_at = NOW(), attributes = attributes`)
 	for i, key := range keys {
-		query.WriteString(fmt.Sprintf(` || jsonb_build_object('%s', $%d)`, key, i+2))
+		fmt.Fprintf(&query, ` || jsonb_build_object('%s', $%d)`, key, i+2)
 	}
 	query.WriteString(` WHERE id = $1 AND _deleted_at IS NULL`)
 

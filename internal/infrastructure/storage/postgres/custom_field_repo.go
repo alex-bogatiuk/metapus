@@ -208,7 +208,7 @@ func (r *CustomFieldRepo) Update(ctx context.Context, id string, upd *CustomFiel
 		}
 		query.WriteString(clause)
 	}
-	query.WriteString(fmt.Sprintf(" WHERE id = $%d", argIdx))
+	fmt.Fprintf(&query, " WHERE id = $%d", argIdx)
 	args = append(args, id)
 
 	tag, err := pool.Exec(ctx, query.String(), args...)

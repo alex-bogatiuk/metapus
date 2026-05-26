@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import {
   ArrowDown,
   ArrowUp,
@@ -113,6 +114,26 @@ export default function PortalInvoicesPage() {
   // Expandable rows
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
+  // Render-phase state adjustments to avoid useEffect setState cascading renders
+  const periodKey = `${period.from?.getTime() || ""}-${period.to?.getTime() || ""}`
+  const filterKey = `${activeMerchantId || ""}_${debouncedSearch || ""}_${statusFilter || ""}_${tokenFilter || ""}_${periodKey}_${pageSize}`
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey)
+
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey)
+    setCurrentPage(1)
+    setLoading(true)
+  }
+
+  const tokensKey = tokens.map((t) => `${t.symbol}-${t.network}`).join(",")
+  const fetchKey = `${filterKey}_${tokensKey}_${currentPage}_${sortField}_${sortOrder}`
+  const [prevFetchKey, setPrevFetchKey] = useState(fetchKey)
+
+  if (fetchKey !== prevFetchKey) {
+    setPrevFetchKey(fetchKey)
+    setLoading(true)
+  }
+
   // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300)
@@ -139,14 +160,8 @@ export default function PortalInvoicesPage() {
       .catch(() => setRateMap(new Map()))
   }, [activeMerchantId])
 
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [activeMerchantId, debouncedSearch, statusFilter, tokenFilter, period, pageSize])
-
   // Fetch data
   useEffect(() => {
-    setLoading(true)
     const offset = (currentPage - 1) * pageSize
 
     // Find the tokenId for the selected token filter
@@ -250,10 +265,10 @@ export default function PortalInvoicesPage() {
             Экспорт CSV
           </Button>
           <Button size="sm" asChild>
-            <a href="/portal/invoices/new">
+            <Link href="/portal/invoices/new">
               <Plus className="mr-2 size-4" />
               Создать инвойс
-            </a>
+            </Link>
           </Button>
         </div>
       </div>
