@@ -120,3 +120,18 @@ func FormatMinorUnits(amount int64, decimalPlaces int) string {
 	}
 	return result
 }
+
+// GetTokenDecimalPlaces returns the decimal_places for a token by ID.
+// Used by portal handlers to convert human-readable amounts to minor units.
+func (r *DashboardRepo) GetTokenDecimalPlaces(ctx context.Context, tokenID id.ID) (int, error) {
+	q := querier(ctx)
+	var dp int
+	err := q.QueryRow(ctx,
+		`SELECT decimal_places FROM cat_tokens WHERE id = $1 AND deletion_mark = FALSE`,
+		tokenID,
+	).Scan(&dp)
+	if err != nil {
+		return 0, fmt.Errorf("get token decimal places: %w", err)
+	}
+	return dp, nil
+}
