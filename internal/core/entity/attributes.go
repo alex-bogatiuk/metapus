@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"maps"
 
 	"github.com/shopspring/decimal"
 )
@@ -197,8 +198,6 @@ func (a Attributes) Clone() Attributes {
 		return nil
 	}
 	result := make(Attributes, len(a))
-	for k, v := range a {
-		result[k] = v
-	}
+	maps.Copy(result, a)
 	return result
 }

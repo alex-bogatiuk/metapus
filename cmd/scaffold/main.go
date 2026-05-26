@@ -598,13 +598,13 @@ func toPascalCase(s string) string {
 	parts := strings.FieldsFunc(s, func(c rune) bool {
 		return c == '_' || c == '-'
 	})
-	var result string
+	var result strings.Builder
 	for _, p := range parts {
 		if len(p) > 0 {
-			result += string(unicode.ToUpper(rune(p[0]))) + p[1:]
+			result.WriteString(string(unicode.ToUpper(rune(p[0]))) + p[1:])
 		}
 	}
-	return result
+	return result.String()
 }
 
 func toCamelCase(s string) string {

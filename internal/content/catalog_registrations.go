@@ -163,7 +163,7 @@ func (r *CounterpartyRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "контрагента",
 	}
 }
-func (r *CounterpartyRegistration) EntityStruct() interface{} { return counterparty.Counterparty{} }
+func (r *CounterpartyRegistration) EntityStruct() any { return counterparty.Counterparty{} }
 func (r *CounterpartyRegistration) SearchableFields() platform.SearchFields {
 	return platform.SearchFields{
 		SearchCols:  []string{"name", "code", "inn", "phone", "email"},
@@ -182,11 +182,12 @@ func (r *CounterpartyRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHan
 		dto.CreateCounterpartyRequest,
 		dto.UpdateCounterpartyRequest,
 	]{
-		Service:    service.CatalogService,
-		EntityName: "counterparty",
+		Service:      service.CatalogService,
+		EntityName:   "counterparty",
 		MapCreateDTO: func(req dto.CreateCounterpartyRequest) *counterparty.Counterparty { return req.ToEntity() },
 		MapUpdateDTO: func(req dto.UpdateCounterpartyRequest, existing *counterparty.Counterparty) *counterparty.Counterparty {
-			req.ApplyTo(existing); return existing
+			req.ApplyTo(existing)
+			return existing
 		},
 		MapToDTO: func(entity *counterparty.Counterparty) any { return dto.FromCounterparty(entity) },
 	})
@@ -211,7 +212,7 @@ func (r *NomenclatureRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "номенклатуры",
 	}
 }
-func (r *NomenclatureRegistration) EntityStruct() interface{} { return nomenclature.Nomenclature{} }
+func (r *NomenclatureRegistration) EntityStruct() any { return nomenclature.Nomenclature{} }
 
 func (r *NomenclatureRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 	repo := catalog_repo.NewNomenclatureRepo()
@@ -223,13 +224,14 @@ func (r *NomenclatureRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHan
 		dto.CreateNomenclatureRequest,
 		dto.UpdateNomenclatureRequest,
 	]{
-		Service:    service.CatalogService,
-		EntityName: "nomenclature",
+		Service:      service.CatalogService,
+		EntityName:   "nomenclature",
 		MapCreateDTO: func(req dto.CreateNomenclatureRequest) *nomenclature.Nomenclature { return req.ToEntity() },
 		MapUpdateDTO: func(req dto.UpdateNomenclatureRequest, existing *nomenclature.Nomenclature) *nomenclature.Nomenclature {
-			req.ApplyTo(existing); return existing
+			req.ApplyTo(existing)
+			return existing
 		},
-		MapToDTO: func(entity *nomenclature.Nomenclature) any { return dto.FromNomenclature(entity) },
+		MapToDTO:    func(entity *nomenclature.Nomenclature) any { return dto.FromNomenclature(entity) },
 		ResolveRefs: resolveNomenclatureRefs,
 		MapToDTOWithRefs: func(entity *nomenclature.Nomenclature, refs any) any {
 			return dto.FromNomenclature(entity, refs.(postgres.ResolvedRefs))
@@ -256,7 +258,7 @@ func (r *WarehouseRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "склада",
 	}
 }
-func (r *WarehouseRegistration) EntityStruct() interface{} { return warehouse.Warehouse{} }
+func (r *WarehouseRegistration) EntityStruct() any { return warehouse.Warehouse{} }
 
 func (r *WarehouseRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 	repo := catalog_repo.NewWarehouseRepo()
@@ -268,13 +270,14 @@ func (r *WarehouseRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandle
 		dto.CreateWarehouseRequest,
 		dto.UpdateWarehouseRequest,
 	]{
-		Service:    service.CatalogService,
-		EntityName: "warehouse",
+		Service:      service.CatalogService,
+		EntityName:   "warehouse",
 		MapCreateDTO: func(req dto.CreateWarehouseRequest) *warehouse.Warehouse { return req.ToEntity() },
 		MapUpdateDTO: func(req dto.UpdateWarehouseRequest, existing *warehouse.Warehouse) *warehouse.Warehouse {
-			req.ApplyTo(existing); return existing
+			req.ApplyTo(existing)
+			return existing
 		},
-		MapToDTO: func(entity *warehouse.Warehouse) any { return dto.FromWarehouse(entity) },
+		MapToDTO:    func(entity *warehouse.Warehouse) any { return dto.FromWarehouse(entity) },
 		ResolveRefs: resolveWarehouseRefs,
 		MapToDTOWithRefs: func(entity *warehouse.Warehouse, refs any) any {
 			return dto.FromWarehouse(entity, refs.(postgres.ResolvedRefs))
@@ -301,7 +304,7 @@ func (r *UnitRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "единицы измерения",
 	}
 }
-func (r *UnitRegistration) EntityStruct() interface{} { return unit.Unit{} }
+func (r *UnitRegistration) EntityStruct() any { return unit.Unit{} }
 
 func (r *UnitRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 	repo := catalog_repo.NewUnitRepo()
@@ -313,13 +316,14 @@ func (r *UnitRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 		dto.CreateUnitRequest,
 		dto.UpdateUnitRequest,
 	]{
-		Service:    service.CatalogService,
-		EntityName: "unit",
+		Service:      service.CatalogService,
+		EntityName:   "unit",
 		MapCreateDTO: func(req dto.CreateUnitRequest) *unit.Unit { return req.ToEntity() },
 		MapUpdateDTO: func(req dto.UpdateUnitRequest, existing *unit.Unit) *unit.Unit {
-			req.ApplyTo(existing); return existing
+			req.ApplyTo(existing)
+			return existing
 		},
-		MapToDTO: func(entity *unit.Unit) any { return dto.FromUnit(entity) },
+		MapToDTO:    func(entity *unit.Unit) any { return dto.FromUnit(entity) },
 		ResolveRefs: resolveUnitRefs,
 		MapToDTOWithRefs: func(entity *unit.Unit, refs any) any {
 			return dto.FromUnit(entity, refs.(postgres.ResolvedRefs))
@@ -346,7 +350,7 @@ func (r *CurrencyRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "валюты",
 	}
 }
-func (r *CurrencyRegistration) EntityStruct() interface{} { return currency.Currency{} }
+func (r *CurrencyRegistration) EntityStruct() any { return currency.Currency{} }
 
 func (r *CurrencyRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 	repo := catalog_repo.NewCurrencyRepo()
@@ -358,11 +362,12 @@ func (r *CurrencyRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler
 		dto.CreateCurrencyRequest,
 		dto.UpdateCurrencyRequest,
 	]{
-		Service:    service.CatalogService,
-		EntityName: "currency",
+		Service:      service.CatalogService,
+		EntityName:   "currency",
 		MapCreateDTO: func(req dto.CreateCurrencyRequest) *currency.Currency { return req.ToEntity() },
 		MapUpdateDTO: func(req dto.UpdateCurrencyRequest, existing *currency.Currency) *currency.Currency {
-			req.ApplyTo(existing); return existing
+			req.ApplyTo(existing)
+			return existing
 		},
 		MapToDTO: func(entity *currency.Currency) any { return dto.FromCurrency(entity) },
 	})
@@ -387,7 +392,7 @@ func (r *OrganizationRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "организации",
 	}
 }
-func (r *OrganizationRegistration) EntityStruct() interface{} { return organization.Organization{} }
+func (r *OrganizationRegistration) EntityStruct() any { return organization.Organization{} }
 
 func (r *OrganizationRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 	repo := catalog_repo.NewOrganizationRepo()
@@ -409,13 +414,14 @@ func (r *OrganizationRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHan
 		dto.CreateOrganizationRequest,
 		dto.UpdateOrganizationRequest,
 	]{
-		Service:    service.CatalogService,
-		EntityName: "organization",
+		Service:      service.CatalogService,
+		EntityName:   "organization",
 		MapCreateDTO: func(req dto.CreateOrganizationRequest) *organization.Organization { return req.ToEntity() },
 		MapUpdateDTO: func(req dto.UpdateOrganizationRequest, existing *organization.Organization) *organization.Organization {
-			req.ApplyTo(existing); return existing
+			req.ApplyTo(existing)
+			return existing
 		},
-		MapToDTO: func(entity *organization.Organization) any { return dto.FromOrganization(entity) },
+		MapToDTO:    func(entity *organization.Organization) any { return dto.FromOrganization(entity) },
 		ResolveRefs: resolveOrganizationRefs,
 		MapToDTOWithRefs: func(entity *organization.Organization, refs any) any {
 			return dto.FromOrganization(entity, refs.(postgres.ResolvedRefs))
@@ -432,7 +438,7 @@ type VATRateRegistration struct{}
 func (r *VATRateRegistration) RoutePrefix() string      { return "vat-rates" }
 func (r *VATRateRegistration) Permission() string       { return "catalog:vat_rate" }
 func (r *VATRateRegistration) ReferenceTypes() []string { return []string{"vatrate", "vat_rate"} }
-func (r *VATRateRegistration) TableName() string         { return "cat_vat_rates" }
+func (r *VATRateRegistration) TableName() string        { return "cat_vat_rates" }
 func (r *VATRateRegistration) EntityName() string       { return "VATRate" }
 func (r *VATRateRegistration) EntityLabel() string      { return "Ставки НДС" }
 func (r *VATRateRegistration) EntityPresentation() metadata.Presentation {
@@ -443,7 +449,7 @@ func (r *VATRateRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "ставки НДС",
 	}
 }
-func (r *VATRateRegistration) EntityStruct() interface{} { return vat_rate.VATRate{} }
+func (r *VATRateRegistration) EntityStruct() any { return vat_rate.VATRate{} }
 
 func (r *VATRateRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 	repo := catalog_repo.NewVATRateRepo()
@@ -455,11 +461,12 @@ func (r *VATRateRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler 
 		dto.CreateVATRateRequest,
 		dto.UpdateVATRateRequest,
 	]{
-		Service:    service.CatalogService,
-		EntityName: "vat_rate",
+		Service:      service.CatalogService,
+		EntityName:   "vat_rate",
 		MapCreateDTO: func(req dto.CreateVATRateRequest) *vat_rate.VATRate { return req.ToEntity() },
 		MapUpdateDTO: func(req dto.UpdateVATRateRequest, existing *vat_rate.VATRate) *vat_rate.VATRate {
-			req.ApplyTo(existing); return existing
+			req.ApplyTo(existing)
+			return existing
 		},
 		MapToDTO: func(entity *vat_rate.VATRate) any { return dto.FromVATRate(entity) },
 	})
@@ -484,7 +491,7 @@ func (r *ContractRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "договора",
 	}
 }
-func (r *ContractRegistration) EntityStruct() interface{} { return contract.Contract{} }
+func (r *ContractRegistration) EntityStruct() any { return contract.Contract{} }
 
 func (r *ContractRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 	repo := catalog_repo.NewContractRepo()
@@ -506,13 +513,14 @@ func (r *ContractRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler
 		dto.CreateContractRequest,
 		dto.UpdateContractRequest,
 	]{
-		Service:    service.CatalogService,
-		EntityName: "contract",
+		Service:      service.CatalogService,
+		EntityName:   "contract",
 		MapCreateDTO: func(req dto.CreateContractRequest) *contract.Contract { return req.ToEntity() },
 		MapUpdateDTO: func(req dto.UpdateContractRequest, existing *contract.Contract) *contract.Contract {
-			req.ApplyTo(existing); return existing
+			req.ApplyTo(existing)
+			return existing
 		},
-		MapToDTO: func(entity *contract.Contract) any { return dto.FromContract(entity) },
+		MapToDTO:    func(entity *contract.Contract) any { return dto.FromContract(entity) },
 		ResolveRefs: resolveContractRefs,
 		MapToDTOWithRefs: func(entity *contract.Contract, refs any) any {
 			return dto.FromContract(entity, refs.(postgres.ResolvedRefs))
@@ -557,11 +565,13 @@ func resolveContractRefs(ctx context.Context, entities ...*contract.Contract) (a
 
 type BlockchainNetworkRegistration struct{}
 
-func (r *BlockchainNetworkRegistration) RoutePrefix() string      { return "blockchain-networks" }
-func (r *BlockchainNetworkRegistration) Permission() string       { return "catalog:blockchain_network" }
-func (r *BlockchainNetworkRegistration) ReferenceTypes() []string { return []string{"blockchain_network"} }
-func (r *BlockchainNetworkRegistration) EntityName() string       { return "BlockchainNetwork" }
-func (r *BlockchainNetworkRegistration) EntityLabel() string      { return "Блокчейн-сети" }
+func (r *BlockchainNetworkRegistration) RoutePrefix() string { return "blockchain-networks" }
+func (r *BlockchainNetworkRegistration) Permission() string  { return "catalog:blockchain_network" }
+func (r *BlockchainNetworkRegistration) ReferenceTypes() []string {
+	return []string{"blockchain_network"}
+}
+func (r *BlockchainNetworkRegistration) EntityName() string  { return "BlockchainNetwork" }
+func (r *BlockchainNetworkRegistration) EntityLabel() string { return "Блокчейн-сети" }
 func (r *BlockchainNetworkRegistration) EntityPresentation() metadata.Presentation {
 	return metadata.Presentation{
 		Singular: "Блокчейн-сеть",
@@ -570,7 +580,7 @@ func (r *BlockchainNetworkRegistration) EntityPresentation() metadata.Presentati
 		Genitive: "блокчейн-сети",
 	}
 }
-func (r *BlockchainNetworkRegistration) EntityStruct() interface{} {
+func (r *BlockchainNetworkRegistration) EntityStruct() any {
 	return blockchain_network.BlockchainNetwork{}
 }
 
@@ -590,7 +600,8 @@ func (r *BlockchainNetworkRegistration) Build(deps v1.CatalogDeps) v1.CatalogRou
 			return req.ToEntity()
 		},
 		MapUpdateDTO: func(req dto.UpdateBlockchainNetworkRequest, existing *blockchain_network.BlockchainNetwork) *blockchain_network.BlockchainNetwork {
-			req.ApplyTo(existing); return existing
+			req.ApplyTo(existing)
+			return existing
 		},
 		MapToDTO: func(entity *blockchain_network.BlockchainNetwork) any {
 			return dto.FromBlockchainNetwork(entity)
@@ -617,7 +628,7 @@ func (r *TokenRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "токена",
 	}
 }
-func (r *TokenRegistration) EntityStruct() interface{} { return token.Token{} }
+func (r *TokenRegistration) EntityStruct() any { return token.Token{} }
 
 func (r *TokenRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 	repo := catalog_repo.NewTokenRepo()
@@ -629,13 +640,14 @@ func (r *TokenRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 		dto.CreateTokenRequest,
 		dto.UpdateTokenRequest,
 	]{
-		Service:    service.CatalogService,
-		EntityName: "token",
+		Service:      service.CatalogService,
+		EntityName:   "token",
 		MapCreateDTO: func(req dto.CreateTokenRequest) *token.Token { return req.ToEntity() },
 		MapUpdateDTO: func(req dto.UpdateTokenRequest, existing *token.Token) *token.Token {
-			req.ApplyTo(existing); return existing
+			req.ApplyTo(existing)
+			return existing
 		},
-		MapToDTO: func(entity *token.Token) any { return dto.FromToken(entity) },
+		MapToDTO:    func(entity *token.Token) any { return dto.FromToken(entity) },
 		ResolveRefs: resolveTokenRefs,
 		MapToDTOWithRefs: func(entity *token.Token, refs any) any {
 			return dto.FromToken(entity, refs.(postgres.ResolvedRefs))
@@ -666,7 +678,7 @@ func (r *MerchantRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "мерчанта",
 	}
 }
-func (r *MerchantRegistration) EntityStruct() interface{} { return merchant.Merchant{} }
+func (r *MerchantRegistration) EntityStruct() any { return merchant.Merchant{} }
 
 func (r *MerchantRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 	repo := catalog_repo.NewMerchantRepo()
@@ -678,11 +690,12 @@ func (r *MerchantRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler
 		dto.CreateMerchantRequest,
 		dto.UpdateMerchantRequest,
 	]{
-		Service:    service.CatalogService,
-		EntityName: "merchant",
+		Service:      service.CatalogService,
+		EntityName:   "merchant",
 		MapCreateDTO: func(req dto.CreateMerchantRequest) *merchant.Merchant { return req.ToEntity() },
 		MapUpdateDTO: func(req dto.UpdateMerchantRequest, existing *merchant.Merchant) *merchant.Merchant {
-			req.ApplyTo(existing); return existing
+			req.ApplyTo(existing)
+			return existing
 		},
 		MapToDTO: func(entity *merchant.Merchant) any { return dto.FromMerchant(entity) },
 	})
@@ -707,7 +720,7 @@ func (r *WalletRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "кошелька",
 	}
 }
-func (r *WalletRegistration) EntityStruct() interface{} { return wallet.Wallet{} }
+func (r *WalletRegistration) EntityStruct() any { return wallet.Wallet{} }
 
 func (r *WalletRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 	repo := catalog_repo.NewWalletRepo()
@@ -719,13 +732,14 @@ func (r *WalletRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 		dto.CreateWalletRequest,
 		dto.UpdateWalletRequest,
 	]{
-		Service:    service.CatalogService,
-		EntityName: "wallet",
+		Service:      service.CatalogService,
+		EntityName:   "wallet",
 		MapCreateDTO: func(req dto.CreateWalletRequest) *wallet.Wallet { return req.ToEntity() },
 		MapUpdateDTO: func(req dto.UpdateWalletRequest, existing *wallet.Wallet) *wallet.Wallet {
-			req.ApplyTo(existing); return existing
+			req.ApplyTo(existing)
+			return existing
 		},
-		MapToDTO: func(entity *wallet.Wallet) any { return dto.FromWallet(entity) },
+		MapToDTO:    func(entity *wallet.Wallet) any { return dto.FromWallet(entity) },
 		ResolveRefs: resolveWalletRefs,
 		MapToDTOWithRefs: func(entity *wallet.Wallet, refs any) any {
 			return dto.FromWallet(entity, refs.(postgres.ResolvedRefs))
@@ -756,7 +770,7 @@ func (r *RateSourceRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "источника курсов",
 	}
 }
-func (r *RateSourceRegistration) EntityStruct() interface{} { return rate_source.RateSource{} }
+func (r *RateSourceRegistration) EntityStruct() any { return rate_source.RateSource{} }
 
 func (r *RateSourceRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 	repo := catalog_repo.NewRateSourceRepo()
@@ -768,11 +782,12 @@ func (r *RateSourceRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandl
 		dto.CreateRateSourceRequest,
 		dto.UpdateRateSourceRequest,
 	]{
-		Service:    service.CatalogService,
-		EntityName: "rate_source",
+		Service:      service.CatalogService,
+		EntityName:   "rate_source",
 		MapCreateDTO: func(req dto.CreateRateSourceRequest) *rate_source.RateSource { return req.ToEntity() },
 		MapUpdateDTO: func(req dto.UpdateRateSourceRequest, existing *rate_source.RateSource) *rate_source.RateSource {
-			req.ApplyTo(existing); return existing
+			req.ApplyTo(existing)
+			return existing
 		},
 		MapToDTO: func(entity *rate_source.RateSource) any { return dto.FromRateSource(entity) },
 	})

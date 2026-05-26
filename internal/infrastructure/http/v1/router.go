@@ -546,7 +546,7 @@ func registerMetaRoutes(rg *gin.RouterGroup, reg *metadata.Registry, schemaCache
 
 // registerReportRoutes registers report endpoints via the factory registry.
 // All reports use the Dataset-based Query Engine.
-func registerReportRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *FactoryRegistry, reg *metadata.Registry) *compiler.Compiler {
+func registerReportRoutes(rg *gin.RouterGroup, _ RouterConfig, factoryReg *FactoryRegistry, reg *metadata.Registry) *compiler.Compiler {
 	reportsGroup := rg.Group("/reports")
 
 	datasets := factoryReg.Datasets()

@@ -187,10 +187,8 @@ export function formatCombo(combo: string): string {
   }
 
   // Resolve key label
-  const keyLabel = KEY_LABELS[key]
-    ?? (key.startsWith("f") && /^f\d+$/.test(key)
-      ? key.toUpperCase()             // F1–F12
-      : key.toUpperCase())            // letter or digit
+  // KEY_LABELS covers arrows, enter, esc, etc.; everything else (F1–F12, letters, digits) uppercased
+  const keyLabel = KEY_LABELS[key] ?? key.toUpperCase()
 
   if (mac) {
     // Mac style: ⌘⇧S (no separators)

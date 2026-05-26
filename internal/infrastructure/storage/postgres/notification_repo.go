@@ -53,13 +53,13 @@ func (r *NotificationRepo) CreateBatch(ctx context.Context, notifs []*notificati
 	}
 
 	b := &pgx.Batch{}
-	
+
 	for _, n := range notifs {
 		if n.ID == nil {
 			newID := id.New()
 			n.ID = &newID
 		}
-		
+
 		if n.Severity == "" {
 			n.Severity = notifications.SeverityInfo
 		}
@@ -80,7 +80,7 @@ func (r *NotificationRepo) CreateBatch(ctx context.Context, notifs []*notificati
 		_ = results.Close()
 	}()
 
-	for i := 0; i < len(notifs); i++ {
+	for i := range notifs {
 		_, err := results.Exec()
 		if err != nil {
 			return fmt.Errorf("error inserting notification batch at index %d: %w", i, err)
@@ -106,7 +106,7 @@ func (r *NotificationRepo) GetByID(ctx context.Context, notifID id.ID) (*notific
 	}
 
 	var n notifications.Notification
-	var rawAttributes map[string]interface{}
+	var rawAttributes map[string]any
 	err = pool.QueryRow(ctx, query, args...).Scan(
 		&n.ID, &n.UserID, &n.Title, &n.Message, &n.Severity, &n.Link, &n.IsRead, &rawAttributes, &n.Version, &n.DeletionMark, &n.CreatedAt, &n.UpdatedAt,
 	)
@@ -157,7 +157,7 @@ func (r *NotificationRepo) List(ctx context.Context, filter *notifications.Notif
 	var notifs []*notifications.Notification
 	for rows.Next() {
 		var n notifications.Notification
-		var rawAttributes map[string]interface{}
+		var rawAttributes map[string]any
 		if err := rows.Scan(
 			&n.ID, &n.UserID, &n.Title, &n.Message, &n.Severity, &n.Link, &n.IsRead, &rawAttributes, &n.Version, &n.DeletionMark, &n.CreatedAt, &n.UpdatedAt,
 		); err != nil {
@@ -204,8 +204,8 @@ func (r *NotificationRepo) MarkAsRead(ctx context.Context, notifID id.ID, userID
 		Set("is_read", true).
 		Set("version", sq.Expr("version + 1")).
 		Where(sq.Eq{
-			"id":        notifID.String(),
-			"user_id":   userID.String(), // verify ownership
+			"id":      notifID.String(),
+			"user_id": userID.String(), // verify ownership
 		}).
 		PlaceholderFormat(sq.Dollar).
 		ToSql()
@@ -307,4 +307,3 @@ func (r *NotificationRepo) Delete(ctx context.Context, notifID id.ID, userID id.
 
 	return nil
 }
-

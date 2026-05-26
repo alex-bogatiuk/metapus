@@ -78,7 +78,7 @@ func (s *Service) GetDocumentMovements(ctx context.Context, recorderID id.ID) ([
 
 	result := make([]entity.DocumentMovement, 0, len(movements))
 	for _, m := range movements {
-		data := map[string]interface{}{
+		data := map[string]any{
 			"wallet": entity.MovementRefValue{ID: m.WalletID.String(), Name: m.WalletID.String()},
 			"token":  entity.MovementRefValue{ID: m.TokenID.String(), Name: m.TokenID.String()},
 			"amount": m.Amount.String(),

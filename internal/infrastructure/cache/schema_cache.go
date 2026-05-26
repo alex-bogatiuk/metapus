@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -210,6 +211,7 @@ func (c *SchemaCache) handleNotification(channel, payload string) {
 	// Notify registered listeners with panic recovery (no goroutine fan-out).
 	// This keeps invalidation delivery bounded and avoids goroutine storms on bursts of NOTIFY events.
 	c.listenersMu.RLock()
+	defer c.listenersMu.RUnlock()
 	for _, listener := range c.listeners {
 		func(l InvalidationListener) {
 			defer func() {
@@ -220,7 +222,6 @@ func (c *SchemaCache) handleNotification(channel, payload string) {
 			l(channel, payload)
 		}(listener)
 	}
-	c.listenersMu.RUnlock()
 }
 
 // invalidateCustomFields reloads custom fields for specific entity.
@@ -451,9 +452,7 @@ func (c *SchemaCache) GetFeatureConfig(flagName string) map[string]any {
 		return nil
 	}
 	cfg := make(map[string]any, len(flag.Config))
-	for k, v := range flag.Config {
-		cfg[k] = v
-	}
+	maps.Copy(cfg, flag.Config)
 	return cfg
 }
 

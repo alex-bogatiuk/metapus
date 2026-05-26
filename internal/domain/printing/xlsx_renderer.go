@@ -134,10 +134,7 @@ func RenderXLSX(w io.Writer, data *PrintData) error {
 	// ── Totals ────────────────────────────────────────────────────────────
 	for _, total := range t.Totals {
 		// Label in second-to-last column, value in last column
-		labelCol := numCols - 1
-		if labelCol < 1 {
-			labelCol = 1
-		}
+		labelCol := max(numCols-1, 1)
 		valCol := numCols
 		lc := cellRef(labelCol, row)
 		vc := cellRef(valCol, row)
@@ -171,10 +168,7 @@ func RenderXLSX(w io.Writer, data *PrintData) error {
 		switch sb.Layout {
 		case SignatureLayoutHorizontal:
 			// All entries side-by-side across columns
-			colsPerSig := numCols / len(sb.Entries)
-			if colsPerSig < 2 {
-				colsPerSig = 2
-			}
+			colsPerSig := max(numCols/len(sb.Entries), 2)
 
 			// Row 1: role labels
 			for i, entry := range sb.Entries {

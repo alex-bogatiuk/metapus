@@ -312,7 +312,7 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 		}
 
 		for _, rs := range rateSources {
-			var baseURL interface{}
+			var baseURL any
 			if rs.baseURL != "" {
 				baseURL = rs.baseURL
 			}
@@ -390,7 +390,7 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 	for i, w := range warehouses {
 		whID := id.New()
 		code := fmt.Sprintf("WH-%03d", i+1)
-		var orgIDValue interface{}
+		var orgIDValue any
 		if orgAvailable && !id.IsNil(orgID) {
 			orgIDValue = orgID
 		}
@@ -437,7 +437,7 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 			continue
 		}
 
-		var currIDValue interface{}
+		var currIDValue any
 		if cID, ok := currencyIDs[ct.currencyISOCode]; ok {
 			currIDValue = cID
 		}
@@ -800,7 +800,7 @@ func seedGeneratedGoodsReceipts(ctx context.Context, pool *postgres.Pool, log *l
 
 		lineCount := 2 + rng.Intn(5)
 		usedProducts := make(map[string]struct{}, lineCount)
-		for lineNo := 0; lineNo < lineCount; lineNo++ {
+		for range lineCount {
 			product := products[rng.Intn(len(products))]
 			for len(usedProducts) < len(products) {
 				if _, exists := usedProducts[product.ID.String()]; !exists {
@@ -1012,13 +1012,13 @@ func loadWarehouses(ctx context.Context, pool *postgres.Pool) ([]generatedWareho
 
 // cryptoRefs holds IDs from seeded crypto catalog data, used by seedCryptoDocuments.
 type cryptoRefs struct {
-	merchantIDs           []id.ID         // all active merchants
-	merchantFeeBP         map[string]int  // merchantID.String() → snapshotted fee_percent_bp
+	merchantIDs           []id.ID        // all active merchants
+	merchantFeeBP         map[string]int // merchantID.String() → snapshotted fee_percent_bp
 	tokenID               id.ID
-	usdtCurrencyID        id.ID           // USDT currency for exchange rate seeding
-	rateSourceCoinGeckoID id.ID           // CoinGecko rate source ID
-	walletIDs             []id.ID         // pool wallets (used for invoices)
-	hotWalletID           id.ID           // hot wallet (used for withdrawals)
+	usdtCurrencyID        id.ID   // USDT currency for exchange rate seeding
+	rateSourceCoinGeckoID id.ID   // CoinGecko rate source ID
+	walletIDs             []id.ID // pool wallets (used for invoices)
+	hotWalletID           id.ID   // hot wallet (used for withdrawals)
 }
 
 // seedCryptoData creates the crypto processing reference data:
@@ -1058,7 +1058,7 @@ func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger
 	tokenCode := "USDT-TRC20"
 
 	// Link token to USDT currency for balance → fiat conversion.
-	var usdtCurrencyIDVal interface{}
+	var usdtCurrencyIDVal any
 	usdtCurrencyID := currencyIDs["USDT"]
 	if !id.IsNil(usdtCurrencyID) {
 		usdtCurrencyIDVal = usdtCurrencyID
@@ -1606,10 +1606,7 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 	// Batch-insert invoices.
 	invoiceCreated := 0
 	for batchStart := 0; batchStart < len(invoices); batchStart += _cryptoDocBatchSize {
-		batchEnd := batchStart + _cryptoDocBatchSize
-		if batchEnd > len(invoices) {
-			batchEnd = len(invoices)
-		}
+		batchEnd := min(batchStart+_cryptoDocBatchSize, len(invoices))
 		chunk := invoices[batchStart:batchEnd]
 
 		batch := &pgx.Batch{}
@@ -1741,10 +1738,7 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 	// Batch-insert payments.
 	paymentCreated := 0
 	for batchStart := 0; batchStart < len(payments); batchStart += _cryptoDocBatchSize {
-		batchEnd := batchStart + _cryptoDocBatchSize
-		if batchEnd > len(payments) {
-			batchEnd = len(payments)
-		}
+		batchEnd := min(batchStart+_cryptoDocBatchSize, len(payments))
 		chunk := payments[batchStart:batchEnd]
 
 		batch := &pgx.Batch{}
@@ -1820,8 +1814,8 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 
 	withdrawalStatuses := []string{
 		"confirmed", "confirmed", "confirmed", "confirmed", "confirmed", // 62.5%
-		"broadcast",                                   // 12.5%
-		"created", "created",                          // 25%
+		"broadcast",          // 12.5%
+		"created", "created", // 25%
 	}
 
 	destAddresses := []string{
@@ -1838,7 +1832,7 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 		docDate := now.AddDate(0, 0, -daysAgo).Add(-time.Duration(rng.Intn(24)) * time.Hour)
 		merchantID := refs.merchantIDs[rng.Intn(len(refs.merchantIDs))]
 		amount := int64(5_000_000 + rng.Intn(495_000_000)) // 5-500 USDT
-		fee := int64(1_000_000 + rng.Intn(2_000_000))       // 1-3 TRX
+		fee := int64(1_000_000 + rng.Intn(2_000_000))      // 1-3 TRX
 		status := withdrawalStatuses[rng.Intn(len(withdrawalStatuses))]
 
 		txHash := ""
@@ -1863,10 +1857,7 @@ func seedCryptoDocuments(ctx context.Context, pool *postgres.Pool, log *logger.L
 	// Batch-insert withdrawals.
 	withdrawalCreated := 0
 	for batchStart := 0; batchStart < len(withdrawals); batchStart += _cryptoDocBatchSize {
-		batchEnd := batchStart + _cryptoDocBatchSize
-		if batchEnd > len(withdrawals) {
-			batchEnd = len(withdrawals)
-		}
+		batchEnd := min(batchStart+_cryptoDocBatchSize, len(withdrawals))
 		chunk := withdrawals[batchStart:batchEnd]
 
 		batch := &pgx.Batch{}

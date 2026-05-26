@@ -139,7 +139,7 @@ func (a *TelegramAdapter) Deliver(ctx context.Context, destination map[string]an
 
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", botToken)
 
-	bodyMap := map[string]interface{}{
+	bodyMap := map[string]any{
 		"chat_id": chatID,
 		"text":    payload,
 	}
@@ -186,13 +186,13 @@ func (a *TelegramAdapter) Deliver(ctx context.Context, destination map[string]an
 			if err := json.Unmarshal(respBody, &errResp); err == nil && errResp.Parameters.RetryAfter > 0 {
 				if attempt < maxAttempts {
 					logger.Warn(ctx, "telegram rate limit hit, sleeping", "retry_after", errResp.Parameters.RetryAfter, "attempt", attempt)
-					
+
 					select {
 					case <-ctx.Done():
 						return ctx.Err()
 					case <-time.After(time.Duration(errResp.Parameters.RetryAfter) * time.Second):
 					}
-					
+
 					continue
 				}
 			}
@@ -289,7 +289,7 @@ func (a *EmailAdapter) Deliver(ctx context.Context, destination map[string]any, 
 	switch to := destination["to"].(type) {
 	case string:
 		recipients = []string{to}
-	case []interface{}:
+	case []any:
 		for _, v := range to {
 			if s, ok := v.(string); ok {
 				recipients = append(recipients, s)

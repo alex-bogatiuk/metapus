@@ -91,7 +91,7 @@ func (s *Service) GetDocumentMovements(ctx context.Context, recorderID id.ID) ([
 			feeTypeName = "Неизвестная"
 		}
 
-		data := map[string]interface{}{
+		data := map[string]any{
 			"merchant": entity.MovementRefValue{ID: m.MerchantID.String(), Name: m.MerchantID.String()},
 			"token":    entity.MovementRefValue{ID: m.TokenID.String(), Name: m.TokenID.String()},
 			"feeType":  feeTypeName,

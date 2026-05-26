@@ -19,18 +19,18 @@ const (
 
 // Notification represents an in-app message targeted to a specific user.
 type Notification struct {
-	ID           *id.ID                 `json:"id"`
-	UserID       id.ID                  `json:"userId"`
-	Title        string                 `json:"title"`
-	Message      string                 `json:"message"`
-	Severity     Severity               `json:"severity"`
-	Link         *string                `json:"link,omitempty"`
-	IsRead       bool                   `json:"isRead"`
-	Attributes   map[string]interface{} `json:"attributes,omitempty"`
-	Version      int                    `json:"version"`
-	DeletionMark bool                   `json:"deletionMark"`
-	CreatedAt    time.Time              `json:"createdAt"`
-	UpdatedAt    time.Time              `json:"updatedAt"`
+	ID           *id.ID         `json:"id"`
+	UserID       id.ID          `json:"userId"`
+	Title        string         `json:"title"`
+	Message      string         `json:"message"`
+	Severity     Severity       `json:"severity"`
+	Link         *string        `json:"link,omitempty"`
+	IsRead       bool           `json:"isRead"`
+	Attributes   map[string]any `json:"attributes,omitempty"`
+	Version      int            `json:"version"`
+	DeletionMark bool           `json:"deletionMark"`
+	CreatedAt    time.Time      `json:"createdAt"`
+	UpdatedAt    time.Time      `json:"updatedAt"`
 }
 
 // NotificationFilter represents criteria for retrieving notifications.

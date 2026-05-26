@@ -39,7 +39,7 @@ func checkOrigin(r *http.Request) bool {
 		return true // Non-browser clients (curl, server-to-server)
 	}
 
-	for _, o := range strings.Split(allowed, ",") {
+	for o := range strings.SplitSeq(allowed, ",") {
 		if strings.TrimSpace(o) == origin {
 			return true
 		}
@@ -61,7 +61,7 @@ var GlobalHub = &Hub{
 
 // BroadcastToUser implements automation.Broadcaster interface.
 // It sends a JSON payload to all active connections of a specific user.
-func (h *Hub) BroadcastToUser(tenantID, userID string, eventType string, payload interface{}) {
+func (h *Hub) BroadcastToUser(tenantID, userID string, eventType string, payload any) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -70,7 +70,7 @@ func (h *Hub) BroadcastToUser(tenantID, userID string, eventType string, payload
 		return
 	}
 
-	msg := map[string]interface{}{
+	msg := map[string]any{
 		"type":    eventType,
 		"payload": payload,
 		"time":    time.Now().UnixMilli(),

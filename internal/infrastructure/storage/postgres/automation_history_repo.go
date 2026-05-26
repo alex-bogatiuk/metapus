@@ -69,10 +69,7 @@ func (r *AutomationHistoryRepo) List(ctx context.Context, filter automations.His
 	if limit <= 0 {
 		limit = 50
 	}
-	offset := filter.Offset
-	if offset < 0 {
-		offset = 0
-	}
+	offset := max(filter.Offset, 0)
 
 	dataQuery := fmt.Sprintf(`
 		SELECT %s

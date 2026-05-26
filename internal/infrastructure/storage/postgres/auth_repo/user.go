@@ -182,7 +182,7 @@ func (r *UserRepo) List(ctx context.Context, filter auth.UserFilter) ([]auth.Use
 	`
 	countQuery := `SELECT COUNT(*) FROM users WHERE deletion_mark = FALSE`
 
-	var args []interface{}
+	var args []any
 	argIdx := 1
 
 	if filter.Search != "" {

@@ -4,6 +4,7 @@ package portal_repo
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -38,10 +39,8 @@ func (r *DashboardRepo) ScopeIDs(ctx context.Context, activeMerchantID *id.ID) [
 func scopeIDs(ctx context.Context, activeMerchantID *id.ID) []id.ID {
 	scope := appctx.MustGetMerchantScope(ctx)
 	if activeMerchantID != nil {
-		for _, sid := range scope.MerchantIDs {
-			if sid == *activeMerchantID {
-				return []id.ID{*activeMerchantID}
-			}
+		if slices.Contains(scope.MerchantIDs, *activeMerchantID) {
+			return []id.ID{*activeMerchantID}
 		}
 		// activeMerchantID not in scope — fall through to all scope IDs
 	}
@@ -387,10 +386,7 @@ func (r *DashboardRepo) ListInvoices(ctx context.Context, activeMerchantID *id.I
 		if paymentAmount != nil && feeFixed != nil && feePercentBP != nil {
 			fee := calculateFee(*feeFixed, *feePercentBP, safeDeref(feeMin), safeDeref(feeMax), *paymentAmount)
 			item.ProcessingFee = strconv.FormatInt(fee, 10)
-			net := *paymentAmount - fee
-			if net < 0 {
-				net = 0
-			}
+			net := max(*paymentAmount-fee, 0)
 			item.NetAmount = strconv.FormatInt(net, 10)
 		}
 
@@ -423,4 +419,3 @@ func safeDeref(p *int64) int64 {
 	}
 	return *p
 }
-

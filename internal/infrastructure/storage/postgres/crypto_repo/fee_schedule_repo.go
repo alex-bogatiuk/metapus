@@ -26,7 +26,7 @@ func (r *FeeScheduleRepo) Get(ctx context.Context, merchantID *id.ID, tokenID id
 	querier := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
 
 	var query string
-	var args []interface{}
+	var args []any
 
 	if merchantID != nil {
 		query = `
@@ -34,14 +34,14 @@ func (r *FeeScheduleRepo) Get(ctx context.Context, merchantID *id.ID, tokenID id
 			FROM reg_fee_schedule
 			WHERE merchant_id = $1 AND token_id = $2 AND direction = $3
 		`
-		args = []interface{}{*merchantID, tokenID, direction}
+		args = []any{*merchantID, tokenID, direction}
 	} else {
 		query = `
 			SELECT merchant_id, token_id, direction, fixed_fee, percent_bp, min_fee, max_fee, updated_at
 			FROM reg_fee_schedule
 			WHERE merchant_id IS NULL AND token_id = $1 AND direction = $2
 		`
-		args = []interface{}{tokenID, direction}
+		args = []any{tokenID, direction}
 	}
 
 	var fs crypto.FeeSchedule
@@ -131,14 +131,14 @@ func (r *FeeScheduleRepo) Delete(ctx context.Context, merchantID *id.ID, tokenID
 	querier := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
 
 	var query string
-	var args []interface{}
+	var args []any
 
 	if merchantID != nil {
 		query = `DELETE FROM reg_fee_schedule WHERE merchant_id = $1 AND token_id = $2 AND direction = $3`
-		args = []interface{}{*merchantID, tokenID, direction}
+		args = []any{*merchantID, tokenID, direction}
 	} else {
 		query = `DELETE FROM reg_fee_schedule WHERE merchant_id IS NULL AND token_id = $1 AND direction = $2`
-		args = []interface{}{tokenID, direction}
+		args = []any{tokenID, direction}
 	}
 
 	tag, err := querier.Exec(ctx, query, args...)

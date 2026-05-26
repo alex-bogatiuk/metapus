@@ -42,8 +42,8 @@ func ParseOrderBy(orderBy string, defaultField string, defaultDir string, allowe
 	if strings.HasPrefix(orderBy, "-") {
 		direction = "DESC"
 		field = strings.TrimPrefix(orderBy, "-")
-	} else if strings.HasPrefix(orderBy, "+") {
-		field = strings.TrimPrefix(orderBy, "+")
+	} else if after, ok := strings.CutPrefix(orderBy, "+"); ok {
+		field = after
 	}
 
 	field = strings.TrimSpace(field)

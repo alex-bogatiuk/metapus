@@ -17,7 +17,7 @@ type Presentable interface {
 
 // Inspectable provides a zero-value struct for metadata.Inspect().
 type Inspectable interface {
-	EntityStruct() interface{}
+	EntityStruct() any
 }
 
 // Labeled provides a human-readable entity label.

@@ -58,7 +58,7 @@ type QueryRequest struct {
 
 	// Filters contains dataset-level parameter values (used by Executors to shape CTEs).
 	// E.g. {"warehouse_id": ["uuid1"], "as_of_date": "2025-01-01"}
-	Filters map[string]interface{} `json:"filters,omitempty"`
+	Filters map[string]any `json:"filters,omitempty"`
 
 	// AdvancedFilters are typed filter conditions from FilterSidebar.
 	// Each item's Field can be a dot-path (e.g. "nomenclature_id.brand_id.name"),
@@ -86,8 +86,8 @@ type QueryRequest struct {
 
 // QueryResult is the response returned to the frontend.
 type QueryResult struct {
-	Items      []map[string]interface{} `json:"items"`
-	TotalItems int                      `json:"totalItems"`
+	Items      []map[string]any `json:"items"`
+	TotalItems int              `json:"totalItems"`
 }
 
 // Compiler is the core Query Engine.
@@ -258,7 +258,7 @@ func (c *Compiler) Execute(ctx context.Context, req QueryRequest) (*QueryResult,
 	defer rows.Close()
 
 	// Manual row scanning: converts pgx types (UUID [16]byte, etc.) to JSON-friendly values.
-	items := make([]map[string]interface{}, 0)
+	items := make([]map[string]any, 0)
 	fieldDescs := rows.FieldDescriptions()
 	for rows.Next() {
 		values, err := rows.Values()
@@ -266,7 +266,7 @@ func (c *Compiler) Execute(ctx context.Context, req QueryRequest) (*QueryResult,
 			return nil, apperror.NewValidation(fmt.Sprintf("scan row values: %v", err))
 		}
 
-		row := make(map[string]interface{}, len(fieldDescs))
+		row := make(map[string]any, len(fieldDescs))
 		for i, fd := range fieldDescs {
 			key := string(fd.Name)
 			val := values[i]
@@ -325,7 +325,7 @@ func (c *Compiler) applyAdvancedFilters(
 
 // applySimpleFilters adds WHERE clauses for simple (non-executor) datasets.
 // Only processes filters that match declared Fields with FilterOnly or dimension kind.
-func (c *Compiler) applySimpleFilters(qb squirrel.SelectBuilder, ds *schema.Dataset, filters map[string]interface{}) squirrel.SelectBuilder {
+func (c *Compiler) applySimpleFilters(qb squirrel.SelectBuilder, ds *schema.Dataset, filters map[string]any) squirrel.SelectBuilder {
 	for key, value := range filters {
 		field := ds.FindField(key)
 		if field == nil {
@@ -337,7 +337,7 @@ func (c *Compiler) applySimpleFilters(qb squirrel.SelectBuilder, ds *schema.Data
 
 		// Handle array values (IN clause)
 		switch v := value.(type) {
-		case []interface{}:
+		case []any:
 			if len(v) > 0 {
 				qb = qb.Where(squirrel.Eq{col: v})
 			}
@@ -353,7 +353,7 @@ func (c *Compiler) applySimpleFilters(qb squirrel.SelectBuilder, ds *schema.Data
 //   - [16]byte (UUID) → "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" string
 //   - time.Time → ISO 8601 string
 //   - []byte → hex string
-func normalizeValue(v interface{}) interface{} {
+func normalizeValue(v any) any {
 	if v == nil {
 		return nil
 	}

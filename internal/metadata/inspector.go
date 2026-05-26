@@ -15,17 +15,17 @@ import (
 
 // Reflect types for storage-scaled numeric types and compound references.
 var (
-	quantityType     = reflect.TypeOf(types.Quantity(0))
-	minorUnitsType   = reflect.TypeOf(types.MinorUnits(0))
-	cryptoAmountType = reflect.TypeOf(types.CryptoAmount(0))
-	typedRefType     = reflect.TypeOf(entity.TypedRef{})
-	decimalType      = reflect.TypeOf(decimal.Decimal{})
+	quantityType     = reflect.TypeFor[types.Quantity]()
+	minorUnitsType   = reflect.TypeFor[types.MinorUnits]()
+	cryptoAmountType = reflect.TypeFor[types.CryptoAmount]()
+	typedRefType     = reflect.TypeFor[entity.TypedRef]()
+	decimalType      = reflect.TypeFor[decimal.Decimal]()
 )
 
 // Inspect analyzes a struct and returns its EntityDef.
-func Inspect(entity interface{}, name string, entityType EntityType) EntityDef {
+func Inspect(entity any, name string, entityType EntityType) EntityDef {
 	t := reflect.TypeOf(entity)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -147,7 +147,6 @@ func inspectStruct(t reflect.Type, def *EntityDef, topLevel bool) {
 	}
 }
 
-
 func inspectColumns(t reflect.Type) []FieldDef {
 	cols := make([]FieldDef, 0)
 	for i := 0; i < t.NumField(); i++ {
@@ -192,10 +191,10 @@ func metaLabel(field reflect.StructField) string {
 	if !ok {
 		return ""
 	}
-	for _, part := range strings.Split(tag, ",") {
+	for part := range strings.SplitSeq(tag, ",") {
 		part = strings.TrimSpace(part)
-		if strings.HasPrefix(part, "label:") {
-			return strings.TrimPrefix(part, "label:")
+		if after, ok0 := strings.CutPrefix(part, "label:"); ok0 {
+			return after
 		}
 	}
 	return ""
@@ -209,10 +208,10 @@ func metaRefType(field reflect.StructField) string {
 	if !ok {
 		return ""
 	}
-	for _, part := range strings.Split(tag, ",") {
+	for part := range strings.SplitSeq(tag, ",") {
 		part = strings.TrimSpace(part)
-		if strings.HasPrefix(part, "ref:") {
-			return strings.TrimPrefix(part, "ref:")
+		if after, ok0 := strings.CutPrefix(part, "ref:"); ok0 {
+			return after
 		}
 	}
 	return ""
@@ -223,25 +222,25 @@ func mapFieldType(def *FieldDef, field reflect.StructField) {
 
 	// Dereference pointer types so *id.ID and *time.Time are handled correctly.
 	actual := t
-	if actual.Kind() == reflect.Ptr {
+	if actual.Kind() == reflect.Pointer {
 		actual = actual.Elem()
 	}
 
 	// Handle ID -> Reference (both id.ID and *id.ID)
-	if actual == reflect.TypeOf(id.ID{}) {
+	if actual == reflect.TypeFor[id.ID]() {
 		def.Type = TypeReference
 		// First: check explicit meta:"ref:xxx" tag
 		if refKey := metaRefType(field); refKey != "" {
 			def.ReferenceType = refKey
-		} else if strings.HasSuffix(field.Name, "ID") {
+		} else if before, ok := strings.CutSuffix(field.Name, "ID"); ok {
 			// Fallback heuristic: e.g. "WarehouseID" -> "warehouse"
-			baseName := strings.TrimSuffix(field.Name, "ID")
+			baseName := before
 			def.ReferenceType = strings.ToLower(baseName)
 		}
 		return
 	}
 
-	if actual == reflect.TypeOf(time.Time{}) {
+	if actual == reflect.TypeFor[time.Time]() {
 		def.Type = TypeDate
 		return
 	}
@@ -357,7 +356,7 @@ func metaHasPreviewFalse(field reflect.StructField) bool {
 	if !ok {
 		return false
 	}
-	for _, part := range strings.Split(tag, ",") {
+	for part := range strings.SplitSeq(tag, ",") {
 		if strings.TrimSpace(part) == "preview:false" {
 			return true
 		}
@@ -372,7 +371,7 @@ func metaHasPreviewTrue(field reflect.StructField) bool {
 	if !ok {
 		return false
 	}
-	for _, part := range strings.Split(tag, ",") {
+	for part := range strings.SplitSeq(tag, ",") {
 		if strings.TrimSpace(part) == "preview:true" {
 			return true
 		}

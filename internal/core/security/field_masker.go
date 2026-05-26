@@ -41,7 +41,7 @@ var globalFieldCache = &entityFieldCache{
 // On first call for a type, it extracts field info via reflection and caches it.
 func (c *entityFieldCache) getFields(t reflect.Type) []fieldMeta {
 	// Dereference pointer types
-	for t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -68,7 +68,7 @@ func (c *entityFieldCache) getFields(t reflect.Type) []fieldMeta {
 
 // getTableParts returns cached table part metadata for a struct type.
 func (c *entityFieldCache) getTableParts(t reflect.Type) []tablePartMeta {
-	for t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -106,7 +106,7 @@ func extractTablePartMeta(t reflect.Type, prefix []int) []tablePartMeta {
 		// Recurse into embedded structs
 		if f.Anonymous {
 			embedded := f.Type
-			if embedded.Kind() == reflect.Ptr {
+			if embedded.Kind() == reflect.Pointer {
 				embedded = embedded.Elem()
 			}
 			if embedded.Kind() == reflect.Struct {
@@ -118,7 +118,7 @@ func extractTablePartMeta(t reflect.Type, prefix []int) []tablePartMeta {
 		// Detect slice-of-struct fields
 		if f.Type.Kind() == reflect.Slice {
 			elemType := f.Type.Elem()
-			if elemType.Kind() == reflect.Ptr {
+			if elemType.Kind() == reflect.Pointer {
 				elemType = elemType.Elem()
 			}
 			if elemType.Kind() == reflect.Struct {
@@ -167,7 +167,7 @@ func extractFieldMetaWithPrefix(t reflect.Type, prefix []int) []fieldMeta {
 		// Handle embedded structs
 		if f.Anonymous {
 			embedded := f.Type
-			if embedded.Kind() == reflect.Ptr {
+			if embedded.Kind() == reflect.Pointer {
 				embedded = embedded.Elem()
 			}
 			if embedded.Kind() == reflect.Struct {
@@ -250,7 +250,7 @@ func MaskForRead(entity any, policy *FieldPolicy) {
 	}
 
 	v := reflect.ValueOf(entity)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 	if v.Kind() != reflect.Struct {
@@ -292,7 +292,7 @@ func MaskForRead(entity any, policy *FieldPolicy) {
 		elemFields := globalFieldCache.getFields(part.ElemType)
 		for i := 0; i < sliceVal.Len(); i++ {
 			elem := sliceVal.Index(i)
-			if elem.Kind() == reflect.Ptr {
+			if elem.Kind() == reflect.Pointer {
 				elem = elem.Elem()
 			}
 
@@ -317,7 +317,7 @@ func MaskForRead(entity any, policy *FieldPolicy) {
 // Falls back to json tags if db tag is not available.
 func entityToMap(entity any) map[string]any {
 	v := reflect.ValueOf(entity)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 	if v.Kind() != reflect.Struct {

@@ -472,7 +472,7 @@ func (o *Orchestrator) triggerMigration(ctx context.Context) error {
 
 	// Retry a few times — after network switching, DNS may need time to propagate.
 	var lastErr error
-	for attempt := 0; attempt < 5; attempt++ {
+	for attempt := range 5 {
 		if attempt > 0 {
 			o.state.AppendLog(fmt.Sprintf("migration trigger retry %d/5: %s", attempt+1, lastErr))
 			time.Sleep(5 * time.Second)

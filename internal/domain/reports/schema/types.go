@@ -170,7 +170,7 @@ type FilterDef struct {
 	Multi bool `json:"multi,omitempty"`
 
 	// Default is the default value for the filter.
-	Default interface{} `json:"default,omitempty"`
+	Default any `json:"default,omitempty"`
 }
 
 // FilterType defines the type of filter control rendered in the UI.

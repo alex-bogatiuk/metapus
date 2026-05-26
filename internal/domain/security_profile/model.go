@@ -5,6 +5,7 @@ package security_profile
 
 import (
 	"context"
+	"maps"
 	"time"
 
 	"metapus/internal/core/apperror"
@@ -67,17 +68,13 @@ func (p *SecurityProfile) BuildDataScope(isAdmin bool) *security.DataScope {
 
 	// Global dimensions (entity_name = "")
 	dims := make(map[string][]string, len(p.Dimensions))
-	for k, v := range p.Dimensions {
-		dims[k] = v
-	}
+	maps.Copy(dims, p.Dimensions)
 
 	// Per-entity dimensions
 	var entityDims map[string]map[string][]string
 	if len(p.EntityDimensions) > 0 {
 		entityDims = make(map[string]map[string][]string, len(p.EntityDimensions))
-		for entityName, dimMap := range p.EntityDimensions {
-			entityDims[entityName] = dimMap
-		}
+		maps.Copy(entityDims, p.EntityDimensions)
 	}
 
 	return &security.DataScope{

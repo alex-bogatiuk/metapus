@@ -32,8 +32,8 @@ const coreMigrationsDir = "db/migrations"
 // Set by cmd packages via SetCoreMigrationsFS before RunAll is called.
 // If nil, os.DirFS is used as fallback (works when binary runs from repo root).
 var (
-	coreMigrationsFS   fs.FS
-	coreMigrationsMu   sync.Mutex
+	coreMigrationsFS fs.FS
+	coreMigrationsMu sync.Mutex
 )
 
 // SetCoreMigrationsFS sets the embedded filesystem for core migrations.
@@ -55,9 +55,9 @@ func SetCoreMigrationsFS(fsys fs.FS) {
 //
 // Ordering:
 //
-//	1. db/migrations/          (core — numbers 00001–09999)
-//	2. extensions/*/migrations/ (auto-discovered — numbers 10000+)
-//	3. MIGRATION_EXTRA_DIRS     (manual overrides)
+//  1. db/migrations/          (core — numbers 00001–09999)
+//  2. extensions/*/migrations/ (auto-discovered — numbers 10000+)
+//  3. MIGRATION_EXTRA_DIRS     (manual overrides)
 func Dirs() []string {
 	dirs := []string{coreMigrationsDir}
 
@@ -88,7 +88,7 @@ func Dirs() []string {
 	// Manual overrides via env var
 	extra := os.Getenv("MIGRATION_EXTRA_DIRS")
 	if extra != "" {
-		for _, d := range strings.Split(extra, ",") {
+		for d := range strings.SplitSeq(extra, ",") {
 			d = strings.TrimSpace(d)
 			if d != "" {
 				dirs = append(dirs, d)

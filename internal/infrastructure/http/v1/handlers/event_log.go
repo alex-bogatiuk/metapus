@@ -55,12 +55,12 @@ func (h *EventLogHandler) List(c *gin.Context) {
 
 	// Parse filter params
 	if v := c.Query("category"); v != "" {
-		for _, cat := range strings.Split(v, ",") {
+		for cat := range strings.SplitSeq(v, ",") {
 			f.Categories = append(f.Categories, eventlog.Category(strings.TrimSpace(cat)))
 		}
 	}
 	if v := c.Query("severity"); v != "" {
-		for _, sev := range strings.Split(v, ",") {
+		for sev := range strings.SplitSeq(v, ",") {
 			f.Severities = append(f.Severities, eventlog.Severity(strings.TrimSpace(sev)))
 		}
 	}

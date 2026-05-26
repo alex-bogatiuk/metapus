@@ -106,7 +106,7 @@ func (v *HierarchyValidator) detectCycle(
 	currentID := parentID
 
 	// Walk up the tree (max 1000 iterations as safety net)
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		if _, seen := visited[currentID]; seen {
 			return apperror.NewValidation("cycle detected in hierarchy").
 				WithDetail("field", "parentId").
@@ -144,7 +144,7 @@ func (v *HierarchyValidator) calculateDepth(
 	depth := 1
 	currentID := parentID
 
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		parent, err := getByID(ctx, currentID)
 		if err != nil {
 			if apperror.IsNotFound(err) {

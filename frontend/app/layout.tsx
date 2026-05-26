@@ -35,7 +35,9 @@ const themeScript = `
     var parsed = JSON.parse(raw);
     var iface = parsed && parsed.state && parsed.state.interface;
     if (!iface) return;
+    var allowedThemes = ['light','dark','system'];
     var theme = iface.theme;
+    if (allowedThemes.indexOf(theme) === -1) return;
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
     } else if (theme === 'system') {
@@ -43,11 +45,12 @@ const themeScript = `
         document.documentElement.classList.add('dark');
       }
     }
+    var allowedAccents = ['yellow','blue','green','red','purple','orange','rose','cyan'];
     var accent = iface.accentColor;
-    if (accent && accent !== 'yellow') {
+    if (accent && accent !== 'yellow' && allowedAccents.indexOf(accent) !== -1) {
       document.documentElement.setAttribute('data-accent', accent);
     }
-    if (iface.compactMode) {
+    if (iface.compactMode === true) {
       document.documentElement.setAttribute('data-compact', '');
     }
   } catch(e) {}

@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	_defaultPollInterval     = 3 * time.Second  // TRON block time ~3s
-	_maxPollInterval         = 30 * time.Second  // backoff ceiling
-	_confirmationPollDelay   = 5 * time.Second   // delay between confirmation checks
+	_defaultPollInterval   = 3 * time.Second  // TRON block time ~3s
+	_maxPollInterval       = 30 * time.Second // backoff ceiling
+	_confirmationPollDelay = 5 * time.Second  // delay between confirmation checks
 )
 
 // WatcherConfig holds configuration for the TRON chain watcher.
@@ -37,9 +37,9 @@ type WatcherConfig struct {
 
 // WatcherState represents persisted checkpoint state.
 type WatcherState struct {
-	NetworkID      id.ID     `db:"network_id" json:"networkId"`
-	LastBlock      int64     `db:"last_block" json:"lastBlock"`
-	LastTimestamp  int64     `db:"last_timestamp" json:"lastTimestamp"`
+	NetworkID     id.ID     `db:"network_id" json:"networkId"`
+	LastBlock     int64     `db:"last_block" json:"lastBlock"`
+	LastTimestamp int64     `db:"last_timestamp" json:"lastTimestamp"`
 	Fingerprint   string    `db:"fingerprint" json:"fingerprint"`
 	UpdatedAt     time.Time `db:"updated_at" json:"updatedAt"`
 }
@@ -93,7 +93,7 @@ func (w *Watcher) Start(ctx context.Context, addresses []string, events chan<- c
 		// No checkpoint — start from current time
 		state = &WatcherState{
 			NetworkID:     w.cfg.NetworkID,
-			LastTimestamp:  time.Now().Add(-15 * time.Minute).UnixMilli(),
+			LastTimestamp: time.Now().Add(-15 * time.Minute).UnixMilli(),
 			UpdatedAt:     time.Now().UTC(),
 		}
 	}
@@ -148,10 +148,7 @@ func (w *Watcher) Start(ctx context.Context, addresses []string, events chan<- c
 				pollInterval = w.cfg.PollInterval // reset to base
 			} else {
 				// Gradually slow down (but don't exceed max)
-				pollInterval = time.Duration(float64(pollInterval) * 1.2)
-				if pollInterval > _maxPollInterval {
-					pollInterval = _maxPollInterval
-				}
+				pollInterval = min(time.Duration(float64(pollInterval)*1.2), _maxPollInterval)
 			}
 
 			// Save checkpoint
@@ -182,10 +179,7 @@ func (w *Watcher) poll(ctx context.Context, state *WatcherState, events chan<- c
 
 	now := time.Now().UnixMilli()
 	maxWindowMs := int64(time.Hour.Milliseconds())
-	maxTimestamp := state.LastTimestamp + maxWindowMs
-	if maxTimestamp > now {
-		maxTimestamp = now
-	}
+	maxTimestamp := min(state.LastTimestamp+maxWindowMs, now)
 
 	for {
 		resp, err := w.client.GetTRC20Events(ctx, w.cfg.ContractAddress, state.LastTimestamp, maxTimestamp, fingerprint)
@@ -270,10 +264,7 @@ func (w *Watcher) poll(ctx context.Context, state *WatcherState, events chan<- c
 
 // backoff calculates the next poll interval with exponential backoff.
 func (w *Watcher) backoff(current time.Duration, errorCount int) time.Duration {
-	next := current * 2
-	if next > _maxPollInterval {
-		next = _maxPollInterval
-	}
+	next := min(current*2, _maxPollInterval)
 	return next
 }
 

@@ -50,7 +50,7 @@ type DocumentOutboxDecorator[T any] struct {
 	currencyResolver CurrencyMetadataResolver
 }
 
-// WithOutboxEvents returns a ServiceMiddleware that records successfully completed 
+// WithOutboxEvents returns a ServiceMiddleware that records successfully completed
 // business operations to the transactional outbox system for automation.
 func WithOutboxEvents[T any](entityName string, publisher OutboxPublisher, currencyResolver CurrencyMetadataResolver) ServiceMiddleware[T] {
 	return func(next DocumentService[T]) DocumentService[T] {
@@ -117,42 +117,42 @@ func (d *DocumentOutboxDecorator[T]) buildEvent(ctx context.Context, action stri
 //   - divisor varies by token and is resolved on frontend, not in templates
 func extractHumanAmounts(entity any, currencyInfo *CurrencyInfo) map[string]any {
 	result := make(map[string]any)
-	
+
 	val := reflect.ValueOf(entity)
-	if val.Kind() == reflect.Ptr {
+	if val.Kind() == reflect.Pointer {
 		val = val.Elem()
 	}
-	
+
 	if val.Kind() != reflect.Struct {
 		return result
 	}
-	
+
 	typ := val.Type()
-	
+
 	// Default to 2 decimal places if no currency metadata
 	decimalPlaces := 2
 	if currencyInfo != nil {
 		decimalPlaces = currencyInfo.DecimalPlaces
 	}
-	
+
 	divisor := math.Pow10(decimalPlaces)
-	
-	minorUnitsType := reflect.TypeOf(types.MinorUnits(0))
-	cryptoAmountType := reflect.TypeOf(types.CryptoAmount(0))
+
+	minorUnitsType := reflect.TypeFor[types.MinorUnits]()
+	cryptoAmountType := reflect.TypeFor[types.CryptoAmount]()
 
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
 		fieldVal := val.Field(i)
-		
+
 		// Get JSON tag name for the field
 		jsonTag := field.Tag.Get("json")
 		if jsonTag == "-" || jsonTag == "" {
 			continue
 		}
-		
+
 		// Extract just the name from tag (e.g., "totalAmount,omitempty" -> "totalAmount")
 		name := strings.Split(jsonTag, ",")[0]
-		
+
 		switch field.Type {
 		case minorUnitsType:
 			// MinorUnits: convert to human-readable float via currency scaling
@@ -162,11 +162,9 @@ func extractHumanAmounts(entity any, currencyInfo *CurrencyInfo) map[string]any 
 			result[name] = fieldVal.Int()
 		}
 	}
-	
+
 	return result
 }
-
-
 
 // emitInOwnTx writes an outbox event in its OWN transaction.
 // Required for Post/Unpost/PostAndSave/UpdateAndRepost because PostingEngine

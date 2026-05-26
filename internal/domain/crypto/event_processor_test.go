@@ -4,6 +4,7 @@ package crypto
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -89,12 +90,12 @@ func TestHandleWalletAfterConfirm(t *testing.T) {
 	}
 
 	tests := []struct {
-		give            string
-		resolver        *mockSweepResolver // nil = no resolver
-		wallet          *wallet.Wallet
-		wantSweep       bool // MarkSweepPending called
-		wantUpdate      bool // Update called (Release path)
-		wantFreeStatus  bool // wallet should be Free after Release
+		give           string
+		resolver       *mockSweepResolver // nil = no resolver
+		wallet         *wallet.Wallet
+		wantSweep      bool // MarkSweepPending called
+		wantUpdate     bool // Update called (Release path)
+		wantFreeStatus bool // wallet should be Free after Release
 	}{
 		{
 			give:       "nil resolver → legacy sweep",
@@ -248,13 +249,7 @@ func TestPaymentFSM_AllowedTransitions(t *testing.T) {
 				t.Fatalf("no transitions defined for %q, but expected %q → %q to be allowed", tt.from, tt.from, tt.to)
 			}
 
-			found := false
-			for _, s := range allowed {
-				if s == tt.to {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(allowed, tt.to)
 
 			if found != tt.want {
 				t.Errorf("transition %q → %q: got allowed=%v, want %v", tt.from, tt.to, found, tt.want)

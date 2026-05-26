@@ -13,19 +13,19 @@ import (
 // DisplayRow mirrors the frontend discriminated union type.
 // Kind: "group" | "data" | "subtotal" | "footer"
 type DisplayRow struct {
-	Kind   string                 `json:"kind"`
-	Depth  int                    `json:"depth,omitempty"`
-	Label  string                 `json:"label,omitempty"`
-	Count  int                    `json:"count,omitempty"`
-	Item   map[string]interface{} `json:"item,omitempty"`
-	Totals map[string]float64     `json:"totals,omitempty"`
+	Kind   string             `json:"kind"`
+	Depth  int                `json:"depth,omitempty"`
+	Label  string             `json:"label,omitempty"`
+	Count  int                `json:"count,omitempty"`
+	Item   map[string]any     `json:"item,omitempty"`
+	Totals map[string]float64 `json:"totals,omitempty"`
 }
 
 // BuildDisplayRows transforms flat items into grouped DisplayRow slice
 // with group headers, subtotals, and a grand total footer.
 // Mirrors the frontend buildDisplayRows() exactly.
 func BuildDisplayRows(
-	items []map[string]interface{},
+	items []map[string]any,
 	groupByKeys []string,
 	totalDefs []platform.ReportTotal,
 ) []DisplayRow {
@@ -53,8 +53,8 @@ func BuildDisplayRows(
 }
 
 // SortItems sorts items by column key and direction.
-func SortItems(items []map[string]interface{}, column string, direction string) []map[string]interface{} {
-	sorted := make([]map[string]interface{}, len(items))
+func SortItems(items []map[string]any, column string, direction string) []map[string]any {
+	sorted := make([]map[string]any, len(items))
 	copy(sorted, items)
 
 	sort.SliceStable(sorted, func(i, j int) bool {
@@ -73,7 +73,7 @@ func SortItems(items []map[string]interface{}, column string, direction string) 
 // --- Internal helpers ---
 
 func buildGroupLevel(
-	items []map[string]interface{},
+	items []map[string]any,
 	groupByKeys []string,
 	depth int,
 	totalDefs []platform.ReportTotal,
@@ -120,11 +120,11 @@ func buildGroupLevel(
 
 type group struct {
 	label string
-	items []map[string]interface{}
+	items []map[string]any
 }
 
 // groupByKey groups items by a key, preserving insertion order.
-func groupByKey(items []map[string]interface{}, key string) []group {
+func groupByKey(items []map[string]any, key string) []group {
 	orderMap := make(map[string]int)
 	var groups []group
 
@@ -142,7 +142,7 @@ func groupByKey(items []map[string]interface{}, key string) []group {
 	return groups
 }
 
-func computeTotals(items []map[string]interface{}, totalDefs []platform.ReportTotal) map[string]float64 {
+func computeTotals(items []map[string]any, totalDefs []platform.ReportTotal) map[string]float64 {
 	result := make(map[string]float64, len(totalDefs))
 
 	for _, def := range totalDefs {
@@ -186,7 +186,7 @@ func computeTotals(items []map[string]interface{}, totalDefs []platform.ReportTo
 	return result
 }
 
-func compareValues(a, b interface{}) int {
+func compareValues(a, b any) int {
 	// Numeric comparison
 	if na, ok := ToFloat64(a); ok {
 		if nb, ok := ToFloat64(b); ok {
@@ -212,7 +212,7 @@ func compareValues(a, b interface{}) int {
 }
 
 // ToString converts any value to string for display.
-func ToString(v interface{}) string {
+func ToString(v any) string {
 	if v == nil {
 		return "—"
 	}
@@ -223,7 +223,7 @@ func ToString(v interface{}) string {
 }
 
 // ToFloat64 converts numeric interface values to float64.
-func ToFloat64(v interface{}) (float64, bool) {
+func ToFloat64(v any) (float64, bool) {
 	switch n := v.(type) {
 	case float64:
 		return n, true

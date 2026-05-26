@@ -58,13 +58,13 @@ import { getNetworkColor, getExplorerUrl } from "@/lib/blockchain"
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: typeof CheckCircle2 }> = {
-  created:        { label: "Создан",       variant: "outline",      icon: Clock },
-  partially_paid: { label: "Частично",     variant: "secondary",    icon: Clock },
-  paid:           { label: "Оплачен",      variant: "default",      icon: CheckCircle2 },
-  confirmed:      { label: "Подтверждён",  variant: "default",      icon: CheckCircle2 },
-  overpaid:       { label: "Переплата",    variant: "secondary",    icon: CheckCircle2 },
-  expired:        { label: "Истёк",        variant: "destructive",  icon: XCircle },
-  cancelled:      { label: "Отменён",      variant: "destructive",  icon: XCircle },
+  created: { label: "Создан", variant: "outline", icon: Clock },
+  partially_paid: { label: "Частично", variant: "secondary", icon: Clock },
+  paid: { label: "Оплачен", variant: "default", icon: CheckCircle2 },
+  confirmed: { label: "Подтверждён", variant: "default", icon: CheckCircle2 },
+  overpaid: { label: "Переплата", variant: "secondary", icon: CheckCircle2 },
+  expired: { label: "Истёк", variant: "destructive", icon: XCircle },
+  cancelled: { label: "Отменён", variant: "destructive", icon: XCircle },
 }
 
 
@@ -158,7 +158,7 @@ export default function PortalInvoicesPage() {
       merchantId: activeMerchantId ?? undefined,
       status: statusFilter !== "all" ? statusFilter : undefined,
       search: debouncedSearch || undefined,
-      token: selectedToken ? undefined : undefined, // token filter is symbol-based, backend uses tokenId
+      token: selectedToken ? selectedToken.symbol : undefined,
       dateFrom: period.from ? period.from.toISOString().split("T")[0] : undefined,
       dateTo: period.to ? period.to.toISOString().split("T")[0] : undefined,
       sort: sortField,

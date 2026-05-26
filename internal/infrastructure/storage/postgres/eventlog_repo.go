@@ -161,7 +161,7 @@ func (r *EventLogRepo) WriteBatch(ctx context.Context, events []eventlog.Event) 
 		}
 	}()
 
-	for i := 0; i < len(events); i++ {
+	for i := range events {
 		if _, err := br.Exec(); err != nil {
 			return fmt.Errorf("eventlog: execute batch[%d]: %w", i, err)
 		}

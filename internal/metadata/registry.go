@@ -41,6 +41,7 @@ type Presentation struct {
 	NewLabel string `json:"new,omitempty"`      // e.g. "New Counterparty"
 	Genitive string `json:"genitive,omitempty"` // e.g. "counterparty" (for delete confirmations)
 }
+
 // PreviewFieldDef describes a field that should appear in document preview cards
 // (e.g. hover card in Related Documents). Auto-populated by Inspect() for all
 // reference fields in the document header. Can be overridden via meta:"preview:false".
@@ -54,7 +55,7 @@ type PreviewFieldDef struct {
 // EntityDef describes a business entity.
 type EntityDef struct {
 	Name         string         `json:"name"`
-	Key          string         `json:"key"`             // snake_case identifier, e.g. "counterparty", "goods_receipt"
+	Key          string         `json:"key"` // snake_case identifier, e.g. "counterparty", "goods_receipt"
 	Type         EntityType     `json:"type"`
 	Presentation Presentation   `json:"presentation"`          // rich display names
 	RoutePrefix  string         `json:"routePrefix,omitempty"` // URL path segment, e.g. "counterparties"
@@ -350,22 +351,22 @@ func mapCustomFieldType(customType string) FieldType {
 // GenerateMock builds a sample JSON-compatible map with realistic placeholder values
 // for each field based on its FieldType. Used by the CEL sandbox to auto-populate
 // sample documents so users don't have to write JSON manually.
-func (d *EntityDef) GenerateMock() map[string]interface{} {
-	mock := make(map[string]interface{})
+func (d *EntityDef) GenerateMock() map[string]any {
+	mock := make(map[string]any)
 	for _, f := range d.Fields {
 		mock[f.Name] = mockValue(f)
 	}
 	for _, tp := range d.TableParts {
-		row := make(map[string]interface{})
+		row := make(map[string]any)
 		for _, col := range tp.Columns {
 			row[col.Name] = mockValue(col)
 		}
-		mock[tp.Name] = []interface{}{row}
+		mock[tp.Name] = []any{row}
 	}
 	return mock
 }
 
-func mockValue(f FieldDef) interface{} {
+func mockValue(f FieldDef) any {
 	switch f.Type {
 	case TypeString:
 		if f.Name == "code" || f.Name == "number" {

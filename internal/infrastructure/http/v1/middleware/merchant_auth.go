@@ -3,6 +3,7 @@ package middleware
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -209,10 +210,5 @@ func RequireMerchantScope(scope merchant.APIKeyScope) gin.HandlerFunc {
 
 // HasScope returns true if the merchant context has the given scope.
 func (mc *MerchantContext) HasScope(scope merchant.APIKeyScope) bool {
-	for _, s := range mc.Scopes {
-		if s == scope {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(mc.Scopes, scope)
 }

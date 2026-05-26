@@ -4,6 +4,7 @@ package security
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
@@ -75,10 +76,8 @@ func (s *AccessScope) HasPermission(entity string, perm Permission) bool {
 		return true
 	}
 	if perms, ok := s.Permissions[entity]; ok {
-		for _, p := range perms {
-			if p == perm {
-				return true
-			}
+		if slices.Contains(perms, perm) {
+			return true
 		}
 	}
 	return false

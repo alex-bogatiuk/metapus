@@ -3,6 +3,7 @@ package context
 
 import (
 	"context"
+	"slices"
 )
 
 // UserContext contains authenticated user information.
@@ -55,10 +56,5 @@ func HasRole(ctx context.Context, role string) bool {
 	if u == nil {
 		return false
 	}
-	for _, r := range u.Roles {
-		if r == role {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(u.Roles, role)
 }

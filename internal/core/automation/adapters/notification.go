@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	appctx "metapus/internal/core/context"
 	"metapus/internal/core/automation"
+	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/notifications"
 	"metapus/pkg/logger"
@@ -17,12 +17,12 @@ const InternalNotificationProvider = "internal_notification"
 
 // ActionPayload represents the expected JSON structure from the Rendered Template.
 type ActionPayload struct {
-	TargetUsers []string               `json:"target_users"`
-	Title       string                 `json:"title"`
-	Message     string                 `json:"message"`
-	Severity    string                 `json:"severity,omitempty"`
-	Link        string                 `json:"link,omitempty"`
-	Attributes  map[string]interface{} `json:"attributes,omitempty"`
+	TargetUsers []string       `json:"target_users"`
+	Title       string         `json:"title"`
+	Message     string         `json:"message"`
+	Severity    string         `json:"severity,omitempty"`
+	Link        string         `json:"link,omitempty"`
+	Attributes  map[string]any `json:"attributes,omitempty"`
 }
 
 // InternalNotificationAdapter implements the automation.Adapter interface

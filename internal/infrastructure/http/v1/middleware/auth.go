@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -121,11 +122,9 @@ func RequireRole(roles ...string) gin.HandlerFunc {
 		}
 
 		for _, required := range roles {
-			for _, userRole := range user.Roles {
-				if userRole == required {
-					c.Next()
-					return
-				}
+			if slices.Contains(user.Roles, required) {
+				c.Next()
+				return
 			}
 		}
 		_ = c.Error(

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/tenant"
@@ -199,17 +200,18 @@ func (r *CustomFieldRepo) Update(ctx context.Context, id string, upd *CustomFiel
 		return nil // nothing to update
 	}
 
-	query := "UPDATE sys_custom_field_schemas SET "
+	var query strings.Builder
+	query.WriteString("UPDATE sys_custom_field_schemas SET ")
 	for i, clause := range setClauses {
 		if i > 0 {
-			query += ", "
+			query.WriteString(", ")
 		}
-		query += clause
+		query.WriteString(clause)
 	}
-	query += fmt.Sprintf(" WHERE id = $%d", argIdx)
+	query.WriteString(fmt.Sprintf(" WHERE id = $%d", argIdx))
 	args = append(args, id)
 
-	tag, err := pool.Exec(ctx, query, args...)
+	tag, err := pool.Exec(ctx, query.String(), args...)
 	if err != nil {
 		return fmt.Errorf("update custom field: %w", err)
 	}

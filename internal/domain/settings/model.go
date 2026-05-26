@@ -73,10 +73,7 @@ func DefaultPerformance() PerformanceSettings {
 
 // ClampBatchConcurrency ensures the value is within [1, maxPoolHalf].
 func ClampBatchConcurrency(value, maxConnsPerTenant int) int {
-	maxPoolHalf := maxConnsPerTenant / 2
-	if maxPoolHalf < 1 {
-		maxPoolHalf = 1
-	}
+	maxPoolHalf := max(maxConnsPerTenant/2, 1)
 	if value < 1 {
 		return 1
 	}

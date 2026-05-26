@@ -81,8 +81,8 @@ func (s *Service) CheckAndReserveStock(ctx context.Context, items []StockReserva
 	keys := make([]BalanceKey, len(items))
 	for i, item := range items {
 		keys[i] = BalanceKey{
-			WarehouseID: item.WarehouseID,
-			NomenclatureID:   item.NomenclatureID,
+			WarehouseID:    item.WarehouseID,
+			NomenclatureID: item.NomenclatureID,
 		}
 	}
 
@@ -118,9 +118,9 @@ func (s *Service) CheckAndReserveStock(ctx context.Context, items []StockReserva
 
 // StockReservation represents a stock check request.
 type StockReservation struct {
-	WarehouseID id.ID
-	NomenclatureID   id.ID
-	RequiredQty types.Quantity
+	WarehouseID    id.ID
+	NomenclatureID id.ID
+	RequiredQty    types.Quantity
 }
 
 // GetNomenclatureAvailability returns available quantity across warehouses.
@@ -172,10 +172,10 @@ func (s *Service) GetDocumentMovements(ctx context.Context, recorderID id.ID) ([
 
 	result := make([]entity.DocumentMovement, 0, len(movements))
 	for _, m := range movements {
-		data := map[string]interface{}{
+		data := map[string]any{
 			"nomenclature": entity.MovementRefValue{ID: m.NomenclatureID.String(), Name: m.NomenclatureID.String()},
-			"warehouse": entity.MovementRefValue{ID: m.WarehouseID.String(), Name: m.WarehouseID.String()},
-			"quantity":  m.Quantity.Float64(),
+			"warehouse":    entity.MovementRefValue{ID: m.WarehouseID.String(), Name: m.WarehouseID.String()},
+			"quantity":     m.Quantity.Float64(),
 		}
 
 		result = append(result, entity.DocumentMovement{

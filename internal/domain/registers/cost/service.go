@@ -89,12 +89,12 @@ func (s *Service) GetDocumentMovements(ctx context.Context, recorderID id.ID) ([
 
 	result := make([]entity.DocumentMovement, 0, len(movements))
 	for _, m := range movements {
-		data := map[string]interface{}{
+		data := map[string]any{
 			"nomenclature": entity.MovementRefValue{ID: m.NomenclatureID.String(), Name: m.NomenclatureID.String()},
-			"warehouse": entity.MovementRefValue{ID: m.WarehouseID.String(), Name: m.WarehouseID.String()},
-			"currency":  entity.MovementRefValue{ID: m.CurrencyID.String(), Name: m.CurrencyID.String()},
-			"quantity":  m.Quantity.Float64(),
-			"amount":    int64(m.Amount), // Raw MinorUnits — frontend formats using currency decimalPlaces
+			"warehouse":    entity.MovementRefValue{ID: m.WarehouseID.String(), Name: m.WarehouseID.String()},
+			"currency":     entity.MovementRefValue{ID: m.CurrencyID.String(), Name: m.CurrencyID.String()},
+			"quantity":     m.Quantity.Float64(),
+			"amount":       int64(m.Amount), // Raw MinorUnits — frontend formats using currency decimalPlaces
 		}
 
 		result = append(result, entity.DocumentMovement{
@@ -108,4 +108,3 @@ func (s *Service) GetDocumentMovements(ctx context.Context, recorderID id.ID) ([
 
 	return result, nil
 }
-

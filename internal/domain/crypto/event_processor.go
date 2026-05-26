@@ -164,9 +164,10 @@ func (p *EventProcessor) processEventInTx(ctx context.Context, event BlockchainE
 		// Without this, consumer + confirmation loop can both read status=confirming
 		// and race into Post(), causing duplicate register movements.
 		// Single-row FOR UPDATE on PK — safe from deadlocks.
-		existing, err = p.paymentRepo.GetByIDForUpdate(ctx, existing.ID)
+		paymentID := existing.ID // capture before reassignment — GetByIDForUpdate may return nil on error
+		existing, err = p.paymentRepo.GetByIDForUpdate(ctx, paymentID)
 		if err != nil {
-			return fmt.Errorf("lock payment %s for update: %w", existing.ID, err)
+			return fmt.Errorf("lock payment %s for update: %w", paymentID, err)
 		}
 		return p.handleConfirmationUpdate(ctx, existing, event)
 	}

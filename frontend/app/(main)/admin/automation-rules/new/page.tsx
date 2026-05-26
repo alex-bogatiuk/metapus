@@ -104,8 +104,8 @@ export default function NewAutomationRulePage() {
   }
 
   const handleWildcardToggle = (checked: boolean) => {
-    // Wildcard = empty array (NULL in DB)
-    update({ targetEntities: checked ? [] : [] } as Partial<RuleFormState>)
+    // Wildcard = empty array (NULL in DB); unchecked = keep current selection
+    update({ targetEntities: checked ? [] : f.targetEntities } as Partial<RuleFormState>)
     handleChange()
   }
 

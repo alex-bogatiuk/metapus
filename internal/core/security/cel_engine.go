@@ -366,7 +366,7 @@ func entityToCELMapReuse(entity any, result map[string]any) {
 	}
 
 	v := reflect.ValueOf(entity)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 	if v.Kind() != reflect.Struct {
@@ -401,7 +401,7 @@ func toCELValue(v reflect.Value) any {
 	}
 
 	// Handle pointer types
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return nil
 		}

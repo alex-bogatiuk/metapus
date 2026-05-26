@@ -27,7 +27,7 @@ func getUserIDFromCtx(ctx context.Context) id.ID {
 //
 // The entity must implement SetCreatedBy(id.ID) and SetUpdatedBy(id.ID).
 // If userID is not in context, this is a no-op.
-func EnrichCreatedBy(ctx context.Context, entity interface{}) error {
+func EnrichCreatedBy(ctx context.Context, entity any) error {
 	userID := getUserIDFromCtx(ctx)
 	if id.IsNil(userID) {
 		return nil
@@ -54,7 +54,7 @@ func EnrichCreatedBy(ctx context.Context, entity interface{}) error {
 // Use in BeforeUpdate hooks.
 //
 // If userID is not in context, this is a no-op.
-func EnrichUpdatedBy(ctx context.Context, entity interface{}) error {
+func EnrichUpdatedBy(ctx context.Context, entity any) error {
 	userID := getUserIDFromCtx(ctx)
 	if id.IsNil(userID) {
 		return nil

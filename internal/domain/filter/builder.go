@@ -282,30 +282,30 @@ func BuildTablePartCondition(item Item, parentTable string, tp TablePartInfo, co
 
 	// Determine the inner condition and whether to negate EXISTS.
 	var innerCond string
-	var args []interface{}
+	var args []any
 	negate := false
 
 	switch item.Operator {
 	case Equal:
 		innerCond = fieldExpr + " = " + valuePH
-		args = []interface{}{val}
+		args = []any{val}
 	case NotEqual:
 		// "document has NO lines with col = value"
 		innerCond = fieldExpr + " = " + valuePH
-		args = []interface{}{val}
+		args = []any{val}
 		negate = true
 	case LessOrEqual:
 		innerCond = fieldExpr + " <= " + valuePH
-		args = []interface{}{val}
+		args = []any{val}
 	case GreaterOrEqual:
 		innerCond = fieldExpr + " >= " + valuePH
-		args = []interface{}{val}
+		args = []any{val}
 	case Less:
 		innerCond = fieldExpr + " < " + valuePH
-		args = []interface{}{val}
+		args = []any{val}
 	case Greater:
 		innerCond = fieldExpr + " > " + valuePH
-		args = []interface{}{val}
+		args = []any{val}
 	case InList:
 		if item.FieldType == "money" {
 			return nil, fmt.Errorf("InList operator not supported for money field with dynamic currency scaling")
@@ -331,10 +331,10 @@ func BuildTablePartCondition(item Item, parentTable string, tp TablePartInfo, co
 		negate = true
 	case Contains:
 		innerCond = fieldExpr + " ILIKE ?"
-		args = []interface{}{fmt.Sprintf("%%%v%%", val)}
+		args = []any{fmt.Sprintf("%%%v%%", val)}
 	case NotContains:
 		innerCond = fieldExpr + " ILIKE ?"
-		args = []interface{}{fmt.Sprintf("%%%v%%", val)}
+		args = []any{fmt.Sprintf("%%%v%%", val)}
 		negate = true
 	case IsNull:
 		innerCond = fieldExpr + " IS NULL"
@@ -386,29 +386,29 @@ func BuildReferenceFieldCondition(item Item, parentTable string, refInfo Referen
 	}
 
 	var innerCond string
-	var args []interface{}
+	var args []any
 	negate := false
 
 	switch item.Operator {
 	case Equal:
 		innerCond = fieldExpr + " = " + valuePH
-		args = []interface{}{val}
+		args = []any{val}
 	case NotEqual:
 		innerCond = fieldExpr + " = " + valuePH
-		args = []interface{}{val}
+		args = []any{val}
 		negate = true
 	case LessOrEqual:
 		innerCond = fieldExpr + " <= " + valuePH
-		args = []interface{}{val}
+		args = []any{val}
 	case GreaterOrEqual:
 		innerCond = fieldExpr + " >= " + valuePH
-		args = []interface{}{val}
+		args = []any{val}
 	case Less:
 		innerCond = fieldExpr + " < " + valuePH
-		args = []interface{}{val}
+		args = []any{val}
 	case Greater:
 		innerCond = fieldExpr + " > " + valuePH
-		args = []interface{}{val}
+		args = []any{val}
 	case InList:
 		placeholders, inArgs := expandSlice(val)
 		if len(inArgs) == 0 {
@@ -426,10 +426,10 @@ func BuildReferenceFieldCondition(item Item, parentTable string, refInfo Referen
 		negate = true
 	case Contains:
 		innerCond = fieldExpr + " ILIKE ?"
-		args = []interface{}{fmt.Sprintf("%%%v%%", val)}
+		args = []any{fmt.Sprintf("%%%v%%", val)}
 	case NotContains:
 		innerCond = fieldExpr + " ILIKE ?"
-		args = []interface{}{fmt.Sprintf("%%%v%%", val)}
+		args = []any{fmt.Sprintf("%%%v%%", val)}
 		negate = true
 	case IsNull:
 		innerCond = fieldExpr + " IS NULL"
@@ -456,12 +456,12 @@ func BuildReferenceFieldCondition(item Item, parentTable string, refInfo Referen
 // expandSlice converts an interface{} value (expected to be a slice) into
 // a list of "?" placeholders and a flat []interface{} of args.
 // Used by BuildTablePartCondition for IN (...) clauses.
-func expandSlice(value interface{}) (string, []interface{}) {
-	slice, ok := value.([]interface{})
+func expandSlice(value any) (string, []any) {
+	slice, ok := value.([]any)
 	if !ok {
 		// Try typed string slice (common from JSON unmarshal)
 		if ss, ok2 := value.([]string); ok2 {
-			args := make([]interface{}, len(ss))
+			args := make([]any, len(ss))
 			phs := make([]string, len(ss))
 			for i, s := range ss {
 				args[i] = s
@@ -473,12 +473,12 @@ func expandSlice(value interface{}) (string, []interface{}) {
 		if value == nil {
 			return "", nil
 		}
-		return "?", []interface{}{value}
+		return "?", []any{value}
 	}
 	if len(slice) == 0 {
 		return "", nil
 	}
-	args := make([]interface{}, len(slice))
+	args := make([]any, len(slice))
 	phs := make([]string, len(slice))
 	for i, v := range slice {
 		args[i] = v
@@ -544,8 +544,8 @@ func scaleFilterValue(value any, scale int) any {
 			return value
 		}
 		return int64(math.Round(f * s))
-	case []interface{}:
-		result := make([]interface{}, len(v))
+	case []any:
+		result := make([]any, len(v))
 		for i, elem := range v {
 			result[i] = scaleFilterValue(elem, scale)
 		}

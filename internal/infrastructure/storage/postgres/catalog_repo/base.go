@@ -34,7 +34,7 @@ type BaseCatalogRepo[T any] struct {
 	newFn           func() T
 	validCols       map[string]struct{}
 	orderCols       map[string]struct{}
-	hierarchical    bool                                 // true = supports parent_id/is_folder hierarchy
+	hierarchical    bool                                    // true = supports parent_id/is_folder hierarchy
 	referenceFields map[string]filterPkg.ReferenceFieldInfo // field name → reference catalog info (for deep filtering)
 
 	// entityName is the logical entity name (e.g. "organization") used for per-entity RLS.
@@ -512,10 +512,7 @@ func (r *BaseCatalogRepo[T]) listBackward(ctx context.Context, spec keyset.SortS
 // listAround fetches items around a target ID (teleportation / "show in list").
 func (r *BaseCatalogRepo[T]) listAround(ctx context.Context, f domain.ListFilter, spec keyset.SortSpec, conditions []squirrel.Sqlizer, limit int) (domain.CursorListResult[T], error) {
 	var result domain.CursorListResult[T]
-	half := limit / 2
-	if half < 1 {
-		half = 1
-	}
+	half := max(limit/2, 1)
 
 	targetID, err := id.Parse(f.CursorReq.TargetID)
 	if err != nil {
@@ -861,7 +858,6 @@ func (r *BaseCatalogRepo[T]) GetPath(ctx context.Context, entityID id.ID) ([]T, 
 
 	return items, nil
 }
-
 
 // FindOne executes a SELECT query and returns a single entity.
 func (r *BaseCatalogRepo[T]) FindOne(ctx context.Context, q squirrel.SelectBuilder) (T, error) {

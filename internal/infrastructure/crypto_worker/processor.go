@@ -41,12 +41,12 @@ import (
 )
 
 const (
-	_eventChannelBuffer      = 100
-	_addressRefreshPeriod    = 5 * time.Minute
-	_expirationCheckPeriod   = 1 * time.Minute
-	_confirmationPollPeriod  = 10 * time.Second
-	_sweepEvalPeriod         = 1 * time.Minute
-	_sweepEvalBatchSize      = 500
+	_eventChannelBuffer     = 100
+	_addressRefreshPeriod   = 5 * time.Minute
+	_expirationCheckPeriod  = 1 * time.Minute
+	_confirmationPollPeriod = 10 * time.Second
+	_sweepEvalPeriod        = 1 * time.Minute
+	_sweepEvalBatchSize     = 500
 )
 
 // CryptoProcessorConfig holds configuration for the crypto processor.
@@ -70,10 +70,10 @@ type CryptoProcessor struct {
 	log *logger.Logger
 
 	// Repos (stateless — safe for reuse, extract pool from ctx)
-	walletRepo     wallet.Repository
-	invoiceRepo    crypto_invoice.Repository
-	paymentRepo    crypto_payment.Repository
-	stateRepo      tron.WatcherStateRepository
+	walletRepo  wallet.Repository
+	invoiceRepo crypto_invoice.Repository
+	paymentRepo crypto_payment.Repository
+	stateRepo   tron.WatcherStateRepository
 
 	// Domain
 	eventProcessor *crypto.EventProcessor
@@ -84,8 +84,8 @@ type CryptoProcessor struct {
 	recorder *workerjob.Recorder
 
 	// Chain watchers per network (for confirmation re-checks)
-	mu             sync.Mutex
-	chainWatchers  map[id.ID]crypto.ChainWatcher
+	mu            sync.Mutex
+	chainWatchers map[id.ID]crypto.ChainWatcher
 }
 
 // NewCryptoProcessor creates a new crypto processor.
@@ -139,16 +139,16 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 
 	// Event Processor — TxManager is extracted from context at runtime.
 	ep := crypto.NewEventProcessor(crypto.EventProcessorConfig{
-		FSM:              fsm,
-		WalletSvc:        walletSvc,
-		InvoiceSvc:       invoiceSvc,
-		PaymentRepo:      paymentRepo,
-		PostingEngine:    postingEngine,
-		TxManager:        contextTxManager{},
-		Numerator:        num,
-		SweepResolver:    sweepResolver,
-		TokenResolver:    tokenRepo,
-		FeeResolver:      crypto.NewFeeConfigResolver(crypto_repo.NewFeeScheduleRepo()),
+		FSM:           fsm,
+		WalletSvc:     walletSvc,
+		InvoiceSvc:    invoiceSvc,
+		PaymentRepo:   paymentRepo,
+		PostingEngine: postingEngine,
+		TxManager:     contextTxManager{},
+		Numerator:     num,
+		SweepResolver: sweepResolver,
+		TokenResolver: tokenRepo,
+		FeeResolver:   crypto.NewFeeConfigResolver(crypto_repo.NewFeeScheduleRepo()),
 	})
 
 	return &CryptoProcessor{
@@ -222,32 +222,24 @@ func (p *CryptoProcessor) Start(ctx context.Context) {
 	}()
 
 	// Start event consumer
-	consumerWg.Add(1)
-	go func() {
-		defer consumerWg.Done()
+	consumerWg.Go(func() {
 		p.consumeEvents(ctx, events)
-	}()
+	})
 
 	// Start expiration ticker
-	consumerWg.Add(1)
-	go func() {
-		defer consumerWg.Done()
+	consumerWg.Go(func() {
 		p.runExpirationLoop(ctx)
-	}()
+	})
 
 	// Start confirmation poll loop (re-checks confirming payments)
-	consumerWg.Add(1)
-	go func() {
-		defer consumerWg.Done()
+	consumerWg.Go(func() {
 		p.runConfirmationLoop(ctx)
-	}()
+	})
 
 	// Start sweep evaluation loop (checks accumulated balances against thresholds)
-	consumerWg.Add(1)
-	go func() {
-		defer consumerWg.Done()
+	consumerWg.Go(func() {
 		p.runSweepEvaluationLoop(ctx)
-	}()
+	})
 
 	p.log.Infow("crypto processor started",
 		"networks", len(networks),
@@ -725,4 +717,3 @@ func (contextTxManager) RunInTransaction(ctx context.Context, fn func(context.Co
 
 // Compile-time check.
 var _ tx.Manager = contextTxManager{}
-

@@ -4,6 +4,7 @@ import (
 	"metapus/internal/domain/reports/schema"
 	"metapus/internal/metadata"
 	"metapus/internal/platform"
+	"slices"
 )
 
 // DatasetToMeta converts a schema.Dataset into a platform.ReportMeta
@@ -98,13 +99,7 @@ func DatasetToMeta(ds *schema.Dataset, reg *metadata.Registry) platform.ReportMe
 	groupBy := make([]platform.ReportGroupBy, 0)
 	for _, f := range ds.Fields {
 		if f.Kind == schema.FieldDimension && !f.FilterOnly {
-			isDefault := false
-			for _, dg := range ds.DefaultGroupBy {
-				if dg == f.OutputName() {
-					isDefault = true
-					break
-				}
-			}
+			isDefault := slices.Contains(ds.DefaultGroupBy, f.OutputName())
 			groupBy = append(groupBy, platform.ReportGroupBy{
 				Key:           f.OutputName(),
 				Label:         f.Label,
