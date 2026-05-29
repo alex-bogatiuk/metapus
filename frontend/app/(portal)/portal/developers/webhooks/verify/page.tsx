@@ -246,7 +246,7 @@ export default function WebhookVerifyPage() {
             что запрос пришёл именно от Metapus.
           </p>
           <div className="rounded-lg border bg-muted/30 p-4 font-mono text-xs leading-relaxed">
-            <div className="text-muted-foreground mb-1">// Алгоритм подписи:</div>
+            <div className="text-muted-foreground mb-1">{"// Алгоритм подписи:"}</div>
             <div>signedContent = timestamp + &quot;.&quot; + rawBody</div>
             <div>signature = HMAC-SHA256(signedContent, webhookSecret)</div>
           </div>

@@ -133,7 +133,7 @@ func (r *RefResolverRepo) ResolveRefs(ctx context.Context, refs []domain.RefReso
 				}
 
 				alias := fmt.Sprintf("pv%d", i)
-				selectCols.WriteString(fmt.Sprintf(", %s.name AS %s_name", alias, alias))
+				fmt.Fprintf(&selectCols, ", %s.name AS %s_name", alias, alias)
 				joins = append(joins, fmt.Sprintf(
 					"LEFT JOIN %s %s ON %s.id = d.%s",
 					refTable, alias, alias, pf.Column,

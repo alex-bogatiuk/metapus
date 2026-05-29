@@ -94,6 +94,15 @@ type AvailableToken struct {
 	DecimalPlaces int
 }
 
+// TokenMeta contains token metadata needed by portal write handlers.
+type TokenMeta struct {
+	ID            id.ID
+	NetworkID     id.ID
+	Symbol        string
+	Network       string
+	DecimalPlaces int
+}
+
 // FormatMinorUnits converts an int64 minor units amount to a human-readable string.
 // E.g. 1500000 with 6 decimals → "1.500000"
 func FormatMinorUnits(amount int64, decimalPlaces int) string {
@@ -119,4 +128,33 @@ func FormatMinorUnits(amount int64, decimalPlaces int) string {
 		result = "-" + result
 	}
 	return result
+}
+
+// GetTokenMeta returns token scale and network data by ID.
+// Used by portal handlers to validate cross-network operations and convert amounts.
+func (r *DashboardRepo) GetTokenMeta(ctx context.Context, tokenID id.ID) (TokenMeta, error) {
+	q := querier(ctx)
+
+	var meta TokenMeta
+	err := q.QueryRow(ctx,
+		`SELECT t.id, t.network_id, t.symbol, COALESCE(n.name, '') AS network, t.decimal_places
+		 FROM cat_tokens t
+		 LEFT JOIN cat_blockchain_networks n ON n.id = t.network_id
+		 WHERE t.id = $1 AND t.deletion_mark = FALSE`,
+		tokenID,
+	).Scan(&meta.ID, &meta.NetworkID, &meta.Symbol, &meta.Network, &meta.DecimalPlaces)
+	if err != nil {
+		return TokenMeta{}, fmt.Errorf("get token meta: %w", err)
+	}
+	return meta, nil
+}
+
+// GetTokenDecimalPlaces returns the decimal_places for a token by ID.
+// Used by callers that only need amount conversion.
+func (r *DashboardRepo) GetTokenDecimalPlaces(ctx context.Context, tokenID id.ID) (int, error) {
+	meta, err := r.GetTokenMeta(ctx, tokenID)
+	if err != nil {
+		return 0, err
+	}
+	return meta.DecimalPlaces, nil
 }

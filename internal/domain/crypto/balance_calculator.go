@@ -62,15 +62,16 @@ type MerchantBalance struct {
 
 // TokenBalance represents a single token's balance with fiat valuation.
 type TokenBalance struct {
-	TokenID      id.ID
-	TokenSymbol  string
-	CurrencyCode string          // from Token→Currency (e.g. "USDT")
-	RawAmount    string          // minor units as string
-	HumanAmount  decimal.Decimal // raw / 10^decimalPlaces
-	Rate         decimal.Decimal // exchange rate to base currency
-	Multiplier   int             // rate multiplier
-	BaseAmount   decimal.Decimal // humanAmount * rate / multiplier
-	HasRate      bool            // false if no exchange rate found
+	TokenID       id.ID
+	TokenSymbol   string
+	DecimalPlaces int             // token minor-unit scale, e.g. 6 for USDT-TRC20
+	CurrencyCode  string          // from Token→Currency (e.g. "USDT")
+	RawAmount     string          // minor units as string
+	HumanAmount   decimal.Decimal // raw / 10^decimalPlaces
+	Rate          decimal.Decimal // exchange rate to base currency
+	Multiplier    int             // rate multiplier
+	BaseAmount    decimal.Decimal // humanAmount * rate / multiplier
+	HasRate       bool            // false if no exchange rate found
 }
 
 // Calculate converts raw balance rows to valued token balances.
@@ -85,10 +86,11 @@ func (c *BalanceCalculator) Calculate(ctx context.Context, rows []BalanceRow, ra
 
 	for _, row := range rows {
 		tb := TokenBalance{
-			TokenID:      row.TokenID,
-			TokenSymbol:  row.TokenSymbol,
-			CurrencyCode: row.CurrencyCode,
-			RawAmount:    row.RawAmount.String(),
+			TokenID:       row.TokenID,
+			TokenSymbol:   row.TokenSymbol,
+			DecimalPlaces: row.DecimalPlaces,
+			CurrencyCode:  row.CurrencyCode,
+			RawAmount:     row.RawAmount.String(),
 		}
 
 		// Convert minor units → human-readable amount via CryptoAmount.ToDecimal.

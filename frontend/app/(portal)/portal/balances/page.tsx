@@ -35,13 +35,18 @@ import type {
 
 export default function BalancesPage() {
   const activeMerchantId = usePortalStore((s) => s.activeMerchantId)
+  const [prevMerchantId, setPrevMerchantId] = useState<string | null>(null)
   const [data, setData] = useState<PortalDetailedBalanceResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
-  useEffect(() => {
+  if (activeMerchantId !== prevMerchantId) {
+    setPrevMerchantId(activeMerchantId)
     setLoading(true)
     setError(false)
+  }
+
+  useEffect(() => {
     api.portal
       .balanceDetailed(activeMerchantId ?? undefined)
       .then((res) => {
