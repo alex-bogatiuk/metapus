@@ -130,6 +130,7 @@ func FormatMinorUnits(amount int64, decimalPlaces int) string {
 	return result
 }
 
+<<<<<<< HEAD
 // GetTokenMeta returns token scale and network data by ID.
 // Used by portal handlers to validate cross-network operations and convert amounts.
 func (r *DashboardRepo) GetTokenMeta(ctx context.Context, tokenID id.ID) (TokenMeta, error) {
@@ -157,4 +158,19 @@ func (r *DashboardRepo) GetTokenDecimalPlaces(ctx context.Context, tokenID id.ID
 		return 0, err
 	}
 	return meta.DecimalPlaces, nil
+=======
+// GetTokenDecimalPlaces returns the decimal_places for a token by ID.
+// Used by portal handlers to convert human-readable amounts to minor units.
+func (r *DashboardRepo) GetTokenDecimalPlaces(ctx context.Context, tokenID id.ID) (int, error) {
+	q := querier(ctx)
+	var dp int
+	err := q.QueryRow(ctx,
+		`SELECT decimal_places FROM cat_tokens WHERE id = $1 AND deletion_mark = FALSE`,
+		tokenID,
+	).Scan(&dp)
+	if err != nil {
+		return 0, fmt.Errorf("get token decimal places: %w", err)
+	}
+	return dp, nil
+>>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 }
