@@ -16,7 +16,7 @@ type PendingAmount struct {
 
 // GetPendingAmounts returns the sum of received_amount for invoices in 'paid' status
 // (transaction detected but not yet confirmed on-chain) per token.
-// Only 'paid' status is considered pending — 'partially_paid' is excluded because
+// Only 'paid' status is considered pending вЂ” 'partially_paid' is excluded because
 // the merchant hasn't received the full amount yet.
 func (r *DashboardRepo) GetPendingAmounts(ctx context.Context, merchantIDs []id.ID) (map[string]int64, error) {
 	q := querier(ctx)
@@ -104,7 +104,7 @@ type TokenMeta struct {
 }
 
 // FormatMinorUnits converts an int64 minor units amount to a human-readable string.
-// E.g. 1500000 with 6 decimals → "1.500000"
+// E.g. 1500000 with 6 decimals в†’ "1.500000"
 func FormatMinorUnits(amount int64, decimalPlaces int) string {
 	if decimalPlaces == 0 {
 		return strconv.FormatInt(amount, 10)
@@ -130,7 +130,6 @@ func FormatMinorUnits(amount int64, decimalPlaces int) string {
 	return result
 }
 
-<<<<<<< HEAD
 // GetTokenMeta returns token scale and network data by ID.
 // Used by portal handlers to validate cross-network operations and convert amounts.
 func (r *DashboardRepo) GetTokenMeta(ctx context.Context, tokenID id.ID) (TokenMeta, error) {
@@ -158,19 +157,4 @@ func (r *DashboardRepo) GetTokenDecimalPlaces(ctx context.Context, tokenID id.ID
 		return 0, err
 	}
 	return meta.DecimalPlaces, nil
-=======
-// GetTokenDecimalPlaces returns the decimal_places for a token by ID.
-// Used by portal handlers to convert human-readable amounts to minor units.
-func (r *DashboardRepo) GetTokenDecimalPlaces(ctx context.Context, tokenID id.ID) (int, error) {
-	q := querier(ctx)
-	var dp int
-	err := q.QueryRow(ctx,
-		`SELECT decimal_places FROM cat_tokens WHERE id = $1 AND deletion_mark = FALSE`,
-		tokenID,
-	).Scan(&dp)
-	if err != nil {
-		return 0, fmt.Errorf("get token decimal places: %w", err)
-	}
-	return dp, nil
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 }

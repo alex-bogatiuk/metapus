@@ -2,10 +2,6 @@ package handlers
 
 import (
 	"context"
-<<<<<<< HEAD
-=======
-	"math"
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 	"net/http"
 	"strconv"
 	"time"
@@ -26,11 +22,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 )
 
-<<<<<<< HEAD
 // Balance (detailed, three-bucket).
-=======
-// ── Balance (detailed, three-bucket) ──────────────────────────────────────
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 
 // GetBalanceDetailed handles GET /portal/v1/balances?merchant_id=...&source=coingecko
 // Returns merchant balance split into total / pending / available buckets.
@@ -84,17 +76,12 @@ func (h *PortalHandler) GetBalanceDetailed(c *gin.Context) {
 	for _, tb := range balance.ByToken {
 		tokenIDStr := tb.TokenID.String()
 
-<<<<<<< HEAD
 		rawInt, err := strconv.ParseInt(tb.RawAmount, 10, 64)
 		if err != nil {
 			_ = c.Error(apperror.NewInternal(err))
 			c.Abort()
 			return
 		}
-=======
-		// Parse raw amount for arithmetic.
-		rawInt, _ := strconv.ParseInt(tb.RawAmount, 10, 64)
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 		pendingRaw := pendingMap[tokenIDStr]
 		availableRaw := rawInt - pendingRaw
 		if availableRaw < 0 {
@@ -102,7 +89,6 @@ func (h *PortalHandler) GetBalanceDetailed(c *gin.Context) {
 		}
 
 		// Fiat valuation of pending/available using the same rate.
-<<<<<<< HEAD
 		pendingHuman := decimal.NewFromInt(pendingRaw).Shift(-int32(tb.DecimalPlaces))
 		availableHuman := decimal.NewFromInt(availableRaw).Shift(-int32(tb.DecimalPlaces))
 
@@ -110,14 +96,6 @@ func (h *PortalHandler) GetBalanceDetailed(c *gin.Context) {
 			rateMultiplier := decimal.NewFromInt(int64(tb.Multiplier))
 			tokenPendingBase := pendingHuman.Mul(tb.Rate).Div(rateMultiplier)
 			tokenAvailableBase := availableHuman.Mul(tb.Rate).Div(rateMultiplier)
-=======
-		pendingHuman := decimal.NewFromInt(pendingRaw).Shift(-int32(tb.Multiplier))
-		availableHuman := decimal.NewFromInt(availableRaw).Shift(-int32(tb.Multiplier))
-
-		tokenPendingBase := pendingHuman.Mul(tb.Rate)
-		tokenAvailableBase := availableHuman.Mul(tb.Rate)
-		if tb.HasRate {
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 			pendingBase = pendingBase.Add(tokenPendingBase)
 			availableBase = availableBase.Add(tokenAvailableBase)
 		}
@@ -135,15 +113,9 @@ func (h *PortalHandler) GetBalanceDetailed(c *gin.Context) {
 				HasRate:      tb.HasRate,
 			},
 			PendingRaw:     strconv.FormatInt(pendingRaw, 10),
-<<<<<<< HEAD
 			PendingHuman:   portal_repo.FormatMinorUnits(pendingRaw, tb.DecimalPlaces),
 			AvailableRaw:   strconv.FormatInt(availableRaw, 10),
 			AvailableHuman: portal_repo.FormatMinorUnits(availableRaw, tb.DecimalPlaces),
-=======
-			PendingHuman:   portal_repo.FormatMinorUnits(pendingRaw, tb.Multiplier),
-			AvailableRaw:   strconv.FormatInt(availableRaw, 10),
-			AvailableHuman: portal_repo.FormatMinorUnits(availableRaw, tb.Multiplier),
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 		})
 	}
 
@@ -157,11 +129,7 @@ func (h *PortalHandler) GetBalanceDetailed(c *gin.Context) {
 	})
 }
 
-<<<<<<< HEAD
 // Invoice.
-=======
-// ── Invoice ───────────────────────────────────────────────────────────────
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 
 // CreateInvoice handles POST /portal/v1/invoices?merchant_id=...
 // Accepts human-readable amount (e.g. "10.5"), converts to minor units via decimal_places.
@@ -189,7 +157,6 @@ func (h *PortalHandler) CreateInvoice(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-<<<<<<< HEAD
 	// Convert human-readable amount to minor units using token decimal_places.
 	tokenMeta, err := h.repo.GetTokenMeta(ctx, tokenID)
 	if err != nil {
@@ -199,9 +166,6 @@ func (h *PortalHandler) CreateInvoice(c *gin.Context) {
 	}
 	decimalPlaces := tokenMeta.DecimalPlaces
 
-=======
-	// Convert human-readable amount → minor units using token decimal_places.
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 	humanDec, err := decimal.NewFromString(req.Amount)
 	if err != nil || !humanDec.IsPositive() {
 		_ = c.Error(apperror.NewValidation("amount must be a positive decimal string"))
@@ -209,16 +173,6 @@ func (h *PortalHandler) CreateInvoice(c *gin.Context) {
 		return
 	}
 
-<<<<<<< HEAD
-=======
-	decimalPlaces, err := h.repo.GetTokenDecimalPlaces(ctx, tokenID)
-	if err != nil {
-		_ = c.Error(apperror.NewValidation("unknown token: " + req.TokenID))
-		c.Abort()
-		return
-	}
-
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 	minorDec := humanDec.Shift(int32(decimalPlaces))
 	if !minorDec.Equal(minorDec.Truncate(0)) {
 		_ = c.Error(apperror.NewValidation("amount has too many decimal places for this token"))
@@ -284,11 +238,7 @@ func (h *PortalHandler) CreateInvoice(c *gin.Context) {
 	walletAddress, _, network, err := fetchInvoiceDisplay(ctx, pool, inv.ID)
 	if err != nil {
 		walletAddress = ""
-<<<<<<< HEAD
 		network = tokenMeta.Network
-=======
-		network = ""
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 	}
 
 	c.JSON(http.StatusCreated, dto.PortalCreateInvoiceResponse{
@@ -296,11 +246,7 @@ func (h *PortalHandler) CreateInvoice(c *gin.Context) {
 		Number:        inv.Number,
 		Status:        string(inv.Status),
 		Amount:        strconv.FormatInt(minorDec.IntPart(), 10),
-<<<<<<< HEAD
 		Symbol:        tokenMeta.Symbol,
-=======
-		Symbol:        "", // filled by frontend from token metadata
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 		Network:       network,
 		DecimalPlaces: decimalPlaces,
 		WalletAddress: walletAddress,
@@ -334,11 +280,7 @@ func (h *PortalHandler) GetInvoiceDetail(c *gin.Context) {
 	c.JSON(http.StatusOK, detail)
 }
 
-<<<<<<< HEAD
 // Withdrawals (read-only).
-=======
-// ── Withdrawals (read-only) ───────────────────────────────────────────────
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 
 // ListWithdrawals handles GET /portal/v1/withdrawals?merchant_id=...&status=...&sort=...&order=...
 func (h *PortalHandler) ListWithdrawals(c *gin.Context) {
@@ -390,11 +332,7 @@ func (h *PortalHandler) ListWithdrawals(c *gin.Context) {
 	})
 }
 
-<<<<<<< HEAD
 // Withdrawal address whitelist.
-=======
-// ── Withdrawal Address Whitelist ──────────────────────────────────────────
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 
 // ListWhitelistedAddresses handles GET /portal/v1/withdrawal-addresses?merchant_id=...
 func (h *PortalHandler) ListWhitelistedAddresses(c *gin.Context) {
@@ -475,11 +413,7 @@ func (h *PortalHandler) RemoveWhitelistedAddress(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-<<<<<<< HEAD
 // Withdrawal requests (debit-first pattern).
-=======
-// ── Withdrawal Requests (debit-first pattern) ─────────────────────────────
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 
 // ListWithdrawalRequests handles GET /portal/v1/withdrawal-requests?merchant_id=...
 func (h *PortalHandler) ListWithdrawalRequests(c *gin.Context) {
@@ -546,11 +480,7 @@ func (h *PortalHandler) CreateWithdrawalRequest(c *gin.Context) {
 		return
 	}
 
-<<<<<<< HEAD
 	// Convert human-readable amount to minor units.
-=======
-	// Convert human-readable amount → minor units.
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 	humanDec, err := decimal.NewFromString(req.Amount)
 	if err != nil || !humanDec.IsPositive() {
 		_ = c.Error(apperror.NewValidation("amount must be a positive decimal string"))
@@ -558,25 +488,18 @@ func (h *PortalHandler) CreateWithdrawalRequest(c *gin.Context) {
 		return
 	}
 
-<<<<<<< HEAD
 	tokenMeta, err := h.repo.GetTokenMeta(ctx, tokenID)
-=======
-	decimalPlaces, err := h.repo.GetTokenDecimalPlaces(ctx, tokenID)
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 	if err != nil {
 		_ = c.Error(apperror.NewValidation("unknown token: " + req.TokenID))
 		c.Abort()
 		return
 	}
-<<<<<<< HEAD
 	if addr.NetworkID != tokenMeta.NetworkID.String() {
 		_ = c.Error(apperror.NewValidation("address is not whitelisted for this token's network"))
 		c.Abort()
 		return
 	}
 	decimalPlaces := tokenMeta.DecimalPlaces
-=======
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 
 	minorDec := humanDec.Shift(int32(decimalPlaces))
 	if !minorDec.Equal(minorDec.Truncate(0)) {
@@ -584,11 +507,7 @@ func (h *PortalHandler) CreateWithdrawalRequest(c *gin.Context) {
 		c.Abort()
 		return
 	}
-<<<<<<< HEAD
 	if minorDec.GreaterThan(_maxInt64Dec) {
-=======
-	if minorDec.GreaterThan(decimal.NewFromInt(math.MaxInt64)) {
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 		_ = c.Error(apperror.NewValidation("amount exceeds maximum allowed value"))
 		c.Abort()
 		return
@@ -623,13 +542,8 @@ func (h *PortalHandler) CreateWithdrawalRequest(c *gin.Context) {
 	//   1. Advisory lock (DocumentLocker)
 	//   2. Generate EXPENSE movement via WithdrawalRequest.GenerateCryptoMerchantBalanceMovements
 	//   3. Validate balance sufficiency (CryptoMerchantBalanceRecorder.ValidateBeforePost)
-<<<<<<< HEAD
 	//   4. Record movements; DB trigger updates balance
 	//   5. updateDoc callback inserts doc_withdrawal_requests
-=======
-	//   4. Record movements → DB trigger updates balance
-	//   5. updateDoc callback → INSERT doc_withdrawal_requests
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 	if err := h.postingEngine.Post(ctx, wr, func(txCtx context.Context) error {
 		return h.repo.CreateWithdrawalRequest(txCtx,
 			wr.GetID(), mid, tokenID, minorDec.IntPart(),
@@ -670,11 +584,7 @@ func (h *PortalHandler) RejectWithdrawalRequest(c *gin.Context) {
 	var body struct {
 		Reason string `json:"reason"`
 	}
-<<<<<<< HEAD
 	_ = c.ShouldBindJSON(&body) // ignore error; reason is optional
-=======
-	_ = c.ShouldBindJSON(&body) // ignore error — reason is optional
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 
 	ctx := c.Request.Context()
 	ids := h.repo.ScopeIDs(ctx, mid)
@@ -716,11 +626,7 @@ func (h *PortalHandler) RejectWithdrawalRequest(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "rejected"})
 }
 
-<<<<<<< HEAD
 // Webhooks.
-=======
-// ── Webhooks ──────────────────────────────────────────────────────────────
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 
 // ListWebhookDeliveries handles GET /portal/v1/webhooks/deliveries?merchant_id=...
 func (h *PortalHandler) ListWebhookDeliveries(c *gin.Context) {
@@ -773,20 +679,12 @@ func (h *PortalHandler) SendTestWebhook(c *gin.Context) {
 		return
 	}
 	if webhookURL == "" {
-<<<<<<< HEAD
 		_ = c.Error(apperror.NewValidation("webhook URL not configured; update merchant settings first"))
-=======
-		_ = c.Error(apperror.NewValidation("webhook URL not configured — update merchant settings first"))
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 		c.Abort()
 		return
 	}
 	if webhookSecret == "" {
-<<<<<<< HEAD
 		_ = c.Error(apperror.NewValidation("webhook secret not configured; rotate secret first"))
-=======
-		_ = c.Error(apperror.NewValidation("webhook secret not configured — rotate secret first"))
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 		c.Abort()
 		return
 	}
@@ -817,11 +715,7 @@ func (h *PortalHandler) SendTestWebhook(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-<<<<<<< HEAD
 // Settings: webhook secret + fee schedule.
-=======
-// ── Settings: Webhook Secret + Fee Schedule ───────────────────────────────
->>>>>>> 29a7dbeb758573eca68064f1ee68225716eeb4fb
 
 // RevealWebhookSecret handles POST /portal/v1/settings/webhook-secret/reveal?merchant_id=...
 func (h *PortalHandler) RevealWebhookSecret(c *gin.Context) {
