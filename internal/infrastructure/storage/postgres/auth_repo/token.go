@@ -33,12 +33,12 @@ func (r *TokenRepo) SaveRefreshToken(ctx context.Context, token *auth.RefreshTok
 	q := r.getTxManager(ctx).GetQuerier(ctx)
 
 	query := `
-		INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, created_at, user_agent, ip_address)
-		VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, '')::inet)
+		INSERT INTO refresh_tokens (id, user_id, session_id, token_hash, expires_at, created_at, user_agent, ip_address)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, '')::inet)
 	`
 
 	_, err := q.Exec(ctx, query,
-		token.ID, token.UserID, token.TokenHash, token.ExpiresAt,
+		token.ID, token.UserID, token.SessionID, token.TokenHash, token.ExpiresAt,
 		token.CreatedAt, token.UserAgent, token.IPAddress,
 	)
 	if err != nil {
@@ -53,13 +53,14 @@ func (r *TokenRepo) GetRefreshToken(ctx context.Context, tokenHash string) (*aut
 	q := r.getTxManager(ctx).GetQuerier(ctx)
 
 	query := `
-		SELECT id, user_id, token_hash, expires_at, created_at, revoked_at, revoked_reason
+		SELECT id, user_id, session_id, token_hash, expires_at, created_at, revoked_at, revoked_reason
 		FROM refresh_tokens WHERE token_hash = $1
+		FOR UPDATE
 	`
 
 	var token auth.RefreshToken
 	err := q.QueryRow(ctx, query, tokenHash).Scan(
-		&token.ID, &token.UserID, &token.TokenHash, &token.ExpiresAt,
+		&token.ID, &token.UserID, &token.SessionID, &token.TokenHash, &token.ExpiresAt,
 		&token.CreatedAt, &token.RevokedAt, &token.RevokedReason,
 	)
 	if err == pgx.ErrNoRows {

@@ -23,6 +23,13 @@ func NewUserRepo() *UserRepo {
 	return &UserRepo{}
 }
 
+func normalizeAuthVersion(version int64) int64 {
+	if version <= 0 {
+		return 1
+	}
+	return version
+}
+
 // getTxManager retrieves TxManager from context.
 func (r *UserRepo) getTxManager(ctx context.Context) *postgres.TxManager {
 	return postgres.MustGetTxManager(ctx)
@@ -35,14 +42,14 @@ func (r *UserRepo) Create(ctx context.Context, user *auth.User) error {
 	query := `
 		INSERT INTO users (
 			id, email, password_hash, first_name, last_name,
-			is_active, is_admin, email_verified, version, deletion_mark, attributes
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			is_active, is_admin, email_verified, auth_version, version, deletion_mark, attributes
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`
 
 	_, err := q.Exec(ctx, query,
 		user.ID, user.Email, user.PasswordHash,
 		user.FirstName, user.LastName, user.IsActive, user.IsAdmin,
-		user.EmailVerified, user.Version, user.DeletionMark, user.Attributes,
+		user.EmailVerified, normalizeAuthVersion(user.AuthVersion), user.Version, user.DeletionMark, user.Attributes,
 	)
 	if err != nil {
 		return fmt.Errorf("insert user: %w", err)
@@ -59,7 +66,7 @@ func (r *UserRepo) GetByID(ctx context.Context, userID id.ID) (*auth.User, error
 		SELECT id, email, password_hash, first_name, last_name,
 			   is_active, is_admin, email_verified, email_verified_at,
 			   last_login_at, failed_login_attempts, locked_until,
-			   deletion_mark, version, attributes
+			   auth_version, deletion_mark, version, attributes
 		FROM users
 		WHERE id = $1 AND deletion_mark = FALSE
 	`
@@ -70,7 +77,7 @@ func (r *UserRepo) GetByID(ctx context.Context, userID id.ID) (*auth.User, error
 		&user.FirstName, &user.LastName, &user.IsActive, &user.IsAdmin,
 		&user.EmailVerified, &user.EmailVerifiedAt, &user.LastLoginAt,
 		&user.FailedLoginAttempts, &user.LockedUntil,
-		&user.DeletionMark, &user.Version, &user.Attributes,
+		&user.AuthVersion, &user.DeletionMark, &user.Version, &user.Attributes,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, apperror.NewNotFound("user", userID.String())
@@ -90,7 +97,7 @@ func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*auth.User, er
 		SELECT id, email, password_hash, first_name, last_name,
 			   is_active, is_admin, email_verified, email_verified_at,
 			   last_login_at, failed_login_attempts, locked_until,
-			   deletion_mark, version, attributes
+			   auth_version, deletion_mark, version, attributes
 		FROM users
 		WHERE email = $1 AND deletion_mark = FALSE
 	`
@@ -101,7 +108,7 @@ func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*auth.User, er
 		&user.FirstName, &user.LastName, &user.IsActive, &user.IsAdmin,
 		&user.EmailVerified, &user.EmailVerifiedAt, &user.LastLoginAt,
 		&user.FailedLoginAttempts, &user.LockedUntil,
-		&user.DeletionMark, &user.Version, &user.Attributes,
+		&user.AuthVersion, &user.DeletionMark, &user.Version, &user.Attributes,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, apperror.NewNotFound("user", email)
@@ -176,7 +183,7 @@ func (r *UserRepo) List(ctx context.Context, filter auth.UserFilter) ([]auth.Use
 	query := `
 		SELECT id, email, password_hash, first_name, last_name,
 			   is_active, is_admin, email_verified, email_verified_at,
-			   last_login_at, deletion_mark, version, attributes
+			   last_login_at, auth_version, deletion_mark, version, attributes
 		FROM users
 		WHERE deletion_mark = FALSE
 	`
@@ -227,7 +234,7 @@ func (r *UserRepo) List(ctx context.Context, filter auth.UserFilter) ([]auth.Use
 			&user.ID, &user.Email, &user.PasswordHash,
 			&user.FirstName, &user.LastName, &user.IsActive, &user.IsAdmin,
 			&user.EmailVerified, &user.EmailVerifiedAt, &user.LastLoginAt,
-			&user.DeletionMark, &user.Version, &user.Attributes,
+			&user.AuthVersion, &user.DeletionMark, &user.Version, &user.Attributes,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("scan user: %w", err)

@@ -141,6 +141,22 @@ function refreshAccessToken(): Promise<TokenResponse | null> {
 // ── Paths that should never trigger a refresh retry ─────────────────────
 const NO_RETRY_PATHS = ["/auth/login", "/auth/register", "/auth/refresh"]
 
+async function errorFromResponse(res: Response): Promise<ApiError> {
+    const body = await res.text().catch(() => undefined)
+    return new ApiError(res.status, res.statusText, body)
+}
+
+function shouldRetryWithRefresh(path: string, err: ApiError): boolean {
+    if (err.status !== 401 || NO_RETRY_PATHS.includes(path)) return false
+    return err.parsedBody?.code !== "SESSION_REVOKED"
+}
+
+function logoutIfSessionRevoked(err: ApiError): void {
+    if (err.status === 401 && err.parsedBody?.code === "SESSION_REVOKED") {
+        useAuthStore.getState().logout()
+    }
+}
+
 function buildHeaders(optHeaders?: HeadersInit): Record<string, string> {
     const authHeaders: Record<string, string> = {}
     const tokens = useAuthStore.getState().tokens
@@ -174,7 +190,12 @@ export async function apiFetch<T>(
     })
 
     // ── 401 → attempt token refresh & retry once ────────────────────────
-    if (res.status === 401 && !NO_RETRY_PATHS.includes(path)) {
+    if (res.status === 401) {
+        const originalError = await errorFromResponse(res)
+        if (!shouldRetryWithRefresh(path, originalError)) {
+            logoutIfSessionRevoked(originalError)
+            throw originalError
+        }
         const newTokens = await refreshAccessToken()
         if (newTokens) {
             const retryRes = await fetch(`${API_BASE}${path}`, {
@@ -184,8 +205,7 @@ export async function apiFetch<T>(
             })
 
             if (!retryRes.ok) {
-                const body = await retryRes.text().catch(() => undefined)
-                throw new ApiError(retryRes.status, retryRes.statusText, body)
+                throw await errorFromResponse(retryRes)
             }
 
             if (retryRes.status === 204 || retryRes.headers.get("content-length") === "0") {
@@ -194,13 +214,11 @@ export async function apiFetch<T>(
             return retryRes.json() as Promise<T>
         }
         // refresh failed → logout already called, throw original error
-        const body = await res.text().catch(() => undefined)
-        throw new ApiError(res.status, res.statusText, body)
+        throw originalError
     }
 
     if (!res.ok) {
-        const body = await res.text().catch(() => undefined)
-        throw new ApiError(res.status, res.statusText, body)
+        throw await errorFromResponse(res)
     }
 
     if (res.status === 204 || res.headers.get("content-length") === "0") {
@@ -228,7 +246,12 @@ export async function apiFetchBlob(
     })
 
     // ── 401 → attempt token refresh & retry once ────────────────────────
-    if (res.status === 401 && !NO_RETRY_PATHS.includes(path)) {
+    if (res.status === 401) {
+        const originalError = await errorFromResponse(res)
+        if (!shouldRetryWithRefresh(path, originalError)) {
+            logoutIfSessionRevoked(originalError)
+            throw originalError
+        }
         const newTokens = await refreshAccessToken()
         if (newTokens) {
             res = await fetch(`${API_BASE}${path}`, {
@@ -236,12 +259,13 @@ export async function apiFetchBlob(
                 credentials: "include",
                 headers: buildHeaders(optHeaders),
             })
+        } else {
+            throw originalError
         }
     }
 
     if (!res.ok) {
-        const body = await res.text().catch(() => undefined)
-        throw new ApiError(res.status, res.statusText, body)
+        throw await errorFromResponse(res)
     }
 
     // Extract filename from Content-Disposition header
@@ -271,6 +295,11 @@ export async function portalFetch<T>(
 
     // ── 401 → attempt token refresh & retry once ────────────────────────
     if (res.status === 401) {
+        const originalError = await errorFromResponse(res)
+        if (!shouldRetryWithRefresh(path, originalError)) {
+            logoutIfSessionRevoked(originalError)
+            throw originalError
+        }
         const newTokens = await refreshAccessToken()
         if (newTokens) {
             const retryRes = await fetch(`${PORTAL_BASE}${path}`, {
@@ -280,8 +309,7 @@ export async function portalFetch<T>(
             })
 
             if (!retryRes.ok) {
-                const body = await retryRes.text().catch(() => undefined)
-                throw new ApiError(retryRes.status, retryRes.statusText, body)
+                throw await errorFromResponse(retryRes)
             }
 
             if (retryRes.status === 204 || retryRes.headers.get("content-length") === "0") {
@@ -289,13 +317,11 @@ export async function portalFetch<T>(
             }
             return retryRes.json() as Promise<T>
         }
-        const body = await res.text().catch(() => undefined)
-        throw new ApiError(res.status, res.statusText, body)
+        throw originalError
     }
 
     if (!res.ok) {
-        const body = await res.text().catch(() => undefined)
-        throw new ApiError(res.status, res.statusText, body)
+        throw await errorFromResponse(res)
     }
 
     if (res.status === 204 || res.headers.get("content-length") === "0") {
@@ -323,6 +349,11 @@ export async function portalFetchBlob(
 
     // ── 401 → attempt token refresh & retry once ────────────────────────
     if (res.status === 401) {
+        const originalError = await errorFromResponse(res)
+        if (!shouldRetryWithRefresh(path, originalError)) {
+            logoutIfSessionRevoked(originalError)
+            throw originalError
+        }
         const newTokens = await refreshAccessToken()
         if (newTokens) {
             res = await fetch(`${PORTAL_BASE}${path}`, {
@@ -330,12 +361,13 @@ export async function portalFetchBlob(
                 credentials: "include",
                 headers: buildHeaders(optHeaders),
             })
+        } else {
+            throw originalError
         }
     }
 
     if (!res.ok) {
-        const body = await res.text().catch(() => undefined)
-        throw new ApiError(res.status, res.statusText, body)
+        throw await errorFromResponse(res)
     }
 
     // Extract filename from Content-Disposition header

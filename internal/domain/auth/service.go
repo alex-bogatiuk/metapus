@@ -49,6 +49,8 @@ type Service struct {
 	roleRepo         RoleRepository
 	permRepo         PermissionRepository
 	tokenRepo        TokenRepository
+	authStateRepo    AuthStateRepository
+	authStateCache   *AuthStateCache
 	merchantUserRepo merchant.MerchantUserRepository
 	txManager        tx.Manager
 	jwtService       *JWTService
@@ -61,6 +63,8 @@ func NewService(
 	roleRepo RoleRepository,
 	permRepo PermissionRepository,
 	tokenRepo TokenRepository,
+	authStateRepo AuthStateRepository,
+	authStateCache *AuthStateCache,
 	merchantUserRepo merchant.MerchantUserRepository,
 	txManager tx.Manager,
 	jwtService *JWTService,
@@ -71,6 +75,8 @@ func NewService(
 		roleRepo:         roleRepo,
 		permRepo:         permRepo,
 		tokenRepo:        tokenRepo,
+		authStateRepo:    authStateRepo,
+		authStateCache:   authStateCache,
 		merchantUserRepo: merchantUserRepo,
 		txManager:        txManager,
 		jwtService:       jwtService,
@@ -93,6 +99,84 @@ func (s *Service) requireTenantID(ctx context.Context) (string, error) {
 			WithDetail("header", "X-Tenant-ID")
 	}
 	return tenantID, nil
+}
+
+func normalizeAuthVersion(version int64) int64 {
+	if version <= 0 {
+		return 1
+	}
+	return version
+}
+
+// InvalidateUserAccess bumps a user's auth epoch and clears the in-memory
+// validation cache. Existing access tokens become TOKEN_STALE immediately.
+func (s *Service) InvalidateUserAccess(ctx context.Context, userID id.ID, reason string) error {
+	if err := s.bumpUserAuthVersion(ctx, userID, reason); err != nil {
+		return err
+	}
+	s.invalidateUserAuthCache(ctx, userID)
+	return nil
+}
+
+// BumpUserAuthVersion increments the user's server-side auth epoch.
+// Call InvalidateUserAuthCache after the surrounding transaction commits.
+func (s *Service) BumpUserAuthVersion(ctx context.Context, userID id.ID, reason string) error {
+	return s.bumpUserAuthVersion(ctx, userID, reason)
+}
+
+// InvalidateUserAuthCache clears cached auth state for the user.
+func (s *Service) InvalidateUserAuthCache(ctx context.Context, userID id.ID) {
+	s.invalidateUserAuthCache(ctx, userID)
+}
+
+func (s *Service) bumpUserAuthVersion(ctx context.Context, userID id.ID, reason string) error {
+	if s.authStateRepo == nil {
+		return nil
+	}
+	version, err := s.authStateRepo.BumpUserAuthVersion(ctx, userID)
+	if err != nil {
+		return err
+	}
+	logger.Info(ctx, "user auth version bumped", "user_id", userID, "version", version, "reason", reason)
+	return nil
+}
+
+func (s *Service) bumpPolicyVersion(ctx context.Context, reason string) error {
+	if err := s.bumpPolicyEpoch(ctx, reason); err != nil {
+		return err
+	}
+	s.invalidatePolicyCache(ctx)
+	return nil
+}
+
+func (s *Service) bumpPolicyEpoch(ctx context.Context, reason string) error {
+	if s.authStateRepo == nil {
+		return nil
+	}
+	version, err := s.authStateRepo.BumpPolicyVersion(ctx)
+	if err != nil {
+		return err
+	}
+	logger.Info(ctx, "auth policy version bumped", "version", version, "reason", reason)
+	return nil
+}
+
+func (s *Service) invalidateUserAuthCache(ctx context.Context, userID id.ID) {
+	if tenantID := tenant.GetTenantID(ctx); tenantID != "" && s.authStateCache != nil {
+		s.authStateCache.InvalidateUser(tenantID, userID)
+	}
+}
+
+func (s *Service) invalidateSessionAuthCache(ctx context.Context, sessionID id.ID) {
+	if tenantID := tenant.GetTenantID(ctx); tenantID != "" && s.authStateCache != nil {
+		s.authStateCache.InvalidateSession(tenantID, sessionID)
+	}
+}
+
+func (s *Service) invalidatePolicyCache(ctx context.Context) {
+	if tenantID := tenant.GetTenantID(ctx); tenantID != "" && s.authStateCache != nil {
+		s.authStateCache.InvalidatePolicy(tenantID)
+	}
 }
 
 // Register registers a new user.
@@ -205,15 +289,28 @@ func (s *Service) Login(ctx context.Context, creds Credentials, info SessionInfo
 	}
 	user.Permissions = permissions
 
-	// Generate tokens
-	tokens, err := s.generateTokenPair(ctx, user, info)
+	var tokens *TokenPair
+	txm, err := s.getTxManager(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("generate tokens: %w", err)
+		return nil, nil, apperror.NewInternal(err).WithDetail("missing", "tx_manager")
 	}
+	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		// Record successful login and create session/refresh token atomically.
+		user.RecordSuccessfulLogin()
+		if err := s.userRepo.Update(ctx, user); err != nil {
+			return fmt.Errorf("record successful login: %w", err)
+		}
 
-	// Record successful login
-	user.RecordSuccessfulLogin()
-	_ = s.userRepo.Update(ctx, user)
+		var genErr error
+		tokens, genErr = s.generateTokenPair(ctx, user, info, id.Nil())
+		if genErr != nil {
+			return fmt.Errorf("generate tokens: %w", genErr)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
 
 	logger.Info(ctx, "user logged in",
 		"user_id", user.ID,
@@ -224,53 +321,110 @@ func (s *Service) Login(ctx context.Context, creds Credentials, info SessionInfo
 
 // RefreshToken refreshes access token using refresh token.
 func (s *Service) RefreshToken(ctx context.Context, refreshToken string, info SessionInfo) (*TokenPair, error) {
-	// Hash token to lookup
 	tokenHash := hashToken(refreshToken)
 
-	// Find token
-	token, err := s.tokenRepo.GetRefreshToken(ctx, tokenHash)
+	txm, err := s.getTxManager(ctx)
 	if err != nil {
-		if !apperror.IsNotFound(err) {
-			logger.Error(ctx, "failed to get refresh token", "error", err)
+		return nil, apperror.NewInternal(err).WithDetail("missing", "tx_manager")
+	}
+
+	var tokens *TokenPair
+	var postCommitErr error
+	var reusedSessionID id.ID
+	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		token, err := s.tokenRepo.GetRefreshToken(ctx, tokenHash)
+		if err != nil {
+			if !apperror.IsNotFound(err) {
+				logger.Error(ctx, "failed to get refresh token", "error", err)
+			}
+			return apperror.NewUnauthorized("invalid refresh token").WithCause(err)
 		}
-		return nil, apperror.NewUnauthorized("invalid refresh token").WithCause(err)
-	}
 
-	// Validate token
-	if !token.IsValid() {
-		return nil, apperror.NewUnauthorized("refresh token expired or revoked")
-	}
+		if token.RevokedAt != nil {
+			if s.authStateRepo != nil && !id.IsNil(token.SessionID) {
+				if err := s.authStateRepo.RevokeSession(ctx, token.SessionID, "refresh_reuse"); err != nil {
+					return err
+				}
+				reusedSessionID = token.SessionID
+			}
+			postCommitErr = apperror.NewSessionRevoked()
+			return nil
+		}
+		if !token.IsValid() {
+			return apperror.NewUnauthorized("refresh token expired")
+		}
 
-	// Get user
-	user, err := s.userRepo.GetByID(ctx, token.UserID)
+		if s.authStateRepo != nil {
+			state, err := s.authStateRepo.GetSessionState(ctx, token.UserID, token.SessionID)
+			if err != nil {
+				return apperror.NewUnauthorized("session not found").WithCause(err)
+			}
+			if !state.IsValid() {
+				return apperror.NewSessionRevoked()
+			}
+		}
+
+		user, err := s.userRepo.GetByID(ctx, token.UserID)
+		if err != nil {
+			if !apperror.IsNotFound(err) {
+				logger.Error(ctx, "failed to get user by ID for refresh", "user_id", token.UserID, "error", err)
+			}
+			return apperror.NewUnauthorized("user not found").WithCause(err)
+		}
+
+		if err := user.CanLogin(); err != nil {
+			return err
+		}
+
+		roles, _ := s.userRepo.LoadRoles(ctx, user.ID)
+		user.Roles = roles
+		permissions, _ := s.userRepo.LoadPermissions(ctx, user.ID)
+		user.Permissions = permissions
+
+		if err := s.tokenRepo.RevokeRefreshToken(ctx, token.ID, "refreshed"); err != nil {
+			return err
+		}
+
+		var genErr error
+		tokens, genErr = s.generateTokenPair(ctx, user, info, token.SessionID)
+		return genErr
+	})
 	if err != nil {
-		if !apperror.IsNotFound(err) {
-			logger.Error(ctx, "failed to get user by ID for refresh", "user_id", token.UserID, "error", err)
-		}
-		return nil, apperror.NewUnauthorized("user not found").WithCause(err)
-	}
-
-	// Check if user can login
-	if err := user.CanLogin(); err != nil {
 		return nil, err
 	}
+	if !id.IsNil(reusedSessionID) {
+		s.invalidateSessionAuthCache(ctx, reusedSessionID)
+	}
+	if postCommitErr != nil {
+		return nil, postCommitErr
+	}
 
-	// Load roles and permissions
-	roles, _ := s.userRepo.LoadRoles(ctx, user.ID)
-	user.Roles = roles
-	permissions, _ := s.userRepo.LoadPermissions(ctx, user.ID)
-	user.Permissions = permissions
-
-	// Revoke old refresh token
-	_ = s.tokenRepo.RevokeRefreshToken(ctx, token.ID, "refreshed")
-
-	// Generate new token pair
-	return s.generateTokenPair(ctx, user, info)
+	return tokens, nil
 }
 
 // Logout revokes all user's refresh tokens.
 func (s *Service) Logout(ctx context.Context, userID id.ID) error {
-	return s.tokenRepo.RevokeAllUserTokens(ctx, userID, "logout")
+	txm, err := s.getTxManager(ctx)
+	if err != nil {
+		return apperror.NewInternal(err).WithDetail("missing", "tx_manager")
+	}
+	if err := txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		if err := s.tokenRepo.RevokeAllUserTokens(ctx, userID, "logout"); err != nil {
+			return err
+		}
+		if s.authStateRepo != nil {
+			if err := s.authStateRepo.RevokeAllUserSessions(ctx, userID, "logout"); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	if tenantID := tenant.GetTenantID(ctx); tenantID != "" && s.authStateCache != nil {
+		s.authStateCache.InvalidateUser(tenantID, userID)
+	}
+	return nil
 }
 
 // AssignRole assigns a role to a user.
@@ -300,10 +454,22 @@ func (s *Service) AssignRole(ctx context.Context, userID id.ID, roleCode string)
 		return apperror.NewNotFound("role", roleCode).WithCause(err)
 	}
 
-	// Assign role
-	if err := s.userRepo.AssignRole(ctx, userID, role.ID, grantedBy); err != nil {
-		return fmt.Errorf("assign role: %w", err)
+	txm, err := s.getTxManager(ctx)
+	if err != nil {
+		return apperror.NewInternal(err).WithDetail("missing", "tx_manager")
 	}
+	if err := txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		if err := s.userRepo.AssignRole(ctx, userID, role.ID, grantedBy); err != nil {
+			return fmt.Errorf("assign role: %w", err)
+		}
+		if err := s.bumpUserAuthVersion(ctx, userID, "role_assigned"); err != nil {
+			return fmt.Errorf("invalidate user access: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	s.invalidateUserAuthCache(ctx, userID)
 
 	logger.Info(ctx, "role assigned",
 		"user_id", userID,
@@ -332,7 +498,23 @@ func (s *Service) RevokeRole(ctx context.Context, userID id.ID, roleCode string)
 		return apperror.NewNotFound("role", roleCode).WithCause(err)
 	}
 
-	return s.userRepo.RevokeRole(ctx, userID, role.ID)
+	txm, err := s.getTxManager(ctx)
+	if err != nil {
+		return apperror.NewInternal(err).WithDetail("missing", "tx_manager")
+	}
+	if err := txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		if err := s.userRepo.RevokeRole(ctx, userID, role.ID); err != nil {
+			return err
+		}
+		if err := s.bumpUserAuthVersion(ctx, userID, "role_revoked"); err != nil {
+			return fmt.Errorf("invalidate user access: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	s.invalidateUserAuthCache(ctx, userID)
+	return nil
 }
 
 // GetUserByID retrieves user with roles and permissions.
@@ -370,6 +552,8 @@ func (s *Service) UpdateUser(ctx context.Context, userID id.ID, firstName, lastN
 	if lastName != nil {
 		user.LastName = *lastName
 	}
+	authSensitiveChange := (isActive != nil && user.IsActive != *isActive) ||
+		(isAdmin != nil && user.IsAdmin != *isAdmin)
 	if isActive != nil {
 		user.IsActive = *isActive
 	}
@@ -377,8 +561,25 @@ func (s *Service) UpdateUser(ctx context.Context, userID id.ID, firstName, lastN
 		user.IsAdmin = *isAdmin
 	}
 
-	if err := s.userRepo.Update(ctx, user); err != nil {
-		return nil, fmt.Errorf("update user: %w", err)
+	txm, err := s.getTxManager(ctx)
+	if err != nil {
+		return nil, apperror.NewInternal(err).WithDetail("missing", "tx_manager")
+	}
+	if err := txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		if err := s.userRepo.Update(ctx, user); err != nil {
+			return fmt.Errorf("update user: %w", err)
+		}
+		if authSensitiveChange {
+			if err := s.bumpUserAuthVersion(ctx, userID, "user_auth_fields_changed"); err != nil {
+				return fmt.Errorf("invalidate user access: %w", err)
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	if authSensitiveChange {
+		s.invalidateUserAuthCache(ctx, userID)
 	}
 
 	// Load relations
@@ -574,19 +775,25 @@ func (s *Service) DeleteRole(ctx context.Context, roleID id.ID) (int, error) {
 		return 0, fmt.Errorf("count users: %w", err)
 	}
 
-	// Revoke refresh tokens for affected users before deleting
-	if userCount > 0 {
-		userIDs, err := s.roleRepo.ListUserIDsByRoleID(ctx, roleID)
-		if err != nil {
-			return 0, fmt.Errorf("list user ids: %w", err)
-		}
-		for _, uid := range userIDs {
-			_ = s.tokenRepo.RevokeAllUserTokens(ctx, uid, "role_deleted")
-		}
+	txm, err := s.getTxManager(ctx)
+	if err != nil {
+		return 0, apperror.NewInternal(err).WithDetail("missing", "tx_manager")
 	}
-
-	if err := s.roleRepo.Delete(ctx, roleID); err != nil {
+	if err := txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		if err := s.roleRepo.Delete(ctx, roleID); err != nil {
+			return err
+		}
+		if userCount > 0 {
+			if err := s.bumpPolicyEpoch(ctx, "role_deleted"); err != nil {
+				return fmt.Errorf("bump policy version: %w", err)
+			}
+		}
+		return nil
+	}); err != nil {
 		return 0, err
+	}
+	if userCount > 0 {
+		s.invalidatePolicyCache(ctx)
 	}
 
 	logger.Info(ctx, "role deleted", "role_id", roleID, "code", role.Code, "affected_users", userCount)
@@ -613,7 +820,7 @@ func (s *Service) GetRole(ctx context.Context, roleID id.ID) (*Role, []Permissio
 	return role, permissions, userCount, nil
 }
 
-// SetRolePermissions replaces all permissions for a role. Revokes refresh tokens for affected users.
+// SetRolePermissions replaces all permissions for a role and bumps the RBAC policy epoch.
 func (s *Service) SetRolePermissions(ctx context.Context, roleID id.ID, permissionIDs []id.ID) error {
 	// Verify role exists
 	_, err := s.roleRepo.GetByID(ctx, roleID)
@@ -627,24 +834,18 @@ func (s *Service) SetRolePermissions(ctx context.Context, roleID id.ID, permissi
 	}
 
 	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
-		return s.roleRepo.SetPermissions(ctx, roleID, permissionIDs)
+		if err := s.roleRepo.SetPermissions(ctx, roleID, permissionIDs); err != nil {
+			return err
+		}
+		if err := s.bumpPolicyEpoch(ctx, "role_permissions_changed"); err != nil {
+			return fmt.Errorf("bump policy version: %w", err)
+		}
+		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("set role permissions: %w", err)
 	}
-
-	// Revoke refresh tokens for users with this role so they get updated claims on next refresh
-	userIDs, err := s.roleRepo.ListUserIDsByRoleID(ctx, roleID)
-	if err != nil {
-		logger.Warn(ctx, "failed to list users for token revocation", "role_id", roleID, "error", err)
-	} else {
-		for _, uid := range userIDs {
-			_ = s.tokenRepo.RevokeAllUserTokens(ctx, uid, "role_permissions_changed")
-		}
-		if len(userIDs) > 0 {
-			logger.Info(ctx, "revoked tokens for role permission change", "role_id", roleID, "affected_users", len(userIDs))
-		}
-	}
+	s.invalidatePolicyCache(ctx)
 
 	logger.Info(ctx, "role permissions updated", "role_id", roleID, "permission_count", len(permissionIDs))
 	return nil
@@ -688,7 +889,7 @@ func (s *Service) Impersonate(ctx context.Context, targetUserID id.ID, info Sess
 	user.Permissions = permissions
 
 	// Generate tokens for target user
-	tokens, err := s.generateTokenPair(ctx, user, info)
+	tokens, err := s.generateTokenPair(ctx, user, info, id.Nil())
 	if err != nil {
 		return nil, nil, fmt.Errorf("generate impersonation tokens: %w", err)
 	}
@@ -701,11 +902,16 @@ func (s *Service) Impersonate(ctx context.Context, targetUserID id.ID, info Sess
 	return tokens, user, nil
 }
 
-// generateTokenPair creates access and refresh tokens.
-func (s *Service) generateTokenPair(ctx context.Context, user *User, info SessionInfo) (*TokenPair, error) {
+// generateTokenPair creates access and refresh tokens. When sessionID is zero,
+// it creates a new server-side auth session; otherwise it rotates the refresh
+// token within the existing session.
+func (s *Service) generateTokenPair(ctx context.Context, user *User, info SessionInfo, sessionID id.ID) (*TokenPair, error) {
 	tenantID, err := s.requireTenantID(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if s.authStateRepo == nil {
+		return nil, apperror.NewInternal(fmt.Errorf("auth state repository is not configured"))
 	}
 
 	// Extract role codes
@@ -739,9 +945,35 @@ func (s *Service) generateTokenPair(ctx context.Context, user *User, info Sessio
 	user.MerchantIDs = merchantIDs
 	user.PortalRole = portalRole
 
-	// Generate access token
+	userAuthVersion := normalizeAuthVersion(user.AuthVersion)
+	policyVersion, err := s.authStateRepo.GetCurrentPolicyVersion(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get auth policy version: %w", err)
+	}
+
+	refreshExpiresAt := time.Now().Add(s.config.RefreshTokenExpiry)
+	if id.IsNil(sessionID) {
+		sessionID = id.New()
+		session := &AuthSession{
+			ID:              sessionID,
+			UserID:          user.ID,
+			UserAuthVersion: userAuthVersion,
+			PolicyVersion:   policyVersion,
+			CreatedAt:       time.Now(),
+			ExpiresAt:       refreshExpiresAt,
+			UserAgent:       info.UserAgent,
+			IPAddress:       info.IPAddress,
+		}
+		if err := s.authStateRepo.CreateSession(ctx, session); err != nil {
+			return nil, fmt.Errorf("create auth session: %w", err)
+		}
+	} else if err := s.authStateRepo.ExtendSession(ctx, sessionID, refreshExpiresAt, info); err != nil {
+		return nil, fmt.Errorf("extend auth session: %w", err)
+	}
+
 	accessToken, expiresAt, err := s.jwtService.GenerateAccessToken(
-		user.ID.String(), tenantID, user.Email,
+		user.ID.String(), tenantID, sessionID.String(), user.Email,
+		userAuthVersion, policyVersion,
 		roleCodes, user.Permissions, user.IsAdmin,
 		merchantIDs, portalRole,
 	)
@@ -760,8 +992,9 @@ func (s *Service) generateTokenPair(ctx context.Context, user *User, info Sessio
 	refreshToken := &RefreshToken{
 		ID:        id.New(),
 		UserID:    user.ID,
+		SessionID: sessionID,
 		TokenHash: refreshTokenHash,
-		ExpiresAt: time.Now().Add(s.config.RefreshTokenExpiry),
+		ExpiresAt: refreshExpiresAt,
 		CreatedAt: time.Now(),
 		UserAgent: info.UserAgent,
 		IPAddress: info.IPAddress,

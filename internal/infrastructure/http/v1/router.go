@@ -11,8 +11,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"metapus/internal/core/entity"
 	appctx "metapus/internal/core/context"
+	"metapus/internal/core/entity"
 	"metapus/internal/core/eventlog"
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/security"
@@ -24,17 +24,17 @@ import (
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents"
 	"metapus/internal/domain/documents/crypto_invoice"
+	"metapus/internal/domain/listview"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/printing"
 	"metapus/internal/domain/registers/cost"
-	"metapus/internal/domain/registers/exchange_rate"
-	"metapus/internal/domain/registers/settlement"
-	"metapus/internal/domain/registers/stock"
 	"metapus/internal/domain/registers/crypto_balance"
 	"metapus/internal/domain/registers/crypto_fee"
 	"metapus/internal/domain/registers/crypto_merchant_balance"
+	"metapus/internal/domain/registers/exchange_rate"
+	"metapus/internal/domain/registers/settlement"
+	"metapus/internal/domain/registers/stock"
 	"metapus/internal/domain/reports/compiler"
-	"metapus/internal/domain/listview"
 	"metapus/internal/domain/reports/variants"
 	"metapus/internal/domain/search"
 	"metapus/internal/domain/security_profile"
@@ -42,11 +42,11 @@ import (
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
-	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 	"metapus/internal/infrastructure/storage/postgres/auth_repo"
+	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/migration"
+	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
 	"metapus/internal/infrastructure/storage/postgres/security_repo"
 	"metapus/internal/metadata"
@@ -213,9 +213,9 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 
 		// Protected endpoints - TenantDB runs first, then Auth
 		protected := v1.Group("")
-		protected.Use(middleware.TenantDB(cfg.TenantManager))      // 1. Resolve tenant, get DB pool
-		protected.Use(middleware.Auth(cfg.JWTValidator))             // 2. Validate JWT
-		protected.Use(middleware.RequireActiveTenant())              // 3. Block business requests for migration_failed
+		protected.Use(middleware.TenantDB(cfg.TenantManager)) // 1. Resolve tenant, get DB pool
+		protected.Use(middleware.Auth(cfg.JWTValidator))      // 2. Validate JWT
+		protected.Use(middleware.RequireActiveTenant())       // 3. Block business requests for migration_failed
 		// Security profiles are mandatory — fail-fast if misconfigured.
 		if cfg.ProfileProvider == nil {
 			panic("v1.NewRouter: cfg.ProfileProvider must not be nil — security profiles are required for DataScope")
@@ -467,8 +467,8 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 			cryptoFeeSvc,
 			cryptoMerchantSvc,
 		},
-		MovementRefResolver: postgres.NewRefResolverRepo(reg),
-		SettingsRepo:        postgres.NewSettingsRepo(),
+		MovementRefResolver:      postgres.NewRefResolverRepo(reg),
+		SettingsRepo:             postgres.NewSettingsRepo(),
 		CurrencyMetadataResolver: cfg.CurrencyMetadataResolver,
 	}
 
@@ -570,7 +570,7 @@ func registerReportRoutes(rg *gin.RouterGroup, _ RouterConfig, factoryReg *Facto
 			group.POST("", dsHandler.HandleExecute)
 			group.POST("/export", dsHandler.HandleExport(ds.Key))
 			group.POST("/grouped", dsHandler.HandleGrouped(ds.Key))
-			
+
 			group.GET("/variants", variantHandler.GetList(ds.Key))
 		}
 	}
@@ -899,7 +899,7 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 
 		// ─── Merchant Users ───────────────────────────────────────────────────
 		if cfg.MerchantUserRepo != nil {
-			userHandler := handlers.NewMerchantUserHandler(cfg.MerchantUserRepo)
+			userHandler := handlers.NewMerchantUserHandler(cfg.MerchantUserRepo, cfg.AuthSvc)
 			merchantScoped.GET("/users",
 				middleware.RequirePermission("merchant_users:read"),
 				userHandler.ListUsers,

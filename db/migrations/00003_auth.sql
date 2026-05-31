@@ -17,6 +17,7 @@ CREATE TABLE users (
     last_login_at         TIMESTAMPTZ,
     failed_login_attempts INT          NOT NULL DEFAULT 0,
     locked_until          TIMESTAMPTZ,
+    auth_version          BIGINT       NOT NULL DEFAULT 1,
     deletion_mark         BOOLEAN      NOT NULL DEFAULT false,
     version               INT          NOT NULL DEFAULT 1,
     attributes            JSONB        DEFAULT '{}',
@@ -67,10 +68,48 @@ CREATE TABLE user_roles (
 CREATE INDEX idx_user_roles_user_id ON user_roles (user_id);
 CREATE INDEX idx_user_roles_role_id ON user_roles (role_id);
 
+-- Auth Policy State
+-- Single-row tenant-local epoch for RBAC policy changes. Access JWTs carry this
+-- value and are rejected when the server-side epoch changes.
+CREATE TABLE auth_policy_state (
+    id         BOOLEAN     PRIMARY KEY DEFAULT TRUE,
+    version    BIGINT      NOT NULL DEFAULT 1,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT auth_policy_state_singleton CHECK (id = TRUE)
+);
+
+INSERT INTO auth_policy_state (id, version) VALUES (TRUE, 1);
+
+-- Auth Sessions
+-- Server-side session boundary for access-token revocation. Refresh tokens are
+-- attached to a session; access JWTs carry auth_sessions.id as sid.
+CREATE TABLE auth_sessions (
+    id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id           UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_auth_version BIGINT      NOT NULL,
+    policy_version    BIGINT      NOT NULL,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_seen_at      TIMESTAMPTZ,
+    expires_at        TIMESTAMPTZ NOT NULL,
+    revoked_at        TIMESTAMPTZ,
+    revoked_reason    VARCHAR(100),
+    user_agent        TEXT,
+    ip_address        INET
+);
+
+CREATE INDEX idx_auth_sessions_user_active
+    ON auth_sessions (user_id)
+    WHERE revoked_at IS NULL;
+
+CREATE INDEX idx_auth_sessions_expires
+    ON auth_sessions (expires_at)
+    WHERE revoked_at IS NULL;
+
 -- ── Refresh Tokens ─────────────────────────────────────────────────────────
 CREATE TABLE refresh_tokens (
     id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id        UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    session_id     UUID         NOT NULL REFERENCES auth_sessions(id) ON DELETE CASCADE,
     token_hash     VARCHAR(255) NOT NULL UNIQUE,
     expires_at     TIMESTAMPTZ  NOT NULL,
     created_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -81,6 +120,7 @@ CREATE TABLE refresh_tokens (
 );
 
 CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens (user_id);
+CREATE INDEX idx_refresh_tokens_session ON refresh_tokens (session_id) WHERE revoked_at IS NULL;
 CREATE INDEX idx_refresh_tokens_expires ON refresh_tokens (expires_at) WHERE revoked_at IS NULL;
 
 -- ── User Preferences ───────────────────────────────────────────────────────
@@ -111,6 +151,8 @@ SELECT pg_advisory_unlock(hashtext('metapus_migrations'));
 -- +goose Down
 DROP TABLE IF EXISTS user_preferences;
 DROP TABLE IF EXISTS refresh_tokens;
+DROP TABLE IF EXISTS auth_sessions;
+DROP TABLE IF EXISTS auth_policy_state;
 DROP TABLE IF EXISTS user_roles;
 DROP TABLE IF EXISTS role_permissions;
 DROP TABLE IF EXISTS permissions;

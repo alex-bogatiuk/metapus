@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/core/tenant"
 	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/infrastructure/http/v1/dto"
 )
@@ -14,12 +16,22 @@ import (
 // MerchantUserHandler manages user ↔ merchant associations.
 // Routes: /api/v1/merchant-admin/merchants/:merchantId/users
 type MerchantUserHandler struct {
-	repo merchant.MerchantUserRepository
+	repo        merchant.MerchantUserRepository
+	invalidator interface {
+		BumpUserAuthVersion(ctx context.Context, userID id.ID, reason string) error
+		InvalidateUserAuthCache(ctx context.Context, userID id.ID)
+	}
 }
 
 // NewMerchantUserHandler creates the handler.
-func NewMerchantUserHandler(repo merchant.MerchantUserRepository) *MerchantUserHandler {
-	return &MerchantUserHandler{repo: repo}
+func NewMerchantUserHandler(
+	repo merchant.MerchantUserRepository,
+	invalidator interface {
+		BumpUserAuthVersion(ctx context.Context, userID id.ID, reason string) error
+		InvalidateUserAuthCache(ctx context.Context, userID id.ID)
+	},
+) *MerchantUserHandler {
+	return &MerchantUserHandler{repo: repo, invalidator: invalidator}
 }
 
 // ListUsers handles GET /merchant-admin/merchants/:merchantId/users.
@@ -76,7 +88,9 @@ func (h *MerchantUserHandler) AddUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.repo.Add(c.Request.Context(), userID, merchantID, role); err != nil {
+	if err := h.runAccessMutation(c.Request.Context(), userID, "merchant_access_changed", func(ctx context.Context) error {
+		return h.repo.Add(ctx, userID, merchantID, role)
+	}); err != nil {
 		_ = c.Error(err)
 		c.Abort()
 		return
@@ -101,7 +115,9 @@ func (h *MerchantUserHandler) RemoveUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.repo.Remove(c.Request.Context(), userID, merchantID); err != nil {
+	if err := h.runAccessMutation(c.Request.Context(), userID, "merchant_access_removed", func(ctx context.Context) error {
+		return h.repo.Remove(ctx, userID, merchantID)
+	}); err != nil {
 		_ = c.Error(err)
 		c.Abort()
 		return
@@ -140,11 +156,40 @@ func (h *MerchantUserHandler) UpdateRole(c *gin.Context) {
 		return
 	}
 
-	if err := h.repo.UpdateRole(c.Request.Context(), userID, merchantID, role); err != nil {
+	if err := h.runAccessMutation(c.Request.Context(), userID, "merchant_role_changed", func(ctx context.Context) error {
+		return h.repo.UpdateRole(ctx, userID, merchantID, role)
+	}); err != nil {
 		_ = c.Error(err)
 		c.Abort()
 		return
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+func (h *MerchantUserHandler) runAccessMutation(
+	ctx context.Context,
+	userID id.ID,
+	reason string,
+	mutate func(context.Context) error,
+) error {
+	txm, err := tenant.GetTxManager(ctx)
+	if err != nil {
+		return apperror.NewInternal(err).WithDetail("missing", "tx_manager")
+	}
+	if err := txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		if err := mutate(ctx); err != nil {
+			return err
+		}
+		if h.invalidator != nil {
+			return h.invalidator.BumpUserAuthVersion(ctx, userID, reason)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	if h.invalidator != nil {
+		h.invalidator.InvalidateUserAuthCache(ctx, userID)
+	}
+	return nil
 }

@@ -19,6 +19,29 @@ Metapus использует Stateless JWT.
 
 **Защита от Brute-Force:** Неудачные попытки входа увеличивают счётчик в БД. При достижении лимита (5) аккаунт блокируется на 15 минут (проверяется динамически, без фоновых джобов).
 
+### 1.1. Серверный отзыв Access Token
+
+Access Token остаётся короткоживущим JWT, но больше не является единственным источником истины. Каждый access token несёт:
+
+- `sid` — ID серверной сессии из `auth_sessions`.
+- `uv` — текущее значение `users.auth_version` на момент выпуска токена.
+- `pv` — tenant-local версия `auth_policy_state.version` на момент выпуска токена.
+
+HTTP `Auth` middleware проверяет подпись JWT, затем сверяет `sid/uv/pv` с серверным auth-state через in-memory cache для single-instance режима. Cache miss коалесцируется через `singleflight`, поэтому параллельные запросы по одной сессии не создают N одинаковых запросов к БД. Кэш явно инвалидируется при logout, назначении/отзыве роли, изменении permissions роли и изменении доступа пользователя к merchant.
+
+Refresh tokens по-прежнему хранятся хэшированными в `refresh_tokens`, но каждый refresh token теперь привязан к `auth_sessions.id`. Refresh rotation блокирует текущую строку refresh token через `FOR UPDATE`; повторное использование уже отозванного refresh token отзывает всю auth session.
+
+Семантика отзыва:
+
+- Logout отзывает все refresh tokens и auth sessions пользователя.
+- Назначение/отзыв роли увеличивает `users.auth_version` конкретного пользователя.
+- Добавление/удаление merchant-доступа или смена merchant-роли увеличивает `users.auth_version` конкретного пользователя.
+- Изменение permissions роли и удаление роли увеличивает `auth_policy_state.version` tenant-а.
+- Устаревший access token возвращает `401 TOKEN_STALE`; frontend может один раз вызвать `/auth/refresh`.
+- Отозванная сессия возвращает `401 SESSION_REVOKED`; frontend должен выполнить logout без retry loop.
+
+Single-instance deployment использует in-memory cache. Для multi-instance deployment нужен distributed cache или pub/sub invalidation поверх той же модели.
+
 ## 2. RBAC (Role-Based Access Control)
 
 Доступ к каждому HTTP-эндпоинту закрыт разрешением (Permission String).

@@ -28,8 +28,10 @@ const (
 	CodeConcurrentModification = "CONCURRENT_MODIFICATION"
 
 	// Authorization errors (401, 403)
-	CodeUnauthorized = "UNAUTHORIZED"
-	CodeForbidden    = "FORBIDDEN"
+	CodeUnauthorized   = "UNAUTHORIZED"
+	CodeForbidden      = "FORBIDDEN"
+	CodeTokenStale     = "TOKEN_STALE"
+	CodeSessionRevoked = "SESSION_REVOKED"
 
 	// Not found (404)
 	CodeNotFound = "NOT_FOUND"
@@ -156,6 +158,24 @@ func NewUnauthorized(message string) *AppError {
 	return &AppError{
 		Code:       CodeUnauthorized,
 		Message:    message,
+		HTTPStatus: http.StatusUnauthorized,
+	}
+}
+
+// NewTokenStale creates an error for access tokens with stale auth epochs.
+func NewTokenStale() *AppError {
+	return &AppError{
+		Code:       CodeTokenStale,
+		Message:    "access token is stale",
+		HTTPStatus: http.StatusUnauthorized,
+	}
+}
+
+// NewSessionRevoked creates an error for revoked or expired auth sessions.
+func NewSessionRevoked() *AppError {
+	return &AppError{
+		Code:       CodeSessionRevoked,
+		Message:    "session revoked",
 		HTTPStatus: http.StatusUnauthorized,
 	}
 }

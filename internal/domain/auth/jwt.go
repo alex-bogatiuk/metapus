@@ -29,14 +29,17 @@ func DefaultJWTConfig(secret string) JWTConfig {
 // Claims represents JWT claims.
 type Claims struct {
 	jwt.RegisteredClaims
-	UserID      string   `json:"uid"`
-	TenantID    string   `json:"tid"`
-	Email       string   `json:"email"`
-	Roles       []string `json:"roles"`
-	Permissions []string `json:"perms,omitempty"`
-	IsAdmin     bool     `json:"adm,omitempty"`
-	MerchantIDs []string `json:"mids,omitempty"`
-	PortalRole  int      `json:"prl,omitempty"`
+	UserID          string   `json:"uid"`
+	TenantID        string   `json:"tid"`
+	SessionID       string   `json:"sid"`
+	UserAuthVersion int64    `json:"uv"`
+	PolicyVersion   int64    `json:"pv"`
+	Email           string   `json:"email"`
+	Roles           []string `json:"roles"`
+	Permissions     []string `json:"perms,omitempty"`
+	IsAdmin         bool     `json:"adm,omitempty"`
+	MerchantIDs     []string `json:"mids,omitempty"`
+	PortalRole      int      `json:"prl,omitempty"`
 }
 
 // JWTService handles JWT operations.
@@ -51,7 +54,8 @@ func NewJWTService(config JWTConfig) *JWTService {
 
 // GenerateAccessToken generates a new access token.
 func (s *JWTService) GenerateAccessToken(
-	userID, tenantID, email string,
+	userID, tenantID, sessionID, email string,
+	userAuthVersion, policyVersion int64,
 	roles, permissions []string,
 	isAdmin bool,
 	merchantIDs []string,
@@ -67,14 +71,17 @@ func (s *JWTService) GenerateAccessToken(
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 		},
-		UserID:      userID,
-		TenantID:    tenantID,
-		Email:       email,
-		Roles:       roles,
-		Permissions: permissions,
-		IsAdmin:     isAdmin,
-		MerchantIDs: merchantIDs,
-		PortalRole:  portalRole,
+		UserID:          userID,
+		TenantID:        tenantID,
+		SessionID:       sessionID,
+		UserAuthVersion: userAuthVersion,
+		PolicyVersion:   policyVersion,
+		Email:           email,
+		Roles:           roles,
+		Permissions:     permissions,
+		IsAdmin:         isAdmin,
+		MerchantIDs:     merchantIDs,
+		PortalRole:      portalRole,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -86,8 +93,8 @@ func (s *JWTService) GenerateAccessToken(
 	return tokenString, expiresAt, nil
 }
 
-// ValidateToken validates JWT and returns user context.
-func (s *JWTService) ValidateToken(tokenString string) (*appctx.UserContext, error) {
+// ParseClaims validates JWT cryptographically and returns its claims.
+func (s *JWTService) ParseClaims(tokenString string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -103,6 +110,21 @@ func (s *JWTService) ValidateToken(tokenString string) (*appctx.UserContext, err
 	if !ok || !token.Valid {
 		return nil, fmt.Errorf("invalid token claims")
 	}
+	if claims.Issuer != s.config.Issuer {
+		return nil, fmt.Errorf("invalid issuer")
+	}
+
+	return claims, nil
+}
+
+// ValidateToken validates JWT and returns user context without server-side revocation checks.
+// HTTP middleware must use AccessTokenValidator so logout and permission changes can
+// invalidate already-issued access tokens.
+func (s *JWTService) ValidateToken(tokenString string) (*appctx.UserContext, error) {
+	claims, err := s.ParseClaims(tokenString)
+	if err != nil {
+		return nil, err
+	}
 
 	return &appctx.UserContext{
 		UserID:      claims.UserID,
@@ -111,6 +133,7 @@ func (s *JWTService) ValidateToken(tokenString string) (*appctx.UserContext, err
 		Roles:       claims.Roles,
 		Permissions: claims.Permissions,
 		IsAdmin:     claims.IsAdmin,
+		SessionID:   claims.SessionID,
 		MerchantIDs: claims.MerchantIDs,
 		PortalRole:  claims.PortalRole,
 	}, nil

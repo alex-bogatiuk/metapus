@@ -32,6 +32,7 @@ type User struct {
 	LastLoginAt         *time.Time `db:"last_login_at" json:"lastLoginAt,omitempty"`
 	FailedLoginAttempts int        `db:"failed_login_attempts" json:"-"`
 	LockedUntil         *time.Time `db:"locked_until" json:"-"`
+	AuthVersion         int64      `db:"auth_version" json:"-"`
 
 	// Loaded relations
 	Roles       []Role   `db:"-" json:"roles,omitempty"`
@@ -171,6 +172,7 @@ type Permission struct {
 type RefreshToken struct {
 	ID            id.ID      `db:"id"`
 	UserID        id.ID      `db:"user_id"`
+	SessionID     id.ID      `db:"session_id"`
 	TokenHash     string     `db:"token_hash"`
 	ExpiresAt     time.Time  `db:"expires_at"`
 	CreatedAt     time.Time  `db:"created_at"`
@@ -186,6 +188,40 @@ func (t *RefreshToken) IsValid() bool {
 		return false
 	}
 	return time.Now().Before(t.ExpiresAt)
+}
+
+// AuthSession represents a server-side authentication session.
+type AuthSession struct {
+	ID              id.ID      `db:"id"`
+	UserID          id.ID      `db:"user_id"`
+	UserAuthVersion int64      `db:"user_auth_version"`
+	PolicyVersion   int64      `db:"policy_version"`
+	CreatedAt       time.Time  `db:"created_at"`
+	LastSeenAt      *time.Time `db:"last_seen_at"`
+	ExpiresAt       time.Time  `db:"expires_at"`
+	RevokedAt       *time.Time `db:"revoked_at"`
+	RevokedReason   *string    `db:"revoked_reason"`
+	UserAgent       string     `db:"user_agent"`
+	IPAddress       string     `db:"ip_address"`
+}
+
+// AuthSessionState is the server-side authority used to validate access JWTs.
+type AuthSessionState struct {
+	SessionID       id.ID
+	UserID          id.ID
+	UserAuthVersion int64
+	PolicyVersion   int64
+	UserActive      bool
+	ExpiresAt       time.Time
+	RevokedAt       *time.Time
+}
+
+// IsValid reports whether the session can authenticate an access token.
+func (s *AuthSessionState) IsValid() bool {
+	if s == nil || !s.UserActive || s.RevokedAt != nil {
+		return false
+	}
+	return time.Now().Before(s.ExpiresAt)
 }
 
 // TokenPair contains access and refresh tokens.

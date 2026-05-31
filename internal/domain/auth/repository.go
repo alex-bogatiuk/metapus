@@ -3,6 +3,7 @@ package auth
 
 import (
 	"context"
+	"time"
 
 	"metapus/internal/core/id"
 )
@@ -110,6 +111,33 @@ type TokenRepository interface {
 
 	// CleanupExpiredTokens removes expired tokens.
 	CleanupExpiredTokens(ctx context.Context) (int, error)
+}
+
+// AuthStateRepository defines server-side session and auth epoch operations.
+type AuthStateRepository interface {
+	// CreateSession creates a server-side auth session.
+	CreateSession(ctx context.Context, session *AuthSession) error
+
+	// GetSessionState retrieves the current server-side authority for a session.
+	GetSessionState(ctx context.Context, userID, sessionID id.ID) (*AuthSessionState, error)
+
+	// RevokeSession revokes a single auth session.
+	RevokeSession(ctx context.Context, sessionID id.ID, reason string) error
+
+	// RevokeAllUserSessions revokes all sessions for a user.
+	RevokeAllUserSessions(ctx context.Context, userID id.ID, reason string) error
+
+	// ExtendSession updates session expiry and last-seen metadata on refresh.
+	ExtendSession(ctx context.Context, sessionID id.ID, expiresAt time.Time, info SessionInfo) error
+
+	// BumpUserAuthVersion invalidates access tokens for one user.
+	BumpUserAuthVersion(ctx context.Context, userID id.ID) (int64, error)
+
+	// GetCurrentPolicyVersion returns the tenant-local RBAC policy epoch.
+	GetCurrentPolicyVersion(ctx context.Context) (int64, error)
+
+	// BumpPolicyVersion invalidates access tokens that carry the old RBAC policy epoch.
+	BumpPolicyVersion(ctx context.Context) (int64, error)
 }
 
 // UserFilter for listing users.

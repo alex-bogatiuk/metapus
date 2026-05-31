@@ -132,6 +132,9 @@ func main() {
 	roleRepo := auth_repo.NewRoleRepo()
 	permRepo := auth_repo.NewPermissionRepo()
 	tokenRepo := auth_repo.NewTokenRepo()
+	sessionRepo := auth_repo.NewSessionRepo()
+	authStateCache := auth.NewAuthStateCache(getEnvDuration("AUTH_STATE_CACHE_TTL", 5*time.Minute))
+	accessValidator := auth.NewAccessTokenValidator(jwtSvc, sessionRepo, authStateCache)
 
 	// MerchantUserRepo is needed by auth.Service to embed portal claims in JWT.
 	// Created early so it can be shared with RouterConfig below.
@@ -143,6 +146,8 @@ func main() {
 		roleRepo,
 		permRepo,
 		tokenRepo,
+		sessionRepo,
+		authStateCache,
 		merchantUserRepo,
 		nil, // TxManager will come from context
 		jwtSvc,
@@ -211,24 +216,24 @@ func main() {
 
 	// --- Router ---
 	router := v1.NewRouter(v1.RouterConfig{
-		TenantManager:          tenantManager,
-		MetaPool:               metaPool,
-		Logger:                 log,
-		JWTValidator:           jwtSvc,
-		AuthSvc:                authSvc,
-		Numerator:              numeratorSvc,
-		IdempotencyEnabled:     getEnv("IDEMPOTENCY_ENABLED", "false") == "true",
-		ProfileProvider:        profileProvider,
-		PolicyEngine:           policyEngine,
-		Registry:               factoryReg,
-		Version:                Version,
-		BuildTime:              BuildTime,
-		MigrationStateStore:    migrationStateStore,
-		WSTicketStore:          wsTicketStore,
-		MerchantAPIKeyRepo:     merchantAPIKeyRepo,
-		MerchantUserRepo:       merchantUserRepo,
-		MerchantInvoiceSvc: merchantInvoiceSvc,
-		PortalDashboardRepo:   portal_repo.NewDashboardRepo(),
+		TenantManager:       tenantManager,
+		MetaPool:            metaPool,
+		Logger:              log,
+		JWTValidator:        accessValidator,
+		AuthSvc:             authSvc,
+		Numerator:           numeratorSvc,
+		IdempotencyEnabled:  getEnv("IDEMPOTENCY_ENABLED", "false") == "true",
+		ProfileProvider:     profileProvider,
+		PolicyEngine:        policyEngine,
+		Registry:            factoryReg,
+		Version:             Version,
+		BuildTime:           BuildTime,
+		MigrationStateStore: migrationStateStore,
+		WSTicketStore:       wsTicketStore,
+		MerchantAPIKeyRepo:  merchantAPIKeyRepo,
+		MerchantUserRepo:    merchantUserRepo,
+		MerchantInvoiceSvc:  merchantInvoiceSvc,
+		PortalDashboardRepo: portal_repo.NewDashboardRepo(),
 	})
 
 	// --- HTTP Server ---

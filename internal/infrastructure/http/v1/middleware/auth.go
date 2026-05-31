@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"slices"
 	"strings"
 
@@ -13,7 +14,7 @@ import (
 
 // JWTValidator interface for token validation.
 type JWTValidator interface {
-	ValidateToken(tokenString string) (*appctx.UserContext, error)
+	ValidateToken(ctx context.Context, tokenString string) (*appctx.UserContext, error)
 }
 
 // Auth middleware validates JWT tokens and populates user context.
@@ -39,9 +40,13 @@ func Auth(validator JWTValidator) gin.HandlerFunc {
 		}
 
 		// Validate token
-		user, err := validator.ValidateToken(tokenString)
+		user, err := validator.ValidateToken(c.Request.Context(), tokenString)
 		if err != nil {
-			_ = c.Error(apperror.NewUnauthorized("invalid token"))
+			if appErr, ok := apperror.AsAppError(err); ok {
+				_ = c.Error(appErr)
+			} else {
+				_ = c.Error(apperror.NewUnauthorized("invalid token").WithCause(err))
+			}
 			c.Abort()
 			return
 		}
@@ -88,7 +93,7 @@ func OptionalAuth(validator JWTValidator) gin.HandlerFunc {
 			return
 		}
 
-		user, err := validator.ValidateToken(parts[1])
+		user, err := validator.ValidateToken(c.Request.Context(), parts[1])
 		if err == nil && user != nil {
 			// Optional tenant mismatch check (only if TenantDB already resolved tenant)
 			resolvedTenantID := tenant.GetTenantID(c.Request.Context())
