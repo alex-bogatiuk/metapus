@@ -141,14 +141,6 @@ func (s *Service) bumpUserAuthVersion(ctx context.Context, userID id.ID, reason 
 	return nil
 }
 
-func (s *Service) bumpPolicyVersion(ctx context.Context, reason string) error {
-	if err := s.bumpPolicyEpoch(ctx, reason); err != nil {
-		return err
-	}
-	s.invalidatePolicyCache(ctx)
-	return nil
-}
-
 func (s *Service) bumpPolicyEpoch(ctx context.Context, reason string) error {
 	if s.authStateRepo == nil {
 		return nil
