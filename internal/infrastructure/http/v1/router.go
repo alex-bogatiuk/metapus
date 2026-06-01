@@ -1031,9 +1031,10 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 			if cfg.MerchantAPIKeyRepo != nil {
 				keys := portalV1.Group("/api-keys")
 				{
+					keys.Use(middleware.RequirePortalRole(appctx.PortalRoleOwner))
 					keys.GET("", portalHandler.ListAPIKeys)
-					keys.POST("", middleware.RequirePortalRole(appctx.PortalRoleManager), portalHandler.CreateAPIKey)
-					keys.DELETE("/:keyId", middleware.RequirePortalRole(appctx.PortalRoleManager), portalHandler.RevokeAPIKey)
+					keys.POST("", portalHandler.CreateAPIKey)
+					keys.DELETE("/:keyId", portalHandler.RevokeAPIKey)
 				}
 			}
 

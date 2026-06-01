@@ -923,7 +923,7 @@ func (s *Service) generateTokenPair(ctx context.Context, user *User, info Sessio
 	// Load merchant associations for portal JWT claims.
 	// Best-effort: if merchantUserRepo is nil or query fails, skip portal claims.
 	var merchantIDs []string
-	var portalRole int
+	var merchantRoles map[string]int
 	if s.merchantUserRepo != nil {
 		assocs, err := s.merchantUserRepo.ListByUser(ctx, user.ID)
 		if err != nil {
@@ -931,19 +931,17 @@ func (s *Service) generateTokenPair(ctx context.Context, user *User, info Sessio
 				"user_id", user.ID, "error", err)
 		} else if len(assocs) > 0 {
 			merchantIDs = make([]string, 0, len(assocs))
+			merchantRoles = make(map[string]int, len(assocs))
 			for _, a := range assocs {
-				merchantIDs = append(merchantIDs, a.MerchantID.String())
-				// Highest privilege wins: lower int = higher access (Owner=1 < Manager=2 < Viewer=3)
-				if portalRole == 0 || int(a.Role) < portalRole {
-					portalRole = int(a.Role)
-				}
+				merchantID := a.MerchantID.String()
+				merchantIDs = append(merchantIDs, merchantID)
+				merchantRoles[merchantID] = int(a.Role)
 			}
 		}
 	}
 
 	// Set portal claims on user for DTO serialization.
 	user.MerchantIDs = merchantIDs
-	user.PortalRole = portalRole
 
 	userAuthVersion := normalizeAuthVersion(user.AuthVersion)
 	policyVersion, err := s.authStateRepo.GetCurrentPolicyVersion(ctx)
@@ -975,7 +973,7 @@ func (s *Service) generateTokenPair(ctx context.Context, user *User, info Sessio
 		user.ID.String(), tenantID, sessionID.String(), user.Email,
 		userAuthVersion, policyVersion,
 		roleCodes, user.Permissions, user.IsAdmin,
-		merchantIDs, portalRole,
+		merchantIDs, merchantRoles,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("generate access token: %w", err)

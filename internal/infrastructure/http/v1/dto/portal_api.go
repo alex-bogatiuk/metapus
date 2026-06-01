@@ -18,7 +18,7 @@ type PortalCurrencyItem struct {
 	Network       string `json:"network"`
 	Count         int    `json:"count"`
 	TotalMinor    string `json:"totalMinor"`
-	SharePct      string `json:"sharePct"`      // "41.27"
+	SharePct      string `json:"sharePct"` // "41.27"
 	DecimalPlaces int    `json:"decimalPlaces"`
 }
 
@@ -33,6 +33,7 @@ type PortalMerchantItem struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	Code string `json:"code"`
+	Role int    `json:"role"`
 }
 
 // PortalInvoiceItem represents an invoice in the portal invoice list.
@@ -55,8 +56,8 @@ type PortalInvoiceItem struct {
 	ConfirmedAt   *string `json:"confirmedAt,omitempty"`   // ISO 8601
 
 	// Invoice metadata
-	ExternalID    string  `json:"externalId,omitempty"`
-	CustomerEmail string  `json:"customerEmail,omitempty"`
+	ExternalID    string `json:"externalId,omitempty"`
+	CustomerEmail string `json:"customerEmail,omitempty"`
 }
 
 // PortalInvoiceListResponse wraps a paginated invoice list.
@@ -84,8 +85,8 @@ type CreatePaymentLinkRequest struct {
 	Amount      string `json:"amount"      binding:"required"`      // minor units as string
 	Description string `json:"description"`
 	Reusable    bool   `json:"reusable"`
-	MaxUses     int    `json:"maxUses"`     // 0 = unlimited (if reusable)
-	TTLMinutes  int    `json:"ttlMinutes"`  // 0 = use merchant default
+	MaxUses     int    `json:"maxUses"`    // 0 = unlimited (if reusable)
+	TTLMinutes  int    `json:"ttlMinutes"` // 0 = use merchant default
 }
 
 // PortalPaymentLinkItem represents a payment link in the list.
@@ -136,9 +137,9 @@ type UpdatePortalSettingsRequest struct {
 
 // PortalBalanceResponse contains merchant balance in reporting (base) currency.
 type PortalBalanceResponse struct {
-	TotalBase    string              `json:"totalBase"`    // total in base currency, e.g. "1234.56"
-	BaseCurrency string             `json:"baseCurrency"` // e.g. "USD"
-	RateSource   string             `json:"rateSource"`   // e.g. "coingecko"
+	TotalBase    string               `json:"totalBase"`    // total in base currency, e.g. "1234.56"
+	BaseCurrency string               `json:"baseCurrency"` // e.g. "USD"
+	RateSource   string               `json:"rateSource"`   // e.g. "coingecko"
 	ByToken      []PortalTokenBalance `json:"byToken"`
 }
 
@@ -147,35 +148,35 @@ type PortalTokenBalance struct {
 	TokenID      string `json:"tokenId"`
 	TokenSymbol  string `json:"tokenSymbol"`  // e.g. "USDT"
 	CurrencyCode string `json:"currencyCode"` // from Token→Currency, e.g. "USDT"
-	RawAmount    string `json:"rawAmount"`     // minor units as string
-	HumanAmount  string `json:"humanAmount"`   // human-readable, e.g. "100.50"
-	Rate         string `json:"rate"`          // exchange rate to base, e.g. "0.9997"
-	Multiplier   int    `json:"multiplier"`    // rate multiplier, e.g. 1
-	BaseAmount   string `json:"baseAmount"`    // fiat equivalent, e.g. "100.47"
-	HasRate      bool   `json:"hasRate"`       // false if no exchange rate found
+	RawAmount    string `json:"rawAmount"`    // minor units as string
+	HumanAmount  string `json:"humanAmount"`  // human-readable, e.g. "100.50"
+	Rate         string `json:"rate"`         // exchange rate to base, e.g. "0.9997"
+	Multiplier   int    `json:"multiplier"`   // rate multiplier, e.g. 1
+	BaseAmount   string `json:"baseAmount"`   // fiat equivalent, e.g. "100.47"
+	HasRate      bool   `json:"hasRate"`      // false if no exchange rate found
 }
 
 // ── Invoice Detail ─────────────────────────────────────────────────────
 
 // PortalInvoiceDetailResponse is the full invoice detail with timeline and webhook history.
 type PortalInvoiceDetailResponse struct {
-	PortalInvoiceItem                                    // embed list fields
-	WalletAddress     string                             `json:"walletAddress"`
-	ExpiresAt         string                             `json:"expiresAt"` // RFC3339
-	Description       string                             `json:"description,omitempty"`
-	OrderID           string                             `json:"orderId,omitempty"`
-	Timeline          []PortalTimelineEvent              `json:"timeline"`
-	WebhookDeliveries []PortalWebhookDeliveryItem        `json:"webhookDeliveries"`
+	PortalInvoiceItem                             // embed list fields
+	WalletAddress     string                      `json:"walletAddress"`
+	ExpiresAt         string                      `json:"expiresAt"` // RFC3339
+	Description       string                      `json:"description,omitempty"`
+	OrderID           string                      `json:"orderId,omitempty"`
+	Timeline          []PortalTimelineEvent       `json:"timeline"`
+	WebhookDeliveries []PortalWebhookDeliveryItem `json:"webhookDeliveries"`
 }
 
 // PortalTimelineEvent is a single FSM transition event in the invoice/payment lifecycle.
 type PortalTimelineEvent struct {
-	ID         string                       `json:"id"`
-	EventType  string                       `json:"eventType"`
-	FromStatus string                       `json:"fromStatus"`
-	ToStatus   string                       `json:"toStatus"`
-	Metadata   PortalTimelineEventMetadata  `json:"metadata"`
-	CreatedAt  string                       `json:"createdAt"`
+	ID         string                      `json:"id"`
+	EventType  string                      `json:"eventType"`
+	FromStatus string                      `json:"fromStatus"`
+	ToStatus   string                      `json:"toStatus"`
+	Metadata   PortalTimelineEventMetadata `json:"metadata"`
+	CreatedAt  string                      `json:"createdAt"`
 }
 
 // PortalTimelineEventMetadata contains blockchain-specific data for a timeline event.
@@ -245,13 +246,13 @@ type PortalWebhookSecretResponse struct {
 type PortalFeeItem struct {
 	TokenSymbol   string `json:"tokenSymbol"`
 	Network       string `json:"network"`
-	Direction     string `json:"direction"`     // "processing" | "withdrawal"
-	FixedFee      string `json:"fixedFee"`      // minor units as string
-	PercentBP     int    `json:"percentBp"`     // basis points [0..10000]
-	MinFee        string `json:"minFee"`        // minor units, "0" if no floor
-	MaxFee        string `json:"maxFee"`        // minor units, "0" if no cap
+	Direction     string `json:"direction"` // "processing" | "withdrawal"
+	FixedFee      string `json:"fixedFee"`  // minor units as string
+	PercentBP     int    `json:"percentBp"` // basis points [0..10000]
+	MinFee        string `json:"minFee"`    // minor units, "0" if no floor
+	MaxFee        string `json:"maxFee"`    // minor units, "0" if no cap
 	DecimalPlaces int    `json:"decimalPlaces"`
-	IsCustom      bool   `json:"isCustom"`      // true if merchant-specific override
+	IsCustom      bool   `json:"isCustom"` // true if merchant-specific override
 }
 
 // PortalFeeScheduleResponse wraps the fee schedule list.
@@ -300,7 +301,7 @@ type PortalDetailedBalanceResponse struct {
 
 // PortalTokenDetailed extends PortalTokenBalance with pending/available split.
 type PortalTokenDetailed struct {
-	PortalTokenBalance                        // embed existing fields
+	PortalTokenBalance        // embed existing fields
 	PendingRaw         string `json:"pendingRaw"`     // minor units
 	PendingHuman       string `json:"pendingHuman"`   // human-readable
 	AvailableRaw       string `json:"availableRaw"`   // minor units
@@ -335,9 +336,9 @@ type PortalWithdrawalAddressListResponse struct {
 
 // PortalCreateWithdrawalRequest is the portal form to request a withdrawal.
 type PortalCreateWithdrawalRequest struct {
-	TokenID    string `json:"tokenId" binding:"required"`
-	Amount     string `json:"amount" binding:"required"`    // human-readable
-	AddressID  string `json:"addressId" binding:"required"` // from whitelist
+	TokenID   string `json:"tokenId" binding:"required"`
+	Amount    string `json:"amount" binding:"required"`    // human-readable
+	AddressID string `json:"addressId" binding:"required"` // from whitelist
 }
 
 // PortalWithdrawalRequestItem represents a withdrawal request in the list.

@@ -30,6 +30,7 @@ export interface PortalMerchantItem {
   id: string
   name: string
   code: string
+  role: number
 }
 
 export interface PortalInvoiceItem {

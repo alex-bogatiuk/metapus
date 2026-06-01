@@ -42,6 +42,21 @@ Refresh tokens по-прежнему хранятся хэшированными
 
 Single-instance deployment использует in-memory cache. Для multi-instance deployment нужен distributed cache или pub/sub invalidation поверх той же модели.
 
+### 1.2 Роли мерчантов в портале
+
+Access token для портала хранит список доступных мерчантов в `mids` и роли по каждому мерчанту в `mrs` (`merchant_id -> role`, где `1=Owner`, `2=Manager`, `3=Viewer`). Агрегированная роль вида `portalRole`/`prl` не выпускается, потому что она не имеет корректного смысла при доступе к нескольким мерчантам. Middleware `MerchantPortal` строит scope из `mids/mrs`, а `RequirePortalRole` проверяет роль именно для `merchant_id` из текущего запроса.
+
+Для endpoint-ов, защищённых `RequirePortalRole`, `merchant_id` обязателен. Если `merchant_id` отсутствует, запрос отклоняется до handler-а; система не использует fallback вида "у пользователя есть нужная роль в каком-то другом мерчанте". Это инвариант для write/sensitive операций портала.
+
+Чувствительные действия в портале ограничены ролью в конкретном мерчанте:
+
+- API-ключи: только Owner.
+- Просмотр и ротация webhook-secret: только Owner.
+- Инвойсы, выводы, платёжные ссылки, тест webhook и редактируемые настройки: Manager или Owner.
+- Read-only данные портала остаются ограничены списком мерчантов из `mids`.
+
+При добавлении, удалении или изменении роли доступа к мерчанту увеличивается `users.auth_version`, поэтому старые токены с устаревшим `mrs` получают `TOKEN_STALE` и обновляются перед следующим portal-запросом.
+
 ## 2. RBAC (Role-Based Access Control)
 
 Доступ к каждому HTTP-эндпоинту закрыт разрешением (Permission String).

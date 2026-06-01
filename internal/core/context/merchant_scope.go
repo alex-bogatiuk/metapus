@@ -2,6 +2,7 @@ package context
 
 import (
 	"context"
+	"slices"
 
 	"metapus/internal/core/id"
 )
@@ -12,18 +13,18 @@ type MerchantPortalRole int
 
 const (
 	PortalRoleOwner   MerchantPortalRole = iota + 1 // full access + key management
-	PortalRoleManager                                // operations without settings
-	PortalRoleViewer                                 // read-only
+	PortalRoleManager                               // operations without settings
+	PortalRoleViewer                                // read-only
 )
 
-// MerchantScope holds the set of merchant IDs and the portal role
-// for the current request. Injected by MerchantPortal middleware.
+// MerchantScope holds merchant IDs and per-merchant roles for the current
+// request. Injected by MerchantPortal middleware.
 //
 // Architectural contract: every portal repository method MUST call
 // MustGetMerchantScope(ctx) and filter by scope.MerchantIDs.
 type MerchantScope struct {
 	MerchantIDs []id.ID
-	Role        MerchantPortalRole
+	Roles       map[id.ID]MerchantPortalRole
 }
 
 type _merchantScopeKey struct{}
@@ -48,4 +49,24 @@ func MustGetMerchantScope(ctx context.Context) MerchantScope {
 func GetMerchantScope(ctx context.Context) (MerchantScope, bool) {
 	v, ok := ctx.Value(_merchantScopeKey{}).(MerchantScope)
 	return v, ok && len(v.MerchantIDs) > 0
+}
+
+// RoleFor returns the user's role for a specific merchant in the current scope.
+func (s MerchantScope) RoleFor(merchantID id.ID) (MerchantPortalRole, bool) {
+	role, ok := s.Roles[merchantID]
+	if !ok || !role.IsValid() || !slices.Contains(s.MerchantIDs, merchantID) {
+		return 0, false
+	}
+	return role, true
+}
+
+// AllowsFor checks whether the user has at least min access for merchantID.
+func (s MerchantScope) AllowsFor(merchantID id.ID, min MerchantPortalRole) bool {
+	role, ok := s.RoleFor(merchantID)
+	return ok && role <= min
+}
+
+// IsValid reports whether role is a known portal role.
+func (r MerchantPortalRole) IsValid() bool {
+	return r >= PortalRoleOwner && r <= PortalRoleViewer
 }

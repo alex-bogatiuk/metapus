@@ -8,15 +8,15 @@ import (
 
 // UserContext contains authenticated user information.
 type UserContext struct {
-	UserID      string
-	TenantID    string
-	Email       string
-	Roles       []string
-	Permissions []string
-	IsAdmin     bool
-	SessionID   string
-	MerchantIDs []string // UUID strings; empty = no portal access
-	PortalRole  int      // 1=Owner 2=Manager 3=Viewer; 0=no access
+	UserID        string
+	TenantID      string
+	Email         string
+	Roles         []string
+	Permissions   []string
+	IsAdmin       bool
+	SessionID     string
+	MerchantIDs   []string       // UUID strings; empty = no portal access
+	MerchantRoles map[string]int // merchant UUID string -> 1=Owner 2=Manager 3=Viewer
 }
 
 type userContextKey struct{}

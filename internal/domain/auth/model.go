@@ -40,7 +40,6 @@ type User struct {
 
 	// Portal claims — transient, populated by auth.Service during token generation.
 	MerchantIDs []string `db:"-" json:"-"`
-	PortalRole  int      `db:"-" json:"-"`
 }
 
 // NewUser creates a new user.

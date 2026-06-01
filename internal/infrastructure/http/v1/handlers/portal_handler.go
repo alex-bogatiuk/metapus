@@ -477,7 +477,7 @@ func (h *PortalHandler) RevokeAPIKey(c *gin.Context) {
 
 // ListPaymentLinks handles GET /portal/v1/payment-links?merchant_id=...
 func (h *PortalHandler) ListPaymentLinks(c *gin.Context) {
-	mid, err := parseActiveMerchant(c)
+	mid, err := parseRequiredMerchant(c)
 	if err != nil {
 		_ = c.Error(err)
 		c.Abort()
@@ -493,7 +493,7 @@ func (h *PortalHandler) ListPaymentLinks(c *gin.Context) {
 		offset = 0
 	}
 
-	items, total, err := h.repo.ListPaymentLinks(c.Request.Context(), mid, limit, offset)
+	items, total, err := h.repo.ListPaymentLinks(c.Request.Context(), &mid, limit, offset)
 	if err != nil {
 		_ = c.Error(err)
 		c.Abort()

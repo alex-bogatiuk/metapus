@@ -58,7 +58,11 @@ interface NavItem {
   title: string
   href: string
   icon: React.ComponentType<{ className?: string }>
+  minRole?: number
 }
+
+const PORTAL_ROLE_OWNER = 1
+const PORTAL_ROLE_MANAGER = 2
 
 const mainItems: NavItem[] = [
   { title: "Дашборд", href: "/portal", icon: LayoutDashboard },
@@ -78,6 +82,21 @@ const settingsItems: NavItem[] = [
 ]
 
 // ── MerchantSwitcher (sidebar-07 TeamSwitcher pattern) ───────────────────
+
+function navMinRole(item: NavItem) {
+  if (item.minRole) return item.minRole
+  if (item.href === "/portal/developers/keys") return PORTAL_ROLE_OWNER
+  if (item.href === "/portal/developers/webhooks") return PORTAL_ROLE_MANAGER
+  if (item.href === "/portal/payment-links") return PORTAL_ROLE_MANAGER
+  return undefined
+}
+
+function filterNavItems(items: NavItem[], activeRole: number) {
+  return items.filter((item) => {
+    const minRole = navMinRole(item)
+    return !minRole || (activeRole > 0 && activeRole <= minRole)
+  })
+}
 
 function MerchantSwitcherSidebar() {
   const { activeMerchantId, merchants, setActiveMerchant } = usePortalStore()
@@ -263,6 +282,9 @@ function NavUser() {
 export function PortalShell({ children }: { children: React.ReactNode }) {
   // Load entity metadata for ReferenceField/ReferencePickerDialog
   const fetchMeta = useMetadataStore((s) => s.fetch)
+  const { activeMerchantId, merchants } = usePortalStore()
+  const activeMerchant = merchants.find((m) => m.id === activeMerchantId)
+  const activeRole = activeMerchant?.role ?? 0
   useEffect(() => { fetchMeta() }, [fetchMeta])
 
   return (
@@ -273,8 +295,8 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
         </SidebarHeader>
 
         <SidebarContent>
-          <NavSection items={mainItems} />
-          <NavSection items={developerItems} label="Разработчикам" />
+          <NavSection items={filterNavItems(mainItems, activeRole)} />
+          <NavSection items={filterNavItems(developerItems, activeRole)} label="Разработчикам" />
           <NavSection items={settingsItems} />
         </SidebarContent>
 

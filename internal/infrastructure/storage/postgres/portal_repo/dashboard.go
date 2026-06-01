@@ -28,21 +28,23 @@ func querier(ctx context.Context) postgres.Querier {
 	return postgres.MustGetTxManager(ctx).GetQuerier(ctx)
 }
 
-// ScopeIDs returns merchant IDs from context. If activeMerchantID is provided
-// and belongs to the scope, returns only that one ID; otherwise returns all.
+// ScopeIDs returns merchant IDs from context. If activeMerchantID is provided,
+// returns only that one ID when it belongs to the scope and no IDs otherwise.
+// If activeMerchantID is nil, returns all scoped merchant IDs.
 func (r *DashboardRepo) ScopeIDs(ctx context.Context, activeMerchantID *id.ID) []id.ID {
 	return scopeIDs(ctx, activeMerchantID)
 }
 
-// scopeIDs returns merchant IDs from context. If activeMerchantID is provided
-// and belongs to the scope, returns only that one ID; otherwise returns all.
+// scopeIDs returns merchant IDs from context. If activeMerchantID is provided,
+// returns only that one ID when it belongs to the scope and no IDs otherwise.
+// If activeMerchantID is nil, returns all scoped merchant IDs.
 func scopeIDs(ctx context.Context, activeMerchantID *id.ID) []id.ID {
 	scope := appctx.MustGetMerchantScope(ctx)
 	if activeMerchantID != nil {
 		if slices.Contains(scope.MerchantIDs, *activeMerchantID) {
 			return []id.ID{*activeMerchantID}
 		}
-		// activeMerchantID not in scope — fall through to all scope IDs
+		return []id.ID{}
 	}
 	// Defensive copy (invariant §2.13)
 	ids := make([]id.ID, len(scope.MerchantIDs))
@@ -218,6 +220,7 @@ func (r *DashboardRepo) ListMerchants(ctx context.Context) ([]dto.PortalMerchant
 			return nil, fmt.Errorf("portal merchants scan: %w", err)
 		}
 		item.ID = mid.String()
+		item.Role = int(scope.Roles[mid])
 		items = append(items, item)
 	}
 	return items, rows.Err()

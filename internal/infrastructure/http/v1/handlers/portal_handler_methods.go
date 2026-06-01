@@ -566,7 +566,7 @@ func (h *PortalHandler) CreateWithdrawalRequest(c *gin.Context) {
 // RejectWithdrawalRequest handles POST /portal/v1/withdrawal-requests/:id/reject?merchant_id=...
 // Creates storno (compensating) movements to restore merchant balance.
 func (h *PortalHandler) RejectWithdrawalRequest(c *gin.Context) {
-	mid, err := parseActiveMerchant(c)
+	mid, err := parseRequiredMerchant(c)
 	if err != nil {
 		_ = c.Error(err)
 		c.Abort()
@@ -587,7 +587,7 @@ func (h *PortalHandler) RejectWithdrawalRequest(c *gin.Context) {
 	_ = c.ShouldBindJSON(&body) // ignore error; reason is optional
 
 	ctx := c.Request.Context()
-	ids := h.repo.ScopeIDs(ctx, mid)
+	ids := h.repo.ScopeIDs(ctx, &mid)
 
 	// Execute storno inside a transaction:
 	//   1. Lock the request row (FOR UPDATE) to prevent concurrent rejection

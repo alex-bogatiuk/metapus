@@ -51,6 +51,12 @@ import type {
 import { EffectiveAccessDialog } from "@/components/settings/effective-access-dialog"
 import { useAuthStore } from "@/stores/useAuthStore"
 import { useRouter } from "next/navigation"
+import {
+  NO_SECURITY_PROFILE_VALUE,
+  parseSecurityProfileSelectValue,
+  securityProfileSelectValue,
+  syncSecurityProfileAssignment,
+} from "@/lib/security-profile-assignment"
 
 // ── Props ────────────────────────────────────────────────────────────────
 
@@ -78,7 +84,7 @@ export function UserSettingsSheet({ user, onClose }: UserSettingsSheetProps) {
 
   // Security profile state
   const [allProfiles, setAllProfiles] = useState<SecurityProfileResponse[]>([])
-  const [selectedProfileId, setSelectedProfileId] = useState("")
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
   const [profilesLoading, setProfilesLoading] = useState(false)
 
   // Block confirmation
@@ -97,7 +103,7 @@ export function UserSettingsSheet({ user, onClose }: UserSettingsSheetProps) {
     setLastName(user.lastName ?? "")
     setIsAdmin(user.isAdmin)
     setSelectedRoleCodes(new Set(user.roles?.map((r) => r.code) ?? []))
-    setSelectedProfileId(user.securityProfile?.id ?? "")
+    setSelectedProfileId(user.securityProfile?.id ?? null)
   }, [user])
 
   // Load roles and profiles
@@ -145,15 +151,13 @@ export function UserSettingsSheet({ user, onClose }: UserSettingsSheetProps) {
       }
 
       // 3. Sync security profile
-      const currentProfileId = user.securityProfile?.id ?? ""
-      if (selectedProfileId !== currentProfileId) {
-        if (currentProfileId) {
-          await api.security.profiles.removeUser(currentProfileId, user.id)
-        }
-        if (selectedProfileId) {
-          await api.security.profiles.assignUser(selectedProfileId, user.id)
-        }
-      }
+      await syncSecurityProfileAssignment({
+        userId: user.id,
+        currentProfileId: user.securityProfile?.id ?? null,
+        nextProfileId: selectedProfileId,
+        assignUser: api.security.profiles.assignUser,
+        removeUser: api.security.profiles.removeUser,
+      })
 
       toast.success("Настройки пользователя сохранены")
       onClose(true)
@@ -291,12 +295,15 @@ export function UserSettingsSheet({ user, onClose }: UserSettingsSheetProps) {
                     Загрузка профилей...
                   </div>
                 ) : (
-                  <Select value={selectedProfileId} onValueChange={setSelectedProfileId}>
+                  <Select
+                    value={securityProfileSelectValue(selectedProfileId)}
+                    onValueChange={(value) => setSelectedProfileId(parseSecurityProfileSelectValue(value))}
+                  >
                     <SelectTrigger className="h-9 text-sm">
                       <SelectValue placeholder="Без профиля" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Без профиля</SelectItem>
+                      <SelectItem value={NO_SECURITY_PROFILE_VALUE}>Без профиля</SelectItem>
                       {allProfiles.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
                           <div className="flex items-center gap-2">

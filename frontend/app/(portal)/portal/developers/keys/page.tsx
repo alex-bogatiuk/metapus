@@ -51,9 +51,15 @@ const AVAILABLE_SCOPES: { value: APIKeyScope; label: string }[] = [
 ]
 
 type KeyFilter = "all" | "active" | "revoked"
+const PORTAL_ROLE_OWNER = 1
 
 export default function APIKeysPage() {
-  const activeMerchantId = usePortalStore((s) => s.activeMerchantId)
+  const { activeMerchantId, merchants } = usePortalStore()
+  const activeMerchant = useMemo(
+    () => merchants.find((m) => m.id === activeMerchantId),
+    [activeMerchantId, merchants]
+  )
+  const canManageKeys = activeMerchant?.role === PORTAL_ROLE_OWNER
   const [keys, setKeys] = useState<MerchantAPIKeyListItem[]>([])
   const [filter, setFilter] = useState<KeyFilter>("all")
   const [loading, setLoading] = useState(true)
@@ -82,7 +88,11 @@ export default function APIKeysPage() {
   }, [filter, keys])
 
   const fetchKeys = useCallback(async () => {
-    if (!activeMerchantId) return
+    if (!activeMerchantId || !canManageKeys) {
+      setKeys([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const data = await api.portal.apiKeys.list(activeMerchantId)
@@ -92,12 +102,12 @@ export default function APIKeysPage() {
     } finally {
       setLoading(false)
     }
-  }, [activeMerchantId])
+  }, [activeMerchantId, canManageKeys])
 
   useEffect(() => { fetchKeys() }, [fetchKeys])
 
   const handleCreate = async () => {
-    if (!activeMerchantId || !newKeyName.trim()) return
+    if (!activeMerchantId || !canManageKeys || !newKeyName.trim()) return
     setCreating(true)
     try {
       const resp = await api.portal.apiKeys.create(activeMerchantId, {
@@ -118,7 +128,7 @@ export default function APIKeysPage() {
   }
 
   const handleRevoke = async (keyId: string) => {
-    if (!activeMerchantId) return
+    if (!activeMerchantId || !canManageKeys) return
     try {
       await api.portal.apiKeys.revoke(activeMerchantId, keyId)
       await fetchKeys()
@@ -139,6 +149,15 @@ export default function APIKeysPage() {
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
         <KeyRound className="size-10 mb-3 opacity-40" />
         <p>Выберите мерчанта для управления API-ключами</p>
+      </div>
+    )
+  }
+
+  if (!canManageKeys) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+        <ShieldAlert className="size-10 mb-3 opacity-40" />
+        <p>API-РєР»СЋС‡Рё РґРѕСЃС‚СѓРїРЅС‹ С‚РѕР»СЊРєРѕ РІР»Р°РґРµР»СЊС†Сѓ РјРµСЂС‡Р°РЅС‚Р°</p>
       </div>
     )
   }

@@ -64,6 +64,14 @@ import type {
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1"
 const PORTAL_BASE = API_BASE.replace(/\/api\/v1$/, "/portal/v1")
 const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? ""
+const UUID_PATH_PARAM_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function assertUuidPathParam(value: string, name: string): string {
+    if (!UUID_PATH_PARAM_RE.test(value)) {
+        throw new Error(`${name} must be a UUID`)
+    }
+    return value
+}
 
 // ── Generic fetcher ─────────────────────────────────────────────────────
 
@@ -1105,15 +1113,21 @@ export const api = {
                 apiFetch<void>(`/security/profiles/${id}`, { method: "DELETE" }),
             listUsers: (profileId: string) =>
                 apiFetch<{ items: import("@/types/security").ProfileUserItem[] }>(`/security/profiles/${profileId}/users`),
-            assignUser: (profileId: string, userId: string) =>
-                apiFetch<void>(`/security/profiles/${profileId}/users`, {
+            assignUser: (profileId: string, userId: string) => {
+                const safeProfileId = assertUuidPathParam(profileId, "profileId")
+                const safeUserId = assertUuidPathParam(userId, "userId")
+                return apiFetch<void>(`/security/profiles/${safeProfileId}/users`, {
                     method: "POST",
-                    body: JSON.stringify({ userId }),
-                }),
-            removeUser: (profileId: string, userId: string) =>
-                apiFetch<void>(`/security/profiles/${profileId}/users/${userId}`, {
+                    body: JSON.stringify({ userId: safeUserId }),
+                })
+            },
+            removeUser: (profileId: string, userId: string) => {
+                const safeProfileId = assertUuidPathParam(profileId, "profileId")
+                const safeUserId = assertUuidPathParam(userId, "userId")
+                return apiFetch<void>(`/security/profiles/${safeProfileId}/users/${safeUserId}`, {
                     method: "DELETE",
-                }),
+                })
+            },
             auditHistory: (profileId: string, limit?: number) =>
                 apiFetch<{ items: import("@/types/security").AuditEntryResponse[] }>(
                     `/security/profiles/${profileId}/audit${limit ? `?limit=${limit}` : ""}`

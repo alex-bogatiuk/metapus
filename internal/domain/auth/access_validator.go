@@ -186,14 +186,14 @@ func (v *AccessTokenValidator) ValidateToken(ctx context.Context, tokenString st
 	}
 
 	return &appctx.UserContext{
-		UserID:      claims.UserID,
-		TenantID:    claims.TenantID,
-		Email:       claims.Email,
-		Roles:       claims.Roles,
-		Permissions: claims.Permissions,
-		IsAdmin:     claims.IsAdmin,
-		SessionID:   claims.SessionID,
-		MerchantIDs: claims.MerchantIDs,
-		PortalRole:  claims.PortalRole,
+		UserID:        claims.UserID,
+		TenantID:      claims.TenantID,
+		Email:         claims.Email,
+		Roles:         claims.Roles,
+		Permissions:   claims.Permissions,
+		IsAdmin:       claims.IsAdmin,
+		SessionID:     claims.SessionID,
+		MerchantIDs:   claims.MerchantIDs,
+		MerchantRoles: claims.MerchantRoles,
 	}, nil
 }

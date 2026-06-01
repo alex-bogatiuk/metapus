@@ -29,17 +29,17 @@ func DefaultJWTConfig(secret string) JWTConfig {
 // Claims represents JWT claims.
 type Claims struct {
 	jwt.RegisteredClaims
-	UserID          string   `json:"uid"`
-	TenantID        string   `json:"tid"`
-	SessionID       string   `json:"sid"`
-	UserAuthVersion int64    `json:"uv"`
-	PolicyVersion   int64    `json:"pv"`
-	Email           string   `json:"email"`
-	Roles           []string `json:"roles"`
-	Permissions     []string `json:"perms,omitempty"`
-	IsAdmin         bool     `json:"adm,omitempty"`
-	MerchantIDs     []string `json:"mids,omitempty"`
-	PortalRole      int      `json:"prl,omitempty"`
+	UserID          string         `json:"uid"`
+	TenantID        string         `json:"tid"`
+	SessionID       string         `json:"sid"`
+	UserAuthVersion int64          `json:"uv"`
+	PolicyVersion   int64          `json:"pv"`
+	Email           string         `json:"email"`
+	Roles           []string       `json:"roles"`
+	Permissions     []string       `json:"perms,omitempty"`
+	IsAdmin         bool           `json:"adm,omitempty"`
+	MerchantIDs     []string       `json:"mids,omitempty"`
+	MerchantRoles   map[string]int `json:"mrs,omitempty"`
 }
 
 // JWTService handles JWT operations.
@@ -59,7 +59,7 @@ func (s *JWTService) GenerateAccessToken(
 	roles, permissions []string,
 	isAdmin bool,
 	merchantIDs []string,
-	portalRole int,
+	merchantRoles map[string]int,
 ) (string, time.Time, error) {
 	now := time.Now()
 	expiresAt := now.Add(s.config.AccessTokenTTL)
@@ -81,7 +81,7 @@ func (s *JWTService) GenerateAccessToken(
 		Permissions:     permissions,
 		IsAdmin:         isAdmin,
 		MerchantIDs:     merchantIDs,
-		PortalRole:      portalRole,
+		MerchantRoles:   merchantRoles,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -127,14 +127,14 @@ func (s *JWTService) ValidateToken(tokenString string) (*appctx.UserContext, err
 	}
 
 	return &appctx.UserContext{
-		UserID:      claims.UserID,
-		TenantID:    claims.TenantID,
-		Email:       claims.Email,
-		Roles:       claims.Roles,
-		Permissions: claims.Permissions,
-		IsAdmin:     claims.IsAdmin,
-		SessionID:   claims.SessionID,
-		MerchantIDs: claims.MerchantIDs,
-		PortalRole:  claims.PortalRole,
+		UserID:        claims.UserID,
+		TenantID:      claims.TenantID,
+		Email:         claims.Email,
+		Roles:         claims.Roles,
+		Permissions:   claims.Permissions,
+		IsAdmin:       claims.IsAdmin,
+		SessionID:     claims.SessionID,
+		MerchantIDs:   claims.MerchantIDs,
+		MerchantRoles: claims.MerchantRoles,
 	}, nil
 }
