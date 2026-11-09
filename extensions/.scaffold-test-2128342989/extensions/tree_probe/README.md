@@ -1,0 +1,13 @@
+# TreeProbe
+
+1. Add the import `metapus/extensions/tree_probe` and `tree_probe.Register(reg)` to `extensions/register.go`.
+   The server and `go run ./cmd/http-contracts` read this same module list.
+2. Run `go run ./cmd/http-contracts` and `go run ./cmd/http-contracts -check`.
+3. Apply extension migrations through the tenant migration command. New permissions are assigned to the admin role; assign other roles explicitly.
+4. Customize the writable Fields DTO, response projection, model and SQL together; localize presentation labels.
+5. Check `go build ./extensions/...`, tests and the generic list/form in the frontend.
+
+Identity, table, route and hierarchy come from Definition. Do not add a second hierarchy flag.
+Update requires version. Server fields are excluded from the writable projection.
+Before and Transaction hooks run in the mutation transaction. After hooks run only after the outer commit.
+
