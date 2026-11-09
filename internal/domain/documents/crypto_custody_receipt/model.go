@@ -18,6 +18,7 @@ const (
 	ReasonBeforeLease  Reason = "timestamp_before_lease"
 	ReasonRetired      Reason = "retired_deposit_address"
 	ReasonAdditional   Reason = "additional_single_payment"
+	ReasonOverlapping  Reason = "overlapping_windows"
 	ReasonDust         Reason = "dust"
 	ReasonTreasury     Reason = "treasury_unidentified"
 	ReasonMatched      Reason = "matched_receipt"
@@ -26,7 +27,7 @@ const (
 func (r Reason) Valid() bool {
 	switch r {
 	case ReasonNoAllocation, ReasonWrongToken, ReasonBeforeLease, ReasonRetired,
-		ReasonAdditional, ReasonDust, ReasonTreasury, ReasonMatched:
+		ReasonAdditional, ReasonOverlapping, ReasonDust, ReasonTreasury, ReasonMatched:
 		return true
 	default:
 		return false

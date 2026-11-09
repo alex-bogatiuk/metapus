@@ -191,6 +191,7 @@ type InboundChainEvent struct {
 	InvoiceID      *id.ID             `db:"invoice_id" json:"invoiceId,omitempty"`
 	PaymentID      *id.ID             `db:"payment_id" json:"paymentId,omitempty"`
 	AllocationID   *id.ID             `db:"allocation_id" json:"allocationId,omitempty"`
+	ReceiptID      *id.ID             `db:"receipt_id" json:"receiptId,omitempty"`
 	Details        json.RawMessage    `db:"details" json:"details"`
 	RetryCount     int                `db:"retry_count" json:"retryCount"`
 	NextRetryAt    *time.Time         `db:"next_retry_at" json:"nextRetryAt,omitempty"`

@@ -312,6 +312,11 @@ func (p *EventProcessor) processEventInTx(ctx context.Context, event BlockchainE
 	if err != nil {
 		return err
 	}
+	if inboxRow != nil && inboxRow.ReceiptID != nil {
+		// The final transfer is already accounted as a custody receipt; any
+		// further economic decision is a separate attribution, not a payment.
+		return nil
+	}
 
 	if event.EventType != EventTypeReorg && !event.Amount.IsPositive() {
 		return p.markInboxRowTerminal(ctx, inboxRow, InboxUnmatched, MatchReasonNonPositive, nil)

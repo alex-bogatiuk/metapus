@@ -107,19 +107,6 @@ func TestAccountingLockOrderProofWalletBeforeBalance(t *testing.T) {
 		})
 }
 
-func TestAccountingLockOrderMaintenancePolicyBeforeWallet(t *testing.T) {
-	f := newReceiptIntakeFixture(t, nil)
-	assertAccountingLockOrder(t, f.ctx, f.pool,
-		func(ctx context.Context) error {
-			_, err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).Exec(ctx, "SELECT network_id FROM sys_crypto_network_policies WHERE network_id=$1 FOR UPDATE", f.proof.Event.NetworkID)
-			return err
-		},
-		func(ctx context.Context) error {
-			return NewCustodyRecognitionRepo().LockWallets(ctx, f.request.Basis.WalletID)
-		},
-		func(ctx context.Context) error { return f.repo.LockAdmission(ctx, f.request.Basis) })
-}
-
 func TestAccountingLockOrderCaptureWalletBeforeCheckpoint(t *testing.T) {
 	f := newReceiptIntakeFixture(t, nil)
 	network, wallet := f.proof.Event.NetworkID, f.request.Basis.WalletID

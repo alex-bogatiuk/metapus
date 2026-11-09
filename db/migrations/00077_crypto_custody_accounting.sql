@@ -3475,6 +3475,16 @@ CREATE INDEX idx_crypto_custody_receipts_owner ON doc_crypto_custody_receipts(cu
 
 CREATE INDEX idx_crypto_custody_receipts_txid ON doc_crypto_custody_receipts(_txid);
 
+-- A final unmatched transfer is accounted once as a custody receipt. The inbox
+-- row keeps the link and the schedule of independent-proof attempts.
+ALTER TABLE reg_crypto_inbound_chain_events
+    ADD COLUMN receipt_id UUID UNIQUE REFERENCES doc_crypto_custody_receipts(id),
+    ADD COLUMN receipt_check_at TIMESTAMPTZ,
+    ADD COLUMN receipt_attempts INT NOT NULL DEFAULT 0 CHECK(receipt_attempts>=0),
+    ADD COLUMN receipt_error TEXT NOT NULL DEFAULT '';
+CREATE INDEX idx_crypto_inbound_receipt_candidates ON reg_crypto_inbound_chain_events(receipt_check_at NULLS FIRST,created_at,id)
+    WHERE receipt_id IS NULL AND match_status IN ('unmatched','needs_review') AND wallet_id IS NOT NULL AND token_id IS NOT NULL AND _deleted_at IS NULL;
+
 CREATE TABLE reg_crypto_receipt_suspense_movements (
     line_id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
     recorder_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
@@ -4287,7 +4297,7 @@ CREATE CONSTRAINT TRIGGER trg_crypto_custody_decision_complete AFTER INSERT OR U
 
 -- +goose Down
 -- +goose StatementBegin
--- ==== crypto_external_outflow_decisions ====
+ALTER TABLE reg_crypto_inbound_chain_events DROP COLUMN receipt_error, DROP COLUMN receipt_attempts, DROP COLUMN receipt_check_at, DROP COLUMN receipt_id;-- ==== crypto_external_outflow_decisions ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM reg_crypto_external_outflows WHERE classification_basis IS NOT NULL OR resolution_basis IS NOT NULL)

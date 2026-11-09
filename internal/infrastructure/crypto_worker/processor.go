@@ -155,6 +155,7 @@ type CryptoProcessor struct {
 	authorizations          *SigningAuthorizationService
 	workerID                string
 	balanceReconciler       *cryptoapp.BalanceReconciliationService
+	receipts                *receiptIntake
 
 	// Observability
 	recorder *workerjob.Recorder
@@ -356,6 +357,7 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 		approvalRepo:         money_movement_repo.New(),
 		walletPoolRepo:       walletPoolRepo,
 		eventProcessor:       ep,
+		receipts:             newReceiptIntake(postingEngine, num),
 		walletSvc:            walletSvc,
 		sweepResolver:        sweepResolver,
 		postingEngine:        postingEngine,
@@ -526,6 +528,10 @@ func (p *CryptoProcessor) Start(ctx context.Context) error {
 	})
 	consumerWg.Go(func() {
 		p.runCanonicalityAuditLoop(ctx)
+	})
+	// Account final unmatched incoming transfers as custody receipts.
+	consumerWg.Go(func() {
+		p.runReceiptIntakeLoop(ctx)
 	})
 
 	// Start sweep evaluation loop (checks accumulated balances against thresholds)
