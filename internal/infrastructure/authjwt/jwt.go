@@ -1,0 +1,135 @@
+// Package auth provides authentication and authorization domain logic.
+package authjwt
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+
+	appctx "metapus/internal/core/context"
+	"metapus/internal/domain/auth"
+)
+
+// JWTConfig holds JWT configuration.
+type JWTConfig struct {
+	Secret         string
+	Issuer         string
+	AccessTokenTTL time.Duration
+}
+
+// DefaultJWTConfig returns default JWT configuration.
+func DefaultJWTConfig(secret string) JWTConfig {
+	return JWTConfig{
+		Secret:         secret,
+		Issuer:         "metapus",
+		AccessTokenTTL: 15 * time.Minute,
+	}
+}
+
+type wireClaims struct {
+	jwt.RegisteredClaims
+	auth.Claims
+}
+
+// JWTService handles JWT operations.
+type JWTService struct {
+	config JWTConfig
+}
+
+// NewJWTService creates a new JWT service.
+func NewJWTService(config JWTConfig) *JWTService {
+	return &JWTService{config: config}
+}
+
+// GenerateAccessToken generates a new access token.
+func (s *JWTService) GenerateAccessToken(
+	userID, tenantID, sessionID, email string,
+	userAuthVersion, policyVersion int64,
+	roles, permissions []string,
+	isAdmin bool,
+	merchantIDs []string,
+	merchantRoles map[string]int,
+) (string, time.Time, error) {
+	now := time.Now()
+	expiresAt := now.Add(s.config.AccessTokenTTL)
+
+	claims := wireClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    s.config.Issuer,
+			Subject:   userID,
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+		},
+		Claims: auth.Claims{
+			UserID:          userID,
+			TenantID:        tenantID,
+			SessionID:       sessionID,
+			UserAuthVersion: userAuthVersion,
+			PolicyVersion:   policyVersion,
+			Email:           email,
+			Roles:           roles,
+			Permissions:     permissions,
+			IsAdmin:         isAdmin,
+			MerchantIDs:     merchantIDs,
+			MerchantRoles:   merchantRoles,
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(s.config.Secret))
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("sign token: %w", err)
+	}
+
+	return tokenString, expiresAt, nil
+}
+
+// ParseClaims validates JWT cryptographically and returns its claims.
+func (s *JWTService) ParseClaims(tokenString string) (*auth.Claims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &wireClaims{}, func(token *jwt.Token) (any, error) {
+		if token.Method != jwt.SigningMethodHS256 {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(s.config.Secret), nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("parse token: %w", err)
+	}
+
+	claims, ok := token.Claims.(*wireClaims)
+	if !ok || !token.Valid {
+		return nil, fmt.Errorf("invalid token claims")
+	}
+	if claims.Issuer != s.config.Issuer {
+		return nil, fmt.Errorf("invalid issuer")
+	}
+
+	return &claims.Claims, nil
+}
+
+// ValidateToken validates JWT and returns user context without server-side revocation checks.
+// HTTP middleware must use AccessTokenValidator so logout and permission changes can
+// invalidate already-issued access tokens.
+func (s *JWTService) ValidateToken(tokenString string) (*appctx.UserContext, error) {
+	claims, err := s.ParseClaims(tokenString)
+	if err != nil {
+		return nil, err
+	}
+
+	return &appctx.UserContext{
+		UserID:        claims.UserID,
+		TenantID:      claims.TenantID,
+		Email:         claims.Email,
+		Roles:         claims.Roles,
+		Permissions:   claims.Permissions,
+		IsAdmin:       claims.IsAdmin,
+		SessionID:     claims.SessionID,
+		MFAVerifiedAt: nil,
+		MFAMethod:     "",
+		MFAPending:    false,
+		MerchantIDs:   claims.MerchantIDs,
+		MerchantRoles: claims.MerchantRoles,
+	}, nil
+}

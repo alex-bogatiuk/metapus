@@ -1,0 +1,76 @@
+package crypto_network_operation
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"metapus/internal/core/entity"
+	"metapus/internal/core/id"
+	"metapus/internal/core/types"
+
+	"github.com/stretchr/testify/require"
+)
+
+func finalActivation(cost types.CryptoAmount) *CryptoNetworkOperation {
+	doc := NewWalletActivation(id.New(), id.New(), id.New(), id.New(), id.New(), "TTarget", "0xtx")
+	doc.CostAmount = cost
+	doc.Status = StatusSucceeded
+	settlementID := id.New()
+	now := time.Now().UTC()
+	doc.ChainSettlementID = &settlementID
+	doc.FinalizedAt = &now
+	return doc
+}
+
+func TestWalletActivationGeneratesBothExpenses(t *testing.T) {
+	doc := finalActivation(types.NewCryptoAmountFromInt64(1250))
+	require.Equal(t, ActivationTaskBasisType, doc.BasisType)
+	require.NotNil(t, doc.BasisID)
+
+	balance, err := doc.GenerateCryptoBalanceMovements(context.Background())
+	require.NoError(t, err)
+	require.Len(t, balance, 1)
+	require.Equal(t, entity.RecordTypeExpense, balance[0].RecordType)
+	require.Equal(t, doc.SourceWalletID, balance[0].WalletID)
+	require.Equal(t, doc.CostAmount, balance[0].Amount)
+
+	costs, err := doc.GenerateCryptoPlatformCostMovements(context.Background())
+	require.NoError(t, err)
+	require.Len(t, costs, 1)
+	require.Equal(t, entity.PlatformCostTypeChainNetworkFee, costs[0].CostType)
+	require.Equal(t, entity.PlatformCostPurposeActivation, costs[0].Purpose)
+	require.Equal(t, "chain", costs[0].Provider)
+	require.Equal(t, doc.TxHash, costs[0].ExternalOrderID)
+}
+
+func TestWalletActivationRequiresTechnicalTaskBasis(t *testing.T) {
+	doc := finalActivation(types.NewCryptoAmountFromInt64(10))
+	doc.BasisType = "LegacyActivationDocument"
+
+	require.Error(t, doc.Validate(context.Background()))
+	require.Error(t, doc.CanPost(context.Background()))
+}
+
+func TestWalletActivationZeroCostHasNoMovementsButCanPost(t *testing.T) {
+	doc := finalActivation(types.ZeroCryptoAmount())
+
+	balance, err := doc.GenerateCryptoBalanceMovements(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, balance)
+	costs, err := doc.GenerateCryptoPlatformCostMovements(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, costs)
+	require.NoError(t, doc.CanPost(context.Background()))
+}
+
+func TestUnknownOperationCannotValidateOrGenerateMovements(t *testing.T) {
+	doc := finalActivation(types.NewCryptoAmountFromInt64(10))
+	doc.OperationType = OperationType("future_operation")
+
+	require.Error(t, doc.Validate(context.Background()))
+	_, err := doc.GenerateCryptoBalanceMovements(context.Background())
+	require.Error(t, err)
+	_, err = doc.GenerateCryptoPlatformCostMovements(context.Background())
+	require.Error(t, err)
+}

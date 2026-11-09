@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Payment — Metapus</title>
+    <script>
+        (function() {
+            try {
+                var storedTheme = localStorage.getItem('metapus-checkout-theme');
+                var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                var useDarkTheme = storedTheme ? storedTheme === 'dark' : prefersDark;
+                document.documentElement.classList.toggle('dark', useDarkTheme);
+                document.documentElement.style.colorScheme = useDarkTheme ? 'dark' : 'light';
+            } catch (_) {
+                document.documentElement.classList.toggle(
+                    'dark',
+                    window.matchMedia('(prefers-color-scheme: dark)').matches
+                );
+            }
+        })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* ── shadcn/ui semantic design tokens ─────────────────────── */
+        :root {
+            color-scheme: light;
+            --background: 0 0% 96.1%;
+            --foreground: 0 0% 3.9%;
+            --card: 0 0% 100%;
+            --card-foreground: 0 0% 3.9%;
+            --popover: 0 0% 100%;
+            --popover-foreground: 0 0% 3.9%;
+            --primary: 0 0% 9%;
+            --primary-foreground: 0 0% 98%;
+            --secondary: 0 0% 96.1%;
+            --secondary-foreground: 0 0% 9%;
+            --muted: 0 0% 96.1%;
+            --muted-foreground: 0 0% 45.1%;
+            --accent: 0 0% 93.5%;
+            --accent-foreground: 0 0% 9%;
+            --destructive: 0 72.2% 50.6%;
+            --destructive-foreground: 0 0% 98%;
+            --border: 0 0% 89.8%;
+            --input: 0 0% 89.8%;
+            --ring: 0 0% 45.1%;
+            --success: 142 71% 35%;
+            --success-foreground: 142 76% 24%;
+            --warning: 38 92% 50%;
+            --warning-foreground: 32 95% 24%;
+            --info: 221 83% 53%;
+            --info-foreground: 221 83% 42%;
+            --overpaid: 25 95% 53%;
+            --overpaid-foreground: 24 90% 35%;
+            --qr-frame-border: 0 0% 82.7%;
+            --qr-frame-border-opacity: 1;
+            --card-shadow-filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .04)) drop-shadow(0 10px 32px rgba(0, 0, 0, .06));
+            --radius: 0.625rem;
+            --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+            --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+        }
+
+        :root.dark {
+            color-scheme: dark;
+            --background: 0 0% 3.9%; /* #0a0a0a */
+            --foreground: 0 0% 98%;
+            --card: 0 0% 9%; /* #171717 */
+            --card-foreground: 0 0% 98%;
+            --popover: 0 0% 9%;
+            --popover-foreground: 0 0% 98%;
+            --primary: 0 0% 98%;
+            --primary-foreground: 0 0% 9%;
+            --secondary: 0 0% 14.9%;
+            --secondary-foreground: 0 0% 98%;
+            --muted: 0 0% 14.9%;
+            --muted-foreground: 0 0% 63.9%;
+            --accent: 0 0% 18%;
+            --accent-foreground: 0 0% 98%;
+            --destructive: 0 62.8% 45%;
+            --destructive-foreground: 0 0% 98%;
+            --border: 0 0% 20%;
+            --input: 0 0% 20%;
+            --ring: 0 0% 63.9%;
+            --success: 142 70% 45%;
+            --success-foreground: 142 70% 65%;
+            --warning: 38 92% 50%;
+            --warning-foreground: 48 96% 70%;
+            --info: 217 91% 60%;
+            --info-foreground: 213 94% 75%;
+            --overpaid: 25 95% 53%;
+            --overpaid-foreground: 27 96% 72%;
+            --qr-frame-border: 0 0% 100%;
+            --qr-frame-border-opacity: 0;
+            --card-shadow-filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .35)) drop-shadow(0 18px 48px rgba(0, 0, 0, .24));
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-sans);
+            background: hsl(var(--background));
+            color: hsl(var(--foreground));
+            min-height: 100svh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            -webkit-font-smoothing: antialiased;
+            transition: background-color .2s ease, color .2s ease;
+        }
+
+        /* ── Page toolbar ──────────────────────────────────────────── */
+        .page-toolbar {
+            position: fixed;
+            top: max(1rem, env(safe-area-inset-top));
+            right: max(1rem, env(safe-area-inset-right));
+        }
+        .theme-toggle {
+            width: 2.25rem;
+            height: 2.25rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid hsl(var(--border));
+            border-radius: calc(var(--radius) - 2px);
+            background: hsl(var(--card));
+            color: hsl(var(--muted-foreground));
+            box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+            cursor: pointer;
+            transition: background-color .15s, border-color .15s, color .15s, transform .15s;
+        }
+        .theme-toggle:hover {
+            background: hsl(var(--accent));
+            color: hsl(var(--accent-foreground));
+        }
+        .theme-toggle:active { transform: scale(.96); }
+        .theme-toggle:focus-visible {
+            outline: 2px solid hsl(var(--ring));
+            outline-offset: 2px;
+        }
+        .theme-toggle svg { width: 1rem; height: 1rem; }
+        .theme-icon-sun { display: none; }
+        .dark .theme-icon-sun { display: block; }
+        .dark .theme-icon-moon { display: none; }
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        /* ── Card ───────────────────────────────────────────────────── */
+        .card {
+            position: relative;
+            isolation: isolate;
+            width: 100%;
+            /* 28rem keeps a 42-char EVM address on one line next to the copy button. */
+            max-width: 28rem;
+            margin-bottom: 0.5rem;
+            background: transparent;
+            color: hsl(var(--card-foreground));
+            filter: var(--card-shadow-filter);
+            animation: fadeIn 0.4s ease-out;
+            transition: filter .2s ease;
+        }
+        .receipt-shape {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+            pointer-events: none;
+        }
+        .receipt-shape path {
+            fill: hsl(var(--card));
+            stroke: hsl(var(--border));
+            stroke-width: 1;
+            vector-effect: non-scaling-stroke;
+            transition: fill .2s ease, stroke .2s ease;
+        }
+        .card > :not(.receipt-shape) { position: relative; z-index: 1; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
+        .card-header { padding: 1.5rem 1.5rem 0; display: flex; flex-direction: column; gap: 0.375rem; }
+        .card-content { padding: 1.5rem; }
+        .card-footer {
+            padding: 0 1.5rem 1.5rem;
+            display: flex;
+            align-items: center;
+        }
+
+        /* ── Header Row ─────────────────────────────────────────────── */
+        .header-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 0.75rem;
+        }
+        .header-left { display: flex; align-items: center; gap: 0.75rem; }
+        .avatar {
+            width: 2.5rem; height: 2.5rem;
+            border-radius: 50%;
+            background: hsl(var(--muted));
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 600; font-size: 0.875rem;
+            color: hsl(var(--muted-foreground));
+            flex-shrink: 0;
+        }
+        .card-title { font-size: 0.875rem; font-weight: 600; line-height: 1; }
+        .card-description {
+            font-size: 0.75rem;
+            color: hsl(var(--muted-foreground));
+            line-height: 1.4;
+        }
+
+        /* ── Badge ──────────────────────────────────────────────────── */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 9999px;
+            padding: 0.125rem 0.625rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            line-height: 1;
+            white-space: nowrap;
+            transition: color .15s, background .15s;
+        }
+        .badge-default { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+        .badge-secondary { background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); }
+        .badge-outline { background: transparent; border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); }
+        .badge-warning { background: hsl(var(--warning) / .14); color: hsl(var(--warning-foreground)); border: 1px solid hsl(var(--warning) / .25); }
+        .badge-success { background: hsl(var(--success) / .14); color: hsl(var(--success-foreground)); border: 1px solid hsl(var(--success) / .25); }
+        .badge-destructive { background: hsl(var(--destructive) / .14); color: hsl(var(--destructive)); border: 1px solid hsl(var(--destructive) / .25); }
+        .badge-info { background: hsl(var(--info) / .12); color: hsl(var(--info-foreground)); border: 1px solid hsl(var(--info) / .22); }
+        .badge-overpaid { background: hsl(var(--overpaid) / .14); color: hsl(var(--overpaid-foreground)); border: 1px solid hsl(var(--overpaid) / .25); }
+
+        /* ── Separator ──────────────────────────────────────────────── */
+        .separator { height: 1px; width: 100%; background: hsl(var(--border)); }
+
+        .payment-state-title {
+            font-size: 1rem;
+            font-weight: 600;
+            line-height: 1.5;
+            text-align: center;
+            color: hsl(var(--warning-foreground));
+        }
+        .payment-state-notice {
+            font-size: 0.8125rem;
+            line-height: 1.5;
+            color: hsl(var(--muted-foreground));
+        }
+        .payment-state-notice p + p { margin-top: 0.5rem; }
+
+        /* ── Amount ─────────────────────────────────────────────────── */
+        .amount-section {
+            text-align: center;
+            padding: 1.25rem 0;
+        }
+        .amount-label {
+            font-size: 0.8125rem;
+            color: hsl(var(--muted-foreground));
+            margin-bottom: 0.25rem;
+        }
+        .amount-value {
+            font-family: var(--font-mono);
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            line-height: 1.2;
+        }
+        .amount-symbol {
+            font-size: 1rem;
+            font-weight: 500;
+            color: hsl(var(--muted-foreground));
+            margin-left: 0.375rem;
+        }
+        .network-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            margin-top: 0.5rem;
+            padding: 0.125rem 0.5rem;
+            border-radius: var(--radius);
+            background: hsl(var(--secondary));
+            font-size: 0.6875rem;
+            color: hsl(var(--muted-foreground));
+        }
+        .network-dot {
+            width: 0.375rem; height: 0.375rem;
+            border-radius: 50%;
+            background: hsl(var(--success));
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .4; }
+        }
+
+        /* ── Partial Payment Info ───────────────────────────────────── */
+        .partial-info {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-top: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: calc(var(--radius) - 2px);
+            background: hsl(var(--secondary));
+        }
+        .partial-row {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.125rem;
+        }
+        .partial-label {
+            font-size: 0.6875rem;
+            color: hsl(var(--muted-foreground));
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .partial-value {
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            font-weight: 600;
+        }
+        .partial-received { color: hsl(var(--success-foreground)); }
+        .partial-remaining { color: hsl(var(--warning-foreground)); }
+
+        /* ── QR ─────────────────────────────────────────────────────── */
+        .qr-wrap {
+            display: flex;
+            justify-content: center;
+            padding-bottom: 1rem;
+        }
+        .qr-frame {
+            background: #fff;
+            padding: 0.75rem;
+            border: 1px solid hsl(var(--qr-frame-border) / var(--qr-frame-border-opacity));
+            border-radius: calc(var(--radius) - 2px);
+            transition: border-color .2s ease;
+        }
+        .qr-frame canvas { display: block; }
+
+        /* ── Address (Input-like) ────────────────────────────────────── */
+        .field-label {
+            font-size: 0.8125rem;
+            font-weight: 500;
+            margin-bottom: 0.375rem;
+            color: hsl(var(--foreground));
+        }
+        .input-group {
+            display: flex;
+            align-items: center;
+            border-radius: var(--radius);
+            border: 1px solid hsl(var(--input));
+            background: hsl(var(--background));
+            transition: border-color .15s, box-shadow .15s;
+            cursor: pointer;
+        }
+        .input-group:hover {
+            border-color: hsl(var(--ring));
+        }
+        .input-group:focus-within {
+            border-color: hsl(var(--ring));
+            box-shadow: 0 0 0 2px hsl(var(--ring) / .2);
+        }
+        .input-value {
+            flex: 1;
+            min-width: 0;
+            padding: 0.5rem 0.75rem;
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            line-height: 1.4;
+            color: hsl(var(--foreground));
+            background: transparent;
+            border: none;
+            outline: none;
+            overflow-wrap: anywhere;
+            word-break: break-all;
+            user-select: all;
+        }
+        .btn-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 2rem; height: 2rem;
+            border-radius: calc(var(--radius) - 2px);
+            background: transparent;
+            border: none;
+            color: hsl(var(--muted-foreground));
+            cursor: pointer;
+            transition: background .15s, color .15s;
+            flex-shrink: 0;
+            margin-right: 0.25rem;
+        }
+        .btn-icon:hover { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
+        .btn-icon:focus-visible {
+            outline: 2px solid hsl(var(--ring));
+            outline-offset: 1px;
+        }
+        .btn-icon svg { width: 1rem; height: 1rem; }
+        .btn-icon.copied { color: hsl(var(--success)); }
+
+        /* ── Progress ───────────────────────────────────────────────── */
+        .progress-section {
+            padding-top: 0.75rem;
+        }
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8125rem;
+            margin-bottom: 0.375rem;
+        }
+        .progress-header span:first-child { font-weight: 500; }
+        .progress-header span:last-child { color: hsl(var(--muted-foreground)); font-family: var(--font-mono); font-size: 0.75rem; }
+        .progress-track {
+            height: 0.5rem;
+            width: 100%;
+            border-radius: 9999px;
+            background: hsl(var(--secondary));
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            border-radius: 9999px;
+            background: hsl(var(--foreground));
+            transition: width .6s ease;
+            width: 0%;
+        }
+
+        /* ── Timer ──────────────────────────────────────────────────── */
+        .timer-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding-top: 0.75rem;
+        }
+        .timer-row svg { width: 1rem; height: 1rem; color: hsl(var(--muted-foreground)); flex-shrink: 0; }
+        .timer-label { font-size: 0.8125rem; color: hsl(var(--muted-foreground)); }
+        .timer-value {
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            font-weight: 600;
+        }
+        .timer-urgent { color: hsl(var(--destructive)) !important; }
+
+        /* ── Footer ─────────────────────────────────────────────────── */
+        .footer-text {
+            width: 100%;
+            text-align: center;
+            font-size: 0.6875rem;
+            color: hsl(var(--muted-foreground));
+        }
+        .footer-text a {
+            color: hsl(var(--muted-foreground));
+            text-decoration: none;
+            transition: color .15s;
+        }
+        .footer-text a:hover { color: hsl(var(--foreground)); text-decoration: underline; }
+
+        /* ── Overlay ────────────────────────────────────────────────── */
+        .overlay {
+            position: fixed; inset: 0;
+            background: hsl(var(--background) / .8);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 50;
+            backdrop-filter: blur(4px);
+        }
+        .overlay-card {
+            text-align: center;
+            padding: 2rem;
+            animation: fadeIn .3s ease-out;
+        }
+        .overlay-icon { font-size: 3rem; margin-bottom: 1rem; }
+        .overlay-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.25rem; }
+        .overlay-desc { font-size: 0.875rem; color: hsl(var(--muted-foreground)); }
+
+        /* ── Loading ────────────────────────────────────────────────── */
+        .loading { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .spinner {
+            width: 1.5rem; height: 1.5rem;
+            border: 2px solid hsl(var(--muted));
+            border-top-color: hsl(var(--foreground));
+            border-radius: 50%;
+            animation: spin .6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .hidden { display: none !important; }
+
+        /* ── Responsive ─────────────────────────────────────────────── */
+        @media (max-width: 480px) {
+            body { padding: 4.25rem 0.75rem 0.75rem; }
+            .amount-value { font-size: 1.75rem; }
+            .input-value { font-size: 0.6875rem; }
+            .card-header, .card-content, .card-footer { padding-left: 1rem; padding-right: 1rem; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: .01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: .01ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-toolbar">
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to dark theme" title="Switch to dark theme">
+            <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 009 9 9 9 0 11-9-9z"/></svg>
+            <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.42"/></svg>
+            <span class="sr-only">Toggle color theme</span>
+        </button>
+    </div>
+
+    <div id="loading" class="loading" role="status" aria-label="Loading payment"><div class="spinner"></div></div>
+
+    <div id="payment-card" class="card hidden">
+        <svg id="receipt-shape" class="receipt-shape" aria-hidden="true" focusable="false" preserveAspectRatio="none">
+            <path id="receipt-outline"></path>
+        </svg>
+
+        <!-- Card Header -->
+        <div class="card-header">
+            <div class="header-row">
+                <div class="header-left">
+                    <div class="avatar" id="merchant-avatar">M</div>
+                    <div>
+                        <div class="card-title" id="merchant-name">Loading...</div>
+                        <div class="card-description" id="order-description"></div>
+                    </div>
+                </div>
+                <span id="status-badge" class="badge badge-info" aria-live="polite">WAITING</span>
+            </div>
+        </div>
+
+        <!-- Card Content -->
+        <div class="card-content" style="display:flex;flex-direction:column;gap:1rem;">
+            <div class="separator"></div>
+
+            <h1 id="payment-state-title" class="payment-state-title hidden" lang="ru"></h1>
+
+            <!-- Amount -->
+            <div class="amount-section" lang="ru">
+                <div class="amount-label" id="amount-label">Сумма счёта</div>
+                <div>
+                    <span id="amount-value" class="amount-value">0.00</span>
+                    <span id="amount-symbol" class="amount-symbol">USDT</span>
+                </div>
+                <!-- Partial payment info (hidden by default) -->
+                <div id="partial-info" class="partial-info hidden">
+                    <div class="partial-row">
+                        <span id="received-label" class="partial-label">Получено</span>
+                        <span id="received-value" class="partial-value partial-received">0.00</span>
+                    </div>
+                    <div id="remaining-row" class="partial-row">
+                        <span id="remaining-label" class="partial-label">Осталось оплатить</span>
+                        <span id="remaining-value" class="partial-value partial-remaining">0.00</span>
+                    </div>
+                </div>
+                <div id="network-badge" class="network-tag">
+                    <span class="network-dot"></span>
+                    <span id="network-name">TRON</span>
+                </div>
+            </div>
+
+            <div id="payment-state-notice" class="payment-state-notice hidden" lang="ru" role="status" aria-live="polite" aria-atomic="true" aria-labelledby="payment-state-title">
+                <p id="payment-state-description"></p>
+                <p id="payment-state-next-step" class="hidden"></p>
+            </div>
+
+            <!-- QR -->
+            <div class="qr-wrap" id="qr-section">
+                <div class="qr-frame">
+                    <img id="qr-image" width="180" height="180" alt="QR Code" style="display:block;" />
+                </div>
+            </div>
+
+            <div class="separator"></div>
+
+            <!-- Address -->
+            <div id="address-section">
+                <div class="field-label">Wallet address</div>
+                <div class="input-group" onclick="copyAddress()">
+                    <span id="wallet-address" class="input-value">Loading...</span>
+                    <button class="btn-icon" id="copy-btn" type="button" title="Copy address" aria-label="Copy wallet address">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Progress (hidden by default, shown on payment) -->
+            <div class="progress-section hidden" id="progress-section">
+				<div id="payment-confirmation-hint">Payment detected, awaiting confirmation</div>
+                <div class="progress-header">
+                    <span>Confirmations</span>
+                    <span><span id="conf-current">0</span> / <span id="conf-required">19</span></span>
+                </div>
+                <div class="progress-track">
+                    <div id="progress-bar" class="progress-bar"></div>
+                </div>
+            </div>
+
+            <!-- Timer -->
+            <div class="timer-row" id="timer-section">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span class="timer-label">Expires in</span>
+                <span id="timer-value" class="timer-value">--:--</span>
+            </div>
+        </div>
+
+        <!-- Card Footer -->
+        <div class="card-footer">
+            <div class="footer-text">
+                <a href="https://metapus.io" target="_blank" rel="noopener">Powered by Metapus</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overlays -->
+    <div id="overlay-confirmed" class="overlay hidden">
+        <div class="overlay-card">
+            <div class="overlay-icon">✅</div>
+            <div class="overlay-title">Платёж подтверждён</div>
+            <div class="overlay-desc">Транзакция верифицирована в блокчейне.</div>
+        </div>
+    </div>
+    <div id="overlay-expired" class="overlay hidden">
+        <div class="overlay-card">
+            <div class="overlay-icon">⏰</div>
+            <div class="overlay-title">Инвойс просрочен</div>
+            <div class="overlay-desc">Срок оплаты истёк. Запросите новый инвойс у продавца.</div>
+        </div>
+    </div>
+    <div id="overlay-overpaid" class="overlay hidden">
+        <div class="overlay-card">
+            <div class="overlay-icon">⚠️</div>
+            <div class="overlay-title">Зафиксирована переплата</div>
+            <div class="overlay-desc" id="overpaid-desc">Сумма перевода превышает сумму инвойса. Продавец уведомлён.</div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        const API_BASE = window.location.origin + '/api/v1';
+        const POLL_INTERVAL = 5000;
+        const THEME_STORAGE_KEY = 'metapus-checkout-theme';
+
+        let paymentData = null;
+        let pollTimer = null;
+        let countdownTimer = null;
+        let currentCheckoutRef = '';
+        let displayIdentifier = '';
+        let receiptShapeObserver = null;
+
+        const RECEIPT_NOTCH_TARGET_WIDTH = 15;
+        const RECEIPT_NOTCH_GAP = 4;
+        const RECEIPT_NOTCH_DEPTH = 6;
+        const RECEIPT_EDGE_CAP = 5;
+
+        // ── Receipt silhouette ──────────────────────────────────────
+        function updateReceiptShape() {
+            var card = document.getElementById('payment-card');
+            var svg = document.getElementById('receipt-shape');
+            var outline = document.getElementById('receipt-outline');
+            if (!card || !svg || !outline) return;
+
+            var bounds = card.getBoundingClientRect();
+            var width = bounds.width;
+            var height = bounds.height;
+            if (width < 2 || height < 2) return;
+
+            // Keep the one-pixel stroke inside the SVG viewport so it stays crisp.
+            var inset = 0.5;
+            var left = inset;
+            var right = width - inset;
+            var top = inset;
+            var bottom = height - inset;
+            var edgeWidth = right - left;
+            var topRadius = Math.min(10, edgeWidth / 2, (bottom - top) / 2);
+
+            // Short straight gaps keep adjacent cutouts from meeting in sharp,
+            // saw-like points. The remaining width is split into equal side caps.
+            var availableWidth = Math.max(RECEIPT_NOTCH_TARGET_WIDTH, edgeWidth - (RECEIPT_EDGE_CAP * 2));
+            var notchPitch = RECEIPT_NOTCH_TARGET_WIDTH + RECEIPT_NOTCH_GAP;
+            var notchCount = Math.max(1, Math.floor((availableWidth + RECEIPT_NOTCH_GAP) / notchPitch));
+            var notchWidth = Math.min(RECEIPT_NOTCH_TARGET_WIDTH, availableWidth);
+            var halfNotch = notchWidth / 2;
+            var patternWidth = (notchCount * notchWidth) + ((notchCount - 1) * RECEIPT_NOTCH_GAP);
+            var sideCap = (edgeWidth - patternWidth) / 2;
+            var notchStart = right - sideCap;
+
+            var parts = [
+                'M', left + topRadius, top,
+                'H', right - topRadius,
+                'Q', right, top, right, top + topRadius,
+                'V', bottom,
+                'H', notchStart
+            ];
+
+            for (var index = 0; index < notchCount; index += 1) {
+                var nextX = notchStart - (notchWidth * (index + 1)) - (RECEIPT_NOTCH_GAP * index);
+                parts.push('A', halfNotch, RECEIPT_NOTCH_DEPTH, 0, 0, 0, nextX, bottom);
+                if (index < notchCount - 1) {
+                    parts.push('H', nextX - RECEIPT_NOTCH_GAP);
+                }
+            }
+
+            parts.push(
+                'H', left,
+                'V', top + topRadius,
+                'Q', left, top, left + topRadius, top,
+                'Z'
+            );
+
+            svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+            outline.setAttribute('d', parts.join(' '));
+        }
+
+        function setupReceiptShape() {
+            var card = document.getElementById('payment-card');
+            if (!card) return;
+
+            if ('ResizeObserver' in window) {
+                receiptShapeObserver = new ResizeObserver(updateReceiptShape);
+                receiptShapeObserver.observe(card);
+            } else {
+                window.addEventListener('resize', updateReceiptShape);
+            }
+        }
+
+        // ── Theme ───────────────────────────────────────────────────
+        function getStoredTheme() {
+            try {
+                var value = localStorage.getItem(THEME_STORAGE_KEY);
+                return value === 'light' || value === 'dark' ? value : null;
+            } catch (_) {
+                return null;
+            }
+        }
+
+        function getActiveTheme() {
+            return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+        }
+
+        function syncThemeToggle() {
+            var button = document.getElementById('theme-toggle');
+            if (!button) return;
+            var isDark = getActiveTheme() === 'dark';
+            var label = isDark ? 'Switch to light theme' : 'Switch to dark theme';
+            button.setAttribute('aria-label', label);
+            button.setAttribute('aria-pressed', isDark ? 'true' : 'false');
+            button.title = label;
+        }
+
+        function applyTheme(theme, persist) {
+            var useDarkTheme = theme === 'dark';
+            document.documentElement.classList.toggle('dark', useDarkTheme);
+            document.documentElement.style.colorScheme = useDarkTheme ? 'dark' : 'light';
+            if (persist) {
+                try {
+                    localStorage.setItem(THEME_STORAGE_KEY, theme);
+                } catch (_) {}
+            }
+            syncThemeToggle();
+        }
+
+        function setupThemeToggle() {
+            var button = document.getElementById('theme-toggle');
+            if (!button) return;
+            syncThemeToggle();
+            button.addEventListener('click', function() {
+                applyTheme(getActiveTheme() === 'dark' ? 'light' : 'dark', true);
+            });
+
+            var mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+            var followSystemTheme = function(event) {
+                if (!getStoredTheme()) applyTheme(event.matches ? 'dark' : 'light', false);
+            };
+            if (mediaQuery.addEventListener) mediaQuery.addEventListener('change', followSystemTheme);
+            else if (mediaQuery.addListener) mediaQuery.addListener(followSystemTheme);
+        }
+
+        // ── Init ────────────────────────────────────────────────────
+        async function init() {
+            var route = parseCheckoutRoute();
+            currentCheckoutRef = route.publicRef || '';
+            displayIdentifier = currentCheckoutRef;
+
+            try {
+                if (route.mode === 'link') {
+                    await redeemPaymentLink(route);
+                } else {
+                    await loadInvoice(currentCheckoutRef);
+                }
+            } catch (err) {
+                showNotFound(displayIdentifier);
+            }
+        }
+
+        function parseCheckoutRoute() {
+            var parts = window.location.pathname.split('/').filter(Boolean);
+
+            if (parts.length === 3 && parts[0] === 'pay' && parts[1] === 'l') {
+                return {
+                    mode: 'link',
+                    publicRef: parts[2]
+                };
+            }
+
+            if (parts.length === 3 && parts[0] === 'pay' && parts[1] === 'i') {
+                return {
+                    mode: 'invoice',
+                    publicRef: parts[2]
+                };
+            }
+
+            return {
+                mode: 'invoice',
+                publicRef: ''
+            };
+        }
+
+        async function redeemPaymentLink(route) {
+            var resp = await fetchAPI('/checkout/links/' + encodeURIComponent(route.publicRef) + '/redeem', { method: 'POST' });
+            if (!resp.ok) throw new Error('Not found');
+            paymentData = await resp.json();
+            currentCheckoutRef = paymentData.checkoutRef;
+            displayIdentifier = currentCheckoutRef;
+            window.history.replaceState(null, '', '/pay/i/' + encodeURIComponent(currentCheckoutRef));
+            render(paymentData);
+            startPolling();
+            startCountdown();
+        }
+
+        async function loadInvoice(checkoutRef) {
+            if (!checkoutRef) throw new Error('Not found');
+            const resp = await fetchAPI('/checkout/invoices/' + encodeURIComponent(checkoutRef));
+            if (!resp.ok) throw new Error('Not found');
+            paymentData = await resp.json();
+            currentCheckoutRef = paymentData.checkoutRef || checkoutRef;
+            displayIdentifier = currentCheckoutRef;
+            render(paymentData);
+            startPolling();
+            startCountdown();
+        }
+
+        function fetchAPI(path, options) {
+            return fetch(API_BASE + path, options || {});
+        }
+
+        function showNotFound(identifier) {
+            var el = document.getElementById('loading');
+            el.textContent = '';
+            el.style.flexDirection = 'column';
+            el.style.textAlign = 'center';
+            el.style.color = 'hsl(var(--muted-foreground))';
+            var icon = document.createElement('div');
+            icon.style.cssText = 'font-size:2.5rem;margin-bottom:1rem';
+            icon.textContent = '🔍';
+            el.appendChild(icon);
+            var title = document.createElement('div');
+            title.style.fontWeight = '500';
+            title.textContent = 'Payment not found';
+            el.appendChild(title);
+            var detail = document.createElement('div');
+            detail.style.cssText = 'font-size:0.75rem;margin-top:0.5rem;font-family:var(--font-mono)';
+            detail.textContent = identifier || window.location.pathname;  // safe: textContent escapes HTML
+            el.appendChild(detail);
+        }
+
+        function formatAmount(amount) {
+            return amount.includes('.') ? amount.replace(/0+$/, '').replace(/\.$/, '') : amount;
+        }
+
+        function amountToMinorUnits(amount, decimalPlaces) {
+            var parts = amount.split('.');
+            return BigInt(parts[0] + (parts[1] || '').padEnd(decimalPlaces, '0'));
+        }
+
+        function formatMinorUnits(amount, decimalPlaces) {
+            var raw = amount.toString();
+            if (decimalPlaces === 0) return raw;
+            raw = raw.padStart(decimalPlaces + 1, '0');
+            return formatAmount(raw.slice(0, -decimalPlaces) + '.' + raw.slice(-decimalPlaces));
+        }
+
+        // ── Render ──────────────────────────────────────────────────
+        function render(data) {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('payment-card').classList.remove('hidden');
+
+            document.getElementById('merchant-name').textContent = data.merchantName || 'Payment';
+            document.getElementById('merchant-avatar').textContent = (data.merchantName || 'M').charAt(0).toUpperCase();
+            document.getElementById('order-description').textContent =
+                data.description || (data.orderId ? 'Order: ' + data.orderId : '');
+
+            document.getElementById('amount-value').textContent = formatAmount(data.expectedAmount);
+            document.getElementById('amount-symbol').textContent = data.tokenSymbol;
+            document.getElementById('network-name').textContent = data.networkName;
+
+            document.getElementById('wallet-address').textContent = data.walletAddress;
+            document.getElementById('conf-required').textContent = data.requiredConfs;
+
+            updateStatus(data.status, data.confirmations);
+            updatePartialInfo(data.receivedAmount, data.status, data.overpaidAmount);
+
+            // QR code — rendered server-side as base64 data URL
+            if (data.qrCode && data.status !== 'confirmed' && data.status !== 'expired') {
+                document.getElementById('qr-image').src = data.qrCode;
+            } else if (!data.qrCode) {
+                document.getElementById('qr-section').classList.add('hidden');
+            }
+
+            updateReceiptShape();
+        }
+
+        function updatePartialInfo(receivedAmount, status, overpaidAmount) {
+            var partialInfo = document.getElementById('partial-info');
+            var receiptStatuses = ['partially_paid', 'paid', 'confirmed', 'completed', 'underpaid'];
+            if (!paymentData || !receivedAmount || receiptStatuses.indexOf(status) === -1) {
+                partialInfo.classList.add('hidden');
+                return;
+            }
+            var decimals = paymentData.decimalPlaces;
+            var expected = amountToMinorUnits(paymentData.expectedAmount, decimals);
+            var received = amountToMinorUnits(receivedAmount, decimals);
+            if (received === 0n) {
+                partialInfo.classList.add('hidden');
+                return;
+            }
+            // Amounts describe the receipt; status and acceptsPayments determine
+            // whether the customer can act on the deficit.
+            var remaining = expected > received ? expected - received : 0n;
+            var overpaid = overpaidAmount ? amountToMinorUnits(overpaidAmount, decimals) : 0n;
+            if (overpaid === 0n && received > expected) overpaid = received - expected;
+            var sym = ' ' + paymentData.tokenSymbol;
+            var remainingEl = document.getElementById('remaining-value');
+            var remainingLabel = document.getElementById('remaining-label');
+            partialInfo.classList.remove('hidden');
+            document.getElementById('received-value').textContent = formatAmount(receivedAmount) + sym;
+            document.getElementById('remaining-row').classList.toggle('hidden', remaining === 0n && overpaid === 0n);
+            if (overpaid > 0n) {
+                remainingLabel.textContent = 'Переплата';
+                remainingEl.textContent = '+' + formatMinorUnits(overpaid, decimals) + sym;
+                remainingEl.style.color = 'hsl(var(--overpaid-foreground))';
+            } else {
+                remainingLabel.textContent = paymentData.acceptsPayments ? 'Осталось оплатить' : 'Недоплата';
+                remainingEl.textContent = formatMinorUnits(remaining, decimals) + sym;
+                remainingEl.style.color = '';
+            }
+        }
+
+        function updatePaymentNotice(status) {
+            var title = '';
+            var description = '';
+            var nextStep = '';
+            if (status === 'underpaid') {
+                title = 'Счёт закрыт с недоплатой';
+                description = 'Доплата по этому счёту недоступна. Не отправляйте средства на ранее показанный адрес.';
+                nextStep = 'Свяжитесь с продавцом по поводу оплаты заказа.';
+            } else if (status === 'partially_paid' && paymentData && !paymentData.acceptsPayments) {
+                title = 'Ожидаем подтверждения перевода';
+                description = 'Доплата сейчас недоступна. Не отправляйте средства на ранее показанный адрес.';
+            }
+            // Avoid repeating the same live-region announcement on every poll.
+            var texts = { 'payment-state-title': title, 'payment-state-description': description, 'payment-state-next-step': nextStep };
+            Object.keys(texts).forEach(function(id) {
+                var el = document.getElementById(id);
+                if (el.textContent !== texts[id]) el.textContent = texts[id];
+            });
+            document.getElementById('payment-state-title').classList.toggle('hidden', !title);
+            document.getElementById('payment-state-notice').classList.toggle('hidden', !description);
+            document.getElementById('payment-state-next-step').classList.toggle('hidden', !nextStep);
+        }
+
+        function updateStatus(status, confirmations) {
+            var badge = document.getElementById('status-badge');
+            var progressSection = document.getElementById('progress-section');
+            var qrSection = document.getElementById('qr-section');
+            var addressSection = document.getElementById('address-section');
+            var timerSection = document.getElementById('timer-section');
+
+            badge.className = 'badge';
+            progressSection.classList.add('hidden');
+            var acceptsPayments = paymentData && paymentData.acceptsPayments;
+            qrSection.classList.toggle('hidden', !acceptsPayments);
+            addressSection.classList.toggle('hidden', !acceptsPayments);
+            timerSection.classList.toggle('hidden', !acceptsPayments);
+            updatePaymentNotice(status);
+
+            switch (status) {
+                case 'created':
+                    badge.textContent = 'WAITING';
+                    badge.classList.add('badge-info');
+                    break;
+                case 'paid':
+                case 'partially_paid':
+                    badge.textContent = status === 'paid' ? 'RECEIVED' : 'PARTIAL';
+                    badge.classList.add('badge-warning');
+                    progressSection.classList.remove('hidden');
+                    updateProgress(confirmations);
+                    break;
+                case 'confirming':
+                    badge.textContent = 'CONFIRMING';
+                    badge.classList.add('badge-warning');
+                    progressSection.classList.remove('hidden');
+                    updateProgress(confirmations);
+                    break;
+                case 'confirmed':
+					document.getElementById('payment-confirmation-hint').textContent = 'Payment confirmed';
+                    badge.textContent = 'CONFIRMED';
+                    badge.classList.add('badge-success');
+                    qrSection.classList.add('hidden');
+                    addressSection.classList.add('hidden');
+                    timerSection.classList.add('hidden');
+                    progressSection.classList.remove('hidden');
+                    updateProgress(paymentData.requiredConfs);
+                    break;
+                case 'completed':
+                    badge.textContent = 'COMPLETED';
+                    badge.classList.add('badge-success');
+                    qrSection.classList.add('hidden');
+                    addressSection.classList.add('hidden');
+                    timerSection.classList.add('hidden');
+                    // Show overpaid overlay if there was an overpayment, otherwise show confirmed
+                    var ovp = paymentData && paymentData.overpaidAmount;
+                    var isOverpaid = ovp && amountToMinorUnits(ovp, paymentData.decimalPlaces) > 0n;
+                    if (isOverpaid) {
+                        var sym = paymentData.tokenSymbol || '';
+                        document.getElementById('overpaid-desc').textContent =
+                            'Сумма перевода превышает сумму инвойса. Переплата: ' + formatAmount(ovp) + ' ' + sym + '. Продавец уведомлён.';
+                        showOverlay('overlay-overpaid');
+                    } else {
+                        showOverlay('overlay-confirmed');
+                    }
+                    stopPolling();
+                    break;
+                case 'underpaid':
+                    badge.textContent = 'Недоплата';
+                    badge.lang = 'ru';
+                    badge.classList.add('badge-warning');
+                    qrSection.classList.add('hidden');
+                    addressSection.classList.add('hidden');
+                    timerSection.classList.add('hidden');
+                    stopPolling();
+                    break;
+                case 'cancelled':
+                case 'reversed':
+                    badge.textContent = status.toUpperCase();
+                    badge.classList.add('badge-destructive');
+                    qrSection.classList.add('hidden');
+                    addressSection.classList.add('hidden');
+                    timerSection.classList.add('hidden');
+                    stopPolling();
+                    break;
+                case 'expired':
+                    badge.textContent = 'EXPIRED';
+                    badge.classList.add('badge-destructive');
+                    qrSection.classList.add('hidden');
+                    addressSection.classList.add('hidden');
+                    timerSection.classList.add('hidden');
+                    showOverlay('overlay-expired');
+                    stopPolling();
+                    break;
+            }
+        }
+
+        function updateProgress(confs) {
+            var required = paymentData ? paymentData.requiredConfs : 19;
+            var pct = Math.min(100, (confs / required) * 100);
+            document.getElementById('conf-current').textContent = confs;
+            document.getElementById('progress-bar').style.width = pct + '%';
+        }
+
+        function showOverlay(id) {
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        // ── Polling ─────────────────────────────────────────────────
+        function startPolling() {
+            pollTimer = setInterval(function() {
+                fetchAPI('/checkout/invoices/' + encodeURIComponent(currentCheckoutRef) + '/status').then(function(resp) {
+                    if (!resp.ok) return;
+                    return resp.json();
+                }).then(function(data) {
+                    if (!data) return;
+                    if (paymentData && data.acceptsPayments && !paymentData.acceptsPayments) {
+                        fetchAPI('/checkout/invoices/' + encodeURIComponent(currentCheckoutRef)).then(function(resp) {
+                            if (!resp.ok) return null;
+                            return resp.json();
+                        }).then(function(fresh) {
+                            if (fresh) {
+                                paymentData = fresh;
+                                render(fresh);
+                            }
+                        }).catch(function() {});
+                    }
+                    // Sync polling data back to paymentData so overlay logic uses fresh values
+                    if (paymentData) {
+                        paymentData.overpaidAmount = data.overpaidAmount;
+                        paymentData.receivedAmount = data.receivedAmount;
+                        paymentData.acceptsPayments = data.acceptsPayments;
+                    }
+                    updateStatus(data.status, data.confirmations);
+                    updatePartialInfo(data.receivedAmount, data.status, data.overpaidAmount);
+                    if (data.status === 'completed' || data.status === 'underpaid' || data.status === 'expired' || data.status === 'cancelled' || data.status === 'reversed') stopPolling();
+                }).catch(function() {});
+            }, POLL_INTERVAL);
+        }
+
+        function stopPolling() {
+            if (pollTimer) clearInterval(pollTimer);
+            if (countdownTimer) clearInterval(countdownTimer);
+        }
+
+        // ── Countdown ───────────────────────────────────────────────
+        function startCountdown() {
+            if (!paymentData || !paymentData.expiresAt) return;
+            var expiresAt = new Date(paymentData.expiresAt).getTime();
+            if (isNaN(expiresAt)) {
+                document.getElementById('timer-value').textContent = '--:--';
+                return;
+            }
+
+            function tick() {
+                var diff = expiresAt - Date.now();
+                var el = document.getElementById('timer-value');
+                if (diff <= 0) {
+                    el.textContent = '00:00';
+                    el.classList.add('timer-urgent');
+                    return;
+                }
+                var m = Math.floor(diff / 60000);
+                var s = Math.floor((diff % 60000) / 1000);
+                el.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+                if (m < 2) el.classList.add('timer-urgent');
+                else el.classList.remove('timer-urgent');
+            }
+            tick();
+            countdownTimer = setInterval(tick, 1000);
+        }
+
+        // ── Copy ────────────────────────────────────────────────────
+        window.copyAddress = function() {
+            if (!paymentData) return;
+            navigator.clipboard.writeText(paymentData.walletAddress).then(function() {
+                var btn = document.getElementById('copy-btn');
+                btn.classList.add('copied');
+                btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+                setTimeout(function() {
+                    btn.classList.remove('copied');
+                    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+                }, 2000);
+            });
+        };
+
+        setupThemeToggle();
+        setupReceiptShape();
+        init();
+    })();
+    </script>
+</body>
+</html>

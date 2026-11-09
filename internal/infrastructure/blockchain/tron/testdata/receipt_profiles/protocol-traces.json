@@ -1,0 +1,389 @@
+{
+  "synthetic": true,
+  "protocolCommit": "b33eed89a6a424c498d4fb1b03ca2c86eddf4840",
+  "cases": [
+    {
+      "note": "call",
+      "group": "mandatory",
+      "exclude": false,
+      "trace": {
+        "hash": "0000000000000000000000000000000000000000000000000000000000000001",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "63616c6c",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "412222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "note": "create",
+      "group": "mandatory",
+      "exclude": false,
+      "trace": {
+        "hash": "0000000000000000000000000000000000000000000000000000000000000002",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "637265617465",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "412222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "note": "suicide",
+      "group": "mandatory",
+      "exclude": false,
+      "trace": {
+        "hash": "0000000000000000000000000000000000000000000000000000000000000003",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "73756963696465",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "412222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "note": "withdrawExpireUnfreezeWhileSuiciding",
+      "group": "mandatory",
+      "exclude": false,
+      "trace": {
+        "hash": "0000000000000000000000000000000000000000000000000000000000000004",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "7769746864726177457870697265556e667265657a655768696c65537569636964696e67",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "412222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "note": "freezeBalanceV2ForEnergy",
+      "group": "caller_resource",
+      "exclude": true,
+      "trace": {
+        "hash": "0000000000000000000000000000000000000000000000000000000000000005",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "667265657a6542616c616e63655632466f72456e65726779",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "411111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "note": "freezeBalanceV2ForBandwidth",
+      "group": "caller_resource",
+      "exclude": true,
+      "trace": {
+        "hash": "0000000000000000000000000000000000000000000000000000000000000006",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "667265657a6542616c616e63655632466f7242616e647769647468",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "411111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "note": "unfreezeBalanceV2ForEnergy",
+      "group": "caller_resource",
+      "exclude": true,
+      "trace": {
+        "hash": "0000000000000000000000000000000000000000000000000000000000000007",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "756e667265657a6542616c616e63655632466f72456e65726779",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "411111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "note": "unfreezeBalanceV2ForBandwidth",
+      "group": "caller_resource",
+      "exclude": true,
+      "trace": {
+        "hash": "0000000000000000000000000000000000000000000000000000000000000008",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "756e667265657a6542616c616e63655632466f7242616e647769647468",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "411111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "note": "withdrawReward",
+      "group": "caller_resource",
+      "exclude": true,
+      "trace": {
+        "hash": "0000000000000000000000000000000000000000000000000000000000000009",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "7769746864726177526577617264",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "411111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "note": "withdrawExpireUnfreeze",
+      "group": "caller_resource",
+      "exclude": true,
+      "trace": {
+        "hash": "000000000000000000000000000000000000000000000000000000000000000a",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "7769746864726177457870697265556e667265657a65",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "411111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "note": "withdrawExpireUnfreezeWhileUnfreezing",
+      "group": "caller_resource",
+      "exclude": true,
+      "trace": {
+        "hash": "000000000000000000000000000000000000000000000000000000000000000b",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "7769746864726177457870697265556e667265657a655768696c65556e667265657a696e67",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "411111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "note": "withdrawExpireUnfreezeWhileCanceling",
+      "group": "caller_resource",
+      "exclude": true,
+      "trace": {
+        "hash": "000000000000000000000000000000000000000000000000000000000000000c",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "7769746864726177457870697265556e667265657a655768696c6543616e63656c696e67",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "411111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "note": "cancelAllUnfreezeV2",
+      "group": "caller_resource",
+      "exclude": true,
+      "trace": {
+        "hash": "000000000000000000000000000000000000000000000000000000000000000d",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "63616e63656c416c6c556e667265657a655632",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "411111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "note": "freezeForEnergy",
+      "group": "resource_beneficiary",
+      "exclude": true,
+      "trace": {
+        "hash": "000000000000000000000000000000000000000000000000000000000000000e",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "667265657a65466f72456e65726779",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "412222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "note": "freezeForBandwidth",
+      "group": "resource_beneficiary",
+      "exclude": true,
+      "trace": {
+        "hash": "000000000000000000000000000000000000000000000000000000000000000f",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "667265657a65466f7242616e647769647468",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "412222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "note": "unfreezeForEnergy",
+      "group": "resource_beneficiary",
+      "exclude": true,
+      "trace": {
+        "hash": "0000000000000000000000000000000000000000000000000000000000000010",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "756e667265657a65466f72456e65726779",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "412222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "note": "unfreezeForBandwidth",
+      "group": "resource_beneficiary",
+      "exclude": true,
+      "trace": {
+        "hash": "0000000000000000000000000000000000000000000000000000000000000011",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "756e667265657a65466f7242616e647769647468",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "412222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "note": "delegateResourceOfEnergy",
+      "group": "resource_beneficiary",
+      "exclude": true,
+      "trace": {
+        "hash": "0000000000000000000000000000000000000000000000000000000000000012",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "64656c65676174655265736f757263654f66456e65726779",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "412222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "note": "delegateResourceOfBandwidth",
+      "group": "resource_beneficiary",
+      "exclude": true,
+      "trace": {
+        "hash": "0000000000000000000000000000000000000000000000000000000000000013",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "64656c65676174655265736f757263654f6642616e647769647468",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "412222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "note": "unDelegateResourceOfEnergy",
+      "group": "resource_beneficiary",
+      "exclude": true,
+      "trace": {
+        "hash": "0000000000000000000000000000000000000000000000000000000000000014",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "756e44656c65676174655265736f757263654f66456e65726779",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "412222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "note": "unDelegateResourceOfBandwidth",
+      "group": "resource_beneficiary",
+      "exclude": true,
+      "trace": {
+        "hash": "0000000000000000000000000000000000000000000000000000000000000015",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "756e44656c65676174655265736f757263654f6642616e647769647468",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "412222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "note": "voteWitness",
+      "group": "voting",
+      "exclude": true,
+      "trace": {
+        "hash": "0000000000000000000000000000000000000000000000000000000000000016",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "766f74655769746e657373",
+        "callValueInfo": [
+          {
+            "callValue": 0
+          }
+        ]
+      }
+    },
+    {
+      "note": "freezeBalanceV2ForTronPower",
+      "group": "caller_resource",
+      "exclude": true,
+      "trace": {
+        "hash": "0000000000000000000000000000000000000000000000000000000000000017",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "667265657a6542616c616e63655632466f7254726f6e506f776572",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "411111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "note": "unfreezeBalanceV2ForTronPower",
+      "group": "caller_resource",
+      "exclude": true,
+      "trace": {
+        "hash": "0000000000000000000000000000000000000000000000000000000000000018",
+        "caller_address": "411111111111111111111111111111111111111111",
+        "note": "756e667265657a6542616c616e63655632466f7254726f6e506f776572",
+        "callValueInfo": [
+          {
+            "callValue": 23
+          }
+        ],
+        "transferTo_address": "411111111111111111111111111111111111111111"
+      }
+    }
+  ]
+}

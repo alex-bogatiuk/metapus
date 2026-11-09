@@ -1,0 +1,184 @@
+[
+  {
+    "at": "2026-10-21T06:49:25.32270296Z",
+    "state": "ready",
+    "lagBlocks": 2,
+    "lagSeconds": 6,
+    "progressAgeSeconds": 1
+  },
+  {
+    "at": "2026-10-21T06:49:55.313997669Z",
+    "state": "ready",
+    "lagBlocks": 2,
+    "lagSeconds": 6,
+    "progressAgeSeconds": 2
+  },
+  {
+    "at": "2026-10-21T06:50:25.318566044Z",
+    "state": "ready",
+    "lagBlocks": 2,
+    "lagSeconds": 6,
+    "progressAgeSeconds": 1
+  },
+  {
+    "at": "2026-10-21T06:50:55.317818169Z",
+    "state": "ready",
+    "lagBlocks": 2,
+    "lagSeconds": 6,
+    "progressAgeSeconds": 3
+  },
+  {
+    "at": "2026-10-21T06:51:25.319760294Z",
+    "state": "catching_up",
+    "lagBlocks": 3,
+    "lagSeconds": 9,
+    "progressAgeSeconds": 4
+  },
+  {
+    "at": "2026-10-21T06:51:55.317916919Z",
+    "state": "catching_up",
+    "lagBlocks": 6,
+    "lagSeconds": 18,
+    "progressAgeSeconds": 9
+  },
+  {
+    "at": "2026-10-21T06:52:25.320977377Z",
+    "state": "catching_up",
+    "lagBlocks": 3,
+    "lagSeconds": 9,
+    "progressAgeSeconds": 3
+  },
+  {
+    "at": "2026-10-21T06:52:55.316388794Z",
+    "state": "catching_up",
+    "lagBlocks": 3,
+    "lagSeconds": 9,
+    "progressAgeSeconds": 5
+  },
+  {
+    "at": "2026-10-21T06:53:25.318881002Z",
+    "state": "ready",
+    "lagBlocks": 2,
+    "lagSeconds": 6,
+    "progressAgeSeconds": 1
+  },
+  {
+    "at": "2026-10-21T06:53:55.317455752Z",
+    "state": "catching_up",
+    "lagBlocks": 3,
+    "lagSeconds": 9,
+    "progressAgeSeconds": 5
+  },
+  {
+    "at": "2026-10-21T06:54:25.319209835Z",
+    "state": "ready",
+    "lagBlocks": 1,
+    "lagSeconds": 3,
+    "progressAgeSeconds": 2
+  },
+  {
+    "at": "2026-10-21T06:54:55.31745121Z",
+    "state": "ready",
+    "lagBlocks": 2,
+    "lagSeconds": 6,
+    "progressAgeSeconds": 1
+  },
+  {
+    "at": "2026-10-21T06:55:25.318387835Z",
+    "state": "ready",
+    "lagBlocks": 1,
+    "lagSeconds": 3,
+    "progressAgeSeconds": 2
+  },
+  {
+    "at": "2026-10-21T06:55:55.317881002Z",
+    "state": "catching_up",
+    "lagBlocks": 3,
+    "lagSeconds": 9,
+    "progressAgeSeconds": 4
+  },
+  {
+    "at": "2026-10-21T06:56:25.321659627Z",
+    "state": "catching_up",
+    "lagBlocks": 3,
+    "lagSeconds": 9,
+    "progressAgeSeconds": 2
+  },
+  {
+    "at": "2026-10-21T06:56:55.317516585Z",
+    "state": "catching_up",
+    "lagBlocks": 6,
+    "lagSeconds": 18,
+    "progressAgeSeconds": 13
+  },
+  {
+    "at": "2026-10-21T06:57:25.326727752Z",
+    "state": "catching_up",
+    "lagBlocks": 3,
+    "lagSeconds": 9,
+    "progressAgeSeconds": 3
+  },
+  {
+    "at": "2026-10-21T06:57:55.317764835Z",
+    "state": "catching_up",
+    "lagBlocks": 7,
+    "lagSeconds": 21,
+    "progressAgeSeconds": 13
+  },
+  {
+    "at": "2026-10-21T06:58:25.32476271Z",
+    "state": "catching_up",
+    "lagBlocks": 3,
+    "lagSeconds": 9,
+    "progressAgeSeconds": 5
+  },
+  {
+    "at": "2026-10-21T06:58:55.319701002Z",
+    "state": "catching_up",
+    "lagBlocks": 3,
+    "lagSeconds": 9,
+    "progressAgeSeconds": 5
+  },
+  {
+    "at": "2026-10-21T06:59:25.325576627Z",
+    "state": "catching_up",
+    "lagBlocks": 3,
+    "lagSeconds": 9,
+    "progressAgeSeconds": 4
+  },
+  {
+    "at": "2026-10-21T06:59:55.32016671Z",
+    "state": "ready",
+    "lagBlocks": 2,
+    "lagSeconds": 6,
+    "progressAgeSeconds": 1
+  },
+  {
+    "at": "2026-10-21T07:00:25.321775502Z",
+    "state": "ready",
+    "lagBlocks": 2,
+    "lagSeconds": 6,
+    "progressAgeSeconds": 2
+  },
+  {
+    "at": "2026-10-21T07:00:55.326396585Z",
+    "state": "ready",
+    "lagBlocks": 2,
+    "lagSeconds": 6,
+    "progressAgeSeconds": 2
+  },
+  {
+    "at": "2026-10-21T07:01:25.32532746Z",
+    "state": "ready",
+    "lagBlocks": 2,
+    "lagSeconds": 6,
+    "progressAgeSeconds": 2
+  },
+  {
+    "at": "2026-10-21T07:01:55.318160544Z",
+    "state": "catching_up",
+    "lagBlocks": 3,
+    "lagSeconds": 9,
+    "progressAgeSeconds": 5
+  }
+]

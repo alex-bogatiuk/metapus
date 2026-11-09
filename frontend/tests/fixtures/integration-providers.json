@@ -1,0 +1,303 @@
+{
+  "kinds": [
+    {
+      "id": "aml_kyt",
+      "label": "Проверка риска — AML/KYT",
+      "description": "Оценка риска адресов и входящих криптопереводов."
+    },
+    {
+      "id": "rpc",
+      "label": "Доступ к блокчейну — RPC",
+      "description": "Чтение блоков, проверка транзакций и отправка операций в блокчейн."
+    },
+    {
+      "id": "exchange_rates",
+      "label": "Курсы валют",
+      "description": "Получение котировок для расчётов и оценки активов."
+    },
+    {
+      "id": "notifications",
+      "label": "Уведомления",
+      "description": "Отправка сообщений через внешние сервисы."
+    },
+    {
+      "id": "blockchain_resources",
+      "label": "Ресурсы блокчейна",
+      "description": "Аренда энергии и других ресурсов блокчейна."
+    }
+  ],
+  "providers": [
+    {
+      "id": "drpc",
+      "label": "dRPC",
+      "description": "Ethereum Sepolia с ручным сроком ключа.",
+      "kinds": [
+        "rpc"
+      ],
+      "canCreate": true,
+      "credentials": {
+        "fields": [
+          {
+            "name": "sepolia",
+            "label": "Ключ dRPC",
+            "description": "Ключ или HTTPS-ссылка Sepolia из dRPC."
+          }
+        ],
+        "replaceLabel": "Продлить ключ…",
+        "description": "Новый ключ и новая дата сохраняются вместе. После срока доступ не возобновляется автоматически.",
+        "inputFormat": "",
+        "keyFormat": "url_safe",
+        "requireFields": true,
+        "singleKey": true,
+        "urlImports": [
+          {
+            "host": "lb.drpc.live",
+            "pathPrefix": "/sepolia"
+          }
+        ]
+      },
+      "quotaPolicy": "manual"
+    },
+    {
+      "id": "alchemy",
+      "label": "Alchemy",
+      "description": "Доступ к EVM и TRON через RPC.",
+      "kinds": [
+        "rpc"
+      ],
+      "canCreate": true,
+      "credentials": {
+        "fields": [],
+        "replaceLabel": "",
+        "description": "",
+        "inputFormat": "",
+        "requireFields": false,
+        "singleKey": false
+      },
+      "quotaPolicy": "monthly"
+    },
+    {
+      "id": "infura",
+      "label": "Infura",
+      "description": "Доступ к Ethereum Sepolia через RPC.",
+      "kinds": [
+        "rpc"
+      ],
+      "canCreate": true,
+      "credentials": {
+        "fields": [
+          {
+            "name": "sepolia",
+            "label": "Ключ Infura",
+            "description": "Ключ из 32 шестнадцатеричных символов или HTTPS-ссылка Ethereum Sepolia из Infura."
+          }
+        ],
+        "replaceLabel": "Заменить ключ…",
+        "description": "Ссылка преобразуется в ключ. Суточная квота аккаунта обновляется в 00:00 UTC.",
+        "inputFormat": "infura_key",
+        "keyFormat": "hex32",
+        "requireFields": false,
+        "singleKey": false,
+        "urlImports": [
+          {
+            "host": "sepolia.infura.io",
+            "pathPrefix": "/v3"
+          }
+        ]
+      },
+      "quotaPolicy": "daily_utc"
+    },
+    {
+      "id": "coingecko_demo",
+      "label": "CoinGecko Demo",
+      "description": "Котировки CoinGecko через Demo API.",
+      "kinds": [
+        "exchange_rates"
+      ],
+      "canCreate": true,
+      "credentials": {
+        "fields": [],
+        "replaceLabel": "",
+        "description": "",
+        "inputFormat": "",
+        "requireFields": false,
+        "singleKey": false
+      },
+      "quotaPolicy": "monthly"
+    },
+    {
+      "id": "tron_api",
+      "label": "TRON API / TronGrid",
+      "description": "Доступ к сети TRON через API TronGrid.",
+      "kinds": [
+        "rpc"
+      ],
+      "canCreate": true,
+      "credentials": {
+        "fields": [],
+        "replaceLabel": "",
+        "description": "",
+        "inputFormat": "",
+        "requireFields": false,
+        "singleKey": false
+      },
+      "quotaPolicy": "monthly"
+    },
+    {
+      "id": "chainstack",
+      "label": "Chainstack",
+      "description": "Доступ к TRON Nile и Ethereum Sepolia.",
+      "kinds": [
+        "rpc"
+      ],
+      "canCreate": true,
+      "credentials": {
+        "fields": [],
+        "replaceLabel": "",
+        "description": "Введите только токен, без полного URL и суффикса API. Имя nile — для TRON Nile, sepolia — для Ethereum Sepolia.",
+        "inputFormat": "",
+        "keyFormat": "url_safe",
+        "requireFields": false,
+        "singleKey": false
+      },
+      "quotaPolicy": "monthly"
+    },
+    {
+      "id": "getblock",
+      "label": "Getblock.io",
+      "description": "Доступ к TRON Nile через FullNode и Solidity REST.",
+      "kinds": [
+        "rpc"
+      ],
+      "canCreate": true,
+      "credentials": {
+        "fields": [
+          {
+            "name": "fullnode",
+            "label": "Токен FullNode REST",
+            "description": "Из эндпоинта REST (Fullnode) нужной сети TRON."
+          },
+          {
+            "name": "solidity",
+            "label": "Токен Solidity REST",
+            "description": "Из эндпоинта REST (Solidity) той же сети TRON."
+          }
+        ],
+        "replaceLabel": "Заменить оба токена…",
+        "description": "Оба токена одного аккаунта GetBlock используют общую квоту. Имена ключей назначаются автоматически.",
+        "inputFormat": "getblock_token",
+        "keyFormat": "url_safe",
+        "requireFields": true,
+        "singleKey": false,
+        "urlImports": [
+          {
+            "host": "shared.eu-central-1.getblock.io",
+            "pathPrefix": "",
+            "rolePaths": {
+              "fullnode": "wallet",
+              "solidity": "walletsolidity"
+            }
+          }
+        ]
+      },
+      "quotaPolicy": "monthly"
+    },
+    {
+      "id": "getblock_net",
+      "label": "Getblock.net",
+      "description": "AML/KYT-проверки криптоактивов. Отдельный аккаунт и пакет проверок.",
+      "kinds": [
+        "aml_kyt"
+      ],
+      "canCreate": true,
+      "credentials": {
+        "fields": [
+          {
+            "name": "default",
+            "label": "Bearer token",
+            "description": "Токен API из аккаунта Getblock.net."
+          }
+        ],
+        "replaceLabel": "Заменить токен…",
+        "description": "Проверки расходуются из пакета. Календарного сброса нет.",
+        "inputFormat": "bearer_token",
+        "keyFormat": "bearer",
+        "requireFields": true,
+        "singleKey": true
+      },
+      "quotaPolicy": "package"
+    },
+    {
+      "id": "testnet_aml",
+      "label": "AML эмулятор (testnet)",
+      "description": "Синтетические AML-ответы только для TRON Nile и Ethereum Sepolia. Настраивается через control plane.",
+      "kinds": [
+        "aml_kyt"
+      ],
+      "canCreate": false,
+      "credentials": {
+        "fields": [],
+        "replaceLabel": "",
+        "description": "Ключи провайдера не используются.",
+        "inputFormat": "",
+        "requireFields": false,
+        "singleKey": false
+      },
+      "quotaPolicy": "package"
+    },
+    {
+      "id": "telegram",
+      "label": "Telegram",
+      "description": "Уведомления настраиваются в отдельной подсистеме автоматизации.",
+      "kinds": [
+        "notifications"
+      ],
+      "canCreate": false,
+      "credentials": {
+        "fields": [],
+        "replaceLabel": "",
+        "description": "",
+        "inputFormat": "",
+        "requireFields": false,
+        "singleKey": false
+      },
+      "quotaPolicy": "monthly"
+    },
+    {
+      "id": "smtp",
+      "label": "SMTP",
+      "description": "Отправка почты настраивается в отдельной подсистеме автоматизации.",
+      "kinds": [
+        "notifications"
+      ],
+      "canCreate": false,
+      "credentials": {
+        "fields": [],
+        "replaceLabel": "",
+        "description": "",
+        "inputFormat": "",
+        "requireFields": false,
+        "singleKey": false
+      },
+      "quotaPolicy": "monthly"
+    },
+    {
+      "id": "resource_api",
+      "label": "API ресурсов",
+      "description": "Поставщики ресурсов настраиваются в справочнике аккаунтов криптопровайдеров.",
+      "kinds": [
+        "blockchain_resources"
+      ],
+      "canCreate": false,
+      "credentials": {
+        "fields": [],
+        "replaceLabel": "",
+        "description": "",
+        "inputFormat": "",
+        "requireFields": false,
+        "singleKey": false
+      },
+      "quotaPolicy": "monthly"
+    }
+  ]
+}

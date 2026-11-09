@@ -1,0 +1,77 @@
+{
+  "networks": {
+    "TRON-NILE": {
+      "roles": {
+        "fullnode": [
+          {
+            "providerId": "trongrid-primary",
+            "priority": 0,
+            "url": "https://nile.trongrid.io",
+            "apiKeySecretFile": "/run/secrets/tron_api_key",
+            "trustGroup": "trongrid"
+          },
+          {
+            "providerId": "nileex-secondary",
+            "priority": 10,
+            "url": "https://api.nileex.io",
+            "trustGroup": "nileex"
+          }
+        ],
+        "solidity": [
+          {
+            "providerId": "trongrid-primary",
+            "priority": 0,
+            "url": "https://nile.trongrid.io",
+            "apiKeySecretFile": "/run/secrets/tron_api_key",
+            "trustGroup": "trongrid"
+          },
+          {
+            "providerId": "nileex-secondary",
+            "priority": 10,
+            "url": "https://api.nileex.io",
+            "trustGroup": "nileex"
+          }
+        ]
+      },
+      "tron": {
+        "attemptTimeoutMs": 5000,
+        "readBudgetMs": 12000,
+        "maxAttempts": 2,
+        "providerConcurrency": 8,
+        "backfillConcurrency": 4,
+        "requestsPerSecond": 10,
+        "maxResponseBytes": 10485760,
+        "ingestionMode": "hybrid"
+      }
+    },
+    "ETHEREUM-SEPOLIA": {
+      "roles": {
+        "rpc": [
+          {
+            "providerId": "sepolia-primary",
+            "priority": 0,
+            "url": "https://replace-with-primary-sepolia-rpc.example"
+          },
+          {
+            "providerId": "sepolia-secondary",
+            "priority": 10,
+            "url": "https://replace-with-independent-sepolia-rpc.example"
+          }
+        ]
+      },
+      "evm": {
+        "attemptTimeoutMs": 2000,
+        "readBudgetMs": 5000,
+        "logsTimeoutMs": 5000,
+        "maxAttempts": 2,
+        "providerConcurrency": 8,
+        "backfillConcurrency": 4,
+        "requestsPerSecond": 20,
+        "nativeConcurrency": 4,
+        "prefetchBlocks": 32,
+        "maxResponseBytes": 8388608,
+        "maxBufferedBytes": 268435456
+      }
+    }
+  }
+}

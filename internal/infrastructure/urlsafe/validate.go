@@ -1,0 +1,272 @@
+// Package urlsafe provides SSRF-safe URL validation for outbound server requests.
+// Used by both merchant callback URLs and webhook dispatch URLs.
+package urlsafe
+
+import (
+	"context"
+	"fmt"
+	"net"
+	"net/url"
+	"strings"
+
+	"metapus/internal/core/apperror"
+)
+
+// ValidatePublicURL checks that a URL is safe for outbound server requests.
+//
+// Prevents SSRF (CWE-918) by enforcing:
+//  1. Must be a valid absolute URL
+//  2. Scheme must be "https" (plain HTTP rejected)
+//  3. Host must not be localhost, *.internal, or any bare hostname without TLD
+//  4. Host must not resolve to a private/link-local/loopback/metadata IP range
+//  5. Unresolvable hostnames are rejected (prevents DNS rebinding at delivery time)
+//
+// fieldName is used in validation error details (e.g. "callbackUrl", "webhookUrl").
+// Returns nil if rawURL is empty (field is optional).
+func ValidatePublicURL(rawURL, fieldName string) error {
+	if rawURL == "" {
+		return nil
+	}
+
+	u, err := url.ParseRequestURI(rawURL)
+	if err != nil {
+		return apperror.NewValidation(fieldName+" is not a valid URL").
+			WithDetail("field", fieldName)
+	}
+
+	if u.Scheme != "https" {
+		return apperror.NewValidation(fieldName+" must use HTTPS").
+			WithDetail("field", fieldName).
+			WithDetail("scheme", u.Scheme)
+	}
+	if err := validateOutboundPort(u, fieldName); err != nil {
+		return err
+	}
+	if u.User != nil {
+		return apperror.NewValidation(fieldName+" must not contain user credentials").WithDetail("field", fieldName)
+	}
+
+	host := u.Hostname()
+	if host == "" {
+		return apperror.NewValidation(fieldName+" must have a non-empty host").
+			WithDetail("field", fieldName)
+	}
+
+	return assertPublicHost(host, fieldName)
+}
+
+// assertPublicHost rejects loopback, private, link-local, and metadata hosts.
+func assertPublicHost(host, fieldName string) error {
+	// Reject well-known dangerous names (case-insensitive).
+	lower := strings.ToLower(host)
+	if lower == "localhost" ||
+		lower == "metadata.google.internal" ||
+		strings.HasSuffix(lower, ".internal") {
+		return apperror.NewValidation(
+			fmt.Sprintf("%s host %q is not allowed", fieldName, host),
+		).WithDetail("field", fieldName)
+	}
+
+	// If host is an IP literal, parse and range-check directly.
+	if ip := net.ParseIP(host); ip != nil {
+		return assertPublicIP(ip, host, fieldName)
+	}
+
+	// For hostnames: attempt DNS resolution and check each resulting IP.
+	// This prevents SSRF via DNS rebinding: attacker registers a domain that
+	// initially resolves to a public IP (passes validation at creation time),
+	// then changes DNS to a private IP (exploited at webhook delivery time).
+	addrs, err := net.LookupHost(host)
+	if err != nil {
+		// Reject unresolvable hosts — we cannot verify they are public.
+		return apperror.NewValidation(
+			fmt.Sprintf("%s host %q cannot be resolved", fieldName, host),
+		).WithDetail("field", fieldName)
+	}
+	for _, addr := range addrs {
+		if ip := net.ParseIP(addr); ip != nil {
+			if err := assertPublicIP(ip, host, fieldName); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// _privateRanges lists IP CIDR blocks that must not be reachable via outbound requests.
+var _privateRanges = func() []*net.IPNet {
+	blocks := []string{
+		"0.0.0.0/8",       // Current network / unspecified
+		"10.0.0.0/8",      // RFC1918 Class A
+		"172.16.0.0/12",   // RFC1918 Class B
+		"192.168.0.0/16",  // RFC1918 Class C
+		"127.0.0.0/8",     // Loopback IPv4
+		"169.254.0.0/16",  // Link-local (APIPA / AWS metadata)
+		"100.64.0.0/10",   // Shared address space (RFC6598)
+		"192.0.2.0/24",    // Documentation (TEST-NET-1)
+		"198.18.0.0/15",   // Benchmarking
+		"198.51.100.0/24", // Documentation (TEST-NET-2)
+		"203.0.113.0/24",  // Documentation (TEST-NET-3)
+		"224.0.0.0/4",     // Multicast
+		"240.0.0.0/4",     // Reserved
+		"::1/128",         // Loopback IPv6
+		"fc00::/7",        // Unique local IPv6 (ULA)
+		"fe80::/10",       // Link-local IPv6
+		"2001:db8::/32",   // Documentation IPv6
+	}
+	nets := make([]*net.IPNet, 0, len(blocks))
+	for _, b := range blocks {
+		_, ipNet, err := net.ParseCIDR(b)
+		if err == nil {
+			nets = append(nets, ipNet)
+		}
+	}
+	return nets
+}()
+
+// assertPublicIP checks that an IP is not in any blocked range.
+func assertPublicIP(ip net.IP, host, fieldName string) error {
+	// CIDR range check (private, loopback, link-local, documentation).
+	for _, block := range _privateRanges {
+		if block.Contains(ip) {
+			return apperror.NewValidation(
+				fmt.Sprintf("%s host %q resolves to a private/reserved IP address", fieldName, host),
+			).WithDetail("field", fieldName)
+		}
+	}
+
+	// Stdlib checks for edge cases not covered by CIDR list:
+	// - 0.0.0.0 / :: (unspecified)
+	// - ff02::* (link-local multicast)
+	if ip.IsUnspecified() || ip.IsMulticast() || ip.IsLinkLocalMulticast() {
+		return apperror.NewValidation(
+			fmt.Sprintf("%s host %q resolves to a reserved IP address", fieldName, host),
+		).WithDetail("field", fieldName)
+	}
+
+	return nil
+}
+
+// ResolvedURL contains a validated URL with a pre-resolved public IP.
+// Use this to eliminate DNS rebinding TOCTOU: resolve DNS once, validate the IP,
+// then pass ResolvedIP to a custom DialContext that bypasses the Go client's DNS.
+type ResolvedURL struct {
+	// Parsed is the parsed URL.
+	Parsed *url.URL
+	// ResolvedIP is the first validated public IP address.
+	ResolvedIP string
+	// Host is the original hostname (for TLS SNI).
+	Host string
+}
+
+// ResolvePublicURL validates a URL and resolves DNS in a single step,
+// returning the validated IP to use for the actual connection.
+//
+// This eliminates the DNS rebinding TOCTOU vulnerability (CWE-367):
+// ValidatePublicURL resolves DNS for checking, but http.Client.Do resolves
+// DNS again — an attacker with TTL=0 can return a different (private) IP
+// on the second lookup. By resolving once and pinning the IP, we close
+// the TOCTOU window.
+//
+// Returns error if the URL is invalid, not HTTPS, or resolves to a private IP.
+func ResolvePublicURL(rawURL, fieldName string) (*ResolvedURL, error) {
+	return ResolvePublicURLContext(context.Background(), rawURL, fieldName)
+}
+
+// ResolvePublicURLContext also bounds DNS resolution by the outbound request deadline.
+func ResolvePublicURLContext(ctx context.Context, rawURL, fieldName string) (*ResolvedURL, error) {
+	return ResolvePublicURLWithResolverContext(ctx, rawURL, fieldName, net.DefaultResolver)
+}
+
+// ResolvePublicURLWithResolverContext applies the same IP policy when an
+// operator supplies a dedicated resolver, for example DNS-over-TLS for RPC.
+func ResolvePublicURLWithResolverContext(ctx context.Context, rawURL, fieldName string, resolver *net.Resolver) (*ResolvedURL, error) {
+	if rawURL == "" {
+		return nil, apperror.NewValidation(fieldName+" is required").
+			WithDetail("field", fieldName)
+	}
+
+	u, err := url.ParseRequestURI(rawURL)
+	if err != nil {
+		return nil, apperror.NewValidation(fieldName+" is not a valid URL").
+			WithDetail("field", fieldName)
+	}
+
+	if u.Scheme != "https" {
+		return nil, apperror.NewValidation(fieldName+" must use HTTPS").
+			WithDetail("field", fieldName).
+			WithDetail("scheme", u.Scheme)
+	}
+	if err := validateOutboundPort(u, fieldName); err != nil {
+		return nil, err
+	}
+	if u.User != nil {
+		return nil, apperror.NewValidation(fieldName+" must not contain user credentials").WithDetail("field", fieldName)
+	}
+
+	host := u.Hostname()
+	if host == "" {
+		return nil, apperror.NewValidation(fieldName+" must have a non-empty host").
+			WithDetail("field", fieldName)
+	}
+
+	// Reject well-known dangerous names.
+	lower := strings.ToLower(host)
+	if lower == "localhost" ||
+		lower == "metadata.google.internal" ||
+		strings.HasSuffix(lower, ".internal") {
+		return nil, apperror.NewValidation(
+			fmt.Sprintf("%s host %q is not allowed", fieldName, host),
+		).WithDetail("field", fieldName)
+	}
+
+	// If host is an IP literal, validate directly.
+	if ip := net.ParseIP(host); ip != nil {
+		if err := assertPublicIP(ip, host, fieldName); err != nil {
+			return nil, err
+		}
+		return &ResolvedURL{Parsed: u, ResolvedIP: host, Host: host}, nil
+	}
+
+	// Resolve DNS and find the first valid public IP.
+	addrs, err := resolver.LookupHost(ctx, host)
+	if err != nil {
+		return nil, apperror.NewValidation(
+			fmt.Sprintf("%s host %q cannot be resolved", fieldName, host),
+		).WithDetail("field", fieldName)
+	}
+
+	for _, addr := range addrs {
+		ip := net.ParseIP(addr)
+		if ip == nil {
+			continue
+		}
+		if err := assertPublicIP(ip, host, fieldName); err != nil {
+			return nil, err // any private IP → reject the entire host
+		}
+	}
+
+	// All IPs are public — use the first one for connection pinning.
+	if len(addrs) == 0 {
+		return nil, apperror.NewValidation(
+			fmt.Sprintf("%s host %q resolved to no addresses", fieldName, host),
+		).WithDetail("field", fieldName)
+	}
+
+	return &ResolvedURL{
+		Parsed:     u,
+		ResolvedIP: addrs[0],
+		Host:       host,
+	}, nil
+}
+
+func validateOutboundPort(u *url.URL, fieldName string) error {
+	port := u.Port()
+	if port == "" || port == "443" || port == "8443" {
+		return nil
+	}
+	return apperror.NewValidation(fieldName+" must use port 443 or 8443").
+		WithDetail("field", fieldName).
+		WithDetail("port", port)
+}

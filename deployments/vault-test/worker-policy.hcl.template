@@ -1,0 +1,56 @@
+# Отрендерите TENANT_ID отдельно для каждого явно включённого tenant.
+# Wildcard в production запрещён.
+path "auth/token/renew-self" {
+  capabilities = ["update"]
+}
+
+path "transit/keys/metapus-signing-auth-TENANT_ID" {
+  capabilities = ["read"]
+}
+
+path "transit/sign/metapus-signing-auth-TENANT_ID" {
+  capabilities = ["update"]
+}
+
+path "transit/keys/metapus-approval-intent-TENANT_ID" { capabilities = ["read"] }
+path "transit/sign/metapus-approval-intent-TENANT_ID" { capabilities = ["update"] }
+path "transit/keys/metapus-approval-risk-assessment-TENANT_ID" { capabilities = ["read"] }
+path "transit/sign/metapus-approval-risk-assessment-TENANT_ID" { capabilities = ["update"] }
+path "transit/keys/metapus-approval-policy-decision-TENANT_ID" { capabilities = ["read"] }
+path "transit/sign/metapus-approval-policy-decision-TENANT_ID" { capabilities = ["update"] }
+path "transit/keys/metapus-approval-admin-approval-TENANT_ID" { capabilities = ["read"] }
+path "transit/sign/metapus-approval-admin-approval-TENANT_ID" { capabilities = ["update"] }
+path "transit/keys/metapus-approval-risk-approval-TENANT_ID" { capabilities = ["read"] }
+path "transit/sign/metapus-approval-risk-approval-TENANT_ID" { capabilities = ["update"] }
+
+path "secret/data/merchant-webhooks/*" {
+  capabilities = ["create", "read", "update"]
+}
+
+path "secret/metadata/merchant-webhooks/*" {
+  capabilities = ["delete"]
+}
+
+path "tron/tenants/TENANT_ID/config/readiness" {
+  capabilities = ["read"]
+}
+
+path "tron/tenants/TENANT_ID/wallets/derive" {
+  capabilities = ["update"]
+}
+
+path "tron/tenants/TENANT_ID/tx/sign" {
+  capabilities = ["update"]
+}
+
+path "evm/tenants/TENANT_ID/config/readiness" {
+  capabilities = ["read"]
+}
+
+path "evm/tenants/TENANT_ID/wallets/derive" {
+  capabilities = ["update"]
+}
+
+path "evm/tenants/TENANT_ID/tx/sign" {
+  capabilities = ["update"]
+}

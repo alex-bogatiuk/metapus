@@ -1,0 +1,103 @@
+import type {
+  PortalInvoiceDetailResponse,
+  PortalInvoiceLedger,
+} from "../types/portal-api";
+import { ids } from "./helpers";
+export const invoiceId = "01a0fbd7-8920-75fa-8327-255933b7256e";
+export const knownLedger = (
+  net = "1000000",
+  fee = "0",
+  reversed = "0",
+): PortalInvoiceLedger => ({
+  status: "known",
+  creditedNetAmount: net,
+  processingFeeAmount: fee,
+  reversedNetAmount: reversed,
+});
+export function invoiceFixture(
+  patch: Partial<PortalInvoiceDetailResponse> = {},
+): PortalInvoiceDetailResponse {
+  return {
+    id: invoiceId,
+    number: "CI-2026-00014",
+    status: "underpaid",
+    amount: "2000000",
+    receivedAmount: "1000000",
+    symbol: "PYUSD",
+    network: "Ethereum Sepolia",
+    explorerUrl: "https://sepolia.etherscan.io/tx/{txHash}",
+    decimalPlaces: 6,
+    createdAt: "2026-10-02T09:00:00Z",
+    expiresAt: "2026-10-02T10:00:00Z",
+    observedAt: "2026-10-02T09:06:00Z",
+    acceptsPayments: false,
+    paymentAcceptanceReason: "single_payment_selected",
+    paymentCount: 1,
+    processingFee: "0",
+    netAmount: "1000000",
+    checkoutRef: "ci_test",
+    payUrl: "https://example.test/pay/i/ci_test",
+    walletAddress: "0xWallet",
+    invoiceKind: "payment",
+    orderId: "order-125",
+    financialSummary: {
+      confirmedAmount: "1000000",
+      pendingNetAmount: "0",
+      ledger: knownLedger(),
+    },
+    payments: [
+      {
+        id: ids.wallet,
+        amount: "1000000",
+        processingFee: "0",
+        netAmount: "1000000",
+        status: "settled",
+        canonicality: "canonical",
+        posted: true,
+        txHash: "0x" + "6".repeat(64),
+        fromAddress: "0x" + "5".repeat(40),
+        confirmedAt: "2026-10-02T09:06:00Z",
+        createdAt: "2026-10-02T09:04:00Z",
+        confirmations: 13,
+        requiredConfs: 12,
+        ledger: knownLedger(),
+      },
+    ],
+    timeline: [
+      {
+        id: "event-1",
+        paymentId: ids.wallet,
+        eventType: "merchant_ledger_credited",
+        fromStatus: "confirmed",
+        toStatus: "settled",
+        metadata: { confirmations: 13, requiredConfs: 12 },
+        createdAt: "2026-10-02T09:06:00Z",
+      },
+    ],
+    canViewWebhooks: true,
+    webhookDeliveryTotal: 2,
+    webhookDeliveries: [
+      {
+        id: "delivery-1",
+        eventType: "invoice.underpaid",
+        deliveryId: "attempt-1",
+        statusCode: 204,
+        responseTimeMs: 0,
+        attempt: 1,
+        errorMessage: null,
+        createdAt: "2026-10-02T09:06:00Z",
+      },
+      {
+        id: "delivery-2",
+        eventType: "payment.confirmed",
+        deliveryId: "attempt-2",
+        statusCode: null,
+        responseTimeMs: null,
+        attempt: 1,
+        errorMessage: "connection refused",
+        createdAt: "2026-10-02T09:06:00Z",
+      },
+    ],
+    ...patch,
+  };
+}

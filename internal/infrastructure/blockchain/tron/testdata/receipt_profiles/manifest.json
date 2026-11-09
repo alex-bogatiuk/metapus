@@ -1,0 +1,66 @@
+[
+  {
+    "provider": "trongrid",
+    "network": "TRON-NILE",
+    "height": 71963230,
+    "method": "getblockbynum",
+    "file": "trongrid-getblockbynum.json",
+    "sha256": "83fe0eb877cac9d354e9056285fe4e1368cb7e4fdc0b9b271e0ae87f993be075"
+  },
+  {
+    "provider": "trongrid",
+    "network": "TRON-NILE",
+    "height": 71963230,
+    "method": "gettransactioninfobyblocknum",
+    "file": "trongrid-gettransactioninfobyblocknum.json",
+    "sha256": "3ad08b7aea512d7584ac9f01ec5937d0be07f5dcb17a8af90210b784f86daea3"
+  },
+  {
+    "provider": "chainstack",
+    "network": "TRON-NILE",
+    "height": 71963230,
+    "method": "getblockbynum",
+    "file": "chainstack-getblockbynum.json",
+    "sha256": "83fe0eb877cac9d354e9056285fe4e1368cb7e4fdc0b9b271e0ae87f993be075"
+  },
+  {
+    "provider": "chainstack",
+    "network": "TRON-NILE",
+    "height": 71963230,
+    "method": "gettransactioninfobyblocknum",
+    "file": "chainstack-gettransactioninfobyblocknum.json",
+    "sha256": "28574b5cc60e440022edf0218edcf313347f4671e3d893fbe62dde5304a942c2"
+  },
+  {
+    "provider": "nileex",
+    "network": "TRON-NILE",
+    "height": 71963230,
+    "method": "getblockbynum",
+    "file": "nileex-getblockbynum.json",
+    "sha256": "83fe0eb877cac9d354e9056285fe4e1368cb7e4fdc0b9b271e0ae87f993be075"
+  },
+  {
+    "provider": "nileex",
+    "network": "TRON-NILE",
+    "height": 71963230,
+    "method": "gettransactioninfobyblocknum",
+    "file": "nileex-gettransactioninfobyblocknum.json",
+    "sha256": "3ad08b7aea512d7584ac9f01ec5937d0be07f5dcb17a8af90210b784f86daea3"
+  },
+  {
+    "provider": "getblock",
+    "network": "TRON-NILE",
+    "height": 71963230,
+    "method": "getblockbynum",
+    "file": "getblock-getblockbynum.json",
+    "sha256": "83fe0eb877cac9d354e9056285fe4e1368cb7e4fdc0b9b271e0ae87f993be075"
+  },
+  {
+    "provider": "getblock",
+    "network": "TRON-NILE",
+    "height": 71963230,
+    "method": "gettransactioninfobyblocknum",
+    "file": "getblock-gettransactioninfobyblocknum.json",
+    "sha256": "28574b5cc60e440022edf0218edcf313347f4671e3d893fbe62dde5304a942c2"
+  }
+]

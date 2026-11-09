@@ -1,0 +1,207 @@
+# Metapus Single-Tenant Deployment
+#
+# Legacy self-hosted example only. This file is not production-ready: it uses
+# public host ports, env-based secrets and mutable images. Production
+# requirements: docs/operations/production-deployment.md
+#
+# Usage:
+#   docker compose up -d
+#
+# First-time setup:
+#   1. docker compose up -d postgres
+#   2. docker compose run --rm --entrypoint ./tenant metapus-app init-meta
+#   3. docker compose run --rm --entrypoint ./tenant metapus-app create --slug default --name "Default Tenant"
+#      (creates mt_default database, runs migrations, registers tenant — note the Tenant ID)
+#   4. Set TENANT_ID in .env
+#   5. docker compose up -d
+
+services:
+  pdf-renderer:
+    build:
+      context: ../..
+      dockerfile: deployments/pdf-renderer/Dockerfile
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=256m
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: 2
+    security_opt:
+      - seccomp=../pdf-renderer/seccomp_profile.json
+    networks:
+      - pdf-internal
+
+  # --- PostgreSQL ---
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: metapus
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-metapus}
+      POSTGRES_DB: tenants
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - metapus-net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U metapus -d tenants" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  vault-test:
+    profiles: [ "vault-test" ]
+    build:
+      context: ../..
+      dockerfile: deployments/vault-test/Dockerfile
+    restart: unless-stopped
+    command: [ "server" ]
+    environment:
+      VAULT_CACERT: /vault/tls/ca.crt
+    volumes:
+      - vault-test-data:/vault/data
+      - ../vault-test/vault.hcl:/vault/config/vault.hcl:ro
+      - ./vault-test/tls:/vault/tls:ro
+    ports:
+      - "127.0.0.1:${VAULT_TEST_PORT:-8200}:8200"
+    networks:
+      vault-control:
+        ipv4_address: ${VAULT_TEST_CONTROL_IP:-172.30.251.11}
+    healthcheck:
+      test: [ "CMD-SHELL", "vault status -ca-cert=/vault/tls/ca.crt >/dev/null 2>&1; code=$$?; [ $$code -eq 0 ] || [ $$code -eq 2 ]" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  vault-proxy:
+    profiles: [ "vault-test", "vault-proxy" ]
+    image: hashicorp/vault:2.0.3
+    restart: "no"
+    command: [ "proxy", "-config=/vault-proxy/config.hcl" ]
+    volumes:
+      - ${VAULT_PROXY_CONFIG_FILE:-../vault-test/proxy-test.hcl}:/vault-proxy/config.hcl:ro
+      - ${VAULT_CA_CERT_FILE:-./vault-test/tls/ca.crt}:/vault-proxy/ca/ca.crt:ro
+      - ${VAULT_ROLE_ID_FILE:-./vault-test/bootstrap/role-id}:/run/metapus/vault-role/role-id:ro
+      - ${VAULT_BOOTSTRAP_DIR:-./vault-test/bootstrap}:/run/metapus/vault-bootstrap
+    networks:
+      vault-control:
+        ipv4_address: ${VAULT_PROXY_CONTROL_IP:-172.30.251.10}
+      vault-worker:
+
+  # --- Metapus Server ---
+  metapus-app:
+    image: ${METAPUS_IMAGE:-ghcr.io/alex-bogatiuk/metapus}:${METAPUS_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PDF_RENDERER_URL: http://pdf-renderer:8081
+      APP_PORT: "8080"
+      APP_ENV: "production"
+      LOG_LEVEL: "info"
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      PUBLIC_CHECKOUT_BASE_URL: ${PUBLIC_CHECKOUT_BASE_URL:?PUBLIC_CHECKOUT_BASE_URL is required}
+      AUTH_MFA_ENCRYPTION_KEY: ${AUTH_MFA_ENCRYPTION_KEY:?AUTH_MFA_ENCRYPTION_KEY is required}
+      ADMIN_MFA_MODE: ${ADMIN_MFA_MODE:-required}
+      ADMIN_MFA_GRACE_PERIOD_HOURS: ${ADMIN_MFA_GRACE_PERIOD_HOURS:-168}
+      ADMIN_STEP_UP_TTL_SECONDS: ${ADMIN_STEP_UP_TTL_SECONDS:-300}
+      ADMIN_SECURITY_MODE: ${ADMIN_SECURITY_MODE:-warn}
+      ADMIN_ALLOWED_CIDRS: ${ADMIN_ALLOWED_CIDRS:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      META_DATABASE_URL: postgres://metapus:${POSTGRES_PASSWORD:-metapus}@postgres:5432/tenants?sslmode=disable
+      DATABASE_URL: postgres://metapus:${POSTGRES_PASSWORD:-metapus}@postgres:5432/mt_default?sslmode=disable
+      TENANT_DB_USER: metapus
+      TENANT_DB_PASSWORD: ${POSTGRES_PASSWORD:-metapus}
+      TENANT_DB_HOST: postgres
+      AUTOMATION_ENCRYPTION_KEY: ${AUTOMATION_ENCRYPTION_KEY:?AUTOMATION_ENCRYPTION_KEY is required (32 bytes)}
+      CRYPTO_RPC_DNS_TLS_SERVER: ${CRYPTO_RPC_DNS_TLS_SERVER:-}
+      VAULT_ADDR: ${VAULT_ADDR:-http://vault-proxy:8100}
+      CRYPTO_TRANSIT_MOUNT: ${CRYPTO_TRANSIT_MOUNT:-transit}
+      CRYPTO_APPROVAL_POLICY_PUBLIC_KEY: ${CRYPTO_APPROVAL_POLICY_PUBLIC_KEY:?CRYPTO_APPROVAL_POLICY_PUBLIC_KEY is required}
+      CRYPTO_APPROVAL_POLICY_BUNDLE_JWS: ${CRYPTO_APPROVAL_POLICY_BUNDLE_JWS:?CRYPTO_APPROVAL_POLICY_BUNDLE_JWS is required}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    networks:
+      pdf-internal:
+      metapus-net:
+        aliases:
+          - metapus-app
+      vault-worker:
+    healthcheck:
+      test: [ "CMD", "./healthcheck", "http://localhost:8080/health/live" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # --- Metapus Worker (background jobs) ---
+  metapus-worker:
+    image: ${METAPUS_IMAGE:-ghcr.io/alex-bogatiuk/metapus}:${METAPUS_TAG:-latest}
+    restart: unless-stopped
+    entrypoint: [ "./worker" ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: "production"
+      CRYPTO_PROCESSING_ENABLED: ${CRYPTO_PROCESSING_ENABLED:-false}
+      CRYPTO_CHAIN_CONFIG_FILE: /run/metapus/crypto/chains.json
+      CRYPTO_RPC_DNS_TLS_SERVER: ${CRYPTO_RPC_DNS_TLS_SERVER:-}
+      VAULT_ADDR: ${VAULT_ADDR:-http://vault-proxy:8100}
+      CRYPTO_AUTH_SIGNER: ${CRYPTO_AUTH_SIGNER:-}
+      CRYPTO_TRANSIT_MOUNT: ${CRYPTO_TRANSIT_MOUNT:-transit}
+      CRYPTO_APPROVAL_POLICY_PUBLIC_KEY: ${CRYPTO_APPROVAL_POLICY_PUBLIC_KEY:-}
+      CRYPTO_INTENT_SIGNING_PUBLIC_KEY: ${CRYPTO_INTENT_SIGNING_PUBLIC_KEY:-}
+      CRYPTO_RISK_ASSESSMENT_SIGNING_PUBLIC_KEY: ${CRYPTO_RISK_ASSESSMENT_SIGNING_PUBLIC_KEY:-}
+      CRYPTO_POLICY_DECISION_SIGNING_PUBLIC_KEY: ${CRYPTO_POLICY_DECISION_SIGNING_PUBLIC_KEY:-}
+      CRYPTO_ADMIN_APPROVAL_SIGNING_PUBLIC_KEY: ${CRYPTO_ADMIN_APPROVAL_SIGNING_PUBLIC_KEY:-}
+      CRYPTO_RISK_APPROVAL_SIGNING_PUBLIC_KEY: ${CRYPTO_RISK_APPROVAL_SIGNING_PUBLIC_KEY:-}
+      META_DATABASE_URL: postgres://metapus:${POSTGRES_PASSWORD:-metapus}@postgres:5432/tenants?sslmode=disable
+      TENANT_DB_USER: metapus
+      TENANT_DB_PASSWORD: ${POSTGRES_PASSWORD:-metapus}
+      AUTOMATION_ENCRYPTION_KEY: ${AUTOMATION_ENCRYPTION_KEY:?AUTOMATION_ENCRYPTION_KEY is required (32 bytes)}
+      LOG_LEVEL: "info"
+    volumes:
+      - ${CRYPTO_CHAIN_CONFIG_FILE_HOST:-../crypto/chains.example.json}:/run/metapus/crypto/chains.json:ro
+    networks:
+      - metapus-net
+      - vault-worker
+
+  # --- Frontend (Next.js) ---
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/alex-bogatiuk/metapus-frontend}:${FRONTEND_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      metapus-app:
+        condition: service_healthy
+    environment:
+      NEXT_PUBLIC_API_URL: http://metapus-app:8080
+      NEXT_PUBLIC_TENANT_ID: ${TENANT_ID:?TENANT_ID is required}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    networks:
+      - metapus-net
+
+networks:
+  pdf-internal:
+    internal: true
+  metapus-net:
+    driver: bridge
+  vault-control:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: ${VAULT_CONTROL_SUBNET:-172.30.251.0/24}
+  vault-worker:
+    driver: bridge
+    internal: true
+
+volumes:
+  pgdata:
+  vault-test-data:

@@ -1,0 +1,17 @@
+# Optional test-only override for hosts where containers cannot reach TronGrid
+# directly. Run cmd/nile-tcp-relay on the host at port 19443 and add this file
+# after docker-compose.public-test.yml. TLS remains end-to-end because the
+# original nile.trongrid.io hostname is preserved.
+
+services:
+  crypto-ingestion-monitor:
+    extra_hosts:
+      - "nile.trongrid.io:${NILE_RELAY_HOST_IP:-host-gateway}"
+
+  crypto-preflight:
+    extra_hosts:
+      - "nile.trongrid.io:${NILE_RELAY_HOST_IP:-host-gateway}"
+
+  metapus-worker:
+    extra_hosts:
+      - "nile.trongrid.io:${NILE_RELAY_HOST_IP:-host-gateway}"

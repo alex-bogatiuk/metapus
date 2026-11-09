@@ -1,0 +1,21 @@
+services:
+  metapus-db:
+    image: postgres:17-alpine
+    container_name: metapus-db
+    restart: always
+    environment:
+      POSTGRES_USER: metapus
+      POSTGRES_PASSWORD: metapus
+      POSTGRES_DB: mt_default
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U metapus -d mt_default" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:

@@ -1,0 +1,21 @@
+{
+  "tx": "dc0586ee1dfa586a9ebe8264926a9b905db1f269c517cea5d1274c59138a9675",
+  "files": [
+    {
+      "file": "positive-trongrid-getblockbynum.json",
+      "sha256": "3eceb651abb70ba68244dfed168c47fe724e6bf646aa83759586ca5f21bb4114",
+      "method": "getblockbynum",
+      "provider": "trongrid",
+      "network": "TRON-NILE",
+      "height": 71994066
+    },
+    {
+      "file": "positive-trongrid-gettransactioninfobyblocknum.json",
+      "sha256": "296b6e70f9e4500881cfae617139b5ef3754cc556615d96fae467148e158f69c",
+      "method": "gettransactioninfobyblocknum",
+      "provider": "trongrid",
+      "network": "TRON-NILE",
+      "height": 71994066
+    }
+  ]
+}

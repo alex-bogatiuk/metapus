@@ -1,0 +1,177 @@
+package compiler
+
+import (
+	"metapus/internal/core/types"
+	reportcontract "metapus/internal/domain/reports/contract"
+	"metapus/internal/domain/reports/schema"
+	"metapus/internal/metadata"
+)
+
+// BuildFieldTree builds the tree of available fields for a dataset.
+// For each Ref-typed field, it recursively resolves child fields from the
+// referenced entity via metadata.Registry, up to maxDepth levels.
+//
+// Example output for DocumentJournal dataset:
+//
+//	merchant_id (Мерчант) [ref]
+//	├── name (Наименование) [string]
+//	├── code (Код) [string]
+//	└── ...
+//	token_id (Токен) [ref]
+//	├── name (Наименование) [string]
+//	├── symbol (Символ) [string]
+//	└── network_id (Сеть) [ref]
+//	    └── name (Наименование) [string]
+//	total_amount (Сумма) [measure]
+func BuildFieldTree(ds *schema.Dataset, reg *metadata.Registry, maxDepth int) []reportcontract.FieldTreeNode {
+	if maxDepth <= 0 {
+		maxDepth = MaxJoinDepth
+	}
+
+	nodes := make([]reportcontract.FieldTreeNode, 0, len(ds.Fields))
+	for _, f := range ds.Fields {
+		if f.FilterOnly {
+			continue
+		}
+		node := fieldToTreeNode(f, "", reg, maxDepth, 0)
+		nodes = append(nodes, node)
+	}
+	return nodes
+}
+
+// fieldToTreeNode converts a schema.Field into a FieldTreeNode,
+// recursively resolving children for ref-type fields.
+func fieldToTreeNode(f schema.Field, prefix string, reg *metadata.Registry, maxDepth, currentDepth int) reportcontract.FieldTreeNode {
+	key := f.OutputName()
+	if prefix != "" {
+		key = prefix + "." + f.OutputName()
+	}
+
+	node := reportcontract.FieldTreeNode{
+		Key:      key,
+		Name:     f.OutputName(),
+		Label:    f.Label,
+		Type:     string(f.Type),
+		Kind:     string(f.Kind),
+		Sortable: f.Sortable,
+	}
+
+	// Propagate enum options for dropdown rendering
+	if f.Type == schema.TypeEnum && len(f.EnumValues) > 0 {
+		node.EnumValues = make([]reportcontract.EnumValue, len(f.EnumValues))
+		for i, ev := range f.EnumValues {
+			node.EnumValues[i] = reportcontract.EnumValue{Value: ev.Value, Label: ev.Label}
+		}
+	}
+
+	// Recursively resolve ref fields
+	if f.Type == schema.TypeRef && f.RefEntity != "" {
+		if currentDepth < maxDepth {
+			children := resolveRefChildren(f.RefEntity, key, reg, maxDepth, currentDepth+1)
+			if len(children) > 0 {
+				node.Children = children
+			}
+		}
+
+		// Resolve route prefix for UI navigation
+		if reg != nil {
+			entityName, ok := reg.GetEntityByRefType(f.RefEntity)
+			if !ok {
+				entityName = f.RefEntity
+			}
+			if entityDef, found := reg.Get(entityName); found && entityDef.RoutePrefix != "" {
+				node.RefRoute = entityDef.RoutePrefix
+			}
+		}
+	}
+
+	return node
+}
+
+// resolveRefChildren looks up a referenced entity in the registry and
+// converts its fields into child FieldTreeNodes.
+func resolveRefChildren(refEntity, parentKey string, reg *metadata.Registry, maxDepth, currentDepth int) []reportcontract.FieldTreeNode {
+	if reg == nil {
+		return nil
+	}
+
+	// Resolve entity: first via reference mapping, then by direct name
+	entityName, ok := reg.GetEntityByRefType(refEntity)
+	if !ok {
+		entityName = refEntity
+	}
+
+	entityDef, ok := reg.Get(entityName)
+	if !ok {
+		return nil
+	}
+
+	// Skip system/audit/internal fields not useful in reports
+	skipFields := map[string]bool{
+		"id": true, "version": true, "attributes": true,
+		"createdAt": true, "updatedAt": true,
+		"createdBy": true, "updatedBy": true,
+		"txid": true, "deletedAt": true,
+		"deletionMark": true, "parentId": true, "isFolder": true,
+		"imageUrl": true,
+	}
+
+	children := make([]reportcontract.FieldTreeNode, 0, len(entityDef.Fields))
+	for _, ef := range entityDef.Fields {
+		if skipFields[ef.Name] {
+			continue
+		}
+
+		childField := metaFieldToSchemaField(ef)
+		child := fieldToTreeNode(childField, parentKey, reg, maxDepth, currentDepth)
+		children = append(children, child)
+	}
+	return children
+}
+
+// metaFieldToSchemaField converts a metadata.FieldDef to a schema.Field
+// for use in tree node generation.
+func metaFieldToSchemaField(mf metadata.FieldDef) schema.Field {
+	f := schema.Field{
+		Name:     mf.Name,
+		Label:    mf.Label,
+		Kind:     schema.FieldAttribute,
+		Sortable: true,
+	}
+
+	// Map metadata field type to schema field type
+	switch mf.Type {
+	case metadata.TypeString, metadata.TypeText:
+		f.Type = schema.TypeString
+	case metadata.TypeInteger:
+		f.Type = schema.TypeInteger
+	case metadata.TypeNumber, metadata.TypeDecimal:
+		f.Type = schema.TypeNumber
+		if mf.Type == metadata.TypeNumber && mf.ValueScale == int(types.QuantityScale) {
+			f.Type = schema.TypeQuantity
+		}
+		f.Scale = mf.Scale
+	case metadata.TypeMoney:
+		f.Type = schema.TypeMoney
+	case metadata.TypeBoolean:
+		f.Type = schema.TypeBoolean
+	case metadata.TypeDate, metadata.TypeDatetime:
+		f.Type = schema.TypeDate
+	case metadata.TypeReference:
+		f.Type = schema.TypeRef
+		f.RefEntity = mf.ReferenceType
+	case metadata.TypeEnum:
+		f.Type = schema.TypeEnum
+		// Propagate enum options so the frontend can render a dropdown
+		if len(mf.EnumValues) > 0 {
+			f.EnumValues = make([]schema.EnumValue, len(mf.EnumValues))
+			for i, ev := range mf.EnumValues {
+				f.EnumValues[i] = schema.EnumValue{Value: ev.Value, Label: ev.Label}
+			}
+		}
+	default:
+		f.Type = schema.TypeString
+	}
+
+	return f
+}

@@ -1,0 +1,19 @@
+package crypto_resource_rental
+
+import (
+	"context"
+
+	"metapus/internal/core/id"
+	"metapus/internal/domain"
+)
+
+type Repository interface {
+	Create(ctx context.Context, doc *CryptoResourceRental) error
+	GetByID(ctx context.Context, docID id.ID) (*CryptoResourceRental, error)
+	GetByIDForUpdate(ctx context.Context, docID id.ID) (*CryptoResourceRental, error)
+	GetByNumber(ctx context.Context, number string) (*CryptoResourceRental, error)
+	Update(ctx context.Context, doc *CryptoResourceRental) error
+	Delete(ctx context.Context, docID id.ID) error
+	List(ctx context.Context, filter domain.ListFilter) (domain.CursorListResult[*CryptoResourceRental], error)
+	ListIDs(ctx context.Context, filter domain.ListFilter, maxIDs int) ([]id.ID, error)
+}

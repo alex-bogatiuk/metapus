@@ -1,0 +1,144 @@
+package handlers
+
+import (
+	"context"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+
+	"metapus/internal/application/cryptoapp"
+	"metapus/internal/core/apperror"
+	"metapus/internal/core/entity"
+	"metapus/internal/core/id"
+	"metapus/internal/domain"
+	"metapus/internal/domain/documents/crypto_resource_rental"
+	"metapus/internal/domain/settings"
+	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/v1/middleware"
+)
+
+type CryptoResourceRentalHandler struct {
+	*BaseDocumentHandler[*crypto_resource_rental.CryptoResourceRental, dto.CreateCryptoResourceRentalRequest, dto.UpdateCryptoResourceRentalRequest]
+	relatedDocsHandler *RelatedDocumentsHandler
+	workflow           *cryptoapp.ResourceRentalWorkflowService
+}
+
+func (h *CryptoResourceRentalHandler) RegisterCustomDocumentRoutes(group *gin.RouterGroup, permission string) {
+	group.GET("/metrics", middleware.RequirePermission(permission+":read"), h.GetMetrics)
+	group.GET("/provider-balance-incidents", middleware.RequirePermission(permission+":read"), h.ListProviderBalanceIncidents)
+	group.POST("/provider-balance-incidents/:incidentId/acknowledge", middleware.RequirePermission(permission+":post"), h.AcknowledgeProviderBalanceIncident)
+	group.GET("/:id/allocations", middleware.RequirePermission(permission+":read"), h.GetAllocations)
+	group.POST("/:id/reclaim", middleware.RequirePermission(permission+":post"), h.Reclaim)
+	group.POST("/:id/retry", middleware.RequirePermission(permission+":post"), h.Retry)
+}
+
+func (h *CryptoResourceRentalHandler) GetMetrics(c *gin.Context) {
+	value, err := h.workflow.Metrics(c.Request.Context())
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+	h.OK(c, value)
+}
+
+func (h *CryptoResourceRentalHandler) ListProviderBalanceIncidents(c *gin.Context) {
+	items, err := h.workflow.ListIncidents(c.Request.Context())
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+	h.OK(c, dto.ProviderBalanceIncidentsResponse{Items: items})
+}
+
+func (h *CryptoResourceRentalHandler) AcknowledgeProviderBalanceIncident(c *gin.Context) {
+	incidentID, err := id.Parse(c.Param("incidentId"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid provider balance incident id"))
+		return
+	}
+	if err := h.workflow.AcknowledgeIncident(c.Request.Context(), incidentID); err != nil {
+		h.Error(c, err)
+		return
+	}
+	h.Success(c, "provider balance incident acknowledged")
+}
+
+func (h *CryptoResourceRentalHandler) GetAllocations(c *gin.Context) {
+	rentalID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid resource rental id"))
+		return
+	}
+	items, err := h.workflow.ListAllocations(c.Request.Context(), rentalID)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+	h.OK(c, dto.ResourceRentalAllocationsResponse{Items: items})
+}
+
+func (h *CryptoResourceRentalHandler) Reclaim(c *gin.Context) {
+	rentalID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid resource rental id"))
+		return
+	}
+	if err := h.workflow.Reclaim(c.Request.Context(), rentalID, parseContextUserID(c.Request.Context())); err != nil {
+		h.Error(c, err)
+		return
+	}
+	h.Success(c, "resource rental queued for reclaim")
+}
+
+func (h *CryptoResourceRentalHandler) Retry(c *gin.Context) {
+	rentalID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		h.Error(c, apperror.NewValidation("invalid resource rental id"))
+		return
+	}
+	if err := h.workflow.Retry(c.Request.Context(), rentalID, parseContextUserID(c.Request.Context())); err != nil {
+		h.Error(c, err)
+		return
+	}
+	h.Success(c, "resource rental queued for retry")
+}
+
+func NewCryptoResourceRentalHandler(
+	base *BaseHandler,
+	service domain.DocumentService[*crypto_resource_rental.CryptoResourceRental],
+	workflow *cryptoapp.ResourceRentalWorkflowService,
+	relatedDocFinder domain.RelatedDocFinder,
+	movementProviders []entity.MovementProvider,
+	movementRefResolver domain.RefResolver,
+	settingsRepo settings.Repository,
+) *CryptoResourceRentalHandler {
+	cfg := BaseDocumentHandlerConfig[*crypto_resource_rental.CryptoResourceRental, dto.CreateCryptoResourceRentalRequest, dto.UpdateCryptoResourceRentalRequest]{
+		Service: service, EntityName: "crypto_resource_rental",
+		MapCreateDTO: func(req dto.CreateCryptoResourceRentalRequest) (*crypto_resource_rental.CryptoResourceRental, error) {
+			return req.ToEntity(), nil
+		},
+		MapUpdateDTO: func(req dto.UpdateCryptoResourceRentalRequest, existing *crypto_resource_rental.CryptoResourceRental) (*crypto_resource_rental.CryptoResourceRental, error) {
+			req.ApplyTo(existing)
+			return existing, nil
+		},
+		MapToDTO:    func(doc *crypto_resource_rental.CryptoResourceRental) any { return dto.FromCryptoResourceRental(doc) },
+		ResolveRefs: func(context.Context, ...*crypto_resource_rental.CryptoResourceRental) (any, error) { return nil, nil },
+		MapToDTOWithRefs: func(doc *crypto_resource_rental.CryptoResourceRental, _ any) any {
+			return dto.FromCryptoResourceRental(doc)
+		},
+		MovementProviders: movementProviders, MovementRefResolver: movementRefResolver, SettingsRepo: settingsRepo,
+	}
+	h := &CryptoResourceRentalHandler{BaseDocumentHandler: NewBaseDocumentHandler(base, cfg), workflow: workflow}
+	if relatedDocFinder != nil {
+		h.relatedDocsHandler = NewRelatedDocumentsHandler(relatedDocFinder, "CryptoResourceRental")
+	}
+	return h
+}
+
+func (h *CryptoResourceRentalHandler) GetRelatedDocuments(c *gin.Context) {
+	if h.relatedDocsHandler == nil {
+		c.JSON(http.StatusOK, gin.H{"groups": []any{}})
+		return
+	}
+	h.relatedDocsHandler.GetRelatedDocuments(c)
+}

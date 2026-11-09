@@ -1,0 +1,29 @@
+{
+  "id": "evt_01K3MZ7V6X4H8Q2T9N5R1C0BFA",
+  "object": "event",
+  "apiVersion": "2026-08-26",
+  "type": "invoice.completed",
+  "createdAt": "2026-08-26T06:12:03Z",
+  "data": {
+    "object": {
+      "id": "0198e4aa-1f4d-7c91-a4eb-c69e2e92bf21",
+      "invoiceId": "0198e4aa-1f4d-7c91-a4eb-c69e2e92bf21",
+      "status": "completed",
+      "resourceVersion": 7,
+      "orderId": "shop-45821",
+      "metadata": {
+        "cartId": "cart-17"
+      },
+      "expectedAmount": "100000000",
+      "receivedAmount": "100000000",
+      "confirmedAmount": "100000000",
+      "creditedAmount": "100000000",
+      "overpaidAmount": "0",
+      "currency": "USDT-TRC20",
+      "network": "TRON-NILE",
+      "tokenId": "0198e4a9-d235-7bdf-b987-7bddaa39f8ac",
+      "requiredConfirmations": 19,
+      "finalityMode": "confirmations"
+    }
+  }
+}

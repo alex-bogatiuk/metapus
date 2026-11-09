@@ -1,0 +1,8 @@
+.git
+node_modules
+.next
+.env*.local
+npm-debug.log*
+docs
+lint_report.json
+lint_parsed.json

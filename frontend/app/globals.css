@@ -1,0 +1,368 @@
+@font-face {
+  font-family: "Inter Local";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/inter-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F;
+}
+
+@font-face {
+  font-family: "Inter Local";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/inter-cyrillic.woff2") format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+  font-family: "Geist Mono Local";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/geist-mono-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F;
+}
+
+@font-face {
+  font-family: "Geist Mono Local";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/geist-mono-cyrillic.woff2") format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ── Accent scheme — current Metapus product palette ───────────────── */
+  :root {
+    --font-inter: "Inter Local", Arial, sans-serif;
+    --font-geist-mono: "Geist Mono Local", ui-monospace, monospace;
+    --background: 220 23% 97%;
+    --foreground: 210 24% 16%;
+    --card: 0 0% 100%;
+    --card-foreground: 210 24% 16%;
+    --workspace-surface: var(--card);
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 24% 16%;
+    --primary: 215 19% 23%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 17% 95%;
+    --secondary-foreground: 211 23% 19%;
+    --muted: 210 17% 95%;
+    --muted-foreground: 221 13% 46%;
+    --accent: 210 31% 95%;
+    --accent-foreground: 211 23% 19%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 219 23% 88%;
+    --input: 219 23% 88%;
+    --ring: 212 17% 56%;
+    --radius: 0.625rem;
+    --chart-1: 221 83% 53%;
+    --chart-2: 175 77% 26%;
+    --chart-3: 35 33% 51%;
+    --chart-4: 212 17% 56%;
+    --chart-5: 215 19% 23%;
+    --success: 152 55% 38%;
+    --success-foreground: 0 0% 100%;
+    --warning: 35 33% 51%;
+    --warning-foreground: 0 0% 100%;
+    --brand: 35 33% 51%;
+    --brand-glow-opacity: 0.14;
+    --sidebar-background: 220 23% 97%;
+    --sidebar-foreground: 211 23% 19%;
+    --sidebar-primary: 215 19% 23%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 17% 95%;
+    --sidebar-accent-foreground: 211 23% 19%;
+    --sidebar-border: 219 23% 88%;
+    --sidebar-ring: 212 17% 56%;
+    --logo-accent: #AB895A;
+    --material-chrome: var(--background);
+    --material-workspace: var(--workspace-surface);
+    --material-floating: var(--popover);
+    --material-chrome-alpha: 0.8;
+    --material-workspace-alpha: 0.88;
+    --material-floating-alpha: 0.94;
+    --surface-highlight: 0 0% 100%;
+    --surface-highlight-opacity: 0.78;
+    --shadow-color: 220 35% 18%;
+    --scrim: 220 30% 8%;
+  }
+
+  .dark {
+    --background: 218 19% 12%;
+    --foreground: 216 33% 97%;
+    --card: 219 21% 16%;
+    --card-foreground: 216 33% 97%;
+    --workspace-surface: var(--background);
+    --popover: 219 21% 16%;
+    --popover-foreground: 216 33% 97%;
+    --primary: 216 33% 97%;
+    --primary-foreground: 218 19% 12%;
+    --secondary: 215 17% 19%;
+    --secondary-foreground: 216 33% 97%;
+    --muted: 215 17% 19%;
+    --muted-foreground: 215 17% 71%;
+    --accent: 214 18% 28%;
+    --accent-foreground: 216 33% 97%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 216 33% 97%;
+    --border: 214 18% 28%;
+    --input: 214 18% 28%;
+    --ring: 213 18% 45%;
+    --chart-1: 221 83% 64%;
+    --chart-2: 175 55% 45%;
+    --chart-3: 35 33% 58%;
+    --chart-4: 216 21% 77%;
+    --chart-5: 215 17% 71%;
+    --success: 152 50% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 35 33% 58%;
+    --warning-foreground: 218 19% 12%;
+    --brand: 35 33% 58%;
+    --brand-glow-opacity: 0.2;
+    --sidebar-background: 218 19% 12%;
+    --sidebar-foreground: 216 21% 77%;
+    --sidebar-primary: 216 33% 97%;
+    --sidebar-primary-foreground: 218 19% 12%;
+    --sidebar-accent: 215 17% 19%;
+    --sidebar-accent-foreground: 216 33% 97%;
+    --sidebar-border: 214 18% 28%;
+    --sidebar-ring: 213 18% 45%;
+    --logo-accent: #C8AC78;
+    --material-chrome: var(--background);
+    --material-workspace: var(--workspace-surface);
+    --material-floating: var(--popover);
+    --material-chrome-alpha: 0.9;
+    --material-workspace-alpha: 0.94;
+    --material-floating-alpha: 0.96;
+    --surface-highlight: 0 0% 100%;
+    --surface-highlight-opacity: 0.08;
+    --shadow-color: 0 0% 0%;
+    --scrim: 0 0% 0%;
+  }
+
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /* Hide number input spinners globally (Chrome/Safari/Edge + Firefox) */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+}
+
+@layer utilities {
+
+  .bg-brand-glow {
+    background-image: radial-gradient(
+      60% 100% at 50% 0%,
+      hsl(var(--brand) / var(--brand-glow-opacity)),
+      transparent
+    );
+  }
+
+  [data-material="chrome"] {
+    background-color: hsl(var(--material-chrome) / var(--material-chrome-alpha));
+    border-color: hsl(var(--border) / 0.7);
+    box-shadow:
+      inset 0 1px 0 hsl(var(--surface-highlight) / var(--surface-highlight-opacity)),
+      0 1px 2px hsl(var(--shadow-color) / 0.05),
+      0 8px 24px hsl(var(--shadow-color) / 0.035);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+  }
+
+  [data-material="workspace"] {
+    background-color: hsl(var(--material-workspace) / var(--material-workspace-alpha));
+    border-color: hsl(var(--border) / 0.68);
+    box-shadow: inset 0 1px 0 hsl(var(--surface-highlight) / calc(var(--surface-highlight-opacity) * 0.72));
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+  }
+
+  [data-material="floating"] {
+    background-color: hsl(var(--material-floating) / var(--material-floating-alpha));
+    border-color: hsl(var(--border) / 0.72);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    backdrop-filter: blur(24px) saturate(160%);
+  }
+
+  [data-material="modal-scrim"] {
+    -webkit-backdrop-filter: blur(6px) saturate(110%);
+    backdrop-filter: blur(6px) saturate(110%);
+  }
+
+  @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    [data-material="chrome"] {
+      background-color: hsl(var(--material-chrome));
+    }
+
+    [data-material="workspace"] {
+      background-color: hsl(var(--material-workspace));
+    }
+
+    [data-material="floating"] {
+      background-color: hsl(var(--material-floating));
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    [data-material="chrome"],
+    [data-material="workspace"],
+    [data-material="floating"],
+    [data-material="modal-scrim"] {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+
+    [data-material="chrome"] {
+      background-color: hsl(var(--material-chrome));
+    }
+
+    [data-material="workspace"] {
+      background-color: hsl(var(--material-workspace));
+    }
+
+    [data-material="floating"] {
+      background-color: hsl(var(--material-floating));
+    }
+
+    [data-material="modal-scrim"] {
+      background-color: hsl(var(--scrim) / 0.58);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      scroll-behavior: auto !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+
+  }
+
+  @media (prefers-contrast: more) {
+    :root {
+      --border: 216 24% 58%;
+      --input: 216 24% 58%;
+      --ring: 215 30% 38%;
+    }
+
+    .dark {
+      --border: 214 18% 52%;
+      --input: 214 18% 52%;
+      --ring: 210 35% 72%;
+    }
+
+    .bg-brand-glow {
+      background-image: none;
+    }
+
+    [data-material="chrome"],
+    [data-material="workspace"],
+    [data-material="floating"] {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      border-color: hsl(var(--border));
+      box-shadow: inset 0 0 0 1px hsl(var(--border));
+    }
+
+    [data-material="chrome"] {
+      background-color: hsl(var(--material-chrome));
+    }
+
+    [data-material="workspace"] {
+      background-color: hsl(var(--material-workspace));
+    }
+
+    [data-material="floating"] {
+      background-color: hsl(var(--material-floating));
+    }
+
+    [data-material="modal-scrim"] {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      background-color: hsl(var(--scrim) / 0.68);
+    }
+  }
+
+  /* Hide scrollbar but allow scrolling (used by the tab bar) */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Thin styled scrollbar (shadcn-consistent: muted colors, rounded) */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 9999px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.4);
+  }
+
+  /* Badge appear animation (status badges, counters) */
+  .animate-badge-in {
+    animation: badge-in 200ms ease-out;
+  }
+  @keyframes badge-in {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  /* Row slide-in (new document line added) */
+  .animate-row-in {
+    animation: row-in 200ms ease-out;
+  }
+  @keyframes row-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Shake for validation error feedback */
+  .animate-shake {
+    animation: shake 300ms ease-in-out;
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+}

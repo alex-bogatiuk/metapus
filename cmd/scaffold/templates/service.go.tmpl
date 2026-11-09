@@ -1,0 +1,24 @@
+package {{.Name}}
+
+import (
+ {{if not .Document}}"context"
+ "fmt"
+ "time"{{end}}
+ "metapus/internal/core/numerator"
+ "metapus/internal/domain"
+ {{if .Document}}"metapus/internal/domain/posting"{{end}}
+)
+
+type Service struct { *domain.{{if .Document}}BaseHeaderDocumentService{{else}}CatalogService{{end}}[*{{.PascalName}}] }
+func NewService(repo Repository, num numerator.Generator{{if .Document}}, engine *posting.Engine{{end}}) *Service {
+ {{if .Document}}base:=domain.NewBaseHeaderDocumentService(domain.BaseHeaderDocumentServiceConfig[*{{.PascalName}}]{
+ Repo:repo,Numerator:num,PostingEngine:engine,Definition:&Definition,NumeratorPrefix:"{{.Prefix}}",NumeratorStrategy:numerator.StrategyStrict,
+ })
+ {{else}}base:=domain.NewCatalogService(domain.CatalogServiceConfig[*{{.PascalName}}]{Definition:&Definition,Repo:repo,Numerator:num})
+ base.Hooks().OnBeforeCreate(func(ctx context.Context,e *{{.PascalName}})error{
+  if e.Code!="" {return nil}
+  code,err:=num.GetNextNumber(ctx,numerator.DefaultConfig("{{.Prefix}}"),nil,time.Now());if err!=nil{return fmt.Errorf("generate code: %w",err)}
+  e.Code=code;return nil
+ }){{end}}
+ return &Service{base}
+}

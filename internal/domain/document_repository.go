@@ -1,0 +1,116 @@
+package domain
+
+import (
+	"context"
+
+	"metapus/internal/core/entity"
+	"metapus/internal/core/id"
+)
+
+// DocumentRepository defines CRUD + line operations for document entities.
+// T is the document type (pointer), L is the line type (value).
+type DocumentRepository[T any, L any] interface {
+	// Create inserts a new document
+	Create(ctx context.Context, doc T) error
+
+	// GetByID retrieves document by ID
+	GetByID(ctx context.Context, docID id.ID) (T, error)
+
+	// GetByIDForUpdate retrieves the document and locks the row in the current transaction.
+	GetByIDForUpdate(ctx context.Context, docID id.ID) (T, error)
+
+	// GetByNumber retrieves document by number
+	GetByNumber(ctx context.Context, number string) (T, error)
+
+	// Update modifies existing document (with optimistic locking)
+	Update(ctx context.Context, doc T) error
+
+	// Delete performs soft removal
+	Delete(ctx context.Context, docID id.ID) error
+
+	// GetLines retrieves table part (lines) for a document
+	GetLines(ctx context.Context, docID id.ID) ([]L, error)
+
+	// SaveLines replaces all lines for a document (delete + insert)
+	SaveLines(ctx context.Context, docID id.ID, lines []L) error
+
+	// List retrieves documents with cursor-based pagination
+	List(ctx context.Context, filter ListFilter) (CursorListResult[T], error)
+
+	// ListIDs returns all document IDs matching the filter (no pagination, no full data).
+	// Used for filter-based batch operations (virtual "select all").
+	// Safety limit: returns at most maxIDs results. If more match, returns ErrTooManyResults.
+	ListIDs(ctx context.Context, filter ListFilter, maxIDs int) ([]id.ID, error)
+
+}
+
+// LinesAccessor provides generic access to document lines.
+// Document models must implement this to be used with BaseDocumentService.
+type LinesAccessor[L any] interface {
+	GetLines() []L
+	SetLines(lines []L)
+}
+
+// CurrencyAwareDoc extends entity.ICurrencyAware with mutation and
+// cross-reference accessors needed for currency resolution.
+type CurrencyAwareDoc interface {
+	entity.ICurrencyAware
+	SetCurrencyID(currencyID id.ID)
+	GetContractID() *id.ID
+}
+
+// OrganizationOwned is implemented by documents that belong to an organization.
+// Used by CurrencyResolver for the org → base currency fallback chain.
+// Not all documents have an organization (e.g., crypto documents use merchant instead).
+type OrganizationOwned interface {
+	GetOrganizationID() id.ID
+}
+
+// CurrencyResolveStrategy defines the strategy for resolving document currency.
+// The resolution algorithm is swappable per document type or environment.
+//
+// Built-in implementation: documents.CurrencyResolver (1C-style chain:
+// Document → Contract → Organization → System base currency).
+type CurrencyResolveStrategy interface {
+	ResolveForDocument(ctx context.Context, explicitCurrencyID id.ID, contractID *id.ID, organizationID id.ID) (id.ID, error)
+}
+
+// CurrencyCacheInvalidator allows catalog services to notify the currency resolver
+// that a cached lookup should be evicted (e.g., when a contract's currency changes).
+// Implemented by documents.CurrencyResolver. Optional — nil means no caching.
+type CurrencyCacheInvalidator interface {
+	InvalidateContractCurrency(contractID id.ID)
+	InvalidateOrgCurrency(orgID id.ID)
+	InvalidateBaseCurrency(ctx context.Context)
+}
+// HeaderDocumentRepository defines CRUD operations for header-only documents.
+// Identical to DocumentRepository minus GetLines/SaveLines — header is self-sufficient.
+// Used by BaseHeaderDocumentService[T].
+type HeaderDocumentRepository[T any] interface {
+	// Create inserts a new document
+	Create(ctx context.Context, doc T) error
+
+	// GetByID retrieves document by ID
+	GetByID(ctx context.Context, docID id.ID) (T, error)
+
+	// GetByIDForUpdate retrieves the document and locks the row in the current transaction.
+	GetByIDForUpdate(ctx context.Context, docID id.ID) (T, error)
+
+	// GetByNumber retrieves document by number
+	GetByNumber(ctx context.Context, number string) (T, error)
+
+	// Update modifies existing document (with optimistic locking)
+	Update(ctx context.Context, doc T) error
+
+	// Delete performs soft removal
+	Delete(ctx context.Context, docID id.ID) error
+
+	// List retrieves documents with cursor-based pagination
+	List(ctx context.Context, filter ListFilter) (CursorListResult[T], error)
+
+	// ListIDs returns all document IDs matching the filter (no pagination, no full data).
+	// Used for filter-based batch operations (virtual "select all").
+	// Safety limit: returns at most maxIDs results. If more match, returns ErrTooManyResults.
+	ListIDs(ctx context.Context, filter ListFilter, maxIDs int) ([]id.ID, error)
+
+}

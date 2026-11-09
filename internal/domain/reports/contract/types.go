@@ -1,0 +1,121 @@
+// Package contract provides report contract types for metadata-driven reporting.
+//
+// ReportMeta, ReportColumn, etc. describe report structure declaratively.
+// Used by both the Compiler (Dataset-based Query Engine) and the frontend.
+package contract
+
+// ---------------------------------------------------------------------------
+// Report Metadata (returned by GET /reports/{key}/metadata)
+// ---------------------------------------------------------------------------
+
+// ReportMeta describes a report declaratively. The frontend uses this
+// to auto-generate the filter sidebar, table columns, grouping controls,
+// and totals footer without any report-specific UI code.
+type ReportMeta struct {
+	Key             string          `json:"key"`
+	Name            string          `json:"name"`
+	Description     string          `json:"description,omitempty"`
+	Filters         []ReportFilter  `json:"filters"`
+	Columns         []ReportColumn  `json:"columns"`
+	GroupBy         []ReportGroupBy `json:"groupBy,omitempty"`
+	Totals          []ReportTotal   `json:"totals,omitempty"`
+	ExportFormats   []string        `json:"exportFormats,omitempty"`
+	ScopeDimensions []string        `json:"scopeDimensions,omitempty"`
+	DefaultSort     *ReportSort     `json:"defaultSort,omitempty"`
+
+	// AvailableFields is the auto-discovery tree of selectable fields.
+	// Built by compiler.BuildFieldTree() from Dataset + metadata.Registry.
+	// Root nodes are dataset fields; children are referenced entity attributes.
+	AvailableFields []FieldTreeNode `json:"availableFields,omitempty"`
+}
+
+// FieldTreeNode describes a node in the field selection tree for the Report Builder UI.
+// Root nodes represent dataset fields. For reference (ref) fields, Children contains
+// the attributes of the referenced entity, resolved recursively up to MaxJoinDepth.
+type FieldTreeNode struct {
+	// Key is the full dot-separated path, e.g. "product_id.brand_id.name".
+	Key string `json:"key"`
+	// Name is the short field name, e.g. "name".
+	Name string `json:"name"`
+	// Label is the human-readable display name, e.g. "Наименование".
+	Label string `json:"label"`
+	// Type is the field data type: "string", "quantity", "ref", etc.
+	Type string `json:"type"`
+	// Kind is the field role: "dimension", "measure", "attribute".
+	Kind string `json:"kind"`
+	// Children are nested fields for ref-type nodes.
+	Children []FieldTreeNode `json:"children,omitempty"`
+	// Sortable indicates the field supports ORDER BY.
+	Sortable bool `json:"sortable,omitzero"`
+	// RefRoute is the route prefix for navigation (only for type="ref").
+	RefRoute string `json:"refRoute,omitempty"`
+	// EnumValues holds allowed options for type="enum" fields.
+	EnumValues []EnumValue `json:"enumValues,omitempty"`
+}
+
+// EnumValue represents a single enum option with its backend value and display label.
+type EnumValue struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
+// ReportFilter describes a single filter control in the sidebar.
+type ReportFilter struct {
+	Key      string `json:"key"`
+	Type     string `json:"type"` // "date", "period", "reference", "boolean", "enum", "string"
+	Label    string `json:"label"`
+	Required bool   `json:"required,omitzero"`
+	Ref      string `json:"ref,omitempty"`     // entity name for reference picker (e.g. "merchant")
+	Multi    bool   `json:"multi,omitzero"`    // allow multiple values
+	Default  any    `json:"default,omitempty"` // default value
+}
+
+// ReportColumn describes a single column in the report table.
+type ReportColumn struct {
+	Money         *MoneySources `json:"money,omitempty"`
+	Key           string        `json:"key"`
+	Label         string        `json:"label"`
+	Type          string        `json:"type"`            // "string", "quantity", "money", "date", "reference", "boolean"
+	Align         string        `json:"align,omitempty"` // "left", "center", "right"
+	Sortable      bool          `json:"sortable,omitzero"`
+	DefaultHidden bool          `json:"defaultHidden,omitzero"` // hidden by default, user can show via column chooser
+	Format        string        `json:"format,omitempty"`       // "number", "currency", "percent"
+	// RefIdKey is the column key containing the raw UUID for reference columns.
+	// E.g. for column "merchant_id__name", RefIdKey = "merchant_id".
+	RefIdKey string `json:"refIdKey,omitempty"`
+	// RefRoute is the frontend route prefix for navigating to the referenced entity.
+	// E.g. "merchants" → /catalogs/merchants/{id}.
+	RefRoute string `json:"refRoute,omitempty"`
+}
+
+// ReportGroupBy describes a grouping option available to the user.
+type ReportGroupBy struct {
+	Key           string `json:"key"`
+	Label         string `json:"label"`
+	DefaultActive bool   `json:"defaultActive,omitzero"` // active by default
+}
+
+// ReportTotal describes an aggregate total displayed in the footer.
+type ReportTotal struct {
+	Money  *MoneySources `json:"money,omitempty"`
+	Column string        `json:"column"`          // which column to aggregate
+	Func   string        `json:"func"`            // "sum", "count", "avg", "min", "max"
+	Label  string        `json:"label,omitempty"` // optional override label
+}
+
+// MoneySources names the row fields that define a monetary column's unit.
+// Values are minor units; no report-wide currency scale is assumed.
+type MoneySources struct {
+	// AmountType is "crypto" for arbitrary-precision raw token units; omitted
+	// means the existing checked int64 ERP contract.
+	AmountType    string `json:"amountType,omitempty"`
+	CurrencyID    string `json:"currencyId"`
+	CurrencyCode  string `json:"currencyCode"`
+	DecimalPlaces string `json:"decimalPlaces"`
+}
+
+// ReportSort describes the default sort order.
+type ReportSort struct {
+	Column    string `json:"column"`
+	Direction string `json:"direction"` // "asc" or "desc"
+}

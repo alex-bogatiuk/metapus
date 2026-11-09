@@ -1,0 +1,49 @@
+package {{.Name}}
+
+import (
+ "metapus/internal/domain"
+ {{if .Document}}"metapus/internal/infrastructure/http/contracts/spec"{{end}}
+ v1 "metapus/internal/infrastructure/http/v1"
+ "metapus/internal/infrastructure/http/v1/handlers"
+ "metapus/internal/metadata"
+)
+
+type {{.PascalName}}Registration struct { {{if .Document}}v1.EntityRegistration[{{.PascalName}}]{{else}}v1.CatalogRegistrationFor[{{.PascalName}},Create{{.PascalName}}Request,Update{{.PascalName}}Request,{{.PascalName}}Response]{{end}} }
+func (r *{{.PascalName}}Registration) EntityPresentation() metadata.Presentation {
+ return metadata.Presentation{Singular:"{{.PascalName}}",Plural:"{{.PascalName}}s",NewLabel:"New {{.PascalName}}"}
+}
+{{if .Document}}
+func (r *{{.PascalName}}Registration) DocumentCapabilities() metadata.DocumentCapabilities {
+ return metadata.DocumentCapabilities{List:true,Read:true,Create:true,Update:true,Delete:true,SetDeletionMark:true,Post:true,Unpost:true,Repost:true,ExportList:true,Movements:true,BatchAction:true,BatchActionByFilter:true}
+}
+{{else}}
+func (r *{{.PascalName}}Registration) ReferenceTypes() []string { return []string{Definition.Key} }
+{{end}}
+{{if .Document}}
+func (r *{{.PascalName}}Registration) HTTPContracts() spec.Bundle {
+ return spec.Entity[Create{{.PascalName}}Request,Update{{.PascalName}}Request,{{.PascalName}}Response](r.EntityDefinition(),r.DocumentCapabilities())
+}
+{{end}}
+func (r *{{.PascalName}}Registration) Build(deps v1.{{if .Document}}Document{{else}}Catalog{{end}}Deps) v1.{{if .Document}}Document{{else}}Catalog{{end}}RouteHandler {
+ service:=NewService(NewRepo(),deps.Numerator{{if .Document}},deps.PostingEngine{{end}})
+ service.SetPolicyEngine(deps.PolicyEngine)
+ {{if .Document}}
+ decorated:=domain.WithEventLog[*{{.PascalName}}](Definition.Key,deps.EventWriter)(service)
+ return handlers.NewBaseDocumentHandler(deps.BaseHandler,handlers.BaseDocumentHandlerConfig[*{{.PascalName}},Create{{.PascalName}}Request,Update{{.PascalName}}Request]{
+ Service:decorated,EntityName:Definition.Key,
+ MapCreateDTO:func(req Create{{.PascalName}}Request)(*{{.PascalName}},error){return req.ToEntity(),nil},
+ MapUpdateDTO:func(req Update{{.PascalName}}Request,e *{{.PascalName}})(*{{.PascalName}},error){req.ApplyTo(e);return e,nil},
+ MapToDTO:func(e *{{.PascalName}})any{return From{{.PascalName}}(e)},
+ IsPostImmediately:func(req Create{{.PascalName}}Request)bool{return req.PostImmediately},
+ MovementProviders:deps.MovementProviders,MovementRefResolver:deps.MovementRefResolver,SettingsRepo:deps.SettingsRepo,
+ })
+ {{else}}
+ domain.NewEventLogCatalogService(service.CatalogService,Definition.Key,deps.EventWriter)
+ return handlers.NewCatalogHandler(deps.BaseHandler,handlers.CatalogHandlerConfig[*{{.PascalName}},Create{{.PascalName}}Request,Update{{.PascalName}}Request]{
+ Service:service.CatalogService,EntityName:Definition.Key,
+ MapCreateDTO:func(req Create{{.PascalName}}Request)*{{.PascalName}}{return req.ToEntity()},
+ MapUpdateDTO:func(req Update{{.PascalName}}Request,e *{{.PascalName}})*{{.PascalName}}{req.ApplyTo(e);return e},
+ MapToDTO:func(e *{{.PascalName}})any{return From{{.PascalName}}(e)},
+ }){{end}}
+}
+func Register(reg *v1.FactoryRegistry) { reg.Register{{if .Document}}Document{{else}}Catalog{{end}}(&{{.PascalName}}Registration{}) }

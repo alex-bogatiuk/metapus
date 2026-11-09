@@ -1,0 +1,1047 @@
+package automation
+
+import (
+	"bytes"
+	"container/list"
+	"context"
+	"errors"
+	"fmt"
+	"math"
+	"strconv"
+	"strings"
+	"sync"
+	"text/template"
+	"time"
+
+	"github.com/google/cel-go/cel"
+
+	"metapus/internal/core/id"
+	"metapus/internal/core/json"
+	"metapus/internal/core/types"
+	"metapus/internal/domain/automations"
+	"metapus/pkg/logger"
+)
+
+// maxDeliveryConcurrency limits parallel adapter calls in Deliver .
+// Prevents overwhelming external APIs while still improving throughput over sequential.
+const _maxDeliveryConcurrency = 10
+
+// DeliveryTask is the output of Evaluate and input of Deliver .
+// One Rule may produce multiple DeliveryTasks (one per subscriber).
+type DeliveryTask struct {
+	Rule            *automations.Rule
+	Subscriber      automations.Subscriber
+	RenderedPayload string
+	EventType       string
+	AggregateID     *id.ID
+	AggregateName   *string
+	Attachments     []Attachment // Report files to attach (email/Telegram document)
+}
+
+// Adapter defines the interface for external delivery (Telegram, Email, Webhook).
+// v3: attachment-aware — supports file attachments for report distribution.
+type Adapter interface {
+	// Deliver sends the rendered payload through the channel.
+	// destination: channel-specific config (e.g. chat_id, email address, webhook URL)
+	// accountConfig: account-level config (e.g. parse_mode defaults)
+	// credentials: decrypted account credentials (e.g. bot token, SMTP password)
+	// payload: rendered message text
+	// attachments: optional file attachments (nil for plain notify)
+	Deliver(ctx context.Context, destination map[string]any, accountConfig map[string]any, credentials []byte, payload string, attachments []Attachment) error
+}
+
+// UserResolver resolves user IDs from subscriber metadata (user ID, role code).
+// Used by deliverInternal to build target_users for InternalNotificationAdapter.
+// Defined as interface to avoid importing auth domain.
+type UserResolver interface {
+	// ResolveUserIDsByRole returns all user IDs assigned to a role code.
+	ResolveUserIDsByRole(ctx context.Context, roleCode string) ([]id.ID, error)
+}
+
+// Attachment is a transport-neutral file produced by application workflows
+// and consumed by infrastructure delivery adapters.
+type Attachment struct {
+	FileName string
+	MimeType string
+	Data     []byte
+}
+
+// GeneratedReportRef is the application-level result of durable report generation.
+type GeneratedReportRef struct {
+	FileID      string
+	FileName    string
+	RowCount    int
+	Period      ResolvedPeriod
+	DatasetName string
+}
+
+// ReportGenerator generates and durably stores a report for scheduled delivery.
+type ReportGenerator interface {
+	GenerateAndStore(ctx context.Context, rule *automations.Rule, triggerTime time.Time) (*GeneratedReportRef, error)
+	LoadAttachment(ctx context.Context, fileID string) (Attachment, error)
+}
+
+// ReportEmailRenderer renders an email body for a generated report.
+type ReportEmailRenderer interface {
+	RenderReportEmail(ref *GeneratedReportRef, customBody string) (string, error)
+}
+
+// celCacheMaxSize is the maximum number of compiled CEL programs to cache.
+const _celCacheMaxSize = 512
+
+// celCacheEntry holds a cached CEL program with LRU metadata.
+type celCacheEntry struct {
+	expr string
+	prg  cel.Program
+}
+
+// Engine is the core automation component with two-phase processing:
+//
+//	Evaluate: CPU-bound — CEL condition check, template rendering.
+//	Deliver: I/O-bound — adapter execution, history recording.
+type Engine struct {
+	ruleRepo     automations.RuleRepository
+	historyRepo  automations.HistoryRepository
+	credManager  automations.CredentialManager
+	accountRepo  automations.AccountRepository
+	channelRepo  automations.ChannelRepository
+	adapters     map[string]Adapter
+	userResolver UserResolver // For resolving user/role subscribers → target_users
+	celEnv       *cel.Env
+
+	// Report generation (optional, nil if not configured)
+	reportGen     ReportGenerator
+	emailRenderer ReportEmailRenderer
+
+	// Bounded LRU cache for compiled CEL programs.
+	celMu     sync.Mutex
+	celLookup map[string]*list.Element // expr → list element
+	celOrder  *list.List               // front = most recently used
+
+	// Bounded LRU cache for parsed Templates.
+	tmplMu     sync.Mutex
+	tmplLookup map[string]*list.Element // text → list element
+	tmplOrder  *list.List
+}
+
+// tmplCacheMaxSize is the maximum number of parsed templates to cache.
+const _tmplCacheMaxSize = 512
+
+// tmplCacheEntry holds a cached parsed template with LRU metadata.
+type tmplCacheEntry struct {
+	text string
+	tmpl *template.Template
+}
+
+// NewEngine creates a new automation engine.
+func NewEngine(
+	ruleRepo automations.RuleRepository,
+	historyRepo automations.HistoryRepository,
+	credManager automations.CredentialManager,
+	accountRepo automations.AccountRepository,
+	channelRepo automations.ChannelRepository,
+	adapters map[string]Adapter,
+	userResolver UserResolver,
+) (*Engine, error) {
+	// Initialize CEL environment with standard document variables.
+	env, err := cel.NewEnv(
+		cel.Variable("doc", cel.DynType),
+		cel.Variable("action", cel.StringType),
+		cel.Variable("entityType", cel.StringType),
+		cel.Variable("currency", cel.DynType),
+		cel.Variable("humanAmounts", cel.DynType),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CEL env: %w", err)
+	}
+
+	if adapters == nil {
+		adapters = make(map[string]Adapter)
+	}
+
+	return &Engine{
+		ruleRepo:     ruleRepo,
+		historyRepo:  historyRepo,
+		credManager:  credManager,
+		accountRepo:  accountRepo,
+		channelRepo:  channelRepo,
+		adapters:     adapters,
+		userResolver: userResolver,
+		celEnv:       env,
+		celLookup:    make(map[string]*list.Element, _celCacheMaxSize),
+		celOrder:     list.New(),
+		tmplLookup:   make(map[string]*list.Element, _tmplCacheMaxSize),
+		tmplOrder:    list.New(),
+	}, nil
+}
+
+// SetReportGenerator injects the report generation subsystem into the engine.
+// Called during server bootstrap when the Compiler and FileRepo are available.
+// Separate from NewEngine to avoid circular dependencies and keep the constructor stable.
+func (e *Engine) SetReportGenerator(gen ReportGenerator, renderer ReportEmailRenderer) {
+	e.reportGen = gen
+	e.emailRenderer = renderer
+}
+
+// HandleEvent is the main entry point. Called by OutboxRelay for each event.
+// Orchestrates Evaluate → Deliver → Stats update.
+func (e *Engine) HandleEvent(ctx context.Context, eventType string, payload map[string]any) error {
+	// Evaluate
+	tasks, err := e.Evaluate(ctx, eventType, payload)
+	if err != nil {
+		return fmt.Errorf("evaluate: %w", err)
+	}
+
+	if len(tasks) == 0 {
+		return nil
+	}
+
+	return e.Deliver(ctx, tasks)
+}
+
+// DeliverReplay replays a failed message using its history entry ID.
+func (e *Engine) DeliverReplay(ctx context.Context, historyID id.ID) error {
+	entry, err := e.historyRepo.GetByID(ctx, historyID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch history entry: %w", err)
+	}
+
+	if entry.RenderedPayload == nil || *entry.RenderedPayload == "" {
+		return fmt.Errorf("cannot replay history entry with empty payload")
+	}
+
+	rule := &automations.Rule{
+		ID:   entry.RuleID,
+		Name: entry.RuleName,
+	}
+
+	subscriber := automations.Subscriber{}
+	if entry.ChannelID != nil {
+		subscriber.SubscriberType = automations.SubChannel
+		subscriber.ChannelID = entry.ChannelID
+	} else {
+		return fmt.Errorf("replay is only supported for channel-based deliveries")
+	}
+
+	task := DeliveryTask{
+		Rule:            rule,
+		Subscriber:      subscriber,
+		RenderedPayload: *entry.RenderedPayload,
+		EventType:       entry.EventType,
+		AggregateID:     entry.AggregateID,
+		AggregateName:   entry.AggregateName,
+	}
+
+	return e.Deliver(ctx, []DeliveryTask{task})
+}
+
+// HandleScheduledRule is called directly by the Scheduler for cron-triggered rules.
+// It bypasses the event-type matching (since the cron expression IS the event_type,
+// not a matchable string) and directly renders the template + delivers.
+func (e *Engine) HandleScheduledRule(ctx context.Context, rule automations.Rule, payload map[string]any) error {
+	if err := rule.ReactionType.Validate(); err != nil {
+		return err
+	}
+	eventType := fmt.Sprintf("scheduled.%s", rule.ID)
+
+	renderedPayload, renderErr := e.RenderTemplate(rule.ActionTemplate, payload)
+	if renderErr != nil {
+		errMsg := renderErr.Error()
+		e.recordHistory(ctx, &rule, nil, eventType, nil, automations.HistoryError, "", &errMsg)
+		return fmt.Errorf("render template: %w", renderErr)
+	}
+
+	tasks := make([]DeliveryTask, 0, len(rule.Subscribers))
+	for _, sub := range rule.Subscribers {
+		tasks = append(tasks, DeliveryTask{
+			Rule:            &rule,
+			Subscriber:      sub,
+			RenderedPayload: renderedPayload,
+			EventType:       eventType,
+		})
+	}
+
+	if len(tasks) == 0 {
+		logger.Warn(ctx, "scheduled rule: no subscribers", "ruleId", rule.ID)
+		return nil
+	}
+
+	return e.Deliver(ctx, tasks)
+}
+
+// HandleScheduledReportRule generates a report and delivers it to all subscribers
+// as an attachment (email MIME / Telegram document).
+// Called by the Scheduler when a cron-triggered rule has reaction_type = 'generate_report'.
+func (e *Engine) HandleScheduledReportRule(ctx context.Context, rule automations.Rule, triggerTime time.Time) error {
+	eventType := fmt.Sprintf("scheduled.report.%s", rule.ID)
+
+	if e.reportGen == nil {
+		errMsg := "report generator not configured"
+		e.recordHistory(ctx, &rule, nil, eventType, nil, automations.HistoryError, "", &errMsg)
+		return fmt.Errorf("%s", errMsg)
+	}
+
+	// 1. Generate the report (Compiler → XLSX → FileRepo)
+	ref, err := e.reportGen.GenerateAndStore(ctx, &rule, triggerTime)
+	if err != nil {
+		errMsg := err.Error()
+		e.recordHistory(ctx, &rule, nil, eventType, nil, automations.HistoryError, "", &errMsg)
+		return fmt.Errorf("generate report: %w", err)
+	}
+
+	// 2. Check if report was empty and should be skipped
+	if ref == nil {
+		logger.Info(ctx, "scheduled report rule: empty report, skipping delivery", "ruleId", rule.ID)
+		e.recordHistory(ctx, &rule, nil, eventType, nil, automations.HistorySkipped, "", nil)
+		return nil
+	}
+
+	// 3. Load the file data for attachment
+	attachment, err := e.reportGen.LoadAttachment(ctx, ref.FileID)
+	if err != nil {
+		errMsg := err.Error()
+		e.recordHistory(ctx, &rule, nil, eventType, nil, automations.HistoryError, "", &errMsg)
+		return fmt.Errorf("load report file: %w", err)
+	}
+
+	// 4. Render email body (from action_template + HTML wrapper)
+	var renderedPayload string
+	customBody := ""
+	if rule.ActionTemplate != "" {
+		payload := map[string]any{
+			"report":     ref,
+			"periodFrom": ref.Period.From.Format("02.01.2006"),
+			"periodTo":   ref.Period.To.Format("02.01.2006"),
+			"rowCount":   ref.RowCount,
+		}
+		rendered, renderErr := e.RenderTemplate(rule.ActionTemplate, payload)
+		if renderErr == nil {
+			customBody = rendered
+		}
+	}
+
+	if e.emailRenderer != nil {
+		htmlBody, renderErr := e.emailRenderer.RenderReportEmail(ref, customBody)
+		if renderErr == nil {
+			renderedPayload = ref.DatasetName + "\n" + htmlBody
+		} else {
+			logger.Warn(ctx, "email template render failed, using plain text", "error", renderErr)
+			renderedPayload = fmt.Sprintf("%s\nОтчёт: %s\nПериод: %s — %s\nСтрок: %d",
+				ref.DatasetName,
+				ref.DatasetName,
+				ref.Period.From.Format("02.01.2006"),
+				ref.Period.To.Format("02.01.2006"),
+				ref.RowCount)
+		}
+	} else {
+		renderedPayload = fmt.Sprintf("%s\nОтчёт: %s\nПериод: %s — %s\nСтрок: %d",
+			ref.DatasetName,
+			ref.DatasetName,
+			ref.Period.From.Format("02.01.2006"),
+			ref.Period.To.Format("02.01.2006"),
+			ref.RowCount)
+	}
+
+	// 5. Build delivery tasks with attachment
+	tasks := make([]DeliveryTask, 0, len(rule.Subscribers))
+	for _, sub := range rule.Subscribers {
+		tasks = append(tasks, DeliveryTask{
+			Rule:            &rule,
+			Subscriber:      sub,
+			RenderedPayload: renderedPayload,
+			EventType:       eventType,
+			Attachments:     []Attachment{attachment},
+		})
+	}
+
+	if len(tasks) == 0 {
+		logger.Warn(ctx, "scheduled report rule: no subscribers", "ruleId", rule.ID)
+		return nil
+	}
+
+	// 6. Deliver
+	return e.Deliver(ctx, tasks)
+}
+
+// Evaluate is CPU-bound: fetch rules, check cooldowns, evaluate CEL, render templates.
+// Returns a list of DeliveryTasks ready for delivery.
+func (e *Engine) Evaluate(ctx context.Context, eventType string, payload map[string]any) ([]DeliveryTask, error) {
+	entityType, _ := payload["entityType"].(string)
+	rules, err := e.ruleRepo.ListActiveByEvent(ctx, eventType, entityType)
+	if err != nil {
+		return nil, fmt.Errorf("fetch rules: %w", err)
+	}
+
+	for _, rule := range rules {
+		if err := rule.ReactionType.Validate(); err != nil {
+			return nil, err
+		}
+	}
+	if len(rules) == 0 {
+		return nil, nil
+	}
+
+	// Prepare CEL variables
+	doc := payload["doc"]
+	action, _ := payload["action"].(string)
+
+	vars := map[string]any{
+		"doc":        doc,
+		"action":     action,
+		"entityType": entityType,
+	}
+
+	if curr, ok := payload["currency"]; ok {
+		vars["currency"] = curr
+	}
+	if ha, ok := payload["humanAmounts"]; ok {
+		vars["humanAmounts"] = ha
+	}
+
+	var aggregateID *id.ID
+	if eIDStr, ok := payload["entityId"].(string); ok {
+		parsed, parseErr := id.Parse(eIDStr)
+		if parseErr == nil {
+			aggregateID = &parsed
+		}
+	}
+
+	var tasks []DeliveryTask
+
+	for i := range rules {
+		rule := &rules[i]
+
+		// Cooldown check: skip if executed too recently
+		if rule.CooldownSecs > 0 && rule.LastExecutedAt != nil {
+			cooldownEnd := rule.LastExecutedAt.Add(time.Duration(rule.CooldownSecs) * time.Second)
+			if time.Now().Before(cooldownEnd) {
+				logger.Debug(ctx, "rule skipped due to cooldown", "ruleId", rule.ID, "cooldownEnds", cooldownEnd)
+				e.recordHistory(ctx, rule, nil, eventType, aggregateID, automations.HistorySkipped, "", nil)
+				continue
+			}
+		}
+
+		// CEL condition evaluation
+		if rule.ConditionCEL != nil && strings.TrimSpace(*rule.ConditionCEL) != "" {
+			matched, evalErr := e.EvaluateCEL(*rule.ConditionCEL, vars)
+			if evalErr != nil {
+				logger.Error(ctx, "CEL evaluation failed", "ruleId", rule.ID, "error", evalErr)
+				errMsg := evalErr.Error()
+				e.recordHistory(ctx, rule, nil, eventType, aggregateID, automations.HistoryError, "", &errMsg)
+				continue
+			}
+			if !matched {
+				e.recordHistory(ctx, rule, nil, eventType, aggregateID, automations.HistoryConditionFalse, "", nil)
+				continue
+			}
+		}
+
+		// Template rendering
+		renderedPayload, renderErr := e.RenderTemplate(rule.ActionTemplate, payload)
+		if renderErr != nil {
+			logger.Error(ctx, "template render failed", "ruleId", rule.ID, "error", renderErr)
+			errMsg := renderErr.Error()
+			e.recordHistory(ctx, rule, nil, eventType, aggregateID, automations.HistoryError, "", &errMsg)
+			continue
+		}
+
+		// Generate one DeliveryTask per subscriber
+		for _, sub := range rule.Subscribers {
+			tasks = append(tasks, DeliveryTask{
+				Rule:            rule,
+				Subscriber:      sub,
+				RenderedPayload: renderedPayload,
+				EventType:       eventType,
+				AggregateID:     aggregateID,
+			})
+		}
+	}
+
+	return tasks, nil
+}
+
+// deliveryCache holds preloaded data for a batch of DeliveryTasks.
+// Reduces queries by deduplicating IDs. TODO: Implement ListByIDs in repos to eliminate N+1 completely.
+type deliveryCache struct {
+	channels    map[id.ID]*automations.Channel
+	accounts    map[id.ID]*automations.Account
+	credentials map[id.ID][]byte
+}
+
+// preloadDeliveryData loads all unique channels, accounts, and credentials
+// needed by the task batch. Runs BEFORE the parallel Deliver loop.
+func (e *Engine) preloadDeliveryData(ctx context.Context, tasks []DeliveryTask) *deliveryCache {
+	cache := &deliveryCache{
+		channels:    make(map[id.ID]*automations.Channel),
+		accounts:    make(map[id.ID]*automations.Account),
+		credentials: make(map[id.ID][]byte),
+	}
+
+	// Collect unique channel IDs
+	channelIDs := make(map[id.ID]struct{})
+	for _, t := range tasks {
+		if t.Subscriber.SubscriberType == automations.SubChannel && t.Subscriber.ChannelID != nil {
+			channelIDs[*t.Subscriber.ChannelID] = struct{}{}
+		}
+	}
+	if len(channelIDs) == 0 {
+		return cache
+	}
+
+	// Load channels → collect account IDs
+	accountIDs := make(map[id.ID]struct{})
+	for chID := range channelIDs {
+		ch, err := e.channelRepo.GetByID(ctx, chID)
+		if err != nil {
+			logger.Error(ctx, "preload: channel load failed", "channelId", chID, "error", err)
+			continue
+		}
+		cache.channels[chID] = ch
+		accountIDs[ch.AccountID] = struct{}{}
+	}
+
+	// Load accounts + decrypt credentials (one per unique account)
+	for accID := range accountIDs {
+		acc, err := e.accountRepo.GetByID(ctx, accID)
+		if err != nil {
+			logger.Error(ctx, "preload: account load failed", "accountId", accID, "error", err)
+			continue
+		}
+		cache.accounts[accID] = acc
+
+		creds, err := e.credManager.ReadCredentials(ctx, accID)
+		if err != nil {
+			logger.Error(ctx, "preload: credentials load failed", "accountId", accID, "error", err)
+			continue
+		}
+		cache.credentials[accID] = creds
+	}
+
+	return cache
+}
+
+// Deliver is I/O-bound: execute adapters in parallel, record history, update stats.
+// Uses bounded concurrency (maxDeliveryConcurrency) to prevent overwhelming external APIs.
+func (e *Engine) Deliver(ctx context.Context, tasks []DeliveryTask) error {
+	// Preload channel/account/credentials to avoid N+1 in the delivery loop
+	cache := e.preloadDeliveryData(ctx, tasks)
+
+	var (
+		mu             sync.Mutex
+		deliveryErrors []error
+		ruleErrors     = make(map[id.ID]bool) // ruleID → hadError
+		wg             sync.WaitGroup
+		sem            = make(chan struct{}, _maxDeliveryConcurrency)
+	)
+
+	for _, task := range tasks {
+		wg.Add(1)
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			wg.Done()
+			wg.Wait()
+			return ctx.Err()
+		}
+		go func(t DeliveryTask) {
+			defer wg.Done()
+			defer func() { <-sem }() // Release slot
+
+			start := time.Now()
+			var adapterErr error
+
+			switch t.Subscriber.SubscriberType {
+			case automations.SubChannel:
+				adapterErr = e.deliverToChannelCached(ctx, t, cache)
+			case automations.SubUser, automations.SubRole, automations.SubDocField:
+				adapterErr = e.deliverInternal(ctx, t)
+			default:
+				errMsg := fmt.Sprintf("unknown subscriber type: %s", t.Subscriber.SubscriberType)
+				logger.Error(ctx, errMsg, "ruleId", t.Rule.ID)
+				adapterErr = fmt.Errorf("%s", errMsg)
+			}
+
+			durationMs := int(time.Since(start).Milliseconds())
+
+			// Record history per delivery
+			var status automations.HistoryStatus
+			var errText *string
+			if adapterErr != nil {
+				status = automations.HistoryError
+				msg := adapterErr.Error()
+				errText = &msg
+				mu.Lock()
+				ruleErrors[t.Rule.ID] = true
+				deliveryErrors = append(deliveryErrors, adapterErr)
+				mu.Unlock()
+			} else {
+				status = automations.HistorySuccess
+				mu.Lock()
+				if _, exists := ruleErrors[t.Rule.ID]; !exists {
+					ruleErrors[t.Rule.ID] = false
+				}
+				mu.Unlock()
+			}
+
+			e.recordHistoryWithDuration(ctx, t.Rule, &t.Subscriber, t.EventType, t.AggregateID, status, t.RenderedPayload, errText, &durationMs)
+		}(task)
+	}
+
+	wg.Wait()
+
+	// Update rule stats (sequential — small number of unique rules)
+	for ruleID, hadError := range ruleErrors {
+		if err := e.ruleRepo.IncrementStats(ctx, ruleID, hadError); err != nil {
+			logger.Error(ctx, "failed to update rule stats", "ruleId", ruleID, "error", err)
+		}
+	}
+	return errors.Join(deliveryErrors...)
+}
+
+// deliverToChannelCached uses preloaded data from deliveryCache instead of N+1 queries.
+func (e *Engine) deliverToChannelCached(ctx context.Context, task DeliveryTask, cache *deliveryCache) error {
+	if task.Subscriber.ChannelID == nil {
+		return fmt.Errorf("channel subscriber has no channelId")
+	}
+
+	chID := *task.Subscriber.ChannelID
+	channel, ok := cache.channels[chID]
+	if !ok {
+		return fmt.Errorf("channel %s not found in preload cache", chID)
+	}
+
+	account, ok := cache.accounts[channel.AccountID]
+	if !ok {
+		return fmt.Errorf("account %s not found in preload cache", channel.AccountID)
+	}
+
+	creds := cache.credentials[channel.AccountID]
+
+	adapter, ok := e.adapters[string(account.AccountType)]
+	if !ok {
+		return fmt.Errorf("no adapter registered for account type %q", account.AccountType)
+	}
+
+	adapterErr := adapter.Deliver(ctx, channel.Destination, account.Config, creds, task.RenderedPayload, task.Attachments)
+
+	// Update account last result
+	if adapterErr != nil {
+		errMsg := adapterErr.Error()
+		_ = e.accountRepo.UpdateLastResult(ctx, account.ID, false, &errMsg)
+	} else {
+		_ = e.accountRepo.UpdateLastResult(ctx, account.ID, true, nil)
+	}
+
+	return adapterErr
+}
+
+// deliverInternal handles user/role/doc_field subscribers via internal notification adapter.
+// It resolves target_users from subscriber metadata and wraps the rendered template
+// into the JSON payload expected by InternalNotificationAdapter.
+func (e *Engine) deliverInternal(ctx context.Context, task DeliveryTask) error {
+	adapter, ok := e.adapters["internal_notification"]
+	if !ok {
+		return fmt.Errorf("internal_notification adapter not registered")
+	}
+
+	// Resolve target user IDs based on subscriber type
+	var targetUsers []string
+
+	switch task.Subscriber.SubscriberType {
+	case automations.SubUser:
+		if task.Subscriber.UserID != nil {
+			targetUsers = []string{task.Subscriber.UserID.String()}
+		}
+	case automations.SubRole:
+		if task.Subscriber.RoleName != nil && e.userResolver != nil {
+			userIDs, err := e.userResolver.ResolveUserIDsByRole(ctx, *task.Subscriber.RoleName)
+			if err != nil {
+				return fmt.Errorf("resolve role %q users: %w", *task.Subscriber.RoleName, err)
+			}
+			targetUsers = make([]string, 0, len(userIDs))
+			for _, uid := range userIDs {
+				targetUsers = append(targetUsers, uid.String())
+			}
+		}
+	case automations.SubDocField:
+		// doc_field subscriber: target_users should be in the rendered payload JSON.
+		// Fall through to raw delivery.
+		return adapter.Deliver(ctx, nil, nil, nil, task.RenderedPayload, nil)
+	}
+
+	if len(targetUsers) == 0 {
+		logger.Warn(ctx, "deliverInternal: no target users resolved",
+			"ruleId", task.Rule.ID,
+			"subscriberType", task.Subscriber.SubscriberType)
+		return nil
+	}
+
+	// Try to parse rendered payload as JSON (user may have provided structured payload)
+	var existingPayload map[string]any
+	if err := json.Unmarshal([]byte(task.RenderedPayload), &existingPayload); err == nil {
+		// Structured JSON — inject target_users if missing
+		if _, hasTargets := existingPayload["target_users"]; !hasTargets {
+			existingPayload["target_users"] = targetUsers
+		}
+		// Inject severity from rule config if not already set
+		if _, hasSeverity := existingPayload["severity"]; !hasSeverity && task.Rule.NotifSeverity != "" {
+			existingPayload["severity"] = task.Rule.NotifSeverity
+		}
+		enriched, marshalErr := json.Marshal(existingPayload)
+		if marshalErr == nil {
+			return adapter.Deliver(ctx, nil, nil, nil, string(enriched), nil)
+		}
+	}
+
+	// Plain text template — wrap into ActionPayload JSON
+	notifPayload := map[string]any{
+		"target_users": targetUsers,
+		"title":        task.Rule.Name,
+		"message":      task.RenderedPayload,
+	}
+	if task.Rule.NotifSeverity != "" {
+		notifPayload["severity"] = task.Rule.NotifSeverity
+	}
+
+	payloadBytes, err := json.Marshal(notifPayload)
+	if err != nil {
+		return fmt.Errorf("marshal notification payload: %w", err)
+	}
+
+	return adapter.Deliver(ctx, nil, nil, nil, string(payloadBytes), nil)
+}
+
+// recordHistory is a convenience wrapper for writing history without duration.
+func (e *Engine) recordHistory(
+	ctx context.Context, rule *automations.Rule, sub *automations.Subscriber,
+	eventType string, aggregateID *id.ID,
+	status automations.HistoryStatus, payload string, errText *string,
+) {
+	e.recordHistoryWithDuration(ctx, rule, sub, eventType, aggregateID, status, payload, errText, nil)
+}
+
+// recordHistoryWithDuration writes a history entry.
+func (e *Engine) recordHistoryWithDuration(
+	ctx context.Context, rule *automations.Rule, sub *automations.Subscriber,
+	eventType string, aggregateID *id.ID,
+	status automations.HistoryStatus, payload string, errText *string, durationMs *int,
+) {
+	if e.historyRepo == nil {
+		return
+	}
+
+	entry := &automations.HistoryEntry{
+		RuleID:     rule.ID,
+		RuleName:   rule.Name,
+		EventType:  eventType,
+		Status:     status,
+		DurationMs: durationMs,
+		ErrorText:  errText,
+	}
+
+	if aggregateID != nil {
+		entry.AggregateID = aggregateID
+	}
+	if payload != "" {
+		entry.RenderedPayload = &payload
+	}
+	if sub != nil && sub.ChannelID != nil {
+		entry.ChannelID = sub.ChannelID
+		entry.ChannelName = sub.ChannelName
+	}
+
+	if err := e.historyRepo.Create(ctx, entry); err != nil {
+		logger.Error(ctx, "failed to write automation history", "ruleId", rule.ID, "error", err)
+	}
+}
+
+// --- CEL & Template utilities (unchanged) ---
+
+// EvaluateCEL evaluates a CEL expression against variables.
+func (e *Engine) EvaluateCEL(expr string, vars map[string]any) (bool, error) {
+	prg, err := e.getOrCompileCEL(expr)
+	if err != nil {
+		return false, err
+	}
+
+	out, _, err := prg.Eval(vars)
+	if err != nil {
+		return false, fmt.Errorf("eval error: %w", err)
+	}
+
+	if out.Type() != cel.BoolType {
+		return false, fmt.Errorf("expression must return bool, got %v", out.Type().TypeName())
+	}
+
+	val, ok := out.Value().(bool)
+	if !ok {
+		return false, fmt.Errorf("eval returned non-bool value")
+	}
+
+	return val, nil
+}
+
+// getOrCompileCEL returns a cached or newly compiled CEL program.
+// Uses a bounded LRU cache to prevent unbounded memory growth.
+func (e *Engine) getOrCompileCEL(expr string) (cel.Program, error) {
+	e.celMu.Lock()
+	if elem, ok := e.celLookup[expr]; ok {
+		e.celOrder.MoveToFront(elem)
+		e.celMu.Unlock()
+		return elem.Value.(*celCacheEntry).prg, nil
+	}
+	e.celMu.Unlock()
+
+	// Compile outside the lock (expensive operation)
+	ast, issues := e.celEnv.Compile(expr)
+	if issues != nil && issues.Err() != nil {
+		return nil, fmt.Errorf("compile error: %w", issues.Err())
+	}
+
+	prg, err := e.celEnv.Program(ast)
+	if err != nil {
+		return nil, fmt.Errorf("program error: %w", err)
+	}
+
+	e.celMu.Lock()
+	defer e.celMu.Unlock()
+
+	// Double-check after reacquiring lock
+	if elem, ok := e.celLookup[expr]; ok {
+		e.celOrder.MoveToFront(elem)
+		return elem.Value.(*celCacheEntry).prg, nil
+	}
+
+	// Evict LRU if at capacity
+	if e.celOrder.Len() >= _celCacheMaxSize {
+		oldest := e.celOrder.Back()
+		if oldest != nil {
+			entry := oldest.Value.(*celCacheEntry)
+			delete(e.celLookup, entry.expr)
+			e.celOrder.Remove(oldest)
+		}
+	}
+
+	elem := e.celOrder.PushFront(&celCacheEntry{expr: expr, prg: prg})
+	e.celLookup[expr] = elem
+
+	return prg, nil
+}
+
+// InvalidateCELCache removes a specific expression from the cache.
+func (e *Engine) InvalidateCELCache(expr string) {
+	e.celMu.Lock()
+	defer e.celMu.Unlock()
+	if elem, ok := e.celLookup[expr]; ok {
+		delete(e.celLookup, expr)
+		e.celOrder.Remove(elem)
+	}
+}
+
+// maxTemplateOutputSize is the maximum rendered output size (64KB).
+const _maxTemplateOutputSize = 64 * 1024
+
+// safeFuncMap contains whitelisted template functions.
+// Deliberately excludes `call` and other potentially dangerous builtins.
+var safeFuncMap = template.FuncMap{
+	"json": func(v any) (string, error) {
+		b, err := json.Marshal(v)
+		return string(b), err
+	},
+	"jsonIndent": func(v any) (string, error) {
+		b, err := json.MarshalIndent(v, "", "  ")
+		return string(b), err
+	},
+	"upper": strings.ToUpper,
+	"lower": strings.ToLower,
+	"trim":  strings.TrimSpace,
+	"default": func(defaultVal, val any) any {
+		if val == nil || val == "" {
+			return defaultVal
+		}
+		return val
+	},
+	// truncate cuts string to maxLen and appends ellipsis
+	"truncate": func(maxLen int, s string) string {
+		if len(s) <= maxLen {
+			return s
+		}
+		return s[:maxLen] + "…"
+	},
+	// money converts MinorUnits to human-readable string with proper decimal places and thousand separators.
+	// Usage: {{money .doc.totalAmount .currency.decimalPlaces}}
+	"money": formatMoney,
+	// date formats a time value as DD.MM.YYYY.
+	"date": func(v any) string {
+		t, ok := parseTime(v)
+		if !ok {
+			return fmt.Sprintf("%v", v)
+		}
+		return t.Format("02.01.2006")
+	},
+	// datetime formats a time value as DD.MM.YYYY HH:MM.
+	"datetime": func(v any) string {
+		t, ok := parseTime(v)
+		if !ok {
+			return fmt.Sprintf("%v", v)
+		}
+		return t.Format("02.01.2006 15:04")
+	},
+	// number formats a numeric value with thousand separators (no decimals).
+	"number": func(value any) (string, error) {
+		number, err := exactInteger(value)
+		if err != nil {
+			return "", err
+		}
+		return formatIntegerWithSeparators(strconv.FormatInt(number, 10)), nil
+	},
+}
+
+// formatIntegerWithSeparators formats an integer string with space separators every 3 digits.
+// Supports negative numbers and preallocates the output slice with exact capacity.
+func formatIntegerWithSeparators(intPart string) string {
+	negative := ""
+	if strings.HasPrefix(intPart, "-") {
+		negative = "-"
+		intPart = intPart[1:]
+	}
+	if len(intPart) <= 3 {
+		return negative + intPart
+	}
+	spaces := (len(intPart) - 1) / 3
+	result := make([]byte, 0, len(intPart)+spaces)
+	for i, c := range intPart {
+		if i > 0 && (len(intPart)-i)%3 == 0 {
+			result = append(result, ' ')
+		}
+		result = append(result, byte(c))
+	}
+	return negative + string(result)
+}
+
+// parseTime attempts to parse a value as time.Time from string or time.Time.
+func parseTime(v any) (time.Time, bool) {
+	switch t := v.(type) {
+	case time.Time:
+		return t, true
+	case string:
+		for _, layout := range []string{
+			time.RFC3339,
+			"2006-01-02T15:04:05Z07:00",
+			"2006-01-02 15:04:05",
+			"2006-01-02",
+		} {
+			parsed, err := time.Parse(layout, t)
+			if err == nil {
+				return parsed, true
+			}
+		}
+	}
+	return time.Time{}, false
+}
+
+// getOrParseTemplate returns a cached or newly parsed template.
+// Uses a bounded LRU cache to prevent unbounded memory growth.
+func (e *Engine) getOrParseTemplate(tmplText string) (*template.Template, error) {
+	e.tmplMu.Lock()
+	if elem, ok := e.tmplLookup[tmplText]; ok {
+		e.tmplOrder.MoveToFront(elem)
+		e.tmplMu.Unlock()
+		return elem.Value.(*tmplCacheEntry).tmpl, nil
+	}
+	e.tmplMu.Unlock()
+
+	// Parse outside the lock (expensive operation)
+	tmpl, err := template.New("action").Option("missingkey=zero").Funcs(safeFuncMap).Parse(tmplText)
+	if err != nil {
+		return nil, fmt.Errorf("parse template: %w", err)
+	}
+
+	e.tmplMu.Lock()
+	defer e.tmplMu.Unlock()
+
+	// Double-check after reacquiring lock
+	if elem, ok := e.tmplLookup[tmplText]; ok {
+		e.tmplOrder.MoveToFront(elem)
+		return elem.Value.(*tmplCacheEntry).tmpl, nil
+	}
+
+	// Evict LRU if at capacity
+	if e.tmplOrder.Len() >= _tmplCacheMaxSize {
+		oldest := e.tmplOrder.Back()
+		if oldest != nil {
+			entry := oldest.Value.(*tmplCacheEntry)
+			delete(e.tmplLookup, entry.text)
+			e.tmplOrder.Remove(oldest)
+		}
+	}
+
+	elem := e.tmplOrder.PushFront(&tmplCacheEntry{text: tmplText, tmpl: tmpl})
+	e.tmplLookup[tmplText] = elem
+
+	return tmpl, nil
+}
+
+// RenderTemplate renders a Go text/template against data with safety limits.
+// Uses a restricted FuncMap (no `call`) and enforces output size limits.
+func (e *Engine) RenderTemplate(tmplText string, data map[string]any) (string, error) {
+	tmpl, err := e.getOrParseTemplate(tmplText)
+	if err != nil {
+		return "", err
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("execute template: %w", err)
+	}
+
+	if buf.Len() > _maxTemplateOutputSize {
+		return "", fmt.Errorf("rendered output exceeds %d bytes limit", _maxTemplateOutputSize)
+	}
+
+	return buf.String(), nil
+}
+
+func exactInteger(value any) (int64, error) {
+	switch n := value.(type) {
+	case interface{ MinorUnitsValue() int64 }:
+		return n.MinorUnitsValue(), nil
+	case int:
+		return int64(n), nil
+	case int64:
+		return n, nil
+	case json.Number:
+		return n.Int64()
+	case string:
+		value, err := types.ParseMinorUnits(n)
+		return int64(value), err
+	case float64:
+		if math.IsNaN(n) || math.IsInf(n, 0) || math.Trunc(n) != n || math.Abs(n) > 9007199254740991 {
+			return 0, fmt.Errorf("expected an exact integer")
+		}
+		return int64(n), nil
+	default:
+		return 0, fmt.Errorf("expected an integer, got %T", value)
+	}
+}
+
+func formatMoney(rawAmount, scale any) (string, error) {
+	minor, err := exactInteger(rawAmount)
+	if err != nil {
+		return "", fmt.Errorf("invalid money amount: %w", err)
+	}
+	dp, err := exactInteger(scale)
+	if err != nil || dp < 0 || dp > 18 {
+		return "", fmt.Errorf("invalid currency scale")
+	}
+	decimal, err := types.FormatMinorUnits(minor, int(dp))
+	if err != nil {
+		return "", err
+	}
+	parts := strings.SplitN(decimal, ".", 2)
+	formatted := formatIntegerWithSeparators(parts[0])
+	if len(parts) == 2 {
+		formatted += "," + parts[1]
+	}
+	return formatted, nil
+}

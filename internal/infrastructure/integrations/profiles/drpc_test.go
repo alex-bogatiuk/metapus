@@ -1,0 +1,52 @@
+package profiles
+
+import (
+	"fmt"
+	"github.com/stretchr/testify/require"
+	model "metapus/internal/domain/integrations"
+	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"net/http"
+	"testing"
+	"time"
+)
+
+func TestDRPCUsesSuffixAndSeparatesQueryLimitsFromAccountFailures(t *testing.T) {
+	p := drpc()
+	req, _ := http.NewRequest(http.MethodPost, "https://lb.drpc.live/sepolia/", nil)
+	req.Header.Set("Authorization", "foreign")
+	require.NoError(t, p.Authorize(req, "opaque-key"))
+	require.Equal(t, "/sepolia/opaque-key", req.URL.Path)
+	require.Empty(t, req.Header.Get("Authorization"))
+	body := []byte(`{"error":{"code":35,"message":"ranges over 10000 blocks are not supported on free plan"}}`)
+	require.Empty(t, p.Failure(400, body))
+	require.ErrorIs(t, p.ResponseError(400, body), rpcpolicy.ErrQueryLimit)
+	require.Nil(t, p.ResponseError(400, []byte(`{"error":{"code":35,"message":"other failure"}}`)))
+	chainDenied := []byte(`{"error":{"code":35,"message":"chain is not available on free plan, please upgrade to paid plan"}}`)
+	require.Empty(t, p.Failure(400, chainDenied))
+	require.ErrorIs(t, p.ResponseError(400, chainDenied), rpcpolicy.ErrAccessDenied)
+	require.NotErrorIs(t, p.ResponseError(400, chainDenied), rpcpolicy.ErrQueryLimit)
+	require.Equal(t, model.Throttled, p.Failure(429, []byte(`{"error":"reduce request rate"}`)))
+	require.Equal(t, model.Unauthorized, p.Failure(401, []byte(`{}`)))
+	for _, code := range []int{10, 52, 53} {
+		require.Equal(t, model.Exhausted, p.Failure(403, []byte(fmt.Sprintf(`{"error":{"code":%d,"message":"billing limit"}}`, code))))
+	}
+	for _, code := range []int{4, 9, 32} {
+		require.Equal(t, model.Unauthorized, p.Failure(403, []byte(fmt.Sprintf(`{"error":{"code":%d}}`, code))))
+	}
+	for _, code := range []int{29, 47, 48, 50, 51, 99} {
+		require.Empty(t, p.Failure(403, []byte(fmt.Sprintf(`{"error":{"code":%d}}`, code))))
+	}
+	require.ErrorIs(t, p.ResponseError(403, []byte(`{"error":{"code":48}}`)), rpcpolicy.ErrUnsupported)
+	require.ErrorIs(t, p.ResponseError(403, []byte(`{"error":{"code":99}}`)), ErrAccessDenied)
+	now := time.Date(2026, 10, 29, 12, 30, 0, 0, time.UTC)
+	daily := []byte(`{"error":{"code":24}}`)
+	require.Equal(t, model.Throttled, p.Failure(403, daily))
+	require.Equal(t, time.Date(2026, 10, 30, 0, 0, 0, 0, time.UTC), p.NextAttempt(403, http.Header{}, daily, now))
+	bad, _ := http.NewRequest(http.MethodPost, "https://lb.drpc.live/sepolia/secret", nil)
+	require.Error(t, p.Authorize(bad, "key"))
+	provider, base, key, err := (*Registry)(nil).ImportRPC("https://lb.drpc.live/sepolia/", "private-key", "rpc", "sepolia")
+	require.NoError(t, err)
+	require.Equal(t, model.DRPC, provider)
+	require.Equal(t, "https://lb.drpc.live/sepolia/", base)
+	require.Equal(t, "private-key", key)
+}

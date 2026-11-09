@@ -1,0 +1,24 @@
+{
+  "items": [
+    {"group":"A","amount":"9007199254740993","uid":"usd","code":"USD","dp":2,"quantity":2},
+    {"group":"A","amount":"2","uid":"usd","code":"USD","dp":2,"quantity":null},
+    {"group":"B","amount":"123","uid":"ton","code":"TON","dp":9,"quantity":3},
+    {"group":"B","amount":null}
+  ],
+  "groupBy": ["group"],
+  "totals": [
+    {"column":"amount","func":"sum","money":{"currencyId":"uid","currencyCode":"code","decimalPlaces":"dp"}},
+    {"column":"quantity","func":"avg"}
+  ],
+  "rows": [
+    {"kind":"group","label":"A","count":2,"totals":{"amount":[{"currencyId":"usd","currencyCode":"USD","decimalPlaces":2,"amount":"9007199254740995"}],"quantity":2}},
+    {"kind":"data","depth":1,"item":{"group":"A","amount":"9007199254740993","uid":"usd","code":"USD","dp":2,"quantity":2}},
+    {"kind":"data","depth":1,"item":{"group":"A","amount":"2","uid":"usd","code":"USD","dp":2,"quantity":null}},
+    {"kind":"subtotal","totals":{"amount":[{"currencyId":"usd","currencyCode":"USD","decimalPlaces":2,"amount":"9007199254740995"}],"quantity":2}},
+    {"kind":"group","label":"B","count":2,"totals":{"amount":[{"currencyId":"ton","currencyCode":"TON","decimalPlaces":9,"amount":"123"}],"quantity":3}},
+    {"kind":"data","depth":1,"item":{"group":"B","amount":"123","uid":"ton","code":"TON","dp":9,"quantity":3}},
+    {"kind":"data","depth":1,"item":{"group":"B","amount":null}},
+    {"kind":"subtotal","totals":{"amount":[{"currencyId":"ton","currencyCode":"TON","decimalPlaces":9,"amount":"123"}],"quantity":3}},
+    {"kind":"footer","totals":{"amount":[{"currencyId":"usd","currencyCode":"USD","decimalPlaces":2,"amount":"9007199254740995"},{"currencyId":"ton","currencyCode":"TON","decimalPlaces":9,"amount":"123"}],"quantity":2.5}}
+  ]
+}

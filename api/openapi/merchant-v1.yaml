@@ -1,0 +1,707 @@
+openapi: 3.1.0
+info:
+  title: Metapus Merchant API
+  version: 2026-08-26
+  description: Canonical invoice API and at-least-once merchant webhooks. Fulfil only on invoice.completed.
+servers:
+  - url: '{baseUrl}/merchant/v1'
+    variables:
+      baseUrl:
+        default: https://api.metapus.example
+        description: Environment-specific Metapus API origin.
+security:
+  - merchantApiKey: []
+paths:
+  /currencies:
+    get:
+      operationId: listCurrencies
+      description: List active currencies/tokens and their decimalPlaces for minor-unit conversion.
+      responses:
+        '200':
+          description: Active currencies list
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CurrencyList' }
+  /invoices:
+    get:
+      operationId: listInvoices
+      description: List merchant invoices with cursor pagination and reconciliation filters.
+      x-required-scope: invoice:read
+      parameters:
+        - name: status
+          in: query
+          description: Comma-separated invoice statuses (e.g. completed,confirmed,underpaid).
+          schema: { type: string }
+        - name: currency
+          in: query
+          description: Token code filter (e.g. USDT-TRC20).
+          schema: { type: string }
+        - name: orderId
+          in: query
+          schema: { type: string }
+        - name: externalId
+          in: query
+          schema: { type: string }
+        - name: customerId
+          in: query
+          schema: { type: string }
+        - name: createdFrom
+          in: query
+          description: Inclusive lower bound on createdAt (RFC3339).
+          schema: { type: string, format: date-time }
+        - name: createdTo
+          in: query
+          description: Exclusive upper bound on createdAt (RFC3339).
+          schema: { type: string, format: date-time }
+        - name: completedFrom
+          in: query
+          description: Inclusive lower bound on completedAt (RFC3339). Switches sort order to (completedAt DESC, id DESC).
+          schema: { type: string, format: date-time }
+        - name: completedTo
+          in: query
+          description: Exclusive upper bound on completedAt (RFC3339). Switches sort order to (completedAt DESC, id DESC).
+          schema: { type: string, format: date-time }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - name: cursor
+          in: query
+          description: Opaque keyset pagination cursor returned in nextCursor.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Paginated invoice list
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvoiceList' }
+    post:
+      operationId: createInvoice
+      x-required-scope: invoice:create
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateInvoiceRequest' }
+      responses:
+        '201':
+          description: Created, or durable replay of the same creation command (Idempotent-Replayed header).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Invoice' }
+        '200':
+          description: Existing compatible invoice found by business orderId under a new command key.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Invoice' }
+  /invoices/{id}:
+    get:
+      operationId: getInvoice
+      x-required-scope: invoice:read
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Canonical invoice snapshot
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Invoice' }
+  /invoices/{id}/reference:
+    patch:
+      operationId: bindInvoiceReference
+      description: Assign immutable externalId, orderId, or both to a persistent-wallet top-up in any status. Omitted references preserve stored values; assigned values cannot be changed or cleared. Metadata omission preserves it; an object replaces it; {} clears it; null is invalid. Repeating the same references permits metadata updates. No invoice.updated webhook is emitted.
+      x-required-scope: invoice:create
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BindInvoiceReferenceRequest' }
+      responses:
+        '200':
+          description: Updated invoice or idempotent replay
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Invoice' }
+        '400': { description: Invalid request or missing Idempotency-Key }
+        '401': { description: Missing or invalid API key }
+        '403': { description: Missing invoice:create scope }
+        '404': { description: Invoice absent, deleted or owned by another merchant }
+        '409': { description: Unsupported invoice type, already assigned or duplicate merchant reference, or conflicting Idempotency-Key }
+  /invoices/{id}/cancel:
+    post:
+      operationId: cancelInvoice
+      description: Idempotently cancel a pre-finality invoice and release its assigned address.
+      x-required-scope: invoice:create
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '204':
+          description: Cancelled or already cancelled
+        '409':
+          description: Invoice already reached a non-cancellable final state
+  /addresses:
+    post:
+      operationId: createAddress
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      description: Assign a persistent deposit address to a customer. Business identity is merchant + network + customerId; currency selects the network.
+      x-required-scope: address:create
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAddressRequest' }
+      responses:
+        '200':
+          description: Current persistent address
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Address' }
+        '422': { description: Merchant persistent address limit exceeded }
+  /webhook-endpoints:
+    get:
+      operationId: listWebhookEndpoints
+      x-required-scope: webhook:endpoint:read
+      responses:
+        '200':
+          description: Endpoint list
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookEndpointList' }
+    post:
+      operationId: createWebhookEndpoint
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      x-required-scope: webhook:endpoint:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateWebhookEndpointRequest' }
+      responses:
+        '201':
+          description: Created; secret is revealed once
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookEndpoint' }
+  /webhook-endpoints/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      operationId: getWebhookEndpoint
+      x-required-scope: webhook:endpoint:read
+      responses:
+        '200':
+          description: Endpoint
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookEndpoint' }
+    patch:
+      operationId: updateWebhookEndpoint
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      x-required-scope: webhook:endpoint:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateWebhookEndpointRequest' }
+      responses:
+        '200':
+          description: Updated endpoint
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookEndpoint' }
+    delete:
+      operationId: deleteWebhookEndpoint
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      x-required-scope: webhook:endpoint:write
+      responses: { '204': { description: Deleted } }
+  /webhook-endpoints/{id}/rotate-secret:
+    post:
+      operationId: rotateWebhookEndpointSecret
+      x-required-scope: webhook:endpoint:write
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Rotated; new secret is revealed once
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookEndpoint' }
+  /webhook-endpoints/{id}/test:
+    post:
+      operationId: testWebhookEndpoint
+      x-required-scope: webhook:endpoint:write
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Synchronous test result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookTestResult' }
+  /events:
+    get:
+      operationId: listEvents
+      x-required-scope: webhook:event:read
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Immutable event list
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MerchantEventList' }
+  /events/{id}/deliveries:
+    get:
+      operationId: listEventDeliveries
+      x-required-scope: webhook:event:read
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Delivery attempts and debugger data
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookDeliveryList' }
+  /events/{id}/redeliver:
+    post:
+      operationId: redeliverEvent
+      x-required-scope: webhook:event:redeliver
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpointId]
+              properties:
+                endpointId: { type: string, format: uuid }
+      responses: { '202': { description: Redelivery queued using current endpoint configuration } }
+components:
+  securitySchemes:
+    merchantApiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Stable command key, 1 to 200 UTF-8 bytes. Exact retry preserves the original result status and sets Idempotent-Replayed.
+      schema: { type: string, minLength: 1, maxLength: 200 }
+    ResourceId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Offset:
+      name: offset
+      in: query
+      schema: { type: integer, minimum: 0, default: 0 }
+  schemas:
+    Amount:
+      type: string
+      pattern: '^(0|[1-9][0-9]*)$'
+      description: Exact non-negative token minor units.
+    CreateAddressRequest:
+      type: object
+      additionalProperties: false
+      required: [currency, customerId]
+      properties:
+        currency: { type: string, minLength: 1 }
+        customerId: { type: string, minLength: 1 }
+    Address:
+      type: object
+      required: [address, currency, network, customerId]
+      properties:
+        address: { type: string }
+        currency: { type: string }
+        network: { type: string }
+        customerId: { type: string }
+    BindInvoiceReferenceRequest:
+      type: object
+      additionalProperties: false
+      anyOf:
+        - required: [orderId]
+        - required: [externalId]
+      properties:
+        externalId:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Immutable case-sensitive merchant business reference; surrounding whitespace and NUL are rejected. Independently unique among this merchant's non-deleted invoices.
+        orderId:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Case-sensitive merchant order identifier; surrounding whitespace and the NUL character (U+0000) are rejected. Unique among this merchant's non-deleted invoices.
+        metadata:
+          type: object
+          maxProperties: 50
+          propertyNames: { type: string, minLength: 1, maxLength: 40 }
+          additionalProperties: { type: string, maxLength: 500 }
+          description: String keys are limited to 40 UTF-8 bytes, values to 500 UTF-8 bytes. Omit to preserve, {} to clear. Null, non-string values and the NUL character (U+0000) in keys or values are rejected.
+    CreateInvoiceRequest:
+      type: object
+      additionalProperties: false
+      required: [amount, currency]
+      properties:
+        amount: { type: string, pattern: '^[1-9][0-9]*$', description: Positive exact token minor units. }
+        currency: { type: string }
+        orderId: { type: [string, 'null'] }
+        externalId: { type: [string, 'null'] }
+        description: { type: [string, 'null'] }
+        ttlMinutes: { type: [integer, 'null'], minimum: 5, maximum: 10080 }
+        metadata:
+          type: [object, 'null']
+          maxProperties: 50
+          additionalProperties: { type: string, maxLength: 500 }
+        notificationUrl: { type: [string, 'null'], format: uri, pattern: '^https://' }
+        returnUrl: { type: [string, 'null'], format: uri, pattern: '^https://' }
+        customerId: { type: [string, 'null'] }
+    Payment:
+      type: object
+      required: [id, txHash, eventKind, logIndex, amount, feeAmount, netAmount, status, canonicality, finalityStatus, confirmations, requiredConfirmations, detectedAt]
+      properties:
+        id: { type: string, format: uuid }
+        txHash: { type: string }
+        eventKind: { type: string, enum: [native_value, contract_log, internal_value] }
+        logIndex: { type: integer, format: int64, description: 'Index of the event identified by eventKind; retained for compatibility.' }
+        amount: { $ref: '#/components/schemas/Amount' }
+        feeAmount: { $ref: '#/components/schemas/Amount' }
+        netAmount: { $ref: '#/components/schemas/Amount' }
+        status: { type: string, enum: [detected, confirming, confirmed, settled, reorged, replaced, failed] }
+        canonicality: { type: string, enum: [canonical, orphaned, unknown] }
+        finalityStatus: { type: string, enum: [provisional, solidified, finalized] }
+        confirmations: { type: integer }
+        requiredConfirmations: { type: integer }
+        sourceAddress: { type: string }
+        sourceNonce: { type: integer, format: int64 }
+        replacementTxHash: { type: string }
+        detectedAt: { type: string, format: date-time }
+        confirmedAt: { type: string, format: date-time }
+    Currency:
+      type: object
+      required: [code, symbol, name, network, networkName, standard, decimalPlaces, requiredConfirmations, finalityMode, acceptsPayments]
+      properties:
+        code: { type: string }
+        symbol: { type: string }
+        name: { type: string }
+        network: { type: string }
+        networkName: { type: string }
+        standard: { type: string }
+        decimalPlaces: { type: integer, minimum: 0, maximum: 18 }
+        contractAddress: { type: string }
+        requiredConfirmations: { type: integer }
+        finalityMode: { type: string, enum: [confirmations, protocol_finalized, confirmations_or_finalized] }
+        acceptsPayments: { type: boolean }
+    CurrencyList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Currency' }
+    Invoice:
+      type: object
+      required: [object, id, checkoutRef, payUrl, status, acceptsPayments, resourceVersion, expectedAmount, receivedAmount, confirmedAmount, feeAmount, creditedAmount, netAmount, overpaidAmount, currency, network, decimalPlaces, walletAddress, requiredConfirmations, finalityMode, expiresAt, metadata, payments, createdAt, asOf]
+      properties:
+        object: { type: string, const: crypto_invoice }
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [created, partially_paid, paid, confirmed, completed, underpaid, expired, cancelled, reversed] }
+        acceptsPayments: { type: boolean }
+        resourceVersion: { type: integer, minimum: 1 }
+        expectedAmount: { $ref: '#/components/schemas/Amount' }
+        receivedAmount: { $ref: '#/components/schemas/Amount' }
+        confirmedAmount: { $ref: '#/components/schemas/Amount' }
+        feeAmount: { $ref: '#/components/schemas/Amount' }
+        creditedAmount: { $ref: '#/components/schemas/Amount' }
+        netAmount: { $ref: '#/components/schemas/Amount' }
+        overpaidAmount: { $ref: '#/components/schemas/Amount' }
+        currency: { type: string }
+        network: { type: string }
+        decimalPlaces: { type: integer, minimum: 0, maximum: 18 }
+        requiredConfirmations: { type: integer }
+        finalityMode: { type: string, enum: [confirmations, protocol_finalized, confirmations_or_finalized] }
+        orderId: { type: string }
+        externalId: { type: string }
+        customerId: { type: string }
+        description: { type: string }
+        metadata: { type: object, additionalProperties: { type: string } }
+        paidAt: { type: string, format: date-time }
+        confirmedAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time }
+        reversedAt: { type: string, format: date-time }
+        asOf: { type: string, format: date-time }
+        chainObservedAt: { type: string, format: date-time }
+        checkoutRef: { type: string }
+        payUrl: { type: string, format: uri }
+        walletAddress: { type: string }
+        expiresAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        notificationUrl: { type: string, format: uri }
+        returnUrl: { type: string, format: uri }
+        payments:
+          type: array
+          items: { $ref: '#/components/schemas/Payment' }
+    InvoiceList:
+      type: object
+      required: [object, items, hasMore]
+      properties:
+        object: { type: string, const: list }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Invoice' }
+        hasMore: { type: boolean }
+        nextCursor: { type: string }
+    CreateWebhookEndpointRequest:
+      type: object
+      additionalProperties: false
+      required: [name, url, enabledEvents]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        url: { type: string, format: uri, pattern: '^https://' }
+        enabledEvents:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/EventType' }
+        isDefault: { type: boolean }
+    UpdateWebhookEndpointRequest:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version: { type: integer, minimum: 1 }
+        name: { type: [string, 'null'], minLength: 1, maxLength: 100 }
+        url: { type: [string, 'null'], format: uri, pattern: '^https://' }
+        enabledEvents:
+          type: [array, 'null']
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/EventType' }
+        isDefault: { type: [boolean, 'null'] }
+        isActive: { type: [boolean, 'null'] }
+    EventType:
+      type: string
+      enum:
+        - invoice.created
+        - invoice.paid
+        - invoice.confirmed
+        - invoice.completed
+        - invoice.overpaid
+        - invoice.underpaid
+        - invoice.expired
+        - invoice.cancelled
+        - invoice.reversed
+        - invoice.late_payment
+        - payment.detected
+        - payment.confirming
+        - payment.confirmed
+        - payment.reorged
+        - payment.replaced
+        - withdrawal.confirmed
+        - withdrawal.failed
+        - withdrawal.partially_completed
+        - wallet.risk_changed
+        - deposit_address.rotated
+    WebhookEndpoint:
+      type: object
+      required: [id, object, name, url, enabledEvents, isDefault, isActive, secretVersion, version, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        object: { type: string, const: webhookEndpoint }
+        name: { type: string }
+        url: { type: string, format: uri }
+        enabledEvents:
+          type: array
+          items: { $ref: '#/components/schemas/EventType' }
+        isDefault: { type: boolean }
+        isActive: { type: boolean }
+        version: { type: integer, minimum: 1 }
+        secret: { type: string, readOnly: true, description: Present only on create/rotation. }
+        secretVersion: { type: integer }
+        previousSecretValidUntil: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    WebhookEndpointList:
+      type: object
+      required: [object, items, total]
+      properties:
+        object: { type: string, const: list }
+        items: { type: array, items: { $ref: '#/components/schemas/WebhookEndpoint' } }
+        total: { type: integer, minimum: 0 }
+    InvoiceEventObject:
+      type: object
+      required: [id, status, resourceVersion, expectedAmount, receivedAmount, confirmedAmount, creditedAmount, overpaidAmount, currency, network, metadata]
+      properties:
+        id: { type: string, format: uuid }
+        invoiceId: { type: string, format: uuid }
+        status: { type: string }
+        resourceVersion: { type: integer, minimum: 1 }
+        orderId: { type: string }
+        metadata: { type: object, additionalProperties: { type: string } }
+        expectedAmount: { $ref: '#/components/schemas/Amount' }
+        receivedAmount: { $ref: '#/components/schemas/Amount' }
+        confirmedAmount: { $ref: '#/components/schemas/Amount' }
+        creditedAmount: { $ref: '#/components/schemas/Amount' }
+        overpaidAmount: { $ref: '#/components/schemas/Amount' }
+        currency: { type: string }
+        network: { type: string }
+        tokenId: { type: string, format: uuid }
+        requiredConfirmations: { type: integer, minimum: 0 }
+        finalityMode: { type: string, enum: [confirmations, protocol_finalized, confirmations_or_finalized] }
+    WithdrawalRiskEventObject:
+      type: object
+      description: Terminal AML withdrawal snapshot. The requested class and each first-dispatch class are immutable; completedAmount plus refundedAmount equals amount.
+      required: [id, withdrawalRequestId, merchantId, tokenId, networkId, amount, status, riskClass, riskAccepted, completedAmount, refundedAmount, sources]
+      properties:
+        id: { type: string, format: uuid }
+        withdrawalRequestId: { type: string, format: uuid }
+        merchantId: { type: string, format: uuid }
+        tokenId: { type: string, format: uuid }
+        networkId: { type: string, format: uuid }
+        amount: { $ref: '#/components/schemas/Amount' }
+        completedAmount: { $ref: '#/components/schemas/Amount' }
+        refundedAmount: { $ref: '#/components/schemas/Amount' }
+        status: { type: string, enum: [confirmed, failed, rejected, partially_completed] }
+        riskClass: { type: string, enum: [low, medium, high, unknown] }
+        riskAccepted: { type: boolean }
+        sources:
+          type: array
+          maxItems: 1000
+          items:
+            type: object
+            required: [id, walletId, address, amount, status, txHash, requestedClass, dispatchedClass, dispatchedAt]
+            properties:
+              id: { type: string, format: uuid }
+              walletId: { type: string, format: uuid }
+              address: { type: string }
+              amount: { $ref: '#/components/schemas/Amount' }
+              status: { type: string, enum: [confirmed, failed, cancelled] }
+              txHash: { type: string }
+              requestedClass: { type: string, enum: [low, medium, high, unknown] }
+              dispatchedClass: { type: [string, 'null'], enum: [low, medium, high, unknown, null] }
+              dispatchedAt: { type: [string, 'null'], format: date-time }
+    WalletRiskEventObject:
+      type: object
+      description: Versioned risk projection of physical wallet inventory; does not credit funds or authorize spending.
+      required: [walletId, tokenId, networkId, previousRiskClass, riskClass, riskRevision, scopeVersion, reason, inventoryCovered, expiresAt]
+      properties:
+        walletId: { type: string, format: uuid }
+        tokenId: { type: string, format: uuid }
+        networkId: { type: string, format: uuid }
+        previousRiskClass: { type: string, enum: [low, medium, high, unknown] }
+        riskClass: { type: string, enum: [low, medium, high, unknown] }
+        riskRevision: { type: integer, minimum: 1 }
+        scopeVersion: { type: integer, minimum: 1 }
+        reason: { type: string }
+        inventoryCovered: { type: boolean }
+        expiresAt: { type: [string, 'null'], format: date-time }
+    DepositAddressRotatedEventObject:
+      type: object
+      required: [id, customerId, networkId, oldWalletId, newWalletId, oldAddress, newAddress, reason, resourceVersion, rotatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        customerId: { type: string }
+        networkId: { type: string, format: uuid }
+        oldWalletId: { type: string, format: uuid }
+        newWalletId: { type: string, format: uuid }
+        oldAddress: { type: string }
+        newAddress: { type: string }
+        reason: { type: string }
+        resourceVersion: { type: integer, minimum: 1 }
+        rotatedAt: { type: string, format: date-time }
+    MerchantEvent:
+      type: object
+      required: [id, object, apiVersion, type, createdAt, data]
+      properties:
+        id: { type: string, pattern: '^evt_' }
+        object: { type: string, const: event }
+        apiVersion: { type: string, const: '2026-08-26' }
+        type: { $ref: '#/components/schemas/EventType' }
+        createdAt: { type: string, format: date-time }
+        data:
+          type: object
+          required: [object]
+          properties:
+            object:
+              oneOf:
+                - $ref: '#/components/schemas/InvoiceEventObject'
+                - $ref: '#/components/schemas/WalletRiskEventObject'
+                - $ref: '#/components/schemas/WithdrawalRiskEventObject'
+                - $ref: '#/components/schemas/DepositAddressRotatedEventObject'
+    MerchantEventList:
+      type: object
+      required: [object, items, total]
+      properties:
+        object: { type: string, const: list }
+        items: { type: array, items: { $ref: '#/components/schemas/MerchantEventRecord' } }
+        total: { type: integer, minimum: 0 }
+    MerchantEventRecord:
+      type: object
+      required: [id, object, type, apiVersion, resourceVersion, createdAt, payload]
+      properties:
+        id: { type: string, pattern: '^evt_' }
+        object: { type: string, const: event }
+        type: { $ref: '#/components/schemas/EventType' }
+        apiVersion: { type: string, const: '2026-08-26' }
+        resourceVersion: { type: integer, minimum: 1 }
+        invoiceId: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+        payload: { $ref: '#/components/schemas/MerchantEvent' }
+    WebhookDelivery:
+      type: object
+      required: [id, invoiceId, merchantId, eventType, webhookUrl, eventId, deliveryId, statusCode, responseTimeMs, attempt, errorMessage, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        merchantId: { type: string, format: uuid }
+        invoiceId: { type: [string, 'null'], format: uuid }
+        eventType: { $ref: '#/components/schemas/EventType' }
+        webhookUrl: { type: string, format: uri }
+        eventId: { type: string }
+        deliveryId: { type: string }
+        statusCode: { type: [integer, 'null'] }
+        responseTimeMs: { type: [integer, 'null'] }
+        attempt: { type: integer, minimum: 1 }
+        errorMessage: { type: [string, 'null'] }
+        errorClass: { type: string }
+        responseBody: { type: string, maxLength: 8192 }
+        nextRetryAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+    WebhookDeliveryList:
+      type: object
+      required: [object, items, total]
+      properties:
+        object: { type: string, const: list }
+        items: { type: array, items: { $ref: '#/components/schemas/WebhookDelivery' } }
+        total: { type: integer, minimum: 0 }
+    WebhookTestResult:
+      type: object
+      required: [eventId, success]
+      properties:
+        eventId: { type: string }
+        deliveryId: { type: string }
+        success: { type: boolean }
+        statusCode: { type: [integer, 'null'] }
+        durationMs: { type: [integer, 'null'] }
+        error: { type: string }

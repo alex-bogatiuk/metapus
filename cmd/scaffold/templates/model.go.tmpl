@@ -1,0 +1,28 @@
+package {{.Name}}
+
+import (
+ "context"
+ "metapus/internal/core/entity"
+)
+
+// {{.PascalName}} stores the business data. Add typed fields and pure validation here.
+type {{.PascalName}} struct {
+ entity.{{if .Document}}Document{{else}}Catalog{{end}}
+}
+
+{{if .Document}}
+func New{{.PascalName}}() *{{.PascalName}} { return &{{.PascalName}}{Document: entity.NewDocument()} }
+func (e *{{.PascalName}}) GetDocumentType() string { return Definition.Name }
+// Override CanPost and implement the required MovementSource interfaces when
+// this document affects accounting. Generate movements without SQL or RPC.
+func (e *{{.PascalName}}) CanPost(ctx context.Context) error {
+ if err := e.Document.CanPost(ctx); err != nil { return err }; return e.Validate(ctx)
+}
+{{else}}
+func New{{.PascalName}}(code, name string) *{{.PascalName}} {
+ return &{{.PascalName}}{Catalog: entity.NewCatalog(code, name)}
+}
+{{end}}
+func (e *{{.PascalName}}) Validate(ctx context.Context) error { return e.{{if .Document}}Document{{else}}Catalog{{end}}.Validate(ctx) }
+
+func ({{.PascalName}}) EntityDefinition() entity.Definition { return Definition }

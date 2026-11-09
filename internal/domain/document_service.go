@@ -1,0 +1,621 @@
+package domain
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"metapus/internal/core/entity"
+	"metapus/internal/core/id"
+	"metapus/internal/core/numerator"
+	"metapus/internal/core/security"
+	"metapus/internal/core/tenant"
+	"metapus/internal/core/tx"
+	"metapus/internal/domain/posting"
+)
+
+// DocumentEntity is the combined constraint for document types used by BaseDocumentService.
+// T must implement the document lifecycle and posting contracts.
+// CurrencyAwareDoc is optional; only monetary documents implement it.
+type DocumentEntity[L any] interface {
+	entity.Validatable
+	posting.Postable
+	LinesAccessor[L]
+	State() entity.DocumentState
+	CanModify() error
+	IsDeletionMarked() bool
+	MarkDeleted()
+	Undelete()
+	GetNumber() string
+	SetNumber(string)
+	GetVersion() int
+}
+
+// HeaderDocumentEntity is the constraint for header-only document types.
+// Identical to DocumentEntity but without LinesAccessor — documents where
+// all business data lives in the header (no tabular part).
+// Used by BaseHeaderDocumentService[T].
+type HeaderDocumentEntity interface {
+	entity.Validatable
+	posting.Postable
+	State() entity.DocumentState
+	CanModify() error
+	IsDeletionMarked() bool
+	MarkDeleted()
+	Undelete()
+	GetNumber() string
+	SetNumber(string)
+	GetVersion() int
+}
+
+// BaseDocumentServiceConfig configures the BaseDocumentService.
+type BaseDocumentServiceConfig[T DocumentEntity[L], L any] struct {
+	Definition        *entity.Definition
+	Repo              DocumentRepository[T, L]
+	PostingEngine     *posting.Engine
+	Numerator         numerator.Generator
+	TxManager         tx.Manager // Optional for Database-per-Tenant
+	CurrencyResolver  CurrencyResolveStrategy
+	PolicyEngine      *security.PolicyEngine // Optional — CEL policy evaluation
+	NumeratorPrefix   string
+	NumeratorStrategy numerator.Strategy
+	EntityName        string // for logging (e.g., "goods receipt", "goods issue")
+}
+
+// BaseDocumentService provides generic business logic for document entities.
+// Implements the Template Method pattern: common operations are defined here,
+// document-specific behaviour is provided via interfaces on T.
+type BaseDocumentService[T DocumentEntity[L], L any] struct {
+	Repo              DocumentRepository[T, L]
+	PostingEngine     *posting.Engine
+	Numerator         numerator.Generator
+	TxManager         tx.Manager
+	CurrencyResolver  CurrencyResolveStrategy
+	PolicyEngine      *security.PolicyEngine
+	hooks             *HookRegistry[T]
+	NumeratorPrefix   string
+	NumeratorStrategy numerator.Strategy
+	EntityName        string
+}
+
+// NewBaseDocumentService creates a new BaseDocumentService.
+func NewBaseDocumentService[T DocumentEntity[L], L any](cfg BaseDocumentServiceConfig[T, L]) *BaseDocumentService[T, L] {
+	if cfg.Definition != nil {
+		if err := cfg.Definition.Validate(); err != nil {
+			panic(err)
+		}
+		if cfg.Definition.Kind != entity.DocumentKind {
+			panic("document service requires a document definition")
+		}
+		cfg.EntityName = cfg.Definition.Key
+	}
+
+	return &BaseDocumentService[T, L]{
+		Repo:              cfg.Repo,
+		PostingEngine:     cfg.PostingEngine,
+		Numerator:         cfg.Numerator,
+		TxManager:         cfg.TxManager,
+		CurrencyResolver:  cfg.CurrencyResolver,
+		PolicyEngine:      cfg.PolicyEngine,
+		hooks:             NewHookRegistry[T](),
+		NumeratorPrefix:   cfg.NumeratorPrefix,
+		NumeratorStrategy: cfg.NumeratorStrategy,
+		EntityName:        cfg.EntityName,
+	}
+}
+
+// GetHooks returns the hook registry for external registration.
+func (s *BaseDocumentService[T, L]) GetHooks() *HookRegistry[T] {
+	return s.hooks
+}
+
+// SetPolicyEngine sets the CEL policy engine after construction.
+func (s *BaseDocumentService[T, L]) SetPolicyEngine(engine *security.PolicyEngine) {
+	s.PolicyEngine = engine
+}
+
+// GetTxManager returns TxManager from config or context.
+func (s *BaseDocumentService[T, L]) GetTxManager(ctx context.Context) (tx.Manager, error) {
+	if s.TxManager != nil {
+		return s.TxManager, nil
+	}
+	return tenant.GetTxManager(ctx)
+}
+
+// ResolveCurrency resolves the document currency using the resolution chain.
+// No-op without a resolver or when the document does not implement CurrencyAwareDoc.
+func (s *BaseDocumentService[T, L]) ResolveCurrency(ctx context.Context, doc T) error {
+	return resolveDocumentCurrency(ctx, doc, s.CurrencyResolver)
+}
+
+// GenerateNumber generates a document number if it is empty.
+func (s *BaseDocumentService[T, L]) GenerateNumber(ctx context.Context, doc T) error {
+	if doc.GetNumber() != "" {
+		return nil
+	}
+	cfg := numerator.DefaultConfig(s.NumeratorPrefix)
+	number, err := s.Numerator.GetNextNumber(ctx, cfg, &numerator.Options{Strategy: s.NumeratorStrategy}, time.Now())
+	if err != nil {
+		return fmt.Errorf("generate number: %w", err)
+	}
+	doc.SetNumber(number)
+	return nil
+}
+
+// checkRLSAccess delegates to security.CheckRLSAccess.
+func (s *BaseDocumentService[T, L]) checkRLSAccess(ctx context.Context, doc T) error {
+	return security.CheckRLSAccess(ctx, s.EntityName, doc)
+}
+
+// checkCELPolicy delegates to security.CheckCELPolicy.
+func (s *BaseDocumentService[T, L]) checkCELPolicy(ctx context.Context, action string, doc T) error {
+	return security.CheckCELPolicy(ctx, s.PolicyEngine, s.EntityName, action, doc)
+}
+
+// Create creates a new document with lines in a transaction.
+func (s *BaseDocumentService[T, L]) Create(ctx context.Context, doc T) error {
+	return runDocumentMutation(ctx, s.GetTxManager, func(ctx context.Context) error {
+		// RLS: check write permission
+
+		// Run before-create hooks (for enrichment, validation, etc.)
+		if err := s.hooks.RunBeforeCreate(ctx, doc); err != nil {
+			return err
+		}
+
+		// Resolve currency
+		if err := s.ResolveCurrency(ctx, doc); err != nil {
+			return err
+		}
+
+		// Validate
+		if err := doc.Validate(ctx); err != nil {
+			return err
+		}
+
+		// CEL policy check
+		if err := s.checkCELPolicy(ctx, "create", doc); err != nil {
+			return err
+		}
+
+		// Generate number if empty
+		if err := s.GenerateNumber(ctx, doc); err != nil {
+			return err
+		}
+
+		// Create in transaction
+		if err := s.Repo.Create(ctx, doc); err != nil {
+			return fmt.Errorf("create document: %w", err)
+		}
+		if err := s.Repo.SaveLines(ctx, doc.GetID(), doc.GetLines()); err != nil {
+			return fmt.Errorf("save lines: %w", err)
+		}
+		return completeDocumentMutation(ctx, s.hooks, doc, TransactionCreate, AfterCreate)
+	})
+}
+
+// GetByID retrieves a document with its lines.
+// Performs RLS point-check after loading the document.
+func (s *BaseDocumentService[T, L]) GetByID(ctx context.Context, docID id.ID) (T, error) {
+	doc, err := s.Repo.GetByID(ctx, docID)
+	if err != nil {
+		return doc, err
+	}
+
+	// RLS point-check: verify user can access this specific record
+	if err := s.checkRLSAccess(ctx, doc); err != nil {
+		var zero T
+		return zero, err
+	}
+
+	// CEL policy check for read
+	if err := s.checkCELPolicy(ctx, "read", doc); err != nil {
+		var zero T
+		return zero, err
+	}
+
+	lines, err := s.Repo.GetLines(ctx, docID)
+	if err != nil {
+		var zero T
+		return zero, fmt.Errorf("get lines: %w", err)
+	}
+	doc.SetLines(lines)
+
+	return doc, nil
+}
+
+func (s *BaseDocumentService[T, L]) GetByIDForUpdate(ctx context.Context, docID id.ID) (T, error) {
+	doc, err := s.Repo.GetByIDForUpdate(ctx, docID)
+	if err != nil {
+		return doc, err
+	}
+	if err := s.checkRLSAccess(ctx, doc); err != nil {
+		var zero T
+		return zero, err
+	}
+	if err := s.checkCELPolicy(ctx, "read", doc); err != nil {
+		var zero T
+		return zero, err
+	}
+	lines, err := s.Repo.GetLines(ctx, docID)
+	if err != nil {
+		var zero T
+		return zero, fmt.Errorf("get lines: %w", err)
+	}
+	doc.SetLines(lines)
+	return doc, nil
+}
+
+// Update updates a document (must be unposted).
+func (s *BaseDocumentService[T, L]) Update(ctx context.Context, doc T) error {
+	return runDocumentMutation(ctx, s.GetTxManager, func(ctx context.Context) error {
+		// RLS: check write permission and record access
+		if err := s.checkRLSAccess(ctx, doc); err != nil {
+			return err
+		}
+
+		// Fetch existing document for FLS validation and CEL evaluation.
+		// CEL rules must evaluate against the existing state (e.g. doc.posted == true),
+		// not the input entity where fields default to zero values.
+		oldDoc, err := s.Repo.GetByID(ctx, doc.GetID())
+		if err != nil {
+			return fmt.Errorf("fetch existing document: %w", err)
+		}
+
+		// SECURITY FIX: Ensure the user actually has access to the original record in the DB!
+		if err := s.checkRLSAccess(ctx, oldDoc); err != nil {
+			return err
+		}
+
+		// FLS: validate that no restricted fields were modified
+		if writePolicy := security.GetFieldPolicy(ctx, s.EntityName, "write"); writePolicy != nil {
+			if err := security.ValidateWrite(oldDoc, doc, writePolicy); err != nil {
+				return err
+			}
+		}
+
+		// CEL policy check — evaluate against existing document state
+		if err := s.checkCELPolicy(ctx, "update", oldDoc); err != nil {
+			return err
+		}
+
+		// Sync lifecycle state from DB.
+		// Client cannot arbitrarily change posted state or business state via CRUD Update.
+		if oldDoc.IsPosted() {
+			doc.MarkPosted()
+		} else {
+			doc.MarkUnposted()
+		}
+
+		// Run before-update hooks
+		if err := s.hooks.RunBeforeUpdate(ctx, doc); err != nil {
+			return err
+		}
+
+		// Check if can modify
+		if err := doc.CanModify(); err != nil {
+			return err
+		}
+
+		// Validate
+		if err := doc.Validate(ctx); err != nil {
+			return err
+		}
+
+		// Update in transaction
+		if err := s.Repo.Update(ctx, doc); err != nil {
+			return fmt.Errorf("update document: %w", err)
+		}
+		if err := s.Repo.SaveLines(ctx, doc.GetID(), doc.GetLines()); err != nil {
+			return fmt.Errorf("save lines: %w", err)
+		}
+		return completeDocumentMutation(ctx, s.hooks, doc, TransactionUpdate, AfterUpdate)
+	})
+}
+
+// Delete soft-deletes a document (must be unposted).
+// Delegates permission check to the document's lifecycle state.
+func (s *BaseDocumentService[T, L]) Delete(ctx context.Context, docID id.ID) error {
+	return runDocumentMutation(ctx, s.GetTxManager, func(ctx context.Context) error {
+		// RLS: check write permission
+		if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+			return err
+		}
+
+		doc, err := s.Repo.GetByID(ctx, docID)
+		if err != nil {
+			return err
+		}
+
+		// RLS point-check
+		if err := s.checkRLSAccess(ctx, doc); err != nil {
+			return err
+		}
+
+		// CEL policy check
+		if err := s.checkCELPolicy(ctx, "delete", doc); err != nil {
+			return err
+		}
+
+		// State pattern: delegate permission check to current lifecycle state
+		if err := doc.State().CanDelete(); err != nil {
+			return err
+		}
+
+		if err := s.hooks.RunBeforeDelete(ctx, doc); err != nil {
+			return err
+		}
+		if err := s.Repo.Delete(ctx, docID); err != nil {
+			return err
+		}
+		return completeDocumentMutation(ctx, s.hooks, doc, TransactionDelete, AfterDelete)
+	})
+}
+
+// SetDeletionMark sets or clears the deletion mark on a document.
+// 1C-style logic:
+//   - If marking for deletion (marked=true) and document is posted: unpost first, then mark deleted (atomic).
+//   - If marking for deletion (marked=true) and document is NOT posted: just mark deleted.
+//   - If clearing the mark (marked=false): clear the flag, document stays unposted (draft state).
+func (s *BaseDocumentService[T, L]) SetDeletionMark(ctx context.Context, docID id.ID, marked bool) error {
+	return runDocumentMutation(ctx, s.GetTxManager, func(ctx context.Context) error {
+		doc, err := s.GetByID(ctx, docID)
+		if err != nil {
+			return err
+		}
+		if err := s.checkRLSAccess(ctx, doc); err != nil {
+			return err
+		}
+		if err := s.checkCELPolicy(ctx, "delete", doc); err != nil {
+			return err
+		}
+		if doc.IsDeletionMarked() == marked {
+			return nil
+		}
+		persist := func(ctx context.Context) error {
+			phase := TransactionClearDeletionMark
+			if marked {
+				doc.MarkDeleted()
+				phase = TransactionSetDeletionMark
+			} else {
+				doc.Undelete()
+			}
+			if err := s.Repo.Update(ctx, doc); err != nil {
+				return err
+			}
+			return completeDocumentMutation(ctx, s.hooks, doc, phase, "")
+		}
+		if marked && doc.IsPosted() {
+			if err := s.checkCELPolicy(ctx, "unpost", doc); err != nil {
+				return err
+			}
+			return s.PostingEngine.Unpost(ctx, doc, persist)
+		}
+		return persist(ctx)
+	})
+}
+
+// Post records document movements to registers.
+func (s *BaseDocumentService[T, L]) Post(ctx context.Context, docID id.ID) error {
+	// RLS: check write permission
+	if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+		return err
+	}
+
+	doc, err := s.GetByID(ctx, docID)
+	if err != nil {
+		return err
+	}
+
+	// RLS: point-check for write access
+	if err := s.checkRLSAccess(ctx, doc); err != nil {
+		return err
+	}
+
+	// CEL policy check
+	if err := s.checkCELPolicy(ctx, "post", doc); err != nil {
+		return err
+	}
+
+	updateDoc := func(ctx context.Context) error {
+		return s.Repo.Update(ctx, doc)
+	}
+
+	return s.PostingEngine.Post(ctx, doc, updateDoc)
+}
+
+// Unpost reverses document movements.
+func (s *BaseDocumentService[T, L]) Unpost(ctx context.Context, docID id.ID) error {
+	// RLS: check write permission
+	if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+		return err
+	}
+
+	doc, err := s.GetByID(ctx, docID)
+	if err != nil {
+		return err
+	}
+
+	// RLS: point-check for write access
+	if err := s.checkRLSAccess(ctx, doc); err != nil {
+		return err
+	}
+
+	// CEL policy check
+	if err := s.checkCELPolicy(ctx, "unpost", doc); err != nil {
+		return err
+	}
+
+	updateDoc := func(ctx context.Context) error {
+		return s.Repo.Update(ctx, doc)
+	}
+
+	return s.PostingEngine.Unpost(ctx, doc, updateDoc)
+}
+
+// PostAndSave posts document and saves changes atomically.
+// Used when creating and posting in one operation.
+func (s *BaseDocumentService[T, L]) PostAndSave(ctx context.Context, doc T) error {
+	return runDocumentMutation(ctx, s.GetTxManager, func(ctx context.Context) error {
+		// RLS: check write permission
+		if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+			return err
+		}
+
+		// Run before-create hooks (for enrichment: CreatedBy, UpdatedBy, etc.)
+		if err := s.hooks.RunBeforeCreate(ctx, doc); err != nil {
+			return err
+		}
+
+		// Resolve currency
+		if err := s.ResolveCurrency(ctx, doc); err != nil {
+			return err
+		}
+
+		// CEL policy check
+		if err := s.checkCELPolicy(ctx, "create", doc); err != nil {
+			return err
+		}
+
+		// Generate number if empty
+		if err := s.GenerateNumber(ctx, doc); err != nil {
+			return err
+		}
+
+		updateDoc := func(ctx context.Context) error {
+			if doc.GetVersion() == 1 {
+				// New document - create
+				if err := s.Repo.Create(ctx, doc); err != nil {
+					return err
+				}
+				if err := s.Repo.SaveLines(ctx, doc.GetID(), doc.GetLines()); err != nil {
+					return err
+				}
+				return completeDocumentMutation(ctx, s.hooks, doc, TransactionCreate, AfterCreate)
+			}
+			// Existing document - update
+			if err := s.Repo.Update(ctx, doc); err != nil {
+				return err
+			}
+			if err := s.Repo.SaveLines(ctx, doc.GetID(), doc.GetLines()); err != nil {
+				return err
+			}
+			return completeDocumentMutation(ctx, s.hooks, doc, TransactionUpdate, AfterUpdate)
+		}
+
+		return s.PostingEngine.Post(ctx, doc, updateDoc)
+	})
+}
+
+// UpdateAndRepost atomically updates a posted document and re-posts it.
+// This is the 1C-style "Save posted document" (Записать проведенный документ) — a single transaction:
+//   - Engine detects doc.IsPosted() → reverses old movements
+//   - Saves updated document + lines
+//   - Generates new movements
+//   - Validates register preconditions
+//   - Records new movements
+//
+// If the document is not posted, behaves like Update + Post.
+func (s *BaseDocumentService[T, L]) UpdateAndRepost(ctx context.Context, doc T) error {
+	return runDocumentMutation(ctx, s.GetTxManager, func(ctx context.Context) error {
+		// RLS: check write permission and record access
+		if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+			return err
+		}
+		if err := s.checkRLSAccess(ctx, doc); err != nil {
+			return err
+		}
+
+		// Fetch existing document for CEL evaluation against current state.
+		oldDoc, err := s.Repo.GetByID(ctx, doc.GetID())
+		if err != nil {
+			return fmt.Errorf("fetch existing document: %w", err)
+		}
+
+		// SECURITY FIX: Ensure the user actually has access to the original record in the DB!
+		if err := s.checkRLSAccess(ctx, oldDoc); err != nil {
+			return err
+		}
+
+		// CEL policy check — evaluate against existing document state
+		if err := s.checkCELPolicy(ctx, "update", oldDoc); err != nil {
+			return err
+		}
+
+		// FLS: validate that no restricted fields were modified
+		if writePolicy := security.GetFieldPolicy(ctx, s.EntityName, "write"); writePolicy != nil {
+			if err := security.ValidateWrite(oldDoc, doc, writePolicy); err != nil {
+				return err
+			}
+		}
+
+		// Sync lifecycle state from DB.
+		// We MUST use the true DB state to determine if old movements need reversal.
+		if oldDoc.IsPosted() {
+			doc.MarkPosted()
+		} else {
+			doc.MarkUnposted()
+		}
+
+		// Run before-update hooks
+		if err := s.hooks.RunBeforeUpdate(ctx, doc); err != nil {
+			return err
+		}
+
+		// Resolve currency
+		if err := s.ResolveCurrency(ctx, doc); err != nil {
+			return err
+		}
+
+		// Note: Validate() is called inside Engine.doPost() via CanPost(),
+		// which checks both state transitions and entity invariants.
+
+		updateDoc := func(ctx context.Context) error {
+			if err := s.Repo.Update(ctx, doc); err != nil {
+				return fmt.Errorf("update document: %w", err)
+			}
+			if err := s.Repo.SaveLines(ctx, doc.GetID(), doc.GetLines()); err != nil {
+				return err
+			}
+			return completeDocumentMutation(ctx, s.hooks, doc, TransactionUpdate, AfterUpdate)
+		}
+
+		return s.PostingEngine.Post(ctx, doc, updateDoc)
+	})
+}
+
+// List retrieves documents with cursor-based pagination.
+// Defense-in-depth: if DataScope was not injected by handler (ParseListFilter),
+// fall back to context — ensures RLS is enforced even for direct service calls.
+// After RLS filtering at DB level, applies CEL read rules to remove denied items.
+//
+// NOTE: When CEL read rules are active, TotalCount is approximate — it reflects
+// the DB count minus items removed on THIS page only. Returned Items may be fewer
+// than the requested limit. Clients should rely on HasMore/HasPrev for navigation.
+func (s *BaseDocumentService[T, L]) List(ctx context.Context, filter ListFilter) (CursorListResult[T], error) {
+	if filter.DataScope == nil {
+		filter.DataScope = security.GetDataScope(ctx)
+	}
+	result, err := s.Repo.List(ctx, filter)
+	if err != nil {
+		return result, err
+	}
+
+	// Apply CEL read rules to filter out denied documents
+	filtered, removed := security.FilterByReadPolicy(ctx, s.PolicyEngine, s.EntityName, result.Items)
+	result.Items = filtered
+	if result.TotalCount != nil && removed > 0 {
+		adjusted := *result.TotalCount - int64(removed)
+		result.TotalCount = &adjusted
+	}
+
+	return result, nil
+}
+
+// ListIDs returns all document IDs matching the filter.
+// Used for filter-based batch operations (virtual "select all").
+func (s *BaseDocumentService[T, L]) ListIDs(ctx context.Context, filter ListFilter, maxIDs int) ([]id.ID, error) {
+	if filter.DataScope == nil {
+		filter.DataScope = security.GetDataScope(ctx)
+	}
+	return s.Repo.ListIDs(ctx, filter, maxIDs)
+}

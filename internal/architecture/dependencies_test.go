@@ -1,0 +1,179 @@
+package architecture_test
+
+import (
+	"go/parser"
+	"go/token"
+	"io/fs"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestInternalLayerDependenciesPointInward(t *testing.T) {
+	t.Parallel()
+	_, currentFile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	internalRoot := filepath.Dir(filepath.Dir(currentFile))
+	rules := []struct {
+		directory string
+		forbidden []string
+	}{
+		{directory: "core", forbidden: []string{"metapus/internal/application/", "metapus/internal/domain/", "metapus/internal/infrastructure/", "github.com/jackc/pgx", "github.com/georgysavva/scany/v2/pgxscan"}},
+		{directory: "metadata", forbidden: []string{"metapus/internal/infrastructure/"}},
+		{directory: "domain", forbidden: []string{"metapus/internal/application/", "metapus/internal/infrastructure/"}},
+		{directory: "application", forbidden: []string{"metapus/internal/infrastructure/"}},
+	}
+
+	for _, rule := range rules {
+		t.Run(rule.directory, func(t *testing.T) {
+			err := filepath.WalkDir(filepath.Join(internalRoot, rule.directory), func(path string, entry fs.DirEntry, walkErr error) error {
+				if walkErr != nil {
+					return walkErr
+				}
+				if entry.IsDir() || filepath.Ext(path) != ".go" {
+					return nil
+				}
+				file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+				if err != nil {
+					return err
+				}
+				for _, imported := range file.Imports {
+					pathValue, err := strconv.Unquote(imported.Path.Value)
+					if err != nil {
+						return err
+					}
+					for _, prefix := range rule.forbidden {
+						if strings.HasPrefix(pathValue, prefix) {
+							t.Errorf("%s imports outward layer %s", path, pathValue)
+						}
+					}
+				}
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
+// Shared contracts must not smuggle framework dependencies into inner packages.
+// Inspect the complete local import closure, not just the first import edge.
+func TestInnerPackagesDoNotTransitivelyDependOnAdapters(t *testing.T) {
+	_, file, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	root := filepath.Dir(filepath.Dir(file))
+	graph := map[string][]string{}
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, filepath.Dir(path))
+		if err != nil {
+			return err
+		}
+		key := "metapus/internal/" + filepath.ToSlash(rel)
+		for _, imp := range parsed.Imports {
+			value, err := strconv.Unquote(imp.Path.Value)
+			if err != nil {
+				return err
+			}
+			graph[key] = append(graph[key], value)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	for start := range graph {
+		inner := false
+		for _, layer := range []string{"core", "domain", "application"} {
+			prefix := "metapus/internal/" + layer
+			inner = inner || start == prefix || strings.HasPrefix(start, prefix+"/")
+		}
+		if !inner {
+			continue
+		}
+		seen := map[string]bool{}
+		var visit func(string, []string)
+		visit = func(current string, route []string) {
+			if seen[current] {
+				return
+			}
+			seen[current] = true
+			route = append(append([]string(nil), route...), current)
+			if strings.HasPrefix(current, "github.com/golang-jwt/jwt/") || current == "github.com/skip2/go-qrcode" || current == "github.com/gin-gonic/gin" || current == "github.com/Masterminds/squirrel" || strings.HasPrefix(current, "github.com/jackc/pgx") || strings.HasPrefix(current, "github.com/xuri/excelize") || strings.HasPrefix(current, "github.com/gomutex/godocx") {
+				t.Errorf("outward dependency: %s", strings.Join(route, " -> "))
+				return
+			}
+			for _, dep := range graph[current] {
+				visit(dep, route)
+			}
+		}
+		visit(start, nil)
+	}
+}
+
+func TestEncodingJSONV1IsIsolatedToCompatibilityFacades(t *testing.T) {
+	t.Parallel()
+	_, currentFile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	repoRoot := filepath.Dir(filepath.Dir(filepath.Dir(currentFile)))
+	allowedDirectories := []string{
+		filepath.Join(repoRoot, "internal", "core", "json"),
+		filepath.Join(repoRoot, "vault-sign-plugins", "evm", "internal", "json"),
+		filepath.Join(repoRoot, "vault-sign-plugins", "tron", "internal", "json"),
+		// The merchant SDK is an independent public Go module and cannot import
+		// Metapus internal compatibility packages.
+		filepath.Join(repoRoot, "sdk", "go"),
+	}
+
+	err := filepath.WalkDir(repoRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			// Local database snapshots can contain complete historical source trees.
+			// Check only the working sources, regardless of retained backups.
+			if path == filepath.Join(repoRoot, "db", "backup") {
+				return filepath.SkipDir
+			}
+			switch entry.Name() {
+			case ".git", "node_modules", "vendor":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(path) != ".go" {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imported := range file.Imports {
+			pathValue, err := strconv.Unquote(imported.Path.Value)
+			if err != nil {
+				return err
+			}
+			if pathValue != "encoding/json" {
+				continue
+			}
+			for _, allowed := range allowedDirectories {
+				if path == allowed || strings.HasPrefix(path, allowed+string(filepath.Separator)) {
+					return nil
+				}
+			}
+			t.Errorf("%s imports encoding/json outside a compatibility facade", path)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+}
