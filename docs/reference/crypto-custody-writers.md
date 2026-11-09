@@ -3,7 +3,8 @@
 > **TL;DR:** Custody записывается через PostingEngine, прямые settlement-команды и ручные corrections; защита от двойного признания должна охватывать все эти пути.
 > **Тип:** Reference
 > **Аудитория:** Developer, AI-Agent
-> **Дата инвентаризации:** 09.11.2026; схема 104.
+> **Дата инвентаризации:** 09.11.2026.
+> **Нумерация схем:** «схема 78–104» и «этап 89–111» ниже — исторические номера. Все эти изменения теперь входят в одну миграцию [00077_crypto_custody_accounting.sql](../../db/migrations/00077_crypto_custody_accounting.sql) (разделы внутри файла помечены `-- ==== <старое имя> ====`). Разделы 17–39 — контракты отдельных механизмов, а не журнал готовности.
 > **Связанные:** [План реализации](../howto/crypto-inbound-provider-accounting-plan.md), [Проведение](../systems/posting-engine.md), [Accounting identity](crypto-canonical-contracts.md).
 
 ## 1. Общий механизм
@@ -200,7 +201,7 @@ Deferred SQL constraints запрещают неполный financial set, от
 
 ## 14. Независимое признание network fee схемы 86
 
-[00086](../../db/migrations/00086_crypto_network_fee_recognition.sql), [NetworkFeeProof](../../internal/domain/crypto/network_fee_proof.go) и [NetworkFeeRepo](../../internal/infrastructure/storage/postgres/crypto_repo/network_fee_recognition.go) вводят отдельную fee role. Её ключ — `network-fee.v1 / family / network / canonical tx hash`; transfer ordinal, token catalog ID и успешность principal не входят в ключ. Principal и комиссия одной транзакции получают разных владельцев своих ролей; alias токена не позволяет списать fee повторно.
+[00086](../../db/migrations/00077_crypto_custody_accounting.sql), [NetworkFeeProof](../../internal/domain/crypto/network_fee_proof.go) и [NetworkFeeRepo](../../internal/infrastructure/storage/postgres/crypto_repo/network_fee_recognition.go) вводят отдельную fee role. Её ключ — `network-fee.v1 / family / network / canonical tx hash`; transfer ordinal, token catalog ID и успешность principal не входят в ключ. Principal и комиссия одной транзакции получают разных владельцев своих ролей; alias токена не позволяет списать fee повторно.
 
 Новый FeeReservation явно создаётся с `accounting_model_version=2`. Final receipt принимается только вместе с fee proof: два разных provider ID и trust group, один canonical common head, актуальная confirmation floor, точные tx/block/status/native asset/components и controlled payer. Proof получается через RPC до финансовой транзакции. Смена policy/paused ingestion не отменяет уже совершённый расход. Unavailable quorum не завершает новый резерв; подмена плательщика не создаёт cap hold. Доказанный fee выше max сохраняет audited hold без principal и fee movements.
 
@@ -225,7 +226,7 @@ Migration сохраняет исторические fee reservations как mo
 
 ## 15. Маршрутизация ожидаемых переводов схемы 87
 
-[00087](../../db/migrations/00087_crypto_expected_transfer_routing.sql) и [ExpectedTransferRepo](../../internal/infrastructure/storage/postgres/crypto_repo/expected_transfer.go) подключены в EventProcessor до direction exits, payment lookup, invoice/token/dust matching и incoming financial locks. Managed outflow detector использует тот же strict router: старый event-index match без signed intent не скрывает неизвестный расход. Shadow mode сохраняет прежний read-only режим. Новая маршрутизация не включает receipt intake/cutover и не создаёт financial recognition.
+[00087](../../db/migrations/00077_crypto_custody_accounting.sql) и [ExpectedTransferRepo](../../internal/infrastructure/storage/postgres/crypto_repo/expected_transfer.go) подключены в EventProcessor до direction exits, payment lookup, invoice/token/dust matching и incoming financial locks. Managed outflow detector использует тот же strict router: старый event-index match без signed intent не скрывает неизвестный расход. Shadow mode сохраняет прежний read-only режим. Новая маршрутизация не включает receipt intake/cutover и не создаёт financial recognition.
 
 Сначала ищутся точные экономические candidates: network + canonical tx hash + kind + source/destination + asset contract + amount. Token catalog alias сравнивается по фактическому контракту/стандарту, без выбора первого активного token ID. Есть только hash, controlled sender либо отличаются адрес, сумма или актив — это не exact expected transfer. Candidate требует сохранённого signed envelope; статус signing/workflow и время expiry не передают его другому owner.
 
@@ -259,7 +260,7 @@ ORDER BY r.requested_at;
 
 ## 16. Основание ручных корректировок схемы 88
 
-[00088](../../db/migrations/00088_crypto_adjustment_accounting_basis.sql) и [FinancialAdjustmentRepo](../../internal/infrastructure/storage/postgres/crypto_repo/financial_adjustment.go) отделяют компенсацию source generation от признания нового chain principal. Новые proposals имеют model 2; basis устанавливается сервером из текущего settled/posted payment и его immutable custody binding. `payment_compensation` фиксирует source_posting_id; `legacy_payment` разрешён только без recognition и indexed proof, иначе требуется explicit adoption. Самостоятельный `wallet_balance` имеет basis `wallet_variance` и никогда не получает source posting из evidence, tx hash либо verification ID.
+[00088](../../db/migrations/00077_crypto_custody_accounting.sql) и [FinancialAdjustmentRepo](../../internal/infrastructure/storage/postgres/crypto_repo/financial_adjustment.go) отделяют компенсацию source generation от признания нового chain principal. Новые proposals имеют model 2; basis устанавливается сервером из текущего settled/posted payment и его immutable custody binding. `payment_compensation` фиксирует source_posting_id; `legacy_payment` разрешён только без recognition и indexed proof, иначе требуется explicit adoption. Самостоятельный `wallet_balance` имеет basis `wallet_variance` и никогда не получает source posting из evidence, tx hash либо verification ID.
 
 Source selections фиксируются в proposal transaction; после коммита добавление строк запрещено даже до решения. Утверждение проверяет поколение заново. Source document advisory lock → enabled custody scope → wallet → payment row → adjustment row применяется и к proposal, и к decision. Original source cap сериализует частичные компенсации. Maker/checker и direct step-up сохраняются; replay сверяет payload и maker.
 
@@ -272,7 +273,7 @@ DB deferred guards требуют ровно выбранные opposite reversa
 
 ## 17. Порядок ресурсов учёта схемы 89
 
-[00089](../../db/migrations/00089_crypto_accounting_resource_locks.sql) добавляет lock-only функции `fn_crypto_lock_custody_scopes(uuid[])` и `fn_crypto_lock_custody_wallets(uuid[])`. Сначала берётся объединение всех scopes владельцев/сетей выбранных wallets, включая выключенные, по `(merchant_id, network_id, token_id)`, затем уникальные catalog wallets по ID. Эта гранулярность соответствует действующим AML withdrawal/resource writers. `fn_crypto_aml_lock_resource_scopes` и `fn_crypto_aml_lock_fee_wallet_scopes` используют тот же полный scope set, независимо от существования resource budget и состояния native scope. Это изменение сериализации; budgets, permissions, eligibility и деньги не расширяются.
+[00089](../../db/migrations/00077_crypto_custody_accounting.sql) добавляет lock-only функции `fn_crypto_lock_custody_scopes(uuid[])` и `fn_crypto_lock_custody_wallets(uuid[])`. Сначала берётся объединение всех scopes владельцев/сетей выбранных wallets, включая выключенные, по `(merchant_id, network_id, token_id)`, затем уникальные catalog wallets по ID. Эта гранулярность соответствует действующим AML withdrawal/resource writers. `fn_crypto_aml_lock_resource_scopes` и `fn_crypto_aml_lock_fee_wallet_scopes` используют тот же полный scope set, независимо от существования resource budget и состояния native scope. Это изменение сериализации; budgets, permissions, eligibility и деньги не расширяются.
 
 Proof observation берёт recipient scopes и wallets до ingestion-state SHARE, balance rows и effect. Batch CaptureBlock заранее получает объединение managed recipients всего блока и берёт его до checkpoint UPDATE: нельзя получить effect первого события и затем scope следующего. Watch targets, mode/pause, decoder, fencing, parent/checkpoint checks остаются внутри исходной транзакции. Preflight не создаёт observation, proof, financial movement или новое разрешение на intake.
 
@@ -286,7 +287,7 @@ PostingEngine после document advisory lock вызывает `PostingResourc
 
 ## 18. Selectors и activation схемы 90
 
-[00090](../../db/migrations/00090_crypto_selector_resource_locks.sql) добавляет два lock-only helper:
+[00090](../../db/migrations/00077_crypto_custody_accounting.sql) добавляет два lock-only helper:
 
 - `fn_crypto_try_lock_custody_wallets(wallets, scope_merchant DEFAULT NULL, scope_network DEFAULT NULL)` берёт сортированное объединение всех wallet-owner scopes и, если передано, scope заявки, затем уникальные wallets по ID. `NOWAIT` позволяет пропустить занятый набор. Exception subtransaction освобождает весь частично полученный набор при `lock_not_available`, сохраняя внешнюю транзакцию. Пустой/некорректный набор и отсутствующий wallet вызывают constraint error.
 - `fn_crypto_lock_withdrawal_wallets(wallets, scope_merchant, scope_network)` блокирует то же объединение scopes, затем wallets. Scope заявки обязателен, даже если legacy principal/fee/funding wallets принадлежат другому владельцу. Пустой wallet set допустим для отмены до появления ресурсов.
@@ -303,7 +304,7 @@ Activation coordinator получает workflow advisory → advisory суще�
 
 ## 19. Native-funding operational updates и bulk maintenance схемы 91
 
-[00091](../../db/migrations/00091_crypto_funding_confirmation_locks.sql) добавляет lock-only `fn_crypto_try_lock_funding_confirmation(uuid)`: сначала полный scope/wallet набор обеих funding сторон и fee payer через helper схемы 90, затем funding row `NOWAIT`. Если занята строка funding, exception subtransaction освобождает также ранее полученные scopes/wallets. Missing funding не выбирается. Claim работает в короткой транзакции, фиксирует ordered candidates до lock predicate и повторно проверяет status/hash/due time/lease перед UPDATE. Parent status, wallet readiness и signing/ingestion policies не являются фильтром принятого сетевого перевода.
+[00091](../../db/migrations/00077_crypto_custody_accounting.sql) добавляет lock-only `fn_crypto_try_lock_funding_confirmation(uuid)`: сначала полный scope/wallet набор обеих funding сторон и fee payer через helper схемы 90, затем funding row `NOWAIT`. Если занята строка funding, exception subtransaction освобождает также ранее полученные scopes/wallets. Missing funding не выбирается. Claim работает в короткой транзакции, фиксирует ordered candidates до lock predicate и повторно проверяет status/hash/due time/lease перед UPDATE. Parent status, wallet readiness и signing/ingestion policies не являются фильтром принятого сетевого перевода.
 
 [LockNativeFundingResources](../../internal/infrastructure/storage/postgres/crypto_repo/native_funding_resource_locks.go) — общий transaction-only preflight для settlement, operational mutations и expected-transfer nudge. `SetStatus`, `MarkBroadcast`, reservation linking, retry before authorization, confirmation release и native replacement hash получают ресурсы до funding row. Nudge также получает их до `next_attempt_at` UPDATE: lease-only UPDATE запускает SQL resource queue hook. Handoff не снимает lease/hold, не меняет tx hash и не создаёт движения. Queue hooks продолжают работать без ослабления guards.
 
@@ -452,7 +453,7 @@ Selector использует network gate и для каждого кандид
 
 Budget/state commands и activation coordinator используют тот же prefix. Retiring expired unsigned signing attempt получает его до authorization/fee writes. Повтор active не переписывает timestamps и wallet version, held/failed не возвращают active назад. Failed replay проверяет первоначальный normalized reason, defer replay сохраняет первую deadline. Success старой failed-задачи возвращает conflict, если уже существует другой live activation workflow того же wallet; новая задача сохраняет eligibility для собственной finality/reconciliation.
 
-[Миграция 00093](../../db/migrations/00093_crypto_activation_task_identity.sql) проверяет существующую history до включения SQL guard. Task ID, wallet, network и created_at неизменяемы, удаление task запрещено. Установленную network-operation link нельзя заменить или снять; первая link проверяется по network/target и точному `CryptoAccountActivationTask` basis. Несовместимая история останавливает upgrade и требует разбора; миграция не переписывает старые строки. Новых таблиц, колонок, financial owners или API DTO нет.
+[Миграция 00093](../../db/migrations/00077_crypto_custody_accounting.sql) проверяет существующую history до включения SQL guard. Task ID, wallet, network и created_at неизменяемы, удаление task запрещено. Установленную network-operation link нельзя заменить или снять; первая link проверяется по network/target и точному `CryptoAccountActivationTask` basis. Несовместимая история останавливает upgrade и требует разбора; миграция не переписывает старые строки. Новых таблиц, колонок, financial owners или API DTO нет.
 
 `ReleaseResourceAllocation` блокирует provider account → rental → allocation и требует read committed. Первый release сохраняет normalized reason/event, exact replay не обновляет timestamps; другой reason, неполный JSON либо конфликтующий event возвращают conflict и откатывают enclosing transaction. Если allocation был bulk released через rental close без отдельного release event, cleanup проверяет полный terminal posted rental financial set и остаётся no-op: исходное основание принадлежит rental close. Broadcast/confirmed allocation cleanup сохраняет их состояние.
 
@@ -463,7 +464,7 @@ Budget/state commands и activation coordinator используют тот же
 
 ## 27. Fencing rental maintenance — этап 99, схема 94
 
-Этап 99 реализован 08.11.2026 и закрывает rental maintenance claim fencing, оставшийся после этапа 98. [00094](../../db/migrations/00094_crypto_resource_rental_claim_fencing.sql) добавляет operational UUID `maintenance_claim_token` и проверяет наличие owner/claim time/lease для установленного token. Старые leases остаются без token до истечения срока; исходная financial history и metadata не переписываются. Новых financial owners, проводок или HTTP DTO нет.
+Этап 99 реализован 08.11.2026 и закрывает rental maintenance claim fencing, оставшийся после этапа 98. [00094](../../db/migrations/00077_crypto_custody_accounting.sql) добавляет operational UUID `maintenance_claim_token` и проверяет наличие owner/claim time/lease для установленного token. Старые leases остаются без token до истечения срока; исходная financial history и metadata не переписываются. Новых financial owners, проводок или HTTP DTO нет.
 
 `ClaimResourceRentalsForMaintenance` требует read committed, пропускает занятые rental rows через SKIP LOCKED и выдаёт новый UUIDv7 token при каждой acquisition. Повтор worker name не переиспользует token. Claim меняет только operational rental projection, без последующего захвата account/wallet в той же операции. State/financial commands используют provider account → rental prefix; после ожидания проверяются exact token и `clock_timestamp()` lease. `NOW()` не используется для fencing: начало длинной внешней transaction не продлевает истёкшую lease.
 
@@ -483,7 +484,7 @@ Service проверяет/продлевает claim до разрешения 
 
 ## 28. Activation cost-repair fencing — этап 100, схема 95
 
-Этап 100 реализован 08.11.2026 и закрывает отдельный P3 пункт cost-repair claims. Основной activation execution claim остаётся следующим незавершённым пунктом. [00095](../../db/migrations/00095_crypto_activation_cost_claim_fencing.sql) добавляет UUID `cost_claim_token`: установленный token требует repairing status, owner, claimed_at и lease deadline. Legacy leases сохраняются без token до expiry; история, financial owners и публичные HTTP DTO не меняются.
+Этап 100 реализован 08.11.2026 и закрывает отдельный P3 пункт cost-repair claims. Основной activation execution claim остаётся следующим незавершённым пунктом. [00095](../../db/migrations/00077_crypto_custody_accounting.sql) добавляет UUID `cost_claim_token`: установленный token требует repairing status, owner, claimed_at и lease deadline. Legacy leases сохраняются без token до expiry; история, financial owners и публичные HTTP DTO не меняются.
 
 `ClaimActivationCostRepairs` требует read committed и непустого worker, блокирует только operational activation rows через SKIP LOCKED и при каждой acquisition выдаёт новый UUIDv7 token. Повтор worker name не переиспользует token. Для любой cost projection сохраняется существующая unexpired lease, включая legacy lease без token. Claim не приобретает дополнительные финансовые ресурсы после task row.
 
@@ -514,7 +515,7 @@ Typed claim commands защищают signing, held, failed, defer и внешн
 
 `GuardedAuthorizations` разделяет local DB callbacks и внешний I/O. Insert/renewal authorization и BeginDispatch проверяют текущий claim атомарно со своей записью; Vault/control/family signing и chain broadcast выполняются после commit. Новый activation dispatch без guard отклоняется. Чтение уже сохранённых activation signed bytes без guard является recovery, а новый broadcast всё равно требует нового текущего claim. Lease token не включается в JWS, unsigned fingerprint или economic identity.
 
-[00096](../../db/migrations/00096_crypto_activation_execution_dispatch.sql) добавляет append-only `reg_crypto_activation_dispatches`: authorization, activation, phase, claim token, network, fingerprint и время. SQL guard требует текущую lease и exact native-zero activation authorization/target/payer/fee tuple; broadcast требует уже сохранённые signed bytes. Один sign dispatch на authorization фиксируется до внешнего Sign. Повтор authorize/broadcast проверяет полный сохранённый payload; повтор Sign при отсутствии результата возвращает conflict. Update/delete audit запрещены. Down при непустом audit требует forward recovery и не стирает историю.
+[00096](../../db/migrations/00077_crypto_custody_accounting.sql) добавляет append-only `reg_crypto_activation_dispatches`: authorization, activation, phase, claim token, network, fingerprint и время. SQL guard требует текущую lease и exact native-zero activation authorization/target/payer/fee tuple; broadcast требует уже сохранённые signed bytes. Один sign dispatch на authorization фиксируется до внешнего Sign. Повтор authorize/broadcast проверяет полный сохранённый payload; повтор Sign при отсутствии результата возвращает conflict. Update/delete audit запрещены. Down при непустом audit требует forward recovery и не стирает историю.
 
 Неопределённый результат Sign остаётся held: наличие durable sign intent уже означает потенциальный signed outcome. Новый worker не делает второй Sign, не объявляет unsigned failure/external activation и не освобождает fee reserve только потому, что ещё нет signed envelope или tx hash. Generic activation fee Release/ReleaseUnbroadcast проверяют signing exposure под существующим wallet/reservation prefix. Неверный/rejected transport result после Sign также остаётся held до доказательств. Автоматический повтор нового Sign после неизвестного результата не заявляется; нужны поздние bytes либо reconciliation/forward recovery.
 
@@ -552,7 +553,7 @@ Service Post, Unpost, UpdateAndRepost и posted deletion mark берут prefix 
 
 FinancialReorgRepo получает document advisory → полный текущий/исторический custody scopes/wallet set → payment row → receipt balance/effects. Resource set перечитывается после ожидания; read committed обязателен. Проверяются точные current payment network/invoice/merchant/wallet/token/tx/event/generation/block/fee snapshot и исходный полный gross/net/processing fee movement set. Mutable lifecycle labels, изменённые caller до FSM write, не подменяют financial basis. Поддельный/устаревший basis отклоняется до incident/compensation/holds. Аудит всех вышестоящих callers и остальных prefixes остаётся отдельным открытым P3 пунктом.
 
-[00097](../../db/migrations/00097_crypto_reorg_compensation_basis.sql) добавляет request_basis JSONB. Для новых записей он обязателен и имеет schemaVersion=1; UPDATE/DELETE всех compensation facts запрещены. JSONB basis хранит payment/network/invoice/merchant/wallet/token, transaction/event identity, amount/generation, original block, frozen fee parameters и observed block/hash/transaction/event/amount. Confirmations, arrival time и refreshed proof IDs не входят в identity. Exact replay сверяет incident, observed block и весь basis, затем проверяет полное source-linked сторно custody/merchant/fee. Пустая audit-запись или неполный финансовый результат требуют reconciliation, без автоматической дозаписи по ошибочному повтору.
+[00097](../../db/migrations/00077_crypto_custody_accounting.sql) добавляет request_basis JSONB. Для новых записей он обязателен и имеет schemaVersion=1; UPDATE/DELETE всех compensation facts запрещены. JSONB basis хранит payment/network/invoice/merchant/wallet/token, transaction/event identity, amount/generation, original block, frozen fee parameters и observed block/hash/transaction/event/amount. Confirmations, arrival time и refreshed proof IDs не входят в identity. Exact replay сверяет incident, observed block и весь basis, затем проверяет полное source-linked сторно custody/merchant/fee. Пустая audit-запись или неполный финансовый результат требуют reconciliation, без автоматической дозаписи по ошибочному повтору.
 
 Partial manual compensation сохраняется: новые reorg movements покрывают только остаток каждой исходной строки. Следующее подтверждённое проведение получает своё основание; старый callback не изменяет его финансовый результат. Incident identity относится к network/tx/event и payment, details сохраняют первое наблюдение. Общий paymentReorgIncident используется AuthorizeReorg и FinancialReorgRepo: чужой/null payment либо invoice owner вместо payment owner отклоняется. Детали нового наблюдения/поколения не переписывают первое incident evidence; отдельная compensation хранит собственный basis.
 
@@ -580,7 +581,7 @@ BalanceReconciliationService получает InitialBalanceIncidentObservation 
 
 ## 33. Прямые SQL-запреты и отдельные основания кошельков — этап 105, схема 98
 
-Этап 105 реализован 08.11.2026. [00098](../../db/migrations/00098_crypto_sql_hold_replay.sql) ставит общий INSERT/UPDATE/DELETE guard на reg_crypto_network_holds и reg_crypto_wallet_allocation_holds. Им охвачены действующие raw writers: WalletPoolRepo.CompleteProvisioningJob, AML merchant publication, preflight inventory hold, pool scope/high triggers и baseline release. Новых финансовых движений, регистров или HTTP DTO нет; автоматический intake/attribution не подключается.
+Этап 105 реализован 08.11.2026. [00098](../../db/migrations/00077_crypto_custody_accounting.sql) ставит общий INSERT/UPDATE/DELETE guard на reg_crypto_network_holds и reg_crypto_wallet_allocation_holds. Им охвачены действующие raw writers: WalletPoolRepo.CompleteProvisioningJob, AML merchant publication, preflight inventory hold, pool scope/high triggers и baseline release. Новых финансовых движений, регистров или HTTP DTO нет; автоматический intake/attribution не подключается.
 
 fn_crypto_hold_owner_key строит тот же compact JSON tuple, что Go gate этапа 104; fn_crypto_try_lock_operational_hold_owner проверяет read committed и возвращает busy без ожидания. Go repository использует ту же SQL функцию. Golden tests проверяют separators, quotes, backslash, Unicode/control characters и реальную конкуренцию прежнего Go key с SQL insert. Busy SQL error требует rollback enclosing transaction и fresh retry; не следует продолжать работу в transaction после SQL exception без savepoint.
 
@@ -601,7 +602,7 @@ Allocation eligibility и baseline readiness не подменены replay guar
 
 ## 34. Отмена заявки на кошелёк и первое подтверждение наблюдения — этап 106, схема 99
 
-[00099](../../db/migrations/00099_crypto_pool_cancel_and_watch_evidence.sql) меняет только существующие функции защиты двух регистров. Финансовые движения, первые audit records и HTTP DTO не меняются.
+[00099](../../db/migrations/00077_crypto_custody_accounting.sql) меняет только существующие функции защиты двух регистров. Финансовые движения, первые audit records и HTTP DTO не меняются.
 
 | Путь записи | Основание и повтор | Сериализация |
 |---|---|---|
@@ -618,7 +619,7 @@ Allocation eligibility и baseline readiness не подменены replay guar
 
 ## 35. Первое решение проверки риска и история расхождений счёта — этап 107, схема 100
 
-[00100](../../db/migrations/00100_crypto_decision_and_invoice_drift_history.sql) добавляет evaluated_at для новых AML decisions и episode_id/initial_details/incident_id для текущей invoice reconciliation. Сохранённые данные не дополняются выдуманными основаниями.
+[00100](../../db/migrations/00077_crypto_custody_accounting.sql) добавляет evaluated_at для новых AML decisions и episode_id/initial_details/incident_id для текущей invoice reconciliation. Сохранённые данные не дополняются выдуманными основаниями.
 
 | Путь | Повтор и основание | Порядок/граница |
 |---|---|---|
@@ -639,7 +640,7 @@ Legacy активный invoice-only key сохраняет ID/details/status и
 
 ## 36. Основания попыток проверки и очередь активации — этап 108, схема 101
 
-[00101](../../db/migrations/00101_crypto_preflight_attempt_basis.sql) добавляет reg_crypto_aml_preflight_attempts и nullable initial_policy_version/initial_scope_version к job. Исторические данные не дополняются предположениями.
+[00101](../../db/migrations/00077_crypto_custody_accounting.sql) добавляет reg_crypto_aml_preflight_attempts и nullable initial_policy_version/initial_scope_version к job. Исторические данные не дополняются предположениями.
 
 | Writer | Неизменяемое основание и повтор | Граница |
 |---|---|---|
@@ -660,7 +661,7 @@ Activation selector до выбора сети проверяет native baselin
 
 ## 37. Начальные блоки и владельцы наблюдения — этап 109, схема 102
 
-[00102](../../db/migrations/00102_crypto_ingestion_registration_basis.sql) добавляет два nullable JSONB основания в существующий sys_crypto_block_ingestion. Это защита существующего TRON reader, а не включение receipt intake/P12 новой модели.
+[00102](../../db/migrations/00077_crypto_custody_accounting.sql) добавляет два nullable JSONB основания в существующий sys_crypto_block_ingestion. Это защита существующего TRON reader, а не включение receipt intake/P12 новой модели.
 
 | Writer | Основание и повтор | Сериализация |
 |---|---|---|
@@ -716,7 +717,7 @@ WHERE (t.target_kind = 'address' AND NOT EXISTS (
 
 ## 38. Первоначальные сведения внешних списаний — этап 110, схема 103
 
-[00103](../../db/migrations/00103_crypto_external_outflow_basis.sql) добавляет initial_basis в reg_crypto_external_outflows и incident_id в append-only reg_crypto_external_outflow_observations. Исторические NULL остаются неизвестными. Это доработка существующего обнаружения и расследования; автоматический receipt intake и новая финансовая модель этим не включаются.
+[00103](../../db/migrations/00077_crypto_custody_accounting.sql) добавляет initial_basis в reg_crypto_external_outflows и incident_id в append-only reg_crypto_external_outflow_observations. Исторические NULL остаются неизвестными. Это доработка существующего обнаружения и расследования; автоматический receipt intake и новая финансовая модель этим не включаются.
 
 | Writer | Основание и повтор | Порядок ресурсов |
 |---|---|---|
@@ -739,7 +740,7 @@ Compatibility: остановить старые API/workers/writers до upgrad
 
 ## 39. Основания и повторы решений внешних списаний — этап 111, схема 104
 
-[00104](../../db/migrations/00104_crypto_external_outflow_decisions.sql) добавляет nullable classification_basis/resolution_basis, adjustment decision_basis и action decision_basis. Исторические NULL не backfill. [Конечная приёмка P3](crypto-p3-acceptance.md) содержит восемь пакетов, поимённые индексы и scoped evidence. Этот проход закрывает решения R1; R2–R8 остаются открытыми.
+[00104](../../db/migrations/00077_crypto_custody_accounting.sql) добавляет nullable classification_basis/resolution_basis, adjustment decision_basis и action decision_basis. Исторические NULL не backfill. Этот проход закрывает решения R1; R2–R8 остаются открытыми.
 
 | Command | Основание | Exact replay |
 |---|---|---|
