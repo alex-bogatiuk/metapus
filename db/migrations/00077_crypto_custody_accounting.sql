@@ -5,8 +5,15 @@
 
 -- +goose Up
 -- +goose StatementBegin
--- ==== crypto_accounting_effect_identity ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
+
+-- Function bodies are validated when first executed; definitions precede the tables they use.
+
+SET LOCAL check_function_bodies = off;
+
+
+
+-- ---- Functions ----
 
 -- Independent of transfer evidence/signing byte schemas. The preimage matches
 -- AccountingEffectIdentity.Key and is protected by cross-language golden tests.
@@ -20,68 +27,11 @@ CREATE FUNCTION fn_crypto_accounting_identity_bytes(
     );
 $$;
 
-CREATE TABLE reg_crypto_accounting_effects (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
-    schema_version INT NOT NULL DEFAULT 1 CHECK(schema_version=1),
-    family TEXT NOT NULL CHECK(family IN ('tron','evm')),
-    network_id UUID NOT NULL REFERENCES cat_blockchain_networks(id),
-    tx_hash TEXT NOT NULL CHECK(tx_hash ~ '^[0-9a-f]{64}$'),
-    event_kind TEXT NOT NULL CHECK(event_kind IN ('native_value','contract_log','internal_value')),
-    effect_ordinal BIGINT NOT NULL CHECK(effect_ordinal>=0),
-    trace_hash TEXT NOT NULL DEFAULT '',
-    logical_key TEXT GENERATED ALWAYS AS (
-        'accounting-effect.v1:' || encode(digest(
-            fn_crypto_accounting_identity_bytes(family,network_id,tx_hash,event_kind,effect_ordinal,trace_hash),
-            'sha256'),'hex')
-    ) STORED UNIQUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CHECK((event_kind='internal_value' AND family='tron' AND trace_hash ~ '^[0-9a-f]{64}$')
-       OR (event_kind<>'internal_value' AND trace_hash='')),
-    CHECK(NOT(family='evm' AND event_kind='native_value') OR effect_ordinal=0),
-    UNIQUE(family,network_id,tx_hash,event_kind,effect_ordinal,trace_hash)
-);
-
-CREATE TABLE reg_crypto_accounting_effect_occurrences (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
-    effect_id UUID NOT NULL REFERENCES reg_crypto_accounting_effects(id),
-    block_number BIGINT NOT NULL CHECK(block_number>=0),
-    block_hash TEXT NOT NULL CHECK(block_hash ~ '^[0-9a-f]{64}$'),
-    economics_hash TEXT NOT NULL CHECK(economics_hash ~ '^[0-9a-f]{64}$'),
-    source_address TEXT NOT NULL CHECK(source_address<>''),
-    destination_address TEXT NOT NULL CHECK(destination_address<>''),
-    contract_address TEXT NOT NULL,
-    amount NUMERIC(78,0) NOT NULL CHECK(amount>0),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(effect_id,block_hash)
-);
-CREATE INDEX idx_crypto_accounting_occurrence_block
-    ON reg_crypto_accounting_effect_occurrences(block_number,effect_id);
-
--- One persisted proof cannot be rebound to another logical effect or occurrence.
--- This is evidence indexing only: it neither admits custody nor marks a
--- canonical generation as financially recognized.
-CREATE TABLE reg_crypto_accounting_effect_evidence (
-    verification_id UUID PRIMARY KEY REFERENCES reg_crypto_transfer_verifications(id),
-    occurrence_id UUID NOT NULL REFERENCES reg_crypto_accounting_effect_occurrences(id),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX idx_crypto_accounting_evidence_occurrence
-    ON reg_crypto_accounting_effect_evidence(occurrence_id,verification_id);
-
 CREATE FUNCTION fn_crypto_accounting_immutable() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     RAISE EXCEPTION 'accounting effect evidence is immutable' USING ERRCODE='23514';
 END;
 $$;
-CREATE TRIGGER trg_crypto_accounting_effect_immutable
-    BEFORE UPDATE OR DELETE ON reg_crypto_accounting_effects
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_accounting_immutable();
-CREATE TRIGGER trg_crypto_accounting_occurrence_immutable
-    BEFORE UPDATE OR DELETE ON reg_crypto_accounting_effect_occurrences
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_accounting_immutable();
-CREATE TRIGGER trg_crypto_accounting_evidence_immutable
-    BEFORE UPDATE OR DELETE ON reg_crypto_accounting_effect_evidence
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_accounting_immutable();
 
 CREATE FUNCTION fn_crypto_accounting_evidence_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
@@ -157,9 +107,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_crypto_accounting_evidence_guard
-    BEFORE INSERT ON reg_crypto_accounting_effect_evidence
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_accounting_evidence_guard();
 
 -- No detached, unproven identity/occurrence can survive a commit.
 CREATE FUNCTION fn_crypto_accounting_coverage_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
@@ -175,111 +122,6 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_crypto_accounting_effect_coverage
-    AFTER INSERT ON reg_crypto_accounting_effects DEFERRABLE INITIALLY DEFERRED
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_accounting_coverage_guard();
-CREATE CONSTRAINT TRIGGER trg_crypto_accounting_occurrence_coverage
-    AFTER INSERT ON reg_crypto_accounting_effect_occurrences DEFERRABLE INITIALLY DEFERRED
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_accounting_coverage_guard();
--- ==== crypto_custody_receipt_suspense ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-
--- This first admission contract is deliberately generation 1 only. Further
--- canonical generations require the explicit compensation workflow, not a new
--- recorder or a changed block hash.
-CREATE TABLE reg_crypto_custody_effect_postings (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
-    effect_id UUID NOT NULL REFERENCES reg_crypto_accounting_effects(id),
-    occurrence_id UUID NOT NULL REFERENCES reg_crypto_accounting_effect_occurrences(id),
-    verification_id UUID NOT NULL REFERENCES reg_crypto_transfer_verifications(id),
-    generation INT NOT NULL DEFAULT 1 CHECK(generation=1),
-    recorder_id UUID NOT NULL,
-    recorder_type TEXT NOT NULL CHECK(length(btrim(recorder_type)) BETWEEN 1 AND 50),
-    recorder_version INT NOT NULL CHECK(recorder_version>0),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(effect_id,generation)
-);
-CREATE TABLE reg_crypto_custody_effect_recognitions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
-    posting_id UUID NOT NULL REFERENCES reg_crypto_custody_effect_postings(id),
-    wallet_id UUID NOT NULL REFERENCES cat_wallets(id),
-    token_id UUID NOT NULL REFERENCES cat_tokens(id),
-    record_type TEXT NOT NULL CHECK(record_type IN ('receipt','expense')),
-    movement_line_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_balance_movements(line_id)
-        DEFERRABLE INITIALLY DEFERRED,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(posting_id,wallet_id,token_id,record_type),
-    UNIQUE(posting_id,record_type)
-);
-
-CREATE TABLE doc_crypto_custody_receipts (
-    id UUID PRIMARY KEY,
-    deletion_mark BOOLEAN NOT NULL DEFAULT FALSE CHECK(NOT deletion_mark),
-    version INT NOT NULL DEFAULT 1 CHECK(version>0),
-    attributes JSONB NOT NULL DEFAULT '{}',
-    _deleted_at TIMESTAMPTZ CHECK(_deleted_at IS NULL),
-    _txid BIGINT NOT NULL DEFAULT txid_current(),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_by UUID,
-    updated_by UUID,
-    number TEXT NOT NULL UNIQUE CHECK(btrim(number)<>''),
-    date TIMESTAMPTZ NOT NULL,
-    posted BOOLEAN NOT NULL DEFAULT FALSE,
-    posted_version INT NOT NULL DEFAULT 0,
-    basis_type TEXT NOT NULL CHECK(basis_type='CryptoTransferVerification'),
-    basis_id UUID NOT NULL REFERENCES reg_crypto_transfer_verifications(id),
-    description TEXT NOT NULL DEFAULT '',
-    network_id UUID NOT NULL REFERENCES cat_blockchain_networks(id),
-    wallet_id UUID NOT NULL REFERENCES cat_wallets(id),
-    token_id UUID NOT NULL REFERENCES cat_tokens(id),
-    custody_merchant_id UUID REFERENCES cat_merchants(id),
-    verification_id UUID NOT NULL REFERENCES reg_crypto_transfer_verifications(id),
-    occurrence_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_accounting_effect_occurrences(id),
-    posting_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_custody_effect_postings(id),
-    amount NUMERIC(78,0) NOT NULL CHECK(amount>0),
-    custody_line_id UUID NOT NULL UNIQUE,
-    suspense_line_id UUID NOT NULL UNIQUE,
-    reason_code TEXT NOT NULL CHECK(reason_code IN (
-        'no_allocation','wrong_token','timestamp_before_lease','retired_deposit_address',
-        'additional_single_payment','dust','treasury_unidentified','matched_receipt')),
-    CHECK(basis_id=verification_id),
-    CHECK((NOT posted AND posted_version=0) OR (posted AND posted_version=1))
-);
-CREATE INDEX idx_crypto_custody_receipts_wallet ON doc_crypto_custody_receipts(wallet_id,token_id,date,id);
-CREATE INDEX idx_crypto_custody_receipts_owner ON doc_crypto_custody_receipts(custody_merchant_id,date,id);
-CREATE INDEX idx_crypto_custody_receipts_txid ON doc_crypto_custody_receipts(_txid);
-CREATE TRIGGER trg_crypto_custody_receipt_txid BEFORE UPDATE ON doc_crypto_custody_receipts
-    FOR EACH ROW EXECUTE FUNCTION update_txid_column();
-
-CREATE TABLE reg_crypto_receipt_suspense_movements (
-    line_id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
-    recorder_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
-    recorder_type TEXT NOT NULL CHECK(recorder_type='CryptoCustodyReceipt'),
-    recorder_version INT NOT NULL CHECK(recorder_version=1),
-    period TIMESTAMPTZ NOT NULL,
-    record_type TEXT NOT NULL CHECK(record_type='receipt'),
-    receipt_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
-    token_id UUID NOT NULL REFERENCES cat_tokens(id),
-    amount NUMERIC(78,0) NOT NULL CHECK(amount>0),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(receipt_id)
-);
-CREATE TABLE reg_crypto_receipt_suspense_balances (
-    receipt_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
-    token_id UUID NOT NULL REFERENCES cat_tokens(id),
-    amount NUMERIC(78,0) NOT NULL CHECK(amount>=0),
-    last_movement_at TIMESTAMPTZ NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY(receipt_id,token_id)
-);
-CREATE TABLE reg_crypto_receipt_intake_audit (
-    receipt_id UUID PRIMARY KEY REFERENCES doc_crypto_custody_receipts(id),
-    verification_id UUID NOT NULL REFERENCES reg_crypto_transfer_verifications(id),
-    posting_id UUID NOT NULL REFERENCES reg_crypto_custody_effect_postings(id),
-    actor TEXT NOT NULL CHECK(btrim(actor)<>''),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
 
 CREATE FUNCTION fn_crypto_custody_receipt_mutation_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -296,8 +138,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_crypto_custody_receipt_mutation BEFORE UPDATE OR DELETE ON doc_crypto_custody_receipts
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_mutation_guard();
 
 CREATE FUNCTION fn_crypto_receipt_suspense_apply() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -309,20 +149,6 @@ BEGIN
     INSERT INTO reg_crypto_receipt_suspense_balances(receipt_id,token_id,amount,last_movement_at)
     VALUES(NEW.receipt_id,NEW.token_id,NEW.amount,NEW.period);
     RETURN NEW;
-END;
-$$;
-CREATE TRIGGER trg_crypto_receipt_suspense_apply AFTER INSERT ON reg_crypto_receipt_suspense_movements
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_receipt_suspense_apply();
-
-DO $$
-DECLARE target TEXT;
-BEGIN
-    FOREACH target IN ARRAY ARRAY['reg_crypto_custody_effect_postings',
-        'reg_crypto_custody_effect_recognitions','reg_crypto_receipt_suspense_movements',
-        'reg_crypto_receipt_intake_audit'] LOOP
-        EXECUTE format('CREATE TRIGGER %I BEFORE UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable()',
-            'trg_immutable_'||target,target);
-    END LOOP;
 END;
 $$;
 
@@ -338,8 +164,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_crypto_custody_posting_identity BEFORE INSERT ON reg_crypto_custody_effect_postings
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_posting_identity_guard();
 
 CREATE FUNCTION fn_crypto_assert_custody_posting(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE p reg_crypto_custody_effect_postings;
@@ -381,6 +205,7 @@ BEGIN
     END IF;
 END;
 $$;
+
 CREATE FUNCTION fn_crypto_custody_posting_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF TG_TABLE_NAME='reg_crypto_custody_effect_postings' THEN
@@ -391,12 +216,6 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_crypto_custody_posting_complete
-    AFTER INSERT ON reg_crypto_custody_effect_postings DEFERRABLE INITIALLY DEFERRED
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_posting_complete();
-CREATE CONSTRAINT TRIGGER trg_crypto_custody_recognition_complete
-    AFTER INSERT ON reg_crypto_custody_effect_recognitions DEFERRABLE INITIALLY DEFERRED
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_posting_complete();
 
 -- Until availability/reorg/cutover are implemented, receipt posting is limited
 -- to a disabled, drained network. A network with these receipts cannot resume
@@ -415,6 +234,7 @@ BEGIN
     END IF;
 END;
 $$;
+
 CREATE FUNCTION fn_crypto_receipt_network_resume_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF NEW.enabled AND EXISTS(SELECT 1 FROM doc_crypto_custody_receipts WHERE network_id=NEW.network_id) THEN
@@ -423,8 +243,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_crypto_receipt_network_resume BEFORE INSERT OR UPDATE ON sys_crypto_network_policies
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_receipt_network_resume_guard();
 
 CREATE FUNCTION fn_crypto_lock_receipt_balance(wallet UUID,asset UUID) RETURNS VOID LANGUAGE plpgsql AS $$
 BEGIN
@@ -433,6 +251,7 @@ BEGIN
     PERFORM wallet_id FROM reg_crypto_balance_balances WHERE wallet_id=wallet AND token_id=asset FOR UPDATE;
 END;
 $$;
+
 CREATE FUNCTION fn_crypto_unallocated_custody_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     PERFORM fn_crypto_lock_receipt_balance(NEW.wallet_id,NEW.token_id);
@@ -444,8 +263,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_crypto_unallocated_custody_guard BEFORE INSERT ON reg_crypto_balance_movements
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_unallocated_custody_guard();
 
 CREATE FUNCTION fn_crypto_assert_custody_receipt(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE d doc_crypto_custody_receipts;
@@ -514,14 +331,13 @@ BEGIN
     PERFORM fn_crypto_assert_custody_posting(d.posting_id);
 END;
 $$;
+
 CREATE FUNCTION fn_crypto_custody_receipt_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     PERFORM fn_crypto_assert_custody_receipt(NEW.id);
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_crypto_custody_receipt_complete AFTER INSERT OR UPDATE ON doc_crypto_custody_receipts
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_complete();
 
 CREATE FUNCTION fn_crypto_custody_receipt_movement_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -534,8 +350,6 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_crypto_custody_receipt_movement_complete AFTER INSERT ON reg_crypto_balance_movements
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_movement_complete();
 
 CREATE FUNCTION fn_crypto_custody_receipt_no_attribution() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -545,39 +359,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-DO $$
-DECLARE target TEXT;
-BEGIN
-    FOREACH target IN ARRAY ARRAY['reg_crypto_merchant_balance_movements','reg_crypto_fee_movements',
-        'reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements'] LOOP
-        EXECUTE format('CREATE TRIGGER %I BEFORE INSERT ON %I FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_no_attribution()',
-            'trg_no_receipt_'||target,target);
-    END LOOP;
-END;
-$$;
--- ==== crypto_wallet_funding_recognition ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-
--- Existing funding receipts remain historical. Admission of a new receipt must
--- claim an indexed effect; migration never fabricates identities or movements.
-ALTER TABLE reg_crypto_wallet_fundings
-    ADD COLUMN occurrence_id UUID UNIQUE REFERENCES reg_crypto_accounting_effect_occurrences(id),
-    ADD COLUMN posting_id UUID UNIQUE REFERENCES reg_crypto_custody_effect_postings(id),
-    ADD CONSTRAINT ck_crypto_wallet_funding_recognition_pair CHECK((occurrence_id IS NULL)=(posting_id IS NULL)),
-    DROP CONSTRAINT uq_crypto_wallet_fundings_tx_hash;
-CREATE UNIQUE INDEX uq_crypto_wallet_fundings_legacy_tx
-    ON reg_crypto_wallet_fundings(network_id,tx_hash) WHERE posting_id IS NULL;
-CREATE INDEX idx_crypto_wallet_fundings_tx ON reg_crypto_wallet_fundings(network_id,tx_hash);
-CREATE TABLE reg_crypto_wallet_funding_audit (
-    funding_id UUID PRIMARY KEY REFERENCES reg_crypto_wallet_fundings(id),
-    verification_id UUID NOT NULL REFERENCES reg_crypto_transfer_verifications(id),
-    posting_id UUID NOT NULL REFERENCES reg_crypto_custody_effect_postings(id),
-    actor TEXT NOT NULL CHECK(btrim(actor)<>''),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE TRIGGER trg_crypto_wallet_funding_audit_immutable
-    BEFORE UPDATE OR DELETE ON reg_crypto_wallet_funding_audit
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
 
 CREATE FUNCTION fn_crypto_wallet_funding_admission() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -607,8 +388,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_crypto_wallet_funding_admission BEFORE INSERT ON reg_crypto_wallet_fundings
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_wallet_funding_admission();
 
 -- Payment aliases with an indexed identity are compared by logical effect.
 -- An unindexed legacy payment is conservatively ambiguous within the same
@@ -640,8 +419,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_crypto_wallet_funding_payment_guard BEFORE INSERT OR UPDATE ON doc_crypto_payments
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_wallet_funding_payment_guard();
 
 CREATE FUNCTION fn_crypto_assert_wallet_funding(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE f reg_crypto_wallet_fundings;
@@ -714,12 +491,6 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_crypto_wallet_funding_complete AFTER INSERT ON reg_crypto_wallet_fundings
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_wallet_funding_complete();
-CREATE CONSTRAINT TRIGGER trg_crypto_wallet_funding_posting_complete AFTER INSERT ON reg_crypto_custody_effect_postings
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_wallet_funding_complete();
-CREATE CONSTRAINT TRIGGER trg_crypto_wallet_funding_movement_complete AFTER INSERT ON reg_crypto_balance_movements
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_wallet_funding_complete();
 
 CREATE FUNCTION fn_crypto_wallet_funding_movement_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE payment doc_crypto_payments; operating reg_crypto_aml_operating_receipts;
@@ -741,8 +512,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_crypto_wallet_funding_movement_guard BEFORE INSERT ON reg_crypto_balance_movements
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_wallet_funding_movement_guard();
 
 CREATE FUNCTION fn_crypto_wallet_funding_no_attribution() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -751,76 +520,6 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$;
-DO $$
-DECLARE target TEXT;
-BEGIN
-    FOREACH target IN ARRAY ARRAY['reg_crypto_merchant_balance_movements','reg_crypto_fee_movements',
-        'reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements'] LOOP
-        EXECUTE format('CREATE TRIGGER %I BEFORE INSERT ON %I FOR EACH ROW EXECUTE FUNCTION fn_crypto_wallet_funding_no_attribution()',
-            'trg_no_funding_'||target,target);
-    END LOOP;
-END;
-$$;
--- ==== crypto_payment_custody_recognition ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-
-ALTER TABLE reg_crypto_custody_effect_postings
-    DROP CONSTRAINT reg_crypto_custody_effect_postings_generation_check,
-    ADD COLUMN predecessor_id UUID UNIQUE REFERENCES reg_crypto_custody_effect_postings(id),
-    ADD CONSTRAINT ck_crypto_custody_generation CHECK(generation>0 AND
-        ((generation=1 AND predecessor_id IS NULL) OR (generation>1 AND predecessor_id IS NOT NULL)));
-CREATE UNIQUE INDEX uq_crypto_payment_custody_version
-    ON reg_crypto_custody_effect_postings(recorder_id,recorder_version) WHERE recorder_type='CryptoPayment';
-
--- COPY may use a subtransaction, so xmin is not a reliable top-level posting
--- identity. Stamp new payment lines explicitly; historical rows stay NULL.
-ALTER TABLE reg_crypto_balance_movements ADD COLUMN posting_txid BIGINT;
-CREATE FUNCTION fn_crypto_payment_posting_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-    NEW.posting_txid:=CASE WHEN NEW.recorder_type='CryptoPayment' AND NEW.reversal_of_line_id IS NULL THEN txid_current() ELSE NULL END;
-    RETURN NEW;
-END;
-$$;
-CREATE TRIGGER trg_crypto_payment_posting_transaction BEFORE INSERT ON reg_crypto_balance_movements
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_posting_transaction();
-
--- An immutable economic snapshot also serves as the admission/adoption audit.
--- Neither migration nor adoption creates another financial movement.
-CREATE TABLE reg_crypto_payment_custody_bindings (
-    posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
-    payment_id UUID NOT NULL REFERENCES doc_crypto_payments(id),
-    invoice_id UUID NOT NULL,
-    merchant_id UUID NOT NULL REFERENCES cat_merchants(id),
-    wallet_id UUID NOT NULL REFERENCES cat_wallets(id),
-    token_id UUID NOT NULL REFERENCES cat_tokens(id),
-    gross NUMERIC(78,0) NOT NULL CHECK(gross>0),
-    net NUMERIC(78,0) NOT NULL CHECK(net>=0),
-    processing_fee NUMERIC(78,0) NOT NULL CHECK(processing_fee>=0),
-    fee_fixed NUMERIC(78,0) NOT NULL CHECK(fee_fixed>=0),
-    fee_percent_bp INT NOT NULL CHECK(fee_percent_bp BETWEEN 0 AND 10000),
-    fee_min NUMERIC(78,0) NOT NULL CHECK(fee_min>=0),
-    fee_max NUMERIC(78,0) NOT NULL CHECK(fee_max>=0),
-    period TIMESTAMPTZ NOT NULL,
-    mode TEXT NOT NULL CHECK(mode IN ('posting','adoption')),
-    actor TEXT NOT NULL CHECK(btrim(actor)<>''),
-    evidence_reference TEXT NOT NULL CHECK(btrim(evidence_reference)<>''),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CHECK(gross=net+processing_fee)
-);
-CREATE INDEX idx_crypto_payment_custody_bindings_payment ON reg_crypto_payment_custody_bindings(payment_id);
-CREATE TRIGGER trg_crypto_payment_custody_binding_immutable
-    BEFORE UPDATE OR DELETE ON reg_crypto_payment_custody_bindings
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
-
-CREATE FUNCTION fn_crypto_payment_requires_recognition(payment UUID,network UUID,hash TEXT,kind TEXT,event_index BIGINT)
-RETURNS BOOLEAN LANGUAGE sql VOLATILE AS $$
-    SELECT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_postings WHERE recorder_type='CryptoPayment' AND recorder_id=payment)
-       OR EXISTS(SELECT 1 FROM reg_crypto_transfer_verifications v
-          JOIN reg_crypto_accounting_effect_evidence x ON x.verification_id=v.id
-          WHERE v.network_id=network AND regexp_replace(lower(v.tx_hash),'^0x','')=regexp_replace(lower(hash),'^0x','')
-            AND v.event_kind=kind AND v.event_index=$5)
-       OR EXISTS(SELECT 1 FROM doc_crypto_payments d JOIN reg_crypto_accounting_effect_evidence x ON x.verification_id=d.verification_id WHERE d.id=payment)
 $$;
 
 CREATE FUNCTION fn_crypto_payment_reversal_shape_valid(target UUID) RETURNS BOOLEAN LANGUAGE sql VOLATILE AS $$
@@ -938,14 +637,10 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_crypto_custody_generation_complete AFTER INSERT ON reg_crypto_custody_effect_postings
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_generation_complete();
 
 CREATE FUNCTION fn_crypto_payment_binding_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN PERFORM fn_crypto_assert_payment_custody(NEW.posting_id); RETURN NULL; END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_crypto_payment_binding_complete AFTER INSERT ON reg_crypto_payment_custody_bindings
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_binding_complete();
 
 CREATE FUNCTION fn_crypto_payment_financial_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE d doc_crypto_payments; target UUID;
@@ -965,16 +660,6 @@ BEGIN
         END IF;
     END IF;
     RETURN NULL;
-END;
-$$;
-DO $$
-DECLARE target TEXT;
-BEGIN
-    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements',
-        'reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements'] LOOP
-        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_financial_complete()',
-            'trg_payment_custody_complete_'||target,target);
-    END LOOP;
 END;
 $$;
 
@@ -1002,8 +687,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_crypto_payment_frozen_basis BEFORE UPDATE OR DELETE ON doc_crypto_payments
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_frozen_basis_guard();
 
 CREATE FUNCTION fn_crypto_payment_document_recognition_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE p reg_crypto_custody_effect_postings; required BOOLEAN; current_doc doc_crypto_payments;
@@ -1042,8 +725,6 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_crypto_payment_document_recognition AFTER INSERT OR UPDATE ON doc_crypto_payments
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_document_recognition_complete();
 
 -- Validate reversal dimensions and prohibit reversing a bound reversal. A sum
 -- of same-direction or foreign-wallet rows must never authorize generation 2.
@@ -1068,41 +749,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_bound_payment_reversal BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_bound_payment_reversal_guard();
-CREATE TRIGGER trg_bound_payment_reversal BEFORE INSERT ON reg_crypto_merchant_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_bound_payment_reversal_guard();
-CREATE TRIGGER trg_bound_payment_reversal BEFORE INSERT ON reg_crypto_fee_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_bound_payment_reversal_guard();
--- ==== crypto_native_funding_custody_recognition ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-
-CREATE OR REPLACE FUNCTION fn_crypto_payment_posting_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-    NEW.posting_txid:=CASE WHEN NEW.recorder_type IN ('CryptoPayment','CryptoNativeFunding') AND NEW.reversal_of_line_id IS NULL THEN txid_current() ELSE NULL END;
-    RETURN NEW;
-END;
-$$;
-
--- A known indexed native transaction also gates legacy payment aliases.
-CREATE OR REPLACE FUNCTION fn_crypto_payment_requires_recognition(payment UUID,network UUID,hash TEXT,kind TEXT,event_index BIGINT)
-RETURNS BOOLEAN LANGUAGE sql VOLATILE AS $$
-    SELECT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_postings WHERE recorder_type='CryptoPayment' AND recorder_id=payment)
-       OR EXISTS(SELECT 1 FROM reg_crypto_transfer_verifications v
-          JOIN reg_crypto_accounting_effect_evidence x ON x.verification_id=v.id
-          WHERE v.network_id=network AND regexp_replace(lower(v.tx_hash),'^0x','')=regexp_replace(lower(hash),'^0x','')
-            AND (v.event_kind='native_value' OR (v.event_kind=kind AND v.event_index=$5)))
-       OR EXISTS(SELECT 1 FROM doc_crypto_payments d JOIN reg_crypto_accounting_effect_evidence x ON x.verification_id=d.verification_id WHERE d.id=payment)
-$$;
-
-CREATE UNIQUE INDEX uq_crypto_native_funding_custody ON reg_crypto_custody_effect_postings(recorder_id)
-    WHERE recorder_type='CryptoNativeFunding';
-CREATE TABLE reg_crypto_native_funding_custody_bindings (
-    posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
-    funding_id UUID NOT NULL UNIQUE REFERENCES doc_crypto_native_fundings(id),
-    period TIMESTAMPTZ NOT NULL,
-    actor TEXT NOT NULL DEFAULT 'native-funding-settlement' CHECK(actor='native-funding-settlement'),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE TRIGGER trg_native_funding_binding_immutable BEFORE UPDATE OR DELETE ON reg_crypto_native_funding_custody_bindings
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
 
 CREATE FUNCTION fn_crypto_assert_native_funding_custody(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE p reg_crypto_custody_effect_postings; b reg_crypto_native_funding_custody_bindings;
@@ -1163,6 +809,7 @@ BEGIN
     END IF;
 END;
 $$;
+
 CREATE FUNCTION fn_crypto_native_funding_custody_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE target UUID;
 BEGIN
@@ -1181,10 +828,6 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_native_funding_posting_complete AFTER INSERT ON reg_crypto_custody_effect_postings
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_native_funding_custody_complete();
-CREATE CONSTRAINT TRIGGER trg_native_funding_binding_complete AFTER INSERT ON reg_crypto_native_funding_custody_bindings
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_native_funding_custody_complete();
 
 -- FeeBudgetManager cannot release a successful native principal commitment in
 -- a separate transaction, including a zero-fee receipt with no fee movement.
@@ -1204,10 +847,6 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_native_funding_chain_complete AFTER INSERT ON reg_crypto_chain_settlements
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_native_funding_settlement_complete();
-CREATE CONSTRAINT TRIGGER trg_native_funding_fee_complete AFTER INSERT OR UPDATE ON reg_crypto_fee_reservations
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_native_funding_settlement_complete();
 
 CREATE FUNCTION fn_crypto_native_funding_movement_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE target UUID;
@@ -1224,13 +863,6 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-DO $$ DECLARE target TEXT; BEGIN
-    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements',
-        'reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements'] LOOP
-        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_native_funding_movement_complete()',
-            'trg_native_funding_complete_'||target,target);
-    END LOOP;
-END; $$;
 
 CREATE FUNCTION fn_crypto_native_funding_basis_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -1251,8 +883,7 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_native_funding_basis BEFORE UPDATE OR DELETE ON doc_crypto_native_fundings
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_native_funding_basis_guard();
+
 CREATE FUNCTION fn_crypto_native_funding_document_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE target UUID;
 BEGIN
@@ -1264,8 +895,6 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_native_funding_document_complete AFTER INSERT OR UPDATE ON doc_crypto_native_fundings
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_native_funding_document_complete();
 
 -- An unindexed payment alias cannot bypass ownership of a proven internal tx.
 CREATE FUNCTION fn_crypto_payment_native_funding_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
@@ -1279,10 +908,7 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_payment_native_funding BEFORE INSERT OR UPDATE ON doc_crypto_payments
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_native_funding_guard();
--- ==== crypto_sweep_final_custody_recognition ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
+
 CREATE OR REPLACE FUNCTION fn_crypto_payment_requires_recognition(payment UUID,network UUID,hash TEXT,kind TEXT,event_index BIGINT)
 RETURNS BOOLEAN LANGUAGE sql VOLATILE AS $$
     SELECT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_postings WHERE recorder_type='CryptoPayment' AND recorder_id=payment)
@@ -1291,24 +917,6 @@ RETURNS BOOLEAN LANGUAGE sql VOLATILE AS $$
           WHERE v.network_id=network AND regexp_replace(lower(v.tx_hash),'^0x','')=regexp_replace(lower(hash),'^0x','')
             )
        OR EXISTS(SELECT 1 FROM doc_crypto_payments d JOIN reg_crypto_accounting_effect_evidence x ON x.verification_id=d.verification_id WHERE d.id=payment)
-$$;
-
-CREATE TABLE reg_crypto_sweep_custody_bindings (
-    posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
-    sweep_id UUID NOT NULL REFERENCES doc_crypto_sweeps(id),
-    line_id UUID NOT NULL UNIQUE REFERENCES doc_crypto_sweep_lines(line_id),
-    period TIMESTAMPTZ NOT NULL,
-    actor TEXT NOT NULL DEFAULT 'sweep-settlement' CHECK(actor='sweep-settlement'),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX idx_sweep_custody_bindings_document ON reg_crypto_sweep_custody_bindings(sweep_id);
-CREATE TRIGGER trg_sweep_custody_binding_immutable BEFORE UPDATE OR DELETE ON reg_crypto_sweep_custody_bindings
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
-CREATE OR REPLACE FUNCTION fn_crypto_payment_posting_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-    NEW.posting_txid:=CASE WHEN NEW.recorder_type IN ('CryptoPayment','CryptoNativeFunding','CryptoSweep') AND NEW.reversal_of_line_id IS NULL THEN txid_current() ELSE NULL END;
-    RETURN NEW;
-END;
 $$;
 
 CREATE FUNCTION fn_crypto_assert_sweep_line(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
@@ -1385,8 +993,7 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_sweep_binding_complete AFTER INSERT ON reg_crypto_sweep_custody_bindings
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_binding_complete();
+
 CREATE FUNCTION fn_crypto_sweep_posting_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE target UUID;
 BEGIN
@@ -1397,8 +1004,6 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_sweep_posting_complete AFTER INSERT ON reg_crypto_custody_effect_postings
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_posting_complete();
 
 CREATE FUNCTION fn_crypto_sweep_financial_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE target UUID;
@@ -1425,13 +1030,6 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-DO $$ DECLARE target TEXT; BEGIN
-    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements',
-        'reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements'] LOOP
-        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_financial_complete()',
-            'trg_sweep_complete_'||target,target);
-    END LOOP;
-END; $$;
 
 CREATE FUNCTION fn_crypto_sweep_settlement_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE target UUID;
@@ -1450,12 +1048,6 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_sweep_line_complete AFTER INSERT OR UPDATE ON doc_crypto_sweep_lines
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_settlement_complete();
-CREATE CONSTRAINT TRIGGER trg_sweep_chain_complete AFTER INSERT ON reg_crypto_chain_settlements
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_settlement_complete();
-CREATE CONSTRAINT TRIGGER trg_sweep_fee_complete AFTER INSERT OR UPDATE ON reg_crypto_fee_reservations
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_settlement_complete();
 
 CREATE FUNCTION fn_crypto_sweep_basis_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE model INT;
@@ -1494,47 +1086,6 @@ BEGIN
             IS DISTINCT FROM (OLD.tx_hash,OLD.settlement_status,OLD.chain_result,OLD.confirmed,OLD.network_fee,OLD.network_fee_token_id)) THEN
         RAISE EXCEPTION 'sweep line basis and final outcome are immutable' USING ERRCODE='23514';
     END IF;
-    RETURN NEW;
-END;
-$$;
-CREATE TRIGGER trg_sweep_header_basis BEFORE UPDATE OR DELETE ON doc_crypto_sweeps FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_basis_guard();
-CREATE TRIGGER trg_sweep_line_basis BEFORE UPDATE OR DELETE ON doc_crypto_sweep_lines FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_basis_guard();
-
-CREATE OR REPLACE VIEW crypto_aml_allocatable_transfers AS
- SELECT plan.id allocation_id,plan.merchant_id,plan.network_id,plan.token_id,plan.source_wallet_id,plan.destination_wallet_id,
- plan.principal,plan.service_fee,e.id effect_id,spent.line_id source_movement_id,received.line_id destination_movement_id
- FROM reg_crypto_aml_internal_allocations plan
- JOIN reg_crypto_sweep_custody_bindings b ON b.line_id=plan.sweep_attempt_id
- JOIN doc_crypto_sweep_lines line ON line.line_id=b.line_id AND line.document_id=b.sweep_id AND line.wallet_id=plan.source_wallet_id AND line.amount=plan.gross
- JOIN doc_crypto_sweeps sweep ON sweep.id=b.sweep_id AND sweep.hot_wallet_id=plan.destination_wallet_id AND sweep.token_id=plan.token_id
- JOIN reg_crypto_custody_effect_postings p ON p.id=b.posting_id AND p.recorder_id=sweep.id AND p.recorder_type='CryptoSweep' AND p.recorder_version=1
- JOIN reg_crypto_custody_effect_recognitions sr ON sr.posting_id=p.id AND sr.record_type='expense' AND sr.wallet_id=plan.source_wallet_id AND sr.token_id=plan.token_id
- JOIN reg_crypto_custody_effect_recognitions dr ON dr.posting_id=p.id AND dr.record_type='receipt' AND dr.wallet_id=plan.destination_wallet_id AND dr.token_id=plan.token_id
- JOIN reg_crypto_balance_movements spent ON spent.line_id=sr.movement_line_id AND spent.amount=plan.gross
- JOIN reg_crypto_balance_movements received ON received.line_id=dr.movement_line_id AND received.amount=plan.gross
- JOIN reg_crypto_aml_effects e ON e.wallet_id=plan.destination_wallet_id AND e.source_wallet_id=plan.source_wallet_id AND e.token_id=plan.token_id AND e.network_id=plan.network_id AND e.tx_hash=line.tx_hash AND e.amount=plan.gross
- JOIN reg_crypto_aml_effect_chain_states cs ON cs.effect_id=e.id AND cs.canonicality='canonical'
- JOIN reg_crypto_accounting_effect_evidence ae ON ae.verification_id=cs.verification_id AND ae.occurrence_id=p.occurrence_id
- JOIN reg_crypto_expected_chain_effects expected ON expected.id=e.expected_effect_id
- JOIN reg_crypto_signing_authorizations auth ON auth.id=expected.signing_authorization_id AND auth.basis_type='CryptoSweepAttempt' AND auth.basis_id=line.line_id AND auth.signed_envelope IS NOT NULL
- WHERE plan.status IN ('reserved','applied') AND line.settlement_status='recorded' AND line.chain_result='SUCCESS'
- AND spent.created_at>=(SELECT created_at FROM reg_crypto_aml_wallet_baselines WHERE wallet_id=plan.source_wallet_id AND token_id=plan.token_id)
- AND received.created_at>=(SELECT created_at FROM reg_crypto_aml_wallet_baselines WHERE wallet_id=plan.destination_wallet_id AND token_id=plan.token_id);
--- ==== crypto_treasury_final_custody_recognition ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-CREATE TABLE reg_crypto_treasury_custody_bindings (
-    posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
-    treasury_id UUID NOT NULL UNIQUE REFERENCES doc_treasury_withdrawals(id),
-    signing_authorization_id UUID NOT NULL REFERENCES reg_crypto_signing_authorizations(id),
-    period TIMESTAMPTZ NOT NULL,
-    actor TEXT NOT NULL DEFAULT 'treasury-settlement' CHECK(actor='treasury-settlement'),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE TRIGGER trg_treasury_custody_binding_immutable BEFORE UPDATE OR DELETE ON reg_crypto_treasury_custody_bindings
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
-CREATE OR REPLACE FUNCTION fn_crypto_payment_posting_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-    NEW.posting_txid:=CASE WHEN NEW.recorder_type IN ('CryptoPayment','CryptoNativeFunding','CryptoSweep','TreasuryWithdrawal') AND NEW.reversal_of_line_id IS NULL THEN txid_current() ELSE NULL END;
     RETURN NEW;
 END;
 $$;
@@ -1641,8 +1192,7 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_treasury_binding_complete AFTER INSERT ON reg_crypto_treasury_custody_bindings
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_binding_complete();
+
 CREATE FUNCTION fn_crypto_treasury_posting_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE target UUID;
 BEGIN
@@ -1653,8 +1203,6 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_treasury_posting_complete AFTER INSERT ON reg_crypto_custody_effect_postings
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_posting_complete();
 
 CREATE FUNCTION fn_crypto_treasury_financial_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -1668,13 +1216,7 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-DO $$ DECLARE target TEXT; BEGIN
-    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements',
-        'reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements'] LOOP
-        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_financial_complete()',
-            'trg_treasury_complete_'||target,target);
-    END LOOP;
-END; $$;
+
 CREATE FUNCTION fn_crypto_treasury_settlement_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE target UUID;
 BEGIN
@@ -1689,12 +1231,6 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_treasury_document_complete AFTER INSERT OR UPDATE ON doc_treasury_withdrawals
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_settlement_complete();
-CREATE CONSTRAINT TRIGGER trg_treasury_chain_complete AFTER INSERT ON reg_crypto_chain_settlements
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_settlement_complete();
-CREATE CONSTRAINT TRIGGER trg_treasury_fee_complete AFTER INSERT OR UPDATE ON reg_crypto_fee_reservations
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_settlement_complete();
 
 CREATE FUNCTION fn_crypto_treasury_basis_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -1717,7 +1253,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_treasury_basis BEFORE UPDATE OR DELETE ON doc_treasury_withdrawals FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_basis_guard();
 
 CREATE FUNCTION fn_crypto_treasury_reservation_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE target UUID; d doc_treasury_withdrawals; balance NUMERIC; reserved NUMERIC; fees NUMERIC;
@@ -1755,6 +1290,7 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
 CREATE FUNCTION fn_crypto_treasury_reservation_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF EXISTS(SELECT 1 FROM doc_treasury_withdrawals WHERE id=NEW.document_id) AND
@@ -1767,12 +1303,7 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-DO $$ DECLARE target TEXT; BEGIN
-    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_reservations','reg_crypto_revenue_reservations'] LOOP
-        EXECUTE format('CREATE TRIGGER %I BEFORE INSERT OR UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_reservation_guard()', 'trg_treasury_basis_'||target,target);
-        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT OR UPDATE ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_reservation_complete()', 'trg_treasury_complete_'||target,target);
-    END LOOP;
-END; $$;
+
 CREATE FUNCTION fn_crypto_treasury_fee_release_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF NEW.basis_type='TreasuryWithdrawal' AND NEW.status='released' AND EXISTS(SELECT 1 FROM doc_treasury_withdrawals WHERE id=NEW.basis_id)
@@ -1782,7 +1313,7 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_treasury_fee_release BEFORE UPDATE ON reg_crypto_fee_reservations FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_fee_release_guard();
+
 CREATE FUNCTION fn_crypto_treasury_outflow_owner_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF NEW.recorder_type IN ('TreasuryWithdrawal','CryptoWithdrawal') AND EXISTS(
@@ -1806,33 +1337,6 @@ BEGIN
         JOIN doc_treasury_withdrawals d ON d.id=a.basis_id WHERE adjustment.id=NEW.recorder_id) THEN
         RAISE EXCEPTION 'expected treasury principal requires its settlement owner' USING ERRCODE='23514';
     END IF;
-    RETURN NEW;
-END;
-$$;
-CREATE TRIGGER trg_treasury_outflow_owner BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_outflow_owner_guard();
--- ==== crypto_withdrawal_final_custody_recognition ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-ALTER TABLE reg_crypto_aml_withdrawal_facts ALTER COLUMN expense_movement_id DROP NOT NULL;
-ALTER TABLE reg_crypto_aml_withdrawal_facts DROP CONSTRAINT reg_crypto_aml_withdrawal_facts_check;
-ALTER TABLE reg_crypto_aml_withdrawal_facts ADD CONSTRAINT reg_crypto_aml_withdrawal_facts_check CHECK(
-    (succeeded AND expense_movement_id IS NOT NULL AND refund_movement_id IS NULL)
-    OR (NOT succeeded AND ((expense_movement_id IS NULL AND refund_movement_id IS NULL) OR (expense_movement_id IS NOT NULL AND refund_movement_id IS NOT NULL))));
-CREATE TABLE reg_crypto_withdrawal_custody_bindings (
-    posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
-    withdrawal_id UUID NOT NULL UNIQUE REFERENCES doc_crypto_withdrawals(id),
-    request_id UUID NOT NULL REFERENCES doc_withdrawal_requests(id),
-    line_id UUID UNIQUE REFERENCES reg_crypto_aml_withdrawal_lines(id),
-    signing_authorization_id UUID NOT NULL REFERENCES reg_crypto_signing_authorizations(id),
-    merchant_debit_line_id UUID NOT NULL REFERENCES reg_crypto_merchant_balance_movements(line_id),
-    period TIMESTAMPTZ NOT NULL,
-    actor TEXT NOT NULL DEFAULT 'withdrawal-settlement' CHECK(actor='withdrawal-settlement'),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX idx_withdrawal_custody_bindings_request ON reg_crypto_withdrawal_custody_bindings(request_id);
-CREATE TRIGGER trg_withdrawal_custody_binding_immutable BEFORE UPDATE OR DELETE ON reg_crypto_withdrawal_custody_bindings FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
-CREATE OR REPLACE FUNCTION fn_crypto_payment_posting_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-    NEW.posting_txid:=CASE WHEN NEW.recorder_type IN ('CryptoPayment','CryptoNativeFunding','CryptoSweep','TreasuryWithdrawal','CryptoWithdrawal') AND NEW.reversal_of_line_id IS NULL THEN txid_current() ELSE NULL END;
     RETURN NEW;
 END;
 $$;
@@ -1961,37 +1465,6 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE VIEW crypto_aml_valid_withdrawal_facts AS
- SELECT f.line_id FROM reg_crypto_aml_withdrawal_facts f
- JOIN reg_crypto_aml_withdrawal_lines l ON l.id=f.line_id AND l.wallet_id=f.wallet_id AND l.token_id=f.token_id AND l.amount=f.amount
- JOIN reg_crypto_aml_withdrawal_plans plan ON plan.request_id=l.request_id
- JOIN doc_crypto_withdrawals w ON w.id=l.withdrawal_id AND w.basis_type='CryptoAMLWithdrawalLine' AND w.basis_id=l.id
-    AND w.merchant_id=plan.merchant_id AND w.source_wallet_id=l.wallet_id AND w.token_id=l.token_id AND w.amount=l.amount AND w.posted AND w.posted_version=1
-    AND w.settlement_status='recorded' AND w.status=CASE WHEN f.succeeded THEN 'confirmed' ELSE 'failed' END
- JOIN reg_crypto_signing_authorizations a ON a.basis_type='CryptoAMLWithdrawalLine' AND a.basis_id=l.id AND a.generation=1 AND a.attempt=1
-    AND a.signed_envelope IS NOT NULL AND a.tx_hash=w.tx_hash AND a.source_address=l.source_address AND a.vault_key_id=l.source_vault_key_id AND a.amount_minor_units=l.amount
- JOIN reg_crypto_aml_first_dispatches dispatched ON dispatched.authorization_id=a.id
- JOIN reg_crypto_chain_settlements settlement ON settlement.id=f.settlement_id AND settlement.network_id=plan.network_id AND settlement.basis_type='CryptoAMLWithdrawalLine'
-    AND settlement.basis_id=l.id AND settlement.tx_hash=w.tx_hash AND (settlement.status='succeeded')=f.succeeded
- JOIN reg_crypto_balance_reservations reserve ON reserve.id=l.reservation_id AND reserve.status=CASE WHEN f.succeeded THEN 'consumed' ELSE 'released' END
- LEFT JOIN reg_crypto_withdrawal_custody_bindings binding ON binding.withdrawal_id=w.id AND binding.request_id=l.request_id AND binding.line_id=l.id AND binding.signing_authorization_id=a.id
- LEFT JOIN reg_crypto_custody_effect_postings posting ON posting.id=binding.posting_id AND posting.recorder_type='CryptoWithdrawal' AND posting.recorder_id=w.id AND posting.generation=1 AND posting.recorder_version=1
- LEFT JOIN reg_crypto_custody_effect_recognitions recognized ON recognized.posting_id=posting.id AND recognized.record_type='expense' AND recognized.wallet_id=l.wallet_id AND recognized.token_id=l.token_id
- LEFT JOIN reg_crypto_balance_movements spent ON spent.line_id=f.expense_movement_id AND spent.line_id=recognized.movement_line_id AND spent.recorder_type='CryptoWithdrawal'
-    AND spent.recorder_id=w.id AND spent.recorder_version=1 AND spent.record_type='expense' AND spent.wallet_id=f.wallet_id AND spent.token_id=f.token_id AND spent.amount=f.amount AND spent.reversal_of_line_id IS NULL
- LEFT JOIN reg_crypto_transfer_verifications proof ON proof.id=posting.verification_id
- WHERE f.refund_movement_id IS NULL AND (
- (f.succeeded AND spent.line_id IS NOT NULL AND proof.evidence->'event'->>'canonicality'='canonical'
-    AND NOT EXISTS(SELECT 1 FROM reg_crypto_transfer_verifications invalid WHERE invalid.network_id=proof.network_id AND invalid.tx_hash=proof.tx_hash
-        AND invalid.event_kind=proof.event_kind AND invalid.event_index=proof.event_index AND invalid.verified_at>=proof.verified_at AND invalid.evidence->'event'->>'canonicality'='orphaned')
-    AND NOT EXISTS(SELECT 1 FROM reg_crypto_accounting_effect_evidence ae JOIN reg_crypto_accounting_effect_occurrences occurrence ON occurrence.id=ae.occurrence_id
-        JOIN reg_crypto_transfer_verifications newer ON newer.id=ae.verification_id WHERE occurrence.effect_id=posting.effect_id AND occurrence.id<>posting.occurrence_id AND newer.verified_at>=proof.verified_at))
- OR (NOT f.succeeded AND f.expense_movement_id IS NULL AND binding.posting_id IS NULL AND NOT EXISTS(SELECT 1 FROM reg_crypto_balance_movements WHERE recorder_id=w.id)
-    AND EXISTS(SELECT 1 FROM reg_crypto_merchant_balance_movements mr JOIN doc_withdrawal_requests request ON request.id=l.request_id
-        WHERE mr.line_id=l.id AND mr.recorder_id=l.request_id AND mr.recorder_type='WithdrawalRequest' AND mr.recorder_version=request.posted_version+1 AND mr.record_type='receipt'
-          AND mr.merchant_id=plan.merchant_id AND mr.token_id=l.token_id AND mr.amount=l.amount))
- );
-
 CREATE FUNCTION fn_crypto_withdrawal_binding_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF NOT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_postings WHERE id=NEW.posting_id AND recorder_type='CryptoWithdrawal' AND recorder_id=NEW.withdrawal_id)
@@ -2000,7 +1473,7 @@ BEGIN
     PERFORM fn_crypto_assert_withdrawal(NEW.withdrawal_id); RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_withdrawal_binding_complete AFTER INSERT ON reg_crypto_withdrawal_custody_bindings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_binding_complete();
+
 CREATE FUNCTION fn_crypto_withdrawal_posting_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE target UUID;
 BEGIN
@@ -2010,7 +1483,6 @@ BEGIN
     PERFORM fn_crypto_assert_withdrawal(target); RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_withdrawal_posting_complete AFTER INSERT ON reg_crypto_custody_effect_postings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_posting_complete();
 
 CREATE FUNCTION fn_crypto_withdrawal_financial_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE target UUID;
@@ -2024,11 +1496,7 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-DO $$ DECLARE target TEXT; BEGIN
-    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements','reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements'] LOOP
-        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_financial_complete()','trg_withdrawal_complete_'||target,target);
-    END LOOP;
-END; $$;
+
 CREATE FUNCTION fn_crypto_withdrawal_settlement_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE target UUID;
 BEGIN
@@ -2043,9 +1511,6 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_withdrawal_document_complete AFTER INSERT OR UPDATE ON doc_crypto_withdrawals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_settlement_complete();
-CREATE CONSTRAINT TRIGGER trg_withdrawal_chain_complete AFTER INSERT ON reg_crypto_chain_settlements DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_settlement_complete();
-CREATE CONSTRAINT TRIGGER trg_withdrawal_fee_complete AFTER INSERT OR UPDATE ON reg_crypto_fee_reservations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_settlement_complete();
 
 CREATE FUNCTION fn_crypto_withdrawal_basis_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -2070,8 +1535,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_withdrawal_basis BEFORE UPDATE OR DELETE ON doc_crypto_withdrawals FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_basis_guard();
-CREATE TRIGGER trg_withdrawal_request_basis BEFORE UPDATE OR DELETE ON doc_withdrawal_requests FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_basis_guard();
 
 CREATE FUNCTION fn_crypto_withdrawal_reservation_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE d doc_crypto_withdrawals; balance NUMERIC; reserved NUMERIC; fees NUMERIC;
@@ -2097,7 +1560,7 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_withdrawal_reservation_basis BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_balance_reservations FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_reservation_guard();
+
 CREATE FUNCTION fn_crypto_withdrawal_reservation_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE d doc_crypto_withdrawals;
 BEGIN
@@ -2106,7 +1569,7 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_withdrawal_reservation_complete AFTER INSERT OR UPDATE ON reg_crypto_balance_reservations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_reservation_complete();
+
 CREATE FUNCTION fn_crypto_withdrawal_fee_release_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF NEW.status='released' AND EXISTS(SELECT 1 FROM doc_crypto_withdrawals d WHERE d.basis_type=NEW.basis_type AND d.basis_id=NEW.basis_id)
@@ -2115,7 +1578,7 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_withdrawal_fee_release BEFORE UPDATE ON reg_crypto_fee_reservations FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_fee_release_guard();
+
 CREATE FUNCTION fn_crypto_withdrawal_outflow_owner_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF NEW.recorder_type IN ('TreasuryWithdrawal','CryptoWithdrawal') AND EXISTS(
@@ -2142,30 +1605,11 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_withdrawal_outflow_owner BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_outflow_owner_guard();
+
 CREATE FUNCTION fn_crypto_withdrawal_request_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     PERFORM fn_crypto_assert_withdrawal_parent(NEW.id);
     RETURN NULL;
-END;
-$$;
-CREATE CONSTRAINT TRIGGER trg_withdrawal_request_complete AFTER INSERT OR UPDATE ON doc_withdrawal_requests DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_request_complete();
--- ==== crypto_custody_loss_recognition ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-CREATE TABLE reg_crypto_custody_loss_bindings (
-    posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
-    adjustment_id UUID NOT NULL UNIQUE REFERENCES doc_crypto_custody_adjustments(id),
-    external_outflow_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_external_outflows(id),
-    maker_id UUID NOT NULL,
-    checker_id UUID NOT NULL CHECK(checker_id<>maker_id),
-    period TIMESTAMPTZ NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE TRIGGER trg_custody_loss_binding_immutable BEFORE UPDATE OR DELETE ON reg_crypto_custody_loss_bindings FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
-CREATE OR REPLACE FUNCTION fn_crypto_payment_posting_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-    NEW.posting_txid:=CASE WHEN NEW.recorder_type IN ('CryptoPayment','CryptoNativeFunding','CryptoSweep','TreasuryWithdrawal','CryptoWithdrawal','CryptoCustodyAdjustment') AND NEW.reversal_of_line_id IS NULL THEN txid_current() ELSE NULL END;
-    RETURN NEW;
 END;
 $$;
 
@@ -2253,7 +1697,7 @@ BEGIN
     PERFORM fn_crypto_assert_custody_loss(NEW.adjustment_id); RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_custody_loss_binding_complete AFTER INSERT ON reg_crypto_custody_loss_bindings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_loss_binding_complete();
+
 CREATE FUNCTION fn_crypto_custody_loss_posting_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE target UUID;
 BEGIN
@@ -2263,7 +1707,7 @@ BEGIN
     PERFORM fn_crypto_assert_custody_loss(target); RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_custody_loss_posting_complete AFTER INSERT ON reg_crypto_custody_effect_postings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_loss_posting_complete();
+
 CREATE FUNCTION fn_crypto_custody_loss_financial_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF EXISTS(SELECT 1 FROM doc_crypto_custody_adjustments WHERE id=NEW.recorder_id) THEN PERFORM fn_crypto_assert_custody_loss(NEW.recorder_id); END IF;
@@ -2273,17 +1717,13 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-DO $$ DECLARE target TEXT; BEGIN
-    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_platform_cost_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements','reg_crypto_provider_balance_movements'] LOOP
-        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_loss_financial_complete()','trg_custody_loss_complete_'||target,target);
-    END LOOP;
-END; $$;
+
 CREATE FUNCTION fn_crypto_custody_loss_document_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF NEW.status='posted' THEN PERFORM fn_crypto_assert_custody_loss(NEW.id); END IF; RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_custody_loss_document_complete AFTER INSERT OR UPDATE ON doc_crypto_custody_adjustments DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_loss_document_complete();
+
 CREATE FUNCTION fn_crypto_custody_loss_basis_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF NEW.created_at<>OLD.created_at THEN
@@ -2291,7 +1731,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_custody_loss_basis BEFORE UPDATE ON doc_crypto_custody_adjustments FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_loss_basis_guard();
 
 -- Serialize equivalent economics independently of catalog aliases and recorder.
 CREATE FUNCTION fn_crypto_custody_loss_outflow_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
@@ -2319,59 +1758,18 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_custody_loss_outflow_owner BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_loss_outflow_guard();
--- ==== crypto_network_fee_recognition ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-ALTER TABLE reg_crypto_fee_reservation_events ADD COLUMN transition_txid BIGINT;
+
 CREATE FUNCTION fn_crypto_fee_transition_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     NEW.transition_txid:=CASE WHEN EXISTS(SELECT 1 FROM reg_crypto_fee_reservations WHERE id=NEW.reservation_id) THEN txid_current() ELSE NULL END;
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_network_fee_transition_txid BEFORE INSERT ON reg_crypto_fee_reservation_events FOR EACH ROW EXECUTE FUNCTION fn_crypto_fee_transition_transaction();
-ALTER TABLE reg_crypto_chain_settlements ADD COLUMN network_fee_reservation_id UUID REFERENCES reg_crypto_fee_reservations(id);
-ALTER TABLE doc_crypto_network_operations ADD COLUMN network_fee_reservation_id UUID UNIQUE REFERENCES reg_crypto_fee_reservations(id);
-
-CREATE TABLE reg_crypto_network_fee_proofs (
-    id UUID PRIMARY KEY,
-    effect_key TEXT NOT NULL CHECK(effect_key~'^[0-9a-f]{64}$'),
-    network_id UUID NOT NULL REFERENCES cat_blockchain_networks(id),
-    tx_hash TEXT NOT NULL CHECK(tx_hash~'^[0-9a-f]{64}$'),
-    family TEXT NOT NULL CHECK(family IN ('tron','evm')),
-    payer_address_key TEXT NOT NULL,
-    native_token_id UUID NOT NULL REFERENCES cat_tokens(id),
-    block_hash TEXT NOT NULL CHECK(block_hash~'^[0-9a-f]{64}$'),
-    block_number BIGINT NOT NULL CHECK(block_number>=0),
-    status TEXT NOT NULL CHECK(status IN ('succeeded','reverted')),
-    total_fee_minor NUMERIC(78,0) NOT NULL CHECK(total_fee_minor>=0),
-    proof_digest TEXT NOT NULL CHECK(proof_digest~'^[0-9a-f]{64}$'),
-    confirmations INT NOT NULL CHECK(confirmations>0),
-    evidence JSONB NOT NULL,
-    verified_at TIMESTAMPTZ NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX idx_network_fee_proofs_effect ON reg_crypto_network_fee_proofs(effect_key,block_number,verified_at);
-CREATE TABLE reg_crypto_network_fee_bindings (
-    reservation_id UUID PRIMARY KEY REFERENCES reg_crypto_fee_reservations(id),
-    effect_key TEXT NOT NULL UNIQUE,
-    proof_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_network_fee_proofs(id),
-    settlement_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_chain_settlements(id),
-    recorder_type TEXT NOT NULL CHECK(recorder_type IN ('ChainSettlement','CryptoNetworkOperation')),
-    recorder_id UUID NOT NULL,
-    generation INT NOT NULL DEFAULT 1 CHECK(generation=1),
-    movement_line_id UUID UNIQUE REFERENCES reg_crypto_balance_movements(line_id) DEFERRABLE INITIALLY DEFERRED,
-    cost_line_id UUID UNIQUE REFERENCES reg_crypto_platform_cost_movements(line_id) DEFERRABLE INITIALLY DEFERRED,
-    period TIMESTAMPTZ NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX idx_network_fee_bindings_recorder ON reg_crypto_network_fee_bindings(recorder_type,recorder_id);
-CREATE TRIGGER trg_network_fee_proof_immutable BEFORE UPDATE OR DELETE ON reg_crypto_network_fee_proofs FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
-CREATE TRIGGER trg_network_fee_binding_immutable BEFORE UPDATE OR DELETE ON reg_crypto_network_fee_bindings FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
 
 CREATE FUNCTION fn_crypto_network_fee_key(family TEXT, network UUID, hash TEXT) RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$
     SELECT encode(digest(concat_ws(E'\n','network-fee.v1',family,network::text,regexp_replace(lower(hash),'^0x','')),'sha256'),'hex');
 $$;
+
 CREATE FUNCTION fn_crypto_network_fee_proof_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE body JSONB; components JSONB; sources JSONB; component_count INT; total NUMERIC; canonical TEXT;
 BEGIN
@@ -2416,7 +1814,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_network_fee_proof_profile BEFORE INSERT ON reg_crypto_network_fee_proofs FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_proof_guard();
 
 CREATE OR REPLACE FUNCTION fn_crypto_payment_posting_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -2424,6 +1821,7 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
 CREATE FUNCTION fn_crypto_assert_network_fee(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE f reg_crypto_fee_reservations; b reg_crypto_network_fee_bindings; p reg_crypto_network_fee_proofs; c reg_crypto_chain_settlements; d doc_crypto_network_operations; fee_purpose TEXT;
 BEGIN
@@ -2488,7 +1886,7 @@ BEGIN
     PERFORM fn_crypto_assert_network_fee(NEW.reservation_id); RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_network_fee_binding_complete AFTER INSERT ON reg_crypto_network_fee_bindings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_binding_complete();
+
 CREATE FUNCTION fn_crypto_network_fee_state_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE target UUID;
 BEGIN
@@ -2500,10 +1898,7 @@ BEGIN
     IF target IS NOT NULL THEN PERFORM fn_crypto_assert_network_fee(target); END IF; RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_network_fee_reservation_complete AFTER INSERT OR UPDATE ON reg_crypto_fee_reservations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_state_complete();
-CREATE CONSTRAINT TRIGGER trg_network_fee_settlement_complete AFTER INSERT ON reg_crypto_chain_settlements DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_state_complete();
-CREATE CONSTRAINT TRIGGER trg_network_fee_component_complete AFTER INSERT ON reg_crypto_chain_settlement_components DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_state_complete();
-CREATE CONSTRAINT TRIGGER trg_network_fee_document_complete AFTER INSERT OR UPDATE ON doc_crypto_network_operations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_state_complete();
+
 CREATE FUNCTION fn_crypto_network_fee_financial_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE target UUID;
 BEGIN
@@ -2518,11 +1913,7 @@ BEGIN
     END LOOP; RETURN NULL;
 END;
 $$;
-DO $$ DECLARE target TEXT; BEGIN
-    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_platform_cost_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements','reg_crypto_provider_balance_movements'] LOOP
-        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_financial_complete()','trg_network_fee_complete_'||target,target);
-    END LOOP;
-END; $$;
+
 CREATE FUNCTION fn_crypto_network_fee_basis_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF TG_TABLE_NAME='doc_crypto_network_operations' THEN
@@ -2555,8 +1946,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_network_fee_basis BEFORE UPDATE OR DELETE ON reg_crypto_fee_reservations FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_basis_guard();
-CREATE TRIGGER trg_network_fee_document_basis BEFORE UPDATE OR DELETE ON doc_crypto_network_operations FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_basis_guard();
 
 CREATE FUNCTION fn_crypto_network_fee_replacement_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -2568,7 +1957,6 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_network_fee_replacement_complete AFTER UPDATE ON reg_crypto_fee_reservations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_replacement_complete();
 
 -- Serialize legacy normalized receipts before they can hold a receipt row while
 -- awaiting a balance held by a new principal/fee settlement.
@@ -2604,10 +1992,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_network_fee_receipt_owner BEFORE INSERT ON reg_crypto_chain_settlements FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_legacy_owner_guard();
-CREATE TRIGGER trg_network_fee_movement_owner BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_legacy_owner_guard();
--- ==== crypto_expected_transfer_routing ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 
 -- Candidate lookup is economic, never a tx-hash-only classification. Retired
 -- catalog aliases and signed/held/failed authorizations retain their history.
@@ -2642,31 +2026,7 @@ RETURNS TABLE(expected_id UUID,authorization_id UUID,owner_type TEXT,owner_id UU
  AND x.contract_address_key=CASE WHEN n.chain_family='evm' THEN lower(COALESCE(t.contract_address,'')) ELSE COALESCE(t.contract_address,'') END
  AND x.amount=quantity AND quantity>0 AND a.signed_envelope IS NOT NULL;
 $$;
-CREATE INDEX idx_expected_transfer_canonical_tx ON reg_crypto_expected_chain_effects(network_id,(regexp_replace(lower(tx_hash),'^0x','')),event_kind);
 
-CREATE TABLE reg_crypto_expected_transfer_requests (
- expected_effect_id UUID PRIMARY KEY REFERENCES reg_crypto_expected_chain_effects(id),
- owner_type TEXT NOT NULL,owner_id UUID NOT NULL,first_event JSONB NOT NULL,
- requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),_txid BIGINT NOT NULL DEFAULT txid_current(),_deleted_at TIMESTAMPTZ
-);
-CREATE TABLE sys_crypto_expected_transfer_deliveries (
- expected_effect_id UUID PRIMARY KEY REFERENCES reg_crypto_expected_transfer_requests(expected_effect_id),
- next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),delivered_at TIMESTAMPTZ,attempts INT NOT NULL DEFAULT 0 CHECK(attempts>=0),
- version INT NOT NULL DEFAULT 1,_txid BIGINT NOT NULL DEFAULT txid_current(),_deleted_at TIMESTAMPTZ
-);
-CREATE INDEX idx_expected_transfer_delivery_due ON sys_crypto_expected_transfer_deliveries(next_attempt_at) WHERE delivered_at IS NULL;
-CREATE TABLE reg_crypto_expected_transfer_routes (
- effect_id UUID PRIMARY KEY REFERENCES reg_crypto_accounting_effects(id),
- expected_effect_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_expected_transfer_requests(expected_effect_id),
- first_verification_id UUID NOT NULL REFERENCES reg_crypto_transfer_verifications(id),
- owner_type TEXT NOT NULL,owner_id UUID NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
- _txid BIGINT NOT NULL DEFAULT txid_current(),_deleted_at TIMESTAMPTZ
-);
-CREATE TABLE reg_crypto_expected_transfer_evidence (
- verification_id UUID PRIMARY KEY REFERENCES reg_crypto_transfer_verifications(id),
- effect_id UUID NOT NULL REFERENCES reg_crypto_expected_transfer_routes(effect_id),
- created_at TIMESTAMPTZ NOT NULL DEFAULT now(),_txid BIGINT NOT NULL DEFAULT txid_current(),_deleted_at TIMESTAMPTZ
-);
 CREATE FUNCTION fn_crypto_expected_owner_matches(expected UUID,recorder TEXT,document UUID) RETURNS BOOLEAN LANGUAGE sql STABLE AS $$
  SELECT COALESCE(EXISTS(SELECT 1 FROM reg_crypto_expected_chain_effects x JOIN reg_crypto_signing_authorizations a ON a.id=x.signing_authorization_id WHERE x.id=expected AND (
    (a.basis_type='CryptoNativeFunding' AND recorder='CryptoNativeFunding' AND document=a.basis_id)
@@ -2675,6 +2035,7 @@ CREATE FUNCTION fn_crypto_expected_owner_matches(expected UUID,recorder TEXT,doc
    OR (a.basis_type IN ('WithdrawalRequest','CryptoAMLWithdrawalLine') AND recorder='CryptoWithdrawal' AND EXISTS(SELECT 1 FROM doc_crypto_withdrawals d WHERE d.id=document AND d.basis_type=a.basis_type AND d.basis_id=a.basis_id))
  )),false);
 $$;
+
 CREATE FUNCTION fn_crypto_validate_expected_route(expected UUID,proof UUID) RETURNS UUID LANGUAGE plpgsql AS $$
 DECLARE v reg_crypto_transfer_verifications; o reg_crypto_accounting_effect_occurrences; e reg_crypto_accounting_effects; matches INT; found UUID; valid BOOLEAN;
 BEGIN
@@ -2698,6 +2059,7 @@ BEGIN
   RAISE EXCEPTION 'expected transfer already has another accounting owner' USING ERRCODE='23514'; END IF;
  RETURN e.id;
 END; $$;
+
 CREATE FUNCTION fn_crypto_expected_transfer_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE a reg_crypto_signing_authorizations; effect UUID; actual UUID;
 BEGIN
@@ -2716,13 +2078,7 @@ BEGIN
   IF NEW.effect_id<>effect THEN RAISE EXCEPTION 'expected route evidence cannot change logical identity' USING ERRCODE='23514'; END IF;
  END IF;RETURN NEW;
 END; $$;
-CREATE TRIGGER trg_expected_request_basis BEFORE INSERT ON reg_crypto_expected_transfer_requests FOR EACH ROW EXECUTE FUNCTION fn_crypto_expected_transfer_guard();
-CREATE TRIGGER trg_expected_route_basis BEFORE INSERT ON reg_crypto_expected_transfer_routes FOR EACH ROW EXECUTE FUNCTION fn_crypto_expected_transfer_guard();
-CREATE TRIGGER trg_expected_route_evidence_basis BEFORE INSERT ON reg_crypto_expected_transfer_evidence FOR EACH ROW EXECUTE FUNCTION fn_crypto_expected_transfer_guard();
-DO $$ DECLARE target TEXT; BEGIN
- FOREACH target IN ARRAY ARRAY['reg_crypto_expected_transfer_requests','reg_crypto_expected_transfer_routes','reg_crypto_expected_transfer_evidence'] LOOP
-  EXECUTE format('CREATE TRIGGER %I BEFORE UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable()','trg_immutable_'||target,target);
- END LOOP; END; $$;
+
 CREATE FUNCTION fn_crypto_expected_request_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
  IF (SELECT count(*) FROM sys_outbox WHERE aggregate_type='CryptoExpectedTransfer' AND aggregate_id=NEW.expected_effect_id AND event_type='settlement_requested')<>1
@@ -2730,7 +2086,6 @@ BEGIN
     AND payload->>'ownerType'=NEW.owner_type AND payload->>'ownerId'=NEW.owner_id::text AND payload->>'expectedEffectId'=NEW.expected_effect_id::text)<>1 THEN
   RAISE EXCEPTION 'expected settlement request requires its original-owner outbox' USING ERRCODE='23514'; END IF; RETURN NULL;
 END; $$;
-CREATE CONSTRAINT TRIGGER trg_expected_request_complete AFTER INSERT ON reg_crypto_expected_transfer_requests DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_expected_request_complete();
 
 -- Pending ownership forbids fallback even before the observer has a final
 -- proof, and even when the signing/workflow label says failed or expired.
@@ -2746,7 +2101,7 @@ BEGIN
    RAISE EXCEPTION 'expected transfer already has another logical route' USING ERRCODE='23514'; END IF;
  END LOOP; RETURN NEW;
 END; $$;
-CREATE TRIGGER trg_expected_posting_owner BEFORE INSERT ON reg_crypto_custody_effect_postings FOR EACH ROW EXECUTE FUNCTION fn_crypto_expected_posting_owner_guard();
+
 CREATE FUNCTION fn_crypto_expected_external_payment_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE p doc_crypto_payments; blocked BOOLEAN;
 BEGIN
@@ -2759,24 +2114,6 @@ BEGIN
   CROSS JOIN LATERAL fn_crypto_expected_transfer_candidates(p.network_id,p.tx_hash,p.event_kind,p.from_address,w.address,COALESCE(t.contract_address,''),p.amount) c WHERE w.id=p.wallet_id) INTO blocked;
  IF blocked THEN RAISE EXCEPTION 'expected transfer cannot create an external payment receipt' USING ERRCODE='23514'; END IF; RETURN NEW;
 END; $$;
-CREATE TRIGGER trg_expected_payment BEFORE INSERT ON doc_crypto_payments FOR EACH ROW EXECUTE FUNCTION fn_crypto_expected_external_payment_guard();
-CREATE TRIGGER trg_expected_payment_movement BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_expected_external_payment_guard();
--- ==== crypto_adjustment_accounting_basis ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-
--- Historical decisions and pending proposals retain their original semantics.
--- A chain compensation refers to the original owner; it never claims an effect.
-ALTER TABLE doc_crypto_adjustments
-    ADD COLUMN basis_kind TEXT NOT NULL DEFAULT 'legacy',
-    ADD COLUMN source_posting_id UUID REFERENCES reg_crypto_custody_effect_postings(id),
-    ADD COLUMN proposal_txid BIGINT,
-    ADD CONSTRAINT ck_crypto_adjustment_accounting_basis CHECK (
-        proposal_txid IS NOT NULL AND (
-            (mode='wallet_balance' AND basis_kind='wallet_variance' AND source_posting_id IS NULL)
-            OR (mode='payment_reversal' AND (
-                (basis_kind='legacy_payment' AND source_posting_id IS NULL)
-                OR (basis_kind='payment_compensation' AND source_posting_id IS NOT NULL)))));
-CREATE INDEX idx_crypto_adjustment_source_posting ON doc_crypto_adjustments(source_posting_id) WHERE source_posting_id IS NOT NULL;
 
 CREATE FUNCTION fn_crypto_adjustment_accounting_basis() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE d doc_crypto_payments; posting UUID;
@@ -2813,8 +2150,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_crypto_adjustment_accounting_basis BEFORE INSERT OR UPDATE OR DELETE ON doc_crypto_adjustments
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_adjustment_accounting_basis();
 
 CREATE OR REPLACE FUNCTION fn_crypto_adjustment_source_insert_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE a doc_crypto_adjustments; source JSONB; source_table TEXT; used NUMERIC;
@@ -2929,19 +2264,6 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER trg_crypto_adjustment_accounting_complete AFTER INSERT OR UPDATE ON doc_crypto_adjustments
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_adjustment_accounting_complete('doc_crypto_adjustments');
-DO $$
-DECLARE table_name TEXT;
-BEGIN
-    FOREACH table_name IN ARRAY ARRAY['reg_crypto_adjustment_sources','reg_crypto_wallet_variance_movements',
-        'reg_crypto_balance_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements',
-        'reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements','sys_outbox'] LOOP
-        EXECUTE format('CREATE CONSTRAINT TRIGGER trg_crypto_adjustment_accounting_complete AFTER INSERT ON %I
-            DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_adjustment_accounting_complete(%L)',table_name,table_name);
-    END LOOP;
-END;
-$$;
 
 CREATE FUNCTION fn_crypto_adjustment_cannot_claim_effect() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -2951,10 +2273,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_crypto_adjustment_cannot_claim_effect BEFORE INSERT ON reg_crypto_custody_effect_postings
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_adjustment_cannot_claim_effect();
--- ==== crypto_accounting_resource_locks ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 
 -- Fee/resource and AML withdrawal writers already lock an entire owner/network.
 -- Custody admission must use the same granularity before touching any wallet,
@@ -2967,6 +2285,7 @@ BEGIN
     ORDER BY s.merchant_id,s.network_id,s.token_id FOR UPDATE OF s;
 END;
 $$;
+
 CREATE FUNCTION fn_crypto_lock_custody_wallets(wallets UUID[]) RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE found_count INT; expected_count INT;
 BEGIN
@@ -2982,18 +2301,18 @@ BEGIN
     END IF;
 END;
 $$;
+
 CREATE OR REPLACE FUNCTION fn_crypto_aml_lock_resource_scopes(reservation UUID) RETURNS VOID LANGUAGE plpgsql AS $$
 BEGIN
     PERFORM fn_crypto_lock_custody_scopes(ARRAY(SELECT payer_wallet_id FROM reg_crypto_fee_reservations WHERE id=reservation));
 END;
 $$;
+
 CREATE OR REPLACE FUNCTION fn_crypto_aml_lock_fee_wallet_scopes(payer UUID,asset UUID) RETURNS VOID LANGUAGE plpgsql AS $$
 BEGIN
     PERFORM fn_crypto_lock_custody_scopes(ARRAY[payer]);
 END;
 $$;
--- ==== crypto_selector_resource_locks ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 
 -- Candidate selection must skip a busy *complete* footprint, without keeping
 -- a prefix of its scopes/wallets and subsequently waiting in another order.
@@ -3038,8 +2357,6 @@ BEGIN
     PERFORM fn_crypto_lock_custody_wallets(wallets);
 END;
 $$;
--- ==== crypto_funding_confirmation_locks ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 
 -- Queue triggers also lock custody scopes on lease-only UPDATEs. A selector
 -- must acquire the whole footprint before its funding row, and release all
@@ -3061,8 +2378,6 @@ EXCEPTION WHEN lock_not_available THEN
     RETURN FALSE;
 END;
 $$;
--- ==== crypto_reconciliation_request_identity ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 
 -- Identity belongs to the immutable producer fact; leases/results are an
 -- operational projection. Never repair an old conflicting target implicitly.
@@ -3079,12 +2394,6 @@ CREATE FUNCTION fn_crypto_reconciliation_request_identity_valid(network UUID,wal
      ELSE TRUE END;
 $$;
 
-DO $$ BEGIN
- IF EXISTS(SELECT 1 FROM reg_crypto_reconciliation_requests r WHERE NOT fn_crypto_reconciliation_request_identity_valid(r.network_id,r.wallet_id,r.token_id,r.source_type,r.source_id)) THEN
-     RAISE EXCEPTION 'existing reconciliation request identity requires review before upgrade' USING ERRCODE='23514';
- END IF;
-END; $$;
-
 CREATE FUNCTION fn_crypto_reconciliation_request_identity_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
  IF TG_OP='DELETE' THEN RAISE EXCEPTION 'reconciliation request identity cannot be deleted' USING ERRCODE='23514'; END IF;
@@ -3099,19 +2408,12 @@ BEGIN
  RETURN NEW;
 END;
 $$;
-CREATE TRIGGER trg_crypto_reconciliation_request_identity BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_reconciliation_requests
- FOR EACH ROW EXECUTE FUNCTION fn_crypto_reconciliation_request_identity_guard();
--- ==== crypto_activation_task_identity ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
+
 CREATE FUNCTION fn_crypto_activation_identity_valid(task UUID,wallet UUID,network UUID,operation UUID) RETURNS BOOLEAN LANGUAGE sql STABLE AS $$
  SELECT EXISTS(SELECT 1 FROM cat_wallets w WHERE w.id=wallet AND w.network_id=network)
  AND (operation IS NULL OR EXISTS(SELECT 1 FROM doc_crypto_network_operations o WHERE o.id=operation AND o.network_id=network AND o.target_wallet_id=wallet AND o.basis_type='CryptoAccountActivationTask' AND o.basis_id=task));
 $$;
-DO $$ BEGIN
- IF EXISTS(SELECT 1 FROM reg_crypto_account_activations a WHERE NOT fn_crypto_activation_identity_valid(a.id,a.wallet_id,a.network_id,a.network_operation_id)) THEN
-  RAISE EXCEPTION 'existing activation identity requires review before upgrade' USING ERRCODE='23514';
- END IF;
-END; $$;
+
 CREATE FUNCTION fn_crypto_activation_identity_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
  IF TG_OP='DELETE' THEN RAISE EXCEPTION 'activation task identity cannot be deleted' USING ERRCODE='23514'; END IF;
@@ -3124,33 +2426,7 @@ BEGIN
  END IF;
  RETURN NEW;
 END; $$;
-CREATE TRIGGER trg_crypto_activation_identity BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_account_activations FOR EACH ROW EXECUTE FUNCTION fn_crypto_activation_identity_guard();
--- ==== crypto_resource_rental_claim_fencing ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-ALTER TABLE doc_crypto_resource_rentals ADD COLUMN maintenance_claim_token UUID;
-ALTER TABLE doc_crypto_resource_rentals ADD CONSTRAINT chk_crypto_resource_rental_claim_token
- CHECK (maintenance_claim_token IS NULL OR (claimed_by<>'' AND claimed_at IS NOT NULL AND lease_expires_at IS NOT NULL));
-COMMENT ON COLUMN doc_crypto_resource_rentals.maintenance_claim_token IS 'Fresh fencing token per maintenance claim; legacy leases drain before a new token is issued.';
--- ==== crypto_activation_cost_claim_fencing ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-ALTER TABLE reg_crypto_account_activations ADD COLUMN cost_claim_token UUID;
-ALTER TABLE reg_crypto_account_activations ADD CONSTRAINT chk_crypto_activation_cost_claim
- CHECK (cost_claim_token IS NULL OR (cost_status='repairing' AND cost_claimed_by<>'' AND cost_claimed_at IS NOT NULL AND cost_lease_expires_at IS NOT NULL));
-COMMENT ON COLUMN reg_crypto_account_activations.cost_claim_token IS 'Fresh fencing token per cost-repair attempt; legacy repairing leases drain without rewriting history.';
--- ==== crypto_activation_execution_dispatch ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-CREATE TABLE reg_crypto_activation_dispatches (
- authorization_id TEXT NOT NULL REFERENCES reg_crypto_signing_authorizations(authorization_id),
- activation_id UUID NOT NULL REFERENCES reg_crypto_account_activations(id),
- phase TEXT NOT NULL CHECK(phase IN ('authorize','sign','broadcast')),
- claim_token UUID NOT NULL,
- network_id UUID NOT NULL REFERENCES cat_blockchain_networks(id),
- unsigned_fingerprint TEXT NOT NULL CHECK(unsigned_fingerprint<>''),
- created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
- _txid BIGINT NOT NULL DEFAULT txid_current(),
- PRIMARY KEY(authorization_id,phase,claim_token)
-);
-CREATE UNIQUE INDEX idx_crypto_activation_single_sign_dispatch ON reg_crypto_activation_dispatches(authorization_id) WHERE phase='sign';
+
 CREATE FUNCTION fn_crypto_activation_dispatch_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
  IF TG_OP<>'INSERT' THEN RAISE EXCEPTION 'activation dispatch facts are immutable' USING ERRCODE='23514'; END IF;
@@ -3169,11 +2445,7 @@ BEGIN
  END IF;
  RETURN NEW;
 END; $$;
-CREATE TRIGGER trg_crypto_activation_dispatch_guard BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_activation_dispatches FOR EACH ROW EXECUTE FUNCTION fn_crypto_activation_dispatch_guard();
--- ==== crypto_reorg_compensation_basis ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-ALTER TABLE reg_crypto_reorg_compensations ADD COLUMN request_basis JSONB
- CHECK(request_basis IS NULL OR jsonb_typeof(request_basis)='object');
+
 CREATE FUNCTION fn_crypto_reorg_compensation_immutable() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
  IF TG_OP='INSERT' THEN
@@ -3184,15 +2456,12 @@ BEGIN
  END IF;
  RAISE EXCEPTION 'financial reorg compensation facts are immutable' USING ERRCODE='23514';
 END; $$;
-CREATE TRIGGER trg_crypto_reorg_compensation_immutable BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_reorg_compensations
- FOR EACH ROW EXECUTE FUNCTION fn_crypto_reorg_compensation_immutable();
--- ==== crypto_sql_hold_replay ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 
 -- Match the compact JSON tuple used by the previous Go owner gate exactly.
 CREATE FUNCTION fn_crypto_hold_owner_key(kind TEXT,owner TEXT) RETURNS TEXT LANGUAGE sql IMMUTABLE STRICT AS $$
  SELECT '["operational-hold",'||to_json(kind)::text||','||to_json(owner)::text||']'
 $$;
+
 CREATE FUNCTION fn_crypto_try_lock_operational_hold_owner(kind TEXT,owner TEXT) RETURNS BOOLEAN LANGUAGE plpgsql AS $$
 BEGIN
  IF current_setting('transaction_isolation')<>'read committed' THEN
@@ -3261,12 +2530,6 @@ BEGIN
  NEW.resolved_at:=clock_timestamp();
  RETURN NEW;
 END; $$;
-CREATE TRIGGER trg_crypto_network_hold_insert_replay BEFORE INSERT ON reg_crypto_network_holds FOR EACH ROW EXECUTE FUNCTION fn_crypto_sql_hold_guard();
-CREATE TRIGGER trg_crypto_wallet_hold_insert_replay BEFORE INSERT ON reg_crypto_wallet_allocation_holds FOR EACH ROW EXECUTE FUNCTION fn_crypto_sql_hold_guard();
-DROP TRIGGER trg_crypto_network_hold_owner_guard ON reg_crypto_network_holds;
-DROP TRIGGER trg_crypto_wallet_hold_owner_guard ON reg_crypto_wallet_allocation_holds;
-CREATE TRIGGER trg_crypto_network_hold_owner_guard BEFORE UPDATE OR DELETE ON reg_crypto_network_holds FOR EACH ROW EXECUTE FUNCTION fn_crypto_sql_hold_guard();
-CREATE TRIGGER trg_crypto_wallet_hold_owner_guard BEFORE UPDATE OR DELETE ON reg_crypto_wallet_allocation_holds FOR EACH ROW EXECUTE FUNCTION fn_crypto_sql_hold_guard();
 
 -- Pool observations update their own source records. An open hold keeps its
 -- initial source version; a later high-risk finding gets a distinct lifecycle.
@@ -3301,6 +2564,7 @@ BEGIN
  INSERT INTO reg_crypto_wallet_allocation_holds(wallet_id,reason,owner_type,owner_id,details,held_by)
  VALUES(wallet,reason_code,kind,owner,payload,'aml-pool-controller');
 END; $$;
+
 CREATE OR REPLACE FUNCTION fn_crypto_aml_pool_scope_hold() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE wallet UUID;
 BEGIN
@@ -3314,6 +2578,7 @@ BEGIN
  END IF;
  RETURN NEW;
 END; $$;
+
 CREATE OR REPLACE FUNCTION fn_crypto_aml_pool_high_hold() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
  IF NEW.risk_class='high' AND EXISTS(SELECT 1 FROM reg_crypto_aml_wallet_provisions v JOIN reg_crypto_aml_pool_intents i ON i.id=v.id
@@ -3343,8 +2608,6 @@ BEGIN
  INSERT INTO reg_crypto_wallet_allocation_holds(wallet_id,reason,owner_type,owner_id,details,held_by)
  VALUES(wallet,'aml_preflight_inventory_detected','aml_preflight',owner,payload,'aml-preflight');
 END; $$;
--- ==== crypto_pool_cancel_and_watch_evidence ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 
 -- An intent has one immutable cancellation command, including its first actor.
 -- Compare before ON CONFLICT can hide a different command or skip constraints.
@@ -3395,12 +2658,7 @@ BEGIN
  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
--- ==== crypto_decision_and_invoice_drift_history ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 
--- NULL means a legacy decision whose original assessment clock is unknown.
--- Down retains this additive column so that no assessment evidence is lost.
-ALTER TABLE reg_crypto_aml_decisions ADD COLUMN IF NOT EXISTS evaluated_at TIMESTAMPTZ;
 CREATE FUNCTION fn_crypto_aml_decision_replay_guard() RETURNS TRIGGER AS $$
 DECLARE prior reg_crypto_aml_decisions%ROWTYPE;
 BEGIN
@@ -3445,14 +2703,6 @@ BEGIN
  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-CREATE TRIGGER trg_crypto_aml_decision_replay BEFORE INSERT ON reg_crypto_aml_decisions FOR EACH ROW EXECUTE FUNCTION fn_crypto_aml_decision_replay_guard();
-
-ALTER TABLE sys_invoice_reconciliation_drift
- ADD COLUMN episode_id UUID,
- ADD COLUMN initial_details JSONB CHECK(initial_details IS NULL OR jsonb_typeof(initial_details)='object'),
- ADD COLUMN incident_id UUID REFERENCES reg_crypto_security_incidents(id);
-CREATE UNIQUE INDEX uq_crypto_invoice_drift_episode ON sys_invoice_reconciliation_drift(episode_id) WHERE episode_id IS NOT NULL;
-CREATE UNIQUE INDEX uq_crypto_invoice_drift_incident ON sys_invoice_reconciliation_drift(incident_id) WHERE incident_id IS NOT NULL;
 
 -- A trigger already owns its target row. Never wait for the parent invoice
 -- from there: this same nonblocking gate is used by the application first.
@@ -3523,7 +2773,6 @@ BEGIN
  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-CREATE TRIGGER trg_crypto_invoice_drift_guard BEFORE INSERT OR UPDATE OR DELETE ON sys_invoice_reconciliation_drift FOR EACH ROW EXECUTE FUNCTION fn_crypto_invoice_drift_guard();
 
 CREATE FUNCTION fn_crypto_invoice_drift_incident_guard() RETURNS TRIGGER AS $$
 DECLARE network UUID; prior reg_crypto_security_incidents%ROWTYPE;
@@ -3572,23 +2821,6 @@ BEGIN
  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-CREATE TRIGGER trg_crypto_invoice_drift_incident_guard BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_security_incidents FOR EACH ROW EXECUTE FUNCTION fn_crypto_invoice_drift_incident_guard();
--- ==== crypto_preflight_attempt_basis ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-ALTER TABLE reg_crypto_aml_preflight_jobs
- ADD COLUMN initial_policy_version BIGINT,
- ADD COLUMN initial_scope_version BIGINT,
- ADD FOREIGN KEY(policy_id,initial_policy_version) REFERENCES reg_crypto_aml_pool_policy_versions(policy_id,version);
-
-CREATE TABLE reg_crypto_aml_preflight_attempts (
- job_id UUID NOT NULL REFERENCES reg_crypto_aml_preflight_jobs(id),
- lease_token UUID PRIMARY KEY, basis JSONB NOT NULL CHECK(jsonb_typeof(basis)='object'),
- worker_id TEXT NOT NULL CHECK(btrim(worker_id)<>''),
- claimed_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(), lease_expires_at TIMESTAMPTZ NOT NULL,
- _txid BIGINT NOT NULL DEFAULT txid_current(), _deleted_at TIMESTAMPTZ CHECK(_deleted_at IS NULL),
- UNIQUE(job_id,lease_token)
-);
-CREATE TRIGGER trg_crypto_aml_preflight_attempt_immutable BEFORE UPDATE OR DELETE ON reg_crypto_aml_preflight_attempts FOR EACH ROW EXECUTE FUNCTION fn_crypto_aml_evidence_guard();
 
 CREATE FUNCTION fn_crypto_aml_preflight_basis(job UUID) RETURNS JSONB LANGUAGE sql STABLE AS $$
  SELECT jsonb_build_object('jobId',j.id,'walletId',j.wallet_id,'merchantId',p.merchant_id,'networkId',p.network_id,'tokenId',j.token_id,
@@ -3645,7 +2877,6 @@ BEGIN
  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-CREATE TRIGGER trg_crypto_aml_preflight_job_identity BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_aml_preflight_jobs FOR EACH ROW EXECUTE FUNCTION fn_crypto_aml_preflight_job_guard();
 
 CREATE FUNCTION fn_crypto_aml_preflight_attempt_guard() RETURNS TRIGGER AS $$
 DECLARE wallet UUID;
@@ -3670,7 +2901,6 @@ BEGIN
  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-CREATE TRIGGER trg_crypto_aml_preflight_attempt_guard BEFORE INSERT ON reg_crypto_aml_preflight_attempts FOR EACH ROW EXECUTE FUNCTION fn_crypto_aml_preflight_attempt_guard();
 
 CREATE FUNCTION fn_crypto_aml_preflight_claim_committed() RETURNS TRIGGER AS $$
 BEGIN
@@ -3681,8 +2911,6 @@ BEGIN
  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-CREATE CONSTRAINT TRIGGER trg_crypto_aml_preflight_claim_committed AFTER INSERT OR UPDATE ON reg_crypto_aml_preflight_jobs
- DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_aml_preflight_claim_committed();
 
 CREATE FUNCTION fn_crypto_aml_preflight_attempt_active(job UUID,lease UUID,current_policy BOOLEAN) RETURNS BOOLEAN AS $$
 DECLARE wallet UUID; active BOOLEAN;
@@ -3722,33 +2950,6 @@ BEGIN
  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-CREATE TRIGGER trg_crypto_aml_preflight_attempt_observation BEFORE INSERT ON reg_crypto_aml_preflight_observations FOR EACH ROW EXECUTE FUNCTION fn_crypto_aml_preflight_attempt_observation_guard();
-ALTER TABLE reg_crypto_aml_preflight_observations ADD CONSTRAINT fk_crypto_preflight_observation_attempt
- FOREIGN KEY(job_id,lease_token) REFERENCES reg_crypto_aml_preflight_attempts(job_id,lease_token) NOT VALID;
--- ==== crypto_ingestion_registration_basis ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
--- Existing rows retain unknown original shadow/activation evidence. Down keeps
--- these additive columns so that retained registration history is not erased.
-ALTER TABLE sys_crypto_block_ingestion ADD COLUMN IF NOT EXISTS registration_basis JSONB;
-ALTER TABLE sys_crypto_block_ingestion ADD COLUMN IF NOT EXISTS activation_basis JSONB;
-
-DO $$ BEGIN
- IF EXISTS(SELECT 1 FROM sys_crypto_block_ingestion WHERE mode IN ('solidified','hybrid') AND activated_at IS NULL) THEN
-  RAISE EXCEPTION 'financial ingestion without activation time requires review before upgrade' USING ERRCODE='23514';
- END IF;
- IF EXISTS(SELECT 1 FROM sys_crypto_block_ingestion i WHERE
-   (activation_basis IS NOT NULL AND (activation_basis->>'height' IS DISTINCT FROM start_height::text OR activation_basis->>'hash' IS DISTINCT FROM start_hash
-     OR activation_basis->>'timestamp' IS DISTINCT FROM start_timestamp::text OR (activation_basis->>'activatedAt')::timestamptz IS DISTINCT FROM activated_at))
-   OR (registration_basis IS NOT NULL AND activated_at IS NULL AND (registration_basis->>'height' IS DISTINCT FROM start_height::text
-     OR registration_basis->>'hash' IS DISTINCT FROM start_hash OR registration_basis->>'timestamp' IS DISTINCT FROM start_timestamp::text))) THEN
-  RAISE EXCEPTION 'ingestion boundary history requires review before upgrade' USING ERRCODE='23514';
- END IF;
- IF EXISTS(SELECT 1 FROM sys_crypto_watch_targets t WHERE
-   (target_kind='address' AND NOT EXISTS(SELECT 1 FROM cat_wallets w WHERE w.id=t.owner_id AND w.network_id=t.network_id AND w.address=t.target_key))
-   OR (target_kind='asset' AND NOT EXISTS(SELECT 1 FROM cat_tokens a WHERE a.id=t.owner_id AND a.network_id=t.network_id AND a.contract_address=t.target_key))) THEN
-  RAISE EXCEPTION 'watch target owner requires review before upgrade' USING ERRCODE='23514';
- END IF;
-END $$;
 
 CREATE FUNCTION fn_crypto_try_lock_watch_network(network UUID) RETURNS BOOLEAN LANGUAGE plpgsql VOLATILE AS $$
 BEGIN
@@ -3815,7 +3016,6 @@ BEGIN
  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-CREATE TRIGGER trg_crypto_block_ingestion_basis BEFORE INSERT OR UPDATE OR DELETE ON sys_crypto_block_ingestion FOR EACH ROW EXECUTE FUNCTION fn_crypto_ingestion_basis_guard();
 
 CREATE FUNCTION fn_crypto_watch_target_guard() RETURNS TRIGGER AS $$
 DECLARE prior sys_crypto_watch_targets%ROWTYPE;
@@ -3839,7 +3039,6 @@ BEGIN
  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-CREATE TRIGGER trg_crypto_watch_target_guard BEFORE INSERT OR UPDATE OR DELETE ON sys_crypto_watch_targets FOR EACH ROW EXECUTE FUNCTION fn_crypto_watch_target_guard();
 
 CREATE FUNCTION fn_crypto_watched_catalog_guard() RETURNS TRIGGER AS $$
 DECLARE network UUID; changed BOOLEAN;
@@ -3862,8 +3061,6 @@ BEGIN
  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-CREATE TRIGGER trg_crypto_watched_wallet_identity BEFORE UPDATE OR DELETE ON cat_wallets FOR EACH ROW EXECUTE FUNCTION fn_crypto_watched_catalog_guard();
-CREATE TRIGGER trg_crypto_watched_asset_identity BEFORE UPDATE OR DELETE ON cat_tokens FOR EACH ROW EXECUTE FUNCTION fn_crypto_watched_catalog_guard();
 
 CREATE OR REPLACE FUNCTION fn_crypto_register_watch_address() RETURNS TRIGGER AS $$
 DECLARE boundary BIGINT;
@@ -3877,6 +3074,7 @@ BEGIN
  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION fn_crypto_register_watch_asset() RETURNS TRIGGER AS $$
 DECLARE boundary BIGINT;
 BEGIN
@@ -3889,19 +3087,6 @@ BEGIN
  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
--- ==== crypto_external_outflow_basis ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-ALTER TABLE reg_crypto_external_outflows ADD COLUMN IF NOT EXISTS initial_basis JSONB CHECK(initial_basis IS NULL OR jsonb_typeof(initial_basis)='object');
-ALTER TABLE reg_crypto_external_outflow_observations ADD COLUMN IF NOT EXISTS incident_id UUID REFERENCES reg_crypto_reconciliation_items(id);
--- Historical projections are not evidence of their original observation.
-DO $$ BEGIN
- IF EXISTS(SELECT 1 FROM reg_crypto_external_outflows o WHERE initial_basis IS NOT NULL AND
-   (initial_basis->>'networkId',initial_basis->>'walletId',initial_basis->>'tokenId',initial_basis->>'txHash',initial_basis->>'eventKind',initial_basis->>'eventIndex',
-    initial_basis->>'sourceKey',initial_basis->>'destinationKey',initial_basis->>'contractKey',initial_basis->>'amount') IS DISTINCT FROM
-   (network_id::text,source_wallet_id::text,token_id::text,tx_hash,event_kind,event_index::text,source_address_key,destination_address_key,contract_address_key,amount::text)) THEN
-  RAISE EXCEPTION 'external outflow initial history requires review before upgrade' USING ERRCODE='23514';
- END IF;
-END $$;
 
 -- Same transaction identity gate as the expected-effect matcher. Never wait
 -- for wallets/scopes from a trigger that may already own an outflow row.
@@ -3968,7 +3153,6 @@ BEGIN
  END IF;
  RETURN NEW;
 END; $$;
-CREATE TRIGGER trg_crypto_external_outflow_basis BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_external_outflows FOR EACH ROW EXECUTE FUNCTION fn_crypto_external_outflow_basis_guard();
 
 CREATE FUNCTION fn_crypto_external_outflow_observation_source() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE source reg_crypto_external_outflows%ROWTYPE;
@@ -3987,12 +3171,6 @@ BEGIN
  NEW.observed_at:=clock_timestamp();
  RETURN NEW;
 END; $$;
-CREATE TRIGGER trg_crypto_external_outflow_observation_source BEFORE INSERT ON reg_crypto_external_outflow_observations FOR EACH ROW EXECUTE FUNCTION fn_crypto_external_outflow_observation_source();
--- ==== crypto_external_outflow_decisions ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-ALTER TABLE reg_crypto_external_outflows ADD COLUMN IF NOT EXISTS classification_basis JSONB, ADD COLUMN IF NOT EXISTS resolution_basis JSONB;
-ALTER TABLE doc_crypto_custody_adjustments ADD COLUMN IF NOT EXISTS decision_basis JSONB;
-ALTER TABLE reg_crypto_external_outflow_actions ADD COLUMN IF NOT EXISTS decision_basis JSONB;
 
 CREATE FUNCTION fn_crypto_outflow_decision_insert_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -4008,14 +3186,13 @@ BEGIN
  END IF;
  RETURN NEW;
 END; $$;
-CREATE TRIGGER trg_crypto_outflow_initial_decision BEFORE INSERT ON reg_crypto_external_outflows FOR EACH ROW EXECUTE FUNCTION fn_crypto_outflow_decision_insert_guard();
-CREATE TRIGGER trg_crypto_custody_initial_decision BEFORE INSERT ON doc_crypto_custody_adjustments FOR EACH ROW EXECUTE FUNCTION fn_crypto_outflow_decision_insert_guard();
 
 CREATE FUNCTION fn_crypto_outflow_decision_command(kind TEXT,target UUID,actor UUID,reason TEXT,classification TEXT DEFAULT NULL,basis_kind TEXT DEFAULT NULL,basis UUID DEFAULT NULL,evidence JSONB DEFAULT NULL)
 RETURNS JSONB LANGUAGE sql IMMUTABLE AS $$
  SELECT jsonb_build_object('kind',kind,'targetId',target,'actorId',actor,'reason',reason) ||
  CASE WHEN kind='classify' THEN jsonb_build_object('classification',classification,'basisType',basis_kind,'basisId',basis,'evidence',COALESCE(evidence,'{}'::jsonb)) ELSE '{}'::jsonb END
 $$;
+
 CREATE FUNCTION fn_crypto_outflow_decision_seed(basis JSONB) RETURNS UUID LANGUAGE plpgsql AS $$
 DECLARE value UUID;
 BEGIN
@@ -4026,6 +3203,7 @@ BEGIN
  IF value='00000000-0000-0000-0000-000000000000'::uuid THEN RAISE EXCEPTION 'outflow decision ID is required' USING ERRCODE='23514'; END IF;
  RETURN value;
 END; $$;
+
 CREATE FUNCTION fn_crypto_outflow_decision_source(target UUID) RETURNS JSONB LANGUAGE sql STABLE AS $$
  SELECT jsonb_build_object('outflowId',id,'networkId',network_id,'walletId',source_wallet_id,'tokenId',token_id,
   'txHash',tx_hash,'eventKind',event_kind,'eventIndex',event_index,'sourceKey',source_address_key,'destinationKey',destination_address_key,
@@ -4104,7 +3282,6 @@ BEGIN
  IF (to_jsonb(NEW)-'updated_at') IS NOT DISTINCT FROM (to_jsonb(OLD)-'updated_at') THEN RETURN NULL; END IF;
  RETURN NEW;
 END; $$;
-CREATE TRIGGER trg_crypto_external_outflow_decision BEFORE UPDATE ON reg_crypto_external_outflows FOR EACH ROW EXECUTE FUNCTION fn_crypto_outflow_decision_guard();
 
 CREATE FUNCTION fn_crypto_custody_decision_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE decision UUID; kind TEXT; at TIMESTAMPTZ:=clock_timestamp(); source JSONB;
@@ -4134,7 +3311,6 @@ BEGIN
  NEW.decision_basis:=jsonb_build_object('id',decision,'command',fn_crypto_outflow_decision_command(kind,OLD.id,NEW.decision_by,NEW.decision_reason),'source',source,'decidedAt',at);
  RETURN NEW;
 END; $$;
-CREATE TRIGGER trg_crypto_custody_decision BEFORE UPDATE ON doc_crypto_custody_adjustments FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_decision_guard();
 
 CREATE FUNCTION fn_crypto_outflow_decision_audit_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE basis JSONB; evidence JSONB; expected_action TEXT; previous TEXT; current TEXT;
@@ -4165,7 +3341,6 @@ BEGIN
  NEW.created_at:=(basis->>'decidedAt')::timestamptz;
  RETURN NEW;
 END; $$;
-CREATE TRIGGER trg_crypto_outflow_decision_audit_insert BEFORE INSERT ON reg_crypto_external_outflow_actions FOR EACH ROW EXECUTE FUNCTION fn_crypto_outflow_decision_audit_guard();
 
 CREATE FUNCTION fn_crypto_outflow_append_decision_audit() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE basis JSONB; action TEXT; before_state TEXT; after_state TEXT; payload JSONB; target UUID;
@@ -4192,8 +3367,6 @@ BEGIN
  END IF;
  RETURN NULL;
 END; $$;
-CREATE TRIGGER trg_crypto_outflow_decision_audit AFTER UPDATE ON reg_crypto_external_outflows FOR EACH ROW EXECUTE FUNCTION fn_crypto_outflow_append_decision_audit();
-CREATE TRIGGER trg_crypto_custody_decision_audit AFTER UPDATE ON doc_crypto_custody_adjustments FOR EACH ROW EXECUTE FUNCTION fn_crypto_outflow_append_decision_audit();
 
 CREATE FUNCTION fn_crypto_outflow_decision_audit_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE bases JSONB[]; basis JSONB; target UUID;
@@ -4226,22 +3399,947 @@ BEGIN
  END LOOP;
  RETURN NULL;
 END; $$;
-CREATE CONSTRAINT TRIGGER trg_crypto_outflow_decision_complete AFTER INSERT OR UPDATE ON reg_crypto_external_outflows DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_outflow_decision_audit_complete();
-CREATE CONSTRAINT TRIGGER trg_crypto_custody_decision_complete AFTER INSERT OR UPDATE ON doc_crypto_custody_adjustments DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_outflow_decision_audit_complete();
 
--- Nullable legacy columns are intentionally not backfilled.
-DO $$ BEGIN
- IF EXISTS(SELECT 1 FROM reg_crypto_external_outflows o WHERE
-   (classification_basis IS NOT NULL AND (classification_basis->'command' IS DISTINCT FROM fn_crypto_outflow_decision_command('classify',id,classified_by,classification_reason,classification,matched_basis_type,matched_basis_id,classification_evidence)
-    OR (classification_basis->>'decidedAt')::timestamptz IS DISTINCT FROM classified_at))
-   OR (resolution_basis IS NOT NULL AND (resolution_basis->'command' IS DISTINCT FROM fn_crypto_outflow_decision_command('resolve',id,resolved_by,resolution)
-    OR (resolution_basis->>'decidedAt')::timestamptz IS DISTINCT FROM resolved_at)))
- OR EXISTS(SELECT 1 FROM doc_crypto_custody_adjustments a WHERE decision_basis IS NOT NULL AND
-   (decision_basis->'command' IS DISTINCT FROM fn_crypto_outflow_decision_command(CASE WHEN status='posted' THEN 'approve' ELSE 'reject' END,id,decision_by,decision_reason)
-    OR (decision_basis->>'decidedAt')::timestamptz IS DISTINCT FROM decided_at)) THEN
-  RAISE EXCEPTION 'outflow decision history requires review before upgrade' USING ERRCODE='23514';
- END IF;
-END $$;
+
+
+-- ---- Tables, columns, constraints and indexes ----
+
+CREATE TABLE reg_crypto_accounting_effects (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
+    schema_version INT NOT NULL DEFAULT 1 CHECK(schema_version=1),
+    family TEXT NOT NULL CHECK(family IN ('tron','evm')),
+    network_id UUID NOT NULL REFERENCES cat_blockchain_networks(id),
+    tx_hash TEXT NOT NULL CHECK(tx_hash ~ '^[0-9a-f]{64}$'),
+    event_kind TEXT NOT NULL CHECK(event_kind IN ('native_value','contract_log','internal_value')),
+    effect_ordinal BIGINT NOT NULL CHECK(effect_ordinal>=0),
+    trace_hash TEXT NOT NULL DEFAULT '',
+    logical_key TEXT GENERATED ALWAYS AS (
+        'accounting-effect.v1:' || encode(digest(
+            fn_crypto_accounting_identity_bytes(family,network_id,tx_hash,event_kind,effect_ordinal,trace_hash),
+            'sha256'),'hex')
+    ) STORED UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK((event_kind='internal_value' AND family='tron' AND trace_hash ~ '^[0-9a-f]{64}$')
+       OR (event_kind<>'internal_value' AND trace_hash='')),
+    CHECK(NOT(family='evm' AND event_kind='native_value') OR effect_ordinal=0),
+    UNIQUE(family,network_id,tx_hash,event_kind,effect_ordinal,trace_hash)
+);
+
+CREATE TABLE reg_crypto_accounting_effect_occurrences (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
+    effect_id UUID NOT NULL REFERENCES reg_crypto_accounting_effects(id),
+    block_number BIGINT NOT NULL CHECK(block_number>=0),
+    block_hash TEXT NOT NULL CHECK(block_hash ~ '^[0-9a-f]{64}$'),
+    economics_hash TEXT NOT NULL CHECK(economics_hash ~ '^[0-9a-f]{64}$'),
+    source_address TEXT NOT NULL CHECK(source_address<>''),
+    destination_address TEXT NOT NULL CHECK(destination_address<>''),
+    contract_address TEXT NOT NULL,
+    amount NUMERIC(78,0) NOT NULL CHECK(amount>0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(effect_id,block_hash)
+);
+
+CREATE INDEX idx_crypto_accounting_occurrence_block
+    ON reg_crypto_accounting_effect_occurrences(block_number,effect_id);
+
+-- One persisted proof cannot be rebound to another logical effect or occurrence.
+-- This is evidence indexing only: it neither admits custody nor marks a
+-- canonical generation as financially recognized.
+CREATE TABLE reg_crypto_accounting_effect_evidence (
+    verification_id UUID PRIMARY KEY REFERENCES reg_crypto_transfer_verifications(id),
+    occurrence_id UUID NOT NULL REFERENCES reg_crypto_accounting_effect_occurrences(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_crypto_accounting_evidence_occurrence
+    ON reg_crypto_accounting_effect_evidence(occurrence_id,verification_id);
+
+-- This first admission contract is deliberately generation 1 only. Further
+-- canonical generations require the explicit compensation workflow, not a new
+-- recorder or a changed block hash.
+CREATE TABLE reg_crypto_custody_effect_postings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
+    effect_id UUID NOT NULL REFERENCES reg_crypto_accounting_effects(id),
+    occurrence_id UUID NOT NULL REFERENCES reg_crypto_accounting_effect_occurrences(id),
+    verification_id UUID NOT NULL REFERENCES reg_crypto_transfer_verifications(id),
+    generation INT NOT NULL DEFAULT 1 CHECK(generation=1),
+    recorder_id UUID NOT NULL,
+    recorder_type TEXT NOT NULL CHECK(length(btrim(recorder_type)) BETWEEN 1 AND 50),
+    recorder_version INT NOT NULL CHECK(recorder_version>0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(effect_id,generation)
+);
+
+CREATE TABLE reg_crypto_custody_effect_recognitions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
+    posting_id UUID NOT NULL REFERENCES reg_crypto_custody_effect_postings(id),
+    wallet_id UUID NOT NULL REFERENCES cat_wallets(id),
+    token_id UUID NOT NULL REFERENCES cat_tokens(id),
+    record_type TEXT NOT NULL CHECK(record_type IN ('receipt','expense')),
+    movement_line_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_balance_movements(line_id)
+        DEFERRABLE INITIALLY DEFERRED,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(posting_id,wallet_id,token_id,record_type),
+    UNIQUE(posting_id,record_type)
+);
+
+CREATE TABLE doc_crypto_custody_receipts (
+    id UUID PRIMARY KEY,
+    deletion_mark BOOLEAN NOT NULL DEFAULT FALSE CHECK(NOT deletion_mark),
+    version INT NOT NULL DEFAULT 1 CHECK(version>0),
+    attributes JSONB NOT NULL DEFAULT '{}',
+    _deleted_at TIMESTAMPTZ CHECK(_deleted_at IS NULL),
+    _txid BIGINT NOT NULL DEFAULT txid_current(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by UUID,
+    updated_by UUID,
+    number TEXT NOT NULL UNIQUE CHECK(btrim(number)<>''),
+    date TIMESTAMPTZ NOT NULL,
+    posted BOOLEAN NOT NULL DEFAULT FALSE,
+    posted_version INT NOT NULL DEFAULT 0,
+    basis_type TEXT NOT NULL CHECK(basis_type='CryptoTransferVerification'),
+    basis_id UUID NOT NULL REFERENCES reg_crypto_transfer_verifications(id),
+    description TEXT NOT NULL DEFAULT '',
+    network_id UUID NOT NULL REFERENCES cat_blockchain_networks(id),
+    wallet_id UUID NOT NULL REFERENCES cat_wallets(id),
+    token_id UUID NOT NULL REFERENCES cat_tokens(id),
+    custody_merchant_id UUID REFERENCES cat_merchants(id),
+    verification_id UUID NOT NULL REFERENCES reg_crypto_transfer_verifications(id),
+    occurrence_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_accounting_effect_occurrences(id),
+    posting_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_custody_effect_postings(id),
+    amount NUMERIC(78,0) NOT NULL CHECK(amount>0),
+    custody_line_id UUID NOT NULL UNIQUE,
+    suspense_line_id UUID NOT NULL UNIQUE,
+    reason_code TEXT NOT NULL CHECK(reason_code IN (
+        'no_allocation','wrong_token','timestamp_before_lease','retired_deposit_address',
+        'additional_single_payment','dust','treasury_unidentified','matched_receipt')),
+    CHECK(basis_id=verification_id),
+    CHECK((NOT posted AND posted_version=0) OR (posted AND posted_version=1))
+);
+
+CREATE INDEX idx_crypto_custody_receipts_wallet ON doc_crypto_custody_receipts(wallet_id,token_id,date,id);
+
+CREATE INDEX idx_crypto_custody_receipts_owner ON doc_crypto_custody_receipts(custody_merchant_id,date,id);
+
+CREATE INDEX idx_crypto_custody_receipts_txid ON doc_crypto_custody_receipts(_txid);
+
+CREATE TABLE reg_crypto_receipt_suspense_movements (
+    line_id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
+    recorder_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
+    recorder_type TEXT NOT NULL CHECK(recorder_type='CryptoCustodyReceipt'),
+    recorder_version INT NOT NULL CHECK(recorder_version=1),
+    period TIMESTAMPTZ NOT NULL,
+    record_type TEXT NOT NULL CHECK(record_type='receipt'),
+    receipt_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
+    token_id UUID NOT NULL REFERENCES cat_tokens(id),
+    amount NUMERIC(78,0) NOT NULL CHECK(amount>0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(receipt_id)
+);
+
+CREATE TABLE reg_crypto_receipt_suspense_balances (
+    receipt_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
+    token_id UUID NOT NULL REFERENCES cat_tokens(id),
+    amount NUMERIC(78,0) NOT NULL CHECK(amount>=0),
+    last_movement_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY(receipt_id,token_id)
+);
+
+CREATE TABLE reg_crypto_receipt_intake_audit (
+    receipt_id UUID PRIMARY KEY REFERENCES doc_crypto_custody_receipts(id),
+    verification_id UUID NOT NULL REFERENCES reg_crypto_transfer_verifications(id),
+    posting_id UUID NOT NULL REFERENCES reg_crypto_custody_effect_postings(id),
+    actor TEXT NOT NULL CHECK(btrim(actor)<>''),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Existing funding receipts remain historical. Admission of a new receipt must
+-- claim an indexed effect; migration never fabricates identities or movements.
+ALTER TABLE reg_crypto_wallet_fundings
+    ADD COLUMN occurrence_id UUID UNIQUE REFERENCES reg_crypto_accounting_effect_occurrences(id),
+    ADD COLUMN posting_id UUID UNIQUE REFERENCES reg_crypto_custody_effect_postings(id),
+    ADD CONSTRAINT ck_crypto_wallet_funding_recognition_pair CHECK((occurrence_id IS NULL)=(posting_id IS NULL)),
+    DROP CONSTRAINT uq_crypto_wallet_fundings_tx_hash;
+
+CREATE UNIQUE INDEX uq_crypto_wallet_fundings_legacy_tx
+    ON reg_crypto_wallet_fundings(network_id,tx_hash) WHERE posting_id IS NULL;
+
+CREATE INDEX idx_crypto_wallet_fundings_tx ON reg_crypto_wallet_fundings(network_id,tx_hash);
+
+CREATE TABLE reg_crypto_wallet_funding_audit (
+    funding_id UUID PRIMARY KEY REFERENCES reg_crypto_wallet_fundings(id),
+    verification_id UUID NOT NULL REFERENCES reg_crypto_transfer_verifications(id),
+    posting_id UUID NOT NULL REFERENCES reg_crypto_custody_effect_postings(id),
+    actor TEXT NOT NULL CHECK(btrim(actor)<>''),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE reg_crypto_custody_effect_postings
+    DROP CONSTRAINT reg_crypto_custody_effect_postings_generation_check,
+    ADD COLUMN predecessor_id UUID UNIQUE REFERENCES reg_crypto_custody_effect_postings(id),
+    ADD CONSTRAINT ck_crypto_custody_generation CHECK(generation>0 AND
+        ((generation=1 AND predecessor_id IS NULL) OR (generation>1 AND predecessor_id IS NOT NULL)));
+
+CREATE UNIQUE INDEX uq_crypto_payment_custody_version
+    ON reg_crypto_custody_effect_postings(recorder_id,recorder_version) WHERE recorder_type='CryptoPayment';
+
+-- COPY may use a subtransaction, so xmin is not a reliable top-level posting
+-- identity. Stamp new payment lines explicitly; historical rows stay NULL.
+ALTER TABLE reg_crypto_balance_movements ADD COLUMN posting_txid BIGINT;
+
+-- An immutable economic snapshot also serves as the admission/adoption audit.
+-- Neither migration nor adoption creates another financial movement.
+CREATE TABLE reg_crypto_payment_custody_bindings (
+    posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
+    payment_id UUID NOT NULL REFERENCES doc_crypto_payments(id),
+    invoice_id UUID NOT NULL,
+    merchant_id UUID NOT NULL REFERENCES cat_merchants(id),
+    wallet_id UUID NOT NULL REFERENCES cat_wallets(id),
+    token_id UUID NOT NULL REFERENCES cat_tokens(id),
+    gross NUMERIC(78,0) NOT NULL CHECK(gross>0),
+    net NUMERIC(78,0) NOT NULL CHECK(net>=0),
+    processing_fee NUMERIC(78,0) NOT NULL CHECK(processing_fee>=0),
+    fee_fixed NUMERIC(78,0) NOT NULL CHECK(fee_fixed>=0),
+    fee_percent_bp INT NOT NULL CHECK(fee_percent_bp BETWEEN 0 AND 10000),
+    fee_min NUMERIC(78,0) NOT NULL CHECK(fee_min>=0),
+    fee_max NUMERIC(78,0) NOT NULL CHECK(fee_max>=0),
+    period TIMESTAMPTZ NOT NULL,
+    mode TEXT NOT NULL CHECK(mode IN ('posting','adoption')),
+    actor TEXT NOT NULL CHECK(btrim(actor)<>''),
+    evidence_reference TEXT NOT NULL CHECK(btrim(evidence_reference)<>''),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK(gross=net+processing_fee)
+);
+
+CREATE INDEX idx_crypto_payment_custody_bindings_payment ON reg_crypto_payment_custody_bindings(payment_id);
+
+CREATE UNIQUE INDEX uq_crypto_native_funding_custody ON reg_crypto_custody_effect_postings(recorder_id)
+    WHERE recorder_type='CryptoNativeFunding';
+
+CREATE TABLE reg_crypto_native_funding_custody_bindings (
+    posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
+    funding_id UUID NOT NULL UNIQUE REFERENCES doc_crypto_native_fundings(id),
+    period TIMESTAMPTZ NOT NULL,
+    actor TEXT NOT NULL DEFAULT 'native-funding-settlement' CHECK(actor='native-funding-settlement'),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE reg_crypto_sweep_custody_bindings (
+    posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
+    sweep_id UUID NOT NULL REFERENCES doc_crypto_sweeps(id),
+    line_id UUID NOT NULL UNIQUE REFERENCES doc_crypto_sweep_lines(line_id),
+    period TIMESTAMPTZ NOT NULL,
+    actor TEXT NOT NULL DEFAULT 'sweep-settlement' CHECK(actor='sweep-settlement'),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_sweep_custody_bindings_document ON reg_crypto_sweep_custody_bindings(sweep_id);
+
+CREATE TABLE reg_crypto_treasury_custody_bindings (
+    posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
+    treasury_id UUID NOT NULL UNIQUE REFERENCES doc_treasury_withdrawals(id),
+    signing_authorization_id UUID NOT NULL REFERENCES reg_crypto_signing_authorizations(id),
+    period TIMESTAMPTZ NOT NULL,
+    actor TEXT NOT NULL DEFAULT 'treasury-settlement' CHECK(actor='treasury-settlement'),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE reg_crypto_aml_withdrawal_facts ALTER COLUMN expense_movement_id DROP NOT NULL;
+
+ALTER TABLE reg_crypto_aml_withdrawal_facts DROP CONSTRAINT reg_crypto_aml_withdrawal_facts_check;
+
+ALTER TABLE reg_crypto_aml_withdrawal_facts ADD CONSTRAINT reg_crypto_aml_withdrawal_facts_check CHECK(
+    (succeeded AND expense_movement_id IS NOT NULL AND refund_movement_id IS NULL)
+    OR (NOT succeeded AND ((expense_movement_id IS NULL AND refund_movement_id IS NULL) OR (expense_movement_id IS NOT NULL AND refund_movement_id IS NOT NULL))));
+
+CREATE TABLE reg_crypto_withdrawal_custody_bindings (
+    posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
+    withdrawal_id UUID NOT NULL UNIQUE REFERENCES doc_crypto_withdrawals(id),
+    request_id UUID NOT NULL REFERENCES doc_withdrawal_requests(id),
+    line_id UUID UNIQUE REFERENCES reg_crypto_aml_withdrawal_lines(id),
+    signing_authorization_id UUID NOT NULL REFERENCES reg_crypto_signing_authorizations(id),
+    merchant_debit_line_id UUID NOT NULL REFERENCES reg_crypto_merchant_balance_movements(line_id),
+    period TIMESTAMPTZ NOT NULL,
+    actor TEXT NOT NULL DEFAULT 'withdrawal-settlement' CHECK(actor='withdrawal-settlement'),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_withdrawal_custody_bindings_request ON reg_crypto_withdrawal_custody_bindings(request_id);
+
+CREATE TABLE reg_crypto_custody_loss_bindings (
+    posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
+    adjustment_id UUID NOT NULL UNIQUE REFERENCES doc_crypto_custody_adjustments(id),
+    external_outflow_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_external_outflows(id),
+    maker_id UUID NOT NULL,
+    checker_id UUID NOT NULL CHECK(checker_id<>maker_id),
+    period TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE reg_crypto_fee_reservation_events ADD COLUMN transition_txid BIGINT;
+
+ALTER TABLE reg_crypto_chain_settlements ADD COLUMN network_fee_reservation_id UUID REFERENCES reg_crypto_fee_reservations(id);
+
+ALTER TABLE doc_crypto_network_operations ADD COLUMN network_fee_reservation_id UUID UNIQUE REFERENCES reg_crypto_fee_reservations(id);
+
+CREATE TABLE reg_crypto_network_fee_proofs (
+    id UUID PRIMARY KEY,
+    effect_key TEXT NOT NULL CHECK(effect_key~'^[0-9a-f]{64}$'),
+    network_id UUID NOT NULL REFERENCES cat_blockchain_networks(id),
+    tx_hash TEXT NOT NULL CHECK(tx_hash~'^[0-9a-f]{64}$'),
+    family TEXT NOT NULL CHECK(family IN ('tron','evm')),
+    payer_address_key TEXT NOT NULL,
+    native_token_id UUID NOT NULL REFERENCES cat_tokens(id),
+    block_hash TEXT NOT NULL CHECK(block_hash~'^[0-9a-f]{64}$'),
+    block_number BIGINT NOT NULL CHECK(block_number>=0),
+    status TEXT NOT NULL CHECK(status IN ('succeeded','reverted')),
+    total_fee_minor NUMERIC(78,0) NOT NULL CHECK(total_fee_minor>=0),
+    proof_digest TEXT NOT NULL CHECK(proof_digest~'^[0-9a-f]{64}$'),
+    confirmations INT NOT NULL CHECK(confirmations>0),
+    evidence JSONB NOT NULL,
+    verified_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_network_fee_proofs_effect ON reg_crypto_network_fee_proofs(effect_key,block_number,verified_at);
+
+CREATE TABLE reg_crypto_network_fee_bindings (
+    reservation_id UUID PRIMARY KEY REFERENCES reg_crypto_fee_reservations(id),
+    effect_key TEXT NOT NULL UNIQUE,
+    proof_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_network_fee_proofs(id),
+    settlement_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_chain_settlements(id),
+    recorder_type TEXT NOT NULL CHECK(recorder_type IN ('ChainSettlement','CryptoNetworkOperation')),
+    recorder_id UUID NOT NULL,
+    generation INT NOT NULL DEFAULT 1 CHECK(generation=1),
+    movement_line_id UUID UNIQUE REFERENCES reg_crypto_balance_movements(line_id) DEFERRABLE INITIALLY DEFERRED,
+    cost_line_id UUID UNIQUE REFERENCES reg_crypto_platform_cost_movements(line_id) DEFERRABLE INITIALLY DEFERRED,
+    period TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_network_fee_bindings_recorder ON reg_crypto_network_fee_bindings(recorder_type,recorder_id);
+
+CREATE INDEX idx_expected_transfer_canonical_tx ON reg_crypto_expected_chain_effects(network_id,(regexp_replace(lower(tx_hash),'^0x','')),event_kind);
+
+CREATE TABLE reg_crypto_expected_transfer_requests (
+ expected_effect_id UUID PRIMARY KEY REFERENCES reg_crypto_expected_chain_effects(id),
+ owner_type TEXT NOT NULL,owner_id UUID NOT NULL,first_event JSONB NOT NULL,
+ requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),_txid BIGINT NOT NULL DEFAULT txid_current(),_deleted_at TIMESTAMPTZ
+);
+
+CREATE TABLE sys_crypto_expected_transfer_deliveries (
+ expected_effect_id UUID PRIMARY KEY REFERENCES reg_crypto_expected_transfer_requests(expected_effect_id),
+ next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),delivered_at TIMESTAMPTZ,attempts INT NOT NULL DEFAULT 0 CHECK(attempts>=0),
+ version INT NOT NULL DEFAULT 1,_txid BIGINT NOT NULL DEFAULT txid_current(),_deleted_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_expected_transfer_delivery_due ON sys_crypto_expected_transfer_deliveries(next_attempt_at) WHERE delivered_at IS NULL;
+
+CREATE TABLE reg_crypto_expected_transfer_routes (
+ effect_id UUID PRIMARY KEY REFERENCES reg_crypto_accounting_effects(id),
+ expected_effect_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_expected_transfer_requests(expected_effect_id),
+ first_verification_id UUID NOT NULL REFERENCES reg_crypto_transfer_verifications(id),
+ owner_type TEXT NOT NULL,owner_id UUID NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ _txid BIGINT NOT NULL DEFAULT txid_current(),_deleted_at TIMESTAMPTZ
+);
+
+CREATE TABLE reg_crypto_expected_transfer_evidence (
+ verification_id UUID PRIMARY KEY REFERENCES reg_crypto_transfer_verifications(id),
+ effect_id UUID NOT NULL REFERENCES reg_crypto_expected_transfer_routes(effect_id),
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now(),_txid BIGINT NOT NULL DEFAULT txid_current(),_deleted_at TIMESTAMPTZ
+);
+
+-- Historical decisions and pending proposals retain their original semantics.
+-- A chain compensation refers to the original owner; it never claims an effect.
+ALTER TABLE doc_crypto_adjustments
+    ADD COLUMN basis_kind TEXT NOT NULL DEFAULT 'legacy',
+    ADD COLUMN source_posting_id UUID REFERENCES reg_crypto_custody_effect_postings(id),
+    ADD COLUMN proposal_txid BIGINT,
+    ADD CONSTRAINT ck_crypto_adjustment_accounting_basis CHECK (
+        proposal_txid IS NOT NULL AND (
+            (mode='wallet_balance' AND basis_kind='wallet_variance' AND source_posting_id IS NULL)
+            OR (mode='payment_reversal' AND (
+                (basis_kind='legacy_payment' AND source_posting_id IS NULL)
+                OR (basis_kind='payment_compensation' AND source_posting_id IS NOT NULL)))));
+
+CREATE INDEX idx_crypto_adjustment_source_posting ON doc_crypto_adjustments(source_posting_id) WHERE source_posting_id IS NOT NULL;
+
+ALTER TABLE doc_crypto_resource_rentals ADD COLUMN maintenance_claim_token UUID;
+
+ALTER TABLE doc_crypto_resource_rentals ADD CONSTRAINT chk_crypto_resource_rental_claim_token
+ CHECK (maintenance_claim_token IS NULL OR (claimed_by<>'' AND claimed_at IS NOT NULL AND lease_expires_at IS NOT NULL));
+
+COMMENT ON COLUMN doc_crypto_resource_rentals.maintenance_claim_token IS 'Fresh fencing token per maintenance claim; legacy leases drain before a new token is issued.';
+
+ALTER TABLE reg_crypto_account_activations ADD COLUMN cost_claim_token UUID;
+
+ALTER TABLE reg_crypto_account_activations ADD CONSTRAINT chk_crypto_activation_cost_claim
+ CHECK (cost_claim_token IS NULL OR (cost_status='repairing' AND cost_claimed_by<>'' AND cost_claimed_at IS NOT NULL AND cost_lease_expires_at IS NOT NULL));
+
+COMMENT ON COLUMN reg_crypto_account_activations.cost_claim_token IS 'Fresh fencing token per cost-repair attempt; legacy repairing leases drain without rewriting history.';
+
+CREATE TABLE reg_crypto_activation_dispatches (
+ authorization_id TEXT NOT NULL REFERENCES reg_crypto_signing_authorizations(authorization_id),
+ activation_id UUID NOT NULL REFERENCES reg_crypto_account_activations(id),
+ phase TEXT NOT NULL CHECK(phase IN ('authorize','sign','broadcast')),
+ claim_token UUID NOT NULL,
+ network_id UUID NOT NULL REFERENCES cat_blockchain_networks(id),
+ unsigned_fingerprint TEXT NOT NULL CHECK(unsigned_fingerprint<>''),
+ created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+ _txid BIGINT NOT NULL DEFAULT txid_current(),
+ PRIMARY KEY(authorization_id,phase,claim_token)
+);
+
+CREATE UNIQUE INDEX idx_crypto_activation_single_sign_dispatch ON reg_crypto_activation_dispatches(authorization_id) WHERE phase='sign';
+
+ALTER TABLE reg_crypto_reorg_compensations ADD COLUMN request_basis JSONB
+ CHECK(request_basis IS NULL OR jsonb_typeof(request_basis)='object');
+
+-- NULL means a legacy decision whose original assessment clock is unknown.
+-- Down retains this additive column so that no assessment evidence is lost.
+ALTER TABLE reg_crypto_aml_decisions ADD COLUMN IF NOT EXISTS evaluated_at TIMESTAMPTZ;
+
+ALTER TABLE sys_invoice_reconciliation_drift
+ ADD COLUMN episode_id UUID,
+ ADD COLUMN initial_details JSONB CHECK(initial_details IS NULL OR jsonb_typeof(initial_details)='object'),
+ ADD COLUMN incident_id UUID REFERENCES reg_crypto_security_incidents(id);
+
+CREATE UNIQUE INDEX uq_crypto_invoice_drift_episode ON sys_invoice_reconciliation_drift(episode_id) WHERE episode_id IS NOT NULL;
+
+CREATE UNIQUE INDEX uq_crypto_invoice_drift_incident ON sys_invoice_reconciliation_drift(incident_id) WHERE incident_id IS NOT NULL;
+
+ALTER TABLE reg_crypto_aml_preflight_jobs
+ ADD COLUMN initial_policy_version BIGINT,
+ ADD COLUMN initial_scope_version BIGINT,
+ ADD FOREIGN KEY(policy_id,initial_policy_version) REFERENCES reg_crypto_aml_pool_policy_versions(policy_id,version);
+
+CREATE TABLE reg_crypto_aml_preflight_attempts (
+ job_id UUID NOT NULL REFERENCES reg_crypto_aml_preflight_jobs(id),
+ lease_token UUID PRIMARY KEY, basis JSONB NOT NULL CHECK(jsonb_typeof(basis)='object'),
+ worker_id TEXT NOT NULL CHECK(btrim(worker_id)<>''),
+ claimed_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(), lease_expires_at TIMESTAMPTZ NOT NULL,
+ _txid BIGINT NOT NULL DEFAULT txid_current(), _deleted_at TIMESTAMPTZ CHECK(_deleted_at IS NULL),
+ UNIQUE(job_id,lease_token)
+);
+
+ALTER TABLE reg_crypto_aml_preflight_observations ADD CONSTRAINT fk_crypto_preflight_observation_attempt
+ FOREIGN KEY(job_id,lease_token) REFERENCES reg_crypto_aml_preflight_attempts(job_id,lease_token) NOT VALID;
+
+-- Existing rows retain unknown original shadow/activation evidence. Down keeps
+-- these additive columns so that retained registration history is not erased.
+ALTER TABLE sys_crypto_block_ingestion ADD COLUMN IF NOT EXISTS registration_basis JSONB;
+
+ALTER TABLE sys_crypto_block_ingestion ADD COLUMN IF NOT EXISTS activation_basis JSONB;
+
+ALTER TABLE reg_crypto_external_outflows ADD COLUMN IF NOT EXISTS initial_basis JSONB CHECK(initial_basis IS NULL OR jsonb_typeof(initial_basis)='object');
+
+ALTER TABLE reg_crypto_external_outflow_observations ADD COLUMN IF NOT EXISTS incident_id UUID REFERENCES reg_crypto_reconciliation_items(id);
+
+ALTER TABLE reg_crypto_external_outflows ADD COLUMN IF NOT EXISTS classification_basis JSONB, ADD COLUMN IF NOT EXISTS resolution_basis JSONB;
+
+ALTER TABLE doc_crypto_custody_adjustments ADD COLUMN IF NOT EXISTS decision_basis JSONB;
+
+ALTER TABLE reg_crypto_external_outflow_actions ADD COLUMN IF NOT EXISTS decision_basis JSONB;
+
+
+
+-- ---- Triggers and views ----
+
+CREATE TRIGGER trg_crypto_accounting_effect_immutable
+    BEFORE UPDATE OR DELETE ON reg_crypto_accounting_effects
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_accounting_immutable();
+
+CREATE TRIGGER trg_crypto_accounting_occurrence_immutable
+    BEFORE UPDATE OR DELETE ON reg_crypto_accounting_effect_occurrences
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_accounting_immutable();
+
+CREATE TRIGGER trg_crypto_accounting_evidence_immutable
+    BEFORE UPDATE OR DELETE ON reg_crypto_accounting_effect_evidence
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_accounting_immutable();
+
+CREATE TRIGGER trg_crypto_accounting_evidence_guard
+    BEFORE INSERT ON reg_crypto_accounting_effect_evidence
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_accounting_evidence_guard();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_accounting_effect_coverage
+    AFTER INSERT ON reg_crypto_accounting_effects DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_accounting_coverage_guard();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_accounting_occurrence_coverage
+    AFTER INSERT ON reg_crypto_accounting_effect_occurrences DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_accounting_coverage_guard();
+
+CREATE TRIGGER trg_crypto_custody_receipt_txid BEFORE UPDATE ON doc_crypto_custody_receipts
+    FOR EACH ROW EXECUTE FUNCTION update_txid_column();
+
+CREATE TRIGGER trg_crypto_custody_receipt_mutation BEFORE UPDATE OR DELETE ON doc_crypto_custody_receipts
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_mutation_guard();
+
+CREATE TRIGGER trg_crypto_receipt_suspense_apply AFTER INSERT ON reg_crypto_receipt_suspense_movements
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_receipt_suspense_apply();
+
+DO $$
+DECLARE target TEXT;
+BEGIN
+    FOREACH target IN ARRAY ARRAY['reg_crypto_custody_effect_postings',
+        'reg_crypto_custody_effect_recognitions','reg_crypto_receipt_suspense_movements',
+        'reg_crypto_receipt_intake_audit'] LOOP
+        EXECUTE format('CREATE TRIGGER %I BEFORE UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable()',
+            'trg_immutable_'||target,target);
+    END LOOP;
+END;
+$$;
+
+CREATE TRIGGER trg_crypto_custody_posting_identity BEFORE INSERT ON reg_crypto_custody_effect_postings
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_posting_identity_guard();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_custody_posting_complete
+    AFTER INSERT ON reg_crypto_custody_effect_postings DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_posting_complete();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_custody_recognition_complete
+    AFTER INSERT ON reg_crypto_custody_effect_recognitions DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_posting_complete();
+
+CREATE TRIGGER trg_crypto_receipt_network_resume BEFORE INSERT OR UPDATE ON sys_crypto_network_policies
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_receipt_network_resume_guard();
+
+CREATE TRIGGER trg_crypto_unallocated_custody_guard BEFORE INSERT ON reg_crypto_balance_movements
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_unallocated_custody_guard();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_custody_receipt_complete AFTER INSERT OR UPDATE ON doc_crypto_custody_receipts
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_complete();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_custody_receipt_movement_complete AFTER INSERT ON reg_crypto_balance_movements
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_movement_complete();
+
+DO $$
+DECLARE target TEXT;
+BEGIN
+    FOREACH target IN ARRAY ARRAY['reg_crypto_merchant_balance_movements','reg_crypto_fee_movements',
+        'reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements'] LOOP
+        EXECUTE format('CREATE TRIGGER %I BEFORE INSERT ON %I FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_no_attribution()',
+            'trg_no_receipt_'||target,target);
+    END LOOP;
+END;
+$$;
+
+CREATE TRIGGER trg_crypto_wallet_funding_audit_immutable
+    BEFORE UPDATE OR DELETE ON reg_crypto_wallet_funding_audit
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
+
+CREATE TRIGGER trg_crypto_wallet_funding_admission BEFORE INSERT ON reg_crypto_wallet_fundings
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_wallet_funding_admission();
+
+CREATE TRIGGER trg_crypto_wallet_funding_payment_guard BEFORE INSERT OR UPDATE ON doc_crypto_payments
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_wallet_funding_payment_guard();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_wallet_funding_complete AFTER INSERT ON reg_crypto_wallet_fundings
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_wallet_funding_complete();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_wallet_funding_posting_complete AFTER INSERT ON reg_crypto_custody_effect_postings
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_wallet_funding_complete();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_wallet_funding_movement_complete AFTER INSERT ON reg_crypto_balance_movements
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_wallet_funding_complete();
+
+CREATE TRIGGER trg_crypto_wallet_funding_movement_guard BEFORE INSERT ON reg_crypto_balance_movements
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_wallet_funding_movement_guard();
+
+DO $$
+DECLARE target TEXT;
+BEGIN
+    FOREACH target IN ARRAY ARRAY['reg_crypto_merchant_balance_movements','reg_crypto_fee_movements',
+        'reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements'] LOOP
+        EXECUTE format('CREATE TRIGGER %I BEFORE INSERT ON %I FOR EACH ROW EXECUTE FUNCTION fn_crypto_wallet_funding_no_attribution()',
+            'trg_no_funding_'||target,target);
+    END LOOP;
+END;
+$$;
+
+CREATE TRIGGER trg_crypto_payment_posting_transaction BEFORE INSERT ON reg_crypto_balance_movements
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_posting_transaction();
+
+CREATE TRIGGER trg_crypto_payment_custody_binding_immutable
+    BEFORE UPDATE OR DELETE ON reg_crypto_payment_custody_bindings
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_custody_generation_complete AFTER INSERT ON reg_crypto_custody_effect_postings
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_generation_complete();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_payment_binding_complete AFTER INSERT ON reg_crypto_payment_custody_bindings
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_binding_complete();
+
+DO $$
+DECLARE target TEXT;
+BEGIN
+    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements',
+        'reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements'] LOOP
+        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_financial_complete()',
+            'trg_payment_custody_complete_'||target,target);
+    END LOOP;
+END;
+$$;
+
+CREATE TRIGGER trg_crypto_payment_frozen_basis BEFORE UPDATE OR DELETE ON doc_crypto_payments
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_frozen_basis_guard();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_payment_document_recognition AFTER INSERT OR UPDATE ON doc_crypto_payments
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_document_recognition_complete();
+
+CREATE TRIGGER trg_bound_payment_reversal BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_bound_payment_reversal_guard();
+
+CREATE TRIGGER trg_bound_payment_reversal BEFORE INSERT ON reg_crypto_merchant_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_bound_payment_reversal_guard();
+
+CREATE TRIGGER trg_bound_payment_reversal BEFORE INSERT ON reg_crypto_fee_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_bound_payment_reversal_guard();
+
+CREATE TRIGGER trg_native_funding_binding_immutable BEFORE UPDATE OR DELETE ON reg_crypto_native_funding_custody_bindings
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
+
+CREATE CONSTRAINT TRIGGER trg_native_funding_posting_complete AFTER INSERT ON reg_crypto_custody_effect_postings
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_native_funding_custody_complete();
+
+CREATE CONSTRAINT TRIGGER trg_native_funding_binding_complete AFTER INSERT ON reg_crypto_native_funding_custody_bindings
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_native_funding_custody_complete();
+
+CREATE CONSTRAINT TRIGGER trg_native_funding_chain_complete AFTER INSERT ON reg_crypto_chain_settlements
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_native_funding_settlement_complete();
+
+CREATE CONSTRAINT TRIGGER trg_native_funding_fee_complete AFTER INSERT OR UPDATE ON reg_crypto_fee_reservations
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_native_funding_settlement_complete();
+
+DO $$ DECLARE target TEXT; BEGIN
+    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements',
+        'reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements'] LOOP
+        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_native_funding_movement_complete()',
+            'trg_native_funding_complete_'||target,target);
+    END LOOP;
+END; $$;
+
+CREATE TRIGGER trg_native_funding_basis BEFORE UPDATE OR DELETE ON doc_crypto_native_fundings
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_native_funding_basis_guard();
+
+CREATE CONSTRAINT TRIGGER trg_native_funding_document_complete AFTER INSERT OR UPDATE ON doc_crypto_native_fundings
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_native_funding_document_complete();
+
+CREATE TRIGGER trg_payment_native_funding BEFORE INSERT OR UPDATE ON doc_crypto_payments
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_native_funding_guard();
+
+CREATE TRIGGER trg_sweep_custody_binding_immutable BEFORE UPDATE OR DELETE ON reg_crypto_sweep_custody_bindings
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
+
+CREATE CONSTRAINT TRIGGER trg_sweep_binding_complete AFTER INSERT ON reg_crypto_sweep_custody_bindings
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_binding_complete();
+
+CREATE CONSTRAINT TRIGGER trg_sweep_posting_complete AFTER INSERT ON reg_crypto_custody_effect_postings
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_posting_complete();
+
+DO $$ DECLARE target TEXT; BEGIN
+    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements',
+        'reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements'] LOOP
+        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_financial_complete()',
+            'trg_sweep_complete_'||target,target);
+    END LOOP;
+END; $$;
+
+CREATE CONSTRAINT TRIGGER trg_sweep_line_complete AFTER INSERT OR UPDATE ON doc_crypto_sweep_lines
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_settlement_complete();
+
+CREATE CONSTRAINT TRIGGER trg_sweep_chain_complete AFTER INSERT ON reg_crypto_chain_settlements
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_settlement_complete();
+
+CREATE CONSTRAINT TRIGGER trg_sweep_fee_complete AFTER INSERT OR UPDATE ON reg_crypto_fee_reservations
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_settlement_complete();
+
+CREATE TRIGGER trg_sweep_header_basis BEFORE UPDATE OR DELETE ON doc_crypto_sweeps FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_basis_guard();
+
+CREATE TRIGGER trg_sweep_line_basis BEFORE UPDATE OR DELETE ON doc_crypto_sweep_lines FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_basis_guard();
+
+CREATE OR REPLACE VIEW crypto_aml_allocatable_transfers AS
+ SELECT plan.id allocation_id,plan.merchant_id,plan.network_id,plan.token_id,plan.source_wallet_id,plan.destination_wallet_id,
+ plan.principal,plan.service_fee,e.id effect_id,spent.line_id source_movement_id,received.line_id destination_movement_id
+ FROM reg_crypto_aml_internal_allocations plan
+ JOIN reg_crypto_sweep_custody_bindings b ON b.line_id=plan.sweep_attempt_id
+ JOIN doc_crypto_sweep_lines line ON line.line_id=b.line_id AND line.document_id=b.sweep_id AND line.wallet_id=plan.source_wallet_id AND line.amount=plan.gross
+ JOIN doc_crypto_sweeps sweep ON sweep.id=b.sweep_id AND sweep.hot_wallet_id=plan.destination_wallet_id AND sweep.token_id=plan.token_id
+ JOIN reg_crypto_custody_effect_postings p ON p.id=b.posting_id AND p.recorder_id=sweep.id AND p.recorder_type='CryptoSweep' AND p.recorder_version=1
+ JOIN reg_crypto_custody_effect_recognitions sr ON sr.posting_id=p.id AND sr.record_type='expense' AND sr.wallet_id=plan.source_wallet_id AND sr.token_id=plan.token_id
+ JOIN reg_crypto_custody_effect_recognitions dr ON dr.posting_id=p.id AND dr.record_type='receipt' AND dr.wallet_id=plan.destination_wallet_id AND dr.token_id=plan.token_id
+ JOIN reg_crypto_balance_movements spent ON spent.line_id=sr.movement_line_id AND spent.amount=plan.gross
+ JOIN reg_crypto_balance_movements received ON received.line_id=dr.movement_line_id AND received.amount=plan.gross
+ JOIN reg_crypto_aml_effects e ON e.wallet_id=plan.destination_wallet_id AND e.source_wallet_id=plan.source_wallet_id AND e.token_id=plan.token_id AND e.network_id=plan.network_id AND e.tx_hash=line.tx_hash AND e.amount=plan.gross
+ JOIN reg_crypto_aml_effect_chain_states cs ON cs.effect_id=e.id AND cs.canonicality='canonical'
+ JOIN reg_crypto_accounting_effect_evidence ae ON ae.verification_id=cs.verification_id AND ae.occurrence_id=p.occurrence_id
+ JOIN reg_crypto_expected_chain_effects expected ON expected.id=e.expected_effect_id
+ JOIN reg_crypto_signing_authorizations auth ON auth.id=expected.signing_authorization_id AND auth.basis_type='CryptoSweepAttempt' AND auth.basis_id=line.line_id AND auth.signed_envelope IS NOT NULL
+ WHERE plan.status IN ('reserved','applied') AND line.settlement_status='recorded' AND line.chain_result='SUCCESS'
+ AND spent.created_at>=(SELECT created_at FROM reg_crypto_aml_wallet_baselines WHERE wallet_id=plan.source_wallet_id AND token_id=plan.token_id)
+ AND received.created_at>=(SELECT created_at FROM reg_crypto_aml_wallet_baselines WHERE wallet_id=plan.destination_wallet_id AND token_id=plan.token_id);
+
+CREATE TRIGGER trg_treasury_custody_binding_immutable BEFORE UPDATE OR DELETE ON reg_crypto_treasury_custody_bindings
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
+
+CREATE CONSTRAINT TRIGGER trg_treasury_binding_complete AFTER INSERT ON reg_crypto_treasury_custody_bindings
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_binding_complete();
+
+CREATE CONSTRAINT TRIGGER trg_treasury_posting_complete AFTER INSERT ON reg_crypto_custody_effect_postings
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_posting_complete();
+
+DO $$ DECLARE target TEXT; BEGIN
+    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements',
+        'reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements'] LOOP
+        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_financial_complete()',
+            'trg_treasury_complete_'||target,target);
+    END LOOP;
+END; $$;
+
+CREATE CONSTRAINT TRIGGER trg_treasury_document_complete AFTER INSERT OR UPDATE ON doc_treasury_withdrawals
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_settlement_complete();
+
+CREATE CONSTRAINT TRIGGER trg_treasury_chain_complete AFTER INSERT ON reg_crypto_chain_settlements
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_settlement_complete();
+
+CREATE CONSTRAINT TRIGGER trg_treasury_fee_complete AFTER INSERT OR UPDATE ON reg_crypto_fee_reservations
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_settlement_complete();
+
+CREATE TRIGGER trg_treasury_basis BEFORE UPDATE OR DELETE ON doc_treasury_withdrawals FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_basis_guard();
+
+DO $$ DECLARE target TEXT; BEGIN
+    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_reservations','reg_crypto_revenue_reservations'] LOOP
+        EXECUTE format('CREATE TRIGGER %I BEFORE INSERT OR UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_reservation_guard()', 'trg_treasury_basis_'||target,target);
+        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT OR UPDATE ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_reservation_complete()', 'trg_treasury_complete_'||target,target);
+    END LOOP;
+END; $$;
+
+CREATE TRIGGER trg_treasury_fee_release BEFORE UPDATE ON reg_crypto_fee_reservations FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_fee_release_guard();
+
+CREATE TRIGGER trg_treasury_outflow_owner BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_outflow_owner_guard();
+
+CREATE TRIGGER trg_withdrawal_custody_binding_immutable BEFORE UPDATE OR DELETE ON reg_crypto_withdrawal_custody_bindings FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
+
+CREATE OR REPLACE VIEW crypto_aml_valid_withdrawal_facts AS
+ SELECT f.line_id FROM reg_crypto_aml_withdrawal_facts f
+ JOIN reg_crypto_aml_withdrawal_lines l ON l.id=f.line_id AND l.wallet_id=f.wallet_id AND l.token_id=f.token_id AND l.amount=f.amount
+ JOIN reg_crypto_aml_withdrawal_plans plan ON plan.request_id=l.request_id
+ JOIN doc_crypto_withdrawals w ON w.id=l.withdrawal_id AND w.basis_type='CryptoAMLWithdrawalLine' AND w.basis_id=l.id
+    AND w.merchant_id=plan.merchant_id AND w.source_wallet_id=l.wallet_id AND w.token_id=l.token_id AND w.amount=l.amount AND w.posted AND w.posted_version=1
+    AND w.settlement_status='recorded' AND w.status=CASE WHEN f.succeeded THEN 'confirmed' ELSE 'failed' END
+ JOIN reg_crypto_signing_authorizations a ON a.basis_type='CryptoAMLWithdrawalLine' AND a.basis_id=l.id AND a.generation=1 AND a.attempt=1
+    AND a.signed_envelope IS NOT NULL AND a.tx_hash=w.tx_hash AND a.source_address=l.source_address AND a.vault_key_id=l.source_vault_key_id AND a.amount_minor_units=l.amount
+ JOIN reg_crypto_aml_first_dispatches dispatched ON dispatched.authorization_id=a.id
+ JOIN reg_crypto_chain_settlements settlement ON settlement.id=f.settlement_id AND settlement.network_id=plan.network_id AND settlement.basis_type='CryptoAMLWithdrawalLine'
+    AND settlement.basis_id=l.id AND settlement.tx_hash=w.tx_hash AND (settlement.status='succeeded')=f.succeeded
+ JOIN reg_crypto_balance_reservations reserve ON reserve.id=l.reservation_id AND reserve.status=CASE WHEN f.succeeded THEN 'consumed' ELSE 'released' END
+ LEFT JOIN reg_crypto_withdrawal_custody_bindings binding ON binding.withdrawal_id=w.id AND binding.request_id=l.request_id AND binding.line_id=l.id AND binding.signing_authorization_id=a.id
+ LEFT JOIN reg_crypto_custody_effect_postings posting ON posting.id=binding.posting_id AND posting.recorder_type='CryptoWithdrawal' AND posting.recorder_id=w.id AND posting.generation=1 AND posting.recorder_version=1
+ LEFT JOIN reg_crypto_custody_effect_recognitions recognized ON recognized.posting_id=posting.id AND recognized.record_type='expense' AND recognized.wallet_id=l.wallet_id AND recognized.token_id=l.token_id
+ LEFT JOIN reg_crypto_balance_movements spent ON spent.line_id=f.expense_movement_id AND spent.line_id=recognized.movement_line_id AND spent.recorder_type='CryptoWithdrawal'
+    AND spent.recorder_id=w.id AND spent.recorder_version=1 AND spent.record_type='expense' AND spent.wallet_id=f.wallet_id AND spent.token_id=f.token_id AND spent.amount=f.amount AND spent.reversal_of_line_id IS NULL
+ LEFT JOIN reg_crypto_transfer_verifications proof ON proof.id=posting.verification_id
+ WHERE f.refund_movement_id IS NULL AND (
+ (f.succeeded AND spent.line_id IS NOT NULL AND proof.evidence->'event'->>'canonicality'='canonical'
+    AND NOT EXISTS(SELECT 1 FROM reg_crypto_transfer_verifications invalid WHERE invalid.network_id=proof.network_id AND invalid.tx_hash=proof.tx_hash
+        AND invalid.event_kind=proof.event_kind AND invalid.event_index=proof.event_index AND invalid.verified_at>=proof.verified_at AND invalid.evidence->'event'->>'canonicality'='orphaned')
+    AND NOT EXISTS(SELECT 1 FROM reg_crypto_accounting_effect_evidence ae JOIN reg_crypto_accounting_effect_occurrences occurrence ON occurrence.id=ae.occurrence_id
+        JOIN reg_crypto_transfer_verifications newer ON newer.id=ae.verification_id WHERE occurrence.effect_id=posting.effect_id AND occurrence.id<>posting.occurrence_id AND newer.verified_at>=proof.verified_at))
+ OR (NOT f.succeeded AND f.expense_movement_id IS NULL AND binding.posting_id IS NULL AND NOT EXISTS(SELECT 1 FROM reg_crypto_balance_movements WHERE recorder_id=w.id)
+    AND EXISTS(SELECT 1 FROM reg_crypto_merchant_balance_movements mr JOIN doc_withdrawal_requests request ON request.id=l.request_id
+        WHERE mr.line_id=l.id AND mr.recorder_id=l.request_id AND mr.recorder_type='WithdrawalRequest' AND mr.recorder_version=request.posted_version+1 AND mr.record_type='receipt'
+          AND mr.merchant_id=plan.merchant_id AND mr.token_id=l.token_id AND mr.amount=l.amount))
+ );
+
+CREATE CONSTRAINT TRIGGER trg_withdrawal_binding_complete AFTER INSERT ON reg_crypto_withdrawal_custody_bindings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_binding_complete();
+
+CREATE CONSTRAINT TRIGGER trg_withdrawal_posting_complete AFTER INSERT ON reg_crypto_custody_effect_postings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_posting_complete();
+
+DO $$ DECLARE target TEXT; BEGIN
+    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements','reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements'] LOOP
+        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_financial_complete()','trg_withdrawal_complete_'||target,target);
+    END LOOP;
+END; $$;
+
+CREATE CONSTRAINT TRIGGER trg_withdrawal_document_complete AFTER INSERT OR UPDATE ON doc_crypto_withdrawals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_settlement_complete();
+
+CREATE CONSTRAINT TRIGGER trg_withdrawal_chain_complete AFTER INSERT ON reg_crypto_chain_settlements DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_settlement_complete();
+
+CREATE CONSTRAINT TRIGGER trg_withdrawal_fee_complete AFTER INSERT OR UPDATE ON reg_crypto_fee_reservations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_settlement_complete();
+
+CREATE TRIGGER trg_withdrawal_basis BEFORE UPDATE OR DELETE ON doc_crypto_withdrawals FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_basis_guard();
+
+CREATE TRIGGER trg_withdrawal_request_basis BEFORE UPDATE OR DELETE ON doc_withdrawal_requests FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_basis_guard();
+
+CREATE TRIGGER trg_withdrawal_reservation_basis BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_balance_reservations FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_reservation_guard();
+
+CREATE CONSTRAINT TRIGGER trg_withdrawal_reservation_complete AFTER INSERT OR UPDATE ON reg_crypto_balance_reservations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_reservation_complete();
+
+CREATE TRIGGER trg_withdrawal_fee_release BEFORE UPDATE ON reg_crypto_fee_reservations FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_fee_release_guard();
+
+CREATE TRIGGER trg_withdrawal_outflow_owner BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_outflow_owner_guard();
+
+CREATE CONSTRAINT TRIGGER trg_withdrawal_request_complete AFTER INSERT OR UPDATE ON doc_withdrawal_requests DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_request_complete();
+
+CREATE TRIGGER trg_custody_loss_binding_immutable BEFORE UPDATE OR DELETE ON reg_crypto_custody_loss_bindings FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
+
+CREATE CONSTRAINT TRIGGER trg_custody_loss_binding_complete AFTER INSERT ON reg_crypto_custody_loss_bindings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_loss_binding_complete();
+
+CREATE CONSTRAINT TRIGGER trg_custody_loss_posting_complete AFTER INSERT ON reg_crypto_custody_effect_postings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_loss_posting_complete();
+
+DO $$ DECLARE target TEXT; BEGIN
+    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_platform_cost_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements','reg_crypto_provider_balance_movements'] LOOP
+        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_loss_financial_complete()','trg_custody_loss_complete_'||target,target);
+    END LOOP;
+END; $$;
+
+CREATE CONSTRAINT TRIGGER trg_custody_loss_document_complete AFTER INSERT OR UPDATE ON doc_crypto_custody_adjustments DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_loss_document_complete();
+
+CREATE TRIGGER trg_custody_loss_basis BEFORE UPDATE ON doc_crypto_custody_adjustments FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_loss_basis_guard();
+
+CREATE TRIGGER trg_custody_loss_outflow_owner BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_loss_outflow_guard();
+
+CREATE TRIGGER trg_network_fee_transition_txid BEFORE INSERT ON reg_crypto_fee_reservation_events FOR EACH ROW EXECUTE FUNCTION fn_crypto_fee_transition_transaction();
+
+CREATE TRIGGER trg_network_fee_proof_immutable BEFORE UPDATE OR DELETE ON reg_crypto_network_fee_proofs FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
+
+CREATE TRIGGER trg_network_fee_binding_immutable BEFORE UPDATE OR DELETE ON reg_crypto_network_fee_bindings FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
+
+CREATE TRIGGER trg_network_fee_proof_profile BEFORE INSERT ON reg_crypto_network_fee_proofs FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_proof_guard();
+
+CREATE CONSTRAINT TRIGGER trg_network_fee_binding_complete AFTER INSERT ON reg_crypto_network_fee_bindings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_binding_complete();
+
+CREATE CONSTRAINT TRIGGER trg_network_fee_reservation_complete AFTER INSERT OR UPDATE ON reg_crypto_fee_reservations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_state_complete();
+
+CREATE CONSTRAINT TRIGGER trg_network_fee_settlement_complete AFTER INSERT ON reg_crypto_chain_settlements DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_state_complete();
+
+CREATE CONSTRAINT TRIGGER trg_network_fee_component_complete AFTER INSERT ON reg_crypto_chain_settlement_components DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_state_complete();
+
+CREATE CONSTRAINT TRIGGER trg_network_fee_document_complete AFTER INSERT OR UPDATE ON doc_crypto_network_operations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_state_complete();
+
+DO $$ DECLARE target TEXT; BEGIN
+    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_platform_cost_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements','reg_crypto_provider_balance_movements'] LOOP
+        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_financial_complete()','trg_network_fee_complete_'||target,target);
+    END LOOP;
+END; $$;
+
+CREATE TRIGGER trg_network_fee_basis BEFORE UPDATE OR DELETE ON reg_crypto_fee_reservations FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_basis_guard();
+
+CREATE TRIGGER trg_network_fee_document_basis BEFORE UPDATE OR DELETE ON doc_crypto_network_operations FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_basis_guard();
+
+CREATE CONSTRAINT TRIGGER trg_network_fee_replacement_complete AFTER UPDATE ON reg_crypto_fee_reservations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_replacement_complete();
+
+CREATE TRIGGER trg_network_fee_receipt_owner BEFORE INSERT ON reg_crypto_chain_settlements FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_legacy_owner_guard();
+
+CREATE TRIGGER trg_network_fee_movement_owner BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_legacy_owner_guard();
+
+CREATE TRIGGER trg_expected_request_basis BEFORE INSERT ON reg_crypto_expected_transfer_requests FOR EACH ROW EXECUTE FUNCTION fn_crypto_expected_transfer_guard();
+
+CREATE TRIGGER trg_expected_route_basis BEFORE INSERT ON reg_crypto_expected_transfer_routes FOR EACH ROW EXECUTE FUNCTION fn_crypto_expected_transfer_guard();
+
+CREATE TRIGGER trg_expected_route_evidence_basis BEFORE INSERT ON reg_crypto_expected_transfer_evidence FOR EACH ROW EXECUTE FUNCTION fn_crypto_expected_transfer_guard();
+
+DO $$ DECLARE target TEXT; BEGIN
+ FOREACH target IN ARRAY ARRAY['reg_crypto_expected_transfer_requests','reg_crypto_expected_transfer_routes','reg_crypto_expected_transfer_evidence'] LOOP
+  EXECUTE format('CREATE TRIGGER %I BEFORE UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable()','trg_immutable_'||target,target);
+ END LOOP; END; $$;
+
+CREATE CONSTRAINT TRIGGER trg_expected_request_complete AFTER INSERT ON reg_crypto_expected_transfer_requests DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_expected_request_complete();
+
+CREATE TRIGGER trg_expected_posting_owner BEFORE INSERT ON reg_crypto_custody_effect_postings FOR EACH ROW EXECUTE FUNCTION fn_crypto_expected_posting_owner_guard();
+
+CREATE TRIGGER trg_expected_payment BEFORE INSERT ON doc_crypto_payments FOR EACH ROW EXECUTE FUNCTION fn_crypto_expected_external_payment_guard();
+
+CREATE TRIGGER trg_expected_payment_movement BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_expected_external_payment_guard();
+
+CREATE TRIGGER trg_crypto_adjustment_accounting_basis BEFORE INSERT OR UPDATE OR DELETE ON doc_crypto_adjustments
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_adjustment_accounting_basis();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_adjustment_accounting_complete AFTER INSERT OR UPDATE ON doc_crypto_adjustments
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_adjustment_accounting_complete('doc_crypto_adjustments');
+
+DO $$
+DECLARE table_name TEXT;
+BEGIN
+    FOREACH table_name IN ARRAY ARRAY['reg_crypto_adjustment_sources','reg_crypto_wallet_variance_movements',
+        'reg_crypto_balance_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements',
+        'reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements','sys_outbox'] LOOP
+        EXECUTE format('CREATE CONSTRAINT TRIGGER trg_crypto_adjustment_accounting_complete AFTER INSERT ON %I
+            DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_adjustment_accounting_complete(%L)',table_name,table_name);
+    END LOOP;
+END;
+$$;
+
+CREATE TRIGGER trg_crypto_adjustment_cannot_claim_effect BEFORE INSERT ON reg_crypto_custody_effect_postings
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_adjustment_cannot_claim_effect();
+
+CREATE TRIGGER trg_crypto_reconciliation_request_identity BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_reconciliation_requests
+ FOR EACH ROW EXECUTE FUNCTION fn_crypto_reconciliation_request_identity_guard();
+
+CREATE TRIGGER trg_crypto_activation_identity BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_account_activations FOR EACH ROW EXECUTE FUNCTION fn_crypto_activation_identity_guard();
+
+CREATE TRIGGER trg_crypto_activation_dispatch_guard BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_activation_dispatches FOR EACH ROW EXECUTE FUNCTION fn_crypto_activation_dispatch_guard();
+
+CREATE TRIGGER trg_crypto_reorg_compensation_immutable BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_reorg_compensations
+ FOR EACH ROW EXECUTE FUNCTION fn_crypto_reorg_compensation_immutable();
+
+CREATE TRIGGER trg_crypto_network_hold_insert_replay BEFORE INSERT ON reg_crypto_network_holds FOR EACH ROW EXECUTE FUNCTION fn_crypto_sql_hold_guard();
+
+CREATE TRIGGER trg_crypto_wallet_hold_insert_replay BEFORE INSERT ON reg_crypto_wallet_allocation_holds FOR EACH ROW EXECUTE FUNCTION fn_crypto_sql_hold_guard();
+
+DROP TRIGGER trg_crypto_network_hold_owner_guard ON reg_crypto_network_holds;
+
+DROP TRIGGER trg_crypto_wallet_hold_owner_guard ON reg_crypto_wallet_allocation_holds;
+
+CREATE TRIGGER trg_crypto_network_hold_owner_guard BEFORE UPDATE OR DELETE ON reg_crypto_network_holds FOR EACH ROW EXECUTE FUNCTION fn_crypto_sql_hold_guard();
+
+CREATE TRIGGER trg_crypto_wallet_hold_owner_guard BEFORE UPDATE OR DELETE ON reg_crypto_wallet_allocation_holds FOR EACH ROW EXECUTE FUNCTION fn_crypto_sql_hold_guard();
+
+CREATE TRIGGER trg_crypto_aml_decision_replay BEFORE INSERT ON reg_crypto_aml_decisions FOR EACH ROW EXECUTE FUNCTION fn_crypto_aml_decision_replay_guard();
+
+CREATE TRIGGER trg_crypto_invoice_drift_guard BEFORE INSERT OR UPDATE OR DELETE ON sys_invoice_reconciliation_drift FOR EACH ROW EXECUTE FUNCTION fn_crypto_invoice_drift_guard();
+
+CREATE TRIGGER trg_crypto_invoice_drift_incident_guard BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_security_incidents FOR EACH ROW EXECUTE FUNCTION fn_crypto_invoice_drift_incident_guard();
+
+CREATE TRIGGER trg_crypto_aml_preflight_attempt_immutable BEFORE UPDATE OR DELETE ON reg_crypto_aml_preflight_attempts FOR EACH ROW EXECUTE FUNCTION fn_crypto_aml_evidence_guard();
+
+CREATE TRIGGER trg_crypto_aml_preflight_job_identity BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_aml_preflight_jobs FOR EACH ROW EXECUTE FUNCTION fn_crypto_aml_preflight_job_guard();
+
+CREATE TRIGGER trg_crypto_aml_preflight_attempt_guard BEFORE INSERT ON reg_crypto_aml_preflight_attempts FOR EACH ROW EXECUTE FUNCTION fn_crypto_aml_preflight_attempt_guard();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_aml_preflight_claim_committed AFTER INSERT OR UPDATE ON reg_crypto_aml_preflight_jobs
+ DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_aml_preflight_claim_committed();
+
+CREATE TRIGGER trg_crypto_aml_preflight_attempt_observation BEFORE INSERT ON reg_crypto_aml_preflight_observations FOR EACH ROW EXECUTE FUNCTION fn_crypto_aml_preflight_attempt_observation_guard();
+
+CREATE TRIGGER trg_crypto_block_ingestion_basis BEFORE INSERT OR UPDATE OR DELETE ON sys_crypto_block_ingestion FOR EACH ROW EXECUTE FUNCTION fn_crypto_ingestion_basis_guard();
+
+CREATE TRIGGER trg_crypto_watch_target_guard BEFORE INSERT OR UPDATE OR DELETE ON sys_crypto_watch_targets FOR EACH ROW EXECUTE FUNCTION fn_crypto_watch_target_guard();
+
+CREATE TRIGGER trg_crypto_watched_wallet_identity BEFORE UPDATE OR DELETE ON cat_wallets FOR EACH ROW EXECUTE FUNCTION fn_crypto_watched_catalog_guard();
+
+CREATE TRIGGER trg_crypto_watched_asset_identity BEFORE UPDATE OR DELETE ON cat_tokens FOR EACH ROW EXECUTE FUNCTION fn_crypto_watched_catalog_guard();
+
+CREATE TRIGGER trg_crypto_external_outflow_basis BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_external_outflows FOR EACH ROW EXECUTE FUNCTION fn_crypto_external_outflow_basis_guard();
+
+CREATE TRIGGER trg_crypto_external_outflow_observation_source BEFORE INSERT ON reg_crypto_external_outflow_observations FOR EACH ROW EXECUTE FUNCTION fn_crypto_external_outflow_observation_source();
+
+CREATE TRIGGER trg_crypto_outflow_initial_decision BEFORE INSERT ON reg_crypto_external_outflows FOR EACH ROW EXECUTE FUNCTION fn_crypto_outflow_decision_insert_guard();
+
+CREATE TRIGGER trg_crypto_custody_initial_decision BEFORE INSERT ON doc_crypto_custody_adjustments FOR EACH ROW EXECUTE FUNCTION fn_crypto_outflow_decision_insert_guard();
+
+CREATE TRIGGER trg_crypto_external_outflow_decision BEFORE UPDATE ON reg_crypto_external_outflows FOR EACH ROW EXECUTE FUNCTION fn_crypto_outflow_decision_guard();
+
+CREATE TRIGGER trg_crypto_custody_decision BEFORE UPDATE ON doc_crypto_custody_adjustments FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_decision_guard();
+
+CREATE TRIGGER trg_crypto_outflow_decision_audit_insert BEFORE INSERT ON reg_crypto_external_outflow_actions FOR EACH ROW EXECUTE FUNCTION fn_crypto_outflow_decision_audit_guard();
+
+CREATE TRIGGER trg_crypto_outflow_decision_audit AFTER UPDATE ON reg_crypto_external_outflows FOR EACH ROW EXECUTE FUNCTION fn_crypto_outflow_append_decision_audit();
+
+CREATE TRIGGER trg_crypto_custody_decision_audit AFTER UPDATE ON doc_crypto_custody_adjustments FOR EACH ROW EXECUTE FUNCTION fn_crypto_outflow_append_decision_audit();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_outflow_decision_complete AFTER INSERT OR UPDATE ON reg_crypto_external_outflows DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_outflow_decision_audit_complete();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_custody_decision_complete AFTER INSERT OR UPDATE ON doc_crypto_custody_adjustments DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_outflow_decision_audit_complete();
 -- +goose StatementEnd
 
 -- +goose Down
