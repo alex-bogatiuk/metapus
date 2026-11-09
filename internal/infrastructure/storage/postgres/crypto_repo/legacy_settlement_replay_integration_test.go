@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 	"metapus/internal/application/outboundapp"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
@@ -18,6 +16,9 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/outbound_repo"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 func legacySnapshot(t *testing.T, f crypto_repo.LegacySettlementFixture) string {

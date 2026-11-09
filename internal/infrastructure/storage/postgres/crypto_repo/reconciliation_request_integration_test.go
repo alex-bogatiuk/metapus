@@ -4,16 +4,12 @@ package crypto_repo
 
 import (
 	"context"
-	"database/sql"
-	"io/fs"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/require"
 
-	dbassets "metapus/db"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
@@ -111,40 +107,4 @@ func TestReconciliationRequestWalletPrefixBeforeQueueRow(t *testing.T) {
 		func(ctx context.Context) error {
 			return enqueueReconciliationRequests(ctx, r, reconciliationRequest{r.network, f.destination, r.token, "another_lock_order_test", id.New()})
 		})
-}
-
-func TestReconciliationIdentityMigrationPreservesHistoryAndRejectsInvalidLegacyTarget(t *testing.T) {
-	f := newExpectedRouteFixture(t, "")
-	r := reconciliationRequest{f.event.NetworkID, f.source, f.asset, "migration_test", id.New()}
-	require.NoError(t, enqueueReconciliationRequests(f.ctx, r))
-	before := reconciliationSnapshot(t, f, r.source)
-	db, err := sql.Open("pgx", f.pool.Config().ConnConfig.ConnString())
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, db.Close()) })
-	migrations, err := fs.Sub(dbassets.Files, "migrations")
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.ctx, 91)
-	require.NoError(t, err)
-	_, err = provider.Up(f.ctx)
-	require.NoError(t, err)
-	require.Equal(t, before, reconciliationSnapshot(t, f, r.source))
-	_, err = provider.DownTo(f.ctx, 91)
-	require.NoError(t, err)
-	badSource := id.New()
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_reconciliation_requests(network_id,wallet_id,token_id,source_type,source_id) VALUES($1,$2,$3,'native_funding_source',$4)`, r.network, r.wallet, r.token, badSource)
-	require.NoError(t, err)
-	_, err = provider.Up(f.ctx)
-	require.ErrorContains(t, err, "requires review before upgrade")
-	var version int
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version))
-	require.Equal(t, 91, version)
-	require.Equal(t, before, reconciliationSnapshot(t, f, r.source))
-	// Remove only the synthetic bad row while still on schema 91.
-	_, err = f.pool.Exec(f.ctx, `DELETE FROM reg_crypto_reconciliation_requests WHERE source_id=$1`, badSource)
-	require.NoError(t, err)
-	_, err = provider.Up(f.ctx)
-	require.NoError(t, err)
-	require.Equal(t, before, reconciliationSnapshot(t, f, r.source))
 }

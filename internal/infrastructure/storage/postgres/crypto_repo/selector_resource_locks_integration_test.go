@@ -7,9 +7,10 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestSelectorResourceLockFailureReleasesWholePrefix(t *testing.T) {

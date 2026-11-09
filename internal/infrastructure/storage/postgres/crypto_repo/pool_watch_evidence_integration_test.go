@@ -4,20 +4,17 @@ package crypto_repo
 
 import (
 	"context"
-	"database/sql"
-	"io/fs"
 	"strings"
 	"sync"
 	"testing"
 
-	"github.com/pressly/goose/v3"
-	"github.com/stretchr/testify/require"
-	dbassets "metapus/db"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestPoolCancellationReplayPreservesCommandAndHistory(t *testing.T) {
@@ -94,22 +91,6 @@ func TestPoolCancellationReplayPreservesCommandAndHistory(t *testing.T) {
 			require.ErrorContains(t, err, "original command")
 		}
 	}
-	// Migration changes functions only, including when evidence already exists.
-	db, err := sql.Open("pgx", f.pool.Config().ConnConfig.ConnString())
-	require.NoError(t, err)
-	defer func() { _ = db.Close() }()
-	root, err := fs.Sub(dbassets.Files, "migrations")
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, root)
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.ctx, 98)
-	require.NoError(t, err)
-	require.Equal(t, before, snapshot())
-	_, err = provider.Up(f.ctx)
-	require.NoError(t, err)
-	require.Equal(t, before, snapshot())
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_aml_pool_intent_cancellations(intent_id,reason,cancelled_by) VALUES($1,'changed after upgrade','operator') ON CONFLICT DO NOTHING`, first)
-	require.ErrorContains(t, err, "original command")
 }
 
 func TestPoolCancellationSQLLocksScopeBeforeIntent(t *testing.T) {

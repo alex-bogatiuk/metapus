@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/stretchr/testify/require"
 )
 
 type merchantProvisionStub func(context.Context, id.ID, crypto.NetworkRef, id.ID, string, string) (crypto.WalletDerivation, crypto.MerchantWalletEnrollment, error)

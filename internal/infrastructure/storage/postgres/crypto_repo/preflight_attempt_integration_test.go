@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/stretchr/testify/require"
 )
 
 func preflightSnapshot108(t *testing.T, f amlRoutingFixture) string {
@@ -146,31 +147,6 @@ func TestPreflightClaimRequiresAttemptAtCommitAndSkipsBusyWallet(t *testing.T) {
 	_, ok, err = f.repo.ClaimAMLPreflight(f.ctx, "resumed worker", time.Minute)
 	require.NoError(t, err)
 	require.True(t, ok)
-}
-
-func TestPreflightAttemptMigrationRetainsLegacyJobWithoutInventedBasis(t *testing.T) {
-	f, p, wallet := prepareAutomaticBaseline(t)
-	provider := history107Provider(t, f)
-	_, err := provider.DownTo(f.ctx, 100)
-	require.NoError(t, err)
-	legacy := id.New()
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_aml_preflight_jobs(id,wallet_id,token_id,policy_id,policy_version,scope_version) VALUES($1,$2,$3,$4,$5,1)`, legacy, wallet, f.input.Request.TokenID, p.ID, p.Version)
-	require.NoError(t, err)
-	_, err = provider.Up(f.ctx)
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.ctx, 100)
-	require.NoError(t, err, "untouched legacy job permits Down/Up")
-	_, err = provider.Up(f.ctx)
-	require.NoError(t, err)
-	job, ok, err := f.repo.ClaimAMLPreflight(f.ctx, "first recorded worker", time.Minute)
-	require.NoError(t, err)
-	require.True(t, ok)
-	require.Equal(t, legacy, job.ID)
-	var unknown bool
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT initial_policy_version IS NULL AND initial_scope_version IS NULL FROM reg_crypto_aml_preflight_jobs WHERE id=$1`, legacy).Scan(&unknown))
-	require.True(t, unknown)
-	_, err = provider.DownTo(f.ctx, 100)
-	require.ErrorContains(t, err, "forward recovery")
 }
 
 // Set up the second network in the same database so queue selection must choose

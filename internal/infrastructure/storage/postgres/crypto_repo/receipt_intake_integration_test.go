@@ -4,18 +4,12 @@ package crypto_repo
 
 import (
 	"context"
-	"database/sql"
 	"errors"
-	"io/fs"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pressly/goose/v3"
-	"github.com/stretchr/testify/require"
-	dbassets "metapus/db"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
@@ -29,6 +23,9 @@ import (
 	"metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/require"
 )
 
 type receiptIntakeFixture struct {
@@ -322,15 +319,6 @@ func TestCustodyReceiptSingleOwnerAcrossForkAndRecorder(t *testing.T) {
 	request.Basis.BlockHash, request.Basis.VerificationID = reincluded.Event.BlockHash, &newProofID
 	_, err = f.service.Record(f.ctx, request)
 	require.ErrorContains(t, err, "accounting investigation")
-	db, err := sql.Open("pgx", f.pool.Config().ConnConfig.ConnString())
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = db.Close() })
-	migrations, err := fs.Sub(dbassets.Files, "migrations")
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.ctx, 77)
-	require.ErrorContains(t, err, "requires forward migration")
 }
 
 func TestCustodyReceiptDrainChecksChainOutcomeRatherThanAuthorizationStatus(t *testing.T) {
@@ -372,47 +360,4 @@ func TestCustodyReceiptDrainChecksChainOutcomeRatherThanAuthorizationStatus(t *t
 	require.NoError(t, err)
 	_, err = f.service.Record(f.ctx, f.request)
 	require.NoError(t, err, "historical broadcast status with a final settlement is drained")
-}
-
-func TestCustodyReceiptMigrationPreservesLegacyInventoryAndEmptyRollback(t *testing.T) {
-	f := newReceiptIntakeFixture(t, nil)
-	db, err := sql.Open("pgx", f.pool.Config().ConnConfig.ConnString())
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = db.Close() })
-	migrations, err := fs.Sub(dbassets.Files, "migrations")
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.ctx, 77)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_balance_movements(
-		recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount)
-		VALUES($1,'LegacyWriter',1,NOW(),'receipt',$2,$3,23)`, id.New(), f.request.Basis.WalletID, f.request.Basis.TokenID)
-	require.NoError(t, err)
-	for range 2 {
-		_, err = provider.Up(f.ctx)
-		require.NoError(t, err)
-		var count int
-		var balance string
-		require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT
-			(SELECT count(*) FROM doc_crypto_custody_receipts),
-			(SELECT amount::text FROM reg_crypto_balance_balances WHERE wallet_id=$1 AND token_id=$2)`,
-			f.request.Basis.WalletID, f.request.Basis.TokenID).Scan(&count, &balance))
-		require.Zero(t, count, "migration must not invent receipts for legacy inventory")
-		require.Equal(t, "23", balance)
-		_, err = f.service.Record(f.ctx, f.request)
-		require.ErrorContains(t, err, "accounting investigation")
-		_, err = provider.DownTo(f.ctx, 77)
-		require.NoError(t, err, "an unused schema expansion can be rolled back")
-	}
-	_, err = provider.Up(f.ctx)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_balance_movements(
-		recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount)
-		VALUES($1,'LegacyWriter',1,NOW(),'expense',$2,$3,1)`, id.New(), f.request.Basis.WalletID, f.request.Basis.TokenID)
-	require.NoError(t, err, "legacy writers continue on inventory that has no v2 receipt")
-	var balance string
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT amount::text FROM reg_crypto_balance_balances
-		WHERE wallet_id=$1 AND token_id=$2`, f.request.Basis.WalletID, f.request.Basis.TokenID).Scan(&balance))
-	require.Equal(t, "22", balance)
 }

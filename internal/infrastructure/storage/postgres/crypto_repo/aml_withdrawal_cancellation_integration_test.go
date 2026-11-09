@@ -8,12 +8,13 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto/aml"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/stretchr/testify/require"
 )
 
 func assertWithdrawalCancellationCounts(t *testing.T, f amlRoutingFixture, request id.ID, expected []int) {

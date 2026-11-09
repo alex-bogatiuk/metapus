@@ -3,9 +3,10 @@
 package crypto_repo
 
 import (
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAMLPreflightOperatorRetryPreservesHistoryAndNeverOverridesInventory(t *testing.T) {

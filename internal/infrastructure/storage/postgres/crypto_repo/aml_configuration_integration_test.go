@@ -4,12 +4,13 @@ package crypto_repo
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"metapus/internal/core/version"
 	"metapus/internal/infrastructure/storage/postgres"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAMLConfigurationSnapshotReportsMissingNativeAndNamespaceWithoutMutations(t *testing.T) {

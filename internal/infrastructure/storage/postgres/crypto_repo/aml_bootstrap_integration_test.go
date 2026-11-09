@@ -6,11 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto/aml"
 	amlruntime "metapus/internal/infrastructure/aml/runtime"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAMLTestnetBootstrapPreservesMoneyAndAcceptsLaterRandomChecks(t *testing.T) {

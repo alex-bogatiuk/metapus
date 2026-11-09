@@ -7,12 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/outbound_repo"
+
+	"github.com/stretchr/testify/require"
 )
 
 func allocationSnapshot(t *testing.T, f rentalReplayFixture, key id.ID) string {

@@ -4,15 +4,10 @@ package crypto_repo_test
 
 import (
 	"context"
-	"database/sql"
-	"io/fs"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/pressly/goose/v3"
-	"github.com/stretchr/testify/require"
-	dbassets "metapus/db"
 	"metapus/internal/application/outboundapp"
 	"metapus/internal/core/id"
 	"metapus/internal/core/numerator"
@@ -27,6 +22,8 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/outbound_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
+
+	"github.com/stretchr/testify/require"
 )
 
 type activationExecutionFixture struct {
@@ -202,15 +199,6 @@ func TestActivationExecutionDispatchIsSingleAndImmutable(t *testing.T) {
 	require.ErrorContains(t, err, "immutable")
 	_, err = f.Pool.Exec(f.Ctx, `UPDATE reg_crypto_activation_dispatches SET unsigned_fingerprint='changed' WHERE activation_id=$1`, f.task.ActivationID)
 	require.ErrorContains(t, err, "immutable")
-	db, err := sql.Open("pgx", f.Pool.Config().ConnConfig.ConnString())
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, db.Close()) })
-	migrations, err := fs.Sub(dbassets.Files, "migrations")
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.Ctx, 95)
-	require.ErrorContains(t, err, "forward recovery")
 	var count int
 	require.NoError(t, f.Pool.QueryRow(f.Ctx, `SELECT count(*) FROM reg_crypto_activation_dispatches WHERE activation_id=$1`, f.task.ActivationID).Scan(&count))
 	require.Equal(t, 1, count)

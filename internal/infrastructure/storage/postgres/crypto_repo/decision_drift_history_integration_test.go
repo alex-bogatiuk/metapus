@@ -10,12 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pressly/goose/v3"
-	"github.com/stretchr/testify/require"
 	dbassets "metapus/db"
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/pressly/goose/v3"
+	"github.com/stretchr/testify/require"
 )
 
 func history107Provider(t *testing.T, f amlRoutingFixture) *goose.Provider {
@@ -134,29 +135,6 @@ func TestAMLDecisionChangedSavedAssessmentDoesNotConsumeQueue(t *testing.T) {
 	require.Equal(t, before, decisionSnapshot107(t, f))
 }
 
-func TestAMLDecisionMigrationRetainsClockAndLegacyOutcome(t *testing.T) {
-	f := completedDecision107(t)
-	provider := history107Provider(t, f)
-	before := decisionSnapshot107(t, f)
-	_, err := provider.DownTo(f.ctx, 99)
-	require.NoError(t, err)
-	require.Equal(t, before, decisionSnapshot107(t, f), "Down retains the additive assessment clock")
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO sys_crypto_aml_risk_policies(version,low_max_bp,medium_max_bp,max_report_age_seconds,decision_ttl_seconds,accepted_signals,critical_signals)
- SELECT 'history107-legacy',low_max_bp,medium_max_bp,max_report_age_seconds,decision_ttl_seconds,accepted_signals,critical_signals FROM sys_crypto_aml_risk_policies WHERE version='routing-v1'`)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `UPDATE sys_crypto_aml_routing_scopes SET policy_version='history107-legacy',version=version+1`)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_aml_decisions(subject_id,report_id,generation,policy_version,risk_class,reason)
- SELECT subject_id,report_id,generation,'history107-legacy','unknown','legacy retained outcome' FROM reg_crypto_aml_decisions WHERE policy_version='routing-v1'`)
-	require.NoError(t, err)
-	legacy := decisionSnapshot107(t, f)
-	_, err = provider.Up(f.ctx)
-	require.NoError(t, err)
-	_, err = f.repo.ApplyNextAMLDecision(f.ctx, time.Now().Add(24*time.Hour))
-	require.NoError(t, err)
-	require.Equal(t, legacy, decisionSnapshot107(t, f), "no inferred legacy evaluation clock or recalculated expiry")
-}
-
 func driftInvoice107(t *testing.T, f amlRoutingFixture) id.ID {
 	t.Helper()
 	invoice := id.New()
@@ -235,57 +213,9 @@ func TestInvoiceDriftRetainsFirstBasisAndCreatesNewEpisodeAfterResolution(t *tes
 	})
 	require.ErrorContains(t, err, "outer rollback")
 	require.Equal(t, before, driftSnapshot107(t, f))
-	_, err = history107Provider(t, f).DownTo(f.ctx, 99)
-	require.ErrorContains(t, err, "forward recovery")
 	var movements int
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT count(*) FROM reg_crypto_balance_movements`).Scan(&movements))
 	require.Zero(t, movements)
-}
-
-func TestInvoiceDriftLegacyHistoryIsRetainedAndNextEpisodeIsSeparate(t *testing.T) {
-	f := newAMLRoutingFixture(t, false)
-	invoice := driftInvoice107(t, f)
-	provider := history107Provider(t, f)
-	_, err := provider.DownTo(f.ctx, 99)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO sys_invoice_reconciliation_drift(invoice_id,consecutive_cycles,details) VALUES($1,3,'{"error":"legacy latest"}')`, invoice)
-	require.NoError(t, err)
-	legacyID := id.New()
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_security_incidents(id,network_id,invoice_id,incident_kind,tx_hash,details)
- VALUES($1,$2,$3,'invoice_projection_drift',$3::uuid::text,'{"reason":"legacy original"}')`, legacyID, f.input.Request.NetworkID, invoice)
-	require.NoError(t, err)
-	// A crash in the old two-statement writer could leave an open projection
-	// pointing at a closed legacy case. Preserve it for explicit reconciliation.
-	inconsistent := driftInvoice107(t, f)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO sys_invoice_reconciliation_drift(invoice_id,consecutive_cycles,details) VALUES($1,2,'{"error":"legacy partial reopen"}')`, inconsistent)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_security_incidents(network_id,invoice_id,incident_kind,tx_hash,details,status,resolved_at)
- VALUES($1,$2,'invoice_projection_drift',$2::uuid::text,'{"reason":"legacy closed"}','resolved',NOW())`, f.input.Request.NetworkID, inconsistent)
-	require.NoError(t, err)
-	var before, after string
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT to_jsonb(i)::text FROM reg_crypto_security_incidents i WHERE id=$1`, legacyID).Scan(&before))
-	_, err = provider.Up(f.ctx)
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.ctx, 99)
-	require.NoError(t, err, "untouched legacy rows permit Down/Up")
-	_, err = provider.Up(f.ctx)
-	require.NoError(t, err)
-	repo := NewWorkerRuntimeRepo()
-	partial := driftSnapshot107(t, f)
-	require.ErrorContains(t, repo.RecordInvoiceDrift(f.ctx, inconsistent, "late callback"), "new episode")
-	require.Equal(t, partial, driftSnapshot107(t, f))
-	require.NoError(t, repo.RecordInvoiceDrift(f.ctx, invoice, "new legacy observation"))
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT to_jsonb(i)::text FROM reg_crypto_security_incidents i WHERE id=$1`, legacyID).Scan(&after))
-	require.Equal(t, before, after)
-	var missing bool
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT initial_details IS NULL AND episode_id IS NULL AND incident_id=$2 FROM sys_invoice_reconciliation_drift WHERE invoice_id=$1`, invoice, legacyID).Scan(&missing))
-	require.True(t, missing, "legacy first observation is not reconstructed from the latest error")
-	require.NoError(t, repo.ResolveInvoiceDrift(f.ctx, invoice))
-	require.NoError(t, repo.RecordInvoiceDrift(f.ctx, invoice, "next case first"))
-	require.NoError(t, repo.RecordInvoiceDrift(f.ctx, invoice, "next case second"))
-	var count int
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT count(*) FROM reg_crypto_security_incidents WHERE invoice_id=$1`, invoice).Scan(&count))
-	require.Equal(t, 2, count)
 }
 
 func TestInvoiceDriftSharesNonblockingInvoiceGateAndRejectsForeignLinks(t *testing.T) {

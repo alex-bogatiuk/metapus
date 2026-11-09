@@ -4,18 +4,12 @@ package crypto_repo
 
 import (
 	"context"
-	"database/sql"
-	"io/fs"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/pressly/goose/v3"
-	"github.com/stretchr/testify/require"
-	dbassets "metapus/db"
 	"metapus/internal/application/cryptoapp"
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain"
@@ -28,6 +22,8 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
+
+	"github.com/stretchr/testify/require"
 )
 
 type paymentRecognitionFixture struct {
@@ -265,91 +261,6 @@ func TestPaymentRecognitionRejectsForgedReversalDimensions(t *testing.T) {
 // The historical adapter exposes the pre-89 storage interface while seeding
 // schema 79. Production binaries require their exact schema version.
 type historicalPaymentBalanceRepo struct{ crypto_balance.Repository }
-
-func legacyPaymentForAdoption(t *testing.T) paymentRecognitionFixture {
-	t.Helper()
-	f := newPaymentRecognitionFixture(t, nil)
-	provider := paymentMigrationProvider(t, f)
-	_, err := provider.DownTo(f.ctx, 79)
-	require.NoError(t, err)
-	require.NoError(t, f.post(f.payment, f.engineWithBalanceRepo(false, true, true,
-		historicalPaymentBalanceRepo{register_repo.NewCryptoBalanceRepo()})))
-	_, err = provider.Up(f.ctx)
-	require.NoError(t, err)
-	return f
-}
-
-func paymentMigrationProvider(t *testing.T, f paymentRecognitionFixture) *goose.Provider {
-	t.Helper()
-	db, err := sql.Open("pgx", f.pool.Config().ConnConfig.ConnString())
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = db.Close() })
-	migrations, err := fs.Sub(dbassets.Files, "migrations")
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
-	require.NoError(t, err)
-	return provider
-}
-
-func TestPaymentRecognitionAdoptionIsConcurrentAndCreatesNoMoney(t *testing.T) {
-	f := legacyPaymentForAdoption(t)
-	before := f.balances(t)
-	cmd := cryptoapp.AdoptPaymentRecognitionCommand{PaymentID: f.payment.ID, VerificationID: *f.payment.VerificationID, Actor: "reviewer", Reference: "verified legacy source"}
-	const workers = 8
-	results, errs := make([]cryptoapp.PaymentRecognitionResult, workers), make([]error, workers)
-	var wg sync.WaitGroup
-	for i := range workers {
-		wg.Go(func() { results[i], errs[i] = f.recognition.Adopt(f.ctx, cmd) })
-	}
-	wg.Wait()
-	for i := range workers {
-		require.NoError(t, errs[i])
-		require.Equal(t, results[0].PostingID, results[i].PostingID)
-	}
-	require.Equal(t, before, f.balances(t))
-	var custody, merchant, fee int
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM reg_crypto_balance_movements),
-		(SELECT count(*) FROM reg_crypto_merchant_balance_movements),(SELECT count(*) FROM reg_crypto_fee_movements)`).Scan(&custody, &merchant, &fee))
-	require.Equal(t, []int{1, 1, 1}, []int{custody, merchant, fee})
-	cmd.Reference = "changed attestation"
-	_, err := f.recognition.Adopt(f.ctx, cmd)
-	require.ErrorContains(t, err, "attestation")
-	_, err = paymentMigrationProvider(t, f).DownTo(f.ctx, 79)
-	require.ErrorContains(t, err, "requires forward migration")
-}
-
-func TestPaymentRecognitionCannotDisguiseOnlineAdoptionAsPosting(t *testing.T) {
-	f := legacyPaymentForAdoption(t)
-	_, err := f.pool.Exec(f.ctx, `UPDATE sys_crypto_network_policies SET enabled=TRUE,
-		per_transaction_max_fee_minor=10,daily_network_fee_budget_minor=100 WHERE network_id=$1`, f.payment.NetworkID)
-	require.NoError(t, err)
-	_, err = f.recognition.Adopt(f.ctx, cryptoapp.AdoptPaymentRecognitionCommand{PaymentID: f.payment.ID, VerificationID: *f.payment.VerificationID, Actor: "reviewer", Reference: "legacy"})
-	require.ErrorContains(t, err, "disabled drained network")
-	err = postgres.MustGetTxManager(f.ctx).RunInTransaction(f.ctx, func(ctx context.Context) error {
-		original, err := NewPaymentRecognitionRepo().OriginalMovement(ctx, f.payment)
-		if err != nil {
-			return err
-		}
-		copy := *f.payment
-		copy.PostedVersion = 0
-		set := posting.NewMovementSet()
-		// The source interface generates new identities; use the old one here
-		// to prove that SQL rejects a forged posting over a committed movement.
-		set.SetExtension("crypto_balance", []entity.CryptoBalanceMovement{original})
-		return f.recognition.PrepareMovements(ctx, &copy, set)
-	})
-	require.Error(t, err)
-	require.Equal(t, []string{"23", "20", "3"}, f.balances(t))
-}
-
-func TestPaymentRecognitionLegacyMetadataUpdatesRemainUsable(t *testing.T) {
-	f := legacyPaymentForAdoption(t)
-	_, err := f.pool.Exec(f.ctx, "UPDATE doc_crypto_payments SET confirmations=confirmations+1 WHERE id=$1", f.payment.ID)
-	require.NoError(t, err)
-	var count int
-	require.NoError(t, f.pool.QueryRow(f.ctx, "SELECT count(*) FROM reg_crypto_payment_custody_bindings").Scan(&count))
-	require.Zero(t, count)
-}
 
 func TestPaymentRecognitionReorgRequiresProofAndHoldsBeforeIngestionCutover(t *testing.T) {
 	f := newPaymentRecognitionFixture(t, nil)

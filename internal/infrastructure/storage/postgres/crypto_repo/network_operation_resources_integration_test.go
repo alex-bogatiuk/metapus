@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/documents/crypto_network_operation"
@@ -20,6 +19,8 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
+
+	"github.com/stretchr/testify/require"
 )
 
 func networkOperationResourcesFixture(t *testing.T) (crypto_repo.ActivationSelectorFixture, id.ID, id.ID) {

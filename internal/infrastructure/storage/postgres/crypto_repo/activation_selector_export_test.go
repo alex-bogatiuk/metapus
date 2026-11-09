@@ -6,11 +6,12 @@ import (
 	"context"
 	"testing"
 
+	"metapus/internal/core/id"
+	"metapus/internal/infrastructure/storage/postgres"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
 )
 
 type ActivationSelectorFixture struct {

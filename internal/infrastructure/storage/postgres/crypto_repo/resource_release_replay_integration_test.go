@@ -7,9 +7,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/outbound_repo"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestResourceReleaseConcurrentReplayPreservesFirstDecision(t *testing.T) {

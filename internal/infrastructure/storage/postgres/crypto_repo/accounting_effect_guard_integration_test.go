@@ -7,12 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAccountingCustodyGuardRequiresProofOutsideLegacyActivation(t *testing.T) {

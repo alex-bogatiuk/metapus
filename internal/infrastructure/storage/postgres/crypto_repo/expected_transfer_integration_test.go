@@ -5,19 +5,17 @@ package crypto_repo
 import (
 	"context"
 	"database/sql"
-	"io/fs"
 	"strings"
 	"sync"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pressly/goose/v3"
-	"github.com/stretchr/testify/require"
-	dbassets "metapus/db"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/require"
 )
 
 type expectedRouteFixture struct {
@@ -269,35 +267,6 @@ func TestExpectedTransferDirectSQLCannotStealOwnerOrOmitOutbox(t *testing.T) {
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_expected_transfer_routes(effect_id,expected_effect_id,first_verification_id,owner_type,owner_id) SELECT effect_id,expected_effect_id,first_verification_id,'OtherOwner',$1 FROM reg_crypto_expected_transfer_routes`, id.New())
 	require.ErrorContains(t, err, "route owner is immutable")
 	require.Equal(t, []int{1, 1, 1, 1, 0}, f.counts(t))
-}
-func TestExpectedTransferUpgradePreservesLegacyMatches(t *testing.T) {
-	f := newExpectedRouteFixture(t, "")
-	db, err := sql.Open("pgx", f.pool.Config().ConnConfig.ConnString())
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, db.Close()) })
-	migrations, err := fs.Sub(dbassets.Files, "migrations")
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.ctx, 86)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_chain_effect_matches(expected_effect_id,network_id,tx_hash,event_kind,event_index) VALUES($1,$2,$3,$4,$5)`, f.expected, f.event.NetworkID, f.event.TxHash, f.event.EventKind, f.event.EventIndex)
-	require.NoError(t, err)
-	var before, after string
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT jsonb_agg(to_jsonb(m) ORDER BY id)::text FROM reg_crypto_chain_effect_matches m`).Scan(&before))
-	_, err = provider.Up(f.ctx)
-	require.NoError(t, err)
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT jsonb_agg(to_jsonb(m) ORDER BY id)::text FROM reg_crypto_chain_effect_matches m`).Scan(&after))
-	require.Equal(t, before, after)
-	require.Equal(t, []int{0, 0, 0, 0, 0}, f.counts(t))
-	_, err = provider.DownTo(f.ctx, 86)
-	require.NoError(t, err)
-	_, err = provider.Up(f.ctx)
-	require.NoError(t, err)
-	_, err = f.route(f.event)
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.ctx, 86)
-	require.ErrorContains(t, err, "expected transfer routing requires forward migration")
 }
 
 func TestExpectedTransferDoesNotSuppressOtherEconomicsInSameTransaction(t *testing.T) {

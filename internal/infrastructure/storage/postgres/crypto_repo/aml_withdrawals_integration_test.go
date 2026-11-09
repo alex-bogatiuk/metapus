@@ -8,12 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/crypto/aml"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/stretchr/testify/require"
 )
 
 func reserveRiskWithdrawal(f amlRoutingFixture, class aml.Class, amount string, accepted bool) (crypto.MoneyMovementIntent, error) {

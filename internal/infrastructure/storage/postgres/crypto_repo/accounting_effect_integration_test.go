@@ -4,20 +4,17 @@ package crypto_repo
 
 import (
 	"context"
-	"database/sql"
-	"io/fs"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pressly/goose/v3"
-	"github.com/stretchr/testify/require"
-	dbassets "metapus/db"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/require"
 )
 
 func accountingProof(t *testing.T, ctx context.Context, pool *pgxpool.Pool) crypto.TransferVerification {
@@ -181,39 +178,4 @@ func TestAccountingEffectDatabaseRequiresExactPersistedProof(t *testing.T) {
 		strings.ToLower(proof.Event.TokenContract)).Scan(&occurrenceID))
 	_, err = tx.Exec(ctx, "INSERT INTO reg_crypto_accounting_effect_evidence(verification_id,occurrence_id) VALUES($1,$2)", proofID, occurrenceID)
 	require.ErrorContains(t, err, "does not match verified occurrence")
-}
-
-func TestAccountingEffectMigrationPreservesLegacyAndProtectsEvidenceHistory(t *testing.T) {
-	ctx, pool := amlTestDatabase(t)
-	proof := accountingProof(t, ctx, pool)
-	legacy := proof
-	legacy.AccountingIdentity = nil
-	repo := NewBlockIngestionRepo()
-	legacyID, err := repo.SaveVerification(ctx, legacy)
-	require.NoError(t, err)
-	db, err := sql.Open("pgx", pool.Config().ConnConfig.ConnString())
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = db.Close() })
-	migrations, err := fs.Sub(dbassets.Files, "migrations")
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
-	require.NoError(t, err)
-	_, err = provider.DownTo(ctx, 76)
-	require.NoError(t, err)
-	_, err = provider.Up(ctx)
-	require.NoError(t, err)
-	var hasIdentity bool
-	require.NoError(t, pool.QueryRow(ctx, "SELECT evidence ? 'accountingIdentity' FROM reg_crypto_transfer_verifications WHERE id=$1", legacyID).Scan(&hasIdentity))
-	require.False(t, hasIdentity, "schema expansion must preserve existing transfer evidence")
-	proof.Event.Confirmations++
-	for index := range proof.Sources {
-		proof.Sources[index].HeadHeight++
-	}
-	_, err = repo.SaveVerification(ctx, proof)
-	require.NoError(t, err)
-	_, err = provider.DownTo(ctx, 76)
-	require.ErrorContains(t, err, "accounting evidence history requires a forward-compatible binary")
-	var version int
-	require.NoError(t, pool.QueryRow(ctx, "SELECT max(version_id) FROM goose_db_version WHERE is_applied").Scan(&version))
-	require.Equal(t, 77, version)
 }

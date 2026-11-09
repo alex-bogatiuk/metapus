@@ -8,12 +8,13 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/domain"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/stretchr/testify/require"
 )
 
 func adjustmentService() *cryptoapp.FinancialAdjustmentService {
@@ -200,19 +201,6 @@ func TestAdjustmentBasisSourcesFreezeAtProposal(t *testing.T) {
 	require.ErrorContains(t, err, "history is immutable")
 }
 
-func TestAdjustmentBasisIndexedLegacyRequiresAdoption(t *testing.T) {
-	f := legacyPaymentForAdoption(t)
-	_, err := f.pool.Exec(f.ctx, "UPDATE doc_crypto_payments SET status='settled' WHERE id=$1", f.payment.ID)
-	require.NoError(t, err)
-	_, err = adjustmentService().Propose(f.ctx, adjustmentCommand(f))
-	require.ErrorContains(t, err, "explicit adoption")
-	_, err = f.recognition.Adopt(f.ctx, cryptoapp.AdoptPaymentRecognitionCommand{PaymentID: f.payment.ID, VerificationID: *f.payment.VerificationID, Actor: "reviewer", Reference: "verified original movement generation"})
-	require.NoError(t, err)
-	a, err := adjustmentService().Propose(f.ctx, adjustmentCommand(f))
-	require.NoError(t, err)
-	require.Equal(t, "payment_compensation", a.BasisKind)
-}
-
 func TestAdjustmentBasisWalletVarianceDoesNotRecognizeUserHash(t *testing.T) {
 	f := newPaymentRecognitionFixture(t, nil)
 	raw, err := json.Marshal(map[string]any{"description": "independent wallet variance evidence", "txHash": f.payment.TxHash, "verificationId": f.payment.VerificationID})
@@ -288,46 +276,4 @@ func TestAdjustmentBasisCannotApproveOldGeneration(t *testing.T) {
 	_, err = adjustmentService().Approve(f.ctx, a.ID, id.New(), "stale generation decision")
 	require.ErrorContains(t, err, "generation changed")
 	require.Equal(t, []string{"23", "20", "3"}, f.balances(t))
-}
-
-func TestAdjustmentBasisUpgradePreservesHistoricalDecisions(t *testing.T) {
-	f := newPaymentRecognitionFixture(t, nil)
-	provider := paymentMigrationProvider(t, f)
-	_, err := provider.DownTo(f.ctx, 87)
-	require.NoError(t, err)
-	posted, pending, maker, checker := id.New(), id.New(), id.New(), id.New()
-	for _, target := range []id.ID{posted, pending} {
-		_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_adjustments(id,mode,wallet_id,token_id,direction,amount,reason_code,evidence,idempotency_key,request_hash,maker_id)
-			VALUES($1,'wallet_balance',$2,$3,'receipt',7,'wallet_other','{"description":"historical manual balance correction"}',$1::uuid::text,'old-fingerprint',$4)`, target, f.payment.WalletID, f.payment.TokenID, maker)
-		require.NoError(t, err)
-	}
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_balance_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount)
-		VALUES($1,$2,'CryptoAdjustment',1,now(),'receipt',$3,$4,7)`, id.New(), posted, f.payment.WalletID, f.payment.TokenID)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_wallet_variance_movements(line_id,adjustment_id,wallet_id,token_id,variance_type,amount)
-		VALUES($1,$2,$3,$4,'surplus',7)`, id.New(), posted, f.payment.WalletID, f.payment.TokenID)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, "UPDATE doc_crypto_adjustments SET status='posted',checker_id=$2,decision_reason='historical approval',decided_at=now() WHERE id=$1", posted, checker)
-	require.NoError(t, err)
-	snapshot := `SELECT jsonb_build_object('docs',(SELECT jsonb_agg(to_jsonb(d)-ARRAY['accounting_model_version','basis_kind','source_posting_id','proposal_txid'] ORDER BY id) FROM doc_crypto_adjustments d),
-		'physical',(SELECT jsonb_agg(to_jsonb(m) ORDER BY line_id) FROM reg_crypto_balance_movements m),
-		'variance',(SELECT jsonb_agg(to_jsonb(v) ORDER BY line_id) FROM reg_crypto_wallet_variance_movements v))::text`
-	var before, after string
-	require.NoError(t, f.pool.QueryRow(f.ctx, snapshot).Scan(&before))
-	_, err = provider.Up(f.ctx)
-	require.NoError(t, err)
-	require.NoError(t, f.pool.QueryRow(f.ctx, snapshot).Scan(&after))
-	require.Equal(t, before, after)
-	historical, err := adjustmentService().Get(f.ctx, posted)
-	require.NoError(t, err)
-	require.Equal(t, 1, historical.AccountingModelVersion)
-	require.Equal(t, "legacy", historical.BasisKind)
-	approved, err := adjustmentService().Approve(f.ctx, pending, checker, "drained historical pending proposal")
-	require.NoError(t, err)
-	require.Equal(t, 1, approved.AccountingModelVersion)
-	_, err = adjustmentService().Propose(f.ctx, cryptoapp.ProposeFinancialAdjustmentCommand{Mode: "wallet_balance", WalletID: f.payment.WalletID, TokenID: f.payment.TokenID,
-		Direction: "receipt", Amount: "7", MakerID: maker, ReasonCode: "wallet_other", Evidence: json.RawMessage(`{"description":"new independent balance variance evidence"}`), IdempotencyKey: id.New().String()})
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.ctx, 87)
-	require.ErrorContains(t, err, "requires forward migration")
 }

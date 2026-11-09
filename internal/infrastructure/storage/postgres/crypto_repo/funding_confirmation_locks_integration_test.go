@@ -6,9 +6,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestFundingConfirmationBusyRowReleasesScopesAndWallets(t *testing.T) {

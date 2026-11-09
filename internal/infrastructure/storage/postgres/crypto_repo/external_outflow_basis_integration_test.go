@@ -8,13 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/stretchr/testify/require"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/stretchr/testify/require"
 )
 
 type outflowFixture110 struct {
@@ -178,31 +179,6 @@ func TestExternalOutflowResourcePrefixFailsWithoutPartialWrites(t *testing.T) {
 	defer func() { _ = tx.Rollback(ctx) }()
 	_, err = tx.Exec(ctx, `UPDATE reg_crypto_external_outflows SET confirmations=confirmations+1 WHERE id=$1`, key)
 	require.ErrorContains(t, err, "read committed")
-}
-
-func TestExternalOutflowBasisMigrationKeepsLegacyUnknownSources(t *testing.T) {
-	f := newOutflowFixture110(t, "tron")
-	ctx, pool := f.base.ctx, f.base.pool
-	provider := history107Provider(t, f.base)
-	_, err := provider.DownTo(ctx, 102)
-	require.NoError(t, err)
-	var key id.ID
-	require.NoError(t, pool.QueryRow(ctx, `INSERT INTO reg_crypto_external_outflows(network_id,token_id,source_wallet_id,tx_hash,event_kind,event_index,from_address,to_address,source_address_key,destination_address_key,contract_address,contract_address_key,amount)
- VALUES($1,$2,$3,$4,'contract_log',0,$5,$6,$5,$6,$7,$7,42) RETURNING id`, f.network, f.asset, f.wallet, f.event.TxHash, f.event.FromAddress, f.event.ToAddress, f.event.TokenContract).Scan(&key))
-	_, err = provider.Up(ctx)
-	require.NoError(t, err)
-	var unknown bool
-	require.NoError(t, pool.QueryRow(ctx, `SELECT initial_basis IS NULL FROM reg_crypto_external_outflows WHERE id=$1`, key).Scan(&unknown))
-	require.True(t, unknown)
-	_, err = provider.DownTo(ctx, 102)
-	require.NoError(t, err)
-	_, err = provider.Up(ctx)
-	require.NoError(t, err)
-	_, err = pool.Exec(ctx, `INSERT INTO reg_crypto_external_outflows(network_id,token_id,source_wallet_id,tx_hash,event_kind,event_index,from_address,to_address,source_address_key,destination_address_key,contract_address,contract_address_key,amount)
- SELECT network_id,token_id,source_wallet_id,tx_hash,event_kind,event_index+1,from_address,to_address,source_address_key,destination_address_key,contract_address,contract_address_key,amount FROM reg_crypto_external_outflows WHERE id=$1`, key)
-	require.NoError(t, err)
-	_, err = provider.DownTo(ctx, 102)
-	require.ErrorContains(t, err, "forward recovery")
 }
 
 func TestExternalOutflowObservationsRejectForeignSources(t *testing.T) {

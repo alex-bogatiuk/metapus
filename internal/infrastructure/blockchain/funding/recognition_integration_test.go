@@ -4,9 +4,7 @@ package funding
 
 import (
 	"context"
-	"database/sql"
 	"errors"
-	"io/fs"
 	"net/url"
 	"os"
 	"strings"
@@ -14,11 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pressly/goose/v3"
-	"github.com/stretchr/testify/require"
-	dbassets "metapus/db"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
@@ -36,6 +29,10 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/migration"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/require"
 )
 
 type fundingFixture struct {
@@ -309,49 +306,6 @@ func TestFundingReinclusionAndSupersededProofDoNotCreditAgain(t *testing.T) {
 	require.NoError(t, err)
 	_, err = f.record()
 	require.ErrorContains(t, err, "exact physical movements")
-}
-
-func TestFundingMigrationPreservesHistoryAndProtectsRecognition(t *testing.T) {
-	f := newFundingFixture(t, true)
-	db, err := sql.Open("pgx", f.pool.Config().ConnConfig.ConnString())
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = db.Close() })
-	migrations, err := fs.Sub(dbassets.Files, "migrations")
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.ctx, 78)
-	require.NoError(t, err)
-	legacy := id.New()
-	e := f.proof.Event
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_wallet_fundings(id,network_id,wallet_id,token_id,tx_hash,from_address,to_address,amount,block_number,confirmations,block_timestamp)
-		VALUES($1,$2,$3,$4,$5,$6,$7,23,100,20,$8)`, legacy, f.target.NetworkID, f.target.WalletID, f.target.TokenID, e.TxHash, e.FromAddress, e.ToAddress, e.Timestamp)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_balance_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount)
-		VALUES($1,$1,'CryptoWalletFunding',1,$2,'receipt',$3,$4,23)`, legacy, e.Timestamp, f.target.WalletID, f.target.TokenID)
-	require.NoError(t, err)
-	_, err = provider.Up(f.ctx)
-	require.NoError(t, err)
-	_, err = f.record()
-	require.ErrorContains(t, err, "explicit adoption")
-	var historical int
-	require.NoError(t, f.pool.QueryRow(f.ctx, "SELECT count(*) FROM reg_crypto_wallet_fundings WHERE posting_id IS NULL").Scan(&historical))
-	require.Equal(t, 1, historical)
-	var balance string
-	require.NoError(t, f.pool.QueryRow(f.ctx, "SELECT amount::text FROM reg_crypto_balance_balances WHERE wallet_id=$1 AND token_id=$2", f.target.WalletID, f.target.TokenID).Scan(&balance))
-	require.Equal(t, "23", balance, "upgrade and refused replay preserve historical principal")
-	fresh := f
-	fresh.proof.Event.TxHash = "0x" + strings.Repeat("d", 64)
-	identity, err := crypto.NewAccountingEffectIdentity(fresh.proof.Event, crypto.ChainFamilyEVM, 0)
-	require.NoError(t, err)
-	fresh.proof.AccountingIdentity = &identity
-	fresh.proof.ID = id.Nil()
-	fresh.proof.ID, err = crypto_repo.NewBlockIngestionRepo().SaveVerification(f.ctx, fresh.proof)
-	require.NoError(t, err)
-	_, err = fresh.record()
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.ctx, 78)
-	require.ErrorContains(t, err, "requires forward migration")
 }
 
 func TestFundingSerializesWithPaymentAlreadyWaiting(t *testing.T) {

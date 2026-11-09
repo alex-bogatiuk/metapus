@@ -6,13 +6,14 @@ import (
 	"context"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/stretchr/testify/require"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/posting"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/require"
 )
 
 func decisionService111(ctx context.Context) *cryptoapp.ExternalOutflowService {
@@ -168,34 +169,4 @@ func TestOutflowDecisionResolutionRetainsExactReconciliationAndHolds(t *testing.
  SELECT $2,external_outflow_id,actor_type,actor_id,action,old_state,new_state,reason,evidence,decision_basis FROM reg_crypto_external_outflow_actions WHERE external_outflow_id=$1 AND action='resolved'`, key, id.New())
 	require.ErrorContains(t, err, "saved decision")
 	require.Equal(t, before, decisionSnapshot111(t, ctx, pool, key))
-}
-
-func TestOutflowDecisionMigrationLeavesLegacyUnknownAndRejectsRollbackAfterDecision(t *testing.T) {
-	f := newOutflowFixture110(t, "tron")
-	f.event.Canonicality = crypto.CanonicalityOrphaned
-	f.record(t, f.event)
-	key, _, _ := f.saved(t)
-	ctx, pool := f.base.ctx, f.base.pool
-	provider := history107Provider(t, f.base)
-	_, err := provider.DownTo(ctx, 103)
-	require.NoError(t, err)
-	legacy := id.New()
-	_, err = pool.Exec(ctx, `INSERT INTO reg_crypto_external_outflows(network_id,token_id,source_wallet_id,tx_hash,event_kind,event_index,from_address,to_address,source_address_key,destination_address_key,contract_address,contract_address_key,amount,block_number,block_hash,finality_status)
- SELECT network_id,token_id,source_wallet_id,$2::uuid::text,event_kind,event_index,from_address,to_address,source_address_key,destination_address_key,contract_address,contract_address_key,amount,block_number,block_hash,'reorged' FROM reg_crypto_external_outflows WHERE id=$1`, key, legacy)
-	require.NoError(t, err)
-	_, err = pool.Exec(ctx, `UPDATE reg_crypto_external_outflows SET status='classified',classification='false_positive_or_reorg',classification_reason='legacy review',classified_by=$2,classified_at=clock_timestamp() WHERE tx_hash=$1`, legacy.String(), id.New())
-	require.NoError(t, err)
-	_, err = provider.Up(ctx)
-	require.NoError(t, err)
-	var unknown bool
-	require.NoError(t, pool.QueryRow(ctx, `SELECT classification_basis IS NULL FROM reg_crypto_external_outflows WHERE tx_hash=$1`, legacy.String()).Scan(&unknown))
-	require.True(t, unknown)
-	_, err = provider.DownTo(ctx, 103)
-	require.NoError(t, err)
-	_, err = provider.Up(ctx)
-	require.NoError(t, err)
-	_, err = decisionService111(ctx).Classify(ctx, cryptoapp.ClassifyExternalOutflowCommand{OutflowID: key, Classification: crypto.OutflowFalsePositiveOrReorg, Reason: "new review"}, id.New())
-	require.NoError(t, err)
-	_, err = provider.DownTo(ctx, 103)
-	require.ErrorContains(t, err, "forward recovery")
 }

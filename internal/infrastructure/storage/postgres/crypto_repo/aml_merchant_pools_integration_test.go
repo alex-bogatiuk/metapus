@@ -12,8 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pressly/goose/v3"
-	"github.com/stretchr/testify/require"
 	dbassets "metapus/db"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
@@ -21,6 +19,9 @@ import (
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/crypto/aml"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/pressly/goose/v3"
+	"github.com/stretchr/testify/require"
 )
 
 func automaticPoolFixture(t *testing.T, role string, target, maxTotal int, family ...crypto.ChainFamily) (amlRoutingFixture, crypto.MerchantPoolPolicy) {

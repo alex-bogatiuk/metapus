@@ -12,13 +12,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/application/cryptoapp"
 	corecrypto "metapus/internal/core/crypto"
 	"metapus/internal/core/json"
 	"metapus/internal/domain/crypto/aml"
 	amlruntime "metapus/internal/infrastructure/aml/runtime"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/stretchr/testify/require"
 )
 
 type amlRoundTripFunc func(*http.Request) (*http.Response, error)

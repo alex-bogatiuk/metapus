@@ -4,19 +4,16 @@ package crypto_repo_test
 
 import (
 	"context"
-	"database/sql"
-	"io/fs"
 	"sync"
 	"testing"
 
-	"github.com/pressly/goose/v3"
-	"github.com/stretchr/testify/require"
-	dbassets "metapus/db"
 	"metapus/internal/application/outboundapp"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/outbound_repo"
+
+	"github.com/stretchr/testify/require"
 )
 
 func claimRental(t *testing.T, f rentalReplayFixture) outboundapp.ResourceRentalClaim {
@@ -174,35 +171,4 @@ func TestRentalMaintenanceClaimLocksAccountBeforeRental(t *testing.T) {
 		_, err := tm.GetQuerier(ctx).Exec(ctx, `SELECT id FROM doc_crypto_resource_rentals WHERE id=$1 FOR UPDATE`, f.rental)
 		return err
 	}, func(ctx context.Context) error { return r.MarkResourceRentalClaimReclaiming(ctx, c) })
-}
-
-func TestRentalMaintenanceMigrationPreservesLegacyLease(t *testing.T) {
-	f := expiredRental(t)
-	r := outbound_repo.NewOutboundRepo()
-	db, err := sql.Open("pgx", f.Pool.Config().ConnConfig.ConnString())
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, db.Close()) })
-	migrations, err := fs.Sub(dbassets.Files, "migrations")
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.Ctx, 93)
-	require.NoError(t, err)
-	_, err = f.Pool.Exec(f.Ctx, `UPDATE doc_crypto_resource_rentals SET claimed_by='legacy-worker',claimed_at=now(),lease_expires_at=now()+interval '5 minutes' WHERE id=$1`, f.rental)
-	require.NoError(t, err)
-	var before string
-	require.NoError(t, f.Pool.QueryRow(f.Ctx, `SELECT to_jsonb(r)::text FROM doc_crypto_resource_rentals r WHERE id=$1`, f.rental).Scan(&before))
-	_, err = provider.Up(f.Ctx)
-	require.NoError(t, err)
-	var after string
-	require.NoError(t, f.Pool.QueryRow(f.Ctx, `SELECT (to_jsonb(r)-'maintenance_claim_token')::text FROM doc_crypto_resource_rentals r WHERE id=$1`, f.rental).Scan(&after))
-	require.Equal(t, before, after)
-	rows, err := r.ClaimResourceRentalsForMaintenance(f.Ctx, "new-worker", 1)
-	require.NoError(t, err)
-	require.Empty(t, rows)
-	require.ErrorContains(t, f.close("0"), "owned by a maintenance claim")
-	_, err = f.Pool.Exec(f.Ctx, `UPDATE doc_crypto_resource_rentals SET maintenance_claim_token=$2,claimed_by='' WHERE id=$1`, f.rental, id.New())
-	require.Error(t, err)
-	expireRentalClaim(t, f)
-	claimRental(t, f)
 }

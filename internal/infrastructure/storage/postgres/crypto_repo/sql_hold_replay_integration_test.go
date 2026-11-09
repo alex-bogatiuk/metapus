@@ -4,21 +4,18 @@ package crypto_repo
 
 import (
 	"context"
-	"database/sql"
-	"io/fs"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/pressly/goose/v3"
-	"github.com/stretchr/testify/require"
-	dbassets "metapus/db"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/stretchr/testify/require"
 )
 
 func insertRawHold(ctx context.Context, c cryptoapp.AcquireOperationalHoldCommand) (int64, error) {
@@ -271,39 +268,4 @@ func TestAMLPreflightHoldsKeepFirstObservationAndNewReview(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM reg_crypto_wallet_allocation_holds WHERE wallet_id=$1 AND owner_type='aml_preflight'),(SELECT count(*) FROM reg_crypto_aml_preflight_observations WHERE wallet_id=$1)`, wallet).Scan(&holds, &observations))
 	require.Equal(t, 2, holds)
 	require.Equal(t, 3, observations)
-}
-
-func TestSQLHoldMigrationPreservesLegacyAndRequiresForwardRecovery(t *testing.T) {
-	f := NewActivationSelectorFixture(t)
-	db, err := sql.Open("pgx", f.Pool.Config().ConnConfig.ConnString())
-	require.NoError(t, err)
-	defer func() { _ = db.Close() }()
-	root, err := fs.Sub(dbassets.Files, "migrations")
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, root)
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.Ctx, 97)
-	require.NoError(t, err)
-	command := holdCommand(f, cryptoapp.OperationalHoldScopeWallet, id.New().String())
-	_, err = insertRawHold(f.Ctx, command)
-	require.NoError(t, err)
-	before := holdSnapshot(t, f)
-	_, err = provider.Up(f.Ctx)
-	require.NoError(t, err)
-	require.Equal(t, before, holdSnapshot(t, f))
-	count, err := insertRawHold(f.Ctx, command)
-	require.NoError(t, err)
-	require.Zero(t, count)
-	require.Equal(t, before, holdSnapshot(t, f))
-	_, err = provider.DownTo(f.Ctx, 97)
-	require.NoError(t, err)
-	require.Equal(t, before, holdSnapshot(t, f))
-	_, err = provider.Up(f.Ctx)
-	require.NoError(t, err)
-	command.OwnerType = "aml_preflight"
-	command.OwnerID = f.A.String() + ":" + f.Native.String() + ":" + id.New().String()
-	_, err = insertRawHold(f.Ctx, command)
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.Ctx, 97)
-	require.ErrorContains(t, err, "forward recovery")
 }

@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/stretchr/testify/require"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAMLInventoryCaptureSkipsProducerScopeWithoutLockingQueue(t *testing.T) {

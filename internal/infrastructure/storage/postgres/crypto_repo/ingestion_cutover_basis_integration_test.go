@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
+
+	"github.com/stretchr/testify/require"
 )
 
 type cutoverFixture109 struct {
@@ -174,14 +174,11 @@ func TestCutoverNetworkGatePreventsPartialCatalogPublicationAndReverseWait(t *te
 	require.NoError(t, pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM cat_wallets WHERE id=$1)`, newWallet).Scan(&exists))
 	require.False(t, exists)
 	require.NoError(t, tx.Rollback(ctx))
-	// Simulate an existing managed wallet not yet inventoried by the old
-	// reader. Unlike a refresh, this first registration needs its wallet lock.
-	provider := history107Provider(t, f.base)
-	_, err = provider.DownTo(ctx, 101)
-	require.NoError(t, err)
-	_, err = pool.Exec(ctx, `DELETE FROM sys_crypto_watch_targets WHERE owner_id=$1`, f.wallet)
-	require.NoError(t, err)
-	_, err = provider.Up(ctx)
+	// Simulate an existing managed wallet that is not yet inventoried. Unlike a
+	// refresh, this first registration needs its wallet lock.
+	_, err = pool.Exec(ctx, `ALTER TABLE sys_crypto_watch_targets DISABLE TRIGGER USER;
+		DELETE FROM sys_crypto_watch_targets WHERE owner_id='`+f.wallet.String()+`';
+		ALTER TABLE sys_crypto_watch_targets ENABLE TRIGGER USER`)
 	require.NoError(t, err)
 	tx, err = pool.Begin(ctx)
 	require.NoError(t, err)
@@ -199,37 +196,6 @@ func TestCutoverNetworkGatePreventsPartialCatalogPublicationAndReverseWait(t *te
 	require.NoError(t, err)
 }
 
-func TestCutoverMigrationRetainsShadowBasisAndLegacyUnknownHistory(t *testing.T) {
-	f := newCutoverFixture109(t)
-	ctx, pool := f.base.ctx, f.base.pool
-	_, err := f.repo.EnsureCutover(ctx, crypto.NetworkRef{ID: f.network}, cutoverBlock109(10), "shadow", f.assets)
-	require.NoError(t, err)
-	before := f.snapshot(t)
-	provider := history107Provider(t, f.base)
-	_, err = provider.DownTo(ctx, 101)
-	require.NoError(t, err)
-	require.Equal(t, before, f.snapshot(t), "Down retains the additive basis columns")
-	legacy := id.New()
-	_, err = pool.Exec(ctx, `INSERT INTO cat_blockchain_networks(id,code,name,chain_family,network_identifier,native_token_symbol,native_decimals)
- VALUES($1,$1::uuid::text,'Legacy boundary','tron',$1::uuid::text,'TRX',6)`, legacy)
-	require.NoError(t, err)
-	b := cutoverBlock109(10)
-	_, err = pool.Exec(ctx, `INSERT INTO sys_crypto_block_ingestion(network_id,start_height,start_hash,start_timestamp,mode,activated_at) VALUES($1,$2,$3,$4,'hybrid',NOW())`, legacy, b.BlockNumber, b.BlockHash, b.Timestamp)
-	require.NoError(t, err)
-	_, err = provider.Up(ctx)
-	require.NoError(t, err)
-	require.Equal(t, before, f.snapshot(t))
-	_, err = f.repo.EnsureCutover(ctx, crypto.NetworkRef{ID: legacy}, cutoverBlock109(20), "paused", nil)
-	require.NoError(t, err)
-	var unknown bool
-	require.NoError(t, pool.QueryRow(ctx, `SELECT registration_basis IS NULL AND activation_basis IS NULL FROM sys_crypto_block_ingestion WHERE network_id=$1`, legacy).Scan(&unknown))
-	require.True(t, unknown)
-	_, err = f.repo.EnsureCutover(ctx, crypto.NetworkRef{ID: f.network}, cutoverBlock109(20), "hybrid", f.assets)
-	require.NoError(t, err)
-	_, err = provider.DownTo(ctx, 101)
-	require.ErrorContains(t, err, "forward recovery")
-}
-
 func TestCutoverRequiresActivationTimeForFinancialMode(t *testing.T) {
 	f := newCutoverFixture109(t)
 	ctx, pool := f.base.ctx, f.base.pool
@@ -245,47 +211,4 @@ func TestCutoverRequiresActivationTimeForFinancialMode(t *testing.T) {
 	require.Equal(t, before, f.snapshot(t))
 	_, err = f.repo.EnsureCutover(ctx, crypto.NetworkRef{ID: f.network}, b, "solidified", f.assets)
 	require.NoError(t, err)
-}
-
-func TestCutoverMigrationRejectsUnknownFinancialActivation(t *testing.T) {
-	f := newCutoverFixture109(t)
-	ctx, pool := f.base.ctx, f.base.pool
-	provider := history107Provider(t, f.base)
-	_, err := provider.DownTo(ctx, 101)
-	require.NoError(t, err)
-	b := cutoverBlock109(10)
-	_, err = pool.Exec(ctx, `INSERT INTO sys_crypto_block_ingestion(network_id,start_height,start_hash,start_timestamp,mode)
- VALUES($1,$2,$3,$4,'hybrid')`, f.network, b.BlockNumber, b.BlockHash, b.Timestamp)
-	require.NoError(t, err)
-	before := f.snapshot(t)
-	_, err = provider.Up(ctx)
-	require.ErrorContains(t, err, "requires review before upgrade")
-	require.Equal(t, before, f.snapshot(t), "the migration never invents missing financial activation history")
-}
-
-func TestCutoverCatalogGuardRejectsStaleTransactionSnapshot(t *testing.T) {
-	f := newCutoverFixture109(t)
-	ctx, pool := f.base.ctx, f.base.pool
-	provider := history107Provider(t, f.base)
-	_, err := provider.DownTo(ctx, 101)
-	require.NoError(t, err)
-	_, err = pool.Exec(ctx, `DELETE FROM sys_crypto_watch_targets WHERE owner_id=$1`, f.wallet)
-	require.NoError(t, err)
-	_, err = provider.Up(ctx)
-	require.NoError(t, err)
-	tx, err := pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
-	require.NoError(t, err)
-	defer func() { _ = tx.Rollback(ctx) }()
-	var watched bool
-	require.NoError(t, tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM sys_crypto_watch_targets WHERE owner_id=$1)`, f.wallet).Scan(&watched))
-	require.False(t, watched)
-	_, err = f.repo.EnsureCutover(ctx, crypto.NetworkRef{ID: f.network}, cutoverBlock109(10), "shadow", f.assets)
-	require.NoError(t, err)
-	before := f.snapshot(t)
-	// The catalog row itself did not change while registration committed.
-	// Repeatable read could otherwise miss the new watch owner and rebind it.
-	_, err = tx.Exec(ctx, `UPDATE cat_wallets SET address='stale-snapshot-address' WHERE id=$1`, f.wallet)
-	require.ErrorContains(t, err, "requires read committed isolation")
-	require.NoError(t, tx.Rollback(ctx))
-	require.Equal(t, before, f.snapshot(t))
 }

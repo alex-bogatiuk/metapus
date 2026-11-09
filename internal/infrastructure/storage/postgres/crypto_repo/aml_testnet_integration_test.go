@@ -5,16 +5,18 @@ package crypto_repo
 import (
 	"context"
 	"errors"
-	"github.com/jackc/pgx/v5"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
+	"github.com/jackc/pgx/v5"
+
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/crypto/aml"
 	amlruntime "metapus/internal/infrastructure/aml/runtime"
+
+	"github.com/stretchr/testify/require"
 )
 
 func prepareTestnetEmulator(t *testing.T, family, identifier string) (amlRoutingFixture, aml.ConfigureTestnetRequest) {

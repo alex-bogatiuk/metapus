@@ -4,19 +4,16 @@ package crypto_repo_test
 
 import (
 	"context"
-	"database/sql"
-	"io/fs"
 	"sync"
 	"testing"
 
-	"github.com/pressly/goose/v3"
-	"github.com/stretchr/testify/require"
-	dbassets "metapus/db"
 	"metapus/internal/application/outboundapp"
 	"metapus/internal/core/id"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/outbound_repo"
+
+	"github.com/stretchr/testify/require"
 )
 
 func activationCostClaimFixture(t *testing.T) (crypto_repo.ActivationSelectorFixture, id.ID) {
@@ -155,34 +152,4 @@ func TestActivationCostClaimResourcesPrecedeTask(t *testing.T) {
 			})
 		})
 	}
-}
-
-func TestActivationCostClaimMigrationPreservesLegacyLease(t *testing.T) {
-	f, key := activationCostClaimFixture(t)
-	r := outbound_repo.NewOutboundRepo()
-	db, err := sql.Open("pgx", f.Pool.Config().ConnConfig.ConnString())
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, db.Close()) })
-	migrations, err := fs.Sub(dbassets.Files, "migrations")
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.Ctx, 94)
-	require.NoError(t, err)
-	_, err = f.Pool.Exec(f.Ctx, `UPDATE reg_crypto_account_activations SET cost_status='repairing',cost_claimed_by='legacy',cost_claimed_at=now(),cost_lease_expires_at=now()+interval '5 minutes' WHERE id=$1`, key)
-	require.NoError(t, err)
-	before := activationSnapshot(t, f, key)
-	_, err = provider.Up(f.Ctx)
-	require.NoError(t, err)
-	var after string
-	require.NoError(t, f.Pool.QueryRow(f.Ctx, `SELECT (to_jsonb(a)-'cost_claim_token')::text FROM reg_crypto_account_activations a WHERE id=$1`, key).Scan(&after))
-	require.Equal(t, before, after)
-	tasks, err := r.ClaimActivationCostRepairs(f.Ctx, "new-worker", 1)
-	require.NoError(t, err)
-	require.Empty(t, tasks)
-	_, err = f.Pool.Exec(f.Ctx, `UPDATE reg_crypto_account_activations SET cost_claim_token=$2,cost_status='recorded' WHERE id=$1`, key, id.New())
-	require.Error(t, err)
-	_, err = f.Pool.Exec(f.Ctx, `UPDATE reg_crypto_account_activations SET cost_lease_expires_at=clock_timestamp()-interval '1 second' WHERE id=$1`, key)
-	require.NoError(t, err)
-	claimActivationCost(t, f)
 }

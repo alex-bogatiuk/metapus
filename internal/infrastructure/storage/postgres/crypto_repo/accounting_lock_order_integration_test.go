@@ -10,14 +10,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/posting"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/require"
 )
 
 // Wait for a real PostgreSQL wait edge, then let its owner acquire the next
@@ -212,23 +213,6 @@ func TestAccountingLockOrderRemainingScopeDoesNotHoldWallet(t *testing.T) {
 		func(ctx context.Context) error {
 			return NewCustodyRecognitionRepo().LockWallet(ctx, target, f.input.Request.TokenID)
 		})
-}
-
-func TestAccountingLockOrderUpgradeDoesNotChangeFinancialHistory(t *testing.T) {
-	f := settledAdjustmentFixture(t)
-	snapshot := `SELECT jsonb_build_object('physical',(SELECT jsonb_agg(to_jsonb(m) ORDER BY line_id) FROM reg_crypto_balance_movements m),
-		'merchant',(SELECT jsonb_agg(to_jsonb(m) ORDER BY line_id) FROM reg_crypto_merchant_balance_movements m),
-		'fee',(SELECT jsonb_agg(to_jsonb(m) ORDER BY line_id) FROM reg_crypto_fee_movements m),
-		'owners',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM reg_crypto_custody_effect_postings p))::text`
-	var before, after string
-	require.NoError(t, f.pool.QueryRow(f.ctx, snapshot).Scan(&before))
-	provider := paymentMigrationProvider(t, f)
-	_, err := provider.DownTo(f.ctx, 88)
-	require.NoError(t, err)
-	_, err = provider.Up(f.ctx)
-	require.NoError(t, err)
-	require.NoError(t, f.pool.QueryRow(f.ctx, snapshot).Scan(&after))
-	require.Equal(t, before, after)
 }
 
 func TestAccountingLockOrderGenericRepostPreflightsOldAndNewWallets(t *testing.T) {

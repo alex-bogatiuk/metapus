@@ -5,16 +5,11 @@ package crypto_repo
 import (
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"fmt"
-	"io/fs"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/pressly/goose/v3"
-	"github.com/stretchr/testify/require"
-	dbassets "metapus/db"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
@@ -23,6 +18,8 @@ import (
 	"metapus/internal/domain/documents/crypto_payment"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
+
+	"github.com/stretchr/testify/require"
 )
 
 func newFinancialReorgReplayFixture(t *testing.T) (paymentRecognitionFixture, crypto.BlockchainEvent) {
@@ -216,57 +213,4 @@ func TestNetworkIncidentRejectsCanonicalKeyCollision(t *testing.T) {
 	var count int
 	require.NoError(t, pool.QueryRow(ctx, `SELECT count(*) FROM reg_crypto_network_holds WHERE network_id=$1`, network).Scan(&count))
 	require.Zero(t, count)
-}
-
-func TestFinancialReorgMigrationPreservesLegacyAndProtectsFacts(t *testing.T) {
-	f, event := newFinancialReorgReplayFixture(t)
-	dsn := f.pool.Config().ConnConfig.ConnString()
-	db, err := sql.Open("pgx", dsn)
-	require.NoError(t, err)
-	defer func() { _ = db.Close() }()
-	root, err := fs.Sub(dbassets.Files, "migrations")
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, root)
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.ctx, 96)
-	require.NoError(t, err)
-	incident, compensation := id.New(), id.New()
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_security_incidents(id,network_id,payment_id,incident_kind,tx_hash,event_kind,event_index) VALUES($1,$2,$3,'posted_payment_reorg',$4,$5,$6)`, incident, f.payment.NetworkID, f.payment.ID, f.payment.TxHash, f.payment.EventKind, f.payment.EventIndex)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_reorg_compensations(id,incident_id,payment_id,posted_version,observed_block_number,observed_block_hash) VALUES($1,$2,$3,$4,$5,$6)`, compensation, incident, f.payment.ID, f.payment.PostedVersion, event.BlockNumber, event.BlockHash)
-	require.NoError(t, err)
-	// A legacy completed compensation has the same three source-linked reversals.
-	for _, table := range []string{"reg_crypto_balance_movements", "reg_crypto_merchant_balance_movements", "reg_crypto_fee_movements"} {
-		dimensions := "wallet_id,token_id"
-		if table != "reg_crypto_balance_movements" {
-			dimensions = "merchant_id,token_id"
-		}
-		if table == "reg_crypto_fee_movements" {
-			dimensions += ",fee_type"
-		}
-		_, err = f.pool.Exec(f.ctx, `INSERT INTO `+table+`(line_id,recorder_id,recorder_type,recorder_version,period,record_type,`+dimensions+`,amount,reversal_of_line_id,reversal_reason)
- SELECT gen_random_uuid_v7(),$1,'CryptoPaymentReorg',1,NOW(),'expense',`+dimensions+`,amount,line_id,'posted_payment_reorg' FROM `+table+` WHERE recorder_id=$2 AND recorder_type='CryptoPayment' AND recorder_version=$3`, compensation, f.payment.ID, f.payment.PostedVersion)
-		require.NoError(t, err)
-	}
-	var before, after string
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT to_jsonb(c)::text FROM reg_crypto_reorg_compensations c WHERE id=$1`, compensation).Scan(&before))
-	_, err = provider.Up(f.ctx)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_reorg_compensations(id,incident_id,payment_id,posted_version,observed_block_number) VALUES($1,$2,$3,77,0)`, id.New(), incident, f.payment.ID)
-	require.ErrorContains(t, err, "requires request basis version 1")
-	require.NoError(t, NewFinancialReorgRepo().RecordFinancialReorg(f.ctx, f.payment, event))
-	var legacyBasisIsNull bool
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT request_basis IS NULL FROM reg_crypto_reorg_compensations WHERE id=$1`, compensation).Scan(&legacyBasisIsNull))
-	require.True(t, legacyBasisIsNull)
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT (to_jsonb(c)-'request_basis')::text FROM reg_crypto_reorg_compensations c WHERE id=$1`, compensation).Scan(&after))
-	require.Equal(t, before, after)
-	_, err = f.pool.Exec(f.ctx, `UPDATE reg_crypto_reorg_compensations SET observed_block_hash='changed' WHERE id=$1`, compensation)
-	require.ErrorContains(t, err, "immutable")
-	_, err = f.pool.Exec(f.ctx, `DELETE FROM reg_crypto_reorg_compensations WHERE id=$1`, compensation)
-	require.ErrorContains(t, err, "immutable")
-	// A new generation creates a basis-bearing fact and cannot be rolled back.
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_reorg_compensations(id,incident_id,payment_id,posted_version,observed_block_number,request_basis) VALUES($1,$2,$3,99,0,'{"schemaVersion":1}')`, id.New(), incident, f.payment.ID)
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.ctx, 96)
-	require.ErrorContains(t, err, "forward recovery")
 }

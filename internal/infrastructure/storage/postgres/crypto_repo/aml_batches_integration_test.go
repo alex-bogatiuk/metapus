@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/crypto/aml"
+
+	"github.com/stretchr/testify/require"
 )
 
 func batchFixture(t *testing.T, cap string, age int) (amlRoutingFixture, aml.Batch, id.ID) {

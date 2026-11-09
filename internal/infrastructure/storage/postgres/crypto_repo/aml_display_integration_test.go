@@ -3,11 +3,12 @@
 package crypto_repo
 
 import (
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto/aml"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAMLDisplayUsesPaymentEffectAndRetainsHighAfterReorg(t *testing.T) {

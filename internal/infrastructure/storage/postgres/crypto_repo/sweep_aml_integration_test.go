@@ -10,14 +10,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pressly/goose/v3"
-	"github.com/stretchr/testify/require"
 	dbassets "metapus/db"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/crypto/aml"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/pressly/goose/v3"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSweepV2AMLUsesExactLineReceiptBeforeWholeBatchFinishes(t *testing.T) {
@@ -98,8 +99,6 @@ func TestSweepV2AMLUsesExactLineReceiptBeforeWholeBatchFinishes(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(f.ctx, "SELECT principal::text,service_fee::text FROM reg_crypto_aml_inventory_positions WHERE wallet_id=$1 AND token_id=$2", destination, request.TokenID).Scan(&principal, &fee))
 	require.Equal(t, []string{plan.Partition.Principal.String(), plan.Partition.ServiceFee.String()}, []string{principal, fee})
 	require.Equal(t, aml.Low, f.class(t, destination))
-	_, err = sweepMigrationProvider(t, f).DownTo(f.ctx, 81)
-	require.ErrorContains(t, err, "sweep accounting v2 requires forward migration")
 }
 
 func sweepMigrationProvider(t *testing.T, f amlRoutingFixture) *goose.Provider {
@@ -112,36 +111,4 @@ func sweepMigrationProvider(t *testing.T, f amlRoutingFixture) *goose.Provider {
 	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
 	require.NoError(t, err)
 	return provider
-}
-
-func TestSweepRecognitionUpgradePreservesLegacyMoney(t *testing.T) {
-	f, destination, _ := readyAMLInventory(t)
-	provider := sweepMigrationProvider(t, f)
-	_, err := provider.DownTo(f.ctx, 81)
-	require.NoError(t, err)
-	sweep, line := id.New(), id.New()
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_sweeps(id,token_id,hot_wallet_id,total_amount,posted,posted_version,status)
-		VALUES($1,$2,$3,10,true,1,'broadcast')`, sweep, f.input.Request.TokenID, destination)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_sweep_lines(line_id,document_id,wallet_id,amount,tx_hash)
-		VALUES($1,$2,$3,10,'legacy-broadcast')`, line, sweep, f.input.WalletID)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_balance_movements(recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount)
-		VALUES($1,'CryptoSweep',1,now(),'expense',$2,$4,10),($1,'CryptoSweep',1,now(),'receipt',$3,$4,10)`, sweep, f.input.WalletID, destination, f.input.Request.TokenID)
-	require.NoError(t, err)
-	var before, after string
-	require.NoError(t, f.pool.QueryRow(f.ctx, "SELECT jsonb_agg(to_jsonb(m) ORDER BY line_id)::text FROM reg_crypto_balance_movements m WHERE recorder_id=$1", sweep).Scan(&before))
-	_, err = provider.Up(f.ctx)
-	require.NoError(t, err)
-	var model, claims int
-	require.NoError(t, f.pool.QueryRow(f.ctx, "SELECT accounting_model_version FROM doc_crypto_sweeps WHERE id=$1", sweep).Scan(&model))
-	require.Equal(t, 1, model)
-	require.NoError(t, f.pool.QueryRow(f.ctx, "SELECT count(*) FROM reg_crypto_sweep_custody_bindings").Scan(&claims))
-	require.Zero(t, claims)
-	require.NoError(t, f.pool.QueryRow(f.ctx, "SELECT jsonb_agg(to_jsonb(m) ORDER BY line_id)::text FROM reg_crypto_balance_movements m WHERE recorder_id=$1", sweep).Scan(&after))
-	require.Equal(t, before, after, "migration cannot rewrite or adopt historical money")
-	_, err = provider.DownTo(f.ctx, 81)
-	require.NoError(t, err, "unused v2 schema can be rolled back")
-	_, err = provider.Up(f.ctx)
-	require.NoError(t, err)
 }

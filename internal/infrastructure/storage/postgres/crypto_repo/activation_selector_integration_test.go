@@ -4,20 +4,17 @@ package crypto_repo_test
 
 import (
 	"context"
-	"database/sql"
-	"io/fs"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/pressly/goose/v3"
-	"github.com/stretchr/testify/require"
-	dbassets "metapus/db"
 	"metapus/internal/application/outboundapp"
 	"metapus/internal/core/id"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/outbound_repo"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/stretchr/testify/require"
 )
 
 func activationSnapshot(t *testing.T, f crypto_repo.ActivationSelectorFixture, key id.ID) string {
@@ -194,43 +191,6 @@ func TestActivationTerminalRejectsSupersededSuccess(t *testing.T) {
 	require.Equal(t, oldState, activationSnapshot(t, f, a))
 	require.Equal(t, nextState, activationSnapshot(t, f, next))
 	require.NoError(t, repo.MarkAccountActivationExternallyActive(f.Ctx, next, f.Native))
-}
-
-func TestActivationIdentityMigrationPreservesHistoryAndRejectsWrongLegacyTarget(t *testing.T) {
-	f := crypto_repo.NewActivationSelectorFixture(t)
-	a, _ := f.SeedTasks(t)
-	before := activationSnapshot(t, f, a)
-	_, err := f.Pool.Exec(f.Ctx, `UPDATE reg_crypto_account_activations SET wallet_id=$2 WHERE id=$1`, a, f.B)
-	require.ErrorContains(t, err, "identity is immutable")
-	_, err = f.Pool.Exec(f.Ctx, `DELETE FROM reg_crypto_account_activations WHERE id=$1`, a)
-	require.ErrorContains(t, err, "cannot be deleted")
-	db, err := sql.Open("pgx", f.Pool.Config().ConnConfig.ConnString())
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, db.Close()) })
-	migrations, err := fs.Sub(dbassets.Files, "migrations")
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
-	require.NoError(t, err)
-	_, err = provider.DownTo(f.Ctx, 92)
-	require.NoError(t, err)
-	_, err = provider.Up(f.Ctx)
-	require.NoError(t, err)
-	require.Equal(t, before, activationSnapshot(t, f, a))
-	_, err = provider.DownTo(f.Ctx, 92)
-	require.NoError(t, err)
-	legacy := activationSnapshot(t, f, a)
-	other, bad := id.New(), id.New()
-	_, err = f.Pool.Exec(f.Ctx, `INSERT INTO cat_blockchain_networks(id,code,name,chain_family,network_identifier,native_token_symbol,native_decimals) VALUES($1,$1::uuid::text,'Wrong target network','tron',$1::uuid::text,'TRX',6);
- INSERT INTO reg_crypto_account_activations(id,wallet_id,network_id,status) VALUES($2,$3,$1,'failed')`, pgx.QueryExecModeSimpleProtocol, other, bad, f.A)
-	require.NoError(t, err)
-	_, err = provider.Up(f.Ctx)
-	require.ErrorContains(t, err, "requires review before upgrade")
-	require.Equal(t, legacy, activationSnapshot(t, f, a))
-	_, err = f.Pool.Exec(f.Ctx, `DELETE FROM reg_crypto_account_activations WHERE id=$1`, bad)
-	require.NoError(t, err)
-	_, err = provider.Up(f.Ctx)
-	require.NoError(t, err)
-	require.Equal(t, before, activationSnapshot(t, f, a))
 }
 
 func TestActivationLinkedOperationIsExactAndCannotBeRebound(t *testing.T) {

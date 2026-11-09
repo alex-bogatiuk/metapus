@@ -7,8 +7,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/stretchr/testify/require"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/registers/crypto_merchant_balance"
@@ -17,6 +15,9 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/outbound_repo"
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSweepExpiryChecksCancellationPayloadAndRollsBackWholeBatch(t *testing.T) {

@@ -6,10 +6,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/outbound_repo"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAMLLineAuthorizationPublicationUsesExactLineBasis(t *testing.T) {

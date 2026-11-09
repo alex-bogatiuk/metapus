@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto"
+
+	"github.com/stretchr/testify/require"
 )
 
 func prepareAutomaticBaseline(t *testing.T, family ...crypto.ChainFamily) (amlRoutingFixture, crypto.MerchantPoolPolicy, id.ID) {

@@ -3,12 +3,13 @@
 package crypto_repo
 
 import (
-	"github.com/stretchr/testify/require"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAMLAutomaticSweepPlannerReservesOneOwnedBatchUnderConcurrency(t *testing.T) {
