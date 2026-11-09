@@ -25,7 +25,7 @@ type PaymentRecognitionInput struct {
 	Payment                *crypto_payment.CryptoPayment
 	Evidence               crypto.VerifiedCustodyEffect
 	Movement               entity.CryptoBalanceMovement
-	Mode, Actor, Reference string
+	Actor, Reference string
 }
 
 type PaymentRecognitionRepository interface {
@@ -96,7 +96,7 @@ func (s *PaymentRecognitionService) PrepareMovements(ctx context.Context, doc po
 	if err != nil {
 		return err
 	}
-	_, err = s.claim(ctx, PaymentRecognitionInput{Payment: p, Evidence: evidence, Movement: rows[0], Mode: "posting", Actor: "payment-posting", Reference: "verified-payment-posting"})
+	_, err = s.claim(ctx, PaymentRecognitionInput{Payment: p, Evidence: evidence, Movement: rows[0], Actor: "payment-posting", Reference: "verified-payment-posting"})
 	return err
 }
 
@@ -107,7 +107,6 @@ type paymentRecognizedPayload struct {
 	PostingID     id.ID  `json:"postingId"`
 	Generation    int    `json:"generation"`
 	PostedVersion int    `json:"postedVersion"`
-	Mode          string `json:"mode"`
 }
 
 func (s *PaymentRecognitionService) claim(ctx context.Context, input PaymentRecognitionInput) (PaymentRecognitionResult, error) {
@@ -117,6 +116,6 @@ func (s *PaymentRecognitionService) claim(ctx context.Context, input PaymentReco
 	}
 	err = s.outbox.Publish(ctx, domain.DomainEvent{AggregateType: "CryptoPayment", AggregateID: result.PaymentID, EventType: "custody_recognized",
 		Payload: paymentRecognizedPayload{EntityType: "CryptoPayment", EntityID: result.PaymentID.String(), Action: "custody_recognized",
-			PostingID: result.PostingID, Generation: result.Generation, PostedVersion: result.PostedVersion, Mode: input.Mode}})
+			PostingID: result.PostingID, Generation: result.Generation, PostedVersion: result.PostedVersion}})
 	return result, err
 }

@@ -217,33 +217,6 @@ BEGIN
 END;
 $$;
 
--- Until availability/reorg/cutover are implemented, receipt posting is limited
--- to a disabled, drained network. A network with these receipts cannot resume
--- execution merely by changing enabled=true.
-CREATE FUNCTION fn_crypto_receipt_maintenance_guard(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
-BEGIN
-    PERFORM network_id FROM sys_crypto_network_policies
-        WHERE network_id=target AND NOT enabled AND _deleted_at IS NULL FOR SHARE;
-    IF NOT FOUND
-       OR EXISTS(SELECT 1 FROM reg_crypto_fee_reservations WHERE network_id=target AND status IN ('reserved','broadcast','held'))
-       OR EXISTS(SELECT 1 FROM reg_crypto_signing_authorizations a WHERE a.network_id=target
-            AND a.status IN ('created','signed','broadcast','held','superseded')
-            AND NOT EXISTS(SELECT 1 FROM reg_crypto_chain_settlements s WHERE s.network_id=a.network_id
-                AND a.tx_hash<>'' AND regexp_replace(lower(s.tx_hash),'^0x','')=regexp_replace(lower(a.tx_hash),'^0x',''))) THEN
-        RAISE EXCEPTION 'receipt admission requires disabled drained network' USING ERRCODE='23514';
-    END IF;
-END;
-$$;
-
-CREATE FUNCTION fn_crypto_receipt_network_resume_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-    IF NEW.enabled AND EXISTS(SELECT 1 FROM doc_crypto_custody_receipts WHERE network_id=NEW.network_id) THEN
-        RAISE EXCEPTION 'receipt accounting cutover is not available' USING ERRCODE='23514';
-    END IF;
-    RETURN NEW;
-END;
-$$;
-
 CREATE FUNCTION fn_crypto_lock_receipt_balance(wallet UUID,asset UUID) RETURNS VOID LANGUAGE plpgsql AS $$
 BEGIN
     INSERT INTO reg_crypto_balance_balances(wallet_id,token_id,amount) VALUES(wallet,asset,0)
@@ -252,23 +225,10 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION fn_crypto_unallocated_custody_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-    PERFORM fn_crypto_lock_receipt_balance(NEW.wallet_id,NEW.token_id);
-    IF NEW.recorder_type<>'CryptoCustodyReceipt' AND EXISTS(
-        SELECT 1 FROM doc_crypto_custody_receipts d
-        WHERE d.wallet_id=NEW.wallet_id AND d.token_id=NEW.token_id) THEN
-        RAISE EXCEPTION 'receipt inventory requires availability cutover' USING ERRCODE='23514';
-    END IF;
-    RETURN NEW;
-END;
-$$;
-
 CREATE FUNCTION fn_crypto_assert_custody_receipt(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE d doc_crypto_custody_receipts;
 BEGIN
     SELECT * INTO STRICT d FROM doc_crypto_custody_receipts WHERE id=target;
-    PERFORM fn_crypto_receipt_maintenance_guard(d.network_id);
     IF NOT d.posted OR d.posted_version<>1
        OR NOT EXISTS(SELECT 1 FROM cat_wallets w WHERE w.id=d.wallet_id AND w.network_id=d.network_id
             AND w.custody_merchant_id IS NOT DISTINCT FROM d.custody_merchant_id)
@@ -298,12 +258,6 @@ BEGIN
        OR EXISTS(SELECT 1 FROM reg_crypto_provider_balance_movements WHERE recorder_id=d.id) THEN
         RAISE EXCEPTION 'custody receipt requires complete atomic accounting' USING ERRCODE='23514';
     END IF;
-    IF EXISTS(SELECT 1 FROM reg_crypto_balance_movements m
-        WHERE m.wallet_id=d.wallet_id AND m.token_id=d.token_id
-          AND m.recorder_type<>'CryptoCustodyReceipt'
-          AND NOT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_recognitions r WHERE r.movement_line_id=m.line_id)) THEN
-        RAISE EXCEPTION 'existing wallet inventory requires accounting adoption' USING ERRCODE='23514';
-    END IF;
     IF EXISTS(SELECT 1 FROM reg_crypto_custody_effect_postings p
         JOIN reg_crypto_accounting_effect_occurrences o ON o.id=p.occurrence_id
         JOIN reg_crypto_accounting_effects e ON e.id=p.effect_id
@@ -311,22 +265,21 @@ BEGIN
         WHERE p.id=d.posting_id) THEN
         RAISE EXCEPTION 'internal transfer requires its settlement owner' USING ERRCODE='23514';
     END IF;
-    -- Legacy recognizers have not yet joined the shared registry. Never admit
-    -- a second receipt over their already recorded or in-flight principal.
-    IF EXISTS(SELECT 1 FROM reg_crypto_custody_effect_postings p
-        JOIN reg_crypto_accounting_effects e ON e.id=p.effect_id
-        JOIN doc_crypto_payments old ON old.network_id=e.network_id
-          AND regexp_replace(lower(old.tx_hash),'^0x','')=e.tx_hash AND old.event_kind=e.event_kind
-        WHERE p.id=d.posting_id)
-       OR EXISTS(SELECT 1 FROM reg_crypto_wallet_fundings old
+    -- One chain effect has one owner: an invoice payment or another custody writer excludes the receipt.
+    IF EXISTS(SELECT 1 FROM reg_crypto_transfer_verifications v
+        JOIN doc_crypto_payments other ON other.network_id=v.network_id
+          AND regexp_replace(lower(other.tx_hash),'^0x','')=regexp_replace(lower(v.tx_hash),'^0x','')
+          AND other.event_kind=v.event_kind AND other.event_index=v.event_index
+        WHERE v.id=d.verification_id)
+       OR EXISTS(SELECT 1 FROM reg_crypto_wallet_fundings other
           JOIN reg_crypto_custody_effect_postings p ON p.id=d.posting_id
           JOIN reg_crypto_accounting_effects e ON e.id=p.effect_id
-          WHERE old.network_id=e.network_id AND regexp_replace(lower(old.tx_hash),'^0x','')=e.tx_hash)
-       OR EXISTS(SELECT 1 FROM reg_crypto_aml_operating_receipts old
+          WHERE other.network_id=e.network_id AND regexp_replace(lower(other.tx_hash),'^0x','')=e.tx_hash)
+       OR EXISTS(SELECT 1 FROM reg_crypto_aml_operating_receipts other
           JOIN reg_crypto_custody_effect_postings p ON p.id=d.posting_id
           JOIN reg_crypto_accounting_effects e ON e.id=p.effect_id
-          WHERE old.network_id=e.network_id AND regexp_replace(lower(old.tx_hash),'^0x','')=e.tx_hash) THEN
-        RAISE EXCEPTION 'legacy intake evidence requires accounting adoption' USING ERRCODE='23514';
+          WHERE other.network_id=e.network_id AND regexp_replace(lower(other.tx_hash),'^0x','')=e.tx_hash) THEN
+        RAISE EXCEPTION 'chain effect already has another accounting owner' USING ERRCODE='23514';
     END IF;
     PERFORM fn_crypto_assert_custody_posting(d.posting_id);
 END;
@@ -461,14 +414,14 @@ BEGIN
           AND old.network_id=f.network_id AND regexp_replace(lower(old.tx_hash),'^0x','')=regexp_replace(lower(f.tx_hash),'^0x',''))
        OR EXISTS(SELECT 1 FROM reg_crypto_aml_operating_receipts old WHERE old.network_id=f.network_id
           AND regexp_replace(lower(old.tx_hash),'^0x','')=regexp_replace(lower(f.tx_hash),'^0x','')) THEN
-        RAISE EXCEPTION 'wallet funding overlaps existing accounting; explicit adoption required' USING ERRCODE='23514';
+        RAISE EXCEPTION 'wallet funding overlaps another accounting owner of the transaction' USING ERRCODE='23514';
     END IF;
     IF EXISTS(SELECT 1 FROM reg_crypto_balance_movements m
         WHERE m.wallet_id=f.wallet_id AND m.token_id=f.token_id AND m.record_type='receipt'
           AND m.recorder_type IN ('CryptoAdjustment','CryptoCustodyAdjustment') AND m.reversal_of_line_id IS NULL
           AND NOT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_recognitions r WHERE r.movement_line_id=m.line_id)
           AND m.amount>COALESCE((SELECT SUM(x.amount) FROM reg_crypto_balance_movements x WHERE x.reversal_of_line_id=m.line_id),0)) THEN
-        RAISE EXCEPTION 'manual custody correction requires explicit funding adoption' USING ERRCODE='23514';
+        RAISE EXCEPTION 'wallet funding conflicts with an unreconciled manual custody correction' USING ERRCODE='23514';
     END IF;
     IF (SELECT amount FROM reg_crypto_balance_balances WHERE wallet_id=f.wallet_id AND token_id=f.token_id)
        IS DISTINCT FROM (SELECT COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END),0)
@@ -576,7 +529,7 @@ BEGIN
        OR NOT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_recognitions r JOIN reg_crypto_balance_movements m ON m.line_id=r.movement_line_id
             WHERE r.posting_id=p.id AND r.wallet_id=b.wallet_id AND r.token_id=b.token_id AND r.record_type='receipt'
               AND m.period=b.period AND m.amount=b.gross AND m.recorder_id=d.id AND m.recorder_type='CryptoPayment' AND m.recorder_version=p.recorder_version)
-       OR (b.mode='posting' AND NOT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_recognitions r
+       OR (NOT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_recognitions r
             JOIN reg_crypto_balance_movements m ON m.line_id=r.movement_line_id
             WHERE r.posting_id=p.id AND m.posting_txid=txid_current()))
        OR (SELECT count(*) FROM reg_crypto_balance_movements WHERE recorder_id=d.id AND recorder_type='CryptoPayment' AND recorder_version=p.recorder_version AND reversal_of_line_id IS NULL)<>1
@@ -593,7 +546,7 @@ BEGIN
        OR NOT EXISTS(SELECT 1 FROM sys_outbox WHERE aggregate_type='CryptoPayment' AND aggregate_id=d.id AND event_type='custody_recognized'
             AND payload->>'postingId'=p.id::text AND payload->>'entityId'=d.id::text AND payload->>'entityType'='CryptoPayment'
             AND payload->>'action'='custody_recognized' AND payload->>'generation'=p.generation::text
-            AND payload->>'postedVersion'=p.recorder_version::text AND payload->>'mode'=b.mode) THEN
+            AND payload->>'postedVersion'=p.recorder_version::text) THEN
         RAISE EXCEPTION 'payment custody requires complete immutable financial set and outbox' USING ERRCODE='23514';
     END IF;
     IF EXISTS(SELECT 1 FROM reg_crypto_balance_movements m WHERE m.recorder_id=d.id AND m.recorder_type='CryptoPayment'
@@ -606,7 +559,6 @@ BEGIN
         JOIN cat_wallets source ON source.network_id=e.network_id AND source.address_key=o.source_address WHERE c.id=p.id) THEN
         RAISE EXCEPTION 'managed payment transfer requires its settlement owner' USING ERRCODE='23514';
     END IF;
-    IF b.mode='adoption' THEN PERFORM fn_crypto_receipt_maintenance_guard(d.network_id); END IF;
 END;
 $$;
 
@@ -614,9 +566,8 @@ CREATE FUNCTION fn_crypto_custody_generation_complete() RETURNS TRIGGER LANGUAGE
 DECLARE previous reg_crypto_custody_effect_postings; b reg_crypto_payment_custody_bindings; old_b reg_crypto_payment_custody_bindings;
 BEGIN
     IF NEW.generation=1 THEN
-        IF NEW.recorder_type='CryptoPayment' AND NEW.recorder_version<>1
-            AND NOT EXISTS(SELECT 1 FROM reg_crypto_payment_custody_bindings WHERE posting_id=NEW.id AND mode='adoption') THEN
-            RAISE EXCEPTION 'legacy payment generation requires explicit adoption' USING ERRCODE='23514';
+        IF NEW.recorder_type='CryptoPayment' AND NEW.recorder_version<>1 THEN
+            RAISE EXCEPTION 'first payment custody generation requires posted version 1' USING ERRCODE='23514';
         END IF;
     ELSE
         SELECT * INTO STRICT previous FROM reg_crypto_custody_effect_postings WHERE id=NEW.predecessor_id;
@@ -714,7 +665,7 @@ BEGIN
         IF EXISTS(SELECT 1 FROM reg_crypto_balance_movements m WHERE m.recorder_id=NEW.id AND m.recorder_type='CryptoPayment' AND m.reversal_of_line_id IS NULL
             AND NOT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_recognitions r WHERE r.movement_line_id=m.line_id)
             AND m.amount>COALESCE((SELECT SUM(amount) FROM reg_crypto_balance_movements WHERE reversal_of_line_id=m.line_id),0)) THEN
-            RAISE EXCEPTION 'indexed payment history requires explicit custody adoption' USING ERRCODE='23514';
+            RAISE EXCEPTION 'indexed payment custody requires its recognition' USING ERRCODE='23514';
         END IF;
         IF NOT current_doc.posted THEN
             FOR p IN SELECT * FROM reg_crypto_custody_effect_postings WHERE recorder_type='CryptoPayment' AND recorder_id=NEW.id LOOP
@@ -2145,7 +2096,7 @@ BEGIN
         END IF;
     ELSIF NEW.basis_kind<>'legacy_payment' OR NEW.source_posting_id IS NOT NULL
         OR fn_crypto_payment_requires_recognition(d.id,d.network_id,d.tx_hash,d.event_kind,d.event_index) THEN
-        RAISE EXCEPTION 'indexed payment requires explicit adoption before adjustment' USING ERRCODE='23514';
+        RAISE EXCEPTION 'indexed payment adjustment requires its source custody posting' USING ERRCODE='23514';
     END IF;
     RETURN NEW;
 END;
@@ -3513,7 +3464,7 @@ CREATE TABLE doc_crypto_custody_receipts (
     suspense_line_id UUID NOT NULL UNIQUE,
     reason_code TEXT NOT NULL CHECK(reason_code IN (
         'no_allocation','wrong_token','timestamp_before_lease','retired_deposit_address',
-        'additional_single_payment','dust','treasury_unidentified','matched_receipt')),
+        'additional_single_payment','overlapping_windows','dust','treasury_unidentified','matched_receipt')),
     CHECK(basis_id=verification_id),
     CHECK((NOT posted AND posted_version=0) OR (posted AND posted_version=1))
 );
@@ -3589,8 +3540,7 @@ CREATE UNIQUE INDEX uq_crypto_payment_custody_version
 -- identity. Stamp new payment lines explicitly; historical rows stay NULL.
 ALTER TABLE reg_crypto_balance_movements ADD COLUMN posting_txid BIGINT;
 
--- An immutable economic snapshot also serves as the admission/adoption audit.
--- Neither migration nor adoption creates another financial movement.
+-- Immutable economic snapshot of one recognized payment posting.
 CREATE TABLE reg_crypto_payment_custody_bindings (
     posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
     payment_id UUID NOT NULL REFERENCES doc_crypto_payments(id),
@@ -3606,7 +3556,6 @@ CREATE TABLE reg_crypto_payment_custody_bindings (
     fee_min NUMERIC(78,0) NOT NULL CHECK(fee_min>=0),
     fee_max NUMERIC(78,0) NOT NULL CHECK(fee_max>=0),
     period TIMESTAMPTZ NOT NULL,
-    mode TEXT NOT NULL CHECK(mode IN ('posting','adoption')),
     actor TEXT NOT NULL CHECK(btrim(actor)<>''),
     evidence_reference TEXT NOT NULL CHECK(btrim(evidence_reference)<>''),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -3902,12 +3851,6 @@ CREATE CONSTRAINT TRIGGER trg_crypto_custody_posting_complete
 CREATE CONSTRAINT TRIGGER trg_crypto_custody_recognition_complete
     AFTER INSERT ON reg_crypto_custody_effect_recognitions DEFERRABLE INITIALLY DEFERRED
     FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_posting_complete();
-
-CREATE TRIGGER trg_crypto_receipt_network_resume BEFORE INSERT OR UPDATE ON sys_crypto_network_policies
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_receipt_network_resume_guard();
-
-CREATE TRIGGER trg_crypto_unallocated_custody_guard BEFORE INSERT ON reg_crypto_balance_movements
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_unallocated_custody_guard();
 
 CREATE CONSTRAINT TRIGGER trg_crypto_custody_receipt_complete AFTER INSERT OR UPDATE ON doc_crypto_custody_receipts
     DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_complete();
@@ -4958,8 +4901,6 @@ BEGIN
     END IF;
 END;
 $$;
-DROP TRIGGER trg_crypto_receipt_network_resume ON sys_crypto_network_policies;
-DROP TRIGGER trg_crypto_unallocated_custody_guard ON reg_crypto_balance_movements;
 DROP TRIGGER trg_crypto_custody_receipt_movement_complete ON reg_crypto_balance_movements;
 DROP TRIGGER trg_no_receipt_reg_crypto_merchant_balance_movements ON reg_crypto_merchant_balance_movements;
 DROP TRIGGER trg_no_receipt_reg_crypto_fee_movements ON reg_crypto_fee_movements;
@@ -4973,14 +4914,11 @@ DROP TABLE reg_crypto_custody_effect_recognitions;
 DROP TABLE reg_crypto_custody_effect_postings;
 DROP FUNCTION fn_crypto_custody_receipt_complete();
 DROP FUNCTION fn_crypto_assert_custody_receipt(UUID);
-DROP FUNCTION fn_crypto_receipt_network_resume_guard();
-DROP FUNCTION fn_crypto_receipt_maintenance_guard(UUID);
 DROP FUNCTION fn_crypto_custody_posting_complete();
 DROP FUNCTION fn_crypto_assert_custody_posting(UUID);
 DROP FUNCTION fn_crypto_custody_posting_identity_guard();
 DROP FUNCTION fn_crypto_receipt_suspense_apply();
 DROP FUNCTION fn_crypto_custody_receipt_mutation_guard();
-DROP FUNCTION fn_crypto_unallocated_custody_guard();
 DROP FUNCTION fn_crypto_lock_receipt_balance(UUID,UUID);
 DROP FUNCTION fn_crypto_custody_receipt_movement_complete();
 DROP FUNCTION fn_crypto_custody_receipt_no_attribution();

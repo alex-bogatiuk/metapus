@@ -28,22 +28,10 @@ func (r *ReceiptIntakeRepo) LockAdmission(ctx context.Context, basis crypto.Acco
 	if tm.GetTx(ctx) == nil {
 		return apperror.NewValidation("receipt admission requires a transaction")
 	}
-	q := tm.GetQuerier(ctx)
 	if err := NewCustodyRecognitionRepo().LockScopes(ctx, basis.WalletID); err != nil {
 		return err
 	}
-	// Fee reservation locks policy before catalog wallet. Hold the maintenance
-	// policy in that order too; the later SQL completeness guard is reentrant.
-	if _, err := q.Exec(ctx, "SELECT fn_crypto_receipt_maintenance_guard($1)", basis.NetworkID); err != nil {
-		return fmt.Errorf("receipt admission maintenance boundary: %w", err)
-	}
-	if err := NewCustodyRecognitionRepo().LockIncoming(ctx, basis); err != nil {
-		return err
-	}
-	if _, err := q.Exec(ctx, "SELECT fn_crypto_receipt_maintenance_guard($1)", basis.NetworkID); err != nil {
-		return fmt.Errorf("receipt admission maintenance boundary: %w", err)
-	}
-	return nil
+	return NewCustodyRecognitionRepo().LockIncoming(ctx, basis)
 }
 
 func (r *ReceiptIntakeRepo) FindByOccurrence(ctx context.Context, occurrence id.ID) (*crypto_custody_receipt.CryptoCustodyReceipt, error) {
@@ -75,16 +63,13 @@ func (r *ReceiptIntakeRepo) AdmissionContext(ctx context.Context, basis crypto.A
 		OR EXISTS(SELECT 1 FROM reg_crypto_accounting_effect_occurrences o
 			JOIN reg_crypto_accounting_effects e ON e.id=o.effect_id
 			JOIN cat_wallets w ON w.network_id=e.network_id AND w.address_key=o.source_address
-			WHERE o.id=$2)
-		OR EXISTS(SELECT 1 FROM reg_crypto_balance_movements m WHERE m.wallet_id=$3 AND m.token_id=$4
-			AND m.recorder_type<>'CryptoCustodyReceipt'
-			AND NOT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_recognitions r WHERE r.movement_line_id=m.line_id))`,
-		result.EffectID, evidence.OccurrenceID, basis.WalletID, basis.TokenID).Scan(&blocked)
+			WHERE o.id=$2)`,
+		result.EffectID, evidence.OccurrenceID).Scan(&blocked)
 	if err != nil {
 		return result, fmt.Errorf("check receipt admission context: %w", err)
 	}
 	if blocked {
-		return result, apperror.NewConflict("receipt requires existing accounting investigation")
+		return result, apperror.NewConflict("receipt effect already has an accounting owner or is an internal transfer")
 	}
 	return result, nil
 }

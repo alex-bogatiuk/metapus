@@ -35,9 +35,9 @@ type RecordCustodyReceiptCommand struct {
 	Reason crypto_custody_receipt.Reason
 }
 
-// ReceiptIntakeService is an internal, maintenance-only posting primitive.
-// It is not connected to automatic intake until recognition, availability and
-// reorg cutover are ready. Repository and SQL both enforce the paused network.
+// ReceiptIntakeService records a final, independently proven external receipt
+// as custody plus suspense. The economic purpose (merchant credit, treasury,
+// refund) is decided later by separate documents consuming the suspense.
 type ReceiptIntakeService struct {
 	txm     tx.Manager
 	repo    ReceiptIntakeRepository

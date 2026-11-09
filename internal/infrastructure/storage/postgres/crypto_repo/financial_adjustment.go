@@ -105,7 +105,7 @@ func (r *FinancialAdjustmentRepo) Propose(ctx context.Context, cmd cryptoapp.Pro
 		if sourcePostingID != nil {
 			basisKind = "payment_compensation"
 		} else if requiresRecognition {
-			return nil, apperror.NewConflict("indexed payment requires explicit adoption before adjustment")
+			return nil, apperror.NewConflict("indexed payment adjustment requires its source custody posting")
 		}
 	} else {
 		walletID, tokenID, direction, amount = cmd.WalletID, cmd.TokenID, cmd.Direction, cmd.Amount

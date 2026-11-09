@@ -74,14 +74,14 @@ func (*PaymentRecognitionRepo) Claim(ctx context.Context, input cryptoapp.Paymen
 	result := cryptoapp.PaymentRecognitionResult{PaymentID: p.ID, PostedVersion: m.RecorderVersion}
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
 	var occurrence, verification, line id.ID
-	var mode, actor, reference string
-	err := q.QueryRow(ctx, `SELECT b.posting_id,c.generation,c.occurrence_id,c.verification_id,r.movement_line_id,b.mode,b.actor,b.evidence_reference
+	var actor, reference string
+	err := q.QueryRow(ctx, `SELECT b.posting_id,c.generation,c.occurrence_id,c.verification_id,r.movement_line_id,b.actor,b.evidence_reference
 		FROM reg_crypto_payment_custody_bindings b JOIN reg_crypto_custody_effect_postings c ON c.id=b.posting_id
 		JOIN reg_crypto_custody_effect_recognitions r ON r.posting_id=c.id
 		WHERE b.payment_id=$1 AND c.recorder_version=$2`, p.ID, m.RecorderVersion).
-		Scan(&result.PostingID, &result.Generation, &occurrence, &verification, &line, &mode, &actor, &reference)
+		Scan(&result.PostingID, &result.Generation, &occurrence, &verification, &line, &actor, &reference)
 	if err == nil {
-		if occurrence != input.Evidence.OccurrenceID || line != m.LineID || mode != input.Mode || actor != input.Actor || reference != input.Reference {
+		if occurrence != input.Evidence.OccurrenceID || line != m.LineID || actor != input.Actor || reference != input.Reference {
 			return result, apperror.NewConflict("payment recognition replay differs from frozen attestation")
 		}
 		result.Existing = true
@@ -120,9 +120,9 @@ func (*PaymentRecognitionRepo) Claim(ctx context.Context, input cryptoapp.Paymen
 		return result, err
 	}
 	_, err = q.Exec(ctx, `INSERT INTO reg_crypto_payment_custody_bindings(posting_id,payment_id,invoice_id,merchant_id,wallet_id,token_id,
-		gross,net,processing_fee,fee_fixed,fee_percent_bp,fee_min,fee_max,period,mode,actor,evidence_reference)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
-		result.PostingID, p.ID, p.InvoiceID, p.MerchantID, p.WalletID, p.TokenID, p.Amount, p.NetAmount(), p.FeeAmount(), p.FeeFixed, p.FeePercentBP, p.FeeMin, p.FeeMax, p.Date, input.Mode, input.Actor, input.Reference)
+		gross,net,processing_fee,fee_fixed,fee_percent_bp,fee_min,fee_max,period,actor,evidence_reference)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+		result.PostingID, p.ID, p.InvoiceID, p.MerchantID, p.WalletID, p.TokenID, p.Amount, p.NetAmount(), p.FeeAmount(), p.FeeFixed, p.FeePercentBP, p.FeeMin, p.FeeMax, p.Date, input.Actor, input.Reference)
 	return result, err
 }
 
