@@ -5,16 +5,14 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jackc/pgx/v5"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/apperror"
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_payment"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type PaymentRecognitionRepo struct{}
@@ -69,50 +67,6 @@ func lockPaymentRecognition(ctx context.Context, p *crypto_payment.CryptoPayment
 		return basis, err
 	}
 	return basis, nil
-}
-
-func (*PaymentRecognitionRepo) LoadForAdoption(ctx context.Context, paymentID id.ID) (*crypto_payment.CryptoPayment, error) {
-	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
-	var network id.ID
-	if err := q.QueryRow(ctx, "SELECT network_id FROM doc_crypto_payments WHERE id=$1", paymentID).Scan(&network); err != nil {
-		return nil, err
-	}
-	if err := postgres.NewDocLocker().LockDocument(ctx, "CryptoPayment", paymentID); err != nil {
-		return nil, err
-	}
-	p, err := document_repo.NewCryptoPaymentRepo().GetByID(ctx, paymentID)
-	if err != nil {
-		return nil, err
-	}
-	if err := NewCustodyRecognitionRepo().LockScopes(ctx, p.WalletID); err != nil {
-		return nil, err
-	}
-	if _, err := q.Exec(ctx, "SELECT fn_crypto_receipt_maintenance_guard($1)", network); err != nil {
-		return nil, err
-	}
-	if err := NewCustodyRecognitionRepo().LockWallet(ctx, p.WalletID, p.TokenID); err != nil {
-		return nil, err
-	}
-	return document_repo.NewCryptoPaymentRepo().GetByIDForUpdate(ctx, paymentID)
-}
-
-func (*PaymentRecognitionRepo) OriginalMovement(ctx context.Context, p *crypto_payment.CryptoPayment) (entity.CryptoBalanceMovement, error) {
-	rows, err := register_repo.NewCryptoBalanceRepo().GetMovementsByRecorder(ctx, p.ID)
-	if err != nil {
-		return entity.CryptoBalanceMovement{}, err
-	}
-	var result entity.CryptoBalanceMovement
-	count := 0
-	for _, m := range rows {
-		if m.RecorderType == "CryptoPayment" && m.RecorderVersion == p.PostedVersion {
-			result = m
-			count++
-		}
-	}
-	if count != 1 || result.RecordType != entity.RecordTypeReceipt || result.WalletID != p.WalletID || result.TokenID != p.TokenID || !result.Amount.Equal(p.Amount) {
-		return entity.CryptoBalanceMovement{}, apperror.NewConflict("legacy payment requires exactly one matching original custody line")
-	}
-	return result, nil
 }
 
 func (*PaymentRecognitionRepo) Claim(ctx context.Context, input cryptoapp.PaymentRecognitionInput) (cryptoapp.PaymentRecognitionResult, error) {

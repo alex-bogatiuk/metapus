@@ -2,7 +2,6 @@ package cryptoapp
 
 import (
 	"context"
-	"strings"
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
@@ -33,8 +32,6 @@ type PaymentRecognitionRepository interface {
 	RequiresRecognition(context.Context, *crypto_payment.CryptoPayment) (bool, error)
 	Authorize(context.Context, *crypto_payment.CryptoPayment, id.ID) (crypto.VerifiedCustodyEffect, error)
 	Claim(context.Context, PaymentRecognitionInput) (PaymentRecognitionResult, error)
-	LoadForAdoption(context.Context, id.ID) (*crypto_payment.CryptoPayment, error)
-	OriginalMovement(context.Context, *crypto_payment.CryptoPayment) (entity.CryptoBalanceMovement, error)
 }
 
 // PaymentRecognitionService binds v1's existing physical/merchant/fee set to a
@@ -101,44 +98,6 @@ func (s *PaymentRecognitionService) PrepareMovements(ctx context.Context, doc po
 	}
 	_, err = s.claim(ctx, PaymentRecognitionInput{Payment: p, Evidence: evidence, Movement: rows[0], Mode: "posting", Actor: "payment-posting", Reference: "verified-payment-posting"})
 	return err
-}
-
-type AdoptPaymentRecognitionCommand struct {
-	PaymentID, VerificationID id.ID
-	Actor, Reference          string
-}
-
-// Adopt links a currently posted legacy generation without generating money or
-// rewriting the payment/proof. The repository enforces a disabled drained network.
-func (s *PaymentRecognitionService) Adopt(ctx context.Context, cmd AdoptPaymentRecognitionCommand) (PaymentRecognitionResult, error) {
-	var result PaymentRecognitionResult
-	if id.IsNil(cmd.PaymentID) || id.IsNil(cmd.VerificationID) || strings.TrimSpace(cmd.Actor) == "" || strings.TrimSpace(cmd.Reference) == "" {
-		return result, apperror.NewValidation("payment adoption requires identity, verification and attestation")
-	}
-	err := s.txm.RunInTransaction(ctx, func(ctx context.Context) error {
-		p, err := s.repo.LoadForAdoption(ctx, cmd.PaymentID)
-		if err != nil {
-			return err
-		}
-		if !p.Posted || p.PostedVersion < 1 || p.Canonicality != "canonical" ||
-			(p.Status != crypto_payment.PaymentStatusConfirmed && p.Status != crypto_payment.PaymentStatusSettled) {
-			return apperror.NewConflict("adoption requires a currently posted canonical payment")
-		}
-		evidence, err := s.repo.Authorize(ctx, p, cmd.VerificationID)
-		if err != nil {
-			return err
-		}
-		movement, err := s.repo.OriginalMovement(ctx, p)
-		if err != nil {
-			return err
-		}
-		result, err = s.claim(ctx, PaymentRecognitionInput{Payment: p, Evidence: evidence, Movement: movement, Mode: "adoption", Actor: cmd.Actor, Reference: cmd.Reference})
-		return err
-	})
-	if err != nil {
-		return PaymentRecognitionResult{}, err
-	}
-	return result, nil
 }
 
 type paymentRecognizedPayload struct {
