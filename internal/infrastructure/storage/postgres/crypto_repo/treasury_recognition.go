@@ -30,7 +30,7 @@ func (*TreasuryCustodyRepo) ExpectedTreasuryTransfer(ctx context.Context, docume
 	var family, standard string
 	err := tm.GetQuerier(ctx).QueryRow(ctx, `SELECT t.network_id,d.tx_hash,d.amount,w.address,d.dest_address,COALESCE(t.contract_address,''),n.chain_family,t.token_standard
 		FROM doc_treasury_withdrawals d JOIN cat_wallets w ON w.id=d.source_wallet_id JOIN cat_tokens t ON t.id=d.token_id
-		JOIN cat_blockchain_networks n ON n.id=t.network_id WHERE d.id=$1 AND d.accounting_model_version=2 AND t.network_id=$2 AND d.tx_hash=$3`, document, receipt.NetworkID, receipt.TxHash).
+		JOIN cat_blockchain_networks n ON n.id=t.network_id WHERE d.id=$1 AND t.network_id=$2 AND d.tx_hash=$3`, document, receipt.NetworkID, receipt.TxHash).
 		Scan(&e.NetworkID, &e.TxHash, &e.Amount, &e.FromAddress, &e.ToAddress, &e.TokenContract, &family, &standard)
 	e.EventKind = crypto.EventKindContractLog
 	if standard == "native" {
@@ -76,7 +76,7 @@ func (*TreasuryCustodyRepo) Prepare(ctx context.Context, b crypto.TreasuryAccoun
 	}
 	var status, destination string
 	var valid bool
-	err := q.QueryRow(ctx, `SELECT d.settlement_status,d.dest_address,d.accounting_model_version=2 AND d.token_id=$2 AND d.source_wallet_id=$3
+	err := q.QueryRow(ctx, `SELECT d.settlement_status,d.dest_address,d.token_id=$2 AND d.source_wallet_id=$3
 		AND d.amount=$4 AND d.tx_hash=$5 AND t.network_id=$6 AND w.custody_merchant_id IS NULL AND w.network_id=t.network_id
 		FROM doc_treasury_withdrawals d JOIN cat_tokens t ON t.id=d.token_id JOIN cat_wallets w ON w.id=d.source_wallet_id WHERE d.id=$1 FOR UPDATE OF d`,
 		b.DocumentID, b.TokenID, b.SourceWalletID, b.Amount, b.TxHash, b.NetworkID).Scan(&status, &destination, &valid)

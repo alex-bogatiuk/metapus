@@ -70,7 +70,6 @@ func newCustodyLossFixture(t *testing.T, proofMode string) custodyLossFixture {
 	service := cryptoapp.NewExternalOutflowService(tm, NewExternalOutflowWorkflowRepo(), cryptoapp.NewOperationalHoldService(tm, NewOperationalHoldRepo()), engine)
 	classified, err := service.Classify(ctx, cryptoapp.ClassifyExternalOutflowCommand{OutflowID: outflow, Classification: crypto.OutflowUnauthorizedLoss, Reason: "proven unexplained outflow"}, maker)
 	require.NoError(t, err)
-	require.Equal(t, 2, classified.Adjustment.AccountingModelVersion)
 	return custodyLossFixture{ctx: ctx, pool: pool, service: service, engine: engine, proof: proof, doc: classified.Adjustment, checker: id.New()}
 }
 
@@ -214,7 +213,6 @@ func TestCustodyLossV2ImmutableRecognitionAndLateLegacyWriter(t *testing.T) {
 	f := newCustodyLossFixture(t, "")
 	require.NoError(t, f.approve())
 	for _, query := range []string{
-		`UPDATE doc_crypto_custody_adjustments SET accounting_model_version=1 WHERE id=$1`,
 		`UPDATE doc_crypto_custody_adjustments SET status='pending_approval',posted_version=0 WHERE id=$1`,
 		`UPDATE reg_crypto_custody_loss_bindings SET period=now() WHERE adjustment_id=$1`,
 		`INSERT INTO reg_crypto_balance_movements(recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount,reversal_of_line_id) SELECT recorder_id,'UnboundCompensation',2,now(),'receipt',wallet_id,token_id,amount,line_id FROM reg_crypto_balance_movements WHERE recorder_id=$1`,

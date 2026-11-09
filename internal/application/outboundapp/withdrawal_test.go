@@ -28,7 +28,7 @@ func TestWithdrawalCompletionNeverRepeatsFinalOrInvalidEffects(t *testing.T) {
 		status    string
 		aml, held bool
 	}{
-		{"broadcast", false, false}, {"confirmed", false, false}, {"failed", false, true},
+		{"broadcast", false, false}, {"confirmed", false, false}, {"failed", false, false},
 		{"broadcast", true, false}, {"confirmed", true, false}, {"failed", true, false}, {"cancelled", true, true},
 	} {
 		store := completionStore{state: WithdrawalCompletionState{Status: tt.status}}

@@ -64,9 +64,9 @@ func (r *ExternalOutflowWorkflowRepo) ReplayCustodyDecision(ctx context.Context,
 	if status == "posted" {
 		kind = "approve"
 	}
-	err := q.QueryRow(ctx, `SELECT id,external_outflow_id,network_id,wallet_id,token_id,amount,status,maker_id,decision_by,decision_reason,posted_version,created_at,decided_at,accounting_model_version,
+	err := q.QueryRow(ctx, `SELECT id,external_outflow_id,network_id,wallet_id,token_id,amount,status,maker_id,decision_by,decision_reason,posted_version,created_at,decided_at,
  COALESCE(decision_basis->'command'=fn_crypto_outflow_decision_command($2,id,$3,$4),FALSE) FROM doc_crypto_custody_adjustments WHERE id=$1 FOR UPDATE`, document, kind, actor, reason).Scan(
-		&a.ID, &a.ExternalOutflowID, &a.NetworkID, &a.WalletID, &a.TokenID, &a.Amount, &a.Status, &a.MakerID, &a.DecisionBy, &a.DecisionReason, &a.PostedVersion, &a.CreatedAt, &a.DecidedAt, &a.AccountingModelVersion, &exact)
+		&a.ID, &a.ExternalOutflowID, &a.NetworkID, &a.WalletID, &a.TokenID, &a.Amount, &a.Status, &a.MakerID, &a.DecisionBy, &a.DecisionReason, &a.PostedVersion, &a.CreatedAt, &a.DecidedAt, &exact)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.NewNotFound("custody adjustment", document.String())
 	}
@@ -79,7 +79,7 @@ func (r *ExternalOutflowWorkflowRepo) ReplayCustodyDecision(ctx context.Context,
 	if a.Status != status || !exact {
 		return nil, apperror.NewConflict("custody adjustment replay differs from its saved decision or its original basis is unknown")
 	}
-	if status == "posted" && a.AccountingModelVersion == 2 {
+	if status == "posted" {
 		if err := q.QueryRow(ctx, `SELECT period FROM reg_crypto_custody_loss_bindings WHERE adjustment_id=$1`, document).Scan(&a.RecognitionPeriod); err != nil {
 			return nil, err
 		}

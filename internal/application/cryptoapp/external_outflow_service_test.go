@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
@@ -117,6 +118,8 @@ func (r *externalOutflowRepoStub) CreateCustodyAdjustment(_ context.Context, out
 		ID: id.New(), ExternalOutflowID: outflow.ID, NetworkID: outflow.NetworkID,
 		WalletID: *outflow.SourceWalletID, TokenID: *outflow.TokenID, Amount: outflow.Amount,
 		Status: "pending_approval", MakerID: actorID,
+		// The repository admits the proven outflow before the checker posts it.
+		RecognitionPeriod: time.Now().UTC().Truncate(time.Microsecond),
 	}
 	r.outflow.Adjustment = adjustment
 	return adjustment, nil

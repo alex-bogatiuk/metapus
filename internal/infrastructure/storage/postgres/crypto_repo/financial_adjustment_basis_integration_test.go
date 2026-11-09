@@ -47,7 +47,6 @@ func TestAdjustmentBasisPartialCompensationKeepsOriginalChainOwner(t *testing.T)
 	}
 	first, err := service.Propose(f.ctx, cmd)
 	require.NoError(t, err)
-	require.Equal(t, 2, first.AccountingModelVersion)
 	require.Equal(t, "payment_compensation", first.BasisKind)
 	require.NotNil(t, first.SourcePostingID)
 	replay, err := service.Propose(f.ctx, cmd)
@@ -151,7 +150,7 @@ func writeAdjustmentSet(ctx context.Context, a *cryptoapp.FinancialAdjustment, f
 		sourcePosting = &other
 	}
 	return postgres.NewOutboxPublisher().Publish(ctx, domain.DomainEvent{AggregateType: "CryptoAdjustment", AggregateID: a.ID, EventType: "financial_correction_posted",
-		Payload: map[string]any{"entityType": "CryptoAdjustment", "entityId": a.ID, "action": "financial_correction_posted", "accountingModelVersion": 2,
+		Payload: map[string]any{"entityType": "CryptoAdjustment", "entityId": a.ID, "action": "financial_correction_posted",
 			"basisKind": a.BasisKind, "sourcePostingId": sourcePosting, "postedVersion": a.PostedVersion}})
 }
 
@@ -254,7 +253,7 @@ func TestAdjustmentBasisWalletVarianceRequiresBalancedSet(t *testing.T) {
 					return nil
 				}
 				return postgres.NewOutboxPublisher().Publish(ctx, domain.DomainEvent{AggregateType: "CryptoAdjustment", AggregateID: a.ID, EventType: "financial_correction_posted",
-					Payload: map[string]any{"entityType": "CryptoAdjustment", "entityId": a.ID, "action": "financial_correction_posted", "accountingModelVersion": 2, "basisKind": a.BasisKind, "sourcePostingId": nil, "postedVersion": 0}})
+					Payload: map[string]any{"entityType": "CryptoAdjustment", "entityId": a.ID, "action": "financial_correction_posted", "basisKind": a.BasisKind, "sourcePostingId": nil, "postedVersion": 0}})
 			})
 			if fault == "valid" {
 				require.NoError(t, err)

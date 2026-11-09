@@ -175,12 +175,12 @@ func (r *ExternalOutflowWorkflowRepo) CreateCustodyAdjustment(ctx context.Contex
 		) VALUES ($1,$2,$3,$4,$5,$6)
 		ON CONFLICT (external_outflow_id) DO NOTHING
 		RETURNING id,external_outflow_id,network_id,wallet_id,token_id,amount,status,maker_id,
-		          decision_by,decision_reason,posted_version,created_at,decided_at,accounting_model_version
+		          decision_by,decision_reason,posted_version,created_at,decided_at
 	`, outflow.ID, outflow.NetworkID, *outflow.SourceWalletID, *outflow.TokenID, outflow.Amount, makerID).Scan(
 		&adjustment.ID, &adjustment.ExternalOutflowID, &adjustment.NetworkID, &adjustment.WalletID,
 		&adjustment.TokenID, &adjustment.Amount, &adjustment.Status, &adjustment.MakerID,
 		&adjustment.DecisionBy, &adjustment.DecisionReason, &adjustment.PostedVersion,
-		&adjustment.CreatedAt, &adjustment.DecidedAt, &adjustment.AccountingModelVersion,
+		&adjustment.CreatedAt, &adjustment.DecidedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.NewConflict("custody adjustment already exists")
@@ -274,7 +274,7 @@ func (r *ExternalOutflowWorkflowRepo) PrepareCustodyAdjustmentForPosting(ctx con
 		SELECT adjustment.id,adjustment.external_outflow_id,adjustment.network_id,
 		       adjustment.wallet_id,adjustment.token_id,adjustment.amount,adjustment.status,
 		       adjustment.maker_id,adjustment.decision_by,adjustment.decision_reason,
-		       adjustment.posted_version,adjustment.created_at,adjustment.decided_at,adjustment.accounting_model_version,
+		       adjustment.posted_version,adjustment.created_at,adjustment.decided_at,
 		       outflow.status,outflow.classification,outflow.finality_status,
 		       outflow.confirmations,outflow.required_confs
 		FROM doc_crypto_custody_adjustments adjustment
@@ -285,7 +285,7 @@ func (r *ExternalOutflowWorkflowRepo) PrepareCustodyAdjustmentForPosting(ctx con
 		&adjustment.ID, &adjustment.ExternalOutflowID, &adjustment.NetworkID, &adjustment.WalletID,
 		&adjustment.TokenID, &adjustment.Amount, &adjustment.Status, &adjustment.MakerID,
 		&adjustment.DecisionBy, &adjustment.DecisionReason, &adjustment.PostedVersion,
-		&adjustment.CreatedAt, &adjustment.DecidedAt, &adjustment.AccountingModelVersion, &outflowStatus, &classification,
+		&adjustment.CreatedAt, &adjustment.DecidedAt, &outflowStatus, &classification,
 		&finalityStatus, &confirmations, &requiredConfirmations,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -307,10 +307,8 @@ func (r *ExternalOutflowWorkflowRepo) PrepareCustodyAdjustmentForPosting(ctx con
 		(requiredConfirmations > 0 && confirmations < requiredConfirmations) {
 		return nil, apperror.NewConflict("custody loss chain effect is no longer final")
 	}
-	if adjustment.AccountingModelVersion == 2 {
-		if err := r.prepareCustodyLossRecognition(ctx, &adjustment, actorID); err != nil {
-			return nil, err
-		}
+	if err := r.prepareCustodyLossRecognition(ctx, &adjustment, actorID); err != nil {
+		return nil, err
 	}
 	return &adjustment, nil
 }
@@ -351,13 +349,13 @@ func (r *ExternalOutflowWorkflowRepo) RejectCustodyAdjustment(ctx context.Contex
 	var adjustment crypto.CryptoCustodyAdjustment
 	err := q.QueryRow(ctx, `
 		SELECT id,external_outflow_id,network_id,wallet_id,token_id,amount,status,maker_id,
-		       decision_by,decision_reason,posted_version,created_at,decided_at,accounting_model_version
+		       decision_by,decision_reason,posted_version,created_at,decided_at
 		FROM doc_crypto_custody_adjustments WHERE id=$1 FOR UPDATE
 	`, adjustmentID).Scan(
 		&adjustment.ID, &adjustment.ExternalOutflowID, &adjustment.NetworkID, &adjustment.WalletID,
 		&adjustment.TokenID, &adjustment.Amount, &adjustment.Status, &adjustment.MakerID,
 		&adjustment.DecisionBy, &adjustment.DecisionReason, &adjustment.PostedVersion,
-		&adjustment.CreatedAt, &adjustment.DecidedAt, &adjustment.AccountingModelVersion,
+		&adjustment.CreatedAt, &adjustment.DecidedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.NewNotFound("custody adjustment", adjustmentID.String())
@@ -438,13 +436,13 @@ func (r *ExternalOutflowWorkflowRepo) loadAdjustment(ctx context.Context, q post
 	var adjustment crypto.CryptoCustodyAdjustment
 	err := q.QueryRow(ctx, `
 		SELECT id,external_outflow_id,network_id,wallet_id,token_id,amount,status,maker_id,
-		       decision_by,decision_reason,posted_version,created_at,decided_at,accounting_model_version
+		       decision_by,decision_reason,posted_version,created_at,decided_at
 		FROM doc_crypto_custody_adjustments WHERE external_outflow_id=$1
 	`, outflow.ID).Scan(
 		&adjustment.ID, &adjustment.ExternalOutflowID, &adjustment.NetworkID, &adjustment.WalletID,
 		&adjustment.TokenID, &adjustment.Amount, &adjustment.Status, &adjustment.MakerID,
 		&adjustment.DecisionBy, &adjustment.DecisionReason, &adjustment.PostedVersion,
-		&adjustment.CreatedAt, &adjustment.DecidedAt, &adjustment.AccountingModelVersion,
+		&adjustment.CreatedAt, &adjustment.DecidedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil

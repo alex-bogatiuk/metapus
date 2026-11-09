@@ -24,8 +24,7 @@ func (*ExternalOutflowWorkflowRepo) lockCustodyAdjustment(ctx context.Context, d
 	}
 	q := tm.GetQuerier(ctx)
 	var wallet, asset, outflow id.ID
-	var model int
-	if err := q.QueryRow(ctx, `SELECT wallet_id,token_id,external_outflow_id,accounting_model_version FROM doc_crypto_custody_adjustments WHERE id=$1`, document).Scan(&wallet, &asset, &outflow, &model); err != nil {
+	if err := q.QueryRow(ctx, `SELECT wallet_id,token_id,external_outflow_id FROM doc_crypto_custody_adjustments WHERE id=$1`, document).Scan(&wallet, &asset, &outflow); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return apperror.NewNotFound("custody adjustment", document.String())
 		}
@@ -34,7 +33,7 @@ func (*ExternalOutflowWorkflowRepo) lockCustodyAdjustment(ctx context.Context, d
 	if err := lockExternalOutflowResources(ctx, outflow); err != nil {
 		return err
 	}
-	if resources && model == 2 {
+	if resources {
 		if err := NewCustodyRecognitionRepo().LockWallet(ctx, wallet, asset); err != nil {
 			return err
 		}

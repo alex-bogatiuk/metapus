@@ -1501,7 +1501,6 @@ export type CryptoSweepCursorResponse = {
 }
 
 export type CryptoSweepDetailResponse = {
-  "accountingModelVersion"?: number
   "id"?: string
   "number"?: string
   "date"?: string
@@ -1558,7 +1557,6 @@ export type CryptoSweepResourceCostResponse = {
 }
 
 export type CryptoSweepResponse = {
-  "accountingModelVersion": number
   "id": string
   "number": string
   "date": string
@@ -1683,7 +1681,6 @@ export type CryptoWithdrawalCursorResponse = {
 }
 
 export type CryptoWithdrawalResponse = {
-  "accountingModelVersion": number
   "id": string
   "number": string
   "date": string
@@ -1790,7 +1787,6 @@ export type CursorListResponse = {
 }
 
 export type CustodyAdjustmentResponse = {
-  "accountingModelVersion": number
   "id": string
   "externalOutflowId": string
   "networkId": string
@@ -2403,7 +2399,6 @@ export type FinancialAdjustmentResponse = {
   "paymentId"?: string
   "postedVersion": number
   "mode": string
-  "accountingModelVersion": number
   "basisKind": string
   "sourcePostingId"?: string
   "walletId"?: string
@@ -3730,7 +3725,6 @@ export type PortalWithdrawalCreatedResponse = {
 }
 
 export type PortalWithdrawalItem = {
-  "accountingModelVersion": number
   "riskClass"?: string
   "id": string
   "number": string
@@ -4273,7 +4267,6 @@ export type TreasuryWithdrawalCursorResponse = {
 }
 
 export type TreasuryWithdrawalResponse = {
-  "accountingModelVersion": number
   "object": string
   "id": string
   "version": number

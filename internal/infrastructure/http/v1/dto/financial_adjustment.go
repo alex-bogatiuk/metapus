@@ -44,27 +44,26 @@ type FinancialAdjustmentPaymentSourcesResponse struct {
 }
 
 type FinancialAdjustmentResponse struct {
-	ID                     string                             `json:"id"`
-	PaymentID              string                             `json:"paymentId,omitempty"`
-	PostedVersion          int                                `json:"postedVersion"`
-	Mode                   string                             `json:"mode"`
-	AccountingModelVersion int                                `json:"accountingModelVersion"`
-	BasisKind              string                             `json:"basisKind"`
-	SourcePostingID        *string                            `json:"sourcePostingId,omitempty"`
-	WalletID               string                             `json:"walletId,omitempty"`
-	TokenID                string                             `json:"tokenId,omitempty"`
-	Direction              string                             `json:"direction,omitempty"`
-	Amount                 string                             `json:"amount,omitempty"`
-	DecisionMode           string                             `json:"decisionMode"`
-	SourceLines            []FinancialAdjustmentSourceRequest `json:"sourceLines,omitempty"`
-	ReasonCode             string                             `json:"reasonCode"`
-	Evidence               json.RawMessage                    `json:"evidence"`
-	MakerID                string                             `json:"makerId"`
-	CheckerID              *string                            `json:"checkerId,omitempty"`
-	Status                 string                             `json:"status"`
-	DecisionReason         string                             `json:"decisionReason"`
-	CreatedAt              string                             `json:"createdAt"`
-	DecidedAt              *string                            `json:"decidedAt,omitempty"`
+	ID              string                             `json:"id"`
+	PaymentID       string                             `json:"paymentId,omitempty"`
+	PostedVersion   int                                `json:"postedVersion"`
+	Mode            string                             `json:"mode"`
+	BasisKind       string                             `json:"basisKind"`
+	SourcePostingID *string                            `json:"sourcePostingId,omitempty"`
+	WalletID        string                             `json:"walletId,omitempty"`
+	TokenID         string                             `json:"tokenId,omitempty"`
+	Direction       string                             `json:"direction,omitempty"`
+	Amount          string                             `json:"amount,omitempty"`
+	DecisionMode    string                             `json:"decisionMode"`
+	SourceLines     []FinancialAdjustmentSourceRequest `json:"sourceLines,omitempty"`
+	ReasonCode      string                             `json:"reasonCode"`
+	Evidence        json.RawMessage                    `json:"evidence"`
+	MakerID         string                             `json:"makerId"`
+	CheckerID       *string                            `json:"checkerId,omitempty"`
+	Status          string                             `json:"status"`
+	DecisionReason  string                             `json:"decisionReason"`
+	CreatedAt       string                             `json:"createdAt"`
+	DecidedAt       *string                            `json:"decidedAt,omitempty"`
 }
 
 type FinancialAdjustmentListResponse struct {
@@ -74,7 +73,7 @@ type FinancialAdjustmentListResponse struct {
 func FromFinancialAdjustment(value *cryptoapp.FinancialAdjustment) FinancialAdjustmentResponse {
 	result := FinancialAdjustmentResponse{
 		ID: value.ID.String(), Mode: value.Mode, DecisionMode: value.DecisionMode,
-		AccountingModelVersion: value.AccountingModelVersion, BasisKind: value.BasisKind,
+		BasisKind:  value.BasisKind,
 		ReasonCode: value.ReasonCode,
 		Evidence:   value.Evidence, MakerID: value.MakerID.String(),
 		Status: value.Status, DecisionReason: value.DecisionReason,

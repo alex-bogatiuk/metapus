@@ -55,7 +55,6 @@ func newNetworkFeeFixture(t *testing.T, purpose crypto.SigningPurpose) networkFe
 	}
 	rsv, err := NewFeeBudgetManager().Reserve(ctx, FeeReservationRequest{NetworkID: network, PayerWalletID: wallet, NativeTokenID: asset, OperationTokenID: asset, BasisType: basisType, BasisID: basis, Purpose: purpose, Attempt: 1, Strategy: crypto.FeeStrategyNativeBurn, MaxFee: types.NewCryptoAmountFromInt64(10)})
 	require.NoError(t, err)
-	require.Equal(t, 2, rsv.AccountingModelVersion)
 	hash := id.Compact(basis) + id.Compact(basis)
 	require.NoError(t, NewFeeBudgetManager().BindUnsignedFingerprint(ctx, rsv.ID, "fee-"+basis.String()))
 	require.NoError(t, NewFeeBudgetManager().MarkBroadcast(ctx, rsv.ID, "fee-"+basis.String(), hash))
@@ -312,7 +311,6 @@ func TestNetworkFeeV2BasisAndGenericReversalAreFrozen(t *testing.T) {
 	require.NoError(t, NewFeeBudgetManager().Settle(f.ctx, f.reservation.ID, f.receipt))
 	for _, sql := range []string{
 		`UPDATE reg_crypto_fee_reservations SET actual_fee_minor=3 WHERE id=$1`,
-		`UPDATE reg_crypto_fee_reservations SET accounting_model_version=1 WHERE id=$1`,
 		`UPDATE reg_crypto_fee_reservations SET tx_hash=repeat('d',64) WHERE id=$1`,
 		`DELETE FROM reg_crypto_network_fee_bindings WHERE reservation_id=$1`,
 		`INSERT INTO reg_crypto_balance_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount,reversal_of_line_id) SELECT $2,recorder_id,'NetworkFeeReversal',1,period,'receipt',wallet_id,token_id,amount,line_id FROM reg_crypto_balance_movements WHERE line_id=$1`,

@@ -4,10 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/core/types"
+
+	"github.com/stretchr/testify/require"
 )
 
 func riskApprovalIntent() MoneyMovementIntent {

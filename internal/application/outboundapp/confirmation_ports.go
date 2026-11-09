@@ -16,21 +16,20 @@ const (
 )
 
 type SettlementTask struct {
-	Kind                   string
-	DocumentID             id.ID
-	LineID                 id.ID
-	RequestID              id.ID
-	MerchantID             id.ID
-	NetworkID              id.ID
-	OperationTokenID       id.ID
-	SourceWalletID         id.ID
-	HotWalletID            id.ID
-	TxHash                 string
-	Amount                 types.CryptoAmount
-	RequiredConfs          int
-	PostedVersion          int
-	AccountingModelVersion int
-	VerificationID         *id.ID
+	Kind             string
+	DocumentID       id.ID
+	LineID           id.ID
+	RequestID        id.ID
+	MerchantID       id.ID
+	NetworkID        id.ID
+	OperationTokenID id.ID
+	SourceWalletID   id.ID
+	HotWalletID      id.ID
+	TxHash           string
+	Amount           types.CryptoAmount
+	RequiredConfs    int
+	PostedVersion    int
+	VerificationID   *id.ID
 }
 
 type ReplacementCandidate struct {
@@ -56,33 +55,21 @@ type SettlementRepository interface {
 	ReleaseOutboundSettlementClaim(context.Context, SettlementTask) error
 	RecordOutboundSettlement(context.Context, SettlementTask, crypto.ChainReceipt) error
 	ListOrphanedResourceAllocations(context.Context, int) ([]OrphanedResourceAllocation, error)
-}
-
-// SQL adapters acquire the legacy document/resource prefix before fee writes.
-// Other storage implementations may provide their own serialization strategy.
-type LegacySettlementPreflight interface {
-	PrepareLegacyOutboundSettlement(context.Context, SettlementTask) error
-}
-
-type SweepSettlementAdmission interface {
+	// Financial admission locks the document's resources and reports whether
+	// the principal still awaits recognition (false: only the fee settles).
 	PrepareSweepSettlement(context.Context, SettlementTask, crypto.ChainReceipt) (bool, error)
+	PrepareTreasurySettlement(context.Context, SettlementTask, crypto.ChainReceipt) (bool, error)
+	PrepareWithdrawalSettlement(context.Context, SettlementTask, crypto.ChainReceipt) (bool, error)
 }
 
 type SweepSettlementEvidence interface {
 	VerifySweep(context.Context, crypto.NetworkDriver, SettlementTask, crypto.ChainReceipt) (id.ID, error)
 }
 
-type TreasurySettlementAdmission interface {
-	PrepareTreasurySettlement(context.Context, SettlementTask, crypto.ChainReceipt) (bool, error)
-}
-
 type TreasurySettlementEvidence interface {
 	VerifyTreasury(context.Context, crypto.NetworkDriver, SettlementTask, crypto.ChainReceipt) (id.ID, error)
 }
 
-type WithdrawalSettlementAdmission interface {
-	PrepareWithdrawalSettlement(context.Context, SettlementTask, crypto.ChainReceipt) (bool, error)
-}
 type WithdrawalSettlementEvidence interface {
 	VerifyWithdrawal(context.Context, crypto.NetworkDriver, SettlementTask, crypto.ChainReceipt) (id.ID, error)
 }

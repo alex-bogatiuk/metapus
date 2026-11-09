@@ -69,7 +69,7 @@ func (r *OutboundRepo) EnsureAMLWithdrawalExecution(ctx context.Context, task Wi
 func recordAMLWithdrawalFact(ctx context.Context, task outboundSettlementTask, succeeded bool) error {
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
 	_, err := q.Exec(ctx, `INSERT INTO reg_crypto_aml_withdrawal_facts(line_id,wallet_id,token_id,amount,succeeded,settlement_id,expense_movement_id,refund_movement_id)
- SELECT l.id,l.wallet_id,l.token_id,l.amount,$2,s.id,m.line_id,CASE WHEN $2 OR w.accounting_model_version=2 THEN NULL ELSE l.id END
+ SELECT l.id,l.wallet_id,l.token_id,l.amount,$2,s.id,m.line_id,NULL::uuid
  FROM reg_crypto_aml_withdrawal_lines l JOIN doc_crypto_withdrawals w ON w.id=l.withdrawal_id
  JOIN reg_crypto_chain_settlements s ON s.network_id=$3 AND s.tx_hash=w.tx_hash AND s.basis_type='CryptoAMLWithdrawalLine' AND s.basis_id=l.id
  LEFT JOIN reg_crypto_balance_movements m ON m.recorder_id=w.id AND m.recorder_type='CryptoWithdrawal' AND m.recorder_version=1 AND m.record_type='expense'

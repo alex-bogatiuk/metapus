@@ -3,10 +3,11 @@ package crypto
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAccountingTransferBasisRequiresPhysicalEvidenceWithoutMerchant(t *testing.T) {

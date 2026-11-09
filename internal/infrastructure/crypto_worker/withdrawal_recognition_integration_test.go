@@ -89,7 +89,7 @@ func newWithdrawalFinalFixture(t *testing.T, ctx context.Context, tm *postgres.T
 		VALUES($1,$2,$3,$4,'WithdrawalRequest',$5,'withdrawal',1,'native_burn',10,'reserved')`, c.network, c.hot, c.native, c.token, r.ID)
 	require.NoError(t, err)
 	f := withdrawalFinalFixture{ctx: ctx, tm: tm, doc: d, request: r,
-		task:      outboundapp.SettlementTask{Kind: outboundapp.SettlementWithdrawal, DocumentID: d.ID, RequestID: r.ID, MerchantID: merchant, NetworkID: c.network, OperationTokenID: c.token, SourceWalletID: c.hot, TxHash: hash, Amount: r.Amount, AccountingModelVersion: 2, PostedVersion: 1},
+		task:      outboundapp.SettlementTask{Kind: outboundapp.SettlementWithdrawal, DocumentID: d.ID, RequestID: r.ID, MerchantID: merchant, NetworkID: c.network, OperationTokenID: c.token, SourceWalletID: c.hot, TxHash: hash, Amount: r.Amount, PostedVersion: 1},
 		execution: outboundapp.WithdrawalTask{RequestID: r.ID, MerchantID: merchant, TokenID: c.token, NetworkID: c.network, Amount: r.Amount, DestAddress: dest, TokenStandard: token.TokenStandard(standard), ContractAddress: contract},
 		receipt: crypto.ChainReceipt{NetworkID: c.network, TxHash: hash, Status: crypto.ReceiptSucceeded, BlockHeight: 100, BlockHash: strings.Repeat("b", 64), Confirmations: 20, Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalitySolidified, ObservedAt: time.Now().UTC(),
 			Fee: crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: c.native}, TotalFee: types.NewCryptoAmountFromInt64(2)}}}
@@ -278,7 +278,6 @@ func TestWithdrawalV2FinancialBasisAndFinalHistoryAreImmutable(t *testing.T) {
 		f.broadcast(t)
 		require.NoError(t, f.service(t).Settle(ctx, f.task))
 		for _, query := range []string{
-			"UPDATE doc_crypto_withdrawals SET accounting_model_version=1 WHERE id=$1",
 			"UPDATE doc_crypto_withdrawals SET posted=false WHERE id=$1",
 			"UPDATE doc_crypto_withdrawals SET status='broadcast' WHERE id=$1",
 			`INSERT INTO reg_crypto_balance_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount,reversal_of_line_id)

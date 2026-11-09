@@ -72,7 +72,7 @@ func newSweepFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxMana
 			WHERE s.id=$1 AND d.id=$2 AND t.id=$3`, wallet, f.hot, f.token).Scan(&source, &destination, &key, &contract, &standard))
 		amount := types.NewCryptoAmountFromInt64(23)
 		doc.Lines = append(doc.Lines, crypto_sweep.CryptoSweepLine{LineID: line, LineNo: i + 1, WalletID: wallet, Amount: amount, SettlementStatus: outbound_settlement.StatusNotApplicable})
-		fixture.tasks = append(fixture.tasks, outboundapp.SettlementTask{Kind: outboundapp.SettlementSweep, DocumentID: doc.ID, LineID: line, NetworkID: f.network, OperationTokenID: f.token, SourceWalletID: wallet, HotWalletID: f.hot, TxHash: hash, Amount: amount, AccountingModelVersion: 2, PostedVersion: 1})
+		fixture.tasks = append(fixture.tasks, outboundapp.SettlementTask{Kind: outboundapp.SettlementSweep, DocumentID: doc.ID, LineID: line, NetworkID: f.network, OperationTokenID: f.token, SourceWalletID: wallet, HotWalletID: f.hot, TxHash: hash, Amount: amount, PostedVersion: 1})
 		fixture.group = append(fixture.group, outboundapp.SweepTask{AttemptID: line, SweepID: &doc.ID, NetworkID: f.network, TokenID: f.token, TokenStandard: token.TokenStandard(standard), WalletID: wallet, Address: source, HotWalletID: f.hot, Balance: amount})
 		fixture.receipts = append(fixture.receipts, crypto.ChainReceipt{NetworkID: f.network, TxHash: hash, Status: crypto.ReceiptSucceeded, BlockHeight: 100, BlockHash: strings.Repeat("b", 64), Confirmations: 20, Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalitySolidified, ObservedAt: time.Now().UTC(), Fee: crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: f.native}, TotalFee: types.NewCryptoAmountFromInt64(2)}})
 		_, err = q.Exec(ctx, `INSERT INTO reg_crypto_sweep_attempts(id,wallet_id,token_id,network_id,hot_wallet_id,source_address,destination_address,amount,status,expires_at)
@@ -302,7 +302,6 @@ func TestSweepV2FinalBasisAndPrincipalCannotBeRewritten(t *testing.T) {
 		require.Error(t, err)
 		require.NoError(t, f.service(t, 0).Settle(ctx, f.tasks[0]))
 		for _, query := range []string{
-			"UPDATE doc_crypto_sweeps SET accounting_model_version=1 WHERE id=$1",
 			"UPDATE doc_crypto_sweeps SET posted=false WHERE id=$1",
 			"DELETE FROM doc_crypto_sweep_lines WHERE document_id=$1",
 			`INSERT INTO reg_crypto_balance_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount,reversal_of_line_id)

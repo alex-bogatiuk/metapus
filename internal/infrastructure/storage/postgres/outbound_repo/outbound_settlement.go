@@ -72,10 +72,10 @@ func (r *OutboundRepo) claimWithdrawalSettlements(ctx context.Context, workerID 
 			    settlement_claimed_at=NOW(),settlement_lease_expires_at=NOW()+($3*interval '1 second'),
 			    settlement_error='',updated_at=NOW()
 			FROM picked p WHERE cw.id=p.id
-			RETURNING cw.id,cw.token_id,cw.source_wallet_id,cw.tx_hash,cw.amount,cw.accounting_model_version
+			RETURNING cw.id,cw.token_id,cw.source_wallet_id,cw.tx_hash,cw.amount
 		)
 		SELECT c.id,wr.id,wr.merchant_id,t.network_id,c.token_id,c.source_wallet_id,c.tx_hash,c.amount,
-		       COALESCE(n.confirmations_needed,1),wr.posted_version,COALESCE(aml.id,'00000000-0000-0000-0000-000000000000'::uuid),c.accounting_model_version
+		       COALESCE(n.confirmations_needed,1),wr.posted_version,COALESCE(aml.id,'00000000-0000-0000-0000-000000000000'::uuid)
 		FROM claimed c
 		JOIN cat_tokens t ON t.id=c.token_id
 		JOIN cat_blockchain_networks n ON n.id=t.network_id
@@ -96,7 +96,7 @@ func (r *OutboundRepo) claimWithdrawalSettlements(ctx context.Context, workerID 
 		var task outboundSettlementTask
 		task.Kind = settlementWithdrawal
 		if err := rows.Scan(&task.DocumentID, &task.RequestID, &task.MerchantID, &task.NetworkID, &task.OperationTokenID,
-			&task.SourceWalletID, &task.TxHash, &task.Amount, &task.RequiredConfs, &task.PostedVersion, &task.LineID, &task.AccountingModelVersion); err != nil {
+			&task.SourceWalletID, &task.TxHash, &task.Amount, &task.RequiredConfs, &task.PostedVersion, &task.LineID); err != nil {
 			return nil, err
 		}
 		result = append(result, task)
@@ -125,7 +125,7 @@ func (r *OutboundRepo) claimSweepSettlements(ctx context.Context, workerID strin
 			RETURNING l.line_id,l.document_id,l.wallet_id,l.tx_hash,l.amount
 		)
 		SELECT c.line_id,c.document_id,t.network_id,s.token_id,c.wallet_id,s.hot_wallet_id,
-		       c.tx_hash,c.amount,COALESCE(n.confirmations_needed,1),s.posted_version,s.accounting_model_version
+		       c.tx_hash,c.amount,COALESCE(n.confirmations_needed,1),s.posted_version
 		FROM claimed c
 		JOIN doc_crypto_sweeps s ON s.id=c.document_id
 		JOIN cat_tokens t ON t.id=s.token_id
@@ -146,7 +146,7 @@ func (r *OutboundRepo) claimSweepSettlements(ctx context.Context, workerID strin
 		task.Kind = settlementSweep
 		if err := rows.Scan(&task.LineID, &task.DocumentID, &task.NetworkID, &task.OperationTokenID,
 			&task.SourceWalletID, &task.HotWalletID, &task.TxHash, &task.Amount,
-			&task.RequiredConfs, &task.PostedVersion, &task.AccountingModelVersion); err != nil {
+			&task.RequiredConfs, &task.PostedVersion); err != nil {
 			return nil, err
 		}
 		result = append(result, task)
@@ -172,10 +172,10 @@ func (r *OutboundRepo) claimTreasurySettlements(ctx context.Context, workerID st
 			    settlement_claimed_at=NOW(),settlement_lease_expires_at=NOW()+($3*interval '1 second'),
 			    settlement_error='',updated_at=NOW()
 			FROM picked p WHERE tw.id=p.id
-			RETURNING tw.id,tw.token_id,tw.source_wallet_id,tw.tx_hash,tw.amount,tw.posted_version,tw.accounting_model_version
+			RETURNING tw.id,tw.token_id,tw.source_wallet_id,tw.tx_hash,tw.amount,tw.posted_version
 		)
 		SELECT c.id,t.network_id,c.token_id,c.source_wallet_id,c.tx_hash,c.amount,
-		       COALESCE(n.confirmations_needed,1),c.posted_version,c.accounting_model_version
+		       COALESCE(n.confirmations_needed,1),c.posted_version
 		FROM claimed c
 		JOIN cat_tokens t ON t.id=c.token_id
 		JOIN cat_blockchain_networks n ON n.id=t.network_id
@@ -194,7 +194,7 @@ func (r *OutboundRepo) claimTreasurySettlements(ctx context.Context, workerID st
 		var task outboundSettlementTask
 		task.Kind = settlementTreasury
 		if err := rows.Scan(&task.DocumentID, &task.NetworkID, &task.OperationTokenID,
-			&task.SourceWalletID, &task.TxHash, &task.Amount, &task.RequiredConfs, &task.PostedVersion, &task.AccountingModelVersion); err != nil {
+			&task.SourceWalletID, &task.TxHash, &task.Amount, &task.RequiredConfs, &task.PostedVersion); err != nil {
 			return nil, err
 		}
 		result = append(result, task)
@@ -244,45 +244,14 @@ func (r *OutboundRepo) RecordOutboundSettlement(ctx context.Context, task outbou
 		return apperror.NewValidation("outbound settlement requires a transaction")
 	}
 	q := tm.GetQuerier(ctx)
-	model, err := loadLegacySettlementBasis(ctx, task)
-	if err != nil {
-		return err
-	}
-	task.AccountingModelVersion = model
-	if model == 1 {
-		if err := validateFeeComponents(receipt.Fee); err != nil {
-			return err
-		}
-		if err := r.PrepareLegacyOutboundSettlement(ctx, task); err != nil {
-			return err
-		}
-		if _, err := loadLegacySettlementBasis(ctx, task); err != nil {
-			return err
-		}
-	}
 	if task.Kind == settlementWithdrawal && !id.IsNil(task.LineID) {
 		if _, err := crypto_repo.NewAMLRepository().LockAMLWithdrawalScope(ctx, task.MerchantID, task.NetworkID, task.OperationTokenID); err != nil {
 			return err
 		}
 	}
 	locked, err := lockOutboundSettlement(ctx, q, task)
-	if err != nil {
+	if err != nil || !locked {
 		return err
-	}
-	if !locked {
-		if model == 1 {
-			return validateLegacyRecordedOutcome(ctx, q, task, receipt)
-		}
-		return nil
-	}
-	if model == 1 {
-		exists, err := legacyCompensationExists(ctx, q, task)
-		if err != nil {
-			return err
-		}
-		if exists {
-			return legacySettlementConflict()
-		}
 	}
 	nativeTokenID := receipt.Fee.NativeAsset.TokenID
 	result := outbound_settlement.ChainResultSuccess
@@ -290,36 +259,25 @@ func (r *OutboundRepo) RecordOutboundSettlement(ctx context.Context, task outbou
 		result = outbound_settlement.ChainResult("REVERTED")
 	}
 	failed := result != outbound_settlement.ChainResultSuccess
-	if task.Kind == settlementSweep && task.AccountingModelVersion == 2 && !failed {
+	if task.Kind == settlementSweep && !failed {
 		if err := crypto_repo.NewSweepCustodyRepo().RecordPrincipal(ctx, sweepAccountingBasis(task), receipt); err != nil {
 			return err
 		}
 	}
-	if task.Kind == settlementTreasury && task.AccountingModelVersion == 2 && !failed {
+	if task.Kind == settlementTreasury && !failed {
 		if err := crypto_repo.NewTreasuryCustodyRepo().RecordPrincipalAndRevenue(ctx, treasuryAccountingBasis(task), receipt); err != nil {
 			return err
 		}
 	}
-	if task.Kind == settlementWithdrawal && task.AccountingModelVersion == 2 {
+	if task.Kind == settlementWithdrawal {
 		if err := crypto_repo.NewWithdrawalCustodyRepo().RecordOutcome(ctx, withdrawalAccountingBasis(task), receipt); err != nil {
-			return err
-		}
-	}
-	if failed && (task.AccountingModelVersion != 2 || (task.Kind != settlementSweep && task.Kind != settlementTreasury && task.Kind != settlementWithdrawal)) {
-		if err := validateLegacyDebit(ctx, q, task); err != nil {
-			return err
-		}
-		if err := recordFailedOutboundCompensation(ctx, q, task); err != nil {
-			return err
-		}
-		if err := validateLegacyCompensation(ctx, q, task); err != nil {
 			return err
 		}
 	}
 	if err := updateSettledOutbound(ctx, q, task, nativeTokenID, receipt, result, failed); err != nil {
 		return err
 	}
-	if task.Kind == settlementWithdrawal && task.AccountingModelVersion == 2 {
+	if task.Kind == settlementWithdrawal {
 		basis, basisID := withdrawalAccountingBasis(task).SigningBasis()
 		status := "consumed"
 		if failed {
@@ -338,7 +296,7 @@ func (r *OutboundRepo) RecordOutboundSettlement(ctx context.Context, task outbou
 			}
 		}
 	}
-	if task.Kind == settlementTreasury && task.AccountingModelVersion == 2 {
+	if task.Kind == settlementTreasury {
 		if failed {
 			if _, err := q.Exec(ctx, `UPDATE reg_crypto_signing_authorizations SET status='failed',updated_at=now() WHERE basis_type='TreasuryWithdrawal' AND basis_id=$1 AND status IN ('created','signed','broadcast','held','superseded')`, task.DocumentID); err != nil {
 				return err
@@ -347,7 +305,7 @@ func (r *OutboundRepo) RecordOutboundSettlement(ctx context.Context, task outbou
 		}
 		return r.ConsumeTreasuryReservations(ctx, task.DocumentID)
 	}
-	if task.Kind == settlementSweep && task.AccountingModelVersion == 2 {
+	if task.Kind == settlementSweep {
 		if failed {
 			if _, err := q.Exec(ctx, `UPDATE reg_crypto_signing_authorizations SET status='failed',updated_at=now()
 				WHERE basis_type='CryptoSweepAttempt' AND basis_id=$1 AND status IN ('created','signed','broadcast','held','superseded')`, task.LineID); err != nil {
@@ -415,63 +373,6 @@ func lockOutboundSettlement(ctx context.Context, q providerBalanceQuerier, task 
 	return status != outbound_settlement.StatusRecorded, nil
 }
 
-func recordFailedOutboundCompensation(ctx context.Context, q providerBalanceQuerier, task outboundSettlementTask) error {
-	if task.Kind == settlementWithdrawal && !id.IsNil(task.LineID) {
-		if _, err := q.Exec(ctx, `INSERT INTO reg_crypto_balance_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount) VALUES($1,$1,'AMLWithdrawalRevert',1,NOW(),'receipt',$2,$3,$4) ON CONFLICT(line_id) DO NOTHING`, task.LineID, task.SourceWalletID, task.OperationTokenID, task.Amount); err != nil {
-			return err
-		}
-		_, err := q.Exec(ctx, `INSERT INTO reg_crypto_merchant_balance_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,amount) VALUES($1,$2,'WithdrawalRequest',$3,NOW(),'receipt',$4,$5,$6) ON CONFLICT(line_id) DO NOTHING`, task.LineID, task.RequestID, task.PostedVersion+1, task.MerchantID, task.OperationTokenID, task.Amount)
-		return err
-	}
-	basisID := task.DocumentID
-	if task.Kind == settlementSweep {
-		basisID = task.LineID
-	}
-	recorderID := deterministicMovementID(basisID, "failed-outbound:"+task.TxHash)
-	if task.Amount.IsPositive() {
-		receiptLine := deterministicMovementID(recorderID, "source-receipt")
-		if _, err := q.Exec(ctx, `INSERT INTO reg_crypto_balance_movements
-			(line_id,recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount)
-			VALUES($1,$2,'ChainOutboundStorno',1,NOW(),'receipt',$3,$4,$5) ON CONFLICT DO NOTHING`,
-			receiptLine, recorderID, task.SourceWalletID, task.OperationTokenID, task.Amount); err != nil {
-			return fmt.Errorf("record failed outbound source storno: %w", err)
-		}
-		if task.Kind == settlementSweep {
-			expenseLine := deterministicMovementID(recorderID, "hot-expense")
-			if _, err := q.Exec(ctx, `INSERT INTO reg_crypto_balance_movements
-				(line_id,recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount)
-				VALUES($1,$2,'ChainOutboundStorno',1,NOW(),'expense',$3,$4,$5) ON CONFLICT DO NOTHING`,
-				expenseLine, recorderID, task.HotWalletID, task.OperationTokenID, task.Amount); err != nil {
-				return fmt.Errorf("record failed sweep hot wallet storno: %w", err)
-			}
-		}
-	}
-	if task.Kind == settlementTreasury {
-		if _, err := q.Exec(ctx, `
-			INSERT INTO reg_crypto_fee_movements
-			(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,fee_type,amount)
-			SELECT gen_random_uuid_v7(),$1,'ChainOutboundStorno',1,NOW(),
-			       CASE WHEN m.record_type='expense' THEN 'receipt' ELSE 'expense' END,
-			       m.merchant_id,m.token_id,m.fee_type,m.amount
-			FROM reg_crypto_fee_movements m
-			WHERE m.recorder_id=$2 AND m.recorder_type='TreasuryWithdrawal' AND m.recorder_version=$3 AND m.reversal_of_line_id IS NULL AND NOT EXISTS(
-				SELECT 1 FROM reg_crypto_fee_movements s WHERE s.recorder_id=$1
-			)
-			ORDER BY m.merchant_id,m.token_id,m.fee_type,m.line_id
-		`, recorderID, task.DocumentID, task.PostedVersion); err != nil {
-			return fmt.Errorf("record failed treasury fee storno: %w", err)
-		}
-	}
-	if task.Kind == settlementWithdrawal {
-		lineID := deterministicMovementID(task.RequestID, "failed-withdrawal-merchant:"+task.TxHash)
-		_, err := q.Exec(ctx, `INSERT INTO reg_crypto_merchant_balance_movements
- (line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,amount)
- VALUES($1,$2,'WithdrawalRequest',$3,NOW(),'receipt',$4,$5,$6) ON CONFLICT(line_id) DO NOTHING`, lineID, task.RequestID, task.PostedVersion+1, task.MerchantID, task.OperationTokenID, task.Amount)
-		return err
-	}
-	return nil
-}
-
 func updateSettledOutbound(ctx context.Context, q providerBalanceQuerier, task outboundSettlementTask, nativeTokenID id.ID, receipt crypto.ChainReceipt, result outbound_settlement.ChainResult, failed bool) error {
 	withdrawalStatus := crypto_withdrawal.WithdrawalStatusConfirmed
 	requestStatus := withdrawal_request.StatusConfirmed
@@ -521,7 +422,7 @@ func updateSettledOutbound(ctx context.Context, q providerBalanceQuerier, task o
 			chain_result=$4,energy_used=$5,net_fee=$6,energy_fee=$7,net_usage=$8,
 			settlement_status=$9,settlement_checked_at=NOW(),settlement_error='',
 			settlement_claimed_by='',settlement_claimed_at=NULL,settlement_lease_expires_at=NULL,
-			confirmed=$10 WHERE line_id=$1`, append(append([]any{task.LineID}, args...), !failed || task.AccountingModelVersion != 2)...); err != nil {
+			confirmed=$10 WHERE line_id=$1`, append(append([]any{task.LineID}, args...), !failed)...); err != nil {
 			return err
 		}
 		_, err := q.Exec(ctx, `UPDATE doc_crypto_sweeps s SET status=CASE

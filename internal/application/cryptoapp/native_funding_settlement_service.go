@@ -56,7 +56,7 @@ func (s *NativeFundingSettlementService) Settle(ctx context.Context, fundingID i
 		if err := funding.ValidateReceipt(receipt); err != nil {
 			return err
 		}
-		if (funding.Status == "settled" || funding.Status == "failed") && funding.FeeAccountingModelVersion == 2 {
+		if funding.Status == "settled" || funding.Status == "failed" {
 			if funding.FeeReservationID == nil {
 				return apperror.NewConflict("recognized funding fee reservation is missing")
 			}
@@ -93,7 +93,7 @@ func (s *NativeFundingSettlementService) Settle(ctx context.Context, fundingID i
 			// The budget adapter commits an audited cap hold. Return its error
 			// only AFTER the transaction, preserving the incident and no principal.
 			capErr = s.fees.Settle(ctx, reservation.ID, receipt)
-			if reservation.AccountingModelVersion == 2 && !errors.Is(capErr, crypto.ErrFeeBudgetExceeded) {
+			if !errors.Is(capErr, crypto.ErrFeeBudgetExceeded) {
 				if capErr != nil {
 					return capErr
 				}

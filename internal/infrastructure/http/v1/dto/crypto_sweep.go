@@ -15,20 +15,19 @@ import (
 
 // CryptoSweepResponse is the response body for a sweep.
 type CryptoSweepResponse struct {
-	AccountingModelVersion int    `json:"accountingModelVersion"`
-	ID                     string `json:"id"`
-	Number                 string `json:"number"`
-	Date                   string `json:"date"`
-	TokenID                string `json:"tokenId"`
-	HotWalletID            string `json:"hotWalletId"`
-	TotalAmount            string `json:"totalAmount"`
-	TotalFee               string `json:"totalFee"`
-	Status                 string `json:"status"`
-	StatusName             string `json:"statusName"`
-	LineCount              int    `json:"lineCount"`
-	Posted                 bool   `json:"posted"`
-	DeletionMark           bool   `json:"deletionMark"`
-	Version                int    `json:"version"`
+	ID           string `json:"id"`
+	Number       string `json:"number"`
+	Date         string `json:"date"`
+	TokenID      string `json:"tokenId"`
+	HotWalletID  string `json:"hotWalletId"`
+	TotalAmount  string `json:"totalAmount"`
+	TotalFee     string `json:"totalFee"`
+	Status       string `json:"status"`
+	StatusName   string `json:"statusName"`
+	LineCount    int    `json:"lineCount"`
+	Posted       bool   `json:"posted"`
+	DeletionMark bool   `json:"deletionMark"`
+	Version      int    `json:"version"`
 
 	// Resolved references
 	Token *postgres.RefDisplay `json:"token,omitempty"`
@@ -37,20 +36,19 @@ type CryptoSweepResponse struct {
 // FromCryptoSweep creates response DTO from domain entity.
 func FromCryptoSweep(s *crypto_sweep.CryptoSweep, refs ...postgres.ResolvedRefs) *CryptoSweepResponse {
 	resp := &CryptoSweepResponse{
-		AccountingModelVersion: s.AccountingModelVersion,
-		ID:                     s.ID.String(),
-		Number:                 s.Number,
-		Date:                   s.Date.Format(time.RFC3339),
-		TokenID:                s.TokenID.String(),
-		HotWalletID:            s.HotWalletID.String(),
-		TotalAmount:            s.TotalAmount.String(),
-		TotalFee:               s.TotalFee.String(),
-		Status:                 string(s.Status),
-		StatusName:             string(s.Status),
-		LineCount:              len(s.Lines),
-		Posted:                 s.Posted,
-		DeletionMark:           s.DeletionMark,
-		Version:                s.Version,
+		ID:           s.ID.String(),
+		Number:       s.Number,
+		Date:         s.Date.Format(time.RFC3339),
+		TokenID:      s.TokenID.String(),
+		HotWalletID:  s.HotWalletID.String(),
+		TotalAmount:  s.TotalAmount.String(),
+		TotalFee:     s.TotalFee.String(),
+		Status:       string(s.Status),
+		StatusName:   string(s.Status),
+		LineCount:    len(s.Lines),
+		Posted:       s.Posted,
+		DeletionMark: s.DeletionMark,
+		Version:      s.Version,
 	}
 
 	if len(refs) > 0 {

@@ -1,13 +1,14 @@
 package crypto
 
 import (
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	er "metapus/internal/domain/registers/exchange_rate"
 	"testing"
 	"time"
+
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValuationCoverageAndPendingOnlyPositions(t *testing.T) {

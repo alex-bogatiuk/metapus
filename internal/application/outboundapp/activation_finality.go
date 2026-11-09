@@ -14,10 +14,9 @@ import (
 )
 
 type FeeSettlementResult struct {
-	ReservationID          id.ID
-	AccountingModelVersion int
-	SettlementID           id.ID
-	ActualFee              types.CryptoAmount
+	ReservationID id.ID
+	SettlementID  id.ID
+	ActualFee     types.CryptoAmount
 }
 type ActivationWorkflowRepository interface {
 	LockOperation(context.Context, AccountActivationTask) (*id.ID, error)
@@ -184,9 +183,7 @@ func (c *NetworkOperationCoordinator) finalizeActivation(ctx context.Context, ac
 		doc.Status = finalStatus
 		doc.CostAmount = settlement.ActualFee
 		doc.ChainSettlementID = &settlement.SettlementID
-		if settlement.AccountingModelVersion == 2 {
-			doc.NetworkFeeReservationID = &settlement.ReservationID
-		}
+		doc.NetworkFeeReservationID = &settlement.ReservationID
 		finalizedAt := receipt.ObservedAt
 		doc.FinalizedAt = &finalizedAt
 		doc.ManualEditAllowed = false

@@ -7,6 +7,9 @@ import (
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
+	"metapus/internal/domain/posting"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestCryptoSweepPlatformCostDoesNotCreateCryptoFeeMovement(t *testing.T) {
@@ -26,14 +29,6 @@ func TestCryptoSweepPlatformCostDoesNotCreateCryptoFeeMovement(t *testing.T) {
 			ExternalOrderID: "serial-1",
 			Amount:          types.NewCryptoAmountFromInt64(4_000_000),
 		},
-	}
-
-	feeMovements, err := sweep.GenerateCryptoFeeMovements(context.Background())
-	if err != nil {
-		t.Fatalf("GenerateCryptoFeeMovements() error: %v", err)
-	}
-	if len(feeMovements) != 0 {
-		t.Fatalf("GenerateCryptoFeeMovements() len = %d, want 0", len(feeMovements))
 	}
 
 	costMovements, err := sweep.GenerateCryptoPlatformCostMovements(context.Background())
@@ -56,17 +51,11 @@ func TestCryptoSweepPlatformCostDoesNotCreateCryptoFeeMovement(t *testing.T) {
 	}
 }
 
-func TestSweepV2NeverCreditsPrincipalAtBroadcast(t *testing.T) {
-	s := NewCryptoSweep(id.New(), id.New())
-	s.TotalAmount = types.NewCryptoAmountFromInt64(23)
-	s.Lines = []CryptoSweepLine{{WalletID: id.New(), Amount: s.TotalAmount, TxHash: "broadcast"}}
-	rows, err := s.GenerateCryptoBalanceMovements(context.Background())
-	if err != nil || len(rows) != 0 {
-		t.Fatalf("v2 broadcast principal: %v %v", rows, err)
-	}
-	s.AccountingModelVersion = 1
-	rows, err = s.GenerateCryptoBalanceMovements(context.Background())
-	if err != nil || len(rows) != 2 {
-		t.Fatalf("legacy broadcast must preserve its original pair: %v %v", rows, err)
-	}
+func TestSweepPostingNeverMovesPrincipal(t *testing.T) {
+	// Each line is recognized from its own final proof, never by posting.
+	var doc any = NewCryptoSweep(id.New(), id.New())
+	_, balance := doc.(posting.CryptoBalanceMovementSource)
+	_, fee := doc.(posting.CryptoFeeMovementSource)
+	require.False(t, balance)
+	require.False(t, fee)
 }

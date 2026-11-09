@@ -4,8 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/types"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestTransferEvidenceKeepsOrdinaryEconomicsAndBindsInternalTrace(t *testing.T) {

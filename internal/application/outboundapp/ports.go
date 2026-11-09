@@ -43,26 +43,25 @@ type TreasuryTask struct {
 	PostedVersion   int
 }
 type SweepTask struct {
-	AccountingModelVersion int
-	RecoveryOnly           bool
-	AttemptID              id.ID
-	SweepID                *id.ID
-	WalletID               id.ID
-	TokenID                id.ID
-	NetworkID              id.ID
-	NetworkCode            string
-	Address                string
-	VaultKeyID             string
-	ContractAddress        string
-	TokenStandard          token.TokenStandard
-	TokenDecimals          int
-	ChainActivationStatus  wallet.ChainActivationStatus
-	Balance                types.CryptoAmount
-	RequiredConfs          int
-	HotWalletID            id.ID
-	HotWalletAddress       string
-	HotWalletVaultKeyID    string
-	HotWalletBalance       types.CryptoAmount
+	RecoveryOnly          bool
+	AttemptID             id.ID
+	SweepID               *id.ID
+	WalletID              id.ID
+	TokenID               id.ID
+	NetworkID             id.ID
+	NetworkCode           string
+	Address               string
+	VaultKeyID            string
+	ContractAddress       string
+	TokenStandard         token.TokenStandard
+	TokenDecimals         int
+	ChainActivationStatus wallet.ChainActivationStatus
+	Balance               types.CryptoAmount
+	RequiredConfs         int
+	HotWalletID           id.ID
+	HotWalletAddress      string
+	HotWalletVaultKeyID   string
+	HotWalletBalance      types.CryptoAmount
 }
 type FeeReservationRequest = crypto.FeeReservationRequest
 
@@ -216,9 +215,8 @@ type NativeFunding interface {
 
 type WithdrawalTask = crypto.WithdrawalExecutionTask
 type WithdrawalCompletionState struct {
-	AccountingModelVersion int
-	DocumentID             *id.ID
-	Status                 string
+	DocumentID *id.ID
+	Status     string
 }
 type WithdrawalRepository interface {
 	ConsumeWithdrawalReservation(ctx context.Context, requestID id.ID) error

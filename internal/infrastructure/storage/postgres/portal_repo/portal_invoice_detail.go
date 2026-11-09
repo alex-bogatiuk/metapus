@@ -295,7 +295,7 @@ func (r *DashboardRepo) ListWithdrawals(ctx context.Context, activeMerchantID *i
 
 	// ── Fetch page ──
 	dataQ := fmt.Sprintf(`
-		SELECT w.id, w.number, w.status, w.accounting_model_version, w.amount, w.network_fee,
+		SELECT w.id, w.number, w.status, w.amount, w.network_fee,
 			t.symbol, COALESCE(n.name, '') AS network,
 			COALESCE(n.explorer_url, '') AS explorer_url, t.decimal_places,
 			w.dest_address, COALESCE(w.tx_hash, '') AS tx_hash,
@@ -324,7 +324,7 @@ func (r *DashboardRepo) ListWithdrawals(ctx context.Context, activeMerchantID *i
 		var createdAt time.Time
 
 		if err := rows.Scan(
-			&wid, &item.Number, &item.Status, &item.AccountingModelVersion, &amount, &networkFee,
+			&wid, &item.Number, &item.Status, &amount, &networkFee,
 			&item.Symbol, &item.Network, &item.ExplorerURL, &item.DecimalPlaces,
 			&item.DestAddress, &item.TxHash,
 			&createdAt, &item.RiskClass,

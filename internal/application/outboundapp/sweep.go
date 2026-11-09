@@ -7,12 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/core/numerator"
-	"metapus/internal/core/tenant"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/catalogs/token"
 	"metapus/internal/domain/catalogs/wallet"
@@ -124,17 +122,13 @@ func (e *SweepExecutor) ExecuteGroup(ctx context.Context, group []SweepTask) err
 	}
 	for i := range group {
 		group[i].SweepID = new(doc.ID)
-		group[i].AccountingModelVersion = doc.AccountingModelVersion
 	}
 	lines := make([]crypto_sweep.CryptoSweepLine, 0, len(group))
 	platformCosts := make([]crypto_sweep.CryptoSweepPlatformCostLine, 0, len(group))
-	postedAttemptIDs := make([]id.ID, 0, len(group))
 	broadcastTotal := types.ZeroCryptoAmount()
 	finalLines := make(map[id.ID]bool)
-	if doc.AccountingModelVersion == 2 {
-		for _, line := range doc.Lines {
-			finalLines[line.LineID] = line.SettlementStatus == outbound_settlement.StatusRecorded
-		}
+	for _, line := range doc.Lines {
+		finalLines[line.LineID] = line.SettlementStatus == outbound_settlement.StatusRecorded
 	}
 	broadcasted := false
 	for i, task := range group {
@@ -165,7 +159,6 @@ func (e *SweepExecutor) ExecuteGroup(ctx context.Context, group []SweepTask) err
 		}
 		broadcasted = true
 		broadcastTotal = broadcastTotal.Add(result.Amount)
-		postedAttemptIDs = append(postedAttemptIDs, task.AttemptID)
 		if err := e.outboundRepo.RecordSweepLineBroadcast(ctx, doc.ID, task.AttemptID, result.TxHash, result.Amount); err != nil {
 			_ = e.outboundRepo.MarkSweepExecutionStatus(ctx, doc.ID, string(crypto_sweep.SweepStatusHeld))
 			return HoldExecution(err)
@@ -197,32 +190,20 @@ func (e *SweepExecutor) ExecuteGroup(ctx context.Context, group []SweepTask) err
 	doc.Status = crypto_sweep.SweepStatusBroadcast
 	doc.TotalAmount = broadcastTotal
 	doc.PlatformCostLines = platformCosts
-	for _, cost := range platformCosts {
-		doc.TotalFee = doc.TotalFee.Add(cost.Amount)
-	}
-	if doc.AccountingModelVersion == 2 {
-		doc.TotalFee = types.ZeroCryptoAmount()
-	}
+	doc.TotalFee = types.ZeroCryptoAmount()
 
 	// A v2 broadcast may already have its cost snapshot, while a poller has
 	// not finished principal yet. Resuming it must never repost prior lines.
-	if doc.AccountingModelVersion == 2 && doc.Posted {
+	if doc.Posted {
 		return nil
 	}
 	if err := e.postingEngine.Post(ctx, doc, func(txCtx context.Context) error {
 		if err := e.sweepRepo.Update(txCtx, doc); err != nil {
 			return fmt.Errorf("update crypto sweep: %w", err)
 		}
-		if doc.AccountingModelVersion == 2 {
-			// Broadcast lines were persisted individually. Never delete/rewrite
-			// another poller's final settlement or release the source at broadcast.
-			return nil
-		}
-		if err := e.sweepRepo.SaveLines(txCtx, doc.ID, doc.GetLines()); err != nil {
-			return fmt.Errorf("save crypto sweep lines: %w", err)
-		}
-		return cryptoapp.NewSweepLifecycleService(tenant.ContextTxManager{}, e.outboundRepo).
-			Complete(txCtx, walletIDs, postedAttemptIDs)
+		// Broadcast lines were persisted individually. Never delete/rewrite
+		// another poller's final settlement or release the source at broadcast.
+		return nil
 	}); err != nil {
 		return HoldExecution(fmt.Errorf("post crypto sweep after broadcast: %w", err))
 	}
@@ -553,7 +534,7 @@ func (e *SweepExecutor) BroadcastLine(ctx context.Context, task SweepTask, hotWa
 }
 
 func sweepNativePrincipal(task SweepTask, amount types.CryptoAmount) types.CryptoAmount {
-	if task.AccountingModelVersion != 1 && task.TokenStandard == token.TokenStandardNative {
+	if task.TokenStandard == token.TokenStandardNative {
 		return amount
 	}
 	return types.ZeroCryptoAmount()

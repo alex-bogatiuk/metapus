@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/apperror"
+
+	"github.com/stretchr/testify/require"
 )
 
 type expectedRouterStub struct {

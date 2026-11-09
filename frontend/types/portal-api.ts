@@ -212,7 +212,6 @@ export interface PortalWebhookDeliveryItem {
 // ── Withdrawals ────────────────────────────────────────────────────────
 
 export interface PortalWithdrawalItem {
-	 accountingModelVersion: number
 	 riskClass?: string
   id: string
   number: string

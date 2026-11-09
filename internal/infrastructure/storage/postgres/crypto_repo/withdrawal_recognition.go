@@ -29,7 +29,7 @@ func (*WithdrawalCustodyRepo) ExpectedWithdrawalTransfer(ctx context.Context, do
 	var family, standard string
 	err := tm.GetQuerier(ctx).QueryRow(ctx, `SELECT t.network_id,d.tx_hash,d.amount,w.address,d.dest_address,COALESCE(t.contract_address,''),n.chain_family,t.token_standard
 		FROM doc_crypto_withdrawals d JOIN cat_wallets w ON w.id=d.source_wallet_id JOIN cat_tokens t ON t.id=d.token_id JOIN cat_blockchain_networks n ON n.id=t.network_id
-		WHERE d.id=$1 AND d.accounting_model_version=2 AND t.network_id=$2 AND d.tx_hash=$3`, document, receipt.NetworkID, receipt.TxHash).Scan(&e.NetworkID, &e.TxHash, &e.Amount, &e.FromAddress, &e.ToAddress, &e.TokenContract, &family, &standard)
+		WHERE d.id=$1 AND t.network_id=$2 AND d.tx_hash=$3`, document, receipt.NetworkID, receipt.TxHash).Scan(&e.NetworkID, &e.TxHash, &e.Amount, &e.FromAddress, &e.ToAddress, &e.TokenContract, &family, &standard)
 	e.EventKind = crypto.EventKindContractLog
 	if standard == "native" {
 		e.EventKind = crypto.EventKindNativeValue
@@ -53,7 +53,7 @@ func (*WithdrawalCustodyRepo) Prepare(ctx context.Context, b crypto.WithdrawalAc
 	basis, basisID := b.SigningBasis()
 	var valid bool
 	err := q.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM doc_crypto_withdrawals d JOIN cat_wallets w ON w.id=d.source_wallet_id JOIN cat_tokens t ON t.id=d.token_id
-		WHERE d.id=$1 AND d.accounting_model_version=2 AND d.basis_type=$2 AND d.basis_id=$3 AND d.merchant_id=$4 AND d.token_id=$5 AND w.id=$6 AND w.network_id=$7
+		WHERE d.id=$1 AND d.basis_type=$2 AND d.basis_id=$3 AND d.merchant_id=$4 AND d.token_id=$5 AND w.id=$6 AND w.network_id=$7
 		AND t.network_id=w.network_id AND (w.custody_merchant_id IS NULL OR w.custody_merchant_id=d.merchant_id) AND d.tx_hash=$8 AND d.amount=$9)`,
 		b.DocumentID, basis, basisID, b.MerchantID, b.TokenID, b.SourceWalletID, b.NetworkID, b.TxHash, b.Amount).Scan(&valid)
 	if err != nil {
@@ -86,7 +86,7 @@ func (*WithdrawalCustodyRepo) Prepare(ctx context.Context, b crypto.WithdrawalAc
 	}
 	var status, destination string
 	err = q.QueryRow(ctx, `SELECT d.settlement_status,d.dest_address,d.basis_type=$2 AND d.basis_id=$3 AND d.merchant_id=$4 AND d.token_id=$5 AND d.source_wallet_id=$6 AND d.tx_hash=$7 AND d.amount=$8
-		FROM doc_crypto_withdrawals d WHERE d.id=$1 AND d.accounting_model_version=2 FOR UPDATE`, b.DocumentID, basis, basisID, b.MerchantID, b.TokenID, b.SourceWalletID, b.TxHash, b.Amount).Scan(&status, &destination, &valid)
+		FROM doc_crypto_withdrawals d WHERE d.id=$1 FOR UPDATE`, b.DocumentID, basis, basisID, b.MerchantID, b.TokenID, b.SourceWalletID, b.TxHash, b.Amount).Scan(&status, &destination, &valid)
 	if err != nil {
 		return false, err
 	}

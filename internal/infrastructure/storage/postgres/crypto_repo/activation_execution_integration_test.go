@@ -292,7 +292,6 @@ func TestActivationCombinedReservationIsAtomicAndSerializable(t *testing.T) {
 	require.NoError(t, err)
 	reservation, err := fees.ReserveActivation(f.Ctx, task, req)
 	require.NoError(t, err)
-	require.Equal(t, 2, reservation.AccountingModelVersion)
 	replay, err := fees.ReserveActivation(f.Ctx, task, req)
 	require.NoError(t, err)
 	require.Equal(t, reservation.ID, replay.ID)

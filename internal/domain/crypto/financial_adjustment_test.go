@@ -3,9 +3,10 @@ package crypto
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAdjustmentDecisionProtectsMakerCheckerAndGeneration(t *testing.T) {

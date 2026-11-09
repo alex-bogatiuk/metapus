@@ -63,24 +63,23 @@ func (r *UpdateCryptoWithdrawalRequest) ApplyTo(w *crypto_withdrawal.CryptoWithd
 
 // CryptoWithdrawalResponse is the response body for a withdrawal.
 type CryptoWithdrawalResponse struct {
-	AccountingModelVersion int    `json:"accountingModelVersion"`
-	ID                     string `json:"id"`
-	Number                 string `json:"number"`
-	Date                   string `json:"date"`
-	MerchantID             string `json:"merchantId"`
-	TokenID                string `json:"tokenId"`
-	SourceWalletID         string `json:"sourceWalletId"`
-	DestAddress            string `json:"destAddress"`
-	Amount                 string `json:"amount"`
-	NetworkFee             string `json:"networkFee"`
-	TxHash                 string `json:"txHash,omitempty"`
-	Status                 string `json:"status"`
-	StatusName             string `json:"statusName"`
-	Description            string `json:"description"`
-	Posted                 bool   `json:"posted"`
-	PostedVersion          int    `json:"postedVersion"`
-	DeletionMark           bool   `json:"deletionMark"`
-	Version                int    `json:"version"`
+	ID             string `json:"id"`
+	Number         string `json:"number"`
+	Date           string `json:"date"`
+	MerchantID     string `json:"merchantId"`
+	TokenID        string `json:"tokenId"`
+	SourceWalletID string `json:"sourceWalletId"`
+	DestAddress    string `json:"destAddress"`
+	Amount         string `json:"amount"`
+	NetworkFee     string `json:"networkFee"`
+	TxHash         string `json:"txHash,omitempty"`
+	Status         string `json:"status"`
+	StatusName     string `json:"statusName"`
+	Description    string `json:"description"`
+	Posted         bool   `json:"posted"`
+	PostedVersion  int    `json:"postedVersion"`
+	DeletionMark   bool   `json:"deletionMark"`
+	Version        int    `json:"version"`
 
 	// Resolved references
 	Merchant *postgres.RefDisplay `json:"merchant,omitempty"`
@@ -90,24 +89,23 @@ type CryptoWithdrawalResponse struct {
 // FromCryptoWithdrawal creates response DTO from domain entity.
 func FromCryptoWithdrawal(w *crypto_withdrawal.CryptoWithdrawal, refs ...postgres.ResolvedRefs) *CryptoWithdrawalResponse {
 	resp := &CryptoWithdrawalResponse{
-		AccountingModelVersion: w.AccountingModelVersion,
-		ID:                     w.ID.String(),
-		Number:                 w.Number,
-		Date:                   w.Date.Format(time.RFC3339),
-		MerchantID:             w.MerchantID.String(),
-		TokenID:                w.TokenID.String(),
-		SourceWalletID:         w.SourceWalletID.String(),
-		DestAddress:            w.DestAddress,
-		Amount:                 w.Amount.String(),
-		NetworkFee:             w.NetworkFee.String(),
-		TxHash:                 w.TxHash,
-		Status:                 string(w.Status),
-		StatusName:             string(w.Status),
-		Description:            w.Description,
-		Posted:                 w.Posted,
-		PostedVersion:          w.PostedVersion,
-		DeletionMark:           w.DeletionMark,
-		Version:                w.Version,
+		ID:             w.ID.String(),
+		Number:         w.Number,
+		Date:           w.Date.Format(time.RFC3339),
+		MerchantID:     w.MerchantID.String(),
+		TokenID:        w.TokenID.String(),
+		SourceWalletID: w.SourceWalletID.String(),
+		DestAddress:    w.DestAddress,
+		Amount:         w.Amount.String(),
+		NetworkFee:     w.NetworkFee.String(),
+		TxHash:         w.TxHash,
+		Status:         string(w.Status),
+		StatusName:     string(w.Status),
+		Description:    w.Description,
+		Posted:         w.Posted,
+		PostedVersion:  w.PostedVersion,
+		DeletionMark:   w.DeletionMark,
+		Version:        w.Version,
 	}
 
 	if len(refs) > 0 {

@@ -246,7 +246,7 @@ export default function WithdrawalsPage() {
                           <StatusIcon className="h-3 w-3" />
                           {statusCfg.label}
                         </Badge>
-                        {w.accountingModelVersion === 2 && w.status === "broadcast" && (
+                        {w.status === "broadcast" && (
                           <p className="mt-1 text-xs text-muted-foreground">
                             Средства в резерве до подтверждения сети
                           </p>

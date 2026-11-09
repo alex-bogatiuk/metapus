@@ -39,7 +39,6 @@ func (s Status) IsTerminal() bool {
 // TreasuryWithdrawal is an admin-only withdrawal of platform-owned revenue.
 type TreasuryWithdrawal struct {
 	entity.Document
-	AccountingModelVersion int `db:"accounting_model_version" json:"accountingModelVersion"`
 
 	TokenID                  id.ID                           `db:"token_id" json:"tokenId" meta:"label:Токен,ref:token"`
 	SourceWalletID           id.ID                           `db:"source_wallet_id" json:"sourceWalletId" meta:"label:Исходный кошелёк,ref:wallet"`
@@ -80,16 +79,15 @@ type FeeLine struct {
 // NewTreasuryWithdrawal creates a pending admin treasury withdrawal.
 func NewTreasuryWithdrawal(tokenID, sourceWalletID, addressID id.ID, destAddress string, amount types.CryptoAmount) *TreasuryWithdrawal {
 	return &TreasuryWithdrawal{
-		AccountingModelVersion: 2,
-		Document:               entity.NewDocument(),
-		TokenID:                tokenID,
-		SourceWalletID:         sourceWalletID,
-		AddressID:              addressID,
-		DestAddress:            destAddress,
-		Amount:                 amount,
-		NetworkFee:             types.ZeroCryptoAmount(),
-		Status:                 StatusPendingApproval,
-		SettlementStatus:       outbound_settlement.StatusNotApplicable,
+		Document:         entity.NewDocument(),
+		TokenID:          tokenID,
+		SourceWalletID:   sourceWalletID,
+		AddressID:        addressID,
+		DestAddress:      destAddress,
+		Amount:           amount,
+		NetworkFee:       types.ZeroCryptoAmount(),
+		Status:           StatusPendingApproval,
+		SettlementStatus: outbound_settlement.StatusNotApplicable,
 	}
 }
 
@@ -140,59 +138,4 @@ func (w *TreasuryWithdrawal) GetRLSDimensions() map[string]string {
 
 func (w *TreasuryWithdrawal) GetDocumentType() string { return DocumentType }
 
-// GenerateCryptoBalanceMovements records the physical movement from a managed wallet.
-func (w *TreasuryWithdrawal) GenerateCryptoBalanceMovements(ctx context.Context) ([]entity.CryptoBalanceMovement, error) {
-	if w.AccountingModelVersion == 2 {
-		return nil, nil
-	}
-	if w.Amount.IsZero() {
-		return nil, nil
-	}
-	newVersion := w.PostedVersion + 1
-	return []entity.CryptoBalanceMovement{
-		entity.NewCryptoBalanceMovement(
-			w.ID,
-			w.GetDocumentType(),
-			newVersion,
-			w.Date,
-			entity.RecordTypeExpense,
-			w.SourceWalletID,
-			w.TokenID,
-			w.Amount,
-		),
-	}, nil
-}
-
-// GenerateCryptoFeeMovements records the economic platform-revenue expense.
-func (w *TreasuryWithdrawal) GenerateCryptoFeeMovements(ctx context.Context) ([]entity.CryptoFeeMovement, error) {
-	if w.AccountingModelVersion == 2 {
-		return nil, nil
-	}
-	if len(w.FeeLines) == 0 {
-		return nil, nil
-	}
-
-	newVersion := w.PostedVersion + 1
-	movements := make([]entity.CryptoFeeMovement, 0, len(w.FeeLines))
-	for _, line := range w.FeeLines {
-		if line.Amount.IsZero() {
-			continue
-		}
-		movements = append(movements, entity.NewCryptoFeeMovement(
-			w.ID,
-			w.GetDocumentType(),
-			newVersion,
-			w.Date,
-			entity.RecordTypeExpense,
-			line.MerchantID,
-			line.TokenID,
-			line.FeeType,
-			line.Amount,
-		))
-	}
-	return movements, nil
-}
-
 var _ posting.Postable = (*TreasuryWithdrawal)(nil)
-var _ posting.CryptoBalanceMovementSource = (*TreasuryWithdrawal)(nil)
-var _ posting.CryptoFeeMovementSource = (*TreasuryWithdrawal)(nil)

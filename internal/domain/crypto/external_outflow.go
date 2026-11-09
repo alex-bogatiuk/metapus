@@ -87,7 +87,6 @@ type OperationalHold struct {
 }
 
 type CryptoCustodyAdjustment struct {
-	AccountingModelVersion int
 	// RecognitionPeriod is assigned by financial admission for model 2 and
 	// shared by both immutable movement generators and the custody binding.
 	RecognitionPeriod time.Time
@@ -128,7 +127,7 @@ func (a *CryptoCustodyAdjustment) CanPost(context.Context) error {
 	if a.Status != "pending_approval" || a.PostedVersion != 0 {
 		return apperror.NewConflict("custody adjustment is not pending approval")
 	}
-	if a.AccountingModelVersion == 2 && a.RecognitionPeriod.IsZero() {
+	if a.RecognitionPeriod.IsZero() {
 		return apperror.NewValidation("custody loss requires financial admission")
 	}
 	return nil
@@ -152,10 +151,8 @@ func (a *CryptoCustodyAdjustment) GenerateCryptoBalanceMovements(context.Context
 		a.ID, a.GetDocumentType(), a.PostedVersion+1, time.Now().UTC(), entity.RecordTypeExpense,
 		a.WalletID, a.TokenID, a.Amount,
 	)
-	if a.AccountingModelVersion == 2 {
-		movement.LineID = a.PrincipalLineID()
-		movement.Period = a.RecognitionPeriod
-	}
+	movement.LineID = a.PrincipalLineID()
+	movement.Period = a.RecognitionPeriod
 	return []entity.CryptoBalanceMovement{movement}, nil
 }
 
@@ -165,10 +162,8 @@ func (a *CryptoCustodyAdjustment) GenerateCryptoPlatformCostMovements(context.Co
 		a.NetworkID, a.TokenID, a.TokenID, entity.PlatformCostTypeCustodyLoss,
 		entity.PlatformCostPurposeCustodyLoss, "custody", a.ExternalOutflowID.String(), a.Amount,
 	)
-	if a.AccountingModelVersion == 2 {
-		movement.LineID = uuid.NewSHA1(a.ID, []byte("custody-loss-cost"))
-		movement.Period = a.RecognitionPeriod
-	}
+	movement.LineID = uuid.NewSHA1(a.ID, []byte("custody-loss-cost"))
+	movement.Period = a.RecognitionPeriod
 	return []entity.CryptoPlatformCostMovement{movement}, nil
 }
 

@@ -458,7 +458,7 @@ func (e *WithdrawalExecutor) completeWithdrawalBroadcast(ctx context.Context, ta
 			return HoldExecution(err)
 		}
 		aml := !id.IsNil(task.AMLParentID)
-		if state.Status == "broadcast" || state.Status == "confirmed" || ((aml || state.AccountingModelVersion == 2) && state.Status == "failed") {
+		if state.Status == "broadcast" || state.Status == "confirmed" || state.Status == "failed" {
 			return nil
 		}
 		if state.DocumentID == nil || (aml && state.Status == "cancelled") || (!aml && state.Status != "signing" && state.Status != "held") {
@@ -484,11 +484,6 @@ func (e *WithdrawalExecutor) completeWithdrawalBroadcast(ctx context.Context, ta
 			}
 			if err := e.outboundRepo.LinkWithdrawalBroadcast(ctx, task.RequestID, doc.ID); err != nil {
 				return err
-			}
-			if doc.AccountingModelVersion != 2 {
-				if err := e.outboundRepo.ConsumeWithdrawalReservation(ctx, task.RequestID); err != nil {
-					return err
-				}
 			}
 			return e.outboundRepo.MarkSigningAuthorizationBroadcast(ctx, auth.AuthorizationID, doc.TxHash)
 		}); err != nil {

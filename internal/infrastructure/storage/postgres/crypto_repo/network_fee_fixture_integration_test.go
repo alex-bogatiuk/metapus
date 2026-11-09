@@ -59,9 +59,9 @@ func recognizeTestNetworkFeeFor(ctx context.Context, reservationID id.ID, r cryp
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
 	var f crypto.FeeReservation
 	var payer, purpose string
-	if err := q.QueryRow(ctx, `SELECT f.id,f.network_id,f.payer_wallet_id,f.native_token_id,f.operation_token_id,f.basis_type,f.basis_id,f.purpose,f.tx_hash,f.accounting_model_version,w.address_key
+	if err := q.QueryRow(ctx, `SELECT f.id,f.network_id,f.payer_wallet_id,f.native_token_id,f.operation_token_id,f.basis_type,f.basis_id,f.purpose,f.tx_hash,w.address_key
 		FROM reg_crypto_fee_reservations f JOIN cat_wallets w ON w.id=f.payer_wallet_id WHERE f.id=$1 FOR UPDATE OF f`, reservationID).
-		Scan(&f.ID, &f.NetworkID, &f.PayerWalletID, &f.NativeTokenID, &f.OperationTokenID, &f.BasisType, &f.BasisID, &purpose, &f.TxHash, &f.AccountingModelVersion, &payer); err != nil {
+		Scan(&f.ID, &f.NetworkID, &f.PayerWalletID, &f.NativeTokenID, &f.OperationTokenID, &f.BasisType, &f.BasisID, &purpose, &f.TxHash, &payer); err != nil {
 		return err
 	}
 	f.Purpose = crypto.SigningPurpose(purpose)

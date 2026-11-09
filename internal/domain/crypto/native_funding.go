@@ -17,7 +17,6 @@ type NativeFunding struct {
 	Amount                                                                     types.CryptoAmount
 	FeeReservationID, SigningAuthorizationID                                   *id.ID
 	UnsignedFingerprint, TxHash, Status, LastError                             string
-	FeeAccountingModelVersion                                                  int `json:"-"`
 }
 
 func (f NativeFunding) ValidateReceipt(receipt ChainReceipt) error {

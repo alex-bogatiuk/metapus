@@ -78,7 +78,7 @@ func newTreasuryFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxM
 	require.NoError(t, err)
 	require.NoError(t, repo.MarkSigningAuthorizationSigned(ctx, auth.AuthorizationID, crypto.SignedTxEnvelope{Family: crypto.ChainFamilyTRON, SchemaVersion: 1, Generation: 1, UnsignedFingerprint: auth.UnsignedFingerprint, TxHash: hash, Payload: []byte(`{}`)}))
 	f := treasuryFinalFixture{ctx: ctx, tm: tm, doc: doc, execution: execution, merchant: merchant,
-		task: outboundapp.SettlementTask{Kind: outboundapp.SettlementTreasury, DocumentID: doc.ID, NetworkID: c.network, OperationTokenID: c.token, SourceWalletID: c.hot, Amount: doc.Amount, TxHash: hash, AccountingModelVersion: 2, PostedVersion: 1},
+		task: outboundapp.SettlementTask{Kind: outboundapp.SettlementTreasury, DocumentID: doc.ID, NetworkID: c.network, OperationTokenID: c.token, SourceWalletID: c.hot, Amount: doc.Amount, TxHash: hash, PostedVersion: 1},
 		receipt: crypto.ChainReceipt{NetworkID: c.network, TxHash: hash, Status: crypto.ReceiptSucceeded, BlockHeight: 100, BlockHash: strings.Repeat("b", 64), Confirmations: 20, Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalitySolidified, ObservedAt: time.Now().UTC(),
 			Fee: crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: c.native}, TotalFee: types.NewCryptoAmountFromInt64(2)}}}
 	t.Cleanup(func() {
@@ -239,7 +239,6 @@ func TestTreasuryV2BasisAndFinalHistoryAreImmutable(t *testing.T) {
 		f.broadcast(t)
 		require.NoError(t, f.service(t).Settle(ctx, f.task))
 		for _, query := range []string{
-			"UPDATE doc_treasury_withdrawals SET accounting_model_version=1 WHERE id=$1",
 			"UPDATE doc_treasury_withdrawals SET posted=false WHERE id=$1",
 			"UPDATE doc_treasury_withdrawals SET status='broadcast' WHERE id=$1",
 			"UPDATE reg_crypto_balance_reservations SET status='released' WHERE document_id=$1",

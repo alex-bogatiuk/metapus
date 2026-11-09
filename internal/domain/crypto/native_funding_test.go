@@ -3,9 +3,10 @@ package crypto
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNativeFundingReceiptIdentity(t *testing.T) {

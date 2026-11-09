@@ -141,7 +141,7 @@ func (p *SettlementService) Settle(ctx context.Context, task SettlementTask) (er
 	if receipt.ObservedAt.IsZero() {
 		receipt.ObservedAt = p.now().UTC()
 	}
-	if task.Kind == SettlementSweep && task.AccountingModelVersion == 2 && receipt.Status == crypto.ReceiptSucceeded {
+	if task.Kind == SettlementSweep && receipt.Status == crypto.ReceiptSucceeded {
 		if p.sweepEvidence == nil {
 			_ = p.outboundRepo.ReleaseOutboundSettlementClaim(ctx, task)
 			return crypto.ErrVerificationPending
@@ -153,7 +153,7 @@ func (p *SettlementService) Settle(ctx context.Context, task SettlementTask) (er
 		}
 		task.VerificationID = &proofID
 	}
-	if task.Kind == SettlementTreasury && task.AccountingModelVersion == 2 && receipt.Status == crypto.ReceiptSucceeded {
+	if task.Kind == SettlementTreasury && receipt.Status == crypto.ReceiptSucceeded {
 		if p.treasuryEvidence == nil {
 			_ = p.outboundRepo.ReleaseOutboundSettlementClaim(ctx, task)
 			return crypto.ErrVerificationPending
@@ -166,7 +166,7 @@ func (p *SettlementService) Settle(ctx context.Context, task SettlementTask) (er
 		task.VerificationID = &proofID
 	}
 	result := outbound_settlement.ChainResultSuccess
-	if task.Kind == SettlementWithdrawal && task.AccountingModelVersion == 2 && receipt.Status == crypto.ReceiptSucceeded {
+	if task.Kind == SettlementWithdrawal && receipt.Status == crypto.ReceiptSucceeded {
 		if p.withdrawalEvidence == nil {
 			_ = p.outboundRepo.ReleaseOutboundSettlementClaim(ctx, task)
 			return crypto.ErrVerificationPending
@@ -199,58 +199,12 @@ func (p *SettlementService) Settle(ctx context.Context, task SettlementTask) (er
 		return p.feeBudget.Settle(ctx, reservation.ID, receipt)
 	}
 	err = p.transactions.RunInTransaction(ctx, func(txCtx context.Context) error {
-		if preflight, ok := p.outboundRepo.(LegacySettlementPreflight); ok {
-			if err := preflight.PrepareLegacyOutboundSettlement(txCtx, task); err != nil {
-				return err
-			}
+		proceed, err := p.admitSettlement(txCtx, task, receipt)
+		if err != nil {
+			return err
 		}
-		if task.Kind == SettlementWithdrawal && task.AccountingModelVersion == 2 {
-			admission, ok := p.outboundRepo.(WithdrawalSettlementAdmission)
-			if !ok {
-				return fmt.Errorf("withdrawal financial admission is missing")
-			}
-			proceed, err := admission.PrepareWithdrawalSettlement(txCtx, task, receipt)
-			if err != nil {
-				return err
-			}
-			if !proceed {
-				if reservation.AccountingModelVersion == 2 {
-					return p.feeBudget.Settle(txCtx, reservation.ID, receipt)
-				}
-				return nil
-			}
-		}
-		if task.Kind == SettlementTreasury && task.AccountingModelVersion == 2 {
-			admission, ok := p.outboundRepo.(TreasurySettlementAdmission)
-			if !ok {
-				return fmt.Errorf("treasury financial admission is missing")
-			}
-			proceed, err := admission.PrepareTreasurySettlement(txCtx, task, receipt)
-			if err != nil {
-				return err
-			}
-			if !proceed {
-				if reservation.AccountingModelVersion == 2 {
-					return p.feeBudget.Settle(txCtx, reservation.ID, receipt)
-				}
-				return nil
-			}
-		}
-		if task.Kind == SettlementSweep && task.AccountingModelVersion == 2 {
-			admission, ok := p.outboundRepo.(SweepSettlementAdmission)
-			if !ok {
-				return fmt.Errorf("sweep financial admission is missing")
-			}
-			proceed, err := admission.PrepareSweepSettlement(txCtx, task, receipt)
-			if err != nil {
-				return err
-			}
-			if !proceed {
-				if reservation.AccountingModelVersion == 2 {
-					return p.feeBudget.Settle(txCtx, reservation.ID, receipt)
-				}
-				return nil
-			}
+		if !proceed {
+			return p.feeBudget.Settle(txCtx, reservation.ID, receipt)
 		}
 		if err := p.feeBudget.Settle(txCtx, reservation.ID, receipt); err != nil {
 			return err
@@ -314,4 +268,18 @@ func settlementFeeBasis(task SettlementTask) (string, id.ID, crypto.SigningPurpo
 	default:
 		return "", id.ID{}, "", fmt.Errorf("unknown outbound settlement kind %q", task.Kind)
 	}
+}
+
+// admitSettlement runs the document-specific financial admission inside the
+// settlement transaction.
+func (p *SettlementService) admitSettlement(ctx context.Context, task SettlementTask, receipt crypto.ChainReceipt) (bool, error) {
+	switch task.Kind {
+	case SettlementWithdrawal:
+		return p.outboundRepo.PrepareWithdrawalSettlement(ctx, task, receipt)
+	case SettlementTreasury:
+		return p.outboundRepo.PrepareTreasurySettlement(ctx, task, receipt)
+	case SettlementSweep:
+		return p.outboundRepo.PrepareSweepSettlement(ctx, task, receipt)
+	}
+	return false, fmt.Errorf("unsupported settlement kind %q", task.Kind)
 }

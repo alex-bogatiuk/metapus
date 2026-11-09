@@ -31,7 +31,7 @@ func validateFeeComponents(report crypto.FeeSettlementReport) error {
 }
 
 func loadFeeSettlementReplay(ctx context.Context, tx pgx.Tx, f crypto.FeeReservation, r crypto.ChainReceipt, owner string, document id.ID, movements bool) (FeeSettlementResult, error) {
-	result := FeeSettlementResult{ReservationID: f.ID, AccountingModelVersion: f.AccountingModelVersion}
+	result := FeeSettlementResult{ReservationID: f.ID}
 	if owner == "" {
 		owner, document = f.BasisType, f.BasisID
 	}
@@ -43,7 +43,7 @@ func loadFeeSettlementReplay(ctx context.Context, tx pgx.Tx, f crypto.FeeReserva
 		AND native_token_id=$8 AND total_fee_minor=$9 AND total_fee_minor=$10
 		AND network_fee_reservation_id IS NOT DISTINCT FROM $11::uuid
 		FROM reg_crypto_chain_settlements WHERE network_id=$1 AND tx_hash=$2`, f.NetworkID, r.TxHash, owner, document,
-		r.Status, r.BlockHeight, r.BlockHash, f.NativeTokenID, r.Fee.TotalFee, f.ActualFee, networkFeeReservationPointer(f)).Scan(&result.SettlementID, &result.ActualFee, &period, &matches)
+		r.Status, r.BlockHeight, r.BlockHash, f.NativeTokenID, r.Fee.TotalFee, f.ActualFee, f.ID).Scan(&result.SettlementID, &result.ActualFee, &period, &matches)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return result, apperror.NewConflict("recorded fee settlement is missing; reconciliation is required")
 	}

@@ -84,7 +84,7 @@ func (e *TreasuryExecutor) Execute(ctx context.Context, task TreasuryTask) (err 
 		if err != nil {
 			return err
 		}
-		if doc.AccountingModelVersion == 2 && doc.Posted {
+		if doc.Posted {
 			return nil
 		}
 	}
@@ -302,7 +302,7 @@ func (e *TreasuryExecutor) completeTreasuryBroadcast(ctx context.Context, task T
 	if err != nil {
 		return HoldExecution(fmt.Errorf("load treasury withdrawal after broadcast: %w", err))
 	}
-	if doc.AccountingModelVersion == 2 && doc.Posted {
+	if doc.Posted {
 		if doc.TxHash != txHash {
 			return HoldExecution(fmt.Errorf("treasury broadcast replay has a different transaction"))
 		}
@@ -340,11 +340,6 @@ func (e *TreasuryExecutor) completeTreasuryBroadcast(ctx context.Context, task T
 	if err := e.postingEngine.Post(ctx, doc, func(txCtx context.Context) error {
 		if err := e.treasuryRepo.Update(txCtx, doc); err != nil {
 			return fmt.Errorf("update treasury withdrawal: %w", err)
-		}
-		if doc.AccountingModelVersion != 2 {
-			if err := e.outboundRepo.ConsumeTreasuryReservations(txCtx, task.WithdrawalID); err != nil {
-				return err
-			}
 		}
 		if err := e.outboundRepo.MarkSigningAuthorizationBroadcast(txCtx, auth.Authorization.AuthorizationID, txHash); err != nil {
 			return err

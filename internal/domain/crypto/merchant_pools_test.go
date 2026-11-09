@@ -1,9 +1,10 @@
 package crypto
 
 import (
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestMerchantPoolRefillReservesPreflightQueueAndFiniteBudgets(t *testing.T) {

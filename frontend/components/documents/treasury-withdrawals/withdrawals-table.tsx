@@ -84,7 +84,7 @@ export function WithdrawalsTable({
               <TableCell className="px-3 py-2 font-mono text-xs">{item.number}</TableCell>
               <TableCell className="px-3 py-2">
                 <StatusBadge status={item.status} />
-                {item.accountingModelVersion === 2 && item.status === "broadcast" && (
+                {item.status === "broadcast" && (
                   <div className="mt-1 max-w-60 text-xs text-muted-foreground">Средства зарезервированы до подтверждения сети</div>
                 )}
                 {signingJobs[item.id]?.status === "needs_review" && (

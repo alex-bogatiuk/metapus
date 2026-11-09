@@ -340,23 +340,22 @@ const (
 )
 
 type FeeReservation struct {
-	AccountingModelVersion int
-	ID                     id.ID
-	NetworkID              id.ID
-	PayerWalletID          id.ID
-	NativeTokenID          id.ID
-	OperationTokenID       id.ID
-	ReservedPrincipal      types.CryptoAmount
-	BasisType              string
-	BasisID                id.ID
-	Purpose                SigningPurpose
-	Attempt                int
-	Strategy               FeeStrategy
-	MaxFee                 types.CryptoAmount
-	ActualFee              types.CryptoAmount
-	UnsignedFingerprint    string
-	TxHash                 string
-	Status                 FeeReservationStatus
-	HoldReason             string
-	ReservedAt             time.Time
+	ID                  id.ID
+	NetworkID           id.ID
+	PayerWalletID       id.ID
+	NativeTokenID       id.ID
+	OperationTokenID    id.ID
+	ReservedPrincipal   types.CryptoAmount
+	BasisType           string
+	BasisID             id.ID
+	Purpose             SigningPurpose
+	Attempt             int
+	Strategy            FeeStrategy
+	MaxFee              types.CryptoAmount
+	ActualFee           types.CryptoAmount
+	UnsignedFingerprint string
+	TxHash              string
+	Status              FeeReservationStatus
+	HoldReason          string
+	ReservedAt          time.Time
 }

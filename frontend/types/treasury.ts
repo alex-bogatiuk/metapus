@@ -21,7 +21,6 @@ export interface TreasuryAddress {
 }
 
 export interface TreasuryWithdrawal {
-	accountingModelVersion: number
   id: string
   number: string
   date: string
@@ -109,7 +108,6 @@ export interface ExternalOutflowHold {
 }
 
 export interface CryptoCustodyAdjustment {
-	accountingModelVersion: number
   id: string
   externalOutflowId: string
   networkId: string

@@ -85,20 +85,19 @@ type OperationalHoldResponse struct {
 }
 
 type CustodyAdjustmentResponse struct {
-	AccountingModelVersion int     `json:"accountingModelVersion"`
-	ID                     string  `json:"id"`
-	ExternalOutflowID      string  `json:"externalOutflowId"`
-	NetworkID              string  `json:"networkId"`
-	WalletID               string  `json:"walletId"`
-	TokenID                string  `json:"tokenId"`
-	Amount                 string  `json:"amount"`
-	Status                 string  `json:"status"`
-	MakerID                string  `json:"makerId"`
-	DecisionBy             *string `json:"decisionBy,omitempty"`
-	DecisionReason         string  `json:"decisionReason,omitempty"`
-	PostedVersion          int     `json:"postedVersion"`
-	CreatedAt              string  `json:"createdAt"`
-	DecidedAt              *string `json:"decidedAt,omitempty"`
+	ID                string  `json:"id"`
+	ExternalOutflowID string  `json:"externalOutflowId"`
+	NetworkID         string  `json:"networkId"`
+	WalletID          string  `json:"walletId"`
+	TokenID           string  `json:"tokenId"`
+	Amount            string  `json:"amount"`
+	Status            string  `json:"status"`
+	MakerID           string  `json:"makerId"`
+	DecisionBy        *string `json:"decisionBy,omitempty"`
+	DecisionReason    string  `json:"decisionReason,omitempty"`
+	PostedVersion     int     `json:"postedVersion"`
+	CreatedAt         string  `json:"createdAt"`
+	DecidedAt         *string `json:"decidedAt,omitempty"`
 }
 
 type ClassifyExternalOutflowRequest struct {
@@ -137,8 +136,7 @@ func FromCustodyAdjustment(value *crypto.CryptoCustodyAdjustment) *CustodyAdjust
 		return nil
 	}
 	response := &CustodyAdjustmentResponse{
-		AccountingModelVersion: value.AccountingModelVersion,
-		ID:                     value.ID.String(), ExternalOutflowID: value.ExternalOutflowID.String(),
+		ID: value.ID.String(), ExternalOutflowID: value.ExternalOutflowID.String(),
 		NetworkID: value.NetworkID.String(), WalletID: value.WalletID.String(), TokenID: value.TokenID.String(),
 		Amount: value.Amount.String(), Status: value.Status, MakerID: value.MakerID.String(),
 		DecisionReason: value.DecisionReason, PostedVersion: value.PostedVersion, CreatedAt: value.CreatedAt.Format(time.RFC3339),

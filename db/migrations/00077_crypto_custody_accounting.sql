@@ -1293,7 +1293,6 @@ RETURNS BOOLEAN LANGUAGE sql VOLATILE AS $$
        OR EXISTS(SELECT 1 FROM doc_crypto_payments d JOIN reg_crypto_accounting_effect_evidence x ON x.verification_id=d.verification_id WHERE d.id=payment)
 $$;
 
-ALTER TABLE doc_crypto_sweeps ADD COLUMN accounting_model_version INT NOT NULL DEFAULT 2 CHECK(accounting_model_version=2);
 CREATE TABLE reg_crypto_sweep_custody_bindings (
     posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
     sweep_id UUID NOT NULL REFERENCES doc_crypto_sweeps(id),
@@ -1318,7 +1317,6 @@ DECLARE src cat_wallets; dst cat_wallets; f reg_crypto_fee_reservations; c reg_c
 BEGIN
     SELECT * INTO STRICT l FROM doc_crypto_sweep_lines WHERE line_id=target;
     SELECT * INTO STRICT s FROM doc_crypto_sweeps WHERE id=l.document_id;
-    IF s.accounting_model_version<>2 THEN RETURN; END IF;
     SELECT * INTO STRICT src FROM cat_wallets WHERE id=l.wallet_id;
     SELECT * INTO STRICT dst FROM cat_wallets WHERE id=s.hot_wallet_id;
     SELECT * INTO f FROM reg_crypto_fee_reservations WHERE basis_type='CryptoSweepAttempt' AND basis_id=l.line_id AND purpose='sweep' AND attempt=1;
@@ -1406,11 +1404,11 @@ CREATE FUNCTION fn_crypto_sweep_financial_complete() RETURNS TRIGGER LANGUAGE pl
 DECLARE target UUID;
 BEGIN
     IF TG_TABLE_NAME IN ('reg_crypto_merchant_balance_movements','reg_crypto_fee_movements','reg_crypto_provider_balance_movements')
-       AND EXISTS(SELECT 1 FROM doc_crypto_sweeps WHERE id=NEW.recorder_id AND accounting_model_version=2) THEN
+       AND EXISTS(SELECT 1 FROM doc_crypto_sweeps WHERE id=NEW.recorder_id) THEN
         RAISE EXCEPTION 'sweep cannot create merchant credit, revenue or provider principal' USING ERRCODE='23514';
     END IF;
     IF TG_TABLE_NAME='reg_crypto_balance_movements'
-       AND EXISTS(SELECT 1 FROM doc_crypto_sweeps WHERE id=NEW.recorder_id AND accounting_model_version=2) THEN
+       AND EXISTS(SELECT 1 FROM doc_crypto_sweeps WHERE id=NEW.recorder_id) THEN
         IF NEW.recorder_type<>'CryptoSweep' THEN RAISE EXCEPTION 'sweep principal cannot relabel its recorder' USING ERRCODE='23514'; END IF;
         SELECT b.line_id INTO target FROM reg_crypto_custody_effect_recognitions r
             JOIN reg_crypto_sweep_custody_bindings b ON b.posting_id=r.posting_id WHERE r.movement_line_id=NEW.line_id AND b.sweep_id=NEW.recorder_id;
@@ -1418,7 +1416,7 @@ BEGIN
         PERFORM fn_crypto_assert_sweep_line(target);
     END IF;
     SELECT l.line_id INTO target FROM doc_crypto_sweep_lines l JOIN doc_crypto_sweeps s ON s.id=l.document_id
-        WHERE l.line_id=NEW.recorder_id AND s.accounting_model_version=2;
+        WHERE l.line_id=NEW.recorder_id;
     IF FOUND THEN PERFORM fn_crypto_assert_sweep_line(target); END IF;
     IF NEW.reversal_of_line_id IS NOT NULL AND EXISTS(SELECT 1 FROM reg_crypto_custody_effect_recognitions r
         JOIN reg_crypto_sweep_custody_bindings b ON b.posting_id=r.posting_id WHERE r.movement_line_id=NEW.reversal_of_line_id) THEN
@@ -1446,7 +1444,7 @@ BEGIN
         IF TG_TABLE_NAME='reg_crypto_fee_reservations' AND NEW.status<>'settled' THEN RETURN NULL; END IF;
         target:=NEW.basis_id;
     END IF;
-    IF EXISTS(SELECT 1 FROM doc_crypto_sweep_lines l JOIN doc_crypto_sweeps s ON s.id=l.document_id WHERE l.line_id=target AND s.accounting_model_version=2) THEN
+    IF EXISTS(SELECT 1 FROM doc_crypto_sweep_lines l JOIN doc_crypto_sweeps s ON s.id=l.document_id WHERE l.line_id=target) THEN
         PERFORM fn_crypto_assert_sweep_line(target);
     END IF;
     RETURN NULL;
@@ -1464,13 +1462,11 @@ DECLARE model INT;
 BEGIN
     IF TG_TABLE_NAME='doc_crypto_sweeps' THEN
         IF TG_OP='DELETE' THEN
-            IF OLD.accounting_model_version=2 AND EXISTS(SELECT 1 FROM doc_crypto_sweep_lines l WHERE l.document_id=OLD.id AND
+            IF EXISTS(SELECT 1 FROM doc_crypto_sweep_lines l WHERE l.document_id=OLD.id AND
                 (l.tx_hash<>'' OR EXISTS(SELECT 1 FROM reg_crypto_signing_authorizations a WHERE a.basis_type='CryptoSweepAttempt' AND a.basis_id=l.line_id))) THEN
                 RAISE EXCEPTION 'broadcast sweep history is immutable' USING ERRCODE='23514'; END IF;
             RETURN OLD;
         END IF;
-        IF NEW.accounting_model_version<>OLD.accounting_model_version THEN RAISE EXCEPTION 'sweep accounting model is immutable' USING ERRCODE='23514'; END IF;
-        IF OLD.accounting_model_version<>2 THEN RETURN NEW; END IF;
         IF EXISTS(SELECT 1 FROM doc_crypto_sweep_lines l WHERE l.document_id=OLD.id AND
             (l.tx_hash<>'' OR EXISTS(SELECT 1 FROM reg_crypto_signing_authorizations a WHERE a.basis_type='CryptoSweepAttempt' AND a.basis_id=l.line_id))) AND
            ((NEW.token_id,NEW.hot_wallet_id,NEW.date) IS DISTINCT FROM (OLD.token_id,OLD.hot_wallet_id,OLD.date) OR NEW.deletion_mark OR NEW._deleted_at IS NOT NULL
@@ -1482,11 +1478,6 @@ BEGIN
         IF EXISTS(SELECT 1 FROM doc_crypto_sweep_lines WHERE document_id=NEW.id AND settlement_status='recorded' AND chain_result<>'SUCCESS') THEN NEW.status:='partial_failed';
         ELSIF EXISTS(SELECT 1 FROM doc_crypto_sweep_lines WHERE document_id=NEW.id)
            AND NOT EXISTS(SELECT 1 FROM doc_crypto_sweep_lines WHERE document_id=NEW.id AND settlement_status<>'recorded') THEN NEW.status:='confirmed'; END IF;
-        RETURN NEW;
-    END IF;
-    SELECT accounting_model_version INTO model FROM doc_crypto_sweeps WHERE id=OLD.document_id;
-    IF model<>2 THEN
-        IF TG_OP='DELETE' THEN RETURN OLD; END IF;
         RETURN NEW;
     END IF;
     IF TG_OP='DELETE' THEN
@@ -1511,31 +1502,11 @@ CREATE TRIGGER trg_sweep_line_basis BEFORE UPDATE OR DELETE ON doc_crypto_sweep_
 
 CREATE OR REPLACE VIEW crypto_aml_allocatable_transfers AS
  SELECT plan.id allocation_id,plan.merchant_id,plan.network_id,plan.token_id,plan.source_wallet_id,plan.destination_wallet_id,
-        plan.principal,plan.service_fee,e.id effect_id,spent.line_id source_movement_id,received.line_id destination_movement_id
- FROM reg_crypto_aml_internal_allocations plan
- JOIN doc_crypto_sweep_lines line ON line.line_id=plan.sweep_attempt_id AND line.wallet_id=plan.source_wallet_id AND line.amount=plan.gross AND line.tx_hash<>''
- JOIN doc_crypto_sweeps sweep ON sweep.id=line.document_id AND sweep.posted AND sweep.hot_wallet_id=plan.destination_wallet_id AND sweep.token_id=plan.token_id
- JOIN reg_crypto_aml_effects e ON e.wallet_id=plan.destination_wallet_id AND e.source_wallet_id=plan.source_wallet_id AND e.token_id=plan.token_id AND e.network_id=plan.network_id AND e.tx_hash=line.tx_hash AND e.amount=plan.gross
- JOIN reg_crypto_aml_effect_chain_states cs ON cs.effect_id=e.id AND cs.canonicality='canonical'
- JOIN reg_crypto_expected_chain_effects expected ON expected.id=e.expected_effect_id
- JOIN reg_crypto_signing_authorizations auth ON auth.id=expected.signing_authorization_id AND auth.basis_type='CryptoSweepAttempt' AND auth.basis_id=plan.sweep_attempt_id AND auth.signed_envelope IS NOT NULL
- JOIN reg_crypto_balance_movements spent ON spent.recorder_id=sweep.id AND spent.recorder_type='CryptoSweep' AND spent.recorder_version=sweep.posted_version
-    AND spent.wallet_id=plan.source_wallet_id AND spent.token_id=plan.token_id AND spent.record_type='expense' AND spent.amount=plan.gross
- JOIN reg_crypto_balance_movements received ON received.recorder_id=sweep.id AND received.recorder_type='CryptoSweep' AND received.recorder_version=sweep.posted_version
-    AND received.wallet_id=plan.destination_wallet_id AND received.token_id=plan.token_id AND received.record_type='receipt' AND received.amount=sweep.total_amount
- WHERE plan.status IN ('reserved','applied')
-   AND sweep.total_amount=(SELECT SUM(amount) FROM doc_crypto_sweep_lines WHERE document_id=sweep.id AND tx_hash<>'')
-   AND spent.created_at>=(SELECT created_at FROM reg_crypto_aml_wallet_baselines WHERE wallet_id=plan.source_wallet_id AND token_id=plan.token_id)
-   AND received.created_at>=(SELECT created_at FROM reg_crypto_aml_wallet_baselines WHERE wallet_id=plan.destination_wallet_id AND token_id=plan.token_id)
-   AND (SELECT COUNT(*) FROM reg_crypto_balance_movements m WHERE m.recorder_id=sweep.id AND m.recorder_type='CryptoSweep' AND m.recorder_version=sweep.posted_version AND m.wallet_id=plan.source_wallet_id AND m.token_id=plan.token_id AND m.record_type='expense')=1
-   AND (SELECT COUNT(*) FROM reg_crypto_balance_movements m WHERE m.recorder_id=sweep.id AND m.recorder_type='CryptoSweep' AND m.recorder_version=sweep.posted_version AND m.wallet_id=plan.destination_wallet_id AND m.token_id=plan.token_id AND m.record_type='receipt')=1 AND sweep.accounting_model_version=1
-UNION ALL
-SELECT plan.id,plan.merchant_id,plan.network_id,plan.token_id,plan.source_wallet_id,plan.destination_wallet_id,
- plan.principal,plan.service_fee,e.id,spent.line_id,received.line_id
+ plan.principal,plan.service_fee,e.id effect_id,spent.line_id source_movement_id,received.line_id destination_movement_id
  FROM reg_crypto_aml_internal_allocations plan
  JOIN reg_crypto_sweep_custody_bindings b ON b.line_id=plan.sweep_attempt_id
  JOIN doc_crypto_sweep_lines line ON line.line_id=b.line_id AND line.document_id=b.sweep_id AND line.wallet_id=plan.source_wallet_id AND line.amount=plan.gross
- JOIN doc_crypto_sweeps sweep ON sweep.id=b.sweep_id AND sweep.accounting_model_version=2 AND sweep.hot_wallet_id=plan.destination_wallet_id AND sweep.token_id=plan.token_id
+ JOIN doc_crypto_sweeps sweep ON sweep.id=b.sweep_id AND sweep.hot_wallet_id=plan.destination_wallet_id AND sweep.token_id=plan.token_id
  JOIN reg_crypto_custody_effect_postings p ON p.id=b.posting_id AND p.recorder_id=sweep.id AND p.recorder_type='CryptoSweep' AND p.recorder_version=1
  JOIN reg_crypto_custody_effect_recognitions sr ON sr.posting_id=p.id AND sr.record_type='expense' AND sr.wallet_id=plan.source_wallet_id AND sr.token_id=plan.token_id
  JOIN reg_crypto_custody_effect_recognitions dr ON dr.posting_id=p.id AND dr.record_type='receipt' AND dr.wallet_id=plan.destination_wallet_id AND dr.token_id=plan.token_id
@@ -1551,7 +1522,6 @@ SELECT plan.id,plan.merchant_id,plan.network_id,plan.token_id,plan.source_wallet
  AND received.created_at>=(SELECT created_at FROM reg_crypto_aml_wallet_baselines WHERE wallet_id=plan.destination_wallet_id AND token_id=plan.token_id);
 -- ==== crypto_treasury_final_custody_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-ALTER TABLE doc_treasury_withdrawals ADD COLUMN accounting_model_version INT NOT NULL DEFAULT 2 CHECK(accounting_model_version=2);
 CREATE TABLE reg_crypto_treasury_custody_bindings (
     posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
     treasury_id UUID NOT NULL UNIQUE REFERENCES doc_treasury_withdrawals(id),
@@ -1574,7 +1544,6 @@ DECLARE d doc_treasury_withdrawals; w cat_wallets; f reg_crypto_fee_reservations
 DECLARE b reg_crypto_treasury_custody_bindings; p reg_crypto_custody_effect_postings; success BOOLEAN;
 BEGIN
     SELECT * INTO STRICT d FROM doc_treasury_withdrawals WHERE id=target;
-    IF d.accounting_model_version<>2 THEN RETURN; END IF;
     SELECT * INTO STRICT w FROM cat_wallets WHERE id=d.source_wallet_id;
     SELECT * INTO f FROM reg_crypto_fee_reservations WHERE basis_type='TreasuryWithdrawal' AND basis_id=d.id AND purpose='treasury_withdrawal' AND attempt=1;
     SELECT * INTO c FROM reg_crypto_chain_settlements WHERE network_id=w.network_id AND tx_hash=d.tx_hash;
@@ -1621,12 +1590,6 @@ BEGIN
     END IF;
     SELECT * INTO p FROM reg_crypto_custody_effect_postings WHERE id=b.posting_id;
     IF b.posting_id IS NULL OR p.recorder_type<>'TreasuryWithdrawal' OR p.recorder_id<>d.id OR p.recorder_version<>1 OR p.generation<>1
-       OR EXISTS(SELECT 1 FROM doc_treasury_withdrawals prior JOIN cat_wallets pw ON pw.id=prior.source_wallet_id JOIN cat_tokens pt ON pt.id=prior.token_id
-           JOIN cat_tokens dt ON dt.id=d.token_id JOIN cat_blockchain_networks n ON n.id=w.network_id
-           WHERE prior.id<>d.id AND prior.accounting_model_version=1 AND prior.posted AND pw.network_id=w.network_id AND pw.address_key=w.address_key AND prior.amount=d.amount
-             AND regexp_replace(lower(prior.tx_hash),'^0x','')=regexp_replace(lower(d.tx_hash),'^0x','')
-             AND CASE WHEN n.chain_family='evm' THEN lower(COALESCE(pt.contract_address,''))=lower(COALESCE(dt.contract_address,'')) AND lower(prior.dest_address)=lower(d.dest_address)
-                 ELSE COALESCE(pt.contract_address,'')=COALESCE(dt.contract_address,'') AND prior.dest_address=d.dest_address END)
        OR EXISTS(SELECT 1 FROM doc_crypto_withdrawals prior JOIN cat_wallets pw ON pw.id=prior.source_wallet_id JOIN cat_tokens pt ON pt.id=prior.token_id
            JOIN cat_tokens dt ON dt.id=d.token_id JOIN cat_blockchain_networks n ON n.id=w.network_id
            WHERE prior.posted AND pw.network_id=w.network_id AND pw.address_key=w.address_key AND prior.amount=d.amount
@@ -1695,7 +1658,7 @@ CREATE CONSTRAINT TRIGGER trg_treasury_posting_complete AFTER INSERT ON reg_cryp
 
 CREATE FUNCTION fn_crypto_treasury_financial_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
-    IF EXISTS(SELECT 1 FROM doc_treasury_withdrawals WHERE id=NEW.recorder_id AND accounting_model_version=2) THEN
+    IF EXISTS(SELECT 1 FROM doc_treasury_withdrawals WHERE id=NEW.recorder_id) THEN
         PERFORM fn_crypto_assert_treasury(NEW.recorder_id);
     END IF;
     IF NEW.reversal_of_line_id IS NOT NULL AND EXISTS(SELECT 1 FROM reg_crypto_custody_effect_recognitions r
@@ -1722,7 +1685,7 @@ BEGIN
         IF NEW.basis_type<>'TreasuryWithdrawal' OR (TG_TABLE_NAME='reg_crypto_fee_reservations' AND NEW.status<>'settled') THEN RETURN NULL; END IF;
         target:=NEW.basis_id;
     END IF;
-    IF EXISTS(SELECT 1 FROM doc_treasury_withdrawals WHERE id=target AND accounting_model_version=2) THEN PERFORM fn_crypto_assert_treasury(target); END IF;
+    IF EXISTS(SELECT 1 FROM doc_treasury_withdrawals WHERE id=target) THEN PERFORM fn_crypto_assert_treasury(target); END IF;
     RETURN NULL;
 END;
 $$;
@@ -1736,12 +1699,10 @@ CREATE CONSTRAINT TRIGGER trg_treasury_fee_complete AFTER INSERT OR UPDATE ON re
 CREATE FUNCTION fn_crypto_treasury_basis_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF TG_OP='DELETE' THEN
-        IF OLD.accounting_model_version=2 AND (OLD.tx_hash<>'' OR EXISTS(SELECT 1 FROM reg_crypto_signing_authorizations WHERE basis_type='TreasuryWithdrawal' AND basis_id=OLD.id)) THEN
+        IF (OLD.tx_hash<>'' OR EXISTS(SELECT 1 FROM reg_crypto_signing_authorizations WHERE basis_type='TreasuryWithdrawal' AND basis_id=OLD.id)) THEN
             RAISE EXCEPTION 'signed treasury history is immutable' USING ERRCODE='23514'; END IF;
         RETURN OLD;
     END IF;
-    IF NEW.accounting_model_version<>OLD.accounting_model_version THEN RAISE EXCEPTION 'treasury accounting model is immutable' USING ERRCODE='23514'; END IF;
-    IF OLD.accounting_model_version<>2 THEN RETURN NEW; END IF;
     IF (OLD.tx_hash<>'' OR EXISTS(SELECT 1 FROM reg_crypto_signing_authorizations WHERE basis_type='TreasuryWithdrawal' AND basis_id=OLD.id)
         OR EXISTS(SELECT 1 FROM reg_crypto_balance_reservations WHERE document_id=OLD.id AND status='active')
         OR EXISTS(SELECT 1 FROM reg_crypto_revenue_reservations WHERE document_id=OLD.id AND status='active')) AND
@@ -1763,10 +1724,10 @@ DECLARE target UUID; d doc_treasury_withdrawals; balance NUMERIC; reserved NUMER
 BEGIN
     IF TG_OP IN ('UPDATE','DELETE') THEN target:=OLD.document_id; ELSE target:=NEW.document_id; END IF;
     SELECT * INTO d FROM doc_treasury_withdrawals WHERE id=target;
-    IF (NOT FOUND OR d.accounting_model_version<>2) AND TG_OP='UPDATE' THEN
+    IF NOT FOUND AND TG_OP='UPDATE' THEN
         SELECT * INTO d FROM doc_treasury_withdrawals WHERE id=NEW.document_id;
     END IF;
-    IF NOT FOUND OR d.accounting_model_version<>2 THEN
+    IF NOT FOUND THEN
         IF TG_OP='DELETE' THEN RETURN OLD; END IF; RETURN NEW;
     END IF;
     IF TG_OP='DELETE' THEN RAISE EXCEPTION 'treasury reservation history is immutable' USING ERRCODE='23514'; END IF;
@@ -1796,7 +1757,7 @@ END;
 $$;
 CREATE FUNCTION fn_crypto_treasury_reservation_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
-    IF EXISTS(SELECT 1 FROM doc_treasury_withdrawals WHERE id=NEW.document_id AND accounting_model_version=2) AND
+    IF EXISTS(SELECT 1 FROM doc_treasury_withdrawals WHERE id=NEW.document_id) AND
        (EXISTS(SELECT 1 FROM doc_treasury_withdrawals WHERE id=NEW.document_id AND (tx_hash<>'' OR settlement_status='recorded'))
         OR (NEW.status<>'active' AND EXISTS(SELECT 1 FROM reg_crypto_signing_authorizations WHERE basis_type='TreasuryWithdrawal' AND basis_id=NEW.document_id AND signed_envelope IS NOT NULL AND status<>'failed'))) THEN
         IF NEW.status<>'active' OR EXISTS(SELECT 1 FROM doc_treasury_withdrawals WHERE id=NEW.document_id AND settlement_status='recorded') THEN
@@ -1814,7 +1775,7 @@ DO $$ DECLARE target TEXT; BEGIN
 END; $$;
 CREATE FUNCTION fn_crypto_treasury_fee_release_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
-    IF NEW.basis_type='TreasuryWithdrawal' AND NEW.status='released' AND EXISTS(SELECT 1 FROM doc_treasury_withdrawals WHERE id=NEW.basis_id AND accounting_model_version=2)
+    IF NEW.basis_type='TreasuryWithdrawal' AND NEW.status='released' AND EXISTS(SELECT 1 FROM doc_treasury_withdrawals WHERE id=NEW.basis_id)
        AND EXISTS(SELECT 1 FROM reg_crypto_signing_authorizations WHERE basis_type='TreasuryWithdrawal' AND basis_id=NEW.basis_id AND signed_envelope IS NOT NULL AND status<>'failed') THEN
         RAISE EXCEPTION 'signed treasury fee reserve requires a proven final outcome' USING ERRCODE='23514';
     END IF;
@@ -1833,7 +1794,7 @@ BEGIN
             AND x.source_address_key=w.address_key AND x.destination_address_key=CASE WHEN n.chain_family='evm' THEN lower(c.dest_address) ELSE c.dest_address END
             AND x.contract_address_key=CASE WHEN n.chain_family='evm' THEN lower(COALESCE(t.contract_address,'')) ELSE COALESCE(t.contract_address,'') END AND x.amount=c.amount
         JOIN reg_crypto_signing_authorizations a ON a.id=x.signing_authorization_id AND a.basis_type='TreasuryWithdrawal' AND a.signed_envelope IS NOT NULL
-        JOIN doc_treasury_withdrawals d ON d.id=a.basis_id AND d.accounting_model_version=2
+        JOIN doc_treasury_withdrawals d ON d.id=a.basis_id
         WHERE NEW.recorder_type<>'TreasuryWithdrawal' OR NEW.recorder_id<>d.id) THEN
         RAISE EXCEPTION 'expected treasury principal requires its settlement owner' USING ERRCODE='23514';
     END IF;
@@ -1842,7 +1803,7 @@ BEGIN
         JOIN reg_crypto_expected_chain_effects x ON x.network_id=o.network_id AND regexp_replace(lower(x.tx_hash),'^0x','')=regexp_replace(lower(o.tx_hash),'^0x','')
             AND x.event_kind=o.event_kind AND x.source_address_key=o.source_address_key AND x.destination_address_key=o.destination_address_key AND x.contract_address_key=o.contract_address_key AND x.amount=o.amount
         JOIN reg_crypto_signing_authorizations a ON a.id=x.signing_authorization_id AND a.basis_type='TreasuryWithdrawal' AND a.signed_envelope IS NOT NULL
-        JOIN doc_treasury_withdrawals d ON d.id=a.basis_id AND d.accounting_model_version=2 WHERE adjustment.id=NEW.recorder_id) THEN
+        JOIN doc_treasury_withdrawals d ON d.id=a.basis_id WHERE adjustment.id=NEW.recorder_id) THEN
         RAISE EXCEPTION 'expected treasury principal requires its settlement owner' USING ERRCODE='23514';
     END IF;
     RETURN NEW;
@@ -1851,7 +1812,6 @@ $$;
 CREATE TRIGGER trg_treasury_outflow_owner BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_outflow_owner_guard();
 -- ==== crypto_withdrawal_final_custody_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-ALTER TABLE doc_crypto_withdrawals ADD COLUMN accounting_model_version INT NOT NULL DEFAULT 2 CHECK(accounting_model_version=2);
 ALTER TABLE reg_crypto_aml_withdrawal_facts ALTER COLUMN expense_movement_id DROP NOT NULL;
 ALTER TABLE reg_crypto_aml_withdrawal_facts DROP CONSTRAINT reg_crypto_aml_withdrawal_facts_check;
 ALTER TABLE reg_crypto_aml_withdrawal_facts ADD CONSTRAINT reg_crypto_aml_withdrawal_facts_check CHECK(
@@ -1881,7 +1841,7 @@ CREATE FUNCTION fn_crypto_assert_withdrawal_parent(target UUID) RETURNS VOID LAN
 DECLARE r doc_withdrawal_requests; d doc_crypto_withdrawals;
 BEGIN
     SELECT * INTO STRICT r FROM doc_withdrawal_requests WHERE id=target;
-    IF NOT EXISTS(SELECT 1 FROM doc_crypto_withdrawals c WHERE c.accounting_model_version=2 AND ((c.basis_type='WithdrawalRequest' AND c.basis_id=r.id)
+    IF NOT EXISTS(SELECT 1 FROM doc_crypto_withdrawals c WHERE ((c.basis_type='WithdrawalRequest' AND c.basis_id=r.id)
         OR EXISTS(SELECT 1 FROM reg_crypto_aml_withdrawal_lines WHERE withdrawal_id=c.id AND request_id=r.id))) THEN RETURN; END IF;
     IF NOT r.posted OR r.posted_version<>1
        OR (SELECT count(*) FROM reg_crypto_merchant_balance_movements WHERE recorder_id=r.id AND record_type='expense')<>1
@@ -1918,7 +1878,6 @@ DECLARE f reg_crypto_fee_reservations; c reg_crypto_chain_settlements; b reg_cry
 DECLARE reserve reg_crypto_balance_reservations; success BOOLEAN; basis TEXT; owner_basis_id UUID;
 BEGIN
     SELECT * INTO STRICT d FROM doc_crypto_withdrawals WHERE id=target;
-    IF d.accounting_model_version<>2 THEN RETURN; END IF;
     IF d.basis_type='CryptoAMLWithdrawalLine' THEN
         SELECT * INTO STRICT l FROM reg_crypto_aml_withdrawal_lines WHERE id=d.basis_id AND withdrawal_id=d.id;
         SELECT * INTO STRICT r FROM doc_withdrawal_requests WHERE id=l.request_id;
@@ -1978,18 +1937,6 @@ BEGIN
     END IF;
     SELECT * INTO p FROM reg_crypto_custody_effect_postings WHERE id=b.posting_id;
     IF b.posting_id IS NULL OR b.request_id<>r.id OR b.line_id IS DISTINCT FROM l.id OR p.recorder_type<>'CryptoWithdrawal' OR p.recorder_id<>d.id OR p.recorder_version<>1 OR p.generation<>1
-       OR EXISTS(SELECT 1 FROM doc_treasury_withdrawals prior JOIN cat_wallets pw ON pw.id=prior.source_wallet_id JOIN cat_tokens pt ON pt.id=prior.token_id
-           JOIN cat_tokens dt ON dt.id=d.token_id JOIN cat_blockchain_networks n ON n.id=w.network_id
-           WHERE prior.id<>d.id AND prior.accounting_model_version=1 AND prior.posted AND pw.network_id=w.network_id AND pw.address_key=w.address_key AND prior.amount=d.amount
-             AND regexp_replace(lower(prior.tx_hash),'^0x','')=regexp_replace(lower(d.tx_hash),'^0x','')
-             AND CASE WHEN n.chain_family='evm' THEN lower(COALESCE(pt.contract_address,''))=lower(COALESCE(dt.contract_address,'')) AND lower(prior.dest_address)=lower(d.dest_address)
-                 ELSE COALESCE(pt.contract_address,'')=COALESCE(dt.contract_address,'') AND prior.dest_address=d.dest_address END)
-       OR EXISTS(SELECT 1 FROM doc_crypto_withdrawals prior JOIN cat_wallets pw ON pw.id=prior.source_wallet_id JOIN cat_tokens pt ON pt.id=prior.token_id
-           JOIN cat_tokens dt ON dt.id=d.token_id JOIN cat_blockchain_networks n ON n.id=w.network_id
-           WHERE prior.id<>d.id AND prior.accounting_model_version=1 AND prior.posted AND pw.network_id=w.network_id AND pw.address_key=w.address_key AND prior.amount=d.amount
-             AND regexp_replace(lower(prior.tx_hash),'^0x','')=regexp_replace(lower(d.tx_hash),'^0x','')
-             AND CASE WHEN n.chain_family='evm' THEN lower(COALESCE(pt.contract_address,''))=lower(COALESCE(dt.contract_address,'')) AND lower(prior.dest_address)=lower(d.dest_address)
-                 ELSE COALESCE(pt.contract_address,'')=COALESCE(dt.contract_address,'') AND prior.dest_address=d.dest_address END)
        OR EXISTS(SELECT 1 FROM doc_crypto_custody_adjustments a JOIN reg_crypto_external_outflows o ON o.id=a.external_outflow_id
            JOIN cat_tokens dt ON dt.id=d.token_id JOIN cat_blockchain_networks n ON n.id=w.network_id
            WHERE a.status='posted' AND o.network_id=w.network_id AND o.source_address_key=w.address_key AND o.amount=d.amount
@@ -2015,21 +1962,10 @@ END;
 $$;
 
 CREATE OR REPLACE VIEW crypto_aml_valid_withdrawal_facts AS
- SELECT f.line_id FROM reg_crypto_aml_withdrawal_facts f JOIN reg_crypto_aml_withdrawal_lines l ON l.id=f.line_id AND l.wallet_id=f.wallet_id AND l.token_id=f.token_id AND l.amount=f.amount
- JOIN reg_crypto_aml_withdrawal_plans p ON p.request_id=l.request_id
- JOIN doc_crypto_withdrawals w ON w.id=l.withdrawal_id AND w.basis_type='CryptoAMLWithdrawalLine' AND w.basis_id=l.id AND w.merchant_id=p.merchant_id AND w.source_wallet_id=l.wallet_id AND w.token_id=l.token_id AND w.amount=l.amount AND w.posted AND w.posted_version=1
- JOIN reg_crypto_signing_authorizations a ON a.basis_type='CryptoAMLWithdrawalLine' AND a.basis_id=l.id AND a.generation=1 AND a.attempt=1 AND a.signed_envelope IS NOT NULL AND a.tx_hash=w.tx_hash AND a.source_address=l.source_address AND a.vault_key_id=l.source_vault_key_id AND a.amount_minor_units=l.amount
- JOIN reg_crypto_aml_first_dispatches dispatched ON dispatched.authorization_id=a.id
- JOIN reg_crypto_chain_settlements s ON s.id=f.settlement_id AND s.network_id=p.network_id AND s.basis_type='CryptoAMLWithdrawalLine' AND s.basis_id=l.id AND s.tx_hash=w.tx_hash AND (s.status='succeeded')=f.succeeded
- JOIN reg_crypto_balance_movements m ON m.line_id=f.expense_movement_id AND m.recorder_type='CryptoWithdrawal' AND m.recorder_id=w.id AND m.recorder_version=1 AND m.record_type='expense' AND m.wallet_id=f.wallet_id AND m.token_id=f.token_id AND m.amount=f.amount
- LEFT JOIN reg_crypto_balance_movements refund ON refund.line_id=f.refund_movement_id AND refund.line_id=l.id AND refund.recorder_type='AMLWithdrawalRevert' AND refund.recorder_id=l.id AND refund.recorder_version=1 AND refund.record_type='receipt' AND refund.wallet_id=f.wallet_id AND refund.token_id=f.token_id AND refund.amount=f.amount
- WHERE (f.succeeded OR (refund.line_id IS NOT NULL AND EXISTS(SELECT 1 FROM reg_crypto_merchant_balance_movements mr JOIN doc_withdrawal_requests request ON request.id=l.request_id WHERE mr.line_id=l.id AND mr.recorder_id=l.request_id AND mr.recorder_type='WithdrawalRequest' AND mr.recorder_version=request.posted_version+1 AND mr.record_type='receipt' AND mr.merchant_id=p.merchant_id AND mr.token_id=l.token_id AND mr.amount=l.amount))) AND (SELECT COUNT(*) FROM reg_crypto_balance_movements WHERE recorder_id=w.id AND recorder_type='CryptoWithdrawal')=1 AND w.accounting_model_version=1
-UNION ALL
-
-SELECT f.line_id FROM reg_crypto_aml_withdrawal_facts f
+ SELECT f.line_id FROM reg_crypto_aml_withdrawal_facts f
  JOIN reg_crypto_aml_withdrawal_lines l ON l.id=f.line_id AND l.wallet_id=f.wallet_id AND l.token_id=f.token_id AND l.amount=f.amount
  JOIN reg_crypto_aml_withdrawal_plans plan ON plan.request_id=l.request_id
- JOIN doc_crypto_withdrawals w ON w.id=l.withdrawal_id AND w.accounting_model_version=2 AND w.basis_type='CryptoAMLWithdrawalLine' AND w.basis_id=l.id
+ JOIN doc_crypto_withdrawals w ON w.id=l.withdrawal_id AND w.basis_type='CryptoAMLWithdrawalLine' AND w.basis_id=l.id
     AND w.merchant_id=plan.merchant_id AND w.source_wallet_id=l.wallet_id AND w.token_id=l.token_id AND w.amount=l.amount AND w.posted AND w.posted_version=1
     AND w.settlement_status='recorded' AND w.status=CASE WHEN f.succeeded THEN 'confirmed' ELSE 'failed' END
  JOIN reg_crypto_signing_authorizations a ON a.basis_type='CryptoAMLWithdrawalLine' AND a.basis_id=l.id AND a.generation=1 AND a.attempt=1
@@ -2079,7 +2015,7 @@ CREATE CONSTRAINT TRIGGER trg_withdrawal_posting_complete AFTER INSERT ON reg_cr
 CREATE FUNCTION fn_crypto_withdrawal_financial_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE target UUID;
 BEGIN
-    FOR target IN SELECT id FROM doc_crypto_withdrawals WHERE accounting_model_version=2 AND (id=NEW.recorder_id OR basis_id=NEW.recorder_id) AND (TG_TABLE_NAME<>'reg_crypto_merchant_balance_movements' OR id=NEW.recorder_id OR settlement_status='recorded') LOOP
+    FOR target IN SELECT id FROM doc_crypto_withdrawals WHERE (id=NEW.recorder_id OR basis_id=NEW.recorder_id) AND (TG_TABLE_NAME<>'reg_crypto_merchant_balance_movements' OR id=NEW.recorder_id OR settlement_status='recorded') LOOP
         PERFORM fn_crypto_assert_withdrawal(target);
     END LOOP;
     IF TG_TABLE_NAME='reg_crypto_merchant_balance_movements' AND EXISTS(SELECT 1 FROM doc_withdrawal_requests WHERE id=NEW.recorder_id) THEN PERFORM fn_crypto_assert_withdrawal_parent(NEW.recorder_id); END IF;
@@ -2101,9 +2037,9 @@ BEGIN
     ELSE
         IF NEW.basis_type NOT IN ('WithdrawalRequest','CryptoAMLWithdrawalLine') THEN RETURN NULL; END IF;
         IF TG_TABLE_NAME='reg_crypto_fee_reservations' AND NEW.status<>'settled' THEN RETURN NULL; END IF;
-        SELECT id INTO target FROM doc_crypto_withdrawals WHERE basis_type=NEW.basis_type AND basis_id=NEW.basis_id AND accounting_model_version=2;
+        SELECT id INTO target FROM doc_crypto_withdrawals WHERE basis_type=NEW.basis_type AND basis_id=NEW.basis_id;
     END IF;
-    IF EXISTS(SELECT 1 FROM doc_crypto_withdrawals WHERE id=target AND accounting_model_version=2) THEN PERFORM fn_crypto_assert_withdrawal(target); END IF;
+    IF EXISTS(SELECT 1 FROM doc_crypto_withdrawals WHERE id=target) THEN PERFORM fn_crypto_assert_withdrawal(target); END IF;
     RETURN NULL;
 END;
 $$;
@@ -2114,20 +2050,18 @@ CREATE CONSTRAINT TRIGGER trg_withdrawal_fee_complete AFTER INSERT OR UPDATE ON 
 CREATE FUNCTION fn_crypto_withdrawal_basis_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF TG_TABLE_NAME='doc_withdrawal_requests' THEN
-        IF EXISTS(SELECT 1 FROM doc_crypto_withdrawals c WHERE c.accounting_model_version=2 AND ((c.basis_type='WithdrawalRequest' AND c.basis_id=OLD.id)
+        IF EXISTS(SELECT 1 FROM doc_crypto_withdrawals c WHERE ((c.basis_type='WithdrawalRequest' AND c.basis_id=OLD.id)
             OR EXISTS(SELECT 1 FROM reg_crypto_aml_withdrawal_lines WHERE withdrawal_id=c.id AND request_id=OLD.id))) THEN
             IF TG_OP='DELETE' THEN RAISE EXCEPTION 'withdrawal request history is immutable' USING ERRCODE='23514'; END IF;
             IF (NEW.merchant_id,NEW.token_id,NEW.amount,NEW.dest_address,NEW.address_id,NEW.date,NEW.posted,NEW.posted_version) IS DISTINCT FROM
-               (OLD.merchant_id,OLD.token_id,OLD.amount,OLD.dest_address,OLD.address_id,OLD.date,OLD.posted,OLD.posted_version) OR (NEW.withdrawal_id IS DISTINCT FROM OLD.withdrawal_id AND NOT (OLD.withdrawal_id IS NULL AND EXISTS(SELECT 1 FROM doc_crypto_withdrawals WHERE id=NEW.withdrawal_id AND basis_type='WithdrawalRequest' AND basis_id=OLD.id AND accounting_model_version=2))) OR NEW.deletion_mark OR NEW._deleted_at IS NOT NULL THEN
+               (OLD.merchant_id,OLD.token_id,OLD.amount,OLD.dest_address,OLD.address_id,OLD.date,OLD.posted,OLD.posted_version) OR (NEW.withdrawal_id IS DISTINCT FROM OLD.withdrawal_id AND NOT (OLD.withdrawal_id IS NULL AND EXISTS(SELECT 1 FROM doc_crypto_withdrawals WHERE id=NEW.withdrawal_id AND basis_type='WithdrawalRequest' AND basis_id=OLD.id))) OR NEW.deletion_mark OR NEW._deleted_at IS NOT NULL THEN
                 RAISE EXCEPTION 'withdrawal request financial basis is immutable' USING ERRCODE='23514'; END IF;
         END IF;
         IF TG_OP='DELETE' THEN RETURN OLD; END IF; RETURN NEW;
     END IF;
     IF TG_OP='DELETE' THEN
-        IF OLD.accounting_model_version=2 THEN RAISE EXCEPTION 'withdrawal execution history is immutable' USING ERRCODE='23514'; END IF; RETURN OLD;
+        RAISE EXCEPTION 'withdrawal execution history is immutable' USING ERRCODE='23514';
     END IF;
-    IF NEW.accounting_model_version<>OLD.accounting_model_version THEN RAISE EXCEPTION 'withdrawal accounting model is immutable' USING ERRCODE='23514'; END IF;
-    IF OLD.accounting_model_version<>2 THEN RETURN NEW; END IF;
     IF (NEW.merchant_id,NEW.token_id,NEW.source_wallet_id,NEW.dest_address,NEW.amount,NEW.date,NEW.basis_type,NEW.basis_id) IS DISTINCT FROM
        (OLD.merchant_id,OLD.token_id,OLD.source_wallet_id,OLD.dest_address,OLD.amount,OLD.date,OLD.basis_type,OLD.basis_id) OR NEW.deletion_mark OR NEW._deleted_at IS NOT NULL OR NEW.posted_version>1 OR (OLD.posted AND NOT NEW.posted) THEN
         RAISE EXCEPTION 'withdrawal execution basis is immutable' USING ERRCODE='23514'; END IF;
@@ -2144,7 +2078,6 @@ DECLARE d doc_crypto_withdrawals; balance NUMERIC; reserved NUMERIC; fees NUMERI
 BEGIN
     IF TG_OP='INSERT' THEN
         IF NEW.document_type NOT IN ('WithdrawalRequest','CryptoAMLWithdrawalLine') THEN RETURN NEW; END IF;
-        IF EXISTS(SELECT 1 FROM doc_crypto_withdrawals WHERE accounting_model_version=1 AND basis_type=NEW.document_type AND basis_id=NEW.document_id) THEN RETURN NEW; END IF;
         PERFORM fn_crypto_lock_receipt_balance(NEW.wallet_id,NEW.token_id);
         SELECT amount INTO STRICT balance FROM reg_crypto_balance_balances WHERE wallet_id=NEW.wallet_id AND token_id=NEW.token_id;
         SELECT COALESCE(sum(amount),0) INTO reserved FROM reg_crypto_balance_reservations WHERE wallet_id=NEW.wallet_id AND token_id=NEW.token_id AND status='active';
@@ -2153,9 +2086,9 @@ BEGIN
         IF NEW.status<>'active' OR NEW.amount>balance-reserved-fees THEN RAISE EXCEPTION 'withdrawal reservation exceeds available principal' USING ERRCODE='23514'; END IF;
         RETURN NEW;
     END IF;
-    SELECT * INTO d FROM doc_crypto_withdrawals WHERE accounting_model_version=2 AND basis_type=OLD.document_type AND basis_id=OLD.document_id;
+    SELECT * INTO d FROM doc_crypto_withdrawals WHERE basis_type=OLD.document_type AND basis_id=OLD.document_id;
     IF NOT FOUND AND TG_OP='UPDATE' THEN
-        SELECT * INTO d FROM doc_crypto_withdrawals WHERE accounting_model_version=2 AND basis_type=NEW.document_type AND basis_id=NEW.document_id;
+        SELECT * INTO d FROM doc_crypto_withdrawals WHERE basis_type=NEW.document_type AND basis_id=NEW.document_id;
     END IF;
     IF NOT FOUND THEN IF TG_OP='DELETE' THEN RETURN OLD; END IF; RETURN NEW; END IF;
     IF TG_OP='DELETE' THEN RAISE EXCEPTION 'withdrawal reservation history is immutable' USING ERRCODE='23514'; END IF;
@@ -2168,7 +2101,7 @@ CREATE TRIGGER trg_withdrawal_reservation_basis BEFORE INSERT OR UPDATE OR DELET
 CREATE FUNCTION fn_crypto_withdrawal_reservation_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE d doc_crypto_withdrawals;
 BEGIN
-    SELECT * INTO d FROM doc_crypto_withdrawals WHERE accounting_model_version=2 AND basis_type=NEW.document_type AND basis_id=NEW.document_id;
+    SELECT * INTO d FROM doc_crypto_withdrawals WHERE basis_type=NEW.document_type AND basis_id=NEW.document_id;
     IF FOUND AND NEW.status<>'active' AND (d.tx_hash<>'' OR EXISTS(SELECT 1 FROM reg_crypto_signing_authorizations WHERE basis_type=d.basis_type AND basis_id=d.basis_id AND (signed_envelope IS NOT NULL OR status<>'failed'))) THEN PERFORM fn_crypto_assert_withdrawal(d.id); END IF;
     RETURN NULL;
 END;
@@ -2176,7 +2109,7 @@ $$;
 CREATE CONSTRAINT TRIGGER trg_withdrawal_reservation_complete AFTER INSERT OR UPDATE ON reg_crypto_balance_reservations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_reservation_complete();
 CREATE FUNCTION fn_crypto_withdrawal_fee_release_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
-    IF NEW.status='released' AND EXISTS(SELECT 1 FROM doc_crypto_withdrawals d WHERE d.accounting_model_version=2 AND d.basis_type=NEW.basis_type AND d.basis_id=NEW.basis_id)
+    IF NEW.status='released' AND EXISTS(SELECT 1 FROM doc_crypto_withdrawals d WHERE d.basis_type=NEW.basis_type AND d.basis_id=NEW.basis_id)
        AND EXISTS(SELECT 1 FROM reg_crypto_signing_authorizations WHERE basis_type=NEW.basis_type AND basis_id=NEW.basis_id AND signed_envelope IS NOT NULL) THEN
         RAISE EXCEPTION 'signed withdrawal fee requires a final outcome' USING ERRCODE='23514'; END IF;
     RETURN NEW;
@@ -2194,7 +2127,7 @@ BEGIN
             AND x.source_address_key=w.address_key AND x.destination_address_key=CASE WHEN n.chain_family='evm' THEN lower(c.dest_address) ELSE c.dest_address END
             AND x.contract_address_key=CASE WHEN n.chain_family='evm' THEN lower(COALESCE(t.contract_address,'')) ELSE COALESCE(t.contract_address,'') END AND x.amount=c.amount
         JOIN reg_crypto_signing_authorizations a ON a.id=x.signing_authorization_id AND a.basis_type IN ('WithdrawalRequest','CryptoAMLWithdrawalLine') AND a.signed_envelope IS NOT NULL
-        JOIN doc_crypto_withdrawals d ON d.basis_type=a.basis_type AND d.basis_id=a.basis_id AND d.accounting_model_version=2
+        JOIN doc_crypto_withdrawals d ON d.basis_type=a.basis_type AND d.basis_id=a.basis_id
         WHERE NEW.recorder_type<>'CryptoWithdrawal' OR NEW.recorder_id<>d.id) THEN
         RAISE EXCEPTION 'expected withdrawal principal requires its settlement owner' USING ERRCODE='23514';
     END IF;
@@ -2203,7 +2136,7 @@ BEGIN
         JOIN reg_crypto_expected_chain_effects x ON x.network_id=o.network_id AND regexp_replace(lower(x.tx_hash),'^0x','')=regexp_replace(lower(o.tx_hash),'^0x','')
             AND x.event_kind=o.event_kind AND x.source_address_key=o.source_address_key AND x.destination_address_key=o.destination_address_key AND x.contract_address_key=o.contract_address_key AND x.amount=o.amount
         JOIN reg_crypto_signing_authorizations a ON a.id=x.signing_authorization_id AND a.basis_type IN ('WithdrawalRequest','CryptoAMLWithdrawalLine') AND a.signed_envelope IS NOT NULL
-        JOIN doc_crypto_withdrawals d ON d.basis_type=a.basis_type AND d.basis_id=a.basis_id AND d.accounting_model_version=2 WHERE adjustment.id=NEW.recorder_id) THEN
+        JOIN doc_crypto_withdrawals d ON d.basis_type=a.basis_type AND d.basis_id=a.basis_id WHERE adjustment.id=NEW.recorder_id) THEN
         RAISE EXCEPTION 'expected withdrawal principal requires its settlement owner' USING ERRCODE='23514';
     END IF;
     RETURN NEW;
@@ -2219,7 +2152,6 @@ $$;
 CREATE CONSTRAINT TRIGGER trg_withdrawal_request_complete AFTER INSERT OR UPDATE ON doc_withdrawal_requests DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_request_complete();
 -- ==== crypto_custody_loss_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-ALTER TABLE doc_crypto_custody_adjustments ADD COLUMN accounting_model_version INT NOT NULL DEFAULT 2 CHECK(accounting_model_version=2);
 CREATE TABLE reg_crypto_custody_loss_bindings (
     posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
     adjustment_id UUID NOT NULL UNIQUE REFERENCES doc_crypto_custody_adjustments(id),
@@ -2266,7 +2198,6 @@ CREATE FUNCTION fn_crypto_assert_custody_loss(target UUID) RETURNS VOID LANGUAGE
 DECLARE d doc_crypto_custody_adjustments; o reg_crypto_external_outflows; b reg_crypto_custody_loss_bindings; p reg_crypto_custody_effect_postings;
 BEGIN
     SELECT * INTO STRICT d FROM doc_crypto_custody_adjustments WHERE id=target;
-    IF d.accounting_model_version<>2 THEN RETURN; END IF;
     SELECT * INTO STRICT o FROM reg_crypto_external_outflows WHERE id=d.external_outflow_id;
     SELECT * INTO b FROM reg_crypto_custody_loss_bindings WHERE adjustment_id=d.id;
     SELECT * INTO p FROM reg_crypto_custody_effect_postings WHERE id=b.posting_id;
@@ -2335,7 +2266,7 @@ $$;
 CREATE CONSTRAINT TRIGGER trg_custody_loss_posting_complete AFTER INSERT ON reg_crypto_custody_effect_postings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_loss_posting_complete();
 CREATE FUNCTION fn_crypto_custody_loss_financial_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
-    IF EXISTS(SELECT 1 FROM doc_crypto_custody_adjustments WHERE id=NEW.recorder_id AND accounting_model_version=2) THEN PERFORM fn_crypto_assert_custody_loss(NEW.recorder_id); END IF;
+    IF EXISTS(SELECT 1 FROM doc_crypto_custody_adjustments WHERE id=NEW.recorder_id) THEN PERFORM fn_crypto_assert_custody_loss(NEW.recorder_id); END IF;
     IF NEW.reversal_of_line_id IS NOT NULL AND (EXISTS(SELECT 1 FROM reg_crypto_custody_effect_recognitions r JOIN reg_crypto_custody_loss_bindings b ON b.posting_id=r.posting_id WHERE r.movement_line_id=NEW.reversal_of_line_id)
         OR (TG_TABLE_NAME='reg_crypto_platform_cost_movements' AND EXISTS(SELECT 1 FROM reg_crypto_platform_cost_movements m JOIN reg_crypto_custody_loss_bindings b ON b.adjustment_id=m.recorder_id WHERE m.line_id=NEW.reversal_of_line_id))) THEN
         RAISE EXCEPTION 'custody loss requires explicit compensation workflow' USING ERRCODE='23514'; END IF;
@@ -2349,13 +2280,13 @@ DO $$ DECLARE target TEXT; BEGIN
 END; $$;
 CREATE FUNCTION fn_crypto_custody_loss_document_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
-    IF NEW.accounting_model_version=2 AND NEW.status='posted' THEN PERFORM fn_crypto_assert_custody_loss(NEW.id); END IF; RETURN NULL;
+    IF NEW.status='posted' THEN PERFORM fn_crypto_assert_custody_loss(NEW.id); END IF; RETURN NULL;
 END;
 $$;
 CREATE CONSTRAINT TRIGGER trg_custody_loss_document_complete AFTER INSERT OR UPDATE ON doc_crypto_custody_adjustments DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_loss_document_complete();
 CREATE FUNCTION fn_crypto_custody_loss_basis_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
-    IF NEW.accounting_model_version<>OLD.accounting_model_version OR (OLD.accounting_model_version=2 AND NEW.created_at<>OLD.created_at) THEN
+    IF NEW.created_at<>OLD.created_at THEN
         RAISE EXCEPTION 'custody loss accounting model and basis are immutable' USING ERRCODE='23514'; END IF;
     RETURN NEW;
 END;
@@ -2391,11 +2322,10 @@ $$;
 CREATE TRIGGER trg_custody_loss_outflow_owner BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_loss_outflow_guard();
 -- ==== crypto_network_fee_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-ALTER TABLE reg_crypto_fee_reservations ADD COLUMN accounting_model_version INT NOT NULL DEFAULT 2 CHECK(accounting_model_version=2);
 ALTER TABLE reg_crypto_fee_reservation_events ADD COLUMN transition_txid BIGINT;
 CREATE FUNCTION fn_crypto_fee_transition_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
-    NEW.transition_txid:=CASE WHEN EXISTS(SELECT 1 FROM reg_crypto_fee_reservations WHERE id=NEW.reservation_id AND accounting_model_version=2) THEN txid_current() ELSE NULL END;
+    NEW.transition_txid:=CASE WHEN EXISTS(SELECT 1 FROM reg_crypto_fee_reservations WHERE id=NEW.reservation_id) THEN txid_current() ELSE NULL END;
     RETURN NEW;
 END;
 $$;
@@ -2498,7 +2428,6 @@ CREATE FUNCTION fn_crypto_assert_network_fee(target UUID) RETURNS VOID LANGUAGE 
 DECLARE f reg_crypto_fee_reservations; b reg_crypto_network_fee_bindings; p reg_crypto_network_fee_proofs; c reg_crypto_chain_settlements; d doc_crypto_network_operations; fee_purpose TEXT;
 BEGIN
     SELECT * INTO STRICT f FROM reg_crypto_fee_reservations WHERE id=target;
-    IF f.accounting_model_version<>2 THEN RAISE EXCEPTION 'network fee recognition requires model 2' USING ERRCODE='23514'; END IF;
     SELECT * INTO b FROM reg_crypto_network_fee_bindings WHERE reservation_id=f.id;
     SELECT * INTO p FROM reg_crypto_network_fee_proofs WHERE id=b.proof_id;
     SELECT * INTO c FROM reg_crypto_chain_settlements WHERE id=b.settlement_id;
@@ -2510,9 +2439,7 @@ BEGIN
        OR c.status<>p.status OR regexp_replace(lower(c.block_hash),'^0x','')<>p.block_hash OR c.block_height<>p.block_number
        OR c.native_token_id<>f.native_token_id OR c.total_fee_minor<>f.actual_fee_minor OR c.finality_status IS DISTINCT FROM p.evidence->>'finality' OR c.observed_at<>b.period
        OR NOT EXISTS(SELECT 1 FROM cat_wallets w JOIN cat_tokens t ON t.network_id=w.network_id WHERE w.id=f.payer_wallet_id AND w.network_id=f.network_id
-           AND w.address_key=p.payer_address_key AND w.vault_key_id<>'' AND t.id=f.native_token_id AND t.token_standard='native' AND COALESCE(t.contract_address,'')='')
-       OR EXISTS(SELECT 1 FROM reg_crypto_fee_reservations prior WHERE prior.id<>f.id AND prior.accounting_model_version=1 AND prior.network_id=f.network_id
-           AND regexp_replace(lower(prior.tx_hash),'^0x','')=p.tx_hash AND prior.status IN ('broadcast','held','settled')) THEN
+           AND w.address_key=p.payer_address_key AND w.vault_key_id<>'' AND t.id=f.native_token_id AND t.token_standard='native' AND COALESCE(t.contract_address,'')='') THEN
         RAISE EXCEPTION 'network fee requires its exact final proof, reservation and normalized settlement' USING ERRCODE='23514'; END IF;
     IF (SELECT count(*) FROM reg_crypto_chain_settlement_components WHERE settlement_id=c.id)<>jsonb_array_length(p.evidence->'components')
        OR EXISTS(SELECT 1 FROM jsonb_array_elements(p.evidence->'components') AS part(value) WHERE NOT EXISTS(
@@ -2566,7 +2493,7 @@ CREATE FUNCTION fn_crypto_network_fee_state_complete() RETURNS TRIGGER LANGUAGE 
 DECLARE target UUID;
 BEGIN
     IF TG_TABLE_NAME='reg_crypto_fee_reservations' THEN
-        IF NEW.accounting_model_version<>2 OR NEW.status<>'settled' THEN RETURN NULL; END IF; target:=NEW.id;
+        IF NEW.status<>'settled' THEN RETURN NULL; END IF; target:=NEW.id;
     ELSIF TG_TABLE_NAME='reg_crypto_chain_settlement_components' THEN
         SELECT network_fee_reservation_id INTO target FROM reg_crypto_chain_settlements WHERE id=NEW.settlement_id;
     ELSE target:=NEW.network_fee_reservation_id; END IF;
@@ -2582,11 +2509,11 @@ DECLARE target UUID;
 BEGIN
     IF NEW.reversal_of_line_id IS NOT NULL AND EXISTS(SELECT 1 FROM reg_crypto_network_fee_bindings WHERE movement_line_id=NEW.reversal_of_line_id OR cost_line_id=NEW.reversal_of_line_id) THEN
         RAISE EXCEPTION 'recognized network fee requires explicit compensation workflow' USING ERRCODE='23514'; END IF;
-    IF NEW.recorder_type='ChainSettlement' AND EXISTS(SELECT 1 FROM reg_crypto_fee_reservations WHERE basis_id=NEW.recorder_id AND accounting_model_version=2)
+    IF NEW.recorder_type='ChainSettlement' AND EXISTS(SELECT 1 FROM reg_crypto_fee_reservations WHERE basis_id=NEW.recorder_id)
        AND NOT EXISTS(SELECT 1 FROM reg_crypto_network_fee_bindings WHERE recorder_type=NEW.recorder_type AND recorder_id=NEW.recorder_id AND (movement_line_id=NEW.line_id OR cost_line_id=NEW.line_id)) THEN
         RAISE EXCEPTION 'network fee movement has no exact recognition owner' USING ERRCODE='23514'; END IF;
     FOR target IN SELECT b.reservation_id FROM reg_crypto_network_fee_bindings b WHERE (b.recorder_id=NEW.recorder_id AND b.recorder_type=NEW.recorder_type) OR b.movement_line_id=NEW.line_id OR b.cost_line_id=NEW.line_id
-        UNION SELECT f.id FROM reg_crypto_fee_reservations f WHERE f.id=NEW.line_id AND f.accounting_model_version=2 LOOP
+        UNION SELECT f.id FROM reg_crypto_fee_reservations f WHERE f.id=NEW.line_id LOOP
         PERFORM fn_crypto_assert_network_fee(target);
     END LOOP; RETURN NULL;
 END;
@@ -2610,10 +2537,8 @@ BEGIN
             RAISE EXCEPTION 'recognized network operation basis and outcome are immutable' USING ERRCODE='23514'; END IF; RETURN NEW;
     END IF;
     IF TG_OP='DELETE' THEN
-        IF OLD.accounting_model_version=2 THEN RAISE EXCEPTION 'network fee reservation history is immutable' USING ERRCODE='23514'; END IF; RETURN OLD;
+        RAISE EXCEPTION 'network fee reservation history is immutable' USING ERRCODE='23514';
     END IF;
-    IF NEW.accounting_model_version<>OLD.accounting_model_version THEN RAISE EXCEPTION 'network fee accounting model is immutable' USING ERRCODE='23514'; END IF;
-    IF OLD.accounting_model_version<>2 THEN RETURN NEW; END IF;
     IF (NEW.network_id,NEW.payer_wallet_id,NEW.native_token_id,NEW.operation_token_id,NEW.reserved_principal_minor,NEW.basis_type,NEW.basis_id,NEW.purpose,NEW.attempt,NEW.strategy,NEW.reserved_at)
        IS DISTINCT FROM (OLD.network_id,OLD.payer_wallet_id,OLD.native_token_id,OLD.operation_token_id,OLD.reserved_principal_minor,OLD.basis_type,OLD.basis_id,OLD.purpose,OLD.attempt,OLD.strategy,OLD.reserved_at)
        OR (OLD.status='settled' AND (to_jsonb(NEW)-'updated_at') IS DISTINCT FROM (to_jsonb(OLD)-'updated_at')) THEN
@@ -2635,7 +2560,7 @@ CREATE TRIGGER trg_network_fee_document_basis BEFORE UPDATE OR DELETE ON doc_cry
 
 CREATE FUNCTION fn_crypto_network_fee_replacement_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
-    IF NEW.accounting_model_version=2 AND ((OLD.tx_hash<>'' AND NEW.tx_hash<>OLD.tx_hash) OR (OLD.unsigned_fingerprint<>'' AND NEW.unsigned_fingerprint<>OLD.unsigned_fingerprint))
+    IF ((OLD.tx_hash<>'' AND NEW.tx_hash<>OLD.tx_hash) OR (OLD.unsigned_fingerprint<>'' AND NEW.unsigned_fingerprint<>OLD.unsigned_fingerprint))
        AND NOT EXISTS(SELECT 1 FROM reg_crypto_fee_reservation_events e WHERE e.reservation_id=NEW.id AND e.transition_txid=txid_current()
            AND e.metadata->>'oldTxHash'=OLD.tx_hash AND e.metadata->>'newTxHash'=NEW.tx_hash
            AND e.metadata->>'oldFingerprint'=OLD.unsigned_fingerprint AND e.metadata->>'newFingerprint'=NEW.unsigned_fingerprint) THEN
@@ -2842,17 +2767,15 @@ SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 -- Historical decisions and pending proposals retain their original semantics.
 -- A chain compensation refers to the original owner; it never claims an effect.
 ALTER TABLE doc_crypto_adjustments
-    ADD COLUMN accounting_model_version INT NOT NULL DEFAULT 2 CHECK(accounting_model_version=2),
     ADD COLUMN basis_kind TEXT NOT NULL DEFAULT 'legacy',
     ADD COLUMN source_posting_id UUID REFERENCES reg_crypto_custody_effect_postings(id),
     ADD COLUMN proposal_txid BIGINT,
     ADD CONSTRAINT ck_crypto_adjustment_accounting_basis CHECK (
-        (accounting_model_version=1 AND basis_kind='legacy' AND source_posting_id IS NULL AND proposal_txid IS NULL)
-        OR (accounting_model_version=2 AND proposal_txid IS NOT NULL AND (
+        proposal_txid IS NOT NULL AND (
             (mode='wallet_balance' AND basis_kind='wallet_variance' AND source_posting_id IS NULL)
             OR (mode='payment_reversal' AND (
                 (basis_kind='legacy_payment' AND source_posting_id IS NULL)
-                OR (basis_kind='payment_compensation' AND source_posting_id IS NOT NULL))))));
+                OR (basis_kind='payment_compensation' AND source_posting_id IS NOT NULL)))));
 CREATE INDEX idx_crypto_adjustment_source_posting ON doc_crypto_adjustments(source_posting_id) WHERE source_posting_id IS NOT NULL;
 
 CREATE FUNCTION fn_crypto_adjustment_accounting_basis() RETURNS TRIGGER LANGUAGE plpgsql AS $$
@@ -2860,17 +2783,17 @@ DECLARE d doc_crypto_payments; posting UUID;
 BEGIN
     IF TG_OP='DELETE' THEN RAISE EXCEPTION 'crypto adjustment history is immutable' USING ERRCODE='23514'; END IF;
     IF TG_OP='INSERT' THEN
-        IF NEW.accounting_model_version<>2 OR NEW.status<>'pending_approval' THEN
+        IF NEW.status<>'pending_approval' THEN
             RAISE EXCEPTION 'new crypto adjustment requires model 2 proposal' USING ERRCODE='23514';
         END IF;
         NEW.proposal_txid:=txid_current();
     ELSE
-        IF (OLD.accounting_model_version,OLD.basis_kind,OLD.source_posting_id,OLD.proposal_txid,OLD.created_at)
-            IS DISTINCT FROM (NEW.accounting_model_version,NEW.basis_kind,NEW.source_posting_id,NEW.proposal_txid,NEW.created_at) THEN
+        IF (OLD.basis_kind,OLD.source_posting_id,OLD.proposal_txid,OLD.created_at)
+            IS DISTINCT FROM (NEW.basis_kind,NEW.source_posting_id,NEW.proposal_txid,NEW.created_at) THEN
             RAISE EXCEPTION 'crypto adjustment accounting basis is immutable' USING ERRCODE='23514';
         END IF;
     END IF;
-    IF NEW.accounting_model_version=1 OR NEW.mode<>'payment_reversal'
+    IF NEW.mode<>'payment_reversal'
         OR (TG_OP='UPDATE' AND NEW.status<>'posted') THEN RETURN NEW; END IF;
     SELECT * INTO STRICT d FROM doc_crypto_payments WHERE id=NEW.payment_id;
     SELECT p.id INTO posting FROM reg_crypto_custody_effect_postings p
@@ -2898,7 +2821,6 @@ DECLARE a doc_crypto_adjustments; source JSONB; source_table TEXT; used NUMERIC;
 BEGIN
     SELECT * INTO STRICT a FROM doc_crypto_adjustments WHERE id=NEW.adjustment_id;
     IF a.status<>'pending_approval' THEN RAISE EXCEPTION 'crypto adjustment sources are frozen after decision' USING ERRCODE='23514'; END IF;
-    IF a.accounting_model_version=1 THEN RETURN NEW; END IF;
     IF a.mode<>'payment_reversal' OR a.proposal_txid<>txid_current() OR NEW.amount IS NULL THEN
         RAISE EXCEPTION 'crypto adjustment sources are frozen at proposal' USING ERRCODE='23514';
     END IF;
@@ -2921,7 +2843,7 @@ DECLARE a doc_crypto_adjustments; kind TEXT; source_table TEXT; selected_count I
 DECLARE custody NUMERIC; merchant NUMERIC; fee NUMERIC;
 BEGIN
     SELECT * INTO a FROM doc_crypto_adjustments WHERE id=target;
-    IF NOT FOUND OR a.accounting_model_version=1 THEN RETURN; END IF;
+    IF NOT FOUND THEN RETURN; END IF;
     IF a.mode='payment_reversal' THEN
         SELECT COALESCE(SUM(amount) FILTER(WHERE source_register='custody'),0),
             COALESCE(SUM(amount) FILTER(WHERE source_register='merchant'),0),
@@ -2978,7 +2900,7 @@ BEGIN
         IF (SELECT count(*) FROM sys_outbox WHERE aggregate_type='CryptoAdjustment' AND aggregate_id=a.id AND event_type='financial_correction_posted')<>1
             OR NOT EXISTS(SELECT 1 FROM sys_outbox WHERE aggregate_type='CryptoAdjustment' AND aggregate_id=a.id AND event_type='financial_correction_posted'
                 AND payload->>'entityType'='CryptoAdjustment' AND payload->>'entityId'=a.id::text AND payload->>'action'='financial_correction_posted'
-                AND payload->>'accountingModelVersion'='2' AND payload->>'basisKind'=a.basis_kind
+                AND payload->>'basisKind'=a.basis_kind
                 AND (payload->>'sourcePostingId') IS NOT DISTINCT FROM a.source_posting_id::text
                 AND payload->>'postedVersion'=COALESCE(a.posted_version,0)::text) THEN
             RAISE EXCEPTION 'crypto adjustment requires accounting basis outbox' USING ERRCODE='23514';
@@ -4207,7 +4129,7 @@ BEGIN
  decision:=fn_crypto_outflow_decision_seed(NEW.decision_basis);
  kind:=CASE WHEN NEW.status='posted' THEN 'approve' ELSE 'reject' END;
  source:=fn_crypto_outflow_decision_source(OLD.external_outflow_id)||jsonb_build_object('adjustment',jsonb_build_object('id',OLD.id,'walletId',OLD.wallet_id,
-  'tokenId',OLD.token_id,'amount',OLD.amount::text,'makerId',OLD.maker_id,'accountingModelVersion',OLD.accounting_model_version,'postedVersion',OLD.posted_version));
+  'tokenId',OLD.token_id,'amount',OLD.amount::text,'makerId',OLD.maker_id,'postedVersion',OLD.posted_version));
  NEW.decided_at:=at;
  NEW.decision_basis:=jsonb_build_object('id',decision,'command',fn_crypto_outflow_decision_command(kind,OLD.id,NEW.decision_by,NEW.decision_reason),'source',source,'decidedAt',at);
  RETURN NEW;
@@ -4580,8 +4502,6 @@ DROP FUNCTION fn_crypto_lock_custody_wallets(UUID[]);
 DROP FUNCTION fn_crypto_lock_custody_scopes(UUID[]);
 -- ==== crypto_adjustment_accounting_basis ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-DO $$ BEGIN IF EXISTS(SELECT 1 FROM doc_crypto_adjustments WHERE accounting_model_version=2) THEN
-    RAISE EXCEPTION 'crypto adjustment accounting basis requires forward migration'; END IF; END; $$;
 DROP TRIGGER trg_crypto_adjustment_cannot_claim_effect ON reg_crypto_custody_effect_postings;
 DROP FUNCTION fn_crypto_adjustment_cannot_claim_effect();
 DROP FUNCTION fn_crypto_adjustment_accounting_complete() CASCADE;
@@ -4597,7 +4517,7 @@ BEGIN
 END;
 $$;
 ALTER TABLE doc_crypto_adjustments DROP CONSTRAINT ck_crypto_adjustment_accounting_basis,
-    DROP COLUMN accounting_model_version,DROP COLUMN basis_kind,DROP COLUMN source_posting_id,DROP COLUMN proposal_txid;
+    DROP COLUMN basis_kind,DROP COLUMN source_posting_id,DROP COLUMN proposal_txid;
 -- ==== crypto_expected_transfer_routing ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$ BEGIN IF EXISTS(SELECT 1 FROM reg_crypto_expected_transfer_requests) OR EXISTS(SELECT 1 FROM reg_crypto_expected_transfer_routes) THEN
@@ -4619,9 +4539,6 @@ DROP INDEX idx_expected_transfer_canonical_tx;
 DROP FUNCTION fn_crypto_expected_transfer_candidates(UUID,TEXT,TEXT,TEXT,TEXT,TEXT,NUMERIC);
 -- ==== crypto_network_fee_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-DO $$ BEGIN IF EXISTS(SELECT 1 FROM reg_crypto_fee_reservations WHERE accounting_model_version=2)
-    OR EXISTS(SELECT 1 FROM reg_crypto_network_fee_proofs) OR EXISTS(SELECT 1 FROM reg_crypto_network_fee_bindings)
-    THEN RAISE EXCEPTION 'network fee recognition v2 requires forward migration'; END IF; END; $$;
 DROP TRIGGER trg_network_fee_transition_txid ON reg_crypto_fee_reservation_events;
 DROP FUNCTION fn_crypto_fee_transition_transaction();
 ALTER TABLE reg_crypto_fee_reservation_events DROP COLUMN transition_txid;
@@ -4652,7 +4569,6 @@ DROP FUNCTION fn_crypto_network_fee_proof_guard();
 DROP FUNCTION fn_crypto_network_fee_key(TEXT,UUID,TEXT);
 ALTER TABLE doc_crypto_network_operations DROP COLUMN network_fee_reservation_id;
 ALTER TABLE reg_crypto_chain_settlements DROP COLUMN network_fee_reservation_id;
-ALTER TABLE reg_crypto_fee_reservations DROP COLUMN accounting_model_version;
 CREATE OR REPLACE FUNCTION fn_crypto_payment_posting_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     NEW.posting_txid:=CASE WHEN NEW.recorder_type IN ('CryptoPayment','CryptoNativeFunding','CryptoSweep','TreasuryWithdrawal','CryptoWithdrawal','CryptoCustodyAdjustment') AND NEW.reversal_of_line_id IS NULL THEN txid_current() ELSE NULL END;
@@ -4661,7 +4577,6 @@ END;
 $$;
 -- ==== crypto_custody_loss_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-DO $$ BEGIN IF EXISTS(SELECT 1 FROM doc_crypto_custody_adjustments WHERE accounting_model_version=2) THEN RAISE EXCEPTION 'custody loss recognition v2 requires forward migration'; END IF; END; $$;
 DROP TRIGGER trg_custody_loss_outflow_owner ON reg_crypto_balance_movements;
 DROP TRIGGER trg_custody_loss_basis ON doc_crypto_custody_adjustments;
 DROP TRIGGER trg_custody_loss_document_complete ON doc_crypto_custody_adjustments;
@@ -4687,10 +4602,8 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-ALTER TABLE doc_crypto_custody_adjustments DROP COLUMN accounting_model_version;
 -- ==== crypto_withdrawal_final_custody_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-DO $$ BEGIN IF EXISTS(SELECT 1 FROM doc_crypto_withdrawals WHERE accounting_model_version=2) THEN RAISE EXCEPTION 'withdrawal accounting v2 requires forward migration'; END IF; END; $$;
 CREATE OR REPLACE VIEW crypto_aml_valid_withdrawal_facts AS
  SELECT f.line_id FROM reg_crypto_aml_withdrawal_facts f JOIN reg_crypto_aml_withdrawal_lines l ON l.id=f.line_id AND l.wallet_id=f.wallet_id AND l.token_id=f.token_id AND l.amount=f.amount
  JOIN reg_crypto_aml_withdrawal_plans p ON p.request_id=l.request_id
@@ -4739,11 +4652,8 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-ALTER TABLE doc_crypto_withdrawals DROP COLUMN accounting_model_version;
 -- ==== crypto_treasury_final_custody_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-DO $$ BEGIN IF EXISTS(SELECT 1 FROM doc_treasury_withdrawals WHERE accounting_model_version=2) OR EXISTS(SELECT 1 FROM reg_crypto_treasury_custody_bindings) THEN
-    RAISE EXCEPTION 'treasury accounting v2 requires forward migration'; END IF; END; $$;
 DO $$ DECLARE target TEXT; BEGIN
     FOREACH target IN ARRAY ARRAY['reg_crypto_balance_reservations','reg_crypto_revenue_reservations'] LOOP
         EXECUTE format('DROP TRIGGER %I ON %I','trg_treasury_basis_'||target,target);
@@ -4777,12 +4687,8 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-ALTER TABLE doc_treasury_withdrawals DROP COLUMN accounting_model_version;
 -- ==== crypto_sweep_final_custody_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-DO $$ BEGIN IF EXISTS(SELECT 1 FROM doc_crypto_sweeps WHERE accounting_model_version=2)
-    OR EXISTS(SELECT 1 FROM reg_crypto_sweep_custody_bindings) THEN
-    RAISE EXCEPTION 'sweep accounting v2 requires forward migration'; END IF; END; $$;
 CREATE OR REPLACE VIEW crypto_aml_allocatable_transfers AS
  SELECT plan.id allocation_id,plan.merchant_id,plan.network_id,plan.token_id,plan.source_wallet_id,plan.destination_wallet_id,
         plan.principal,plan.service_fee,e.id effect_id,spent.line_id source_movement_id,received.line_id destination_movement_id
@@ -4815,7 +4721,6 @@ DROP TRIGGER trg_sweep_complete_reg_crypto_fee_movements ON reg_crypto_fee_movem
 DROP TRIGGER trg_sweep_complete_reg_crypto_platform_cost_movements ON reg_crypto_platform_cost_movements;
 DROP TRIGGER trg_sweep_complete_reg_crypto_provider_balance_movements ON reg_crypto_provider_balance_movements;
 DROP TABLE reg_crypto_sweep_custody_bindings;
-ALTER TABLE doc_crypto_sweeps DROP COLUMN accounting_model_version;
 CREATE OR REPLACE FUNCTION fn_crypto_payment_posting_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     NEW.posting_txid:=CASE WHEN NEW.recorder_type IN ('CryptoPayment','CryptoNativeFunding') AND NEW.reversal_of_line_id IS NULL THEN txid_current() ELSE NULL END;

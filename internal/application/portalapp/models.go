@@ -251,21 +251,20 @@ type PortalWebhookDeliveryItem struct {
 
 // PortalWithdrawalItem represents a withdrawal in the portal withdrawal list.
 type PortalWithdrawalItem struct {
-	AccountingModelVersion int     `json:"accountingModelVersion"`
-	RiskClass              *string `json:"riskClass,omitempty"`
-	ID                     string  `json:"id"`
-	Number                 string  `json:"number"`
-	Status                 string  `json:"status"` // created, signed, broadcast, confirmed, failed
-	Amount                 string  `json:"amount"` // minor units
-	Symbol                 string  `json:"symbol"`
-	Network                string  `json:"network"`
-	ExplorerURL            string  `json:"explorerUrl,omitempty"`
-	DecimalPlaces          int     `json:"decimalPlaces"`
-	DestAddress            string  `json:"destAddress"`
-	TxHash                 string  `json:"txHash,omitempty"`
-	NetworkFee             string  `json:"networkFee,omitempty"`
-	CreatedAt              string  `json:"createdAt"`
-	ConfirmedAt            *string `json:"confirmedAt,omitempty"`
+	RiskClass     *string `json:"riskClass,omitempty"`
+	ID            string  `json:"id"`
+	Number        string  `json:"number"`
+	Status        string  `json:"status"` // created, signed, broadcast, confirmed, failed
+	Amount        string  `json:"amount"` // minor units
+	Symbol        string  `json:"symbol"`
+	Network       string  `json:"network"`
+	ExplorerURL   string  `json:"explorerUrl,omitempty"`
+	DecimalPlaces int     `json:"decimalPlaces"`
+	DestAddress   string  `json:"destAddress"`
+	TxHash        string  `json:"txHash,omitempty"`
+	NetworkFee    string  `json:"networkFee,omitempty"`
+	CreatedAt     string  `json:"createdAt"`
+	ConfirmedAt   *string `json:"confirmedAt,omitempty"`
 }
 
 // PortalWithdrawalListResponse wraps a paginated withdrawal list.

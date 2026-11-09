@@ -31,7 +31,6 @@ const (
 // CryptoWithdrawal represents a merchant withdrawal to an external address.
 type CryptoWithdrawal struct {
 	entity.Document
-	AccountingModelVersion int `db:"accounting_model_version" json:"accountingModelVersion"`
 
 	// MerchantID — who is withdrawing (DataScope dimension)
 	MerchantID id.ID `db:"merchant_id" json:"merchantId" meta:"label:Мерчант,ref:merchant"`
@@ -77,16 +76,15 @@ func NewCryptoWithdrawal(
 	amount types.CryptoAmount,
 ) *CryptoWithdrawal {
 	return &CryptoWithdrawal{
-		AccountingModelVersion: 2,
-		Document:               entity.NewDocument(),
-		MerchantID:             merchantID,
-		TokenID:                tokenID,
-		SourceWalletID:         sourceWalletID,
-		DestAddress:            destAddress,
-		Amount:                 amount,
-		NetworkFee:             types.ZeroCryptoAmount(),
-		Status:                 WithdrawalStatusCreated,
-		SettlementStatus:       outbound_settlement.StatusNotApplicable,
+		Document:         entity.NewDocument(),
+		MerchantID:       merchantID,
+		TokenID:          tokenID,
+		SourceWalletID:   sourceWalletID,
+		DestAddress:      destAddress,
+		Amount:           amount,
+		NetworkFee:       types.ZeroCryptoAmount(),
+		Status:           WithdrawalStatusCreated,
+		SettlementStatus: outbound_settlement.StatusNotApplicable,
 	}
 }
 
@@ -127,66 +125,6 @@ func (w *CryptoWithdrawal) GetRLSDimensions() map[string]string {
 
 func (w *CryptoWithdrawal) GetDocumentType() string { return DocumentType }
 
-// GenerateCryptoBalanceMovements creates an EXPENSE movement from the source wallet.
-func (w *CryptoWithdrawal) GenerateCryptoBalanceMovements(ctx context.Context) ([]entity.CryptoBalanceMovement, error) {
-	if w.AccountingModelVersion == 2 {
-		return nil, nil
-	}
-	if w.Amount.IsZero() {
-		return nil, nil
-	}
-
-	newVersion := w.PostedVersion + 1
-
-	movement := entity.NewCryptoBalanceMovement(
-		w.ID,
-		w.GetDocumentType(),
-		newVersion,
-		w.Date,
-		entity.RecordTypeExpense,
-		w.SourceWalletID,
-		w.TokenID,
-		w.Amount,
-	)
-
-	return []entity.CryptoBalanceMovement{movement}, nil
-}
-
-// GenerateCryptoFeeMovements creates a RECEIPT movement for withdrawal fee.
-func (w *CryptoWithdrawal) GenerateCryptoFeeMovements(ctx context.Context) ([]entity.CryptoFeeMovement, error) {
-	if w.AccountingModelVersion == 2 {
-		return nil, nil
-	}
-	if w.NetworkFee.IsZero() {
-		return nil, nil
-	}
-
-	newVersion := w.PostedVersion + 1
-
-	fee := entity.NewCryptoFeeMovement(
-		w.ID,
-		w.GetDocumentType(),
-		newVersion,
-		w.Date,
-		entity.RecordTypeReceipt,
-		w.MerchantID,
-		w.TokenID,
-		entity.FeeTypeWithdrawal,
-		w.NetworkFee,
-	)
-
-	return []entity.CryptoFeeMovement{fee}, nil
-}
-
-// GenerateCryptoMerchantBalanceMovements is intentionally a no-op.
-// WithdrawalRequest uses the debit-first pattern and already records the merchant
-// balance expense at request creation time. CryptoWithdrawal only moves crypto
-// from a hot wallet and records optional fee income, so it must not debit the
-// merchant balance a second time.
-func (w *CryptoWithdrawal) GenerateCryptoMerchantBalanceMovements(ctx context.Context) ([]entity.CryptoMerchantBalanceMovement, error) {
-	return nil, nil
-}
-
 // Chain-owned financial effects may only be reversed by a compensating event.
 func (w *CryptoWithdrawal) CanUnpost(context.Context) error {
 	return apperror.NewConflict("crypto withdrawal cannot be unposted; create a compensating adjustment")
@@ -195,6 +133,3 @@ func (w *CryptoWithdrawal) CanUnpost(context.Context) error {
 // Compile-time interface checks.
 var _ posting.Postable = (*CryptoWithdrawal)(nil)
 var _ posting.UnpostGuard = (*CryptoWithdrawal)(nil)
-var _ posting.CryptoBalanceMovementSource = (*CryptoWithdrawal)(nil)
-var _ posting.CryptoFeeMovementSource = (*CryptoWithdrawal)(nil)
-var _ posting.CryptoMerchantBalanceMovementSource = (*CryptoWithdrawal)(nil)

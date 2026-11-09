@@ -144,4 +144,3 @@ func TestMovementProjectionWithdrawalRequest(t *testing.T) {
 	require.Len(t, projected.Columns, 3)
 	require.Equal(t, "1000000", projected.Data["amount"])
 }
-

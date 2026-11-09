@@ -29,7 +29,7 @@ var _ cryptoapp.FinancialAdjustmentRepository = (*FinancialAdjustmentRepo)(nil)
 const adjustmentSelect = `SELECT id,COALESCE(payment_id,'00000000-0000-0000-0000-000000000000'::uuid) AS payment_id,
     COALESCE(posted_version,0) AS posted_version,mode,wallet_id,token_id,
     COALESCE(direction,'') AS direction,COALESCE(amount::text,'') AS amount,decision_mode,
-    accounting_model_version,basis_kind,source_posting_id,
+    basis_kind,source_posting_id,
     reason_code,evidence,maker_id,checker_id,status,decision_reason,created_at,decided_at
     FROM doc_crypto_adjustments`
 
@@ -405,15 +405,13 @@ func (r *FinancialAdjustmentRepo) ApplyPosting(ctx context.Context, plan crypto.
 	if err != nil {
 		return nil, err
 	}
-	if adjustment.AccountingModelVersion == 2 {
-		if err := postgres.NewOutboxPublisher().Publish(ctx, domain.DomainEvent{
-			AggregateType: "CryptoAdjustment", AggregateID: adjustmentID, EventType: "financial_correction_posted",
-			Payload: map[string]any{"entityType": "CryptoAdjustment", "entityId": adjustmentID, "action": "financial_correction_posted",
-				"accountingModelVersion": 2, "basisKind": adjustment.BasisKind, "sourcePostingId": adjustment.SourcePostingID,
-				"postedVersion": adjustment.PostedVersion},
-		}); err != nil {
-			return nil, err
-		}
+	if err := postgres.NewOutboxPublisher().Publish(ctx, domain.DomainEvent{
+		AggregateType: "CryptoAdjustment", AggregateID: adjustmentID, EventType: "financial_correction_posted",
+		Payload: map[string]any{"entityType": "CryptoAdjustment", "entityId": adjustmentID, "action": "financial_correction_posted",
+			"basisKind": adjustment.BasisKind, "sourcePostingId": adjustment.SourcePostingID,
+			"postedVersion": adjustment.PostedVersion},
+	}); err != nil {
+		return nil, err
 	}
 	return r.Get(ctx, adjustmentID)
 }

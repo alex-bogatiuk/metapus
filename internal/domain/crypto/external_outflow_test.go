@@ -28,7 +28,6 @@ func validCustodyAdjustment() *CryptoCustodyAdjustment {
 
 func TestCustodyLossV2UsesStableMovementIdentityAndOnePeriod(t *testing.T) {
 	a := validCustodyAdjustment()
-	a.AccountingModelVersion = 2
 	if err := a.CanPost(context.Background()); err == nil {
 		t.Fatal("v2 requires admitted period")
 	}
@@ -58,6 +57,7 @@ func TestCustodyLossV2UsesStableMovementIdentityAndOnePeriod(t *testing.T) {
 
 func TestCryptoCustodyAdjustmentGeneratesOnlyCustodyLossMovements(t *testing.T) {
 	adjustment := validCustodyAdjustment()
+	adjustment.RecognitionPeriod = time.Now().UTC().Truncate(time.Microsecond)
 	if err := adjustment.CanPost(context.Background()); err != nil {
 		t.Fatalf("valid adjustment cannot post: %v", err)
 	}

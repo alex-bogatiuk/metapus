@@ -45,49 +45,47 @@ func (r UpdateTreasuryWithdrawalRequest) ApplyTo(w *treasury_withdrawal.Treasury
 
 // TreasuryWithdrawalResponse is the response body for a treasury withdrawal.
 type TreasuryWithdrawalResponse struct {
-	AccountingModelVersion int                  `json:"accountingModelVersion"`
-	Object                 string               `json:"object"`
-	ID                     string               `json:"id"`
-	Version                int                  `json:"version"`
-	Number                 string               `json:"number"`
-	Date                   string               `json:"date"`
-	TokenID                string               `json:"tokenId"`
-	SourceWalletID         string               `json:"sourceWalletId"`
-	AddressID              string               `json:"addressId"`
-	DestAddress            string               `json:"destAddress"`
-	Amount                 string               `json:"amount"`
-	NetworkFee             string               `json:"networkFee"`
-	TxHash                 string               `json:"txHash,omitempty"`
-	Status                 string               `json:"status"`
-	ApprovedBy             string               `json:"approvedBy,omitempty"`
-	ApprovedAt             string               `json:"approvedAt,omitempty"`
-	Description            string               `json:"description,omitempty"`
-	CreatedBy              string               `json:"createdBy,omitempty"`
-	CreatedAt              string               `json:"createdAt"`
-	UpdatedAt              string               `json:"updatedAt"`
-	Token                  *postgres.RefDisplay `json:"token,omitempty"`
-	SourceWallet           *postgres.RefDisplay `json:"sourceWallet,omitempty"`
+	Object         string               `json:"object"`
+	ID             string               `json:"id"`
+	Version        int                  `json:"version"`
+	Number         string               `json:"number"`
+	Date           string               `json:"date"`
+	TokenID        string               `json:"tokenId"`
+	SourceWalletID string               `json:"sourceWalletId"`
+	AddressID      string               `json:"addressId"`
+	DestAddress    string               `json:"destAddress"`
+	Amount         string               `json:"amount"`
+	NetworkFee     string               `json:"networkFee"`
+	TxHash         string               `json:"txHash,omitempty"`
+	Status         string               `json:"status"`
+	ApprovedBy     string               `json:"approvedBy,omitempty"`
+	ApprovedAt     string               `json:"approvedAt,omitempty"`
+	Description    string               `json:"description,omitempty"`
+	CreatedBy      string               `json:"createdBy,omitempty"`
+	CreatedAt      string               `json:"createdAt"`
+	UpdatedAt      string               `json:"updatedAt"`
+	Token          *postgres.RefDisplay `json:"token,omitempty"`
+	SourceWallet   *postgres.RefDisplay `json:"sourceWallet,omitempty"`
 }
 
 func FromTreasuryWithdrawal(w *treasury_withdrawal.TreasuryWithdrawal, refs ...postgres.ResolvedRefs) *TreasuryWithdrawalResponse {
 	resp := &TreasuryWithdrawalResponse{
-		AccountingModelVersion: w.AccountingModelVersion,
-		Object:                 "treasury_withdrawal",
-		ID:                     w.ID.String(),
-		Version:                w.Version,
-		Number:                 w.Number,
-		Date:                   w.Date.Format(time.RFC3339),
-		TokenID:                w.TokenID.String(),
-		SourceWalletID:         w.SourceWalletID.String(),
-		AddressID:              w.AddressID.String(),
-		DestAddress:            w.DestAddress,
-		Amount:                 w.Amount.String(),
-		NetworkFee:             w.NetworkFee.String(),
-		TxHash:                 w.TxHash,
-		Status:                 string(w.Status),
-		Description:            w.Description,
-		CreatedAt:              w.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:              w.UpdatedAt.Format(time.RFC3339),
+		Object:         "treasury_withdrawal",
+		ID:             w.ID.String(),
+		Version:        w.Version,
+		Number:         w.Number,
+		Date:           w.Date.Format(time.RFC3339),
+		TokenID:        w.TokenID.String(),
+		SourceWalletID: w.SourceWalletID.String(),
+		AddressID:      w.AddressID.String(),
+		DestAddress:    w.DestAddress,
+		Amount:         w.Amount.String(),
+		NetworkFee:     w.NetworkFee.String(),
+		TxHash:         w.TxHash,
+		Status:         string(w.Status),
+		Description:    w.Description,
+		CreatedAt:      w.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:      w.UpdatedAt.Format(time.RFC3339),
 	}
 	if !id.IsNil(w.CreatedBy) {
 		resp.CreatedBy = w.CreatedBy.String()

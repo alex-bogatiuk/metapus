@@ -107,12 +107,18 @@ type settlementStoreStub struct {
 	SettlementRepository
 	t                        *testing.T
 	recorded, held, released int
-	preflightErr             error
+	admissionErr             error
 }
 
-func (s *settlementStoreStub) PrepareLegacyOutboundSettlement(ctx context.Context, _ SettlementTask) error {
+func (s *settlementStoreStub) PrepareWithdrawalSettlement(ctx context.Context, _ SettlementTask, _ crypto.ChainReceipt) (bool, error) {
 	require.NotNil(s.t, ctx.Value(workflowTxKey{}))
-	return s.preflightErr
+	return s.admissionErr == nil, s.admissionErr
+}
+
+type withdrawalEvidenceStub struct{}
+
+func (withdrawalEvidenceStub) VerifyWithdrawal(context.Context, crypto.NetworkDriver, SettlementTask, crypto.ChainReceipt) (id.ID, error) {
+	return id.New(), nil
 }
 
 func (s *settlementStoreStub) RecordOutboundSettlement(ctx context.Context, _ SettlementTask, _ crypto.ChainReceipt) error {
@@ -150,15 +156,15 @@ func (s *settlementFeeStub) Settle(ctx context.Context, _ id.ID, receipt crypto.
 	return nil
 }
 
-func TestSettlementPreflightFailurePrecedesFeeAndFinancialWrites(t *testing.T) {
+func TestSettlementAdmissionFailurePrecedesFeeAndFinancialWrites(t *testing.T) {
 	driver, drivers := newWorkflowDriver(t)
 	task := SettlementTask{Kind: SettlementWithdrawal, DocumentID: id.New(), RequestID: id.New(), NetworkID: driver.network.ID, TxHash: "saved-effect"}
 	driver.receipt = crypto.ChainReceipt{NetworkID: task.NetworkID, TxHash: task.TxHash, Status: crypto.ReceiptReverted, Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalityFinalized}
 	failed := errors.New("resource prefix unavailable")
 	txm := &workflowTx{}
-	store := &settlementStoreStub{t: t, preflightErr: failed}
+	store := &settlementStoreStub{t: t, admissionErr: failed}
 	fees := &settlementFeeStub{t: t, reservation: crypto.FeeReservation{ID: id.New(), MaxFee: types.MustCryptoAmount("10")}}
-	service := NewSettlementService(SettlementConfig{Drivers: drivers, Repository: store, Fees: fees, Transactions: txm})
+	service := NewSettlementService(SettlementConfig{WithdrawalEvidence: withdrawalEvidenceStub{}, Drivers: drivers, Repository: store, Fees: fees, Transactions: txm})
 	require.ErrorIs(t, service.Settle(t.Context(), task), failed)
 	require.Zero(t, fees.calls)
 	require.Zero(t, store.recorded)
@@ -224,7 +230,7 @@ func TestSettlementKeepsFeesDocumentResourceAndWebhookAtomic(t *testing.T) {
 			resources := &settlementResourceStub{t: t}
 			webhooks := &settlementWebhookStub{t: t, err: tt.webhookErr}
 			now := time.Unix(1000, 0).UTC()
-			service := NewSettlementService(SettlementConfig{Drivers: drivers, Repository: store, Fees: fees, Resources: workflowResources{resources}, Transactions: txm, Webhooks: webhooks, Now: func() time.Time { return now }})
+			service := NewSettlementService(SettlementConfig{WithdrawalEvidence: withdrawalEvidenceStub{}, Drivers: drivers, Repository: store, Fees: fees, Resources: workflowResources{resources}, Transactions: txm, Webhooks: webhooks, Now: func() time.Time { return now }})
 			err := service.Settle(t.Context(), task)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)

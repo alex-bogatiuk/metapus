@@ -4,11 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	appctx "metapus/internal/core/context"
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
+	"metapus/internal/domain/posting"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestTreasuryWithdrawalAdminStillCannotApproveOwnOperation(t *testing.T) {
@@ -22,22 +23,13 @@ func TestTreasuryWithdrawalAdminStillCannotApproveOwnOperation(t *testing.T) {
 	}
 }
 
-func TestTreasuryV2BroadcastHasNoPrincipalOrRevenueExpense(t *testing.T) {
-	doc := NewTreasuryWithdrawal(id.New(), id.New(), id.New(), "external", types.NewCryptoAmountFromInt64(23))
-	doc.FeeLines = []FeeLine{{MerchantID: id.New(), TokenID: doc.TokenID, FeeType: entity.FeeTypeProcessing, Amount: doc.Amount}}
-	principal, err := doc.GenerateCryptoBalanceMovements(context.Background())
-	require.NoError(t, err)
-	require.Empty(t, principal)
-	revenue, err := doc.GenerateCryptoFeeMovements(context.Background())
-	require.NoError(t, err)
-	require.Empty(t, revenue)
-	doc.AccountingModelVersion = 1
-	principal, err = doc.GenerateCryptoBalanceMovements(context.Background())
-	require.NoError(t, err)
-	require.Len(t, principal, 1)
-	revenue, err = doc.GenerateCryptoFeeMovements(context.Background())
-	require.NoError(t, err)
-	require.Len(t, revenue, 1)
+func TestTreasuryWithdrawalPostingCreatesNoPrincipalOrRevenueExpense(t *testing.T) {
+	// Principal and revenue are recognized only at final chain settlement.
+	var doc any = NewTreasuryWithdrawal(id.New(), id.New(), id.New(), "external", types.NewCryptoAmountFromInt64(23))
+	_, balance := doc.(posting.CryptoBalanceMovementSource)
+	_, fee := doc.(posting.CryptoFeeMovementSource)
+	require.False(t, balance)
+	require.False(t, fee)
 }
 
 func TestTreasuryWithdrawalCanPostRequiresBroadcastTxHash(t *testing.T) {

@@ -48,13 +48,13 @@ func (m *FeeBudgetManager) Get(ctx context.Context, basisType string, basisID id
 	var rawPurpose, strategy, status string
 	err := q.QueryRow(ctx, `
 		SELECT id,network_id,payer_wallet_id,native_token_id,operation_token_id,reserved_principal_minor,basis_type,basis_id,purpose,attempt,strategy,
-		       max_fee_minor,actual_fee_minor,unsigned_fingerprint,tx_hash,status,hold_reason,reserved_at,accounting_model_version
+		       max_fee_minor,actual_fee_minor,unsigned_fingerprint,tx_hash,status,hold_reason,reserved_at
 		FROM reg_crypto_fee_reservations
 		WHERE basis_type=$1 AND basis_id=$2 AND purpose=$3 AND attempt=$4
 	`, basisType, basisID, purpose, attempt).Scan(
 		&r.ID, &r.NetworkID, &r.PayerWalletID, &r.NativeTokenID, &r.OperationTokenID, &r.ReservedPrincipal, &r.BasisType, &r.BasisID,
 		&rawPurpose, &r.Attempt, &strategy, &r.MaxFee, &r.ActualFee, &r.UnsignedFingerprint,
-		&r.TxHash, &status, &r.HoldReason, &r.ReservedAt, &r.AccountingModelVersion)
+		&r.TxHash, &status, &r.HoldReason, &r.ReservedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return r, false, nil
 	}
@@ -188,7 +188,7 @@ func (m *FeeBudgetManager) Reserve(ctx context.Context, req FeeReservationReques
 		}
 
 		reserved = crypto.FeeReservation{
-			AccountingModelVersion: 2, ID: id.New(), NetworkID: req.NetworkID, PayerWalletID: req.PayerWalletID,
+			ID: id.New(), NetworkID: req.NetworkID, PayerWalletID: req.PayerWalletID,
 			NativeTokenID: req.NativeTokenID, OperationTokenID: req.OperationTokenID, BasisType: req.BasisType, BasisID: req.BasisID,
 			ReservedPrincipal: req.ReservedPrincipal,
 			Purpose:           req.Purpose, Attempt: req.Attempt, Strategy: req.Strategy,
@@ -196,8 +196,8 @@ func (m *FeeBudgetManager) Reserve(ctx context.Context, req FeeReservationReques
 		}
 		if _, err := q.Exec(txCtx, `
 			INSERT INTO reg_crypto_fee_reservations (
-				id,network_id,payer_wallet_id,native_token_id,operation_token_id,reserved_principal_minor,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,status,reserved_at,accounting_model_version
-			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'reserved',$13,2)
+				id,network_id,payer_wallet_id,native_token_id,operation_token_id,reserved_principal_minor,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,status,reserved_at
+			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'reserved',$13)
 		`, reserved.ID, reserved.NetworkID, reserved.PayerWalletID, reserved.NativeTokenID, reserved.OperationTokenID,
 			reserved.ReservedPrincipal, reserved.BasisType, reserved.BasisID, reserved.Purpose, reserved.Attempt, reserved.Strategy, reserved.MaxFee, reserved.ReservedAt); err != nil {
 			return fmt.Errorf("insert fee reservation: %w", err)
@@ -482,14 +482,14 @@ func (m *FeeBudgetManager) settle(
 		var rawPurpose, rawStrategy, rawStatus string
 		if err := tx.QueryRow(txCtx, `
 			SELECT id,network_id,payer_wallet_id,native_token_id,operation_token_id,reserved_principal_minor,basis_type,basis_id,purpose,attempt,strategy,
-			       max_fee_minor,actual_fee_minor,unsigned_fingerprint,tx_hash,status,hold_reason,reserved_at,accounting_model_version
+			       max_fee_minor,actual_fee_minor,unsigned_fingerprint,tx_hash,status,hold_reason,reserved_at
 			FROM reg_crypto_fee_reservations WHERE id=$1 FOR UPDATE
 		`, reservationID).Scan(
 			&reservation.ID, &reservation.NetworkID, &reservation.PayerWalletID, &reservation.NativeTokenID,
 			&reservation.OperationTokenID, &reservation.ReservedPrincipal, &reservation.BasisType, &reservation.BasisID, &rawPurpose,
 			&reservation.Attempt, &rawStrategy, &reservation.MaxFee, &reservation.ActualFee,
 			&reservation.UnsignedFingerprint, &reservation.TxHash, &rawStatus, &reservation.HoldReason,
-			&reservation.ReservedAt, &reservation.AccountingModelVersion); err != nil {
+			&reservation.ReservedAt); err != nil {
 			return err
 		}
 		reservation.Purpose = crypto.SigningPurpose(rawPurpose)
@@ -507,17 +507,12 @@ func (m *FeeBudgetManager) settle(
 			return fmt.Errorf("fee settlement native token mismatch")
 		}
 		result.ReservationID = reservation.ID
-		result.AccountingModelVersion = reservation.AccountingModelVersion
-		if reservation.AccountingModelVersion == 2 {
-			if err := crypto_repo.NewNetworkFeeRepo().ValidatePayer(txCtx, reservation, receipt); err != nil {
-				return err
-			}
+		if err := crypto_repo.NewNetworkFeeRepo().ValidatePayer(txCtx, reservation, receipt); err != nil {
+			return err
 		}
 		if reservation.Status == crypto.FeeReservationSettled {
-			if reservation.AccountingModelVersion == 2 {
-				if err := crypto_repo.NewNetworkFeeRepo().ValidateReplay(txCtx, reservation, receipt, documentBasisType, documentBasisID); err != nil {
-					return err
-				}
+			if err := crypto_repo.NewNetworkFeeRepo().ValidateReplay(txCtx, reservation, receipt, documentBasisType, documentBasisID); err != nil {
+				return err
 			}
 			var replayErr error
 			result, replayErr = loadFeeSettlementReplay(txCtx, tx, reservation, receipt, documentBasisType, documentBasisID, recordMovements)
@@ -536,10 +531,8 @@ func (m *FeeBudgetManager) settle(
 			committedHoldErr = fmt.Errorf("%w: actual network fee exceeds reserved cap", crypto.ErrFeeBudgetExceeded)
 			return nil
 		}
-		if reservation.AccountingModelVersion == 2 {
-			if err := crypto_repo.NewNetworkFeeRepo().LockEffect(txCtx, reservation, receipt); err != nil {
-				return err
-			}
+		if err := crypto_repo.NewNetworkFeeRepo().LockEffect(txCtx, reservation, receipt); err != nil {
+			return err
 		}
 		rawReceipt := receipt.RawReceipt
 		if len(rawReceipt) == 0 {
@@ -563,17 +556,15 @@ func (m *FeeBudgetManager) settle(
 			RETURNING id
 		`, settlementID, receipt.NetworkID, settlementBasisType, settlementBasisID, receipt.TxHash,
 			chainStatus, receipt.BlockHash, receipt.BlockHeight, receipt.Finality, reservation.NativeTokenID,
-			actual, string(rawReceipt), receipt.ObservedAt, networkFeeReservationPointer(reservation)).Scan(&settlementID); err != nil {
+			actual, string(rawReceipt), receipt.ObservedAt, reservation.ID).Scan(&settlementID); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return apperror.NewConflict("normalized chain settlement already exists; reconciliation is required before recognition")
 			}
 			return fmt.Errorf("persist normalized chain settlement: %w", err)
 		}
-		result = FeeSettlementResult{SettlementID: settlementID, ActualFee: actual, ReservationID: reservation.ID, AccountingModelVersion: reservation.AccountingModelVersion}
-		if reservation.AccountingModelVersion == 2 {
-			if err := crypto_repo.NewNetworkFeeRepo().Prepare(txCtx, reservation, receipt, settlementID, documentBasisType, documentBasisID); err != nil {
-				return err
-			}
+		result = FeeSettlementResult{SettlementID: settlementID, ActualFee: actual, ReservationID: reservation.ID}
+		if err := crypto_repo.NewNetworkFeeRepo().Prepare(txCtx, reservation, receipt, settlementID, documentBasisType, documentBasisID); err != nil {
+			return err
 		}
 		for _, component := range receipt.Fee.Components {
 			metadata := component.RawEvidence
@@ -767,14 +758,14 @@ func findFeeReservation(ctx context.Context, q interface {
 	var purpose, strategy, status string
 	err := q.QueryRow(ctx, `
 		SELECT id,network_id,payer_wallet_id,native_token_id,operation_token_id,reserved_principal_minor,basis_type,basis_id,purpose,attempt,strategy,
-		       max_fee_minor,actual_fee_minor,unsigned_fingerprint,tx_hash,status,hold_reason,reserved_at,accounting_model_version
+		       max_fee_minor,actual_fee_minor,unsigned_fingerprint,tx_hash,status,hold_reason,reserved_at
 		FROM reg_crypto_fee_reservations
 		WHERE basis_type=$1 AND basis_id=$2 AND purpose=$3 AND attempt=$4
 		FOR UPDATE
 	`, req.BasisType, req.BasisID, req.Purpose, req.Attempt).Scan(
 		&r.ID, &r.NetworkID, &r.PayerWalletID, &r.NativeTokenID, &r.OperationTokenID, &r.ReservedPrincipal, &r.BasisType, &r.BasisID,
 		&purpose, &r.Attempt, &strategy, &r.MaxFee, &r.ActualFee, &r.UnsignedFingerprint,
-		&r.TxHash, &status, &r.HoldReason, &r.ReservedAt, &r.AccountingModelVersion)
+		&r.TxHash, &status, &r.HoldReason, &r.ReservedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return r, false, nil
 	}
@@ -800,11 +791,4 @@ func appendFeeReservationEvent(ctx context.Context, q interface {
 		VALUES ($1,$2,$3,$4,$5,$6::jsonb)
 	`, reservationID, from, to, statusFailedReason(errors.New(reason)), amount, string(raw))
 	return err
-}
-
-func networkFeeReservationPointer(f crypto.FeeReservation) any {
-	if f.AccountingModelVersion == 2 {
-		return f.ID
-	}
-	return nil
 }

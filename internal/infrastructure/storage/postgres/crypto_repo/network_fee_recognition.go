@@ -31,9 +31,7 @@ func (*NetworkFeeRepo) LockEffect(ctx context.Context, f crypto.FeeReservation, 
 		return err
 	}
 	var blocked bool
-	if err := q.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM reg_crypto_fee_reservations prior WHERE prior.id<>$1 AND prior.accounting_model_version=1 AND prior.network_id=$2
-		AND regexp_replace(lower(prior.tx_hash),'^0x','')=regexp_replace(lower($3),'^0x','') AND prior.status IN ('broadcast','held','settled'))
-		OR EXISTS(SELECT 1 FROM reg_crypto_chain_settlements WHERE network_id=$2 AND regexp_replace(lower(tx_hash),'^0x','')=regexp_replace(lower($3),'^0x',''))`, f.ID, f.NetworkID, r.TxHash).Scan(&blocked); err != nil {
+	if err := q.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM reg_crypto_chain_settlements WHERE network_id=$1 AND regexp_replace(lower(tx_hash),'^0x','')=regexp_replace(lower($2),'^0x',''))`, f.NetworkID, r.TxHash).Scan(&blocked); err != nil {
 		return err
 	}
 	if blocked {
@@ -103,9 +101,6 @@ func (*NetworkFeeRepo) ValidatePayer(ctx context.Context, f crypto.FeeReservatio
 }
 
 func (repo *NetworkFeeRepo) Prepare(ctx context.Context, f crypto.FeeReservation, r crypto.ChainReceipt, settlement id.ID, documentType string, documentID id.ID) error {
-	if f.AccountingModelVersion != 2 {
-		return apperror.NewValidation("network fee recognition requires a model 2 reservation")
-	}
 	if err := repo.ValidatePayer(ctx, f, r); err != nil {
 		return err
 	}

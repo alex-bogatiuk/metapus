@@ -142,7 +142,7 @@ func TestWithdrawalV2AMLPartialSuccessAndRevertPreserveExactPrincipal(t *testing
 	expected := types.NewCryptoAmountFromInt64(180).Sub(intent.SourceLines[0].AmountMinorUnits).String()
 	require.Equal(t, []string{expected, expected}, []string{merchant, principal})
 	var expenses, refunds int
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM reg_crypto_balance_movements m JOIN doc_crypto_withdrawals w ON w.id=m.recorder_id WHERE w.accounting_model_version=2),
+	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM reg_crypto_balance_movements m JOIN doc_crypto_withdrawals w ON w.id=m.recorder_id),
 		(SELECT count(*) FROM reg_crypto_balance_movements WHERE recorder_type='AMLWithdrawalRevert')`).Scan(&expenses, &refunds))
 	require.Equal(t, []int{1, 0}, []int{expenses, refunds})
 }

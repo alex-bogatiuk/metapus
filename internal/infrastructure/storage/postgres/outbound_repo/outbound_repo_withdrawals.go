@@ -451,7 +451,7 @@ func (r *OutboundRepo) GetWithdrawalSigningAttempt(
 		 AND rsv.document_id = a.basis_id
 		 AND (rsv.status IN ('active','consumed') OR (rsv.status='released' AND EXISTS(
 		     SELECT 1 FROM doc_crypto_withdrawals execution WHERE execution.basis_type=a.basis_type AND execution.basis_id=a.basis_id
-		       AND execution.accounting_model_version=2 AND execution.settlement_status='recorded')))
+		       AND execution.settlement_status='recorded')))
 		JOIN cat_wallets w
 		  ON w.id = rsv.wallet_id
 		 AND w.address = a.source_address

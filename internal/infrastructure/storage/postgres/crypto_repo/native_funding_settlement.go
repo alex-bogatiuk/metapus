@@ -42,7 +42,7 @@ func (NativeFundingSettlementRepo) GetNativeFundingForUpdate(ctx context.Context
 		&record.TxHash, &record.Status, &record.LastError)
 	if err == nil && record.FeeReservationID != nil {
 		// Fee settlement takes the reservation before balance rows as well.
-		err = q.QueryRow(ctx, "SELECT accounting_model_version FROM reg_crypto_fee_reservations WHERE id=$1 FOR UPDATE", *record.FeeReservationID).Scan(&record.FeeAccountingModelVersion)
+		err = q.QueryRow(ctx, "SELECT id FROM reg_crypto_fee_reservations WHERE id=$1 FOR UPDATE", *record.FeeReservationID).Scan(new(id.ID))
 	}
 	return record, err
 }

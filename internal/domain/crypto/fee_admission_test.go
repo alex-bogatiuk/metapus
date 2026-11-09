@@ -1,9 +1,10 @@
 package crypto
 
 import (
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/types"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestFeeAdmissionUsesExactLimitsForPrincipalAndFee(t *testing.T) {

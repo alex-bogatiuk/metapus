@@ -209,11 +209,7 @@ func (r *AMLRepository) loadAMLInventoryCoverage(ctx context.Context, wallets []
   AND e.tx_hash=p.tx_hash AND e.event_kind=p.event_kind AND e.event_index=p.event_index AND e.block_hash=p.block_hash AND e.amount=p.amount AND e.block_number>b.block_number
   JOIN reg_crypto_aml_effect_chain_states cs ON cs.effect_id=e.id AND cs.canonicality='canonical'
   WHERE p.id=m.recorder_id AND EXISTS(SELECT 1 FROM reg_crypto_transfer_verifications proof WHERE proof.id=p.verification_id AND proof.network_id=e.network_id AND proof.tx_hash=e.tx_hash AND proof.event_kind=e.event_kind AND proof.event_index=e.event_index AND proof.block_hash=e.block_hash AND proof.economics_hash=e.economics_hash) AND p.posted AND p.posted_version=m.recorder_version AND p.wallet_id=w.id AND p.token_id=$2 AND p.amount=m.amount))
- OR (m.recorder_type='CryptoSweep' AND EXISTS(SELECT 1 FROM doc_crypto_sweeps s WHERE s.id=m.recorder_id AND s.accounting_model_version=1 AND s.posted AND s.posted_version=m.recorder_version AND s.hot_wallet_id=w.id AND s.token_id=$2 AND s.total_amount=m.amount
-  AND s.total_amount=(SELECT SUM(line.amount) FROM doc_crypto_sweep_lines line WHERE line.document_id=s.id AND line.tx_hash<>'')
-  AND NOT EXISTS(SELECT 1 FROM doc_crypto_sweep_lines line WHERE line.document_id=s.id AND line.tx_hash<>'' AND NOT EXISTS(
-   SELECT 1 FROM reg_crypto_aml_effects e JOIN reg_crypto_aml_effect_chain_states cs ON cs.effect_id=e.id AND cs.canonicality='canonical'
-   WHERE e.wallet_id=w.id AND e.source_wallet_id=line.wallet_id AND e.token_id=$2 AND e.tx_hash=line.tx_hash AND e.amount=line.amount AND e.block_number>b.block_number))))
+
  OR (m.recorder_type='CryptoSweep' AND EXISTS(SELECT 1 FROM crypto_aml_allocatable_transfers transfer
   JOIN reg_crypto_aml_effects e ON e.id=transfer.effect_id
   WHERE transfer.destination_movement_id=m.line_id AND transfer.destination_wallet_id=w.id AND transfer.token_id=$2 AND e.block_number>b.block_number))

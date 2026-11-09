@@ -35,8 +35,6 @@ type CryptoSweep struct {
 	entity.Document
 
 	// Version 2 recognizes each principal only at final settlement. Version 1
-	// retains historical broadcast-time movements while its attempts drain.
-	AccountingModelVersion int `db:"accounting_model_version" json:"accountingModelVersion"`
 
 	// TokenID — token being swept
 	TokenID id.ID `db:"token_id" json:"tokenId" meta:"label:Токен,ref:token"`
@@ -96,14 +94,13 @@ type CryptoSweepPlatformCostLine struct {
 // NewCryptoSweep creates a new CryptoSweep in Created state.
 func NewCryptoSweep(tokenID, hotWalletID id.ID) *CryptoSweep {
 	return &CryptoSweep{
-		Document:               entity.NewDocument(),
-		AccountingModelVersion: 2,
-		TokenID:                tokenID,
-		HotWalletID:            hotWalletID,
-		TotalAmount:            types.ZeroCryptoAmount(),
-		TotalFee:               types.ZeroCryptoAmount(),
-		Status:                 SweepStatusCreated,
-		Lines:                  make([]CryptoSweepLine, 0),
+		Document:    entity.NewDocument(),
+		TokenID:     tokenID,
+		HotWalletID: hotWalletID,
+		TotalAmount: types.ZeroCryptoAmount(),
+		TotalFee:    types.ZeroCryptoAmount(),
+		Status:      SweepStatusCreated,
+		Lines:       make([]CryptoSweepLine, 0),
 	}
 }
 
@@ -141,58 +138,6 @@ func (s *CryptoSweep) SetLines(lines []CryptoSweepLine) {
 // --- Postable interface ---
 
 func (s *CryptoSweep) GetDocumentType() string { return DocumentType }
-
-// GenerateCryptoBalanceMovements:
-// - EXPENSE from each pool wallet (per line)
-// - RECEIPT to hot wallet (total)
-func (s *CryptoSweep) GenerateCryptoBalanceMovements(ctx context.Context) ([]entity.CryptoBalanceMovement, error) {
-	if s.AccountingModelVersion == 2 {
-		return nil, nil
-	}
-	if s.TotalAmount.IsZero() {
-		return nil, nil
-	}
-
-	newVersion := s.PostedVersion + 1
-	movements := make([]entity.CryptoBalanceMovement, 0, len(s.Lines)+1)
-
-	// Expense from each pool wallet
-	for _, line := range s.Lines {
-		if line.Amount.IsZero() {
-			continue
-		}
-		movements = append(movements, entity.NewCryptoBalanceMovement(
-			s.ID,
-			s.GetDocumentType(),
-			newVersion,
-			s.Date,
-			entity.RecordTypeExpense,
-			line.WalletID,
-			s.TokenID,
-			line.Amount,
-		))
-	}
-
-	// Receipt to hot wallet
-	movements = append(movements, entity.NewCryptoBalanceMovement(
-		s.ID,
-		s.GetDocumentType(),
-		newVersion,
-		s.Date,
-		entity.RecordTypeReceipt,
-		s.HotWalletID,
-		s.TokenID,
-		s.TotalAmount,
-	))
-
-	return movements, nil
-}
-
-// GenerateCryptoFeeMovements intentionally does not record sweep resource costs
-// into CryptoFee: that register represents platform fee revenue/balances.
-func (s *CryptoSweep) GenerateCryptoFeeMovements(ctx context.Context) ([]entity.CryptoFeeMovement, error) {
-	return nil, nil
-}
 
 // GenerateCryptoPlatformCostMovements records platform-borne sweep resource costs.
 func (s *CryptoSweep) GenerateCryptoPlatformCostMovements(ctx context.Context) ([]entity.CryptoPlatformCostMovement, error) {
@@ -235,7 +180,5 @@ func (s *CryptoSweep) CanUnpost(context.Context) error {
 // Compile-time interface checks.
 var _ posting.Postable = (*CryptoSweep)(nil)
 var _ posting.UnpostGuard = (*CryptoSweep)(nil)
-var _ posting.CryptoBalanceMovementSource = (*CryptoSweep)(nil)
-var _ posting.CryptoFeeMovementSource = (*CryptoSweep)(nil)
 var _ posting.CryptoPlatformCostMovementSource = (*CryptoSweep)(nil)
 var _ posting.LineCounter = (*CryptoSweep)(nil)

@@ -1505,7 +1505,6 @@ export const CryptoSweepCursorResponseSchema: z.ZodType<Wire.CryptoSweepCursorRe
 }))
 
 export const CryptoSweepDetailResponseSchema: z.ZodType<Wire.CryptoSweepDetailResponse> = z.lazy(() => z.object({
-  "accountingModelVersion": z.number().int().optional(),
   "id": z.string().optional(),
   "number": z.string().optional(),
   "date": z.string().optional(),
@@ -1562,7 +1561,6 @@ export const CryptoSweepResourceCostResponseSchema: z.ZodType<Wire.CryptoSweepRe
 }))
 
 export const CryptoSweepResponseSchema: z.ZodType<Wire.CryptoSweepResponse> = z.lazy(() => z.object({
-  "accountingModelVersion": z.number().int(),
   "id": z.string(),
   "number": z.string(),
   "date": z.string(),
@@ -1687,7 +1685,6 @@ export const CryptoWithdrawalCursorResponseSchema: z.ZodType<Wire.CryptoWithdraw
 }))
 
 export const CryptoWithdrawalResponseSchema: z.ZodType<Wire.CryptoWithdrawalResponse> = z.lazy(() => z.object({
-  "accountingModelVersion": z.number().int(),
   "id": z.string(),
   "number": z.string(),
   "date": z.string(),
@@ -1794,7 +1791,6 @@ export const CursorListResponseSchema: z.ZodType<Wire.CursorListResponse> = z.la
 }))
 
 export const CustodyAdjustmentResponseSchema: z.ZodType<Wire.CustodyAdjustmentResponse> = z.lazy(() => z.object({
-  "accountingModelVersion": z.number().int(),
   "id": z.string(),
   "externalOutflowId": z.string(),
   "networkId": z.string(),
@@ -2407,7 +2403,6 @@ export const FinancialAdjustmentResponseSchema: z.ZodType<Wire.FinancialAdjustme
   "paymentId": z.string().optional(),
   "postedVersion": z.number().int(),
   "mode": z.string(),
-  "accountingModelVersion": z.number().int(),
   "basisKind": z.string(),
   "sourcePostingId": z.string().optional(),
   "walletId": z.string().optional(),
@@ -3734,7 +3729,6 @@ export const PortalWithdrawalCreatedResponseSchema: z.ZodType<Wire.PortalWithdra
 }))
 
 export const PortalWithdrawalItemSchema: z.ZodType<Wire.PortalWithdrawalItem> = z.lazy(() => z.object({
-  "accountingModelVersion": z.number().int(),
   "riskClass": z.string().optional(),
   "id": z.string(),
   "number": z.string(),
@@ -4277,7 +4271,6 @@ export const TreasuryWithdrawalCursorResponseSchema: z.ZodType<Wire.TreasuryWith
 }))
 
 export const TreasuryWithdrawalResponseSchema: z.ZodType<Wire.TreasuryWithdrawalResponse> = z.lazy(() => z.object({
-  "accountingModelVersion": z.number().int(),
   "object": z.string(),
   "id": z.string(),
   "version": z.number().int(),

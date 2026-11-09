@@ -29,7 +29,7 @@ func (*SweepCustodyRepo) ExpectedSweepTransfer(ctx context.Context, lineID id.ID
 		FROM doc_crypto_sweep_lines l JOIN doc_crypto_sweeps s ON s.id=l.document_id
 		JOIN reg_crypto_sweep_attempts a ON a.id=l.line_id AND a.sweep_id=s.id
 		JOIN cat_tokens t ON t.id=s.token_id JOIN cat_blockchain_networks n ON n.id=t.network_id
-		WHERE l.line_id=$1 AND s.accounting_model_version=2 AND a.network_id=$2 AND l.tx_hash=$3`, lineID, receipt.NetworkID, receipt.TxHash).
+		WHERE l.line_id=$1 AND a.network_id=$2 AND l.tx_hash=$3`, lineID, receipt.NetworkID, receipt.TxHash).
 		Scan(&e.NetworkID, &e.TxHash, &e.Amount, &e.FromAddress, &e.ToAddress, &e.TokenContract, &family, &standard)
 	if standard == "native" {
 		e.EventKind = crypto.EventKindNativeValue
@@ -72,7 +72,7 @@ func (*SweepCustodyRepo) Prepare(ctx context.Context, b crypto.SweepAccountingBa
 	var status, result string
 	var valid bool
 	err := q.QueryRow(ctx, `SELECT l.settlement_status,l.chain_result,
-		 s.accounting_model_version=2 AND s.token_id=$3 AND s.hot_wallet_id=$4 AND l.wallet_id=$5 AND l.tx_hash=$6 AND l.amount=$7
+		 s.token_id=$3 AND s.hot_wallet_id=$4 AND l.wallet_id=$5 AND l.tx_hash=$6 AND l.amount=$7
 		 FROM doc_crypto_sweep_lines l JOIN doc_crypto_sweeps s ON s.id=l.document_id WHERE l.line_id=$1 AND s.id=$2 FOR UPDATE OF l`, b.LineID, b.DocumentID, b.TokenID, b.DestinationWalletID, b.SourceWalletID, b.TxHash, b.Amount).Scan(&status, &result, &valid)
 	if err != nil {
 		return false, err

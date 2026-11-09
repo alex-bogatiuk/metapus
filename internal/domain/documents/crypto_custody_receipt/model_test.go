@@ -3,11 +3,12 @@ package crypto_custody_receipt
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/posting"
+
+	"github.com/stretchr/testify/require"
 )
 
 func receiptModel() *CryptoCustodyReceipt {

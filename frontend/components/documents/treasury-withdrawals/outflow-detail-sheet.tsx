@@ -181,9 +181,7 @@ export function OutflowDetailSheet({
                   <div>
                     <h3 className="text-sm font-semibold">CryptoCustodyAdjustment</h3>
                     <p className="mt-1 text-xs text-muted-foreground">Merchant balance не затрагивается. Maker не может быть checker.</p>
-                    {detail.adjustment.accountingModelVersion === 2 && (
-                      <p className="mt-1 text-xs text-muted-foreground">Списание потери требует независимого подтверждения перевода в сети.</p>
-                    )}
+                    <p className="mt-1 text-xs text-muted-foreground">Списание потери требует независимого подтверждения перевода в сети.</p>
                   </div>
                   <div className="rounded-lg border p-4 text-sm">
                     <div className="flex items-center justify-between gap-3">
