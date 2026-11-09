@@ -62,9 +62,9 @@ func TestClaimRunnableSweepAttemptsResumesPreSignHoldAfterPolicyUpdate(t *testin
 			networkID, "THot"+suffix, "TPool"+suffix, "vault/hot/"+suffix, "vault/pool/"+suffix)
 		require.NoError(t, err)
 		_, err = q.Exec(txCtx, `
-			INSERT INTO doc_crypto_sweeps (accounting_model_version,
+			INSERT INTO doc_crypto_sweeps (
 				id,number,token_id,hot_wallet_id,total_amount,status
-			) VALUES (1,$1,$2,$3,$4,100000,'held')
+			) VALUES ($1,$2,$3,$4,100000,'held')
 		`, sweepID, "CS-RECOVERY-"+suffix, tokenID, hotWalletID)
 		require.NoError(t, err)
 		_, err = q.Exec(txCtx, `
@@ -176,11 +176,11 @@ func TestClaimRunnableSweepAttemptsResumesPendingResourceRental(t *testing.T) {
 		`, providerAccountID, "RR-PROVIDER-"+suffix, networkID, nativeTokenID)
 		require.NoError(t, err)
 		_, err = q.Exec(txCtx, `
-			INSERT INTO doc_crypto_sweeps (accounting_model_version,
+			INSERT INTO doc_crypto_sweeps (
 				id,number,token_id,hot_wallet_id,total_amount,status
 			) VALUES
-				(1,$1,$3,$5,$6,100000,'held'),
-				(1,$2,$4,$5,$6,100000,'held')
+				($1,$3,$5,$6,100000,'held'),
+				($2,$4,$5,$6,100000,'held')
 		`, sweepID, expiredSweepID, "CS-RR-"+suffix, "CS-RR-EXPIRED-"+suffix,
 			tokenID, hotWalletID)
 		require.NoError(t, err)

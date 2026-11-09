@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestSignedAuthorizationValidatesCompleteExpectedEffectReplay(t *testing.T) {

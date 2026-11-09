@@ -124,8 +124,8 @@ func TestAMLWithdrawalResourceFootprintIsRecheckedAfterScopeWait(t *testing.T) {
 			// This creates only a synthetic operational reservation, never a fee
 			// settlement or financial movement. Production availability is checked
 			// by FeeManager before the same insert.
-			_, err := tm.GetQuerier(ctx).Exec(ctx, `INSERT INTO reg_crypto_fee_reservations(accounting_model_version,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor)
- VALUES(1,$1,$2,$3,(SELECT token_id FROM doc_withdrawal_requests WHERE id=$4),'CryptoAMLWithdrawalLine',$5,'withdrawal',1,'native_burn',1)`, f.Auth.NetworkID, payer, native, f.Parent, f.Auth.BasisID)
+			_, err := tm.GetQuerier(ctx).Exec(ctx, `INSERT INTO reg_crypto_fee_reservations(network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor)
+ VALUES($1,$2,$3,(SELECT token_id FROM doc_withdrawal_requests WHERE id=$4),'CryptoAMLWithdrawalLine',$5,'withdrawal',1,'native_burn',1)`, f.Auth.NetworkID, payer, native, f.Parent, f.Auth.BasisID)
 			return err
 		}, func(ctx context.Context) error {
 			prefixErr = crypto_repo.NewAMLRepository().LockAMLWithdrawalRequest(ctx, f.Parent)

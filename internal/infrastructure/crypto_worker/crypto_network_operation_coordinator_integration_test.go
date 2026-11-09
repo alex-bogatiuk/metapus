@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,7 +56,7 @@ func TestIntegrationActivationFinalityPostsDocumentOnce(t *testing.T) {
 			networkID, tokenID := id.New(), id.New()
 			sourceWalletID, targetWalletID, activationID, reservationID := id.New(), id.New(), id.New(), id.New()
 			suffix := networkID.String()
-			txHash := "activation-" + suffix
+			txHash := strings.Repeat("ac", 16) + strings.ReplaceAll(suffix, "-", "")
 			_, err = pool.Exec(ctx, `
 				INSERT INTO cat_blockchain_networks
 				(id,code,name,chain_family,network_identifier,native_token_symbol,native_decimals)
@@ -68,13 +69,14 @@ func TestIntegrationActivationFinalityPostsDocumentOnce(t *testing.T) {
 				VALUES ($1,$2,'TRX',$3,'TRX',6,'native','')
 			`, tokenID, "CNO-TRX-"+suffix, networkID)
 			require.NoError(t, err)
+			sourceAddress := testTRONAddress()
 			_, err = pool.Exec(ctx, `
 				INSERT INTO cat_wallets
 				(id,code,name,network_id,address,tier,status,vault_key_id,chain_activation_status,wallet_role)
 				VALUES
 				($1,$2,'Source',$3,$4,'hot','free','vault/source','active','liquidity_hot'),
 				($5,$6,'Target',$3,$7,'pool','free','vault/target','activating','merchant_pool')
-			`, sourceWalletID, "CNO-SOURCE-"+suffix, networkID, "TSource"+suffix,
+			`, sourceWalletID, "CNO-SOURCE-"+suffix, networkID, sourceAddress,
 				targetWalletID, "CNO-TARGET-"+suffix, "TTarget"+suffix)
 			require.NoError(t, err)
 			_, err = pool.Exec(ctx, `INSERT INTO reg_crypto_balance_balances(wallet_id,token_id,amount) VALUES($1,$2,1000)`, sourceWalletID, tokenID)
@@ -85,10 +87,10 @@ func TestIntegrationActivationFinalityPostsDocumentOnce(t *testing.T) {
 			`, activationID, targetWalletID, networkID)
 			require.NoError(t, err)
 			_, err = pool.Exec(ctx, `
-				INSERT INTO reg_crypto_fee_reservations(accounting_model_version,
+				INSERT INTO reg_crypto_fee_reservations(
 					id,network_id,payer_wallet_id,native_token_id,operation_token_id,
 					basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,tx_hash,status
-				) VALUES(1,$1,$2,$3,$4,$4,$5,$6,'activation',1,'native_burn',100,$7,'broadcast')
+				) VALUES($1,$2,$3,$4,$4,$5,$6,'activation',1,'native_burn',100,$7,'broadcast')
 			`, reservationID, networkID, sourceWalletID, tokenID,
 				crypto_network_operation.ActivationTaskBasisType, activationID, txHash)
 			require.NoError(t, err)
@@ -119,7 +121,7 @@ func TestIntegrationActivationFinalityPostsDocumentOnce(t *testing.T) {
 
 			receipt := crypto.ChainReceipt{
 				NetworkID: networkID, TxHash: txHash, Status: receiptStatus,
-				BlockHash: "block-" + suffix, BlockHeight: 10,
+				BlockHash: strings.Repeat("b", 64), BlockHeight: 10, Confirmations: 20,
 				Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalitySolidified,
 				Fee: crypto.FeeSettlementReport{
 					NativeAsset: crypto.AssetRef{TokenID: tokenID}, TotalFee: types.NewCryptoAmountFromInt64(25),
@@ -127,6 +129,7 @@ func TestIntegrationActivationFinalityPostsDocumentOnce(t *testing.T) {
 				},
 				RawReceipt: json.RawMessage(`{"result":true}`), ObservedAt: time.Now().UTC(),
 			}
+			receipt = reproveNetworkFee(t, ctx, receipt)
 			require.ErrorContains(t, feeBudget.Settle(ctx, reservationID, receipt), "must be settled through CryptoNetworkOperation")
 			finalized, err := coordinator.FinalizeActivation(ctx, activationID, reservationID, receipt)
 			require.NoError(t, err)
@@ -216,51 +219,12 @@ func TestIntegrationActivationFinalityPostsDocumentOnce(t *testing.T) {
 				require.Equal(t, "confirmed", taskStatus)
 				require.Equal(t, "activating", walletStatus)
 
-				// Emergency accounting correction: unlock -> unpost -> edit -> post
-				// auto-locks. Deletion-mark unposts atomically without rewinding the
-				// operational wallet projection.
+				// A recognized network fee is frozen: generic unpost cannot rewrite it.
 				adminCtx := appctx.WithUser(ctx, &appctx.UserContext{Roles: []string{"admin"}})
 				_, err = service.AllowEditing(adminCtx, operationID)
 				require.NoError(t, err)
-				userService := service.UserService()
-				require.NoError(t, userService.Unpost(adminCtx, operationID))
-				assertAccounting(2, 0)
-				require.NoError(t, userService.Unpost(adminCtx, operationID))
-				assertAccounting(2, 0)
-				corrected, err := repo.GetByID(adminCtx, operationID)
-				require.NoError(t, err)
-				corrected.CostAmount = types.NewCryptoAmountFromInt64(20)
-				corrected.Description = "manual accounting correction"
-				require.NoError(t, userService.Update(adminCtx, corrected))
-				_, err = pool.Exec(ctx, `UPDATE cat_wallets SET address=$2 WHERE id=$1`, targetWalletID, "TChanged"+suffix)
-				require.ErrorContains(t, err, "watched catalog identity", "the catalog must retain the address that owns watch history")
-				mismatched := *corrected
-				mismatched.TargetAddress = "TChanged" + suffix
-				require.Error(t, repo.ValidatePostingReferences(adminCtx, &mismatched), "posting references must reject a document address that differs from its target wallet")
-				assertAccounting(2, 0)
-				require.NoError(t, userService.Post(adminCtx, operationID))
-				corrected, err = repo.GetByID(adminCtx, operationID)
-				require.NoError(t, err)
-				require.True(t, corrected.Posted)
-				require.False(t, corrected.ManualEditAllowed)
-				assertAccounting(3, 20)
-
-				_, err = service.AllowEditing(adminCtx, operationID)
-				require.NoError(t, err)
-				require.NoError(t, userService.Post(adminCtx, operationID))
-				assertAccounting(5, 20)
-
-				_, err = service.AllowEditing(adminCtx, operationID)
-				require.NoError(t, err)
-				require.NoError(t, userService.SetDeletionMark(adminCtx, operationID, true))
-				corrected, err = repo.GetByID(adminCtx, operationID)
-				require.NoError(t, err)
-				require.True(t, corrected.DeletionMark)
-				require.False(t, corrected.Posted)
-				require.False(t, corrected.ManualEditAllowed)
-				assertAccounting(6, 0)
-				require.NoError(t, pool.QueryRow(ctx, `SELECT chain_activation_status FROM cat_wallets WHERE id=$1`, targetWalletID).Scan(&walletStatus))
-				require.Equal(t, "activating", walletStatus)
+				require.ErrorContains(t, service.UserService().Unpost(adminCtx, operationID), "explicit compensation workflow")
+				assertAccounting(1, 25)
 			}
 		})
 	}

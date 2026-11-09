@@ -1,9 +1,10 @@
 package crypto_worker
 
 import (
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAMLPreflightConstructionRequiresNoApprovalKeysOrRPC(t *testing.T) {

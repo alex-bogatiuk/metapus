@@ -4,6 +4,7 @@ package crypto_repo
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,7 +37,7 @@ func resourceActivation(t *testing.T) (amlRoutingFixture, id.ID, id.ID, id.ID) {
 	fee, task := id.New(), id.New()
 	_, err := f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_account_activations(id,wallet_id,network_id) VALUES($1,$2,$3)`, task, target, f.input.Request.NetworkID)
 	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_fee_reservations(accounting_model_version,id,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor) VALUES(1,$1,$2,$3,$4,$4,'CryptoAccountActivationTask',$5,'activation',1,'native_burn',10)`, fee, f.input.Request.NetworkID, f.input.WalletID, f.input.Request.TokenID, task)
+	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_fee_reservations(id,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor) VALUES($1,$2,$3,$4,$4,'CryptoAccountActivationTask',$5,'activation',1,'native_burn',10)`, fee, f.input.Request.NetworkID, f.input.WalletID, f.input.Request.TokenID, task)
 	require.NoError(t, err)
 	require.NoError(t, f.repo.EnsureAMLResourceBudget(f.ctx, fee))
 	var dest string
@@ -103,19 +104,24 @@ func TestAMLActivationSettlesOperatingCostWithoutPrincipalTransfer(t *testing.T)
 			f, target, fee, auth := resourceActivation(t)
 			var task id.ID
 			require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT basis_id FROM reg_crypto_signing_authorizations WHERE id=$1`, auth).Scan(&task))
-			operation, settlement, movement := id.New(), id.New(), id.New()
-			_, err := f.pool.Exec(f.ctx, `UPDATE reg_crypto_fee_reservations SET status='broadcast',tx_hash='activation-settle' WHERE id=$1`, fee)
+			operation, settlement := id.New(), id.New()
+			hash := strings.Repeat("ac", 32)
+			_, err := f.pool.Exec(f.ctx, `UPDATE reg_crypto_fee_reservations SET status='broadcast',tx_hash=$2 WHERE id=$1`, fee, hash)
 			require.NoError(t, err)
-			_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_chain_settlements(id,network_id,basis_type,basis_id,tx_hash,status,block_hash,block_height,finality_status,native_token_id,total_fee_minor,raw_receipt,observed_at) VALUES($1,$2,'CryptoNetworkOperation',$3,'activation-settle',$4,repeat('a',64),10,'solidified',$5,3,'{}',NOW())`, settlement, f.input.Request.NetworkID, operation, status, f.input.Request.TokenID)
-			require.NoError(t, err)
-			_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_network_operations(id,basis_type,basis_id,operation_type,status,network_id,target_wallet_id,target_address,source_wallet_id,cost_token_id,cost_amount,tx_hash,chain_settlement_id,finalized_at,posted,posted_version) SELECT $1,'CryptoAccountActivationTask',$2,'wallet_activation',$3,$4,id,address,$5,$6,3,'activation-settle',$7,NOW(),TRUE,1 FROM cat_wallets WHERE id=$8`, operation, task, status, f.input.Request.NetworkID, f.input.WalletID, f.input.Request.TokenID, settlement, target)
-			require.NoError(t, err)
-			_, err = f.pool.Exec(f.ctx, `UPDATE reg_crypto_account_activations SET network_operation_id=$2 WHERE id=$1`, task, operation)
-			require.NoError(t, err)
-			_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_balance_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount) VALUES($1,$2,'CryptoNetworkOperation',1,NOW(),'expense',$3,$4,3)`, movement, operation, f.input.WalletID, f.input.Request.TokenID)
-			require.NoError(t, err)
-			_, err = f.pool.Exec(f.ctx, `UPDATE reg_crypto_fee_reservations SET status='settled',actual_fee_minor=3 WHERE id=$1`, fee)
-			require.NoError(t, err)
+			receipt := crypto.ChainReceipt{Status: crypto.ReceiptStatus(status), BlockHash: strings.Repeat("a", 64), BlockHeight: 10, Confirmations: 20, Canonicality: crypto.CanonicalityCanonical,
+				Finality: crypto.FinalitySolidified, ObservedAt: time.Now().UTC().Truncate(time.Microsecond), Fee: crypto.FeeSettlementReport{TotalFee: types.MustCryptoAmount("3")}}
+			require.NoError(t, postgres.MustGetTxManager(f.ctx).RunInTransaction(f.ctx, func(ctx context.Context) error {
+				if err := recognizeTestNetworkFeeFor(ctx, fee, receipt, settlement, "CryptoNetworkOperation", operation); err != nil {
+					return err
+				}
+				q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
+				_, err := q.Exec(ctx, `INSERT INTO doc_crypto_network_operations(id,basis_type,basis_id,operation_type,status,network_id,target_wallet_id,target_address,source_wallet_id,cost_token_id,cost_amount,tx_hash,chain_settlement_id,finalized_at,posted,posted_version,network_fee_reservation_id) SELECT $1,'CryptoAccountActivationTask',$2,'wallet_activation',$3,$4,id,address,$5,$6,3,$9,$7,$10,TRUE,1,$11 FROM cat_wallets WHERE id=$8`, operation, task, status, f.input.Request.NetworkID, f.input.WalletID, f.input.Request.TokenID, settlement, target, hash, receipt.ObservedAt, fee)
+				if err != nil {
+					return err
+				}
+				_, err = q.Exec(ctx, `UPDATE reg_crypto_account_activations SET network_operation_id=$2 WHERE id=$1`, task, operation)
+				return err
+			}))
 			f.rebuild(t)
 			require.Equal(t, []string{"97", "0"}, resourceAmounts(t, f, target))
 			var principal string
@@ -188,7 +194,7 @@ func TestAMLDispatchWithdrawalPreservesExplicitPrincipalClass(t *testing.T) {
 			line := intent.SourceLines[0]
 			fee = id.New()
 			fingerprint := "withdrawal-" + line.LineID.String()
-			_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_fee_reservations(accounting_model_version,id,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,unsigned_fingerprint) VALUES(1,$1,$2,$3,$4,$5,'CryptoAMLWithdrawalLine',$6,'withdrawal',1,'native_burn',10,$7)`, fee, f.input.Request.NetworkID, target, f.input.Request.TokenID, principal.input.Request.TokenID, line.LineID, fingerprint)
+			_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_fee_reservations(id,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,unsigned_fingerprint) VALUES($1,$2,$3,$4,$5,'CryptoAMLWithdrawalLine',$6,'withdrawal',1,'native_burn',10,$7)`, fee, f.input.Request.NetworkID, target, f.input.Request.TokenID, principal.input.Request.TokenID, line.LineID, fingerprint)
 			require.NoError(t, err)
 			require.NoError(t, f.repo.EnsureAMLResourceBudget(f.ctx, fee))
 			auth := id.New()

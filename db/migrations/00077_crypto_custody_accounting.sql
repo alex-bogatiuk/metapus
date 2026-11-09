@@ -1293,8 +1293,7 @@ RETURNS BOOLEAN LANGUAGE sql VOLATILE AS $$
        OR EXISTS(SELECT 1 FROM doc_crypto_payments d JOIN reg_crypto_accounting_effect_evidence x ON x.verification_id=d.verification_id WHERE d.id=payment)
 $$;
 
-ALTER TABLE doc_crypto_sweeps ADD COLUMN accounting_model_version INT NOT NULL DEFAULT 1 CHECK(accounting_model_version IN (1,2));
-ALTER TABLE doc_crypto_sweeps ALTER COLUMN accounting_model_version SET DEFAULT 2;
+ALTER TABLE doc_crypto_sweeps ADD COLUMN accounting_model_version INT NOT NULL DEFAULT 2 CHECK(accounting_model_version=2);
 CREATE TABLE reg_crypto_sweep_custody_bindings (
     posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
     sweep_id UUID NOT NULL REFERENCES doc_crypto_sweeps(id),
@@ -1552,8 +1551,7 @@ SELECT plan.id,plan.merchant_id,plan.network_id,plan.token_id,plan.source_wallet
  AND received.created_at>=(SELECT created_at FROM reg_crypto_aml_wallet_baselines WHERE wallet_id=plan.destination_wallet_id AND token_id=plan.token_id);
 -- ==== crypto_treasury_final_custody_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-ALTER TABLE doc_treasury_withdrawals ADD COLUMN accounting_model_version INT NOT NULL DEFAULT 1 CHECK(accounting_model_version IN (1,2));
-ALTER TABLE doc_treasury_withdrawals ALTER COLUMN accounting_model_version SET DEFAULT 2;
+ALTER TABLE doc_treasury_withdrawals ADD COLUMN accounting_model_version INT NOT NULL DEFAULT 2 CHECK(accounting_model_version=2);
 CREATE TABLE reg_crypto_treasury_custody_bindings (
     posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
     treasury_id UUID NOT NULL UNIQUE REFERENCES doc_treasury_withdrawals(id),
@@ -1853,8 +1851,7 @@ $$;
 CREATE TRIGGER trg_treasury_outflow_owner BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_outflow_owner_guard();
 -- ==== crypto_withdrawal_final_custody_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-ALTER TABLE doc_crypto_withdrawals ADD COLUMN accounting_model_version INT NOT NULL DEFAULT 1 CHECK(accounting_model_version IN (1,2));
-ALTER TABLE doc_crypto_withdrawals ALTER COLUMN accounting_model_version SET DEFAULT 2;
+ALTER TABLE doc_crypto_withdrawals ADD COLUMN accounting_model_version INT NOT NULL DEFAULT 2 CHECK(accounting_model_version=2);
 ALTER TABLE reg_crypto_aml_withdrawal_facts ALTER COLUMN expense_movement_id DROP NOT NULL;
 ALTER TABLE reg_crypto_aml_withdrawal_facts DROP CONSTRAINT reg_crypto_aml_withdrawal_facts_check;
 ALTER TABLE reg_crypto_aml_withdrawal_facts ADD CONSTRAINT reg_crypto_aml_withdrawal_facts_check CHECK(
@@ -2222,8 +2219,7 @@ $$;
 CREATE CONSTRAINT TRIGGER trg_withdrawal_request_complete AFTER INSERT OR UPDATE ON doc_withdrawal_requests DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_request_complete();
 -- ==== crypto_custody_loss_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-ALTER TABLE doc_crypto_custody_adjustments ADD COLUMN accounting_model_version INT NOT NULL DEFAULT 1 CHECK(accounting_model_version IN (1,2));
-ALTER TABLE doc_crypto_custody_adjustments ALTER COLUMN accounting_model_version SET DEFAULT 2;
+ALTER TABLE doc_crypto_custody_adjustments ADD COLUMN accounting_model_version INT NOT NULL DEFAULT 2 CHECK(accounting_model_version=2);
 CREATE TABLE reg_crypto_custody_loss_bindings (
     posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
     adjustment_id UUID NOT NULL UNIQUE REFERENCES doc_crypto_custody_adjustments(id),
@@ -2395,8 +2391,7 @@ $$;
 CREATE TRIGGER trg_custody_loss_outflow_owner BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_loss_outflow_guard();
 -- ==== crypto_network_fee_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-ALTER TABLE reg_crypto_fee_reservations ADD COLUMN accounting_model_version INT NOT NULL DEFAULT 1 CHECK(accounting_model_version IN (1,2));
-ALTER TABLE reg_crypto_fee_reservations ALTER COLUMN accounting_model_version SET DEFAULT 2;
+ALTER TABLE reg_crypto_fee_reservations ADD COLUMN accounting_model_version INT NOT NULL DEFAULT 2 CHECK(accounting_model_version=2);
 ALTER TABLE reg_crypto_fee_reservation_events ADD COLUMN transition_txid BIGINT;
 CREATE FUNCTION fn_crypto_fee_transition_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -2847,7 +2842,7 @@ SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 -- Historical decisions and pending proposals retain their original semantics.
 -- A chain compensation refers to the original owner; it never claims an effect.
 ALTER TABLE doc_crypto_adjustments
-    ADD COLUMN accounting_model_version INT NOT NULL DEFAULT 1 CHECK(accounting_model_version IN (1,2)),
+    ADD COLUMN accounting_model_version INT NOT NULL DEFAULT 2 CHECK(accounting_model_version=2),
     ADD COLUMN basis_kind TEXT NOT NULL DEFAULT 'legacy',
     ADD COLUMN source_posting_id UUID REFERENCES reg_crypto_custody_effect_postings(id),
     ADD COLUMN proposal_txid BIGINT,
@@ -2858,7 +2853,6 @@ ALTER TABLE doc_crypto_adjustments
             OR (mode='payment_reversal' AND (
                 (basis_kind='legacy_payment' AND source_posting_id IS NULL)
                 OR (basis_kind='payment_compensation' AND source_posting_id IS NOT NULL))))));
-ALTER TABLE doc_crypto_adjustments ALTER COLUMN accounting_model_version SET DEFAULT 2;
 CREATE INDEX idx_crypto_adjustment_source_posting ON doc_crypto_adjustments(source_posting_id) WHERE source_posting_id IS NOT NULL;
 
 CREATE FUNCTION fn_crypto_adjustment_accounting_basis() RETURNS TRIGGER LANGUAGE plpgsql AS $$

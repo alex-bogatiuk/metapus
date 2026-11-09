@@ -44,36 +44,38 @@ func seedWithdrawalRecovery(t *testing.T, ctx context.Context, txm *postgres.TxM
 		Amount: types.NewCryptoAmountFromInt64(100), DestAddress: "external", ContractAddress: "COORD-" + id.Compact(f.network) + "-contract", TokenStandard: token.TokenStandardTRC20, PostedVersion: 1}
 	suffix := id.Compact(wr.task.RequestID)
 	q := txm.GetQuerier(ctx)
-	_, err := q.Exec(ctx, `
-		INSERT INTO cat_merchants(id,code,name) VALUES($1,$4,'Recovery merchant');
-		INSERT INTO doc_crypto_withdrawals(accounting_model_version,id,number,merchant_id,token_id,source_wallet_id,dest_address,amount,status,basis_type,basis_id)
-		VALUES(1,$2,$4,$1,$5,$6,'external',100,'created','WithdrawalRequest',$3);
-		INSERT INTO doc_withdrawal_requests(id,number,merchant_id,token_id,amount,dest_address,status,posted,posted_version,withdrawal_id,updated_at)
-		VALUES($3,$4,$1,$5,100,'external','signing',TRUE,1,$2,NOW()-interval '3 minutes');
-		INSERT INTO reg_crypto_balance_reservations(id,wallet_id,token_id,amount,purpose,document_type,document_id,status)
-		VALUES($7,$6,$5,100,'withdrawal','WithdrawalRequest',$3,'active');
-		INSERT INTO reg_crypto_balance_balances(wallet_id,token_id,amount) VALUES($6,$5,1000) ON CONFLICT DO NOTHING;
-	`, pgx.QueryExecModeSimpleProtocol, wr.task.MerchantID, wr.documentID, wr.task.RequestID, suffix, f.token, f.hot, id.New())
+	_, err := q.Exec(ctx, `INSERT INTO cat_merchants(id,code,name) VALUES($1,$2,'Recovery merchant')`, wr.task.MerchantID, suffix)
 	require.NoError(t, err)
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	merchantRepo := register_repo.NewCryptoMerchantBalanceRepo()
 	require.NoError(t, merchantRepo.CreateMovements(ctx, []entity.CryptoMerchantBalanceMovement{
 		entity.NewCryptoMerchantBalanceMovement(id.New(), "Opening", 1, time.Now(), entity.RecordTypeReceipt, wr.task.MerchantID, f.token, types.NewCryptoAmountFromInt64(1000)),
-		entity.NewCryptoMerchantBalanceMovement(wr.task.RequestID, withdrawal_request.DocumentType, 1, time.Now(), entity.RecordTypeExpense, wr.task.MerchantID, f.token, types.NewCryptoAmountFromInt64(100)),
+		entity.NewCryptoMerchantBalanceMovement(wr.task.RequestID, withdrawal_request.DocumentType, 1, now, entity.RecordTypeExpense, wr.task.MerchantID, f.token, types.NewCryptoAmountFromInt64(100)),
 	}))
+	_, err = q.Exec(ctx, `
+		INSERT INTO reg_crypto_balance_balances(wallet_id,token_id,amount) VALUES($6,$5,1000) ON CONFLICT DO NOTHING;
+		INSERT INTO doc_crypto_withdrawals(id,number,merchant_id,token_id,source_wallet_id,dest_address,amount,status,basis_type,basis_id)
+		VALUES($2,$4,$1,$5,$6,'external',100,'created','WithdrawalRequest',$3);
+		INSERT INTO doc_withdrawal_requests(id,number,date,merchant_id,token_id,amount,dest_address,status,posted,posted_version,withdrawal_id,updated_at)
+		VALUES($3,$4,$8,$1,$5,100,'external','signing',TRUE,1,$2,NOW()-interval '3 minutes');
+		INSERT INTO reg_crypto_balance_reservations(id,wallet_id,token_id,amount,purpose,document_type,document_id,status)
+		VALUES($7,$6,$5,100,'withdrawal','WithdrawalRequest',$3,'active');
+	`, pgx.QueryExecModeSimpleProtocol, wr.task.MerchantID, wr.documentID, wr.task.RequestID, suffix, f.token, f.hot, id.New(), now)
+	require.NoError(t, err)
 	wr.auth = crypto.SigningAuthorization{
 		SchemaVersion: crypto.SigningAuthorizationSchemaVersionFor(crypto.SequenceNone), AuthorizationID: "recovery-" + suffix,
 		TenantID: id.New().String(), MerchantID: &wr.task.MerchantID, Purpose: crypto.SigningPurposeWithdrawal,
 		BasisType: withdrawal_request.DocumentType, BasisID: wr.task.RequestID, Attempt: 1, Generation: 1,
 		ExpiresAt: time.Now().Add(time.Hour), NetworkID: f.network, NetworkCode: "TEST", ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: "nile",
-		SourceAddress: "COORD-" + id.Compact(f.network) + "-hot", FeePayerAddress: "COORD-" + id.Compact(f.network) + "-hot", VaultKeyID: "test/hot",
+		SourceAddress: f.hotAddress, FeePayerAddress: f.hotAddress, VaultKeyID: "test/hot",
 		DestinationAddress: "external", AssetStandard: "TRC-20", ContractAddress: wr.task.ContractAddress,
 		AmountMinorUnits: wr.task.Amount, MaxNetworkFeeMinor: types.NewCryptoAmountFromInt64(10), UnsignedFingerprint: "fp-" + suffix,
 		ApprovalBundleDigest: "expired-bundle", PolicyVersion: crypto.SigningAuthorizationPolicyVersion(crypto.ChainFamilyTRON),
 	}
 	wr.unsigned = crypto.UnsignedTxEnvelope{Family: crypto.ChainFamilyTRON, SchemaVersion: 1, Generation: 1, UnsignedFingerprint: wr.auth.UnsignedFingerprint, Payload: []byte(`{"raw":"tx"}`)}
 	wr.signed = crypto.SignedTxEnvelope{Family: crypto.ChainFamilyTRON, SchemaVersion: 1, Generation: 1, UnsignedFingerprint: wr.auth.UnsignedFingerprint, TxHash: "tx-" + suffix, Payload: []byte(`{"signed":"tx"}`)}
-	_, err = q.Exec(ctx, `INSERT INTO reg_crypto_fee_reservations(accounting_model_version,id,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,status,unsigned_fingerprint)
-		VALUES(1,$1,$2,$3,$4,$5,'WithdrawalRequest',$6,'withdrawal',1,'native_burn',10,'held',$7)`, wr.feeID, f.network, f.hot, f.native, f.token, wr.task.RequestID, wr.auth.UnsignedFingerprint)
+	_, err = q.Exec(ctx, `INSERT INTO reg_crypto_fee_reservations(id,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,status,unsigned_fingerprint)
+		VALUES($1,$2,$3,$4,$5,'WithdrawalRequest',$6,'withdrawal',1,'native_burn',10,'held',$7)`, wr.feeID, f.network, f.hot, f.native, f.token, wr.task.RequestID, wr.auth.UnsignedFingerprint)
 	require.NoError(t, err)
 	return wr
 }
@@ -155,12 +157,12 @@ func TestWithdrawalRecoveryFinalityCompletesOnceWithTwoWorkers(t *testing.T) {
 		var status, hash string
 		q := txm.GetQuerier(ctx)
 		require.NoError(t, q.QueryRow(ctx, `SELECT count(*) FROM reg_crypto_balance_movements WHERE recorder_id=$1`, wr.documentID).Scan(&movements))
-		require.Equal(t, 1, movements)
+		require.Zero(t, movements, "principal is recognized only at final settlement")
 		require.NoError(t, q.QueryRow(ctx, `SELECT posted_version,tx_hash FROM doc_crypto_withdrawals WHERE id=$1`, wr.documentID).Scan(&version, &hash))
 		require.Equal(t, 1, version)
 		require.Equal(t, wr.signed.TxHash, hash)
 		require.NoError(t, q.QueryRow(ctx, `SELECT status FROM reg_crypto_balance_reservations WHERE document_id=$1`, wr.task.RequestID).Scan(&status))
-		require.Equal(t, "consumed", status)
+		require.Equal(t, "active", status, "the principal reservation is consumed only at final settlement")
 	})
 }
 

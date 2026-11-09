@@ -7,10 +7,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAMLOwnedAddressRemainsObservedAfterCatalogDeactivation(t *testing.T) {

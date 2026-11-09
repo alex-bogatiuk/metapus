@@ -23,8 +23,8 @@ func settleRiskLineV2(t *testing.T, f amlRoutingFixture, intent crypto.MoneyMove
 	t.Helper()
 	doc, auth, start := id.New(), id.New(), id.New()
 	hash := strings.ReplaceAll(doc.String()+doc.String(), "-", "")
-	_, err := f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_withdrawals(id,accounting_model_version,merchant_id,token_id,source_wallet_id,dest_address,amount,status,basis_type,basis_id,tx_hash,posted,posted_version)
-		VALUES($1,2,$2,$3,$4,$5,$6,'broadcast','CryptoAMLWithdrawalLine',$7,$8,true,1)`, doc, intent.MerchantID, intent.TokenID, line.WalletID, intent.DestinationAddress, line.AmountMinorUnits, line.LineID, hash)
+	_, err := f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_withdrawals(id,merchant_id,token_id,source_wallet_id,dest_address,amount,status,basis_type,basis_id,tx_hash,posted,posted_version)
+		VALUES($1,$2,$3,$4,$5,$6,'broadcast','CryptoAMLWithdrawalLine',$7,$8,true,1)`, doc, intent.MerchantID, intent.TokenID, line.WalletID, intent.DestinationAddress, line.AmountMinorUnits, line.LineID, hash)
 	require.NoError(t, err)
 	_, err = f.pool.Exec(f.ctx, `UPDATE reg_crypto_aml_withdrawal_lines SET withdrawal_id=$2,status='broadcast' WHERE id=$1`, line.LineID, doc)
 	require.NoError(t, err)
@@ -42,8 +42,8 @@ func settleRiskLineV2(t *testing.T, f amlRoutingFixture, intent crypto.MoneyMove
 	require.NoError(t, err)
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_aml_first_dispatches(authorization_id,start_id,snapshot) VALUES($1,$2,'{"synthetic":true}')`, auth, start)
 	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_fee_reservations(accounting_model_version,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,status,tx_hash)
-		VALUES(1,$1,$2,$3,$4,'CryptoAMLWithdrawalLine',$5,'withdrawal',1,'native_burn',1,'broadcast',$6)`, f.input.Request.NetworkID, line.WalletID, native, intent.TokenID, line.LineID, hash)
+	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_fee_reservations(network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,status,tx_hash)
+		VALUES($1,$2,$3,$4,'CryptoAMLWithdrawalLine',$5,'withdrawal',1,'native_burn',1,'broadcast',$6)`, f.input.Request.NetworkID, line.WalletID, native, intent.TokenID, line.LineID, hash)
 	require.NoError(t, err)
 	b := crypto.WithdrawalAccountingBasis{DocumentID: doc, RequestID: intent.BasisID, LineID: line.LineID, MerchantID: *intent.MerchantID, NetworkID: f.input.Request.NetworkID, TokenID: intent.TokenID, SourceWalletID: line.WalletID, TxHash: hash, Amount: line.AmountMinorUnits}
 	receipt := crypto.ChainReceipt{NetworkID: b.NetworkID, TxHash: hash, Status: crypto.ReceiptReverted, BlockHash: strings.Repeat("a", 64), BlockHeight: 10, Confirmations: 20, Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalitySolidified, ObservedAt: time.Now().UTC(), Fee: crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: native}}}
@@ -78,13 +78,11 @@ func settleRiskLineV2(t *testing.T, f amlRoutingFixture, intent crypto.MoneyMove
 		}
 		q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
 		settlement := id.New()
-		_, err = q.Exec(ctx, `INSERT INTO reg_crypto_chain_settlements(id,network_id,basis_type,basis_id,tx_hash,status,block_hash,block_height,finality_status,native_token_id,total_fee_minor,raw_receipt,observed_at)
-			VALUES($1,$2,'CryptoAMLWithdrawalLine',$3,$4,$5,$6,10,'solidified',$7,0,'{}',$8)`, settlement, b.NetworkID, line.LineID, hash, receipt.Status, receipt.BlockHash, native, receipt.ObservedAt)
-		if err != nil {
+		var fee id.ID
+		if err := q.QueryRow(ctx, `SELECT id FROM reg_crypto_fee_reservations WHERE basis_type='CryptoAMLWithdrawalLine' AND basis_id=$1`, line.LineID).Scan(&fee); err != nil {
 			return err
 		}
-		_, err = q.Exec(ctx, `UPDATE reg_crypto_fee_reservations SET status='settled',actual_fee_minor=0 WHERE basis_type='CryptoAMLWithdrawalLine' AND basis_id=$1`, line.LineID)
-		if err != nil {
+		if err := recognizeTestNetworkFeeFor(ctx, fee, receipt, settlement, "", id.ID{}); err != nil {
 			return err
 		}
 		if err := repo.RecordOutcome(ctx, b, receipt); err != nil {

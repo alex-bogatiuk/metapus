@@ -22,6 +22,7 @@ import (
 
 type sweepCoordinationFixture struct {
 	network, native, token, hot, wallet id.ID
+	hotAddress, walletAddress           string
 }
 
 func withSweepCoordinationFixture(t *testing.T, fn func(context.Context, *postgres.TxManager, sweepCoordinationFixture)) {
@@ -43,15 +44,16 @@ func runSweepCoordinationFixtureWithAddresses(t *testing.T, committed bool, hotA
 	txm := postgres.NewTxManagerFromRawPool(pool)
 	ctx := tenant.WithTxManager(context.Background(), txm)
 	rollback := errors.New("rollback fixture")
-	f := sweepCoordinationFixture{id.New(), id.New(), id.New(), id.New(), id.New()}
+	f := sweepCoordinationFixture{network: id.New(), native: id.New(), token: id.New(), hot: id.New(), wallet: id.New()}
 	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
 		suffix := id.Compact(f.network)
 		if hotAddress == "" {
-			hotAddress = "COORD-" + suffix + "-hot"
+			hotAddress = testTRONAddress()
 		}
 		if depositAddress == "" {
-			depositAddress = "COORD-" + suffix + "-wallet"
+			depositAddress = testTRONAddress()
 		}
+		f.hotAddress, f.walletAddress = hotAddress, depositAddress
 		_, err := txm.GetQuerier(ctx).Exec(ctx, `
 			INSERT INTO cat_blockchain_networks(id,code,name,chain_family,network_identifier,native_token_symbol,native_decimals)
 			VALUES($1,$6,'Sweep coordination','tron',$6,'TRX',6);
@@ -276,8 +278,8 @@ func TestSweepCoordinationRetriesExactSavedUnsignedAuthorizationOnlyBeforeTTL(t 
     VALUES($5,$1,$2,$3,$4,'source','destination',999999,'held',NOW()+interval '10 minutes',NOW()-interval '2 minutes');
     INSERT INTO reg_crypto_signing_authorizations(id,authorization_id,tenant_id,purpose,schema_version,network_id,network_code,chain_family,network_identifier,source_address,fee_payer_address,vault_key_id,destination_address,asset_standard,contract_address,amount_minor_units,max_network_fee_minor,basis_type,basis_id,attempt,generation,expires_at,policy_version,status,authorization_jws,unsigned_fingerprint,unsigned_envelope)
     VALUES($6,$6::text,$7,'sweep',1,$3,'test','tron','nile','source','source','test/key','destination','TRC-20','contract',999999,100,'CryptoSweepAttempt',$5,1,1,NOW()+$8::interval,'tron-v1','created','saved-jws','saved-fingerprint','{"saved":true}');
-    INSERT INTO reg_crypto_fee_reservations(accounting_model_version,id,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,status)
-    VALUES(1,$9,$3,$1,$10,$2,'CryptoSweepAttempt',$5,'sweep',1,'native_burn',100,'reserved');`, pgx.QueryExecModeSimpleProtocol, f.wallet, f.token, f.network, f.hot, attempt, auth, id.New().String(), ttl, fee, f.native)
+    INSERT INTO reg_crypto_fee_reservations(id,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,status)
+    VALUES($9,$3,$1,$10,$2,'CryptoSweepAttempt',$5,'sweep',1,'native_burn',100,'reserved');`, pgx.QueryExecModeSimpleProtocol, f.wallet, f.token, f.network, f.hot, attempt, auth, id.New().String(), ttl, fee, f.native)
 			require.NoError(t, err)
 			tasks, err := NewOutboundRepo().ClaimRunnableSweepAttempts(ctx, 100)
 			require.NoError(t, err)
@@ -291,4 +293,15 @@ func TestSweepCoordinationRetriesExactSavedUnsignedAuthorizationOnlyBeforeTTL(t 
 			require.Equal(t, "saved-fingerprint", fingerprint)
 		})
 	}
+}
+
+// testTRONAddress returns a unique syntactically valid TRON base58 address.
+func testTRONAddress() string {
+	const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+	raw := id.New()
+	out := []byte{'T'}
+	for i := 0; len(out) < 34; i++ {
+		out = append(out, alphabet[int(raw[i%len(raw)]+byte(i*7))%len(alphabet)])
+	}
+	return string(out)
 }

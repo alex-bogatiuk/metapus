@@ -57,6 +57,7 @@ func seedAMLJob(t *testing.T, ctx context.Context, pool *pgxpool.Pool, budget ..
 	t.Helper()
 	merchantID, networkID, tokenID, walletID, accountID := id.New(), id.New(), id.New(), id.New(), id.New()
 	suffix := id.Compact(merchantID)
+	address := testTRONAddress()
 	_, err := pool.Exec(ctx, `INSERT INTO cat_merchants(id,code,name) VALUES($1,$2,'AML test')`, merchantID, "AML-"+suffix)
 	require.NoError(t, err)
 	_, err = pool.Exec(ctx, `INSERT INTO cat_blockchain_networks(id,code,name,chain_family,network_identifier,native_token_symbol,native_decimals)
@@ -66,7 +67,7 @@ func seedAMLJob(t *testing.T, ctx context.Context, pool *pgxpool.Pool, budget ..
 		VALUES($1,$2,'AML test asset',$3,'test-contract','USDT',6,'trc20')`, tokenID, "AML-"+suffix, networkID)
 	require.NoError(t, err)
 	_, err = pool.Exec(ctx, `INSERT INTO cat_wallets(id,code,name,network_id,merchant_id,custody_merchant_id,address,vault_key_id,derivation_path)
-		VALUES($1,$2,'AML owner wallet',$3,$4,$4,$5,'test-key','test-derived-path')`, walletID, "AML-"+suffix, networkID, merchantID, "receiver-"+suffix)
+		VALUES($1,$2,'AML owner wallet',$3,$4,$4,$5,'test-key','test-derived-path')`, walletID, "AML-"+suffix, networkID, merchantID, address)
 	require.NoError(t, err)
 	// The fixture has no production credentials; runtime tests install an encrypted synthetic key.
 	_, err = pool.Exec(ctx, `INSERT INTO cat_integration_accounts(id,code,name,provider)
@@ -87,7 +88,7 @@ func seedAMLJob(t *testing.T, ctx context.Context, pool *pgxpool.Pool, budget ..
 	}
 	input := EnqueueAMLInput{WalletID: walletID, Provider: "getblock_net", ProviderAccountID: accountID, MappingVersion: "test-mapping-v1",
 		DeadlineAt: time.Now().UTC().Add(time.Hour), Request: aml.CheckRequest{MerchantID: merchantID, NetworkID: networkID, TokenID: tokenID,
-			Kind: aml.TransferSubject, ContractAddress: "test-contract", Address: "receiver-" + suffix, TxHash: "tx-" + suffix,
+			Kind: aml.TransferSubject, ContractAddress: "test-contract", Address: address, TxHash: "tx-" + suffix,
 			EventKind: "contract_log", BlockHash: "block-" + suffix, EconomicsHash: "economics-" + suffix, MatchingEffects: 1}}
 	jobID, err := NewAMLRepository().EnqueueAMLCheck(ctx, input)
 	require.NoError(t, err)

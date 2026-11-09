@@ -3,11 +3,12 @@ package crypto_worker
 import (
 	"testing"
 
+	"metapus/internal/domain/crypto"
+
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
-	"metapus/internal/domain/crypto"
 )
 
 func TestIngestionMetricsClearRecoveredInboxAndMarkUnavailableEvidenceUnknown(t *testing.T) {

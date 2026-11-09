@@ -22,7 +22,7 @@ func TestAMLTestnetBootstrapPreservesMoneyAndAcceptsLaterRandomChecks(t *testing
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO sys_crypto_aml_provisioning_identity(vault_namespace,database_name,enrolled_by) VALUES($1,current_database(),'test')`, id.New())
 	require.NoError(t, err)
 	wallet := id.New()
-	address := "T-opening-" + wallet.String()
+	address := testTRONAddress()
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO cat_wallets(id,code,name,network_id,address,vault_key_id,custody_merchant_id) VALUES($1,$1::uuid::text,'Opening wallet',$2,$3,'synthetic',$4)`, wallet, config.NetworkID, address, config.MerchantID)
 	require.NoError(t, err)
 	var token, native id.ID
@@ -148,7 +148,7 @@ func TestAMLTestnetOpeningOperatingFundsSupportSignedJITAndLaterCosts(t *testing
 	var native id.ID
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT id FROM cat_tokens WHERE network_id=$1 AND token_standard='native'`, config.NetworkID).Scan(&native))
 	for wallet, role := range map[id.ID]string{source: "network_fee", target: "merchant_pool"} {
-		_, err = f.pool.Exec(f.ctx, `INSERT INTO cat_wallets(id,code,name,network_id,address,vault_key_id,custody_merchant_id,wallet_role) VALUES($1,$1::uuid::text,'Opening resource wallet',$2,$3,'resource-key',$4,$5)`, wallet, config.NetworkID, "opening-"+wallet.String(), config.MerchantID, role)
+		_, err = f.pool.Exec(f.ctx, `INSERT INTO cat_wallets(id,code,name,network_id,address,vault_key_id,custody_merchant_id,wallet_role) VALUES($1,$1::uuid::text,'Opening resource wallet',$2,$3,'resource-key',$4,$5)`, wallet, config.NetworkID, testTRONAddress(), config.MerchantID, role)
 		require.NoError(t, err)
 	}
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_balance_movements(recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount) VALUES($1,'LegacyOperating',1,NOW(),'receipt',$2,$3,100)`, id.New(), source, native)
@@ -186,7 +186,7 @@ func TestAMLTestnetOpeningOperatingFundsSupportSignedJITAndLaterCosts(t *testing
 	_, err = f.pool.Exec(f.ctx, `UPDATE doc_crypto_native_fundings SET status='signed' WHERE id=$1`, funding)
 	require.NoError(t, err)
 	var matches bool
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT fn_crypto_aml_spend_plan_matches('CryptoNativeFunding',$1,'native_funding',$2,$3,$4,20)`, funding, source, native, "opening-"+target.String()).Scan(&matches))
+	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT fn_crypto_aml_spend_plan_matches('CryptoNativeFunding',$1,'native_funding',$2,$3,$4,20)`, funding, source, native, walletAddress(t, f, target)).Scan(&matches))
 	require.True(t, matches)
 	settleResourceEvidence(t, f, fee, funding, hash, "reverted", "3", false)
 	f.rebuild(t)
@@ -194,4 +194,11 @@ func TestAMLTestnetOpeningOperatingFundsSupportSignedJITAndLaterCosts(t *testing
 	var status string
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT status FROM reg_crypto_aml_resource_budgets WHERE id=$1`, budget.ID).Scan(&status))
 	require.Equal(t, "failed", status)
+}
+
+func walletAddress(t *testing.T, f amlRoutingFixture, wallet id.ID) string {
+	t.Helper()
+	var address string
+	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT address FROM cat_wallets WHERE id=$1`, wallet).Scan(&address))
+	return address
 }

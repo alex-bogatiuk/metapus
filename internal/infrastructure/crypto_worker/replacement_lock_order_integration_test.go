@@ -7,12 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestReplacementPublicationLocksAdvisoryAndWalletBeforeExecutionRow(t *testing.T) {

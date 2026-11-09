@@ -30,8 +30,9 @@ func nativeResourceFixture(t *testing.T) (amlRoutingFixture, id.ID, id.ID) {
 	native, feeWallet := id.New(), id.New()
 	_, err := f.pool.Exec(f.ctx, `INSERT INTO cat_tokens(id,code,name,network_id,symbol,decimal_places,token_standard) VALUES($1,$1::uuid::text,'Native operating asset',$2,'TRX',6,'native')`, native, f.input.Request.NetworkID)
 	require.NoError(t, err)
+	feeAddress := testTRONAddress()
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO cat_wallets(id,code,name,network_id,custody_merchant_id,address,vault_key_id,derivation_path,wallet_role)
- VALUES($1,$1::uuid::text,'Own operating wallet',$2,$3,$4,'resource-key','resource-path','network_fee')`, feeWallet, f.input.Request.NetworkID, f.input.Request.MerchantID, "fee-"+feeWallet.String())
+ VALUES($1,$1::uuid::text,'Own operating wallet',$2,$3,$4,'resource-key','resource-path','network_fee')`, feeWallet, f.input.Request.NetworkID, f.input.Request.MerchantID, feeAddress)
 	require.NoError(t, err)
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO sys_crypto_aml_provider_mappings(network_id,token_id,version,contract_version,contract_address,currency,provider_token_id,native,decimal_places,capability_accepted,acceptance_reference,currencylist_snapshot,pending_statuses)
  VALUES($1,$2,'test-native-v1','synthetic-v1','','TRX','',TRUE,6,TRUE,'synthetic native fixture','{"synthetic":true}',ARRAY['PENDING'])`, f.input.Request.NetworkID, native)
@@ -41,7 +42,7 @@ func nativeResourceFixture(t *testing.T) (amlRoutingFixture, id.ID, id.ID) {
 	require.NoError(t, err)
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO sys_crypto_block_ingestion(network_id,start_height,start_hash,start_timestamp,mode,decoder_version) VALUES($1,1,'checkpoint',1,'paused',2)`, f.input.Request.NetworkID)
 	require.NoError(t, err)
-	f.input.WalletID, f.input.Request.TokenID, f.input.Request.Address = feeWallet, native, "fee-"+feeWallet.String()
+	f.input.WalletID, f.input.Request.TokenID, f.input.Request.Address = feeWallet, native, feeAddress
 	f.input.Request.ContractAddress, f.input.Request.EventKind, f.input.MappingVersion = "", "native_value", "test-native-v1"
 	f.baseline(t, feeWallet)
 	f.baseline(t, target)
@@ -85,8 +86,8 @@ func resourceFeeWithLink(t *testing.T, f amlRoutingFixture, target id.ID, fundin
  VALUES($1,'CryptoSweepAttempt',$2,1,$3,$4,$5,$6,$7)`, basis, id.New(), f.input.Request.NetworkID, f.input.Request.TokenID, f.input.WalletID, target, fundingAmount)
 		require.NoError(t, err)
 	}
-	_, err := f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_fee_reservations(accounting_model_version,id,network_id,payer_wallet_id,native_token_id,operation_token_id,reserved_principal_minor,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor)
- VALUES(1,$1,$2,$3,$4,$4,$5,$6,$7,$8,1,'native_funding',$9)`, fee, f.input.Request.NetworkID, f.input.WalletID, f.input.Request.TokenID, fundingAmount, basisType, basis, purpose, cap)
+	_, err := f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_fee_reservations(id,network_id,payer_wallet_id,native_token_id,operation_token_id,reserved_principal_minor,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor)
+ VALUES($1,$2,$3,$4,$4,$5,$6,$7,$8,1,'native_funding',$9)`, fee, f.input.Request.NetworkID, f.input.WalletID, f.input.Request.TokenID, fundingAmount, basisType, basis, purpose, cap)
 	require.NoError(t, err)
 	if fundingAmount != "0" && linked {
 		_, err = f.pool.Exec(f.ctx, `UPDATE doc_crypto_native_fundings SET fee_reservation_id=$2 WHERE id=$1`, basis, fee)
@@ -140,54 +141,34 @@ func settleResourceEvidence(t *testing.T, f amlRoutingFixture, fee, funding id.I
 func recordResourceEvidence(f amlRoutingFixture, fee, funding id.ID, txHash, status, actual string, fundingPhysical bool) error {
 	receipt := crypto.ChainReceipt{NetworkID: f.input.Request.NetworkID, TxHash: txHash, Status: crypto.ReceiptStatus(status), BlockHash: strings.Repeat("a", 64), BlockHeight: 10, Confirmations: 20, Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalitySolidified, ObservedAt: time.Now().UTC(), Fee: crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: f.input.Request.TokenID}, TotalFee: types.MustCryptoAmount(actual)}}
 	return postgres.MustGetTxManager(f.ctx).RunInTransaction(f.ctx, func(ctx context.Context) error {
-		q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
 		repo := NativeFundingSettlementRepo{}
 		var doc crypto.NativeFunding
 		if fundingPhysical {
 			var err error
-			doc, err = repo.GetNativeFundingForUpdate(ctx, funding)
-			if err != nil {
+			if doc, err = repo.GetNativeFundingForUpdate(ctx, funding); err != nil {
 				return err
 			}
 			if err := repo.PrepareNativeFundingPrincipal(ctx, doc, receipt); err != nil {
 				return err
 			}
 		}
-		_, err := q.Exec(ctx, `INSERT INTO reg_crypto_chain_settlements(network_id,basis_type,basis_id,tx_hash,status,block_hash,block_height,finality_status,native_token_id,total_fee_minor,raw_receipt,observed_at)
- SELECT network_id,basis_type,basis_id,$2,$3,repeat('a',64),10,'solidified',native_token_id,$4,'{}',NOW() FROM reg_crypto_fee_reservations WHERE id=$1`, fee, txHash, status, actual)
-		if err != nil {
+		if err := recognizeTestNetworkFee(ctx, fee, receipt); err != nil {
 			return err
 		}
-		if actual != "0" {
-			_, err = q.Exec(ctx, `INSERT INTO reg_crypto_balance_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount)
- SELECT id,basis_id,'ChainSettlement',1,NOW(),'expense',payer_wallet_id,native_token_id,$2 FROM reg_crypto_fee_reservations WHERE id=$1`, fee, actual)
-			if err != nil {
-				return err
-			}
+		if id.IsNil(funding) {
+			return nil
 		}
-		_, err = q.Exec(ctx, `UPDATE reg_crypto_fee_reservations SET status='settled',actual_fee_minor=$2 WHERE id=$1`, fee, actual)
-		if err != nil {
+		terminal := "settled"
+		if status == "reverted" {
+			terminal = "failed"
+		}
+		if _, err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).Exec(ctx, `UPDATE doc_crypto_native_fundings SET status=$2 WHERE id=$1`, funding, terminal); err != nil {
 			return err
 		}
-		if !id.IsNil(funding) {
-			terminal := "settled"
-			if status == "reverted" {
-				terminal = "failed"
-			}
-			_, err = q.Exec(ctx, `UPDATE doc_crypto_native_fundings SET status=$2 WHERE id=$1`, funding, terminal)
-			if err != nil {
-				return err
-			}
-			if fundingPhysical {
-				_, err = q.Exec(ctx, `INSERT INTO reg_crypto_platform_cost_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,network_id,operation_token_id,cost_token_id,cost_type,purpose,provider,external_order_id,amount)
-                SELECT id,basis_id,'ChainSettlement',1,NOW(),'expense',network_id,operation_token_id,native_token_id,'chain_network_fee','native_funding','chain',tx_hash,$2 FROM reg_crypto_fee_reservations WHERE id=$1 AND $2::numeric>0`, fee, actual)
-				if err != nil {
-					return err
-				}
-				return repo.RecordNativeFundingPrincipal(ctx, doc, receipt)
-			}
+		if fundingPhysical {
+			return repo.RecordNativeFundingPrincipal(ctx, doc, receipt)
 		}
-		return err
+		return nil
 	})
 }
 
@@ -344,9 +325,9 @@ func TestAMLResourceGasCannotBorrowMerchantPrincipalOrProcessingFee(t *testing.T
 	fee, _ = resourceFee(t, f, target, "0", "10")
 	_, err = f.repo.ReserveAMLResourceBudget(f.ctx, resourceRequest(t, f, fee))
 	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `UPDATE reg_crypto_fee_reservations SET status='broadcast',tx_hash='native-fee-only' WHERE id=$1`, fee)
+	_, err = f.pool.Exec(f.ctx, `UPDATE reg_crypto_fee_reservations SET status='broadcast',tx_hash=$2 WHERE id=$1`, fee, strings.Repeat("fe", 32))
 	require.NoError(t, err)
-	settleResourceEvidence(t, f, fee, id.ID{}, "native-fee-only", "succeeded", "3", false)
+	settleResourceEvidence(t, f, fee, id.ID{}, strings.Repeat("fe", 32), "succeeded", "3", false)
 	f.rebuild(t)
 	require.Equal(t, []string{"97", "0"}, resourceAmounts(t, f, target))
 	var principal, income string

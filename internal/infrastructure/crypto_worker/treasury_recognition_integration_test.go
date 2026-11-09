@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/application/outboundapp"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
@@ -21,6 +20,8 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
+
+	"github.com/stretchr/testify/require"
 )
 
 type treasuryFinalFixture struct {
@@ -33,12 +34,8 @@ type treasuryFinalFixture struct {
 	merchant  id.ID
 }
 
-func newTreasuryFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture, feeModels ...int) treasuryFinalFixture {
+func newTreasuryFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) treasuryFinalFixture {
 	t.Helper()
-	feeModel := 1
-	if len(feeModels) > 0 {
-		feeModel = feeModels[0]
-	}
 	q := tm.GetQuerier(ctx)
 	var networkIdentifier string
 	require.NoError(t, q.QueryRow(ctx, `SELECT network_identifier FROM cat_blockchain_networks WHERE id=$1`, c.network).Scan(&networkIdentifier))
@@ -69,8 +66,8 @@ func newTreasuryFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxM
 	require.NoError(t, err)
 	hash := strings.ReplaceAll(doc.ID.String()+doc.ID.String(), "-", "")
 	fee := id.New()
-	_, err = q.Exec(ctx, `INSERT INTO reg_crypto_fee_reservations(accounting_model_version,id,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,status)
-		VALUES($7,$1,$2,$3,$4,$5,'TreasuryWithdrawal',$6,'treasury_withdrawal',1,'native_burn',10,'reserved')`, fee, c.network, c.hot, c.native, c.token, doc.ID, feeModel)
+	_, err = q.Exec(ctx, `INSERT INTO reg_crypto_fee_reservations(id,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,status)
+		VALUES($1,$2,$3,$4,$5,'TreasuryWithdrawal',$6,'treasury_withdrawal',1,'native_burn',10,'reserved')`, fee, c.network, c.hot, c.native, c.token, doc.ID)
 	require.NoError(t, err)
 	auth := crypto.SigningAuthorization{SchemaVersion: 1, AuthorizationID: id.New().String(), TenantID: id.New().String(), Purpose: crypto.SigningPurposeTreasury,
 		BasisType: "TreasuryWithdrawal", BasisID: doc.ID, Attempt: 1, Generation: 1, ExpiresAt: time.Now().Add(time.Hour), NetworkID: c.network, NetworkCode: "TW-TEST", ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: networkIdentifier,
@@ -337,8 +334,8 @@ func TestTreasuryV2ExpectedOutflowCannotBecomeAnotherCustodyExpense(t *testing.T
 		require.ErrorContains(t, err, "expected treasury principal requires its settlement owner")
 		require.NoError(t, f.service(t).Settle(ctx, f.task))
 		legacy := id.New()
-		_, err = q.Exec(ctx, `INSERT INTO doc_treasury_withdrawals(id,accounting_model_version,token_id,source_wallet_id,address_id,dest_address,amount,tx_hash,status)
-			VALUES($1,1,$2,$3,$4,$5,23,$6,'broadcast')`, legacy, c.token, c.hot, f.doc.AddressID, f.doc.DestAddress, f.task.TxHash)
+		_, err = q.Exec(ctx, `INSERT INTO doc_treasury_withdrawals(id,token_id,source_wallet_id,address_id,dest_address,amount,tx_hash,status)
+			VALUES($1,$2,$3,$4,$5,23,$6,'broadcast')`, legacy, c.token, c.hot, f.doc.AddressID, f.doc.DestAddress, f.task.TxHash)
 		require.NoError(t, err)
 		_, err = q.Exec(ctx, `INSERT INTO reg_crypto_balance_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount)
 			VALUES($1,$1,'TreasuryWithdrawal',1,now(),'expense',$2,$3,23)`, legacy, c.hot, c.token)

@@ -5,6 +5,7 @@ package crypto_repo
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -28,7 +29,7 @@ func readyAMLInventory(t *testing.T) (amlRoutingFixture, id.ID, id.ID) {
 	f.creditNet(t, proof.Event.TxHash)
 	f.complete(t, effectID, 1000, true)
 	f.rebuild(t)
-	collector := f.collector(t, f.input.Request.MerchantID, "partition-collector")
+	collector := f.collector(t, f.input.Request.MerchantID, "TPartitionCo11ectorAddressbbbbbbbb")
 	f.baseline(t, collector)
 	f.rebuild(t)
 	return f, collector, effectID
@@ -64,7 +65,7 @@ func (f amlRoutingFixture) proveAllocatedSweep(t *testing.T, request aml.Interna
 	auth, unsigned := f.allocationAuthorization(t, request)
 	authID, err := newHistoricalAMLAuthorization(f.ctx, auth, unsigned)
 	require.NoError(t, err)
-	txHash := "allocated-" + request.SweepAttemptID.String()
+	txHash := strings.ReplaceAll(request.SweepAttemptID.String()+request.SweepAttemptID.String(), "-", "")
 	signed, err := json.Marshal(crypto.SignedTxEnvelope{Family: crypto.ChainFamilyTRON, SchemaVersion: 1, UnsignedFingerprint: auth.UnsignedFingerprint, Generation: 1, TxHash: txHash, Payload: []byte(`{"synthetic":true}`)})
 	require.NoError(t, err)
 	_, err = f.pool.Exec(f.ctx, `UPDATE reg_crypto_signing_authorizations SET status='signed',tx_hash=$2,signed_envelope=$3::jsonb WHERE id=$1`, authID, txHash, string(signed))
@@ -74,9 +75,9 @@ func (f amlRoutingFixture) proveAllocatedSweep(t *testing.T, request aml.Interna
 	require.NoError(t, err)
 	proof := f.proof(auth.DestinationAddress, txHash, 1)
 	proof.Event.FromAddress, proof.Event.Amount, proof.Event.Direction = auth.SourceAddress, request.Amount, crypto.TransferDirectionInternal
-	f.save(t, proof)
+	f.saveTRONAccountingProof(t, proof)
 	sweepID := id.New()
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_sweeps(accounting_model_version,id,token_id,hot_wallet_id,total_amount,posted,posted_version,status) VALUES(1,$1,$2,$3,$4,TRUE,1,'broadcast')`, sweepID, request.TokenID, request.DestinationID, request.Amount)
+	_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_sweeps(id,token_id,hot_wallet_id,total_amount,posted,posted_version,status) VALUES($1,$2,$3,$4,TRUE,1,'broadcast')`, sweepID, request.TokenID, request.DestinationID, request.Amount)
 	require.NoError(t, err)
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_sweep_lines(line_id,document_id,wallet_id,amount,tx_hash) VALUES($1,$2,$3,$4,$5)`, request.SweepAttemptID, sweepID, request.SourceWalletID, request.Amount, txHash)
 	require.NoError(t, err)
@@ -88,11 +89,47 @@ func (f amlRoutingFixture) proveAllocatedSweep(t *testing.T, request aml.Interna
 	return sweepID
 }
 
+// postAllocatedSweep settles the sweep line from its final proof: the
+// independent network fee first, then the per-line principal recognition.
 func (f amlRoutingFixture) postAllocatedSweep(t *testing.T, request aml.InternalAllocationRequest, sweepID id.ID) {
 	t.Helper()
-	_, err := f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_balance_movements(recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount)
- VALUES($1,'CryptoSweep',1,NOW(),'expense',$2,$4,$5),($1,'CryptoSweep',1,NOW(),'receipt',$3,$4,$5)`, sweepID, request.SourceWalletID, request.DestinationID, request.TokenID, request.Amount)
+	f.settleSweepLine(t, sweepID, request.SweepAttemptID, request.SourceWalletID, request.DestinationID, request.TokenID, request.NetworkID, request.Amount)
+}
+
+func (f amlRoutingFixture) settleSweepLine(t *testing.T, sweepID, lineID, source, destination, token, network id.ID, amount types.CryptoAmount) {
+	t.Helper()
+	var txHash string
+	var proofID id.ID
+	var height int64
+	var block string
+	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT l.tx_hash,v.id,v.block_number,v.block_hash FROM doc_crypto_sweep_lines l
+		JOIN reg_crypto_transfer_verifications v ON v.tx_hash=l.tx_hash WHERE l.line_id=$1`, lineID).Scan(&txHash, &proofID, &height, &block))
+	native := id.New()
+	_, err := f.pool.Exec(f.ctx, `INSERT INTO cat_tokens(id,code,name,network_id,symbol,token_standard,contract_address,decimal_places) VALUES($1,$1::uuid::text,'Native',$2,'TRX','native','',6)`, native, network)
 	require.NoError(t, err)
+	fee := id.New()
+	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_fee_reservations(id,network_id,payer_wallet_id,native_token_id,operation_token_id,reserved_principal_minor,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,tx_hash,status)
+		VALUES($1,$2,$3,$4,$5,0,'CryptoSweepAttempt',$6,'sweep',1,'native_burn',1,$7,'broadcast')`, fee, network, source, native, token, lineID, txHash)
+	require.NoError(t, err)
+	receipt := crypto.ChainReceipt{NetworkID: network, TxHash: txHash, Status: crypto.ReceiptSucceeded, BlockHeight: height, BlockHash: block, Confirmations: 20,
+		Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalitySolidified, ObservedAt: time.Now().UTC(), Fee: crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: native}}}
+	basis := crypto.SweepAccountingBasis{DocumentID: sweepID, LineID: lineID, NetworkID: network, TokenID: token,
+		SourceWalletID: source, DestinationWalletID: destination, Amount: amount, TxHash: txHash, VerificationID: &proofID}
+	require.NoError(t, postgres.MustGetTxManager(f.ctx).RunInTransaction(f.ctx, func(ctx context.Context) error {
+		repo := NewSweepCustodyRepo()
+		proceed, err := repo.Prepare(ctx, basis, receipt)
+		if err != nil || !proceed {
+			return err
+		}
+		if err := recognizeTestNetworkFee(ctx, fee, receipt); err != nil {
+			return err
+		}
+		if err := repo.RecordPrincipal(ctx, basis, receipt); err != nil {
+			return err
+		}
+		_, err = postgres.MustGetTxManager(ctx).GetQuerier(ctx).Exec(ctx, "UPDATE doc_crypto_sweep_lines SET settlement_status='recorded',chain_result='SUCCESS',confirmed=true,network_fee=0,network_fee_token_id=$2 WHERE line_id=$1", lineID, native)
+		return err
+	}))
 }
 
 func TestAMLInventoryPartialTransferCarriesExactPrincipalAndFeeWithoutCredit(t *testing.T) {
@@ -139,7 +176,7 @@ func TestAMLInventoryInFlightSplitDoesNotChangeAfterAnotherPayment(t *testing.T)
 	_, err := f.repo.ReserveAMLInternalAllocation(f.ctx, request)
 	require.NoError(t, err)
 	sweepID := f.proveAllocatedSweep(t, request, false)
-	proof := f.proof(f.input.Request.Address, "new-fee-ratio", 1)
+	proof := f.proof(f.input.Request.Address, strings.Repeat("ab", 32), 1)
 	proofID, effectID := f.save(t, proof)
 	f.postPayment(t, proof, proofID, f.input.WalletID)
 	err = postgres.MustGetTxManager(f.ctx).RunInTransaction(f.ctx, func(ctx context.Context) error {
@@ -239,7 +276,7 @@ func TestAMLInventoryLateHighAndUnpostedDestinationReceiptBlockAuthorization(t *
 	request := f.allocationRequest(t, destination, "50")
 	plan, err := f.repo.ReserveAMLInternalAllocation(f.ctx, request)
 	require.NoError(t, err)
-	unexpected := f.proof("partition-collector", "unposted-unmatched-receipt", 1)
+	unexpected := f.proof("TPartitionCo11ectorAddressbbbbbbbb", "unposted-unmatched-receipt", 1)
 	f.save(t, unexpected)
 	auth, unsigned := f.allocationAuthorization(t, request)
 	_, err = newHistoricalAMLAuthorization(f.ctx, auth, unsigned)
@@ -275,7 +312,7 @@ func TestAMLInventoryRejectsForeignCustodyAndDifferentDestinationClass(t *testin
 	require.Error(t, err, "an empty wallet of another merchant cannot receive this allocation")
 	_, err = f.pool.Exec(f.ctx, `UPDATE reg_crypto_sweep_attempts SET status='failed' WHERE id=$1`, request.SweepAttemptID)
 	require.NoError(t, err)
-	proof := f.proof("partition-collector", "medium-destination", 1)
+	proof := f.proof("TPartitionCo11ectorAddressbbbbbbbb", "medium-destination", 1)
 	proofID, effectID := f.save(t, proof)
 	f.postPayment(t, proof, proofID, destination)
 	f.creditNet(t, proof.Event.TxHash)
@@ -305,7 +342,7 @@ func TestAMLInventorySQLReservationPreservesNumeric78IntegerQuotient(t *testing.
 	require.NoError(t, err)
 	f.complete(t, effectID, 1000, true)
 	f.rebuild(t)
-	destination := f.collector(t, f.input.Request.MerchantID, "partition-collector")
+	destination := f.collector(t, f.input.Request.MerchantID, "TPartitionCo11ectorAddressbbbbbbbb")
 	f.baseline(t, destination)
 	f.rebuild(t)
 	request := f.allocationRequest(t, destination, net.String())
@@ -338,7 +375,7 @@ func TestAMLInventoryFailedApplyKeepsReservationAndDoesNotPoisonTheQueue(t *test
 	require.True(t, deferred)
 	other := f.collector(t, f.input.Request.MerchantID, "unrelated-inventory")
 	f.baseline(t, other)
-	proof := f.proof("unrelated-inventory", "unrelated-payment", 1)
+	proof := f.proof("unrelated-inventory", strings.Repeat("cd", 32), 1)
 	proofID, _ := f.save(t, proof)
 	f.postPayment(t, proof, proofID, other)
 	f.creditNet(t, proof.Event.TxHash)
@@ -399,4 +436,25 @@ func TestAMLInventoryFinalFeeWakeupCannotBeLostDuringCapture(t *testing.T) {
 	var principal string
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT principal::text FROM reg_crypto_aml_inventory_positions WHERE wallet_id=$1`, f.input.WalletID).Scan(&principal))
 	require.Equal(t, "90", principal)
+}
+
+// saveTRONAccountingProof stores a fixture transfer as decoder-v2 TRON evidence
+// with a bound accounting identity. The paused reader registration exists only
+// while the proof is saved, so later fixture payments keep the default schema.
+func (f amlRoutingFixture) saveTRONAccountingProof(t *testing.T, proof crypto.TransferVerification) id.ID {
+	t.Helper()
+	_, err := f.pool.Exec(f.ctx, `INSERT INTO sys_crypto_block_ingestion(network_id,start_height,start_hash,start_timestamp,mode,decoder_version) VALUES($1,1,'checkpoint',1,'paused',2)`, proof.Event.NetworkID)
+	require.NoError(t, err)
+	proof.DecoderVersion, proof.Event.DecoderVersion = 2, 2
+	for i := range proof.Sources {
+		proof.Sources[i].DecoderVersion = 2
+		proof.Sources[i].SourceDigest = "signed-sweep"
+	}
+	require.NoError(t, proof.BindTRONAccountingIdentity())
+	proofID, _ := f.save(t, proof)
+	_, err = f.pool.Exec(f.ctx, `ALTER TABLE sys_crypto_block_ingestion DISABLE TRIGGER USER;
+		DELETE FROM sys_crypto_block_ingestion WHERE network_id='`+proof.Event.NetworkID.String()+`';
+		ALTER TABLE sys_crypto_block_ingestion ENABLE TRIGGER USER`)
+	require.NoError(t, err)
+	return proofID
 }

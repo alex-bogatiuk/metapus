@@ -306,8 +306,8 @@ func TestCustodyLegacySignedSweepRecoversAfterIsolationWithoutSigner(t *testing.
 	require.NoError(t, err)
 	signed := crypto.SignedTxEnvelope{Family: crypto.ChainFamilyEVM, SchemaVersion: 1, UnsignedFingerprint: auth.UnsignedFingerprint, Generation: 1, NetworkSequence: "0", TxHash: "historical-tx", Payload: []byte(`{"historical":true}`)}
 	require.NoError(t, repo.MarkSigningAuthorizationSigned(f.ctx, auth.AuthorizationID, signed))
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_fee_reservations(accounting_model_version,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,status,unsigned_fingerprint)
- VALUES(1,$1,$2,$3,$3,$4,$5,'sweep',1,'native_burn',10,'held',$6)`, f.network, origin, f.token, "CryptoSweepAttempt", attemptID, auth.UnsignedFingerprint)
+	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_fee_reservations(network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,status,unsigned_fingerprint)
+ VALUES($1,$2,$3,$3,$4,$5,'sweep',1,'native_burn',10,'held',$6)`, f.network, origin, f.token, "CryptoSweepAttempt", attemptID, auth.UnsignedFingerprint)
 	require.NoError(t, err)
 	f.enforce(t)
 	_, err = f.pool.Exec(f.ctx, `UPDATE cat_wallets SET is_active=FALSE WHERE id=$1`, origin)

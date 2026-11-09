@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/application/outboundapp"
 	"metapus/internal/core/id"
@@ -23,6 +22,8 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
+
+	"github.com/stretchr/testify/require"
 )
 
 type networkFeeFixture struct {
@@ -190,7 +191,7 @@ func TestNetworkFeeV2FundingPrincipalAndFeeHaveDifferentOwners(t *testing.T) {
 	for _, status := range []crypto.ReceiptStatus{crypto.ReceiptSucceeded, crypto.ReceiptReverted} {
 		payer := "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb"
 		runSweepCoordinationFixtureWithAddresses(t, true, payer, "", func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
-			funding, _, receipt := seedNativeFunding(t, ctx, tm, c, 1, status == crypto.ReceiptSucceeded, 2)
+			funding, _, receipt := seedNativeFunding(t, ctx, tm, c, 1, status == crypto.ReceiptSucceeded)
 			receipt.Status = status
 			receipt.Fee.Components = []crypto.FeeComponent{{Name: "energy_fee", Amount: types.ZeroCryptoAmount()}, {Name: "bandwidth_fee", Amount: receipt.Fee.TotalFee, Quantity: 2}}
 			p := crypto.NetworkFeeProof{SchemaVersion: 1, Family: crypto.ChainFamilyTRON, NetworkID: c.network, TxHash: receipt.TxHash, PayerAddress: payer, NativeTokenID: c.native, BlockHash: receipt.BlockHash, BlockNumber: receipt.BlockHeight, Status: status, TotalFee: receipt.Fee.TotalFee, Components: receipt.Fee.Components, Confirmations: receipt.Confirmations, Finality: receipt.Finality, Canonicality: receipt.Canonicality, VerifiedAt: receipt.ObservedAt,
@@ -284,37 +285,24 @@ func TestNetworkFeeV2IncompleteFinancialSetsRollback(t *testing.T) {
 		})
 	}
 }
-func siblingNetworkFee(t *testing.T, f networkFeeFixture, model int, asset id.ID) id.ID {
+func siblingNetworkFee(t *testing.T, f networkFeeFixture, asset id.ID) id.ID {
 	t.Helper()
 	reservation, basis := id.New(), id.New()
-	_, err := f.tm.GetQuerier(f.ctx).Exec(f.ctx, `INSERT INTO reg_crypto_fee_reservations(id,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,tx_hash,status,accounting_model_version) VALUES($1,$2,$3,$4,$4,'NetworkFeeProofTest',$5,'sweep',1,'native_burn',10,$6,'broadcast',$7)`, reservation, f.reservation.NetworkID, f.reservation.PayerWalletID, asset, basis, f.receipt.TxHash, model)
+	_, err := f.tm.GetQuerier(f.ctx).Exec(f.ctx, `INSERT INTO reg_crypto_fee_reservations(id,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,tx_hash,status) VALUES($1,$2,$3,$4,$4,'NetworkFeeProofTest',$5,'sweep',1,'native_burn',10,$6,'broadcast')`, reservation, f.reservation.NetworkID, f.reservation.PayerWalletID, asset, basis, f.receipt.TxHash)
 	require.NoError(t, err)
 	return reservation
 }
-func TestNetworkFeeV2OneOwnerAcrossAliasesAndLegacy(t *testing.T) {
+func TestNetworkFeeV2OneOwnerAcrossAliases(t *testing.T) {
 	t.Run("alias", func(t *testing.T) {
 		f := newNetworkFeeFixture(t, crypto.SigningPurposeSweep)
 		alias := id.New()
 		_, err := f.tm.GetQuerier(f.ctx).Exec(f.ctx, `INSERT INTO cat_tokens(id,code,name,network_id,symbol,decimal_places,token_standard,contract_address,is_active) VALUES($1,$1::uuid::text,'Retired native alias',$2,'ETH-ALIAS',18,'native','',false)`, alias, f.reservation.NetworkID)
 		require.NoError(t, err)
-		second := siblingNetworkFee(t, f, 2, alias)
+		second := siblingNetworkFee(t, f, alias)
 		require.NoError(t, NewFeeBudgetManager().Settle(f.ctx, f.reservation.ID, f.receipt))
 		f.receipt.Fee.NativeAsset.TokenID = alias
 		f.prove(t)
 		require.Error(t, NewFeeBudgetManager().Settle(f.ctx, second, f.receipt))
-		require.Equal(t, []int{1, 1, 1, 1}, f.counts(t))
-	})
-	t.Run("legacy_first", func(t *testing.T) {
-		f := newNetworkFeeFixture(t, crypto.SigningPurposeSweep)
-		siblingNetworkFee(t, f, 1, f.reservation.NativeTokenID)
-		require.ErrorContains(t, NewFeeBudgetManager().Settle(f.ctx, f.reservation.ID, f.receipt), "explicit reconciliation")
-		require.Equal(t, []int{0, 0, 0, 0}, f.counts(t))
-	})
-	t.Run("legacy_late", func(t *testing.T) {
-		f := newNetworkFeeFixture(t, crypto.SigningPurposeSweep)
-		require.NoError(t, NewFeeBudgetManager().Settle(f.ctx, f.reservation.ID, f.receipt))
-		legacy := siblingNetworkFee(t, f, 1, f.reservation.NativeTokenID)
-		require.Error(t, NewFeeBudgetManager().Settle(f.ctx, legacy, f.receipt))
 		require.Equal(t, []int{1, 1, 1, 1}, f.counts(t))
 	})
 }
@@ -409,19 +397,19 @@ func TestNetworkFeeV2OutboundPrincipalCommitsWithItsIndependentFee(t *testing.T)
 					var service func() *outboundapp.SettlementService
 					switch kind {
 					case "withdrawal":
-						f := newWithdrawalFinalFixture(t, ctx, tm, c, 2)
+						f := newWithdrawalFinalFixture(t, ctx, tm, c)
 						r = &f.receipt
 						task = f.task
 						service = func() *outboundapp.SettlementService { return f.service(t) }
 						f.broadcast(t)
 					case "treasury":
-						f := newTreasuryFinalFixture(t, ctx, tm, c, 2)
+						f := newTreasuryFinalFixture(t, ctx, tm, c)
 						r = &f.receipt
 						task = f.task
 						service = func() *outboundapp.SettlementService { return f.service(t) }
 						f.broadcast(t)
 					case "sweep":
-						f := newSweepFinalFixture(t, ctx, tm, c, 1, 2)
+						f := newSweepFinalFixture(t, ctx, tm, c, 1)
 						r = &f.receipts[0]
 						task = f.tasks[0]
 						service = func() *outboundapp.SettlementService { return f.service(t, 0) }

@@ -5,7 +5,6 @@ package crypto_worker
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/application/outboundapp"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
@@ -15,6 +14,8 @@ import (
 	"metapus/internal/domain/registers/crypto_platform_cost"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestActivationCostRepairFencingPreservesFinancialOwner(t *testing.T) {

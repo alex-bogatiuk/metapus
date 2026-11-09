@@ -7,11 +7,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
+
+	"github.com/stretchr/testify/require"
 )
 
 type rolloutControlSigner struct{ t *testing.T }

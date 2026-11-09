@@ -1,10 +1,11 @@
 package crypto_worker
 
 import (
-	"github.com/stretchr/testify/require"
 	"metapus/internal/domain/crypto"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestIngestionMissingNativeIsNotHiddenByTokenCheckpoint(t *testing.T) {

@@ -23,7 +23,7 @@ func TestAMLExactSweepRenewalPreservesOriginalPayloadAndIsSingleUse(t *testing.T
 	auth, unsigned := f.allocationAuthorization(t, request)
 	auth.ExpiresAt = time.Now().Add(-time.Minute)
 	feeID := id.New()
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_fee_reservations(accounting_model_version,id,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,unsigned_fingerprint) VALUES(1,$1,$2,$3,$4,$5,'CryptoSweepAttempt',$6,'sweep',1,'native_burn',1,$7)`, feeID, request.NetworkID, request.SourceWalletID, native, request.TokenID, request.SweepAttemptID, auth.UnsignedFingerprint)
+	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_fee_reservations(id,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,unsigned_fingerprint) VALUES($1,$2,$3,$4,$5,'CryptoSweepAttempt',$6,'sweep',1,'native_burn',1,$7)`, feeID, request.NetworkID, request.SourceWalletID, native, request.TokenID, request.SweepAttemptID, auth.UnsignedFingerprint)
 	require.NoError(t, err)
 	require.NoError(t, f.repo.EnsureAMLResourceBudget(f.ctx, feeID))
 	row, err := newHistoricalAMLAuthorization(f.ctx, auth, unsigned)

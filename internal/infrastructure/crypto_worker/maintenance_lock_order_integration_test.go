@@ -8,13 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNativeFundingOperationalUpdatesLockWalletBeforeFunding(t *testing.T) {
@@ -114,8 +115,8 @@ func seedUnsignedMaintenanceAttempt(t *testing.T, ctx context.Context, tm *postg
         VALUES($5,$1,$2,$3,$4,'source','destination',999999,'held',NOW()-interval '1 hour');
         INSERT INTO reg_crypto_signing_authorizations(id,authorization_id,tenant_id,purpose,schema_version,network_id,network_code,chain_family,network_identifier,source_address,fee_payer_address,vault_key_id,destination_address,asset_standard,contract_address,amount_minor_units,max_network_fee_minor,basis_type,basis_id,attempt,generation,expires_at,policy_version,status,authorization_jws,unsigned_fingerprint,unsigned_envelope)
         VALUES($6,$6::text,$7,'sweep',1,$3,'test','tron','nile','source','source','test/key','destination','TRC-20','contract',999999,100,'CryptoSweepAttempt',$5,1,1,NOW()-interval '1 hour','tron-v1','created','saved-jws','saved-fingerprint-'||$5::text,'{"saved":true}');
-        INSERT INTO reg_crypto_fee_reservations(accounting_model_version,id,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,status)
-        VALUES(1,$8,$3,$1,$9,$2,'CryptoSweepAttempt',$5,'sweep',1,'native_burn',100,'reserved');`,
+        INSERT INTO reg_crypto_fee_reservations(id,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,status)
+        VALUES($8,$3,$1,$9,$2,'CryptoSweepAttempt',$5,'sweep',1,'native_burn',100,'reserved');`,
 		pgx.QueryExecModeSimpleProtocol, f.wallet, f.token, f.network, f.hot, attempt, auth, id.New().String(), fee, f.native)
 	require.NoError(t, err)
 	return attempt, auth, fee
@@ -205,9 +206,9 @@ func TestNativeFundingConcurrentCreationValidatesImmutableReplay(t *testing.T) {
 		require.Equal(t, 1, count)
 		require.Zero(t, movements)
 		ownFee, foreignFee := id.New(), id.New()
-		_, err = tm.GetQuerier(ctx).Exec(ctx, `INSERT INTO reg_crypto_fee_reservations(accounting_model_version,id,network_id,payer_wallet_id,native_token_id,operation_token_id,reserved_principal_minor,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,status)
-            VALUES(1,$1,$3,$4,$5,$5,100,'CryptoNativeFunding',$6,'native_funding',1,'native_funding',10,'reserved'),
-                  (1,$2,$3,$4,$5,$5,100,'CryptoNativeFunding',$7,'native_funding',1,'native_funding',10,'reserved')`, ownFee, foreignFee, f.network, f.hot, f.native, actual, id.New())
+		_, err = tm.GetQuerier(ctx).Exec(ctx, `INSERT INTO reg_crypto_fee_reservations(id,network_id,payer_wallet_id,native_token_id,operation_token_id,reserved_principal_minor,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,status)
+            VALUES($1,$3,$4,$5,$5,100,'CryptoNativeFunding',$6,'native_funding',1,'native_funding',10,'reserved'),
+                  ($2,$3,$4,$5,$5,100,'CryptoNativeFunding',$7,'native_funding',1,'native_funding',10,'reserved')`, ownFee, foreignFee, f.network, f.hot, f.native, actual, id.New())
 		require.NoError(t, err)
 		require.ErrorContains(t, store.LinkReservation(ctx, actual, foreignFee), "another intent")
 		require.NoError(t, store.LinkReservation(ctx, actual, ownFee))

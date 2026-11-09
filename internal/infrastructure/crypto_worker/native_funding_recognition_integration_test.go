@@ -7,13 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNativeFundingRecognitionFreezesBothSidesAndRejectsPaymentAlias(t *testing.T) {
@@ -112,6 +113,7 @@ func TestNativeFundingFeeCannotReleasePrincipalBeforeRecognition(t *testing.T) {
 		runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture) {
 			funding, _, receipt := seedNativeFundingConfirmation(t, ctx, tm, f)
 			receipt.Fee.TotalFee = types.NewCryptoAmountFromInt64(feeAmount)
+			receipt = reproveNetworkFee(t, ctx, receipt)
 			var reservation id.ID
 			require.NoError(t, tm.GetQuerier(ctx).QueryRow(ctx, "SELECT fee_reservation_id FROM doc_crypto_native_fundings WHERE id=$1", funding).Scan(&reservation))
 			err := NewFeeBudgetManager().Settle(ctx, reservation, receipt)

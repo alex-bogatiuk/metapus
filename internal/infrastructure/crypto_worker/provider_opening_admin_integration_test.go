@@ -8,7 +8,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/application/command"
 	"metapus/internal/application/cryptoapp"
 	appctx "metapus/internal/core/context"
@@ -22,6 +21,8 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
+
+	"github.com/stretchr/testify/require"
 )
 
 func (f providerOpeningFixture) admin(t *testing.T, byRole bool) context.Context {

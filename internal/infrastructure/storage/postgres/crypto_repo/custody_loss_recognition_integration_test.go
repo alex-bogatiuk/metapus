@@ -227,63 +227,10 @@ func TestCustodyLossV2ImmutableRecognitionAndLateLegacyWriter(t *testing.T) {
 	legacy, merchant := id.New(), id.New()
 	_, err := f.pool.Exec(f.ctx, `INSERT INTO cat_merchants(id,code,name) VALUES($1,$1::uuid::text,'Legacy merchant')`, merchant)
 	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_withdrawals(id,accounting_model_version,merchant_id,token_id,source_wallet_id,dest_address,amount,tx_hash,status) VALUES($1,1,$2,$3,$4,$5,23,$6,'broadcast')`, legacy, merchant, f.doc.TokenID, f.doc.WalletID, f.proof.Event.ToAddress, f.proof.Event.TxHash)
+	_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_withdrawals(id,merchant_id,token_id,source_wallet_id,dest_address,amount,tx_hash,status) VALUES($1,$2,$3,$4,$5,23,$6,'broadcast')`, legacy, merchant, f.doc.TokenID, f.doc.WalletID, f.proof.Event.ToAddress, f.proof.Event.TxHash)
 	require.NoError(t, err)
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_balance_movements(recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount) VALUES($1,'CryptoWithdrawal',1,now(),'expense',$2,$3,23)`, legacy, f.doc.WalletID, f.doc.TokenID)
 	require.ErrorContains(t, err, "recognized custody loss already owns this outgoing principal")
-}
-
-func TestCustodyLossV2AndAliasedLegacyWithdrawalCannotBothSpend(t *testing.T) {
-	for _, order := range []string{"legacy_first", "loss_first", "race"} {
-		t.Run(order, func(t *testing.T) {
-			f := newCustodyLossFixture(t, "")
-			alias, legacy, merchant := id.New(), id.New(), id.New()
-			_, err := f.pool.Exec(f.ctx, `INSERT INTO cat_tokens(id,code,name,network_id,token_standard,contract_address,symbol,decimal_places,deletion_mark)
-   SELECT $2,$2::uuid::text,'Retired asset alias',network_id,token_standard,contract_address,symbol,decimal_places,true FROM cat_tokens WHERE id=$1`, f.doc.TokenID, alias)
-			require.NoError(t, err)
-			_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_balance_movements(recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount) VALUES($1,'Opening',1,now(),'receipt',$2,$3,100)`, id.New(), f.doc.WalletID, alias)
-			require.NoError(t, err)
-			_, err = f.pool.Exec(f.ctx, `INSERT INTO cat_merchants(id,code,name) VALUES($1,$1::uuid::text,'Legacy merchant')`, merchant)
-			require.NoError(t, err)
-			_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_withdrawals(id,accounting_model_version,merchant_id,token_id,source_wallet_id,dest_address,amount,tx_hash,status) VALUES($1,1,$2,$3,$4,$5,23,$6,'broadcast')`, legacy, merchant, alias, f.doc.WalletID, f.proof.Event.ToAddress, f.proof.Event.TxHash)
-			require.NoError(t, err)
-			spend := func() error {
-				return postgres.MustGetTxManager(f.ctx).RunInTransaction(f.ctx, func(ctx context.Context) error {
-					q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
-					if _, err := q.Exec(ctx, `UPDATE doc_crypto_withdrawals SET posted=true,posted_version=1 WHERE id=$1`, legacy); err != nil {
-						return err
-					}
-					_, err := q.Exec(ctx, `INSERT INTO reg_crypto_balance_movements(recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount) VALUES($1,'CryptoWithdrawal',1,now(),'expense',$2,$3,23)`, legacy, f.doc.WalletID, alias)
-					return err
-				})
-			}
-			switch order {
-			case "legacy_first":
-				require.NoError(t, spend())
-				require.Error(t, f.approve())
-			case "loss_first":
-				require.NoError(t, f.approve())
-				require.Error(t, spend())
-			default:
-				results := make(chan error, 2)
-				var wg sync.WaitGroup
-				wg.Go(func() { results <- spend() })
-				wg.Go(func() { results <- f.approve() })
-				wg.Wait()
-				close(results)
-				successes := 0
-				for err := range results {
-					if err == nil {
-						successes++
-					}
-				}
-				require.Equal(t, 1, successes)
-			}
-			var movements int
-			require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT count(*) FROM reg_crypto_balance_movements WHERE recorder_id IN($1,$2)`, legacy, f.doc.ID).Scan(&movements))
-			require.Equal(t, 1, movements)
-		})
-	}
 }
 
 func TestCustodyLossV2KnownSignedEffectRequiresExecutionOwner(t *testing.T) {

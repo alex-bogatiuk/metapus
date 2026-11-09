@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/application/outboundapp"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
@@ -22,6 +21,8 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
+
+	"github.com/stretchr/testify/require"
 )
 
 type sweepFinalFixture struct {
@@ -41,12 +42,8 @@ func (d sweepReceiptDriver) VerifyExpectedTransfer(ctx context.Context, e crypto
 	return proof, err
 }
 
-func newSweepFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture, count int, feeModels ...int) sweepFinalFixture {
+func newSweepFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture, count int) sweepFinalFixture {
 	t.Helper()
-	feeModel := 1
-	if len(feeModels) > 0 {
-		feeModel = feeModels[0]
-	}
 	q := tm.GetQuerier(ctx)
 	var networkIdentifier string
 	require.NoError(t, q.QueryRow(ctx, `SELECT network_identifier FROM cat_blockchain_networks WHERE id=$1`, f.network).Scan(&networkIdentifier))
@@ -61,7 +58,7 @@ func newSweepFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxMana
 		if i > 0 {
 			wallet = id.New()
 			_, err = q.Exec(ctx, `INSERT INTO cat_wallets(id,code,name,network_id,address,vault_key_id,tier,wallet_role,status,chain_activation_status)
-				VALUES($1,$1::uuid::text,'Sweep source',$2,$1::uuid::text,'source-key','pool','merchant_pool','sweeping','active')`, wallet, f.network)
+				VALUES($1,$1::uuid::text,'Sweep source',$2,$3,'source-key','pool','merchant_pool','sweeping','active')`, wallet, f.network, testTRONAddress())
 			require.NoError(t, err)
 			_, err = q.Exec(ctx, `INSERT INTO reg_crypto_balance_balances(wallet_id,token_id,amount) VALUES($1,$2,1000),($1,$3,1000)`, wallet, f.token, f.native)
 			require.NoError(t, err)
@@ -85,8 +82,8 @@ func newSweepFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxMana
 		if f.token == f.native {
 			principal = amount
 		}
-		_, err = q.Exec(ctx, `INSERT INTO reg_crypto_fee_reservations(accounting_model_version,id,network_id,payer_wallet_id,native_token_id,operation_token_id,reserved_principal_minor,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,tx_hash,status)
-			VALUES($9,$1,$2,$3,$4,$5,$8,'CryptoSweepAttempt',$6,'sweep',1,'native_burn',10,$7,'broadcast')`, fee, f.network, wallet, f.native, f.token, line, hash, principal, feeModel)
+		_, err = q.Exec(ctx, `INSERT INTO reg_crypto_fee_reservations(id,network_id,payer_wallet_id,native_token_id,operation_token_id,reserved_principal_minor,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,tx_hash,status)
+			VALUES($1,$2,$3,$4,$5,$8,'CryptoSweepAttempt',$6,'sweep',1,'native_burn',10,$7,'broadcast')`, fee, f.network, wallet, f.native, f.token, line, hash, principal)
 		require.NoError(t, err)
 		auth := crypto.SigningAuthorization{SchemaVersion: 1, AuthorizationID: id.New().String(), TenantID: id.New().String(), Purpose: crypto.SigningPurposeSweep,
 			BasisType: "CryptoSweepAttempt", BasisID: line, Attempt: 1, Generation: 1, ExpiresAt: time.Now().Add(time.Hour), NetworkID: f.network, NetworkCode: "SWEEP-TEST", ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: networkIdentifier,

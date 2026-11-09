@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"metapus/internal/application/outboundapp"
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
@@ -24,6 +23,8 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
+
+	"github.com/stretchr/testify/require"
 )
 
 type withdrawalFinalFixture struct {
@@ -36,12 +37,8 @@ type withdrawalFinalFixture struct {
 	receipt   crypto.ChainReceipt
 }
 
-func newWithdrawalFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture, feeModels ...int) withdrawalFinalFixture {
+func newWithdrawalFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) withdrawalFinalFixture {
 	t.Helper()
-	feeModel := 1
-	if len(feeModels) > 0 {
-		feeModel = feeModels[0]
-	}
 	q := tm.GetQuerier(ctx)
 	var networkIdentifier string
 	require.NoError(t, q.QueryRow(ctx, `SELECT network_identifier FROM cat_blockchain_networks WHERE id=$1`, c.network).Scan(&networkIdentifier))
@@ -88,8 +85,8 @@ func newWithdrawalFinalFixture(t *testing.T, ctx context.Context, tm *postgres.T
 	_, err = repo.InsertSigningAuthorization(ctx, auth, "test-jws", unsigned, crypto.ApprovalBundle{IntentJWS: "test-intent"})
 	require.NoError(t, err)
 	require.NoError(t, repo.MarkSigningAuthorizationSigned(ctx, auth.AuthorizationID, crypto.SignedTxEnvelope{Family: crypto.ChainFamilyTRON, SchemaVersion: 1, Generation: 1, UnsignedFingerprint: auth.UnsignedFingerprint, TxHash: hash, Payload: []byte(`{}`)}))
-	_, err = q.Exec(ctx, `INSERT INTO reg_crypto_fee_reservations(accounting_model_version,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,status)
-		VALUES($6,$1,$2,$3,$4,'WithdrawalRequest',$5,'withdrawal',1,'native_burn',10,'reserved')`, c.network, c.hot, c.native, c.token, r.ID, feeModel)
+	_, err = q.Exec(ctx, `INSERT INTO reg_crypto_fee_reservations(network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,status)
+		VALUES($1,$2,$3,$4,'WithdrawalRequest',$5,'withdrawal',1,'native_burn',10,'reserved')`, c.network, c.hot, c.native, c.token, r.ID)
 	require.NoError(t, err)
 	f := withdrawalFinalFixture{ctx: ctx, tm: tm, doc: d, request: r,
 		task:      outboundapp.SettlementTask{Kind: outboundapp.SettlementWithdrawal, DocumentID: d.ID, RequestID: r.ID, MerchantID: merchant, NetworkID: c.network, OperationTokenID: c.token, SourceWalletID: c.hot, TxHash: hash, Amount: r.Amount, AccountingModelVersion: 2, PostedVersion: 1},
@@ -314,8 +311,8 @@ func TestWithdrawalV2ExpectedPrincipalCannotBecomeAnotherCustodyExpense(t *testi
 			VALUES($1,'CryptoCustodyAdjustment',1,now(),'expense',$2,$3,23)`, adjustment, c.hot, c.token)
 		require.ErrorContains(t, err, "expected withdrawal principal requires its settlement owner")
 		require.NoError(t, f.service(t).Settle(ctx, f.task))
-		_, err = q.Exec(ctx, `INSERT INTO doc_crypto_withdrawals(id,accounting_model_version,merchant_id,token_id,source_wallet_id,dest_address,amount,tx_hash,status)
-			VALUES($1,1,$2,$3,$4,$5,23,$6,'broadcast')`, legacy, f.request.MerchantID, c.token, c.hot, f.request.DestAddress, f.task.TxHash)
+		_, err = q.Exec(ctx, `INSERT INTO doc_crypto_withdrawals(id,merchant_id,token_id,source_wallet_id,dest_address,amount,tx_hash,status)
+			VALUES($1,$2,$3,$4,$5,23,$6,'broadcast')`, legacy, f.request.MerchantID, c.token, c.hot, f.request.DestAddress, f.task.TxHash)
 		require.NoError(t, err)
 		_, err = q.Exec(ctx, `INSERT INTO reg_crypto_balance_movements(recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount)
 			VALUES($1,'CryptoWithdrawal',1,now(),'expense',$2,$3,23)`, legacy, c.hot, c.token)

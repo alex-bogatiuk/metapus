@@ -30,12 +30,8 @@ func seedNativeFundingConfirmation(t *testing.T, ctx context.Context, txm *postg
 	return seedNativeFunding(t, ctx, txm, f, attempt, true)
 }
 
-func seedNativeFunding(t *testing.T, ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture, attempt int, verified bool, feeModels ...int) (id.ID, id.ID, crypto.ChainReceipt) {
+func seedNativeFunding(t *testing.T, ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture, attempt int, verified bool) (id.ID, id.ID, crypto.ChainReceipt) {
 	t.Helper()
-	model := 1
-	if len(feeModels) > 0 {
-		model = feeModels[0]
-	}
 	fundingID, feeID, attemptID, sweepID := id.New(), id.New(), id.New(), id.New()
 	txHash := strings.ReplaceAll(fundingID.String()+fundingID.String(), "-", "")
 	_, err := txm.GetQuerier(ctx).Exec(ctx, `
@@ -45,13 +41,13 @@ func seedNativeFunding(t *testing.T, ctx context.Context, txm *postgres.TxManage
 		VALUES($10,$10::text,$11,$2,999999,'created');
 		INSERT INTO reg_crypto_sweep_attempts(id,wallet_id,token_id,network_id,hot_wallet_id,sweep_id,source_address,destination_address,amount,status,expires_at)
 		VALUES($9,$1,$11,$4,$2,$10,'source','destination',999999,'expired',NOW()-interval '1 hour');
-		INSERT INTO reg_crypto_fee_reservations(accounting_model_version,id,network_id,payer_wallet_id,native_token_id,operation_token_id,reserved_principal_minor,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,tx_hash,status)
-		VALUES($13,$6,$4,$2,$3,$3,100,'CryptoNativeFunding',$5,'native_funding',1,'native_funding',10,$7,'broadcast');
+		INSERT INTO reg_crypto_fee_reservations(id,network_id,payer_wallet_id,native_token_id,operation_token_id,reserved_principal_minor,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,tx_hash,status)
+		VALUES($6,$4,$2,$3,$3,100,'CryptoNativeFunding',$5,'native_funding',1,'native_funding',10,$7,'broadcast');
 		INSERT INTO doc_crypto_native_fundings(id,basis_type,basis_id,attempt,network_id,native_token_id,source_wallet_id,destination_wallet_id,amount_minor,fee_reservation_id,status,tx_hash)
 		VALUES($5,'CryptoSweepAttempt',$9,$12,$4,$3,$2,$1,100,$6,'broadcast',$7);
 		INSERT INTO reg_crypto_wallet_allocation_holds(wallet_id,reason,owner_type,owner_id,held_by)
 		VALUES($1,'chain_balance_mismatch','reconciliation_incident',$8,'test');
-	`, pgx.QueryExecModeSimpleProtocol, f.wallet, f.hot, f.native, f.network, fundingID, feeID, txHash, fundingID.String(), attemptID, sweepID, f.token, attempt, model)
+	`, pgx.QueryExecModeSimpleProtocol, f.wallet, f.hot, f.native, f.network, fundingID, feeID, txHash, fundingID.String(), attemptID, sweepID, f.token, attempt)
 	require.NoError(t, err)
 	if txm.GetTx(ctx) == nil {
 		t.Cleanup(func() {
@@ -70,7 +66,19 @@ func seedNativeFunding(t *testing.T, ctx context.Context, txm *postgres.TxManage
 		_, err = crypto_repo.NewBlockIngestionRepo().SaveVerification(ctx, proof)
 		require.NoError(t, err)
 	}
+	receipt, err = attachNetworkFeeProof(ctx, receipt)
+	require.NoError(t, err)
 	return fundingID, sweepID, receipt
+}
+
+// reproveNetworkFee replaces the fixture fee proof after a test changes the
+// chain outcome it reports.
+func reproveNetworkFee(t *testing.T, ctx context.Context, r crypto.ChainReceipt) crypto.ChainReceipt {
+	t.Helper()
+	r.FeeProof = nil
+	r, err := attachNetworkFeeProof(ctx, r)
+	require.NoError(t, err)
+	return r
 }
 
 func nativeFundingProof(t *testing.T, ctx context.Context, txm *postgres.TxManager, fundingID id.ID, receipt crypto.ChainReceipt) crypto.TransferVerification {
@@ -122,7 +130,39 @@ func (d fundingReceiptDriver) Receipt(ctx context.Context, hash string) (crypto.
 	if hash != d.receipt.TxHash {
 		return crypto.ChainReceipt{}, errors.New("unexpected receipt")
 	}
-	return d.receipt, nil
+	return attachNetworkFeeProof(ctx, d.receipt)
+}
+
+// attachNetworkFeeProof gives a receipt the independent fee proof a reserved
+// payer would obtain from two providers, unless the test supplied its own.
+func attachNetworkFeeProof(ctx context.Context, r crypto.ChainReceipt) (crypto.ChainReceipt, error) {
+	if r.FeeProof != nil || id.IsNil(r.Fee.NativeAsset.TokenID) || !r.FinanciallyFinal() {
+		return r, nil
+	}
+	var payer string
+	err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `SELECT w.address_key FROM reg_crypto_fee_reservations f
+		JOIN cat_wallets w ON w.id=f.payer_wallet_id WHERE f.network_id=$1 AND f.tx_hash=$2 ORDER BY f.attempt DESC LIMIT 1`, r.NetworkID, r.TxHash).Scan(&payer)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return r, nil
+	}
+	if err != nil {
+		return crypto.ChainReceipt{}, err
+	}
+	if r.Fee.TotalFee.IsZero() {
+		r.Fee.TotalFee = types.ZeroCryptoAmount()
+	}
+	r.Fee.Components = []crypto.FeeComponent{{Name: "energy_fee", Amount: types.ZeroCryptoAmount()}, {Name: "bandwidth_fee", Amount: r.Fee.TotalFee, Quantity: 2}}
+	head := r.BlockHeight + int64(r.Confirmations) - 1
+	p := crypto.NetworkFeeProof{SchemaVersion: 1, Family: crypto.ChainFamilyTRON, NetworkID: r.NetworkID, TxHash: r.TxHash, PayerAddress: payer, NativeTokenID: r.Fee.NativeAsset.TokenID,
+		BlockHash: r.BlockHash, BlockNumber: r.BlockHeight, Status: r.Status, TotalFee: r.Fee.TotalFee, Components: r.Fee.Components, Confirmations: r.Confirmations,
+		Finality: r.Finality, Canonicality: r.Canonicality, VerifiedAt: r.ObservedAt,
+		Sources: []crypto.VerificationSource{{ProviderID: "one", TrustGroup: "one", SourceDigest: strings.Repeat("a", 64), HeadHash: strings.Repeat("c", 64), HeadHeight: head},
+			{ProviderID: "two", TrustGroup: "two", SourceDigest: strings.Repeat("b", 64), HeadHash: strings.Repeat("c", 64), HeadHeight: head}}}
+	for i := range p.Sources {
+		p.Sources[i].Digest = p.Digest()
+	}
+	r.FeeProof = &p
+	return r, p.ValidateReceipt(r)
 }
 func (d fundingReceiptDriver) FinalizedBlock(context.Context) (int64, string, error) {
 	return 100, "canonical-block", nil
@@ -298,6 +338,7 @@ func TestNativeFundingRevertedAndProvisionalReceipts(t *testing.T) {
 				case "cap_exceeded":
 					receipt.Fee.TotalFee = types.NewCryptoAmountFromInt64(11)
 				}
+				receipt = reproveNetworkFee(t, ctx, receipt)
 				service := cryptoapp.NewNativeFundingSettlementService(contextTxManager{}, nativeFundingSettlementRepo{}, NewFeeBudgetManager())
 				settled, err := service.Settle(ctx, fundingID, receipt)
 				require.False(t, settled)

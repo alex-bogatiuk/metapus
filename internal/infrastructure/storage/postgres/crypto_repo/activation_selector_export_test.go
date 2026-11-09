@@ -37,9 +37,9 @@ func NewActivationSelectorFixture(t *testing.T, owned ...bool) ActivationSelecto
 	}
 	_, err := f.Pool.Exec(f.Ctx, `INSERT INTO cat_tokens(id,code,name,network_id,symbol,decimal_places,token_standard) VALUES($1,$1::uuid::text,'Activation native',$2,'TRX',6,'native');
  INSERT INTO cat_wallets(id,code,name,network_id,custody_merchant_id,address,vault_key_id,tier,wallet_role,chain_activation_status)
- VALUES($3,'ACT-H-'||$3::uuid::text,'Activation payer',$2,$5,'payer-'||$3::uuid::text,'selector-key','hot','network_fee','active'),
+ VALUES($3,'ACT-H-'||$3::uuid::text,'Activation payer',$2,$5,$6,'selector-key','hot','network_fee','active'),
  ($4,'ACT-B-'||$4::uuid::text,'Activation target B',$2,$5,'target-'||$4::uuid::text,'selector-key','pool','merchant_pool','unknown');
- INSERT INTO reg_crypto_balance_balances(wallet_id,token_id,amount) VALUES($3,$1,1000)`, pgx.QueryExecModeSimpleProtocol, f.Native, f.Network, f.Hot, f.B, merchant)
+ INSERT INTO reg_crypto_balance_balances(wallet_id,token_id,amount) VALUES($3,$1,1000)`, pgx.QueryExecModeSimpleProtocol, f.Native, f.Network, f.Hot, f.B, merchant, testTRONAddress())
 	require.NoError(t, err)
 	if id.IsNil(f.Merchant) {
 		_, err = f.Pool.Exec(f.Ctx, `INSERT INTO cat_wallets(id,code,name,network_id,address,vault_key_id,tier,wallet_role,chain_activation_status) VALUES($1,'ACT-A-'||$1::uuid::text,'Activation target A',$2,'target-'||$1::uuid::text,'selector-key','pool','merchant_pool','unknown')`, f.A, f.Network)

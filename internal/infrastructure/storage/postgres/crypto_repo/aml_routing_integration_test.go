@@ -37,6 +37,9 @@ func newAMLRoutingFixture(t *testing.T, baseline bool, family ...crypto.ChainFam
 		require.NoError(t, err)
 		_, err = pool.Exec(ctx, `UPDATE cat_tokens SET token_standard='erc20' WHERE id=$1`, input.Request.TokenID)
 		require.NoError(t, err)
+		// Recompute the family-specific address key of the seeded wallet.
+		_, err = pool.Exec(ctx, `UPDATE cat_wallets SET address=address WHERE network_id=$1`, input.Request.NetworkID)
+		require.NoError(t, err)
 	}
 	_, err := pool.Exec(ctx, `UPDATE reg_crypto_aml_jobs SET status='needs_attention' WHERE id=$1`, unused)
 	require.NoError(t, err)
@@ -249,77 +252,6 @@ func (f amlRoutingFixture) collector(t *testing.T, merchant id.ID, address strin
  VALUES($1,$2,'Risk collector',$3,$4,$5,$2,$2,'liquidity_hot','hot','active')`, walletID, walletID.String(), f.input.Request.NetworkID, merchant, address)
 	require.NoError(t, err)
 	return walletID
-}
-
-func TestAMLRoutingLateHighFollowsPhysicalSourceWithoutCrossingMerchants(t *testing.T) {
-	f := newAMLRoutingFixture(t, true)
-	deposit := f.proof(f.input.Request.Address, "original-deposit", 1)
-	proofID, effectID := f.save(t, deposit)
-	f.postPayment(t, deposit, proofID, f.input.WalletID)
-	f.complete(t, effectID, 1000, true)
-	f.rebuild(t)
-	collector := f.collector(t, f.input.Request.MerchantID, "own-collector")
-	f.baseline(t, collector)
-	source := f.input.Request.Address
-	auth := crypto.SigningAuthorization{SchemaVersion: 1, AuthorizationID: id.New().String(), TenantID: id.New().String(), MerchantID: &f.input.Request.MerchantID,
-		Purpose: crypto.SigningPurposeSweep, BasisType: "CryptoSweepAttempt", BasisID: id.New(), Attempt: 1, Generation: 1, ExpiresAt: time.Now().Add(time.Hour), NetworkID: f.input.Request.NetworkID, NetworkCode: "RISK-TEST", ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: "nile", SourceAddress: source, FeePayerAddress: source, VaultKeyID: "test-key", DestinationAddress: "own-collector", AssetStandard: "trc20", ContractAddress: "test-contract", AmountMinorUnits: types.MustCryptoAmount("100"), MaxNetworkFeeMinor: types.MustCryptoAmount("1"), UnsignedFingerprint: "historical-fingerprint", PolicyVersion: "tron-v1"}
-	unsigned := crypto.UnsignedTxEnvelope{Family: crypto.ChainFamilyTRON, SchemaVersion: 1, UnsignedFingerprint: auth.UnsignedFingerprint, Generation: 1, Payload: []byte(`{"historical":true}`)}
-	signingID, err := newHistoricalAMLAuthorization(f.ctx, auth, unsigned)
-	require.NoError(t, err)
-	txHash := "controlled-sweep"
-	signed, _ := json.Marshal(crypto.SignedTxEnvelope{Family: crypto.ChainFamilyTRON, SchemaVersion: 1, UnsignedFingerprint: auth.UnsignedFingerprint, Generation: 1, TxHash: txHash, Payload: []byte(`{"historical":true}`)})
-	_, err = f.pool.Exec(f.ctx, `UPDATE reg_crypto_signing_authorizations SET status='signed',tx_hash=$2,signed_envelope=$3::jsonb WHERE id=$1`, signingID, txHash, string(signed))
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_expected_chain_effects(signing_authorization_id,ordinal,network_id,event_kind,source_address_key,destination_address_key,token_id,contract_address_key,amount,tx_hash) VALUES($1,0,$2,'contract_log',$3,'own-collector',$4,'test-contract',100,$5)`, signingID, f.input.Request.NetworkID, source, f.input.Request.TokenID, txHash)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_sweep_attempts(id,wallet_id,token_id,network_id,hot_wallet_id,source_address,destination_address,amount,status,claimed_at,expires_at) VALUES($1,$2,$3,$4,$5,$6,'own-collector',100,'broadcast',NOW(),NOW()+interval '1 hour')`, auth.BasisID, f.input.WalletID, f.input.Request.TokenID, f.input.Request.NetworkID, collector, source)
-	require.NoError(t, err)
-	internal := f.proof("own-collector", txHash, 1)
-	internal.Event.FromAddress = source
-	internal.Event.Direction = crypto.TransferDirectionInternal
-	_, internalEffect := f.save(t, internal)
-	var linked *id.ID
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT source_wallet_id FROM reg_crypto_aml_effects WHERE id=$1`, internalEffect).Scan(&linked))
-	require.NotNil(t, linked)
-	require.Equal(t, f.input.WalletID, *linked)
-	var count int
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT COUNT(*) FROM reg_crypto_aml_effect_checks WHERE effect_id=$1`, internalEffect).Scan(&count))
-	require.Zero(t, count, "a controlled internal transfer inherits source evidence without another paid submit")
-	sweepID := id.New()
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_sweeps(accounting_model_version,id,token_id,hot_wallet_id,total_amount,posted,posted_version,status) VALUES(1,$1,$2,$3,100,TRUE,1,'broadcast')`, sweepID, f.input.Request.TokenID, collector)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_sweep_lines(line_id,document_id,wallet_id,amount,tx_hash) VALUES($1,$2,$3,100,$4)`, auth.BasisID, sweepID, f.input.WalletID, txHash)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_balance_movements(recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount) VALUES($1,'CryptoSweep',1,NOW(),'expense',$2,$4,100),($1,'CryptoSweep',1,NOW(),'receipt',$3,$4,100)`, sweepID, f.input.WalletID, collector, f.input.Request.TokenID)
-	require.NoError(t, err)
-	f.rebuild(t)
-	require.Equal(t, aml.Low, f.class(t, collector))
-	// A second merchant has an independent low inventory in the same network.
-	merchantB := id.New()
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO cat_merchants(id,code,name) VALUES($1,$2,'Unrelated merchant')`, merchantB, merchantB.String())
-	require.NoError(t, err)
-	bWallet := f.collector(t, merchantB, "merchant-b")
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO sys_crypto_aml_routing_scopes(merchant_id,network_id,token_id,enabled,policy_version,provider_account_id,mapping_version) VALUES($1,$2,$3,TRUE,'routing-v1',$4,'test-mapping-v1')`, merchantB, f.input.Request.NetworkID, f.input.Request.TokenID, f.input.ProviderAccountID)
-	require.NoError(t, err)
-	b := f
-	b.input = f.input
-	b.input.WalletID = bWallet
-	b.input.Request.MerchantID = merchantB
-	b.input.Request.Address = "merchant-b"
-	b.baseline(t, bWallet)
-	bProof := b.proof("merchant-b", "b-deposit", 1)
-	bProofID, bEffect := b.save(t, bProof)
-	b.postPayment(t, bProof, bProofID, bWallet)
-	b.complete(t, bEffect, 1000, true)
-	b.rebuild(t)
-	require.Equal(t, aml.Low, b.class(t, bWallet))
-	_, err = f.repo.RequestAMLRescreen(f.ctx, effectID, 1, "late high risk attribution", "test-operator")
-	require.NoError(t, err)
-	require.Equal(t, aml.Unknown, f.class(t, collector))
-	f.complete(t, effectID, 9500, true)
-	f.rebuild(t)
-	require.Equal(t, aml.High, f.class(t, collector))
-	require.Equal(t, aml.Low, b.class(t, bWallet))
 }
 
 func newHistoricalAMLAuthorization(ctx context.Context, auth crypto.SigningAuthorization, unsigned crypto.UnsignedTxEnvelope) (id.ID, error) {
