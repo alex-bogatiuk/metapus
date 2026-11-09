@@ -453,3 +453,11 @@ func IsConcurrentModification(err error) bool {
 	}
 	return false
 }
+
+// IsForbidden checks if error is CodeForbidden
+func IsForbidden(err error) bool {
+	if appErr, ok := AsAppError(err); ok {
+		return appErr.Code == CodeForbidden
+	}
+	return false
+}

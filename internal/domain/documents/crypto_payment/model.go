@@ -172,11 +172,11 @@ func CalculateFee(amount, fixed types.CryptoAmount, percentBP int, minFee, maxFe
 		total = maxFee
 	}
 	fee = total
-	net = amount.Sub(fee)
-	if !net.IsPositive() {
-		net = types.ZeroCryptoAmount()
+	if fee.Cmp(amount) >= 0 {
+		// A fee at or above the gross leaves nothing to credit; callers reject it.
+		return fee, types.ZeroCryptoAmount()
 	}
-	return fee, net
+	return fee, amount.Sub(fee)
 }
 
 // FeeAmount calculates the platform fee using the snapshotted fee config.

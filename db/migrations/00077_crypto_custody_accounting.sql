@@ -138,17 +138,111 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-
 CREATE FUNCTION fn_crypto_receipt_suspense_apply() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
-    IF NOT EXISTS(SELECT 1 FROM doc_crypto_custody_receipts d WHERE d.id=NEW.receipt_id
-        AND d.id=NEW.recorder_id AND d.token_id=NEW.token_id AND d.amount=NEW.amount
-        AND d.suspense_line_id=NEW.line_id AND d.date=NEW.period) THEN
-        RAISE EXCEPTION 'suspense movement requires its exact receipt basis' USING ERRCODE='23514';
+    IF NEW.recorder_type='CryptoCustodyReceipt' THEN
+        IF NOT EXISTS(SELECT 1 FROM doc_crypto_custody_receipts d WHERE d.id=NEW.receipt_id
+            AND d.id=NEW.recorder_id AND d.token_id=NEW.token_id AND d.amount=NEW.amount
+            AND d.suspense_line_id=NEW.line_id AND d.date=NEW.period) THEN
+            RAISE EXCEPTION 'suspense movement requires its exact receipt basis' USING ERRCODE='23514';
+        END IF;
+        INSERT INTO reg_crypto_receipt_suspense_balances(receipt_id,token_id,amount,last_movement_at)
+        VALUES(NEW.receipt_id,NEW.token_id,NEW.amount,NEW.period);
+        RETURN NEW;
     END IF;
-    INSERT INTO reg_crypto_receipt_suspense_balances(receipt_id,token_id,amount,last_movement_at)
-    VALUES(NEW.receipt_id,NEW.token_id,NEW.amount,NEW.period);
+    IF NOT EXISTS(SELECT 1 FROM doc_crypto_merchant_credits c WHERE c.id=NEW.recorder_id
+        AND c.receipt_id=NEW.receipt_id AND c.token_id=NEW.token_id AND c.amount=NEW.amount
+        AND c.suspense_line_id=NEW.line_id AND c.date=NEW.period) THEN
+        RAISE EXCEPTION 'suspense consumption requires its exact merchant credit' USING ERRCODE='23514';
+    END IF;
+    -- The CHECK(amount>=0) on the balance rejects attribution above the remainder.
+    UPDATE reg_crypto_receipt_suspense_balances SET amount=amount-NEW.amount,last_movement_at=NEW.period,updated_at=NOW()
+        WHERE receipt_id=NEW.receipt_id AND token_id=NEW.token_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'suspense consumption requires a recorded receipt' USING ERRCODE='23514';
+    END IF;
     RETURN NEW;
+END;
+$$;
+
+-- The fee is the merchant tariff snapshot; the approval requirement follows
+-- the token policy. The custody owner of a merchant-owned wallet is the only
+-- merchant that may receive its receipt.
+CREATE FUNCTION fn_crypto_merchant_credit_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE r doc_crypto_custody_receipts; fee NUMERIC; threshold NUMERIC;
+BEGIN
+    IF TG_OP='DELETE' THEN RAISE EXCEPTION 'merchant credit history is immutable' USING ERRCODE='23514'; END IF;
+    IF TG_OP='UPDATE' THEN
+        IF OLD.status<>'prepared' OR NEW.status='prepared'
+           OR (to_jsonb(NEW)-ARRAY['status','posted','posted_version','decided_by','decided_at','decision_reason','version','updated_at','updated_by','_txid'])
+              IS DISTINCT FROM
+              (to_jsonb(OLD)-ARRAY['status','posted','posted_version','decided_by','decided_at','decision_reason','version','updated_at','updated_by','_txid']) THEN
+            RAISE EXCEPTION 'merchant credit only permits its single decision' USING ERRCODE='23514';
+        END IF;
+        RETURN NEW;
+    END IF;
+    SELECT * INTO r FROM doc_crypto_custody_receipts WHERE id=NEW.receipt_id;
+    IF NOT FOUND OR NOT r.posted OR r.token_id<>NEW.token_id
+       OR (r.custody_merchant_id IS NOT NULL AND r.custody_merchant_id<>NEW.merchant_id)
+       OR (NEW.invoice_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM doc_crypto_invoices i
+            WHERE i.id=NEW.invoice_id AND i.merchant_id=NEW.merchant_id AND i.token_id=NEW.token_id)) THEN
+        RAISE EXCEPTION 'merchant credit requires its receipt, custody owner and invoice' USING ERRCODE='23514';
+    END IF;
+    fee:=NEW.fee_fixed+trunc(NEW.amount*NEW.fee_percent_bp/10000);
+    IF NEW.fee_min>0 THEN fee:=greatest(fee,NEW.fee_min); END IF;
+    IF NEW.fee_max>0 THEN fee:=least(fee,NEW.fee_max); END IF;
+    IF fee<>NEW.processing_fee THEN
+        RAISE EXCEPTION 'merchant credit fee must follow its tariff snapshot' USING ERRCODE='23514';
+    END IF;
+    SELECT dual_approval_threshold INTO threshold FROM sys_crypto_receipt_credit_policies WHERE token_id=NEW.token_id;
+    IF NEW.approval_required IS DISTINCT FROM (threshold IS NULL OR NEW.amount>threshold) THEN
+        RAISE EXCEPTION 'merchant credit approval requirement follows the token policy' USING ERRCODE='23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION fn_crypto_assert_merchant_credit(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE c doc_crypto_merchant_credits;
+BEGIN
+    SELECT * INTO c FROM doc_crypto_merchant_credits WHERE id=target;
+    IF NOT FOUND THEN RAISE EXCEPTION 'merchant credit movements require their document' USING ERRCODE='23514'; END IF;
+    IF NOT c.posted THEN
+        IF EXISTS(SELECT 1 FROM reg_crypto_receipt_suspense_movements WHERE recorder_id=c.id)
+           OR EXISTS(SELECT 1 FROM reg_crypto_merchant_balance_movements WHERE recorder_id=c.id)
+           OR EXISTS(SELECT 1 FROM reg_crypto_fee_movements WHERE recorder_id=c.id) THEN
+            RAISE EXCEPTION 'unposted merchant credit cannot move money' USING ERRCODE='23514';
+        END IF;
+        RETURN;
+    END IF;
+    IF (SELECT count(*) FROM reg_crypto_receipt_suspense_movements WHERE recorder_id=c.id)<>1
+       OR NOT EXISTS(SELECT 1 FROM reg_crypto_receipt_suspense_movements WHERE line_id=c.suspense_line_id AND recorder_id=c.id
+            AND recorder_type='CryptoMerchantCredit' AND recorder_version=1 AND record_type='expense'
+            AND receipt_id=c.receipt_id AND token_id=c.token_id AND amount=c.amount)
+       OR (SELECT count(*) FROM reg_crypto_merchant_balance_movements WHERE recorder_id=c.id)<>(CASE WHEN c.net_amount>0 THEN 1 ELSE 0 END)
+       OR (c.net_amount>0 AND NOT EXISTS(SELECT 1 FROM reg_crypto_merchant_balance_movements WHERE line_id=c.merchant_line_id
+            AND recorder_id=c.id AND recorder_type='CryptoMerchantCredit' AND recorder_version=1 AND record_type='receipt'
+            AND merchant_id=c.merchant_id AND token_id=c.token_id AND amount=c.net_amount))
+       OR (SELECT count(*) FROM reg_crypto_fee_movements WHERE recorder_id=c.id)<>(CASE WHEN c.processing_fee>0 THEN 1 ELSE 0 END)
+       OR (c.processing_fee>0 AND NOT EXISTS(SELECT 1 FROM reg_crypto_fee_movements WHERE line_id=c.fee_line_id
+            AND recorder_id=c.id AND recorder_type='CryptoMerchantCredit' AND recorder_version=1 AND record_type='receipt'
+            AND merchant_id=c.merchant_id AND token_id=c.token_id AND fee_type='processing' AND amount=c.processing_fee))
+       OR EXISTS(SELECT 1 FROM reg_crypto_balance_movements WHERE recorder_id=c.id)
+       OR EXISTS(SELECT 1 FROM reg_crypto_platform_cost_movements WHERE recorder_id=c.id)
+       OR EXISTS(SELECT 1 FROM reg_crypto_provider_balance_movements WHERE recorder_id=c.id) THEN
+        RAISE EXCEPTION 'merchant credit requires its complete attribution set' USING ERRCODE='23514';
+    END IF;
+END;
+$$;
+
+CREATE FUNCTION fn_crypto_merchant_credit_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_TABLE_NAME='doc_crypto_merchant_credits' THEN
+        PERFORM fn_crypto_assert_merchant_credit(NEW.id);
+    ELSIF NEW.recorder_type='CryptoMerchantCredit' THEN
+        PERFORM fn_crypto_assert_merchant_credit(NEW.recorder_id);
+    END IF;
+    RETURN NULL;
 END;
 $$;
 
@@ -3485,19 +3579,85 @@ ALTER TABLE reg_crypto_inbound_chain_events
 CREATE INDEX idx_crypto_inbound_receipt_candidates ON reg_crypto_inbound_chain_events(receipt_check_at NULLS FIRST,created_at,id)
     WHERE receipt_id IS NULL AND match_status IN ('unmatched','needs_review') AND wallet_id IS NOT NULL AND token_id IS NOT NULL AND _deleted_at IS NULL;
 
+-- Operator attribution of an unidentified receipt to a merchant. Below the
+-- token threshold one operator posts it; above it (or without a policy) a
+-- second person approves the prepared credit.
+CREATE TABLE sys_crypto_receipt_credit_policies (
+    token_id UUID PRIMARY KEY REFERENCES cat_tokens(id),
+    dual_approval_threshold NUMERIC(78,0) NOT NULL CHECK(dual_approval_threshold>=0),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE doc_crypto_merchant_credits (
+    id UUID PRIMARY KEY,
+    deletion_mark BOOLEAN NOT NULL DEFAULT FALSE CHECK(NOT deletion_mark),
+    version INT NOT NULL DEFAULT 1 CHECK(version>0),
+    attributes JSONB NOT NULL DEFAULT '{}',
+    _deleted_at TIMESTAMPTZ CHECK(_deleted_at IS NULL),
+    _txid BIGINT NOT NULL DEFAULT txid_current(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by UUID,
+    updated_by UUID,
+    number TEXT NOT NULL UNIQUE CHECK(btrim(number)<>''),
+    date TIMESTAMPTZ NOT NULL,
+    posted BOOLEAN NOT NULL DEFAULT FALSE,
+    posted_version INT NOT NULL DEFAULT 0,
+    basis_type TEXT NOT NULL CHECK(basis_type='CryptoCustodyReceipt'),
+    basis_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
+    description TEXT NOT NULL DEFAULT '',
+    receipt_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
+    merchant_id UUID NOT NULL REFERENCES cat_merchants(id),
+    invoice_id UUID REFERENCES doc_crypto_invoices(id),
+    token_id UUID NOT NULL REFERENCES cat_tokens(id),
+    amount NUMERIC(78,0) NOT NULL CHECK(amount>0),
+    net_amount NUMERIC(78,0) NOT NULL CHECK(net_amount>=0),
+    processing_fee NUMERIC(78,0) NOT NULL CHECK(processing_fee>=0),
+    fee_fixed NUMERIC(78,0) NOT NULL CHECK(fee_fixed>=0),
+    fee_percent_bp INT NOT NULL CHECK(fee_percent_bp BETWEEN 0 AND 10000),
+    fee_min NUMERIC(78,0) NOT NULL CHECK(fee_min>=0),
+    fee_max NUMERIC(78,0) NOT NULL CHECK(fee_max>=0),
+    status TEXT NOT NULL CHECK(status IN ('prepared','posted','rejected')),
+    approval_required BOOLEAN NOT NULL,
+    prepared_by UUID NOT NULL,
+    prepared_at TIMESTAMPTZ NOT NULL,
+    decided_by UUID,
+    decided_at TIMESTAMPTZ,
+    decision_reason TEXT NOT NULL DEFAULT '',
+    suspense_line_id UUID NOT NULL UNIQUE,
+    merchant_line_id UUID NOT NULL UNIQUE,
+    fee_line_id UUID NOT NULL UNIQUE,
+    CHECK(basis_id=receipt_id),
+    CHECK(amount=net_amount+processing_fee),
+    CHECK((status='posted')=posted AND (posted_version IN (0,1)) AND (posted=(posted_version=1))),
+    CHECK((status='prepared' AND decided_by IS NULL AND decided_at IS NULL)
+       OR (status<>'prepared' AND decided_by IS NOT NULL AND decided_at IS NOT NULL)),
+    CHECK(status<>'posted' OR NOT approval_required OR decided_by<>prepared_by),
+    CHECK(status<>'rejected' OR btrim(decision_reason)<>'')
+);
+CREATE UNIQUE INDEX uq_crypto_merchant_credit_open ON doc_crypto_merchant_credits(receipt_id) WHERE status='prepared';
+CREATE INDEX idx_crypto_merchant_credits_merchant ON doc_crypto_merchant_credits(merchant_id,date,id);
+CREATE TRIGGER trg_crypto_merchant_credit_txid BEFORE UPDATE ON doc_crypto_merchant_credits
+    FOR EACH ROW EXECUTE FUNCTION update_txid_column();
+
 CREATE TABLE reg_crypto_receipt_suspense_movements (
     line_id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
-    recorder_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
-    recorder_type TEXT NOT NULL CHECK(recorder_type='CryptoCustodyReceipt'),
+    recorder_id UUID NOT NULL,
+    recorder_type TEXT NOT NULL CHECK(recorder_type IN ('CryptoCustodyReceipt','CryptoMerchantCredit')),
     recorder_version INT NOT NULL CHECK(recorder_version=1),
     period TIMESTAMPTZ NOT NULL,
-    record_type TEXT NOT NULL CHECK(record_type='receipt'),
+    record_type TEXT NOT NULL CHECK(record_type IN ('receipt','expense')),
     receipt_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
     token_id UUID NOT NULL REFERENCES cat_tokens(id),
     amount NUMERIC(78,0) NOT NULL CHECK(amount>0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(receipt_id)
+    -- A receipt adds its gross once; attribution documents only consume it.
+    CHECK((recorder_type='CryptoCustodyReceipt' AND record_type='receipt' AND recorder_id=receipt_id)
+       OR (recorder_type='CryptoMerchantCredit' AND record_type='expense'))
 );
+CREATE UNIQUE INDEX uq_crypto_receipt_suspense_origin ON reg_crypto_receipt_suspense_movements(receipt_id)
+    WHERE recorder_type='CryptoCustodyReceipt';
+CREATE UNIQUE INDEX uq_crypto_receipt_suspense_recorder ON reg_crypto_receipt_suspense_movements(recorder_id)
+    WHERE recorder_type='CryptoMerchantCredit';
 
 CREATE TABLE reg_crypto_receipt_suspense_balances (
     receipt_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
@@ -4293,11 +4453,39 @@ CREATE TRIGGER trg_crypto_custody_decision_audit AFTER UPDATE ON doc_crypto_cust
 CREATE CONSTRAINT TRIGGER trg_crypto_outflow_decision_complete AFTER INSERT OR UPDATE ON reg_crypto_external_outflows DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_outflow_decision_audit_complete();
 
 CREATE CONSTRAINT TRIGGER trg_crypto_custody_decision_complete AFTER INSERT OR UPDATE ON doc_crypto_custody_adjustments DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_outflow_decision_audit_complete();
+
+CREATE TRIGGER trg_crypto_merchant_credit_guard BEFORE INSERT OR UPDATE OR DELETE ON doc_crypto_merchant_credits
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_merchant_credit_guard();
+CREATE CONSTRAINT TRIGGER trg_crypto_merchant_credit_complete AFTER INSERT OR UPDATE ON doc_crypto_merchant_credits
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_merchant_credit_complete();
+DO $$
+DECLARE target TEXT;
+BEGIN
+    FOREACH target IN ARRAY ARRAY['reg_crypto_receipt_suspense_movements','reg_crypto_merchant_balance_movements',
+        'reg_crypto_fee_movements','reg_crypto_balance_movements'] LOOP
+        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_merchant_credit_complete()',
+            'trg_merchant_credit_complete_'||target,target);
+    END LOOP;
+END;
+$$;
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-ALTER TABLE reg_crypto_inbound_chain_events DROP COLUMN receipt_error, DROP COLUMN receipt_attempts, DROP COLUMN receipt_check_at, DROP COLUMN receipt_id;-- ==== crypto_external_outflow_decisions ====
+DO $$
+DECLARE target TEXT;
+BEGIN
+    FOREACH target IN ARRAY ARRAY['reg_crypto_receipt_suspense_movements','reg_crypto_merchant_balance_movements',
+        'reg_crypto_fee_movements','reg_crypto_balance_movements'] LOOP
+        EXECUTE format('DROP TRIGGER %I ON %I','trg_merchant_credit_complete_'||target,target);
+    END LOOP;
+END;
+$$;
+DROP TABLE doc_crypto_merchant_credits;
+DROP TABLE sys_crypto_receipt_credit_policies;
+DROP FUNCTION fn_crypto_merchant_credit_complete();
+DROP FUNCTION fn_crypto_assert_merchant_credit(UUID);
+DROP FUNCTION fn_crypto_merchant_credit_guard();ALTER TABLE reg_crypto_inbound_chain_events DROP COLUMN receipt_error, DROP COLUMN receipt_attempts, DROP COLUMN receipt_check_at, DROP COLUMN receipt_id;-- ==== crypto_external_outflow_decisions ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM reg_crypto_external_outflows WHERE classification_basis IS NOT NULL OR resolution_basis IS NOT NULL)

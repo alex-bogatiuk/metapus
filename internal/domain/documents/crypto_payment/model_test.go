@@ -208,3 +208,10 @@ func TestCryptoPayment_GenerateCryptoBalanceMovements(t *testing.T) {
 		}
 	})
 }
+
+func TestCalculateFeeAboveGrossDoesNotUnderflow(t *testing.T) {
+	fee, net := CalculateFee(types.MustCryptoAmount("3"), types.MustCryptoAmount("5"), 0, types.ZeroCryptoAmount(), types.ZeroCryptoAmount())
+	if fee.String() != "5" || !net.IsZero() {
+		t.Fatalf("fee=%s net=%s", fee, net)
+	}
+}

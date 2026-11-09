@@ -1,0 +1,12 @@
+package crypto_merchant_credit
+
+import "metapus/internal/core/entity"
+
+const DocumentType = "CryptoMerchantCredit"
+
+var Definition = entity.Definition{
+	Key: "crypto_merchant_credit", Name: DocumentType,
+	Route: "crypto-merchant-credit", Table: "doc_crypto_merchant_credits", Kind: entity.DocumentKind,
+}
+
+func (CryptoMerchantCredit) EntityDefinition() entity.Definition { return Definition }
