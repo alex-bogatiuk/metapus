@@ -55,6 +55,10 @@ type CryptoPayment struct {
 	EventKind      string `db:"event_kind" json:"eventKind" meta:"label:Тип события"`
 	VerificationID *id.ID `db:"verification_id" json:"verificationId,omitempty" meta:"label:Доказательство перевода"`
 
+	// ReceiptID is the custody receipt this payment attributes to the merchant.
+	// The receipt owns the custody; the payment only consumes its suspense.
+	ReceiptID *id.ID `db:"receipt_id" json:"receiptId,omitempty" meta:"label:Поступление,ref:crypto_custody_receipt"`
+
 	// FromAddress is the sender's blockchain address
 	FromAddress   string `db:"from_address" json:"fromAddress" meta:"label:Отправитель"`
 	SourceAddress string `db:"source_address" json:"sourceAddress,omitempty" meta:"label:Отправитель транзакции"`
@@ -262,26 +266,17 @@ func (p *CryptoPayment) GetRLSDimensions() map[string]string {
 
 func (p *CryptoPayment) GetDocumentType() string { return Definition.Name }
 
-// GenerateCryptoBalanceMovements creates a RECEIPT movement for the wallet.
-func (p *CryptoPayment) GenerateCryptoBalanceMovements(ctx context.Context) ([]entity.CryptoBalanceMovement, error) {
-	if p.Amount.IsZero() {
-		return nil, nil
+// GenerateCryptoReceiptSuspenseMovements consumes the gross of the attributed
+// custody receipt; the custody movement itself belongs to the receipt.
+func (p *CryptoPayment) GenerateCryptoReceiptSuspenseMovements(context.Context) ([]entity.CryptoReceiptSuspenseMovement, error) {
+	if p.ReceiptID == nil || id.IsNil(*p.ReceiptID) {
+		return nil, apperror.NewValidation("payment posting requires its custody receipt")
 	}
-
-	newVersion := p.PostedVersion + 1
-
-	movement := entity.NewCryptoBalanceMovement(
-		p.ID,
-		p.GetDocumentType(),
-		newVersion,
-		p.Date,
-		entity.RecordTypeReceipt,
-		p.WalletID,
-		p.TokenID,
-		p.Amount,
-	)
-
-	return []entity.CryptoBalanceMovement{movement}, nil
+	if p.FeeAmount().Cmp(p.Amount) > 0 {
+		return nil, apperror.NewValidation("processing fee exceeds the received amount")
+	}
+	return []entity.CryptoReceiptSuspenseMovement{entity.NewCryptoReceiptSuspenseMovement(
+		p.ID, p.GetDocumentType(), p.PostedVersion+1, p.Date, entity.RecordTypeExpense, *p.ReceiptID, p.TokenID, p.Amount)}, nil
 }
 
 // GenerateCryptoFeeMovements creates a RECEIPT movement for the processing fee.
@@ -313,12 +308,11 @@ func (p *CryptoPayment) GenerateCryptoFeeMovements(ctx context.Context) ([]entit
 // Receipt = platform owes more to merchant (payment received, net of fees).
 // Net amount = Amount - FeeAmount().
 func (p *CryptoPayment) GenerateCryptoMerchantBalanceMovements(ctx context.Context) ([]entity.CryptoMerchantBalanceMovement, error) {
-	if p.Amount.IsZero() {
+	netAmount := p.NetAmount()
+	if netAmount.IsZero() {
 		return nil, nil
 	}
-
 	newVersion := p.PostedVersion + 1
-	netAmount := p.NetAmount()
 
 	movement := entity.NewCryptoMerchantBalanceMovement(
 		p.ID,
@@ -347,6 +341,6 @@ func (p *CryptoPayment) CanUnpost(context.Context) error {
 // Compile-time interface checks.
 var _ posting.Postable = (*CryptoPayment)(nil)
 var _ posting.UnpostGuard = (*CryptoPayment)(nil)
-var _ posting.CryptoBalanceMovementSource = (*CryptoPayment)(nil)
+var _ posting.CryptoReceiptSuspenseMovementSource = (*CryptoPayment)(nil)
 var _ posting.CryptoFeeMovementSource = (*CryptoPayment)(nil)
 var _ posting.CryptoMerchantBalanceMovementSource = (*CryptoPayment)(nil)

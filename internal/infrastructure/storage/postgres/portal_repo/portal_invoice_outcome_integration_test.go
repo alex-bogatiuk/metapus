@@ -16,6 +16,8 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_repo/receipttest"
 )
 
 func TestPortalInvoiceOutcomeLedgerAndScope(t *testing.T) {
@@ -32,17 +34,32 @@ func TestPortalInvoiceOutcomeLedgerAndScope(t *testing.T) {
 	rollback := errors.New("rollback invoice outcome fixture")
 	err = postgres.ReadSnapshot(ctx, func(txCtx context.Context) error {
 		q := txm.GetQuerier(txCtx)
-		var tokenID, networkID id.ID
-		require.NoError(t, q.QueryRow(txCtx, `SELECT id,network_id FROM cat_tokens WHERE _deleted_at IS NULL ORDER BY created_at LIMIT 1`).Scan(&tokenID, &networkID))
 		merchantID, invoiceID, walletID, paymentID := id.New(), id.New(), id.New(), id.New()
-		_, err := q.Exec(txCtx, `INSERT INTO cat_merchants(id,code,name) VALUES($1,$2,'Outcome fixture')`, merchantID, id.Compact(merchantID))
+		networkID, tokenID, code := id.New(), id.New(), id.Compact(merchantID)
+		_, err := q.Exec(txCtx, `INSERT INTO cat_merchants(id,code,name) VALUES($1,$2,'Outcome fixture')`, merchantID, code)
 		require.NoError(t, err)
+		_, err = q.Exec(txCtx, `INSERT INTO cat_blockchain_networks(id,code,name,chain_family,network_identifier,native_token_symbol,native_decimals)
+   VALUES($1,$2,'Outcome network','evm',$2,'ETH',18)`, networkID, "OUT-"+code)
+		require.NoError(t, err)
+		_, err = q.Exec(txCtx, `INSERT INTO cat_tokens(id,code,name,network_id,symbol,contract_address,decimal_places,token_standard)
+   VALUES($1,$2,'Outcome token',$3,'OUT',$4,6,'ERC-20')`, tokenID, "OUT-"+code, networkID, "0x"+code[:20]+code[:20])
+		require.NoError(t, err)
+		_, err = q.Exec(txCtx, `INSERT INTO cat_wallets(id,code,name,network_id,address,vault_key_id)
+   VALUES($1,$2,'Outcome wallet',$3,$4,'outcome-key')`, walletID, "OUT-"+code, networkID, "0x"+code[12:32]+code[12:32])
+		require.NoError(t, err)
+		// The payment attributes an accounted receipt of its transfer.
+		receiptID, _ := receipttest.Record(t, txCtx, receipttest.Deps{Proofs: crypto_repo.NewBlockIngestionRepo(), Repo: crypto_repo.NewReceiptIntakeRepo(), Guard: crypto_repo.NewBlockIngestionRepo()},
+			receipttest.Transfer{WalletID: walletID, TokenID: tokenID, TxHash: code + code, Amount: "1000", BlockNumber: 100})
 		_, err = q.Exec(txCtx, `INSERT INTO doc_crypto_invoices(id,public_ref,number,date,merchant_id,token_id,expected_amount,received_amount,confirmed_amount,credited_amount,status,expires_at,single_payment,selected_payment_id)
    VALUES($1,$2,'CI-OUTCOME',NOW(),$3,$4,2000,1000,1000,1000,'underpaid',$5,TRUE,$6)`, invoiceID, "ci_"+id.Compact(invoiceID), merchantID, tokenID, time.Now().Add(time.Hour), paymentID)
 		require.NoError(t, err)
 		insertPayment := func(pid id.ID, amount, fee string, posted bool, version int) {
-			_, err := q.Exec(txCtx, `INSERT INTO doc_crypto_payments(id,invoice_id,merchant_id,network_id,token_id,wallet_id,tx_hash,amount,fee_fixed,status,canonicality,posted,posted_version,confirmations,required_confs)
-   VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'settled','canonical',$10,$11,13,12)`, pid, invoiceID, merchantID, networkID, tokenID, walletID, pid.String(), amount, fee, posted, version)
+			txHash, receipt := pid.String(), (*id.ID)(nil)
+			if pid == paymentID {
+				txHash, receipt = code+code, &receiptID
+			}
+			_, err := q.Exec(txCtx, `INSERT INTO doc_crypto_payments(id,invoice_id,merchant_id,network_id,token_id,wallet_id,tx_hash,amount,fee_fixed,status,canonicality,posted,posted_version,confirmations,required_confs,receipt_id,event_kind)
+   VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'settled','canonical',$10,$11,13,12,$12,'contract_log')`, pid, invoiceID, merchantID, networkID, tokenID, walletID, txHash, amount, fee, posted, version, receipt)
 			require.NoError(t, err)
 		}
 		insertPayment(paymentID, "1000", "100", true, 1)
@@ -51,8 +68,8 @@ func TestPortalInvoiceOutcomeLedgerAndScope(t *testing.T) {
 		}
 		insertRoots := func(version int) []id.ID {
 			lines := []id.ID{id.New(), id.New(), id.New()}
-			_, err := q.Exec(txCtx, `INSERT INTO reg_crypto_balance_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount)
-    VALUES($1,$2,'CryptoPayment',$3,NOW(),'receipt',$4,$5,1000)`, lines[0], paymentID, version, walletID, tokenID)
+			_, err := q.Exec(txCtx, `INSERT INTO reg_crypto_receipt_suspense_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,receipt_id,token_id,amount)
+    VALUES($1,$2,'CryptoPayment',$3,NOW(),'expense',$4,$5,1000)`, lines[0], paymentID, version, receiptID, tokenID)
 			require.NoError(t, err)
 			_, err = q.Exec(txCtx, `INSERT INTO reg_crypto_merchant_balance_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,amount)
     VALUES($1,$2,'CryptoPayment',$3,NOW(),'receipt',$4,$5,900)`, lines[1], paymentID, version, merchantID, tokenID)
@@ -65,8 +82,8 @@ func TestPortalInvoiceOutcomeLedgerAndScope(t *testing.T) {
 		roots := insertRoots(1)
 		reverse := func(kind string, amounts []int, reason string) {
 			recorder := id.New()
-			_, err := q.Exec(txCtx, `INSERT INTO reg_crypto_balance_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount,reversal_of_line_id,reversal_reason)
-    VALUES($1,$2,$3,1,NOW(),'expense',$4,$5,$6,$7,$8)`, id.New(), recorder, kind, walletID, tokenID, amounts[0], roots[0], reason)
+			_, err := q.Exec(txCtx, `INSERT INTO reg_crypto_receipt_suspense_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,receipt_id,token_id,amount,reversal_of_line_id,reversal_reason)
+    VALUES($1,$2,$3,1,NOW(),'receipt',$4,$5,$6,$7,$8)`, id.New(), recorder, kind, receiptID, tokenID, amounts[0], roots[0], reason)
 			require.NoError(t, err)
 			_, err = q.Exec(txCtx, `INSERT INTO reg_crypto_merchant_balance_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,amount,reversal_of_line_id,reversal_reason)
     VALUES($1,$2,$3,1,NOW(),'expense',$4,$5,$6,$7,$8)`, id.New(), recorder, kind, merchantID, tokenID, amounts[1], roots[1], reason)

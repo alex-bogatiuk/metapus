@@ -413,6 +413,7 @@ func setupTestFixture(t *testing.T, sweepThreshold int64) *testFixture {
 		SweepResolver:    sweepResolver,
 		TokenResolver:    mockTokenRepo,
 		PostingEngine:    posting.NewEngine(nil), // provide dummy engine
+		Receipts:         &memPaymentReceipts{},
 		WebhookPublisher: webhooks,
 	})
 
@@ -1359,4 +1360,19 @@ func TestPaymentCycle_TimestampBeforeOpenLeaseIsNeedsReview(t *testing.T) {
 	if len(f.paymentRepo.payments) != 0 {
 		t.Fatal("ts before open leased_at must not auto-match current lease")
 	}
+}
+
+// memPaymentReceipts accounts each chain effect once, like the receipt intake.
+type memPaymentReceipts struct{ byEffect map[string]id.ID }
+
+func (r *memPaymentReceipts) RecordPaymentReceipt(_ context.Context, p *crypto_payment.CryptoPayment, _ BlockchainEvent) (id.ID, error) {
+	if r.byEffect == nil {
+		r.byEffect = make(map[string]id.ID)
+	}
+	key := fmt.Sprintf("%s|%s|%d", p.NetworkID, p.TxHash, p.EventIndex)
+	if existing, ok := r.byEffect[key]; ok {
+		return existing, nil
+	}
+	r.byEffect[key] = id.New()
+	return r.byEffect[key], nil
 }

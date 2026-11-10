@@ -156,7 +156,7 @@ func (s *FinancialAdjustmentService) Sources(ctx context.Context, adjustmentID i
 }
 
 func validAdjustmentRegister(value string) bool {
-	return value == "custody" || value == "merchant" || value == "fee"
+	return value == "suspense" || value == "merchant" || value == "fee"
 }
 
 func positiveRawAmount(value string) bool {

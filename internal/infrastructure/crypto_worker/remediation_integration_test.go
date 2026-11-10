@@ -112,54 +112,46 @@ func TestRemediationReversalPreservesOriginalMovement(t *testing.T) {
 func TestRemediationSecondFinancialReorgCompensatesNewGeneration(t *testing.T) {
 	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
 		q := txm.GetQuerier(ctx)
-		paymentID, invoiceID := id.New(), id.New()
-		txHash := "remediation-" + paymentID.String()
-		_, err := q.Exec(ctx, `INSERT INTO doc_crypto_payments
-			(id,invoice_id,merchant_id,network_id,token_id,wallet_id,tx_hash,amount,status,posted,posted_version)
-			VALUES($1,$2,$3,$4,$5,$6,$7,100,'settled',TRUE,1)`,
-			paymentID, invoiceID, f.merchant, f.network, f.token, f.wallet, txHash)
-		require.NoError(t, err)
-		p := &crypto_payment.CryptoPayment{
-			NetworkID: f.network, InvoiceID: invoiceID, WalletID: f.wallet,
-			TokenID: f.token, MerchantID: f.merchant, TxHash: txHash,
-			EventKind: "native_value", Amount: types.NewCryptoAmountFromInt64(100),
-		}
+		invoiceID := id.New()
+		paymentID, _, _, _ := attributedRemediationPayment(t, ctx, f, invoiceID, "second-reorg")
+		p := &crypto_payment.CryptoPayment{NetworkID: f.network, InvoiceID: invoiceID, WalletID: f.wallet,
+			TokenID: f.token, MerchantID: f.merchant, Amount: types.NewCryptoAmountFromInt64(100)}
 		p.ID = paymentID
 		p.FeeFixed = types.NewCryptoAmountFromInt64(5)
-		_, err = q.Exec(ctx, `UPDATE doc_crypto_payments SET fee_fixed=5 WHERE id=$1`, paymentID)
-		require.NoError(t, err)
+		require.NoError(t, q.QueryRow(ctx, `SELECT tx_hash,event_kind,receipt_id FROM doc_crypto_payments WHERE id=$1`, paymentID).
+			Scan(&p.TxHash, &p.EventKind, &p.ReceiptID))
 		repo := crypto_repo.NewFinancialReorgRepo()
 		for version := 1; version <= 2; version++ {
-			_, err = q.Exec(ctx, `INSERT INTO reg_crypto_balance_movements
-				(line_id,recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount)
-				VALUES($1,$2,'CryptoPayment',$3,NOW(),'receipt',$4,$5,100)`,
-				id.New(), paymentID, version, f.wallet, f.token)
-			require.NoError(t, err)
-			_, err = q.Exec(ctx, `INSERT INTO reg_crypto_merchant_balance_movements
-				(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,amount)
-				VALUES($1,$2,'CryptoPayment',$3,NOW(),'receipt',$4,$5,95)`,
-				id.New(), paymentID, version, f.merchant, f.token)
-			require.NoError(t, err)
-			_, err = q.Exec(ctx, `INSERT INTO reg_crypto_fee_movements
-				(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,fee_type,amount)
-				VALUES($1,$2,'CryptoPayment',$3,NOW(),'receipt',$4,$5,'processing',5)`,
-				id.New(), paymentID, version, f.merchant, f.token)
-			require.NoError(t, err)
+			if version == 2 {
+				// The re-included transfer attributes the same receipt again.
+				_, err := q.Exec(ctx, `UPDATE doc_crypto_payments SET posted_version=2 WHERE id=$1`, paymentID)
+				require.NoError(t, err)
+				_, err = q.Exec(ctx, `INSERT INTO reg_crypto_receipt_suspense_movements
+					(recorder_id,recorder_type,recorder_version,period,record_type,receipt_id,token_id,amount)
+					VALUES($1,'CryptoPayment',2,NOW(),'expense',$2,$3,100)`, paymentID, *p.ReceiptID, f.token)
+				require.NoError(t, err)
+				_, err = q.Exec(ctx, `INSERT INTO reg_crypto_merchant_balance_movements
+					(recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,amount)
+					VALUES($1,'CryptoPayment',2,NOW(),'receipt',$2,$3,95)`, paymentID, f.merchant, f.token)
+				require.NoError(t, err)
+				_, err = q.Exec(ctx, `INSERT INTO reg_crypto_fee_movements
+					(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,fee_type,amount)
+					VALUES($1,$2,'CryptoPayment',2,NOW(),'receipt',$3,$4,'processing',5)`, id.New(), paymentID, f.merchant, f.token)
+				require.NoError(t, err)
+			}
 			p.PostedVersion = version
-			_, err = q.Exec(ctx, `UPDATE doc_crypto_payments SET posted_version=$2 WHERE id=$1`, paymentID, version)
-			require.NoError(t, err)
 			event := crypto.BlockchainEvent{BlockNumber: int64(version), BlockHash: "orphaned"}
 			require.NoError(t, repo.RecordFinancialReorg(ctx, p, event))
 			require.NoError(t, repo.RecordFinancialReorg(ctx, p, event))
 		}
-		var balance string
-		require.NoError(t, q.QueryRow(ctx, `SELECT amount::text FROM reg_crypto_balance_balances
-			WHERE wallet_id=$1 AND token_id=$2`, f.wallet, f.token).Scan(&balance))
-		require.Equal(t, "0", balance)
+		var custody, unidentified string
+		require.NoError(t, q.QueryRow(ctx, `SELECT (SELECT amount::text FROM reg_crypto_balance_balances WHERE wallet_id=$1 AND token_id=$2),
+			(SELECT amount::text FROM reg_crypto_receipt_suspense_balances WHERE receipt_id=$3)`, f.wallet, f.token, *p.ReceiptID).Scan(&custody, &unidentified))
+		require.Equal(t, []string{"100", "100"}, []string{custody, unidentified})
 		var compensations, linkedReversals int
 		require.NoError(t, q.QueryRow(ctx, `SELECT COUNT(*) FROM reg_crypto_reorg_compensations
 			WHERE payment_id=$1`, paymentID).Scan(&compensations))
-		require.NoError(t, q.QueryRow(ctx, `SELECT COUNT(*) FROM reg_crypto_balance_movements
+		require.NoError(t, q.QueryRow(ctx, `SELECT COUNT(*) FROM reg_crypto_receipt_suspense_movements
 			WHERE recorder_type='CryptoPaymentReorg' AND reversal_of_line_id IS NOT NULL
 			  AND reversal_reason='posted_payment_reorg'`).Scan(&linkedReversals))
 		require.Equal(t, 2, compensations)
@@ -373,28 +365,8 @@ func TestRemediationWatcherFencingRejectsStaleOwner(t *testing.T) {
 func TestRemediationFinancialAdjustmentRequiresDifferentChecker(t *testing.T) {
 	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
 		q := txm.GetQuerier(ctx)
-		paymentID, makerID, checkerID := id.New(), id.New(), id.New()
-		_, err := q.Exec(ctx, `INSERT INTO doc_crypto_payments
-			(id,invoice_id,merchant_id,network_id,token_id,wallet_id,tx_hash,amount,status,posted,posted_version)
-			VALUES($1,$2,$3,$4,$5,$6,$7,100,'settled',TRUE,1)`,
-			paymentID, id.New(), f.merchant, f.network, f.token, f.wallet,
-			"adjustment-"+paymentID.String())
-		require.NoError(t, err)
-		_, err = q.Exec(ctx, `INSERT INTO reg_crypto_balance_movements
-			(line_id,recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount)
-			VALUES($1,$2,'CryptoPayment',1,NOW(),'receipt',$3,$4,100)`,
-			id.New(), paymentID, f.wallet, f.token)
-		require.NoError(t, err)
-		_, err = q.Exec(ctx, `INSERT INTO reg_crypto_merchant_balance_movements
-			(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,amount)
-			VALUES($1,$2,'CryptoPayment',1,NOW(),'receipt',$3,$4,95)`,
-			id.New(), paymentID, f.merchant, f.token)
-		require.NoError(t, err)
-		_, err = q.Exec(ctx, `INSERT INTO reg_crypto_fee_movements
-			(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,fee_type,amount)
-			VALUES($1,$2,'CryptoPayment',1,NOW(),'receipt',$3,$4,'processing',5)`,
-			id.New(), paymentID, f.merchant, f.token)
-		require.NoError(t, err)
+		makerID, checkerID := id.New(), id.New()
+		paymentID, _, _, _ := attributedRemediationPayment(t, ctx, f, id.New(), "checker")
 		service := cryptoapp.NewFinancialAdjustmentService(postgres.NewContextTxManager(),
 			crypto_repo.NewFinancialAdjustmentRepo())
 		cmd := cryptoapp.ProposeFinancialAdjustmentCommand{
@@ -425,7 +397,7 @@ func TestRemediationFinancialAdjustmentRequiresDifferentChecker(t *testing.T) {
 		require.Contains(t, adjustmentIDs(approved), adjustment.ID)
 		_, err = service.Approve(ctx, adjustment.ID, checkerID, "repeat approval")
 		require.Error(t, err)
-		for _, table := range []string{"reg_crypto_balance_movements", "reg_crypto_merchant_balance_movements", "reg_crypto_fee_movements"} {
+		for _, table := range []string{"reg_crypto_receipt_suspense_movements", "reg_crypto_merchant_balance_movements", "reg_crypto_fee_movements"} {
 			var reversalCount int
 			require.NoError(t, q.QueryRow(ctx, `SELECT COUNT(*) FROM `+table+`
 				WHERE recorder_id=$1 AND recorder_type='CryptoAdjustment'

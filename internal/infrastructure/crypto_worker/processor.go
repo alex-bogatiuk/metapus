@@ -204,10 +204,7 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 	postingEngine.AddRecorder(posting.NewCryptoFeeRecorder(cryptoFeeSvc))
 	postingEngine.AddRecorder(posting.NewCryptoMerchantBalanceRecorder(cryptoMerchantSvc))
 	postingEngine.AddRecorder(posting.NewCryptoPlatformCostRecorder(cryptoPlatformCostSvc))
-	paymentRecognition := cryptoapp.NewPaymentRecognitionService(postgres.NewContextTxManager(), crypto_repo.NewPaymentRecognitionRepo(), postgres.NewOutboxPublisher())
-	postingEngine.ValidateInTransaction(paymentRecognition.ValidatePosting)
 	postingEngine.ValidateInTransaction(crypto_repo.NewBlockIngestionRepo().ValidatePosting)
-	postingEngine.PrepareMovementsInTransaction(paymentRecognition.PrepareMovements)
 	postingEngine.AddRecorder(posting.NewCryptoProviderBalanceRecorder(cryptoProviderBalanceSvc))
 	postingEngine.AddRecorder(posting.NewCryptoReceiptSuspenseRecorder(cryptoReceiptSuspenseSvc))
 
@@ -260,6 +257,7 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 		operationalHolds,
 	)
 
+	receipts := newReceiptIntake(postingEngine, num)
 	// Event Processor — TxManager is extracted from context at runtime.
 	ep := crypto.NewEventProcessor(crypto.EventProcessorConfig{
 		FSM:               fsm,
@@ -279,6 +277,7 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 		ExpectedTransfers: crypto_repo.NewExpectedTransferRepo(),
 		FinancialReorgs:   crypto_repo.NewFinancialReorgRepo(),
 		FinancialGuard:    crypto_repo.NewBlockIngestionRepo(),
+		Receipts:          receipts.service,
 		WebhookPublisher:  lifecycleWebhookPublisher,
 		OnLatePayment:     func(ctx context.Context) { recordLatePaymentMetric(ctx) },
 	})
@@ -357,7 +356,7 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 		approvalRepo:         money_movement_repo.New(),
 		walletPoolRepo:       walletPoolRepo,
 		eventProcessor:       ep,
-		receipts:             newReceiptIntake(postingEngine, num),
+		receipts:             receipts,
 		walletSvc:            walletSvc,
 		sweepResolver:        sweepResolver,
 		postingEngine:        postingEngine,

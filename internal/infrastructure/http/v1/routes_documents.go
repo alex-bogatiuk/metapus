@@ -4,7 +4,6 @@ import (
 	"github.com/gin-gonic/gin"
 	printadapter "metapus/internal/infrastructure/printing"
 
-	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/entity"
 	"metapus/internal/domain/eventlog"
 	"metapus/internal/domain/posting"
@@ -69,10 +68,7 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 	postingEngine.AddRecorder(posting.NewCryptoPlatformCostRecorder(cryptoPlatformCostSvc))
 	postingEngine.AddRecorder(posting.NewCryptoProviderBalanceRecorder(cryptoProviderBalanceSvc))
 	postingEngine.AddRecorder(posting.NewCryptoReceiptSuspenseRecorder(cryptoReceiptSuspenseSvc))
-	paymentRecognition := cryptoapp.NewPaymentRecognitionService(postgres.NewContextTxManager(), crypto_repo.NewPaymentRecognitionRepo(), postgres.NewOutboxPublisher())
-	postingEngine.ValidateInTransaction(paymentRecognition.ValidatePosting)
 	postingEngine.ValidateInTransaction(crypto_repo.NewBlockIngestionRepo().ValidatePosting)
-	postingEngine.PrepareMovementsInTransaction(paymentRecognition.PrepareMovements)
 
 	// CurrencyResolver is guaranteed non-nil here — created in NewRouter before catalog/document registration.
 	currencyResolver := cfg.CurrencyResolver

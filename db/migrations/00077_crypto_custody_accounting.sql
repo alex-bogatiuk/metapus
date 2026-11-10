@@ -138,9 +138,21 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+-- The receipt adds its gross once; attributions (manual credits and payments)
+-- consume it, and a payment compensation returns its consumption.
 CREATE FUNCTION fn_crypto_receipt_suspense_apply() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE original reg_crypto_receipt_suspense_movements; delta NUMERIC;
 BEGIN
-    IF NEW.recorder_type='CryptoCustodyReceipt' THEN
+    IF NEW.reversal_of_line_id IS NOT NULL THEN
+        SELECT * INTO original FROM reg_crypto_receipt_suspense_movements WHERE line_id=NEW.reversal_of_line_id FOR UPDATE;
+        IF NOT FOUND OR original.recorder_type<>'CryptoPayment' OR original.reversal_of_line_id IS NOT NULL
+           OR original.receipt_id<>NEW.receipt_id OR original.token_id<>NEW.token_id OR original.record_type=NEW.record_type
+           OR original.amount<(SELECT SUM(amount) FROM reg_crypto_receipt_suspense_movements WHERE reversal_of_line_id=original.line_id) THEN
+            RAISE EXCEPTION 'suspense reversal requires an available payment attribution' USING ERRCODE='23514';
+        END IF;
+        delta:=NEW.amount;
+    ELSIF NEW.recorder_type='CryptoCustodyReceipt' THEN
         IF NOT EXISTS(SELECT 1 FROM doc_crypto_custody_receipts d WHERE d.id=NEW.receipt_id
             AND d.id=NEW.recorder_id AND d.token_id=NEW.token_id AND d.amount=NEW.amount
             AND d.suspense_line_id=NEW.line_id AND d.date=NEW.period) THEN
@@ -149,14 +161,23 @@ BEGIN
         INSERT INTO reg_crypto_receipt_suspense_balances(receipt_id,token_id,amount,last_movement_at)
         VALUES(NEW.receipt_id,NEW.token_id,NEW.amount,NEW.period);
         RETURN NEW;
+    ELSIF NEW.recorder_type='CryptoMerchantCredit' THEN
+        IF NOT EXISTS(SELECT 1 FROM doc_crypto_merchant_credits c WHERE c.id=NEW.recorder_id
+            AND c.receipt_id=NEW.receipt_id AND c.token_id=NEW.token_id AND c.amount=NEW.amount
+            AND c.suspense_line_id=NEW.line_id AND c.date=NEW.period) THEN
+            RAISE EXCEPTION 'suspense consumption requires its exact merchant credit' USING ERRCODE='23514';
+        END IF;
+        delta:=-NEW.amount;
+    ELSE
+        -- The payment receives its receipt in the posting callback; the
+        -- deferred attribution assertion checks the exact basis at commit.
+        delta:=-NEW.amount;
     END IF;
-    IF NOT EXISTS(SELECT 1 FROM doc_crypto_merchant_credits c WHERE c.id=NEW.recorder_id
-        AND c.receipt_id=NEW.receipt_id AND c.token_id=NEW.token_id AND c.amount=NEW.amount
-        AND c.suspense_line_id=NEW.line_id AND c.date=NEW.period) THEN
-        RAISE EXCEPTION 'suspense consumption requires its exact merchant credit' USING ERRCODE='23514';
+    IF delta<0 AND EXISTS(SELECT 1 FROM reg_crypto_custody_receipt_audits WHERE receipt_id=NEW.receipt_id AND status='orphaned') THEN
+        RAISE EXCEPTION 'orphaned receipt cannot be attributed' USING ERRCODE='23514';
     END IF;
     -- The CHECK(amount>=0) on the balance rejects attribution above the remainder.
-    UPDATE reg_crypto_receipt_suspense_balances SET amount=amount-NEW.amount,last_movement_at=NEW.period,updated_at=NOW()
+    UPDATE reg_crypto_receipt_suspense_balances SET amount=amount+delta,last_movement_at=NEW.period,updated_at=NOW()
         WHERE receipt_id=NEW.receipt_id AND token_id=NEW.token_id;
     IF NOT FOUND THEN
         RAISE EXCEPTION 'suspense consumption requires a recorded receipt' USING ERRCODE='23514';
@@ -164,6 +185,7 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
 
 CREATE FUNCTION fn_crypto_custody_receipt_audit_seed() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -381,13 +403,8 @@ BEGIN
         WHERE p.id=d.posting_id) THEN
         RAISE EXCEPTION 'internal transfer requires its settlement owner' USING ERRCODE='23514';
     END IF;
-    -- One chain effect has one owner: an invoice payment or another custody writer excludes the receipt.
-    IF EXISTS(SELECT 1 FROM reg_crypto_transfer_verifications v
-        JOIN doc_crypto_payments other ON other.network_id=v.network_id
-          AND regexp_replace(lower(other.tx_hash),'^0x','')=regexp_replace(lower(v.tx_hash),'^0x','')
-          AND other.event_kind=v.event_kind AND other.event_index=v.event_index
-        WHERE v.id=d.verification_id)
-       OR EXISTS(SELECT 1 FROM reg_crypto_wallet_fundings other
+    -- One chain effect has one custody owner; payments only attribute the receipt.
+    IF EXISTS(SELECT 1 FROM reg_crypto_wallet_fundings other
           JOIN reg_crypto_custody_effect_postings p ON p.id=d.posting_id
           JOIN reg_crypto_accounting_effects e ON e.id=p.effect_id
           WHERE other.network_id=e.network_id AND regexp_replace(lower(other.tx_hash),'^0x','')=e.tx_hash)
@@ -562,16 +579,10 @@ END;
 $$;
 
 CREATE FUNCTION fn_crypto_wallet_funding_movement_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-DECLARE payment doc_crypto_payments; operating reg_crypto_aml_operating_receipts;
+DECLARE operating reg_crypto_aml_operating_receipts;
 BEGIN
     PERFORM fn_crypto_lock_receipt_balance(NEW.wallet_id,NEW.token_id);
-    IF NEW.recorder_type='CryptoPayment' THEN
-        SELECT * INTO payment FROM doc_crypto_payments WHERE id=NEW.recorder_id;
-        IF FOUND AND fn_crypto_wallet_funding_payment_conflict(payment.network_id,NEW.wallet_id,NEW.token_id,
-            payment.tx_hash,payment.event_kind,payment.verification_id) THEN
-            RAISE EXCEPTION 'payment principal already belongs to wallet funding' USING ERRCODE='23514';
-        END IF;
-    ELSIF NEW.recorder_type='AMLOperatingReceipt' THEN
+    IF NEW.recorder_type='AMLOperatingReceipt' THEN
         SELECT * INTO operating FROM reg_crypto_aml_operating_receipts WHERE id=NEW.recorder_id;
         IF FOUND AND fn_crypto_wallet_funding_payment_conflict(operating.network_id,NEW.wallet_id,NEW.token_id,
             operating.tx_hash,operating.event_kind,NULL) THEN
@@ -582,6 +593,7 @@ BEGIN
 END;
 $$;
 
+
 CREATE FUNCTION fn_crypto_wallet_funding_no_attribution() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF NEW.recorder_type='CryptoWalletFunding' OR EXISTS(SELECT 1 FROM reg_crypto_wallet_fundings WHERE id=NEW.recorder_id AND posting_id IS NOT NULL) THEN
@@ -591,231 +603,87 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION fn_crypto_payment_reversal_shape_valid(target UUID) RETURNS BOOLEAN LANGUAGE sql VOLATILE AS $$
-    SELECT NOT EXISTS(
-        SELECT 1 FROM reg_crypto_custody_effect_postings p JOIN reg_crypto_balance_movements m
-          ON m.recorder_id=p.recorder_id AND m.recorder_type='CryptoPayment' AND m.recorder_version=p.recorder_version AND m.reversal_of_line_id IS NULL
-        JOIN reg_crypto_balance_movements r ON r.reversal_of_line_id=m.line_id
-        WHERE p.id=target AND (r.record_type=m.record_type OR r.wallet_id<>m.wallet_id OR r.token_id<>m.token_id
-            OR EXISTS(SELECT 1 FROM reg_crypto_balance_movements x WHERE x.reversal_of_line_id=r.line_id)))
-    AND NOT EXISTS(
-        SELECT 1 FROM reg_crypto_custody_effect_postings p JOIN reg_crypto_merchant_balance_movements m
-          ON m.recorder_id=p.recorder_id AND m.recorder_type='CryptoPayment' AND m.recorder_version=p.recorder_version AND m.reversal_of_line_id IS NULL
-        JOIN reg_crypto_merchant_balance_movements r ON r.reversal_of_line_id=m.line_id
-        WHERE p.id=target AND (r.record_type=m.record_type OR r.merchant_id<>m.merchant_id OR r.token_id<>m.token_id
-            OR EXISTS(SELECT 1 FROM reg_crypto_merchant_balance_movements x WHERE x.reversal_of_line_id=r.line_id)))
-    AND NOT EXISTS(
-        SELECT 1 FROM reg_crypto_custody_effect_postings p JOIN reg_crypto_fee_movements m
-          ON m.recorder_id=p.recorder_id AND m.recorder_type='CryptoPayment' AND m.recorder_version=p.recorder_version AND m.reversal_of_line_id IS NULL
-        JOIN reg_crypto_fee_movements r ON r.reversal_of_line_id=m.line_id
-        WHERE p.id=target AND (r.record_type=m.record_type OR r.merchant_id<>m.merchant_id OR r.token_id<>m.token_id OR r.fee_type<>m.fee_type
-            OR EXISTS(SELECT 1 FROM reg_crypto_fee_movements x WHERE x.reversal_of_line_id=r.line_id)))
-$$;
-
-CREATE FUNCTION fn_crypto_payment_fully_compensated(target UUID) RETURNS BOOLEAN LANGUAGE sql VOLATILE AS $$
-    SELECT fn_crypto_payment_reversal_shape_valid(target)
-    AND NOT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_postings p JOIN reg_crypto_balance_movements m
-        ON m.recorder_id=p.recorder_id AND m.recorder_type='CryptoPayment' AND m.recorder_version=p.recorder_version AND m.reversal_of_line_id IS NULL
-        WHERE p.id=target AND m.amount<>COALESCE((SELECT SUM(amount) FROM reg_crypto_balance_movements WHERE reversal_of_line_id=m.line_id),0))
-    AND NOT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_postings p JOIN reg_crypto_merchant_balance_movements m
-        ON m.recorder_id=p.recorder_id AND m.recorder_type='CryptoPayment' AND m.recorder_version=p.recorder_version AND m.reversal_of_line_id IS NULL
-        WHERE p.id=target AND m.amount<>COALESCE((SELECT SUM(amount) FROM reg_crypto_merchant_balance_movements WHERE reversal_of_line_id=m.line_id),0))
-    AND NOT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_postings p JOIN reg_crypto_fee_movements m
-        ON m.recorder_id=p.recorder_id AND m.recorder_type='CryptoPayment' AND m.recorder_version=p.recorder_version AND m.reversal_of_line_id IS NULL
-        WHERE p.id=target AND m.amount<>COALESCE((SELECT SUM(amount) FROM reg_crypto_fee_movements WHERE reversal_of_line_id=m.line_id),0))
-$$;
-
-CREATE FUNCTION fn_crypto_assert_payment_custody(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
-DECLARE p reg_crypto_custody_effect_postings; b reg_crypto_payment_custody_bindings;
-DECLARE d doc_crypto_payments; fee NUMERIC;
-BEGIN
-    SELECT * INTO STRICT p FROM reg_crypto_custody_effect_postings WHERE id=target;
-    IF p.recorder_type<>'CryptoPayment' THEN RETURN; END IF;
-    SELECT * INTO b FROM reg_crypto_payment_custody_bindings WHERE posting_id=p.id;
-    IF NOT FOUND THEN RAISE EXCEPTION 'payment custody requires its immutable economic snapshot' USING ERRCODE='23514'; END IF;
-    SELECT * INTO STRICT d FROM doc_crypto_payments WHERE id=p.recorder_id;
-    fee:=b.fee_fixed+trunc(b.gross*b.fee_percent_bp/10000);
-    IF b.fee_min>0 THEN fee:=greatest(fee,b.fee_min); END IF;
-    IF b.fee_max>0 THEN fee:=least(fee,b.fee_max); END IF;
-    IF b.payment_id<>p.recorder_id OR fee<>b.processing_fee OR fee>b.gross
-       OR (d.invoice_id,d.merchant_id,d.wallet_id,d.token_id,d.amount,d.fee_fixed,d.fee_percent_bp,d.fee_min,d.fee_max,d.date)
-          IS DISTINCT FROM (b.invoice_id,b.merchant_id,b.wallet_id,b.token_id,b.gross,b.fee_fixed,b.fee_percent_bp,b.fee_min,b.fee_max,b.period)
-       OR NOT d.posted OR d.posted_version<>p.recorder_version OR d.status NOT IN ('confirmed','settled')
-       OR (SELECT count(*) FROM reg_crypto_custody_effect_recognitions WHERE posting_id=p.id)<>1
-       OR NOT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_recognitions r JOIN reg_crypto_balance_movements m ON m.line_id=r.movement_line_id
-            WHERE r.posting_id=p.id AND r.wallet_id=b.wallet_id AND r.token_id=b.token_id AND r.record_type='receipt'
-              AND m.period=b.period AND m.amount=b.gross AND m.recorder_id=d.id AND m.recorder_type='CryptoPayment' AND m.recorder_version=p.recorder_version)
-       OR (NOT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_recognitions r
-            JOIN reg_crypto_balance_movements m ON m.line_id=r.movement_line_id
-            WHERE r.posting_id=p.id AND m.posting_txid=txid_current()))
-       OR (SELECT count(*) FROM reg_crypto_balance_movements WHERE recorder_id=d.id AND recorder_type='CryptoPayment' AND recorder_version=p.recorder_version AND reversal_of_line_id IS NULL)<>1
-       OR (SELECT count(*) FROM reg_crypto_merchant_balance_movements WHERE recorder_id=d.id AND recorder_type='CryptoPayment' AND recorder_version=p.recorder_version AND reversal_of_line_id IS NULL)<>(CASE WHEN b.net>0 THEN 1 ELSE 0 END)
-       OR EXISTS(SELECT 1 FROM reg_crypto_merchant_balance_movements WHERE recorder_id=d.id AND recorder_type='CryptoPayment' AND recorder_version=p.recorder_version AND reversal_of_line_id IS NULL
-            AND (record_type<>'receipt' OR merchant_id<>b.merchant_id OR token_id<>b.token_id OR amount<>b.net OR period<>b.period))
-       OR (SELECT count(*) FROM reg_crypto_fee_movements WHERE recorder_id=d.id AND recorder_type='CryptoPayment' AND recorder_version=p.recorder_version AND reversal_of_line_id IS NULL)<>(CASE WHEN b.processing_fee>0 THEN 1 ELSE 0 END)
-       OR EXISTS(SELECT 1 FROM reg_crypto_fee_movements WHERE recorder_id=d.id AND recorder_type='CryptoPayment' AND recorder_version=p.recorder_version AND reversal_of_line_id IS NULL
-            AND (record_type<>'receipt' OR merchant_id<>b.merchant_id OR token_id<>b.token_id OR amount<>b.processing_fee OR fee_type<>'processing' OR period<>b.period))
-       OR EXISTS(SELECT 1 FROM reg_crypto_platform_cost_movements WHERE recorder_id=d.id)
-       OR EXISTS(SELECT 1 FROM reg_crypto_provider_balance_movements WHERE recorder_id=d.id)
-       OR NOT fn_crypto_payment_reversal_shape_valid(p.id)
-       OR (SELECT count(*) FROM sys_outbox WHERE aggregate_type='CryptoPayment' AND aggregate_id=d.id AND event_type='custody_recognized' AND payload->>'postingId'=p.id::text)<>1
-       OR NOT EXISTS(SELECT 1 FROM sys_outbox WHERE aggregate_type='CryptoPayment' AND aggregate_id=d.id AND event_type='custody_recognized'
-            AND payload->>'postingId'=p.id::text AND payload->>'entityId'=d.id::text AND payload->>'entityType'='CryptoPayment'
-            AND payload->>'action'='custody_recognized' AND payload->>'generation'=p.generation::text
-            AND payload->>'postedVersion'=p.recorder_version::text) THEN
-        RAISE EXCEPTION 'payment custody requires complete immutable financial set and outbox' USING ERRCODE='23514';
-    END IF;
-    IF EXISTS(SELECT 1 FROM reg_crypto_balance_movements m WHERE m.recorder_id=d.id AND m.recorder_type='CryptoPayment'
-        AND m.recorder_version<>p.recorder_version AND m.reversal_of_line_id IS NULL
-        AND m.amount<>COALESCE((SELECT SUM(amount) FROM reg_crypto_balance_movements WHERE reversal_of_line_id=m.line_id),0)) THEN
-        RAISE EXCEPTION 'other payment principal generation is not fully compensated' USING ERRCODE='23514';
-    END IF;
-    IF EXISTS(SELECT 1 FROM reg_crypto_custody_effect_postings c JOIN reg_crypto_accounting_effects e ON e.id=c.effect_id
-        JOIN reg_crypto_accounting_effect_occurrences o ON o.id=c.occurrence_id
-        JOIN cat_wallets source ON source.network_id=e.network_id AND source.address_key=o.source_address WHERE c.id=p.id) THEN
-        RAISE EXCEPTION 'managed payment transfer requires its settlement owner' USING ERRCODE='23514';
-    END IF;
-END;
-$$;
-
-CREATE FUNCTION fn_crypto_custody_generation_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-DECLARE previous reg_crypto_custody_effect_postings; b reg_crypto_payment_custody_bindings; old_b reg_crypto_payment_custody_bindings;
-BEGIN
-    IF NEW.generation=1 THEN
-        IF NEW.recorder_type='CryptoPayment' AND NEW.recorder_version<>1 THEN
-            RAISE EXCEPTION 'first payment custody generation requires posted version 1' USING ERRCODE='23514';
-        END IF;
-    ELSE
-        SELECT * INTO STRICT previous FROM reg_crypto_custody_effect_postings WHERE id=NEW.predecessor_id;
-        SELECT * INTO STRICT b FROM reg_crypto_payment_custody_bindings WHERE posting_id=NEW.id;
-        SELECT * INTO STRICT old_b FROM reg_crypto_payment_custody_bindings WHERE posting_id=previous.id;
-        IF NEW.recorder_type<>'CryptoPayment' OR previous.recorder_type<>'CryptoPayment'
-           OR NEW.effect_id<>previous.effect_id OR NEW.recorder_id<>previous.recorder_id
-           OR NEW.generation<>previous.generation+1 OR NEW.recorder_version<>previous.recorder_version+1
-           OR NOT fn_crypto_payment_fully_compensated(previous.id)
-           OR (b.invoice_id,b.merchant_id,b.wallet_id,b.token_id,b.gross,b.net,b.processing_fee,b.fee_fixed,b.fee_percent_bp,b.fee_min,b.fee_max,b.period)
-              IS DISTINCT FROM (old_b.invoice_id,old_b.merchant_id,old_b.wallet_id,old_b.token_id,old_b.gross,old_b.net,old_b.processing_fee,old_b.fee_fixed,old_b.fee_percent_bp,old_b.fee_min,old_b.fee_max,old_b.period)
-           OR (SELECT economics_hash FROM reg_crypto_accounting_effect_occurrences WHERE id=NEW.occurrence_id)
-              IS DISTINCT FROM (SELECT economics_hash FROM reg_crypto_accounting_effect_occurrences WHERE id=previous.occurrence_id) THEN
-            RAISE EXCEPTION 'custody generation requires same owner and full prior compensation without repricing' USING ERRCODE='23514';
-        END IF;
-    END IF;
-    PERFORM fn_crypto_assert_payment_custody(NEW.id);
-    RETURN NULL;
-END;
-$$;
-
-CREATE FUNCTION fn_crypto_payment_binding_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN PERFORM fn_crypto_assert_payment_custody(NEW.posting_id); RETURN NULL; END;
-$$;
-
-CREATE FUNCTION fn_crypto_payment_financial_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-DECLARE d doc_crypto_payments; target UUID;
-BEGIN
-    IF NEW.reversal_of_line_id IS NOT NULL THEN RETURN NULL; END IF;
-    SELECT p.id INTO target FROM reg_crypto_custody_effect_postings p
-        WHERE p.recorder_type='CryptoPayment' AND p.recorder_id=NEW.recorder_id AND p.recorder_version=NEW.recorder_version;
-    IF FOUND THEN
-        IF NEW.recorder_type<>'CryptoPayment' THEN RAISE EXCEPTION 'recognized payment recorder cannot be relabeled' USING ERRCODE='23514'; END IF;
-        PERFORM fn_crypto_assert_payment_custody(target);
-    ELSIF EXISTS(SELECT 1 FROM reg_crypto_payment_custody_bindings WHERE payment_id=NEW.recorder_id) THEN
-        RAISE EXCEPTION 'recognized payment requires its exact custody generation' USING ERRCODE='23514';
-    ELSIF NEW.recorder_type='CryptoPayment' THEN
-        SELECT * INTO d FROM doc_crypto_payments WHERE id=NEW.recorder_id;
-        IF FOUND AND fn_crypto_payment_requires_recognition(d.id,d.network_id,d.tx_hash,d.event_kind,d.event_index) THEN
-            RAISE EXCEPTION 'indexed payment requires custody recognition' USING ERRCODE='23514';
-        END IF;
-    END IF;
-    RETURN NULL;
-END;
-$$;
-
+-- Once a payment attributes a receipt, its chain identity, receipt and tariff
+-- snapshot are history; only lifecycle and confirmation metadata may change.
 CREATE FUNCTION fn_crypto_payment_frozen_basis_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-DECLARE b reg_crypto_payment_custody_bindings; p reg_crypto_custody_effect_postings; o reg_crypto_accounting_effect_occurrences; e reg_crypto_accounting_effects;
 BEGIN
-    SELECT * INTO b FROM reg_crypto_payment_custody_bindings WHERE payment_id=OLD.id ORDER BY created_at LIMIT 1;
-    IF NOT FOUND THEN
+    IF OLD.receipt_id IS NULL THEN
         IF TG_OP='DELETE' THEN RETURN OLD; END IF;
         RETURN NEW;
     END IF;
-    IF TG_OP='DELETE' THEN RAISE EXCEPTION 'recognized payment history is immutable' USING ERRCODE='23514'; END IF;
-    SELECT * INTO STRICT p FROM reg_crypto_custody_effect_postings WHERE id=b.posting_id;
-    SELECT * INTO STRICT o FROM reg_crypto_accounting_effect_occurrences WHERE id=p.occurrence_id;
-    SELECT * INTO STRICT e FROM reg_crypto_accounting_effects WHERE id=p.effect_id;
-    IF NEW.deletion_mark OR NEW._deleted_at IS NOT NULL
-       OR (NEW.invoice_id,NEW.merchant_id,NEW.wallet_id,NEW.token_id,NEW.amount,NEW.fee_fixed,NEW.fee_percent_bp,NEW.fee_min,NEW.fee_max,NEW.date)
-          IS DISTINCT FROM (b.invoice_id,b.merchant_id,b.wallet_id,b.token_id,b.gross,b.fee_fixed,b.fee_percent_bp,b.fee_min,b.fee_max,b.period)
-       OR NEW.network_id<>e.network_id OR regexp_replace(lower(NEW.tx_hash),'^0x','')<>e.tx_hash OR NEW.event_kind<>e.event_kind
-       OR (CASE WHEN e.family='evm' THEN lower(NEW.from_address) ELSE NEW.from_address END)<>o.source_address
-       OR (OLD.posted AND NEW.posted AND OLD.posted_version=NEW.posted_version
-            AND (OLD.block_number,OLD.block_hash) IS DISTINCT FROM (NEW.block_number,NEW.block_hash)) THEN
-        RAISE EXCEPTION 'recognized payment basis and fee snapshot are frozen' USING ERRCODE='23514';
+    IF TG_OP='DELETE' OR NEW.deletion_mark OR NEW._deleted_at IS NOT NULL
+       OR (NEW.receipt_id,NEW.invoice_id,NEW.merchant_id,NEW.network_id,NEW.wallet_id,NEW.token_id,NEW.amount,
+           NEW.tx_hash,NEW.event_kind,NEW.fee_fixed,NEW.fee_percent_bp,NEW.fee_min,NEW.fee_max)
+          IS DISTINCT FROM (OLD.receipt_id,OLD.invoice_id,OLD.merchant_id,OLD.network_id,OLD.wallet_id,OLD.token_id,OLD.amount,
+           OLD.tx_hash,OLD.event_kind,OLD.fee_fixed,OLD.fee_percent_bp,OLD.fee_min,OLD.fee_max) THEN
+        RAISE EXCEPTION 'attributed payment basis and fee snapshot are frozen' USING ERRCODE='23514';
     END IF;
     RETURN NEW;
 END;
 $$;
 
-CREATE FUNCTION fn_crypto_payment_document_recognition_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-DECLARE p reg_crypto_custody_effect_postings; required BOOLEAN; current_doc doc_crypto_payments;
+-- A payment is an attribution of one custody receipt: it consumes the receipt
+-- suspense and credits the merchant net of the snapshotted processing fee.
+-- Superseded generations remain only as fully compensated history.
+CREATE FUNCTION fn_crypto_assert_payment_attribution(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE d doc_crypto_payments; fee NUMERIC;
 BEGIN
-    -- Lease/confirmation metadata on an unadopted legacy payment is not a
-    -- financial transition. Do not make historical rows unusable at upgrade.
-    IF TG_OP='UPDATE' AND NOT EXISTS(SELECT 1 FROM reg_crypto_payment_custody_bindings WHERE payment_id=NEW.id)
-       AND (OLD.posted,OLD.posted_version,OLD.network_id,OLD.wallet_id,OLD.token_id,OLD.amount,OLD.tx_hash,OLD.event_kind,OLD.event_index,
-            OLD.block_number,OLD.block_hash,OLD.merchant_id,OLD.invoice_id,OLD.from_address,OLD.date,OLD.fee_fixed,OLD.fee_percent_bp,OLD.fee_min,OLD.fee_max)
-          IS NOT DISTINCT FROM
-           (NEW.posted,NEW.posted_version,NEW.network_id,NEW.wallet_id,NEW.token_id,NEW.amount,NEW.tx_hash,NEW.event_kind,NEW.event_index,
-            NEW.block_number,NEW.block_hash,NEW.merchant_id,NEW.invoice_id,NEW.from_address,NEW.date,NEW.fee_fixed,NEW.fee_percent_bp,NEW.fee_min,NEW.fee_max) THEN
-        RETURN NULL;
+    SELECT * INTO d FROM doc_crypto_payments WHERE id=target;
+    IF NOT FOUND THEN RAISE EXCEPTION 'payment attribution requires its document' USING ERRCODE='23514'; END IF;
+    IF EXISTS(SELECT 1 FROM reg_crypto_balance_movements WHERE recorder_id=d.id)
+       OR EXISTS(SELECT 1 FROM reg_crypto_platform_cost_movements WHERE recorder_id=d.id)
+       OR EXISTS(SELECT 1 FROM reg_crypto_provider_balance_movements WHERE recorder_id=d.id) THEN
+        RAISE EXCEPTION 'payment attributes a receipt and never moves custody' USING ERRCODE='23514';
     END IF;
-    required:=fn_crypto_payment_requires_recognition(NEW.id,NEW.network_id,NEW.tx_hash,NEW.event_kind,NEW.event_index);
-    IF TG_OP='UPDATE' THEN required:=required OR fn_crypto_payment_requires_recognition(OLD.id,OLD.network_id,OLD.tx_hash,OLD.event_kind,OLD.event_index); END IF;
-    SELECT * INTO current_doc FROM doc_crypto_payments WHERE id=NEW.id;
-    IF NOT FOUND THEN
-        IF required AND EXISTS(SELECT 1 FROM reg_crypto_balance_movements WHERE recorder_id=NEW.id AND recorder_type='CryptoPayment') THEN
-            RAISE EXCEPTION 'indexed payment principal requires its document' USING ERRCODE='23514';
-        END IF;
-        RETURN NULL;
+    IF EXISTS(SELECT 1 FROM reg_crypto_receipt_suspense_movements m WHERE m.recorder_id=d.id AND m.recorder_type='CryptoPayment'
+            AND (NOT d.posted OR m.recorder_version<>d.posted_version)
+            AND m.amount<>(SELECT COALESCE(SUM(x.amount),0) FROM reg_crypto_receipt_suspense_movements x WHERE x.reversal_of_line_id=m.line_id))
+       OR EXISTS(SELECT 1 FROM reg_crypto_merchant_balance_movements m WHERE m.recorder_id=d.id AND m.recorder_type='CryptoPayment'
+            AND (NOT d.posted OR m.recorder_version<>d.posted_version)
+            AND m.amount<>(SELECT COALESCE(SUM(x.amount),0) FROM reg_crypto_merchant_balance_movements x WHERE x.reversal_of_line_id=m.line_id))
+       OR EXISTS(SELECT 1 FROM reg_crypto_fee_movements m WHERE m.recorder_id=d.id AND m.recorder_type='CryptoPayment'
+            AND (NOT d.posted OR m.recorder_version<>d.posted_version)
+            AND m.amount<>(SELECT COALESCE(SUM(x.amount),0) FROM reg_crypto_fee_movements x WHERE x.reversal_of_line_id=m.line_id)) THEN
+        RAISE EXCEPTION 'superseded payment attribution is not fully compensated' USING ERRCODE='23514';
     END IF;
-    IF required THEN
-        IF EXISTS(SELECT 1 FROM reg_crypto_balance_movements m WHERE m.recorder_id=NEW.id AND m.recorder_type='CryptoPayment' AND m.reversal_of_line_id IS NULL
-            AND NOT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_recognitions r WHERE r.movement_line_id=m.line_id)
-            AND m.amount>COALESCE((SELECT SUM(amount) FROM reg_crypto_balance_movements WHERE reversal_of_line_id=m.line_id),0)) THEN
-            RAISE EXCEPTION 'indexed payment custody requires its recognition' USING ERRCODE='23514';
-        END IF;
-        IF NOT current_doc.posted THEN
-            FOR p IN SELECT * FROM reg_crypto_custody_effect_postings WHERE recorder_type='CryptoPayment' AND recorder_id=NEW.id LOOP
-                IF NOT fn_crypto_payment_fully_compensated(p.id) THEN RAISE EXCEPTION 'payment unpost requires complete financial compensation' USING ERRCODE='23514'; END IF;
-            END LOOP;
-        END IF;
+    IF NOT d.posted THEN RETURN; END IF;
+    fee:=d.fee_fixed+trunc(d.amount*d.fee_percent_bp/10000);
+    IF d.fee_min>0 THEN fee:=greatest(fee,d.fee_min); END IF;
+    IF d.fee_max>0 THEN fee:=least(fee,d.fee_max); END IF;
+    IF fee>d.amount OR d.status NOT IN ('confirmed','settled')
+       OR NOT EXISTS(SELECT 1 FROM doc_crypto_custody_receipts r
+            JOIN reg_crypto_custody_effect_postings p ON p.id=r.posting_id
+            JOIN reg_crypto_accounting_effects e ON e.id=p.effect_id
+            WHERE r.id=d.receipt_id AND r.posted AND r.network_id=d.network_id AND r.wallet_id=d.wallet_id
+              AND r.token_id=d.token_id AND r.amount=d.amount
+              AND e.tx_hash=regexp_replace(lower(d.tx_hash),'^0x','') AND e.event_kind=d.event_kind)
+       OR (SELECT count(*) FROM reg_crypto_receipt_suspense_movements WHERE recorder_id=d.id AND recorder_type='CryptoPayment' AND recorder_version=d.posted_version)<>1
+       OR NOT EXISTS(SELECT 1 FROM reg_crypto_receipt_suspense_movements WHERE recorder_id=d.id AND recorder_type='CryptoPayment'
+            AND recorder_version=d.posted_version AND record_type='expense' AND receipt_id=d.receipt_id AND token_id=d.token_id AND amount=d.amount)
+       OR (SELECT count(*) FROM reg_crypto_merchant_balance_movements WHERE recorder_id=d.id AND recorder_type='CryptoPayment' AND recorder_version=d.posted_version)
+            <>(CASE WHEN d.amount>fee THEN 1 ELSE 0 END)
+       OR EXISTS(SELECT 1 FROM reg_crypto_merchant_balance_movements WHERE recorder_id=d.id AND recorder_type='CryptoPayment' AND recorder_version=d.posted_version
+            AND (record_type<>'receipt' OR merchant_id<>d.merchant_id OR token_id<>d.token_id OR amount<>d.amount-fee OR reversal_of_line_id IS NOT NULL))
+       OR (SELECT count(*) FROM reg_crypto_fee_movements WHERE recorder_id=d.id AND recorder_type='CryptoPayment' AND recorder_version=d.posted_version)
+            <>(CASE WHEN fee>0 THEN 1 ELSE 0 END)
+       OR EXISTS(SELECT 1 FROM reg_crypto_fee_movements WHERE recorder_id=d.id AND recorder_type='CryptoPayment' AND recorder_version=d.posted_version
+            AND (record_type<>'receipt' OR merchant_id<>d.merchant_id OR token_id<>d.token_id OR amount<>fee OR fee_type<>'processing' OR reversal_of_line_id IS NOT NULL)) THEN
+        RAISE EXCEPTION 'payment requires its exact receipt attribution set' USING ERRCODE='23514';
+    END IF;
+END;
+$$;
+
+CREATE FUNCTION fn_crypto_payment_attribution_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_TABLE_NAME='doc_crypto_payments' THEN
+        PERFORM fn_crypto_assert_payment_attribution(NEW.id);
+    ELSIF NEW.recorder_type='CryptoPayment' THEN
+        PERFORM fn_crypto_assert_payment_attribution(NEW.recorder_id);
     END IF;
     RETURN NULL;
 END;
 $$;
 
--- Validate reversal dimensions and prohibit reversing a bound reversal. A sum
--- of same-direction or foreign-wallet rows must never authorize generation 2.
-CREATE FUNCTION fn_crypto_bound_payment_reversal_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-DECLARE original JSONB; parent UUID; bound BOOLEAN;
-BEGIN
-    IF NEW.reversal_of_line_id IS NULL THEN RETURN NEW; END IF;
-    EXECUTE format('SELECT to_jsonb(m) FROM %I m WHERE line_id=$1',TG_TABLE_NAME) INTO original USING NEW.reversal_of_line_id;
-    parent:=(original->>'reversal_of_line_id')::uuid;
-    IF parent IS NOT NULL THEN
-        EXECUTE format('SELECT to_jsonb(m) FROM %I m WHERE line_id=$1',TG_TABLE_NAME) INTO original USING parent;
-    END IF;
-    SELECT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_postings p WHERE p.recorder_type='CryptoPayment'
-        AND p.recorder_id=(original->>'recorder_id')::uuid AND p.recorder_version=(original->>'recorder_version')::int) INTO bound;
-    IF NOT bound THEN RETURN NEW; END IF;
-    IF parent IS NOT NULL OR NEW.record_type=original->>'record_type' OR NEW.token_id<>(original->>'token_id')::uuid
-       OR (TG_TABLE_NAME='reg_crypto_balance_movements' AND to_jsonb(NEW)->>'wallet_id' IS DISTINCT FROM original->>'wallet_id')
-       OR (TG_TABLE_NAME<>'reg_crypto_balance_movements' AND to_jsonb(NEW)->>'merchant_id' IS DISTINCT FROM original->>'merchant_id')
-       OR (TG_TABLE_NAME='reg_crypto_fee_movements' AND to_jsonb(NEW)->>'fee_type' IS DISTINCT FROM original->>'fee_type') THEN
-        RAISE EXCEPTION 'bound payment reversal requires exact opposite source dimensions' USING ERRCODE='23514';
-    END IF;
-    RETURN NEW;
-END;
-$$;
 
 CREATE FUNCTION fn_crypto_assert_native_funding_custody(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE p reg_crypto_custody_effect_postings; b reg_crypto_native_funding_custody_bindings;
@@ -974,16 +842,6 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$;
-
-CREATE OR REPLACE FUNCTION fn_crypto_payment_requires_recognition(payment UUID,network UUID,hash TEXT,kind TEXT,event_index BIGINT)
-RETURNS BOOLEAN LANGUAGE sql VOLATILE AS $$
-    SELECT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_postings WHERE recorder_type='CryptoPayment' AND recorder_id=payment)
-       OR EXISTS(SELECT 1 FROM reg_crypto_transfer_verifications v
-          JOIN reg_crypto_accounting_effect_evidence x ON x.verification_id=v.id
-          WHERE v.network_id=network AND regexp_replace(lower(v.tx_hash),'^0x','')=regexp_replace(lower(hash),'^0x','')
-            )
-       OR EXISTS(SELECT 1 FROM doc_crypto_payments d JOIN reg_crypto_accounting_effect_evidence x ON x.verification_id=d.verification_id WHERE d.id=payment)
 $$;
 
 CREATE FUNCTION fn_crypto_assert_sweep_line(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
@@ -1882,12 +1740,16 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION fn_crypto_payment_posting_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION fn_crypto_balance_posting_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
-    NEW.posting_txid:=CASE WHEN NEW.recorder_type IN ('CryptoPayment','CryptoNativeFunding','CryptoSweep','TreasuryWithdrawal','CryptoWithdrawal','CryptoCustodyAdjustment','ChainSettlement','CryptoNetworkOperation') AND NEW.reversal_of_line_id IS NULL THEN txid_current() ELSE NULL END;
+    IF NEW.recorder_type='CryptoPayment' THEN
+        RAISE EXCEPTION 'payment attributes a receipt and never moves custody' USING ERRCODE='23514';
+    END IF;
+    NEW.posting_txid:=CASE WHEN NEW.recorder_type IN ('CryptoNativeFunding','CryptoSweep','TreasuryWithdrawal','CryptoWithdrawal','CryptoCustodyAdjustment','ChainSettlement','CryptoNetworkOperation') AND NEW.reversal_of_line_id IS NULL THEN txid_current() ELSE NULL END;
     RETURN NEW;
 END;
 $$;
+
 
 CREATE FUNCTION fn_crypto_assert_network_fee(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE f reg_crypto_fee_reservations; b reg_crypto_network_fee_bindings; p reg_crypto_network_fee_proofs; c reg_crypto_chain_settlements; d doc_crypto_network_operations; fee_purpose TEXT;
@@ -2170,20 +2032,19 @@ BEGIN
 END; $$;
 
 CREATE FUNCTION fn_crypto_expected_external_payment_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-DECLARE p doc_crypto_payments; blocked BOOLEAN;
+DECLARE blocked BOOLEAN;
 BEGIN
- IF TG_TABLE_NAME='doc_crypto_payments' THEN p:=NEW;
- ELSE
-  IF NEW.recorder_type<>'CryptoPayment' OR NEW.record_type<>'receipt' OR NEW.reversal_of_line_id IS NOT NULL THEN RETURN NEW; END IF;
-  SELECT * INTO STRICT p FROM doc_crypto_payments WHERE id=NEW.recorder_id;
- END IF;
- SELECT EXISTS(SELECT 1 FROM cat_wallets w JOIN cat_tokens t ON t.id=p.token_id
-  CROSS JOIN LATERAL fn_crypto_expected_transfer_candidates(p.network_id,p.tx_hash,p.event_kind,p.from_address,w.address,COALESCE(t.contract_address,''),p.amount) c WHERE w.id=p.wallet_id) INTO blocked;
- IF blocked THEN RAISE EXCEPTION 'expected transfer cannot create an external payment receipt' USING ERRCODE='23514'; END IF; RETURN NEW;
-END; $$;
+    SELECT EXISTS(SELECT 1 FROM cat_wallets w JOIN cat_tokens t ON t.id=NEW.token_id
+        CROSS JOIN LATERAL fn_crypto_expected_transfer_candidates(NEW.network_id,NEW.tx_hash,NEW.event_kind,NEW.from_address,
+            w.address,COALESCE(t.contract_address,''),NEW.amount) c WHERE w.id=NEW.wallet_id) INTO blocked;
+    IF blocked THEN RAISE EXCEPTION 'expected transfer cannot create an external payment' USING ERRCODE='23514'; END IF;
+    RETURN NEW;
+END;
+$$;
+
 
 CREATE FUNCTION fn_crypto_adjustment_accounting_basis() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-DECLARE d doc_crypto_payments; posting UUID;
+DECLARE d doc_crypto_payments;
 BEGIN
     IF TG_OP='DELETE' THEN RAISE EXCEPTION 'crypto adjustment history is immutable' USING ERRCODE='23514'; END IF;
     IF TG_OP='INSERT' THEN
@@ -2191,49 +2052,37 @@ BEGIN
             RAISE EXCEPTION 'new crypto adjustment requires model 2 proposal' USING ERRCODE='23514';
         END IF;
         NEW.proposal_txid:=txid_current();
-    ELSE
-        IF (OLD.basis_kind,OLD.source_posting_id,OLD.proposal_txid,OLD.created_at)
-            IS DISTINCT FROM (NEW.basis_kind,NEW.source_posting_id,NEW.proposal_txid,NEW.created_at) THEN
-            RAISE EXCEPTION 'crypto adjustment accounting basis is immutable' USING ERRCODE='23514';
-        END IF;
+    ELSIF (OLD.basis_kind,OLD.proposal_txid,OLD.created_at) IS DISTINCT FROM (NEW.basis_kind,NEW.proposal_txid,NEW.created_at) THEN
+        RAISE EXCEPTION 'crypto adjustment accounting basis is immutable' USING ERRCODE='23514';
     END IF;
-    IF NEW.mode<>'payment_reversal'
-        OR (TG_OP='UPDATE' AND NEW.status<>'posted') THEN RETURN NEW; END IF;
+    IF NEW.mode<>'payment_reversal' OR (TG_OP='UPDATE' AND NEW.status<>'posted') THEN RETURN NEW; END IF;
     SELECT * INTO STRICT d FROM doc_crypto_payments WHERE id=NEW.payment_id;
-    SELECT p.id INTO posting FROM reg_crypto_custody_effect_postings p
-        JOIN reg_crypto_payment_custody_bindings b ON b.posting_id=p.id AND b.payment_id=d.id
-        WHERE p.recorder_type='CryptoPayment' AND p.recorder_id=d.id AND p.recorder_version=NEW.posted_version;
-    IF d.status<>'settled' OR NOT d.posted OR d.posted_version<>NEW.posted_version THEN
+    IF d.status<>'settled' OR NOT d.posted OR d.posted_version<>NEW.posted_version OR d.receipt_id IS NULL THEN
         RAISE EXCEPTION 'crypto adjustment requires current settled payment generation' USING ERRCODE='23514';
-    END IF;
-    IF posting IS NOT NULL THEN
-        IF NEW.basis_kind<>'payment_compensation' OR NEW.source_posting_id IS DISTINCT FROM posting THEN
-            RAISE EXCEPTION 'crypto adjustment requires exact source custody posting' USING ERRCODE='23514';
-        END IF;
-    ELSIF NEW.basis_kind<>'legacy_payment' OR NEW.source_posting_id IS NOT NULL
-        OR fn_crypto_payment_requires_recognition(d.id,d.network_id,d.tx_hash,d.event_kind,d.event_index) THEN
-        RAISE EXCEPTION 'indexed payment adjustment requires its source custody posting' USING ERRCODE='23514';
     END IF;
     RETURN NEW;
 END;
 $$;
 
+
 CREATE OR REPLACE FUNCTION fn_crypto_adjustment_source_insert_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-DECLARE a doc_crypto_adjustments; source JSONB; source_table TEXT; used NUMERIC;
+DECLARE a doc_crypto_adjustments; source JSONB; source_table TEXT; used NUMERIC; original_type TEXT;
 BEGIN
     SELECT * INTO STRICT a FROM doc_crypto_adjustments WHERE id=NEW.adjustment_id;
     IF a.status<>'pending_approval' THEN RAISE EXCEPTION 'crypto adjustment sources are frozen after decision' USING ERRCODE='23514'; END IF;
     IF a.mode<>'payment_reversal' OR a.proposal_txid<>txid_current() OR NEW.amount IS NULL THEN
         RAISE EXCEPTION 'crypto adjustment sources are frozen at proposal' USING ERRCODE='23514';
     END IF;
-    source_table:=CASE NEW.source_register WHEN 'custody' THEN 'reg_crypto_balance_movements'
+    source_table:=CASE NEW.source_register WHEN 'suspense' THEN 'reg_crypto_receipt_suspense_movements'
         WHEN 'merchant' THEN 'reg_crypto_merchant_balance_movements' WHEN 'fee' THEN 'reg_crypto_fee_movements' END;
     IF source_table IS NULL THEN RAISE EXCEPTION 'invalid adjustment source register' USING ERRCODE='23514'; END IF;
     EXECUTE format('SELECT to_jsonb(m) FROM %I m WHERE line_id=$1',source_table) INTO source USING NEW.source_line_id;
     EXECUTE format('SELECT COALESCE(SUM(amount),0) FROM %I WHERE reversal_of_line_id=$1',source_table) INTO used USING NEW.source_line_id;
+    -- A payment consumes suspense and credits merchant and fee.
+    original_type:=CASE WHEN NEW.source_register='suspense' THEN 'expense' ELSE 'receipt' END;
     IF source IS NULL OR source->>'recorder_type'<>'CryptoPayment' OR (source->>'recorder_id')::uuid<>a.payment_id
         OR (source->>'recorder_version')::int<>a.posted_version OR source->>'reversal_of_line_id' IS NOT NULL
-        OR source->>'record_type'<>'receipt' OR NEW.amount>(source->>'amount')::numeric-used THEN
+        OR source->>'record_type'<>original_type OR NEW.amount>(source->>'amount')::numeric-used THEN
         RAISE EXCEPTION 'crypto adjustment requires available original payment source' USING ERRCODE='23514';
     END IF;
     RETURN NEW;
@@ -2242,23 +2091,23 @@ $$;
 
 CREATE FUNCTION fn_crypto_assert_adjustment_accounting(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE a doc_crypto_adjustments; kind TEXT; source_table TEXT; selected_count INT; movement_count INT; exact_count INT;
-DECLARE custody NUMERIC; merchant NUMERIC; fee NUMERIC;
+DECLARE suspense NUMERIC; merchant NUMERIC; fee NUMERIC;
 BEGIN
     SELECT * INTO a FROM doc_crypto_adjustments WHERE id=target;
     IF NOT FOUND THEN RETURN; END IF;
     IF a.mode='payment_reversal' THEN
-        SELECT COALESCE(SUM(amount) FILTER(WHERE source_register='custody'),0),
+        SELECT COALESCE(SUM(amount) FILTER(WHERE source_register='suspense'),0),
             COALESCE(SUM(amount) FILTER(WHERE source_register='merchant'),0),
             COALESCE(SUM(amount) FILTER(WHERE source_register='fee'),0)
-            INTO custody,merchant,fee FROM reg_crypto_adjustment_sources WHERE adjustment_id=a.id;
-        IF custody<=0 OR custody<>merchant+fee THEN
+            INTO suspense,merchant,fee FROM reg_crypto_adjustment_sources WHERE adjustment_id=a.id;
+        IF suspense<=0 OR suspense<>merchant+fee THEN
             RAISE EXCEPTION 'crypto adjustment requires balanced source selection' USING ERRCODE='23514';
         END IF;
     ELSIF EXISTS(SELECT 1 FROM reg_crypto_adjustment_sources WHERE adjustment_id=a.id) THEN
         RAISE EXCEPTION 'wallet variance cannot select payment sources' USING ERRCODE='23514';
     END IF;
-    FOREACH kind IN ARRAY ARRAY['custody','merchant','fee'] LOOP
-        source_table:=CASE kind WHEN 'custody' THEN 'reg_crypto_balance_movements'
+    FOREACH kind IN ARRAY ARRAY['custody','suspense','merchant','fee'] LOOP
+        source_table:=CASE kind WHEN 'custody' THEN 'reg_crypto_balance_movements' WHEN 'suspense' THEN 'reg_crypto_receipt_suspense_movements'
             WHEN 'merchant' THEN 'reg_crypto_merchant_balance_movements' ELSE 'reg_crypto_fee_movements' END;
         SELECT count(*) INTO selected_count FROM reg_crypto_adjustment_sources WHERE adjustment_id=a.id AND source_register=kind;
         EXECUTE format('SELECT count(*) FROM %I WHERE recorder_id=$1',source_table) INTO movement_count USING a.id;
@@ -2268,9 +2117,9 @@ BEGIN
             EXECUTE format('SELECT count(*) FROM %1$I m JOIN reg_crypto_adjustment_sources s ON s.adjustment_id=$1 AND s.source_register=$2 AND s.source_line_id=m.reversal_of_line_id
                 JOIN %1$I original ON original.line_id=s.source_line_id
                 WHERE m.recorder_id=$1 AND m.recorder_type=''CryptoAdjustment'' AND m.recorder_version=1
-                AND m.record_type=''expense'' AND m.amount=s.amount AND m.reversal_reason=''manual_financial_correction''
-                AND (to_jsonb(m)->>''wallet_id'',to_jsonb(m)->>''merchant_id'',m.token_id,to_jsonb(m)->>''fee_type'')
-                    IS NOT DISTINCT FROM (to_jsonb(original)->>''wallet_id'',to_jsonb(original)->>''merchant_id'',original.token_id,to_jsonb(original)->>''fee_type'')',source_table)
+                AND m.record_type<>original.record_type AND m.amount=s.amount AND m.reversal_reason=''manual_financial_correction''
+                AND (to_jsonb(m)->>''receipt_id'',to_jsonb(m)->>''merchant_id'',m.token_id,to_jsonb(m)->>''fee_type'')
+                    IS NOT DISTINCT FROM (to_jsonb(original)->>''receipt_id'',to_jsonb(original)->>''merchant_id'',original.token_id,to_jsonb(original)->>''fee_type'')',source_table)
                 INTO exact_count USING a.id,kind;
             IF movement_count<>selected_count OR exact_count<>selected_count THEN
                 RAISE EXCEPTION 'crypto adjustment requires exact selected source reversals' USING ERRCODE='23514';
@@ -2281,7 +2130,7 @@ BEGIN
                 AND (wallet_id,token_id,record_type,amount)=(a.wallet_id,a.token_id,a.direction,a.amount);
             IF movement_count<>1 OR exact_count<>1 THEN RAISE EXCEPTION 'wallet variance requires exact custody movement' USING ERRCODE='23514'; END IF;
         ELSIF movement_count<>0 THEN
-            RAISE EXCEPTION 'wallet variance cannot change merchant or fee balances' USING ERRCODE='23514';
+            RAISE EXCEPTION 'wallet variance cannot change merchant, fee or suspense balances' USING ERRCODE='23514';
         END IF;
     END LOOP;
     IF EXISTS(SELECT 1 FROM reg_crypto_platform_cost_movements WHERE recorder_id=a.id)
@@ -2303,7 +2152,6 @@ BEGIN
             OR NOT EXISTS(SELECT 1 FROM sys_outbox WHERE aggregate_type='CryptoAdjustment' AND aggregate_id=a.id AND event_type='financial_correction_posted'
                 AND payload->>'entityType'='CryptoAdjustment' AND payload->>'entityId'=a.id::text AND payload->>'action'='financial_correction_posted'
                 AND payload->>'basisKind'=a.basis_kind
-                AND (payload->>'sourcePostingId') IS NOT DISTINCT FROM a.source_posting_id::text
                 AND payload->>'postedVersion'=COALESCE(a.posted_version,0)::text) THEN
             RAISE EXCEPTION 'crypto adjustment requires accounting basis outbox' USING ERRCODE='23514';
         END IF;
@@ -3683,22 +3531,37 @@ CREATE TRIGGER trg_crypto_merchant_credit_txid BEFORE UPDATE ON doc_crypto_merch
 CREATE TABLE reg_crypto_receipt_suspense_movements (
     line_id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
     recorder_id UUID NOT NULL,
-    recorder_type TEXT NOT NULL CHECK(recorder_type IN ('CryptoCustodyReceipt','CryptoMerchantCredit')),
-    recorder_version INT NOT NULL CHECK(recorder_version=1),
+    recorder_type TEXT NOT NULL CHECK(recorder_type IN
+        ('CryptoCustodyReceipt','CryptoMerchantCredit','CryptoPayment','CryptoPaymentReorg','CryptoAdjustment')),
+    recorder_version INT NOT NULL CHECK(recorder_version>0),
     period TIMESTAMPTZ NOT NULL,
     record_type TEXT NOT NULL CHECK(record_type IN ('receipt','expense')),
     receipt_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
     token_id UUID NOT NULL REFERENCES cat_tokens(id),
     amount NUMERIC(78,0) NOT NULL CHECK(amount>0),
+    reversal_of_line_id UUID REFERENCES reg_crypto_receipt_suspense_movements(line_id),
+    reversal_reason TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    -- A receipt adds its gross once; attribution documents only consume it.
-    CHECK((recorder_type='CryptoCustodyReceipt' AND record_type='receipt' AND recorder_id=receipt_id)
-       OR (recorder_type='CryptoMerchantCredit' AND record_type='expense'))
+    -- A receipt adds its gross once; attributions consume it; only a payment
+    -- attribution can be compensated back into the remainder.
+    CHECK((recorder_type='CryptoCustodyReceipt' AND record_type='receipt' AND recorder_id=receipt_id
+            AND recorder_version=1 AND reversal_of_line_id IS NULL AND reversal_reason IS NULL)
+       OR (recorder_type='CryptoMerchantCredit' AND record_type='expense' AND recorder_version=1
+            AND reversal_of_line_id IS NULL AND reversal_reason IS NULL)
+       OR (recorder_type='CryptoPayment' AND record_type='expense' AND reversal_of_line_id IS NULL AND reversal_reason IS NULL)
+       OR (recorder_type IN ('CryptoPaymentReorg','CryptoAdjustment') AND record_type='receipt' AND recorder_version=1
+            AND reversal_of_line_id IS NOT NULL AND btrim(COALESCE(reversal_reason,''))<>''))
 );
+
 CREATE UNIQUE INDEX uq_crypto_receipt_suspense_origin ON reg_crypto_receipt_suspense_movements(receipt_id)
     WHERE recorder_type='CryptoCustodyReceipt';
 CREATE UNIQUE INDEX uq_crypto_receipt_suspense_recorder ON reg_crypto_receipt_suspense_movements(recorder_id)
     WHERE recorder_type='CryptoMerchantCredit';
+CREATE UNIQUE INDEX uq_crypto_receipt_suspense_payment ON reg_crypto_receipt_suspense_movements(recorder_id,recorder_version)
+    WHERE recorder_type='CryptoPayment';
+CREATE INDEX idx_crypto_receipt_suspense_reversal ON reg_crypto_receipt_suspense_movements(reversal_of_line_id)
+    WHERE reversal_of_line_id IS NOT NULL;
+
 
 CREATE TABLE reg_crypto_receipt_suspense_balances (
     receipt_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
@@ -3708,6 +3571,11 @@ CREATE TABLE reg_crypto_receipt_suspense_balances (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY(receipt_id,token_id)
 );
+
+-- An automatic invoice payment attributes the receipt of its own chain effect.
+ALTER TABLE doc_crypto_payments ADD COLUMN receipt_id UUID REFERENCES doc_crypto_custody_receipts(id);
+CREATE INDEX idx_crypto_payments_receipt ON doc_crypto_payments(receipt_id) WHERE receipt_id IS NOT NULL;
+
 
 CREATE TABLE reg_crypto_receipt_intake_audit (
     receipt_id UUID PRIMARY KEY REFERENCES doc_crypto_custody_receipts(id),
@@ -3738,42 +3606,9 @@ CREATE TABLE reg_crypto_wallet_funding_audit (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE reg_crypto_custody_effect_postings
-    DROP CONSTRAINT reg_crypto_custody_effect_postings_generation_check,
-    ADD COLUMN predecessor_id UUID UNIQUE REFERENCES reg_crypto_custody_effect_postings(id),
-    ADD CONSTRAINT ck_crypto_custody_generation CHECK(generation>0 AND
-        ((generation=1 AND predecessor_id IS NULL) OR (generation>1 AND predecessor_id IS NOT NULL)));
-
-CREATE UNIQUE INDEX uq_crypto_payment_custody_version
-    ON reg_crypto_custody_effect_postings(recorder_id,recorder_version) WHERE recorder_type='CryptoPayment';
-
 -- COPY may use a subtransaction, so xmin is not a reliable top-level posting
 -- identity. Stamp new payment lines explicitly; historical rows stay NULL.
 ALTER TABLE reg_crypto_balance_movements ADD COLUMN posting_txid BIGINT;
-
--- Immutable economic snapshot of one recognized payment posting.
-CREATE TABLE reg_crypto_payment_custody_bindings (
-    posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
-    payment_id UUID NOT NULL REFERENCES doc_crypto_payments(id),
-    invoice_id UUID NOT NULL,
-    merchant_id UUID NOT NULL REFERENCES cat_merchants(id),
-    wallet_id UUID NOT NULL REFERENCES cat_wallets(id),
-    token_id UUID NOT NULL REFERENCES cat_tokens(id),
-    gross NUMERIC(78,0) NOT NULL CHECK(gross>0),
-    net NUMERIC(78,0) NOT NULL CHECK(net>=0),
-    processing_fee NUMERIC(78,0) NOT NULL CHECK(processing_fee>=0),
-    fee_fixed NUMERIC(78,0) NOT NULL CHECK(fee_fixed>=0),
-    fee_percent_bp INT NOT NULL CHECK(fee_percent_bp BETWEEN 0 AND 10000),
-    fee_min NUMERIC(78,0) NOT NULL CHECK(fee_min>=0),
-    fee_max NUMERIC(78,0) NOT NULL CHECK(fee_max>=0),
-    period TIMESTAMPTZ NOT NULL,
-    actor TEXT NOT NULL CHECK(btrim(actor)<>''),
-    evidence_reference TEXT NOT NULL CHECK(btrim(evidence_reference)<>''),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CHECK(gross=net+processing_fee)
-);
-
-CREATE INDEX idx_crypto_payment_custody_bindings_payment ON reg_crypto_payment_custody_bindings(payment_id);
 
 CREATE UNIQUE INDEX uq_crypto_native_funding_custody ON reg_crypto_custody_effect_postings(recorder_id)
     WHERE recorder_type='CryptoNativeFunding';
@@ -3911,20 +3746,20 @@ CREATE TABLE reg_crypto_expected_transfer_evidence (
  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),_txid BIGINT NOT NULL DEFAULT txid_current(),_deleted_at TIMESTAMPTZ
 );
 
--- Historical decisions and pending proposals retain their original semantics.
--- A chain compensation refers to the original owner; it never claims an effect.
+-- A payment reversal returns an attribution to the receipt suspense; it never
+-- claims a chain effect.
 ALTER TABLE doc_crypto_adjustments
-    ADD COLUMN basis_kind TEXT NOT NULL DEFAULT 'legacy',
-    ADD COLUMN source_posting_id UUID REFERENCES reg_crypto_custody_effect_postings(id),
+    ADD COLUMN basis_kind TEXT NOT NULL,
     ADD COLUMN proposal_txid BIGINT,
     ADD CONSTRAINT ck_crypto_adjustment_accounting_basis CHECK (
         proposal_txid IS NOT NULL AND (
-            (mode='wallet_balance' AND basis_kind='wallet_variance' AND source_posting_id IS NULL)
-            OR (mode='payment_reversal' AND (
-                (basis_kind='legacy_payment' AND source_posting_id IS NULL)
-                OR (basis_kind='payment_compensation' AND source_posting_id IS NOT NULL)))));
+            (mode='wallet_balance' AND basis_kind='wallet_variance')
+            OR (mode='payment_reversal' AND basis_kind='payment_attribution')));
 
-CREATE INDEX idx_crypto_adjustment_source_posting ON doc_crypto_adjustments(source_posting_id) WHERE source_posting_id IS NOT NULL;
+ALTER TABLE reg_crypto_adjustment_sources
+    DROP CONSTRAINT reg_crypto_adjustment_sources_source_register_check,
+    ADD CONSTRAINT reg_crypto_adjustment_sources_source_register_check CHECK(source_register IN ('suspense','merchant','fee'));
+
 
 ALTER TABLE doc_crypto_resource_rentals ADD COLUMN maintenance_claim_token UUID;
 
@@ -4113,41 +3948,25 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER trg_crypto_payment_posting_transaction BEFORE INSERT ON reg_crypto_balance_movements
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_posting_transaction();
+CREATE TRIGGER trg_crypto_balance_posting_transaction BEFORE INSERT ON reg_crypto_balance_movements
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_balance_posting_transaction();
 
-CREATE TRIGGER trg_crypto_payment_custody_binding_immutable
-    BEFORE UPDATE OR DELETE ON reg_crypto_payment_custody_bindings
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
-
-CREATE CONSTRAINT TRIGGER trg_crypto_custody_generation_complete AFTER INSERT ON reg_crypto_custody_effect_postings
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_generation_complete();
-
-CREATE CONSTRAINT TRIGGER trg_crypto_payment_binding_complete AFTER INSERT ON reg_crypto_payment_custody_bindings
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_binding_complete();
-
+CREATE TRIGGER trg_crypto_payment_frozen_basis BEFORE UPDATE OR DELETE ON doc_crypto_payments
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_frozen_basis_guard();
+CREATE CONSTRAINT TRIGGER trg_crypto_payment_attribution_document AFTER UPDATE ON doc_crypto_payments
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+    WHEN (OLD.posted IS DISTINCT FROM NEW.posted OR OLD.posted_version IS DISTINCT FROM NEW.posted_version)
+    EXECUTE FUNCTION fn_crypto_payment_attribution_complete();
 DO $$
 DECLARE target TEXT;
 BEGIN
-    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements',
-        'reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements'] LOOP
-        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_financial_complete()',
-            'trg_payment_custody_complete_'||target,target);
+    FOREACH target IN ARRAY ARRAY['reg_crypto_receipt_suspense_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements'] LOOP
+        EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_attribution_complete()',
+            'trg_payment_attribution_'||target,target);
     END LOOP;
 END;
 $$;
 
-CREATE TRIGGER trg_crypto_payment_frozen_basis BEFORE UPDATE OR DELETE ON doc_crypto_payments
-    FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_frozen_basis_guard();
-
-CREATE CONSTRAINT TRIGGER trg_crypto_payment_document_recognition AFTER INSERT OR UPDATE ON doc_crypto_payments
-    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_document_recognition_complete();
-
-CREATE TRIGGER trg_bound_payment_reversal BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_bound_payment_reversal_guard();
-
-CREATE TRIGGER trg_bound_payment_reversal BEFORE INSERT ON reg_crypto_merchant_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_bound_payment_reversal_guard();
-
-CREATE TRIGGER trg_bound_payment_reversal BEFORE INSERT ON reg_crypto_fee_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_bound_payment_reversal_guard();
 
 CREATE TRIGGER trg_native_funding_binding_immutable BEFORE UPDATE OR DELETE ON reg_crypto_native_funding_custody_bindings
     FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
@@ -4403,8 +4222,6 @@ CREATE TRIGGER trg_expected_posting_owner BEFORE INSERT ON reg_crypto_custody_ef
 
 CREATE TRIGGER trg_expected_payment BEFORE INSERT ON doc_crypto_payments FOR EACH ROW EXECUTE FUNCTION fn_crypto_expected_external_payment_guard();
 
-CREATE TRIGGER trg_expected_payment_movement BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_expected_external_payment_guard();
-
 CREATE TRIGGER trg_crypto_adjustment_accounting_basis BEFORE INSERT OR UPDATE OR DELETE ON doc_crypto_adjustments
     FOR EACH ROW EXECUTE FUNCTION fn_crypto_adjustment_accounting_basis();
 
@@ -4519,11 +4336,71 @@ INSERT INTO auth_permissions (code,name,description,resource,action) VALUES
     ('crypto_receipt:credit','Зачисление невыясненных поступлений','Prepare or reject a merchant credit of an unidentified receipt','crypto_receipt','credit'),
     ('crypto_receipt:approve','Подтверждение зачисления поступлений','Approve a merchant credit prepared by another operator','crypto_receipt','approve')
 ON CONFLICT (code) DO NOTHING;
+-- The physical basis of an allocatable payment is the custody line of the
+-- receipt it attributes; the payment itself only moves suspense and liabilities.
+CREATE OR REPLACE VIEW crypto_aml_allocatable_payments AS
+ SELECT p.id payment_id,p.posted_version payment_version,p.merchant_id,p.network_id,p.token_id,p.wallet_id,
+        credit.amount principal,fees.amount service_fee,e.id effect_id,physical.line_id movement_id
+ FROM doc_crypto_payments p JOIN reg_crypto_aml_wallet_baselines baseline ON baseline.wallet_id=p.wallet_id AND baseline.token_id=p.token_id AND p.block_number>baseline.block_number
+ JOIN cat_wallets w ON w.id=p.wallet_id AND w.custody_merchant_id=p.merchant_id AND w.network_id=p.network_id
+ JOIN cat_tokens token ON token.id=p.token_id AND token.network_id=p.network_id
+ JOIN reg_crypto_aml_effects e ON e.wallet_id=p.wallet_id AND e.token_id=p.token_id AND e.network_id=p.network_id
+   AND e.tx_hash=p.tx_hash AND e.event_kind=p.event_kind AND e.event_index=p.event_index AND e.block_hash=p.block_hash AND e.amount=p.amount AND e.source_wallet_id IS NULL
+ JOIN reg_crypto_aml_effect_chain_states cs ON cs.effect_id=e.id AND cs.canonicality='canonical'
+ JOIN reg_crypto_transfer_verifications proof ON proof.id=p.verification_id AND proof.network_id=e.network_id AND proof.tx_hash=e.tx_hash
+   AND proof.event_kind=e.event_kind AND proof.event_index=e.event_index AND proof.block_hash=e.block_hash AND proof.economics_hash=e.economics_hash
+ JOIN LATERAL(SELECT COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END),0) amount,
+    COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END) FILTER(WHERE recorder_version=p.posted_version),0) current_amount
+    FROM reg_crypto_merchant_balance_movements WHERE recorder_id=p.id AND recorder_type='CryptoPayment' AND merchant_id=p.merchant_id AND token_id=p.token_id) credit ON TRUE
+ JOIN LATERAL(SELECT COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END),0) amount,
+    COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END) FILTER(WHERE recorder_version=p.posted_version),0) current_amount
+    FROM reg_crypto_fee_movements WHERE recorder_id=p.id AND recorder_type='CryptoPayment' AND merchant_id=p.merchant_id AND token_id=p.token_id AND fee_type='processing') fees ON TRUE
+ JOIN doc_crypto_custody_receipts receipt ON receipt.id=p.receipt_id AND receipt.posted AND receipt.wallet_id=p.wallet_id
+   AND receipt.token_id=p.token_id AND receipt.amount=p.amount
+ JOIN reg_crypto_balance_movements physical ON physical.line_id=receipt.custody_line_id AND physical.recorder_id=receipt.id
+    AND physical.recorder_type='CryptoCustodyReceipt' AND physical.wallet_id=p.wallet_id AND physical.token_id=p.token_id
+    AND physical.record_type='receipt' AND physical.amount=p.amount AND physical.created_at>=baseline.created_at
+ WHERE p.posted AND p.status='settled' AND p.canonicality='canonical'
+   AND credit.amount>=0 AND fees.amount>=0 AND credit.amount=credit.current_amount AND fees.amount=fees.current_amount AND credit.amount+fees.amount=p.amount;
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-DELETE FROM auth_role_permissions WHERE permission_id IN (SELECT id FROM auth_permissions WHERE resource='crypto_receipt');
+DROP TRIGGER trg_crypto_payment_attribution_document ON doc_crypto_payments;
+DO $$
+DECLARE target TEXT;
+BEGIN
+    FOREACH target IN ARRAY ARRAY['reg_crypto_receipt_suspense_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements'] LOOP
+        EXECUTE format('DROP TRIGGER %I ON %I','trg_payment_attribution_'||target,target);
+    END LOOP;
+END;
+$$;
+DROP FUNCTION fn_crypto_payment_attribution_complete();
+DROP FUNCTION fn_crypto_assert_payment_attribution(UUID);
+CREATE OR REPLACE VIEW crypto_aml_allocatable_payments AS
+ SELECT p.id payment_id,p.posted_version payment_version,p.merchant_id,p.network_id,p.token_id,p.wallet_id,
+        credit.amount principal,fees.amount service_fee,e.id effect_id,physical.line_id movement_id
+ FROM doc_crypto_payments p JOIN reg_crypto_aml_wallet_baselines baseline ON baseline.wallet_id=p.wallet_id AND baseline.token_id=p.token_id AND p.block_number>baseline.block_number
+ JOIN cat_wallets w ON w.id=p.wallet_id AND w.custody_merchant_id=p.merchant_id AND w.network_id=p.network_id
+ JOIN cat_tokens token ON token.id=p.token_id AND token.network_id=p.network_id
+ JOIN reg_crypto_aml_effects e ON e.wallet_id=p.wallet_id AND e.token_id=p.token_id AND e.network_id=p.network_id
+   AND e.tx_hash=p.tx_hash AND e.event_kind=p.event_kind AND e.event_index=p.event_index AND e.block_hash=p.block_hash AND e.amount=p.amount AND e.source_wallet_id IS NULL
+ JOIN reg_crypto_aml_effect_chain_states cs ON cs.effect_id=e.id AND cs.canonicality='canonical'
+ JOIN reg_crypto_transfer_verifications proof ON proof.id=p.verification_id AND proof.network_id=e.network_id AND proof.tx_hash=e.tx_hash
+   AND proof.event_kind=e.event_kind AND proof.event_index=e.event_index AND proof.block_hash=e.block_hash AND proof.economics_hash=e.economics_hash
+ JOIN LATERAL(SELECT COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END),0) amount,
+    COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END) FILTER(WHERE recorder_version=p.posted_version),0) current_amount
+    FROM reg_crypto_merchant_balance_movements WHERE recorder_id=p.id AND recorder_type='CryptoPayment' AND merchant_id=p.merchant_id AND token_id=p.token_id) credit ON TRUE
+ JOIN LATERAL(SELECT COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END),0) amount,
+    COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END) FILTER(WHERE recorder_version=p.posted_version),0) current_amount
+    FROM reg_crypto_fee_movements WHERE recorder_id=p.id AND recorder_type='CryptoPayment' AND merchant_id=p.merchant_id AND token_id=p.token_id AND fee_type='processing') fees ON TRUE
+ JOIN reg_crypto_balance_movements physical ON physical.recorder_id=p.id AND physical.recorder_type='CryptoPayment' AND physical.recorder_version=p.posted_version
+    AND physical.wallet_id=p.wallet_id AND physical.token_id=p.token_id AND physical.record_type='receipt' AND physical.amount=p.amount AND physical.created_at>=baseline.created_at
+ WHERE p.posted AND p.status='settled' AND p.canonicality='canonical'
+   AND credit.amount>=0 AND fees.amount>=0 AND credit.amount=credit.current_amount AND fees.amount=fees.current_amount AND credit.amount+fees.amount=p.amount
+   AND (SELECT COUNT(*) FROM reg_crypto_balance_movements m WHERE m.recorder_id=p.id AND m.recorder_type='CryptoPayment' AND m.recorder_version=p.posted_version AND m.wallet_id=p.wallet_id AND m.token_id=p.token_id)=1;
+
+ALTER TABLE doc_crypto_payments DROP COLUMN receipt_id;DELETE FROM auth_role_permissions WHERE permission_id IN (SELECT id FROM auth_permissions WHERE resource='crypto_receipt');
 DELETE FROM auth_permissions WHERE resource='crypto_receipt';DROP TRIGGER trg_crypto_custody_receipt_audit_seed ON doc_crypto_custody_receipts;
 DROP TABLE reg_crypto_custody_receipt_audits;
 DROP FUNCTION fn_crypto_custody_receipt_audit_guard();
@@ -4811,12 +4688,14 @@ BEGIN
 END;
 $$;
 ALTER TABLE doc_crypto_adjustments DROP CONSTRAINT ck_crypto_adjustment_accounting_basis,
-    DROP COLUMN basis_kind,DROP COLUMN source_posting_id,DROP COLUMN proposal_txid;
+    DROP COLUMN basis_kind,DROP COLUMN proposal_txid;
+ALTER TABLE reg_crypto_adjustment_sources
+    DROP CONSTRAINT reg_crypto_adjustment_sources_source_register_check,
+    ADD CONSTRAINT reg_crypto_adjustment_sources_source_register_check CHECK(source_register IN ('custody','merchant','fee'));
 -- ==== crypto_expected_transfer_routing ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$ BEGIN IF EXISTS(SELECT 1 FROM reg_crypto_expected_transfer_requests) OR EXISTS(SELECT 1 FROM reg_crypto_expected_transfer_routes) THEN
  RAISE EXCEPTION 'expected transfer routing requires forward migration'; END IF; END; $$;
-DROP TRIGGER trg_expected_payment_movement ON reg_crypto_balance_movements;
 DROP TRIGGER trg_expected_payment ON doc_crypto_payments;
 DROP FUNCTION fn_crypto_expected_external_payment_guard();
 DROP TRIGGER trg_expected_posting_owner ON reg_crypto_custody_effect_postings;
@@ -4863,12 +4742,6 @@ DROP FUNCTION fn_crypto_network_fee_proof_guard();
 DROP FUNCTION fn_crypto_network_fee_key(TEXT,UUID,TEXT);
 ALTER TABLE doc_crypto_network_operations DROP COLUMN network_fee_reservation_id;
 ALTER TABLE reg_crypto_chain_settlements DROP COLUMN network_fee_reservation_id;
-CREATE OR REPLACE FUNCTION fn_crypto_payment_posting_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-    NEW.posting_txid:=CASE WHEN NEW.recorder_type IN ('CryptoPayment','CryptoNativeFunding','CryptoSweep','TreasuryWithdrawal','CryptoWithdrawal','CryptoCustodyAdjustment') AND NEW.reversal_of_line_id IS NULL THEN txid_current() ELSE NULL END;
-    RETURN NEW;
-END;
-$$;
 -- ==== crypto_custody_loss_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DROP TRIGGER trg_custody_loss_outflow_owner ON reg_crypto_balance_movements;
@@ -4890,12 +4763,6 @@ DROP FUNCTION fn_crypto_custody_loss_binding_complete();
 DROP FUNCTION fn_crypto_assert_custody_loss(UUID);
 DROP FUNCTION fn_crypto_custody_loss_conflicting_owner(UUID,UUID);
 DROP FUNCTION fn_crypto_lock_outflow_economics(UUID,TEXT,TEXT,TEXT,TEXT,NUMERIC);
-CREATE OR REPLACE FUNCTION fn_crypto_payment_posting_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-    NEW.posting_txid:=CASE WHEN NEW.recorder_type IN ('CryptoPayment','CryptoNativeFunding','CryptoSweep','TreasuryWithdrawal','CryptoWithdrawal') AND NEW.reversal_of_line_id IS NULL THEN txid_current() ELSE NULL END;
-    RETURN NEW;
-END;
-$$;
 -- ==== crypto_withdrawal_final_custody_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 CREATE OR REPLACE VIEW crypto_aml_valid_withdrawal_facts AS
@@ -4940,12 +4807,6 @@ DROP FUNCTION fn_crypto_assert_withdrawal_parent(UUID);
 ALTER TABLE reg_crypto_aml_withdrawal_facts DROP CONSTRAINT reg_crypto_aml_withdrawal_facts_check;
 ALTER TABLE reg_crypto_aml_withdrawal_facts ALTER COLUMN expense_movement_id SET NOT NULL;
 ALTER TABLE reg_crypto_aml_withdrawal_facts ADD CONSTRAINT reg_crypto_aml_withdrawal_facts_check CHECK(succeeded=(refund_movement_id IS NULL));
-CREATE OR REPLACE FUNCTION fn_crypto_payment_posting_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-    NEW.posting_txid:=CASE WHEN NEW.recorder_type IN ('CryptoPayment','CryptoNativeFunding','CryptoSweep','TreasuryWithdrawal') AND NEW.reversal_of_line_id IS NULL THEN txid_current() ELSE NULL END;
-    RETURN NEW;
-END;
-$$;
 -- ==== crypto_treasury_final_custody_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$ DECLARE target TEXT; BEGIN
@@ -4975,12 +4836,6 @@ DROP FUNCTION fn_crypto_treasury_financial_complete();
 DROP FUNCTION fn_crypto_treasury_posting_complete();
 DROP FUNCTION fn_crypto_treasury_binding_complete();
 DROP FUNCTION fn_crypto_assert_treasury(UUID);
-CREATE OR REPLACE FUNCTION fn_crypto_payment_posting_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-    NEW.posting_txid:=CASE WHEN NEW.recorder_type IN ('CryptoPayment','CryptoNativeFunding','CryptoSweep') AND NEW.reversal_of_line_id IS NULL THEN txid_current() ELSE NULL END;
-    RETURN NEW;
-END;
-$$;
 -- ==== crypto_sweep_final_custody_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 CREATE OR REPLACE VIEW crypto_aml_allocatable_transfers AS
@@ -5015,21 +4870,6 @@ DROP TRIGGER trg_sweep_complete_reg_crypto_fee_movements ON reg_crypto_fee_movem
 DROP TRIGGER trg_sweep_complete_reg_crypto_platform_cost_movements ON reg_crypto_platform_cost_movements;
 DROP TRIGGER trg_sweep_complete_reg_crypto_provider_balance_movements ON reg_crypto_provider_balance_movements;
 DROP TABLE reg_crypto_sweep_custody_bindings;
-CREATE OR REPLACE FUNCTION fn_crypto_payment_posting_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-    NEW.posting_txid:=CASE WHEN NEW.recorder_type IN ('CryptoPayment','CryptoNativeFunding') AND NEW.reversal_of_line_id IS NULL THEN txid_current() ELSE NULL END;
-    RETURN NEW;
-END;
-$$;
-CREATE OR REPLACE FUNCTION fn_crypto_payment_requires_recognition(payment UUID,network UUID,hash TEXT,kind TEXT,event_index BIGINT)
-RETURNS BOOLEAN LANGUAGE sql VOLATILE AS $$
-    SELECT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_postings WHERE recorder_type='CryptoPayment' AND recorder_id=payment)
-       OR EXISTS(SELECT 1 FROM reg_crypto_transfer_verifications v
-          JOIN reg_crypto_accounting_effect_evidence x ON x.verification_id=v.id
-          WHERE v.network_id=network AND regexp_replace(lower(v.tx_hash),'^0x','')=regexp_replace(lower(hash),'^0x','')
-            AND (v.event_kind='native_value' OR (v.event_kind=kind AND v.event_index=$5)))
-       OR EXISTS(SELECT 1 FROM doc_crypto_payments d JOIN reg_crypto_accounting_effect_evidence x ON x.verification_id=d.verification_id WHERE d.id=payment)
-$$;
 DROP FUNCTION fn_crypto_sweep_basis_guard();
 DROP FUNCTION fn_crypto_sweep_settlement_complete();
 DROP FUNCTION fn_crypto_sweep_financial_complete();
@@ -5054,21 +4894,6 @@ DROP TRIGGER trg_native_funding_complete_reg_crypto_platform_cost_movements ON r
 DROP TRIGGER trg_native_funding_complete_reg_crypto_provider_balance_movements ON reg_crypto_provider_balance_movements;
 DROP TABLE reg_crypto_native_funding_custody_bindings;
 DROP INDEX uq_crypto_native_funding_custody;
-CREATE OR REPLACE FUNCTION fn_crypto_payment_posting_transaction() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-    NEW.posting_txid:=CASE WHEN NEW.recorder_type='CryptoPayment' AND NEW.reversal_of_line_id IS NULL THEN txid_current() ELSE NULL END;
-    RETURN NEW;
-END;
-$$;
-CREATE OR REPLACE FUNCTION fn_crypto_payment_requires_recognition(payment UUID,network UUID,hash TEXT,kind TEXT,event_index BIGINT)
-RETURNS BOOLEAN LANGUAGE sql VOLATILE AS $$
-    SELECT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_postings WHERE recorder_type='CryptoPayment' AND recorder_id=payment)
-       OR EXISTS(SELECT 1 FROM reg_crypto_transfer_verifications v
-          JOIN reg_crypto_accounting_effect_evidence x ON x.verification_id=v.id
-          WHERE v.network_id=network AND regexp_replace(lower(v.tx_hash),'^0x','')=regexp_replace(lower(hash),'^0x','')
-            AND v.event_kind=kind AND v.event_index=$5)
-       OR EXISTS(SELECT 1 FROM doc_crypto_payments d JOIN reg_crypto_accounting_effect_evidence x ON x.verification_id=d.verification_id WHERE d.id=payment)
-$$;
 DROP FUNCTION fn_crypto_payment_native_funding_guard();
 DROP FUNCTION fn_crypto_native_funding_document_complete();
 DROP FUNCTION fn_crypto_native_funding_basis_guard();
@@ -5078,39 +4903,11 @@ DROP FUNCTION fn_crypto_native_funding_settlement_complete();
 DROP FUNCTION fn_crypto_assert_native_funding_custody(UUID);
 -- ==== crypto_payment_custody_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-DO $$ BEGIN
-    IF EXISTS(SELECT 1 FROM reg_crypto_payment_custody_bindings) OR EXISTS(SELECT 1 FROM reg_crypto_custody_effect_postings WHERE recorder_type='CryptoPayment' OR generation>1) THEN
-        RAISE EXCEPTION 'payment recognition history requires forward migration';
-    END IF;
-END; $$;
 DROP TRIGGER trg_crypto_payment_frozen_basis ON doc_crypto_payments;
-DROP TRIGGER trg_crypto_payment_document_recognition ON doc_crypto_payments;
-DROP TRIGGER trg_crypto_payment_posting_transaction ON reg_crypto_balance_movements;
-DROP TRIGGER trg_bound_payment_reversal ON reg_crypto_balance_movements;
-DROP TRIGGER trg_bound_payment_reversal ON reg_crypto_merchant_balance_movements;
-DROP TRIGGER trg_bound_payment_reversal ON reg_crypto_fee_movements;
-DROP TRIGGER trg_payment_custody_complete_reg_crypto_balance_movements ON reg_crypto_balance_movements;
-DROP TRIGGER trg_payment_custody_complete_reg_crypto_merchant_balance_movements ON reg_crypto_merchant_balance_movements;
-DROP TRIGGER trg_payment_custody_complete_reg_crypto_fee_movements ON reg_crypto_fee_movements;
-DROP TRIGGER trg_payment_custody_complete_reg_crypto_platform_cost_movements ON reg_crypto_platform_cost_movements;
-DROP TRIGGER trg_payment_custody_complete_reg_crypto_provider_balance_movements ON reg_crypto_provider_balance_movements;
-DROP TRIGGER trg_crypto_custody_generation_complete ON reg_crypto_custody_effect_postings;
-DROP TABLE reg_crypto_payment_custody_bindings;
-DROP INDEX uq_crypto_payment_custody_version;
+DROP TRIGGER trg_crypto_balance_posting_transaction ON reg_crypto_balance_movements;
 ALTER TABLE reg_crypto_balance_movements DROP COLUMN posting_txid;
-ALTER TABLE reg_crypto_custody_effect_postings DROP CONSTRAINT ck_crypto_custody_generation,
-    DROP COLUMN predecessor_id, ADD CONSTRAINT reg_crypto_custody_effect_postings_generation_check CHECK(generation=1);
-DROP FUNCTION fn_crypto_bound_payment_reversal_guard();
-DROP FUNCTION fn_crypto_payment_document_recognition_complete();
 DROP FUNCTION fn_crypto_payment_frozen_basis_guard();
-DROP FUNCTION fn_crypto_payment_financial_complete();
-DROP FUNCTION fn_crypto_payment_binding_complete();
-DROP FUNCTION fn_crypto_custody_generation_complete();
-DROP FUNCTION fn_crypto_assert_payment_custody(UUID);
-DROP FUNCTION fn_crypto_payment_fully_compensated(UUID);
-DROP FUNCTION fn_crypto_payment_reversal_shape_valid(UUID);
-DROP FUNCTION fn_crypto_payment_requires_recognition(UUID,UUID,TEXT,TEXT,BIGINT);
-DROP FUNCTION fn_crypto_payment_posting_transaction();
+DROP FUNCTION fn_crypto_balance_posting_transaction();
 -- ==== crypto_wallet_funding_recognition ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$

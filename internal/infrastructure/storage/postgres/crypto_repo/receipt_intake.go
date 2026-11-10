@@ -34,10 +34,14 @@ func (r *ReceiptIntakeRepo) LockAdmission(ctx context.Context, basis crypto.Acco
 	return NewCustodyRecognitionRepo().LockIncoming(ctx, basis)
 }
 
-func (r *ReceiptIntakeRepo) FindByOccurrence(ctx context.Context, occurrence id.ID) (*crypto_custody_receipt.CryptoCustodyReceipt, error) {
+// FindByEffect returns the receipt of the logical chain effect the occurrence
+// belongs to: a re-included transfer keeps its original receipt.
+func (r *ReceiptIntakeRepo) FindByEffect(ctx context.Context, occurrence id.ID) (*crypto_custody_receipt.CryptoCustodyReceipt, error) {
 	var docID id.ID
-	err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx,
-		"SELECT id FROM doc_crypto_custody_receipts WHERE occurrence_id=$1", occurrence).Scan(&docID)
+	err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `SELECT d.id FROM doc_crypto_custody_receipts d
+		JOIN reg_crypto_accounting_effect_occurrences o ON o.id=d.occurrence_id
+		JOIN reg_crypto_accounting_effect_occurrences current ON current.effect_id=o.effect_id AND current.economics_hash=o.economics_hash
+		WHERE current.id=$1`, occurrence).Scan(&docID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}

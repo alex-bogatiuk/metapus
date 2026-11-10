@@ -13,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"metapus/internal/application/cryptoapp"
-	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
@@ -27,19 +26,17 @@ type BlockIngestionRepo struct{}
 
 func NewBlockIngestionRepo() *BlockIngestionRepo { return &BlockIngestionRepo{} }
 
-func (r *BlockIngestionRepo) ValidatePosting(ctx context.Context, doc posting.Postable) error {
+// ValidatePosting admits a payment only as the attribution of its receipt; the
+// receipt carries the independently proven custody effect.
+func (r *BlockIngestionRepo) ValidatePosting(_ context.Context, doc posting.Postable) error {
 	payment, ok := doc.(*crypto_payment.CryptoPayment)
 	if !ok {
 		return nil
 	}
-	event, err := r.ExpectedTransfer(ctx, payment)
-	if err != nil {
-		return err
+	if payment.ReceiptID == nil || payment.VerificationID == nil {
+		return crypto.ErrVerificationPending
 	}
-	event.Finality, event.Canonicality = crypto.FinalityStatus(payment.FinalityStatus), crypto.CanonicalityStatus(payment.Canonicality)
-	event.Confirmations, event.VerificationID = payment.Confirmations, payment.VerificationID
-	_, err = r.Authorize(ctx, payment, event)
-	return err
+	return nil
 }
 
 func (r *BlockIngestionRepo) Cutover(ctx context.Context, network id.ID) (crypto.IngestionCutover, error) {
@@ -241,84 +238,24 @@ func (r *BlockIngestionRepo) saveVerification(ctx context.Context, proof crypto.
 	return result, nil
 }
 
+// Authorize returns the independent proof of the final canonical payment
+// transfer. Without it the payment cannot attribute a receipt.
 func (r *BlockIngestionRepo) Authorize(ctx context.Context, payment *crypto_payment.CryptoPayment, event crypto.BlockchainEvent) (id.ID, error) {
-	if event.VerificationID != nil {
-		var indexed bool
-		if err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx,
-			"SELECT EXISTS(SELECT 1 FROM reg_crypto_accounting_effect_evidence WHERE verification_id=$1)", event.VerificationID).Scan(&indexed); err != nil {
-			return id.ID{}, err
-		}
-		if indexed {
-			basis, err := lockPaymentRecognition(ctx, payment, *event.VerificationID)
-			if err != nil {
-				return id.ID{}, err
-			}
-			evidence, err := r.AuthorizeCustodyEffect(ctx, basis, event)
-			return evidence.VerificationID, err
-		}
-	}
-	return r.authorizeOutcome(ctx, accountingPaymentBasis(payment), event, crypto.CanonicalityCanonical, false)
+	return r.authorizeOutcome(ctx, accountingPaymentBasis(payment), event, crypto.CanonicalityCanonical, true)
 }
 
+// AuthorizeReorg returns the independent proof that the payment transfer is no
+// longer canonical. For a posted payment it also reports the canonicality
+// failure; the caller compensates the attribution and holds the network.
 func (r *BlockIngestionRepo) AuthorizeReorg(ctx context.Context, payment *crypto_payment.CryptoPayment, event crypto.BlockchainEvent) (id.ID, error) {
-	recognized, err := NewPaymentRecognitionRepo().RequiresRecognition(ctx, payment)
-	if err != nil {
-		return id.ID{}, err
-	}
-	if recognized && postgres.MustGetTxManager(ctx).GetTx(ctx) == nil {
-		return id.ID{}, apperror.NewValidation("recognized payment reorg requires a transaction")
-	}
-	basis := accountingPaymentBasis(payment)
-	if recognized {
-		if err := postgres.NewDocLocker().LockDocument(ctx, "CryptoPayment", payment.ID); err != nil {
-			return id.ID{}, err
-		}
-		if err := NewCustodyRecognitionRepo().LockWallet(ctx, payment.WalletID, payment.TokenID); err != nil {
-			return id.ID{}, err
-		}
-		q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
-		var current bool
-		if err := q.QueryRow(ctx, `SELECT posted=$2 AND posted_version=$3 AND block_hash=$4 AND block_number=$5 AND event_index=$6
-			FROM doc_crypto_payments WHERE id=$1 FOR UPDATE`, payment.ID, payment.Posted, payment.PostedVersion, payment.BlockHash, payment.BlockNumber, payment.EventIndex).Scan(&current); err != nil {
-			return id.ID{}, err
-		}
-		if !current {
-			return id.ID{}, crypto.ErrVerificationMismatch
-		}
-		var admittedProof id.ID
-		err := q.QueryRow(ctx, `SELECT verification_id FROM reg_crypto_custody_effect_postings
-			WHERE recorder_type='CryptoPayment' AND recorder_id=$1 AND recorder_version=$2`, payment.ID, payment.PostedVersion).Scan(&admittedProof)
-		if err == nil {
-			basis.VerificationID = &admittedProof
-		} else if !errors.Is(err, pgx.ErrNoRows) {
-			return id.ID{}, err
-		}
-	}
-	proofID, err := r.authorizeOutcome(ctx, basis, event, crypto.CanonicalityOrphaned, recognized)
+	proofID, err := r.authorizeOutcome(ctx, accountingPaymentBasis(payment), event, crypto.CanonicalityOrphaned, payment.Posted)
 	if err != nil || id.IsNil(proofID) || !payment.Posted {
 		return proofID, err
-	}
-	// Independent absence of a posted effect requires durable review. Do not
-	// enter the legacy compensation path merely because cutover is inactive.
-	details, err := json.Marshal(map[string]any{"verificationId": proofID, "postedVersion": payment.PostedVersion, "previousBlockHash": payment.BlockHash, "observedBlockHash": event.BlockHash, "automaticCompensation": false})
-	if err != nil {
-		return id.ID{}, err
-	}
-	if _, err := paymentReorgIncident(ctx, payment, details); err != nil {
-		return id.ID{}, err
-	}
-	if recognized {
-		holds := cryptoapp.NewOperationalHoldService(postgres.MustGetTxManager(ctx), NewOperationalHoldRepo())
-		if err := holds.Acquire(ctx, cryptoapp.AcquireOperationalHoldCommand{Scope: cryptoapp.OperationalHoldScopeNetwork, ScopeID: payment.NetworkID,
-			Reason: "posted_payment_reorg", OwnerType: "payment_recognition", OwnerID: fmt.Sprintf("%s:%d", payment.ID, payment.PostedVersion), HeldBy: "payment-recognition",
-			Details: map[string]any{"paymentId": payment.ID.String(), "postedVersion": payment.PostedVersion, "verificationId": proofID.String(), "automaticCompensation": false}}); err != nil {
-			return id.ID{}, err
-		}
 	}
 	if err := r.ReportIngestionFailure(ctx, payment.NetworkID, "canonicality", payment.BlockNumber, "solidified_payment_changed", true); err != nil {
 		return id.ID{}, err
 	}
-	return id.ID{}, crypto.ErrVerificationPending
+	return proofID, nil
 }
 
 func (r *BlockIngestionRepo) ExpectedTransfer(ctx context.Context, payment *crypto_payment.CryptoPayment) (crypto.BlockchainEvent, error) {

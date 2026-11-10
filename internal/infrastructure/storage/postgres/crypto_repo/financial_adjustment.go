@@ -29,7 +29,7 @@ var _ cryptoapp.FinancialAdjustmentRepository = (*FinancialAdjustmentRepo)(nil)
 const adjustmentSelect = `SELECT id,COALESCE(payment_id,'00000000-0000-0000-0000-000000000000'::uuid) AS payment_id,
     COALESCE(posted_version,0) AS posted_version,mode,wallet_id,token_id,
     COALESCE(direction,'') AS direction,COALESCE(amount::text,'') AS amount,decision_mode,
-    basis_kind,source_posting_id,
+    basis_kind,
     reason_code,evidence,maker_id,checker_id,status,decision_reason,created_at,decided_at
     FROM doc_crypto_adjustments`
 
@@ -88,36 +88,21 @@ func (r *FinancialAdjustmentRepo) Propose(ctx context.Context, cmd cryptoapp.Pro
 	var postedVersion any
 	var amount any
 	var direction any
-	var sourcePostingID *id.ID
 	basisKind := "wallet_variance"
 	if cmd.Mode == "payment_reversal" {
 		paymentID, postedVersion = cmd.PaymentID, version
-		var requiresRecognition bool
-		err := q.QueryRow(ctx, `SELECT (SELECT p.id FROM reg_crypto_custody_effect_postings p
-			JOIN reg_crypto_payment_custody_bindings b ON b.posting_id=p.id AND b.payment_id=d.id
-			WHERE p.recorder_type='CryptoPayment' AND p.recorder_id=d.id AND p.recorder_version=$2),
-			fn_crypto_payment_requires_recognition(d.id,d.network_id,d.tx_hash,d.event_kind,d.event_index)
-			FROM doc_crypto_payments d WHERE d.id=$1`, cmd.PaymentID, version).Scan(&sourcePostingID, &requiresRecognition)
-		if err != nil {
-			return nil, fmt.Errorf("load adjustment accounting basis: %w", err)
-		}
-		basisKind = "legacy_payment"
-		if sourcePostingID != nil {
-			basisKind = "payment_compensation"
-		} else if requiresRecognition {
-			return nil, apperror.NewConflict("indexed payment adjustment requires its source custody posting")
-		}
+		basisKind = "payment_attribution"
 	} else {
 		walletID, tokenID, direction, amount = cmd.WalletID, cmd.TokenID, cmd.Direction, cmd.Amount
 	}
 	err := q.QueryRow(ctx, `INSERT INTO doc_crypto_adjustments
 		(id,payment_id,posted_version,mode,wallet_id,token_id,direction,amount,decision_mode,
-		 reason_code,evidence,idempotency_key,request_hash,maker_id,basis_kind,source_posting_id)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8::numeric,$9,$10,$11::jsonb,$12,$13,$14,$15,$16)
+		 reason_code,evidence,idempotency_key,request_hash,maker_id,basis_kind)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8::numeric,$9,$10,$11::jsonb,$12,$13,$14,$15)
 		ON CONFLICT (idempotency_key) DO NOTHING RETURNING id`, adjustmentID,
 		paymentID, postedVersion, cmd.Mode, walletID, tokenID, direction, amount,
 		decisionMode, cmd.ReasonCode, string(cmd.Evidence), cmd.IdempotencyKey,
-		fingerprint, cmd.MakerID, basisKind, sourcePostingID).Scan(&adjustmentID)
+		fingerprint, cmd.MakerID, basisKind).Scan(&adjustmentID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		var existingHash string
 		var makerID id.ID
@@ -193,24 +178,24 @@ func (r *FinancialAdjustmentRepo) snapshotSources(ctx context.Context, adjustmen
 
 func (r *FinancialAdjustmentRepo) validateSourceBalance(ctx context.Context, adjustmentID id.ID) error {
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
-	var custody, merchant, fee string
+	var suspense, merchant, fee string
 	err := q.QueryRow(ctx, `SELECT
-		COALESCE(SUM(CASE WHEN source_register='custody' THEN amount ELSE 0 END),0)::text,
+		COALESCE(SUM(CASE WHEN source_register='suspense' THEN amount ELSE 0 END),0)::text,
 		COALESCE(SUM(CASE WHEN source_register='merchant' THEN amount ELSE 0 END),0)::text,
 		COALESCE(SUM(CASE WHEN source_register='fee' THEN amount ELSE 0 END),0)::text
 		FROM reg_crypto_adjustment_sources WHERE adjustment_id=$1`, adjustmentID).
-		Scan(&custody, &merchant, &fee)
+		Scan(&suspense, &merchant, &fee)
 	if err != nil {
 		return err
 	}
-	c, ok := new(big.Int).SetString(custody, 10)
+	c, ok := new(big.Int).SetString(suspense, 10)
 	if !ok || c.Sign() <= 0 {
-		return apperror.NewValidation("select at least one custody movement")
+		return apperror.NewValidation("select the receipt attribution to return")
 	}
 	m, _ := new(big.Int).SetString(merchant, 10)
 	f, _ := new(big.Int).SetString(fee, 10)
 	if c.Cmp(new(big.Int).Add(m, f)) != 0 {
-		return apperror.NewValidation("selected custody amount must equal merchant amount plus fee amount")
+		return apperror.NewValidation("returned attribution must equal merchant amount plus fee amount")
 	}
 	return nil
 }
@@ -229,7 +214,7 @@ type adjustmentRegister struct {
 }
 
 var adjustmentRegisters = []adjustmentRegister{
-	{"custody", "reg_crypto_balance_movements", "wallet_id,token_id"},
+	{"suspense", "reg_crypto_receipt_suspense_movements", "receipt_id,token_id"},
 	{"merchant", "reg_crypto_merchant_balance_movements", "merchant_id,token_id"},
 	{"fee", "reg_crypto_fee_movements", "merchant_id,token_id,fee_type"},
 }
@@ -258,7 +243,7 @@ func (r *FinancialAdjustmentRepo) PaymentSources(ctx context.Context, paymentID 
 			m.token_id, %[2]s FROM %[1]s m
 			WHERE m.recorder_type='CryptoPayment' AND m.recorder_id=$1 AND m.recorder_version=$2
 			AND m.reversal_of_line_id IS NULL ORDER BY m.line_id`, source.table,
-			map[string]string{"custody": "m.wallet_id::text", "merchant": "m.merchant_id::text", "fee": "m.merchant_id::text || ' / ' || m.fee_type"}[source.kind])
+			map[string]string{"suspense": "m.receipt_id::text", "merchant": "m.merchant_id::text", "fee": "m.merchant_id::text || ' / ' || m.fee_type"}[source.kind])
 		rows, err := q.Query(ctx, query, paymentID, version)
 		if err != nil {
 			return nil, err
@@ -408,7 +393,7 @@ func (r *FinancialAdjustmentRepo) ApplyPosting(ctx context.Context, plan crypto.
 	if err := postgres.NewOutboxPublisher().Publish(ctx, domain.DomainEvent{
 		AggregateType: "CryptoAdjustment", AggregateID: adjustmentID, EventType: "financial_correction_posted",
 		Payload: map[string]any{"entityType": "CryptoAdjustment", "entityId": adjustmentID, "action": "financial_correction_posted",
-			"basisKind": adjustment.BasisKind, "sourcePostingId": adjustment.SourcePostingID,
+			"basisKind":     adjustment.BasisKind,
 			"postedVersion": adjustment.PostedVersion},
 	}); err != nil {
 		return nil, err
@@ -441,8 +426,7 @@ func (r *FinancialAdjustmentRepo) PaymentBasis(ctx context.Context, paymentID id
 	if err != nil {
 		return basis, err
 	}
-	if _, err := q.Exec(ctx, `SELECT fn_crypto_lock_custody_wallets(ARRAY(
-		SELECT $2::uuid UNION SELECT wallet_id FROM reg_crypto_balance_movements WHERE recorder_id=$1 AND recorder_type='CryptoPayment'))`, paymentID, walletID); err != nil {
+	if _, err := q.Exec(ctx, `SELECT fn_crypto_lock_custody_wallets(ARRAY[$1::uuid])`, walletID); err != nil {
 		return basis, err
 	}
 	err = q.QueryRow(ctx, `SELECT status,posted,posted_version FROM doc_crypto_payments WHERE id=$1 FOR UPDATE`, paymentID).Scan(&basis.Status, &basis.Posted, &basis.Version)

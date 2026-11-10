@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 )
@@ -167,44 +168,45 @@ func TestCryptoPayment_GetRLSDimensions(t *testing.T) {
 	}
 }
 
-func TestCryptoPayment_GenerateCryptoBalanceMovements(t *testing.T) {
+func TestCryptoPayment_GenerateCryptoReceiptSuspenseMovements(t *testing.T) {
 	ctx := context.Background()
-
-	t.Run("positive amount → single RECEIPT movement", func(t *testing.T) {
+	newPayment := func(amount types.CryptoAmount) *CryptoPayment {
 		p := NewCryptoPayment(
 			id.New(), id.New(), id.New(), id.New(), id.New(),
 			"tx1", 0, "contract_log", "block1", "sender",
-			types.NewCryptoAmountFromInt64(5_000_000),
-			100, 19,
+			amount, 100, 19,
 		)
 		p.Date = time.Now().UTC()
+		return p
+	}
 
-		movements, err := p.GenerateCryptoBalanceMovements(ctx)
+	t.Run("attributed receipt → single suspense expense of the gross", func(t *testing.T) {
+		p := newPayment(types.NewCryptoAmountFromInt64(5_000_000))
+		receipt := id.New()
+		p.ReceiptID = &receipt
+		movements, err := p.GenerateCryptoReceiptSuspenseMovements(ctx)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(movements) != 1 {
-			t.Fatalf("expected 1 movement, got %d", len(movements))
-		}
-		if movements[0].Amount.Cmp(p.Amount) != 0 {
-			t.Errorf("movement amount = %s, want %s", movements[0].Amount.String(), p.Amount.String())
+		if len(movements) != 1 || movements[0].ReceiptID != receipt || movements[0].RecordType != entity.RecordTypeExpense ||
+			movements[0].Amount.Cmp(p.Amount) != 0 || movements[0].RecorderVersion != 1 {
+			t.Fatalf("unexpected suspense movements: %+v", movements)
 		}
 	})
 
-	t.Run("zero amount → nil movements", func(t *testing.T) {
-		p := NewCryptoPayment(
-			id.New(), id.New(), id.New(), id.New(), id.New(),
-			"tx2", 0, "contract_log", "block2", "sender",
-			types.ZeroCryptoAmount(),
-			100, 19,
-		)
-
-		movements, err := p.GenerateCryptoBalanceMovements(ctx)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+	t.Run("no receipt → posting refused", func(t *testing.T) {
+		if _, err := newPayment(types.NewCryptoAmountFromInt64(5_000_000)).GenerateCryptoReceiptSuspenseMovements(ctx); err == nil {
+			t.Fatal("payment without a receipt must not consume suspense")
 		}
-		if movements != nil {
-			t.Errorf("expected nil movements for zero amount, got %d", len(movements))
+	})
+
+	t.Run("fee above gross → posting refused", func(t *testing.T) {
+		p := newPayment(types.NewCryptoAmountFromInt64(3))
+		receipt := id.New()
+		p.ReceiptID = &receipt
+		p.SetFeeConfig(types.NewCryptoAmountFromInt64(5), 0, types.ZeroCryptoAmount(), types.ZeroCryptoAmount())
+		if _, err := p.GenerateCryptoReceiptSuspenseMovements(ctx); err == nil {
+			t.Fatal("fee above the gross must not be posted")
 		}
 	})
 }

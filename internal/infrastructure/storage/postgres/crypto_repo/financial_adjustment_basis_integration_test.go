@@ -12,7 +12,9 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/domain"
+	"metapus/internal/domain/documents/crypto_payment"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/document_repo"
 
 	"github.com/stretchr/testify/require"
 )
@@ -21,34 +23,33 @@ func adjustmentService() *cryptoapp.FinancialAdjustmentService {
 	return cryptoapp.NewFinancialAdjustmentService(postgres.NewContextTxManager(), NewFinancialAdjustmentRepo())
 }
 
-func settledAdjustmentFixture(t *testing.T) paymentRecognitionFixture {
+func settledAdjustmentFixture(t *testing.T) paymentAttributionFixture {
 	t.Helper()
-	f := newPaymentRecognitionFixture(t, nil)
+	f := newPaymentAttributionFixture(t)
 	require.NoError(t, f.post(f.payment, f.posting))
 	_, err := f.pool.Exec(f.ctx, "UPDATE doc_crypto_payments SET status='settled' WHERE id=$1", f.payment.ID)
 	require.NoError(t, err)
 	return f
 }
 
-func adjustmentCommand(f paymentRecognitionFixture) cryptoapp.ProposeFinancialAdjustmentCommand {
+func adjustmentCommand(f paymentAttributionFixture) cryptoapp.ProposeFinancialAdjustmentCommand {
 	return cryptoapp.ProposeFinancialAdjustmentCommand{Mode: "payment_reversal", PaymentID: f.payment.ID, PostedVersion: 1,
 		ReasonCode: "incorrect_payment_posting", Evidence: json.RawMessage(`{"description":"verified correction of source movements"}`),
 		MakerID: id.New(), IdempotencyKey: id.New().String()}
 }
 
-func TestAdjustmentBasisPartialCompensationKeepsOriginalChainOwner(t *testing.T) {
+func TestAdjustmentBasisPartialCompensationReturnsAttribution(t *testing.T) {
 	f := settledAdjustmentFixture(t)
 	service, cmd := adjustmentService(), adjustmentCommand(f)
 	sources, err := service.PaymentSources(f.ctx, f.payment.ID)
 	require.NoError(t, err)
 	for _, s := range sources.Lines {
-		amount := map[string]string{"custody": "10", "merchant": "8", "fee": "2"}[s.Register]
+		amount := map[string]string{"suspense": "10", "merchant": "8", "fee": "2"}[s.Register]
 		cmd.SourceLines = append(cmd.SourceLines, cryptoapp.FinancialAdjustmentSourceSelection{Register: s.Register, LineID: s.LineID, Amount: amount})
 	}
 	first, err := service.Propose(f.ctx, cmd)
 	require.NoError(t, err)
-	require.Equal(t, "payment_compensation", first.BasisKind)
-	require.NotNil(t, first.SourcePostingID)
+	require.Equal(t, "payment_attribution", first.BasisKind)
 	replay, err := service.Propose(f.ctx, cmd)
 	require.NoError(t, err)
 	require.Equal(t, first.ID, replay.ID)
@@ -58,21 +59,19 @@ func TestAdjustmentBasisPartialCompensationKeepsOriginalChainOwner(t *testing.T)
 	require.ErrorContains(t, err, "idempotency")
 	_, err = service.Approve(f.ctx, first.ID, id.New(), "checked partial financial correction")
 	require.NoError(t, err)
-	require.Equal(t, []string{"13", "12", "1"}, f.balances(t))
+	require.Equal(t, []string{"10", "12", "1"}, f.balances(t))
 	second, err := service.Propose(f.ctx, adjustmentCommand(f))
 	require.NoError(t, err)
-	require.Equal(t, first.SourcePostingID, second.SourcePostingID)
+	require.Equal(t, first.BasisKind, second.BasisKind)
 	_, err = service.Approve(f.ctx, second.ID, id.New(), "checked remaining source quantities")
 	require.NoError(t, err)
-	require.Equal(t, []string{"0", "0", "0"}, f.balances(t))
+	require.Equal(t, []string{"23", "0", "0"}, f.balances(t))
+	require.Equal(t, "23", f.custody(t), "a payment reversal never moves custody")
 	var postings, corrections int
-	var fullyCompensated bool
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM reg_crypto_custody_effect_postings),
-		(SELECT count(*) FROM sys_outbox WHERE event_type='financial_correction_posted'),fn_crypto_payment_fully_compensated($1)`, first.SourcePostingID).
-		Scan(&postings, &corrections, &fullyCompensated))
+		(SELECT count(*) FROM sys_outbox WHERE event_type='financial_correction_posted')`).Scan(&postings, &corrections))
 	require.Equal(t, []int{1, 2}, []int{postings, corrections})
-	require.True(t, fullyCompensated)
-	_, err = f.pool.Exec(f.ctx, "UPDATE doc_crypto_adjustments SET source_posting_id=NULL WHERE id=$1", first.ID)
+	_, err = f.pool.Exec(f.ctx, "UPDATE doc_crypto_adjustments SET basis_kind='wallet_variance' WHERE id=$1", first.ID)
 	require.ErrorContains(t, err, "immutable")
 }
 
@@ -107,7 +106,7 @@ func TestAdjustmentBasisConcurrentDecisionsCannotExceedSource(t *testing.T) {
 		}
 	}
 	require.Equal(t, 1, success)
-	require.Equal(t, []string{"0", "0", "0"}, f.balances(t))
+	require.Equal(t, []string{"23", "0", "0"}, f.balances(t))
 	var posted, events int
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM doc_crypto_adjustments WHERE status='posted'),
 		(SELECT count(*) FROM sys_outbox WHERE event_type='financial_correction_posted')`).Scan(&posted, &events))
@@ -128,7 +127,7 @@ func writeAdjustmentSet(ctx context.Context, a *cryptoapp.FinancialAdjustment, f
 			recorder = "OtherAdjustment"
 		}
 		query := fmt.Sprintf(`INSERT INTO %s(line_id,recorder_id,recorder_type,recorder_version,period,record_type,%s,amount,reversal_of_line_id,reversal_reason)
-			SELECT $3,$1,$4,1,now(),'expense',%s,s.amount,m.line_id,'manual_financial_correction'
+			SELECT $3,$1,$4,1,now(),CASE WHEN m.record_type='receipt' THEN 'expense' ELSE 'receipt' END,%s,s.amount,m.line_id,'manual_financial_correction'
 			FROM reg_crypto_adjustment_sources s JOIN %s m ON m.line_id=s.source_line_id
 			WHERE s.adjustment_id=$1 AND s.source_register=$2`, source.table, dimensions,
 			qualifiedAdjustmentDimensions(dimensions), source.table)
@@ -144,20 +143,21 @@ func writeAdjustmentSet(ctx context.Context, a *cryptoapp.FinancialAdjustment, f
 	if fault == "missing_outbox" {
 		return nil
 	}
-	sourcePosting := a.SourcePostingID
+	basisKind := a.BasisKind
 	if fault == "wrong_outbox" {
-		other := id.New()
-		sourcePosting = &other
+		basisKind = "wallet_variance"
 	}
 	return postgres.NewOutboxPublisher().Publish(ctx, domain.DomainEvent{AggregateType: "CryptoAdjustment", AggregateID: a.ID, EventType: "financial_correction_posted",
 		Payload: map[string]any{"entityType": "CryptoAdjustment", "entityId": a.ID, "action": "financial_correction_posted",
-			"basisKind": a.BasisKind, "sourcePostingId": sourcePosting, "postedVersion": a.PostedVersion}})
+			"basisKind": basisKind, "postedVersion": a.PostedVersion}})
 }
 
 func qualifiedAdjustmentDimensions(dimensions string) string {
 	switch dimensions {
 	case "wallet_id,token_id":
 		return "m.wallet_id,m.token_id"
+	case "receipt_id,token_id":
+		return "m.receipt_id,m.token_id"
 	case "merchant_id,token_id":
 		return "m.merchant_id,m.token_id"
 	default:
@@ -166,7 +166,7 @@ func qualifiedAdjustmentDimensions(dimensions string) string {
 }
 
 func TestAdjustmentBasisRequiresCompleteAtomicSet(t *testing.T) {
-	for _, fault := range []string{"valid", "missing_custody", "missing_merchant", "missing_fee", "missing_outbox", "wrong_outbox", "pending", "spoof_recorder"} {
+	for _, fault := range []string{"valid", "missing_suspense", "missing_merchant", "missing_fee", "missing_outbox", "wrong_outbox", "pending", "spoof_recorder"} {
 		t.Run(fault, func(t *testing.T) {
 			f := settledAdjustmentFixture(t)
 			a, err := adjustmentService().Propose(f.ctx, adjustmentCommand(f))
@@ -174,14 +174,14 @@ func TestAdjustmentBasisRequiresCompleteAtomicSet(t *testing.T) {
 			err = postgres.MustGetTxManager(f.ctx).RunInTransaction(f.ctx, func(ctx context.Context) error { return writeAdjustmentSet(ctx, a, fault) })
 			if fault == "valid" {
 				require.NoError(t, err)
-				require.Equal(t, []string{"0", "0", "0"}, f.balances(t))
+				require.Equal(t, []string{"23", "0", "0"}, f.balances(t))
 				return
 			}
 			require.Error(t, err)
 			if fault == "missing_outbox" || fault == "wrong_outbox" {
 				require.ErrorContains(t, err, "accounting basis outbox")
 			}
-			require.Equal(t, []string{"23", "20", "3"}, f.balances(t))
+			require.Equal(t, []string{"0", "20", "3"}, f.balances(t))
 			stored, err := adjustmentService().Get(f.ctx, a.ID)
 			require.NoError(t, err)
 			require.Equal(t, "pending_approval", stored.Status)
@@ -201,7 +201,7 @@ func TestAdjustmentBasisSourcesFreezeAtProposal(t *testing.T) {
 }
 
 func TestAdjustmentBasisWalletVarianceDoesNotRecognizeUserHash(t *testing.T) {
-	f := newPaymentRecognitionFixture(t, nil)
+	f := newPaymentAttributionFixture(t)
 	raw, err := json.Marshal(map[string]any{"description": "independent wallet variance evidence", "txHash": f.payment.TxHash, "verificationId": f.payment.VerificationID})
 	require.NoError(t, err)
 	cmd := cryptoapp.ProposeFinancialAdjustmentCommand{Mode: "wallet_balance", WalletID: f.payment.WalletID, TokenID: f.payment.TokenID,
@@ -209,9 +209,8 @@ func TestAdjustmentBasisWalletVarianceDoesNotRecognizeUserHash(t *testing.T) {
 	a, err := adjustmentService().Propose(f.ctx, cmd)
 	require.NoError(t, err)
 	require.Equal(t, "wallet_variance", a.BasisKind)
-	require.Nil(t, a.SourcePostingID)
 	var postings int
-	require.NoError(t, f.pool.QueryRow(f.ctx, "SELECT count(*) FROM reg_crypto_custody_effect_postings").Scan(&postings))
+	require.NoError(t, f.pool.QueryRow(f.ctx, "SELECT count(*) FROM reg_crypto_custody_effect_postings WHERE recorder_type<>'CryptoCustodyReceipt'").Scan(&postings))
 	require.Zero(t, postings)
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_custody_effect_postings(id,effect_id,occurrence_id,verification_id,generation,recorder_id,recorder_type,recorder_version)
 		SELECT $1,o.effect_id,o.id,x.verification_id,1,$2,$3,1 FROM reg_crypto_accounting_effect_occurrences o JOIN reg_crypto_accounting_effect_evidence x ON x.occurrence_id=o.id`, id.New(), a.ID, "CryptoAdjustment")
@@ -224,7 +223,7 @@ func TestAdjustmentBasisWalletVarianceDoesNotRecognizeUserHash(t *testing.T) {
 func TestAdjustmentBasisWalletVarianceRequiresBalancedSet(t *testing.T) {
 	for _, fault := range []string{"valid", "missing_custody", "missing_variance", "wrong_variance", "missing_outbox"} {
 		t.Run(fault, func(t *testing.T) {
-			f := newPaymentRecognitionFixture(t, nil)
+			f := newPaymentAttributionFixture(t)
 			a, err := adjustmentService().Propose(f.ctx, cryptoapp.ProposeFinancialAdjustmentCommand{Mode: "wallet_balance", WalletID: f.payment.WalletID, TokenID: f.payment.TokenID,
 				Direction: "receipt", Amount: "7", MakerID: id.New(), ReasonCode: "wallet_other", Evidence: json.RawMessage(`{"description":"independent balance variance evidence"}`), IdempotencyKey: id.New().String()})
 			require.NoError(t, err)
@@ -253,14 +252,14 @@ func TestAdjustmentBasisWalletVarianceRequiresBalancedSet(t *testing.T) {
 					return nil
 				}
 				return postgres.NewOutboxPublisher().Publish(ctx, domain.DomainEvent{AggregateType: "CryptoAdjustment", AggregateID: a.ID, EventType: "financial_correction_posted",
-					Payload: map[string]any{"entityType": "CryptoAdjustment", "entityId": a.ID, "action": "financial_correction_posted", "basisKind": a.BasisKind, "sourcePostingId": nil, "postedVersion": 0}})
+					Payload: map[string]any{"entityType": "CryptoAdjustment", "entityId": a.ID, "action": "financial_correction_posted", "basisKind": a.BasisKind, "postedVersion": 0}})
 			})
 			if fault == "valid" {
 				require.NoError(t, err)
 				return
 			}
 			require.Error(t, err)
-			require.Equal(t, []string{"0", "0", "0"}, f.balances(t))
+			require.Equal(t, []string{"23", "0", "0"}, f.balances(t))
 		})
 	}
 }
@@ -269,10 +268,16 @@ func TestAdjustmentBasisCannotApproveOldGeneration(t *testing.T) {
 	f := settledAdjustmentFixture(t)
 	a, err := adjustmentService().Propose(f.ctx, adjustmentCommand(f))
 	require.NoError(t, err)
-	require.NoError(t, f.post(f.payment, f.posting)) // Complete compensation and next recognition generation.
+	event := f.request.Event
+	event.BlockNumber++
+	require.NoError(t, NewFinancialReorgRepo().RecordFinancialReorg(f.ctx, f.payment, event))
+	f.payment.MarkUnposted()
+	f.payment.Status = crypto_payment.PaymentStatusConfirming
+	require.NoError(t, document_repo.NewCryptoPaymentRepo().Update(f.ctx, f.payment))
+	require.NoError(t, f.post(f.payment, f.posting)) // The re-included transfer attributes the receipt again.
 	_, err = f.pool.Exec(f.ctx, "UPDATE doc_crypto_payments SET status='settled' WHERE id=$1", f.payment.ID)
 	require.NoError(t, err)
 	_, err = adjustmentService().Approve(f.ctx, a.ID, id.New(), "stale generation decision")
 	require.ErrorContains(t, err, "generation changed")
-	require.Equal(t, []string{"23", "20", "3"}, f.balances(t))
+	require.Equal(t, []string{"0", "20", "3"}, f.balances(t))
 }

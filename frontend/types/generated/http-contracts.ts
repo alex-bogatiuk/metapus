@@ -2405,7 +2405,6 @@ export type FinancialAdjustmentResponse = {
   "postedVersion": number
   "mode": string
   "basisKind": string
-  "sourcePostingId"?: string
   "walletId"?: string
   "tokenId"?: string
   "direction"?: string

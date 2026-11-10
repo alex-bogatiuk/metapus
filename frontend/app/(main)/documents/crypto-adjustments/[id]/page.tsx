@@ -25,12 +25,10 @@ const reasonLabels: Record<string, string> = {
   wallet_expense: "Списание по кошельку", wallet_other: "Другая корректировка кошелька",
 }
 const registerLabels: Record<string, string> = {
-  custody: "Кошелёк", merchant: "Обязательство мерчанту", fee: "Комиссия",
+  suspense: "Невыясненное поступление", merchant: "Обязательство мерчанту", fee: "Комиссия",
 }
 const basisLabels: Record<string, string> = {
-  legacy: "Историческая корректировка",
-  legacy_payment: "Исходные движения платежа без признанного chain effect",
-  payment_compensation: "Компенсация признанного поколения платежа",
+  payment_attribution: "Возврат распределения платежа в невыясненные",
   wallet_variance: "Расхождение остатка кошелька",
 }
 
@@ -80,7 +78,6 @@ export default function CryptoAdjustmentDetailPage({ params }: { params: Promise
       <section className="grid gap-4 rounded-lg border bg-workspace-surface p-5 sm:grid-cols-2">
         <div><p className="text-xs text-muted-foreground">Статус</p><p className="font-medium">{statusLabels[data.status] ?? data.status}</p></div>
         <div><p className="text-xs text-muted-foreground">Основание учёта</p><p>{basisLabels[data.basisKind] ?? data.basisKind}</p></div>
-        {data.sourcePostingId && <div><p className="text-xs text-muted-foreground">Исходное признание перевода</p><p className="break-all font-mono text-sm">{data.sourcePostingId}</p></div>}
         {data.mode === "payment_reversal" ? <>
           <div><p className="text-xs text-muted-foreground">Платёж</p>
             {data.paymentId && <Link className="break-all text-primary hover:underline" href={buildEntityUrlByRoute("crypto-payment", "document", data.paymentId)}>{data.paymentId}</Link>}</div>

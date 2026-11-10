@@ -22,9 +22,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newFinancialReorgReplayFixture(t *testing.T) (paymentRecognitionFixture, crypto.BlockchainEvent) {
+func newFinancialReorgReplayFixture(t *testing.T) (paymentAttributionFixture, crypto.BlockchainEvent) {
 	t.Helper()
-	f := newPaymentRecognitionFixture(t, nil)
+	f := newPaymentAttributionFixture(t)
 	require.NoError(t, f.post(f.payment, f.posting))
 	orphan := f.proof
 	orphan.Outcome, orphan.ExecutionStatus = "absent", crypto.ReceiptPending
@@ -35,7 +35,7 @@ func newFinancialReorgReplayFixture(t *testing.T) (paymentRecognitionFixture, cr
 	return f, orphan.Event
 }
 
-func financialReorgSnapshot(t *testing.T, f paymentRecognitionFixture) string {
+func financialReorgSnapshot(t *testing.T, f paymentAttributionFixture) string {
 	t.Helper()
 	var result string
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT jsonb_build_object(
@@ -43,8 +43,9 @@ func financialReorgSnapshot(t *testing.T, f paymentRecognitionFixture) string {
  'incidents',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY id),'[]') FROM reg_crypto_security_incidents x WHERE network_id=$2),
  'holds',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY id),'[]') FROM reg_crypto_network_holds x WHERE network_id=$2),
  'custody',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY line_id),'[]') FROM reg_crypto_balance_movements x WHERE wallet_id=$3),
+ 'suspense',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY line_id),'[]') FROM reg_crypto_receipt_suspense_movements x WHERE receipt_id=$5),
  'merchant',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY line_id),'[]') FROM reg_crypto_merchant_balance_movements x WHERE merchant_id=$4),
- 'fee',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY line_id),'[]') FROM reg_crypto_fee_movements x WHERE merchant_id=$4))::text`, f.payment.ID, f.payment.NetworkID, f.payment.WalletID, f.payment.MerchantID).Scan(&result))
+ 'fee',(SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY line_id),'[]') FROM reg_crypto_fee_movements x WHERE merchant_id=$4))::text`, f.payment.ID, f.payment.NetworkID, f.payment.WalletID, f.payment.MerchantID, f.receipt).Scan(&result))
 	return result
 }
 
@@ -61,12 +62,13 @@ func TestFinancialReorgConcurrentReplayAndResolvedHold(t *testing.T) {
 	for err := range errs {
 		require.NoError(t, err)
 	}
-	require.Equal(t, []string{"0", "0", "0"}, f.balances(t))
+	require.Equal(t, []string{"23", "0", "0"}, f.balances(t))
+	require.Equal(t, "23", f.custody(t))
 	var compensations, reversals int
 	var incident id.ID
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT count(*),min(incident_id::text)::uuid FROM reg_crypto_reorg_compensations WHERE payment_id=$1`, f.payment.ID).Scan(&compensations, &incident))
 	require.Equal(t, 1, compensations)
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT count(*) FROM reg_crypto_balance_movements WHERE recorder_type='CryptoPaymentReorg' AND reversal_of_line_id IS NOT NULL`).Scan(&reversals))
+	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT count(*) FROM reg_crypto_receipt_suspense_movements WHERE recorder_type='CryptoPaymentReorg' AND reversal_of_line_id IS NOT NULL`).Scan(&reversals))
 	require.Equal(t, 1, reversals)
 	holds := cryptoapp.NewOperationalHoldService(postgres.NewContextTxManager(), NewOperationalHoldRepo())
 	require.NoError(t, holds.ResolveOwner(f.ctx, "security_incident", incident.String(), "reviewer", "verified compensation"))
@@ -137,7 +139,7 @@ func TestFinancialReorgRejectsForeignIncidentAndIncompleteCompensation(t *testin
 			before := financialReorgSnapshot(t, f)
 			require.Error(t, NewFinancialReorgRepo().RecordFinancialReorg(f.ctx, f.payment, event))
 			require.Equal(t, before, financialReorgSnapshot(t, f))
-			require.Equal(t, []string{"23", "20", "3"}, f.balances(t))
+			require.Equal(t, []string{"0", "20", "3"}, f.balances(t))
 		})
 	}
 }

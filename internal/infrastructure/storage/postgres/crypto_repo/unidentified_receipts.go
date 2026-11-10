@@ -71,7 +71,10 @@ const receiptJournalFrom = `
 	WHERE CASE $1 WHEN 'open' THEN a.status='canonical' AND s.amount>0
 	               WHEN 'credited' THEN a.status='canonical' AND s.amount=0
 	               ELSE a.status='orphaned' END
-	  AND ($2 OR d.reason_code<>'dust')`
+	  AND ($2 OR d.reason_code<>'dust')
+	  -- An invoice payment attributes its own receipt; it returns to the
+	  -- journal only when that attribution is compensated or the chain drops it.
+	  AND (d.reason_code<>'matched_receipt' OR s.amount>0 OR a.status='orphaned')`
 
 const receiptPendingFrom = `
 	FROM reg_crypto_inbound_chain_events e

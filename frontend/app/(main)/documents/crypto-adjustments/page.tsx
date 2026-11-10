@@ -35,7 +35,7 @@ const reasonLabels: Record<string, string> = {
   wallet_other: "Другая корректировка кошелька",
 }
 const registerLabels: Record<string, string> = {
-  custody: "Кошелёк", merchant: "Обязательство мерчанту", fee: "Комиссия",
+  suspense: "Невыясненное поступление", merchant: "Обязательство мерчанту", fee: "Комиссия",
 }
 const validAmount = (value: string) => /^[1-9][0-9]{0,77}$/.test(value)
 const lineKey = (line: FinancialAdjustmentSourceResponse) => `${line.register}:${line.lineId}`
@@ -75,14 +75,14 @@ export default function CryptoAdjustmentsPage() {
     if (basis) { setPaymentId(basis); setFilterPaymentId(basis); setMode("payment_reversal"); setCreateOpen(true) }
   }, [])
   const totals = useMemo(() => {
-    const result: Record<string, bigint> = { custody: 0n, merchant: 0n, fee: 0n }
+    const result: Record<string, bigint> = { suspense: 0n, merchant: 0n, fee: 0n }
     for (const line of sources?.lines ?? []) {
       const value = scope === "full" ? line.available : selected[lineKey(line)]
       if (value && validAmount(value)) result[line.register] += BigInt(value)
     }
     return result
   }, [sources, scope, selected])
-  const balanced = totals.custody > 0n && totals.custody === totals.merchant + totals.fee
+  const balanced = totals.suspense > 0n && totals.suspense === totals.merchant + totals.fee
 
   async function propose(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -207,7 +207,7 @@ export default function CryptoAdjustmentsPage() {
                     onChange={(event) => setSelected((current) => ({ ...current, [lineKey(line)]: event.target.value }))} disabled={line.available === "0"} /></TableCell>
                 </TableRow>)}</TableBody></Table></div>}
                 <p className={balanced ? "text-sm text-muted-foreground" : "text-sm text-destructive"}>
-                  Кошелёк: {totals.custody.toString()} · Мерчант: {totals.merchant.toString()} · Комиссия: {totals.fee.toString()}
+                  Невыясненные: {totals.suspense.toString()} · Мерчант: {totals.merchant.toString()} · Комиссия: {totals.fee.toString()}
                   {!balanced && " — суммы должны сходиться"}
                 </p><p className="text-xs text-muted-foreground">Суммы указаны в минимальных единицах токена.</p></>}
             </div> : <div className="space-y-4">

@@ -34,6 +34,7 @@ import (
 	mw "metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_repo/receipttest"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 )
@@ -87,11 +88,11 @@ func (f *referenceFixture) topUp(t *testing.T, merchantID id.ID) referenceTopUp 
 	t.Helper()
 	p := referenceTopUp{invoiceID: id.New(), paymentID: id.New(), walletID: id.New()}
 	suffix := id.Compact(p.invoiceID)
-	txHash := "reference-tx-" + suffix
+	txHash := suffix + suffix
 	p.externalID = "ERP-" + suffix
 	_, err := f.pool.Exec(f.ctx, `
-		INSERT INTO cat_wallets(id,code,name,network_id,address,address_key,tier,wallet_role,status,allocation_mode,merchant_id,customer_id,is_active,chain_activation_status)
-		VALUES($1,$2,'Order reference wallet',$3,$4,$4,'pool','merchant_pool','assigned','persistent',$5,$6,TRUE,'active');
+		INSERT INTO cat_wallets(id,code,name,network_id,address,vault_key_id,tier,wallet_role,status,allocation_mode,merchant_id,customer_id,is_active,chain_activation_status)
+		VALUES($1,$2,'Order reference wallet',$3,$4,$2,'pool','merchant_pool','assigned','persistent',$5,$6,TRUE,'active');
 		INSERT INTO doc_crypto_invoices(id,public_ref,number,date,merchant_id,token_id,wallet_id,expected_amount,status,expires_at,ttl_minutes,creation_source,invoice_kind,external_id,metadata)
 		VALUES($7,$8,$9,NOW(),$5,$10,$1,100,'created',NOW()+interval '1 hour',60,'system','top_up',$11,'{"original":"value"}');
 		INSERT INTO doc_crypto_payments(id,number,date,basis_type,basis_id,invoice_id,merchant_id,network_id,token_id,wallet_id,tx_hash,from_address,amount,event_kind,event_index,block_number,block_hash,required_confs,status,detected_at)
@@ -119,16 +120,25 @@ func (f *referenceFixture) bind(svc *cryptoapp.MerchantInvoiceService, p referen
 	})
 }
 
-func (f *referenceFixture) settle(p referenceTopUp) error {
+// settle accounts the payment's transfer as a receipt and posts the payment as
+// its attribution, crediting the merchant with the whole amount.
+func (f *referenceFixture) settle(t *testing.T, p referenceTopUp) error {
+	t.Helper()
+	var txHash, from string
+	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT tx_hash,from_address FROM doc_crypto_payments WHERE id=$1`, p.paymentID).Scan(&txHash, &from))
+	receipt, proof := receipttest.Record(t, f.ctx, receipttest.Deps{Proofs: crypto_repo.NewBlockIngestionRepo(), Repo: crypto_repo.NewReceiptIntakeRepo(), Guard: crypto_repo.NewBlockIngestionRepo()},
+		receipttest.Transfer{WalletID: p.walletID, TokenID: f.tokenID, TxHash: txHash, FromAddress: from, Amount: "100", BlockNumber: 100})
 	lifecycle := crypto.NewInvoiceLifecycleService(f.repo, document_repo.NewCryptoPaymentRepo(), nil, f.txm, nil)
 	return f.txm.RunInTransaction(f.ctx, func(ctx context.Context) error {
 		if _, err := f.repo.GetByIDForUpdate(ctx, p.invoiceID); err != nil {
 			return err
 		}
 		_, err := f.txm.GetQuerier(ctx).Exec(ctx, `
-			UPDATE doc_crypto_payments SET status='settled',canonicality='canonical',finality_status='finalized',confirmations=1,posted=TRUE,posted_version=1,confirmed_at=NOW() WHERE id=$1;
+			UPDATE doc_crypto_payments SET status='settled',canonicality='canonical',finality_status='finalized',confirmations=1,posted=TRUE,posted_version=1,confirmed_at=NOW(),receipt_id=$2,verification_id=$3 WHERE id=$1;
+			INSERT INTO reg_crypto_receipt_suspense_movements(recorder_id,recorder_type,recorder_version,period,record_type,receipt_id,token_id,amount)
+			SELECT $1,'CryptoPayment',1,NOW(),'expense',$2,token_id,100 FROM doc_crypto_payments WHERE id=$1;
 			INSERT INTO reg_crypto_merchant_balance_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,amount)
-			SELECT $1,$1,'CryptoPayment',1,NOW(),'receipt',merchant_id,token_id,100 FROM doc_crypto_payments WHERE id=$1`, pgx.QueryExecModeSimpleProtocol, p.paymentID)
+			SELECT $1,$1,'CryptoPayment',1,NOW(),'receipt',merchant_id,token_id,100 FROM doc_crypto_payments WHERE id=$1`, pgx.QueryExecModeSimpleProtocol, p.paymentID, receipt, proof)
 		if err != nil {
 			return err
 		}
@@ -141,7 +151,7 @@ func TestInvoiceReferenceHTTPReplaySecurityAndReconciliation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	f := newReferenceFixture(t)
 	p := f.topUp(t, f.merchantID)
-	require.NoError(t, f.settle(p))
+	require.NoError(t, f.settle(t, p))
 	before, err := f.repo.GetByID(f.ctx, p.invoiceID)
 	require.NoError(t, err)
 	require.Equal(t, crypto_invoice.InvoiceStatusCompleted, before.Status)
@@ -325,7 +335,7 @@ func TestInvoiceReferenceExternalOnlyHTTPAndSystemClassification(t *testing.T) {
 	p := f.topUp(t, f.merchantID)
 	_, err := f.pool.Exec(f.ctx, `UPDATE doc_crypto_invoices SET external_id='' WHERE id=$1`, p.invoiceID)
 	require.NoError(t, err)
-	require.NoError(t, f.settle(p))
+	require.NoError(t, f.settle(t, p))
 	before, err := f.repo.GetByID(f.ctx, p.invoiceID)
 	require.NoError(t, err)
 	svc := f.service(t, postgres.NewEventLogRepo())
@@ -524,7 +534,7 @@ func TestInvoiceReferenceAuditFailureRollsBackAndSettlementRacePreservesCredit(t
 	svc := f.service(t, postgres.NewEventLogRepo())
 	start, results := make(chan struct{}), make(chan error, 2)
 	go func() { <-start; _, err := f.bind(svc, p, f.merchantID, "ORD-SETTLE", nil); results <- err }()
-	go func() { <-start; results <- f.settle(p) }()
+	go func() { <-start; results <- f.settle(t, p) }()
 	close(start)
 	for range 2 {
 		require.NoError(t, <-results)

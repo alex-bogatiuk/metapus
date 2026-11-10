@@ -262,7 +262,7 @@ func TestFundingAndLegacyPaymentCannotRecognizeSamePrincipal(t *testing.T) {
 			if order == "payment_first" {
 				require.NoError(t, f.insertPayment(f.ctx))
 				_, err := f.record()
-				require.ErrorContains(t, err, "explicit adoption")
+				require.ErrorContains(t, err, "another accounting owner")
 			} else {
 				_, err := f.record()
 				require.NoError(t, err)

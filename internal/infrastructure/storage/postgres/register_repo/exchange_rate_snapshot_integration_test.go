@@ -56,7 +56,9 @@ func TestExchangeRateValuationUsesOneRepeatableSnapshot(t *testing.T) {
 		require.NoError(t, e)
 		_, e = tx.Exec(ctx, `UPDATE doc_crypto_invoices SET status='confirmed' WHERE id=$1`, invoice)
 		require.NoError(t, e)
-		_, e = tx.Exec(ctx, `UPDATE doc_crypto_payments SET posted=TRUE,posted_version=1,status='settled' WHERE id=$1`, payment)
+		// Only the payment's pending lifecycle matters here; its attribution
+		// to a receipt is outside this read-consistency check.
+		_, e = tx.Exec(ctx, `UPDATE doc_crypto_payments SET status='settled' WHERE id=$1`, payment)
 		require.NoError(t, e)
 		require.NoError(t, tx.Commit(ctx))
 	}}

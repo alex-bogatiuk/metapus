@@ -4,6 +4,8 @@ package crypto_repo
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"strings"
 	"testing"
@@ -15,6 +17,7 @@ import (
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/crypto/aml"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_repo/receipttest"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
@@ -66,8 +69,19 @@ func (f amlRoutingFixture) baseline(t *testing.T, walletID id.ID) {
 	require.NoError(t, err)
 	require.NoError(t, f.repo.RegisterAMLWalletBaseline(f.ctx, walletID, f.input.Request.TokenID, checkID, 1, "empty-checkpoint", "synthetic independent empty checkpoint", "integration-test"))
 }
+
+// amlTxHash keeps a real transaction hash and maps a readable fixture name to
+// a stable one: accounted receipts require chain-shaped effect identities.
+func amlTxHash(tx string) string {
+	if raw, err := hex.DecodeString(tx); err == nil && len(raw) == 32 && tx == strings.ToLower(tx) {
+		return tx
+	}
+	sum := sha256.Sum256([]byte(tx))
+	return hex.EncodeToString(sum[:])
+}
+
 func (f amlRoutingFixture) proof(to, tx string, matching int) crypto.TransferVerification {
-	event := crypto.BlockchainEvent{NetworkID: f.input.Request.NetworkID, TxHash: tx, EventKind: crypto.EventKindContractLog, EventIndex: 0, FromAddress: "payer", ToAddress: to, TokenContract: "test-contract", Amount: types.MustCryptoAmount("100"), BlockNumber: 10, BlockHash: strings.Repeat("a", 64), Finality: crypto.FinalitySolidified, Canonicality: crypto.CanonicalityCanonical, Confirmations: 20, RequiredConfs: 1, EventType: crypto.EventTypeTransfer, Direction: crypto.TransferDirectionIncoming, Timestamp: time.Now().UTC()}
+	event := crypto.BlockchainEvent{NetworkID: f.input.Request.NetworkID, TxHash: amlTxHash(tx), EventKind: crypto.EventKindContractLog, EventIndex: 0, FromAddress: "payer", ToAddress: to, TokenContract: "test-contract", Amount: types.MustCryptoAmount("100"), BlockNumber: 10, BlockHash: strings.Repeat("a", 64), Finality: crypto.FinalitySolidified, Canonicality: crypto.CanonicalityCanonical, Confirmations: 20, RequiredConfs: 1, EventType: crypto.EventTypeTransfer, Direction: crypto.TransferDirectionIncoming, Timestamp: time.Now().UTC()}
 	sources := []crypto.VerificationSource{{ProviderID: "one", LatestProviderID: "one", TrustGroup: "one", Digest: "same-digest", HeadHeight: 29, HeadHash: "same-head"}, {ProviderID: "two", LatestProviderID: "two", TrustGroup: "two", Digest: "same-digest", HeadHeight: 29, HeadHash: "same-head"}}
 	return crypto.TransferVerification{Event: event, Sources: sources, DecoderVersion: crypto.TransferEvidenceSchemaV1, MatchingEffects: matching, VerifiedAt: time.Now().UTC(), Outcome: "verified", ExecutionStatus: crypto.ReceiptSucceeded}
 }
@@ -81,14 +95,24 @@ func (f amlRoutingFixture) save(t *testing.T, proof crypto.TransferVerification)
 }
 func (f amlRoutingFixture) postPayment(t *testing.T, proof crypto.TransferVerification, proofID, walletID id.ID) {
 	t.Helper()
+	f.postPaymentFee(t, proof, proofID, walletID, "10")
+}
+
+// postPaymentFee records the receipt of the transfer and a settled payment that
+// attributes it with the given fixed processing fee; its movements are posted
+// separately by attribute.
+func (f amlRoutingFixture) postPaymentFee(t *testing.T, proof crypto.TransferVerification, proofID, walletID id.ID, fee string) {
+	t.Helper()
 	invoiceID, paymentID := id.New(), id.New()
 	event := proof.Event
 	_, err := f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_invoices(id,public_ref,number,date,merchant_id,token_id,wallet_id,expected_amount,expires_at) VALUES($1,$2,$3,NOW(),$4,$5,$6,$7,NOW()+interval '1 hour')`, invoiceID, "ci_"+id.Compact(invoiceID), invoiceID.String(), f.input.Request.MerchantID, f.input.Request.TokenID, walletID, event.Amount)
 	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_payments(id,invoice_id,merchant_id,network_id,token_id,wallet_id,tx_hash,event_kind,event_index,amount,block_hash,block_number,finality_status,canonicality,status,posted,posted_version,verification_id)
- VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$12,$10,10,'solidified','canonical','settled',TRUE,1,$11)`, paymentID, invoiceID, f.input.Request.MerchantID, event.NetworkID, f.input.Request.TokenID, walletID, event.TxHash, event.EventKind, event.EventIndex, event.BlockHash, proofID, event.Amount)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_balance_movements(recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount) VALUES($1,'CryptoPayment',1,NOW(),'receipt',$2,$3,$4)`, paymentID, walletID, f.input.Request.TokenID, event.Amount)
+	// The custody of the transfer is its receipt; the payment attributes it.
+	receiptID, _ := receipttest.Record(t, f.ctx, receipttest.Deps{Proofs: NewBlockIngestionRepo(), Repo: NewReceiptIntakeRepo(), Guard: NewBlockIngestionRepo()},
+		receipttest.Transfer{WalletID: walletID, TokenID: f.input.Request.TokenID, TxHash: event.TxHash, EventIndex: event.EventIndex,
+			FromAddress: event.FromAddress, Amount: event.Amount.String(), BlockNumber: event.BlockNumber, BlockHash: event.BlockHash})
+	_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_payments(id,invoice_id,merchant_id,network_id,token_id,wallet_id,tx_hash,event_kind,event_index,amount,block_hash,block_number,finality_status,canonicality,status,posted,posted_version,verification_id,receipt_id,fee_fixed)
+ VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$12,$10,10,'solidified','canonical','settled',TRUE,1,$11,$13,$14::numeric)`, paymentID, invoiceID, f.input.Request.MerchantID, event.NetworkID, f.input.Request.TokenID, walletID, event.TxHash, event.EventKind, event.EventIndex, event.BlockHash, proofID, event.Amount, receiptID, fee)
 	require.NoError(t, err)
 }
 func (f amlRoutingFixture) complete(t *testing.T, effectID id.ID, score aml.ScoreBP, coverage bool) {

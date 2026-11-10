@@ -267,6 +267,9 @@ func TestCustodyReceiptSingleOwnerAcrossForkAndRecorder(t *testing.T) {
 	request.Event.VerificationID = &newProofID
 	request.Basis.EventIndex, request.Basis.BlockNumber = 91, 101
 	request.Basis.BlockHash, request.Basis.VerificationID = reincluded.Event.BlockHash, &newProofID
-	_, err = f.service.Record(f.ctx, request)
-	require.ErrorContains(t, err, "accounting owner")
+	// A re-included transfer is the same logical effect: it resolves to the
+	// original receipt instead of creating a second custody owner.
+	again, err := f.service.Record(f.ctx, request)
+	require.NoError(t, err)
+	require.Equal(t, doc.ID, again.ID)
 }

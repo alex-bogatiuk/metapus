@@ -84,6 +84,13 @@ type FinancialReorgRecorder interface {
 	RecordFinancialReorg(ctx context.Context, payment *crypto_payment.CryptoPayment, event BlockchainEvent) error
 }
 
+// PaymentReceiptRecorder accounts the proven final transfer of a payment as a
+// custody receipt and returns it. Replays of the same chain effect return the
+// same receipt, so a re-included payment attributes its original receipt.
+type PaymentReceiptRecorder interface {
+	RecordPaymentReceipt(ctx context.Context, payment *crypto_payment.CryptoPayment, event BlockchainEvent) (id.ID, error)
+}
+
 // EventProcessor orchestrates the lifecycle of blockchain events:
 // match wallet → find invoice → create/update payment → FSM transition → post.
 //
@@ -105,6 +112,7 @@ type EventProcessor struct {
 	expectedTransfers ExpectedTransferRouter
 	financialReorgs   FinancialReorgRecorder
 	financialGuard    FinancialEventGuard
+	receipts          PaymentReceiptRecorder
 	webhookPublisher  LifecycleWebhookPublisher
 	leaseCloser       LeaseCloser
 	allocations       WalletAllocationRepository
@@ -139,6 +147,7 @@ type EventProcessorConfig struct {
 	ExpectedTransfers ExpectedTransferRouter
 	FinancialReorgs   FinancialReorgRecorder
 	FinancialGuard    FinancialEventGuard
+	Receipts          PaymentReceiptRecorder
 	WebhookPublisher  LifecycleWebhookPublisher
 	LeaseCloser       LeaseCloser
 	Allocations       WalletAllocationRepository
@@ -172,6 +181,7 @@ func NewEventProcessor(cfg EventProcessorConfig, opts ...Option) *EventProcessor
 		expectedTransfers: cfg.ExpectedTransfers,
 		financialReorgs:   cfg.FinancialReorgs,
 		financialGuard:    cfg.FinancialGuard,
+		receipts:          cfg.Receipts,
 		webhookPublisher:  cfg.WebhookPublisher,
 		leaseCloser:       cfg.LeaseCloser,
 		allocations:       cfg.Allocations,
@@ -625,6 +635,21 @@ func (p *EventProcessor) processConfirmations(
 				payment.VerificationID = &proofID
 			}
 		}
+		// The custody of the final transfer is a receipt; the payment only
+		// attributes it to the merchant.
+		if p.receipts == nil {
+			return fmt.Errorf("payment %s reached finality but receipt recorder is not configured", payment.ID)
+		}
+		proven := event
+		proven.VerificationID = payment.VerificationID
+		receiptID, err := p.receipts.RecordPaymentReceipt(ctx, payment, proven)
+		if err != nil {
+			return fmt.Errorf("record payment receipt: %w", err)
+		}
+		if payment.ReceiptID != nil && *payment.ReceiptID != receiptID {
+			return fmt.Errorf("payment %s attributes receipt %s, chain effect resolved to %s", payment.ID, *payment.ReceiptID, receiptID)
+		}
+		payment.ReceiptID = &receiptID
 		// Use postingEngine to generate and record register movements.
 		// The engine internally sets payment.Posted = true and increments PostedVersion.
 		// We pass fsm.Transition as the update callback to eliminate double-writes:

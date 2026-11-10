@@ -15,20 +15,25 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
+// amlAttributionSQL posts the attribution of a fixture payment to its
+// receipt in one statement: suspense consumption, merchant credit and fee.
+const amlAttributionSQL = `WITH p AS (SELECT * FROM doc_crypto_payments WHERE tx_hash=$1),
+ s AS (INSERT INTO reg_crypto_receipt_suspense_movements(recorder_id,recorder_type,recorder_version,period,record_type,receipt_id,token_id,amount)
+  SELECT id,'CryptoPayment',posted_version,NOW(),'expense',receipt_id,token_id,amount FROM p RETURNING 1),
+ m AS (INSERT INTO reg_crypto_merchant_balance_movements(recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,amount)
+  SELECT id,'CryptoPayment',posted_version,NOW(),'receipt',merchant_id,token_id,$2::numeric FROM p WHERE $2::numeric>0 RETURNING 1)
+ INSERT INTO reg_crypto_fee_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,fee_type,amount)
+  SELECT gen_random_uuid_v7(),id,'CryptoPayment',posted_version,NOW(),'receipt',merchant_id,token_id,'processing',$3::numeric FROM p WHERE $3::numeric>0`
+
+func (f amlRoutingFixture) attribute(t *testing.T, tx, net, fee string) {
+	t.Helper()
+	_, err := f.pool.Exec(f.ctx, amlAttributionSQL, tx, net, fee)
+	require.NoError(t, err)
+}
+
 func (f amlRoutingFixture) creditNet(t *testing.T, tx string) {
 	t.Helper()
-	err := postgres.MustGetTxManager(f.ctx).RunInTransaction(f.ctx, func(ctx context.Context) error {
-		q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
-		_, err := q.Exec(ctx, `INSERT INTO reg_crypto_merchant_balance_movements(recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,amount)
- SELECT id,'CryptoPayment',posted_version,NOW(),'receipt',merchant_id,token_id,90 FROM doc_crypto_payments WHERE tx_hash=$1`, tx)
-		if err != nil {
-			return err
-		}
-		_, err = q.Exec(ctx, `INSERT INTO reg_crypto_fee_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,fee_type,amount)
- SELECT gen_random_uuid_v7(),id,'CryptoPayment',posted_version,NOW(),'receipt',merchant_id,token_id,'processing',10 FROM doc_crypto_payments WHERE tx_hash=$1`, tx)
-		return err
-	})
-	require.NoError(t, err)
+	f.attribute(t, tx, "90", "10")
 }
 
 func (f amlRoutingFixture) riskBalance(t *testing.T) aml.MerchantBalanceSnapshot {

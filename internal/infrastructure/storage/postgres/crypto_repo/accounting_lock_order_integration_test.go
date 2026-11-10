@@ -5,17 +5,13 @@ package crypto_repo
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
-	"metapus/internal/domain/posting"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
@@ -200,30 +196,4 @@ func TestAccountingLockOrderRemainingScopeDoesNotHoldWallet(t *testing.T) {
 		func(ctx context.Context) error {
 			return NewCustodyRecognitionRepo().LockWallet(ctx, target, f.input.Request.TokenID)
 		})
-}
-
-func TestAccountingLockOrderGenericRepostPreflightsOldAndNewWallets(t *testing.T) {
-	f := newPaymentRecognitionFixture(t, nil)
-	legacy := *f.payment
-	legacy.ID, legacy.Number, legacy.TxHash, legacy.VerificationID = id.New(), "LOCK-LEGACY", strings.Repeat("e", 64), nil
-	require.NoError(t, document_repo.NewCryptoPaymentRepo().Create(f.ctx, &legacy))
-	require.NoError(t, f.post(&legacy, f.engineWith(false, true, true)))
-	oldWallet, newWallet := legacy.WalletID, id.New()
-	_, err := f.pool.Exec(f.ctx, `INSERT INTO cat_wallets(id,code,name,network_id,address,vault_key_id)
-		VALUES($1,$1::uuid::text,'Replacement wallet',$2,$3,'replacement-key')`, newWallet, legacy.NetworkID, "0x"+strings.Repeat("9", 40))
-	require.NoError(t, err)
-	legacy.WalletID = newWallet
-	engine := f.engineWith(false, true, true)
-	inspected := false
-	engine.ValidateInTransaction(func(ctx context.Context, _ posting.Postable) error {
-		for _, wallet := range []id.ID{oldWallet, newWallet} {
-			_, probe := f.pool.Exec(ctx, "SELECT id FROM cat_wallets WHERE id=$1 FOR UPDATE NOWAIT", wallet)
-			require.ErrorContains(t, probe, "55P03", "both old and new resources must precede evidence validation and reversals")
-		}
-		inspected = true
-		return apperror.NewConflict("stop after resource inspection")
-	})
-	require.ErrorContains(t, f.post(&legacy, engine), "stop after resource inspection")
-	require.True(t, inspected)
-	require.Equal(t, []string{"23", "20", "3"}, f.balances(t), "inspection must not compensate the original financial set")
 }

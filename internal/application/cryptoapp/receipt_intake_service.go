@@ -6,12 +6,14 @@ import (
 	"time"
 
 	"metapus/internal/core/apperror"
+	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/tx"
 	"metapus/internal/domain"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_custody_receipt"
+	"metapus/internal/domain/documents/crypto_payment"
 )
 
 type ReceiptAdmissionContext struct {
@@ -21,7 +23,8 @@ type ReceiptAdmissionContext struct {
 
 type ReceiptIntakeRepository interface {
 	LockAdmission(context.Context, crypto.AccountingTransferBasis) error
-	FindByOccurrence(context.Context, id.ID) (*crypto_custody_receipt.CryptoCustodyReceipt, error)
+	// FindByEffect returns the receipt of the logical effect of an occurrence.
+	FindByEffect(context.Context, id.ID) (*crypto_custody_receipt.CryptoCustodyReceipt, error)
 	AdmissionContext(context.Context, crypto.AccountingTransferBasis, crypto.VerifiedCustodyEffect) (ReceiptAdmissionContext, error)
 	Create(context.Context, *crypto_custody_receipt.CryptoCustodyReceipt) error
 	Update(context.Context, *crypto_custody_receipt.CryptoCustodyReceipt) error
@@ -81,7 +84,7 @@ func (s *ReceiptIntakeService) Record(ctx context.Context, req RecordCustodyRece
 		if err != nil {
 			return err
 		}
-		existing, err := s.repo.FindByOccurrence(ctx, evidence.OccurrenceID)
+		existing, err := s.repo.FindByEffect(ctx, evidence.OccurrenceID)
 		if err != nil {
 			return err
 		}
@@ -139,3 +142,28 @@ func (s *ReceiptIntakeService) Record(ctx context.Context, req RecordCustodyRece
 	}
 	return result, nil
 }
+
+// RecordPaymentReceipt accounts the proven final transfer of a matched invoice
+// payment. The payment then attributes the receipt instead of owning custody.
+func (s *ReceiptIntakeService) RecordPaymentReceipt(ctx context.Context, payment *crypto_payment.CryptoPayment, event crypto.BlockchainEvent) (id.ID, error) {
+	if payment == nil || payment.VerificationID == nil {
+		return id.ID{}, crypto.ErrVerificationPending
+	}
+	doc, err := s.Record(ctx, RecordCustodyReceiptCommand{
+		Basis: crypto.AccountingTransferBasis{
+			NetworkID: payment.NetworkID, WalletID: payment.WalletID, TokenID: payment.TokenID,
+			TxHash: payment.TxHash, EventKind: crypto.EventKind(payment.EventKind), EventIndex: payment.EventIndex,
+			FromAddress: payment.FromAddress, RecordType: entity.RecordTypeReceipt, Amount: payment.Amount,
+			BlockNumber: payment.BlockNumber, BlockHash: payment.BlockHash, RequiredConfs: payment.RequiredConfs,
+			VerificationID: payment.VerificationID,
+		},
+		Event:  event,
+		Reason: crypto_custody_receipt.ReasonMatched,
+	})
+	if err != nil {
+		return id.ID{}, err
+	}
+	return doc.ID, nil
+}
+
+var _ crypto.PaymentReceiptRecorder = (*ReceiptIntakeService)(nil)

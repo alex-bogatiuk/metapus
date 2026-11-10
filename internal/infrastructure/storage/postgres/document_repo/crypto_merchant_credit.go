@@ -13,6 +13,8 @@ func NewCryptoMerchantCreditRepo() *CryptoMerchantCreditRepo {
 	return &CryptoMerchantCreditRepo{BaseDocumentRepo: NewDocumentRepoForDefinition(
 		crypto_merchant_credit.Definition,
 		postgres.ExtractDBColumns[crypto_merchant_credit.CryptoMerchantCredit](),
-		func() *crypto_merchant_credit.CryptoMerchantCredit { return &crypto_merchant_credit.CryptoMerchantCredit{} },
+		func() *crypto_merchant_credit.CryptoMerchantCredit {
+			return &crypto_merchant_credit.CryptoMerchantCredit{}
+		},
 	)}
 }

@@ -16,8 +16,9 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
-// FinancialReorgRepo persists the incident and operational network hold in the
-// same transaction as the orphaned payment marker.
+// FinancialReorgRepo compensates the attribution of an orphaned posted payment
+// and persists the incident and operational network hold in the same
+// transaction as the orphaned payment marker.
 type FinancialReorgRepo struct{}
 
 func NewFinancialReorgRepo() *FinancialReorgRepo { return &FinancialReorgRepo{} }
@@ -72,14 +73,6 @@ func (r *FinancialReorgRepo) recordFinancialReorg(ctx context.Context, payment *
 	if err := lockFinancialReorgBasis(ctx, payment); err != nil {
 		return err
 	}
-	lockQuery := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
-	if _, err := lockQuery.Exec(ctx, "SELECT fn_crypto_lock_receipt_balance($1,$2)", payment.WalletID, payment.TokenID); err != nil {
-		return err
-	}
-	if _, err := lockQuery.Exec(ctx, `SELECT e.id FROM reg_crypto_custody_effect_postings p JOIN reg_crypto_accounting_effects e ON e.id=p.effect_id
-		WHERE p.recorder_type='CryptoPayment' AND p.recorder_id=$1 ORDER BY e.id FOR UPDATE OF e`, payment.ID); err != nil {
-		return err
-	}
 	details, err := json.Marshal(map[string]any{
 		"invoiceId":         payment.InvoiceID.String(),
 		"amount":            payment.Amount.String(),
@@ -124,34 +117,34 @@ func (r *FinancialReorgRepo) recordFinancialReorg(ctx context.Context, payment *
 		return fmt.Errorf("insert financial reorg compensation: %w", err)
 	}
 
-	// A financial reorg is compensated with opposite immutable movements. The
-	// original posting remains intact and auditable.
-	balanceEffect, err := q.Exec(ctx, `
-		INSERT INTO reg_crypto_balance_movements (
+	// A financial reorg is compensated with opposite immutable movements: the
+	// attribution returns to the receipt suspense and the merchant credit and
+	// fee are reversed. The receipt itself stays under its canonicality audit.
+	suspenseEffect, err := q.Exec(ctx, `
+		INSERT INTO reg_crypto_receipt_suspense_movements (
 			line_id,recorder_id,recorder_type,recorder_version,period,
-			record_type,wallet_id,token_id,amount,reversal_of_line_id,reversal_reason
+			record_type,receipt_id,token_id,amount,reversal_of_line_id,reversal_reason
 		)
-		SELECT gen_random_uuid_v7(),$1,'CryptoPaymentReorg',1,NOW(),
-		       CASE WHEN record_type='receipt' THEN 'expense' ELSE 'receipt' END,
-		       m.wallet_id,m.token_id,m.amount-COALESCE(reversed.amount,0),m.line_id,'posted_payment_reorg'
-		FROM reg_crypto_balance_movements m
-		LEFT JOIN LATERAL (SELECT SUM(r.amount) AS amount FROM reg_crypto_balance_movements r
+		SELECT gen_random_uuid_v7(),$1,'CryptoPaymentReorg',1,NOW(),'receipt',
+		       m.receipt_id,m.token_id,m.amount-COALESCE(reversed.amount,0),m.line_id,'posted_payment_reorg'
+		FROM reg_crypto_receipt_suspense_movements m
+		LEFT JOIN LATERAL (SELECT SUM(r.amount) AS amount FROM reg_crypto_receipt_suspense_movements r
 		    WHERE r.reversal_of_line_id=m.line_id) reversed ON TRUE
 		WHERE m.recorder_id=$2 AND m.recorder_type='CryptoPayment' AND m.recorder_version=$3
 		  AND m.amount>COALESCE(reversed.amount,0)
 	`, compensationID, payment.ID, payment.PostedVersion)
 	if err != nil {
-		return fmt.Errorf("record crypto balance reorg reversal: %w", err)
+		return fmt.Errorf("return payment attribution to receipt suspense: %w", err)
 	}
-	if balanceEffect.RowsAffected() == 0 {
+	if suspenseEffect.RowsAffected() == 0 {
 		var originalCount int
-		if err := q.QueryRow(ctx, `SELECT COUNT(*) FROM reg_crypto_balance_movements
+		if err := q.QueryRow(ctx, `SELECT COUNT(*) FROM reg_crypto_receipt_suspense_movements
 			WHERE recorder_id=$1 AND recorder_type='CryptoPayment' AND recorder_version=$2`,
 			payment.ID, payment.PostedVersion).Scan(&originalCount); err != nil {
 			return err
 		}
 		if originalCount == 0 {
-			return fmt.Errorf("posted payment %s version %d has no custody movement to compensate",
+			return fmt.Errorf("posted payment %s version %d has no receipt attribution to compensate",
 				payment.ID, payment.PostedVersion)
 		}
 	}

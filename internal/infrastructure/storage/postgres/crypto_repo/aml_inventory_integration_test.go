@@ -178,19 +178,8 @@ func TestAMLInventoryInFlightSplitDoesNotChangeAfterAnotherPayment(t *testing.T)
 	sweepID := f.proveAllocatedSweep(t, request, false)
 	proof := f.proof(f.input.Request.Address, strings.Repeat("ab", 32), 1)
 	proofID, effectID := f.save(t, proof)
-	f.postPayment(t, proof, proofID, f.input.WalletID)
-	err = postgres.MustGetTxManager(f.ctx).RunInTransaction(f.ctx, func(ctx context.Context) error {
-		q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
-		_, err := q.Exec(ctx, `INSERT INTO reg_crypto_merchant_balance_movements(recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,amount)
- SELECT id,'CryptoPayment',1,NOW(),'receipt',merchant_id,token_id,50 FROM doc_crypto_payments WHERE tx_hash=$1`, proof.Event.TxHash)
-		if err != nil {
-			return err
-		}
-		_, err = q.Exec(ctx, `INSERT INTO reg_crypto_fee_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,fee_type,amount)
- SELECT gen_random_uuid_v7(),id,'CryptoPayment',1,NOW(),'receipt',merchant_id,token_id,'processing',50 FROM doc_crypto_payments WHERE tx_hash=$1`, proof.Event.TxHash)
-		return err
-	})
-	require.NoError(t, err)
+	f.postPaymentFee(t, proof, proofID, f.input.WalletID, "50")
+	f.attribute(t, proof.Event.TxHash, "50", "50")
 	f.complete(t, effectID, 1000, true)
 	f.rebuild(t)
 	f.postAllocatedSweep(t, request, sweepID)
@@ -333,13 +322,8 @@ func TestAMLInventorySQLReservationPreservesNumeric78IntegerQuotient(t *testing.
 	proof := f.proof(f.input.Request.Address, "numeric78-deposit", 1)
 	proof.Event.Amount = net.Add(types.MustCryptoAmount("1"))
 	proofID, effectID := f.save(t, proof)
-	f.postPayment(t, proof, proofID, f.input.WalletID)
-	_, err := f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_merchant_balance_movements(recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,amount)
- SELECT id,'CryptoPayment',1,NOW(),'receipt',merchant_id,token_id,$2 FROM doc_crypto_payments WHERE tx_hash=$1`, proof.Event.TxHash, net)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_fee_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,fee_type,amount)
- SELECT gen_random_uuid_v7(),id,'CryptoPayment',1,NOW(),'receipt',merchant_id,token_id,'processing',1 FROM doc_crypto_payments WHERE tx_hash=$1`, proof.Event.TxHash)
-	require.NoError(t, err)
+	f.postPaymentFee(t, proof, proofID, f.input.WalletID, "1")
+	f.attribute(t, proof.Event.TxHash, net.String(), "1")
 	f.complete(t, effectID, 1000, true)
 	f.rebuild(t)
 	destination := f.collector(t, f.input.Request.MerchantID, "TPartitionCo11ectorAddressbbbbbbbb")
@@ -402,11 +386,8 @@ func TestAMLInventoryFinalFeeWakeupCannotBeLostDuringCapture(t *testing.T) {
 	proof := f.proof(f.input.Request.Address, "late-fee-wakeup", 1)
 	proofID, _ := f.save(t, proof)
 	f.postPayment(t, proof, proofID, f.input.WalletID)
-	_, err := f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_merchant_balance_movements(recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,amount)
- SELECT id,'CryptoPayment',1,NOW(),'receipt',merchant_id,token_id,90 FROM doc_crypto_payments WHERE tx_hash=$1`, proof.Event.TxHash)
-	require.NoError(t, err)
 	feeDone := make(chan error, 1)
-	err = postgres.MustGetTxManager(f.ctx).RunInTransaction(f.ctx, func(ctx context.Context) error {
+	err := postgres.MustGetTxManager(f.ctx).RunInTransaction(f.ctx, func(ctx context.Context) error {
 		q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
 		_, err := q.Exec(ctx, `SELECT version FROM sys_crypto_aml_routing_scopes WHERE merchant_id=$1 AND token_id=$2 FOR UPDATE`, f.input.Request.MerchantID, f.input.Request.TokenID)
 		if err != nil {
@@ -414,10 +395,9 @@ func TestAMLInventoryFinalFeeWakeupCannotBeLostDuringCapture(t *testing.T) {
 		}
 		var ready int
 		require.NoError(t, q.QueryRow(ctx, `SELECT COUNT(*) FROM crypto_aml_allocatable_payments`).Scan(&ready))
-		require.Zero(t, ready, "the worker's first evidence snapshot is missing the final fee movement")
+		require.Zero(t, ready, "the worker's first evidence snapshot is missing the payment attribution")
 		go func() {
-			_, err := f.pool.Exec(f.ctx, `/*allocation-wakeup*/ INSERT INTO reg_crypto_fee_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,fee_type,amount)
- SELECT gen_random_uuid_v7(),id,'CryptoPayment',1,NOW(),'receipt',merchant_id,token_id,'processing',10 FROM doc_crypto_payments WHERE tx_hash=$1`, proof.Event.TxHash)
+			_, err := f.pool.Exec(f.ctx, `/*allocation-wakeup*/ `+amlAttributionSQL, proof.Event.TxHash, "90", "10")
 			feeDone <- err
 		}()
 		require.Eventually(t, func() bool {

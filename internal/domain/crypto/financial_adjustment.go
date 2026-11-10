@@ -11,25 +11,24 @@ import (
 // reviewed wallet variance. Its derived basis, evidence and source selection are
 // frozen at proposal time; free-form evidence grants no chain ownership.
 type FinancialAdjustment struct {
-	ID              id.ID           `db:"id" json:"id"`
-	PaymentID       id.ID           `db:"payment_id" json:"paymentId"`
-	PostedVersion   int             `db:"posted_version" json:"postedVersion"`
-	Mode            string          `db:"mode" json:"mode"`
-	BasisKind       string          `db:"basis_kind" json:"basisKind"`
-	SourcePostingID *id.ID          `db:"source_posting_id" json:"sourcePostingId,omitempty"`
-	WalletID        *id.ID          `db:"wallet_id" json:"walletId,omitempty"`
-	TokenID         *id.ID          `db:"token_id" json:"tokenId,omitempty"`
-	Direction       string          `db:"direction" json:"direction,omitempty"`
-	Amount          string          `db:"amount" json:"amount,omitempty"`
-	DecisionMode    string          `db:"decision_mode" json:"decisionMode"`
-	ReasonCode      string          `db:"reason_code" json:"reasonCode"`
-	Evidence        json.RawMessage `db:"evidence" json:"evidence"`
-	MakerID         id.ID           `db:"maker_id" json:"makerId"`
-	CheckerID       *id.ID          `db:"checker_id" json:"checkerId,omitempty"`
-	Status          string          `db:"status" json:"status"`
-	DecisionReason  string          `db:"decision_reason" json:"decisionReason,omitempty"`
-	CreatedAt       time.Time       `db:"created_at" json:"createdAt"`
-	DecidedAt       *time.Time      `db:"decided_at" json:"decidedAt,omitempty"`
+	ID             id.ID           `db:"id" json:"id"`
+	PaymentID      id.ID           `db:"payment_id" json:"paymentId"`
+	PostedVersion  int             `db:"posted_version" json:"postedVersion"`
+	Mode           string          `db:"mode" json:"mode"`
+	BasisKind      string          `db:"basis_kind" json:"basisKind"`
+	WalletID       *id.ID          `db:"wallet_id" json:"walletId,omitempty"`
+	TokenID        *id.ID          `db:"token_id" json:"tokenId,omitempty"`
+	Direction      string          `db:"direction" json:"direction,omitempty"`
+	Amount         string          `db:"amount" json:"amount,omitempty"`
+	DecisionMode   string          `db:"decision_mode" json:"decisionMode"`
+	ReasonCode     string          `db:"reason_code" json:"reasonCode"`
+	Evidence       json.RawMessage `db:"evidence" json:"evidence"`
+	MakerID        id.ID           `db:"maker_id" json:"makerId"`
+	CheckerID      *id.ID          `db:"checker_id" json:"checkerId,omitempty"`
+	Status         string          `db:"status" json:"status"`
+	DecisionReason string          `db:"decision_reason" json:"decisionReason,omitempty"`
+	CreatedAt      time.Time       `db:"created_at" json:"createdAt"`
+	DecidedAt      *time.Time      `db:"decided_at" json:"decidedAt,omitempty"`
 }
 
 // AdjustmentPaymentBasis is loaded and locked by the persistence adapter.

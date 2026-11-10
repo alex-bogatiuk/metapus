@@ -34,24 +34,26 @@ func inconsistentInvoiceLedger() portalapp.PortalInvoiceLedger {
 // not their recorder ID (adjustments and reorgs have independent recorders).
 // Each root and linked reversal appears once, even across posting generations.
 func invoiceLedgerQuery() string {
-	type register struct{ kind, table, dimensions, extra string }
+	// The payment's custody side is the attribution of its receipt: a suspense
+	// expense, signed here as the received gross.
+	type register struct{ kind, table, dimensions, extra, received string }
 	registers := []register{
-		{"custody", "reg_crypto_balance_movements", "m.wallet_id=p.wallet_id AND m.token_id=p.token_id", ""},
-		{"merchant", "reg_crypto_merchant_balance_movements", "m.merchant_id=p.merchant_id AND m.token_id=p.token_id", ""},
-		{"fee", "reg_crypto_fee_movements", "m.merchant_id=p.merchant_id AND m.token_id=p.token_id", "AND m.fee_type='processing'"},
+		{"custody", "reg_crypto_receipt_suspense_movements", "m.receipt_id=p.receipt_id AND m.token_id=p.token_id", "", "expense"},
+		{"merchant", "reg_crypto_merchant_balance_movements", "m.merchant_id=p.merchant_id AND m.token_id=p.token_id", "", "receipt"},
+		{"fee", "reg_crypto_fee_movements", "m.merchant_id=p.merchant_id AND m.token_id=p.token_id", "AND m.fee_type='processing'", "receipt"},
 	}
 	roots, reversals := make([]string, 0, 3), make([]string, 0, 3)
 	for _, reg := range registers {
 		roots = append(roots, fmt.Sprintf(`SELECT '%s' AS kind,p.id AS payment_id,m.recorder_version AS version,m.line_id,
-   CASE WHEN m.record_type='receipt' THEN m.amount ELSE -m.amount END AS amount
+   CASE WHEN m.record_type='%s' THEN m.amount ELSE -m.amount END AS amount
    FROM %s m JOIN payments p ON m.recorder_id=p.id
-   WHERE m.recorder_type='CryptoPayment' AND m.reversal_of_line_id IS NULL AND %s %s`, reg.kind, reg.table, reg.dimensions, reg.extra))
+   WHERE m.recorder_type='CryptoPayment' AND m.reversal_of_line_id IS NULL AND %s %s`, reg.kind, reg.received, reg.table, reg.dimensions, reg.extra))
 		reversals = append(reversals, fmt.Sprintf(`SELECT r.kind,r.payment_id,r.version,
-   CASE WHEN m.record_type='receipt' THEN m.amount ELSE -m.amount END AS amount,FALSE AS original
+   CASE WHEN m.record_type='%s' THEN m.amount ELSE -m.amount END AS amount,FALSE AS original
    FROM roots r JOIN %s m ON m.reversal_of_line_id=r.line_id
-   JOIN payments p ON p.id=r.payment_id WHERE r.kind='%s' AND %s %s`, reg.table, reg.kind, reg.dimensions, reg.extra))
+   JOIN payments p ON p.id=r.payment_id WHERE r.kind='%s' AND %s %s`, reg.received, reg.table, reg.kind, reg.dimensions, reg.extra))
 	}
-	return `WITH payments AS (SELECT id,merchant_id,token_id,wallet_id FROM doc_crypto_payments
+	return `WITH payments AS (SELECT id,merchant_id,token_id,wallet_id,receipt_id FROM doc_crypto_payments
   WHERE invoice_id=$1 AND merchant_id=$2 AND token_id=$3), roots AS (` + strings.Join(roots, " UNION ALL ") + `),
   entries AS (SELECT kind,payment_id,version,amount,TRUE AS original FROM roots UNION ALL ` + strings.Join(reversals, " UNION ALL ") + `)
   SELECT payment_id,version,

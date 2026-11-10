@@ -144,15 +144,17 @@ func TestTRONBlockCaptureAtomicFenceProofAndTargetRegistration(t *testing.T) {
 	require.NoError(t, err)
 	absent.VerificationID = &absenceID
 	require.NoError(t, postgres.MustGetTxManager(ctx).RunInTransaction(ctx, func(txCtx context.Context) error {
-		_, err := repo.AuthorizeReorg(txCtx, payment, absent)
-		require.ErrorIs(t, err, crypto.ErrVerificationPending)
+		// Independent absence of a posted payment authorizes the automatic
+		// compensation of its attribution; the guard itself moves no money.
+		proven, err := repo.AuthorizeReorg(txCtx, payment, absent)
+		require.NoError(t, err)
+		require.Equal(t, absenceID, proven)
 		return nil
 	}))
-	var incidents, compensations int
+	var compensations int
 	var posted bool
-	require.NoError(t, pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM reg_crypto_security_incidents WHERE payment_id=$1),(SELECT count(*) FROM reg_crypto_reorg_compensations WHERE payment_id=$1),(SELECT posted FROM doc_crypto_payments WHERE id=$1)`, payment.ID).Scan(&incidents, &compensations, &posted))
-	require.Equal(t, 1, incidents)
-	require.Zero(t, compensations, "solidified TRON disagreements must not automatically reverse ledger entries")
+	require.NoError(t, pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM reg_crypto_reorg_compensations WHERE payment_id=$1),(SELECT posted FROM doc_crypto_payments WHERE id=$1)`, payment.ID).Scan(&compensations, &posted))
+	require.Zero(t, compensations)
 	require.True(t, posted)
 	_, err = pool.Exec(ctx, `UPDATE sys_crypto_block_ingestion SET mode='paused' WHERE network_id=$1`, network)
 	require.NoError(t, err)

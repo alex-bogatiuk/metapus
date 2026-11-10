@@ -2409,7 +2409,6 @@ export const FinancialAdjustmentResponseSchema: z.ZodType<Wire.FinancialAdjustme
   "postedVersion": z.number().int(),
   "mode": z.string(),
   "basisKind": z.string(),
-  "sourcePostingId": z.string().optional(),
   "walletId": z.string().optional(),
   "tokenId": z.string().optional(),
   "direction": z.string().optional(),

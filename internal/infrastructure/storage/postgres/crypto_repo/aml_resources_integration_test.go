@@ -228,9 +228,6 @@ func TestAMLResourceFundingSuccessAndRevert(t *testing.T) {
 				proof := nativeResourceProof(t, f, address, txHash, "20")
 				proof.Event.FromAddress, proof.Event.Direction = f.input.Request.Address, crypto.TransferDirectionInternal
 				f.save(t, proof)
-				var requiresRecognition bool
-				require.NoError(t, f.pool.QueryRow(f.ctx, "SELECT fn_crypto_payment_requires_recognition($1,$2,$3,'contract_log',99)", id.New(), f.input.Request.NetworkID, txHash).Scan(&requiresRecognition))
-				require.True(t, requiresRecognition, "an indexed native tx also gates legacy payment aliases")
 				settleResourceEvidence(t, f, fee, funding, txHash, status, "3", true)
 				f.rebuild(t)
 				require.Equal(t, []string{"77", "20"}, resourceAmounts(t, f, target))

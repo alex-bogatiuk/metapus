@@ -19,6 +19,7 @@ import (
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_repo/receipttest"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
 )
 
@@ -42,16 +43,16 @@ func TestInvoiceExpiryAgainstFullPaymentPreservesCommittedWinnerAndCredit(t *tes
 	_, err = pool.Exec(ctx, `
 		INSERT INTO cat_blockchain_networks(
 			id,code,name,chain_family,network_identifier,native_token_symbol,native_decimals,is_active)
-		VALUES($1,$2,'Invoice expiry race network','tron',$3,'TRX',6,FALSE);
+		VALUES($1,$2,'Invoice expiry race network','evm',$3,'ETH',18,FALSE);
 		INSERT INTO cat_merchants(id,code,name)
 		VALUES($4,$5,'Invoice expiry race merchant');
 		INSERT INTO cat_tokens(
 			id,code,name,network_id,contract_address,symbol,decimal_places,token_standard)
 		VALUES($6,$7,'Invoice expiry race token',$1,$8,$9,6,'TRC-20');
 		INSERT INTO cat_wallets(
-			id,code,name,network_id,address,address_key,tier,wallet_role,status,
+			id,code,name,network_id,address,vault_key_id,tier,wallet_role,status,
 			allocation_mode,is_active,chain_activation_status,leased_for_id,leased_until)
-		VALUES($10,$11,'Invoice expiry race wallet',$1,$12,$12,'pool','merchant_pool','leased',
+		VALUES($10,$11,'Invoice expiry race wallet',$1,$12,'expiry-key','pool','merchant_pool','leased',
 		       'transient',TRUE,'active',$13,$14);
 		INSERT INTO doc_crypto_invoices(
 			id,public_ref,number,date,merchant_id,token_id,wallet_id,expected_amount,
@@ -60,10 +61,16 @@ func TestInvoiceExpiryAgainstFullPaymentPreservesCommittedWinnerAndCredit(t *tes
 		       $14::timestamptz-interval '1 minute',5,'portal')
 	`, pgx.QueryExecModeSimpleProtocol, networkID, "IER-NET-"+suffix, "ier-"+suffix,
 		merchantID, "IER-MERCHANT-"+suffix,
-		tokenID, "IER-TOKEN-"+suffix, "TExpiryToken"+suffix, "ER"+suffix[:6],
-		walletID, "IER-WALLET-"+suffix, "TExpiryWallet"+suffix,
+		tokenID, "IER-TOKEN-"+suffix, "0x"+suffix[:20]+suffix[:20], "ER"+suffix[:6],
+		walletID, "IER-WALLET-"+suffix, "0x"+suffix[len(suffix)-20:]+suffix[len(suffix)-20:],
 		invoiceID, now, publicRef, "EXPIRY-RACE-"+suffix)
 	require.NoError(t, err)
+
+	// The transfer is already accounted as a receipt; the racing payment
+	// attributes it to the merchant.
+	txHash := suffix + suffix
+	receiptID, _ := receipttest.Record(t, ctx, receipttest.Deps{Proofs: NewBlockIngestionRepo(), Repo: NewReceiptIntakeRepo(), Guard: NewBlockIngestionRepo()},
+		receipttest.Transfer{WalletID: walletID, TokenID: tokenID, TxHash: txHash, Amount: "100", BlockNumber: 100, BlockHash: strings.Repeat("e", 64)})
 
 	invoiceRepo := document_repo.NewCryptoInvoiceRepo()
 	paymentRepo := document_repo.NewCryptoPaymentRepo()
@@ -86,15 +93,18 @@ func TestInvoiceExpiryAgainstFullPaymentPreservesCommittedWinnerAndCredit(t *tes
 					id,number,date,basis_type,basis_id,posted,posted_version,invoice_id,merchant_id,
 					network_id,token_id,wallet_id,tx_hash,from_address,amount,event_kind,event_index,
 					block_number,block_hash,confirmations,required_confs,finality_status,canonicality,
-					status,detected_at,confirmed_at)
+					status,detected_at,confirmed_at,receipt_id)
 				VALUES($1,$2,$3,'CryptoInvoice',$4,TRUE,1,$4,$5,$6,$7,$8,$9,$10,100,
-				       'contract_log',0,100,$11,20,20,'finalized','canonical','settled',$3,$3);
+				       'contract_log',0,100,$11,20,20,'finalized','canonical','settled',$3,$3,$12);
+				INSERT INTO reg_crypto_receipt_suspense_movements(
+					recorder_id,recorder_type,recorder_version,period,record_type,receipt_id,token_id,amount)
+				VALUES($1,'CryptoPayment',1,$3,'expense',$12,$7,100);
 				INSERT INTO reg_crypto_merchant_balance_movements(
 					line_id,recorder_id,recorder_type,recorder_version,period,record_type,
 					merchant_id,token_id,amount)
 				VALUES($1,$1,'CryptoPayment',1,$3,'receipt',$5,$7,100)
 			`, pgx.QueryExecModeSimpleProtocol, paymentID, "PAYMENT-"+suffix, now, invoiceID, merchantID, networkID,
-				tokenID, walletID, "expiry-payment-"+suffix, "TExpirySender"+suffix, "block-"+suffix); insertErr != nil {
+				tokenID, walletID, txHash, "0x00000000000000000000000000000000000000AB", strings.Repeat("e", 64), receiptID); insertErr != nil {
 				return insertErr
 			}
 			_, syncErr := lifecycle.SyncInTransaction(txCtx, invoiceID)
