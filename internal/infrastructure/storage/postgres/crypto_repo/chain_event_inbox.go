@@ -150,6 +150,7 @@ func (r *ChainEventInboxRepo) NextSinglePaymentReview(ctx context.Context, invoi
 		FROM reg_crypto_inbound_chain_events
 		WHERE invoice_id=$1 AND match_status='needs_review'
 		  AND match_reason='additional_single_payment' AND canonicality='canonical'
+		  AND receipt_id IS NULL
 		  AND _deleted_at IS NULL
 		ORDER BY created_at,id LIMIT 1 FOR UPDATE
 	`, invoiceID)
@@ -282,7 +283,8 @@ var receiptEligibleReasons = []string{
 
 // ClaimReceiptCandidates leases unmatched incoming transfers that still need a
 // custody receipt. A transfer without an allocation stays eligible for late
-// invoice matching during the grace period and is accounted afterwards.
+// invoice matching during the grace period; an additional single-invoice
+// payment may still be promoted until its invoice is terminal.
 func (r *ChainEventInboxRepo) ClaimReceiptCandidates(ctx context.Context, limit int, lease, unallocatedGrace time.Duration) ([]crypto.InboundChainEvent, error) {
 	if limit <= 0 {
 		limit = 50
@@ -299,6 +301,8 @@ func (r *ChainEventInboxRepo) ClaimReceiptCandidates(ctx context.Context, limit 
 		      AND direction IN ('incoming','') AND canonicality <> 'orphaned'
 		      AND (receipt_check_at IS NULL OR receipt_check_at <= NOW())
 		      AND (match_reason <> 'no_allocation' OR created_at <= NOW() - $4::interval)
+		      AND (match_reason <> 'additional_single_payment' OR EXISTS (SELECT 1 FROM doc_crypto_invoices i
+		          WHERE i.id = invoice_id AND i.status IN ('underpaid','completed','expired','cancelled','reversed')))
 		    ORDER BY receipt_check_at NULLS FIRST, created_at, id
 		    FOR UPDATE SKIP LOCKED
 		    LIMIT $1

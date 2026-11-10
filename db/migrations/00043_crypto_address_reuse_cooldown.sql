@@ -94,18 +94,13 @@ CREATE TABLE reg_crypto_inbound_chain_events (
     payload          JSONB NOT NULL DEFAULT '{}'::jsonb,
     match_status     TEXT NOT NULL DEFAULT 'received'
                      CHECK (match_status IN (
-                         'received','matched','unmatched','needs_review','resolved','ignored','poison'
+                         'received','matched','unmatched','needs_review','ignored','poison'
                      )),
     match_reason     TEXT NOT NULL DEFAULT '',
     invoice_id       UUID REFERENCES doc_crypto_invoices(id),
     payment_id       UUID REFERENCES doc_crypto_payments(id),
     allocation_id    UUID REFERENCES reg_crypto_wallet_allocations(id),
     details          JSONB NOT NULL DEFAULT '{}'::jsonb,
-    review_outcome   TEXT NOT NULL DEFAULT '' CHECK (review_outcome IN ('','credited_manually','refunded_manually','not_attributable')),
-    review_reference TEXT NOT NULL DEFAULT '',
-    review_note      TEXT NOT NULL DEFAULT '',
-    reviewed_by      UUID,
-    reviewed_at      TIMESTAMPTZ,
     retry_count      INT NOT NULL DEFAULT 0,
     next_retry_at    TIMESTAMPTZ,
     version          INT NOT NULL DEFAULT 1 CHECK (version > 0),
@@ -142,20 +137,11 @@ CREATE TRIGGER trg_crypto_inbound_chain_events_txid
     BEFORE UPDATE ON reg_crypto_inbound_chain_events
     FOR EACH ROW EXECUTE FUNCTION update_txid_column();
 
-INSERT INTO auth_permissions (code,name,description,resource,action) VALUES
-    ('crypto_inbound_review:read','Чтение спорных входящих переводов','View disputed inbound transfers','crypto_inbound_review','read'),
-    ('crypto_inbound_review:resolve','Разбор спорных входящих переводов','Record an externally handled inbound transfer','crypto_inbound_review','resolve')
-ON CONFLICT (code) DO NOTHING;
-
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-
-DELETE FROM auth_role_permissions WHERE permission_id IN
-    (SELECT id FROM auth_permissions WHERE resource='crypto_inbound_review');
-DELETE FROM auth_permissions WHERE resource='crypto_inbound_review';
 
 DROP TRIGGER IF EXISTS trg_crypto_inbound_chain_events_txid ON reg_crypto_inbound_chain_events;
 DROP TRIGGER IF EXISTS trg_crypto_inbound_chain_events_updated_at ON reg_crypto_inbound_chain_events;

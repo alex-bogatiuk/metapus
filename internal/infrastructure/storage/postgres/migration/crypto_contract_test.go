@@ -241,7 +241,7 @@ func TestAddressReuseCooldownMigrationDefinesHistoryAndInbox(t *testing.T) {
 	require.Contains(t, sql, "CREATE TABLE reg_crypto_inbound_chain_events")
 	require.Contains(t, sql, "idx_crypto_inbound_chain_events_identity")
 	require.Contains(t, sql, "match_status IN")
-	require.Contains(t, sql, "'received','matched','unmatched','needs_review','resolved','ignored','poison'")
+	require.Contains(t, sql, "'received','matched','unmatched','needs_review','ignored','poison'")
 	require.NotContains(t, sql, "WalletStatusCooldown")
 	require.NotContains(t, sql, "reg_crypto_network_holds")
 }

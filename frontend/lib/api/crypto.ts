@@ -2,15 +2,25 @@ import type { CursorListResponse, CursorListParams } from "@/types/common"
 import { apiFetch, assertUuidPathParam, buildListQS, idempotencyHeaders } from "./core"
 
 export const cryptoApi = {
-    inboundReviews: {
-        list: (status: import("@/types/inbound-review").InboundReviewStatus, offset = 0) =>
-            apiFetch<import("@/types/inbound-review").InboundReviewList>(
-                `/crypto/inbound-reviews?status=${status}&limit=50&offset=${offset}`,
+    unidentifiedReceipts: {
+        list: (state: import("@/types/unidentified-receipt").ReceiptJournalState, includeDust: boolean, offset = 0) =>
+            apiFetch<import("@/types/generated/http-contracts").UnidentifiedReceiptListResponse>(
+                `/crypto/unidentified-receipts?state=${state}&includeDust=${includeDust}&limit=50&offset=${offset}`,
             ),
-        resolve: (id: string, outcome: import("@/types/inbound-review").InboundReviewOutcome, reference: string, note: string) =>
-            apiFetch<{ resolved: boolean }>(
-                `/crypto/inbound-reviews/${assertUuidPathParam(id, "id")}/resolve`,
-                { method: "POST", body: JSON.stringify({ outcome, reference, note }) },
+        prepareCredit: (receiptId: string, merchantId: string, key: string) =>
+            apiFetch<import("@/types/generated/http-contracts").MerchantCreditResponse>(
+                `/crypto/unidentified-receipts/${assertUuidPathParam(receiptId, "receiptId")}/credits`,
+                { method: "POST", headers: idempotencyHeaders(key), body: JSON.stringify({ merchantId: assertUuidPathParam(merchantId, "merchantId") }) },
+            ),
+        approveCredit: (creditId: string, version: number, key: string) =>
+            apiFetch<import("@/types/generated/http-contracts").MerchantCreditResponse>(
+                `/crypto/merchant-credits/${assertUuidPathParam(creditId, "creditId")}/approve`,
+                { method: "POST", headers: idempotencyHeaders(key), body: JSON.stringify({ version }) },
+            ),
+        rejectCredit: (creditId: string, version: number, reason: string, key: string) =>
+            apiFetch<import("@/types/generated/http-contracts").MerchantCreditResponse>(
+                `/crypto/merchant-credits/${assertUuidPathParam(creditId, "creditId")}/reject`,
+                { method: "POST", headers: idempotencyHeaders(key), body: JSON.stringify({ version, reason }) },
             ),
     },
     financialAdjustments: {

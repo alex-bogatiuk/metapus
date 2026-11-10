@@ -1,11 +1,14 @@
 package v1
 
 import (
-	"github.com/gin-gonic/gin"
+	"metapus/internal/application/command"
 	"metapus/internal/application/integrationapp"
 	"metapus/internal/application/portalapp"
 	"metapus/internal/core/tenant"
 	"os"
+	"time"
+
+	"github.com/gin-gonic/gin"
 
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/application/dashboardapp"
@@ -16,7 +19,9 @@ import (
 	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/crypto_fee"
 	"metapus/internal/domain/registers/crypto_merchant_balance"
+	"metapus/internal/domain/registers/crypto_receipt_suspense"
 	"metapus/internal/domain/registers/exchange_rate"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
@@ -30,7 +35,7 @@ import (
 )
 
 func registerWalletPoolRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
-	handlers.NewInboundReviewHandler(crypto_repo.NewInboundReviewRepo()).RegisterRoutes(rg)
+	registerUnidentifiedReceiptRoutes(rg, cfg)
 	repo := crypto_repo.NewWalletPoolRepo()
 	svc := crypto.NewWalletPoolAdminService(repo, cfg.ChainCapabilities, cfg.EventLogRepo)
 	handler := handlers.NewWalletPoolHandler(handlers.NewBaseHandler(), svc)
@@ -42,6 +47,25 @@ func registerWalletPoolRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 			cfg.EventLogRepo,
 		),
 	)
+}
+
+// registerUnidentifiedReceiptRoutes mounts the journal of unidentified custody
+// receipts. Merchant credits move only suspense, merchant balance and fee, so
+// their posting engine carries just those three registers.
+func registerUnidentifiedReceiptRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
+	engine := posting.NewEngine(postgres.NewDocLocker())
+	engine.AddVisitor(&posting.CryptoReceiptSuspenseVisitor{})
+	engine.AddVisitor(&posting.CryptoMerchantBalanceVisitor{})
+	engine.AddVisitor(&posting.CryptoFeeVisitor{})
+	engine.AddRecorder(posting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())))
+	engine.AddRecorder(posting.NewCryptoMerchantBalanceRecorder(crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())))
+	engine.AddRecorder(posting.NewCryptoFeeRecorder(crypto_fee.NewService(register_repo.NewCryptoFeeRepo())))
+	txm := postgres.NewContextTxManager()
+	service := cryptoapp.NewMerchantCreditService(txm, crypto_repo.NewMerchantCreditRepo(),
+		crypto.NewFeeConfigResolver(crypto_repo.NewFeeScheduleRepo()), engine, cfg.Numerator, postgres.NewOutboxPublisher(), time.Now)
+	commands := cryptoapp.NewMerchantCreditCommands(service, command.NewExecutor(txm, postgres.NewCommandRepository()))
+	handlers.NewUnidentifiedReceiptHandler(handlers.NewBaseHandler(), crypto_repo.NewUnidentifiedReceiptRepo(), commands).
+		RegisterRoutes(rg, middleware.SensitiveActionGuard(cfg.MFARepo, "crypto.receipt.credit", cfg.EventLogRepo))
 }
 
 func registerCryptoNetworkRoutes(rg *gin.RouterGroup, cfg RouterConfig) {

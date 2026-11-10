@@ -11,10 +11,11 @@ import (
 	"testing"
 	"time"
 
+	dbassets "metapus/db"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
-	dbassets "metapus/db"
 
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/apperror"
@@ -251,7 +252,7 @@ func TestDepositRotationConcurrentRequestsAndCooldown(t *testing.T) {
 	require.Equal(t, "rotation_cooldown", appErr.Details["reason"])
 }
 
-func TestRetiredDepositIntakeNeverCreatesPaymentAndRemainsReviewable(t *testing.T) {
+func TestRetiredDepositIntakeNeverCreatesPaymentAndWaitsForReceipt(t *testing.T) {
 	f := newRotationFixture(t)
 	f.use(t, f.old)
 	rotation, err := f.service.Rotate(f.ctx, f.command())
@@ -268,31 +269,21 @@ func TestRetiredDepositIntakeNeverCreatesPaymentAndRemainsReviewable(t *testing.
 	for range 2 {
 		require.NoError(t, processor.ProcessEvent(f.ctx, event))
 	}
-	reviews := crypto_repo.NewInboundReviewRepo()
-	list, err := reviews.List(f.ctx, "needs_review", 50, 0)
+	var reason, status string
+	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT match_reason,match_status FROM reg_crypto_inbound_chain_events WHERE tx_hash='late-retired-transfer'`).Scan(&reason, &status))
+	require.Equal(t, crypto.MatchReasonRetiredDepositAddress, reason)
+	require.Equal(t, string(crypto.InboxNeedsReview), status)
+	// The transfer waits in the journal of pending receipts until it is final and proven.
+	journal, err := crypto_repo.NewUnidentifiedReceiptRepo().List(f.ctx, crypto_repo.ReceiptJournalPending, false, 50, 0)
 	require.NoError(t, err)
-	require.Len(t, list.Items, 1)
-	item := list.Items[0]
-	require.Equal(t, crypto.MatchReasonRetiredDepositAddress, item.MatchReason)
-	require.Equal(t, "customer-1", item.CustomerID)
-	require.Empty(t, item.InvoiceID)
-	eventID, err := id.Parse(item.ID)
-	require.NoError(t, err)
-	resolved, err := reviews.Resolve(f.ctx, eventID, f.actor, "credited_manually", "https://example.test/adjustment", "reviewed")
-	require.NoError(t, err)
-	require.False(t, resolved)
+	require.Len(t, journal.Items, 1)
+	require.Equal(t, crypto.MatchReasonRetiredDepositAddress, journal.Items[0].Reason)
 	event.EventType = crypto.EventTypeConfirmation
 	event.Confirmations = 2
 	event.Finality = crypto.FinalitySolidified
 	require.NoError(t, processor.ProcessEvent(f.ctx, event))
-	resolved, err = reviews.Resolve(f.ctx, eventID, f.actor, "credited_manually", "https://example.test/adjustment", "reviewed")
-	require.NoError(t, err)
-	require.True(t, resolved)
 	event.EventType = crypto.EventTypeTransfer
 	require.NoError(t, processor.ProcessEvent(f.ctx, event))
-	list, err = reviews.List(f.ctx, "needs_review", 50, 0)
-	require.NoError(t, err)
-	require.Empty(t, list.Items)
 	var count int
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT COUNT(*) FROM doc_crypto_payments WHERE tx_hash='late-retired-transfer'`).Scan(&count))
 	require.Zero(t, count)

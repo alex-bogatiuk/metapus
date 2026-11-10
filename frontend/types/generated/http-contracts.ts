@@ -1877,6 +1877,11 @@ export type DatasetQueryResponse = {
   "totalItems": number
 }
 
+export type DecideMerchantCreditRequest = {
+  "version": number
+  "reason"?: string
+}
+
 export type DeleteMarkedRequest = {
   "items": Array<DomainDeleteMarkedRequestInput>
 }
@@ -2461,34 +2466,6 @@ export type IDResponse = {
   "id": string
 }
 
-export type InboundReviewItem = {
-  "id": string
-  "invoiceId": string
-  "merchantId": string
-  "networkId": string
-  "tokenId": string
-  "txHash": string
-  "amount": string
-  "fromAddress": string
-  "toAddress": string
-  "invoiceStatus": string
-  "status": string
-  "reviewOutcome": string
-  "reviewReference": string
-  "reviewNote": string
-  "reviewedBy": string
-  "createdAt": string
-  "reviewedAt": string | null
-  "canResolve": boolean
-  "matchReason": string
-  "customerId": string
-}
-
-export type InboundReviewListResponse = {
-  "items": Array<InboundReviewItem>
-  "total": number
-}
-
 export type IntegrationAccountCursorResponse = {
   "items": Array<IntegrationAccountResponse>
   "nextCursor"?: string
@@ -2891,6 +2868,19 @@ export type MerchantAllowedNetwork = {
   "label": string
   "isActive": boolean
   "createdAt": string
+}
+
+export type MerchantCreditResponse = {
+  "id": string
+  "number": string
+  "receiptId": string
+  "merchantId": string
+  "status": string
+  "version": number
+  "approvalRequired": boolean
+  "amount": string
+  "netAmount": string
+  "processingFee": string
 }
 
 export type MerchantCurrencyItem = {
@@ -3795,6 +3785,11 @@ export type PostgresRefDisplay = {
   "code"?: string
 }
 
+export type PrepareMerchantCreditRequest = {
+  "merchantId": string
+  "invoiceId"?: string | null
+}
+
 export type PrepareProviderOpeningRequest = {
   "observationId": string
   "reason": string
@@ -3945,16 +3940,6 @@ export type ReportMetadataResponse = {
 
 export type RequiredReasonRequest = {
   "reason": string
-}
-
-export type ResolveInboundReviewRequest = {
-  "outcome": string
-  "reference"?: string
-  "note": string
-}
-
-export type ResolveInboundReviewResponse = {
-  "resolved": boolean
 }
 
 export type ResolveRefsRequest = {
@@ -4288,6 +4273,50 @@ export type TreasuryWithdrawalResponse = {
   "updatedAt": string
   "token"?: PostgresRefDisplay
   "sourceWallet"?: PostgresRefDisplay
+}
+
+export type UnidentifiedReceiptCredit = {
+  "id": string
+  "number": string
+  "status": string
+  "version": number
+  "merchantId": string
+  "merchantName": string
+  "netAmount": string
+  "processingFee": string
+  "approvalRequired": boolean
+  "preparedBy": string
+  "decidedAt": string | null
+  "decisionReason": string
+}
+
+export type UnidentifiedReceiptItem = {
+  "receiptId": string
+  "inboxEventId": string
+  "number": string
+  "receivedAt": string
+  "networkId": string
+  "networkName": string
+  "tokenId": string
+  "tokenSymbol": string
+  "decimalPlaces": number
+  "walletId": string
+  "toAddress": string
+  "fromAddress": string
+  "txHash": string
+  "amount": string
+  "remainder": string
+  "reason": string
+  "state": string
+  "custodyMerchantId": string
+  "invoiceId": string
+  "pendingError": string
+  "credit": UnidentifiedReceiptCredit | null
+}
+
+export type UnidentifiedReceiptListResponse = {
+  "items": Array<UnidentifiedReceiptItem>
+  "total": number
 }
 
 export type UpdateAutomationAccountRequest = {

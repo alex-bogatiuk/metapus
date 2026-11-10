@@ -4513,11 +4513,18 @@ CREATE TRIGGER trg_crypto_custody_receipt_audit_seed AFTER INSERT ON doc_crypto_
     FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_audit_seed();
 CREATE TRIGGER trg_crypto_custody_receipt_audit_guard BEFORE UPDATE OR DELETE ON reg_crypto_custody_receipt_audits
     FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_audit_guard();
+
+INSERT INTO auth_permissions (code,name,description,resource,action) VALUES
+    ('crypto_receipt:read','Журнал невыясненных поступлений','View unidentified custody receipts','crypto_receipt','read'),
+    ('crypto_receipt:credit','Зачисление невыясненных поступлений','Prepare or reject a merchant credit of an unidentified receipt','crypto_receipt','credit'),
+    ('crypto_receipt:approve','Подтверждение зачисления поступлений','Approve a merchant credit prepared by another operator','crypto_receipt','approve')
+ON CONFLICT (code) DO NOTHING;
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TRIGGER trg_crypto_custody_receipt_audit_seed ON doc_crypto_custody_receipts;
+DELETE FROM auth_role_permissions WHERE permission_id IN (SELECT id FROM auth_permissions WHERE resource='crypto_receipt');
+DELETE FROM auth_permissions WHERE resource='crypto_receipt';DROP TRIGGER trg_crypto_custody_receipt_audit_seed ON doc_crypto_custody_receipts;
 DROP TABLE reg_crypto_custody_receipt_audits;
 DROP FUNCTION fn_crypto_custody_receipt_audit_guard();
 DROP FUNCTION fn_crypto_custody_receipt_audit_seed();DO $$

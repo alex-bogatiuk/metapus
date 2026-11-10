@@ -1881,6 +1881,11 @@ export const DatasetQueryResponseSchema: z.ZodType<Wire.DatasetQueryResponse> = 
   "totalItems": z.number().int(),
 }))
 
+export const DecideMerchantCreditRequestSchema: z.ZodType<Wire.DecideMerchantCreditRequest> = z.lazy(() => z.strictObject({
+  "version": z.number().int(),
+  "reason": z.string().optional(),
+}))
+
 export const DeleteMarkedRequestSchema: z.ZodType<Wire.DeleteMarkedRequest> = z.lazy(() => z.strictObject({
   "items": z.array(DomainDeleteMarkedRequestInputSchema),
 }))
@@ -2465,34 +2470,6 @@ export const IDResponseSchema: z.ZodType<Wire.IDResponse> = z.lazy(() => z.objec
   "id": z.string(),
 }))
 
-export const InboundReviewItemSchema: z.ZodType<Wire.InboundReviewItem> = z.lazy(() => z.object({
-  "id": z.string(),
-  "invoiceId": z.string(),
-  "merchantId": z.string(),
-  "networkId": z.string(),
-  "tokenId": z.string(),
-  "txHash": z.string(),
-  "amount": z.string(),
-  "fromAddress": z.string(),
-  "toAddress": z.string(),
-  "invoiceStatus": z.string(),
-  "status": z.string(),
-  "reviewOutcome": z.string(),
-  "reviewReference": z.string(),
-  "reviewNote": z.string(),
-  "reviewedBy": z.string(),
-  "createdAt": z.string(),
-  "reviewedAt": z.string().nullable(),
-  "canResolve": z.boolean(),
-  "matchReason": z.string(),
-  "customerId": z.string(),
-}))
-
-export const InboundReviewListResponseSchema: z.ZodType<Wire.InboundReviewListResponse> = z.lazy(() => z.object({
-  "items": z.array(InboundReviewItemSchema),
-  "total": z.number().int(),
-}))
-
 export const IntegrationAccountCursorResponseSchema: z.ZodType<Wire.IntegrationAccountCursorResponse> = z.lazy(() => z.object({
   "items": z.array(IntegrationAccountResponseSchema),
   "nextCursor": z.string().optional(),
@@ -2895,6 +2872,19 @@ export const MerchantAllowedNetworkSchema: z.ZodType<Wire.MerchantAllowedNetwork
   "label": z.string(),
   "isActive": z.boolean(),
   "createdAt": z.string(),
+}))
+
+export const MerchantCreditResponseSchema: z.ZodType<Wire.MerchantCreditResponse> = z.lazy(() => z.object({
+  "id": z.string(),
+  "number": z.string(),
+  "receiptId": z.string(),
+  "merchantId": z.string(),
+  "status": z.string(),
+  "version": z.number().int(),
+  "approvalRequired": z.boolean(),
+  "amount": z.string(),
+  "netAmount": z.string(),
+  "processingFee": z.string(),
 }))
 
 export const MerchantCurrencyItemSchema: z.ZodType<Wire.MerchantCurrencyItem> = z.lazy(() => z.object({
@@ -3799,6 +3789,11 @@ export const PostgresRefDisplaySchema: z.ZodType<Wire.PostgresRefDisplay> = z.la
   "code": z.string().optional(),
 }))
 
+export const PrepareMerchantCreditRequestSchema: z.ZodType<Wire.PrepareMerchantCreditRequest> = z.lazy(() => z.strictObject({
+  "merchantId": z.string(),
+  "invoiceId": z.string().nullable().optional(),
+}))
+
 export const PrepareProviderOpeningRequestSchema: z.ZodType<Wire.PrepareProviderOpeningRequest> = z.lazy(() => z.strictObject({
   "observationId": z.string(),
   "reason": z.string(),
@@ -3949,16 +3944,6 @@ export const ReportMetadataResponseSchema: z.ZodType<Wire.ReportMetadataResponse
 
 export const RequiredReasonRequestSchema: z.ZodType<Wire.RequiredReasonRequest> = z.lazy(() => z.strictObject({
   "reason": z.string(),
-}))
-
-export const ResolveInboundReviewRequestSchema: z.ZodType<Wire.ResolveInboundReviewRequest> = z.lazy(() => z.strictObject({
-  "outcome": z.string(),
-  "reference": z.string().optional(),
-  "note": z.string(),
-}))
-
-export const ResolveInboundReviewResponseSchema: z.ZodType<Wire.ResolveInboundReviewResponse> = z.lazy(() => z.object({
-  "resolved": z.boolean(),
 }))
 
 export const ResolveRefsRequestSchema: z.ZodType<Wire.ResolveRefsRequest> = z.lazy(() => z.strictObject({
@@ -4292,6 +4277,50 @@ export const TreasuryWithdrawalResponseSchema: z.ZodType<Wire.TreasuryWithdrawal
   "updatedAt": z.string(),
   "token": PostgresRefDisplaySchema.optional(),
   "sourceWallet": PostgresRefDisplaySchema.optional(),
+}))
+
+export const UnidentifiedReceiptCreditSchema: z.ZodType<Wire.UnidentifiedReceiptCredit> = z.lazy(() => z.object({
+  "id": z.string(),
+  "number": z.string(),
+  "status": z.string(),
+  "version": z.number().int(),
+  "merchantId": z.string(),
+  "merchantName": z.string(),
+  "netAmount": z.string(),
+  "processingFee": z.string(),
+  "approvalRequired": z.boolean(),
+  "preparedBy": z.string(),
+  "decidedAt": z.string().nullable(),
+  "decisionReason": z.string(),
+}))
+
+export const UnidentifiedReceiptItemSchema: z.ZodType<Wire.UnidentifiedReceiptItem> = z.lazy(() => z.object({
+  "receiptId": z.string(),
+  "inboxEventId": z.string(),
+  "number": z.string(),
+  "receivedAt": z.string(),
+  "networkId": z.string(),
+  "networkName": z.string(),
+  "tokenId": z.string(),
+  "tokenSymbol": z.string(),
+  "decimalPlaces": z.number().int(),
+  "walletId": z.string(),
+  "toAddress": z.string(),
+  "fromAddress": z.string(),
+  "txHash": z.string(),
+  "amount": z.string(),
+  "remainder": z.string(),
+  "reason": z.string(),
+  "state": z.string(),
+  "custodyMerchantId": z.string(),
+  "invoiceId": z.string(),
+  "pendingError": z.string(),
+  "credit": UnidentifiedReceiptCreditSchema.nullable(),
+}))
+
+export const UnidentifiedReceiptListResponseSchema: z.ZodType<Wire.UnidentifiedReceiptListResponse> = z.lazy(() => z.object({
+  "items": z.array(UnidentifiedReceiptItemSchema),
+  "total": z.number().int(),
 }))
 
 export const UpdateAutomationAccountRequestSchema: z.ZodType<Wire.UpdateAutomationAccountRequest> = z.lazy(() => z.strictObject({

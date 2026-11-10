@@ -24,11 +24,13 @@ func Routes() []RouteContract {
 	add := func(scope, method, path, request, response string) {
 		routes = append(routes, RouteContract{Scope: scope, Method: method, Path: path, Request: request, Response: response})
 	}
-	add("api", "GET", "/crypto/inbound-reviews", "", "InboundReviewListResponse")
+	add("api", "GET", "/crypto/unidentified-receipts", "", "UnidentifiedReceiptListResponse")
+	add("api", "POST", "/crypto/unidentified-receipts/:id/credits", "PrepareMerchantCreditRequest", "MerchantCreditResponse")
+	add("api", "POST", "/crypto/merchant-credits/:id/approve", "DecideMerchantCreditRequest", "MerchantCreditResponse")
+	add("api", "POST", "/crypto/merchant-credits/:id/reject", "DecideMerchantCreditRequest", "MerchantCreditResponse")
 	add("api", "GET", "/admin/dashboard/queues", "", "AdminDashboardQueuesResponse")
 	add("api", "GET", "/admin/dashboard/finance", "", "AdminDashboardFinanceResponse")
 	add("api", "GET", "/admin/dashboard/analytics", "", "AdminDashboardAnalyticsResponse")
-	add("api", "POST", "/crypto/inbound-reviews/:id/resolve", "ResolveInboundReviewRequest", "ResolveInboundReviewResponse")
 	portal := func(method, path, request, response string) { add("portal", method, path, request, response) }
 	portal("GET", "/merchants", "", "PortalMerchantListResponse")
 	portal("GET", "/dashboard/summary", "", "PortalSummaryResponse")

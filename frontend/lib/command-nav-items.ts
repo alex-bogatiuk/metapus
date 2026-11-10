@@ -70,7 +70,7 @@ const _staticItems: CommandNavItem[] = [
   // Crypto processing
   { id: "nav:crypto-invoices",     label: "Крипто-инвойсы",        url: "/documents/crypto-invoice",      icon: Receipt,       keywords: "крипто инвойс invoice платёж payment",                section: "navigate" },
   { id: "nav:crypto-payments",     label: "Крипто-платежи",        url: "/documents/crypto-payment",      icon: CreditCard,    keywords: "крипто платёж payment blockchain",                    section: "navigate" },
-  { id: "nav:inbound-reviews", label: "Спорные входящие переводы", url: "/crypto/inbound-reviews", icon: AlertTriangle, keywords: "крипто спорные переводы проверка оператор", section: "navigate" },
+  { id: "nav:unidentified-receipts", label: "Невыясненные поступления", url: "/crypto/unidentified-receipts", icon: AlertTriangle, keywords: "крипто невыясненные поступления зачисление мерчанту dust", section: "navigate" },
   { id: "nav:crypto-withdrawals",  label: "Крипто-выводы",         url: "/documents/crypto-withdrawal",   icon: ArrowUpRight,  keywords: "крипто вывод withdrawal",                             section: "navigate" },
   { id: "nav:withdrawal-requests", label: "Заявки на вывод",       url: "/documents/withdrawal-requests", icon: FileText,      keywords: "крипто заявки вывод withdrawal requests approve одобрение", section: "navigate" },
   { id: "nav:treasury-withdrawals", label: "Казначейские выводы",  url: "/documents/treasury-withdrawals", icon: Bitcoin,       keywords: "крипто казначейские выводы treasury withdrawal reconciliation", section: "navigate" },

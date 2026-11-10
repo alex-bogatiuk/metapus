@@ -39,7 +39,6 @@ const (
 	InboxMatched     InboxMatchStatus = "matched"
 	InboxUnmatched   InboxMatchStatus = "unmatched"
 	InboxNeedsReview InboxMatchStatus = "needs_review"
-	InboxResolved    InboxMatchStatus = "resolved"
 	InboxIgnored     InboxMatchStatus = "ignored"
 	InboxPoison      InboxMatchStatus = "poison"
 )

@@ -325,9 +325,6 @@ func (p *EventProcessor) processEventInTx(ctx context.Context, event BlockchainE
 		if p.inbox == nil || inboxRow == nil {
 			return fmt.Errorf("retired address intake requires a durable review inbox")
 		}
-		if inboxRow.MatchStatus == InboxResolved {
-			return nil
-		}
 		details := map[string]any{"customerId": w.CustomerID, "walletId": w.ID.String(), "retiredAt": w.DepositRetiredAt.UTC()}
 		if w.MerchantID != nil {
 			details["merchantId"] = w.MerchantID.String()

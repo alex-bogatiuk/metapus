@@ -8,10 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
+	"metapus/internal/application/command"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/apperror"
+	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
+	"metapus/internal/core/json"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_merchant_credit"
@@ -22,6 +24,8 @@ import (
 	"metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
+
+	"github.com/stretchr/testify/require"
 )
 
 type fixedTariff struct{}
@@ -203,4 +207,97 @@ func TestOrphanedReceiptCannotBeCreditedButOpenCreditCanBeRejected(t *testing.T)
 	require.ErrorContains(t, err, "orphaned")
 	suspense, merchant, _ := f.amounts(t)
 	require.Equal(t, []string{basis.Amount.String(), "0"}, []string{suspense, merchant})
+}
+
+func (f merchantCreditFixture) journal(t *testing.T, state string, includeDust bool) UnidentifiedReceiptList {
+	t.Helper()
+	list, err := NewUnidentifiedReceiptRepo().List(f.ctx, state, includeDust, 50, 0)
+	require.NoError(t, err)
+	return list
+}
+
+func TestUnidentifiedReceiptJournalFollowsTheCreditLifecycle(t *testing.T) {
+	f := newMerchantCreditFixture(t, false)
+	open := f.journal(t, ReceiptJournalOpen, false)
+	require.Equal(t, 1, open.Total)
+	item := open.Items[0]
+	require.Equal(t, f.receipt.String(), *item.ReceiptID)
+	require.Equal(t, []string{"unattributed", f.request.Basis.Amount.String(), f.request.Basis.Amount.String(), "no_allocation"},
+		[]string{item.State, item.Amount, item.Remainder, item.Reason})
+	require.Equal(t, f.proof.Event.FromAddress, item.FromAddress)
+	require.Nil(t, item.CreditID)
+
+	preparer := id.New()
+	credit, err := f.credits.Prepare(f.ctx, cryptoapp.PrepareMerchantCreditCommand{ReceiptID: f.receipt, MerchantID: f.merchant, Actor: preparer})
+	require.NoError(t, err)
+	item = f.journal(t, ReceiptJournalOpen, false).Items[0]
+	require.Equal(t, "awaiting_approval", item.State)
+	require.Equal(t, credit.ID.String(), *item.CreditID)
+	require.Equal(t, preparer.String(), *item.CreditPreparedBy)
+	require.Equal(t, "Credit merchant", *item.CreditMerchant)
+
+	_, err = f.credits.Approve(f.ctx, cryptoapp.DecideMerchantCreditCommand{CreditID: credit.ID, Actor: id.New()})
+	require.NoError(t, err)
+	require.Zero(t, f.journal(t, ReceiptJournalOpen, false).Total)
+	credited := f.journal(t, ReceiptJournalCredited, false)
+	require.Equal(t, 1, credited.Total)
+	require.Equal(t, []string{"credited", "0", "posted"}, []string{credited.Items[0].State, credited.Items[0].Remainder, *credited.Items[0].CreditStatus})
+	require.Zero(t, f.journal(t, ReceiptJournalOrphaned, false).Total)
+	_, err = NewUnidentifiedReceiptRepo().List(f.ctx, "everything", false, 50, 0)
+	require.Error(t, err)
+}
+
+func TestUnidentifiedReceiptJournalHidesDustByDefault(t *testing.T) {
+	f := newReceiptIntakeFixture(t, nil)
+	f.request.Reason = "dust"
+	_, err := f.service.Record(f.ctx, f.request)
+	require.NoError(t, err)
+	list, err := NewUnidentifiedReceiptRepo().List(f.ctx, ReceiptJournalOpen, false, 50, 0)
+	require.NoError(t, err)
+	require.Zero(t, list.Total)
+	require.Empty(t, list.Items)
+	list, err = NewUnidentifiedReceiptRepo().List(f.ctx, ReceiptJournalOpen, true, 50, 0)
+	require.NoError(t, err)
+	require.Equal(t, 1, list.Total)
+	require.Equal(t, "dust", list.Items[0].Reason)
+}
+
+func TestMerchantCreditCommandsAreIdempotent(t *testing.T) {
+	f := newMerchantCreditFixture(t, false)
+	commands := cryptoapp.NewMerchantCreditCommands(f.credits,
+		command.NewExecutor(postgres.MustGetTxManager(f.ctx), postgres.NewCommandRepository()))
+	operator := func() context.Context {
+		return appctx.WithUser(f.ctx, &appctx.UserContext{UserID: id.New().String(), TenantID: "tenant-test", IsAdmin: true})
+	}
+	first := operator()
+	_, err := commands.Prepare(first, "", f.receipt, f.merchant, nil)
+	require.Error(t, err, "an idempotency key is required")
+	prepared, err := commands.Prepare(first, "prepare-1", f.receipt, f.merchant, nil)
+	require.NoError(t, err)
+	require.False(t, prepared.Replayed)
+	replay, err := commands.Prepare(first, "prepare-1", f.receipt, f.merchant, nil)
+	require.NoError(t, err)
+	require.True(t, replay.Replayed)
+	require.JSONEq(t, string(prepared.Result.Payload), string(replay.Result.Payload))
+	_, err = commands.Prepare(first, "prepare-1", f.receipt, id.New(), nil)
+	require.Error(t, err, "the same key with another request is rejected")
+
+	var result cryptoapp.MerchantCreditResult
+	require.NoError(t, json.Unmarshal(prepared.Result.Payload, &result))
+	require.Equal(t, crypto_merchant_credit.StatusPrepared, result.Status)
+	_, err = commands.Approve(first, "approve-own", result.ID, result.Version)
+	require.True(t, apperror.IsForbidden(err), "%v", err)
+	second := operator()
+	approved, err := commands.Approve(second, "approve-1", result.ID, result.Version)
+	require.NoError(t, err)
+	again, err := commands.Approve(second, "approve-1", result.ID, result.Version)
+	require.NoError(t, err)
+	require.True(t, again.Replayed)
+	require.JSONEq(t, string(approved.Result.Payload), string(again.Result.Payload))
+	suspense, merchant, _ := f.amounts(t)
+	require.Equal(t, "0", suspense)
+	require.NotEqual(t, "0", merchant)
+	var credits int
+	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT count(*) FROM reg_crypto_merchant_balance_movements WHERE merchant_id=$1`, f.merchant).Scan(&credits))
+	require.Equal(t, 1, credits)
 }

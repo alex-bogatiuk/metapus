@@ -23,12 +23,16 @@ const queueProjection = `WITH queue AS (
  JOIN cat_blockchain_networks n ON n.id=t.network_id LEFT JOIN cat_merchants m ON m.id=r.merchant_id
  WHERE r.status IN ('pending_signature','pending_approval') AND r.deletion_mark=FALSE AND r._deleted_at IS NULL
  UNION ALL
- SELECT e.id, 'inbound', i.number, e.match_status, COALESCE(m.name,''), e.token_id,
- t.symbol, n.name, t.decimal_places, e.amount::text, e.created_at, 1
- FROM reg_crypto_inbound_chain_events e JOIN doc_crypto_invoices i ON i.id=e.invoice_id
- JOIN cat_tokens t ON t.id=e.token_id JOIN cat_blockchain_networks n ON n.id=e.network_id
- LEFT JOIN cat_merchants m ON m.id=i.merchant_id
- WHERE e.match_reason='additional_single_payment' AND e.match_status='needs_review' AND e._deleted_at IS NULL
+ SELECT d.id, 'inbound', d.number,
+ CASE WHEN EXISTS(SELECT 1 FROM doc_crypto_merchant_credits c WHERE c.receipt_id=d.id AND c.status='prepared')
+      THEN 'awaiting_approval' ELSE 'unattributed' END,
+ COALESCE(m.name,''), d.token_id, t.symbol, n.name, t.decimal_places, s.amount::text, d.date, 1
+ FROM doc_crypto_custody_receipts d
+ JOIN reg_crypto_receipt_suspense_balances s ON s.receipt_id=d.id AND s.amount>0
+ JOIN reg_crypto_custody_receipt_audits a ON a.receipt_id=d.id AND a.status='canonical'
+ JOIN cat_tokens t ON t.id=d.token_id JOIN cat_blockchain_networks n ON n.id=d.network_id
+ LEFT JOIN cat_merchants m ON m.id=d.custody_merchant_id
+ WHERE d.reason_code<>'dust'
  UNION ALL
  SELECT e.id, 'outflow', COALESCE(w.name,'Кошелёк'), e.status, '', e.token_id,
  COALESCE(t.symbol,''), n.name, COALESCE(t.decimal_places,0), e.amount::text, e.detected_at, 0
