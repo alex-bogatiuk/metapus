@@ -33,7 +33,6 @@
 | [CryptoPayment](../../internal/domain/documents/crypto_payment/model.go) | Один документ создаёт custody receipt, merchant net и processing fee | Нельзя добавить первичный receipt, оставив прежний payment posting без изменений |
 | [EventProcessor](../../internal/domain/crypto/event_processor.go) | Retired/unknown-token/dust/unmatched могут завершить обработку до создания payment; confirmation неизвестного payment обновляет review evidence | Независимому receipt требуется свой durable finality/canonicality lifecycle |
 | [DecideMatch](../../internal/domain/crypto/wallet_allocation.go) | Attribution определяется историческим окном и токеном | timestamp_before_lease не означает поздний платёж; matching не должен определять существование custody |
-| [InboundReviewRepo](../../internal/infrastructure/storage/postgres/crypto_repo/inbound_review.go) | Журнал ограничен additional_single_payment и retired_deposit_address; результат содержит текстовую reference | Это операторская отметка, а не доказанная финансовая развязка всех unmatched |
 | [ValidatePosting](../../internal/infrastructure/storage/postgres/crypto_repo/block_ingestion.go) | Финансовая проверка специализируется на CryptoPayment | Проверку evidence нужно распространить на receipt и другие chain-backed документы |
 | [FinancialReorgRepo](../../internal/infrastructure/storage/postgres/crypto_repo/financial_reorg.go) | Компенсация ищет custody/merchant/fee исходного CryptoPayment и учитывает уже выполненные reversal | Требуется версия для раздельных receipt и attribution; старый SQL нельзя применять к новым payment |
 | [CryptoAdjustment](crypto-adjustment-v2-design.md) | Частичное сторно payment и свободная wallet-коррекция с variance | Исправление принадлежности средств следует отделить от изменения физического остатка |
@@ -440,12 +439,12 @@ Fintech Insight: идемпотентность команды и дедупли
     internal/infrastructure/crypto/resources/itrx/
     internal/infrastructure/blockchain/tron/
     internal/infrastructure/blockchain/evm/
-    internal/infrastructure/http/v1/handlers/inbound_review.go
+    internal/infrastructure/http/v1/handlers/unidentified_receipt.go
     internal/content/
     vault-sign-plugins/tron/
     vault-sign-plugins/evm/
     db/migrations/
-    frontend/app/(main)/crypto/inbound-reviews/
+    frontend/app/(main)/crypto/unidentified-receipts/
 
 Новые пакеты, schema changes, этапы миграции и критерии приёмки перечислены в [плане реализации](../howto/crypto-inbound-provider-accounting-plan.md).
 
