@@ -22,7 +22,11 @@ type ReceiptRemainder struct {
 	TokenID           id.ID
 	Amount            types.CryptoAmount
 	CustodyMerchantID *id.ID
+	// Orphaned receipts stay on the books for investigation but cannot be attributed.
+	Orphaned bool
 }
+
+var errReceiptOrphaned = apperror.NewConflict("receipt transfer was orphaned by a chain reorganization; resolve its incident first")
 
 type MerchantCreditRepository interface {
 	LockReceiptRemainder(context.Context, id.ID) (ReceiptRemainder, error)
@@ -84,6 +88,9 @@ func (s *MerchantCreditService) Prepare(ctx context.Context, cmd PrepareMerchant
 		if err != nil {
 			return err
 		}
+		if remainder.Orphaned {
+			return errReceiptOrphaned
+		}
 		if !remainder.Amount.IsPositive() {
 			return apperror.NewConflict("receipt has no unattributed remainder")
 		}
@@ -124,13 +131,16 @@ func (s *MerchantCreditService) Prepare(ctx context.Context, cmd PrepareMerchant
 }
 
 func (s *MerchantCreditService) Approve(ctx context.Context, cmd DecideMerchantCreditCommand) (*crypto_merchant_credit.CryptoMerchantCredit, error) {
-	return s.decide(ctx, cmd, func(ctx context.Context, doc *crypto_merchant_credit.CryptoMerchantCredit) error {
+	return s.decide(ctx, cmd, func(ctx context.Context, doc *crypto_merchant_credit.CryptoMerchantCredit, remainder ReceiptRemainder) error {
+		if remainder.Orphaned {
+			return errReceiptOrphaned
+		}
 		return s.post(ctx, doc, cmd.Actor)
 	})
 }
 
 func (s *MerchantCreditService) Reject(ctx context.Context, cmd DecideMerchantCreditCommand) (*crypto_merchant_credit.CryptoMerchantCredit, error) {
-	return s.decide(ctx, cmd, func(ctx context.Context, doc *crypto_merchant_credit.CryptoMerchantCredit) error {
+	return s.decide(ctx, cmd, func(ctx context.Context, doc *crypto_merchant_credit.CryptoMerchantCredit, _ ReceiptRemainder) error {
 		if err := doc.Reject(cmd.Actor, cmd.Reason, s.now()); err != nil {
 			return err
 		}
@@ -143,14 +153,15 @@ func (s *MerchantCreditService) Reject(ctx context.Context, cmd DecideMerchantCr
 
 // decide locks the receipt balance before the credit, the same order Prepare uses.
 func (s *MerchantCreditService) decide(ctx context.Context, cmd DecideMerchantCreditCommand,
-	apply func(context.Context, *crypto_merchant_credit.CryptoMerchantCredit) error) (*crypto_merchant_credit.CryptoMerchantCredit, error) {
+	apply func(context.Context, *crypto_merchant_credit.CryptoMerchantCredit, ReceiptRemainder) error) (*crypto_merchant_credit.CryptoMerchantCredit, error) {
 	var result *crypto_merchant_credit.CryptoMerchantCredit
 	err := s.txm.RunInTransaction(ctx, func(ctx context.Context) error {
 		current, err := s.repo.GetByID(ctx, cmd.CreditID)
 		if err != nil {
 			return err
 		}
-		if _, err := s.repo.LockReceiptRemainder(ctx, current.ReceiptID); err != nil {
+		remainder, err := s.repo.LockReceiptRemainder(ctx, current.ReceiptID)
+		if err != nil {
 			return err
 		}
 		doc, err := s.repo.GetByIDForUpdate(ctx, cmd.CreditID)
@@ -160,7 +171,7 @@ func (s *MerchantCreditService) decide(ctx context.Context, cmd DecideMerchantCr
 		if cmd.ExpectedVersion > 0 && doc.Version != cmd.ExpectedVersion {
 			return apperror.NewConcurrentModification(crypto_merchant_credit.DocumentType, cmd.CreditID)
 		}
-		if err := apply(ctx, doc); err != nil {
+		if err := apply(ctx, doc, remainder); err != nil {
 			return err
 		}
 		result = doc

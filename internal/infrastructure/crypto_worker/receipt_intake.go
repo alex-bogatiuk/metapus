@@ -25,10 +25,12 @@ const (
 	_receiptUnallocatedGrace = 30 * time.Minute
 )
 
-// receiptIntake turns final unmatched incoming transfers into custody receipts.
+// receiptIntake turns final unmatched incoming transfers into custody receipts
+// and keeps auditing the canonicality of the accounted ones.
 type receiptIntake struct {
 	inbox   *crypto_repo.ChainEventInboxRepo
 	proofs  *crypto_repo.BlockIngestionRepo
+	audits  *crypto_repo.ReceiptAuditRepo
 	service *cryptoapp.ReceiptIntakeService
 }
 
@@ -36,6 +38,7 @@ func newReceiptIntake(engine *posting.Engine, numbers numerator.Generator) *rece
 	return &receiptIntake{
 		inbox:  crypto_repo.NewChainEventInboxRepo(),
 		proofs: crypto_repo.NewBlockIngestionRepo(),
+		audits: crypto_repo.NewReceiptAuditRepo(),
 		service: cryptoapp.NewReceiptIntakeService(postgres.NewContextTxManager(), crypto_repo.NewReceiptIntakeRepo(),
 			crypto_repo.NewBlockIngestionRepo(), engine, numbers, postgres.NewOutboxPublisher(), time.Now),
 	}

@@ -165,6 +165,22 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION fn_crypto_custody_receipt_audit_seed() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    INSERT INTO reg_crypto_custody_receipt_audits(receipt_id) VALUES(NEW.id);
+    RETURN NULL;
+END;
+$$;
+
+CREATE FUNCTION fn_crypto_custody_receipt_audit_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_OP='DELETE' OR OLD.status='orphaned' OR NEW.receipt_id<>OLD.receipt_id THEN
+        RAISE EXCEPTION 'receipt canonicality outcome is immutable' USING ERRCODE='23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
 -- The fee is the merchant tariff snapshot; the approval requirement follows
 -- the token policy. The custody owner of a merchant-owned wallet is the only
 -- merchant that may receive its receipt.
@@ -179,9 +195,15 @@ BEGIN
               (to_jsonb(OLD)-ARRAY['status','posted','posted_version','decided_by','decided_at','decision_reason','version','updated_at','updated_by','_txid']) THEN
             RAISE EXCEPTION 'merchant credit only permits its single decision' USING ERRCODE='23514';
         END IF;
+        IF NEW.status='posted' AND EXISTS(SELECT 1 FROM reg_crypto_custody_receipt_audits WHERE receipt_id=NEW.receipt_id AND status='orphaned') THEN
+            RAISE EXCEPTION 'orphaned receipt cannot be attributed' USING ERRCODE='23514';
+        END IF;
         RETURN NEW;
     END IF;
     SELECT * INTO r FROM doc_crypto_custody_receipts WHERE id=NEW.receipt_id;
+    IF EXISTS(SELECT 1 FROM reg_crypto_custody_receipt_audits WHERE receipt_id=NEW.receipt_id AND status='orphaned') THEN
+        RAISE EXCEPTION 'orphaned receipt cannot be attributed' USING ERRCODE='23514';
+    END IF;
     IF NOT FOUND OR NOT r.posted OR r.token_id<>NEW.token_id
        OR (r.custody_merchant_id IS NOT NULL AND r.custody_merchant_id<>NEW.merchant_id)
        OR (NEW.invoice_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM doc_crypto_invoices i
@@ -3579,6 +3601,25 @@ ALTER TABLE reg_crypto_inbound_chain_events
 CREATE INDEX idx_crypto_inbound_receipt_candidates ON reg_crypto_inbound_chain_events(receipt_check_at NULLS FIRST,created_at,id)
     WHERE receipt_id IS NULL AND match_status IN ('unmatched','needs_review') AND wallet_id IS NOT NULL AND token_id IS NOT NULL AND _deleted_at IS NULL;
 
+-- Operational canonicality audit of accounted receipts. An orphaned receipt is
+-- never reversed automatically: it opens an incident, holds the network and can
+-- no longer be attributed.
+CREATE TABLE reg_crypto_custody_receipt_audits (
+    receipt_id UUID PRIMARY KEY REFERENCES doc_crypto_custody_receipts(id),
+    status TEXT NOT NULL DEFAULT 'canonical' CHECK(status IN ('canonical','orphaned')),
+    next_check_at TIMESTAMPTZ NOT NULL DEFAULT NOW()+INTERVAL '15 minutes',
+    last_checked_at TIMESTAMPTZ,
+    attempts INT NOT NULL DEFAULT 0 CHECK(attempts>=0),
+    last_error TEXT NOT NULL DEFAULT '',
+    claimed_by TEXT NOT NULL DEFAULT '',
+    lease_expires_at TIMESTAMPTZ,
+    orphaned_at TIMESTAMPTZ,
+    orphan_verification_id UUID REFERENCES reg_crypto_transfer_verifications(id),
+    incident_id UUID REFERENCES reg_crypto_security_incidents(id),
+    CHECK((status='orphaned')=(orphaned_at IS NOT NULL AND incident_id IS NOT NULL))
+);
+CREATE INDEX idx_crypto_custody_receipt_audit_due ON reg_crypto_custody_receipt_audits(next_check_at,receipt_id) WHERE status='canonical';
+
 -- Operator attribution of an unidentified receipt to a merchant. Below the
 -- token threshold one operator posts it; above it (or without a policy) a
 -- second person approves the prepared credit.
@@ -4468,11 +4509,18 @@ BEGIN
     END LOOP;
 END;
 $$;
+CREATE TRIGGER trg_crypto_custody_receipt_audit_seed AFTER INSERT ON doc_crypto_custody_receipts
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_audit_seed();
+CREATE TRIGGER trg_crypto_custody_receipt_audit_guard BEFORE UPDATE OR DELETE ON reg_crypto_custody_receipt_audits
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_audit_guard();
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-DO $$
+DROP TRIGGER trg_crypto_custody_receipt_audit_seed ON doc_crypto_custody_receipts;
+DROP TABLE reg_crypto_custody_receipt_audits;
+DROP FUNCTION fn_crypto_custody_receipt_audit_guard();
+DROP FUNCTION fn_crypto_custody_receipt_audit_seed();DO $$
 DECLARE target TEXT;
 BEGIN
     FOREACH target IN ARRAY ARRAY['reg_crypto_receipt_suspense_movements','reg_crypto_merchant_balance_movements',

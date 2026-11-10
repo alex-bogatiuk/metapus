@@ -40,6 +40,10 @@ func (r *MerchantCreditRepo) LockReceiptRemainder(ctx context.Context, receiptID
 	if err != nil {
 		return result, fmt.Errorf("lock receipt remainder: %w", err)
 	}
+	if err := tm.GetQuerier(ctx).QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM reg_crypto_custody_receipt_audits
+		WHERE receipt_id=$1 AND status='orphaned')`, receiptID).Scan(&result.Orphaned); err != nil {
+		return result, fmt.Errorf("read receipt canonicality: %w", err)
+	}
 	return result, nil
 }
 

@@ -159,3 +159,86 @@ func TestReceiptIntakeDefersWithoutIndependentProof(t *testing.T) {
 		require.True(t, next.After(time.Now()))
 	})
 }
+
+// orphaningDriver proves the accounted transfer absent from the canonical chain.
+type orphaningDriver struct{ receiptProofDriver }
+
+func (d orphaningDriver) VerifyTransfer(ctx context.Context, event crypto.BlockchainEvent) (crypto.TransferVerification, error) {
+	proof, err := d.receiptProofDriver.VerifyTransfer(ctx, event)
+	proof.Event.Canonicality, proof.Event.EventType = crypto.CanonicalityOrphaned, crypto.EventTypeReorg
+	proof.Outcome, proof.AccountingIdentity = "absent", nil
+	return proof, err
+}
+
+func TestReceiptAuditOrphanOpensIncidentAndBlocksAttribution(t *testing.T) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+		rowID := seedUnmatchedTransfer(t, ctx, txm, f, crypto.MatchReasonWrongToken, 0)
+		intake, registry, calls := receiptIntakeForTest(t, f)
+		recorded, err := intake.poll(ctx, registry)
+		require.NoError(t, err)
+		require.Equal(t, 1, recorded, receiptError(t, ctx, txm, rowID))
+		var receiptID id.ID
+		require.NoError(t, txm.GetQuerier(ctx).QueryRow(ctx, `SELECT receipt_id FROM reg_crypto_inbound_chain_events WHERE id=$1`, rowID).Scan(&receiptID))
+
+		// Not due yet: a fresh receipt is audited after its first interval.
+		orphaned, err := intake.auditCanonicality(ctx, registry, "audit-test")
+		require.NoError(t, err)
+		require.Zero(t, orphaned)
+		_, err = txm.GetQuerier(ctx).Exec(ctx, `UPDATE reg_crypto_custody_receipt_audits SET next_check_at=NOW() WHERE receipt_id=$1`, receiptID)
+		require.NoError(t, err)
+
+		// Still canonical: the audit only reschedules.
+		orphaned, err = intake.auditCanonicality(ctx, registry, "audit-test")
+		require.NoError(t, err)
+		require.Zero(t, orphaned)
+		var status, lastError string
+		var next time.Time
+		require.NoError(t, txm.GetQuerier(ctx).QueryRow(ctx, `SELECT status,last_error,next_check_at FROM reg_crypto_custody_receipt_audits WHERE receipt_id=$1`, receiptID).Scan(&status, &lastError, &next))
+		require.Equal(t, "canonical", status)
+		require.Empty(t, lastError)
+		require.True(t, next.After(time.Now().Add(10*time.Minute)))
+
+		_, err = txm.GetQuerier(ctx).Exec(ctx, `UPDATE reg_crypto_custody_receipt_audits SET next_check_at=NOW() WHERE receipt_id=$1`, receiptID)
+		require.NoError(t, err)
+		reorged := crypto.NewChainDriverRegistry()
+		require.NoError(t, reorged.Register(orphaningDriver{receiptProofDriver{
+			fundingReceiptDriver: fundingReceiptDriver{network: crypto.NetworkRef{ID: f.network, Code: "TEST", Family: crypto.ChainFamilyTRON,
+				NetworkIdentifier: "nile", NativeTokenID: f.native, NativeDecimals: 6, RequiredConfirmations: 1, FinalityMode: crypto.FinalityByConfirmations},
+				receipt: crypto.ChainReceipt{ObservedAt: time.Now().UTC()}},
+			calls: calls,
+		}}))
+		orphaned, err = intake.auditCanonicality(ctx, reorged, "audit-test")
+		require.NoError(t, err)
+		require.NoError(t, txm.GetQuerier(ctx).QueryRow(ctx, `SELECT last_error FROM reg_crypto_custody_receipt_audits WHERE receipt_id=$1`, receiptID).Scan(&lastError))
+		require.Equal(t, 1, orphaned, lastError)
+
+		var incidents, networkHolds, walletHolds, movements int
+		var suspense string
+		require.NoError(t, txm.GetQuerier(ctx).QueryRow(ctx, `SELECT
+			(SELECT count(*) FROM reg_crypto_security_incidents WHERE network_id=$1 AND incident_kind='deep_reorg' AND details->>'receiptId'=$3::uuid::text),
+			(SELECT count(*) FROM reg_crypto_network_holds WHERE network_id=$1 AND reason='deep_reorg' AND status='open'),
+			(SELECT count(*) FROM reg_crypto_wallet_allocation_holds WHERE wallet_id=$2 AND reason='deep_reorg' AND status='open'),
+			(SELECT count(*) FROM reg_crypto_balance_movements WHERE recorder_id=$3::uuid),
+			(SELECT amount::text FROM reg_crypto_receipt_suspense_balances WHERE receipt_id=$3::uuid)`,
+			f.network, f.wallet, receiptID).Scan(&incidents, &networkHolds, &walletHolds, &movements, &suspense))
+		require.Equal(t, []int{1, 1, 1, 1}, []int{incidents, networkHolds, walletHolds, movements}, "no automatic ledger reversal")
+		require.Equal(t, "25", suspense)
+
+		// The outcome is terminal and a repeated audit pass does nothing.
+		orphaned, err = intake.auditCanonicality(ctx, reorged, "audit-test")
+		require.NoError(t, err)
+		require.Zero(t, orphaned)
+		_, err = txm.GetQuerier(ctx).Exec(ctx, `UPDATE reg_crypto_custody_receipt_audits SET status='canonical',orphaned_at=NULL,incident_id=NULL WHERE receipt_id=$1`, receiptID)
+		require.ErrorContains(t, err, "immutable")
+
+		// An orphaned receipt cannot be attributed, even by direct SQL.
+		_, err = crypto_repo.NewMerchantCreditRepo().LockReceiptRemainder(ctx, receiptID)
+		require.ErrorContains(t, err, "transaction")
+		require.NoError(t, txm.RunInTransaction(ctx, func(ctx context.Context) error {
+			remainder, err := crypto_repo.NewMerchantCreditRepo().LockReceiptRemainder(ctx, receiptID)
+			require.NoError(t, err)
+			require.True(t, remainder.Orphaned)
+			return nil
+		}))
+	})
+}

@@ -177,3 +177,30 @@ func TestSuspenseCannotBeConsumedWithoutItsCredit(t *testing.T) {
 		VALUES($1,'CryptoMerchantCredit',1,NOW(),'expense',$2,$3,1)`, id.New(), f.receipt, f.request.Basis.TokenID)
 	require.ErrorContains(t, err, "exact merchant credit")
 }
+
+func TestOrphanedReceiptCannotBeCreditedButOpenCreditCanBeRejected(t *testing.T) {
+	f := newMerchantCreditFixture(t, false)
+	open, err := f.credits.Prepare(f.ctx, cryptoapp.PrepareMerchantCreditCommand{ReceiptID: f.receipt, MerchantID: f.merchant, Actor: id.New()})
+	require.NoError(t, err)
+	basis := f.request.Basis
+	require.NoError(t, NewReceiptAuditRepo().MarkOrphaned(f.ctx, ReceiptAuditTask{
+		ReceiptID: f.receipt, NetworkID: basis.NetworkID, WalletID: basis.WalletID, TokenID: basis.TokenID, Amount: basis.Amount,
+		TxHash: basis.TxHash, EventKind: string(basis.EventKind), EventIndex: basis.EventIndex,
+		BlockNumber: basis.BlockNumber, BlockHash: basis.BlockHash,
+	}, *basis.VerificationID))
+	// Replay of the same proven orphaning is a no-op.
+	require.NoError(t, NewReceiptAuditRepo().MarkOrphaned(f.ctx, ReceiptAuditTask{ReceiptID: f.receipt, NetworkID: basis.NetworkID,
+		WalletID: basis.WalletID, TokenID: basis.TokenID, Amount: basis.Amount, TxHash: basis.TxHash,
+		EventKind: string(basis.EventKind), EventIndex: basis.EventIndex}, *basis.VerificationID))
+
+	_, err = f.credits.Approve(f.ctx, cryptoapp.DecideMerchantCreditCommand{CreditID: open.ID, Actor: id.New()})
+	require.ErrorContains(t, err, "orphaned")
+	_, err = f.pool.Exec(f.ctx, `UPDATE doc_crypto_merchant_credits SET status='posted',posted=TRUE,posted_version=1,decided_by=$2,decided_at=NOW(),version=version+1 WHERE id=$1`, open.ID, id.New())
+	require.ErrorContains(t, err, "orphaned receipt cannot be attributed")
+	_, err = f.credits.Reject(f.ctx, cryptoapp.DecideMerchantCreditCommand{CreditID: open.ID, Actor: id.New(), Reason: "transfer was orphaned"})
+	require.NoError(t, err)
+	_, err = f.credits.Prepare(f.ctx, cryptoapp.PrepareMerchantCreditCommand{ReceiptID: f.receipt, MerchantID: f.merchant, Actor: id.New()})
+	require.ErrorContains(t, err, "orphaned")
+	suspense, merchant, _ := f.amounts(t)
+	require.Equal(t, []string{basis.Amount.String(), "0"}, []string{suspense, merchant})
+}

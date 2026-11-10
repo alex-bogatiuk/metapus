@@ -533,6 +533,9 @@ func (p *CryptoProcessor) Start(ctx context.Context) error {
 	consumerWg.Go(func() {
 		p.runReceiptIntakeLoop(ctx)
 	})
+	consumerWg.Go(func() {
+		p.runReceiptAuditLoop(ctx)
+	})
 
 	// Start sweep evaluation loop (checks accumulated balances against thresholds)
 	consumerWg.Go(func() {
