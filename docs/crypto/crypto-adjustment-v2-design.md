@@ -6,7 +6,7 @@
 
 Основание документа неизменяемо: `payment_attribution` (сторно распределения текущего поколения платежа обратно в невыясненные) либо `wallet_variance`. Sources замораживаются в транзакции proposal; DB проверяет полный financial set и accounting outbox при проведении. Введённый hash в обосновании не создаёт chain identity/owner. [Контракт и границы](../reference/crypto-custody-writers.md#16-основание-ручных-корректировок).
 
-**Изменение механизма:** новый proposal не может называться legacy correction, если его поколение уже связано с registry или требует adoption. Approval блокирует source payment до adjustment и проверяет поколение повторно; добавление source lines после коммита proposal запрещено. Сторно CryptoPayment v1 сохраняет физическую компенсацию gross/net/fee. Исправление attribution через suspense без нового custody предусмотрено P4/P5 и ещё не включено. Пропущенный chain effect нельзя оприходовать свободной wallet correction: требуется доказанный receipt/funding workflow либо historical adoption.
+**Изменение механизма:** approval блокирует source payment до adjustment и проверяет поколение повторно; добавление source lines после коммита proposal запрещено. Сторно платежа (`payment_reversal`) возвращает распределение в невыясненные receipt без движений custody. Пропущенный chain effect нельзя оприходовать свободной wallet correction: нужен доказанный receipt или funding.
 
 Следующий этап: редактируемые черновики, предпросмотр остатка кошелька до/после, явное связывание ручной корректировки с расследованным outflow и автоматический запуск сверки после проведения. Эти элементы ниже описывают целевую модель, но пока не доступны в интерфейсе.
 

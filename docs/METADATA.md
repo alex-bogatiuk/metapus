@@ -1078,26 +1078,17 @@ Metapus
 
 | Таблица | Назначение / ограничения |
 |---|---|
-| `reg_crypto_custody_effect_postings` | Один recorder владеет logical effect; схема 80 допускает следующие payment generations только через predecessor и полную компенсацию; block/recorder alias не разрешает повтор |
+| `reg_crypto_custody_effect_postings` | Один recorder владеет logical effect; block/recorder alias не разрешает повтор |
 | `reg_crypto_custody_effect_recognitions` | Неизменяемые ссылки на точные wallet/token movement lines; не более одной стороны каждого направления |
-| `reg_crypto_receipt_suspense_movements` | Один начальный приход gross по receipt/token; пока без allocation/expense/reversal |
+| `reg_crypto_receipt_suspense_movements` | Приход gross по receipt; расход — распределение платежа или ручное зачисление (`CryptoMerchantCredit`); сторно возвращает сумму на receipt |
 | `reg_crypto_receipt_suspense_balances` | Проекция нераспределённого остатка receipt/token |
 | `reg_crypto_receipt_intake_audit` | Неизменяемая связь receipt, proof, posting owner и system actor |
 
 Deferred constraints проверяют полный набор receipt/custody/suspense/recognition/audit/posted outbox при коммите. Rollback схемы 78 после финансового использования запрещён; доступна только будущая forward migration. Общий переход legacy writers, availability и компенсационные поколения receipt/funding остаются в [плане реализации](howto/crypto-inbound-provider-accounting-plan.md).
 
-Миграция [00079](../db/migrations/00077_crypto_custody_accounting.sql) связывает `reg_crypto_wallet_fundings` с `occurrence_id` и `posting_id`; для исторических записей обе ссылки остаются NULL. Новые receipts используют occurrence вместо глобальной уникальности tx hash, поэтому разные доказанные effects одной tx учитываются раздельно. `reg_crypto_wallet_funding_audit` хранит funding/proof/posting/actor и запрещает UPDATE/DELETE. Funding receipt, recognition, physical movement, audit и один `CryptoWalletFunding.recorded` outbox обязательны в одном коммите. Двухсторонние SQL guards исключают пересечение с payment principal, включая ожидавший balance lock legacy INSERT. CLI допускает только external funding platform-owned wallet и не создаёт merchant/fee/provider/cost movements. Финансовое использование схемы 79 запрещает её Down; история требует forward migration.
+Миграция [00079](../db/migrations/00077_crypto_custody_accounting.sql) связывает `reg_crypto_wallet_fundings` с `occurrence_id` и `posting_id`; обе ссылки обязательны. Новые receipts используют occurrence вместо глобальной уникальности tx hash, поэтому разные доказанные effects одной tx учитываются раздельно. `reg_crypto_wallet_funding_audit` хранит funding/proof/posting/actor и запрещает UPDATE/DELETE. Funding receipt, recognition, physical movement, audit и один `CryptoWalletFunding.recorded` outbox обязательны в одном коммите. Двухсторонние SQL guards исключают пересечение funding и платежа по одному chain effect, в том числе при конкурентной вставке: обе стороны берут balance lock. CLI допускает только external funding platform-owned wallet и не создаёт merchant/fee/provider/cost movements. Финансовое использование схемы 79 запрещает её Down; история требует forward migration.
 
-Миграция [00080](../db/migrations/00077_crypto_custody_accounting.sql) подключает indexed CryptoPayment v1:
-
-| Объект | Контракт |
-|---|---|
-| `reg_crypto_payment_custody_bindings` | Неизменяемый snapshot/attestation: posting/payment, invoice/merchant/wallet/token, gross/net/processing fee, fixed/percent/min/max, period, mode `posting`/`adoption`, actor/reference |
-| `reg_crypto_custody_effect_postings.predecessor_id` | Уникальная ссылка на предыдущий generation; следующие поколения разрешены только тому же payment/effect после полного сторно custody/net/fee без переоценки |
-| `uq_crypto_payment_custody_version` | Partial unique recorder ID/version для CryptoPayment |
-| `reg_crypto_balance_movements.posting_txid` | Nullable внутреннее поле, устанавливаемое DB trigger для новых исходных CryptoPayment lines, со схемы 81 также CryptoNativeFunding, со схемы 82 CryptoSweep, со схемы 83 TreasuryWithdrawal, со схемы 84 CryptoWithdrawal. Online admission требует текущую транзакцию. Исторические строки остаются NULL и требуют explicit adoption |
-
-Deferred guards требуют точный physical gross, merchant net, processing fee, recognition и `CryptoPayment.custody_recognized` outbox. Fee выше gross, изменение frozen basis, неполное unpost и неверные reversal dimensions отклоняются. Adoption текущего posted canonical legacy payment доступен внутреннему сервису только на disabled/drained сети и не создаёт финансовых движений. После использования схема требует forward migration; прежние proofs/даты не переписываются. Остальные legacy writers и массовый backfill остаются открытыми.
+Раздел миграции [00080](../db/migrations/00077_crypto_custody_accounting.sql) делает CryptoPayment распределением custody receipt ([custody writers, §8](reference/crypto-custody-writers.md#8-cryptopayment-как-распределение-receipt)). `doc_crypto_payments.receipt_id` ссылается на receipt перевода; проведённый платёж записывает расход невыясненных (gross), приход мерчанту (net) и processing fee по снимку тарифа, движений по кошельку у него нет. Отложенный инвариант `fn_crypto_assert_payment_attribution` требует точный набор текущего поколения и полную компенсацию предыдущих. `trg_crypto_payment_frozen_basis` после распределения замораживает receipt, invoice/merchant/network/wallet/token, gross, tx и тариф и запрещает удаление. Custody-признание платежа (`reg_crypto_payment_custody_bindings`, predecessor generations, outbox `CryptoPayment.custody_recognized`) и adoption удалены.
 
 Миграция [00082](../db/migrations/00077_crypto_custody_accounting.sql) добавляет `reg_crypto_sweep_custody_bindings`: posting_id (PK/FK), sweep_id, line_id (UNIQUE/FK), period, actor=`sweep-settlement`, created_at. Binding immutable. Каждая final успешная строка имеет один posting generation 1, две principal recognition links, точные fee/cost facts и `CryptoSweep.custody_recognized` outbox с lineId/postingId. Deferred constraints защищают весь набор и запрещают раннее освобождение fee reservation.
 
@@ -1296,7 +1287,7 @@ Deferred guards требуют точный physical gross, merchant net, proces
 
 [00085](../db/migrations/00077_crypto_custody_accounting.sql) подключает CryptoCustodyAdjustment к registry: он сохраняет loss expense/cost и maker-checker, но требует exact indexed outgoing proof и shared registry owner. Detection/classification не создают финансовых движений.
 
-Immutable `reg_crypto_custody_loss_bindings`: posting_id (PK/FK), adjustment_id (UNIQUE/FK), external_outflow_id (UNIQUE/FK), maker_id/checker_id (разные), period, created_at. Principal и cost получают отдельные стабильные line IDs и общий period из binding. Physical expense, custody-loss cost, checker action audit, reconciliation request, final decision и outbox обязательны в одном коммите. Posting transaction stamp включает новые CryptoCustodyAdjustment lines; исторические movements не обновляются. SQL защищает exact set, immutable model/basis, generic compensation и ownership через aliases. Native network fee identity, generation/reorg recovery и historical adoption не добавлены.
+Immutable `reg_crypto_custody_loss_bindings`: posting_id (PK/FK), adjustment_id (UNIQUE/FK), external_outflow_id (UNIQUE/FK), maker_id/checker_id (разные), period, created_at. Principal и cost получают отдельные стабильные line IDs и общий period из binding. Physical expense, custody-loss cost, checker action audit, reconciliation request, final decision и outbox обязательны в одном коммите. Posting transaction stamp включает новые CryptoCustodyAdjustment lines; исторические movements не обновляются. SQL защищает exact set, immutable basis, generic compensation и ownership через aliases. Generation/reorg recovery не добавлен.
 
 ### Network fee recognition схемы 86
 

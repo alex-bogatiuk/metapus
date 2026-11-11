@@ -556,7 +556,7 @@ END;
 $$;
 
 -- Payment aliases with an indexed identity are compared by logical effect.
--- An unindexed legacy payment is conservatively ambiguous within the same
+-- A payment without indexed evidence is conservatively ambiguous within the same
 -- transaction/kind/destination/asset and must be investigated before funding.
 CREATE FUNCTION fn_crypto_wallet_funding_payment_conflict(
     network UUID, wallet UUID, asset UUID, hash TEXT, kind TEXT, verification UUID

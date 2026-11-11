@@ -296,7 +296,7 @@ func (r *FinancialAdjustmentRepo) Sources(ctx context.Context, adjustmentID id.I
 
 func (r *FinancialAdjustmentRepo) LockForDecision(ctx context.Context, adjustmentID id.ID) (*cryptoapp.FinancialAdjustment, error) {
 	// Proposal and decision both take the source document/wallet before the
-	// adjustment row. Adoption and payment posting use the same document lock.
+	// adjustment row. Payment posting uses the same document lock.
 	current, err := r.Get(ctx, adjustmentID)
 	if err != nil {
 		return nil, err

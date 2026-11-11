@@ -613,13 +613,11 @@ minor-unit amount, confirmations и idempotency. Для внешнего TRC-20 
 Начиная со схемы 79, новые funding receipts обязательно связаны с indexed proof
 и общим custody recognition. Managed sender/внутренний перевод требует своего
 settlement workflow; merchant-owned wallet пополняется через
-[AML operating receipt](crypto-aml-resources.md). Исторические funding receipts
-без occurrence/posting не переписываются повторным запуском CLI: требуется
-отдельный adoption workflow. Разные доказанные effects одной tx имеют разные
-receipts; повтор того же effect не увеличивает остаток.
-Если остаток ранее увеличен ручной custody correction, сначала требуется её
-explicit adoption. При расхождении balance projection и movements команда
-требует сверки, сохраняя прежний остаток.
+[AML operating receipt](crypto-aml-resources.md). Разные доказанные effects
+одной tx имеют разные receipts; повтор того же effect не увеличивает остаток.
+Если остаток ранее увеличен ручной custody correction без сторно, команда
+откажет до ручной сверки. При расхождении balance projection и movements
+команда тоже требует сверки, сохраняя прежний остаток.
 Включить wallet-pool policy может только подтверждённый native TRX receipt
 именно `liquidity_hot`; funding одного `network_fee` недостаточно. TRC-20
 receipt учитывает физический token balance, но не заменяет native activation

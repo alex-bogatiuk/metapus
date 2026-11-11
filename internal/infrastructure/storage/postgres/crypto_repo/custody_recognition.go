@@ -35,7 +35,7 @@ func (*CustodyRecognitionRepo) LockWallets(ctx context.Context, wallets ...id.ID
 	return err
 }
 
-// LockScopes precedes network policy locks when maintenance admission and fee
+// LockScopes precedes network policy locks when receipt admission and fee
 // reservation both need the same wallet. It never locks balances or effects.
 func (*CustodyRecognitionRepo) LockScopes(ctx context.Context, wallets ...id.ID) error {
 	tm := postgres.MustGetTxManager(ctx)

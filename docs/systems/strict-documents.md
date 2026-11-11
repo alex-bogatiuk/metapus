@@ -122,11 +122,11 @@ Blockchain-транзакция, `txHash`, settlement, finality и операт�
 Это аварийный учётный инструмент, а не blockchain rollback. Если нужен новый
 on-chain эффект, его создаёт отдельный системный workflow.
 
-### Отдельные ограничения признанного CryptoPayment
+### Отдельные ограничения распределённого CryptoPayment
 
-Матрица ручной разблокировки выше относится к `CryptoNetworkOperation`. CryptoPayment v1, связанный с custody registry схемы 80, защищён независимыми SQL guards: invoice/merchant/wallet/token, gross, тариф и net/fee snapshot, дата и logical chain identity неизменяемы также для администратора. Удаление и пометка удаления запрещены. Исправление экономического назначения требует отдельного учётного workflow.
+Матрица ручной разблокировки выше относится к `CryptoNetworkOperation`. CryptoPayment, распределивший custody receipt, защищён независимым SQL guard `trg_crypto_payment_frozen_basis`: receipt, invoice/merchant/network/wallet/token, gross, tx и снимок тарифа неизменяемы также для администратора. Удаление и пометка удаления запрещены. Экономическое назначение исправляет ручная корректировка `payment_reversal` (основание `payment_attribution`).
 
-Перепроведение сохраняет basis/fee и требует полной компенсации исходных custody, merchant net и processing fee lines. Unpost также требует полного сторно; произвольная смена posted flag не проходит commit. Новая block occurrence после компенсации требует независимого proof и следующего generation того же owner/effect. Старые proof bytes не переписываются. Подключение текущего canonical legacy payment выполняет внутренний explicit adoption на disabled/drained сети без новых денег; публичной команды пока нет.
+Перепроведение сохраняет basis/fee и требует полной компенсации исходных строк невыясненных, merchant net и processing fee (`fn_crypto_assert_payment_attribution`). Unpost также требует полного сторно; произвольная смена posted flag не проходит commit. Повторное включение перевода после reorg находит исходный receipt по логическому эффекту, и следующее поколение распределяет его снова. Старые proof bytes не переписываются.
 
 ## 6. Аудит MVP
 
