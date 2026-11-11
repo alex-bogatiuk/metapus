@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"metapus/internal/core/json"
+	"metapus/internal/core/version"
 	walletcatalog "metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/infrastructure/storage/postgres"
 )
@@ -67,7 +68,9 @@ func runConfigureDB(args []string) error {
 		return fmt.Errorf("ping tenant database: %w", err)
 	}
 
-	tx, err := pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	// Wallet watch registration takes per-network advisory locks and requires
+	// read committed; configure-db runs before any application writer starts.
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
 		return err
 	}
@@ -184,20 +187,12 @@ func validateDerivedWalletSet(walletSet derivedWalletSet) error {
 }
 
 func configureTenantDatabase(ctx context.Context, tx pgx.Tx, stateDir string, walletSet derivedWalletSet, keepOtherFamilies bool) error {
-	requiredMigration := 41
-	if walletSet.Network == "ethereum_sepolia" {
-		requiredMigration = 42
+	var schema int
+	if err := tx.QueryRow(ctx, `SELECT COALESCE(MAX(version_id),0) FROM goose_db_version WHERE is_applied AND version_id<10000`).Scan(&schema); err != nil {
+		return fmt.Errorf("verify schema version: %w", err)
 	}
-	var requiredMigrationApplied bool
-	if err := tx.QueryRow(ctx, `
-		SELECT EXISTS (
-			SELECT 1 FROM goose_db_version WHERE version_id = $1 AND is_applied = TRUE
-		)
-	`, requiredMigration).Scan(&requiredMigrationApplied); err != nil {
-		return fmt.Errorf("verify schema migration %d: %w", requiredMigration, err)
-	}
-	if !requiredMigrationApplied {
-		return fmt.Errorf("tenant database is not at required core schema version %d", requiredMigration)
+	if !version.CompatibleSchema(schema) {
+		return fmt.Errorf("tenant database schema %d is not the expected version %d", schema, version.ExpectedSchemaVersion)
 	}
 
 	networkCode, tokenCode, tokenStandard, expectedContract := "TRON-NILE", "USDT-TRC20", "TRC-20", nileUSDTContract
