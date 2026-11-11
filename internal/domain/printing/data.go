@@ -2,17 +2,11 @@ package printing
 
 // PrintData is the context passed to every print template.
 type PrintData struct {
-	// FormLabel is the document type label shown in the title, e.g. "Crypto Invoice".
+	// FormLabel is the form title, e.g. "Инвойс". Defaults to the form label.
 	FormLabel string
-	// ShowPrices controls whether price/amount columns are visible (FLS-aware).
-	ShowPrices bool
-	// DecimalPlaces is the number of decimal places for monetary formatting.
-	DecimalPlaces int
-	// CurrencySymbol is the currency symbol, e.g. "₽".
-	CurrencySymbol string
-	// Doc is the typed document response DTO; templates access its fields via reflection.
+	// Doc is an optional template-specific view model for custom templates.
 	Doc any
-	// Table is a format-agnostic pre-formatted representation used by XLSX/DOCX renderers.
-	// HTML renderer ignores this field and uses Doc + Go templates instead.
+	// Table is the format-agnostic, pre-formatted form content. Built-in HTML
+	// templates and the DOCX renderer both render it, so formats stay identical.
 	Table *PrintTable
 }

@@ -112,5 +112,5 @@ func (r *WithdrawalRequestRegistration) HTTPContracts() spec.Bundle {
 }
 
 func (*CryptoInvoiceRegistration) DocumentCapabilities() metadata.DocumentCapabilities {
-	return metadata.DocumentCapabilities{List: true, Read: true, Create: true, Update: true, Delete: true, SetDeletionMark: true, Post: true, Unpost: true, Repost: true, RelatedDocuments: true, Movements: true, BatchAction: true, BatchActionByFilter: true, ExportList: true}
+	return metadata.DocumentCapabilities{List: true, Read: true, Create: true, Update: true, Delete: true, SetDeletionMark: true, Post: true, Unpost: true, Repost: true, RelatedDocuments: true, Movements: true, PrintForms: true, BatchAction: true, BatchActionByFilter: true, ExportList: true}
 }

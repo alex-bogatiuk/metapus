@@ -44,3 +44,19 @@ func lookupEnum(t reflect.Type) (EnumDef, bool) {
 	def, exists := enumRegistry[t]
 	return def, exists
 }
+
+// EnumLabel returns the registered human-readable label of an enum value.
+// Unregistered types and unknown values report false so callers can choose
+// their own fallback instead of displaying an invented label.
+func EnumLabel[T ~string](value T) (string, bool) {
+	def, ok := lookupEnum(reflect.TypeOf(value))
+	if !ok {
+		return "", false
+	}
+	for _, v := range def.Values {
+		if v.Value == string(value) {
+			return v.Label, true
+		}
+	}
+	return "", false
+}

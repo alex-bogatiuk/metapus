@@ -9,8 +9,10 @@ import (
 	"metapus/internal/core/entity"
 	"metapus/internal/domain"
 	"metapus/internal/domain/documents/crypto_invoice"
+	"metapus/internal/domain/printing"
 	"metapus/internal/domain/settings"
 	"metapus/internal/infrastructure/http/v1/dto"
+	printadapter "metapus/internal/infrastructure/printing"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/tenantdb"
 )
@@ -20,6 +22,14 @@ import (
 type CryptoInvoiceHandler struct {
 	*BaseDocumentHandler[*crypto_invoice.CryptoInvoice, dto.CreateCryptoInvoiceRequest, dto.UpdateCryptoInvoiceRequest]
 	relatedDocsHandler *RelatedDocumentsHandler
+	print              *DocumentPrintHandler[*crypto_invoice.CryptoInvoice]
+}
+
+// DocumentPrintDeps are the shared print engine parts a document handler uses.
+type DocumentPrintDeps struct {
+	Registry    *printing.PrintFormRegistry
+	Renderer    *printadapter.Renderer
+	PDFRenderer printing.PDFRenderer
 }
 
 // resolveCryptoInvoiceRefs batch-resolves all reference IDs for CryptoInvoice documents.
@@ -45,6 +55,7 @@ func NewCryptoInvoiceHandler(
 	movementProviders []entity.MovementProvider,
 	movementRefResolver domain.RefResolver,
 	settingsRepo settings.Repository,
+	printDeps DocumentPrintDeps,
 ) *CryptoInvoiceHandler {
 	cfg := BaseDocumentHandlerConfig[*crypto_invoice.CryptoInvoice, dto.CreateCryptoInvoiceRequest, dto.UpdateCryptoInvoiceRequest]{
 		Service:    service,
@@ -72,8 +83,21 @@ func NewCryptoInvoiceHandler(
 		SettingsRepo:        settingsRepo,
 	}
 
+	registry := printDeps.Registry
+	if registry == nil {
+		registry = printing.NewPrintFormRegistry()
+	}
 	h := &CryptoInvoiceHandler{
 		BaseDocumentHandler: NewBaseDocumentHandler(base, cfg),
+		print: NewDocumentPrintHandler(base, DocumentPrintHandlerConfig[*crypto_invoice.CryptoInvoice]{
+			Service:        service,
+			EntityName:     "crypto_invoice",
+			DocType:        crypto_invoice.Definition.Key,
+			Registry:       registry,
+			Renderer:       printDeps.Renderer,
+			PDFRenderer:    printDeps.PDFRenderer,
+			BuildPrintData: buildCryptoInvoicePrintData,
+		}),
 	}
 
 	// Related documents (optional)
@@ -83,6 +107,12 @@ func NewCryptoInvoiceHandler(
 
 	return h
 }
+
+// Print handles GET /document/crypto-invoice/:id/print.
+func (h *CryptoInvoiceHandler) Print(c *gin.Context) { h.print.Print(c) }
+
+// ListPrintForms handles GET /document/crypto-invoice/print-forms.
+func (h *CryptoInvoiceHandler) ListPrintForms(c *gin.Context) { h.print.ListPrintForms(c) }
 
 // GetRelatedDocuments handles GET /document/crypto-invoice/:id/related-documents.
 func (h *CryptoInvoiceHandler) GetRelatedDocuments(c *gin.Context) {

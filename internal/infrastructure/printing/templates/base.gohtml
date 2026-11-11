@@ -18,36 +18,6 @@
     padding: 12mm 12mm 14mm;
   }
 
-  /* ── Print button (hidden on print) ── */
-  .print-bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 10mm;
-  }
-  .btn-print {
-    padding: 6px 18px;
-    background: #1a56db;
-    color: #fff;
-    border: none;
-    border-radius: 4px;
-    font-size: 11pt;
-    cursor: pointer;
-  }
-  .btn-print:hover { background: #1644a8; }
-  .btn-close {
-    padding: 6px 14px;
-    background: #f0f0f0;
-    color: #333;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 11pt;
-    cursor: pointer;
-    text-decoration: none;
-    display: inline-block;
-  }
-  .print-hint { font-size: 9pt; color: #666; }
-
   /* ── Document header ── */
   .doc-title {
     font-size: 15pt;
@@ -166,7 +136,6 @@
 
   /* ── @media print ── */
   @media print {
-    .print-bar { display: none !important; }
     body { font-size: 10pt; }
     .page { padding: 8mm 8mm 10mm; max-width: 100%; }
     @page { size: A4 portrait; margin: 15mm 12mm; }
@@ -177,10 +146,56 @@
 </style>
 {{end}}
 
-{{define "print_bar"}}
-<div class="print-bar">
-  <button class="btn-print" onclick="window.print()">🖨 Печать / PDF</button>
-  <button class="btn-close" onclick="window.close()">Закрыть</button>
-  <span class="print-hint">Для сохранения в PDF выберите «Сохранить как PDF» в диалоге печати</span>
-</div>
+{{/* table_form renders PrintData.Table; DOCX renders the same structure. */}}
+{{define "table_form"}}
+{{with .Table}}
+  <div class="doc-title">{{.Title}}</div>
+  {{if .Subtitle}}<div class="doc-subtitle">{{.Subtitle}}</div>{{end}}
+  {{if .HeaderRows}}
+  <table class="header-table">
+    {{range .HeaderRows}}
+    <tr>
+      {{range .}}
+      <td class="label">{{.Label}}</td>
+      <td class="value">{{.Value}}</td>
+      {{end}}
+    </tr>
+    {{end}}
+  </table>
+  {{end}}
+  {{if .Columns}}
+  <table class="lines-table">
+    <thead><tr>{{range .Columns}}<th>{{.}}</th>{{end}}</tr></thead>
+    <tbody>
+      {{range .Rows}}
+      <tr>{{range $i, $v := .Values}}<td{{if $i}} class="money"{{end}}>{{$v}}</td>{{end}}</tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{end}}
+  {{if .Totals}}
+  <div class="totals-section">
+    <table>
+      {{range .Totals}}
+      <tr{{if .Grand}} class="total-grand"{{end}}>
+        <td class="total-label">{{.Label}}</td>
+        <td class="total-value">{{.Value}}</td>
+      </tr>
+      {{end}}
+    </table>
+  </div>
+  {{end}}
+  {{with .SignatureBlock}}
+  <div class="signatures">
+    {{range .Entries}}
+    <div class="sig-block">
+      <div class="sig-role">{{.Role}}</div>
+      <div class="sig-line"></div>
+      <div class="sig-hint">{{.Hint}}</div>
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+  <div class="doc-footer">Сформировано автоматически системой Metapus</div>
+{{end}}
 {{end}}

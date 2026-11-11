@@ -92,7 +92,36 @@ func formatMoneyStr(v interface{ MinorUnitsValue() int64 }, dp int) string {
 	if err != nil {
 		return "—"
 	}
-	parts := strings.Split(exact, ".")
+	return groupDecimal(exact)
+}
+
+// FormatCryptoUnits formats raw token units with the token's own scale.
+// The conversion is exact: no floating point and no assumed scale. Trailing
+// fractional zeros beyond two digits (or the token scale, if smaller) are
+// dropped because they carry no value.
+// Example: FormatCryptoUnits(1500000, 6) → "1,50"; (1234567, 6) → "1,234567"
+func FormatCryptoUnits(v types.CryptoAmount, decimalPlaces int) string {
+	if decimalPlaces < 0 || decimalPlaces > _maxCryptoDecimals {
+		return "—"
+	}
+	exact := v.ToDecimal(decimalPlaces).StringFixed(int32(decimalPlaces))
+	if whole, fraction, ok := strings.Cut(exact, "."); ok {
+		fraction = strings.TrimRight(fraction, "0")
+		for len(fraction) < min(2, decimalPlaces) {
+			fraction += "0"
+		}
+		exact = whole + "." + fraction
+	}
+	return groupDecimal(exact)
+}
+
+// _maxCryptoDecimals bounds token metadata accepted for display.
+const _maxCryptoDecimals = 36
+
+// groupDecimal renders a canonical "-1234.5600" string with non-breaking
+// thousands separators and a decimal comma.
+func groupDecimal(exact string) string {
+	parts := strings.SplitN(exact, ".", 2)
 	negative := strings.HasPrefix(parts[0], "-")
 	digits := strings.TrimPrefix(parts[0], "-")
 	for i := len(digits) - 3; i > 0; i -= 3 {

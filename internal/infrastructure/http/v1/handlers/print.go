@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	printadapter "metapus/internal/infrastructure/printing"
 	"net/http"
@@ -29,18 +30,23 @@ type DocumentPrintHandlerConfig[T any] struct {
 	DocType string
 	// Registry holds available print form definitions.
 	Registry *printing.PrintFormRegistry
-	// Renderer renders HTML from templates.
+	// Renderer renders HTML from templates; nil makes every print request fail
+	// with an internal error instead of panicking.
 	Renderer    *printadapter.Renderer
 	PDFRenderer printing.PDFRenderer
-	// ResolveRefs resolves FK references for display names (nil = skip).
-	ResolveRefs func(ctx context.Context, entities ...T) (any, error)
-	// BuildPrintData converts the FLS-masked entity + resolved refs to print template context.
-	BuildPrintData func(entity T, refs any, showPrices bool) *printing.PrintData
+	// BuildPrintData converts the read projection of the document into the
+	// template context. Restricted fields are already zero in doc; policy is the
+	// caller's read policy (nil = unrestricted) so the builder can show such a
+	// field as hidden instead of as a real zero. Referenced entities must be read
+	// through an authorized reader, never directly.
+	BuildPrintData func(ctx context.Context, doc T, policy *security.FieldPolicy) (*printing.PrintData, error)
 }
 
-// DocumentPrintHandler provides the Print HTTP handler for a single document type.
-// Embed this struct in a concrete handler and it automatically satisfies
-// DocumentPrintHandlerInterface, causing RegisterDocumentRoutes to add the print route.
+// DocumentPrintHandler provides the print HTTP handlers for a single document type.
+// A document handler keeps it in a named field and delegates Print and
+// ListPrintForms to it (see CryptoInvoiceHandler); embedding would make the
+// shared BaseHandler methods ambiguous. The routes exist only when the
+// registration also declares the PrintForms capability.
 type DocumentPrintHandler[T any] struct {
 	*BaseHandler
 	cfg DocumentPrintHandlerConfig[T]
@@ -81,6 +87,11 @@ func (h *DocumentPrintHandler[T]) Print(c *gin.Context) {
 		return
 	}
 
+	if h.cfg.Renderer == nil {
+		h.Error(c, apperror.NewInternal(errors.New("print templates are not loaded")))
+		return
+	}
+
 	// Fetch document — triggers RLS dimension check via BaseDocumentService.
 	doc, err := h.cfg.Service.GetByID(ctx, docID)
 	if err != nil {
@@ -88,32 +99,16 @@ func (h *DocumentPrintHandler[T]) Print(c *gin.Context) {
 		return
 	}
 
-	// FLS: determine visibility of price/amount columns before masking the entity.
-	showPrices := true
+	// FLS: the template sees only the read projection, exactly like GET /:id.
 	readPolicy := security.GetFieldPolicy(ctx, h.cfg.EntityName, "read")
-	if readPolicy != nil {
-		if !readPolicy.IsTablePartFieldAllowed("lines", "unit_price") {
-			showPrices = false
-		}
+	printData, err := h.cfg.BuildPrintData(ctx, security.ProjectForRead(doc, readPolicy), readPolicy)
+	if err != nil {
+		h.Error(c, err)
+		return
 	}
-
-	// Apply FLS masking to the domain entity in place.
-	if readPolicy != nil {
-		security.MaskForRead(doc, readPolicy)
+	if printData.FormLabel == "" {
+		printData.FormLabel = formDef.Label
 	}
-
-	// Resolve reference display names for the (now-masked) entity.
-	var refs any
-	if h.cfg.ResolveRefs != nil {
-		refs, err = h.cfg.ResolveRefs(ctx, doc)
-		if err != nil {
-			h.Error(c, err)
-			return
-		}
-	}
-
-	// Build the template data context (includes Table for XLSX/DOCX).
-	printData := h.cfg.BuildPrintData(doc, refs, showPrices)
 
 	var buf bytes.Buffer
 
@@ -135,7 +130,7 @@ func (h *DocumentPrintHandler[T]) Print(c *gin.Context) {
 			return
 		}
 		buf.Write(pdf)
-		filename := sanitizeFilename(printData.Table.Title + " " + printData.Table.Subtitle)
+		filename := printFilename(printData)
 		c.Header("Content-Type", "application/pdf")
 		c.Header("Content-Disposition", contentDisposition(filename, "pdf"))
 
@@ -144,7 +139,7 @@ func (h *DocumentPrintHandler[T]) Print(c *gin.Context) {
 			h.Error(c, apperror.NewInternal(err))
 			return
 		}
-		filename := sanitizeFilename(printData.Table.Title + " " + printData.Table.Subtitle)
+		filename := printFilename(printData)
 		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 		c.Header("Content-Disposition", contentDisposition(filename, "docx"))
 
@@ -165,6 +160,14 @@ func (h *DocumentPrintHandler[T]) Print(c *gin.Context) {
 func (h *DocumentPrintHandler[T]) ListPrintForms(c *gin.Context) {
 	forms := h.cfg.Registry.ListForms(h.cfg.DocType)
 	c.JSON(http.StatusOK, forms)
+}
+
+// printFilename names a download after the document title and number.
+func printFilename(data *printing.PrintData) string {
+	if data.Table == nil {
+		return sanitizeFilename(data.FormLabel)
+	}
+	return sanitizeFilename(strings.TrimSpace(data.Table.Title + " " + data.Table.Subtitle))
 }
 
 // contentDisposition builds a Content-Disposition header with RFC 5987 encoding

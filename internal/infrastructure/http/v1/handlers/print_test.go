@@ -11,13 +11,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
+	"metapus/internal/core/security"
 	"metapus/internal/domain"
 	"metapus/internal/domain/printing"
 	"metapus/internal/infrastructure/http/v1/middleware"
 )
 
 type printFixtureDoc struct {
-	TotalAmount int64
+	TotalAmount int64 `db:"total_amount" json:"totalAmount"`
 }
 
 type printFixtureService struct {
@@ -42,8 +43,8 @@ func TestPDFOutageLeavesHTMLAndDOCXAvailable(t *testing.T) {
 		handler := NewDocumentPrintHandler(NewBaseHandler(), DocumentPrintHandlerConfig[*printFixtureDoc]{
 			Service: printFixtureService{}, EntityName: "crypto_invoice", DocType: "crypto_invoice",
 			Registry: printing.NewPrintFormRegistry(), Renderer: renderer, PDFRenderer: pdf,
-			BuildPrintData: func(doc *printFixtureDoc, _ any, showPrices bool) *printing.PrintData {
-				return &printing.PrintData{Doc: doc, ShowPrices: showPrices, DecimalPlaces: 9, Table: &printing.PrintTable{Title: "Инвойс", Columns: []string{"Сумма"}}}
+			BuildPrintData: func(_ context.Context, doc *printFixtureDoc, _ *security.FieldPolicy) (*printing.PrintData, error) {
+				return &printing.PrintData{Doc: doc, Table: &printing.PrintTable{Title: "Инвойс", Columns: []string{"Сумма"}}}, nil
 			},
 		})
 		router := gin.New()
@@ -64,4 +65,47 @@ func TestPDFOutageLeavesHTMLAndDOCXAvailable(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestPrintBuildsFromReadProjectionWithCallerPolicy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	renderer, err := printadapter.NewRenderer()
+	require.NoError(t, err)
+	var seen *printFixtureDoc
+	var seenPolicy *security.FieldPolicy
+	handler := NewDocumentPrintHandler(NewBaseHandler(), DocumentPrintHandlerConfig[*printFixtureDoc]{
+		Service: printFixtureService{}, EntityName: "crypto_invoice", DocType: "crypto_invoice",
+		Registry: printing.NewPrintFormRegistry(), Renderer: renderer,
+		BuildPrintData: func(_ context.Context, doc *printFixtureDoc, policy *security.FieldPolicy) (*printing.PrintData, error) {
+			seen, seenPolicy = doc, policy
+			return &printing.PrintData{Table: &printing.PrintTable{Title: "Инвойс"}}, nil
+		},
+	})
+	policy := &security.FieldPolicy{AllowedFields: []string{"*", "-total_amount"}}
+	router := gin.New()
+	router.Use(middleware.ErrorHandler(), func(c *gin.Context) {
+		c.Request = c.Request.WithContext(security.WithFieldPolicies(c.Request.Context(), map[string]*security.FieldPolicy{"crypto_invoice:read": policy}))
+	})
+	router.GET("/document/:id/print", handler.Print)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/document/"+id.New().String()+"/print", nil))
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.Zero(t, seen.TotalAmount, "the template must see the FLS projection")
+	require.Same(t, policy, seenPolicy)
+	require.Contains(t, recorder.Body.String(), "Инвойс")
+}
+
+func TestPrintWithoutTemplatesFailsInsteadOfPanicking(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := NewDocumentPrintHandler(NewBaseHandler(), DocumentPrintHandlerConfig[*printFixtureDoc]{
+		Service: printFixtureService{}, EntityName: "crypto_invoice", DocType: "crypto_invoice",
+		Registry: printing.NewPrintFormRegistry(),
+	})
+	router := gin.New()
+	router.Use(middleware.ErrorHandler())
+	router.GET("/document/:id/print", handler.Print)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/document/"+id.New().String()+"/print", nil))
+	require.Equal(t, http.StatusInternalServerError, recorder.Code)
 }

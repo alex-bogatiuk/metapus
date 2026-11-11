@@ -35,7 +35,7 @@ type DocumentDeps struct {
 	EventWriter              eventlog.Writer        // optional — nil disables event logging
 	OutboxPublisher          domain.OutboxPublisher // optional — nil disables outbox events
 	PrintRegistry            *printing.PrintFormRegistry
-	PrintRenderer            *printadapter.Renderer // nil disables print route
+	PrintRenderer            *printadapter.Renderer // nil: print requests fail with an internal error
 	PDFRenderer              printing.PDFRenderer
 	RelatedDocFinder         domain.RelatedDocFinder // optional — nil disables related documents route
 	StepUpGuard              func(actionCode string) gin.HandlerFunc

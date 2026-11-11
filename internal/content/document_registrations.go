@@ -336,7 +336,8 @@ func (r *CryptoInvoiceRegistration) Build(deps v1.DocumentDeps) v1.DocumentRoute
 		decorated = cryptoapp.NewCheckoutInvoiceService(decorated, deps.CheckoutRefs)
 	}
 
-	return handlers.NewCryptoInvoiceHandler(deps.BaseHandler, decorated, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)
+	return handlers.NewCryptoInvoiceHandler(deps.BaseHandler, decorated, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo,
+		handlers.DocumentPrintDeps{Registry: deps.PrintRegistry, Renderer: deps.PrintRenderer, PDFRenderer: deps.PDFRenderer})
 }
 
 // ---------------------------------------------------------------------------

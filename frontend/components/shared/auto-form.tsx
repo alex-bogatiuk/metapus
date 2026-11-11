@@ -39,6 +39,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { FormToolbar } from "@/components/shared/form-toolbar"
+import { PrintMenuButton } from "@/components/shared/print-menu-button"
 import { ReasonedDecisionDialog } from "@/components/shared/reasoned-decision-dialog"
 import { decisionUnavailableReason, useReasonedDecision } from "@/hooks/useReasonedDecision"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
@@ -410,6 +411,8 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
     const canSetDeletionMark = supportsSetDeletionMark && protectionUnlocked
     const canShowMovements = isDocument && !isNew && hasDocCapability("movements")
     const canShowRelatedDocuments = isDocument && !isNew && hasDocCapability("relatedDocuments")
+    // Print forms are opt-in: an absent flag must not render a menu that 404s.
+    const canPrint = isDocument && !isNew && !!id && documentCapabilities?.printForms === true
     const formReadOnly = readOnly || (!isNew && isDocument && !canUpdate && !canRepost)
 
     const handleFieldChange = useCallback((name: string, value: JsonValue) => {
@@ -783,6 +786,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                 primaryAction={toolbarPrimaryAction}
                 secondaryActions={toolbarSecondaryActions}
                 extraMenuItems={toolbarExtraMenuItems.length > 0 ? toolbarExtraMenuItems : undefined}
+                printMenu={canPrint && id ? <PrintMenuButton documentType={routePrefix} documentId={id} /> : undefined}
                 toolbarIcons={isDocument && !isNew ? [
                     ...(formData.posted && canShowMovements ? [{
                         icon: <ArrowRightLeft className="h-3.5 w-3.5" />,
