@@ -35,7 +35,7 @@ func TestExternalOutflowBusyDefersObservationWithoutExhaustingAttempts(t *testin
 		require.NoError(t, pool.QueryRow(ctx, `SELECT id,payload FROM reg_crypto_chain_observations WHERE network_id=$1`, f.network).Scan(&observation.ID, &observation.Payload))
 		observation.NetworkID = f.network
 		holds := cryptoapp.NewOperationalHoldService(tm, crypto_repo.NewOperationalHoldRepo())
-		recorder := cryptoapp.NewExternalOutflowDetectionService(tm, crypto_repo.NewExpectedChainEffectRepo(), crypto_repo.NewObservedExternalOutflowRepo(),
+		recorder := cryptoapp.NewExternalOutflowDetectionService(tm, crypto_repo.NewExpectedTransferRepo(), crypto_repo.NewObservedExternalOutflowRepo(),
 			crypto_repo.NewExternalOutflowReconciliationRunRepo(), crypto_repo.NewExternalOutflowIncidentRepo(), crypto_repo.NewExternalOutflowObservationRepo(), crypto_repo.NewExternalOutflowActionRepo(), holds)
 		processor := &CryptoProcessor{workerID: "outflow-busy-test", eventProcessor: crypto.NewEventProcessor(crypto.EventProcessorConfig{TxManager: tm, OutflowRecorder: recorder})}
 		control, err := pool.Begin(ctx)

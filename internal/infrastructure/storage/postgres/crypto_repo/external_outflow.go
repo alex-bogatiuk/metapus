@@ -15,92 +15,6 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
-// ExpectedChainEffectRepo matches an observation only to the complete immutable
-// authorized effect. A previously matched event identity is not enough: its
-// payload is revalidated on every replay.
-type ExpectedChainEffectRepo struct{}
-
-func NewExpectedChainEffectRepo() *ExpectedChainEffectRepo { return &ExpectedChainEffectRepo{} }
-
-func (r *ExpectedChainEffectRepo) MatchExpectedChainEffect(ctx context.Context, event crypto.BlockchainEvent) (bool, error) {
-	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
-	eventKind := event.EffectiveEventKind()
-	// Multiple transfer events in one transaction must consume distinct expected
-	// effects deterministically. The transaction-scoped lock also makes the
-	// following INSERT/SELECT upsert path safe from invisible concurrent rows.
-	if _, err := q.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, event.NetworkID.String()+":"+event.TxHash); err != nil {
-		return false, fmt.Errorf("serialize expected chain effect matching: %w", err)
-	}
-	var matched bool
-	if err := q.QueryRow(ctx, `
-		SELECT EXISTS(
-		  SELECT 1
-		  FROM reg_crypto_chain_effect_matches matched
-		  JOIN reg_crypto_expected_chain_effects effect ON effect.id=matched.expected_effect_id
-		  JOIN cat_blockchain_networks network ON network.id=effect.network_id
-		  WHERE matched.network_id=$1 AND matched.tx_hash=$2
-		    AND matched.event_kind=$3 AND matched.event_index=$4
-		    AND effect.source_address_key=CASE WHEN network.chain_family='evm' THEN lower($5) ELSE $5 END
-		    AND effect.destination_address_key=CASE WHEN network.chain_family='evm' THEN lower($6) ELSE $6 END
-		    AND effect.contract_address_key=CASE WHEN network.chain_family='evm' THEN lower($7) ELSE $7 END
-		    AND effect.token_id=(
-		      SELECT token.id FROM cat_tokens token
-		      WHERE token.network_id=$1 AND token.deletion_mark=FALSE
-		        AND CASE WHEN network.chain_family='evm'
-		                 THEN lower(COALESCE(token.contract_address,''))=lower($7)
-		                 ELSE COALESCE(token.contract_address,'')=$7 END
-		      ORDER BY token.id LIMIT 1
-		    )
-		    AND effect.amount=$8
-		)
-	`, event.NetworkID, event.TxHash, eventKind, event.EventIndex, event.FromAddress,
-		event.ToAddress, event.TokenContract, event.Amount).Scan(&matched); err != nil {
-		return false, fmt.Errorf("check existing exact chain effect match: %w", err)
-	}
-	if matched {
-		return true, nil
-	}
-
-	var matchID id.ID
-	err := q.QueryRow(ctx, `
-		INSERT INTO reg_crypto_chain_effect_matches (
-			expected_effect_id,network_id,tx_hash,event_kind,event_index,matched_source
-		)
-		SELECT effect.id,$1,$2,$3,$4,'chain-watcher'
-		FROM reg_crypto_expected_chain_effects effect
-		JOIN cat_blockchain_networks network ON network.id=effect.network_id
-		WHERE effect.network_id=$1 AND effect.tx_hash=$2 AND effect.event_kind=$3
-		  AND effect.source_address_key=CASE WHEN network.chain_family='evm' THEN lower($5) ELSE $5 END
-		  AND effect.destination_address_key=CASE WHEN network.chain_family='evm' THEN lower($6) ELSE $6 END
-		  AND effect.contract_address_key=CASE WHEN network.chain_family='evm' THEN lower($7) ELSE $7 END
-		  AND effect.token_id=(
-		    SELECT token.id FROM cat_tokens token
-		    WHERE token.network_id=$1 AND token.deletion_mark=FALSE
-		      AND CASE WHEN network.chain_family='evm'
-		               THEN lower(COALESCE(token.contract_address,''))=lower($7)
-		               ELSE COALESCE(token.contract_address,'')=$7 END
-		    ORDER BY token.id LIMIT 1
-		  )
-		  AND effect.amount=$8
-		  AND NOT EXISTS (
-		    SELECT 1 FROM reg_crypto_chain_effect_matches consumed
-		    WHERE consumed.expected_effect_id=effect.id
-		  )
-		ORDER BY effect.ordinal
-		LIMIT 1
-		ON CONFLICT DO NOTHING
-		RETURNING id
-	`, event.NetworkID, event.TxHash, eventKind, event.EventIndex, event.FromAddress,
-		event.ToAddress, event.TokenContract, event.Amount).Scan(&matchID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("match expected chain effect: %w", err)
-	}
-	return !id.IsNil(matchID), nil
-}
-
 // ObservedExternalOutflowRepo persists one exact observed effect identity.
 type ObservedExternalOutflowRepo struct{}
 
@@ -371,7 +285,7 @@ func externalOutflowFinality(event crypto.BlockchainEvent) string {
 }
 
 var (
-	_ cryptoapp.ExpectedChainEffectMatcher                 = (*ExpectedChainEffectRepo)(nil)
+	_ cryptoapp.ExpectedChainEffectMatcher                 = (*ExpectedTransferRepo)(nil)
 	_ cryptoapp.ObservedExternalOutflowRepository          = (*ObservedExternalOutflowRepo)(nil)
 	_ cryptoapp.ExternalOutflowReconciliationRunRepository = (*ExternalOutflowReconciliationRunRepo)(nil)
 	_ cryptoapp.ExternalOutflowIncidentRepository          = (*ExternalOutflowIncidentRepo)(nil)

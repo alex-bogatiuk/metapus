@@ -220,6 +220,15 @@ func TestExpectedTransferEconomicMatchingAndAmbiguity(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, handled)
 	require.Equal(t, []int{2, 0, 0, 2, 0}, f.counts(t))
+	// A routed observation identity is not remembered as "known": a replay of the
+	// same chain identity with another payload is revalidated and rejected.
+	replay := f.event
+	replay.VerificationID = nil
+	replay.Amount = replay.Amount.Add(replay.Amount)
+	handled, err = f.route(replay)
+	require.NoError(t, err)
+	require.False(t, handled)
+	require.Equal(t, []int{2, 0, 0, 2, 0}, f.counts(t))
 	delivered, err := NewExpectedTransferRepo().NudgePending(f.ctx, 50)
 	require.NoError(t, err)
 	require.Zero(t, delivered)

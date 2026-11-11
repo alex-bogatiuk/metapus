@@ -29,139 +29,6 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
 )
 
-func TestIntegrationOnlyExactExpectedEffectMakesOutboundKnown(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
-	if dsn == "" {
-		t.Fatal("METAPUS_TEST_CRYPTO_DSN is required for integration tests")
-	}
-
-	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, dsn)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
-	ctx = tenant.WithTxManager(ctx, txm)
-
-	errRollback := errors.New("rollback integration fixture")
-	err = txm.RunInTransaction(ctx, func(txCtx context.Context) error {
-		q := txm.GetQuerier(txCtx)
-		var networkID, tokenID id.ID
-		var networkCode, networkIdentifier string
-		var chainFamily crypto.ChainFamily
-		if err := q.QueryRow(txCtx, `
-			SELECT n.id, n.code, n.network_identifier, n.chain_family, t.id
-			FROM cat_blockchain_networks n
-			JOIN cat_tokens t ON t.network_id=n.id AND t.contract_address='' AND t.deletion_mark=FALSE
-			WHERE n.deletion_mark = FALSE
-			ORDER BY n.created_at
-			LIMIT 1
-		`).Scan(&networkID, &networkCode, &networkIdentifier, &chainFamily, &tokenID); err != nil {
-			return err
-		}
-
-		txHash := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-		networkSequence := ""
-		if chainFamily == crypto.ChainFamilyEVM {
-			networkSequence = "0"
-		}
-		var signingAuthorizationID id.ID
-		err := q.QueryRow(txCtx, `
-			INSERT INTO reg_crypto_signing_authorizations (
-				authorization_id, tenant_id, purpose, schema_version, network_id, network_code,
-				network_identifier, chain_family, source_address, fee_payer_address,
-				vault_key_id, destination_address, asset_standard, amount_minor_units,
-				max_network_fee_minor, unsigned_fingerprint, basis_type, basis_id,
-				expires_at, policy_version,
-				status, authorization_jws, tx_hash, unsigned_envelope,
-				approval_bundle_digest, approval_bundle_json, network_sequence
-			) VALUES (
-				$1, 'integration-test', 'sweep', $2, $3, $4,
-				$5, $6, 'TSource', 'TSource',
-				'test-key', 'TDestination', 'TRC-20', 1,
-				0, $10, 'CryptoSweepAttempt', $7, $8, $9,
-				'broadcast', 'test-jws', $10, '{}'::jsonb,
-				'', '{}'::jsonb, $11
-			)
-			RETURNING id
-		`, id.New().String(), crypto.SigningAuthorizationSchemaVersion, networkID, networkCode,
-			networkIdentifier, chainFamily, id.New(), time.Now().Add(time.Hour),
-			crypto.SigningAuthorizationPolicyVersion(chainFamily), txHash, networkSequence).Scan(&signingAuthorizationID)
-		if err != nil {
-			return err
-		}
-		sourceKey, destinationKey := "TSource", "TDestination"
-		if chainFamily == crypto.ChainFamilyEVM {
-			sourceKey, destinationKey = lowerAddressKey(sourceKey), lowerAddressKey(destinationKey)
-		}
-		if _, err := q.Exec(txCtx, `
-			INSERT INTO reg_crypto_expected_chain_effects (
-				signing_authorization_id, ordinal, network_id, event_kind,
-				source_address_key, destination_address_key, token_id, contract_address_key,
-				amount, tx_hash
-			) VALUES
-			  ($1,0,$2,'native_value',$3,$4,$5,'',1,$6),
-			  ($1,1,$2,'native_value',$3,$4,$5,'',1,$6)
-		`, signingAuthorizationID, networkID, sourceKey, destinationKey, tokenID, txHash); err != nil {
-			return err
-		}
-
-		repo := NewExpectedChainEffectRepo()
-		event := crypto.BlockchainEvent{
-			NetworkID: networkID, TxHash: txHash, EventKind: crypto.EventKindNativeValue,
-			EventIndex: 0, FromAddress: "TSource", ToAddress: "TDestination",
-			Amount: types.MustCryptoAmount("1"),
-		}
-		known, err := repo.MatchExpectedChainEffect(txCtx, event)
-		if err != nil {
-			return err
-		}
-		if !known {
-			return fmt.Errorf("signing authorization tx was not recognized as known outbound")
-		}
-		event.Amount = types.MustCryptoAmount("2")
-		known, err = repo.MatchExpectedChainEffect(txCtx, event)
-		if err != nil {
-			return err
-		}
-		if known {
-			return fmt.Errorf("previously matched event identity hid a different amount")
-		}
-		event.Amount = types.MustCryptoAmount("1")
-		event.EventIndex = 1
-		known, err = repo.MatchExpectedChainEffect(txCtx, event)
-		if err != nil {
-			return err
-		}
-		if !known {
-			return fmt.Errorf("second identical expected effect was not matched to its own event index")
-		}
-		event.EventIndex = 0
-
-		event.NetworkID = id.New()
-		known, err = repo.MatchExpectedChainEffect(txCtx, event)
-		if err != nil {
-			return err
-		}
-		if known {
-			return fmt.Errorf("signing authorization tx leaked across network scope")
-		}
-
-		event.NetworkID = networkID
-		event.EventIndex = 1
-		event.Amount = types.MustCryptoAmount("2")
-		known, err = repo.MatchExpectedChainEffect(txCtx, event)
-		if err != nil {
-			return err
-		}
-		if known {
-			return fmt.Errorf("tx hash with wrong amount was recognized as expected")
-		}
-
-		return errRollback
-	})
-	require.ErrorIs(t, err, errRollback)
-}
-
 func TestExternalOutflowCreatesOneIncidentAndFailClosedHolds(t *testing.T) {
 	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
 	if dsn == "" {
@@ -549,7 +416,7 @@ func newIntegrationExternalOutflowRecorder(txm *postgres.TxManager) crypto.Exter
 	holds := cryptoapp.NewOperationalHoldService(txm, NewOperationalHoldRepo())
 	return cryptoapp.NewExternalOutflowDetectionService(
 		txm,
-		NewExpectedChainEffectRepo(),
+		NewExpectedTransferRepo(),
 		NewObservedExternalOutflowRepo(),
 		NewExternalOutflowReconciliationRunRepo(),
 		NewExternalOutflowIncidentRepo(),
