@@ -2107,7 +2107,6 @@ export const EntityMetadataResponseSchema: z.ZodType<Wire.EntityMetadataResponse
   "actions": z.array(MetadataEntityActionDefSchema).optional(),
   "protection": MetadataDocumentProtectionSchema.optional(),
   "previewFields": z.array(MetadataPreviewFieldDefSchema).optional(),
-  "customFields": z.array(MetadataFieldDefSchema).optional(),
 }))
 
 export const EntityMockResponseSchema: z.ZodType<Wire.EntityMockResponse> = z.lazy(() => z.record(z.string(), jsonValueSchema))

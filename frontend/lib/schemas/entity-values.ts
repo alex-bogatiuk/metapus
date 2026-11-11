@@ -41,10 +41,8 @@ export function parseEntityValues(meta: EntityMetadata, value: JsonValue, direct
   const data = jsonObjectSchema.parse(value)
   if (direction === "response") recordIdentity.parse(data)
   validateFields(meta.fields, data, direction)
-  if (data.attributes !== undefined && data.attributes !== null) {
-    const attributes = jsonObjectSchema.parse(data.attributes)
-    validateFields((meta.customFields ?? []).map(field => ({ ...field, name: field.name.replace(/^attributes\./, "") })), attributes, direction)
-  }
+  // Attributes stay a free JSON object; metadata does not type its keys.
+  if (data.attributes !== undefined && data.attributes !== null) jsonObjectSchema.parse(data.attributes)
   for (const part of meta.tableParts ?? []) {
     if (data[part.name] === undefined || data[part.name] === null) continue
     const rows = z.array(jsonObjectSchema).parse(data[part.name])

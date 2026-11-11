@@ -12,7 +12,6 @@ import (
 	"metapus/internal/domain/auth"
 	"metapus/internal/domain/eventlog"
 	"metapus/internal/domain/listview"
-	"metapus/internal/infrastructure/cache"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/reporting/compiler"
@@ -34,8 +33,8 @@ func deriveEntityKey(permission string) string {
 }
 
 // registerMetaRoutes registers metadata/schema endpoints.
-func registerMetaRoutes(rg *gin.RouterGroup, reg *metadata.Registry, schemaCache *cache.SchemaCache) {
-	handler := handlers.NewMetadataHandler(reg, schemaCache)
+func registerMetaRoutes(rg *gin.RouterGroup, reg *metadata.Registry) {
+	handler := handlers.NewMetadataHandler(reg)
 	meta := rg.Group("/meta")
 	{
 		meta.GET("", handler.ListEntities)
@@ -109,7 +108,7 @@ func registerSecurityRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 
 // registerSystemRoutes registers system administration endpoints (event log, custom fields, processing).
 // wsGroup is a separate group with TenantDB but without Auth middleware — used for ticket-based WebSocket auth.
-func registerSystemRoutes(rg *gin.RouterGroup, wsGroup *gin.RouterGroup, cfg RouterConfig, eventLogReader eventlog.Reader, schemaCache *cache.SchemaCache, reg *metadata.Registry, wsTicketStore *auth.WSTicketStore, reportCompiler *compiler.Compiler) {
+func registerSystemRoutes(rg *gin.RouterGroup, wsGroup *gin.RouterGroup, cfg RouterConfig, eventLogReader eventlog.Reader, reg *metadata.Registry, wsTicketStore *auth.WSTicketStore, reportCompiler *compiler.Compiler) {
 	sysGroup := rg.Group("/system")
 	sysGroup.Use(middleware.RequireRole("admin"))
 	requireStepUp := func(actionCode string) gin.HandlerFunc {
@@ -122,18 +121,6 @@ func registerSystemRoutes(rg *gin.RouterGroup, wsGroup *gin.RouterGroup, cfg Rou
 		sysGroup.GET("/event-log/stats", eventLogHandler.Stats)
 		sysGroup.GET("/event-log/trace/:traceId", eventLogHandler.Trace)
 		sysGroup.GET("/event-log/:id", eventLogHandler.Get)
-	}
-
-	// Custom field schema management (sys_custom_field_schemas)
-	customFieldRepo := postgres.NewCustomFieldRepo()
-	customFieldHandler := handlers.NewCustomFieldHandler(handlers.NewBaseHandler(), customFieldRepo, schemaCache)
-	cfGroup := sysGroup.Group("/custom-fields")
-	{
-		cfGroup.GET("", customFieldHandler.List)
-		cfGroup.POST("", requireStepUp("system.custom_fields.create"), customFieldHandler.Create)
-		cfGroup.GET("/:id", customFieldHandler.Get)
-		cfGroup.PUT("/:id", requireStepUp("system.custom_fields.update"), customFieldHandler.Update)
-		cfGroup.DELETE("/:id", requireStepUp("system.custom_fields.delete"), customFieldHandler.Delete)
 	}
 
 	// Notifications & Real-Time Hub

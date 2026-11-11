@@ -180,7 +180,6 @@ export function resolveDefaultVisibleKeys(
 
 export interface MergeListColumnsOptions {
     fields: MetadataField[]
-    customFields?: MetadataField[]
     overlay?: AutoListColumn[]
     entityName: string
 }
@@ -227,10 +226,10 @@ function applyOverlay(base: AutoListColumn, overlay: AutoListColumn): AutoListCo
  * presentation (render / width / label) merged by canonical key.
  */
 export function mergeListColumns(options: MergeListColumnsOptions): AutoListColumn[] {
-    const { fields, customFields, overlay, entityName } = options
+    const { fields, overlay, entityName } = options
     const metaColumns: AutoListColumn[] = []
     const seenMeta = new Set<string>()
-    for (const field of [...fields, ...(customFields ?? [])]) {
+    for (const field of fields) {
         if (isSkippedListField(field)) continue
         const col = columnFromField(field, entityName)
         if (seenMeta.has(col.key)) continue
@@ -265,7 +264,7 @@ export function mergeListColumns(options: MergeListColumnsOptions): AutoListColu
     return result
 }
 
-/** Read a row value, including dotted custom-field keys (`attributes.foo`). */
+/** Read a row value, including dotted keys (`attributes.foo`). */
 export function getFieldValue(item: JsonObject, key: string): JsonValue | undefined {
     if (!key.includes(".")) return item[key]
     let current: JsonValue | undefined = item

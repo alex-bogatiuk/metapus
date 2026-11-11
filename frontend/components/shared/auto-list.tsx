@@ -58,7 +58,6 @@ interface AutoListProps {
     renderSelectionPanel?: (item: DynamicRow | null, refresh: () => void) => React.ReactNode
 }
 
-const EMPTY_METADATA_FIELDS: MetadataField[] = []
 
 /**
  * Converts AutoListColumn[] to Column<Record<string, unknown>>[]
@@ -155,7 +154,6 @@ export default function AutoList({ entityName, entityType, routePrefix, renderSe
     const [metadata, setMetadata] = useState<{
         entityName: string
         fields: MetadataField[]
-        customFields: MetadataField[]
         failed: boolean
     } | null>(null)
 
@@ -167,13 +165,12 @@ export default function AutoList({ entityName, entityType, routePrefix, renderSe
                 setMetadata({
                     entityName,
                     fields: meta.fields ?? [],
-                    customFields: meta.customFields ?? [],
                     failed: false,
                 })
             })
             .catch(() => {
                 if (!cancelled) {
-                    setMetadata({ entityName, fields: [], customFields: [], failed: true })
+                    setMetadata({ entityName, fields: [], failed: true })
                 }
             })
         return () => { cancelled = true }
@@ -182,17 +179,15 @@ export default function AutoList({ entityName, entityType, routePrefix, renderSe
     const cached = readCachedMetaEntity(entityName)
     const effectiveMetadata = (metadata?.entityName === entityName)
         ? metadata
-        : (cached ? { entityName, fields: cached.fields ?? [], customFields: cached.customFields ?? [], failed: false } : null)
+        : (cached ? { entityName, fields: cached.fields ?? [], failed: false } : null)
 
     const metaFields = effectiveMetadata?.fields ?? null
-    const customFields = effectiveMetadata?.customFields ?? EMPTY_METADATA_FIELDS
     const metaFailed = effectiveMetadata?.failed ?? false
 
     const rawColumns = useMemo<AutoListColumn[]>(() => {
         if (metaFields) {
             return mergeListColumns({
                 fields: metaFields,
-                customFields,
                 overlay: [...(regEntry?.listColumns ?? []), ...(additionalColumns ?? [])],
                 entityName,
             })
@@ -207,7 +202,7 @@ export default function AutoList({ entityName, entityType, routePrefix, renderSe
             ]
         }
         return []
-    }, [metaFields, customFields, metaFailed, regEntry, entityName, additionalColumns])
+    }, [metaFields, metaFailed, regEntry, entityName, additionalColumns])
 
     const defaultVisibleKeys = useMemo(
         () => resolveDefaultVisibleKeys(regEntry?.defaultVisibleKeys, rawColumns, entityType),

@@ -162,10 +162,6 @@ type EntityDef struct {
 	// Set via SetRefEndpoints(); used by ToFilterMeta().
 	RefEndpoints map[string]string `json:"-"`
 
-	// CustomFields are dynamically-defined fields from sys_custom_field_schemas,
-	// merged at runtime via MergeCustomFields(). They extend core Fields.
-	CustomFields []FieldDef `json:"customFields,omitempty"`
-
 	// RLSDimensions maps security dimension names to DB column names.
 	// Used by global search to inject WHERE conditions from DataScope.
 	// E.g. {"organization": "organization_id"}.
@@ -329,20 +325,6 @@ func (d *EntityDef) ToFilterMeta(reg *Registry) []FilterFieldMeta {
 			result = append(result, meta)
 		}
 	}
-	// Custom fields → each becomes a filter field with group = "Additional attributes"
-	for _, cf := range d.CustomFields {
-		meta := FilterFieldMeta{
-			Key:       cf.Name,
-			Label:     cf.Label,
-			FieldType: filterFieldType(cf.Type),
-			Group:     "Additional attributes",
-		}
-		if cf.Type == TypeReference && d.RefEndpoints != nil {
-			meta.RefEndpoint = d.RefEndpoints[cf.ReferenceType]
-		}
-		result = append(result, meta)
-	}
-
 	return result
 }
 
@@ -387,16 +369,6 @@ func (m *FilterFieldMeta) enrichRefFields(refType string, reg *Registry) {
 // Called during registry setup so that ToFilterMeta() can emit refEndpoint for reference fields.
 func (d *EntityDef) SetRefEndpoints(endpoints map[string]string) {
 	d.RefEndpoints = endpoints
-}
-
-// MergeCustomFields installs independent descriptions supplied by an adapter.
-// It replaces the previous snapshot, including removal of all custom fields.
-func (d *EntityDef) MergeCustomFields(fields []FieldDef) {
-	d.CustomFields = make([]FieldDef, len(fields))
-	copy(d.CustomFields, fields)
-	for i := range d.CustomFields {
-		d.CustomFields[i].Options = append([]string(nil), fields[i].Options...)
-	}
 }
 
 // GenerateMock builds a sample JSON-compatible map with realistic placeholder values

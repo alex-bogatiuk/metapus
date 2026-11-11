@@ -25,7 +25,6 @@ import (
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/printing"
 	"metapus/internal/domain/security_profile"
-	"metapus/internal/infrastructure/cache"
 	_ "metapus/internal/infrastructure/http/jsoncodec"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
@@ -97,10 +96,6 @@ type RouterConfig struct {
 	// CurrencyMetadataResolver resolves currency metadata (decimalPlaces, symbol).
 	// Used by outbox decorators to enrich automation events.
 	CurrencyMetadataResolver domain.CurrencyMetadataResolver
-
-	// SchemaCache for metadata-driven features (optional).
-	// Provides custom fields merge with static metadata.
-	SchemaCache *cache.SchemaCache
 
 	// Version is the server binary version (set via ldflags).
 	Version string
@@ -269,7 +264,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		registerDocumentRoutes(protected, cfg, factoryReg, reg, eventLogRepo)
 		registerRegisterRoutes(protected, cfg, factoryReg, reg)
 		reportCompiler := registerReportRoutes(protected, cfg, factoryReg, reg)
-		registerMetaRoutes(protected, reg, cfg.SchemaCache)
+		registerMetaRoutes(protected, reg)
 		registerRefResolverRoutes(protected, reg)
 		registerUserPrefsRoutes(protected)
 		registerListViewRoutes(protected)
@@ -283,7 +278,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		wsGroup := v1.Group("")
 		wsGroup.Use(middleware.TenantDB(cfg.TenantManager))
 
-		registerSystemRoutes(protected, wsGroup, cfg, eventLogRepo, cfg.SchemaCache, reg, cfg.WSTicketStore, reportCompiler)
+		registerSystemRoutes(protected, wsGroup, cfg, eventLogRepo, reg, cfg.WSTicketStore, reportCompiler)
 
 		// Global data search (Ctrl+K) — available to all authenticated users.
 		// Must be registered after entity routes so metadata.Registry is populated.

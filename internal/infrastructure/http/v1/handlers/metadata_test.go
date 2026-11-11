@@ -40,7 +40,7 @@ func TestListEntitiesSummaryIncludesDocumentCapabilitiesAndActions(t *testing.T)
 	})
 
 	router := gin.New()
-	handler := NewMetadataHandler(reg, nil)
+	handler := NewMetadataHandler(reg)
 	router.GET("/meta/entities", handler.ListEntitiesSummary)
 
 	rec := httptest.NewRecorder()

@@ -9,8 +9,7 @@ import { useMetadataStore } from "../../stores/useMetadataStore"
 
 const metadata = { key: "extension", name: "Extension", type: "catalog", presentation: { singular: "Карточка", plural: "Карточки" },
   fields: [{ name: "name", type: "string" }, { name: "amount", type: "money" }, { name: "active", type: "boolean" }],
-  tableParts: [{ name: "lines", columns: [{ name: "amount", type: "money" }] }],
-  customFields: [{ name: "attributes.amount", type: "money" }] }
+  tableParts: [{ name: "lines", columns: [{ name: "amount", type: "money" }] }] }
 
 test.describe.configure({ mode: "serial" })
 const nativeFetch = globalThis.fetch
@@ -39,13 +38,15 @@ test("invalid metadata never reaches caches and subsequent requests can retry", 
   expect(useMetadataStore.getState().entities).toEqual([])
 })
 
-test("AutoForm validates monetary headers, lines and custom fields before publishing or sending", () => {
+test("AutoForm validates monetary headers and lines before publishing or sending", () => {
   const meta = entityMetadataSchema.parse(metadata)
   const valid = { id: "card", version: 1, name: "Name", amount: "9007199254740993", active: false,
     lines: [{ amount: "-9223372036854775808" }], attributes: { amount: "1" } }
   expect(parseEntityValues(meta, valid)).toEqual(valid)
+  // Attributes are a free JSON object: no metadata types its keys, but its shape is checked.
+  expect(parseEntityValues(meta, { ...valid, attributes: { amount: 123 } }).attributes).toEqual({ amount: 123 })
   for (const value of [{ ...valid, amount: 123 }, { ...valid, active: "false" }, { ...valid, name: {} },
-    { ...valid, lines: [null] }, { ...valid, lines: [{ amount: 123 }] }, { ...valid, attributes: { amount: 123 } },
+    { ...valid, lines: [null] }, { ...valid, lines: [{ amount: 123 }] }, { ...valid, attributes: ["amount"] },
     { ...valid, lines: [{ amount: "9223372036854775808" }] }]) {
     expect(() => parseEntityValues(meta, value)).toThrow()
     expect(() => parseEntityValues(meta, value, "request")).toThrow()

@@ -2103,7 +2103,6 @@ export type EntityMetadataResponse = {
   "actions"?: Array<MetadataEntityActionDef>
   "protection"?: MetadataDocumentProtection
   "previewFields"?: Array<MetadataPreviewFieldDef>
-  "customFields"?: Array<MetadataFieldDef>
 }
 
 export type EntityMockResponse = Record<string, JsonValue>

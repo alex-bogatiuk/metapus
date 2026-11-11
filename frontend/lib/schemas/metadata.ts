@@ -19,17 +19,15 @@ export type EntitySummary = Omit<Contract.EntitySummaryResponse, "type" | "actio
 export const entitySummarySchema: z.ZodType<EntitySummary> = Wire.EntitySummaryResponseSchema.and(z.object({
   type: entityTypeSchema, actions: z.array(entityActionSchema).optional(),
 }))
-export type EntityMetadata = Omit<Contract.EntityMetadataResponse, "type" | "fields" | "customFields" | "tableParts" | "actions"> & {
+export type EntityMetadata = Omit<Contract.EntityMetadataResponse, "type" | "fields" | "tableParts" | "actions"> & {
   type: z.infer<typeof entityTypeSchema>
   fields: MetadataField[]
-  customFields?: MetadataField[]
   tableParts?: { name: string; label?: string; columns: MetadataField[] }[]
   actions?: MetadataAction[]
 }
 const baseEntityMetadataSchema: z.ZodType<EntityMetadata> = Wire.EntityMetadataResponseSchema.and(z.object({
   type: entityTypeSchema,
   fields: z.array(metadataFieldSchema),
-  customFields: z.array(metadataFieldSchema).optional(),
   tableParts: z.array(z.object({ name: z.string(), label: z.string().optional(), columns: z.array(metadataFieldSchema) })).optional(),
   actions: z.array(entityActionSchema).optional(),
 }))

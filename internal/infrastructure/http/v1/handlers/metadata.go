@@ -5,21 +5,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/infrastructure/cache"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/metadata"
 )
 
 type MetadataHandler struct {
-	registry    *metadata.Registry
-	schemaCache *cache.SchemaCache
+	registry *metadata.Registry
 }
 
-func NewMetadataHandler(registry *metadata.Registry, schemaCache *cache.SchemaCache) *MetadataHandler {
-	return &MetadataHandler{
-		registry:    registry,
-		schemaCache: schemaCache,
-	}
+func NewMetadataHandler(registry *metadata.Registry) *MetadataHandler {
+	return &MetadataHandler{registry: registry}
 }
 
 // ListEntities returns a list of all registered entities (summarized).
@@ -56,8 +51,6 @@ func (h *MetadataHandler) ListEntitiesSummary(c *gin.Context) {
 func (h *MetadataHandler) GetEntity(c *gin.Context) {
 	name := c.Param("name")
 	if def, ok := h.registry.Get(name); ok {
-		// Merge custom fields from cache before returning
-		h.mergeCustomFields(&def)
 		c.JSON(http.StatusOK, def)
 	} else {
 		c.Status(http.StatusNotFound)
@@ -74,8 +67,6 @@ func (h *MetadataHandler) GetEntityMock(c *gin.Context) {
 		c.Status(http.StatusNotFound)
 		return
 	}
-	// Merge custom fields so mock data includes them
-	h.mergeCustomFields(&def)
 	c.JSON(http.StatusOK, def.GenerateMock())
 }
 
@@ -89,34 +80,5 @@ func (h *MetadataHandler) GetEntityFilters(c *gin.Context) {
 		c.Status(http.StatusNotFound)
 		return
 	}
-	// Merge custom fields so they appear in filters
-	h.mergeCustomFields(&def)
 	c.JSON(http.StatusOK, def.ToFilterMeta(h.registry))
-}
-
-// mergeCustomFields translates the cache snapshot without coupling metadata to storage.
-func (h *MetadataHandler) mergeCustomFields(def *metadata.EntityDef) {
-	if h.schemaCache == nil {
-		return
-	}
-	fields := make([]metadata.FieldDef, 0)
-	for _, cf := range h.schemaCache.GetCustomFields(def.Key) {
-		fieldType := metadata.TypeString
-		switch cf.FieldType {
-		case "integer":
-			fieldType = metadata.TypeInteger
-		case "decimal":
-			fieldType = metadata.TypeNumber
-		case "boolean":
-			fieldType = metadata.TypeBoolean
-		case "date", "datetime":
-			fieldType = metadata.TypeDate
-		case "reference":
-			fieldType = metadata.TypeReference
-		case "enum":
-			fieldType = metadata.TypeEnum
-		}
-		fields = append(fields, metadata.FieldDef{Name: "attributes." + cf.FieldName, Label: cf.DisplayName, Type: fieldType, Required: cf.IsRequired, Options: append([]string(nil), cf.EnumValues...), ReferenceType: cf.ReferenceType})
-	}
-	def.MergeCustomFields(fields)
 }
