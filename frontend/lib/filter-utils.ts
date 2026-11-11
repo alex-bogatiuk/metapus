@@ -316,25 +316,3 @@ export function buildFilterItems(
     return items
 }
 
-/**
- * Check if any filter entries are active.
- */
-export function hasActiveFilters(values: FilterValues): boolean {
-    return Object.values(values).some((entry) => {
-        if (!entry) return false
-        if (isNullaryOperator(entry.operator)) return true
-        const v = entry.value
-        if (v === undefined || v === null || v === "") return false
-        if (Array.isArray(v)) return v.length > 0
-        // Reference { id, name } — active if id is non-empty
-        if (typeof v === "object" && v !== null && "id" in v) {
-            return !!(v as { id: string }).id
-        }
-        // Date period { from?, to? } — active if at least one bound is set
-        if (typeof v === "object" && v !== null && ("from" in v || "to" in v)) {
-            const r = v as { from?: string; to?: string }
-            return !!(r.from || r.to)
-        }
-        return true
-    })
-}

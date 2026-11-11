@@ -9,12 +9,10 @@ import { exactFilterEntryError } from "@/lib/filter-numbers"
 
 import type { FilterFieldMeta } from "@/types/filter"
 import {
-    getDefaultOperator,
     indexFilterFields,
     isBetweenOperator,
     isListOperator,
     isNullaryOperator,
-    type FilterEntry,
 } from "@/lib/filter-utils"
 import type { ComparisonOperator } from "@/types/common"
 import { getFieldValue } from "@/lib/metadata-columns"
@@ -143,13 +141,6 @@ export function extractFilterValue(
             const text = String(value).trim()
             return text === "" || text === "—" ? undefined : text
         }
-    }
-}
-
-export function buildColumnFilterEntry(field: FilterFieldMeta, value: FilterValue): FilterEntry {
-    return {
-        operator: getDefaultOperator(field.fieldType),
-        value,
     }
 }
 

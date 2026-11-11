@@ -74,14 +74,6 @@ export function buildEntityUrlByRoute(
   return base
 }
 
-/**
- * Build list URL for a document type key (e.g. "crypto_invoice" → "/documents/crypto-invoices").
- * Returns "#" if metadata is not available.
- */
-export function buildDocumentListUrl(entityKey: string): string {
-  return buildEntityUrl(entityKey) ?? "#"
-}
-
 // ── Reverse URL parsing ──────────────────────────────────────────────────
 
 /**

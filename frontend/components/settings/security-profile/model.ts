@@ -5,11 +5,6 @@ import type {
   SecurityProfileResponse
 } from "@/types/security"
 
-export const KNOWN_ACTIONS: { value: "read" | "write"; label: string }[] = [
-  { value: "read", label: "Просмотр поля" },
-  { value: "write", label: "Редактирование поля" },
-]
-
 export const RULE_ACTIONS: { value: string; label: string }[] = [
   { value: "create", label: "Создание" },
   { value: "read", label: "Чтение" },

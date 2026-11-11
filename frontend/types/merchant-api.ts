@@ -183,10 +183,6 @@ export const MERCHANT_ROLES: { value: MerchantRole; label: string; description: 
   { value: MerchantRole.Viewer, label: 'Наблюдатель', description: 'Только чтение платёжных документов' },
 ]
 
-export function merchantRoleLabel(role: MerchantRole): string {
-  return MERCHANT_ROLES.find((r) => r.value === role)?.label ?? String(role)
-}
-
 export interface MerchantUserItem {
   userId: string
   merchantId: string
