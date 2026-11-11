@@ -69,8 +69,8 @@ func (r *AMLRepository) RegisterAMLOperatingReceipt(ctx context.Context, effectI
 	return receiptID, err
 }
 
-// LockAMLResourceScopes precedes any reservation row lock. Schema 89 locks the
-// complete payer owner/network scope set for legacy and model 2 reservations.
+// LockAMLResourceScopes precedes any reservation row lock. It locks the
+// complete payer owner/network scope set of the reservation.
 func LockAMLResourceScopes(ctx context.Context, reservationID id.ID) error {
 	_, err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).Exec(ctx, `SELECT fn_crypto_aml_lock_resource_scopes($1)`, reservationID)
 	return err

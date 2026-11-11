@@ -136,11 +136,11 @@ func TestIntegrationActivationFinalityPostsDocumentOnce(t *testing.T) {
 			require.True(t, finalized.Posted)
 			require.False(t, finalized.ManualEditAllowed)
 			require.True(t, types.NewCryptoAmountFromInt64(25).Equal(finalized.CostAmount))
-			// Historical model 1 repair must replay the original owner and fee
-			// without introducing another posting, for success and revert alike.
+			// Cost repair must replay the original owner and fee without
+			// introducing another posting, for success and revert alike.
 			_, err = pool.Exec(ctx, `UPDATE reg_crypto_account_activations SET cost_status='unknown' WHERE id=$1`, activationID)
 			require.NoError(t, err)
-			repairs, err := NewOutboundRepo().ClaimActivationCostRepairs(ctx, "legacy-cost-repair", 100)
+			repairs, err := NewOutboundRepo().ClaimActivationCostRepairs(ctx, "cost-repair", 100)
 			require.NoError(t, err)
 			var repaired bool
 			for _, repair := range repairs {

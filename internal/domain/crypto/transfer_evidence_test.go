@@ -30,3 +30,16 @@ func TestTransferEvidenceKeepsOrdinaryEconomicsAndBindsInternalTrace(t *testing.
 	event.TraceHash = strings.Repeat("b", 64)
 	require.NotEqual(t, original, event.EconomicsHash(), "same amount and scalar index cannot alias another trace")
 }
+
+func TestTransferEvidenceSchemaForFixesSchemaByFamily(t *testing.T) {
+	schema, err := TransferEvidenceSchemaFor(ChainFamilyTRON)
+	require.NoError(t, err)
+	require.Equal(t, TRONTransferEvidenceSchema, schema)
+	schema, err = TransferEvidenceSchemaFor(ChainFamilyEVM)
+	require.NoError(t, err)
+	require.Equal(t, TransferEvidenceSchemaV1, schema)
+	for _, family := range []ChainFamily{ChainFamilyTON, ChainFamilySolana, "", "Tron"} {
+		_, err = TransferEvidenceSchemaFor(family)
+		require.ErrorIs(t, err, ErrUnsupportedEvidenceFamily, family)
+	}
+}

@@ -2129,7 +2129,7 @@ BEGIN
     IF TG_OP='DELETE' THEN RAISE EXCEPTION 'crypto adjustment history is immutable' USING ERRCODE='23514'; END IF;
     IF TG_OP='INSERT' THEN
         IF NEW.status<>'pending_approval' THEN
-            RAISE EXCEPTION 'new crypto adjustment requires model 2 proposal' USING ERRCODE='23514';
+            RAISE EXCEPTION 'new crypto adjustment must start as a pending_approval proposal' USING ERRCODE='23514';
         END IF;
         NEW.proposal_txid:=txid_current();
     ELSIF (OLD.basis_kind,OLD.proposal_txid,OLD.created_at) IS DISTINCT FROM (NEW.basis_kind,NEW.proposal_txid,NEW.created_at) THEN
@@ -3749,9 +3749,9 @@ ALTER TABLE reg_crypto_aml_withdrawal_facts ALTER COLUMN expense_movement_id DRO
 
 ALTER TABLE reg_crypto_aml_withdrawal_facts DROP CONSTRAINT reg_crypto_aml_withdrawal_facts_check;
 
+-- A fact references only the physical principal expense, which a failed line never has.
 ALTER TABLE reg_crypto_aml_withdrawal_facts ADD CONSTRAINT reg_crypto_aml_withdrawal_facts_check CHECK(
-    (succeeded AND expense_movement_id IS NOT NULL AND refund_movement_id IS NULL)
-    OR (NOT succeeded AND ((expense_movement_id IS NULL AND refund_movement_id IS NULL) OR (expense_movement_id IS NOT NULL AND refund_movement_id IS NOT NULL))));
+    refund_movement_id IS NULL AND (expense_movement_id IS NOT NULL)=succeeded);
 
 CREATE TABLE reg_crypto_withdrawal_custody_bindings (
     posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),

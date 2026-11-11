@@ -22,10 +22,9 @@ func (NativeFundingEvidenceRepo) ExpectedFundingTransfer(ctx context.Context, fu
 		JOIN cat_wallets d ON d.id=f.destination_wallet_id JOIN cat_blockchain_networks n ON n.id=f.network_id
 		WHERE f.id=$1 AND f.network_id=$2 AND f.tx_hash=$3`, fundingID, receipt.NetworkID, receipt.TxHash).
 		Scan(&event.NetworkID, &event.TxHash, &event.Amount, &event.FromAddress, &event.ToAddress, &family)
-	if family == string(crypto.ChainFamilyTRON) {
-		event.DecoderVersion = crypto.TRONTransferEvidenceSchema
-	} else {
-		event.DecoderVersion = crypto.TransferEvidenceSchemaV1
+	if err != nil {
+		return event, err
 	}
+	event.DecoderVersion, err = crypto.TransferEvidenceSchemaFor(crypto.ChainFamily(family))
 	return event, err
 }

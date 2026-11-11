@@ -22,8 +22,11 @@ var ErrIngestionCutoverNotFound = errors.New("block ingestion cutover not found"
 var ErrIngestionRegistrationBusy = apperror.NewConflict("ingestion registration is busy; retry the operation")
 var ErrDecoderVersionConflict = errors.New("transfer decoder version conflict")
 
-// Transfer evidence schema identifiers are persisted and participate in hashes.
-// Schema 1 remains the current EVM proof format and the historical event format.
+var ErrUnsupportedEvidenceFamily = errors.New("chain family has no transfer evidence schema")
+
+// Transfer evidence schema identifiers are persisted and participate in hashes,
+// so the chain family fixes them; configuration never selects one.
+// TransferEvidenceSchemaV1 is the EVM proof format.
 const TransferEvidenceSchemaV1 = 1
 
 // TRONTransferEvidenceSchema binds stable internal-transfer identity and the
@@ -34,8 +37,21 @@ func ValidTransferEvidenceSchema(version int) bool {
 	return version == TransferEvidenceSchemaV1 || version == TRONTransferEvidenceSchema
 }
 
-// EffectiveEvidenceSchema interprets the omitted schema of historical events.
-// It is not a default for newly captured TRON blocks.
+// TransferEvidenceSchemaFor is the single family-to-schema mapping for
+// expected transfers built outside a family adapter.
+func TransferEvidenceSchemaFor(family ChainFamily) (int, error) {
+	switch family {
+	case ChainFamilyTRON:
+		return TRONTransferEvidenceSchema, nil
+	case ChainFamilyEVM:
+		return TransferEvidenceSchemaV1, nil
+	default:
+		return 0, fmt.Errorf("%w: %q", ErrUnsupportedEvidenceFamily, family)
+	}
+}
+
+// EffectiveEvidenceSchema reads an omitted schema as schema 1: the EVM watcher
+// does not set DecoderVersion. TRON adapters always set schema 2 explicitly.
 func (e BlockchainEvent) EffectiveEvidenceSchema() int {
 	if e.DecoderVersion == 0 {
 		return TransferEvidenceSchemaV1

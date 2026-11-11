@@ -87,8 +87,8 @@ type OperationalHold struct {
 }
 
 type CryptoCustodyAdjustment struct {
-	// RecognitionPeriod is assigned by financial admission for model 2 and
-	// shared by both immutable movement generators and the custody binding.
+	// RecognitionPeriod is assigned by financial admission and shared by both
+	// immutable movement generators and the custody binding.
 	RecognitionPeriod time.Time
 	ID                id.ID
 	ExternalOutflowID id.ID

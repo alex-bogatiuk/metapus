@@ -80,7 +80,7 @@ func (r *OutboundRepo) claimWithdrawalSettlements(ctx context.Context, workerID 
 		JOIN cat_tokens t ON t.id=c.token_id
 		JOIN cat_blockchain_networks n ON n.id=t.network_id
 		LEFT JOIN reg_crypto_aml_withdrawal_lines aml ON aml.withdrawal_id=c.id
-		JOIN doc_withdrawal_requests wr ON wr.id=COALESCE(aml.request_id,(SELECT legacy.id FROM doc_withdrawal_requests legacy WHERE legacy.withdrawal_id=c.id))
+		JOIN doc_withdrawal_requests wr ON wr.id=COALESCE(aml.request_id,(SELECT direct.id FROM doc_withdrawal_requests direct WHERE direct.withdrawal_id=c.id))
 	`,
 		limit, workerID, int64(outboundSettlementLease.Seconds()),
 		crypto_withdrawal.WithdrawalStatusBroadcast, crypto_withdrawal.WithdrawalStatusConfirmed, crypto_withdrawal.WithdrawalStatusFailed,

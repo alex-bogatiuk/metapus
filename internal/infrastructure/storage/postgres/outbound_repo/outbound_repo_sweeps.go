@@ -184,8 +184,10 @@ func (r *OutboundRepo) GetSweepSigningAttempt(
 	return record, true, nil
 }
 
-// Shared eligibility and collector ranking for planning and locked revalidation.
-const legacySweepCandidateCTEs = `picked AS (
+// Shared eligibility and collector ranking for planning and locked revalidation
+// of direct sweeps: pools whose merchant/network/token has no enabled AML
+// routing scope. AML-routed pools are planned as AML batch sweeps instead.
+const directSweepCandidateCTEs = `picked AS (
 			SELECT w.id
 			FROM cat_wallets w
 			WHERE w.status = $1
@@ -303,7 +305,7 @@ func (r *OutboundRepo) ClaimSweepPendingWallets(ctx context.Context, limit int) 
 	}
 	var tasks []SweepTask
 	err := postgres.MustGetTxManager(ctx).RunInTransaction(ctx, func(ctx context.Context) error {
-		sources, resources, err := r.lockLegacySweepCandidates(ctx, limit)
+		sources, resources, err := r.lockDirectSweepCandidates(ctx, limit)
 		if err != nil || len(sources) == 0 {
 			return err
 		}
@@ -313,9 +315,9 @@ func (r *OutboundRepo) ClaimSweepPendingWallets(ctx context.Context, limit int) 
 	return tasks, err
 }
 
-func (r *OutboundRepo) lockLegacySweepCandidates(ctx context.Context, limit int) ([]id.ID, []id.ID, error) {
+func (r *OutboundRepo) lockDirectSweepCandidates(ctx context.Context, limit int) ([]id.ID, []id.ID, error) {
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
-	rows, err := q.Query(ctx, `WITH selector_parameters AS (SELECT $4::text,$11::bigint),`+legacySweepCandidateCTEs+`
+	rows, err := q.Query(ctx, `WITH selector_parameters AS (SELECT $4::text,$11::bigint),`+directSweepCandidateCTEs+`
  footprints AS MATERIALIZED (
   SELECT c.wallet_id,array_prepend(c.wallet_id,array_agg(DISTINCT c.hot_wallet_id)) wallets
   FROM candidates c JOIN cat_wallets w ON w.id=c.wallet_id
@@ -351,7 +353,7 @@ func (r *OutboundRepo) claimLockedSweepWallets(ctx context.Context, limit int, s
 	txm := postgres.MustGetTxManager(ctx)
 	querier := txm.GetQuerier(ctx)
 
-	rows, err := querier.Query(ctx, `WITH selector_parameters AS (SELECT $3::int),`+legacySweepCandidateCTEs+`
+	rows, err := querier.Query(ctx, `WITH selector_parameters AS (SELECT $3::int),`+directSweepCandidateCTEs+`
 		inserted AS (
 			INSERT INTO reg_crypto_sweep_attempts (
 				id, wallet_id, token_id, network_id, hot_wallet_id,

@@ -36,11 +36,10 @@ func (*SweepCustodyRepo) ExpectedSweepTransfer(ctx context.Context, lineID id.ID
 	} else {
 		e.EventKind = crypto.EventKindContractLog
 	}
-	if family == "tron" {
-		e.DecoderVersion = crypto.TRONTransferEvidenceSchema
-	} else {
-		e.DecoderVersion = crypto.TransferEvidenceSchemaV1
+	if err != nil {
+		return e, err
 	}
+	e.DecoderVersion, err = crypto.TransferEvidenceSchemaFor(crypto.ChainFamily(family))
 	return e, err
 }
 

@@ -71,9 +71,9 @@ func Record(t testing.TB, ctx context.Context, deps Deps, transfer Transfer) (re
 	if transfer.Reason == "" {
 		transfer.Reason = crypto_custody_receipt.ReasonMatched
 	}
-	decoder := crypto.TransferEvidenceSchemaV1
-	if crypto.ChainFamily(family) == crypto.ChainFamilyTRON {
-		decoder = crypto.TRONTransferEvidenceSchema
+	decoder, err := crypto.TransferEvidenceSchemaFor(crypto.ChainFamily(family))
+	require.NoError(t, err)
+	if decoder == crypto.TRONTransferEvidenceSchema {
 		defer admitCurrentTRONEvidence(t, ctx, network)()
 	}
 	kind := crypto.EventKindContractLog

@@ -36,10 +36,10 @@ func (*TreasuryCustodyRepo) ExpectedTreasuryTransfer(ctx context.Context, docume
 	if standard == "native" {
 		e.EventKind = crypto.EventKindNativeValue
 	}
-	e.DecoderVersion = crypto.TransferEvidenceSchemaV1
-	if family == "tron" {
-		e.DecoderVersion = crypto.TRONTransferEvidenceSchema
+	if err != nil {
+		return e, err
 	}
+	e.DecoderVersion, err = crypto.TransferEvidenceSchemaFor(crypto.ChainFamily(family))
 	return e, err
 }
 

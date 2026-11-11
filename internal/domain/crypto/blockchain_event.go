@@ -60,7 +60,8 @@ type BlockchainEvent struct {
 
 	EventKind EventKind `json:"eventKind"`
 	// DecoderVersion stores the evidence schema under its frozen JSON name.
-	// New adapters set it explicitly; zero is interpreted for historical events.
+	// TRON adapters set it explicitly; zero is the EVM watcher form and reads
+	// as schema 1 (see EffectiveEvidenceSchema).
 	DecoderVersion int `json:"decoderVersion,omitempty"`
 	// Trace metadata is audit evidence, independent of the stable event index.
 	TraceHash      string `json:"traceHash,omitempty"`
