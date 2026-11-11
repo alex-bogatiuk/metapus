@@ -41,8 +41,13 @@ func TestShadowWorkerPausesReleasesLeaseAndResumesWithoutRestart(t *testing.T) {
 	defer pg.Close()
 	txm := postgres.NewTxManagerFromRawPool(pg)
 	ctx := tenant.WithTxManager(t.Context(), txm)
-	network := id.New()
-	_, err = pg.Exec(ctx, `INSERT INTO cat_blockchain_networks(id,code,name,network_identifier,native_token_symbol,native_decimals,chain_family) VALUES($1,$2,'shadow worker',$2,'TRX',6,'tron')`, network, "SW"+id.Compact(network))
+	// The watcher registers ingestion only for the exact catalog identity of
+	// its network, so the reference below mirrors these rows.
+	network, nativeToken := id.New(), id.New()
+	code := "SW" + id.Compact(network)
+	_, err = pg.Exec(ctx, `INSERT INTO cat_blockchain_networks(id,code,name,network_identifier,native_token_symbol,native_decimals,chain_family) VALUES($1,$2,'shadow worker',$2,'TRX',6,'tron')`, network, code)
+	require.NoError(t, err)
+	_, err = pg.Exec(ctx, `INSERT INTO cat_tokens(id,code,name,network_id,symbol,decimal_places,token_standard,contract_address) VALUES($1,$2,'Native',$3,'TRX',6,'native','')`, nativeToken, "NATIVE-"+code, network)
 	require.NoError(t, err)
 	blocks := map[int64]*tron.BlockInfo{}
 	receipts := map[int64][]tron.TransactionInfo{}
@@ -91,7 +96,7 @@ func TestShadowWorkerPausesReleasesLeaseAndResumesWithoutRestart(t *testing.T) {
 	baseline := crypto.WatcherBlockFingerprint{BlockNumber: 10, BlockHash: blocks[10].BlockID, Timestamp: blocks[10].BlockHeader.RawData.Timestamp}
 	_, err = repo.EnsureCutover(ctx, crypto.NetworkRef{ID: network}, baseline, "shadow", nil)
 	require.NoError(t, err)
-	ref := crypto.NetworkRef{ID: network, Code: "TRON-NILE", Family: crypto.ChainFamilyTRON, NetworkIdentifier: "nile", NativeTokenID: id.New(), NativeDecimals: 6, RequiredConfirmations: 20, FinalityMode: crypto.FinalityByConfirmations}
+	ref := crypto.NetworkRef{ID: network, Code: code, Family: crypto.ChainFamilyTRON, NetworkIdentifier: code, NativeTokenID: nativeToken, NativeDecimals: 6, RequiredConfirmations: 20, FinalityMode: crypto.FinalityByConfirmations}
 	driver, err := tron.NewDriver(tron.DriverConfig{Network: ref, RPC: rpc, WatcherStateRepository: crypto_repo.NewWatcherStateRepo(), BlockCaptureRepository: repo, WalletDeriver: shadowTestDeriver{}, MaxFeeMinor: types.NewCryptoAmountFromInt64(30000000)})
 	require.NoError(t, err)
 	watchers, err := driver.NetworkWatchers(ctx, ref, nil, nil)
