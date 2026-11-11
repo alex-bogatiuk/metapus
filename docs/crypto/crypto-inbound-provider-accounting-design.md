@@ -49,7 +49,7 @@
 
 | Изменение | Решение | Совместимость |
 |---|---|---|
-| Разделение payment posting | Новый CryptoCustodyReceipt владеет внешним физическим приходом; CryptoPayment v2 распределяет уже принятый receipt | Явная accounting_model_version, legacy v1 остаётся читаемым |
+| Разделение payment posting | Новый CryptoCustodyReceipt владеет внешним физическим приходом; CryptoPayment v2 распределяет уже принятый receipt | Версии модели учёта нет: двойная модель удалена 09.11.2026 (см. [план](../howto/crypto-inbound-provider-accounting-plan.md)) |
 | Дедупликация chain effects | Общий реестр признания custody effects для всех writers | UNIQUE внутри payment или funding CLI больше не является достаточной защитой |
 | AML ownership | Добавить unattributed и treasury ownership, связать merchant split с receipt allocation | Это изменение схемы inventory, не новый AML-провайдер |
 | Refund | Отдельное обязательство/резерв из suspense и собственный outbound basis | Не создавать фиктивный merchant и не дебетовать merchant balance |
@@ -459,7 +459,7 @@ Fintech Insight: идемпотентность команды и дедупли
 
 [Этап 101, схема 96](../reference/crypto-custody-writers.md#29-activation-execution-fencing-и-dispatch-recovery--этап-101-схема-96) реализует activation execution fencing с durable dispatch audit. Новый dispatch требует текущего token; уже полученные signed bytes/known transaction metadata сохраняются для исходного owner после lease loss. Pool slot и fee reserve коммитятся атомарно в serializable transaction; state/dispatch сохраняют read committed. Неизвестный Sign остаётся held без второго Sign/release, finality признаёт fee один раз. Legacy history/HTTP DTO сохраняются; rollout требует остановки старых workers, Down после audit требует forward recovery. Остальные P3 writers и функциональные этапы остаются в плане.
 
-[Этап 102, схема 96](../reference/crypto-custody-writers.md#30-cryptonetworkoperation-metadataprotection-и-posting-prefix--этап-102) выравнивает metadata/protection/row и posting boundaries существующего CryptoNetworkOperation. Общий workflow/operation/policy/scopes/wallet prefix включает historical/proposed wallets; permission и footprint проверяются после ожидания. Legacy repost сохраняет один net fee, model 2 guards остаются действующими. Новых financial owners/HTTP DTO нет; общий P3 audit продолжается.
+[Этап 102, схема 96](../reference/crypto-custody-writers.md#30-cryptonetworkoperation-metadataprotection-и-posting-prefix--этап-102) выравнивает metadata/protection/row и posting boundaries существующего CryptoNetworkOperation. Общий workflow/operation/policy/scopes/wallet prefix включает historical/proposed wallets; permission и footprint проверяются после ожидания. Legacy repost сохраняет один net fee, guards признания остаются действующими. Новых financial owners/HTTP DTO нет; общий P3 audit продолжается.
 
 [Этап 103, схема 97](../reference/crypto-custody-writers.md#31-повторы-инцидентов-и-финансового-сторно-платежей--этап-103-схема-97) защищает повтор существующего financial reorg сторно: current document/generation и полный source movement set, immutable request_basis, exact replay и проверка полного reversal. Network incidents получают deterministic key и semantic legacy lookup без удаления history. Новые generic financial recovery сценарии не включаются; P3 и P4–P13 продолжаются.
 

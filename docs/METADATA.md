@@ -3,7 +3,7 @@
 > **TL;DR:** Объекты текущей конфигурации в терминах 1С: справочники, документы, табличные части, регистры, перечисления, настройки и отчёты.
 > **Тип:** Reference
 > **Аудитория:** Developer, Analyst, AI-Agent
-> **Состояние:** 9 ноября 2026 года; исходные миграции до `00104`, `ExpectedSchemaVersion = 104`. Схемы 77–104 добавляют accounting evidence index, внутренний maintenance-only receipt/suspense и общий registry funding CLI/CryptoPayment v1/JIT native funding/sweep v2/treasury v2/merchant withdrawal v2/custody loss v2 и отдельный network fee model 2, expected-transfer routing, source-bound manual corrections, immutable basis повторного financial reorg сторно и общий SQL hold lifecycle guard; автоматический intake и cutover ещё не подключены.
+> **Состояние:** 11 ноября 2026 года; исходные миграции до `00077`, `ExpectedSchemaVersion = 77`. Прежние миграции 77–104 свёрнуты в [00077](../db/migrations/00077_crypto_custody_accounting.sql); «схема 78–104» ниже — исторические номера её разделов. Она добавляет accounting evidence index, receipt/suspense, общий registry для funding, JIT native funding, sweep, treasury, merchant withdrawal и custody loss, отдельное признание network fee, expected-transfer routing, source-bound manual corrections, immutable basis повторного financial reorg сторно и общий SQL hold lifecycle guard. Двойной модели учёта нет: исходящие документы и резервы комиссий признают principal и fee только по финальному независимому доказательству.
 > **Связанные:** [ROUTER.md](ROUTER.md), [Базовые сущности](systems/core-layer.md), [Проведение](systems/posting-engine.md).
 
 ## Содержание
@@ -551,7 +551,6 @@ Metapus
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
-| Модель учёта | `AccountingModelVersion` / `accountingModelVersion` | Целое | Новые 2: principal только при final proof; исторические 1 сохраняют broadcast/drain |
 | Мерчант | `MerchantID` / `merchantId` | Ссылка → Мерчанты | — |
 | Токен | `TokenID` / `tokenId` | Ссылка → Токены | — |
 | Исходный кошелёк | `SourceWalletID` / `sourceWalletId` | Ссылка → Кошельки | — |
@@ -579,14 +578,13 @@ Metapus
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
-| Модель учёта | `AccountingModelVersion` / `accountingModelVersion` | Целое число | 1 — существующий broadcast; 2 — новые final per-line transfers; immutable |
 | Токен | `TokenID` / `tokenId` | Ссылка → Токены | — |
 | Hot Wallet | `HotWalletID` / `hotWalletId` | Ссылка → Кошельки | — |
 | Итого | `TotalAmount` / `totalAmount` | Криптосумма | — |
 | Комиссия | `TotalFee` / `totalFee` | Криптосумма | — |
 | Статус | `Status` / `status` | Перечисление `crypto_sweep.SweepStatus` | — |
 
-Схема 82: для model 2 broadcast сохраняет snapshot ресурсных расходов, без principal. `posted` не означает подтверждённый principal; он появляется отдельно при успешном final settlement каждой строки с independent indexed proof. Reverted строка содержит только фактический network fee, `confirmed=false`. Exact AML coverage использует physical movement IDs конкретной строки, без ожидания общего пакета. Model 1 сохраняет прежний механизм без переписывания финансовой истории. Generic repost/unpost и новое поколение model 2 закрыты.
+Схема 82: broadcast сохраняет snapshot ресурсных расходов, без principal. `posted` не означает подтверждённый principal; он появляется отдельно при успешном final settlement каждой строки с independent indexed proof. Reverted строка содержит только фактический network fee, `confirmed=false`. Exact AML coverage использует physical movement IDs конкретной строки, без ожидания общего пакета. Generic repost/unpost и новое поколение закрыты.
 
 #### Табличная коллекция «Кошельки» — `lines`
 
@@ -633,7 +631,6 @@ Metapus
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
-| Модель учёта | `AccountingModelVersion` / `accountingModelVersion` | Целое число | 1 — legacy broadcast; 2 — новые final principal/revenue; immutable |
 | Токен | `TokenID` / `tokenId` | Ссылка → Токены | — |
 | Исходный кошелёк | `SourceWalletID` / `sourceWalletId` | Ссылка → Кошельки | — |
 | Адрес назначения | `DestAddress` / `destAddress` | Строка | — |
@@ -659,7 +656,7 @@ Metapus
 | Комиссия Energy | `EnergyFee` / `energyFee` | Криптосумма | — |
 | Использовано Bandwidth | `NetUsage` / `netUsage` | Целое число | — |
 
-Схема 83: для model 2 broadcast не создаёт physical principal или expense platform revenue. Wallet/revenue reservations сохраняются active до final outcome. Successful settlement атомарно проводит principal, точные fee partitions, actual network fee/cost и consume резервов; revert записывает только actual network fee и освобождает principal/revenue. `posted` на broadcast означает snapshot состояния; model 1 сохраняет прежний механизм и историю.
+Схема 83: broadcast не создаёт physical principal или expense platform revenue. Wallet/revenue reservations сохраняются active до final outcome. Successful settlement атомарно проводит principal, точные fee partitions, actual network fee/cost и consume резервов; revert записывает только actual network fee и освобождает principal/revenue. `posted` на broadcast означает snapshot состояния.
 
 #### Табличная коллекция «Источники комиссии» — `feeLines`
 
@@ -782,7 +779,7 @@ Metapus
 
 Модель: `FinancialAdjustment`. Таблица: `doc_crypto_adjustments`. Источники: [domain-модель](../internal/domain/crypto/financial_adjustment.go), [application service](../internal/application/cryptoapp/financial_adjustment_service.go).
 
-Схема 88 добавляет `accounting_model_version` (история 1, новые 2), `basis_kind` (`legacy`, `legacy_payment`, `payment_compensation`, `wallet_variance`), nullable immutable `source_posting_id` (FK на исходное custody recognition posting) и внутренний `proposal_txid` для замораживания sources. API возвращает `accountingModelVersion`, `basisKind`, `sourcePostingId`. Basis выводится из источника, не из пользовательского evidence/tx hash. Новые posted model 2 требуют exact financial set и `financial_correction_posted` outbox; сами chain effect не занимают. [Подробный контракт](reference/crypto-custody-writers.md#16-основание-ручных-корректировок-схемы-88).
+Схема 88 добавляет immutable `basis_kind` (`payment_attribution` для режима `payment_reversal`, `wallet_variance` для `wallet_balance`) и внутренний `proposal_txid` для замораживания sources. API возвращает `basisKind`. Basis выводится из режима и источника, не из пользовательского evidence/tx hash. Проведённая корректировка требует exact financial set и `financial_correction_posted` outbox; chain effect она не занимает. [Подробный контракт](reference/crypto-custody-writers.md#16-основание-ручных-корректировок).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -1102,7 +1099,7 @@ Deferred constraints проверяют полный набор receipt/custody/
 
 Deferred guards требуют точный physical gross, merchant net, processing fee, recognition и `CryptoPayment.custody_recognized` outbox. Fee выше gross, изменение frozen basis, неполное unpost и неверные reversal dimensions отклоняются. Adoption текущего posted canonical legacy payment доступен внутреннему сервису только на disabled/drained сети и не создаёт финансовых движений. После использования схема требует forward migration; прежние proofs/даты не переписываются. Остальные legacy writers и массовый backfill остаются открытыми.
 
-Миграция [00082](../db/migrations/00077_crypto_custody_accounting.sql) добавляет `reg_crypto_sweep_custody_bindings`: posting_id (PK/FK), sweep_id, line_id (UNIQUE/FK), period, actor=`sweep-settlement`, created_at. Binding immutable. Каждая final успешная строка model 2 имеет один posting generation 1, две principal recognition links, точные fee/cost facts и `CryptoSweep.custody_recognized` outbox с lineId/postingId. Deferred constraints защищают весь набор и запрещают раннее освобождение fee reservation. Down с любым model 2 документом закрыт.
+Миграция [00082](../db/migrations/00077_crypto_custody_accounting.sql) добавляет `reg_crypto_sweep_custody_bindings`: posting_id (PK/FK), sweep_id, line_id (UNIQUE/FK), period, actor=`sweep-settlement`, created_at. Binding immutable. Каждая final успешная строка имеет один posting generation 1, две principal recognition links, точные fee/cost facts и `CryptoSweep.custody_recognized` outbox с lineId/postingId. Deferred constraints защищают весь набор и запрещают раннее освобождение fee reservation.
 
 Миграция [00083](../db/migrations/00077_crypto_custody_accounting.sql) добавляет `reg_crypto_treasury_custody_bindings`: posting_id (PK/FK), treasury_id (UNIQUE/FK), signing_authorization_id (FK), period, actor=`treasury-settlement`, created_at. Binding immutable. Один expense recognition, principal/revenue/fee/reservation outcome и outbox обязательны в одном коммите. AccountingTransferBasis поддерживает expense-side с controlled source и external ToAddress; пустой RecordType сохраняет прежний receipt-side контракт.
 
@@ -1293,11 +1290,11 @@ Deferred guards требуют точный physical gross, merchant net, proces
 
 [00084](../db/migrations/00077_crypto_custody_accounting.sql) добавляет immutable `reg_crypto_withdrawal_custody_bindings`: posting_id (PK/FK), withdrawal_id (UNIQUE/FK), request_id (FK/index), nullable line_id (UNIQUE/FK), signing_authorization_id (FK), merchant_debit_line_id (FK), period, actor=`withdrawal-settlement`, created_at. Один outgoing principal owner связывается с исходным debit-first расходом без второго merchant debit. Actual fee/cost записываются на request/AML line basis, physical principal — на CryptoWithdrawal.
 
-В `reg_crypto_aml_withdrawal_facts` expense_movement_id теперь nullable: failed model 2 имеет оба physical refs NULL; success обязан ссылаться на exact recognized expense. Legacy failed model 1 сохраняет прежнюю пару expense/refund. Valid-fact view поддерживает обе модели; materialized inventory уменьшает только успешную долю. Principal reservations model 2 остаются active на broadcast и становятся consumed/released только с final outcome. SQL защищает original merchant debit, frozen financial basis, fee/principal/refund/outbox set и expected owner; Down после использования model 2 запрещён.
+В `reg_crypto_aml_withdrawal_facts` expense_movement_id теперь nullable: failed fact имеет оба physical refs NULL; success обязан ссылаться на exact recognized expense. `refund_movement_id` всегда NULL, это закреплено CHECK. Valid-fact view принимает только этот контракт; materialized inventory уменьшает только успешную долю. Principal reservations остаются active на broadcast и становятся consumed/released только с final outcome. SQL защищает original merchant debit, frozen financial basis, fee/principal/refund/outbox set и expected owner.
 
 ### Custody loss recognition схемы 85
 
-[00085](../db/migrations/00077_crypto_custody_accounting.sql) добавляет `doc_crypto_custody_adjustments.accounting_model_version`: existing=1, new default=2; API `accountingModelVersion`. Новый model 2 сохраняет прежний loss expense/cost и maker-checker, но требует exact indexed outgoing proof и shared registry owner. Detection/classification не создают финансовых движений.
+[00085](../db/migrations/00077_crypto_custody_accounting.sql) подключает CryptoCustodyAdjustment к registry: он сохраняет loss expense/cost и maker-checker, но требует exact indexed outgoing proof и shared registry owner. Detection/classification не создают финансовых движений.
 
 Immutable `reg_crypto_custody_loss_bindings`: posting_id (PK/FK), adjustment_id (UNIQUE/FK), external_outflow_id (UNIQUE/FK), maker_id/checker_id (разные), period, created_at. Principal и cost получают отдельные стабильные line IDs и общий period из binding. Physical expense, custody-loss cost, checker action audit, reconciliation request, final decision и outbox обязательны в одном коммите. Posting transaction stamp включает новые CryptoCustodyAdjustment lines; исторические movements не обновляются. SQL защищает exact set, immutable model/basis, generic compensation и ownership через aliases. Native network fee identity, generation/reorg recovery и historical adoption не добавлены.
 
@@ -1307,12 +1304,12 @@ Immutable `reg_crypto_custody_loss_bindings`: posting_id (PK/FK), adjustment_id 
 
 | Объект | Новые реквизиты / назначение |
 |---|---|
-| `reg_crypto_fee_reservations` | `accounting_model_version`: existing 1, new default 2; model 2 требует independent fee proof и полного financial set |
+| `reg_crypto_fee_reservations` | Признание требует independent fee proof и полного financial set |
 | `reg_crypto_network_fee_proofs` | Immutable effect key, network/tx/family/payer/native asset/block/outcome/total/digest/confirmations, structured evidence с components и двумя независимыми sources, verified/created time |
 | `reg_crypto_network_fee_bindings` | Immutable reservation/effect/proof/settlement, recorder, generation=1, nullable physical/cost line IDs при fee=0, общий period |
-| `reg_crypto_chain_settlements` | Nullable `network_fee_reservation_id`; model 2 normalized components точно совпадают с proof |
+| `reg_crypto_chain_settlements` | Nullable `network_fee_reservation_id`; normalized components точно совпадают с proof |
 | `doc_crypto_network_operations` | Nullable `network_fee_reservation_id`, API `networkFeeReservationId`; признанная activation использует stable line IDs/FinalizedAt и не допускает generic unpost |
-| `reg_crypto_fee_reservation_events` | Nullable `transition_txid`, заполняемый БД для новых model 2 events; replacement требует old/new hash/fingerprint события в том же transaction, исторические события не меняются |
+| `reg_crypto_fee_reservation_events` | Nullable `transition_txid`, заполняемый БД для новых events; replacement требует old/new hash/fingerprint события в том же transaction, исторические события не меняются |
 
 NativeFunding читает fee accounting version как внутреннюю метаинформацию для строгого terminal replay; она не входит в публичный JSON. Никакого merchant net, fee income или provider credit признание network fee не создаёт. История не принимается автоматически; reorg/compensation требуют отдельного workflow.
 
@@ -1364,7 +1361,7 @@ NativeFunding читает fee accounting version как внутреннюю м
 
 ### Legacy compensation и allocation replay — этап 97
 
-Схема 92. Legacy model 1 finalization сверяет task с posted owner, исходными physical/merchant debits и полным набором inverses; pending/inconsistent history требует reconciliation. Recorded replay сохраняет первоначальный период и проверяет outcome/fee/usage. Resource allocation reservation/broadcast проверяет сохранённый payload и semantic event; exact replay не меняет timestamps. Financial transaction/preflight precedes fee writes, rental precedes allocation replay locks. Таблицы/поля/DTO/financial owners не добавлены. [Контракт](reference/crypto-custody-writers.md#25-legacy-compensation-и-resource-allocation-replay--этап-97).
+Схема 92. Legacy finalization этого этапа удалена вместе с двойной моделью учёта. Recorded replay сохраняет первоначальный период и проверяет outcome/fee/usage. Resource allocation reservation/broadcast проверяет сохранённый payload и semantic event; exact replay не меняет timestamps. Financial transaction/preflight precedes fee writes, rental precedes allocation replay locks. Таблицы/поля/DTO/financial owners не добавлены. [Контракт](reference/crypto-custody-writers.md#25-legacy-compensation-и-resource-allocation-replay--этап-97).
 
 
 ### Activation task identity и operational replay — этап 98, схема 93

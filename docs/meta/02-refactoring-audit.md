@@ -131,9 +131,10 @@
 - *Проверка:* deadcode в трёх режимах + `make check-extensions` + scaffold-тест.
 
 **F11. Legacy-ветки crypto/AML, обслуживающие исторические записи** — legacy — **требуется проверка в работающей системе**.
-- *Место:* `aml_decisions.go:68` (решения без `evaluated_at`), `custody_recognition.go:49` и `custody_loss_recognition.go:74` (legacy writers), `crypto_worker/withdrawal_recovery.go:29` (receipt-only recovery), `outbound_settlement.go:83` (связь withdrawal request через `withdrawal_id`), `fee_settlement_replay.go:26` (отчёты без breakdown), `invoice_drift.go:37`, `evm/driver.go:532`.
+- *Место:* `aml_decisions.go:68` (решения без `evaluated_at`), `custody_recognition.go:49` и `custody_loss_recognition.go:74` (legacy writers), `crypto_worker/withdrawal_recovery.go:29` (receipt-only recovery), `fee_settlement_replay.go:26` (отчёты без breakdown), `invoice_drift.go:37`, `evm/driver.go:532`.
 - *Вывод:* append-only записи нельзя переписать, поэтому ветки чтения старых форматов остаются навсегда, пока такие строки есть хотя бы в одной tenant DB. Пример условия удаления для `aml_decisions.go`: во всех tenant DB `SELECT count(*) FROM reg_crypto_aml_decisions WHERE evaluated_at IS NULL` = 0, и новые записи без `evaluated_at` невозможны по ограничению схемы. Для остальных веток условия аналогичные: отсутствие строк старого формата и незавершённых заданий. Для каждой ветки нужен свой запрос, согласованный со схемой.
 - *Рекомендация:* не удалять; в каждой ветке зафиксировать формат и условие в комментарии рядом с кодом и в `docs/reference/crypto-custody-writers.md`.
+- *Уточнено 11.11.2026:* `outbound_settlement.go:83` — не legacy. Вывод без AML связан с заявкой через `doc_withdrawal_requests.withdrawal_id` (`outbound_repo_withdrawals.go:202`), AML-вывод — через `reg_crypto_aml_withdrawal_lines`; алиас `legacy` переименован в `direct`, как и `legacySweepCandidateCTEs` → `directSweepCandidateCTEs`. Так же не legacy и `EffectiveEvidenceSchema` (ноль → схема 1): EVM-watcher не заполняет `DecoderVersion`, поэтому ноль — штатная форма каждого EVM-события. Выбор схемы доказательства по семейству сети сведён в `crypto.TransferEvidenceSchemaFor`. Остатки двойной модели учёта убраны из docs, текста ошибки триггера и CHECK `reg_crypto_aml_withdrawal_facts`.
 
 ### P3 — низкий приоритет
 

@@ -34,11 +34,11 @@ CryptoCustodyReceipt схемы 78 — системный неизменяемы
 
 CryptoPayment v1 схемы 80 с indexed proof требует точный gross/net/fee набор и frozen snapshot. Следующий generation сохраняет economics/fee и допускается только после полного сторно всех трёх регистров. Неполный unpost, relabel recorder, неверные reversal dimensions и повторное признание исторической line под видом нового posting запрещены SQL. Исторический текущий posted canonical payment подключается отдельным внутренним adoption без новых движений. Детали: [custody writers](../reference/crypto-custody-writers.md).
 
-CryptoSweep схемы 82: новые документы model 2 на broadcast не генерируют CryptoBalance movements. PostingEngine фиксирует snapshot ресурсных расходов; `posted` не означает final principal. Final settlement записывает по две exact principal lines на строку через [SweepCustodyRepo](../../internal/infrastructure/storage/postgres/crypto_repo/sweep_recognition.go), с одним shared registry owner, immutable binding, normalized fee/cost и outbox в общей транзакции. Source attempt/wallet завершаются только после этого. Generic reversal/repost и новые поколения запрещены SQL до explicit recovery workflow. Старые model 1 сохраняют broadcast и legacy compensation; миграция не меняет history. При v2 revert создаётся только фактический network fee, без principal и storno.
+CryptoSweep схемы 82: на broadcast не генерируют CryptoBalance movements. PostingEngine фиксирует snapshot ресурсных расходов; `posted` не означает final principal. Final settlement записывает по две exact principal lines на строку через [SweepCustodyRepo](../../internal/infrastructure/storage/postgres/crypto_repo/sweep_recognition.go), с одним shared registry owner, immutable binding, normalized fee/cost и outbox в общей транзакции. Source attempt/wallet завершаются только после этого. Generic reversal/repost и новые поколения запрещены SQL до explicit recovery workflow. При revert создаётся только фактический network fee, без principal и storno.
 
-TreasuryWithdrawal схемы 83: model 2 не генерирует physical principal и platform revenue expense на broadcast. PostingEngine сохраняет состояние; wallet/revenue reservations остаются active. Final settlement выполняет exact expense set через [TreasuryCustodyRepo](../../internal/infrastructure/storage/postgres/crypto_repo/treasury_recognition.go) вместе с registry, fee/cost, binding/outbox и consumption резервов. Revert освобождает principal/revenue и учитывает actual fee. Generic repost/unpost/новый generation закрыты SQL; model 1 сохраняет прежний broadcast/history.
+TreasuryWithdrawal схемы 83: не генерирует physical principal и platform revenue expense на broadcast. PostingEngine сохраняет состояние; wallet/revenue reservations остаются active. Final settlement выполняет exact expense set через [TreasuryCustodyRepo](../../internal/infrastructure/storage/postgres/crypto_repo/treasury_recognition.go) вместе с registry, fee/cost, binding/outbox и consumption резервов. Revert освобождает principal/revenue и учитывает actual fee. Generic repost/unpost/новый generation закрыты SQL.
 
-CryptoWithdrawal схемы 84: model 2 на broadcast не создаёт physical principal или fee income, principal reserve остаётся active. WithdrawalRequest сохраняет единственный original debit-first расход. Final proof и [WithdrawalCustodyRepo](../../internal/infrastructure/storage/postgres/crypto_repo/withdrawal_recognition.go) обеспечивают principal/fee/reserve/outbox set и binding к merchant debit. Revert возвращает merchant amount без physical principal/storno; AML refund ограничен отказавшей строкой. Generic reversal/repost закрыт; model 1 history/drain сохраняется.
+CryptoWithdrawal схемы 84: на broadcast не создаёт physical principal или fee income, principal reserve остаётся active. WithdrawalRequest сохраняет единственный original debit-first расход. Final proof и [WithdrawalCustodyRepo](../../internal/infrastructure/storage/postgres/crypto_repo/withdrawal_recognition.go) обеспечивают principal/fee/reserve/outbox set и binding к merchant debit. Revert возвращает merchant amount без physical principal/storno; AML refund ограничен отказавшей строкой. Generic reversal/repost закрыт.
 
 ## 4. Batch operations
 
@@ -46,7 +46,7 @@ Generic handler поддерживает batch-action и batch-action-by-filter 
 
 ## 5. Debit-first и исходящие операции
 
-`WithdrawalRequest` списывает merchant balance при создании, до approval/chain execution. Так параллельные заявки не расходуют одно обязательство дважды. Исполняющий `CryptoWithdrawal` не создаёт второго merchant debit. Model 2 фиксирует physical principal только при final independent proof, actual network fee — через ChainSettlement; доход комиссии вывода не создаётся. Model 1 сохраняет прежний broadcast/drain.
+`WithdrawalRequest` списывает merchant balance при создании, до approval/chain execution. Так параллельные заявки не расходуют одно обязательство дважды. Исполняющий `CryptoWithdrawal` не создаёт второго merchant debit. CryptoWithdrawal фиксирует physical principal только при final independent proof, actual network fee — через ChainSettlement; доход комиссии вывода не создаётся.
 
 Отклонение/доказанный окончательный отказ компенсирует debit по workflow. Неопределённый chain outcome не означает безопасную отмену. AML withdrawals дополнительно хранят class-specific source lines, risk acceptance, partial settlement и cancellation facts; см. [AML outbound](../operations/crypto-aml-outbound.md).
 
@@ -99,9 +99,9 @@ internal/infrastructure/crypto_worker/ — планирование и сбор�
 - [crypto-processing.md](crypto-processing.md) — §3.5 WithdrawalRequest (debit-first use case)
 - [strict-documents.md](strict-documents.md) — правила разблокировки системных документов
 
-## Custody loss model 2 (85)
+## Custody loss (85)
 
-CryptoCustodyAdjustment сохраняет maker/checker и PostingEngine visitors, но PrepareCustodyAdjustmentForPosting заранее закрепляет proven outgoing effect. Оба генератора возвращают стабильные отдельные IDs с одним admission period. SQL требует полный principal/loss-cost/audit/reconciliation/outbox set в одном transaction. Без независимого proof, с managed recipient, ожидаемой signed execution либо prior owner новое проведение закрыто. Generic reversal principal и loss cost запрещён. Legacy model 1 сохраняет прежний workflow. Подробности: [custody writers](../reference/crypto-custody-writers.md#13-подтверждённая-custody-loss-схемы-85).
+CryptoCustodyAdjustment сохраняет maker/checker и PostingEngine visitors, но PrepareCustodyAdjustmentForPosting заранее закрепляет proven outgoing effect. Оба генератора возвращают стабильные отдельные IDs с одним admission period. SQL требует полный principal/loss-cost/audit/reconciliation/outbox set в одном transaction. Без независимого proof, с managed recipient, ожидаемой signed execution либо prior owner новое проведение закрыто. Generic reversal principal и loss cost запрещён. Подробности: [custody writers](../reference/crypto-custody-writers.md#13-подтверждённая-custody-loss-схемы-85).
 
 ## Network fee recognition схемы 86
 

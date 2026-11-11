@@ -878,7 +878,7 @@ approve/reject действует в режиме `independent`. Системн�
 - Incident после approval остаётся открытым до новой успешной provider-сверки.
   Wallet, merchant, fee и platform-cost ledgers от opening не меняются.
 
-Исходная migration 51 изменена напрямую; текущий `ExpectedSchemaVersion` — 76. Последующие AML-миграции 61–76 входят в fresh schema. Старый тестовый
+Исходная migration 51 изменена напрямую; текущий `ExpectedSchemaVersion` — 77. Последующие AML-миграции 61–76 и custody-миграция 77 входят в fresh schema. Старый тестовый
 opening с нулевым maker нельзя «починить» подменой исторического автора: evidence
 сохраняется, acceptance повторяется на чистой disposable БД для независимого
 оператора и административного исключения. Действующий стенд автоматически не

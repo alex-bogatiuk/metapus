@@ -2,7 +2,7 @@
 
 Миграции 00067–00068 добавляют batch intake/capacity, выбор своего collector при планировании свипа и отдельный control-plane путь создания merchant wallets. Они не включают отправку через старый outbound контракт.
 
-Схема 82: для новых sweep model 2 `reserved → committed` определяется отдельным final principal каждой строки и её точными registry movement IDs. Не нужно ждать весь sweep-документ; broadcast не расходует физический principal и не освобождает allocation. Final revert атомарно сохраняет actual fee и audited cancellation, без principal/storno. Legacy model 1 и уже записанные партии не переписываются.
+Схема 82: для sweep `reserved → committed` определяется отдельным final principal каждой строки и её точными registry movement IDs. Не нужно ждать весь sweep-документ; broadcast не расходует физический principal и не освобождает allocation. Final revert атомарно сохраняет actual fee и audited cancellation, без principal/storno.
 
 ## Партии
 
