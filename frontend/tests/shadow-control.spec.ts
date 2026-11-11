@@ -6,6 +6,7 @@ const admin = { ...erpUser, isAdmin: true }
 const now = new Date().toISOString()
 const network: CryptoNetworkStateResponse = {
   network: { id: ids.network, code: "TRON-NILE", family: "tron", networkIdentifier: "nile", nativeTokenId: ids.token, nativeTokenSymbol: "TRX", nativeDecimals: 6, requiredConfirmations: 20, finalityMode: "confirmations" },
+  watching: true,
   capabilities: { family: "tron", walletProvisioning: "derived_with_activation", requiredRpcRoles: ["fullnode", "solidity"], externalResourceMode: "optional", sequenceModel: "none", checkpointTimeUnit: "unix_millis", tokenAccountModel: "same_address", minWatcherLagSeconds: 180, supportsReplacement: false },
   policy: { networkId: ids.network, enabled: false, perTransactionMaxFeeMinor: "30000000", dailyNetworkFeeBudgetMinor: "300000000", feeFunding: { mode: "source_only", dailyBudgetMinor: "0", minFeeWalletBalanceMinor: "0", minSourceWalletResidualMinor: "0", maxFundingAmountMinor: "0" }, retryDelaySeconds: 30, rpcFailureThreshold: 3, rpcOpenSeconds: 30, version: 1, updatedBy: "admin", createdAt: now, updatedAt: now },
   runtime: { networkId: ids.network, rpcEndpoints: [], signerReady: true, resourceProviderReady: true, resourceProviderState: "ready", observedAt: now, operationalHold: false },

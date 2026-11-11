@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
@@ -32,7 +33,8 @@ const networkPolicyStateSelect = `
 	       COALESCE(rs.resource_providers,'[]'::jsonb),
 	       rs.observed_at,COALESCE(rs.worker_id,''),
 	       EXISTS (SELECT 1 FROM reg_crypto_network_holds h WHERE h.network_id=n.id AND h.status='open'),
-	       COALESCE((SELECT h.reason FROM reg_crypto_network_holds h WHERE h.network_id=n.id AND h.status='open' ORDER BY h.held_at DESC LIMIT 1),'')
+	       COALESCE((SELECT h.reason FROM reg_crypto_network_holds h WHERE h.network_id=n.id AND h.status='open' ORDER BY h.held_at DESC LIMIT 1),''),
+	       n.is_active
 	FROM cat_blockchain_networks n
 	JOIN LATERAL (
 		SELECT id,decimal_places FROM cat_tokens
@@ -42,7 +44,7 @@ const networkPolicyStateSelect = `
 	JOIN sys_crypto_network_policies p ON p.network_id=n.id AND p._deleted_at IS NULL
 	LEFT JOIN sys_crypto_external_resource_policies tr ON tr.network_id=n.id
 	LEFT JOIN sys_crypto_network_runtime_status rs ON rs.network_id=n.id
-	WHERE n.is_active=TRUE AND n.deletion_mark=FALSE`
+	WHERE n.deletion_mark=FALSE`
 
 func (r *NetworkPolicyRepo) ListNetworkPolicyStates(ctx context.Context) ([]crypto.NetworkPolicyState, error) {
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
@@ -102,6 +104,7 @@ func scanNetworkPolicyState(row policyStateScanner) (crypto.NetworkPolicyState, 
 		&state.Runtime.SignerError, &state.Runtime.ResourceProviderReady, &state.Runtime.ResourceProviderState,
 		&resourceProviders, &observedAt, &state.Runtime.WorkerID,
 		&state.Runtime.OperationalHold, &state.Runtime.OperationalHoldReason,
+		&state.Watching,
 	)
 	if err != nil {
 		return state, err
@@ -241,3 +244,25 @@ func (r *NetworkPolicyRepo) UpdateNetworkPolicy(ctx context.Context, policy cryp
 }
 
 var _ crypto.NetworkPolicyAdminRepository = (*NetworkPolicyRepo)(nil)
+
+// SetNetworkWatching flips the catalog activity that decides whether the
+// worker reads the network. The SQL watch guards keep their reason text, which
+// names the blocking condition without data, as the validation message.
+func (r *NetworkPolicyRepo) SetNetworkWatching(ctx context.Context, networkID id.ID, watching bool) (crypto.NetworkPolicyState, error) {
+	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
+	_, err := q.Exec(ctx, `UPDATE cat_blockchain_networks SET is_active=$2,version=version+1
+		WHERE id=$1 AND deletion_mark=FALSE AND is_active<>$2`, networkID, watching)
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23514":
+			return crypto.NetworkPolicyState{}, apperror.NewValidation(pgErr.Message)
+		case "40P01", "55P03":
+			return crypto.NetworkPolicyState{}, apperror.NewConflict("network settings are changing concurrently; retry the operation")
+		}
+	}
+	if err != nil {
+		return crypto.NetworkPolicyState{}, fmt.Errorf("set crypto network watching: %w", err)
+	}
+	return r.GetNetworkPolicyState(ctx, networkID)
+}

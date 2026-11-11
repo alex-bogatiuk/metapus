@@ -19,6 +19,13 @@ type networkPolicyAdminRepoStub struct {
 	updatedBy       string
 	contractAssets  bool
 	accountCodes    map[id.ID]string
+	watchingCalls   int
+}
+
+func (r *networkPolicyAdminRepoStub) SetNetworkWatching(_ context.Context, _ id.ID, watching bool) (NetworkPolicyState, error) {
+	r.watchingCalls++
+	r.state.Watching = watching
+	return r.state, nil
 }
 
 func (r *networkPolicyAdminRepoStub) NetworkHasActiveContractAssets(context.Context, id.ID) (bool, error) {
@@ -185,7 +192,8 @@ func TestNetworkPolicyAdminServiceRejectsMissingSelectedAccount(t *testing.T) {
 func validNetworkPolicyState(now time.Time) NetworkPolicyState {
 	networkID := id.New()
 	return NetworkPolicyState{
-		Network: NetworkRef{ID: networkID, Code: "TRON-NILE", Family: ChainFamilyTRON, NetworkIdentifier: "nile", NativeTokenID: id.New(), NativeDecimals: 6, RequiredConfirmations: 20},
+		Network:  NetworkRef{ID: networkID, Code: "TRON-NILE", Family: ChainFamilyTRON, NetworkIdentifier: "nile", NativeTokenID: id.New(), NativeDecimals: 6, RequiredConfirmations: 20},
+		Watching: true,
 		Policy: NetworkPolicy{
 			NetworkID: networkID, Enabled: true,
 			PerTransactionMaxFee: types.NewCryptoAmountFromInt64(100), DailyNetworkFeeBudget: types.NewCryptoAmountFromInt64(1_000),
@@ -211,4 +219,44 @@ func validNetworkPolicyState(now time.Time) NetworkPolicyState {
 func networkPolicyTestContext() context.Context {
 	ctx := tenant.WithTxManager(context.Background(), walletPoolServiceTxManager{})
 	return appctx.WithUser(ctx, &appctx.UserContext{UserID: id.New().String(), Email: "admin@example.test"})
+}
+
+func TestNetworkPolicyAdminServiceRequiresWatchingToEnableProcessing(t *testing.T) {
+	now := time.Now().UTC()
+	state := validNetworkPolicyState(now)
+	state.Policy.Enabled, state.Watching = false, false
+	repo := &networkPolicyAdminRepoStub{state: state, feeWalletReady: true, accountCodes: map[id.ID]string{state.Policy.ExternalResources.ProviderAccountIDs[0]: "ITRX-TEST"}}
+	svc := NewNetworkPolicyAdminService(repo, walletPoolCapabilitiesResolver{ChainFamilyTRON: tronWalletPoolCapabilities()}, &walletPoolEventWriterStub{})
+	svc.now = func() time.Time { return now }
+	enabled := true
+
+	if _, err := svc.Update(networkPolicyTestContext(), state.Network.ID, NetworkPolicyPatch{Version: state.Policy.Version, Enabled: &enabled}); err == nil {
+		t.Fatal("processing of an unwatched network was enabled")
+	}
+	if repo.updateCalls != 0 {
+		t.Fatalf("updates = %d", repo.updateCalls)
+	}
+}
+
+func TestNetworkPolicyAdminServiceAuditsOnlyActualWatchingChanges(t *testing.T) {
+	state := validNetworkPolicyState(time.Now().UTC())
+	state.Policy.Enabled = false
+	repo := &networkPolicyAdminRepoStub{state: state}
+	writer := &walletPoolEventWriterStub{}
+	svc := NewNetworkPolicyAdminService(repo, walletPoolCapabilitiesResolver{ChainFamilyTRON: tronWalletPoolCapabilities()}, writer)
+	ctx := networkPolicyTestContext()
+
+	updated, err := svc.SetWatching(ctx, state.Network.ID, false, "stand setup")
+	if err != nil {
+		t.Fatalf("SetWatching() error = %v", err)
+	}
+	if updated.Watching || repo.watchingCalls != 1 || len(writer.events) != 1 || writer.events[0].EventType != "crypto.network.watching_changed" {
+		t.Fatalf("watching=%v calls=%d events=%#v", updated.Watching, repo.watchingCalls, writer.events)
+	}
+	if _, err := svc.SetWatching(ctx, state.Network.ID, false, "repeat"); err != nil {
+		t.Fatalf("repeated SetWatching() error = %v", err)
+	}
+	if repo.watchingCalls != 1 || len(writer.events) != 1 {
+		t.Fatalf("a repeated command changed state: calls=%d events=%d", repo.watchingCalls, len(writer.events))
+	}
 }

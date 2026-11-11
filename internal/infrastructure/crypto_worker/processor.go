@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"metapus/internal/application/cryptoapp"
@@ -399,6 +400,22 @@ func (p *CryptoProcessor) Start(ctx context.Context) error {
 		p.cfg.Ready(false)
 		defer p.cfg.Ready(false)
 	}
+	// Only watched networks are read. Starting or stopping watching restarts
+	// the attempt instead of waiting for a worker restart.
+	initialNetworkSet, _ := p.loadNetworkSetSignature(ctx)
+	var networkSetChanged atomic.Bool
+	var networkSetWatch sync.WaitGroup
+	networkSetWatch.Go(func() {
+		watchNetworkSet(ctx, networkSetCheckPeriod, initialNetworkSet, p.loadNetworkSetSignature, &networkSetChanged, cancel)
+	})
+	defer networkSetWatch.Wait()
+	defer cancel()
+	attemptResult := func(err error) error {
+		if networkSetChanged.Load() && parentCtx.Err() == nil {
+			return errors.Join(err, errNetworkSetChanged)
+		}
+		return err
+	}
 	networks, err := p.initializeChainRuntime(ctx)
 	if err != nil {
 		if len(networks) == 0 {
@@ -419,7 +436,7 @@ func (p *CryptoProcessor) Start(ctx context.Context) error {
 		maintenance.Go(func() { p.runInvoiceReconciliationLoop(ctx) })
 		p.runExpirationLoop(ctx)
 		maintenance.Wait()
-		return ctx.Err()
+		return attemptResult(parentCtx.Err())
 	}
 	var watcherWg sync.WaitGroup
 	var consumerWg sync.WaitGroup
@@ -654,7 +671,7 @@ func (p *CryptoProcessor) Start(ctx context.Context) error {
 	watcherWg.Wait()
 
 	p.log.Info("crypto processor stopped")
-	return errors.Join(startupErr, parentCtx.Err())
+	return attemptResult(errors.Join(startupErr, parentCtx.Err()))
 }
 
 func (p *CryptoProcessor) mustValidateOutboundDependencies() {

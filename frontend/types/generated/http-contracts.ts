@@ -1147,6 +1147,7 @@ export type CryptoNetworkRuntimeStatus = {
 
 export type CryptoNetworkStateResponse = {
   "network": CryptoNetworkRef
+  "watching": boolean
   "capabilities": CryptoChainFamilyCapabilities
   "policy": CryptoNetworkPolicyResponse
   "runtime": CryptoNetworkRuntimeStatus
@@ -4101,6 +4102,11 @@ export type SecurityProfileResponse = {
   "fieldPolicies"?: Array<FieldPolicyResponse>
   "policyRules"?: Array<PolicyRuleResponse>
   "userCount": number
+}
+
+export type SetCryptoNetworkWatchingRequest = {
+  "watching": boolean
+  "reason": string
 }
 
 export type SetCryptoShadowControlRequest = {

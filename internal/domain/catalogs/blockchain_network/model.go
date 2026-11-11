@@ -43,8 +43,9 @@ type BlockchainNetwork struct {
 	// ExplorerURL is an HTTPS transaction URL template containing exactly one {txHash} placeholder.
 	ExplorerURL string `db:"explorer_url" json:"explorerUrl,omitempty" meta:"label:Explorer URL (шаблон)"`
 
-	// IsActive enables/disables chain monitoring
-	IsActive bool `db:"is_active" json:"isActive" meta:"label:Активна"`
+	// IsActive is network watching: the worker reads only active networks.
+	// It changes only through the guarded command on the networks page.
+	IsActive bool `db:"is_active" json:"isActive" meta:"label:Наблюдение за сетью,readOnly:true"`
 }
 
 // NewBlockchainNetwork creates a new BlockchainNetwork with required fields.

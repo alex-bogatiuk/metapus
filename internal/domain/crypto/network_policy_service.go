@@ -85,6 +85,9 @@ func (s *NetworkPolicyAdminService) Update(ctx context.Context, networkID id.ID,
 		if err := policy.ValidateForCapabilities(current.Capabilities, contractAssets); err != nil {
 			return apperror.NewValidation("invalid crypto network policy").WithCause(err)
 		}
+		if policy.Enabled && !current.Watching {
+			return apperror.NewValidation("operations processing requires a watched network")
+		}
 		if policy.Enabled {
 			if policy.FeeFunding.Mode == FeeFundingJIT {
 				ready, err := s.repo.NetworkFundingSourcesReady(txCtx, networkID, policy.FeeFunding.MinFeeWalletBalance)
@@ -142,4 +145,44 @@ func (s *NetworkPolicyAdminService) Update(ctx context.Context, networkID id.ID,
 		return nil
 	})
 	return updated, err
+}
+
+// SetWatching starts or stops reading the network. Stopping is refused while
+// processing is enabled, outbound transactions await the chain or invoices
+// await payment; transfers that arrive meanwhile are read from the watcher
+// checkpoint when watching resumes.
+func (s *NetworkPolicyAdminService) SetWatching(ctx context.Context, networkID id.ID, watching bool, reason string) (NetworkPolicyState, error) {
+	txm, err := tenant.GetTxManager(ctx)
+	if err != nil {
+		return NetworkPolicyState{}, apperror.NewInternal(err)
+	}
+	var updated NetworkPolicyState
+	err = txm.RunInTransaction(ctx, func(txCtx context.Context) error {
+		current, err := s.repo.GetNetworkPolicyState(txCtx, networkID)
+		if err != nil {
+			return err
+		}
+		if current.Watching == watching {
+			updated = current
+			return nil
+		}
+		updated, err = s.repo.SetNetworkWatching(txCtx, networkID, watching)
+		if err != nil {
+			return err
+		}
+		network := networkID
+		if err := s.eventWriter.Write(txCtx, eventlog.Event{
+			Category: eventlog.CategorySecurity, Severity: eventlog.SeverityWarning,
+			EventType: eventlog.EventType("crypto.network.watching_changed"), Source: "api",
+			EntityType: "blockchain_network", EntityID: &network, Message: "Crypto network watching changed",
+			Details: map[string]any{"watching": watching, "reason": reason},
+		}); err != nil {
+			return fmt.Errorf("write crypto network watching audit event: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return NetworkPolicyState{}, err
+	}
+	return s.decorate(updated)
 }

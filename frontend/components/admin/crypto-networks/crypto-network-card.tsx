@@ -74,6 +74,7 @@ import {
 import { ProviderAccountsOrderSection } from "./provider-accounts-order-section"
 import { RuntimeStatus } from "./runtime-status"
 import { ShadowControlSection } from "./shadow-control-section"
+import { NetworkWatchingSection } from "./network-watching-section"
 
 export interface CryptoNetworkCardProps {
   incoming: CryptoNetworkState
@@ -147,6 +148,8 @@ export function CryptoNetworkCard({
       }
       if (saveError instanceof ApiError && saveError.status === 409) {
         toast.error("Настройки изменены другим администратором. Обновите данные.")
+      } else if (saveError instanceof ApiError && saveError.parsedBody?.message === "operations processing requires a watched network") {
+        toast.error("Сначала возобновите наблюдение за сетью.")
       } else {
         toast.error("Не удалось сохранить настройки. Проверьте данные и повторите попытку.")
       }
@@ -187,6 +190,7 @@ export function CryptoNetworkCard({
                 <div className="flex flex-wrap items-center gap-2">
                   <CardTitle>{incoming.network.code}</CardTitle>
                   <Badge variant="outline">{incoming.network.family}</Badge>
+                  {incoming.watching ? null : <Badge variant="secondary">Сеть не читается</Badge>}
                   <Badge variant={form.enabled ? "success" : "secondary"}>
                     {form.enabled ? "Обработка включена" : "Обработка выключена"}
                   </Badge>
@@ -217,8 +221,11 @@ export function CryptoNetworkCard({
                       <p>
                         Разрешает воркеру выполнять новые транзакции в блокчейне (свипы, выплаты, JIT-пополнения).
                       </p>
+                      <p className="mt-1">
+                        Чтение сети не останавливает: входящие переводы и подтверждения отправленных транзакций обрабатываются и при выключенной обработке. Чтобы воркер не обращался к сети совсем, остановите наблюдение.
+                      </p>
                       <p className="mt-1 font-medium text-destructive">
-                        Включение блокируется, если Signer недоступен, RPC-узлы не готовы или настройки содержат ошибки.
+                        Включение блокируется, если за сетью не наблюдают, Signer недоступен, RPC-узлы не готовы или настройки содержат ошибки.
                       </p>
                     </FieldHelp>
                   </div>
@@ -226,6 +233,7 @@ export function CryptoNetworkCard({
                 <Switch
                   id={`network-enabled-${incoming.network.id}`}
                   checked={form.enabled}
+                  disabled={!incoming.watching && !form.enabled}
                   onCheckedChange={(enabled) => setForm((current) => ({ ...current, enabled }))}
                 />
               </Field>
@@ -251,6 +259,9 @@ export function CryptoNetworkCard({
                 </AlertDescription>
               </Alert>
             ) : null}
+
+            <NetworkWatchingSection state={incoming} onUpdated={onUpdated} />
+            <Separator />
 
             <RuntimeStatus state={incoming} resourceStrategy={form.resourceStrategy} onRPCDirtyChange={setRPCDirty} />
             <Separator />

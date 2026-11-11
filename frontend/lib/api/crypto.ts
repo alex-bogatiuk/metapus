@@ -284,6 +284,15 @@ export const cryptoApi = {
             apiFetch<import("@/types/crypto-network").CryptoNetworkListResponse>(
                 "/admin/crypto/networks"
             ),
+        setWatching: (
+            networkId: string,
+            command: import("@/types/generated/http-contracts").SetCryptoNetworkWatchingRequest,
+            idempotencyKey: string,
+        ) =>
+            apiFetch<import("@/types/crypto-network").CryptoNetworkState>(
+                `/admin/crypto/networks/${assertUuidPathParam(networkId, "networkId")}/watching`,
+                { method: "POST", headers: idempotencyHeaders(idempotencyKey), body: JSON.stringify(command) },
+            ),
         status: (networkId: string) =>
             apiFetch<import("@/types/crypto-network").CryptoNetworkState>(
                 `/admin/crypto/networks/${assertUuidPathParam(networkId, "networkId")}/status`

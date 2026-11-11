@@ -408,7 +408,7 @@ family adapter из общей orchestration.
 Рекомендуемый порядок:
 
 1. Local dev chain или Anvil с детерминированными reorg/fee/nonce тестами.
-2. Sepolia в watcher-only режиме.
+2. Sepolia в watcher-only режиме: наблюдение включено, обработка операций выключена.
 3. Sepolia outbound с малыми лимитами и отдельным Vault tenant config.
 4. Полная reconciliation и crash matrix.
 5. Mainnet watcher-only/canary.
@@ -417,7 +417,10 @@ family adapter из общей orchestration.
 
 Rollback выключает новые intents и watcher allocation, но не удаляет
 подписанные/отправленные attempts. Broadcast/ambiguous операции продолжают
-reconciliation до terminal состояния.
+reconciliation до terminal состояния, поэтому rollback выключает обработку
+операций, а не наблюдение. Наблюдение останавливается отдельно и только когда
+сети ничего не нужно читать; режимы описаны в
+[rpc-ingestion.md](../operations/rpc-ingestion.md#наблюдение-и-обработка-сети).
 
 ## 5. Добавление второй EVM-сети после реализации family
 

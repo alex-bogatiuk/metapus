@@ -82,6 +82,7 @@ func systemRoutes() []RouteContract {
 	add("GET", "/admin/crypto/networks/:networkId/rpc-configuration", "", "CryptoRPCConfigurationResponse")
 	add("PATCH", "/admin/crypto/networks/:networkId/rpc-configuration", "UpdateCryptoRPCConfigurationRequest", "CryptoRPCConfigurationResponse")
 	add("PATCH", "/admin/crypto/networks/:networkId/policy", "UpdateCryptoNetworkPolicyRequest", "CryptoNetworkStateResponse")
+	add("POST", "/admin/crypto/networks/:networkId/watching", "SetCryptoNetworkWatchingRequest", "CryptoNetworkStateResponse")
 	add("GET", "/admin/crypto/networks/:networkId/shadow", "", "CryptoShadowControlResponse")
 	add("POST", "/admin/crypto/networks/:networkId/shadow", "SetCryptoShadowControlRequest", "CryptoShadowControlResponse")
 	return routes

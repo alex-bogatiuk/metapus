@@ -55,8 +55,14 @@ func (s *Service) prepareForCreate(ctx context.Context, net *BlockchainNetwork) 
 	return nil
 }
 
-// prepareForUpdate validates chain ID uniqueness on update.
+// prepareForUpdate validates chain ID uniqueness on update. Watching is kept:
+// it changes only through the guarded crypto network command.
 func (s *Service) prepareForUpdate(ctx context.Context, net *BlockchainNetwork) error {
+	current, err := s.repo.GetByID(ctx, net.ID)
+	if err != nil {
+		return err
+	}
+	net.IsActive = current.IsActive
 	if exists, _ := s.checkNetworkIdentityExists(ctx, net.ChainFamily, net.NetworkIdentifier, net.ID); exists {
 		return apperror.NewConflict("blockchain network with this family and identifier already exists").
 			WithDetail("chainFamily", net.ChainFamily).

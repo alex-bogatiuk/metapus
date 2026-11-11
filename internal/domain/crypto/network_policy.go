@@ -252,7 +252,10 @@ type DriverRuntimeProber interface {
 }
 
 type NetworkPolicyState struct {
-	Network      NetworkRef              `json:"network"`
+	Network NetworkRef `json:"network"`
+	// Watching is the catalog activity of the network: the worker reads only
+	// watched networks, and processing operations requires watching.
+	Watching     bool                    `json:"watching"`
 	Capabilities ChainFamilyCapabilities `json:"capabilities"`
 	Policy       NetworkPolicy           `json:"policy"`
 	Runtime      NetworkRuntimeStatus    `json:"runtime"`
@@ -315,6 +318,9 @@ type NetworkPolicyAdminRepository interface {
 	NetworkHasActiveContractAssets(ctx context.Context, networkID id.ID) (bool, error)
 	NetworkProviderAccountCodes(ctx context.Context, networkID id.ID, accountIDs []id.ID, observedAt time.Time) (map[id.ID]string, error)
 	UpdateNetworkPolicy(ctx context.Context, policy NetworkPolicy, expectedVersion int, actor string) (NetworkPolicyState, error)
+	// SetNetworkWatching changes the catalog activity; SQL guards refuse to
+	// stop watching while processing, outbound transactions or invoices need it.
+	SetNetworkWatching(ctx context.Context, networkID id.ID, watching bool) (NetworkPolicyState, error)
 }
 
 type FeeStrategy string

@@ -2252,11 +2252,59 @@ JOIN LATERAL (
     ORDER BY id LIMIT 1
 ) t ON TRUE
 ON CONFLICT DO NOTHING;
+
+-- An unwatched network has no reader. Watching stops only when nothing still
+-- needs the chain: processing is off, every outbound transaction has reached
+-- the chain or failed, and no invoice awaits its payment or finality.
+CREATE FUNCTION fn_crypto_network_watch_guard() RETURNS TRIGGER AS $$
+BEGIN
+ IF OLD.is_active AND NOT NEW.is_active THEN
+  -- Serializes with enabling processing, which locks the network row.
+  PERFORM 1 FROM sys_crypto_network_policies WHERE network_id=NEW.id FOR UPDATE;
+  IF EXISTS(SELECT 1 FROM sys_crypto_network_policies WHERE network_id=NEW.id AND enabled AND _deleted_at IS NULL) THEN
+   RAISE EXCEPTION 'network watching cannot stop while operations processing is enabled' USING ERRCODE='23514';
+  END IF;
+  IF EXISTS(SELECT 1 FROM reg_crypto_signing_authorizations a WHERE a.network_id=NEW.id
+     AND (a.status IN ('created','signed','held') OR a.status='broadcast' AND EXISTS(
+      SELECT 1 FROM reg_crypto_expected_chain_effects e WHERE e.signing_authorization_id=a.id
+      AND NOT EXISTS(SELECT 1 FROM reg_crypto_chain_effect_matches m WHERE m.expected_effect_id=e.id)))) THEN
+   RAISE EXCEPTION 'network watching cannot stop while outbound transactions await the chain' USING ERRCODE='23514';
+  END IF;
+  IF EXISTS(SELECT 1 FROM doc_crypto_invoices i JOIN cat_tokens t ON t.id=i.token_id WHERE t.network_id=NEW.id
+     AND NOT i.deletion_mark AND i.status IN ('created','partially_paid','paid','confirmed')) THEN
+   RAISE EXCEPTION 'network watching cannot stop while invoices await payment or finality' USING ERRCODE='23514';
+  END IF;
+ END IF;
+ RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_crypto_network_watch_guard
+    BEFORE UPDATE OF is_active ON cat_blockchain_networks
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_watch_guard();
+
+CREATE FUNCTION fn_crypto_network_policy_watch_guard() RETURNS TRIGGER AS $$
+BEGIN
+ IF NEW.enabled AND (TG_OP='INSERT' OR NOT OLD.enabled)
+    AND NOT EXISTS(SELECT 1 FROM cat_blockchain_networks WHERE id=NEW.network_id AND is_active FOR SHARE) THEN
+  RAISE EXCEPTION 'operations processing requires a watched network' USING ERRCODE='23514';
+ END IF;
+ RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_crypto_network_policy_watch_guard
+    BEFORE INSERT OR UPDATE OF enabled ON sys_crypto_network_policies
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_policy_watch_guard();
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
+DROP TRIGGER trg_crypto_network_policy_watch_guard ON sys_crypto_network_policies;
+DROP TRIGGER trg_crypto_network_watch_guard ON cat_blockchain_networks;
+DROP FUNCTION fn_crypto_network_policy_watch_guard();
+DROP FUNCTION fn_crypto_network_watch_guard();
 DROP TRIGGER trg_crypto_custody_wallet_effect_guard ON reg_crypto_balance_movements;
 DROP TRIGGER trg_crypto_provider_decision_audit ON sys_event_log;
 DROP TRIGGER trg_crypto_provider_opening_audit ON sys_event_log;

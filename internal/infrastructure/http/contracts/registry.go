@@ -138,6 +138,7 @@ func Registry() []Contract {
 		Request[dto.UpdateCryptoRPCConfigurationRequest]("UpdateCryptoRPCConfigurationRequest"),
 		Request[dto.CryptoRPCConfigurationChange]("CryptoRPCConfigurationChange"),
 		Request[dto.SetCryptoShadowControlRequest]("SetCryptoShadowControlRequest"),
+		Request[dto.SetCryptoNetworkWatchingRequest]("SetCryptoNetworkWatchingRequest"),
 		Response[dto.CryptoProviderBalanceOperationDetail]("CryptoProviderBalanceOperationDetail"),
 		Response[dto.CursorListResponse]("CursorListResponse"),
 		Response[dto.DocumentResponse]("DocumentResponse"),

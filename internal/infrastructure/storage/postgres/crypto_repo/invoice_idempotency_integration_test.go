@@ -51,7 +51,7 @@ func TestTwentyConcurrentInvoiceCommandsCreateOneAggregateAllocationAndEvent(t *
 		INSERT INTO cat_blockchain_networks(
 			id,code,name,chain_family,network_identifier,native_token_symbol,native_decimals,
 			confirmations_needed,is_active)
-		VALUES($1,$2,'Invoice idempotency network','tron',$3,'TRX',6,20,FALSE);
+		VALUES($1,$2,'Invoice idempotency network','tron',$3,'TRX',6,20,TRUE);
 		UPDATE sys_crypto_network_policies
 		SET enabled=TRUE,per_transaction_max_fee_minor=1,daily_network_fee_budget_minor=100
 		WHERE network_id=$1;

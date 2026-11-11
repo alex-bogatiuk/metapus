@@ -27,6 +27,7 @@ func (h *CryptoNetworkHandler) RegisterRoutes(rg *gin.RouterGroup, updateGuard g
 	group.GET("", middleware.RequirePermission("crypto_network:read"), h.List)
 	group.GET("/:networkId/status", middleware.RequirePermission("crypto_network:read"), h.Status)
 	group.PATCH("/:networkId/policy", middleware.RequirePermission("crypto_network:update"), updateGuard, h.UpdatePolicy)
+	group.POST("/:networkId/watching", middleware.RequirePermission("crypto_network:update"), updateGuard, h.SetWatching)
 	group.GET("/:networkId/shadow", middleware.RequirePermission("crypto_network:read"), h.ShadowStatus)
 	group.POST("/:networkId/shadow", middleware.RequirePermission("crypto_network:update"), middleware.RequireSystemAdmin(), updateGuard, h.SetShadowPaused)
 }
@@ -72,6 +73,25 @@ func (h *CryptoNetworkHandler) UpdatePolicy(c *gin.Context) {
 		return
 	}
 	state, err := h.svc.Update(c.Request.Context(), networkID, patch)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+	response := dto.CryptoNetworkStateFromDomain(state)
+	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
+	c.JSON(http.StatusOK, response)
+}
+
+func (h *CryptoNetworkHandler) SetWatching(c *gin.Context) {
+	networkID, ok := h.networkID(c)
+	if !ok {
+		return
+	}
+	var request dto.SetCryptoNetworkWatchingRequest
+	if !h.BindJSON(c, &request) {
+		return
+	}
+	state, err := h.svc.SetWatching(c.Request.Context(), networkID, *request.Watching, request.Reason)
 	if err != nil {
 		h.Error(c, err)
 		return

@@ -1151,6 +1151,7 @@ export const CryptoNetworkRuntimeStatusSchema: z.ZodType<Wire.CryptoNetworkRunti
 
 export const CryptoNetworkStateResponseSchema: z.ZodType<Wire.CryptoNetworkStateResponse> = z.lazy(() => z.object({
   "network": CryptoNetworkRefSchema,
+  "watching": z.boolean(),
   "capabilities": CryptoChainFamilyCapabilitiesSchema,
   "policy": CryptoNetworkPolicyResponseSchema,
   "runtime": CryptoNetworkRuntimeStatusSchema,
@@ -4105,6 +4106,11 @@ export const SecurityProfileResponseSchema: z.ZodType<Wire.SecurityProfileRespon
   "fieldPolicies": z.array(FieldPolicyResponseSchema).optional(),
   "policyRules": z.array(PolicyRuleResponseSchema).optional(),
   "userCount": z.number().int(),
+}))
+
+export const SetCryptoNetworkWatchingRequestSchema: z.ZodType<Wire.SetCryptoNetworkWatchingRequest> = z.lazy(() => z.strictObject({
+  "watching": z.boolean(),
+  "reason": z.string(),
 }))
 
 export const SetCryptoShadowControlRequestSchema: z.ZodType<Wire.SetCryptoShadowControlRequest> = z.lazy(() => z.strictObject({

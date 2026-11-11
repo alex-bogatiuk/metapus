@@ -21,6 +21,12 @@ type SetCryptoShadowControlRequest struct {
 	Reason  string `json:"reason" binding:"required,min=3,max=500"`
 }
 
+// SetCryptoNetworkWatchingRequest starts or stops reading a network.
+type SetCryptoNetworkWatchingRequest struct {
+	Watching *bool  `json:"watching" binding:"required"`
+	Reason   string `json:"reason" binding:"required,min=3,max=500"`
+}
+
 type FeeFundingPolicyRequest struct {
 	Mode                         string             `json:"mode" binding:"required"`
 	DailyBudgetMinor             types.CryptoAmount `json:"dailyBudgetMinor"`
@@ -82,6 +88,7 @@ type CryptoNetworkPolicyResponse struct {
 
 type CryptoNetworkStateResponse struct {
 	Network      crypto.NetworkRef              `json:"network"`
+	Watching     bool                           `json:"watching"`
 	Capabilities crypto.ChainFamilyCapabilities `json:"capabilities"`
 	Policy       CryptoNetworkPolicyResponse    `json:"policy"`
 	Runtime      crypto.NetworkRuntimeStatus    `json:"runtime"`
@@ -90,7 +97,7 @@ type CryptoNetworkStateResponse struct {
 func CryptoNetworkStateFromDomain(state crypto.NetworkPolicyState) CryptoNetworkStateResponse {
 	policy := state.Policy
 	response := CryptoNetworkStateResponse{
-		Network: state.Network, Capabilities: state.Capabilities,
+		Network: state.Network, Watching: state.Watching, Capabilities: state.Capabilities,
 		Policy: CryptoNetworkPolicyResponse{
 			NetworkID: policy.NetworkID, Enabled: policy.Enabled,
 			PerTransactionMaxFeeMinor:  policy.PerTransactionMaxFee,

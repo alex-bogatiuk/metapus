@@ -101,6 +101,8 @@ export interface CryptoNetworkRuntime {
 
 export interface CryptoNetworkState {
   network: CryptoNetworkRef
+  /** The worker reads only watched networks; processing requires watching. */
+  watching: boolean
   capabilities: ChainFamilyCapabilities
   policy: CryptoNetworkPolicy
   runtime: CryptoNetworkRuntime
