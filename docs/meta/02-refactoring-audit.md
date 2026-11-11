@@ -1,6 +1,6 @@
 # Ревизия кодовой базы и рефакторинг (2026-11-11)
 
-> **TL;DR:** Удалён подтверждённо мёртвый код (−1962 строки в 54 файлах), бизнес-поведение и контракты не менялись. Печать инвойса (F1) подключена отдельной веткой. Главные оставшиеся проблемы — неподключённый `SchemaCache` и проверки, не входящие в `make check-all`.
+> **TL;DR:** Удалён подтверждённо мёртвый код (−1962 строки в 54 файлах), бизнес-поведение и контракты не менялись. Печать инвойса (F1) подключена отдельной веткой. Неподключённые кастомные поля (F2) удалены. Главная оставшаяся проблема — проверки, не входящие в `make check-all`.
 > **Тип:** Reference
 > **Аудитория:** Developer, AI-Agent
 > **Связанные:** [Навигатор](../ROUTER.md), [Стандарт](00-doc-standard.md), [Сверка документации](01-documentation-audit.md)
@@ -70,13 +70,12 @@
 - *Проверка:* unit-тесты построителя, проекции, отказа без шаблонов и точного форматирования; integration-тест на реальном авторизованном читателе; сверка gin-маршрутов с контрактами; `auth-scope.spec.ts` зелёный (frontend unit 127/127).
 - *Не проверено:* сквозной сценарий в запущенном приложении (браузер → server → pdf-renderer). Форма проверена рендером HTML на тестовых данных.
 
-**F2. `SchemaCache` не создаётся, кастомные поля не попадают в метаданные** — незавершённый переход — **подтверждено**.
-- *Место:* `infrastructure/cache/schema_cache.go`, `RouterConfig.SchemaCache` (`router.go:103`), `handlers/metadata.go:99`, `handlers/custom_field.go:16`.
-- *Доказательства:* `NewSchemaCache` недостижим, поле конфигурации нигде не заполняется. `mergeCustomFields` при `nil` возвращается сразу. CRUD `sys_custom_field_schemas` работает, но на фильтры и метаданные не влияет. Кэш построен на одном `pgxpool.Pool` — это несовместимо с database-per-tenant.
-- *Влияние:* пользователь создаёт кастомное поле, а оно не появляется; около 500 строк LISTEN/NOTIFY-кода с горутиной не используются; триггеры `notify_*` в БД шлют уведомления без слушателя.
-- *Изменение:* решить, нужны ли кастомные поля в метаданных. Если да — кэш на тенант через `tenantdb.Manager`, ключ включает tenant; если нет — удалить `SchemaCache`, параметры конструкторов handlers и пометку «optional».
-- *Риск:* средний: меняется поведение `/meta` для тенантов с кастомными полями.
-- *Проверка:* integration-тест «создать поле → видно в `/meta/{entity}/filters`» для двух тенантов.
+**F2. `SchemaCache` не создаётся, кастомные поля не попадают в метаданные** — незавершённый переход — **исправлено удалением** в ветке `refactor/custom-fields-metadata`.
+- *Было:* `NewSchemaCache` не вызывался, `mergeCustomFields` при `nil` сразу возвращался, поэтому CRUD `/sys/custom-fields` (без UI) записывал описания полей, но они нигде не появлялись. Кэш был построен на одном `pgxpool.Pool` — несовместимо с database-per-tenant. Подключить поля «как есть» тоже было нельзя: frontend сделал бы колонки `attributes.*` сортируемыми и фильтруемыми, а серверный whitelist фильтров такие ключи отклоняет («invalid filter column»).
+- *Решение владельца:* удалить кастомные поля.
+- *Сделано:* удалены пакет `infrastructure/cache` (`SchemaCache` с LISTEN/NOTIFY-горутиной и загрузкой feature flags), `RouterConfig.SchemaCache`, API `/sys/custom-fields` с его step-up-действиями `system.custom_fields.*`, `CustomFieldRepo`, `EntityDef.CustomFields`/`MergeCustomFields` и группа фильтров «Additional attributes». Из контракта `EntityMetadataResponse` ушло необязательное поле `customFields`; frontend больше его не читает. `attributes` остаётся свободным JSON-объектом: форма проверяет только то, что это объект. Документация обновлена (`METADATA.md`, `extension-api.md`, `01-overview.md`).
+- *Не тронуто:* таблицы `sys_custom_field_schemas`, `sys_feature_flags` и их триггеры `pg_notify('schema_changed'|'feature_flags_changed')` остаются: применённые миграции не меняются, а удаление таблиц стирает данные. Условие для отдельной миграции `DROP`: во всех tenant DB нет строк в `sys_custom_field_schemas` или владелец согласен их потерять. До тех пор триггеры шлют уведомления без слушателя; на одной строке это дёшево.
+- *Проверка:* `go build`/`go vet` (с тегом `integration` и без), `make check-all`, сверка маршрутов с контрактами, frontend unit 127/127, полный integration-прогон.
 
 **F3. Обогащение outbox-событий валютой не работает** — dead plumbing — **подтверждено**; влияние на данные — **требуется проверка в работающей системе**.
 - *Место:* `domain/document_automation.go:24-90`, `http/v1/router.go:99`, `document_factory.go:33`, `content/document_registrations.go:333,383,430,483,619`, `core/entity/traits.go` (`CurrencyAware`).
@@ -157,7 +156,7 @@
 
 ```text
 F22 — до неё полный integration gate не может быть зелёным
-F2, F3 независимы; F3 требует сканирования шаблонов в tenant DB
+F3 требует сканирования шаблонов в tenant DB
 F4 ──► удаление ExpectedChainEffectRepo (после переноса двух integration-тестов)
 F9 — отдельный механический commit до любых массовых Go-правок
 F10 ──► решение о границах extension API (docs/systems/extension-api.md)

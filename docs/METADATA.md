@@ -26,7 +26,7 @@
 
 Группировка соответствует понятиям конфигуратора 1С. Источник структуры — модели Go, регистрации объектов и SQL-миграции. Это описание текущей реализации, а не проект будущей конфигурации. Состав бизнес-справочников и документов общего реестра приведён полностью; технические регистры и подсистемы платформы перечислены обзорно.
 
-Пользовательские реквизиты из `sys_custom_field_schemas` зависят от базы арендатора и дополняют поле `Attributes`; их конкретные имена нельзя определить из исходного кода. Формы, команды и права доступа имеют собственные контракты и здесь не разворачиваются в полный каталог.
+Поле `Attributes` хранит произвольный JSON-объект без схемы в метаданных; пользовательские реквизиты как отдельные поля метаданных не поддерживаются. Формы, команды и права доступа имеют собственные контракты и здесь не разворачиваются в полный каталог.
 
 ## Дерево конфигурации
 
@@ -1266,7 +1266,6 @@ Deferred guards требуют точный physical gross, merchant net, proces
 | Пользователи | ID, email, имя, активность, роли, параметры аутентификации | `auth_users`; [auth/model.go](../internal/domain/auth/model.go) |
 | Роли и разрешения | Код, имя, ресурс, действие, связи пользователей и ролей | `auth_roles`, `auth_permissions`, `auth_user_roles`, `auth_role_permissions`; [auth-security.md](systems/auth-security.md) |
 | Профили безопасности | Имя, измерения доступа, политики полей, правила, пользователи | `auth_security_profiles`, `auth_security_profile_dimensions`, `auth_security_profile_field_policies`, `auth_security_policy_rules`, `auth_user_security_profiles`; [model.go](../internal/domain/security_profile/model.go) |
-| Дополнительные реквизиты | Тип сущности, имя, подпись, тип поля, обязательность, ссылка / варианты | `sys_custom_field_schemas`; значения в `Attributes`; [metadata.go](../internal/infrastructure/http/v1/handlers/metadata.go) |
 | Нумераторы | Ключ последовательности и счётчик; правила префикса и периода | `sys_sequences`; [numerator.md](systems/numerator.md) |
 | Автоматизация | Правила, расписания, каналы, подписчики, аккаунты, запуски, история | `sys_automation_rules`, `sys_automation_schedules`, `sys_automation_channels`, `sys_automation_subscribers`, `sys_automation_accounts`, `sys_automation_runs`, `sys_automation_history`; [automation-engine.md](systems/automation-engine.md) |
 | Уведомления | Пользователь, событие, содержимое, прочтение | `sys_notifications`; [realtime-notifications.md](systems/realtime-notifications.md) |

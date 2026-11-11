@@ -39,7 +39,7 @@ myExtension.Register(factoryReg) // registration uses v1.EntityRegistration[Mode
    invoiceService.Hooks().OnBeforeCreate(func(ctx, doc) error { ... })
    ```
 2. **Новые Регистры:** Интегратор может написать свой `RegisterVisitor` и `RegisterRecorder`, чтобы документы, реализующие нужные source-интерфейсы начали двигать новые кастомные регистры.
-3. **No-Code Поля (JSONB):** Добавление произвольных полей (с валидацией) через таблицу `sys_custom_field_schemas`. Данные ложатся в JSONB поле `attributes`.
+3. **Атрибуты (JSONB):** У каждой сущности есть поле `attributes` для произвольных данных интегратора. Схемы, валидации, фильтрации и колонок для них нет; типизированное поле добавляется в Go-модель сущности.
 4. **CEL Политики:** Написание кастомных правил блокировок (например, запрет проведения документов с суммой > 1 млн) в виде конфигурации через CEL (Common Expression Language), без перекомпиляции Go.
 
 ## 4. Scaffold CLI
