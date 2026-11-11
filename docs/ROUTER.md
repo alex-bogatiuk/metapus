@@ -82,6 +82,7 @@
 |------|----------|----------------|
 | [meta/00-doc-standard.md](meta/00-doc-standard.md) | Стандарт написания документации | документация, стандарт, шаблон, стиль |
 | [meta/01-documentation-audit.md](meta/01-documentation-audit.md) | Пофайловая сверка 2026-11-02, исправления, источники и выполненные проверки | audit, актуальность, документация, schema 76, verification |
+| [meta/02-refactoring-audit.md](meta/02-refactoring-audit.md) | Ревизия кода 2026-11-11: карта обследования, удалённый мёртвый код, реестр находок и backlog рефакторинга | refactoring, dead code, legacy, backlog, deadcode, print, schema cache, check-all |
 
 ## 6. Криптовалютный контур
 
