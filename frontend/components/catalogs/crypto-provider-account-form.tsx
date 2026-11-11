@@ -58,7 +58,7 @@ export default function CryptoProviderAccountForm({
   const isNew = !id || id === "new"
   const router = useRouter()
   const pathname = usePathname()
-  const { closeOne } = useCloseTab()
+  const { closeOne, closeAndShowInList } = useCloseTab()
   const { markDirty, markClean } = useTabDirty()
 
   const [loading, setLoading] = useState(!isNew)
@@ -133,6 +133,10 @@ export default function CryptoProviderAccountForm({
   }, [loadData])
 
   const handleClose = () => {
+    if (!isNew && id) {
+      closeAndShowInList(pathname, "/catalogs/crypto-provider-accounts", id)
+      return
+    }
     closeOne(pathname)
     router.push("/catalogs/crypto-provider-accounts")
   }

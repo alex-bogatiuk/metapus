@@ -140,7 +140,6 @@ export default function EditOrganizationPage() {
         ]}
         backHref="/catalogs/organizations"
         backTargetId={params.id}
-        onClose={() => router.push("/catalogs/organizations")}
         favoriteTarget={{
           entityType: "organization",
           entityId: params.id,

@@ -61,7 +61,7 @@ export default function IntegrationPoolForm({ id, entityName }: EntityFormProps)
   if (form.loading || registry.isLoading) return <Skeleton className="h-48" />
   const options = accounts.data?.items ?? []
   return <div className="flex h-full min-h-0 flex-col overflow-hidden">
-    <FormToolbar title={form.formTitle} backHref="/catalogs/integration-pools" primaryAction={{ label: "Записать", onClick: () => void form.handleSave(false), disabled: form.saving || !canWrite || !registry.data }} secondaryActions={[{ label: "Записать и закрыть", onClick: () => void form.handleSave(true), disabled: form.saving || !canWrite || !registry.data }]} />
+    <FormToolbar title={form.formTitle} backHref="/catalogs/integration-pools" backTargetId={id && id !== "new" ? id : undefined} primaryAction={{ label: "Записать", onClick: () => void form.handleSave(false), disabled: form.saving || !canWrite || !registry.data }} secondaryActions={[{ label: "Записать и закрыть", onClick: () => void form.handleSave(true), disabled: form.saving || !canWrite || !registry.data }]} />
     <ScrollArea className="min-h-0 flex-1">
     <div className="max-w-4xl p-6"><FieldGroup>
       {registry.error && <Field><FieldError>Не удалось загрузить провайдеров.</FieldError><Button variant="outline" onClick={() => void registry.mutate()}>Повторить загрузку</Button></Field>}

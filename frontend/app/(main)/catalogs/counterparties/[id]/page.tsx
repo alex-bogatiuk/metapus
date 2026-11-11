@@ -1,6 +1,5 @@
 "use client"
 
-import { useRouter } from "next/navigation"
 import { FormToolbar } from "@/components/shared/form-toolbar"
 import { CounterpartyForm } from "@/components/catalogs/counterparty-form"
 import { useCatalogForm } from "@/hooks/useCatalogForm"
@@ -13,7 +12,6 @@ import { useParams } from "next/navigation"
 const formKey = createFormDraftKey<typeof INITIAL_COUNTERPARTY_STATE>("frontend/app/(main)/catalogs/counterparties/[id]/page.tsx")
 
 export default function EditCounterpartyPage() {
-  const router = useRouter()
   const params = useParams<{ id: string }>()
   const { f, update, handleChange, handleSave, saving, error, loading, deletionMark, entityLabel } = useCatalogForm({
     draftKey: formKey,
@@ -60,7 +58,6 @@ export default function EditCounterpartyPage() {
         ]}
         backHref="/catalogs/counterparties"
         backTargetId={params.id}
-        onClose={() => router.push("/catalogs/counterparties")}
         favoriteTarget={{
           entityType: "counterparty",
           entityId: params.id,

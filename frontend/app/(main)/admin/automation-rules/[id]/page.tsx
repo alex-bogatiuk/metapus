@@ -1,6 +1,5 @@
 "use client"
 
-import { useRouter } from "next/navigation"
 import { FormToolbar } from "@/components/shared/form-toolbar"
 import { AutomationRuleForm } from "@/components/settings/automation-rule-form"
 import { useCatalogForm } from "@/hooks/useCatalogForm"
@@ -17,8 +16,7 @@ import { toast } from "sonner"
 const formKey = createFormDraftKey<RuleFormState>("frontend/app/(main)/admin/automation-rules/[id]/page.tsx")
 
 export default function EditAutomationRulePage() {
-  const router = useRouter()
-  const { f, update, handleChange, handleSave, saving, error, loading, deletionMark } = useCatalogForm<RuleFormState, AutomationRule, never, UpdateRuleRequest>({
+  const { f, update, handleChange, handleSave, saving, error, loading, deletionMark, entityId } = useCatalogForm<RuleFormState, AutomationRule, never, UpdateRuleRequest>({
     draftKey: formKey,
     entityName: "Правило автоматизации",
     initialState: INITIAL_RULE_STATE,
@@ -95,7 +93,7 @@ export default function EditAutomationRulePage() {
           { label: "Записать", onClick: () => handleSave(false) },
         ]}
         backHref="/admin/automation-rules"
-        onClose={() => router.push("/admin/automation-rules")}
+        backTargetId={entityId}
       >
         <Button variant="outline" size="sm" onClick={handleTest} disabled={isTesting}>
           <Play className="h-4 w-4" />

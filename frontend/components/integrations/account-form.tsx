@@ -65,7 +65,7 @@ export default function IntegrationAccountForm({ id, entityName }: EntityFormPro
   const dirtyBeforeKeys = useRef(false)
   const { has } = usePermissions()
   const { isDirty, markClean } = useTabDirty()
-  const { closeOne } = useCloseTab()
+  const { closeOne, showInList } = useCloseTab()
   const pathname = usePathname()
   const router = useRouter()
   const clearDraft = useFormDraftStore(s => s.clearDraft)
@@ -153,7 +153,7 @@ export default function IntegrationAccountForm({ id, entityName }: EntityFormPro
   }
   const changeKind = (nextKind: string) => changeSelection({ kind: nextKind, provider: definition?.canCreate && definition.kinds.includes(nextKind) ? provider : "" })
   const changeProvider = (nextProvider: string) => changeSelection({ kind, provider: nextProvider })
-  const leave = () => { if (busy) return; if (isDirty) setConfirmation("leave"); else router.push(listPath) }
+  const leave = () => { if (busy) return; if (isDirty) setConfirmation("leave"); else if (form.entityId) showInList(listPath, form.entityId); else router.push(listPath) }
   const discard = async () => {
     setConfirmation(null); setResetting(true)
     if (await form.reset()) { resetSecrets(); setSavedConfigured(null); metadataChanged.current = false }

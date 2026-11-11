@@ -78,22 +78,40 @@ export function useCloseTab() {
     [cleanupClosedTabs, navigateAfterClose],
   )
 
+  /**
+   * Activate the list tab with its own sort and filters and ask it to select
+   * the record: the list loads the window around it when the record passes
+   * the list's filters.
+   */
+  const activateListAround = useCallback((listPath: string, recordId: string) => {
+    const store = useTabsStore.getState()
+    const listTab = store.tabs.find((tab) => tab.id === listPath)
+    const target = new URL(listTab?.url ?? listPath, window.location.origin)
+    target.searchParams.set("around", recordId)
+    const url = `${target.pathname}${target.search}${target.hash}`
+
+    store.updateTabUrl(listPath, url)
+    store.openTab({ id: listPath, url, title: listTab?.title ?? resolveTitleFromUrl(listPath) })
+    return url
+  }, [])
+
+  /** Go to the list from an open form and select its record there. */
+  const showInList = useCallback(
+    (listPath: string, recordId: string) => {
+      router.push(activateListAround(listPath, recordId))
+    },
+    [activateListAround, router],
+  )
+
   /** Close a saved form and explicitly reveal its record in the list tab. */
   const closeAndShowInList = useCallback(
     (id: string, listPath: string, savedId: string) => {
-      const store = useTabsStore.getState()
-      const listTab = store.tabs.find((tab) => tab.id === listPath)
-      const target = new URL(listTab?.url ?? listPath, window.location.origin)
-      target.searchParams.set("around", savedId)
-      const url = `${target.pathname}${target.search}${target.hash}`
-
-      store.updateTabUrl(listPath, url)
-      store.openTab({ id: listPath, url, title: listTab?.title ?? resolveTitleFromUrl(listPath) })
+      const url = activateListAround(listPath, savedId)
       // Activate the destination first: closing the form must not navigate via MRU history.
       closeOne(id)
       router.push(url)
     },
-    [closeOne, router],
+    [activateListAround, closeOne, router],
   )
 
   /** Close all tabs except keepId with smooth Apple animation. */
@@ -160,5 +178,5 @@ export function useCloseTab() {
     return idsToClose
   }, [cleanupClosedTabs, router])
 
-  return { closeOne, closeAndShowInList, closeOthers, closeRight, closeAll }
+  return { closeOne, showInList, closeAndShowInList, closeOthers, closeRight, closeAll }
 }

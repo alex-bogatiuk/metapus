@@ -2,6 +2,7 @@
 
 import { useCallback } from "react"
 import { useCompactMode } from "@/hooks/useCompactMode"
+import { useCloseTab } from "@/hooks/useCloseTab"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, MoreHorizontal, HelpCircle, Link2 } from "lucide-react"
@@ -52,8 +53,11 @@ interface FormToolbarProps {
     title: string
     onClick?: () => void
   }[]
+  /** List of this form's entity type; «К списку» goes there. */
   backHref?: string
+  /** Saved record id; the list selects it when it passes the list's filters. */
   backTargetId?: string
+  /** Replaces the default back navigation, e.g. to confirm unsaved changes first. */
   onClose?: () => void
   sticky?: boolean
   /** If provided, renders a ⭐ favorite toggle button. */
@@ -106,11 +110,12 @@ export function FormToolbar({
   favoriteTarget,
   children,
 }: FormToolbarProps) {
-  const resolvedBackHref = backHref
-    ? backTargetId
-      ? `${backHref}?around=${encodeURIComponent(backTargetId)}`
-      : backHref
+  const { showInList } = useCloseTab()
+  const backToRecord = !onClose && backHref && backTargetId
+    ? () => showInList(backHref, backTargetId)
     : undefined
+  const handleBack = onClose ?? backToRecord
+  const backLink = handleBack ? undefined : backHref
 
   const compact = useCompactMode()
 
@@ -118,9 +123,9 @@ export function FormToolbar({
     <div data-material="workspace" className={cn("border-b", sticky && "sticky top-0 z-20")}>
       <div className={cn("flex flex-wrap items-center gap-2 px-4", compact ? "py-1" : "py-2")}>
         <div className="flex items-center gap-1">
-          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label="К списку" onClick={onClose} asChild={!!resolvedBackHref && !onClose}>
-            {resolvedBackHref && !onClose ? (
-              <Link href={resolvedBackHref} aria-label="К списку">
+          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label="К списку" onClick={handleBack} asChild={!!backLink}>
+            {backLink ? (
+              <Link href={backLink} aria-label="К списку">
                 <ArrowLeft className="h-3.5 w-3.5" />
               </Link>
             ) : (

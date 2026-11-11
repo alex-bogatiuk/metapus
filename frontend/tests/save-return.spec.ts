@@ -191,6 +191,37 @@ for (const create of [false, true]) {
   })
 }
 
+test("AutoForm back to list selects the open record, keeps the list's sort and leaves the form open", async ({ page }) => {
+  const server = await setup(page)
+  await page.goto(`${server.listPath}?sort=name&dir=desc`)
+  await page.locator(`[data-row-id="${targetId}"]`).dblclick()
+  await expect(autoField(page, "name")).toBeVisible()
+  await page.getByRole("button", { name: "К списку", exact: true }).click()
+  await expectRevealed(page, server.listPath)
+  await expect(page).toHaveURL(`${server.listPath}?sort=name&dir=desc`)
+  expect(server.aroundRequests().at(-1)!.searchParams.get("around")).toBe(targetId)
+  expect(server.aroundRequests().at(-1)!.searchParams.get("orderBy")).toBe("-name")
+  await expect(page.locator(`[data-tab-id="${server.listPath}/${targetId}"]`)).toHaveCount(1)
+})
+
+test("useCatalogForm back to list selects the open record", async ({ page }) => {
+  const server = await setup(page, "counterparty")
+  await page.goto(`${server.listPath}/${targetId}`)
+  await expect(page.getByLabel("Наименование *", { exact: true })).toBeVisible()
+  await page.getByRole("button", { name: "К списку", exact: true }).click()
+  await expectRevealed(page, server.listPath)
+})
+
+test("back to list from a new record opens the list without selecting anything", async ({ page }) => {
+  const server = await setup(page, "currency", { fresh: true })
+  await page.goto(`${server.listPath}/new`)
+  await expect(autoField(page, "name")).toBeVisible()
+  await page.getByRole("link", { name: "К списку", exact: true }).click()
+  await expect(page).toHaveURL(server.listPath)
+  await expect(page.locator("tr[data-row-id]")).toHaveCount(80)
+  expect(server.aroundRequests()).toHaveLength(0)
+})
+
 test("a target excluded from the list keeps filters and falls back to fresh rows with an explanation", async ({ page }) => {
   const server = await setup(page, "currency", { hidden: true })
   await page.goto(`${server.listPath}/${targetId}`)

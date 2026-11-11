@@ -801,7 +801,6 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                 ] : undefined}
                 backHref={listPath}
                 backTargetId={id === "new" ? undefined : id}
-                onClose={() => router.push(listPath)}
                 favoriteTarget={!isNew && id ? {
                     entityType: entityName,
                     entityId: id,

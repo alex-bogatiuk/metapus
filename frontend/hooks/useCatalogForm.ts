@@ -83,6 +83,8 @@ interface UseCatalogFormReturn<TState> {
   deletionMark: boolean
   /** Edit mode: true when editing existing entity (has `id` param). */
   isEditMode: boolean
+  /** Id of the edited entity; undefined while creating. */
+  entityId?: string
   /** Resolved entity display name (from metadata store or fallback). */
   entityLabel: string
   /** Form heading that identifies unsaved creation and copying. */
@@ -368,6 +370,7 @@ export function useCatalogForm<
     loading,
     deletionMark,
     isEditMode,
+    entityId,
     entityLabel: resolvedEntityName,
     formTitle,
     fieldProps,
