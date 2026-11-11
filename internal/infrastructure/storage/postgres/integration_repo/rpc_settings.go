@@ -35,31 +35,3 @@ func LoadIngestionAlertSettings(ctx context.Context) (map[string]integrations.In
 	}
 	return result, rows.Err()
 }
-
-// Existing tenants use the explicit integration-config upgrade command. No
-// startup DDL and no edits to goose history or business/checkpoint records.
-func upgradeIngestionAlertSettings(ctx context.Context, apply bool) (bool, error) {
-	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
-	var count, valid int
-	if err := q.QueryRow(ctx, `SELECT count(*),count(*) FILTER(WHERE udt_name='jsonb' AND is_nullable='NO' AND column_default='''{}''::jsonb') FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='sys_crypto_rpc_network_settings' AND column_name='ingestion_alert_settings'`).Scan(&count, &valid); err != nil {
-		return false, err
-	}
-	if count == 0 {
-		if !apply {
-			return true, nil
-		}
-		_, err := q.Exec(ctx, `ALTER TABLE sys_crypto_rpc_network_settings ADD COLUMN ingestion_alert_settings JSONB NOT NULL DEFAULT '{}' CHECK(jsonb_typeof(ingestion_alert_settings)='object')`)
-		return true, err
-	}
-	if count != 1 || valid != 1 {
-		return false, fmt.Errorf("unknown ingestion alert settings column")
-	}
-	var checked bool
-	if err := q.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='sys_crypto_rpc_network_settings'::regclass AND conname='sys_crypto_rpc_network_settings_ingestion_alert_settings_check' AND contype='c' AND convalidated AND pg_get_constraintdef(oid)='CHECK ((jsonb_typeof(ingestion_alert_settings) = ''object''::text))')`).Scan(&checked); err != nil {
-		return false, err
-	}
-	if !checked {
-		return false, fmt.Errorf("unknown ingestion alert settings constraint")
-	}
-	return false, nil
-}

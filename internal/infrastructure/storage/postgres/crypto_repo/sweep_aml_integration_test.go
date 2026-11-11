@@ -4,20 +4,16 @@ package crypto_repo
 
 import (
 	"context"
-	"database/sql"
-	"io/fs"
 	"strings"
 	"testing"
 	"time"
 
-	dbassets "metapus/db"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/crypto/aml"
 	"metapus/internal/infrastructure/storage/postgres"
 
-	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/require"
 )
 
@@ -97,16 +93,4 @@ func TestSweepV2AMLUsesExactLineReceiptBeforeWholeBatchFinishes(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(f.ctx, "SELECT principal::text,service_fee::text FROM reg_crypto_aml_inventory_positions WHERE wallet_id=$1 AND token_id=$2", destination, request.TokenID).Scan(&principal, &fee))
 	require.Equal(t, []string{plan.Partition.Principal.String(), plan.Partition.ServiceFee.String()}, []string{principal, fee})
 	require.Equal(t, aml.Low, f.class(t, destination))
-}
-
-func sweepMigrationProvider(t *testing.T, f amlRoutingFixture) *goose.Provider {
-	t.Helper()
-	db, err := sql.Open("pgx", f.pool.Config().ConnConfig.ConnString())
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, db.Close()) })
-	migrations, err := fs.Sub(dbassets.Files, "migrations")
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
-	require.NoError(t, err)
-	return provider
 }

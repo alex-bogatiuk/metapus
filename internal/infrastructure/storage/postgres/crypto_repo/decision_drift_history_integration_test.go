@@ -4,32 +4,16 @@ package crypto_repo
 
 import (
 	"context"
-	"database/sql"
-	"io/fs"
 	"sync"
 	"testing"
 	"time"
 
-	dbassets "metapus/db"
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/infrastructure/storage/postgres"
 
-	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/require"
 )
-
-func history107Provider(t *testing.T, f amlRoutingFixture) *goose.Provider {
-	t.Helper()
-	db, err := sql.Open("pgx", f.pool.Config().ConnConfig.ConnString())
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = db.Close() })
-	root, err := fs.Sub(dbassets.Files, "migrations")
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, root)
-	require.NoError(t, err)
-	return provider
-}
 
 func completedDecision107(t *testing.T) amlRoutingFixture {
 	t.Helper()

@@ -16,7 +16,7 @@
 | PostgreSQL | `internal/infrastructure/storage/postgres/catalog_repo/counterparty.go` |
 | DTO | `internal/infrastructure/http/v1/dto/counterparty.go` |
 | Фабрика | `CounterpartyRegistration` в `internal/content/catalog_registrations.go` |
-| Таблица | `db/migrations/00006_cat_counterparties.sql` |
+| Таблица | `db/migrations/00003_catalogs.sql` |
 
 Domain-модель находится в `internal/domain/catalogs/<name>/`, регистрации — в `internal/content/`. Клиентское расширение размещается в `extensions/<name>/` внутри Go-модуля Metapus. Доступны базовые типы `internal/core/entity` и совместимые aliases в `internal/platform`; `pkg/extension` пока содержит только версию API.
 

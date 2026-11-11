@@ -11,7 +11,7 @@
 ## 1. Release identity и change control
 
 - [ ] Commit и image digests совпадают с Nile-accepted candidate.
-- [ ] Schema version совпадает с `ExpectedSchemaVersion` текущего release (сейчас `77`); migration/rollback rehearsal и [AML configuration preflight](crypto-aml-preflight.md) приложены.
+- [ ] Schema version совпадает с `ExpectedSchemaVersion` текущего release (сейчас `9`); migration/rollback rehearsal и [AML configuration preflight](crypto-aml-preflight.md) приложены.
 - [ ] TRON plugin binary зарегистрирован по проверенному SHA-256.
 - [ ] Diff после Nile принятия пуст либо повторно прошёл полный acceptance.
 - [ ] Change ticket содержит окно, владельца, rollback authority и контакты P1.

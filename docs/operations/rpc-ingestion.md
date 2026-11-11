@@ -405,12 +405,9 @@ RPC перечитываются при следующем обращении, �
 При изменении порогов кандидат и таймер восстановления начинают отсчёт
 заново; активные инциденты и pending IDs сохраняются.
 
-Для существующих tenant перед запуском новых binaries выполнить штатный
-`integration-config -schema-only` сначала без `-apply`, затем с `-apply`.
-Он аддитивно добавляет `sys_crypto_rpc_network_settings.ingestion_alert_settings`
-с `{}` по умолчанию, не меняя RPC JSON, checkpoint и историю goose. Новый tenant
-получает колонку из owning baseline migration. Откат binaries не требует
-удаления этой колонки. Frontend, API, worker и monitor выпускаются совместно.
+Колонка `sys_crypto_rpc_network_settings.ingestion_alert_settings` с `{}` по
+умолчанию входит в миграцию crypto_core. Frontend, API, worker и monitor
+выпускаются совместно.
 
 `CRYPTO_INGESTION_MONITOR_INTERVAL` и `CRYPTO_INGESTION_MONITOR_TIMEOUT` остаются
 настройками развёртывания. При изменении timeout он должен вмещать RPC budget

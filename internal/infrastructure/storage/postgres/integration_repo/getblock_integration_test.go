@@ -5,7 +5,6 @@ package integration_repo
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -19,25 +18,9 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 )
 
-func TestGetBlockUpgradeEncryptedRoleSlotsAndTrustBoundary(t *testing.T) {
+func TestGetBlockEncryptedRoleSlotsAndTrustBoundary(t *testing.T) {
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
 	ctx, db := fixtureDB(t)
-	for _, table := range []string{"cat_integration_accounts", "cat_integration_pools"} {
-		_, err := db.Exec(ctx, fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT %s_provider_check, ADD CONSTRAINT %s_provider_check CHECK(provider IN ('alchemy','coingecko_demo','tron_api','chainstack','telegram','smtp','resource_api'))", table, table, table))
-		require.NoError(t, err)
-	}
-	needed, err := UpgradeSchema(ctx, false)
-	require.NoError(t, err)
-	require.True(t, needed)
-	var definition string
-	require.NoError(t, db.QueryRow(ctx, `SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='cat_integration_accounts_provider_check'`).Scan(&definition))
-	require.NotContains(t, definition, "getblock", "dry run must not mutate installed constraints")
-	needed, err = UpgradeSchema(ctx, true)
-	require.NoError(t, err)
-	require.True(t, needed)
-	needed, err = UpgradeSchema(ctx, true)
-	require.NoError(t, err)
-	require.False(t, needed)
 	ar, pr, er := catalog_repo.NewIntegrationAccountRepo(), catalog_repo.NewIntegrationPoolRepo(), catalog_repo.NewCryptoRPCEndpointRepo()
 	a := integrations.NewAccount("GETBLOCK-NILE", "GetBlock Nile")
 	a.Provider, a.ExternalAccountRef = integrations.GetBlock, "one-getblock-subscription"

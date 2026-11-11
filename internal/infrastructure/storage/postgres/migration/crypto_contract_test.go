@@ -3,6 +3,7 @@ package migration
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -10,7 +11,7 @@ import (
 )
 
 func TestCryptoInvoiceIdempotencyIndexesAreInBaseMigration(t *testing.T) {
-	sql := readMigrationSQL(t, "00023_crypto_invoice_and_register.sql")
+	sql := readMigrationSQL(t, "00006_crypto_core.sql")
 
 	require.Contains(t, sql, "public_ref    TEXT        NOT NULL")
 	require.Contains(t, sql, "CONSTRAINT uq_crypto_invoice_public_ref UNIQUE (public_ref)")
@@ -23,15 +24,26 @@ func TestCryptoInvoiceIdempotencyIndexesAreInBaseMigration(t *testing.T) {
 	require.Contains(t, sql, "WHERE external_id <> '' AND _deleted_at IS NULL")
 }
 
-func TestSystemIdempotencyGuardIsOneGooseStatement(t *testing.T) {
-	sql := readMigrationSQL(t, "00002_sys_core.sql")
-
-	require.Contains(t, sql, "-- +goose StatementBegin\nCREATE OR REPLACE FUNCTION fn_sys_idempotency_guard()")
-	require.Contains(t, sql, "$$ LANGUAGE plpgsql;\n-- +goose StatementEnd\n\nCREATE TRIGGER trg_sys_idempotency_guard")
+func TestEachMigrationDirectionIsOneGooseStatement(t *testing.T) {
+	files, err := filepath.Glob(filepath.Join("..", "..", "..", "..", "..", "db", "migrations", "*.sql"))
+	require.NoError(t, err)
+	require.NotEmpty(t, files)
+	for _, file := range files {
+		sql := readMigrationSQL(t, filepath.Base(file))
+		require.Equal(t, 2, strings.Count(sql, "-- +goose StatementBegin\n"), file)
+		require.Equal(t, 2, strings.Count(sql, "-- +goose StatementEnd\n"), file)
+		up, down, ok := strings.Cut(sql, "-- +goose Down\n")
+		require.True(t, ok, file)
+		require.Contains(t, up, "-- +goose Up\n-- +goose StatementBegin\n", file)
+		require.True(t, strings.HasPrefix(down, "-- +goose StatementBegin\n"), file)
+	}
+	core := readMigrationSQL(t, "00001_core.sql")
+	require.Contains(t, core, "CREATE OR REPLACE FUNCTION fn_sys_idempotency_guard()")
+	require.Contains(t, core, "CREATE TRIGGER trg_sys_idempotency_guard")
 }
 
 func TestBlockchainExplorerTemplateContractIsInBaseMigrationAndSeed(t *testing.T) {
-	migrationSQL := readMigrationSQL(t, "00022_crypto_catalogs.sql")
+	migrationSQL := readMigrationSQL(t, "00006_crypto_core.sql")
 	seed := readSQL(t, "cmd", "seed", "main.go")
 
 	require.Contains(t, migrationSQL, "chk_blockchain_network_explorer_url")
@@ -52,7 +64,7 @@ func TestPublicCheckoutMetaSchemaExists(t *testing.T) {
 }
 
 func TestPaymentLinksUsePublicRefInsteadOfShortCode(t *testing.T) {
-	sql := readMigrationSQL(t, "00029_payment_links.sql")
+	sql := readMigrationSQL(t, "00006_crypto_core.sql")
 
 	require.Regexp(t, `(?m)^\s*public_ref\s+TEXT\s+NOT NULL`, sql)
 	require.Contains(t, sql, "CONSTRAINT uq_payment_link_public_ref UNIQUE (public_ref)")
@@ -62,10 +74,11 @@ func TestPaymentLinksUsePublicRefInsteadOfShortCode(t *testing.T) {
 }
 
 func TestWithdrawalRequestMigrationUsesGoGeneratedDocumentID(t *testing.T) {
-	sql := readMigrationSQL(t, "00027_withdrawal_sweep.sql")
+	sql := readMigrationSQL(t, "00007_crypto_outbound.sql")
+	table := tableSQL(t, sql, "doc_withdrawal_requests")
 
-	require.Regexp(t, `(?m)^\s*id\s+UUID\s+PRIMARY KEY,`, sql)
-	require.NotContains(t, sql, "id UUID PRIMARY KEY DEFAULT")
+	require.Regexp(t, `(?m)^\s*id\s+UUID\s+PRIMARY KEY,`, table)
+	require.NotContains(t, table, "DEFAULT gen_random_uuid_v7()")
 	require.Contains(t, sql, "NEW._deleted_at := NOW();")
 	require.Contains(t, sql, "NEW._deleted_at := NULL;")
 	require.Contains(t, sql, "NEW._txid := txid_current();")
@@ -74,10 +87,7 @@ func TestWithdrawalRequestMigrationUsesGoGeneratedDocumentID(t *testing.T) {
 }
 
 func TestLegacyTRONResourceOrderSchemaIsAbsent(t *testing.T) {
-	migrationFiles := []string{
-		"00033_tron_sweep_platform_cost.sql",
-		"00036_crypto_resource_rentals.sql",
-	}
+	migrationFiles := []string{"00007_crypto_outbound.sql"}
 	for _, file := range migrationFiles {
 		sql := strings.ToLower(readMigrationSQL(t, file))
 		require.NotContains(t, sql, "reg_tron_resource_orders", file)
@@ -87,19 +97,18 @@ func TestLegacyTRONResourceOrderSchemaIsAbsent(t *testing.T) {
 }
 
 func TestNativeWalletFundingMigrationIsAuditedAndIdempotent(t *testing.T) {
-	sql := readMigrationSQL(t, "00039_crypto_wallet_funding.sql")
+	sql := readMigrationSQL(t, "00006_crypto_core.sql")
 
 	require.Contains(t, sql, "CREATE TABLE reg_crypto_wallet_fundings")
-	require.Contains(t, sql, "CONSTRAINT uq_crypto_wallet_fundings_tx_hash UNIQUE (tx_hash)")
 	require.Contains(t, sql, "crypto wallet funding receipts are immutable")
-	require.Contains(t, sql, "'CryptoWalletFunding'")
+	require.Contains(t, readMigrationSQL(t, "00009_crypto_custody.sql"), "'CryptoWalletFunding'")
 	require.NotContains(t, sql, "'TRONAccountActivation'")
 	require.NotContains(t, sql, "reg_tron_account_activations")
 }
 
 func TestCryptoNetworkOperationOwnsActivationAccountingFacts(t *testing.T) {
-	sql := readMigrationSQL(t, "00034_tron_wallet_pre_activation.sql")
-	platformCostSQL := readMigrationSQL(t, "00033_tron_sweep_platform_cost.sql")
+	sql := readMigrationSQL(t, "00007_crypto_outbound.sql")
+	platformCostSQL := readMigrationSQL(t, "00007_crypto_outbound.sql")
 
 	require.Contains(t, sql, "CREATE TABLE doc_crypto_network_operations")
 	require.Contains(t, sql, "operation_type IN ('wallet_activation')")
@@ -111,7 +120,7 @@ func TestCryptoNetworkOperationOwnsActivationAccountingFacts(t *testing.T) {
 	require.Contains(t, sql, "activation_claim_token")
 	require.Contains(t, sql, "cost_status")
 	require.Contains(t, sql, "idx_crypto_account_activations_cost_repair")
-	require.Contains(t, sql, "crypto.network_operation.allow_editing")
+	require.Contains(t, readMigrationSQL(t, "00002_auth.sql"), "crypto.network_operation.allow_editing")
 	require.NotContains(t, sql, "reg_tron_account_activations")
 	require.NotContains(t, sql, "chain_activation_tx_hash")
 	require.NotContains(t, sql, "chain_activation_error")
@@ -126,7 +135,7 @@ func TestCryptoNetworkOperationOwnsActivationAccountingFacts(t *testing.T) {
 }
 
 func TestWalletPoolMigrationUsesDurableCursorAndBudgetGate(t *testing.T) {
-	sql := readMigrationSQL(t, "00040_crypto_wallet_pool.sql")
+	sql := readMigrationSQL(t, "00006_crypto_core.sql")
 
 	require.Contains(t, sql, "CREATE TABLE sys_crypto_wallet_pool_policies")
 	require.Contains(t, sql, "CREATE TABLE sys_crypto_wallet_derivations")
@@ -148,7 +157,7 @@ func TestWalletPoolMigrationUsesDurableCursorAndBudgetGate(t *testing.T) {
 }
 
 func TestTRC20ReusableSweepReserveIsDefinedBySeed(t *testing.T) {
-	migrationSQL := readMigrationSQL(t, "00022_crypto_catalogs.sql")
+	migrationSQL := readMigrationSQL(t, "00006_crypto_core.sql")
 	seed := readSQL(t, "cmd", "seed", "main.go")
 
 	require.Contains(t, migrationSQL, "Token minor units retained on reusable deposit wallets")
@@ -157,12 +166,12 @@ func TestTRC20ReusableSweepReserveIsDefinedBySeed(t *testing.T) {
 }
 
 func TestFinalCryptoSchemaLivesInOwningMigrations(t *testing.T) {
-	networks := readMigrationSQL(t, "00022_crypto_catalogs.sql")
-	wallets := readMigrationSQL(t, "00024_merchant_wallet.sql")
-	payments := readMigrationSQL(t, "00025_crypto_payment_fee.sql")
-	signing := readMigrationSQL(t, "00031_crypto_signing_authorizations.sql")
-	treasury := readMigrationSQL(t, "00032_treasury_withdrawals_reconciliation.sql")
-	multichain := readMigrationSQL(t, "00041_multichain_crypto_core.sql")
+	networks := readMigrationSQL(t, "00006_crypto_core.sql")
+	wallets := readMigrationSQL(t, "00006_crypto_core.sql")
+	payments := readMigrationSQL(t, "00006_crypto_core.sql")
+	signing := readMigrationSQL(t, "00007_crypto_outbound.sql")
+	treasury := readMigrationSQL(t, "00007_crypto_outbound.sql")
+	multichain := readMigrationSQL(t, "00006_crypto_core.sql")
 
 	require.Contains(t, networks, "chain_family")
 	require.Contains(t, networks, "network_identifier")
@@ -191,43 +200,31 @@ func TestFinalCryptoSchemaLivesInOwningMigrations(t *testing.T) {
 	require.NotContains(t, multichain, "ALTER TABLE reg_crypto_signing_authorizations")
 }
 
-func TestTransitionalMigrationFilesAreRemoved(t *testing.T) {
-	obsolete := []string{
-		"00005_cat_vat_rates.sql",
-		"00008_cat_units.sql",
-		"00009_cat_warehouses.sql",
-		"00010_cat_nomenclature.sql",
-		"00012_doc_goods_receipt.sql",
-		"00013_doc_goods_issue.sql",
-		"00014_reg_stock.sql",
-		"00015_reg_cost.sql",
-		"00020_doc_basis_fields.sql",
-		"00019_seed_test_users.sql",
-		"00021_stock_statement_trigger.sql",
-		"00022_cost_statement_trigger.sql",
-		"00023_settlement_statement_trigger.sql",
-		"00046_document_workflow_permissions.sql",
-		"00049_tron_activation_cost_repair.sql",
-		"00052_tron_outbound_settlement_costs.sql",
-		"00055_crypto_lifecycle_webhooks.sql",
-		"00059_trc20_reusable_sweep_reserve.sql",
-		"00061_crypto_external_resource_policies.sql",
-	}
-	for _, name := range obsolete {
-		path := filepath.Join("..", "..", "..", "..", "..", "db", "migrations", name)
-		_, err := os.Stat(path)
-		require.ErrorIs(t, err, os.ErrNotExist, name)
+func TestMigrationsDeclareFinalSchemaWithoutTransitionalDDL(t *testing.T) {
+	files, err := filepath.Glob(filepath.Join("..", "..", "..", "..", "..", "db", "migrations", "*.sql"))
+	require.NoError(t, err)
+	crossModuleFK := regexp.MustCompile(`^ALTER TABLE \w+ ADD CONSTRAINT \w+ FOREIGN KEY `)
+	for _, file := range files {
+		up, _, ok := strings.Cut(readMigrationSQL(t, filepath.Base(file)), "-- +goose Down\n")
+		require.True(t, ok, file)
+		for _, line := range strings.Split(up, "\n") {
+			if strings.HasPrefix(line, "ALTER TABLE ") {
+				require.Regexp(t, crossModuleFK, line, file)
+			}
+			require.False(t, strings.HasPrefix(line, "DROP "), "%s: %s", file, line)
+			require.False(t, strings.HasPrefix(line, "UPDATE "), "%s: %s", file, line)
+		}
 	}
 
-	require.Contains(t, readMigrationSQL(t, "00008_reg_settlement.sql"), "update_settlement_balance_on_insert")
+	require.Contains(t, readMigrationSQL(t, "00004_settlement.sql"), "update_settlement_balance_on_insert")
 }
 
 func TestAddressReuseCooldownMigrationDefinesHistoryAndInbox(t *testing.T) {
-	sql := readMigrationSQL(t, "00043_crypto_address_reuse_cooldown.sql")
-	wallets := readMigrationSQL(t, "00024_merchant_wallet.sql")
-	poolPolicy := readMigrationSQL(t, "00040_crypto_wallet_pool.sql")
+	sql := readMigrationSQL(t, "00006_crypto_core.sql")
+	wallets := readMigrationSQL(t, "00006_crypto_core.sql")
+	poolPolicy := readMigrationSQL(t, "00006_crypto_core.sql")
 
-	require.Contains(t, sql, "CREATE EXTENSION IF NOT EXISTS btree_gist")
+	require.Contains(t, readMigrationSQL(t, "00001_core.sql"), "CREATE EXTENSION IF NOT EXISTS btree_gist")
 	require.Contains(t, wallets, "cooldown_until TIMESTAMPTZ")
 	require.Contains(t, poolPolicy, "address_reuse_cooldown_seconds")
 	require.Contains(t, poolPolicy, "max_watcher_lag_seconds")
@@ -243,15 +240,14 @@ func TestAddressReuseCooldownMigrationDefinesHistoryAndInbox(t *testing.T) {
 	require.Contains(t, sql, "match_status IN")
 	require.Contains(t, sql, "'received','matched','unmatched','needs_review','ignored','poison'")
 	require.NotContains(t, sql, "WalletStatusCooldown")
-	require.NotContains(t, sql, "reg_crypto_network_holds")
 }
 
 func TestEthereumSepoliaMigrationKeepsMultichainSafetyContracts(t *testing.T) {
-	migrationSQL := readMigrationSQL(t, "00042_ethereum_sepolia_core.sql")
-	networks := readMigrationSQL(t, "00022_crypto_catalogs.sql")
-	payments := readMigrationSQL(t, "00025_crypto_payment_fee.sql")
-	signing := readMigrationSQL(t, "00031_crypto_signing_authorizations.sql")
-	multichain := readMigrationSQL(t, "00041_multichain_crypto_core.sql")
+	migrationSQL := readMigrationSQL(t, "00006_crypto_core.sql")
+	networks := readMigrationSQL(t, "00006_crypto_core.sql")
+	payments := readMigrationSQL(t, "00006_crypto_core.sql")
+	signing := readMigrationSQL(t, "00007_crypto_outbound.sql")
+	multichain := readMigrationSQL(t, "00006_crypto_core.sql")
 	require.Contains(t, networks, "finality_mode")
 	require.Contains(t, payments, "(network_id, tx_hash, event_kind, event_index)")
 	require.Contains(t, migrationSQL, "reg_evm_nonce_cursors")
@@ -261,7 +257,6 @@ func TestEthereumSepoliaMigrationKeepsMultichainSafetyContracts(t *testing.T) {
 	require.Contains(t, migrationSQL, "sys_chain_watcher_block_history")
 	require.Contains(t, migrationSQL, "reg_crypto_network_holds")
 	require.Contains(t, multichain, "sys_crypto_external_resource_policies")
-	require.NotContains(t, migrationSQL, "sys_crypto_external_resource_policies")
 	require.NotContains(t, migrationSQL, "ALTER TABLE doc_crypto_payments")
 	require.NotContains(t, migrationSQL, "ALTER TABLE reg_crypto_signing_authorizations")
 	require.NotContains(t, migrationSQL, "sys_crypto_tron_resource_policies")
@@ -276,13 +271,13 @@ func TestEthereumSepoliaMigrationKeepsMultichainSafetyContracts(t *testing.T) {
 }
 
 func TestCryptoWithdrawalAndOutflowCustodyBoundariesAreInBaseline(t *testing.T) {
-	balanceSQL := readMigrationSQL(t, "00023_crypto_invoice_and_register.sql")
-	withdrawalSQL := readMigrationSQL(t, "00027_withdrawal_sweep.sql")
-	treasurySQL := readMigrationSQL(t, "00032_treasury_withdrawals_reconciliation.sql")
-	platformCostSQL := readMigrationSQL(t, "00033_tron_sweep_platform_cost.sql")
-	reconciliationSQL := readMigrationSQL(t, "00035_crypto_reconciliation_incidents.sql")
-	networkSQL := readMigrationSQL(t, "00042_ethereum_sepolia_core.sql")
-	signingSQL := readMigrationSQL(t, "00031_crypto_signing_authorizations.sql")
+	balanceSQL := readMigrationSQL(t, "00006_crypto_core.sql")
+	withdrawalSQL := readMigrationSQL(t, "00007_crypto_outbound.sql")
+	treasurySQL := readMigrationSQL(t, "00007_crypto_outbound.sql")
+	platformCostSQL := readMigrationSQL(t, "00007_crypto_outbound.sql")
+	reconciliationSQL := readMigrationSQL(t, "00007_crypto_outbound.sql")
+	networkSQL := readMigrationSQL(t, "00006_crypto_core.sql")
+	signingSQL := readMigrationSQL(t, "00007_crypto_outbound.sql")
 
 	require.Contains(t, withdrawalSQL, "fn_reject_managed_withdrawal_destination")
 	require.Contains(t, withdrawalSQL, "chk_withdrawal_address_external_destination")
@@ -323,13 +318,13 @@ func TestCryptoWithdrawalAndOutflowCustodyBoundariesAreInBaseline(t *testing.T) 
 	require.Contains(t, reconciliationSQL, "uq_crypto_external_outflow_observation")
 	require.Contains(t, reconciliationSQL, "fk_crypto_external_outflow_observation_identity")
 	require.Contains(t, reconciliationSQL, "trg_external_outflow_observations_immutable")
-	require.Contains(t, reconciliationSQL, "DROP TRIGGER trg_reconciliation_checks_immutable")
+	require.Contains(t, reconciliationSQL, "CREATE TRIGGER trg_reconciliation_checks_immutable")
 	require.Contains(t, networkSQL, "NEW.details IS DISTINCT FROM OLD.details")
 	require.Contains(t, networkSQL, "'external_outflow'")
 }
 
 func TestMerchantNetworkPolicyRecoveryAndEnforcementAreInBaseline(t *testing.T) {
-	merchantSQL := readMigrationSQL(t, "00024_merchant_wallet.sql")
+	merchantSQL := readMigrationSQL(t, "00006_crypto_core.sql")
 
 	require.Contains(t, merchantSQL, "surface='portal' AND api_key_id IS NULL")
 	require.Contains(t, merchantSQL, "REFERENCES cat_merchant_api_keys(id,merchant_id)")
@@ -337,6 +332,16 @@ func TestMerchantNetworkPolicyRecoveryAndEnforcementAreInBaseline(t *testing.T) 
 	require.Contains(t, merchantSQL, "merchant network policy must pass through warn mode")
 	require.Contains(t, merchantSQL, "enforce mode requires at least one active CIDR")
 	require.Contains(t, merchantSQL, "merchant_network_policy_changed")
+}
+
+// tableSQL returns the CREATE TABLE statement of one table.
+func tableSQL(t *testing.T, sql, table string) string {
+	t.Helper()
+	_, rest, ok := strings.Cut(sql, "CREATE TABLE "+table+" (")
+	require.True(t, ok, table)
+	body, _, ok := strings.Cut(rest, "\n);")
+	require.True(t, ok, table)
+	return body
 }
 
 func readMigrationSQL(t *testing.T, name string) string {

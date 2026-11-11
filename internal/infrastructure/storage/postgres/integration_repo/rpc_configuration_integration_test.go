@@ -310,26 +310,6 @@ func TestRPCSettingsAndEndpointPacingShareAtomicRevision(t *testing.T) {
 	require.Equal(t, unchanged.EffectiveRevision, after.EffectiveRevision, "alert policy alone does not reset RPC circuits")
 }
 
-func TestRPCSettingsUpgradeIsAdditiveAndRepeatable(t *testing.T) {
-	ctx, db, network, _ := rpcManagementFixture(t)
-	_, err := db.Exec(ctx, `INSERT INTO sys_crypto_rpc_network_settings(network_id,evm_settings) VALUES($1,'{"readBudgetMs":25000}') ON CONFLICT(network_id) DO UPDATE SET evm_settings=EXCLUDED.evm_settings`, network)
-	require.NoError(t, err)
-	_, err = db.Exec(ctx, `ALTER TABLE sys_crypto_rpc_network_settings DROP COLUMN ingestion_alert_settings`)
-	require.NoError(t, err)
-	needed, err := UpgradeSchema(ctx, false)
-	require.NoError(t, err)
-	require.True(t, needed)
-	needed, err = UpgradeSchema(ctx, true)
-	require.NoError(t, err)
-	require.True(t, needed)
-	needed, err = UpgradeSchema(ctx, true)
-	require.NoError(t, err)
-	require.False(t, needed)
-	var preserved bool
-	require.NoError(t, db.QueryRow(ctx, `SELECT evm_settings='{"readBudgetMs":25000}'::jsonb AND ingestion_alert_settings='{}'::jsonb FROM sys_crypto_rpc_network_settings WHERE network_id=$1`, network).Scan(&preserved))
-	require.True(t, preserved)
-}
-
 func TestRPCSettingsCannotBypassEndpointFieldRestrictions(t *testing.T) {
 	ctx, _, network, _ := rpcManagementFixture(t)
 	repo := catalog_repo.NewRPCConfigurationRepo("production")

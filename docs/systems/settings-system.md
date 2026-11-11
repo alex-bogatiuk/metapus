@@ -31,5 +31,5 @@ internal/infrastructure/http/v1/handlers/settings.go
 internal/infrastructure/storage/postgres/settings_repo.go
 frontend/lib/settings-registry.ts
 frontend/components/settings/settings-section-renderer.tsx
-db/migrations/00011_sys_settings.sql
+db/migrations/00005_platform.sql
 ```

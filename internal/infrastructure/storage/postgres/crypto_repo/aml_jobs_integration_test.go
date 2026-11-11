@@ -210,7 +210,11 @@ func TestAMLCustodyOwnerCannotChangeOrCrossMerchant(t *testing.T) {
 	require.ErrorContains(t, err, "immutable merchant wallet")
 }
 
-func TestAMLFoundationEmptyRollbackAndLegacyUpgrade(t *testing.T) {
+// migrationsBeforeAML is the last module kept when the crypto_aml module
+// (00008) and everything after it are rolled back.
+const migrationsBeforeAML = 7
+
+func TestAMLFoundationRollbackRefusesCustodyEvidence(t *testing.T) {
 	ctx, pool := amlTestDatabase(t)
 	db, err := sql.Open("pgx", pool.Config().ConnConfig.ConnString())
 	require.NoError(t, err)
@@ -219,29 +223,21 @@ func TestAMLFoundationEmptyRollbackAndLegacyUpgrade(t *testing.T) {
 	require.NoError(t, err)
 	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
 	require.NoError(t, err)
-	_, err = provider.DownTo(ctx, 60)
-	require.NoError(t, err)
-	var exists bool
-	require.NoError(t, pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='cat_wallets' AND column_name='custody_merchant_id')`).Scan(&exists))
-	require.False(t, exists)
 	merchantID, networkID, walletID := id.New(), id.New(), id.New()
-	_, err = pool.Exec(ctx, `INSERT INTO cat_merchants(id,code,name) VALUES($1,$2,'Legacy AML merchant')`, merchantID, merchantID.String())
+	_, err = pool.Exec(ctx, `INSERT INTO cat_merchants(id,code,name) VALUES($1,$2,'AML merchant')`, merchantID, merchantID.String())
 	require.NoError(t, err)
 	_, err = pool.Exec(ctx, `INSERT INTO cat_blockchain_networks(id,code,name,chain_family,network_identifier,native_token_symbol,native_decimals)
-		VALUES($1,$2,'Legacy AML network','tron',$2,'TRX',6)`, networkID, networkID.String())
+		VALUES($1,$2,'AML network','tron',$2,'TRX',6)`, networkID, networkID.String())
 	require.NoError(t, err)
 	_, err = pool.Exec(ctx, `INSERT INTO cat_wallets(id,code,name,network_id,merchant_id,address)
-		VALUES($1,$4,'Legacy shared wallet',$2,$3,$4)`, walletID, networkID, merchantID, walletID.String())
+		VALUES($1,$4,'Shared wallet',$2,$3,$4)`, walletID, networkID, merchantID, walletID.String())
 	require.NoError(t, err)
-	_, err = provider.Up(ctx)
-	require.NoError(t, err)
-	var assigned, custody *id.ID
-	require.NoError(t, pool.QueryRow(ctx, `SELECT merchant_id,custody_merchant_id FROM cat_wallets WHERE id=$1`, walletID).Scan(&assigned, &custody))
-	require.Equal(t, merchantID, *assigned)
-	require.Nil(t, custody, "legacy assignment must not be guessed as permanent custody ownership")
+	var custody *id.ID
+	require.NoError(t, pool.QueryRow(ctx, `SELECT custody_merchant_id FROM cat_wallets WHERE id=$1`, walletID).Scan(&custody))
+	require.Nil(t, custody, "an assignment is not guessed as permanent custody ownership")
 	_, err = pool.Exec(ctx, `UPDATE cat_wallets SET custody_merchant_id=$2 WHERE id=$1`, walletID, merchantID)
 	require.NoError(t, err)
-	_, err = provider.DownTo(ctx, 60)
+	_, err = provider.DownTo(ctx, migrationsBeforeAML)
 	require.ErrorContains(t, err, "cannot roll back AML custody/evidence with data")
 	_, err = pool.Exec(ctx, `DELETE FROM cat_wallets WHERE id=$1`, walletID)
 	require.ErrorContains(t, err, "cannot be deleted")

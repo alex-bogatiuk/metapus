@@ -710,13 +710,13 @@ internal/infrastructure/storage/postgres/portal_repo/           — portal read 
 internal/infrastructure/blockchain/tron/                        — TRON watcher/driver/funding
 internal/infrastructure/blockchain/evm/                         — EVM watcher/finality/nonce
 internal/infrastructure/storage/postgres/migration/             — schema contract и fresh/down/up
-db/migrations/00022_crypto_catalogs.sql                         — network/token baseline
-db/migrations/00024_merchant_wallet.sql                         — merchant/wallet/API key baseline
-db/migrations/00027_withdrawal_sweep.sql                        — sweep и merchant withdrawal baseline
-db/migrations/00032_treasury_withdrawals_reconciliation.sql     — treasury/outflow/reconciliation baseline
-db/migrations/00042_ethereum_sepolia_core.sql                   — EVM nonce, network holds, Sepolia
-db/migrations/00043_crypto_address_reuse_cooldown.sql           — allocation history и inbound inbox
-db/migrations/00044_merchant_webhooks_production.sql            — merchant events, jobs, deliveries и endpoint registry
+db/migrations/00006_crypto_core.sql                         — network/token baseline
+db/migrations/00006_crypto_core.sql                         — merchant/wallet/API key baseline
+db/migrations/00007_crypto_outbound.sql                        — sweep и merchant withdrawal baseline
+db/migrations/00007_crypto_outbound.sql     — treasury/outflow/reconciliation baseline
+db/migrations/00006_crypto_core.sql                   — EVM nonce, network holds, Sepolia
+db/migrations/00006_crypto_core.sql           — allocation history и inbound inbox
+db/migrations/00006_crypto_core.sql            — merchant events, jobs, deliveries и endpoint registry
 scripts/dev/crypto-create-invoice.ps1                           — canonical invoice smoke request
 frontend/tests/treasury-outflow.spec.ts                         — outflow UI-contract и idempotent mutation
 frontend/tests/merchant-network-policy.spec.ts                  — staged CIDR UI-contract

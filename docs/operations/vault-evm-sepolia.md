@@ -125,7 +125,7 @@ reconciliation и EVM custody readiness. Затем проверьте Admin run
 
 ## Rollout и rollback
 
-1. Миграции до `ExpectedSchemaVersion` текущего бинарника (77), plugin и RPC config при выключенной сети.
+1. Миграции до `ExpectedSchemaVersion` текущего бинарника (9), plugin и RPC config при выключенной сети.
 2. Preflight inactive network.
 3. Catalog network/token active, outbound policy и wallet allocation выключены.
 4. Inbound ETH/PYUSD для тестовых tenants.

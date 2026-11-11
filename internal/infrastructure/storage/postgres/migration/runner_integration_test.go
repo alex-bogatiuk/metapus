@@ -187,15 +187,15 @@ func TestRunAllFreshCryptoLifecycleSchema(t *testing.T) {
 
 	provider, err := newProvider(coreMigrationsDir, db)
 	require.NoError(t, err)
-	// Migration 60 protects immutable financial history and is forward-only.
-	// A rejected rollback must preserve both the schema and goose history.
-	// Empty additive AML migrations can roll back before reaching the
-	// immutable financial boundary at version 60.
-	_, err = provider.DownTo(context.Background(), 59)
-	require.ErrorContains(t, err, "forward-only")
-	var version int64
-	require.NoError(t, db.QueryRow(`SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version))
-	require.EqualValues(t, 60, version)
+	// Without recorded evidence every module rolls back completely and
+	// re-applies to the same schema.
+	_, err = provider.DownTo(context.Background(), 0)
+	require.NoError(t, err)
+	var objects int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM pg_class WHERE relnamespace=current_schema()::regnamespace AND relname NOT LIKE 'goose_db_version%'`).Scan(&objects))
+	require.Zero(t, objects)
+	_, err = provider.Up(context.Background())
+	require.NoError(t, err)
 	require.NoError(t, db.QueryRow(`SELECT to_regclass('reg_crypto_transfer_verifications') IS NOT NULL`).Scan(&watcherHistory))
 	require.True(t, watcherHistory)
 }

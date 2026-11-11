@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	dbassets "metapus/db"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
@@ -120,21 +118,6 @@ func (f rotationFixture) assertUnchanged(t *testing.T) {
 func TestDepositRotationAtomicReplayAndPermanentAttribution(t *testing.T) {
 	f := newRotationFixture(t)
 	f.use(t, f.old)
-	// Simulate an already-populated installation before the baseline schema
-	// acquired retirement columns. The explicit upgrade must preserve it.
-	_, err := f.pool.Exec(f.ctx, `DROP TRIGGER trg_deposit_address_retirement_guard ON cat_wallets;
- DROP TABLE reg_crypto_deposit_address_rotations;
- ALTER TABLE cat_wallets DROP COLUMN deposit_assigned_at CASCADE;
- ALTER TABLE cat_wallets DROP COLUMN deposit_retired_at CASCADE;
- CREATE UNIQUE INDEX idx_cat_wallets_persistent_customer ON cat_wallets(merchant_id,network_id,customer_id)
- WHERE allocation_mode='persistent' AND deletion_mark=FALSE AND customer_id<>'';`)
-	require.NoError(t, err)
-	upgrade, err := dbassets.DepositAddressRotationUpgradeSQL()
-	require.NoError(t, err)
-	for range 2 {
-		txm := postgres.MustGetTxManager(f.ctx)
-		require.NoError(t, txm.RunInTransaction(f.ctx, func(ctx context.Context) error { _, err := txm.GetQuerier(ctx).Exec(ctx, upgrade); return err }))
-	}
 	result, err := f.service.Rotate(f.ctx, f.command())
 	require.NoError(t, err)
 	require.Equal(t, f.spare, result.NewWalletID)

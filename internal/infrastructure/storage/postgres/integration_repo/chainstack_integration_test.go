@@ -3,7 +3,6 @@
 package integration_repo
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -16,26 +15,6 @@ import (
 	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 )
-
-func TestUpgradeChainstackProviderOnFilledSchema(t *testing.T) {
-	ctx, db := fixtureDB(t)
-	for _, table := range []string{"cat_integration_accounts", "cat_integration_pools"} {
-		_, err := db.Exec(ctx, fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT %s_provider_check, ADD CONSTRAINT %s_provider_check CHECK(provider IN ('alchemy','coingecko_demo','tron_api','telegram','smtp','resource_api'))", table, table, table))
-		require.NoError(t, err)
-	}
-	needed, err := UpgradeSchema(ctx, false)
-	require.NoError(t, err)
-	require.True(t, needed)
-	var before string
-	require.NoError(t, db.QueryRow(ctx, `SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='cat_integration_accounts_provider_check'`).Scan(&before))
-	require.NotContains(t, before, "chainstack")
-	needed, err = UpgradeSchema(ctx, true)
-	require.NoError(t, err)
-	require.True(t, needed)
-	needed, err = UpgradeSchema(ctx, true)
-	require.NoError(t, err)
-	require.False(t, needed)
-}
 
 func TestChainstackPoolExhaustionRecoveryAndRPCBindings(t *testing.T) {
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")

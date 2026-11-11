@@ -135,9 +135,9 @@ Normalized hash по TEP-467 не включает `StateInit`. Он приго�
 
 Уникальность effects строить из canonical on-chain идентичности, например network/account transaction/in-message/asset/effect kind/детерминированный ordinal, а не provider trace ID или hash всего JSON. Versioned key должен давать одинаковый результат для двух провайдеров.
 
-Проверить все SQL paths, а не только inserts: address-key trigger в [миграции 24](../../db/migrations/00024_merchant_wallet.sql), case-insensitive contract index в [миграции 42](../../db/migrations/00042_ethereum_sepolia_core.sql), signing authorization CHECK, event-kind CHECK и `LOWER(contract_address)` lookup при signing. Для TON записывать canonical raw master/address key и исключить lowercasing friendly base64.
+Проверить все SQL paths, а не только inserts: address-key trigger в [миграции 00006](../../db/migrations/00006_crypto_core.sql), case-insensitive contract index в [миграции 00006](../../db/migrations/00006_crypto_core.sql), signing authorization CHECK, event-kind CHECK и `LOWER(contract_address)` lookup при signing. Для TON записывать canonical raw master/address key и исключить lowercasing friendly base64.
 
-Реестры watch addresses/token contracts из [миграции 50](../../db/migrations/00050_crypto_chain_observation_inbox.sql) имеют TRON-специфичные triggers. Создать TON registry или совместимое расширение с отдельными правилами family, а не считать текущие triggers универсальными.
+Реестры watch addresses/token contracts из [миграции 00006](../../db/migrations/00006_crypto_core.sql) имеют TRON-специфичные triggers. Создать TON registry или совместимое расширение с отдельными правилами family, а не считать текущие triggers универсальными.
 
 **Готово, когда:** миграции проходят на чистой и заполненной тестовой БД; параллельные reservations/effects блокируются constraints; новый бинарник читает legacy data; сеть TON остаётся выключенной. Индексы/backfill не требуют долгой блокировки финансовых таблиц.
 

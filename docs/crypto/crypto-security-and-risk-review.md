@@ -540,11 +540,11 @@ internal/domain/crypto/webhook.go                       — HTTPS/HMAC/SSRF-safe
 internal/infrastructure/crypto_worker/reconciliation.go — blockchain/ledger incidents
 internal/infrastructure/blockchain/tron/funding/record.go — audited operator funding verification
 internal/infrastructure/crypto_worker/wallet_pool_controller.go — bounded async provisioning
-db/migrations/00038_money_movement_approval_policy.sql — approval persistence
-db/migrations/00041_multichain_crypto_core.sql         — chain-agnostic network/resource policy
-db/migrations/00042_ethereum_sepolia_core.sql          — EVM nonce/finality/network holds
-db/migrations/00043_crypto_address_reuse_cooldown.sql  — allocation history и inbound inbox
-db/migrations/00044_merchant_webhooks_production.sql  — current schema end
+db/migrations/00007_crypto_outbound.sql — approval persistence
+db/migrations/00006_crypto_core.sql         — chain-agnostic network/resource policy
+db/migrations/00006_crypto_core.sql          — EVM nonce/finality/network holds
+db/migrations/00006_crypto_core.sql  — allocation history и inbound inbox
+db/migrations/00006_crypto_core.sql  — current schema end
 ```
 
 ## Связанные документы

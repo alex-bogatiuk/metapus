@@ -5,7 +5,7 @@ package version
 
 // ExpectedSchemaVersion is the highest goose migration number shipped with this binary.
 // It MUST match the highest versioned file in db/migrations; version_test.go guards drift.
-const ExpectedSchemaVersion = 77
+const ExpectedSchemaVersion = 9
 
 // CompatibleSchema returns true when the tenant's schema is at the expected version.
 // In future this could allow a supported range, but for now compatibility requires an exact match.

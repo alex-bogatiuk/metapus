@@ -1,20 +1,17 @@
--- Crypto custody accounting: effect identity, receipt/suspense, recognition registry,
--- final-settlement models for outbound writers, network fee proofs, expected routing,
--- resource-ordering helpers and immutable command bases.
--- Consolidated from former migrations 00077-00104 (no production data existed).
+-- Crypto custody accounting: effect identity, receipts and suspense, the
+-- recognition registry, final-settlement models of outbound writers, network
+-- fee proofs, expected routing and immutable command bases.
+-- Consolidated schema: each object is declared once in its final form.
 
 -- +goose Up
 -- +goose StatementBegin
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 
 -- Function bodies are validated when first executed; definitions precede the tables they use.
-
 SET LOCAL check_function_bodies = off;
 
 
-
 -- ---- Functions ----
-
 -- Independent of transfer evidence/signing byte schemas. The preimage matches
 -- AccountingEffectIdentity.Key and is protected by cross-language golden tests.
 CREATE FUNCTION fn_crypto_accounting_identity_bytes(
@@ -188,7 +185,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-
 
 CREATE FUNCTION fn_crypto_custody_receipt_audit_seed() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -667,7 +663,6 @@ BEGIN
 END;
 $$;
 
-
 CREATE FUNCTION fn_crypto_wallet_funding_no_attribution() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF NEW.recorder_type='CryptoWalletFunding' OR EXISTS(SELECT 1 FROM reg_crypto_wallet_fundings WHERE id=NEW.recorder_id) THEN
@@ -757,7 +752,6 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-
 
 CREATE FUNCTION fn_crypto_assert_native_funding_custody(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE p reg_crypto_custody_effect_postings; b reg_crypto_native_funding_custody_bindings;
@@ -1824,7 +1818,6 @@ BEGIN
 END;
 $$;
 
-
 CREATE FUNCTION fn_crypto_assert_network_fee(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE f reg_crypto_fee_reservations; b reg_crypto_network_fee_bindings; p reg_crypto_network_fee_proofs; c reg_crypto_chain_settlements; d doc_crypto_network_operations; fee_purpose TEXT;
 BEGIN
@@ -2116,7 +2109,6 @@ BEGIN
 END;
 $$;
 
-
 CREATE FUNCTION fn_crypto_adjustment_accounting_basis() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE d doc_crypto_payments;
 BEGIN
@@ -2133,31 +2125,6 @@ BEGIN
     SELECT * INTO STRICT d FROM doc_crypto_payments WHERE id=NEW.payment_id;
     IF d.status<>'settled' OR NOT d.posted OR d.posted_version<>NEW.posted_version OR d.receipt_id IS NULL THEN
         RAISE EXCEPTION 'crypto adjustment requires current settled payment generation' USING ERRCODE='23514';
-    END IF;
-    RETURN NEW;
-END;
-$$;
-
-
-CREATE OR REPLACE FUNCTION fn_crypto_adjustment_source_insert_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-DECLARE a doc_crypto_adjustments; source JSONB; source_table TEXT; used NUMERIC; original_type TEXT;
-BEGIN
-    SELECT * INTO STRICT a FROM doc_crypto_adjustments WHERE id=NEW.adjustment_id;
-    IF a.status<>'pending_approval' THEN RAISE EXCEPTION 'crypto adjustment sources are frozen after decision' USING ERRCODE='23514'; END IF;
-    IF a.mode<>'payment_reversal' OR a.proposal_txid<>txid_current() OR NEW.amount IS NULL THEN
-        RAISE EXCEPTION 'crypto adjustment sources are frozen at proposal' USING ERRCODE='23514';
-    END IF;
-    source_table:=CASE NEW.source_register WHEN 'suspense' THEN 'reg_crypto_receipt_suspense_movements'
-        WHEN 'merchant' THEN 'reg_crypto_merchant_balance_movements' WHEN 'fee' THEN 'reg_crypto_fee_movements' END;
-    IF source_table IS NULL THEN RAISE EXCEPTION 'invalid adjustment source register' USING ERRCODE='23514'; END IF;
-    EXECUTE format('SELECT to_jsonb(m) FROM %I m WHERE line_id=$1',source_table) INTO source USING NEW.source_line_id;
-    EXECUTE format('SELECT COALESCE(SUM(amount),0) FROM %I WHERE reversal_of_line_id=$1',source_table) INTO used USING NEW.source_line_id;
-    -- A payment consumes suspense and credits merchant and fee.
-    original_type:=CASE WHEN NEW.source_register='suspense' THEN 'expense' ELSE 'receipt' END;
-    IF source IS NULL OR source->>'recorder_type'<>'CryptoPayment' OR (source->>'recorder_id')::uuid<>a.payment_id
-        OR (source->>'recorder_version')::int<>a.posted_version OR source->>'reversal_of_line_id' IS NOT NULL
-        OR source->>'record_type'<>original_type OR NEW.amount>(source->>'amount')::numeric-used THEN
-        RAISE EXCEPTION 'crypto adjustment requires available original payment source' USING ERRCODE='23514';
     END IF;
     RETURN NEW;
 END;
@@ -2288,18 +2255,6 @@ BEGIN
     IF found_count<>expected_count THEN
         RAISE EXCEPTION 'custody wallet lock target is missing' USING ERRCODE='23514';
     END IF;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION fn_crypto_aml_lock_resource_scopes(reservation UUID) RETURNS VOID LANGUAGE plpgsql AS $$
-BEGIN
-    PERFORM fn_crypto_lock_custody_scopes(ARRAY(SELECT payer_wallet_id FROM reg_crypto_fee_reservations WHERE id=reservation));
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION fn_crypto_aml_lock_fee_wallet_scopes(payer UUID,asset UUID) RETURNS VOID LANGUAGE plpgsql AS $$
-BEGIN
-    PERFORM fn_crypto_lock_custody_scopes(ARRAY[payer]);
 END;
 $$;
 
@@ -2554,29 +2509,6 @@ BEGIN
  VALUES(wallet,reason_code,kind,owner,payload,'aml-pool-controller');
 END; $$;
 
-CREATE OR REPLACE FUNCTION fn_crypto_aml_pool_scope_hold() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-DECLARE wallet UUID;
-BEGIN
- IF NEW.enabled THEN
-  FOR wallet IN SELECT v.wallet_id FROM reg_crypto_aml_pool_intents i JOIN sys_crypto_aml_pool_policies p ON p.id=i.policy_id AND p.wallet_role='merchant_pool'
-   JOIN reg_crypto_aml_wallet_provisions v ON v.id=i.id AND v.status='completed'
-   WHERE p.merchant_id=NEW.merchant_id AND p.network_id=NEW.network_id
-   AND NOT EXISTS(SELECT 1 FROM reg_crypto_aml_wallet_baselines WHERE wallet_id=v.wallet_id AND token_id=NEW.token_id) ORDER BY v.wallet_id LOOP
-   PERFORM fn_crypto_hold_aml_pool_wallet(wallet,NEW.token_id,'aml_pool_scope_baseline',NEW.version);
-  END LOOP;
- END IF;
- RETURN NEW;
-END; $$;
-
-CREATE OR REPLACE FUNCTION fn_crypto_aml_pool_high_hold() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
- IF NEW.risk_class='high' AND EXISTS(SELECT 1 FROM reg_crypto_aml_wallet_provisions v JOIN reg_crypto_aml_pool_intents i ON i.id=v.id
-  JOIN sys_crypto_aml_pool_policies p ON p.id=i.policy_id AND p.wallet_role='merchant_pool' WHERE v.wallet_id=NEW.wallet_id AND v.status='completed') THEN
-  PERFORM fn_crypto_hold_aml_pool_wallet(NEW.wallet_id,NEW.token_id,'aml_pool_risk',NEW.revision);
- END IF;
- RETURN NEW;
-END; $$;
-
 CREATE FUNCTION fn_crypto_hold_aml_preflight(wallet UUID,token UUID,observation UUID) RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE previous reg_crypto_wallet_allocation_holds; owner TEXT; payload JSONB;
 BEGIN
@@ -2597,56 +2529,6 @@ BEGIN
  INSERT INTO reg_crypto_wallet_allocation_holds(wallet_id,reason,owner_type,owner_id,details,held_by)
  VALUES(wallet,'aml_preflight_inventory_detected','aml_preflight',owner,payload,'aml-preflight');
 END; $$;
-
--- An intent has one immutable cancellation command, including its first actor.
--- Compare before ON CONFLICT can hide a different command or skip constraints.
-CREATE OR REPLACE FUNCTION fn_crypto_aml_pool_cancel_guard() RETURNS TRIGGER AS $$
-DECLARE
- network UUID;
- prior reg_crypto_aml_pool_intent_cancellations%ROWTYPE;
-BEGIN
- IF current_setting('transaction_isolation')<>'read committed' THEN
-  RAISE EXCEPTION 'pool cancellation requires read committed isolation' USING ERRCODE='23514';
- END IF;
- IF NEW.intent_id IS NULL OR NEW.reason IS NULL OR length(btrim(NEW.reason)) NOT BETWEEN 3 AND 500
-    OR NEW.cancelled_by IS NULL OR btrim(NEW.cancelled_by)='' OR NEW._deleted_at IS NOT NULL THEN
-  RAISE EXCEPTION 'pool cancellation requires intent, reason and actor' USING ERRCODE='23514';
- END IF;
- SELECT p.network_id INTO network FROM reg_crypto_aml_pool_intents i JOIN sys_crypto_aml_pool_policies p ON p.id=i.policy_id WHERE i.id=NEW.intent_id;
- IF NOT FOUND THEN RAISE EXCEPTION 'pool cancellation intent is missing' USING ERRCODE='23503'; END IF;
- PERFORM 1 FROM sys_crypto_custody_policies WHERE network_id=network FOR UPDATE;
- PERFORM 1 FROM sys_crypto_aml_routing_scopes WHERE network_id=network ORDER BY merchant_id,network_id,token_id FOR UPDATE;
- PERFORM 1 FROM reg_crypto_aml_pool_intents WHERE id=NEW.intent_id FOR UPDATE;
- SELECT * INTO prior FROM reg_crypto_aml_pool_intent_cancellations WHERE intent_id=NEW.intent_id;
- IF FOUND THEN
-  IF prior.reason IS DISTINCT FROM NEW.reason OR prior.cancelled_by IS DISTINCT FROM NEW.cancelled_by THEN
-   RAISE EXCEPTION 'pool cancellation replay differs from its original command' USING ERRCODE='23514';
-  END IF;
-  RETURN NULL;
- END IF;
- IF EXISTS(SELECT 1 FROM reg_crypto_aml_wallet_provisions WHERE id=NEW.intent_id) THEN
-  RAISE EXCEPTION 'cannot cancel pool intent after derivation reservation' USING ERRCODE='23514';
- END IF;
- RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Coverage is a first observation, retained across later address refreshes and
--- watcher leases. Check authority after any lock wait using the database clock.
-CREATE OR REPLACE FUNCTION fn_crypto_aml_watch_coverage_guard() RETURNS TRIGGER AS $$
-BEGIN
- PERFORM 1 FROM sys_chain_watcher_state state JOIN cat_wallets w ON w.id=NEW.wallet_id AND w.network_id=state.network_id
- JOIN cat_tokens t ON t.id=NEW.token_id AND t.network_id=w.network_id JOIN cat_blockchain_networks n ON n.id=w.network_id AND n.chain_family='evm'
- WHERE state.network_id=NEW.network_id AND state.watcher_key=NEW.watcher_key
- AND NEW.watcher_key=CASE WHEN t.token_standard='native' THEN 'native_eth' ELSE 'erc20:'||LOWER(t.contract_address) END FOR SHARE OF state;
- IF NOT FOUND THEN RAISE EXCEPTION 'address coverage watcher or asset changed' USING ERRCODE='23514'; END IF;
- IF NOT EXISTS(SELECT 1 FROM sys_chain_watcher_state WHERE network_id=NEW.network_id AND watcher_key=NEW.watcher_key
-   AND lease_owner=NEW.lease_owner AND fencing_token=NEW.fencing_token AND lease_expires_at>clock_timestamp()) THEN
-  RAISE EXCEPTION 'address coverage requires the current watcher lease' USING ERRCODE='23514';
- END IF;
- RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
 
 CREATE FUNCTION fn_crypto_aml_decision_replay_guard() RETURNS TRIGGER AS $$
 DECLARE prior reg_crypto_aml_decisions%ROWTYPE;
@@ -3051,32 +2933,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION fn_crypto_register_watch_address() RETURNS TRIGGER AS $$
-DECLARE boundary BIGINT;
-BEGIN
- IF NEW.vault_key_id='' OR NEW.address='' OR NOT EXISTS(SELECT 1 FROM cat_blockchain_networks WHERE id=NEW.network_id AND chain_family='tron') THEN RETURN NEW; END IF;
- IF NOT fn_crypto_try_lock_watch_network(NEW.network_id) THEN RAISE EXCEPTION 'watch registration is busy' USING ERRCODE='55P03'; END IF;
- SELECT start_height+1 INTO boundary FROM sys_crypto_block_ingestion WHERE network_id=NEW.network_id FOR UPDATE;
- IF boundary IS NULL THEN boundary:=0; END IF;
- SELECT GREATEST(boundary,COALESCE(MAX(last_block)+1,boundary)) INTO boundary FROM sys_chain_watcher_state WHERE network_id=NEW.network_id AND watcher_key='tron:solidified';
- INSERT INTO sys_crypto_watch_targets(network_id,target_kind,target_key,owner_id,start_height,source) VALUES(NEW.network_id,'address',NEW.address,NEW.id,boundary,'wallet_write') ON CONFLICT(network_id,target_kind,target_key) DO NOTHING;
- RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION fn_crypto_register_watch_asset() RETURNS TRIGGER AS $$
-DECLARE boundary BIGINT;
-BEGIN
- IF NOT NEW.is_active OR NEW.deletion_mark OR NEW.contract_address='' OR NEW.token_standard<>'TRC-20' OR NOT EXISTS(SELECT 1 FROM cat_blockchain_networks WHERE id=NEW.network_id AND chain_family='tron') THEN RETURN NEW; END IF;
- IF NOT fn_crypto_try_lock_watch_network(NEW.network_id) THEN RAISE EXCEPTION 'watch registration is busy' USING ERRCODE='55P03'; END IF;
- SELECT start_height+1 INTO boundary FROM sys_crypto_block_ingestion WHERE network_id=NEW.network_id FOR UPDATE;
- IF boundary IS NULL THEN boundary:=0; END IF;
- SELECT GREATEST(boundary,COALESCE(MAX(last_block)+1,boundary)) INTO boundary FROM sys_chain_watcher_state WHERE network_id=NEW.network_id AND watcher_key='tron:solidified';
- INSERT INTO sys_crypto_watch_targets(network_id,target_kind,target_key,owner_id,start_height,source) VALUES(NEW.network_id,'asset',NEW.contract_address,NEW.id,boundary,'asset_write') ON CONFLICT(network_id,target_kind,target_key) DO NOTHING;
- RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
 -- Same transaction identity gate as the expected-effect matcher. Never wait
 -- for wallets/scopes from a trigger that may already own an outflow row.
 CREATE FUNCTION fn_crypto_try_lock_external_outflow(network UUID,hash TEXT,wallet UUID) RETURNS BOOLEAN LANGUAGE plpgsql AS $$
@@ -3390,9 +3246,7 @@ BEGIN
 END; $$;
 
 
-
--- ---- Tables, columns, constraints and indexes ----
-
+-- ---- Tables ----
 CREATE TABLE reg_crypto_accounting_effects (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
     schema_version INT NOT NULL DEFAULT 1 CHECK(schema_version=1),
@@ -3427,7 +3281,6 @@ CREATE TABLE reg_crypto_accounting_effect_occurrences (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(effect_id,block_hash)
 );
-
 CREATE INDEX idx_crypto_accounting_occurrence_block
     ON reg_crypto_accounting_effect_occurrences(block_number,effect_id);
 
@@ -3439,7 +3292,6 @@ CREATE TABLE reg_crypto_accounting_effect_evidence (
     occurrence_id UUID NOT NULL REFERENCES reg_crypto_accounting_effect_occurrences(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 CREATE INDEX idx_crypto_accounting_evidence_occurrence
     ON reg_crypto_accounting_effect_evidence(occurrence_id,verification_id);
 
@@ -3458,6 +3310,8 @@ CREATE TABLE reg_crypto_custody_effect_postings (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(effect_id,generation)
 );
+CREATE UNIQUE INDEX uq_crypto_native_funding_custody ON reg_crypto_custody_effect_postings(recorder_id)
+    WHERE recorder_type='CryptoNativeFunding';
 
 CREATE TABLE reg_crypto_custody_effect_recognitions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
@@ -3506,22 +3360,9 @@ CREATE TABLE doc_crypto_custody_receipts (
     CHECK(basis_id=verification_id),
     CHECK((NOT posted AND posted_version=0) OR (posted AND posted_version=1))
 );
-
 CREATE INDEX idx_crypto_custody_receipts_wallet ON doc_crypto_custody_receipts(wallet_id,token_id,date,id);
-
 CREATE INDEX idx_crypto_custody_receipts_owner ON doc_crypto_custody_receipts(custody_merchant_id,date,id);
-
 CREATE INDEX idx_crypto_custody_receipts_txid ON doc_crypto_custody_receipts(_txid);
-
--- A final unmatched transfer is accounted once as a custody receipt. The inbox
--- row keeps the link and the schedule of independent-proof attempts.
-ALTER TABLE reg_crypto_inbound_chain_events
-    ADD COLUMN receipt_id UUID UNIQUE REFERENCES doc_crypto_custody_receipts(id),
-    ADD COLUMN receipt_check_at TIMESTAMPTZ,
-    ADD COLUMN receipt_attempts INT NOT NULL DEFAULT 0 CHECK(receipt_attempts>=0),
-    ADD COLUMN receipt_error TEXT NOT NULL DEFAULT '';
-CREATE INDEX idx_crypto_inbound_receipt_candidates ON reg_crypto_inbound_chain_events(receipt_check_at NULLS FIRST,created_at,id)
-    WHERE receipt_id IS NULL AND match_status IN ('unmatched','needs_review') AND wallet_id IS NOT NULL AND token_id IS NOT NULL AND _deleted_at IS NULL;
 
 -- Operational canonicality audit of accounted receipts: the single absence
 -- proof for every external receipt. An orphaned receipt opens an incident,
@@ -3553,6 +3394,7 @@ CREATE TABLE sys_crypto_receipt_credit_policies (
     dual_approval_threshold NUMERIC(78,0) NOT NULL CHECK(dual_approval_threshold>=0),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
 CREATE TABLE doc_crypto_merchant_credits (
     id UUID PRIMARY KEY,
     deletion_mark BOOLEAN NOT NULL DEFAULT FALSE CHECK(NOT deletion_mark),
@@ -3602,8 +3444,6 @@ CREATE TABLE doc_crypto_merchant_credits (
 );
 CREATE UNIQUE INDEX uq_crypto_merchant_credit_open ON doc_crypto_merchant_credits(receipt_id) WHERE status='prepared';
 CREATE INDEX idx_crypto_merchant_credits_merchant ON doc_crypto_merchant_credits(merchant_id,date,id);
-CREATE TRIGGER trg_crypto_merchant_credit_txid BEFORE UPDATE ON doc_crypto_merchant_credits
-    FOR EACH ROW EXECUTE FUNCTION update_txid_column();
 
 -- The storno of a posted manual credit whose receipt was orphaned. It is the
 -- recorder of the opposite movements; the credit document stays posted.
@@ -3643,7 +3483,6 @@ CREATE TABLE reg_crypto_receipt_suspense_movements (
        OR (recorder_type IN ('CryptoPaymentReorg','CryptoAdjustment','CryptoMerchantCreditReversal') AND record_type='receipt'
             AND recorder_version=1 AND reversal_of_line_id IS NOT NULL AND btrim(COALESCE(reversal_reason,''))<>''))
 );
-
 CREATE UNIQUE INDEX uq_crypto_receipt_suspense_origin ON reg_crypto_receipt_suspense_movements(receipt_id)
     WHERE recorder_type='CryptoCustodyReceipt';
 CREATE UNIQUE INDEX uq_crypto_receipt_suspense_recorder ON reg_crypto_receipt_suspense_movements(recorder_id)
@@ -3652,7 +3491,6 @@ CREATE UNIQUE INDEX uq_crypto_receipt_suspense_payment ON reg_crypto_receipt_sus
     WHERE recorder_type='CryptoPayment';
 CREATE INDEX idx_crypto_receipt_suspense_reversal ON reg_crypto_receipt_suspense_movements(reversal_of_line_id)
     WHERE reversal_of_line_id IS NOT NULL;
-
 
 CREATE TABLE reg_crypto_receipt_suspense_balances (
     receipt_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
@@ -3663,18 +3501,6 @@ CREATE TABLE reg_crypto_receipt_suspense_balances (
     PRIMARY KEY(receipt_id,token_id)
 );
 
--- An automatic invoice payment attributes the receipt of its own chain effect.
--- Its canonicality is proven by the receipt audit, not by a payment audit.
-ALTER TABLE doc_crypto_payments ADD COLUMN receipt_id UUID REFERENCES doc_crypto_custody_receipts(id);
-CREATE INDEX idx_crypto_payments_receipt ON doc_crypto_payments(receipt_id) WHERE receipt_id IS NOT NULL;
-DROP INDEX idx_crypto_payments_canonicality_due;
-ALTER TABLE doc_crypto_payments
-    DROP COLUMN next_canonicality_check_at,
-    DROP COLUMN last_canonicality_checked_at,
-    DROP COLUMN canonicality_check_attempts,
-    DROP COLUMN canonicality_last_error;
-
-
 CREATE TABLE reg_crypto_receipt_intake_audit (
     receipt_id UUID PRIMARY KEY REFERENCES doc_crypto_custody_receipts(id),
     verification_id UUID NOT NULL REFERENCES reg_crypto_transfer_verifications(id),
@@ -3683,16 +3509,6 @@ CREATE TABLE reg_crypto_receipt_intake_audit (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Every funding receipt claims an indexed effect: its proof, occurrence and
--- custody posting are mandatory.
-ALTER TABLE reg_crypto_wallet_fundings
-    ADD COLUMN occurrence_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_accounting_effect_occurrences(id),
-    ADD COLUMN posting_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_custody_effect_postings(id),
-    ALTER COLUMN verification_id SET NOT NULL,
-    DROP CONSTRAINT uq_crypto_wallet_fundings_tx_hash;
-
-CREATE INDEX idx_crypto_wallet_fundings_tx ON reg_crypto_wallet_fundings(network_id,tx_hash);
-
 CREATE TABLE reg_crypto_wallet_funding_audit (
     funding_id UUID PRIMARY KEY REFERENCES reg_crypto_wallet_fundings(id),
     verification_id UUID NOT NULL REFERENCES reg_crypto_transfer_verifications(id),
@@ -3700,13 +3516,6 @@ CREATE TABLE reg_crypto_wallet_funding_audit (
     actor TEXT NOT NULL CHECK(btrim(actor)<>''),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
--- COPY may use a subtransaction, so xmin is not a reliable top-level posting
--- identity. Stamp new payment lines explicitly; historical rows stay NULL.
-ALTER TABLE reg_crypto_balance_movements ADD COLUMN posting_txid BIGINT;
-
-CREATE UNIQUE INDEX uq_crypto_native_funding_custody ON reg_crypto_custody_effect_postings(recorder_id)
-    WHERE recorder_type='CryptoNativeFunding';
 
 CREATE TABLE reg_crypto_native_funding_custody_bindings (
     posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
@@ -3724,7 +3533,6 @@ CREATE TABLE reg_crypto_sweep_custody_bindings (
     actor TEXT NOT NULL DEFAULT 'sweep-settlement' CHECK(actor='sweep-settlement'),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 CREATE INDEX idx_sweep_custody_bindings_document ON reg_crypto_sweep_custody_bindings(sweep_id);
 
 CREATE TABLE reg_crypto_treasury_custody_bindings (
@@ -3735,14 +3543,6 @@ CREATE TABLE reg_crypto_treasury_custody_bindings (
     actor TEXT NOT NULL DEFAULT 'treasury-settlement' CHECK(actor='treasury-settlement'),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
-ALTER TABLE reg_crypto_aml_withdrawal_facts ALTER COLUMN expense_movement_id DROP NOT NULL;
-
-ALTER TABLE reg_crypto_aml_withdrawal_facts DROP CONSTRAINT reg_crypto_aml_withdrawal_facts_check;
-
--- A fact references only the physical principal expense, which a failed line never has.
-ALTER TABLE reg_crypto_aml_withdrawal_facts ADD CONSTRAINT reg_crypto_aml_withdrawal_facts_check CHECK(
-    refund_movement_id IS NULL AND (expense_movement_id IS NOT NULL)=succeeded);
 
 CREATE TABLE reg_crypto_withdrawal_custody_bindings (
     posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
@@ -3755,7 +3555,6 @@ CREATE TABLE reg_crypto_withdrawal_custody_bindings (
     actor TEXT NOT NULL DEFAULT 'withdrawal-settlement' CHECK(actor='withdrawal-settlement'),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 CREATE INDEX idx_withdrawal_custody_bindings_request ON reg_crypto_withdrawal_custody_bindings(request_id);
 
 CREATE TABLE reg_crypto_custody_loss_bindings (
@@ -3767,12 +3566,6 @@ CREATE TABLE reg_crypto_custody_loss_bindings (
     period TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
-ALTER TABLE reg_crypto_fee_reservation_events ADD COLUMN transition_txid BIGINT;
-
-ALTER TABLE reg_crypto_chain_settlements ADD COLUMN network_fee_reservation_id UUID REFERENCES reg_crypto_fee_reservations(id);
-
-ALTER TABLE doc_crypto_network_operations ADD COLUMN network_fee_reservation_id UUID UNIQUE REFERENCES reg_crypto_fee_reservations(id);
 
 CREATE TABLE reg_crypto_network_fee_proofs (
     id UUID PRIMARY KEY,
@@ -3792,7 +3585,6 @@ CREATE TABLE reg_crypto_network_fee_proofs (
     verified_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 CREATE INDEX idx_network_fee_proofs_effect ON reg_crypto_network_fee_proofs(effect_key,block_number,verified_at);
 
 CREATE TABLE reg_crypto_network_fee_bindings (
@@ -3808,10 +3600,7 @@ CREATE TABLE reg_crypto_network_fee_bindings (
     period TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 CREATE INDEX idx_network_fee_bindings_recorder ON reg_crypto_network_fee_bindings(recorder_type,recorder_id);
-
-CREATE INDEX idx_expected_transfer_canonical_tx ON reg_crypto_expected_chain_effects(network_id,(regexp_replace(lower(tx_hash),'^0x','')),event_kind);
 
 CREATE TABLE reg_crypto_expected_transfer_requests (
  expected_effect_id UUID PRIMARY KEY REFERENCES reg_crypto_expected_chain_effects(id),
@@ -3824,7 +3613,6 @@ CREATE TABLE sys_crypto_expected_transfer_deliveries (
  next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),delivered_at TIMESTAMPTZ,attempts INT NOT NULL DEFAULT 0 CHECK(attempts>=0),
  version INT NOT NULL DEFAULT 1,_txid BIGINT NOT NULL DEFAULT txid_current(),_deleted_at TIMESTAMPTZ
 );
-
 CREATE INDEX idx_expected_transfer_delivery_due ON sys_crypto_expected_transfer_deliveries(next_attempt_at) WHERE delivered_at IS NULL;
 
 CREATE TABLE reg_crypto_expected_transfer_routes (
@@ -3841,35 +3629,6 @@ CREATE TABLE reg_crypto_expected_transfer_evidence (
  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),_txid BIGINT NOT NULL DEFAULT txid_current(),_deleted_at TIMESTAMPTZ
 );
 
--- A payment reversal returns an attribution to the receipt suspense; it never
--- claims a chain effect.
-ALTER TABLE doc_crypto_adjustments
-    ADD COLUMN basis_kind TEXT NOT NULL,
-    ADD COLUMN proposal_txid BIGINT,
-    ADD CONSTRAINT ck_crypto_adjustment_accounting_basis CHECK (
-        proposal_txid IS NOT NULL AND (
-            (mode='wallet_balance' AND basis_kind='wallet_variance')
-            OR (mode='payment_reversal' AND basis_kind='payment_attribution')));
-
-ALTER TABLE reg_crypto_adjustment_sources
-    DROP CONSTRAINT reg_crypto_adjustment_sources_source_register_check,
-    ADD CONSTRAINT reg_crypto_adjustment_sources_source_register_check CHECK(source_register IN ('suspense','merchant','fee'));
-
-
-ALTER TABLE doc_crypto_resource_rentals ADD COLUMN maintenance_claim_token UUID;
-
-ALTER TABLE doc_crypto_resource_rentals ADD CONSTRAINT chk_crypto_resource_rental_claim_token
- CHECK (maintenance_claim_token IS NULL OR (claimed_by<>'' AND claimed_at IS NOT NULL AND lease_expires_at IS NOT NULL));
-
-COMMENT ON COLUMN doc_crypto_resource_rentals.maintenance_claim_token IS 'Fresh fencing token per maintenance claim; legacy leases drain before a new token is issued.';
-
-ALTER TABLE reg_crypto_account_activations ADD COLUMN cost_claim_token UUID;
-
-ALTER TABLE reg_crypto_account_activations ADD CONSTRAINT chk_crypto_activation_cost_claim
- CHECK (cost_claim_token IS NULL OR (cost_status='repairing' AND cost_claimed_by<>'' AND cost_claimed_at IS NOT NULL AND cost_lease_expires_at IS NOT NULL));
-
-COMMENT ON COLUMN reg_crypto_account_activations.cost_claim_token IS 'Fresh fencing token per cost-repair attempt; legacy repairing leases drain without rewriting history.';
-
 CREATE TABLE reg_crypto_activation_dispatches (
  authorization_id TEXT NOT NULL REFERENCES reg_crypto_signing_authorizations(authorization_id),
  activation_id UUID NOT NULL REFERENCES reg_crypto_account_activations(id),
@@ -3881,61 +3640,109 @@ CREATE TABLE reg_crypto_activation_dispatches (
  _txid BIGINT NOT NULL DEFAULT txid_current(),
  PRIMARY KEY(authorization_id,phase,claim_token)
 );
-
 CREATE UNIQUE INDEX idx_crypto_activation_single_sign_dispatch ON reg_crypto_activation_dispatches(authorization_id) WHERE phase='sign';
 
-ALTER TABLE reg_crypto_reorg_compensations ADD COLUMN request_basis JSONB
- CHECK(request_basis IS NULL OR jsonb_typeof(request_basis)='object');
 
--- NULL means a legacy decision whose original assessment clock is unknown.
--- Down retains this additive column so that no assessment evidence is lost.
-ALTER TABLE reg_crypto_aml_decisions ADD COLUMN IF NOT EXISTS evaluated_at TIMESTAMPTZ;
-
-ALTER TABLE sys_invoice_reconciliation_drift
- ADD COLUMN episode_id UUID,
- ADD COLUMN initial_details JSONB CHECK(initial_details IS NULL OR jsonb_typeof(initial_details)='object'),
- ADD COLUMN incident_id UUID REFERENCES reg_crypto_security_incidents(id);
-
-CREATE UNIQUE INDEX uq_crypto_invoice_drift_episode ON sys_invoice_reconciliation_drift(episode_id) WHERE episode_id IS NOT NULL;
-
-CREATE UNIQUE INDEX uq_crypto_invoice_drift_incident ON sys_invoice_reconciliation_drift(incident_id) WHERE incident_id IS NOT NULL;
-
-ALTER TABLE reg_crypto_aml_preflight_jobs
- ADD COLUMN initial_policy_version BIGINT,
- ADD COLUMN initial_scope_version BIGINT,
- ADD FOREIGN KEY(policy_id,initial_policy_version) REFERENCES reg_crypto_aml_pool_policy_versions(policy_id,version);
-
-CREATE TABLE reg_crypto_aml_preflight_attempts (
- job_id UUID NOT NULL REFERENCES reg_crypto_aml_preflight_jobs(id),
- lease_token UUID PRIMARY KEY, basis JSONB NOT NULL CHECK(jsonb_typeof(basis)='object'),
- worker_id TEXT NOT NULL CHECK(btrim(worker_id)<>''),
- claimed_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(), lease_expires_at TIMESTAMPTZ NOT NULL,
- _txid BIGINT NOT NULL DEFAULT txid_current(), _deleted_at TIMESTAMPTZ CHECK(_deleted_at IS NULL),
- UNIQUE(job_id,lease_token)
-);
-
-ALTER TABLE reg_crypto_aml_preflight_observations ADD CONSTRAINT fk_crypto_preflight_observation_attempt
- FOREIGN KEY(job_id,lease_token) REFERENCES reg_crypto_aml_preflight_attempts(job_id,lease_token) NOT VALID;
-
--- Existing rows retain unknown original shadow/activation evidence. Down keeps
--- these additive columns so that retained registration history is not erased.
-ALTER TABLE sys_crypto_block_ingestion ADD COLUMN IF NOT EXISTS registration_basis JSONB;
-
-ALTER TABLE sys_crypto_block_ingestion ADD COLUMN IF NOT EXISTS activation_basis JSONB;
-
-ALTER TABLE reg_crypto_external_outflows ADD COLUMN IF NOT EXISTS initial_basis JSONB CHECK(initial_basis IS NULL OR jsonb_typeof(initial_basis)='object');
-
-ALTER TABLE reg_crypto_external_outflow_observations ADD COLUMN IF NOT EXISTS incident_id UUID REFERENCES reg_crypto_reconciliation_items(id);
-
-ALTER TABLE reg_crypto_external_outflows ADD COLUMN IF NOT EXISTS classification_basis JSONB, ADD COLUMN IF NOT EXISTS resolution_basis JSONB;
-
-ALTER TABLE doc_crypto_custody_adjustments ADD COLUMN IF NOT EXISTS decision_basis JSONB;
-
-ALTER TABLE reg_crypto_external_outflow_actions ADD COLUMN IF NOT EXISTS decision_basis JSONB;
+-- ---- References to tables of this module ----
+ALTER TABLE reg_crypto_inbound_chain_events ADD CONSTRAINT reg_crypto_inbound_chain_events_receipt_id_fkey FOREIGN KEY (receipt_id) REFERENCES doc_crypto_custody_receipts(id);
+ALTER TABLE doc_crypto_payments ADD CONSTRAINT doc_crypto_payments_receipt_id_fkey FOREIGN KEY (receipt_id) REFERENCES doc_crypto_custody_receipts(id);
+ALTER TABLE reg_crypto_wallet_fundings ADD CONSTRAINT reg_crypto_wallet_fundings_occurrence_id_fkey FOREIGN KEY (occurrence_id) REFERENCES reg_crypto_accounting_effect_occurrences(id);
+ALTER TABLE reg_crypto_wallet_fundings ADD CONSTRAINT reg_crypto_wallet_fundings_posting_id_fkey FOREIGN KEY (posting_id) REFERENCES reg_crypto_custody_effect_postings(id);
 
 
+-- ---- Views ----
+CREATE OR REPLACE VIEW crypto_aml_allocatable_transfers AS
+ SELECT plan.id allocation_id,plan.merchant_id,plan.network_id,plan.token_id,plan.source_wallet_id,plan.destination_wallet_id,
+ plan.principal,plan.service_fee,e.id effect_id,spent.line_id source_movement_id,received.line_id destination_movement_id
+ FROM reg_crypto_aml_internal_allocations plan
+ JOIN reg_crypto_sweep_custody_bindings b ON b.line_id=plan.sweep_attempt_id
+ JOIN doc_crypto_sweep_lines line ON line.line_id=b.line_id AND line.document_id=b.sweep_id AND line.wallet_id=plan.source_wallet_id AND line.amount=plan.gross
+ JOIN doc_crypto_sweeps sweep ON sweep.id=b.sweep_id AND sweep.hot_wallet_id=plan.destination_wallet_id AND sweep.token_id=plan.token_id
+ JOIN reg_crypto_custody_effect_postings p ON p.id=b.posting_id AND p.recorder_id=sweep.id AND p.recorder_type='CryptoSweep' AND p.recorder_version=1
+ JOIN reg_crypto_custody_effect_recognitions sr ON sr.posting_id=p.id AND sr.record_type='expense' AND sr.wallet_id=plan.source_wallet_id AND sr.token_id=plan.token_id
+ JOIN reg_crypto_custody_effect_recognitions dr ON dr.posting_id=p.id AND dr.record_type='receipt' AND dr.wallet_id=plan.destination_wallet_id AND dr.token_id=plan.token_id
+ JOIN reg_crypto_balance_movements spent ON spent.line_id=sr.movement_line_id AND spent.amount=plan.gross
+ JOIN reg_crypto_balance_movements received ON received.line_id=dr.movement_line_id AND received.amount=plan.gross
+ JOIN reg_crypto_aml_effects e ON e.wallet_id=plan.destination_wallet_id AND e.source_wallet_id=plan.source_wallet_id AND e.token_id=plan.token_id AND e.network_id=plan.network_id AND e.tx_hash=line.tx_hash AND e.amount=plan.gross
+ JOIN reg_crypto_aml_effect_chain_states cs ON cs.effect_id=e.id AND cs.canonicality='canonical'
+ JOIN reg_crypto_accounting_effect_evidence ae ON ae.verification_id=cs.verification_id AND ae.occurrence_id=p.occurrence_id
+ JOIN reg_crypto_expected_chain_effects expected ON expected.id=e.expected_effect_id
+ JOIN reg_crypto_signing_authorizations auth ON auth.id=expected.signing_authorization_id AND auth.basis_type='CryptoSweepAttempt' AND auth.basis_id=line.line_id AND auth.signed_envelope IS NOT NULL
+ WHERE plan.status IN ('reserved','applied') AND line.settlement_status='recorded' AND line.chain_result='SUCCESS'
+ AND spent.created_at>=(SELECT created_at FROM reg_crypto_aml_wallet_baselines WHERE wallet_id=plan.source_wallet_id AND token_id=plan.token_id)
+ AND received.created_at>=(SELECT created_at FROM reg_crypto_aml_wallet_baselines WHERE wallet_id=plan.destination_wallet_id AND token_id=plan.token_id);
 
--- ---- Triggers and views ----
+-- The physical basis of an allocatable payment is the custody line of the
+-- receipt it attributes; the payment itself only moves suspense and liabilities.
+CREATE OR REPLACE VIEW crypto_aml_allocatable_payments AS
+ SELECT p.id payment_id,p.posted_version payment_version,p.merchant_id,p.network_id,p.token_id,p.wallet_id,
+        credit.amount principal,fees.amount service_fee,e.id effect_id,physical.line_id movement_id
+ FROM doc_crypto_payments p JOIN reg_crypto_aml_wallet_baselines baseline ON baseline.wallet_id=p.wallet_id AND baseline.token_id=p.token_id AND p.block_number>baseline.block_number
+ JOIN cat_wallets w ON w.id=p.wallet_id AND w.custody_merchant_id=p.merchant_id AND w.network_id=p.network_id
+ JOIN cat_tokens token ON token.id=p.token_id AND token.network_id=p.network_id
+ JOIN reg_crypto_aml_effects e ON e.wallet_id=p.wallet_id AND e.token_id=p.token_id AND e.network_id=p.network_id
+   AND e.tx_hash=p.tx_hash AND e.event_kind=p.event_kind AND e.event_index=p.event_index AND e.block_hash=p.block_hash AND e.amount=p.amount AND e.source_wallet_id IS NULL
+ JOIN reg_crypto_aml_effect_chain_states cs ON cs.effect_id=e.id AND cs.canonicality='canonical'
+ JOIN reg_crypto_transfer_verifications proof ON proof.id=p.verification_id AND proof.network_id=e.network_id AND proof.tx_hash=e.tx_hash
+   AND proof.event_kind=e.event_kind AND proof.event_index=e.event_index AND proof.block_hash=e.block_hash AND proof.economics_hash=e.economics_hash
+ JOIN LATERAL(SELECT COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END),0) amount,
+    COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END) FILTER(WHERE recorder_version=p.posted_version),0) current_amount
+    FROM reg_crypto_merchant_balance_movements WHERE recorder_id=p.id AND recorder_type='CryptoPayment' AND merchant_id=p.merchant_id AND token_id=p.token_id) credit ON TRUE
+ JOIN LATERAL(SELECT COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END),0) amount,
+    COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END) FILTER(WHERE recorder_version=p.posted_version),0) current_amount
+    FROM reg_crypto_fee_movements WHERE recorder_id=p.id AND recorder_type='CryptoPayment' AND merchant_id=p.merchant_id AND token_id=p.token_id AND fee_type='processing') fees ON TRUE
+ JOIN doc_crypto_custody_receipts receipt ON receipt.id=p.receipt_id AND receipt.posted AND receipt.wallet_id=p.wallet_id
+   AND receipt.token_id=p.token_id AND receipt.amount=p.amount
+ JOIN reg_crypto_balance_movements physical ON physical.line_id=receipt.custody_line_id AND physical.recorder_id=receipt.id
+    AND physical.recorder_type='CryptoCustodyReceipt' AND physical.wallet_id=p.wallet_id AND physical.token_id=p.token_id
+    AND physical.record_type='receipt' AND physical.amount=p.amount AND physical.created_at>=baseline.created_at
+ WHERE p.posted AND p.status='settled' AND p.canonicality='canonical'
+   AND credit.amount>=0 AND fees.amount>=0 AND credit.amount=credit.current_amount AND fees.amount=fees.current_amount AND credit.amount+fees.amount=p.amount;
+
+CREATE VIEW crypto_aml_inventory_fact_validity AS
+ SELECT fact.id,CASE WHEN fact.kind='payment' THEN EXISTS(SELECT 1 FROM crypto_aml_allocatable_payments p
+   WHERE p.payment_id=fact.payment_id AND p.payment_version=fact.payment_version AND p.effect_id=fact.effect_id AND p.movement_id=fact.destination_movement_id
+     AND p.principal=fact.principal AND p.service_fee=fact.service_fee AND p.wallet_id=fact.destination_wallet_id)
+ ELSE EXISTS(SELECT 1 FROM crypto_aml_allocatable_transfers t JOIN reg_crypto_aml_internal_allocations plan ON plan.id=t.allocation_id AND plan.status='applied'
+   WHERE t.allocation_id=fact.allocation_id AND t.effect_id=fact.effect_id AND t.source_movement_id=fact.source_movement_id AND t.destination_movement_id=fact.destination_movement_id
+     AND t.principal=fact.principal AND t.service_fee=fact.service_fee AND t.source_wallet_id=fact.source_wallet_id AND t.destination_wallet_id=fact.destination_wallet_id) END valid
+ FROM reg_crypto_aml_inventory_facts fact;
+
+CREATE OR REPLACE VIEW crypto_aml_valid_withdrawal_facts AS
+ SELECT f.line_id FROM reg_crypto_aml_withdrawal_facts f
+ JOIN reg_crypto_aml_withdrawal_lines l ON l.id=f.line_id AND l.wallet_id=f.wallet_id AND l.token_id=f.token_id AND l.amount=f.amount
+ JOIN reg_crypto_aml_withdrawal_plans plan ON plan.request_id=l.request_id
+ JOIN doc_crypto_withdrawals w ON w.id=l.withdrawal_id AND w.basis_type='CryptoAMLWithdrawalLine' AND w.basis_id=l.id
+    AND w.merchant_id=plan.merchant_id AND w.source_wallet_id=l.wallet_id AND w.token_id=l.token_id AND w.amount=l.amount AND w.posted AND w.posted_version=1
+    AND w.settlement_status='recorded' AND w.status=CASE WHEN f.succeeded THEN 'confirmed' ELSE 'failed' END
+ JOIN reg_crypto_signing_authorizations a ON a.basis_type='CryptoAMLWithdrawalLine' AND a.basis_id=l.id AND a.generation=1 AND a.attempt=1
+    AND a.signed_envelope IS NOT NULL AND a.tx_hash=w.tx_hash AND a.source_address=l.source_address AND a.vault_key_id=l.source_vault_key_id AND a.amount_minor_units=l.amount
+ JOIN reg_crypto_aml_first_dispatches dispatched ON dispatched.authorization_id=a.id
+ JOIN reg_crypto_chain_settlements settlement ON settlement.id=f.settlement_id AND settlement.network_id=plan.network_id AND settlement.basis_type='CryptoAMLWithdrawalLine'
+    AND settlement.basis_id=l.id AND settlement.tx_hash=w.tx_hash AND (settlement.status='succeeded')=f.succeeded
+ JOIN reg_crypto_balance_reservations reserve ON reserve.id=l.reservation_id AND reserve.status=CASE WHEN f.succeeded THEN 'consumed' ELSE 'released' END
+ LEFT JOIN reg_crypto_withdrawal_custody_bindings binding ON binding.withdrawal_id=w.id AND binding.request_id=l.request_id AND binding.line_id=l.id AND binding.signing_authorization_id=a.id
+ LEFT JOIN reg_crypto_custody_effect_postings posting ON posting.id=binding.posting_id AND posting.recorder_type='CryptoWithdrawal' AND posting.recorder_id=w.id AND posting.generation=1 AND posting.recorder_version=1
+ LEFT JOIN reg_crypto_custody_effect_recognitions recognized ON recognized.posting_id=posting.id AND recognized.record_type='expense' AND recognized.wallet_id=l.wallet_id AND recognized.token_id=l.token_id
+ LEFT JOIN reg_crypto_balance_movements spent ON spent.line_id=f.expense_movement_id AND spent.line_id=recognized.movement_line_id AND spent.recorder_type='CryptoWithdrawal'
+    AND spent.recorder_id=w.id AND spent.recorder_version=1 AND spent.record_type='expense' AND spent.wallet_id=f.wallet_id AND spent.token_id=f.token_id AND spent.amount=f.amount AND spent.reversal_of_line_id IS NULL
+ LEFT JOIN reg_crypto_transfer_verifications proof ON proof.id=posting.verification_id
+ WHERE f.refund_movement_id IS NULL AND (
+ (f.succeeded AND spent.line_id IS NOT NULL AND proof.evidence->'event'->>'canonicality'='canonical'
+    AND NOT EXISTS(SELECT 1 FROM reg_crypto_transfer_verifications invalid WHERE invalid.network_id=proof.network_id AND invalid.tx_hash=proof.tx_hash
+        AND invalid.event_kind=proof.event_kind AND invalid.event_index=proof.event_index AND invalid.verified_at>=proof.verified_at AND invalid.evidence->'event'->>'canonicality'='orphaned')
+    AND NOT EXISTS(SELECT 1 FROM reg_crypto_accounting_effect_evidence ae JOIN reg_crypto_accounting_effect_occurrences occurrence ON occurrence.id=ae.occurrence_id
+        JOIN reg_crypto_transfer_verifications newer ON newer.id=ae.verification_id WHERE occurrence.effect_id=posting.effect_id AND occurrence.id<>posting.occurrence_id AND newer.verified_at>=proof.verified_at))
+ OR (NOT f.succeeded AND f.expense_movement_id IS NULL AND binding.posting_id IS NULL AND NOT EXISTS(SELECT 1 FROM reg_crypto_balance_movements WHERE recorder_id=w.id)
+    AND EXISTS(SELECT 1 FROM reg_crypto_merchant_balance_movements mr JOIN doc_withdrawal_requests request ON request.id=l.request_id
+        WHERE mr.line_id=l.id AND mr.recorder_id=l.request_id AND mr.recorder_type='WithdrawalRequest' AND mr.recorder_version=request.posted_version+1 AND mr.record_type='receipt'
+          AND mr.merchant_id=plan.merchant_id AND mr.token_id=l.token_id AND mr.amount=l.amount))
+ );
+
+
+-- ---- Triggers ----
+CREATE TRIGGER trg_crypto_merchant_credit_txid BEFORE UPDATE ON doc_crypto_merchant_credits
+    FOR EACH ROW EXECUTE FUNCTION update_txid_column();
 
 CREATE TRIGGER trg_crypto_accounting_effect_immutable
     BEFORE UPDATE OR DELETE ON reg_crypto_accounting_effects
@@ -4048,10 +3855,12 @@ CREATE TRIGGER trg_crypto_balance_posting_transaction BEFORE INSERT ON reg_crypt
 
 CREATE TRIGGER trg_crypto_payment_frozen_basis BEFORE UPDATE OR DELETE ON doc_crypto_payments
     FOR EACH ROW EXECUTE FUNCTION fn_crypto_payment_frozen_basis_guard();
+
 CREATE CONSTRAINT TRIGGER trg_crypto_payment_attribution_document AFTER UPDATE ON doc_crypto_payments
     DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
     WHEN (OLD.posted IS DISTINCT FROM NEW.posted OR OLD.posted_version IS DISTINCT FROM NEW.posted_version)
     EXECUTE FUNCTION fn_crypto_payment_attribution_complete();
+
 DO $$
 DECLARE target TEXT;
 BEGIN
@@ -4061,7 +3870,6 @@ BEGIN
     END LOOP;
 END;
 $$;
-
 
 CREATE TRIGGER trg_native_funding_binding_immutable BEFORE UPDATE OR DELETE ON reg_crypto_native_funding_custody_bindings
     FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
@@ -4125,27 +3933,6 @@ CREATE TRIGGER trg_sweep_header_basis BEFORE UPDATE OR DELETE ON doc_crypto_swee
 
 CREATE TRIGGER trg_sweep_line_basis BEFORE UPDATE OR DELETE ON doc_crypto_sweep_lines FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_basis_guard();
 
-CREATE OR REPLACE VIEW crypto_aml_allocatable_transfers AS
- SELECT plan.id allocation_id,plan.merchant_id,plan.network_id,plan.token_id,plan.source_wallet_id,plan.destination_wallet_id,
- plan.principal,plan.service_fee,e.id effect_id,spent.line_id source_movement_id,received.line_id destination_movement_id
- FROM reg_crypto_aml_internal_allocations plan
- JOIN reg_crypto_sweep_custody_bindings b ON b.line_id=plan.sweep_attempt_id
- JOIN doc_crypto_sweep_lines line ON line.line_id=b.line_id AND line.document_id=b.sweep_id AND line.wallet_id=plan.source_wallet_id AND line.amount=plan.gross
- JOIN doc_crypto_sweeps sweep ON sweep.id=b.sweep_id AND sweep.hot_wallet_id=plan.destination_wallet_id AND sweep.token_id=plan.token_id
- JOIN reg_crypto_custody_effect_postings p ON p.id=b.posting_id AND p.recorder_id=sweep.id AND p.recorder_type='CryptoSweep' AND p.recorder_version=1
- JOIN reg_crypto_custody_effect_recognitions sr ON sr.posting_id=p.id AND sr.record_type='expense' AND sr.wallet_id=plan.source_wallet_id AND sr.token_id=plan.token_id
- JOIN reg_crypto_custody_effect_recognitions dr ON dr.posting_id=p.id AND dr.record_type='receipt' AND dr.wallet_id=plan.destination_wallet_id AND dr.token_id=plan.token_id
- JOIN reg_crypto_balance_movements spent ON spent.line_id=sr.movement_line_id AND spent.amount=plan.gross
- JOIN reg_crypto_balance_movements received ON received.line_id=dr.movement_line_id AND received.amount=plan.gross
- JOIN reg_crypto_aml_effects e ON e.wallet_id=plan.destination_wallet_id AND e.source_wallet_id=plan.source_wallet_id AND e.token_id=plan.token_id AND e.network_id=plan.network_id AND e.tx_hash=line.tx_hash AND e.amount=plan.gross
- JOIN reg_crypto_aml_effect_chain_states cs ON cs.effect_id=e.id AND cs.canonicality='canonical'
- JOIN reg_crypto_accounting_effect_evidence ae ON ae.verification_id=cs.verification_id AND ae.occurrence_id=p.occurrence_id
- JOIN reg_crypto_expected_chain_effects expected ON expected.id=e.expected_effect_id
- JOIN reg_crypto_signing_authorizations auth ON auth.id=expected.signing_authorization_id AND auth.basis_type='CryptoSweepAttempt' AND auth.basis_id=line.line_id AND auth.signed_envelope IS NOT NULL
- WHERE plan.status IN ('reserved','applied') AND line.settlement_status='recorded' AND line.chain_result='SUCCESS'
- AND spent.created_at>=(SELECT created_at FROM reg_crypto_aml_wallet_baselines WHERE wallet_id=plan.source_wallet_id AND token_id=plan.token_id)
- AND received.created_at>=(SELECT created_at FROM reg_crypto_aml_wallet_baselines WHERE wallet_id=plan.destination_wallet_id AND token_id=plan.token_id);
-
 CREATE TRIGGER trg_treasury_custody_binding_immutable BEFORE UPDATE OR DELETE ON reg_crypto_treasury_custody_bindings
     FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
 
@@ -4186,37 +3973,6 @@ CREATE TRIGGER trg_treasury_fee_release BEFORE UPDATE ON reg_crypto_fee_reservat
 CREATE TRIGGER trg_treasury_outflow_owner BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_outflow_owner_guard();
 
 CREATE TRIGGER trg_withdrawal_custody_binding_immutable BEFORE UPDATE OR DELETE ON reg_crypto_withdrawal_custody_bindings FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
-
-CREATE OR REPLACE VIEW crypto_aml_valid_withdrawal_facts AS
- SELECT f.line_id FROM reg_crypto_aml_withdrawal_facts f
- JOIN reg_crypto_aml_withdrawal_lines l ON l.id=f.line_id AND l.wallet_id=f.wallet_id AND l.token_id=f.token_id AND l.amount=f.amount
- JOIN reg_crypto_aml_withdrawal_plans plan ON plan.request_id=l.request_id
- JOIN doc_crypto_withdrawals w ON w.id=l.withdrawal_id AND w.basis_type='CryptoAMLWithdrawalLine' AND w.basis_id=l.id
-    AND w.merchant_id=plan.merchant_id AND w.source_wallet_id=l.wallet_id AND w.token_id=l.token_id AND w.amount=l.amount AND w.posted AND w.posted_version=1
-    AND w.settlement_status='recorded' AND w.status=CASE WHEN f.succeeded THEN 'confirmed' ELSE 'failed' END
- JOIN reg_crypto_signing_authorizations a ON a.basis_type='CryptoAMLWithdrawalLine' AND a.basis_id=l.id AND a.generation=1 AND a.attempt=1
-    AND a.signed_envelope IS NOT NULL AND a.tx_hash=w.tx_hash AND a.source_address=l.source_address AND a.vault_key_id=l.source_vault_key_id AND a.amount_minor_units=l.amount
- JOIN reg_crypto_aml_first_dispatches dispatched ON dispatched.authorization_id=a.id
- JOIN reg_crypto_chain_settlements settlement ON settlement.id=f.settlement_id AND settlement.network_id=plan.network_id AND settlement.basis_type='CryptoAMLWithdrawalLine'
-    AND settlement.basis_id=l.id AND settlement.tx_hash=w.tx_hash AND (settlement.status='succeeded')=f.succeeded
- JOIN reg_crypto_balance_reservations reserve ON reserve.id=l.reservation_id AND reserve.status=CASE WHEN f.succeeded THEN 'consumed' ELSE 'released' END
- LEFT JOIN reg_crypto_withdrawal_custody_bindings binding ON binding.withdrawal_id=w.id AND binding.request_id=l.request_id AND binding.line_id=l.id AND binding.signing_authorization_id=a.id
- LEFT JOIN reg_crypto_custody_effect_postings posting ON posting.id=binding.posting_id AND posting.recorder_type='CryptoWithdrawal' AND posting.recorder_id=w.id AND posting.generation=1 AND posting.recorder_version=1
- LEFT JOIN reg_crypto_custody_effect_recognitions recognized ON recognized.posting_id=posting.id AND recognized.record_type='expense' AND recognized.wallet_id=l.wallet_id AND recognized.token_id=l.token_id
- LEFT JOIN reg_crypto_balance_movements spent ON spent.line_id=f.expense_movement_id AND spent.line_id=recognized.movement_line_id AND spent.recorder_type='CryptoWithdrawal'
-    AND spent.recorder_id=w.id AND spent.recorder_version=1 AND spent.record_type='expense' AND spent.wallet_id=f.wallet_id AND spent.token_id=f.token_id AND spent.amount=f.amount AND spent.reversal_of_line_id IS NULL
- LEFT JOIN reg_crypto_transfer_verifications proof ON proof.id=posting.verification_id
- WHERE f.refund_movement_id IS NULL AND (
- (f.succeeded AND spent.line_id IS NOT NULL AND proof.evidence->'event'->>'canonicality'='canonical'
-    AND NOT EXISTS(SELECT 1 FROM reg_crypto_transfer_verifications invalid WHERE invalid.network_id=proof.network_id AND invalid.tx_hash=proof.tx_hash
-        AND invalid.event_kind=proof.event_kind AND invalid.event_index=proof.event_index AND invalid.verified_at>=proof.verified_at AND invalid.evidence->'event'->>'canonicality'='orphaned')
-    AND NOT EXISTS(SELECT 1 FROM reg_crypto_accounting_effect_evidence ae JOIN reg_crypto_accounting_effect_occurrences occurrence ON occurrence.id=ae.occurrence_id
-        JOIN reg_crypto_transfer_verifications newer ON newer.id=ae.verification_id WHERE occurrence.effect_id=posting.effect_id AND occurrence.id<>posting.occurrence_id AND newer.verified_at>=proof.verified_at))
- OR (NOT f.succeeded AND f.expense_movement_id IS NULL AND binding.posting_id IS NULL AND NOT EXISTS(SELECT 1 FROM reg_crypto_balance_movements WHERE recorder_id=w.id)
-    AND EXISTS(SELECT 1 FROM reg_crypto_merchant_balance_movements mr JOIN doc_withdrawal_requests request ON request.id=l.request_id
-        WHERE mr.line_id=l.id AND mr.recorder_id=l.request_id AND mr.recorder_type='WithdrawalRequest' AND mr.recorder_version=request.posted_version+1 AND mr.record_type='receipt'
-          AND mr.merchant_id=plan.merchant_id AND mr.token_id=l.token_id AND mr.amount=l.amount))
- );
 
 CREATE CONSTRAINT TRIGGER trg_withdrawal_binding_complete AFTER INSERT ON reg_crypto_withdrawal_custody_bindings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_binding_complete();
 
@@ -4352,10 +4108,6 @@ CREATE TRIGGER trg_crypto_network_hold_insert_replay BEFORE INSERT ON reg_crypto
 
 CREATE TRIGGER trg_crypto_wallet_hold_insert_replay BEFORE INSERT ON reg_crypto_wallet_allocation_holds FOR EACH ROW EXECUTE FUNCTION fn_crypto_sql_hold_guard();
 
-DROP TRIGGER trg_crypto_network_hold_owner_guard ON reg_crypto_network_holds;
-
-DROP TRIGGER trg_crypto_wallet_hold_owner_guard ON reg_crypto_wallet_allocation_holds;
-
 CREATE TRIGGER trg_crypto_network_hold_owner_guard BEFORE UPDATE OR DELETE ON reg_crypto_network_holds FOR EACH ROW EXECUTE FUNCTION fn_crypto_sql_hold_guard();
 
 CREATE TRIGGER trg_crypto_wallet_hold_owner_guard BEFORE UPDATE OR DELETE ON reg_crypto_wallet_allocation_holds FOR EACH ROW EXECUTE FUNCTION fn_crypto_sql_hold_guard();
@@ -4365,8 +4117,6 @@ CREATE TRIGGER trg_crypto_aml_decision_replay BEFORE INSERT ON reg_crypto_aml_de
 CREATE TRIGGER trg_crypto_invoice_drift_guard BEFORE INSERT OR UPDATE OR DELETE ON sys_invoice_reconciliation_drift FOR EACH ROW EXECUTE FUNCTION fn_crypto_invoice_drift_guard();
 
 CREATE TRIGGER trg_crypto_invoice_drift_incident_guard BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_security_incidents FOR EACH ROW EXECUTE FUNCTION fn_crypto_invoice_drift_incident_guard();
-
-CREATE TRIGGER trg_crypto_aml_preflight_attempt_immutable BEFORE UPDATE OR DELETE ON reg_crypto_aml_preflight_attempts FOR EACH ROW EXECUTE FUNCTION fn_crypto_aml_evidence_guard();
 
 CREATE TRIGGER trg_crypto_aml_preflight_job_identity BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_aml_preflight_jobs FOR EACH ROW EXECUTE FUNCTION fn_crypto_aml_preflight_job_guard();
 
@@ -4409,8 +4159,10 @@ CREATE CONSTRAINT TRIGGER trg_crypto_custody_decision_complete AFTER INSERT OR U
 
 CREATE TRIGGER trg_crypto_merchant_credit_guard BEFORE INSERT OR UPDATE OR DELETE ON doc_crypto_merchant_credits
     FOR EACH ROW EXECUTE FUNCTION fn_crypto_merchant_credit_guard();
+
 CREATE CONSTRAINT TRIGGER trg_crypto_merchant_credit_complete AFTER INSERT OR UPDATE ON doc_crypto_merchant_credits
     DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_merchant_credit_complete();
+
 DO $$
 DECLARE target TEXT;
 BEGIN
@@ -4421,117 +4173,27 @@ BEGIN
     END LOOP;
 END;
 $$;
+
 CREATE TRIGGER trg_crypto_merchant_credit_reversal_guard BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_merchant_credit_reversals
     FOR EACH ROW EXECUTE FUNCTION fn_crypto_merchant_credit_reversal_guard();
+
 CREATE CONSTRAINT TRIGGER trg_crypto_merchant_credit_reversal_complete AFTER INSERT ON reg_crypto_merchant_credit_reversals
     DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_merchant_credit_complete();
+
 CREATE CONSTRAINT TRIGGER trg_crypto_custody_receipt_orphan_complete AFTER UPDATE ON reg_crypto_custody_receipt_audits
     DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_orphan_complete();
+
 CREATE TRIGGER trg_crypto_custody_receipt_audit_seed AFTER INSERT ON doc_crypto_custody_receipts
     FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_audit_seed();
+
 CREATE TRIGGER trg_crypto_custody_receipt_audit_guard BEFORE UPDATE OR DELETE ON reg_crypto_custody_receipt_audits
     FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_audit_guard();
-
-INSERT INTO auth_permissions (code,name,description,resource,action) VALUES
-    ('crypto_receipt:read','Журнал невыясненных поступлений','View unidentified custody receipts','crypto_receipt','read'),
-    ('crypto_receipt:credit','Зачисление невыясненных поступлений','Prepare or reject a merchant credit of an unidentified receipt','crypto_receipt','credit'),
-    ('crypto_receipt:approve','Подтверждение зачисления поступлений','Approve a merchant credit prepared by another operator','crypto_receipt','approve')
-ON CONFLICT (code) DO NOTHING;
--- The physical basis of an allocatable payment is the custody line of the
--- receipt it attributes; the payment itself only moves suspense and liabilities.
-CREATE OR REPLACE VIEW crypto_aml_allocatable_payments AS
- SELECT p.id payment_id,p.posted_version payment_version,p.merchant_id,p.network_id,p.token_id,p.wallet_id,
-        credit.amount principal,fees.amount service_fee,e.id effect_id,physical.line_id movement_id
- FROM doc_crypto_payments p JOIN reg_crypto_aml_wallet_baselines baseline ON baseline.wallet_id=p.wallet_id AND baseline.token_id=p.token_id AND p.block_number>baseline.block_number
- JOIN cat_wallets w ON w.id=p.wallet_id AND w.custody_merchant_id=p.merchant_id AND w.network_id=p.network_id
- JOIN cat_tokens token ON token.id=p.token_id AND token.network_id=p.network_id
- JOIN reg_crypto_aml_effects e ON e.wallet_id=p.wallet_id AND e.token_id=p.token_id AND e.network_id=p.network_id
-   AND e.tx_hash=p.tx_hash AND e.event_kind=p.event_kind AND e.event_index=p.event_index AND e.block_hash=p.block_hash AND e.amount=p.amount AND e.source_wallet_id IS NULL
- JOIN reg_crypto_aml_effect_chain_states cs ON cs.effect_id=e.id AND cs.canonicality='canonical'
- JOIN reg_crypto_transfer_verifications proof ON proof.id=p.verification_id AND proof.network_id=e.network_id AND proof.tx_hash=e.tx_hash
-   AND proof.event_kind=e.event_kind AND proof.event_index=e.event_index AND proof.block_hash=e.block_hash AND proof.economics_hash=e.economics_hash
- JOIN LATERAL(SELECT COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END),0) amount,
-    COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END) FILTER(WHERE recorder_version=p.posted_version),0) current_amount
-    FROM reg_crypto_merchant_balance_movements WHERE recorder_id=p.id AND recorder_type='CryptoPayment' AND merchant_id=p.merchant_id AND token_id=p.token_id) credit ON TRUE
- JOIN LATERAL(SELECT COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END),0) amount,
-    COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END) FILTER(WHERE recorder_version=p.posted_version),0) current_amount
-    FROM reg_crypto_fee_movements WHERE recorder_id=p.id AND recorder_type='CryptoPayment' AND merchant_id=p.merchant_id AND token_id=p.token_id AND fee_type='processing') fees ON TRUE
- JOIN doc_crypto_custody_receipts receipt ON receipt.id=p.receipt_id AND receipt.posted AND receipt.wallet_id=p.wallet_id
-   AND receipt.token_id=p.token_id AND receipt.amount=p.amount
- JOIN reg_crypto_balance_movements physical ON physical.line_id=receipt.custody_line_id AND physical.recorder_id=receipt.id
-    AND physical.recorder_type='CryptoCustodyReceipt' AND physical.wallet_id=p.wallet_id AND physical.token_id=p.token_id
-    AND physical.record_type='receipt' AND physical.amount=p.amount AND physical.created_at>=baseline.created_at
- WHERE p.posted AND p.status='settled' AND p.canonicality='canonical'
-   AND credit.amount>=0 AND fees.amount>=0 AND credit.amount=credit.current_amount AND fees.amount=fees.current_amount AND credit.amount+fees.amount=p.amount;
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TRIGGER trg_crypto_payment_attribution_document ON doc_crypto_payments;
-DO $$
-DECLARE target TEXT;
-BEGIN
-    FOREACH target IN ARRAY ARRAY['reg_crypto_receipt_suspense_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements'] LOOP
-        EXECUTE format('DROP TRIGGER %I ON %I','trg_payment_attribution_'||target,target);
-    END LOOP;
-END;
-$$;
-DROP FUNCTION fn_crypto_payment_attribution_complete();
-DROP FUNCTION fn_crypto_assert_payment_attribution(UUID);
-CREATE OR REPLACE VIEW crypto_aml_allocatable_payments AS
- SELECT p.id payment_id,p.posted_version payment_version,p.merchant_id,p.network_id,p.token_id,p.wallet_id,
-        credit.amount principal,fees.amount service_fee,e.id effect_id,physical.line_id movement_id
- FROM doc_crypto_payments p JOIN reg_crypto_aml_wallet_baselines baseline ON baseline.wallet_id=p.wallet_id AND baseline.token_id=p.token_id AND p.block_number>baseline.block_number
- JOIN cat_wallets w ON w.id=p.wallet_id AND w.custody_merchant_id=p.merchant_id AND w.network_id=p.network_id
- JOIN cat_tokens token ON token.id=p.token_id AND token.network_id=p.network_id
- JOIN reg_crypto_aml_effects e ON e.wallet_id=p.wallet_id AND e.token_id=p.token_id AND e.network_id=p.network_id
-   AND e.tx_hash=p.tx_hash AND e.event_kind=p.event_kind AND e.event_index=p.event_index AND e.block_hash=p.block_hash AND e.amount=p.amount AND e.source_wallet_id IS NULL
- JOIN reg_crypto_aml_effect_chain_states cs ON cs.effect_id=e.id AND cs.canonicality='canonical'
- JOIN reg_crypto_transfer_verifications proof ON proof.id=p.verification_id AND proof.network_id=e.network_id AND proof.tx_hash=e.tx_hash
-   AND proof.event_kind=e.event_kind AND proof.event_index=e.event_index AND proof.block_hash=e.block_hash AND proof.economics_hash=e.economics_hash
- JOIN LATERAL(SELECT COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END),0) amount,
-    COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END) FILTER(WHERE recorder_version=p.posted_version),0) current_amount
-    FROM reg_crypto_merchant_balance_movements WHERE recorder_id=p.id AND recorder_type='CryptoPayment' AND merchant_id=p.merchant_id AND token_id=p.token_id) credit ON TRUE
- JOIN LATERAL(SELECT COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END),0) amount,
-    COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END) FILTER(WHERE recorder_version=p.posted_version),0) current_amount
-    FROM reg_crypto_fee_movements WHERE recorder_id=p.id AND recorder_type='CryptoPayment' AND merchant_id=p.merchant_id AND token_id=p.token_id AND fee_type='processing') fees ON TRUE
- JOIN reg_crypto_balance_movements physical ON physical.recorder_id=p.id AND physical.recorder_type='CryptoPayment' AND physical.recorder_version=p.posted_version
-    AND physical.wallet_id=p.wallet_id AND physical.token_id=p.token_id AND physical.record_type='receipt' AND physical.amount=p.amount AND physical.created_at>=baseline.created_at
- WHERE p.posted AND p.status='settled' AND p.canonicality='canonical'
-   AND credit.amount>=0 AND fees.amount>=0 AND credit.amount=credit.current_amount AND fees.amount=fees.current_amount AND credit.amount+fees.amount=p.amount
-   AND (SELECT COUNT(*) FROM reg_crypto_balance_movements m WHERE m.recorder_id=p.id AND m.recorder_type='CryptoPayment' AND m.recorder_version=p.posted_version AND m.wallet_id=p.wallet_id AND m.token_id=p.token_id)=1;
-
-ALTER TABLE doc_crypto_payments
-    ADD COLUMN next_canonicality_check_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    ADD COLUMN last_canonicality_checked_at TIMESTAMPTZ,
-    ADD COLUMN canonicality_check_attempts INT NOT NULL DEFAULT 0 CHECK (canonicality_check_attempts>=0),
-    ADD COLUMN canonicality_last_error TEXT NOT NULL DEFAULT '';
-CREATE INDEX idx_crypto_payments_canonicality_due
-    ON doc_crypto_payments(next_canonicality_check_at,id)
-    WHERE status='settled' AND posted=TRUE AND deletion_mark=FALSE;
-ALTER TABLE doc_crypto_payments DROP COLUMN receipt_id;DELETE FROM auth_role_permissions WHERE permission_id IN (SELECT id FROM auth_permissions WHERE resource='crypto_receipt');
-DELETE FROM auth_permissions WHERE resource='crypto_receipt';DROP TABLE reg_crypto_merchant_credit_reversals;
-DROP TRIGGER trg_crypto_custody_receipt_audit_seed ON doc_crypto_custody_receipts;
-DROP TABLE reg_crypto_custody_receipt_audits;
-DROP FUNCTION fn_crypto_custody_receipt_audit_guard();
-DROP FUNCTION fn_crypto_custody_receipt_audit_seed();
-DROP FUNCTION fn_crypto_custody_receipt_orphan_complete();DO $$
-DECLARE target TEXT;
-BEGIN
-    FOREACH target IN ARRAY ARRAY['reg_crypto_receipt_suspense_movements','reg_crypto_merchant_balance_movements',
-        'reg_crypto_fee_movements','reg_crypto_balance_movements'] LOOP
-        EXECUTE format('DROP TRIGGER %I ON %I','trg_merchant_credit_complete_'||target,target);
-    END LOOP;
-END;
-$$;
-DROP TABLE doc_crypto_merchant_credits;
-DROP TABLE sys_crypto_receipt_credit_policies;
-DROP FUNCTION fn_crypto_merchant_credit_complete();
-DROP FUNCTION fn_crypto_assert_merchant_credit_reversal(UUID);
-DROP FUNCTION fn_crypto_merchant_credit_reversal_guard();
-DROP FUNCTION fn_crypto_assert_merchant_credit(UUID);
-DROP FUNCTION fn_crypto_merchant_credit_guard();ALTER TABLE reg_crypto_inbound_chain_events DROP COLUMN receipt_error, DROP COLUMN receipt_attempts, DROP COLUMN receipt_check_at, DROP COLUMN receipt_id;-- ==== crypto_external_outflow_decisions ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
+-- Recorded evidence is never discarded by a rollback; recover forward instead.
 DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM reg_crypto_external_outflows WHERE classification_basis IS NOT NULL OR resolution_basis IS NOT NULL)
  OR EXISTS(SELECT 1 FROM doc_crypto_custody_adjustments WHERE decision_basis IS NOT NULL)
@@ -4539,490 +4201,48 @@ DO $$ BEGIN
   RAISE EXCEPTION 'outflow decision history requires forward recovery' USING ERRCODE='23514';
  END IF;
 END $$;
-DROP TRIGGER trg_crypto_outflow_decision_complete ON reg_crypto_external_outflows;
-DROP TRIGGER trg_crypto_custody_decision_complete ON doc_crypto_custody_adjustments;
-DROP FUNCTION fn_crypto_outflow_decision_audit_complete();
-DROP TRIGGER trg_crypto_custody_decision_audit ON doc_crypto_custody_adjustments;
-DROP TRIGGER trg_crypto_outflow_decision_audit ON reg_crypto_external_outflows;
-DROP FUNCTION fn_crypto_outflow_append_decision_audit();
-DROP TRIGGER trg_crypto_outflow_decision_audit_insert ON reg_crypto_external_outflow_actions;
-DROP FUNCTION fn_crypto_outflow_decision_audit_guard();
-DROP TRIGGER trg_crypto_custody_decision ON doc_crypto_custody_adjustments;
-DROP FUNCTION fn_crypto_custody_decision_guard();
-DROP TRIGGER trg_crypto_external_outflow_decision ON reg_crypto_external_outflows;
-DROP FUNCTION fn_crypto_outflow_decision_guard();
-DROP FUNCTION fn_crypto_outflow_decision_source(UUID);
-DROP FUNCTION fn_crypto_outflow_decision_seed(JSONB);
-DROP FUNCTION fn_crypto_outflow_decision_command(TEXT,UUID,UUID,TEXT,TEXT,TEXT,UUID,JSONB);
-DROP TRIGGER trg_crypto_outflow_initial_decision ON reg_crypto_external_outflows;
-DROP TRIGGER trg_crypto_custody_initial_decision ON doc_crypto_custody_adjustments;
-DROP FUNCTION fn_crypto_outflow_decision_insert_guard();
--- Keep additive nullable audit columns.
--- ==== crypto_external_outflow_basis ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM reg_crypto_external_outflows WHERE initial_basis IS NOT NULL)
    OR EXISTS(SELECT 1 FROM reg_crypto_external_outflow_observations WHERE incident_id IS NOT NULL) THEN
   RAISE EXCEPTION 'external outflow source history requires forward recovery' USING ERRCODE='23514';
  END IF;
 END $$;
-DROP TRIGGER trg_crypto_external_outflow_observation_source ON reg_crypto_external_outflow_observations;
-DROP FUNCTION fn_crypto_external_outflow_observation_source();
-DROP TRIGGER trg_crypto_external_outflow_basis ON reg_crypto_external_outflows;
-DROP FUNCTION fn_crypto_external_outflow_basis_guard();
-DROP FUNCTION fn_crypto_try_lock_external_outflow(UUID,TEXT,UUID);
--- Keep nullable source columns; a later Up validates retained history.
--- ==== crypto_ingestion_registration_basis ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM sys_crypto_block_ingestion WHERE activation_basis IS NOT NULL) THEN
   RAISE EXCEPTION 'financial ingestion boundary history requires forward recovery' USING ERRCODE='23514';
  END IF;
 END $$;
-DROP TRIGGER trg_crypto_watched_wallet_identity ON cat_wallets;
-DROP TRIGGER trg_crypto_watched_asset_identity ON cat_tokens;
-DROP FUNCTION fn_crypto_watched_catalog_guard();
-DROP TRIGGER trg_crypto_watch_target_guard ON sys_crypto_watch_targets;
-DROP FUNCTION fn_crypto_watch_target_guard();
-DROP TRIGGER trg_crypto_block_ingestion_basis ON sys_crypto_block_ingestion;
-DROP FUNCTION fn_crypto_ingestion_basis_guard();
-CREATE OR REPLACE FUNCTION fn_crypto_register_watch_address() RETURNS TRIGGER AS $$
-DECLARE boundary BIGINT;
-BEGIN
- IF NEW.vault_key_id='' OR NEW.address='' OR NOT EXISTS(SELECT 1 FROM cat_blockchain_networks WHERE id=NEW.network_id AND chain_family='tron') THEN RETURN NEW; END IF;
- SELECT start_height+1 INTO boundary FROM sys_crypto_block_ingestion WHERE network_id=NEW.network_id FOR UPDATE;
- IF boundary IS NULL THEN boundary:=0; END IF;
- SELECT GREATEST(boundary,COALESCE(MAX(last_block)+1,boundary)) INTO boundary FROM sys_chain_watcher_state WHERE network_id=NEW.network_id AND watcher_key='tron:solidified';
- INSERT INTO sys_crypto_watch_targets(network_id,target_kind,target_key,owner_id,start_height,source) VALUES(NEW.network_id,'address',NEW.address,NEW.id,boundary,'wallet_write') ON CONFLICT(network_id,target_kind,target_key) DO NOTHING;
- RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-CREATE OR REPLACE FUNCTION fn_crypto_register_watch_asset() RETURNS TRIGGER AS $$
-DECLARE boundary BIGINT;
-BEGIN
- IF NOT NEW.is_active OR NEW.deletion_mark OR NEW.contract_address='' OR NEW.token_standard<>'TRC-20' OR NOT EXISTS(SELECT 1 FROM cat_blockchain_networks WHERE id=NEW.network_id AND chain_family='tron') THEN RETURN NEW; END IF;
- SELECT start_height+1 INTO boundary FROM sys_crypto_block_ingestion WHERE network_id=NEW.network_id FOR UPDATE;
- IF boundary IS NULL THEN boundary:=0; END IF;
- SELECT GREATEST(boundary,COALESCE(MAX(last_block)+1,boundary)) INTO boundary FROM sys_chain_watcher_state WHERE network_id=NEW.network_id AND watcher_key='tron:solidified';
- INSERT INTO sys_crypto_watch_targets(network_id,target_kind,target_key,owner_id,start_height,source) VALUES(NEW.network_id,'asset',NEW.contract_address,NEW.id,boundary,'asset_write') ON CONFLICT(network_id,target_kind,target_key) DO NOTHING;
- RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-DROP FUNCTION fn_crypto_try_lock_watch_network(UUID);
--- Both basis columns deliberately remain. Earlier binaries ignore them;
--- the next Up checks any retained history against the current projection.
--- ==== crypto_preflight_attempt_basis ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM reg_crypto_aml_preflight_attempts) OR EXISTS(SELECT 1 FROM reg_crypto_aml_preflight_jobs WHERE initial_policy_version IS NOT NULL OR initial_scope_version IS NOT NULL) THEN
   RAISE EXCEPTION 'preflight attempt history requires forward recovery' USING ERRCODE='23514';
  END IF;
 END $$;
-ALTER TABLE reg_crypto_aml_preflight_observations DROP CONSTRAINT fk_crypto_preflight_observation_attempt;
-DROP TRIGGER trg_crypto_aml_preflight_attempt_observation ON reg_crypto_aml_preflight_observations;
-DROP FUNCTION fn_crypto_aml_preflight_attempt_observation_guard();
-DROP FUNCTION fn_crypto_aml_preflight_attempt_active(UUID,UUID,BOOLEAN);
-DROP TRIGGER trg_crypto_aml_preflight_claim_committed ON reg_crypto_aml_preflight_jobs;
-DROP FUNCTION fn_crypto_aml_preflight_claim_committed();
-DROP TRIGGER trg_crypto_aml_preflight_job_identity ON reg_crypto_aml_preflight_jobs;
-DROP FUNCTION fn_crypto_aml_preflight_job_guard();
-DROP TRIGGER trg_crypto_aml_preflight_attempt_guard ON reg_crypto_aml_preflight_attempts;
-DROP FUNCTION fn_crypto_aml_preflight_attempt_guard();
-DROP TABLE reg_crypto_aml_preflight_attempts;
-DROP FUNCTION fn_crypto_aml_preflight_basis(UUID);
-ALTER TABLE reg_crypto_aml_preflight_jobs DROP COLUMN initial_policy_version,DROP COLUMN initial_scope_version;
--- ==== crypto_decision_and_invoice_drift_history ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM sys_invoice_reconciliation_drift WHERE episode_id IS NOT NULL OR initial_details IS NOT NULL OR incident_id IS NOT NULL)
     OR EXISTS(SELECT 1 FROM reg_crypto_security_incidents WHERE incident_kind='invoice_projection_drift' AND details ? 'firstDetails') THEN
   RAISE EXCEPTION 'invoice drift episodes require forward recovery' USING ERRCODE='23514';
  END IF;
 END $$;
-DROP TRIGGER trg_crypto_invoice_drift_incident_guard ON reg_crypto_security_incidents;
-DROP FUNCTION fn_crypto_invoice_drift_incident_guard();
-DROP TRIGGER trg_crypto_invoice_drift_guard ON sys_invoice_reconciliation_drift;
-DROP FUNCTION fn_crypto_invoice_drift_guard();
-DROP FUNCTION fn_crypto_invoice_drift_details(UUID);
-DROP FUNCTION fn_crypto_lock_invoice_drift(UUID);
-ALTER TABLE sys_invoice_reconciliation_drift DROP COLUMN incident_id,DROP COLUMN initial_details,DROP COLUMN episode_id;
-DROP TRIGGER trg_crypto_aml_decision_replay ON reg_crypto_aml_decisions;
-DROP FUNCTION fn_crypto_aml_decision_replay_guard();
--- evaluated_at deliberately remains: old binaries ignore it, Up reuses it.
--- ==== crypto_pool_cancel_and_watch_evidence ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
--- No evidence is transformed by this migration in either direction.
-CREATE OR REPLACE FUNCTION fn_crypto_aml_pool_cancel_guard() RETURNS TRIGGER AS $$
-BEGIN
- PERFORM 1 FROM reg_crypto_aml_pool_intents i JOIN sys_crypto_aml_pool_policies p ON p.id=i.policy_id JOIN sys_crypto_custody_policies c ON c.network_id=p.network_id WHERE i.id=NEW.intent_id FOR UPDATE OF c;
- PERFORM 1 FROM reg_crypto_aml_pool_intents WHERE id=NEW.intent_id FOR UPDATE;
- IF EXISTS(SELECT 1 FROM reg_crypto_aml_wallet_provisions WHERE id=NEW.intent_id) THEN RAISE EXCEPTION 'cannot cancel pool intent after derivation reservation' USING ERRCODE='23514'; END IF;
- RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-CREATE OR REPLACE FUNCTION fn_crypto_aml_watch_coverage_guard() RETURNS TRIGGER AS $$
-BEGIN
- PERFORM 1 FROM sys_chain_watcher_state state JOIN cat_wallets w ON w.id=NEW.wallet_id AND w.network_id=state.network_id
- JOIN cat_tokens t ON t.id=NEW.token_id AND t.network_id=w.network_id JOIN cat_blockchain_networks n ON n.id=w.network_id AND n.chain_family='evm'
- WHERE state.network_id=NEW.network_id AND state.watcher_key=NEW.watcher_key AND state.lease_owner=NEW.lease_owner AND state.fencing_token=NEW.fencing_token AND state.lease_expires_at>NOW()
- AND NEW.watcher_key=CASE WHEN t.token_standard='native' THEN 'native_eth' ELSE 'erc20:'||LOWER(t.contract_address) END FOR SHARE OF state;
- IF NOT FOUND THEN RAISE EXCEPTION 'address coverage requires the current watcher lease' USING ERRCODE='23514'; END IF;
- RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
--- ==== crypto_sql_hold_replay ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM reg_crypto_wallet_allocation_holds WHERE owner_type IN ('aml_pool_scope_baseline','aml_pool_risk','aml_preflight') AND owner_id LIKE '%:%') THEN
   RAISE EXCEPTION 'SQL hold lifecycle requires forward recovery' USING ERRCODE='23514';
  END IF;
 END; $$;
-DROP TRIGGER trg_crypto_network_hold_insert_replay ON reg_crypto_network_holds;
-DROP TRIGGER trg_crypto_wallet_hold_insert_replay ON reg_crypto_wallet_allocation_holds;
-DROP TRIGGER trg_crypto_network_hold_owner_guard ON reg_crypto_network_holds;
-DROP TRIGGER trg_crypto_wallet_hold_owner_guard ON reg_crypto_wallet_allocation_holds;
-CREATE TRIGGER trg_crypto_network_hold_owner_guard BEFORE UPDATE OR DELETE ON reg_crypto_network_holds FOR EACH ROW EXECUTE FUNCTION fn_crypto_hold_owner_guard();
-CREATE TRIGGER trg_crypto_wallet_hold_owner_guard BEFORE UPDATE OR DELETE ON reg_crypto_wallet_allocation_holds FOR EACH ROW EXECUTE FUNCTION fn_crypto_wallet_hold_owner_guard();
--- Original pool trigger implementations are restored below.
-
-CREATE OR REPLACE FUNCTION fn_crypto_aml_pool_scope_hold() RETURNS TRIGGER AS $$
-BEGIN
- IF NEW.enabled THEN
-   INSERT INTO reg_crypto_wallet_allocation_holds(wallet_id,reason,owner_type,owner_id,details,held_by)
-     SELECT v.wallet_id,'aml_scope_baseline_missing','aml_pool_scope_baseline',NEW.token_id::text,jsonb_build_object('scopeVersion',NEW.version,'tokenId',NEW.token_id::text),'aml-pool-controller'
-     FROM reg_crypto_aml_pool_intents i JOIN sys_crypto_aml_pool_policies p ON p.id=i.policy_id AND p.wallet_role='merchant_pool'
-     JOIN reg_crypto_aml_wallet_provisions v ON v.id=i.id AND v.status='completed'
-     WHERE p.merchant_id=NEW.merchant_id AND p.network_id=NEW.network_id
-       AND NOT EXISTS(SELECT 1 FROM reg_crypto_aml_wallet_baselines WHERE wallet_id=v.wallet_id AND token_id=NEW.token_id)
-     ON CONFLICT(wallet_id,owner_type,owner_id) WHERE status='open' DO NOTHING;
- END IF;
- RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION fn_crypto_aml_pool_high_hold() RETURNS TRIGGER AS $$
-BEGIN
- IF NEW.risk_class='high' THEN
-   INSERT INTO reg_crypto_wallet_allocation_holds(wallet_id,reason,owner_type,owner_id,details,held_by)
-     SELECT v.wallet_id,'aml_pool_high_risk','aml_pool_risk',NEW.token_id::text,jsonb_build_object('tokenId',NEW.token_id::text,'riskRevision',NEW.revision),'aml-pool-controller'
-     FROM reg_crypto_aml_wallet_provisions v JOIN reg_crypto_aml_pool_intents i ON i.id=v.id
-     JOIN sys_crypto_aml_pool_policies p ON p.id=i.policy_id AND p.wallet_role='merchant_pool'
-     WHERE v.wallet_id=NEW.wallet_id AND v.status='completed'
-     ON CONFLICT(wallet_id,owner_type,owner_id) WHERE status='open' DO NOTHING;
- END IF;
- RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP FUNCTION fn_crypto_hold_aml_preflight(UUID,UUID,UUID);
-DROP FUNCTION fn_crypto_hold_aml_pool_wallet(UUID,UUID,TEXT,BIGINT);
-DROP FUNCTION fn_crypto_sql_hold_guard();
-DROP FUNCTION fn_crypto_try_lock_operational_hold_owner(TEXT,TEXT);
-DROP FUNCTION fn_crypto_hold_owner_key(TEXT,TEXT);
--- ==== crypto_reorg_compensation_basis ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM reg_crypto_reorg_compensations WHERE request_basis IS NOT NULL) THEN
   RAISE EXCEPTION 'financial reorg request basis requires forward recovery' USING ERRCODE='23514';
  END IF;
 END; $$;
-DROP TRIGGER trg_crypto_reorg_compensation_immutable ON reg_crypto_reorg_compensations;
-DROP FUNCTION fn_crypto_reorg_compensation_immutable();
-ALTER TABLE reg_crypto_reorg_compensations DROP COLUMN request_basis;
--- ==== crypto_activation_execution_dispatch ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM reg_crypto_activation_dispatches) THEN
   RAISE EXCEPTION 'activation dispatch history requires forward recovery' USING ERRCODE='23514';
  END IF;
 END; $$;
-DROP TABLE reg_crypto_activation_dispatches;
-DROP FUNCTION fn_crypto_activation_dispatch_guard();
--- ==== crypto_activation_cost_claim_fencing ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-ALTER TABLE reg_crypto_account_activations DROP CONSTRAINT chk_crypto_activation_cost_claim;
-ALTER TABLE reg_crypto_account_activations DROP COLUMN cost_claim_token;
--- ==== crypto_resource_rental_claim_fencing ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-ALTER TABLE doc_crypto_resource_rentals DROP CONSTRAINT chk_crypto_resource_rental_claim_token;
-ALTER TABLE doc_crypto_resource_rentals DROP COLUMN maintenance_claim_token;
--- ==== crypto_activation_task_identity ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-DROP TRIGGER trg_crypto_activation_identity ON reg_crypto_account_activations;
-DROP FUNCTION fn_crypto_activation_identity_guard();
-DROP FUNCTION fn_crypto_activation_identity_valid(UUID,UUID,UUID,UUID);
--- ==== crypto_reconciliation_request_identity ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-DROP TRIGGER trg_crypto_reconciliation_request_identity ON reg_crypto_reconciliation_requests;
-DROP FUNCTION fn_crypto_reconciliation_request_identity_guard();
-DROP FUNCTION fn_crypto_reconciliation_request_identity_valid(UUID,UUID,UUID,TEXT,UUID);
--- ==== crypto_funding_confirmation_locks ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-DROP FUNCTION fn_crypto_try_lock_funding_confirmation(UUID);
--- ==== crypto_selector_resource_locks ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-DROP FUNCTION fn_crypto_lock_withdrawal_wallets(UUID[],UUID,UUID);
-DROP FUNCTION fn_crypto_try_lock_custody_wallets(UUID[],UUID,UUID);
--- ==== crypto_accounting_resource_locks ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
--- Lock-only migration: no financial row, ownership or historical byte changes.
-CREATE OR REPLACE FUNCTION fn_crypto_aml_lock_resource_scopes(reservation UUID) RETURNS VOID LANGUAGE plpgsql AS $$
-BEGIN
- PERFORM 1 FROM reg_crypto_fee_reservations fee JOIN cat_wallets w ON w.id=fee.payer_wallet_id
-   JOIN sys_crypto_aml_routing_scopes s ON s.merchant_id=w.custody_merchant_id AND s.network_id=fee.network_id
-   WHERE fee.id=reservation AND (EXISTS(SELECT 1 FROM reg_crypto_aml_resource_budgets b WHERE b.fee_reservation_id=fee.id)
-      OR EXISTS(SELECT 1 FROM sys_crypto_aml_routing_scopes native WHERE native.merchant_id=w.custody_merchant_id AND native.network_id=fee.network_id AND native.token_id=fee.native_token_id AND native.enabled))
-   ORDER BY s.merchant_id,s.network_id,s.token_id FOR UPDATE OF s;
-END;
-$$;
-CREATE OR REPLACE FUNCTION fn_crypto_aml_lock_fee_wallet_scopes(payer UUID,asset UUID) RETURNS VOID LANGUAGE plpgsql AS $$
-BEGIN
- PERFORM 1 FROM cat_wallets w JOIN sys_crypto_aml_routing_scopes s ON s.merchant_id=w.custody_merchant_id AND s.network_id=w.network_id
- WHERE w.id=payer AND EXISTS(SELECT 1 FROM sys_crypto_aml_routing_scopes native WHERE native.merchant_id=w.custody_merchant_id AND native.network_id=w.network_id AND native.token_id=asset AND native.enabled)
- ORDER BY s.merchant_id,s.network_id,s.token_id FOR UPDATE OF s;
-END;
-$$;
-DROP FUNCTION fn_crypto_lock_custody_wallets(UUID[]);
-DROP FUNCTION fn_crypto_lock_custody_scopes(UUID[]);
--- ==== crypto_adjustment_accounting_basis ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-DROP TRIGGER trg_crypto_adjustment_cannot_claim_effect ON reg_crypto_custody_effect_postings;
-DROP FUNCTION fn_crypto_adjustment_cannot_claim_effect();
-DROP FUNCTION fn_crypto_adjustment_accounting_complete() CASCADE;
-DROP FUNCTION fn_crypto_assert_adjustment_accounting(UUID);
-DROP TRIGGER trg_crypto_adjustment_accounting_basis ON doc_crypto_adjustments;
-DROP FUNCTION fn_crypto_adjustment_accounting_basis();
-CREATE OR REPLACE FUNCTION fn_crypto_adjustment_source_insert_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-    IF NOT EXISTS(SELECT 1 FROM doc_crypto_adjustments WHERE id=NEW.adjustment_id AND status='pending_approval') THEN
-        RAISE EXCEPTION 'crypto adjustment sources are frozen after decision';
-    END IF;
-    RETURN NEW;
-END;
-$$;
-ALTER TABLE doc_crypto_adjustments DROP CONSTRAINT ck_crypto_adjustment_accounting_basis,
-    DROP COLUMN basis_kind,DROP COLUMN proposal_txid;
-ALTER TABLE reg_crypto_adjustment_sources
-    DROP CONSTRAINT reg_crypto_adjustment_sources_source_register_check,
-    ADD CONSTRAINT reg_crypto_adjustment_sources_source_register_check CHECK(source_register IN ('custody','merchant','fee'));
--- ==== crypto_expected_transfer_routing ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$ BEGIN IF EXISTS(SELECT 1 FROM reg_crypto_expected_transfer_requests) OR EXISTS(SELECT 1 FROM reg_crypto_expected_transfer_routes) THEN
  RAISE EXCEPTION 'expected transfer routing requires forward migration'; END IF; END; $$;
-DROP TRIGGER trg_expected_payment ON doc_crypto_payments;
-DROP FUNCTION fn_crypto_expected_external_payment_guard();
-DROP TRIGGER trg_expected_posting_owner ON reg_crypto_custody_effect_postings;
-DROP FUNCTION fn_crypto_expected_posting_owner_guard();
-DROP FUNCTION fn_crypto_expected_request_complete() CASCADE;
-DROP TABLE sys_crypto_expected_transfer_deliveries;
-DROP TABLE reg_crypto_expected_transfer_evidence;
-DROP TABLE reg_crypto_expected_transfer_routes;
-DROP TABLE reg_crypto_expected_transfer_requests;
-DROP FUNCTION fn_crypto_expected_transfer_guard();
-DROP FUNCTION fn_crypto_validate_expected_route(UUID,UUID);
-DROP FUNCTION fn_crypto_expected_owner_matches(UUID,TEXT,UUID);
-DROP INDEX idx_expected_transfer_canonical_tx;
-DROP FUNCTION fn_crypto_expected_transfer_candidates(UUID,TEXT,TEXT,TEXT,TEXT,TEXT,NUMERIC);
--- ==== crypto_network_fee_recognition ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-DROP TRIGGER trg_network_fee_transition_txid ON reg_crypto_fee_reservation_events;
-DROP FUNCTION fn_crypto_fee_transition_transaction();
-ALTER TABLE reg_crypto_fee_reservation_events DROP COLUMN transition_txid;
-DROP TRIGGER trg_network_fee_replacement_complete ON reg_crypto_fee_reservations;
-DROP FUNCTION fn_crypto_network_fee_replacement_complete();
-DROP TRIGGER trg_network_fee_receipt_owner ON reg_crypto_chain_settlements;
-DROP TRIGGER trg_network_fee_movement_owner ON reg_crypto_balance_movements;
-DROP TRIGGER trg_network_fee_basis ON reg_crypto_fee_reservations;
-DROP TRIGGER trg_network_fee_document_basis ON doc_crypto_network_operations;
-DROP TRIGGER trg_network_fee_reservation_complete ON reg_crypto_fee_reservations;
-DROP TRIGGER trg_network_fee_settlement_complete ON reg_crypto_chain_settlements;
-DROP TRIGGER trg_network_fee_component_complete ON reg_crypto_chain_settlement_components;
-DROP TRIGGER trg_network_fee_document_complete ON doc_crypto_network_operations;
-DO $$ DECLARE target TEXT; BEGIN
-    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_platform_cost_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements','reg_crypto_provider_balance_movements'] LOOP
-        EXECUTE format('DROP TRIGGER %I ON %I','trg_network_fee_complete_'||target,target);
-    END LOOP;
-END; $$;
-DROP TABLE reg_crypto_network_fee_bindings;
-DROP TABLE reg_crypto_network_fee_proofs;
-DROP FUNCTION fn_crypto_network_fee_legacy_owner_guard();
-DROP FUNCTION fn_crypto_network_fee_basis_guard();
-DROP FUNCTION fn_crypto_network_fee_financial_complete();
-DROP FUNCTION fn_crypto_network_fee_state_complete();
-DROP FUNCTION fn_crypto_network_fee_binding_complete();
-DROP FUNCTION fn_crypto_assert_network_fee(UUID);
-DROP FUNCTION fn_crypto_network_fee_proof_guard();
-DROP FUNCTION fn_crypto_network_fee_key(TEXT,UUID,TEXT);
-ALTER TABLE doc_crypto_network_operations DROP COLUMN network_fee_reservation_id;
-ALTER TABLE reg_crypto_chain_settlements DROP COLUMN network_fee_reservation_id;
--- ==== crypto_custody_loss_recognition ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-DROP TRIGGER trg_custody_loss_outflow_owner ON reg_crypto_balance_movements;
-DROP TRIGGER trg_custody_loss_basis ON doc_crypto_custody_adjustments;
-DROP TRIGGER trg_custody_loss_document_complete ON doc_crypto_custody_adjustments;
-DROP TRIGGER trg_custody_loss_posting_complete ON reg_crypto_custody_effect_postings;
-DO $$ DECLARE target TEXT; BEGIN
-    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_platform_cost_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements','reg_crypto_provider_balance_movements'] LOOP
-        EXECUTE format('DROP TRIGGER %I ON %I','trg_custody_loss_complete_'||target,target);
-    END LOOP;
-END; $$;
-DROP TABLE reg_crypto_custody_loss_bindings;
-DROP FUNCTION fn_crypto_custody_loss_outflow_guard();
-DROP FUNCTION fn_crypto_custody_loss_basis_guard();
-DROP FUNCTION fn_crypto_custody_loss_document_complete();
-DROP FUNCTION fn_crypto_custody_loss_financial_complete();
-DROP FUNCTION fn_crypto_custody_loss_posting_complete();
-DROP FUNCTION fn_crypto_custody_loss_binding_complete();
-DROP FUNCTION fn_crypto_assert_custody_loss(UUID);
-DROP FUNCTION fn_crypto_custody_loss_conflicting_owner(UUID,UUID);
-DROP FUNCTION fn_crypto_lock_outflow_economics(UUID,TEXT,TEXT,TEXT,TEXT,NUMERIC);
--- ==== crypto_withdrawal_final_custody_recognition ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-CREATE OR REPLACE VIEW crypto_aml_valid_withdrawal_facts AS
- SELECT f.line_id FROM reg_crypto_aml_withdrawal_facts f JOIN reg_crypto_aml_withdrawal_lines l ON l.id=f.line_id AND l.wallet_id=f.wallet_id AND l.token_id=f.token_id AND l.amount=f.amount
- JOIN reg_crypto_aml_withdrawal_plans p ON p.request_id=l.request_id
- JOIN doc_crypto_withdrawals w ON w.id=l.withdrawal_id AND w.basis_type='CryptoAMLWithdrawalLine' AND w.basis_id=l.id AND w.merchant_id=p.merchant_id AND w.source_wallet_id=l.wallet_id AND w.token_id=l.token_id AND w.amount=l.amount AND w.posted AND w.posted_version=1
- JOIN reg_crypto_signing_authorizations a ON a.basis_type='CryptoAMLWithdrawalLine' AND a.basis_id=l.id AND a.generation=1 AND a.attempt=1 AND a.signed_envelope IS NOT NULL AND a.tx_hash=w.tx_hash AND a.source_address=l.source_address AND a.vault_key_id=l.source_vault_key_id AND a.amount_minor_units=l.amount
- JOIN reg_crypto_aml_first_dispatches dispatched ON dispatched.authorization_id=a.id
- JOIN reg_crypto_chain_settlements s ON s.id=f.settlement_id AND s.network_id=p.network_id AND s.basis_type='CryptoAMLWithdrawalLine' AND s.basis_id=l.id AND s.tx_hash=w.tx_hash AND (s.status='succeeded')=f.succeeded
- JOIN reg_crypto_balance_movements m ON m.line_id=f.expense_movement_id AND m.recorder_type='CryptoWithdrawal' AND m.recorder_id=w.id AND m.recorder_version=1 AND m.record_type='expense' AND m.wallet_id=f.wallet_id AND m.token_id=f.token_id AND m.amount=f.amount
- LEFT JOIN reg_crypto_balance_movements refund ON refund.line_id=f.refund_movement_id AND refund.line_id=l.id AND refund.recorder_type='AMLWithdrawalRevert' AND refund.recorder_id=l.id AND refund.recorder_version=1 AND refund.record_type='receipt' AND refund.wallet_id=f.wallet_id AND refund.token_id=f.token_id AND refund.amount=f.amount
- WHERE (f.succeeded OR (refund.line_id IS NOT NULL AND EXISTS(SELECT 1 FROM reg_crypto_merchant_balance_movements mr JOIN doc_withdrawal_requests request ON request.id=l.request_id WHERE mr.line_id=l.id AND mr.recorder_id=l.request_id AND mr.recorder_type='WithdrawalRequest' AND mr.recorder_version=request.posted_version+1 AND mr.record_type='receipt' AND mr.merchant_id=p.merchant_id AND mr.token_id=l.token_id AND mr.amount=l.amount))) AND (SELECT COUNT(*) FROM reg_crypto_balance_movements WHERE recorder_id=w.id AND recorder_type='CryptoWithdrawal')=1;
-DROP TRIGGER trg_withdrawal_outflow_owner ON reg_crypto_balance_movements;
-DROP FUNCTION fn_crypto_withdrawal_outflow_owner_guard();
-DROP TRIGGER trg_withdrawal_request_complete ON doc_withdrawal_requests;
-DROP FUNCTION fn_crypto_withdrawal_request_complete();
-DROP TRIGGER trg_withdrawal_fee_release ON reg_crypto_fee_reservations;
-DROP TRIGGER trg_withdrawal_reservation_complete ON reg_crypto_balance_reservations;
-DROP TRIGGER trg_withdrawal_reservation_basis ON reg_crypto_balance_reservations;
-DROP TRIGGER trg_withdrawal_request_basis ON doc_withdrawal_requests;
-DROP TRIGGER trg_withdrawal_basis ON doc_crypto_withdrawals;
-DROP TRIGGER trg_withdrawal_document_complete ON doc_crypto_withdrawals;
-DROP TRIGGER trg_withdrawal_chain_complete ON reg_crypto_chain_settlements;
-DROP TRIGGER trg_withdrawal_fee_complete ON reg_crypto_fee_reservations;
-DROP TRIGGER trg_withdrawal_posting_complete ON reg_crypto_custody_effect_postings;
-DO $$ DECLARE target TEXT; BEGIN
-    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements','reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements'] LOOP
-        EXECUTE format('DROP TRIGGER %I ON %I','trg_withdrawal_complete_'||target,target);
-    END LOOP;
-END; $$;
-DROP TABLE reg_crypto_withdrawal_custody_bindings;
-DROP FUNCTION fn_crypto_withdrawal_fee_release_guard();
-DROP FUNCTION fn_crypto_withdrawal_reservation_complete();
-DROP FUNCTION fn_crypto_withdrawal_reservation_guard();
-DROP FUNCTION fn_crypto_withdrawal_basis_guard();
-DROP FUNCTION fn_crypto_withdrawal_settlement_complete();
-DROP FUNCTION fn_crypto_withdrawal_financial_complete();
-DROP FUNCTION fn_crypto_withdrawal_posting_complete();
-DROP FUNCTION fn_crypto_withdrawal_binding_complete();
-DROP FUNCTION fn_crypto_assert_withdrawal(UUID);
-DROP FUNCTION fn_crypto_assert_withdrawal_parent(UUID);
-ALTER TABLE reg_crypto_aml_withdrawal_facts DROP CONSTRAINT reg_crypto_aml_withdrawal_facts_check;
-ALTER TABLE reg_crypto_aml_withdrawal_facts ALTER COLUMN expense_movement_id SET NOT NULL;
-ALTER TABLE reg_crypto_aml_withdrawal_facts ADD CONSTRAINT reg_crypto_aml_withdrawal_facts_check CHECK(succeeded=(refund_movement_id IS NULL));
--- ==== crypto_treasury_final_custody_recognition ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-DO $$ DECLARE target TEXT; BEGIN
-    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_reservations','reg_crypto_revenue_reservations'] LOOP
-        EXECUTE format('DROP TRIGGER %I ON %I','trg_treasury_basis_'||target,target);
-        EXECUTE format('DROP TRIGGER %I ON %I','trg_treasury_complete_'||target,target);
-    END LOOP;
-    FOREACH target IN ARRAY ARRAY['reg_crypto_balance_movements','reg_crypto_merchant_balance_movements','reg_crypto_fee_movements','reg_crypto_platform_cost_movements','reg_crypto_provider_balance_movements'] LOOP
-        EXECUTE format('DROP TRIGGER %I ON %I','trg_treasury_complete_'||target,target);
-    END LOOP;
-END; $$;
-DROP TRIGGER trg_treasury_basis ON doc_treasury_withdrawals;
-DROP TRIGGER trg_treasury_document_complete ON doc_treasury_withdrawals;
-DROP TRIGGER trg_treasury_chain_complete ON reg_crypto_chain_settlements;
-DROP TRIGGER trg_treasury_fee_complete ON reg_crypto_fee_reservations;
-DROP TRIGGER trg_treasury_fee_release ON reg_crypto_fee_reservations;
-DROP TRIGGER trg_treasury_outflow_owner ON reg_crypto_balance_movements;
-DROP TRIGGER trg_treasury_posting_complete ON reg_crypto_custody_effect_postings;
-DROP TABLE reg_crypto_treasury_custody_bindings;
-DROP FUNCTION fn_crypto_treasury_reservation_guard();
-DROP FUNCTION fn_crypto_treasury_fee_release_guard();
-DROP FUNCTION fn_crypto_treasury_outflow_owner_guard();
-DROP FUNCTION fn_crypto_treasury_reservation_complete();
-DROP FUNCTION fn_crypto_treasury_basis_guard();
-DROP FUNCTION fn_crypto_treasury_settlement_complete();
-DROP FUNCTION fn_crypto_treasury_financial_complete();
-DROP FUNCTION fn_crypto_treasury_posting_complete();
-DROP FUNCTION fn_crypto_treasury_binding_complete();
-DROP FUNCTION fn_crypto_assert_treasury(UUID);
--- ==== crypto_sweep_final_custody_recognition ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-CREATE OR REPLACE VIEW crypto_aml_allocatable_transfers AS
- SELECT plan.id allocation_id,plan.merchant_id,plan.network_id,plan.token_id,plan.source_wallet_id,plan.destination_wallet_id,
-        plan.principal,plan.service_fee,e.id effect_id,spent.line_id source_movement_id,received.line_id destination_movement_id
- FROM reg_crypto_aml_internal_allocations plan
- JOIN doc_crypto_sweep_lines line ON line.line_id=plan.sweep_attempt_id AND line.wallet_id=plan.source_wallet_id AND line.amount=plan.gross AND line.tx_hash<>''
- JOIN doc_crypto_sweeps sweep ON sweep.id=line.document_id AND sweep.posted AND sweep.hot_wallet_id=plan.destination_wallet_id AND sweep.token_id=plan.token_id
- JOIN reg_crypto_aml_effects e ON e.wallet_id=plan.destination_wallet_id AND e.source_wallet_id=plan.source_wallet_id AND e.token_id=plan.token_id AND e.network_id=plan.network_id AND e.tx_hash=line.tx_hash AND e.amount=plan.gross
- JOIN reg_crypto_aml_effect_chain_states cs ON cs.effect_id=e.id AND cs.canonicality='canonical'
- JOIN reg_crypto_expected_chain_effects expected ON expected.id=e.expected_effect_id
- JOIN reg_crypto_signing_authorizations auth ON auth.id=expected.signing_authorization_id AND auth.basis_type='CryptoSweepAttempt' AND auth.basis_id=plan.sweep_attempt_id AND auth.signed_envelope IS NOT NULL
- JOIN reg_crypto_balance_movements spent ON spent.recorder_id=sweep.id AND spent.recorder_type='CryptoSweep' AND spent.recorder_version=sweep.posted_version
-    AND spent.wallet_id=plan.source_wallet_id AND spent.token_id=plan.token_id AND spent.record_type='expense' AND spent.amount=plan.gross
- JOIN reg_crypto_balance_movements received ON received.recorder_id=sweep.id AND received.recorder_type='CryptoSweep' AND received.recorder_version=sweep.posted_version
-    AND received.wallet_id=plan.destination_wallet_id AND received.token_id=plan.token_id AND received.record_type='receipt' AND received.amount=sweep.total_amount
- WHERE plan.status IN ('reserved','applied')
-   AND sweep.total_amount=(SELECT SUM(amount) FROM doc_crypto_sweep_lines WHERE document_id=sweep.id AND tx_hash<>'')
-   AND spent.created_at>=(SELECT created_at FROM reg_crypto_aml_wallet_baselines WHERE wallet_id=plan.source_wallet_id AND token_id=plan.token_id)
-   AND received.created_at>=(SELECT created_at FROM reg_crypto_aml_wallet_baselines WHERE wallet_id=plan.destination_wallet_id AND token_id=plan.token_id)
-   AND (SELECT COUNT(*) FROM reg_crypto_balance_movements m WHERE m.recorder_id=sweep.id AND m.recorder_type='CryptoSweep' AND m.recorder_version=sweep.posted_version AND m.wallet_id=plan.source_wallet_id AND m.token_id=plan.token_id AND m.record_type='expense')=1
-   AND (SELECT COUNT(*) FROM reg_crypto_balance_movements m WHERE m.recorder_id=sweep.id AND m.recorder_type='CryptoSweep' AND m.recorder_version=sweep.posted_version AND m.wallet_id=plan.destination_wallet_id AND m.token_id=plan.token_id AND m.record_type='receipt')=1;
-DROP TRIGGER trg_sweep_header_basis ON doc_crypto_sweeps;
-DROP TRIGGER trg_sweep_line_basis ON doc_crypto_sweep_lines;
-DROP TRIGGER trg_sweep_line_complete ON doc_crypto_sweep_lines;
-DROP TRIGGER trg_sweep_chain_complete ON reg_crypto_chain_settlements;
-DROP TRIGGER trg_sweep_fee_complete ON reg_crypto_fee_reservations;
-DROP TRIGGER trg_sweep_posting_complete ON reg_crypto_custody_effect_postings;
-DROP TRIGGER trg_sweep_complete_reg_crypto_balance_movements ON reg_crypto_balance_movements;
-DROP TRIGGER trg_sweep_complete_reg_crypto_merchant_balance_movements ON reg_crypto_merchant_balance_movements;
-DROP TRIGGER trg_sweep_complete_reg_crypto_fee_movements ON reg_crypto_fee_movements;
-DROP TRIGGER trg_sweep_complete_reg_crypto_platform_cost_movements ON reg_crypto_platform_cost_movements;
-DROP TRIGGER trg_sweep_complete_reg_crypto_provider_balance_movements ON reg_crypto_provider_balance_movements;
-DROP TABLE reg_crypto_sweep_custody_bindings;
-DROP FUNCTION fn_crypto_sweep_basis_guard();
-DROP FUNCTION fn_crypto_sweep_settlement_complete();
-DROP FUNCTION fn_crypto_sweep_financial_complete();
-DROP FUNCTION fn_crypto_sweep_posting_complete();
-DROP FUNCTION fn_crypto_sweep_binding_complete();
-DROP FUNCTION fn_crypto_assert_sweep_line(UUID);
--- ==== crypto_native_funding_custody_recognition ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$ BEGIN IF EXISTS(SELECT 1 FROM reg_crypto_native_funding_custody_bindings)
     OR EXISTS(SELECT 1 FROM reg_crypto_custody_effect_postings WHERE recorder_type='CryptoNativeFunding') THEN
     RAISE EXCEPTION 'native funding recognition history requires forward migration'; END IF; END; $$;
-DROP TRIGGER trg_payment_native_funding ON doc_crypto_payments;
-DROP TRIGGER trg_native_funding_document_complete ON doc_crypto_native_fundings;
-DROP TRIGGER trg_native_funding_basis ON doc_crypto_native_fundings;
-DROP TRIGGER trg_native_funding_posting_complete ON reg_crypto_custody_effect_postings;
-DROP TRIGGER trg_native_funding_chain_complete ON reg_crypto_chain_settlements;
-DROP TRIGGER trg_native_funding_fee_complete ON reg_crypto_fee_reservations;
-DROP TRIGGER trg_native_funding_complete_reg_crypto_balance_movements ON reg_crypto_balance_movements;
-DROP TRIGGER trg_native_funding_complete_reg_crypto_merchant_balance_movements ON reg_crypto_merchant_balance_movements;
-DROP TRIGGER trg_native_funding_complete_reg_crypto_fee_movements ON reg_crypto_fee_movements;
-DROP TRIGGER trg_native_funding_complete_reg_crypto_platform_cost_movements ON reg_crypto_platform_cost_movements;
-DROP TRIGGER trg_native_funding_complete_reg_crypto_provider_balance_movements ON reg_crypto_provider_balance_movements;
-DROP TABLE reg_crypto_native_funding_custody_bindings;
-DROP INDEX uq_crypto_native_funding_custody;
-DROP FUNCTION fn_crypto_payment_native_funding_guard();
-DROP FUNCTION fn_crypto_native_funding_document_complete();
-DROP FUNCTION fn_crypto_native_funding_basis_guard();
-DROP FUNCTION fn_crypto_native_funding_movement_complete();
-DROP FUNCTION fn_crypto_native_funding_custody_complete();
-DROP FUNCTION fn_crypto_native_funding_settlement_complete();
-DROP FUNCTION fn_crypto_assert_native_funding_custody(UUID);
--- ==== crypto_payment_custody_recognition ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-DROP TRIGGER trg_crypto_payment_frozen_basis ON doc_crypto_payments;
-DROP TRIGGER trg_crypto_balance_posting_transaction ON reg_crypto_balance_movements;
-ALTER TABLE reg_crypto_balance_movements DROP COLUMN posting_txid;
-DROP FUNCTION fn_crypto_payment_frozen_basis_guard();
-DROP FUNCTION fn_crypto_balance_posting_transaction();
--- ==== crypto_wallet_funding_recognition ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$
 BEGIN
     IF EXISTS(SELECT 1 FROM reg_crypto_wallet_fundings)
@@ -5031,30 +4251,6 @@ BEGIN
     END IF;
 END;
 $$;
-DROP TRIGGER trg_crypto_wallet_funding_movement_guard ON reg_crypto_balance_movements;
-DROP TRIGGER trg_crypto_wallet_funding_movement_complete ON reg_crypto_balance_movements;
-DROP TRIGGER trg_crypto_wallet_funding_posting_complete ON reg_crypto_custody_effect_postings;
-DROP TRIGGER trg_crypto_wallet_funding_payment_guard ON doc_crypto_payments;
-DROP TRIGGER trg_crypto_wallet_funding_admission ON reg_crypto_wallet_fundings;
-DROP TRIGGER trg_crypto_wallet_funding_complete ON reg_crypto_wallet_fundings;
-DROP TRIGGER trg_no_funding_reg_crypto_merchant_balance_movements ON reg_crypto_merchant_balance_movements;
-DROP TRIGGER trg_no_funding_reg_crypto_fee_movements ON reg_crypto_fee_movements;
-DROP TRIGGER trg_no_funding_reg_crypto_platform_cost_movements ON reg_crypto_platform_cost_movements;
-DROP TRIGGER trg_no_funding_reg_crypto_provider_balance_movements ON reg_crypto_provider_balance_movements;
-DROP TABLE reg_crypto_wallet_funding_audit;
-DROP INDEX idx_crypto_wallet_fundings_tx;
-ALTER TABLE reg_crypto_wallet_fundings ALTER COLUMN verification_id DROP NOT NULL,
-    DROP COLUMN posting_id, DROP COLUMN occurrence_id,
-    ADD CONSTRAINT uq_crypto_wallet_fundings_tx_hash UNIQUE(tx_hash);
-DROP FUNCTION fn_crypto_wallet_funding_no_attribution();
-DROP FUNCTION fn_crypto_wallet_funding_movement_guard();
-DROP FUNCTION fn_crypto_wallet_funding_complete();
-DROP FUNCTION fn_crypto_assert_wallet_funding(UUID);
-DROP FUNCTION fn_crypto_wallet_funding_payment_guard();
-DROP FUNCTION fn_crypto_wallet_funding_payment_conflict(UUID,UUID,UUID,TEXT,TEXT,UUID);
-DROP FUNCTION fn_crypto_wallet_funding_admission();
--- ==== crypto_custody_receipt_suspense ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$
 BEGIN
     IF EXISTS(SELECT 1 FROM doc_crypto_custody_receipts)
@@ -5063,29 +4259,6 @@ BEGIN
     END IF;
 END;
 $$;
-DROP TRIGGER trg_crypto_custody_receipt_movement_complete ON reg_crypto_balance_movements;
-DROP TRIGGER trg_no_receipt_reg_crypto_merchant_balance_movements ON reg_crypto_merchant_balance_movements;
-DROP TRIGGER trg_no_receipt_reg_crypto_fee_movements ON reg_crypto_fee_movements;
-DROP TRIGGER trg_no_receipt_reg_crypto_platform_cost_movements ON reg_crypto_platform_cost_movements;
-DROP TRIGGER trg_no_receipt_reg_crypto_provider_balance_movements ON reg_crypto_provider_balance_movements;
-DROP TABLE reg_crypto_receipt_intake_audit;
-DROP TABLE reg_crypto_receipt_suspense_balances;
-DROP TABLE reg_crypto_receipt_suspense_movements;
-DROP TABLE doc_crypto_custody_receipts;
-DROP TABLE reg_crypto_custody_effect_recognitions;
-DROP TABLE reg_crypto_custody_effect_postings;
-DROP FUNCTION fn_crypto_custody_receipt_complete();
-DROP FUNCTION fn_crypto_assert_custody_receipt(UUID);
-DROP FUNCTION fn_crypto_custody_posting_complete();
-DROP FUNCTION fn_crypto_assert_custody_posting(UUID);
-DROP FUNCTION fn_crypto_custody_posting_identity_guard();
-DROP FUNCTION fn_crypto_receipt_suspense_apply();
-DROP FUNCTION fn_crypto_custody_receipt_mutation_guard();
-DROP FUNCTION fn_crypto_lock_receipt_balance(UUID,UUID);
-DROP FUNCTION fn_crypto_custody_receipt_movement_complete();
-DROP FUNCTION fn_crypto_custody_receipt_no_attribution();
--- ==== crypto_accounting_effect_identity ====
-SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$
 BEGIN
     IF EXISTS(SELECT 1 FROM reg_crypto_accounting_effect_evidence) THEN
@@ -5093,11 +4266,314 @@ BEGIN
     END IF;
 END;
 $$;
+DROP TRIGGER trg_crypto_custody_receipt_movement_complete ON reg_crypto_balance_movements;
+DROP TRIGGER trg_no_receipt_reg_crypto_merchant_balance_movements ON reg_crypto_merchant_balance_movements;
+DROP TRIGGER trg_no_receipt_reg_crypto_fee_movements ON reg_crypto_fee_movements;
+DROP TRIGGER trg_no_receipt_reg_crypto_platform_cost_movements ON reg_crypto_platform_cost_movements;
+DROP TRIGGER trg_no_receipt_reg_crypto_provider_balance_movements ON reg_crypto_provider_balance_movements;
+DROP TRIGGER trg_crypto_wallet_funding_admission ON reg_crypto_wallet_fundings;
+DROP TRIGGER trg_crypto_wallet_funding_payment_guard ON doc_crypto_payments;
+DROP TRIGGER trg_crypto_wallet_funding_complete ON reg_crypto_wallet_fundings;
+DROP TRIGGER trg_crypto_wallet_funding_movement_complete ON reg_crypto_balance_movements;
+DROP TRIGGER trg_crypto_wallet_funding_movement_guard ON reg_crypto_balance_movements;
+DROP TRIGGER trg_no_funding_reg_crypto_merchant_balance_movements ON reg_crypto_merchant_balance_movements;
+DROP TRIGGER trg_no_funding_reg_crypto_fee_movements ON reg_crypto_fee_movements;
+DROP TRIGGER trg_no_funding_reg_crypto_platform_cost_movements ON reg_crypto_platform_cost_movements;
+DROP TRIGGER trg_no_funding_reg_crypto_provider_balance_movements ON reg_crypto_provider_balance_movements;
+DROP TRIGGER trg_crypto_balance_posting_transaction ON reg_crypto_balance_movements;
+DROP TRIGGER trg_crypto_payment_frozen_basis ON doc_crypto_payments;
+DROP TRIGGER trg_crypto_payment_attribution_document ON doc_crypto_payments;
+DROP TRIGGER trg_payment_attribution_reg_crypto_merchant_balance_movements ON reg_crypto_merchant_balance_movements;
+DROP TRIGGER trg_payment_attribution_reg_crypto_fee_movements ON reg_crypto_fee_movements;
+DROP TRIGGER trg_native_funding_chain_complete ON reg_crypto_chain_settlements;
+DROP TRIGGER trg_native_funding_fee_complete ON reg_crypto_fee_reservations;
+DROP TRIGGER trg_native_funding_complete_reg_crypto_balance_movements ON reg_crypto_balance_movements;
+DROP TRIGGER trg_native_funding_complete_reg_crypto_merchant_balance_movemen ON reg_crypto_merchant_balance_movements;
+DROP TRIGGER trg_native_funding_complete_reg_crypto_fee_movements ON reg_crypto_fee_movements;
+DROP TRIGGER trg_native_funding_complete_reg_crypto_platform_cost_movements ON reg_crypto_platform_cost_movements;
+DROP TRIGGER trg_native_funding_complete_reg_crypto_provider_balance_movemen ON reg_crypto_provider_balance_movements;
+DROP TRIGGER trg_native_funding_basis ON doc_crypto_native_fundings;
+DROP TRIGGER trg_native_funding_document_complete ON doc_crypto_native_fundings;
+DROP TRIGGER trg_payment_native_funding ON doc_crypto_payments;
+DROP TRIGGER trg_sweep_complete_reg_crypto_balance_movements ON reg_crypto_balance_movements;
+DROP TRIGGER trg_sweep_complete_reg_crypto_merchant_balance_movements ON reg_crypto_merchant_balance_movements;
+DROP TRIGGER trg_sweep_complete_reg_crypto_fee_movements ON reg_crypto_fee_movements;
+DROP TRIGGER trg_sweep_complete_reg_crypto_platform_cost_movements ON reg_crypto_platform_cost_movements;
+DROP TRIGGER trg_sweep_complete_reg_crypto_provider_balance_movements ON reg_crypto_provider_balance_movements;
+DROP TRIGGER trg_sweep_line_complete ON doc_crypto_sweep_lines;
+DROP TRIGGER trg_sweep_chain_complete ON reg_crypto_chain_settlements;
+DROP TRIGGER trg_sweep_fee_complete ON reg_crypto_fee_reservations;
+DROP TRIGGER trg_sweep_header_basis ON doc_crypto_sweeps;
+DROP TRIGGER trg_sweep_line_basis ON doc_crypto_sweep_lines;
+DROP TRIGGER trg_treasury_complete_reg_crypto_balance_movements ON reg_crypto_balance_movements;
+DROP TRIGGER trg_treasury_complete_reg_crypto_merchant_balance_movements ON reg_crypto_merchant_balance_movements;
+DROP TRIGGER trg_treasury_complete_reg_crypto_fee_movements ON reg_crypto_fee_movements;
+DROP TRIGGER trg_treasury_complete_reg_crypto_platform_cost_movements ON reg_crypto_platform_cost_movements;
+DROP TRIGGER trg_treasury_complete_reg_crypto_provider_balance_movements ON reg_crypto_provider_balance_movements;
+DROP TRIGGER trg_treasury_document_complete ON doc_treasury_withdrawals;
+DROP TRIGGER trg_treasury_chain_complete ON reg_crypto_chain_settlements;
+DROP TRIGGER trg_treasury_fee_complete ON reg_crypto_fee_reservations;
+DROP TRIGGER trg_treasury_basis ON doc_treasury_withdrawals;
+DROP TRIGGER trg_treasury_basis_reg_crypto_balance_reservations ON reg_crypto_balance_reservations;
+DROP TRIGGER trg_treasury_complete_reg_crypto_balance_reservations ON reg_crypto_balance_reservations;
+DROP TRIGGER trg_treasury_basis_reg_crypto_revenue_reservations ON reg_crypto_revenue_reservations;
+DROP TRIGGER trg_treasury_complete_reg_crypto_revenue_reservations ON reg_crypto_revenue_reservations;
+DROP TRIGGER trg_treasury_fee_release ON reg_crypto_fee_reservations;
+DROP TRIGGER trg_treasury_outflow_owner ON reg_crypto_balance_movements;
+DROP TRIGGER trg_withdrawal_complete_reg_crypto_balance_movements ON reg_crypto_balance_movements;
+DROP TRIGGER trg_withdrawal_complete_reg_crypto_merchant_balance_movements ON reg_crypto_merchant_balance_movements;
+DROP TRIGGER trg_withdrawal_complete_reg_crypto_fee_movements ON reg_crypto_fee_movements;
+DROP TRIGGER trg_withdrawal_complete_reg_crypto_platform_cost_movements ON reg_crypto_platform_cost_movements;
+DROP TRIGGER trg_withdrawal_complete_reg_crypto_provider_balance_movements ON reg_crypto_provider_balance_movements;
+DROP TRIGGER trg_withdrawal_document_complete ON doc_crypto_withdrawals;
+DROP TRIGGER trg_withdrawal_chain_complete ON reg_crypto_chain_settlements;
+DROP TRIGGER trg_withdrawal_fee_complete ON reg_crypto_fee_reservations;
+DROP TRIGGER trg_withdrawal_basis ON doc_crypto_withdrawals;
+DROP TRIGGER trg_withdrawal_request_basis ON doc_withdrawal_requests;
+DROP TRIGGER trg_withdrawal_reservation_basis ON reg_crypto_balance_reservations;
+DROP TRIGGER trg_withdrawal_reservation_complete ON reg_crypto_balance_reservations;
+DROP TRIGGER trg_withdrawal_fee_release ON reg_crypto_fee_reservations;
+DROP TRIGGER trg_withdrawal_outflow_owner ON reg_crypto_balance_movements;
+DROP TRIGGER trg_withdrawal_request_complete ON doc_withdrawal_requests;
+DROP TRIGGER trg_custody_loss_complete_reg_crypto_balance_movements ON reg_crypto_balance_movements;
+DROP TRIGGER trg_custody_loss_complete_reg_crypto_platform_cost_movements ON reg_crypto_platform_cost_movements;
+DROP TRIGGER trg_custody_loss_complete_reg_crypto_merchant_balance_movements ON reg_crypto_merchant_balance_movements;
+DROP TRIGGER trg_custody_loss_complete_reg_crypto_fee_movements ON reg_crypto_fee_movements;
+DROP TRIGGER trg_custody_loss_complete_reg_crypto_provider_balance_movements ON reg_crypto_provider_balance_movements;
+DROP TRIGGER trg_custody_loss_document_complete ON doc_crypto_custody_adjustments;
+DROP TRIGGER trg_custody_loss_basis ON doc_crypto_custody_adjustments;
+DROP TRIGGER trg_custody_loss_outflow_owner ON reg_crypto_balance_movements;
+DROP TRIGGER trg_network_fee_transition_txid ON reg_crypto_fee_reservation_events;
+DROP TRIGGER trg_network_fee_reservation_complete ON reg_crypto_fee_reservations;
+DROP TRIGGER trg_network_fee_settlement_complete ON reg_crypto_chain_settlements;
+DROP TRIGGER trg_network_fee_component_complete ON reg_crypto_chain_settlement_components;
+DROP TRIGGER trg_network_fee_document_complete ON doc_crypto_network_operations;
+DROP TRIGGER trg_network_fee_complete_reg_crypto_balance_movements ON reg_crypto_balance_movements;
+DROP TRIGGER trg_network_fee_complete_reg_crypto_platform_cost_movements ON reg_crypto_platform_cost_movements;
+DROP TRIGGER trg_network_fee_complete_reg_crypto_merchant_balance_movements ON reg_crypto_merchant_balance_movements;
+DROP TRIGGER trg_network_fee_complete_reg_crypto_fee_movements ON reg_crypto_fee_movements;
+DROP TRIGGER trg_network_fee_complete_reg_crypto_provider_balance_movements ON reg_crypto_provider_balance_movements;
+DROP TRIGGER trg_network_fee_basis ON reg_crypto_fee_reservations;
+DROP TRIGGER trg_network_fee_document_basis ON doc_crypto_network_operations;
+DROP TRIGGER trg_network_fee_replacement_complete ON reg_crypto_fee_reservations;
+DROP TRIGGER trg_network_fee_receipt_owner ON reg_crypto_chain_settlements;
+DROP TRIGGER trg_network_fee_movement_owner ON reg_crypto_balance_movements;
+DROP TRIGGER trg_expected_payment ON doc_crypto_payments;
+DROP TRIGGER trg_crypto_adjustment_accounting_basis ON doc_crypto_adjustments;
+DROP TRIGGER trg_crypto_adjustment_accounting_complete ON doc_crypto_adjustments;
+DROP TRIGGER trg_crypto_adjustment_accounting_complete ON reg_crypto_adjustment_sources;
+DROP TRIGGER trg_crypto_adjustment_accounting_complete ON reg_crypto_wallet_variance_movements;
+DROP TRIGGER trg_crypto_adjustment_accounting_complete ON reg_crypto_balance_movements;
+DROP TRIGGER trg_crypto_adjustment_accounting_complete ON reg_crypto_merchant_balance_movements;
+DROP TRIGGER trg_crypto_adjustment_accounting_complete ON reg_crypto_fee_movements;
+DROP TRIGGER trg_crypto_adjustment_accounting_complete ON reg_crypto_platform_cost_movements;
+DROP TRIGGER trg_crypto_adjustment_accounting_complete ON reg_crypto_provider_balance_movements;
+DROP TRIGGER trg_crypto_adjustment_accounting_complete ON sys_outbox;
+DROP TRIGGER trg_crypto_reconciliation_request_identity ON reg_crypto_reconciliation_requests;
+DROP TRIGGER trg_crypto_activation_identity ON reg_crypto_account_activations;
+DROP TRIGGER trg_crypto_reorg_compensation_immutable ON reg_crypto_reorg_compensations;
+DROP TRIGGER trg_crypto_network_hold_insert_replay ON reg_crypto_network_holds;
+DROP TRIGGER trg_crypto_wallet_hold_insert_replay ON reg_crypto_wallet_allocation_holds;
+DROP TRIGGER trg_crypto_network_hold_owner_guard ON reg_crypto_network_holds;
+DROP TRIGGER trg_crypto_wallet_hold_owner_guard ON reg_crypto_wallet_allocation_holds;
+DROP TRIGGER trg_crypto_aml_decision_replay ON reg_crypto_aml_decisions;
+DROP TRIGGER trg_crypto_invoice_drift_guard ON sys_invoice_reconciliation_drift;
+DROP TRIGGER trg_crypto_invoice_drift_incident_guard ON reg_crypto_security_incidents;
+DROP TRIGGER trg_crypto_aml_preflight_job_identity ON reg_crypto_aml_preflight_jobs;
+DROP TRIGGER trg_crypto_aml_preflight_attempt_guard ON reg_crypto_aml_preflight_attempts;
+DROP TRIGGER trg_crypto_aml_preflight_claim_committed ON reg_crypto_aml_preflight_jobs;
+DROP TRIGGER trg_crypto_aml_preflight_attempt_observation ON reg_crypto_aml_preflight_observations;
+DROP TRIGGER trg_crypto_block_ingestion_basis ON sys_crypto_block_ingestion;
+DROP TRIGGER trg_crypto_watch_target_guard ON sys_crypto_watch_targets;
+DROP TRIGGER trg_crypto_watched_wallet_identity ON cat_wallets;
+DROP TRIGGER trg_crypto_watched_asset_identity ON cat_tokens;
+DROP TRIGGER trg_crypto_external_outflow_basis ON reg_crypto_external_outflows;
+DROP TRIGGER trg_crypto_external_outflow_observation_source ON reg_crypto_external_outflow_observations;
+DROP TRIGGER trg_crypto_outflow_initial_decision ON reg_crypto_external_outflows;
+DROP TRIGGER trg_crypto_custody_initial_decision ON doc_crypto_custody_adjustments;
+DROP TRIGGER trg_crypto_external_outflow_decision ON reg_crypto_external_outflows;
+DROP TRIGGER trg_crypto_custody_decision ON doc_crypto_custody_adjustments;
+DROP TRIGGER trg_crypto_outflow_decision_audit_insert ON reg_crypto_external_outflow_actions;
+DROP TRIGGER trg_crypto_outflow_decision_audit ON reg_crypto_external_outflows;
+DROP TRIGGER trg_crypto_custody_decision_audit ON doc_crypto_custody_adjustments;
+DROP TRIGGER trg_crypto_outflow_decision_complete ON reg_crypto_external_outflows;
+DROP TRIGGER trg_crypto_custody_decision_complete ON doc_crypto_custody_adjustments;
+DROP TRIGGER trg_merchant_credit_complete_reg_crypto_merchant_balance_moveme ON reg_crypto_merchant_balance_movements;
+DROP TRIGGER trg_merchant_credit_complete_reg_crypto_fee_movements ON reg_crypto_fee_movements;
+DROP TRIGGER trg_merchant_credit_complete_reg_crypto_balance_movements ON reg_crypto_balance_movements;
+ALTER TABLE reg_crypto_wallet_fundings DROP CONSTRAINT reg_crypto_wallet_fundings_posting_id_fkey;
+ALTER TABLE reg_crypto_wallet_fundings DROP CONSTRAINT reg_crypto_wallet_fundings_occurrence_id_fkey;
+ALTER TABLE doc_crypto_payments DROP CONSTRAINT doc_crypto_payments_receipt_id_fkey;
+ALTER TABLE reg_crypto_inbound_chain_events DROP CONSTRAINT reg_crypto_inbound_chain_events_receipt_id_fkey;
+DROP VIEW crypto_aml_valid_withdrawal_facts;
+DROP VIEW crypto_aml_inventory_fact_validity;
+DROP VIEW crypto_aml_allocatable_payments;
+DROP VIEW crypto_aml_allocatable_transfers;
+DROP TABLE reg_crypto_activation_dispatches;
+DROP TABLE reg_crypto_expected_transfer_evidence;
+DROP TABLE reg_crypto_expected_transfer_routes;
+DROP TABLE sys_crypto_expected_transfer_deliveries;
+DROP TABLE reg_crypto_expected_transfer_requests;
+DROP TABLE reg_crypto_network_fee_bindings;
+DROP TABLE reg_crypto_network_fee_proofs;
+DROP TABLE reg_crypto_custody_loss_bindings;
+DROP TABLE reg_crypto_withdrawal_custody_bindings;
+DROP TABLE reg_crypto_treasury_custody_bindings;
+DROP TABLE reg_crypto_sweep_custody_bindings;
+DROP TABLE reg_crypto_native_funding_custody_bindings;
+DROP TABLE reg_crypto_wallet_funding_audit;
+DROP TABLE reg_crypto_receipt_intake_audit;
+DROP TABLE reg_crypto_receipt_suspense_balances;
+DROP TABLE reg_crypto_receipt_suspense_movements;
+DROP TABLE reg_crypto_merchant_credit_reversals;
+DROP TABLE doc_crypto_merchant_credits;
+DROP TABLE sys_crypto_receipt_credit_policies;
+DROP TABLE reg_crypto_custody_receipt_audits;
+DROP TABLE doc_crypto_custody_receipts;
+DROP TABLE reg_crypto_custody_effect_recognitions;
+DROP TABLE reg_crypto_custody_effect_postings;
 DROP TABLE reg_crypto_accounting_effect_evidence;
 DROP TABLE reg_crypto_accounting_effect_occurrences;
 DROP TABLE reg_crypto_accounting_effects;
+DROP FUNCTION fn_crypto_outflow_decision_audit_complete();
+DROP FUNCTION fn_crypto_outflow_append_decision_audit();
+DROP FUNCTION fn_crypto_outflow_decision_audit_guard();
+DROP FUNCTION fn_crypto_custody_decision_guard();
+DROP FUNCTION fn_crypto_outflow_decision_guard();
+DROP FUNCTION fn_crypto_outflow_decision_source(target uuid);
+DROP FUNCTION fn_crypto_outflow_decision_seed(basis jsonb);
+DROP FUNCTION fn_crypto_outflow_decision_command(kind text, target uuid, actor uuid, reason text, classification text, basis_kind text, basis uuid, evidence jsonb);
+DROP FUNCTION fn_crypto_outflow_decision_insert_guard();
+DROP FUNCTION fn_crypto_external_outflow_observation_source();
+DROP FUNCTION fn_crypto_external_outflow_basis_guard();
+DROP FUNCTION fn_crypto_try_lock_external_outflow(network uuid, hash text, wallet uuid);
+DROP FUNCTION fn_crypto_watched_catalog_guard();
+DROP FUNCTION fn_crypto_watch_target_guard();
+DROP FUNCTION fn_crypto_ingestion_basis_guard();
+DROP FUNCTION fn_crypto_try_lock_watch_network(network uuid);
+DROP FUNCTION fn_crypto_aml_preflight_attempt_observation_guard();
+DROP FUNCTION fn_crypto_aml_preflight_attempt_active(job uuid, lease uuid, current_policy boolean);
+DROP FUNCTION fn_crypto_aml_preflight_claim_committed();
+DROP FUNCTION fn_crypto_aml_preflight_attempt_guard();
+DROP FUNCTION fn_crypto_aml_preflight_job_guard();
+DROP FUNCTION fn_crypto_aml_preflight_basis(job uuid);
+DROP FUNCTION fn_crypto_invoice_drift_incident_guard();
+DROP FUNCTION fn_crypto_invoice_drift_guard();
+DROP FUNCTION fn_crypto_invoice_drift_details(invoice uuid);
+DROP FUNCTION fn_crypto_lock_invoice_drift(invoice uuid);
+DROP FUNCTION fn_crypto_aml_decision_replay_guard();
+DROP FUNCTION fn_crypto_hold_aml_preflight(wallet uuid, token uuid, observation uuid);
+DROP FUNCTION fn_crypto_hold_aml_pool_wallet(wallet uuid, token uuid, kind text, source_version bigint);
+DROP FUNCTION fn_crypto_sql_hold_guard();
+DROP FUNCTION fn_crypto_try_lock_operational_hold_owner(kind text, owner text);
+DROP FUNCTION fn_crypto_hold_owner_key(kind text, owner text);
+DROP FUNCTION fn_crypto_reorg_compensation_immutable();
+DROP FUNCTION fn_crypto_activation_dispatch_guard();
+DROP FUNCTION fn_crypto_activation_identity_guard();
+DROP FUNCTION fn_crypto_activation_identity_valid(task uuid, wallet uuid, network uuid, operation uuid);
+DROP FUNCTION fn_crypto_reconciliation_request_identity_guard();
+DROP FUNCTION fn_crypto_reconciliation_request_identity_valid(network uuid, wallet uuid, token uuid, source_kind text, source uuid);
+DROP FUNCTION fn_crypto_try_lock_funding_confirmation(funding uuid);
+DROP FUNCTION fn_crypto_lock_withdrawal_wallets(wallets uuid[], scope_merchant uuid, scope_network uuid);
+DROP FUNCTION fn_crypto_try_lock_custody_wallets(wallets uuid[], scope_merchant uuid, scope_network uuid);
+DROP FUNCTION fn_crypto_lock_custody_wallets(wallets uuid[]);
+DROP FUNCTION fn_crypto_lock_custody_scopes(wallets uuid[]);
+DROP FUNCTION fn_crypto_adjustment_cannot_claim_effect();
+DROP FUNCTION fn_crypto_adjustment_accounting_complete();
+DROP FUNCTION fn_crypto_assert_adjustment_accounting(target uuid);
+DROP FUNCTION fn_crypto_adjustment_accounting_basis();
+DROP FUNCTION fn_crypto_expected_external_payment_guard();
+DROP FUNCTION fn_crypto_expected_posting_owner_guard();
+DROP FUNCTION fn_crypto_expected_request_complete();
+DROP FUNCTION fn_crypto_expected_transfer_guard();
+DROP FUNCTION fn_crypto_validate_expected_route(expected uuid, proof uuid);
+DROP FUNCTION fn_crypto_expected_owner_matches(expected uuid, recorder text, document uuid);
+DROP FUNCTION fn_crypto_expected_transfer_candidates(network uuid, hash text, kind text, source text, destination text, contract text, quantity numeric);
+DROP FUNCTION fn_crypto_network_fee_legacy_owner_guard();
+DROP FUNCTION fn_crypto_network_fee_replacement_complete();
+DROP FUNCTION fn_crypto_network_fee_basis_guard();
+DROP FUNCTION fn_crypto_network_fee_financial_complete();
+DROP FUNCTION fn_crypto_network_fee_state_complete();
+DROP FUNCTION fn_crypto_network_fee_binding_complete();
+DROP FUNCTION fn_crypto_assert_network_fee(target uuid);
+DROP FUNCTION fn_crypto_balance_posting_transaction();
+DROP FUNCTION fn_crypto_network_fee_proof_guard();
+DROP FUNCTION fn_crypto_network_fee_key(family text, network uuid, hash text);
+DROP FUNCTION fn_crypto_fee_transition_transaction();
+DROP FUNCTION fn_crypto_custody_loss_outflow_guard();
+DROP FUNCTION fn_crypto_custody_loss_basis_guard();
+DROP FUNCTION fn_crypto_custody_loss_document_complete();
+DROP FUNCTION fn_crypto_custody_loss_financial_complete();
+DROP FUNCTION fn_crypto_custody_loss_posting_complete();
+DROP FUNCTION fn_crypto_custody_loss_binding_complete();
+DROP FUNCTION fn_crypto_assert_custody_loss(target uuid);
+DROP FUNCTION fn_crypto_custody_loss_conflicting_owner(target uuid, adjustment uuid);
+DROP FUNCTION fn_crypto_lock_outflow_economics(network uuid, hash text, source text, destination text, contract text, amount numeric);
+DROP FUNCTION fn_crypto_withdrawal_request_complete();
+DROP FUNCTION fn_crypto_withdrawal_outflow_owner_guard();
+DROP FUNCTION fn_crypto_withdrawal_fee_release_guard();
+DROP FUNCTION fn_crypto_withdrawal_reservation_complete();
+DROP FUNCTION fn_crypto_withdrawal_reservation_guard();
+DROP FUNCTION fn_crypto_withdrawal_basis_guard();
+DROP FUNCTION fn_crypto_withdrawal_settlement_complete();
+DROP FUNCTION fn_crypto_withdrawal_financial_complete();
+DROP FUNCTION fn_crypto_withdrawal_posting_complete();
+DROP FUNCTION fn_crypto_withdrawal_binding_complete();
+DROP FUNCTION fn_crypto_assert_withdrawal(target uuid);
+DROP FUNCTION fn_crypto_assert_withdrawal_parent(target uuid);
+DROP FUNCTION fn_crypto_treasury_outflow_owner_guard();
+DROP FUNCTION fn_crypto_treasury_fee_release_guard();
+DROP FUNCTION fn_crypto_treasury_reservation_complete();
+DROP FUNCTION fn_crypto_treasury_reservation_guard();
+DROP FUNCTION fn_crypto_treasury_basis_guard();
+DROP FUNCTION fn_crypto_treasury_settlement_complete();
+DROP FUNCTION fn_crypto_treasury_financial_complete();
+DROP FUNCTION fn_crypto_treasury_posting_complete();
+DROP FUNCTION fn_crypto_treasury_binding_complete();
+DROP FUNCTION fn_crypto_assert_treasury(target uuid);
+DROP FUNCTION fn_crypto_sweep_basis_guard();
+DROP FUNCTION fn_crypto_sweep_settlement_complete();
+DROP FUNCTION fn_crypto_sweep_financial_complete();
+DROP FUNCTION fn_crypto_sweep_posting_complete();
+DROP FUNCTION fn_crypto_sweep_binding_complete();
+DROP FUNCTION fn_crypto_assert_sweep_line(target uuid);
+DROP FUNCTION fn_crypto_payment_native_funding_guard();
+DROP FUNCTION fn_crypto_native_funding_document_complete();
+DROP FUNCTION fn_crypto_native_funding_basis_guard();
+DROP FUNCTION fn_crypto_native_funding_movement_complete();
+DROP FUNCTION fn_crypto_native_funding_settlement_complete();
+DROP FUNCTION fn_crypto_native_funding_custody_complete();
+DROP FUNCTION fn_crypto_assert_native_funding_custody(target uuid);
+DROP FUNCTION fn_crypto_payment_attribution_complete();
+DROP FUNCTION fn_crypto_assert_payment_attribution(target uuid);
+DROP FUNCTION fn_crypto_payment_frozen_basis_guard();
+DROP FUNCTION fn_crypto_wallet_funding_no_attribution();
+DROP FUNCTION fn_crypto_wallet_funding_movement_guard();
+DROP FUNCTION fn_crypto_wallet_funding_complete();
+DROP FUNCTION fn_crypto_assert_wallet_funding(target uuid);
+DROP FUNCTION fn_crypto_wallet_funding_payment_guard();
+DROP FUNCTION fn_crypto_wallet_funding_payment_conflict(network uuid, wallet uuid, asset uuid, hash text, kind text, verification uuid);
+DROP FUNCTION fn_crypto_wallet_funding_admission();
+DROP FUNCTION fn_crypto_custody_receipt_no_attribution();
+DROP FUNCTION fn_crypto_custody_receipt_movement_complete();
+DROP FUNCTION fn_crypto_custody_receipt_complete();
+DROP FUNCTION fn_crypto_assert_custody_receipt(target uuid);
+DROP FUNCTION fn_crypto_lock_receipt_balance(wallet uuid, asset uuid);
+DROP FUNCTION fn_crypto_custody_posting_complete();
+DROP FUNCTION fn_crypto_assert_custody_posting(target uuid);
+DROP FUNCTION fn_crypto_custody_posting_identity_guard();
+DROP FUNCTION fn_crypto_custody_receipt_orphan_complete();
+DROP FUNCTION fn_crypto_merchant_credit_complete();
+DROP FUNCTION fn_crypto_assert_merchant_credit_reversal(target uuid);
+DROP FUNCTION fn_crypto_merchant_credit_reversal_guard();
+DROP FUNCTION fn_crypto_assert_merchant_credit(target uuid);
+DROP FUNCTION fn_crypto_merchant_credit_guard();
+DROP FUNCTION fn_crypto_custody_receipt_audit_guard();
+DROP FUNCTION fn_crypto_custody_receipt_audit_seed();
+DROP FUNCTION fn_crypto_receipt_suspense_apply();
+DROP FUNCTION fn_crypto_custody_receipt_mutation_guard();
 DROP FUNCTION fn_crypto_accounting_coverage_guard();
 DROP FUNCTION fn_crypto_accounting_evidence_guard();
 DROP FUNCTION fn_crypto_accounting_immutable();
-DROP FUNCTION fn_crypto_accounting_identity_bytes(TEXT,UUID,TEXT,TEXT,BIGINT,TEXT);
+DROP FUNCTION fn_crypto_accounting_identity_bytes(family text, network uuid, tx text, kind text, ordinal bigint, trace text);
 -- +goose StatementEnd

@@ -65,7 +65,7 @@ func validateWorkerSchema(ctx context.Context, pool *pgxpool.Pool) error {
 		return fmt.Errorf("validate worker schema: %w", err)
 	}
 	if !ready {
-		return fmt.Errorf("worker reliability schema is missing; apply db/upgrades/worker_reliability.sql with old workers stopped")
+		return fmt.Errorf("worker reliability schema is missing; migrate the tenant database first")
 	}
 	return nil
 }

@@ -47,7 +47,7 @@
 ## 3. Реализация и применение схемы
 
 - `NewCryptoInvoice` задаёт `invoice_kind='payment'`. `createTopUpInvoice` устанавливает `top_up` и `creation_source='system'`, оставляя оба бизнес-реквизита пустыми.
-- Исходная миграция `00023_crypto_invoice_and_register.sql` определяет тип операции и CHECK: `top_up` возможен только с источником `system`. Доменная валидация проверяет тот же инвариант.
+- Исходная миграция `00006_crypto_core.sql` определяет тип операции и CHECK: `top_up` возможен только с источником `system`. Доменная валидация проверяет тот же инвариант.
 - `IsPersistentTopUp` проверяет тип, источник, принадлежность persistent-кошелька и связанный платёж с совпадающими мерчантом, кошельком, токеном и сетью. Бизнес-реквизиты, статус и каноничность платежа не участвуют в классификации.
 - Команда `/reference` принимает `externalId`, `orderId` или оба реквизита; хотя бы один обязателен. Переданные значения содержат 1–255 символов без пробелов по краям и NUL; пустые строки, `null` и нестроковые значения отклоняются. Авторизация выполняется и перед replay.
 - Запись реквизитов, увеличение версии и аудит `bind_merchant_reference` с прежними и новыми значениями выполняются в одной транзакции. Повтор с совпадающими данными не создаёт дополнительной записи. DTO, Go/TypeScript/Python SDK и публичная документация поддерживают запрос только с `externalId`, только с `orderId` либо с обоими реквизитами.
@@ -67,7 +67,7 @@ internal/domain/documents/crypto_payment/model.go — системная иде�
 internal/domain/crypto/event_processor.go — createTopUpInvoice
 internal/application/cryptoapp/merchant_invoice_reference.go — команда привязки реквизитов
 internal/infrastructure/storage/postgres/document_repo/crypto_invoice_reference.go — IsPersistentTopUp и запись реквизитов
-db/migrations/00023_crypto_invoice_and_register.sql — комментарии и уникальные индексы бизнес-реквизитов
+db/migrations/00006_crypto_core.sql — комментарии и уникальные индексы бизнес-реквизитов
 ```
 
 ## Связанные документы

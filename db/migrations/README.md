@@ -8,7 +8,7 @@
 
 | Диапазон | Назначение | Пример |
 |----------|------------|--------|
-| `00001–09999` | **Core** — миграции ядра Metapus | `00001_extensions_and_functions.sql`, `00034_tron_wallet_pre_activation.sql` |
+| `00001–09999` | **Core** — миграции ядра Metapus | `00001_core.sql`, `00007_crypto_outbound.sql` |
 | `10000+` | **Extensions** — миграции расширений клиента | `10001_cat_custom_catalog.sql` |
 
 ### Почему это важно
@@ -18,6 +18,22 @@
 - Непересекающиеся диапазоны гарантируют отсутствие конфликтов версий
 
 ---
+
+## Состав core-миграций
+
+| Файл | Домен |
+|------|-------|
+| `00001_core.sql` | Расширения, общие функции, outbox, idempotency, audit, sequences, event log |
+| `00002_auth.sql` | Пользователи, роли, права и их seed, сессии, MFA, RLS/FLS/CEL |
+| `00003_catalogs.sql` | Валюты, организации, контрагенты, договоры |
+| `00004_settlement.sql` | Регистр взаиморасчётов |
+| `00005_platform.sql` | Настройки, сервисные и интеграционные аккаунты, автоматизация, уведомления, варианты отчётов, list views, worker jobs |
+| `00006_crypto_core.sql` | Сети, токены, кошельки, инвойсы, платежи, payment links, watcher, наблюдения, funding, wallet pool, вебхуки мерчантов, финансовые регистры |
+| `00007_crypto_outbound.sql` | Выводы, sweep, treasury, signing, approvals и signing jobs, native funding, аренда ресурсов, сверка и инциденты |
+| `00008_crypto_aml.sql` | AML |
+| `00009_crypto_custody.sql` | Custody-учёт: identity, receipts и suspense, реестр признания, сетевые комиссии, expected routing |
+
+Таблица целиком, с колонками, ограничениями, индексами и комментариями, объявлена в миграции своего домена. Функция и триггер, связывающие таблицу с более поздним доменом, объявлены в этом более позднем домене; там же внешний ключ на его таблицу добавляется через `ALTER TABLE ... ADD CONSTRAINT`. В каждом файле Up и Down выполняются одним goose statement: функции, затем таблицы, внешние ключи между доменами, представления, триггеры и seed. Down откатывает только свой домен и отказывает, если в нём есть записанные финансовые или AML-доказательства.
 
 ## Правила написания миграций
 
@@ -36,7 +52,7 @@ CREATE TABLE cat_new_entity (
 DROP TABLE cat_new_entity;
 ```
 
-Для сериализации DDL используется transaction-scoped lock (присутствует в миграциях с этим guard; не все исторические исходные файлы содержат его):
+Для сериализации DDL каждая миграция начинает Up и Down с transaction-scoped lock:
 
 ```sql
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));

@@ -458,7 +458,7 @@ func TestAMLMerchantPoolHistoryCannotBeRolledBack(t *testing.T) {
 	require.NoError(t, err)
 	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
 	require.NoError(t, err)
-	_, err = provider.DownTo(f.ctx, 68)
+	_, err = provider.DownTo(f.ctx, migrationsBeforeAML)
 	require.ErrorContains(t, err, "cannot roll back merchant pool history")
 }
 

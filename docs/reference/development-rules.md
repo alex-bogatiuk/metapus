@@ -48,7 +48,7 @@
 > [!WARNING]
 > Пока платформа на раннем этапе (нет production), **запрещено создавать новые миграции для исправления старых**.
 
-- Если нужно добавить поле в `cat_counterparties`, редактируйте существующий файл `00006_cat_counterparties.sql`.
+- Если нужно добавить поле в `cat_counterparties`, редактируйте существующий файл `00003_catalogs.sql`.
 - `make reset-db` отсутствует. Проверяйте исходные миграции на отдельной новой тестовой БД; пользовательские tenant-БД автоматически не пересоздаются. Перенос заполненного окружения выполняется явным операторским upgrade. См. [правила миграций](../../db/migrations/README.md).
 - Для mutable business/configuration tables применяются `version`, `_txid`, `_deleted_at` и предусмотренные моделью audit/CDC triggers. Append-only регистры, projections, leases и auth-state имеют отдельный контракт. Время хранится как `TIMESTAMPTZ`.
 

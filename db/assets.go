@@ -5,5 +5,5 @@ import "embed"
 
 // Files contains both tenant and meta-database migrations.
 //
-//go:embed migrations/*.sql meta/*.sql upgrades/*.sql
+//go:embed migrations/*.sql meta/*.sql
 var Files embed.FS

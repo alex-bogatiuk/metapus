@@ -22,7 +22,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build -p ${BUILD_PARALLELISM} -ldflags="-s -w -X
 RUN CGO_ENABLED=0 GOOS=linux go build -p ${BUILD_PARALLELISM} -ldflags="-s -w" -o /bin/seed ./cmd/seed
 RUN CGO_ENABLED=0 GOOS=linux go build -p ${BUILD_PARALLELISM} -ldflags="-s -w" -o /bin/crypto-preflight ./cmd/crypto-preflight
 RUN CGO_ENABLED=0 GOOS=linux go build -p ${BUILD_PARALLELISM} -ldflags="-s -w" -o /bin/integration-config ./cmd/integration-config
-RUN CGO_ENABLED=0 GOOS=linux go build -p ${BUILD_PARALLELISM} -ldflags="-s -w" -o /bin/crypto-deposit-address-upgrade ./cmd/crypto-deposit-address-upgrade
 RUN CGO_ENABLED=0 GOOS=linux go build -p ${BUILD_PARALLELISM} -ldflags="-s -w" -o /bin/crypto-record-wallet-funding ./cmd/crypto-record-wallet-funding
 RUN CGO_ENABLED=0 GOOS=linux go build -p ${BUILD_PARALLELISM} -ldflags="-s -w" -o /bin/public-test-bootstrap ./cmd/public-test-bootstrap
 RUN CGO_ENABLED=0 GOOS=linux go build -p ${BUILD_PARALLELISM} -ldflags="-s -w" -o /bin/aml-testnet-config ./cmd/aml-testnet-config
@@ -44,7 +43,6 @@ COPY --from=builder /bin/tenant ./tenant
 COPY --from=builder /bin/seed ./seed
 COPY --from=builder /bin/crypto-preflight ./crypto-preflight
 COPY --from=builder /bin/integration-config ./integration-config
-COPY --from=builder /bin/crypto-deposit-address-upgrade ./crypto-deposit-address-upgrade
 COPY --from=builder /bin/crypto-record-wallet-funding ./crypto-record-wallet-funding
 COPY --from=builder /bin/public-test-bootstrap ./public-test-bootstrap
 COPY --from=builder /bin/aml-testnet-config ./aml-testnet-config
@@ -68,7 +66,6 @@ COPY --from=builder /bin/tenant ./tenant
 COPY --from=builder /bin/seed ./seed
 COPY --from=builder /bin/crypto-preflight ./crypto-preflight
 COPY --from=builder /bin/integration-config ./integration-config
-COPY --from=builder /bin/crypto-deposit-address-upgrade ./crypto-deposit-address-upgrade
 COPY --from=builder /bin/crypto-record-wallet-funding ./crypto-record-wallet-funding
 COPY --from=builder /bin/public-test-bootstrap ./public-test-bootstrap
 COPY --from=builder /bin/healthcheck ./healthcheck

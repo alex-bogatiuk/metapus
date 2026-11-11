@@ -820,13 +820,10 @@ internal/infrastructure/blockchain/tron/funding/record.go — операторс
 internal/infrastructure/crypto_worker/wallet_pool_controller.go — warm-pool controller
 cmd/crypto-record-wallet-funding                     — операторская запись funding
 vault-sign-plugins/tron                                 — derivation и Vault-side signing policy
-db/migrations/00022_crypto_catalogs.sql                — начало crypto schema
-db/migrations/00034_tron_wallet_pre_activation.sql     — CryptoNetworkOperation и activation worker state
-db/migrations/00038_money_movement_approval_policy.sql — актуальная approval policy schema
-db/migrations/00041_multichain_crypto_core.sql         — chain-agnostic network/resource policy
-db/migrations/00042_ethereum_sepolia_core.sql          — EVM nonce/finality/network holds
-db/migrations/00043_crypto_address_reuse_cooldown.sql  — allocation history и inbound inbox
-db/migrations/00044_merchant_webhooks_production.sql   — текущая граница crypto schema
+db/migrations/00006_crypto_core.sql      — сети, токены, кошельки, инвойсы, платежи, watcher, allocation history и inbound inbox
+db/migrations/00007_crypto_outbound.sql  — выводы, sweep, treasury, approval policy, signing, CryptoNetworkOperation и activation state
+db/migrations/00008_crypto_aml.sql       — AML
+db/migrations/00009_crypto_custody.sql   — custody-учёт
 ```
 
 ## Provider opening: авторство, approval и неизменяемый ledger
@@ -878,7 +875,7 @@ approve/reject действует в режиме `independent`. Системн�
 - Incident после approval остаётся открытым до новой успешной provider-сверки.
   Wallet, merchant, fee и platform-cost ledgers от opening не меняются.
 
-Исходная migration 51 изменена напрямую; текущий `ExpectedSchemaVersion` — 77. Последующие AML-миграции 61–76 и custody-миграция 77 входят в fresh schema. Старый тестовый
+Схема собрана из девяти доменных миграций; текущий `ExpectedSchemaVersion` — 9. AML (`00008`) и custody (`00009`) входят в fresh schema. Старый тестовый
 opening с нулевым maker нельзя «починить» подменой исторического автора: evidence
 сохраняется, acceptance повторяется на чистой disposable БД для независимого
 оператора и административного исключения. Действующий стенд автоматически не

@@ -1,5 +1,6 @@
-// integration-config upgrades/imports exactly one tenant database. Secrets are
-// read from secret files and the legacy configuration; output contains counts.
+// integration-config imports the integration configuration of exactly one tenant
+// database. Secrets are read from secret files and the legacy configuration;
+// output contains counts.
 package main
 
 import (
@@ -27,7 +28,6 @@ func run() error {
 	chains := flag.String("chains", "", "Legacy chains.json (optional)")
 	mapping := flag.String("mapping", "", "Non-secret JSON endpoint/account mapping")
 	activate := flag.Bool("activate", false, "Select database RPC configuration after import")
-	schemaOnly := flag.Bool("schema-only", false, "Upgrade schema without importing configuration")
 	flag.Parse()
 	dsn, err := secretfile.Get("DATABASE_URL", "")
 	if err != nil || dsn == "" {
@@ -64,18 +64,11 @@ func run() error {
 		}
 	}
 	var report integration_repo.ImportReport
-	var upgraded bool
 	err = tm.RunInTransaction(ctx, func(ctx context.Context) error {
 		var e error
-		upgraded, e = integration_repo.UpgradeSchema(ctx, true)
+		report, e = integration_repo.ImportConfiguration(ctx, cfg, bindings, *activate)
 		if e != nil {
 			return e
-		}
-		if !*schemaOnly {
-			report, e = integration_repo.ImportConfiguration(ctx, cfg, bindings, *activate)
-			if e != nil {
-				return e
-			}
 		}
 		if !*apply {
 			return errDryRun
@@ -86,10 +79,9 @@ func run() error {
 		return err
 	}
 	return json.NewEncoder(os.Stdout).Encode(struct {
-		Apply         bool                          `json:"apply"`
-		SchemaUpgrade bool                          `json:"schemaUpgrade"`
-		Report        integration_repo.ImportReport `json:"report"`
-	}{*apply, upgraded, report})
+		Apply  bool                          `json:"apply"`
+		Report integration_repo.ImportReport `json:"report"`
+	}{*apply, report})
 }
 func main() {
 	if err := run(); err != nil {

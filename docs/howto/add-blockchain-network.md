@@ -501,7 +501,7 @@ internal/infrastructure/crypto/evm_vault_signer           — EVM custody client
 internal/infrastructure/crypto/vault_signer              — текущая TRON custody implementation
 vault-sign-plugins/evm                                   — отдельный EVM policy-aware plugin
 vault-sign-plugins/tron                                  — reference policy-aware Vault plugin
-db/migrations/00042_ethereum_sepolia_core.sql            — Sepolia catalog, nonce, finality и policy schema
+db/migrations/00006_crypto_core.sql            — Sepolia catalog, nonce, finality и policy schema
 ```
 
 ## 9. Чеклист
