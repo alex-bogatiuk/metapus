@@ -25,6 +25,11 @@ func alchemy() Profile {
 		},
 		ImportCredentials: func(raw, key string) (string, string, error) {
 			u, err := url.Parse(raw)
+			// chainconfig.Load trims the trailing slash, so a base with a
+			// separate key file arrives as /v2.
+			if err == nil && u.Path == "/v2" {
+				u.Path = "/v2/"
+			}
 			if err != nil || !strings.HasPrefix(u.Path, "/v2/") {
 				return "", "", errors.New("unsupported credential endpoint")
 			}

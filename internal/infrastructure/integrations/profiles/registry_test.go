@@ -48,6 +48,8 @@ func TestImportUsesProviderProfilesAndRejectsCredentialExfiltration(t *testing.T
 		{"https://eth-sepolia.g.alchemy.com/v2/legacy-key", "", "rpc", "default", "https://eth-sepolia.g.alchemy.com/v2/", model.Alchemy},
 		{"https://tron-testnet.g.alchemy.com/v2/legacy-key", "", "fullnode", "nile", "https://tron-testnet.g.alchemy.com/v2/", model.Alchemy},
 		{"https://tron-mainnet.g.alchemy.com/v2/", "legacy-key", "solidity", "mainnet", "https://tron-mainnet.g.alchemy.com/v2/", model.Alchemy},
+		{"https://eth-sepolia.g.alchemy.com/v2", "file-key", "rpc", "default", "https://eth-sepolia.g.alchemy.com/v2/", model.Alchemy},
+		{"https://tron-testnet.g.alchemy.com/v2", "file-key", "fullnode", "nile", "https://tron-testnet.g.alchemy.com/v2/", model.Alchemy},
 		{"https://sepolia.infura.io/v3/", "0123456789abcdef0123456789abcdef", "rpc", "sepolia", "https://sepolia.infura.io/v3/", model.Infura},
 		{"https://tron-nile.core.chainstack.com/", "opaque-token", "fullnode", "nile", "https://tron-nile.core.chainstack.com/", model.Chainstack},
 		{"https://shared.eu-central-1.getblock.io/", "opaque-token", "solidity", "solidity", "https://shared.eu-central-1.getblock.io/", model.GetBlock},
@@ -58,7 +60,7 @@ func TestImportUsesProviderProfilesAndRejectsCredentialExfiltration(t *testing.T
 		require.Equal(t, tt.base, base)
 		require.NotEmpty(t, key)
 	}
-	for _, raw := range []string{"https://foreign.test/", "https://sepolia.infura.io.evil.test/v3/", "https://sepolia.infura.io/v3/private-token", "https://eth-sepolia.g.alchemy.com/v2/legacy-key?leak=1"} {
+	for _, raw := range []string{"https://foreign.test/", "https://sepolia.infura.io.evil.test/v3/", "https://sepolia.infura.io/v3/private-token", "https://eth-sepolia.g.alchemy.com/v2/legacy-key?leak=1", "https://eth-sepolia.g.alchemy.com/v2x"} {
 		_, _, _, err := (*Registry)(nil).ImportRPC(raw, "private-token", "rpc", "default")
 		require.Error(t, err)
 		require.NotContains(t, err.Error(), "private-token")
