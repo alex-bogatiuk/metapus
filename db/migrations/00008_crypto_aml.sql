@@ -353,7 +353,7 @@ CREATE OR REPLACE FUNCTION fn_crypto_aml_inventory_covered(target UUID,asset UUI
     WHERE f.token_id=asset AND (f.destination_wallet_id IN (SELECT wallet_id FROM ancestors) OR f.source_wallet_id IN (SELECT wallet_id FROM ancestors)) AND NOT v.valid)
  AND NOT EXISTS(SELECT 1 FROM reg_crypto_aml_withdrawal_facts wf WHERE wf.wallet_id IN (SELECT wallet_id FROM ancestors) AND wf.token_id=asset AND NOT EXISTS(SELECT 1 FROM crypto_aml_valid_withdrawal_facts v WHERE v.line_id=wf.line_id))
  AND NOT EXISTS(SELECT 1 FROM inventory i JOIN reg_crypto_balance_movements m ON m.wallet_id=i.wallet_id AND m.token_id=asset AND m.created_at>=i.baseline_at
-    WHERE CASE WHEN m.record_type='receipt' THEN COALESCE((SELECT SUM(wf.amount) FROM reg_crypto_aml_withdrawal_facts wf WHERE wf.refund_movement_id=m.line_id),0)+ COALESCE((SELECT SUM(f.gross) FROM reg_crypto_aml_inventory_facts f WHERE f.destination_movement_id=m.line_id),0)
+    WHERE CASE WHEN m.record_type='receipt' THEN COALESCE((SELECT SUM(f.gross) FROM reg_crypto_aml_inventory_facts f WHERE f.destination_movement_id=m.line_id),0)
        ELSE COALESCE((SELECT SUM(wf.amount) FROM reg_crypto_aml_withdrawal_facts wf WHERE wf.expense_movement_id=m.line_id),0)+COALESCE((SELECT SUM(f.gross) FROM reg_crypto_aml_inventory_facts f WHERE f.source_movement_id=m.line_id),0) END <>m.amount)
  AND NOT EXISTS(SELECT 1 FROM inventory i JOIN reg_crypto_aml_wallet_baselines b ON b.wallet_id=i.wallet_id AND b.token_id=asset
     JOIN reg_crypto_aml_effects e ON e.wallet_id=i.wallet_id AND e.token_id=asset AND e.block_number>b.block_number
@@ -597,7 +597,7 @@ BEGIN
      WHERE f.token_id=asset AND (f.destination_wallet_id IN (SELECT wallet_id FROM ancestors) OR f.source_wallet_id IN (SELECT wallet_id FROM ancestors)) AND NOT v.valid)
  AND NOT EXISTS(SELECT 1 FROM reg_crypto_aml_withdrawal_facts wf WHERE wf.wallet_id IN (SELECT wallet_id FROM ancestors) AND wf.token_id=asset AND NOT EXISTS(SELECT 1 FROM crypto_aml_valid_withdrawal_facts v WHERE v.line_id=wf.line_id))
  AND NOT EXISTS(SELECT 1 FROM inventory i JOIN reg_crypto_balance_movements m ON m.wallet_id=i.wallet_id AND m.token_id=asset AND m.created_at>=i.baseline_at
-     WHERE CASE WHEN m.record_type='receipt' THEN COALESCE((SELECT SUM(wf.amount) FROM reg_crypto_aml_withdrawal_facts wf WHERE wf.refund_movement_id=m.line_id),0)+ COALESCE((SELECT SUM(f.gross) FROM reg_crypto_aml_inventory_facts f WHERE f.destination_movement_id=m.line_id),0)+COALESCE((SELECT SUM(f.amount) FROM reg_crypto_aml_resource_facts f WHERE f.destination_movement_id=m.line_id),0)
+     WHERE CASE WHEN m.record_type='receipt' THEN COALESCE((SELECT SUM(f.gross) FROM reg_crypto_aml_inventory_facts f WHERE f.destination_movement_id=m.line_id),0)+COALESCE((SELECT SUM(f.amount) FROM reg_crypto_aml_resource_facts f WHERE f.destination_movement_id=m.line_id),0)
        ELSE COALESCE((SELECT SUM(wf.amount) FROM reg_crypto_aml_withdrawal_facts wf WHERE wf.expense_movement_id=m.line_id),0)+COALESCE((SELECT SUM(f.gross) FROM reg_crypto_aml_inventory_facts f WHERE f.source_movement_id=m.line_id),0)+COALESCE((SELECT SUM(f.amount) FROM reg_crypto_aml_resource_facts f WHERE f.source_movement_id=m.line_id),0) END<>m.amount)
  AND NOT EXISTS(SELECT 1 FROM inventory i JOIN reg_crypto_aml_effects e ON e.wallet_id=i.wallet_id AND e.token_id=asset AND e.block_number>i.block_number
      JOIN reg_crypto_aml_effect_chain_states cs ON cs.effect_id=e.id AND cs.canonicality='canonical'
@@ -1481,7 +1481,7 @@ CREATE FUNCTION fn_crypto_aml_withdrawal_fact_guard() RETURNS TRIGGER AS $$
 BEGIN
  PERFORM 1 FROM reg_crypto_aml_withdrawal_plans p JOIN reg_crypto_aml_withdrawal_lines l ON l.request_id=p.request_id JOIN sys_crypto_aml_routing_scopes s ON s.merchant_id=p.merchant_id AND s.network_id=p.network_id WHERE l.id=NEW.line_id ORDER BY s.merchant_id,s.network_id,s.token_id FOR UPDATE OF s;
  IF EXISTS(SELECT 1 FROM reg_crypto_aml_withdrawal_facts WHERE line_id=NEW.line_id) THEN
-   IF EXISTS(SELECT 1 FROM reg_crypto_aml_withdrawal_facts f WHERE f.line_id=NEW.line_id AND (f.wallet_id,f.token_id,f.amount,f.succeeded,f.settlement_id,f.expense_movement_id,f.refund_movement_id) IS NOT DISTINCT FROM (NEW.wallet_id,NEW.token_id,NEW.amount,NEW.succeeded,NEW.settlement_id,NEW.expense_movement_id,NEW.refund_movement_id)) THEN RETURN NEW; END IF;
+   IF EXISTS(SELECT 1 FROM reg_crypto_aml_withdrawal_facts f WHERE f.line_id=NEW.line_id AND (f.wallet_id,f.token_id,f.amount,f.succeeded,f.settlement_id,f.expense_movement_id) IS NOT DISTINCT FROM (NEW.wallet_id,NEW.token_id,NEW.amount,NEW.succeeded,NEW.settlement_id,NEW.expense_movement_id)) THEN RETURN NEW; END IF;
    RAISE EXCEPTION 'withdrawal outcome fact differs from saved evidence' USING ERRCODE='23514';
  END IF;
  IF NOT EXISTS(SELECT 1 FROM reg_crypto_aml_withdrawal_lines WHERE id=NEW.line_id AND wallet_id=NEW.wallet_id AND token_id=NEW.token_id AND amount=NEW.amount AND status IN ('reserved','held','broadcast')) THEN RAISE EXCEPTION 'withdrawal fact has no outstanding source line' USING ERRCODE='23514'; END IF;
@@ -2566,9 +2566,9 @@ CREATE TABLE reg_crypto_aml_withdrawal_cancellations (
 CREATE TABLE reg_crypto_aml_withdrawal_facts (
  line_id UUID PRIMARY KEY REFERENCES reg_crypto_aml_withdrawal_lines(id), wallet_id UUID NOT NULL REFERENCES cat_wallets(id), token_id UUID NOT NULL REFERENCES cat_tokens(id),
  amount NUMERIC(78,0) NOT NULL CHECK(amount>0), succeeded BOOLEAN NOT NULL, settlement_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_chain_settlements(id),
- expense_movement_id UUID UNIQUE REFERENCES reg_crypto_balance_movements(line_id), refund_movement_id UUID UNIQUE REFERENCES reg_crypto_balance_movements(line_id),
+ expense_movement_id UUID UNIQUE REFERENCES reg_crypto_balance_movements(line_id),
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), _txid BIGINT NOT NULL DEFAULT txid_current(), _deleted_at TIMESTAMPTZ CHECK(_deleted_at IS NULL), CONSTRAINT reg_crypto_aml_withdrawal_facts_check CHECK(
-    refund_movement_id IS NULL AND (expense_movement_id IS NOT NULL)=succeeded)
+    (expense_movement_id IS NOT NULL)=succeeded)
 );
 
 CREATE TABLE reg_crypto_aml_withdrawal_events (

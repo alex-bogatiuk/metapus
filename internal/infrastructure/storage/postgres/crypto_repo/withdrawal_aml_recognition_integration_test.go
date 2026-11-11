@@ -104,7 +104,7 @@ func settleRiskLineV2(t *testing.T, f amlRoutingFixture, intent crypto.MoneyMove
 		if success {
 			expense = withdrawalPrincipalLine(doc)
 		}
-		_, err = q.Exec(ctx, `INSERT INTO reg_crypto_aml_withdrawal_facts(line_id,wallet_id,token_id,amount,succeeded,settlement_id,expense_movement_id,refund_movement_id) VALUES($1,$2,$3,$4,$5,$6,$7,NULL)`, line.LineID, line.WalletID, intent.TokenID, line.AmountMinorUnits, success, settlement, expense)
+		_, err = q.Exec(ctx, `INSERT INTO reg_crypto_aml_withdrawal_facts(line_id,wallet_id,token_id,amount,succeeded,settlement_id,expense_movement_id) VALUES($1,$2,$3,$4,$5,$6,$7)`, line.LineID, line.WalletID, intent.TokenID, line.AmountMinorUnits, success, settlement, expense)
 		if err != nil {
 			return err
 		}

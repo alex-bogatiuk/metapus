@@ -3727,7 +3727,7 @@ CREATE OR REPLACE VIEW crypto_aml_valid_withdrawal_facts AS
  LEFT JOIN reg_crypto_balance_movements spent ON spent.line_id=f.expense_movement_id AND spent.line_id=recognized.movement_line_id AND spent.recorder_type='CryptoWithdrawal'
     AND spent.recorder_id=w.id AND spent.recorder_version=1 AND spent.record_type='expense' AND spent.wallet_id=f.wallet_id AND spent.token_id=f.token_id AND spent.amount=f.amount AND spent.reversal_of_line_id IS NULL
  LEFT JOIN reg_crypto_transfer_verifications proof ON proof.id=posting.verification_id
- WHERE f.refund_movement_id IS NULL AND (
+ WHERE (
  (f.succeeded AND spent.line_id IS NOT NULL AND proof.evidence->'event'->>'canonicality'='canonical'
     AND NOT EXISTS(SELECT 1 FROM reg_crypto_transfer_verifications invalid WHERE invalid.network_id=proof.network_id AND invalid.tx_hash=proof.tx_hash
         AND invalid.event_kind=proof.event_kind AND invalid.event_index=proof.event_index AND invalid.verified_at>=proof.verified_at AND invalid.evidence->'event'->>'canonicality'='orphaned')
