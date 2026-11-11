@@ -40,8 +40,12 @@ func (r *MerchantCreditRepo) LockReceiptRemainder(ctx context.Context, receiptID
 	if err != nil {
 		return result, fmt.Errorf("lock receipt remainder: %w", err)
 	}
-	if err := tm.GetQuerier(ctx).QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM reg_crypto_custody_receipt_audits
-		WHERE receipt_id=$1 AND status='orphaned')`, receiptID).Scan(&result.Orphaned); err != nil {
+	// A payment keeps its receipt after a reorg unposts it; a payment_reversal
+	// adjustment keeps it posted, so that remainder stays creditable.
+	if err := tm.GetQuerier(ctx).QueryRow(ctx, `SELECT
+		EXISTS(SELECT 1 FROM reg_crypto_custody_receipt_audits WHERE receipt_id=$1 AND status='orphaned'),
+		EXISTS(SELECT 1 FROM doc_crypto_payments WHERE receipt_id=$1 AND NOT posted)`, receiptID).
+		Scan(&result.Orphaned, &result.PaymentReorged); err != nil {
 		return result, fmt.Errorf("read receipt canonicality: %w", err)
 	}
 	return result, nil

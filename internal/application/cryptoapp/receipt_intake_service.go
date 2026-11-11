@@ -30,6 +30,9 @@ type ReceiptIntakeRepository interface {
 	Update(context.Context, *crypto_custody_receipt.CryptoCustodyReceipt) error
 	PrepareRecognition(context.Context, *crypto_custody_receipt.CryptoCustodyReceipt, ReceiptAdmissionContext) error
 	AppendIntakeAudit(context.Context, *crypto_custody_receipt.CryptoCustodyReceipt) error
+	// AnchorAudit moves the canonicality audit of a re-proven receipt to the
+	// proof of the block its transfer is now in.
+	AnchorAudit(ctx context.Context, receiptID, verificationID id.ID) error
 }
 
 type RecordCustodyReceiptCommand struct {
@@ -93,6 +96,13 @@ func (s *ReceiptIntakeService) Record(ctx context.Context, req RecordCustodyRece
 				existing.WalletID != req.Basis.WalletID || existing.TokenID != req.Basis.TokenID ||
 				existing.Amount.Cmp(req.Basis.Amount) != 0 || existing.ReasonCode != req.Reason {
 				return apperror.NewConflict("receipt replay differs from recorded evidence")
+			}
+			// A re-included transfer keeps its receipt; the audit follows it
+			// into the new block so it does not report the old block absent.
+			if evidence.VerificationID != existing.VerificationID {
+				if err := s.repo.AnchorAudit(ctx, existing.ID, evidence.VerificationID); err != nil {
+					return err
+				}
 			}
 			result = existing
 			return nil

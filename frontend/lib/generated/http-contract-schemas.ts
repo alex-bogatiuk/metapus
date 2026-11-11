@@ -1177,6 +1177,7 @@ export const CryptoPaymentResponseSchema: z.ZodType<Wire.CryptoPaymentResponse> 
   "tokenId": z.string(),
   "walletId": z.string(),
   "txHash": z.string(),
+  "receiptId": z.string(),
   "fromAddress": z.string(),
   "amount": z.string(),
   "blockNumber": z.number().int(),
@@ -1804,6 +1805,57 @@ export const CustodyAdjustmentResponseSchema: z.ZodType<Wire.CustodyAdjustmentRe
   "postedVersion": z.number().int(),
   "createdAt": z.string(),
   "decidedAt": z.string().optional(),
+}))
+
+export const CustodyReceiptAttributionSchema: z.ZodType<Wire.CustodyReceiptAttribution> = z.lazy(() => z.object({
+  "documentType": z.string(),
+  "documentId": z.string(),
+  "number": z.string(),
+  "date": z.string(),
+  "status": z.string(),
+  "posted": z.boolean(),
+  "merchantId": z.string(),
+  "merchantName": z.string(),
+  "amount": z.string(),
+  "netAmount": z.string(),
+  "processingFee": z.string(),
+  "outstanding": z.string(),
+}))
+
+export const CustodyReceiptAuditSchema: z.ZodType<Wire.CustodyReceiptAudit> = z.lazy(() => z.object({
+  "status": z.string(),
+  "lastCheckedAt": z.string().nullable(),
+  "nextCheckAt": z.string(),
+  "attempts": z.number().int(),
+  "lastError": z.string(),
+  "orphanedAt": z.string().nullable(),
+  "incidentId": z.string(),
+}))
+
+export const CustodyReceiptDetailResponseSchema: z.ZodType<Wire.CustodyReceiptDetailResponse> = z.lazy(() => z.object({
+  "receipt": UnidentifiedReceiptItemSchema,
+  "proof": CustodyReceiptProofSchema,
+  "audit": CustodyReceiptAuditSchema,
+  "attributions": z.array(CustodyReceiptAttributionSchema),
+}))
+
+export const CustodyReceiptProofSchema: z.ZodType<Wire.CustodyReceiptProof> = z.lazy(() => z.object({
+  "verificationId": z.string(),
+  "original": z.boolean(),
+  "txHash": z.string(),
+  "eventKind": z.string(),
+  "eventIndex": z.number().int(),
+  "blockNumber": z.number().int(),
+  "blockHash": z.string(),
+  "confirmations": z.number().int(),
+  "verifiedAt": z.string(),
+  "sources": z.array(CustodyReceiptProofSourceSchema),
+}))
+
+export const CustodyReceiptProofSourceSchema: z.ZodType<Wire.CustodyReceiptProofSource> = z.lazy(() => z.object({
+  "providerId": z.string(),
+  "trustGroup": z.string(),
+  "headHeight": z.number().int(),
 }))
 
 export const DashboardAnalyticsAssetSchema: z.ZodType<Wire.DashboardAnalyticsAsset> = z.lazy(() => z.object({
@@ -4315,6 +4367,9 @@ export const UnidentifiedReceiptItemSchema: z.ZodType<Wire.UnidentifiedReceiptIt
   "invoiceId": z.string(),
   "pendingError": z.string(),
   "credit": UnidentifiedReceiptCreditSchema.nullable(),
+  "paymentId": z.string(),
+  "paymentNumber": z.string(),
+  "paymentStatus": z.string(),
 }))
 
 export const UnidentifiedReceiptListResponseSchema: z.ZodType<Wire.UnidentifiedReceiptListResponse> = z.lazy(() => z.object({

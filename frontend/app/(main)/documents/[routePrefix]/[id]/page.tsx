@@ -19,6 +19,7 @@ import { registerFromMetadata } from "@/lib/entity-registry-defaults"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import AutoForm from "@/components/shared/auto-form"
 import { CryptoPaymentAdjustments } from "@/components/documents/crypto-payment-adjustments"
+import { CryptoPaymentReceipt } from "@/components/documents/crypto-payment-receipt"
 
 import { PaymentAMLPanel } from "@/components/crypto/aml-risk"
 
@@ -89,7 +90,7 @@ export default function DocumentCatchAllFormPage({ params }: PageProps) {
                 entityType="document"
                 routePrefix={canonicalPrefix}
                 id={id === "new" ? undefined : id}
-                appendContent={canonicalPrefix === "crypto-payment" && id !== "new" ? <div className="space-y-4"><PaymentAMLPanel paymentId={id} /><CryptoPaymentAdjustments paymentId={id} /></div> : undefined}
+                appendContent={canonicalPrefix === "crypto-payment" && id !== "new" ? <div className="space-y-4"><CryptoPaymentReceipt paymentId={id} /><PaymentAMLPanel paymentId={id} /><CryptoPaymentAdjustments paymentId={id} /></div> : undefined}
             />
         </Suspense>
     )

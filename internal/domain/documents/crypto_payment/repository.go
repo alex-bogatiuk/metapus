@@ -38,8 +38,6 @@ type Repository interface {
 	SummarizeByInvoice(ctx context.Context, invoiceID id.ID) (InvoicePaymentSummary, error)
 	ClaimForConfirmation(ctx context.Context, statuses []PaymentStatus, workerID string, limit int, leaseTTL time.Duration) ([]*CryptoPayment, error)
 	ReleaseConfirmationClaim(ctx context.Context, paymentID id.ID, workerID string) error
-	ClaimForCanonicalityAudit(ctx context.Context, workerID string, limit int, leaseTTL time.Duration) ([]*CryptoPayment, error)
-	ReleaseCanonicalityAuditClaim(ctx context.Context, paymentID id.ID, workerID string, checkErr error) error
 
 	// GetByIDForUpdate retrieves a payment with an exclusive row lock (SELECT FOR UPDATE).
 	// Used to serialize concurrent confirmation updates from consumer + confirmation loop.

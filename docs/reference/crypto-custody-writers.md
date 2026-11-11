@@ -3,7 +3,7 @@
 > **TL;DR:** Custody записывается через PostingEngine, прямые settlement-команды и ручные corrections; защита от двойного признания должна охватывать все эти пути.
 > **Тип:** Reference
 > **Аудитория:** Developer, AI-Agent
-> **Дата инвентаризации:** 09.11.2026.
+> **Дата инвентаризации:** 09.11.2026; разделы о receipt и платеже (§2, §3, §6, §8) обновлены 10.11.2026.
 > **Нумерация схем:** «схема 78–104» и «этап 89–111» ниже — исторические номера. Все эти изменения теперь входят в одну миграцию [00077_crypto_custody_accounting.sql](../../db/migrations/00077_crypto_custody_accounting.sql) (разделы внутри файла помечены `-- ==== <старое имя> ====`). Разделы 17–39 — контракты отдельных механизмов, а не журнал готовности.
 > **Связанные:** [План реализации](../howto/crypto-inbound-provider-accounting-plan.md), [Проведение](../systems/posting-engine.md), [Accounting identity](crypto-canonical-contracts.md).
 
@@ -19,8 +19,8 @@ Immutable movements и SQL-trigger balances сохраняют физическ�
 
 | Writer | Эффект | Текущая основа | Требование P3 |
 |---|---|---|---|
-| [CryptoCustodyReceipt](../../internal/domain/documents/crypto_custody_receipt/model.go) | External principal: custody + suspense | Strict proof, occurrence, posting owner, recognition line; внутренний maintenance-only service | Registry подключён; общий runtime/cutover ещё закрыт |
-| [CryptoPayment](../../internal/domain/documents/crypto_payment/model.go) | Incoming token principal v1 | Схема 80: strict indexed proof, общий registry, frozen gross/net/fee snapshot; unindexed legacy сохраняется | Registry подключён для indexed posting и explicit adoption; v2 переносит физическую сторону в отдельный receipt |
+| [CryptoCustodyReceipt](../../internal/domain/documents/crypto_custody_receipt/model.go) | Любой внешний приход: custody + suspense | Strict proof, occurrence, posting owner, recognition line; worker: `runReceiptIntakeLoop` и платёж в момент финальности | Единственный writer внешнего прихода; аудит каноничности — §6 |
+| [CryptoPayment](../../internal/domain/documents/crypto_payment/model.go) | Распределение receipt: suspense −gross, merchant +net, fee +fee | Custody не двигает; frozen gross/net/fee snapshot; отложенный инвариант `fn_crypto_assert_payment_attribution` | См. §8 |
 | [CryptoSweep](../../internal/domain/documents/crypto_sweep/model.go) | Source expense + collector receipt | Схема 82: model 2, final proof и per-line settlement; model 1 сохраняет legacy broadcast | Registry обеих principal сторон подключён для v2; fee model 2 — схема 86, recovery отдельно |
 | [CryptoWithdrawal](../../internal/domain/documents/crypto_withdrawal/model.go) | Outgoing principal | Схема 84: model 2, final independent outgoing proof и active reserve до settlement; исходный merchant debit сохраняется | Registry expense + binding к единственному merchant debit; AML exact line outcome; model 1 history/drain |
 | [TreasuryWithdrawal](../../internal/domain/documents/treasury_withdrawal/model.go) | Outgoing principal | Схема 83: model 2, final outgoing proof + exact revenue expense; model 1 legacy broadcast | Principal registry подключён для v2; fee model 2 — схема 86, recovery/provider funding отдельно |
@@ -41,7 +41,7 @@ Immutable movements и SQL-trigger balances сохраняют физическ�
 | [outbound_repo/fee_budget_manager.go](../../internal/infrastructure/storage/postgres/outbound_repo/fee_budget_manager.go) | ChainSettlement | Схема 86: новые model 2 требуют independent fee proof, exact expense/cost/components/binding/outbox; fee role отдельно от principal |
 | [crypto_repo/aml_resources.go](../../internal/infrastructure/storage/postgres/crypto_repo/aml_resources.go) | AMLOperatingReceipt | Verified external native effect и control-plane attestation; scope lock, resource fact и физический приход в одной транзакции |
 | [crypto_repo/financial_adjustment.go](../../internal/infrastructure/storage/postgres/crypto_repo/financial_adjustment.go) | CryptoAdjustment | Схема 88: model 2 фиксирует exact source posting/postedVersion для компенсации либо unindexed legacy source; wallet variance не занимает chain effect; historical model 1 drain сохранён |
-| [crypto_repo/financial_reorg.go](../../internal/infrastructure/storage/postgres/crypto_repo/financial_reorg.go) | CryptoPaymentReorg | Compensation по payment/posting generation с учётом ранее reversed portions |
+| [crypto_repo/financial_reorg.go](../../internal/infrastructure/storage/postgres/crypto_repo/financial_reorg.go) | CryptoPaymentReorg | Сторно распределения платежа по posting generation: suspense обратно на receipt, merchant и fee в минус, с учётом ранее сторнированных частей; custody не меняется |
 | [outbound_repo/outbound_settlement.go](../../internal/infrastructure/storage/postgres/outbound_repo/outbound_settlement.go) | AMLWithdrawalRevert | Legacy model 1: восстановление ранее списанного principal при отказе; model 2 не создаёт physical principal/refund |
 | [outbound_repo/outbound_settlement.go](../../internal/infrastructure/storage/postgres/outbound_repo/outbound_settlement.go) | ChainOutboundStorno | Компенсация legacy debit/sweep receipt при доказанном отказе; не новое внешнее поступление |
 
@@ -57,7 +57,7 @@ Immutable movements и SQL-trigger balances сохраняют физическ�
 - SaveVerification сначала берёт recipient AML scopes, затем выполняет ObserveVerification и индексирует proof. Accounting index берёт wallet/token balance до logical effect; он не захватывает catalog wallet после balance. Orphan proof блокирует известные aliases без создания новой occurrence.
 - Receipt intake и funding используют общий LockIncoming: scope → catalog wallet → balance → logical effect. Maintenance policy FOR SHARE для receipt берётся после этих locks. Общий BEFORE INSERT guard старых writers берёт ту же balance row, включая отсутствие проекции; ожидавший writer после коммита видит новый claim/запрет. Funding допускает только platform-owned external receipt.
 
-В financial recognition registry подключены CryptoCustodyReceipt, CryptoWalletFunding, indexed CryptoPayment v1, final CryptoNativeFunding, sweep model 2, treasury model 2 , merchant withdrawal model 2 и custody loss model 2. Схема 86 добавляет отдельный fee effect/proof/binding для новых fee reservations model 2; legacy model 1 не принимается автоматически. Исторические движения не принимаются автоматически; для текущего posted payment есть отдельный adoption. Migration 77 создаёт только индекс проверенных identity/occurrence/evidence. Наличие строки в нём не означает приём денег, актуальную canonicality, merchant ownership или разрешение подписи.
+В financial recognition registry подключены CryptoCustodyReceipt, CryptoWalletFunding, final CryptoNativeFunding, sweep model 2, treasury model 2, merchant withdrawal model 2 и custody loss model 2. CryptoPayment custody не владеет: он распределяет receipt своего перевода (§8). Схема 86 добавляет отдельный fee effect/proof/binding для новых fee reservations model 2; legacy model 1 не принимается автоматически. Исторические движения не принимаются автоматически. Migration 77 создаёт только индекс проверенных identity/occurrence/evidence. Наличие строки в нём не означает приём денег, актуальную canonicality, merchant ownership или разрешение подписи.
 
 P3 должен согласовать порядок locks остальных outbound/settlement writers до их включения в registry. Проверки схемы 80 доказывают, что ожидающий AML scope proof/incoming path не удерживает wallet/balance/effect; это не завершение перехода всех writers. JIT порядок схемы 81 приведён в §9, sweep схемы 82 — в §10.
 
@@ -72,24 +72,27 @@ P3 должен согласовать порядок locks остальных o
 - Конкурентный replay, новый block occurrence без второго logical effect, conflict payload/alias, ограничения прямого SQL.
 - Legacy proof без identity не получает выдуманный ordinal при replay; для его admission потребуется проверяемый backfill.
 
-## 6. Receipt/suspense схемы 78
+## 6. Receipt и невыясненные
 
-[ReceiptIntakeService](../../internal/application/cryptoapp/receipt_intake_service.go) и [ReceiptIntakeRepo](../../internal/infrastructure/storage/postgres/crypto_repo/receipt_intake.go) атомарно создают документ, physical receipt, равный ему suspense, posting ownership, recognition, audit и один generic posted outbox. При повторе occurrence возвращается прежний документ; изменение wallet/token/amount/reason даёт conflict. Другая occurrence того же logical effect не открывает второе признание. Максимум одна principal сторона каждого направления запрещает удвоение через catalog aliases.
+[ReceiptIntakeService](../../internal/application/cryptoapp/receipt_intake_service.go) и [ReceiptIntakeRepo](../../internal/infrastructure/storage/postgres/crypto_repo/receipt_intake.go) атомарно создают документ, physical receipt, равный ему suspense, posting ownership, recognition, audit и один `posted` outbox. Повтор occurrence или другая occurrence того же logical effect (re-inclusion) возвращает прежний receipt; изменение wallet/token/amount/reason даёт conflict. Документ нельзя редактировать, перепроводить или распроводить.
 
-SQL deferred constraints отклоняют неполные наборы и движения без receipt, а append-only guards запрещают изменение фактов. Документ нельзя редактировать, перепроводить или распроводить. Suspense source/visitor/recorder подключён в server и worker; он не участвует в reversal чужих документов.
+Кто создаёт receipt:
 
-Граница текущего этапа:
+- worker `runReceiptIntakeLoop` — финальный несопоставленный перевод поддерживаемого актива на управляемый кошелёк (причины `no_allocation`, `wrong_token`, `dust` и т. д.; без счёта — через 30 минут ожидания позднего сопоставления);
+- обработчик событий в момент финальности сопоставленного перевода — причина `matched_receipt`, в той же транзакции платёж распределяет receipt (§8).
 
-- Только отключённая network policy без открытых fee reservations и signing authorizations с неизвестным исходом. Исторический `broadcast` с final chain settlement не считается незавершённым.
-- Нет HTTP/CLI, generic CRUD или автоматического вызова watcher. CryptoPayment v1 сохраняет физические movements; схема 80 связывает их с registry.
-- Managed sender, legacy payment/funding/operating-receipt overlap и история wallet/token без связей recognition требуют отдельного adoption workflow.
-- Receipt не начисляет merchant net, processing fee, provider balance или platform cost.
-- После receipt сеть нельзя включить, а legacy receipt/expense по этому wallet/token нельзя провести до availability/reorg/cutover. Запрет основан на документе, а не на изменяемой balance projection.
-- Generation 1 не имеет автоматической reorg-компенсации. Новая occurrence требует расследования; финансово использованную схему нельзя откатить Down.
+Аудит каноничности (`reg_crypto_custody_receipt_audits`, worker `runReceiptAuditLoop`, каждые 15 минут) — единственная проверка отсутствия учтённого перевода; отдельного аудита платежей нет. Доказанное отсутствие в одной транзакции:
 
-Интеграционные тесты проверяют concurrent replay, два разных effects одной tx, re-inclusion без повторного прихода, атомарный rollback при сбое outbox и при пропущенных audit/suspense, гонку с legacy writer, superseded proof, disabled/drained admission и сохранение старого inventory при upgrade.
+1. сторнирует распределение каждого проведённого платежа этого receipt через обработчик событий (`FinancialReorgRepo`, hold `posted_payment_reorg`);
+2. помечает receipt `orphaned`, открывает инцидент `deep_reorg`, ставит hold на сеть и кошелёк.
 
-Следующие зависимости: общий registry всех writers, compensation generations, активный intake/attribution, AML ownership/availability и согласованный cutover из [плана](../howto/crypto-inbound-provider-accounting-plan.md).
+Если платёж сторнировать нельзя, откатывается всё, и аудит повторяет попытку. После orphan receipt нельзя распределить (SQL-guard). Перевод, повторно включённый в другой блок, переякоривает аудит на доказательство нового блока (`anchor_verification_id`): иначе аудит сообщил бы об отсутствии в старом блоке. Якорь может указывать только на каноническое доказательство той же транзакции.
+
+Ручное зачисление ([MerchantCreditService](../../internal/application/cryptoapp/merchant_credit_service.go), документ `CryptoMerchantCredit`) списывает весь остаток невыясненных по тарифу мерчанта на момент подготовки. Оно запрещено для receipt в состоянии orphan и для receipt, чей платёж не проведён после reorg (состояние журнала `payment_reorged`): при повторном включении перевода платёж распределит его снова. Оба запрета продублированы в `fn_crypto_merchant_credit_guard`.
+
+Receipt не начисляет merchant net, processing fee, provider balance или platform cost. Невыясненные привязаны к receipt, а не к кошельку, поэтому свип и вывод их не расходуют (P5).
+
+Карточка receipt — `GET /crypto/unidentified-receipts/:id`: доказательство (текущий якорь аудита, источники), состояние аудита, остаток и документы распределения с суммой, которую каждый удерживает после сторно.
 
 ## 7. Funding CLI схемы 79
 
@@ -105,19 +108,23 @@ SQL защищает от funding/payment пересечения в обоих �
 
 Проверки: конкурентный replay, разные effects одной tx, funding/receipt race, payment-before-funding и funding-before-payment, ожидающий payment INSERT, managed sender/merchant owner, orphan/re-inclusion, outbox fault injection, manual correction/projection mismatch, сохранение истории при 78 → 79 и полный EVM путь через два локальных RPC-источника.
 
-## 8. CryptoPayment v1 схемы 80
+## 8. CryptoPayment как распределение receipt
 
-[PaymentRecognitionService](../../internal/application/cryptoapp/payment_recognition_service.go) включён в posting engines server и worker. Для indexed/bound payment strict persisted proof обязателен независимо от ingestion activation. Preparation hook резервирует physical line ID и сохраняет claim, recognition, frozen economic snapshot/attestation и один `CryptoPayment.custody_recognized` outbox в той же транзакции. Deferred constraints требуют точный gross/net/fee набор; отсутствие компонента или outbox откатывает всё. Managed sender требует своего settlement owner.
+В момент финальности сопоставленного перевода обработчик событий учитывает receipt перевода (`RecordPaymentReceipt`, причина `matched_receipt`), а платёж в том же коммите получает `receipt_id` и проводит движения распределения: невыясненные −gross, мерчант +net, комиссия +fee по снимку тарифа. Движений по кошельку у платежа нет (SQL-guard «never moves custody»). Полноту набора на коммите проверяет отложенный инвариант `fn_crypto_assert_payment_attribution`; превышение остатка receipt отклоняет `CHECK(amount>=0)` баланса невыясненных. Снимок тарифа и gross после проведения заморожены (`trg_crypto_payment_frozen_basis`).
 
-`reg_crypto_payment_custody_bindings` фиксирует invoice/merchant/wallet/token, дату, gross/net/fee, тариф и mode/actor/reference. Изменение этих полей, удаление и пометка удаления признанного payment запрещены SQL. Fee выше gross отклоняется. Метаданные подтверждения обновляются по прежнему workflow. Изменение block occurrence допустимо после компенсации, с новым posting version и доказанным сохранением logical identity/economics.
+Reorg проведённого платежа:
 
-Поколение 2+ имеет predecessor того же payment/effect и следующую posted version. Все исходные custody, merchant net и processing fee строки предшественника должны быть полностью компенсированы точными противоположными dimensions. Частичное сторно, reversal-of-reversal или смена тарифа не разрешают новый приход. Unpost также требует полной компенсации. Receipt/funding остаются generation 1.
+- доказательство отсутствия — независимое (`AuthorizeReorg`); источник — наблюдение watcher (chain observation) или аудит receipt (§6);
+- `FinancialReorgRepo` сторнирует merchant, fee и списание невыясненных этого posting generation (сумма возвращается на receipt), открывает инцидент `posted_payment_reorg` и hold сети;
+- платёж переходит в `reorged`, распроводится, но сохраняет `receipt_id`.
 
-Внутренний `Adopt` принимает только текущий posted canonical legacy payment на disabled/drained сети, независимый indexed proof, actor и reference. Он связывает исходную physical line без новых финансовых movements, изменения документа или старых proof bytes. Concurrent одинаковый replay возвращает одну запись; изменение attestation даёт conflict. Online posting требует строки, созданной в текущей DB-транзакции, поэтому им нельзя замаскировать adoption. Исторические закрытые/неоднозначные поколения, funding adoption и массовый manifest остаются P12; публичной команды adoption пока нет. Unindexed legacy путь сохранён.
+Повторное включение того же перевода реактивирует тот же платёж, находит исходный receipt по логическому эффекту, переякоривает его аудит и проводит следующее posting generation. Предыдущее поколение должно быть полностью сторнировано.
 
-Reorg indexed/bound payment требует независимого orphan proof даже при выключенном ingestion cutover. Для текущего posted generation сохраняются security incident и network hold с owner `payment_recognition`, owner ID `paymentId:postedVersion`, reason `posted_payment_reorg`. Финансовый набор сохраняется; автоматического снятия hold или recovery/compensation job в этом этапе нет. Повторное включение допускается только после явной полной компенсации и проверки того же owner/snapshot; автоматическая маршрутизация re-inclusion ещё требует P4.
+Ручная корректировка `payment_reversal` возвращает распределение в невыясненные (регистры suspense/merchant/fee, основание `payment_attribution`); платёж остаётся проведённым, поэтому такой остаток можно зачислить вручную.
 
-Проверки: точный трёхчастный набор и rollback пропущенных components/outbox, неизменяемый basis, полное/частичное сторно, перепроведение без переоценки, явная компенсация и re-inclusion с новым EVM log index, строгие reversal dimensions, concurrent adoption 79 → 80 без денег, запрет online adoption и Down после использования, legacy metadata и proof/hold до cutover, конкурентный scope lock order.
+Удалены: `PaymentRecognitionService`, `reg_crypto_payment_custody_bindings`, поколения custody-признания платежа, явный adoption и отдельный аудит каноничности платежей (`runCanonicalityAuditLoop`, столбцы `*_canonicality_*` у `doc_crypto_payments`).
+
+Проверки: [payment_attribution_integration_test.go](../../internal/infrastructure/storage/postgres/crypto_repo/payment_attribution_integration_test.go), [receipt_reorg_attribution_integration_test.go](../../internal/infrastructure/storage/postgres/crypto_repo/receipt_reorg_attribution_integration_test.go) и сквозной [payment_reorg_e2e_integration_test.go](../../internal/infrastructure/crypto_worker/payment_reorg_e2e_integration_test.go): watcher → платёж → receipt и зачисление → reorg → сторно → повторное включение; orphan от аудита receipt сторнирует платёж в одной транзакции.
 
 ## 9. JIT native funding схемы 81
 
@@ -258,18 +265,16 @@ ORDER BY r.requested_at;
 `delivered_at` означает передачу исходному poller, а не завершённый financial settlement. Не следует удалять request/route или снимать signing/financial holds ради пустой очереди. История не backfill-ится автоматически; после первого request/route Down закрыт.
 
 
-## 16. Основание ручных корректировок схемы 88
+## 16. Основание ручных корректировок
 
-[00088](../../db/migrations/00077_crypto_custody_accounting.sql) и [FinancialAdjustmentRepo](../../internal/infrastructure/storage/postgres/crypto_repo/financial_adjustment.go) отделяют компенсацию source generation от признания нового chain principal. Новые proposals имеют model 2; basis устанавливается сервером из текущего settled/posted payment и его immutable custody binding. `payment_compensation` фиксирует source_posting_id; `legacy_payment` разрешён только без recognition и indexed proof, иначе требуется explicit adoption. Самостоятельный `wallet_balance` имеет basis `wallet_variance` и никогда не получает source posting из evidence, tx hash либо verification ID.
+[FinancialAdjustmentRepo](../../internal/infrastructure/storage/postgres/crypto_repo/financial_adjustment.go) различает два основания:
 
-Source selections фиксируются в proposal transaction; после коммита добавление строк запрещено даже до решения. Утверждение проверяет поколение заново. Source document advisory lock → enabled custody scope → wallet → payment row → adjustment row применяется и к proposal, и к decision. Original source cap сериализует частичные компенсации. Maker/checker и direct step-up сохраняются; replay сверяет payload и maker.
+- `payment_attribution` (режим `payment_reversal`) — сторно распределения текущего settled/posted поколения платежа: выбранные строки merchant и fee получают противоположные движения, а сумма возвращается в невыясненные receipt. Custody не меняется, платёж остаётся проведённым, остаток можно зачислить вручную (§6).
+- `wallet_variance` (режим `wallet_balance`) — расхождение кошелька: одна custody-строка и соответствующая строка variance. Основание никогда не берётся из evidence, tx hash или verification ID и не доказывает отсутствие дубля.
 
-DB deferred guards требуют ровно выбранные opposite reversals с теми же dimensions/суммами, либо единственную custody line и соответствующую variance line. Missing/extra financial components, wrong recorder, проводки до решения и неверный accounting outbox откатываются. Новые `financial_correction_posted` events содержат basisKind, sourcePostingId, postedVersion и accountingModelVersion. Generic CryptoAdjustment не может стать owner в shared chain registry, включая попытку сменить recorder_type при том же document ID. Частичная/полная компенсация оставляет исходный chain owner и generation audit; никакого повторного incoming principal нет.
+Выбор строк фиксируется в транзакции предложения; утверждение заново проверяет поколение платежа. Порядок блокировок: advisory lock документа-основания → custody scope → кошелёк → платёж → корректировка. Maker/checker и step-up обязательны; повтор сверяет payload и автора.
 
-Старые posted/rejected/pending документы остаются model 1 без изменений исходных строк, evidence, дат, решений и сумм. Pending model 1 разрешён к drain; автоматического adoption нет. Up/Down/Up разрешён до первого model 2 proposal; затем нужен forward recovery. API/карточка показывают основание. Проверки включают partial/repeated/concurrent decisions, stale generation, indexed legacy adoption, доказанный полный набор и отдельные omissions, SQL spoofing, proposal freeze и upgrade 87→88 с неизменной financial history.
-
-Границы: это компенсация старого CryptoPayment v1 (gross/net/fee), а не новая attribution через suspense. Свободная variance не доказывает отсутствие дубля: положительная ручная correction по-прежнему требует review/adoption при funding admission. Исправление пропущенного effect должно пройти отдельный verified receipt/funding workflow; historical matching ручных начислений остаётся P12. Общий lock-order audit и ON CONFLICT audit остальных writers ещё открыты.
-
+Отложенные SQL-guards требуют ровно выбранные противоположные движения с теми же измерениями и суммами. Generic CryptoAdjustment не может стать владельцем эффекта в общем реестре признания и не создаёт нового входящего principal. Пропущенный приход исправляется через receipt, а не корректировкой.
 
 ## 17. Порядок ресурсов учёта схемы 89
 

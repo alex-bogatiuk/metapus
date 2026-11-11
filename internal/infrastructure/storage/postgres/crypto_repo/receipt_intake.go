@@ -91,4 +91,14 @@ func (r *ReceiptIntakeRepo) AppendIntakeAudit(ctx context.Context, doc *crypto_c
 	return err
 }
 
+func (r *ReceiptIntakeRepo) AnchorAudit(ctx context.Context, receiptID, verificationID id.ID) error {
+	if _, err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).Exec(ctx, `UPDATE reg_crypto_custody_receipt_audits
+		SET anchor_verification_id=$2 WHERE receipt_id=$1 AND status='canonical'
+		  AND COALESCE(anchor_verification_id,(SELECT verification_id FROM doc_crypto_custody_receipts WHERE id=$1))<>$2`,
+		receiptID, verificationID); err != nil {
+		return fmt.Errorf("anchor receipt canonicality audit: %w", err)
+	}
+	return nil
+}
+
 var _ cryptoapp.ReceiptIntakeRepository = (*ReceiptIntakeRepo)(nil)

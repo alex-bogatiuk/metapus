@@ -41,6 +41,67 @@ type UnidentifiedReceiptItem struct {
 	InvoiceID         string                     `json:"invoiceId"`
 	PendingError      string                     `json:"pendingError"`
 	Credit            *UnidentifiedReceiptCredit `json:"credit"`
+	// PaymentID is the invoice payment of a matched receipt. While that payment
+	// is unposted after a reorg the state is payment_reorged and no manual
+	// credit is possible.
+	PaymentID     string `json:"paymentId"`
+	PaymentNumber string `json:"paymentNumber"`
+	PaymentStatus string `json:"paymentStatus"`
+}
+
+type CustodyReceiptProofSource struct {
+	ProviderID string `json:"providerId"`
+	TrustGroup string `json:"trustGroup"`
+	HeadHeight int64  `json:"headHeight"`
+}
+
+// CustodyReceiptProof is the canonical proof the receipt audit rests on.
+// Original is false after a re-included transfer moved the audit to a new block.
+type CustodyReceiptProof struct {
+	VerificationID string                      `json:"verificationId"`
+	Original       bool                        `json:"original"`
+	TxHash         string                      `json:"txHash"`
+	EventKind      string                      `json:"eventKind"`
+	EventIndex     int64                       `json:"eventIndex"`
+	BlockNumber    int64                       `json:"blockNumber"`
+	BlockHash      string                      `json:"blockHash"`
+	Confirmations  int64                       `json:"confirmations"`
+	VerifiedAt     time.Time                   `json:"verifiedAt"`
+	Sources        []CustodyReceiptProofSource `json:"sources"`
+}
+
+type CustodyReceiptAudit struct {
+	Status        string     `json:"status"`
+	LastCheckedAt *time.Time `json:"lastCheckedAt"`
+	NextCheckAt   time.Time  `json:"nextCheckAt"`
+	Attempts      int        `json:"attempts"`
+	LastError     string     `json:"lastError"`
+	OrphanedAt    *time.Time `json:"orphanedAt"`
+	IncidentID    string     `json:"incidentId"`
+}
+
+// CustodyReceiptAttribution is a payment or merchant credit of the receipt.
+// Outstanding is what it still holds after reorg and reversal compensations.
+type CustodyReceiptAttribution struct {
+	DocumentType  string    `json:"documentType"`
+	DocumentID    string    `json:"documentId"`
+	Number        string    `json:"number"`
+	Date          time.Time `json:"date"`
+	Status        string    `json:"status"`
+	Posted        bool      `json:"posted"`
+	MerchantID    string    `json:"merchantId"`
+	MerchantName  string    `json:"merchantName"`
+	Amount        string    `json:"amount"`
+	NetAmount     string    `json:"netAmount"`
+	ProcessingFee string    `json:"processingFee"`
+	Outstanding   string    `json:"outstanding"`
+}
+
+type CustodyReceiptDetailResponse struct {
+	Receipt      UnidentifiedReceiptItem     `json:"receipt"`
+	Proof        CustodyReceiptProof         `json:"proof"`
+	Audit        CustodyReceiptAudit         `json:"audit"`
+	Attributions []CustodyReceiptAttribution `json:"attributions"`
 }
 
 type UnidentifiedReceiptListResponse struct {

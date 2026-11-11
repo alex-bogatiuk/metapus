@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 )
@@ -58,6 +60,40 @@ func (r *receiptIntake) auditCanonicality(ctx context.Context, drivers *crypto.C
 	return orphaned, nil
 }
 
+// orphan compensates the posted payments that attribute the receipt and marks
+// the receipt orphaned in one transaction: the merchant never keeps a credit
+// for a transfer the audit proved absent, and a failure retries both.
+func (r *receiptIntake) orphan(ctx context.Context, task crypto_repo.ReceiptAuditTask, proofID id.ID, event crypto.BlockchainEvent) error {
+	payments, err := r.audits.AttributingPayments(ctx, task.ReceiptID)
+	if err != nil {
+		return err
+	}
+	for _, paymentID := range payments {
+		if r.paymentReorg == nil {
+			return fmt.Errorf("orphaned receipt %s is attributed by posted payment %s without a payment reorg handler", task.ReceiptID, paymentID)
+		}
+		if err := r.paymentReorg(ctx, paymentID, task, event); err != nil {
+			return fmt.Errorf("compensate payment %s of orphaned receipt: %w", paymentID, err)
+		}
+	}
+	return r.audits.MarkOrphaned(ctx, task, proofID)
+}
+
+// reorgReceiptPayment routes the receipt absence proof to the payment through
+// the event processor, which compensates its attribution and holds the network.
+func (p *CryptoProcessor) reorgReceiptPayment(ctx context.Context, paymentID id.ID, task crypto_repo.ReceiptAuditTask, event crypto.BlockchainEvent) error {
+	payment, err := p.paymentRepo.GetByID(ctx, paymentID)
+	if err != nil {
+		return err
+	}
+	if payment.NetworkID != task.NetworkID || !strings.EqualFold(payment.TxHash, task.TxHash) ||
+		payment.EventKind != task.EventKind || payment.EventIndex != task.EventIndex ||
+		!strings.EqualFold(payment.BlockHash, task.BlockHash) {
+		return fmt.Errorf("payment %s is not anchored to the audited receipt transfer", paymentID)
+	}
+	return p.eventProcessor.ProcessEvent(ctx, event)
+}
+
 func (r *receiptIntake) auditReceipt(ctx context.Context, drivers *crypto.ChainDriverRegistry, task crypto_repo.ReceiptAuditTask) (bool, error) {
 	driver, err := drivers.Resolve(task.NetworkID)
 	if err != nil {
@@ -83,7 +119,11 @@ func (r *receiptIntake) auditReceipt(ctx context.Context, drivers *crypto.ChainD
 		if err != nil {
 			return false, err
 		}
-		if err := r.audits.MarkOrphaned(ctx, task, proofID); err != nil {
+		event := proof.Event
+		event.VerificationID, event.EventType = &proofID, crypto.EventTypeReorg
+		if err := (contextTxManager{}).RunInTransaction(ctx, func(txCtx context.Context) error {
+			return r.orphan(txCtx, task, proofID, event)
+		}); err != nil {
 			return false, err
 		}
 		return true, nil

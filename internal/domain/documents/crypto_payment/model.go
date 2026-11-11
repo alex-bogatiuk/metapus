@@ -110,10 +110,6 @@ type CryptoPayment struct {
 	NextConfirmationCheckAt    time.Time  `db:"next_confirmation_check_at" json:"-" meta:"label:Next confirmation check"`
 	ConfirmationCheckAttempts  int        `db:"confirmation_check_attempts" json:"-" meta:"label:Confirmation attempts"`
 	LastConfirmationCheckedAt  *time.Time `db:"last_confirmation_checked_at" json:"-" meta:"label:Last confirmation check"`
-	NextCanonicalityCheckAt    time.Time  `db:"next_canonicality_check_at" json:"-"`
-	LastCanonicalityCheckedAt  *time.Time `db:"last_canonicality_checked_at" json:"-"`
-	CanonicalityCheckAttempts  int        `db:"canonicality_check_attempts" json:"-"`
-	CanonicalityLastError      string     `db:"canonicality_last_error" json:"-"`
 }
 
 // NewCryptoPayment creates a new CryptoPayment in Detected state.
@@ -150,7 +146,6 @@ func NewCryptoPayment(
 		Status:                  PaymentStatusDetected,
 		DetectedAt:              detectedAt,
 		NextConfirmationCheckAt: detectedAt,
-		NextCanonicalityCheckAt: detectedAt,
 	}
 }
 

@@ -215,12 +215,6 @@ func (r *memPaymentRepo) ClaimForConfirmation(_ context.Context, _ []crypto_paym
 func (r *memPaymentRepo) ReleaseConfirmationClaim(_ context.Context, _ id.ID, _ string) error {
 	return nil
 }
-func (r *memPaymentRepo) ClaimForCanonicalityAudit(_ context.Context, _ string, _ int, _ time.Duration) ([]*crypto_payment.CryptoPayment, error) {
-	return nil, nil
-}
-func (r *memPaymentRepo) ReleaseCanonicalityAuditClaim(_ context.Context, _ id.ID, _ string, _ error) error {
-	return nil
-}
 func (r *memPaymentRepo) GetByIDForUpdate(_ context.Context, docID id.ID) (*crypto_payment.CryptoPayment, error) {
 	// In-memory: no locking needed, just delegate to GetByID.
 	p, ok := r.payments[docID]

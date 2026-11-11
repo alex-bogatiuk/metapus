@@ -468,6 +468,17 @@ const IntegrationPoolForm = React.lazy(() => import("@/components/integrations/p
 const RateSourceForm = React.lazy(() => import("@/components/exchange-rates/rate-source-form"))
 const CryptoProviderAccountForm = React.lazy(() => import("@/components/catalogs/crypto-provider-account-form"))
 const CryptoSweepCard = React.lazy(() => import("@/components/documents/crypto-sweep-card"))
+const CustodyReceiptCard = React.lazy(() => import("@/components/documents/crypto-custody-receipt-card"))
+
+// A custody receipt is a system-owned fact without a metadata-driven list or
+// form; payments and the receipt journal link to its read-only card.
+entityRegistry.registerDocument({
+    entityType: "document",
+    entityName: "CryptoCustodyReceipt",
+    routePrefix: "crypto-custody-receipt",
+    entityKey: "crypto_custody_receipt",
+    formComponent: CustodyReceiptCard,
+})
 let registeredCount = 0
 const discovered: EntityUIRegistration[] = []
 onScopeReset(() => {

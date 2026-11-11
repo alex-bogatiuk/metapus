@@ -8,6 +8,7 @@ import (
 
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/entity"
+	"metapus/internal/core/id"
 	"metapus/internal/core/numerator"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_custody_receipt"
@@ -32,7 +33,12 @@ type receiptIntake struct {
 	proofs  *crypto_repo.BlockIngestionRepo
 	audits  *crypto_repo.ReceiptAuditRepo
 	service *cryptoapp.ReceiptIntakeService
+	// paymentReorg compensates a posted invoice payment of an orphaned
+	// receipt inside the audit transaction.
+	paymentReorg receiptPaymentReorg
 }
+
+type receiptPaymentReorg func(ctx context.Context, paymentID id.ID, task crypto_repo.ReceiptAuditTask, event crypto.BlockchainEvent) error
 
 func newReceiptIntake(engine *posting.Engine, numbers numerator.Generator) *receiptIntake {
 	return &receiptIntake{

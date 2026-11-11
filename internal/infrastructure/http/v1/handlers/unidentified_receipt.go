@@ -31,6 +31,7 @@ func NewUnidentifiedReceiptHandler(base *BaseHandler, journal *crypto_repo.Unide
 func (h *UnidentifiedReceiptHandler) RegisterRoutes(rg *gin.RouterGroup, stepUp gin.HandlerFunc) {
 	receipts := rg.Group("/crypto/unidentified-receipts")
 	receipts.GET("", middleware.RequirePermission("crypto_receipt:read"), h.List)
+	receipts.GET("/:id", middleware.RequirePermission("crypto_receipt:read"), h.Detail)
 	receipts.POST("/:id/credits", middleware.RequirePermission("crypto_receipt:credit"), stepUp, h.Prepare)
 	credits := rg.Group("/crypto/merchant-credits")
 	credits.POST("/:id/approve", middleware.RequirePermission("crypto_receipt:approve"), stepUp, h.Approve)
@@ -59,6 +60,48 @@ func (h *UnidentifiedReceiptHandler) List(c *gin.Context) {
 		response.Items = append(response.Items, unidentifiedReceiptItem(row))
 	}
 	c.JSON(http.StatusOK, response)
+}
+
+// Detail is the receipt card: proof, audit, remainder and the documents that
+// distributed the receipt.
+func (h *UnidentifiedReceiptHandler) Detail(c *gin.Context) {
+	receiptID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		h.base.Error(c, apperror.NewValidation("invalid receipt id"))
+		return
+	}
+	detail, err := h.journal.Detail(c.Request.Context(), receiptID)
+	if err != nil {
+		h.base.Error(c, err)
+		return
+	}
+	response := dto.CustodyReceiptDetailResponse{
+		Receipt: unidentifiedReceiptItem(detail.Row),
+		Proof: dto.CustodyReceiptProof{
+			VerificationID: detail.Proof.VerificationID, Original: detail.Proof.Original, TxHash: detail.Proof.TxHash,
+			EventKind: detail.Proof.EventKind, EventIndex: detail.Proof.EventIndex, BlockNumber: detail.Proof.BlockNumber,
+			BlockHash: detail.Proof.BlockHash, Confirmations: detail.Proof.Confirmations, VerifiedAt: detail.Proof.VerifiedAt,
+			Sources: make([]dto.CustodyReceiptProofSource, 0, len(detail.Proof.Sources)),
+		},
+		Audit: dto.CustodyReceiptAudit{
+			Status: detail.Audit.Status, LastCheckedAt: detail.Audit.LastCheckedAt, NextCheckAt: detail.Audit.NextCheckAt,
+			Attempts: detail.Audit.Attempts, LastError: detail.Audit.LastError, OrphanedAt: detail.Audit.OrphanedAt,
+			IncidentID: optionalText(detail.Audit.IncidentID),
+		},
+		Attributions: make([]dto.CustodyReceiptAttribution, 0, len(detail.Attributions)),
+	}
+	for _, source := range detail.Proof.Sources {
+		response.Proof.Sources = append(response.Proof.Sources, dto.CustodyReceiptProofSource{
+			ProviderID: source.ProviderID, TrustGroup: source.TrustGroup, HeadHeight: source.HeadHeight})
+	}
+	for _, a := range detail.Attributions {
+		response.Attributions = append(response.Attributions, dto.CustodyReceiptAttribution{
+			DocumentType: a.DocumentType, DocumentID: a.DocumentID, Number: a.Number, Date: a.Date, Status: a.Status,
+			Posted: a.Posted, MerchantID: a.MerchantID, MerchantName: a.MerchantName, Amount: a.Amount,
+			NetAmount: a.NetAmount, ProcessingFee: a.ProcessingFee, Outstanding: a.Outstanding,
+		})
+	}
+	h.base.OK(c, response)
 }
 
 func (h *UnidentifiedReceiptHandler) Prepare(c *gin.Context) {
@@ -140,6 +183,7 @@ func unidentifiedReceiptItem(row crypto_repo.UnidentifiedReceiptRow) dto.Unident
 		DecimalPlaces: row.DecimalPlaces, WalletID: row.WalletID, ToAddress: row.ToAddress, FromAddress: row.FromAddress,
 		TxHash: row.TxHash, Amount: row.Amount, Remainder: row.Remainder, Reason: row.Reason, State: row.State,
 		CustodyMerchantID: optionalText(row.CustodyMerchantID), InvoiceID: optionalText(row.InvoiceID), PendingError: row.PendingError,
+		PaymentID: optionalText(row.PaymentID), PaymentNumber: optionalText(row.PaymentNumber), PaymentStatus: optionalText(row.PaymentStatus),
 	}
 	if row.CreditID != nil {
 		item.Credit = &dto.UnidentifiedReceiptCredit{

@@ -24,9 +24,28 @@ type ReceiptRemainder struct {
 	CustodyMerchantID *id.ID
 	// Orphaned receipts stay on the books for investigation but cannot be attributed.
 	Orphaned bool
+	// PaymentReorged: the invoice payment of this receipt was compensated by a
+	// chain reorganization. Its re-included transfer attributes the receipt
+	// again, and the receipt audit orphans it if the transfer stays absent, so
+	// an operator credit would race the payment for the same money.
+	PaymentReorged bool
 }
 
-var errReceiptOrphaned = apperror.NewConflict("receipt transfer was orphaned by a chain reorganization; resolve its incident first")
+var (
+	errReceiptOrphaned       = apperror.NewConflict("receipt transfer was orphaned by a chain reorganization; resolve its incident first")
+	errReceiptPaymentReorged = apperror.NewConflict("invoice payment of this receipt was reversed by a chain reorganization; wait for its re-inclusion or the receipt audit")
+)
+
+// attributable rejects a remainder that only the chain may decide about.
+func (r ReceiptRemainder) attributable() error {
+	if r.Orphaned {
+		return errReceiptOrphaned
+	}
+	if r.PaymentReorged {
+		return errReceiptPaymentReorged
+	}
+	return nil
+}
 
 type MerchantCreditRepository interface {
 	LockReceiptRemainder(context.Context, id.ID) (ReceiptRemainder, error)
@@ -88,8 +107,8 @@ func (s *MerchantCreditService) Prepare(ctx context.Context, cmd PrepareMerchant
 		if err != nil {
 			return err
 		}
-		if remainder.Orphaned {
-			return errReceiptOrphaned
+		if err := remainder.attributable(); err != nil {
+			return err
 		}
 		if !remainder.Amount.IsPositive() {
 			return apperror.NewConflict("receipt has no unattributed remainder")
@@ -132,8 +151,8 @@ func (s *MerchantCreditService) Prepare(ctx context.Context, cmd PrepareMerchant
 
 func (s *MerchantCreditService) Approve(ctx context.Context, cmd DecideMerchantCreditCommand) (*crypto_merchant_credit.CryptoMerchantCredit, error) {
 	return s.decide(ctx, cmd, func(ctx context.Context, doc *crypto_merchant_credit.CryptoMerchantCredit, remainder ReceiptRemainder) error {
-		if remainder.Orphaned {
-			return errReceiptOrphaned
+		if err := remainder.attributable(); err != nil {
+			return err
 		}
 		return s.post(ctx, doc, cmd.Actor)
 	})

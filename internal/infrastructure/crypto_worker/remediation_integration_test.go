@@ -197,37 +197,6 @@ func TestRemediationConfirmationClaimReachesNewPayment(t *testing.T) {
 	})
 }
 
-func TestRemediationSettledPaymentCanonicalityAuditIsDueAndLeased(t *testing.T) {
-	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
-		q := txm.GetQuerier(ctx)
-		ids := []id.ID{id.New(), id.New(), id.New()}
-		for i, paymentID := range ids {
-			_, err := q.Exec(ctx, `INSERT INTO doc_crypto_payments
-				(id,invoice_id,merchant_id,network_id,token_id,wallet_id,tx_hash,amount,status,posted,posted_version,block_number,block_hash,next_canonicality_check_at)
-				VALUES($1,$2,$3,$4,$5,$6,$7,100,'settled',TRUE,1,100,'0xcanonical',NOW()-INTERVAL '1 day'+$8::INT*INTERVAL '1 second')`,
-				paymentID, id.New(), f.merchant, f.network, f.token, f.wallet, "audit-"+paymentID.String(), i)
-			require.NoError(t, err)
-		}
-		repo := document_repo.NewCryptoPaymentRepo()
-		claimed, err := repo.ClaimForCanonicalityAudit(ctx, "canonicality-worker", 2, time.Minute)
-		require.NoError(t, err)
-		require.Len(t, claimed, 2)
-		require.NoError(t, repo.ReleaseCanonicalityAuditClaim(ctx, claimed[0].ID, "canonicality-worker", nil))
-		require.NoError(t, repo.ReleaseCanonicalityAuditClaim(ctx, claimed[1].ID, "canonicality-worker", errors.New("rpc unavailable")))
-		var checked bool
-		require.NoError(t, q.QueryRow(ctx, `SELECT last_canonicality_checked_at IS NOT NULL
-			FROM doc_crypto_payments WHERE id=$1`, claimed[0].ID).Scan(&checked))
-		require.True(t, checked)
-		require.NoError(t, q.QueryRow(ctx, `SELECT last_canonicality_checked_at IS NOT NULL
-			FROM doc_crypto_payments WHERE id=$1`, claimed[1].ID).Scan(&checked))
-		require.False(t, checked)
-		next, err := repo.ClaimForCanonicalityAudit(ctx, "canonicality-worker", 2, time.Minute)
-		require.NoError(t, err)
-		require.Len(t, next, 1)
-		require.Equal(t, ids[2], next[0].ID)
-	})
-}
-
 func TestRemediationReconciliationPagesCoverEveryWallet(t *testing.T) {
 	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
 		q := txm.GetQuerier(ctx)

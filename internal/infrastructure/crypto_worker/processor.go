@@ -343,7 +343,7 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 		panic(fmt.Sprintf("failed to create money movement approval verifier: %v", err))
 	}
 
-	return &CryptoProcessor{
+	processor := &CryptoProcessor{
 		cfg:                  cfg,
 		log:                  log.WithComponent("crypto"),
 		walletRepo:           walletRepo,
@@ -374,6 +374,8 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 		addressWatchers:      make(map[id.ID][]crypto.ManagedWatcher),
 		networkConfirmations: make(map[id.ID]int),
 	}
+	receipts.paymentReorg = processor.reorgReceiptPayment
+	return processor
 }
 
 // Start begins crypto processing. Blocks until ctx is cancelled.
@@ -524,9 +526,6 @@ func (p *CryptoProcessor) Start(ctx context.Context) error {
 	// Start confirmation poll loop (re-checks detected/confirming payments)
 	consumerWg.Go(func() {
 		p.runConfirmationLoop(ctx)
-	})
-	consumerWg.Go(func() {
-		p.runCanonicalityAuditLoop(ctx)
 	})
 	// Account final unmatched incoming transfers as custody receipts.
 	consumerWg.Go(func() {

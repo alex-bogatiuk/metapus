@@ -13,35 +13,38 @@ import (
 
 // CryptoPaymentResponse is the response body for a crypto payment.
 type CryptoPaymentResponse struct {
-	RiskClass     string                `json:"riskClass"`
-	AML           aml.AssessmentDisplay `json:"aml"`
-	ID            string                `json:"id"`
-	Number        string                `json:"number"`
-	Date          string                `json:"date"`
-	InvoiceID     string                `json:"invoiceId"`
-	MerchantID    string                `json:"merchantId"`
-	TokenID       string                `json:"tokenId"`
-	WalletID      string                `json:"walletId"`
-	TxHash        string                `json:"txHash"`
-	FromAddress   string                `json:"fromAddress"`
-	Amount        string                `json:"amount"`
-	BlockNumber   int64                 `json:"blockNumber"`
-	Confirmations int                   `json:"confirmations"`
-	RequiredConfs int                   `json:"requiredConfs"`
-	Status        string                `json:"status"`
-	StatusName    string                `json:"statusName"`
-	FeeFixed      string                `json:"feeFixed"`
-	FeePercentBP  int                   `json:"feePercentBp"`
-	FeeMin        string                `json:"feeMin"`
-	FeeMax        string                `json:"feeMax"`
-	FeeAmount     string                `json:"feeAmount"` // calculated fee for display
-	NetAmount     string                `json:"netAmount"` // amount minus fee for display
-	DetectedAt    string                `json:"detectedAt"`
-	ConfirmedAt   *string               `json:"confirmedAt,omitempty"`
-	Posted        bool                  `json:"posted"`
-	PostedVersion int                   `json:"postedVersion"`
-	DeletionMark  bool                  `json:"deletionMark"`
-	Version       int                   `json:"version"`
+	RiskClass  string                `json:"riskClass"`
+	AML        aml.AssessmentDisplay `json:"aml"`
+	ID         string                `json:"id"`
+	Number     string                `json:"number"`
+	Date       string                `json:"date"`
+	InvoiceID  string                `json:"invoiceId"`
+	MerchantID string                `json:"merchantId"`
+	TokenID    string                `json:"tokenId"`
+	WalletID   string                `json:"walletId"`
+	TxHash     string                `json:"txHash"`
+	// ReceiptID is the custody receipt this payment attributes; empty until
+	// the payment is posted at finality.
+	ReceiptID     string  `json:"receiptId"`
+	FromAddress   string  `json:"fromAddress"`
+	Amount        string  `json:"amount"`
+	BlockNumber   int64   `json:"blockNumber"`
+	Confirmations int     `json:"confirmations"`
+	RequiredConfs int     `json:"requiredConfs"`
+	Status        string  `json:"status"`
+	StatusName    string  `json:"statusName"`
+	FeeFixed      string  `json:"feeFixed"`
+	FeePercentBP  int     `json:"feePercentBp"`
+	FeeMin        string  `json:"feeMin"`
+	FeeMax        string  `json:"feeMax"`
+	FeeAmount     string  `json:"feeAmount"` // calculated fee for display
+	NetAmount     string  `json:"netAmount"` // amount minus fee for display
+	DetectedAt    string  `json:"detectedAt"`
+	ConfirmedAt   *string `json:"confirmedAt,omitempty"`
+	Posted        bool    `json:"posted"`
+	PostedVersion int     `json:"postedVersion"`
+	DeletionMark  bool    `json:"deletionMark"`
+	Version       int     `json:"version"`
 
 	// Resolved references
 	Merchant *postgres.RefDisplay `json:"merchant,omitempty"`
@@ -81,6 +84,9 @@ func FromCryptoPayment(p *crypto_payment.CryptoPayment, refs ...postgres.Resolve
 		Version:       p.Version,
 	}
 
+	if p.ReceiptID != nil {
+		resp.ReceiptID = p.ReceiptID.String()
+	}
 	if p.ConfirmedAt != nil {
 		s := p.ConfirmedAt.Format(time.RFC3339)
 		resp.ConfirmedAt = &s

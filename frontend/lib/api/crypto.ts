@@ -7,6 +7,10 @@ export const cryptoApi = {
             apiFetch<import("@/types/generated/http-contracts").UnidentifiedReceiptListResponse>(
                 `/crypto/unidentified-receipts?state=${state}&includeDust=${includeDust}&limit=50&offset=${offset}`,
             ),
+        detail: (receiptId: string) =>
+            apiFetch<import("@/types/generated/http-contracts").CustodyReceiptDetailResponse>(
+                `/crypto/unidentified-receipts/${assertUuidPathParam(receiptId, "receiptId")}`,
+            ),
         prepareCredit: (receiptId: string, merchantId: string, key: string) =>
             apiFetch<import("@/types/generated/http-contracts").MerchantCreditResponse>(
                 `/crypto/unidentified-receipts/${assertUuidPathParam(receiptId, "receiptId")}/credits`,

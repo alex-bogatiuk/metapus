@@ -30,7 +30,8 @@ func TestDashboardReadModels(t *testing.T) {
 	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
 		q := txm.GetQuerier(ctx)
 		exec := func(sql string, args ...any) { _, err := q.Exec(ctx, sql, args...); require.NoError(t, err) }
-		for _, table := range []string{"cat_tokens", "cat_blockchain_networks", "cat_merchants", "cat_wallets", "cat_currencies", "doc_crypto_invoices", "doc_crypto_payments", "doc_withdrawal_requests", "reg_crypto_inbound_chain_events", "reg_crypto_external_outflows", "reg_crypto_fee_movements", "reg_crypto_merchant_balance_balances", "reg_crypto_balance_balances", "reg_crypto_reconciliation_checks"} {
+		for _, table := range []string{"cat_tokens", "cat_blockchain_networks", "cat_merchants", "cat_wallets", "cat_currencies", "doc_crypto_invoices", "doc_crypto_payments", "doc_withdrawal_requests", "reg_crypto_inbound_chain_events", "reg_crypto_external_outflows", "reg_crypto_fee_movements", "reg_crypto_merchant_balance_balances", "reg_crypto_balance_balances", "reg_crypto_reconciliation_checks",
+			"doc_crypto_custody_receipts", "reg_crypto_receipt_suspense_balances", "reg_crypto_custody_receipt_audits"} {
 			exec("CREATE TEMP TABLE " + table + " (LIKE public." + table + " INCLUDING DEFAULTS) ON COMMIT DROP")
 		}
 		for _, table := range []string{"cat_tokens", "cat_blockchain_networks", "cat_merchants", "cat_currencies"} {

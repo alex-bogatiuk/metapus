@@ -25,6 +25,7 @@ func Routes() []RouteContract {
 		routes = append(routes, RouteContract{Scope: scope, Method: method, Path: path, Request: request, Response: response})
 	}
 	add("api", "GET", "/crypto/unidentified-receipts", "", "UnidentifiedReceiptListResponse")
+	add("api", "GET", "/crypto/unidentified-receipts/:id", "", "CustodyReceiptDetailResponse")
 	add("api", "POST", "/crypto/unidentified-receipts/:id/credits", "PrepareMerchantCreditRequest", "MerchantCreditResponse")
 	add("api", "POST", "/crypto/merchant-credits/:id/approve", "DecideMerchantCreditRequest", "MerchantCreditResponse")
 	add("api", "POST", "/crypto/merchant-credits/:id/reject", "DecideMerchantCreditRequest", "MerchantCreditResponse")

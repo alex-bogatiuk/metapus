@@ -199,6 +199,16 @@ BEGIN
     IF TG_OP='DELETE' OR OLD.status='orphaned' OR NEW.receipt_id<>OLD.receipt_id THEN
         RAISE EXCEPTION 'receipt canonicality outcome is immutable' USING ERRCODE='23514';
     END IF;
+    -- The audit follows the transfer of its own receipt into a new block only
+    -- on a canonical proof of that same transaction.
+    IF NEW.anchor_verification_id IS DISTINCT FROM OLD.anchor_verification_id AND NOT EXISTS(
+        SELECT 1 FROM doc_crypto_custody_receipts d
+        JOIN reg_crypto_transfer_verifications original ON original.id=d.verification_id
+        JOIN reg_crypto_transfer_verifications anchor ON anchor.id=NEW.anchor_verification_id
+        WHERE d.id=NEW.receipt_id AND anchor.network_id=original.network_id AND anchor.tx_hash=original.tx_hash
+          AND anchor.evidence->'event'->>'canonicality'='canonical') THEN
+        RAISE EXCEPTION 'receipt audit anchor requires a canonical proof of its own transfer' USING ERRCODE='23514';
+    END IF;
     RETURN NEW;
 END;
 $$;
@@ -220,11 +230,19 @@ BEGIN
         IF NEW.status='posted' AND EXISTS(SELECT 1 FROM reg_crypto_custody_receipt_audits WHERE receipt_id=NEW.receipt_id AND status='orphaned') THEN
             RAISE EXCEPTION 'orphaned receipt cannot be attributed' USING ERRCODE='23514';
         END IF;
+        IF NEW.status='posted' AND EXISTS(SELECT 1 FROM doc_crypto_payments WHERE receipt_id=NEW.receipt_id AND NOT posted) THEN
+            RAISE EXCEPTION 'receipt of a reorged invoice payment cannot be credited manually' USING ERRCODE='23514';
+        END IF;
         RETURN NEW;
     END IF;
     SELECT * INTO r FROM doc_crypto_custody_receipts WHERE id=NEW.receipt_id;
     IF EXISTS(SELECT 1 FROM reg_crypto_custody_receipt_audits WHERE receipt_id=NEW.receipt_id AND status='orphaned') THEN
         RAISE EXCEPTION 'orphaned receipt cannot be attributed' USING ERRCODE='23514';
+    END IF;
+    -- A reorged payment keeps its receipt and attributes it again on
+    -- re-inclusion; the receipt audit orphans it if the transfer stays absent.
+    IF EXISTS(SELECT 1 FROM doc_crypto_payments WHERE receipt_id=NEW.receipt_id AND NOT posted) THEN
+        RAISE EXCEPTION 'receipt of a reorged invoice payment cannot be credited manually' USING ERRCODE='23514';
     END IF;
     IF NOT FOUND OR NOT r.posted OR r.token_id<>NEW.token_id
        OR (r.custody_merchant_id IS NOT NULL AND r.custody_merchant_id<>NEW.merchant_id)
@@ -3449,12 +3467,15 @@ ALTER TABLE reg_crypto_inbound_chain_events
 CREATE INDEX idx_crypto_inbound_receipt_candidates ON reg_crypto_inbound_chain_events(receipt_check_at NULLS FIRST,created_at,id)
     WHERE receipt_id IS NULL AND match_status IN ('unmatched','needs_review') AND wallet_id IS NOT NULL AND token_id IS NOT NULL AND _deleted_at IS NULL;
 
--- Operational canonicality audit of accounted receipts. An orphaned receipt is
--- never reversed automatically: it opens an incident, holds the network and can
--- no longer be attributed.
+-- Operational canonicality audit of accounted receipts: the single absence
+-- proof for every external receipt. An orphaned receipt opens an incident,
+-- holds the network and can no longer be attributed; the invoice payment that
+-- attributed it is compensated in the same transaction. A re-included transfer
+-- re-anchors the audit to the proof of its new block.
 CREATE TABLE reg_crypto_custody_receipt_audits (
     receipt_id UUID PRIMARY KEY REFERENCES doc_crypto_custody_receipts(id),
     status TEXT NOT NULL DEFAULT 'canonical' CHECK(status IN ('canonical','orphaned')),
+    anchor_verification_id UUID REFERENCES reg_crypto_transfer_verifications(id),
     next_check_at TIMESTAMPTZ NOT NULL DEFAULT NOW()+INTERVAL '15 minutes',
     last_checked_at TIMESTAMPTZ,
     attempts INT NOT NULL DEFAULT 0 CHECK(attempts>=0),
@@ -3573,8 +3594,15 @@ CREATE TABLE reg_crypto_receipt_suspense_balances (
 );
 
 -- An automatic invoice payment attributes the receipt of its own chain effect.
+-- Its canonicality is proven by the receipt audit, not by a payment audit.
 ALTER TABLE doc_crypto_payments ADD COLUMN receipt_id UUID REFERENCES doc_crypto_custody_receipts(id);
 CREATE INDEX idx_crypto_payments_receipt ON doc_crypto_payments(receipt_id) WHERE receipt_id IS NOT NULL;
+DROP INDEX idx_crypto_payments_canonicality_due;
+ALTER TABLE doc_crypto_payments
+    DROP COLUMN next_canonicality_check_at,
+    DROP COLUMN last_canonicality_checked_at,
+    DROP COLUMN canonicality_check_attempts,
+    DROP COLUMN canonicality_last_error;
 
 
 CREATE TABLE reg_crypto_receipt_intake_audit (
@@ -4400,6 +4428,14 @@ CREATE OR REPLACE VIEW crypto_aml_allocatable_payments AS
    AND credit.amount>=0 AND fees.amount>=0 AND credit.amount=credit.current_amount AND fees.amount=fees.current_amount AND credit.amount+fees.amount=p.amount
    AND (SELECT COUNT(*) FROM reg_crypto_balance_movements m WHERE m.recorder_id=p.id AND m.recorder_type='CryptoPayment' AND m.recorder_version=p.posted_version AND m.wallet_id=p.wallet_id AND m.token_id=p.token_id)=1;
 
+ALTER TABLE doc_crypto_payments
+    ADD COLUMN next_canonicality_check_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ADD COLUMN last_canonicality_checked_at TIMESTAMPTZ,
+    ADD COLUMN canonicality_check_attempts INT NOT NULL DEFAULT 0 CHECK (canonicality_check_attempts>=0),
+    ADD COLUMN canonicality_last_error TEXT NOT NULL DEFAULT '';
+CREATE INDEX idx_crypto_payments_canonicality_due
+    ON doc_crypto_payments(next_canonicality_check_at,id)
+    WHERE status='settled' AND posted=TRUE AND deletion_mark=FALSE;
 ALTER TABLE doc_crypto_payments DROP COLUMN receipt_id;DELETE FROM auth_role_permissions WHERE permission_id IN (SELECT id FROM auth_permissions WHERE resource='crypto_receipt');
 DELETE FROM auth_permissions WHERE resource='crypto_receipt';DROP TRIGGER trg_crypto_custody_receipt_audit_seed ON doc_crypto_custody_receipts;
 DROP TABLE reg_crypto_custody_receipt_audits;

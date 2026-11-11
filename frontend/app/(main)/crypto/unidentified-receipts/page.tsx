@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
+import Link from "next/link"
 import useSWR from "swr"
 import { toast } from "sonner"
 import { api, ApiError, idempotencyHeaders, shouldRetainMutationKey } from "@/lib/api"
@@ -17,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { ReferenceField } from "@/components/shared/reference-field"
 import type { MerchantCreditResponse, UnidentifiedReceiptItem } from "@/types/generated/http-contracts"
-import { receiptJournalStates, receiptReasons, receiptRowStates, type ReceiptJournalState } from "@/types/unidentified-receipt"
+import { receiptJournalStates, receiptReasons, receiptRowStateHints, receiptRowStates, type ReceiptJournalState } from "@/types/unidentified-receipt"
 
 type Dialogs =
   | { kind: "credit"; item: UnidentifiedReceiptItem; merchantId: string; merchantName: string }
@@ -123,7 +124,8 @@ export default function UnidentifiedReceiptsPage() {
               return <TableRow key={item.receiptId || item.inboxEventId}>
                 <TableCell>
                   <div>{formatDateTime(item.receivedAt)}</div>
-                  {item.number && <div className="text-xs text-muted-foreground">{item.number}</div>}
+                  {item.number && item.receiptId && <div><Link className="text-xs text-primary hover:underline"
+                    href={`/documents/crypto-custody-receipt/${item.receiptId}`}>{item.number}</Link></div>}
                 </TableCell>
                 <TableCell>
                   <div>{item.networkName}</div>
@@ -140,6 +142,9 @@ export default function UnidentifiedReceiptsPage() {
                 <TableCell>{item.reason === "dust" ? <Badge variant="outline">{receiptReasons.dust}</Badge> : receiptReasons[item.reason] ?? item.reason}</TableCell>
                 <TableCell>
                   <div>{receiptRowStates[item.state] ?? item.state}</div>
+                  {item.paymentId && <div><Link className="text-xs text-primary hover:underline" href={`/documents/crypto-payment/${item.paymentId}`}>
+                    Платёж {item.paymentNumber}</Link></div>}
+                  {receiptRowStateHints[item.state] && <div className="max-w-xs text-xs text-muted-foreground">{receiptRowStateHints[item.state]}</div>}
                   {credit && <div className="text-xs text-muted-foreground">
                     {credit.number} · {credit.merchantName} · {amount(item, credit.netAmount)} (комиссия {amount(item, credit.processingFee)})
                   </div>}

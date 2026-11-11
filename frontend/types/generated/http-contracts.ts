@@ -1173,6 +1173,7 @@ export type CryptoPaymentResponse = {
   "tokenId": string
   "walletId": string
   "txHash": string
+  "receiptId": string
   "fromAddress": string
   "amount": string
   "blockNumber": number
@@ -1800,6 +1801,57 @@ export type CustodyAdjustmentResponse = {
   "postedVersion": number
   "createdAt": string
   "decidedAt"?: string
+}
+
+export type CustodyReceiptAttribution = {
+  "documentType": string
+  "documentId": string
+  "number": string
+  "date": string
+  "status": string
+  "posted": boolean
+  "merchantId": string
+  "merchantName": string
+  "amount": string
+  "netAmount": string
+  "processingFee": string
+  "outstanding": string
+}
+
+export type CustodyReceiptAudit = {
+  "status": string
+  "lastCheckedAt": string | null
+  "nextCheckAt": string
+  "attempts": number
+  "lastError": string
+  "orphanedAt": string | null
+  "incidentId": string
+}
+
+export type CustodyReceiptDetailResponse = {
+  "receipt": UnidentifiedReceiptItem
+  "proof": CustodyReceiptProof
+  "audit": CustodyReceiptAudit
+  "attributions": Array<CustodyReceiptAttribution>
+}
+
+export type CustodyReceiptProof = {
+  "verificationId": string
+  "original": boolean
+  "txHash": string
+  "eventKind": string
+  "eventIndex": number
+  "blockNumber": number
+  "blockHash": string
+  "confirmations": number
+  "verifiedAt": string
+  "sources": Array<CustodyReceiptProofSource>
+}
+
+export type CustodyReceiptProofSource = {
+  "providerId": string
+  "trustGroup": string
+  "headHeight": number
 }
 
 export type DashboardAnalyticsAsset = {
@@ -4311,6 +4363,9 @@ export type UnidentifiedReceiptItem = {
   "invoiceId": string
   "pendingError": string
   "credit": UnidentifiedReceiptCredit | null
+  "paymentId": string
+  "paymentNumber": string
+  "paymentStatus": string
 }
 
 export type UnidentifiedReceiptListResponse = {

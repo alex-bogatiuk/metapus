@@ -2,7 +2,6 @@ package crypto_repo
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
+	"metapus/internal/core/json"
 	"metapus/internal/core/types"
 	"metapus/internal/domain"
 	"metapus/internal/domain/crypto"
@@ -64,7 +64,8 @@ func (*ReceiptAuditRepo) Claim(ctx context.Context, workerID string, limit int, 
 		UPDATE reg_crypto_custody_receipt_audits a
 		SET claimed_by=$1,lease_expires_at=NOW()+$3::BIGINT*INTERVAL '1 second'
 		FROM due JOIN doc_crypto_custody_receipts d ON d.id=due.receipt_id
-		JOIN reg_crypto_transfer_verifications v ON v.id=d.verification_id
+		JOIN reg_crypto_custody_receipt_audits anchor ON anchor.receipt_id=due.receipt_id
+		JOIN reg_crypto_transfer_verifications v ON v.id=COALESCE(anchor.anchor_verification_id,d.verification_id)
 		JOIN cat_blockchain_networks n ON n.id=d.network_id
 		WHERE a.receipt_id=due.receipt_id
 		RETURNING d.id AS receipt_id,d.network_id,d.wallet_id,d.token_id,d.amount,v.tx_hash,v.event_kind,v.event_index,
@@ -99,6 +100,21 @@ func (*ReceiptAuditRepo) Release(ctx context.Context, receiptID id.ID, workerID 
 		return fmt.Errorf("release receipt canonicality audit: %w", err)
 	}
 	return nil
+}
+
+// AttributingPayments returns the posted invoice payments that attribute the
+// receipt. An orphaned receipt compensates them in its own transaction.
+func (*ReceiptAuditRepo) AttributingPayments(ctx context.Context, receiptID id.ID) ([]id.ID, error) {
+	rows, err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).Query(ctx, `SELECT id FROM doc_crypto_payments
+		WHERE receipt_id=$1 AND posted ORDER BY id`, receiptID)
+	if err != nil {
+		return nil, fmt.Errorf("list receipt payments: %w", err)
+	}
+	payments, err := pgx.CollectRows(rows, pgx.RowTo[id.ID])
+	if err != nil {
+		return nil, fmt.Errorf("list receipt payments: %w", err)
+	}
+	return payments, nil
 }
 
 type receiptOrphanedEvent struct {
