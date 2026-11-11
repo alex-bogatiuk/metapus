@@ -85,13 +85,11 @@
 - *Риск:* низкий для кода; payload — контракт для пользовательских шаблонов.
 - *Проверка:* unit-тест payload и поиск по шаблонам в каждой tenant DB.
 
-**F4. Две реализации сопоставления ожидаемых chain effects** — legacy, crypto lifecycle — **подтверждено**.
-- *Место:* `crypto_repo/external_outflow.go:18-80` (`ExpectedChainEffectRepo`) и `crypto_repo/expected_transfer.go:26` (`ExpectedTransferRepo.MatchExpectedChainEffect`).
-- *Доказательства:* production (`crypto_worker/processor.go:249-251`) использует только `ExpectedTransferRepo`. Старый репозиторий держат два integration-теста: `external_outflow_integration_test.go:108`, `crypto_worker/external_outflow_busy_integration_test.go:38`. Таблица `reg_crypto_chain_effect_matches` по-прежнему пишется в `external_outflow_workflow.go:110`, так что удаляется только матчер, не данные.
-- *Влияние:* тесты проверяют путь, которого нет в production; правило сопоставления описано в двух местах.
-- *Изменение:* перевести оба теста на `ExpectedTransferRepo`, сохранив проверяемые свойства (повторная валидация payload при replay, разные effects в одной транзакции), затем удалить `ExpectedChainEffectRepo`.
-- *Риск:* средний — можно потерять покрытие свойства, которое проверяется только на старом пути.
-- *Проверка:* `go run ./cmd/integration-test`, отдельно `-run 'ExternalOutflow'` с `-race -count=5`.
+**F4. Две реализации сопоставления ожидаемых chain effects** — legacy, crypto lifecycle — **исправлено** в ветке `refactor/legacy-chain-effect-matcher`.
+- *Было:* production (`crypto_worker/processor.go:249-251`) использовал только `ExpectedTransferRepo`, а старый `ExpectedChainEffectRepo` держали тесты: `TestIntegrationOnlyExactExpectedEffectMakesOutboundKnown`, хелпер `newIntegrationExternalOutflowRecorder` и `TestExternalOutflowBusyDefersObservationWithoutExhaustingAttempts`.
+- *Разница семантики:* старый матчер «потреблял» ожидаемые эффекты по `ordinal` и запоминал `event_index` в `reg_crypto_chain_effect_matches`. Продакшен намеренно так не делает: при нескольких кандидатах все остаются в ожидании settlement, порядковый номер не угадывается (`TestExpectedTransferEconomicMatchingAndAmbiguity`). Поэтому проверка «второй одинаковый эффект достаётся своему `event_index`» описывала поведение, которого в продакшене нет, и не переносилась.
+- *Перенос свойств:* несовпадение суммы, источника, получателя, контракта, вида события, хэша и сети, а также неоднозначность уже проверялись на `ExpectedTransferRepo`. Добавлен случай «повтор той же цепочечной идентичности с другой суммой после успешной маршрутизации отклоняется». Хелпер и busy-тест переключены на `ExpectedTransferRepo`; в их сценариях ожидаемых эффектов нет, поэтому оба матчера дают `false`. Compile-time проверка `ExpectedChainEffectMatcher` перенесена на `ExpectedTransferRepo`.
+- *Сделано:* `ExpectedChainEffectRepo` (~80 строк SQL) и его тест удалены. Таблица `reg_crypto_chain_effect_matches` не тронута: в неё по-прежнему пишет `external_outflow_workflow.go`.
 
 **F5. Проверки вне `make check-all`** — инструменты — **подтверждено**.
 - *Доказательства:* не запускаются `npm run test:unit` (был красным до исправления F1), `sdk/go`, `sdk/typescript`, `sdk/python`, `vault-sign-plugins/{tron,evm}`. Красный unit-тест незаметно дожил до текущего commit.
@@ -157,7 +155,6 @@
 ```text
 F22 — до неё полный integration gate не может быть зелёным
 F3 требует сканирования шаблонов в tenant DB
-F4 ──► удаление ExpectedChainEffectRepo (после переноса двух integration-тестов)
 F9 — отдельный механический commit до любых массовых Go-правок
 F10 ──► решение о границах extension API (docs/systems/extension-api.md)
 ```
