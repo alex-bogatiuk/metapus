@@ -529,9 +529,6 @@ $$;
 CREATE FUNCTION fn_crypto_wallet_funding_admission() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     PERFORM fn_crypto_lock_receipt_balance(NEW.wallet_id,NEW.token_id);
-    IF NEW.occurrence_id IS NULL OR NEW.posting_id IS NULL OR NEW.verification_id IS NULL THEN
-        RAISE EXCEPTION 'wallet funding requires indexed custody recognition' USING ERRCODE='23514';
-    END IF;
     IF NOT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_postings p
         JOIN reg_crypto_accounting_effect_occurrences o ON o.id=p.occurrence_id
         JOIN reg_crypto_accounting_effects e ON e.id=p.effect_id
@@ -590,7 +587,6 @@ CREATE FUNCTION fn_crypto_assert_wallet_funding(target UUID) RETURNS VOID LANGUA
 DECLARE f reg_crypto_wallet_fundings;
 BEGIN
     SELECT * INTO STRICT f FROM reg_crypto_wallet_fundings WHERE id=target;
-    IF f.posting_id IS NULL THEN RETURN; END IF;
     PERFORM fn_crypto_assert_custody_posting(f.posting_id);
     IF (SELECT count(*) FROM reg_crypto_custody_effect_recognitions WHERE posting_id=f.posting_id)<>1
        OR NOT EXISTS(SELECT 1 FROM reg_crypto_custody_effect_recognitions r
@@ -623,8 +619,6 @@ BEGIN
         WHERE fn_crypto_wallet_funding_payment_conflict(d.network_id,d.wallet_id,d.token_id,d.tx_hash,d.event_kind,d.verification_id)
           AND d.network_id=f.network_id AND d.wallet_id=f.wallet_id
           AND regexp_replace(lower(d.tx_hash),'^0x','')=regexp_replace(lower(f.tx_hash),'^0x',''))
-       OR EXISTS(SELECT 1 FROM reg_crypto_wallet_fundings old WHERE old.id<>f.id AND old.posting_id IS NULL
-          AND old.network_id=f.network_id AND regexp_replace(lower(old.tx_hash),'^0x','')=regexp_replace(lower(f.tx_hash),'^0x',''))
        OR EXISTS(SELECT 1 FROM reg_crypto_aml_operating_receipts old WHERE old.network_id=f.network_id
           AND regexp_replace(lower(old.tx_hash),'^0x','')=regexp_replace(lower(f.tx_hash),'^0x','')) THEN
         RAISE EXCEPTION 'wallet funding overlaps another accounting owner of the transaction' USING ERRCODE='23514';
@@ -649,7 +643,7 @@ BEGIN
     IF TG_TABLE_NAME='reg_crypto_wallet_fundings' THEN
         PERFORM fn_crypto_assert_wallet_funding(NEW.id);
     ELSIF NEW.recorder_type='CryptoWalletFunding' THEN
-        IF NOT EXISTS(SELECT 1 FROM reg_crypto_wallet_fundings WHERE id=NEW.recorder_id AND posting_id IS NOT NULL) THEN
+        IF NOT EXISTS(SELECT 1 FROM reg_crypto_wallet_fundings WHERE id=NEW.recorder_id) THEN
             RAISE EXCEPTION 'funding principal requires its recognized receipt' USING ERRCODE='23514';
         END IF;
         PERFORM fn_crypto_assert_wallet_funding(NEW.recorder_id);
@@ -676,7 +670,7 @@ $$;
 
 CREATE FUNCTION fn_crypto_wallet_funding_no_attribution() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
-    IF NEW.recorder_type='CryptoWalletFunding' OR EXISTS(SELECT 1 FROM reg_crypto_wallet_fundings WHERE id=NEW.recorder_id AND posting_id IS NOT NULL) THEN
+    IF NEW.recorder_type='CryptoWalletFunding' OR EXISTS(SELECT 1 FROM reg_crypto_wallet_fundings WHERE id=NEW.recorder_id) THEN
         RAISE EXCEPTION 'wallet funding cannot create attributed financial movements' USING ERRCODE='23514';
     END IF;
     RETURN NEW;
@@ -3689,16 +3683,13 @@ CREATE TABLE reg_crypto_receipt_intake_audit (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Existing funding receipts remain historical. Admission of a new receipt must
--- claim an indexed effect; migration never fabricates identities or movements.
+-- Every funding receipt claims an indexed effect: its proof, occurrence and
+-- custody posting are mandatory.
 ALTER TABLE reg_crypto_wallet_fundings
-    ADD COLUMN occurrence_id UUID UNIQUE REFERENCES reg_crypto_accounting_effect_occurrences(id),
-    ADD COLUMN posting_id UUID UNIQUE REFERENCES reg_crypto_custody_effect_postings(id),
-    ADD CONSTRAINT ck_crypto_wallet_funding_recognition_pair CHECK((occurrence_id IS NULL)=(posting_id IS NULL)),
+    ADD COLUMN occurrence_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_accounting_effect_occurrences(id),
+    ADD COLUMN posting_id UUID NOT NULL UNIQUE REFERENCES reg_crypto_custody_effect_postings(id),
+    ALTER COLUMN verification_id SET NOT NULL,
     DROP CONSTRAINT uq_crypto_wallet_fundings_tx_hash;
-
-CREATE UNIQUE INDEX uq_crypto_wallet_fundings_legacy_tx
-    ON reg_crypto_wallet_fundings(network_id,tx_hash) WHERE posting_id IS NULL;
 
 CREATE INDEX idx_crypto_wallet_fundings_tx ON reg_crypto_wallet_fundings(network_id,tx_hash);
 
@@ -5034,7 +5025,7 @@ DROP FUNCTION fn_crypto_balance_posting_transaction();
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DO $$
 BEGIN
-    IF EXISTS(SELECT 1 FROM reg_crypto_wallet_fundings WHERE posting_id IS NOT NULL)
+    IF EXISTS(SELECT 1 FROM reg_crypto_wallet_fundings)
        OR EXISTS(SELECT 1 FROM reg_crypto_custody_effect_postings WHERE recorder_type='CryptoWalletFunding') THEN
         RAISE EXCEPTION 'recognized wallet funding requires forward migration';
     END IF;
@@ -5051,9 +5042,8 @@ DROP TRIGGER trg_no_funding_reg_crypto_fee_movements ON reg_crypto_fee_movements
 DROP TRIGGER trg_no_funding_reg_crypto_platform_cost_movements ON reg_crypto_platform_cost_movements;
 DROP TRIGGER trg_no_funding_reg_crypto_provider_balance_movements ON reg_crypto_provider_balance_movements;
 DROP TABLE reg_crypto_wallet_funding_audit;
-DROP INDEX uq_crypto_wallet_fundings_legacy_tx;
 DROP INDEX idx_crypto_wallet_fundings_tx;
-ALTER TABLE reg_crypto_wallet_fundings DROP CONSTRAINT ck_crypto_wallet_funding_recognition_pair,
+ALTER TABLE reg_crypto_wallet_fundings ALTER COLUMN verification_id DROP NOT NULL,
     DROP COLUMN posting_id, DROP COLUMN occurrence_id,
     ADD CONSTRAINT uq_crypto_wallet_fundings_tx_hash UNIQUE(tx_hash);
 DROP FUNCTION fn_crypto_wallet_funding_no_attribution();
