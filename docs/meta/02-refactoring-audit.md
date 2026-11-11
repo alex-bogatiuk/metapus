@@ -1,6 +1,6 @@
 # Ревизия кодовой базы и рефакторинг (2026-11-11)
 
-> **TL;DR:** Удалён подтверждённо мёртвый код (−1962 строки в 54 файлах), бизнес-поведение и контракты не менялись. Главные оставшиеся проблемы — неподключённая подсистема печати, неподключённый `SchemaCache` и проверки, не входящие в `make check-all`.
+> **TL;DR:** Удалён подтверждённо мёртвый код (−1962 строки в 54 файлах), бизнес-поведение и контракты не менялись. Печать инвойса (F1) подключена отдельной веткой. Главные оставшиеся проблемы — неподключённый `SchemaCache` и проверки, не входящие в `make check-all`.
 > **Тип:** Reference
 > **Аудитория:** Developer, AI-Agent
 > **Связанные:** [Навигатор](../ROUTER.md), [Стандарт](00-doc-standard.md), [Сверка документации](01-documentation-audit.md)
@@ -14,7 +14,7 @@
 | Базовый commit | `c84464b` (ветка `crypto-receipt-single-audit`, рабочее дерево чистое) |
 | Ветка с изменениями | `refactor/codebase-audit`, 4 commit поверх базы |
 | `make check-all` до | проходит: build, golangci-lint (0 issues), tsc, eslint, `go test -short -race ./...`, 443 HTTP-контракта, extensions |
-| `npm run test:unit` до | 1 падение (`tests/unit/auth-scope.spec.ts:55`), 6 не запущено, 120 пройдено. Причина — F1. В `make check-all` не входит |
+| `npm run test:unit` до | 1 падение (`tests/unit/auth-scope.spec.ts:55`), 6 не запущено, 120 пройдено. Причина — F1 (после исправления — 127/127). В `make check-all` не входит |
 | Интеграционные тесты | Полный `go run ./cmd/integration-test` (`-race`, свежая БД, Postgres 17) на ветке рефакторинга: 124 пакета `ok`, 1 падение — `TestShadowWorkerPausesReleasesLeaseAndResumesWithoutRestart` (F22). На базовом `c84464b` тот же тест на той же БД падает 3 из 3, на ветке — тоже 3 из 3 |
 | SDK и Vault-плагины до | `sdk/go`, `vault-sign-plugins/{tron,evm}`: vet и `-race` тесты проходят; TS SDK — 5/5; Python SDK — 6/6 (`unittest`). В `make check-all` не входят |
 
@@ -63,13 +63,12 @@
 
 ### P1 — корректность и вводящие в заблуждение подсистемы
 
-**F1. Печать документов не подключена** — архитектурный долг, незавершённый переход — **подтверждено**.
-- *Место:* `http/v1/handlers/print.go` (`NewDocumentPrintHandler`, `Print`, `ListPrintForms`), `http/v1/route_helpers.go:156,228,233`, `routes_documents.go:76-91`, `infrastructure/printing/*`, `cmd/pdf-renderer`, `deployments/pdf-renderer`, `frontend/components/shared/print-menu-button.tsx`, `frontend/hooks/usePrintForms.ts`.
-- *Доказательства:* `NewDocumentPrintHandler` не вызывается ни из одного main. Ни один document handler не реализует `DocumentPrintFormsListHandler`, поэтому `caps.PrintForms` всегда `false`, а `/:id/print` и `/print-forms` не регистрируются. Для `/print` нет HTTP-контракта; из-за этого падает `tests/unit/auth-scope.spec.ts:55` («No HTTP contract for api GET …/print»). `PrintMenuButton` нигде не смонтирован. При этом `routes_documents.go` на каждом старте разбирает шаблоны и передаёт `PDFRenderer`, а `docs/systems/printing-system.md` описывает подсистему как работающую.
-- *Влияние:* мёртвая подсистема (handler, HTML/DOCX-рендереры, шаблоны, сервис PDF, UI); красный unit-тест; документация расходится с кодом.
-- *Изменение (решение владельца):* (а) подключить — встроить `DocumentPrintHandler` в document factory для `crypto_invoice` (форма уже есть в `domain/printing/registry.go:49`), зарегистрировать контракты, смонтировать `PrintMenuButton`; или (б) удалить подсистему вместе с `cmd/pdf-renderer`, deployment, UI и обновить docs.
-- *Риск:* средний для (а) — новый публичный маршрут, нужна проверка RBAC (`:read`) и FLS в шаблоне; низкий для (б).
-- *Проверка:* `make test-http-contracts`, `auth-scope.spec.ts`, e2e печати (для (а)).
+**F1. Печать документов не подключена** — незавершённый переход — **исправлено** в ветке `feature/crypto-invoice-print`.
+- *Было:* `NewDocumentPrintHandler` не вызывался ни из одного main. `caps.PrintForms` всегда был `false`, поэтому маршруты `/:id/print` и `/print-forms` не регистрировались, у `/print` не было контракта, и из-за этого падал `tests/unit/auth-scope.spec.ts:55`. `PrintMenuButton` нигде не монтировался. Шаблон `crypto_invoice.gohtml` был заглушкой с одним заголовком, `BuildPrintData` не было ни для одного документа. Обобщённая FLS-проверка смотрела на `lines/unit_price` — табличную часть, которой у crypto-документов нет.
+- *Решение владельца:* сделать печать инвойса.
+- *Сделано:* у `crypto_invoice` capability `PrintForms` и методы `Print`/`ListPrintForms`. Форма строится из FLS-проекции документа; связанные сущности читаются через `readaccess` (RBAC, RLS, CEL, FLS); скрытое поле печатается как «скрыто», а не `0`. Суммы переводятся точно по `decimalPlaces` токена (`FormatCryptoUnits`); без масштаба печатаются сырые единицы. HTML и DOCX строятся из одной `PrintTable`. Кнопка печати появляется в `AutoForm` по `capabilities.printForms`. Ручной TS-тип `PrintFormSummary` заменён алиасом сгенерированного контракта. Описание — [printing-system.md](../systems/printing-system.md).
+- *Проверка:* unit-тесты построителя, проекции, отказа без шаблонов и точного форматирования; integration-тест на реальном авторизованном читателе; сверка gin-маршрутов с контрактами; `auth-scope.spec.ts` зелёный (frontend unit 127/127).
+- *Не проверено:* сквозной сценарий в запущенном приложении (браузер → server → pdf-renderer). Форма проверена рендером HTML на тестовых данных.
 
 **F2. `SchemaCache` не создаётся, кастомные поля не попадают в метаданные** — незавершённый переход — **подтверждено**.
 - *Место:* `infrastructure/cache/schema_cache.go`, `RouterConfig.SchemaCache` (`router.go:103`), `handlers/metadata.go:99`, `handlers/custom_field.go:16`.
@@ -96,10 +95,10 @@
 - *Проверка:* `go run ./cmd/integration-test`, отдельно `-run 'ExternalOutflow'` с `-race -count=5`.
 
 **F5. Проверки вне `make check-all`** — инструменты — **подтверждено**.
-- *Доказательства:* не запускаются `npm run test:unit` (уже красный, см. F1), `sdk/go`, `sdk/typescript`, `sdk/python`, `vault-sign-plugins/{tron,evm}`. Красный unit-тест незаметно дожил до текущего commit.
+- *Доказательства:* не запускаются `npm run test:unit` (был красным до исправления F1), `sdk/go`, `sdk/typescript`, `sdk/python`, `vault-sign-plugins/{tron,evm}`. Красный unit-тест незаметно дожил до текущего commit.
 - *Изменение:* цели `test-frontend-unit` и `test-modules` (цикл по `sdk/go` и двум плагинам; TS SDK через `node node_modules/typescript/bin/tsc` — `npm test` падает с `Permission denied` на `.bin/tsc`; Python — `python3 -m unittest tests.test_webhook tests.test_reference`). Подключить к `check-all` после решения F1.
 - *Риск:* низкий.
-- *Зависимость:* F1.
+- *Зависимость:* F1 закрыта, блокеров нет.
 
 **F22. Интеграционный тест TRON shadow worker падает детерминированно** — корректность проверок — **подтверждено**.
 - *Место:* `internal/infrastructure/blockchain/tron/shadow_control_integration_test.go:118`.
@@ -157,7 +156,6 @@
 ## 6. Зависимости backlog
 
 ```text
-F1 ──► F5 (unit-тесты попадут в check-all только после устранения красного теста)
 F22 — до неё полный integration gate не может быть зелёным
 F2, F3 независимы; F3 требует сканирования шаблонов в tenant DB
 F4 ──► удаление ExpectedChainEffectRepo (после переноса двух integration-тестов)
@@ -175,5 +173,5 @@ F10 ──► решение о границах extension API (docs/systems/ext
 ## Связанные документы
 
 - [01-documentation-audit.md](01-documentation-audit.md) — предыдущая сверка документации с кодом.
-- [../systems/printing-system.md](../systems/printing-system.md) — описание подсистемы печати (расходится с кодом, F1).
+- [../systems/printing-system.md](../systems/printing-system.md) — подсистема печати (F1).
 - [../systems/extension-api.md](../systems/extension-api.md) — границы API расширений (F10).
