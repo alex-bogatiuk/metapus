@@ -29,6 +29,7 @@ export const receiptRowStates: Record<string, string> = {
 }
 
 export const receiptRowStateHints: Record<string, string> = {
+  orphaned: "Перевод исчез из сети. Платёж по счёту и ручные зачисления сторнированы обратно в невыясненные; поступление разбирается по инциденту.",
   payment_reorged: "Платёж счёта сторнирован после отката блока. Вручную зачислить нельзя: при повторном включении перевода платёж распределит поступление снова, а если перевод не вернётся, аудит признает его откатом.",
 }
 
@@ -52,4 +53,5 @@ export const receiptAttributionStatuses: Record<string, string> = {
   prepared: "Ждёт подтверждения",
   posted: "Проведено",
   rejected: "Отклонено",
+  reversed: "Сторнировано (откат блока)",
 }

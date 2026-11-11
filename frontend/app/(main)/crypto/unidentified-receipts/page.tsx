@@ -149,6 +149,7 @@ export default function UnidentifiedReceiptsPage() {
                     {credit.number} · {credit.merchantName} · {amount(item, credit.netAmount)} (комиссия {amount(item, credit.processingFee)})
                   </div>}
                   {credit?.status === "rejected" && <div className="text-xs text-muted-foreground">Отклонено: {credit.decisionReason}</div>}
+                  {credit?.status === "reversed" && <div className="text-xs text-muted-foreground">Зачисление сторнировано: перевод исчез из сети</div>}
                   {item.pendingError && <div className="text-xs text-muted-foreground">{item.pendingError}</div>}
                 </TableCell>
                 <TableCell className="text-right">

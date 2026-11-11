@@ -140,16 +140,19 @@ END;
 $$;
 
 -- The receipt adds its gross once; attributions (manual credits and payments)
--- consume it, and a payment compensation returns its consumption.
+-- consume it. A payment compensation and the storno of a manual credit at
+-- receipt orphaning return their consumption.
 CREATE FUNCTION fn_crypto_receipt_suspense_apply() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE original reg_crypto_receipt_suspense_movements; delta NUMERIC;
 BEGIN
     IF NEW.reversal_of_line_id IS NOT NULL THEN
         SELECT * INTO original FROM reg_crypto_receipt_suspense_movements WHERE line_id=NEW.reversal_of_line_id FOR UPDATE;
-        IF NOT FOUND OR original.recorder_type<>'CryptoPayment' OR original.reversal_of_line_id IS NOT NULL
+        IF NOT FOUND OR original.reversal_of_line_id IS NOT NULL
+           OR original.recorder_type<>(CASE WHEN NEW.recorder_type='CryptoMerchantCreditReversal'
+                THEN 'CryptoMerchantCredit' ELSE 'CryptoPayment' END)
            OR original.receipt_id<>NEW.receipt_id OR original.token_id<>NEW.token_id OR original.record_type=NEW.record_type
            OR original.amount<(SELECT SUM(amount) FROM reg_crypto_receipt_suspense_movements WHERE reversal_of_line_id=original.line_id) THEN
-            RAISE EXCEPTION 'suspense reversal requires an available payment attribution' USING ERRCODE='23514';
+            RAISE EXCEPTION 'suspense reversal requires an available attribution of its kind' USING ERRCODE='23514';
         END IF;
         delta:=NEW.amount;
     ELSIF NEW.recorder_type='CryptoCustodyReceipt' THEN
@@ -297,12 +300,71 @@ BEGIN
 END;
 $$;
 
+-- A receipt orphaned by its canonicality audit returns every posted manual
+-- credit to suspense in the orphaning transaction: suspense +gross, merchant
+-- -net, fee -fee, each line reversing its exact credit line.
+CREATE FUNCTION fn_crypto_merchant_credit_reversal_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_OP<>'INSERT' THEN RAISE EXCEPTION 'merchant credit reversal history is immutable' USING ERRCODE='23514'; END IF;
+    IF NOT EXISTS(SELECT 1 FROM doc_crypto_merchant_credits WHERE id=NEW.credit_id AND receipt_id=NEW.receipt_id AND posted) THEN
+        RAISE EXCEPTION 'merchant credit reversal requires its posted credit' USING ERRCODE='23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION fn_crypto_assert_merchant_credit_reversal(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE r reg_crypto_merchant_credit_reversals; c doc_crypto_merchant_credits;
+BEGIN
+    SELECT * INTO r FROM reg_crypto_merchant_credit_reversals WHERE id=target;
+    IF NOT FOUND THEN RAISE EXCEPTION 'merchant credit reversal movements require their reversal' USING ERRCODE='23514'; END IF;
+    SELECT * INTO c FROM doc_crypto_merchant_credits WHERE id=r.credit_id;
+    IF NOT EXISTS(SELECT 1 FROM reg_crypto_custody_receipt_audits WHERE receipt_id=r.receipt_id AND status='orphaned'
+            AND incident_id=r.incident_id AND orphan_verification_id=r.orphan_verification_id)
+       OR (SELECT count(*) FROM reg_crypto_receipt_suspense_movements WHERE recorder_id=r.id)<>1
+       OR NOT EXISTS(SELECT 1 FROM reg_crypto_receipt_suspense_movements WHERE recorder_id=r.id
+            AND recorder_type='CryptoMerchantCreditReversal' AND recorder_version=1 AND record_type='receipt'
+            AND receipt_id=c.receipt_id AND token_id=c.token_id AND amount=c.amount
+            AND reversal_of_line_id=c.suspense_line_id AND reversal_reason=r.reason)
+       OR (SELECT count(*) FROM reg_crypto_merchant_balance_movements WHERE recorder_id=r.id)<>(CASE WHEN c.net_amount>0 THEN 1 ELSE 0 END)
+       OR (c.net_amount>0 AND NOT EXISTS(SELECT 1 FROM reg_crypto_merchant_balance_movements WHERE recorder_id=r.id
+            AND recorder_type='CryptoMerchantCreditReversal' AND recorder_version=1 AND record_type='expense'
+            AND merchant_id=c.merchant_id AND token_id=c.token_id AND amount=c.net_amount
+            AND reversal_of_line_id=c.merchant_line_id AND reversal_reason=r.reason))
+       OR (SELECT count(*) FROM reg_crypto_fee_movements WHERE recorder_id=r.id)<>(CASE WHEN c.processing_fee>0 THEN 1 ELSE 0 END)
+       OR (c.processing_fee>0 AND NOT EXISTS(SELECT 1 FROM reg_crypto_fee_movements WHERE recorder_id=r.id
+            AND recorder_type='CryptoMerchantCreditReversal' AND recorder_version=1 AND record_type='expense'
+            AND merchant_id=c.merchant_id AND token_id=c.token_id AND fee_type='processing' AND amount=c.processing_fee
+            AND reversal_of_line_id=c.fee_line_id AND reversal_reason=r.reason))
+       OR EXISTS(SELECT 1 FROM reg_crypto_balance_movements WHERE recorder_id=r.id)
+       OR EXISTS(SELECT 1 FROM reg_crypto_platform_cost_movements WHERE recorder_id=r.id)
+       OR EXISTS(SELECT 1 FROM reg_crypto_provider_balance_movements WHERE recorder_id=r.id) THEN
+        RAISE EXCEPTION 'merchant credit reversal requires its orphaned receipt and complete storno set' USING ERRCODE='23514';
+    END IF;
+END;
+$$;
+
 CREATE FUNCTION fn_crypto_merchant_credit_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF TG_TABLE_NAME='doc_crypto_merchant_credits' THEN
         PERFORM fn_crypto_assert_merchant_credit(NEW.id);
+    ELSIF TG_TABLE_NAME='reg_crypto_merchant_credit_reversals' THEN
+        PERFORM fn_crypto_assert_merchant_credit_reversal(NEW.id);
     ELSIF NEW.recorder_type='CryptoMerchantCredit' THEN
         PERFORM fn_crypto_assert_merchant_credit(NEW.recorder_id);
+    ELSIF NEW.recorder_type='CryptoMerchantCreditReversal' THEN
+        PERFORM fn_crypto_assert_merchant_credit_reversal(NEW.recorder_id);
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+-- An orphaned receipt keeps no posted manual credit without its storno.
+CREATE FUNCTION fn_crypto_custody_receipt_orphan_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.status='orphaned' AND EXISTS(SELECT 1 FROM doc_crypto_merchant_credits c WHERE c.receipt_id=NEW.receipt_id AND c.posted
+        AND NOT EXISTS(SELECT 1 FROM reg_crypto_merchant_credit_reversals r WHERE r.credit_id=c.id)) THEN
+        RAISE EXCEPTION 'orphaned receipt cannot keep an unreversed merchant credit' USING ERRCODE='23514';
     END IF;
     RETURN NULL;
 END;
@@ -3549,11 +3611,25 @@ CREATE INDEX idx_crypto_merchant_credits_merchant ON doc_crypto_merchant_credits
 CREATE TRIGGER trg_crypto_merchant_credit_txid BEFORE UPDATE ON doc_crypto_merchant_credits
     FOR EACH ROW EXECUTE FUNCTION update_txid_column();
 
+-- The storno of a posted manual credit whose receipt was orphaned. It is the
+-- recorder of the opposite movements; the credit document stays posted.
+CREATE TABLE reg_crypto_merchant_credit_reversals (
+    id UUID PRIMARY KEY,
+    credit_id UUID NOT NULL UNIQUE REFERENCES doc_crypto_merchant_credits(id),
+    receipt_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
+    incident_id UUID NOT NULL REFERENCES reg_crypto_security_incidents(id),
+    orphan_verification_id UUID NOT NULL REFERENCES reg_crypto_transfer_verifications(id),
+    reason TEXT NOT NULL CHECK(reason='receipt_orphaned'),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_crypto_merchant_credit_reversals_receipt ON reg_crypto_merchant_credit_reversals(receipt_id);
+
 CREATE TABLE reg_crypto_receipt_suspense_movements (
     line_id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
     recorder_id UUID NOT NULL,
     recorder_type TEXT NOT NULL CHECK(recorder_type IN
-        ('CryptoCustodyReceipt','CryptoMerchantCredit','CryptoPayment','CryptoPaymentReorg','CryptoAdjustment')),
+        ('CryptoCustodyReceipt','CryptoMerchantCredit','CryptoPayment','CryptoPaymentReorg','CryptoAdjustment',
+         'CryptoMerchantCreditReversal')),
     recorder_version INT NOT NULL CHECK(recorder_version>0),
     period TIMESTAMPTZ NOT NULL,
     record_type TEXT NOT NULL CHECK(record_type IN ('receipt','expense')),
@@ -3563,15 +3639,15 @@ CREATE TABLE reg_crypto_receipt_suspense_movements (
     reversal_of_line_id UUID REFERENCES reg_crypto_receipt_suspense_movements(line_id),
     reversal_reason TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    -- A receipt adds its gross once; attributions consume it; only a payment
-    -- attribution can be compensated back into the remainder.
+    -- A receipt adds its gross once; attributions consume it; a payment
+    -- compensation or a manual credit storno returns it to the remainder.
     CHECK((recorder_type='CryptoCustodyReceipt' AND record_type='receipt' AND recorder_id=receipt_id
             AND recorder_version=1 AND reversal_of_line_id IS NULL AND reversal_reason IS NULL)
        OR (recorder_type='CryptoMerchantCredit' AND record_type='expense' AND recorder_version=1
             AND reversal_of_line_id IS NULL AND reversal_reason IS NULL)
        OR (recorder_type='CryptoPayment' AND record_type='expense' AND reversal_of_line_id IS NULL AND reversal_reason IS NULL)
-       OR (recorder_type IN ('CryptoPaymentReorg','CryptoAdjustment') AND record_type='receipt' AND recorder_version=1
-            AND reversal_of_line_id IS NOT NULL AND btrim(COALESCE(reversal_reason,''))<>''))
+       OR (recorder_type IN ('CryptoPaymentReorg','CryptoAdjustment','CryptoMerchantCreditReversal') AND record_type='receipt'
+            AND recorder_version=1 AND reversal_of_line_id IS NOT NULL AND btrim(COALESCE(reversal_reason,''))<>''))
 );
 
 CREATE UNIQUE INDEX uq_crypto_receipt_suspense_origin ON reg_crypto_receipt_suspense_movements(receipt_id)
@@ -4354,6 +4430,12 @@ BEGIN
     END LOOP;
 END;
 $$;
+CREATE TRIGGER trg_crypto_merchant_credit_reversal_guard BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_merchant_credit_reversals
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_merchant_credit_reversal_guard();
+CREATE CONSTRAINT TRIGGER trg_crypto_merchant_credit_reversal_complete AFTER INSERT ON reg_crypto_merchant_credit_reversals
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_merchant_credit_complete();
+CREATE CONSTRAINT TRIGGER trg_crypto_custody_receipt_orphan_complete AFTER UPDATE ON reg_crypto_custody_receipt_audits
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_orphan_complete();
 CREATE TRIGGER trg_crypto_custody_receipt_audit_seed AFTER INSERT ON doc_crypto_custody_receipts
     FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_audit_seed();
 CREATE TRIGGER trg_crypto_custody_receipt_audit_guard BEFORE UPDATE OR DELETE ON reg_crypto_custody_receipt_audits
@@ -4437,10 +4519,12 @@ CREATE INDEX idx_crypto_payments_canonicality_due
     ON doc_crypto_payments(next_canonicality_check_at,id)
     WHERE status='settled' AND posted=TRUE AND deletion_mark=FALSE;
 ALTER TABLE doc_crypto_payments DROP COLUMN receipt_id;DELETE FROM auth_role_permissions WHERE permission_id IN (SELECT id FROM auth_permissions WHERE resource='crypto_receipt');
-DELETE FROM auth_permissions WHERE resource='crypto_receipt';DROP TRIGGER trg_crypto_custody_receipt_audit_seed ON doc_crypto_custody_receipts;
+DELETE FROM auth_permissions WHERE resource='crypto_receipt';DROP TABLE reg_crypto_merchant_credit_reversals;
+DROP TRIGGER trg_crypto_custody_receipt_audit_seed ON doc_crypto_custody_receipts;
 DROP TABLE reg_crypto_custody_receipt_audits;
 DROP FUNCTION fn_crypto_custody_receipt_audit_guard();
-DROP FUNCTION fn_crypto_custody_receipt_audit_seed();DO $$
+DROP FUNCTION fn_crypto_custody_receipt_audit_seed();
+DROP FUNCTION fn_crypto_custody_receipt_orphan_complete();DO $$
 DECLARE target TEXT;
 BEGIN
     FOREACH target IN ARRAY ARRAY['reg_crypto_receipt_suspense_movements','reg_crypto_merchant_balance_movements',
@@ -4452,6 +4536,8 @@ $$;
 DROP TABLE doc_crypto_merchant_credits;
 DROP TABLE sys_crypto_receipt_credit_policies;
 DROP FUNCTION fn_crypto_merchant_credit_complete();
+DROP FUNCTION fn_crypto_assert_merchant_credit_reversal(UUID);
+DROP FUNCTION fn_crypto_merchant_credit_reversal_guard();
 DROP FUNCTION fn_crypto_assert_merchant_credit(UUID);
 DROP FUNCTION fn_crypto_merchant_credit_guard();ALTER TABLE reg_crypto_inbound_chain_events DROP COLUMN receipt_error, DROP COLUMN receipt_attempts, DROP COLUMN receipt_check_at, DROP COLUMN receipt_id;-- ==== crypto_external_outflow_decisions ====
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));

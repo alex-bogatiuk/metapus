@@ -101,7 +101,9 @@ const receiptJournalColumns = `d.id::text AS receipt_id,e.id::text AS inbox_even
 		            WHEN d.remainder=0 THEN 'credited'
 		            WHEN c.status='prepared' THEN 'awaiting_approval' ELSE 'unattributed' END AS state,
 		       d.custody_merchant_id::text,e.invoice_id::text,'' AS pending_error,
-		       c.id::text AS credit_id,c.number AS credit_number,c.status AS credit_status,c.version AS credit_version,
+		       c.id::text AS credit_id,c.number AS credit_number,
+		       CASE WHEN EXISTS(SELECT 1 FROM reg_crypto_merchant_credit_reversals cr WHERE cr.credit_id=c.id)
+		            THEN 'reversed' ELSE c.status END AS credit_status,c.version AS credit_version,
 		       c.merchant_id::text AS credit_merchant_id,m.name AS credit_merchant,c.net_amount::text AS credit_net,
 		       c.processing_fee::text AS credit_fee,c.approval_required AS credit_approval,
 		       c.prepared_by::text AS credit_prepared_by,c.decided_at AS credit_decided_at,c.decision_reason AS credit_reason,
@@ -262,7 +264,8 @@ func (*UnidentifiedReceiptRepo) Detail(ctx context.Context, receiptID id.ID) (Re
 	}
 	result.Attributions = []ReceiptAttribution{}
 	// Outstanding = what the document consumed from the receipt minus the
-	// reversals (reorg compensation, payment_reversal) returned to it.
+	// reversals (reorg compensation, payment_reversal, the storno of a manual
+	// credit at orphaning) returned to it. A reversed credit stays posted.
 	err = pgxscan.Select(ctx, q, &result.Attributions, `
 		WITH consumed AS (
 			SELECT m.recorder_id,SUM(m.amount-COALESCE(back.amount,0)) AS amount
@@ -278,7 +281,9 @@ func (*UnidentifiedReceiptRepo) Detail(ctx context.Context, receiptID id.ID) (Re
 		LEFT JOIN consumed c ON c.recorder_id=p.id
 		WHERE p.receipt_id=$1
 		UNION ALL
-		SELECT 'CryptoMerchantCredit',k.id::text,k.number,k.date,k.status,k.posted,k.merchant_id::text,m.name,
+		SELECT 'CryptoMerchantCredit',k.id::text,k.number,k.date,
+		       CASE WHEN EXISTS(SELECT 1 FROM reg_crypto_merchant_credit_reversals r WHERE r.credit_id=k.id)
+		            THEN 'reversed' ELSE k.status END,k.posted,k.merchant_id::text,m.name,
 		       k.amount::text,k.net_amount::text,k.processing_fee::text,COALESCE(c.amount,0)::text,0,0,0,0
 		FROM doc_crypto_merchant_credits k JOIN cat_merchants m ON m.id=k.merchant_id
 		LEFT JOIN consumed c ON c.recorder_id=k.id

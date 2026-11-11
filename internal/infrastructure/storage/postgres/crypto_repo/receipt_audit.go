@@ -126,12 +126,20 @@ type receiptOrphanedEvent struct {
 }
 
 // MarkOrphaned records a proven orphaning of an accounted receipt: one
-// incident, a network hold and a wallet hold. Ledger rows stay untouched; the
-// receipt can no longer be attributed until the incident is investigated.
+// incident, a network hold, a wallet hold and the storno of every posted
+// manual credit of the receipt. The receipt custody and suspense rows stay
+// untouched; the receipt can no longer be attributed until the incident is
+// investigated.
 func (*ReceiptAuditRepo) MarkOrphaned(ctx context.Context, task ReceiptAuditTask, proofID id.ID) error {
 	tm := postgres.MustGetTxManager(ctx)
 	return tm.RunInTransaction(ctx, func(ctx context.Context) error {
 		q := tm.GetQuerier(ctx)
+		// The remainder lock comes first, as in a manual credit decision: a
+		// concurrent approval either sees the orphan or is reversed by it.
+		if _, err := q.Exec(ctx, `SELECT 1 FROM reg_crypto_receipt_suspense_balances WHERE receipt_id=$1 FOR UPDATE`,
+			task.ReceiptID); err != nil {
+			return fmt.Errorf("lock receipt remainder: %w", err)
+		}
 		var status string
 		err := q.QueryRow(ctx, `SELECT status FROM reg_crypto_custody_receipt_audits WHERE receipt_id=$1 FOR UPDATE`, task.ReceiptID).Scan(&status)
 		if err != nil {
@@ -178,6 +186,9 @@ func (*ReceiptAuditRepo) MarkOrphaned(ctx context.Context, task ReceiptAuditTask
 				return fmt.Errorf("hold %s after receipt reorg: %w", target.scope, err)
 			}
 		}
+		if err := reverseOrphanedReceiptCredits(ctx, q, task.ReceiptID, incident, proofID); err != nil {
+			return err
+		}
 		if _, err := q.Exec(ctx, `UPDATE reg_crypto_custody_receipt_audits
 			SET status='orphaned',orphaned_at=NOW(),orphan_verification_id=$2,incident_id=$3,claimed_by='',lease_expires_at=NULL,last_error=''
 			WHERE receipt_id=$1`, task.ReceiptID, proofID, incident); err != nil {
@@ -189,4 +200,41 @@ func (*ReceiptAuditRepo) MarkOrphaned(ctx context.Context, task ReceiptAuditTask
 				Action: "orphaned", IncidentID: incident.String(), VerificationID: proofID.String()},
 		})
 	})
+}
+
+// reverseOrphanedReceiptCredits stornos every posted manual credit of an
+// orphaned receipt: suspense +gross, merchant -net and fee -fee, each line
+// reversing its exact credit line. The credit document stays posted.
+func reverseOrphanedReceiptCredits(ctx context.Context, q postgres.Querier, receiptID, incidentID, proofID id.ID) error {
+	created, err := q.Exec(ctx, `INSERT INTO reg_crypto_merchant_credit_reversals(id,credit_id,receipt_id,incident_id,orphan_verification_id,reason)
+		SELECT gen_random_uuid_v7(),c.id,c.receipt_id,$2,$3,'receipt_orphaned'
+		FROM doc_crypto_merchant_credits c WHERE c.receipt_id=$1 AND c.posted ORDER BY c.id`, receiptID, incidentID, proofID)
+	if err != nil {
+		return fmt.Errorf("record merchant credit reversals: %w", err)
+	}
+	if created.RowsAffected() == 0 {
+		return nil
+	}
+	for _, statement := range []struct{ name, sql string }{
+		{"suspense", `INSERT INTO reg_crypto_receipt_suspense_movements(
+				line_id,recorder_id,recorder_type,recorder_version,period,record_type,receipt_id,token_id,amount,reversal_of_line_id,reversal_reason)
+			SELECT gen_random_uuid_v7(),r.id,'CryptoMerchantCreditReversal',1,NOW(),'receipt',c.receipt_id,c.token_id,c.amount,c.suspense_line_id,r.reason
+			FROM reg_crypto_merchant_credit_reversals r JOIN doc_crypto_merchant_credits c ON c.id=r.credit_id
+			WHERE r.receipt_id=$1 AND r.incident_id=$2 ORDER BY r.credit_id`},
+		{"merchant balance", `INSERT INTO reg_crypto_merchant_balance_movements(
+				line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,amount,reversal_of_line_id,reversal_reason)
+			SELECT gen_random_uuid_v7(),r.id,'CryptoMerchantCreditReversal',1,NOW(),'expense',c.merchant_id,c.token_id,c.net_amount,c.merchant_line_id,r.reason
+			FROM reg_crypto_merchant_credit_reversals r JOIN doc_crypto_merchant_credits c ON c.id=r.credit_id
+			WHERE r.receipt_id=$1 AND r.incident_id=$2 AND c.net_amount>0 ORDER BY r.credit_id`},
+		{"fee", `INSERT INTO reg_crypto_fee_movements(
+				line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,fee_type,amount,reversal_of_line_id,reversal_reason)
+			SELECT gen_random_uuid_v7(),r.id,'CryptoMerchantCreditReversal',1,NOW(),'expense',c.merchant_id,c.token_id,'processing',c.processing_fee,c.fee_line_id,r.reason
+			FROM reg_crypto_merchant_credit_reversals r JOIN doc_crypto_merchant_credits c ON c.id=r.credit_id
+			WHERE r.receipt_id=$1 AND r.incident_id=$2 AND c.processing_fee>0 ORDER BY r.credit_id`},
+	} {
+		if _, err := q.Exec(ctx, statement.sql, receiptID, incidentID); err != nil {
+			return fmt.Errorf("reverse merchant credit %s: %w", statement.name, err)
+		}
+	}
+	return nil
 }
