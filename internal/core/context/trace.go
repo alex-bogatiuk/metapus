@@ -1,10 +1,6 @@
 package context
 
-import (
-	"context"
-
-	"github.com/google/uuid"
-)
+import "context"
 
 // TraceContext contains request tracing information.
 type TraceContext struct {
@@ -26,29 +22,4 @@ func GetTrace(ctx context.Context) *TraceContext {
 		return v
 	}
 	return nil
-}
-
-// GetTraceID returns trace ID from context or generates new one.
-func GetTraceID(ctx context.Context) string {
-	if t := GetTrace(ctx); t != nil {
-		return t.TraceID
-	}
-	return uuid.New().String()
-}
-
-// GetRequestID returns request ID from context or empty string.
-func GetRequestID(ctx context.Context) string {
-	if t := GetTrace(ctx); t != nil {
-		return t.RequestID
-	}
-	return ""
-}
-
-// NewTraceContext creates a new TraceContext with generated IDs.
-func NewTraceContext() *TraceContext {
-	return &TraceContext{
-		TraceID:   uuid.New().String(),
-		SpanID:    uuid.New().String()[:16],
-		RequestID: uuid.New().String(),
-	}
 }

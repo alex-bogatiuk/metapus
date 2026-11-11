@@ -8,59 +8,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"metapus/internal/infrastructure/http/v1/dto"
-	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/tenantdb"
 )
-
-// HealthHandler provides health check endpoints.
-type HealthHandler struct {
-	pool    *postgres.Pool
-	version string
-}
-
-// NewHealthHandler creates a new health handler.
-func NewHealthHandler(pool *postgres.Pool, version string) *HealthHandler {
-	return &HealthHandler{pool: pool, version: version}
-}
-
-// Live handles liveness probe (is the process alive?).
-// GET /health/live
-func (h *HealthHandler) Live(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"status": "ok",
-	})
-}
-
-// Ready handles readiness probe (is the service ready to accept traffic?).
-// GET /health/ready
-func (h *HealthHandler) Ready(c *gin.Context) {
-	// Check database connection
-	if err := h.pool.Ping(c.Request.Context()); err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"status": "error",
-			"checks": map[string]string{
-				"database": "unhealthy",
-			},
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"status": "ok",
-		"checks": map[string]string{
-			"database": "healthy",
-		},
-	})
-}
-
-// Info returns application information.
-// GET /health/info
-func (h *HealthHandler) Info(c *gin.Context) {
-	stat := h.pool.Stat()
-
-	c.JSON(http.StatusOK, dto.HealthInfoResponse{App: "metapus", Version: h.version,
-		Database: &dto.PoolStatsResponse{TotalConns: stat.TotalConns(), AcquiredConns: stat.AcquiredConns(), IdleConns: stat.IdleConns(), MaxConns: stat.MaxConns()}})
-}
 
 // --- Multi-Tenant Health Handler ---
 

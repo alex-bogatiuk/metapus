@@ -8,8 +8,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"metapus/pkg/logger"
 )
 
 // PoolConfig holds connection pool configuration.
@@ -83,38 +81,4 @@ func NewPool(ctx context.Context, cfg PoolConfig) (*Pool, error) {
 	}
 
 	return &Pool{Pool: pool}, nil
-}
-
-// PoolStats returns current pool statistics for metrics.
-type PoolStats struct {
-	TotalConns      int32
-	AcquiredConns   int32
-	IdleConns       int32
-	MaxConns        int32
-	AcquireCount    int64
-	AcquireDuration time.Duration
-}
-
-// GetPoolStats extracts statistics from pool.
-func GetPoolStats(pool *pgxpool.Pool) PoolStats {
-	stat := pool.Stat()
-	return PoolStats{
-		TotalConns:      stat.TotalConns(),
-		AcquiredConns:   stat.AcquiredConns(),
-		IdleConns:       stat.IdleConns(),
-		MaxConns:        stat.MaxConns(),
-		AcquireCount:    stat.AcquireCount(),
-		AcquireDuration: stat.AcquireDuration(),
-	}
-}
-
-// LogPoolStats logs pool statistics.
-func LogPoolStats(ctx context.Context, pool *pgxpool.Pool) {
-	stats := GetPoolStats(pool)
-	logger.Info(ctx, "database pool stats",
-		"total", stats.TotalConns,
-		"acquired", stats.AcquiredConns,
-		"idle", stats.IdleConns,
-		"max", stats.MaxConns,
-	)
 }

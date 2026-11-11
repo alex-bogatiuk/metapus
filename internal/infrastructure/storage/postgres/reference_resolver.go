@@ -104,32 +104,6 @@ func (rr ResolvedRefs) GetPtr(table string, entityID *id.ID) *RefDisplay {
 	return &d
 }
 
-// ResolvedCurrencyRefs maps id_string → CurrencyRefDisplay.
-type ResolvedCurrencyRefs map[string]CurrencyRefDisplay
-
-// Get returns the CurrencyRefDisplay for a given ID. Returns empty struct if not found.
-func (cr ResolvedCurrencyRefs) Get(entityID id.ID) CurrencyRefDisplay {
-	if id.IsNil(entityID) {
-		return CurrencyRefDisplay{}
-	}
-	if d, ok := cr[entityID.String()]; ok {
-		return d
-	}
-	return CurrencyRefDisplay{}
-}
-
-// GetPtr returns a *CurrencyRefDisplay for an optional reference. Returns nil if ID is nil.
-func (cr ResolvedCurrencyRefs) GetPtr(entityID *id.ID) *CurrencyRefDisplay {
-	if entityID == nil || id.IsNil(*entityID) {
-		return nil
-	}
-	d := cr.Get(*entityID)
-	if d.ID == "" {
-		return nil
-	}
-	return &d
-}
-
 // Resolve executes batch queries to resolve all pending IDs.
 // Uses one SELECT per table: SELECT id, name FROM <table> WHERE id IN (...)
 func (r *ReferenceResolver) Resolve(ctx context.Context, querier Querier) (ResolvedRefs, error) {
@@ -155,24 +129,7 @@ func (r *ReferenceResolver) Resolve(ctx context.Context, querier Querier) (Resol
 	return result, nil
 }
 
-// ResolveCurrencies batch-resolves currency IDs with extra fields (decimal_places, symbol).
-// This is the systematic way for any CurrencyAware document to get formatting metadata.
-func (r *ReferenceResolver) ResolveCurrencies(ctx context.Context, querier Querier) (ResolvedCurrencyRefs, error) {
-	const table = "cat_currencies"
-	idSet := r.pending[table]
-	if len(idSet) == 0 {
-		return ResolvedCurrencyRefs{}, nil
-	}
-
-	ids := make([]id.ID, 0, len(idSet))
-	for eid := range idSet {
-		ids = append(ids, eid)
-	}
-
-	return batchResolveCurrency(ctx, querier, ids)
-}
-
-// referenceRows is shared by regular and currency projections; the supplied
+// referenceRows reads reference projections; the supplied
 // querier is intentionally not a way to bypass application authorization.
 func referenceRows(ctx context.Context, table string, ids []id.ID) ([]readaccess.Projection, error) {
 	if len(ids) == 0 {
@@ -208,24 +165,6 @@ func batchResolveName(ctx context.Context, _ Querier, table string, ids []id.ID)
 			}
 		}
 		result[row.ID.String()] = RefDisplay{ID: row.ID.String(), Name: name, Code: code}
-	}
-	return result, nil
-}
-func batchResolveCurrency(ctx context.Context, _ Querier, ids []id.ID) (ResolvedCurrencyRefs, error) {
-	rows, err := referenceRows(ctx, "cat_currencies", ids)
-	if err != nil {
-		return nil, err
-	}
-	result := make(ResolvedCurrencyRefs, len(rows))
-	for _, row := range rows {
-		// Without scale metadata the caller must not render an invented scale zero.
-		places, ok := row.Fields["decimalPlaces"].(int)
-		if !ok {
-			continue
-		}
-		name, _ := row.Fields["name"].(string)
-		symbol, _ := row.Fields["symbol"].(string)
-		result[row.ID.String()] = CurrencyRefDisplay{ID: row.ID.String(), Name: name, DecimalPlaces: places, Symbol: symbol}
 	}
 	return result, nil
 }

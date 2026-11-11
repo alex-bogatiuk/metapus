@@ -170,14 +170,6 @@ func (s *MerchantCryptoQueryService) InvoiceObservedAt(ctx context.Context, invo
 	return &formatted
 }
 
-func (s *MerchantCryptoQueryService) InvoicePayments(ctx context.Context, invoiceID id.ID) ([]MerchantInvoicePayment, *string, error) {
-	summary, err := s.InvoicePaymentsSummary(ctx, invoiceID)
-	if err != nil {
-		return nil, nil, err
-	}
-	return summary.Payments, summary.ObservedAt, nil
-}
-
 const (
 	_defaultInvoicePageLimit = 50
 	_maxInvoicePageLimit     = 100
