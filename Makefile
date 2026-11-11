@@ -1,4 +1,4 @@
-.PHONY: build lint test-unit test-integration test migrate seed server frontend check check-extensions check-all changelog
+.PHONY: build lint lint-go lint-frontend typecheck test-unit test-integration test migrate migrate-extensions seed server frontend check check-extensions check-all changelog
 
 # Default environment variables for local development
 export TENANT_DB_USER ?= metapus
@@ -8,8 +8,7 @@ LDFLAGS := -ldflags="-X main.Version=$(VERSION) -X main.BuildTime=$(shell date -
 
 # Build
 build:
-	go build $(LDFLAGS) ./cmd/server
-	go build $(LDFLAGS) ./cmd/worker
+	go build $(LDFLAGS) -o bin/ ./cmd/server ./cmd/worker
 
 # Lint
 lint:

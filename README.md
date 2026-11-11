@@ -111,7 +111,7 @@ metapus/
 
 Основные команды сборки и проверки (`Makefile`):
 
-- `make build` — Сборка бинарных файлов (server, worker).
+- `make build` — Сборка бинарных файлов server и worker в `bin/`.
 - `make server` — Запуск бэкенда.
 - `make frontend` — Запуск фронтенда.
 - `make test` — Запуск юнит-тестов.

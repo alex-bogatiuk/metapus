@@ -33,6 +33,8 @@ desktop.ini
 # Go (Backend)
 # ========================
 bin/
+# Temporary module written by cmd/scaffold tests; removed on test cleanup.
+extensions/.scaffold-test-*/
 obj/
 *.exe
 *.exe~
