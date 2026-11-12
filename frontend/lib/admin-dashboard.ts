@@ -1,15 +1,12 @@
 import type { CryptoNetworkState } from "@/types/crypto-network"
+import { networkHealth } from "./crypto-network-readiness"
 
+export { networkHealth } from "./crypto-network-readiness"
+
+/** Counted on the dashboard: networks that cannot process operations. */
 export function networkProblem(state: CryptoNetworkState, now = Date.now()): string | null {
-  if (!state.policy.enabled) return null
-  const runtime = state.runtime
-  const age = now - Date.parse(runtime.observedAt)
-  if (!Number.isFinite(age) || age > 180_000 || age < -60_000) return "Нет свежего состояния"
-  if (runtime.operationalHold) return "Обработка приостановлена"
-  if (!runtime.signerReady) return "Подпись недоступна"
-  if (runtime.rpcEndpoints.length === 0 || runtime.rpcEndpoints.some(e => e.state !== "closed")) return "Проблема с RPC"
-  if (state.policy.externalResources?.strategy === "rental_required" && !runtime.resourceProviderReady) return "Ресурсы недоступны"
-  return null
+  const health = networkHealth(state, now)
+  return health?.level === "problem" ? health.label : null
 }
 export const queueKinds = { all: "Все очереди", withdrawal: "Заявки на вывод", inbound: "Невыясненные поступления", outflow: "Внешние списания" } as const
 export const counterLabels = { withdrawals: "Заявки на вывод", inbound: "Невыясненные поступления", outflows: "Внешние списания", networks: "Сети с проблемами" } as const

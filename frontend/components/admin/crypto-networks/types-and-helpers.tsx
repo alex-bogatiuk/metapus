@@ -1,6 +1,7 @@
 "use client"
 
 import { useId } from "react"
+import { isRuntimeFresh, networkReadinessProblem } from "@/lib/crypto-network-readiness"
 import { HelpCircle } from "lucide-react"
 
 import type {
@@ -272,10 +273,7 @@ export function policiesEqual(left: EditablePolicy, right: EditablePolicy): bool
   return JSON.stringify(left) === JSON.stringify(right)
 }
 
-export function isRuntimeFresh(observedAt: string): boolean {
-  const timestamp = Date.parse(observedAt)
-  return Number.isFinite(timestamp) && Date.now() - timestamp <= 60_000
-}
+export { isRuntimeFresh }
 
 
 export const EMPTY_EXPANDED_NETWORKS: Record<string, boolean> = {}
@@ -359,23 +357,7 @@ export function networkHeaderDescription(
 }
 
 export function networkReady(state: CryptoNetworkState, form: EditablePolicy): boolean {
-  if (
-    state.runtime.operationalHold ||
-    !isRuntimeFresh(state.runtime.observedAt) ||
-    !state.runtime.signerReady
-  ) {
-    return false
-  }
-  if (state.runtime.rpcEndpoints.some((endpoint) => endpoint.state === "wrong_chain")) return false
-  const readyRoles = new Set(
-    state.runtime.rpcEndpoints
-      .filter((endpoint) => endpoint.state === "closed")
-      .map((endpoint) => endpoint.role)
-  )
-  if (!state.capabilities.requiredRpcRoles.every((role) => readyRoles.has(role))) return false
-  const resourcesRequired =
-    state.capabilities.externalResourceMode !== "none" && form.resourceStrategy !== "burn_only"
-  return !resourcesRequired || state.runtime.resourceProviderReady
+  return networkReadinessProblem(state, form.resourceStrategy) === null
 }
 
 export interface NumberFieldProps {

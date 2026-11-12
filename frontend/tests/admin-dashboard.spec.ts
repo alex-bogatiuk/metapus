@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Route } from "@playwright/test"
 import { commonAPIResponse, erpUser, ids, installSession, json, unvaluedPortalBalance } from "./helpers"
-import type { AdminDashboardFinanceResponse, AdminDashboardAnalyticsResponse, AdminDashboardQueuesResponse } from "../types/generated/http-contracts"
+import type { AdminDashboardFinanceResponse, AdminDashboardAnalyticsResponse, AdminDashboardQueuesResponse, CryptoNetworkStateResponse } from "../types/generated/http-contracts"
 import type { JsonValue } from "../lib/json-value"
 
 const admin = { ...erpUser, isAdmin: true }
@@ -181,4 +181,38 @@ test("dragging and resizing persist desktop positions without responsive rewrite
   await page.reload()
   await expect(widget(page, "attention-counter")).toHaveCount(4)
   expect(mock.saved()).toEqual(saved)
+})
+
+test("network health uses the readiness rule: a degraded reserve RPC warns, a role without healthy RPC is a problem", async ({ page }) => {
+  await page.setViewportSize({ width: 1680, height: 1100 })
+  const now = new Date().toISOString()
+  const policy = (networkId: string) => ({ networkId, enabled: true, perTransactionMaxFeeMinor: "1", dailyNetworkFeeBudgetMinor: "1", feeFunding: { mode: "source_only", dailyBudgetMinor: "0", minFeeWalletBalanceMinor: "0", minSourceWalletResidualMinor: "0", maxFundingAmountMinor: "0" }, retryDelaySeconds: 15, rpcFailureThreshold: 3, rpcOpenSeconds: 30, version: 1, updatedBy: "admin", createdAt: now, updatedAt: now })
+  const endpoint = (role: string, providerId: string, state: string) => ({ endpointId: `${providerId}-${role}`, role, providerId, state, failures: state === "closed" ? 0 : 1 })
+  const sepolia: CryptoNetworkStateResponse = {
+    network: { id: ids.network, code: "ETHEREUM-SEPOLIA", family: "evm", networkIdentifier: "11155111", nativeTokenId: ids.token, nativeTokenSymbol: "ETH", nativeDecimals: 18, requiredConfirmations: 12, finalityMode: "confirmations" },
+    watching: true,
+    capabilities: { family: "evm", walletProvisioning: "derived", requiredRpcRoles: ["rpc"], externalResourceMode: "none", sequenceModel: "account_nonce", checkpointTimeUnit: "unix_seconds", tokenAccountModel: "same_address", minWatcherLagSeconds: 60, supportsReplacement: true },
+    policy: policy(ids.network),
+    runtime: { networkId: ids.network, signerReady: true, resourceProviderReady: false, resourceProviderState: "unconfigured", observedAt: now, operationalHold: false,
+      rpcEndpoints: [endpoint("rpc", "alchemy", "closed"), endpoint("rpc", "infura", "closed"), endpoint("rpc", "publicnode", "degraded"), endpoint("rpc", "zeroxrpc", "closed")] },
+  }
+  const nile: CryptoNetworkStateResponse = {
+    ...sepolia,
+    network: { ...sepolia.network, id: secondToken, code: "TRON-NILE", family: "tron", networkIdentifier: "nile" },
+    capabilities: { ...sepolia.capabilities, family: "tron", requiredRpcRoles: ["fullnode", "solidity"] },
+    policy: policy(secondToken),
+    runtime: { ...sepolia.runtime, networkId: secondToken, rpcEndpoints: [endpoint("fullnode", "trongrid", "closed"), endpoint("solidity", "trongrid", "open")] },
+  }
+  await setup(page, async (route, url) => {
+    if (!url.pathname.endsWith("/admin/crypto/networks")) return false
+    await json(route, { items: [sepolia, nile] })
+    return true
+  })
+  await page.goto("/")
+  const health = widget(page, "processing-health")
+  await expect(health.getByText("RPC нестабилен: 1 из 4", { exact: true })).toBeVisible()
+  await expect(health.getByText("Нет готового RPC: solidity", { exact: true })).toBeVisible()
+  await expect(health.getByText("Проблема с RPC", { exact: true })).toHaveCount(0)
+  const counter = widget(page, "attention-counter").filter({ hasText: "Сети с проблемами" })
+  await expect(counter).toContainText("1")
 })
