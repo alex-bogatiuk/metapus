@@ -59,13 +59,20 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 	accounts := map[string]*importedAccount{}
 	poolMembers := map[string][]string{}
 	poolProvider := map[string]model.Provider{}
-	add := func(target string, provider model.Provider, secret string) (string, string, error) {
+	// profileSlot is the key name fixed by the provider profile, if any.
+	add := func(target string, provider model.Provider, secret, profileSlot string) (string, string, error) {
 		b, ok := bindings[target]
 		if !ok || strings.TrimSpace(b.ExternalAccountRef) == "" || strings.TrimSpace(b.PoolCode) == "" {
 			return "", "", fmt.Errorf("explicit external account and pool mapping required for %s", target)
 		}
 		if b.Slot == "" {
+			b.Slot = profileSlot
+		}
+		if b.Slot == "" {
 			b.Slot = "default"
+		}
+		if profileSlot != "" && b.Slot != profileSlot {
+			return "", "", fmt.Errorf("key name for %s must be %s", target, profileSlot)
 		}
 		if b.Name == "" {
 			b.Name = b.ExternalAccountRef
@@ -117,8 +124,8 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 	for _, code := range codes {
 		n := cfg.Networks[code]
 		var networkID id.ID
-		var family string
-		if err := q.QueryRow(ctx, `SELECT id,chain_family FROM cat_blockchain_networks WHERE code=$1 AND NOT deletion_mark AND _deleted_at IS NULL`, code).Scan(&networkID, &family); err != nil {
+		var family, networkIdentifier string
+		if err := q.QueryRow(ctx, `SELECT id,chain_family,network_identifier FROM cat_blockchain_networks WHERE code=$1 AND NOT deletion_mark AND _deleted_at IS NULL`, code).Scan(&networkID, &family, &networkIdentifier); err != nil {
 			return report, fmt.Errorf("network %s unavailable", code)
 		}
 		networks[networkID] = n
@@ -145,7 +152,8 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 				e.DisableKeepAlives = entry.DisableKeepAlives
 				poolCode := ""
 				if secret != "" {
-					poolCode, e.Slot, err = add(target, provider, secret)
+					profileSlot := provider.RPCKeyName(model.RPCBinding{Family: family, NetworkIdentifier: networkIdentifier, Role: role, URL: baseURL})
+					poolCode, e.Slot, err = add(target, provider, secret, profileSlot)
 					if err != nil {
 						return report, err
 					}
@@ -182,7 +190,7 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 		return report, err
 	}
 	for i := range sources {
-		sources[i].poolCode, _, err = add("rateSource:"+sources[i].code, model.CoinGeckoDemo, sources[i].key)
+		sources[i].poolCode, _, err = add("rateSource:"+sources[i].code, model.CoinGeckoDemo, sources[i].key, "")
 		if err != nil {
 			return report, err
 		}

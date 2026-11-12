@@ -262,6 +262,8 @@ const (
 	Throttled    Failure = "rate_limited"
 	Unauthorized Failure = "invalid_credentials"
 	Expired      Failure = "credentials_expired"
+	// KeyMissing means pool accounts lack the key name the endpoint reads.
+	KeyMissing Failure = "key_missing"
 )
 
 type RuntimeRepository interface {

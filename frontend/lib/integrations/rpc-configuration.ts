@@ -41,6 +41,7 @@ const reasons: Record<string, string> = {
   archive_unavailable: "Архивные данные недоступны на тарифе",
   pool_exhausted: "Квота аккаунтов пула исчерпана",
   pool_unavailable: "Нет доступного аккаунта в пуле",
+  pool_key_missing: "В аккаунтах пула нет ключа, который читает подключение",
   credentials_expired: "Срок действия ключа истёк",
   query_limit: "Провайдер ограничил диапазон запроса",
   invalid_credentials: "Ключ не принят провайдером",

@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 	"metapus/internal/core/json"
+	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
 )
 
@@ -337,4 +338,15 @@ func TestArchivePlanGateDoesNotSuspendRecentBlockReads(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(100), header.Number.Int64())
 	require.NotContains(t, sanitizedRPCError(archivePlanError{}), "private-token")
+}
+
+func TestPoolUnavailabilityIsNotReportedAsTransportFailure(t *testing.T) {
+	for reason, category := range map[integrations.Failure]string{
+		integrations.KeyMissing: "pool_key_missing",
+		integrations.Exhausted:  "pool_exhausted",
+		"":                      "pool_unavailable",
+	} {
+		err := fmt.Errorf("select account: %w", &integrations.PoolUnavailableError{Reason: reason})
+		require.Equal(t, category, rpcErrorCategory(err))
+	}
 }

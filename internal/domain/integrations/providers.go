@@ -86,7 +86,7 @@ var providerDefinitions = []ProviderDefinition{
 	{ID: DRPC, Label: "dRPC", Description: "Ethereum Sepolia с ручным сроком ключа.", Kinds: []Kind{KindRPC}, CanCreate: true, ManagedRPCOnly: true, QuotaPolicy: QuotaManual,
 		Credentials:                 CredentialProfile{Fields: []CredentialField{{Name: "sepolia", Label: "Ключ dRPC", Description: "Ключ или HTTPS-ссылка Sepolia из dRPC."}}, ReplaceLabel: "Продлить ключ…", Description: "Новый ключ и новая дата сохраняются вместе. После срока доступ не возобновляется автоматически.", KeyFormat: CredentialURLSafe, RequireFields: true, SingleKey: true, KeyOnly: true, URLImports: []CredentialURLImport{{Host: "lb.drpc.live", PathPrefix: "/sepolia"}}},
 		AccountMinRequestIntervalMS: 200,
-		RPCProfiles:                 []RPCProfile{{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "lb.drpc.live", BasePath: "/sepolia", TrustGroup: "drpc"}}},
+		RPCProfiles:                 []RPCProfile{{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "lb.drpc.live", BasePath: "/sepolia", TrustGroup: "drpc", KeyName: "sepolia"}}},
 	{ID: Alchemy, ManagedRPCOnly: true, Label: "Alchemy", Description: "Доступ к EVM и TRON через RPC.", Kinds: []Kind{KindRPC}, CanCreate: true, QuotaPolicy: QuotaMonthly,
 		RPCProfiles: []RPCProfile{
 			{Family: "evm", Roles: []string{"rpc"}, HostSuffix: ".g.alchemy.com", BasePath: "/v2", TrustGroup: "alchemy"},
@@ -98,7 +98,7 @@ var providerDefinitions = []ProviderDefinition{
 		ReplaceLabel: "Заменить ключ…", Description: "Ссылка преобразуется в ключ. Суточная квота аккаунта обновляется в 00:00 UTC.", InputFormat: "infura_key", KeyFormat: CredentialHex32,
 		URLImports: []CredentialURLImport{{Host: "sepolia.infura.io", PathPrefix: "/v3"}},
 	}, AccountMinRequestIntervalMS: 1000,
-		RPCProfiles: []RPCProfile{{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "sepolia.infura.io", BasePath: "/v3", TrustGroup: "infura"}}},
+		RPCProfiles: []RPCProfile{{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "sepolia.infura.io", BasePath: "/v3", TrustGroup: "infura", KeyName: "sepolia"}}},
 	{ID: CoinGeckoDemo, Label: "CoinGecko Demo", Description: "Котировки CoinGecko через Demo API.", Kinds: []Kind{KindExchangeRates}, CanCreate: true, QuotaPolicy: QuotaMonthly},
 	{ID: TronAPI, Label: "TRON API / TronGrid", Description: "Доступ к сети TRON через API TronGrid.", Kinds: []Kind{KindRPC}, CanCreate: true, QuotaPolicy: QuotaMonthly,
 		RPCProfiles: []RPCProfile{
@@ -108,8 +108,8 @@ var providerDefinitions = []ProviderDefinition{
 	{ID: Chainstack, ManagedRPCOnly: true, Label: "Chainstack", Description: "Доступ к TRON Nile и Ethereum Sepolia.", Kinds: []Kind{KindRPC}, CanCreate: true, QuotaPolicy: QuotaMonthly,
 		Credentials: CredentialProfile{KeyFormat: CredentialURLSafe, Description: "Введите только токен, без полного URL и суффикса API. Имя nile — для TRON Nile, sepolia — для Ethereum Sepolia."}, AccountMinRequestIntervalMS: 200,
 		RPCProfiles: []RPCProfile{
-			{Family: "tron", NetworkIdentifier: "nile", Roles: []string{"fullnode", "solidity"}, Host: "tron-nile.core.chainstack.com", TrustGroup: "chainstack"},
-			{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "ethereum-sepolia.core.chainstack.com", TrustGroup: "chainstack"},
+			{Family: "tron", NetworkIdentifier: "nile", Roles: []string{"fullnode", "solidity"}, Host: "tron-nile.core.chainstack.com", TrustGroup: "chainstack", KeyName: "nile"},
+			{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "ethereum-sepolia.core.chainstack.com", TrustGroup: "chainstack", KeyName: "sepolia"},
 		}},
 	{ID: GetBlock, ManagedRPCOnly: true, Label: "Getblock.io", Description: "Доступ к TRON Nile через FullNode и Solidity REST.", Kinds: []Kind{KindRPC}, CanCreate: true, QuotaPolicy: QuotaMonthly, Credentials: CredentialProfile{
 		Fields: []CredentialField{

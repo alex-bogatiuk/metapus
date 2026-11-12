@@ -23,14 +23,17 @@ func (r *CryptoRPCEndpointRepo) ValidateBinding(ctx context.Context, e *integrat
 		return err
 	}
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
-	var family, network string
-	if err := q.QueryRow(ctx, `SELECT chain_family,network_identifier FROM cat_blockchain_networks WHERE id=$1 AND NOT deletion_mark`, e.NetworkID).Scan(&family, &network); err != nil {
-		return apperror.NewValidation("Выберите действующую сеть")
+	binding, err := rpcBindingFor(ctx, e.NetworkID, e.Role, e.URL, e.TrustGroup, e.Slot)
+	if err != nil {
+		return err
 	}
+	family := binding.Family
 	if family == "evm" && e.Role != "rpc" || family == "tron" && e.Role == "rpc" {
 		return apperror.NewValidation("Роль RPC не соответствует семейству сети")
 	}
 	if e.PoolID == nil {
+		// Anonymous endpoints carry no account key.
+		e.Slot = "default"
 		u, err := url.Parse(e.URL)
 		if err != nil {
 			return err
@@ -50,7 +53,27 @@ func (r *CryptoRPCEndpointRepo) ValidateBinding(ctx context.Context, e *integrat
 	if !provider.Supports(integrations.KindRPC) {
 		return apperror.NewValidation("Выберите пул провайдера с назначением «Доступ к блокчейну — RPC»")
 	}
-	if err := provider.ValidateRPCBinding(integrations.RPCBinding{Family: family, NetworkIdentifier: network, Role: e.Role, URL: e.URL, TrustGroup: e.TrustGroup, Slot: e.Slot}); err != nil {
+	// The provider profile fixes the key name for most bindings. An omitted
+	// name (or the generic default) takes that name; another one is rejected.
+	if name := provider.RPCKeyName(binding); name != "" && (e.Slot == "" || e.Slot == "default") {
+		e.Slot = name
+	}
+	if e.Slot == "" {
+		e.Slot = "default"
+	}
+	binding.Slot = e.Slot
+	if err := provider.ValidateRPCBinding(binding); err != nil {
+		return err
+	}
+	members, err := poolMemberIDs(ctx, *e.PoolID)
+	if err != nil {
+		return err
+	}
+	holders, err := loadRPCKeyHolders(ctx, members)
+	if err != nil {
+		return err
+	}
+	if err := requireRPCKeys([]rpcKeyUser{{name: e.Name, slot: e.Slot}}, holders); err != nil {
 		return err
 	}
 	definition, _ := provider.Definition()

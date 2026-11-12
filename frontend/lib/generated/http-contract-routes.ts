@@ -8,6 +8,7 @@ export const httpRoutes = [
   { scope: "api", method: "GET", path: "/system/integrations/pools/:id/status", request: null, requestFields: null, response: Wire.IntegrationPoolStatusResponseSchema, optionalRequest: false },
   { scope: "api", method: "POST", path: "/system/integrations/pools/:id/command", request: Wire.IntegrationPoolCommandRequestSchema, requestFields: ["action", "reason", "expectedVersion"], response: Wire.IntegrationPoolStatusResponseSchema, optionalRequest: false },
   { scope: "api", method: "POST", path: "/system/integrations/pools/:id/test", request: null, requestFields: null, response: Wire.IntegrationConnectionTestResponseSchema, optionalRequest: false },
+  { scope: "api", method: "GET", path: "/system/integrations/pools/:id/rpc-key-names", request: null, requestFields: null, response: Wire.IntegrationRPCKeyOptionsResponseSchema, optionalRequest: false },
   { scope: "api", method: "GET", path: "/crypto/unidentified-receipts", request: null, requestFields: null, response: Wire.UnidentifiedReceiptListResponseSchema, optionalRequest: false },
   { scope: "api", method: "GET", path: "/crypto/unidentified-receipts/:id", request: null, requestFields: null, response: Wire.CustodyReceiptDetailResponseSchema, optionalRequest: false },
   { scope: "api", method: "POST", path: "/crypto/unidentified-receipts/:id/credits", request: Wire.PrepareMerchantCreditRequestSchema, requestFields: ["merchantId", "invoiceId"], response: Wire.MerchantCreditResponseSchema, optionalRequest: false },

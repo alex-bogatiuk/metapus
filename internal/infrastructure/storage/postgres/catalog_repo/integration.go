@@ -153,7 +153,10 @@ func (r *IntegrationPoolRepo) ValidateMembers(ctx context.Context, p *integratio
 			return apperror.NewValidation("Все аккаунты пула должны принадлежать выбранному провайдеру и быть доступны")
 		}
 	}
-	return nil
+	if p.DeletionMark {
+		return nil
+	}
+	return validatePoolRPCKeys(ctx, p)
 }
 func (r *IntegrationPoolRepo) saveMembers(ctx context.Context, p *integrations.Pool) error {
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)

@@ -98,7 +98,7 @@ func (r *Runtime) Select(ctx context.Context, poolID id.ID, slot string, provide
 		now := r.Now()
 		var key []byte
 		var unavailable integrations.PoolUnavailableError
-		exhaustedCount, expiredCount := 0, 0
+		exhaustedCount, expiredCount, missingKeyCount := 0, 0, 0
 		noteRetry := func(at time.Time) {
 			if at.After(now) && (unavailable.RetryAt.IsZero() || at.Before(unavailable.RetryAt)) {
 				unavailable.RetryAt = at
@@ -165,6 +165,7 @@ func (r *Runtime) Select(ctx context.Context, poolID id.ID, slot string, provide
 			}
 			secret, ok := credentials.Key(slot)
 			if !ok {
+				missingKeyCount++
 				continue
 			}
 			if c.exhausted != nil && !now.Before(*c.exhausted) {
@@ -194,6 +195,9 @@ func (r *Runtime) Select(ctx context.Context, poolID id.ID, slot string, provide
 		}
 		if len(candidates) > 0 && exhaustedCount == len(candidates) {
 			unavailable.Reason = integrations.Exhausted
+		}
+		if unavailable.Reason == "" && missingKeyCount > 0 {
+			unavailable.Reason = integrations.KeyMissing
 		}
 		return &unavailable
 	})

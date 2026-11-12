@@ -2708,6 +2708,19 @@ export const IntegrationProvidersResponseSchema: z.ZodType<Wire.IntegrationProvi
   "providers": z.array(IntegrationProviderResponseSchema),
 }))
 
+export const IntegrationRPCKeyAccountSchema: z.ZodType<Wire.IntegrationRPCKeyAccount> = z.lazy(() => z.object({
+  "id": z.string(),
+  "name": z.string(),
+  "hasCredentials": z.boolean(),
+  "keys": z.array(z.string()),
+}))
+
+export const IntegrationRPCKeyOptionsResponseSchema: z.ZodType<Wire.IntegrationRPCKeyOptionsResponse> = z.lazy(() => z.object({
+  "required": z.string(),
+  "names": z.array(z.string()),
+  "accounts": z.array(IntegrationRPCKeyAccountSchema),
+}))
+
 export const IntegrationsCredentialsInputSchema: z.ZodType<Wire.IntegrationsCredentialsInput> = z.lazy(() => z.strictObject({
   "keys": z.array(IntegrationsNamedKeyInputSchema).optional(),
   "apiSecret": z.string().optional(),

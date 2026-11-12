@@ -23,6 +23,11 @@ func New(repo integrations.AdministrationRepository, txm tx.Manager, writer even
 func (s *Service) Status(ctx context.Context, uid id.ID) (integrations.PoolStatus, error) {
 	return s.repo.Status(ctx, uid)
 }
+
+// RPCKeyOptions returns key names (never values) an RPC endpoint may read.
+func (s *Service) RPCKeyOptions(ctx context.Context, q integrations.RPCKeyQuery) (integrations.RPCKeyOptions, error) {
+	return s.repo.RPCKeyOptions(ctx, q)
+}
 func (s *Service) Command(ctx context.Context, uid id.ID, action, reason string, expected int64) (integrations.PoolStatus, error) {
 	var out integrations.PoolStatus
 	if len(strings.TrimSpace(reason)) < 3 || len(reason) > 500 {

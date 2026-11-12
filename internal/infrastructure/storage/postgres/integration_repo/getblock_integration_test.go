@@ -61,8 +61,12 @@ func TestGetBlockEncryptedRoleSlotsAndTrustBoundary(t *testing.T) {
 		}
 		e.TrustGroup = "getblock-second-token"
 		require.Error(t, er.ValidateBinding(ctx, e), "role tokens must never become independent trust groups")
-		e.TrustGroup, e.Slot = "getblock", "default"
+		other := map[string]string{"fullnode": "solidity", "solidity": "fullnode"}[role]
+		e.TrustGroup, e.Slot = "getblock", other
 		require.Error(t, er.ValidateBinding(ctx, e), "role must select its own token slot")
+		e.Slot = "default"
+		require.NoError(t, er.ValidateBinding(ctx, e), "an unspecified name takes the role token")
+		require.Equal(t, role, e.Slot)
 		e.Slot, e.URL = role, e.URL+"/secret"
 		require.Error(t, er.ValidateBinding(ctx, e), "credential URL must never be stored in RPC configuration")
 	}

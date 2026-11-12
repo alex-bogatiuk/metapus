@@ -24,8 +24,11 @@ const (
 func rpcErrorCategory(err error) string {
 	var unavailable *integrations.PoolUnavailableError
 	if errors.As(err, &unavailable) {
-		if unavailable.Reason == integrations.Exhausted {
+		switch unavailable.Reason {
+		case integrations.Exhausted:
 			return "pool_exhausted"
+		case integrations.KeyMissing:
+			return "pool_key_missing"
 		}
 		return "pool_unavailable"
 	}

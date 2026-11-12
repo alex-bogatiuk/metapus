@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
 	"metapus/internal/infrastructure/blockchain/rpcpolicy"
 )
@@ -69,6 +70,20 @@ func (t boundedRPCTransport) RoundTrip(req *http.Request) (*http.Response, error
 
 type rpcOperationContextKey struct{}
 
+// poolUnavailableCategory reports why no account of an endpoint pool could be
+// used. No request reached the provider, so this is not a transport failure.
+func poolUnavailableCategory(err error) string {
+	var unavailable *integrations.PoolUnavailableError
+	errors.As(err, &unavailable)
+	switch unavailable.Reason {
+	case integrations.Exhausted:
+		return "pool_exhausted"
+	case integrations.KeyMissing:
+		return "pool_key_missing"
+	}
+	return "pool_unavailable"
+}
+
 func rpcErrorCategory(err error) string {
 	switch {
 	case err == nil:
@@ -81,6 +96,8 @@ func rpcErrorCategory(err error) string {
 		return "unsupported"
 	case errors.Is(err, rpcpolicy.ErrCredentialsExpired):
 		return "credentials_expired"
+	case errors.As(err, new(*integrations.PoolUnavailableError)):
+		return poolUnavailableCategory(err)
 	case errors.Is(err, rpcpolicy.ErrAccessDenied):
 		return "access_denied"
 	case errors.Is(err, rpcpolicy.ErrQueryLimit):

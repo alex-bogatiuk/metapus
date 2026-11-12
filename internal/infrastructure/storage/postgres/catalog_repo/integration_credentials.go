@@ -28,6 +28,9 @@ func (r *IntegrationAccountRepo) writeWithUniqueKeys(ctx context.Context, a *int
 		if err := r.validateUniqueKeys(ctx, a); err != nil {
 			return err
 		}
+		if err := validateAccountRPCKeys(ctx, a); err != nil {
+			return err
+		}
 		return write(ctx, a)
 	})
 }

@@ -2704,6 +2704,19 @@ export type IntegrationProvidersResponse = {
   "providers": Array<IntegrationProviderResponse>
 }
 
+export type IntegrationRPCKeyAccount = {
+  "id": string
+  "name": string
+  "hasCredentials": boolean
+  "keys": Array<string>
+}
+
+export type IntegrationRPCKeyOptionsResponse = {
+  "required": string
+  "names": Array<string>
+  "accounts": Array<IntegrationRPCKeyAccount>
+}
+
 export type IntegrationsCredentialsInput = {
   "keys"?: Array<IntegrationsNamedKeyInput>
   "apiSecret"?: string

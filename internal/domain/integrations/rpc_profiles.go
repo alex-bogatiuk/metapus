@@ -1,6 +1,7 @@
 package integrations
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 
@@ -17,7 +18,10 @@ type RPCProfile struct {
 	HostSuffix        string
 	BasePath          string
 	TrustGroup        string
-	SlotByRole        bool
+	// KeyName is the account key this contract always reads. Empty lets the
+	// operator choose among names the pool accounts have (for example Alchemy).
+	KeyName    string
+	SlotByRole bool
 }
 
 type RPCBinding struct {
@@ -72,14 +76,30 @@ func (p Provider) RPCProfileForURL(raw string) (RPCProfile, bool) {
 	return best, best.HostSuffix != "" && best.ValidBase(raw)
 }
 
-func (p Provider) ValidateRPCBinding(b RPCBinding) error {
+// RPCKeyName returns the account key name that the provider profile requires
+// for a binding. An empty result means the profile leaves the choice open.
+func (p Provider) RPCKeyName(b RPCBinding) string {
 	definition, _ := p.Definition()
-	if definition.Credentials.RequireFields && definition.Credentials.SingleKey && len(definition.Credentials.Fields) == 1 && b.Slot != definition.Credentials.Fields[0].Name {
-		return apperror.NewValidation("Имя ключа не соответствует профилю провайдера").WithDetail("reasonCode", "rpc_binding_invalid")
+	if definition.Credentials.RequireFields && definition.Credentials.SingleKey && len(definition.Credentials.Fields) == 1 {
+		return definition.Credentials.Fields[0].Name
 	}
 	profile, ok := p.RPCProfileForURL(b.URL)
-	if !ok || !profile.Supports(b) || b.TrustGroup != profile.TrustGroup || profile.SlotByRole && b.Slot != b.Role {
+	if !ok || !profile.Supports(b) {
+		return ""
+	}
+	if profile.SlotByRole {
+		return b.Role
+	}
+	return profile.KeyName
+}
+
+func (p Provider) ValidateRPCBinding(b RPCBinding) error {
+	profile, ok := p.RPCProfileForURL(b.URL)
+	if !ok || !profile.Supports(b) || b.TrustGroup != profile.TrustGroup {
 		return apperror.NewValidation("Параметры RPC не соответствуют поддерживаемому профилю провайдера").WithDetail("reasonCode", "rpc_binding_invalid")
+	}
+	if name := p.RPCKeyName(b); name != "" && b.Slot != name {
+		return apperror.NewValidation(fmt.Sprintf("Для этого подключения используется ключ «%s»", name)).WithDetail("reasonCode", "rpc_binding_invalid").WithDetail("field", "credentialSlot")
 	}
 	return nil
 }

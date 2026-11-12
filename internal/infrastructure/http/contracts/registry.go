@@ -125,6 +125,8 @@ func Registry() []Contract {
 		Response[dto.IntegrationAccountStatus]("IntegrationAccountStatus"),
 		Response[dto.IntegrationPoolStatusResponse]("IntegrationPoolStatusResponse"),
 		Response[dto.IntegrationConnectionTestResponse]("IntegrationConnectionTestResponse"),
+		Response[dto.IntegrationRPCKeyAccount]("IntegrationRPCKeyAccount"),
+		Response[dto.IntegrationRPCKeyOptionsResponse]("IntegrationRPCKeyOptionsResponse"),
 		Response[dto.IntegrationProvidersResponse]("IntegrationProvidersResponse"),
 		Response[dto.IntegrationKindResponse]("IntegrationKindResponse"),
 		Response[dto.IntegrationProviderResponse]("IntegrationProviderResponse"),

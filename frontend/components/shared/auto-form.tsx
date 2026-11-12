@@ -77,7 +77,7 @@ const tabStateKeys = {
 type FieldDef = MetadataField
 type EntityMetaDef = EntityMetadata
 
-interface AutoFormProps {
+export interface AutoFormProps {
     /** Entity name for metadata lookup (e.g. "Vehicle", "Counterparty") */
     entityName: string
     /** Entity ID — undefined means "create new" */
@@ -93,6 +93,18 @@ interface AutoFormProps {
     appendContent?: React.ReactNode
     hiddenFields?: readonly string[]
     readOnly?: boolean
+    /**
+     * Entity-specific input for a field; return undefined to keep the default.
+     * Receives the whole draft for fields whose choices depend on other fields.
+     */
+    renderField?: (field: FieldDef, context: AutoFormFieldContext) => React.ReactNode | undefined
+}
+
+export interface AutoFormFieldContext {
+    value: JsonValue | undefined
+    values: Record<string, JsonValue | undefined>
+    onChange: (value: JsonValue) => void
+    readOnly: boolean
 }
 
 /** System/auto-managed fields that should not appear in the form */
@@ -285,7 +297,7 @@ function fieldToInput(
     }
 }
 
-export default function AutoForm({ entityName, id, entityType, routePrefix, appendContent, hiddenFields = [], readOnly = false }: AutoFormProps) {
+export default function AutoForm({ entityName, id, entityType, routePrefix, appendContent, hiddenFields = [], readOnly = false, renderField }: AutoFormProps) {
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
@@ -841,7 +853,12 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                                             {field.required && <span className="ml-0.5 text-destructive">*</span>}
                                         </Label>
                                         <div className="mt-1">
-                                            {fieldToInput(
+                                            {renderField?.(field, {
+                                                value: formData[field.name],
+                                                values: formData,
+                                                onChange: (value) => handleFieldChange(field.name, value),
+                                                readOnly: fieldReadOnly || !!field.readOnly,
+                                            }) ?? fieldToInput(
                                                 field,
                                                 formData[field.name],
                                                 handleFieldChange,

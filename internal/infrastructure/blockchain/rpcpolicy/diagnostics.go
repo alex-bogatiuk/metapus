@@ -7,7 +7,7 @@ import (
 // SafeReason only exposes known categories, never upstream errors or URLs.
 func SafeReason(reason string) string {
 	switch reason {
-	case "credentials_expired", "query_limit", "timeout", "rate_limited", "unsupported", "archive_unavailable", "pool_exhausted", "pool_unavailable", "invalid_credentials", "authentication", "access_denied", "head_lagging", "head_behind", "stale_head", "invalid_header", "invalid_response", "invalid_trace", "unsupported_trace", "response_limit", "http_error", "rpc_error", "transport_or_decode", "configuration_unavailable", "wrong_chain", "account_attempt_budget", "decoder_version_conflict", "admission_busy", "budget_unavailable", "rpc_unavailable", "invalid_request", "canceled", "not_found":
+	case "credentials_expired", "query_limit", "timeout", "rate_limited", "unsupported", "archive_unavailable", "pool_exhausted", "pool_unavailable", "pool_key_missing", "invalid_credentials", "authentication", "access_denied", "head_lagging", "head_behind", "stale_head", "invalid_header", "invalid_response", "invalid_trace", "unsupported_trace", "response_limit", "http_error", "rpc_error", "transport_or_decode", "configuration_unavailable", "wrong_chain", "account_attempt_budget", "decoder_version_conflict", "admission_busy", "budget_unavailable", "rpc_unavailable", "invalid_request", "canceled", "not_found":
 		return reason
 	case "":
 		return ""

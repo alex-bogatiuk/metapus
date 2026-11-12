@@ -7,7 +7,8 @@ import (
 )
 
 // PoolUnavailableError describes account availability without disclosing credentials.
-// An empty Reason means no configured account can serve the requested slot.
+// KeyMissing means accounts were skipped because they lack the requested key
+// name; an empty Reason means no other account state explains the failure.
 type PoolUnavailableError struct {
 	Reason  Failure
 	RetryAt time.Time

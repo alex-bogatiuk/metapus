@@ -171,3 +171,7 @@ func (r *Runtime) Command(ctx context.Context, uid id.ID, action string, expecte
 		return nil
 	})
 }
+
+func (r *Runtime) RPCKeyOptions(ctx context.Context, q integrations.RPCKeyQuery) (integrations.RPCKeyOptions, error) {
+	return catalog_repo.RPCKeyOptions(ctx, q)
+}

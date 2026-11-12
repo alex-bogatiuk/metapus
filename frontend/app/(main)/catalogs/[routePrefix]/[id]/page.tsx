@@ -17,12 +17,19 @@ import { notFound } from "next/navigation"
 import { entityRegistry } from "@/lib/entity-registry"
 import { registerFromMetadata } from "@/lib/entity-registry-defaults"
 import { useMetadataStore } from "@/stores/useMetadataStore"
-import AutoForm from "@/components/shared/auto-form"
+import AutoForm, { type AutoFormProps } from "@/components/shared/auto-form"
+import { RPCKeyNameField } from "@/components/integrations/rpc-key-name-field"
 
 import { WalletAMLPanel } from "@/components/crypto/aml-risk"
 
 // Auto-discover entities from backend metadata
 registerFromMetadata()
+
+// RPC connections choose the account key from their pool, not as free text.
+const renderRPCEndpointField: NonNullable<AutoFormProps["renderField"]> = (field, context) =>
+    field.name === "credentialSlot"
+        ? <RPCKeyNameField value={context.value} values={context.values} onChange={context.onChange} readOnly={context.readOnly} />
+        : undefined
 
 interface PageProps {
     params: Promise<{
@@ -89,6 +96,7 @@ export default function CatalogCatchAllFormPage({ params }: PageProps) {
                 routePrefix={canonicalPrefix}
                 id={id === "new" ? undefined : id}
                 appendContent={canonicalPrefix === "wallets" && id !== "new" ? <WalletAMLPanel walletId={id} /> : undefined}
+                renderField={canonicalPrefix === "crypto-rpc-endpoints" ? renderRPCEndpointField : undefined}
             />
         </Suspense>
     )
