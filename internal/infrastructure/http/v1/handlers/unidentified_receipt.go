@@ -16,15 +16,18 @@ import (
 )
 
 // UnidentifiedReceiptHandler serves the journal of unidentified custody
-// receipts and the commands that credit them to merchants.
+// receipts and the commands that credit them to merchants or take them as
+// platform funding.
 type UnidentifiedReceiptHandler struct {
 	base     *BaseHandler
 	journal  *crypto_repo.UnidentifiedReceiptRepo
 	commands *cryptoapp.MerchantCreditCommands
+	fundings *cryptoapp.PlatformFundingCommands
 }
 
-func NewUnidentifiedReceiptHandler(base *BaseHandler, journal *crypto_repo.UnidentifiedReceiptRepo, commands *cryptoapp.MerchantCreditCommands) *UnidentifiedReceiptHandler {
-	return &UnidentifiedReceiptHandler{base: base, journal: journal, commands: commands}
+func NewUnidentifiedReceiptHandler(base *BaseHandler, journal *crypto_repo.UnidentifiedReceiptRepo,
+	commands *cryptoapp.MerchantCreditCommands, fundings *cryptoapp.PlatformFundingCommands) *UnidentifiedReceiptHandler {
+	return &UnidentifiedReceiptHandler{base: base, journal: journal, commands: commands, fundings: fundings}
 }
 
 // RegisterRoutes mounts the journal. stepUp guards every money command.
@@ -36,6 +39,10 @@ func (h *UnidentifiedReceiptHandler) RegisterRoutes(rg *gin.RouterGroup, stepUp 
 	credits := rg.Group("/crypto/merchant-credits")
 	credits.POST("/:id/approve", middleware.RequirePermission("crypto_receipt:approve"), stepUp, h.Approve)
 	credits.POST("/:id/reject", middleware.RequirePermission("crypto_receipt:credit"), stepUp, h.Reject)
+	receipts.POST("/:id/platform-fundings", middleware.RequirePermission("crypto_receipt:credit"), stepUp, h.PreparePlatformFunding)
+	fundings := rg.Group("/crypto/platform-fundings")
+	fundings.POST("/:id/approve", middleware.RequirePermission("crypto_receipt:approve"), stepUp, h.ApprovePlatformFunding)
+	fundings.POST("/:id/reject", middleware.RequirePermission("crypto_receipt:credit"), stepUp, h.RejectPlatformFunding)
 }
 
 func (h *UnidentifiedReceiptHandler) List(c *gin.Context) {
@@ -165,6 +172,53 @@ func (h *UnidentifiedReceiptHandler) decision(c *gin.Context) (id.ID, dto.Decide
 	return creditID, req, true
 }
 
+func (h *UnidentifiedReceiptHandler) PreparePlatformFunding(c *gin.Context) {
+	receiptID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		h.base.Error(c, apperror.NewValidation("invalid receipt id"))
+		return
+	}
+	var req dto.PreparePlatformFundingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.base.Error(c, apperror.NewValidation("reason is required"))
+		return
+	}
+	result, err := h.fundings.Prepare(c.Request.Context(), c.GetHeader("Idempotency-Key"), receiptID, req.Reason, req.AcknowledgeMerchantTie)
+	h.writeCommandResult(c, result, err)
+}
+
+func (h *UnidentifiedReceiptHandler) ApprovePlatformFunding(c *gin.Context) {
+	fundingID, req, ok := h.fundingDecision(c)
+	if !ok {
+		return
+	}
+	result, err := h.fundings.Approve(c.Request.Context(), c.GetHeader("Idempotency-Key"), fundingID, req.Version)
+	h.writeCommandResult(c, result, err)
+}
+
+func (h *UnidentifiedReceiptHandler) RejectPlatformFunding(c *gin.Context) {
+	fundingID, req, ok := h.fundingDecision(c)
+	if !ok {
+		return
+	}
+	result, err := h.fundings.Reject(c.Request.Context(), c.GetHeader("Idempotency-Key"), fundingID, req.Version, req.Reason)
+	h.writeCommandResult(c, result, err)
+}
+
+func (h *UnidentifiedReceiptHandler) fundingDecision(c *gin.Context) (id.ID, dto.DecidePlatformFundingRequest, bool) {
+	var req dto.DecidePlatformFundingRequest
+	fundingID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		h.base.Error(c, apperror.NewValidation("invalid platform funding id"))
+		return id.Nil(), req, false
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.base.Error(c, apperror.NewValidation("version is required"))
+		return id.Nil(), req, false
+	}
+	return fundingID, req, true
+}
+
 func (h *UnidentifiedReceiptHandler) writeCommandResult(c *gin.Context, result command.Execution, err error) {
 	if err != nil {
 		h.base.Error(c, err)
@@ -197,6 +251,21 @@ func unidentifiedReceiptItem(row crypto_repo.UnidentifiedReceiptRow) dto.Unident
 		if row.CreditApproval != nil {
 			item.Credit.ApprovalRequired = *row.CreditApproval
 		}
+	}
+	if row.FundingID != nil {
+		item.PlatformFunding = &dto.UnidentifiedReceiptPlatformFunding{
+			ID: *row.FundingID, Number: optionalText(row.FundingNumber), Status: optionalText(row.FundingStatus),
+			Reason: optionalText(row.FundingReason), MerchantName: optionalText(row.FundingMerchant),
+			MerchantLink: optionalText(row.FundingMerchantLink), PreparedBy: optionalText(row.FundingPreparedBy),
+			DecidedAt: row.FundingDecidedAt, DecisionReason: optionalText(row.FundingDecisionReason),
+		}
+		if row.FundingVersion != nil {
+			item.PlatformFunding.Version = *row.FundingVersion
+		}
+	}
+	if row.TieMerchantID != nil {
+		item.MerchantTie = &dto.ReceiptMerchantTie{MerchantID: *row.TieMerchantID,
+			MerchantName: optionalText(row.TieMerchantName), Link: optionalText(row.TieLink)}
 	}
 	return item
 }

@@ -19,6 +19,7 @@ import (
 // the receipt's suspense balance lock.
 type ReceiptRemainder struct {
 	ReceiptID         id.ID
+	WalletID          id.ID
 	TokenID           id.ID
 	Amount            types.CryptoAmount
 	CustodyMerchantID *id.ID
@@ -29,11 +30,15 @@ type ReceiptRemainder struct {
 	// again, and the receipt audit orphans it if the transfer stays absent, so
 	// an operator credit would race the payment for the same money.
 	PaymentReorged bool
+	// AwaitingDecision: a prepared merchant credit or platform funding already
+	// claims the remainder until another operator decides.
+	AwaitingDecision bool
 }
 
 var (
 	errReceiptOrphaned       = apperror.NewConflict("receipt transfer was orphaned by a chain reorganization; resolve its incident first")
 	errReceiptPaymentReorged = apperror.NewConflict("invoice payment of this receipt was reversed by a chain reorganization; wait for its re-inclusion or the receipt audit")
+	errReceiptAwaitsDecision = apperror.NewConflict("receipt already awaits a decision on another attribution")
 )
 
 // attributable rejects a remainder that only the chain may decide about.
@@ -109,6 +114,9 @@ func (s *MerchantCreditService) Prepare(ctx context.Context, cmd PrepareMerchant
 		}
 		if err := remainder.attributable(); err != nil {
 			return err
+		}
+		if remainder.AwaitingDecision {
+			return errReceiptAwaitsDecision
 		}
 		if !remainder.Amount.IsPositive() {
 			return apperror.NewConflict("receipt has no unattributed remainder")

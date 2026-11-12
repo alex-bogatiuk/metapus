@@ -87,6 +87,24 @@ func (c *MerchantCreditCommands) Reject(ctx context.Context, key string, creditI
 
 func (c *MerchantCreditCommands) execute(ctx context.Context, action, key string, request any,
 	fn func(context.Context, id.ID) (*crypto_merchant_credit.CryptoMerchantCredit, error)) (command.Execution, error) {
+	return runOperatorCommand(ctx, c.commands, "crypto.receipt.credit."+action, key, request,
+		func(txCtx context.Context, actor id.ID) (command.Result, error) {
+			doc, err := fn(txCtx, actor)
+			if err != nil {
+				return command.Result{}, err
+			}
+			result := MerchantCreditResult{ID: doc.ID, Number: doc.Number, ReceiptID: doc.ReceiptID, MerchantID: doc.MerchantID,
+				Status: doc.Status, Version: doc.Version, ApprovalRequired: doc.ApprovalRequired,
+				Amount: doc.Amount, NetAmount: doc.NetAmount, ProcessingFee: doc.ProcessingFee}
+			return command.Result{Outcome: string(doc.Status), ResourceType: doc.GetDocumentType(), ResourceID: doc.ID.String(),
+				ResourceVersion: int64(doc.Version), Payload: command.MustPayload(result)}, nil
+		})
+}
+
+// runOperatorCommand runs a money command of an authenticated operator once
+// per Idempotency-Key; a repeated key returns the stored result.
+func runOperatorCommand(ctx context.Context, commands *command.Executor, operation, key string, request any,
+	run func(context.Context, id.ID) (command.Result, error)) (command.Execution, error) {
 	if err := security.GetDataScope(ctx).CanMutate(); err != nil {
 		return command.Execution{}, err
 	}
@@ -112,20 +130,10 @@ func (c *MerchantCreditCommands) execute(ctx context.Context, action, key string
 	if err != nil {
 		return command.Execution{}, apperror.NewInternal(err)
 	}
-	execution, err := c.commands.Execute(ctx, command.Metadata{
-		ScopeType: "user", ScopeID: tenantID + ":" + actor.String(), Operation: "crypto.receipt.credit." + action,
+	execution, err := commands.Execute(ctx, command.Metadata{
+		ScopeType: "user", ScopeID: tenantID + ":" + actor.String(), Operation: operation,
 		IdempotencyKey: key, RequestFingerprint: fingerprint,
-	}, func(txCtx context.Context) (command.Result, error) {
-		doc, err := fn(txCtx, actor)
-		if err != nil {
-			return command.Result{}, err
-		}
-		result := MerchantCreditResult{ID: doc.ID, Number: doc.Number, ReceiptID: doc.ReceiptID, MerchantID: doc.MerchantID,
-			Status: doc.Status, Version: doc.Version, ApprovalRequired: doc.ApprovalRequired,
-			Amount: doc.Amount, NetAmount: doc.NetAmount, ProcessingFee: doc.ProcessingFee}
-		return command.Result{Outcome: string(doc.Status), ResourceType: doc.GetDocumentType(), ResourceID: doc.ID.String(),
-			ResourceVersion: int64(doc.Version), Payload: command.MustPayload(result)}, nil
-	})
+	}, func(txCtx context.Context) (command.Result, error) { return run(txCtx, actor) })
 	if errors.Is(err, command.ErrKeyReused) {
 		err = apperror.NewIdempotencyMismatch(key)
 	}

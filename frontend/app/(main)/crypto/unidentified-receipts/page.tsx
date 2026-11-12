@@ -8,21 +8,26 @@ import { api, ApiError, idempotencyHeaders, shouldRetainMutationKey } from "@/li
 import { formatDateTime, formatMinorUnits } from "@/lib/format"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useAuthStore } from "@/stores/useAuthStore"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { ReferenceField } from "@/components/shared/reference-field"
-import type { MerchantCreditResponse, UnidentifiedReceiptItem } from "@/types/generated/http-contracts"
-import { receiptJournalStates, receiptReasons, receiptRowStateHints, receiptRowStates, type ReceiptJournalState } from "@/types/unidentified-receipt"
+import type { MerchantCreditResponse, PlatformFundingResponse, UnidentifiedReceiptItem } from "@/types/generated/http-contracts"
+import { receiptJournalStates, receiptMerchantLinks, receiptReasons, receiptRowStateHints, receiptRowStates, type ReceiptJournalState } from "@/types/unidentified-receipt"
+import { AlertTriangle } from "lucide-react"
 
 type Dialogs =
   | { kind: "credit"; item: UnidentifiedReceiptItem; merchantId: string; merchantName: string }
-  | { kind: "reject"; item: UnidentifiedReceiptItem; reason: string }
+  | { kind: "funding"; item: UnidentifiedReceiptItem; reason: string; acknowledged: boolean }
+  | { kind: "approveFunding"; item: UnidentifiedReceiptItem }
+  | { kind: "reject"; item: UnidentifiedReceiptItem; reason: string; target: "credit" | "funding" }
   | null
 
 const pageSize = 50
@@ -33,6 +38,21 @@ function amount(item: UnidentifiedReceiptItem, raw: string) {
 
 function short(value: string) {
   return value.length > 14 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value
+}
+
+// Both the preparing and the approving operator see why the receipt is most
+// likely a merchant customer's money before taking it as platform funding.
+function MerchantTieWarning({ item }: { item: UnidentifiedReceiptItem }) {
+  const tie = item.merchantTie
+  if (!tie) return null
+  return <Alert variant="destructive">
+    <AlertTriangle />
+    <AlertTitle>Кошелёк связан с мерчантом «{tie.merchantName}»</AlertTitle>
+    <AlertDescription>
+      Скорее всего, это оплата его клиента: {receiptMerchantLinks[tie.link] ?? tie.link}.
+      Отнесите поступление к пополнению платформы, только если уверены, что это деньги платформы.
+    </AlertDescription>
+  </Alert>
 }
 
 export default function UnidentifiedReceiptsPage() {
@@ -53,7 +73,7 @@ export default function UnidentifiedReceiptsPage() {
     () => api.unidentifiedReceipts.list(state, includeDust, offset),
   )
 
-  const run = async (action: () => Promise<MerchantCreditResponse>, done: string) => {
+  const run = async (action: () => Promise<MerchantCreditResponse | PlatformFundingResponse>, done: string) => {
     if (busy) return
     if (!commandKey.current) commandKey.current = idempotencyHeaders()["Idempotency-Key"]
     setBusy(true)
@@ -96,7 +116,10 @@ export default function UnidentifiedReceiptsPage() {
     <Card>
       <CardHeader>
         <CardTitle>Журнал</CardTitle>
-        <CardDescription>Зачисление переводит весь остаток мерчанту по его тарифу. Выше порога токена нужно подтверждение другим сотрудником.</CardDescription>
+        <CardDescription>
+          Зачисление переводит весь остаток мерчанту по его тарифу; выше порога токена нужно подтверждение другим сотрудником.
+          Пополнение платформы относит остаток к собственным деньгам платформы и всегда подтверждается другим сотрудником.
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -119,8 +142,11 @@ export default function UnidentifiedReceiptsPage() {
           <TableBody>
             {items.map((item) => {
               const credit = item.credit
+              const funding = item.platformFunding
+              const pendingCredit = item.state === "awaiting_approval" && credit?.status === "prepared"
+              const pendingFunding = item.state === "awaiting_approval" && funding?.status === "prepared"
               const ownCredit = !!credit && credit.preparedBy === user?.id
-              const awaiting = item.state === "awaiting_approval" && !!credit
+              const ownFunding = !!funding && funding.preparedBy === user?.id
               return <TableRow key={item.receiptId || item.inboxEventId}>
                 <TableCell>
                   <div>{formatDateTime(item.receivedAt)}</div>
@@ -130,6 +156,7 @@ export default function UnidentifiedReceiptsPage() {
                 <TableCell>
                   <div>{item.networkName}</div>
                   <div className="font-mono text-xs text-muted-foreground" title={item.toAddress}>{short(item.toAddress)}</div>
+                  {item.merchantTie && <div className="text-xs text-muted-foreground">Связан с мерчантом «{item.merchantTie.merchantName}»</div>}
                 </TableCell>
                 <TableCell>
                   <div className="font-mono text-xs" title={item.fromAddress}>{short(item.fromAddress)}</div>
@@ -150,17 +177,26 @@ export default function UnidentifiedReceiptsPage() {
                   </div>}
                   {credit?.status === "rejected" && <div className="text-xs text-muted-foreground">Отклонено: {credit.decisionReason}</div>}
                   {credit?.status === "reversed" && <div className="text-xs text-muted-foreground">Зачисление сторнировано: перевод исчез из сети</div>}
+                  {funding && <div className="text-xs text-muted-foreground">
+                    {funding.number} · Пополнение платформы · {funding.reason}
+                  </div>}
+                  {funding?.status === "rejected" && <div className="text-xs text-muted-foreground">Пополнение отклонено: {funding.decisionReason}</div>}
+                  {funding?.status === "reversed" && <div className="text-xs text-muted-foreground">Пополнение сторнировано: перевод исчез из сети</div>}
                   {item.pendingError && <div className="text-xs text-muted-foreground">{item.pendingError}</div>}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
-                    {item.state === "unattributed" && canCredit &&
-                      <Button size="sm" onClick={() => openDialog({ kind: "credit", item, merchantId: item.custodyMerchantId, merchantName: "" })}>Зачислить мерчанту</Button>}
-                    {awaiting && canApprove && !ownCredit &&
+                    {item.state === "unattributed" && canCredit && <>
+                      <Button size="sm" onClick={() => openDialog({ kind: "credit", item, merchantId: item.custodyMerchantId, merchantName: "" })}>Зачислить мерчанту</Button>
+                      <Button size="sm" variant="outline" onClick={() => openDialog({ kind: "funding", item, reason: "", acknowledged: false })}>Пополнение платформы</Button>
+                    </>}
+                    {pendingCredit && canApprove && !ownCredit &&
                       <Button size="sm" disabled={busy} onClick={() => approve(item)}>Подтвердить</Button>}
-                    {awaiting && ownCredit && <span className="text-xs text-muted-foreground">Ждёт другого сотрудника</span>}
-                    {awaiting && canCredit &&
-                      <Button size="sm" variant="outline" onClick={() => openDialog({ kind: "reject", item, reason: "" })}>Отклонить</Button>}
+                    {pendingFunding && canApprove && !ownFunding &&
+                      <Button size="sm" disabled={busy} onClick={() => openDialog({ kind: "approveFunding", item })}>Подтвердить</Button>}
+                    {((pendingCredit && ownCredit) || (pendingFunding && ownFunding)) && <span className="text-xs text-muted-foreground">Ждёт другого сотрудника</span>}
+                    {(pendingCredit || pendingFunding) && canCredit &&
+                      <Button size="sm" variant="outline" onClick={() => openDialog({ kind: "reject", item, reason: "", target: pendingFunding ? "funding" : "credit" })}>Отклонить</Button>}
                   </div>
                 </TableCell>
               </TableRow>
@@ -202,10 +238,56 @@ export default function UnidentifiedReceiptsPage() {
             </Button>
           </DialogFooter>
         </>}
-        {dialog?.kind === "reject" && dialog.item.credit && <>
+        {dialog?.kind === "funding" && <>
           <DialogHeader>
-            <DialogTitle>Отклонить зачисление {dialog.item.credit.number}</DialogTitle>
-            <DialogDescription>Поступление останется в невыясненных, его можно будет зачислить заново.</DialogDescription>
+            <DialogTitle>Отнести к пополнению платформы</DialogTitle>
+            <DialogDescription>
+              Весь остаток {amount(dialog.item, dialog.item.remainder)} станет собственными деньгами платформы на этом кошельке.
+              Мерчанту ничего не зачисляется. Нужно подтверждение другим сотрудником.
+            </DialogDescription>
+          </DialogHeader>
+          <MerchantTieWarning item={dialog.item} />
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="funding-reason">Основание</FieldLabel>
+              <Textarea id="funding-reason" value={dialog.reason} maxLength={2000} placeholder="Например: собственный перевод из казначейства"
+                onChange={(event) => setDialog({ ...dialog, reason: event.target.value })} />
+            </Field>
+            {dialog.item.merchantTie && <Field orientation="horizontal">
+              <Checkbox id="funding-acknowledge" checked={dialog.acknowledged}
+                onCheckedChange={(checked) => setDialog({ ...dialog, acknowledged: checked === true })} />
+              <FieldLabel htmlFor="funding-acknowledge" className="font-normal">
+                Понимаю, что кошелёк связан с мерчантом «{dialog.item.merchantTie.merchantName}», и всё равно отношу поступление к пополнению платформы
+              </FieldLabel>
+            </Field>}
+          </FieldGroup>
+          <DialogFooter>
+            <Button disabled={busy || !dialog.reason.trim() || (!!dialog.item.merchantTie && !dialog.acknowledged)}
+              onClick={() => run(() => api.unidentifiedReceipts.preparePlatformFunding(dialog.item.receiptId,
+                { reason: dialog.reason.trim(), acknowledgeMerchantTie: dialog.acknowledged }, commandKey.current), "Пополнение создано, ждёт подтверждения")}>
+              {busy ? "Сохранение…" : "Отнести к пополнению"}
+            </Button>
+          </DialogFooter>
+        </>}
+        {dialog?.kind === "approveFunding" && dialog.item.platformFunding && <>
+          <DialogHeader>
+            <DialogTitle>Подтвердить пополнение {dialog.item.platformFunding.number}</DialogTitle>
+            <DialogDescription>
+              {amount(dialog.item, dialog.item.remainder)} станут собственными деньгами платформы. Основание: {dialog.item.platformFunding.reason}
+            </DialogDescription>
+          </DialogHeader>
+          <MerchantTieWarning item={dialog.item} />
+          <DialogFooter>
+            <Button disabled={busy} onClick={() => run(() => api.unidentifiedReceipts.approvePlatformFunding(
+              dialog.item.platformFunding!.id, dialog.item.platformFunding!.version, commandKey.current), "Пополнение подтверждено")}>
+              {busy ? "Сохранение…" : "Подтвердить"}
+            </Button>
+          </DialogFooter>
+        </>}
+        {dialog?.kind === "reject" && (dialog.target === "funding" ? dialog.item.platformFunding : dialog.item.credit) && <>
+          <DialogHeader>
+            <DialogTitle>Отклонить {dialog.target === "funding" ? "пополнение" : "зачисление"} {(dialog.target === "funding" ? dialog.item.platformFunding : dialog.item.credit)!.number}</DialogTitle>
+            <DialogDescription>Поступление останется в невыясненных, его можно будет распределить заново.</DialogDescription>
           </DialogHeader>
           <FieldGroup>
             <Field>
@@ -216,7 +298,10 @@ export default function UnidentifiedReceiptsPage() {
           </FieldGroup>
           <DialogFooter>
             <Button variant="destructive" disabled={busy || !dialog.reason.trim()}
-              onClick={() => run(() => api.unidentifiedReceipts.rejectCredit(dialog.item.credit!.id, dialog.item.credit!.version, dialog.reason.trim(), commandKey.current), "Зачисление отклонено")}>
+              onClick={() => run(() => dialog.target === "funding"
+                ? api.unidentifiedReceipts.rejectPlatformFunding(dialog.item.platformFunding!.id, dialog.item.platformFunding!.version, dialog.reason.trim(), commandKey.current)
+                : api.unidentifiedReceipts.rejectCredit(dialog.item.credit!.id, dialog.item.credit!.version, dialog.reason.trim(), commandKey.current),
+                dialog.target === "funding" ? "Пополнение отклонено" : "Зачисление отклонено")}>
               {busy ? "Сохранение…" : "Отклонить"}
             </Button>
           </DialogFooter>

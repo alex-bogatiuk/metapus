@@ -1935,6 +1935,11 @@ export type DecideMerchantCreditRequest = {
   "reason"?: string
 }
 
+export type DecidePlatformFundingRequest = {
+  "version": number
+  "reason"?: string
+}
+
 export type DeleteMarkedRequest = {
   "items": Array<DomainDeleteMarkedRequestInput>
 }
@@ -3309,6 +3314,19 @@ export type PermissionResponse = {
   "action": string
 }
 
+export type PlatformFundingResponse = {
+  "id": string
+  "number": string
+  "receiptId": string
+  "status": string
+  "version": number
+  "amount": string
+  "reason": string
+  "merchantId"?: string
+  "merchantLink"?: string
+  "merchantLinkAcknowledged": boolean
+}
+
 export type PolicyRuleListResponse = Array<PolicyRuleResponse>
 
 export type PolicyRuleResponse = {
@@ -3841,6 +3859,11 @@ export type PrepareMerchantCreditRequest = {
   "invoiceId"?: string | null
 }
 
+export type PreparePlatformFundingRequest = {
+  "reason": string
+  "acknowledgeMerchantTie"?: boolean
+}
+
 export type PrepareProviderOpeningRequest = {
   "observationId": string
   "reason": string
@@ -3943,6 +3966,12 @@ export type RateSourceTreeResponse = Array<RateSourceResponse>
 
 export type ReasonRequest = {
   "reason"?: string
+}
+
+export type ReceiptMerchantTie = {
+  "merchantId": string
+  "merchantName": string
+  "link": string
 }
 
 export type RedeliverMerchantEventRequest = {
@@ -4371,11 +4400,26 @@ export type UnidentifiedReceiptItem = {
   "paymentId": string
   "paymentNumber": string
   "paymentStatus": string
+  "platformFunding": UnidentifiedReceiptPlatformFunding | null
+  "merchantTie": ReceiptMerchantTie | null
 }
 
 export type UnidentifiedReceiptListResponse = {
   "items": Array<UnidentifiedReceiptItem>
   "total": number
+}
+
+export type UnidentifiedReceiptPlatformFunding = {
+  "id": string
+  "number": string
+  "status": string
+  "version": number
+  "reason": string
+  "merchantName": string
+  "merchantLink": string
+  "preparedBy": string
+  "decidedAt": string | null
+  "decisionReason": string
 }
 
 export type UpdateAutomationAccountRequest = {

@@ -601,7 +601,11 @@ Admin123!
   wallet.
 
 Внешний native TRX funding платформенного wallet после подтверждений должен
-быть записан в wallet ledger отдельной командой для соответствующего кода:
+быть записан в wallet ledger отдельной командой для соответствующего кода.
+Запишите его в течение 30 минут после финальности: позже worker учтёт перевод
+как невыясненное поступление, и команда откажет. Такое поступление относят к
+деньгам платформы в журнале «Невыясненные» действием «Пополнение платформы»
+(два оператора, см. [crypto-custody-writers.md](../reference/crypto-custody-writers.md#пополнение-платформы-из-невыясненного)).
 
 ```text
 Invoke-PublicCompose --profile operator run --rm --no-deps --entrypoint ./crypto-record-wallet-funding crypto-preflight -wallet-code <managed-wallet-code> -token-code TRX-NILE -tx-hash <confirmed-native-trx-hash>

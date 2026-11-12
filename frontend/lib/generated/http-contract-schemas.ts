@@ -1939,6 +1939,11 @@ export const DecideMerchantCreditRequestSchema: z.ZodType<Wire.DecideMerchantCre
   "reason": z.string().optional(),
 }))
 
+export const DecidePlatformFundingRequestSchema: z.ZodType<Wire.DecidePlatformFundingRequest> = z.lazy(() => z.strictObject({
+  "version": z.number().int(),
+  "reason": z.string().optional(),
+}))
+
 export const DeleteMarkedRequestSchema: z.ZodType<Wire.DeleteMarkedRequest> = z.lazy(() => z.strictObject({
   "items": z.array(DomainDeleteMarkedRequestInputSchema),
 }))
@@ -3313,6 +3318,19 @@ export const PermissionResponseSchema: z.ZodType<Wire.PermissionResponse> = z.la
   "action": z.string(),
 }))
 
+export const PlatformFundingResponseSchema: z.ZodType<Wire.PlatformFundingResponse> = z.lazy(() => z.object({
+  "id": z.string(),
+  "number": z.string(),
+  "receiptId": z.string(),
+  "status": z.string(),
+  "version": z.number().int(),
+  "amount": z.string(),
+  "reason": z.string(),
+  "merchantId": z.string().optional(),
+  "merchantLink": z.string().optional(),
+  "merchantLinkAcknowledged": z.boolean(),
+}))
+
 export const PolicyRuleListResponseSchema: z.ZodType<Wire.PolicyRuleListResponse> = z.lazy(() => z.array(PolicyRuleResponseSchema))
 
 export const PolicyRuleResponseSchema: z.ZodType<Wire.PolicyRuleResponse> = z.lazy(() => z.object({
@@ -3845,6 +3863,11 @@ export const PrepareMerchantCreditRequestSchema: z.ZodType<Wire.PrepareMerchantC
   "invoiceId": z.string().nullable().optional(),
 }))
 
+export const PreparePlatformFundingRequestSchema: z.ZodType<Wire.PreparePlatformFundingRequest> = z.lazy(() => z.strictObject({
+  "reason": z.string(),
+  "acknowledgeMerchantTie": z.boolean().optional(),
+}))
+
 export const PrepareProviderOpeningRequestSchema: z.ZodType<Wire.PrepareProviderOpeningRequest> = z.lazy(() => z.strictObject({
   "observationId": z.string(),
   "reason": z.string(),
@@ -3947,6 +3970,12 @@ export const RateSourceTreeResponseSchema: z.ZodType<Wire.RateSourceTreeResponse
 
 export const ReasonRequestSchema: z.ZodType<Wire.ReasonRequest> = z.lazy(() => z.strictObject({
   "reason": z.string().optional(),
+}))
+
+export const ReceiptMerchantTieSchema: z.ZodType<Wire.ReceiptMerchantTie> = z.lazy(() => z.object({
+  "merchantId": z.string(),
+  "merchantName": z.string(),
+  "link": z.string(),
 }))
 
 export const RedeliverMerchantEventRequestSchema: z.ZodType<Wire.RedeliverMerchantEventRequest> = z.lazy(() => z.strictObject({
@@ -4375,11 +4404,26 @@ export const UnidentifiedReceiptItemSchema: z.ZodType<Wire.UnidentifiedReceiptIt
   "paymentId": z.string(),
   "paymentNumber": z.string(),
   "paymentStatus": z.string(),
+  "platformFunding": UnidentifiedReceiptPlatformFundingSchema.nullable(),
+  "merchantTie": ReceiptMerchantTieSchema.nullable(),
 }))
 
 export const UnidentifiedReceiptListResponseSchema: z.ZodType<Wire.UnidentifiedReceiptListResponse> = z.lazy(() => z.object({
   "items": z.array(UnidentifiedReceiptItemSchema),
   "total": z.number().int(),
+}))
+
+export const UnidentifiedReceiptPlatformFundingSchema: z.ZodType<Wire.UnidentifiedReceiptPlatformFunding> = z.lazy(() => z.object({
+  "id": z.string(),
+  "number": z.string(),
+  "status": z.string(),
+  "version": z.number().int(),
+  "reason": z.string(),
+  "merchantName": z.string(),
+  "merchantLink": z.string(),
+  "preparedBy": z.string(),
+  "decidedAt": z.string().nullable(),
+  "decisionReason": z.string(),
 }))
 
 export const UpdateAutomationAccountRequestSchema: z.ZodType<Wire.UpdateAutomationAccountRequest> = z.lazy(() => z.strictObject({

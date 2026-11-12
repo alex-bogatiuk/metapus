@@ -63,8 +63,11 @@ func registerUnidentifiedReceiptRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 	txm := postgres.NewContextTxManager()
 	service := cryptoapp.NewMerchantCreditService(txm, crypto_repo.NewMerchantCreditRepo(),
 		crypto.NewFeeConfigResolver(crypto_repo.NewFeeScheduleRepo()), engine, cfg.Numerator, postgres.NewOutboxPublisher(), time.Now)
-	commands := cryptoapp.NewMerchantCreditCommands(service, command.NewExecutor(txm, postgres.NewCommandRepository()))
-	handlers.NewUnidentifiedReceiptHandler(handlers.NewBaseHandler(), crypto_repo.NewUnidentifiedReceiptRepo(), commands).
+	executor := command.NewExecutor(txm, postgres.NewCommandRepository())
+	commands := cryptoapp.NewMerchantCreditCommands(service, executor)
+	fundings := cryptoapp.NewPlatformFundingCommands(cryptoapp.NewPlatformFundingService(txm, crypto_repo.NewPlatformFundingRepo(),
+		engine, cfg.Numerator, postgres.NewOutboxPublisher(), time.Now), executor)
+	handlers.NewUnidentifiedReceiptHandler(handlers.NewBaseHandler(), crypto_repo.NewUnidentifiedReceiptRepo(), commands, fundings).
 		RegisterRoutes(rg, middleware.SensitiveActionGuard(cfg.MFARepo, "crypto.receipt.credit", cfg.EventLogRepo))
 }
 

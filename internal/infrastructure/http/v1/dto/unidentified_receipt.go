@@ -18,6 +18,28 @@ type UnidentifiedReceiptCredit struct {
 	DecisionReason   string     `json:"decisionReason"`
 }
 
+// UnidentifiedReceiptPlatformFunding is the latest platform funding of a receipt.
+type UnidentifiedReceiptPlatformFunding struct {
+	ID             string     `json:"id"`
+	Number         string     `json:"number"`
+	Status         string     `json:"status"`
+	Version        int        `json:"version"`
+	Reason         string     `json:"reason"`
+	MerchantName   string     `json:"merchantName"`
+	MerchantLink   string     `json:"merchantLink"`
+	PreparedBy     string     `json:"preparedBy"`
+	DecidedAt      *time.Time `json:"decidedAt"`
+	DecisionReason string     `json:"decisionReason"`
+}
+
+// ReceiptMerchantTie is the merchant the wallet ties a receipt to: custody
+// owner, persistent deposit address or the invoice that leased the wallet.
+type ReceiptMerchantTie struct {
+	MerchantID   string `json:"merchantId"`
+	MerchantName string `json:"merchantName"`
+	Link         string `json:"link"`
+}
+
 type UnidentifiedReceiptItem struct {
 	// ReceiptID is empty while the transfer is observed but not accounted yet.
 	ReceiptID         string                     `json:"receiptId"`
@@ -44,9 +66,11 @@ type UnidentifiedReceiptItem struct {
 	// PaymentID is the invoice payment of a matched receipt. While that payment
 	// is unposted after a reorg the state is payment_reorged and no manual
 	// credit is possible.
-	PaymentID     string `json:"paymentId"`
-	PaymentNumber string `json:"paymentNumber"`
-	PaymentStatus string `json:"paymentStatus"`
+	PaymentID       string                              `json:"paymentId"`
+	PaymentNumber   string                              `json:"paymentNumber"`
+	PaymentStatus   string                              `json:"paymentStatus"`
+	PlatformFunding *UnidentifiedReceiptPlatformFunding `json:"platformFunding"`
+	MerchantTie     *ReceiptMerchantTie                 `json:"merchantTie"`
 }
 
 type CustodyReceiptProofSource struct {
@@ -117,6 +141,31 @@ type PrepareMerchantCreditRequest struct {
 type DecideMerchantCreditRequest struct {
 	Version int    `json:"version" binding:"required"`
 	Reason  string `json:"reason"`
+}
+
+// PreparePlatformFundingRequest takes the whole receipt remainder as platform
+// money. AcknowledgeMerchantTie confirms a receipt the wallet ties to a merchant.
+type PreparePlatformFundingRequest struct {
+	Reason                 string `json:"reason" binding:"required"`
+	AcknowledgeMerchantTie bool   `json:"acknowledgeMerchantTie"`
+}
+
+type DecidePlatformFundingRequest struct {
+	Version int    `json:"version" binding:"required"`
+	Reason  string `json:"reason"`
+}
+
+type PlatformFundingResponse struct {
+	ID                       string `json:"id"`
+	Number                   string `json:"number"`
+	ReceiptID                string `json:"receiptId"`
+	Status                   string `json:"status"`
+	Version                  int    `json:"version"`
+	Amount                   string `json:"amount"`
+	Reason                   string `json:"reason"`
+	MerchantID               string `json:"merchantId,omitempty"`
+	MerchantLink             string `json:"merchantLink,omitempty"`
+	MerchantLinkAcknowledged bool   `json:"merchantLinkAcknowledged"`
 }
 
 type MerchantCreditResponse struct {

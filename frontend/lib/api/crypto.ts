@@ -26,6 +26,21 @@ export const cryptoApi = {
                 `/crypto/merchant-credits/${assertUuidPathParam(creditId, "creditId")}/reject`,
                 { method: "POST", headers: idempotencyHeaders(key), body: JSON.stringify({ version, reason }) },
             ),
+        preparePlatformFunding: (receiptId: string, command: import("@/types/generated/http-contracts").PreparePlatformFundingRequest, key: string) =>
+            apiFetch<import("@/types/generated/http-contracts").PlatformFundingResponse>(
+                `/crypto/unidentified-receipts/${assertUuidPathParam(receiptId, "receiptId")}/platform-fundings`,
+                { method: "POST", headers: idempotencyHeaders(key), body: JSON.stringify(command) },
+            ),
+        approvePlatformFunding: (fundingId: string, version: number, key: string) =>
+            apiFetch<import("@/types/generated/http-contracts").PlatformFundingResponse>(
+                `/crypto/platform-fundings/${assertUuidPathParam(fundingId, "fundingId")}/approve`,
+                { method: "POST", headers: idempotencyHeaders(key), body: JSON.stringify({ version }) },
+            ),
+        rejectPlatformFunding: (fundingId: string, version: number, reason: string, key: string) =>
+            apiFetch<import("@/types/generated/http-contracts").PlatformFundingResponse>(
+                `/crypto/platform-fundings/${assertUuidPathParam(fundingId, "fundingId")}/reject`,
+                { method: "POST", headers: idempotencyHeaders(key), body: JSON.stringify({ version, reason }) },
+            ),
     },
     financialAdjustments: {
         paymentSources: (paymentId: string) =>

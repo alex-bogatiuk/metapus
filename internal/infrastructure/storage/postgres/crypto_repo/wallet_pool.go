@@ -513,14 +513,20 @@ func (r *WalletPoolRepo) UpsertMerchantAllocationOverride(
 func (r *WalletPoolRepo) HasConfirmedNativeFunding(ctx context.Context, networkID id.ID) (bool, error) {
 	txm := postgres.MustGetTxManager(ctx)
 	var funded bool
+	// A recorded funding or a posted, unreversed platform funding of an
+	// unidentified receipt both prove platform money on the hot wallet.
 	if err := txm.GetQuerier(ctx).QueryRow(ctx, `
 		SELECT EXISTS (
 		    SELECT 1
-		    FROM reg_crypto_wallet_fundings f
+		    FROM (SELECT f.wallet_id,f.token_id FROM reg_crypto_wallet_fundings f WHERE f.network_id = $1
+		          UNION ALL
+		          SELECT p.wallet_id,p.token_id FROM doc_crypto_platform_fundings p
+		          JOIN doc_crypto_custody_receipts r ON r.id = p.receipt_id
+		          WHERE r.network_id = $1 AND p.posted
+		            AND NOT EXISTS (SELECT 1 FROM reg_crypto_platform_funding_reversals v WHERE v.funding_id = p.id)) f
 		    JOIN cat_wallets w ON w.id = f.wallet_id
 		    JOIN cat_tokens t ON t.id = f.token_id
-		    WHERE f.network_id = $1
-		      AND w.tier = 'hot'
+		    WHERE w.tier = 'hot'
 		      AND w.wallet_role = 'liquidity_hot'
 		      AND w.is_active = TRUE
 		      AND w.deletion_mark = FALSE

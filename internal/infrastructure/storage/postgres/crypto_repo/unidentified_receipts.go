@@ -60,6 +60,22 @@ type UnidentifiedReceiptRow struct {
 	PaymentID         *string    `db:"payment_id"`
 	PaymentNumber     *string    `db:"payment_number"`
 	PaymentStatus     *string    `db:"payment_status"`
+	// The latest platform funding of the receipt.
+	FundingID             *string    `db:"funding_id"`
+	FundingNumber         *string    `db:"funding_number"`
+	FundingStatus         *string    `db:"funding_status"`
+	FundingVersion        *int       `db:"funding_version"`
+	FundingReason         *string    `db:"funding_reason"`
+	FundingMerchant       *string    `db:"funding_merchant"`
+	FundingMerchantLink   *string    `db:"funding_merchant_link"`
+	FundingPreparedBy     *string    `db:"funding_prepared_by"`
+	FundingDecidedAt      *time.Time `db:"funding_decided_at"`
+	FundingDecisionReason *string    `db:"funding_decision_reason"`
+	// The merchant the wallet ties the receipt to now; operators are warned
+	// before taking such a receipt as platform money.
+	TieMerchantID   *string `db:"tie_merchant_id"`
+	TieMerchantName *string `db:"tie_merchant_name"`
+	TieLink         *string `db:"tie_link"`
 }
 
 type UnidentifiedReceiptList struct {
@@ -99,7 +115,7 @@ const receiptJournalColumns = `d.id::text AS receipt_id,e.id::text AS inbox_even
 		       CASE WHEN d.audit_status='orphaned' THEN 'orphaned'
 		            WHEN p.id IS NOT NULL AND NOT p.posted THEN 'payment_reorged'
 		            WHEN d.remainder=0 THEN 'credited'
-		            WHEN c.status='prepared' THEN 'awaiting_approval' ELSE 'unattributed' END AS state,
+		            WHEN c.status='prepared' OR f.status='prepared' THEN 'awaiting_approval' ELSE 'unattributed' END AS state,
 		       d.custody_merchant_id::text,e.invoice_id::text,'' AS pending_error,
 		       c.id::text AS credit_id,c.number AS credit_number,
 		       CASE WHEN EXISTS(SELECT 1 FROM reg_crypto_merchant_credit_reversals cr WHERE cr.credit_id=c.id)
@@ -107,7 +123,13 @@ const receiptJournalColumns = `d.id::text AS receipt_id,e.id::text AS inbox_even
 		       c.merchant_id::text AS credit_merchant_id,m.name AS credit_merchant,c.net_amount::text AS credit_net,
 		       c.processing_fee::text AS credit_fee,c.approval_required AS credit_approval,
 		       c.prepared_by::text AS credit_prepared_by,c.decided_at AS credit_decided_at,c.decision_reason AS credit_reason,
-		       p.id::text AS payment_id,p.number AS payment_number,p.status AS payment_status`
+		       p.id::text AS payment_id,p.number AS payment_number,p.status AS payment_status,
+		       f.id::text AS funding_id,f.number AS funding_number,
+		       CASE WHEN EXISTS(SELECT 1 FROM reg_crypto_platform_funding_reversals fr WHERE fr.funding_id=f.id)
+		            THEN 'reversed' ELSE f.status END AS funding_status,f.version AS funding_version,f.reason AS funding_reason,
+		       fm.name AS funding_merchant,f.merchant_link AS funding_merchant_link,f.prepared_by::text AS funding_prepared_by,
+		       f.decided_at AS funding_decided_at,f.decision_reason AS funding_decision_reason,
+		       tie.merchant_id::text AS tie_merchant_id,tm.name AS tie_merchant_name,tie.link AS tie_link`
 
 // receiptJournalJoins attach the proof, catalogs, the latest merchant credit
 // and the invoice payment of a receipt. An unposted payment that keeps its
@@ -121,7 +143,12 @@ const receiptJournalJoins = `
 		      ORDER BY c.prepared_at DESC,c.id DESC LIMIT 1) c ON TRUE
 		LEFT JOIN cat_merchants m ON m.id=c.merchant_id
 		LEFT JOIN LATERAL (SELECT p.id,p.number,p.status,p.posted FROM doc_crypto_payments p WHERE p.receipt_id=d.id
-		      ORDER BY p.posted,p.created_at DESC,p.id DESC LIMIT 1) p ON TRUE`
+		      ORDER BY p.posted,p.created_at DESC,p.id DESC LIMIT 1) p ON TRUE
+		LEFT JOIN LATERAL (SELECT * FROM doc_crypto_platform_fundings f WHERE f.receipt_id=d.id
+		      ORDER BY f.prepared_at DESC,f.id DESC LIMIT 1) f ON TRUE
+		LEFT JOIN cat_merchants fm ON fm.id=f.merchant_id
+		LEFT JOIN LATERAL fn_crypto_receipt_merchant_link(d.id) tie ON TRUE
+		LEFT JOIN cat_merchants tm ON tm.id=tie.merchant_id`
 
 // List returns one page of the journal. Dust is accounted like any supported
 // asset but hidden unless includeDust is set: it is almost always spam.
@@ -142,7 +169,11 @@ func (*UnidentifiedReceiptRepo) List(ctx context.Context, state string, includeD
 			       NULL::text AS credit_id,NULL::text AS credit_number,NULL::text AS credit_status,NULL::int AS credit_version,
 			       NULL::text AS credit_merchant_id,NULL::text AS credit_merchant,NULL::text AS credit_net,NULL::text AS credit_fee,
 			       NULL::boolean AS credit_approval,NULL::text AS credit_prepared_by,NULL::timestamptz AS credit_decided_at,
-			       NULL::text AS credit_reason,NULL::text AS payment_id,NULL::text AS payment_number,NULL::text AS payment_status
+			       NULL::text AS credit_reason,NULL::text AS payment_id,NULL::text AS payment_number,NULL::text AS payment_status,
+			       NULL::text AS funding_id,NULL::text AS funding_number,NULL::text AS funding_status,NULL::int AS funding_version,
+			       NULL::text AS funding_reason,NULL::text AS funding_merchant,NULL::text AS funding_merchant_link,
+			       NULL::text AS funding_prepared_by,NULL::timestamptz AS funding_decided_at,NULL::text AS funding_decision_reason,
+			       NULL::text AS tie_merchant_id,NULL::text AS tie_merchant_name,NULL::text AS tie_link
 			FROM (SELECT e.* `+receiptPendingFrom+` ORDER BY e.created_at,e.id LIMIT $3 OFFSET $4) e
 			JOIN cat_blockchain_networks n ON n.id=e.network_id JOIN cat_tokens t ON t.id=e.token_id
 			JOIN cat_wallets w ON w.id=e.wallet_id ORDER BY e.created_at,e.id`,
@@ -288,6 +319,14 @@ func (*UnidentifiedReceiptRepo) Detail(ctx context.Context, receiptID id.ID) (Re
 		FROM doc_crypto_merchant_credits k JOIN cat_merchants m ON m.id=k.merchant_id
 		LEFT JOIN consumed c ON c.recorder_id=k.id
 		WHERE k.receipt_id=$1
+		UNION ALL
+		SELECT 'CryptoPlatformFunding',f.id::text,f.number,f.date,
+		       CASE WHEN EXISTS(SELECT 1 FROM reg_crypto_platform_funding_reversals r WHERE r.funding_id=f.id)
+		            THEN 'reversed' ELSE f.status END,f.posted,'','',
+		       f.amount::text,'','',COALESCE(c.amount,0)::text,0,0,0,0
+		FROM doc_crypto_platform_fundings f
+		LEFT JOIN consumed c ON c.recorder_id=f.id
+		WHERE f.receipt_id=$1
 		ORDER BY date,document_id`, receiptID)
 	if err != nil {
 		return result, fmt.Errorf("list custody receipt attributions: %w", err)

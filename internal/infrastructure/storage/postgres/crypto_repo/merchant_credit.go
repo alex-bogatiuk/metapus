@@ -25,15 +25,21 @@ func NewMerchantCreditRepo() *MerchantCreditRepo {
 // LockReceiptRemainder serializes every attribution of one receipt on its
 // suspense balance row.
 func (r *MerchantCreditRepo) LockReceiptRemainder(ctx context.Context, receiptID id.ID) (cryptoapp.ReceiptRemainder, error) {
+	return lockReceiptRemainder(ctx, receiptID)
+}
+
+// lockReceiptRemainder is shared by every manual attribution of a receipt:
+// merchant credits and platform fundings serialize on the same row.
+func lockReceiptRemainder(ctx context.Context, receiptID id.ID) (cryptoapp.ReceiptRemainder, error) {
 	tm := postgres.MustGetTxManager(ctx)
 	if tm.GetTx(ctx) == nil {
-		return cryptoapp.ReceiptRemainder{}, apperror.NewValidation("merchant credit requires a transaction")
+		return cryptoapp.ReceiptRemainder{}, apperror.NewValidation("receipt attribution requires a transaction")
 	}
 	result := cryptoapp.ReceiptRemainder{ReceiptID: receiptID}
-	err := tm.GetQuerier(ctx).QueryRow(ctx, `SELECT s.token_id,s.amount,d.custody_merchant_id
+	err := tm.GetQuerier(ctx).QueryRow(ctx, `SELECT d.wallet_id,s.token_id,s.amount,d.custody_merchant_id
 		FROM reg_crypto_receipt_suspense_balances s JOIN doc_crypto_custody_receipts d ON d.id=s.receipt_id
 		WHERE s.receipt_id=$1 AND d.posted FOR UPDATE OF s`, receiptID).
-		Scan(&result.TokenID, &result.Amount, &result.CustodyMerchantID)
+		Scan(&result.WalletID, &result.TokenID, &result.Amount, &result.CustodyMerchantID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return result, apperror.NewNotFound("custody receipt", receiptID)
 	}
@@ -44,8 +50,10 @@ func (r *MerchantCreditRepo) LockReceiptRemainder(ctx context.Context, receiptID
 	// adjustment keeps it posted, so that remainder stays creditable.
 	if err := tm.GetQuerier(ctx).QueryRow(ctx, `SELECT
 		EXISTS(SELECT 1 FROM reg_crypto_custody_receipt_audits WHERE receipt_id=$1 AND status='orphaned'),
-		EXISTS(SELECT 1 FROM doc_crypto_payments WHERE receipt_id=$1 AND NOT posted)`, receiptID).
-		Scan(&result.Orphaned, &result.PaymentReorged); err != nil {
+		EXISTS(SELECT 1 FROM doc_crypto_payments WHERE receipt_id=$1 AND NOT posted),
+		EXISTS(SELECT 1 FROM doc_crypto_merchant_credits WHERE receipt_id=$1 AND status='prepared')
+		  OR EXISTS(SELECT 1 FROM doc_crypto_platform_fundings WHERE receipt_id=$1 AND status='prepared')`, receiptID).
+		Scan(&result.Orphaned, &result.PaymentReorged, &result.AwaitingDecision); err != nil {
 		return result, fmt.Errorf("read receipt canonicality: %w", err)
 	}
 	return result, nil

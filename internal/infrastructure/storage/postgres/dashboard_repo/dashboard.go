@@ -25,6 +25,7 @@ const queueProjection = `WITH queue AS (
  UNION ALL
  SELECT d.id, 'inbound', d.number,
  CASE WHEN EXISTS(SELECT 1 FROM doc_crypto_merchant_credits c WHERE c.receipt_id=d.id AND c.status='prepared')
+        OR EXISTS(SELECT 1 FROM doc_crypto_platform_fundings f WHERE f.receipt_id=d.id AND f.status='prepared')
       THEN 'awaiting_approval' ELSE 'unattributed' END,
  COALESCE(m.name,''), d.token_id, t.symbol, n.name, t.decimal_places, s.amount::text, d.date, 1
  FROM doc_crypto_custody_receipts d

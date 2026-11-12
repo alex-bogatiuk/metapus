@@ -189,6 +189,9 @@ func (*ReceiptAuditRepo) MarkOrphaned(ctx context.Context, task ReceiptAuditTask
 		if err := reverseOrphanedReceiptCredits(ctx, q, task.ReceiptID, incident, proofID); err != nil {
 			return err
 		}
+		if err := reverseOrphanedPlatformFundings(ctx, q, task.ReceiptID, incident, proofID); err != nil {
+			return err
+		}
 		if _, err := q.Exec(ctx, `UPDATE reg_crypto_custody_receipt_audits
 			SET status='orphaned',orphaned_at=NOW(),orphan_verification_id=$2,incident_id=$3,claimed_by='',lease_expires_at=NULL,last_error=''
 			WHERE receipt_id=$1`, task.ReceiptID, proofID, incident); err != nil {
@@ -235,6 +238,29 @@ func reverseOrphanedReceiptCredits(ctx context.Context, q postgres.Querier, rece
 		if _, err := q.Exec(ctx, statement.sql, receiptID, incidentID); err != nil {
 			return fmt.Errorf("reverse merchant credit %s: %w", statement.name, err)
 		}
+	}
+	return nil
+}
+
+// reverseOrphanedPlatformFundings returns every posted platform funding of an
+// orphaned receipt to suspense: the funding claimed money the chain no longer
+// holds. The funding document stays posted.
+func reverseOrphanedPlatformFundings(ctx context.Context, q postgres.Querier, receiptID, incidentID, proofID id.ID) error {
+	created, err := q.Exec(ctx, `INSERT INTO reg_crypto_platform_funding_reversals(id,funding_id,receipt_id,incident_id,orphan_verification_id,reason)
+		SELECT gen_random_uuid_v7(),f.id,f.receipt_id,$2,$3,'receipt_orphaned'
+		FROM doc_crypto_platform_fundings f WHERE f.receipt_id=$1 AND f.posted ORDER BY f.id`, receiptID, incidentID, proofID)
+	if err != nil {
+		return fmt.Errorf("record platform funding reversals: %w", err)
+	}
+	if created.RowsAffected() == 0 {
+		return nil
+	}
+	if _, err := q.Exec(ctx, `INSERT INTO reg_crypto_receipt_suspense_movements(
+			line_id,recorder_id,recorder_type,recorder_version,period,record_type,receipt_id,token_id,amount,reversal_of_line_id,reversal_reason)
+		SELECT gen_random_uuid_v7(),r.id,'CryptoPlatformFundingReversal',1,NOW(),'receipt',f.receipt_id,f.token_id,f.amount,f.suspense_line_id,r.reason
+		FROM reg_crypto_platform_funding_reversals r JOIN doc_crypto_platform_fundings f ON f.id=r.funding_id
+		WHERE r.receipt_id=$1 AND r.incident_id=$2 ORDER BY r.funding_id`, receiptID, incidentID); err != nil {
+		return fmt.Errorf("reverse platform funding suspense: %w", err)
 	}
 	return nil
 }

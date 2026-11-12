@@ -29,7 +29,7 @@ export const receiptRowStates: Record<string, string> = {
 }
 
 export const receiptRowStateHints: Record<string, string> = {
-  orphaned: "Перевод исчез из сети. Платёж по счёту и ручные зачисления сторнированы обратно в невыясненные; поступление разбирается по инциденту.",
+  orphaned: "Перевод исчез из сети. Платёж по счёту, ручные зачисления и пополнения платформы сторнированы обратно в невыясненные; поступление разбирается по инциденту.",
   payment_reorged: "Платёж счёта сторнирован после отката блока. Вручную зачислить нельзя: при повторном включении перевода платёж распределит поступление снова, а если перевод не вернётся, аудит признает его откатом.",
 }
 
@@ -41,6 +41,14 @@ export const receiptAuditStates: Record<string, string> = {
 export const receiptAttributionTypes: Record<string, string> = {
   CryptoPayment: "Платёж по счёту",
   CryptoMerchantCredit: "Ручное зачисление",
+  CryptoPlatformFunding: "Пополнение платформы",
+}
+
+/** Why the wallet ties a receipt to a merchant. */
+export const receiptMerchantLinks: Record<string, string> = {
+  custody_owner: "кошелёк принадлежит мерчанту или его выделенному пулу",
+  deposit_address: "это постоянный депозитный адрес клиента мерчанта",
+  invoice_allocation: "адрес был выдан под счёт мерчанта, когда пришёл перевод",
 }
 
 export const receiptAttributionStatuses: Record<string, string> = {

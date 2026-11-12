@@ -145,8 +145,8 @@ BEGIN
     IF NEW.reversal_of_line_id IS NOT NULL THEN
         SELECT * INTO original FROM reg_crypto_receipt_suspense_movements WHERE line_id=NEW.reversal_of_line_id FOR UPDATE;
         IF NOT FOUND OR original.reversal_of_line_id IS NOT NULL
-           OR original.recorder_type<>(CASE WHEN NEW.recorder_type='CryptoMerchantCreditReversal'
-                THEN 'CryptoMerchantCredit' ELSE 'CryptoPayment' END)
+           OR original.recorder_type<>(CASE NEW.recorder_type WHEN 'CryptoMerchantCreditReversal' THEN 'CryptoMerchantCredit'
+                WHEN 'CryptoPlatformFundingReversal' THEN 'CryptoPlatformFunding' ELSE 'CryptoPayment' END)
            OR original.receipt_id<>NEW.receipt_id OR original.token_id<>NEW.token_id OR original.record_type=NEW.record_type
            OR original.amount<(SELECT SUM(amount) FROM reg_crypto_receipt_suspense_movements WHERE reversal_of_line_id=original.line_id) THEN
             RAISE EXCEPTION 'suspense reversal requires an available attribution of its kind' USING ERRCODE='23514';
@@ -166,6 +166,13 @@ BEGIN
             AND c.receipt_id=NEW.receipt_id AND c.token_id=NEW.token_id AND c.amount=NEW.amount
             AND c.suspense_line_id=NEW.line_id AND c.date=NEW.period) THEN
             RAISE EXCEPTION 'suspense consumption requires its exact merchant credit' USING ERRCODE='23514';
+        END IF;
+        delta:=-NEW.amount;
+    ELSIF NEW.recorder_type='CryptoPlatformFunding' THEN
+        IF NOT EXISTS(SELECT 1 FROM doc_crypto_platform_fundings f WHERE f.id=NEW.recorder_id
+            AND f.receipt_id=NEW.receipt_id AND f.token_id=NEW.token_id AND f.amount=NEW.amount
+            AND f.suspense_line_id=NEW.line_id AND f.date=NEW.period) THEN
+            RAISE EXCEPTION 'suspense consumption requires its exact platform funding' USING ERRCODE='23514';
         END IF;
         delta:=-NEW.amount;
     ELSE
@@ -242,6 +249,9 @@ BEGIN
     -- re-inclusion; the receipt audit orphans it if the transfer stays absent.
     IF EXISTS(SELECT 1 FROM doc_crypto_payments WHERE receipt_id=NEW.receipt_id AND NOT posted) THEN
         RAISE EXCEPTION 'receipt of a reorged invoice payment cannot be credited manually' USING ERRCODE='23514';
+    END IF;
+    IF EXISTS(SELECT 1 FROM doc_crypto_platform_fundings WHERE receipt_id=NEW.receipt_id AND status='prepared') THEN
+        RAISE EXCEPTION 'receipt already awaits a decision on another attribution' USING ERRCODE='23514';
     END IF;
     IF NOT FOUND OR NOT r.posted OR r.token_id<>NEW.token_id
        OR (r.custody_merchant_id IS NOT NULL AND r.custody_merchant_id<>NEW.merchant_id)
@@ -355,12 +365,164 @@ BEGIN
 END;
 $$;
 
--- An orphaned receipt keeps no posted manual credit without its storno.
+-- An orphaned receipt keeps no posted manual credit or platform funding
+-- without its storno.
 CREATE FUNCTION fn_crypto_custody_receipt_orphan_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF NEW.status='orphaned' AND EXISTS(SELECT 1 FROM doc_crypto_merchant_credits c WHERE c.receipt_id=NEW.receipt_id AND c.posted
         AND NOT EXISTS(SELECT 1 FROM reg_crypto_merchant_credit_reversals r WHERE r.credit_id=c.id)) THEN
         RAISE EXCEPTION 'orphaned receipt cannot keep an unreversed merchant credit' USING ERRCODE='23514';
+    END IF;
+    IF NEW.status='orphaned' AND EXISTS(SELECT 1 FROM doc_crypto_platform_fundings f WHERE f.receipt_id=NEW.receipt_id AND f.posted
+        AND NOT EXISTS(SELECT 1 FROM reg_crypto_platform_funding_reversals r WHERE r.funding_id=f.id)) THEN
+        RAISE EXCEPTION 'orphaned receipt cannot keep an unreversed platform funding' USING ERRCODE='23514';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+-- The merchant a receipt most likely belongs to: the custody owner of the
+-- wallet (merchant-owned or dedicated pool), the merchant of a persistent
+-- deposit address, or the merchant whose invoice leased the wallet when the
+-- transfer arrived. NULL when the wallet is not tied to any merchant.
+CREATE FUNCTION fn_crypto_receipt_merchant_link(receipt UUID, OUT merchant_id UUID, OUT link TEXT)
+LANGUAGE plpgsql STABLE AS $$
+DECLARE r doc_crypto_custody_receipts; w cat_wallets;
+BEGIN
+    SELECT * INTO r FROM doc_crypto_custody_receipts WHERE id=receipt;
+    IF NOT FOUND THEN RETURN; END IF;
+    SELECT * INTO w FROM cat_wallets WHERE id=r.wallet_id;
+    IF w.custody_merchant_id IS NOT NULL THEN
+        merchant_id:=w.custody_merchant_id; link:='custody_owner'; RETURN;
+    END IF;
+    IF w.merchant_id IS NOT NULL THEN
+        merchant_id:=w.merchant_id; link:='deposit_address'; RETURN;
+    END IF;
+    SELECT a.merchant_id INTO merchant_id FROM reg_crypto_wallet_allocations a
+    WHERE a.wallet_id=r.wallet_id AND a._deleted_at IS NULL AND a.leased_at<=r.date
+      AND (a.closed_at IS NULL OR COALESCE(a.cooldown_until,a.closed_at)>=r.date)
+    ORDER BY a.leased_at DESC,a.id DESC LIMIT 1;
+    IF merchant_id IS NOT NULL THEN link:='invoice_allocation'; END IF;
+END;
+$$;
+
+-- A platform funding takes the whole remainder of a receipt as platform money:
+-- suspense decreases, custody already holds the transfer, no merchant or fee
+-- line moves. A receipt tied to a merchant needs the operator's explicit
+-- acknowledgement of that merchant, and the tie must be unchanged at decision.
+CREATE FUNCTION fn_crypto_platform_funding_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE r doc_crypto_custody_receipts; tie RECORD;
+BEGIN
+    IF TG_OP='DELETE' THEN RAISE EXCEPTION 'platform funding history is immutable' USING ERRCODE='23514'; END IF;
+    SELECT * INTO tie FROM fn_crypto_receipt_merchant_link(NEW.receipt_id);
+    IF TG_OP='UPDATE' THEN
+        IF OLD.status<>'prepared' OR NEW.status='prepared'
+           OR (to_jsonb(NEW)-ARRAY['status','posted','posted_version','decided_by','decided_at','decision_reason','version','updated_at','updated_by','_txid'])
+              IS DISTINCT FROM
+              (to_jsonb(OLD)-ARRAY['status','posted','posted_version','decided_by','decided_at','decision_reason','version','updated_at','updated_by','_txid']) THEN
+            RAISE EXCEPTION 'platform funding only permits its single decision' USING ERRCODE='23514';
+        END IF;
+        IF NEW.status='posted' THEN
+            IF EXISTS(SELECT 1 FROM reg_crypto_custody_receipt_audits WHERE receipt_id=NEW.receipt_id AND status='orphaned') THEN
+                RAISE EXCEPTION 'orphaned receipt cannot be attributed' USING ERRCODE='23514';
+            END IF;
+            IF EXISTS(SELECT 1 FROM doc_crypto_payments WHERE receipt_id=NEW.receipt_id AND NOT posted) THEN
+                RAISE EXCEPTION 'receipt of a reorged invoice payment cannot be attributed manually' USING ERRCODE='23514';
+            END IF;
+            IF tie.merchant_id IS DISTINCT FROM NEW.merchant_id OR tie.link IS DISTINCT FROM NEW.merchant_link THEN
+                RAISE EXCEPTION 'merchant tie of the receipt changed since preparation; prepare the platform funding again' USING ERRCODE='23514';
+            END IF;
+        END IF;
+        RETURN NEW;
+    END IF;
+    SELECT * INTO r FROM doc_crypto_custody_receipts WHERE id=NEW.receipt_id;
+    IF NOT FOUND OR NOT r.posted OR r.token_id<>NEW.token_id OR r.wallet_id<>NEW.wallet_id THEN
+        RAISE EXCEPTION 'platform funding requires its posted receipt' USING ERRCODE='23514';
+    END IF;
+    IF EXISTS(SELECT 1 FROM reg_crypto_custody_receipt_audits WHERE receipt_id=NEW.receipt_id AND status='orphaned') THEN
+        RAISE EXCEPTION 'orphaned receipt cannot be attributed' USING ERRCODE='23514';
+    END IF;
+    IF EXISTS(SELECT 1 FROM doc_crypto_payments WHERE receipt_id=NEW.receipt_id AND NOT posted) THEN
+        RAISE EXCEPTION 'receipt of a reorged invoice payment cannot be attributed manually' USING ERRCODE='23514';
+    END IF;
+    IF EXISTS(SELECT 1 FROM doc_crypto_merchant_credits WHERE receipt_id=NEW.receipt_id AND status='prepared') THEN
+        RAISE EXCEPTION 'receipt already awaits a decision on another attribution' USING ERRCODE='23514';
+    END IF;
+    IF tie.merchant_id IS DISTINCT FROM NEW.merchant_id OR tie.link IS DISTINCT FROM NEW.merchant_link THEN
+        RAISE EXCEPTION 'platform funding must record the current merchant tie of its receipt' USING ERRCODE='23514';
+    END IF;
+    IF NEW.merchant_id IS NOT NULL AND NOT NEW.merchant_link_acknowledged THEN
+        RAISE EXCEPTION 'receipt tied to a merchant requires an acknowledged platform funding' USING ERRCODE='23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION fn_crypto_assert_platform_funding(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE f doc_crypto_platform_fundings;
+BEGIN
+    SELECT * INTO f FROM doc_crypto_platform_fundings WHERE id=target;
+    IF NOT FOUND THEN RAISE EXCEPTION 'platform funding movements require their document' USING ERRCODE='23514'; END IF;
+    IF NOT f.posted THEN
+        IF EXISTS(SELECT 1 FROM reg_crypto_receipt_suspense_movements WHERE recorder_id=f.id) THEN
+            RAISE EXCEPTION 'unposted platform funding cannot move money' USING ERRCODE='23514';
+        END IF;
+        RETURN;
+    END IF;
+    IF (SELECT count(*) FROM reg_crypto_receipt_suspense_movements WHERE recorder_id=f.id)<>1
+       OR NOT EXISTS(SELECT 1 FROM reg_crypto_receipt_suspense_movements WHERE line_id=f.suspense_line_id AND recorder_id=f.id
+            AND recorder_type='CryptoPlatformFunding' AND recorder_version=1 AND record_type='expense'
+            AND receipt_id=f.receipt_id AND token_id=f.token_id AND amount=f.amount)
+       OR EXISTS(SELECT 1 FROM reg_crypto_merchant_balance_movements WHERE recorder_id=f.id)
+       OR EXISTS(SELECT 1 FROM reg_crypto_fee_movements WHERE recorder_id=f.id)
+       OR EXISTS(SELECT 1 FROM reg_crypto_balance_movements WHERE recorder_id=f.id)
+       OR EXISTS(SELECT 1 FROM reg_crypto_platform_cost_movements WHERE recorder_id=f.id)
+       OR EXISTS(SELECT 1 FROM reg_crypto_provider_balance_movements WHERE recorder_id=f.id) THEN
+        RAISE EXCEPTION 'platform funding requires exactly its suspense consumption' USING ERRCODE='23514';
+    END IF;
+END;
+$$;
+
+-- A receipt orphaned by its canonicality audit returns every posted platform
+-- funding to suspense in the orphaning transaction.
+CREATE FUNCTION fn_crypto_platform_funding_reversal_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_OP<>'INSERT' THEN RAISE EXCEPTION 'platform funding reversal history is immutable' USING ERRCODE='23514'; END IF;
+    IF NOT EXISTS(SELECT 1 FROM doc_crypto_platform_fundings WHERE id=NEW.funding_id AND receipt_id=NEW.receipt_id AND posted) THEN
+        RAISE EXCEPTION 'platform funding reversal requires its posted funding' USING ERRCODE='23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION fn_crypto_assert_platform_funding_reversal(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE r reg_crypto_platform_funding_reversals; f doc_crypto_platform_fundings;
+BEGIN
+    SELECT * INTO r FROM reg_crypto_platform_funding_reversals WHERE id=target;
+    IF NOT FOUND THEN RAISE EXCEPTION 'platform funding reversal movements require their reversal' USING ERRCODE='23514'; END IF;
+    SELECT * INTO f FROM doc_crypto_platform_fundings WHERE id=r.funding_id;
+    IF NOT EXISTS(SELECT 1 FROM reg_crypto_custody_receipt_audits WHERE receipt_id=r.receipt_id AND status='orphaned'
+            AND incident_id=r.incident_id AND orphan_verification_id=r.orphan_verification_id)
+       OR (SELECT count(*) FROM reg_crypto_receipt_suspense_movements WHERE recorder_id=r.id)<>1
+       OR NOT EXISTS(SELECT 1 FROM reg_crypto_receipt_suspense_movements WHERE recorder_id=r.id
+            AND recorder_type='CryptoPlatformFundingReversal' AND recorder_version=1 AND record_type='receipt'
+            AND receipt_id=f.receipt_id AND token_id=f.token_id AND amount=f.amount
+            AND reversal_of_line_id=f.suspense_line_id AND reversal_reason=r.reason) THEN
+        RAISE EXCEPTION 'platform funding reversal requires its orphaned receipt and complete storno' USING ERRCODE='23514';
+    END IF;
+END;
+$$;
+
+CREATE FUNCTION fn_crypto_platform_funding_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_TABLE_NAME='doc_crypto_platform_fundings' THEN
+        PERFORM fn_crypto_assert_platform_funding(NEW.id);
+    ELSIF TG_TABLE_NAME='reg_crypto_platform_funding_reversals' THEN
+        PERFORM fn_crypto_assert_platform_funding_reversal(NEW.id);
+    ELSIF NEW.recorder_type='CryptoPlatformFunding' THEN
+        PERFORM fn_crypto_assert_platform_funding(NEW.recorder_id);
+    ELSIF NEW.recorder_type='CryptoPlatformFundingReversal' THEN
+        PERFORM fn_crypto_assert_platform_funding_reversal(NEW.recorder_id);
     END IF;
     RETURN NULL;
 END;
@@ -3458,12 +3620,71 @@ CREATE TABLE reg_crypto_merchant_credit_reversals (
 );
 CREATE INDEX idx_crypto_merchant_credit_reversals_receipt ON reg_crypto_merchant_credit_reversals(receipt_id);
 
+-- Platform money that arrived without a prior funding record: an operator
+-- takes the whole receipt remainder as platform funding and another operator
+-- decides. The merchant tie of the receipt and its acknowledgement are kept.
+CREATE TABLE doc_crypto_platform_fundings (
+    id UUID PRIMARY KEY,
+    deletion_mark BOOLEAN NOT NULL DEFAULT FALSE CHECK(NOT deletion_mark),
+    version INT NOT NULL DEFAULT 1 CHECK(version>0),
+    attributes JSONB NOT NULL DEFAULT '{}',
+    _deleted_at TIMESTAMPTZ CHECK(_deleted_at IS NULL),
+    _txid BIGINT NOT NULL DEFAULT txid_current(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by UUID,
+    updated_by UUID,
+    number TEXT NOT NULL UNIQUE CHECK(btrim(number)<>''),
+    date TIMESTAMPTZ NOT NULL,
+    posted BOOLEAN NOT NULL DEFAULT FALSE,
+    posted_version INT NOT NULL DEFAULT 0,
+    basis_type TEXT NOT NULL CHECK(basis_type='CryptoCustodyReceipt'),
+    basis_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
+    description TEXT NOT NULL DEFAULT '',
+    receipt_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
+    wallet_id UUID NOT NULL REFERENCES cat_wallets(id),
+    token_id UUID NOT NULL REFERENCES cat_tokens(id),
+    amount NUMERIC(78,0) NOT NULL CHECK(amount>0),
+    reason TEXT NOT NULL CHECK(btrim(reason)<>'' AND length(reason)<=2000),
+    merchant_id UUID REFERENCES cat_merchants(id),
+    merchant_link TEXT CHECK(merchant_link IN ('custody_owner','deposit_address','invoice_allocation')),
+    merchant_link_acknowledged BOOLEAN NOT NULL DEFAULT FALSE,
+    status TEXT NOT NULL CHECK(status IN ('prepared','posted','rejected')),
+    prepared_by UUID NOT NULL,
+    prepared_at TIMESTAMPTZ NOT NULL,
+    decided_by UUID,
+    decided_at TIMESTAMPTZ,
+    decision_reason TEXT NOT NULL DEFAULT '',
+    suspense_line_id UUID NOT NULL UNIQUE,
+    CHECK(basis_id=receipt_id),
+    CHECK((merchant_id IS NULL)=(merchant_link IS NULL)),
+    CHECK(merchant_id IS NULL OR merchant_link_acknowledged),
+    CHECK((status='posted')=posted AND (posted_version IN (0,1)) AND (posted=(posted_version=1))),
+    CHECK((status='prepared' AND decided_by IS NULL AND decided_at IS NULL)
+       OR (status<>'prepared' AND decided_by IS NOT NULL AND decided_at IS NOT NULL)),
+    CHECK(status<>'posted' OR decided_by<>prepared_by),
+    CHECK(status<>'rejected' OR btrim(decision_reason)<>'')
+);
+CREATE UNIQUE INDEX uq_crypto_platform_funding_open ON doc_crypto_platform_fundings(receipt_id) WHERE status='prepared';
+CREATE INDEX idx_crypto_platform_fundings_wallet ON doc_crypto_platform_fundings(wallet_id,token_id) WHERE posted;
+
+CREATE TABLE reg_crypto_platform_funding_reversals (
+    id UUID PRIMARY KEY,
+    funding_id UUID NOT NULL UNIQUE REFERENCES doc_crypto_platform_fundings(id),
+    receipt_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
+    incident_id UUID NOT NULL REFERENCES reg_crypto_security_incidents(id),
+    orphan_verification_id UUID NOT NULL REFERENCES reg_crypto_transfer_verifications(id),
+    reason TEXT NOT NULL CHECK(reason='receipt_orphaned'),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_crypto_platform_funding_reversals_receipt ON reg_crypto_platform_funding_reversals(receipt_id);
+
 CREATE TABLE reg_crypto_receipt_suspense_movements (
     line_id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
     recorder_id UUID NOT NULL,
     recorder_type TEXT NOT NULL CHECK(recorder_type IN
         ('CryptoCustodyReceipt','CryptoMerchantCredit','CryptoPayment','CryptoPaymentReorg','CryptoAdjustment',
-         'CryptoMerchantCreditReversal')),
+         'CryptoMerchantCreditReversal','CryptoPlatformFunding','CryptoPlatformFundingReversal')),
     recorder_version INT NOT NULL CHECK(recorder_version>0),
     period TIMESTAMPTZ NOT NULL,
     record_type TEXT NOT NULL CHECK(record_type IN ('receipt','expense')),
@@ -3477,16 +3698,16 @@ CREATE TABLE reg_crypto_receipt_suspense_movements (
     -- compensation or a manual credit storno returns it to the remainder.
     CHECK((recorder_type='CryptoCustodyReceipt' AND record_type='receipt' AND recorder_id=receipt_id
             AND recorder_version=1 AND reversal_of_line_id IS NULL AND reversal_reason IS NULL)
-       OR (recorder_type='CryptoMerchantCredit' AND record_type='expense' AND recorder_version=1
+       OR (recorder_type IN ('CryptoMerchantCredit','CryptoPlatformFunding') AND record_type='expense' AND recorder_version=1
             AND reversal_of_line_id IS NULL AND reversal_reason IS NULL)
        OR (recorder_type='CryptoPayment' AND record_type='expense' AND reversal_of_line_id IS NULL AND reversal_reason IS NULL)
-       OR (recorder_type IN ('CryptoPaymentReorg','CryptoAdjustment','CryptoMerchantCreditReversal') AND record_type='receipt'
+       OR (recorder_type IN ('CryptoPaymentReorg','CryptoAdjustment','CryptoMerchantCreditReversal','CryptoPlatformFundingReversal') AND record_type='receipt'
             AND recorder_version=1 AND reversal_of_line_id IS NOT NULL AND btrim(COALESCE(reversal_reason,''))<>''))
 );
 CREATE UNIQUE INDEX uq_crypto_receipt_suspense_origin ON reg_crypto_receipt_suspense_movements(receipt_id)
     WHERE recorder_type='CryptoCustodyReceipt';
 CREATE UNIQUE INDEX uq_crypto_receipt_suspense_recorder ON reg_crypto_receipt_suspense_movements(recorder_id)
-    WHERE recorder_type='CryptoMerchantCredit';
+    WHERE recorder_type IN ('CryptoMerchantCredit','CryptoPlatformFunding');
 CREATE UNIQUE INDEX uq_crypto_receipt_suspense_payment ON reg_crypto_receipt_suspense_movements(recorder_id,recorder_version)
     WHERE recorder_type='CryptoPayment';
 CREATE INDEX idx_crypto_receipt_suspense_reversal ON reg_crypto_receipt_suspense_movements(reversal_of_line_id)
@@ -4180,6 +4401,24 @@ CREATE TRIGGER trg_crypto_merchant_credit_reversal_guard BEFORE INSERT OR UPDATE
 CREATE CONSTRAINT TRIGGER trg_crypto_merchant_credit_reversal_complete AFTER INSERT ON reg_crypto_merchant_credit_reversals
     DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_merchant_credit_complete();
 
+CREATE TRIGGER trg_crypto_platform_funding_txid BEFORE UPDATE ON doc_crypto_platform_fundings
+    FOR EACH ROW EXECUTE FUNCTION update_txid_column();
+
+CREATE TRIGGER trg_crypto_platform_funding_guard BEFORE INSERT OR UPDATE OR DELETE ON doc_crypto_platform_fundings
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_platform_funding_guard();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_platform_funding_complete AFTER INSERT OR UPDATE ON doc_crypto_platform_fundings
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_platform_funding_complete();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_platform_funding_suspense_complete AFTER INSERT ON reg_crypto_receipt_suspense_movements
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_platform_funding_complete();
+
+CREATE TRIGGER trg_crypto_platform_funding_reversal_guard BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_platform_funding_reversals
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_platform_funding_reversal_guard();
+
+CREATE CONSTRAINT TRIGGER trg_crypto_platform_funding_reversal_complete AFTER INSERT ON reg_crypto_platform_funding_reversals
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_platform_funding_complete();
+
 CREATE CONSTRAINT TRIGGER trg_crypto_custody_receipt_orphan_complete AFTER UPDATE ON reg_crypto_custody_receipt_audits
     DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_custody_receipt_orphan_complete();
 
@@ -4425,6 +4664,8 @@ DROP TABLE reg_crypto_wallet_funding_audit;
 DROP TABLE reg_crypto_receipt_intake_audit;
 DROP TABLE reg_crypto_receipt_suspense_balances;
 DROP TABLE reg_crypto_receipt_suspense_movements;
+DROP TABLE reg_crypto_platform_funding_reversals;
+DROP TABLE doc_crypto_platform_fundings;
 DROP TABLE reg_crypto_merchant_credit_reversals;
 DROP TABLE doc_crypto_merchant_credits;
 DROP TABLE sys_crypto_receipt_credit_policies;
@@ -4563,6 +4804,12 @@ DROP FUNCTION fn_crypto_custody_posting_complete();
 DROP FUNCTION fn_crypto_assert_custody_posting(target uuid);
 DROP FUNCTION fn_crypto_custody_posting_identity_guard();
 DROP FUNCTION fn_crypto_custody_receipt_orphan_complete();
+DROP FUNCTION fn_crypto_platform_funding_complete();
+DROP FUNCTION fn_crypto_assert_platform_funding_reversal(target uuid);
+DROP FUNCTION fn_crypto_platform_funding_reversal_guard();
+DROP FUNCTION fn_crypto_assert_platform_funding(target uuid);
+DROP FUNCTION fn_crypto_platform_funding_guard();
+DROP FUNCTION fn_crypto_receipt_merchant_link(receipt uuid, OUT merchant_id uuid, OUT link text);
 DROP FUNCTION fn_crypto_merchant_credit_complete();
 DROP FUNCTION fn_crypto_assert_merchant_credit_reversal(target uuid);
 DROP FUNCTION fn_crypto_merchant_credit_reversal_guard();
