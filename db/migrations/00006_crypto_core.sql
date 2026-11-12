@@ -1724,6 +1724,7 @@ CREATE TABLE sys_crypto_network_runtime_status (
     resource_providers      JSONB NOT NULL DEFAULT '[]'::jsonb,
     observed_at             TIMESTAMPTZ NOT NULL,
     worker_id               TEXT NOT NULL DEFAULT '',
+    ingestion               JSONB,
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

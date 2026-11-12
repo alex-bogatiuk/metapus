@@ -215,6 +215,34 @@ type NetworkRuntimeStatus struct {
 	WorkerID              string                  `json:"workerId,omitempty"`
 	OperationalHold       bool                    `json:"operationalHold"`
 	OperationalHoldReason string                  `json:"operationalHoldReason,omitempty"`
+	// Ingestion is the worker's last comparison of each watcher stream with the
+	// chain head. Nil until the worker has read it.
+	Ingestion *NetworkIngestionStatus `json:"ingestion,omitempty"`
+}
+
+// NetworkIngestionStatus carries the same states and reasons as the ingestion
+// preflight and monitor: ready, catching_up, degraded or paused.
+type NetworkIngestionStatus struct {
+	State        string                  `json:"state"`
+	Reason       string                  `json:"reason,omitempty"`
+	RPCErrorCode string                  `json:"rpcErrorCode,omitempty"`
+	Streams      []IngestionStreamStatus `json:"streams"`
+}
+
+// IngestionStreamStatus describes one watcher stream. Lag values are -1 when
+// unknown; LastBlock is nil until the stream has a checkpoint.
+type IngestionStreamStatus struct {
+	WatcherKey         string `json:"watcherKey"`
+	Optional           bool   `json:"optional"`
+	State              string `json:"state"`
+	Reason             string `json:"reason,omitempty"`
+	LastBlock          *int64 `json:"lastBlock,omitempty"`
+	BlockHash          string `json:"blockHash,omitempty"`
+	HeadHeight         *int64 `json:"headHeight,omitempty"`
+	LagBlocks          int64  `json:"lagBlocks"`
+	LagSeconds         int64  `json:"lagSeconds"`
+	ProgressAgeSeconds int64  `json:"progressAgeSeconds"`
+	LeaseActive        bool   `json:"leaseActive"`
 }
 
 func (s NetworkRuntimeStatus) Ready(now time.Time, capabilities ChainFamilyCapabilities, resourceRequired bool) bool {

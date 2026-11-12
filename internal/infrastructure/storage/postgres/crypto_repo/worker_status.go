@@ -20,21 +20,30 @@ func (r *WorkerRuntimeRepo) PersistNetworkRuntimeStatus(ctx context.Context, sta
 	if len(status.ResourceProviders) == 0 {
 		rawProviders = []byte("[]")
 	}
+	var rawIngestion *string
+	if status.Ingestion != nil {
+		raw, err := json.Marshal(status.Ingestion)
+		if err != nil {
+			return err
+		}
+		value := string(raw)
+		rawIngestion = &value
+	}
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
 	_, err = q.Exec(ctx, `
 		INSERT INTO sys_crypto_network_runtime_status (
 			network_id,rpc_endpoints,signer_ready,signer_error,resource_provider_ready,
-			resource_provider_state,resource_providers,observed_at,worker_id
-		) VALUES ($1,$2::jsonb,$3,$4,$5,$6,$7::jsonb,$8,$9)
+			resource_provider_state,resource_providers,observed_at,worker_id,ingestion
+		) VALUES ($1,$2::jsonb,$3,$4,$5,$6,$7::jsonb,$8,$9,$10::jsonb)
 		ON CONFLICT (network_id) DO UPDATE SET
 			rpc_endpoints=EXCLUDED.rpc_endpoints,signer_ready=EXCLUDED.signer_ready,
 			signer_error=EXCLUDED.signer_error,resource_provider_ready=EXCLUDED.resource_provider_ready,
 			resource_provider_state=EXCLUDED.resource_provider_state,
 			resource_providers=EXCLUDED.resource_providers,observed_at=EXCLUDED.observed_at,
-			worker_id=EXCLUDED.worker_id,updated_at=NOW()
+			worker_id=EXCLUDED.worker_id,ingestion=EXCLUDED.ingestion,updated_at=NOW()
 	`, status.NetworkID, string(rawEndpoints), status.SignerReady, status.SignerError,
 		status.ResourceProviderReady, status.ResourceProviderState, string(rawProviders),
-		status.ObservedAt, status.WorkerID)
+		status.ObservedAt, status.WorkerID, rawIngestion)
 	return err
 }
 

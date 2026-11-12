@@ -1022,6 +1022,20 @@ export const CryptoChainFamilyCapabilitiesSchema: z.ZodType<Wire.CryptoChainFami
   "supportsReplacement": z.boolean(),
 }))
 
+export const CryptoIngestionStreamStatusSchema: z.ZodType<Wire.CryptoIngestionStreamStatus> = z.lazy(() => z.object({
+  "watcherKey": z.string(),
+  "optional": z.boolean(),
+  "state": z.string(),
+  "reason": z.string().optional(),
+  "lastBlock": z.number().int().optional(),
+  "blockHash": z.string().optional(),
+  "headHeight": z.number().int().optional(),
+  "lagBlocks": z.number().int(),
+  "lagSeconds": z.number().int(),
+  "progressAgeSeconds": z.number().int(),
+  "leaseActive": z.boolean(),
+}))
+
 export const CryptoInvoiceCursorResponseSchema: z.ZodType<Wire.CryptoInvoiceCursorResponse> = z.lazy(() => z.object({
   "items": z.array(CryptoInvoiceResponseSchema),
   "nextCursor": z.string().optional(),
@@ -1060,6 +1074,13 @@ export const CryptoInvoiceResponseSchema: z.ZodType<Wire.CryptoInvoiceResponse> 
   "merchant": PostgresRefDisplaySchema.optional(),
   "token": PostgresRefDisplaySchema.optional(),
   "wallet": PostgresRefDisplaySchema.optional(),
+}))
+
+export const CryptoNetworkIngestionStatusSchema: z.ZodType<Wire.CryptoNetworkIngestionStatus> = z.lazy(() => z.object({
+  "state": z.string(),
+  "reason": z.string().optional(),
+  "rpcErrorCode": z.string().optional(),
+  "streams": z.array(CryptoIngestionStreamStatusSchema),
 }))
 
 export const CryptoNetworkListResponseSchema: z.ZodType<Wire.CryptoNetworkListResponse> = z.lazy(() => z.object({
@@ -1147,6 +1168,7 @@ export const CryptoNetworkRuntimeStatusSchema: z.ZodType<Wire.CryptoNetworkRunti
   "workerId": z.string().optional(),
   "operationalHold": z.boolean(),
   "operationalHoldReason": z.string().optional(),
+  "ingestion": CryptoNetworkIngestionStatusSchema.optional(),
 }))
 
 export const CryptoNetworkStateResponseSchema: z.ZodType<Wire.CryptoNetworkStateResponse> = z.lazy(() => z.object({

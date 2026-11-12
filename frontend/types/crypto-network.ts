@@ -97,7 +97,12 @@ export interface CryptoNetworkRuntime {
   workerId?: string
   operationalHold: boolean
   operationalHoldReason?: string
+  /** The worker's last comparison of each watcher stream with the chain head. */
+  ingestion?: CryptoNetworkIngestion
 }
+
+export type CryptoNetworkIngestion = import("./generated/http-contracts").CryptoNetworkIngestionStatus
+export type CryptoIngestionStream = import("./generated/http-contracts").CryptoIngestionStreamStatus
 
 export interface CryptoNetworkState {
   network: CryptoNetworkRef

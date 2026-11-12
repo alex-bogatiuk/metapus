@@ -1018,6 +1018,20 @@ export type CryptoChainFamilyCapabilities = {
   "supportsReplacement": boolean
 }
 
+export type CryptoIngestionStreamStatus = {
+  "watcherKey": string
+  "optional": boolean
+  "state": string
+  "reason"?: string
+  "lastBlock"?: number
+  "blockHash"?: string
+  "headHeight"?: number
+  "lagBlocks": number
+  "lagSeconds": number
+  "progressAgeSeconds": number
+  "leaseActive": boolean
+}
+
 export type CryptoInvoiceCursorResponse = {
   "items": Array<CryptoInvoiceResponse>
   "nextCursor"?: string
@@ -1056,6 +1070,13 @@ export type CryptoInvoiceResponse = {
   "merchant"?: PostgresRefDisplay
   "token"?: PostgresRefDisplay
   "wallet"?: PostgresRefDisplay
+}
+
+export type CryptoNetworkIngestionStatus = {
+  "state": string
+  "reason"?: string
+  "rpcErrorCode"?: string
+  "streams": Array<CryptoIngestionStreamStatus>
 }
 
 export type CryptoNetworkListResponse = {
@@ -1143,6 +1164,7 @@ export type CryptoNetworkRuntimeStatus = {
   "workerId"?: string
   "operationalHold": boolean
   "operationalHoldReason"?: string
+  "ingestion"?: CryptoNetworkIngestionStatus
 }
 
 export type CryptoNetworkStateResponse = {

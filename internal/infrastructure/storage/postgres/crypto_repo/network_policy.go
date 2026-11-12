@@ -31,7 +31,7 @@ const networkPolicyStateSelect = `
 	       COALESCE(rs.rpc_endpoints,'[]'::jsonb),COALESCE(rs.signer_ready,FALSE),COALESCE(rs.signer_error,''),
 	       COALESCE(rs.resource_provider_ready,FALSE),COALESCE(rs.resource_provider_state,'unconfigured'),
 	       COALESCE(rs.resource_providers,'[]'::jsonb),
-	       rs.observed_at,COALESCE(rs.worker_id,''),
+	       rs.observed_at,COALESCE(rs.worker_id,''),rs.ingestion,
 	       EXISTS (SELECT 1 FROM reg_crypto_network_holds h WHERE h.network_id=n.id AND h.status='open'),
 	       COALESCE((SELECT h.reason FROM reg_crypto_network_holds h WHERE h.network_id=n.id AND h.status='open' ORDER BY h.held_at DESC LIMIT 1),''),
 	       n.is_active
@@ -91,6 +91,7 @@ func scanNetworkPolicyState(row policyStateScanner) (crypto.NetworkPolicyState, 
 	var endpoints []byte
 	var resourceProviders []byte
 	var observedAt *time.Time
+	var ingestion []byte
 	err := row.Scan(
 		&state.Network.ID, &state.Network.Code, &family, &state.Network.NetworkIdentifier, &state.Network.NativeTokenSymbol, &state.Network.NativeTokenID, &state.Network.NativeDecimals,
 		&state.Network.RequiredConfirmations, &finalityMode,
@@ -102,7 +103,7 @@ func scanNetworkPolicyState(row policyStateScanner) (crypto.NetworkPolicyState, 
 		&strategy, &providerAccountIDs, &providerFailureThreshold, &providerOpenSecondsNullable,
 		&endpoints, &state.Runtime.SignerReady,
 		&state.Runtime.SignerError, &state.Runtime.ResourceProviderReady, &state.Runtime.ResourceProviderState,
-		&resourceProviders, &observedAt, &state.Runtime.WorkerID,
+		&resourceProviders, &observedAt, &state.Runtime.WorkerID, &ingestion,
 		&state.Runtime.OperationalHold, &state.Runtime.OperationalHoldReason,
 		&state.Watching,
 	)
@@ -133,6 +134,12 @@ func scanNetworkPolicyState(row policyStateScanner) (crypto.NetworkPolicyState, 
 	if len(resourceProviders) > 0 {
 		if err := json.Unmarshal(resourceProviders, &state.Runtime.ResourceProviders); err != nil {
 			return state, fmt.Errorf("decode resource provider runtime status: %w", err)
+		}
+	}
+	if len(ingestion) > 0 {
+		state.Runtime.Ingestion = &crypto.NetworkIngestionStatus{}
+		if err := json.Unmarshal(ingestion, state.Runtime.Ingestion); err != nil {
+			return state, fmt.Errorf("decode ingestion runtime status: %w", err)
 		}
 	}
 	return state, nil

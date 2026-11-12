@@ -71,13 +71,9 @@ func (p *CryptoProcessor) RunIngestionPreflight(ctx context.Context, networkCode
 
 func (p *CryptoProcessor) readIngestion(ctx context.Context, networks []networkInfo, drivers *crypto.ChainDriverRegistry, buildErr error) (IngestionPreflightResult, error) {
 	result := IngestionPreflightResult{ObservedAt: time.Now().UTC(), Ready: true, Networks: []IngestionNetworkReport{}}
-	poolStates, err := crypto_repo.NewWalletPoolRepo().ListStates(ctx)
+	lagLimits, err := ingestionLagLimits(ctx)
 	if err != nil {
 		return result, err
-	}
-	lagLimits := make(map[id.ID]time.Duration, len(poolStates))
-	for _, state := range poolStates {
-		lagLimits[state.Policy.NetworkID] = time.Duration(state.Policy.MaxWatcherLagSeconds) * time.Second
 	}
 	reports, readErr := readIngestionNetworks(ctx, networks, func(ctx context.Context, network networkInfo) (IngestionNetworkReport, error) {
 		return p.readNetworkIngestion(ctx, network, drivers, lagLimits[network.ref.ID])
@@ -95,6 +91,19 @@ func (p *CryptoProcessor) readIngestion(ctx context.Context, networks []networkI
 		return result, fmt.Errorf("build ingestion adapters: %w", buildErr)
 	}
 	return result, nil
+}
+
+// ingestionLagLimits returns each network's wallet-pool watcher lag allowance.
+func ingestionLagLimits(ctx context.Context) (map[id.ID]time.Duration, error) {
+	poolStates, err := crypto_repo.NewWalletPoolRepo().ListStates(ctx)
+	if err != nil {
+		return nil, err
+	}
+	lagLimits := make(map[id.ID]time.Duration, len(poolStates))
+	for _, state := range poolStates {
+		lagLimits[state.Policy.NetworkID] = time.Duration(state.Policy.MaxWatcherLagSeconds) * time.Second
+	}
+	return lagLimits, nil
 }
 
 // Each network owns its report and RPC deadline. Slow providers in one network

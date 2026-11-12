@@ -75,6 +75,7 @@ import { ProviderAccountsOrderSection } from "./provider-accounts-order-section"
 import { RuntimeStatus } from "./runtime-status"
 import { ShadowControlSection } from "./shadow-control-section"
 import { NetworkWatchingSection } from "./network-watching-section"
+import { IngestionPill, IngestionStreamsSection } from "./ingestion-status"
 
 export interface CryptoNetworkCardProps {
   incoming: CryptoNetworkState
@@ -191,6 +192,7 @@ export function CryptoNetworkCard({
                   <CardTitle>{incoming.network.code}</CardTitle>
                   <Badge variant="outline">{incoming.network.family}</Badge>
                   {incoming.watching ? null : <Badge variant="secondary">Сеть не читается</Badge>}
+                  <IngestionPill state={incoming} />
                   <Badge variant={form.enabled ? "success" : "secondary"}>
                     {form.enabled ? "Обработка включена" : "Обработка выключена"}
                   </Badge>
@@ -261,6 +263,9 @@ export function CryptoNetworkCard({
             ) : null}
 
             <NetworkWatchingSection state={incoming} onUpdated={onUpdated} />
+            <Separator />
+
+            <IngestionStreamsSection state={incoming} />
             <Separator />
 
             <RuntimeStatus state={incoming} resourceStrategy={form.resourceStrategy} onRPCDirtyChange={setRPCDirty} />
