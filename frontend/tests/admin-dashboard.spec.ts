@@ -82,6 +82,30 @@ test("gallery, per-instance settings, deletion and server persistence remain fun
   expect(saved.widgets.every(w => Number.isFinite(w.y))).toBeTruthy()
 })
 
+test("edit mode can be left without saving and the previous layout comes back", async ({ page }) => {
+  await page.setViewportSize({ width: 1680, height: 1100 })
+  const mock = await setup(page)
+  await page.goto("/")
+  await expect(page.locator("[data-widget-type]")).toHaveCount(12)
+  await page.getByRole("button", { name: "Настроить", exact: true }).click()
+  const puts = () => mock.calls["/api/v1/me/preferences/dashboard-layout"] ?? 0
+  const before = puts()
+  await widget(page, "attention-counter").first().getByRole("button", { name: "Удалить: Требует внимания", exact: true }).click()
+  await page.getByRole("button", { name: "Стандартная раскладка", exact: true }).click()
+  await widget(page, "attention-queue").getByRole("button", { name: "Удалить: Требуют решения", exact: true }).click()
+  await expect(page.locator("[data-widget-type]")).toHaveCount(11)
+  await page.getByRole("button", { name: "Отмена", exact: true }).click()
+  await expect(page.getByRole("button", { name: "Настроить", exact: true })).toBeVisible()
+  await expect(page.locator("[data-widget-type]")).toHaveCount(12)
+  await expect(widget(page, "attention-queue")).toHaveCount(1)
+  await page.reload()
+  await expect(page.locator("[data-widget-type]")).toHaveCount(12)
+  expect(puts()).toBe(before)
+  // Only the migration write that was pending before editing may reach the server, never the edits.
+  const saved = mock.saved() as { widgets?: { widgetType: string }[] }
+  if (saved.widgets?.every(w => w.widgetType !== "kpi")) expect(saved.widgets).toHaveLength(12)
+})
+
 test("analytics handles all periods, same-symbol networks and exact chart tooltips", async ({ page }) => {
   const periods: string[] = []
   await setup(page, async (_route, url) => { if (url.pathname.endsWith("/dashboard/analytics")) periods.push(url.searchParams.get("period")!); return false })

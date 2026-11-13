@@ -86,7 +86,7 @@ const WIDGET_DEFINITIONS: RegisteredWidgetDefinition[] = [
     }),
     defineWidget({
         type: "payment-results", label: "Результаты инвойсов", description: "Текущие статусы инвойсов, созданных за выбранный период", icon: CheckCircle2, category: "charts",
-        allowedSizes: ["2x3", "2x4", "3x2", "4x3"], defaultSize: "2x4", defaultConfig: { period: "30d", tokenId: "" },
+        allowedSizes: ["2x2", "2x3", "2x4", "3x2", "4x3"], defaultSize: "2x2", defaultConfig: { period: "30d", tokenId: "" },
         requiredPermission: null, adminOnly: true,
         component: lazy(() => import("@/components/dashboard/widgets/payment-results-renderer")),
     }),

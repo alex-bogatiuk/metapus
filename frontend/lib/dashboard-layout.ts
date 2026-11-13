@@ -14,7 +14,7 @@ export function defaultDashboardLayout(): DashboardLayout {
   add("custody-reconciliation", "reconciliation", 0, 7, 12, 3, { limit: 8 })
   add("receipts-volume", "receipts", 0, 10, 8, 4, { period: "30d", tokenId: "" })
   add("platform-fees", "fees", 8, 10, 4, 2, { period: "30d", tokenId: "" })
-  add("payment-results", "results", 8, 12, 4, 4, { period: "30d", tokenId: "" })
+  add("payment-results", "results", 8, 12, 4, 2, { period: "30d", tokenId: "" })
   return { catalogVersion: 2, version: 1, widgets }
 }
 

@@ -45,3 +45,36 @@ test("layout writes are serialized and keep the latest pending-save state", asyn
     expect(useDashboardStore.getState().isSaving).toBe(false)
   } finally { api.preferences.saveDashboardLayout = original; useDashboardStore.setState(useDashboardStore.getInitialState(), true) }
 })
+test("cancelling edit mode restores the layout from before the edits without saving", async () => {
+  const original = api.preferences.saveDashboardLayout
+  const saved: number[] = []
+  api.preferences.saveDashboardLayout = async layout => { saved.push(layout.widgets.length) }
+  try {
+    useDashboardStore.setState(useDashboardStore.getInitialState(), true)
+    const before = useDashboardStore.getState().layout.widgets
+    useDashboardStore.getState().setEditMode(true)
+    useDashboardStore.getState().removeWidget("default-withdrawals")
+    useDashboardStore.getState().resetToDefault()
+    useDashboardStore.getState().removeWidget("default-inbound")
+    useDashboardStore.getState().cancelEdit()
+    const state = useDashboardStore.getState()
+    expect(state.isEditMode).toBe(false)
+    expect(state.editSnapshot).toBeNull()
+    expect(state.layout.widgets).toEqual(before)
+    expect(saved).toEqual([])
+  } finally { api.preferences.saveDashboardLayout = original; useDashboardStore.setState(useDashboardStore.getInitialState(), true) }
+})
+test("a save inside edit mode becomes the point that cancel returns to", async () => {
+  const original = api.preferences.saveDashboardLayout
+  api.preferences.saveDashboardLayout = async () => {}
+  try {
+    useDashboardStore.setState(useDashboardStore.getInitialState(), true)
+    const count = useDashboardStore.getState().layout.widgets.length
+    useDashboardStore.getState().setEditMode(true)
+    useDashboardStore.getState().removeWidget("default-withdrawals")
+    expect(await useDashboardStore.getState().saveLayout()).toBe(true)
+    useDashboardStore.getState().removeWidget("default-inbound")
+    useDashboardStore.getState().cancelEdit()
+    expect(useDashboardStore.getState().layout.widgets).toHaveLength(count - 1)
+  } finally { api.preferences.saveDashboardLayout = original; useDashboardStore.setState(useDashboardStore.getInitialState(), true) }
+})

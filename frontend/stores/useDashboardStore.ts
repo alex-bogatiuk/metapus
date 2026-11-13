@@ -21,6 +21,8 @@ function queueSave() {
 interface DashboardState {
   layout: DashboardLayout
   isEditMode: boolean
+  /** Layout as it was on entering edit mode (or after the last save inside it); cancelEdit returns to it. */
+  editSnapshot: DashboardLayout | null
   isLoaded: boolean
   isSaving: boolean
   saveError: string | null
@@ -28,6 +30,7 @@ interface DashboardState {
   loadLayout: () => Promise<void>
   saveLayout: () => Promise<boolean>
   setEditMode: (mode: boolean) => void
+  cancelEdit: () => void
   addWidget: (widget: WidgetPlacement) => void
   removeWidget: (id: string) => void
   updatePositions: (widgets: WidgetPlacement[]) => void
@@ -40,7 +43,7 @@ export const useDashboardStore = create<DashboardState>()(persist((set, get) => 
     if (!get().isEditMode) queueSave()
   }
   return {
-    layout: defaultDashboardLayout(), isEditMode: false, isLoaded: false, isSaving: false, saveError: null, loadError: null,
+    layout: defaultDashboardLayout(), isEditMode: false, editSnapshot: null, isLoaded: false, isSaving: false, saveError: null, loadError: null,
     loadLayout: async () => {
       const generation = getSessionGeneration()
       const revision = get().layout.version
@@ -73,12 +76,22 @@ export const useDashboardStore = create<DashboardState>()(persist((set, get) => 
       const pending = saveChain
       await pending
       if (isCurrentSession(generation) && saveChain === pending) set({ isSaving: false, ...(success ? { saveError: null } : {}) })
+      // The server now holds this layout, so cancelling later edits must not go further back.
+      if (success && isCurrentSession(generation) && get().isEditMode) set({ editSnapshot: layout })
       return success && isCurrentSession(generation) && get().layout.version === layout.version
     },
     setEditMode: mode => {
+      // A change made just before entering edit mode is still debounced: write it now, before edits begin.
+      if (mode && saveTimer) void get().saveLayout()
       if (saveTimer) clearTimeout(saveTimer)
       saveTimer = null
-      set({ isEditMode: mode })
+      set({ isEditMode: mode, editSnapshot: mode ? get().layout : null })
+    },
+    cancelEdit: () => {
+      const { editSnapshot, layout, isEditMode } = get()
+      if (!isEditMode) return
+      // A new version number keeps in-flight saves and loads from treating the restored layout as theirs.
+      set({ isEditMode: false, editSnapshot: null, saveError: null, ...(editSnapshot ? { layout: { ...editSnapshot, version: layout.version + 1 } } : {}) })
     },
     addWidget: widget => { if (get().layout.widgets.length < 20) change([...get().layout.widgets, widget]) },
     removeWidget: id => change(get().layout.widgets.filter(w => w.instanceId !== id)),

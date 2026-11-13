@@ -43,3 +43,17 @@ export function receiptAxisLabel(ratio: number, max: string, scale: number) {
   if (value.abs().gte("1000000") || value.abs().lt("0.001")) return value.toExponential(1).replace(".", ",")
   return formatDecimal(value.toSignificantDigits(3).toFixed())
 }
+/**
+ * Round axis steps (1, 2, 2.5, 5 × 10ⁿ in major units) for a chart whose bars are normalized to max = 1.
+ * Ticks are ratios of max, so the bars keep their exact geometry and only the grid moves to round values.
+ */
+export function receiptAxisTicks(max: string, scale: number, targetSteps = 4): { ticks: number[]; domainMax: number } {
+  const top = new MoneyDecimal(rawMinorToMajor(max, scale)).toNumber()
+  if (!(top > 0) || !Number.isFinite(top)) return { ticks: [0, 1], domainMax: 1 }
+  const rough = top / targetSteps
+  const magnitude = 10 ** Math.floor(Math.log10(rough))
+  const step = ([1, 2, 2.5, 5, 10].find(n => n * magnitude >= rough) ?? 10) * magnitude
+  const steps = Math.max(1, Math.ceil(top / step - 1e-9))
+  const ticks = Array.from({ length: steps + 1 }, (_, i) => i * step / top)
+  return { ticks, domainMax: ticks[ticks.length - 1] }
+}

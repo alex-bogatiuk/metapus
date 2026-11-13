@@ -29,7 +29,7 @@ export function WidgetGrid() {
   }
   return <div ref={containerRef}>
     {isEditMode && !canMove && <p className="mb-3 text-xs text-muted-foreground">Перемещение и растягивание доступны при ширине области от 1200 px. Состав, размеры и настройки можно менять здесь.</p>}
-    {mounted && <ResponsiveGridLayout className="widget-grid" width={width} layouts={{ lg: gridLayout }} breakpoints={{ lg: 1200, md: 996, sm: 600, xs: 0 }} cols={{ lg: 12, md: 8, sm: 4, xs: 1 }} rowHeight={GRID_ROW_HEIGHT} margin={[GRID_MARGIN, GRID_MARGIN]} dragConfig={{ enabled: canMove, handle: ".drag-handle" }} resizeConfig={{ enabled: canMove }} onDragStop={savePositions} onResizeStop={savePositions}>
+    {mounted && <ResponsiveGridLayout className="widget-grid" width={width} layouts={{ lg: gridLayout }} breakpoints={{ lg: 1200, md: 996, sm: 600, xs: 0 }} cols={{ lg: 12, md: 8, sm: 4, xs: 1 }} rowHeight={GRID_ROW_HEIGHT} margin={[GRID_MARGIN, GRID_MARGIN]} containerPadding={[0, 0]} dragConfig={{ enabled: canMove, handle: ".drag-handle" }} resizeConfig={{ enabled: canMove }} onDragStop={savePositions} onResizeStop={savePositions}>
       {layout.widgets.map(w => <div key={w.instanceId}><WidgetWrapper placement={w} isEditMode={isEditMode} /></div>)}
     </ResponsiveGridLayout>}
   </div>
