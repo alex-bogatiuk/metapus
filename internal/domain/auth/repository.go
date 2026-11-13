@@ -134,10 +134,6 @@ type MFARepository interface {
 	StoreChallengeSetupSecret(ctx context.Context, challengeID id.ID, ciphertext, nonce []byte) error
 	ConsumeChallenge(ctx context.Context, challengeID id.ID) error
 
-	ReplaceBackupCodes(ctx context.Context, userID id.ID, hashes []string) error
-	ListUnusedBackupCodes(ctx context.Context, userID id.ID) ([]BackupCode, error)
-	MarkBackupCodeUsed(ctx context.Context, codeID id.ID) error
-
 	CreateStepUpConfirmation(ctx context.Context, sessionID, userID id.ID, tenantID, actionCode string, expiresAt time.Time) error
 	HasFreshStepUp(ctx context.Context, sessionID, userID id.ID, tenantID, actionCode string, now time.Time) (bool, error)
 	DeleteExpiredStepUps(ctx context.Context) error

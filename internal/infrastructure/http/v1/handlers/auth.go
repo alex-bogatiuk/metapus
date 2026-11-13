@@ -254,46 +254,10 @@ func (h *AuthHandler) MFAEnrollConfirm(c *gin.Context) {
 		return
 	}
 	h.setRefreshTokenCookie(c, result.Tokens.RefreshToken)
-	c.JSON(http.StatusOK, dto.MFAEnrollConfirmResponse{
-		Tokens:      dto.FromTokenPair(result.Tokens),
-		User:        dto.FromUser(result.User),
-		BackupCodes: result.BackupCodes,
-	})
-}
-
-// MFABackupCode handles POST /auth/mfa/backup-code.
-func (h *AuthHandler) MFABackupCode(c *gin.Context) {
-	ctx := c.Request.Context()
-	var req dto.MFABackupCodeRequest
-	if !h.BindJSON(c, &req) {
-		return
-	}
-	challengeID, err := id.Parse(req.ChallengeID)
-	if err != nil {
-		h.Error(c, apperror.NewValidation("invalid challengeId"))
-		return
-	}
-	info := auth.SessionInfo{UserAgent: c.Request.UserAgent(), IPAddress: c.ClientIP()}
-	result, err := h.service.UseBackupCode(ctx, challengeID, req.BackupCode, info)
-	if err != nil {
-		h.Error(c, err)
-		return
-	}
-	h.setRefreshTokenCookie(c, result.Tokens.RefreshToken)
 	c.JSON(http.StatusOK, dto.LoginResponse{
 		Tokens: dto.FromTokenPair(result.Tokens),
 		User:   dto.FromUser(result.User),
 	})
-}
-
-// RegenerateBackupCodes handles POST /auth/mfa/backup-codes/regenerate.
-func (h *AuthHandler) RegenerateBackupCodes(c *gin.Context) {
-	codes, err := h.service.RegenerateBackupCodes(c.Request.Context())
-	if err != nil {
-		h.Error(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, dto.MFABackupCodesResponse{BackupCodes: codes})
 }
 
 // ResetMFA handles POST /auth/mfa/reset.
@@ -909,7 +873,6 @@ func (h *AuthHandler) RegisterRoutes(public, protected *gin.RouterGroup, stepUp 
 	public.POST("/mfa/verify", h.MFAVerify)
 	public.POST("/mfa/enroll/start", h.MFAEnrollStart)
 	public.POST("/mfa/enroll/confirm", h.MFAEnrollConfirm)
-	public.POST("/mfa/backup-code", h.MFABackupCode)
 
 	// Protected routes (auth required)
 	protected.POST("/logout", h.Logout)
@@ -928,7 +891,6 @@ func (h *AuthHandler) RegisterRoutes(public, protected *gin.RouterGroup, stepUp 
 	})
 	protected.POST("/step-up", h.StepUp)
 	protected.POST("/mfa/enroll/start-session", h.MFAEnrollStartSession)
-	protected.POST("/mfa/backup-codes/regenerate", requireStepUp("auth.mfa_backup_codes.regenerate"), h.RegenerateBackupCodes)
 	protected.POST("/mfa/reset", middleware.RequireRole("security_admin"), requireStepUp("auth.mfa.reset"), h.ResetMFA)
 	// NOTE: These endpoints are privileged. Keep them protected from privilege escalation.
 	protected.POST("/assign-role", middleware.RequireRole("admin"), requireStepUp("auth.roles.assign"), h.AssignRole)

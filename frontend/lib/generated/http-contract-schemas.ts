@@ -2990,15 +2990,6 @@ export const LoginResponseSchema: z.ZodType<Wire.LoginResponse> = z.lazy(() => z
   "user": UserResponseSchema.nullable(),
 }))
 
-export const MFABackupCodeRequestSchema: z.ZodType<Wire.MFABackupCodeRequest> = z.lazy(() => z.strictObject({
-  "challengeId": z.string(),
-  "backupCode": z.string(),
-}))
-
-export const MFABackupCodesResponseSchema: z.ZodType<Wire.MFABackupCodesResponse> = z.lazy(() => z.object({
-  "backupCodes": z.array(z.string()),
-}))
-
 export const MFAChallengeResponseSchema: z.ZodType<Wire.MFAChallengeResponse> = z.lazy(() => z.object({
   "status": z.string(),
   "challengeId": z.string(),
@@ -3009,12 +3000,6 @@ export const MFAChallengeResponseSchema: z.ZodType<Wire.MFAChallengeResponse> = 
 export const MFAEnrollConfirmRequestSchema: z.ZodType<Wire.MFAEnrollConfirmRequest> = z.lazy(() => z.strictObject({
   "challengeId": z.string(),
   "code": z.string(),
-}))
-
-export const MFAEnrollConfirmResponseSchema: z.ZodType<Wire.MFAEnrollConfirmResponse> = z.lazy(() => z.object({
-  "tokens": TokenResponseSchema.nullable(),
-  "user": UserResponseSchema.nullable(),
-  "backupCodes": z.array(z.string()),
 }))
 
 export const MFAEnrollStartRequestSchema: z.ZodType<Wire.MFAEnrollStartRequest> = z.lazy(() => z.strictObject({

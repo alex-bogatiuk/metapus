@@ -1,6 +1,6 @@
 import { z } from "zod"
 import * as Wire from "@/lib/generated/http-contract-schemas"
-import type { AuthLoginResponse, LoginResponse, MFAEnrollConfirmResponse } from "@/types/auth"
+import type { AuthLoginResponse, LoginResponse } from "@/types/auth"
 import type * as Contract from "@/types/generated/http-contracts"
 
 export const authCacheScopeSchema = Wire.AuthCacheScopeSchema.and(z.object({
@@ -29,7 +29,6 @@ export const authLoginResponseSchema: z.ZodType<AuthLoginResponse> = z.union([
   loginResponseSchema.and(z.object({ status: z.never().optional() })),
   Wire.MFAChallengeResponseSchema.and(z.object({ status: z.enum(["mfa_required", "mfa_enrollment_required"]), user: authUserSchema.optional(), tokens: z.never().optional() })),
 ])
-export const mfaEnrollConfirmResponseSchema: z.ZodType<MFAEnrollConfirmResponse> = Wire.MFAEnrollConfirmResponseSchema.and(z.object({ tokens: tokenResponseSchema, user: authUserSchema }))
 
 export const adminUserListSchema = Wire.AdminUserListResponseSchema.pipe(z.object({ items: z.array(authUserSchema), total: z.number().int() }))
 export const roleListSchema: z.ZodType<{ items: Contract.RoleResponse[] }> = Wire.RoleListResponseSchema.and(z.object({ items: z.array(Wire.RoleResponseSchema) }))

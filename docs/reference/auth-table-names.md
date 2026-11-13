@@ -18,7 +18,6 @@ reference key `users`. Маршруты `/auth/users`, `/auth/roles`, permission
 | user_security_profiles | auth_user_security_profiles |
 | security_policy_rules | auth_security_policy_rules |
 | user_mfa_totp | auth_user_mfa_totp |
-| user_mfa_backup_codes | auth_user_mfa_backup_codes |
 | user_preferences | sys_user_preferences |
 
 `auth_policy_state`, `auth_sessions`, `auth_mfa_challenges` и

@@ -288,21 +288,6 @@ type MFAEnrollConfirmRequest struct {
 	Code        string `json:"code" binding:"required"`
 }
 
-type MFAEnrollConfirmResponse struct {
-	Tokens      *TokenResponse `json:"tokens"`
-	User        *UserResponse  `json:"user"`
-	BackupCodes []string       `json:"backupCodes"`
-}
-
-type MFABackupCodeRequest struct {
-	ChallengeID string `json:"challengeId" binding:"required,uuid"`
-	BackupCode  string `json:"backupCode" binding:"required"`
-}
-
-type MFABackupCodesResponse struct {
-	BackupCodes []string `json:"backupCodes"`
-}
-
 type MFAResetRequest struct {
 	UserID string `json:"userId" binding:"required,uuid"`
 }

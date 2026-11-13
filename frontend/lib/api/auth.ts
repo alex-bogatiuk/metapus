@@ -4,7 +4,6 @@ import {
     authUserSchema,
     loginResponseSchema,
     authLoginResponseSchema,
-    mfaEnrollConfirmResponseSchema,
     adminUserListSchema,
     roleListSchema,
     permissionListSchema,
@@ -35,18 +34,9 @@ export const authApi = {
             method: "POST",
         }),
     confirmMFAEnrollment: async (data: import("@/types/auth").MFAEnrollConfirmRequest) =>
-        checkedJSON("/auth/mfa/enroll/confirm", mfaEnrollConfirmResponseSchema, {
+        checkedJSON("/auth/mfa/enroll/confirm", loginResponseSchema, {
             method: "POST",
             body: JSON.stringify(wireSchemas.MFAEnrollConfirmRequestSchema.parse(data)),
-        }),
-    useMFABackupCode: async (data: import("@/types/auth").MFABackupCodeRequest) =>
-        checkedJSON("/auth/mfa/backup-code", loginResponseSchema, {
-            method: "POST",
-            body: JSON.stringify(wireSchemas.MFABackupCodeRequestSchema.parse(data)),
-        }),
-    regenerateMFABackupCodes: () =>
-        checkedJSON("/auth/mfa/backup-codes/regenerate", wireSchemas.MFABackupCodesResponseSchema, {
-            method: "POST",
         }),
     resetMFA: async (data: import("@/types/auth").MFAResetRequest) =>
         checkedJSON("/auth/mfa/reset", messageSchema, {

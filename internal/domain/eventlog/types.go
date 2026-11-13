@@ -89,7 +89,6 @@ const (
 	EventSecurityMFABruteforce    EventType = "security.mfa_bruteforce_suspected"
 	EventSecurityMFAEnrolled      EventType = "security.mfa_enrolled"
 	EventSecurityMFAReset         EventType = "security.mfa_reset"
-	EventSecurityBackupCodeUsed   EventType = "security.backup_code_used"
 	EventSecurityStepUpRequired   EventType = "security.step_up_required"
 	EventSecurityStepUpVerified   EventType = "security.step_up_verified"
 	EventSecurityStepUpDenied     EventType = "security.step_up_denied"

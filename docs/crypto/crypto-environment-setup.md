@@ -316,12 +316,11 @@ ADMIN_ALLOWED_CIDRS=127.0.0.1/32,::1/128
 1. login;
 2. начало enrollment;
 3. добавление TOTP в authenticator;
-4. подтверждение кода;
-5. сохранение backup codes.
+4. подтверждение кода.
 
 Для следующих login будет `202 mfa_required`.
 
-Чувствительные действия вызывают step-up dialog. Step-up требует одновременно пароль и текущий TOTP. Backup code не подходит.
+Чувствительные действия вызывают step-up dialog. Step-up требует одновременно пароль и текущий TOTP.
 
 `crypto-create-invoice.ps1` работает через явно созданный `MERCHANT_API_KEY` и
 завершается при первой ошибке. `crypto-create-withdrawal.ps1` и

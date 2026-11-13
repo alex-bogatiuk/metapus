@@ -93,16 +93,18 @@ MFA endpoints:
 - `POST /auth/mfa/verify` завершает login challenge.
 - `POST /auth/mfa/enroll/start` и `/confirm` обслуживают pre-auth enrollment challenge.
 - `POST /auth/mfa/enroll/start-session` создаёт enrollment challenge для текущей authenticated session.
-- `POST /auth/mfa/backup-code` разрешён только для login recovery.
-- `POST /auth/mfa/backup-codes/regenerate` требует fresh step-up.
 - `POST /auth/mfa/reset` требует другого `security_admin` и fresh step-up.
+
+Резервных кодов нет. Пользователь, потерявший authenticator, восстанавливает
+доступ через сброс MFA другим `security_admin`: сброс отзывает его сессии, а при
+следующем входе он заново подключает TOTP.
 
 Sensitive actions защищаются `SensitiveActionGuard(actionCode)`. Guard ищет fresh
 confirmation в `auth_step_up_confirmations` по `session_id`, `user_id`,
 `tenant_id`, `action_code`, `expires_at`. `POST /auth/step-up` требует пароль и
-TOTP одновременно; backup code не заменяет TOTP для step-up. Успешный step-up
-также помечает текущую session как MFA-verified, чтобы старые admin-сессии могли
-быть подняты до нового уровня без повторного password-login.
+TOTP одновременно. Успешный step-up также помечает текущую session как
+MFA-verified, чтобы старые admin-сессии могли быть подняты до нового уровня без
+повторного password-login.
 
 Money movement approval использует object-bound action code
 `money_movement.approve:<intent_digest>`. Такой step-up нельзя переиспользовать
@@ -121,13 +123,12 @@ TOTP policy:
 - 30s period, drift `-1..+1`.
 - `last_used_time_step` запрещает replay того же кода.
 - 5 неверных попыток за 15 минут блокируют verifier на 15 минут.
-- Backup codes: 10 одноразовых кодов по 128 бит entropy, в БД только bcrypt hash.
 
 Audit/security journal — `sys_event_log`, category `security`, event types
 `security.admin_ip_denied`, `security.admin_ip_warn`, `security.password_denied`,
 `security.mfa_required`, `security.mfa_denied`,
 `security.mfa_bruteforce_suspected`, `security.mfa_enrolled`,
-`security.mfa_reset`, `security.backup_code_used`,
+`security.mfa_reset`,
 `security.step_up_required`, `security.step_up_verified`,
 `security.step_up_denied`.
 

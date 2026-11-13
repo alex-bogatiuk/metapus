@@ -148,9 +148,6 @@ func (r *MFARepo) ClearTOTP(ctx context.Context, userID id.ID) error {
 	if _, err := q.Exec(ctx, query, userID); err != nil {
 		return fmt.Errorf("clear totp: %w", err)
 	}
-	if _, err := q.Exec(ctx, `DELETE FROM auth_user_mfa_backup_codes WHERE user_id = $1`, userID); err != nil {
-		return fmt.Errorf("delete backup codes: %w", err)
-	}
 	return nil
 }
 
@@ -302,60 +299,6 @@ func (r *MFARepo) ConsumeChallenge(ctx context.Context, challengeID id.ID) error
 	}
 	if tag.RowsAffected() == 0 {
 		return apperror.NewMFADenied("MFA challenge is invalid or expired")
-	}
-	return nil
-}
-
-func (r *MFARepo) ReplaceBackupCodes(ctx context.Context, userID id.ID, hashes []string) error {
-	q := r.getTxManager(ctx).GetQuerier(ctx)
-	if _, err := q.Exec(ctx, `DELETE FROM auth_user_mfa_backup_codes WHERE user_id = $1`, userID); err != nil {
-		return fmt.Errorf("delete old backup codes: %w", err)
-	}
-	for _, hash := range hashes {
-		if _, err := q.Exec(ctx,
-			`INSERT INTO auth_user_mfa_backup_codes (id, user_id, code_hash) VALUES ($1, $2, $3)`,
-			id.New(), userID, hash,
-		); err != nil {
-			return fmt.Errorf("insert backup code: %w", err)
-		}
-	}
-	return nil
-}
-
-func (r *MFARepo) ListUnusedBackupCodes(ctx context.Context, userID id.ID) ([]auth.BackupCode, error) {
-	q := r.getTxManager(ctx).GetQuerier(ctx)
-	const query = `
-		SELECT id, user_id, code_hash, used_at, created_at
-		FROM auth_user_mfa_backup_codes
-		WHERE user_id = $1 AND used_at IS NULL
-		ORDER BY created_at ASC
-		FOR UPDATE
-	`
-	rows, err := q.Query(ctx, query, userID)
-	if err != nil {
-		return nil, fmt.Errorf("list backup codes: %w", err)
-	}
-	defer rows.Close()
-
-	var codes []auth.BackupCode
-	for rows.Next() {
-		var code auth.BackupCode
-		if err := rows.Scan(&code.ID, &code.UserID, &code.CodeHash, &code.UsedAt, &code.CreatedAt); err != nil {
-			return nil, fmt.Errorf("scan backup code: %w", err)
-		}
-		codes = append(codes, code)
-	}
-	return codes, rows.Err()
-}
-
-func (r *MFARepo) MarkBackupCodeUsed(ctx context.Context, codeID id.ID) error {
-	q := r.getTxManager(ctx).GetQuerier(ctx)
-	tag, err := q.Exec(ctx, `UPDATE auth_user_mfa_backup_codes SET used_at = now() WHERE id = $1 AND used_at IS NULL`, codeID)
-	if err != nil {
-		return fmt.Errorf("mark backup code used: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		return apperror.NewMFADenied("backup code has already been used")
 	}
 	return nil
 }

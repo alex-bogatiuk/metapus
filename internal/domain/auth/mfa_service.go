@@ -5,7 +5,6 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"net/netip"
 	"strings"
@@ -32,8 +31,6 @@ const (
 	_totpMaxFailures   = 5
 	_totpFailureWindow = 15 * time.Minute
 	_totpLockDuration  = 15 * time.Minute
-	_backupCodeCount   = 10
-	_backupCodeBytes   = 16
 )
 
 func (s *Service) emitSecurityEvent(ctx context.Context, eventType eventlog.EventType, severity eventlog.Severity, userID id.ID, email, clientIP, message string, details map[string]any) {
@@ -442,12 +439,12 @@ func (s *Service) CreateSessionEnrollmentChallenge(ctx context.Context, info Ses
 	return ch, nil
 }
 
-func (s *Service) ConfirmMFAEnrollment(ctx context.Context, challengeID id.ID, code string, info SessionInfo) (*MFAEnrollConfirmResult, error) {
+func (s *Service) ConfirmMFAEnrollment(ctx context.Context, challengeID id.ID, code string, info SessionInfo) (*LoginResult, error) {
 	txm, err := s.getTxManager(ctx)
 	if err != nil {
 		return nil, apperror.NewInternal(err).WithDetail("missing", "tx_manager")
 	}
-	var result *MFAEnrollConfirmResult
+	var result *LoginResult
 	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
 		ch, err := s.mfaRepo.GetChallenge(ctx, challengeID)
 		if err != nil {
@@ -481,27 +478,16 @@ func (s *Service) ConfirmMFAEnrollment(ctx context.Context, challengeID id.ID, c
 		if err := s.mfaRepo.UpdateTOTPLastUsed(ctx, user.ID, matchedStep); err != nil {
 			return err
 		}
-		backupCodes, hashes, err := generateBackupCodes()
-		if err != nil {
-			return err
-		}
-		if err := s.mfaRepo.ReplaceBackupCodes(ctx, user.ID, hashes); err != nil {
-			return err
-		}
 		if err := s.mfaRepo.ConsumeChallenge(ctx, challengeID); err != nil {
 			return err
 		}
 		user.MFAEnabled = true
-		loginResult, err := s.finalizeLogin(ctx, user, info, TokenSessionOptions{
+		result, err = s.finalizeLogin(ctx, user, info, TokenSessionOptions{
 			MFAVerifiedAt: &now,
 			MFAMethod:     "totp",
 		})
 		if err != nil {
 			return err
-		}
-		result = &MFAEnrollConfirmResult{
-			LoginResult: *loginResult,
-			BackupCodes: backupCodes,
 		}
 		s.emitSecurityEvent(ctx, eventlog.EventSecurityMFAEnrolled, eventlog.SeverityInfo, user.ID, user.Email, info.IPAddress,
 			fmt.Sprintf("MFA enrolled for user %s", user.Email), map[string]any{"email": user.Email})
@@ -511,109 +497,6 @@ func (s *Service) ConfirmMFAEnrollment(ctx context.Context, challengeID id.ID, c
 		return nil, err
 	}
 	return result, nil
-}
-
-func generateBackupCodes() ([]string, []string, error) {
-	codes := make([]string, 0, _backupCodeCount)
-	hashes := make([]string, 0, _backupCodeCount)
-	for range _backupCodeCount {
-		raw := make([]byte, _backupCodeBytes)
-		if _, err := rand.Read(raw); err != nil {
-			return nil, nil, fmt.Errorf("generate backup code: %w", err)
-		}
-		hexCode := strings.ToUpper(hex.EncodeToString(raw))
-		code := hexCode[:8] + "-" + hexCode[8:16] + "-" + hexCode[16:24] + "-" + hexCode[24:]
-		hash, err := bcrypt.GenerateFromPassword([]byte(code), BcryptCost)
-		if err != nil {
-			return nil, nil, fmt.Errorf("hash backup code: %w", err)
-		}
-		codes = append(codes, code)
-		hashes = append(hashes, string(hash))
-	}
-	return codes, hashes, nil
-}
-
-func (s *Service) UseBackupCode(ctx context.Context, challengeID id.ID, backupCode string, info SessionInfo) (*LoginResult, error) {
-	txm, err := s.getTxManager(ctx)
-	if err != nil {
-		return nil, apperror.NewInternal(err).WithDetail("missing", "tx_manager")
-	}
-	var result *LoginResult
-	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
-		ch, err := s.mfaRepo.GetChallenge(ctx, challengeID)
-		if err != nil {
-			return err
-		}
-		if err := s.validateChallenge(ch, "login"); err != nil {
-			return err
-		}
-		user, err := s.loadUserWithAuth(ctx, ch.UserID)
-		if err != nil {
-			return err
-		}
-		codes, err := s.mfaRepo.ListUnusedBackupCodes(ctx, user.ID)
-		if err != nil {
-			return err
-		}
-		candidate := strings.TrimSpace(strings.ToUpper(backupCode))
-		var matched *BackupCode
-		for i := range codes {
-			if bcrypt.CompareHashAndPassword([]byte(codes[i].CodeHash), []byte(candidate)) == nil {
-				matched = &codes[i]
-				break
-			}
-		}
-		if matched == nil {
-			return apperror.NewMFADenied("invalid backup code")
-		}
-		if err := s.mfaRepo.MarkBackupCodeUsed(ctx, matched.ID); err != nil {
-			return err
-		}
-		if err := s.mfaRepo.ConsumeChallenge(ctx, challengeID); err != nil {
-			return err
-		}
-		now := time.Now().UTC()
-		var finalErr error
-		result, finalErr = s.finalizeLogin(ctx, user, info, TokenSessionOptions{
-			MFAVerifiedAt: &now,
-			MFAMethod:     "backup_code",
-		})
-		if finalErr != nil {
-			return finalErr
-		}
-		s.emitSecurityEvent(ctx, eventlog.EventSecurityBackupCodeUsed, eventlog.SeverityWarning, user.ID, user.Email, info.IPAddress,
-			fmt.Sprintf("Backup code used for user %s", user.Email), map[string]any{"email": user.Email})
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-func (s *Service) RegenerateBackupCodes(ctx context.Context) ([]string, error) {
-	userCtx := appctx.GetUser(ctx)
-	if userCtx == nil {
-		return nil, apperror.NewUnauthorized("authentication required")
-	}
-	userID, err := id.Parse(userCtx.UserID)
-	if err != nil {
-		return nil, apperror.NewUnauthorized("invalid user identity").WithCause(err)
-	}
-	codes, hashes, err := generateBackupCodes()
-	if err != nil {
-		return nil, err
-	}
-	txm, err := s.getTxManager(ctx)
-	if err != nil {
-		return nil, apperror.NewInternal(err).WithDetail("missing", "tx_manager")
-	}
-	if err := txm.RunInTransaction(ctx, func(ctx context.Context) error {
-		return s.mfaRepo.ReplaceBackupCodes(ctx, userID, hashes)
-	}); err != nil {
-		return nil, err
-	}
-	return codes, nil
 }
 
 func (s *Service) StepUp(ctx context.Context, password, totpCode, actionCode string, info SessionInfo) (time.Time, error) {

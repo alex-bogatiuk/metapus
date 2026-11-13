@@ -25,7 +25,6 @@ export function MFAEnrollmentBanner() {
   const setAuth = useAuthStore((s) => s.setAuth)
   const [setup, setSetup] = useState<MFAEnrollStartResponse | null>(null)
   const [code, setCode] = useState("")
-  const [backupCodes, setBackupCodes] = useState<string[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -38,7 +37,6 @@ export function MFAEnrollmentBanner() {
       const response = await api.auth.startSessionMFAEnrollment()
       setSetup(response)
       setCode("")
-      setBackupCodes(null)
     } catch {
       setError("Не удалось начать настройку MFA")
     } finally {
@@ -56,7 +54,7 @@ export function MFAEnrollmentBanner() {
         code,
       })
       setAuth(response.tokens, response.user)
-      setBackupCodes(response.backupCodes)
+      closeDialog()
     } catch {
       setError("Код не подтверждён")
     } finally {
@@ -67,7 +65,6 @@ export function MFAEnrollmentBanner() {
   function closeDialog() {
     setSetup(null)
     setCode("")
-    setBackupCodes(null)
     setError(null)
   }
 
@@ -103,23 +100,7 @@ export function MFAEnrollmentBanner() {
               </Alert>
             )}
 
-            {backupCodes ? (
-              <>
-                <Alert>
-                  <AlertCircle />
-                  <AlertDescription>
-                    Сохраните резервные коды сейчас. Они больше не будут показаны.
-                  </AlertDescription>
-                </Alert>
-                <div className="grid grid-cols-1 gap-2 font-mono text-sm">
-                  {backupCodes.map((backupCode) => (
-                    <div key={backupCode} className="rounded-md border bg-muted px-3 py-2">
-                      {backupCode}
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : setup ? (
+            {setup ? (
               <>
                 <div className="flex flex-col items-center gap-3">
                   <Image
@@ -160,14 +141,12 @@ export function MFAEnrollmentBanner() {
 
           <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={closeDialog} disabled={loading}>
-              {backupCodes ? "Закрыть" : "Позже"}
+              Позже
             </Button>
-            {!backupCodes && (
-              <Button type="button" onClick={confirmEnrollment} disabled={loading || !code}>
-                {loading && <Loader2 data-icon="inline-start" className="animate-spin" />}
-                Подтвердить
-              </Button>
-            )}
+            <Button type="button" onClick={confirmEnrollment} disabled={loading || !code}>
+              {loading && <Loader2 data-icon="inline-start" className="animate-spin" />}
+              Подтвердить
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

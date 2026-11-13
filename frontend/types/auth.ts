@@ -47,16 +47,6 @@ export type MFAEnrollStartResponse = Wire.MFAEnrollStartResponse
 
 export type MFAEnrollConfirmRequest = Wire.MFAEnrollConfirmRequest
 
-export interface MFAEnrollConfirmResponse {
-  tokens: TokenResponse
-  user: AuthUserResponse
-  backupCodes: string[]
-}
-
-export type MFABackupCodeRequest = Wire.MFABackupCodeRequest
-
-export type MFABackupCodesResponse = Wire.MFABackupCodesResponse
-
 export type MFAResetRequest = Wire.MFAResetRequest
 
 export type StepUpRequest = Wire.StepUpRequest

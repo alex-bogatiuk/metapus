@@ -10,11 +10,9 @@ import {
   AlertCircle,
   ArrowLeft,
   AtSign,
-  Check,
   Copy,
   Eye,
   EyeOff,
-  KeyRound,
   Loader2,
   Lock,
   ShieldCheck,
@@ -63,10 +61,7 @@ export function LoginForm() {
   const [challenge, setChallenge] = useState<MFAChallengeResponse | null>(null)
   const [enrollment, setEnrollment] = useState<MFAEnrollStartResponse | null>(null)
   const [totpCode, setTotpCode] = useState("")
-  const [backupCode, setBackupCode] = useState("")
-  const [showBackupCode, setShowBackupCode] = useState(false)
   const [mfaSubmitting, setMfaSubmitting] = useState(false)
-  const [backupCodes, setBackupCodes] = useState<string[] | null>(null)
   const [secondsLeft, setSecondsLeft] = useState(TOTP_PERIOD)
 
   const {
@@ -82,7 +77,7 @@ export function LoginForm() {
   })
 
   useEffect(() => {
-    if (!challenge || showBackupCode) return
+    if (!challenge) return
 
     function tick() {
       setSecondsLeft(TOTP_PERIOD - (Math.floor(Date.now() / 1000) % TOTP_PERIOD))
@@ -92,12 +87,10 @@ export function LoginForm() {
     const intervalId = window.setInterval(tick, 1000)
 
     return () => window.clearInterval(intervalId)
-  }, [challenge, showBackupCode])
+  }, [challenge])
 
   const progress = (secondsLeft / TOTP_PERIOD) * 100
-  const isMfaScreen = Boolean(challenge || backupCodes)
-  const isBackupMode = showBackupCode && !enrollment
-  const canSubmitMFA = isBackupMode ? backupCode.trim().length > 0 : totpCode.length === CODE_LENGTH
+  const canSubmitMFA = totpCode.length === CODE_LENGTH
 
   function completeLogin(response: LoginResponse) {
     setAuth(response.tokens, response.user)
@@ -113,8 +106,6 @@ export function LoginForm() {
     setEnrollment(setup)
     setChallenge(nextChallenge)
     setTotpCode("")
-    setBackupCode("")
-    setShowBackupCode(false)
   }
 
   async function onSubmit(values: LoginFormValues) {
@@ -158,9 +149,7 @@ export function LoginForm() {
     setServerError(null)
 
     try {
-      const response = isBackupMode
-        ? await api.auth.useMFABackupCode({ challengeId: challenge.challengeId, backupCode: backupCode.trim() })
-        : await api.auth.verifyMFA({ challengeId: challenge.challengeId, code })
+      const response = await api.auth.verifyMFA({ challengeId: challenge.challengeId, code })
       completeLogin(response)
     } catch (error) {
       if (error instanceof ApiError) {
@@ -170,12 +159,7 @@ export function LoginForm() {
       } else {
         setServerError("Не удалось подтвердить вход")
       }
-
-      if (isBackupMode) {
-        setBackupCode("")
-      } else {
-        setTotpCode("")
-      }
+      setTotpCode("")
     } finally {
       setMfaSubmitting(false)
     }
@@ -191,8 +175,7 @@ export function LoginForm() {
         challengeId: challenge.challengeId,
         code,
       })
-      setAuth(response.tokens, response.user)
-      setBackupCodes(response.backupCodes)
+      completeLogin(response)
     } catch {
       setServerError("Код не подтверждён")
       setTotpCode("")
@@ -201,22 +184,11 @@ export function LoginForm() {
     }
   }
 
-  function continueAfterBackupCodes() {
-    const user = useAuthStore.getState().user
-    if (isPortalOnly(user)) {
-      router.push("/portal")
-    } else {
-      router.push("/")
-    }
-  }
-
   function resetChallenge() {
     setChallenge(null)
     setEnrollment(null)
     setServerError(null)
     setTotpCode("")
-    setBackupCode("")
-    setShowBackupCode(false)
   }
 
   function handleTotpChange(value: string) {
@@ -226,15 +198,8 @@ export function LoginForm() {
     setTotpCode(value)
   }
 
-  function handleBackupCodeChange(value: string) {
-    if (serverError) {
-      setServerError(null)
-    }
-    setBackupCode(value)
-  }
-
   function handleTotpComplete(value: string) {
-    if (!challenge || mfaSubmitting || isBackupMode) return
+    if (!challenge || mfaSubmitting) return
 
     if (enrollment) {
       void confirmEnrollment(value)
@@ -263,18 +228,7 @@ export function LoginForm() {
       <Card className="overflow-hidden rounded-3xl border-border bg-card shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_-12px_rgba(0,0,0,0.12)]">
         <CardHeader className="p-6 pb-4 sm:p-9 sm:pb-5">
           <div className="flex flex-col gap-2">
-            {backupCodes ? (
-              <>
-                <div className="flex items-center gap-2 text-success">
-                  <Check className="size-4" aria-hidden="true" />
-                  <span className="text-xs font-semibold uppercase">MFA подключена</span>
-                </div>
-                <CardTitle className="text-2xl">Сохраните резервные коды</CardTitle>
-                <CardDescription className="text-[15px] leading-relaxed">
-                  Они показываются один раз и нужны для восстановления входа.
-                </CardDescription>
-              </>
-            ) : isMfaScreen ? (
+            {challenge ? (
               <>
                 <div className="flex items-center gap-2 text-primary">
                   <ShieldCheck className="size-4" aria-hidden="true" />
@@ -304,37 +258,7 @@ export function LoginForm() {
           </div>
         </CardHeader>
 
-        {backupCodes ? (
-          <>
-            <CardContent className="flex flex-col gap-4 px-6 pb-6 sm:px-8">
-              <Alert>
-                <AlertCircle />
-                <AlertDescription>
-                  Каждый код можно использовать только один раз. После продолжения список будет недоступен.
-                </AlertDescription>
-              </Alert>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {backupCodes.map((code) => (
-                  <div
-                    key={code}
-                    className="rounded-lg border bg-muted px-3 py-2 font-mono text-sm tabular-nums"
-                  >
-                    {code}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-            <CardFooter className="flex gap-2 px-6 pb-6 sm:px-8 sm:pb-8">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => copyText(backupCodes.join("\n"))}>
-                <Copy data-icon="inline-start" />
-                Копировать
-              </Button>
-              <Button type="button" className="flex-1" onClick={continueAfterBackupCodes}>
-                Продолжить
-              </Button>
-            </CardFooter>
-          </>
-        ) : challenge ? (
+        {challenge ? (
           <form onSubmit={handleMfaSubmit}>
             <CardContent className="flex flex-col gap-5 px-6 pb-5 sm:px-8">
               {serverError && (
@@ -372,56 +296,41 @@ export function LoginForm() {
                 </>
               )}
 
-              {isBackupMode ? (
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="backupCode">Резервный код</Label>
-                  <Input
-                    id="backupCode"
-                    value={backupCode}
-                    onChange={(event) => handleBackupCodeChange(event.target.value)}
-                    autoComplete="one-time-code"
-                    autoFocus
-                    aria-invalid={Boolean(serverError)}
-                    className="h-11 font-mono text-base"
-                  />
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  <OtpInput
-                    value={totpCode}
-                    onChange={handleTotpChange}
-                    length={CODE_LENGTH}
-                    disabled={mfaSubmitting}
-                    hasError={Boolean(serverError)}
-                    autoFocus
-                    onComplete={handleTotpComplete}
-                  />
-                  <div className="flex min-h-5 items-center justify-between text-xs text-muted-foreground">
-                    <span className={cn(serverError && "text-destructive")}>
-                      {serverError ? "Введите новый код" : "Новый код через " + secondsLeft + " с"}
+              <div className="flex flex-col gap-3">
+                <OtpInput
+                  value={totpCode}
+                  onChange={handleTotpChange}
+                  length={CODE_LENGTH}
+                  disabled={mfaSubmitting}
+                  hasError={Boolean(serverError)}
+                  autoFocus
+                  onComplete={handleTotpComplete}
+                />
+                <div className="flex min-h-5 items-center justify-between text-xs text-muted-foreground">
+                  <span className={cn(serverError && "text-destructive")}>
+                    {serverError ? "Введите новый код" : "Новый код через " + secondsLeft + " с"}
+                  </span>
+                  {!serverError && (
+                    <span className="relative inline-flex size-4 items-center justify-center" aria-hidden="true">
+                      <svg className="size-4 -rotate-90" viewBox="0 0 20 20">
+                        <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="3" className="text-border" />
+                        <circle
+                          cx="10"
+                          cy="10"
+                          r="8"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          className="text-primary transition-[stroke-dashoffset] duration-1000 ease-linear"
+                          strokeDasharray={2 * Math.PI * 8}
+                          strokeDashoffset={2 * Math.PI * 8 * (1 - progress / 100)}
+                        />
+                      </svg>
                     </span>
-                    {!serverError && (
-                      <span className="relative inline-flex size-4 items-center justify-center" aria-hidden="true">
-                        <svg className="size-4 -rotate-90" viewBox="0 0 20 20">
-                          <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="3" className="text-border" />
-                          <circle
-                            cx="10"
-                            cy="10"
-                            r="8"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="3"
-                            strokeLinecap="round"
-                            className="text-primary transition-[stroke-dashoffset] duration-1000 ease-linear"
-                            strokeDasharray={2 * Math.PI * 8}
-                            strokeDashoffset={2 * Math.PI * 8 * (1 - progress / 100)}
-                          />
-                        </svg>
-                      </span>
-                    )}
-                  </div>
+                  )}
                 </div>
-              )}
+              </div>
             </CardContent>
 
             <CardFooter className="flex flex-col gap-2 px-6 pb-6 sm:px-8 sm:pb-8">
@@ -430,22 +339,9 @@ export function LoginForm() {
                 {enrollment ? "Подключить MFA" : "Подтвердить"}
               </Button>
               {!enrollment && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="lg"
-                  className="w-full text-muted-foreground"
-                  onClick={() => {
-                    setShowBackupCode((previous) => !previous)
-                    setServerError(null)
-                    setTotpCode("")
-                    setBackupCode("")
-                  }}
-                  disabled={mfaSubmitting}
-                >
-                  <KeyRound data-icon="inline-start" />
-                  {isBackupMode ? "Ввести код TOTP" : "Войти с резервным кодом"}
-                </Button>
+                <p className="pt-1 text-center text-xs leading-5 text-muted-foreground">
+                  Нет доступа к приложению? Попросите администратора сбросить MFA.
+                </p>
               )}
             </CardFooter>
           </form>
@@ -533,7 +429,7 @@ export function LoginForm() {
       </Card>
 
       <div className="mt-5 flex items-center justify-center">
-        {challenge && !backupCodes ? (
+        {challenge ? (
           <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={resetChallenge} disabled={mfaSubmitting}>
             <ArrowLeft data-icon="inline-start" />
             Вернуться ко входу

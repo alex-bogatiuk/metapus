@@ -350,15 +350,6 @@ type MFAChallenge struct {
 	IPAddress             string
 }
 
-// BackupCode is a hashed, one-time MFA recovery code.
-type BackupCode struct {
-	ID        id.ID
-	UserID    id.ID
-	CodeHash  string
-	UsedAt    *time.Time
-	CreatedAt time.Time
-}
-
 // MFAEnrollStartResult contains enrollment material returned once to the client.
 type MFAEnrollStartResult struct {
 	ChallengeID   id.ID
@@ -366,12 +357,6 @@ type MFAEnrollStartResult struct {
 	QRCodeDataURL string
 	ManualSecret  string
 	ExpiresAt     time.Time
-}
-
-// MFAEnrollConfirmResult finalizes enrollment and returns one-time backup codes.
-type MFAEnrollConfirmResult struct {
-	LoginResult
-	BackupCodes []string
 }
 
 // TokenSessionOptions controls server-side markers for a newly issued session.

@@ -237,17 +237,6 @@ CREATE TABLE auth_user_mfa_totp (
     )
 );
 
-CREATE TABLE auth_user_mfa_backup_codes (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
-    user_id      UUID NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
-    code_hash    VARCHAR(255) NOT NULL,
-    used_at      TIMESTAMPTZ,
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX idx_mfa_backup_codes_user_unused
-    ON auth_user_mfa_backup_codes (user_id, created_at)
-    WHERE used_at IS NULL;
-
 CREATE TABLE auth_mfa_challenges (
     id                      UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
     user_id                 UUID NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
@@ -537,7 +526,6 @@ ON CONFLICT DO NOTHING;
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DROP TABLE auth_step_up_confirmations;
 DROP TABLE auth_mfa_challenges;
-DROP TABLE auth_user_mfa_backup_codes;
 DROP TABLE auth_user_mfa_totp;
 DROP TABLE auth_security_policy_rules;
 DROP TABLE auth_user_security_profiles;

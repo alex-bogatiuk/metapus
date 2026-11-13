@@ -32,7 +32,6 @@ export function StepUpDialog() {
   const [notice, setNotice] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [setup, setSetup] = useState<MFAEnrollStartResponse | null>(null)
-  const [backupCodes, setBackupCodes] = useState<string[] | null>(null)
   const [needsEnrollment, setNeedsEnrollment] = useState(false)
   const setAuth = useAuthStore((s) => s.setAuth)
 
@@ -49,7 +48,6 @@ export function StepUpDialog() {
       setError(null)
       setNotice(null)
       setSetup(null)
-      setBackupCodes(null)
       setNeedsEnrollment(detail.actionCode === SESSION_ENROLLMENT_ACTION)
     }
     window.addEventListener(STEP_UP_EVENT, listener)
@@ -65,7 +63,6 @@ export function StepUpDialog() {
     setError(null)
     setNotice(null)
     setSetup(null)
-    setBackupCodes(null)
     setNeedsEnrollment(false)
   }
 
@@ -77,7 +74,6 @@ export function StepUpDialog() {
       const response = await api.auth.startSessionMFAEnrollment()
       setSetup(response)
       setCode("")
-      setBackupCodes(null)
       setNeedsEnrollment(false)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Не удалось начать настройку MFA")
@@ -87,7 +83,7 @@ export function StepUpDialog() {
   }
 
   const confirmEnrollment = async () => {
-    if (!setup) return
+    if (!setup || !pending) return
     setSubmitting(true)
     setError(null)
     setNotice(null)
@@ -97,26 +93,19 @@ export function StepUpDialog() {
         code,
       })
       setAuth(response.tokens, response.user)
-      setBackupCodes(response.backupCodes)
       setSetup(null)
       setCode("")
+      if (pending.actionCode === SESSION_ENROLLMENT_ACTION) {
+        pending.resolve()
+        setPending(null)
+        return
+      }
+      setNotice("MFA настроена. Введите новый TOTP-код, чтобы подтвердить действие.")
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Код не подтверждён")
     } finally {
       setSubmitting(false)
     }
-  }
-
-  const continueAfterEnrollment = () => {
-    if (!pending) return
-    setBackupCodes(null)
-    setCode("")
-    if (pending.actionCode === SESSION_ENROLLMENT_ACTION) {
-      pending.resolve()
-      setPending(null)
-      return
-    }
-    setNotice("MFA настроена. Введите новый TOTP-код, чтобы подтвердить действие.")
   }
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -159,15 +148,13 @@ export function StepUpDialog() {
     <Dialog open={!!pending} onOpenChange={(open) => !open && close()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{setup || backupCodes || needsEnrollment ? "Настройка MFA" : "Подтверждение действия"}</DialogTitle>
+          <DialogTitle>{setup || needsEnrollment ? "Настройка MFA" : "Подтверждение действия"}</DialogTitle>
           <DialogDescription>
             {setup
               ? "Отсканируйте QR-код и подтвердите первый код из приложения."
-              : backupCodes
-                ? "Сохраните резервные коды. Они больше не будут показаны."
-                : needsEnrollment
-                  ? "Для продолжения нужно подключить приложение-аутентификатор."
-                  : "Для продолжения нужны пароль и код из приложения-аутентификатора."}
+              : needsEnrollment
+                ? "Для продолжения нужно подключить приложение-аутентификатор."
+                : "Для продолжения нужны пароль и код из приложения-аутентификатора."}
           </DialogDescription>
         </DialogHeader>
 
@@ -185,15 +172,7 @@ export function StepUpDialog() {
             </Alert>
           )}
 
-          {backupCodes ? (
-            <div className="grid grid-cols-1 gap-2 font-mono text-sm">
-              {backupCodes.map((backupCode) => (
-                <div key={backupCode} className="rounded-md border bg-muted px-3 py-2">
-                  {backupCode}
-                </div>
-              ))}
-            </div>
-          ) : setup ? (
+          {setup ? (
             <>
               <div className="flex flex-col items-center gap-3">
                 <Image
@@ -267,11 +246,7 @@ export function StepUpDialog() {
             <Button type="button" variant="outline" onClick={close} disabled={submitting}>
               Отмена
             </Button>
-            {backupCodes ? (
-              <Button type="button" onClick={continueAfterEnrollment} disabled={submitting}>
-                Продолжить
-              </Button>
-            ) : needsEnrollment ? (
+            {needsEnrollment ? (
               <Button type="button" onClick={startEnrollment} disabled={submitting}>
                 {submitting && <Loader2 data-icon="inline-start" className="animate-spin" />}
                 Настроить MFA

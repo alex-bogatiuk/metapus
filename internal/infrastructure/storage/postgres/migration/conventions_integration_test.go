@@ -20,7 +20,7 @@ func TestFreshSchemaAuthNamesUUIDDefaultsAndTenantBindingExceptions(t *testing.T
 	db, err := sql.Open("pgx", dsn)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, db.Close()) })
-	for _, old := range []string{"users", "roles", "permissions", "role_permissions", "user_roles", "refresh_tokens", "security_profiles", "security_profile_dimensions", "security_profile_field_policies", "user_security_profiles", "security_policy_rules", "user_mfa_totp", "user_mfa_backup_codes", "user_preferences"} {
+	for _, old := range []string{"users", "roles", "permissions", "role_permissions", "user_roles", "refresh_tokens", "security_profiles", "security_profile_dimensions", "security_profile_field_policies", "user_security_profiles", "security_policy_rules", "user_mfa_totp", "user_preferences"} {
 		name := "auth_" + old
 		if old == "user_preferences" {
 			name = "sys_user_preferences"

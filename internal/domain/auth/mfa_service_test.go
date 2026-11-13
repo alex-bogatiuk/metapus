@@ -449,7 +449,6 @@ func (r *fakeUserRepo) Exists(ctx context.Context, email string) (bool, error) {
 type fakeMFARepo struct {
 	totp          map[id.ID]*TOTPRecord
 	challenges    map[id.ID]*MFAChallenge
-	backupCodes   map[id.ID][]BackupCode
 	confirmations map[string]time.Time
 }
 
@@ -457,7 +456,6 @@ func newFakeMFARepo() *fakeMFARepo {
 	return &fakeMFARepo{
 		totp:          map[id.ID]*TOTPRecord{},
 		challenges:    map[id.ID]*MFAChallenge{},
-		backupCodes:   map[id.ID][]BackupCode{},
 		confirmations: map[string]time.Time{},
 	}
 }
@@ -505,7 +503,6 @@ func (r *fakeMFARepo) UpsertTOTPSecret(ctx context.Context, userID id.ID, cipher
 
 func (r *fakeMFARepo) ClearTOTP(ctx context.Context, userID id.ID) error {
 	delete(r.totp, userID)
-	delete(r.backupCodes, userID)
 	return nil
 }
 
@@ -585,39 +582,6 @@ func (r *fakeMFARepo) ConsumeChallenge(ctx context.Context, challengeID id.ID) e
 	now := time.Now().UTC()
 	ch.ConsumedAt = &now
 	return nil
-}
-
-func (r *fakeMFARepo) ReplaceBackupCodes(ctx context.Context, userID id.ID, hashes []string) error {
-	codes := make([]BackupCode, 0, len(hashes))
-	for _, hash := range hashes {
-		codes = append(codes, BackupCode{ID: id.New(), UserID: userID, CodeHash: hash, CreatedAt: time.Now().UTC()})
-	}
-	r.backupCodes[userID] = codes
-	return nil
-}
-
-func (r *fakeMFARepo) ListUnusedBackupCodes(ctx context.Context, userID id.ID) ([]BackupCode, error) {
-	codes := r.backupCodes[userID]
-	unused := make([]BackupCode, 0, len(codes))
-	for _, code := range codes {
-		if code.UsedAt == nil {
-			unused = append(unused, code)
-		}
-	}
-	return unused, nil
-}
-
-func (r *fakeMFARepo) MarkBackupCodeUsed(ctx context.Context, codeID id.ID) error {
-	for userID, codes := range r.backupCodes {
-		for i := range codes {
-			if codes[i].ID == codeID && codes[i].UsedAt == nil {
-				now := time.Now().UTC()
-				r.backupCodes[userID][i].UsedAt = &now
-				return nil
-			}
-		}
-	}
-	return apperror.NewMFADenied("backup code has already been used")
 }
 
 func (r *fakeMFARepo) CreateStepUpConfirmation(ctx context.Context, sessionID, userID id.ID, tenantID, actionCode string, expiresAt time.Time) error {

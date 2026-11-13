@@ -2986,15 +2986,6 @@ export type LoginResponse = {
   "user": UserResponse | null
 }
 
-export type MFABackupCodeRequest = {
-  "challengeId": string
-  "backupCode": string
-}
-
-export type MFABackupCodesResponse = {
-  "backupCodes": Array<string>
-}
-
 export type MFAChallengeResponse = {
   "status": string
   "challengeId": string
@@ -3005,12 +2996,6 @@ export type MFAChallengeResponse = {
 export type MFAEnrollConfirmRequest = {
   "challengeId": string
   "code": string
-}
-
-export type MFAEnrollConfirmResponse = {
-  "tokens": TokenResponse | null
-  "user": UserResponse | null
-  "backupCodes": Array<string>
 }
 
 export type MFAEnrollStartRequest = {

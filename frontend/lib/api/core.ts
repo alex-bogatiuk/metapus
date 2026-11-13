@@ -142,7 +142,6 @@ const NO_RETRY_PATHS = [
     "/auth/mfa/verify",
     "/auth/mfa/enroll/start",
     "/auth/mfa/enroll/confirm",
-    "/auth/mfa/backup-code",
     "/auth/step-up",
 ]
 
