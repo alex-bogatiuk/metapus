@@ -2123,7 +2123,13 @@ DECLARE reservation reg_crypto_fee_reservations; network UUID; hash TEXT; family
 BEGIN
     IF TG_TABLE_NAME='reg_crypto_chain_settlements' THEN
         network:=NEW.network_id; hash:=NEW.tx_hash;
-        SELECT * INTO STRICT reservation FROM reg_crypto_fee_reservations WHERE id=NEW.network_fee_reservation_id;
+        IF NEW.network_fee_reservation_id IS NOT NULL THEN SELECT * INTO STRICT reservation FROM reg_crypto_fee_reservations WHERE id=NEW.network_fee_reservation_id;
+        ELSE
+            -- A network operation settlement recorded without a fee reservation
+            -- resolves its payer through the reservation of the same transaction.
+            SELECT * INTO reservation FROM reg_crypto_fee_reservations f WHERE f.network_id=network AND regexp_replace(lower(f.tx_hash),'^0x','')=regexp_replace(lower(hash),'^0x','')
+                AND ((f.basis_type=NEW.basis_type AND f.basis_id=NEW.basis_id) OR EXISTS(SELECT 1 FROM doc_crypto_network_operations d WHERE NEW.basis_type='CryptoNetworkOperation' AND d.id=NEW.basis_id AND d.basis_type=f.basis_type AND d.basis_id=f.basis_id)) LIMIT 1;
+        END IF;
         owner:=reservation.payer_wallet_id;asset:=reservation.native_token_id;
     ELSE
         IF NEW.recorder_type='ChainSettlement' THEN SELECT * INTO reservation FROM reg_crypto_fee_reservations WHERE id=NEW.line_id;
