@@ -109,12 +109,6 @@ type DocumentActionsProvider interface {
 	DocumentActions() []metadata.EntityActionDef
 }
 
-// DocumentProtectionProvider exposes reusable strict-document UI semantics.
-// Backend enforcement remains in the document service and middleware.
-type DocumentProtectionProvider interface {
-	DocumentProtection() metadata.DocumentProtection
-}
-
 // NOTE: Document factories are now registered via FactoryRegistry (see factory_registry.go).
 // Use content.RegisterDefaults() to populate built-in documents, or register custom ones:
 //

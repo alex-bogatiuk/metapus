@@ -14,7 +14,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
-	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/core/numerator"
@@ -134,7 +133,6 @@ func TestIntegrationActivationFinalityPostsDocumentOnce(t *testing.T) {
 			finalized, err := coordinator.FinalizeActivation(ctx, activationID, reservationID, receipt)
 			require.NoError(t, err)
 			require.True(t, finalized.Posted)
-			require.False(t, finalized.ManualEditAllowed)
 			require.True(t, types.NewCryptoAmountFromInt64(25).Equal(finalized.CostAmount))
 			// Cost repair must replay the original owner and fee without
 			// introducing another posting, for success and revert alike.
@@ -219,11 +217,8 @@ func TestIntegrationActivationFinalityPostsDocumentOnce(t *testing.T) {
 				require.Equal(t, "confirmed", taskStatus)
 				require.Equal(t, "activating", walletStatus)
 
-				// A recognized network fee is frozen: generic unpost cannot rewrite it.
-				adminCtx := appctx.WithUser(ctx, &appctx.UserContext{Roles: []string{"admin"}})
-				_, err = service.AllowEditing(adminCtx, operationID)
-				require.NoError(t, err)
-				require.ErrorContains(t, service.UserService().Unpost(adminCtx, operationID), "explicit compensation workflow")
+				// A recognized network fee is frozen: unpost cannot rewrite it.
+				require.ErrorContains(t, service.Unpost(ctx, operationID), "explicit compensation workflow")
 				assertAccounting(1, 25)
 			}
 		})

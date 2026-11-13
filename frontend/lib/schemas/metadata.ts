@@ -6,7 +6,6 @@ export const entityTypeSchema = z.enum(["catalog", "document", "register"])
 export const metadataFieldTypeSchema = z.enum(["string", "text", "integer", "number", "decimal", "boolean", "date", "datetime", "reference", "typed_ref", "enum", "money", "json"])
 export const entityActionSchema = Wire.MetadataEntityActionDefSchema.and(z.object({
   scope: z.enum(["item", "collection"]),
-  requiredProtectionState: z.enum(["locked", "unlocked"]).optional(),
   input: z.object({ kind: z.literal("reasonedDecision"), summaryFields: z.array(z.string()).optional(), reasonMaxBytes: z.int().positive() }).optional(),
 }))
 export const metadataFieldSchema = Wire.MetadataFieldDefSchema.and(z.object({ type: metadataFieldTypeSchema }))

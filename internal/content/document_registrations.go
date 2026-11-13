@@ -137,56 +137,17 @@ func (r *CryptoNetworkOperationRegistration) EntityPresentation() metadata.Prese
 func (r *CryptoNetworkOperationRegistration) RLSDimensions() map[string]string {
 	return map[string]string{}
 }
+
+// DocumentCapabilities: the activation workflow creates and posts network
+// operations; users only read them.
 func (r *CryptoNetworkOperationRegistration) DocumentCapabilities() metadata.DocumentCapabilities {
-	return metadata.DocumentCapabilities{
-		List: true, Read: true, Update: true, SetDeletionMark: true,
-		Post: true, Unpost: true, Repost: true, ExportList: true, Movements: true, RelatedDocuments: true,
-	}
-}
-func (r *CryptoNetworkOperationRegistration) DocumentProtection() metadata.DocumentProtection {
-	return metadata.DocumentProtection{
-		LockFinalDocuments: true, UnlockField: "manualEditAllowed",
-		MutableFields:       []string{"sourceWalletId", "costTokenId", "costAmount", "description"},
-		RequiresSystemAdmin: true, AutoLockAfterPosting: true,
-	}
-}
-func (r *CryptoNetworkOperationRegistration) DocumentActions() []metadata.EntityActionDef {
-	menu := &metadata.EntityActionUI{ToolbarMenu: true}
-	return []metadata.EntityActionDef{
-		{
-			Key: "allow-editing", Label: "Разрешить редактирование", Method: "POST", Path: "/:id/allow-editing",
-			Scope: metadata.EntityActionScopeItem, Permission: "crypto.network_operation.allow_editing", Idempotent: true,
-			AllowedStates:       []string{string(crypto_network_operation.StatusSucceeded), string(crypto_network_operation.StatusReverted)},
-			RequiresSystemAdmin: true, RequiredProtectionState: "locked", UI: menu,
-			Confirmation: &metadata.EntityActionConfirmation{
-				Title:        "Разрешить редактирование блокчейн-операции?",
-				Description:  "Ручные изменения проведённых блокчейн-операций могут нарушить консистентность учёта. Разрешить редактирование документа?",
-				ConfirmLabel: "Разрешить редактирование", CancelLabel: "Отмена",
-			},
-		},
-		{
-			Key: "deny-editing", Label: "Запретить редактирование", Method: "POST", Path: "/:id/deny-editing",
-			Scope: metadata.EntityActionScopeItem, Permission: "crypto.network_operation.allow_editing", Idempotent: true,
-			AllowedStates:       []string{string(crypto_network_operation.StatusSucceeded), string(crypto_network_operation.StatusReverted)},
-			RequiresSystemAdmin: true, RequiredProtectionState: "unlocked", UI: menu,
-		},
-	}
+	return metadata.DocumentCapabilities{List: true, Read: true, ExportList: true, Movements: true, RelatedDocuments: true}
 }
 func (r *CryptoNetworkOperationRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
-	repo := document_repo.NewCryptoNetworkOperationRepo()
-	service := crypto_network_operation.NewService(repo, deps.PostingEngine, deps.Numerator, nil)
+	service := crypto_network_operation.NewService(document_repo.NewCryptoNetworkOperationRepo(), deps.PostingEngine, deps.Numerator, nil)
 	service.SetPolicyEngine(deps.PolicyEngine)
-	userService := domain.Chain[*crypto_network_operation.CryptoNetworkOperation](
-		domain.WithEventLog[*crypto_network_operation.CryptoNetworkOperation](crypto_network_operation.Definition.Key, deps.EventWriter),
-	)(service.UserService())
-	var stepUpGuard gin.HandlerFunc
-	if deps.StepUpGuard != nil {
-		stepUpGuard = deps.StepUpGuard("crypto.network_operation.allow_editing")
-	}
-	return handlers.NewCryptoNetworkOperationHandler(
-		deps.BaseHandler, userService, service, stepUpGuard, deps.EventWriter,
-		deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo, deps.RelatedDocFinder,
-	)
+	return handlers.NewCryptoNetworkOperationHandler(deps.BaseHandler, service,
+		deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo, deps.RelatedDocFinder)
 }
 
 // ---------------------------------------------------------------------------

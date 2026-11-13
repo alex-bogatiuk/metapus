@@ -686,7 +686,6 @@ Metapus
 | Хеш транзакции | `TxHash` / `txHash` | Строка | — |
 | Сетевой расчёт | `ChainSettlementID` / `chainSettlementId` | UUID; допускает null в модели | — |
 | Дата финальности | `FinalizedAt` / `finalizedAt` | Дата и время; допускает null в модели | — |
-| Редактирование разрешено | `ManualEditAllowed` / `manualEditAllowed` | Булево | — |
 
 ### Аренда TRON-ресурсов — `crypto_resource_rental`
 

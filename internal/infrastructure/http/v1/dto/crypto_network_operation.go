@@ -1,31 +1,51 @@
 package dto
 
 import (
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"time"
+
 	"metapus/internal/domain/documents/crypto_network_operation"
+	"metapus/internal/infrastructure/storage/postgres"
 )
 
-type CreateCryptoNetworkOperationRequest struct{}
+// CryptoNetworkOperationResponse is a wallet activation transaction and the
+// network fee it was recognized with. The activation workflow owns it.
+type CryptoNetworkOperationResponse struct {
+	DocumentResponse
+	OperationType  string     `json:"operationType"`
+	Status         string     `json:"status"`
+	NetworkID      string     `json:"networkId"`
+	TargetWalletID string     `json:"targetWalletId"`
+	TargetAddress  string     `json:"targetAddress"`
+	SourceWalletID string     `json:"sourceWalletId"`
+	CostTokenID    string     `json:"costTokenId"`
+	CostAmount     string     `json:"costAmount"`
+	TxHash         string     `json:"txHash"`
+	FinalizedAt    *time.Time `json:"finalizedAt,omitempty"`
 
-func (CreateCryptoNetworkOperationRequest) ToEntity() *crypto_network_operation.CryptoNetworkOperation {
-	return &crypto_network_operation.CryptoNetworkOperation{}
+	Network      *postgres.RefDisplay `json:"network,omitempty"`
+	TargetWallet *postgres.RefDisplay `json:"targetWallet,omitempty"`
+	SourceWallet *postgres.RefDisplay `json:"sourceWallet,omitempty"`
+	CostToken    *postgres.RefDisplay `json:"costToken,omitempty"`
 }
 
-type UpdateCryptoNetworkOperationRequest struct {
-	SourceWalletID id.ID              `json:"sourceWalletId" binding:"required"`
-	CostTokenID    id.ID              `json:"costTokenId" binding:"required"`
-	CostAmount     types.CryptoAmount `json:"costAmount"`
-	Description    string             `json:"description"`
-	Version        int                `json:"version" binding:"required"`
+func CollectCryptoNetworkOperationRefs(resolver *postgres.ReferenceResolver, d *crypto_network_operation.CryptoNetworkOperation) {
+	resolver.Add(TableBlockchainNetworks, d.NetworkID)
+	resolver.Add(TableWallets, d.TargetWalletID)
+	resolver.Add(TableWallets, d.SourceWalletID)
+	resolver.Add(TableTokens, d.CostTokenID)
 }
 
-func (r UpdateCryptoNetworkOperationRequest) ApplyTo(doc *crypto_network_operation.CryptoNetworkOperation) {
-	doc.SourceWalletID = r.SourceWalletID
-	doc.CostTokenID = r.CostTokenID
-	doc.CostAmount = r.CostAmount
-	doc.Description = r.Description
-	doc.Version = r.Version
+func FromCryptoNetworkOperation(d *crypto_network_operation.CryptoNetworkOperation, refs postgres.ResolvedRefs) CryptoNetworkOperationResponse {
+	resp := CryptoNetworkOperationResponse{
+		DocumentResponse: documentResponse(d.Document),
+		OperationType:    string(d.OperationType), Status: string(d.Status), NetworkID: d.NetworkID.String(),
+		TargetWalletID: d.TargetWalletID.String(), TargetAddress: d.TargetAddress, SourceWalletID: d.SourceWalletID.String(),
+		CostTokenID: d.CostTokenID.String(), CostAmount: d.CostAmount.String(), TxHash: d.TxHash, FinalizedAt: d.FinalizedAt,
+	}
+	if refs != nil {
+		network, target := refs.Get(TableBlockchainNetworks, d.NetworkID), refs.Get(TableWallets, d.TargetWalletID)
+		source, token := refs.Get(TableWallets, d.SourceWalletID), refs.Get(TableTokens, d.CostTokenID)
+		resp.Network, resp.TargetWallet, resp.SourceWallet, resp.CostToken = &network, &target, &source, &token
+	}
+	return resp
 }
-
-func FromCryptoNetworkOperation(doc *crypto_network_operation.CryptoNetworkOperation) any { return doc }

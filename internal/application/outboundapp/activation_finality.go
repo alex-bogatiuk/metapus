@@ -159,13 +159,11 @@ func (c *NetworkOperationCoordinator) finalizeActivation(ctx context.Context, ac
 			if doc.Status != finalStatus {
 				return fmt.Errorf("posted activation finality status mismatch")
 			}
-			if doc.NetworkFeeReservationID != nil {
-				if *doc.NetworkFeeReservationID != reservationID {
-					return fmt.Errorf("posted activation fee reservation mismatch")
-				}
-				if _, err := c.feeBudget.SettleForDocument(txCtx, reservationID, receipt, crypto_network_operation.DocumentType, doc.ID); err != nil {
-					return err
-				}
+			if doc.NetworkFeeReservationID == nil || *doc.NetworkFeeReservationID != reservationID {
+				return fmt.Errorf("posted activation fee reservation mismatch")
+			}
+			if _, err := c.feeBudget.SettleForDocument(txCtx, reservationID, receipt, crypto_network_operation.DocumentType, doc.ID); err != nil {
+				return err
 			}
 			finalized = doc
 			return c.workflow.CompleteTechnicalState(txCtx, activationID, technicalStatus, receipt.Status)
@@ -186,7 +184,6 @@ func (c *NetworkOperationCoordinator) finalizeActivation(ctx context.Context, ac
 		doc.NetworkFeeReservationID = &settlement.ReservationID
 		finalizedAt := receipt.ObservedAt
 		doc.FinalizedAt = &finalizedAt
-		doc.ManualEditAllowed = false
 		if err := c.repo.Update(txCtx, doc); err != nil {
 			return fmt.Errorf("finalize crypto network operation: %w", err)
 		}

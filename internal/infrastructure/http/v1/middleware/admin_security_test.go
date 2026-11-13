@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 
 	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
@@ -85,37 +84,6 @@ func TestRequireSystemAdminRejectsSecurityAdmin(t *testing.T) {
 	router.ServeHTTP(recorder, req)
 	if recorder.Code == http.StatusNoContent {
 		t.Fatal("security_admin must not pass system administrator guard")
-	}
-}
-
-func TestAllowNetworkOperationEditingRouteRejectsNonSystemAdmins(t *testing.T) {
-	for _, roles := range [][]string{{"user"}, {"security_admin"}} {
-		t.Run(roles[0], func(t *testing.T) {
-			gin.SetMode(gin.TestMode)
-			called := false
-			router := gin.New()
-			router.Use(ErrorHandler())
-			router.Use(func(c *gin.Context) {
-				user := &appctx.UserContext{Roles: roles}
-				ctx := appctx.WithUser(c.Request.Context(), user)
-				c.Request = c.Request.WithContext(ctx)
-				c.Set("permissions_set", map[string]struct{}{"crypto.network_operation.allow_editing": {}})
-				c.Next()
-			})
-			router.POST(
-				"/api/v1/document/crypto-network-operation/:id/allow-editing",
-				RequirePermission("crypto.network_operation.allow_editing"),
-				RequireSystemAdmin(),
-				func(c *gin.Context) { called = true; c.Status(http.StatusNoContent) },
-			)
-
-			recorder := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodPost, "/api/v1/document/crypto-network-operation/00000000-0000-0000-0000-000000000001/allow-editing", nil)
-			router.ServeHTTP(recorder, req)
-
-			require.Equal(t, http.StatusForbidden, recorder.Code)
-			require.False(t, called)
-		})
 	}
 }
 

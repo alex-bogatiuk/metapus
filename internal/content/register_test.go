@@ -2,7 +2,6 @@ package content
 
 import (
 	"net/http"
-	"reflect"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -175,31 +174,13 @@ func TestRegisterDefaultsDocumentWorkflowRegistrations(t *testing.T) {
 	if networkOperation == nil {
 		t.Fatal("CryptoNetworkOperation must be registered")
 	}
-	protectionProvider, ok := networkOperation.(v1.DocumentProtectionProvider)
-	if !ok {
-		t.Fatal("CryptoNetworkOperation must expose strict document protection")
-	}
-	protection := protectionProvider.DocumentProtection()
-	if protection.UnlockField != "manualEditAllowed" || !protection.RequiresSystemAdmin || !protection.AutoLockAfterPosting {
-		t.Fatalf("unexpected network operation protection: %#v", protection)
-	}
-	wantMutable := []string{"sourceWalletId", "costTokenId", "costAmount", "description"}
-	if !reflect.DeepEqual(protection.MutableFields, wantMutable) {
-		t.Fatalf("unexpected network operation mutable fields: got %#v want %#v", protection.MutableFields, wantMutable)
-	}
 	capabilities := networkOperation.(v1.DocumentCapabilitiesProvider).DocumentCapabilities()
-	if capabilities.Create || capabilities.Copy || capabilities.Delete || !capabilities.Update || !capabilities.Post || !capabilities.Unpost || !capabilities.Repost || !capabilities.SetDeletionMark {
-		t.Fatalf("unexpected network operation capabilities: %#v", capabilities)
+	if capabilities.Create || capabilities.Copy || capabilities.Delete || capabilities.Update || capabilities.Post ||
+		capabilities.Unpost || capabilities.Repost || capabilities.SetDeletionMark || !capabilities.Read || !capabilities.Movements {
+		t.Fatalf("network operations are read-only: %#v", capabilities)
 	}
-	actions := networkOperation.(v1.DocumentActionsProvider).DocumentActions()
-	var allow *metadata.EntityActionDef
-	for i := range actions {
-		if actions[i].Key == "allow-editing" {
-			allow = &actions[i]
-		}
-	}
-	if allow == nil || allow.UI == nil || !allow.UI.ToolbarMenu || allow.UI.FormToolbar || !allow.RequiresSystemAdmin || allow.Confirmation == nil {
-		t.Fatalf("allow-editing must be admin-only, confirmed and only in More menu: %#v", allow)
+	if _, ok := networkOperation.(v1.DocumentActionsProvider); ok {
+		t.Fatal("network operations expose no user actions")
 	}
 }
 

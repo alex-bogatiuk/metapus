@@ -67,13 +67,9 @@ Processing fee — выручка; `chain_resource_rent` и `chain_network_fee` 
 При нулевой фактической комиссии документ проводится без движений. Reverted
 транзакция тоже проводится на фактически списанную сетью комиссию.
 
-Документ защищён `StrictDocumentGuard`. После административной разблокировки
-его можно распровести или перепровести стандартным PostingEngine. Распроведение
-дописывает связанные обратные учётные движения, сохраняя историю. Blockchain-факт, settlement и
-`chainActivationStatus` кошелька не изменяются. Успешное проведение,
-перепроведение или пометка на удаление атомарно возвращают блокировку.
-
-Полный lifecycle: [strict-documents.md](strict-documents.md).
+Документ проводится один раз координатором активации в период финальности
+вместе с признанной сетевой комиссией. Пользовательского изменения,
+распроведения и перепроведения нет; `CanUnpost` всегда отклоняет команду.
 
 ---
 
@@ -97,7 +93,6 @@ internal/infrastructure/crypto_worker/ — планирование и сбор�
 ## Связанные документы
 - [transactions.md](transactions.md) — детализация механизмов блокировок (Resource Ordering)
 - [crypto-processing.md](crypto-processing.md) — §3.5 WithdrawalRequest (debit-first use case)
-- [strict-documents.md](strict-documents.md) — правила разблокировки системных документов
 
 ## Custody loss (85)
 

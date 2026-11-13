@@ -76,27 +76,22 @@
 
 Валютное разрешение включается только при реализации `CurrencyAwareDoc`. Общий document contract не требует этого интерфейса.
 
-## 6. Защищённые системные документы
+## 6. Системные документы только для чтения
 
-Системный документ, который нельзя создавать или свободно менять из ERP,
-подключает `StrictDocumentGuard` поверх обычного `DocumentService`. Guard не
-заменяет CRUD pipeline: он добавляет проверку system admin, явной разблокировки,
-whitelist изменяемых полей и автоблокировку после проведения.
-
-Frontend получает тот же контракт через `DocumentProtection` metadata. Полное
-описание lifecycle и API: [strict-documents.md](strict-documents.md).
+Документ, который создаёт и проводит только свой workflow, регистрируется с
+capabilities `List/Read/ExportList/Movements` и обслуживается
+`handlers.NewReadOnlyDocumentHandler` с DTO-презентером. Маршруты создания,
+изменения и проведения для него не монтируются.
 
 ## Файловая карта
 ```path
 internal/infrastructure/http/v1/handlers/catalog.go   — Generic Handler
 internal/domain/service.go                            — Generic Catalog Service
-internal/domain/strict_document.go                    — Guard строгих документов
 internal/infrastructure/storage/postgres/catalog_repo/base.go — Generic Repo
 ```
 
 ## Связанные документы
 - [04-request-lifecycle.md](../guide/04-request-lifecycle.md) — как middleware обрабатывает запрос до того, как он попадёт в CRUD pipeline.
-- [strict-documents.md](strict-documents.md) — защита системных документов поверх generic pipeline.
 
 ## Единая регистрация
 

@@ -46,7 +46,6 @@
 | [systems/reporting-system.md](systems/reporting-system.md) | Query Engine, сборка отчетов, СКД | reporting, query engine, xlsx, variants |
 | [systems/settings-system.md](systems/settings-system.md) | Системные и пользовательские настройки | settings, configuration, ui, metadata |
 | [systems/smart-data-entry.md](systems/smart-data-entry.md) | Утилиты навигации по полям таблицы и ReferenceField.autoAdvance; границы реализации | smart entry, autofill, ux, focus, cascade |
-| [systems/strict-documents.md](systems/strict-documents.md) | Строгие системные документы, ручная учётная коррекция, режим администратора | strict document, protection, manual edit, emergency correction, system admin, allow editing, autoblock |
 | [systems/transactions.md](systems/transactions.md) | Управление транзакциями, блокировки | transactions, lock, pessimistic, optimistic, txmanager |
 
 ## 3. Рецепты (How-To)

@@ -16,11 +16,7 @@ func (r *RateSourceRegistration) HTTPContracts() spec.Bundle {
 }
 
 func (r *CryptoNetworkOperationRegistration) HTTPContracts() spec.Bundle {
-	b := spec.EntityWithDetail[dto.CreateCryptoNetworkOperationRequest, dto.UpdateCryptoNetworkOperationRequest, dto.CryptoNetworkOperationResponse, dto.CryptoNetworkOperationResponse](r.EntityDefinition(), r.DocumentCapabilities())
-	b.AddRoute(r.EntityDefinition(), "POST", "/:id/allow-editing", "", "CryptoNetworkOperationResponse")
-	b.AddRoute(r.EntityDefinition(), "POST", "/:id/deny-editing", "", "CryptoNetworkOperationResponse")
-
-	return b
+	return spec.EntityWithDetail[struct{}, struct{}, dto.CryptoNetworkOperationResponse, dto.CryptoNetworkOperationResponse](r.EntityDefinition(), r.DocumentCapabilities())
 }
 
 func (r *CryptoProviderBalanceOperationRegistration) HTTPContracts() spec.Bundle {

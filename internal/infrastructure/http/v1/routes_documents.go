@@ -187,10 +187,6 @@ func registerDocumentMetadata(factory documentMetadataRegistration, reg *metadat
 	def.RoutePrefix = identity.Route
 	def.Capabilities = &caps
 	def.Actions = documentActions(factory)
-	if provider, ok := factory.(DocumentProtectionProvider); ok {
-		protection := provider.DocumentProtection()
-		def.Protection = &protection
-	}
 	def.TableName = identity.Table
 
 	def.SetRefEndpoints(refEndpoints)

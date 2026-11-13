@@ -1189,14 +1189,10 @@ export const CryptoNetworkOperationResponseSchema: z.ZodType<Wire.CryptoNetworkO
   "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "createdAt": z.string(),
   "updatedAt": z.string(),
-  "createdBy": z.string(),
-  "updatedBy": z.string(),
   "number": z.string(),
   "date": z.string(),
   "posted": z.boolean(),
   "postedVersion": z.number().int(),
-  "basisType": z.string().optional(),
-  "basisId": z.string().optional(),
   "description": z.string().optional(),
   "operationType": z.string(),
   "status": z.string(),
@@ -1207,10 +1203,11 @@ export const CryptoNetworkOperationResponseSchema: z.ZodType<Wire.CryptoNetworkO
   "costTokenId": z.string(),
   "costAmount": z.string(),
   "txHash": z.string(),
-  "chainSettlementId": z.string().optional(),
-  "networkFeeReservationId": z.string().optional(),
   "finalizedAt": z.string().optional(),
-  "manualEditAllowed": z.boolean(),
+  "network": PostgresRefDisplaySchema.optional(),
+  "targetWallet": PostgresRefDisplaySchema.optional(),
+  "sourceWallet": PostgresRefDisplaySchema.optional(),
+  "costToken": PostgresRefDisplaySchema.optional(),
 }))
 
 export const CryptoNetworkPolicyResponseSchema: z.ZodType<Wire.CryptoNetworkPolicyResponse> = z.lazy(() => z.object({
@@ -2259,7 +2256,6 @@ export const EntityMetadataResponseSchema: z.ZodType<Wire.EntityMetadataResponse
   "tableParts": z.array(MetadataTablePartDefSchema).optional(),
   "capabilities": MetadataDocumentCapabilitiesSchema.optional(),
   "actions": z.array(MetadataEntityActionDefSchema).optional(),
-  "protection": MetadataDocumentProtectionSchema.optional(),
   "previewFields": z.array(MetadataPreviewFieldDefSchema).optional(),
 }))
 
@@ -3304,14 +3300,6 @@ export const MetadataDocumentCapabilitiesSchema: z.ZodType<Wire.MetadataDocument
   "movements": z.boolean(),
 }))
 
-export const MetadataDocumentProtectionSchema: z.ZodType<Wire.MetadataDocumentProtection> = z.lazy(() => z.object({
-  "lockFinalDocuments": z.boolean(),
-  "unlockField": z.string(),
-  "mutableFields": z.array(z.string()),
-  "requiresSystemAdmin": z.boolean(),
-  "autoLockAfterPosting": z.boolean(),
-}))
-
 export const MetadataEntityActionConfirmationSchema: z.ZodType<Wire.MetadataEntityActionConfirmation> = z.lazy(() => z.object({
   "title": z.string(),
   "description": z.string(),
@@ -3330,7 +3318,6 @@ export const MetadataEntityActionDefSchema: z.ZodType<Wire.MetadataEntityActionD
   "destructive": z.boolean().optional(),
   "allowedStates": z.array(z.string()).optional(),
   "requiresSystemAdmin": z.boolean().optional(),
-  "requiredProtectionState": z.string().optional(),
   "confirmation": MetadataEntityActionConfirmationSchema.optional(),
   "ui": MetadataEntityActionUISchema.optional(),
   "input": MetadataEntityActionInputSchema.optional(),
@@ -4711,13 +4698,7 @@ export const UpdateCryptoInvoiceRequestSchema: z.ZodType<Wire.UpdateCryptoInvoic
 
 export const UpdateCryptoMerchantCreditRequestSchema: z.ZodType<Wire.UpdateCryptoMerchantCreditRequest> = z.lazy(() => z.record(z.string(), z.never()))
 
-export const UpdateCryptoNetworkOperationRequestSchema: z.ZodType<Wire.UpdateCryptoNetworkOperationRequest> = z.lazy(() => z.strictObject({
-  "sourceWalletId": z.string(),
-  "costTokenId": z.string(),
-  "costAmount": z.string().optional(),
-  "description": z.string().optional(),
-  "version": z.number().int(),
-}))
+export const UpdateCryptoNetworkOperationRequestSchema: z.ZodType<Wire.UpdateCryptoNetworkOperationRequest> = z.lazy(() => z.record(z.string(), z.never()))
 
 export const UpdateCryptoNetworkPolicyRequestSchema: z.ZodType<Wire.UpdateCryptoNetworkPolicyRequest> = z.lazy(() => z.strictObject({
   "version": z.number().int(),

@@ -115,17 +115,6 @@ CIDR/MFA-контроли, но не получает аварийный дос�
 `RequireSystemAdmin` проверяется поверх RBAC и повторяется доменным сервисом для
 прямых вызовов.
 
-Разблокировка `CryptoNetworkOperation` использует action code
-`crypto.network_operation.allow_editing`:
-
-| Действие | Permission | System admin | Fresh step-up |
-|---|---|---|---|
-| `allow-editing` | Обязателен | Обязателен | Обязателен |
-| `deny-editing` | Обязателен | Обязателен | Не требуется |
-| Update/Post/Unpost/Deletion mark | Документный permission | Обязателен | Требуется активная разблокировка документа |
-
-Allow/deny записываются в `sys_event_log` как факт команды и исполнитель. В MVP
-отдельные снимки полей до/после не создаются.
 
 TOTP policy:
 
@@ -199,4 +188,3 @@ internal/infrastructure/http/v1/middleware/admin_security.go — admin CIDR/MFA,
 
 ## Связанные документы
 - [multi-tenancy.md](multi-tenancy.md) — как `X-Tenant-ID` в HTTP валидируется на совпадение с `tid` в токене.
-- [strict-documents.md](strict-documents.md) — применение system admin и step-up к ручной коррекции документов.

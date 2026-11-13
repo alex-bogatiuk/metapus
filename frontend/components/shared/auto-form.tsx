@@ -113,7 +113,6 @@ const HIDDEN_FIELDS = new Set([
     "createdAt", "updatedAt", "createdBy", "updatedBy",
     "posted", "postedVersion", "txid", "deletedAt",
     "basisType", "basisId",
-    "manualEditAllowed",
 ])
 
 /**
@@ -407,8 +406,6 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
         (key: keyof DocumentCapabilities) => documentCapabilities?.[key] !== false,
         [documentCapabilities],
     )
-    const protection = isDocument ? meta?.protection : undefined
-    const protectionUnlocked = !protection || (systemAdmin && formData[protection.unlockField] === true)
     const supportsCreate = !isDocument || hasDocCapability("create")
     const supportsUpdate = !isDocument || hasDocCapability("update")
     const supportsPost = isDocument && !isNew && hasDocCapability("post")
@@ -416,11 +413,11 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
     const supportsRepost = isDocument && !isNew && hasDocCapability("repost")
     const supportsSetDeletionMark = isDocument && !isNew && hasDocCapability("setDeletionMark")
     const canCreate = supportsCreate
-    const canUpdate = supportsUpdate && protectionUnlocked
-    const canPost = supportsPost && protectionUnlocked
-    const canUnpost = supportsUnpost && protectionUnlocked
-    const canRepost = supportsRepost && protectionUnlocked
-    const canSetDeletionMark = supportsSetDeletionMark && protectionUnlocked
+    const canUpdate = supportsUpdate
+    const canPost = supportsPost
+    const canUnpost = supportsUnpost
+    const canRepost = supportsRepost
+    const canSetDeletionMark = supportsSetDeletionMark
     const canShowMovements = isDocument && !isNew && hasDocCapability("movements")
     const canShowRelatedDocuments = isDocument && !isNew && hasDocCapability("relatedDocuments")
     // Print forms are opt-in: an absent flag must not render a menu that 404s.
@@ -711,12 +708,10 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
         .filter((action) => isRenderableItemAction(action, "formToolbar"))
         .filter((action) => isActionAllowedInState(action, formData.status))
         .filter((action) => !action.requiresSystemAdmin || systemAdmin)
-        .filter((action) => !action.requiredProtectionState || action.requiredProtectionState === (protectionUnlocked ? "unlocked" : "locked"))
     const customMenuActions = (meta.actions ?? [])
         .filter((action) => isRenderableItemAction(action, "toolbarMenu"))
         .filter((action) => isActionAllowedInState(action, formData.status))
         .filter((action) => !action.requiresSystemAdmin || systemAdmin)
-        .filter((action) => !action.requiredProtectionState || action.requiredProtectionState === (protectionUnlocked ? "unlocked" : "locked"))
 
     // ── Build toolbar props based on entity type and capabilities ───────
     const canSaveCurrent = !readOnly && (isNew
@@ -845,7 +840,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                                 )
                                 const writeOnlyModified = Object.prototype.hasOwnProperty.call(formData, field.name)
                                 const writeOnlyConfigured = formData[`${field.name}Configured`] === true
-                                const fieldReadOnly = formReadOnly || (!!protection && !protection.mutableFields.includes(field.name))
+                                const fieldReadOnly = formReadOnly
                                 return (
                                     <div key={field.name} className={field.type === "string" && field.name === "comment" ? "md:col-span-2" : ""}>
                                         <Label htmlFor={field.name} className="text-xs text-muted-foreground">

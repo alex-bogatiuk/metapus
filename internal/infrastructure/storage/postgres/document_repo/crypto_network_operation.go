@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
 	"metapus/internal/domain/documents/crypto_network_operation"
 	"metapus/internal/infrastructure/storage/postgres"
 )
@@ -21,38 +20,6 @@ func NewCryptoNetworkOperationRepo() *CryptoNetworkOperationRepo {
 			return &crypto_network_operation.CryptoNetworkOperation{}
 		},
 	)}
-}
-
-func (r *CryptoNetworkOperationRepo) SetManualEditAllowed(ctx context.Context, docID id.ID, allowed bool) error {
-	return r.getTxManager(ctx).RunInTransaction(ctx, func(ctx context.Context) error {
-		if err := r.LockResources(ctx, docID); err != nil {
-			return err
-		}
-		return r.setManualEditAllowed(ctx, docID, allowed)
-	})
-}
-
-func (r *CryptoNetworkOperationRepo) setManualEditAllowed(ctx context.Context, docID id.ID, allowed bool) error {
-	tag, err := r.getTxManager(ctx).GetQuerier(ctx).Exec(ctx, `
-		UPDATE doc_crypto_network_operations
-		SET manual_edit_allowed=$2, version=version+1, updated_at=NOW()
-		WHERE id=$1 AND manual_edit_allowed IS DISTINCT FROM $2
-	`, docID, allowed)
-	if err != nil {
-		return fmt.Errorf("set crypto network operation protection: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		var exists bool
-		if err := r.getTxManager(ctx).GetQuerier(ctx).QueryRow(ctx,
-			`SELECT EXISTS(SELECT 1 FROM doc_crypto_network_operations WHERE id=$1)`, docID,
-		).Scan(&exists); err != nil {
-			return err
-		}
-		if !exists {
-			return apperror.NewNotFound("crypto_network_operation", docID.String())
-		}
-	}
-	return nil
 }
 
 func (r *CryptoNetworkOperationRepo) ValidatePostingReferences(ctx context.Context, doc *crypto_network_operation.CryptoNetworkOperation) error {

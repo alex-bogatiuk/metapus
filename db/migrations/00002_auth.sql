@@ -457,17 +457,7 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO auth_permissions (code, name, description, resource, action) VALUES
     ('document:crypto_network_operation:read', 'Чтение сетевых криптоопераций',
-     'View blockchain network operation documents', 'document:crypto_network_operation', 'read'),
-    ('document:crypto_network_operation:update', 'Изменение сетевых криптоопераций',
-     'Modify an explicitly unlocked network operation', 'document:crypto_network_operation', 'update'),
-    ('document:crypto_network_operation:post', 'Проведение сетевых криптоопераций',
-     'Post an explicitly unlocked network operation', 'document:crypto_network_operation', 'post'),
-    ('document:crypto_network_operation:unpost', 'Распроведение сетевых криптоопераций',
-     'Unpost an explicitly unlocked network operation', 'document:crypto_network_operation', 'unpost'),
-    ('document:crypto_network_operation:delete', 'Пометка удаления сетевых криптоопераций',
-     'Set the deletion mark on an explicitly unlocked network operation', 'document:crypto_network_operation', 'delete'),
-    ('crypto.network_operation.allow_editing', 'Ручная корректировка сетевых криптоопераций',
-     'Unlock a finalized blockchain operation after fresh MFA step-up', 'document:crypto_network_operation', 'unlock')
+     'View blockchain network operation documents', 'document:crypto_network_operation', 'read')
 ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO auth_role_permissions (role_id, permission_id)

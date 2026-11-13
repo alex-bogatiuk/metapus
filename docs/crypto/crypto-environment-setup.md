@@ -379,7 +379,7 @@ docker exec metapus-db psql -U metapus -d $env:TENANT_DB -c `
   "SELECT a.wallet_id,a.status AS task_status,a.cost_status,
           o.number,o.operation_type,o.status AS operation_status,o.posted,
           o.tx_hash,o.cost_amount,o.chain_settlement_id,o.finalized_at,
-          o.manual_edit_allowed,a.error_message
+          o.network_fee_reservation_id,a.error_message
    FROM reg_crypto_account_activations a
    LEFT JOIN doc_crypto_network_operations o ON o.id=a.network_operation_id
    ORDER BY a.created_at;"

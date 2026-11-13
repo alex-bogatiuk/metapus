@@ -526,7 +526,7 @@ iTRX включается только при наличии file-backed credent
 | Lifecycle | `operationType`, `status`, `finalizedAt`, `posted`, `postedVersion` |
 | Blockchain identity | `networkId`, `targetWalletId`, зафиксированный `targetAddress`, `txHash`, `chainSettlementId` |
 | Стоимость | `sourceWalletId`, `costTokenId`, `costAmount` |
-| Защита | `manualEditAllowed`, `version`, `description` |
+| Учёт комиссии | `networkFeeReservationId` (обязателен у финального документа) |
 
 Статусы документа:
 
@@ -568,10 +568,11 @@ platform cost `chain_network_fee` с `purpose=activation`, `provider=chain` и
 `active` сам по себе: после finality worker отдельно проверяет видимость account
 в сети и только затем обновляет оперативную проекцию.
 
-Документ заблокирован от ручных изменений. Аварийная учётная коррекция через
-system-admin unlock описана в
-[strict-documents.md](../systems/strict-documents.md). Распроведение и пометка на
-удаление меняют только внутренние движения и не откатывают blockchain-факты.
+Документ только для чтения: создаёт и проводит его координатор активации, а
+пользователь видит список, карточку, движения и связанные документы. Финальный
+документ всегда связан со своим fee reservation; распроведение отклоняется,
+исправление признанной комиссии возможно только отдельным компенсирующим
+документом.
 
 ## 9. Vault и подпись транзакций
 
@@ -890,6 +891,5 @@ worker settlement rental charge/refund сохраняется. Эта backend-з
 - [add-blockchain-network.md](../howto/add-blockchain-network.md) — алгоритм подключения новой сети на примере Ethereum/EVM.
 - [crypto-security-and-risk-review.md](crypto-security-and-risk-review.md) — security и executive review.
 - [crypto-environment-setup.md](crypto-environment-setup.md) — развёртывание dev-контура с нуля.
-- [../systems/strict-documents.md](../systems/strict-documents.md) — аварийная учётная коррекция системных документов.
 - [crypto-processing-test-scenarios.md](crypto-processing-test-scenarios.md) — полный verification protocol.
 - [production-deployment.md](../operations/production-deployment.md) — production rollout, rollback и DR.

@@ -98,29 +98,19 @@ type EntityActionInput struct {
 // EntityActionDef describes an explicit custom operation in the same contract
 // as standard document capabilities.
 type EntityActionDef struct {
-	Key                     string                    `json:"key"`
-	Label                   string                    `json:"label"`
-	Method                  string                    `json:"method"`
-	Path                    string                    `json:"path"`
-	Scope                   EntityActionScope         `json:"scope"`
-	Permission              string                    `json:"permission,omitempty"`
-	Idempotent              bool                      `json:"idempotent,omitzero"`
-	Destructive             bool                      `json:"destructive,omitzero"`
-	AllowedStates           []string                  `json:"allowedStates,omitempty"`
-	RequiresSystemAdmin     bool                      `json:"requiresSystemAdmin,omitzero"`
-	RequiredProtectionState string                    `json:"requiredProtectionState,omitempty"`
-	Confirmation            *EntityActionConfirmation `json:"confirmation,omitempty"`
-	UI                      *EntityActionUI           `json:"ui,omitempty"`
-	Input                   *EntityActionInput        `json:"input,omitempty"`
-}
-
-// DocumentProtection describes a metadata-driven strict-document lock.
-type DocumentProtection struct {
-	LockFinalDocuments   bool     `json:"lockFinalDocuments"`
-	UnlockField          string   `json:"unlockField"`
-	MutableFields        []string `json:"mutableFields"`
-	RequiresSystemAdmin  bool     `json:"requiresSystemAdmin"`
-	AutoLockAfterPosting bool     `json:"autoLockAfterPosting"`
+	Key                 string                    `json:"key"`
+	Label               string                    `json:"label"`
+	Method              string                    `json:"method"`
+	Path                string                    `json:"path"`
+	Scope               EntityActionScope         `json:"scope"`
+	Permission          string                    `json:"permission,omitempty"`
+	Idempotent          bool                      `json:"idempotent,omitzero"`
+	Destructive         bool                      `json:"destructive,omitzero"`
+	AllowedStates       []string                  `json:"allowedStates,omitempty"`
+	RequiresSystemAdmin bool                      `json:"requiresSystemAdmin,omitzero"`
+	Confirmation        *EntityActionConfirmation `json:"confirmation,omitempty"`
+	UI                  *EntityActionUI           `json:"ui,omitempty"`
+	Input               *EntityActionInput        `json:"input,omitempty"`
 }
 
 // PreviewFieldDef describes a field that should appear in document preview cards
@@ -150,7 +140,6 @@ type EntityDef struct {
 	// omit them because catalog CRUD is still a fixed generic contract.
 	Capabilities *DocumentCapabilities `json:"capabilities,omitempty"`
 	Actions      []EntityActionDef     `json:"actions,omitempty"`
-	Protection   *DocumentProtection   `json:"protection,omitempty"`
 
 	// PreviewFields defines which fields appear in hover preview cards.
 	// Auto-populated by Inspect(): all reference fields from document header

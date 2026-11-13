@@ -97,12 +97,8 @@ Budgets и `prefer_rental` применяются через audited Admin PATCH
   отправки транзакции.
 - [ ] Fee wallet имеет минимально необходимый баланс и отдельные alert limits.
 - [ ] Network fee wallet исключён из invoice allocation и hot-wallet selection.
-- [ ] Permission `crypto.network_operation.allow_editing` назначен только
-  системным администраторам; `security_admin` получает отказ.
-- [ ] Fresh step-up, confirmation, `sys_event_log` и autoblock проверены для CNO
-  lifecycle `unlock → unpost → edit → post`.
-- [ ] Принят residual risk MVP: отдельной истории значений CNO до/после ручной
-  коррекции нет; доступ и журнал команд включены в процедуру контроля.
+- [ ] Каждая финальная CNO связана со своим fee reservation, и распроведение
+  CNO отклоняется.
 - [ ] Emergency disable проверен: `enabled=false` останавливает новые attempts,
   но confirmation/reconciliation продолжают безопасно обрабатывать уже
   broadcast транзакции.

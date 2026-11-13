@@ -50,6 +50,8 @@ func (s Status) Final() bool { return s == StatusSucceeded || s == StatusReverte
 
 // CryptoNetworkOperation is the accounting document for an accepted network
 // transaction. Worker state and retries live in reg_crypto_account_activations.
+// It is system-owned: the activation workflow creates it at broadcast and
+// posts it once at finality together with its recognized network fee.
 type CryptoNetworkOperation struct {
 	entity.Document
 
@@ -65,7 +67,6 @@ type CryptoNetworkOperation struct {
 	ChainSettlementID       *id.ID             `db:"chain_settlement_id" json:"chainSettlementId,omitempty" meta:"label:Сетевой расчёт"`
 	NetworkFeeReservationID *id.ID             `db:"network_fee_reservation_id" json:"networkFeeReservationId,omitempty"`
 	FinalizedAt             *time.Time         `db:"finalized_at" json:"finalizedAt,omitempty" meta:"label:Дата финальности"`
-	ManualEditAllowed       bool               `db:"manual_edit_allowed" json:"manualEditAllowed" meta:"label:Редактирование разрешено"`
 }
 
 func NewWalletActivation(
@@ -73,16 +74,15 @@ func NewWalletActivation(
 	targetAddress, txHash string,
 ) *CryptoNetworkOperation {
 	doc := &CryptoNetworkOperation{
-		Document:          entity.NewDocument(),
-		OperationType:     OperationTypeWalletActivation,
-		Status:            StatusBroadcast,
-		NetworkID:         networkID,
-		TargetWalletID:    targetWalletID,
-		TargetAddress:     strings.TrimSpace(targetAddress),
-		SourceWalletID:    sourceWalletID,
-		CostTokenID:       costTokenID,
-		TxHash:            strings.TrimSpace(txHash),
-		ManualEditAllowed: false,
+		Document:       entity.NewDocument(),
+		OperationType:  OperationTypeWalletActivation,
+		Status:         StatusBroadcast,
+		NetworkID:      networkID,
+		TargetWalletID: targetWalletID,
+		TargetAddress:  strings.TrimSpace(targetAddress),
+		SourceWalletID: sourceWalletID,
+		CostTokenID:    costTokenID,
+		TxHash:         strings.TrimSpace(txHash),
 	}
 	doc.BasisType = ActivationTaskBasisType
 	doc.BasisID = &activationID
@@ -109,8 +109,9 @@ func (d *CryptoNetworkOperation) Validate(ctx context.Context) error {
 	if strings.TrimSpace(d.TargetAddress) == "" || strings.TrimSpace(d.TxHash) == "" {
 		return apperror.NewValidation("network transaction identity is required")
 	}
-	if d.Status.Final() && (d.ChainSettlementID == nil || id.IsNil(*d.ChainSettlementID) || d.FinalizedAt == nil || d.FinalizedAt.IsZero()) {
-		return apperror.NewValidation("final network operation requires settlement and finality date")
+	if d.Status.Final() && (d.ChainSettlementID == nil || id.IsNil(*d.ChainSettlementID) || d.FinalizedAt == nil || d.FinalizedAt.IsZero() ||
+		d.NetworkFeeReservationID == nil || id.IsNil(*d.NetworkFeeReservationID)) {
+		return apperror.NewValidation("final network operation requires its settlement, fee reservation and finality date")
 	}
 	return nil
 }
@@ -127,11 +128,6 @@ func (d *CryptoNetworkOperation) CanPost(ctx context.Context) error {
 
 func (d *CryptoNetworkOperation) GetDocumentType() string { return DocumentType }
 
-func (d *CryptoNetworkOperation) IsManualEditAllowed() bool { return d.ManualEditAllowed }
-func (d *CryptoNetworkOperation) SetManualEditAllowed(allowed bool) {
-	d.ManualEditAllowed = allowed
-}
-
 func (d *CryptoNetworkOperation) GenerateCryptoBalanceMovements(context.Context) ([]entity.CryptoBalanceMovement, error) {
 	if err := d.validateMovementOperation(); err != nil {
 		return nil, err
@@ -140,16 +136,10 @@ func (d *CryptoNetworkOperation) GenerateCryptoBalanceMovements(context.Context)
 		return nil, nil
 	}
 	movement := entity.NewCryptoBalanceMovement(
-		d.ID, d.GetDocumentType(), d.PostedVersion+1, d.Date, entity.RecordTypeExpense,
+		d.ID, d.GetDocumentType(), d.PostedVersion+1, *d.FinalizedAt, entity.RecordTypeExpense,
 		d.SourceWalletID, d.CostTokenID, d.CostAmount,
 	)
-	if d.NetworkFeeReservationID != nil {
-		if d.FinalizedAt == nil {
-			return nil, apperror.NewValidation("network fee requires its final period")
-		}
-		movement.LineID = uuid.NewSHA1(d.ID, []byte("network-fee-expense"))
-		movement.Period = *d.FinalizedAt
-	}
+	movement.LineID = uuid.NewSHA1(d.ID, []byte("network-fee-expense"))
 	return []entity.CryptoBalanceMovement{movement}, nil
 }
 
@@ -161,30 +151,26 @@ func (d *CryptoNetworkOperation) GenerateCryptoPlatformCostMovements(context.Con
 		return nil, nil
 	}
 	movement := entity.NewSharedCryptoPlatformCostMovement(
-		d.ID, d.GetDocumentType(), d.PostedVersion+1, d.Date, entity.RecordTypeExpense,
+		d.ID, d.GetDocumentType(), d.PostedVersion+1, *d.FinalizedAt, entity.RecordTypeExpense,
 		d.NetworkID, d.CostTokenID, entity.PlatformCostTypeChainNetworkFee,
 		entity.PlatformCostPurposeActivation, "chain", d.TxHash, d.CostAmount,
 	)
-	if d.NetworkFeeReservationID != nil {
-		if d.FinalizedAt == nil {
-			return nil, apperror.NewValidation("network fee requires its final period")
-		}
-		movement.LineID = uuid.NewSHA1(d.ID, []byte("network-fee-cost"))
-		movement.Period = *d.FinalizedAt
-	}
+	movement.LineID = uuid.NewSHA1(d.ID, []byte("network-fee-cost"))
 	return []entity.CryptoPlatformCostMovement{movement}, nil
 }
 
 func (d *CryptoNetworkOperation) CanUnpost(context.Context) error {
-	if d.NetworkFeeReservationID != nil {
-		return apperror.NewConflict("recognized network fee requires explicit compensation workflow")
-	}
-	return nil
+	return apperror.NewConflict("recognized network fee requires explicit compensation workflow")
 }
 
+// validateMovementOperation admits movements only of a supported operation
+// that reached finality: its fee is recognized in the final period.
 func (d *CryptoNetworkOperation) validateMovementOperation() error {
 	if d.OperationType != OperationTypeWalletActivation {
 		return apperror.NewValidation("unsupported crypto network operation type").WithDetail("field", "operationType")
+	}
+	if d.FinalizedAt == nil || d.FinalizedAt.IsZero() {
+		return apperror.NewValidation("network fee requires its final period")
 	}
 	return nil
 }
@@ -192,3 +178,4 @@ func (d *CryptoNetworkOperation) validateMovementOperation() error {
 var _ posting.Postable = (*CryptoNetworkOperation)(nil)
 var _ posting.CryptoBalanceMovementSource = (*CryptoNetworkOperation)(nil)
 var _ posting.CryptoPlatformCostMovementSource = (*CryptoNetworkOperation)(nil)
+var _ posting.UnpostGuard = (*CryptoNetworkOperation)(nil)

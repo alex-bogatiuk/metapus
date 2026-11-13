@@ -1185,14 +1185,10 @@ export type CryptoNetworkOperationResponse = {
   "attributes"?: Record<string, JsonValue>
   "createdAt": string
   "updatedAt": string
-  "createdBy": string
-  "updatedBy": string
   "number": string
   "date": string
   "posted": boolean
   "postedVersion": number
-  "basisType"?: string
-  "basisId"?: string
   "description"?: string
   "operationType": string
   "status": string
@@ -1203,10 +1199,11 @@ export type CryptoNetworkOperationResponse = {
   "costTokenId": string
   "costAmount": string
   "txHash": string
-  "chainSettlementId"?: string
-  "networkFeeReservationId"?: string
   "finalizedAt"?: string
-  "manualEditAllowed": boolean
+  "network"?: PostgresRefDisplay
+  "targetWallet"?: PostgresRefDisplay
+  "sourceWallet"?: PostgresRefDisplay
+  "costToken"?: PostgresRefDisplay
 }
 
 export type CryptoNetworkPolicyResponse = {
@@ -2255,7 +2252,6 @@ export type EntityMetadataResponse = {
   "tableParts"?: Array<MetadataTablePartDef>
   "capabilities"?: MetadataDocumentCapabilities
   "actions"?: Array<MetadataEntityActionDef>
-  "protection"?: MetadataDocumentProtection
   "previewFields"?: Array<MetadataPreviewFieldDef>
 }
 
@@ -3300,14 +3296,6 @@ export type MetadataDocumentCapabilities = {
   "movements": boolean
 }
 
-export type MetadataDocumentProtection = {
-  "lockFinalDocuments": boolean
-  "unlockField": string
-  "mutableFields": Array<string>
-  "requiresSystemAdmin": boolean
-  "autoLockAfterPosting": boolean
-}
-
 export type MetadataEntityActionConfirmation = {
   "title": string
   "description": string
@@ -3326,7 +3314,6 @@ export type MetadataEntityActionDef = {
   "destructive"?: boolean
   "allowedStates"?: Array<string>
   "requiresSystemAdmin"?: boolean
-  "requiredProtectionState"?: string
   "confirmation"?: MetadataEntityActionConfirmation
   "ui"?: MetadataEntityActionUI
   "input"?: MetadataEntityActionInput
@@ -4707,13 +4694,7 @@ export type UpdateCryptoInvoiceRequest = {
 
 export type UpdateCryptoMerchantCreditRequest = Record<string, never>
 
-export type UpdateCryptoNetworkOperationRequest = {
-  "sourceWalletId": string
-  "costTokenId": string
-  "costAmount"?: string
-  "description"?: string
-  "version": number
-}
+export type UpdateCryptoNetworkOperationRequest = Record<string, never>
 
 export type UpdateCryptoNetworkPolicyRequest = {
   "version": number

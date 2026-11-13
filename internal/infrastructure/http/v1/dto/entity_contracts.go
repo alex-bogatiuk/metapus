@@ -1,13 +1,11 @@
 package dto
 
 import (
-	"metapus/internal/domain/documents/crypto_network_operation"
 	"metapus/internal/domain/documents/crypto_provider_balance_operation"
 	"metapus/internal/domain/documents/crypto_resource_rental"
 )
 
 // These documents use their JSON entity projection in the generic HTTP presenter.
-type CryptoNetworkOperationResponse = crypto_network_operation.CryptoNetworkOperation
 type CryptoProviderBalanceOperationResponse = crypto_provider_balance_operation.CryptoProviderBalanceOperation
 type CryptoResourceRentalResponse = crypto_resource_rental.CryptoResourceRental
 

@@ -16,11 +16,24 @@ func finalActivation(cost types.CryptoAmount) *CryptoNetworkOperation {
 	doc := NewWalletActivation(id.New(), id.New(), id.New(), id.New(), id.New(), "TTarget", "0xtx")
 	doc.CostAmount = cost
 	doc.Status = StatusSucceeded
-	settlementID := id.New()
+	settlementID, reservationID := id.New(), id.New()
 	now := time.Now().UTC()
 	doc.ChainSettlementID = &settlementID
+	doc.NetworkFeeReservationID = &reservationID
 	doc.FinalizedAt = &now
 	return doc
+}
+
+func TestFinalActivationRequiresItsFeeReservationAndNeverUnposts(t *testing.T) {
+	doc := finalActivation(types.NewCryptoAmountFromInt64(10))
+	require.NoError(t, doc.Validate(context.Background()))
+	require.Error(t, doc.CanUnpost(context.Background()))
+	doc.NetworkFeeReservationID = nil
+	require.Error(t, doc.Validate(context.Background()))
+	doc = finalActivation(types.NewCryptoAmountFromInt64(10))
+	doc.FinalizedAt = nil
+	_, err := doc.GenerateCryptoBalanceMovements(context.Background())
+	require.Error(t, err)
 }
 
 func TestWalletActivationGeneratesBothExpenses(t *testing.T) {
@@ -34,6 +47,7 @@ func TestWalletActivationGeneratesBothExpenses(t *testing.T) {
 	require.Equal(t, entity.RecordTypeExpense, balance[0].RecordType)
 	require.Equal(t, doc.SourceWalletID, balance[0].WalletID)
 	require.Equal(t, doc.CostAmount, balance[0].Amount)
+	require.Equal(t, *doc.FinalizedAt, balance[0].Period)
 
 	costs, err := doc.GenerateCryptoPlatformCostMovements(context.Background())
 	require.NoError(t, err)

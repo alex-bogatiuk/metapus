@@ -1795,7 +1795,7 @@ CREATE TABLE reg_crypto_chain_settlements (
     total_fee_minor       NUMERIC(78,0) NOT NULL CHECK (total_fee_minor >= 0),
     raw_receipt           JSONB NOT NULL,
     observed_at           TIMESTAMPTZ NOT NULL,
-    network_fee_reservation_id UUID REFERENCES reg_crypto_fee_reservations(id),
+    network_fee_reservation_id UUID NOT NULL REFERENCES reg_crypto_fee_reservations(id),
     created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE UNIQUE INDEX idx_crypto_chain_settlement_tx

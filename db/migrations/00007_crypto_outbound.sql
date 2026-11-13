@@ -1430,19 +1430,18 @@ CREATE TABLE doc_crypto_network_operations (
     cost_amount           NUMERIC(78,0) NOT NULL DEFAULT 0 CHECK (cost_amount >= 0),
     tx_hash               TEXT NOT NULL CHECK (BTRIM(tx_hash) <> ''),
     chain_settlement_id   UUID,
+    network_fee_reservation_id UUID UNIQUE REFERENCES reg_crypto_fee_reservations(id),
     finalized_at          TIMESTAMPTZ,
-    manual_edit_allowed   BOOLEAN NOT NULL DEFAULT FALSE,
     _txid                 BIGINT NOT NULL DEFAULT txid_current(),
     _deleted_at           TIMESTAMPTZ,
-    network_fee_reservation_id UUID UNIQUE REFERENCES reg_crypto_fee_reservations(id),
 
     CONSTRAINT chk_crypto_network_operation_wallets
         CHECK (source_wallet_id <> target_wallet_id),
     CONSTRAINT chk_crypto_network_operation_finality
         CHECK (
-            (status = 'broadcast' AND chain_settlement_id IS NULL AND finalized_at IS NULL)
+            (status = 'broadcast' AND chain_settlement_id IS NULL AND network_fee_reservation_id IS NULL AND finalized_at IS NULL)
             OR
-            (status IN ('succeeded','reverted') AND chain_settlement_id IS NOT NULL AND finalized_at IS NOT NULL)
+            (status IN ('succeeded','reverted') AND chain_settlement_id IS NOT NULL AND network_fee_reservation_id IS NOT NULL AND finalized_at IS NOT NULL)
         ),
     CONSTRAINT fk_crypto_network_operation_settlement
     FOREIGN KEY (chain_settlement_id) REFERENCES reg_crypto_chain_settlements(id)

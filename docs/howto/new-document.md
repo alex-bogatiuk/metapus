@@ -3,7 +3,7 @@
 > **TL;DR:** Выберите жизненный цикл документа, опишите модель и движения, подключите service/repository, capabilities, DTO и HTTP-контракты; generic UI использует зарегистрированные возможности.
 > **Тип:** How-To
 > **Аудитория:** Developer
-> **Связанные:** [Справочник](new-entity.md), [Posting Engine](../systems/posting-engine.md), [StrictDocument](../systems/strict-documents.md)
+> **Связанные:** [Справочник](new-entity.md), [Posting Engine](../systems/posting-engine.md)
 
 ## 1. Выбор рабочего аналога
 
@@ -12,7 +12,7 @@
 | Сценарий | Аналог |
 |---|---|
 | Документ без табличных частей | `internal/domain/documents/crypto_invoice/` и `document_repo/crypto_invoice.go` |
-| Системный внешний факт с ограниченной ручной коррекцией | `internal/domain/documents/crypto_network_operation/` и `StrictDocumentGuard` |
+| Системный внешний факт только для чтения | `internal/domain/documents/crypto_network_operation/` и `handlers.NewReadOnlyDocumentHandler` |
 | Денежный workflow без generic CRUD/post/unpost | `WithdrawalRequestRegistration` и `CustomDocumentRegistration` |
 | Регистрация маршрутов и metadata | `internal/content/document_registrations.go` |
 
@@ -54,11 +54,11 @@ ID выделяется в Go до INSERT и проведения. `Validate(ctx
 
 Бизнес-изменение, обязательный аудит и enqueue должны быть атомарны. RPC, подпись и доставка выполняются вне короткой DB-транзакции через durable workflow.
 
-Системный сервис и пользовательский guarded service имеют разные полномочия. Для строгого документа подключите `StrictDocumentGuard`, whitelist изменяемых полей и автоблокировку; см. [матрицу StrictDocument](../systems/strict-documents.md).
+Документ, который создаёт и проводит только системный workflow, регистрируется только для чтения: capabilities без create/update/post и `handlers.NewReadOnlyDocumentHandler` с DTO.
 
 ## 5. Регистрация, capabilities и транспорт
 
-Модель предоставляет `EntityDefinition() entity.Definition`. Регистрация встраивает `v1.EntityRegistration[Model]`: identity, таблица и metadata-структура получаются из модели. `Build` собирает инфраструктуру, `HTTPContracts()` связывает конкретные DTO с разрешёнными capabilities. Для списка и детали с разными проекциями используйте `spec.EntityWithDetail[CreateDTO, UpdateDTO, ListDTO, DetailDTO]`. Optional contracts добавляют presentation, RLS/search fields, actions и protection. Это общий способ для встроенных документов и расширений.
+Модель предоставляет `EntityDefinition() entity.Definition`. Регистрация встраивает `v1.EntityRegistration[Model]`: identity, таблица и metadata-структура получаются из модели. `Build` собирает инфраструктуру, `HTTPContracts()` связывает конкретные DTO с разрешёнными capabilities. Для списка и детали с разными проекциями используйте `spec.EntityWithDetail[CreateDTO, UpdateDTO, ListDTO, DetailDTO]`. Optional contracts добавляют presentation, RLS/search fields и actions. Это общий способ для встроенных документов и расширений.
 
 `RegisterDocumentRoutes` публикует только разрешённые capabilities и поддержанные handler-интерфейсы. Явно закройте неподдерживаемые Create/Delete/Copy/Post/Unpost. Для отдельного workflow используйте `CustomDocumentRegistration`.
 

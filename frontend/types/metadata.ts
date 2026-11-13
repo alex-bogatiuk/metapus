@@ -12,7 +12,6 @@ import type { z } from "zod"
 export type EntityType = z.infer<typeof entityTypeSchema>
 export type EntityPresentation = Wire.MetadataPresentation
 export type DocumentCapabilities = Wire.MetadataDocumentCapabilities
-export type DocumentProtection = Wire.MetadataDocumentProtection
 export type EntityActionDef = z.infer<typeof entityActionSchema>
 export type EntityActionScope = EntityActionDef["scope"]
 export type EntityActionUI = Wire.MetadataEntityActionUI
