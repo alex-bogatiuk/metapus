@@ -611,6 +611,7 @@ CREATE TABLE cat_blockchain_networks (
                           CHECK (finality_mode IN ('confirmations','protocol_finalized','confirmations_or_finalized')),
     block_time_seconds    INT          NOT NULL DEFAULT 10,
     explorer_url          TEXT         NOT NULL DEFAULT '', -- HTTPS tx URL template with one {txHash}; empty disables links
+    color                 TEXT         NOT NULL DEFAULT '', -- interface palette key; empty lets the interface choose
     is_active             BOOLEAN      NOT NULL DEFAULT TRUE,
 
     CONSTRAINT chk_native_decimals      CHECK (native_decimals >= 0 AND native_decimals <= 18),
@@ -619,6 +620,8 @@ CREATE TABLE cat_blockchain_networks (
         CHECK (chain_family IN ('tron','evm','ton','solana')),
     CONSTRAINT chk_blockchain_network_identifier
         CHECK (BTRIM(network_identifier) <> ''),
+    CONSTRAINT chk_blockchain_network_color
+        CHECK (color IN ('','red','orange','amber','yellow','lime','green','teal','sky','blue','indigo','violet','pink','gray')),
     CONSTRAINT chk_blockchain_network_explorer_url
         CHECK (
             explorer_url = '' OR (
@@ -2806,10 +2809,10 @@ ON CONFLICT (network_id) DO NOTHING;
 
 INSERT INTO cat_blockchain_networks (
     id,code,name,chain_family,network_identifier,native_token_symbol,native_decimals,
-    confirmations_needed,block_time_seconds,explorer_url,finality_mode,is_active
+    confirmations_needed,block_time_seconds,explorer_url,finality_mode,color,is_active
 ) VALUES (
     '11155111-0000-4000-8000-000000000001','ETHEREUM-SEPOLIA','Ethereum Sepolia','evm','11155111','ETH',18,
-    12,12,'https://sepolia.etherscan.io/tx/{txHash}','confirmations_or_finalized',FALSE
+    12,12,'https://sepolia.etherscan.io/tx/{txHash}','confirmations_or_finalized','blue',FALSE
 ) ON CONFLICT (code) WHERE deletion_mark=FALSE DO NOTHING;
 
 INSERT INTO cat_tokens (

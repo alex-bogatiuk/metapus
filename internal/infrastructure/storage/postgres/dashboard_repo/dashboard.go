@@ -82,7 +82,7 @@ func (r *Repository) Assets(ctx context.Context) ([]dashboard.Asset, error) {
  FROM cat_tokens t JOIN cat_wallets w ON w.network_id=t.network_id AND ((w.is_active=TRUE AND w.deletion_mark=FALSE AND w._deleted_at IS NULL) OR EXISTS(SELECT 1 FROM reg_crypto_balance_balances bb WHERE bb.wallet_id=w.id AND bb.token_id=t.id AND bb.amount<>0))
  LEFT JOIN latest_checks c ON c.wallet_id=w.id AND c.token_id=t.id GROUP BY t.id
 )
- SELECT t.id::text,t.network_id::text,t.symbol,n.name,t.decimal_places,
+ SELECT t.id::text,t.network_id::text,t.symbol,n.name,n.color,t.decimal_places,
  COALESCE(m.amount,0)::text,COALESCE(b.amount,0)::text,
  CASE WHEN c.wallets=c.checked AND c.checked>0 THEN c.ledger_amount::text END,
  CASE WHEN c.wallets=c.checked AND c.checked>0 THEN c.chain_amount::text END,
@@ -100,7 +100,7 @@ func (r *Repository) Assets(ctx context.Context) ([]dashboard.Asset, error) {
 	assets := make([]dashboard.Asset, 0)
 	for rows.Next() {
 		var a dashboard.Asset
-		if err := rows.Scan(&a.TokenID, &a.NetworkID, &a.Symbol, &a.Network, &a.DecimalPlaces, &a.MerchantMinor, &a.WalletMinor, &a.ReconciledLedgerMinor, &a.ChainMinor, &a.DeltaMinor, &a.WalletCount, &a.CheckedWalletCount, &a.MismatchedWalletCount, &a.ReconciledAt, &a.CurrencyID, &a.CurrencyCode); err != nil {
+		if err := rows.Scan(&a.TokenID, &a.NetworkID, &a.Symbol, &a.Network, &a.NetworkColor, &a.DecimalPlaces, &a.MerchantMinor, &a.WalletMinor, &a.ReconciledLedgerMinor, &a.ChainMinor, &a.DeltaMinor, &a.WalletCount, &a.CheckedWalletCount, &a.MismatchedWalletCount, &a.ReconciledAt, &a.CurrencyID, &a.CurrencyCode); err != nil {
 			return nil, err
 		}
 		assets = append(assets, a)

@@ -451,6 +451,7 @@ export const BlockchainNetworkResponseSchema: z.ZodType<Wire.BlockchainNetworkRe
   "confirmationsNeeded": z.number().int(),
   "blockTimeSeconds": z.number().int(),
   "explorerUrl": z.string().optional(),
+  "color": z.string(),
   "isActive": z.boolean(),
   "parentId": z.string().optional(),
   "isFolder": z.boolean(),
@@ -661,6 +662,7 @@ export const CreateBlockchainNetworkRequestSchema: z.ZodType<Wire.CreateBlockcha
   "confirmationsNeeded": z.number().int().optional(),
   "blockTimeSeconds": z.number().int().optional(),
   "explorerUrl": z.string().optional(),
+  "color": z.string().optional(),
   "isActive": z.boolean().optional(),
   "parentId": z.string().nullable().optional(),
   "isFolder": z.boolean().optional(),
@@ -2009,6 +2011,7 @@ export const DashboardAssetSchema: z.ZodType<Wire.DashboardAsset> = z.lazy(() =>
   "networkId": z.string(),
   "symbol": z.string(),
   "network": z.string(),
+  "networkColor": z.string(),
   "decimalPlaces": z.number().int(),
   "merchantMinor": z.string(),
   "walletMinor": z.string(),
@@ -3323,6 +3326,7 @@ export const MetadataFieldDefSchema: z.ZodType<Wire.MetadataFieldDef> = z.lazy((
   "valueScale": z.number().int().optional(),
   "enumValues": z.array(MetadataEnumValueSchema).optional(),
   "listHidden": z.boolean().optional(),
+  "widget": z.string().optional(),
 }))
 
 export const MetadataPresentationSchema: z.ZodType<Wire.MetadataPresentation> = z.lazy(() => z.object({
@@ -4595,6 +4599,7 @@ export const UpdateBlockchainNetworkRequestSchema: z.ZodType<Wire.UpdateBlockcha
   "confirmationsNeeded": z.number().int().optional(),
   "blockTimeSeconds": z.number().int().optional(),
   "explorerUrl": z.string().optional(),
+  "color": z.string().optional(),
   "isActive": z.boolean().optional(),
   "parentId": z.string().nullable().optional(),
   "isFolder": z.boolean().optional(),

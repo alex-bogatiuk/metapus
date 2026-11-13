@@ -447,6 +447,7 @@ export type BlockchainNetworkResponse = {
   "confirmationsNeeded": number
   "blockTimeSeconds": number
   "explorerUrl"?: string
+  "color": string
   "isActive": boolean
   "parentId"?: string
   "isFolder": boolean
@@ -657,6 +658,7 @@ export type CreateBlockchainNetworkRequest = {
   "confirmationsNeeded"?: number
   "blockTimeSeconds"?: number
   "explorerUrl"?: string
+  "color"?: string
   "isActive"?: boolean
   "parentId"?: string | null
   "isFolder"?: boolean
@@ -2005,6 +2007,7 @@ export type DashboardAsset = {
   "networkId": string
   "symbol": string
   "network": string
+  "networkColor": string
   "decimalPlaces": number
   "merchantMinor": string
   "walletMinor": string
@@ -3319,6 +3322,7 @@ export type MetadataFieldDef = {
   "valueScale"?: number
   "enumValues"?: Array<MetadataEnumValue>
   "listHidden"?: boolean
+  "widget"?: string
 }
 
 export type MetadataPresentation = {
@@ -4591,6 +4595,7 @@ export type UpdateBlockchainNetworkRequest = {
   "confirmationsNeeded"?: number
   "blockTimeSeconds"?: number
   "explorerUrl"?: string
+  "color"?: string
   "isActive"?: boolean
   "parentId"?: string | null
   "isFolder"?: boolean

@@ -509,9 +509,9 @@ func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger
 		INSERT INTO cat_blockchain_networks (
 			id, code, name, chain_family, network_identifier,
 			native_token_symbol, native_decimals, block_time_seconds,
-			confirmations_needed, explorer_url, is_active,
+			confirmations_needed, explorer_url, color, is_active,
 			version, deletion_mark, attributes
-		) VALUES ($1, $2, $3, 'tron', $4, $5, $6, $7, $8, $9, true, 1, false, '{}')
+		) VALUES ($1, $2, $3, 'tron', $4, $5, $6, $7, $8, $9, 'red', true, 1, false, '{}')
 		ON CONFLICT (code) WHERE deletion_mark = FALSE DO UPDATE SET
 			name = EXCLUDED.name,
 			chain_family = EXCLUDED.chain_family,

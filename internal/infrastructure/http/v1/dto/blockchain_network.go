@@ -2,6 +2,7 @@ package dto
 
 import (
 	"metapus/internal/core/entity"
+	"metapus/internal/core/types"
 	"metapus/internal/domain/catalogs/blockchain_network"
 	"metapus/internal/domain/crypto"
 )
@@ -20,6 +21,7 @@ type CreateBlockchainNetworkRequest struct {
 	ConfirmationsNeeded int                `json:"confirmationsNeeded"`
 	BlockTimeSeconds    int                `json:"blockTimeSeconds"`
 	ExplorerURL         string             `json:"explorerUrl"`
+	Color               types.PaletteColor `json:"color"`
 	IsActive            bool               `json:"isActive"`
 	ParentID            *string            `json:"parentId"`
 	IsFolder            bool               `json:"isFolder"`
@@ -36,6 +38,7 @@ func (r *CreateBlockchainNetworkRequest) ToEntity() *blockchain_network.Blockcha
 		n.BlockTimeSeconds = r.BlockTimeSeconds
 	}
 	n.ExplorerURL = r.ExplorerURL
+	n.Color = r.Color
 	n.RPCConfigSource = r.RPCConfigSource
 	if n.RPCConfigSource == "" {
 		n.RPCConfigSource = "file"
@@ -59,6 +62,7 @@ type UpdateBlockchainNetworkRequest struct {
 	ConfirmationsNeeded int                `json:"confirmationsNeeded"`
 	BlockTimeSeconds    int                `json:"blockTimeSeconds"`
 	ExplorerURL         string             `json:"explorerUrl"`
+	Color               types.PaletteColor `json:"color"`
 	IsActive            bool               `json:"isActive"`
 	ParentID            *string            `json:"parentId"`
 	IsFolder            bool               `json:"isFolder"`
@@ -77,6 +81,7 @@ func (r *UpdateBlockchainNetworkRequest) ApplyTo(n *blockchain_network.Blockchai
 	n.ConfirmationsNeeded = r.ConfirmationsNeeded
 	n.BlockTimeSeconds = r.BlockTimeSeconds
 	n.ExplorerURL = r.ExplorerURL
+	n.Color = r.Color
 	if r.RPCConfigSource != "" {
 		n.RPCConfigSource = r.RPCConfigSource
 	}
@@ -102,6 +107,7 @@ type BlockchainNetworkResponse struct {
 	ConfirmationsNeeded int                `json:"confirmationsNeeded"`
 	BlockTimeSeconds    int                `json:"blockTimeSeconds"`
 	ExplorerURL         string             `json:"explorerUrl,omitempty"`
+	Color               types.PaletteColor `json:"color"`
 	IsActive            bool               `json:"isActive"`
 	ParentID            *string            `json:"parentId,omitempty"`
 	IsFolder            bool               `json:"isFolder"`
@@ -124,6 +130,7 @@ func FromBlockchainNetwork(n *blockchain_network.BlockchainNetwork) *BlockchainN
 		ConfirmationsNeeded: n.ConfirmationsNeeded,
 		BlockTimeSeconds:    n.BlockTimeSeconds,
 		ExplorerURL:         n.ExplorerURL,
+		Color:               n.Color,
 		IsActive:            n.IsActive,
 		ParentID:            idToStringPtr(n.ParentID),
 		IsFolder:            n.IsFolder,

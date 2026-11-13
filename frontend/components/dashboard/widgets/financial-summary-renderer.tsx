@@ -1,17 +1,18 @@
 "use client"
 import { api } from "@/lib/api"
-import { cn } from "@/lib/utils"
 import { useWidgetData } from "@/hooks/useWidgetData"
 import { formatPortalAmount } from "@/lib/portal-overview"
 import { formatDecimal } from "@/lib/exchange-rates"
 import { observedTime } from "@/lib/admin-dashboard"
+import { paletteColor, resolvePaletteKey } from "@/lib/palette"
 import type { WidgetRenderProps } from "@/types/dashboard"
 import { Wallet } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { FooterLink, WidgetBody, WidgetEmpty } from "./widget-state"
 
-// Shares are told apart by lightness, not only hue, so they read in both themes and for colour-blind people.
-const shades = ["bg-chart-1", "bg-chart-1/55", "bg-chart-1/30", "bg-chart-2", "bg-chart-2/50", "bg-chart-3"]
+// A token takes its network's colour; tokens of one network are told apart by lightness,
+// so the bar reads by network first and by token second, in both themes.
+const shadeAlphas = [1, 0.6, 0.35, 0.2]
 
 export default function Finance({ config, isEditMode }: WidgetRenderProps<"financial-summary">) {
   const state = useWidgetData(api.dashboard.finance, { key: "widget:admin-finance", isEditMode, pollInterval: 60_000 })
@@ -27,7 +28,13 @@ export default function Finance({ config, isEditMode }: WidgetRenderProps<"finan
   }))
   const valuedTotal = [...valued.values()].reduce((sum, v) => sum + v, 0)
   const showShares = valued.size > 1 && valuedTotal > 0
-  const shade = (tokenId: string) => shades[[...valued.keys()].indexOf(tokenId) % shades.length]
+
+  // Valued tokens grouped by network, so a network's shades sit side by side in the bar.
+  const byNetwork = new Map<string, typeof assets>()
+  for (const a of assets) if (valued.has(a.tokenId)) byNetwork.set(a.networkId, [...(byNetwork.get(a.networkId) ?? []), a])
+  const segments = [...byNetwork.values()].flatMap(group => group.map((a, i) =>
+    ({ tokenId: a.tokenId, color: paletteColor(resolvePaletteKey(a.networkColor, a.networkId), shadeAlphas[Math.min(i, shadeAlphas.length - 1)]) })))
+  const shade = new Map(segments.map(s => [s.tokenId, s.color]))
 
   return <WidgetBody title={title} description={config.view === "wallets" ? "Остатки по учётному регистру" : "Учётные остатки мерчантов"}
     loading={state.loading} error={state.error} retry={state.refetch}
@@ -46,12 +53,12 @@ export default function Finance({ config, isEditMode }: WidgetRenderProps<"finan
         </div>
         <p className="mt-1 text-xs text-muted-foreground">{balance.source?.name ?? "Источник курса не настроен"} · {observedTime(balance.evaluatedAt)}{balance.freshUntil && ` · действует до ${observedTime(balance.freshUntil)}`}</p>
         {showShares && <div role="img" aria-label={`Доли в оценке: ${assets.filter(a => valued.has(a.tokenId)).map(a => `${a.symbol} ${a.network} ${Math.round(valued.get(a.tokenId)! / valuedTotal * 100)}%`).join(", ")}`} className="mt-3 flex h-1.5 gap-0.5 overflow-hidden rounded-full">
-          {[...valued.entries()].map(([tokenId, value]) => <span key={tokenId} className={cn("h-full", shade(tokenId))} style={{ width: `${value / valuedTotal * 100}%` }} />)}
+          {segments.map(({ tokenId, color }) => <span key={tokenId} className="h-full" style={{ width: `${valued.get(tokenId)! / valuedTotal * 100}%`, backgroundColor: color }} />)}
         </div>}
       </div>
       {!assets.length ? <WidgetEmpty icon={Wallet} title="Остатков нет" /> : <ul className="divide-y border-t">{assets.map(a => <li key={a.tokenId} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-2.5">
         <span className="flex min-w-0 items-center gap-2">
-          {showShares && <span aria-hidden className={cn("size-2 shrink-0 rounded-[3px]", valued.has(a.tokenId) ? shade(a.tokenId) : "bg-muted")} />}
+          {showShares && <span aria-hidden className="size-2 shrink-0 rounded-[3px] bg-muted" style={shade.has(a.tokenId) ? { backgroundColor: shade.get(a.tokenId) } : undefined} />}
           <span className="font-medium">{a.symbol}</span>
           <span className="truncate text-xs text-muted-foreground">{a.network}</span>
         </span>

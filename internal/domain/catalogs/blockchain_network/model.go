@@ -9,6 +9,7 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
+	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto"
 )
 
@@ -42,6 +43,9 @@ type BlockchainNetwork struct {
 
 	// ExplorerURL is an HTTPS transaction URL template containing exactly one {txHash} placeholder.
 	ExplorerURL string `db:"explorer_url" json:"explorerUrl,omitempty" meta:"label:Explorer URL (шаблон)"`
+
+	// Color marks the network and its tokens in charts and lists. Empty lets the interface choose.
+	Color types.PaletteColor `db:"color" json:"color" meta:"label:Цвет"`
 
 	// IsActive is network watching: the worker reads only active networks.
 	// It changes only through the guarded command on the networks page.
@@ -108,6 +112,10 @@ func (n *BlockchainNetwork) Validate(ctx context.Context) error {
 
 	if err := validateExplorerURLTemplate(n.ExplorerURL); err != nil {
 		return err
+	}
+
+	if !n.Color.Valid() {
+		return apperror.NewValidation("unknown palette color").WithDetail("field", "color")
 	}
 
 	return nil

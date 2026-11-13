@@ -6,7 +6,7 @@ import type { JsonValue } from "../lib/json-value"
 const admin = { ...erpUser, isAdmin: true }
 const secondToken = "10000000-0000-4000-8000-000000000023"
 const observedAt = "2026-10-03T12:00:00Z"
-const assets = [ids.token, secondToken].map((tokenId, i) => ({ tokenId, networkId: ids.network, symbol: "USDT", network: i ? "TRON Nile" : "Ethereum Sepolia", decimalPlaces: 6, merchantMinor: "900719925474099312345678901", walletMinor: "100000000", reconciledLedgerMinor: null, chainMinor: null, deltaMinor: null, walletCount: 2, checkedWalletCount: 1, mismatchedWalletCount: 0, reconciledAt: null }))
+const assets = [ids.token, secondToken].map((tokenId, i) => ({ tokenId, networkId: ids.network, symbol: "USDT", network: i ? "TRON Nile" : "Ethereum Sepolia", networkColor: i ? "red" : "", decimalPlaces: 6, merchantMinor: "900719925474099312345678901", walletMinor: "100000000", reconciledLedgerMinor: null, chainMinor: null, deltaMinor: null, walletCount: 2, checkedWalletCount: 1, mismatchedWalletCount: 0, reconciledAt: null }))
 const balance = unvaluedPortalBalance(assets)
 const finance: AdminDashboardFinanceResponse = { assets, obligations: balance, wallets: balance, observedAt }
 const analytics: AdminDashboardAnalyticsResponse = { period: "30d", fromDay: "2026-09-04", toDay: "2026-10-03", observedAt,

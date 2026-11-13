@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"metapus/internal/core/types"
 )
 
 func TestCryptoInvoiceIdempotencyIndexesAreInBaseMigration(t *testing.T) {
@@ -264,7 +266,7 @@ func TestEthereumSepoliaMigrationKeepsMultichainSafetyContracts(t *testing.T) {
 	require.Contains(t, migrationSQL, "ETHEREUM-SEPOLIA")
 	require.Contains(t, migrationSQL, "11155111")
 	require.Contains(t, migrationSQL, "0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9")
-	require.Contains(t, migrationSQL, "'confirmations_or_finalized',FALSE")
+	require.Contains(t, migrationSQL, "'confirmations_or_finalized','blue',FALSE")
 	require.Contains(t, migrationSQL, "NUMERIC(78,0)")
 	require.Equal(t, 2, strings.Count(migrationSQL, "ON CONFLICT (code) WHERE deletion_mark=FALSE DO NOTHING"),
 		"catalog upserts must infer the partial code indexes explicitly")
@@ -359,4 +361,14 @@ func readSQL(t *testing.T, parts ...string) string {
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	return string(data)
+}
+
+func TestBlockchainNetworkColorsMatchThePalette(t *testing.T) {
+	sql := readMigrationSQL(t, "00006_crypto_core.sql")
+	allowed := []string{"''"}
+	for _, choice := range types.PaletteChoices {
+		allowed = append(allowed, "'"+string(choice.Color)+"'")
+	}
+	require.Contains(t, sql, "CHECK (color IN ("+strings.Join(allowed, ",")+"))",
+		"the column must accept exactly the palette, in its order")
 }

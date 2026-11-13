@@ -13,6 +13,12 @@ const (
 	TypeRegister EntityType = "register"
 )
 
+// FieldWidget names a dedicated form input for a field.
+type FieldWidget string
+
+// WidgetColor shows an enum of palette colours as swatches.
+const WidgetColor FieldWidget = "color"
+
 // FieldType defines the data type of a field.
 type FieldType string
 
@@ -213,6 +219,10 @@ type FieldDef struct {
 	// ListHidden excludes the field from list column choosers. The field remains
 	// in GET /meta/:name so forms still render it. Set via meta:"list:false".
 	ListHidden bool `json:"listHidden,omitzero"`
+
+	// Widget asks forms for a dedicated input instead of the default one for
+	// Type; consumers that do not know it fall back to Type. Set from the Go type.
+	Widget FieldWidget `json:"widget,omitempty"`
 }
 
 // FilterFieldMeta is a flat, frontend-compatible representation of a filterable field.

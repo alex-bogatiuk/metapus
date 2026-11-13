@@ -17,6 +17,7 @@ import type { JsonObject } from "@/lib/json-value"
  *   money      → checked text input of minor units
  *   integer    → <Input type="number" />
  *   number     → <Input type="number" />
+ *   enum       → <Select />, or <ColorPicker /> for palette colours (widget "color")
  */
 
 import React, { useEffect, useState, useCallback, useRef } from "react"
@@ -27,6 +28,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { ColorPicker } from "@/components/ui/color-picker"
 import { Button } from "@/components/ui/button"
 import {
     AlertDialog,
@@ -262,6 +264,18 @@ function fieldToInput(
             )
         }
         default:
+            if (field.widget === "color" && field.enumValues) {
+                return (
+                    <ColorPicker
+                        id={field.name}
+                        value={typeof v === "string" ? v : ""}
+                        onChange={handleChange}
+                        options={field.enumValues}
+                        disabled={disabled}
+                        readOnly={effectiveReadOnly}
+                    />
+                )
+            }
             // Enum fields: render as dropdown when enumValues are available
             if (field.enumValues && field.enumValues.length > 0) {
                 return (

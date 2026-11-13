@@ -1,6 +1,10 @@
 package metadata
 
-import "testing"
+import (
+	"testing"
+
+	"metapus/internal/core/types"
+)
 
 func TestInspect_ListHiddenFromMetaTag(t *testing.T) {
 	type sample struct {
@@ -77,5 +81,19 @@ func TestInspect_ReadOnlyTagKeepsCustodyReferenceImmutableInForm(t *testing.T) {
 	def := Inspect(sample{}, "Sample", TypeCatalog)
 	if !def.Fields[0].ReadOnly || def.Fields[1].ReadOnly {
 		t.Fatalf("read-only fields: %+v", def.Fields)
+	}
+}
+
+func TestInspect_PaletteColorIsAColorEnum(t *testing.T) {
+	type sample struct {
+		Color types.PaletteColor `json:"color" meta:"label:Цвет"`
+	}
+
+	field := Inspect(sample{}, "Sample", TypeCatalog).Fields[0]
+	if field.Type != TypeEnum || field.Widget != WidgetColor {
+		t.Fatalf("palette colour must be an enum shown as a colour picker, got %q/%q", field.Type, field.Widget)
+	}
+	if len(field.EnumValues) != len(types.PaletteChoices) || field.EnumValues[0].Value != string(types.PaletteRed) || field.EnumValues[0].Label == "" {
+		t.Fatalf("palette colour must offer the palette in order with names, got %+v", field.EnumValues)
 	}
 }

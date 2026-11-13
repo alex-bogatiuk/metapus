@@ -37,6 +37,7 @@ type Asset struct {
 	NetworkID             string     `json:"networkId"`
 	Symbol                string     `json:"symbol"`
 	Network               string     `json:"network"`
+	NetworkColor          string     `json:"networkColor"`
 	DecimalPlaces         int        `json:"decimalPlaces"`
 	MerchantMinor         string     `json:"merchantMinor"`
 	WalletMinor           string     `json:"walletMinor"`

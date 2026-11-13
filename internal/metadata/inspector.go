@@ -20,6 +20,7 @@ var (
 	cryptoAmountType = reflect.TypeFor[types.CryptoAmount]()
 	typedRefType     = reflect.TypeFor[entity.TypedRef]()
 	decimalType      = reflect.TypeFor[decimal.Decimal]()
+	paletteColorType = reflect.TypeFor[types.PaletteColor]()
 )
 
 // Inspect analyzes a struct and returns its EntityDef.
@@ -288,6 +289,17 @@ func mapFieldType(def *FieldDef, field reflect.StructField) {
 		// CryptoAmount is stored in token minor units (sun/wei) — no currency scaling.
 		// Use TypeInteger for simple numeric comparison (no currency_id lookup).
 		def.Type = TypeInteger
+		return
+	}
+
+	// A palette colour is an enum the form shows as a colour picker.
+	if actual == paletteColorType {
+		def.Type = TypeEnum
+		def.Widget = WidgetColor
+		def.EnumValues = make([]EnumValue, 0, len(types.PaletteChoices))
+		for _, choice := range types.PaletteChoices {
+			def.EnumValues = append(def.EnumValues, EnumValue{Value: string(choice.Color), Label: choice.Label})
+		}
 		return
 	}
 
