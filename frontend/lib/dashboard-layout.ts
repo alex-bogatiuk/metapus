@@ -47,3 +47,86 @@ export function persistedDashboardLayout<T>(value: T): DashboardLayout {
   const parsed = z.object({ layout: jsonValueSchema }).safeParse(value)
   return normalizeDashboardLayout(parsed.success ? parsed.data.layout : null)
 }
+
+/** A grid item as react-grid-layout places it; `i` is the widget instance id. */
+export interface GridItem { i: string; x: number; y: number; w: number; h: number }
+
+/** Rows a calm widget asks for, by instance id. A widget never grows past its configured height. */
+export type CompactRows = Readonly<Record<string, number>>
+
+const effective = (item: GridItem, rows: CompactRows) => Math.max(1, Math.min(item.h, rows[item.i] ?? item.h))
+
+/**
+ * Shrinks the desktop layout where widgets have nothing to show, without opening gaps.
+ * The layout is cut into horizontal bands (widgets whose rows overlap). A band shrinks only
+ * when every widget in it spans the whole band: its height becomes the tallest request among them.
+ * Bands with stacked widgets keep their height. Bands below move up by what was saved.
+ */
+export function compactLayout(items: readonly GridItem[], rows: CompactRows): GridItem[] {
+  const order = [...items].sort((a, b) => a.y - b.y || a.x - b.x)
+  const bands: { top: number; bottom: number; items: GridItem[] }[] = []
+  for (const item of order) {
+    const band = bands[bands.length - 1]
+    if (band && item.y < band.bottom) {
+      band.items.push(item)
+      band.bottom = Math.max(band.bottom, item.y + item.h)
+    } else {
+      bands.push({ top: item.y, bottom: item.y + item.h, items: [item] })
+    }
+  }
+  const out: GridItem[] = []
+  let y = 0
+  for (const band of bands) {
+    const flat = band.items.every(item => item.y === band.top && item.y + item.h === band.bottom)
+    const height = flat ? Math.max(...band.items.map(item => effective(item, rows))) : band.bottom - band.top
+    for (const item of band.items) out.push({ ...item, y: y + item.y - band.top, h: flat ? height : item.h })
+    y += height
+  }
+  return out
+}
+
+/** Desktop widths at or above this many of 12 columns span a whole row when the grid narrows. */
+const WIDE_SPAN = 8
+
+/**
+ * Reflows the desktop (12-column) layout for a narrower grid instead of cropping it,
+ * so no row is left with a gap. Widgets keep their reading order (top to bottom, left to right):
+ * wide ones take the full row; the rest pair up two per row when their configured heights match;
+ * a widget without a pair takes the full row. With one column everything stacks.
+ * Each row is as tall as its widgets need (`rows` lets calm widgets ask for less).
+ */
+export function reflowLayout(items: readonly GridItem[], cols: number, rows: CompactRows = {}): GridItem[] {
+  const order = [...items].sort((a, b) => a.y - b.y || a.x - b.x)
+  const out: GridItem[] = []
+  let y = 0
+  const full = (item: GridItem) => {
+    const h = effective(item, rows)
+    out.push({ i: item.i, x: 0, y, w: cols, h })
+    y += h
+  }
+  if (cols < 2) {
+    order.forEach(full)
+    return out
+  }
+  const half = Math.floor(cols / 2)
+  let pending: GridItem | null = null
+  for (const item of order) {
+    if (item.w >= WIDE_SPAN) {
+      if (pending) full(pending)
+      pending = null
+      full(item)
+    } else if (!pending) {
+      pending = item
+    } else if (pending.h === item.h) {
+      const h = Math.max(effective(pending, rows), effective(item, rows))
+      out.push({ i: pending.i, x: 0, y, w: half, h }, { i: item.i, x: half, y, w: cols - half, h })
+      y += h
+      pending = null
+    } else {
+      full(pending)
+      pending = item
+    }
+  }
+  if (pending) full(pending)
+  return out
+}

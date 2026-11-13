@@ -195,11 +195,11 @@ export function SiteHeader() {
 
     return (
         <>
-            <header data-material="chrome" className="relative flex h-12 shrink-0 items-end border-b border-border/70 pr-4">
+            <header className="relative flex h-12 shrink-0 items-center gap-1 border-b border-border bg-workspace-surface pr-2">
                 {/* Sidebar trigger + Separator */}
-                <div className="flex h-full items-center pl-2 pr-4">
-                    <SidebarTrigger className="h-7 w-7 shrink-0" />
-                    <div className="mx-4 h-6 w-px bg-border" />
+                <div className="flex h-full items-center pl-2">
+                    <SidebarTrigger className="h-7 w-7 shrink-0 text-muted-foreground" />
+                    <div className="mx-2 h-4 w-px bg-border" />
                 </div>
 
                 {/* Scrollable tab bar */}
@@ -212,20 +212,20 @@ export function SiteHeader() {
 
                 {/* Tab overflow dropdown + Command Palette + Notification Bell */}
                 <TooltipProvider delayDuration={300}>
-                    <div className="flex shrink-0 items-center justify-end px-2 mb-1 gap-1">
+                    <div className="flex shrink-0 items-center justify-end gap-1 pl-2">
                         <TabOverflow onTabClick={handleTabClick} onCloseAll={handleCloseAll} />
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button
                                     id="command-palette-trigger"
-                                    variant="ghost"
+                                    variant="outline"
                                     size="sm"
-                                    className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+                                    aria-label="Поиск и команды"
+                                    className="gap-1.5 px-2 font-normal text-muted-foreground hover:text-foreground"
                                     onClick={() => useCommandPaletteStore.getState().setOpen(true)}
                                 >
                                     <Search data-icon="inline-start" />
-                                    <span className="hidden sm:inline">Поиск</span>
-                                    <kbd className="pointer-events-none hidden h-5 select-none items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:inline-flex">
+                                    <kbd className="pointer-events-none hidden h-[18px] select-none items-center gap-0.5 rounded-[5px] border bg-muted px-1.5 font-mono text-[10.5px] font-medium text-muted-foreground sm:inline-flex">
                                         Ctrl K
                                     </kbd>
                                 </Button>

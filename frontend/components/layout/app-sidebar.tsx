@@ -24,7 +24,9 @@ import { usePathname, useRouter } from "next/navigation"
 import { useMemo, useState } from "react"
 
 import { LogoIcon } from "@/components/icons/logo"
+import { getEntityIcon } from "@/lib/entity-icon"
 import {
+  MobileSectionDrill,
   SectionPanel,
   type NavSection,
   type ResolvedNavSection,
@@ -53,6 +55,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { usePermissions } from "@/hooks/use-permissions"
 import { api } from "@/lib/api"
@@ -206,6 +209,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const metaLoaded = useMetadataStore((s) => s.loaded)
   const [prefsOpen, setPrefsOpen] = useState(false)
   const [activeSection, setActiveSection] = useState<ResolvedNavSection | null>(null)
+  const { isMobile, setOpenMobile } = useSidebar()
   const unreadCount = useNotificationStore((s) => s.unreadCount)
   const setPanelOpen = useNotificationStore((s) => s.setPanelOpen)
 
@@ -222,7 +226,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             (item.entityKey !== "crypto_adjustment" || canReadAdjustments)
           ).flatMap((item) => {
             if (item.url) {
-              return [{ title: item.fallback, url: item.url, description: item.description }]
+              return [{ title: item.fallback, url: item.url, description: item.description, icon: getEntityIcon(item.entityKey) }]
             }
             const entity = entities.find((entity) => entity.key === item.entityKey)
             const title = entity?.presentation.plural ?? item.fallback
@@ -230,7 +234,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             const entityType = entity?.type ?? "catalog"
             if (entityType === "register") return []
             const url = buildEntityUrlByRoute(routePrefix, entityType)
-            return [{ title, url, description: item.description }]
+            return [{ title, url, description: item.description, icon: getEntityIcon(item.entityKey) }]
           })
           return { label: group.label, items: resolvedItems }
         }),
@@ -287,6 +291,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     })
 
     router.push(item.url)
+    // On phones the sidebar is a drawer over the page: close it once the user picked where to go.
+    if (isMobile) setOpenMobile(false)
   }
 
   const handleLogout = async () => {
@@ -301,7 +307,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <>
-      <Sidebar collapsible="icon" {...props}>
+      <Sidebar collapsible="icon" variant="inset" {...props}>
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>
@@ -329,6 +335,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenu>
         </SidebarHeader>
 
+        <MobileSectionDrill currentPath={pathname} onItemClick={handleNavClick}>{(openSection) => (
         <SidebarContent>
 
           {/* ── Top flat items (Главное) ── */}
@@ -361,9 +368,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       tooltip={section.title}
                       isActive={isSectionActive(section) || activeSection?.title === section.title}
                       onClick={() =>
-                        setActiveSection((prev) =>
-                          prev?.title === section.title ? null : section
-                        )
+                        isMobile
+                          ? openSection(section)
+                          : setActiveSection((prev) =>
+                            prev?.title === section.title ? null : section
+                          )
                       }
                     >
                       <section.icon />
@@ -446,6 +455,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
+        )}</MobileSectionDrill>
 
         {/* ── User Profile Footer ── */}
         <SidebarFooter>
@@ -511,7 +521,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       {/* ── Section Panel (companion, non-modal) ── */}
       <SectionPanel
         section={activeSection}
-        open={!!activeSection}
+        open={!!activeSection && !isMobile}
         onClose={() => setActiveSection(null)}
         onItemClick={handleNavClick}
         currentPath={pathname}

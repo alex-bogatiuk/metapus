@@ -16,6 +16,7 @@ const config = {
         brand: 'hsl(var(--brand) / <alpha-value>)',
         background: 'hsl(var(--background))',
         'workspace-surface': 'hsl(var(--workspace-surface))',
+        field: 'hsl(var(--field))',
         material: {
           chrome: 'hsl(var(--material-chrome))',
           workspace: 'hsl(var(--material-workspace))',
@@ -68,6 +69,10 @@ const config = {
         warning: {
           DEFAULT: 'hsl(var(--warning))',
           foreground: 'hsl(var(--warning-foreground))'
+        },
+        info: {
+          DEFAULT: 'hsl(var(--info))',
+          foreground: 'hsl(var(--info-foreground))'
         },
         chart: {
           '1': 'hsl(var(--chart-1))',

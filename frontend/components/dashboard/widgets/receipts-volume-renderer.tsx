@@ -6,6 +6,7 @@ import { ChartContainer } from "@/components/ui/chart"
 import { formatPortalAmount, receiptSeries, receiptAxisLabel, receiptAxisTicks } from "@/lib/portal-overview"
 import type { WidgetRenderProps } from "@/types/dashboard"
 import { WidgetBody, WidgetEmpty } from "./widget-state"
+import { useCompactRows } from "./compact-rows"
 import { useAnalytics } from "./analytics-controls"
 
 export default function Receipts(props: WidgetRenderProps<"receipts-volume">) {
@@ -13,10 +14,11 @@ export default function Receipts(props: WidgetRenderProps<"receipts-volume">) {
   const series = receiptSeries(state.data?.receipts ?? [], state.asset?.tokenId ?? "", props.config.period, state.data ? new Date(state.data.toDay + "T00:00:00Z") : new Date())
   const scale = state.asset?.decimalPlaces ?? 0
   const axis = receiptAxisTicks(series.max, scale)
+  useCompactRows(state.data && !state.error && (!state.asset || series.total === "0") ? 2 : null)
   return <WidgetBody title="Объём поступлений" description="Подтверждённые и проведённые платежи · дни по UTC" loading={state.loading} error={state.error} retry={state.refetch} controls={state.controls}>
-    {!state.asset ? <WidgetEmpty icon={Coins} title="Токены не настроены" action={{ label: "Открыть токены", href: "/catalogs/tokens" }} /> : <>
-      <div className="mb-2"><span className="text-2xl font-semibold tracking-tight tabular-nums">{formatPortalAmount(series.total, scale)}</span> <span className="text-sm text-muted-foreground">{state.asset.symbol} за период</span></div>
-      {series.total === "0" ? <WidgetEmpty icon={BarChart3} title="Поступлений за период нет" description="Здесь появятся подтверждённые платежи." />
+    {!state.asset ? <WidgetEmpty inline icon={Coins} title="Токены не настроены" action={{ label: "Открыть токены", href: "/catalogs/tokens" }} /> : <>
+      <div className="mb-2"><span className="text-[26px] font-semibold leading-tight tracking-tight tabular-nums">{formatPortalAmount(series.total, scale)}</span> <span className="text-sm text-muted-foreground">{state.asset.symbol} за период</span></div>
+      {series.total === "0" ? <WidgetEmpty inline icon={BarChart3} title="Поступлений за период нет" description="Здесь появятся подтверждённые платежи." />
         // The chart takes whatever height the widget has left, so a taller widget means a taller chart, not empty space.
         : <ChartContainer className="min-h-40 w-full flex-1" config={{ height: { label: "Поступления", color: "hsl(var(--chart-1))" } }} aria-label={`Поступления: ${state.asset.symbol}, ${state.asset.network}`}>
           <BarChart data={series.days} accessibilityLayer margin={{ top: 8, right: 4, left: 0, bottom: 0 }} barCategoryGap="18%">

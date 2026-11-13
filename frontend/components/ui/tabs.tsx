@@ -16,9 +16,9 @@ const TabsList = React.forwardRef<
     ref={ref}
     className={cn(
       variant === "default" &&
-      "inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground",
+      "inline-flex h-8 items-center justify-center gap-0.5 rounded-lg border border-border bg-muted/70 p-[3px] text-muted-foreground",
       variant === "line" &&
-      "inline-flex h-10 items-center justify-start border-b bg-transparent p-0 text-muted-foreground w-full gap-6",
+      "inline-flex h-9 items-center justify-start border-b bg-transparent p-0 text-muted-foreground w-full gap-5",
       className
     )}
     {...props}
@@ -36,9 +36,9 @@ const TabsTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       variant === "default" &&
-      "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-workspace-surface data-[state=active]:text-foreground data-[state=active]:shadow",
+      "inline-flex h-full items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-[13px] font-medium transition-[color,background-color,box-shadow] hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-control data-[state=active]:ring-1 data-[state=active]:ring-border dark:data-[state=active]:bg-accent [&_svg]:size-3.5",
       variant === "line" &&
-      "inline-flex items-center justify-center whitespace-nowrap border-b-2 border-transparent px-1 py-2 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none rounded-none",
+      "-mb-px inline-flex h-full items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-b-2 border-transparent px-0.5 text-sm font-medium transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none",
       className
     )}
     {...props}
@@ -53,7 +53,7 @@ const TabsContent = React.forwardRef<
   <TabsPrimitive.Content
     ref={ref}
     className={cn(
-      "mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+      "mt-2 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/25",
       className
     )}
     {...props}

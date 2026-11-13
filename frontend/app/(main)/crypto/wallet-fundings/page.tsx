@@ -29,7 +29,7 @@ export default function WalletFundingsPage() {
 
   if (!canRead) return <p className="p-6 text-muted-foreground">Нет доступа к пополнениям кошельков.</p>
   const items = data?.items ?? []
-  return <div className="flex flex-col gap-6 p-6">
+  return <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-6 [&>*]:shrink-0">
     <div className="flex flex-col gap-1">
       <h1 className="text-2xl font-semibold">Пополнения кошельков</h1>
       <p className="text-sm text-muted-foreground">

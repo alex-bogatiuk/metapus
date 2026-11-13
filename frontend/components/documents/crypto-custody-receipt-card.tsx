@@ -81,7 +81,7 @@ export default function CustodyReceiptCard({ id }: CustodyReceiptCardProps) {
     const amount = (raw: string) => `${formatMinorUnits(raw, receipt.decimalPlaces)} ${receipt.tokenSymbol}`
     const hint = receiptRowStateHints[receipt.state]
 
-    return <div className="flex flex-col gap-6 p-6">
+    return <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-6 [&>*]:shrink-0">
         <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex flex-col gap-1">
                 <h1 className="text-2xl font-semibold">Поступление {receipt.number}</h1>

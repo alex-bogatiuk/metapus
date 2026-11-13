@@ -30,7 +30,7 @@ export function OutflowsTable({
 }) {
   return (
     <Table className="min-w-[980px]">
-      <TableHeader className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm">
+      <TableHeader className="sticky top-0 z-10">
         <TableRow>
           <TableHead className="h-9 px-3 py-2">Статус</TableHead>
           <TableHead className="h-9 px-3 py-2 text-right">Сумма</TableHead>

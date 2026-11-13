@@ -21,6 +21,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useTabsStore, type Tab } from "@/stores/useTabsStore"
+import { useMetadataStore } from "@/stores/useMetadataStore"
+import { getRouteIcon } from "@/lib/entity-icon"
 
 interface TabItemProps {
   tab: Tab
@@ -44,22 +46,27 @@ function tabClassName({
   isDragging?: boolean
 }) {
   return cn(
-    "group flex h-[36px] min-w-[7.5rem] max-w-[12.5rem] flex-[1_1_0] items-center gap-2 rounded-t-md border-x border-t-2 px-3 text-xs font-medium select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1",
+    "group relative flex h-7 min-w-[7.5rem] max-w-[12.5rem] flex-[1_1_0] items-center gap-1.5 rounded-md pl-2 pr-1.5 text-[13px] select-none focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/25",
     isActive
-      ? "relative z-10 -mb-px bg-workspace-surface text-foreground border-border border-t-primary"
-      : "relative bg-muted/30 text-muted-foreground border-border border-t-border hover:bg-muted hover:text-foreground",
-    isDragging && "z-50 shadow-lg ring-1 ring-border/50 bg-background",
+      ? "z-10 bg-accent font-medium text-foreground"
+      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+    isDragging && "z-50 bg-popover shadow-floating ring-1 ring-border",
   )
 }
 
 function TabTitle({ tab }: { tab: Tab }) {
+  // Metadata may arrive after the tab opens; re-render so entity tabs pick up their icon.
+  useMetadataStore((s) => s.loaded)
   return (
+    <>
+    {React.createElement(getRouteIcon(tab.url), { "aria-hidden": true, className: "size-3.5 shrink-0 opacity-80" })}
     <span className="flex-1 truncate text-left">
       {tab.isDirty && (
         <span className="mr-1 text-destructive">●</span>
       )}
       {tab.title}
     </span>
+    </>
   )
 }
 
@@ -203,8 +210,8 @@ export const TabItem = React.memo(function TabItem({
                     onKeyDown={handleCloseKeyDown}
                     onPointerDown={(e) => e.stopPropagation()}
                     className={cn(
-                      "flex size-4 shrink-0 items-center justify-center rounded-sm transition-colors",
-                      "hover:bg-muted hover:text-foreground",
+                      "flex size-[18px] shrink-0 items-center justify-center rounded-[5px] transition-colors",
+                      "hover:bg-foreground/10 hover:text-foreground",
                       isActive
                         ? "text-muted-foreground"
                         : "opacity-0 group-hover:opacity-100 text-muted-foreground/60",

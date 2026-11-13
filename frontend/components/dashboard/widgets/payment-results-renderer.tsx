@@ -3,6 +3,7 @@ import { Receipt } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { WidgetRenderProps } from "@/types/dashboard"
 import { WidgetBody, WidgetEmpty } from "./widget-state"
+import { useCompactRows } from "./compact-rows"
 import { useAnalytics } from "./analytics-controls"
 
 type Asset = NonNullable<ReturnType<typeof useAnalytics>["asset"]>
@@ -20,11 +21,12 @@ const percent = (count: number, total: number) => (count / total * 100).toFixed(
 
 export default function Results(props: WidgetRenderProps<"payment-results">) {
   const state = useAnalytics(props)
+  useCompactRows(state.data && !state.error && !state.asset?.created ? 2 : null)
   const a = state.asset
   return <WidgetBody title="Результаты инвойсов" loading={state.loading} error={state.error} retry={state.refetch} controls={state.controls}>
-    {!a || !a.created ? <WidgetEmpty icon={Receipt} title="Инвойсов за период нет" /> : <div className="flex flex-col gap-3">
+    {!a || !a.created ? <WidgetEmpty inline icon={Receipt} title="Инвойсов за период нет" /> : <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <p><span className="text-2xl font-semibold tracking-tight tabular-nums">{percent(a.paid, a.created)}</span> <span className="text-sm text-muted-foreground">оплачено</span></p>
+        <p><span className="text-[26px] font-semibold leading-tight tracking-tight tabular-nums">{percent(a.paid, a.created)}</span> <span className="text-sm text-muted-foreground">оплачено</span></p>
         <p className="text-xs text-muted-foreground">Создано за период: <span className="font-medium tabular-nums text-foreground">{a.created}</span> · UTC</p>
       </div>
       <div role="img" aria-label={outcomes.map(o => `${o.label}: ${a[o.key]}`).join(", ")} className="flex h-2 gap-px overflow-hidden rounded-full bg-muted">

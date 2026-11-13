@@ -28,7 +28,7 @@ export function TabOverflow({ onTabClick, onCloseAll }: TabOverflowProps) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="flex h-[36px] w-8 shrink-0 items-center justify-center rounded-t-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors gap-0.5"
+          className="flex h-7 w-8 shrink-0 items-center justify-center gap-0.5 rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           aria-label="Все вкладки"
         >
           <ChevronDown className="h-3.5 w-3.5" />

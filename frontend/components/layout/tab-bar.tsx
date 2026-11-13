@@ -169,13 +169,13 @@ export function TabBar({ onTabClick, onTabClose, onCloseOthers, onCloseRight }: 
   }, [])
 
   return (
-    <div className="flex flex-1 items-end min-w-0">
+    <div className="flex flex-1 items-center min-w-0">
       {/* Left scroll indicator */}
       {hasOverflow && (
         <button
           disabled={!canScrollLeft}
           onClick={() => scrollToHiddenTab("left")}
-          className="relative z-10 flex h-[36px] w-6 shrink-0 items-center justify-center bg-gradient-to-r from-muted/40 to-transparent transition-colors hover:from-muted/60 disabled:pointer-events-none disabled:opacity-30"
+          className="relative z-10 flex h-7 w-6 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-30"
           aria-label="Прокрутить влево"
         >
           <ChevronLeft className="h-3.5 w-3.5 text-muted-foreground" />
@@ -199,7 +199,7 @@ export function TabBar({ onTabClick, onTabClose, onCloseOthers, onCloseRight }: 
         >
           <div
             ref={tabBarRef}
-            className="flex flex-1 items-end gap-1 overflow-x-auto scrollbar-hide"
+            className="flex flex-1 items-center gap-0.5 overflow-x-auto scrollbar-hide"
             onScroll={handleScroll}
           >
             {tabs.map((tab) => (
@@ -223,7 +223,7 @@ export function TabBar({ onTabClick, onTabClose, onCloseOthers, onCloseRight }: 
         <button
           disabled={!canScrollRight}
           onClick={() => scrollToHiddenTab("right")}
-          className="relative z-10 flex h-[36px] w-6 shrink-0 items-center justify-center bg-gradient-to-l from-muted/40 to-transparent transition-colors hover:from-muted/60 disabled:pointer-events-none disabled:opacity-30"
+          className="relative z-10 flex h-7 w-6 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-30"
           aria-label="Прокрутить вправо"
         >
           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />

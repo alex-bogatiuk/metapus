@@ -22,7 +22,7 @@ export function AllowlistTable({
 }) {
   return (
     <Table className="min-w-[720px]">
-      <TableHeader className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm">
+      <TableHeader className="sticky top-0 z-10">
         <TableRow>
           <TableHead className="h-9 px-3 py-2">Метка</TableHead>
           <TableHead className="h-9 px-3 py-2">Адрес</TableHead>
