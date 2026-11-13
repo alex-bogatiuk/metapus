@@ -83,6 +83,11 @@ export function commonAPIResponse(pathname: string, user: AuthUserResponse = erp
     return { userId: user.id, interface: {}, listFilters: {}, listColumns: {}, dashboardLayout: null, favorites: [], updatedAt: "2026-09-12T00:00:00Z" }
   }
   if (pathname === "/api/v1/meta/entities") return []
+  // Every authenticated page asks for these in the background. A body that fails their schema
+  // makes the stores log console.error, which the Next.js dev overlay counts as issues.
+  // An empty ticket is valid and keeps the client from opening a socket to a server that is not there.
+  if (pathname === "/api/v1/auth/ws-ticket") return { ticket: "" }
+  if (pathname === "/api/v1/system/notifications") return { items: [], unreadCount: 0 }
   return undefined
 }
 

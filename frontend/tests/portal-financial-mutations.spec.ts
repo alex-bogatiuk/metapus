@@ -124,11 +124,20 @@ test("withdrawal step-up retries the same durable command without changing balan
           decimalPlaces: 6,
           currencyCode: "USD",
           rawAmount: "100000000",
-          humanAmount: "100.000000",
+          humanAmount: "100",
           pendingRaw: "0", pendingHuman: "0", availableRaw: "100000000", availableHuman: "100",
           valuation: { status: "unavailable", reason: "no_rate", selectedQuote: null, lastKnownQuote: null, freshUntil: null, total: null, pending: null, available: null },
         }],
       })
+    }
+    // Risk routing is off for this token, so the limit is the ledger balance and the request carries no risk class.
+    if (pathname === "/portal/v1/balances/risk") {
+      return json(route, { snapshotId: "risk-off", asOf: "2026-08-30T12:00:00Z", freshUntil: "2026-08-30T12:10:00Z", items: [{
+        merchantId: ids.merchant, networkId: ids.network, tokenId: ids.token, symbol: "USDT", network: "Sepolia", decimalPlaces: 6,
+        routingEnabled: false, scopeVersion: 1, allocationComplete: true, reason: "", hasHighExposure: false,
+        ledgerBalance: "100000000", pendingChain: "0", pendingRestoration: "0", total: "100000000", free: "100000000", reserved: "0", technicalHold: "0",
+        buckets: [],
+      }] })
     }
     if (pathname === "/portal/v1/withdrawal-addresses") {
       return json(route, { items: [{
