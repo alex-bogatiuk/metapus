@@ -59,13 +59,6 @@ func NewPlatformFundingService(txm tx.Manager, repo PlatformFundingRepository, p
 	return &PlatformFundingService{txm: txm, repo: repo, posting: posting, numbers: numbers, outbox: outbox, now: now}
 }
 
-type platformFundingEvent struct {
-	EntityType string                                         `json:"entityType"`
-	EntityID   string                                         `json:"entityId"`
-	Action     string                                         `json:"action"`
-	Doc        *crypto_platform_funding.CryptoPlatformFunding `json:"doc"`
-}
-
 func (s *PlatformFundingService) Prepare(ctx context.Context, cmd PreparePlatformFundingCommand) (*crypto_platform_funding.CryptoPlatformFunding, error) {
 	var result *crypto_platform_funding.CryptoPlatformFunding
 	err := s.txm.RunInTransaction(ctx, func(ctx context.Context) error {
@@ -140,38 +133,11 @@ func (s *PlatformFundingService) Reject(ctx context.Context, cmd DecidePlatformF
 	})
 }
 
-// decide locks the receipt balance before the funding, the order Prepare uses.
 func (s *PlatformFundingService) decide(ctx context.Context, cmd DecidePlatformFundingCommand,
 	apply func(context.Context, *crypto_platform_funding.CryptoPlatformFunding, ReceiptRemainder) error) (*crypto_platform_funding.CryptoPlatformFunding, error) {
-	var result *crypto_platform_funding.CryptoPlatformFunding
-	err := s.txm.RunInTransaction(ctx, func(ctx context.Context) error {
-		current, err := s.repo.GetByID(ctx, cmd.FundingID)
-		if err != nil {
-			return err
-		}
-		remainder, err := s.repo.LockReceiptRemainder(ctx, current.ReceiptID)
-		if err != nil {
-			return err
-		}
-		doc, err := s.repo.GetByIDForUpdate(ctx, cmd.FundingID)
-		if err != nil {
-			return err
-		}
-		if cmd.ExpectedVersion > 0 && doc.Version != cmd.ExpectedVersion {
-			return apperror.NewConcurrentModification(crypto_platform_funding.DocumentType, cmd.FundingID)
-		}
-		if err := apply(ctx, doc, remainder); err != nil {
-			return err
-		}
-		result = doc
-		return nil
-	})
-	return result, err
+	return decideReceiptAttribution(ctx, s.txm, s.repo, crypto_platform_funding.DocumentType, cmd.FundingID, cmd.ExpectedVersion, apply)
 }
 
 func (s *PlatformFundingService) publish(ctx context.Context, doc *crypto_platform_funding.CryptoPlatformFunding, action string) error {
-	return s.outbox.Publish(ctx, domain.DomainEvent{
-		AggregateType: crypto_platform_funding.DocumentType, AggregateID: doc.ID, EventType: action,
-		Payload: platformFundingEvent{EntityType: crypto_platform_funding.DocumentType, EntityID: doc.ID.String(), Action: action, Doc: doc},
-	})
+	return publishReceiptAttribution(ctx, s.outbox, crypto_platform_funding.DocumentType, doc, action)
 }

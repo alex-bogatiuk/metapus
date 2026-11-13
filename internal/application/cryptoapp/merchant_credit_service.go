@@ -98,13 +98,6 @@ func NewMerchantCreditService(txm tx.Manager, repo MerchantCreditRepository, fee
 	return &MerchantCreditService{txm: txm, repo: repo, fees: fees, posting: posting, numbers: numbers, outbox: outbox, now: now}
 }
 
-type merchantCreditEvent struct {
-	EntityType string                                       `json:"entityType"`
-	EntityID   string                                       `json:"entityId"`
-	Action     string                                       `json:"action"`
-	Doc        *crypto_merchant_credit.CryptoMerchantCredit `json:"doc"`
-}
-
 func (s *MerchantCreditService) Prepare(ctx context.Context, cmd PrepareMerchantCreditCommand) (*crypto_merchant_credit.CryptoMerchantCredit, error) {
 	var result *crypto_merchant_credit.CryptoMerchantCredit
 	err := s.txm.RunInTransaction(ctx, func(ctx context.Context) error {
@@ -178,33 +171,9 @@ func (s *MerchantCreditService) Reject(ctx context.Context, cmd DecideMerchantCr
 	})
 }
 
-// decide locks the receipt balance before the credit, the same order Prepare uses.
 func (s *MerchantCreditService) decide(ctx context.Context, cmd DecideMerchantCreditCommand,
 	apply func(context.Context, *crypto_merchant_credit.CryptoMerchantCredit, ReceiptRemainder) error) (*crypto_merchant_credit.CryptoMerchantCredit, error) {
-	var result *crypto_merchant_credit.CryptoMerchantCredit
-	err := s.txm.RunInTransaction(ctx, func(ctx context.Context) error {
-		current, err := s.repo.GetByID(ctx, cmd.CreditID)
-		if err != nil {
-			return err
-		}
-		remainder, err := s.repo.LockReceiptRemainder(ctx, current.ReceiptID)
-		if err != nil {
-			return err
-		}
-		doc, err := s.repo.GetByIDForUpdate(ctx, cmd.CreditID)
-		if err != nil {
-			return err
-		}
-		if cmd.ExpectedVersion > 0 && doc.Version != cmd.ExpectedVersion {
-			return apperror.NewConcurrentModification(crypto_merchant_credit.DocumentType, cmd.CreditID)
-		}
-		if err := apply(ctx, doc, remainder); err != nil {
-			return err
-		}
-		result = doc
-		return nil
-	})
-	return result, err
+	return decideReceiptAttribution(ctx, s.txm, s.repo, crypto_merchant_credit.DocumentType, cmd.CreditID, cmd.ExpectedVersion, apply)
 }
 
 func (s *MerchantCreditService) post(ctx context.Context, doc *crypto_merchant_credit.CryptoMerchantCredit, actor id.ID) error {
@@ -218,8 +187,5 @@ func (s *MerchantCreditService) post(ctx context.Context, doc *crypto_merchant_c
 }
 
 func (s *MerchantCreditService) publish(ctx context.Context, doc *crypto_merchant_credit.CryptoMerchantCredit, action string) error {
-	return s.outbox.Publish(ctx, domain.DomainEvent{
-		AggregateType: crypto_merchant_credit.DocumentType, AggregateID: doc.ID, EventType: action,
-		Payload: merchantCreditEvent{EntityType: crypto_merchant_credit.DocumentType, EntityID: doc.ID.String(), Action: action, Doc: doc},
-	})
+	return publishReceiptAttribution(ctx, s.outbox, crypto_merchant_credit.DocumentType, doc, action)
 }

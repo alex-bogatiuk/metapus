@@ -133,6 +133,9 @@ func (f *CryptoPlatformFunding) TieMatches(tie *MerchantTie) bool {
 
 func (f *CryptoPlatformFunding) GetDocumentType() string { return DocumentType }
 
+// AttributedReceipt is the custody receipt whose remainder this document takes.
+func (f *CryptoPlatformFunding) AttributedReceipt() id.ID { return f.ReceiptID }
+
 func (f *CryptoPlatformFunding) Validate(ctx context.Context) error {
 	if err := f.Document.Validate(ctx); err != nil {
 		return err

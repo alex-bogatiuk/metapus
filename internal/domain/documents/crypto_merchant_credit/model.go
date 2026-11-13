@@ -101,6 +101,9 @@ func (c *CryptoMerchantCredit) Reject(actor id.ID, reason string, at time.Time) 
 
 func (c *CryptoMerchantCredit) GetDocumentType() string { return DocumentType }
 
+// AttributedReceipt is the custody receipt whose remainder this document takes.
+func (c *CryptoMerchantCredit) AttributedReceipt() id.ID { return c.ReceiptID }
+
 func (c *CryptoMerchantCredit) Validate(ctx context.Context) error {
 	if err := c.Document.Validate(ctx); err != nil {
 		return err
