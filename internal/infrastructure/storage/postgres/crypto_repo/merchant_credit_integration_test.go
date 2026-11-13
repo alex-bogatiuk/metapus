@@ -209,16 +209,16 @@ func TestOrphanedReceiptCannotBeCreditedButOpenCreditCanBeRejected(t *testing.T)
 	require.Equal(t, []string{basis.Amount.String(), "0"}, []string{suspense, merchant})
 }
 
-func (f merchantCreditFixture) journal(t *testing.T, state string, includeDust bool) UnidentifiedReceiptList {
+func (f merchantCreditFixture) journal(t *testing.T, state string, includeDust bool) cryptoapp.UnidentifiedReceiptList {
 	t.Helper()
-	list, err := NewUnidentifiedReceiptRepo().List(f.ctx, state, includeDust, 50, 0)
+	list, err := receiptJournal().List(f.ctx, state, includeDust, 50, 0)
 	require.NoError(t, err)
 	return list
 }
 
 func TestUnidentifiedReceiptJournalFollowsTheCreditLifecycle(t *testing.T) {
 	f := newMerchantCreditFixture(t, false)
-	open := f.journal(t, ReceiptJournalOpen, false)
+	open := f.journal(t, cryptoapp.ReceiptJournalOpen, false)
 	require.Equal(t, 1, open.Total)
 	item := open.Items[0]
 	require.Equal(t, f.receipt.String(), *item.ReceiptID)
@@ -230,7 +230,7 @@ func TestUnidentifiedReceiptJournalFollowsTheCreditLifecycle(t *testing.T) {
 	preparer := id.New()
 	credit, err := f.credits.Prepare(f.ctx, cryptoapp.PrepareMerchantCreditCommand{ReceiptID: f.receipt, MerchantID: f.merchant, Actor: preparer})
 	require.NoError(t, err)
-	item = f.journal(t, ReceiptJournalOpen, false).Items[0]
+	item = f.journal(t, cryptoapp.ReceiptJournalOpen, false).Items[0]
 	require.Equal(t, "awaiting_approval", item.State)
 	require.Equal(t, credit.ID.String(), *item.CreditID)
 	require.Equal(t, preparer.String(), *item.CreditPreparedBy)
@@ -238,12 +238,12 @@ func TestUnidentifiedReceiptJournalFollowsTheCreditLifecycle(t *testing.T) {
 
 	_, err = f.credits.Approve(f.ctx, cryptoapp.DecideMerchantCreditCommand{CreditID: credit.ID, Actor: id.New()})
 	require.NoError(t, err)
-	require.Zero(t, f.journal(t, ReceiptJournalOpen, false).Total)
-	credited := f.journal(t, ReceiptJournalCredited, false)
+	require.Zero(t, f.journal(t, cryptoapp.ReceiptJournalOpen, false).Total)
+	credited := f.journal(t, cryptoapp.ReceiptJournalCredited, false)
 	require.Equal(t, 1, credited.Total)
 	require.Equal(t, []string{"credited", "0", "posted"}, []string{credited.Items[0].State, credited.Items[0].Remainder, *credited.Items[0].CreditStatus})
-	require.Zero(t, f.journal(t, ReceiptJournalOrphaned, false).Total)
-	_, err = NewUnidentifiedReceiptRepo().List(f.ctx, "everything", false, 50, 0)
+	require.Zero(t, f.journal(t, cryptoapp.ReceiptJournalOrphaned, false).Total)
+	_, err = receiptJournal().List(f.ctx, "everything", false, 50, 0)
 	require.Error(t, err)
 }
 
@@ -252,11 +252,11 @@ func TestUnidentifiedReceiptJournalHidesDustByDefault(t *testing.T) {
 	f.request.Reason = "dust"
 	_, err := f.service.Record(f.ctx, f.request)
 	require.NoError(t, err)
-	list, err := NewUnidentifiedReceiptRepo().List(f.ctx, ReceiptJournalOpen, false, 50, 0)
+	list, err := receiptJournal().List(f.ctx, cryptoapp.ReceiptJournalOpen, false, 50, 0)
 	require.NoError(t, err)
 	require.Zero(t, list.Total)
 	require.Empty(t, list.Items)
-	list, err = NewUnidentifiedReceiptRepo().List(f.ctx, ReceiptJournalOpen, true, 50, 0)
+	list, err = receiptJournal().List(f.ctx, cryptoapp.ReceiptJournalOpen, true, 50, 0)
 	require.NoError(t, err)
 	require.Equal(t, 1, list.Total)
 	require.Equal(t, "dust", list.Items[0].Reason)
@@ -300,4 +300,9 @@ func TestMerchantCreditCommandsAreIdempotent(t *testing.T) {
 	var credits int
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT count(*) FROM reg_crypto_merchant_balance_movements WHERE merchant_id=$1`, f.merchant).Scan(&credits))
 	require.Equal(t, 1, credits)
+}
+
+// receiptJournal is the journal as the HTTP handler reads it.
+func receiptJournal() *cryptoapp.ReceiptJournal {
+	return cryptoapp.NewReceiptJournal(NewUnidentifiedReceiptRepo(), NewWalletFundingJournalRepo())
 }

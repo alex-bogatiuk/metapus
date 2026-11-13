@@ -133,7 +133,7 @@ func (s *MerchantCreditService) Prepare(ctx context.Context, cmd PrepareMerchant
 			return err
 		}
 		doc, err := crypto_merchant_credit.Prepare(cmd.ReceiptID, cmd.MerchantID, remainder.TokenID, cmd.InvoiceID, remainder.Amount,
-			crypto_merchant_credit.Fee{Fixed: tariff.FixedFee, PercentBP: tariff.PercentBP, Min: tariff.MinFee, Max: tariff.MaxFee},
+			tariff.Tariff(),
 			approval, cmd.Actor, s.now())
 		if err != nil {
 			return err

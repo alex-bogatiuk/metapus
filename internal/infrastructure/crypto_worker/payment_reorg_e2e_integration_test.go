@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
+	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto"
@@ -213,7 +214,7 @@ func TestPaymentE2EReorgCompensatesAndReinclusionCreditsAgain(t *testing.T) {
 	require.Equal(t, []string{"0", "0", "100000000", "100000000"}, []string{reorged.merchant, reorged.fee, reorged.suspense, reorged.custody},
 		"the merchant credit and fee are reversed, the receipt keeps custody")
 	require.Equal(t, 1, f.networkHolds(t, "posted_payment_reorg"))
-	journal, err := crypto_repo.NewUnidentifiedReceiptRepo().List(f.ctx, crypto_repo.ReceiptJournalOpen, false, 50, 0)
+	journal, err := cryptoapp.NewReceiptJournal(crypto_repo.NewUnidentifiedReceiptRepo(), crypto_repo.NewWalletFundingJournalRepo()).List(f.ctx, cryptoapp.ReceiptJournalOpen, false, 50, 0)
 	require.NoError(t, err)
 	require.Len(t, journal.Items, 1)
 	require.Equal(t, "payment_reorged", journal.Items[0].State, "no manual credit while the payment may come back")

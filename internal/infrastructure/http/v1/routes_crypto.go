@@ -1,20 +1,20 @@
 package v1
 
 import (
-	"metapus/internal/application/command"
-	"metapus/internal/application/integrationapp"
-	"metapus/internal/application/portalapp"
-	"metapus/internal/core/tenant"
 	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"metapus/internal/application/command"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/application/dashboardapp"
 	"metapus/internal/application/exchangerateapp"
+	"metapus/internal/application/integrationapp"
+	"metapus/internal/application/portalapp"
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/numerator"
+	"metapus/internal/core/tenant"
 	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/domain/crypto"
@@ -67,7 +67,8 @@ func registerUnidentifiedReceiptRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 	commands := cryptoapp.NewMerchantCreditCommands(service, executor)
 	fundings := cryptoapp.NewPlatformFundingCommands(cryptoapp.NewPlatformFundingService(txm, crypto_repo.NewPlatformFundingRepo(),
 		engine, cfg.Numerator, postgres.NewOutboxPublisher(), time.Now), executor)
-	handlers.NewUnidentifiedReceiptHandler(handlers.NewBaseHandler(), crypto_repo.NewUnidentifiedReceiptRepo(), commands, fundings).
+	journal := cryptoapp.NewReceiptJournal(crypto_repo.NewUnidentifiedReceiptRepo(), crypto_repo.NewWalletFundingJournalRepo())
+	handlers.NewUnidentifiedReceiptHandler(handlers.NewBaseHandler(), journal, commands, fundings).
 		RegisterRoutes(rg, middleware.SensitiveActionGuard(cfg.MFARepo, "crypto.receipt.credit", cfg.EventLogRepo))
 }
 

@@ -15,6 +15,7 @@ import (
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_merchant_credit"
 	"metapus/internal/domain/documents/crypto_payment"
+	"metapus/internal/domain/tariff"
 	"metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
@@ -45,7 +46,7 @@ func TestReorgedPaymentReceiptCannotBeCreditedManually(t *testing.T) {
 	require.Equal(t, []string{"23", "0", "0"}, f.balances(t))
 
 	// The receipt is back in the journal, marked as waiting for the chain.
-	open, err := NewUnidentifiedReceiptRepo().List(f.ctx, ReceiptJournalOpen, false, 50, 0)
+	open, err := receiptJournal().List(f.ctx, cryptoapp.ReceiptJournalOpen, false, 50, 0)
 	require.NoError(t, err)
 	require.Equal(t, 1, open.Total)
 	require.Equal(t, "payment_reorged", open.Items[0].State)
@@ -58,7 +59,7 @@ func TestReorgedPaymentReceiptCannotBeCreditedManually(t *testing.T) {
 
 	// The database refuses the credit even without the service check.
 	doc, err := crypto_merchant_credit.Prepare(f.receipt, f.payment.MerchantID, f.payment.TokenID, nil, types.MustCryptoAmount("23"),
-		crypto_merchant_credit.Fee{Fixed: types.ZeroCryptoAmount(), Min: types.ZeroCryptoAmount(), Max: types.ZeroCryptoAmount()},
+		tariff.Fee{Fixed: types.ZeroCryptoAmount(), Min: types.ZeroCryptoAmount(), Max: types.ZeroCryptoAmount()},
 		true, id.New(), time.Now())
 	require.NoError(t, err)
 	doc.Number = "CMC-" + id.Compact(doc.ID)
@@ -71,7 +72,7 @@ func TestReorgedPaymentReceiptCannotBeCreditedManually(t *testing.T) {
 	require.Equal(t, f.receipt, receipt)
 	require.NoError(t, f.post(f.payment, f.posting))
 	require.Equal(t, []string{"0", "20", "3"}, f.balances(t))
-	credited, err := NewUnidentifiedReceiptRepo().List(f.ctx, ReceiptJournalCredited, false, 50, 0)
+	credited, err := receiptJournal().List(f.ctx, cryptoapp.ReceiptJournalCredited, false, 50, 0)
 	require.NoError(t, err)
 	require.Zero(t, credited.Total, "a matched receipt held by its payment stays out of the journal")
 }
@@ -101,7 +102,7 @@ func TestReincludedReceiptMovesItsAuditToTheNewBlock(t *testing.T) {
 	require.Equal(t, moved.Event.BlockHash, tasks[0].BlockHash, "the audit proves the new block, not the orphaned one")
 	require.Equal(t, int64(101), tasks[0].BlockNumber)
 
-	detail, err := NewUnidentifiedReceiptRepo().Detail(f.ctx, f.receipt)
+	detail, err := receiptJournal().Detail(f.ctx, f.receipt)
 	require.NoError(t, err)
 	require.False(t, detail.Proof.Original)
 	require.Equal(t, movedID.String(), detail.Proof.VerificationID)
@@ -120,7 +121,7 @@ func TestReincludedReceiptMovesItsAuditToTheNewBlock(t *testing.T) {
 func TestReceiptDetailShowsProofAuditAndAttributions(t *testing.T) {
 	f := newPaymentAttributionFixture(t)
 	require.NoError(t, f.post(f.payment, f.posting))
-	detail, err := NewUnidentifiedReceiptRepo().Detail(f.ctx, f.receipt)
+	detail, err := receiptJournal().Detail(f.ctx, f.receipt)
 	require.NoError(t, err)
 	require.Equal(t, "credited", detail.Row.State)
 	require.Equal(t, "0", detail.Row.Remainder)
@@ -134,12 +135,12 @@ func TestReceiptDetailShowsProofAuditAndAttributions(t *testing.T) {
 		[]string{payment.DocumentType, payment.DocumentID, payment.Amount, payment.NetAmount, payment.ProcessingFee, payment.Outstanding})
 
 	f.reorgPayment(t)
-	detail, err = NewUnidentifiedReceiptRepo().Detail(f.ctx, f.receipt)
+	detail, err = receiptJournal().Detail(f.ctx, f.receipt)
 	require.NoError(t, err)
 	require.Equal(t, []string{"payment_reorged", "23"}, []string{detail.Row.State, detail.Row.Remainder})
 	require.Equal(t, "0", detail.Attributions[0].Outstanding, "the compensated payment no longer holds the receipt")
 	require.False(t, detail.Attributions[0].Posted)
 
-	_, err = NewUnidentifiedReceiptRepo().Detail(f.ctx, id.New())
+	_, err = receiptJournal().Detail(f.ctx, id.New())
 	require.Error(t, err)
 }

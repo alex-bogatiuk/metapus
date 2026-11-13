@@ -90,10 +90,10 @@ func TestPlatformFundingTakesTheRemainderOnlyAfterAnotherOperatorApproves(t *tes
 	require.Len(t, receiptMovements, 1)
 	require.Equal(t, "receipt", receiptMovements[0].RecordType)
 
-	credited := f.journal(t, ReceiptJournalCredited, false)
+	credited := f.journal(t, cryptoapp.ReceiptJournalCredited, false)
 	require.Equal(t, 1, credited.Total)
 	require.Equal(t, "posted", *credited.Items[0].FundingStatus)
-	detail, err := NewUnidentifiedReceiptRepo().Detail(f.ctx, f.receipt)
+	detail, err := receiptJournal().Detail(f.ctx, f.receipt)
 	require.NoError(t, err)
 	require.Len(t, detail.Attributions, 1)
 	require.Equal(t, []string{"CryptoPlatformFunding", "posted", f.request.Basis.Amount.String()},
@@ -102,7 +102,7 @@ func TestPlatformFundingTakesTheRemainderOnlyAfterAnotherOperatorApproves(t *tes
 
 func TestPlatformFundingOfAMerchantTiedReceiptNeedsAcknowledgementAndAnUnchangedTie(t *testing.T) {
 	f := newPlatformFundingFixture(t, true)
-	open := f.journal(t, ReceiptJournalOpen, false)
+	open := f.journal(t, cryptoapp.ReceiptJournalOpen, false)
 	require.Equal(t, 1, open.Total)
 	require.Equal(t, []string{f.merchant.String(), "Credit merchant", "custody_owner"},
 		[]string{*open.Items[0].TieMerchantID, *open.Items[0].TieMerchantName, *open.Items[0].TieLink}, "the journal warns before preparation")
@@ -153,7 +153,7 @@ func TestPlatformFundingIsReversedWithItsOrphanedReceipt(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT count(*) FROM reg_crypto_platform_funding_reversals WHERE funding_id=$1`, doc.ID).Scan(&reversals))
 	require.Equal(t, 1, reversals)
 
-	orphaned := f.journal(t, ReceiptJournalOrphaned, false)
+	orphaned := f.journal(t, cryptoapp.ReceiptJournalOrphaned, false)
 	require.Equal(t, 1, orphaned.Total)
 	require.Equal(t, "reversed", *orphaned.Items[0].FundingStatus)
 

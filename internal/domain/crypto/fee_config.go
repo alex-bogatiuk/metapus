@@ -5,6 +5,7 @@ import (
 
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
+	"metapus/internal/domain/tariff"
 )
 
 // FeeDirection represents the type of operation for fee calculation.
@@ -55,31 +56,15 @@ type EffectiveFee struct {
 	MaxFee    types.CryptoAmount // maximum total fee (0 = no cap)
 }
 
-// Calculate computes the actual fee amount for a given operation amount.
-// Formula: clamp(fixedFee + amount × percentBP / 10000, minFee, maxFee)
-//
-// Rules:
-//   - MinFee = 0 → no floor
-//   - MaxFee = 0 → no cap
-//   - All arithmetic uses big.Int (no precision loss)
+// Calculate computes the actual fee amount for a given operation amount with
+// the shared processing tariff rule.
 func (f EffectiveFee) Calculate(amount types.CryptoAmount) types.CryptoAmount {
-	// Percentage part: amount × percentBP / 10000
-	percentPart := amount.MulDiv(int64(f.PercentBP), 10000)
+	return f.Tariff().Amount(amount)
+}
 
-	// Total = fixed + percentage
-	total := f.FixedFee.Add(percentPart)
-
-	// Clamp: apply min floor
-	if f.MinFee.IsPositive() && total.Cmp(f.MinFee) < 0 {
-		total = f.MinFee
-	}
-
-	// Clamp: apply max cap
-	if f.MaxFee.IsPositive() && total.Cmp(f.MaxFee) > 0 {
-		total = f.MaxFee
-	}
-
-	return total
+// Tariff is the resolved fee as the processing tariff a document snapshots.
+func (f EffectiveFee) Tariff() tariff.Fee {
+	return tariff.Fee{Fixed: f.FixedFee, PercentBP: f.PercentBP, Min: f.MinFee, Max: f.MaxFee}
 }
 
 // IsZero returns true if this fee config would always produce zero fee.

@@ -12,7 +12,6 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/http/v1/middleware"
-	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 )
 
 // UnidentifiedReceiptHandler serves the journal of unidentified custody
@@ -20,16 +19,31 @@ import (
 // platform funding.
 type UnidentifiedReceiptHandler struct {
 	base     *BaseHandler
-	journal  *crypto_repo.UnidentifiedReceiptRepo
+	journal  *cryptoapp.ReceiptJournal
 	commands *cryptoapp.MerchantCreditCommands
 	fundings *cryptoapp.PlatformFundingCommands
-	wallets  *crypto_repo.WalletFundingJournalRepo
 }
 
-func NewUnidentifiedReceiptHandler(base *BaseHandler, journal *crypto_repo.UnidentifiedReceiptRepo,
+func NewUnidentifiedReceiptHandler(base *BaseHandler, journal *cryptoapp.ReceiptJournal,
 	commands *cryptoapp.MerchantCreditCommands, fundings *cryptoapp.PlatformFundingCommands) *UnidentifiedReceiptHandler {
-	return &UnidentifiedReceiptHandler{base: base, journal: journal, commands: commands, fundings: fundings,
-		wallets: crypto_repo.NewWalletFundingJournalRepo()}
+	if journal == nil || commands == nil || fundings == nil {
+		panic("unidentified receipts require the journal and the attribution commands")
+	}
+	return &UnidentifiedReceiptHandler{base: base, journal: journal, commands: commands, fundings: fundings}
+}
+
+// page reads limit and offset; their range is the journal's rule.
+func (h *UnidentifiedReceiptHandler) page(c *gin.Context) (limit, offset int, ok bool) {
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	if err != nil {
+		h.base.Error(c, apperror.NewValidation("limit must be a number"))
+		return 0, 0, false
+	}
+	if offset, err = strconv.Atoi(c.DefaultQuery("offset", "0")); err != nil {
+		h.base.Error(c, apperror.NewValidation("offset must be a number"))
+		return 0, 0, false
+	}
+	return limit, offset, true
 }
 
 // RegisterRoutes mounts the journal. stepUp guards every money command.
@@ -49,17 +63,11 @@ func (h *UnidentifiedReceiptHandler) RegisterRoutes(rg *gin.RouterGroup, stepUp 
 }
 
 func (h *UnidentifiedReceiptHandler) List(c *gin.Context) {
-	limit, err := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	if err != nil || limit < 1 || limit > 100 {
-		h.base.Error(c, apperror.NewValidation("limit must be between 1 and 100"))
+	limit, offset, ok := h.page(c)
+	if !ok {
 		return
 	}
-	offset, err := strconv.Atoi(c.DefaultQuery("offset", "0"))
-	if err != nil || offset < 0 {
-		h.base.Error(c, apperror.NewValidation("offset must be non-negative"))
-		return
-	}
-	list, err := h.journal.List(c.Request.Context(), c.DefaultQuery("state", crypto_repo.ReceiptJournalOpen),
+	list, err := h.journal.List(c.Request.Context(), c.DefaultQuery("state", cryptoapp.ReceiptJournalOpen),
 		c.Query("includeDust") == "true", limit, offset)
 	if err != nil {
 		h.base.Error(c, err)
@@ -177,17 +185,11 @@ func (h *UnidentifiedReceiptHandler) decision(c *gin.Context) (id.ID, dto.Decide
 
 // WalletFundings lists recorded external fundings of platform wallets, newest first.
 func (h *UnidentifiedReceiptHandler) WalletFundings(c *gin.Context) {
-	limit, err := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	if err != nil || limit < 1 || limit > 100 {
-		h.base.Error(c, apperror.NewValidation("limit must be between 1 and 100"))
+	limit, offset, ok := h.page(c)
+	if !ok {
 		return
 	}
-	offset, err := strconv.Atoi(c.DefaultQuery("offset", "0"))
-	if err != nil || offset < 0 {
-		h.base.Error(c, apperror.NewValidation("offset must be non-negative"))
-		return
-	}
-	list, err := h.wallets.List(c.Request.Context(), limit, offset)
+	list, err := h.journal.WalletFundings(c.Request.Context(), limit, offset)
 	if err != nil {
 		h.base.Error(c, err)
 		return
@@ -257,7 +259,7 @@ func (h *UnidentifiedReceiptHandler) writeCommandResult(c *gin.Context, result c
 	h.base.OK(c, result.Result.Payload)
 }
 
-func unidentifiedReceiptItem(row crypto_repo.UnidentifiedReceiptRow) dto.UnidentifiedReceiptItem {
+func unidentifiedReceiptItem(row cryptoapp.UnidentifiedReceiptRow) dto.UnidentifiedReceiptItem {
 	item := dto.UnidentifiedReceiptItem{
 		ReceiptID: optionalText(row.ReceiptID), InboxEventID: optionalText(row.InboxEventID), Number: row.Number, ReceivedAt: row.ReceivedAt,
 		NetworkID: row.NetworkID, NetworkName: row.NetworkName, TokenID: row.TokenID, TokenSymbol: row.TokenSymbol,

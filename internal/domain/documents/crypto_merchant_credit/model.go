@@ -12,8 +12,8 @@ import (
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
-	"metapus/internal/domain/documents/crypto_payment"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/tariff"
 )
 
 type Status string
@@ -23,12 +23,6 @@ const (
 	StatusPosted   Status = "posted"
 	StatusRejected Status = "rejected"
 )
-
-type Fee struct {
-	Fixed     types.CryptoAmount
-	PercentBP int
-	Min, Max  types.CryptoAmount
-}
 
 type CryptoMerchantCredit struct {
 	entity.Document
@@ -58,18 +52,18 @@ type CryptoMerchantCredit struct {
 // Prepare creates a credit of the whole receipt remainder with the merchant
 // tariff fixed at this moment.
 func Prepare(receiptID, merchantID, tokenID id.ID, invoiceID *id.ID, amount types.CryptoAmount,
-	fee Fee, approvalRequired bool, actor id.ID, at time.Time) (*CryptoMerchantCredit, error) {
+	fee tariff.Fee, approvalRequired bool, actor id.ID, at time.Time) (*CryptoMerchantCredit, error) {
 	if id.IsNil(receiptID) || id.IsNil(merchantID) || id.IsNil(tokenID) || id.IsNil(actor) || !amount.IsPositive() ||
 		(invoiceID != nil && id.IsNil(*invoiceID)) {
 		return nil, apperror.NewValidation("merchant credit requires receipt, merchant, token, amount and operator")
 	}
-	processing, _ := crypto_payment.CalculateFee(amount, fee.Fixed, fee.PercentBP, fee.Min, fee.Max)
+	processing, net := fee.Split(amount)
 	if processing.Cmp(amount) > 0 {
 		return nil, apperror.NewValidation("processing fee exceeds the received amount")
 	}
 	c := &CryptoMerchantCredit{
 		Document: entity.NewDocument(), ReceiptID: receiptID, MerchantID: merchantID, InvoiceID: invoiceID,
-		TokenID: tokenID, Amount: amount, ProcessingFee: processing, NetAmount: amount.Sub(processing),
+		TokenID: tokenID, Amount: amount, ProcessingFee: processing, NetAmount: net,
 		FeeFixed: fee.Fixed, FeePercentBP: fee.PercentBP, FeeMin: fee.Min, FeeMax: fee.Max,
 		Status: StatusPrepared, ApprovalRequired: approvalRequired, PreparedBy: actor, PreparedAt: at.UTC(),
 		SuspenseLineID: id.New(), MerchantLineID: id.New(), FeeLineID: id.New(),
@@ -79,7 +73,7 @@ func Prepare(receiptID, merchantID, tokenID id.ID, invoiceID *id.ID, amount type
 	return c, nil
 }
 
-// Decide records who posts the credit. A credit that needs approval cannot be
+// Approve records who posts the credit. A credit that needs approval cannot be
 // posted by the operator who prepared it.
 func (c *CryptoMerchantCredit) Approve(actor id.ID, at time.Time) error {
 	if c.Status != StatusPrepared {

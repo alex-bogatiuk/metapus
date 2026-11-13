@@ -3,89 +3,20 @@ package crypto_repo
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/georgysavva/scany/v2/pgxscan"
+	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/documents/crypto_payment"
 	"metapus/internal/infrastructure/storage/postgres"
 )
-
-// Journal states of the unidentified receipts list.
-const (
-	ReceiptJournalOpen     = "open"     // accounted, remainder not yet attributed
-	ReceiptJournalCredited = "credited" // fully attributed
-	ReceiptJournalOrphaned = "orphaned" // transfer left the canonical chain
-	ReceiptJournalPending  = "pending"  // observed, waiting for finality or proof
-)
-
-// UnidentifiedReceiptRow is one journal line: an accounted receipt or, for the
-// pending state, an observed transfer that is not accounted yet.
-type UnidentifiedReceiptRow struct {
-	ReceiptID         *string    `db:"receipt_id"`
-	InboxEventID      *string    `db:"inbox_event_id"`
-	Number            string     `db:"number"`
-	ReceivedAt        time.Time  `db:"received_at"`
-	NetworkID         string     `db:"network_id"`
-	NetworkName       string     `db:"network_name"`
-	TokenID           string     `db:"token_id"`
-	TokenSymbol       string     `db:"token_symbol"`
-	DecimalPlaces     int        `db:"decimal_places"`
-	WalletID          string     `db:"wallet_id"`
-	ToAddress         string     `db:"to_address"`
-	FromAddress       string     `db:"from_address"`
-	TxHash            string     `db:"tx_hash"`
-	Amount            string     `db:"amount"`
-	Remainder         string     `db:"remainder"`
-	Reason            string     `db:"reason"`
-	State             string     `db:"state"`
-	CustodyMerchantID *string    `db:"custody_merchant_id"`
-	InvoiceID         *string    `db:"invoice_id"`
-	PendingError      string     `db:"pending_error"`
-	CreditID          *string    `db:"credit_id"`
-	CreditNumber      *string    `db:"credit_number"`
-	CreditStatus      *string    `db:"credit_status"`
-	CreditVersion     *int       `db:"credit_version"`
-	CreditMerchantID  *string    `db:"credit_merchant_id"`
-	CreditMerchant    *string    `db:"credit_merchant"`
-	CreditNet         *string    `db:"credit_net"`
-	CreditFee         *string    `db:"credit_fee"`
-	CreditApproval    *bool      `db:"credit_approval"`
-	CreditPreparedBy  *string    `db:"credit_prepared_by"`
-	CreditDecidedAt   *time.Time `db:"credit_decided_at"`
-	CreditReason      *string    `db:"credit_reason"`
-	PaymentID         *string    `db:"payment_id"`
-	PaymentNumber     *string    `db:"payment_number"`
-	PaymentStatus     *string    `db:"payment_status"`
-	// The latest platform funding of the receipt.
-	FundingID             *string    `db:"funding_id"`
-	FundingNumber         *string    `db:"funding_number"`
-	FundingStatus         *string    `db:"funding_status"`
-	FundingVersion        *int       `db:"funding_version"`
-	FundingReason         *string    `db:"funding_reason"`
-	FundingMerchant       *string    `db:"funding_merchant"`
-	FundingMerchantLink   *string    `db:"funding_merchant_link"`
-	FundingPreparedBy     *string    `db:"funding_prepared_by"`
-	FundingDecidedAt      *time.Time `db:"funding_decided_at"`
-	FundingDecisionReason *string    `db:"funding_decision_reason"`
-	// The merchant the wallet ties the receipt to now; operators are warned
-	// before taking such a receipt as platform money.
-	TieMerchantID   *string `db:"tie_merchant_id"`
-	TieMerchantName *string `db:"tie_merchant_name"`
-	TieLink         *string `db:"tie_link"`
-}
-
-type UnidentifiedReceiptList struct {
-	Items []UnidentifiedReceiptRow
-	Total int
-}
 
 type UnidentifiedReceiptRepo struct{}
 
 func NewUnidentifiedReceiptRepo() *UnidentifiedReceiptRepo { return &UnidentifiedReceiptRepo{} }
+
+var _ cryptoapp.ReceiptJournalRepository = (*UnidentifiedReceiptRepo)(nil)
 
 const receiptJournalFrom = `
 	FROM doc_crypto_custody_receipts d
@@ -150,13 +81,11 @@ const receiptJournalJoins = `
 		LEFT JOIN LATERAL fn_crypto_receipt_merchant_link(d.id) tie ON TRUE
 		LEFT JOIN cat_merchants tm ON tm.id=tie.merchant_id`
 
-// List returns one page of the journal. Dust is accounted like any supported
-// asset but hidden unless includeDust is set: it is almost always spam.
-func (*UnidentifiedReceiptRepo) List(ctx context.Context, state string, includeDust bool, limit, offset int) (UnidentifiedReceiptList, error) {
-	result := UnidentifiedReceiptList{Items: []UnidentifiedReceiptRow{}}
+// List returns one page of the journal state the application validated.
+func (*UnidentifiedReceiptRepo) List(ctx context.Context, state string, includeDust bool, limit, offset int) (cryptoapp.UnidentifiedReceiptList, error) {
+	result := cryptoapp.UnidentifiedReceiptList{Items: []cryptoapp.UnidentifiedReceiptRow{}}
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
-	switch state {
-	case ReceiptJournalPending:
+	if state == cryptoapp.ReceiptJournalPending {
 		if err := q.QueryRow(ctx, `SELECT count(*)`+receiptPendingFrom, receiptEligibleReasons, includeDust).Scan(&result.Total); err != nil {
 			return result, fmt.Errorf("count pending receipts: %w", err)
 		}
@@ -182,9 +111,6 @@ func (*UnidentifiedReceiptRepo) List(ctx context.Context, state string, includeD
 			return result, fmt.Errorf("list pending receipts: %w", err)
 		}
 		return result, nil
-	case ReceiptJournalOpen, ReceiptJournalCredited, ReceiptJournalOrphaned:
-	default:
-		return result, apperror.NewValidation("invalid receipt journal state")
 	}
 	if err := q.QueryRow(ctx, `SELECT count(*)`+receiptJournalFrom, state, includeDust).Scan(&result.Total); err != nil {
 		return result, fmt.Errorf("count unidentified receipts: %w", err)
@@ -199,74 +125,9 @@ func (*UnidentifiedReceiptRepo) List(ctx context.Context, state string, includeD
 	return result, nil
 }
 
-// ReceiptProofSource is one independent provider that agreed on the transfer.
-type ReceiptProofSource struct {
-	ProviderID string `json:"providerId"`
-	TrustGroup string `json:"trustGroup"`
-	HeadHeight int64  `json:"headHeight"`
-}
-
-// ReceiptProof is the canonical proof the receipt audit currently rests on:
-// the original proof, or the proof of the block a re-included transfer moved to.
-type ReceiptProof struct {
-	VerificationID string               `db:"verification_id"`
-	Original       bool                 `db:"original"`
-	TxHash         string               `db:"tx_hash"`
-	EventKind      string               `db:"event_kind"`
-	EventIndex     int64                `db:"event_index"`
-	BlockNumber    int64                `db:"block_number"`
-	BlockHash      string               `db:"block_hash"`
-	Confirmations  int64                `db:"confirmations"`
-	VerifiedAt     time.Time            `db:"verified_at"`
-	Sources        []ReceiptProofSource `db:"sources"`
-}
-
-// ReceiptAuditState is the canonicality audit of the receipt.
-type ReceiptAuditState struct {
-	Status        string     `db:"status"`
-	LastCheckedAt *time.Time `db:"last_checked_at"`
-	NextCheckAt   time.Time  `db:"next_check_at"`
-	Attempts      int        `db:"attempts"`
-	LastError     string     `db:"last_error"`
-	OrphanedAt    *time.Time `db:"orphaned_at"`
-	IncidentID    *string    `db:"incident_id"`
-}
-
-// ReceiptAttribution is a document that attributes (or attributed) the
-// receipt: an invoice payment or a manual merchant credit. Outstanding is the
-// part of the receipt it still holds after compensations.
-type ReceiptAttribution struct {
-	DocumentType  string    `db:"document_type"`
-	DocumentID    string    `db:"document_id"`
-	Number        string    `db:"number"`
-	Date          time.Time `db:"date"`
-	Status        string    `db:"status"`
-	Posted        bool      `db:"posted"`
-	MerchantID    string    `db:"merchant_id"`
-	MerchantName  string    `db:"merchant_name"`
-	Amount        string    `db:"amount"`
-	NetAmount     string    `db:"net_amount"`
-	ProcessingFee string    `db:"processing_fee"`
-	Outstanding   string    `db:"outstanding"`
-	// The payment tariff snapshot; a credit stores its net and fee directly.
-	FeeFixed     types.CryptoAmount `db:"fee_fixed"`
-	FeePercentBP int                `db:"fee_percent_bp"`
-	FeeMin       types.CryptoAmount `db:"fee_min"`
-	FeeMax       types.CryptoAmount `db:"fee_max"`
-}
-
-// ReceiptDetail is the receipt card: the journal line, its proof, its audit
-// and the documents that distributed it.
-type ReceiptDetail struct {
-	Row          UnidentifiedReceiptRow
-	Proof        ReceiptProof
-	Audit        ReceiptAuditState
-	Attributions []ReceiptAttribution
-}
-
 // Detail returns the card of one accounted receipt.
-func (*UnidentifiedReceiptRepo) Detail(ctx context.Context, receiptID id.ID) (ReceiptDetail, error) {
-	var result ReceiptDetail
+func (*UnidentifiedReceiptRepo) Detail(ctx context.Context, receiptID id.ID) (cryptoapp.ReceiptDetail, error) {
+	var result cryptoapp.ReceiptDetail
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
 	err := pgxscan.Get(ctx, q, &result.Row, `SELECT `+receiptJournalColumns+`
 		FROM (SELECT d.*,s.amount AS remainder,a.status AS audit_status FROM doc_crypto_custody_receipts d
@@ -293,7 +154,7 @@ func (*UnidentifiedReceiptRepo) Detail(ctx context.Context, receiptID id.ID) (Re
 	if err := json.Unmarshal(sources, &result.Proof.Sources); err != nil {
 		return result, fmt.Errorf("decode custody receipt proof sources: %w", err)
 	}
-	result.Attributions = []ReceiptAttribution{}
+	result.Attributions = []cryptoapp.ReceiptAttribution{}
 	// Outstanding = what the document consumed from the receipt minus the
 	// reversals (reorg compensation, payment_reversal, the storno of a manual
 	// credit at orphaning) returned to it. A reversed credit stays posted.
@@ -330,18 +191,6 @@ func (*UnidentifiedReceiptRepo) Detail(ctx context.Context, receiptID id.ID) (Re
 		ORDER BY date,document_id`, receiptID)
 	if err != nil {
 		return result, fmt.Errorf("list custody receipt attributions: %w", err)
-	}
-	for i := range result.Attributions {
-		a := &result.Attributions[i]
-		if a.DocumentType != crypto_payment.Definition.Name {
-			continue
-		}
-		gross, err := types.NewCryptoAmountFromString(a.Amount)
-		if err != nil {
-			return result, fmt.Errorf("decode payment amount: %w", err)
-		}
-		fee, net := crypto_payment.CalculateFee(gross, a.FeeFixed, a.FeePercentBP, a.FeeMin, a.FeeMax)
-		a.ProcessingFee, a.NetAmount = fee.String(), net.String()
 	}
 	return result, nil
 }

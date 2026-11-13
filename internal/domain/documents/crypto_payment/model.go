@@ -13,6 +13,7 @@ import (
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto/aml"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/tariff"
 )
 
 // PaymentStatus defines the lifecycle state of a crypto payment (FSM).
@@ -159,35 +160,20 @@ func (p *CryptoPayment) SetFeeConfig(fixedFee types.CryptoAmount, percentBP int,
 	p.FeeMax = maxFee
 }
 
-// CalculateFee computes the platform processing fee and net amount from raw fee parameters.
-// Formula: clamp(fixed + amount × percentBP / 10000, minFee, maxFee).
-func CalculateFee(amount, fixed types.CryptoAmount, percentBP int, minFee, maxFee types.CryptoAmount) (fee, net types.CryptoAmount) {
-	percentPart := amount.MulDiv(int64(percentBP), 10000)
-	total := fixed.Add(percentPart)
-	if minFee.IsPositive() && total.Cmp(minFee) < 0 {
-		total = minFee
-	}
-	if maxFee.IsPositive() && total.Cmp(maxFee) > 0 {
-		total = maxFee
-	}
-	fee = total
-	if fee.Cmp(amount) >= 0 {
-		// A fee at or above the gross leaves nothing to credit; callers reject it.
-		return fee, types.ZeroCryptoAmount()
-	}
-	return fee, amount.Sub(fee)
+// Tariff is the processing tariff snapshotted on this payment.
+func (p *CryptoPayment) Tariff() tariff.Fee {
+	return tariff.Fee{Fixed: p.FeeFixed, PercentBP: p.FeePercentBP, Min: p.FeeMin, Max: p.FeeMax}
 }
 
 // FeeAmount calculates the platform fee using the snapshotted fee config.
 // Formula: clamp(FeeFixed + Amount × FeePercentBP / 10000, FeeMin, FeeMax)
 func (p *CryptoPayment) FeeAmount() types.CryptoAmount {
-	fee, _ := CalculateFee(p.Amount, p.FeeFixed, p.FeePercentBP, p.FeeMin, p.FeeMax)
-	return fee
+	return p.Tariff().Amount(p.Amount)
 }
 
 // NetAmount returns amount minus commission fee.
 func (p *CryptoPayment) NetAmount() types.CryptoAmount {
-	_, net := CalculateFee(p.Amount, p.FeeFixed, p.FeePercentBP, p.FeeMin, p.FeeMax)
+	_, net := p.Tariff().Split(p.Amount)
 	return net
 }
 

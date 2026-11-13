@@ -257,7 +257,7 @@ func TestRetiredDepositIntakeNeverCreatesPaymentAndWaitsForReceipt(t *testing.T)
 	require.Equal(t, crypto.MatchReasonRetiredDepositAddress, reason)
 	require.Equal(t, string(crypto.InboxNeedsReview), status)
 	// The transfer waits in the journal of pending receipts until it is final and proven.
-	journal, err := crypto_repo.NewUnidentifiedReceiptRepo().List(f.ctx, crypto_repo.ReceiptJournalPending, false, 50, 0)
+	journal, err := cryptoapp.NewReceiptJournal(crypto_repo.NewUnidentifiedReceiptRepo(), crypto_repo.NewWalletFundingJournalRepo()).List(f.ctx, cryptoapp.ReceiptJournalPending, false, 50, 0)
 	require.NoError(t, err)
 	require.Len(t, journal.Items, 1)
 	require.Equal(t, crypto.MatchReasonRetiredDepositAddress, journal.Items[0].Reason)

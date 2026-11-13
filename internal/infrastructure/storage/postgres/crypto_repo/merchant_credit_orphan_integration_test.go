@@ -76,11 +76,11 @@ func TestOrphanedReceiptReversesItsPostedManualCredit(t *testing.T) {
 	suspense, merchant, fee = f.signedAmounts(t)
 	require.Equal(t, []string{gross, "0", "0"}, []string{suspense, merchant, fee})
 
-	orphaned := f.journal(t, ReceiptJournalOrphaned, false)
+	orphaned := f.journal(t, cryptoapp.ReceiptJournalOrphaned, false)
 	require.Equal(t, 1, orphaned.Total)
 	require.Equal(t, []string{"orphaned", gross, "reversed"},
 		[]string{orphaned.Items[0].State, orphaned.Items[0].Remainder, *orphaned.Items[0].CreditStatus})
-	detail, err := NewUnidentifiedReceiptRepo().Detail(f.ctx, f.receipt)
+	detail, err := receiptJournal().Detail(f.ctx, f.receipt)
 	require.NoError(t, err)
 	require.Len(t, detail.Attributions, 1)
 	require.Equal(t, []string{"CryptoMerchantCredit", "reversed", "0"},

@@ -211,9 +211,9 @@ func TestCryptoPayment_GenerateCryptoReceiptSuspenseMovements(t *testing.T) {
 	})
 }
 
-func TestCalculateFeeAboveGrossDoesNotUnderflow(t *testing.T) {
-	fee, net := CalculateFee(types.MustCryptoAmount("3"), types.MustCryptoAmount("5"), 0, types.ZeroCryptoAmount(), types.ZeroCryptoAmount())
-	if fee.String() != "5" || !net.IsZero() {
-		t.Fatalf("fee=%s net=%s", fee, net)
+func TestFeeAboveGrossDoesNotUnderflow(t *testing.T) {
+	p := &CryptoPayment{Amount: types.MustCryptoAmount("3"), FeeFixed: types.MustCryptoAmount("5"), FeeMin: types.ZeroCryptoAmount(), FeeMax: types.ZeroCryptoAmount()}
+	if p.FeeAmount().String() != "5" || !p.NetAmount().IsZero() {
+		t.Fatalf("fee=%s net=%s", p.FeeAmount(), p.NetAmount())
 	}
 }

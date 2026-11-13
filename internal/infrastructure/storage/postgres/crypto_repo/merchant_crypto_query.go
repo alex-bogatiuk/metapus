@@ -13,7 +13,7 @@ import (
 	"metapus/internal/core/json"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/documents/crypto_invoice"
-	"metapus/internal/domain/documents/crypto_payment"
+	"metapus/internal/domain/tariff"
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
@@ -134,7 +134,7 @@ func (r *MerchantCryptoQueryRepo) ListMerchantInvoicePaymentsByInvoices(ctx cont
 		); err != nil {
 			return nil, fmt.Errorf("scan merchant invoice payment: %w", err)
 		}
-		fee, net := crypto_payment.CalculateFee(rawAmount, feeFixed, feePercentBP, feeMin, feeMax)
+		fee, net := tariff.Fee{Fixed: feeFixed, PercentBP: feePercentBP, Min: feeMin, Max: feeMax}.Split(rawAmount)
 		item.RawAmount = rawAmount
 		item.RawFeeAmount = fee
 		item.RawNetAmount = net
