@@ -338,11 +338,6 @@ export function LoginForm() {
                 {mfaSubmitting && <Loader2 data-icon="inline-start" className="animate-spin" />}
                 {enrollment ? "Подключить MFA" : "Подтвердить"}
               </Button>
-              {!enrollment && (
-                <p className="pt-1 text-center text-xs leading-5 text-muted-foreground">
-                  Нет доступа к приложению? Попросите администратора сбросить MFA.
-                </p>
-              )}
             </CardFooter>
           </form>
         ) : (
