@@ -37,6 +37,8 @@ async function setup(page: Page, intercept?: (route: Route, url: URL) => Promise
   return { calls, saved: () => layout }
 }
 const widget = (page: Page, type: string) => page.locator(`[data-widget-type="${type}"]`)
+// A drop animates for 240 ms and dnd-kit swallows clicks for 50 ms after it; a person never clicks that fast.
+const dropSettled = (page: Page) => page.waitForTimeout(300)
 
 test("a user without a saved layout sees the default with exact balances and honest missing reconciliation", async ({ page }) => {
   await page.setViewportSize({ width: 1680, height: 2200 })
@@ -189,6 +191,7 @@ test("widgets move between rows, widen into a new row and keep the stored rows o
   await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 16 })
   await page.mouse.up()
   await expect(counters.nth(2)).toHaveAttribute("data-widget-id", "default-withdrawals")
+  await dropSettled(page)
 
   // Widening a counter in a full row moves the counter that no longer fits to a row below.
   await widget(page, "attention-counter").first().getByRole("button", { name: "Настроить: Требует внимания", exact: true }).click()
@@ -204,6 +207,7 @@ test("widgets move between rows, widen into a new row and keep the stored rows o
     await page.mouse.move(handle.x + 40, handle.y + handle.height / 2, { steps: 4 })
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 16 })
     await page.mouse.up()
+    await dropSettled(page)
   }
   await drag("default-outflows", "default-networks")
 
