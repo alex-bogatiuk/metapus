@@ -2,7 +2,7 @@
 
 import type { JsonObject } from "@/lib/json-value"
 
-import React, { useMemo } from "react"
+import React, { useEffect, useMemo, useRef } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
@@ -94,6 +94,28 @@ export interface DataTableProps<T extends { id: string }> {
     isResizing?: boolean
 }
 
+/** Marks the full value a cell copies when its visible text is shortened. */
+export const COPY_VALUE_ATTR = "data-copy-value"
+
+const EMPTY_CELL_TEXT = "—"
+
+function isEditable(el: Element | null): boolean {
+    if (!el) return false
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) return true
+    return el instanceof HTMLElement && el.isContentEditable
+}
+
+/** Text a cell puts on the clipboard: an explicit full value, else what it shows. */
+export function cellCopyText(cell: HTMLElement): string {
+    const marked = cell.matches(`[${COPY_VALUE_ATTR}]`)
+        ? cell
+        : cell.querySelector<HTMLElement>(`[${COPY_VALUE_ATTR}]`)
+    const text = marked
+        ? marked.getAttribute(COPY_VALUE_ATTR) ?? ""
+        : (cell.innerText || cell.textContent || "").trim()
+    return text === EMPTY_CELL_TEXT ? "" : text
+}
+
 function SortIcon({
     colKey,
     sortColumn,
@@ -148,6 +170,49 @@ export function DataTable<T extends { id: string }>({
     // O(1) selection lookup via Set instead of O(N) Array.includes() per row.
     const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
 
+    // 1C-style copy: Cmd/Ctrl+C (or Edit → Copy) with no text selected puts
+    // the current cell's value on the clipboard. A real text selection,
+    // focus in an editor, or focus outside this table keeps the native copy.
+    const tableRef = useRef<HTMLTableElement>(null)
+    useEffect(() => {
+        const currentCellText = (): string | null => {
+            const table = tableRef.current
+            if (!table || table.offsetParent === null) return null
+            const selection = document.getSelection()
+            if (selection && !selection.isCollapsed && selection.toString() !== "") return null
+            const active = document.activeElement
+            if (isEditable(active)) return null
+            if (active && active !== document.body && !table.contains(active)) return null
+            const cell = table.querySelector<HTMLElement>('td[data-current-cell="true"]')
+            return cell ? cellCopyText(cell) : null
+        }
+        // Keyboard path: Safari fires no `copy` event when nothing is
+        // selected, so the shortcut writes through the Clipboard API.
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.defaultPrevented || event.altKey || event.shiftKey) return
+            if (!(event.metaKey || event.ctrlKey) || event.code !== "KeyC") return
+            if (!navigator.clipboard?.writeText) return
+            const text = currentCellText()
+            if (text === null) return
+            event.preventDefault()
+            void navigator.clipboard.writeText(text).catch(() => {})
+        }
+        // Menu path (Edit → Copy) and browsers without the Clipboard API.
+        const onCopy = (event: ClipboardEvent) => {
+            if (event.defaultPrevented || !event.clipboardData) return
+            const text = currentCellText()
+            if (text === null) return
+            event.clipboardData.setData("text/plain", text)
+            event.preventDefault()
+        }
+        document.addEventListener("keydown", onKeyDown)
+        document.addEventListener("copy", onCopy)
+        return () => {
+            document.removeEventListener("keydown", onKeyDown)
+            document.removeEventListener("copy", onCopy)
+        }
+    }, [])
+
     // Determine the checked state for the header checkbox
     const headerChecked = isAllSelected
         ? true
@@ -163,6 +228,7 @@ export function DataTable<T extends { id: string }>({
 
     return (
         <table
+            ref={tableRef}
             className={cn(
                 "w-full table-fixed",
                 fontSize,

@@ -25,6 +25,7 @@ import { copyToClipboard } from "@/lib/format"
 import { toast } from "sonner"
 import { AMLRiskBadge } from "@/components/crypto/aml-risk"
 import { Button } from "@/components/ui/button"
+import { COPY_VALUE_ATTR } from "@/components/shared/data-table"
 
 // ── Shared cell renderers ───────────────────────────────────────────────
 // Reusable render functions to avoid duplication across entity column sets.
@@ -115,6 +116,7 @@ function cellHashTruncated(key: string) {
         return React.createElement("span", {
             className: "font-mono text-xs text-muted-foreground cursor-help",
             title: hash,
+            [COPY_VALUE_ATTR]: hash,
         }, truncated)
     }
     Cell.displayName = `CellHash(${key})`
@@ -165,7 +167,7 @@ function withdrawalAddress(item: JsonObject) {
             copyToClipboard(address)
             toast.success("Адрес скопирован")
         },
-    }, short)
+    }, React.createElement("span", { [COPY_VALUE_ATTR]: address }, short))
 }
 
 // ── Column Overlay Configs ──────────────────────────────────────────────
