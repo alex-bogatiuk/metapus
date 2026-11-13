@@ -104,7 +104,7 @@ func TestAMLDecisionChangedSavedAssessmentDoesNotConsumeQueue(t *testing.T) {
 	require.NoError(t, err)
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_aml_decisions(subject_id,report_id,generation,policy_version,risk_class,reason,expires_at)
  SELECT subject_id,report_id,generation,'history107-policy',risk_class,reason,expires_at FROM reg_crypto_aml_decisions WHERE policy_version='routing-v1'`)
-	require.ErrorContains(t, err, "assessment clock")
+	require.ErrorContains(t, err, "evaluated_at")
 	// A separately written first result is checked against the immutable report
 	// and its original clock before the application acknowledges queue delivery.
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_aml_decisions(subject_id,report_id,generation,policy_version,risk_class,reason,expires_at,evaluated_at)

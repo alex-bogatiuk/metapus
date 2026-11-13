@@ -60,21 +60,19 @@ func (r *AMLRepository) ApplyNextAMLDecision(ctx context.Context, now time.Time)
 		policy.DecisionTTL = time.Duration(ttl) * time.Second
 		var savedClass aml.Class
 		var savedReason string
-		var savedExpiry, evaluatedAt *time.Time
+		var savedExpiry *time.Time
+		var evaluatedAt time.Time
 		err = q.QueryRow(ctx, `SELECT risk_class,reason,expires_at,evaluated_at FROM reg_crypto_aml_decisions
  WHERE subject_id=$1 AND generation=$2 AND report_id=$3 AND policy_version=$4`, subjectID, generation, report.ID, policy.Version).Scan(&savedClass, &savedReason, &savedExpiry, &evaluatedAt)
 		if err == nil {
-			// Time is an assessment input. Never assess a replay at a later time
-			// or extend its TTL. Legacy decisions have no recorded assessment
-			// clock: retain their immutable outcome without inventing one.
-			if evaluatedAt != nil {
-				assessment, err := policy.Assess(report, *evaluatedAt)
-				if err != nil {
-					return err
-				}
-				if savedClass != assessment.Class || savedReason != assessment.Reason || (savedExpiry == nil) != assessment.ExpiresAt.IsZero() || (savedExpiry != nil && !savedExpiry.Equal(assessment.ExpiresAt)) {
-					return apperror.NewConflict("AML decision differs from its original assessment")
-				}
+			// Time is an assessment input. A replay is assessed at its recorded
+			// clock, never later, so its TTL is never extended.
+			assessment, err := policy.Assess(report, evaluatedAt)
+			if err != nil {
+				return err
+			}
+			if savedClass != assessment.Class || savedReason != assessment.Reason || (savedExpiry == nil) != assessment.ExpiresAt.IsZero() || (savedExpiry != nil && !savedExpiry.Equal(assessment.ExpiresAt)) {
+				return apperror.NewConflict("AML decision differs from its original assessment")
 			}
 			_, err = q.Exec(ctx, `DELETE FROM reg_crypto_aml_decision_queue WHERE report_id=$1 AND policy_version=$2`, report.ID, policy.Version)
 			applied = err == nil

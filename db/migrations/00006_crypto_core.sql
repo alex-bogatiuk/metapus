@@ -359,7 +359,7 @@ BEGIN
     INSERT INTO sys_crypto_wallet_derivations (
         network_id, derivation_path, wallet_id, source
     ) VALUES (
-        NEW.network_id, NEW.derivation_path, NEW.id, 'historical_wallet'
+        NEW.network_id, NEW.derivation_path, NEW.id, 'wallet'
     )
     ON CONFLICT (network_id, derivation_path) DO UPDATE
     SET wallet_id = EXCLUDED.wallet_id,
@@ -1581,7 +1581,7 @@ CREATE INDEX idx_merchant_wallet_lease_rate_windows_txid
     WHERE _deleted_at IS NULL;
 
 -- A single append-only publication registry fences every HD path across
--- historical wallets and provisioning jobs. A path is inserted before it is
+-- wallets and provisioning jobs. A path is inserted before it is
 -- sent to Vault and is never deleted or reused.
 CREATE TABLE sys_crypto_wallet_derivations (
     network_id       UUID NOT NULL REFERENCES cat_blockchain_networks(id),
@@ -1591,7 +1591,7 @@ CREATE TABLE sys_crypto_wallet_derivations (
     -- path reusable.
     wallet_id        UUID REFERENCES cat_wallets(id),
     source           TEXT NOT NULL
-                     CHECK (source IN ('historical_wallet','provisioning','bootstrap')),
+                     CHECK (source IN ('wallet','provisioning','bootstrap')),
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     version          INT NOT NULL DEFAULT 1 CHECK (version > 0),
@@ -1795,8 +1795,8 @@ CREATE TABLE reg_crypto_chain_settlements (
     total_fee_minor       NUMERIC(78,0) NOT NULL CHECK (total_fee_minor >= 0),
     raw_receipt           JSONB NOT NULL,
     observed_at           TIMESTAMPTZ NOT NULL,
-    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    network_fee_reservation_id UUID REFERENCES reg_crypto_fee_reservations(id)
+    network_fee_reservation_id UUID NOT NULL REFERENCES reg_crypto_fee_reservations(id),
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE UNIQUE INDEX idx_crypto_chain_settlement_tx
     ON reg_crypto_chain_settlements (network_id, tx_hash);
@@ -2386,12 +2386,12 @@ CREATE TABLE sys_invoice_reconciliation_drift (
     first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     resolved_at TIMESTAMPTZ,
-    episode_id UUID,
-    initial_details JSONB CHECK(initial_details IS NULL OR jsonb_typeof(initial_details)='object'),
+    episode_id UUID NOT NULL,
+    initial_details JSONB NOT NULL CHECK(jsonb_typeof(initial_details)='object'),
     incident_id UUID REFERENCES reg_crypto_security_incidents(id),
     CONSTRAINT chk_invoice_reconciliation_details CHECK (jsonb_typeof(details) = 'object')
 );
-CREATE UNIQUE INDEX uq_crypto_invoice_drift_episode ON sys_invoice_reconciliation_drift(episode_id) WHERE episode_id IS NOT NULL;
+CREATE UNIQUE INDEX uq_crypto_invoice_drift_episode ON sys_invoice_reconciliation_drift(episode_id);
 CREATE UNIQUE INDEX uq_crypto_invoice_drift_incident ON sys_invoice_reconciliation_drift(incident_id) WHERE incident_id IS NOT NULL;
 
 CREATE TABLE reg_crypto_reorg_compensations (
@@ -2789,15 +2789,6 @@ CREATE TRIGGER trg_crypto_wallet_variance_immutable
     BEFORE UPDATE OR DELETE ON reg_crypto_wallet_variance_movements
     FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
 
-
--- ---- Seed data ----
-INSERT INTO sys_crypto_wallet_derivations (
-    network_id, derivation_path, wallet_id, source
-)
-SELECT network_id, derivation_path, id, 'historical_wallet'
-FROM cat_wallets
-WHERE derivation_path <> ''
-ON CONFLICT (network_id, derivation_path) DO NOTHING;
 
 -- Every policy starts fail-closed. A deployment bootstrap or an MFA-protected
 -- policy update explicitly enables the intended network.

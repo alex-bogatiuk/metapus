@@ -1429,7 +1429,6 @@ CREATE TABLE doc_crypto_network_operations (
     cost_token_id         UUID NOT NULL REFERENCES cat_tokens(id),
     cost_amount           NUMERIC(78,0) NOT NULL DEFAULT 0 CHECK (cost_amount >= 0),
     tx_hash               TEXT NOT NULL CHECK (BTRIM(tx_hash) <> ''),
-    -- The FK is added in 00041 after the normalized settlement table exists.
     chain_settlement_id   UUID,
     finalized_at          TIMESTAMPTZ,
     manual_edit_allowed   BOOLEAN NOT NULL DEFAULT FALSE,
@@ -1506,7 +1505,7 @@ CREATE INDEX idx_crypto_account_activations_cost_repair
     WHERE network_operation_id IS NOT NULL
       AND status IN ('confirmed','active','failed')
       AND cost_status IN ('unknown','repairing','held');
-COMMENT ON COLUMN reg_crypto_account_activations.cost_claim_token IS 'Fresh fencing token per cost-repair attempt; legacy repairing leases drain without rewriting history.';
+COMMENT ON COLUMN reg_crypto_account_activations.cost_claim_token IS 'Fresh fencing token per cost-repair attempt; an expired repairing lease drains without rewriting history.';
 
 CREATE TABLE reg_crypto_wallet_allocation_holds (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
@@ -1723,7 +1722,7 @@ CREATE INDEX idx_crypto_resource_rentals_worker
     WHERE status NOT IN ('closed','failed');
 CREATE INDEX idx_crypto_resource_rentals_basis
     ON doc_crypto_resource_rentals (basis_type, basis_id);
-COMMENT ON COLUMN doc_crypto_resource_rentals.maintenance_claim_token IS 'Fresh fencing token per maintenance claim; legacy leases drain before a new token is issued.';
+COMMENT ON COLUMN doc_crypto_resource_rentals.maintenance_claim_token IS 'Fresh fencing token per maintenance claim; an earlier lease drains before a new token is issued.';
 
 CREATE TABLE reg_crypto_resource_allocations (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),

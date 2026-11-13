@@ -2116,18 +2116,14 @@ BEGIN
 END;
 $$;
 
--- Serialize legacy normalized receipts before they can hold a receipt row while
--- awaiting a balance held by a new principal/fee settlement.
-CREATE FUNCTION fn_crypto_network_fee_legacy_owner_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+-- Serializes every writer of one network fee effect on the payer balance and
+-- the effect key, then admits only the fee's single accounting owner.
+CREATE FUNCTION fn_crypto_network_fee_owner_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE reservation reg_crypto_fee_reservations; network UUID; hash TEXT; family TEXT; owner UUID; asset UUID; effect TEXT;
 BEGIN
     IF TG_TABLE_NAME='reg_crypto_chain_settlements' THEN
         network:=NEW.network_id; hash:=NEW.tx_hash;
-        IF NEW.network_fee_reservation_id IS NOT NULL THEN SELECT * INTO STRICT reservation FROM reg_crypto_fee_reservations WHERE id=NEW.network_fee_reservation_id;
-        ELSE
-            SELECT * INTO reservation FROM reg_crypto_fee_reservations f WHERE f.network_id=network AND regexp_replace(lower(f.tx_hash),'^0x','')=regexp_replace(lower(hash),'^0x','')
-                AND ((f.basis_type=NEW.basis_type AND f.basis_id=NEW.basis_id) OR EXISTS(SELECT 1 FROM doc_crypto_network_operations d WHERE NEW.basis_type='CryptoNetworkOperation' AND d.id=NEW.basis_id AND d.basis_type=f.basis_type AND d.basis_id=f.basis_id)) LIMIT 1;
-        END IF;
+        SELECT * INTO STRICT reservation FROM reg_crypto_fee_reservations WHERE id=NEW.network_fee_reservation_id;
         owner:=reservation.payer_wallet_id;asset:=reservation.native_token_id;
     ELSE
         IF NEW.recorder_type='ChainSettlement' THEN SELECT * INTO reservation FROM reg_crypto_fee_reservations WHERE id=NEW.line_id;
@@ -2447,7 +2443,7 @@ EXCEPTION WHEN lock_not_available THEN
 END;
 $$;
 
--- A withdrawal also owns its request merchant/network scope when legacy
+-- A withdrawal also owns its request merchant/network scope when
 -- platform wallets or retained fee/funding resources have other owners.
 -- Acquire the union in one order, never merchant scope followed by a new owner.
 CREATE FUNCTION fn_crypto_lock_withdrawal_wallets(wallets UUID[],scope_merchant UUID,scope_network UUID) RETURNS VOID LANGUAGE plpgsql AS $$
@@ -2718,9 +2714,6 @@ BEGIN
   END IF;
   RETURN NULL;
  END IF;
- IF NEW.evaluated_at IS NULL OR NOT isfinite(NEW.evaluated_at) THEN
-  RAISE EXCEPTION 'new AML decision requires an assessment clock' USING ERRCODE='23514';
- END IF;
  IF NOT EXISTS(SELECT 1 FROM reg_crypto_aml_subjects s JOIN sys_crypto_aml_routing_scopes scope
    ON scope.merchant_id=s.merchant_id AND scope.network_id=s.network_id AND scope.token_id=s.token_id
    WHERE s.id=NEW.subject_id AND scope.enabled AND scope.policy_version=NEW.policy_version) THEN
@@ -2763,7 +2756,7 @@ BEGIN
  IF TG_OP='DELETE' THEN RAISE EXCEPTION 'invoice drift history cannot be deleted' USING ERRCODE='23514'; END IF;
  network := fn_crypto_lock_invoice_drift(NEW.invoice_id);
  IF TG_OP='INSERT' THEN
-  IF NEW.episode_id IS NULL OR NEW.initial_details IS NULL OR NEW.initial_details IS DISTINCT FROM NEW.details
+  IF NEW.initial_details IS DISTINCT FROM NEW.details
      OR NEW.consecutive_cycles IS DISTINCT FROM 1 OR NEW.resolved_at IS NOT NULL OR NEW.incident_id IS NOT NULL THEN
    RAISE EXCEPTION 'new invoice drift requires its first observation' USING ERRCODE='23514';
   END IF;
@@ -2773,8 +2766,8 @@ BEGIN
  IF NEW.invoice_id IS DISTINCT FROM OLD.invoice_id THEN RAISE EXCEPTION 'invoice drift identity is immutable' USING ERRCODE='23514'; END IF;
  IF OLD.resolved_at IS NOT NULL THEN
   IF NEW IS NOT DISTINCT FROM OLD THEN RETURN NULL; END IF;
-  IF NEW.resolved_at IS NOT NULL OR NEW.episode_id IS NULL OR NEW.episode_id IS NOT DISTINCT FROM OLD.episode_id
-     OR NEW.initial_details IS NULL OR NEW.initial_details IS DISTINCT FROM NEW.details OR NEW.incident_id IS NOT NULL OR NEW.consecutive_cycles IS DISTINCT FROM 1 THEN
+  IF NEW.resolved_at IS NOT NULL OR NEW.episode_id=OLD.episode_id
+     OR NEW.initial_details IS DISTINCT FROM NEW.details OR NEW.incident_id IS NOT NULL OR NEW.consecutive_cycles IS DISTINCT FROM 1 THEN
    RAISE EXCEPTION 'resolved invoice drift requires a new episode' USING ERRCODE='23514';
   END IF;
   NEW.first_seen_at := at; NEW.last_seen_at := at;
@@ -2799,7 +2792,7 @@ BEGIN
  IF NEW.incident_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM reg_crypto_security_incidents incident
    WHERE incident.id=NEW.incident_id AND incident.network_id=network AND incident.invoice_id=NEW.invoice_id AND incident.payment_id IS NULL
    AND incident.incident_kind='invoice_projection_drift' AND incident.event_kind='native_value' AND incident.event_index=0
-   AND incident.tx_hash=NEW.invoice_id::text||CASE WHEN NEW.episode_id IS NULL THEN '' ELSE ':'||NEW.episode_id::text END
+   AND incident.tx_hash=NEW.invoice_id::text||':'||NEW.episode_id::text
    AND ((NEW.resolved_at IS NULL AND incident.status IN ('open','acknowledged')) OR (NEW.resolved_at IS NOT NULL AND incident.status='resolved'))) THEN
   RAISE EXCEPTION 'invoice drift incident link changed' USING ERRCODE='23514';
  END IF;
@@ -2831,7 +2824,7 @@ BEGIN
   END IF;
   IF NEW.status IS DISTINCT FROM 'open' OR NEW.acknowledged_at IS NOT NULL OR NEW.resolved_at IS NOT NULL OR NOT EXISTS(
     SELECT 1 FROM sys_invoice_reconciliation_drift d WHERE d.invoice_id=NEW.invoice_id AND d.resolved_at IS NULL AND d.consecutive_cycles>=2
-    AND NEW.tx_hash=d.invoice_id::text||CASE WHEN d.episode_id IS NULL THEN '' ELSE ':'||d.episode_id::text END
+    AND NEW.tx_hash=d.invoice_id::text||':'||d.episode_id::text
     AND NEW.details=fn_crypto_invoice_drift_details(d.invoice_id)) THEN
    RAISE EXCEPTION 'invoice drift incident requires its current observation' USING ERRCODE='23514';
   END IF;
@@ -3222,11 +3215,11 @@ $$;
 CREATE FUNCTION fn_crypto_outflow_decision_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE decision UUID; command JSONB; source JSONB; check_basis JSONB; hold_basis JSONB; incident UUID; at TIMESTAMPTZ:=clock_timestamp();
 BEGIN
- -- The common 103 guard obtains the same nonblocking resource prefix first.
+ -- The common outflow guard obtains the same nonblocking resource prefix first.
  IF (NEW.classification,NEW.matched_basis_type,NEW.matched_basis_id,NEW.classification_reason,NEW.classification_evidence,NEW.classified_by)
   IS NOT DISTINCT FROM (OLD.classification,OLD.matched_basis_type,OLD.matched_basis_id,OLD.classification_reason,OLD.classification_evidence,OLD.classified_by) THEN
   IF NEW.classification_basis IS DISTINCT FROM OLD.classification_basis THEN
-   IF OLD.classification_basis IS NULL THEN RAISE EXCEPTION 'legacy classification basis is unknown' USING ERRCODE='23514'; END IF;
+   IF OLD.classification_basis IS NULL THEN RAISE EXCEPTION 'unclassified outflow has no classification basis' USING ERRCODE='23514'; END IF;
    PERFORM fn_crypto_outflow_decision_seed(NEW.classification_basis);
    NEW.classification_basis:=OLD.classification_basis;
   END IF;
@@ -4273,9 +4266,9 @@ CREATE TRIGGER trg_network_fee_document_basis BEFORE UPDATE OR DELETE ON doc_cry
 
 CREATE CONSTRAINT TRIGGER trg_network_fee_replacement_complete AFTER UPDATE ON reg_crypto_fee_reservations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_replacement_complete();
 
-CREATE TRIGGER trg_network_fee_receipt_owner BEFORE INSERT ON reg_crypto_chain_settlements FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_legacy_owner_guard();
+CREATE TRIGGER trg_network_fee_receipt_owner BEFORE INSERT ON reg_crypto_chain_settlements FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_owner_guard();
 
-CREATE TRIGGER trg_network_fee_movement_owner BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_legacy_owner_guard();
+CREATE TRIGGER trg_network_fee_movement_owner BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_network_fee_owner_guard();
 
 CREATE TRIGGER trg_expected_request_basis BEFORE INSERT ON reg_crypto_expected_transfer_requests FOR EACH ROW EXECUTE FUNCTION fn_crypto_expected_transfer_guard();
 
@@ -4457,7 +4450,7 @@ DO $$ BEGIN
  END IF;
 END $$;
 DO $$ BEGIN
- IF EXISTS(SELECT 1 FROM sys_invoice_reconciliation_drift WHERE episode_id IS NOT NULL OR initial_details IS NOT NULL OR incident_id IS NOT NULL)
+ IF EXISTS(SELECT 1 FROM sys_invoice_reconciliation_drift)
     OR EXISTS(SELECT 1 FROM reg_crypto_security_incidents WHERE incident_kind='invoice_projection_drift' AND details ? 'firstDetails') THEN
   RAISE EXCEPTION 'invoice drift episodes require forward recovery' USING ERRCODE='23514';
  END IF;
@@ -4730,7 +4723,7 @@ DROP FUNCTION fn_crypto_expected_transfer_guard();
 DROP FUNCTION fn_crypto_validate_expected_route(expected uuid, proof uuid);
 DROP FUNCTION fn_crypto_expected_owner_matches(expected uuid, recorder text, document uuid);
 DROP FUNCTION fn_crypto_expected_transfer_candidates(network uuid, hash text, kind text, source text, destination text, contract text, quantity numeric);
-DROP FUNCTION fn_crypto_network_fee_legacy_owner_guard();
+DROP FUNCTION fn_crypto_network_fee_owner_guard();
 DROP FUNCTION fn_crypto_network_fee_replacement_complete();
 DROP FUNCTION fn_crypto_network_fee_basis_guard();
 DROP FUNCTION fn_crypto_network_fee_financial_complete();

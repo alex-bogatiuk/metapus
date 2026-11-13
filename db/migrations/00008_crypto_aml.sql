@@ -642,7 +642,7 @@ BEGIN
  IF NOT EXISTS(SELECT 1 FROM reg_crypto_aml_inventory_positions p JOIN reg_crypto_aml_resource_positions r ON r.wallet_id=p.wallet_id AND r.token_id=p.token_id
      LEFT JOIN reg_crypto_balance_balances physical ON physical.wallet_id=p.wallet_id AND physical.token_id=p.token_id
      WHERE p.wallet_id=NEW.wallet_id AND p.token_id=NEW.token_id AND p.principal+p.service_fee+r.amount=COALESCE(physical.amount,0)) THEN
-   RAISE EXCEPTION 'operating receipt cannot relabel unallocated legacy balances' USING ERRCODE='23514';
+   RAISE EXCEPTION 'operating receipt cannot relabel unallocated balances' USING ERRCODE='23514';
  END IF;
  RETURN NEW;
 END;
@@ -858,7 +858,7 @@ BEGIN
    WHERE s.merchant_id=NEW.merchant_id AND s.network_id=NEW.network_id AND s.token_id=NEW.token_id AND s.enabled FOR UPDATE OF s;
  IF NOT FOUND OR NEW.version<>(SELECT COALESCE(MAX(version),0)+1 FROM sys_crypto_aml_batch_policies WHERE merchant_id=NEW.merchant_id AND network_id=NEW.network_id AND token_id=NEW.token_id AND risk_class=NEW.risk_class)
     OR EXISTS(SELECT 1 FROM reg_crypto_aml_internal_allocations WHERE merchant_id=NEW.merchant_id AND network_id=NEW.network_id AND token_id=NEW.token_id AND risk_class=NEW.risk_class AND batch_id IS NULL AND status='reserved') THEN
-   RAISE EXCEPTION 'batch policy requires paused owned scope, next version and drained legacy allocations' USING ERRCODE='23514';
+   RAISE EXCEPTION 'batch policy requires paused owned scope, next version and drained unbatched allocations' USING ERRCODE='23514';
  END IF;
  UPDATE reg_crypto_aml_batches SET intake_closed_at=COALESCE(intake_closed_at,NOW()),close_reason=CASE WHEN intake_closed_at IS NULL THEN 'policy_changed' ELSE close_reason END,
    execution_held=TRUE,hold_reason='policy_changed',last_actor=NEW.configured_by
@@ -1027,7 +1027,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE FUNCTION fn_crypto_aml_legacy_provision_guard() RETURNS TRIGGER AS $$
+-- A shared (unowned) pool wallet cannot be provisioned on a network whose
+-- custody ownership is enforced: such networks provision per merchant only.
+CREATE FUNCTION fn_crypto_aml_shared_pool_provision_guard() RETURNS TRIGGER AS $$
 BEGIN
  IF NEW.custody_merchant_id IS NULL AND NEW.wallet_role='merchant_pool'
     AND EXISTS(SELECT 1 FROM sys_crypto_wallet_provisioning_jobs WHERE network_id=NEW.network_id AND derivation_path=NEW.derivation_path) THEN
@@ -1884,10 +1886,10 @@ CREATE TABLE reg_crypto_aml_decisions (
     risk_class TEXT NOT NULL CHECK(risk_class IN ('low','medium','high','unknown')),
     reason TEXT NOT NULL CHECK(reason<>''),
     expires_at TIMESTAMPTZ,
+    evaluated_at TIMESTAMPTZ NOT NULL CHECK(isfinite(evaluated_at)),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     _txid BIGINT NOT NULL DEFAULT txid_current(),
     _deleted_at TIMESTAMPTZ,
-    evaluated_at TIMESTAMPTZ,
     FOREIGN KEY(report_id,subject_id) REFERENCES reg_crypto_aml_reports(id,subject_id),
     UNIQUE(subject_id,generation,report_id,policy_version)
 );
@@ -1933,8 +1935,8 @@ CREATE TABLE reg_crypto_withdrawal_risk_snapshots (
     CHECK(stage='reassessed' OR risk_class NOT IN ('high','unknown') OR risk_accepted)
 );
 
--- Ownership enforcement is rolled out separately from AML classification.
--- An absent policy remains legacy-compatible until the coordinated switch.
+-- Ownership enforcement is configured per network, separately from AML
+-- classification. A network without a policy row is not enforced.
 CREATE TABLE sys_crypto_custody_policies (
     network_id UUID PRIMARY KEY REFERENCES cat_blockchain_networks(id),
     enforced BOOLEAN NOT NULL DEFAULT FALSE,
@@ -2047,7 +2049,7 @@ CREATE TABLE reg_crypto_aml_decision_queue (
     PRIMARY KEY(report_id,policy_version)
 );
 
--- No legacy balance is implicitly declared clean. A trusted preflight must
+-- No wallet balance is implicitly declared clean. A trusted preflight must
 -- explicitly bind an empty checkpoint before a wallet can become covered.
 CREATE TABLE reg_crypto_aml_wallet_baselines (
     wallet_id UUID NOT NULL,
@@ -2976,7 +2978,7 @@ CREATE TRIGGER trg_crypto_aml_provision_txid BEFORE UPDATE ON reg_crypto_aml_wal
 
 CREATE TRIGGER trg_crypto_aml_provision_guard BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_aml_wallet_provisions FOR EACH ROW EXECUTE FUNCTION fn_crypto_aml_provision_guard();
 
-CREATE TRIGGER trg_crypto_aml_legacy_provision_guard BEFORE INSERT ON cat_wallets FOR EACH ROW EXECUTE FUNCTION fn_crypto_aml_legacy_provision_guard();
+CREATE TRIGGER trg_crypto_aml_shared_pool_provision_guard BEFORE INSERT ON cat_wallets FOR EACH ROW EXECUTE FUNCTION fn_crypto_aml_shared_pool_provision_guard();
 
 CREATE TRIGGER trg_crypto_aml_pool_updated BEFORE UPDATE ON sys_crypto_aml_pool_policies FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -3180,7 +3182,7 @@ DROP TRIGGER trg_crypto_aml_resource_funding_queue ON doc_crypto_native_fundings
 DROP TRIGGER trg_crypto_aml_resource_settlement_queue ON reg_crypto_chain_settlements;
 DROP TRIGGER trg_crypto_aml_resource_movement_queue ON reg_crypto_balance_movements;
 DROP TRIGGER trg_crypto_aml_01_batch_signing_guard ON reg_crypto_signing_authorizations;
-DROP TRIGGER trg_crypto_aml_legacy_provision_guard ON cat_wallets;
+DROP TRIGGER trg_crypto_aml_shared_pool_provision_guard ON cat_wallets;
 DROP TRIGGER trg_crypto_aml_resource_activation_queue ON doc_crypto_network_operations;
 DROP TRIGGER trg_crypto_aml_withdrawal_signing_guard ON reg_crypto_signing_authorizations;
 DROP TRIGGER trg_crypto_aml_withdrawal_parent_guard ON doc_withdrawal_requests;
@@ -3292,7 +3294,7 @@ DROP FUNCTION fn_crypto_aml_pool_scope_hold();
 DROP FUNCTION fn_crypto_aml_pool_baselines_ready(intent uuid);
 DROP FUNCTION fn_crypto_aml_network_wallet_commitments(network uuid, excluded uuid);
 DROP FUNCTION fn_crypto_aml_pool_counts(pool uuid);
-DROP FUNCTION fn_crypto_aml_legacy_provision_guard();
+DROP FUNCTION fn_crypto_aml_shared_pool_provision_guard();
 DROP FUNCTION fn_crypto_aml_provision_guard();
 DROP FUNCTION fn_crypto_aml_batch_observation();
 DROP FUNCTION fn_crypto_aml_batch_signing_guard();

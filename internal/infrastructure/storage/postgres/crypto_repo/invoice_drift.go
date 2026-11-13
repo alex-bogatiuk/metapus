@@ -32,10 +32,8 @@ func lockInvoiceDrift(ctx context.Context, invoice id.ID) (id.ID, error) {
 	return network, err
 }
 
-func invoiceDriftKey(invoice id.ID, episode *id.ID) string {
-	if episode == nil {
-		return invoice.String() // Preserve the identity of an active legacy case.
-	}
+// invoiceDriftKey identifies the incident of one drift episode of an invoice.
+func invoiceDriftKey(invoice, episode id.ID) string {
 	return invoice.String() + ":" + episode.String()
 }
 
@@ -70,7 +68,8 @@ func (r *WorkerRuntimeRepo) RecordInvoiceDrift(ctx context.Context, invoice id.I
 		}
 		q := tm.GetQuerier(ctx)
 		var cycles int
-		var episode, linked *id.ID
+		var episode id.ID
+		var linked *id.ID
 		err = q.QueryRow(ctx, `INSERT INTO sys_invoice_reconciliation_drift(invoice_id,details,initial_details,episode_id,first_seen_at,last_seen_at)
  VALUES($1,jsonb_build_object('error',$2::text),jsonb_build_object('error',$2::text),$3,clock_timestamp(),clock_timestamp())
  ON CONFLICT(invoice_id) DO UPDATE SET
@@ -124,7 +123,8 @@ func (r *WorkerRuntimeRepo) ResolveInvoiceDrift(ctx context.Context, invoice id.
 			return err
 		}
 		q := tm.GetQuerier(ctx)
-		var episode, linked *id.ID
+		var episode id.ID
+		var linked *id.ID
 		err = q.QueryRow(ctx, `SELECT episode_id,incident_id FROM sys_invoice_reconciliation_drift WHERE invoice_id=$1 FOR UPDATE`, invoice).Scan(&episode, &linked)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return err
