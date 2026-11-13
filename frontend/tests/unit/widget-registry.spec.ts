@@ -20,7 +20,7 @@ test("widget registry validates configs before rendering and before publishing c
   const changes: JsonObject[] = []
   for (const [config, metric] of [[{ metric: "inbound" }, "inbound"], [{ metric: 12 }, "withdrawals"]] as const) {
     const element = createElement(definition.component, {
-      placement: { instanceId: "test", widgetType: "attention-counter", w: 2, h: 1, config: {}, x: 0, y: 0 },
+      placement: { instanceId: "test", widgetType: "attention-counter", size: "2x1", config: {} },
       config, isEditMode: false, onConfigChange: next => changes.push(next),
     })
     const html = await new Promise<string>((resolve, reject) => {

@@ -7,7 +7,7 @@ import { ErrorBoundary, type FallbackProps } from "react-error-boundary"
 import { AlertTriangle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { RegisteredWidgetDefinition, WidgetPlacement, WidgetSize } from "@/types/dashboard"
-import { GRID_ROW_HEIGHT, GRID_MARGIN, SIZE_TO_WH } from "@/types/dashboard"
+import { SIZE_TO_WH, rowHeightPx } from "@/types/dashboard"
 
 interface WidgetPreviewContainerProps {
     definition: RegisteredWidgetDefinition
@@ -38,22 +38,13 @@ function PreviewLoadingFallback() {
 }
 
 export function WidgetPreviewContainer({ definition, config, size }: WidgetPreviewContainerProps) {
-    const placement = useMemo<WidgetPlacement>(() => {
-        const wh = SIZE_TO_WH[size]
-        return {
-            instanceId: "preview",
-            widgetType: definition.type,
-            x: 0,
-            y: 0,
-            w: wh.w,
-            h: wh.h,
-            config,
-        }
-    }, [definition.type, size, config])
+    const placement = useMemo<WidgetPlacement>(
+        () => ({ instanceId: "preview", widgetType: definition.type, size, config }),
+        [definition.type, size, config],
+    )
 
     // Calculate preview height based on grid row height
-    const wh = SIZE_TO_WH[size]
-    const previewHeight = wh.h * GRID_ROW_HEIGHT + (wh.h - 1) * GRID_MARGIN
+    const previewHeight = rowHeightPx(SIZE_TO_WH[size].h)
 
     const Component = definition.component
 

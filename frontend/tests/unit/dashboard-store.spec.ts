@@ -15,7 +15,7 @@ test("a layout response from the previous session cannot restore its data", asyn
     transitionScope(scope("user-a"))
     const loading = useDashboardStore.getState().loadLayout()
     transitionScope(scope("user-b"))
-    const old = defaultDashboardLayout(); old.widgets[0].config.metric = "outflows"
+    const old = defaultDashboardLayout(); old.rows[0][0].config.metric = "outflows"
     resolve({ ...prefs, dashboardLayout: old })
     await loading
     expect(useDashboardStore.getState().isLoaded).toBe(false)
@@ -48,10 +48,10 @@ test("layout writes are serialized and keep the latest pending-save state", asyn
 test("cancelling edit mode restores the layout from before the edits without saving", async () => {
   const original = api.preferences.saveDashboardLayout
   const saved: number[] = []
-  api.preferences.saveDashboardLayout = async layout => { saved.push(layout.widgets.length) }
+  api.preferences.saveDashboardLayout = async layout => { saved.push(layout.rows.flat().length) }
   try {
     useDashboardStore.setState(useDashboardStore.getInitialState(), true)
-    const before = useDashboardStore.getState().layout.widgets
+    const before = useDashboardStore.getState().layout.rows
     useDashboardStore.getState().setEditMode(true)
     useDashboardStore.getState().removeWidget("default-withdrawals")
     useDashboardStore.getState().resetToDefault()
@@ -60,7 +60,7 @@ test("cancelling edit mode restores the layout from before the edits without sav
     const state = useDashboardStore.getState()
     expect(state.isEditMode).toBe(false)
     expect(state.editSnapshot).toBeNull()
-    expect(state.layout.widgets).toEqual(before)
+    expect(state.layout.rows).toEqual(before)
     expect(saved).toEqual([])
   } finally { api.preferences.saveDashboardLayout = original; useDashboardStore.setState(useDashboardStore.getInitialState(), true) }
 })
@@ -69,12 +69,12 @@ test("a save inside edit mode becomes the point that cancel returns to", async (
   api.preferences.saveDashboardLayout = async () => {}
   try {
     useDashboardStore.setState(useDashboardStore.getInitialState(), true)
-    const count = useDashboardStore.getState().layout.widgets.length
+    const count = useDashboardStore.getState().layout.rows.flat().length
     useDashboardStore.getState().setEditMode(true)
     useDashboardStore.getState().removeWidget("default-withdrawals")
     expect(await useDashboardStore.getState().saveLayout()).toBe(true)
     useDashboardStore.getState().removeWidget("default-inbound")
     useDashboardStore.getState().cancelEdit()
-    expect(useDashboardStore.getState().layout.widgets).toHaveLength(count - 1)
+    expect(useDashboardStore.getState().layout.rows.flat()).toHaveLength(count - 1)
   } finally { api.preferences.saveDashboardLayout = original; useDashboardStore.setState(useDashboardStore.getInitialState(), true) }
 })

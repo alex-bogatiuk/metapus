@@ -76,10 +76,11 @@ test("gallery, per-instance settings, deletion and server persistence remain fun
   await page.reload()
   await expect(widget(page, "receipts-volume")).toHaveCount(2)
   await expect(widget(page, "attention-counter")).toHaveCount(3)
-  const saved = mock.saved() as { catalogVersion: number; widgets: { widgetType: string; config: { limit?: number }; y: number }[] }
-  expect(saved.catalogVersion).toBe(2)
-  expect(saved.widgets.find(w => w.widgetType === "attention-queue")?.config.limit).toBe(3)
-  expect(saved.widgets.every(w => Number.isFinite(w.y))).toBeTruthy()
+  const saved = mock.saved() as { catalogVersion: number; rows: { widgetType: string; size: string; config: { limit?: number } }[][] }
+  expect(saved.catalogVersion).toBe(3)
+  expect(saved.rows.flat().find(w => w.widgetType === "attention-queue")?.config.limit).toBe(3)
+  // The new chart did not fit beside the last row, so it starts a row of its own.
+  expect(saved.rows[saved.rows.length - 1].map(w => w.widgetType)).toEqual(["receipts-volume"])
 })
 
 test("edit mode can be left without saving and the previous layout comes back", async ({ page }) => {
@@ -102,8 +103,8 @@ test("edit mode can be left without saving and the previous layout comes back", 
   await expect(page.locator("[data-widget-type]")).toHaveCount(12)
   expect(puts()).toBe(before)
   // Only the migration write that was pending before editing may reach the server, never the edits.
-  const saved = mock.saved() as { widgets?: { widgetType: string }[] }
-  if (saved.widgets?.every(w => w.widgetType !== "kpi")) expect(saved.widgets).toHaveLength(12)
+  const saved = mock.saved() as { rows?: { widgetType: string }[][] }
+  if (saved.rows) expect(saved.rows.flat()).toHaveLength(12)
 })
 
 test("analytics handles all periods, same-symbol networks and exact chart tooltips", async ({ page }) => {
@@ -173,34 +174,56 @@ test("small screens contain charts and tables without page overflow", async ({ p
 })
 
 
-test("dragging and resizing persist desktop positions without responsive rewrites", async ({ page }) => {
+test("widgets move between rows, widen into a new row and keep the stored rows on small screens", async ({ page }) => {
   await page.setViewportSize({ width: 1680, height: 1100 })
   const mock = await setup(page)
   await page.goto("/")
   await expect(widget(page, "attention-counter")).toHaveCount(4)
   await page.getByRole("button", { name: "Настроить", exact: true }).click()
-  const counter = widget(page, "attention-counter").first()
-  const handle = await counter.locator(".drag-handle").boundingBox()
-  expect(handle).not.toBeNull()
-  await page.mouse.move(handle!.x + 30, handle!.y + 10)
+
+  // Drag the first counter onto the third one: the row is reordered, nothing else moves.
+  const counters = widget(page, "attention-counter")
+  const from = (await counters.nth(0).getByRole("button", { name: "Переместить: Требует внимания" }).boundingBox())!
+  const to = (await counters.nth(2).boundingBox())!
+  await page.mouse.move(from.x + 20, from.y + from.height / 2)
   await page.mouse.down()
-  await page.mouse.move(handle!.x + 380, handle!.y + 10, { steps: 12 })
+  await page.mouse.move(from.x + 40, from.y + from.height / 2, { steps: 4 })
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 16 })
   await page.mouse.up()
-  const resize = await counter.locator(".react-resizable-handle").count()
-  // RGL attaches the resize handle to the grid item outside the Card.
-  expect(resize).toBe(0)
-  const corner = await counter.locator("..").locator(".react-resizable-handle").boundingBox()
-  expect(corner).not.toBeNull()
-  await page.mouse.move(corner!.x + 5, corner!.y + 5)
-  await page.mouse.down()
-  await page.mouse.move(corner!.x + 130, corner!.y + 5, { steps: 12 })
-  await page.mouse.up()
+  await expect(counters.nth(2)).toHaveAttribute("data-widget-id", "default-withdrawals")
+
+  // Widening a counter in a full row moves the counter that no longer fits to a row below.
+  await widget(page, "attention-counter").first().getByRole("button", { name: "Настроить: Требует внимания", exact: true }).click()
+  await page.getByRole("radio", { name: "⅓ ширины", exact: true }).click()
+  await page.getByRole("button", { name: "Применить", exact: true }).click()
+
+  // Drag a counter from the first row onto the counter that now sits alone in the second row.
+  const drag = async (id: string, target: string) => {
+    const handle = (await page.locator(`[data-widget-id="${id}"]`).getByRole("button", { name: /^Переместить:/ }).boundingBox())!
+    const box = (await page.locator(`[data-widget-id="${target}"]`).boundingBox())!
+    await page.mouse.move(handle.x + 20, handle.y + handle.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(handle.x + 40, handle.y + handle.height / 2, { steps: 4 })
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 16 })
+    await page.mouse.up()
+  }
+  await drag("default-outflows", "default-networks")
+
+  // The keyboard picks a widget up with Space and puts it back with Escape.
+  const handle = page.locator('[data-widget-id="default-inbound"]').getByRole("button", { name: /^Переместить:/ })
+  await handle.focus()
+  await page.keyboard.press("Space")
+  await page.keyboard.press("Escape")
+
   await page.getByRole("button", { name: "Сохранить раскладку", exact: true }).click()
   await expect(page.getByRole("button", { name: "Настроить", exact: true })).toBeVisible()
-  const saved = mock.saved() as { widgets: { instanceId: string; x: number; y: number; w: number }[] }
-  const moved = saved.widgets.find(w => w.instanceId === "default-withdrawals")!
-  expect(moved.x !== 0 || moved.y !== 0).toBeTruthy()
-  expect(moved.w).toBeGreaterThan(3)
+  const saved = mock.saved() as { catalogVersion: number; rows: { instanceId: string; size: string }[][] }
+  expect(saved.catalogVersion).toBe(3)
+  expect(saved.rows[0].map(w => w.instanceId)).toEqual(["default-inbound", "default-withdrawals"])
+  expect(saved.rows[0][0].size).toBe("3x1")
+  expect(saved.rows[1].map(w => w.instanceId).sort()).toEqual(["default-networks", "default-outflows"])
+
+  // A phone shows the same rows reflowed; nothing is rewritten.
   await page.setViewportSize({ width: 390, height: 844 })
   await page.reload()
   await expect(widget(page, "attention-counter")).toHaveCount(4)

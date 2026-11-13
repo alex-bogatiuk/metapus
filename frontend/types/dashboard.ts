@@ -62,14 +62,20 @@ export interface WidgetDefinition<T extends WidgetType = WidgetType> {
 export interface WidgetPlacement {
   instanceId: string
   widgetType: WidgetType
-  x: number; y: number; w: number; h: number
+  /** One of the widget's allowed sizes: its share of a 12-column row and its height in row units. */
+  size: WidgetSize
   config: JsonObject
 }
 
+/**
+ * The dashboard is a list of rows; a row is a list of widgets read left to right.
+ * The widths in a row add up to at most 12 columns. A row that is not full stretches
+ * its widgets proportionally, so a row never has a gap. A row is as tall as its tallest widget.
+ */
 export interface DashboardLayout {
   version: number
-  catalogVersion: 2
-  widgets: WidgetPlacement[]
+  catalogVersion: 3
+  rows: WidgetPlacement[][]
 }
 
 export interface WidgetRenderProps<T extends WidgetType = WidgetType> {
@@ -122,6 +128,11 @@ export const SIZE_LABELS: Record<WidgetSize, string> = {
 
 export const GRID_ROW_HEIGHT = 120
 export const GRID_MARGIN = 12
+/** Columns in a desktop row. */
+export const ROW_COLUMNS = 12
+
+/** Pixel height of a row that is `units` rows tall, gaps between units included. */
+export const rowHeightPx = (units: number) => units * GRID_ROW_HEIGHT + (units - 1) * GRID_MARGIN
 
 /** Runtime registry entry closes over a concrete typed component and config schema. */
 export interface RegisteredWidgetDefinition extends Omit<WidgetDefinition, "component" | "defaultConfig"> {

@@ -5,8 +5,8 @@ import { registerScopedStore, getSessionGeneration, isCurrentSession } from "@/l
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import { api } from "@/lib/api"
-import { defaultDashboardLayout, normalizeDashboardLayout, persistedDashboardLayout } from "@/lib/dashboard-layout"
-import type { DashboardLayout, WidgetPlacement } from "@/types/dashboard"
+import { MAX_WIDGETS, defaultDashboardLayout, fitRows, layoutWidgets, normalizeDashboardLayout, persistedDashboardLayout, placeWidget, removeWidget, updateWidget } from "@/lib/dashboard-layout"
+import type { DashboardLayout, WidgetPlacement, WidgetSize } from "@/types/dashboard"
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 let saveChain: Promise<void> = Promise.resolve()
@@ -33,13 +33,15 @@ interface DashboardState {
   cancelEdit: () => void
   addWidget: (widget: WidgetPlacement) => void
   removeWidget: (id: string) => void
-  updatePositions: (widgets: WidgetPlacement[]) => void
+  /** Rows after a widget was dragged within or between rows. */
+  setRows: (rows: WidgetPlacement[][]) => void
+  updateWidget: (id: string, patch: { size?: WidgetSize; config?: JsonObject }) => void
   updateWidgetConfig: (id: string, config: JsonObject) => void
   resetToDefault: () => void
 }
 export const useDashboardStore = create<DashboardState>()(persist((set, get) => {
-  const change = (widgets: WidgetPlacement[]) => {
-    set({ layout: { catalogVersion: 2, version: get().layout.version + 1, widgets }, saveError: null })
+  const change = (rows: WidgetPlacement[][]) => {
+    set({ layout: { catalogVersion: 3, version: get().layout.version + 1, rows }, saveError: null })
     if (!get().isEditMode) queueSave()
   }
   return {
@@ -93,14 +95,18 @@ export const useDashboardStore = create<DashboardState>()(persist((set, get) => 
       // A new version number keeps in-flight saves and loads from treating the restored layout as theirs.
       set({ isEditMode: false, editSnapshot: null, saveError: null, ...(editSnapshot ? { layout: { ...editSnapshot, version: layout.version + 1 } } : {}) })
     },
-    addWidget: widget => { if (get().layout.widgets.length < 20) change([...get().layout.widgets, widget]) },
-    removeWidget: id => change(get().layout.widgets.filter(w => w.instanceId !== id)),
-    updatePositions: widgets => { if (JSON.stringify(widgets) !== JSON.stringify(get().layout.widgets)) change(widgets) },
-    updateWidgetConfig: (id, config) => change(get().layout.widgets.map(w => w.instanceId === id ? { ...w, config } : w)),
-    resetToDefault: () => change(defaultDashboardLayout().widgets),
+    addWidget: widget => { if (layoutWidgets(get().layout).length < MAX_WIDGETS) change(placeWidget(get().layout.rows, widget)) },
+    removeWidget: id => change(removeWidget(get().layout.rows, id)),
+    setRows: rows => {
+      const next = fitRows(rows)
+      if (JSON.stringify(next) !== JSON.stringify(get().layout.rows)) change(next)
+    },
+    updateWidget: (id, patch) => change(updateWidget(get().layout.rows, id, patch)),
+    updateWidgetConfig: (id, config) => change(updateWidget(get().layout.rows, id, { config })),
+    resetToDefault: () => change(defaultDashboardLayout().rows),
   }
 }, {
-  name: "metapus-dashboard", version: 2, partialize: s => ({ layout: s.layout }),
+  name: "metapus-dashboard", version: 3, partialize: s => ({ layout: s.layout }),
   migrate: persisted => ({ layout: persistedDashboardLayout(persisted) }),
   merge: (persisted, current) => ({ ...current, layout: persistedDashboardLayout(persisted) }),
 }))

@@ -1,38 +1,79 @@
 import { test, expect } from "@playwright/test"
-import { defaultDashboardLayout, normalizeDashboardLayout, persistedDashboardLayout, reflowLayout, compactLayout, type GridItem } from "../../lib/dashboard-layout"
+import {
+  defaultDashboardLayout, distributeColumns, fitRows, layoutLines, layoutWidgets, normalizeDashboardLayout, persistedDashboardLayout,
+  placeWidget, removeWidget, rowSpan, updateWidget, type LayoutLine,
+} from "../../lib/dashboard-layout"
 import { allWidgetDefinitions } from "../../lib/widget-registry"
 import { preferencesSchema } from "../../lib/schemas/preferences"
 import { networkHealth, networkProblem } from "../../lib/admin-dashboard"
 import type { CryptoNetworkState } from "../../types/crypto-network"
+import type { WidgetPlacement } from "../../types/dashboard"
+
+const ids = (rows: WidgetPlacement[][]) => rows.map(row => row.map(w => w.instanceId))
 
 test("retired server and local catalogs migrate to fresh independent layouts", () => {
   const old = { version: 57, widgets: [{ instanceId: "cash", widgetType: "kpi", x: 0, y: 0, w: 3, h: 1, config: { metric: "cash-balance" } }] }
   const a = normalizeDashboardLayout(old)
-  expect(a.catalogVersion).toBe(2)
-  expect(new Set(a.widgets.map(w => w.widgetType)).size).toBe(8)
+  expect(a.catalogVersion).toBe(3)
+  expect(new Set(layoutWidgets(a).map(w => w.widgetType)).size).toBe(8)
   expect(persistedDashboardLayout({ layout: old })).toEqual(a)
-  a.widgets.pop()
-  expect(defaultDashboardLayout().widgets).toHaveLength(12)
+  a.rows.pop()
+  expect(layoutWidgets(defaultDashboardLayout())).toHaveLength(12)
   expect(allWidgetDefinitions.map(w => w.type)).not.toContain("kpi")
 })
-test("new layouts preserve custom placement, independent configs and intentional empty pages", () => {
+test("new layouts preserve custom rows, independent configs and intentional empty pages", () => {
   const layout = defaultDashboardLayout()
   layout.version = 94
-  layout.widgets[0].config.metric = "outflows"
-  layout.widgets[0].y = 7
+  layout.rows[0][0].config.metric = "outflows"
+  layout.rows = [layout.rows[1], layout.rows[0], ...layout.rows.slice(2)]
   expect(normalizeDashboardLayout(layout)).toEqual(layout)
-  expect(normalizeDashboardLayout({ catalogVersion: 2, version: 10, widgets: [] }).widgets).toEqual([])
+  expect(normalizeDashboardLayout({ catalogVersion: 3, version: 10, rows: [] }).rows).toEqual([])
+  expect(normalizeDashboardLayout({ catalogVersion: 2, version: 10, widgets: [] }).rows).toEqual([])
 })
-test("invalid positions, duplicate IDs and invalid configs cannot restore a broken layout", () => {
+test("duplicate IDs, unknown types, sizes a widget does not allow and invalid configs cannot restore a broken layout", () => {
   const layout = defaultDashboardLayout()
-  for (const value of [ { ...layout, widgets: [layout.widgets[0], layout.widgets[0]] },
-    { ...layout, widgets: [{ ...layout.widgets[0], y: null }] },
-    { ...layout, widgets: [{ ...layout.widgets[0], widgetType: "constructor" }] },
-    { ...layout, widgets: [{ ...layout.widgets[0], y: Infinity }] },
-    { ...layout, widgets: [{ ...layout.widgets[0], config: { metric: "cash-balance" } }] } ]) {
-    expect(normalizeDashboardLayout(value)).toEqual(defaultDashboardLayout())
+  const first = layout.rows[0][0]
+  for (const rows of [[[first, first]], [[{ ...first, widgetType: "constructor" }]], [[{ ...first, size: "fullx3" }]], [[{ ...first, config: { metric: "cash-balance" } }]]]) {
+    expect(normalizeDashboardLayout({ ...layout, rows })).toEqual(defaultDashboardLayout())
+  }
+  for (const widgets of [[{ ...first, x: 0, y: null, w: 3, h: 1 }], [{ ...first, x: 0, y: Infinity, w: 3, h: 1 }], [{ ...first, x: -1, y: 0, w: 3, h: 1 }]]) {
+    expect(normalizeDashboardLayout({ catalogVersion: 2, version: 4, widgets })).toEqual(defaultDashboardLayout())
   }
 })
+test("catalog-2 coordinates become rows: bands in reading order, stacked widgets on their own row, nearest allowed sizes", () => {
+  const legacy = { catalogVersion: 2, version: 21, widgets: [
+    ...["withdrawals", "inbound", "outflows", "networks"].map((metric, i) => ({ instanceId: `c-${metric}`, widgetType: "attention-counter", x: i * 3, y: 0, w: 3, h: 1, config: { metric } })),
+    { instanceId: "queue", widgetType: "attention-queue", x: 0, y: 1, w: 8, h: 3, config: {} },
+    { instanceId: "health", widgetType: "processing-health", x: 8, y: 1, w: 4, h: 3, config: {} },
+    { instanceId: "receipts", widgetType: "receipts-volume", x: 0, y: 4, w: 8, h: 4, config: {} },
+    { instanceId: "fees", widgetType: "platform-fees", x: 8, y: 4, w: 4, h: 2, config: {} },
+    { instanceId: "results", widgetType: "payment-results", x: 8, y: 6, w: 4, h: 2, config: {} },
+    // A width that was dragged to a size no preset has; a tie goes to the narrower preset.
+    { instanceId: "wide-counter", widgetType: "attention-counter", x: 0, y: 8, w: 5, h: 1, config: { metric: "inbound" } },
+  ] }
+  const layout = normalizeDashboardLayout(legacy)
+  expect(ids(layout.rows)).toEqual([
+    ["c-withdrawals", "c-inbound", "c-outflows", "c-networks"], ["queue", "health"], ["receipts", "fees"], ["results"], ["wide-counter"],
+  ])
+  const sizes = Object.fromEntries(layoutWidgets(layout).map(w => [w.instanceId, w.size]))
+  expect(sizes).toMatchObject({ queue: "4x3", health: "2x3", receipts: "4x4-compact", fees: "2x2", "wide-counter": "3x1" })
+  expect(layout.rows.every(row => rowSpan(row) <= 12)).toBe(true)
+})
+test("rows never ask for more than 12 columns: adding, resizing and removing keep every row valid", () => {
+  const rows = defaultDashboardLayout().rows
+  const counter = (id: string): WidgetPlacement => ({ instanceId: id, widgetType: "attention-counter", size: "2x1", config: { metric: "inbound" } })
+  // The last row (½ + ½) is full, so a new widget starts a row; the next one joins it.
+  const added = placeWidget(placeWidget(rows, counter("a")), counter("b"))
+  expect(ids(added).slice(-1)).toEqual([["a", "b"]])
+  // Widening a counter in a full row moves the counters that no longer fit to a row below.
+  const widened = updateWidget(rows, "default-withdrawals", { size: "4x1" })
+  expect(ids(widened).slice(0, 2)).toEqual([["default-withdrawals", "default-inbound", "default-outflows"], ["default-networks"]])
+  expect(widened.every(row => rowSpan(row) <= 12)).toBe(true)
+  // Removing the only widget of a row removes the row.
+  expect(removeWidget(rows, "default-reconciliation")).toHaveLength(rows.length - 1)
+  expect(fitRows([[], [counter("x")], []])).toEqual([[counter("x")]])
+})
+
 test("network counters distinguish disabled, stale, operational hold and healthy states", () => {
   const now = Date.parse("2026-10-03T12:00:00Z")
   const state = { capabilities: { requiredRpcRoles: ["rpc"], externalResourceMode: "none" }, policy: { enabled: true }, runtime: { observedAt: "2026-10-03T12:00:00Z", operationalHold: false, signerReady: true, rpcEndpoints: [{ role: "rpc", state: "closed" }] } } as CryptoNetworkState
@@ -75,57 +116,38 @@ test("JSONB key ordering does not trigger another layout migration", () => {
   expect(preferencesSchema.parse({ ...preferences, dashboardLayout: { version: 3, widgets: [{ instanceId: "old", widgetType: "tasks", x: 0, y: 0, w: 4, h: 2, config: {} }] } }).dashboardLayoutNeedsSave).toBe(true)
 })
 
-/** Every cell from the top of the grid to its last row is covered exactly once. */
-function assertNoGaps(items: GridItem[], cols: number) {
-  const height = Math.max(...items.map(i => i.y + i.h))
-  const cells = Array.from({ length: height }, () => Array<number>(cols).fill(0))
-  for (const i of items) for (let y = i.y; y < i.y + i.h; y++) for (let x = i.x; x < i.x + i.w; x++) cells[y][x]++
-  expect(cells.flat().every(c => c === 1)).toBe(true)
+/** Every line fills its columns exactly, so no widget ever has empty space beside it. */
+function assertFull(lines: LayoutLine[]) {
+  for (const line of lines) expect(line.cells.reduce((sum, c) => sum + c.span, 0)).toBe(line.columns)
 }
 
-test("narrow dashboard grids reflow the desktop layout without gaps", () => {
-  const desktop = defaultDashboardLayout().widgets.map(w => ({ i: w.instanceId, x: w.x, y: w.y, w: w.w, h: w.h }))
-  for (const cols of [4, 1]) {
-    const narrow = reflowLayout(desktop, cols)
-    expect(narrow.map(i => i.i).sort()).toEqual(desktop.map(i => i.i).sort())
-    assertNoGaps(narrow, cols)
-  }
-  // Counters pair up; the queue is wide and takes the row; reading order is kept.
-  const two = reflowLayout(desktop, 4)
-  expect(two.slice(0, 5).map(i => [i.i, i.x, i.w])).toEqual([
-    ["default-withdrawals", 0, 2], ["default-inbound", 2, 2], ["default-outflows", 0, 2], ["default-networks", 2, 2], ["default-queue", 0, 4],
+test("rows are drawn full at every width: proportional on desktop, in pairs on tablets, stacked on phones", () => {
+  const rows = defaultDashboardLayout().rows
+  const wide = layoutLines(rows, "wide")
+  assertFull(wide)
+  expect(wide.map(l => l.height)).toEqual([1, 3, 3, 3, 4, 2])
+  // A row that is not full stretches its widgets in proportion: ⅓ + ⅓ becomes ½ + ½.
+  expect(distributeColumns([4, 4])).toEqual([6, 6])
+  expect(distributeColumns([3, 3, 4])).toEqual([4, 3, 5])
+  expect(distributeColumns([4, 4, 4, 3])).toEqual([3, 3, 3, 3])
+
+  const two = layoutLines(rows, "two")
+  assertFull(two)
+  expect(two.slice(0, 3).map(l => l.cells.map(c => c.widget.instanceId))).toEqual([
+    ["default-withdrawals", "default-inbound"], ["default-outflows", "default-networks"], ["default-queue"],
   ])
-  // A widget without an equally tall partner takes the full row instead of leaving a gap.
-  const odd = reflowLayout([{ i: "a", x: 0, y: 0, w: 3, h: 1 }, { i: "b", x: 3, y: 0, w: 6, h: 3 }, { i: "c", x: 0, y: 3, w: 12, h: 2 }], 4)
-  expect(odd).toEqual([{ i: "a", x: 0, y: 0, w: 4, h: 1 }, { i: "b", x: 0, y: 1, w: 4, h: 3 }, { i: "c", x: 0, y: 4, w: 4, h: 2 }])
-  assertNoGaps(odd, 4)
+  const one = layoutLines(rows, "one")
+  assertFull(one)
+  expect(one).toHaveLength(12)
 })
 
-test("calm widgets shrink their band only when no neighbour needs the height", () => {
-  const desktop = defaultDashboardLayout().widgets.map(w => ({ i: w.instanceId, x: w.x, y: w.y, w: w.w, h: w.h }))
-  const byId = (items: GridItem[]) => Object.fromEntries(items.map(i => [i.i, i]))
-
-  // An empty queue next to a busy health card keeps the band: shrinking it would leave a gap.
-  const queueOnly = byId(compactLayout(desktop, { "default-queue": 1 }))
-  expect(queueOnly["default-queue"]).toMatchObject({ y: 1, h: 3 })
-  expect(queueOnly["default-obligations"]).toMatchObject({ y: 4 })
-
-  // When both ask for less, the band takes the taller request and everything below moves up.
-  const both = compactLayout(desktop, { "default-queue": 1, "default-health": 2 })
-  expect(byId(both)["default-queue"]).toMatchObject({ y: 1, h: 2 })
-  expect(byId(both)["default-health"]).toMatchObject({ y: 1, h: 2 })
-  expect(byId(both)["default-obligations"]).toMatchObject({ y: 3 })
-  assertNoGaps(both, 12)
-
-  // A band with stacked widgets (receipts beside fees over results) keeps its shape.
-  const stacked = byId(compactLayout(desktop, { "default-fees": 1 }))
-  expect(stacked["default-fees"]).toMatchObject({ h: 2 })
-  expect(stacked["default-results"].y - stacked["default-fees"].y).toBe(2)
-
-  // Narrow grids give every row exactly what its widgets need; a widget never grows.
-  const narrow = reflowLayout(desktop, 4, { "default-queue": 1, "default-health": 2 })
-  expect(byId(narrow)["default-queue"]).toMatchObject({ w: 4, h: 1 })
-  expect(byId(narrow)["default-health"].h).toBe(3)
-  expect(reflowLayout([{ i: "a", x: 0, y: 0, w: 3, h: 1 }], 1, { a: 5 })[0].h).toBe(1)
-  assertNoGaps(narrow, 4)
+test("calm widgets shrink their line only as far as the tallest neighbour allows", () => {
+  const rows = defaultDashboardLayout().rows
+  const height = (lines: LayoutLine[], id: string) => lines.find(l => l.cells.some(c => c.widget.instanceId === id))!.height
+  // Desktop: the empty queue shares its row with a health card that still needs three rows.
+  expect(height(layoutLines(rows, "wide", { "default-queue": 1 }), "default-queue")).toBe(3)
+  expect(height(layoutLines(rows, "wide", { "default-queue": 1, "default-health": 2 }), "default-queue")).toBe(2)
+  // Narrow: the queue has its own line and takes exactly what it asked for; nothing grows past its size.
+  expect(height(layoutLines(rows, "two", { "default-queue": 1 }), "default-queue")).toBe(1)
+  expect(height(layoutLines(rows, "one", { "default-withdrawals": 5 }), "default-withdrawals")).toBe(1)
 })
