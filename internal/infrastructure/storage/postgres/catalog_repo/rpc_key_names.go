@@ -2,9 +2,11 @@ package catalog_repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
-	"strings"
+
+	"github.com/jackc/pgx/v5"
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
@@ -12,23 +14,12 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
-// An endpoint reads one named key from whichever pool account is selected.
-// Runtime selection skips an account without that name, so catalog writes keep
-// every keyed pool account and every endpoint of the pool consistent. Only key
-// names leave this file; values stay in memory.
+// Catalog writes keep every keyed pool account and every endpoint of the pool
+// consistent by the rule in integrations.RequireRPCKeys. Only key names leave
+// this file; decrypted values stay in memory.
 
-type rpcKeyHolder struct {
-	id        id.ID
-	name      string
-	encrypted []byte
-	keys      []string
-}
-
-func (h rpcKeyHolder) keyed() bool { return len(h.encrypted) > 0 }
-
-type rpcKeyUser struct{ name, slot string }
-
-func loadRPCKeyHolders(ctx context.Context, accountIDs []id.ID) ([]rpcKeyHolder, error) {
+// loadRPCKeyAccounts reads the key names of pool accounts in the given order.
+func loadRPCKeyAccounts(ctx context.Context, accountIDs []id.ID) ([]integrations.RPCKeyAccount, error) {
 	if len(accountIDs) == 0 {
 		return nil, nil
 	}
@@ -37,48 +28,56 @@ func loadRPCKeyHolders(ctx context.Context, accountIDs []id.ID) ([]rpcKeyHolder,
 		return nil, fmt.Errorf("load pool account keys: %w", err)
 	}
 	defer rows.Close()
-	byID := map[id.ID]rpcKeyHolder{}
+	type stored struct {
+		id        id.ID
+		name      string
+		encrypted []byte
+	}
+	byID := map[id.ID]stored{}
 	for rows.Next() {
-		var h rpcKeyHolder
-		if err := rows.Scan(&h.id, &h.name, &h.encrypted); err != nil {
+		var s stored
+		if err := rows.Scan(&s.id, &s.name, &s.encrypted); err != nil {
 			return nil, fmt.Errorf("scan pool account keys: %w", err)
 		}
-		byID[h.id] = h
+		byID[s.id] = s
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	out := make([]rpcKeyHolder, 0, len(accountIDs))
+	out := make([]integrations.RPCKeyAccount, 0, len(accountIDs))
 	for _, uid := range accountIDs {
-		if h, ok := byID[uid]; ok {
-			out = append(out, h)
-		}
-	}
-	return out, decodeRPCKeyNames(out)
-}
-
-func decodeRPCKeyNames(holders []rpcKeyHolder) error {
-	var key []byte
-	for i := range holders {
-		if !holders[i].keyed() {
+		s, ok := byID[uid]
+		if !ok {
 			continue
 		}
-		if key == nil {
-			var err error
-			if key, err = IntegrationEncryptionKey(); err != nil {
-				return err
-			}
-		}
-		credentials, err := decodeIntegrationCredentials(holders[i].encrypted, key)
+		account, err := rpcKeyAccount(s.id, s.name, s.encrypted)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		holders[i].keys = make([]string, 0, len(credentials.Keys))
-		for _, k := range credentials.Keys {
-			holders[i].keys = append(holders[i].keys, k.Name)
-		}
+		out = append(out, account)
 	}
-	return nil
+	return out, nil
+}
+
+// rpcKeyAccount decrypts the credentials only to list their key names.
+func rpcKeyAccount(accountID id.ID, name string, encrypted []byte) (integrations.RPCKeyAccount, error) {
+	account := integrations.RPCKeyAccount{ID: accountID.String(), Name: name, HasCredentials: len(encrypted) > 0, Keys: []string{}}
+	if !account.HasCredentials {
+		return account, nil
+	}
+	key, err := IntegrationEncryptionKey()
+	if err != nil {
+		return account, err
+	}
+	credentials, err := decodeIntegrationCredentials(encrypted, key)
+	if err != nil {
+		return account, err
+	}
+	for _, k := range credentials.Keys {
+		account.Keys = append(account.Keys, k.Name)
+	}
+	slices.Sort(account.Keys)
+	return account, nil
 }
 
 func poolMemberIDs(ctx context.Context, poolID id.ID) ([]id.ID, error) {
@@ -98,16 +97,16 @@ func poolMemberIDs(ctx context.Context, poolID id.ID) ([]id.ID, error) {
 	return out, rows.Err()
 }
 
-func loadRPCKeyUsers(ctx context.Context, query string, arg any) ([]rpcKeyUser, error) {
+func loadRPCKeyUsers(ctx context.Context, query string, arg any) ([]integrations.RPCKeyUser, error) {
 	rows, err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).Query(ctx, query, arg)
 	if err != nil {
 		return nil, fmt.Errorf("load RPC endpoints of pool: %w", err)
 	}
 	defer rows.Close()
-	var out []rpcKeyUser
+	var out []integrations.RPCKeyUser
 	for rows.Next() {
-		var u rpcKeyUser
-		if err := rows.Scan(&u.name, &u.slot); err != nil {
+		var u integrations.RPCKeyUser
+		if err := rows.Scan(&u.Endpoint, &u.Key); err != nil {
 			return nil, err
 		}
 		out = append(out, u)
@@ -115,47 +114,15 @@ func loadRPCKeyUsers(ctx context.Context, query string, arg any) ([]rpcKeyUser, 
 	return out, rows.Err()
 }
 
-// requireRPCKeys rejects a configuration in which a keyed account lacks a key
-// that an endpoint of its pool reads. Accounts without credentials are shown
-// separately as unconfigured and are not part of this check.
-func requireRPCKeys(users []rpcKeyUser, holders []rpcKeyHolder) error {
-	for _, u := range users {
-		var missing []string
-		for _, h := range holders {
-			if h.keyed() && !slices.Contains(h.keys, u.slot) {
-				missing = append(missing, "«"+h.name+"»")
-			}
-		}
-		if len(missing) > 0 {
-			return apperror.NewValidation(fmt.Sprintf("Подключение «%s» использует ключ «%s», которого нет в аккаунтах %s", u.name, u.slot, strings.Join(missing, ", "))).
-				WithDetail("reasonCode", "rpc_key_missing").WithDetail("field", "credentialSlot")
-		}
-	}
-	return nil
-}
-
-func commonRPCKeyNames(holders []rpcKeyHolder) []string {
-	var names []string
-	first := true
-	for _, h := range holders {
-		if !h.keyed() {
-			continue
-		}
-		if first {
-			names, first = slices.Clone(h.keys), false
-			continue
-		}
-		names = slices.DeleteFunc(names, func(name string) bool { return !slices.Contains(h.keys, name) })
-	}
-	slices.Sort(names)
-	return slices.Compact(names)
-}
-
 // rpcBindingFor resolves the network contract of an endpoint draft.
 func rpcBindingFor(ctx context.Context, networkID id.ID, role, url, trustGroup, slot string) (integrations.RPCBinding, error) {
 	var family, network string
-	if err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `SELECT chain_family,network_identifier FROM cat_blockchain_networks WHERE id=$1 AND NOT deletion_mark`, networkID).Scan(&family, &network); err != nil {
+	err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `SELECT chain_family,network_identifier FROM cat_blockchain_networks WHERE id=$1 AND NOT deletion_mark`, networkID).Scan(&family, &network)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return integrations.RPCBinding{}, apperror.NewValidation("Выберите действующую сеть")
+	}
+	if err != nil {
+		return integrations.RPCBinding{}, fmt.Errorf("read RPC endpoint network: %w", err)
 	}
 	return integrations.RPCBinding{Family: family, NetworkIdentifier: network, Role: role, URL: url, TrustGroup: trustGroup, Slot: slot}, nil
 }
@@ -164,8 +131,12 @@ func rpcBindingFor(ctx context.Context, networkID id.ID, role, url, trustGroup, 
 func RPCKeyOptions(ctx context.Context, q integrations.RPCKeyQuery) (integrations.RPCKeyOptions, error) {
 	out := integrations.RPCKeyOptions{Names: []string{}, Accounts: []integrations.RPCKeyAccount{}}
 	var provider integrations.Provider
-	if err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `SELECT provider FROM cat_integration_pools WHERE id=$1 AND NOT deletion_mark AND _deleted_at IS NULL`, q.PoolID).Scan(&provider); err != nil {
+	err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `SELECT provider FROM cat_integration_pools WHERE id=$1 AND NOT deletion_mark AND _deleted_at IS NULL`, q.PoolID).Scan(&provider)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return out, apperror.NewNotFound("integration_pool", q.PoolID.String())
+	}
+	if err != nil {
+		return out, fmt.Errorf("read integration pool provider: %w", err)
 	}
 	if !id.IsNil(q.NetworkID) {
 		b, err := rpcBindingFor(ctx, q.NetworkID, q.Role, q.URL, "", "")
@@ -178,22 +149,12 @@ func RPCKeyOptions(ctx context.Context, q integrations.RPCKeyQuery) (integration
 	if err != nil {
 		return out, err
 	}
-	holders, err := loadRPCKeyHolders(ctx, members)
+	accounts, err := loadRPCKeyAccounts(ctx, members)
 	if err != nil {
 		return out, err
 	}
-	out.Names = commonRPCKeyNames(holders)
-	if out.Names == nil {
-		out.Names = []string{}
-	}
-	for _, h := range holders {
-		keys := slices.Clone(h.keys)
-		if keys == nil {
-			keys = []string{}
-		}
-		slices.Sort(keys)
-		out.Accounts = append(out.Accounts, integrations.RPCKeyAccount{ID: h.id.String(), Name: h.name, HasCredentials: h.keyed(), Keys: keys})
-	}
+	out.Names = integrations.CommonRPCKeyNames(accounts)
+	out.Accounts = append(out.Accounts, accounts...)
 	return out, nil
 }
 
@@ -203,11 +164,11 @@ func validatePoolRPCKeys(ctx context.Context, p *integrations.Pool) error {
 	if err != nil || len(users) == 0 {
 		return err
 	}
-	holders, err := loadRPCKeyHolders(ctx, p.AccountIDs)
+	accounts, err := loadRPCKeyAccounts(ctx, p.AccountIDs)
 	if err != nil {
 		return err
 	}
-	return requireRPCKeys(users, holders)
+	return integrations.RequireRPCKeys(users, accounts)
 }
 
 // validateAccountRPCKeys checks new credentials against endpoints of every pool
@@ -220,9 +181,9 @@ func validateAccountRPCKeys(ctx context.Context, a *integrations.Account) error 
 	if err != nil || len(users) == 0 {
 		return err
 	}
-	holders := []rpcKeyHolder{{id: a.ID, name: a.Name, encrypted: a.CredentialsEnc}}
-	if err := decodeRPCKeyNames(holders); err != nil {
+	account, err := rpcKeyAccount(a.ID, a.Name, a.CredentialsEnc)
+	if err != nil {
 		return err
 	}
-	return requireRPCKeys(users, holders)
+	return integrations.RequireRPCKeys(users, []integrations.RPCKeyAccount{account})
 }

@@ -69,11 +69,11 @@ func (r *CryptoRPCEndpointRepo) ValidateBinding(ctx context.Context, e *integrat
 	if err != nil {
 		return err
 	}
-	holders, err := loadRPCKeyHolders(ctx, members)
+	accounts, err := loadRPCKeyAccounts(ctx, members)
 	if err != nil {
 		return err
 	}
-	if err := requireRPCKeys([]rpcKeyUser{{name: e.Name, slot: e.Slot}}, holders); err != nil {
+	if err := integrations.RequireRPCKeys([]integrations.RPCKeyUser{{Endpoint: e.Name, Key: e.Slot}}, accounts); err != nil {
 		return err
 	}
 	definition, _ := provider.Definition()
