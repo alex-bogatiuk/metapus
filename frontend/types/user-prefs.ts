@@ -47,8 +47,6 @@ export interface UserPreferencesResponse {
   listFilters: Record<string, FilterValues>
   listColumns: Record<string, string[] | Record<string, number>>
   dashboardLayout: import("@/types/dashboard").DashboardLayout | null
-  /** Client migration marker; not part of the HTTP wire response. */
-  dashboardLayoutNeedsSave?: boolean
   favorites: FavoriteItem[]
   updatedAt: string
 }

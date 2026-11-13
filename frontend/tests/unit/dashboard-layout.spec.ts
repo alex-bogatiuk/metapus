@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test"
 import {
-  defaultDashboardLayout, distributeColumns, fitRows, layoutLines, layoutWidgets, normalizeDashboardLayout, persistedDashboardLayout,
-  placeWidget, removeWidget, rowSpan, updateWidget, type LayoutLine,
+  defaultDashboardLayout, distributeColumns, fitRows, layoutLines, layoutWidgets, placeWidget, readDashboardLayout,
+  removeWidget, rowSpan, updateWidget, type LayoutLine,
 } from "../../lib/dashboard-layout"
 import { allWidgetDefinitions } from "../../lib/widget-registry"
 import { preferencesSchema } from "../../lib/schemas/preferences"
@@ -11,13 +11,9 @@ import type { WidgetPlacement } from "../../types/dashboard"
 
 const ids = (rows: WidgetPlacement[][]) => rows.map(row => row.map(w => w.instanceId))
 
-test("retired server and local catalogs migrate to fresh independent layouts", () => {
-  const old = { version: 57, widgets: [{ instanceId: "cash", widgetType: "kpi", x: 0, y: 0, w: 3, h: 1, config: { metric: "cash-balance" } }] }
-  const a = normalizeDashboardLayout(old)
-  expect(a.catalogVersion).toBe(3)
-  expect(new Set(layoutWidgets(a).map(w => w.widgetType)).size).toBe(8)
-  expect(persistedDashboardLayout({ layout: old })).toEqual(a)
-  a.rows.pop()
+test("a layout of another catalog is replaced by the default, never converted", () => {
+  const positions = { catalogVersion: 2, version: 57, widgets: [{ instanceId: "cash", widgetType: "attention-counter", x: 0, y: 0, w: 3, h: 1, config: { metric: "inbound" } }] }
+  for (const stored of [positions, { version: 3, rows: [] }, null, "layout"]) expect(readDashboardLayout(stored)).toEqual(defaultDashboardLayout())
   expect(layoutWidgets(defaultDashboardLayout())).toHaveLength(12)
   expect(allWidgetDefinitions.map(w => w.type)).not.toContain("kpi")
 })
@@ -26,38 +22,15 @@ test("new layouts preserve custom rows, independent configs and intentional empt
   layout.version = 94
   layout.rows[0][0].config.metric = "outflows"
   layout.rows = [layout.rows[1], layout.rows[0], ...layout.rows.slice(2)]
-  expect(normalizeDashboardLayout(layout)).toEqual(layout)
-  expect(normalizeDashboardLayout({ catalogVersion: 3, version: 10, rows: [] }).rows).toEqual([])
-  expect(normalizeDashboardLayout({ catalogVersion: 2, version: 10, widgets: [] }).rows).toEqual([])
+  expect(readDashboardLayout(layout)).toEqual(layout)
+  expect(readDashboardLayout({ catalogVersion: 3, version: 10, rows: [] }).rows).toEqual([])
 })
 test("duplicate IDs, unknown types, sizes a widget does not allow and invalid configs cannot restore a broken layout", () => {
   const layout = defaultDashboardLayout()
   const first = layout.rows[0][0]
   for (const rows of [[[first, first]], [[{ ...first, widgetType: "constructor" }]], [[{ ...first, size: "fullx3" }]], [[{ ...first, config: { metric: "cash-balance" } }]]]) {
-    expect(normalizeDashboardLayout({ ...layout, rows })).toEqual(defaultDashboardLayout())
+    expect(readDashboardLayout({ ...layout, rows })).toEqual(defaultDashboardLayout())
   }
-  for (const widgets of [[{ ...first, x: 0, y: null, w: 3, h: 1 }], [{ ...first, x: 0, y: Infinity, w: 3, h: 1 }], [{ ...first, x: -1, y: 0, w: 3, h: 1 }]]) {
-    expect(normalizeDashboardLayout({ catalogVersion: 2, version: 4, widgets })).toEqual(defaultDashboardLayout())
-  }
-})
-test("catalog-2 coordinates become rows: bands in reading order, stacked widgets on their own row, nearest allowed sizes", () => {
-  const legacy = { catalogVersion: 2, version: 21, widgets: [
-    ...["withdrawals", "inbound", "outflows", "networks"].map((metric, i) => ({ instanceId: `c-${metric}`, widgetType: "attention-counter", x: i * 3, y: 0, w: 3, h: 1, config: { metric } })),
-    { instanceId: "queue", widgetType: "attention-queue", x: 0, y: 1, w: 8, h: 3, config: {} },
-    { instanceId: "health", widgetType: "processing-health", x: 8, y: 1, w: 4, h: 3, config: {} },
-    { instanceId: "receipts", widgetType: "receipts-volume", x: 0, y: 4, w: 8, h: 4, config: {} },
-    { instanceId: "fees", widgetType: "platform-fees", x: 8, y: 4, w: 4, h: 2, config: {} },
-    { instanceId: "results", widgetType: "payment-results", x: 8, y: 6, w: 4, h: 2, config: {} },
-    // A width that was dragged to a size no preset has; a tie goes to the narrower preset.
-    { instanceId: "wide-counter", widgetType: "attention-counter", x: 0, y: 8, w: 5, h: 1, config: { metric: "inbound" } },
-  ] }
-  const layout = normalizeDashboardLayout(legacy)
-  expect(ids(layout.rows)).toEqual([
-    ["c-withdrawals", "c-inbound", "c-outflows", "c-networks"], ["queue", "health"], ["receipts", "fees"], ["results"], ["wide-counter"],
-  ])
-  const sizes = Object.fromEntries(layoutWidgets(layout).map(w => [w.instanceId, w.size]))
-  expect(sizes).toMatchObject({ queue: "4x3", health: "2x3", receipts: "4x4-compact", fees: "2x2", "wide-counter": "3x1" })
-  expect(layout.rows.every(row => rowSpan(row) <= 12)).toBe(true)
 })
 test("rows never ask for more than 12 columns: adding, resizing and removing keep every row valid", () => {
   const rows = defaultDashboardLayout().rows
@@ -105,15 +78,15 @@ test("a degraded reserve RPC warns without counting the network as broken", () =
 })
 
 
-test("JSONB key ordering does not trigger another layout migration", () => {
+test("preferences carry the stored layout as read, whatever the JSONB key order", () => {
   const layout = defaultDashboardLayout()
   const reorder = <T>(value: T): T => JSON.parse(JSON.stringify(value, (_key, data) => {
     if (data && !Array.isArray(data) && typeof data === "object") return Object.fromEntries(Object.entries(data).reverse())
     return data
   }))
   const preferences = { userId: "10000000-0000-4000-8000-000000000001", interface: {}, listFilters: {}, listColumns: {}, favorites: [], updatedAt: "2026-10-03T12:00:00Z", dashboardLayout: reorder(layout) }
-  expect(preferencesSchema.parse(preferences).dashboardLayoutNeedsSave).toBe(false)
-  expect(preferencesSchema.parse({ ...preferences, dashboardLayout: { version: 3, widgets: [{ instanceId: "old", widgetType: "tasks", x: 0, y: 0, w: 4, h: 2, config: {} }] } }).dashboardLayoutNeedsSave).toBe(true)
+  expect(preferencesSchema.parse(preferences).dashboardLayout).toEqual(layout)
+  expect(preferencesSchema.parse({ ...preferences, dashboardLayout: null }).dashboardLayout).toBeNull()
 })
 
 /** Every line fills its columns exactly, so no widget ever has empty space beside it. */

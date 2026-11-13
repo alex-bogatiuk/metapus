@@ -5,7 +5,7 @@ import { registerScopedStore, getSessionGeneration, isCurrentSession } from "@/l
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import { api } from "@/lib/api"
-import { MAX_WIDGETS, defaultDashboardLayout, fitRows, layoutWidgets, normalizeDashboardLayout, persistedDashboardLayout, placeWidget, removeWidget, updateWidget } from "@/lib/dashboard-layout"
+import { MAX_WIDGETS, defaultDashboardLayout, fitRows, layoutWidgets, placeWidget, readBrowserDashboardLayout, removeWidget, updateWidget } from "@/lib/dashboard-layout"
 import type { DashboardLayout, WidgetPlacement, WidgetSize } from "@/types/dashboard"
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
@@ -52,8 +52,7 @@ export const useDashboardStore = create<DashboardState>()(persist((set, get) => 
       try {
         const prefs = await api.preferences.get()
         if (!isCurrentSession(generation) || get().isEditMode || get().layout.version !== revision) return
-        set({ layout: prefs.dashboardLayout ? normalizeDashboardLayout(prefs.dashboardLayout) : defaultDashboardLayout(), isLoaded: true, loadError: null })
-        if (prefs.dashboardLayoutNeedsSave) queueSave()
+        set({ layout: prefs.dashboardLayout ?? defaultDashboardLayout(), isLoaded: true, loadError: null })
       } catch {
         if (isCurrentSession(generation)) set({ isLoaded: true, loadError: "Не удалось загрузить раскладку. Показана локальная версия." })
       }
@@ -107,8 +106,7 @@ export const useDashboardStore = create<DashboardState>()(persist((set, get) => 
   }
 }, {
   name: "metapus-dashboard", version: 3, partialize: s => ({ layout: s.layout }),
-  migrate: persisted => ({ layout: persistedDashboardLayout(persisted) }),
-  merge: (persisted, current) => ({ ...current, layout: persistedDashboardLayout(persisted) }),
+  merge: (persisted, current) => ({ ...current, layout: readBrowserDashboardLayout(persisted) }),
 }))
 registerScopedStore(useDashboardStore, () => {
   if (saveTimer) clearTimeout(saveTimer)

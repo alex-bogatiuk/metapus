@@ -19,7 +19,7 @@ const queues: AdminDashboardQueuesResponse = { total: 61, withdrawals: 61, inbou
 async function setup(page: Page, intercept?: (route: Route, url: URL) => Promise<boolean>, isAdmin = true) {
   const user = isAdmin ? admin : erpUser
   await installSession(page, user)
-  let layout: JsonValue = { version: 21, widgets: [{ instanceId: "legacy", widgetType: "kpi", x: 0, y: 0, w: 3, h: 1, config: { metric: "cash-balance" } }] }
+  let layout: JsonValue = null
   const calls: Record<string, number> = {}
   await page.route("**/api/v1/**", async route => {
     const url = new URL(route.request().url())
@@ -38,7 +38,7 @@ async function setup(page: Page, intercept?: (route: Route, url: URL) => Promise
 }
 const widget = (page: Page, type: string) => page.locator(`[data-widget-type="${type}"]`)
 
-test("legacy catalog migrates to 8 new types with exact balances and honest missing reconciliation", async ({ page }) => {
+test("a user without a saved layout sees the default with exact balances and honest missing reconciliation", async ({ page }) => {
   await page.setViewportSize({ width: 1680, height: 2200 })
   const errors: string[] = []; page.on("pageerror", e => errors.push(e.message))
   await setup(page)
@@ -102,9 +102,7 @@ test("edit mode can be left without saving and the previous layout comes back", 
   await page.reload()
   await expect(page.locator("[data-widget-type]")).toHaveCount(12)
   expect(puts()).toBe(before)
-  // Only the migration write that was pending before editing may reach the server, never the edits.
-  const saved = mock.saved() as { rows?: { widgetType: string }[][] }
-  if (saved.rows) expect(saved.rows.flat()).toHaveLength(12)
+  expect(mock.saved()).toBeNull()
 })
 
 test("analytics handles all periods, same-symbol networks and exact chart tooltips", async ({ page }) => {

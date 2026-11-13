@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { jsonObjectSchema, jsonObjectSnapshot, jsonValueSchema, type JsonObject } from "./json-value"
+import { jsonObjectSchema, jsonObjectSnapshot, jsonValueSchema } from "./json-value"
 import { allWidgetDefinitions } from "./widget-registry"
 import { ROW_COLUMNS, SIZE_TO_WH, widgetConfigSchemas, type DashboardLayout, type WidgetPlacement, type WidgetSize, type WidgetType } from "../types/dashboard"
 
@@ -30,26 +30,52 @@ export function defaultDashboardLayout(): DashboardLayout {
 
 // ── Reading a stored layout ─────────────────────────────────────────
 
-const rowsLayoutSchema = z.object({
+const storedLayoutSchema = z.object({
   version: z.int().nonnegative(), catalogVersion: z.literal(3),
   rows: z.array(z.array(z.object({ instanceId: z.string().min(1), widgetType: z.string(), size: z.string(), config: jsonObjectSchema }))),
 })
-/** Catalog 2 placed widgets by free x/y/w/h coordinates on a 12-column grid. */
-const positionsLayoutSchema = z.object({
-  version: z.int().nonnegative(), catalogVersion: z.number().optional(),
-  widgets: z.array(z.object({ instanceId: z.string().min(1), widgetType: z.string(),
-    x: z.number().finite(), y: z.number().finite(), w: z.number().finite(), h: z.number().finite(), config: jsonObjectSchema,
-  })),
-})
 
-/** The allowed size closest to a free width × height, width weighing more than height. */
-export function nearestSize(type: WidgetType, w: number, h: number): WidgetSize {
-  const allowed = definitionOf(type)?.allowedSizes ?? ["2x1"]
-  return allowed.reduce((best, size) => {
-    const cost = (s: WidgetSize) => Math.abs(SIZE_TO_WH[s].w - w) * 4 + Math.abs(SIZE_TO_WH[s].h - h)
-    return cost(size) < cost(best) ? size : best
-  })
+/** A widget is kept only with a known type, a size its definition allows and a valid config. */
+function checkedWidget(raw: z.infer<typeof storedLayoutSchema>["rows"][number][number]): WidgetPlacement | null {
+  if (!Object.hasOwn(widgetConfigSchemas, raw.widgetType)) return null
+  const widgetType = raw.widgetType as WidgetType
+  const config = widgetConfigSchemas[widgetType].safeParse(raw.config)
+  const size = raw.size as WidgetSize
+  if (!config.success || !definitionOf(widgetType)?.allowedSizes.includes(size)) return null
+  return { instanceId: raw.instanceId, widgetType, size, config: jsonObjectSnapshot(config.data) }
 }
+
+/**
+ * Reads a stored layout. Anything that is not a valid layout of the current
+ * catalog is replaced by the default as a whole; a deliberately empty layout stays empty.
+ */
+export function readDashboardLayout<T>(value: T): DashboardLayout {
+  const stored = storedLayoutSchema.safeParse(value)
+  if (!stored.success) return defaultDashboardLayout()
+  const rows: Rows = []
+  for (const row of stored.data.rows) {
+    const widgets: WidgetPlacement[] = []
+    for (const raw of row) {
+      const widget = checkedWidget(raw)
+      if (!widget) return defaultDashboardLayout()
+      widgets.push(widget)
+    }
+    rows.push(widgets)
+  }
+  const ids = rows.flat().map(w => w.instanceId)
+  if (new Set(ids).size !== ids.length || ids.length > MAX_WIDGETS) return defaultDashboardLayout()
+  return { version: stored.data.version, catalogVersion: 3, rows: fitRows(rows) }
+}
+
+const browserCopySchema = z.object({ layout: jsonValueSchema })
+
+/** Reads the copy kept in browser storage, which is untrusted like the server copy. */
+export function readBrowserDashboardLayout<T>(persisted: T): DashboardLayout {
+  const copy = browserCopySchema.safeParse(persisted)
+  return readDashboardLayout(copy.success ? copy.data.layout : null)
+}
+
+// ── Editing rows ────────────────────────────────────────────────────
 
 /** Splits rows that ask for more than 12 columns, keeping order, and drops empty rows. */
 export function fitRows(rows: Rows): Rows {
@@ -67,87 +93,6 @@ export function fitRows(rows: Rows): Rows {
   }
   return out
 }
-
-/**
- * Turns catalog-2 coordinates into rows: widgets whose rows overlap form a band,
- * and each distinct top edge inside a band starts a row read left to right.
- */
-function rowsFromPositions(items: readonly (WidgetPlacement & { x: number; y: number; h: number })[]): Rows {
-  const order = [...items].sort((a, b) => a.y - b.y || a.x - b.x)
-  const rows: Rows = []
-  let bandBottom = -1
-  let band: typeof order = []
-  const flush = () => {
-    const tops = [...new Set(band.map(i => i.y))].sort((a, b) => a - b)
-    for (const top of tops) rows.push(band.filter(i => i.y === top).sort((a, b) => a.x - b.x).map(({ instanceId, widgetType, size, config }) => ({ instanceId, widgetType, size, config })))
-    band = []
-  }
-  for (const item of order) {
-    if (band.length > 0 && item.y >= bandBottom) flush()
-    band.push(item)
-    bandBottom = Math.max(bandBottom, item.y + item.h)
-  }
-  if (band.length > 0) flush()
-  return fitRows(rows)
-}
-
-/** A widget is kept only with a known type, an allowed size and a valid config. */
-function checkedWidget(raw: { instanceId: string; widgetType: string; config: JsonObject }, size: (type: WidgetType) => WidgetSize | null): WidgetPlacement | null {
-  if (!Object.hasOwn(widgetConfigSchemas, raw.widgetType)) return null
-  const widgetType = raw.widgetType as WidgetType
-  const config = widgetConfigSchemas[widgetType].safeParse(raw.config)
-  const chosen = size(widgetType)
-  if (!config.success || !chosen) return null
-  return { instanceId: raw.instanceId, widgetType, size: chosen, config: jsonObjectSnapshot(config.data) }
-}
-
-/**
- * Old catalogs are retired together, and a broken layout is never partly restored:
- * both fall back to the default. Catalog-2 coordinates are converted to rows.
- * A deliberately empty layout stays empty.
- */
-export function normalizeDashboardLayout<T>(value: T): DashboardLayout {
-  const rowsLayout = rowsLayoutSchema.safeParse(value)
-  if (rowsLayout.success) {
-    const rows: Rows = []
-    for (const row of rowsLayout.data.rows) {
-      const widgets: WidgetPlacement[] = []
-      for (const raw of row) {
-        const widget = checkedWidget(raw, type => {
-          const allowed = definitionOf(type)?.allowedSizes ?? []
-          return allowed.includes(raw.size as WidgetSize) ? raw.size as WidgetSize : null
-        })
-        if (!widget) return defaultDashboardLayout()
-        widgets.push(widget)
-      }
-      rows.push(widgets)
-    }
-    return sealed(rowsLayout.data.version, rows)
-  }
-  const positions = positionsLayoutSchema.safeParse(value)
-  if (!positions.success) return defaultDashboardLayout()
-  const items: (WidgetPlacement & { x: number; y: number; h: number })[] = []
-  for (const raw of positions.data.widgets) {
-    if (raw.w < 1 || raw.h < 1 || raw.x < 0 || raw.y < 0) return defaultDashboardLayout()
-    const widget = checkedWidget(raw, type => nearestSize(type, Math.round(raw.w), Math.round(raw.h)))
-    if (!widget) return defaultDashboardLayout()
-    items.push({ ...widget, x: Math.round(raw.x), y: Math.round(raw.y), h: Math.max(1, Math.round(raw.h)) })
-  }
-  return sealed(positions.data.version, rowsFromPositions(items))
-}
-
-function sealed(version: number, rows: Rows): DashboardLayout {
-  const ids = rows.flat().map(w => w.instanceId)
-  if (new Set(ids).size !== ids.length || ids.length > MAX_WIDGETS) return defaultDashboardLayout()
-  return { version, catalogVersion: 3, rows: fitRows(rows) }
-}
-
-export function persistedDashboardLayout<T>(value: T): DashboardLayout {
-  const parsed = z.object({ layout: jsonValueSchema }).safeParse(value)
-  return normalizeDashboardLayout(parsed.success ? parsed.data.layout : null)
-}
-
-// ── Editing rows ────────────────────────────────────────────────────
 
 /** A new widget joins the last row when it fits there, otherwise it starts a row. */
 export function placeWidget(rows: Rows, widget: WidgetPlacement): Rows {
