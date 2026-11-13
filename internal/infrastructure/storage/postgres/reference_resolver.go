@@ -106,6 +106,9 @@ func (rr ResolvedRefs) GetPtr(table string, entityID *id.ID) *RefDisplay {
 
 // Resolve executes batch queries to resolve all pending IDs.
 // Uses one SELECT per table: SELECT id, name FROM <table> WHERE id IN (...)
+// Empty reports whether no reference was added, so nothing needs to be read.
+func (r *ReferenceResolver) Empty() bool { return len(r.pending) == 0 }
+
 func (r *ReferenceResolver) Resolve(ctx context.Context, querier Querier) (ResolvedRefs, error) {
 	result := make(ResolvedRefs, len(r.pending))
 

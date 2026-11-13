@@ -749,18 +749,7 @@ export const CreateCryptoProviderAccountRequestSchema: z.ZodType<Wire.CreateCryp
   "isActive": z.boolean().optional(),
 }))
 
-export const CreateCryptoProviderBalanceOperationRequestSchema: z.ZodType<Wire.CreateCryptoProviderBalanceOperationRequest> = z.lazy(() => z.strictObject({
-  "providerAccountId": z.string(),
-  "tokenId": z.string(),
-  "providerObservationId": z.string().nullable().optional(),
-  "sourceWalletId": z.string().nullable().optional(),
-  "operationType": z.string(),
-  "recordType": z.string(),
-  "amount": z.string(),
-  "txHash": z.string().optional(),
-  "externalRef": z.string(),
-  "evidence": z.record(z.string(), jsonValueSchema).optional(),
-}))
+export const CreateCryptoProviderBalanceOperationRequestSchema: z.ZodType<Wire.CreateCryptoProviderBalanceOperationRequest> = z.lazy(() => z.record(z.string(), z.never()))
 
 export const CreateCryptoRPCEndpointRequestSchema: z.ZodType<Wire.CreateCryptoRPCEndpointRequest> = z.lazy(() => z.strictObject({
   "code": z.string().optional(),
@@ -1391,57 +1380,16 @@ export const CryptoProviderBalanceOperationCursorResponseSchema: z.ZodType<Wire.
 }))
 
 export const CryptoProviderBalanceOperationDetailSchema: z.ZodType<Wire.CryptoProviderBalanceOperationDetail> = z.lazy(() => z.object({
-  "id": z.string().optional(),
-  "deletionMark": z.boolean().optional(),
-  "version": z.number().int().optional(),
-  "attributes": z.record(z.string(), jsonValueSchema).optional(),
-  "createdAt": z.string().optional(),
-  "updatedAt": z.string().optional(),
-  "createdBy": z.string().optional(),
-  "updatedBy": z.string().optional(),
-  "number": z.string().optional(),
-  "date": z.string().optional(),
-  "posted": z.boolean().optional(),
-  "postedVersion": z.number().int().optional(),
-  "basisType": z.string().optional(),
-  "basisId": z.string().optional(),
-  "description": z.string().optional(),
-  "providerAccountId": z.string().optional(),
-  "tokenId": z.string().optional(),
-  "providerObservationId": z.string().optional(),
-  "sourceWalletId": z.string().optional(),
-  "operationType": z.string().optional(),
-  "recordType": z.string().optional(),
-  "amount": z.string().optional(),
-  "txHash": z.string().optional(),
-  "externalRef": z.string().optional(),
-  "status": z.string().optional(),
-  "approvedBy": z.string().optional(),
-  "approvedAt": z.string().optional(),
-  "approvalReason": z.string().optional(),
-  "rejectedBy": z.string().optional(),
-  "rejectedAt": z.string().optional(),
-  "rejectionReason": z.string().optional(),
-  "decisionMode": z.string().optional(),
-  "decisionPolicyVersion": z.number().int().optional(),
-  "actionAvailability": z.record(z.string(), EntityActionAvailabilitySchema),
-}))
-
-export const CryptoProviderBalanceOperationResponseSchema: z.ZodType<Wire.CryptoProviderBalanceOperationResponse> = z.lazy(() => z.object({
   "id": z.string(),
   "deletionMark": z.boolean(),
   "version": z.number().int(),
   "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "createdAt": z.string(),
   "updatedAt": z.string(),
-  "createdBy": z.string(),
-  "updatedBy": z.string(),
   "number": z.string(),
   "date": z.string(),
   "posted": z.boolean(),
   "postedVersion": z.number().int(),
-  "basisType": z.string().optional(),
-  "basisId": z.string().optional(),
   "description": z.string().optional(),
   "providerAccountId": z.string(),
   "tokenId": z.string(),
@@ -1461,6 +1409,43 @@ export const CryptoProviderBalanceOperationResponseSchema: z.ZodType<Wire.Crypto
   "rejectionReason": z.string().optional(),
   "decisionMode": z.string().optional(),
   "decisionPolicyVersion": z.number().int().optional(),
+  "token": PostgresRefDisplaySchema.optional(),
+  "sourceWallet": PostgresRefDisplaySchema.optional(),
+  "actionAvailability": z.record(z.string(), EntityActionAvailabilitySchema),
+}))
+
+export const CryptoProviderBalanceOperationResponseSchema: z.ZodType<Wire.CryptoProviderBalanceOperationResponse> = z.lazy(() => z.object({
+  "id": z.string(),
+  "deletionMark": z.boolean(),
+  "version": z.number().int(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
+  "createdAt": z.string(),
+  "updatedAt": z.string(),
+  "number": z.string(),
+  "date": z.string(),
+  "posted": z.boolean(),
+  "postedVersion": z.number().int(),
+  "description": z.string().optional(),
+  "providerAccountId": z.string(),
+  "tokenId": z.string(),
+  "providerObservationId": z.string().optional(),
+  "sourceWalletId": z.string().optional(),
+  "operationType": z.string(),
+  "recordType": z.string(),
+  "amount": z.string(),
+  "txHash": z.string().optional(),
+  "externalRef": z.string(),
+  "status": z.string(),
+  "approvedBy": z.string().optional(),
+  "approvedAt": z.string().optional(),
+  "approvalReason": z.string().optional(),
+  "rejectedBy": z.string().optional(),
+  "rejectedAt": z.string().optional(),
+  "rejectionReason": z.string().optional(),
+  "decisionMode": z.string().optional(),
+  "decisionPolicyVersion": z.number().int().optional(),
+  "token": PostgresRefDisplaySchema.optional(),
+  "sourceWallet": PostgresRefDisplaySchema.optional(),
 }))
 
 export const CryptoQuoteDetailsSchema: z.ZodType<Wire.CryptoQuoteDetails> = z.lazy(() => z.object({
@@ -1566,14 +1551,10 @@ export const CryptoResourceRentalResponseSchema: z.ZodType<Wire.CryptoResourceRe
   "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "createdAt": z.string(),
   "updatedAt": z.string(),
-  "createdBy": z.string(),
-  "updatedBy": z.string(),
   "number": z.string(),
   "date": z.string(),
   "posted": z.boolean(),
   "postedVersion": z.number().int(),
-  "basisType": z.string().optional(),
-  "basisId": z.string().optional(),
   "description": z.string().optional(),
   "providerAccountId": z.string(),
   "networkId": z.string(),
@@ -1603,6 +1584,9 @@ export const CryptoResourceRentalResponseSchema: z.ZodType<Wire.CryptoResourceRe
   "reclaimRequestedAt": z.string().optional(),
   "expiresAt": z.string().optional(),
   "closedAt": z.string().optional(),
+  "network": PostgresRefDisplaySchema.optional(),
+  "receiveWallet": PostgresRefDisplaySchema.optional(),
+  "costToken": PostgresRefDisplaySchema.optional(),
 }))
 
 export const CryptoRuntimeEndpointStatusSchema: z.ZodType<Wire.CryptoRuntimeEndpointStatus> = z.lazy(() => z.object({
@@ -4719,19 +4703,7 @@ export const UpdateCryptoProviderAccountRequestSchema: z.ZodType<Wire.UpdateCryp
   "version": z.number().int(),
 }))
 
-export const UpdateCryptoProviderBalanceOperationRequestSchema: z.ZodType<Wire.UpdateCryptoProviderBalanceOperationRequest> = z.lazy(() => z.strictObject({
-  "providerAccountId": z.string(),
-  "tokenId": z.string(),
-  "providerObservationId": z.string().nullable().optional(),
-  "sourceWalletId": z.string().nullable().optional(),
-  "operationType": z.string(),
-  "recordType": z.string(),
-  "amount": z.string(),
-  "txHash": z.string().optional(),
-  "externalRef": z.string(),
-  "evidence": z.record(z.string(), jsonValueSchema).optional(),
-  "version": z.number().int(),
-}))
+export const UpdateCryptoProviderBalanceOperationRequestSchema: z.ZodType<Wire.UpdateCryptoProviderBalanceOperationRequest> = z.lazy(() => z.record(z.string(), z.never()))
 
 export const UpdateCryptoRPCConfigurationRequestSchema: z.ZodType<Wire.UpdateCryptoRPCConfigurationRequest> = z.lazy(() => z.strictObject({
   "expectedRevision": z.string(),
@@ -4757,9 +4729,7 @@ export const UpdateCryptoRPCEndpointRequestSchema: z.ZodType<Wire.UpdateCryptoRP
   "version": z.number().int(),
 }))
 
-export const UpdateCryptoResourceRentalRequestSchema: z.ZodType<Wire.UpdateCryptoResourceRentalRequest> = z.lazy(() => z.strictObject({
-  "version": z.number().int().optional(),
-}))
+export const UpdateCryptoResourceRentalRequestSchema: z.ZodType<Wire.UpdateCryptoResourceRentalRequest> = z.lazy(() => z.record(z.string(), z.never()))
 
 export const UpdateCryptoSweepRequestSchema: z.ZodType<Wire.UpdateCryptoSweepRequest> = z.lazy(() => z.strictObject({
   "version": z.number().int(),

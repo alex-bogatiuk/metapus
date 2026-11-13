@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -18,7 +17,7 @@ import (
 )
 
 type CryptoResourceRentalHandler struct {
-	*BaseDocumentHandler[*crypto_resource_rental.CryptoResourceRental, dto.CreateCryptoResourceRentalRequest, dto.UpdateCryptoResourceRentalRequest]
+	*BaseDocumentHandler[*crypto_resource_rental.CryptoResourceRental, struct{}, struct{}]
 	relatedDocsHandler *RelatedDocumentsHandler
 	workflow           *cryptoapp.ResourceRentalWorkflowService
 }
@@ -112,23 +111,14 @@ func NewCryptoResourceRentalHandler(
 	movementRefResolver domain.RefResolver,
 	settingsRepo settings.Repository,
 ) *CryptoResourceRentalHandler {
-	cfg := BaseDocumentHandlerConfig[*crypto_resource_rental.CryptoResourceRental, dto.CreateCryptoResourceRentalRequest, dto.UpdateCryptoResourceRentalRequest]{
-		Service: service, EntityName: "crypto_resource_rental",
-		MapCreateDTO: func(req dto.CreateCryptoResourceRentalRequest) (*crypto_resource_rental.CryptoResourceRental, error) {
-			return req.ToEntity(), nil
-		},
-		MapUpdateDTO: func(req dto.UpdateCryptoResourceRentalRequest, existing *crypto_resource_rental.CryptoResourceRental) (*crypto_resource_rental.CryptoResourceRental, error) {
-			req.ApplyTo(existing)
-			return existing, nil
-		},
-		MapToDTO:    func(doc *crypto_resource_rental.CryptoResourceRental) any { return dto.FromCryptoResourceRental(doc) },
-		ResolveRefs: func(context.Context, ...*crypto_resource_rental.CryptoResourceRental) (any, error) { return nil, nil },
-		MapToDTOWithRefs: func(doc *crypto_resource_rental.CryptoResourceRental, _ any) any {
-			return dto.FromCryptoResourceRental(doc)
-		},
-		MovementProviders: movementProviders, MovementRefResolver: movementRefResolver, SettingsRepo: settingsRepo,
+	h := &CryptoResourceRentalHandler{
+		BaseDocumentHandler: NewReadOnlyDocumentHandler(base, service, crypto_resource_rental.Definition.Key,
+			ReadOnlyDocumentPresenter[*crypto_resource_rental.CryptoResourceRental, dto.CryptoResourceRentalResponse]{
+				Collect: dto.CollectCryptoResourceRentalRefs, Present: dto.FromCryptoResourceRental,
+			},
+			movementProviders, movementRefResolver, settingsRepo),
+		workflow: workflow,
 	}
-	h := &CryptoResourceRentalHandler{BaseDocumentHandler: NewBaseDocumentHandler(base, cfg), workflow: workflow}
 	if relatedDocFinder != nil {
 		h.relatedDocsHandler = NewRelatedDocumentsHandler(relatedDocFinder, "CryptoResourceRental")
 	}

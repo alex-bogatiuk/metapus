@@ -745,18 +745,7 @@ export type CreateCryptoProviderAccountRequest = {
   "isActive"?: boolean
 }
 
-export type CreateCryptoProviderBalanceOperationRequest = {
-  "providerAccountId": string
-  "tokenId": string
-  "providerObservationId"?: string | null
-  "sourceWalletId"?: string | null
-  "operationType": string
-  "recordType": string
-  "amount": string
-  "txHash"?: string
-  "externalRef": string
-  "evidence"?: Record<string, JsonValue>
-}
+export type CreateCryptoProviderBalanceOperationRequest = Record<string, never>
 
 export type CreateCryptoRPCEndpointRequest = {
   "code"?: string
@@ -1387,57 +1376,16 @@ export type CryptoProviderBalanceOperationCursorResponse = {
 }
 
 export type CryptoProviderBalanceOperationDetail = {
-  "id"?: string
-  "deletionMark"?: boolean
-  "version"?: number
-  "attributes"?: Record<string, JsonValue>
-  "createdAt"?: string
-  "updatedAt"?: string
-  "createdBy"?: string
-  "updatedBy"?: string
-  "number"?: string
-  "date"?: string
-  "posted"?: boolean
-  "postedVersion"?: number
-  "basisType"?: string
-  "basisId"?: string
-  "description"?: string
-  "providerAccountId"?: string
-  "tokenId"?: string
-  "providerObservationId"?: string
-  "sourceWalletId"?: string
-  "operationType"?: string
-  "recordType"?: string
-  "amount"?: string
-  "txHash"?: string
-  "externalRef"?: string
-  "status"?: string
-  "approvedBy"?: string
-  "approvedAt"?: string
-  "approvalReason"?: string
-  "rejectedBy"?: string
-  "rejectedAt"?: string
-  "rejectionReason"?: string
-  "decisionMode"?: string
-  "decisionPolicyVersion"?: number
-  "actionAvailability": Record<string, EntityActionAvailability>
-}
-
-export type CryptoProviderBalanceOperationResponse = {
   "id": string
   "deletionMark": boolean
   "version": number
   "attributes"?: Record<string, JsonValue>
   "createdAt": string
   "updatedAt": string
-  "createdBy": string
-  "updatedBy": string
   "number": string
   "date": string
   "posted": boolean
   "postedVersion": number
-  "basisType"?: string
-  "basisId"?: string
   "description"?: string
   "providerAccountId": string
   "tokenId": string
@@ -1457,6 +1405,43 @@ export type CryptoProviderBalanceOperationResponse = {
   "rejectionReason"?: string
   "decisionMode"?: string
   "decisionPolicyVersion"?: number
+  "token"?: PostgresRefDisplay
+  "sourceWallet"?: PostgresRefDisplay
+  "actionAvailability": Record<string, EntityActionAvailability>
+}
+
+export type CryptoProviderBalanceOperationResponse = {
+  "id": string
+  "deletionMark": boolean
+  "version": number
+  "attributes"?: Record<string, JsonValue>
+  "createdAt": string
+  "updatedAt": string
+  "number": string
+  "date": string
+  "posted": boolean
+  "postedVersion": number
+  "description"?: string
+  "providerAccountId": string
+  "tokenId": string
+  "providerObservationId"?: string
+  "sourceWalletId"?: string
+  "operationType": string
+  "recordType": string
+  "amount": string
+  "txHash"?: string
+  "externalRef": string
+  "status": string
+  "approvedBy"?: string
+  "approvedAt"?: string
+  "approvalReason"?: string
+  "rejectedBy"?: string
+  "rejectedAt"?: string
+  "rejectionReason"?: string
+  "decisionMode"?: string
+  "decisionPolicyVersion"?: number
+  "token"?: PostgresRefDisplay
+  "sourceWallet"?: PostgresRefDisplay
 }
 
 export type CryptoQuoteDetails = {
@@ -1562,14 +1547,10 @@ export type CryptoResourceRentalResponse = {
   "attributes"?: Record<string, JsonValue>
   "createdAt": string
   "updatedAt": string
-  "createdBy": string
-  "updatedBy": string
   "number": string
   "date": string
   "posted": boolean
   "postedVersion": number
-  "basisType"?: string
-  "basisId"?: string
   "description"?: string
   "providerAccountId": string
   "networkId": string
@@ -1599,6 +1580,9 @@ export type CryptoResourceRentalResponse = {
   "reclaimRequestedAt"?: string
   "expiresAt"?: string
   "closedAt"?: string
+  "network"?: PostgresRefDisplay
+  "receiveWallet"?: PostgresRefDisplay
+  "costToken"?: PostgresRefDisplay
 }
 
 export type CryptoRuntimeEndpointStatus = {
@@ -4715,19 +4699,7 @@ export type UpdateCryptoProviderAccountRequest = {
   "version": number
 }
 
-export type UpdateCryptoProviderBalanceOperationRequest = {
-  "providerAccountId": string
-  "tokenId": string
-  "providerObservationId"?: string | null
-  "sourceWalletId"?: string | null
-  "operationType": string
-  "recordType": string
-  "amount": string
-  "txHash"?: string
-  "externalRef": string
-  "evidence"?: Record<string, JsonValue>
-  "version": number
-}
+export type UpdateCryptoProviderBalanceOperationRequest = Record<string, never>
 
 export type UpdateCryptoRPCConfigurationRequest = {
   "expectedRevision": string
@@ -4753,9 +4725,7 @@ export type UpdateCryptoRPCEndpointRequest = {
   "version": number
 }
 
-export type UpdateCryptoResourceRentalRequest = {
-  "version"?: number
-}
+export type UpdateCryptoResourceRentalRequest = Record<string, never>
 
 export type UpdateCryptoSweepRequest = {
   "version": number

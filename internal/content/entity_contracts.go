@@ -20,7 +20,7 @@ func (r *CryptoNetworkOperationRegistration) HTTPContracts() spec.Bundle {
 }
 
 func (r *CryptoProviderBalanceOperationRegistration) HTTPContracts() spec.Bundle {
-	b := spec.EntityWithDetail[dto.CreateCryptoProviderBalanceOperationRequest, dto.UpdateCryptoProviderBalanceOperationRequest, dto.CryptoProviderBalanceOperationResponse, dto.CryptoProviderBalanceOperationDetail](r.EntityDefinition(), r.DocumentCapabilities())
+	b := spec.EntityWithDetail[struct{}, struct{}, dto.CryptoProviderBalanceOperationResponse, dto.CryptoProviderBalanceOperationDetail](r.EntityDefinition(), r.DocumentCapabilities())
 	b.AddRoute(r.EntityDefinition(), "POST", "/provider-balance-incidents/:incidentId/prepare-opening", "PrepareProviderOpeningRequest", "ProviderBalanceDecisionResponse")
 	b.AddRoute(r.EntityDefinition(), "POST", "/:id/approve", "ProviderBalanceDecisionRequest", "ProviderBalanceDecisionResponse")
 	b.AddRoute(r.EntityDefinition(), "POST", "/:id/reject", "ProviderBalanceDecisionRequest", "ProviderBalanceDecisionResponse")
@@ -29,7 +29,7 @@ func (r *CryptoProviderBalanceOperationRegistration) HTTPContracts() spec.Bundle
 }
 
 func (r *CryptoResourceRentalRegistration) HTTPContracts() spec.Bundle {
-	b := spec.EntityWithDetail[dto.CreateCryptoResourceRentalRequest, dto.UpdateCryptoResourceRentalRequest, dto.CryptoResourceRentalResponse, dto.CryptoResourceRentalResponse](r.EntityDefinition(), r.DocumentCapabilities())
+	b := spec.EntityWithDetail[struct{}, struct{}, dto.CryptoResourceRentalResponse, dto.CryptoResourceRentalResponse](r.EntityDefinition(), r.DocumentCapabilities())
 
 	b.Contracts = append(b.Contracts, spec.Response[dto.ResourceRentalMetricsResponse]("ResourceRentalMetricsResponse"), spec.Response[dto.ProviderBalanceIncidentsResponse]("ProviderBalanceIncidentsResponse"), spec.Response[dto.ResourceRentalAllocationsResponse]("ResourceRentalAllocationsResponse"))
 	b.AddRoute(r.EntityDefinition(), "GET", "/metrics", "", "ResourceRentalMetricsResponse")

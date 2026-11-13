@@ -24,7 +24,9 @@ async function setup(page: Page, mode: "admin_self" | "independent" | "deny" | "
     const user = { ...erpUser, isAdmin: mode === "admin_self" }
     await installSession(page, user)
     const availability: ActionAvailability = mode === "deny" ? { allowed: false, reasonCode: "PROVIDER_OPENING_SELF_DECISION_FORBIDDEN" } : { allowed: true, decisionMode: mode === "independent" ? mode : "admin_self" }
-    const doc = { id: ids.adjustment, number: "PBO-TEST", amount: "989250000", externalRef: "opening-observation:verified", status: "pending_approval", version: 1, posted: false,
+    const doc = { id: ids.adjustment, number: "PBO-TEST", date: "2026-10-03T12:00:00Z", deletionMark: false, createdAt: "2026-10-03T12:00:00Z", updatedAt: "2026-10-03T12:00:00Z",
+        postedVersion: 0, providerAccountId: ids.network, tokenId: ids.token, operationType: "opening", recordType: "receipt",
+        amount: "989250000", externalRef: "opening-observation:verified", status: "pending_approval", version: 1, posted: false,
         decisionMode: "", decisionPolicyVersion: 0, approvalReason: "", rejectionReason: "", actionAvailability: mode === "missing" ? {} : { approve: availability, reject: availability } }
     const requests: { key: string; body: { version: number; reason: string }; action: string }[] = []
     await page.route("**/api/v1/**", async (route) => {

@@ -1,66 +1,67 @@
 package dto
 
 import (
+	"time"
+
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
 	"metapus/internal/domain/documents/crypto_provider_balance_operation"
+	"metapus/internal/infrastructure/storage/postgres"
 )
 
-type CreateCryptoProviderBalanceOperationRequest struct {
-	ProviderAccountID     string            `json:"providerAccountId" binding:"required"`
-	TokenID               string            `json:"tokenId" binding:"required"`
-	ProviderObservationID *string           `json:"providerObservationId"`
-	SourceWalletID        *string           `json:"sourceWalletId"`
-	OperationType         string            `json:"operationType" binding:"required"`
-	RecordType            entity.RecordType `json:"recordType" binding:"required"`
-	Amount                string            `json:"amount" binding:"required"`
-	TxHash                string            `json:"txHash"`
-	ExternalRef           string            `json:"externalRef" binding:"required"`
-	Evidence              map[string]any    `json:"evidence"`
+// CryptoProviderBalanceOperationResponse is a maker-checker correction of a
+// provider balance; the evidence payload stays internal.
+type CryptoProviderBalanceOperationResponse struct {
+	DocumentResponse
+	ProviderAccountID     string     `json:"providerAccountId"`
+	TokenID               string     `json:"tokenId"`
+	ProviderObservationID *string    `json:"providerObservationId,omitempty"`
+	SourceWalletID        *string    `json:"sourceWalletId,omitempty"`
+	OperationType         string     `json:"operationType"`
+	RecordType            string     `json:"recordType"`
+	Amount                string     `json:"amount"`
+	TxHash                string     `json:"txHash,omitempty"`
+	ExternalRef           string     `json:"externalRef"`
+	Status                string     `json:"status"`
+	ApprovedBy            *string    `json:"approvedBy,omitempty"`
+	ApprovedAt            *time.Time `json:"approvedAt,omitempty"`
+	ApprovalReason        string     `json:"approvalReason,omitempty"`
+	RejectedBy            *string    `json:"rejectedBy,omitempty"`
+	RejectedAt            *time.Time `json:"rejectedAt,omitempty"`
+	RejectionReason       string     `json:"rejectionReason,omitempty"`
+	DecisionMode          string     `json:"decisionMode,omitempty"`
+	DecisionPolicyVersion int        `json:"decisionPolicyVersion,omitzero"`
+
+	Token        *postgres.RefDisplay `json:"token,omitempty"`
+	SourceWallet *postgres.RefDisplay `json:"sourceWallet,omitempty"`
 }
 
-func (r CreateCryptoProviderBalanceOperationRequest) ToEntity() *crypto_provider_balance_operation.CryptoProviderBalanceOperation {
-	providerID, _ := id.Parse(r.ProviderAccountID)
-	tokenID, _ := id.Parse(r.TokenID)
-	amount, _ := types.NewCryptoAmountFromString(r.Amount)
-	evidence, _ := json.Marshal(r.Evidence)
-	doc := &crypto_provider_balance_operation.CryptoProviderBalanceOperation{
-		Document: entity.NewDocument(), ProviderAccountID: providerID, TokenID: tokenID,
-		OperationType: r.OperationType, RecordType: r.RecordType, Amount: amount,
-		TxHash: r.TxHash, ExternalRef: r.ExternalRef, Evidence: evidence,
-		Status: crypto_provider_balance_operation.StatusPendingApproval,
+func CollectCryptoProviderBalanceOperationRefs(resolver *postgres.ReferenceResolver, o *crypto_provider_balance_operation.CryptoProviderBalanceOperation) {
+	resolver.Add(TableTokens, o.TokenID)
+	resolver.AddPtr(TableWallets, o.SourceWalletID)
+}
+
+func FromCryptoProviderBalanceOperation(o *crypto_provider_balance_operation.CryptoProviderBalanceOperation, refs postgres.ResolvedRefs) CryptoProviderBalanceOperationResponse {
+	resp := CryptoProviderBalanceOperationResponse{
+		DocumentResponse:  documentResponse(o.Document),
+		ProviderAccountID: o.ProviderAccountID.String(), TokenID: o.TokenID.String(),
+		ProviderObservationID: optionalID(o.ProviderObservationID), SourceWalletID: optionalID(o.SourceWalletID),
+		OperationType: o.OperationType, RecordType: string(o.RecordType), Amount: o.Amount.String(), TxHash: o.TxHash,
+		ExternalRef: o.ExternalRef, Status: o.Status, ApprovedBy: optionalID(o.ApprovedBy), ApprovedAt: o.ApprovedAt,
+		ApprovalReason: o.ApprovalReason, RejectedBy: optionalID(o.RejectedBy), RejectedAt: o.RejectedAt,
+		RejectionReason: o.RejectionReason, DecisionMode: string(o.DecisionMode), DecisionPolicyVersion: o.DecisionPolicyVersion,
 	}
-	if r.SourceWalletID != nil {
-		parsed, _ := id.Parse(*r.SourceWalletID)
-		doc.SourceWalletID = &parsed
+	if refs != nil {
+		token := refs.Get(TableTokens, o.TokenID)
+		resp.Token = &token
+		resp.SourceWallet = refs.GetPtr(TableWallets, o.SourceWalletID)
 	}
-	if r.ProviderObservationID != nil {
-		parsed, _ := id.Parse(*r.ProviderObservationID)
-		doc.ProviderObservationID = &parsed
-	}
-	return doc
+	return resp
 }
 
-type UpdateCryptoProviderBalanceOperationRequest struct {
-	CreateCryptoProviderBalanceOperationRequest
-	Version int `json:"version" binding:"required"`
-}
-
-func (r UpdateCryptoProviderBalanceOperationRequest) ApplyTo(doc *crypto_provider_balance_operation.CryptoProviderBalanceOperation) {
-	updated := r.ToEntity()
-	doc.ProviderAccountID, doc.TokenID, doc.ProviderObservationID, doc.SourceWalletID = updated.ProviderAccountID, updated.TokenID, updated.ProviderObservationID, updated.SourceWalletID
-	doc.OperationType, doc.RecordType, doc.Amount = updated.OperationType, updated.RecordType, updated.Amount
-	doc.TxHash, doc.ExternalRef, doc.Evidence, doc.Version = updated.TxHash, updated.ExternalRef, updated.Evidence, r.Version
-}
-
-func FromCryptoProviderBalanceOperation(doc *crypto_provider_balance_operation.CryptoProviderBalanceOperation) any {
-	return doc
-}
-
+// CryptoProviderBalanceOperationDetail adds the decisions this reader may take.
 type CryptoProviderBalanceOperationDetail struct {
-	*crypto_provider_balance_operation.CryptoProviderBalanceOperation
+	CryptoProviderBalanceOperationResponse
 	ActionAvailability map[string]entity.ActionAvailability `json:"actionAvailability"`
 }
 

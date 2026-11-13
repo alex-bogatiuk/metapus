@@ -18,40 +18,29 @@ import (
 )
 
 type CryptoProviderBalanceOperationHandler struct {
-	*BaseDocumentHandler[*crypto_provider_balance_operation.CryptoProviderBalanceOperation, dto.CreateCryptoProviderBalanceOperationRequest, dto.UpdateCryptoProviderBalanceOperationRequest]
+	*BaseDocumentHandler[*crypto_provider_balance_operation.CryptoProviderBalanceOperation, struct{}, struct{}]
 	base     *BaseHandler
 	workflow *cryptoapp.ProviderBalanceWorkflowService
 }
 
+// NewCryptoProviderBalanceOperationHandler serves the operations read-only;
+// they are prepared, approved and rejected only through the workflow routes.
 func NewCryptoProviderBalanceOperationHandler(base *BaseHandler, service domain.DocumentService[*crypto_provider_balance_operation.CryptoProviderBalanceOperation], workflow *cryptoapp.ProviderBalanceWorkflowService, movementProviders []entity.MovementProvider, movementRefResolver domain.RefResolver, settingsRepo settings.Repository) *CryptoProviderBalanceOperationHandler {
-	cfg := BaseDocumentHandlerConfig[*crypto_provider_balance_operation.CryptoProviderBalanceOperation, dto.CreateCryptoProviderBalanceOperationRequest, dto.UpdateCryptoProviderBalanceOperationRequest]{
-		Service: service, EntityName: "crypto_provider_balance_operation",
-		MapCreateDTO: func(req dto.CreateCryptoProviderBalanceOperationRequest) (*crypto_provider_balance_operation.CryptoProviderBalanceOperation, error) {
-			return req.ToEntity(), nil
-		},
-		MapUpdateDTO: func(req dto.UpdateCryptoProviderBalanceOperationRequest, existing *crypto_provider_balance_operation.CryptoProviderBalanceOperation) (*crypto_provider_balance_operation.CryptoProviderBalanceOperation, error) {
-			req.ApplyTo(existing)
-			return existing, nil
-		},
-		MapToDTO: func(doc *crypto_provider_balance_operation.CryptoProviderBalanceOperation) any {
-			return dto.FromCryptoProviderBalanceOperation(doc)
-		},
-		ResolveRefs: func(context.Context, ...*crypto_provider_balance_operation.CryptoProviderBalanceOperation) (any, error) {
-			return nil, nil
-		},
-		MapToDTOWithRefs: func(doc *crypto_provider_balance_operation.CryptoProviderBalanceOperation, _ any) any {
-			return dto.FromCryptoProviderBalanceOperation(doc)
-		},
-		EnrichReadResponse: func(ctx context.Context, doc *crypto_provider_balance_operation.CryptoProviderBalanceOperation, _ any) (any, error) {
+	presenter := ReadOnlyDocumentPresenter[*crypto_provider_balance_operation.CryptoProviderBalanceOperation, dto.CryptoProviderBalanceOperationResponse]{
+		Collect: dto.CollectCryptoProviderBalanceOperationRefs, Present: dto.FromCryptoProviderBalanceOperation,
+		Enrich: func(ctx context.Context, doc *crypto_provider_balance_operation.CryptoProviderBalanceOperation, response dto.CryptoProviderBalanceOperationResponse) (any, error) {
 			availability, err := workflow.ActionAvailability(ctx, doc)
 			if err != nil {
 				return nil, err
 			}
-			return dto.CryptoProviderBalanceOperationDetail{CryptoProviderBalanceOperation: doc, ActionAvailability: availability}, nil
+			return dto.CryptoProviderBalanceOperationDetail{CryptoProviderBalanceOperationResponse: response, ActionAvailability: availability}, nil
 		},
-		MovementProviders: movementProviders, MovementRefResolver: movementRefResolver, SettingsRepo: settingsRepo,
 	}
-	return &CryptoProviderBalanceOperationHandler{BaseDocumentHandler: NewBaseDocumentHandler(base, cfg), base: base, workflow: workflow}
+	return &CryptoProviderBalanceOperationHandler{
+		BaseDocumentHandler: NewReadOnlyDocumentHandler(base, service, crypto_provider_balance_operation.Definition.Key, presenter,
+			movementProviders, movementRefResolver, settingsRepo),
+		base: base, workflow: workflow,
+	}
 }
 
 func (h *CryptoProviderBalanceOperationHandler) RegisterCustomDocumentRoutes(group *gin.RouterGroup, permission string) {
