@@ -71,7 +71,7 @@ func (*ExternalOutflowWorkflowRepo) prepareCustodyLossRecognition(ctx context.Co
 	if err := NewCustodyRecognitionRepo().LockTransfer(ctx, b); err != nil {
 		return err
 	}
-	// Serialize legacy writers by economic identity even through wallet/token
+	// Serialize outflow writers by economic identity even through wallet/token
 	// aliases. Their SQL trigger takes this same lock before admitting a write.
 	if _, err = q.Exec(ctx, `SELECT fn_crypto_lock_outflow_economics(network_id,tx_hash,source_address_key,destination_address_key,contract_address_key,amount)
   FROM reg_crypto_external_outflows WHERE id=$1`, a.ExternalOutflowID); err != nil {

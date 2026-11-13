@@ -29,7 +29,7 @@ type EnqueueAMLInput struct {
 }
 
 // EnqueueAMLCheck requires a previously established custody owner. It never
-// guesses ownership from the last invoice or silently claims a legacy wallet.
+// guesses ownership from the last invoice or silently claims an unowned wallet.
 func (r *AMLRepository) EnqueueAMLCheck(ctx context.Context, input EnqueueAMLInput) (id.ID, error) {
 	if err := input.Request.Validate(); err != nil {
 		return id.Nil(), err

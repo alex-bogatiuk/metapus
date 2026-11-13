@@ -529,8 +529,8 @@ func (d *Driver) Receipt(ctx context.Context, txHash string) (crypto.ChainReceip
 	total, _ := types.NewCryptoAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), price))
 	result.Fee.TotalFee = total
 	result.Fee.Components = []crypto.FeeComponent{{Name: "execution_gas", Amount: total, Quantity: int64(receipt.GasUsed)}}
-	// Preserve legacy receipt recovery. New fee reservations can settle only
-	// with the independent proof; an unavailable quorum never grants that path.
+	// A financially final receipt is replaced by its independent fee proof; a
+	// proof that disagrees fails, and an unavailable quorum never settles a fee.
 	if result.FinanciallyFinal() {
 		if verified, proofErr := (&TransferVerifier{network: d.network, rpc: d.rpc}).VerifyNetworkFee(ctx, txHash); proofErr == nil {
 			result = verified

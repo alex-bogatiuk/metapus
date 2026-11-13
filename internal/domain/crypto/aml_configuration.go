@@ -28,7 +28,7 @@ type AMLNetworkConfiguration struct {
 	Merchants                   int        `json:"merchants"`
 	MissingNativeScopes         int        `json:"missingNativeScopes"`
 	UnownedPrincipalWallets     int        `json:"unownedPrincipalWallets"`
-	LegacyPendingWithdrawals    int        `json:"legacyPendingWithdrawals"`
+	UnplannedPendingWithdrawals int        `json:"unplannedPendingWithdrawals"`
 	UnbaselinedAutomaticWallets int        `json:"unbaselinedAutomaticWallets"`
 	BaselinePending             int        `json:"baselinePending"`
 	BaselineNeedsAttention      int        `json:"baselineNeedsAttention"`
@@ -49,7 +49,7 @@ func (n AMLNetworkConfiguration) ConfigurationBlockers() []string {
 		{n.NetworkHeld, "network_hold_open"},
 		{n.MissingNativeScopes > 0, "native_scopes_missing"},
 		{n.UnownedPrincipalWallets > 0, "legacy_principal_inventory"},
-		{n.LegacyPendingWithdrawals > 0, "legacy_withdrawals_pending"},
+		{n.UnplannedPendingWithdrawals > 0, "withdrawals_without_aml_plan"},
 		{n.UnbaselinedAutomaticWallets > 0, "automatic_wallet_baselines_missing"},
 		{n.BaselinePending > 0, "baseline_pending"},
 		{n.BaselineNeedsAttention > 0, "baseline_needs_attention"},

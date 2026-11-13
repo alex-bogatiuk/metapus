@@ -47,7 +47,7 @@ go run ./cmd/crypto-preflight -mode aml
 | `custody_not_enforced` | Завершить merchant custody enrollment и включение независимого owner registry |
 | `native_asset_missing` / `native_scopes_missing` | Подготовить native asset и native AML scope для каждого участвующего мерчанта; gas не покрывается principal |
 | `legacy_principal_inventory` | Разобрать ненулевые shared/unowned principal wallets затронутых активов |
-| `legacy_withdrawals_pending` | Классифицировать незавершённые classless заявки затронутых merchant/token scopes |
+| `withdrawals_without_aml_plan` | Завершить или классифицировать незавершённые заявки затронутых merchant/token scopes, у которых нет AML-плана вывода |
 | `automatic_wallet_baselines_missing` | Дождаться независимых baselines автоматических адресов; проверяются и адреса, для которых job ещё не создана |
 | `baseline_pending` / `baseline_needs_attention` | Дождаться финального checkpoint либо разобрать evidence/hold; не удалять историю для получения зелёного отчёта |
 | `signer_not_configured` / `family_signer_unavailable` | Настроить control signer и family mount в этом tenant |

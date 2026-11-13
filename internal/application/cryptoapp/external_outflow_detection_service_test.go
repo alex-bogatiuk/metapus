@@ -16,7 +16,7 @@ type chainEffectMatcherStub struct {
 	calls int
 }
 
-func (s *chainEffectMatcherStub) MatchExpectedChainEffect(context.Context, crypto.BlockchainEvent) (bool, error) {
+func (s *chainEffectMatcherStub) RouteExpectedTransfer(context.Context, crypto.BlockchainEvent) (bool, error) {
 	s.calls++
 	return s.known, nil
 }

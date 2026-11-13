@@ -23,7 +23,7 @@ type DetectedExternalOutflow struct {
 }
 
 type ExpectedChainEffectMatcher interface {
-	MatchExpectedChainEffect(context.Context, crypto.BlockchainEvent) (bool, error)
+	RouteExpectedTransfer(context.Context, crypto.BlockchainEvent) (bool, error)
 }
 
 type ObservedExternalOutflowRepository interface {
@@ -97,7 +97,7 @@ func (s *ExternalOutflowDetectionService) RecordExternalOutflow(ctx context.Cont
 	}
 
 	return s.txm.RunInTransaction(ctx, func(txCtx context.Context) error {
-		known, err := s.matcher.MatchExpectedChainEffect(txCtx, event)
+		known, err := s.matcher.RouteExpectedTransfer(txCtx, event)
 		if err != nil || known {
 			return err
 		}

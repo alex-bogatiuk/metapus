@@ -12,22 +12,6 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
-// ValidateAccountingTransferPosting preserves the legacy per-network admission
-// policy for existing non-payment writers. New receipt admission must use the
-// strict AuthorizeCustodyEffect contract, regardless of ingestion activation.
-func (r *BlockIngestionRepo) ValidateAccountingTransferPosting(
-	ctx context.Context, basis crypto.AccountingTransferBasis, confirmations int,
-) error {
-	event, err := r.ExpectedAccountingTransfer(ctx, basis)
-	if err != nil {
-		return err
-	}
-	event.Finality, event.Canonicality = crypto.FinalitySolidified, crypto.CanonicalityCanonical
-	event.Confirmations, event.VerificationID = confirmations, basis.VerificationID
-	_, err = r.authorizeOutcome(ctx, basis, event, crypto.CanonicalityCanonical, false)
-	return err
-}
-
 func (r *BlockIngestionRepo) AuthorizeCustodyEffect(
 	ctx context.Context, basis crypto.AccountingTransferBasis, event crypto.BlockchainEvent,
 ) (crypto.VerifiedCustodyEffect, error) {

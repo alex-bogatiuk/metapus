@@ -46,7 +46,7 @@ func (*CustodyRecognitionRepo) LockScopes(ctx context.Context, wallets ...id.ID)
 	return err
 }
 
-// LockIncoming uses the same balance row as the SQL guard of legacy writers,
+// LockIncoming uses the same balance row as the SQL guards of custody writers,
 // then locks the logical effect independently of recorder or block aliases.
 func (*CustodyRecognitionRepo) LockIncoming(ctx context.Context, basis crypto.AccountingTransferBasis) error {
 	if basis.RecordType == entity.RecordTypeExpense {

@@ -55,7 +55,7 @@ func (r *AMLRepository) ReadAMLConfiguration(ctx context.Context, networkCode st
 		defer rows.Close()
 		for rows.Next() {
 			var network crypto.AMLNetworkConfiguration
-			if err := rows.Scan(&network.Network.ID, &network.Network.Code, &network.Network.Family, &network.Network.NetworkIdentifier, &network.Network.NativeTokenID, &network.Network.NativeTokenSymbol, &network.Network.NativeDecimals, &network.Network.RequiredConfirmations, &network.Network.FinalityMode, &network.Active, &network.CustodyEnforced, &network.DispatchEnabled, &network.NetworkHeld, &network.EnabledScopes, &network.EmulatedScopes, &network.Merchants, &network.MissingNativeScopes, &network.UnownedPrincipalWallets, &network.LegacyPendingWithdrawals, &network.UnbaselinedAutomaticWallets, &network.BaselinePending, &network.BaselineNeedsAttention); err != nil {
+			if err := rows.Scan(&network.Network.ID, &network.Network.Code, &network.Network.Family, &network.Network.NetworkIdentifier, &network.Network.NativeTokenID, &network.Network.NativeTokenSymbol, &network.Network.NativeDecimals, &network.Network.RequiredConfirmations, &network.Network.FinalityMode, &network.Active, &network.CustodyEnforced, &network.DispatchEnabled, &network.NetworkHeld, &network.EnabledScopes, &network.EmulatedScopes, &network.Merchants, &network.MissingNativeScopes, &network.UnownedPrincipalWallets, &network.UnplannedPendingWithdrawals, &network.UnbaselinedAutomaticWallets, &network.BaselinePending, &network.BaselineNeedsAttention); err != nil {
 				return err
 			}
 			network.Blockers = network.ConfigurationBlockers()

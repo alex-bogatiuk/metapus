@@ -212,7 +212,7 @@ func sortHookEntries[T any](entries []hookEntry[T]) {
 	}
 }
 
-// Convenience methods for backward compatibility (default priority = 0)
+// Shorthands that register a hook with the default priority 0.
 
 // OnBeforeCreate registers a hook to run before create.
 func (r *HookRegistry[T]) OnBeforeCreate(hook Hook[T]) {

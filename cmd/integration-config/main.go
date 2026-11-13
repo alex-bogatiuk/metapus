@@ -1,5 +1,5 @@
 // integration-config imports the integration configuration of exactly one tenant
-// database. Secrets are read from secret files and the legacy configuration;
+// database. Secrets are read from secret files and the chains file;
 // output contains counts.
 package main
 
@@ -25,7 +25,7 @@ var errDryRun = errors.New("dry run rollback")
 
 func run() error {
 	apply := flag.Bool("apply", false, "Commit changes (default: validate then roll back)")
-	chains := flag.String("chains", "", "Legacy chains.json (optional)")
+	chains := flag.String("chains", "", "chains.json with networks and RPC endpoints (optional)")
 	mapping := flag.String("mapping", "", "Non-secret JSON endpoint/account mapping")
 	activate := flag.Bool("activate", false, "Select database RPC configuration after import")
 	flag.Parse()

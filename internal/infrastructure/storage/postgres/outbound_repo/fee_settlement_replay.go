@@ -23,8 +23,8 @@ func validateFeeComponents(report crypto.FeeSettlementReport) error {
 		seen[component.Name] = true
 		total = total.Add(component.Amount)
 	}
-	// Legacy reports can omit a breakdown. A supplied breakdown must be exact.
-	if len(report.Components) > 0 && !total.Equal(report.TotalFee) {
+	// Every chain reports its fee as components that add up exactly.
+	if !total.Equal(report.TotalFee) {
 		return apperror.NewValidation("fee component total differs from reported network fee")
 	}
 	return nil

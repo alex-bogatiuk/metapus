@@ -156,7 +156,8 @@ func (s *CustodyService) ResolveNativeFundingSource(ctx context.Context, network
 }
 
 // CheckCustodySigner fails closed if an enforced SQL network is paired with a
-// legacy plugin or a plugin that has not enabled its own independent policy.
+// signer that lacks merchant custody support or has not enabled its own
+// independent policy.
 func (s *CustodyService) CheckCustodySigner(ctx context.Context, network crypto.NetworkRef, signer crypto.PolicyAwareTransactionSigner) error {
 	enforced, err := s.repo.IsEnforced(ctx, network.ID)
 	if err != nil {

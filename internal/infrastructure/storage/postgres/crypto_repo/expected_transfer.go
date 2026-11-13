@@ -23,12 +23,6 @@ type expectedTransferCandidate struct {
 	valid           bool
 }
 
-// Outflow detection uses the same strict decision. Legacy event-index matches
-// alone cannot suppress an unknown managed-wallet outflow.
-func (r *ExpectedTransferRepo) MatchExpectedChainEffect(ctx context.Context, event crypto.BlockchainEvent) (bool, error) {
-	return r.RouteExpectedTransfer(ctx, event)
-}
-
 // RouteExpectedTransfer records handoff intent without taking wallet, balance,
 // effect or business-document locks. Financial ownership stays with settlement.
 func (*ExpectedTransferRepo) RouteExpectedTransfer(ctx context.Context, event crypto.BlockchainEvent) (bool, error) {

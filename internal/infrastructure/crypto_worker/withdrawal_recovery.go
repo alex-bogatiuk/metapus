@@ -23,7 +23,3 @@ func (e *WithdrawalExecutor) observeRecoveryQueue(ctx context.Context) {
 	cryptoMetrics.withdrawalRecoveryCount.Record(ctx, count, attrs)
 	cryptoMetrics.withdrawalRecoveryAge.Record(ctx, max(0, age), attrs)
 }
-
-// recoverSignedWithdrawal observes immutable signed bytes and finishes local
-// bookkeeping after finality. AML can retry those same bytes under a fresh
-// dispatch permit. Receipt-only legacy recovery ignores approval expiry.

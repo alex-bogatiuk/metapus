@@ -36,7 +36,7 @@ type amlInventoryEvidence struct {
 
 // RebuildNextAMLRiskProjection never updates a money register. Coverage is
 // checked by receipt identity, not by assigning an equal checked amount to an
-// unrelated legacy/manual receipt. Same-owner ancestors are evaluated together.
+// unrelated receipt. Same-owner ancestors are evaluated together.
 func (r *AMLRepository) RebuildNextAMLRiskProjection(ctx context.Context, now time.Time) (bool, error) {
 	processed := false
 	err := postgres.MustGetTxManager(ctx).RunInTransaction(ctx, func(ctx context.Context) error {

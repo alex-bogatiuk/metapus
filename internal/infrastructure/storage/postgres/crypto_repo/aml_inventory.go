@@ -91,7 +91,6 @@ func (r *AMLRepository) CaptureNextAMLInventoryAllocation(ctx context.Context) (
 }
 
 // ReserveAMLInternalAllocation freezes the ownership split before signing.
-// It is deliberately separate from the still-closed legacy outbound contract.
 func (r *AMLRepository) ReserveAMLInternalAllocation(ctx context.Context, request aml.InternalAllocationRequest) (aml.InternalAllocation, error) {
 	var result aml.InternalAllocation
 	if err := request.Validate(); err != nil {

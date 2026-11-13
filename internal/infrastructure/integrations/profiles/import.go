@@ -7,7 +7,7 @@ import (
 	model "metapus/internal/domain/integrations"
 )
 
-// ImportRPC normalizes legacy configuration without exposing a secret in the
+// ImportRPC normalizes an imported chains-file endpoint without exposing a secret in the
 // result URL or in an error. Unknown endpoints may only be imported anonymously.
 func (r *Registry) ImportRPC(raw, key, role, slot string) (model.Provider, string, string, error) {
 	u, err := url.Parse(raw)

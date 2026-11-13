@@ -301,7 +301,7 @@ func TestExpectedTransferUnsignedIntentCannotSuppressUnknownOutflow(t *testing.T
 	var handled bool
 	err := postgres.MustGetTxManager(f.ctx).RunInTransaction(f.ctx, func(ctx context.Context) error {
 		var err error
-		handled, err = NewExpectedTransferRepo().MatchExpectedChainEffect(ctx, f.event)
+		handled, err = NewExpectedTransferRepo().RouteExpectedTransfer(ctx, f.event)
 		return err
 	})
 	require.NoError(t, err)

@@ -19,7 +19,7 @@ func TestAMLConfigurationCanBePreparedWithDispatchPaused(t *testing.T) {
 	n := AMLNetworkConfiguration{Network: NetworkRef{NativeTokenID: id.New()}, Active: true, CustodyEnforced: true, EnabledScopes: 2, Merchants: 1}
 	require.Empty(t, n.ConfigurationBlockers(), "preparing configuration does not enable network dispatch")
 	n.MissingNativeScopes = 1
-	n.LegacyPendingWithdrawals = 1
+	n.UnplannedPendingWithdrawals = 1
 	n.BaselineNeedsAttention = 1
-	require.ElementsMatch(t, []string{"native_scopes_missing", "legacy_withdrawals_pending", "baseline_needs_attention"}, n.ConfigurationBlockers())
+	require.ElementsMatch(t, []string{"native_scopes_missing", "withdrawals_without_aml_plan", "baseline_needs_attention"}, n.ConfigurationBlockers())
 }

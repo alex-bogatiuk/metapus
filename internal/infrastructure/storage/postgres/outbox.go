@@ -185,7 +185,7 @@ type BackoffStrategy interface {
 }
 
 // LinearBackoff implements BackoffStrategy with linear intervals: (retryCount+1) * interval.
-// This is the default strategy, preserving backward compatibility.
+// It is the default strategy of every outbox handler.
 type LinearBackoff struct {
 	Interval time.Duration
 }
