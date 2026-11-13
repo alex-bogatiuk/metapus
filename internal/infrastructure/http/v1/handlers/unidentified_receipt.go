@@ -23,11 +23,13 @@ type UnidentifiedReceiptHandler struct {
 	journal  *crypto_repo.UnidentifiedReceiptRepo
 	commands *cryptoapp.MerchantCreditCommands
 	fundings *cryptoapp.PlatformFundingCommands
+	wallets  *crypto_repo.WalletFundingJournalRepo
 }
 
 func NewUnidentifiedReceiptHandler(base *BaseHandler, journal *crypto_repo.UnidentifiedReceiptRepo,
 	commands *cryptoapp.MerchantCreditCommands, fundings *cryptoapp.PlatformFundingCommands) *UnidentifiedReceiptHandler {
-	return &UnidentifiedReceiptHandler{base: base, journal: journal, commands: commands, fundings: fundings}
+	return &UnidentifiedReceiptHandler{base: base, journal: journal, commands: commands, fundings: fundings,
+		wallets: crypto_repo.NewWalletFundingJournalRepo()}
 }
 
 // RegisterRoutes mounts the journal. stepUp guards every money command.
@@ -40,6 +42,7 @@ func (h *UnidentifiedReceiptHandler) RegisterRoutes(rg *gin.RouterGroup, stepUp 
 	credits.POST("/:id/approve", middleware.RequirePermission("crypto_receipt:approve"), stepUp, h.Approve)
 	credits.POST("/:id/reject", middleware.RequirePermission("crypto_receipt:credit"), stepUp, h.Reject)
 	receipts.POST("/:id/platform-fundings", middleware.RequirePermission("crypto_receipt:credit"), stepUp, h.PreparePlatformFunding)
+	rg.GET("/crypto/wallet-fundings", middleware.RequirePermission("crypto_receipt:read"), h.WalletFundings)
 	fundings := rg.Group("/crypto/platform-fundings")
 	fundings.POST("/:id/approve", middleware.RequirePermission("crypto_receipt:approve"), stepUp, h.ApprovePlatformFunding)
 	fundings.POST("/:id/reject", middleware.RequirePermission("crypto_receipt:credit"), stepUp, h.RejectPlatformFunding)
@@ -170,6 +173,30 @@ func (h *UnidentifiedReceiptHandler) decision(c *gin.Context) (id.ID, dto.Decide
 		return id.Nil(), req, false
 	}
 	return creditID, req, true
+}
+
+// WalletFundings lists recorded external fundings of platform wallets, newest first.
+func (h *UnidentifiedReceiptHandler) WalletFundings(c *gin.Context) {
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	if err != nil || limit < 1 || limit > 100 {
+		h.base.Error(c, apperror.NewValidation("limit must be between 1 and 100"))
+		return
+	}
+	offset, err := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if err != nil || offset < 0 {
+		h.base.Error(c, apperror.NewValidation("offset must be non-negative"))
+		return
+	}
+	list, err := h.wallets.List(c.Request.Context(), limit, offset)
+	if err != nil {
+		h.base.Error(c, err)
+		return
+	}
+	response := dto.WalletFundingListResponse{Items: make([]dto.WalletFundingItem, 0, len(list.Items)), Total: list.Total}
+	for _, row := range list.Items {
+		response.Items = append(response.Items, dto.WalletFundingItem(row))
+	}
+	c.JSON(http.StatusOK, response)
 }
 
 func (h *UnidentifiedReceiptHandler) PreparePlatformFunding(c *gin.Context) {

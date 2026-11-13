@@ -94,6 +94,16 @@ const navSections: NavSection[] = [
         ],
       },
       {
+        label: "Поступления на кошельки",
+        items: [
+          { entityKey: "crypto_custody_receipt", fallback: "Поступления на кошельки" },
+          { entityKey: "unidentified_receipts", fallback: "Невыясненные поступления", url: "/crypto/unidentified-receipts" },
+          { entityKey: "crypto_merchant_credit", fallback: "Ручные зачисления мерчантам" },
+          { entityKey: "crypto_platform_funding", fallback: "Пополнения платформы" },
+          { entityKey: "wallet_fundings", fallback: "Пополнения кошельков", url: "/crypto/wallet-fundings" },
+        ],
+      },
+      {
         label: "Выплаты и казна",
         items: [
           { entityKey: "withdrawal_request", fallback: "Заявки на вывод" },

@@ -91,5 +91,5 @@ func TestEveryBuiltInEntityDerivesIdentityAndConcreteRoutesFromItsDefinition(t *
 			require.Empty(t, declared)
 		})
 	}
-	require.Len(t, identities, 22)
+	require.Len(t, identities, 25)
 }

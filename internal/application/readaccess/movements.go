@@ -89,6 +89,17 @@ var cryptoMovementSources = map[string]map[string][]string{
 	"withdrawal_request": {
 		"merchant": {"merchant_id"}, "token": {"token_id"}, "amount": {"amount"},
 	},
+	// A receipt adds custody and the unattributed remainder of its own transfer.
+	"crypto_custody_receipt": {
+		"wallet": {"wallet_id"}, "receipt": {"id"}, "token": {"token_id"}, "amount": {"amount"},
+	},
+	"crypto_merchant_credit": {
+		"receipt": {"receipt_id"}, "merchant": {"merchant_id"}, "token": {"token_id"},
+		"amount": {"amount", "net_amount", "processing_fee"}, "feeType": {"processing_fee"},
+	},
+	"crypto_platform_funding": {
+		"receipt": {"receipt_id"}, "token": {"token_id"}, "amount": {"amount"},
+	},
 }
 
 func sourceFieldAllowed(policy *security.FieldPolicy, path string) bool {

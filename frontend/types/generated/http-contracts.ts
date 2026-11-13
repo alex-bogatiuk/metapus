@@ -706,6 +706,8 @@ export type CreateCounterpartyRequest = {
   "attributes"?: Record<string, JsonValue>
 }
 
+export type CreateCryptoCustodyReceiptRequest = Record<string, never>
+
 export type CreateCryptoInvoiceRequest = {
   "number"?: string
   "date": string
@@ -721,9 +723,13 @@ export type CreateCryptoInvoiceRequest = {
   "postImmediately"?: boolean
 }
 
+export type CreateCryptoMerchantCreditRequest = Record<string, never>
+
 export type CreateCryptoNetworkOperationRequest = Record<string, never>
 
 export type CreateCryptoPaymentRequest = Record<string, never>
+
+export type CreateCryptoPlatformFundingRequest = Record<string, never>
 
 export type CreateCryptoProviderAccountRequest = {
   "code"?: string
@@ -1018,6 +1024,45 @@ export type CryptoChainFamilyCapabilities = {
   "supportsReplacement": boolean
 }
 
+export type CryptoCustodyReceiptCursorResponse = {
+  "items": Array<CryptoCustodyReceiptResponse>
+  "nextCursor"?: string
+  "prevCursor"?: string
+  "hasMore": boolean
+  "hasPrev": boolean
+  "targetIndex"?: number
+  "totalCount": number | null
+}
+
+export type CryptoCustodyReceiptResponse = {
+  "id": string
+  "deletionMark": boolean
+  "version": number
+  "attributes"?: Record<string, JsonValue>
+  "createdAt": string
+  "updatedAt": string
+  "createdBy": string
+  "updatedBy": string
+  "number": string
+  "date": string
+  "posted": boolean
+  "postedVersion": number
+  "basisType"?: string
+  "basisId"?: string
+  "description"?: string
+  "networkId": string
+  "walletId": string
+  "tokenId": string
+  "custodyMerchantId"?: string
+  "verificationId": string
+  "occurrenceId": string
+  "postingId": string
+  "amount": string
+  "custodyLineId": string
+  "suspenseLineId": string
+  "reasonCode": string
+}
+
 export type CryptoIngestionStreamStatus = {
   "watcherKey": string
   "optional": boolean
@@ -1070,6 +1115,52 @@ export type CryptoInvoiceResponse = {
   "merchant"?: PostgresRefDisplay
   "token"?: PostgresRefDisplay
   "wallet"?: PostgresRefDisplay
+}
+
+export type CryptoMerchantCreditCursorResponse = {
+  "items": Array<CryptoMerchantCreditResponse>
+  "nextCursor"?: string
+  "prevCursor"?: string
+  "hasMore": boolean
+  "hasPrev": boolean
+  "targetIndex"?: number
+  "totalCount": number | null
+}
+
+export type CryptoMerchantCreditResponse = {
+  "id": string
+  "deletionMark": boolean
+  "version": number
+  "attributes"?: Record<string, JsonValue>
+  "createdAt": string
+  "updatedAt": string
+  "createdBy": string
+  "updatedBy": string
+  "number": string
+  "date": string
+  "posted": boolean
+  "postedVersion": number
+  "basisType"?: string
+  "basisId"?: string
+  "description"?: string
+  "receiptId": string
+  "merchantId": string
+  "invoiceId"?: string
+  "tokenId": string
+  "amount": string
+  "netAmount": string
+  "processingFee": string
+  "feeFixed": string
+  "feePercentBp": number
+  "feeMin": string
+  "feeMax": string
+  "status": string
+  "approvalRequired": boolean
+  "preparedBy": string
+  "preparedAt": string
+  "decidedBy"?: string
+  "decidedAt"?: string
+  "decisionReason"?: string
 }
 
 export type CryptoNetworkIngestionStatus = {
@@ -1219,6 +1310,48 @@ export type CryptoPaymentResponse = {
   "merchant"?: PostgresRefDisplay
   "token"?: PostgresRefDisplay
   "wallet"?: PostgresRefDisplay
+}
+
+export type CryptoPlatformFundingCursorResponse = {
+  "items": Array<CryptoPlatformFundingResponse>
+  "nextCursor"?: string
+  "prevCursor"?: string
+  "hasMore": boolean
+  "hasPrev": boolean
+  "targetIndex"?: number
+  "totalCount": number | null
+}
+
+export type CryptoPlatformFundingResponse = {
+  "id": string
+  "deletionMark": boolean
+  "version": number
+  "attributes"?: Record<string, JsonValue>
+  "createdAt": string
+  "updatedAt": string
+  "createdBy": string
+  "updatedBy": string
+  "number": string
+  "date": string
+  "posted": boolean
+  "postedVersion": number
+  "basisType"?: string
+  "basisId"?: string
+  "description"?: string
+  "receiptId": string
+  "walletId": string
+  "tokenId": string
+  "amount": string
+  "reason": string
+  "merchantId"?: string
+  "merchantLink"?: string
+  "merchantLinkAcknowledged": boolean
+  "status": string
+  "preparedBy": string
+  "preparedAt": string
+  "decidedBy"?: string
+  "decidedAt"?: string
+  "decisionReason"?: string
 }
 
 export type CryptoProviderAccountCursorResponse = {
@@ -4562,6 +4695,8 @@ export type UpdateCounterpartyRequest = {
   "version": number
 }
 
+export type UpdateCryptoCustodyReceiptRequest = Record<string, never>
+
 export type UpdateCryptoInvoiceRequest = {
   "version": number
   "number"?: string | null
@@ -4576,6 +4711,8 @@ export type UpdateCryptoInvoiceRequest = {
   "customerId"?: string | null
   "description"?: string | null
 }
+
+export type UpdateCryptoMerchantCreditRequest = Record<string, never>
 
 export type UpdateCryptoNetworkOperationRequest = {
   "sourceWalletId": string
@@ -4601,6 +4738,8 @@ export type UpdateCryptoNetworkPolicyRequest = {
 export type UpdateCryptoPaymentRequest = {
   "version": number
 }
+
+export type UpdateCryptoPlatformFundingRequest = Record<string, never>
 
 export type UpdateCryptoProviderAccountRequest = {
   "code"?: string
@@ -5057,6 +5196,29 @@ export type WalletCursorResponse = {
   "hasPrev": boolean
   "targetIndex"?: number
   "totalCount": number | null
+}
+
+export type WalletFundingItem = {
+  "id": string
+  "networkName": string
+  "walletId": string
+  "walletCode": string
+  "tokenId": string
+  "tokenSymbol": string
+  "decimalPlaces": number
+  "txHash": string
+  "fromAddress": string
+  "toAddress": string
+  "amount": string
+  "blockNumber": number
+  "confirmations": number
+  "blockTimestamp": string
+  "recordedAt": string
+}
+
+export type WalletFundingListResponse = {
+  "items": Array<WalletFundingItem>
+  "total": number
 }
 
 export type WalletPoolActivationPolicyResponse = {

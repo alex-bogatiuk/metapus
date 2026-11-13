@@ -26,6 +26,8 @@ export const cryptoApi = {
                 `/crypto/merchant-credits/${assertUuidPathParam(creditId, "creditId")}/reject`,
                 { method: "POST", headers: idempotencyHeaders(key), body: JSON.stringify({ version, reason }) },
             ),
+        walletFundings: (offset = 0) =>
+            apiFetch<import("@/types/generated/http-contracts").WalletFundingListResponse>(`/crypto/wallet-fundings?limit=50&offset=${offset}`),
         preparePlatformFunding: (receiptId: string, command: import("@/types/generated/http-contracts").PreparePlatformFundingRequest, key: string) =>
             apiFetch<import("@/types/generated/http-contracts").PlatformFundingResponse>(
                 `/crypto/unidentified-receipts/${assertUuidPathParam(receiptId, "receiptId")}/platform-fundings`,

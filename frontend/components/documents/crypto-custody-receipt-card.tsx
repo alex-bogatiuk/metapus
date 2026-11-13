@@ -47,8 +47,15 @@ function Hash({ value }: { value: string }) {
     </span>
 }
 
+const attributionRoutes: Record<string, string> = {
+    CryptoPayment: "crypto-payment",
+    CryptoMerchantCredit: "crypto-merchant-credit",
+    CryptoPlatformFunding: "crypto-platform-funding",
+}
+
 function attributionHref(item: CustodyReceiptAttribution): string | undefined {
-    return item.documentType === "CryptoPayment" ? `/documents/crypto-payment/${item.documentId}` : undefined
+    const route = attributionRoutes[item.documentType]
+    return route ? `/documents/${route}/${item.documentId}` : undefined
 }
 
 /**
@@ -84,6 +91,7 @@ export default function CustodyReceiptCard({ id }: CustodyReceiptCardProps) {
                 </p>
             </div>
             <div className="flex items-center gap-2">
+                <Button variant="outline" asChild><Link href={`/documents/crypto-custody-receipt/${id}/movements`}>Движения</Link></Button>
                 <Button variant="outline" asChild><Link href="/crypto/unidentified-receipts">Журнал невыясненных</Link></Button>
                 <Button variant="outline" size="icon" aria-label="Обновить" onClick={() => mutate()}><RefreshCw /></Button>
             </div>

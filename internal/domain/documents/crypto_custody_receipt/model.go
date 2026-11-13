@@ -42,12 +42,12 @@ type CryptoCustodyReceipt struct {
 	WalletID          id.ID              `db:"wallet_id" json:"walletId" meta:"label:Кошелёк,ref:wallet"`
 	TokenID           id.ID              `db:"token_id" json:"tokenId" meta:"label:Токен,ref:token"`
 	CustodyMerchantID *id.ID             `db:"custody_merchant_id" json:"custodyMerchantId,omitempty" meta:"label:Владелец custody,ref:merchant"`
-	VerificationID    id.ID              `db:"verification_id" json:"verificationId"`
-	OccurrenceID      id.ID              `db:"occurrence_id" json:"occurrenceId"`
-	PostingID         id.ID              `db:"posting_id" json:"postingId"`
+	VerificationID    id.ID              `db:"verification_id" json:"verificationId" meta:"list:false"`
+	OccurrenceID      id.ID              `db:"occurrence_id" json:"occurrenceId" meta:"list:false"`
+	PostingID         id.ID              `db:"posting_id" json:"postingId" meta:"list:false"`
 	Amount            types.CryptoAmount `db:"amount" json:"amount" meta:"label:Сумма"`
-	CustodyLineID     id.ID              `db:"custody_line_id" json:"custodyLineId"`
-	SuspenseLineID    id.ID              `db:"suspense_line_id" json:"suspenseLineId"`
+	CustodyLineID     id.ID              `db:"custody_line_id" json:"custodyLineId" meta:"list:false"`
+	SuspenseLineID    id.ID              `db:"suspense_line_id" json:"suspenseLineId" meta:"list:false"`
 	ReasonCode        Reason             `db:"reason_code" json:"reasonCode" meta:"label:Причина"`
 }
 

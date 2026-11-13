@@ -34,6 +34,8 @@ func Registry() []Contract {
 		Request[dto.PreparePlatformFundingRequest]("PreparePlatformFundingRequest"),
 		Request[dto.DecidePlatformFundingRequest]("DecidePlatformFundingRequest"),
 		Response[dto.PlatformFundingResponse]("PlatformFundingResponse"),
+		Response[dto.WalletFundingItem]("WalletFundingItem"),
+		Response[dto.WalletFundingListResponse]("WalletFundingListResponse"),
 		Request[dto.BatchActionRequest]("BatchActionRequest"),
 		Response[dto.BatchActionResult]("BatchActionResult"),
 		Response[dto.BatchActionResponse]("BatchActionResponse"),

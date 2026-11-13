@@ -8,6 +8,7 @@ import (
 
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/apperror"
+	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/documents/crypto_platform_funding"
 	"metapus/internal/domain/posting"
@@ -77,6 +78,17 @@ func TestPlatformFundingTakesTheRemainderOnlyAfterAnotherOperatorApproves(t *tes
 	var custody int
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT count(*) FROM reg_crypto_balance_movements WHERE recorder_id=$1`, doc.ID).Scan(&custody))
 	require.Zero(t, custody, "custody already holds the transfer")
+
+	suspenseRegister := crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())
+	fundingMovements, err := suspenseRegister.GetDocumentMovements(f.ctx, doc.ID)
+	require.NoError(t, err)
+	require.Len(t, fundingMovements, 1, "the funding document shows its suspense consumption")
+	require.Equal(t, []any{"expense", f.receipt.String(), f.request.Basis.Amount.String()},
+		[]any{fundingMovements[0].RecordType, fundingMovements[0].Data["receipt"].(entity.MovementRefValue).ID, fundingMovements[0].Data["amount"]})
+	receiptMovements, err := suspenseRegister.GetDocumentMovements(f.ctx, f.receipt)
+	require.NoError(t, err)
+	require.Len(t, receiptMovements, 1)
+	require.Equal(t, "receipt", receiptMovements[0].RecordType)
 
 	credited := f.journal(t, ReceiptJournalCredited, false)
 	require.Equal(t, 1, credited.Total)

@@ -42,6 +42,9 @@ func RegisterDefaults(reg *v1.FactoryRegistry) {
 	reg.RegisterDocument(&CryptoResourceRentalRegistration{})
 	reg.RegisterDocument(&CryptoNetworkOperationRegistration{})
 	reg.RegisterDocument(&TreasuryWithdrawalRegistration{})
+	reg.RegisterDocument(&CryptoCustodyReceiptRegistration{})
+	reg.RegisterDocument(&CryptoMerchantCreditRegistration{})
+	reg.RegisterDocument(&CryptoPlatformFundingRegistration{})
 	reg.RegisterCustomDocument(&WithdrawalRequestRegistration{})
 
 	// Registers

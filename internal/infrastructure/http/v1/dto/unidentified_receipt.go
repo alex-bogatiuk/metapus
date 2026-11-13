@@ -128,6 +128,31 @@ type CustodyReceiptDetailResponse struct {
 	Attributions []CustodyReceiptAttribution `json:"attributions"`
 }
 
+// WalletFundingItem is a recorded external funding of a platform wallet. It
+// added custody directly; unidentified receipts were never involved.
+type WalletFundingItem struct {
+	ID             string    `json:"id"`
+	NetworkName    string    `json:"networkName"`
+	WalletID       string    `json:"walletId"`
+	WalletCode     string    `json:"walletCode"`
+	TokenID        string    `json:"tokenId"`
+	TokenSymbol    string    `json:"tokenSymbol"`
+	DecimalPlaces  int       `json:"decimalPlaces"`
+	TxHash         string    `json:"txHash"`
+	FromAddress    string    `json:"fromAddress"`
+	ToAddress      string    `json:"toAddress"`
+	Amount         string    `json:"amount"`
+	BlockNumber    int64     `json:"blockNumber"`
+	Confirmations  int       `json:"confirmations"`
+	BlockTimestamp time.Time `json:"blockTimestamp"`
+	RecordedAt     time.Time `json:"recordedAt"`
+}
+
+type WalletFundingListResponse struct {
+	Items []WalletFundingItem `json:"items"`
+	Total int                 `json:"total"`
+}
+
 type UnidentifiedReceiptListResponse struct {
 	Items []UnidentifiedReceiptItem `json:"items"`
 	Total int                       `json:"total"`

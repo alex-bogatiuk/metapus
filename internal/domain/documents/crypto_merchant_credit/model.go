@@ -39,17 +39,17 @@ type CryptoMerchantCredit struct {
 	Amount           types.CryptoAmount `db:"amount" json:"amount" meta:"label:Сумма"`
 	NetAmount        types.CryptoAmount `db:"net_amount" json:"netAmount" meta:"label:Зачислено мерчанту"`
 	ProcessingFee    types.CryptoAmount `db:"processing_fee" json:"processingFee" meta:"label:Комиссия"`
-	FeeFixed         types.CryptoAmount `db:"fee_fixed" json:"feeFixed"`
-	FeePercentBP     int                `db:"fee_percent_bp" json:"feePercentBp"`
-	FeeMin           types.CryptoAmount `db:"fee_min" json:"feeMin"`
-	FeeMax           types.CryptoAmount `db:"fee_max" json:"feeMax"`
+	FeeFixed         types.CryptoAmount `db:"fee_fixed" json:"feeFixed" meta:"label:Фиксированная часть тарифа,list:false"`
+	FeePercentBP     int                `db:"fee_percent_bp" json:"feePercentBp" meta:"label:Процент тарифа (б.п.),list:false"`
+	FeeMin           types.CryptoAmount `db:"fee_min" json:"feeMin" meta:"label:Минимальная комиссия,list:false"`
+	FeeMax           types.CryptoAmount `db:"fee_max" json:"feeMax" meta:"label:Максимальная комиссия,list:false"`
 	Status           Status             `db:"status" json:"status" meta:"label:Статус"`
 	ApprovalRequired bool               `db:"approval_required" json:"approvalRequired" meta:"label:Нужно подтверждение"`
-	PreparedBy       id.ID              `db:"prepared_by" json:"preparedBy"`
-	PreparedAt       time.Time          `db:"prepared_at" json:"preparedAt"`
-	DecidedBy        *id.ID             `db:"decided_by" json:"decidedBy,omitempty"`
-	DecidedAt        *time.Time         `db:"decided_at" json:"decidedAt,omitempty"`
-	DecisionReason   string             `db:"decision_reason" json:"decisionReason,omitempty"`
+	PreparedBy       id.ID              `db:"prepared_by" json:"preparedBy" meta:"label:Подготовил,list:false"`
+	PreparedAt       time.Time          `db:"prepared_at" json:"preparedAt" meta:"label:Подготовлено"`
+	DecidedBy        *id.ID             `db:"decided_by" json:"decidedBy,omitempty" meta:"label:Решение принял,list:false"`
+	DecidedAt        *time.Time         `db:"decided_at" json:"decidedAt,omitempty" meta:"label:Решение принято"`
+	DecisionReason   string             `db:"decision_reason" json:"decisionReason,omitempty" meta:"label:Причина отклонения,list:false"`
 	SuspenseLineID   id.ID              `db:"suspense_line_id" json:"-"`
 	MerchantLineID   id.ID              `db:"merchant_line_id" json:"-"`
 	FeeLineID        id.ID              `db:"fee_line_id" json:"-"`

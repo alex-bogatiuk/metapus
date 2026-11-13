@@ -31,6 +31,7 @@ func Routes() []RouteContract {
 	add("api", "POST", "/crypto/merchant-credits/:id/approve", "DecideMerchantCreditRequest", "MerchantCreditResponse")
 	add("api", "POST", "/crypto/merchant-credits/:id/reject", "DecideMerchantCreditRequest", "MerchantCreditResponse")
 	add("api", "POST", "/crypto/unidentified-receipts/:id/platform-fundings", "PreparePlatformFundingRequest", "PlatformFundingResponse")
+	add("api", "GET", "/crypto/wallet-fundings", "", "WalletFundingListResponse")
 	add("api", "POST", "/crypto/platform-fundings/:id/approve", "DecidePlatformFundingRequest", "PlatformFundingResponse")
 	add("api", "POST", "/crypto/platform-fundings/:id/reject", "DecidePlatformFundingRequest", "PlatformFundingResponse")
 	add("api", "GET", "/admin/dashboard/queues", "", "AdminDashboardQueuesResponse")

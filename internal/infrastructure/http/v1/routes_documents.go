@@ -104,6 +104,7 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 			cryptoMerchantSvc,
 			cryptoPlatformCostSvc,
 			cryptoProviderBalanceSvc,
+			cryptoReceiptSuspenseSvc,
 		},
 		MovementRefResolver:      postgres.NewRefResolverRepo(reg),
 		SettingsRepo:             postgres.NewSettingsRepo(),

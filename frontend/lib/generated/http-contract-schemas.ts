@@ -710,6 +710,8 @@ export const CreateCounterpartyRequestSchema: z.ZodType<Wire.CreateCounterpartyR
   "attributes": z.record(z.string(), jsonValueSchema).optional(),
 }))
 
+export const CreateCryptoCustodyReceiptRequestSchema: z.ZodType<Wire.CreateCryptoCustodyReceiptRequest> = z.lazy(() => z.record(z.string(), z.never()))
+
 export const CreateCryptoInvoiceRequestSchema: z.ZodType<Wire.CreateCryptoInvoiceRequest> = z.lazy(() => z.strictObject({
   "number": z.string().optional(),
   "date": z.string(),
@@ -725,9 +727,13 @@ export const CreateCryptoInvoiceRequestSchema: z.ZodType<Wire.CreateCryptoInvoic
   "postImmediately": z.boolean().optional(),
 }))
 
+export const CreateCryptoMerchantCreditRequestSchema: z.ZodType<Wire.CreateCryptoMerchantCreditRequest> = z.lazy(() => z.record(z.string(), z.never()))
+
 export const CreateCryptoNetworkOperationRequestSchema: z.ZodType<Wire.CreateCryptoNetworkOperationRequest> = z.lazy(() => z.record(z.string(), z.never()))
 
 export const CreateCryptoPaymentRequestSchema: z.ZodType<Wire.CreateCryptoPaymentRequest> = z.lazy(() => z.record(z.string(), z.never()))
+
+export const CreateCryptoPlatformFundingRequestSchema: z.ZodType<Wire.CreateCryptoPlatformFundingRequest> = z.lazy(() => z.record(z.string(), z.never()))
 
 export const CreateCryptoProviderAccountRequestSchema: z.ZodType<Wire.CreateCryptoProviderAccountRequest> = z.lazy(() => z.strictObject({
   "code": z.string().optional(),
@@ -1022,6 +1028,45 @@ export const CryptoChainFamilyCapabilitiesSchema: z.ZodType<Wire.CryptoChainFami
   "supportsReplacement": z.boolean(),
 }))
 
+export const CryptoCustodyReceiptCursorResponseSchema: z.ZodType<Wire.CryptoCustodyReceiptCursorResponse> = z.lazy(() => z.object({
+  "items": z.array(CryptoCustodyReceiptResponseSchema),
+  "nextCursor": z.string().optional(),
+  "prevCursor": z.string().optional(),
+  "hasMore": z.boolean(),
+  "hasPrev": z.boolean(),
+  "targetIndex": z.number().int().optional(),
+  "totalCount": z.number().int().nullable(),
+}))
+
+export const CryptoCustodyReceiptResponseSchema: z.ZodType<Wire.CryptoCustodyReceiptResponse> = z.lazy(() => z.object({
+  "id": z.string(),
+  "deletionMark": z.boolean(),
+  "version": z.number().int(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
+  "createdAt": z.string(),
+  "updatedAt": z.string(),
+  "createdBy": z.string(),
+  "updatedBy": z.string(),
+  "number": z.string(),
+  "date": z.string(),
+  "posted": z.boolean(),
+  "postedVersion": z.number().int(),
+  "basisType": z.string().optional(),
+  "basisId": z.string().optional(),
+  "description": z.string().optional(),
+  "networkId": z.string(),
+  "walletId": z.string(),
+  "tokenId": z.string(),
+  "custodyMerchantId": z.string().optional(),
+  "verificationId": z.string(),
+  "occurrenceId": z.string(),
+  "postingId": z.string(),
+  "amount": z.string(),
+  "custodyLineId": z.string(),
+  "suspenseLineId": z.string(),
+  "reasonCode": z.string(),
+}))
+
 export const CryptoIngestionStreamStatusSchema: z.ZodType<Wire.CryptoIngestionStreamStatus> = z.lazy(() => z.object({
   "watcherKey": z.string(),
   "optional": z.boolean(),
@@ -1074,6 +1119,52 @@ export const CryptoInvoiceResponseSchema: z.ZodType<Wire.CryptoInvoiceResponse> 
   "merchant": PostgresRefDisplaySchema.optional(),
   "token": PostgresRefDisplaySchema.optional(),
   "wallet": PostgresRefDisplaySchema.optional(),
+}))
+
+export const CryptoMerchantCreditCursorResponseSchema: z.ZodType<Wire.CryptoMerchantCreditCursorResponse> = z.lazy(() => z.object({
+  "items": z.array(CryptoMerchantCreditResponseSchema),
+  "nextCursor": z.string().optional(),
+  "prevCursor": z.string().optional(),
+  "hasMore": z.boolean(),
+  "hasPrev": z.boolean(),
+  "targetIndex": z.number().int().optional(),
+  "totalCount": z.number().int().nullable(),
+}))
+
+export const CryptoMerchantCreditResponseSchema: z.ZodType<Wire.CryptoMerchantCreditResponse> = z.lazy(() => z.object({
+  "id": z.string(),
+  "deletionMark": z.boolean(),
+  "version": z.number().int(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
+  "createdAt": z.string(),
+  "updatedAt": z.string(),
+  "createdBy": z.string(),
+  "updatedBy": z.string(),
+  "number": z.string(),
+  "date": z.string(),
+  "posted": z.boolean(),
+  "postedVersion": z.number().int(),
+  "basisType": z.string().optional(),
+  "basisId": z.string().optional(),
+  "description": z.string().optional(),
+  "receiptId": z.string(),
+  "merchantId": z.string(),
+  "invoiceId": z.string().optional(),
+  "tokenId": z.string(),
+  "amount": z.string(),
+  "netAmount": z.string(),
+  "processingFee": z.string(),
+  "feeFixed": z.string(),
+  "feePercentBp": z.number().int(),
+  "feeMin": z.string(),
+  "feeMax": z.string(),
+  "status": z.string(),
+  "approvalRequired": z.boolean(),
+  "preparedBy": z.string(),
+  "preparedAt": z.string(),
+  "decidedBy": z.string().optional(),
+  "decidedAt": z.string().optional(),
+  "decisionReason": z.string().optional(),
 }))
 
 export const CryptoNetworkIngestionStatusSchema: z.ZodType<Wire.CryptoNetworkIngestionStatus> = z.lazy(() => z.object({
@@ -1223,6 +1314,48 @@ export const CryptoPaymentResponseSchema: z.ZodType<Wire.CryptoPaymentResponse> 
   "merchant": PostgresRefDisplaySchema.optional(),
   "token": PostgresRefDisplaySchema.optional(),
   "wallet": PostgresRefDisplaySchema.optional(),
+}))
+
+export const CryptoPlatformFundingCursorResponseSchema: z.ZodType<Wire.CryptoPlatformFundingCursorResponse> = z.lazy(() => z.object({
+  "items": z.array(CryptoPlatformFundingResponseSchema),
+  "nextCursor": z.string().optional(),
+  "prevCursor": z.string().optional(),
+  "hasMore": z.boolean(),
+  "hasPrev": z.boolean(),
+  "targetIndex": z.number().int().optional(),
+  "totalCount": z.number().int().nullable(),
+}))
+
+export const CryptoPlatformFundingResponseSchema: z.ZodType<Wire.CryptoPlatformFundingResponse> = z.lazy(() => z.object({
+  "id": z.string(),
+  "deletionMark": z.boolean(),
+  "version": z.number().int(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
+  "createdAt": z.string(),
+  "updatedAt": z.string(),
+  "createdBy": z.string(),
+  "updatedBy": z.string(),
+  "number": z.string(),
+  "date": z.string(),
+  "posted": z.boolean(),
+  "postedVersion": z.number().int(),
+  "basisType": z.string().optional(),
+  "basisId": z.string().optional(),
+  "description": z.string().optional(),
+  "receiptId": z.string(),
+  "walletId": z.string(),
+  "tokenId": z.string(),
+  "amount": z.string(),
+  "reason": z.string(),
+  "merchantId": z.string().optional(),
+  "merchantLink": z.string().optional(),
+  "merchantLinkAcknowledged": z.boolean(),
+  "status": z.string(),
+  "preparedBy": z.string(),
+  "preparedAt": z.string(),
+  "decidedBy": z.string().optional(),
+  "decidedAt": z.string().optional(),
+  "decisionReason": z.string().optional(),
 }))
 
 export const CryptoProviderAccountCursorResponseSchema: z.ZodType<Wire.CryptoProviderAccountCursorResponse> = z.lazy(() => z.object({
@@ -4566,6 +4699,8 @@ export const UpdateCounterpartyRequestSchema: z.ZodType<Wire.UpdateCounterpartyR
   "version": z.number().int(),
 }))
 
+export const UpdateCryptoCustodyReceiptRequestSchema: z.ZodType<Wire.UpdateCryptoCustodyReceiptRequest> = z.lazy(() => z.record(z.string(), z.never()))
+
 export const UpdateCryptoInvoiceRequestSchema: z.ZodType<Wire.UpdateCryptoInvoiceRequest> = z.lazy(() => z.strictObject({
   "version": z.number().int(),
   "number": z.string().nullable().optional(),
@@ -4580,6 +4715,8 @@ export const UpdateCryptoInvoiceRequestSchema: z.ZodType<Wire.UpdateCryptoInvoic
   "customerId": z.string().nullable().optional(),
   "description": z.string().nullable().optional(),
 }))
+
+export const UpdateCryptoMerchantCreditRequestSchema: z.ZodType<Wire.UpdateCryptoMerchantCreditRequest> = z.lazy(() => z.record(z.string(), z.never()))
 
 export const UpdateCryptoNetworkOperationRequestSchema: z.ZodType<Wire.UpdateCryptoNetworkOperationRequest> = z.lazy(() => z.strictObject({
   "sourceWalletId": z.string(),
@@ -4605,6 +4742,8 @@ export const UpdateCryptoNetworkPolicyRequestSchema: z.ZodType<Wire.UpdateCrypto
 export const UpdateCryptoPaymentRequestSchema: z.ZodType<Wire.UpdateCryptoPaymentRequest> = z.lazy(() => z.strictObject({
   "version": z.number().int(),
 }))
+
+export const UpdateCryptoPlatformFundingRequestSchema: z.ZodType<Wire.UpdateCryptoPlatformFundingRequest> = z.lazy(() => z.record(z.string(), z.never()))
 
 export const UpdateCryptoProviderAccountRequestSchema: z.ZodType<Wire.UpdateCryptoProviderAccountRequest> = z.lazy(() => z.strictObject({
   "code": z.string().optional(),
@@ -5061,6 +5200,29 @@ export const WalletCursorResponseSchema: z.ZodType<Wire.WalletCursorResponse> = 
   "hasPrev": z.boolean(),
   "targetIndex": z.number().int().optional(),
   "totalCount": z.number().int().nullable(),
+}))
+
+export const WalletFundingItemSchema: z.ZodType<Wire.WalletFundingItem> = z.lazy(() => z.object({
+  "id": z.string(),
+  "networkName": z.string(),
+  "walletId": z.string(),
+  "walletCode": z.string(),
+  "tokenId": z.string(),
+  "tokenSymbol": z.string(),
+  "decimalPlaces": z.number().int(),
+  "txHash": z.string(),
+  "fromAddress": z.string(),
+  "toAddress": z.string(),
+  "amount": z.string(),
+  "blockNumber": z.number().int(),
+  "confirmations": z.number().int(),
+  "blockTimestamp": z.string(),
+  "recordedAt": z.string(),
+}))
+
+export const WalletFundingListResponseSchema: z.ZodType<Wire.WalletFundingListResponse> = z.lazy(() => z.object({
+  "items": z.array(WalletFundingItemSchema),
+  "total": z.number().int(),
 }))
 
 export const WalletPoolActivationPolicyResponseSchema: z.ZodType<Wire.WalletPoolActivationPolicyResponse> = z.lazy(() => z.object({

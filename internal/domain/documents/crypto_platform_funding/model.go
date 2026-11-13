@@ -51,13 +51,13 @@ type CryptoPlatformFunding struct {
 	Reason                   string             `db:"reason" json:"reason" meta:"label:Основание"`
 	MerchantID               *id.ID             `db:"merchant_id" json:"merchantId,omitempty" meta:"label:Связанный мерчант,ref:merchant"`
 	MerchantLink             *MerchantLink      `db:"merchant_link" json:"merchantLink,omitempty" meta:"label:Связь с мерчантом"`
-	MerchantLinkAcknowledged bool               `db:"merchant_link_acknowledged" json:"merchantLinkAcknowledged" meta:"label:Связь подтверждена"`
+	MerchantLinkAcknowledged bool               `db:"merchant_link_acknowledged" json:"merchantLinkAcknowledged" meta:"label:Связь подтверждена,list:false"`
 	Status                   Status             `db:"status" json:"status" meta:"label:Статус"`
-	PreparedBy               id.ID              `db:"prepared_by" json:"preparedBy"`
-	PreparedAt               time.Time          `db:"prepared_at" json:"preparedAt"`
-	DecidedBy                *id.ID             `db:"decided_by" json:"decidedBy,omitempty"`
-	DecidedAt                *time.Time         `db:"decided_at" json:"decidedAt,omitempty"`
-	DecisionReason           string             `db:"decision_reason" json:"decisionReason,omitempty"`
+	PreparedBy               id.ID              `db:"prepared_by" json:"preparedBy" meta:"label:Подготовил,list:false"`
+	PreparedAt               time.Time          `db:"prepared_at" json:"preparedAt" meta:"label:Подготовлено"`
+	DecidedBy                *id.ID             `db:"decided_by" json:"decidedBy,omitempty" meta:"label:Подтвердил,list:false"`
+	DecidedAt                *time.Time         `db:"decided_at" json:"decidedAt,omitempty" meta:"label:Решение принято"`
+	DecisionReason           string             `db:"decision_reason" json:"decisionReason,omitempty" meta:"label:Причина отклонения,list:false"`
 	SuspenseLineID           id.ID              `db:"suspense_line_id" json:"-"`
 }
 

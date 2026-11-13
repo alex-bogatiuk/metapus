@@ -527,6 +527,19 @@ INSERT INTO auth_permissions (code,name,description,resource,action) VALUES
     ('crypto_receipt:credit','Зачисление невыясненных поступлений','Prepare or reject a merchant credit of an unidentified receipt','crypto_receipt','credit'),
     ('crypto_receipt:approve','Подтверждение зачисления поступлений','Approve a merchant credit prepared by another operator','crypto_receipt','approve')
 ON CONFLICT (code) DO NOTHING;
+
+-- Receipts and their manual attributions are read-only documents with
+-- register movements; they are created only by the receipts workflow.
+INSERT INTO auth_permissions (code,name,description,resource,action) VALUES
+    ('document:crypto_custody_receipt:read','Чтение поступлений на кошельки','View custody receipts and their movements','crypto_custody_receipt','read'),
+    ('document:crypto_merchant_credit:read','Чтение ручных зачислений','View manual merchant credits and their movements','crypto_merchant_credit','read'),
+    ('document:crypto_platform_funding:read','Чтение пополнений платформы','View platform fundings and their movements','crypto_platform_funding','read')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO auth_role_permissions (role_id, permission_id)
+SELECT 'b0000000-0000-0000-0000-000000000001', id FROM auth_permissions
+WHERE resource IN ('crypto_custody_receipt','crypto_merchant_credit','crypto_platform_funding')
+ON CONFLICT DO NOTHING;
 -- +goose StatementEnd
 
 -- +goose Down
