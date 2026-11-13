@@ -7,6 +7,7 @@ import (
 	"metapus/internal/domain/documents/crypto_platform_funding"
 	"metapus/internal/infrastructure/http/contracts/spec"
 	v1 "metapus/internal/infrastructure/http/v1"
+	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/metadata"
@@ -38,7 +39,7 @@ func (r *CryptoCustodyReceiptRegistration) DocumentCapabilities() metadata.Docum
 	return readOnlyCryptoDocument
 }
 func (r *CryptoCustodyReceiptRegistration) HTTPContracts() spec.Bundle {
-	return spec.EntityWithDetail[struct{}, struct{}, crypto_custody_receipt.CryptoCustodyReceipt, crypto_custody_receipt.CryptoCustodyReceipt](
+	return spec.EntityWithDetail[struct{}, struct{}, dto.CryptoCustodyReceiptResponse, dto.CryptoCustodyReceiptResponse](
 		r.EntityDefinition(), r.DocumentCapabilities())
 }
 func (r *CryptoCustodyReceiptRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
@@ -47,6 +48,9 @@ func (r *CryptoCustodyReceiptRegistration) Build(deps v1.DocumentDeps) v1.Docume
 		PostingEngine: deps.PostingEngine, Numerator: deps.Numerator, PolicyEngine: deps.PolicyEngine, NumeratorPrefix: "CCR",
 	})
 	return handlers.NewReadOnlyDocumentHandler(deps.BaseHandler, service, crypto_custody_receipt.Definition.Key,
+		handlers.ReadOnlyDocumentPresenter[*crypto_custody_receipt.CryptoCustodyReceipt, dto.CryptoCustodyReceiptResponse]{
+			Collect: dto.CollectCryptoCustodyReceiptRefs, Present: dto.FromCryptoCustodyReceipt,
+		},
 		deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)
 }
 
@@ -71,7 +75,7 @@ func (r *CryptoMerchantCreditRegistration) DocumentCapabilities() metadata.Docum
 	return readOnlyCryptoDocument
 }
 func (r *CryptoMerchantCreditRegistration) HTTPContracts() spec.Bundle {
-	return spec.EntityWithDetail[struct{}, struct{}, crypto_merchant_credit.CryptoMerchantCredit, crypto_merchant_credit.CryptoMerchantCredit](
+	return spec.EntityWithDetail[struct{}, struct{}, dto.CryptoMerchantCreditResponse, dto.CryptoMerchantCreditResponse](
 		r.EntityDefinition(), r.DocumentCapabilities())
 }
 func (r *CryptoMerchantCreditRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
@@ -80,6 +84,9 @@ func (r *CryptoMerchantCreditRegistration) Build(deps v1.DocumentDeps) v1.Docume
 		PostingEngine: deps.PostingEngine, Numerator: deps.Numerator, PolicyEngine: deps.PolicyEngine, NumeratorPrefix: "CMC",
 	})
 	return handlers.NewReadOnlyDocumentHandler(deps.BaseHandler, service, crypto_merchant_credit.Definition.Key,
+		handlers.ReadOnlyDocumentPresenter[*crypto_merchant_credit.CryptoMerchantCredit, dto.CryptoMerchantCreditResponse]{
+			Collect: dto.CollectCryptoMerchantCreditRefs, Present: dto.FromCryptoMerchantCredit,
+		},
 		deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)
 }
 
@@ -104,7 +111,7 @@ func (r *CryptoPlatformFundingRegistration) DocumentCapabilities() metadata.Docu
 	return readOnlyCryptoDocument
 }
 func (r *CryptoPlatformFundingRegistration) HTTPContracts() spec.Bundle {
-	return spec.EntityWithDetail[struct{}, struct{}, crypto_platform_funding.CryptoPlatformFunding, crypto_platform_funding.CryptoPlatformFunding](
+	return spec.EntityWithDetail[struct{}, struct{}, dto.CryptoPlatformFundingResponse, dto.CryptoPlatformFundingResponse](
 		r.EntityDefinition(), r.DocumentCapabilities())
 }
 func (r *CryptoPlatformFundingRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
@@ -113,5 +120,8 @@ func (r *CryptoPlatformFundingRegistration) Build(deps v1.DocumentDeps) v1.Docum
 		PostingEngine: deps.PostingEngine, Numerator: deps.Numerator, PolicyEngine: deps.PolicyEngine, NumeratorPrefix: "CPF",
 	})
 	return handlers.NewReadOnlyDocumentHandler(deps.BaseHandler, service, crypto_platform_funding.Definition.Key,
+		handlers.ReadOnlyDocumentPresenter[*crypto_platform_funding.CryptoPlatformFunding, dto.CryptoPlatformFundingResponse]{
+			Collect: dto.CollectCryptoPlatformFundingRefs, Present: dto.FromCryptoPlatformFunding,
+		},
 		deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)
 }

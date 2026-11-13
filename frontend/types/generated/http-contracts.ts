@@ -1041,26 +1041,22 @@ export type CryptoCustodyReceiptResponse = {
   "attributes"?: Record<string, JsonValue>
   "createdAt": string
   "updatedAt": string
-  "createdBy": string
-  "updatedBy": string
   "number": string
   "date": string
   "posted": boolean
   "postedVersion": number
-  "basisType"?: string
-  "basisId"?: string
   "description"?: string
   "networkId": string
   "walletId": string
   "tokenId": string
   "custodyMerchantId"?: string
   "verificationId": string
-  "occurrenceId": string
-  "postingId": string
   "amount": string
-  "custodyLineId": string
-  "suspenseLineId": string
   "reasonCode": string
+  "network"?: PostgresRefDisplay
+  "wallet"?: PostgresRefDisplay
+  "token"?: PostgresRefDisplay
+  "custodyMerchant"?: PostgresRefDisplay
 }
 
 export type CryptoIngestionStreamStatus = {
@@ -1134,14 +1130,10 @@ export type CryptoMerchantCreditResponse = {
   "attributes"?: Record<string, JsonValue>
   "createdAt": string
   "updatedAt": string
-  "createdBy": string
-  "updatedBy": string
   "number": string
   "date": string
   "posted": boolean
   "postedVersion": number
-  "basisType"?: string
-  "basisId"?: string
   "description"?: string
   "receiptId": string
   "merchantId": string
@@ -1161,6 +1153,8 @@ export type CryptoMerchantCreditResponse = {
   "decidedBy"?: string
   "decidedAt"?: string
   "decisionReason"?: string
+  "merchant"?: PostgresRefDisplay
+  "token"?: PostgresRefDisplay
 }
 
 export type CryptoNetworkIngestionStatus = {
@@ -1329,14 +1323,10 @@ export type CryptoPlatformFundingResponse = {
   "attributes"?: Record<string, JsonValue>
   "createdAt": string
   "updatedAt": string
-  "createdBy": string
-  "updatedBy": string
   "number": string
   "date": string
   "posted": boolean
   "postedVersion": number
-  "basisType"?: string
-  "basisId"?: string
   "description"?: string
   "receiptId": string
   "walletId": string
@@ -1352,6 +1342,9 @@ export type CryptoPlatformFundingResponse = {
   "decidedBy"?: string
   "decidedAt"?: string
   "decisionReason"?: string
+  "wallet"?: PostgresRefDisplay
+  "token"?: PostgresRefDisplay
+  "merchant"?: PostgresRefDisplay
 }
 
 export type CryptoProviderAccountCursorResponse = {
