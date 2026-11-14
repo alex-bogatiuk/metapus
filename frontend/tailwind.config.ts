@@ -96,7 +96,8 @@ const config = {
         ]
       },
       boxShadow: {
-        control: 'inset 0 1px 0 hsl(var(--surface-highlight) / var(--surface-highlight-opacity)), 0 1px 2px hsl(var(--shadow-color) / 0.08)',
+        // Plain shadcn shadow-xs: no inset top highlight, which read as gloss on controls.
+        control: '0 1px 2px 0 hsl(var(--shadow-color) / 0.05)',
         surface: 'inset 0 1px 0 hsl(var(--surface-highlight) / calc(var(--surface-highlight-opacity) * 0.72)), 0 1px 2px hsl(var(--shadow-color) / 0.06), 0 8px 24px hsl(var(--shadow-color) / 0.045)',
         floating: 'inset 0 1px 0 hsl(var(--surface-highlight) / calc(var(--surface-highlight-opacity) * 0.84)), 0 2px 8px hsl(var(--shadow-color) / 0.1), 0 18px 48px hsl(var(--shadow-color) / 0.14)',
         connected: 'inset 0 1px 0 hsl(var(--surface-highlight) / var(--surface-highlight-opacity)), 0 -1px 0 hsl(var(--workspace-surface)), 0 1px 3px hsl(var(--shadow-color) / 0.07)'
