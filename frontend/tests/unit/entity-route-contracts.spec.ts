@@ -16,8 +16,14 @@ test("form projection uses writable DTO fields, preserves exact strings and requ
   for (const key of ["id", "network", "createdAt", "injected", "deletionMark"]) expect(payload).not.toHaveProperty(key)
   expect(() => projectFormRequest("PUT", path, { name: "Incomplete", version: 1 })).toThrow()
   expect(() => projectFormRequest("PUT", "/catalog/unregistered/id", draft)).toThrow("No form request contract")
-  const networkOperation = findHTTPContract("api", "PUT", `/document/crypto-network-operation/${ids.outflow}/repost`)
-  expect(networkOperation?.requestFields).toEqual(["sourceWalletId", "costTokenId", "costAmount", "description", "version"])
+  // Repost submits the same writable DTO fields as update, in declared order.
+  const invoiceUpdate = findHTTPContract("api", "PUT", `/document/crypto-invoice/${ids.outflow}`)
+  const invoiceRepost = findHTTPContract("api", "PUT", `/document/crypto-invoice/${ids.outflow}/repost`)
+  expect(invoiceRepost?.requestFields?.length).toBeGreaterThan(0)
+  expect(invoiceRepost?.requestFields).toEqual(invoiceUpdate?.requestFields)
+  // Network operations are read-only system documents: no edit or repost contract.
+  expect(findHTTPContract("api", "PUT", `/document/crypto-network-operation/${ids.outflow}/repost`)).toBeUndefined()
+  expect(findHTTPContract("api", "PUT", `/document/crypto-network-operation/${ids.outflow}`)).toBeUndefined()
 })
 
 test("raw AutoForm and generic CRUD HTTP calls share concrete response and request validation", async () => {
