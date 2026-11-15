@@ -1,4 +1,4 @@
-package posting
+package cryptoposting
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
+	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_provider_balance"
 )
 
@@ -19,7 +20,7 @@ type CryptoProviderBalanceVisitor struct{}
 
 func (*CryptoProviderBalanceVisitor) Name() string { return _cryptoProviderBalanceExtKey }
 
-func (*CryptoProviderBalanceVisitor) CollectMovements(ctx context.Context, doc Postable, set *MovementSet) error {
+func (*CryptoProviderBalanceVisitor) CollectMovements(ctx context.Context, doc posting.Postable, set *posting.MovementSet) error {
 	src, ok := doc.(CryptoProviderBalanceMovementSource)
 	if !ok {
 		return nil
@@ -44,7 +45,7 @@ func NewCryptoProviderBalanceRecorder(service *crypto_provider_balance.Service) 
 
 func (*CryptoProviderBalanceRecorder) Name() string { return _cryptoProviderBalanceExtKey }
 
-func (r *CryptoProviderBalanceRecorder) RecordFromSet(ctx context.Context, set *MovementSet) error {
+func (r *CryptoProviderBalanceRecorder) RecordFromSet(ctx context.Context, set *posting.MovementSet) error {
 	raw, ok := set.GetExtension(_cryptoProviderBalanceExtKey)
 	if !ok {
 		return nil

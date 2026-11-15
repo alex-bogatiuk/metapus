@@ -7,7 +7,7 @@ import (
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/cryptoposting"
 
 	"github.com/stretchr/testify/require"
 )
@@ -54,8 +54,8 @@ func TestCryptoSweepPlatformCostDoesNotCreateCryptoFeeMovement(t *testing.T) {
 func TestSweepPostingNeverMovesPrincipal(t *testing.T) {
 	// Each line is recognized from its own final proof, never by posting.
 	var doc any = NewCryptoSweep(id.New(), id.New())
-	_, balance := doc.(posting.CryptoBalanceMovementSource)
-	_, fee := doc.(posting.CryptoFeeMovementSource)
+	_, balance := doc.(cryptoposting.CryptoBalanceMovementSource)
+	_, fee := doc.(cryptoposting.CryptoFeeMovementSource)
 	require.False(t, balance)
 	require.False(t, fee)
 }

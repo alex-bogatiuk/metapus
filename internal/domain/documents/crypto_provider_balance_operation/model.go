@@ -11,6 +11,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/cryptoposting"
 )
 
 const (
@@ -168,5 +169,5 @@ func (o *CryptoProviderBalanceOperation) GenerateCryptoBalanceMovements(context.
 }
 
 var _ posting.Postable = (*CryptoProviderBalanceOperation)(nil)
-var _ posting.CryptoProviderBalanceMovementSource = (*CryptoProviderBalanceOperation)(nil)
-var _ posting.CryptoBalanceMovementSource = (*CryptoProviderBalanceOperation)(nil)
+var _ cryptoposting.CryptoProviderBalanceMovementSource = (*CryptoProviderBalanceOperation)(nil)
+var _ cryptoposting.CryptoBalanceMovementSource = (*CryptoProviderBalanceOperation)(nil)

@@ -126,7 +126,7 @@
 - *Изменение:* один механический `gofmt -w` отдельным commit плюс formatter в конфиге golangci-lint.
 
 **F10. Оставшиеся недостижимые функции (~60)** — dead code — **подтверждено**, удаление не выполнено.
-- *Место:* конструкторы `core/types` (`NewMoney`, `MustMoney`, `NewQuantityFromFloat64` …), `apperror.NewDuplicate/NewMFARequired/NewPeriodClosed`, `Find*` в доменных сервисах, `merchant.Service.AddUser/RemoveUser/…`, `crypto_provider_account.Service.Set/GetCredentials`, `wallet.NewSystemWallet`, `crypto.WithClock`, `posting.CryptoBalanceMovements`, `entity.NewSettlementMovement`, `settings.Default*`, `middleware.OptionalAuth`, `publicref.Redact`, `extensions.HTTPContracts`, `RefFinder.CountReferences` (метод интерфейса без вызовов).
+- *Место:* конструкторы `core/types` (`NewMoney`, `MustMoney`, `NewQuantityFromFloat64` …), `apperror.NewDuplicate/NewMFARequired/NewPeriodClosed`, `Find*` в доменных сервисах, `merchant.Service.AddUser/RemoveUser/…`, `crypto_provider_account.Service.Set/GetCredentials`, `wallet.NewSystemWallet`, `crypto.WithClock`, `cryptoposting.CryptoBalanceMovements`, `entity.NewSettlementMovement`, `settings.Default*`, `middleware.OptionalAuth`, `publicref.Redact`, `extensions.HTTPContracts`, `RefFinder.CountReferences` (метод интерфейса без вызовов).
 - *Почему не удалено:* `internal/core` и `internal/platform` служат API для расширений (`docs/systems/extension-api.md`), а часть функций описывает намеренные точки расширения. Нужно решение, что входит в поддерживаемый extension API. Отдельно стоит `NewQuantityFromFloat64`: денежный/количественный тип из `float64` — кандидат на удаление в первую очередь.
 - *Проверка:* deadcode в трёх режимах + `make check-extensions` + scaffold-тест.
 

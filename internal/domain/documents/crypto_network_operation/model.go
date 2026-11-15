@@ -14,6 +14,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/cryptoposting"
 )
 
 const (
@@ -176,6 +177,6 @@ func (d *CryptoNetworkOperation) validateMovementOperation() error {
 }
 
 var _ posting.Postable = (*CryptoNetworkOperation)(nil)
-var _ posting.CryptoBalanceMovementSource = (*CryptoNetworkOperation)(nil)
-var _ posting.CryptoPlatformCostMovementSource = (*CryptoNetworkOperation)(nil)
+var _ cryptoposting.CryptoBalanceMovementSource = (*CryptoNetworkOperation)(nil)
+var _ cryptoposting.CryptoPlatformCostMovementSource = (*CryptoNetworkOperation)(nil)
 var _ posting.UnpostGuard = (*CryptoNetworkOperation)(nil)

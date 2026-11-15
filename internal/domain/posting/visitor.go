@@ -8,7 +8,8 @@ import (
 )
 
 // RegisterVisitor examines a Postable document and collects register-specific movements.
-// Each register type (settlement, crypto_balance, …) provides its own visitor.
+// Each register type provides its own visitor; configuration-specific
+// registers keep their visitors next to the register, outside this package.
 //
 // The Engine iterates all registered visitors during posting.
 // Adding a new register = create a new source interface + visitor implementation,

@@ -15,6 +15,7 @@ import (
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_balance"
 	"metapus/internal/domain/registers/crypto_platform_cost"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
@@ -163,10 +164,10 @@ func TestActivationFinalizationLocksTargetBeforeWorkflowRow(t *testing.T) {
 			_, err = q.Exec(f.ctx, `INSERT INTO reg_crypto_account_activations(id,wallet_id,network_id,status) VALUES($1,$2,$3,'signing')`, f.reservation.BasisID, target, f.reservation.NetworkID)
 			require.NoError(t, err)
 			engine := posting.NewEngine(postgres.NewDocLocker())
-			engine.AddVisitor(&posting.CryptoBalanceVisitor{})
-			engine.AddVisitor(&posting.CryptoPlatformCostVisitor{})
-			engine.AddRecorder(posting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
-			engine.AddRecorder(posting.NewCryptoPlatformCostRecorder(crypto_platform_cost.NewService(register_repo.NewCryptoPlatformCostRepo())))
+			engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
+			engine.AddVisitor(&cryptoposting.CryptoPlatformCostVisitor{})
+			engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
+			engine.AddRecorder(cryptoposting.NewCryptoPlatformCostRecorder(crypto_platform_cost.NewService(register_repo.NewCryptoPlatformCostRepo())))
 			repo := document_repo.NewCryptoNetworkOperationRepo()
 			service := crypto_network_operation.NewService(repo, engine, fixedNetworkOperationNumerator{}, nil)
 			coordinator := NewCryptoNetworkOperationCoordinator(repo, service, NewFeeBudgetManager())

@@ -19,6 +19,7 @@ import (
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_balance"
 	"metapus/internal/domain/registers/crypto_receipt_suspense"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
@@ -58,10 +59,10 @@ func newReceiptIntakeFixture(t *testing.T, publisher domain.OutboxPublisher) rec
 		TxHash: event.TxHash, EventKind: event.EventKind, EventIndex: event.EventIndex, FromAddress: event.FromAddress,
 		Amount: event.Amount, BlockNumber: event.BlockNumber, BlockHash: event.BlockHash, RequiredConfs: 19, VerificationID: &proofID}
 	engine := posting.NewEngine(nil)
-	engine.AddVisitor(&posting.CryptoBalanceVisitor{})
-	engine.AddVisitor(&posting.CryptoReceiptSuspenseVisitor{})
-	engine.AddRecorder(posting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
-	engine.AddRecorder(posting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())))
+	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
+	engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
+	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())))
 	repo := NewReceiptIntakeRepo()
 	if publisher == nil {
 		publisher = postgres.NewOutboxPublisher()
@@ -154,9 +155,9 @@ func TestCustodyReceiptDeferredConstraintsRejectPartialCommit(t *testing.T) {
 				repo = missingReceiptAudit{f.repo}
 			case "missing_suspense":
 				engine = posting.NewEngine(nil)
-				engine.AddVisitor(&posting.CryptoBalanceVisitor{})
-				engine.AddVisitor(&posting.CryptoReceiptSuspenseVisitor{})
-				engine.AddRecorder(posting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
+				engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
+				engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
+				engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
 			}
 			service := cryptoapp.NewReceiptIntakeService(postgres.MustGetTxManager(f.ctx), repo,
 				NewBlockIngestionRepo(), engine, numerator.New(), publisher, time.Now)

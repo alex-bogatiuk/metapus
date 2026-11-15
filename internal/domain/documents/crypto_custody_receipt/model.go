@@ -8,6 +8,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/cryptoposting"
 )
 
 type Reason string
@@ -110,5 +111,5 @@ func (r *CryptoCustodyReceipt) GenerateCryptoReceiptSuspenseMovements(context.Co
 
 var _ posting.Postable = (*CryptoCustodyReceipt)(nil)
 var _ posting.UnpostGuard = (*CryptoCustodyReceipt)(nil)
-var _ posting.CryptoBalanceMovementSource = (*CryptoCustodyReceipt)(nil)
-var _ posting.CryptoReceiptSuspenseMovementSource = (*CryptoCustodyReceipt)(nil)
+var _ cryptoposting.CryptoBalanceMovementSource = (*CryptoCustodyReceipt)(nil)
+var _ cryptoposting.CryptoReceiptSuspenseMovementSource = (*CryptoCustodyReceipt)(nil)

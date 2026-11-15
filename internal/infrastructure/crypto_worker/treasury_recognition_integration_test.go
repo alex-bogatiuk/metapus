@@ -17,6 +17,7 @@ import (
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/treasury_withdrawal"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
@@ -137,8 +138,8 @@ func (f treasuryFinalFixture) registry(t *testing.T) *crypto.ChainDriverRegistry
 func (f treasuryFinalFixture) executor(t *testing.T) *outboundapp.TreasuryExecutor {
 	t.Helper()
 	engine := posting.NewEngine(postgres.NewDocLocker())
-	engine.AddVisitor(&posting.CryptoBalanceVisitor{})
-	engine.AddVisitor(&posting.CryptoFeeVisitor{})
+	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
+	engine.AddVisitor(&cryptoposting.CryptoFeeVisitor{})
 	return outboundapp.NewTreasuryExecutor(f.registry(t), nil, document_repo.NewTreasuryWithdrawalRepo(), NewOutboundRepo(), nil, engine, nil, nil, NewFeeBudgetManager(), nil, nil, "test", nil, nil, nil)
 }
 

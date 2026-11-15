@@ -6,7 +6,7 @@ import (
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/cryptoposting"
 
 	"github.com/stretchr/testify/require"
 )
@@ -39,8 +39,8 @@ func TestReceiptCreatesBalancedCustodyAndSuspenseWithoutAttribution(t *testing.T
 	again, err := doc.GenerateCryptoBalanceMovements(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, physical, again, "retry does not allocate another movement identity or clock")
-	_, merchantSource := interface{}(doc).(posting.CryptoMerchantBalanceMovementSource)
-	_, feeSource := interface{}(doc).(posting.CryptoFeeMovementSource)
+	_, merchantSource := interface{}(doc).(cryptoposting.CryptoMerchantBalanceMovementSource)
+	_, feeSource := interface{}(doc).(cryptoposting.CryptoFeeMovementSource)
 	require.False(t, merchantSource)
 	require.False(t, feeSource)
 	doc.MarkPosted()

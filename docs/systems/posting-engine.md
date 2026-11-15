@@ -78,7 +78,7 @@ Processing fee — выручка; `chain_resource_rent` и `chain_network_fee` 
 internal/domain/posting/engine.go   — Координатор транзакции проведения
 internal/domain/posting/visitor.go  — Сбор движений из документов
 internal/domain/posting/recorder.go — Запись движений в регистры
-internal/domain/posting/crypto_platform_cost_visitor.go — Visitor/Recorder для platform cost movements
+internal/domain/registers/cryptoposting/ — Visitor/Recorder криптовых регистров (конфигурация, подключается при сборке движка)
 internal/infrastructure/http/v1/handlers/document.go — SSE Batch processing
 internal/domain/registers/crypto_merchant_balance/service.go — CheckAndReserveMerchantBalance + StornoMovements
 internal/domain/registers/crypto_balance/service.go — CheckAndReserveCryptoBalance

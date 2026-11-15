@@ -1,4 +1,4 @@
-package posting
+package cryptoposting
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
+	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_merchant_balance"
 )
 
@@ -26,11 +27,11 @@ const _cryptoMerchantBalanceExtKey = "crypto_merchant_balance"
 // that implement CryptoMerchantBalanceMovementSource.
 type CryptoMerchantBalanceVisitor struct{}
 
-// Name implements RegisterVisitor.
+// Name implements posting.RegisterVisitor.
 func (v *CryptoMerchantBalanceVisitor) Name() string { return _cryptoMerchantBalanceExtKey }
 
-// CollectMovements implements RegisterVisitor.
-func (v *CryptoMerchantBalanceVisitor) CollectMovements(ctx context.Context, doc Postable, set *MovementSet) error {
+// CollectMovements implements posting.RegisterVisitor.
+func (v *CryptoMerchantBalanceVisitor) CollectMovements(ctx context.Context, doc posting.Postable, set *posting.MovementSet) error {
 	src, ok := doc.(CryptoMerchantBalanceMovementSource)
 	if !ok {
 		return nil
@@ -47,7 +48,7 @@ func (v *CryptoMerchantBalanceVisitor) CollectMovements(ctx context.Context, doc
 	return nil
 }
 
-// CryptoMerchantBalanceRecorder adapts crypto_merchant_balance.Service into a RegisterRecorder.
+// CryptoMerchantBalanceRecorder adapts crypto_merchant_balance.Service into a posting.RegisterRecorder.
 type CryptoMerchantBalanceRecorder struct {
 	service *crypto_merchant_balance.Service
 }
@@ -59,7 +60,7 @@ func NewCryptoMerchantBalanceRecorder(s *crypto_merchant_balance.Service) *Crypt
 
 func (r *CryptoMerchantBalanceRecorder) Name() string { return _cryptoMerchantBalanceExtKey }
 
-func (r *CryptoMerchantBalanceRecorder) RecordFromSet(ctx context.Context, set *MovementSet) error {
+func (r *CryptoMerchantBalanceRecorder) RecordFromSet(ctx context.Context, set *posting.MovementSet) error {
 	raw, ok := set.GetExtension(_cryptoMerchantBalanceExtKey)
 	if !ok {
 		return nil
@@ -77,9 +78,9 @@ func (r *CryptoMerchantBalanceRecorder) ReverseMovements(ctx context.Context, re
 	return r.service.ReverseMovements(ctx, recorderID, beforeVersion)
 }
 
-// ValidateBeforePost implements PostingValidator — checks merchant balance availability
+// ValidateBeforePost implements posting.PostingValidator — checks merchant balance availability
 // for expense movements with pessimistic locking (FOR UPDATE + resource ordering).
-func (r *CryptoMerchantBalanceRecorder) ValidateBeforePost(ctx context.Context, set *MovementSet) error {
+func (r *CryptoMerchantBalanceRecorder) ValidateBeforePost(ctx context.Context, set *posting.MovementSet) error {
 	raw, ok := set.GetExtension(_cryptoMerchantBalanceExtKey)
 	if !ok {
 		return nil
@@ -135,4 +136,4 @@ func validateMerchantBalance(
 }
 
 // Compile-time interface checks.
-var _ PostingValidator = (*CryptoMerchantBalanceRecorder)(nil)
+var _ posting.PostingValidator = (*CryptoMerchantBalanceRecorder)(nil)

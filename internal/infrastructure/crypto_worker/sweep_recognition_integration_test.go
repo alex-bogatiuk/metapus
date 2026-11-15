@@ -18,6 +18,7 @@ import (
 	"metapus/internal/domain/documents/crypto_sweep"
 	"metapus/internal/domain/documents/outbound_settlement"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
@@ -127,7 +128,7 @@ func (f sweepFinalFixture) broadcast(t *testing.T) {
 func (f sweepFinalFixture) executor(t *testing.T) *outboundapp.SweepExecutor {
 	t.Helper()
 	engine := posting.NewEngine(postgres.NewDocLocker())
-	engine.AddVisitor(&posting.CryptoBalanceVisitor{})
+	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	return outboundapp.NewSweepExecutor(outboundapp.SweepConfig{Repository: NewOutboundRepo(), Documents: document_repo.NewCryptoSweepRepo(), Posting: engine, Drivers: f.registry(t, 0)})
 }
 

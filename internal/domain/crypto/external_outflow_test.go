@@ -11,6 +11,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/cryptoposting"
 )
 
 func validCustodyAdjustment() *CryptoCustodyAdjustment {
@@ -90,7 +91,7 @@ func TestCryptoCustodyAdjustmentGeneratesOnlyCustodyLossMovements(t *testing.T) 
 		cost.CostType != entity.PlatformCostTypeCustodyLoss || cost.Purpose != entity.PlatformCostPurposeCustodyLoss {
 		t.Fatalf("unexpected custody-loss cost movement: %#v", cost)
 	}
-	if _, changesMerchantBalance := any(adjustment).(posting.CryptoMerchantBalanceMovementSource); changesMerchantBalance {
+	if _, changesMerchantBalance := any(adjustment).(cryptoposting.CryptoMerchantBalanceMovementSource); changesMerchantBalance {
 		t.Fatal("custody adjustment must not generate merchant-balance movements")
 	}
 }

@@ -21,6 +21,7 @@ import (
 	pbo "metapus/internal/domain/documents/crypto_provider_balance_operation"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_provider_balance"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
@@ -62,8 +63,8 @@ func withProviderOpening(t *testing.T, fn func(providerOpeningFixture)) {
 
 func (f providerOpeningFixture) newService(commands command.Repository) *cryptoapp.ProviderBalanceWorkflowService {
 	engine := posting.NewEngine(nil)
-	engine.AddVisitor(&posting.CryptoProviderBalanceVisitor{})
-	engine.AddRecorder(posting.NewCryptoProviderBalanceRecorder(crypto_provider_balance.NewService(register_repo.NewCryptoProviderBalanceRepo())))
+	engine.AddVisitor(&cryptoposting.CryptoProviderBalanceVisitor{})
+	engine.AddRecorder(cryptoposting.NewCryptoProviderBalanceRecorder(crypto_provider_balance.NewService(register_repo.NewCryptoProviderBalanceRepo())))
 	return cryptoapp.NewProviderBalanceWorkflowService(document_repo.NewCryptoProviderBalanceOperationRepo(), crypto_repo.NewProviderBalanceWorkflowRepo(),
 		fixedNetworkOperationNumerator{}, engine, command.NewExecutor(f.txm, commands), f.stepUp,
 		crypto_repo.NewProviderOpeningAuthorityRepo(), postgres.NewEventLogRepo())

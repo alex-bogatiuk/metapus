@@ -11,6 +11,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/cryptoposting"
 )
 
 type ExternalOutflowStatus string
@@ -109,8 +110,8 @@ const CryptoCustodyAdjustmentDocumentType = "CryptoCustodyAdjustment"
 
 var _ posting.Postable = (*CryptoCustodyAdjustment)(nil)
 var _ posting.UnpostGuard = (*CryptoCustodyAdjustment)(nil)
-var _ posting.CryptoBalanceMovementSource = (*CryptoCustodyAdjustment)(nil)
-var _ posting.CryptoPlatformCostMovementSource = (*CryptoCustodyAdjustment)(nil)
+var _ cryptoposting.CryptoBalanceMovementSource = (*CryptoCustodyAdjustment)(nil)
+var _ cryptoposting.CryptoPlatformCostMovementSource = (*CryptoCustodyAdjustment)(nil)
 
 func (a *CryptoCustodyAdjustment) GetID() id.ID { return a.ID }
 func (a *CryptoCustodyAdjustment) GetDocumentType() string {

@@ -16,6 +16,7 @@ import (
 	"metapus/internal/domain/documents/crypto_payment"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_balance"
+	"metapus/internal/domain/registers/cryptoposting"
 	infraNumerator "metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
@@ -279,9 +280,9 @@ func TestAcceptanceA33CrashBetweenProofAndPosting(t *testing.T) {
 	// The broken worker has no suspense recorder: its posting fails inside the
 	// receipt transaction after the custody lines were written.
 	engine := posting.NewEngine(nil)
-	engine.AddVisitor(&posting.CryptoBalanceVisitor{})
-	engine.AddVisitor(&posting.CryptoReceiptSuspenseVisitor{})
-	engine.AddRecorder(posting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
+	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
+	engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
+	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
 	broken := newReceiptIntake(engine, infraNumerator.New())
 	recorded, err := broken.poll(f.ctx, f.processor.drivers)
 	require.NoError(t, err)

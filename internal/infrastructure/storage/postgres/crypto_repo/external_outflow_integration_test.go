@@ -25,6 +25,7 @@ import (
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_balance"
 	"metapus/internal/domain/registers/crypto_platform_cost"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
 )
@@ -225,10 +226,10 @@ func TestConcurrentExternalOutflowWorkflowCreatesOneAdjustmentAndSelectiveResolu
 			workflowRepo := NewExternalOutflowWorkflowRepo()
 			holds := cryptoapp.NewOperationalHoldService(txm, NewOperationalHoldRepo())
 			postingEngine := posting.NewEngine(postgres.NewDocLocker())
-			postingEngine.AddVisitor(&posting.CryptoBalanceVisitor{})
-			postingEngine.AddVisitor(&posting.CryptoPlatformCostVisitor{})
-			postingEngine.AddRecorder(posting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
-			postingEngine.AddRecorder(posting.NewCryptoPlatformCostRecorder(crypto_platform_cost.NewService(register_repo.NewCryptoPlatformCostRepo())))
+			postingEngine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
+			postingEngine.AddVisitor(&cryptoposting.CryptoPlatformCostVisitor{})
+			postingEngine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
+			postingEngine.AddRecorder(cryptoposting.NewCryptoPlatformCostRecorder(crypto_platform_cost.NewService(register_repo.NewCryptoPlatformCostRepo())))
 			service := cryptoapp.NewExternalOutflowService(txm, workflowRepo, holds, postingEngine)
 			classifierA, classifierB := id.New(), id.New()
 			classificationErrors := runConcurrentOutflowCommands([]id.ID{classifierA, classifierB}, func(actorID id.ID) error {

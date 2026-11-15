@@ -1,4 +1,4 @@
-package posting
+package cryptoposting
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
+	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_balance"
 )
 
@@ -21,7 +22,7 @@ type CryptoBalanceMovementSource interface {
 
 const _cryptoBalanceExtKey = "crypto_balance"
 
-func CryptoBalanceMovements(set *MovementSet) ([]entity.CryptoBalanceMovement, error) {
+func CryptoBalanceMovements(set *posting.MovementSet) ([]entity.CryptoBalanceMovement, error) {
 	raw, ok := set.GetExtension(_cryptoBalanceExtKey)
 	if !ok {
 		return nil, nil
@@ -37,11 +38,11 @@ func CryptoBalanceMovements(set *MovementSet) ([]entity.CryptoBalanceMovement, e
 // that implement CryptoBalanceMovementSource.
 type CryptoBalanceVisitor struct{}
 
-// Name implements RegisterVisitor.
+// Name implements posting.RegisterVisitor.
 func (v *CryptoBalanceVisitor) Name() string { return _cryptoBalanceExtKey }
 
-// CollectMovements implements RegisterVisitor.
-func (v *CryptoBalanceVisitor) CollectMovements(ctx context.Context, doc Postable, set *MovementSet) error {
+// CollectMovements implements posting.RegisterVisitor.
+func (v *CryptoBalanceVisitor) CollectMovements(ctx context.Context, doc posting.Postable, set *posting.MovementSet) error {
 	src, ok := doc.(CryptoBalanceMovementSource)
 	if !ok {
 		return nil
@@ -58,7 +59,7 @@ func (v *CryptoBalanceVisitor) CollectMovements(ctx context.Context, doc Postabl
 	return nil
 }
 
-// CryptoBalanceRecorder adapts crypto_balance.Service into a RegisterRecorder.
+// CryptoBalanceRecorder adapts crypto_balance.Service into a posting.RegisterRecorder.
 type CryptoBalanceRecorder struct {
 	service *crypto_balance.Service
 }
@@ -70,7 +71,7 @@ func NewCryptoBalanceRecorder(s *crypto_balance.Service) *CryptoBalanceRecorder 
 
 func (r *CryptoBalanceRecorder) Name() string { return _cryptoBalanceExtKey }
 
-func (r *CryptoBalanceRecorder) LockPostingResources(ctx context.Context, doc Postable) error {
+func (r *CryptoBalanceRecorder) LockPostingResources(ctx context.Context, doc posting.Postable) error {
 	var movements []entity.CryptoBalanceMovement
 	if source, ok := doc.(CryptoBalanceMovementSource); ok {
 		var err error
@@ -86,9 +87,9 @@ func (r *CryptoBalanceRecorder) LockReversalResources(ctx context.Context, recor
 	return r.service.LockPostingResources(ctx, recorderID, nil)
 }
 
-var _ PostingResourceLocker = (*CryptoBalanceRecorder)(nil)
+var _ posting.PostingResourceLocker = (*CryptoBalanceRecorder)(nil)
 
-func (r *CryptoBalanceRecorder) RecordFromSet(ctx context.Context, set *MovementSet) error {
+func (r *CryptoBalanceRecorder) RecordFromSet(ctx context.Context, set *posting.MovementSet) error {
 	raw, ok := set.GetExtension(_cryptoBalanceExtKey)
 	if !ok {
 		return nil
@@ -106,9 +107,9 @@ func (r *CryptoBalanceRecorder) ReverseMovements(ctx context.Context, recorderID
 	return r.service.ReverseMovements(ctx, recorderID, beforeVersion)
 }
 
-// ValidateBeforePost implements PostingValidator — checks crypto wallet balance
+// ValidateBeforePost implements posting.PostingValidator — checks crypto wallet balance
 // availability for expense movements with pessimistic locking.
-func (r *CryptoBalanceRecorder) ValidateBeforePost(ctx context.Context, set *MovementSet) error {
+func (r *CryptoBalanceRecorder) ValidateBeforePost(ctx context.Context, set *posting.MovementSet) error {
 	raw, ok := set.GetExtension(_cryptoBalanceExtKey)
 	if !ok {
 		return nil
@@ -161,4 +162,4 @@ func validateCryptoBalance(
 	return svc.CheckAndReserveCryptoBalance(ctx, items)
 }
 
-var _ PostingValidator = (*CryptoBalanceRecorder)(nil)
+var _ posting.PostingValidator = (*CryptoBalanceRecorder)(nil)

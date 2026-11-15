@@ -22,6 +22,7 @@ import (
 	"metapus/internal/domain/registers/crypto_fee"
 	"metapus/internal/domain/registers/crypto_merchant_balance"
 	"metapus/internal/domain/registers/crypto_receipt_suspense"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/domain/registers/exchange_rate"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
@@ -54,12 +55,12 @@ func registerWalletPoolRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 // their posting engine carries just those three registers.
 func registerUnidentifiedReceiptRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 	engine := posting.NewEngine(postgres.NewDocLocker())
-	engine.AddVisitor(&posting.CryptoReceiptSuspenseVisitor{})
-	engine.AddVisitor(&posting.CryptoMerchantBalanceVisitor{})
-	engine.AddVisitor(&posting.CryptoFeeVisitor{})
-	engine.AddRecorder(posting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())))
-	engine.AddRecorder(posting.NewCryptoMerchantBalanceRecorder(crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())))
-	engine.AddRecorder(posting.NewCryptoFeeRecorder(crypto_fee.NewService(register_repo.NewCryptoFeeRepo())))
+	engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
+	engine.AddVisitor(&cryptoposting.CryptoMerchantBalanceVisitor{})
+	engine.AddVisitor(&cryptoposting.CryptoFeeVisitor{})
+	engine.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoMerchantBalanceRecorder(crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoFeeRecorder(crypto_fee.NewService(register_repo.NewCryptoFeeRepo())))
 	txm := postgres.NewContextTxManager()
 	service := cryptoapp.NewMerchantCreditService(txm, crypto_repo.NewMerchantCreditRepo(),
 		crypto.NewFeeConfigResolver(crypto_repo.NewFeeScheduleRepo()), engine, cfg.Numerator, postgres.NewOutboxPublisher(), time.Now)
@@ -263,8 +264,8 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 		portalDocLocker := postgres.NewDocLocker()
 		portalMerchantSvc := crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())
 		portalPostingEngine := posting.NewEngine(portalDocLocker)
-		portalPostingEngine.AddVisitor(&posting.CryptoMerchantBalanceVisitor{})
-		portalPostingEngine.AddRecorder(posting.NewCryptoMerchantBalanceRecorder(portalMerchantSvc))
+		portalPostingEngine.AddVisitor(&cryptoposting.CryptoMerchantBalanceVisitor{})
+		portalPostingEngine.AddRecorder(cryptoposting.NewCryptoMerchantBalanceRecorder(portalMerchantSvc))
 
 		if cfg.MerchantInvoiceAppSvc == nil {
 			panic("merchant portal requires RouterConfig.MerchantInvoiceAppSvc")

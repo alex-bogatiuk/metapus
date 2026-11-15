@@ -13,6 +13,7 @@ import (
 	"metapus/internal/domain/documents/crypto_platform_funding"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_receipt_suspense"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
@@ -29,8 +30,8 @@ func newPlatformFundingFixture(t *testing.T, custodyOwner bool) platformFundingF
 	t.Helper()
 	f := newMerchantCreditFixture(t, custodyOwner)
 	engine := posting.NewEngine(nil)
-	engine.AddVisitor(&posting.CryptoReceiptSuspenseVisitor{})
-	engine.AddRecorder(posting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())))
+	engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
+	engine.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())))
 	fundings := cryptoapp.NewPlatformFundingService(postgres.MustGetTxManager(f.ctx), NewPlatformFundingRepo(),
 		engine, numerator.New(), postgres.NewOutboxPublisher(), time.Now)
 	return platformFundingFixture{merchantCreditFixture: f, fundings: fundings}

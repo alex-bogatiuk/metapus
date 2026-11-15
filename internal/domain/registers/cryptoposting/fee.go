@@ -1,4 +1,4 @@
-package posting
+package cryptoposting
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
+	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_fee"
 )
 
@@ -25,11 +26,11 @@ const _cryptoFeeExtKey = "crypto_fee"
 // that implement CryptoFeeMovementSource.
 type CryptoFeeVisitor struct{}
 
-// Name implements RegisterVisitor.
+// Name implements posting.RegisterVisitor.
 func (v *CryptoFeeVisitor) Name() string { return _cryptoFeeExtKey }
 
-// CollectMovements implements RegisterVisitor.
-func (v *CryptoFeeVisitor) CollectMovements(ctx context.Context, doc Postable, set *MovementSet) error {
+// CollectMovements implements posting.RegisterVisitor.
+func (v *CryptoFeeVisitor) CollectMovements(ctx context.Context, doc posting.Postable, set *posting.MovementSet) error {
 	src, ok := doc.(CryptoFeeMovementSource)
 	if !ok {
 		return nil
@@ -46,7 +47,7 @@ func (v *CryptoFeeVisitor) CollectMovements(ctx context.Context, doc Postable, s
 	return nil
 }
 
-// CryptoFeeRecorder adapts crypto_fee.Service into a RegisterRecorder.
+// CryptoFeeRecorder adapts crypto_fee.Service into a posting.RegisterRecorder.
 type CryptoFeeRecorder struct {
 	service *crypto_fee.Service
 }
@@ -58,7 +59,7 @@ func NewCryptoFeeRecorder(s *crypto_fee.Service) *CryptoFeeRecorder {
 
 func (r *CryptoFeeRecorder) Name() string { return _cryptoFeeExtKey }
 
-func (r *CryptoFeeRecorder) RecordFromSet(ctx context.Context, set *MovementSet) error {
+func (r *CryptoFeeRecorder) RecordFromSet(ctx context.Context, set *posting.MovementSet) error {
 	raw, ok := set.GetExtension(_cryptoFeeExtKey)
 	if !ok {
 		return nil
@@ -77,7 +78,7 @@ func (r *CryptoFeeRecorder) ReverseMovements(ctx context.Context, recorderID id.
 }
 
 // ValidateBeforePost checks platform fee balance availability for expense movements.
-func (r *CryptoFeeRecorder) ValidateBeforePost(ctx context.Context, set *MovementSet) error {
+func (r *CryptoFeeRecorder) ValidateBeforePost(ctx context.Context, set *posting.MovementSet) error {
 	raw, ok := set.GetExtension(_cryptoFeeExtKey)
 	if !ok {
 		return nil

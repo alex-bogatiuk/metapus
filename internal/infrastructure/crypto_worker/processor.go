@@ -43,6 +43,7 @@ import (
 	"metapus/internal/domain/registers/crypto_platform_cost"
 	"metapus/internal/domain/registers/crypto_provider_balance"
 	"metapus/internal/domain/registers/crypto_receipt_suspense"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/crypto/custody"
 	infraNumerator "metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres"
@@ -194,20 +195,20 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 	cryptoProviderBalanceSvc := crypto_provider_balance.NewService(register_repo.NewCryptoProviderBalanceRepo())
 	cryptoReceiptSuspenseSvc := crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())
 
-	postingEngine.AddVisitor(&posting.CryptoBalanceVisitor{})
-	postingEngine.AddVisitor(&posting.CryptoFeeVisitor{})
-	postingEngine.AddVisitor(&posting.CryptoMerchantBalanceVisitor{})
-	postingEngine.AddVisitor(&posting.CryptoPlatformCostVisitor{})
-	postingEngine.AddVisitor(&posting.CryptoProviderBalanceVisitor{})
-	postingEngine.AddVisitor(&posting.CryptoReceiptSuspenseVisitor{})
+	postingEngine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
+	postingEngine.AddVisitor(&cryptoposting.CryptoFeeVisitor{})
+	postingEngine.AddVisitor(&cryptoposting.CryptoMerchantBalanceVisitor{})
+	postingEngine.AddVisitor(&cryptoposting.CryptoPlatformCostVisitor{})
+	postingEngine.AddVisitor(&cryptoposting.CryptoProviderBalanceVisitor{})
+	postingEngine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
 
-	postingEngine.AddRecorder(posting.NewCryptoBalanceRecorder(cryptoBalSvc))
-	postingEngine.AddRecorder(posting.NewCryptoFeeRecorder(cryptoFeeSvc))
-	postingEngine.AddRecorder(posting.NewCryptoMerchantBalanceRecorder(cryptoMerchantSvc))
-	postingEngine.AddRecorder(posting.NewCryptoPlatformCostRecorder(cryptoPlatformCostSvc))
+	postingEngine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(cryptoBalSvc))
+	postingEngine.AddRecorder(cryptoposting.NewCryptoFeeRecorder(cryptoFeeSvc))
+	postingEngine.AddRecorder(cryptoposting.NewCryptoMerchantBalanceRecorder(cryptoMerchantSvc))
+	postingEngine.AddRecorder(cryptoposting.NewCryptoPlatformCostRecorder(cryptoPlatformCostSvc))
 	postingEngine.ValidateInTransaction(crypto_repo.NewBlockIngestionRepo().ValidatePosting)
-	postingEngine.AddRecorder(posting.NewCryptoProviderBalanceRecorder(cryptoProviderBalanceSvc))
-	postingEngine.AddRecorder(posting.NewCryptoReceiptSuspenseRecorder(cryptoReceiptSuspenseSvc))
+	postingEngine.AddRecorder(cryptoposting.NewCryptoProviderBalanceRecorder(cryptoProviderBalanceSvc))
+	postingEngine.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(cryptoReceiptSuspenseSvc))
 
 	// Wallet service (for FindByAddress, MarkSweepPending)
 	// Numerator is nil-safe: worker doesn't create wallets.

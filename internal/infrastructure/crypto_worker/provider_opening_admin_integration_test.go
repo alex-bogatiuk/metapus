@@ -17,6 +17,7 @@ import (
 	"metapus/internal/domain/eventlog"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_provider_balance"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
@@ -179,8 +180,8 @@ func (w providerFaultAudit) Write(ctx context.Context, e eventlog.Event) error {
 }
 func (f providerOpeningFixture) serviceWithAudit(audit providerFaultAudit) *cryptoapp.ProviderBalanceWorkflowService {
 	engine := posting.NewEngine(nil)
-	engine.AddVisitor(&posting.CryptoProviderBalanceVisitor{})
-	engine.AddRecorder(posting.NewCryptoProviderBalanceRecorder(crypto_provider_balance.NewService(register_repo.NewCryptoProviderBalanceRepo())))
+	engine.AddVisitor(&cryptoposting.CryptoProviderBalanceVisitor{})
+	engine.AddRecorder(cryptoposting.NewCryptoProviderBalanceRecorder(crypto_provider_balance.NewService(register_repo.NewCryptoProviderBalanceRepo())))
 	return cryptoapp.NewProviderBalanceWorkflowService(document_repo.NewCryptoProviderBalanceOperationRepo(), crypto_repo.NewProviderBalanceWorkflowRepo(), fixedNetworkOperationNumerator{}, engine, command.NewExecutor(f.txm, postgres.NewCommandRepository()), f.stepUp, crypto_repo.NewProviderOpeningAuthorityRepo(), audit)
 }
 
@@ -300,8 +301,8 @@ func TestProviderOpeningStepUpExpiresAtAuthorityLock(t *testing.T) {
 			ctx := f.admin(t, true)
 			doc := f.prepare(t)
 			engine := posting.NewEngine(nil)
-			engine.AddVisitor(&posting.CryptoProviderBalanceVisitor{})
-			engine.AddRecorder(posting.NewCryptoProviderBalanceRecorder(crypto_provider_balance.NewService(register_repo.NewCryptoProviderBalanceRepo())))
+			engine.AddVisitor(&cryptoposting.CryptoProviderBalanceVisitor{})
+			engine.AddRecorder(cryptoposting.NewCryptoProviderBalanceRecorder(crypto_provider_balance.NewService(register_repo.NewCryptoProviderBalanceRepo())))
 			service := cryptoapp.NewProviderBalanceWorkflowService(document_repo.NewCryptoProviderBalanceOperationRepo(), crypto_repo.NewProviderBalanceWorkflowRepo(), fixedNetworkOperationNumerator{}, engine,
 				command.NewExecutor(f.txm, postgres.NewCommandRepository()), f.stepUp,
 				providerExpiringAuthority{crypto_repo.NewProviderOpeningAuthorityRepo(), f.stepUp}, postgres.NewEventLogRepo())

@@ -1,4 +1,4 @@
-package posting
+package cryptoposting
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
+	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_receipt_suspense"
 )
 
@@ -19,7 +20,7 @@ type CryptoReceiptSuspenseVisitor struct{}
 
 func (*CryptoReceiptSuspenseVisitor) Name() string { return cryptoReceiptSuspenseKey }
 
-func (*CryptoReceiptSuspenseVisitor) CollectMovements(ctx context.Context, doc Postable, set *MovementSet) error {
+func (*CryptoReceiptSuspenseVisitor) CollectMovements(ctx context.Context, doc posting.Postable, set *posting.MovementSet) error {
 	source, ok := doc.(CryptoReceiptSuspenseMovementSource)
 	if !ok {
 		return nil
@@ -44,7 +45,7 @@ func NewCryptoReceiptSuspenseRecorder(service *crypto_receipt_suspense.Service) 
 
 func (*CryptoReceiptSuspenseRecorder) Name() string { return cryptoReceiptSuspenseKey }
 
-func (r *CryptoReceiptSuspenseRecorder) RecordFromSet(ctx context.Context, set *MovementSet) error {
+func (r *CryptoReceiptSuspenseRecorder) RecordFromSet(ctx context.Context, set *posting.MovementSet) error {
 	raw, ok := set.GetExtension(cryptoReceiptSuspenseKey)
 	if !ok {
 		return nil

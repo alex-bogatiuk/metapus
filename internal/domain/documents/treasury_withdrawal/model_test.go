@@ -7,7 +7,7 @@ import (
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/cryptoposting"
 
 	"github.com/stretchr/testify/require"
 )
@@ -26,8 +26,8 @@ func TestTreasuryWithdrawalAdminStillCannotApproveOwnOperation(t *testing.T) {
 func TestTreasuryWithdrawalPostingCreatesNoPrincipalOrRevenueExpense(t *testing.T) {
 	// Principal and revenue are recognized only at final chain settlement.
 	var doc any = NewTreasuryWithdrawal(id.New(), id.New(), id.New(), "external", types.NewCryptoAmountFromInt64(23))
-	_, balance := doc.(posting.CryptoBalanceMovementSource)
-	_, fee := doc.(posting.CryptoFeeMovementSource)
+	_, balance := doc.(cryptoposting.CryptoBalanceMovementSource)
+	_, fee := doc.(cryptoposting.CryptoFeeMovementSource)
 	require.False(t, balance)
 	require.False(t, fee)
 }

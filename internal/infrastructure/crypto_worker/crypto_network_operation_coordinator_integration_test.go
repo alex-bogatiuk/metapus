@@ -24,6 +24,7 @@ import (
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_balance"
 	"metapus/internal/domain/registers/crypto_platform_cost"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
@@ -95,11 +96,11 @@ func TestIntegrationActivationFinalityPostsDocumentOnce(t *testing.T) {
 			require.NoError(t, err)
 
 			engine := posting.NewEngine(nil)
-			engine.AddVisitor(&posting.CryptoBalanceVisitor{})
-			engine.AddVisitor(&posting.CryptoPlatformCostVisitor{})
-			engine.AddRecorder(posting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
+			engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
+			engine.AddVisitor(&cryptoposting.CryptoPlatformCostVisitor{})
+			engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
 			platformRepo := register_repo.NewCryptoPlatformCostRepo()
-			engine.AddRecorder(posting.NewCryptoPlatformCostRecorder(crypto_platform_cost.NewService(platformRepo)))
+			engine.AddRecorder(cryptoposting.NewCryptoPlatformCostRecorder(crypto_platform_cost.NewService(platformRepo)))
 			repo := document_repo.NewCryptoNetworkOperationRepo()
 			service := crypto_network_operation.NewService(repo, engine, fixedNetworkOperationNumerator{}, nil)
 			feeBudget := NewFeeBudgetManager()

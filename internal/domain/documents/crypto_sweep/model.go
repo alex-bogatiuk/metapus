@@ -14,6 +14,7 @@ import (
 	"metapus/internal/core/types"
 	"metapus/internal/domain/documents/outbound_settlement"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/cryptoposting"
 )
 
 // SweepStatus defines the lifecycle state of a sweep.
@@ -180,5 +181,5 @@ func (s *CryptoSweep) CanUnpost(context.Context) error {
 // Compile-time interface checks.
 var _ posting.Postable = (*CryptoSweep)(nil)
 var _ posting.UnpostGuard = (*CryptoSweep)(nil)
-var _ posting.CryptoPlatformCostMovementSource = (*CryptoSweep)(nil)
+var _ cryptoposting.CryptoPlatformCostMovementSource = (*CryptoSweep)(nil)
 var _ posting.LineCounter = (*CryptoSweep)(nil)

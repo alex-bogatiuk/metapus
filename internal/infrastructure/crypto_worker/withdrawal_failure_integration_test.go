@@ -23,6 +23,7 @@ import (
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_balance"
 	"metapus/internal/domain/registers/crypto_merchant_balance"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
@@ -83,8 +84,8 @@ func seedWithdrawalRecovery(t *testing.T, ctx context.Context, txm *postgres.TxM
 func recoveryExecutor(wr withdrawalRecoveryFixture, f sweepCoordinationFixture, receipt crypto.ChainReceipt) *WithdrawalExecutor {
 	registry := crypto.NewChainDriverRegistry()
 	_ = registry.Register(fundingReceiptDriver{network: crypto.NetworkRef{ID: f.network, Code: "TEST", Family: crypto.ChainFamilyTRON, NetworkIdentifier: "nile", NativeTokenID: f.native, NativeDecimals: 6, RequiredConfirmations: 12, FinalityMode: crypto.FinalityByConfirmations}, receipt: receipt})
-	engine := posting.NewEngine(postgres.NewDocLocker(), posting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
-	engine.AddVisitor(&posting.CryptoBalanceVisitor{})
+	engine := posting.NewEngine(postgres.NewDocLocker(), cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
+	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	return &WithdrawalExecutor{outboundRepo: NewOutboundRepo(), tenantID: wr.auth.TenantID, drivers: registry,
 		withdrawalRepo: document_repo.NewCryptoWithdrawalRepo(), postingEngine: engine, feeBudget: NewFeeBudgetManager(),
 		merchantBalanceSvc: crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo()), now: func() time.Time { return wr.auth.ExpiresAt.Add(24 * time.Hour) }}

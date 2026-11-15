@@ -10,6 +10,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/cryptoposting"
 )
 
 type Status string
@@ -132,5 +133,5 @@ func (r *CryptoResourceRental) GenerateCryptoProviderBalanceMovements(context.Co
 }
 
 var _ posting.Postable = (*CryptoResourceRental)(nil)
-var _ posting.CryptoPlatformCostMovementSource = (*CryptoResourceRental)(nil)
-var _ posting.CryptoProviderBalanceMovementSource = (*CryptoResourceRental)(nil)
+var _ cryptoposting.CryptoPlatformCostMovementSource = (*CryptoResourceRental)(nil)
+var _ cryptoposting.CryptoProviderBalanceMovementSource = (*CryptoResourceRental)(nil)

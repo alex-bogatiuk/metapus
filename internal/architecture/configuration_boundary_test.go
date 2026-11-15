@@ -49,6 +49,7 @@ var configurationPackages = []string{
 	"metapus/internal/domain/registers/crypto_platform_cost",
 	"metapus/internal/domain/registers/crypto_provider_balance",
 	"metapus/internal/domain/registers/crypto_receipt_suspense",
+	"metapus/internal/domain/registers/cryptoposting",
 	"metapus/internal/domain/tariff",
 
 	"metapus/internal/application/checkout",
@@ -81,14 +82,6 @@ var knownConfigurationLeaks = map[string][]string{
 	"metapus/internal/domain/auth": {
 		"metapus/internal/domain/catalogs/merchant",
 	},
-	"metapus/internal/domain/posting": {
-		"metapus/internal/domain/registers/crypto_balance",
-		"metapus/internal/domain/registers/crypto_fee",
-		"metapus/internal/domain/registers/crypto_merchant_balance",
-		"metapus/internal/domain/registers/crypto_platform_cost",
-		"metapus/internal/domain/registers/crypto_provider_balance",
-		"metapus/internal/domain/registers/crypto_receipt_suspense",
-	},
 	"metapus/internal/infrastructure/http/contracts": {
 		"metapus/internal/application/cryptoapp",
 		"metapus/internal/content",
@@ -108,6 +101,7 @@ var knownConfigurationLeaks = map[string][]string{
 		"metapus/internal/domain/registers/crypto_platform_cost",
 		"metapus/internal/domain/registers/crypto_provider_balance",
 		"metapus/internal/domain/registers/crypto_receipt_suspense",
+		"metapus/internal/domain/registers/cryptoposting",
 		"metapus/internal/infrastructure/integrations",
 		"metapus/internal/infrastructure/storage/postgres/crypto_repo",
 		"metapus/internal/infrastructure/storage/postgres/dashboard_repo",

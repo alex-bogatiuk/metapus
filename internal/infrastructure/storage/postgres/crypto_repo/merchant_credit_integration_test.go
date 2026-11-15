@@ -21,6 +21,7 @@ import (
 	"metapus/internal/domain/registers/crypto_fee"
 	"metapus/internal/domain/registers/crypto_merchant_balance"
 	"metapus/internal/domain/registers/crypto_receipt_suspense"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
@@ -55,12 +56,12 @@ func newMerchantCreditFixture(t *testing.T, custodyOwner bool) merchantCreditFix
 	doc, err := f.service.Record(f.ctx, f.request)
 	require.NoError(t, err)
 	engine := posting.NewEngine(nil)
-	engine.AddVisitor(&posting.CryptoReceiptSuspenseVisitor{})
-	engine.AddVisitor(&posting.CryptoMerchantBalanceVisitor{})
-	engine.AddVisitor(&posting.CryptoFeeVisitor{})
-	engine.AddRecorder(posting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())))
-	engine.AddRecorder(posting.NewCryptoMerchantBalanceRecorder(crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())))
-	engine.AddRecorder(posting.NewCryptoFeeRecorder(crypto_fee.NewService(register_repo.NewCryptoFeeRepo())))
+	engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
+	engine.AddVisitor(&cryptoposting.CryptoMerchantBalanceVisitor{})
+	engine.AddVisitor(&cryptoposting.CryptoFeeVisitor{})
+	engine.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoMerchantBalanceRecorder(crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoFeeRecorder(crypto_fee.NewService(register_repo.NewCryptoFeeRepo())))
 	credits := cryptoapp.NewMerchantCreditService(postgres.MustGetTxManager(f.ctx), NewMerchantCreditRepo(), fixedTariff{},
 		engine, numerator.New(), postgres.NewOutboxPublisher(), time.Now)
 	return merchantCreditFixture{receiptIntakeFixture: f, credits: credits, receipt: doc.ID, merchant: merchant}

@@ -21,6 +21,7 @@ import (
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_balance"
 	"metapus/internal/domain/registers/crypto_receipt_suspense"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
@@ -105,10 +106,10 @@ func Record(t testing.TB, ctx context.Context, deps Deps, transfer Transfer) (re
 	require.NoError(t, err)
 	event.VerificationID = &proofID
 	engine := posting.NewEngine(nil)
-	engine.AddVisitor(&posting.CryptoBalanceVisitor{})
-	engine.AddVisitor(&posting.CryptoReceiptSuspenseVisitor{})
-	engine.AddRecorder(posting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
-	engine.AddRecorder(posting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())))
+	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
+	engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
+	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())))
 	service := cryptoapp.NewReceiptIntakeService(postgres.MustGetTxManager(ctx), deps.Repo, deps.Guard,
 		engine, numerator.New(), postgres.NewOutboxPublisher(), time.Now)
 	doc, err := service.Record(ctx, cryptoapp.RecordCustodyReceiptCommand{

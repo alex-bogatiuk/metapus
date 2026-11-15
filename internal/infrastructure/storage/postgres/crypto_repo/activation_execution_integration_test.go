@@ -18,6 +18,7 @@ import (
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_balance"
 	"metapus/internal/domain/registers/crypto_platform_cost"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
@@ -141,10 +142,10 @@ func TestActivationExecutionLateSignedAndBroadcastRecoveryKeepNewLease(t *testin
 		return r.MarkSigningAuthorizationBroadcast(ctx, f.auth.AuthorizationID, f.signed.TxHash)
 	}))
 	engine := posting.NewEngine(postgres.NewDocLocker())
-	engine.AddVisitor(&posting.CryptoBalanceVisitor{})
-	engine.AddVisitor(&posting.CryptoPlatformCostVisitor{})
-	engine.AddRecorder(posting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
-	engine.AddRecorder(posting.NewCryptoPlatformCostRecorder(crypto_platform_cost.NewService(register_repo.NewCryptoPlatformCostRepo())))
+	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
+	engine.AddVisitor(&cryptoposting.CryptoPlatformCostVisitor{})
+	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoPlatformCostRecorder(crypto_platform_cost.NewService(register_repo.NewCryptoPlatformCostRepo())))
 	repo := document_repo.NewCryptoNetworkOperationRepo()
 	service := crypto_network_operation.NewService(repo, engine, executionNumerator{}, nil)
 	coordinator := outboundapp.NewNetworkOperationCoordinator(repo, service, fees, outbound_repo.ActivationWorkflowStore{}, tm, time.Now)

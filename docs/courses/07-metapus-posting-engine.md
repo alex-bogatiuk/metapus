@@ -7,10 +7,10 @@
 | 1С | Metapus | Исходник |
 |---|---|---|
 | ДокументОбъект | `posting.Postable` | `internal/domain/posting/engine.go` |
-| ОбработкаПроведения | Метод source-интерфейса, например `GenerateCryptoBalanceMovements` | `internal/domain/posting/crypto_visitor.go` |
+| ОбработкаПроведения | Метод source-интерфейса, например `GenerateCryptoBalanceMovements` | `internal/domain/registers/cryptoposting/balance.go` |
 | НаборЗаписей | `MovementSet`; crypto slices в Extensions | `internal/domain/posting/engine.go` |
 | Запись регистра | `RegisterRecorder` | `internal/domain/posting/recorder.go` |
-| Проверка остатков | `PostingValidator.ValidateBeforePost` | `internal/domain/posting/crypto_visitor.go` |
+| Проверка остатков | `PostingValidator.ValidateBeforePost` | `internal/domain/registers/cryptoposting/balance.go` |
 
 StockVisitor, GoodsIssue и товарных регистров в текущем контенте нет. Для практики используйте CryptoPayment, CryptoSweep и CryptoNetworkOperation.
 

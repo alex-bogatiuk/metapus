@@ -17,6 +17,7 @@ import (
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_balance"
 	"metapus/internal/domain/registers/crypto_platform_cost"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
 
@@ -63,10 +64,10 @@ func newCustodyLossFixture(t *testing.T, proofMode string) custodyLossFixture {
 	}
 	tm := postgres.MustGetTxManager(ctx)
 	engine := posting.NewEngine(postgres.NewDocLocker())
-	engine.AddVisitor(&posting.CryptoBalanceVisitor{})
-	engine.AddVisitor(&posting.CryptoPlatformCostVisitor{})
-	engine.AddRecorder(posting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
-	engine.AddRecorder(posting.NewCryptoPlatformCostRecorder(crypto_platform_cost.NewService(register_repo.NewCryptoPlatformCostRepo())))
+	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
+	engine.AddVisitor(&cryptoposting.CryptoPlatformCostVisitor{})
+	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoPlatformCostRecorder(crypto_platform_cost.NewService(register_repo.NewCryptoPlatformCostRepo())))
 	service := cryptoapp.NewExternalOutflowService(tm, NewExternalOutflowWorkflowRepo(), cryptoapp.NewOperationalHoldService(tm, NewOperationalHoldRepo()), engine)
 	classified, err := service.Classify(ctx, cryptoapp.ClassifyExternalOutflowCommand{OutflowID: outflow, Classification: crypto.OutflowUnauthorizedLoss, Reason: "proven unexplained outflow"}, maker)
 	require.NoError(t, err)

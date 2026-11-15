@@ -15,6 +15,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/cryptoposting"
 )
 
 // Status represents the lifecycle state of a withdrawal request.
@@ -47,7 +48,7 @@ func (s Status) NeedsBalanceRestore() bool {
 }
 
 // WithdrawalRequest is a Postable document that reserves merchant balance upon creation.
-// Implements posting.Postable + posting.CryptoMerchantBalanceMovementSource.
+// Implements posting.Postable + cryptoposting.CryptoMerchantBalanceMovementSource.
 //
 // Lifecycle:
 //   - Created → Engine.Post() → Expense movement → balance reduced
@@ -211,4 +212,4 @@ func (w *WithdrawalRequest) GetRLSDimensions() map[string]string {
 
 // Compile-time interface checks.
 var _ posting.Postable = (*WithdrawalRequest)(nil)
-var _ posting.CryptoMerchantBalanceMovementSource = (*WithdrawalRequest)(nil)
+var _ cryptoposting.CryptoMerchantBalanceMovementSource = (*WithdrawalRequest)(nil)

@@ -38,7 +38,7 @@ ID выделяется в Go до INSERT и проведения. `Validate(ctx
 
 ## 3. Движения и проведение
 
-Реализуйте `posting.Postable` и source-интерфейсы нужных регистров. Смотрите `CryptoMovementSource` и другие интерфейсы в `internal/domain/posting/crypto_*_visitor.go`. Они задают точные имена методов и типы срезов; общего обязательного метода `GenerateMovements()` нет.
+Реализуйте `posting.Postable` и source-интерфейсы нужных регистров. Смотрите `SettlementMovementSource` в `internal/domain/posting/visitor.go` и криптовые интерфейсы вроде `CryptoBalanceMovementSource` в `internal/domain/registers/cryptoposting/`. Они задают точные имена методов и типы срезов; общего обязательного метода `GenerateMovements()` нет.
 
 Генерация движений детерминирована и не вызывает внешние сервисы. Visitor собирает движения, recorder проверяет остатки и записывает их в общей транзакции. Для нового регистра подключите visitor и recorder в composition root; существующий engine расширяется через `AddVisitor`/`AddRecorder`.
 

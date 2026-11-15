@@ -13,6 +13,7 @@ import (
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto/aml"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/domain/tariff"
 )
 
@@ -322,6 +323,6 @@ func (p *CryptoPayment) CanUnpost(context.Context) error {
 // Compile-time interface checks.
 var _ posting.Postable = (*CryptoPayment)(nil)
 var _ posting.UnpostGuard = (*CryptoPayment)(nil)
-var _ posting.CryptoReceiptSuspenseMovementSource = (*CryptoPayment)(nil)
-var _ posting.CryptoFeeMovementSource = (*CryptoPayment)(nil)
-var _ posting.CryptoMerchantBalanceMovementSource = (*CryptoPayment)(nil)
+var _ cryptoposting.CryptoReceiptSuspenseMovementSource = (*CryptoPayment)(nil)
+var _ cryptoposting.CryptoFeeMovementSource = (*CryptoPayment)(nil)
+var _ cryptoposting.CryptoMerchantBalanceMovementSource = (*CryptoPayment)(nil)

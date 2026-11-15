@@ -1,4 +1,4 @@
-package posting
+package cryptoposting
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
+	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_platform_cost"
 )
 
@@ -22,7 +23,7 @@ type CryptoPlatformCostVisitor struct{}
 
 func (v *CryptoPlatformCostVisitor) Name() string { return _cryptoPlatformCostExtKey }
 
-func (v *CryptoPlatformCostVisitor) CollectMovements(ctx context.Context, doc Postable, set *MovementSet) error {
+func (v *CryptoPlatformCostVisitor) CollectMovements(ctx context.Context, doc posting.Postable, set *posting.MovementSet) error {
 	src, ok := doc.(CryptoPlatformCostMovementSource)
 	if !ok {
 		return nil
@@ -37,7 +38,7 @@ func (v *CryptoPlatformCostVisitor) CollectMovements(ctx context.Context, doc Po
 	return nil
 }
 
-// CryptoPlatformCostRecorder adapts crypto_platform_cost.Service into a RegisterRecorder.
+// CryptoPlatformCostRecorder adapts crypto_platform_cost.Service into a posting.RegisterRecorder.
 type CryptoPlatformCostRecorder struct {
 	service *crypto_platform_cost.Service
 }
@@ -48,7 +49,7 @@ func NewCryptoPlatformCostRecorder(s *crypto_platform_cost.Service) *CryptoPlatf
 
 func (r *CryptoPlatformCostRecorder) Name() string { return _cryptoPlatformCostExtKey }
 
-func (r *CryptoPlatformCostRecorder) RecordFromSet(ctx context.Context, set *MovementSet) error {
+func (r *CryptoPlatformCostRecorder) RecordFromSet(ctx context.Context, set *posting.MovementSet) error {
 	raw, ok := set.GetExtension(_cryptoPlatformCostExtKey)
 	if !ok {
 		return nil

@@ -149,7 +149,7 @@ func describe(val any) string {
 
 > [!TIP]
 > **Где это в Metapus:**
-> Откройте `internal/domain/posting/crypto_visitor.go`. Там `CryptoBalanceVisitor` проверяет: `src, ok := doc.(CryptoBalanceMovementSource)`. Если документ реализует интерфейс `CryptoBalanceMovementSource` — визитор собирает движения. Если нет — молча пропускает. Это **классический Go-паттерн** проверки через type assertion.
+> Откройте `internal/domain/registers/cryptoposting/balance.go`. Там `CryptoBalanceVisitor` проверяет: `src, ok := doc.(CryptoBalanceMovementSource)`. Если документ реализует интерфейс `CryptoBalanceMovementSource` — визитор собирает движения. Если нет — молча пропускает. Это **классический Go-паттерн** проверки через type assertion.
 
 ---
 

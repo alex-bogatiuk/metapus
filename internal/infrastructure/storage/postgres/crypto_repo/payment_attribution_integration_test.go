@@ -14,6 +14,7 @@ import (
 	"metapus/internal/domain/registers/crypto_fee"
 	"metapus/internal/domain/registers/crypto_merchant_balance"
 	"metapus/internal/domain/registers/crypto_receipt_suspense"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
 
@@ -55,15 +56,15 @@ func newPaymentAttributionFixture(t *testing.T) paymentAttributionFixture {
 
 func (f paymentAttributionFixture) engineWith(merchant, fee bool) *posting.Engine {
 	e := posting.NewEngine(nil)
-	e.AddVisitor(&posting.CryptoReceiptSuspenseVisitor{})
-	e.AddVisitor(&posting.CryptoMerchantBalanceVisitor{})
-	e.AddVisitor(&posting.CryptoFeeVisitor{})
-	e.AddRecorder(posting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())))
+	e.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
+	e.AddVisitor(&cryptoposting.CryptoMerchantBalanceVisitor{})
+	e.AddVisitor(&cryptoposting.CryptoFeeVisitor{})
+	e.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())))
 	if merchant {
-		e.AddRecorder(posting.NewCryptoMerchantBalanceRecorder(crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())))
+		e.AddRecorder(cryptoposting.NewCryptoMerchantBalanceRecorder(crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())))
 	}
 	if fee {
-		e.AddRecorder(posting.NewCryptoFeeRecorder(crypto_fee.NewService(register_repo.NewCryptoFeeRepo())))
+		e.AddRecorder(cryptoposting.NewCryptoFeeRecorder(crypto_fee.NewService(register_repo.NewCryptoFeeRepo())))
 	}
 	e.ValidateInTransaction(NewBlockIngestionRepo().ValidatePosting)
 	return e

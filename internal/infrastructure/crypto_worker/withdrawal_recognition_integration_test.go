@@ -19,6 +19,7 @@ import (
 	"metapus/internal/domain/documents/crypto_withdrawal"
 	"metapus/internal/domain/documents/withdrawal_request"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
@@ -110,9 +111,9 @@ func (f withdrawalFinalFixture) registry(t *testing.T) *crypto.ChainDriverRegist
 func (f withdrawalFinalFixture) executor(t *testing.T) *outboundapp.WithdrawalExecutor {
 	t.Helper()
 	engine := posting.NewEngine(postgres.NewDocLocker())
-	engine.AddVisitor(&posting.CryptoBalanceVisitor{})
-	engine.AddVisitor(&posting.CryptoMerchantBalanceVisitor{})
-	engine.AddVisitor(&posting.CryptoFeeVisitor{})
+	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
+	engine.AddVisitor(&cryptoposting.CryptoMerchantBalanceVisitor{})
+	engine.AddVisitor(&cryptoposting.CryptoFeeVisitor{})
 	return outboundapp.NewWithdrawalExecutor(outboundapp.WithdrawalConfig{Drivers: f.registry(t), Documents: document_repo.NewCryptoWithdrawalRepo(), Repository: NewOutboundRepo(), Posting: engine, Fees: NewFeeBudgetManager(), Transactions: contextTxManager{}, TenantID: "withdrawal-test"})
 }
 func (f withdrawalFinalFixture) broadcast(t *testing.T) {
