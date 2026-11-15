@@ -37,6 +37,7 @@ import (
 	"metapus/internal/infrastructure/crypto/webhooksecret"
 	"metapus/internal/infrastructure/http/cryptohttp"
 	v1 "metapus/internal/infrastructure/http/v1"
+	integrationhttp "metapus/internal/infrastructure/integrations"
 	"metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/pdfrender"
 	"metapus/internal/infrastructure/storage/postgres"
@@ -44,6 +45,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/internal/infrastructure/storage/postgres/integration_repo"
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 	"metapus/internal/infrastructure/storage/postgres/security_repo"
 	"metapus/internal/infrastructure/tenantdb"
@@ -196,9 +198,6 @@ func main() {
 
 	// --- Entity Registry (composition root) ---
 	// Create factory registry and populate with built-in business content.
-	factoryReg := v1.NewFactoryRegistry()
-	content.RegisterDefaults(factoryReg)
-	extensions.Register(factoryReg)
 
 	// --- WebSocket Ticket Store ---
 	wsTicketStore := auth.NewWSTicketStore()
@@ -293,6 +292,11 @@ func main() {
 	}
 	portalDashboardRepo := portal_repo.NewDashboardRepo()
 	approvalSignerProvider := loadMoneyMovementApprovalSignerProvider(ctx, log)
+
+	// Entity factories: built-in content (with its crypto services), then client extensions.
+	factoryReg := v1.NewFactoryRegistry()
+	content.RegisterDefaults(factoryReg, content.Services{CheckoutRefs: checkoutRefs, MoneyMovementSigners: approvalSignerProvider})
+	extensions.Register(factoryReg)
 	paymentLinkSvc, err := cryptoapp.NewPaymentLinkService(cryptoapp.PaymentLinkServiceConfig{
 		Repo: portalDashboardRepo,
 		Refs: checkoutRefs,
@@ -330,37 +334,38 @@ func main() {
 		pdfReady = pdfClient.Ready
 	}
 	router := v1.NewRouter(v1.RouterConfig{
-		PostingModules:               []posting.Module{cryptoregisters.New()},
-		PDFRenderer:                  pdfRenderPort,
-		PDFReady:                     pdfReady,
-		TenantManager:                tenantManager,
-		MetaPool:                     metaPool,
-		Logger:                       log,
-		JWTValidator:                 accessValidator,
-		AuthSvc:                      authSvc,
-		MFARepo:                      mfaRepo,
-		AdminMFAMode:                 authConfig.AdminMFAMode,
-		AdminSecurityMode:            authConfig.AdminSecurityMode,
-		AdminAllowedCIDRs:            authConfig.AdminAllowedCIDRs,
-		Numerator:                    numeratorSvc,
-		ProfileProvider:              profileProvider,
-		PolicyEngine:                 policyEngine,
-		EventLogRepo:                 eventLogRepo,
-		Registry:                     factoryReg,
-		Version:                      Version,
-		BuildTime:                    BuildTime,
-		WSTicketStore:                wsTicketStore,
-		CheckoutRefs:                 checkoutRefs,
-		MoneyMovementApprovalSigners: approvalSignerProvider,
+		PostingModules:    []posting.Module{cryptoregisters.New()},
+		PDFRenderer:       pdfRenderPort,
+		PDFReady:          pdfReady,
+		TenantManager:     tenantManager,
+		MetaPool:          metaPool,
+		Logger:            log,
+		JWTValidator:      accessValidator,
+		AuthSvc:           authSvc,
+		MFARepo:           mfaRepo,
+		AdminMFAMode:      authConfig.AdminMFAMode,
+		AdminSecurityMode: authConfig.AdminSecurityMode,
+		AdminAllowedCIDRs: authConfig.AdminAllowedCIDRs,
+		Numerator:         numeratorSvc,
+		ProfileProvider:   profileProvider,
+		PolicyEngine:      policyEngine,
+		EventLogRepo:      eventLogRepo,
+		Registry:          factoryReg,
+		Version:           Version,
+		BuildTime:         BuildTime,
+		WSTicketStore:     wsTicketStore,
+		IntegrationProber: integrationhttp.ConnectionProber{Accounts: integration_repo.NewRuntime(), EndpointTransport: integration_repo.RPCTransport},
 		RouteModules: []v1.RouteModule{cryptohttp.New(cryptohttp.Config{
-			ChainCapabilities:          chainCapabilities,
-			MerchantAPIKeyRepo:         merchantAPIKeyRepo,
-			MerchantUserRepo:           merchantUserRepo,
-			MerchantInvoiceSvc:         checkoutInvoiceSvc,
-			MerchantInvoiceAppSvc:      merchantInvoiceAppSvc,
-			MerchantWebhookSecretStore: webhookSecretStore,
-			PaymentLinkSvc:             paymentLinkSvc,
-			PortalDashboardRepo:        portalDashboardRepo,
+			CheckoutRefs:                 checkoutRefs,
+			MoneyMovementApprovalSigners: approvalSignerProvider,
+			ChainCapabilities:            chainCapabilities,
+			MerchantAPIKeyRepo:           merchantAPIKeyRepo,
+			MerchantUserRepo:             merchantUserRepo,
+			MerchantInvoiceSvc:           checkoutInvoiceSvc,
+			MerchantInvoiceAppSvc:        merchantInvoiceAppSvc,
+			MerchantWebhookSecretStore:   webhookSecretStore,
+			PaymentLinkSvc:               paymentLinkSvc,
+			PortalDashboardRepo:          portalDashboardRepo,
 		})},
 	})
 

@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"metapus/extensions"
+	"metapus/internal/content"
 	"metapus/internal/infrastructure/http/contracts"
 )
 
@@ -24,15 +26,17 @@ func main() {
 }
 
 func run(check bool, output, schemas, routePath string) error {
-	data, err := contracts.Generate(contracts.Registry())
+	bundles := content.HTTPContractBundles(extensions.Register)
+	registry := contracts.Registry(bundles...)
+	data, err := contracts.Generate(registry)
 	if err != nil {
 		return err
 	}
-	runtime, err := contracts.GenerateSchemas(contracts.Registry())
+	runtime, err := contracts.GenerateSchemas(registry)
 	if err != nil {
 		return err
 	}
-	routes, err := contracts.GenerateRoutes(contracts.Registry(), contracts.Routes())
+	routes, err := contracts.GenerateRoutes(registry, contracts.Routes(bundles...))
 	if err != nil {
 		return err
 	}
@@ -44,7 +48,7 @@ func run(check bool, output, schemas, routePath string) error {
 			return err
 		}
 	}
-	fmt.Printf("Verified %d registered HTTP contracts and schemas\n", len(contracts.Registry()))
+	fmt.Printf("Verified %d registered HTTP contracts and schemas\n", len(registry))
 	return nil
 }
 

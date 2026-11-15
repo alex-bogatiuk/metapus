@@ -84,6 +84,7 @@ import (
  "strings"
  "github.com/gin-gonic/gin"
  "metapus/internal/core/numerator"
+ "metapus/internal/content"
  "metapus/internal/infrastructure/http/contracts"
  v1 "metapus/internal/infrastructure/http/v1"
  "metapus/internal/infrastructure/http/v1/handlers"
@@ -104,7 +105,7 @@ func TestGeneratedBoundary(t *testing.T) {
   delete(declared,key)
  }
  if len(declared)!=0 { t.Fatalf("contracts without handler routes: %v",declared) }
- roots:=append(contracts.Registry(),bundle.Contracts...)
+ roots:=append(contracts.Registry(content.HTTPContractBundles()...),bundle.Contracts...)
  output,err:=contracts.Generate(roots);if err!=nil {t.Fatal(err)}
  if !strings.Contains(string(output),"UpdateENTITYRequest") {t.Fatal("missing update contract")}
  if _,err:=contracts.GenerateRoutes(roots,bundle.Routes);err!=nil {t.Fatal(err)}

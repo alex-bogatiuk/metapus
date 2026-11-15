@@ -4,12 +4,10 @@
 package v1
 
 import (
-	"metapus/internal/application/checkout"
 	"metapus/internal/core/entity"
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/security"
 	"metapus/internal/domain"
-	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/eventlog"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/printing"
@@ -18,7 +16,6 @@ import (
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	printadapter "metapus/internal/infrastructure/printing"
-	"metapus/internal/infrastructure/storage/postgres/money_movement_repo"
 	"metapus/internal/metadata"
 
 	"github.com/gin-gonic/gin"
@@ -40,8 +37,6 @@ type DocumentDeps struct {
 	RelatedDocFinder         domain.RelatedDocFinder // optional — nil disables related documents route
 	StepUpGuard              func(actionCode string) gin.HandlerFunc
 	StepUpChecker            middleware.StepUpChecker
-	MoneyMovementApprovals   *money_movement_repo.Repo
-	MoneyMovementSigners     crypto.MoneyMovementApprovalSignerProvider
 
 	// MovementProviders allow cross-register movement rendering
 	MovementProviders   []entity.MovementProvider
@@ -50,10 +45,6 @@ type DocumentDeps struct {
 	// SettingsRepo provides tenant-level settings (batch concurrency, etc.).
 	// If nil, default values are used in handlers.
 	SettingsRepo settings.Repository
-
-	// CheckoutRefs owns customer-facing public checkout references.
-	// Nil disables public checkout indexing for document types that do not need it.
-	CheckoutRefs *checkout.Service
 }
 
 // DocumentRegistration is the Abstract Factory interface for document types.

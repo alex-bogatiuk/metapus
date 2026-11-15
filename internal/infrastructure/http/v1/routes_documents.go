@@ -14,7 +14,6 @@ import (
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/reporting/compiler"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/money_movement_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
 	"metapus/internal/metadata"
 	"metapus/internal/platform"
@@ -24,7 +23,6 @@ import (
 // Each document type is wired by its DocumentRegistration (see document_factory.go).
 // Also populates the metadata registry.
 func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *FactoryRegistry, reg *metadata.Registry, eventWriter eventlog.Writer) {
-	moneyMovementApprovals := money_movement_repo.New()
 	docsGroup := rg.Group("/document")
 
 	settlementRepo := register_repo.NewSettlementRepo()
@@ -69,13 +67,10 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 			return middleware.SensitiveActionGuard(cfg.MFARepo, actionCode, cfg.EventLogRepo)
 		},
 		StepUpChecker:            cfg.MFARepo,
-		MoneyMovementApprovals:   moneyMovementApprovals,
-		MoneyMovementSigners:     cfg.MoneyMovementApprovalSigners,
 		MovementProviders:        movementProviders,
 		MovementRefResolver:      postgres.NewRefResolverRepo(reg),
 		SettingsRepo:             postgres.NewSettingsRepo(),
 		CurrencyMetadataResolver: cfg.CurrencyMetadataResolver,
-		CheckoutRefs:             cfg.CheckoutRefs,
 	}
 
 	// Build refEndpoints from catalog factories for document metadata

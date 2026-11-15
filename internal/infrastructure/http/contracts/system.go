@@ -3,7 +3,6 @@ package contracts
 import (
 	"metapus/internal/domain/settings"
 	"metapus/internal/domain/userpref"
-	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/dto"
 )
 
@@ -13,7 +12,6 @@ func systemContracts() []Contract {
 		Response[dto.PoolStatsResponse]("PoolStatsResponse"),
 		Response[dto.TenantPoolStatsResponse]("TenantPoolStatsResponse"),
 		Response[[]dto.PolicyRuleResponse]("PolicyRuleListResponse"),
-		Response[cryptodto.CryptoNetworkListResponse]("CryptoNetworkListResponse"),
 		Response[settings.Settings]("SystemSettingsResponse"),
 		Request[dto.UpdateSettingsSectionRequest]("UpdateSettingsSectionRequest"),
 		Request[dto.SettingsSectionRequest[settings.GeneralSettings]]("UpdateGeneralSettingsRequest"),
@@ -73,18 +71,5 @@ func systemRoutes() []RouteContract {
 	add("POST", "/reports/variants", "CreateVariantRequest", "VariantResponse")
 	add("PUT", "/reports/variants/:id", "UpdateVariantRequest", "StatusResponse")
 	add("DELETE", "/reports/variants/:id", "", "StatusResponse")
-	add("GET", "/crypto/wallet-pools", "", "WalletPoolListResponse")
-	add("PATCH", "/crypto/wallet-pools/:networkId/policy", "UpdateWalletPoolPolicyRequest", "WalletPoolStateResponse")
-	add("POST", "/crypto/wallet-pools/:networkId/reconcile", "", "WalletPoolReconcileResponse")
-	add("GET", "/crypto/wallet-pools/:networkId/merchant-overrides/:merchantId", "", "MerchantWalletAllocationLimitsResponse")
-	add("PUT", "/crypto/wallet-pools/:networkId/merchant-overrides/:merchantId", "UpdateMerchantWalletAllocationLimitsRequest", "MerchantWalletAllocationLimitsResponse")
-	add("GET", "/admin/crypto/networks", "", "CryptoNetworkListResponse")
-	add("GET", "/admin/crypto/networks/:networkId/status", "", "CryptoNetworkStateResponse")
-	add("GET", "/admin/crypto/networks/:networkId/rpc-configuration", "", "CryptoRPCConfigurationResponse")
-	add("PATCH", "/admin/crypto/networks/:networkId/rpc-configuration", "UpdateCryptoRPCConfigurationRequest", "CryptoRPCConfigurationResponse")
-	add("PATCH", "/admin/crypto/networks/:networkId/policy", "UpdateCryptoNetworkPolicyRequest", "CryptoNetworkStateResponse")
-	add("POST", "/admin/crypto/networks/:networkId/watching", "SetCryptoNetworkWatchingRequest", "CryptoNetworkStateResponse")
-	add("GET", "/admin/crypto/networks/:networkId/shadow", "", "CryptoShadowControlResponse")
-	add("POST", "/admin/crypto/networks/:networkId/shadow", "SetCryptoShadowControlRequest", "CryptoShadowControlResponse")
 	return routes
 }

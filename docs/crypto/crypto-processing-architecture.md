@@ -816,7 +816,7 @@ internal/infrastructure/crypto_worker/crypto_network_operation_coordinator.go �
 internal/infrastructure/crypto_worker/reconciliation.go — сверка blockchain/ledger
 internal/domain/documents/crypto_network_operation/     — модель и сервис сетевой криптооперации
 internal/domain/strict_document.go                       — защита системных документов
-internal/infrastructure/http/v1/handlers/crypto_network_operation.go — unlock/lock API
+internal/infrastructure/http/cryptohttp/cryptohandlers/crypto_network_operation.go — unlock/lock API
 internal/infrastructure/blockchain/tron/funding/record.go — операторская TRON-проверка внешнего funding
 internal/infrastructure/crypto_worker/wallet_pool_controller.go — warm-pool controller
 cmd/crypto-record-wallet-funding                     — операторская запись funding

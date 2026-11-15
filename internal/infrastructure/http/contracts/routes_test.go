@@ -14,7 +14,7 @@ import (
 )
 
 func TestRouteContractsResolveConcreteDirectionsAndStayCurrent(t *testing.T) {
-	generated, err := GenerateRoutes(Registry(), Routes())
+	generated, err := GenerateRoutes(Registry(configurationBundles()...), Routes(configurationBundles()...))
 	require.NoError(t, err)
 	committed, err := os.ReadFile("../../../../frontend/lib/generated/http-contract-routes.ts")
 	require.NoError(t, err)
@@ -22,12 +22,12 @@ func TestRouteContractsResolveConcreteDirectionsAndStayCurrent(t *testing.T) {
 	for _, routes := range [][]RouteContract{
 		{{Scope: "api", Method: "POST", Path: "/test", Request: "PortalSummaryResponse"}},
 		{{Scope: "api", Method: "GET", Path: "/test", Response: "Missing"}},
-		{Routes()[0], Routes()[0]},
+		{Routes(configurationBundles()...)[0], Routes(configurationBundles()...)[0]},
 		{{Scope: "api", Method: "POST", Path: "/test", ResponseVariants: []string{"LoginResponse"}}},
 		{{Scope: "api", Method: "POST", Path: "/test", ResponseVariants: []string{"LoginResponse", "Missing"}}},
 		{{Scope: "api", Method: "POST", Path: "/test", Response: "LoginResponse", ResponseVariants: []string{"LoginResponse", "MFAChallengeResponse"}}},
 	} {
-		_, err := GenerateRoutes(Registry(), routes)
+		_, err := GenerateRoutes(Registry(configurationBundles()...), routes)
 		require.Error(t, err)
 	}
 }

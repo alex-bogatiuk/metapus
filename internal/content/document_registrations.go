@@ -31,6 +31,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/internal/infrastructure/storage/postgres/money_movement_repo"
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
@@ -231,6 +232,7 @@ func (r *CryptoResourceRentalRegistration) Build(deps v1.DocumentDeps) v1.Docume
 
 type CryptoInvoiceRegistration struct {
 	v1.EntityRegistration[crypto_invoice.CryptoInvoice]
+	services Services
 }
 
 func (r *CryptoInvoiceRegistration) EntityLabel() string { return "Крипто-инвойс" }
@@ -294,8 +296,8 @@ func (r *CryptoInvoiceRegistration) Build(deps v1.DocumentDeps) v1.DocumentRoute
 		domain.WithEventLog[*crypto_invoice.CryptoInvoice](crypto_invoice.Definition.Key, deps.EventWriter),
 		domain.WithOutboxEvents[*crypto_invoice.CryptoInvoice](crypto_invoice.Definition.Key, deps.OutboxPublisher, deps.CurrencyMetadataResolver),
 	)(service)
-	if deps.CheckoutRefs != nil {
-		decorated = cryptoapp.NewCheckoutInvoiceService(decorated, deps.CheckoutRefs)
+	if r.services.CheckoutRefs != nil {
+		decorated = cryptoapp.NewCheckoutInvoiceService(decorated, r.services.CheckoutRefs)
 	}
 
 	return cryptohandlers.NewCryptoInvoiceHandler(deps.BaseHandler, decorated, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo,
@@ -455,6 +457,7 @@ func (r *CryptoSweepRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHa
 
 type TreasuryWithdrawalRegistration struct {
 	v1.EntityRegistration[treasury_withdrawal.TreasuryWithdrawal]
+	services Services
 }
 
 func (r *TreasuryWithdrawalRegistration) EntityLabel() string {
@@ -582,7 +585,7 @@ func (r *TreasuryWithdrawalRegistration) Build(deps v1.DocumentDeps) v1.Document
 		domain.WithOutboxEvents[*treasury_withdrawal.TreasuryWithdrawal](treasury_withdrawal.Definition.Key, deps.OutboxPublisher, deps.CurrencyMetadataResolver),
 	)(service)
 
-	return cryptohandlers.NewTreasuryWithdrawalHandler(deps.BaseHandler, decorated, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo, deps.MoneyMovementApprovals, deps.MoneyMovementSigners, deps.StepUpChecker, deps.PostingEngine, deps.StepUpGuard)
+	return cryptohandlers.NewTreasuryWithdrawalHandler(deps.BaseHandler, decorated, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo, money_movement_repo.New(), r.services.MoneyMovementSigners, deps.StepUpChecker, deps.PostingEngine, deps.StepUpGuard)
 }
 
 // ---------------------------------------------------------------------------
@@ -591,6 +594,7 @@ func (r *TreasuryWithdrawalRegistration) Build(deps v1.DocumentDeps) v1.Document
 
 type WithdrawalRequestRegistration struct {
 	v1.EntityRegistration[withdrawal_request.WithdrawalRequest]
+	services Services
 }
 
 func (r *WithdrawalRequestRegistration) EntityLabel() string {
@@ -647,13 +651,14 @@ func (r *WithdrawalRequestRegistration) DocumentActions() []metadata.EntityActio
 
 func (r *WithdrawalRequestRegistration) RegisterRoutes(group *gin.RouterGroup, deps v1.DocumentDeps) {
 	repo := portal_repo.NewDashboardRepo()
-	approvals := cryptoapp.NewMoneyMovementApprovalService(deps.MoneyMovementApprovals, deps.MoneyMovementSigners, deps.StepUpChecker)
+	moneyMovementApprovals := money_movement_repo.New()
+	approvals := cryptoapp.NewMoneyMovementApprovalService(moneyMovementApprovals, r.services.MoneyMovementSigners, deps.StepUpChecker)
 	handler := cryptohandlers.NewWithdrawalRequestWorkflowHandler(
 		deps.BaseHandler,
 		repo,
 		deps.RelatedDocFinder,
-		deps.MoneyMovementApprovals,
-		cryptoapp.NewWithdrawalApprovalService(repo, deps.MoneyMovementApprovals, approvals),
+		moneyMovementApprovals,
+		cryptoapp.NewWithdrawalApprovalService(repo, moneyMovementApprovals, approvals),
 		deps.StepUpChecker,
 		cryptoapp.NewWithdrawalRejectionService(repo, crypto_merchant_balance.NewService(crypto_register_repo.NewCryptoMerchantBalanceRepo())),
 		portalapp.NewWithdrawalValuationService(repo, exchange_rate.NewService(register_repo.NewExchangeRateRepo())),

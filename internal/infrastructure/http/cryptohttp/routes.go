@@ -116,7 +116,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 
 	webhookRepo := crypto_repo.NewMerchantWebhookRepo()
 	invoiceHandler := cryptohandlers.NewMerchantInvoiceHandler(
-		m.cfg.MerchantInvoiceSvc, m.cfg.MerchantInvoiceAppSvc, cfg.CheckoutRefs,
+		m.cfg.MerchantInvoiceSvc, m.cfg.MerchantInvoiceAppSvc, m.cfg.CheckoutRefs,
 		webhookRepo, cryptoapp.NewMerchantCryptoQueryService(crypto_repo.NewMerchantCryptoQueryRepo()),
 	)
 	apiKeyHandler := cryptohandlers.NewMerchantAPIKeyHandler(m.cfg.MerchantAPIKeyRepo)
@@ -273,8 +273,8 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 		if m.cfg.MerchantInvoiceAppSvc == nil {
 			panic("merchant portal requires cryptohttp.Config.MerchantInvoiceAppSvc")
 		}
-		portalHandler := cryptohandlers.NewPortalHandler(m.cfg.PortalDashboardRepo, m.cfg.MerchantAPIKeyRepo, balanceCalc, m.cfg.MerchantInvoiceAppSvc, cfg.CheckoutRefs, m.cfg.PaymentLinkSvc, cryptohandlers.PortalCommandServices{
-			Withdrawals:     cryptoapp.NewPortalWithdrawalService(m.cfg.PortalDashboardRepo, cfg.Numerator, portalPostingEngine, portalMerchantSvc, cryptoapp.NewMoneyMovementApprovalService(moneyMovementApprovals, cfg.MoneyMovementApprovalSigners, nil), crypto_repo.NewChainAddressPolicy()),
+		portalHandler := cryptohandlers.NewPortalHandler(m.cfg.PortalDashboardRepo, m.cfg.MerchantAPIKeyRepo, balanceCalc, m.cfg.MerchantInvoiceAppSvc, m.cfg.CheckoutRefs, m.cfg.PaymentLinkSvc, cryptohandlers.PortalCommandServices{
+			Withdrawals:     cryptoapp.NewPortalWithdrawalService(m.cfg.PortalDashboardRepo, cfg.Numerator, portalPostingEngine, portalMerchantSvc, cryptoapp.NewMoneyMovementApprovalService(moneyMovementApprovals, m.cfg.MoneyMovementApprovalSigners, nil), crypto_repo.NewChainAddressPolicy()),
 			AMLBalances:     cryptoapp.NewAMLBalanceService(crypto_repo.NewAMLRepository()),
 			DepositRotation: cryptoapp.NewDepositAddressRotationService(catalog_repo.NewWalletRepo(), crypto_repo.NewLifecycleWebhookOutbox()),
 			Settings:        portalapp.NewSettingsService(m.cfg.PortalDashboardRepo, m.cfg.MerchantInvoiceAppSvc, tenant.ContextTxManager{}),

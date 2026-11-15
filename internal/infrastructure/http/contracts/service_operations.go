@@ -1,21 +1,16 @@
 package contracts
 
 import (
-	"metapus/internal/application/cryptoapp"
 	"metapus/internal/application/exchangerateapp"
 	"metapus/internal/core/json"
 	"metapus/internal/domain"
 	er "metapus/internal/domain/registers/exchange_rate"
-	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/metadata"
 )
 
 func serviceOperationContracts() []Contract {
 	return []Contract{
-		Request[cryptodto.PrepareProviderOpeningRequest]("PrepareProviderOpeningRequest"),
-		Request[cryptodto.ProviderBalanceDecisionRequest]("ProviderBalanceDecisionRequest"),
-		Response[cryptoapp.ProviderBalanceResult]("ProviderBalanceDecisionResponse"),
 		Response[[]dto.EntitySummaryResponse]("EntitySummaryListResponse"),
 		Response[[]metadata.EntityDef]("EntityMetadataListResponse"),
 		Response[[]metadata.FilterFieldMeta]("FilterFieldsMetadataResponse"),
@@ -24,7 +19,6 @@ func serviceOperationContracts() []Contract {
 		// These preferences are opaque JSON to the server; frontend-owned
 		// schemas validate filters, columns, favorites and widget configuration.
 		Request[json.RawMessage]("UpdateJSONPreferencesRequest"),
-		Response[cryptodto.FeeScheduleListResponse]("FeeScheduleListResponse"),
 		Request[domain.FindReferencesRequest]("FindReferencesRequest"),
 		Response[dto.FindReferencesResponse]("FindReferencesResponse"),
 		Response[dto.MarkedObjectsResponse]("MarkedObjectsResponse"),
@@ -54,11 +48,6 @@ func serviceOperationRoutes() []RouteContract {
 	for _, path := range []string{"/me/preferences/list-filters/:entityType", "/me/preferences/list-columns/:entityType", "/me/preferences/dashboard-layout", "/me/preferences/favorites"} {
 		add("PUT", path, "UpdateJSONPreferencesRequest", "")
 	}
-	for _, path := range []string{"/system/fee-schedule", "/merchant-admin/merchants/:merchantId/fee-schedule"} {
-		add("GET", path, "", "FeeScheduleListResponse")
-		add("PUT", path, "FeeScheduleRequest", "")
-		add("DELETE", path, "FeeScheduleDeleteRequest", "")
-	}
 	add("POST", "/system/find-references", "FindReferencesRequest", "FindReferencesResponse")
 	add("GET", "/system/marked-objects", "", "MarkedObjectsResponse")
 	add("POST", "/system/marked-objects/delete", "DeleteMarkedRequest", "DeleteMarkedResponse")
@@ -67,6 +56,5 @@ func serviceOperationRoutes() []RouteContract {
 	add("GET", "/registers/exchange-rates/:id", "", "ExchangeRateQuoteResponse")
 	add("POST", "/reports/:dataset/export", "DatasetQueryRequest", "")
 	add("POST", "/export-table-part", "ExportTablePartRequest", "")
-	routes = append(routes, RouteContract{Scope: "portal", Method: "GET", Path: "/invoices/export"})
 	return routes
 }

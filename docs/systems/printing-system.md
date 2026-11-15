@@ -63,7 +63,7 @@ internal/infrastructure/printing/renderer.go — HTML-рендерер, FormatCr
 internal/infrastructure/printing/templates/ — base.gohtml (styles, table_form), crypto_invoice.gohtml
 internal/infrastructure/printing/docx_renderer.go — DOCX
 internal/infrastructure/http/v1/handlers/print.go — DocumentPrintHandler
-internal/infrastructure/http/v1/handlers/crypto_invoice_print.go — данные формы инвойса
+internal/infrastructure/http/cryptohttp/cryptohandlers/crypto_invoice_print.go — данные формы инвойса
 frontend/components/shared/print-menu-button.tsx, frontend/hooks/usePrintForms.ts — UI
 ```
 

@@ -42,7 +42,22 @@ myExtension.Register(factoryReg) // registration uses v1.EntityRegistration[Mode
 3. **Атрибуты (JSONB):** У каждой сущности есть поле `attributes` для произвольных данных интегратора. Схемы, валидации, фильтрации и колонок для них нет; типизированное поле добавляется в Go-модель сущности.
 4. **CEL Политики:** Написание кастомных правил блокировок (например, запрет проведения документов с суммой > 1 млн) в виде конфигурации через CEL (Common Expression Language), без перекомпиляции Go.
 
-## 4. Scaffold CLI
+## 4. Модули конфигурации
+
+Конфигурация (сейчас — криптопроцессинг) подключается к платформе модулями, а не правками ядра:
+
+| Точка расширения | Что даёт конфигурация | Пример в Metapus |
+|---|---|---|
+| `posting.Module` | регистры, visitors/recorders и проверки проведения; возвращает `MovementProvider` | `infrastructure/crypto/cryptoregisters` |
+| `v1.RouteModule` (`RouterConfig.RouteModules`) | маршруты на группах из `v1.RouteContext`: `Root`, `API`, `Protected`, `System`; свои зависимости модуль хранит сам | `infrastructure/http/cryptohttp` |
+| `auth.WithAccessScopeProvider` | объектные права сессии в claim `scp` | `merchant.NewPortalAccessScopes` |
+| `middleware.WithCommandScope` | владелец ключей идемпотентных команд (например, партнёр по API-ключу) | `cryptomiddleware.WithMerchant`, `MerchantPortal` |
+| `content.Services` | сервисы конфигурации для регистраций документов вне `v1.DocumentDeps` | ссылки checkout, подписанты согласований |
+| `spec.Bundle` | контракты HTTP для генератора: `contracts.Registry(bundles...)`, `contracts.Routes(bundles...)` | `content.HTTPContractBundles` |
+
+Граница проверяется тестом `internal/architecture/configuration_boundary_test.go`: платформенный пакет не может импортировать пакет конфигурации, а список известных исключений только сокращается.
+
+## 5. Scaffold CLI
 
 Для ускорения разработки расширений используется встроенный кодогенератор:
 ```bash
@@ -54,7 +69,7 @@ go run cmd/scaffold/main.go --name waybill --type document
 
 Модули `extensions/` компилируются внутри Metapus. Публичный внешний SDK в `pkg/extension` пока ограничен версией API; не используйте его как готовый фасад регистрации.
 
-## 5. Единый контракт встроенных сущностей и расширений
+## 6. Единый контракт встроенных сущностей и расширений
 
 Все встроенные справочники и документы предоставляют domain `Definition`. Модель реализует `EntityDefinition()`; generic `EntityRegistration[Model]` выводит identity и metadata, `CatalogRegistrationFor[Model,Create,Update,Read]` также выводит стандартные transport contracts. Нулевое значение регистрации работоспособно: передавать Definition вручную в struct literal не требуется.
 

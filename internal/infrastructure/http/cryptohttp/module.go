@@ -6,6 +6,7 @@ package cryptohttp
 import (
 	"github.com/gin-gonic/gin"
 
+	"metapus/internal/application/checkout"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/domain"
 	"metapus/internal/domain/catalogs/merchant"
@@ -46,6 +47,12 @@ type Config struct {
 	// Required for merchant user management endpoints.
 	MerchantUserRepo merchant.MerchantUserRepository
 
+	// CheckoutRefs resolves and builds customer-facing tenantless checkout URLs.
+	CheckoutRefs *checkout.Service
+
+	// MoneyMovementApprovalSigners signs and verifies configurable withdrawal approval artifacts.
+	MoneyMovementApprovalSigners crypto.MoneyMovementApprovalSignerProvider
+
 	// PortalDashboardRepo provides portal dashboard queries (scope-filtered).
 	// If set, the /portal/v1/ routes are registered.
 	PortalDashboardRepo *portal_repo.DashboardRepo
@@ -81,14 +88,14 @@ func (m *Module) RegisterRoutes(rc v1.RouteContext) {
 func (m *Module) registerCheckoutRoutes(router *gin.Engine, api *gin.RouterGroup, cfg v1.RouterConfig) {
 	RegisterPaymentPage(router)
 
-	if cfg.CheckoutRefs == nil {
-		panic("cryptohttp: v1.RouterConfig.CheckoutRefs must not be nil")
+	if m.cfg.CheckoutRefs == nil {
+		panic("cryptohttp: Config.CheckoutRefs must not be nil")
 	}
 	checkoutPageService := cryptoapp.NewCheckoutPageService(crypto_repo.NewCheckoutPageRepo(), m.cfg.MerchantInvoiceSvc, crypto_repo.NewMerchantInvoiceSettingsRepo())
 	paymentPageHandler := cryptohandlers.NewPaymentPageHandler(checkoutPageService)
 
 	checkoutGroup := api.Group("/checkout")
-	checkoutGroup.Use(cryptomiddleware.CheckoutTenantDB(cfg.TenantManager, cfg.CheckoutRefs))
+	checkoutGroup.Use(cryptomiddleware.CheckoutTenantDB(cfg.TenantManager, m.cfg.CheckoutRefs))
 	{
 		invoices := checkoutGroup.Group("/invoices")
 		{

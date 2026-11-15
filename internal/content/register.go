@@ -1,6 +1,8 @@
 package content
 
 import (
+	"metapus/internal/infrastructure/http/contracts/spec"
+	"metapus/internal/infrastructure/http/cryptohttp"
 	v1 "metapus/internal/infrastructure/http/v1"
 
 	"metapus/internal/domain/reports/schema"
@@ -12,9 +14,16 @@ import (
 // Client extensions call RegisterDefaults(reg) first, then add their own:
 //
 //	reg := v1.NewFactoryRegistry()
-//	content.RegisterDefaults(reg)
+//	content.RegisterDefaults(reg, content.Services{...})
 //	reg.RegisterCatalog(&custom.CustomCatalogRegistration{})
-func RegisterDefaults(reg *v1.FactoryRegistry) {
+//
+// Services is optional; contract generation and tests register without it.
+func RegisterDefaults(reg *v1.FactoryRegistry, services ...Services) {
+	var svc Services
+	if len(services) > 0 {
+		svc = services[0]
+	}
+
 	// Catalogs
 	reg.RegisterCatalog(&CounterpartyRegistration{})
 	reg.RegisterCatalog(&CurrencyRegistration{})
@@ -34,18 +43,18 @@ func RegisterDefaults(reg *v1.FactoryRegistry) {
 	reg.RegisterCatalog(&RateSourceRegistration{})
 
 	// Documents
-	reg.RegisterDocument(&CryptoInvoiceRegistration{})
+	reg.RegisterDocument(&CryptoInvoiceRegistration{services: svc})
 	reg.RegisterDocument(&CryptoPaymentRegistration{})
 	reg.RegisterDocument(&CryptoWithdrawalRegistration{})
 	reg.RegisterDocument(&CryptoSweepRegistration{})
 	reg.RegisterDocument(&CryptoProviderBalanceOperationRegistration{})
 	reg.RegisterDocument(&CryptoResourceRentalRegistration{})
 	reg.RegisterDocument(&CryptoNetworkOperationRegistration{})
-	reg.RegisterDocument(&TreasuryWithdrawalRegistration{})
+	reg.RegisterDocument(&TreasuryWithdrawalRegistration{services: svc})
 	reg.RegisterDocument(&CryptoCustodyReceiptRegistration{})
 	reg.RegisterDocument(&CryptoMerchantCreditRegistration{})
 	reg.RegisterDocument(&CryptoPlatformFundingRegistration{})
-	reg.RegisterCustomDocument(&WithdrawalRequestRegistration{})
+	reg.RegisterCustomDocument(&WithdrawalRequestRegistration{services: svc})
 
 	// Registers
 	reg.RegisterRegister(&ExchangeRateRegisterRegistration{})
@@ -67,4 +76,17 @@ func AllDatasets() []*schema.Dataset {
 	return []*schema.Dataset{
 		&DocumentJournalDataset,
 	}
+}
+
+// HTTPContractBundles returns the configuration's wire contracts: the entity
+// factory bundle (built-in content plus the given extension registrations) and
+// the crypto route module bundle. The contract generator and route tests pass
+// them to contracts.Registry and contracts.Routes.
+func HTTPContractBundles(register ...func(*v1.FactoryRegistry)) []spec.Bundle {
+	reg := v1.NewFactoryRegistry()
+	RegisterDefaults(reg)
+	for _, fn := range register {
+		fn(reg)
+	}
+	return []spec.Bundle{reg.HTTPContracts(), cryptohttp.HTTPContracts()}
 }

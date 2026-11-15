@@ -439,7 +439,7 @@ Fintech Insight: идемпотентность команды и дедупли
     internal/infrastructure/crypto/resources/itrx/
     internal/infrastructure/blockchain/tron/
     internal/infrastructure/blockchain/evm/
-    internal/infrastructure/http/v1/handlers/unidentified_receipt.go
+    internal/infrastructure/http/cryptohttp/cryptohandlers/unidentified_receipt.go
     internal/content/
     vault-sign-plugins/tron/
     vault-sign-plugins/evm/

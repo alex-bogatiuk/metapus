@@ -11,13 +11,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"metapus/internal/application/checkout"
+	"metapus/internal/application/integrationapp"
 	"metapus/internal/application/readaccess"
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/security"
 	"metapus/internal/domain"
 	"metapus/internal/domain/auth"
-	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/printing"
@@ -88,6 +87,10 @@ type RouterConfig struct {
 	// RouteModules mount configuration routes after the platform routes.
 	RouteModules []RouteModule
 
+	// IntegrationProber tests provider connections from the integrations admin
+	// API. Nil disables connection tests.
+	IntegrationProber integrationapp.ConnectionProber
+
 	// CurrencyResolver resolves document currency (optional).
 	// If nil, the default 1C-style chain resolver is created (Document → Contract → Org → System).
 	CurrencyResolver domain.CurrencyResolveStrategy
@@ -104,12 +107,6 @@ type RouterConfig struct {
 
 	// WSTicketStore for WebSocket ticket-based authentication.
 	WSTicketStore *auth.WSTicketStore
-
-	// CheckoutRefs resolves and builds customer-facing tenantless checkout URLs.
-	CheckoutRefs *checkout.Service
-
-	// MoneyMovementApprovalSigners signs and verifies configurable withdrawal approval artifacts.
-	MoneyMovementApprovalSigners crypto.MoneyMovementApprovalSignerProvider
 }
 
 // NewRouter creates and configures the Gin router for multi-tenant architecture.

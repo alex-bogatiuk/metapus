@@ -535,7 +535,7 @@ internal/infrastructure/http/v1/middleware/admin_security.go — admin CIDR/MFA/
 internal/domain/strict_document.go                     — защита ручной коррекции
 internal/domain/documents/crypto_network_operation/    — сетевой факт и accounting movements
 internal/infrastructure/crypto_worker/crypto_network_operation_coordinator.go — atomic activation finality
-internal/infrastructure/http/v1/middleware/merchant_portal.go — merchant roles
+internal/infrastructure/http/cryptohttp/cryptomiddleware/merchant_portal.go — merchant roles
 internal/domain/crypto/webhook.go                       — HTTPS/HMAC/SSRF-safe dispatcher
 internal/infrastructure/crypto_worker/reconciliation.go — blockchain/ledger incidents
 internal/infrastructure/blockchain/tron/funding/record.go — audited operator funding verification

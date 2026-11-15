@@ -93,13 +93,16 @@ func TestGenerationRejectsUnknownCustomCodecs(t *testing.T) {
 
 func TestRegistryCoversOwnedJSONDTOsAndGeneratedFileIsCurrent(t *testing.T) {
 	registered := map[string]bool{}
-	for _, contract := range Registry() {
+	for _, contract := range Registry(configurationBundles()...) {
 		registered[contract.Name] = true
 	}
 	// These have no HTTP JSON body: two form/query binders and a mapper's internal bag.
 	excluded := map[string]bool{"PaginationRequest": true, "BaseFilter": true, "DocRefsBag": true}
 	files, err := filepath.Glob("../v1/dto/*.go")
 	require.NoError(t, err)
+	configurationDTOs, err := filepath.Glob("../cryptohttp/cryptodto/*.go")
+	require.NoError(t, err)
+	files = append(files, configurationDTOs...)
 	for _, file := range files {
 		if strings.HasSuffix(file, "_test.go") {
 			continue
@@ -120,12 +123,12 @@ func TestRegistryCoversOwnedJSONDTOsAndGeneratedFileIsCurrent(t *testing.T) {
 			}
 		}
 	}
-	generated, err := Generate(Registry())
+	generated, err := Generate(Registry(configurationBundles()...))
 	require.NoError(t, err)
 	committed, err := os.ReadFile("../../../../frontend/types/generated/http-contracts.ts")
 	require.NoError(t, err)
 	require.Equal(t, string(generated), string(bytes.ReplaceAll(committed, []byte("\r\n"), []byte("\n"))), "run go run ./cmd/http-contracts")
-	schemas, err := GenerateSchemas(Registry())
+	schemas, err := GenerateSchemas(Registry(configurationBundles()...))
 	require.NoError(t, err)
 	committed, err = os.ReadFile("../../../../frontend/lib/generated/http-contract-schemas.ts")
 	require.NoError(t, err)

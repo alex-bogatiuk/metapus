@@ -1,17 +1,19 @@
 package contracts
 
-import (
-	"metapus/extensions"
-	"metapus/internal/content"
-	"metapus/internal/infrastructure/http/contracts/spec"
-	v1 "metapus/internal/infrastructure/http/v1"
-)
+import "metapus/internal/infrastructure/http/contracts/spec"
 
-func entityBundle() spec.Bundle {
-	reg := v1.NewFactoryRegistry()
-	content.RegisterDefaults(reg)
-	extensions.Register(reg)
-	return reg.HTTPContracts()
+func bundleContracts(bundles []spec.Bundle) []Contract {
+	var out []Contract
+	for _, bundle := range bundles {
+		out = append(out, bundle.Contracts...)
+	}
+	return out
 }
-func entityContracts() []Contract   { return entityBundle().Contracts }
-func entityRoutes() []RouteContract { return entityBundle().Routes }
+
+func bundleRoutes(bundles []spec.Bundle) []RouteContract {
+	var out []RouteContract
+	for _, bundle := range bundles {
+		out = append(out, bundle.Routes...)
+	}
+	return out
+}
