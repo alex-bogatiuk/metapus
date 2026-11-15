@@ -26,7 +26,7 @@ func TestListExportUsesDeclaredMoneyAndDoesNotRescaleQuantity(t *testing.T) {
 		Quantity    types.Quantity       `json:"quantity"`
 		Currency    map[string]any       `json:"currency"`
 	}{9007199254740993, 20, 25000, map[string]any{"decimalPlaces": 9}}
-	row, err := dtoToMap(response)
+	row, err := DTOToMap(response)
 	require.NoError(t, err)
 	require.NoError(t, resolveExportValues(row, []string{"totalAmount", "vatPercent", "quantity"}))
 	require.Equal(t, listexport.MoneyCell{MinorUnits: 9007199254740993, DecimalPlaces: 9}, row["totalAmount"])

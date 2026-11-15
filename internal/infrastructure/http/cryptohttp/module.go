@@ -11,9 +11,9 @@ import (
 	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_invoice"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptohandlers"
 	"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware"
 	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
@@ -85,7 +85,7 @@ func (m *Module) registerCheckoutRoutes(router *gin.Engine, api *gin.RouterGroup
 		panic("cryptohttp: v1.RouterConfig.CheckoutRefs must not be nil")
 	}
 	checkoutPageService := cryptoapp.NewCheckoutPageService(crypto_repo.NewCheckoutPageRepo(), m.cfg.MerchantInvoiceSvc, crypto_repo.NewMerchantInvoiceSettingsRepo())
-	paymentPageHandler := handlers.NewPaymentPageHandler(checkoutPageService)
+	paymentPageHandler := cryptohandlers.NewPaymentPageHandler(checkoutPageService)
 
 	checkoutGroup := api.Group("/checkout")
 	checkoutGroup.Use(cryptomiddleware.CheckoutTenantDB(cfg.TenantManager, cfg.CheckoutRefs))
@@ -104,7 +104,7 @@ func (m *Module) registerCheckoutRoutes(router *gin.Engine, api *gin.RouterGroup
 
 // registerFeeScheduleRoutes mounts the global processing fee defaults.
 func (m *Module) registerFeeScheduleRoutes(sysGroup *gin.RouterGroup, cfg v1.RouterConfig) {
-	feeScheduleHandler := handlers.NewFeeScheduleHandler(crypto_repo.NewFeeScheduleRepo())
+	feeScheduleHandler := cryptohandlers.NewFeeScheduleHandler(crypto_repo.NewFeeScheduleRepo())
 	requireStepUp := func(actionCode string) gin.HandlerFunc {
 		return middleware.SensitiveActionGuard(cfg.MFARepo, actionCode, cfg.EventLogRepo)
 	}

@@ -25,8 +25,8 @@ import (
 // Prevents OOM on large datasets. For larger exports, use background reports.
 const ExportMaxRows = 50_000
 
-// parseExportRequest parses and validates an ExportListRequest from the gin context.
-func parseExportRequest(c *gin.Context) (dto.ExportListRequest, domain.ListFilter, error) {
+// ParseExportRequest parses and validates an ExportListRequest from the gin context.
+func ParseExportRequest(c *gin.Context) (dto.ExportListRequest, domain.ListFilter, error) {
 	var req dto.ExportListRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return req, domain.ListFilter{}, apperror.NewInvalidRequest(err)
@@ -65,9 +65,9 @@ func parseExportRequest(c *gin.Context) (dto.ExportListRequest, domain.ListFilte
 	return req, filter, nil
 }
 
-// dtoToMap converts a DTO (any struct/map) to map[string]any via JSON roundtrip.
+// DTOToMap converts a DTO (any struct/map) to map[string]any via JSON roundtrip.
 // This is the simplest approach for extracting field values by key.
-func dtoToMap(v any) (map[string]any, error) {
+func DTOToMap(v any) (map[string]any, error) {
 	data, err := jsoncodec.Marshal(v)
 	if err != nil {
 		return nil, fmt.Errorf("marshal dto: %w", err)
@@ -166,8 +166,8 @@ func resolveExportValues(row map[string]any, columnKeys []string) error {
 	return nil
 }
 
-// writeExportXLSX builds the XLSX from DTO items and writes it to the response.
-func writeExportXLSX(c *gin.Context, title string, req dto.ExportListRequest, dtoItems []any) {
+// WriteExportXLSX builds the XLSX from DTO items and writes it to the response.
+func WriteExportXLSX(c *gin.Context, title string, req dto.ExportListRequest, dtoItems []any) {
 	// Convert columns
 	columns := make([]listexport.Column, len(req.Columns))
 	columnKeys := make([]string, len(req.Columns))
@@ -179,7 +179,7 @@ func writeExportXLSX(c *gin.Context, title string, req dto.ExportListRequest, dt
 	// Convert DTOs to maps and resolve display values
 	rows := make([]map[string]any, 0, len(dtoItems))
 	for _, item := range dtoItems {
-		m, err := dtoToMap(item)
+		m, err := DTOToMap(item)
 		if err != nil {
 			_ = c.Error(apperror.NewInternal(err))
 			c.Abort()

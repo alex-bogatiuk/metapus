@@ -66,9 +66,9 @@ func NewCatalogHandler[T entity.CatalogEntity, CreateDTO any, UpdateDTO any](
 	}
 }
 
-// toDTO maps entity to DTO using the appropriate mapper.
+// ToDTO maps entity to DTO using the appropriate mapper.
 // If refs is non-nil and mapToDTOWithRefs is configured, uses the enhanced mapper.
-func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) toDTO(entity T, refs any) any {
+func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) ToDTO(entity T, refs any) any {
 	if h.mapToDTOWithRefs != nil && refs != nil {
 		return h.mapToDTOWithRefs(entity, refs)
 	}
@@ -316,7 +316,7 @@ func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) GetTree(c *gin.Context) {
 func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) ExportList(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	req, filter, err := parseExportRequest(c)
+	req, filter, err := ParseExportRequest(c)
 	if err != nil {
 		h.Error(c, err)
 		return
@@ -334,5 +334,5 @@ func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) ExportList(c *gin.Context) {
 		return
 	}
 
-	writeExportXLSX(c, h.entityName, req, dtoItems)
+	WriteExportXLSX(c, h.entityName, req, dtoItems)
 }

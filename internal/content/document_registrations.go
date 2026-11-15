@@ -26,7 +26,7 @@ import (
 	"metapus/internal/domain/registers/crypto_merchant_balance"
 	"metapus/internal/domain/registers/exchange_rate"
 	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/http/v1/handlers"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptohandlers"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
@@ -147,7 +147,7 @@ func (r *CryptoNetworkOperationRegistration) DocumentCapabilities() metadata.Doc
 func (r *CryptoNetworkOperationRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
 	service := crypto_network_operation.NewService(document_repo.NewCryptoNetworkOperationRepo(), deps.PostingEngine, deps.Numerator, nil)
 	service.SetPolicyEngine(deps.PolicyEngine)
-	return handlers.NewCryptoNetworkOperationHandler(deps.BaseHandler, service,
+	return cryptohandlers.NewCryptoNetworkOperationHandler(deps.BaseHandler, service,
 		deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo, deps.RelatedDocFinder)
 }
 
@@ -186,7 +186,7 @@ func (r *CryptoProviderBalanceOperationRegistration) Build(deps v1.DocumentDeps)
 	workflow := cryptoapp.NewProviderBalanceWorkflowService(repo, crypto_repo.NewProviderBalanceWorkflowRepo(), deps.Numerator, deps.PostingEngine,
 		command.NewExecutor(postgres.NewContextTxManager(), postgres.NewCommandRepository()), deps.StepUpChecker,
 		crypto_repo.NewProviderOpeningAuthorityRepo(), postgres.NewEventLogRepo())
-	return handlers.NewCryptoProviderBalanceOperationHandler(deps.BaseHandler, service, workflow, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)
+	return cryptohandlers.NewCryptoProviderBalanceOperationHandler(deps.BaseHandler, service, workflow, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)
 }
 
 // ---------------------------------------------------------------------------
@@ -221,7 +221,7 @@ func (r *CryptoResourceRentalRegistration) Build(deps v1.DocumentDeps) v1.Docume
 	service := crypto_resource_rental.NewService(repo, deps.PostingEngine, deps.Numerator, nil)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	workflow := cryptoapp.NewResourceRentalWorkflowService(crypto_repo.NewResourceRentalWorkflowRepo())
-	return handlers.NewCryptoResourceRentalHandler(deps.BaseHandler, service, workflow, deps.RelatedDocFinder,
+	return cryptohandlers.NewCryptoResourceRentalHandler(deps.BaseHandler, service, workflow, deps.RelatedDocFinder,
 		deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)
 }
 
@@ -298,8 +298,8 @@ func (r *CryptoInvoiceRegistration) Build(deps v1.DocumentDeps) v1.DocumentRoute
 		decorated = cryptoapp.NewCheckoutInvoiceService(decorated, deps.CheckoutRefs)
 	}
 
-	return handlers.NewCryptoInvoiceHandler(deps.BaseHandler, decorated, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo,
-		handlers.DocumentPrintDeps{Registry: deps.PrintRegistry, Renderer: deps.PrintRenderer, PDFRenderer: deps.PDFRenderer})
+	return cryptohandlers.NewCryptoInvoiceHandler(deps.BaseHandler, decorated, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo,
+		cryptohandlers.DocumentPrintDeps{Registry: deps.PrintRegistry, Renderer: deps.PrintRenderer, PDFRenderer: deps.PDFRenderer})
 }
 
 // ---------------------------------------------------------------------------
@@ -346,7 +346,7 @@ func (r *CryptoPaymentRegistration) Build(deps v1.DocumentDeps) v1.DocumentRoute
 		domain.WithOutboxEvents[*crypto_payment.CryptoPayment](crypto_payment.Definition.Key, deps.OutboxPublisher, deps.CurrencyMetadataResolver),
 	)(service)
 
-	return handlers.NewCryptoPaymentHandler(deps.BaseHandler, decorated, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)
+	return cryptohandlers.NewCryptoPaymentHandler(deps.BaseHandler, decorated, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)
 }
 
 // ---------------------------------------------------------------------------
@@ -393,7 +393,7 @@ func (r *CryptoWithdrawalRegistration) Build(deps v1.DocumentDeps) v1.DocumentRo
 		domain.WithOutboxEvents[*crypto_withdrawal.CryptoWithdrawal](crypto_withdrawal.Definition.Key, deps.OutboxPublisher, deps.CurrencyMetadataResolver),
 	)(service)
 
-	return handlers.NewCryptoWithdrawalHandler(deps.BaseHandler, decorated, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)
+	return cryptohandlers.NewCryptoWithdrawalHandler(deps.BaseHandler, decorated, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)
 }
 
 // ---------------------------------------------------------------------------
@@ -446,7 +446,7 @@ func (r *CryptoSweepRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHa
 		domain.WithOutboxEvents[*crypto_sweep.CryptoSweep](crypto_sweep.Definition.Key, deps.OutboxPublisher, deps.CurrencyMetadataResolver),
 	)(service)
 
-	return handlers.NewCryptoSweepHandler(deps.BaseHandler, decorated, service, repo, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)
+	return cryptohandlers.NewCryptoSweepHandler(deps.BaseHandler, decorated, service, repo, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo)
 }
 
 // ---------------------------------------------------------------------------
@@ -582,7 +582,7 @@ func (r *TreasuryWithdrawalRegistration) Build(deps v1.DocumentDeps) v1.Document
 		domain.WithOutboxEvents[*treasury_withdrawal.TreasuryWithdrawal](treasury_withdrawal.Definition.Key, deps.OutboxPublisher, deps.CurrencyMetadataResolver),
 	)(service)
 
-	return handlers.NewTreasuryWithdrawalHandler(deps.BaseHandler, decorated, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo, deps.MoneyMovementApprovals, deps.MoneyMovementSigners, deps.StepUpChecker, deps.PostingEngine, deps.StepUpGuard)
+	return cryptohandlers.NewTreasuryWithdrawalHandler(deps.BaseHandler, decorated, deps.RelatedDocFinder, deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo, deps.MoneyMovementApprovals, deps.MoneyMovementSigners, deps.StepUpChecker, deps.PostingEngine, deps.StepUpGuard)
 }
 
 // ---------------------------------------------------------------------------
@@ -648,7 +648,7 @@ func (r *WithdrawalRequestRegistration) DocumentActions() []metadata.EntityActio
 func (r *WithdrawalRequestRegistration) RegisterRoutes(group *gin.RouterGroup, deps v1.DocumentDeps) {
 	repo := portal_repo.NewDashboardRepo()
 	approvals := cryptoapp.NewMoneyMovementApprovalService(deps.MoneyMovementApprovals, deps.MoneyMovementSigners, deps.StepUpChecker)
-	handler := handlers.NewWithdrawalRequestWorkflowHandler(
+	handler := cryptohandlers.NewWithdrawalRequestWorkflowHandler(
 		deps.BaseHandler,
 		repo,
 		deps.RelatedDocFinder,

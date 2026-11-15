@@ -104,18 +104,27 @@ func NewBaseDocumentHandler[T any, CreateDTO any, UpdateDTO any](
 	}
 }
 
-// toDTO maps entity to DTO using the appropriate mapper.
+// ToDTO maps entity to DTO using the appropriate mapper.
 // If refs is non-nil and mapToDTOWithRefs is configured, uses the enhanced mapper.
-func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) toDTO(entity T, refs any) any {
+// ResolveRefs resolves reference presentations for entities when the handler
+// is configured with a resolver; otherwise it returns nil.
+func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) ResolveRefs(ctx context.Context, entities ...T) (any, error) {
+	if h.resolveRefs == nil {
+		return nil, nil
+	}
+	return h.resolveRefs(ctx, entities...)
+}
+
+func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) ToDTO(entity T, refs any) any {
 	if h.mapToDTOWithRefs != nil && refs != nil {
 		return h.mapToDTOWithRefs(entity, refs)
 	}
 	return h.mapToDTO(entity)
 }
 
-// applyFLSRead applies field-level security masking for read operations.
+// ApplyFLSRead applies field-level security masking for read operations.
 // Masks restricted fields on the domain entity before DTO mapping.
-func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) applyFLSRead(c *gin.Context, entity any) {
+func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) ApplyFLSRead(c *gin.Context, entity any) {
 	policy := security.GetFieldPolicy(c.Request.Context(), h.entityName, "read")
 	if policy == nil {
 		return
@@ -150,9 +159,9 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) Get(c *gin.Context) {
 	}
 
 	// FLS: mask restricted fields before DTO mapping
-	h.applyFLSRead(c, doc)
+	h.ApplyFLSRead(c, doc)
 
-	response := h.toDTO(doc, refs)
+	response := h.ToDTO(doc, refs)
 	if h.enrichReadResponse != nil {
 		response, err = h.enrichReadResponse(ctx, doc, response)
 		if err != nil {
@@ -245,9 +254,9 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) Create(c *gin.Context) {
 	}
 
 	// FLS: mask restricted fields before DTO mapping
-	h.applyFLSRead(c, doc)
+	h.ApplyFLSRead(c, doc)
 
-	response := h.toDTO(doc, refs)
+	response := h.ToDTO(doc, refs)
 	h.CompleteIdempotency(c, http.StatusCreated, "application/json", response)
 	c.JSON(http.StatusCreated, response)
 }
@@ -293,9 +302,9 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) Update(c *gin.Context) {
 	}
 
 	// FLS: mask restricted fields before DTO mapping
-	h.applyFLSRead(c, doc)
+	h.ApplyFLSRead(c, doc)
 
-	response := h.toDTO(doc, refs)
+	response := h.ToDTO(doc, refs)
 	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
 	c.JSON(http.StatusOK, response)
 }
@@ -341,9 +350,9 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) UpdateAndRepost(c *gin.Co
 	}
 
 	// FLS: mask restricted fields before DTO mapping
-	h.applyFLSRead(c, doc)
+	h.ApplyFLSRead(c, doc)
 
-	response := h.toDTO(doc, refs)
+	response := h.ToDTO(doc, refs)
 	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
 	c.JSON(http.StatusOK, response)
 }
@@ -395,9 +404,9 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) Post(c *gin.Context) {
 	}
 
 	// FLS: mask restricted fields before DTO mapping
-	h.applyFLSRead(c, doc)
+	h.ApplyFLSRead(c, doc)
 
-	response := h.toDTO(doc, refs)
+	response := h.ToDTO(doc, refs)
 	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
 	c.JSON(http.StatusOK, response)
 }
@@ -431,9 +440,9 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) Unpost(c *gin.Context) {
 	}
 
 	// FLS: mask restricted fields before DTO mapping
-	h.applyFLSRead(c, doc)
+	h.ApplyFLSRead(c, doc)
 
-	response := h.toDTO(doc, refs)
+	response := h.ToDTO(doc, refs)
 	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
 	c.JSON(http.StatusOK, response)
 }
@@ -474,9 +483,9 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) SetDeletionMark(c *gin.Co
 	}
 
 	// FLS: mask restricted fields before DTO mapping
-	h.applyFLSRead(c, doc)
+	h.ApplyFLSRead(c, doc)
 
-	response := h.toDTO(doc, refs)
+	response := h.ToDTO(doc, refs)
 	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
 	c.JSON(http.StatusOK, response)
 }
@@ -511,8 +520,8 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) List(c *gin.Context) {
 	// Map entities to DTOs (with FLS masking)
 	items := make([]any, len(result.Items))
 	for i, item := range result.Items {
-		h.applyFLSRead(c, item)
-		items[i] = h.toDTO(item, refs)
+		h.ApplyFLSRead(c, item)
+		items[i] = h.ToDTO(item, refs)
 	}
 
 	c.JSON(http.StatusOK, dto.CursorListResponse{
@@ -532,7 +541,7 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) List(c *gin.Context) {
 func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) ExportList(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	req, filter, err := parseExportRequest(c)
+	req, filter, err := ParseExportRequest(c)
 	if err != nil {
 		h.Error(c, err)
 		return
@@ -558,11 +567,11 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) ExportList(c *gin.Context
 	// Map entities to DTOs (with FLS masking)
 	dtoItems := make([]any, len(result.Items))
 	for i, item := range result.Items {
-		h.applyFLSRead(c, item)
-		dtoItems[i] = h.toDTO(item, refs)
+		h.ApplyFLSRead(c, item)
+		dtoItems[i] = h.ToDTO(item, refs)
 	}
 
-	writeExportXLSX(c, h.entityName, req, dtoItems)
+	WriteExportXLSX(c, h.entityName, req, dtoItems)
 }
 
 // ── Batch Operations ────────────────────────────────────────────────────

@@ -42,7 +42,7 @@ func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) present(ctx context.Context, e
 	}
 	responses := make([]any, len(projections))
 	for i, item := range projections {
-		responses[i] = h.toDTO(item, refs)
+		responses[i] = h.ToDTO(item, refs)
 	}
 	return responses, projections, nil
 }

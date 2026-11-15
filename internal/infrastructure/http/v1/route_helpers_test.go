@@ -8,12 +8,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/metadata"
 )
-
-var _ DocumentRepostHandler = (*handlers.CryptoPaymentHandler)(nil)
 
 type testDocumentRouteHandler struct{}
 

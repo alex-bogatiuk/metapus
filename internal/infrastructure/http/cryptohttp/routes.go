@@ -23,6 +23,7 @@ import (
 	"metapus/internal/domain/registers/crypto_receipt_suspense"
 	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/domain/registers/exchange_rate"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptohandlers"
 	"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware"
 	v1 "metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/http/v1/handlers"
@@ -41,7 +42,7 @@ func (m *Module) registerWalletPoolRoutes(rg *gin.RouterGroup, cfg v1.RouterConf
 	m.registerUnidentifiedReceiptRoutes(rg, cfg)
 	repo := crypto_repo.NewWalletPoolRepo()
 	svc := crypto.NewWalletPoolAdminService(repo, m.cfg.ChainCapabilities, cfg.EventLogRepo)
-	handler := handlers.NewWalletPoolHandler(handlers.NewBaseHandler(), svc)
+	handler := cryptohandlers.NewWalletPoolHandler(handlers.NewBaseHandler(), svc)
 	handler.RegisterRoutes(
 		rg,
 		middleware.SensitiveActionGuard(
@@ -71,18 +72,18 @@ func (m *Module) registerUnidentifiedReceiptRoutes(rg *gin.RouterGroup, cfg v1.R
 	fundings := cryptoapp.NewPlatformFundingCommands(cryptoapp.NewPlatformFundingService(txm, crypto_repo.NewPlatformFundingRepo(),
 		engine, cfg.Numerator, postgres.NewOutboxPublisher(), time.Now), executor)
 	journal := cryptoapp.NewReceiptJournal(crypto_repo.NewUnidentifiedReceiptRepo(), crypto_repo.NewWalletFundingJournalRepo())
-	handlers.NewUnidentifiedReceiptHandler(handlers.NewBaseHandler(), journal, commands, fundings).
+	cryptohandlers.NewUnidentifiedReceiptHandler(handlers.NewBaseHandler(), journal, commands, fundings).
 		RegisterRoutes(rg, middleware.SensitiveActionGuard(cfg.MFARepo, "crypto.receipt.credit", cfg.EventLogRepo))
 }
 
 func (m *Module) registerCryptoNetworkRoutes(rg *gin.RouterGroup, cfg v1.RouterConfig) {
-	handlers.NewCryptoRPCConfigurationHandler(integrationapp.NewRPCConfigurationService(catalog_repo.NewRPCConfigurationRepo(os.Getenv("APP_ENV"), cfg.PolicyEngine), tenant.ContextTxManager{}, cfg.EventLogRepo)).RegisterRoutes(rg, middleware.SensitiveActionGuard(cfg.MFARepo, "system.integrations.write", cfg.EventLogRepo))
+	cryptohandlers.NewCryptoRPCConfigurationHandler(integrationapp.NewRPCConfigurationService(catalog_repo.NewRPCConfigurationRepo(os.Getenv("APP_ENV"), cfg.PolicyEngine), tenant.ContextTxManager{}, cfg.EventLogRepo)).RegisterRoutes(rg, middleware.SensitiveActionGuard(cfg.MFARepo, "system.integrations.write", cfg.EventLogRepo))
 	dashboardSvc := dashboardapp.NewService(dashboard_repo.New(), exchange_rate.NewService(register_repo.NewExchangeRateRepo()), register_repo.RateSnapshot)
-	handlers.NewAdminDashboardHandler(dashboardSvc).RegisterRoutes(rg)
+	cryptohandlers.NewAdminDashboardHandler(dashboardSvc).RegisterRoutes(rg)
 	repo := crypto_repo.NewNetworkPolicyRepo()
 	svc := crypto.NewNetworkPolicyAdminService(repo, m.cfg.ChainCapabilities, cfg.EventLogRepo)
 	shadow := crypto.NewShadowControlAdminService(crypto_repo.NewShadowControlRepo(), cfg.EventLogRepo)
-	handler := handlers.NewCryptoNetworkHandler(handlers.NewBaseHandler(), svc, shadow)
+	handler := cryptohandlers.NewCryptoNetworkHandler(handlers.NewBaseHandler(), svc, shadow)
 	handler.RegisterRoutes(
 		rg,
 		middleware.SensitiveActionGuard(
@@ -114,16 +115,16 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 	}
 
 	webhookRepo := crypto_repo.NewMerchantWebhookRepo()
-	invoiceHandler := handlers.NewMerchantInvoiceHandler(
+	invoiceHandler := cryptohandlers.NewMerchantInvoiceHandler(
 		m.cfg.MerchantInvoiceSvc, m.cfg.MerchantInvoiceAppSvc, cfg.CheckoutRefs,
 		webhookRepo, cryptoapp.NewMerchantCryptoQueryService(crypto_repo.NewMerchantCryptoQueryRepo()),
 	)
-	apiKeyHandler := handlers.NewMerchantAPIKeyHandler(m.cfg.MerchantAPIKeyRepo)
+	apiKeyHandler := cryptohandlers.NewMerchantAPIKeyHandler(m.cfg.MerchantAPIKeyRepo)
 
 	walletRepo := catalog_repo.NewWalletRepo()
 	walletSvc := wallet.NewService(walletRepo, numerator.Noop())
 	merchantCryptoQueries := cryptoapp.NewMerchantCryptoQueryService(crypto_repo.NewMerchantCryptoQueryRepo())
-	addressHandler := handlers.NewMerchantAddressHandler(walletSvc, merchantCryptoQueries)
+	addressHandler := cryptohandlers.NewMerchantAddressHandler(walletSvc, merchantCryptoQueries)
 
 	// /merchant/v1/ — public merchant API (API-key auth)
 	merchantBase := router.Group("/merchant/v1")
@@ -151,7 +152,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 		}
 
 		if m.cfg.MerchantWebhookSecretStore != nil {
-			webhookHandler := handlers.NewMerchantWebhookHandler(webhookRepo, m.cfg.MerchantWebhookSecretStore, crypto_repo.NewWebhookDeliveryRepo())
+			webhookHandler := cryptohandlers.NewMerchantWebhookHandler(webhookRepo, m.cfg.MerchantWebhookSecretStore, crypto_repo.NewWebhookDeliveryRepo())
 			endpoints := merchantV1.Group("/webhook-endpoints")
 			{
 				endpoints.POST("", cryptomiddleware.RequireMerchantScope(merchant.ScopeWebhookEndpointWrite), webhookHandler.CreateEndpoint)
@@ -211,7 +212,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 
 		// ─── Merchant Users ───────────────────────────────────────────────────
 		if m.cfg.MerchantUserRepo != nil {
-			userHandler := handlers.NewMerchantUserHandler(portalapp.NewMerchantUserService(m.cfg.MerchantUserRepo, cfg.AuthSvc, tenant.ContextTxManager{}))
+			userHandler := cryptohandlers.NewMerchantUserHandler(portalapp.NewMerchantUserService(m.cfg.MerchantUserRepo, cfg.AuthSvc, tenant.ContextTxManager{}))
 			merchantScoped.GET("/users",
 				middleware.RequirePermission("merchant_users:read"),
 				userHandler.ListUsers,
@@ -235,7 +236,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 
 		// ─── Fee Schedule (per-merchant overrides) ───────────────────────────────────
 		feeScheduleRepo := crypto_repo.NewFeeScheduleRepo()
-		feeHandler := handlers.NewFeeScheduleHandler(feeScheduleRepo)
+		feeHandler := cryptohandlers.NewFeeScheduleHandler(feeScheduleRepo)
 		merchantScoped.GET("/fee-schedule",
 			middleware.RequirePermission("merchant_fee_schedule:read"),
 			feeHandler.ListByMerchant,
@@ -272,7 +273,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 		if m.cfg.MerchantInvoiceAppSvc == nil {
 			panic("merchant portal requires cryptohttp.Config.MerchantInvoiceAppSvc")
 		}
-		portalHandler := handlers.NewPortalHandler(m.cfg.PortalDashboardRepo, m.cfg.MerchantAPIKeyRepo, balanceCalc, m.cfg.MerchantInvoiceAppSvc, cfg.CheckoutRefs, m.cfg.PaymentLinkSvc, handlers.PortalCommandServices{
+		portalHandler := cryptohandlers.NewPortalHandler(m.cfg.PortalDashboardRepo, m.cfg.MerchantAPIKeyRepo, balanceCalc, m.cfg.MerchantInvoiceAppSvc, cfg.CheckoutRefs, m.cfg.PaymentLinkSvc, cryptohandlers.PortalCommandServices{
 			Withdrawals:     cryptoapp.NewPortalWithdrawalService(m.cfg.PortalDashboardRepo, cfg.Numerator, portalPostingEngine, portalMerchantSvc, cryptoapp.NewMoneyMovementApprovalService(moneyMovementApprovals, cfg.MoneyMovementApprovalSigners, nil), crypto_repo.NewChainAddressPolicy()),
 			AMLBalances:     cryptoapp.NewAMLBalanceService(crypto_repo.NewAMLRepository()),
 			DepositRotation: cryptoapp.NewDepositAddressRotationService(catalog_repo.NewWalletRepo(), crypto_repo.NewLifecycleWebhookOutbox()),
@@ -348,8 +349,8 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 			// ── Webhooks ─────────────────────────────────────────────────
 			if m.cfg.MerchantWebhookSecretStore != nil {
 				registryRepo := crypto_repo.NewMerchantWebhookRepo()
-				merchantWebhookHandler := handlers.NewMerchantWebhookHandler(registryRepo, m.cfg.MerchantWebhookSecretStore, crypto_repo.NewWebhookDeliveryRepo())
-				registryHandler := handlers.NewPortalWebhookRegistryHandler(merchantWebhookHandler)
+				merchantWebhookHandler := cryptohandlers.NewMerchantWebhookHandler(registryRepo, m.cfg.MerchantWebhookSecretStore, crypto_repo.NewWebhookDeliveryRepo())
+				registryHandler := cryptohandlers.NewPortalWebhookRegistryHandler(merchantWebhookHandler)
 				endpoints := portalV1.Group("/webhook-endpoints")
 				{
 					endpoints.GET("", cryptomiddleware.RequirePortalRole(merchant.PortalRoleManager), registryHandler.ListEndpoints)
@@ -378,7 +379,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 					keys.GET("", portalHandler.ListAPIKeys)
 					keys.POST("", requireStepUp("portal.api_keys.create"), portalHandler.CreateAPIKey)
 					keys.DELETE("/:keyId", requireStepUp("portal.api_keys.delete"), portalHandler.RevokeAPIKey)
-					policyHandler := handlers.NewMerchantNetworkPolicyHandler(networkPolicyRepo, cfg.MFARepo, false)
+					policyHandler := cryptohandlers.NewMerchantNetworkPolicyHandler(networkPolicyRepo, cfg.MFARepo, false)
 					keys.GET("/:keyId/network-policy", policyHandler.Get)
 					keys.PUT("/:keyId/network-policy", policyHandler.SetMode)
 					keys.POST("/:keyId/allowed-networks", policyHandler.AddNetwork)
@@ -386,7 +387,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 				}
 			}
 
-			policyHandler := handlers.NewMerchantNetworkPolicyHandler(networkPolicyRepo, cfg.MFARepo, false)
+			policyHandler := cryptohandlers.NewMerchantNetworkPolicyHandler(networkPolicyRepo, cfg.MFARepo, false)
 			policies := portalV1.Group("/security/network-policies")
 			policies.Use(cryptomiddleware.RequirePortalRole(merchant.PortalRoleOwner))
 			{
@@ -438,7 +439,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 	recovery.Use(middleware.SecurityContext(cfg.ProfileProvider))
 	recovery.Use(middleware.RequireSystemAdmin())
 	recovery.Use(middleware.CommandIdempotency(true))
-	recoveryHandler := handlers.NewMerchantNetworkPolicyHandler(networkPolicyRepo, cfg.MFARepo, true)
+	recoveryHandler := cryptohandlers.NewMerchantNetworkPolicyHandler(networkPolicyRepo, cfg.MFARepo, true)
 	recovery.GET("/:surface", recoveryHandler.Get)
 	recovery.PUT("/:surface", recoveryHandler.SetMode)
 	recovery.POST("/:surface/allowed-networks", recoveryHandler.AddNetwork)

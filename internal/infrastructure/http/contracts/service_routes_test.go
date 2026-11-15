@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"metapus/internal/infrastructure/http/contracts"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptohandlers"
 	"metapus/internal/infrastructure/http/v1/handlers"
 )
 
@@ -19,12 +20,12 @@ func TestServiceRouteRegistrationsHaveWireContracts(t *testing.T) {
 	handlers.NewAutomationMetaHandler(nil, nil).RegisterRoutes(system)
 	root := router.Group("")
 	new(handlers.AuthHandler).RegisterRoutes(router.Group("/auth"), router.Group("/auth"), nil)
-	new(handlers.WithdrawalRequestWorkflowHandler).RegisterDocumentRoutes(router.Group("/document/withdrawal-request"), "document:withdrawal_request")
-	new(handlers.CryptoProviderBalanceOperationHandler).RegisterCustomDocumentRoutes(router.Group("/document/crypto-provider-balance-operation"), "document:crypto_provider_balance_operation")
+	new(cryptohandlers.WithdrawalRequestWorkflowHandler).RegisterDocumentRoutes(router.Group("/document/withdrawal-request"), "document:withdrawal_request")
+	new(cryptohandlers.CryptoProviderBalanceOperationHandler).RegisterCustomDocumentRoutes(router.Group("/document/crypto-provider-balance-operation"), "document:crypto_provider_balance_operation")
 	guard := func(c *gin.Context) { c.Next() }
-	handlers.NewWalletPoolHandler(nil, nil).RegisterRoutes(root, guard)
-	handlers.NewCryptoNetworkHandler(nil, nil, nil).RegisterRoutes(root, guard)
-	handlers.NewCryptoRPCConfigurationHandler(nil).RegisterRoutes(root, guard)
+	cryptohandlers.NewWalletPoolHandler(nil, nil).RegisterRoutes(root, guard)
+	cryptohandlers.NewCryptoNetworkHandler(nil, nil, nil).RegisterRoutes(root, guard)
+	cryptohandlers.NewCryptoRPCConfigurationHandler(nil).RegisterRoutes(root, guard)
 	handlers.RegisterListViewRoutes(root, nil)
 	registry := map[string]contracts.RouteContract{}
 	for _, route := range contracts.Routes() {
