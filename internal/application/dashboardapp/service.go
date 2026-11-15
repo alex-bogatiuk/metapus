@@ -78,7 +78,7 @@ func (s *Service) Finance(ctx context.Context) (dashboard.Finance, error) {
 				return err
 			}
 			row := crypto.BalanceRow{TokenID: tokenID, NetworkID: networkID, TokenSymbol: asset.Symbol, Network: asset.Network, DecimalPlaces: asset.DecimalPlaces, CurrencyID: asset.CurrencyID, CurrencyCode: asset.CurrencyCode}
-			row.RawAmount, err = types.NewCryptoAmountFromString(asset.MerchantMinor)
+			row.RawAmount, err = types.NewCryptoAmountFromString(asset.ObligationMinor)
 			if err != nil {
 				return err
 			}

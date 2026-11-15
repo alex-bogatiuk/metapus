@@ -71,6 +71,21 @@ func (r *Repository) Assets(ctx context.Context) ([]dashboard.Asset, error) {
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
 	rows, err := q.Query(ctx, `WITH merchant_balances AS (
  SELECT token_id,SUM(amount) amount FROM reg_crypto_merchant_balance_balances GROUP BY token_id
+), payouts AS (
+ -- A request debits the merchant's available balance when posted, but the
+ -- platform owes that money until a payout is recognised on the wallet. What
+ -- is still owed is the net request debit less the principal its recognised
+ -- payouts spent. Terminal requests carry no remainder: a failed or rejected
+ -- request restores its debit before it closes.
+ SELECT r.token_id,SUM(debit.amount-COALESCE(paid.amount,0)) amount,
+ COUNT(*) FILTER (WHERE debit.amount-COALESCE(paid.amount,0)<>0) requests
+ FROM doc_withdrawal_requests r
+ CROSS JOIN LATERAL (SELECT COALESCE(SUM(CASE WHEN m.record_type='expense' THEN m.amount ELSE -m.amount END),0) amount
+   FROM reg_crypto_merchant_balance_movements m WHERE m.recorder_id=r.id AND m.recorder_type='WithdrawalRequest' AND m.token_id=r.token_id) debit
+ LEFT JOIN LATERAL (SELECT SUM(CASE WHEN m.record_type='expense' THEN m.amount ELSE -m.amount END) amount
+   FROM reg_crypto_withdrawal_custody_bindings b JOIN reg_crypto_balance_movements m ON m.recorder_id=b.withdrawal_id AND m.recorder_type='CryptoWithdrawal' AND m.token_id=r.token_id
+   WHERE b.request_id=r.id) paid ON TRUE
+ WHERE r.status NOT IN ('confirmed','rejected','failed') GROUP BY r.token_id
 ), wallet_balances AS (
  SELECT token_id,SUM(amount) amount FROM reg_crypto_balance_balances GROUP BY token_id
 ), latest_checks AS (
@@ -83,15 +98,15 @@ func (r *Repository) Assets(ctx context.Context) ([]dashboard.Asset, error) {
  LEFT JOIN latest_checks c ON c.wallet_id=w.id AND c.token_id=t.id GROUP BY t.id
 )
  SELECT t.id::text,t.network_id::text,t.symbol,n.name,n.color,t.decimal_places,
- COALESCE(m.amount,0)::text,COALESCE(b.amount,0)::text,
+ COALESCE(m.amount,0)::text,COALESCE(p.amount,0)::text,(COALESCE(m.amount,0)+COALESCE(p.amount,0))::text,COALESCE(p.requests,0),COALESCE(b.amount,0)::text,
  CASE WHEN c.wallets=c.checked AND c.checked>0 THEN c.ledger_amount::text END,
  CASE WHEN c.wallets=c.checked AND c.checked>0 THEN c.chain_amount::text END,
  CASE WHEN c.wallets=c.checked AND c.checked>0 THEN c.delta_amount::text END,
  COALESCE(c.wallets,0),COALESCE(c.checked,0),COALESCE(c.mismatched,0),c.observed_at,t.currency_id,COALESCE(curr.iso_code,'')
  FROM cat_tokens t JOIN cat_blockchain_networks n ON n.id=t.network_id
- LEFT JOIN merchant_balances m ON m.token_id=t.id LEFT JOIN wallet_balances b ON b.token_id=t.id
+ LEFT JOIN merchant_balances m ON m.token_id=t.id LEFT JOIN payouts p ON p.token_id=t.id LEFT JOIN wallet_balances b ON b.token_id=t.id
  LEFT JOIN checks c ON c.token_id=t.id LEFT JOIN cat_currencies curr ON curr.id=t.currency_id
- WHERE (t._deleted_at IS NULL AND t.is_active=TRUE) OR COALESCE(m.amount,0)<>0 OR COALESCE(b.amount,0)<>0 OR COALESCE(c.chain_amount,0)<>0 OR COALESCE(c.mismatched,0)>0
+ WHERE (t._deleted_at IS NULL AND t.is_active=TRUE) OR COALESCE(m.amount,0)<>0 OR COALESCE(p.amount,0)<>0 OR COALESCE(b.amount,0)<>0 OR COALESCE(c.chain_amount,0)<>0 OR COALESCE(c.mismatched,0)>0
  ORDER BY t.symbol,n.name,t.id`)
 	if err != nil {
 		return nil, err
@@ -100,7 +115,7 @@ func (r *Repository) Assets(ctx context.Context) ([]dashboard.Asset, error) {
 	assets := make([]dashboard.Asset, 0)
 	for rows.Next() {
 		var a dashboard.Asset
-		if err := rows.Scan(&a.TokenID, &a.NetworkID, &a.Symbol, &a.Network, &a.NetworkColor, &a.DecimalPlaces, &a.MerchantMinor, &a.WalletMinor, &a.ReconciledLedgerMinor, &a.ChainMinor, &a.DeltaMinor, &a.WalletCount, &a.CheckedWalletCount, &a.MismatchedWalletCount, &a.ReconciledAt, &a.CurrencyID, &a.CurrencyCode); err != nil {
+		if err := rows.Scan(&a.TokenID, &a.NetworkID, &a.Symbol, &a.Network, &a.NetworkColor, &a.DecimalPlaces, &a.MerchantMinor, &a.PayoutPendingMinor, &a.ObligationMinor, &a.PayoutPendingCount, &a.WalletMinor, &a.ReconciledLedgerMinor, &a.ChainMinor, &a.DeltaMinor, &a.WalletCount, &a.CheckedWalletCount, &a.MismatchedWalletCount, &a.ReconciledAt, &a.CurrencyID, &a.CurrencyCode); err != nil {
 			return nil, err
 		}
 		assets = append(assets, a)

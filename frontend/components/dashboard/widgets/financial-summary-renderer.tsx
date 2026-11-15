@@ -19,7 +19,8 @@ export default function Finance({ config, isEditMode }: WidgetRenderProps<"finan
   const balance = state.data?.[config.view]
   const bucket = balance?.valuation.total
   const assets = state.data?.assets ?? []
-  const title = config.view === "wallets" ? "Средства на кошельках" : "Обязательства перед мерчантами"
+  const wallets = config.view === "wallets"
+  const title = wallets ? "Средства на кошельках" : "Обязательства перед мерчантами"
 
   // Each token's share of the valued total; only drawn when there is something to compare.
   const valued = new Map((balance?.byToken ?? []).flatMap(t => {
@@ -36,7 +37,7 @@ export default function Finance({ config, isEditMode }: WidgetRenderProps<"finan
     ({ tokenId: a.tokenId, color: paletteColor(resolvePaletteKey(a.networkColor, a.networkId), shadeAlphas[Math.min(i, shadeAlphas.length - 1)]) })))
   const shade = new Map(segments.map(s => [s.tokenId, s.color]))
 
-  return <WidgetBody title={title} description={config.view === "wallets" ? "Остатки по учётному регистру" : "Учётные остатки мерчантов"}
+  return <WidgetBody title={title} description={wallets ? "Остатки по учётному регистру" : "Доступные остатки и незавершённые выплаты"}
     loading={state.loading} error={state.error} retry={state.refetch}
     action={balance && <Badge variant="outline">{balance.baseCurrency.code}</Badge>}
     flush
@@ -62,7 +63,11 @@ export default function Finance({ config, isEditMode }: WidgetRenderProps<"finan
           <span className="font-medium">{a.symbol}</span>
           <span className="truncate text-xs text-muted-foreground">{a.network}</span>
         </span>
-        <span className="tabular-nums">{formatPortalAmount(config.view === "wallets" ? a.walletMinor : a.merchantMinor, a.decimalPlaces)}</span>
+        <span className="tabular-nums">{formatPortalAmount(wallets ? a.walletMinor : a.obligationMinor, a.decimalPlaces)}</span>
+        {/* A withdrawal request leaves the available balance at once, yet the platform owes the money until a wallet pays it out. */}
+        {!wallets && a.payoutPendingMinor !== "0" && <span className="w-full text-xs text-muted-foreground tabular-nums">
+          Доступно {formatPortalAmount(a.merchantMinor, a.decimalPlaces)} · В выплате {formatPortalAmount(a.payoutPendingMinor, a.decimalPlaces)} · Заявок: {a.payoutPendingCount}
+        </span>}
       </li>)}</ul>}
     </>}
   </WidgetBody>

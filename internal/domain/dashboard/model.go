@@ -33,13 +33,19 @@ type Queues struct {
 }
 
 type Asset struct {
-	TokenID               string     `json:"tokenId"`
-	NetworkID             string     `json:"networkId"`
-	Symbol                string     `json:"symbol"`
-	Network               string     `json:"network"`
-	NetworkColor          string     `json:"networkColor"`
-	DecimalPlaces         int        `json:"decimalPlaces"`
+	TokenID       string `json:"tokenId"`
+	NetworkID     string `json:"networkId"`
+	Symbol        string `json:"symbol"`
+	Network       string `json:"network"`
+	NetworkColor  string `json:"networkColor"`
+	DecimalPlaces int    `json:"decimalPlaces"`
+	// MerchantMinor is what merchants can still withdraw. PayoutPendingMinor is
+	// what open withdrawal requests already took from it but no wallet has paid
+	// out yet. The platform owes both: ObligationMinor is their sum.
 	MerchantMinor         string     `json:"merchantMinor"`
+	PayoutPendingMinor    string     `json:"payoutPendingMinor"`
+	ObligationMinor       string     `json:"obligationMinor"`
+	PayoutPendingCount    int        `json:"payoutPendingCount"`
 	WalletMinor           string     `json:"walletMinor"`
 	ReconciledLedgerMinor *string    `json:"reconciledLedgerMinor"`
 	ChainMinor            *string    `json:"chainMinor"`

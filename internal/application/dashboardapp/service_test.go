@@ -56,13 +56,14 @@ func TestInvalidFiltersNeverReachRepository(t *testing.T) {
 }
 func TestFinanceKeepsExactNativeBalancesWhenQuotesAreMissing(t *testing.T) {
 	token, network := id.New(), id.New()
-	repo := &fakeRepo{assets: []dashboard.Asset{{TokenID: token.String(), NetworkID: network.String(), Symbol: "TKN", DecimalPlaces: 18, MerchantMinor: "900719925474099312345678901", WalletMinor: "1000000000000000001"}}}
+	repo := &fakeRepo{assets: []dashboard.Asset{{TokenID: token.String(), NetworkID: network.String(), Symbol: "TKN", DecimalPlaces: 18, MerchantMinor: "900719925474099312345678901", PayoutPendingMinor: "99", ObligationMinor: "900719925474099312345679000", WalletMinor: "1000000000000000001"}}}
 	snapshots := 0
 	svc := NewService(repo, er.NewService(fakeRates{}), func(ctx context.Context, fn func(context.Context) error) error { snapshots++; return fn(ctx) })
 	finance, err := svc.Finance(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, 1, snapshots)
-	require.Equal(t, "900719925474099312345678901", finance.Obligations.ByToken[0].RawAmount)
+	// Money in an unfinished payout is still owed, so it is valued with the available balance.
+	require.Equal(t, "900719925474099312345679000", finance.Obligations.ByToken[0].RawAmount)
 	require.Equal(t, "1000000000000000001", finance.Wallets.ByToken[0].RawAmount)
 	require.Nil(t, finance.Obligations.Valuation.Total.Amount)
 	require.Equal(t, "none", finance.Obligations.Valuation.Total.Coverage)

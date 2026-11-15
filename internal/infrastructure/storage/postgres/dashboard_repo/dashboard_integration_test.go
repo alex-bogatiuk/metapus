@@ -31,7 +31,8 @@ func TestDashboardReadModels(t *testing.T) {
 		q := txm.GetQuerier(ctx)
 		exec := func(sql string, args ...any) { _, err := q.Exec(ctx, sql, args...); require.NoError(t, err) }
 		for _, table := range []string{"cat_tokens", "cat_blockchain_networks", "cat_merchants", "cat_wallets", "cat_currencies", "doc_crypto_invoices", "doc_crypto_payments", "doc_withdrawal_requests", "reg_crypto_inbound_chain_events", "reg_crypto_external_outflows", "reg_crypto_fee_movements", "reg_crypto_merchant_balance_balances", "reg_crypto_balance_balances", "reg_crypto_reconciliation_checks",
-			"doc_crypto_custody_receipts", "reg_crypto_receipt_suspense_balances", "reg_crypto_custody_receipt_audits"} {
+			"doc_crypto_custody_receipts", "reg_crypto_receipt_suspense_balances", "reg_crypto_custody_receipt_audits",
+			"reg_crypto_merchant_balance_movements", "reg_crypto_balance_movements", "reg_crypto_withdrawal_custody_bindings"} {
 			exec("CREATE TEMP TABLE " + table + " (LIKE public." + table + " INCLUDING DEFAULTS) ON COMMIT DROP")
 		}
 		for _, table := range []string{"cat_tokens", "cat_blockchain_networks", "cat_merchants", "cat_currencies"} {
@@ -67,11 +68,28 @@ func TestDashboardReadModels(t *testing.T) {
 		exec(`UPDATE cat_tokens SET id=$2,network_id=(SELECT id FROM cat_blockchain_networks WHERE id<>$3 LIMIT 1) WHERE ctid=(SELECT MAX(ctid) FROM cat_tokens WHERE id=$1)`, token, second, network)
 		exec(`INSERT INTO reg_crypto_merchant_balance_balances(merchant_id,token_id,amount) VALUES($1,$2,900719925474099312345678901)`, merchant, token)
 		exec(`INSERT INTO reg_crypto_balance_balances(wallet_id,token_id,amount) VALUES($1,$2,900719925474099312345678902)`, wallet, token)
+		// Payouts still in flight: one request is half paid, one was refunded in
+		// full, and a failed request is terminal, so its remainder is not owed.
+		var halfPaid, refunded, failed, payout string
+		require.NoError(t, q.QueryRow(ctx, `SELECT gen_random_uuid_v7()::text,gen_random_uuid_v7()::text,gen_random_uuid_v7()::text,gen_random_uuid_v7()::text`).Scan(&halfPaid, &refunded, &failed, &payout))
+		exec(`INSERT INTO doc_withdrawal_requests(id,number,date,merchant_id,token_id,amount,dest_address,status)
+   VALUES($1,'WR-half',NOW(),$4,$5,500,'destination','broadcast'),($2,'WR-refunded',NOW(),$4,$5,50,'destination','signing'),($3,'WR-failed',NOW(),$4,$5,100,'destination','failed')`, halfPaid, refunded, failed, merchant, token)
+		exec(`INSERT INTO reg_crypto_merchant_balance_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,amount)
+   VALUES(gen_random_uuid_v7(),$1,'WithdrawalRequest',1,NOW(),'expense',$4,$5,500),
+   (gen_random_uuid_v7(),$2,'WithdrawalRequest',1,NOW(),'expense',$4,$5,50),(gen_random_uuid_v7(),$2,'WithdrawalRequest',2,NOW(),'receipt',$4,$5,50),
+   (gen_random_uuid_v7(),$3,'WithdrawalRequest',1,NOW(),'expense',$4,$5,100)`, halfPaid, refunded, failed, merchant, token)
+		exec(`INSERT INTO reg_crypto_withdrawal_custody_bindings(posting_id,withdrawal_id,request_id,signing_authorization_id,merchant_debit_line_id,period)
+   VALUES(gen_random_uuid_v7(),$1,$2,gen_random_uuid_v7(),gen_random_uuid_v7(),NOW())`, payout, halfPaid)
+		exec(`INSERT INTO reg_crypto_balance_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount)
+   VALUES(gen_random_uuid_v7(),$1,'CryptoWithdrawal',1,NOW(),'expense',$2,$3,200)`, payout, wallet, token)
 		assets, err := repo.Assets(ctx)
 		require.NoError(t, err)
 		for _, a := range assets {
 			if a.TokenID == token {
 				require.Equal(t, "900719925474099312345678901", a.MerchantMinor)
+				require.Equal(t, "300", a.PayoutPendingMinor)
+				require.Equal(t, 1, a.PayoutPendingCount)
+				require.Equal(t, "900719925474099312345679201", a.ObligationMinor)
 				require.Nil(t, a.ChainMinor)
 				require.Equal(t, 1, a.WalletCount)
 			}

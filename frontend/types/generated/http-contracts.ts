@@ -2010,6 +2010,9 @@ export type DashboardAsset = {
   "networkColor": string
   "decimalPlaces": number
   "merchantMinor": string
+  "payoutPendingMinor": string
+  "obligationMinor": string
+  "payoutPendingCount": number
   "walletMinor": string
   "reconciledLedgerMinor": string | null
   "chainMinor": string | null
