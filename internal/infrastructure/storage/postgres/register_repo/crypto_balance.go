@@ -9,7 +9,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"metapus/internal/core/apperror"
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/registers/crypto_balance"
@@ -29,7 +28,7 @@ var _cryptoBalanceMovementColumns = []string{
 }
 
 // cryptoBalanceMovementRowMapper converts a CryptoBalanceMovement to a flat row.
-func cryptoBalanceMovementRowMapper(m entity.CryptoBalanceMovement) []any {
+func cryptoBalanceMovementRowMapper(m crypto_balance.CryptoBalanceMovement) []any {
 	return []any{
 		m.LineID, m.RecorderID, m.RecorderType, m.RecorderVersion,
 		m.Period, m.RecordType,
@@ -39,13 +38,13 @@ func cryptoBalanceMovementRowMapper(m entity.CryptoBalanceMovement) []any {
 
 // CryptoBalanceRepo implements crypto_balance.Repository.
 type CryptoBalanceRepo struct {
-	BaseAccumulationRepo[entity.CryptoBalanceMovement]
+	BaseAccumulationRepo[crypto_balance.CryptoBalanceMovement]
 }
 
 // NewCryptoBalanceRepo creates a new crypto balance register repository.
 func NewCryptoBalanceRepo() *CryptoBalanceRepo {
 	return &CryptoBalanceRepo{
-		BaseAccumulationRepo: NewBaseAccumulationRepo[entity.CryptoBalanceMovement](
+		BaseAccumulationRepo: NewBaseAccumulationRepo[crypto_balance.CryptoBalanceMovement](
 			_cryptoBalanceMovementsTable,
 			_cryptoBalanceMovementColumns,
 			cryptoBalanceMovementRowMapper,
@@ -53,7 +52,7 @@ func NewCryptoBalanceRepo() *CryptoBalanceRepo {
 	}
 }
 
-func (r *CryptoBalanceRepo) LockPostingResources(ctx context.Context, recorderID id.ID, movements []entity.CryptoBalanceMovement) error {
+func (r *CryptoBalanceRepo) LockPostingResources(ctx context.Context, recorderID id.ID, movements []crypto_balance.CryptoBalanceMovement) error {
 	tm := postgres.MustGetTxManager(ctx)
 	if tm.GetTx(ctx) == nil {
 		return apperror.NewValidation("crypto posting resource locks require a transaction")
@@ -74,7 +73,7 @@ func (r *CryptoBalanceRepo) AppendReversalsByRecorder(ctx context.Context, recor
 }
 
 // GetMovementsByRecorder retrieves movements for a document.
-func (r *CryptoBalanceRepo) GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]entity.CryptoBalanceMovement, error) {
+func (r *CryptoBalanceRepo) GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]crypto_balance.CryptoBalanceMovement, error) {
 	q := r.Builder().Select(
 		"line_id", "recorder_id", "recorder_type", "recorder_version",
 		"period", "record_type",
@@ -88,7 +87,7 @@ func (r *CryptoBalanceRepo) GetMovementsByRecorder(ctx context.Context, recorder
 		return nil, fmt.Errorf("build query: %w", err)
 	}
 
-	var movements []entity.CryptoBalanceMovement
+	var movements []crypto_balance.CryptoBalanceMovement
 	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	if err := pgxscan.Select(ctx, querier, &movements, sql, args...); err != nil {
 		return nil, fmt.Errorf("select crypto balance movements: %w", err)

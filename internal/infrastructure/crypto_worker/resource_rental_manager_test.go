@@ -12,12 +12,12 @@ import (
 
 	"metapus/internal/application/outboundapp"
 	corecrypto "metapus/internal/core/crypto"
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_withdrawal"
 	"metapus/internal/domain/documents/withdrawal_request"
+	"metapus/internal/domain/registers/crypto_platform_cost"
 )
 
 type fakeSharedResourceStore struct {
@@ -251,7 +251,7 @@ func testPreparer(store *fakeSharedResourceStore, providers ...crypto.ExternalRe
 func testResourceRequest(networkID, walletID, tokenID, basisID id.ID) ResourceRequest {
 	return ResourceRequest{
 		TenantID: "tenant", BasisType: withdrawal_request.DocumentType, BasisID: basisID,
-		Purpose: entity.PlatformCostPurposeWithdrawal, NetworkID: networkID, OperationTokenID: tokenID,
+		Purpose: crypto_platform_cost.PlatformCostPurposeWithdrawal, NetworkID: networkID, OperationTokenID: tokenID,
 		SourceWalletID: walletID, SourceAddress: "TSource", ContractAddress: "TContract",
 		DestinationAddress: "TDest", Amount: types.NewCryptoAmountFromInt64(1_000_000),
 		Requirements: []crypto.ResourceRequirement{{Name: resourceTypeEnergy, Quantity: 14000}},
@@ -334,7 +334,7 @@ func TestPrepareResourceKeepsRentalLinkedToExecutionDocument(t *testing.T) {
 	_, err := preparer.PrepareResource(context.Background(), ResourceRequest{
 		TenantID: "tenant", BasisType: crypto_withdrawal.DocumentType, BasisID: withdrawalID,
 		RentalBasisType: crypto_withdrawal.DocumentType, RentalBasisID: withdrawalID,
-		Purpose: entity.PlatformCostPurposeWithdrawal, NetworkID: id.New(), OperationTokenID: id.New(),
+		Purpose: crypto_platform_cost.PlatformCostPurposeWithdrawal, NetworkID: id.New(), OperationTokenID: id.New(),
 		SourceWalletID: id.New(), SourceAddress: "TSource", ContractAddress: "TContract",
 		DestinationAddress: "TDest", Amount: types.NewCryptoAmountFromInt64(1),
 		Requirements: []crypto.ResourceRequirement{{Name: resourceTypeEnergy, Quantity: 14000}},

@@ -9,7 +9,6 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
 
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/registers/crypto_fee"
 )
@@ -26,7 +25,7 @@ var _cryptoFeeMovementColumns = []string{
 }
 
 // cryptoFeeMovementRowMapper converts a CryptoFeeMovement to a flat row.
-func cryptoFeeMovementRowMapper(m entity.CryptoFeeMovement) []any {
+func cryptoFeeMovementRowMapper(m crypto_fee.CryptoFeeMovement) []any {
 	return []any{
 		m.LineID, m.RecorderID, m.RecorderType, m.RecorderVersion,
 		m.Period, m.RecordType,
@@ -36,13 +35,13 @@ func cryptoFeeMovementRowMapper(m entity.CryptoFeeMovement) []any {
 
 // CryptoFeeRepo implements crypto_fee.Repository.
 type CryptoFeeRepo struct {
-	BaseAccumulationRepo[entity.CryptoFeeMovement]
+	BaseAccumulationRepo[crypto_fee.CryptoFeeMovement]
 }
 
 // NewCryptoFeeRepo creates a new crypto fee register repository.
 func NewCryptoFeeRepo() *CryptoFeeRepo {
 	return &CryptoFeeRepo{
-		BaseAccumulationRepo: NewBaseAccumulationRepo[entity.CryptoFeeMovement](
+		BaseAccumulationRepo: NewBaseAccumulationRepo[crypto_fee.CryptoFeeMovement](
 			_cryptoFeeMovementsTable,
 			_cryptoFeeMovementColumns,
 			cryptoFeeMovementRowMapper,
@@ -55,7 +54,7 @@ func (r *CryptoFeeRepo) AppendReversalsByRecorder(ctx context.Context, recorderI
 }
 
 // GetMovementsByRecorder retrieves movements for a document.
-func (r *CryptoFeeRepo) GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]entity.CryptoFeeMovement, error) {
+func (r *CryptoFeeRepo) GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]crypto_fee.CryptoFeeMovement, error) {
 	q := r.Builder().Select(
 		"line_id", "recorder_id", "recorder_type", "recorder_version",
 		"period", "record_type",
@@ -69,7 +68,7 @@ func (r *CryptoFeeRepo) GetMovementsByRecorder(ctx context.Context, recorderID i
 		return nil, fmt.Errorf("build query: %w", err)
 	}
 
-	var movements []entity.CryptoFeeMovement
+	var movements []crypto_fee.CryptoFeeMovement
 	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	if err := pgxscan.Select(ctx, querier, &movements, sql, args...); err != nil {
 		return nil, fmt.Errorf("select crypto fee movements: %w", err)

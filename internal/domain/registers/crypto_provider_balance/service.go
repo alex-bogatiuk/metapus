@@ -10,9 +10,9 @@ import (
 )
 
 type Repository interface {
-	CreateMovements(ctx context.Context, movements []entity.CryptoProviderBalanceMovement) error
+	CreateMovements(ctx context.Context, movements []CryptoProviderBalanceMovement) error
 	AppendReversalsByRecorder(ctx context.Context, recorderID id.ID, beforeVersion int) error
-	GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]entity.CryptoProviderBalanceMovement, error)
+	GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]CryptoProviderBalanceMovement, error)
 }
 
 type Service struct{ repo Repository }
@@ -21,7 +21,7 @@ func NewService(repo Repository) *Service { return &Service{repo: repo} }
 
 func (s *Service) RegisterName() string { return "Авансы крипто-провайдерам" }
 
-func (s *Service) RecordMovements(ctx context.Context, movements []entity.CryptoProviderBalanceMovement) error {
+func (s *Service) RecordMovements(ctx context.Context, movements []CryptoProviderBalanceMovement) error {
 	if len(movements) == 0 {
 		return nil
 	}

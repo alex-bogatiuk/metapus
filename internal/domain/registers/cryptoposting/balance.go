@@ -17,17 +17,17 @@ import (
 // CryptoBalanceMovementSource is implemented by documents that generate
 // crypto balance register movements (e.g., CryptoPayment, CryptoWithdrawal).
 type CryptoBalanceMovementSource interface {
-	GenerateCryptoBalanceMovements(ctx context.Context) ([]entity.CryptoBalanceMovement, error)
+	GenerateCryptoBalanceMovements(ctx context.Context) ([]crypto_balance.CryptoBalanceMovement, error)
 }
 
 const _cryptoBalanceExtKey = "crypto_balance"
 
-func CryptoBalanceMovements(set *posting.MovementSet) ([]entity.CryptoBalanceMovement, error) {
+func CryptoBalanceMovements(set *posting.MovementSet) ([]crypto_balance.CryptoBalanceMovement, error) {
 	raw, ok := set.GetExtension(_cryptoBalanceExtKey)
 	if !ok {
 		return nil, nil
 	}
-	rows, ok := raw.([]entity.CryptoBalanceMovement)
+	rows, ok := raw.([]crypto_balance.CryptoBalanceMovement)
 	if !ok {
 		return nil, fmt.Errorf("invalid crypto balance movement set")
 	}
@@ -72,7 +72,7 @@ func NewCryptoBalanceRecorder(s *crypto_balance.Service) *CryptoBalanceRecorder 
 func (r *CryptoBalanceRecorder) Name() string { return _cryptoBalanceExtKey }
 
 func (r *CryptoBalanceRecorder) LockPostingResources(ctx context.Context, doc posting.Postable) error {
-	var movements []entity.CryptoBalanceMovement
+	var movements []crypto_balance.CryptoBalanceMovement
 	if source, ok := doc.(CryptoBalanceMovementSource); ok {
 		var err error
 		movements, err = source.GenerateCryptoBalanceMovements(ctx)
@@ -95,7 +95,7 @@ func (r *CryptoBalanceRecorder) RecordFromSet(ctx context.Context, set *posting.
 		return nil
 	}
 
-	movements, ok := raw.([]entity.CryptoBalanceMovement)
+	movements, ok := raw.([]crypto_balance.CryptoBalanceMovement)
 	if !ok || len(movements) == 0 {
 		return nil
 	}
@@ -115,7 +115,7 @@ func (r *CryptoBalanceRecorder) ValidateBeforePost(ctx context.Context, set *pos
 		return nil
 	}
 
-	movements, ok := raw.([]entity.CryptoBalanceMovement)
+	movements, ok := raw.([]crypto_balance.CryptoBalanceMovement)
 	if !ok {
 		return nil
 	}
@@ -126,7 +126,7 @@ func (r *CryptoBalanceRecorder) ValidateBeforePost(ctx context.Context, set *pos
 func validateCryptoBalance(
 	svc *crypto_balance.Service,
 	ctx context.Context,
-	movements []entity.CryptoBalanceMovement,
+	movements []crypto_balance.CryptoBalanceMovement,
 ) error {
 	type dimKey struct {
 		walletID, tokenID id.ID

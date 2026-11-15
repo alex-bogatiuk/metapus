@@ -5,6 +5,7 @@ import (
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
+	"metapus/internal/domain/registers/crypto_balance"
 	"testing"
 	"time"
 )
@@ -12,14 +13,14 @@ import (
 func TestMovementPlansAreDeterministicAndStampedOnlyOnStorageCopy(t *testing.T) {
 	recorder, wallet, token := id.New(), id.New(), id.New()
 	at := time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC)
-	generate := func() entity.CryptoBalanceMovement {
-		return entity.NewCryptoBalanceMovement(recorder, "CryptoPayment", 1, at, entity.RecordTypeReceipt, wallet, token, types.NewCryptoAmountFromInt64(42))
+	generate := func() crypto_balance.CryptoBalanceMovement {
+		return crypto_balance.NewCryptoBalanceMovement(recorder, "CryptoPayment", 1, at, entity.RecordTypeReceipt, wallet, token, types.NewCryptoAmountFromInt64(42))
 	}
 	a, b := generate(), generate()
 	require.Equal(t, a, b)
 	require.True(t, id.IsNil(a.LineID))
 	require.True(t, a.CreatedAt.IsZero())
-	plan := []entity.CryptoBalanceMovement{a, b}
+	plan := []crypto_balance.CryptoBalanceMovement{a, b}
 	stored := stampMovementMetadata(plan, at)
 	require.NotEqual(t, stored[0].LineID, stored[1].LineID)
 	require.False(t, id.IsNil(stored[0].LineID))

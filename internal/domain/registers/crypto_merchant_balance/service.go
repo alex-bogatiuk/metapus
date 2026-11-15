@@ -20,9 +20,9 @@ import (
 
 // Repository defines storage operations for crypto merchant balance movements.
 type Repository interface {
-	CreateMovements(ctx context.Context, movements []entity.CryptoMerchantBalanceMovement) error
+	CreateMovements(ctx context.Context, movements []CryptoMerchantBalanceMovement) error
 	AppendReversalsByRecorder(ctx context.Context, recorderID id.ID, beforeVersion int) error
-	GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]entity.CryptoMerchantBalanceMovement, error)
+	GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]CryptoMerchantBalanceMovement, error)
 	GetBalancesForUpdate(ctx context.Context, keys []MerchantBalanceKey) ([]MerchantBalanceEntry, error)
 }
 
@@ -57,7 +57,7 @@ func NewService(repo Repository) *Service {
 }
 
 // RecordMovements records crypto merchant balance movements from a document posting.
-func (s *Service) RecordMovements(ctx context.Context, movements []entity.CryptoMerchantBalanceMovement) error {
+func (s *Service) RecordMovements(ctx context.Context, movements []CryptoMerchantBalanceMovement) error {
 	if len(movements) == 0 {
 		return nil
 	}
@@ -105,7 +105,7 @@ func (s *Service) StornoMovements(ctx context.Context, recorderID id.ID, stornoV
 		return nil
 	}
 
-	storno := make([]entity.CryptoMerchantBalanceMovement, 0, len(originals))
+	storno := make([]CryptoMerchantBalanceMovement, 0, len(originals))
 	for _, m := range originals {
 		// Skip movements that are already storno (prevent double-storno).
 		if m.RecorderVersion >= stornoVersion {
@@ -118,7 +118,7 @@ func (s *Service) StornoMovements(ctx context.Context, recorderID id.ID, stornoV
 			invertedType = entity.RecordTypeReceipt
 		}
 
-		storno = append(storno, entity.NewCryptoMerchantBalanceMovement(
+		storno = append(storno, NewCryptoMerchantBalanceMovement(
 			m.RecorderID,
 			m.RecorderType,
 			stornoVersion,

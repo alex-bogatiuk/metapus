@@ -49,9 +49,9 @@ func seedWithdrawalRecovery(t *testing.T, ctx context.Context, txm *postgres.TxM
 	require.NoError(t, err)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	merchantRepo := register_repo.NewCryptoMerchantBalanceRepo()
-	require.NoError(t, merchantRepo.CreateMovements(ctx, []entity.CryptoMerchantBalanceMovement{
-		entity.NewCryptoMerchantBalanceMovement(id.New(), "Opening", 1, time.Now(), entity.RecordTypeReceipt, wr.task.MerchantID, f.token, types.NewCryptoAmountFromInt64(1000)),
-		entity.NewCryptoMerchantBalanceMovement(wr.task.RequestID, withdrawal_request.DocumentType, 1, now, entity.RecordTypeExpense, wr.task.MerchantID, f.token, types.NewCryptoAmountFromInt64(100)),
+	require.NoError(t, merchantRepo.CreateMovements(ctx, []crypto_merchant_balance.CryptoMerchantBalanceMovement{
+		crypto_merchant_balance.NewCryptoMerchantBalanceMovement(id.New(), "Opening", 1, time.Now(), entity.RecordTypeReceipt, wr.task.MerchantID, f.token, types.NewCryptoAmountFromInt64(1000)),
+		crypto_merchant_balance.NewCryptoMerchantBalanceMovement(wr.task.RequestID, withdrawal_request.DocumentType, 1, now, entity.RecordTypeExpense, wr.task.MerchantID, f.token, types.NewCryptoAmountFromInt64(100)),
 	}))
 	_, err = q.Exec(ctx, `
 		INSERT INTO reg_crypto_balance_balances(wallet_id,token_id,amount) VALUES($6,$5,1000) ON CONFLICT DO NOTHING;

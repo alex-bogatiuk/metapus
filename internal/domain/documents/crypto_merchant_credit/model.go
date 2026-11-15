@@ -13,6 +13,9 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/crypto_fee"
+	"metapus/internal/domain/registers/crypto_merchant_balance"
+	"metapus/internal/domain/registers/crypto_receipt_suspense"
 	"metapus/internal/domain/tariff"
 )
 
@@ -130,28 +133,28 @@ func (*CryptoMerchantCredit) CanUnpost(context.Context) error {
 	return apperror.NewConflict("merchant credit requires an explicit reversal document")
 }
 
-func (c *CryptoMerchantCredit) GenerateCryptoReceiptSuspenseMovements(context.Context) ([]entity.CryptoReceiptSuspenseMovement, error) {
-	m := entity.NewCryptoReceiptSuspenseMovement(c.ID, DocumentType, 1, c.Date, entity.RecordTypeExpense, c.ReceiptID, c.TokenID, c.Amount)
+func (c *CryptoMerchantCredit) GenerateCryptoReceiptSuspenseMovements(context.Context) ([]crypto_receipt_suspense.CryptoReceiptSuspenseMovement, error) {
+	m := crypto_receipt_suspense.NewCryptoReceiptSuspenseMovement(c.ID, DocumentType, 1, c.Date, entity.RecordTypeExpense, c.ReceiptID, c.TokenID, c.Amount)
 	m.LineID = c.SuspenseLineID
-	return []entity.CryptoReceiptSuspenseMovement{m}, nil
+	return []crypto_receipt_suspense.CryptoReceiptSuspenseMovement{m}, nil
 }
 
-func (c *CryptoMerchantCredit) GenerateCryptoMerchantBalanceMovements(context.Context) ([]entity.CryptoMerchantBalanceMovement, error) {
+func (c *CryptoMerchantCredit) GenerateCryptoMerchantBalanceMovements(context.Context) ([]crypto_merchant_balance.CryptoMerchantBalanceMovement, error) {
 	if c.NetAmount.IsZero() {
 		return nil, nil
 	}
-	m := entity.NewCryptoMerchantBalanceMovement(c.ID, DocumentType, 1, c.Date, entity.RecordTypeReceipt, c.MerchantID, c.TokenID, c.NetAmount)
+	m := crypto_merchant_balance.NewCryptoMerchantBalanceMovement(c.ID, DocumentType, 1, c.Date, entity.RecordTypeReceipt, c.MerchantID, c.TokenID, c.NetAmount)
 	m.LineID = c.MerchantLineID
-	return []entity.CryptoMerchantBalanceMovement{m}, nil
+	return []crypto_merchant_balance.CryptoMerchantBalanceMovement{m}, nil
 }
 
-func (c *CryptoMerchantCredit) GenerateCryptoFeeMovements(context.Context) ([]entity.CryptoFeeMovement, error) {
+func (c *CryptoMerchantCredit) GenerateCryptoFeeMovements(context.Context) ([]crypto_fee.CryptoFeeMovement, error) {
 	if c.ProcessingFee.IsZero() {
 		return nil, nil
 	}
-	m := entity.NewCryptoFeeMovement(c.ID, DocumentType, 1, c.Date, entity.RecordTypeReceipt, c.MerchantID, c.TokenID, entity.FeeTypeProcessing, c.ProcessingFee)
+	m := crypto_fee.NewCryptoFeeMovement(c.ID, DocumentType, 1, c.Date, entity.RecordTypeReceipt, c.MerchantID, c.TokenID, crypto_fee.FeeTypeProcessing, c.ProcessingFee)
 	m.LineID = c.FeeLineID
-	return []entity.CryptoFeeMovement{m}, nil
+	return []crypto_fee.CryptoFeeMovement{m}, nil
 }
 
 var _ posting.Postable = (*CryptoMerchantCredit)(nil)

@@ -11,6 +11,8 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/crypto_balance"
+	"metapus/internal/domain/registers/crypto_provider_balance"
 	"metapus/internal/domain/registers/cryptoposting"
 )
 
@@ -151,18 +153,18 @@ func (*CryptoProviderBalanceOperation) CanModify() error {
 
 func (o *CryptoProviderBalanceOperation) GetDocumentType() string { return Definition.Name }
 
-func (o *CryptoProviderBalanceOperation) GenerateCryptoProviderBalanceMovements(context.Context) ([]entity.CryptoProviderBalanceMovement, error) {
-	return []entity.CryptoProviderBalanceMovement{entity.NewCryptoProviderBalanceMovement(
+func (o *CryptoProviderBalanceOperation) GenerateCryptoProviderBalanceMovements(context.Context) ([]crypto_provider_balance.CryptoProviderBalanceMovement, error) {
+	return []crypto_provider_balance.CryptoProviderBalanceMovement{crypto_provider_balance.NewCryptoProviderBalanceMovement(
 		o.ID, o.GetDocumentType(), o.PostedVersion+1, o.Date, o.RecordType,
 		o.ProviderAccountID, o.TokenID, o.OperationType, o.ExternalRef, o.Amount,
 	)}, nil
 }
 
-func (o *CryptoProviderBalanceOperation) GenerateCryptoBalanceMovements(context.Context) ([]entity.CryptoBalanceMovement, error) {
+func (o *CryptoProviderBalanceOperation) GenerateCryptoBalanceMovements(context.Context) ([]crypto_balance.CryptoBalanceMovement, error) {
 	if o.OperationType != OperationTypeFunding || o.SourceWalletID == nil {
 		return nil, nil
 	}
-	return []entity.CryptoBalanceMovement{entity.NewCryptoBalanceMovement(
+	return []crypto_balance.CryptoBalanceMovement{crypto_balance.NewCryptoBalanceMovement(
 		o.ID, o.GetDocumentType(), o.PostedVersion+1, o.Date, entity.RecordTypeExpense,
 		*o.SourceWalletID, o.TokenID, o.Amount,
 	)}, nil

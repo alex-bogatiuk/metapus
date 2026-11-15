@@ -7,6 +7,7 @@ import (
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
+	"metapus/internal/domain/registers/crypto_platform_cost"
 	"metapus/internal/domain/registers/cryptoposting"
 
 	"github.com/stretchr/testify/require"
@@ -24,7 +25,7 @@ func TestCryptoSweepPlatformCostDoesNotCreateCryptoFeeMovement(t *testing.T) {
 		{
 			NetworkID:       networkID,
 			CostTokenID:     costTokenID,
-			CostType:        entity.PlatformCostTypeChainResourceRent,
+			CostType:        crypto_platform_cost.PlatformCostTypeChainResourceRent,
 			Provider:        "itrx",
 			ExternalOrderID: "serial-1",
 			Amount:          types.NewCryptoAmountFromInt64(4_000_000),

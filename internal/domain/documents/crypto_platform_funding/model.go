@@ -14,6 +14,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/crypto_receipt_suspense"
 )
 
 type Status string
@@ -162,10 +163,10 @@ func (*CryptoPlatformFunding) CanUnpost(context.Context) error {
 	return apperror.NewConflict("platform funding is reversed only by the orphaning of its receipt")
 }
 
-func (f *CryptoPlatformFunding) GenerateCryptoReceiptSuspenseMovements(context.Context) ([]entity.CryptoReceiptSuspenseMovement, error) {
-	m := entity.NewCryptoReceiptSuspenseMovement(f.ID, DocumentType, 1, f.Date, entity.RecordTypeExpense, f.ReceiptID, f.TokenID, f.Amount)
+func (f *CryptoPlatformFunding) GenerateCryptoReceiptSuspenseMovements(context.Context) ([]crypto_receipt_suspense.CryptoReceiptSuspenseMovement, error) {
+	m := crypto_receipt_suspense.NewCryptoReceiptSuspenseMovement(f.ID, DocumentType, 1, f.Date, entity.RecordTypeExpense, f.ReceiptID, f.TokenID, f.Amount)
 	m.LineID = f.SuspenseLineID
-	return []entity.CryptoReceiptSuspenseMovement{m}, nil
+	return []crypto_receipt_suspense.CryptoReceiptSuspenseMovement{m}, nil
 }
 
 var _ posting.Postable = (*CryptoPlatformFunding)(nil)

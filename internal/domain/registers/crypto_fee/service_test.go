@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 )
@@ -16,7 +15,7 @@ type feeRepoStub struct {
 	balances []BalanceEntry
 }
 
-func (r *feeRepoStub) CreateMovements(ctx context.Context, movements []entity.CryptoFeeMovement) error {
+func (r *feeRepoStub) CreateMovements(ctx context.Context, movements []CryptoFeeMovement) error {
 	return nil
 }
 
@@ -24,7 +23,7 @@ func (r *feeRepoStub) AppendReversalsByRecorder(ctx context.Context, recorderID 
 	return nil
 }
 
-func (r *feeRepoStub) GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]entity.CryptoFeeMovement, error) {
+func (r *feeRepoStub) GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]CryptoFeeMovement, error) {
 	return nil, nil
 }
 
@@ -40,7 +39,7 @@ func TestCheckAndReserveCryptoFeeRejectsInsufficientBalance(t *testing.T) {
 			{
 				MerchantID: merchantID,
 				TokenID:    tokenID,
-				FeeType:    entity.FeeTypeProcessing,
+				FeeType:    FeeTypeProcessing,
 				Balance:    types.NewCryptoAmountFromInt64(100),
 			},
 		},
@@ -50,7 +49,7 @@ func TestCheckAndReserveCryptoFeeRejectsInsufficientBalance(t *testing.T) {
 		{
 			MerchantID: merchantID,
 			TokenID:    tokenID,
-			FeeType:    entity.FeeTypeProcessing,
+			FeeType:    FeeTypeProcessing,
 			Required:   types.NewCryptoAmountFromInt64(101),
 		},
 	})
@@ -66,7 +65,7 @@ func TestCheckAndReserveCryptoFeeAllowsSufficientBalance(t *testing.T) {
 			{
 				MerchantID: merchantID,
 				TokenID:    tokenID,
-				FeeType:    entity.FeeTypeProcessing,
+				FeeType:    FeeTypeProcessing,
 				Balance:    types.NewCryptoAmountFromInt64(100),
 			},
 		},
@@ -76,7 +75,7 @@ func TestCheckAndReserveCryptoFeeAllowsSufficientBalance(t *testing.T) {
 		{
 			MerchantID: merchantID,
 			TokenID:    tokenID,
-			FeeType:    entity.FeeTypeProcessing,
+			FeeType:    FeeTypeProcessing,
 			Required:   types.NewCryptoAmountFromInt64(100),
 		},
 	})

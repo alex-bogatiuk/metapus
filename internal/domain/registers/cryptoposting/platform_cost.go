@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_platform_cost"
@@ -13,7 +12,7 @@ import (
 // CryptoPlatformCostMovementSource is implemented by documents that generate
 // platform-owned crypto cost movements.
 type CryptoPlatformCostMovementSource interface {
-	GenerateCryptoPlatformCostMovements(ctx context.Context) ([]entity.CryptoPlatformCostMovement, error)
+	GenerateCryptoPlatformCostMovements(ctx context.Context) ([]crypto_platform_cost.CryptoPlatformCostMovement, error)
 }
 
 const _cryptoPlatformCostExtKey = "crypto_platform_cost"
@@ -54,7 +53,7 @@ func (r *CryptoPlatformCostRecorder) RecordFromSet(ctx context.Context, set *pos
 	if !ok {
 		return nil
 	}
-	movements, ok := raw.([]entity.CryptoPlatformCostMovement)
+	movements, ok := raw.([]crypto_platform_cost.CryptoPlatformCostMovement)
 	if !ok || len(movements) == 0 {
 		return nil
 	}

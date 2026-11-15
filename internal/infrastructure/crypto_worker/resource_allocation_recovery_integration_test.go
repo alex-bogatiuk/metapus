@@ -12,11 +12,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto"
+	"metapus/internal/domain/registers/crypto_platform_cost"
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
@@ -86,7 +86,7 @@ func TestResourceAllocationNewGenerationAndExactBroadcastRecovery(t *testing.T) 
 		repo := NewOutboundRepo()
 		allocation, _, reserveErr := repo.TryReserveResource(txCtx, ResourceRequest{
 			BasisType: "CryptoSweepLine", BasisID: attemptID,
-			Purpose: entity.PlatformCostPurposeSweep, NetworkID: networkID,
+			Purpose: crypto_platform_cost.PlatformCostPurposeSweep, NetworkID: networkID,
 			OperationTokenID: tokenID, SourceWalletID: walletID,
 		}, 40770, time.Minute)
 		require.NoError(t, reserveErr)

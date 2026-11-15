@@ -14,6 +14,8 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/crypto_balance"
+	"metapus/internal/domain/registers/crypto_platform_cost"
 	"metapus/internal/domain/registers/cryptoposting"
 )
 
@@ -129,35 +131,35 @@ func (d *CryptoNetworkOperation) CanPost(ctx context.Context) error {
 
 func (d *CryptoNetworkOperation) GetDocumentType() string { return DocumentType }
 
-func (d *CryptoNetworkOperation) GenerateCryptoBalanceMovements(context.Context) ([]entity.CryptoBalanceMovement, error) {
+func (d *CryptoNetworkOperation) GenerateCryptoBalanceMovements(context.Context) ([]crypto_balance.CryptoBalanceMovement, error) {
 	if err := d.validateMovementOperation(); err != nil {
 		return nil, err
 	}
 	if !d.CostAmount.IsPositive() {
 		return nil, nil
 	}
-	movement := entity.NewCryptoBalanceMovement(
+	movement := crypto_balance.NewCryptoBalanceMovement(
 		d.ID, d.GetDocumentType(), d.PostedVersion+1, *d.FinalizedAt, entity.RecordTypeExpense,
 		d.SourceWalletID, d.CostTokenID, d.CostAmount,
 	)
 	movement.LineID = uuid.NewSHA1(d.ID, []byte("network-fee-expense"))
-	return []entity.CryptoBalanceMovement{movement}, nil
+	return []crypto_balance.CryptoBalanceMovement{movement}, nil
 }
 
-func (d *CryptoNetworkOperation) GenerateCryptoPlatformCostMovements(context.Context) ([]entity.CryptoPlatformCostMovement, error) {
+func (d *CryptoNetworkOperation) GenerateCryptoPlatformCostMovements(context.Context) ([]crypto_platform_cost.CryptoPlatformCostMovement, error) {
 	if err := d.validateMovementOperation(); err != nil {
 		return nil, err
 	}
 	if !d.CostAmount.IsPositive() {
 		return nil, nil
 	}
-	movement := entity.NewSharedCryptoPlatformCostMovement(
+	movement := crypto_platform_cost.NewSharedCryptoPlatformCostMovement(
 		d.ID, d.GetDocumentType(), d.PostedVersion+1, *d.FinalizedAt, entity.RecordTypeExpense,
-		d.NetworkID, d.CostTokenID, entity.PlatformCostTypeChainNetworkFee,
-		entity.PlatformCostPurposeActivation, "chain", d.TxHash, d.CostAmount,
+		d.NetworkID, d.CostTokenID, crypto_platform_cost.PlatformCostTypeChainNetworkFee,
+		crypto_platform_cost.PlatformCostPurposeActivation, "chain", d.TxHash, d.CostAmount,
 	)
 	movement.LineID = uuid.NewSHA1(d.ID, []byte("network-fee-cost"))
-	return []entity.CryptoPlatformCostMovement{movement}, nil
+	return []crypto_platform_cost.CryptoPlatformCostMovement{movement}, nil
 }
 
 func (d *CryptoNetworkOperation) CanUnpost(context.Context) error {

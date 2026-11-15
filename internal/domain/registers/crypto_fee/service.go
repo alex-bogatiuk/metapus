@@ -15,9 +15,9 @@ import (
 
 // Repository defines storage operations for crypto fee movements.
 type Repository interface {
-	CreateMovements(ctx context.Context, movements []entity.CryptoFeeMovement) error
+	CreateMovements(ctx context.Context, movements []CryptoFeeMovement) error
 	AppendReversalsByRecorder(ctx context.Context, recorderID id.ID, beforeVersion int) error
-	GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]entity.CryptoFeeMovement, error)
+	GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]CryptoFeeMovement, error)
 	GetBalancesForUpdate(ctx context.Context, keys []BalanceKey) ([]BalanceEntry, error)
 }
 
@@ -25,14 +25,14 @@ type Repository interface {
 type BalanceKey struct {
 	MerchantID id.ID
 	TokenID    id.ID
-	FeeType    entity.FeeType
+	FeeType    FeeType
 }
 
 // BalanceEntry represents a locked fee balance.
 type BalanceEntry struct {
 	MerchantID id.ID              `db:"merchant_id"`
 	TokenID    id.ID              `db:"token_id"`
-	FeeType    entity.FeeType     `db:"fee_type"`
+	FeeType    FeeType            `db:"fee_type"`
 	Balance    types.CryptoAmount `db:"balance"`
 }
 
@@ -40,7 +40,7 @@ type BalanceEntry struct {
 type BalanceReservation struct {
 	MerchantID id.ID
 	TokenID    id.ID
-	FeeType    entity.FeeType
+	FeeType    FeeType
 	Required   types.CryptoAmount
 }
 
@@ -55,7 +55,7 @@ func NewService(repo Repository) *Service {
 }
 
 // RecordMovements records crypto fee movements from a document posting.
-func (s *Service) RecordMovements(ctx context.Context, movements []entity.CryptoFeeMovement) error {
+func (s *Service) RecordMovements(ctx context.Context, movements []CryptoFeeMovement) error {
 	if len(movements) == 0 {
 		return nil
 	}
@@ -108,7 +108,7 @@ func (s *Service) CheckAndReserveCryptoFee(ctx context.Context, items []BalanceR
 
 	type dimKey struct {
 		m, t id.ID
-		ft   entity.FeeType
+		ft   FeeType
 	}
 	balanceMap := make(map[dimKey]types.CryptoAmount, len(balances))
 	for _, b := range balances {
@@ -136,11 +136,11 @@ func (s *Service) CheckAndReserveCryptoFee(ctx context.Context, items []BalanceR
 
 // --- MovementProvider interface ---
 
-var _feeTypeNames = map[entity.FeeType]string{
-	entity.FeeTypeProcessing: "Процессинг",
-	entity.FeeTypeNetwork:    "Сетевая",
-	entity.FeeTypeWithdrawal: "Вывод",
-	entity.FeeTypeSweep:      "Sweep",
+var _feeTypeNames = map[FeeType]string{
+	FeeTypeProcessing: "Процессинг",
+	FeeTypeNetwork:    "Сетевая",
+	FeeTypeWithdrawal: "Вывод",
+	FeeTypeSweep:      "Sweep",
 }
 
 func (s *Service) RegisterName() string {

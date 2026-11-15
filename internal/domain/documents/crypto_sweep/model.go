@@ -14,6 +14,7 @@ import (
 	"metapus/internal/core/types"
 	"metapus/internal/domain/documents/outbound_settlement"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/crypto_platform_cost"
 	"metapus/internal/domain/registers/cryptoposting"
 )
 
@@ -84,12 +85,12 @@ type CryptoSweepLine struct {
 
 // CryptoSweepPlatformCostLine represents one platform-borne resource cost.
 type CryptoSweepPlatformCostLine struct {
-	NetworkID       id.ID                   `json:"networkId"`
-	CostTokenID     id.ID                   `json:"costTokenId"`
-	CostType        entity.PlatformCostType `json:"costType"`
-	Provider        string                  `json:"provider"`
-	ExternalOrderID string                  `json:"externalOrderId"`
-	Amount          types.CryptoAmount      `json:"amount"`
+	NetworkID       id.ID                                 `json:"networkId"`
+	CostTokenID     id.ID                                 `json:"costTokenId"`
+	CostType        crypto_platform_cost.PlatformCostType `json:"costType"`
+	Provider        string                                `json:"provider"`
+	ExternalOrderID string                                `json:"externalOrderId"`
+	Amount          types.CryptoAmount                    `json:"amount"`
 }
 
 // NewCryptoSweep creates a new CryptoSweep in Created state.
@@ -141,18 +142,18 @@ func (s *CryptoSweep) SetLines(lines []CryptoSweepLine) {
 func (s *CryptoSweep) GetDocumentType() string { return DocumentType }
 
 // GenerateCryptoPlatformCostMovements records platform-borne sweep resource costs.
-func (s *CryptoSweep) GenerateCryptoPlatformCostMovements(ctx context.Context) ([]entity.CryptoPlatformCostMovement, error) {
+func (s *CryptoSweep) GenerateCryptoPlatformCostMovements(ctx context.Context) ([]crypto_platform_cost.CryptoPlatformCostMovement, error) {
 	if len(s.PlatformCostLines) == 0 {
 		return nil, nil
 	}
 
 	newVersion := s.PostedVersion + 1
-	movements := make([]entity.CryptoPlatformCostMovement, 0, len(s.PlatformCostLines))
+	movements := make([]crypto_platform_cost.CryptoPlatformCostMovement, 0, len(s.PlatformCostLines))
 	for _, line := range s.PlatformCostLines {
 		if line.Amount.IsZero() {
 			continue
 		}
-		movements = append(movements, entity.NewCryptoPlatformCostMovement(
+		movements = append(movements, crypto_platform_cost.NewCryptoPlatformCostMovement(
 			s.ID,
 			s.GetDocumentType(),
 			newVersion,
@@ -162,7 +163,7 @@ func (s *CryptoSweep) GenerateCryptoPlatformCostMovements(ctx context.Context) (
 			s.TokenID,
 			line.CostTokenID,
 			line.CostType,
-			entity.PlatformCostPurposeSweep,
+			crypto_platform_cost.PlatformCostPurposeSweep,
 			line.Provider,
 			line.ExternalOrderID,
 			line.Amount,

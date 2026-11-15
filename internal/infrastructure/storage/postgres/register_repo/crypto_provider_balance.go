@@ -7,8 +7,8 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
 
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
+	"metapus/internal/domain/registers/crypto_provider_balance"
 )
 
 const _cryptoProviderBalanceMovementsTable = "reg_crypto_provider_balance_movements"
@@ -18,17 +18,17 @@ var _cryptoProviderBalanceMovementColumns = []string{
 	"provider_account_id", "token_id", "operation_type", "external_ref", "amount", "created_at",
 }
 
-func cryptoProviderBalanceMovementRowMapper(m entity.CryptoProviderBalanceMovement) []any {
+func cryptoProviderBalanceMovementRowMapper(m crypto_provider_balance.CryptoProviderBalanceMovement) []any {
 	return []any{m.LineID, m.RecorderID, m.RecorderType, m.RecorderVersion, m.Period, m.RecordType,
 		m.ProviderAccountID, m.TokenID, m.OperationType, m.ExternalRef, m.Amount, m.CreatedAt}
 }
 
 type CryptoProviderBalanceRepo struct {
-	BaseAccumulationRepo[entity.CryptoProviderBalanceMovement]
+	BaseAccumulationRepo[crypto_provider_balance.CryptoProviderBalanceMovement]
 }
 
 func NewCryptoProviderBalanceRepo() *CryptoProviderBalanceRepo {
-	return &CryptoProviderBalanceRepo{BaseAccumulationRepo: NewBaseAccumulationRepo[entity.CryptoProviderBalanceMovement](
+	return &CryptoProviderBalanceRepo{BaseAccumulationRepo: NewBaseAccumulationRepo[crypto_provider_balance.CryptoProviderBalanceMovement](
 		_cryptoProviderBalanceMovementsTable, _cryptoProviderBalanceMovementColumns, cryptoProviderBalanceMovementRowMapper,
 	)}
 }
@@ -39,14 +39,14 @@ func (r *CryptoProviderBalanceRepo) AppendReversalsByRecorder(ctx context.Contex
 	})
 }
 
-func (r *CryptoProviderBalanceRepo) GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]entity.CryptoProviderBalanceMovement, error) {
+func (r *CryptoProviderBalanceRepo) GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]crypto_provider_balance.CryptoProviderBalanceMovement, error) {
 	q := r.Builder().Select(_cryptoProviderBalanceMovementColumns...).From(_cryptoProviderBalanceMovementsTable).
 		Where(squirrel.Eq{"recorder_id": recorderID}).OrderBy("created_at")
 	sql, args, err := q.ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build provider movement query: %w", err)
 	}
-	var movements []entity.CryptoProviderBalanceMovement
+	var movements []crypto_provider_balance.CryptoProviderBalanceMovement
 	if err := pgxscan.Select(ctx, r.GetTxManager(ctx).GetQuerier(ctx), &movements, sql, args...); err != nil {
 		return nil, fmt.Errorf("select provider movements: %w", err)
 	}

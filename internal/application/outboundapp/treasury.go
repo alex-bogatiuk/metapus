@@ -3,13 +3,13 @@ package outboundapp
 import (
 	"context"
 	"fmt"
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/numerator"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/outbound_settlement"
 	"metapus/internal/domain/documents/treasury_withdrawal"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/crypto_platform_cost"
 	"metapus/pkg/logger"
 	"time"
 )
@@ -202,7 +202,7 @@ func (e *TreasuryExecutor) Execute(ctx context.Context, task TreasuryTask) (err 
 		providerFailureThreshold, providerOpenDuration := resourceCircuitValues(policy)
 		resourceRequest := ResourceRequest{
 			TenantID: e.tenantID, BasisType: treasury_withdrawal.DocumentType, BasisID: task.WithdrawalID,
-			Purpose: entity.PlatformCostPurposeTreasury, NetworkID: task.NetworkID,
+			Purpose: crypto_platform_cost.PlatformCostPurposeTreasury, NetworkID: task.NetworkID,
 			OperationTokenID: task.TokenID, SourceWalletID: hotWallet.ID,
 			SourceAddress: hotWallet.Address, ContractAddress: task.ContractAddress,
 			DestinationAddress: task.DestAddress, Amount: task.Amount,

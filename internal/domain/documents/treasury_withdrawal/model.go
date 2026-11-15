@@ -13,6 +13,7 @@ import (
 	"metapus/internal/core/types"
 	"metapus/internal/domain/documents/outbound_settlement"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/crypto_fee"
 )
 
 // Status represents the lifecycle state of a treasury withdrawal.
@@ -106,7 +107,7 @@ type TreasuryWithdrawal struct {
 type FeeLine struct {
 	MerchantID id.ID              `json:"merchantId"`
 	TokenID    id.ID              `json:"tokenId"`
-	FeeType    entity.FeeType     `json:"feeType"`
+	FeeType    crypto_fee.FeeType `json:"feeType"`
 	Amount     types.CryptoAmount `json:"amount"`
 }
 

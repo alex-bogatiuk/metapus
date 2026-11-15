@@ -15,6 +15,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/crypto_merchant_balance"
 	"metapus/internal/domain/registers/cryptoposting"
 )
 
@@ -180,14 +181,14 @@ func (w *WithdrawalRequest) GetDocumentType() string { return DocumentType }
 // GenerateCryptoMerchantBalanceMovements creates an EXPENSE movement
 // that immediately reduces the merchant's available balance.
 // This is the core of the debit-first pattern.
-func (w *WithdrawalRequest) GenerateCryptoMerchantBalanceMovements(ctx context.Context) ([]entity.CryptoMerchantBalanceMovement, error) {
+func (w *WithdrawalRequest) GenerateCryptoMerchantBalanceMovements(ctx context.Context) ([]crypto_merchant_balance.CryptoMerchantBalanceMovement, error) {
 	if w.Amount.IsZero() {
 		return nil, nil
 	}
 
 	newVersion := w.PostedVersion + 1
 
-	movement := entity.NewCryptoMerchantBalanceMovement(
+	movement := crypto_merchant_balance.NewCryptoMerchantBalanceMovement(
 		w.ID,
 		w.GetDocumentType(),
 		newVersion,
@@ -198,7 +199,7 @@ func (w *WithdrawalRequest) GenerateCryptoMerchantBalanceMovements(ctx context.C
 		w.Amount,
 	)
 
-	return []entity.CryptoMerchantBalanceMovement{movement}, nil
+	return []crypto_merchant_balance.CryptoMerchantBalanceMovement{movement}, nil
 }
 
 // --- RLSDimensionable override ---

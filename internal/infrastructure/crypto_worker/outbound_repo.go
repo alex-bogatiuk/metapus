@@ -1,9 +1,9 @@
 package crypto_worker
 
 import (
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
+	"metapus/internal/domain/registers/crypto_fee"
 	"metapus/internal/infrastructure/storage/postgres/outbound_repo"
 )
 
@@ -38,7 +38,7 @@ type TreasuryTask = outbound_repo.TreasuryTask
 type FeeReservationLine struct {
 	MerchantID id.ID
 	TokenID    id.ID
-	FeeType    entity.FeeType
+	FeeType    crypto_fee.FeeType
 	Amount     types.CryptoAmount
 }
 

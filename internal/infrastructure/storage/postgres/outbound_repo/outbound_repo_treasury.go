@@ -7,11 +7,11 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/domain/documents/treasury_withdrawal"
+	"metapus/internal/domain/registers/crypto_fee"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 )
@@ -283,7 +283,7 @@ func (r *OutboundRepo) ReserveFeeForTreasury(ctx context.Context, withdrawalID, 
 		type feeRow struct {
 			merchantID id.ID
 			tokenID    id.ID
-			feeType    entity.FeeType
+			feeType    crypto_fee.FeeType
 			available  types.CryptoAmount
 		}
 		selected := make([]feeRow, 0, 4)

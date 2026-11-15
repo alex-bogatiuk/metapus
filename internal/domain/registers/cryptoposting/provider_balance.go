@@ -4,14 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_provider_balance"
 )
 
 type CryptoProviderBalanceMovementSource interface {
-	GenerateCryptoProviderBalanceMovements(ctx context.Context) ([]entity.CryptoProviderBalanceMovement, error)
+	GenerateCryptoProviderBalanceMovements(ctx context.Context) ([]crypto_provider_balance.CryptoProviderBalanceMovement, error)
 }
 
 const _cryptoProviderBalanceExtKey = "crypto_provider_balance"
@@ -50,7 +49,7 @@ func (r *CryptoProviderBalanceRecorder) RecordFromSet(ctx context.Context, set *
 	if !ok {
 		return nil
 	}
-	movements, ok := raw.([]entity.CryptoProviderBalanceMovement)
+	movements, ok := raw.([]crypto_provider_balance.CryptoProviderBalanceMovement)
 	if !ok {
 		return fmt.Errorf("invalid crypto provider balance movement set")
 	}

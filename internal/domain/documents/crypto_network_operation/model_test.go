@@ -8,6 +8,7 @@ import (
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
+	"metapus/internal/domain/registers/crypto_platform_cost"
 
 	"github.com/stretchr/testify/require"
 )
@@ -52,8 +53,8 @@ func TestWalletActivationGeneratesBothExpenses(t *testing.T) {
 	costs, err := doc.GenerateCryptoPlatformCostMovements(context.Background())
 	require.NoError(t, err)
 	require.Len(t, costs, 1)
-	require.Equal(t, entity.PlatformCostTypeChainNetworkFee, costs[0].CostType)
-	require.Equal(t, entity.PlatformCostPurposeActivation, costs[0].Purpose)
+	require.Equal(t, crypto_platform_cost.PlatformCostTypeChainNetworkFee, costs[0].CostType)
+	require.Equal(t, crypto_platform_cost.PlatformCostPurposeActivation, costs[0].Purpose)
 	require.Equal(t, "chain", costs[0].Provider)
 	require.Equal(t, doc.TxHash, costs[0].ExternalOrderID)
 }

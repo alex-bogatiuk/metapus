@@ -17,7 +17,7 @@ import (
 // CryptoFeeMovementSource is implemented by documents that generate
 // crypto fee register movements (e.g., CryptoPayment, CryptoWithdrawal).
 type CryptoFeeMovementSource interface {
-	GenerateCryptoFeeMovements(ctx context.Context) ([]entity.CryptoFeeMovement, error)
+	GenerateCryptoFeeMovements(ctx context.Context) ([]crypto_fee.CryptoFeeMovement, error)
 }
 
 const _cryptoFeeExtKey = "crypto_fee"
@@ -65,7 +65,7 @@ func (r *CryptoFeeRecorder) RecordFromSet(ctx context.Context, set *posting.Move
 		return nil
 	}
 
-	movements, ok := raw.([]entity.CryptoFeeMovement)
+	movements, ok := raw.([]crypto_fee.CryptoFeeMovement)
 	if !ok || len(movements) == 0 {
 		return nil
 	}
@@ -84,14 +84,14 @@ func (r *CryptoFeeRecorder) ValidateBeforePost(ctx context.Context, set *posting
 		return nil
 	}
 
-	movements, ok := raw.([]entity.CryptoFeeMovement)
+	movements, ok := raw.([]crypto_fee.CryptoFeeMovement)
 	if !ok {
 		return nil
 	}
 
 	type dimKey struct {
 		m, t id.ID
-		ft   entity.FeeType
+		ft   crypto_fee.FeeType
 	}
 	reserves := make(map[dimKey]*crypto_fee.BalanceReservation)
 	for _, m := range movements {

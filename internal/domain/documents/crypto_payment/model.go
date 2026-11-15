@@ -13,6 +13,9 @@ import (
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto/aml"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/crypto_fee"
+	"metapus/internal/domain/registers/crypto_merchant_balance"
+	"metapus/internal/domain/registers/crypto_receipt_suspense"
 	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/domain/tariff"
 )
@@ -250,20 +253,20 @@ func (p *CryptoPayment) GetDocumentType() string { return Definition.Name }
 
 // GenerateCryptoReceiptSuspenseMovements consumes the gross of the attributed
 // custody receipt; the custody movement itself belongs to the receipt.
-func (p *CryptoPayment) GenerateCryptoReceiptSuspenseMovements(context.Context) ([]entity.CryptoReceiptSuspenseMovement, error) {
+func (p *CryptoPayment) GenerateCryptoReceiptSuspenseMovements(context.Context) ([]crypto_receipt_suspense.CryptoReceiptSuspenseMovement, error) {
 	if p.ReceiptID == nil || id.IsNil(*p.ReceiptID) {
 		return nil, apperror.NewValidation("payment posting requires its custody receipt")
 	}
 	if p.FeeAmount().Cmp(p.Amount) > 0 {
 		return nil, apperror.NewValidation("processing fee exceeds the received amount")
 	}
-	return []entity.CryptoReceiptSuspenseMovement{entity.NewCryptoReceiptSuspenseMovement(
+	return []crypto_receipt_suspense.CryptoReceiptSuspenseMovement{crypto_receipt_suspense.NewCryptoReceiptSuspenseMovement(
 		p.ID, p.GetDocumentType(), p.PostedVersion+1, p.Date, entity.RecordTypeExpense, *p.ReceiptID, p.TokenID, p.Amount)}, nil
 }
 
 // GenerateCryptoFeeMovements creates a RECEIPT movement for the processing fee.
 // Fee = clamp(FeeFixed + Amount × FeePercentBP / 10000, FeeMin, FeeMax).
-func (p *CryptoPayment) GenerateCryptoFeeMovements(ctx context.Context) ([]entity.CryptoFeeMovement, error) {
+func (p *CryptoPayment) GenerateCryptoFeeMovements(ctx context.Context) ([]crypto_fee.CryptoFeeMovement, error) {
 	feeAmount := p.FeeAmount()
 	if feeAmount.IsZero() {
 		return nil, nil
@@ -271,7 +274,7 @@ func (p *CryptoPayment) GenerateCryptoFeeMovements(ctx context.Context) ([]entit
 
 	newVersion := p.PostedVersion + 1
 
-	fee := entity.NewCryptoFeeMovement(
+	fee := crypto_fee.NewCryptoFeeMovement(
 		p.ID,
 		p.GetDocumentType(),
 		newVersion,
@@ -279,24 +282,24 @@ func (p *CryptoPayment) GenerateCryptoFeeMovements(ctx context.Context) ([]entit
 		entity.RecordTypeReceipt,
 		p.MerchantID,
 		p.TokenID,
-		entity.FeeTypeProcessing,
+		crypto_fee.FeeTypeProcessing,
 		feeAmount,
 	)
 
-	return []entity.CryptoFeeMovement{fee}, nil
+	return []crypto_fee.CryptoFeeMovement{fee}, nil
 }
 
 // GenerateCryptoMerchantBalanceMovements creates a RECEIPT movement for the merchant.
 // Receipt = platform owes more to merchant (payment received, net of fees).
 // Net amount = Amount - FeeAmount().
-func (p *CryptoPayment) GenerateCryptoMerchantBalanceMovements(ctx context.Context) ([]entity.CryptoMerchantBalanceMovement, error) {
+func (p *CryptoPayment) GenerateCryptoMerchantBalanceMovements(ctx context.Context) ([]crypto_merchant_balance.CryptoMerchantBalanceMovement, error) {
 	netAmount := p.NetAmount()
 	if netAmount.IsZero() {
 		return nil, nil
 	}
 	newVersion := p.PostedVersion + 1
 
-	movement := entity.NewCryptoMerchantBalanceMovement(
+	movement := crypto_merchant_balance.NewCryptoMerchantBalanceMovement(
 		p.ID,
 		p.GetDocumentType(),
 		newVersion,
@@ -307,7 +310,7 @@ func (p *CryptoPayment) GenerateCryptoMerchantBalanceMovements(ctx context.Conte
 		netAmount,
 	)
 
-	return []entity.CryptoMerchantBalanceMovement{movement}, nil
+	return []crypto_merchant_balance.CryptoMerchantBalanceMovement{movement}, nil
 }
 
 // IsFullyConfirmed returns true if confirmations >= required.

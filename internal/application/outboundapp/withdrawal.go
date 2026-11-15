@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/tx"
@@ -15,6 +14,7 @@ import (
 	"metapus/internal/domain/documents/outbound_settlement"
 	"metapus/internal/domain/documents/withdrawal_request"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/crypto_platform_cost"
 	"metapus/pkg/logger"
 )
 
@@ -201,7 +201,7 @@ func (e *WithdrawalExecutor) Execute(ctx context.Context, task WithdrawalTask) (
 		resourceRequest := ResourceRequest{
 			TenantID: e.tenantID, BasisType: crypto_withdrawal.DocumentType, BasisID: doc.ID,
 			RentalBasisType: crypto_withdrawal.DocumentType, RentalBasisID: doc.ID,
-			Purpose: entity.PlatformCostPurposeWithdrawal, NetworkID: task.NetworkID,
+			Purpose: crypto_platform_cost.PlatformCostPurposeWithdrawal, NetworkID: task.NetworkID,
 			OperationTokenID: task.TokenID, SourceWalletID: hotWallet.ID,
 			SourceAddress: hotWallet.Address, ContractAddress: task.ContractAddress,
 			DestinationAddress: task.DestAddress, Amount: task.Amount,

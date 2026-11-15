@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/crypto_receipt_suspense"
@@ -13,7 +12,7 @@ import (
 const cryptoReceiptSuspenseKey = "crypto_receipt_suspense"
 
 type CryptoReceiptSuspenseMovementSource interface {
-	GenerateCryptoReceiptSuspenseMovements(context.Context) ([]entity.CryptoReceiptSuspenseMovement, error)
+	GenerateCryptoReceiptSuspenseMovements(context.Context) ([]crypto_receipt_suspense.CryptoReceiptSuspenseMovement, error)
 }
 
 type CryptoReceiptSuspenseVisitor struct{}
@@ -50,7 +49,7 @@ func (r *CryptoReceiptSuspenseRecorder) RecordFromSet(ctx context.Context, set *
 	if !ok {
 		return nil
 	}
-	movements, ok := raw.([]entity.CryptoReceiptSuspenseMovement)
+	movements, ok := raw.([]crypto_receipt_suspense.CryptoReceiptSuspenseMovement)
 	if !ok {
 		return fmt.Errorf("invalid receipt suspense movement set")
 	}

@@ -10,6 +10,8 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/crypto_platform_cost"
+	"metapus/internal/domain/registers/crypto_provider_balance"
 	"metapus/internal/domain/registers/cryptoposting"
 )
 
@@ -111,22 +113,22 @@ func (r *CryptoResourceRental) Validate(ctx context.Context) error {
 
 func (r *CryptoResourceRental) GetDocumentType() string { return Definition.Name }
 
-func (r *CryptoResourceRental) GenerateCryptoPlatformCostMovements(context.Context) ([]entity.CryptoPlatformCostMovement, error) {
+func (r *CryptoResourceRental) GenerateCryptoPlatformCostMovements(context.Context) ([]crypto_platform_cost.CryptoPlatformCostMovement, error) {
 	if !r.GrossCostAmount.IsPositive() {
 		return nil, nil
 	}
-	return []entity.CryptoPlatformCostMovement{entity.NewSharedCryptoPlatformCostMovement(
+	return []crypto_platform_cost.CryptoPlatformCostMovement{crypto_platform_cost.NewSharedCryptoPlatformCostMovement(
 		r.ID, r.GetDocumentType(), r.PostedVersion+1, r.Date, entity.RecordTypeExpense,
-		r.NetworkID, r.CostTokenID, entity.PlatformCostTypeChainResourceRent,
-		entity.PlatformCostPurposeResourceRental, r.Provider, r.ExternalSerial, r.GrossCostAmount,
+		r.NetworkID, r.CostTokenID, crypto_platform_cost.PlatformCostTypeChainResourceRent,
+		crypto_platform_cost.PlatformCostPurposeResourceRental, r.Provider, r.ExternalSerial, r.GrossCostAmount,
 	)}, nil
 }
 
-func (r *CryptoResourceRental) GenerateCryptoProviderBalanceMovements(context.Context) ([]entity.CryptoProviderBalanceMovement, error) {
+func (r *CryptoResourceRental) GenerateCryptoProviderBalanceMovements(context.Context) ([]crypto_provider_balance.CryptoProviderBalanceMovement, error) {
 	if !r.GrossCostAmount.IsPositive() {
 		return nil, nil
 	}
-	return []entity.CryptoProviderBalanceMovement{entity.NewCryptoProviderBalanceMovement(
+	return []crypto_provider_balance.CryptoProviderBalanceMovement{crypto_provider_balance.NewCryptoProviderBalanceMovement(
 		r.ID, r.GetDocumentType(), r.PostedVersion+1, r.Date, entity.RecordTypeExpense,
 		r.ProviderAccountID, r.CostTokenID, "rental_charge", r.ExternalSerial, r.GrossCostAmount,
 	)}, nil

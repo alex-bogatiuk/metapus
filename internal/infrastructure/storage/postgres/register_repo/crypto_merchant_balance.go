@@ -8,7 +8,6 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/registers/crypto_merchant_balance"
@@ -27,7 +26,7 @@ var _cryptoMerchantBalanceMovementColumns = []string{
 }
 
 // cryptoMerchantBalanceMovementRowMapper converts a CryptoMerchantBalanceMovement to a flat row.
-func cryptoMerchantBalanceMovementRowMapper(m entity.CryptoMerchantBalanceMovement) []any {
+func cryptoMerchantBalanceMovementRowMapper(m crypto_merchant_balance.CryptoMerchantBalanceMovement) []any {
 	return []any{
 		m.LineID, m.RecorderID, m.RecorderType, m.RecorderVersion,
 		m.Period, m.RecordType,
@@ -37,13 +36,13 @@ func cryptoMerchantBalanceMovementRowMapper(m entity.CryptoMerchantBalanceMoveme
 
 // CryptoMerchantBalanceRepo implements crypto_merchant_balance.Repository.
 type CryptoMerchantBalanceRepo struct {
-	BaseAccumulationRepo[entity.CryptoMerchantBalanceMovement]
+	BaseAccumulationRepo[crypto_merchant_balance.CryptoMerchantBalanceMovement]
 }
 
 // NewCryptoMerchantBalanceRepo creates a new crypto merchant balance register repository.
 func NewCryptoMerchantBalanceRepo() *CryptoMerchantBalanceRepo {
 	return &CryptoMerchantBalanceRepo{
-		BaseAccumulationRepo: NewBaseAccumulationRepo[entity.CryptoMerchantBalanceMovement](
+		BaseAccumulationRepo: NewBaseAccumulationRepo[crypto_merchant_balance.CryptoMerchantBalanceMovement](
 			_cryptoMerchantBalanceMovementsTable,
 			_cryptoMerchantBalanceMovementColumns,
 			cryptoMerchantBalanceMovementRowMapper,
@@ -56,7 +55,7 @@ func (r *CryptoMerchantBalanceRepo) AppendReversalsByRecorder(ctx context.Contex
 }
 
 // GetMovementsByRecorder retrieves movements for a document.
-func (r *CryptoMerchantBalanceRepo) GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]entity.CryptoMerchantBalanceMovement, error) {
+func (r *CryptoMerchantBalanceRepo) GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]crypto_merchant_balance.CryptoMerchantBalanceMovement, error) {
 	q := r.Builder().Select(
 		"line_id", "recorder_id", "recorder_type", "recorder_version",
 		"period", "record_type",
@@ -70,7 +69,7 @@ func (r *CryptoMerchantBalanceRepo) GetMovementsByRecorder(ctx context.Context, 
 		return nil, fmt.Errorf("build query: %w", err)
 	}
 
-	var movements []entity.CryptoMerchantBalanceMovement
+	var movements []crypto_merchant_balance.CryptoMerchantBalanceMovement
 	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	if err := pgxscan.Select(ctx, querier, &movements, sql, args...); err != nil {
 		return nil, fmt.Errorf("select crypto merchant balance movements: %w", err)

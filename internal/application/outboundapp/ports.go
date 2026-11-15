@@ -3,7 +3,6 @@ package outboundapp
 import (
 	"context"
 	"metapus/internal/application/cryptoapp"
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/catalogs/token"
@@ -12,6 +11,7 @@ import (
 	"metapus/internal/domain/documents/crypto_sweep"
 	"metapus/internal/domain/documents/crypto_withdrawal"
 	"metapus/internal/domain/documents/treasury_withdrawal"
+	"metapus/internal/domain/registers/crypto_platform_cost"
 	"time"
 )
 
@@ -81,7 +81,7 @@ type ResourceRequest struct {
 	BasisID                  id.ID
 	RentalBasisType          string
 	RentalBasisID            id.ID
-	Purpose                  entity.PlatformCostPurpose
+	Purpose                  crypto_platform_cost.PlatformCostPurpose
 	NetworkID                id.ID
 	OperationTokenID         id.ID
 	SourceWalletID           id.ID
@@ -120,7 +120,7 @@ type SweepPlatformCostLine struct {
 	OrderID         id.ID
 	NetworkID       id.ID
 	CostTokenID     id.ID
-	CostType        entity.PlatformCostType
+	CostType        crypto_platform_cost.PlatformCostType
 	Provider        string
 	ExternalOrderID string
 	Amount          types.CryptoAmount

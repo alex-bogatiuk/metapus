@@ -11,6 +11,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/crypto_platform_cost"
 	"metapus/internal/domain/registers/cryptoposting"
 )
 
@@ -88,7 +89,7 @@ func TestCryptoCustodyAdjustmentGeneratesOnlyCustodyLossMovements(t *testing.T) 
 	cost := costs[0]
 	if cost.RecordType != entity.RecordTypeExpense || cost.NetworkID != adjustment.NetworkID ||
 		cost.CostTokenID != adjustment.TokenID || !cost.Amount.Equal(adjustment.Amount) ||
-		cost.CostType != entity.PlatformCostTypeCustodyLoss || cost.Purpose != entity.PlatformCostPurposeCustodyLoss {
+		cost.CostType != crypto_platform_cost.PlatformCostTypeCustodyLoss || cost.Purpose != crypto_platform_cost.PlatformCostPurposeCustodyLoss {
 		t.Fatalf("unexpected custody-loss cost movement: %#v", cost)
 	}
 	if _, changesMerchantBalance := any(adjustment).(cryptoposting.CryptoMerchantBalanceMovementSource); changesMerchantBalance {

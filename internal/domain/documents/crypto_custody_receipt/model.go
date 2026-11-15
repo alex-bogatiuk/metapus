@@ -8,6 +8,8 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/crypto_balance"
+	"metapus/internal/domain/registers/crypto_receipt_suspense"
 	"metapus/internal/domain/registers/cryptoposting"
 )
 
@@ -95,18 +97,18 @@ func (*CryptoCustodyReceipt) CanUnpost(context.Context) error {
 	return apperror.NewConflict("custody receipt requires explicit compensation")
 }
 
-func (r *CryptoCustodyReceipt) GenerateCryptoBalanceMovements(context.Context) ([]entity.CryptoBalanceMovement, error) {
-	movement := entity.NewCryptoBalanceMovement(r.ID, DocumentType, r.PostedVersion+1,
+func (r *CryptoCustodyReceipt) GenerateCryptoBalanceMovements(context.Context) ([]crypto_balance.CryptoBalanceMovement, error) {
+	movement := crypto_balance.NewCryptoBalanceMovement(r.ID, DocumentType, r.PostedVersion+1,
 		r.Date, entity.RecordTypeReceipt, r.WalletID, r.TokenID, r.Amount)
 	movement.LineID = r.CustodyLineID
-	return []entity.CryptoBalanceMovement{movement}, nil
+	return []crypto_balance.CryptoBalanceMovement{movement}, nil
 }
 
-func (r *CryptoCustodyReceipt) GenerateCryptoReceiptSuspenseMovements(context.Context) ([]entity.CryptoReceiptSuspenseMovement, error) {
-	movement := entity.NewCryptoReceiptSuspenseMovement(r.ID, DocumentType, r.PostedVersion+1,
+func (r *CryptoCustodyReceipt) GenerateCryptoReceiptSuspenseMovements(context.Context) ([]crypto_receipt_suspense.CryptoReceiptSuspenseMovement, error) {
+	movement := crypto_receipt_suspense.NewCryptoReceiptSuspenseMovement(r.ID, DocumentType, r.PostedVersion+1,
 		r.Date, entity.RecordTypeReceipt, r.ID, r.TokenID, r.Amount)
 	movement.LineID = r.SuspenseLineID
-	return []entity.CryptoReceiptSuspenseMovement{movement}, nil
+	return []crypto_receipt_suspense.CryptoReceiptSuspenseMovement{movement}, nil
 }
 
 var _ posting.Postable = (*CryptoCustodyReceipt)(nil)

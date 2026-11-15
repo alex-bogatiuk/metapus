@@ -11,6 +11,8 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/crypto_balance"
+	"metapus/internal/domain/registers/crypto_platform_cost"
 	"metapus/internal/domain/registers/cryptoposting"
 )
 
@@ -147,25 +149,25 @@ func (a *CryptoCustodyAdjustment) CanUnpost(context.Context) error {
 
 func (a *CryptoCustodyAdjustment) MarkUnposted() {}
 
-func (a *CryptoCustodyAdjustment) GenerateCryptoBalanceMovements(context.Context) ([]entity.CryptoBalanceMovement, error) {
-	movement := entity.NewCryptoBalanceMovement(
+func (a *CryptoCustodyAdjustment) GenerateCryptoBalanceMovements(context.Context) ([]crypto_balance.CryptoBalanceMovement, error) {
+	movement := crypto_balance.NewCryptoBalanceMovement(
 		a.ID, a.GetDocumentType(), a.PostedVersion+1, time.Now().UTC(), entity.RecordTypeExpense,
 		a.WalletID, a.TokenID, a.Amount,
 	)
 	movement.LineID = a.PrincipalLineID()
 	movement.Period = a.RecognitionPeriod
-	return []entity.CryptoBalanceMovement{movement}, nil
+	return []crypto_balance.CryptoBalanceMovement{movement}, nil
 }
 
-func (a *CryptoCustodyAdjustment) GenerateCryptoPlatformCostMovements(context.Context) ([]entity.CryptoPlatformCostMovement, error) {
-	movement := entity.NewCryptoPlatformCostMovement(
+func (a *CryptoCustodyAdjustment) GenerateCryptoPlatformCostMovements(context.Context) ([]crypto_platform_cost.CryptoPlatformCostMovement, error) {
+	movement := crypto_platform_cost.NewCryptoPlatformCostMovement(
 		a.ID, a.GetDocumentType(), a.PostedVersion+1, time.Now().UTC(), entity.RecordTypeExpense,
-		a.NetworkID, a.TokenID, a.TokenID, entity.PlatformCostTypeCustodyLoss,
-		entity.PlatformCostPurposeCustodyLoss, "custody", a.ExternalOutflowID.String(), a.Amount,
+		a.NetworkID, a.TokenID, a.TokenID, crypto_platform_cost.PlatformCostTypeCustodyLoss,
+		crypto_platform_cost.PlatformCostPurposeCustodyLoss, "custody", a.ExternalOutflowID.String(), a.Amount,
 	)
 	movement.LineID = uuid.NewSHA1(a.ID, []byte("custody-loss-cost"))
 	movement.Period = a.RecognitionPeriod
-	return []entity.CryptoPlatformCostMovement{movement}, nil
+	return []crypto_platform_cost.CryptoPlatformCostMovement{movement}, nil
 }
 
 func (a *CryptoCustodyAdjustment) PrincipalLineID() id.ID {

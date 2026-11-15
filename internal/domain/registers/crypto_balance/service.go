@@ -17,19 +17,19 @@ import (
 
 // Repository defines storage operations for crypto balance movements.
 type Repository interface {
-	CreateMovements(ctx context.Context, movements []entity.CryptoBalanceMovement) error
+	CreateMovements(ctx context.Context, movements []CryptoBalanceMovement) error
 	AppendReversalsByRecorder(ctx context.Context, recorderID id.ID, beforeVersion int) error
-	GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]entity.CryptoBalanceMovement, error)
+	GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]CryptoBalanceMovement, error)
 	GetBalancesForUpdate(ctx context.Context, keys []BalanceKey) ([]BalanceEntry, error)
 }
 
 // ResourceLocker is implemented by transactional storage adapters. The complete
 // old/new wallet set must precede balance validation and reversal allocation.
 type ResourceLocker interface {
-	LockPostingResources(context.Context, id.ID, []entity.CryptoBalanceMovement) error
+	LockPostingResources(context.Context, id.ID, []CryptoBalanceMovement) error
 }
 
-func (s *Service) LockPostingResources(ctx context.Context, recorderID id.ID, movements []entity.CryptoBalanceMovement) error {
+func (s *Service) LockPostingResources(ctx context.Context, recorderID id.ID, movements []CryptoBalanceMovement) error {
 	if locker, ok := s.repo.(ResourceLocker); ok {
 		if err := locker.LockPostingResources(ctx, recorderID, movements); err != nil {
 			return fmt.Errorf("lock crypto posting resources: %w", err)
@@ -69,7 +69,7 @@ func NewService(repo Repository) *Service {
 }
 
 // RecordMovements records crypto balance movements from a document posting.
-func (s *Service) RecordMovements(ctx context.Context, movements []entity.CryptoBalanceMovement) error {
+func (s *Service) RecordMovements(ctx context.Context, movements []CryptoBalanceMovement) error {
 	if len(movements) == 0 {
 		return nil
 	}

@@ -11,7 +11,6 @@ import (
 
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/apperror"
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/posting"
@@ -150,11 +149,11 @@ func TestCustodyLossV2IncompleteFinancialSetRollsBack(t *testing.T) {
 			f := newCustodyLossFixture(t, "")
 			f.engine.PrepareMovementsInTransaction(func(ctx context.Context, _ posting.Postable, set *posting.MovementSet) error {
 				if component == "principal" {
-					set.SetExtension("crypto_balance", []entity.CryptoBalanceMovement{})
+					set.SetExtension("crypto_balance", []crypto_balance.CryptoBalanceMovement{})
 					return nil
 				}
 				if component == "cost" {
-					set.SetExtension("crypto_platform_cost", []entity.CryptoPlatformCostMovement{})
+					set.SetExtension("crypto_platform_cost", []crypto_platform_cost.CryptoPlatformCostMovement{})
 					return nil
 				}
 				if component == "outbox" {

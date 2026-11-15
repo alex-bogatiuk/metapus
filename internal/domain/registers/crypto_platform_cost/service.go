@@ -12,9 +12,9 @@ import (
 
 // Repository defines storage operations for platform cost movements.
 type Repository interface {
-	CreateMovements(ctx context.Context, movements []entity.CryptoPlatformCostMovement) error
+	CreateMovements(ctx context.Context, movements []CryptoPlatformCostMovement) error
 	AppendReversalsByRecorder(ctx context.Context, recorderID id.ID, beforeVersion int) error
-	GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]entity.CryptoPlatformCostMovement, error)
+	GetMovementsByRecorder(ctx context.Context, recorderID id.ID) ([]CryptoPlatformCostMovement, error)
 }
 
 // Service provides business operations for the crypto platform cost register.
@@ -28,7 +28,7 @@ func NewService(repo Repository) *Service {
 }
 
 // RecordMovements records platform cost movements from a document posting.
-func (s *Service) RecordMovements(ctx context.Context, movements []entity.CryptoPlatformCostMovement) error {
+func (s *Service) RecordMovements(ctx context.Context, movements []CryptoPlatformCostMovement) error {
 	if len(movements) == 0 {
 		return nil
 	}

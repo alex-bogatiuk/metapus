@@ -10,17 +10,17 @@ import (
 )
 
 type Repository interface {
-	CreateMovements(context.Context, []entity.CryptoReceiptSuspenseMovement) error
-	GetMovementsByRecorder(context.Context, id.ID) ([]entity.CryptoReceiptSuspenseMovement, error)
+	CreateMovements(context.Context, []CryptoReceiptSuspenseMovement) error
+	GetMovementsByRecorder(context.Context, id.ID) ([]CryptoReceiptSuspenseMovement, error)
 	// ListRecorderMovements returns every line of one recorder for display.
-	ListRecorderMovements(context.Context, id.ID) ([]entity.CryptoReceiptSuspenseMovement, error)
+	ListRecorderMovements(context.Context, id.ID) ([]CryptoReceiptSuspenseMovement, error)
 }
 
 type Service struct{ repo Repository }
 
 func NewService(repo Repository) *Service { return &Service{repo: repo} }
 
-func (s *Service) RecordMovements(ctx context.Context, movements []entity.CryptoReceiptSuspenseMovement) error {
+func (s *Service) RecordMovements(ctx context.Context, movements []CryptoReceiptSuspenseMovement) error {
 	return s.repo.CreateMovements(ctx, movements)
 }
 

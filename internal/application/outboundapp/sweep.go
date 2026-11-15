@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/core/numerator"
@@ -18,6 +17,7 @@ import (
 	"metapus/internal/domain/documents/crypto_sweep"
 	"metapus/internal/domain/documents/outbound_settlement"
 	"metapus/internal/domain/posting"
+	"metapus/internal/domain/registers/crypto_platform_cost"
 	"metapus/pkg/logger"
 )
 
@@ -360,7 +360,7 @@ func (e *SweepExecutor) BroadcastLine(ctx context.Context, task SweepTask, hotWa
 		resourceRequest := ResourceRequest{
 			TenantID: e.tenantID, BasisType: _sweepLineBasisType, BasisID: task.AttemptID,
 			RentalBasisType: crypto_sweep.DocumentType, RentalBasisID: sweepID,
-			Purpose: entity.PlatformCostPurposeSweep, NetworkID: task.NetworkID,
+			Purpose: crypto_platform_cost.PlatformCostPurposeSweep, NetworkID: task.NetworkID,
 			OperationTokenID: task.TokenID, SourceWalletID: task.WalletID,
 			SourceAddress: task.Address, ContractAddress: task.ContractAddress,
 			DestinationAddress: hotWallet.Address, Amount: intent.Amount,

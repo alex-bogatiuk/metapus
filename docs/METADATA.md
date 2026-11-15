@@ -620,7 +620,7 @@ SQL-часть с ключом `lines` объявлена в `crypto_sweep.Defin
 |---|---|---|---|
 | Сеть | `NetworkID` / `networkId` | Ссылка → Блокчейн-сети | — |
 | Токен расхода | `CostTokenID` / `costTokenId` | Ссылка → Токены | — |
-| Вид расхода | `CostType` / `costType` | Перечисление `entity.PlatformCostType` | — |
+| Вид расхода | `CostType` / `costType` | Перечисление `crypto_platform_cost.PlatformCostType` | — |
 | Провайдер | `Provider` / `provider` | Строка | — |
 | Внешний заказ | `ExternalOrderID` / `externalOrderId` | Строка | — |
 | Сумма | `Amount` / `amount` | Криптосумма | — |
@@ -666,7 +666,7 @@ SQL-часть с ключом `lines` объявлена в `crypto_sweep.Defin
 |---|---|---|---|
 | Мерчант | `MerchantID` / `merchantId` | Ссылка → Мерчанты | — |
 | Токен | `TokenID` / `tokenId` | Ссылка → Токены | — |
-| Вид комиссии | `FeeType` / `feeType` | Перечисление `entity.FeeType` | — |
+| Вид комиссии | `FeeType` / `feeType` | Перечисление `crypto_fee.FeeType` | — |
 | Сумма | `Amount` / `amount` | Криптосумма | — |
 
 ### Сетевая криптооперация — `crypto_network_operation`
@@ -871,7 +871,7 @@ SQL-часть с ключом `lines` объявлена в `crypto_sweep.Defin
 
 ## Регистры накопления
 
-Измерения задают разрез учёта, ресурс хранит сумму, реквизиты дополняют движение. Встроенные типы движений находятся в [register.go](../internal/core/entity/register.go) и [crypto_register.go](../internal/core/entity/crypto_register.go).
+Измерения задают разрез учёта, ресурс хранит сумму, реквизиты дополняют движение. Общая основа движений (`MovementBase`, `RecordType`) находится в [register.go](../internal/core/entity/register.go). Типы движений криптовых регистров лежат рядом с регистрами конфигурации, в `movement.go` каждого пакета [internal/domain/registers/crypto_*](../internal/domain/registers/).
 
 | Регистр | Измерения | Ресурс | Дополнительные реквизиты | Таблицы |
 |---|---|---|---|---|
@@ -932,7 +932,7 @@ SQL-часть с ключом `lines` объявлена в `crypto_sweep.Defin
 |---|---|---|---|
 | Мерчант | `MerchantID` / `merchantId` | Ссылка → Мерчанты | — |
 | Токен | `TokenID` / `tokenId` | Ссылка → Токены | — |
-| Вид комиссии | `FeeType` / `feeType` | Перечисление `entity.FeeType` | — |
+| Вид комиссии | `FeeType` / `feeType` | Перечисление `crypto_fee.FeeType` | — |
 | Сумма | `Amount` / `amount` | Криптосумма | — |
 
 #### `CryptoPlatformCostMovement`
@@ -942,8 +942,8 @@ SQL-часть с ключом `lines` объявлена в `crypto_sweep.Defin
 | Сеть | `NetworkID` / `networkId` | Ссылка → Блокчейн-сети | — |
 | Токен операции | `OperationTokenID` / `operationTokenId` | Ссылка → Токены; допускает null в модели | — |
 | Токен расхода | `CostTokenID` / `costTokenId` | Ссылка → Токены | — |
-| Вид расхода | `CostType` / `costType` | Перечисление `entity.PlatformCostType` | — |
-| Назначение расхода | `Purpose` / `purpose` | Перечисление `entity.PlatformCostPurpose` | — |
+| Вид расхода | `CostType` / `costType` | Перечисление `crypto_platform_cost.PlatformCostType` | — |
+| Назначение расхода | `Purpose` / `purpose` | Перечисление `crypto_platform_cost.PlatformCostPurpose` | — |
 | Провайдер | `Provider` / `provider` | Строка | — |
 | Внешний заказ | `ExternalOrderID` / `externalOrderId` | Строка | — |
 | Сумма | `Amount` / `amount` | Криптосумма | — |
@@ -1130,9 +1130,9 @@ Deferred constraints проверяют полный набор receipt/custody/
 
 | Тип / область | Значения | Источник |
 |---|---|---|
-| `entity.FeeType` | `processing`, `network`, `withdrawal`, `sweep` | [crypto_register.go](../internal/core/entity/crypto_register.go) |
-| `entity.PlatformCostPurpose` | `sweep`, `withdrawal`, `treasury`, `activation`, `resource_rental`, `custody_loss` | [crypto_register.go](../internal/core/entity/crypto_register.go) |
-| `entity.PlatformCostType` | `chain_resource_rent`, `chain_network_fee`, `custody_loss` | [crypto_register.go](../internal/core/entity/crypto_register.go) |
+| `crypto_fee.FeeType` | `processing`, `network`, `withdrawal`, `sweep` | [movement.go](../internal/domain/registers/crypto_fee/movement.go) |
+| `crypto_platform_cost.PlatformCostPurpose` | `sweep`, `withdrawal`, `treasury`, `activation`, `resource_rental`, `custody_loss` | [movement.go](../internal/domain/registers/crypto_platform_cost/movement.go) |
+| `crypto_platform_cost.PlatformCostType` | `chain_resource_rent`, `chain_network_fee`, `custody_loss` | [movement.go](../internal/domain/registers/crypto_platform_cost/movement.go) |
 | `entity.RecordType` | `receipt`, `expense` | [register.go](../internal/core/entity/register.go) |
 | `contract.ContractType` | `supply`, `sale`, `other` | [model.go](../internal/domain/catalogs/contract/model.go) |
 | `counterparty.CounterpartyType` | `customer`, `supplier`, `both`, `other` | [model.go](../internal/domain/catalogs/counterparty/model.go) |

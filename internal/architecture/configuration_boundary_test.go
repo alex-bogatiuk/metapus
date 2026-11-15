@@ -197,6 +197,9 @@ var knownConfigurationLeaks = map[string][]string{
 		"metapus/internal/domain/registers/crypto_balance",
 		"metapus/internal/domain/registers/crypto_fee",
 		"metapus/internal/domain/registers/crypto_merchant_balance",
+		"metapus/internal/domain/registers/crypto_platform_cost",
+		"metapus/internal/domain/registers/crypto_provider_balance",
+		"metapus/internal/domain/registers/crypto_receipt_suspense",
 	},
 }
 

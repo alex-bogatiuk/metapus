@@ -18,7 +18,7 @@ import (
 // crypto merchant balance register movements (e.g., CryptoPayment, CryptoWithdrawal).
 // Receipt = platform owes more, Expense = debt reduced (withdrawal).
 type CryptoMerchantBalanceMovementSource interface {
-	GenerateCryptoMerchantBalanceMovements(ctx context.Context) ([]entity.CryptoMerchantBalanceMovement, error)
+	GenerateCryptoMerchantBalanceMovements(ctx context.Context) ([]crypto_merchant_balance.CryptoMerchantBalanceMovement, error)
 }
 
 const _cryptoMerchantBalanceExtKey = "crypto_merchant_balance"
@@ -66,7 +66,7 @@ func (r *CryptoMerchantBalanceRecorder) RecordFromSet(ctx context.Context, set *
 		return nil
 	}
 
-	movements, ok := raw.([]entity.CryptoMerchantBalanceMovement)
+	movements, ok := raw.([]crypto_merchant_balance.CryptoMerchantBalanceMovement)
 	if !ok || len(movements) == 0 {
 		return nil
 	}
@@ -86,7 +86,7 @@ func (r *CryptoMerchantBalanceRecorder) ValidateBeforePost(ctx context.Context, 
 		return nil
 	}
 
-	movements, ok := raw.([]entity.CryptoMerchantBalanceMovement)
+	movements, ok := raw.([]crypto_merchant_balance.CryptoMerchantBalanceMovement)
 	if !ok {
 		return nil
 	}
@@ -99,7 +99,7 @@ func (r *CryptoMerchantBalanceRecorder) ValidateBeforePost(ctx context.Context, 
 func validateMerchantBalance(
 	svc *crypto_merchant_balance.Service,
 	ctx context.Context,
-	movements []entity.CryptoMerchantBalanceMovement,
+	movements []crypto_merchant_balance.CryptoMerchantBalanceMovement,
 ) error {
 	type dimKey struct {
 		merchantID, tokenID id.ID
