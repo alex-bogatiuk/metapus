@@ -1,6 +1,6 @@
 //go:build integration
 
-package auth_repo
+package portal_repo
 
 import (
 	"context"

@@ -22,6 +22,7 @@ import (
 	"metapus/internal/core/json"
 	"metapus/internal/core/security"
 	"metapus/internal/domain/auth"
+	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/catalogs/wallet"
 	domaincrypto "metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_invoice"
@@ -153,7 +154,7 @@ func main() {
 	authStateCache := auth.NewAuthStateCache(getEnvDuration("AUTH_STATE_CACHE_TTL", 5*time.Minute), getEnvInt("AUTH_STATE_CACHE_MAX_ENTRIES", 10000))
 	accessValidator := auth.NewAccessTokenValidator(jwtSvc, sessionRepo, authStateCache)
 
-	// MerchantUserRepo is needed by auth.Service to embed portal claims in JWT.
+	// MerchantUserRepo feeds merchant portal access scopes into auth.Service JWTs.
 	// Created early so it can be shared with RouterConfig below.
 	merchantUserRepo := catalog_repo.NewMerchantUserRepo()
 
@@ -166,13 +167,13 @@ func main() {
 		mfaRepo,
 		sessionRepo,
 		authStateCache,
-		merchantUserRepo,
 		nil, // TxManager will come from context
 		jwtSvc,
 		eventLogRepo,
 		notificationRepo,
 		authConfig,
 		auth.WithQRCodeEncoder(authqr.Encoder{}),
+		auth.WithAccessScopeProvider(merchant.NewPortalAccessScopes(merchantUserRepo)),
 	)
 
 	// --- Numerator Service ---

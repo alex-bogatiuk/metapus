@@ -10,9 +10,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
-	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
+	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
@@ -49,7 +49,7 @@ func TestSummaryKeepsDifferentAssetsSeparateAndSharesCountInvoices(t *testing.T)
 			require.NoError(t, err)
 			totals[tokenID.String()] = amount
 		}
-		ctx = appctx.WithMerchantScope(ctx, appctx.MerchantScope{MerchantIDs: []id.ID{merchantID}})
+		ctx = merchant.WithPortalScope(ctx, merchant.PortalScope{MerchantIDs: []id.ID{merchantID}})
 		repo := NewDashboardRepo()
 		summary, err := repo.GetSummary(ctx, &merchantID)
 		require.NoError(t, err)

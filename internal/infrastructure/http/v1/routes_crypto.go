@@ -12,7 +12,6 @@ import (
 	"metapus/internal/application/exchangerateapp"
 	"metapus/internal/application/integrationapp"
 	"metapus/internal/application/portalapp"
-	appctx "metapus/internal/core/context"
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/tenant"
 	"metapus/internal/domain/catalogs/merchant"
@@ -27,11 +26,11 @@ import (
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/auth_repo"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/dashboard_repo"
 	"metapus/internal/infrastructure/storage/postgres/money_movement_repo"
+	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
 )
 
@@ -97,7 +96,7 @@ func registerCryptoNetworkRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 // These routes are completely isolated from the JWT-authenticated /api/v1/ group.
 func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 	moneyMovementApprovals := money_movement_repo.New()
-	networkPolicyRepo := auth_repo.NewMerchantNetworkPolicyRepo()
+	networkPolicyRepo := portal_repo.NewMerchantNetworkPolicyRepo()
 	if cfg.MerchantAPIKeyRepo == nil {
 		return
 	}
@@ -303,7 +302,7 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 			portalV1.GET("/invoices", portalHandler.ListInvoices)
 			portalV1.GET("/invoices/export", portalHandler.ExportInvoicesCSV)
 			portalV1.POST("/invoices",
-				middleware.RequirePortalRole(appctx.PortalRoleManager),
+				middleware.RequirePortalRole(merchant.PortalRoleManager),
 				portalHandler.CreateInvoice,
 			)
 			portalV1.GET("/invoices/:id", portalHandler.GetInvoiceDetail) // MUST be after /invoices/export (Gin static-before-param rule)
@@ -317,12 +316,12 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 			{
 				addrs.GET("", portalHandler.ListWhitelistedAddresses)
 				addrs.POST("",
-					middleware.RequirePortalRole(appctx.PortalRoleOwner),
+					middleware.RequirePortalRole(merchant.PortalRoleOwner),
 					requireStepUp("portal.withdrawal_addresses.add"),
 					portalHandler.AddWhitelistedAddress,
 				)
 				addrs.DELETE("/:id",
-					middleware.RequirePortalRole(appctx.PortalRoleOwner),
+					middleware.RequirePortalRole(merchant.PortalRoleOwner),
 					requireStepUp("portal.withdrawal_addresses.remove"),
 					portalHandler.RemoveWhitelistedAddress,
 				)
@@ -332,12 +331,12 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 			{
 				wreqs.GET("", portalHandler.ListWithdrawalRequests)
 				wreqs.POST("",
-					middleware.RequirePortalRole(appctx.PortalRoleManager),
+					middleware.RequirePortalRole(merchant.PortalRoleManager),
 					requireStepUp("portal.withdrawal_requests.create"),
 					portalHandler.CreateWithdrawalRequest,
 				)
 				wreqs.POST("/:id/reject",
-					middleware.RequirePortalRole(appctx.PortalRoleManager),
+					middleware.RequirePortalRole(merchant.PortalRoleManager),
 					requireStepUp("portal.withdrawal_requests.reject"),
 					portalHandler.RejectWithdrawalRequest,
 				)
@@ -350,19 +349,19 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 				registryHandler := handlers.NewPortalWebhookRegistryHandler(merchantWebhookHandler)
 				endpoints := portalV1.Group("/webhook-endpoints")
 				{
-					endpoints.GET("", middleware.RequirePortalRole(appctx.PortalRoleManager), registryHandler.ListEndpoints)
-					endpoints.POST("", middleware.RequirePortalRole(appctx.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.create"), registryHandler.CreateEndpoint)
-					endpoints.GET("/:id", middleware.RequirePortalRole(appctx.PortalRoleManager), registryHandler.GetEndpoint)
-					endpoints.PATCH("/:id", middleware.RequirePortalRole(appctx.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.update"), registryHandler.UpdateEndpoint)
-					endpoints.DELETE("/:id", middleware.RequirePortalRole(appctx.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.delete"), registryHandler.DeleteEndpoint)
-					endpoints.POST("/:id/rotate-secret", middleware.RequirePortalRole(appctx.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.rotate"), registryHandler.RotateSecret)
-					endpoints.POST("/:id/test", middleware.RequirePortalRole(appctx.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.test"), registryHandler.TestEndpoint)
+					endpoints.GET("", middleware.RequirePortalRole(merchant.PortalRoleManager), registryHandler.ListEndpoints)
+					endpoints.POST("", middleware.RequirePortalRole(merchant.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.create"), registryHandler.CreateEndpoint)
+					endpoints.GET("/:id", middleware.RequirePortalRole(merchant.PortalRoleManager), registryHandler.GetEndpoint)
+					endpoints.PATCH("/:id", middleware.RequirePortalRole(merchant.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.update"), registryHandler.UpdateEndpoint)
+					endpoints.DELETE("/:id", middleware.RequirePortalRole(merchant.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.delete"), registryHandler.DeleteEndpoint)
+					endpoints.POST("/:id/rotate-secret", middleware.RequirePortalRole(merchant.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.rotate"), registryHandler.RotateSecret)
+					endpoints.POST("/:id/test", middleware.RequirePortalRole(merchant.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.test"), registryHandler.TestEndpoint)
 				}
 				events := portalV1.Group("/events")
 				{
-					events.GET("", middleware.RequirePortalRole(appctx.PortalRoleManager), registryHandler.ListEvents)
-					events.GET("/:id/deliveries", middleware.RequirePortalRole(appctx.PortalRoleManager), registryHandler.ListEventDeliveries)
-					events.POST("/:id/redeliver", middleware.RequirePortalRole(appctx.PortalRoleOwner), requireStepUp("portal.webhook_events.redeliver"), registryHandler.RedeliverEvent)
+					events.GET("", middleware.RequirePortalRole(merchant.PortalRoleManager), registryHandler.ListEvents)
+					events.GET("/:id/deliveries", middleware.RequirePortalRole(merchant.PortalRoleManager), registryHandler.ListEventDeliveries)
+					events.POST("/:id/redeliver", middleware.RequirePortalRole(merchant.PortalRoleOwner), requireStepUp("portal.webhook_events.redeliver"), registryHandler.RedeliverEvent)
 				}
 			}
 
@@ -372,7 +371,7 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 			if cfg.MerchantAPIKeyRepo != nil {
 				keys := portalV1.Group("/api-keys")
 				{
-					keys.Use(middleware.RequirePortalRole(appctx.PortalRoleOwner))
+					keys.Use(middleware.RequirePortalRole(merchant.PortalRoleOwner))
 					keys.GET("", portalHandler.ListAPIKeys)
 					keys.POST("", requireStepUp("portal.api_keys.create"), portalHandler.CreateAPIKey)
 					keys.DELETE("/:keyId", requireStepUp("portal.api_keys.delete"), portalHandler.RevokeAPIKey)
@@ -386,7 +385,7 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 
 			policyHandler := handlers.NewMerchantNetworkPolicyHandler(networkPolicyRepo, cfg.MFARepo, false)
 			policies := portalV1.Group("/security/network-policies")
-			policies.Use(middleware.RequirePortalRole(appctx.PortalRoleOwner))
+			policies.Use(middleware.RequirePortalRole(merchant.PortalRoleOwner))
 			{
 				policies.GET("/:surface", policyHandler.Get)
 				policies.PUT("/:surface", policyHandler.SetMode)
@@ -396,7 +395,7 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 
 			// ── Payment Links ────────────────────────────────────────────
 			links := portalV1.Group("/payment-links")
-			links.Use(middleware.RequirePortalRole(appctx.PortalRoleManager))
+			links.Use(middleware.RequirePortalRole(merchant.PortalRoleManager))
 			{
 				links.GET("", portalHandler.ListPaymentLinks)
 				links.POST("", portalHandler.CreatePaymentLink)
@@ -406,9 +405,9 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 			depositAddrs := portalV1.Group("/deposit-addresses")
 			{
 				depositAddrs.GET("", portalHandler.ListDepositAddresses)
-				depositAddrs.POST("/:id/rotate", middleware.RequirePortalRole(appctx.PortalRoleManager), portalHandler.RotateDepositAddress)
+				depositAddrs.POST("/:id/rotate", middleware.RequirePortalRole(merchant.PortalRoleManager), portalHandler.RotateDepositAddress)
 				depositAddrs.POST("",
-					middleware.RequirePortalRole(appctx.PortalRoleManager),
+					middleware.RequirePortalRole(merchant.PortalRoleManager),
 					portalHandler.CreateDepositAddress,
 				)
 			}
@@ -416,7 +415,7 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 			// ── Merchant Settings ────────────────────────────────────────
 			portalV1.GET("/settings", portalHandler.GetSettings)
 			portalV1.PATCH("/settings",
-				middleware.RequirePortalRole(appctx.PortalRoleManager),
+				middleware.RequirePortalRole(merchant.PortalRoleManager),
 				requireStepUp("portal.settings.update"),
 				portalHandler.UpdateSettings,
 			)

@@ -11,6 +11,7 @@ import (
 	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
+	"metapus/internal/domain/catalogs/merchant"
 )
 
 func TestRequirePortalRoleUsesSelectedMerchantRole(t *testing.T) {
@@ -19,14 +20,13 @@ func TestRequirePortalRoleUsesSelectedMerchantRole(t *testing.T) {
 	ownerMerchant := id.New()
 	managerMerchant := id.New()
 	user := &appctx.UserContext{
-		UserID:      id.New().String(),
-		MerchantIDs: []string{ownerMerchant.String(), managerMerchant.String()},
-		MerchantRoles: map[string]int{
-			ownerMerchant.String():   int(appctx.PortalRoleOwner),
-			managerMerchant.String(): int(appctx.PortalRoleManager),
-		},
+		UserID: id.New().String(),
+		AccessScopes: appctx.AccessScopes{merchant.AccessScopeKind: {
+			ownerMerchant.String():   int(merchant.PortalRoleOwner),
+			managerMerchant.String(): int(merchant.PortalRoleManager),
+		}},
 	}
-	router := portalRoleTestRouter(user, appctx.PortalRoleOwner)
+	router := portalRoleTestRouter(user, merchant.PortalRoleOwner)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/protected?merchant_id="+managerMerchant.String(), nil)
@@ -44,13 +44,12 @@ func TestRequirePortalRoleRequiresExplicitMerchantID(t *testing.T) {
 
 	merchantID := id.New()
 	user := &appctx.UserContext{
-		UserID:      id.New().String(),
-		MerchantIDs: []string{merchantID.String()},
-		MerchantRoles: map[string]int{
-			merchantID.String(): int(appctx.PortalRoleOwner),
-		},
+		UserID: id.New().String(),
+		AccessScopes: appctx.AccessScopes{merchant.AccessScopeKind: {
+			merchantID.String(): int(merchant.PortalRoleOwner),
+		}},
 	}
-	router := portalRoleTestRouter(user, appctx.PortalRoleOwner)
+	router := portalRoleTestRouter(user, merchant.PortalRoleOwner)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/protected", nil)
@@ -64,13 +63,12 @@ func TestRequirePortalRoleRejectsMerchantOutsideScope(t *testing.T) {
 	ownerMerchant := id.New()
 	otherMerchant := id.New()
 	user := &appctx.UserContext{
-		UserID:      id.New().String(),
-		MerchantIDs: []string{ownerMerchant.String()},
-		MerchantRoles: map[string]int{
-			ownerMerchant.String(): int(appctx.PortalRoleOwner),
-		},
+		UserID: id.New().String(),
+		AccessScopes: appctx.AccessScopes{merchant.AccessScopeKind: {
+			ownerMerchant.String(): int(merchant.PortalRoleOwner),
+		}},
 	}
-	router := portalRoleTestRouter(user, appctx.PortalRoleOwner)
+	router := portalRoleTestRouter(user, merchant.PortalRoleOwner)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/protected?merchant_id="+otherMerchant.String(), nil)
@@ -78,23 +76,42 @@ func TestRequirePortalRoleRejectsMerchantOutsideScope(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
-func TestMerchantPortalRejectsLegacyGlobalRoleWithoutPerMerchantRoles(t *testing.T) {
+func TestMerchantPortalRejectsUserWithoutMerchantGrants(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	merchantID := id.New()
 	user := &appctx.UserContext{
-		UserID:      id.New().String(),
-		MerchantIDs: []string{merchantID.String()},
+		UserID:       id.New().String(),
+		AccessScopes: appctx.AccessScopes{"other_kind": {merchantID.String(): 1}},
 	}
-	router := portalRoleTestRouter(user, appctx.PortalRoleOwner)
+	router := portalRoleTestRouter(user, merchant.PortalRoleOwner)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/protected?merchant_id="+merchantID.String(), nil)
 	router.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
-func portalRoleTestRouter(user *appctx.UserContext, minRole appctx.MerchantPortalRole) *gin.Engine {
+func TestMerchantPortalSkipsInvalidGrants(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	merchantID := id.New()
+	user := &appctx.UserContext{
+		UserID: id.New().String(),
+		AccessScopes: appctx.AccessScopes{merchant.AccessScopeKind: {
+			"not-a-uuid":        int(merchant.PortalRoleOwner),
+			merchantID.String(): 0,
+		}},
+	}
+	router := portalRoleTestRouter(user, merchant.PortalRoleViewer)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/protected?merchant_id="+merchantID.String(), nil)
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func portalRoleTestRouter(user *appctx.UserContext, minRole merchant.PortalRole) *gin.Engine {
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		c.Next()

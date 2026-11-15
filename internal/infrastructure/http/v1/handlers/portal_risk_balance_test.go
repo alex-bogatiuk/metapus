@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/application/cryptoapp"
-	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
+	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/crypto/aml"
 	"metapus/internal/infrastructure/http/v1/middleware"
 )
@@ -36,7 +36,7 @@ func TestPortalRiskBalanceRequiresAuthorizedExplicitMerchant(t *testing.T) {
 	router := gin.New()
 	router.Use(middleware.ErrorHandler())
 	router.Use(func(c *gin.Context) {
-		c.Request = c.Request.WithContext(appctx.WithMerchantScope(c.Request.Context(), appctx.MerchantScope{MerchantIDs: []id.ID{merchantID}}))
+		c.Request = c.Request.WithContext(merchant.WithPortalScope(c.Request.Context(), merchant.PortalScope{MerchantIDs: []id.ID{merchantID}}))
 		c.Next()
 	})
 	router.GET("/balances/risk", h.GetRiskBalance)

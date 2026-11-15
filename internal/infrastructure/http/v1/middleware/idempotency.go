@@ -16,6 +16,7 @@ import (
 	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/json"
+	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
@@ -252,7 +253,7 @@ func trustedCommandScope(c *gin.Context) (string, string, error) {
 	if merchantContext := GetMerchant(c.Request.Context()); merchantContext != nil {
 		return "merchant", merchantContext.MerchantID.String(), nil
 	}
-	if scope, ok := appctx.GetMerchantScope(c.Request.Context()); ok {
+	if scope, ok := merchant.GetPortalScope(c.Request.Context()); ok {
 		candidate := strings.TrimSpace(c.Query("merchant_id"))
 		if candidate == "" {
 			candidate = strings.TrimSpace(c.Param("merchantId"))

@@ -2,9 +2,12 @@
 package dto
 
 import (
+	"slices"
 	"time"
 
+	appctx "metapus/internal/core/context"
 	"metapus/internal/domain/auth"
+	"metapus/internal/domain/catalogs/merchant"
 )
 
 // --- Request DTOs ---
@@ -155,7 +158,7 @@ func FromUser(u *auth.User) *UserResponse {
 		IsAdmin:        u.IsAdmin,
 		EmailVerified:  u.EmailVerified,
 		Roles:          roles,
-		MerchantIDs:    u.MerchantIDs,
+		MerchantIDs:    merchantIDsFromScopes(u.AccessScopes),
 		MFAEnabled:     u.MFAEnabled,
 		MFAPending:     u.MFAPending,
 		MFARequired:    u.MFARequired,
@@ -300,4 +303,18 @@ type StepUpRequest struct {
 
 type StepUpResponse struct {
 	ExpiresAt time.Time `json:"expiresAt"`
+}
+
+// merchantIDsFromScopes lists merchant grants for the portal guard in a stable order.
+func merchantIDsFromScopes(scopes appctx.AccessScopes) []string {
+	grants := scopes.Grants(merchant.AccessScopeKind)
+	if len(grants) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(grants))
+	for merchantID := range grants {
+		ids = append(ids, merchantID)
+	}
+	slices.Sort(ids)
+	return ids
 }

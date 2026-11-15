@@ -17,7 +17,6 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/tx"
-	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/eventlog"
 	"metapus/internal/domain/notifications"
 	"metapus/pkg/logger"
@@ -71,13 +70,14 @@ type Service struct {
 	mfaRepo          MFARepository
 	authStateRepo    AuthStateRepository
 	authStateCache   *AuthStateCache
-	merchantUserRepo merchant.MerchantUserRepository
 	txManager        tx.Manager
 	jwtService       AccessTokenIssuer
 	eventWriter      eventlog.Writer
 	notificationRepo notifications.Repository
 	config           ServiceConfig
 	qrCodeEncoder    QRCodeEncoder
+
+	accessScopeProviders []AccessScopeProvider
 }
 
 // NewService creates a new auth service.
@@ -89,7 +89,6 @@ func NewService(
 	mfaRepo MFARepository,
 	authStateRepo AuthStateRepository,
 	authStateCache *AuthStateCache,
-	merchantUserRepo merchant.MerchantUserRepository,
 	txManager tx.Manager,
 	jwtService AccessTokenIssuer,
 	eventWriter eventlog.Writer,
@@ -105,7 +104,6 @@ func NewService(
 		mfaRepo:          mfaRepo,
 		authStateRepo:    authStateRepo,
 		authStateCache:   authStateCache,
-		merchantUserRepo: merchantUserRepo,
 		txManager:        txManager,
 		jwtService:       jwtService,
 		eventWriter:      eventWriter,
@@ -122,6 +120,45 @@ type ServiceOption func(*Service)
 
 func WithQRCodeEncoder(encoder QRCodeEncoder) ServiceOption {
 	return func(s *Service) { s.qrCodeEncoder = encoder }
+}
+
+// AccessScopeProvider supplies one kind of object-level grants that a
+// configuration embeds in access tokens (for example, merchant portal access).
+type AccessScopeProvider interface {
+	AccessScopeKind() string
+	AccessGrants(ctx context.Context, userID id.ID) (map[string]int, error)
+}
+
+// WithAccessScopeProvider registers a configuration's access scope provider.
+func WithAccessScopeProvider(provider AccessScopeProvider) ServiceOption {
+	return func(s *Service) {
+		if provider != nil {
+			s.accessScopeProviders = append(s.accessScopeProviders, provider)
+		}
+	}
+}
+
+// loadAccessScopes collects configuration grants for access token claims.
+// Best-effort: a failing provider is logged and its kind is left out.
+func (s *Service) loadAccessScopes(ctx context.Context, userID id.ID) appctx.AccessScopes {
+	var scopes appctx.AccessScopes
+	for _, provider := range s.accessScopeProviders {
+		kind := provider.AccessScopeKind()
+		grants, err := provider.AccessGrants(ctx, userID)
+		if err != nil {
+			logger.Warn(ctx, "failed to load access scope for JWT",
+				"user_id", userID, "scope_kind", kind, "error", err)
+			continue
+		}
+		if len(grants) == 0 {
+			continue
+		}
+		if scopes == nil {
+			scopes = make(appctx.AccessScopes, len(s.accessScopeProviders))
+		}
+		scopes[kind] = grants
+	}
+	return scopes
 }
 
 func (s *Service) getTxManager(ctx context.Context) (tx.Manager, error) {
@@ -998,28 +1035,9 @@ func (s *Service) generateTokenPair(ctx context.Context, user *User, info Sessio
 		roleCodes[i] = r.Code
 	}
 
-	// Load merchant associations for portal JWT claims.
-	// Best-effort: if merchantUserRepo is nil or query fails, skip portal claims.
-	var merchantIDs []string
-	var merchantRoles map[string]int
-	if s.merchantUserRepo != nil {
-		assocs, err := s.merchantUserRepo.ListByUser(ctx, user.ID)
-		if err != nil {
-			logger.Warn(ctx, "failed to load merchant associations for JWT",
-				"user_id", user.ID, "error", err)
-		} else if len(assocs) > 0 {
-			merchantIDs = make([]string, 0, len(assocs))
-			merchantRoles = make(map[string]int, len(assocs))
-			for _, a := range assocs {
-				merchantID := a.MerchantID.String()
-				merchantIDs = append(merchantIDs, merchantID)
-				merchantRoles[merchantID] = int(a.Role)
-			}
-		}
-	}
-
-	// Set portal claims on user for DTO serialization.
-	user.MerchantIDs = merchantIDs
+	// Configuration grants travel in the access token and back to the client.
+	accessScopes := s.loadAccessScopes(ctx, user.ID)
+	user.AccessScopes = accessScopes
 
 	userAuthVersion := normalizeAuthVersion(user.AuthVersion)
 	policyVersion, err := s.authStateRepo.GetCurrentPolicyVersion(ctx)
@@ -1090,7 +1108,7 @@ func (s *Service) generateTokenPair(ctx context.Context, user *User, info Sessio
 		user.ID.String(), tenantID, sessionID.String(), user.Email,
 		userAuthVersion, policyVersion,
 		roleCodes, user.Permissions, user.IsAdmin,
-		merchantIDs, merchantRoles,
+		accessScopes,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("generate access token: %w", err)

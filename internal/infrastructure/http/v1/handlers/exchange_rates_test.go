@@ -7,10 +7,10 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"metapus/internal/application/exchangerateapp"
-	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/core/types"
+	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/crypto"
 	er "metapus/internal/domain/registers/exchange_rate"
 	"metapus/internal/infrastructure/http/v1/middleware"
@@ -49,8 +49,8 @@ func TestPortalValuationContractScopeAndDatabaseErrors(t *testing.T) {
 	f := &valuationFixture{cfg: er.Configuration{BaseCurrency: usd, Source: &source, SourceActive: true}, candidate: er.Candidate{Currency: currency, Mapping: &er.Mapping{IsActive: true, Version: 1}, Quote: quote}}
 	snapshot := func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }
 	h := &PortalHandler{repo: portal_repo.NewDashboardRepo(), balanceCalc: exchangerateapp.NewValuationService(f, er.NewService(f), snapshot)}
-	merchant := id.New()
-	ctx := appctx.WithMerchantScope(context.Background(), appctx.MerchantScope{MerchantIDs: []id.ID{merchant}, Roles: map[id.ID]appctx.MerchantPortalRole{merchant: appctx.PortalRoleOwner}})
+	merchantID := id.New()
+	ctx := merchant.WithPortalScope(context.Background(), merchant.PortalScope{MerchantIDs: []id.ID{merchantID}, Roles: map[id.ID]merchant.PortalRole{merchantID: merchant.PortalRoleOwner}})
 	router := gin.New()
 	router.Use(middleware.ErrorHandler())
 	router.Use(func(c *gin.Context) { c.Request = c.Request.WithContext(ctx); c.Next() })

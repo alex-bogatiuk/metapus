@@ -19,8 +19,33 @@ type UserContext struct {
 	MFAVerifiedAt *time.Time
 	MFAMethod     string
 	MFAPending    bool
-	MerchantIDs   []string       // UUID strings; empty = no portal access
-	MerchantRoles map[string]int // merchant UUID string -> 1=Owner 2=Manager 3=Viewer
+	AccessScopes  AccessScopes
+}
+
+// AccessScopes holds object-level grants that a configuration attaches to a
+// session: scope kind -> object ID -> access level. The platform carries them
+// opaquely; the configuration that owns a kind defines what its levels mean.
+type AccessScopes map[string]map[string]int
+
+// Grants returns the grants for one scope kind, or nil when there are none.
+func (s AccessScopes) Grants(kind string) map[string]int {
+	return s[kind]
+}
+
+// Clone returns a deep copy so callers cannot mutate a verified session scope.
+func (s AccessScopes) Clone() AccessScopes {
+	if s == nil {
+		return nil
+	}
+	out := make(AccessScopes, len(s))
+	for kind, grants := range s {
+		copied := make(map[string]int, len(grants))
+		for objectID, level := range grants {
+			copied[objectID] = level
+		}
+		out[kind] = copied
+	}
+	return out
 }
 
 type userContextKey struct{}

@@ -52,14 +52,14 @@ func MerchantNetworkAccess(repo merchant.NetworkPolicyRepository, surface mercha
 		}
 		clientIP, err := netip.ParseAddr(c.ClientIP())
 		if err != nil {
-			_ = c.Error(apperror.NewMerchantNetworkDenied("invalid client IP"))
+			_ = c.Error(merchant.NewNetworkDenied("invalid client IP"))
 			c.Abort()
 			return
 		}
 		clientIP = clientIP.Unmap()
 		policies, err := loadMerchantPolicies(c, repo, merchantID, surface, apiKeyID)
 		if err != nil {
-			_ = c.Error(apperror.NewMerchantNetworkDenied("network policy is unavailable").WithCause(err))
+			_ = c.Error(merchant.NewNetworkDenied("network policy is unavailable").WithCause(err))
 			c.Abort()
 			return
 		}
@@ -71,13 +71,13 @@ func MerchantNetworkAccess(repo merchant.NetworkPolicyRepository, surface mercha
 			}
 		}
 		if err := repo.RecordNetworkDecision(c.Request.Context(), merchantID, policyID, actorType, actorID, decision, clientIP); err != nil {
-			_ = c.Error(apperror.NewMerchantNetworkDenied("network policy audit is unavailable").WithCause(err))
+			_ = c.Error(merchant.NewNetworkDenied("network policy audit is unavailable").WithCause(err))
 			c.Abort()
 			return
 		}
 		switch decision {
 		case merchant.NetworkAccessDeny:
-			_ = c.Error(apperror.NewMerchantNetworkDenied("client IP is outside the merchant allowlist"))
+			_ = c.Error(merchant.NewNetworkDenied("client IP is outside the merchant allowlist"))
 			c.Abort()
 			return
 		case merchant.NetworkAccessWarn:
@@ -97,7 +97,7 @@ func merchantNetworkIdentity(c *gin.Context, surface merchant.NetworkSurface) (i
 		keyID := mc.KeyID
 		return mc.MerchantID, &keyID, "api_key", keyID.String(), true, nil
 	}
-	scope, ok := appctx.GetMerchantScope(c.Request.Context())
+	scope, ok := merchant.GetPortalScope(c.Request.Context())
 	if !ok {
 		return id.Nil(), nil, "", "", false, apperror.NewUnauthorized("merchant scope missing")
 	}
@@ -109,7 +109,7 @@ func merchantNetworkIdentity(c *gin.Context, surface merchant.NetworkSurface) (i
 		return id.Nil(), nil, "", "", false, nil
 	}
 	merchantID, err := id.Parse(raw)
-	if err != nil || !scope.AllowsFor(merchantID, appctx.PortalRoleViewer) {
+	if err != nil || !scope.AllowsFor(merchantID, merchant.PortalRoleViewer) {
 		return id.Nil(), nil, "", "", false, apperror.NewForbidden("merchant network scope is not allowed")
 	}
 	user := appctx.GetUser(c.Request.Context())

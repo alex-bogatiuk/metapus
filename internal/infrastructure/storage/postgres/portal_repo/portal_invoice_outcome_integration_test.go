@@ -12,9 +12,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
+	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo/receipttest"
@@ -97,13 +97,13 @@ func TestPortalInvoiceOutcomeLedgerAndScope(t *testing.T) {
    VALUES($1,$2,'invoice.underpaid','https://example.test/hook','event',$3,204,0)`, invoiceID, merchantID, id.New().String())
 			require.NoError(t, err)
 		}
-		scope := func(role appctx.MerchantPortalRole) context.Context {
+		scope := func(role merchant.PortalRole) context.Context {
 			other := id.New()
-			return appctx.WithMerchantScope(txCtx, appctx.MerchantScope{MerchantIDs: []id.ID{merchantID, other}, Roles: map[id.ID]appctx.MerchantPortalRole{merchantID: role, other: appctx.PortalRoleManager}})
+			return merchant.WithPortalScope(txCtx, merchant.PortalScope{MerchantIDs: []id.ID{merchantID, other}, Roles: map[id.ID]merchant.PortalRole{merchantID: role, other: merchant.PortalRoleManager}})
 		}
 		repo := NewDashboardRepo()
 		read := func(net, fee, reversed string) {
-			detail, err := repo.GetInvoiceDetail(scope(appctx.PortalRoleOwner), invoiceID, &merchantID)
+			detail, err := repo.GetInvoiceDetail(scope(merchant.PortalRoleOwner), invoiceID, &merchantID)
 			require.NoError(t, err)
 			require.Equal(t, "known", detail.FinancialSummary.Ledger.Status)
 			require.Equal(t, net, *detail.FinancialSummary.Ledger.CreditedNetAmount)
@@ -132,22 +132,22 @@ func TestPortalInvoiceOutcomeLedgerAndScope(t *testing.T) {
 		_, err = q.Exec(txCtx, `UPDATE doc_crypto_payments SET posted=TRUE,posted_version=2,canonicality='canonical',status='settled' WHERE id=$1`, paymentID)
 		require.NoError(t, err)
 		read("900", "100", "900")
-		viewer, err := repo.GetInvoiceDetail(scope(appctx.PortalRoleViewer), invoiceID, nil)
+		viewer, err := repo.GetInvoiceDetail(scope(merchant.PortalRoleViewer), invoiceID, nil)
 		require.NoError(t, err)
 		require.False(t, viewer.CanViewWebhooks)
 		require.Empty(t, viewer.WebhookDeliveries)
 		require.Zero(t, viewer.WebhookDeliveryTotal)
-		_, err = repo.GetInvoiceDetail(scope(appctx.PortalRoleOwner), id.New(), &merchantID)
+		_, err = repo.GetInvoiceDetail(scope(merchant.PortalRoleOwner), id.New(), &merchantID)
 		var appErr *apperror.AppError
 		require.ErrorAs(t, err, &appErr)
 		require.Equal(t, apperror.CodeNotFound, appErr.Code)
 		foreign := id.New()
-		foreignCtx := appctx.WithMerchantScope(txCtx, appctx.MerchantScope{MerchantIDs: []id.ID{foreign}, Roles: map[id.ID]appctx.MerchantPortalRole{foreign: appctx.PortalRoleOwner}})
+		foreignCtx := merchant.WithPortalScope(txCtx, merchant.PortalScope{MerchantIDs: []id.ID{foreign}, Roles: map[id.ID]merchant.PortalRole{foreign: merchant.PortalRoleOwner}})
 		_, err = repo.GetInvoiceDetail(foreignCtx, invoiceID, nil)
 		require.ErrorAs(t, err, &appErr)
 		require.Equal(t, apperror.CodeNotFound, appErr.Code)
 		insertPayment(id.New(), "1000", "0", true, 1)
-		inconsistent, err := repo.GetInvoiceDetail(scope(appctx.PortalRoleOwner), invoiceID, &merchantID)
+		inconsistent, err := repo.GetInvoiceDetail(scope(merchant.PortalRoleOwner), invoiceID, &merchantID)
 		require.NoError(t, err)
 		require.Equal(t, "inconsistent", inconsistent.FinancialSummary.Ledger.Status)
 		require.Nil(t, inconsistent.FinancialSummary.Ledger.CreditedNetAmount)

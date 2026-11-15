@@ -116,6 +116,9 @@ func (v *AccessTokenValidator) ValidateToken(ctx context.Context, tokenString st
 	if claims.UserAuthVersion != state.UserAuthVersion || claims.PolicyVersion != state.PolicyVersion {
 		return nil, apperror.NewTokenStale()
 	}
+	if claims.FormatVersion != ClaimsFormatVersion {
+		return nil, apperror.NewTokenStale()
+	}
 
 	return &appctx.UserContext{
 		UserID:        claims.UserID,
@@ -128,7 +131,6 @@ func (v *AccessTokenValidator) ValidateToken(ctx context.Context, tokenString st
 		MFAVerifiedAt: state.MFAVerifiedAt,
 		MFAMethod:     state.MFAMethod,
 		MFAPending:    state.MFAPending,
-		MerchantIDs:   claims.MerchantIDs,
-		MerchantRoles: claims.MerchantRoles,
+		AccessScopes:  claims.AccessScopes,
 	}, nil
 }

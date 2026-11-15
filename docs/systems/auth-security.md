@@ -134,7 +134,9 @@ Audit/security journal — `sys_event_log`, category `security`, event types
 
 ### 1.3 Роли мерчантов в портале
 
-Access token для портала хранит список доступных мерчантов в `mids` и роли по каждому мерчанту в `mrs` (`merchant_id -> role`, где `1=Owner`, `2=Manager`, `3=Viewer`). Агрегированная роль вида `portalRole`/`prl` не выпускается, потому что она не имеет корректного смысла при доступе к нескольким мерчантам. Middleware `MerchantPortal` строит scope из `mids/mrs`, а `RequirePortalRole` проверяет роль именно для `merchant_id` из текущего запроса.
+Платформа не знает о мерчантах. Access token несёт обобщённые права доступа конфигурации в claim `scp` (`вид -> id объекта -> уровень`); их собирают провайдеры, зарегистрированные через `auth.WithAccessScopeProvider`. Криптоконфигурация регистрирует `merchant.NewPortalAccessScopes`, который кладёт в `scp.merchant` роли по каждому мерчанту (`merchant_id -> role`, где `1=Owner`, `2=Manager`, `3=Viewer`). Агрегированная роль вида `portalRole`/`prl` не выпускается, потому что она не имеет корректного смысла при доступе к нескольким мерчантам. Middleware `MerchantPortal` строит `merchant.PortalScope` из `scp.merchant`, а `RequirePortalRole` проверяет роль именно для `merchant_id` из текущего запроса.
+
+Формат claims версионируется полем `fv` (`auth.ClaimsFormatVersion`). Токен другой версии, включая прежний формат с `mids`/`mrs`, получает `TOKEN_STALE`, и клиент прозрачно обновляет его через refresh.
 
 Для endpoint-ов, защищённых `RequirePortalRole`, `merchant_id` обязателен. Если `merchant_id` отсутствует, запрос отклоняется до handler-а; система не использует fallback вида "у пользователя есть нужная роль в каком-то другом мерчанте". Это инвариант для write/sensitive операций портала.
 
@@ -143,9 +145,9 @@ Access token для портала хранит список доступных 
 - API-ключи: только Owner.
 - Просмотр и ротация webhook-secret: только Owner.
 - Инвойсы, выводы, платёжные ссылки, тест webhook и редактируемые настройки: Manager или Owner.
-- Read-only данные портала остаются ограничены списком мерчантов из `mids`.
+- Read-only данные портала остаются ограничены списком мерчантов из `scp.merchant`.
 
-При добавлении, удалении или изменении роли доступа к мерчанту увеличивается `auth_users.auth_version`, поэтому старые токены с устаревшим `mrs` получают `TOKEN_STALE` и обновляются перед следующим portal-запросом.
+При добавлении, удалении или изменении роли доступа к мерчанту увеличивается `auth_users.auth_version`, поэтому старые токены с устаревшим `scp.merchant` получают `TOKEN_STALE` и обновляются перед следующим portal-запросом.
 
 ## 2. RBAC (Role-Based Access Control)
 

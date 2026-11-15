@@ -39,7 +39,6 @@ func newMFATestService(userRepo *fakeUserRepo, mfaRepo *fakeMFARepo, authStateRe
 		mfaRepo,
 		authStateRepo,
 		nil,
-		nil,
 		testTxManager{},
 		fakeAccessTokens{},
 		nil,
@@ -714,7 +713,7 @@ func (r *fakeAuthStateRepo) BumpPolicyVersion(ctx context.Context) (int64, error
 // These tests exercise enrollment and session policy independently of token/PNG formats.
 type fakeAccessTokens struct{}
 
-func (fakeAccessTokens) GenerateAccessToken(string, string, string, string, int64, int64, []string, []string, bool, []string, map[string]int) (string, time.Time, error) {
+func (fakeAccessTokens) GenerateAccessToken(string, string, string, string, int64, int64, []string, []string, bool, appctx.AccessScopes) (string, time.Time, error) {
 	return "test-access-token", time.Now().Add(time.Minute), nil
 }
 

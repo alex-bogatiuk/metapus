@@ -68,7 +68,7 @@ func TestListUsersUsesFourQueriesAndPropagatesMFAReadErrors(t *testing.T) {
 	txm := postgres.NewTxManagerFromRawPool(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 	u, m := NewUserRepo(), NewMFARepo()
-	service := auth.NewService(u, nil, nil, nil, m, nil, nil, nil, txm, nil, nil, nil, auth.ServiceConfig{AdminMFAMode: auth.MFAModeRequired})
+	service := auth.NewService(u, nil, nil, nil, m, nil, nil, txm, nil, nil, nil, auth.ServiceConfig{AdminMFAMode: auth.MFAModeRequired})
 	for _, limit := range []int{1, 100} {
 		queries.count.Store(0)
 		users, total, err := service.ListUsers(ctx, auth.UserFilter{Limit: limit})

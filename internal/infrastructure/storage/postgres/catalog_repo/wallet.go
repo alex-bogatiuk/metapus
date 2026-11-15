@@ -135,7 +135,7 @@ func (r *WalletRepo) LeaseForInvoice(
 			return err
 		}
 		if active >= policy.MaxActiveInvoiceLeases {
-			return apperror.NewMerchantWalletLeaseLimitExceeded(networkID.String(), retryAfter)
+			return wallet.NewMerchantWalletLeaseLimitExceeded(networkID.String(), retryAfter)
 		}
 
 		ready, err := r.countReadyForAllocation(ctx, merchantID, networkID, policy.CustodyEnforced)
@@ -151,7 +151,7 @@ func (r *WalletRepo) LeaseForInvoice(
 			return err
 		}
 		if rateRetryAfter > 0 {
-			return apperror.NewMerchantWalletLeaseLimitExceeded(networkID.String(), rateRetryAfter)
+			return wallet.NewMerchantWalletLeaseLimitExceeded(networkID.String(), rateRetryAfter)
 		}
 
 		leased, err = r.leaseReadyWallet(ctx, merchantID, invoiceID, networkID, leasedUntil, policy.RetryAfterSeconds, policy.CustodyEnforced)
@@ -524,7 +524,7 @@ func (r *WalletRepo) AssignPersistentAddress(ctx context.Context, merchantID, ne
 			return fmt.Errorf("count persistent merchant wallets: %w", err)
 		}
 		if persistentCount >= policy.MaxPersistentAddresses {
-			return apperror.NewMerchantPersistentAddressLimitExceeded(networkID.String())
+			return wallet.NewMerchantPersistentAddressLimitExceeded(networkID.String())
 		}
 
 		ready, err := r.countReadyForAllocation(ctx, merchantID, networkID, policy.CustodyEnforced)
@@ -540,7 +540,7 @@ func (r *WalletRepo) AssignPersistentAddress(ctx context.Context, merchantID, ne
 			return err
 		}
 		if retryAfter > 0 {
-			return apperror.NewMerchantWalletLeaseLimitExceeded(networkID.String(), retryAfter)
+			return wallet.NewMerchantWalletLeaseLimitExceeded(networkID.String(), retryAfter)
 		}
 		assigned, err = r.assignReadyPersistentWallet(ctx, merchantID, networkID, customerID, policy.RetryAfterSeconds, policy.CustodyEnforced, false)
 		return err

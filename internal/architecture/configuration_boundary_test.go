@@ -79,9 +79,6 @@ var knownConfigurationLeaks = map[string][]string{
 	"metapus/internal/application/exchangerateapp": {
 		"metapus/internal/domain/crypto",
 	},
-	"metapus/internal/domain/auth": {
-		"metapus/internal/domain/catalogs/merchant",
-	},
 	"metapus/internal/infrastructure/http/contracts": {
 		"metapus/internal/application/cryptoapp",
 		"metapus/internal/content",
@@ -166,9 +163,6 @@ var knownConfigurationLeaks = map[string][]string{
 		"metapus/internal/application/checkout",
 		"metapus/internal/domain/crypto",
 		"metapus/internal/domain/documents/crypto_network_operation",
-	},
-	"metapus/internal/infrastructure/storage/postgres/auth_repo": {
-		"metapus/internal/domain/catalogs/merchant",
 	},
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo": {
 		"metapus/internal/domain/catalogs/blockchain_network",

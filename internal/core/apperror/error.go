@@ -53,8 +53,6 @@ const (
 
 	// Capacity and admission errors (422, 429, 503)
 	CodeWalletPoolExhausted                    = "WALLET_POOL_EXHAUSTED"
-	CodeMerchantWalletLeaseLimitExceeded       = "MERCHANT_WALLET_LEASE_LIMIT_EXCEEDED"
-	CodeMerchantPersistentAddressLimitExceeded = "MERCHANT_PERSISTENT_ADDRESS_LIMIT_EXCEEDED"
 	CodeCryptoNetworkUnavailable               = "CRYPTO_NETWORK_UNAVAILABLE"
 )
 
@@ -153,37 +151,6 @@ func NewWalletPoolExhausted(networkID any, retryAfter ...int) *AppError {
 			"resource":          "wallet_pool",
 			"networkId":         networkID,
 			"retryAfterSeconds": seconds,
-		},
-	}
-}
-
-// NewMerchantWalletLeaseLimitExceeded creates a retryable merchant-scoped
-// admission error. It intentionally omits quota counters from public details.
-func NewMerchantWalletLeaseLimitExceeded(networkID any, retryAfter int) *AppError {
-	if retryAfter <= 0 {
-		retryAfter = 30
-	}
-	return &AppError{
-		Code:       CodeMerchantWalletLeaseLimitExceeded,
-		Message:    "Лимит новых платежных адресов временно исчерпан. Повторите позже.",
-		HTTPStatus: http.StatusTooManyRequests,
-		Details: map[string]any{
-			"resource":          "wallet_lease",
-			"networkId":         networkID,
-			"retryAfterSeconds": retryAfter,
-		},
-	}
-}
-
-// NewMerchantPersistentAddressLimitExceeded reports a durable merchant quota.
-func NewMerchantPersistentAddressLimitExceeded(networkID any) *AppError {
-	return &AppError{
-		Code:       CodeMerchantPersistentAddressLimitExceeded,
-		Message:    "Достигнут лимит постоянных платежных адресов. Обратитесь в поддержку.",
-		HTTPStatus: http.StatusUnprocessableEntity,
-		Details: map[string]any{
-			"resource":  "persistent_wallet",
-			"networkId": networkID,
 		},
 	}
 }
@@ -369,10 +336,6 @@ func NewIdempotencyKeyRequired() *AppError {
 		Message:    "Idempotency-Key is required for this operation.",
 		HTTPStatus: http.StatusBadRequest,
 	}
-}
-
-func NewMerchantNetworkDenied(message string) *AppError {
-	return &AppError{Code: "MERCHANT_NETWORK_DENIED", Message: message, HTTPStatus: http.StatusForbidden}
 }
 
 // NewPeriodClosed creates error when trying to modify closed period

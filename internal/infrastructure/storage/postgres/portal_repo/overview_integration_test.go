@@ -12,9 +12,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
-	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
+	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
@@ -84,7 +84,7 @@ func TestOverviewReceiptsAndPendingUseCanonicalPayments(t *testing.T) {
 				p.status, p.canonicality, p.posted, today.AddDate(0, 0, -p.daysAgo).Add(12*time.Hour))
 			require.NoError(t, e)
 		}
-		scoped := appctx.WithMerchantScope(txCtx, appctx.MerchantScope{MerchantIDs: []id.ID{merchantID}})
+		scoped := merchant.WithPortalScope(txCtx, merchant.PortalScope{MerchantIDs: []id.ID{merchantID}})
 		repo := NewDashboardRepo()
 		for _, period := range []struct {
 			name string

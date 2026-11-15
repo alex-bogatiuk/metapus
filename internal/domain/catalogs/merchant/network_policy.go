@@ -2,11 +2,21 @@ package merchant
 
 import (
 	"context"
+	"net/http"
 	"net/netip"
 	"time"
 
+	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 )
+
+// CodeNetworkDenied rejects a request from outside a merchant network allowlist.
+const CodeNetworkDenied = "MERCHANT_NETWORK_DENIED"
+
+// NewNetworkDenied creates the merchant network allowlist rejection.
+func NewNetworkDenied(message string) *apperror.AppError {
+	return &apperror.AppError{Code: CodeNetworkDenied, Message: message, HTTPStatus: http.StatusForbidden}
+}
 
 type NetworkSurface string
 type NetworkPolicyMode string

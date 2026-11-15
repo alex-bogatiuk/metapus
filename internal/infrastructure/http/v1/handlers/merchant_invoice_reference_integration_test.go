@@ -22,7 +22,6 @@ import (
 
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/core/tenant"
@@ -163,7 +162,7 @@ func TestInvoiceReferenceHTTPReplaySecurityAndReconciliation(t *testing.T) {
 	router := gin.New()
 	router.Use(mw.ErrorHandler(), func(c *gin.Context) {
 		ctx := mw.WithMerchant(f.ctx, &mw.MerchantContext{MerchantID: currentMerchant, KeyID: f.keyID, Scopes: scopes})
-		ctx = appctx.WithMerchantScope(ctx, appctx.MerchantScope{MerchantIDs: []id.ID{currentMerchant}, Roles: map[id.ID]appctx.MerchantPortalRole{currentMerchant: appctx.PortalRoleOwner}})
+		ctx = merchant.WithPortalScope(ctx, merchant.PortalScope{MerchantIDs: []id.ID{currentMerchant}, Roles: map[id.ID]merchant.PortalRole{currentMerchant: merchant.PortalRoleOwner}})
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	})
@@ -326,7 +325,7 @@ func TestInvoiceReferenceFormulaExportPreservesLiteralReference(t *testing.T) {
 }
 
 func (f *referenceFixture) ctxWithPortal() context.Context {
-	return appctx.WithMerchantScope(f.ctx, appctx.MerchantScope{MerchantIDs: []id.ID{f.merchantID}, Roles: map[id.ID]appctx.MerchantPortalRole{f.merchantID: appctx.PortalRoleOwner}})
+	return merchant.WithPortalScope(f.ctx, merchant.PortalScope{MerchantIDs: []id.ID{f.merchantID}, Roles: map[id.ID]merchant.PortalRole{f.merchantID: merchant.PortalRoleOwner}})
 }
 
 func TestInvoiceReferenceExternalOnlyHTTPAndSystemClassification(t *testing.T) {

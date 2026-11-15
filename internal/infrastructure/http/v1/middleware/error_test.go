@@ -11,6 +11,7 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/json"
+	"metapus/internal/domain/catalogs/wallet"
 )
 
 func TestErrorHandlerSerializesWrappedWalletPoolExhausted(t *testing.T) {
@@ -64,7 +65,7 @@ func TestErrorHandlerAddsRetryAfterForMerchantLeaseLimit(t *testing.T) {
 	router := gin.New()
 	router.Use(ErrorHandler())
 	router.GET("/fail", func(c *gin.Context) {
-		_ = c.Error(apperror.NewMerchantWalletLeaseLimitExceeded("network-123", 17))
+		_ = c.Error(wallet.NewMerchantWalletLeaseLimitExceeded("network-123", 17))
 		c.Abort()
 	})
 

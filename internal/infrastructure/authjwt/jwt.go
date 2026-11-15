@@ -48,8 +48,7 @@ func (s *JWTService) GenerateAccessToken(
 	userAuthVersion, policyVersion int64,
 	roles, permissions []string,
 	isAdmin bool,
-	merchantIDs []string,
-	merchantRoles map[string]int,
+	accessScopes appctx.AccessScopes,
 ) (string, time.Time, error) {
 	now := time.Now()
 	expiresAt := now.Add(s.config.AccessTokenTTL)
@@ -71,8 +70,8 @@ func (s *JWTService) GenerateAccessToken(
 			Roles:           roles,
 			Permissions:     permissions,
 			IsAdmin:         isAdmin,
-			MerchantIDs:     merchantIDs,
-			MerchantRoles:   merchantRoles,
+			AccessScopes:    accessScopes,
+			FormatVersion:   auth.ClaimsFormatVersion,
 		},
 	}
 
@@ -117,6 +116,9 @@ func (s *JWTService) ValidateToken(tokenString string) (*appctx.UserContext, err
 	if err != nil {
 		return nil, err
 	}
+	if claims.FormatVersion != auth.ClaimsFormatVersion {
+		return nil, fmt.Errorf("unsupported token claims format %d", claims.FormatVersion)
+	}
 
 	return &appctx.UserContext{
 		UserID:        claims.UserID,
@@ -129,7 +131,6 @@ func (s *JWTService) ValidateToken(tokenString string) (*appctx.UserContext, err
 		MFAVerifiedAt: nil,
 		MFAMethod:     "",
 		MFAPending:    false,
-		MerchantIDs:   claims.MerchantIDs,
-		MerchantRoles: claims.MerchantRoles,
+		AccessScopes:  claims.AccessScopes,
 	}, nil
 }

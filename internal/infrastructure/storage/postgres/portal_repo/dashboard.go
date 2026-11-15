@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"metapus/internal/application/portalapp"
-	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
+	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
 )
@@ -41,7 +41,7 @@ func (r *DashboardRepo) ScopeIDs(ctx context.Context, activeMerchantID *id.ID) [
 // returns only that one ID when it belongs to the scope and no IDs otherwise.
 // If activeMerchantID is nil, returns all scoped merchant IDs.
 func scopeIDs(ctx context.Context, activeMerchantID *id.ID) []id.ID {
-	scope := appctx.MustGetMerchantScope(ctx)
+	scope := merchant.MustGetPortalScope(ctx)
 	if activeMerchantID != nil {
 		if slices.Contains(scope.MerchantIDs, *activeMerchantID) {
 			return []id.ID{*activeMerchantID}
@@ -214,7 +214,7 @@ func (r *DashboardRepo) GetChart(ctx context.Context, period string, activeMerch
 
 // ListMerchants returns the merchants available in the scope.
 func (r *DashboardRepo) ListMerchants(ctx context.Context) ([]portalapp.PortalMerchantItem, error) {
-	scope := appctx.MustGetMerchantScope(ctx)
+	scope := merchant.MustGetPortalScope(ctx)
 	q := querier(ctx)
 
 	const sql = `

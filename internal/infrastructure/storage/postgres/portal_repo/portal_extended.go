@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"metapus/internal/application/portalapp"
-	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
+	"metapus/internal/domain/catalogs/merchant"
 )
 
 // ── Conversion Funnel ──────────────────────────────────────────────────────
@@ -199,7 +199,7 @@ type PaymentLinkRow struct {
 // GetMerchantSettings reads self-service settings for a merchant.
 func (r *DashboardRepo) GetMerchantSettings(ctx context.Context, merchantID id.ID) (*portalapp.PortalSettingsResponse, error) {
 	// Verify merchantID is in scope.
-	scope := appctx.MustGetMerchantScope(ctx)
+	scope := merchant.MustGetPortalScope(ctx)
 	inScope := slices.Contains(scope.MerchantIDs, merchantID)
 	if !inScope {
 		return nil, fmt.Errorf("merchant_id not in scope")
@@ -222,7 +222,7 @@ func (r *DashboardRepo) GetMerchantSettings(ctx context.Context, merchantID id.I
 // UpdateMerchantSettings updates self-service settings for a merchant.
 func (r *DashboardRepo) UpdateMerchantSettings(ctx context.Context, merchantID id.ID, req portalapp.UpdatePortalSettingsRequest) error {
 	// Verify scope
-	scope := appctx.MustGetMerchantScope(ctx)
+	scope := merchant.MustGetPortalScope(ctx)
 	inScope := slices.Contains(scope.MerchantIDs, merchantID)
 	if !inScope {
 		return fmt.Errorf("merchant_id not in scope")

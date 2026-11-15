@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
+	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/infrastructure/storage/postgres"
 	"time"
 
@@ -89,7 +89,7 @@ func (r *DashboardRepo) getInvoiceDetailSnapshot(ctx context.Context, invoiceID 
 	item.InvoiceKind = invoiceKind
 	item.ObservedAt = observedAt.Format(time.RFC3339Nano)
 	item.PaymentAcceptanceReason = invoicePaymentAcceptanceReason(item.Status, item.AcceptsPayments, singlePayment, selectedPayment, expiresAt, observedAt)
-	item.CanViewWebhooks = appctx.MustGetMerchantScope(ctx).AllowsFor(merchantID, appctx.PortalRoleManager)
+	item.CanViewWebhooks = merchant.MustGetPortalScope(ctx).AllowsFor(merchantID, merchant.PortalRoleManager)
 
 	payments, err := r.loadInvoicePayments(ctx, []id.ID{invoiceID}, true)
 	if err != nil {

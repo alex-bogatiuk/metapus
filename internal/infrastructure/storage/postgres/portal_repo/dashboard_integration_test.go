@@ -14,9 +14,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
-	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
+	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
@@ -75,9 +75,9 @@ func TestPortalTransactionItemsIncludeExplorerURLTemplate(t *testing.T) {
 			return err
 		}
 
-		scopedCtx := appctx.WithMerchantScope(txCtx, appctx.MerchantScope{
+		scopedCtx := merchant.WithPortalScope(txCtx, merchant.PortalScope{
 			MerchantIDs: []id.ID{merchantID},
-			Roles:       map[id.ID]appctx.MerchantPortalRole{merchantID: appctx.PortalRoleOwner},
+			Roles:       map[id.ID]merchant.PortalRole{merchantID: merchant.PortalRoleOwner},
 		})
 		repo := NewDashboardRepo()
 		invoices, total, err := repo.ListInvoices(scopedCtx, &merchantID, InvoiceFilter{}, 10, 0)
@@ -146,9 +146,9 @@ func TestGetCurrenciesIncludesActiveTokensWithoutInvoiceHistory(t *testing.T) {
 
 	merchantID := id.New()
 	ctx = tenant.WithTxManager(ctx, postgres.NewTxManagerFromRawPool(pool))
-	ctx = appctx.WithMerchantScope(ctx, appctx.MerchantScope{
+	ctx = merchant.WithPortalScope(ctx, merchant.PortalScope{
 		MerchantIDs: []id.ID{merchantID},
-		Roles:       map[id.ID]appctx.MerchantPortalRole{merchantID: appctx.PortalRoleOwner},
+		Roles:       map[id.ID]merchant.PortalRole{merchantID: merchant.PortalRoleOwner},
 	})
 
 	items, err := NewDashboardRepo().GetCurrencies(ctx, &merchantID)

@@ -12,8 +12,8 @@ import (
 
 	"metapus/internal/application/portalapp"
 	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
+	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/crypto/aml"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 )
@@ -31,7 +31,7 @@ func (r *DashboardRepo) ListDepositAddresses(
 	filter DepositAddressFilter,
 	limit, offset int,
 ) ([]portalapp.PortalDepositAddressItem, int, []portalapp.PortalDepositAddressQuotaItem, error) {
-	scope := appctx.MustGetMerchantScope(ctx)
+	scope := merchant.MustGetPortalScope(ctx)
 	if !slices.Contains(scope.MerchantIDs, merchantID) {
 		return nil, 0, nil, apperror.NewForbidden("merchant_id not in scope")
 	}
@@ -264,7 +264,7 @@ func (r *DashboardRepo) GetDepositNetworkMeta(
 	ctx context.Context,
 	merchantID, networkID id.ID,
 ) (string, string, []string, error) {
-	scope := appctx.MustGetMerchantScope(ctx)
+	scope := merchant.MustGetPortalScope(ctx)
 	if !slices.Contains(scope.MerchantIDs, merchantID) {
 		return "", "", nil, apperror.NewForbidden("merchant_id not in scope")
 	}

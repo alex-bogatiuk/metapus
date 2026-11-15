@@ -1,45 +1,44 @@
 package middleware
 
 import (
+	"slices"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 
 	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
+	"metapus/internal/domain/catalogs/merchant"
 )
 
-// MerchantPortal extracts merchantIds and per-merchant roles from the JWT
-// UserContext and injects a MerchantScope into the request context.
-// Analogous to TenantDB middleware: a programming error to call
-// portal endpoints without this middleware in the chain.
+// MerchantPortal extracts merchant grants and per-merchant roles from the
+// JWT UserContext access scopes and injects a merchant.PortalScope into the
+// request context. Analogous to TenantDB middleware: a programming error to
+// call portal endpoints without this middleware in the chain.
 //
 // Returns 403 Forbidden if the user has no merchant associations.
 func MerchantPortal() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user := appctx.GetUser(c.Request.Context())
-		if user == nil || len(user.MerchantIDs) == 0 {
+		var grants map[string]int
+		if user != nil {
+			grants = user.AccessScopes.Grants(merchant.AccessScopeKind)
+		}
+		if len(grants) == 0 {
 			_ = c.Error(apperror.NewForbidden("portal access requires merchant association"))
 			c.Abort()
 			return
 		}
-		if len(user.MerchantRoles) == 0 {
-			_ = c.Error(apperror.NewTokenStale())
-			c.Abort()
-			return
-		}
 
-		ids := make([]id.ID, 0, len(user.MerchantIDs))
-		roles := make(map[id.ID]appctx.MerchantPortalRole, len(user.MerchantIDs))
-		for _, merchantID := range user.MerchantIDs {
+		ids := make([]id.ID, 0, len(grants))
+		roles := make(map[id.ID]merchant.PortalRole, len(grants))
+		for merchantID, roleValue := range grants {
 			parsed, err := id.Parse(merchantID)
 			if err != nil {
 				continue
 			}
-			roleValue, ok := user.MerchantRoles[merchantID]
-			if !ok {
-				continue
-			}
-			role := appctx.MerchantPortalRole(roleValue)
+			role := merchant.PortalRole(roleValue)
 			if !role.IsValid() {
 				continue
 			}
@@ -51,12 +50,13 @@ func MerchantPortal() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+		slices.SortFunc(ids, func(a, b id.ID) int { return strings.Compare(a.String(), b.String()) })
 
-		scope := appctx.MerchantScope{
+		scope := merchant.PortalScope{
 			MerchantIDs: ids,
 			Roles:       roles,
 		}
-		ctx := appctx.WithMerchantScope(c.Request.Context(), scope)
+		ctx := merchant.WithPortalScope(c.Request.Context(), scope)
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	}
@@ -67,9 +67,9 @@ func MerchantPortal() gin.HandlerFunc {
 // request must carry an explicit merchant_id so authorization cannot degrade to
 // "the user has this role somewhere".
 // Role values: 1=Owner < 2=Manager < 3=Viewer (lower = more privilege).
-func RequirePortalRole(min appctx.MerchantPortalRole) gin.HandlerFunc {
+func RequirePortalRole(min merchant.PortalRole) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		scope, ok := appctx.GetMerchantScope(c.Request.Context())
+		scope, ok := merchant.GetPortalScope(c.Request.Context())
 		if !ok {
 			_ = c.Error(apperror.NewForbidden("insufficient portal role"))
 			c.Abort()

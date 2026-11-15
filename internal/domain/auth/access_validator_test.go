@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/core/apperror"
+	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 )
 
@@ -98,4 +99,36 @@ func TestAuthStateCacheRejectsMismatchedIdentity(t *testing.T) {
 		return &AuthSessionState{UserID: id.New(), SessionID: session}, nil
 	})
 	require.Error(t, err)
+}
+
+type activeSessionStore struct {
+	AuthStateRepository
+	state AuthSessionState
+}
+
+func (s activeSessionStore) GetSessionState(context.Context, id.ID, id.ID) (*AuthSessionState, error) {
+	state := s.state
+	return &state, nil
+}
+
+func TestValidateTokenRequiresCurrentClaimsFormat(t *testing.T) {
+	userID, sessionID := id.New(), id.New()
+	store := activeSessionStore{state: AuthSessionState{
+		UserID: userID, SessionID: sessionID, UserAuthVersion: 3, PolicyVersion: 5,
+		UserActive: true, ExpiresAt: time.Now().Add(time.Hour),
+	}}
+	base := Claims{UserID: userID.String(), SessionID: sessionID.String(), TenantID: "tenant-a", UserAuthVersion: 3, PolicyVersion: 5}
+
+	legacy := base
+	_, err := NewAccessTokenValidator(verifiedClaimsStub{legacy}, store, nil).ValidateToken(t.Context(), "legacy-token")
+	appErr, ok := apperror.AsAppError(err)
+	require.True(t, ok)
+	require.Equal(t, apperror.CodeTokenStale, appErr.Code)
+
+	current := base
+	current.FormatVersion = ClaimsFormatVersion
+	current.AccessScopes = appctx.AccessScopes{"merchant": {"m-1": 2}}
+	user, err := NewAccessTokenValidator(verifiedClaimsStub{current}, store, nil).ValidateToken(t.Context(), "current-token")
+	require.NoError(t, err)
+	require.Equal(t, current.AccessScopes, user.AccessScopes)
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"metapus/internal/core/apperror"
+	appctx "metapus/internal/core/context"
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 )
@@ -38,8 +39,8 @@ type User struct {
 	Roles       []Role   `db:"-" json:"roles,omitempty"`
 	Permissions []string `db:"-" json:"permissions,omitempty"`
 
-	// Portal claims — transient, populated by auth.Service during token generation.
-	MerchantIDs []string `db:"-" json:"-"`
+	// Access scopes — transient, populated by auth.Service during token generation.
+	AccessScopes appctx.AccessScopes `db:"-" json:"-"`
 
 	// MFA status — transient, populated by auth.Service for API serialization.
 	MFAEnabled     bool       `db:"-" json:"mfaEnabled"`

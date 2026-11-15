@@ -125,7 +125,7 @@ func (r *WalletRepo) RotatePersistentAddress(ctx context.Context, command wallet
 		return nil, err
 	}
 	if rateRetryAfter > 0 {
-		return nil, apperror.NewMerchantWalletLeaseLimitExceeded(networkID.String(), rateRetryAfter)
+		return nil, wallet.NewMerchantWalletLeaseLimitExceeded(networkID.String(), rateRetryAfter)
 	}
 	// Preserve the customer and custody association. Retired addresses remain
 	// active watch targets; retirement independently forbids allocation/sweep.

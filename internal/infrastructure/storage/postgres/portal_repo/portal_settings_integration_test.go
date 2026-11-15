@@ -11,9 +11,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
+	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/storage/postgres"
 )
@@ -78,7 +78,7 @@ func TestPortalMerchantSettingsPatch(t *testing.T) {
 				if tt.outOfScope {
 					scopeID = id.New()
 				}
-				scopedCtx := appctx.WithMerchantScope(txCtx, appctx.MerchantScope{MerchantIDs: []id.ID{scopeID}})
+				scopedCtx := merchant.WithPortalScope(txCtx, merchant.PortalScope{MerchantIDs: []id.ID{scopeID}})
 				err = repo.UpdateMerchantSettings(scopedCtx, merchantID, tt.give)
 				if tt.wantError != "" {
 					require.EqualError(t, err, tt.wantError)

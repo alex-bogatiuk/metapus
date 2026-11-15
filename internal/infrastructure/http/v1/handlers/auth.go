@@ -389,11 +389,11 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		return
 	}
 
-	// Merchant access is an authenticated session claim. GetUserByID loads the
-	// persisted user record and roles, but does not hydrate portal associations;
-	// preserve the verified JWT scope so /auth/me cannot silently strip portal
-	// access from the frontend after session bootstrap.
-	user.MerchantIDs = append([]string(nil), userCtx.MerchantIDs...)
+	// Access scopes are authenticated session claims. GetUserByID loads the
+	// persisted user record and roles, but does not hydrate configuration
+	// grants; preserve the verified JWT scopes so /auth/me cannot silently strip
+	// portal access from the frontend after session bootstrap.
+	user.AccessScopes = userCtx.AccessScopes.Clone()
 
 	c.JSON(http.StatusOK, dto.FromUser(user))
 }

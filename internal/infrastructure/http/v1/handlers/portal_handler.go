@@ -98,7 +98,7 @@ func parseActiveMerchant(c *gin.Context) (*id.ID, error) {
 	}
 
 	// Verify merchant_id is in scope
-	scope, ok := appctx.GetMerchantScope(c.Request.Context())
+	scope, ok := merchant.GetPortalScope(c.Request.Context())
 	if !ok {
 		return nil, apperror.NewForbidden("merchant scope not available")
 	}

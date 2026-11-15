@@ -17,10 +17,10 @@ import (
 
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/types"
+	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
@@ -146,7 +146,7 @@ func TestDepositRotationAtomicReplayAndPermanentAttribution(t *testing.T) {
 	require.Error(t, err)
 	_, err = f.pool.Exec(f.ctx, `UPDATE reg_crypto_deposit_address_rotations SET reason='aml_high_risk' WHERE id=$1`, result.ID)
 	require.ErrorContains(t, err, "immutable")
-	ctx := appctx.WithMerchantScope(f.ctx, appctx.MerchantScope{MerchantIDs: []id.ID{f.merchant}})
+	ctx := merchant.WithPortalScope(f.ctx, merchant.PortalScope{MerchantIDs: []id.ID{f.merchant}})
 	items, total, quotas, err := portal_repo.NewDashboardRepo().ListDepositAddresses(ctx, f.merchant, portal_repo.DepositAddressFilter{}, 20, 0)
 	require.NoError(t, err)
 	require.Equal(t, 1, total)

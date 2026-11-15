@@ -125,11 +125,11 @@ func merchantNetworkPolicyTestRouter(t *testing.T, merchantID id.ID, repo mercha
 	require.NoError(t, router.SetTrustedProxies(trustedProxies))
 	router.Use(ErrorHandler())
 	router.Use(func(c *gin.Context) {
-		scope := appctx.MerchantScope{
+		scope := merchant.PortalScope{
 			MerchantIDs: []id.ID{merchantID},
-			Roles:       map[id.ID]appctx.MerchantPortalRole{merchantID: appctx.PortalRoleOwner},
+			Roles:       map[id.ID]merchant.PortalRole{merchantID: merchant.PortalRoleOwner},
 		}
-		ctx := appctx.WithMerchantScope(c.Request.Context(), scope)
+		ctx := merchant.WithPortalScope(c.Request.Context(), scope)
 		ctx = appctx.WithUser(ctx, &appctx.UserContext{UserID: id.New().String()})
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
