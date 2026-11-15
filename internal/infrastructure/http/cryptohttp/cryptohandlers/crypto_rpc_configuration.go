@@ -12,7 +12,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/security"
 	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 )
@@ -32,13 +32,13 @@ func (h *CryptoRPCConfigurationHandler) RegisterRoutes(rg *gin.RouterGroup, guar
 	g.PATCH("/:networkId/rpc-configuration", middleware.RequirePermission("catalog:crypto_rpc_endpoint:update"), guard, middleware.CommandIdempotency(true), h.Update)
 }
 
-func rpcConfigurationResponse(ctx context.Context, state integrations.RPCConfiguration) dto.CryptoRPCConfigurationResponse {
+func rpcConfigurationResponse(ctx context.Context, state integrations.RPCConfiguration) cryptodto.CryptoRPCConfigurationResponse {
 	u := appctx.GetUser(ctx)
 	canManage := u != nil && (u.IsAdmin || slices.Contains(u.Permissions, "catalog:crypto_rpc_endpoint:update"))
 	if policy := security.GetFieldPolicy(ctx, "crypto_rpc_endpoint", "write"); policy != nil {
 		canManage = canManage && policy.IsFieldAllowed("priority") && policy.IsFieldAllowed("is_active") && policy.IsFieldAllowed("min_request_interval_ms")
 	}
-	out := dto.CryptoRPCConfigurationResponse{RPCConfiguration: state, CanManage: canManage && state.Source == "database"}
+	out := cryptodto.CryptoRPCConfigurationResponse{RPCConfiguration: state, CanManage: canManage && state.Source == "database"}
 	if state.Source != "database" {
 		out.LockedReason = "rpc_configuration_file"
 	} else if !canManage {
@@ -74,7 +74,7 @@ func (h *CryptoRPCConfigurationHandler) Update(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var req dto.UpdateCryptoRPCConfigurationRequest
+	var req cryptodto.UpdateCryptoRPCConfigurationRequest
 	if !h.BindJSON(c, &req) {
 		return
 	}

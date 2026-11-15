@@ -10,7 +10,7 @@ import (
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 )
@@ -74,7 +74,7 @@ func (h *UnidentifiedReceiptHandler) List(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	response := dto.UnidentifiedReceiptListResponse{Items: make([]dto.UnidentifiedReceiptItem, 0, len(list.Items)), Total: list.Total}
+	response := cryptodto.UnidentifiedReceiptListResponse{Items: make([]cryptodto.UnidentifiedReceiptItem, 0, len(list.Items)), Total: list.Total}
 	for _, row := range list.Items {
 		response.Items = append(response.Items, unidentifiedReceiptItem(row))
 	}
@@ -94,27 +94,27 @@ func (h *UnidentifiedReceiptHandler) Detail(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	response := dto.CustodyReceiptDetailResponse{
+	response := cryptodto.CustodyReceiptDetailResponse{
 		Receipt: unidentifiedReceiptItem(detail.Row),
-		Proof: dto.CustodyReceiptProof{
+		Proof: cryptodto.CustodyReceiptProof{
 			VerificationID: detail.Proof.VerificationID, Original: detail.Proof.Original, TxHash: detail.Proof.TxHash,
 			EventKind: detail.Proof.EventKind, EventIndex: detail.Proof.EventIndex, BlockNumber: detail.Proof.BlockNumber,
 			BlockHash: detail.Proof.BlockHash, Confirmations: detail.Proof.Confirmations, VerifiedAt: detail.Proof.VerifiedAt,
-			Sources: make([]dto.CustodyReceiptProofSource, 0, len(detail.Proof.Sources)),
+			Sources: make([]cryptodto.CustodyReceiptProofSource, 0, len(detail.Proof.Sources)),
 		},
-		Audit: dto.CustodyReceiptAudit{
+		Audit: cryptodto.CustodyReceiptAudit{
 			Status: detail.Audit.Status, LastCheckedAt: detail.Audit.LastCheckedAt, NextCheckAt: detail.Audit.NextCheckAt,
 			Attempts: detail.Audit.Attempts, LastError: detail.Audit.LastError, OrphanedAt: detail.Audit.OrphanedAt,
 			IncidentID: optionalText(detail.Audit.IncidentID),
 		},
-		Attributions: make([]dto.CustodyReceiptAttribution, 0, len(detail.Attributions)),
+		Attributions: make([]cryptodto.CustodyReceiptAttribution, 0, len(detail.Attributions)),
 	}
 	for _, source := range detail.Proof.Sources {
-		response.Proof.Sources = append(response.Proof.Sources, dto.CustodyReceiptProofSource{
+		response.Proof.Sources = append(response.Proof.Sources, cryptodto.CustodyReceiptProofSource{
 			ProviderID: source.ProviderID, TrustGroup: source.TrustGroup, HeadHeight: source.HeadHeight})
 	}
 	for _, a := range detail.Attributions {
-		response.Attributions = append(response.Attributions, dto.CustodyReceiptAttribution{
+		response.Attributions = append(response.Attributions, cryptodto.CustodyReceiptAttribution{
 			DocumentType: a.DocumentType, DocumentID: a.DocumentID, Number: a.Number, Date: a.Date, Status: a.Status,
 			Posted: a.Posted, MerchantID: a.MerchantID, MerchantName: a.MerchantName, Amount: a.Amount,
 			NetAmount: a.NetAmount, ProcessingFee: a.ProcessingFee, Outstanding: a.Outstanding,
@@ -129,7 +129,7 @@ func (h *UnidentifiedReceiptHandler) Prepare(c *gin.Context) {
 		h.base.Error(c, apperror.NewValidation("invalid receipt id"))
 		return
 	}
-	var req dto.PrepareMerchantCreditRequest
+	var req cryptodto.PrepareMerchantCreditRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.base.Error(c, apperror.NewValidation("merchantId is required"))
 		return
@@ -170,8 +170,8 @@ func (h *UnidentifiedReceiptHandler) Reject(c *gin.Context) {
 	h.writeCommandResult(c, result, err)
 }
 
-func (h *UnidentifiedReceiptHandler) decision(c *gin.Context) (id.ID, dto.DecideMerchantCreditRequest, bool) {
-	var req dto.DecideMerchantCreditRequest
+func (h *UnidentifiedReceiptHandler) decision(c *gin.Context) (id.ID, cryptodto.DecideMerchantCreditRequest, bool) {
+	var req cryptodto.DecideMerchantCreditRequest
 	creditID, err := id.Parse(c.Param("id"))
 	if err != nil {
 		h.base.Error(c, apperror.NewValidation("invalid merchant credit id"))
@@ -195,9 +195,9 @@ func (h *UnidentifiedReceiptHandler) WalletFundings(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	response := dto.WalletFundingListResponse{Items: make([]dto.WalletFundingItem, 0, len(list.Items)), Total: list.Total}
+	response := cryptodto.WalletFundingListResponse{Items: make([]cryptodto.WalletFundingItem, 0, len(list.Items)), Total: list.Total}
 	for _, row := range list.Items {
-		response.Items = append(response.Items, dto.WalletFundingItem(row))
+		response.Items = append(response.Items, cryptodto.WalletFundingItem(row))
 	}
 	c.JSON(http.StatusOK, response)
 }
@@ -208,7 +208,7 @@ func (h *UnidentifiedReceiptHandler) PreparePlatformFunding(c *gin.Context) {
 		h.base.Error(c, apperror.NewValidation("invalid receipt id"))
 		return
 	}
-	var req dto.PreparePlatformFundingRequest
+	var req cryptodto.PreparePlatformFundingRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.base.Error(c, apperror.NewValidation("reason is required"))
 		return
@@ -235,8 +235,8 @@ func (h *UnidentifiedReceiptHandler) RejectPlatformFunding(c *gin.Context) {
 	h.writeCommandResult(c, result, err)
 }
 
-func (h *UnidentifiedReceiptHandler) fundingDecision(c *gin.Context) (id.ID, dto.DecidePlatformFundingRequest, bool) {
-	var req dto.DecidePlatformFundingRequest
+func (h *UnidentifiedReceiptHandler) fundingDecision(c *gin.Context) (id.ID, cryptodto.DecidePlatformFundingRequest, bool) {
+	var req cryptodto.DecidePlatformFundingRequest
 	fundingID, err := id.Parse(c.Param("id"))
 	if err != nil {
 		h.base.Error(c, apperror.NewValidation("invalid platform funding id"))
@@ -260,8 +260,8 @@ func (h *UnidentifiedReceiptHandler) writeCommandResult(c *gin.Context, result c
 	h.base.OK(c, result.Result.Payload)
 }
 
-func unidentifiedReceiptItem(row cryptoapp.UnidentifiedReceiptRow) dto.UnidentifiedReceiptItem {
-	item := dto.UnidentifiedReceiptItem{
+func unidentifiedReceiptItem(row cryptoapp.UnidentifiedReceiptRow) cryptodto.UnidentifiedReceiptItem {
+	item := cryptodto.UnidentifiedReceiptItem{
 		ReceiptID: optionalText(row.ReceiptID), InboxEventID: optionalText(row.InboxEventID), Number: row.Number, ReceivedAt: row.ReceivedAt,
 		NetworkID: row.NetworkID, NetworkName: row.NetworkName, TokenID: row.TokenID, TokenSymbol: row.TokenSymbol,
 		DecimalPlaces: row.DecimalPlaces, WalletID: row.WalletID, ToAddress: row.ToAddress, FromAddress: row.FromAddress,
@@ -270,7 +270,7 @@ func unidentifiedReceiptItem(row cryptoapp.UnidentifiedReceiptRow) dto.Unidentif
 		PaymentID: optionalText(row.PaymentID), PaymentNumber: optionalText(row.PaymentNumber), PaymentStatus: optionalText(row.PaymentStatus),
 	}
 	if row.CreditID != nil {
-		item.Credit = &dto.UnidentifiedReceiptCredit{
+		item.Credit = &cryptodto.UnidentifiedReceiptCredit{
 			ID: *row.CreditID, Number: optionalText(row.CreditNumber), Status: optionalText(row.CreditStatus), MerchantID: optionalText(row.CreditMerchantID),
 			MerchantName: optionalText(row.CreditMerchant), NetAmount: optionalText(row.CreditNet), ProcessingFee: optionalText(row.CreditFee),
 			PreparedBy: optionalText(row.CreditPreparedBy), DecidedAt: row.CreditDecidedAt, DecisionReason: optionalText(row.CreditReason),
@@ -283,7 +283,7 @@ func unidentifiedReceiptItem(row cryptoapp.UnidentifiedReceiptRow) dto.Unidentif
 		}
 	}
 	if row.FundingID != nil {
-		item.PlatformFunding = &dto.UnidentifiedReceiptPlatformFunding{
+		item.PlatformFunding = &cryptodto.UnidentifiedReceiptPlatformFunding{
 			ID: *row.FundingID, Number: optionalText(row.FundingNumber), Status: optionalText(row.FundingStatus),
 			Reason: optionalText(row.FundingReason), MerchantName: optionalText(row.FundingMerchant),
 			MerchantLink: optionalText(row.FundingMerchantLink), PreparedBy: optionalText(row.FundingPreparedBy),
@@ -294,12 +294,12 @@ func unidentifiedReceiptItem(row cryptoapp.UnidentifiedReceiptRow) dto.Unidentif
 		}
 	}
 	if row.RefundID != nil {
-		item.Refund = &dto.UnidentifiedReceiptRefund{ID: *row.RefundID, Number: optionalText(row.RefundNumber), Status: optionalText(row.RefundStatus),
+		item.Refund = &cryptodto.UnidentifiedReceiptRefund{ID: *row.RefundID, Number: optionalText(row.RefundNumber), Status: optionalText(row.RefundStatus),
 			Amount: optionalText(row.RefundAmount), Withheld: optionalText(row.RefundWithheld), Destination: optionalText(row.RefundDestination),
 			PreparedBy: optionalText(row.RefundPreparedBy)}
 	}
 	if row.TieMerchantID != nil {
-		item.MerchantTie = &dto.ReceiptMerchantTie{MerchantID: *row.TieMerchantID,
+		item.MerchantTie = &cryptodto.ReceiptMerchantTie{MerchantID: *row.TieMerchantID,
 			MerchantName: optionalText(row.TieMerchantName), Link: optionalText(row.TieLink)}
 	}
 	return item

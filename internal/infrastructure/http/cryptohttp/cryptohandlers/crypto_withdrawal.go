@@ -10,7 +10,7 @@ import (
 	"metapus/internal/domain"
 	"metapus/internal/domain/documents/crypto_withdrawal"
 	"metapus/internal/domain/settings"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/tenantdb"
@@ -18,14 +18,14 @@ import (
 
 // CryptoWithdrawalHandler handles HTTP requests for CryptoWithdrawal documents.
 type CryptoWithdrawalHandler struct {
-	*handlers.BaseDocumentHandler[*crypto_withdrawal.CryptoWithdrawal, dto.CreateCryptoWithdrawalRequest, dto.UpdateCryptoWithdrawalRequest]
+	*handlers.BaseDocumentHandler[*crypto_withdrawal.CryptoWithdrawal, cryptodto.CreateCryptoWithdrawalRequest, cryptodto.UpdateCryptoWithdrawalRequest]
 	relatedDocsHandler *handlers.RelatedDocumentsHandler
 }
 
 func resolveCryptoWithdrawalRefs(ctx context.Context, docs ...*crypto_withdrawal.CryptoWithdrawal) (any, error) {
 	resolver := postgres.NewReferenceResolver()
 	for _, doc := range docs {
-		dto.CollectCryptoWithdrawalRefs(resolver, doc)
+		cryptodto.CollectCryptoWithdrawalRefs(resolver, doc)
 	}
 	pool := tenantdb.MustGetPool(ctx)
 	refs, err := resolver.Resolve(ctx, pool)
@@ -44,23 +44,23 @@ func NewCryptoWithdrawalHandler(
 	movementRefResolver domain.RefResolver,
 	settingsRepo settings.Repository,
 ) *CryptoWithdrawalHandler {
-	cfg := handlers.BaseDocumentHandlerConfig[*crypto_withdrawal.CryptoWithdrawal, dto.CreateCryptoWithdrawalRequest, dto.UpdateCryptoWithdrawalRequest]{
+	cfg := handlers.BaseDocumentHandlerConfig[*crypto_withdrawal.CryptoWithdrawal, cryptodto.CreateCryptoWithdrawalRequest, cryptodto.UpdateCryptoWithdrawalRequest]{
 		Service:    service,
 		EntityName: "crypto_withdrawal",
-		MapCreateDTO: func(req dto.CreateCryptoWithdrawalRequest) (*crypto_withdrawal.CryptoWithdrawal, error) {
+		MapCreateDTO: func(req cryptodto.CreateCryptoWithdrawalRequest) (*crypto_withdrawal.CryptoWithdrawal, error) {
 			return req.ToEntity(), nil
 		},
-		MapUpdateDTO: func(req dto.UpdateCryptoWithdrawalRequest, existing *crypto_withdrawal.CryptoWithdrawal) (*crypto_withdrawal.CryptoWithdrawal, error) {
+		MapUpdateDTO: func(req cryptodto.UpdateCryptoWithdrawalRequest, existing *crypto_withdrawal.CryptoWithdrawal) (*crypto_withdrawal.CryptoWithdrawal, error) {
 			req.ApplyTo(existing)
 			return existing, nil
 		},
 		MapToDTO: func(entity *crypto_withdrawal.CryptoWithdrawal) any {
-			return dto.FromCryptoWithdrawal(entity)
+			return cryptodto.FromCryptoWithdrawal(entity)
 		},
 		ResolveRefs: resolveCryptoWithdrawalRefs,
 		MapToDTOWithRefs: func(entity *crypto_withdrawal.CryptoWithdrawal, refs any) any {
 			resolvedRefs, _ := refs.(postgres.ResolvedRefs)
-			return dto.FromCryptoWithdrawal(entity, resolvedRefs)
+			return cryptodto.FromCryptoWithdrawal(entity, resolvedRefs)
 		},
 		MovementProviders:   movementProviders,
 		MovementRefResolver: movementRefResolver,

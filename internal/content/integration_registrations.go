@@ -3,6 +3,7 @@ package content
 import (
 	"metapus/internal/domain"
 	"metapus/internal/domain/integrations"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/http/v1/handlers"
@@ -79,7 +80,7 @@ func (*IntegrationPoolRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHa
 }
 
 type CryptoRPCEndpointRegistration struct {
-	v1.CatalogRegistrationFor[integrations.RPCEndpoint, dto.CreateCryptoRPCEndpointRequest, dto.UpdateCryptoRPCEndpointRequest, dto.CryptoRPCEndpointResponse]
+	v1.CatalogRegistrationFor[integrations.RPCEndpoint, cryptodto.CreateCryptoRPCEndpointRequest, cryptodto.UpdateCryptoRPCEndpointRequest, cryptodto.CryptoRPCEndpointResponse]
 }
 
 func (*CryptoRPCEndpointRegistration) ReferenceTypes() []string {
@@ -97,8 +98,8 @@ func (*CryptoRPCEndpointRegistration) Build(deps v1.CatalogDeps) v1.CatalogRoute
 	service := integrations.NewRPCEndpointService(repo, deps.Numerator)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	domain.NewEventLogCatalogService(service, integrations.RPCEndpointDefinition.Key, deps.EventWriter)
-	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[*integrations.RPCEndpoint, dto.CreateCryptoRPCEndpointRequest, dto.UpdateCryptoRPCEndpointRequest]{Service: service, EntityName: integrations.RPCEndpointDefinition.Key, MapCreateDTO: func(r dto.CreateCryptoRPCEndpointRequest) *integrations.RPCEndpoint { return r.ToEntity() }, MapUpdateDTO: func(r dto.UpdateCryptoRPCEndpointRequest, e *integrations.RPCEndpoint) *integrations.RPCEndpoint {
+	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[*integrations.RPCEndpoint, cryptodto.CreateCryptoRPCEndpointRequest, cryptodto.UpdateCryptoRPCEndpointRequest]{Service: service, EntityName: integrations.RPCEndpointDefinition.Key, MapCreateDTO: func(r cryptodto.CreateCryptoRPCEndpointRequest) *integrations.RPCEndpoint { return r.ToEntity() }, MapUpdateDTO: func(r cryptodto.UpdateCryptoRPCEndpointRequest, e *integrations.RPCEndpoint) *integrations.RPCEndpoint {
 		r.Apply(e)
 		return e
-	}, MapToDTO: func(e *integrations.RPCEndpoint) any { return dto.CryptoRPCEndpointResponse{RPCEndpoint: *e} }})
+	}, MapToDTO: func(e *integrations.RPCEndpoint) any { return cryptodto.CryptoRPCEndpointResponse{RPCEndpoint: *e} }})
 }

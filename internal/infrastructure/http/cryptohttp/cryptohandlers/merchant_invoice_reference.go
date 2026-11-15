@@ -8,8 +8,8 @@ import (
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware"
-	"metapus/internal/infrastructure/http/v1/dto"
 )
 
 // AuthorizeInvoiceReference must precede CommandIdempotency, including replay.
@@ -47,7 +47,7 @@ func (h *MerchantInvoiceHandler) BindInvoiceReference(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	var req dto.BindMerchantInvoiceReferenceRequest
+	var req cryptodto.BindMerchantInvoiceReferenceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperror.NewInvalidRequest(err))
 		c.Abort()

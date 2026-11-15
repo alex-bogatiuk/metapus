@@ -8,10 +8,10 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 )
 
-func writePortalInvoicesCSV(w io.Writer, items []dto.PortalInvoiceItem) error {
+func writePortalInvoicesCSV(w io.Writer, items []cryptodto.PortalInvoiceItem) error {
 	// BOM preserves the existing Excel UTF-8 import behavior.
 	if _, err := io.WriteString(w, "\xEF\xBB\xBF"); err != nil {
 		return err

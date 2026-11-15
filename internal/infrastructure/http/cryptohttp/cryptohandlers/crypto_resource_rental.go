@@ -12,7 +12,7 @@ import (
 	"metapus/internal/domain"
 	"metapus/internal/domain/documents/crypto_resource_rental"
 	"metapus/internal/domain/settings"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 )
@@ -47,7 +47,7 @@ func (h *CryptoResourceRentalHandler) ListProviderBalanceIncidents(c *gin.Contex
 		h.Error(c, err)
 		return
 	}
-	h.OK(c, dto.ProviderBalanceIncidentsResponse{Items: items})
+	h.OK(c, cryptodto.ProviderBalanceIncidentsResponse{Items: items})
 }
 
 func (h *CryptoResourceRentalHandler) AcknowledgeProviderBalanceIncident(c *gin.Context) {
@@ -74,7 +74,7 @@ func (h *CryptoResourceRentalHandler) GetAllocations(c *gin.Context) {
 		h.Error(c, err)
 		return
 	}
-	h.OK(c, dto.ResourceRentalAllocationsResponse{Items: items})
+	h.OK(c, cryptodto.ResourceRentalAllocationsResponse{Items: items})
 }
 
 func (h *CryptoResourceRentalHandler) Reclaim(c *gin.Context) {
@@ -114,8 +114,8 @@ func NewCryptoResourceRentalHandler(
 ) *CryptoResourceRentalHandler {
 	h := &CryptoResourceRentalHandler{
 		BaseDocumentHandler: handlers.NewReadOnlyDocumentHandler(base, service, crypto_resource_rental.Definition.Key,
-			handlers.ReadOnlyDocumentPresenter[*crypto_resource_rental.CryptoResourceRental, dto.CryptoResourceRentalResponse]{
-				Collect: dto.CollectCryptoResourceRentalRefs, Present: dto.FromCryptoResourceRental,
+			handlers.ReadOnlyDocumentPresenter[*crypto_resource_rental.CryptoResourceRental, cryptodto.CryptoResourceRentalResponse]{
+				Collect: cryptodto.CollectCryptoResourceRentalRefs, Present: cryptodto.FromCryptoResourceRental,
 			},
 			movementProviders, movementRefResolver, settingsRepo),
 		workflow: workflow,

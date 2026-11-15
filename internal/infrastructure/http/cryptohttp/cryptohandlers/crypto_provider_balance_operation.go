@@ -13,7 +13,7 @@ import (
 	"metapus/internal/domain"
 	"metapus/internal/domain/documents/crypto_provider_balance_operation"
 	"metapus/internal/domain/settings"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 )
@@ -27,14 +27,14 @@ type CryptoProviderBalanceOperationHandler struct {
 // NewCryptoProviderBalanceOperationHandler serves the operations read-only;
 // they are prepared, approved and rejected only through the workflow routes.
 func NewCryptoProviderBalanceOperationHandler(base *handlers.BaseHandler, service domain.DocumentService[*crypto_provider_balance_operation.CryptoProviderBalanceOperation], workflow *cryptoapp.ProviderBalanceWorkflowService, movementProviders []entity.MovementProvider, movementRefResolver domain.RefResolver, settingsRepo settings.Repository) *CryptoProviderBalanceOperationHandler {
-	presenter := handlers.ReadOnlyDocumentPresenter[*crypto_provider_balance_operation.CryptoProviderBalanceOperation, dto.CryptoProviderBalanceOperationResponse]{
-		Collect: dto.CollectCryptoProviderBalanceOperationRefs, Present: dto.FromCryptoProviderBalanceOperation,
-		Enrich: func(ctx context.Context, doc *crypto_provider_balance_operation.CryptoProviderBalanceOperation, response dto.CryptoProviderBalanceOperationResponse) (any, error) {
+	presenter := handlers.ReadOnlyDocumentPresenter[*crypto_provider_balance_operation.CryptoProviderBalanceOperation, cryptodto.CryptoProviderBalanceOperationResponse]{
+		Collect: cryptodto.CollectCryptoProviderBalanceOperationRefs, Present: cryptodto.FromCryptoProviderBalanceOperation,
+		Enrich: func(ctx context.Context, doc *crypto_provider_balance_operation.CryptoProviderBalanceOperation, response cryptodto.CryptoProviderBalanceOperationResponse) (any, error) {
 			availability, err := workflow.ActionAvailability(ctx, doc)
 			if err != nil {
 				return nil, err
 			}
-			return dto.CryptoProviderBalanceOperationDetail{CryptoProviderBalanceOperationResponse: response, ActionAvailability: availability}, nil
+			return cryptodto.CryptoProviderBalanceOperationDetail{CryptoProviderBalanceOperationResponse: response, ActionAvailability: availability}, nil
 		},
 	}
 	return &CryptoProviderBalanceOperationHandler{
@@ -57,7 +57,7 @@ func (h *CryptoProviderBalanceOperationHandler) PrepareOpeningFromIncident(c *gi
 		return
 	}
 
-	var req dto.PrepareProviderOpeningRequest
+	var req cryptodto.PrepareProviderOpeningRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.base.Error(c, apperror.NewValidation("observationId and reason are required"))
 		return
@@ -72,7 +72,7 @@ func (h *CryptoProviderBalanceOperationHandler) Approve(c *gin.Context) {
 		h.base.Error(c, apperror.NewValidation("invalid provider balance operation id"))
 		return
 	}
-	var req dto.ProviderBalanceDecisionRequest
+	var req cryptodto.ProviderBalanceDecisionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.base.Error(c, apperror.NewValidation("version and decision reason are required"))
 		return
@@ -87,7 +87,7 @@ func (h *CryptoProviderBalanceOperationHandler) Reject(c *gin.Context) {
 		h.base.Error(c, apperror.NewValidation("invalid provider balance operation id"))
 		return
 	}
-	var req dto.ProviderBalanceDecisionRequest
+	var req cryptodto.ProviderBalanceDecisionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.base.Error(c, apperror.NewValidation("rejection reason is required"))
 		return

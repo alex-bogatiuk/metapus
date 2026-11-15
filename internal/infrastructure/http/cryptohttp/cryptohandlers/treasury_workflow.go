@@ -15,7 +15,7 @@ import (
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/treasury_withdrawal"
 	"metapus/internal/infrastructure/crypto_worker"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
@@ -72,7 +72,7 @@ func (h *TreasuryWorkflowHandler) GetSigningJob(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	c.JSON(200, dto.SigningJobStatusResponse{
+	c.JSON(200, cryptodto.SigningJobStatusResponse{
 		Status: status.Status, Attempts: status.Attempts, LastError: status.LastError,
 	})
 }
@@ -87,7 +87,7 @@ func (h *TreasuryWorkflowHandler) RetrySigning(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	c.JSON(200, dto.StatusResponse{Status: "pending"})
+	c.JSON(200, cryptodto.StatusResponse{Status: "pending"})
 }
 
 func (h *TreasuryWorkflowHandler) requireIdempotency() gin.HandlerFunc {
@@ -101,7 +101,7 @@ func (h *TreasuryWorkflowHandler) requireIdempotency() gin.HandlerFunc {
 }
 
 func (h *TreasuryWorkflowHandler) CreateAddress(c *gin.Context) {
-	var req dto.CreateTreasuryAddressRequest
+	var req cryptodto.CreateTreasuryAddressRequest
 	if !h.base.BindJSON(c, &req) {
 		return
 	}
@@ -124,14 +124,14 @@ func (h *TreasuryWorkflowHandler) ListAddresses(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	items := make([]dto.TreasuryAddressResponse, 0, len(addresses))
+	items := make([]cryptodto.TreasuryAddressResponse, 0, len(addresses))
 	for _, address := range addresses {
-		items = append(items, dto.TreasuryAddressResponse{
+		items = append(items, cryptodto.TreasuryAddressResponse{
 			ID: address.ID.String(), NetworkID: address.NetworkID.String(), Address: address.Address,
 			Label: address.Label, IsActive: address.IsActive,
 		})
 	}
-	h.base.OK(c, dto.TreasuryAddressListResponse{Items: items})
+	h.base.OK(c, cryptodto.TreasuryAddressListResponse{Items: items})
 }
 
 func (h *TreasuryWorkflowHandler) ApproveWithdrawal(c *gin.Context) {
@@ -160,7 +160,7 @@ func (h *TreasuryWorkflowHandler) RejectWithdrawal(c *gin.Context) {
 		h.base.Error(c, apperror.NewValidation("invalid withdrawal id"))
 		return
 	}
-	var req dto.ApproveRejectRequest
+	var req cryptodto.ApproveRejectRequest
 	_ = c.ShouldBindJSON(&req)
 	userID := parseContextUserID(c.Request.Context())
 
@@ -183,7 +183,7 @@ func (h *TreasuryWorkflowHandler) GetAvailability(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	h.base.OK(c, dto.TreasuryAvailabilityResponse{
+	h.base.OK(c, cryptodto.TreasuryAvailabilityResponse{
 		TokenID:   tokenID.String(),
 		Amount:    availability.Amount,
 		Reserved:  availability.Reserved,
@@ -202,9 +202,9 @@ func (h *TreasuryWorkflowHandler) ListSourceWallets(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	items := make([]dto.TreasurySourceWalletResponse, 0, len(wallets))
+	items := make([]cryptodto.TreasurySourceWalletResponse, 0, len(wallets))
 	for _, wallet := range wallets {
-		item := dto.TreasurySourceWalletResponse{
+		item := cryptodto.TreasurySourceWalletResponse{
 			ID: wallet.ID.String(), NetworkID: wallet.NetworkID.String(), Name: wallet.Name,
 			Address: wallet.Address, LedgerAmount: wallet.LedgerAmount,
 			ReservedAmount: wallet.ReservedAmount, AvailableAmount: wallet.AvailableAmount,
@@ -215,7 +215,7 @@ func (h *TreasuryWorkflowHandler) ListSourceWallets(c *gin.Context) {
 		}
 		items = append(items, item)
 	}
-	h.base.OK(c, dto.TreasurySourceWalletListResponse{Items: items})
+	h.base.OK(c, cryptodto.TreasurySourceWalletListResponse{Items: items})
 }
 
 func (h *TreasuryWorkflowHandler) ListExternalOutflows(c *gin.Context) {
@@ -226,11 +226,11 @@ func (h *TreasuryWorkflowHandler) ListExternalOutflows(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	response := make([]dto.ExternalOutflowResponse, 0, len(items))
+	response := make([]cryptodto.ExternalOutflowResponse, 0, len(items))
 	for index := range items {
 		response = append(response, mapExternalOutflowResponse(&items[index]))
 	}
-	h.base.OK(c, dto.ExternalOutflowListResponse{Items: response})
+	h.base.OK(c, cryptodto.ExternalOutflowListResponse{Items: response})
 }
 
 func (h *TreasuryWorkflowHandler) GetExternalOutflow(c *gin.Context) {
@@ -263,7 +263,7 @@ func (h *TreasuryWorkflowHandler) ClassifyExternalOutflow(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	var req dto.ClassifyExternalOutflowRequest
+	var req cryptodto.ClassifyExternalOutflowRequest
 	if !h.base.BindJSON(c, &req) {
 		return
 	}
@@ -303,7 +303,7 @@ func (h *TreasuryWorkflowHandler) ResolveExternalOutflow(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	var req dto.ApproveRejectRequest
+	var req cryptodto.ApproveRejectRequest
 	if !h.base.BindJSON(c, &req) {
 		return
 	}
@@ -331,7 +331,7 @@ func (h *TreasuryWorkflowHandler) ApproveCustodyAdjustment(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	var req dto.ApproveRejectRequest
+	var req cryptodto.ApproveRejectRequest
 	if !h.base.BindJSON(c, &req) {
 		return
 	}
@@ -340,7 +340,7 @@ func (h *TreasuryWorkflowHandler) ApproveCustodyAdjustment(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	h.base.OK(c, dto.FromCustodyAdjustment(adjustment))
+	h.base.OK(c, cryptodto.FromCustodyAdjustment(adjustment))
 }
 
 func (h *TreasuryWorkflowHandler) RejectCustodyAdjustment(c *gin.Context) {
@@ -354,7 +354,7 @@ func (h *TreasuryWorkflowHandler) RejectCustodyAdjustment(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	var req dto.ApproveRejectRequest
+	var req cryptodto.ApproveRejectRequest
 	if !h.base.BindJSON(c, &req) {
 		return
 	}
@@ -363,11 +363,11 @@ func (h *TreasuryWorkflowHandler) RejectCustodyAdjustment(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	h.base.OK(c, dto.FromCustodyAdjustment(adjustment))
+	h.base.OK(c, cryptodto.FromCustodyAdjustment(adjustment))
 }
 
 func (h *TreasuryWorkflowHandler) ProposeFinancialAdjustment(c *gin.Context) {
-	var request dto.ProposeFinancialAdjustmentRequest
+	var request cryptodto.ProposeFinancialAdjustmentRequest
 	if !h.base.BindJSON(c, &request) {
 		return
 	}
@@ -428,7 +428,7 @@ func (h *TreasuryWorkflowHandler) ProposeFinancialAdjustment(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	h.base.OK(c, dto.FromFinancialAdjustment(adjustment))
+	h.base.OK(c, cryptodto.FromFinancialAdjustment(adjustment))
 }
 
 func (h *TreasuryWorkflowHandler) FinancialAdjustmentPaymentSources(c *gin.Context) {
@@ -442,12 +442,12 @@ func (h *TreasuryWorkflowHandler) FinancialAdjustmentPaymentSources(c *gin.Conte
 		h.base.Error(c, err)
 		return
 	}
-	response := dto.FinancialAdjustmentPaymentSourcesResponse{
+	response := cryptodto.FinancialAdjustmentPaymentSourcesResponse{
 		PaymentID: paymentID.String(), PostedVersion: sources.PostedVersion,
-		Lines: make([]dto.FinancialAdjustmentSourceResponse, 0, len(sources.Lines)),
+		Lines: make([]cryptodto.FinancialAdjustmentSourceResponse, 0, len(sources.Lines)),
 	}
 	for _, line := range sources.Lines {
-		response.Lines = append(response.Lines, dto.FinancialAdjustmentSourceResponse{
+		response.Lines = append(response.Lines, cryptodto.FinancialAdjustmentSourceResponse{
 			Register: line.Register, LineID: line.LineID.String(), Amount: line.Amount,
 			Reversed: line.Reversed, Available: line.Available,
 			TokenID: line.TokenID.String(), Dimension: line.Dimension,
@@ -474,11 +474,11 @@ func (h *TreasuryWorkflowHandler) ListFinancialAdjustments(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	response := make([]dto.FinancialAdjustmentResponse, 0, len(items))
+	response := make([]cryptodto.FinancialAdjustmentResponse, 0, len(items))
 	for index := range items {
-		response = append(response, dto.FromFinancialAdjustment(&items[index]))
+		response = append(response, cryptodto.FromFinancialAdjustment(&items[index]))
 	}
-	h.base.OK(c, dto.FinancialAdjustmentListResponse{Items: response})
+	h.base.OK(c, cryptodto.FinancialAdjustmentListResponse{Items: response})
 }
 
 func (h *TreasuryWorkflowHandler) GetFinancialAdjustment(c *gin.Context) {
@@ -492,16 +492,16 @@ func (h *TreasuryWorkflowHandler) GetFinancialAdjustment(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	response := dto.FromFinancialAdjustment(adjustment)
+	response := cryptodto.FromFinancialAdjustment(adjustment)
 	if adjustment.Mode == "payment_reversal" {
 		lines, err := h.adjustments.Sources(c.Request.Context(), adjustmentID)
 		if err != nil {
 			h.base.Error(c, err)
 			return
 		}
-		response.SourceLines = make([]dto.FinancialAdjustmentSourceRequest, 0, len(lines))
+		response.SourceLines = make([]cryptodto.FinancialAdjustmentSourceRequest, 0, len(lines))
 		for _, line := range lines {
-			response.SourceLines = append(response.SourceLines, dto.FinancialAdjustmentSourceRequest{
+			response.SourceLines = append(response.SourceLines, cryptodto.FinancialAdjustmentSourceRequest{
 				Register: line.Register, LineID: line.LineID.String(), Amount: line.Amount,
 			})
 		}
@@ -533,7 +533,7 @@ func (h *TreasuryWorkflowHandler) decideFinancialAdjustment(c *gin.Context, appr
 		h.base.Error(c, err)
 		return
 	}
-	var request dto.ApproveRejectRequest
+	var request cryptodto.ApproveRejectRequest
 	if !h.base.BindJSON(c, &request) {
 		return
 	}
@@ -547,11 +547,11 @@ func (h *TreasuryWorkflowHandler) decideFinancialAdjustment(c *gin.Context, appr
 		h.base.Error(c, err)
 		return
 	}
-	h.base.OK(c, dto.FromFinancialAdjustment(adjustment))
+	h.base.OK(c, cryptodto.FromFinancialAdjustment(adjustment))
 }
 
-func mapExternalOutflowResponse(outflow *crypto.ExternalOutflow) dto.ExternalOutflowResponse {
-	item := dto.ExternalOutflowResponse{
+func mapExternalOutflowResponse(outflow *crypto.ExternalOutflow) cryptodto.ExternalOutflowResponse {
+	item := cryptodto.ExternalOutflowResponse{
 		ID: outflow.ID.String(), NetworkID: outflow.NetworkID.String(), TxHash: outflow.TxHash,
 		EventKind: string(outflow.EventKind), EventIndex: outflow.EventIndex, FromAddress: outflow.FromAddress,
 		ToAddress: outflow.ToAddress, ContractAddress: outflow.ContractAddress, Amount: outflow.Amount,
@@ -569,28 +569,28 @@ func mapExternalOutflowResponse(outflow *crypto.ExternalOutflow) dto.ExternalOut
 	return item
 }
 
-func mapExternalOutflowDetail(outflow *crypto.ExternalOutflow, readiness cryptoapp.ExternalOutflowResolutionReadiness) dto.ExternalOutflowDetailResponse {
-	actions := make([]dto.ExternalOutflowActionResponse, 0, len(outflow.Actions))
+func mapExternalOutflowDetail(outflow *crypto.ExternalOutflow, readiness cryptoapp.ExternalOutflowResolutionReadiness) cryptodto.ExternalOutflowDetailResponse {
+	actions := make([]cryptodto.ExternalOutflowActionResponse, 0, len(outflow.Actions))
 	for _, action := range outflow.Actions {
-		actions = append(actions, dto.ExternalOutflowActionResponse{
+		actions = append(actions, cryptodto.ExternalOutflowActionResponse{
 			ActorType: action.ActorType, ActorID: action.ActorID, Action: action.Action,
 			OldState: action.OldState, NewState: action.NewState, Reason: action.Reason,
 			Evidence: action.Evidence, CreatedAt: action.CreatedAt.Format(time.RFC3339),
 		})
 	}
-	holds := make([]dto.OperationalHoldResponse, 0, len(outflow.OpenHolds))
+	holds := make([]cryptodto.OperationalHoldResponse, 0, len(outflow.OpenHolds))
 	for _, hold := range outflow.OpenHolds {
-		holds = append(holds, dto.OperationalHoldResponse{
+		holds = append(holds, cryptodto.OperationalHoldResponse{
 			Scope: hold.Scope, Reason: hold.Reason, OwnerType: hold.OwnerType,
 			OwnerID: hold.OwnerID, HeldAt: hold.HeldAt.Format(time.RFC3339),
 		})
 	}
-	adjustment := dto.FromCustodyAdjustment(outflow.Adjustment)
+	adjustment := cryptodto.FromCustodyAdjustment(outflow.Adjustment)
 	var matchedBasisID string
 	if outflow.MatchedBasisID != nil {
 		matchedBasisID = outflow.MatchedBasisID.String()
 	}
-	return dto.ExternalOutflowDetailResponse{Outflow: mapExternalOutflowResponse(outflow), ClassificationReason: outflow.ClassificationReason,
+	return cryptodto.ExternalOutflowDetailResponse{Outflow: mapExternalOutflowResponse(outflow), ClassificationReason: outflow.ClassificationReason,
 		ClassificationEvidence: outflow.ClassificationEvidence, MatchedBasisType: outflow.MatchedBasisType,
 		MatchedBasisID: matchedBasisID, Adjustment: adjustment, OpenHolds: holds, Actions: actions,
 		Resolution: outflow.Resolution, CanResolve: readiness.CanResolve, ResolutionBlockers: readiness.Blockers}

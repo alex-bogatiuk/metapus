@@ -13,7 +13,7 @@ import (
 	"metapus/internal/domain"
 	"metapus/internal/domain/documents/crypto_sweep"
 	"metapus/internal/domain/settings"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
@@ -24,7 +24,7 @@ import (
 // CryptoSweepHandler handles HTTP requests for CryptoSweep documents.
 // Sweep is a system document — read-only in API (created by Worker).
 type CryptoSweepHandler struct {
-	*handlers.BaseDocumentHandler[*crypto_sweep.CryptoSweep, dto.CreateCryptoSweepRequest, dto.UpdateCryptoSweepRequest]
+	*handlers.BaseDocumentHandler[*crypto_sweep.CryptoSweep, cryptodto.CreateCryptoSweepRequest, cryptodto.UpdateCryptoSweepRequest]
 	retryService       CryptoSweepRetryService
 	relatedDocsHandler *handlers.RelatedDocumentsHandler
 }
@@ -61,7 +61,7 @@ func (h *CryptoSweepHandler) Retry(c *gin.Context) {
 func resolveCryptoSweepRefs(ctx context.Context, docs ...*crypto_sweep.CryptoSweep) (any, error) {
 	resolver := postgres.NewReferenceResolver()
 	for _, doc := range docs {
-		dto.CollectCryptoSweepRefs(resolver, doc)
+		cryptodto.CollectCryptoSweepRefs(resolver, doc)
 	}
 	pool := tenantdb.MustGetPool(ctx)
 	refs, err := resolver.Resolve(ctx, pool)
@@ -82,23 +82,23 @@ func NewCryptoSweepHandler(
 	movementRefResolver domain.RefResolver,
 	settingsRepo settings.Repository,
 ) *CryptoSweepHandler {
-	cfg := handlers.BaseDocumentHandlerConfig[*crypto_sweep.CryptoSweep, dto.CreateCryptoSweepRequest, dto.UpdateCryptoSweepRequest]{
+	cfg := handlers.BaseDocumentHandlerConfig[*crypto_sweep.CryptoSweep, cryptodto.CreateCryptoSweepRequest, cryptodto.UpdateCryptoSweepRequest]{
 		Service:    service,
 		EntityName: "crypto_sweep",
-		MapCreateDTO: func(req dto.CreateCryptoSweepRequest) (*crypto_sweep.CryptoSweep, error) {
+		MapCreateDTO: func(req cryptodto.CreateCryptoSweepRequest) (*crypto_sweep.CryptoSweep, error) {
 			return req.ToEntity(), nil
 		},
-		MapUpdateDTO: func(req dto.UpdateCryptoSweepRequest, existing *crypto_sweep.CryptoSweep) (*crypto_sweep.CryptoSweep, error) {
+		MapUpdateDTO: func(req cryptodto.UpdateCryptoSweepRequest, existing *crypto_sweep.CryptoSweep) (*crypto_sweep.CryptoSweep, error) {
 			req.ApplyTo(existing)
 			return existing, nil
 		},
 		MapToDTO: func(entity *crypto_sweep.CryptoSweep) any {
-			return dto.FromCryptoSweep(entity)
+			return cryptodto.FromCryptoSweep(entity)
 		},
 		ResolveRefs: resolveCryptoSweepRefs,
 		MapToDTOWithRefs: func(entity *crypto_sweep.CryptoSweep, refs any) any {
 			resolvedRefs, _ := refs.(postgres.ResolvedRefs)
-			return dto.FromCryptoSweep(entity, resolvedRefs)
+			return cryptodto.FromCryptoSweep(entity, resolvedRefs)
 		},
 		EnrichReadResponse: func(ctx context.Context, doc *crypto_sweep.CryptoSweep, response any) (any, error) {
 			facts, err := cardReader.ReadCardData(ctx, doc)
@@ -108,7 +108,7 @@ func NewCryptoSweepHandler(
 			if err := restrictCryptoSweepCardRefs(ctx, &facts); err != nil {
 				return nil, err
 			}
-			return dto.FromCryptoSweepDetail(ctx, doc, response.(*dto.CryptoSweepResponse), facts), nil
+			return cryptodto.FromCryptoSweepDetail(ctx, doc, response.(*cryptodto.CryptoSweepResponse), facts), nil
 		},
 		MovementProviders:   movementProviders,
 		MovementRefResolver: movementRefResolver,

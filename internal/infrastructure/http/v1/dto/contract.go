@@ -39,7 +39,7 @@ func (r *CreateContractRequest) ToEntity() *contract.Contract {
 	c.ValidTo = r.ValidTo
 	c.PaymentTermDays = r.PaymentTermDays
 	c.Description = r.Description
-	c.ParentID = stringPtrToIDPtr(r.ParentID)
+	c.ParentID = StringPtrToIDPtr(r.ParentID)
 	c.IsFolder = r.IsFolder
 	c.Attributes = r.Attributes
 	return c
@@ -79,7 +79,7 @@ func (r *UpdateContractRequest) ApplyTo(c *contract.Contract) {
 	c.ValidTo = r.ValidTo
 	c.PaymentTermDays = r.PaymentTermDays
 	c.Description = r.Description
-	c.ParentID = stringPtrToIDPtr(r.ParentID)
+	c.ParentID = StringPtrToIDPtr(r.ParentID)
 	c.IsFolder = r.IsFolder
 	c.Attributes = r.Attributes
 	c.Version = r.Version
@@ -123,7 +123,7 @@ func FromContract(c *contract.Contract, refs ...postgres.ResolvedRefs) *Contract
 		ValidTo:         c.ValidTo,
 		PaymentTermDays: c.PaymentTermDays,
 		Description:     c.Description,
-		ParentID:        idToStringPtr(c.ParentID),
+		ParentID:        IDToStringPtr(c.ParentID),
 		IsFolder:        c.IsFolder,
 		DeletionMark:    c.DeletionMark,
 		Version:         c.Version,

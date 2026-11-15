@@ -17,7 +17,7 @@ import (
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/settings"
 	"metapus/internal/infrastructure/crypto_worker"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
@@ -27,7 +27,7 @@ import (
 
 // TreasuryWithdrawalHandler handles HTTP requests for TreasuryWithdrawal documents.
 type TreasuryWithdrawalHandler struct {
-	*handlers.BaseDocumentHandler[*treasury_withdrawal.TreasuryWithdrawal, dto.CreateTreasuryWithdrawalRequest, dto.UpdateTreasuryWithdrawalRequest]
+	*handlers.BaseDocumentHandler[*treasury_withdrawal.TreasuryWithdrawal, cryptodto.CreateTreasuryWithdrawalRequest, cryptodto.UpdateTreasuryWithdrawalRequest]
 	relatedDocsHandler *handlers.RelatedDocumentsHandler
 	workflowHandler    *TreasuryWorkflowHandler
 	stepUpGuard        func(actionCode string) gin.HandlerFunc
@@ -38,7 +38,7 @@ func (h *TreasuryWithdrawalHandler) RequiresCommandIdempotency() bool { return t
 func resolveTreasuryWithdrawalRefs(ctx context.Context, docs ...*treasury_withdrawal.TreasuryWithdrawal) (any, error) {
 	resolver := postgres.NewReferenceResolver()
 	for _, doc := range docs {
-		dto.CollectTreasuryWithdrawalRefs(resolver, doc)
+		cryptodto.CollectTreasuryWithdrawalRefs(resolver, doc)
 	}
 	pool := tenantdb.MustGetPool(ctx)
 	return resolver.Resolve(ctx, pool)
@@ -58,23 +58,23 @@ func NewTreasuryWithdrawalHandler(
 	postingEngine *posting.Engine,
 	stepUpGuard ...func(actionCode string) gin.HandlerFunc,
 ) *TreasuryWithdrawalHandler {
-	cfg := handlers.BaseDocumentHandlerConfig[*treasury_withdrawal.TreasuryWithdrawal, dto.CreateTreasuryWithdrawalRequest, dto.UpdateTreasuryWithdrawalRequest]{
+	cfg := handlers.BaseDocumentHandlerConfig[*treasury_withdrawal.TreasuryWithdrawal, cryptodto.CreateTreasuryWithdrawalRequest, cryptodto.UpdateTreasuryWithdrawalRequest]{
 		Service:    service,
 		EntityName: "treasury_withdrawal",
-		MapCreateDTO: func(req dto.CreateTreasuryWithdrawalRequest) (*treasury_withdrawal.TreasuryWithdrawal, error) {
+		MapCreateDTO: func(req cryptodto.CreateTreasuryWithdrawalRequest) (*treasury_withdrawal.TreasuryWithdrawal, error) {
 			return req.ToEntity(), nil
 		},
-		MapUpdateDTO: func(req dto.UpdateTreasuryWithdrawalRequest, existing *treasury_withdrawal.TreasuryWithdrawal) (*treasury_withdrawal.TreasuryWithdrawal, error) {
+		MapUpdateDTO: func(req cryptodto.UpdateTreasuryWithdrawalRequest, existing *treasury_withdrawal.TreasuryWithdrawal) (*treasury_withdrawal.TreasuryWithdrawal, error) {
 			req.ApplyTo(existing)
 			return existing, nil
 		},
 		MapToDTO: func(entity *treasury_withdrawal.TreasuryWithdrawal) any {
-			return dto.FromTreasuryWithdrawal(entity)
+			return cryptodto.FromTreasuryWithdrawal(entity)
 		},
 		ResolveRefs: resolveTreasuryWithdrawalRefs,
 		MapToDTOWithRefs: func(entity *treasury_withdrawal.TreasuryWithdrawal, refs any) any {
 			resolvedRefs, _ := refs.(postgres.ResolvedRefs)
-			return dto.FromTreasuryWithdrawal(entity, resolvedRefs)
+			return cryptodto.FromTreasuryWithdrawal(entity, resolvedRefs)
 		},
 		MovementProviders:   movementProviders,
 		MovementRefResolver: movementRefResolver,
@@ -142,7 +142,7 @@ func (h *TreasuryWithdrawalHandler) Create(c *gin.Context) {
 		return
 	}
 
-	var req dto.CreateTreasuryWithdrawalRequest
+	var req cryptodto.CreateTreasuryWithdrawalRequest
 	if !h.BindJSON(c, &req) {
 		return
 	}
@@ -168,7 +168,7 @@ func (h *TreasuryWithdrawalHandler) Create(c *gin.Context) {
 // CreateReceiptRefund handles POST /document/treasury-withdrawal/receipt-refunds:
 // it prepares the return of an unidentified receipt; another operator approves it.
 func (h *TreasuryWithdrawalHandler) CreateReceiptRefund(c *gin.Context) {
-	var req dto.CreateReceiptRefundRequest
+	var req cryptodto.CreateReceiptRefundRequest
 	if !h.BindJSON(c, &req) {
 		return
 	}

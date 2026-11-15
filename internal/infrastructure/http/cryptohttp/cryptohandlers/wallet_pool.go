@@ -8,7 +8,7 @@ import (
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 )
@@ -68,7 +68,7 @@ func (h *WalletPoolHandler) GetMerchantAllocationLimits(c *gin.Context) {
 		h.Error(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.NewMerchantWalletAllocationLimitsResponse(limits))
+	c.JSON(http.StatusOK, cryptodto.NewMerchantWalletAllocationLimitsResponse(limits))
 }
 
 func (h *WalletPoolHandler) UpdateMerchantAllocationLimits(c *gin.Context) {
@@ -80,7 +80,7 @@ func (h *WalletPoolHandler) UpdateMerchantAllocationLimits(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var request dto.UpdateMerchantWalletAllocationLimitsRequest
+	var request cryptodto.UpdateMerchantWalletAllocationLimitsRequest
 	if !h.BindJSON(c, &request) {
 		return
 	}
@@ -94,7 +94,7 @@ func (h *WalletPoolHandler) UpdateMerchantAllocationLimits(c *gin.Context) {
 		h.Error(c, err)
 		return
 	}
-	response := dto.NewMerchantWalletAllocationLimitsResponse(limits)
+	response := cryptodto.NewMerchantWalletAllocationLimitsResponse(limits)
 	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
 	c.JSON(http.StatusOK, response)
 }
@@ -105,7 +105,7 @@ func (h *WalletPoolHandler) List(c *gin.Context) {
 		h.Error(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.NewWalletPoolListResponse(states))
+	c.JSON(http.StatusOK, cryptodto.NewWalletPoolListResponse(states))
 }
 
 func (h *WalletPoolHandler) UpdatePolicy(c *gin.Context) {
@@ -113,7 +113,7 @@ func (h *WalletPoolHandler) UpdatePolicy(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var request dto.UpdateWalletPoolPolicyRequest
+	var request cryptodto.UpdateWalletPoolPolicyRequest
 	if !h.BindJSON(c, &request) {
 		return
 	}
@@ -123,7 +123,7 @@ func (h *WalletPoolHandler) UpdatePolicy(c *gin.Context) {
 		h.Error(c, err)
 		return
 	}
-	response := dto.NewWalletPoolStateResponse(updated)
+	response := cryptodto.NewWalletPoolStateResponse(updated)
 	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
 	c.JSON(http.StatusOK, response)
 }
@@ -138,7 +138,7 @@ func (h *WalletPoolHandler) Reconcile(c *gin.Context) {
 		h.Error(c, err)
 		return
 	}
-	response := dto.NewWalletPoolReconcileResponse(results, state)
+	response := cryptodto.NewWalletPoolReconcileResponse(results, state)
 	h.CompleteIdempotency(c, http.StatusAccepted, "application/json", response)
 	c.JSON(http.StatusAccepted, response)
 }

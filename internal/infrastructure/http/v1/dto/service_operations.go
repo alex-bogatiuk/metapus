@@ -2,11 +2,6 @@ package dto
 
 import "metapus/internal/domain"
 
-type FeeScheduleListResponse struct {
-	Items []FeeScheduleResponse `json:"items"`
-	Total int                   `json:"total"`
-}
-
 type FindReferencesResponse struct {
 	Items []domain.FoundReference `json:"items"`
 	Total int                     `json:"total"`

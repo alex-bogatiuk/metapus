@@ -160,8 +160,8 @@ const (
 
 // --- ID Conversion Helpers ---
 
-// idToStringPtr converts *id.ID to *string for JSON response.
-func idToStringPtr(v *id.ID) *string {
+// IDToStringPtr converts *id.ID to *string for JSON response.
+func IDToStringPtr(v *id.ID) *string {
 	if v == nil {
 		return nil
 	}
@@ -169,8 +169,8 @@ func idToStringPtr(v *id.ID) *string {
 	return &s
 }
 
-// stringPtrToIDPtr converts *string to *id.ID for entity mapping.
-func stringPtrToIDPtr(s *string) *id.ID {
+// StringPtrToIDPtr converts *string to *id.ID for entity mapping.
+func StringPtrToIDPtr(s *string) *id.ID {
 	if s == nil || *s == "" {
 		return nil
 	}

@@ -8,7 +8,7 @@ import (
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 )
 
 // FeeScheduleHandler handles HTTP requests for fee schedule management.
@@ -40,7 +40,7 @@ func (h *FeeScheduleHandler) ListByMerchant(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.FeeScheduleListResponse{Items: dto.FromFeeScheduleList(schedules), Total: len(schedules)})
+	c.JSON(http.StatusOK, cryptodto.FeeScheduleListResponse{Items: cryptodto.FromFeeScheduleList(schedules), Total: len(schedules)})
 }
 
 // ListGlobal handles GET /system/fee-schedule.
@@ -52,7 +52,7 @@ func (h *FeeScheduleHandler) ListGlobal(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.FeeScheduleListResponse{Items: dto.FromFeeScheduleList(schedules), Total: len(schedules)})
+	c.JSON(http.StatusOK, cryptodto.FeeScheduleListResponse{Items: cryptodto.FromFeeScheduleList(schedules), Total: len(schedules)})
 }
 
 // UpsertMerchant handles PUT /merchant-admin/merchants/:merchantId/fee-schedule.
@@ -64,7 +64,7 @@ func (h *FeeScheduleHandler) UpsertMerchant(c *gin.Context) {
 		return
 	}
 
-	var req dto.FeeScheduleRequest
+	var req cryptodto.FeeScheduleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperror.NewInvalidRequest(err))
 		c.Abort()
@@ -89,7 +89,7 @@ func (h *FeeScheduleHandler) UpsertMerchant(c *gin.Context) {
 
 // UpsertGlobal handles PUT /system/fee-schedule.
 func (h *FeeScheduleHandler) UpsertGlobal(c *gin.Context) {
-	var req dto.FeeScheduleRequest
+	var req cryptodto.FeeScheduleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperror.NewInvalidRequest(err))
 		c.Abort()
@@ -121,7 +121,7 @@ func (h *FeeScheduleHandler) DeleteMerchant(c *gin.Context) {
 		return
 	}
 
-	var req dto.FeeScheduleDeleteRequest
+	var req cryptodto.FeeScheduleDeleteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperror.NewInvalidRequest(err))
 		c.Abort()
@@ -153,7 +153,7 @@ func (h *FeeScheduleHandler) DeleteMerchant(c *gin.Context) {
 
 // DeleteGlobal handles DELETE /system/fee-schedule.
 func (h *FeeScheduleHandler) DeleteGlobal(c *gin.Context) {
-	var req dto.FeeScheduleDeleteRequest
+	var req cryptodto.FeeScheduleDeleteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperror.NewInvalidRequest(err))
 		c.Abort()
@@ -184,7 +184,7 @@ func (h *FeeScheduleHandler) DeleteGlobal(c *gin.Context) {
 }
 
 // toSchedule validates and converts a request DTO to a domain FeeSchedule.
-func (h *FeeScheduleHandler) toSchedule(req *dto.FeeScheduleRequest, merchantID *id.ID) (*crypto.FeeSchedule, error) {
+func (h *FeeScheduleHandler) toSchedule(req *cryptodto.FeeScheduleRequest, merchantID *id.ID) (*crypto.FeeSchedule, error) {
 	tokenID, err := id.Parse(req.TokenID)
 	if err != nil {
 		return nil, apperror.NewValidation("invalid token id").WithDetail("field", "tokenId")

@@ -23,6 +23,7 @@ import (
 	"metapus/internal/domain/catalogs/token"
 	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/domain/crypto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	v1 "metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/http/v1/handlers"
@@ -366,7 +367,7 @@ func resolveContractRefs(ctx context.Context, entities ...*contract.Contract) (a
 // ---------------------------------------------------------------------------
 
 type BlockchainNetworkRegistration struct {
-	v1.CatalogRegistrationFor[blockchain_network.BlockchainNetwork, dto.CreateBlockchainNetworkRequest, dto.UpdateBlockchainNetworkRequest, dto.BlockchainNetworkResponse]
+	v1.CatalogRegistrationFor[blockchain_network.BlockchainNetwork, cryptodto.CreateBlockchainNetworkRequest, cryptodto.UpdateBlockchainNetworkRequest, cryptodto.BlockchainNetworkResponse]
 }
 
 func (r *BlockchainNetworkRegistration) ReferenceTypes() []string {
@@ -388,20 +389,20 @@ func (r *BlockchainNetworkRegistration) Build(deps v1.CatalogDeps) v1.CatalogRou
 	domain.NewEventLogCatalogService(service.CatalogService, blockchain_network.Definition.Key, deps.EventWriter)
 	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
 		*blockchain_network.BlockchainNetwork,
-		dto.CreateBlockchainNetworkRequest,
-		dto.UpdateBlockchainNetworkRequest,
+		cryptodto.CreateBlockchainNetworkRequest,
+		cryptodto.UpdateBlockchainNetworkRequest,
 	]{
 		Service:    service.CatalogService,
 		EntityName: blockchain_network.Definition.Key,
-		MapCreateDTO: func(req dto.CreateBlockchainNetworkRequest) *blockchain_network.BlockchainNetwork {
+		MapCreateDTO: func(req cryptodto.CreateBlockchainNetworkRequest) *blockchain_network.BlockchainNetwork {
 			return req.ToEntity()
 		},
-		MapUpdateDTO: func(req dto.UpdateBlockchainNetworkRequest, existing *blockchain_network.BlockchainNetwork) *blockchain_network.BlockchainNetwork {
+		MapUpdateDTO: func(req cryptodto.UpdateBlockchainNetworkRequest, existing *blockchain_network.BlockchainNetwork) *blockchain_network.BlockchainNetwork {
 			req.ApplyTo(existing)
 			return existing
 		},
 		MapToDTO: func(entity *blockchain_network.BlockchainNetwork) any {
-			return dto.FromBlockchainNetwork(entity)
+			return cryptodto.FromBlockchainNetwork(entity)
 		},
 	})
 }
@@ -411,7 +412,7 @@ func (r *BlockchainNetworkRegistration) Build(deps v1.CatalogDeps) v1.CatalogRou
 // ---------------------------------------------------------------------------
 
 type TokenRegistration struct {
-	v1.CatalogRegistrationFor[token.Token, dto.CreateTokenRequest, dto.UpdateTokenRequest, dto.CryptoTokenResponse]
+	v1.CatalogRegistrationFor[token.Token, cryptodto.CreateTokenRequest, cryptodto.UpdateTokenRequest, cryptodto.CryptoTokenResponse]
 }
 
 func (r *TokenRegistration) ReferenceTypes() []string { return []string{"token"} }
@@ -431,26 +432,26 @@ func (r *TokenRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 	domain.NewEventLogCatalogService(service.CatalogService, token.Definition.Key, deps.EventWriter)
 	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
 		*token.Token,
-		dto.CreateTokenRequest,
-		dto.UpdateTokenRequest,
+		cryptodto.CreateTokenRequest,
+		cryptodto.UpdateTokenRequest,
 	]{
 		Service:      service.CatalogService,
 		EntityName:   token.Definition.Key,
-		MapCreateDTO: func(req dto.CreateTokenRequest) *token.Token { return req.ToEntity() },
-		MapUpdateDTO: func(req dto.UpdateTokenRequest, existing *token.Token) *token.Token {
+		MapCreateDTO: func(req cryptodto.CreateTokenRequest) *token.Token { return req.ToEntity() },
+		MapUpdateDTO: func(req cryptodto.UpdateTokenRequest, existing *token.Token) *token.Token {
 			req.ApplyTo(existing)
 			return existing
 		},
-		MapToDTO:    func(entity *token.Token) any { return dto.FromToken(entity) },
+		MapToDTO:    func(entity *token.Token) any { return cryptodto.FromToken(entity) },
 		ResolveRefs: resolveTokenRefs,
 		MapToDTOWithRefs: func(entity *token.Token, refs any) any {
-			return dto.FromToken(entity, refs.(postgres.ResolvedRefs))
+			return cryptodto.FromToken(entity, refs.(postgres.ResolvedRefs))
 		},
 	})
 }
 
 func resolveTokenRefs(ctx context.Context, entities ...*token.Token) (any, error) {
-	return resolveCatalogRefs(ctx, dto.CollectTokenRefs, entities...)
+	return resolveCatalogRefs(ctx, cryptodto.CollectTokenRefs, entities...)
 }
 
 // ---------------------------------------------------------------------------
@@ -458,7 +459,7 @@ func resolveTokenRefs(ctx context.Context, entities ...*token.Token) (any, error
 // ---------------------------------------------------------------------------
 
 type MerchantRegistration struct {
-	v1.CatalogRegistrationFor[merchant.Merchant, dto.CreateMerchantRequest, dto.UpdateMerchantRequest, dto.MerchantResponse]
+	v1.CatalogRegistrationFor[merchant.Merchant, cryptodto.CreateMerchantRequest, cryptodto.UpdateMerchantRequest, cryptodto.MerchantResponse]
 }
 
 func (r *MerchantRegistration) ReferenceTypes() []string { return []string{"merchant"} }
@@ -478,17 +479,17 @@ func (r *MerchantRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler
 	domain.NewEventLogCatalogService(service.CatalogService, merchant.Definition.Key, deps.EventWriter)
 	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
 		*merchant.Merchant,
-		dto.CreateMerchantRequest,
-		dto.UpdateMerchantRequest,
+		cryptodto.CreateMerchantRequest,
+		cryptodto.UpdateMerchantRequest,
 	]{
 		Service:      service.CatalogService,
 		EntityName:   merchant.Definition.Key,
-		MapCreateDTO: func(req dto.CreateMerchantRequest) *merchant.Merchant { return req.ToEntity() },
-		MapUpdateDTO: func(req dto.UpdateMerchantRequest, existing *merchant.Merchant) *merchant.Merchant {
+		MapCreateDTO: func(req cryptodto.CreateMerchantRequest) *merchant.Merchant { return req.ToEntity() },
+		MapUpdateDTO: func(req cryptodto.UpdateMerchantRequest, existing *merchant.Merchant) *merchant.Merchant {
 			req.ApplyTo(existing)
 			return existing
 		},
-		MapToDTO: func(entity *merchant.Merchant) any { return dto.FromMerchant(entity) },
+		MapToDTO: func(entity *merchant.Merchant) any { return cryptodto.FromMerchant(entity) },
 	})
 }
 
@@ -497,7 +498,7 @@ func (r *MerchantRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler
 // ---------------------------------------------------------------------------
 
 type WalletRegistration struct {
-	v1.CatalogRegistrationFor[wallet.Wallet, dto.CreateWalletRequest, dto.UpdateWalletRequest, dto.WalletResponse]
+	v1.CatalogRegistrationFor[wallet.Wallet, cryptodto.CreateWalletRequest, cryptodto.UpdateWalletRequest, cryptodto.WalletResponse]
 }
 
 func (r *WalletRegistration) ReferenceTypes() []string { return []string{"wallet"} }
@@ -517,20 +518,20 @@ func (r *WalletRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 	domain.NewEventLogCatalogService(service.CatalogService, wallet.Definition.Key, deps.EventWriter)
 	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
 		*wallet.Wallet,
-		dto.CreateWalletRequest,
-		dto.UpdateWalletRequest,
+		cryptodto.CreateWalletRequest,
+		cryptodto.UpdateWalletRequest,
 	]{
 		Service:      service.CatalogService,
 		EntityName:   wallet.Definition.Key,
-		MapCreateDTO: func(req dto.CreateWalletRequest) *wallet.Wallet { return req.ToEntity() },
-		MapUpdateDTO: func(req dto.UpdateWalletRequest, existing *wallet.Wallet) *wallet.Wallet {
+		MapCreateDTO: func(req cryptodto.CreateWalletRequest) *wallet.Wallet { return req.ToEntity() },
+		MapUpdateDTO: func(req cryptodto.UpdateWalletRequest, existing *wallet.Wallet) *wallet.Wallet {
 			req.ApplyTo(existing)
 			return existing
 		},
-		MapToDTO:    func(entity *wallet.Wallet) any { return dto.FromWallet(entity) },
+		MapToDTO:    func(entity *wallet.Wallet) any { return cryptodto.FromWallet(entity) },
 		ResolveRefs: resolveWalletRefs,
 		MapToDTOWithRefs: func(entity *wallet.Wallet, refs any) any {
-			return dto.FromWallet(entity, refs.(postgres.ResolvedRefs))
+			return cryptodto.FromWallet(entity, refs.(postgres.ResolvedRefs))
 		},
 	})
 }
@@ -548,7 +549,7 @@ func resolveWalletRefs(ctx context.Context, entities ...*wallet.Wallet) (any, er
 		item.RiskDisplay = views[item.ID]
 	}
 
-	return resolveCatalogRefs(ctx, dto.CollectWalletRefs, entities...)
+	return resolveCatalogRefs(ctx, cryptodto.CollectWalletRefs, entities...)
 }
 
 // ---------------------------------------------------------------------------
@@ -556,7 +557,7 @@ func resolveWalletRefs(ctx context.Context, entities ...*wallet.Wallet) (any, er
 // ---------------------------------------------------------------------------
 
 type CryptoProviderAccountRegistration struct {
-	v1.CatalogRegistrationFor[crypto_provider_account.CryptoProviderAccount, dto.CreateCryptoProviderAccountRequest, dto.UpdateCryptoProviderAccountRequest, dto.CryptoProviderAccountResponse]
+	v1.CatalogRegistrationFor[crypto_provider_account.CryptoProviderAccount, cryptodto.CreateCryptoProviderAccountRequest, cryptodto.UpdateCryptoProviderAccountRequest, cryptodto.CryptoProviderAccountResponse]
 }
 
 func (r *CryptoProviderAccountRegistration) ReferenceTypes() []string {
@@ -575,19 +576,19 @@ func (r *CryptoProviderAccountRegistration) Build(deps v1.CatalogDeps) v1.Catalo
 	domain.NewEventLogCatalogService(service.CatalogService, crypto_provider_account.Definition.Key, deps.EventWriter)
 	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
 		*crypto_provider_account.CryptoProviderAccount,
-		dto.CreateCryptoProviderAccountRequest,
-		dto.UpdateCryptoProviderAccountRequest,
+		cryptodto.CreateCryptoProviderAccountRequest,
+		cryptodto.UpdateCryptoProviderAccountRequest,
 	]{
 		Service: service.CatalogService, EntityName: crypto_provider_account.Definition.Key,
-		MapCreateDTO: func(req dto.CreateCryptoProviderAccountRequest) *crypto_provider_account.CryptoProviderAccount {
+		MapCreateDTO: func(req cryptodto.CreateCryptoProviderAccountRequest) *crypto_provider_account.CryptoProviderAccount {
 			return req.ToEntity()
 		},
-		MapUpdateDTO: func(req dto.UpdateCryptoProviderAccountRequest, existing *crypto_provider_account.CryptoProviderAccount) *crypto_provider_account.CryptoProviderAccount {
+		MapUpdateDTO: func(req cryptodto.UpdateCryptoProviderAccountRequest, existing *crypto_provider_account.CryptoProviderAccount) *crypto_provider_account.CryptoProviderAccount {
 			req.ApplyTo(existing)
 			return existing
 		},
 		MapToDTO: func(account *crypto_provider_account.CryptoProviderAccount) any {
-			return dto.FromCryptoProviderAccount(account)
+			return cryptodto.FromCryptoProviderAccount(account)
 		},
 	})
 }

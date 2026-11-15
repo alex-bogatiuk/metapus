@@ -21,6 +21,7 @@ import (
 	"metapus/internal/domain"
 	"metapus/internal/domain/cursor"
 	"metapus/internal/domain/documents/withdrawal_request"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
@@ -103,7 +104,7 @@ func (h *WithdrawalRequestWorkflowHandler) GetSigningJob(c *gin.Context) {
 		h.Error(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.SigningJobStatusResponse{
+	c.JSON(http.StatusOK, cryptodto.SigningJobStatusResponse{
 		Status: status.Status, Attempts: status.Attempts, LastError: status.LastError,
 	})
 }
@@ -118,7 +119,7 @@ func (h *WithdrawalRequestWorkflowHandler) RetrySigning(c *gin.Context) {
 		h.Error(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.StatusResponse{Status: "pending"})
+	c.JSON(http.StatusOK, cryptodto.StatusResponse{Status: "pending"})
 }
 
 // Scope precedes idempotency so a replay still checks current merchant access.
@@ -317,7 +318,7 @@ func (h *WithdrawalRequestWorkflowHandler) Approve(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.AdminApproveWithdrawalResponse{
+	c.JSON(http.StatusOK, cryptodto.AdminApproveWithdrawalResponse{
 		Status: string(withdrawal_request.StatusApproved),
 	})
 }
@@ -339,7 +340,7 @@ func (h *WithdrawalRequestWorkflowHandler) Reject(c *gin.Context) {
 		h.Error(c, apperror.NewValidation("invalid user id"))
 		return
 	}
-	var body dto.ReasonRequest
+	var body cryptodto.ReasonRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		h.Error(c, apperror.NewValidation("invalid rejection request"))
 		return
@@ -348,7 +349,7 @@ func (h *WithdrawalRequestWorkflowHandler) Reject(c *gin.Context) {
 		h.Error(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.StatusResponse{Status: string(withdrawal_request.StatusRejected)})
+	c.JSON(http.StatusOK, cryptodto.StatusResponse{Status: string(withdrawal_request.StatusRejected)})
 }
 
 func (h *WithdrawalRequestWorkflowHandler) checkRequestScope(ctx context.Context, requestID id.ID, mutate bool) error {

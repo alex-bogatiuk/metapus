@@ -11,8 +11,8 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/catalogs/wallet"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware"
-	"metapus/internal/infrastructure/http/v1/dto"
 )
 
 // MerchantAddressHandler handles /merchant/v1/addresses endpoints.
@@ -53,7 +53,7 @@ func (h *MerchantAddressHandler) CreateAddress(c *gin.Context) {
 		return
 	}
 
-	var req dto.CreateMerchantAddressRequest
+	var req cryptodto.CreateMerchantAddressRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperror.NewInvalidRequest(err))
 		c.Abort()
@@ -75,7 +75,7 @@ func (h *MerchantAddressHandler) CreateAddress(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.MerchantAddressResponse{
+	c.JSON(http.StatusOK, cryptodto.MerchantAddressResponse{
 		Address:    w.Address,
 		Currency:   req.Currency,
 		Network:    token.NetworkCode,

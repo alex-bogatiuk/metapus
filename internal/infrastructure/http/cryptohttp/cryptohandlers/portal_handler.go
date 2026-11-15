@@ -22,7 +22,7 @@ import (
 	"metapus/internal/core/types"
 	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/catalogs/wallet"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 )
 
@@ -149,7 +149,7 @@ func (h *PortalHandler) ListMerchants(c *gin.Context) {
 		}
 		items[index].NetworkAccess = string(merchant.EvaluateNetworkPolicies(policies, clientIP))
 	}
-	c.JSON(http.StatusOK, dto.PortalMerchantListResponse{Items: items})
+	c.JSON(http.StatusOK, cryptodto.PortalMerchantListResponse{Items: items})
 }
 
 // GetSummary handles GET /portal/v1/dashboard/summary
@@ -185,7 +185,7 @@ func (h *PortalHandler) GetCurrencies(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	c.JSON(http.StatusOK, dto.PortalCurrencyListResponse{Items: items})
+	c.JSON(http.StatusOK, cryptodto.PortalCurrencyListResponse{Items: items})
 }
 
 // GetChart handles GET /portal/v1/dashboard/chart
@@ -213,7 +213,7 @@ func (h *PortalHandler) GetChart(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	c.JSON(http.StatusOK, dto.PortalChartResponse{Items: points})
+	c.JSON(http.StatusOK, cryptodto.PortalChartResponse{Items: points})
 }
 
 // ListInvoices handles GET /portal/v1/invoices
@@ -266,7 +266,7 @@ func (h *PortalHandler) ListInvoices(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	c.JSON(http.StatusOK, dto.PortalInvoiceListResponse{
+	c.JSON(http.StatusOK, cryptodto.PortalInvoiceListResponse{
 		Items: items,
 		Total: total,
 	})
@@ -376,11 +376,11 @@ func (h *PortalHandler) ListAPIKeys(c *gin.Context) {
 		return
 	}
 
-	items := make([]dto.MerchantAPIKeyListItem, len(keys))
+	items := make([]cryptodto.MerchantAPIKeyListItem, len(keys))
 	for i, k := range keys {
-		items[i] = dto.MerchantAPIKeyToListItem(k)
+		items[i] = cryptodto.MerchantAPIKeyToListItem(k)
 	}
-	c.JSON(http.StatusOK, dto.MerchantAPIKeyListResponse{Items: items, Total: len(items)})
+	c.JSON(http.StatusOK, cryptodto.MerchantAPIKeyListResponse{Items: items, Total: len(items)})
 }
 
 // CreateAPIKey handles POST /portal/v1/api-keys?merchant_id=...
@@ -392,7 +392,7 @@ func (h *PortalHandler) CreateAPIKey(c *gin.Context) {
 		return
 	}
 
-	var req dto.CreateMerchantAPIKeyRequest
+	var req cryptodto.CreateMerchantAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperror.NewInvalidRequest(err))
 		c.Abort()
@@ -434,7 +434,7 @@ func (h *PortalHandler) CreateAPIKey(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, dto.MerchantAPIKeyToCreateResponse(key, plaintext))
+	c.JSON(http.StatusCreated, cryptodto.MerchantAPIKeyToCreateResponse(key, plaintext))
 }
 
 // RevokeAPIKey handles DELETE /portal/v1/api-keys/:keyId?merchant_id=...
@@ -491,7 +491,7 @@ func (h *PortalHandler) ListPaymentLinks(c *gin.Context) {
 			items[i].PayURL = h.checkoutRefs.PaymentLinkPayURL(items[i].PublicRef)
 		}
 	}
-	c.JSON(http.StatusOK, dto.PortalPaymentLinkListResponse{
+	c.JSON(http.StatusOK, cryptodto.PortalPaymentLinkListResponse{
 		Items: items,
 		Total: total,
 	})
@@ -506,7 +506,7 @@ func (h *PortalHandler) CreatePaymentLink(c *gin.Context) {
 		return
 	}
 
-	var req dto.CreatePaymentLinkRequest
+	var req cryptodto.CreatePaymentLinkRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperror.NewInvalidRequest(err))
 		c.Abort()
@@ -579,7 +579,7 @@ func (h *PortalHandler) CreatePaymentLink(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, dto.PortalPaymentLinkCreateResponse{
+	c.JSON(http.StatusCreated, cryptodto.PortalPaymentLinkCreateResponse{
 		Object:    "payment_link",
 		ID:        result.ID.String(),
 		PublicRef: result.PublicRef,
@@ -616,7 +616,7 @@ func (h *PortalHandler) UpdateSettings(c *gin.Context) {
 		return
 	}
 
-	var req dto.UpdatePortalSettingsRequest
+	var req cryptodto.UpdatePortalSettingsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperror.NewInvalidRequest(err))
 		c.Abort()

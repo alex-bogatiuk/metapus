@@ -9,8 +9,8 @@ import (
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/catalogs/merchant"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware"
-	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
@@ -48,7 +48,7 @@ func (h *MerchantNetworkPolicyHandler) Get(c *gin.Context) {
 		h.base.Error(c, apperror.NewValidation("invalid client IP"))
 		return
 	}
-	h.base.OK(c, dto.MerchantNetworkPolicyResponse{Policy: policy, DetectedIP: ip.Unmap().String(), NetworkAccess: merchant.EvaluateNetworkPolicies([]merchant.NetworkPolicy{*policy}, ip.Unmap())})
+	h.base.OK(c, cryptodto.MerchantNetworkPolicyResponse{Policy: policy, DetectedIP: ip.Unmap().String(), NetworkAccess: merchant.EvaluateNetworkPolicies([]merchant.NetworkPolicy{*policy}, ip.Unmap())})
 }
 
 func (h *MerchantNetworkPolicyHandler) SetMode(c *gin.Context) {
@@ -62,7 +62,7 @@ func (h *MerchantNetworkPolicyHandler) SetMode(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	var req dto.SetMerchantNetworkPolicyRequest
+	var req cryptodto.SetMerchantNetworkPolicyRequest
 	if !h.base.BindJSON(c, &req) {
 		return
 	}
@@ -91,7 +91,7 @@ func (h *MerchantNetworkPolicyHandler) AddNetwork(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	var req dto.AddMerchantAllowedNetworkRequest
+	var req cryptodto.AddMerchantAllowedNetworkRequest
 	if !h.base.BindJSON(c, &req) {
 		return
 	}
@@ -120,7 +120,7 @@ func (h *MerchantNetworkPolicyHandler) RevokeNetwork(c *gin.Context) {
 		h.base.Error(c, apperror.NewValidation("invalid allowed network id"))
 		return
 	}
-	var req dto.RequiredReasonRequest
+	var req cryptodto.RequiredReasonRequest
 	if !h.base.BindJSON(c, &req) {
 		return
 	}

@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 )
 
 func (h *CryptoNetworkHandler) ShadowStatus(c *gin.Context) {
@@ -26,7 +26,7 @@ func (h *CryptoNetworkHandler) SetShadowPaused(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var request dto.SetCryptoShadowControlRequest
+	var request cryptodto.SetCryptoShadowControlRequest
 	if !h.BindJSON(c, &request) {
 		return
 	}

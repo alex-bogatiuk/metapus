@@ -1,0 +1,57 @@
+package cryptodto
+
+import "metapus/internal/application/portalapp"
+
+// HTTP names preserve the wire contract while the application owns the query models.
+type PortalSummaryResponse = portalapp.PortalSummaryResponse
+type PortalCurrencyItem = portalapp.PortalCurrencyItem
+type PortalChartPoint = portalapp.PortalChartPoint
+type PortalMerchantItem = portalapp.PortalMerchantItem
+type PortalInvoiceItem = portalapp.PortalInvoiceItem
+type PortalInvoiceListResponse = portalapp.PortalInvoiceListResponse
+type PortalFunnelResponse = portalapp.PortalFunnelResponse
+type CreatePaymentLinkRequest = portalapp.CreatePaymentLinkRequest
+type PortalPaymentLinkItem = portalapp.PortalPaymentLinkItem
+type PortalPaymentLinkListResponse = portalapp.PortalPaymentLinkListResponse
+type PortalPaymentLinkCreateResponse = portalapp.PortalPaymentLinkCreateResponse
+type PortalSettingsResponse = portalapp.PortalSettingsResponse
+type UpdatePortalSettingsRequest = portalapp.UpdatePortalSettingsRequest
+type PortalBalanceResponse = portalapp.PortalBalanceResponse
+type PortalTokenBalance = portalapp.PortalTokenBalance
+type PortalInvoiceDetailResponse = portalapp.PortalInvoiceDetailResponse
+type PortalInvoiceLedger = portalapp.PortalInvoiceLedger
+type PortalInvoiceFinancialSummary = portalapp.PortalInvoiceFinancialSummary
+type PortalInvoicePayment = portalapp.PortalInvoicePayment
+type PortalTimelineEvent = portalapp.PortalTimelineEvent
+type PortalTimelineEventMetadata = portalapp.PortalTimelineEventMetadata
+type PortalWebhookDeliveryItem = portalapp.PortalWebhookDeliveryItem
+type PortalWithdrawalItem = portalapp.PortalWithdrawalItem
+type PortalWithdrawalListResponse = portalapp.PortalWithdrawalListResponse
+type PortalFeeItem = portalapp.PortalFeeItem
+type PortalFeeScheduleResponse = portalapp.PortalFeeScheduleResponse
+type PortalCreateInvoiceRequest = portalapp.PortalCreateInvoiceRequest
+type PortalCreateInvoiceResponse = portalapp.PortalCreateInvoiceResponse
+type PortalDetailedBalanceResponse = portalapp.PortalDetailedBalanceResponse
+type PortalTokenDetailed = portalapp.PortalTokenDetailed
+type PortalWithdrawalAddress = portalapp.PortalWithdrawalAddress
+type PortalAddWithdrawalAddressRequest = portalapp.PortalAddWithdrawalAddressRequest
+type PortalWithdrawalAddressListResponse = portalapp.PortalWithdrawalAddressListResponse
+type PortalCreateWithdrawalRequest = portalapp.PortalCreateWithdrawalRequest
+type PortalRefundablePaymentResponse = portalapp.PortalRefundablePaymentResponse
+type PortalWithdrawalRequestItem = portalapp.PortalWithdrawalRequestItem
+type PortalWithdrawalSource = portalapp.PortalWithdrawalSource
+type PortalWithdrawalRequestListResponse = portalapp.PortalWithdrawalRequestListResponse
+type AdminWithdrawalRequestItem = portalapp.AdminWithdrawalRequestItem
+type AdminWithdrawalRequestDetail = portalapp.AdminWithdrawalRequestDetail
+type WithdrawalRequestUSDValuation = portalapp.WithdrawalRequestUSDValuation
+type AdminWithdrawalRequestListResponse = portalapp.AdminWithdrawalRequestListResponse
+type AdminApproveWithdrawalResponse = portalapp.AdminApproveWithdrawalResponse
+type PortalDepositAddressQuotaItem = portalapp.PortalDepositAddressQuotaItem
+type PortalDepositAddressItem = portalapp.PortalDepositAddressItem
+type PortalRotateDepositAddressRequest = portalapp.PortalRotateDepositAddressRequest
+type PortalRotateDepositAddressResponse = portalapp.PortalRotateDepositAddressResponse
+type PortalDepositAddressListResponse = portalapp.PortalDepositAddressListResponse
+type PortalCreateDepositAddressRequest = portalapp.PortalCreateDepositAddressRequest
+type PortalCreateDepositAddressResponse = portalapp.PortalCreateDepositAddressResponse
+
+type PortalReceiptTotal = portalapp.PortalReceiptTotal

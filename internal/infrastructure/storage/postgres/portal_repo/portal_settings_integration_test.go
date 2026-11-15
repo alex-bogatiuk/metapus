@@ -14,7 +14,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/domain/catalogs/merchant"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
@@ -32,7 +32,7 @@ func TestPortalMerchantSettingsPatch(t *testing.T) {
 	enabled, disabled := true, false
 	tests := []struct {
 		name          string
-		give          dto.UpdatePortalSettingsRequest
+		give          cryptodto.UpdatePortalSettingsRequest
 		initialSingle bool
 		outOfScope    bool
 		deleted       bool
@@ -42,16 +42,16 @@ func TestPortalMerchantSettingsPatch(t *testing.T) {
 		wantError     string
 		wantUnchanged bool
 	}{
-		{name: "both settings", give: dto.UpdatePortalSettingsRequest{DefaultTTLMinutes: &ttl, SinglePaymentPerInvoice: &enabled}, wantTTL: 120, wantSingle: true, wantTTLType: "number"},
-		{name: "only TTL", give: dto.UpdatePortalSettingsRequest{DefaultTTLMinutes: &ttl}, initialSingle: true, wantTTL: 120, wantSingle: true, wantTTLType: "number"},
-		{name: "only enable single payment", give: dto.UpdatePortalSettingsRequest{SinglePaymentPerInvoice: &enabled}, wantTTL: 60, wantSingle: true, wantTTLType: "string"},
-		{name: "disable single payment", give: dto.UpdatePortalSettingsRequest{SinglePaymentPerInvoice: &disabled}, initialSingle: true, wantTTL: 60, wantTTLType: "string"},
-		{name: "minimum TTL", give: dto.UpdatePortalSettingsRequest{DefaultTTLMinutes: &minimumTTL}, wantTTL: 5, wantTTLType: "number"},
-		{name: "maximum TTL", give: dto.UpdatePortalSettingsRequest{DefaultTTLMinutes: &maximumTTL}, wantTTL: 10080, wantTTLType: "number"},
+		{name: "both settings", give: cryptodto.UpdatePortalSettingsRequest{DefaultTTLMinutes: &ttl, SinglePaymentPerInvoice: &enabled}, wantTTL: 120, wantSingle: true, wantTTLType: "number"},
+		{name: "only TTL", give: cryptodto.UpdatePortalSettingsRequest{DefaultTTLMinutes: &ttl}, initialSingle: true, wantTTL: 120, wantSingle: true, wantTTLType: "number"},
+		{name: "only enable single payment", give: cryptodto.UpdatePortalSettingsRequest{SinglePaymentPerInvoice: &enabled}, wantTTL: 60, wantSingle: true, wantTTLType: "string"},
+		{name: "disable single payment", give: cryptodto.UpdatePortalSettingsRequest{SinglePaymentPerInvoice: &disabled}, initialSingle: true, wantTTL: 60, wantTTLType: "string"},
+		{name: "minimum TTL", give: cryptodto.UpdatePortalSettingsRequest{DefaultTTLMinutes: &minimumTTL}, wantTTL: 5, wantTTLType: "number"},
+		{name: "maximum TTL", give: cryptodto.UpdatePortalSettingsRequest{DefaultTTLMinutes: &maximumTTL}, wantTTL: 10080, wantTTLType: "number"},
 		{name: "empty patch", initialSingle: true, wantTTL: 60, wantSingle: true, wantTTLType: "string", wantUnchanged: true},
-		{name: "invalid TTL", give: dto.UpdatePortalSettingsRequest{DefaultTTLMinutes: &invalidTTL, SinglePaymentPerInvoice: &enabled}, wantTTL: 60, wantTTLType: "string", wantError: "defaultTtlMinutes must be between 5 and 10080", wantUnchanged: true},
-		{name: "out of scope", give: dto.UpdatePortalSettingsRequest{DefaultTTLMinutes: &ttl, SinglePaymentPerInvoice: &enabled}, outOfScope: true, wantTTL: 60, wantTTLType: "string", wantError: "merchant_id not in scope", wantUnchanged: true},
-		{name: "deleted merchant", give: dto.UpdatePortalSettingsRequest{DefaultTTLMinutes: &ttl, SinglePaymentPerInvoice: &enabled}, deleted: true, wantTTL: 60, wantTTLType: "string", wantUnchanged: true},
+		{name: "invalid TTL", give: cryptodto.UpdatePortalSettingsRequest{DefaultTTLMinutes: &invalidTTL, SinglePaymentPerInvoice: &enabled}, wantTTL: 60, wantTTLType: "string", wantError: "defaultTtlMinutes must be between 5 and 10080", wantUnchanged: true},
+		{name: "out of scope", give: cryptodto.UpdatePortalSettingsRequest{DefaultTTLMinutes: &ttl, SinglePaymentPerInvoice: &enabled}, outOfScope: true, wantTTL: 60, wantTTLType: "string", wantError: "merchant_id not in scope", wantUnchanged: true},
+		{name: "deleted merchant", give: cryptodto.UpdatePortalSettingsRequest{DefaultTTLMinutes: &ttl, SinglePaymentPerInvoice: &enabled}, deleted: true, wantTTL: 60, wantTTLType: "string", wantUnchanged: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

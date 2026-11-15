@@ -8,7 +8,7 @@ import (
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 )
@@ -39,11 +39,11 @@ func (h *CryptoNetworkHandler) List(c *gin.Context) {
 		h.Error(c, err)
 		return
 	}
-	items := make([]dto.CryptoNetworkStateResponse, 0, len(states))
+	items := make([]cryptodto.CryptoNetworkStateResponse, 0, len(states))
 	for _, state := range states {
-		items = append(items, dto.CryptoNetworkStateFromDomain(state))
+		items = append(items, cryptodto.CryptoNetworkStateFromDomain(state))
 	}
-	c.JSON(http.StatusOK, dto.CryptoNetworkListResponse{Items: items})
+	c.JSON(http.StatusOK, cryptodto.CryptoNetworkListResponse{Items: items})
 }
 
 func (h *CryptoNetworkHandler) Status(c *gin.Context) {
@@ -56,7 +56,7 @@ func (h *CryptoNetworkHandler) Status(c *gin.Context) {
 		h.Error(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.CryptoNetworkStateFromDomain(state))
+	c.JSON(http.StatusOK, cryptodto.CryptoNetworkStateFromDomain(state))
 }
 
 func (h *CryptoNetworkHandler) UpdatePolicy(c *gin.Context) {
@@ -64,7 +64,7 @@ func (h *CryptoNetworkHandler) UpdatePolicy(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var request dto.UpdateCryptoNetworkPolicyRequest
+	var request cryptodto.UpdateCryptoNetworkPolicyRequest
 	if !h.BindJSON(c, &request) {
 		return
 	}
@@ -78,7 +78,7 @@ func (h *CryptoNetworkHandler) UpdatePolicy(c *gin.Context) {
 		h.Error(c, err)
 		return
 	}
-	response := dto.CryptoNetworkStateFromDomain(state)
+	response := cryptodto.CryptoNetworkStateFromDomain(state)
 	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
 	c.JSON(http.StatusOK, response)
 }
@@ -88,7 +88,7 @@ func (h *CryptoNetworkHandler) SetWatching(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var request dto.SetCryptoNetworkWatchingRequest
+	var request cryptodto.SetCryptoNetworkWatchingRequest
 	if !h.BindJSON(c, &request) {
 		return
 	}
@@ -97,7 +97,7 @@ func (h *CryptoNetworkHandler) SetWatching(c *gin.Context) {
 		h.Error(c, err)
 		return
 	}
-	response := dto.CryptoNetworkStateFromDomain(state)
+	response := cryptodto.CryptoNetworkStateFromDomain(state)
 	h.CompleteIdempotency(c, http.StatusOK, "application/json", response)
 	c.JSON(http.StatusOK, response)
 }

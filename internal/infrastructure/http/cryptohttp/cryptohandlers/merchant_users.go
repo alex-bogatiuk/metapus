@@ -9,7 +9,7 @@ import (
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/catalogs/merchant"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 )
 
 // MerchantUserHandler manages user ↔ merchant associations.
@@ -38,12 +38,12 @@ func (h *MerchantUserHandler) ListUsers(c *gin.Context) {
 		return
 	}
 
-	items := make([]dto.MerchantUserItem, len(users))
+	items := make([]cryptodto.MerchantUserItem, len(users))
 	for i, u := range users {
-		items[i] = dto.MerchantUserFromDomain(u)
+		items[i] = cryptodto.MerchantUserFromDomain(u)
 	}
 
-	c.JSON(http.StatusOK, dto.MerchantUserListResponse{Items: items, Total: len(items)})
+	c.JSON(http.StatusOK, cryptodto.MerchantUserListResponse{Items: items, Total: len(items)})
 }
 
 // AddUser handles POST /merchant-admin/merchants/:merchantId/users.
@@ -55,7 +55,7 @@ func (h *MerchantUserHandler) AddUser(c *gin.Context) {
 		return
 	}
 
-	var req dto.AddMerchantUserRequest
+	var req cryptodto.AddMerchantUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperror.NewInvalidRequest(err))
 		c.Abort()
@@ -126,7 +126,7 @@ func (h *MerchantUserHandler) UpdateRole(c *gin.Context) {
 		return
 	}
 
-	var req dto.UpdateMerchantUserRoleRequest
+	var req cryptodto.UpdateMerchantUserRoleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperror.NewInvalidRequest(err))
 		c.Abort()

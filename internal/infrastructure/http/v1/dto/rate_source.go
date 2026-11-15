@@ -30,9 +30,9 @@ func (r *CreateRateSourceRequest) ToEntity() *rate_source.RateSource {
 	if r.APIKey != nil {
 		rs.SetAPIKey(*r.APIKey)
 	}
-	rs.IntegrationPoolID = stringPtrToIDPtr(r.IntegrationPoolID)
+	rs.IntegrationPoolID = StringPtrToIDPtr(r.IntegrationPoolID)
 	rs.IsActive = r.IsActive
-	rs.ParentID = stringPtrToIDPtr(r.ParentID)
+	rs.ParentID = StringPtrToIDPtr(r.ParentID)
 	rs.IsFolder = r.IsFolder
 	rs.Attributes = r.Attributes
 	return rs
@@ -64,10 +64,10 @@ func (r *UpdateRateSourceRequest) ApplyTo(rs *rate_source.RateSource) {
 		rs.SetAPIKey(*r.APIKey)
 	}
 	if r.IntegrationPoolID != nil {
-		rs.IntegrationPoolID = stringPtrToIDPtr(r.IntegrationPoolID)
+		rs.IntegrationPoolID = StringPtrToIDPtr(r.IntegrationPoolID)
 	}
 	rs.IsActive = r.IsActive
-	rs.ParentID = stringPtrToIDPtr(r.ParentID)
+	rs.ParentID = StringPtrToIDPtr(r.ParentID)
 	rs.IsFolder = r.IsFolder
 	rs.Attributes = r.Attributes
 	rs.Version = r.Version
@@ -97,7 +97,7 @@ type RateSourceResponse struct {
 // FromRateSource creates response DTO from domain entity.
 func FromRateSource(rs *rate_source.RateSource) *RateSourceResponse {
 	return &RateSourceResponse{
-		IntegrationPoolID: idToStringPtr(rs.IntegrationPoolID),
+		IntegrationPoolID: IDToStringPtr(rs.IntegrationPoolID),
 		ID:                rs.ID.String(),
 		Code:              rs.Code,
 		Name:              rs.Name,
@@ -107,7 +107,7 @@ func FromRateSource(rs *rate_source.RateSource) *RateSourceResponse {
 		APIKeyConfigured:  rs.APIKey != nil,
 		Priority:          rs.Priority,
 		IsActive:          rs.IsActive,
-		ParentID:          idToStringPtr(rs.ParentID),
+		ParentID:          IDToStringPtr(rs.ParentID),
 		IsFolder:          rs.IsFolder,
 		DeletionMark:      rs.DeletionMark,
 		Version:           rs.Version,

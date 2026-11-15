@@ -18,8 +18,8 @@ import (
 	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_invoice"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware"
-	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/pkg/logger"
 )
 
@@ -102,7 +102,7 @@ func (h *MerchantInvoiceHandler) CreateInvoice(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	var req dto.CreateMerchantInvoiceRequest
+	var req cryptodto.CreateMerchantInvoiceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperror.NewInvalidRequest(err))
 		c.Abort()
@@ -234,7 +234,7 @@ func (h *MerchantInvoiceHandler) CreateInvoice(c *gin.Context) {
 	if !result.Created {
 		status = http.StatusOK
 	}
-	resp := dto.MerchantInvoiceFromEntity(result.Invoice, display.WalletAddress, display.TokenCode, display.NetworkCode, display.DecimalPlaces, h.invoicePayURL(result.Invoice.PublicRef))
+	resp := cryptodto.MerchantInvoiceFromEntity(result.Invoice, display.WalletAddress, display.TokenCode, display.NetworkCode, display.DecimalPlaces, h.invoicePayURL(result.Invoice.PublicRef))
 	if !result.Created {
 		if summary, summaryErr := h.queries.InvoicePaymentsSummary(ctx, result.Invoice.ID); summaryErr == nil {
 			resp.FeeAmount = summary.FeeAmount
@@ -266,9 +266,9 @@ func (h *MerchantInvoiceHandler) ListCurrencies(c *gin.Context) {
 		return
 	}
 
-	items := make([]dto.MerchantCurrencyItem, 0, len(currencies))
+	items := make([]cryptodto.MerchantCurrencyItem, 0, len(currencies))
 	for _, cur := range currencies {
-		items = append(items, dto.MerchantCurrencyItem{
+		items = append(items, cryptodto.MerchantCurrencyItem{
 			Code:                  cur.Code,
 			Symbol:                cur.Symbol,
 			Name:                  cur.Name,
@@ -282,7 +282,7 @@ func (h *MerchantInvoiceHandler) ListCurrencies(c *gin.Context) {
 			AcceptsPayments:       cur.AcceptsPayments,
 		})
 	}
-	c.JSON(http.StatusOK, dto.MerchantCurrencyListResponse{Items: items})
+	c.JSON(http.StatusOK, cryptodto.MerchantCurrencyListResponse{Items: items})
 }
 
 // ListInvoices handles GET /merchant/v1/invoices.
@@ -315,9 +315,9 @@ func (h *MerchantInvoiceHandler) ListInvoices(c *gin.Context) {
 		return
 	}
 
-	items := make([]dto.MerchantInvoiceResponse, 0, len(page.Items))
+	items := make([]cryptodto.MerchantInvoiceResponse, 0, len(page.Items))
 	for _, record := range page.Items {
-		item := dto.MerchantInvoiceFromEntity(
+		item := cryptodto.MerchantInvoiceFromEntity(
 			record.Invoice,
 			record.WalletAddress,
 			record.TokenCode,
@@ -332,7 +332,7 @@ func (h *MerchantInvoiceHandler) ListInvoices(c *gin.Context) {
 		items = append(items, item)
 	}
 
-	c.JSON(http.StatusOK, dto.MerchantInvoiceListResponse{
+	c.JSON(http.StatusOK, cryptodto.MerchantInvoiceListResponse{
 		Object:     "list",
 		Items:      items,
 		HasMore:    page.HasMore,
@@ -388,7 +388,7 @@ func (h *MerchantInvoiceHandler) writeMerchantInvoiceResponse(c *gin.Context, in
 		display = cryptoapp.MerchantInvoiceDisplay{}
 	}
 
-	resp := dto.MerchantInvoiceFromEntity(inv, display.WalletAddress, display.TokenCode, display.NetworkCode, display.DecimalPlaces, h.invoicePayURL(inv.PublicRef))
+	resp := cryptodto.MerchantInvoiceFromEntity(inv, display.WalletAddress, display.TokenCode, display.NetworkCode, display.DecimalPlaces, h.invoicePayURL(inv.PublicRef))
 	summary, err := h.queries.InvoicePaymentsSummary(ctx, inv.ID)
 	if err != nil {
 		_ = c.Error(apperror.NewInternal(fmt.Errorf("load invoice payments: %w", err)))
@@ -433,7 +433,7 @@ func (h *MerchantAPIKeyHandler) CreateKey(c *gin.Context) {
 		return
 	}
 
-	var req dto.CreateMerchantAPIKeyRequest
+	var req cryptodto.CreateMerchantAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperror.NewInvalidRequest(err))
 		c.Abort()
@@ -476,7 +476,7 @@ func (h *MerchantAPIKeyHandler) CreateKey(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, dto.MerchantAPIKeyToCreateResponse(key, plaintext))
+	c.JSON(http.StatusCreated, cryptodto.MerchantAPIKeyToCreateResponse(key, plaintext))
 }
 
 // ListKeys handles GET /catalog/merchants/:merchantId/api-keys.
@@ -495,12 +495,12 @@ func (h *MerchantAPIKeyHandler) ListKeys(c *gin.Context) {
 		return
 	}
 
-	items := make([]dto.MerchantAPIKeyListItem, len(keys))
+	items := make([]cryptodto.MerchantAPIKeyListItem, len(keys))
 	for i, k := range keys {
-		items[i] = dto.MerchantAPIKeyToListItem(k)
+		items[i] = cryptodto.MerchantAPIKeyToListItem(k)
 	}
 
-	c.JSON(http.StatusOK, dto.MerchantAPIKeyListResponse{Items: items, Total: len(items)})
+	c.JSON(http.StatusOK, cryptodto.MerchantAPIKeyListResponse{Items: items, Total: len(items)})
 }
 
 // RevokeKey handles DELETE /catalog/merchants/:merchantId/api-keys/:keyId.
@@ -527,10 +527,10 @@ func (h *MerchantAPIKeyHandler) RevokeKey(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func merchantPaymentResponses(items []cryptoapp.MerchantInvoicePayment) []dto.MerchantPaymentResponse {
-	result := make([]dto.MerchantPaymentResponse, 0, len(items))
+func merchantPaymentResponses(items []cryptoapp.MerchantInvoicePayment) []cryptodto.MerchantPaymentResponse {
+	result := make([]cryptodto.MerchantPaymentResponse, 0, len(items))
 	for _, source := range items {
-		item := dto.MerchantPaymentResponse{
+		item := cryptodto.MerchantPaymentResponse{
 			ID: source.ID.String(), TxHash: source.TxHash, LogIndex: source.EventIndex, EventKind: source.EventKind,
 			Amount: source.Amount, FeeAmount: source.FeeAmount, NetAmount: source.NetAmount,
 			Status: source.Status, Canonicality: source.Canonicality, FinalityStatus: source.FinalityStatus,

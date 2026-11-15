@@ -7,9 +7,7 @@ import (
 
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
-	"metapus/internal/domain/catalogs/blockchain_network"
 	"metapus/internal/domain/catalogs/rate_source"
-	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/integrations"
 	"metapus/internal/metadata"
 )
@@ -35,11 +33,6 @@ func TestIntegrationAccountNeverSerializesSecretMaterial(t *testing.T) {
 }
 
 func TestLegacyUpdateDoesNotReenableFileCredentials(t *testing.T) {
-	n := blockchain_network.NewBlockchainNetwork("ETH", "Ethereum", crypto.ChainFamilyEVM, "1", "ETH", 18)
-	n.RPCConfigSource = "database"
-	request := UpdateBlockchainNetworkRequest{}
-	request.ApplyTo(n)
-	require.Equal(t, "database", n.RPCConfigSource)
 	uid := id.New()
 	s := rate_source.NewRateSource("CG", "CoinGecko", "coingecko")
 	s.IntegrationPoolID = &uid

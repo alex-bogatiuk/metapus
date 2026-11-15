@@ -3,6 +3,7 @@ package contracts
 import (
 	"metapus/internal/domain/settings"
 	"metapus/internal/domain/userpref"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/dto"
 )
 
@@ -12,7 +13,7 @@ func systemContracts() []Contract {
 		Response[dto.PoolStatsResponse]("PoolStatsResponse"),
 		Response[dto.TenantPoolStatsResponse]("TenantPoolStatsResponse"),
 		Response[[]dto.PolicyRuleResponse]("PolicyRuleListResponse"),
-		Response[dto.CryptoNetworkListResponse]("CryptoNetworkListResponse"),
+		Response[cryptodto.CryptoNetworkListResponse]("CryptoNetworkListResponse"),
 		Response[settings.Settings]("SystemSettingsResponse"),
 		Request[dto.UpdateSettingsSectionRequest]("UpdateSettingsSectionRequest"),
 		Request[dto.SettingsSectionRequest[settings.GeneralSettings]]("UpdateGeneralSettingsRequest"),

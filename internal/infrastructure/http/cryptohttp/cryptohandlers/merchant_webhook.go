@@ -14,8 +14,8 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/domain/crypto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware"
-	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/storage/postgres"
 	platformtelemetry "metapus/internal/platform/telemetry"
 )
@@ -38,7 +38,7 @@ func NewMerchantWebhookHandler(repo crypto.MerchantWebhookRepository, secrets cr
 
 func (h *MerchantWebhookHandler) CreateEndpoint(c *gin.Context) {
 	mc := cryptomiddleware.GetMerchant(c.Request.Context())
-	var request dto.CreateWebhookEndpointRequest
+	var request cryptodto.CreateWebhookEndpointRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		failMerchantWebhook(c, apperror.NewInvalidRequest(err))
 		return
@@ -51,7 +51,7 @@ func (h *MerchantWebhookHandler) CreateEndpoint(c *gin.Context) {
 		failMerchantWebhook(c, err)
 		return
 	}
-	response := dto.WebhookEndpointFromEntity(endpoint)
+	response := cryptodto.WebhookEndpointFromEntity(endpoint)
 	response.Secret = secret // one-time reveal
 	c.JSON(http.StatusCreated, response)
 }
@@ -63,11 +63,11 @@ func (h *MerchantWebhookHandler) ListEndpoints(c *gin.Context) {
 		failMerchantWebhook(c, err)
 		return
 	}
-	items := make([]dto.WebhookEndpointResponse, len(endpoints))
+	items := make([]cryptodto.WebhookEndpointResponse, len(endpoints))
 	for i := range endpoints {
-		items[i] = dto.WebhookEndpointFromEntity(&endpoints[i])
+		items[i] = cryptodto.WebhookEndpointFromEntity(&endpoints[i])
 	}
-	c.JSON(http.StatusOK, dto.WebhookEndpointListResponse{Object: "list", Items: items, Total: len(items)})
+	c.JSON(http.StatusOK, cryptodto.WebhookEndpointListResponse{Object: "list", Items: items, Total: len(items)})
 }
 
 func (h *MerchantWebhookHandler) GetEndpoint(c *gin.Context) {
@@ -75,7 +75,7 @@ func (h *MerchantWebhookHandler) GetEndpoint(c *gin.Context) {
 	if endpoint == nil {
 		return
 	}
-	c.JSON(http.StatusOK, dto.WebhookEndpointFromEntity(endpoint))
+	c.JSON(http.StatusOK, cryptodto.WebhookEndpointFromEntity(endpoint))
 }
 
 func (h *MerchantWebhookHandler) UpdateEndpoint(c *gin.Context) {
@@ -83,7 +83,7 @@ func (h *MerchantWebhookHandler) UpdateEndpoint(c *gin.Context) {
 	if endpoint == nil {
 		return
 	}
-	var request dto.UpdateWebhookEndpointRequest
+	var request cryptodto.UpdateWebhookEndpointRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		failMerchantWebhook(c, apperror.NewInvalidRequest(err))
 		return
@@ -113,7 +113,7 @@ func (h *MerchantWebhookHandler) UpdateEndpoint(c *gin.Context) {
 		failMerchantWebhook(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.WebhookEndpointFromEntity(updated))
+	c.JSON(http.StatusOK, cryptodto.WebhookEndpointFromEntity(updated))
 }
 
 func (h *MerchantWebhookHandler) DeleteEndpoint(c *gin.Context) {
@@ -142,7 +142,7 @@ func (h *MerchantWebhookHandler) RotateSecret(c *gin.Context) {
 		failMerchantWebhook(c, err)
 		return
 	}
-	response := dto.WebhookEndpointFromEntity(endpoint)
+	response := cryptodto.WebhookEndpointFromEntity(endpoint)
 	response.Secret = secret // one-time reveal
 	c.JSON(http.StatusOK, response)
 }
@@ -174,7 +174,7 @@ func (h *MerchantWebhookHandler) TestEndpoint(c *gin.Context) {
 		Traceparent:   platformtelemetry.Traceparent(c.Request.Context()),
 		CorrelationID: business.CorrelationID, CausationID: business.CausationID,
 	})
-	response := dto.WebhookTestResponse{EventID: eventID, Success: dispatchErr == nil}
+	response := cryptodto.WebhookTestResponse{EventID: eventID, Success: dispatchErr == nil}
 	if delivery != nil {
 		response.DeliveryID = &delivery.DeliveryID
 		response.StatusCode = &delivery.StatusCode
@@ -202,7 +202,7 @@ func (h *MerchantWebhookHandler) ListEvents(c *gin.Context) {
 		failMerchantWebhook(c, err)
 		return
 	}
-	items := make([]dto.MerchantEventResponse, 0, len(records))
+	items := make([]cryptodto.MerchantEventResponse, 0, len(records))
 	for i := range records {
 		response, mapErr := merchantEventResponse(&records[i])
 		if mapErr != nil {
@@ -211,7 +211,7 @@ func (h *MerchantWebhookHandler) ListEvents(c *gin.Context) {
 		}
 		items = append(items, response)
 	}
-	c.JSON(http.StatusOK, dto.MerchantEventListResponse{Object: "list", Items: items, Total: total})
+	c.JSON(http.StatusOK, cryptodto.MerchantEventListResponse{Object: "list", Items: items, Total: total})
 }
 
 func (h *MerchantWebhookHandler) ListEventDeliveries(c *gin.Context) {
@@ -226,12 +226,12 @@ func (h *MerchantWebhookHandler) ListEventDeliveries(c *gin.Context) {
 		failMerchantWebhook(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.MerchantEventDeliveriesResponse{Object: "list", Items: deliveries, Total: len(deliveries)})
+	c.JSON(http.StatusOK, cryptodto.MerchantEventDeliveriesResponse{Object: "list", Items: deliveries, Total: len(deliveries)})
 }
 
 func (h *MerchantWebhookHandler) RedeliverEvent(c *gin.Context) {
 	mc := cryptomiddleware.GetMerchant(c.Request.Context())
-	var request dto.RedeliverMerchantEventRequest
+	var request cryptodto.RedeliverMerchantEventRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		failMerchantWebhook(c, apperror.NewInvalidRequest(err))
 		return
@@ -245,7 +245,7 @@ func (h *MerchantWebhookHandler) RedeliverEvent(c *gin.Context) {
 		failMerchantWebhook(c, err)
 		return
 	}
-	c.JSON(http.StatusAccepted, dto.StatusResponse{Status: "pending"})
+	c.JSON(http.StatusAccepted, cryptodto.StatusResponse{Status: "pending"})
 }
 
 func (h *MerchantWebhookHandler) mustEndpoint(c *gin.Context) *crypto.MerchantWebhookEndpoint {
@@ -263,19 +263,19 @@ func (h *MerchantWebhookHandler) mustEndpoint(c *gin.Context) *crypto.MerchantWe
 	return endpoint
 }
 
-func merchantEventResponse(record *crypto.MerchantEventRecord) (dto.MerchantEventResponse, error) {
+func merchantEventResponse(record *crypto.MerchantEventRecord) (cryptodto.MerchantEventResponse, error) {
 	var lifecycle crypto.LifecycleWebhookEvent
 	if err := json.Unmarshal(record.Payload, &lifecycle); err != nil {
-		return dto.MerchantEventResponse{}, err
+		return cryptodto.MerchantEventResponse{}, err
 	}
 	payload := crypto.WebhookPayload{ID: record.EventID, Object: "event", APIVersion: record.APIVersion,
 		Type: record.EventType, CreatedAt: record.CreatedAt, Data: crypto.WebhookEventData{Object: lifecycle.Data}}
 	if len(lifecycle.DeliveryPayload) > 0 {
 		if err := json.Unmarshal(lifecycle.DeliveryPayload, &payload); err != nil {
-			return dto.MerchantEventResponse{}, err
+			return cryptodto.MerchantEventResponse{}, err
 		}
 	}
-	response := dto.MerchantEventResponse{
+	response := cryptodto.MerchantEventResponse{
 		ID: record.EventID, Object: "event", Type: string(record.EventType),
 		APIVersion: record.APIVersion, ResourceVersion: record.ResourceVersion,
 		CreatedAt: record.CreatedAt,

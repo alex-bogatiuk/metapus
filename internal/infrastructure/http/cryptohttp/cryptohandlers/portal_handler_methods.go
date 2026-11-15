@@ -17,7 +17,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/documents/crypto_invoice"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 )
 
@@ -39,7 +39,7 @@ func (h *PortalHandler) CreateInvoice(c *gin.Context) {
 		return
 	}
 
-	var req dto.PortalCreateInvoiceRequest
+	var req cryptodto.PortalCreateInvoiceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperror.NewInvalidRequest(err))
 		c.Abort()
@@ -158,7 +158,7 @@ func (h *PortalHandler) CreateInvoice(c *gin.Context) {
 	if !result.Created {
 		status = http.StatusOK
 	}
-	c.JSON(status, dto.PortalCreateInvoiceResponse{
+	c.JSON(status, cryptodto.PortalCreateInvoiceResponse{
 		Object:        "crypto_invoice",
 		ID:            inv.GetID().String(),
 		Version:       inv.Version,
@@ -223,7 +223,7 @@ func (h *PortalHandler) GetRefundablePayment(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	c.JSON(http.StatusOK, dto.PortalRefundablePaymentResponse{
+	c.JSON(http.StatusOK, cryptodto.PortalRefundablePaymentResponse{
 		PaymentID: payment.PaymentID.String(), InvoiceID: payment.InvoiceID.String(), InvoiceNumber: payment.InvoiceNumber,
 		TokenID: payment.TokenID.String(), FromAddress: payment.FromAddress, Amount: payment.Amount.String(),
 		CommittedAmount: payment.Committed.String(), RefundableAmount: payment.Refundable().String(),
@@ -276,7 +276,7 @@ func (h *PortalHandler) ListWithdrawals(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	c.JSON(http.StatusOK, dto.PortalWithdrawalListResponse{
+	c.JSON(http.StatusOK, cryptodto.PortalWithdrawalListResponse{
 		Items: items,
 		Total: total,
 	})
@@ -299,7 +299,7 @@ func (h *PortalHandler) ListWhitelistedAddresses(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	c.JSON(http.StatusOK, dto.PortalWithdrawalAddressListResponse{Items: items})
+	c.JSON(http.StatusOK, cryptodto.PortalWithdrawalAddressListResponse{Items: items})
 }
 
 // AddWhitelistedAddress handles POST /portal/v1/withdrawal-addresses?merchant_id=...
@@ -311,7 +311,7 @@ func (h *PortalHandler) AddWhitelistedAddress(c *gin.Context) {
 		return
 	}
 
-	var req dto.PortalAddWithdrawalAddressRequest
+	var req cryptodto.PortalAddWithdrawalAddressRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperror.NewInvalidRequest(err))
 		c.Abort()
@@ -330,7 +330,7 @@ func (h *PortalHandler) AddWhitelistedAddress(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	c.JSON(http.StatusCreated, dto.PortalWithdrawalAddressCreatedResponse{Object: "withdrawal_address", ID: newID.String(), Version: 1})
+	c.JSON(http.StatusCreated, cryptodto.PortalWithdrawalAddressCreatedResponse{Object: "withdrawal_address", ID: newID.String(), Version: 1})
 }
 
 // RemoveWhitelistedAddress handles DELETE /portal/v1/withdrawal-addresses/:id?merchant_id=...
@@ -377,7 +377,7 @@ func (h *PortalHandler) ListWithdrawalRequests(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	c.JSON(http.StatusOK, dto.PortalWithdrawalRequestListResponse{
+	c.JSON(http.StatusOK, cryptodto.PortalWithdrawalRequestListResponse{
 		Items: items,
 		Total: total,
 	})
@@ -393,7 +393,7 @@ func (h *PortalHandler) CreateWithdrawalRequest(c *gin.Context) {
 		return
 	}
 
-	var req dto.PortalCreateWithdrawalRequest
+	var req cryptodto.PortalCreateWithdrawalRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperror.NewInvalidRequest(err))
 		c.Abort()
@@ -439,7 +439,7 @@ func (h *PortalHandler) CreateWithdrawalRequest(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusAccepted, dto.PortalWithdrawalCreatedResponse{Object: "withdrawal_request", ID: result.ID.String(), Version: 1, Number: result.Number, Status: string(result.Status)})
+	c.JSON(http.StatusAccepted, cryptodto.PortalWithdrawalCreatedResponse{Object: "withdrawal_request", ID: result.ID.String(), Version: 1, Number: result.Number, Status: string(result.Status)})
 }
 
 // RejectWithdrawalRequest handles POST /portal/v1/withdrawal-requests/:id/reject?merchant_id=...
@@ -460,7 +460,7 @@ func (h *PortalHandler) RejectWithdrawalRequest(c *gin.Context) {
 	}
 
 	// Optional rejection reason.
-	var body dto.ReasonRequest
+	var body cryptodto.ReasonRequest
 	_ = c.ShouldBindJSON(&body) // ignore error; reason is optional
 
 	if err := h.withdrawalService.Reject(c.Request.Context(), mid, requestID, body.Reason); err != nil {
@@ -475,7 +475,7 @@ func (h *PortalHandler) RejectWithdrawalRequest(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	c.JSON(http.StatusOK, dto.StatusResponse{Status: status})
+	c.JSON(http.StatusOK, cryptodto.StatusResponse{Status: status})
 }
 
 // Webhooks.
@@ -497,7 +497,7 @@ func (h *PortalHandler) GetFeeSchedule(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	c.JSON(http.StatusOK, dto.PortalFeeScheduleResponse{Items: items})
+	c.JSON(http.StatusOK, cryptodto.PortalFeeScheduleResponse{Items: items})
 }
 
 // Persistent customer deposit addresses.
@@ -532,7 +532,7 @@ func (h *PortalHandler) ListDepositAddresses(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.PortalDepositAddressListResponse{
+	c.JSON(http.StatusOK, cryptodto.PortalDepositAddressListResponse{
 		Items:  items,
 		Total:  total,
 		Quotas: quotas,
@@ -549,7 +549,7 @@ func (h *PortalHandler) CreateDepositAddress(c *gin.Context) {
 		return
 	}
 
-	var req dto.PortalCreateDepositAddressRequest
+	var req cryptodto.PortalCreateDepositAddressRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperror.NewInvalidRequest(err))
 		c.Abort()
@@ -606,7 +606,7 @@ func (h *PortalHandler) CreateDepositAddress(c *gin.Context) {
 		status = http.StatusOK
 	}
 
-	c.JSON(status, dto.PortalCreateDepositAddressResponse{
+	c.JSON(status, cryptodto.PortalCreateDepositAddressResponse{
 		Object:      "deposit_address",
 		ID:          w.ID.String(),
 		CustomerID:  w.CustomerID,

@@ -6,14 +6,15 @@ import (
 	"metapus/internal/core/json"
 	"metapus/internal/domain"
 	er "metapus/internal/domain/registers/exchange_rate"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/metadata"
 )
 
 func serviceOperationContracts() []Contract {
 	return []Contract{
-		Request[dto.PrepareProviderOpeningRequest]("PrepareProviderOpeningRequest"),
-		Request[dto.ProviderBalanceDecisionRequest]("ProviderBalanceDecisionRequest"),
+		Request[cryptodto.PrepareProviderOpeningRequest]("PrepareProviderOpeningRequest"),
+		Request[cryptodto.ProviderBalanceDecisionRequest]("ProviderBalanceDecisionRequest"),
 		Response[cryptoapp.ProviderBalanceResult]("ProviderBalanceDecisionResponse"),
 		Response[[]dto.EntitySummaryResponse]("EntitySummaryListResponse"),
 		Response[[]metadata.EntityDef]("EntityMetadataListResponse"),
@@ -23,7 +24,7 @@ func serviceOperationContracts() []Contract {
 		// These preferences are opaque JSON to the server; frontend-owned
 		// schemas validate filters, columns, favorites and widget configuration.
 		Request[json.RawMessage]("UpdateJSONPreferencesRequest"),
-		Response[dto.FeeScheduleListResponse]("FeeScheduleListResponse"),
+		Response[cryptodto.FeeScheduleListResponse]("FeeScheduleListResponse"),
 		Request[domain.FindReferencesRequest]("FindReferencesRequest"),
 		Response[dto.FindReferencesResponse]("FindReferencesResponse"),
 		Response[dto.MarkedObjectsResponse]("MarkedObjectsResponse"),

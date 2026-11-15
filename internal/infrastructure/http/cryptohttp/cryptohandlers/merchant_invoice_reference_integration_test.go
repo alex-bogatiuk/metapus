@@ -29,8 +29,8 @@ import (
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/domain/eventlog"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware"
-	"metapus/internal/infrastructure/http/v1/dto"
 	mw "metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
@@ -188,7 +188,7 @@ func TestInvoiceReferenceHTTPReplaySecurityAndReconciliation(t *testing.T) {
 	require.NoError(t, err)
 	first := request(http.MethodPatch, path, "first", string(body))
 	require.Equal(t, 200, first.Code, first.Body.String())
-	var invoice dto.MerchantInvoiceResponse
+	var invoice cryptodto.MerchantInvoiceResponse
 	require.NoError(t, json.Unmarshal(first.Body.Bytes(), &invoice))
 	require.Equal(t, order, *invoice.OrderID)
 	require.Equal(t, p.externalID, *invoice.ExternalID)
@@ -239,7 +239,7 @@ func TestInvoiceReferenceHTTPReplaySecurityAndReconciliation(t *testing.T) {
 	currentMerchant = f.merchantID
 	list := request(http.MethodGet, "/merchant/v1/invoices?orderId="+url.QueryEscape(order), "", "")
 	require.Equal(t, 200, list.Code, list.Body.String())
-	var page dto.MerchantInvoiceListResponse
+	var page cryptodto.MerchantInvoiceListResponse
 	require.NoError(t, json.Unmarshal(list.Body.Bytes(), &page))
 	require.Len(t, page.Items, 1)
 	require.Equal(t, order, *page.Items[0].OrderID)
@@ -303,7 +303,7 @@ func TestInvoiceReferenceFormulaExportPreservesLiteralReference(t *testing.T) {
 	path := "/merchant/v1/invoices/" + p.invoiceID.String()
 	bound := request(http.MethodPatch, path+"/reference", `{"orderId":"=1+1"}`)
 	require.Equal(t, 200, bound.Code, bound.Body.String())
-	var invoice dto.MerchantInvoiceResponse
+	var invoice cryptodto.MerchantInvoiceResponse
 	require.NoError(t, json.Unmarshal(bound.Body.Bytes(), &invoice))
 	require.Equal(t, orderID, *invoice.OrderID)
 	require.Equal(t, p.externalID, *invoice.ExternalID)
@@ -359,7 +359,7 @@ func TestInvoiceReferenceExternalOnlyHTTPAndSystemClassification(t *testing.T) {
 	body := `{"externalId":"topup_1С-проводка-001","metadata":{"erp":"1c"}}`
 	first := request("external-only", body)
 	require.Equal(t, 200, first.Code, first.Body.String())
-	var invoice dto.MerchantInvoiceResponse
+	var invoice cryptodto.MerchantInvoiceResponse
 	require.NoError(t, json.Unmarshal(first.Body.Bytes(), &invoice))
 	require.Nil(t, invoice.OrderID)
 	require.Equal(t, "topup_1С-проводка-001", *invoice.ExternalID)

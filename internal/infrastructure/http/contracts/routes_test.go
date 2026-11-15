@@ -9,8 +9,8 @@ import (
 	"metapus/internal/core/json"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/jsoncodec"
-	"metapus/internal/infrastructure/http/v1/dto"
 )
 
 func TestRouteContractsResolveConcreteDirectionsAndStayCurrent(t *testing.T) {
@@ -36,12 +36,12 @@ func TestWebhookTestResultPreservesOmittedNullAndZero(t *testing.T) {
 	var status *int
 	zero := 0
 	for _, tc := range []struct {
-		value    dto.WebhookTestResponse
+		value    cryptodto.WebhookTestResponse
 		expected string
 	}{
-		{dto.WebhookTestResponse{EventID: "event"}, `{"eventId":"event","success":false}`},
-		{dto.WebhookTestResponse{EventID: "event", StatusCode: &status}, `{"eventId":"event","success":false,"statusCode":null}`},
-		{dto.WebhookTestResponse{EventID: "event", DurationMs: ptr(&zero)}, `{"eventId":"event","success":false,"durationMs":0}`},
+		{cryptodto.WebhookTestResponse{EventID: "event"}, `{"eventId":"event","success":false}`},
+		{cryptodto.WebhookTestResponse{EventID: "event", StatusCode: &status}, `{"eventId":"event","success":false,"statusCode":null}`},
+		{cryptodto.WebhookTestResponse{EventID: "event", DurationMs: ptr(&zero)}, `{"eventId":"event","success":false,"durationMs":0}`},
 	} {
 		encoded, err := jsoncodec.Marshal(tc.value)
 		require.NoError(t, err)
@@ -54,7 +54,7 @@ func ptr[T any](value T) *T { return &value }
 func TestCustodyAdjustmentResponseUsesSameExactWireShapeForDetailAndActions(t *testing.T) {
 	amount, err := types.NewCryptoAmountFromString("9007199254740993")
 	require.NoError(t, err)
-	response := dto.FromCustodyAdjustment(&crypto.CryptoCustodyAdjustment{Amount: amount, Status: "posted", PostedVersion: 2})
+	response := cryptodto.FromCustodyAdjustment(&crypto.CryptoCustodyAdjustment{Amount: amount, Status: "posted", PostedVersion: 2})
 	encoded, err := jsoncodec.Marshal(response)
 	require.NoError(t, err)
 	var wire map[string]json.RawMessage
@@ -64,5 +64,5 @@ func TestCustodyAdjustmentResponseUsesSameExactWireShapeForDetailAndActions(t *t
 	require.Equal(t, `2`, string(wire["postedVersion"]))
 	require.NotContains(t, wire, "Amount")
 	require.NotContains(t, wire, "decisionBy")
-	require.Nil(t, dto.FromCustodyAdjustment(nil))
+	require.Nil(t, cryptodto.FromCustodyAdjustment(nil))
 }

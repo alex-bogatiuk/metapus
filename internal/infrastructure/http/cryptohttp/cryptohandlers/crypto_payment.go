@@ -11,7 +11,7 @@ import (
 	"metapus/internal/domain"
 	"metapus/internal/domain/documents/crypto_payment"
 	"metapus/internal/domain/settings"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
@@ -21,7 +21,7 @@ import (
 // CryptoPaymentHandler handles HTTP requests for CryptoPayment documents.
 // CryptoPayments are read-only in the API — created by the chain watcher.
 type CryptoPaymentHandler struct {
-	*handlers.BaseDocumentHandler[*crypto_payment.CryptoPayment, dto.CreateCryptoPaymentRequest, dto.UpdateCryptoPaymentRequest]
+	*handlers.BaseDocumentHandler[*crypto_payment.CryptoPayment, cryptodto.CreateCryptoPaymentRequest, cryptodto.UpdateCryptoPaymentRequest]
 	relatedDocsHandler *handlers.RelatedDocumentsHandler
 }
 
@@ -41,7 +41,7 @@ func resolveCryptoPaymentRefs(ctx context.Context, docs ...*crypto_payment.Crypt
 
 	resolver := postgres.NewReferenceResolver()
 	for _, doc := range docs {
-		dto.CollectCryptoPaymentRefs(resolver, doc)
+		cryptodto.CollectCryptoPaymentRefs(resolver, doc)
 	}
 
 	pool := tenantdb.MustGetPool(ctx)
@@ -61,23 +61,23 @@ func NewCryptoPaymentHandler(
 	movementRefResolver domain.RefResolver,
 	settingsRepo settings.Repository,
 ) *CryptoPaymentHandler {
-	cfg := handlers.BaseDocumentHandlerConfig[*crypto_payment.CryptoPayment, dto.CreateCryptoPaymentRequest, dto.UpdateCryptoPaymentRequest]{
+	cfg := handlers.BaseDocumentHandlerConfig[*crypto_payment.CryptoPayment, cryptodto.CreateCryptoPaymentRequest, cryptodto.UpdateCryptoPaymentRequest]{
 		Service:    service,
 		EntityName: "crypto_payment",
-		MapCreateDTO: func(req dto.CreateCryptoPaymentRequest) (*crypto_payment.CryptoPayment, error) {
+		MapCreateDTO: func(req cryptodto.CreateCryptoPaymentRequest) (*crypto_payment.CryptoPayment, error) {
 			return req.ToEntity(), nil
 		},
-		MapUpdateDTO: func(req dto.UpdateCryptoPaymentRequest, existing *crypto_payment.CryptoPayment) (*crypto_payment.CryptoPayment, error) {
+		MapUpdateDTO: func(req cryptodto.UpdateCryptoPaymentRequest, existing *crypto_payment.CryptoPayment) (*crypto_payment.CryptoPayment, error) {
 			req.ApplyTo(existing)
 			return existing, nil
 		},
 		MapToDTO: func(entity *crypto_payment.CryptoPayment) any {
-			return dto.FromCryptoPayment(entity)
+			return cryptodto.FromCryptoPayment(entity)
 		},
 		ResolveRefs: resolveCryptoPaymentRefs,
 		MapToDTOWithRefs: func(entity *crypto_payment.CryptoPayment, refs any) any {
 			resolvedRefs, _ := refs.(postgres.ResolvedRefs)
-			return dto.FromCryptoPayment(entity, resolvedRefs)
+			return cryptodto.FromCryptoPayment(entity, resolvedRefs)
 		},
 		MovementProviders:   movementProviders,
 		MovementRefResolver: movementRefResolver,

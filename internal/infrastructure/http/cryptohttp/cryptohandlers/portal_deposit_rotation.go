@@ -10,7 +10,7 @@ import (
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/catalogs/wallet"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 )
 
 func (h *PortalHandler) RotateDepositAddress(c *gin.Context) {
@@ -26,7 +26,7 @@ func (h *PortalHandler) RotateDepositAddress(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	var req dto.PortalRotateDepositAddressRequest
+	var req cryptodto.PortalRotateDepositAddressRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperror.NewInvalidRequest(err))
 		c.Abort()
@@ -52,8 +52,8 @@ func (h *PortalHandler) RotateDepositAddress(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	c.JSON(http.StatusOK, dto.PortalRotateDepositAddressResponse{
-		PortalCreateDepositAddressResponse: dto.PortalCreateDepositAddressResponse{
+	c.JSON(http.StatusOK, cryptodto.PortalRotateDepositAddressResponse{
+		PortalCreateDepositAddressResponse: cryptodto.PortalCreateDepositAddressResponse{
 			Object: "deposit_address", ID: result.NewWalletID.String(), CustomerID: result.CustomerID, Address: result.NewAddress,
 			NetworkID: result.NetworkID.String(), NetworkCode: result.NetworkCode, NetworkName: result.NetworkName, Tokens: result.Tokens, Reused: result.Replayed,
 			CreatedAt: result.CreatedAt.UTC().Format(time.RFC3339),

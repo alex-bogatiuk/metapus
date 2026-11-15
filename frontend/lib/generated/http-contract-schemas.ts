@@ -1883,6 +1883,12 @@ export const CryptoappResourceAllocationSchema: z.ZodType<Wire.CryptoappResource
   "reservedAt": z.string(),
 }))
 
+export const CryptodtoFinancialAdjustmentSourceRequestSchema: z.ZodType<Wire.CryptodtoFinancialAdjustmentSourceRequest> = z.lazy(() => z.object({
+  "register": z.string(),
+  "lineId": z.string(),
+  "amount": z.string(),
+}))
+
 export const CurrencyCursorResponseSchema: z.ZodType<Wire.CurrencyCursorResponse> = z.lazy(() => z.object({
   "items": z.array(CurrencyResponseSchema),
   "nextCursor": z.string().optional(),
@@ -2201,12 +2207,6 @@ export const DtoFieldPolicyInputInputSchema: z.ZodType<Wire.DtoFieldPolicyInputI
   "action": z.string(),
   "allowedFields": z.array(z.string()),
   "tableParts": z.record(z.string(), z.array(z.string())).optional(),
-}))
-
-export const DtoFinancialAdjustmentSourceRequestSchema: z.ZodType<Wire.DtoFinancialAdjustmentSourceRequest> = z.lazy(() => z.object({
-  "register": z.string(),
-  "lineId": z.string(),
-  "amount": z.string(),
 }))
 
 export const EffectiveAccessResponseSchema: z.ZodType<Wire.EffectiveAccessResponse> = z.lazy(() => z.object({
@@ -2616,7 +2616,7 @@ export const FinancialAdjustmentResponseSchema: z.ZodType<Wire.FinancialAdjustme
   "direction": z.string().optional(),
   "amount": z.string().optional(),
   "decisionMode": z.string(),
-  "sourceLines": z.array(DtoFinancialAdjustmentSourceRequestSchema).optional(),
+  "sourceLines": z.array(CryptodtoFinancialAdjustmentSourceRequestSchema).optional(),
   "reasonCode": z.string(),
   "evidence": jsonValueSchema.nullable(),
   "makerId": z.string(),

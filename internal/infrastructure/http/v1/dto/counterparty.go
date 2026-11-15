@@ -41,7 +41,7 @@ func (r *CreateCounterpartyRequest) ToEntity() *counterparty.Counterparty {
 	cp.Email = r.Email
 	cp.ContactPerson = r.ContactPerson
 	cp.Comment = r.Comment
-	cp.ParentID = stringPtrToIDPtr(r.ParentID)
+	cp.ParentID = StringPtrToIDPtr(r.ParentID)
 	cp.IsFolder = r.IsFolder
 	cp.Attributes = r.Attributes
 	return cp
@@ -85,7 +85,7 @@ func (r *UpdateCounterpartyRequest) ApplyTo(cp *counterparty.Counterparty) {
 	cp.Email = r.Email
 	cp.ContactPerson = r.ContactPerson
 	cp.Comment = r.Comment
-	cp.ParentID = stringPtrToIDPtr(r.ParentID)
+	cp.ParentID = StringPtrToIDPtr(r.ParentID)
 	cp.IsFolder = r.IsFolder
 	cp.Attributes = r.Attributes
 	cp.Version = r.Version
@@ -135,7 +135,7 @@ func FromCounterparty(cp *counterparty.Counterparty) *CounterpartyResponse {
 		Email:         cp.Email,
 		ContactPerson: cp.ContactPerson,
 		Comment:       cp.Comment,
-		ParentID:      idToStringPtr(cp.ParentID),
+		ParentID:      IDToStringPtr(cp.ParentID),
 		IsFolder:      cp.IsFolder,
 		DeletionMark:  cp.DeletionMark,
 		Version:       cp.Version,

@@ -11,7 +11,7 @@ import (
 	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/domain/printing"
 	"metapus/internal/domain/settings"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	printadapter "metapus/internal/infrastructure/printing"
 	"metapus/internal/infrastructure/storage/postgres"
@@ -21,7 +21,7 @@ import (
 // CryptoInvoiceHandler handles HTTP requests for CryptoInvoice documents.
 // Standard CRUD/posting methods are handled by BaseDocumentHandler.
 type CryptoInvoiceHandler struct {
-	*handlers.BaseDocumentHandler[*crypto_invoice.CryptoInvoice, dto.CreateCryptoInvoiceRequest, dto.UpdateCryptoInvoiceRequest]
+	*handlers.BaseDocumentHandler[*crypto_invoice.CryptoInvoice, cryptodto.CreateCryptoInvoiceRequest, cryptodto.UpdateCryptoInvoiceRequest]
 	relatedDocsHandler *handlers.RelatedDocumentsHandler
 	print              *handlers.DocumentPrintHandler[*crypto_invoice.CryptoInvoice]
 }
@@ -37,7 +37,7 @@ type DocumentPrintDeps struct {
 func resolveCryptoInvoiceRefs(ctx context.Context, docs ...*crypto_invoice.CryptoInvoice) (any, error) {
 	resolver := postgres.NewReferenceResolver()
 	for _, doc := range docs {
-		dto.CollectCryptoInvoiceRefs(resolver, doc)
+		cryptodto.CollectCryptoInvoiceRefs(resolver, doc)
 	}
 
 	pool := tenantdb.MustGetPool(ctx)
@@ -58,26 +58,26 @@ func NewCryptoInvoiceHandler(
 	settingsRepo settings.Repository,
 	printDeps DocumentPrintDeps,
 ) *CryptoInvoiceHandler {
-	cfg := handlers.BaseDocumentHandlerConfig[*crypto_invoice.CryptoInvoice, dto.CreateCryptoInvoiceRequest, dto.UpdateCryptoInvoiceRequest]{
+	cfg := handlers.BaseDocumentHandlerConfig[*crypto_invoice.CryptoInvoice, cryptodto.CreateCryptoInvoiceRequest, cryptodto.UpdateCryptoInvoiceRequest]{
 		Service:    service,
 		EntityName: "crypto_invoice",
-		MapCreateDTO: func(req dto.CreateCryptoInvoiceRequest) (*crypto_invoice.CryptoInvoice, error) {
+		MapCreateDTO: func(req cryptodto.CreateCryptoInvoiceRequest) (*crypto_invoice.CryptoInvoice, error) {
 			return req.ToEntity(), nil
 		},
-		MapUpdateDTO: func(req dto.UpdateCryptoInvoiceRequest, existing *crypto_invoice.CryptoInvoice) (*crypto_invoice.CryptoInvoice, error) {
+		MapUpdateDTO: func(req cryptodto.UpdateCryptoInvoiceRequest, existing *crypto_invoice.CryptoInvoice) (*crypto_invoice.CryptoInvoice, error) {
 			req.ApplyTo(existing)
 			return existing, nil
 		},
 		MapToDTO: func(entity *crypto_invoice.CryptoInvoice) any {
-			return dto.FromCryptoInvoice(entity, nil)
+			return cryptodto.FromCryptoInvoice(entity, nil)
 		},
-		IsPostImmediately: func(req dto.CreateCryptoInvoiceRequest) bool {
+		IsPostImmediately: func(req cryptodto.CreateCryptoInvoiceRequest) bool {
 			return req.PostImmediately
 		},
 		ResolveRefs: resolveCryptoInvoiceRefs,
 		MapToDTOWithRefs: func(entity *crypto_invoice.CryptoInvoice, refs any) any {
 			resolvedRefs, _ := refs.(postgres.ResolvedRefs)
-			return dto.FromCryptoInvoice(entity, resolvedRefs)
+			return cryptodto.FromCryptoInvoice(entity, resolvedRefs)
 		},
 		MovementProviders:   movementProviders,
 		MovementRefResolver: movementRefResolver,

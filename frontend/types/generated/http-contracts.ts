@@ -1879,6 +1879,12 @@ export type CryptoappResourceAllocation = {
   "reservedAt": string
 }
 
+export type CryptodtoFinancialAdjustmentSourceRequest = {
+  "register": string
+  "lineId": string
+  "amount": string
+}
+
 export type CurrencyCursorResponse = {
   "items": Array<CurrencyResponse>
   "nextCursor"?: string
@@ -2197,12 +2203,6 @@ export type DtoFieldPolicyInputInput = {
   "action": string
   "allowedFields": Array<string>
   "tableParts"?: Record<string, Array<string>>
-}
-
-export type DtoFinancialAdjustmentSourceRequest = {
-  "register": string
-  "lineId": string
-  "amount": string
 }
 
 export type EffectiveAccessResponse = {
@@ -2612,7 +2612,7 @@ export type FinancialAdjustmentResponse = {
   "direction"?: string
   "amount"?: string
   "decisionMode": string
-  "sourceLines"?: Array<DtoFinancialAdjustmentSourceRequest>
+  "sourceLines"?: Array<CryptodtoFinancialAdjustmentSourceRequest>
   "reasonCode": string
   "evidence": JsonValue | null
   "makerId": string

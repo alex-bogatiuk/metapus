@@ -7,14 +7,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 )
 
 func TestPortalInvoiceCSVAppendsAndEscapesOrderReference(t *testing.T) {
 	var output bytes.Buffer
 	orderID := "ORD,\"99881\"\nSAP-45001"
 	externalID := "1C-DOC-42"
-	require.NoError(t, writePortalInvoicesCSV(&output, []dto.PortalInvoiceItem{{
+	require.NoError(t, writePortalInvoicesCSV(&output, []cryptodto.PortalInvoiceItem{{
 		Number: "CI-1", Status: "completed", Symbol: "USDT", Network: "TRON",
 		Amount: "100", ReceivedAmount: "100", ProcessingFee: "1", NetAmount: "99", PaymentCount: 1,
 		OrderID: orderID, ExternalID: externalID,
@@ -39,9 +39,9 @@ func TestPortalInvoiceCSVNeutralizesFormulaReferencesWithoutChangingSource(t *te
 		"=1+2\";=1+2", "=1+2'\" ;,=1+2",
 	} {
 		t.Run(orderID, func(t *testing.T) {
-			item := dto.PortalInvoiceItem{Number: "CI-1", Amount: "100", OrderID: orderID, ExternalID: orderID}
+			item := cryptodto.PortalInvoiceItem{Number: "CI-1", Amount: "100", OrderID: orderID, ExternalID: orderID}
 			var output bytes.Buffer
-			require.NoError(t, writePortalInvoicesCSV(&output, []dto.PortalInvoiceItem{item}))
+			require.NoError(t, writePortalInvoicesCSV(&output, []cryptodto.PortalInvoiceItem{item}))
 			require.Equal(t, orderID, item.OrderID)
 			require.Equal(t, orderID, item.ExternalID)
 			rows, err := csv.NewReader(strings.NewReader(strings.TrimPrefix(output.String(), "\xEF\xBB\xBF"))).ReadAll()
