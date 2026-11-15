@@ -172,7 +172,17 @@ func (*TreasuryCustodyRepo) RecordPrincipalAndRevenue(ctx context.Context, b cry
 		VALUES($1,$2,'TreasuryWithdrawal',1,$3,'expense',$4,$5,$6)`, treasuryPrincipalLine(b.DocumentID), b.DocumentID, receipt.ObservedAt, b.SourceWalletID, b.TokenID, b.Amount); err != nil {
 		return fmt.Errorf("record proven treasury principal: %w", err)
 	}
-	_, err := q.Exec(ctx, `INSERT INTO reg_crypto_fee_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,fee_type,amount)
+	// A receipt refund closes its payable with the payout; a revenue withdrawal
+	// spends the revenue it reserved.
+	tag, err := q.Exec(ctx, `INSERT INTO reg_crypto_refund_payable_movements(recorder_id,recorder_type,recorder_version,period,record_type,receipt_id,token_id,amount)
+		SELECT id,'TreasuryWithdrawal',2,$2,'expense',receipt_id,token_id,amount FROM doc_treasury_withdrawals WHERE id=$1 AND purpose='receipt_refund'`, b.DocumentID, receipt.ObservedAt)
+	if err != nil {
+		return fmt.Errorf("close paid receipt refund payable: %w", err)
+	}
+	if tag.RowsAffected() == 1 {
+		return nil
+	}
+	_, err = q.Exec(ctx, `INSERT INTO reg_crypto_fee_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,fee_type,amount)
 		SELECT id,$1,'TreasuryWithdrawal',1,$2,'expense',merchant_id,token_id,fee_type,amount FROM reg_crypto_revenue_reservations
 		WHERE document_type='TreasuryWithdrawal' AND document_id=$1 AND status='active' ORDER BY merchant_id,token_id,fee_type,id`, b.DocumentID, receipt.ObservedAt)
 	return err

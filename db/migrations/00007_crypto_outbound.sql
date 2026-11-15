@@ -1091,7 +1091,10 @@ CREATE TABLE doc_treasury_withdrawals (
     token_id          UUID NOT NULL REFERENCES cat_tokens(id),
     source_wallet_id  UUID NOT NULL REFERENCES cat_wallets(id),
     dest_address      TEXT NOT NULL,
-    address_id        UUID NOT NULL REFERENCES reg_treasury_withdrawal_addresses(id),
+    -- A revenue withdrawal pays an allowlisted treasury address; a receipt
+    -- refund pays the destination recorded for that refund. The destination
+    -- guard in 00009 checks the right table by purpose.
+    address_id        UUID NOT NULL,
     amount            NUMERIC(78,0) NOT NULL CHECK (amount > 0),
     network_fee       NUMERIC(78,0) NOT NULL DEFAULT 0 CHECK (network_fee >= 0),
     network_fee_token_id UUID REFERENCES cat_tokens(id),
@@ -1118,11 +1121,25 @@ CREATE TABLE doc_treasury_withdrawals (
     _txid             BIGINT NOT NULL DEFAULT txid_current(),
     _deleted_at       TIMESTAMPTZ,
 
+    -- Revenue, or the refund of an unidentified receipt to its sender: suspense
+    -- gives up amount+withheld_amount on approval, the payer receives amount.
+    -- Gas is the platform's cost, or the recipient bears it as a fixed amount
+    -- withheld in the refund token. receipt_id references 00009.
+    purpose           TEXT NOT NULL DEFAULT 'revenue' CHECK (purpose IN ('revenue','receipt_refund')),
+    receipt_id        UUID,
+    gas_payer         TEXT NOT NULL DEFAULT 'platform' CHECK (gas_payer IN ('platform','recipient')),
+    withheld_amount   NUMERIC(78,0) NOT NULL DEFAULT 0 CHECK (withheld_amount >= 0),
+
     CONSTRAINT chk_treasury_withdrawal_maker_checker
         CHECK (approved_by IS NULL OR created_by IS NULL OR approved_by <> created_by),
+    CONSTRAINT chk_treasury_withdrawal_purpose CHECK (
+        (purpose = 'revenue' AND receipt_id IS NULL AND gas_payer = 'platform' AND withheld_amount = 0)
+     OR (purpose = 'receipt_refund' AND receipt_id IS NOT NULL AND (gas_payer = 'recipient') = (withheld_amount > 0))),
     CONSTRAINT doc_treasury_withdrawals_settlement_status_check
         CHECK (settlement_status IN ('unknown','repairing','recorded','not_applicable','held'))
 );
+CREATE INDEX idx_doc_treasury_withdrawals_receipt
+    ON doc_treasury_withdrawals (receipt_id) WHERE receipt_id IS NOT NULL;
 CREATE INDEX idx_doc_treasury_withdrawals_status
     ON doc_treasury_withdrawals (status)
     WHERE status NOT IN ('confirmed','rejected','failed');

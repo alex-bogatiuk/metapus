@@ -19,7 +19,11 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { ReferenceField } from "@/components/shared/reference-field"
+import { Input } from "@/components/ui/input"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { majorToMinor, rawMinorToMajor } from "@/lib/money"
 import type { MerchantCreditResponse, PlatformFundingResponse, UnidentifiedReceiptItem } from "@/types/generated/http-contracts"
+import type { TreasurySourceWallet, TreasuryWithdrawal } from "@/types/treasury"
 import { receiptJournalStates, receiptMerchantLinks, receiptReasons, receiptRowStateHints, receiptRowStates, type ReceiptJournalState } from "@/types/unidentified-receipt"
 import { AlertTriangle } from "lucide-react"
 
@@ -28,7 +32,28 @@ type Dialogs =
   | { kind: "funding"; item: UnidentifiedReceiptItem; reason: string; acknowledged: boolean }
   | { kind: "approveFunding"; item: UnidentifiedReceiptItem }
   | { kind: "reject"; item: UnidentifiedReceiptItem; reason: string; target: "credit" | "funding" }
+  | { kind: "refund"; item: UnidentifiedReceiptItem; wallets: TreasurySourceWallet[] | null; walletId: string; destination: string
+      evidence: string; reason: string; amount: string; gasPayer: "platform" | "recipient"; withheld: string }
   | null
+
+const refundStatuses: Record<string, string> = {
+  pending_signature: "ждёт подписи одобрения", pending_approval: "ждёт утверждения в казначействе", approved: "утверждён",
+  signing: "подписывается", broadcast: "отправлен", confirmed: "выплачен", held: "требует сверки", rejected: "отклонён", failed: "не исполнен",
+}
+
+// "25.500000" → "25.5", "25.000000" → "25": the amount field takes it as typed.
+function trimFraction(value: string): string {
+  return value.includes(".") ? value.replace(/0+$/, "").replace(/\.$/, "") : value
+}
+
+// Minor units of a typed amount, or null while the text is not a valid amount.
+function minorOrNull(text: string, scale: number): bigint | null {
+  try {
+    return text.trim() ? BigInt(majorToMinor(text, scale).toString()) : null
+  } catch {
+    return null
+  }
+}
 
 const pageSize = 50
 
@@ -61,6 +86,7 @@ export default function UnidentifiedReceiptsPage() {
   const canRead = permissions.has("crypto_receipt:read")
   const canCredit = permissions.has("crypto_receipt:credit")
   const canApprove = permissions.has("crypto_receipt:approve")
+  const canRefund = permissions.has("document:treasury_withdrawal:create")
   const [state, setState] = useState<ReceiptJournalState>("open")
   const [includeDust, setIncludeDust] = useState(false)
   const [offset, setOffset] = useState(0)
@@ -73,7 +99,7 @@ export default function UnidentifiedReceiptsPage() {
     () => api.unidentifiedReceipts.list(state, includeDust, offset),
   )
 
-  const run = async (action: () => Promise<MerchantCreditResponse | PlatformFundingResponse>, done: string) => {
+  const run = async (action: () => Promise<MerchantCreditResponse | PlatformFundingResponse | TreasuryWithdrawal>, done: string) => {
     if (busy) return
     if (!commandKey.current) commandKey.current = idempotencyHeaders()["Idempotency-Key"]
     setBusy(true)
@@ -94,6 +120,18 @@ export default function UnidentifiedReceiptsPage() {
   const openDialog = (next: Dialogs) => {
     commandKey.current = ""
     setDialog(next)
+  }
+
+  // A refund pays from a platform hot wallet holding the token; the sender
+  // address is shown as a hint, never taken as the destination by default.
+  const openRefund = (item: UnidentifiedReceiptItem) => {
+    const decimals = item.decimalPlaces
+    const next: Dialogs = { kind: "refund", item, wallets: null, walletId: "", destination: "", evidence: "", reason: "",
+      amount: trimFraction(rawMinorToMajor(item.remainder, decimals)), gasPayer: "platform", withheld: "" }
+    openDialog(next)
+    api.treasuryWithdrawals.sourceWallets(item.tokenId)
+      .then((res) => setDialog((current) => current?.kind === "refund" && current.item === item ? { ...current, wallets: res.items } : current))
+      .catch(() => setDialog((current) => current?.kind === "refund" && current.item === item ? { ...current, wallets: [] } : current))
   }
 
   const approve = (item: UnidentifiedReceiptItem) => {
@@ -182,6 +220,10 @@ export default function UnidentifiedReceiptsPage() {
                   </div>}
                   {funding?.status === "rejected" && <div className="text-xs text-muted-foreground">Пополнение отклонено: {funding.decisionReason}</div>}
                   {funding?.status === "reversed" && <div className="text-xs text-muted-foreground">Пополнение сторнировано: перевод исчез из сети</div>}
+                  {item.refund && <div className="text-xs text-muted-foreground">
+                    {item.refund.number || "Возврат"} · Возврат отправителю · {amount(item, item.refund.amount)}
+                    {item.refund.withheld !== "0" && ` (удержано на комиссию ${amount(item, item.refund.withheld)})`} · {refundStatuses[item.refund.status] ?? item.refund.status}
+                  </div>}
                   {item.pendingError && <div className="text-xs text-muted-foreground">{item.pendingError}</div>}
                 </TableCell>
                 <TableCell className="text-right">
@@ -190,6 +232,10 @@ export default function UnidentifiedReceiptsPage() {
                       <Button size="sm" onClick={() => openDialog({ kind: "credit", item, merchantId: item.custodyMerchantId, merchantName: "" })}>Зачислить мерчанту</Button>
                       <Button size="sm" variant="outline" onClick={() => openDialog({ kind: "funding", item, reason: "", acknowledged: false })}>Пополнение платформы</Button>
                     </>}
+                    {item.state === "unattributed" && canRefund &&
+                      <Button size="sm" variant="outline" onClick={() => openRefund(item)}>Вернуть отправителю</Button>}
+                    {item.refund && ["pending_signature", "pending_approval"].includes(item.refund.status) &&
+                      <Button size="sm" variant="outline" asChild><Link href="/documents/treasury-withdrawals">Утвердить в казначействе</Link></Button>}
                     {pendingCredit && canApprove && !ownCredit &&
                       <Button size="sm" disabled={busy} onClick={() => approve(item)}>Подтвердить</Button>}
                     {pendingFunding && canApprove && !ownFunding &&
@@ -213,7 +259,7 @@ export default function UnidentifiedReceiptsPage() {
     </Card>
 
     <Dialog open={dialog !== null} onOpenChange={(open) => { if (!open && !busy) setDialog(null) }}>
-      <DialogContent>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
         {dialog?.kind === "credit" && <>
           <DialogHeader>
             <DialogTitle>Зачислить мерчанту</DialogTitle>
@@ -284,6 +330,9 @@ export default function UnidentifiedReceiptsPage() {
             </Button>
           </DialogFooter>
         </>}
+        {dialog?.kind === "refund" && <RefundDialog dialog={dialog} busy={busy} onChange={setDialog}
+          onSubmit={(body) => run(() => api.treasuryWithdrawals.createReceiptRefund(body, commandKey.current),
+            "Возврат создан. Его утверждает другой сотрудник в казначействе")} />}
         {dialog?.kind === "reject" && (dialog.target === "funding" ? dialog.item.platformFunding : dialog.item.credit) && <>
           <DialogHeader>
             <DialogTitle>Отклонить {dialog.target === "funding" ? "пополнение" : "зачисление"} {(dialog.target === "funding" ? dialog.item.platformFunding : dialog.item.credit)!.number}</DialogTitle>
@@ -309,4 +358,102 @@ export default function UnidentifiedReceiptsPage() {
       </DialogContent>
     </Dialog>
   </div>
+}
+
+type RefundDialogState = Extract<Dialogs, { kind: "refund" }>
+
+function RefundDialog({ dialog, busy, onChange, onSubmit }: {
+  dialog: RefundDialogState
+  busy: boolean
+  onChange: (next: Dialogs) => void
+  onSubmit: (body: import("@/types/generated/http-contracts").CreateReceiptRefundRequest) => void
+}) {
+  const { item } = dialog
+  const scale = item.decimalPlaces
+  const total = minorOrNull(dialog.amount, scale)
+  const withheld = dialog.gasPayer === "recipient" ? minorOrNull(dialog.withheld, scale) : 0n
+  const remainder = BigInt(item.remainder)
+  const wallet = dialog.wallets?.find((w) => w.id === dialog.walletId)
+  const sent = total !== null && withheld !== null ? total - withheld : null
+  const problem =
+    total === null || total <= 0n ? "Укажите сумму возврата"
+      : total > remainder ? `Сумма больше остатка ${amount(item, item.remainder)}`
+        : withheld === null || (dialog.gasPayer === "recipient" && withheld <= 0n) ? "Укажите удержание на комиссию"
+          : withheld >= total ? "Удержание должно быть меньше суммы возврата"
+            : wallet && sent !== null && BigInt(wallet.availableAmount) < sent ? "На кошельке не хватает доступных средств"
+              : null
+  const set = (patch: Partial<RefundDialogState>) => onChange({ ...dialog, ...patch })
+  const ready = !problem && !!wallet && !!dialog.destination.trim() && !!dialog.evidence.trim() && !!dialog.reason.trim()
+  return <>
+    <DialogHeader>
+      <DialogTitle>Вернуть отправителю</DialogTitle>
+      <DialogDescription>
+        После утверждения другим сотрудником сумма уйдёт из невыясненных в обязательство к возврату и будет выплачена с кошелька платформы.
+        Пока возврат не утверждён, поступление нельзя распределить иначе.
+      </DialogDescription>
+    </DialogHeader>
+    <FieldGroup>
+      <Field>
+        <FieldLabel htmlFor="refund-destination">Адрес получателя</FieldLabel>
+        <Input id="refund-destination" className="font-mono" value={dialog.destination} onChange={(e) => set({ destination: e.target.value })} />
+        <FieldDescription>
+          Отправитель перевода: <span className="font-mono break-all">{item.fromAddress || "не указан"}</span>. Это может быть адрес биржи;
+          возвращайте только на адрес, право на который подтвердил плательщик.
+        </FieldDescription>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="refund-evidence">Подтверждение адреса</FieldLabel>
+        <Textarea id="refund-evidence" value={dialog.evidence} maxLength={2000} placeholder="Например: плательщик подписал сообщение этим адресом, обращение №…"
+          onChange={(e) => set({ evidence: e.target.value })} />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="refund-reason">Причина возврата</FieldLabel>
+        <Textarea id="refund-reason" value={dialog.reason} maxLength={2000} placeholder="Например: ошибочный перевод без счёта"
+          onChange={(e) => set({ reason: e.target.value })} />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="refund-wallet">Кошелёк-источник</FieldLabel>
+        <select id="refund-wallet" className="h-9 rounded-md border bg-background px-2 text-sm" value={dialog.walletId}
+          disabled={!dialog.wallets?.length} onChange={(e) => set({ walletId: e.target.value })}>
+          <option value="">{dialog.wallets === null ? "Загрузка…" : dialog.wallets.length ? "Выберите кошелёк" : "Нет казначейских кошельков с этим токеном"}</option>
+          {dialog.wallets?.map((w) => <option key={w.id} value={w.id}>{w.name} · доступно {amount(item, w.availableAmount)}</option>)}
+        </select>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="refund-amount">Сумма из невыясненных, {item.tokenSymbol}</FieldLabel>
+        <Input id="refund-amount" inputMode="decimal" className="font-mono" value={dialog.amount} onChange={(e) => set({ amount: e.target.value })} />
+        <FieldDescription>Остаток поступления {amount(item, item.remainder)}. Можно вернуть часть, остальное останется в невыясненных.</FieldDescription>
+      </Field>
+      <Field>
+        <FieldLabel>Комиссию сети оплачивает</FieldLabel>
+        <ToggleGroup type="single" variant="outline" className="justify-start" value={dialog.gasPayer} aria-label="Кто оплачивает комиссию сети"
+          onValueChange={(value) => { if (value === "platform" || value === "recipient") set({ gasPayer: value }) }}>
+          <ToggleGroupItem value="platform">Платформа</ToggleGroupItem>
+          <ToggleGroupItem value="recipient">Получатель</ToggleGroupItem>
+        </ToggleGroup>
+        <FieldDescription>
+          {dialog.gasPayer === "platform"
+            ? "Комиссия сети списывается как расход платформы, получатель получит всю сумму."
+            : "Из суммы удерживается фиксированная часть в токене возврата; её получает платформа."}
+        </FieldDescription>
+      </Field>
+      {dialog.gasPayer === "recipient" && <Field>
+        <FieldLabel htmlFor="refund-withheld">Удержать на комиссию, {item.tokenSymbol}</FieldLabel>
+        <Input id="refund-withheld" inputMode="decimal" className="font-mono" value={dialog.withheld} onChange={(e) => set({ withheld: e.target.value })} />
+      </Field>}
+    </FieldGroup>
+    <p className="text-sm">
+      Получатель получит: <span className="font-mono font-medium">{sent !== null && sent > 0n ? amount(item, sent.toString()) : "—"}</span>
+    </p>
+    {problem && dialog.amount.trim() && <p role="alert" className="text-sm text-destructive">{problem}</p>}
+    <DialogFooter>
+      <Button disabled={busy || !ready} onClick={() => onSubmit({
+        receiptId: item.receiptId, sourceWalletId: dialog.walletId, destAddress: dialog.destination.trim(), evidence: dialog.evidence.trim(),
+        reason: dialog.reason.trim(), amount: total!.toString(), gasPayer: dialog.gasPayer,
+        ...(dialog.gasPayer === "recipient" ? { withheldAmount: withheld!.toString() } : {}),
+      })}>
+        {busy ? "Сохранение…" : "Создать возврат"}
+      </Button>
+    </DialogFooter>
+  </>
 }

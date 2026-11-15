@@ -13,6 +13,7 @@ import (
 	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/domain/documents/treasury_withdrawal"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 )
 
 func (r *OutboundRepo) ClaimApprovedTreasuryWithdrawals(ctx context.Context, limit int) ([]TreasuryTask, error) {
@@ -223,6 +224,14 @@ func (r *OutboundRepo) ReserveFeeForTreasury(ctx context.Context, withdrawalID, 
 			return err
 		}
 		querier := txm.GetQuerier(txCtx)
+		refunds := crypto_repo.NewReceiptRefundRepo()
+		refund, err := refunds.IsReceiptRefund(txCtx, withdrawalID)
+		if err != nil {
+			return err
+		}
+		if refund {
+			return refunds.OpenPayable(txCtx, withdrawalID)
+		}
 		if _, err := querier.Exec(txCtx, `SELECT merchant_id FROM reg_crypto_fee_balances WHERE token_id=$1 ORDER BY merchant_id,fee_type FOR UPDATE`, tokenID); err != nil {
 			return err
 		}
@@ -364,6 +373,10 @@ func (r *OutboundRepo) ConsumeTreasuryReservations(ctx context.Context, withdraw
 	} else if tag.RowsAffected() == 0 {
 		return fmt.Errorf("active treasury wallet reservation not found")
 	}
+	// A receipt refund reserves no revenue; its payable is closed with the payout.
+	if refund, err := crypto_repo.NewReceiptRefundRepo().IsReceiptRefund(ctx, withdrawalID); err != nil || refund {
+		return err
+	}
 
 	if tag, err := querier.Exec(ctx, `
 		UPDATE reg_crypto_revenue_reservations
@@ -406,7 +419,11 @@ func (r *OutboundRepo) ReleaseTreasuryReservations(ctx context.Context, withdraw
 	`, withdrawalID, treasury_withdrawal.DocumentType); err != nil {
 		return fmt.Errorf("release treasury fee reservations: %w", err)
 	}
-	return nil
+	refunds := crypto_repo.NewReceiptRefundRepo()
+	if refund, err := refunds.IsReceiptRefund(ctx, withdrawalID); err != nil || !refund {
+		return err
+	}
+	return refunds.Restore(ctx, withdrawalID)
 }
 
 // GetTreasurySigningAttempt loads the existing immutable treasury signing attempt.

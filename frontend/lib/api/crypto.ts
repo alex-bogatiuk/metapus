@@ -170,6 +170,12 @@ export const cryptoApi = {
             apiFetch<import("@/types/treasury").TreasuryAvailability>(
                 `/document/treasury-withdrawal/availability?tokenId=${encodeURIComponent(tokenId)}`,
             ),
+        createReceiptRefund: (data: import("@/types/generated/http-contracts").CreateReceiptRefundRequest, idempotencyKey: string) =>
+            apiFetch<import("@/types/treasury").TreasuryWithdrawal>("/document/treasury-withdrawal/receipt-refunds", {
+                method: "POST",
+                headers: idempotencyHeaders(idempotencyKey),
+                body: JSON.stringify(data),
+            }),
         sourceWallets: (tokenId: string) =>
             apiFetch<{ items: import("@/types/treasury").TreasurySourceWallet[] }>(
                 `/document/treasury-withdrawal/source-wallets?tokenId=${encodeURIComponent(tokenId)}`,

@@ -55,3 +55,29 @@ func TestTreasuryWithdrawalCanPostRequiresBroadcastTxHash(t *testing.T) {
 		t.Fatalf("broadcast treasury withdrawal with tx hash should be postable: %v", err)
 	}
 }
+
+func TestReceiptRefundTermsFollowTheGasPayer(t *testing.T) {
+	receipt, token, wallet, destination := id.New(), id.New(), id.New(), id.New()
+	amount := types.NewCryptoAmountFromInt64
+	refund, err := NewReceiptRefund(receipt, token, wallet, destination, "payer", amount(25), amount(2), GasPayerRecipient, " Sent by mistake ")
+	require.NoError(t, err)
+	require.True(t, refund.IsReceiptRefund())
+	require.Equal(t, "23", refund.Amount.String(), "the payer receives the refund less the withheld gas")
+	require.Equal(t, "25", refund.RefundTotal().String(), "suspense gives up the whole refund")
+	require.Equal(t, "Sent by mistake", refund.Description)
+	require.NoError(t, refund.Validate(context.Background()))
+
+	_, err = NewReceiptRefund(receipt, token, wallet, destination, "payer", amount(25), amount(25), GasPayerRecipient, "reason")
+	require.ErrorContains(t, err, "below the refund amount")
+	_, err = NewReceiptRefund(receipt, token, wallet, destination, "payer", amount(25), amount(1), GasPayerPlatform, "reason")
+	require.ErrorContains(t, err, "platform-paid gas withholds nothing")
+	_, err = NewReceiptRefund(receipt, token, wallet, destination, "payer", amount(25), types.ZeroCryptoAmount(), GasPayerRecipient, "reason")
+	require.ErrorContains(t, err, "requires the withheld amount")
+	_, err = NewReceiptRefund(receipt, token, wallet, destination, "payer", amount(25), types.ZeroCryptoAmount(), GasPayerPlatform, "  ")
+	require.ErrorContains(t, err, "refund reason is required")
+
+	revenue := NewTreasuryWithdrawal(token, wallet, destination, "treasury", amount(5))
+	require.NoError(t, revenue.Validate(context.Background()))
+	revenue.WithheldAmount = amount(1)
+	require.ErrorContains(t, revenue.Validate(context.Background()), "carries no refund terms")
+}

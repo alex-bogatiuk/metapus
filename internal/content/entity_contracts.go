@@ -72,6 +72,8 @@ func (r *TreasuryWithdrawalRegistration) HTTPContracts() spec.Bundle {
 	b.AddRoute(r.EntityDefinition(), "POST", "/addresses", "CreateTreasuryAddressRequest", "IDResponse")
 	b.AddRoute(r.EntityDefinition(), "GET", "/availability", "", "TreasuryAvailabilityResponse")
 	b.AddRoute(r.EntityDefinition(), "GET", "/source-wallets", "", "TreasurySourceWalletListResponse")
+	b.Contracts = append(b.Contracts, spec.Request[dto.CreateReceiptRefundRequest]("CreateReceiptRefundRequest"))
+	b.AddRoute(r.EntityDefinition(), "POST", "/receipt-refunds", "CreateReceiptRefundRequest", "TreasuryWithdrawalResponse")
 	b.AddRoute(r.EntityDefinition(), "POST", "/:id/approve", "ApproveRejectRequest", "SuccessResponse")
 	b.AddRoute(r.EntityDefinition(), "POST", "/:id/reject", "ApproveRejectRequest", "SuccessResponse")
 	b.AddRoute(r.EntityDefinition(), "GET", "/:id/signing-job", "", "SigningJobStatusResponse")

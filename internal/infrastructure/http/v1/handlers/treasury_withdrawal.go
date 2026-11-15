@@ -6,9 +6,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
+	"metapus/internal/core/types"
 	"metapus/internal/domain"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/treasury_withdrawal"
@@ -100,6 +102,8 @@ func (h *TreasuryWithdrawalHandler) RegisterCustomDocumentRoutes(group *gin.Rout
 	group.POST("/addresses", middleware.RequirePermission(permission+":create"), requireStepUp("treasury.addresses.write"), h.workflowHandler.requireIdempotency(), h.workflowHandler.CreateAddress)
 	group.GET("/availability", middleware.RequirePermission(permission+":read"), h.workflowHandler.GetAvailability)
 	group.GET("/source-wallets", middleware.RequirePermission(permission+":read"), h.workflowHandler.ListSourceWallets)
+	group.POST("/receipt-refunds", middleware.RequirePermission(permission+":create"), requireStepUp("treasury.withdrawals.create"),
+		h.workflowHandler.requireIdempotency(), h.CreateReceiptRefund)
 	group.GET("/reconciliation/outflows", middleware.RequirePermission("crypto_reconciliation:read"), h.workflowHandler.ListExternalOutflows)
 	group.GET("/reconciliation/outflows/:outflowId", middleware.RequirePermission("crypto_reconciliation:read"), h.workflowHandler.GetExternalOutflow)
 	group.POST("/reconciliation/outflows/:outflowId/classify", middleware.RequirePermission("crypto_reconciliation:classify"), h.workflowHandler.ClassifyExternalOutflow)
@@ -152,6 +156,42 @@ func (h *TreasuryWithdrawalHandler) Create(c *gin.Context) {
 		return
 	}
 
+	var refs any
+	if h.resolveRefs != nil {
+		refs, _ = h.resolveRefs(c.Request.Context(), doc)
+	}
+	h.applyFLSRead(c, doc)
+	response := h.toDTO(doc, refs)
+	h.CompleteIdempotency(c, http.StatusAccepted, "application/json", response)
+	c.JSON(http.StatusAccepted, response)
+}
+
+// CreateReceiptRefund handles POST /document/treasury-withdrawal/receipt-refunds:
+// it prepares the return of an unidentified receipt; another operator approves it.
+func (h *TreasuryWithdrawalHandler) CreateReceiptRefund(c *gin.Context) {
+	var req dto.CreateReceiptRefundRequest
+	if !h.BindJSON(c, &req) {
+		return
+	}
+	receiptID, receiptErr := id.Parse(req.ReceiptID)
+	walletID, walletErr := id.Parse(req.SourceWalletID)
+	if receiptErr != nil || walletErr != nil {
+		h.Error(c, apperror.NewValidation("invalid receiptId or sourceWalletId"))
+		return
+	}
+	withheld := req.WithheldAmount
+	if withheld.IsZero() {
+		withheld = types.ZeroCryptoAmount()
+	}
+	userID := parseContextUserID(c.Request.Context())
+	doc, err := h.workflowHandler.treasuryService.CreateReceiptRefund(c.Request.Context(), cryptoapp.CreateReceiptRefundInput{
+		ReceiptID: receiptID, SourceWalletID: walletID, DestAddress: req.DestAddress, Evidence: req.Evidence, Reason: req.Reason,
+		Total: req.Amount, GasPayer: treasury_withdrawal.GasPayer(req.GasPayer), Withheld: withheld,
+	}, userID)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
 	var refs any
 	if h.resolveRefs != nil {
 		refs, _ = h.resolveRefs(c.Request.Context(), doc)

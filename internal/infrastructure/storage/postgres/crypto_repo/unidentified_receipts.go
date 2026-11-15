@@ -46,7 +46,7 @@ const receiptJournalColumns = `d.id::text AS receipt_id,e.id::text AS inbox_even
 		       CASE WHEN d.audit_status='orphaned' THEN 'orphaned'
 		            WHEN p.id IS NOT NULL AND NOT p.posted THEN 'payment_reorged'
 		            WHEN d.remainder=0 THEN 'credited'
-		            WHEN c.status='prepared' OR f.status='prepared' THEN 'awaiting_approval' ELSE 'unattributed' END AS state,
+		            WHEN c.status='prepared' OR f.status='prepared' OR rf.status IN ('pending_signature','pending_approval') THEN 'awaiting_approval' ELSE 'unattributed' END AS state,
 		       d.custody_merchant_id::text,e.invoice_id::text,'' AS pending_error,
 		       c.id::text AS credit_id,c.number AS credit_number,
 		       CASE WHEN EXISTS(SELECT 1 FROM reg_crypto_merchant_credit_reversals cr WHERE cr.credit_id=c.id)
@@ -60,7 +60,9 @@ const receiptJournalColumns = `d.id::text AS receipt_id,e.id::text AS inbox_even
 		            THEN 'reversed' ELSE f.status END AS funding_status,f.version AS funding_version,f.reason AS funding_reason,
 		       fm.name AS funding_merchant,f.merchant_link AS funding_merchant_link,f.prepared_by::text AS funding_prepared_by,
 		       f.decided_at AS funding_decided_at,f.decision_reason AS funding_decision_reason,
-		       tie.merchant_id::text AS tie_merchant_id,tm.name AS tie_merchant_name,tie.link AS tie_link`
+		       tie.merchant_id::text AS tie_merchant_id,tm.name AS tie_merchant_name,tie.link AS tie_link,
+		       rf.id::text AS refund_id,rf.number AS refund_number,rf.status AS refund_status,rf.amount::text AS refund_amount,
+		       rf.withheld_amount::text AS refund_withheld,rf.dest_address AS refund_destination,rf.created_by::text AS refund_prepared_by`
 
 // receiptJournalJoins attach the proof, catalogs, the latest merchant credit
 // and the invoice payment of a receipt. An unposted payment that keeps its
@@ -78,6 +80,8 @@ const receiptJournalJoins = `
 		LEFT JOIN LATERAL (SELECT * FROM doc_crypto_platform_fundings f WHERE f.receipt_id=d.id
 		      ORDER BY f.prepared_at DESC,f.id DESC LIMIT 1) f ON TRUE
 		LEFT JOIN cat_merchants fm ON fm.id=f.merchant_id
+		LEFT JOIN LATERAL (SELECT * FROM doc_treasury_withdrawals r WHERE r.receipt_id=d.id
+		      ORDER BY r.created_at DESC,r.id DESC LIMIT 1) rf ON TRUE
 		LEFT JOIN LATERAL fn_crypto_receipt_merchant_link(d.id) tie ON TRUE
 		LEFT JOIN cat_merchants tm ON tm.id=tie.merchant_id`
 
@@ -102,7 +106,9 @@ func (*UnidentifiedReceiptRepo) List(ctx context.Context, state string, includeD
 			       NULL::text AS funding_id,NULL::text AS funding_number,NULL::text AS funding_status,NULL::int AS funding_version,
 			       NULL::text AS funding_reason,NULL::text AS funding_merchant,NULL::text AS funding_merchant_link,
 			       NULL::text AS funding_prepared_by,NULL::timestamptz AS funding_decided_at,NULL::text AS funding_decision_reason,
-			       NULL::text AS tie_merchant_id,NULL::text AS tie_merchant_name,NULL::text AS tie_link
+			       NULL::text AS tie_merchant_id,NULL::text AS tie_merchant_name,NULL::text AS tie_link,
+			       NULL::text AS refund_id,NULL::text AS refund_number,NULL::text AS refund_status,NULL::text AS refund_amount,
+			       NULL::text AS refund_withheld,NULL::text AS refund_destination,NULL::text AS refund_prepared_by
 			FROM (SELECT e.* `+receiptPendingFrom+` ORDER BY e.created_at,e.id LIMIT $3 OFFSET $4) e
 			JOIN cat_blockchain_networks n ON n.id=e.network_id JOIN cat_tokens t ON t.id=e.token_id
 			JOIN cat_wallets w ON w.id=e.wallet_id ORDER BY e.created_at,e.id`,

@@ -326,7 +326,8 @@ func (e *TreasuryExecutor) completeTreasuryBroadcast(ctx context.Context, task T
 	if err != nil {
 		return HoldExecution(fmt.Errorf("load treasury fee lines after broadcast: %w", err))
 	}
-	if len(doc.FeeLines) == 0 {
+	// A receipt refund spends no revenue: its money left suspense on approval.
+	if len(doc.FeeLines) == 0 && !doc.IsReceiptRefund() {
 		return HoldExecution(fmt.Errorf("treasury withdrawal has no fee reservation lines"))
 	}
 	if doc.Number == "" {

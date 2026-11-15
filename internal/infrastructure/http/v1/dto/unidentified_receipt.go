@@ -32,6 +32,19 @@ type UnidentifiedReceiptPlatformFunding struct {
 	DecisionReason string     `json:"decisionReason"`
 }
 
+// UnidentifiedReceiptRefund is the latest refund of a receipt to its sender:
+// a treasury withdrawal with the purpose receipt_refund. Amount is what the
+// payer receives; Withheld stays with the platform for the network fee.
+type UnidentifiedReceiptRefund struct {
+	ID          string `json:"id"`
+	Number      string `json:"number"`
+	Status      string `json:"status"`
+	Amount      string `json:"amount"`
+	Withheld    string `json:"withheld"`
+	Destination string `json:"destination"`
+	PreparedBy  string `json:"preparedBy"`
+}
+
 // ReceiptMerchantTie is the merchant the wallet ties a receipt to: custody
 // owner, persistent deposit address or the invoice that leased the wallet.
 type ReceiptMerchantTie struct {
@@ -71,6 +84,7 @@ type UnidentifiedReceiptItem struct {
 	PaymentStatus   string                              `json:"paymentStatus"`
 	PlatformFunding *UnidentifiedReceiptPlatformFunding `json:"platformFunding"`
 	MerchantTie     *ReceiptMerchantTie                 `json:"merchantTie"`
+	Refund          *UnidentifiedReceiptRefund          `json:"refund"`
 }
 
 type CustodyReceiptProofSource struct {

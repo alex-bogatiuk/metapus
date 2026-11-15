@@ -35,11 +35,29 @@ type treasuryFinalFixture struct {
 }
 
 func newTreasuryFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) treasuryFinalFixture {
+	return newTreasuryFixture(t, ctx, tm, c, nil)
+}
+
+// newTreasuryRefundFixture returns the 25 of an unidentified receipt with 2
+// withheld for gas, so the payer receives the same 23 a revenue withdrawal sends.
+func newTreasuryRefundFixture(t *testing.T, ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) (treasuryFinalFixture, id.ID) {
+	t.Helper()
+	rowID := seedUnmatchedTransfer(t, ctx, tm, c, crypto.MatchReasonWrongToken, 0)
+	intake, registry, _ := receiptIntakeForTest(t, c)
+	recorded, err := intake.poll(ctx, registry)
+	require.NoError(t, err)
+	require.Equal(t, 1, recorded, receiptError(t, ctx, tm, rowID))
+	var receipt id.ID
+	require.NoError(t, tm.GetQuerier(ctx).QueryRow(ctx, `SELECT receipt_id FROM reg_crypto_inbound_chain_events WHERE id=$1`, rowID).Scan(&receipt))
+	return newTreasuryFixture(t, ctx, tm, c, &receipt), receipt
+}
+
+func newTreasuryFixture(t *testing.T, ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture, refundOf *id.ID) treasuryFinalFixture {
 	t.Helper()
 	q := tm.GetQuerier(ctx)
 	var networkIdentifier string
 	require.NoError(t, q.QueryRow(ctx, `SELECT network_identifier FROM cat_blockchain_networks WHERE id=$1`, c.network).Scan(&networkIdentifier))
-	_, err := q.Exec(ctx, `INSERT INTO sys_crypto_block_ingestion(network_id,start_height,start_hash,start_timestamp,mode,decoder_version) VALUES($1,0,'fixture',0,'shadow',2)`, c.network)
+	_, err := q.Exec(ctx, `INSERT INTO sys_crypto_block_ingestion(network_id,start_height,start_hash,start_timestamp,mode,decoder_version) VALUES($1,0,'fixture',0,'shadow',2) ON CONFLICT DO NOTHING`, c.network)
 	require.NoError(t, err)
 	_, err = q.Exec(ctx, `INSERT INTO reg_crypto_balance_balances(wallet_id,token_id,amount) VALUES($1,$2,100) ON CONFLICT(wallet_id,token_id) DO NOTHING`, c.hot, c.native)
 	require.NoError(t, err)
@@ -51,17 +69,37 @@ func newTreasuryFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxM
 	require.NoError(t, err)
 	_, err = q.Exec(ctx, `INSERT INTO reg_crypto_fee_balances(merchant_id,token_id,fee_type,balance) VALUES($1,$2,'processing',10),($1,$2,'withdrawal',90)`, merchant, c.token)
 	require.NoError(t, err)
-	_, err = q.Exec(ctx, `INSERT INTO reg_treasury_withdrawal_addresses(id,network_id,address,address_key) VALUES($1,$2,$3,$3)`, address, c.network, destination)
-	require.NoError(t, err)
 	doc := treasury_withdrawal.NewTreasuryWithdrawal(c.token, c.hot, address, destination, types.NewCryptoAmountFromInt64(23))
+	if refundOf != nil {
+		_, err = q.Exec(ctx, `INSERT INTO reg_crypto_receipt_refund_destinations(id,receipt_id,network_id,address,address_key,evidence,created_by)
+			VALUES($1,$2,$3,$4,$4,'Sender proved the address',$5)`, address, *refundOf, c.network, destination, id.New())
+		require.NoError(t, err)
+		doc, err = treasury_withdrawal.NewReceiptRefund(*refundOf, c.token, c.hot, address, destination,
+			types.NewCryptoAmountFromInt64(25), types.NewCryptoAmountFromInt64(2), treasury_withdrawal.GasPayerRecipient, "Sent by mistake")
+		require.NoError(t, err)
+	} else {
+		_, err = q.Exec(ctx, `INSERT INTO reg_treasury_withdrawal_addresses(id,network_id,address,address_key) VALUES($1,$2,$3,$3)`, address, c.network, destination)
+		require.NoError(t, err)
+		doc.Status = treasury_withdrawal.StatusApproved
+	}
 	doc.Number = "TW2-" + id.Compact(doc.ID)
-	doc.Status = treasury_withdrawal.StatusApproved
 	require.NoError(t, document_repo.NewTreasuryWithdrawalRepo().Create(ctx, doc))
 	var source, key, contract, standard string
 	require.NoError(t, q.QueryRow(ctx, `SELECT w.address,w.vault_key_id,t.contract_address,t.token_standard FROM cat_wallets w,cat_tokens t WHERE w.id=$1 AND t.id=$2`, c.hot, c.token).Scan(&source, &key, &contract, &standard))
 	execution := outboundapp.TreasuryTask{WithdrawalID: doc.ID, TokenID: c.token, SourceWalletID: c.hot, NetworkID: c.network, Amount: doc.Amount, DestAddress: destination, TokenStandard: token.TokenStandard(standard), ContractAddress: contract}
 	repo := NewOutboundRepo()
-	require.NoError(t, repo.ReserveFeeForTreasury(ctx, doc.ID, c.token, doc.Amount))
+	require.NoError(t, tm.RunInTransaction(ctx, func(ctx context.Context) error {
+		if err := repo.ReserveFeeForTreasury(ctx, doc.ID, c.token, doc.Amount); err != nil {
+			return err
+		}
+		if refundOf == nil {
+			return nil
+		}
+		// Approval opens the refund payable in the same transaction.
+		doc.Status = treasury_withdrawal.StatusApproved
+		_, err := tm.GetQuerier(ctx).Exec(ctx, `UPDATE doc_treasury_withdrawals SET status='approved' WHERE id=$1`, doc.ID)
+		return err
+	}))
 	_, err = repo.ReserveHotWalletForTreasury(ctx, execution)
 	require.NoError(t, err)
 	hash := strings.ReplaceAll(doc.ID.String()+doc.ID.String(), "-", "")
@@ -381,4 +419,49 @@ func TestTreasuryV2ConcurrentReservationsCannotOversubscribe(t *testing.T) {
 			})
 		})
 	}
+}
+
+func receiptRefundAmounts(t *testing.T, ctx context.Context, tm *postgres.TxManager, receipt, refund id.ID) (suspense, payable string, feeLines int) {
+	t.Helper()
+	require.NoError(t, tm.GetQuerier(ctx).QueryRow(ctx, `SELECT (SELECT amount::text FROM reg_crypto_receipt_suspense_balances WHERE receipt_id=$1),
+		COALESCE((SELECT amount::text FROM reg_crypto_refund_payable_balances WHERE receipt_id=$1),'0'),
+		(SELECT count(*) FROM reg_crypto_fee_movements WHERE recorder_id=$2)`, receipt, refund).Scan(&suspense, &payable, &feeLines))
+	return
+}
+
+func TestTreasuryReceiptRefundPayoutClosesThePayable(t *testing.T) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+		f, receipt := newTreasuryRefundFixture(t, ctx, tm, c)
+		suspense, payable, _ := receiptRefundAmounts(t, ctx, tm, receipt, f.doc.ID)
+		require.Equal(t, []string{"0", "23"}, []string{suspense, payable}, "approval takes 25 from suspense and owes the payer 23")
+		f.broadcast(t)
+		require.NoError(t, f.service(t).Settle(ctx, f.task))
+		require.NoError(t, f.service(t).Settle(ctx, f.task))
+		var principal, status string
+		var bindings int
+		require.NoError(t, tm.GetQuerier(ctx).QueryRow(ctx, `SELECT (SELECT amount::text FROM reg_crypto_balance_balances WHERE wallet_id=$1 AND token_id=$2),
+			(SELECT status FROM doc_treasury_withdrawals WHERE id=$3),(SELECT count(*) FROM reg_crypto_treasury_custody_bindings WHERE treasury_id=$3)`,
+			c.hot, c.token, f.doc.ID).Scan(&principal, &status, &bindings))
+		require.Equal(t, []string{"77", "confirmed"}, []string{principal, status})
+		require.Equal(t, 1, bindings)
+		suspense, payable, feeLines := receiptRefundAmounts(t, ctx, tm, receipt, f.doc.ID)
+		require.Equal(t, []string{"0", "0"}, []string{suspense, payable}, "the payout closes the payable; the withheld 2 stays with the platform")
+		require.Zero(t, feeLines, "a refund spends no platform revenue")
+	})
+}
+
+func TestTreasuryReceiptRefundRevertedGivesTheReceiptBack(t *testing.T) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+		f, receipt := newTreasuryRefundFixture(t, ctx, tm, c)
+		f.broadcast(t)
+		f.receipt.Status = crypto.ReceiptReverted
+		require.NoError(t, f.service(t).Settle(ctx, f.task))
+		require.NoError(t, f.service(t).Settle(ctx, f.task))
+		suspense, payable, _ := receiptRefundAmounts(t, ctx, tm, receipt, f.doc.ID)
+		require.Equal(t, []string{"25", "0"}, []string{suspense, payable}, "a reverted refund returns the whole receipt to suspense")
+		var status, native string
+		require.NoError(t, tm.GetQuerier(ctx).QueryRow(ctx, `SELECT status,(SELECT amount::text FROM reg_crypto_balance_balances WHERE wallet_id=$2 AND token_id=$3)
+			FROM doc_treasury_withdrawals WHERE id=$1`, f.doc.ID, c.hot, c.native).Scan(&status, &native))
+		require.Equal(t, []string{"failed", "98"}, []string{status, native}, "the platform still bears the burnt gas")
+	})
 }

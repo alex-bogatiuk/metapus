@@ -30,7 +30,7 @@ type ReceiptRemainder struct {
 	// again, and the receipt audit orphans it if the transfer stays absent, so
 	// an operator credit would race the payment for the same money.
 	PaymentReorged bool
-	// AwaitingDecision: a prepared merchant credit or platform funding already
+	// AwaitingDecision: a prepared merchant credit, platform funding or receipt refund already
 	// claims the remainder until another operator decides.
 	AwaitingDecision bool
 }

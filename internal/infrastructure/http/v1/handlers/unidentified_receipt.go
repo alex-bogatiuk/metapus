@@ -292,6 +292,11 @@ func unidentifiedReceiptItem(row cryptoapp.UnidentifiedReceiptRow) dto.Unidentif
 			item.PlatformFunding.Version = *row.FundingVersion
 		}
 	}
+	if row.RefundID != nil {
+		item.Refund = &dto.UnidentifiedReceiptRefund{ID: *row.RefundID, Number: optionalText(row.RefundNumber), Status: optionalText(row.RefundStatus),
+			Amount: optionalText(row.RefundAmount), Withheld: optionalText(row.RefundWithheld), Destination: optionalText(row.RefundDestination),
+			PreparedBy: optionalText(row.RefundPreparedBy)}
+	}
 	if row.TieMerchantID != nil {
 		item.MerchantTie = &dto.ReceiptMerchantTie{MerchantID: *row.TieMerchantID,
 			MerchantName: optionalText(row.TieMerchantName), Link: optionalText(row.TieLink)}

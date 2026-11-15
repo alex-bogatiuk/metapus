@@ -4,6 +4,7 @@ import { CheckCircle2, Loader2, RefreshCw, XCircle } from "lucide-react"
 
 import { formatDateTime } from "@/lib/format"
 import type { TreasuryWithdrawal } from "@/types/treasury"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -81,7 +82,13 @@ export function WithdrawalsTable({
         ) : (
           items.map((item) => (
             <TableRow key={item.id}>
-              <TableCell className="px-3 py-2 font-mono text-xs">{item.number}</TableCell>
+              <TableCell className="px-3 py-2 font-mono text-xs">
+                {item.number}
+                {item.purpose === "receipt_refund" && <div className="mt-1 font-sans">
+                  <Badge variant="secondary">Возврат поступления</Badge>
+                  {item.description && <div className="mt-1 max-w-60 text-muted-foreground">{item.description}</div>}
+                </div>}
+              </TableCell>
               <TableCell className="px-3 py-2">
                 <StatusBadge status={item.status} />
                 {item.status === "broadcast" && (
@@ -96,6 +103,9 @@ export function WithdrawalsTable({
               </TableCell>
               <TableCell className="px-3 py-2 text-right font-mono text-xs tabular-nums">
                 {formatTokenAmount(item.amount, item.tokenId)}
+                {item.purpose === "receipt_refund" && item.gasPayer === "recipient" && (
+                  <div className="text-muted-foreground">удержано на комиссию {formatTokenAmount(item.withheldAmount ?? "0", item.tokenId)}</div>
+                )}
               </TableCell>
               <TableCell className="px-3 py-2">
                 <AddressButton address={item.destAddress} onCopy={onCopy} />

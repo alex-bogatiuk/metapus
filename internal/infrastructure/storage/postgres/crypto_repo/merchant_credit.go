@@ -52,7 +52,8 @@ func lockReceiptRemainder(ctx context.Context, receiptID id.ID) (cryptoapp.Recei
 		EXISTS(SELECT 1 FROM reg_crypto_custody_receipt_audits WHERE receipt_id=$1 AND status='orphaned'),
 		EXISTS(SELECT 1 FROM doc_crypto_payments WHERE receipt_id=$1 AND NOT posted),
 		EXISTS(SELECT 1 FROM doc_crypto_merchant_credits WHERE receipt_id=$1 AND status='prepared')
-		  OR EXISTS(SELECT 1 FROM doc_crypto_platform_fundings WHERE receipt_id=$1 AND status='prepared')`, receiptID).
+		  OR EXISTS(SELECT 1 FROM doc_crypto_platform_fundings WHERE receipt_id=$1 AND status='prepared')
+		  OR EXISTS(SELECT 1 FROM doc_treasury_withdrawals WHERE receipt_id=$1 AND status IN ('pending_signature','pending_approval'))`, receiptID).
 		Scan(&result.Orphaned, &result.PaymentReorged, &result.AwaitingDecision); err != nil {
 		return result, fmt.Errorf("read receipt canonicality: %w", err)
 	}

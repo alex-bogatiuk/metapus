@@ -40,6 +40,12 @@ export interface TreasuryWithdrawal {
   updatedAt: string
   token?: RefDisplay
   sourceWallet?: RefDisplay
+  // "receipt_refund" returns an unidentified receipt to its sender: amount is
+  // what the payer receives, withheldAmount stays with the platform for gas.
+  purpose?: "revenue" | "receipt_refund"
+  receiptId?: string
+  gasPayer?: "platform" | "recipient"
+  withheldAmount?: string
 }
 
 export interface TreasuryAvailability {

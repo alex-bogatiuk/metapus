@@ -3,6 +3,7 @@ package cryptoapp
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"metapus/internal/core/apperror"
@@ -48,7 +49,46 @@ type LockedTreasuryWithdrawal struct {
 	Amount    types.CryptoAmount
 }
 
+// RefundableReceipt is what is left of an unidentified receipt in suspense.
+type RefundableReceipt struct {
+	ReceiptID id.ID
+	Number    string
+	NetworkID id.ID
+	TokenID   id.ID
+	Remainder types.CryptoAmount
+	Orphaned  bool
+}
+
+// ReceiptRefundDestination is the address one refund pays and the operator's
+// evidence of the sender's right to it.
+type ReceiptRefundDestination struct {
+	ID         id.ID
+	ReceiptID  id.ID
+	NetworkID  id.ID
+	Address    string
+	AddressKey string
+	Evidence   string
+	CreatedBy  id.ID
+}
+
+// CreateReceiptRefundInput prepares the return of an unidentified receipt.
+// Total is what leaves suspense; with the recipient paying gas, Withheld of it
+// stays with the platform and the payer receives Total-Withheld.
+type CreateReceiptRefundInput struct {
+	ReceiptID      id.ID
+	SourceWalletID id.ID
+	DestAddress    string
+	Evidence       string
+	Reason         string
+	Total          types.CryptoAmount
+	GasPayer       treasury_withdrawal.GasPayer
+	Withheld       types.CryptoAmount
+}
+
 type TreasuryWorkflowRepository interface {
+	GetRefundableReceipt(context.Context, id.ID) (RefundableReceipt, error)
+	LockReceiptRemainder(context.Context, id.ID) (ReceiptRemainder, error)
+	CreateReceiptRefundDestination(context.Context, ReceiptRefundDestination) error
 	UpsertTreasuryAddress(context.Context, id.ID, string, string, string, id.ID) (id.ID, error)
 	ListTreasuryAddresses(context.Context) ([]TreasuryAddress, error)
 	GetTreasuryWithdrawalNetwork(context.Context, id.ID) (id.ID, error)
@@ -127,6 +167,9 @@ func (s *TreasuryWorkflowService) ListSourceWallets(ctx context.Context, tokenID
 }
 
 func (s *TreasuryWorkflowService) Create(ctx context.Context, doc *treasury_withdrawal.TreasuryWithdrawal, actorID id.ID) error {
+	if doc.IsReceiptRefund() {
+		return apperror.NewValidation("a receipt refund is prepared from its receipt")
+	}
 	networkID, err := s.repo.GetTreasuryWithdrawalNetwork(ctx, doc.TokenID)
 	if err != nil {
 		return apperror.NewValidation("invalid treasury token").WithCause(err)
@@ -139,6 +182,69 @@ func (s *TreasuryWorkflowService) Create(ctx context.Context, doc *treasury_with
 	if err := s.repo.ValidateTreasuryWithdrawalContext(ctx, doc, normalized.CanonicalKey); err != nil {
 		return err
 	}
+	return s.create(ctx, doc, actorID, nil)
+}
+
+// CreateReceiptRefund prepares the return of an unidentified receipt to its
+// sender. Nothing moves yet: on approval by another operator the total leaves
+// suspense into refund payable, and the payout closes the payable.
+func (s *TreasuryWorkflowService) CreateReceiptRefund(ctx context.Context, input CreateReceiptRefundInput, actorID id.ID) (*treasury_withdrawal.TreasuryWithdrawal, error) {
+	if id.IsNil(actorID) {
+		return nil, apperror.NewUnauthorized("authenticated user id is required")
+	}
+	evidence := strings.TrimSpace(input.Evidence)
+	if evidence == "" || len(evidence) > treasury_withdrawal.MaxRefundTextBytes {
+		return nil, apperror.NewValidation("destination evidence is required and at most 2000 bytes").WithDetail("field", "evidence")
+	}
+	receipt, err := s.repo.GetRefundableReceipt(ctx, input.ReceiptID)
+	if err != nil {
+		return nil, err
+	}
+	if receipt.Orphaned {
+		return nil, apperror.NewValidation("the receipt left the chain and cannot be refunded")
+	}
+	if input.Total.Cmp(receipt.Remainder) > 0 {
+		return nil, apperror.NewValidation("refund exceeds what is left of the receipt").WithDetail("field", "amount")
+	}
+	normalized, err := s.addresses.ValidateAndNormalize(ctx, receipt.NetworkID, input.DestAddress)
+	if err != nil {
+		return nil, err
+	}
+	destination := ReceiptRefundDestination{ID: id.New(), ReceiptID: receipt.ReceiptID, NetworkID: receipt.NetworkID,
+		Address: normalized.Address, AddressKey: normalized.CanonicalKey, Evidence: evidence, CreatedBy: actorID}
+	doc, err := treasury_withdrawal.NewReceiptRefund(receipt.ReceiptID, receipt.TokenID, input.SourceWalletID, destination.ID,
+		normalized.Address, input.Total, input.Withheld, input.GasPayer, input.Reason)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.ValidateTreasuryWithdrawalContext(ctx, doc, normalized.CanonicalKey); err != nil {
+		return nil, err
+	}
+	err = s.create(ctx, doc, actorID, func(txCtx context.Context) error {
+		remainder, err := s.repo.LockReceiptRemainder(txCtx, receipt.ReceiptID)
+		if err != nil {
+			return err
+		}
+		if err := remainder.attributable(); err != nil {
+			return err
+		}
+		if remainder.AwaitingDecision {
+			return errReceiptAwaitsDecision
+		}
+		if doc.RefundTotal().Cmp(remainder.Amount) > 0 {
+			return apperror.NewValidation("refund exceeds what is left of the receipt").WithDetail("field", "amount")
+		}
+		return s.repo.CreateReceiptRefundDestination(txCtx, destination)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return doc, nil
+}
+
+// create persists the document with its approval signing job; before runs
+// first in the same transaction.
+func (s *TreasuryWorkflowService) create(ctx context.Context, doc *treasury_withdrawal.TreasuryWithdrawal, actorID id.ID, before func(context.Context) error) error {
 	intent, err := s.intents.BuildTreasuryIntentForCreate(ctx, tenant.GetTenantID(ctx), doc)
 	if err != nil {
 		return err
@@ -153,6 +259,11 @@ func (s *TreasuryWorkflowService) Create(ctx context.Context, doc *treasury_with
 		return apperror.NewInternal(err)
 	}
 	return txm.RunInTransaction(ctx, func(txCtx context.Context) error {
+		if before != nil {
+			if err := before(txCtx); err != nil {
+				return err
+			}
+		}
 		if err := s.documents.Create(txCtx, doc); err != nil {
 			return err
 		}

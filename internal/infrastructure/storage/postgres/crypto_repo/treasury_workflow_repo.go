@@ -90,12 +90,16 @@ func (r *TreasuryWorkflowRepo) ValidateTreasuryWithdrawalContext(ctx context.Con
 			SELECT 1
 			FROM cat_tokens t
 			JOIN cat_wallets w ON w.id = $2
-			JOIN reg_treasury_withdrawal_addresses a ON a.id = $3
 			WHERE t.id = $1 AND t.deletion_mark = FALSE
 			  AND w.network_id = t.network_id
-			  AND a.network_id = t.network_id
-			  AND a.address_key = $4
-			  AND a.is_active = TRUE AND a._deleted_at IS NULL
+			  -- Revenue goes to an allowlisted treasury address; a refund goes to
+			  -- the destination recorded for it, checked when it is inserted.
+			  AND ($5 = 'receipt_refund' OR EXISTS (
+			      SELECT 1 FROM reg_treasury_withdrawal_addresses a
+			      WHERE a.id = $3 AND a.network_id = t.network_id AND a.address_key = $4
+			        AND a.is_active = TRUE AND a._deleted_at IS NULL))
+			  AND ($5 <> 'receipt_refund' OR EXISTS (
+			      SELECT 1 FROM doc_crypto_custody_receipts c WHERE c.id = $6 AND c.token_id = t.id))
 			  AND w.custody_merchant_id IS NULL
                   AND (w.wallet_role='treasury' OR (w.wallet_role='liquidity_hot' AND NOT EXISTS(
                       SELECT 1 FROM sys_crypto_custody_policies cp WHERE cp.network_id=w.network_id AND cp.enforced)))
@@ -108,12 +112,55 @@ func (r *TreasuryWorkflowRepo) ValidateTreasuryWithdrawalContext(ctx context.Con
 			        AND managed.address_key = $4
 			  )
 		)
-	`, doc.TokenID, doc.SourceWalletID, doc.AddressID, addressKey).Scan(&valid)
+	`, doc.TokenID, doc.SourceWalletID, doc.AddressID, addressKey, string(doc.Purpose), doc.ReceiptID).Scan(&valid)
 	if err != nil {
 		return fmt.Errorf("validate treasury withdrawal context: %w", err)
 	}
 	if !valid {
+		if doc.IsReceiptRefund() {
+			return apperror.NewValidation("refund source wallet must be a platform hot wallet holding the receipt token, and the destination external to custody")
+		}
 		return apperror.NewValidation("treasury withdrawal source wallet or destination allowlist is invalid")
+	}
+	return nil
+}
+
+// GetRefundableReceipt reads what is left of an unidentified receipt to return.
+// An orphaned receipt cannot be refunded: its transfer is no longer on chain.
+func (r *TreasuryWorkflowRepo) GetRefundableReceipt(ctx context.Context, receiptID id.ID) (cryptoapp.RefundableReceipt, error) {
+	var result cryptoapp.RefundableReceipt
+	err := treasuryQuerier(ctx).QueryRow(ctx, `
+		SELECT c.id, c.number, c.network_id, c.token_id, COALESCE(s.amount, 0),
+		       COALESCE(a.status = 'orphaned', FALSE)
+		FROM doc_crypto_custody_receipts c
+		LEFT JOIN reg_crypto_receipt_suspense_balances s ON s.receipt_id = c.id AND s.token_id = c.token_id
+		LEFT JOIN reg_crypto_custody_receipt_audits a ON a.receipt_id = c.id
+		WHERE c.id = $1
+	`, receiptID).Scan(&result.ReceiptID, &result.Number, &result.NetworkID, &result.TokenID, &result.Remainder, &result.Orphaned)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return result, apperror.NewNotFound("crypto custody receipt", receiptID)
+	}
+	if err != nil {
+		return result, fmt.Errorf("read refundable receipt: %w", err)
+	}
+	return result, nil
+}
+
+// LockReceiptRemainder locks the receipt remainder as every manual
+// attribution does, so a refund and a credit or funding serialize.
+func (r *TreasuryWorkflowRepo) LockReceiptRemainder(ctx context.Context, receiptID id.ID) (cryptoapp.ReceiptRemainder, error) {
+	return lockReceiptRemainder(ctx, receiptID)
+}
+
+// CreateReceiptRefundDestination records where a refund pays and why. The
+// database refuses an address of managed custody or of another network.
+func (r *TreasuryWorkflowRepo) CreateReceiptRefundDestination(ctx context.Context, d cryptoapp.ReceiptRefundDestination) error {
+	_, err := treasuryQuerier(ctx).Exec(ctx, `
+		INSERT INTO reg_crypto_receipt_refund_destinations(id, receipt_id, network_id, address, address_key, evidence, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, d.ID, d.ReceiptID, d.NetworkID, d.Address, d.AddressKey, d.Evidence, d.CreatedBy)
+	if err != nil {
+		return fmt.Errorf("record receipt refund destination: %w", err)
 	}
 	return nil
 }

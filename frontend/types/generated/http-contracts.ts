@@ -911,6 +911,17 @@ export type CreateRateSourceRequest = {
   "attributes"?: Record<string, JsonValue>
 }
 
+export type CreateReceiptRefundRequest = {
+  "receiptId": string
+  "sourceWalletId": string
+  "destAddress": string
+  "evidence": string
+  "reason": string
+  "amount": string
+  "gasPayer": string
+  "withheldAmount"?: string
+}
+
 export type CreateRoleRequest = {
   "code": string
   "name": string
@@ -4500,6 +4511,10 @@ export type TreasuryWithdrawalResponse = {
   "updatedAt": string
   "token"?: PostgresRefDisplay
   "sourceWallet"?: PostgresRefDisplay
+  "purpose": string
+  "receiptId"?: string
+  "gasPayer": string
+  "withheldAmount": string
 }
 
 export type UnidentifiedReceiptCredit = {
@@ -4544,6 +4559,7 @@ export type UnidentifiedReceiptItem = {
   "paymentStatus": string
   "platformFunding": UnidentifiedReceiptPlatformFunding | null
   "merchantTie": ReceiptMerchantTie | null
+  "refund": UnidentifiedReceiptRefund | null
 }
 
 export type UnidentifiedReceiptListResponse = {
@@ -4562,6 +4578,16 @@ export type UnidentifiedReceiptPlatformFunding = {
   "preparedBy": string
   "decidedAt": string | null
   "decisionReason": string
+}
+
+export type UnidentifiedReceiptRefund = {
+  "id": string
+  "number": string
+  "status": string
+  "amount": string
+  "withheld": string
+  "destination": string
+  "preparedBy": string
 }
 
 export type UpdateAutomationAccountRequest = {

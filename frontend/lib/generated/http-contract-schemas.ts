@@ -915,6 +915,17 @@ export const CreateRateSourceRequestSchema: z.ZodType<Wire.CreateRateSourceReque
   "attributes": z.record(z.string(), jsonValueSchema).optional(),
 }))
 
+export const CreateReceiptRefundRequestSchema: z.ZodType<Wire.CreateReceiptRefundRequest> = z.lazy(() => z.strictObject({
+  "receiptId": z.string(),
+  "sourceWalletId": z.string(),
+  "destAddress": z.string(),
+  "evidence": z.string(),
+  "reason": z.string(),
+  "amount": z.string(),
+  "gasPayer": z.string(),
+  "withheldAmount": z.string().optional(),
+}))
+
 export const CreateRoleRequestSchema: z.ZodType<Wire.CreateRoleRequest> = z.lazy(() => z.strictObject({
   "code": z.string(),
   "name": z.string(),
@@ -4504,6 +4515,10 @@ export const TreasuryWithdrawalResponseSchema: z.ZodType<Wire.TreasuryWithdrawal
   "updatedAt": z.string(),
   "token": PostgresRefDisplaySchema.optional(),
   "sourceWallet": PostgresRefDisplaySchema.optional(),
+  "purpose": z.string(),
+  "receiptId": z.string().optional(),
+  "gasPayer": z.string(),
+  "withheldAmount": z.string(),
 }))
 
 export const UnidentifiedReceiptCreditSchema: z.ZodType<Wire.UnidentifiedReceiptCredit> = z.lazy(() => z.object({
@@ -4548,6 +4563,7 @@ export const UnidentifiedReceiptItemSchema: z.ZodType<Wire.UnidentifiedReceiptIt
   "paymentStatus": z.string(),
   "platformFunding": UnidentifiedReceiptPlatformFundingSchema.nullable(),
   "merchantTie": ReceiptMerchantTieSchema.nullable(),
+  "refund": UnidentifiedReceiptRefundSchema.nullable(),
 }))
 
 export const UnidentifiedReceiptListResponseSchema: z.ZodType<Wire.UnidentifiedReceiptListResponse> = z.lazy(() => z.object({
@@ -4566,6 +4582,16 @@ export const UnidentifiedReceiptPlatformFundingSchema: z.ZodType<Wire.Unidentifi
   "preparedBy": z.string(),
   "decidedAt": z.string().nullable(),
   "decisionReason": z.string(),
+}))
+
+export const UnidentifiedReceiptRefundSchema: z.ZodType<Wire.UnidentifiedReceiptRefund> = z.lazy(() => z.object({
+  "id": z.string(),
+  "number": z.string(),
+  "status": z.string(),
+  "amount": z.string(),
+  "withheld": z.string(),
+  "destination": z.string(),
+  "preparedBy": z.string(),
 }))
 
 export const UpdateAutomationAccountRequestSchema: z.ZodType<Wire.UpdateAutomationAccountRequest> = z.lazy(() => z.strictObject({

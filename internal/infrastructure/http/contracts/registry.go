@@ -30,6 +30,7 @@ func Registry() []Contract {
 		Request[dto.DecideMerchantCreditRequest]("DecideMerchantCreditRequest"),
 		Response[dto.MerchantCreditResponse]("MerchantCreditResponse"),
 		Response[dto.UnidentifiedReceiptPlatformFunding]("UnidentifiedReceiptPlatformFunding"),
+		Response[dto.UnidentifiedReceiptRefund]("UnidentifiedReceiptRefund"),
 		Response[dto.ReceiptMerchantTie]("ReceiptMerchantTie"),
 		Request[dto.PreparePlatformFundingRequest]("PreparePlatformFundingRequest"),
 		Request[dto.DecidePlatformFundingRequest]("DecidePlatformFundingRequest"),

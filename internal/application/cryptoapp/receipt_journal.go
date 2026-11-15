@@ -62,6 +62,14 @@ type UnidentifiedReceiptRow struct {
 	PaymentNumber     *string    `db:"payment_number"`
 	PaymentStatus     *string    `db:"payment_status"`
 	// The latest platform funding of the receipt.
+	// The latest refund of the receipt to its sender.
+	RefundID              *string    `db:"refund_id"`
+	RefundNumber          *string    `db:"refund_number"`
+	RefundStatus          *string    `db:"refund_status"`
+	RefundAmount          *string    `db:"refund_amount"`
+	RefundWithheld        *string    `db:"refund_withheld"`
+	RefundDestination     *string    `db:"refund_destination"`
+	RefundPreparedBy      *string    `db:"refund_prepared_by"`
 	FundingID             *string    `db:"funding_id"`
 	FundingNumber         *string    `db:"funding_number"`
 	FundingStatus         *string    `db:"funding_status"`

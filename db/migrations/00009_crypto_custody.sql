@@ -146,7 +146,9 @@ BEGIN
         SELECT * INTO original FROM reg_crypto_receipt_suspense_movements WHERE line_id=NEW.reversal_of_line_id FOR UPDATE;
         IF NOT FOUND OR original.reversal_of_line_id IS NOT NULL
            OR original.recorder_type<>(CASE NEW.recorder_type WHEN 'CryptoMerchantCreditReversal' THEN 'CryptoMerchantCredit'
-                WHEN 'CryptoPlatformFundingReversal' THEN 'CryptoPlatformFunding' ELSE 'CryptoPayment' END)
+                WHEN 'CryptoPlatformFundingReversal' THEN 'CryptoPlatformFunding'
+                WHEN 'TreasuryWithdrawalReversal' THEN 'TreasuryWithdrawal' ELSE 'CryptoPayment' END)
+           OR (NEW.recorder_type='TreasuryWithdrawalReversal' AND (NEW.recorder_id<>original.recorder_id OR NEW.amount<>original.amount))
            OR original.receipt_id<>NEW.receipt_id OR original.token_id<>NEW.token_id OR original.record_type=NEW.record_type
            OR original.amount<(SELECT SUM(amount) FROM reg_crypto_receipt_suspense_movements WHERE reversal_of_line_id=original.line_id) THEN
             RAISE EXCEPTION 'suspense reversal requires an available attribution of its kind' USING ERRCODE='23514';
@@ -173,6 +175,13 @@ BEGIN
             AND f.receipt_id=NEW.receipt_id AND f.token_id=NEW.token_id AND f.amount=NEW.amount
             AND f.suspense_line_id=NEW.line_id AND f.date=NEW.period) THEN
             RAISE EXCEPTION 'suspense consumption requires its exact platform funding' USING ERRCODE='23514';
+        END IF;
+        delta:=-NEW.amount;
+    ELSIF NEW.recorder_type='TreasuryWithdrawal' THEN
+        IF NOT EXISTS(SELECT 1 FROM doc_treasury_withdrawals d WHERE d.id=NEW.recorder_id AND d.purpose='receipt_refund'
+            AND d.receipt_id=NEW.receipt_id AND d.token_id=NEW.token_id AND d.amount+d.withheld_amount=NEW.amount
+            AND d.status IN ('pending_approval','approved','signing')) THEN
+            RAISE EXCEPTION 'suspense consumption requires its exact receipt refund' USING ERRCODE='23514';
         END IF;
         delta:=-NEW.amount;
     ELSE
@@ -250,7 +259,8 @@ BEGIN
     IF EXISTS(SELECT 1 FROM doc_crypto_payments WHERE receipt_id=NEW.receipt_id AND NOT posted) THEN
         RAISE EXCEPTION 'receipt of a reorged invoice payment cannot be credited manually' USING ERRCODE='23514';
     END IF;
-    IF EXISTS(SELECT 1 FROM doc_crypto_platform_fundings WHERE receipt_id=NEW.receipt_id AND status='prepared') THEN
+    IF EXISTS(SELECT 1 FROM doc_crypto_platform_fundings WHERE receipt_id=NEW.receipt_id AND status='prepared')
+       OR EXISTS(SELECT 1 FROM doc_treasury_withdrawals WHERE receipt_id=NEW.receipt_id AND status IN ('pending_signature','pending_approval')) THEN
         RAISE EXCEPTION 'receipt already awaits a decision on another attribution' USING ERRCODE='23514';
     END IF;
     IF NOT FOUND OR NOT r.posted OR r.token_id<>NEW.token_id
@@ -445,7 +455,8 @@ BEGIN
     IF EXISTS(SELECT 1 FROM doc_crypto_payments WHERE receipt_id=NEW.receipt_id AND NOT posted) THEN
         RAISE EXCEPTION 'receipt of a reorged invoice payment cannot be attributed manually' USING ERRCODE='23514';
     END IF;
-    IF EXISTS(SELECT 1 FROM doc_crypto_merchant_credits WHERE receipt_id=NEW.receipt_id AND status='prepared') THEN
+    IF EXISTS(SELECT 1 FROM doc_crypto_merchant_credits WHERE receipt_id=NEW.receipt_id AND status='prepared')
+       OR EXISTS(SELECT 1 FROM doc_treasury_withdrawals WHERE receipt_id=NEW.receipt_id AND status IN ('pending_signature','pending_approval')) THEN
         RAISE EXCEPTION 'receipt already awaits a decision on another attribution' USING ERRCODE='23514';
     END IF;
     IF tie.merchant_id IS DISTINCT FROM NEW.merchant_id OR tie.link IS DISTINCT FROM NEW.merchant_link THEN
@@ -1271,10 +1282,13 @@ BEGIN
        OR (SELECT count(*) FROM reg_crypto_balance_reservations WHERE document_id=d.id)<>1
        OR NOT EXISTS(SELECT 1 FROM reg_crypto_balance_reservations WHERE document_type='TreasuryWithdrawal' AND document_id=d.id AND wallet_id=w.id AND token_id=d.token_id
            AND amount=d.amount AND purpose='treasury_withdrawal' AND status=CASE WHEN success THEN 'consumed' ELSE 'released' END)
-       OR NOT EXISTS(SELECT 1 FROM reg_crypto_revenue_reservations WHERE document_id=d.id)
-       OR (SELECT COALESCE(sum(amount),0) FROM reg_crypto_revenue_reservations WHERE document_id=d.id)<>d.amount
-       OR EXISTS(SELECT 1 FROM reg_crypto_revenue_reservations WHERE document_id=d.id AND (document_type<>'TreasuryWithdrawal' OR token_id<>d.token_id
-           OR purpose<>'treasury_withdrawal' OR status<>CASE WHEN success THEN 'consumed' ELSE 'released' END))
+       OR (d.purpose='revenue' AND (NOT EXISTS(SELECT 1 FROM reg_crypto_revenue_reservations WHERE document_id=d.id)
+           OR (SELECT COALESCE(sum(amount),0) FROM reg_crypto_revenue_reservations WHERE document_id=d.id)<>d.amount
+           OR EXISTS(SELECT 1 FROM reg_crypto_revenue_reservations WHERE document_id=d.id AND (document_type<>'TreasuryWithdrawal' OR token_id<>d.token_id
+               OR purpose<>'treasury_withdrawal' OR status<>CASE WHEN success THEN 'consumed' ELSE 'released' END))))
+       -- A receipt refund spends no revenue: its money comes from receipt suspense.
+       OR (d.purpose='receipt_refund' AND (EXISTS(SELECT 1 FROM reg_crypto_revenue_reservations WHERE document_id=d.id)
+           OR EXISTS(SELECT 1 FROM reg_crypto_fee_movements WHERE recorder_id=d.id)))
        OR (SELECT count(*) FROM reg_crypto_balance_movements WHERE recorder_id=d.id AND recorder_type='ChainSettlement')<>(CASE WHEN c.total_fee_minor>0 THEN 1 ELSE 0 END)
        OR EXISTS(SELECT 1 FROM reg_crypto_balance_movements WHERE recorder_id=d.id AND recorder_type='ChainSettlement' AND
            (line_id<>f.id OR recorder_version<>1 OR record_type<>'expense' OR wallet_id<>w.id OR token_id<>c.native_token_id OR amount<>c.total_fee_minor OR reversal_of_line_id IS NOT NULL))
@@ -1292,6 +1306,7 @@ BEGIN
            OR EXISTS(SELECT 1 FROM reg_crypto_fee_movements WHERE recorder_id=d.id) THEN
             RAISE EXCEPTION 'reverted treasury cannot recognize principal or revenue expense' USING ERRCODE='23514';
         END IF;
+        PERFORM fn_crypto_assert_receipt_refund(d.id);
         RETURN;
     END IF;
     SELECT * INTO p FROM reg_crypto_custody_effect_postings WHERE id=b.posting_id;
@@ -1333,6 +1348,118 @@ BEGIN
            AND payload->>'postingId'=p.id::text AND payload->>'entityId'=d.id::text AND payload->>'entityType'='TreasuryWithdrawal' AND payload->>'action'='custody_recognized' AND payload->>'generation'='1') THEN
         RAISE EXCEPTION 'successful treasury requires one proven outgoing principal and exact revenue expense' USING ERRCODE='23514';
     END IF;
+    PERFORM fn_crypto_assert_receipt_refund(d.id);
+END;
+$$;
+
+-- The lines of a receipt refund follow its status. Before approval nothing has
+-- moved. Approved and in flight, suspense gave up amount+withheld and the
+-- payable holds the amount owed. Paid out, the payable is closed by the proven
+-- outgoing principal. Rejected or failed after approval, the payable is closed
+-- and suspense takes the whole amount back.
+CREATE FUNCTION fn_crypto_assert_receipt_refund(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE d doc_treasury_withdrawals; taken reg_crypto_receipt_suspense_movements; returned INT; opened INT; closed INT; moved BOOLEAN;
+BEGIN
+    SELECT * INTO d FROM doc_treasury_withdrawals WHERE id=target;
+    IF NOT FOUND OR d.purpose<>'receipt_refund' THEN RETURN; END IF;
+    SELECT * INTO taken FROM reg_crypto_receipt_suspense_movements WHERE recorder_id=d.id AND recorder_type='TreasuryWithdrawal';
+    moved:=FOUND;
+    SELECT count(*) INTO returned FROM reg_crypto_receipt_suspense_movements WHERE recorder_id=d.id AND recorder_type='TreasuryWithdrawalReversal'
+        AND reversal_of_line_id=taken.line_id AND amount=taken.amount AND receipt_id=d.receipt_id AND token_id=d.token_id;
+    SELECT count(*) INTO opened FROM reg_crypto_refund_payable_movements WHERE recorder_id=d.id AND recorder_version=1
+        AND receipt_id=d.receipt_id AND token_id=d.token_id AND amount=d.amount;
+    SELECT count(*) INTO closed FROM reg_crypto_refund_payable_movements WHERE recorder_id=d.id AND recorder_version=2
+        AND receipt_id=d.receipt_id AND token_id=d.token_id AND amount=d.amount;
+    IF (SELECT count(*) FROM reg_crypto_refund_payable_movements WHERE recorder_id=d.id)<>opened+closed
+       OR (SELECT count(*) FROM reg_crypto_receipt_suspense_movements WHERE recorder_id=d.id)<>(CASE WHEN moved THEN 1 ELSE 0 END)+returned
+       OR (moved AND (taken.receipt_id<>d.receipt_id OR taken.token_id<>d.token_id OR taken.amount<>d.amount+d.withheld_amount OR taken.record_type<>'expense'))
+       OR (moved<>(opened=1)) OR (closed=1 AND opened<>1) THEN
+        RAISE EXCEPTION 'receipt refund requires exact suspense and payable lines' USING ERRCODE='23514';
+    END IF;
+    IF d.status IN ('pending_signature','pending_approval') AND moved THEN
+        RAISE EXCEPTION 'unapproved receipt refund cannot move suspense' USING ERRCODE='23514';
+    ELSIF d.status IN ('approved','signing','broadcast','held') AND (NOT moved OR closed<>0 OR returned<>0) THEN
+        RAISE EXCEPTION 'approved receipt refund requires an open payable' USING ERRCODE='23514';
+    ELSIF d.status='confirmed' AND (NOT moved OR closed<>1 OR returned<>0) THEN
+        RAISE EXCEPTION 'paid receipt refund requires its payable closed by the payout' USING ERRCODE='23514';
+    ELSIF d.status IN ('rejected','failed') AND moved AND (closed<>1 OR returned<>1) THEN
+        RAISE EXCEPTION 'cancelled receipt refund requires suspense restored and payable closed' USING ERRCODE='23514';
+    END IF;
+END;
+$$;
+
+CREATE FUNCTION fn_crypto_receipt_refund_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_TABLE_NAME='doc_treasury_withdrawals' THEN
+        PERFORM fn_crypto_assert_receipt_refund(NEW.id);
+    ELSIF TG_TABLE_NAME='reg_crypto_refund_payable_movements' OR NEW.recorder_type IN ('TreasuryWithdrawal','TreasuryWithdrawalReversal') THEN
+        PERFORM fn_crypto_assert_receipt_refund(NEW.recorder_id);
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+CREATE FUNCTION fn_crypto_refund_payable_apply() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE d doc_treasury_withdrawals;
+BEGIN
+    SELECT * INTO d FROM doc_treasury_withdrawals WHERE id=NEW.recorder_id;
+    IF NOT FOUND OR d.purpose<>'receipt_refund' OR d.receipt_id<>NEW.receipt_id OR d.token_id<>NEW.token_id OR d.amount<>NEW.amount THEN
+        RAISE EXCEPTION 'refund payable requires its exact receipt refund' USING ERRCODE='23514';
+    END IF;
+    IF NEW.record_type='receipt' THEN
+        INSERT INTO reg_crypto_refund_payable_balances(receipt_id,token_id,amount) VALUES(NEW.receipt_id,NEW.token_id,NEW.amount)
+        ON CONFLICT(receipt_id,token_id) DO UPDATE SET amount=reg_crypto_refund_payable_balances.amount+EXCLUDED.amount,updated_at=NOW();
+    ELSE
+        -- The CHECK(amount>=0) on the balance rejects closing more than is owed.
+        UPDATE reg_crypto_refund_payable_balances SET amount=amount-NEW.amount,updated_at=NOW()
+            WHERE receipt_id=NEW.receipt_id AND token_id=NEW.token_id;
+        IF NOT FOUND THEN RAISE EXCEPTION 'refund payable closing requires an open payable' USING ERRCODE='23514'; END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+-- A revenue withdrawal pays an allowlisted treasury address; a receipt refund
+-- pays the destination recorded for that refund, external to managed custody
+-- and on the receipt's network, in the receipt's token.
+CREATE FUNCTION fn_crypto_treasury_destination_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE family TEXT; key TEXT; network UUID;
+BEGIN
+    IF TG_OP='UPDATE' AND (NEW.purpose,NEW.receipt_id,NEW.gas_payer,NEW.withheld_amount) IS DISTINCT FROM (OLD.purpose,OLD.receipt_id,OLD.gas_payer,OLD.withheld_amount) THEN
+        RAISE EXCEPTION 'treasury withdrawal purpose and refund terms are immutable' USING ERRCODE='23514'; END IF;
+    SELECT t.network_id,n.chain_family INTO network,family FROM cat_tokens t JOIN cat_blockchain_networks n ON n.id=t.network_id WHERE t.id=NEW.token_id;
+    key:=CASE WHEN family='evm' THEN lower(NEW.dest_address) ELSE NEW.dest_address END;
+    IF NEW.purpose='revenue' THEN
+        IF NOT EXISTS(SELECT 1 FROM reg_treasury_withdrawal_addresses a WHERE a.id=NEW.address_id AND a.network_id=network AND a.address_key=key) THEN
+            RAISE EXCEPTION 'treasury withdrawal requires its allowlisted destination' USING ERRCODE='23514'; END IF;
+    ELSIF NOT EXISTS(SELECT 1 FROM reg_crypto_receipt_refund_destinations r JOIN doc_crypto_custody_receipts c ON c.id=r.receipt_id
+        WHERE r.id=NEW.address_id AND r.receipt_id=NEW.receipt_id AND r.network_id=network AND r.address_key=key AND c.token_id=NEW.token_id) THEN
+        RAISE EXCEPTION 'receipt refund requires its recorded destination and the receipt token' USING ERRCODE='23514';
+    ELSIF TG_OP='INSERT' THEN
+        -- One decision at a time on a receipt, as for credits and fundings.
+        PERFORM 1 FROM reg_crypto_receipt_suspense_balances WHERE receipt_id=NEW.receipt_id FOR UPDATE;
+        IF EXISTS(SELECT 1 FROM reg_crypto_custody_receipt_audits WHERE receipt_id=NEW.receipt_id AND status='orphaned')
+           OR EXISTS(SELECT 1 FROM doc_crypto_payments WHERE receipt_id=NEW.receipt_id AND NOT posted) THEN
+            RAISE EXCEPTION 'orphaned or reorged receipt cannot be refunded' USING ERRCODE='23514'; END IF;
+        IF EXISTS(SELECT 1 FROM doc_crypto_merchant_credits WHERE receipt_id=NEW.receipt_id AND status='prepared')
+           OR EXISTS(SELECT 1 FROM doc_crypto_platform_fundings WHERE receipt_id=NEW.receipt_id AND status='prepared')
+           OR EXISTS(SELECT 1 FROM doc_treasury_withdrawals WHERE receipt_id=NEW.receipt_id AND id<>NEW.id AND status IN ('pending_signature','pending_approval')) THEN
+            RAISE EXCEPTION 'receipt already awaits a decision on another attribution' USING ERRCODE='23514'; END IF;
+        IF NEW.amount+NEW.withheld_amount>(SELECT amount FROM reg_crypto_receipt_suspense_balances WHERE receipt_id=NEW.receipt_id AND token_id=NEW.token_id) THEN
+            RAISE EXCEPTION 'receipt refund exceeds the receipt remainder' USING ERRCODE='23514'; END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION fn_crypto_receipt_refund_destination_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_OP<>'INSERT' THEN RAISE EXCEPTION 'receipt refund destinations are append-only' USING ERRCODE='23514'; END IF;
+    IF NOT EXISTS(SELECT 1 FROM doc_crypto_custody_receipts WHERE id=NEW.receipt_id AND network_id=NEW.network_id)
+       OR EXISTS(SELECT 1 FROM cat_wallets WHERE network_id=NEW.network_id AND address_key=NEW.address_key) THEN
+        RAISE EXCEPTION 'receipt refund destination must be external to managed custody on the receipt network' USING ERRCODE='23514';
+    END IF;
+    RETURN NEW;
 END;
 $$;
 
@@ -3711,7 +3838,8 @@ CREATE TABLE reg_crypto_receipt_suspense_movements (
     recorder_id UUID NOT NULL,
     recorder_type TEXT NOT NULL CHECK(recorder_type IN
         ('CryptoCustodyReceipt','CryptoMerchantCredit','CryptoPayment','CryptoPaymentReorg','CryptoAdjustment',
-         'CryptoMerchantCreditReversal','CryptoPlatformFunding','CryptoPlatformFundingReversal')),
+         'CryptoMerchantCreditReversal','CryptoPlatformFunding','CryptoPlatformFundingReversal',
+         'TreasuryWithdrawal','TreasuryWithdrawalReversal')),
     recorder_version INT NOT NULL CHECK(recorder_version>0),
     period TIMESTAMPTZ NOT NULL,
     record_type TEXT NOT NULL CHECK(record_type IN ('receipt','expense')),
@@ -3725,16 +3853,18 @@ CREATE TABLE reg_crypto_receipt_suspense_movements (
     -- compensation or a manual credit storno returns it to the remainder.
     CHECK((recorder_type='CryptoCustodyReceipt' AND record_type='receipt' AND recorder_id=receipt_id
             AND recorder_version=1 AND reversal_of_line_id IS NULL AND reversal_reason IS NULL)
-       OR (recorder_type IN ('CryptoMerchantCredit','CryptoPlatformFunding') AND record_type='expense' AND recorder_version=1
+       OR (recorder_type IN ('CryptoMerchantCredit','CryptoPlatformFunding','TreasuryWithdrawal') AND record_type='expense' AND recorder_version=1
             AND reversal_of_line_id IS NULL AND reversal_reason IS NULL)
        OR (recorder_type='CryptoPayment' AND record_type='expense' AND reversal_of_line_id IS NULL AND reversal_reason IS NULL)
-       OR (recorder_type IN ('CryptoPaymentReorg','CryptoAdjustment','CryptoMerchantCreditReversal','CryptoPlatformFundingReversal') AND record_type='receipt'
+       OR (recorder_type IN ('CryptoPaymentReorg','CryptoAdjustment','CryptoMerchantCreditReversal','CryptoPlatformFundingReversal','TreasuryWithdrawalReversal') AND record_type='receipt'
             AND recorder_version=1 AND reversal_of_line_id IS NOT NULL AND btrim(COALESCE(reversal_reason,''))<>''))
 );
 CREATE UNIQUE INDEX uq_crypto_receipt_suspense_origin ON reg_crypto_receipt_suspense_movements(receipt_id)
     WHERE recorder_type='CryptoCustodyReceipt';
 CREATE UNIQUE INDEX uq_crypto_receipt_suspense_recorder ON reg_crypto_receipt_suspense_movements(recorder_id)
-    WHERE recorder_type IN ('CryptoMerchantCredit','CryptoPlatformFunding');
+    WHERE recorder_type IN ('CryptoMerchantCredit','CryptoPlatformFunding','TreasuryWithdrawal');
+CREATE UNIQUE INDEX uq_crypto_receipt_suspense_refund_reversal ON reg_crypto_receipt_suspense_movements(recorder_id)
+    WHERE recorder_type='TreasuryWithdrawalReversal';
 CREATE UNIQUE INDEX uq_crypto_receipt_suspense_payment ON reg_crypto_receipt_suspense_movements(recorder_id,recorder_version)
     WHERE recorder_type='CryptoPayment';
 CREATE INDEX idx_crypto_receipt_suspense_reversal ON reg_crypto_receipt_suspense_movements(reversal_of_line_id)
@@ -3790,6 +3920,53 @@ CREATE TABLE reg_crypto_treasury_custody_bindings (
     period TIMESTAMPTZ NOT NULL,
     actor TEXT NOT NULL DEFAULT 'treasury-settlement' CHECK(actor='treasury-settlement'),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- A treasury withdrawal either spends platform revenue or returns an
+-- unidentified receipt to its sender. A receipt refund takes its amount out of
+-- receipt suspense into refund payable when it is approved and pays the payer
+-- from a platform hot wallet. Its destination is recorded per refund with the
+-- operator's evidence, never in the platform's own treasury allowlist.
+
+CREATE TABLE reg_crypto_receipt_refund_destinations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
+    receipt_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
+    network_id UUID NOT NULL REFERENCES cat_blockchain_networks(id),
+    address TEXT NOT NULL CHECK(btrim(address)<>''),
+    address_key TEXT NOT NULL CHECK(btrim(address_key)<>''),
+    -- Why this address may receive the money: who proved the right to it and
+    -- how. The sender address alone is no such proof.
+    evidence TEXT NOT NULL CHECK(btrim(evidence)<>'' AND octet_length(evidence)<=2000),
+    created_by UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_crypto_receipt_refund_destinations_receipt ON reg_crypto_receipt_refund_destinations(receipt_id);
+
+-- What the platform owes to senders of receipts it agreed to return. Version
+-- 1 recognises the payable when the refund is approved; version 2 closes it,
+-- by the proven payout or by giving the amount back to suspense.
+CREATE TABLE reg_crypto_refund_payable_movements (
+    line_id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
+    recorder_id UUID NOT NULL REFERENCES doc_treasury_withdrawals(id),
+    recorder_type TEXT NOT NULL CHECK(recorder_type='TreasuryWithdrawal'),
+    recorder_version INT NOT NULL CHECK(recorder_version IN (1,2)),
+    period TIMESTAMPTZ NOT NULL,
+    record_type TEXT NOT NULL CHECK(record_type IN ('receipt','expense')),
+    receipt_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
+    token_id UUID NOT NULL REFERENCES cat_tokens(id),
+    amount NUMERIC(78,0) NOT NULL CHECK(amount>0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK((recorder_version=1 AND record_type='receipt') OR (recorder_version=2 AND record_type='expense')),
+    UNIQUE(recorder_id,recorder_version)
+);
+CREATE INDEX idx_crypto_refund_payable_receipt ON reg_crypto_refund_payable_movements(receipt_id,token_id);
+
+CREATE TABLE reg_crypto_refund_payable_balances (
+    receipt_id UUID NOT NULL REFERENCES doc_crypto_custody_receipts(id),
+    token_id UUID NOT NULL REFERENCES cat_tokens(id),
+    amount NUMERIC(78,0) NOT NULL CHECK(amount>=0),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY(receipt_id,token_id)
 );
 
 CREATE TABLE reg_crypto_withdrawal_custody_bindings (
@@ -3894,6 +4071,7 @@ CREATE UNIQUE INDEX idx_crypto_activation_single_sign_dispatch ON reg_crypto_act
 -- ---- References to tables of this module ----
 ALTER TABLE reg_crypto_inbound_chain_events ADD CONSTRAINT reg_crypto_inbound_chain_events_receipt_id_fkey FOREIGN KEY (receipt_id) REFERENCES doc_crypto_custody_receipts(id);
 ALTER TABLE doc_crypto_payments ADD CONSTRAINT doc_crypto_payments_receipt_id_fkey FOREIGN KEY (receipt_id) REFERENCES doc_crypto_custody_receipts(id);
+ALTER TABLE doc_treasury_withdrawals ADD CONSTRAINT fk_treasury_withdrawal_receipt FOREIGN KEY (receipt_id) REFERENCES doc_crypto_custody_receipts(id);
 ALTER TABLE reg_crypto_wallet_fundings ADD CONSTRAINT reg_crypto_wallet_fundings_occurrence_id_fkey FOREIGN KEY (occurrence_id) REFERENCES reg_crypto_accounting_effect_occurrences(id);
 ALTER TABLE reg_crypto_wallet_fundings ADD CONSTRAINT reg_crypto_wallet_fundings_posting_id_fkey FOREIGN KEY (posting_id) REFERENCES reg_crypto_custody_effect_postings(id);
 
@@ -4219,6 +4397,25 @@ END; $$;
 CREATE TRIGGER trg_treasury_fee_release BEFORE UPDATE ON reg_crypto_fee_reservations FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_fee_release_guard();
 
 CREATE TRIGGER trg_treasury_outflow_owner BEFORE INSERT ON reg_crypto_balance_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_outflow_owner_guard();
+
+CREATE TRIGGER trg_treasury_destination BEFORE INSERT OR UPDATE ON doc_treasury_withdrawals FOR EACH ROW EXECUTE FUNCTION fn_crypto_treasury_destination_guard();
+
+CREATE TRIGGER trg_receipt_refund_destination BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_receipt_refund_destinations
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_receipt_refund_destination_guard();
+
+CREATE TRIGGER trg_refund_payable_apply BEFORE INSERT ON reg_crypto_refund_payable_movements FOR EACH ROW EXECUTE FUNCTION fn_crypto_refund_payable_apply();
+
+CREATE TRIGGER trg_refund_payable_immutable BEFORE UPDATE OR DELETE ON reg_crypto_refund_payable_movements
+    FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
+
+CREATE CONSTRAINT TRIGGER trg_receipt_refund_document_complete AFTER INSERT OR UPDATE ON doc_treasury_withdrawals
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_receipt_refund_complete();
+
+CREATE CONSTRAINT TRIGGER trg_receipt_refund_payable_complete AFTER INSERT ON reg_crypto_refund_payable_movements
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_receipt_refund_complete();
+
+CREATE CONSTRAINT TRIGGER trg_receipt_refund_suspense_complete AFTER INSERT ON reg_crypto_receipt_suspense_movements
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_receipt_refund_complete();
 
 CREATE TRIGGER trg_withdrawal_custody_binding_immutable BEFORE UPDATE OR DELETE ON reg_crypto_withdrawal_custody_bindings FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
 
@@ -4588,6 +4785,13 @@ DROP TRIGGER trg_treasury_basis_reg_crypto_revenue_reservations ON reg_crypto_re
 DROP TRIGGER trg_treasury_complete_reg_crypto_revenue_reservations ON reg_crypto_revenue_reservations;
 DROP TRIGGER trg_treasury_fee_release ON reg_crypto_fee_reservations;
 DROP TRIGGER trg_treasury_outflow_owner ON reg_crypto_balance_movements;
+DROP TRIGGER trg_treasury_destination ON doc_treasury_withdrawals;
+DROP TRIGGER trg_receipt_refund_destination ON reg_crypto_receipt_refund_destinations;
+DROP TRIGGER trg_refund_payable_apply ON reg_crypto_refund_payable_movements;
+DROP TRIGGER trg_refund_payable_immutable ON reg_crypto_refund_payable_movements;
+DROP TRIGGER trg_receipt_refund_document_complete ON doc_treasury_withdrawals;
+DROP TRIGGER trg_receipt_refund_payable_complete ON reg_crypto_refund_payable_movements;
+DROP TRIGGER trg_receipt_refund_suspense_complete ON reg_crypto_receipt_suspense_movements;
 DROP TRIGGER trg_withdrawal_complete_reg_crypto_balance_movements ON reg_crypto_balance_movements;
 DROP TRIGGER trg_withdrawal_complete_reg_crypto_merchant_balance_movements ON reg_crypto_merchant_balance_movements;
 DROP TRIGGER trg_withdrawal_complete_reg_crypto_fee_movements ON reg_crypto_fee_movements;
@@ -4688,6 +4892,10 @@ DROP TABLE reg_crypto_network_fee_proofs;
 DROP TABLE reg_crypto_custody_loss_bindings;
 DROP TABLE reg_crypto_withdrawal_custody_bindings;
 DROP TABLE reg_crypto_treasury_custody_bindings;
+DROP TABLE reg_crypto_refund_payable_balances;
+DROP TABLE reg_crypto_refund_payable_movements;
+DROP TABLE reg_crypto_receipt_refund_destinations;
+ALTER TABLE doc_treasury_withdrawals DROP CONSTRAINT fk_treasury_withdrawal_receipt;
 DROP TABLE reg_crypto_sweep_custody_bindings;
 DROP TABLE reg_crypto_native_funding_custody_bindings;
 DROP TABLE reg_crypto_wallet_funding_audit;
@@ -4803,6 +5011,11 @@ DROP FUNCTION fn_crypto_treasury_financial_complete();
 DROP FUNCTION fn_crypto_treasury_posting_complete();
 DROP FUNCTION fn_crypto_treasury_binding_complete();
 DROP FUNCTION fn_crypto_assert_treasury(target uuid);
+DROP FUNCTION fn_crypto_assert_receipt_refund(target uuid);
+DROP FUNCTION fn_crypto_receipt_refund_complete();
+DROP FUNCTION fn_crypto_refund_payable_apply();
+DROP FUNCTION fn_crypto_treasury_destination_guard();
+DROP FUNCTION fn_crypto_receipt_refund_destination_guard();
 DROP FUNCTION fn_crypto_sweep_basis_guard();
 DROP FUNCTION fn_crypto_sweep_settlement_complete();
 DROP FUNCTION fn_crypto_sweep_financial_complete();

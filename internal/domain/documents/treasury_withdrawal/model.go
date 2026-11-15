@@ -4,6 +4,7 @@ package treasury_withdrawal
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"metapus/internal/core/apperror"
@@ -36,9 +37,42 @@ func (s Status) IsTerminal() bool {
 	return s == StatusConfirmed || s == StatusRejected || s == StatusFailed
 }
 
-// TreasuryWithdrawal is an admin-only withdrawal of platform-owned revenue.
+// Purpose says where the money of a treasury withdrawal comes from.
+type Purpose string
+
+const (
+	// PurposeRevenue spends platform revenue to an allowlisted treasury address.
+	PurposeRevenue Purpose = "revenue"
+	// PurposeReceiptRefund returns an unidentified receipt to its sender: the
+	// amount leaves receipt suspense into refund payable on approval and is paid
+	// from a platform hot wallet to a destination recorded for this refund.
+	PurposeReceiptRefund Purpose = "receipt_refund"
+)
+
+// GasPayer says who bears the network fee of a receipt refund.
+type GasPayer string
+
+const (
+	// GasPayerPlatform records the network fee as a platform cost.
+	GasPayerPlatform GasPayer = "platform"
+	// GasPayerRecipient withholds a fixed amount in the refund token; the payer
+	// receives the rest.
+	GasPayerRecipient GasPayer = "recipient"
+)
+
+// MaxRefundTextBytes bounds the reason and the destination evidence of a refund.
+const MaxRefundTextBytes = 2000
+
+// TreasuryWithdrawal is an admin-only outbound payment from a platform hot
+// wallet: a withdrawal of platform revenue, or the refund of an unidentified
+// receipt to its sender.
 type TreasuryWithdrawal struct {
 	entity.Document
+
+	Purpose        Purpose            `db:"purpose" json:"purpose" meta:"label:Назначение"`
+	ReceiptID      *id.ID             `db:"receipt_id" json:"receiptId,omitempty" meta:"label:Возвращаемое поступление,ref:crypto_custody_receipt"`
+	GasPayer       GasPayer           `db:"gas_payer" json:"gasPayer" meta:"label:Комиссию сети оплачивает"`
+	WithheldAmount types.CryptoAmount `db:"withheld_amount" json:"withheldAmount" meta:"label:Удержано на комиссию"`
 
 	TokenID                  id.ID                           `db:"token_id" json:"tokenId" meta:"label:Токен,ref:token"`
 	SourceWalletID           id.ID                           `db:"source_wallet_id" json:"sourceWalletId" meta:"label:Исходный кошелёк,ref:wallet"`
@@ -88,7 +122,67 @@ func NewTreasuryWithdrawal(tokenID, sourceWalletID, addressID id.ID, destAddress
 		NetworkFee:       types.ZeroCryptoAmount(),
 		Status:           StatusPendingApproval,
 		SettlementStatus: outbound_settlement.StatusNotApplicable,
+		Purpose:          PurposeRevenue,
+		GasPayer:         GasPayerPlatform,
+		WithheldAmount:   types.ZeroCryptoAmount(),
 	}
+}
+
+// NewReceiptRefund returns total of an unidentified receipt to destinationID.
+// With the recipient paying gas, withheld stays with the platform and the
+// payer receives total-withheld; otherwise withheld must be zero.
+func NewReceiptRefund(receiptID, tokenID, sourceWalletID, destinationID id.ID, destAddress string, total, withheld types.CryptoAmount, gasPayer GasPayer, reason string) (*TreasuryWithdrawal, error) {
+	if !total.IsPositive() {
+		return nil, apperror.NewValidation("refund amount must be positive").WithDetail("field", "amount")
+	}
+	if withheld.Cmp(total) >= 0 {
+		return nil, apperror.NewValidation("withheld network fee must be below the refund amount").WithDetail("field", "withheldAmount")
+	}
+	doc := NewTreasuryWithdrawal(tokenID, sourceWalletID, destinationID, destAddress, total.Sub(withheld))
+	doc.Purpose = PurposeReceiptRefund
+	doc.ReceiptID = &receiptID
+	doc.GasPayer = gasPayer
+	doc.WithheldAmount = withheld
+	doc.Description = strings.TrimSpace(reason)
+	return doc, doc.validateRefundTerms()
+}
+
+// IsReceiptRefund reports whether the withdrawal returns an unidentified receipt.
+func (w *TreasuryWithdrawal) IsReceiptRefund() bool { return w.Purpose == PurposeReceiptRefund }
+
+// RefundTotal is what a receipt refund takes out of receipt suspense.
+func (w *TreasuryWithdrawal) RefundTotal() types.CryptoAmount { return w.Amount.Add(w.WithheldAmount) }
+
+func (w *TreasuryWithdrawal) validateRefundTerms() error {
+	switch w.Purpose {
+	case PurposeRevenue, "":
+		if w.ReceiptID != nil || w.GasPayer == GasPayerRecipient || w.WithheldAmount.IsPositive() {
+			return apperror.NewValidation("a revenue withdrawal carries no refund terms")
+		}
+		return nil
+	case PurposeReceiptRefund:
+	default:
+		return apperror.NewValidation("unknown treasury withdrawal purpose").WithDetail("field", "purpose")
+	}
+	if w.ReceiptID == nil || id.IsNil(*w.ReceiptID) {
+		return apperror.NewValidation("receipt refund requires its receipt").WithDetail("field", "receiptId")
+	}
+	switch w.GasPayer {
+	case GasPayerPlatform:
+		if !w.WithheldAmount.IsZero() {
+			return apperror.NewValidation("platform-paid gas withholds nothing").WithDetail("field", "withheldAmount")
+		}
+	case GasPayerRecipient:
+		if !w.WithheldAmount.IsPositive() {
+			return apperror.NewValidation("recipient-paid gas requires the withheld amount").WithDetail("field", "withheldAmount")
+		}
+	default:
+		return apperror.NewValidation("gas payer must be platform or recipient").WithDetail("field", "gasPayer")
+	}
+	if w.Description == "" || len(w.Description) > MaxRefundTextBytes {
+		return apperror.NewValidation("refund reason is required and at most 2000 bytes").WithDetail("field", "reason")
+	}
+	return nil
 }
 
 // Validate implements entity.Validatable.
@@ -114,7 +208,7 @@ func (w *TreasuryWithdrawal) Validate(ctx context.Context) error {
 	if w.ApprovedBy != nil && !id.IsNil(w.CreatedBy) && *w.ApprovedBy == w.CreatedBy {
 		return apperror.NewValidation("maker-checker violation: creator cannot approve treasury withdrawal")
 	}
-	return nil
+	return w.validateRefundTerms()
 }
 
 // CanPost allows accounting movements only after the outbound workflow has

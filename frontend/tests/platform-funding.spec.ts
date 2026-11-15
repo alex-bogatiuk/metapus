@@ -11,7 +11,7 @@ const base: UnidentifiedReceiptItem = {
   txHash: "64e6b9fa9a07637164a1b2b1fcdf8fc67bb1495adbb059982a76d03c690cac56", amount: "1000000000", remainder: "1000000000",
   reason: "no_allocation", state: "unattributed", custodyMerchantId: "", invoiceId: "", pendingError: "", credit: null,
   paymentId: "", paymentNumber: "", paymentStatus: "", platformFunding: null,
-  merchantTie: { merchantId: ids.merchant, merchantName: "CryptoGate", link: "invoice_allocation" },
+  merchantTie: { merchantId: ids.merchant, merchantName: "CryptoGate", link: "invoice_allocation" }, refund: null,
 }
 
 async function setup(page: Page, item: UnidentifiedReceiptItem) {

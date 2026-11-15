@@ -34,6 +34,21 @@ func (r CreateTreasuryWithdrawalRequest) ToEntity() *treasury_withdrawal.Treasur
 	return doc
 }
 
+// CreateReceiptRefundRequest prepares the return of an unidentified receipt to
+// its sender. Amount is what leaves suspense, in token minor units; with
+// gasPayer "recipient" withheldAmount of it stays with the platform and the
+// payer receives the rest.
+type CreateReceiptRefundRequest struct {
+	ReceiptID      string             `json:"receiptId" binding:"required,uuid"`
+	SourceWalletID string             `json:"sourceWalletId" binding:"required,uuid"`
+	DestAddress    string             `json:"destAddress" binding:"required"`
+	Evidence       string             `json:"evidence" binding:"required,max=2000"`
+	Reason         string             `json:"reason" binding:"required,max=2000"`
+	Amount         types.CryptoAmount `json:"amount" binding:"required"`
+	GasPayer       string             `json:"gasPayer" binding:"required,oneof=platform recipient"`
+	WithheldAmount types.CryptoAmount `json:"withheldAmount"`
+}
+
 // UpdateTreasuryWithdrawalRequest updates editable fields before approval.
 type UpdateTreasuryWithdrawalRequest struct {
 	Description string `json:"description,omitempty"`
@@ -66,6 +81,12 @@ type TreasuryWithdrawalResponse struct {
 	UpdatedAt      string               `json:"updatedAt"`
 	Token          *postgres.RefDisplay `json:"token,omitempty"`
 	SourceWallet   *postgres.RefDisplay `json:"sourceWallet,omitempty"`
+	// Purpose is "revenue" or "receipt_refund"; a refund names its receipt and
+	// who bears the network fee.
+	Purpose        string  `json:"purpose"`
+	ReceiptID      *string `json:"receiptId,omitempty"`
+	GasPayer       string  `json:"gasPayer"`
+	WithheldAmount string  `json:"withheldAmount"`
 }
 
 func FromTreasuryWithdrawal(w *treasury_withdrawal.TreasuryWithdrawal, refs ...postgres.ResolvedRefs) *TreasuryWithdrawalResponse {
@@ -86,6 +107,16 @@ func FromTreasuryWithdrawal(w *treasury_withdrawal.TreasuryWithdrawal, refs ...p
 		Description:    w.Description,
 		CreatedAt:      w.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:      w.UpdatedAt.Format(time.RFC3339),
+		Purpose:        string(w.Purpose),
+		GasPayer:       string(w.GasPayer),
+		WithheldAmount: w.WithheldAmount.String(),
+	}
+	if resp.Purpose == "" {
+		resp.Purpose, resp.GasPayer = string(treasury_withdrawal.PurposeRevenue), string(treasury_withdrawal.GasPayerPlatform)
+	}
+	if w.ReceiptID != nil {
+		receipt := w.ReceiptID.String()
+		resp.ReceiptID = &receipt
 	}
 	if !id.IsNil(w.CreatedBy) {
 		resp.CreatedBy = w.CreatedBy.String()
