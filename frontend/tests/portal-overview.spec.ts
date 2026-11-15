@@ -34,7 +34,7 @@ const invoices = ["completed", "underpaid", "partially_paid", "paid", "expired"]
 async function setup(page: Page, intercept?: (route: Route, url: URL) => Promise<boolean>, role = 1) {
   await page.clock.install({ time: now })
   await installPortalSession(page)
-  await page.route("**/api/v1/**", route => json(route, commonAPIResponse(new URL(route.request().url()).pathname, { ...portalOwner, merchantIds: [ids.merchant, secondMerchant] }) ?? { items: [] }))
+  await page.route("**/api/v1/**", route => json(route, commonAPIResponse(new URL(route.request().url()).pathname, { ...portalOwner, accessScopes: { merchant: [ids.merchant, secondMerchant] } }) ?? { items: [] }))
   await page.route("**/portal/v1/**", async route => {
     const url = new URL(route.request().url())
     if (await intercept?.(route, url)) return

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/require"
 	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 	"net/http"
 	"testing"
 	"time"
@@ -19,12 +19,12 @@ func TestDRPCUsesSuffixAndSeparatesQueryLimitsFromAccountFailures(t *testing.T) 
 	require.Empty(t, req.Header.Get("Authorization"))
 	body := []byte(`{"error":{"code":35,"message":"ranges over 10000 blocks are not supported on free plan"}}`)
 	require.Empty(t, p.Failure(400, body))
-	require.ErrorIs(t, p.ResponseError(400, body), rpcpolicy.ErrQueryLimit)
+	require.ErrorIs(t, p.ResponseError(400, body), providerpolicy.ErrQueryLimit)
 	require.Nil(t, p.ResponseError(400, []byte(`{"error":{"code":35,"message":"other failure"}}`)))
 	chainDenied := []byte(`{"error":{"code":35,"message":"chain is not available on free plan, please upgrade to paid plan"}}`)
 	require.Empty(t, p.Failure(400, chainDenied))
-	require.ErrorIs(t, p.ResponseError(400, chainDenied), rpcpolicy.ErrAccessDenied)
-	require.NotErrorIs(t, p.ResponseError(400, chainDenied), rpcpolicy.ErrQueryLimit)
+	require.ErrorIs(t, p.ResponseError(400, chainDenied), providerpolicy.ErrAccessDenied)
+	require.NotErrorIs(t, p.ResponseError(400, chainDenied), providerpolicy.ErrQueryLimit)
 	require.Equal(t, model.Throttled, p.Failure(429, []byte(`{"error":"reduce request rate"}`)))
 	require.Equal(t, model.Unauthorized, p.Failure(401, []byte(`{}`)))
 	for _, code := range []int{10, 52, 53} {
@@ -36,7 +36,7 @@ func TestDRPCUsesSuffixAndSeparatesQueryLimitsFromAccountFailures(t *testing.T) 
 	for _, code := range []int{29, 47, 48, 50, 51, 99} {
 		require.Empty(t, p.Failure(403, []byte(fmt.Sprintf(`{"error":{"code":%d}}`, code))))
 	}
-	require.ErrorIs(t, p.ResponseError(403, []byte(`{"error":{"code":48}}`)), rpcpolicy.ErrUnsupported)
+	require.ErrorIs(t, p.ResponseError(403, []byte(`{"error":{"code":48}}`)), providerpolicy.ErrUnsupported)
 	require.ErrorIs(t, p.ResponseError(403, []byte(`{"error":{"code":99}}`)), ErrAccessDenied)
 	now := time.Date(2026, 10, 29, 12, 30, 0, 0, time.UTC)
 	daily := []byte(`{"error":{"code":24}}`)

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 	"sort"
 	"strings"
 	"sync"
@@ -555,7 +555,7 @@ func (w *Watcher) filterLogsBounded(ctx context.Context, query ethereum.FilterQu
 	if err == nil {
 		return logs, nil
 	}
-	if query.FromBlock == nil || query.ToBlock == nil || query.FromBlock.Cmp(query.ToBlock) >= 0 || (!errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, ErrRPCResponseTooLarge) && !errors.Is(err, rpcpolicy.ErrQueryLimit)) {
+	if query.FromBlock == nil || query.ToBlock == nil || query.FromBlock.Cmp(query.ToBlock) >= 0 || (!errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, ErrRPCResponseTooLarge) && !errors.Is(err, providerpolicy.ErrQueryLimit)) {
 		return nil, err
 	}
 	middle := new(big.Int).Add(query.FromBlock, query.ToBlock)

@@ -22,8 +22,8 @@ import (
 	"metapus/internal/core/json"
 	"metapus/internal/core/tenant"
 	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/blockchain/rpcpolicy"
 	"metapus/internal/infrastructure/integrations/profiles"
+	"metapus/internal/infrastructure/providerpolicy"
 )
 
 var ErrUnavailable = errors.New("integration accounts unavailable")
@@ -56,7 +56,7 @@ type Transport struct {
 	checkedAt time.Time
 	Now       func() time.Time
 	pacerMu   sync.Mutex
-	pacers    map[string]*rpcpolicy.Admission
+	pacers    map[string]*providerpolicy.Admission
 }
 type Binding struct {
 	URL                  string
@@ -84,7 +84,7 @@ func (t *Transport) selectAccount(ctx context.Context, b Binding) (model.Selecti
 		var unavailable *model.PoolUnavailableError
 		if errors.As(err, &unavailable) {
 			if unavailable.Reason == model.Expired {
-				return model.Selection{}, errors.Join(unavailable, rpcpolicy.ErrCredentialsExpired)
+				return model.Selection{}, errors.Join(unavailable, providerpolicy.ErrCredentialsExpired)
 			}
 			return model.Selection{}, unavailable
 		}
@@ -182,13 +182,13 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 		if interval := profile.MinRequestIntervalMS(); interval > 0 {
 			if err := t.waitAccount(callCtx, b, s, interval); err != nil {
-				if errors.Is(context.Cause(callCtx), rpcpolicy.ErrCredentialsExpired) {
+				if errors.Is(context.Cause(callCtx), providerpolicy.ErrCredentialsExpired) {
 					cancelCredential()
 					t.forget()
 					continue
 				}
 				cancelCredential()
-				return nil, errors.Join(rpcpolicy.ErrAdmissionBusy, err)
+				return nil, errors.Join(providerpolicy.ErrAdmissionBusy, err)
 			}
 		}
 		r.Host = ""
@@ -225,14 +225,14 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 			}
 			wireRequests.Add(req.Context(), 1, metric.WithAttributes(attribute.String("integration.provider", string(b.Provider)), attribute.String("integration.account_id", s.AccountID.String()), attribute.String("integration.tenant_id", tenant.GetTenantID(req.Context())), attribute.String("integration.operation", operation)))
 		}
-		if selectionExpired(s, t.now()) || errors.Is(context.Cause(callCtx), rpcpolicy.ErrCredentialsExpired) {
+		if selectionExpired(s, t.now()) || errors.Is(context.Cause(callCtx), providerpolicy.ErrCredentialsExpired) {
 			cancelCredential()
 			t.forget()
 			continue
 		}
 		resp, err := base.RoundTrip(r)
 		if err != nil {
-			expired := errors.Is(context.Cause(callCtx), rpcpolicy.ErrCredentialsExpired)
+			expired := errors.Is(context.Cause(callCtx), providerpolicy.ErrCredentialsExpired)
 			cancelCredential()
 			if expired {
 				t.forget()
@@ -248,7 +248,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		limit := int64(8192)
 		prefix, err := io.ReadAll(io.LimitReader(resp.Body, limit))
 		if err != nil {
-			expired := errors.Is(context.Cause(callCtx), rpcpolicy.ErrCredentialsExpired)
+			expired := errors.Is(context.Cause(callCtx), providerpolicy.ErrCredentialsExpired)
 			_ = resp.Body.Close()
 			if expired {
 				t.forget()
@@ -313,12 +313,12 @@ func (t *Transport) waitAccount(ctx context.Context, b Binding, s model.Selectio
 	key := "integration-account/" + tenant.GetTenantID(ctx) + "/" + s.AccountID.String()
 	t.pacerMu.Lock()
 	if t.pacers == nil {
-		t.pacers = make(map[string]*rpcpolicy.Admission)
+		t.pacers = make(map[string]*providerpolicy.Admission)
 	}
 	pacer := t.pacers[key]
 	if pacer == nil {
 		var err error
-		pacer, err = rpcpolicy.Acquire(key, rpcpolicy.Capacity{Concurrency: 2, BulkConcurrency: 1, RequestsPerSecond: 1000, MinRequestIntervalMS: max(interval, b.MinRequestIntervalMS)})
+		pacer, err = providerpolicy.Acquire(key, providerpolicy.Capacity{Concurrency: 2, BulkConcurrency: 1, RequestsPerSecond: 1000, MinRequestIntervalMS: max(interval, b.MinRequestIntervalMS)})
 		if err != nil {
 			t.pacerMu.Unlock()
 			return errors.New("conflicting integration account request limits")
@@ -374,7 +374,7 @@ func hasProviderError(body []byte) bool {
 func (t *Transport) CloseIdleConnections() {
 	t.pacerMu.Lock()
 	for key, pacer := range t.pacers {
-		rpcpolicy.Release(pacer)
+		providerpolicy.Release(pacer)
 		delete(t.pacers, key)
 	}
 	t.pacerMu.Unlock()

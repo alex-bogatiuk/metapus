@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/application/exchangerateapp"
+	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/domain/crypto"
@@ -62,14 +62,14 @@ func TestExchangeRateValuationUsesOneRepeatableSnapshot(t *testing.T) {
 		require.NoError(t, e)
 		require.NoError(t, tx.Commit(ctx))
 	}}
-	service := exchangerateapp.NewValuationService(wrapper, er.NewService(repo), register_repo.RateSnapshot)
+	service := cryptoapp.NewValuationService(wrapper, er.NewService(repo), register_repo.RateSnapshot)
 	first, err := service.Calculate(ctx, []id.ID{merchant})
 	require.NoError(t, err)
 	require.Len(t, first.ByToken, 1)
 	require.Equal(t, "15", first.ByToken[0].RawAmount)
 	require.Equal(t, "5", first.ByToken[0].PendingRaw)
 	require.Equal(t, "10", first.ByToken[0].AvailableRaw)
-	latest, err := exchangerateapp.NewValuationService(balances, er.NewService(repo), register_repo.RateSnapshot).Calculate(ctx, []id.ID{merchant})
+	latest, err := cryptoapp.NewValuationService(balances, er.NewService(repo), register_repo.RateSnapshot).Calculate(ctx, []id.ID{merchant})
 	require.NoError(t, err)
 	require.Equal(t, "15", latest.ByToken[0].RawAmount)
 	require.Equal(t, "0", latest.ByToken[0].PendingRaw)

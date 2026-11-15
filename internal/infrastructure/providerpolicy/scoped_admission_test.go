@@ -1,4 +1,4 @@
-package rpcpolicy
+package providerpolicy
 
 import (
 	"github.com/stretchr/testify/require"

@@ -20,7 +20,6 @@ export const erpUser: AuthUserResponse = {
   isAdmin: false,
   emailVerified: true,
   roles: [{ id: "10000000-0000-4000-8000-000000000009", code: "reconciliation", name: "Reconciliation", isSystem: false }],
-  merchantIds: [],
   mfaEnabled: true,
   mfaPending: false,
   mfaRequired: false,
@@ -32,7 +31,7 @@ export const portalOwner: AuthUserResponse = {
   email: "owner@example.test",
   fullName: "Merchant Owner",
   roles: [],
-  merchantIds: [ids.merchant],
+  accessScopes: { merchant: [ids.merchant] },
 }
 
 export const portalRoles = {

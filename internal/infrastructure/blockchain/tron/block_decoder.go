@@ -11,7 +11,7 @@ import (
 	"metapus/internal/core/json"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto"
-	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 )
 
 const transferTopic = "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
@@ -36,23 +36,23 @@ func validHash(s string) bool {
 func validateBlock(block *BlockInfo, height int64) error {
 	if block == nil || block.BlockHeader.RawData.Number != height || height < 0 || !validHash(block.BlockID) ||
 		block.BlockHeader.RawData.Timestamp <= 0 || (height > 0 && !validHash(block.BlockHeader.RawData.ParentHash)) {
-		return rpcpolicy.ErrInvalidResponse
+		return providerpolicy.ErrInvalidResponse
 	}
 	seen := make(map[string]bool, len(block.Transactions))
 	for _, tx := range block.Transactions {
 		if !validHash(tx.TxID) || seen[strings.ToLower(tx.TxID)] {
-			return rpcpolicy.ErrInvalidResponse
+			return providerpolicy.ErrInvalidResponse
 		}
 		seen[strings.ToLower(tx.TxID)] = true
 		// raw_data_hex authenticates the complete transaction, including fields
 		// outside the projection needed by the transfer decoder.
 		raw, err := hex.DecodeString(tx.RawDataHex)
 		if err != nil || len(raw) == 0 {
-			return rpcpolicy.ErrInvalidResponse
+			return providerpolicy.ErrInvalidResponse
 		}
 		hash := sha256.Sum256(raw)
 		if !strings.EqualFold(tx.TxID, hex.EncodeToString(hash[:])) {
-			return rpcpolicy.ErrInvalidResponse
+			return providerpolicy.ErrInvalidResponse
 		}
 	}
 	return nil
@@ -66,7 +66,7 @@ func executionResult(tx AccountTransaction, info TransactionInfo) (crypto.Receip
 		case "FAILED", "REVERT", "BAD_JUMP_DESTINATION", "OUT_OF_MEMORY", "PRECOMPILED_CONTRACT", "STACK_TOO_SMALL", "STACK_TOO_LARGE", "ILLEGAL_OPERATION", "STACK_OVERFLOW", "OUT_OF_ENERGY", "OUT_OF_TIME", "JVM_STACK_OVER_FLOW", "UNKNOWN", "TRANSFER_FAILED", "INVALID_CODE":
 			failed = true
 		default:
-			return rpcpolicy.ErrInvalidResponse
+			return providerpolicy.ErrInvalidResponse
 		}
 		return nil
 	}
@@ -104,14 +104,14 @@ func executionResult(tx AccountTransaction, info TransactionInfo) (crypto.Receip
 
 func assembleBlock(block *BlockInfo, receipts []TransactionInfo) (completeBlock, error) {
 	if block == nil {
-		return completeBlock{}, rpcpolicy.ErrInvalidResponse
+		return completeBlock{}, providerpolicy.ErrInvalidResponse
 	}
 	height := block.BlockHeader.RawData.Number
 	if err := validateBlock(block, height); err != nil {
 		return completeBlock{}, err
 	}
 	if len(receipts) > len(block.Transactions) {
-		return completeBlock{}, rpcpolicy.ErrInvalidResponse
+		return completeBlock{}, providerpolicy.ErrInvalidResponse
 	}
 	if len(receipts) < len(block.Transactions) {
 		return completeBlock{}, crypto.ErrVerificationPending
@@ -121,10 +121,10 @@ func assembleBlock(block *BlockInfo, receipts []TransactionInfo) (completeBlock,
 		key := strings.ToLower(receipt.ID)
 		if !validHash(key) || receipt.BlockNumber != height || receipt.BlockTimestamp != block.BlockHeader.RawData.Timestamp ||
 			(receipt.BlockHash != "" && !strings.EqualFold(receipt.BlockHash, block.BlockID)) {
-			return completeBlock{}, rpcpolicy.ErrInvalidResponse
+			return completeBlock{}, providerpolicy.ErrInvalidResponse
 		}
 		if _, duplicate := byID[key]; duplicate {
-			return completeBlock{}, rpcpolicy.ErrInvalidResponse
+			return completeBlock{}, providerpolicy.ErrInvalidResponse
 		}
 		byID[key] = receipt
 	}
@@ -137,7 +137,7 @@ func assembleBlock(block *BlockInfo, receipts []TransactionInfo) (completeBlock,
 		key := strings.ToLower(tx.TxID)
 		receipt, exists := byID[key]
 		if !exists {
-			return completeBlock{}, rpcpolicy.ErrInvalidResponse
+			return completeBlock{}, providerpolicy.ErrInvalidResponse
 		}
 		if _, err := executionResult(tx, receipt); err != nil {
 			return completeBlock{}, err
@@ -255,7 +255,7 @@ func decodeTransfers(network crypto.NetworkRef, data completeBlock, finality cry
 				continue
 			}
 			if !validHash(log.Data) || !validAddressTopic(log.Topics[1]) || !validAddressTopic(log.Topics[2]) {
-				return nil, rpcpolicy.ErrInvalidResponse
+				return nil, providerpolicy.ErrInvalidResponse
 			}
 			value, ok := new(big.Int).SetString(log.Data, 16)
 			if !ok || value.Sign() <= 0 {
@@ -291,7 +291,7 @@ func decodeTransfers(network crypto.NetworkRef, data completeBlock, finality cry
 				event.FromAddress, event.ToAddress = NormalizeTronAddress(trace.CallerAddress), NormalizeTronAddress(trace.TransferToAddress)
 				event.Amount = types.NewCryptoAmountFromInt64(value.CallValue)
 				if !validHash(trace.Hash) {
-					return nil, rpcpolicy.ErrInvalidResponse
+					return nil, providerpolicy.ErrInvalidResponse
 				}
 				if err := validateTransferAddresses(event); err != nil {
 					return nil, err
@@ -310,12 +310,12 @@ func validAddressTopic(topic string) bool {
 func validateTransferAddresses(event crypto.BlockchainEvent) error {
 	for _, address := range []string{event.FromAddress, event.ToAddress} {
 		if _, err := tronAddressToABIBytes(address); err != nil {
-			return fmt.Errorf("invalid decoded transfer address: %w", rpcpolicy.ErrInvalidResponse)
+			return fmt.Errorf("invalid decoded transfer address: %w", providerpolicy.ErrInvalidResponse)
 		}
 	}
 	if event.TokenContract != "" {
 		if _, err := tronAddressToABIBytes(event.TokenContract); err != nil {
-			return rpcpolicy.ErrInvalidResponse
+			return providerpolicy.ErrInvalidResponse
 		}
 	}
 	return nil

@@ -13,7 +13,7 @@ import (
 
 	"metapus/internal/core/id"
 	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 )
 
 func TestChainstackRotatesMoreThanFourAccountsAndPreservesRequest(t *testing.T) {
@@ -161,7 +161,7 @@ func TestChainstackArchiveForbiddenDoesNotRotateOrLeakResponse(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, "https://ethereum-sepolia.core.chainstack.com", strings.NewReader(`{"method":"eth_getBlockByNumber"}`))
 	require.NoError(t, err)
 	_, err = tr.RoundTrip(req)
-	require.ErrorIs(t, err, rpcpolicy.ErrArchiveUnavailable)
+	require.ErrorIs(t, err, providerpolicy.ErrArchiveUnavailable)
 	require.NotContains(t, err.Error(), "private-token")
 	require.Empty(t, repo.reports)
 	require.Equal(t, 0, repo.current)

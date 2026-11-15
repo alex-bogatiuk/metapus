@@ -5108,7 +5108,7 @@ export const UserResponseSchema: z.ZodType<Wire.UserResponse> = z.lazy(() => z.o
   "emailVerified": z.boolean(),
   "roles": z.array(RoleResponseSchema).optional(),
   "securityProfile": SecurityProfileBriefSchema.optional(),
-  "merchantIds": z.array(z.string()).optional(),
+  "accessScopes": z.record(z.string(), z.array(z.string())).optional(),
   "mfaEnabled": z.boolean(),
   "mfaPending": z.boolean(),
   "mfaRequired": z.boolean(),

@@ -3,6 +3,7 @@ package rpcpolicy
 import (
 	"context"
 	"io"
+	"metapus/internal/infrastructure/providerpolicy"
 	"net/http"
 	"strings"
 	"testing"
@@ -12,15 +13,15 @@ import (
 )
 
 func TestSharedAdmissionReservesUrgentCapacityAndHonorsCooldown(t *testing.T) {
-	capacity := Capacity{Concurrency: 3, BulkConcurrency: 2, RequestsPerSecond: 1000}
-	a, err := Acquire(t.Name(), capacity)
+	capacity := providerpolicy.Capacity{Concurrency: 3, BulkConcurrency: 2, RequestsPerSecond: 1000}
+	a, err := providerpolicy.Acquire(t.Name(), capacity)
 	require.NoError(t, err)
-	defer Release(a)
-	b, err := Acquire(t.Name(), capacity)
+	defer providerpolicy.Release(a)
+	b, err := providerpolicy.Acquire(t.Name(), capacity)
 	require.NoError(t, err)
-	defer Release(b)
+	defer providerpolicy.Release(b)
 	require.Same(t, a, b, "tenants and roles share endpoint quota")
-	_, err = Acquire(t.Name(), Capacity{Concurrency: 4, BulkConcurrency: 2, RequestsPerSecond: 1000})
+	_, err = providerpolicy.Acquire(t.Name(), providerpolicy.Capacity{Concurrency: 4, BulkConcurrency: 2, RequestsPerSecond: 1000})
 	require.Error(t, err)
 	one, err := a.Enter(t.Context(), true)
 	require.NoError(t, err)
@@ -45,30 +46,30 @@ func TestSharedAdmissionReservesUrgentCapacityAndHonorsCooldown(t *testing.T) {
 func TestResponseLimitAndRetryAfter(t *testing.T) {
 	for _, declared := range []int64{-1, 5} {
 		resp := &http.Response{StatusCode: 200, ContentLength: declared, Body: io.NopCloser(strings.NewReader("12345"))}
-		err := LimitResponse(resp, 4, nil)
+		err := providerpolicy.LimitResponse(resp, 4, nil)
 		if declared < 0 {
 			require.NoError(t, err)
 			_, err = io.ReadAll(resp.Body)
 			_ = resp.Body.Close()
 		}
-		require.ErrorIs(t, err, ErrResponseTooLarge)
+		require.ErrorIs(t, err, providerpolicy.ErrResponseTooLarge)
 	}
 	now := time.Now()
 	for _, value := range []string{"120", now.Add(2 * time.Minute).UTC().Format(http.TimeFormat)} {
-		until := RetryAfter(value, now)
+		until := providerpolicy.RetryAfter(value, now)
 		require.Greater(t, until.Sub(now), 119*time.Second)
 		require.Less(t, until.Sub(now), 121*time.Second)
 	}
 }
 
 func TestMinimumRequestIntervalDoesNotBurstAcrossPools(t *testing.T) {
-	c := Capacity{Concurrency: 8, BulkConcurrency: 4, RequestsPerSecond: 20, MinRequestIntervalMS: 100}
-	a, err := Acquire(t.Name(), c)
+	c := providerpolicy.Capacity{Concurrency: 8, BulkConcurrency: 4, RequestsPerSecond: 20, MinRequestIntervalMS: 100}
+	a, err := providerpolicy.Acquire(t.Name(), c)
 	require.NoError(t, err)
-	defer Release(a)
-	b, err := Acquire(t.Name(), c)
+	defer providerpolicy.Release(a)
+	b, err := providerpolicy.Acquire(t.Name(), c)
 	require.NoError(t, err)
-	defer Release(b)
+	defer providerpolicy.Release(b)
 	leave, err := a.Enter(t.Context(), false)
 	require.NoError(t, err)
 	leave()

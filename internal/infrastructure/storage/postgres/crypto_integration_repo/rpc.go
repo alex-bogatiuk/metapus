@@ -18,8 +18,8 @@ import (
 	"metapus/internal/domain/crypto"
 	model "metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
-	"metapus/internal/infrastructure/blockchain/rpcpolicy"
 	integrationhttp "metapus/internal/infrastructure/integrations"
+	"metapus/internal/infrastructure/providerpolicy"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/integration_repo"
@@ -75,7 +75,7 @@ func rpcTransportAt(uid id.ID, originalURL string, now func() time.Time) func(ht
 		if original, ok := base.(*http.Transport); ok {
 			safe := original.Clone()
 			safe.Proxy = nil
-			safe.DialContext = rpcpolicy.PublicDialContext(os.Getenv("CRYPTO_RPC_DNS_TLS_SERVER"))
+			safe.DialContext = providerpolicy.PublicDialContext(os.Getenv("CRYPTO_RPC_DNS_TLS_SERVER"))
 			base = safe
 		}
 		var mu sync.Mutex

@@ -22,7 +22,7 @@ import (
 	"metapus/internal/core/json"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
-	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 )
 
 type logsRequest struct {
@@ -224,9 +224,9 @@ func TestLogsSubrangesRespectSharedRequestRate(t *testing.T) {
 	pool := logsTestPool(t, server)
 	endpoint := pool.endpoints[0]
 	endpoint.logBlockRange = 10
-	limited, err := rpcpolicy.Acquire(server.URL+"/separate-test-quota", rpcpolicy.Capacity{Concurrency: 2, BulkConcurrency: 1, RequestsPerSecond: 1, MinRequestIntervalMS: 1000})
+	limited, err := providerpolicy.Acquire(server.URL+"/separate-test-quota", providerpolicy.Capacity{Concurrency: 2, BulkConcurrency: 1, RequestsPerSecond: 1, MinRequestIntervalMS: 1000})
 	require.NoError(t, err)
-	defer rpcpolicy.Release(limited)
+	defer providerpolicy.Release(limited)
 	original := endpoint.admission
 	endpoint.admission = limited
 	defer func() { endpoint.admission = original }()

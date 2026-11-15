@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 	"net"
 	"sort"
 	"strings"
@@ -105,7 +106,7 @@ type rpcEndpoint struct {
 	mu                sync.Mutex
 	health            endpointHealth
 	operations        map[string]*rpcpolicy.Circuit
-	admission         *rpcpolicy.Admission
+	admission         *providerpolicy.Admission
 	poolScope         string
 	unavailableUntil  time.Time
 	unavailableReason string
@@ -169,7 +170,7 @@ func newRPCGeneration(cfg RPCPoolConfig) (*rpcGeneration, error) {
 			return nil, fmt.Errorf("RPC pool %s has no %s endpoints", cfg.NetworkCode, role)
 		}
 		for _, endpoint := range configs {
-			admission, err := rpcpolicy.AcquireScoped(endpoint.AdmissionScope, endpoint.URL, rpcpolicy.Capacity{Concurrency: cfg.Settings.ProviderConcurrency, BulkConcurrency: cfg.Settings.BackfillConcurrency, RequestsPerSecond: cfg.Settings.RequestsPerSecond, MinRequestIntervalMS: endpoint.MinRequestIntervalMS})
+			admission, err := providerpolicy.AcquireScoped(endpoint.AdmissionScope, endpoint.URL, providerpolicy.Capacity{Concurrency: cfg.Settings.ProviderConcurrency, BulkConcurrency: cfg.Settings.BackfillConcurrency, RequestsPerSecond: cfg.Settings.RequestsPerSecond, MinRequestIntervalMS: endpoint.MinRequestIntervalMS})
 			if err != nil {
 				p.Close()
 				return nil, err
@@ -273,7 +274,7 @@ func isTransientRPCError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, rpcpolicy.ErrRateLimited) || errors.Is(err, rpcpolicy.ErrAdmissionBusy) || errors.Is(err, rpcpolicy.ErrResponseTooLarge) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+	if errors.Is(err, providerpolicy.ErrRateLimited) || errors.Is(err, providerpolicy.ErrAdmissionBusy) || errors.Is(err, providerpolicy.ErrResponseTooLarge) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return true
 	}
 	if statusErr, ok := errors.AsType[*HTTPStatusError](err); ok {
@@ -359,7 +360,7 @@ func (p *rpcGeneration) GetCurrentBlockInfo(ctx context.Context) (*BlockInfo, er
 	return rpcRead(ctx, p, chainconfig.RoleSolidity, "head", func(attempt context.Context, c *Client) (*BlockInfo, error) {
 		block, err := c.GetSolidifiedCurrentBlockInfo(attempt)
 		if err == nil && (block == nil || block.BlockID == "" || block.BlockHeader.RawData.Number <= 0) {
-			return nil, rpcpolicy.ErrInvalidResponse
+			return nil, providerpolicy.ErrInvalidResponse
 		}
 		return block, err
 	})
@@ -369,7 +370,7 @@ func (p *rpcGeneration) GetSolidifiedBlockByNumber(ctx context.Context, number i
 	return rpcRead(ctx, p, chainconfig.RoleSolidity, "block", func(attempt context.Context, c *Client) (*BlockInfo, error) {
 		block, err := c.GetSolidifiedBlockByNumber(attempt, number)
 		if err == nil && (block == nil || block.BlockID == "" || block.BlockHeader.RawData.Number != number) {
-			return nil, rpcpolicy.ErrInvalidResponse
+			return nil, providerpolicy.ErrInvalidResponse
 		}
 		return block, err
 	})
@@ -479,7 +480,7 @@ func (p *rpcGeneration) Close() {
 		for _, endpoints := range p.byRole {
 			for _, e := range endpoints {
 				e.client.httpClient.CloseIdleConnections()
-				rpcpolicy.Release(e.admission)
+				providerpolicy.Release(e.admission)
 			}
 		}
 	})

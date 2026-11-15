@@ -17,7 +17,7 @@ import (
 
 	"metapus/internal/core/json"
 	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 	"metapus/pkg/logger"
 )
 
@@ -655,7 +655,7 @@ func (c *Client) doHTTP(ctx context.Context, method, url string, reqBody []byte,
 			continue
 		}
 
-		if err := rpcpolicy.LimitResponse(resp, c.maxResponseBytes, nil); err != nil {
+		if err := providerpolicy.LimitResponse(resp, c.maxResponseBytes, nil); err != nil {
 			lastErr = err
 			continue
 		}
@@ -675,7 +675,7 @@ func (c *Client) doHTTP(ctx context.Context, method, url string, reqBody []byte,
 		}
 
 		if len(bytes.TrimSpace(body)) == 0 {
-			return rpcpolicy.ErrInvalidResponse
+			return providerpolicy.ErrInvalidResponse
 		}
 		if bytes.HasPrefix(bytes.TrimSpace(body), []byte("{")) {
 			var envelope struct {
@@ -684,9 +684,9 @@ func (c *Client) doHTTP(ctx context.Context, method, url string, reqBody []byte,
 			if json.Unmarshal(body, &envelope) == nil && envelope.Error != "" {
 				message := strings.ToLower(envelope.Error)
 				if strings.Contains(message, "not supported") || strings.Contains(message, "not support") || strings.Contains(message, "unsupported") || strings.Contains(message, "method not found") {
-					return rpcpolicy.ErrUnsupported
+					return providerpolicy.ErrUnsupported
 				}
-				return rpcpolicy.ErrInvalidResponse
+				return providerpolicy.ErrInvalidResponse
 			}
 		}
 		if err := json.Unmarshal(body, target); err != nil {

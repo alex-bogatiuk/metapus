@@ -101,8 +101,10 @@ attribution/finality/posting и дедупликацию при restart. Сни�
 timestamp/indexer режим и общая transport policy. Его двухминутная задержка
 не применяется к `tron:latest` и `tron:solidified`.
 
-`rpcpolicy` содержит operation circuit, process-wide endpoint admission,
-Retry-After/jitter и ограничение HTTP response. `watcherlease` содержит независимый
+`rpcpolicy` содержит operation circuit и диагностику RPC-эндпоинтов. Общие для
+всех внешних провайдеров механизмы — process-wide endpoint admission, Retry-After,
+ограничение HTTP response, классы ошибок провайдеров и безопасный dial публичных
+адресов — находятся в платформенном `infrastructure/providerpolicy`. `watcherlease` содержит независимый
 heartbeat с cancel-on-failure и join при остановке. Оба адаптера используют эти
 механизмы; chain identity, block validation, confirmations/finality, форматы RPC
 и broadcast uncertainty остаются в адаптерах.

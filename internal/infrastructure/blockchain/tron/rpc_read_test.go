@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
-	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 )
 
 func policyPool(t *testing.T, urls ...string) *RPCPool {
@@ -68,7 +68,7 @@ func TestRateLimitAndResponseCapAreTypedAndSanitized(t *testing.T) {
 		status int
 		body   string
 		want   error
-	}{{"429", 429, "credential=secret", rpcpolicy.ErrRateLimited}, {"chunked", 200, strings.Repeat("x", 1100), rpcpolicy.ErrResponseTooLarge}} {
+	}{{"429", 429, "credential=secret", providerpolicy.ErrRateLimited}, {"chunked", 200, strings.Repeat("x", 1100), providerpolicy.ErrResponseTooLarge}} {
 		t.Run(test.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Retry-After", "120")

@@ -9,7 +9,7 @@ import (
 
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
-	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 )
 
 var errRPCHeadLagging = errors.New("RPC head is stale or regressed")
@@ -74,7 +74,7 @@ func (p *rpcGeneration) checkPairLag(ctx context.Context, pair []*rpcEndpoint, h
 
 func (p *rpcGeneration) observeHead(e *rpcEndpoint, block *BlockInfo) error {
 	if block == nil || block.BlockHeader.RawData.Number <= 0 || !validHash(block.BlockID) || block.BlockHeader.RawData.Timestamp <= 0 {
-		return rpcpolicy.ErrInvalidResponse
+		return providerpolicy.ErrInvalidResponse
 	}
 	height := block.BlockHeader.RawData.Number
 	age := p.now().Sub(time.UnixMilli(block.BlockHeader.RawData.Timestamp))
@@ -83,7 +83,7 @@ func (p *rpcGeneration) observeHead(e *rpcEndpoint, block *BlockInfo) error {
 		maxAge = 30 * time.Second
 	}
 	if age < -15*time.Second {
-		return rpcpolicy.ErrInvalidResponse
+		return providerpolicy.ErrInvalidResponse
 	}
 	e.mu.Lock()
 	previous := e.health.height

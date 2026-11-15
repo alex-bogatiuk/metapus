@@ -1,4 +1,4 @@
-package exchangerateapp
+package cryptoapp
 
 import (
 	"context"

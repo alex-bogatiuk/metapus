@@ -7,7 +7,6 @@ import (
 
 	appctx "metapus/internal/core/context"
 	"metapus/internal/domain/auth"
-	"metapus/internal/domain/catalogs/merchant"
 )
 
 // --- Request DTOs ---
@@ -132,13 +131,14 @@ type UserResponse struct {
 	EmailVerified   bool                  `json:"emailVerified"`
 	Roles           []RoleResponse        `json:"roles,omitempty"`
 	SecurityProfile *SecurityProfileBrief `json:"securityProfile,omitempty"`
-	MerchantIDs     []string              `json:"merchantIds,omitempty"`
-	MFAEnabled      bool                  `json:"mfaEnabled"`
-	MFAPending      bool                  `json:"mfaPending"`
-	MFARequired     bool                  `json:"mfaRequired"`
-	MFAGraceEndsAt  *time.Time            `json:"mfaGraceEndsAt,omitempty"`
-	MFAVerifiedAt   *time.Time            `json:"mfaVerifiedAt,omitempty"`
-	CreatedAt       time.Time             `json:"createdAt"`
+	// AccessScopes lists configuration object grants by kind (kind -> sorted IDs).
+	AccessScopes   map[string][]string `json:"accessScopes,omitempty"`
+	MFAEnabled     bool                `json:"mfaEnabled"`
+	MFAPending     bool                `json:"mfaPending"`
+	MFARequired    bool                `json:"mfaRequired"`
+	MFAGraceEndsAt *time.Time          `json:"mfaGraceEndsAt,omitempty"`
+	MFAVerifiedAt  *time.Time          `json:"mfaVerifiedAt,omitempty"`
+	CreatedAt      time.Time           `json:"createdAt"`
 }
 
 // FromUser creates response from domain user.
@@ -158,7 +158,7 @@ func FromUser(u *auth.User) *UserResponse {
 		IsAdmin:        u.IsAdmin,
 		EmailVerified:  u.EmailVerified,
 		Roles:          roles,
-		MerchantIDs:    merchantIDsFromScopes(u.AccessScopes),
+		AccessScopes:   accessScopeIDs(u.AccessScopes),
 		MFAEnabled:     u.MFAEnabled,
 		MFAPending:     u.MFAPending,
 		MFARequired:    u.MFARequired,
@@ -305,16 +305,26 @@ type StepUpResponse struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
-// merchantIDsFromScopes lists merchant grants for the portal guard in a stable order.
-func merchantIDsFromScopes(scopes appctx.AccessScopes) []string {
-	grants := scopes.Grants(merchant.AccessScopeKind)
-	if len(grants) == 0 {
+// accessScopeIDs lists the object IDs granted for each access scope kind in a
+// stable order; access levels stay inside the verified token.
+func accessScopeIDs(scopes appctx.AccessScopes) map[string][]string {
+	if len(scopes) == 0 {
 		return nil
 	}
-	ids := make([]string, 0, len(grants))
-	for merchantID := range grants {
-		ids = append(ids, merchantID)
+	out := make(map[string][]string, len(scopes))
+	for kind, grants := range scopes {
+		if len(grants) == 0 {
+			continue
+		}
+		ids := make([]string, 0, len(grants))
+		for objectID := range grants {
+			ids = append(ids, objectID)
+		}
+		slices.Sort(ids)
+		out[kind] = ids
 	}
-	slices.Sort(ids)
-	return ids
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

@@ -41,7 +41,7 @@ async function setup(
       route,
       commonAPIResponse(new URL(route.request().url()).pathname, {
         ...portalOwner,
-        merchantIds: [ids.merchant, secondMerchant],
+        accessScopes: { merchant: [ids.merchant, secondMerchant] },
       }) ?? { items: [] },
     ),
   );

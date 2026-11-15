@@ -64,7 +64,6 @@ var configurationPackages = []string{
 	"metapus/internal/infrastructure/crypto_worker",
 	"metapus/internal/infrastructure/http/cryptohttp",
 	"metapus/internal/infrastructure/ingestionmonitor",
-	"metapus/internal/infrastructure/integrations",
 	"metapus/internal/infrastructure/vaultclient",
 	"metapus/internal/infrastructure/storage/postgres/crypto_catalog_repo",
 	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo",
@@ -77,20 +76,11 @@ var configurationPackages = []string{
 	"metapus/internal/infrastructure/storage/postgres/portal_repo",
 }
 
-// knownConfigurationLeaks records platform → configuration imports that
-// existed when the boundary was introduced. The list may only shrink: a new
-// edge fails the test, and an edge that disappears must be removed here.
-var knownConfigurationLeaks = map[string][]string{
-	"metapus/internal/application/exchangerateapp": {
-		"metapus/internal/domain/crypto",
-	},
-	"metapus/internal/infrastructure/http/v1/dto": {
-		"metapus/internal/domain/catalogs/merchant",
-	},
-	"metapus/internal/infrastructure/rate_feed": {
-		"metapus/internal/infrastructure/integrations",
-	},
-}
+// knownConfigurationLeaks lists tolerated platform → configuration imports.
+// It started with 105 edges and is now empty: the platform depends on no
+// configuration package. Keep it empty; invert a new dependency through a
+// platform extension point instead of listing it here.
+var knownConfigurationLeaks = map[string][]string{}
 
 func TestPlatformDoesNotDependOnConfiguration(t *testing.T) {
 	t.Parallel()

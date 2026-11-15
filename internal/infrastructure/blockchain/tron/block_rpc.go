@@ -8,7 +8,7 @@ import (
 
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
-	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 )
 
 func (p *rpcGeneration) independentPairExcept(role chainconfig.Role, excluded map[string]bool) ([]*rpcEndpoint, error) {
@@ -51,10 +51,10 @@ func pinnedRead[T any](ctx context.Context, p *rpcGeneration, endpoint *rpcEndpo
 		oversize := endpoint.circuit(op).LastError == "response_limit"
 		endpoint.mu.Unlock()
 		if unsupported {
-			return zero, rpcpolicy.ErrUnsupported
+			return zero, providerpolicy.ErrUnsupported
 		}
 		if oversize {
-			return zero, rpcpolicy.ErrResponseTooLarge
+			return zero, providerpolicy.ErrResponseTooLarge
 		}
 		return zero, crypto.ErrChainQuorumUnavailable
 	}
@@ -161,7 +161,7 @@ func (p *rpcGeneration) completeEndpointBlock(ctx context.Context, endpoint *rpc
 	receipts, err := pinnedRead(ctx, p, endpoint, opBlockReceipts, func(attempt context.Context, client *Client) ([]TransactionInfo, error) {
 		return client.GetBlockReceipts(attempt, height, endpoint.role == chainconfig.RoleSolidity)
 	})
-	if errors.Is(err, rpcpolicy.ErrUnsupported) || errors.Is(err, rpcpolicy.ErrResponseTooLarge) {
+	if errors.Is(err, providerpolicy.ErrUnsupported) || errors.Is(err, providerpolicy.ErrResponseTooLarge) {
 		receipts = make([]TransactionInfo, 0, len(block.Transactions))
 		for _, tx := range block.Transactions {
 			receipt, receiptErr := pinnedRead(ctx, p, endpoint, opReceipt, func(attempt context.Context, client *Client) (*TransactionInfo, error) {
@@ -299,7 +299,7 @@ func (p *rpcGeneration) LatestHead(ctx context.Context) (*BlockInfo, error) {
 	return rpcRead(ctx, p, chainconfig.RoleFullNode, opHead, func(attempt context.Context, client *Client) (*BlockInfo, error) {
 		block, err := client.GetCurrentBlockInfo(attempt)
 		if err == nil && (block == nil || !validHash(block.BlockID) || block.BlockHeader.RawData.Number <= 0) {
-			err = rpcpolicy.ErrInvalidResponse
+			err = providerpolicy.ErrInvalidResponse
 		}
 		return block, err
 	})

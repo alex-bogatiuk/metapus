@@ -12,6 +12,7 @@ import (
 	"metapus/internal/infrastructure/blockchain/chainconfig"
 	"metapus/internal/infrastructure/blockchain/rpcpolicy"
 	integrationhttp "metapus/internal/infrastructure/integrations"
+	"metapus/internal/infrastructure/providerpolicy"
 )
 
 const (
@@ -47,15 +48,15 @@ func rpcErrorCategory(err error) string {
 		return "invalid_trace"
 	case err == nil:
 		return ""
-	case errors.Is(err, rpcpolicy.ErrRateLimited):
+	case errors.Is(err, providerpolicy.ErrRateLimited):
 		return "rate_limited"
-	case errors.Is(err, rpcpolicy.ErrAdmissionBusy):
+	case errors.Is(err, providerpolicy.ErrAdmissionBusy):
 		return "admission_busy"
-	case errors.Is(err, rpcpolicy.ErrInvalidResponse):
+	case errors.Is(err, providerpolicy.ErrInvalidResponse):
 		return "invalid_response"
-	case errors.Is(err, rpcpolicy.ErrResponseTooLarge):
+	case errors.Is(err, providerpolicy.ErrResponseTooLarge):
 		return "response_limit"
-	case errors.Is(err, rpcpolicy.ErrUnsupported):
+	case errors.Is(err, providerpolicy.ErrUnsupported):
 		return "unsupported"
 	case errors.Is(err, integrationhttp.ErrAttemptBudget):
 		return "account_attempt_budget"
@@ -97,15 +98,15 @@ func (e *RPCReadFailure) Unwrap() error {
 	case "timeout":
 		return context.DeadlineExceeded
 	case "rate_limited":
-		return rpcpolicy.ErrRateLimited
+		return providerpolicy.ErrRateLimited
 	case "admission_busy":
-		return rpcpolicy.ErrAdmissionBusy
+		return providerpolicy.ErrAdmissionBusy
 	case "response_limit":
-		return rpcpolicy.ErrResponseTooLarge
+		return providerpolicy.ErrResponseTooLarge
 	case "invalid_response":
-		return rpcpolicy.ErrInvalidResponse
+		return providerpolicy.ErrInvalidResponse
 	case "unsupported":
-		return rpcpolicy.ErrUnsupported
+		return providerpolicy.ErrUnsupported
 	}
 	return nil
 }
@@ -140,7 +141,7 @@ func (p *rpcGeneration) beginReadContext(ctx context.Context, e *rpcEndpoint, op
 func (p *rpcGeneration) finishRead(e *rpcEndpoint, op string, elapsed time.Duration, err error, parentErr error) {
 	category := rpcErrorCategory(err)
 	var retryAfter time.Time
-	var throttle *rpcpolicy.ThrottleError
+	var throttle *providerpolicy.ThrottleError
 	if errors.As(err, &throttle) {
 		retryAfter = throttle.Until
 	}
@@ -231,7 +232,7 @@ func endpointRead[T any](ctx context.Context, p *rpcGeneration, e *rpcEndpoint, 
 	span, started := beginRPCRequest(ctx, p.networkCode, e, op)
 	leave, err := e.admission.Enter(attempt, op == opBlock || op == opBlockReceipts)
 	if err != nil {
-		err = errors.Join(rpcpolicy.ErrAdmissionBusy, ctx.Err())
+		err = errors.Join(providerpolicy.ErrAdmissionBusy, ctx.Err())
 	} else {
 		defer leave()
 	}
@@ -282,7 +283,7 @@ func rpcRead[T any](ctx context.Context, p *rpcGeneration, role chainconfig.Role
 		}
 		category := rpcErrorCategory(err)
 		if category == "invalid_request" {
-			return zero, fmt.Errorf("%s %s validation error: %w", role, e.providerID, rpcpolicy.ErrInvalidRequest)
+			return zero, fmt.Errorf("%s %s validation error: %w", role, e.providerID, providerpolicy.ErrInvalidRequest)
 		}
 		failures = append(failures, &RPCReadFailure{Provider: e.providerID, Operation: op, Category: category, cause: err})
 	}

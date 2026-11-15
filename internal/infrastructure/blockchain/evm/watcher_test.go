@@ -16,7 +16,7 @@ import (
 
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
-	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 )
 
 func TestWatcherCheckpointWaitsForSuccessfulEventProcessing(t *testing.T) {
@@ -275,7 +275,7 @@ func TestWatcherSplitsConfirmedQueryLimitWithoutLosingCoverage(t *testing.T) {
 			require.EqualValues(t, i+1, log.BlockNumber)
 		}
 	}
-	for category, target := range map[string]error{"query_limit": rpcpolicy.ErrQueryLimit, "credentials_expired": rpcpolicy.ErrCredentialsExpired} {
+	for category, target := range map[string]error{"query_limit": providerpolicy.ErrQueryLimit, "credentials_expired": providerpolicy.ErrCredentialsExpired} {
 		err := &RPCReadFailure{Category: category}
 		require.ErrorIs(t, err, target)
 		require.Equal(t, category, rpcErrorCategory(err))

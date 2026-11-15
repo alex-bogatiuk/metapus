@@ -12,7 +12,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/domain/crypto"
-	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 )
 
 const testFromHex = "411111111111111111111111111111111111111111"
@@ -81,16 +81,16 @@ func TestBlockCompletenessAndExecution(t *testing.T) {
 				expected = crypto.ErrVerificationPending
 			case "duplicate":
 				receipts = append(receipts, receipts[0])
-				expected = rpcpolicy.ErrInvalidResponse
+				expected = providerpolicy.ErrInvalidResponse
 			case "foreign":
 				receipts[0].ID = strings.Repeat("f", 64)
-				expected = rpcpolicy.ErrInvalidResponse
+				expected = providerpolicy.ErrInvalidResponse
 			case "wrong_height":
 				receipts[0].BlockNumber++
-				expected = rpcpolicy.ErrInvalidResponse
+				expected = providerpolicy.ErrInvalidResponse
 			case "unknown":
 				receipts[0].Receipt.Result = "NEW_SUCCESS_STATUS"
-				expected = rpcpolicy.ErrInvalidResponse
+				expected = providerpolicy.ErrInvalidResponse
 			case "smart_pending":
 				receipts[0].Receipt.Result = ""
 				expected = crypto.ErrVerificationPending
@@ -98,7 +98,7 @@ func TestBlockCompletenessAndExecution(t *testing.T) {
 				receipts[0].Receipt.Result = "REVERT"
 			case "raw_hash":
 				block.Transactions[0].RawDataHex = "02"
-				expected = rpcpolicy.ErrInvalidResponse
+				expected = providerpolicy.ErrInvalidResponse
 			}
 			data, err := assembleBlock(block, receipts)
 			if expected != nil {

@@ -17,10 +17,15 @@ export function hasErpAccess(user: AuthUserResponse | null): boolean {
   return user.isAdmin || (user.roles?.length ?? 0) > 0
 }
 
+/** Merchants the user may open in the Portal, from the session access scopes. */
+export function merchantIds(user: AuthUserResponse | null): string[] {
+  return user?.accessScopes?.merchant ?? []
+}
+
 /** User has access to the Merchant Portal (`/portal`). */
 export function hasPortalAccess(user: AuthUserResponse | null): boolean {
   if (!user) return false
-  return (user.merchantIds?.length ?? 0) > 0
+  return merchantIds(user).length > 0
 }
 
 /**

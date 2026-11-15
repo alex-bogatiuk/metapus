@@ -15,6 +15,7 @@ import (
 	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
 	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 )
 
 type rpcOperation string
@@ -28,23 +29,23 @@ const (
 )
 
 var (
-	ErrRPCResponseTooLarge = rpcpolicy.ErrResponseTooLarge
-	ErrRPCUnsupported      = rpcpolicy.ErrUnsupported
-	ErrRPCAdmissionBusy    = rpcpolicy.ErrAdmissionBusy
-	ErrRPCRateLimited      = rpcpolicy.ErrRateLimited
-	ErrRPCInvalidRequest   = rpcpolicy.ErrInvalidRequest
+	ErrRPCResponseTooLarge = providerpolicy.ErrResponseTooLarge
+	ErrRPCUnsupported      = providerpolicy.ErrUnsupported
+	ErrRPCAdmissionBusy    = providerpolicy.ErrAdmissionBusy
+	ErrRPCRateLimited      = providerpolicy.ErrRateLimited
+	ErrRPCInvalidRequest   = providerpolicy.ErrInvalidRequest
 	ErrRPCHeadBehind       = errors.New("EVM RPC provider head behind requested range")
 	ErrRPCStaleHead        = errors.New("EVM RPC provider returned stale head")
 	ErrRPCInvalidHeader    = errors.New("EVM RPC header does not match its advertised hash or height")
 )
 
 type operationCircuit = rpcpolicy.Circuit
-type providerAdmission = rpcpolicy.Admission
+type providerAdmission = providerpolicy.Admission
 
 func acquireProviderAdmission(endpoint chainconfig.Endpoint, s chainconfig.EVMSettings) (*providerAdmission, error) {
-	return rpcpolicy.AcquireScoped(endpoint.AdmissionScope, endpoint.URL, rpcpolicy.Capacity{Concurrency: s.ProviderConcurrency, BulkConcurrency: s.BackfillConcurrency, RequestsPerSecond: s.RequestsPerSecond, MinRequestIntervalMS: endpoint.MinRequestIntervalMS})
+	return providerpolicy.AcquireScoped(endpoint.AdmissionScope, endpoint.URL, providerpolicy.Capacity{Concurrency: s.ProviderConcurrency, BulkConcurrency: s.BackfillConcurrency, RequestsPerSecond: s.RequestsPerSecond, MinRequestIntervalMS: endpoint.MinRequestIntervalMS})
 }
-func releaseProviderAdmission(a *providerAdmission) { rpcpolicy.Release(a) }
+func releaseProviderAdmission(a *providerAdmission) { providerpolicy.Release(a) }
 
 // The response cap includes chunked bodies. A length check alone would miss
 // providers that begin a partial JSON response and then stall indefinitely.
@@ -60,7 +61,7 @@ func (t boundedRPCTransport) RoundTrip(req *http.Request) (*http.Response, error
 		return nil, err
 	}
 	op, _ := req.Context().Value(rpcOperationContextKey{}).(rpcOperation)
-	if err = rpcpolicy.LimitResponse(resp, t.limit, func(bytes int64) {
+	if err = providerpolicy.LimitResponse(resp, t.limit, func(bytes int64) {
 		evmOperationalMetrics.rpcResponseBytes.Add(req.Context(), bytes, rpcMetricAttrs(t.network, t.provider, string(op)))
 	}); err != nil {
 		return nil, err
@@ -94,15 +95,15 @@ func rpcErrorCategory(err error) string {
 		return "admission_busy"
 	case errors.Is(err, ErrRPCUnsupported):
 		return "unsupported"
-	case errors.Is(err, rpcpolicy.ErrCredentialsExpired):
+	case errors.Is(err, providerpolicy.ErrCredentialsExpired):
 		return "credentials_expired"
 	case errors.As(err, new(*integrations.PoolUnavailableError)):
 		return poolUnavailableCategory(err)
-	case errors.Is(err, rpcpolicy.ErrAccessDenied):
+	case errors.Is(err, providerpolicy.ErrAccessDenied):
 		return "access_denied"
-	case errors.Is(err, rpcpolicy.ErrQueryLimit):
+	case errors.Is(err, providerpolicy.ErrQueryLimit):
 		return "query_limit"
-	case errors.Is(err, rpcpolicy.ErrArchiveUnavailable):
+	case errors.Is(err, providerpolicy.ErrArchiveUnavailable):
 		return "archive_unavailable"
 	case errors.Is(err, ErrRPCHeadBehind):
 		return "head_behind"
@@ -167,7 +168,7 @@ func (p *rpcGeneration) finishRead(endpoint *rpcEndpoint, op rpcOperation, elaps
 	endpoint.mu.Lock()
 	c := endpoint.operations[op]
 	var retryAfter time.Time
-	var throttled *rpcpolicy.ThrottleError
+	var throttled *providerpolicy.ThrottleError
 	if errors.As(err, &throttled) {
 		retryAfter = throttled.Until
 	}
@@ -342,11 +343,11 @@ func (e *RPCReadFailure) Error() string {
 func (e *RPCReadFailure) Unwrap() error {
 	switch e.Category {
 	case "query_limit":
-		return rpcpolicy.ErrQueryLimit
+		return providerpolicy.ErrQueryLimit
 	case "credentials_expired":
-		return rpcpolicy.ErrCredentialsExpired
+		return providerpolicy.ErrCredentialsExpired
 	case "access_denied":
-		return rpcpolicy.ErrAccessDenied
+		return providerpolicy.ErrAccessDenied
 	case "timeout":
 		return context.DeadlineExceeded
 	case "unsupported":

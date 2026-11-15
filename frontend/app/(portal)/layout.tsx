@@ -7,7 +7,7 @@ import { usePortalStore } from "@/stores/usePortalStore"
 import { ThemeProvider } from "@/components/theme-provider"
 import { PortalShell } from "@/components/portal/portal-shell"
 import { api } from "@/lib/api"
-import { hasPortalAccess } from "@/lib/access"
+import { hasPortalAccess, merchantIds } from "@/lib/access"
 import { useAuthSessionBootstrap } from "@/hooks/useAuthSessionBootstrap"
 import { SessionRecovery } from "@/components/auth/session-recovery"
 
@@ -41,7 +41,7 @@ export default function PortalLayout({
 
   // Portal access guard: redirect to / if no merchant access
   const portalAccess = hasPortalAccess(user)
-  const merchantIdsCount = user?.merchantIds?.length ?? 0
+  const merchantIdsCount = merchantIds(user).length
 
   useEffect(() => {
     if (!authReady || !isAuthenticated || !tokens?.accessToken) return

@@ -14,7 +14,6 @@ import (
 
 	"metapus/internal/application/checkout"
 	"metapus/internal/application/cryptoapp"
-	"metapus/internal/application/exchangerateapp"
 	"metapus/internal/application/portalapp"
 	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
@@ -36,7 +35,7 @@ type portalPersistentWalletService interface {
 type PortalHandler struct {
 	repo                   *portal_repo.DashboardRepo
 	apiKeyRepo             merchant.APIKeyRepository
-	balanceCalc            *exchangerateapp.ValuationService // nil-safe: returns empty balance if not configured
+	balanceCalc            *cryptoapp.ValuationService       // nil-safe: returns empty balance if not configured
 	merchantInvoiceService *cryptoapp.MerchantInvoiceService // shared idempotent invoice creation
 	checkoutRefs           *checkout.Service                 // builds customer-facing checkout URLs
 	paymentLinkService     *cryptoapp.PaymentLinkService
@@ -60,7 +59,7 @@ type PortalCommandServices struct {
 func NewPortalHandler(
 	repo *portal_repo.DashboardRepo,
 	apiKeyRepo merchant.APIKeyRepository,
-	balanceCalc *exchangerateapp.ValuationService,
+	balanceCalc *cryptoapp.ValuationService,
 	merchantInvoiceService *cryptoapp.MerchantInvoiceService,
 	checkoutRefs *checkout.Service,
 	paymentLinkService *cryptoapp.PaymentLinkService,

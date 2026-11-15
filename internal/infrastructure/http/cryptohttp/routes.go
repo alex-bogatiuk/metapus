@@ -9,7 +9,6 @@ import (
 	"metapus/internal/application/command"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/application/dashboardapp"
-	"metapus/internal/application/exchangerateapp"
 	"metapus/internal/application/integrationapp"
 	"metapus/internal/application/portalapp"
 	"metapus/internal/core/numerator"
@@ -261,7 +260,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 		// Build BalanceCalculator for fiat valuation of crypto balances.
 		exRateRepo := register_repo.NewExchangeRateRepo()
 		exRateSvc := exchange_rate.NewService(exRateRepo)
-		balanceCalc := exchangerateapp.NewValuationService(m.cfg.PortalDashboardRepo, exRateSvc, register_repo.RateSnapshot)
+		balanceCalc := cryptoapp.NewValuationService(m.cfg.PortalDashboardRepo, exRateSvc, register_repo.RateSnapshot)
 
 		// Posting engine for debit-first withdrawal requests.
 		// Only needs CryptoMerchantBalance visitor+recorder (balance check + movement recording).

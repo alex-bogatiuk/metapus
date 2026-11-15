@@ -8,10 +8,10 @@ import (
 
 	"metapus/internal/core/json"
 	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 )
 
-var ErrAccessDenied = rpcpolicy.ErrAccessDenied
+var ErrAccessDenied = providerpolicy.ErrAccessDenied
 
 func chainstack() Profile {
 	return Profile{Provider: model.Chainstack, Authorize: pathPrefix(model.Chainstack),
@@ -49,7 +49,7 @@ func chainstack() Profile {
 				} `json:"error"`
 			}
 			if json.Unmarshal(body, &denied) == nil && denied.Error.Code == -32002 && strings.Contains(strings.ToLower(denied.Error.Message), "archive, debug and trace requests are not available on your current plan") {
-				return rpcpolicy.ErrArchiveUnavailable
+				return providerpolicy.ErrArchiveUnavailable
 			}
 			return ErrAccessDenied
 		},

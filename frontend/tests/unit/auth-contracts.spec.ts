@@ -87,7 +87,7 @@ test("real backend verifyMFA response passes loginResponseSchema", () => {
           isSystem: true,
         },
       ],
-      merchantIds: ["01a0af70-1743-7c7a-adf6-9ffe05dcaf98"],
+      accessScopes: { merchant: ["01a0af70-1743-7c7a-adf6-9ffe05dcaf98"] },
       mfaEnabled: true,
       mfaPending: false,
       mfaRequired: true,

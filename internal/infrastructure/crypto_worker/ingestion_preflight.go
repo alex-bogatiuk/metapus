@@ -10,7 +10,7 @@ import (
 
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
-	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 )
 
@@ -278,9 +278,9 @@ func ingestionRPCErrorCode(err error) string {
 		return "quorum_unavailable"
 	case errors.Is(err, crypto.ErrVerificationMismatch):
 		return "provider_disagreement"
-	case errors.Is(err, rpcpolicy.ErrAdmissionBusy):
+	case errors.Is(err, providerpolicy.ErrAdmissionBusy):
 		return "admission_busy"
-	case errors.Is(err, rpcpolicy.ErrRateLimited):
+	case errors.Is(err, providerpolicy.ErrRateLimited):
 		return "rate_limited"
 	default:
 		return "rpc_unavailable"

@@ -20,7 +20,7 @@ export const authUserSchema = Wire.UserResponseSchema.and(z.object({
   id: z.string().uuid(), email: z.string(), firstName: z.string().optional(), lastName: z.string().optional(),
   fullName: z.string(), isActive: z.boolean(), isAdmin: z.boolean(), emailVerified: z.boolean(),
   roles: z.array(z.object({ id: z.string(), code: z.string(), name: z.string(), description: z.string().optional(), isSystem: z.boolean() })).optional(),
-  merchantIds: z.array(z.string()).optional(), mfaEnabled: z.boolean(), mfaPending: z.boolean(), mfaRequired: z.boolean(),
+  accessScopes: z.record(z.string(), z.array(z.string())).optional(), mfaEnabled: z.boolean(), mfaPending: z.boolean(), mfaRequired: z.boolean(),
   mfaGraceEndsAt: z.string().optional(), mfaVerifiedAt: z.string().optional(), createdAt: z.string(),
 }))
 

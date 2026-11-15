@@ -5,7 +5,7 @@ import (
 	"errors"
 	"io"
 	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 	"time"
 )
 
@@ -17,7 +17,7 @@ func credentialContext(ctx context.Context, s model.Selection, now time.Time) (c
 	if s.CredentialsExpiresAt == nil {
 		return ctx, func() {}
 	}
-	return context.WithTimeoutCause(ctx, s.CredentialsExpiresAt.Sub(now), rpcpolicy.ErrCredentialsExpired)
+	return context.WithTimeoutCause(ctx, s.CredentialsExpiresAt.Sub(now), providerpolicy.ErrCredentialsExpired)
 }
 
 type credentialBody struct {
@@ -29,8 +29,8 @@ type credentialBody struct {
 func (b *credentialBody) Read(p []byte) (int, error) {
 	n, err := b.ReadCloser.Read(p)
 	if err != nil {
-		if b.ctx != nil && errors.Is(context.Cause(b.ctx), rpcpolicy.ErrCredentialsExpired) {
-			err = rpcpolicy.ErrCredentialsExpired
+		if b.ctx != nil && errors.Is(context.Cause(b.ctx), providerpolicy.ErrCredentialsExpired) {
+			err = providerpolicy.ErrCredentialsExpired
 		}
 		b.cancel()
 	}

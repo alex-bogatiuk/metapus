@@ -7,7 +7,7 @@ import (
 
 	"metapus/internal/core/json"
 	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 )
 
 func drpcError(body []byte) (int, string) {
@@ -65,7 +65,7 @@ func drpc() Profile {
 		},
 		ResponseError: func(status int, body []byte) error {
 			if drpcRangeLimit(status, body) {
-				return rpcpolicy.ErrQueryLimit
+				return providerpolicy.ErrQueryLimit
 			}
 			if status == http.StatusForbidden || status == http.StatusBadRequest || status == http.StatusOK {
 				code, message := drpcError(body)
@@ -74,9 +74,9 @@ func drpc() Profile {
 				}
 				switch code {
 				case 29, 48, 51:
-					return rpcpolicy.ErrUnsupported
+					return providerpolicy.ErrUnsupported
 				case 47:
-					return rpcpolicy.ErrInvalidRequest
+					return providerpolicy.ErrInvalidRequest
 				case 50:
 					return ErrAccessDenied
 				}

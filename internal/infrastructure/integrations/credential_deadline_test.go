@@ -6,7 +6,7 @@ import (
 	"io"
 	"metapus/internal/core/id"
 	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 	"net/http"
 	"strings"
 	"testing"
@@ -98,7 +98,7 @@ func TestCredentialDeadlineCancelsWireWorkWithoutReportingUpstreamFailure(t *tes
 	defer tr.CloseIdleConnections()
 	req, _ := http.NewRequest(http.MethodPost, "https://lb.drpc.live/sepolia/", nil)
 	_, err := tr.RoundTrip(req)
-	require.ErrorIs(t, err, rpcpolicy.ErrCredentialsExpired)
+	require.ErrorIs(t, err, providerpolicy.ErrCredentialsExpired)
 	require.Equal(t, 1, wire)
 	require.Zero(t, repo.reports)
 }
@@ -146,6 +146,6 @@ func TestCredentialExpiryDuringReturnedBodyIsTyped(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = res.Body.Close() }()
 	_, err = io.ReadAll(res.Body)
-	require.ErrorIs(t, err, rpcpolicy.ErrCredentialsExpired)
+	require.ErrorIs(t, err, providerpolicy.ErrCredentialsExpired)
 	require.Zero(t, repo.reports)
 }

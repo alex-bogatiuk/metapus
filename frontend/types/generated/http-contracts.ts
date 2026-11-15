@@ -5104,7 +5104,7 @@ export type UserResponse = {
   "emailVerified": boolean
   "roles"?: Array<RoleResponse>
   "securityProfile"?: SecurityProfileBrief
-  "merchantIds"?: Array<string>
+  "accessScopes"?: Record<string, Array<string>>
   "mfaEnabled": boolean
   "mfaPending": boolean
   "mfaRequired": boolean
