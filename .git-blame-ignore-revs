@@ -1,0 +1,6 @@
+# Formatting-only commits; git blame skips them with
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub applies this file automatically.
+
+# Format all Go sources with gofmt
+340161f67e8e21b2f965ddd99c86ac527500c2cb
