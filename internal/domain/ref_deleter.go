@@ -9,11 +9,11 @@ import (
 // MarkedObject represents an entity with deletion mark, enriched with reference count.
 type MarkedObject struct {
 	EntityName   string `json:"entityName"`
-	EntityType   string `json:"entityType"`   // "catalog" | "document"
+	EntityType   string `json:"entityType"` // "catalog" | "document"
 	EntityID     id.ID  `json:"entityId"`
 	Presentation string `json:"presentation"` // resolved display string
-	RefCount     int    `json:"refCount"`      // number of incoming references
-	CanDelete    bool   `json:"canDelete"`     // true if refCount == 0
+	RefCount     int    `json:"refCount"`     // number of incoming references
+	CanDelete    bool   `json:"canDelete"`    // true if refCount == 0
 }
 
 // DeleteMarkedRequest specifies a single entity to delete.

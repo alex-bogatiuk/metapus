@@ -4,7 +4,7 @@ import "testing"
 
 // testDimensionable is a simple test struct implementing RLSDimensionable.
 type testDimensionable struct {
-	OrgID      string
+	OrgID          string
 	CounterpartyID string
 }
 
@@ -17,7 +17,7 @@ func (t *testDimensionable) GetRLSDimensions() map[string]string {
 
 func TestRLSDimensionable_WithDataScope(t *testing.T) {
 	entity := &testDimensionable{
-		OrgID:      "org-1",
+		OrgID:          "org-1",
 		CounterpartyID: "cp-5",
 	}
 

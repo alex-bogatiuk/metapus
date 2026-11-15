@@ -21,7 +21,7 @@ const _currencyTTL = 5 * time.Minute
 // cachedCurrencyID stores a resolved currency ID with an expiration time.
 type cachedCurrencyID struct {
 	currencyID id.ID
-	hasValue   bool      // false when the source entity has no currency set
+	hasValue   bool // false when the source entity has no currency set
 	expiresAt  time.Time
 }
 

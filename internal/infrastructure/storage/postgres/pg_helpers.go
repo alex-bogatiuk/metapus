@@ -23,19 +23,19 @@ func IsForeignKeyViolation(err error) bool {
 	return strings.Contains(err.Error(), "23503") || strings.Contains(err.Error(), "violates foreign key constraint")
 }
 
-// ExtractForeignKeyField attempts to extract the column name from a PostgreSQL 
+// ExtractForeignKeyField attempts to extract the column name from a PostgreSQL
 // foreign key violation error and convert it to camelCase for the frontend.
 func ExtractForeignKeyField(err error, tableName string) string {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23503" {
 		constraint := pgErr.ConstraintName
-		
+
 		// Typically constraints are named: {tableName}_{columnName}_fkey
 		// E.g., doc_crypto_invoice_counterparty_id_fkey
-		
+
 		field := strings.TrimPrefix(constraint, tableName+"_")
 		field = strings.TrimSuffix(field, "_fkey")
-		
+
 		// If the constraint naming doesn't follow the convention, we might get back the original string.
 		// Let's convert snake_case to camelCase
 		return snakeToCamel(field)

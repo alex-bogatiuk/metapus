@@ -52,8 +52,8 @@ const (
 	CodeMethodNotAllowed = "METHOD_NOT_ALLOWED"
 
 	// Capacity and admission errors (422, 429, 503)
-	CodeWalletPoolExhausted                    = "WALLET_POOL_EXHAUSTED"
-	CodeCryptoNetworkUnavailable               = "CRYPTO_NETWORK_UNAVAILABLE"
+	CodeWalletPoolExhausted      = "WALLET_POOL_EXHAUSTED"
+	CodeCryptoNetworkUnavailable = "CRYPTO_NETWORK_UNAVAILABLE"
 )
 
 // AppError is the standard error type for the platform.
@@ -188,7 +188,6 @@ func NewMethodNotAllowed(message string) *AppError {
 		HTTPStatus: http.StatusMethodNotAllowed,
 	}
 }
-
 
 // NewConcurrentModification creates an optimistic locking error
 func NewConcurrentModification(entity string, id any) *AppError {

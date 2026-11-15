@@ -36,10 +36,10 @@ type ResolvedItem struct {
 	kind     ValueKind
 }
 
-func (r ResolvedItem) Field() string              { return r.field }
-func (r ResolvedItem) Operator() ComparisonType   { return r.operator }
-func (r ResolvedItem) Value() any                 { return r.value }
-func (r ResolvedItem) Kind() ValueKind            { return r.kind }
+func (r ResolvedItem) Field() string            { return r.field }
+func (r ResolvedItem) Operator() ComparisonType { return r.operator }
+func (r ResolvedItem) Value() any               { return r.value }
+func (r ResolvedItem) Kind() ValueKind          { return r.kind }
 func (r ResolvedItem) WithOperator(op ComparisonType) ResolvedItem {
 	r.operator = op
 	return r

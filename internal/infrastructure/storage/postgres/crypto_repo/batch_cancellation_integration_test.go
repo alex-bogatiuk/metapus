@@ -11,10 +11,10 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/domain/registers/crypto_merchant_balance"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/outbound_repo"
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
-	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"

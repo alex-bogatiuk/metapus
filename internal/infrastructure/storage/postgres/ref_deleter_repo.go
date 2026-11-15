@@ -154,9 +154,9 @@ func (r *MarkedObjectsRepo) DeleteMarked(ctx context.Context, items []domain.Del
 			result.Errors += len(safeToDelete)
 			continue
 		}
-		
+
 		result.Deleted += int(tag.RowsAffected())
-		
+
 		// some may have been skipped if not actually marked
 		if int(tag.RowsAffected()) < len(safeToDelete) {
 			result.Skipped += len(safeToDelete) - int(tag.RowsAffected())

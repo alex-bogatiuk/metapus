@@ -12,5 +12,4 @@ type Repository interface {
 
 	// FindByINN retrieves counterparty by INN (unique within tenant).
 	FindByINN(ctx context.Context, inn string) (*Counterparty, error)
-
 }

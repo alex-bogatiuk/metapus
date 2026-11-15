@@ -18,8 +18,8 @@ import (
 	"metapus/internal/domain/registers/crypto_balance"
 	"metapus/internal/domain/registers/cryptoposting"
 	infraNumerator "metapus/internal/infrastructure/numerator"
-	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 )
 
 // The acceptance scenarios of the receipt accounting drive the fully wired

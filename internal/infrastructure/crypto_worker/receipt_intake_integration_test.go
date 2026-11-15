@@ -17,8 +17,8 @@ import (
 	"metapus/internal/domain/registers/cryptoposting"
 	infraNumerator "metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 
 	"github.com/stretchr/testify/require"
 )

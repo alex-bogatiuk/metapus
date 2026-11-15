@@ -22,5 +22,3 @@ type ExtensionConfig struct {
 	// Nil if posting is not initialized (catalog-only extensions can ignore this).
 	PostingEngine *posting.Engine
 }
-
-

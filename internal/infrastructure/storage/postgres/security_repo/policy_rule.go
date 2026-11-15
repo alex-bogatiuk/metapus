@@ -161,4 +161,3 @@ func (r *PolicyRuleRepo) ListByProfileID(ctx context.Context, profileID id.ID) (
 
 // Compile-time check.
 var _ security_profile.PolicyRuleRepository = (*PolicyRuleRepo)(nil)
-

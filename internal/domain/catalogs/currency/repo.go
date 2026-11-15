@@ -12,7 +12,6 @@ type Repository interface {
 	// FindByISOCode retrieves currency by ISO code (unique within tenant).
 	FindByISOCode(ctx context.Context, isoCode string) (*Currency, error)
 
-
 	// ClearBase clears the base flag on all currencies (before setting new base).
 	ClearBase(ctx context.Context) error
 

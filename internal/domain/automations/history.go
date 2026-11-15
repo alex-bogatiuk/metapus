@@ -50,8 +50,8 @@ type HistoryFilter struct {
 
 // HistoryStats holds aggregated counts by status.
 type HistoryStats struct {
-	Total    int                      `json:"total"`
-	ByStatus map[HistoryStatus]int    `json:"byStatus"`
+	Total    int                   `json:"total"`
+	ByStatus map[HistoryStatus]int `json:"byStatus"`
 }
 
 // HistoryRepository provides access to rule execution logs.

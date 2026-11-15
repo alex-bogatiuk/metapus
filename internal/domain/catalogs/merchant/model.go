@@ -24,10 +24,10 @@ const (
 type MerchantRole int
 
 const (
-	_                        MerchantRole = iota
-	MerchantRoleOwner                      // владелец — полный доступ + управление ключами
-	MerchantRoleManager                    // менеджер — операции без настроек
-	MerchantRoleViewer                     // наблюдатель — только чтение
+	_                   MerchantRole = iota
+	MerchantRoleOwner                // владелец — полный доступ + управление ключами
+	MerchantRoleManager              // менеджер — операции без настроек
+	MerchantRoleViewer               // наблюдатель — только чтение
 )
 
 // _merchantRoleMax is the upper bound for valid roles.
@@ -55,13 +55,13 @@ func (r MerchantRole) String() string {
 
 // MerchantUser represents a user-merchant association with a role.
 type MerchantUser struct {
-	UserID       id.ID        `db:"user_id"     json:"userId"`
-	MerchantID   id.ID        `db:"merchant_id" json:"merchantId"`
-	Role         MerchantRole `db:"role"        json:"role"`
-	CreatedAt    time.Time    `db:"created_at"  json:"createdAt"`
+	UserID     id.ID        `db:"user_id"     json:"userId"`
+	MerchantID id.ID        `db:"merchant_id" json:"merchantId"`
+	Role       MerchantRole `db:"role"        json:"role"`
+	CreatedAt  time.Time    `db:"created_at"  json:"createdAt"`
 	// Enriched fields — populated by ListByMerchant via JOIN with users table.
-	UserEmail    string       `db:"user_email"    json:"userEmail,omitempty"`
-	UserFullName string       `db:"user_fullname" json:"userFullName,omitempty"`
+	UserEmail    string `db:"user_email"    json:"userEmail,omitempty"`
+	UserFullName string `db:"user_fullname" json:"userFullName,omitempty"`
 }
 
 // MerchantUserRepository defines persistence operations for merchant ↔ user associations.

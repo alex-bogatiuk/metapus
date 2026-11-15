@@ -96,8 +96,8 @@ const (
 
 // Business logic events
 const (
-	EventBalanceNegative     EventType = "balance.negative"
-	EventNumeratorGenerated   EventType = "numerator.generated"
+	EventBalanceNegative    EventType = "balance.negative"
+	EventNumeratorGenerated EventType = "numerator.generated"
 )
 
 // API events

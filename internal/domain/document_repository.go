@@ -41,7 +41,6 @@ type DocumentRepository[T any, L any] interface {
 	// Used for filter-based batch operations (virtual "select all").
 	// Safety limit: returns at most maxIDs results. If more match, returns ErrTooManyResults.
 	ListIDs(ctx context.Context, filter ListFilter, maxIDs int) ([]id.ID, error)
-
 }
 
 // LinesAccessor provides generic access to document lines.
@@ -83,6 +82,7 @@ type CurrencyCacheInvalidator interface {
 	InvalidateOrgCurrency(orgID id.ID)
 	InvalidateBaseCurrency(ctx context.Context)
 }
+
 // HeaderDocumentRepository defines CRUD operations for header-only documents.
 // Identical to DocumentRepository minus GetLines/SaveLines — header is self-sufficient.
 // Used by BaseHeaderDocumentService[T].
@@ -112,5 +112,4 @@ type HeaderDocumentRepository[T any] interface {
 	// Used for filter-based batch operations (virtual "select all").
 	// Safety limit: returns at most maxIDs results. If more match, returns ErrTooManyResults.
 	ListIDs(ctx context.Context, filter ListFilter, maxIDs int) ([]id.ID, error)
-
 }

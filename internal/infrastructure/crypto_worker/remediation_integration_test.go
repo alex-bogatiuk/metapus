@@ -19,9 +19,9 @@ import (
 	"metapus/internal/domain/documents/crypto_payment"
 	"metapus/internal/domain/registers/crypto_balance"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
-	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 	platformtelemetry "metapus/internal/platform/telemetry"
 )
 
