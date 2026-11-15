@@ -93,7 +93,7 @@ func (r *CryptoSweepRepo) ReadCardData(ctx context.Context, doc *crypto_sweep.Cr
 			       a.status,
 			       a.error_message,
 			       (a.status = 'held' AND a.broadcast_at IS NULL AND NOT EXISTS (
-			           SELECT 1 FROM doc_crypto_sweep_lines l
+			           SELECT 1 FROM doc_crypto_sweeps__lines l
 			           WHERE l.line_id = a.id AND l.tx_hash <> ''
 			       ) AND NOT EXISTS (
 			           SELECT 1 FROM reg_crypto_signing_authorizations s
@@ -113,7 +113,7 @@ func (r *CryptoSweepRepo) ReadCardData(ctx context.Context, doc *crypto_sweep.Cr
 		}
 		if err := pgxscan.Select(ctx, querier, &data.NetworkFees, `
 			SELECT l.line_id, s.id AS settlement_id, c.cost_token_id, c.amount::text AS amount, s.tx_hash
-			FROM doc_crypto_sweep_lines l
+			FROM doc_crypto_sweeps__lines l
 			JOIN reg_crypto_chain_settlements s ON s.basis_type='CryptoSweepAttempt' AND s.basis_id=l.line_id
 			JOIN reg_crypto_platform_cost_movements c ON c.recorder_type='ChainSettlement'
 				AND c.recorder_id=l.line_id AND c.cost_type='chain_network_fee'
@@ -125,7 +125,7 @@ func (r *CryptoSweepRepo) ReadCardData(ctx context.Context, doc *crypto_sweep.Cr
 		if err := pgxscan.Select(ctx, querier, &data.ResourceCosts, `
 			SELECT l.line_id, a.id AS allocation_id, a.rental_id, r.number AS rental_number,
 				a.status, r.cost_token_id, a.allocated_cost_amount::text AS amount
-			FROM doc_crypto_sweep_lines l
+			FROM doc_crypto_sweeps__lines l
 			JOIN reg_crypto_resource_allocations a ON a.basis_type='CryptoSweepLine'
 				AND a.basis_id=l.line_id AND a.purpose='sweep'
 			JOIN doc_crypto_resource_rentals r ON r.id=a.rental_id

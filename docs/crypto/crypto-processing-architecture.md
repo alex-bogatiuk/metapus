@@ -784,7 +784,7 @@ production-ready. Полный gate и rollout описаны в
 | Кошельки | `cat_wallets`, `reg_crypto_account_activations`, `doc_crypto_network_operations`, `reg_crypto_wallet_fundings`, `reg_crypto_wallet_allocation_holds` |
 | Приём | `doc_crypto_invoices`, `doc_crypto_payments`, `reg_crypto_payment_events` |
 | Балансы | `reg_crypto_balance_*`, `reg_crypto_merchant_balance_*`, `reg_crypto_fee_*` |
-| Свип | `doc_crypto_sweeps`, `doc_crypto_sweep_lines`, `reg_crypto_sweep_attempts` |
+| Свип | `doc_crypto_sweeps`, `doc_crypto_sweeps__lines`, `reg_crypto_sweep_attempts` |
 | Вывод | `reg_withdrawal_addresses`, `doc_withdrawal_requests`, `doc_crypto_withdrawals` |
 | Treasury | `reg_treasury_withdrawal_addresses`, `doc_treasury_withdrawals` |
 | Подпись | `reg_crypto_signing_authorizations`, `reg_crypto_expected_chain_effects`, `reg_crypto_chain_effect_matches`, `reg_money_movement_intents`, `reg_money_movement_approvals` |

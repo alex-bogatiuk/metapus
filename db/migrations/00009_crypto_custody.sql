@@ -1086,10 +1086,10 @@ END;
 $$;
 
 CREATE FUNCTION fn_crypto_assert_sweep_line(target UUID) RETURNS VOID LANGUAGE plpgsql AS $$
-DECLARE l doc_crypto_sweep_lines; s doc_crypto_sweeps; b reg_crypto_sweep_custody_bindings; p reg_crypto_custody_effect_postings;
+DECLARE l doc_crypto_sweeps__lines; s doc_crypto_sweeps; b reg_crypto_sweep_custody_bindings; p reg_crypto_custody_effect_postings;
 DECLARE src cat_wallets; dst cat_wallets; f reg_crypto_fee_reservations; c reg_crypto_chain_settlements;
 BEGIN
-    SELECT * INTO STRICT l FROM doc_crypto_sweep_lines WHERE line_id=target;
+    SELECT * INTO STRICT l FROM doc_crypto_sweeps__lines WHERE line_id=target;
     SELECT * INTO STRICT s FROM doc_crypto_sweeps WHERE id=l.document_id;
     SELECT * INTO STRICT src FROM cat_wallets WHERE id=l.wallet_id;
     SELECT * INTO STRICT dst FROM cat_wallets WHERE id=s.hot_wallet_id;
@@ -1186,7 +1186,7 @@ BEGIN
         IF NOT FOUND THEN RAISE EXCEPTION 'sweep principal cannot be posted at broadcast' USING ERRCODE='23514'; END IF;
         PERFORM fn_crypto_assert_sweep_line(target);
     END IF;
-    SELECT l.line_id INTO target FROM doc_crypto_sweep_lines l JOIN doc_crypto_sweeps s ON s.id=l.document_id
+    SELECT l.line_id INTO target FROM doc_crypto_sweeps__lines l JOIN doc_crypto_sweeps s ON s.id=l.document_id
         WHERE l.line_id=NEW.recorder_id;
     IF FOUND THEN PERFORM fn_crypto_assert_sweep_line(target); END IF;
     IF NEW.reversal_of_line_id IS NOT NULL AND EXISTS(SELECT 1 FROM reg_crypto_custody_effect_recognitions r
@@ -1200,7 +1200,7 @@ $$;
 CREATE FUNCTION fn_crypto_sweep_settlement_complete() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE target UUID;
 BEGIN
-    IF TG_TABLE_NAME='doc_crypto_sweep_lines' THEN
+    IF TG_TABLE_NAME='doc_crypto_sweeps__lines' THEN
         IF NEW.settlement_status<>'recorded' THEN RETURN NULL; END IF;
         target:=NEW.line_id;
     ELSE
@@ -1208,7 +1208,7 @@ BEGIN
         IF TG_TABLE_NAME='reg_crypto_fee_reservations' AND NEW.status<>'settled' THEN RETURN NULL; END IF;
         target:=NEW.basis_id;
     END IF;
-    IF EXISTS(SELECT 1 FROM doc_crypto_sweep_lines l JOIN doc_crypto_sweeps s ON s.id=l.document_id WHERE l.line_id=target) THEN
+    IF EXISTS(SELECT 1 FROM doc_crypto_sweeps__lines l JOIN doc_crypto_sweeps s ON s.id=l.document_id WHERE l.line_id=target) THEN
         PERFORM fn_crypto_assert_sweep_line(target);
     END IF;
     RETURN NULL;
@@ -1220,22 +1220,22 @@ DECLARE model INT;
 BEGIN
     IF TG_TABLE_NAME='doc_crypto_sweeps' THEN
         IF TG_OP='DELETE' THEN
-            IF EXISTS(SELECT 1 FROM doc_crypto_sweep_lines l WHERE l.document_id=OLD.id AND
+            IF EXISTS(SELECT 1 FROM doc_crypto_sweeps__lines l WHERE l.document_id=OLD.id AND
                 (l.tx_hash<>'' OR EXISTS(SELECT 1 FROM reg_crypto_signing_authorizations a WHERE a.basis_type='CryptoSweepAttempt' AND a.basis_id=l.line_id))) THEN
                 RAISE EXCEPTION 'broadcast sweep history is immutable' USING ERRCODE='23514'; END IF;
             RETURN OLD;
         END IF;
-        IF EXISTS(SELECT 1 FROM doc_crypto_sweep_lines l WHERE l.document_id=OLD.id AND
+        IF EXISTS(SELECT 1 FROM doc_crypto_sweeps__lines l WHERE l.document_id=OLD.id AND
             (l.tx_hash<>'' OR EXISTS(SELECT 1 FROM reg_crypto_signing_authorizations a WHERE a.basis_type='CryptoSweepAttempt' AND a.basis_id=l.line_id))) AND
            ((NEW.token_id,NEW.hot_wallet_id,NEW.date) IS DISTINCT FROM (OLD.token_id,OLD.hot_wallet_id,OLD.date) OR NEW.deletion_mark OR NEW._deleted_at IS NOT NULL
             OR NEW.posted_version>1 OR (OLD.posted AND NOT NEW.posted)) THEN
             RAISE EXCEPTION 'sweep basis is frozen after signing starts' USING ERRCODE='23514';
         END IF;
-        NEW.total_amount:=COALESCE((SELECT SUM(amount) FROM doc_crypto_sweep_lines WHERE document_id=NEW.id),NEW.total_amount);
-        NEW.total_fee:=COALESCE((SELECT SUM(network_fee) FROM doc_crypto_sweep_lines WHERE document_id=NEW.id),0);
-        IF EXISTS(SELECT 1 FROM doc_crypto_sweep_lines WHERE document_id=NEW.id AND settlement_status='recorded' AND chain_result<>'SUCCESS') THEN NEW.status:='partial_failed';
-        ELSIF EXISTS(SELECT 1 FROM doc_crypto_sweep_lines WHERE document_id=NEW.id)
-           AND NOT EXISTS(SELECT 1 FROM doc_crypto_sweep_lines WHERE document_id=NEW.id AND settlement_status<>'recorded') THEN NEW.status:='confirmed'; END IF;
+        NEW.total_amount:=COALESCE((SELECT SUM(amount) FROM doc_crypto_sweeps__lines WHERE document_id=NEW.id),NEW.total_amount);
+        NEW.total_fee:=COALESCE((SELECT SUM(network_fee) FROM doc_crypto_sweeps__lines WHERE document_id=NEW.id),0);
+        IF EXISTS(SELECT 1 FROM doc_crypto_sweeps__lines WHERE document_id=NEW.id AND settlement_status='recorded' AND chain_result<>'SUCCESS') THEN NEW.status:='partial_failed';
+        ELSIF EXISTS(SELECT 1 FROM doc_crypto_sweeps__lines WHERE document_id=NEW.id)
+           AND NOT EXISTS(SELECT 1 FROM doc_crypto_sweeps__lines WHERE document_id=NEW.id AND settlement_status<>'recorded') THEN NEW.status:='confirmed'; END IF;
         RETURN NEW;
     END IF;
     IF TG_OP='DELETE' THEN
@@ -3906,7 +3906,7 @@ CREATE TABLE reg_crypto_native_funding_custody_bindings (
 CREATE TABLE reg_crypto_sweep_custody_bindings (
     posting_id UUID PRIMARY KEY REFERENCES reg_crypto_custody_effect_postings(id),
     sweep_id UUID NOT NULL REFERENCES doc_crypto_sweeps(id),
-    line_id UUID NOT NULL UNIQUE REFERENCES doc_crypto_sweep_lines(line_id),
+    line_id UUID NOT NULL UNIQUE REFERENCES doc_crypto_sweeps__lines(line_id),
     period TIMESTAMPTZ NOT NULL,
     actor TEXT NOT NULL DEFAULT 'sweep-settlement' CHECK(actor='sweep-settlement'),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -4082,7 +4082,7 @@ CREATE OR REPLACE VIEW crypto_aml_allocatable_transfers AS
  plan.principal,plan.service_fee,e.id effect_id,spent.line_id source_movement_id,received.line_id destination_movement_id
  FROM reg_crypto_aml_internal_allocations plan
  JOIN reg_crypto_sweep_custody_bindings b ON b.line_id=plan.sweep_attempt_id
- JOIN doc_crypto_sweep_lines line ON line.line_id=b.line_id AND line.document_id=b.sweep_id AND line.wallet_id=plan.source_wallet_id AND line.amount=plan.gross
+ JOIN doc_crypto_sweeps__lines line ON line.line_id=b.line_id AND line.document_id=b.sweep_id AND line.wallet_id=plan.source_wallet_id AND line.amount=plan.gross
  JOIN doc_crypto_sweeps sweep ON sweep.id=b.sweep_id AND sweep.hot_wallet_id=plan.destination_wallet_id AND sweep.token_id=plan.token_id
  JOIN reg_crypto_custody_effect_postings p ON p.id=b.posting_id AND p.recorder_id=sweep.id AND p.recorder_type='CryptoSweep' AND p.recorder_version=1
  JOIN reg_crypto_custody_effect_recognitions sr ON sr.posting_id=p.id AND sr.record_type='expense' AND sr.wallet_id=plan.source_wallet_id AND sr.token_id=plan.token_id
@@ -4346,7 +4346,7 @@ DO $$ DECLARE target TEXT; BEGIN
     END LOOP;
 END; $$;
 
-CREATE CONSTRAINT TRIGGER trg_sweep_line_complete AFTER INSERT OR UPDATE ON doc_crypto_sweep_lines
+CREATE CONSTRAINT TRIGGER trg_sweep_line_complete AFTER INSERT OR UPDATE ON doc_crypto_sweeps__lines
     DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_settlement_complete();
 
 CREATE CONSTRAINT TRIGGER trg_sweep_chain_complete AFTER INSERT ON reg_crypto_chain_settlements
@@ -4357,7 +4357,7 @@ CREATE CONSTRAINT TRIGGER trg_sweep_fee_complete AFTER INSERT OR UPDATE ON reg_c
 
 CREATE TRIGGER trg_sweep_header_basis BEFORE UPDATE OR DELETE ON doc_crypto_sweeps FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_basis_guard();
 
-CREATE TRIGGER trg_sweep_line_basis BEFORE UPDATE OR DELETE ON doc_crypto_sweep_lines FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_basis_guard();
+CREATE TRIGGER trg_sweep_line_basis BEFORE UPDATE OR DELETE ON doc_crypto_sweeps__lines FOR EACH ROW EXECUTE FUNCTION fn_crypto_sweep_basis_guard();
 
 CREATE TRIGGER trg_treasury_custody_binding_immutable BEFORE UPDATE OR DELETE ON reg_crypto_treasury_custody_bindings
     FOR EACH ROW EXECUTE FUNCTION fn_crypto_financial_movement_immutable();
@@ -4765,11 +4765,11 @@ DROP TRIGGER trg_sweep_complete_reg_crypto_merchant_balance_movements ON reg_cry
 DROP TRIGGER trg_sweep_complete_reg_crypto_fee_movements ON reg_crypto_fee_movements;
 DROP TRIGGER trg_sweep_complete_reg_crypto_platform_cost_movements ON reg_crypto_platform_cost_movements;
 DROP TRIGGER trg_sweep_complete_reg_crypto_provider_balance_movements ON reg_crypto_provider_balance_movements;
-DROP TRIGGER trg_sweep_line_complete ON doc_crypto_sweep_lines;
+DROP TRIGGER trg_sweep_line_complete ON doc_crypto_sweeps__lines;
 DROP TRIGGER trg_sweep_chain_complete ON reg_crypto_chain_settlements;
 DROP TRIGGER trg_sweep_fee_complete ON reg_crypto_fee_reservations;
 DROP TRIGGER trg_sweep_header_basis ON doc_crypto_sweeps;
-DROP TRIGGER trg_sweep_line_basis ON doc_crypto_sweep_lines;
+DROP TRIGGER trg_sweep_line_basis ON doc_crypto_sweeps__lines;
 DROP TRIGGER trg_treasury_complete_reg_crypto_balance_movements ON reg_crypto_balance_movements;
 DROP TRIGGER trg_treasury_complete_reg_crypto_merchant_balance_movements ON reg_crypto_merchant_balance_movements;
 DROP TRIGGER trg_treasury_complete_reg_crypto_fee_movements ON reg_crypto_fee_movements;

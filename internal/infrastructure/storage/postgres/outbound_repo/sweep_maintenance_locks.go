@@ -81,7 +81,7 @@ func (r *OutboundRepo) PrepareSweepMaintenance(ctx context.Context) (cryptoapp.S
 		UNION SELECT source_wallet_id FROM reg_crypto_aml_internal_allocations WHERE id=ANY($4::uuid[])
 		UNION SELECT destination_wallet_id FROM reg_crypto_aml_internal_allocations WHERE id=ANY($4::uuid[])
 		UNION SELECT hot_wallet_id FROM doc_crypto_sweeps WHERE id=ANY($5::uuid[])
-		UNION SELECT wallet_id FROM doc_crypto_sweep_lines WHERE document_id=ANY($5::uuid[])
+		UNION SELECT wallet_id FROM doc_crypto_sweeps__lines WHERE document_id=ANY($5::uuid[])
 		UNION SELECT unnest($6::uuid[])))`, batch.Fees, batch.Budgets, batch.Attempts, batch.Allocations, batch.Drafts, batch.Wallets)
 	return batch, err
 }

@@ -69,7 +69,7 @@ func lockExecutionResources(ctx context.Context, kind string, basis id.ID, extra
 			SELECT wallet_id FROM reg_crypto_sweep_attempts WHERE id IN (SELECT id FROM attempts)
 			UNION SELECT hot_wallet_id FROM reg_crypto_sweep_attempts WHERE id IN (SELECT id FROM attempts)
 			UNION SELECT hot_wallet_id FROM doc_crypto_sweeps WHERE id=$2
-			UNION SELECT wallet_id FROM doc_crypto_sweep_lines WHERE document_id=$2
+			UNION SELECT wallet_id FROM doc_crypto_sweeps__lines WHERE document_id=$2
 			UNION SELECT payer_wallet_id FROM reg_crypto_fee_reservations WHERE basis_type='CryptoSweepAttempt' AND basis_id IN (SELECT id FROM attempts)
 			UNION SELECT source_wallet_id FROM doc_crypto_native_fundings WHERE basis_type='CryptoSweepAttempt' AND basis_id IN (SELECT id FROM attempts) AND status NOT IN ('settled','failed')
 			UNION SELECT destination_wallet_id FROM doc_crypto_native_fundings WHERE basis_type='CryptoSweepAttempt' AND basis_id IN (SELECT id FROM attempts) AND status NOT IN ('settled','failed')

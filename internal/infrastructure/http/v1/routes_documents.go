@@ -188,6 +188,7 @@ func registerDocumentMetadata(factory documentMetadataRegistration, reg *metadat
 	def.Capabilities = &caps
 	def.Actions = documentActions(factory)
 	def.TableName = identity.Table
+	metadata.MustBindParts(&def, identity)
 
 	def.SetRefEndpoints(refEndpoints)
 	if rls, ok := factory.(platform.RLSProvider); ok {

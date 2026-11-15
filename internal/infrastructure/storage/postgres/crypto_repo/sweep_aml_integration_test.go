@@ -38,7 +38,7 @@ func TestSweepV2AMLUsesExactLineReceiptBeforeWholeBatchFinishes(t *testing.T) {
 	require.NoError(t, err)
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_sweeps(id,token_id,hot_wallet_id,total_amount,status) VALUES($1,$2,$3,51,'broadcast')`, sweep, request.TokenID, destination)
 	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_sweep_lines(line_id,document_id,line_no,wallet_id,amount,tx_hash,settlement_status)
+	_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_sweeps__lines(line_id,document_id,line_no,wallet_id,amount,tx_hash,settlement_status)
 		VALUES($1,$2,1,$3,50,$4,'unknown'),($5,$2,2,$3,1,'','not_applicable')`, request.SweepAttemptID, sweep, request.SourceWalletID, hash, id.New())
 	require.NoError(t, err)
 	_, err = f.pool.Exec(f.ctx, `UPDATE reg_crypto_sweep_attempts SET sweep_id=$2,status='broadcast' WHERE id=$1`, request.SweepAttemptID, sweep)
@@ -81,7 +81,7 @@ func TestSweepV2AMLUsesExactLineReceiptBeforeWholeBatchFinishes(t *testing.T) {
 		if err := repo.RecordPrincipal(ctx, basis, receipt); err != nil {
 			return err
 		}
-		_, err = q.Exec(ctx, "UPDATE doc_crypto_sweep_lines SET settlement_status='recorded',chain_result='SUCCESS',confirmed=true,network_fee=0,network_fee_token_id=$2 WHERE line_id=$1", request.SweepAttemptID, native)
+		_, err = q.Exec(ctx, "UPDATE doc_crypto_sweeps__lines SET settlement_status='recorded',chain_result='SUCCESS',confirmed=true,network_fee=0,network_fee_token_id=$2 WHERE line_id=$1", request.SweepAttemptID, native)
 		return err
 	})
 	require.NoError(t, err)

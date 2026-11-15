@@ -62,7 +62,7 @@ func (*ExpectedTransferRepo) NudgePending(ctx context.Context, limit int) (int, 
 					}
 					sql = `UPDATE doc_crypto_native_fundings SET next_attempt_at=LEAST(next_attempt_at,now()) WHERE id=$1 AND network_id=$2 AND regexp_replace(lower(tx_hash),'^0x','')=regexp_replace(lower($3),'^0x','') AND status IN ('broadcast','solidified') RETURNING true`
 				case "CryptoSweepAttempt":
-					sql = `UPDATE doc_crypto_sweep_lines l SET settlement_checked_at='epoch' FROM doc_crypto_sweeps d JOIN reg_crypto_sweep_attempts a ON a.sweep_id=d.id WHERE a.id=$1 AND l.line_id=a.id AND l.document_id=d.id AND a.network_id=$2 AND regexp_replace(lower(l.tx_hash),'^0x','')=regexp_replace(lower($3),'^0x','') AND l.settlement_status IN ('unknown','repairing','held') RETURNING true`
+					sql = `UPDATE doc_crypto_sweeps__lines l SET settlement_checked_at='epoch' FROM doc_crypto_sweeps d JOIN reg_crypto_sweep_attempts a ON a.sweep_id=d.id WHERE a.id=$1 AND l.line_id=a.id AND l.document_id=d.id AND a.network_id=$2 AND regexp_replace(lower(l.tx_hash),'^0x','')=regexp_replace(lower($3),'^0x','') AND l.settlement_status IN ('unknown','repairing','held') RETURNING true`
 				case "TreasuryWithdrawal":
 					sql = `UPDATE doc_treasury_withdrawals d SET settlement_checked_at='epoch' FROM cat_tokens t WHERE d.id=$1 AND t.id=d.token_id AND t.network_id=$2 AND regexp_replace(lower(tx_hash),'^0x','')=regexp_replace(lower($3),'^0x','') AND settlement_status IN ('unknown','repairing','held') RETURNING true`
 				case "WithdrawalRequest", "CryptoAMLWithdrawalLine":
@@ -84,7 +84,7 @@ func (*ExpectedTransferRepo) NudgePending(ctx context.Context, limit int) (int, 
 					err = q.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM doc_crypto_native_fundings f WHERE $1='CryptoNativeFunding' AND f.id=$2 AND f.network_id=$3 AND regexp_replace(lower(f.tx_hash),'^0x','')=regexp_replace(lower($4),'^0x','') AND f.status IN ('settled','failed'))
      OR EXISTS(SELECT 1 FROM doc_treasury_withdrawals d JOIN cat_tokens t ON t.id=d.token_id WHERE $1='TreasuryWithdrawal' AND d.id=$2 AND t.network_id=$3 AND regexp_replace(lower(d.tx_hash),'^0x','')=regexp_replace(lower($4),'^0x','') AND d.settlement_status='recorded')
      OR EXISTS(SELECT 1 FROM doc_crypto_withdrawals d JOIN cat_tokens t ON t.id=d.token_id WHERE d.basis_type=$1 AND d.basis_id=$2 AND t.network_id=$3 AND regexp_replace(lower(d.tx_hash),'^0x','')=regexp_replace(lower($4),'^0x','') AND d.settlement_status='recorded')
-     OR EXISTS(SELECT 1 FROM doc_crypto_sweep_lines l JOIN reg_crypto_sweep_attempts a ON a.id=l.line_id WHERE $1='CryptoSweepAttempt' AND a.id=$2 AND a.network_id=$3 AND regexp_replace(lower(l.tx_hash),'^0x','')=regexp_replace(lower($4),'^0x','') AND l.settlement_status='recorded')`, ownerType, owner, network, hash).Scan(&ready)
+     OR EXISTS(SELECT 1 FROM doc_crypto_sweeps__lines l JOIN reg_crypto_sweep_attempts a ON a.id=l.line_id WHERE $1='CryptoSweepAttempt' AND a.id=$2 AND a.network_id=$3 AND regexp_replace(lower(l.tx_hash),'^0x','')=regexp_replace(lower($4),'^0x','') AND l.settlement_status='recorded')`, ownerType, owner, network, hash).Scan(&ready)
 					if err != nil {
 						return err
 					}

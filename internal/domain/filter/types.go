@@ -41,7 +41,7 @@ type Item struct {
 // TablePartInfo describes a child table (table part / tabular section)
 // for generating EXISTS subqueries when filtering by table part columns.
 type TablePartInfo struct {
-	TableName  string               // SQL table name, e.g. "doc_crypto_invoice_lines"
+	TableName  string               // SQL table from entity.Definition.PartTable, e.g. "doc_crypto_sweeps__lines"
 	ForeignKey string               // FK column linking to parent, e.g. "document_id"
 	Fields     map[string]FieldSpec // allowed columns and trusted storage semantics
 }

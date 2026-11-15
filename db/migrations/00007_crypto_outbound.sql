@@ -846,7 +846,7 @@ CREATE INDEX idx_doc_crypto_sweeps_status ON doc_crypto_sweeps (status) WHERE st
 CREATE INDEX idx_doc_crypto_sweeps_date ON doc_crypto_sweeps (date DESC);
 
 -- Sweep lines (one per pool wallet)
-CREATE TABLE doc_crypto_sweep_lines (
+CREATE TABLE doc_crypto_sweeps__lines (
     line_id       UUID PRIMARY KEY,
     document_id   UUID NOT NULL REFERENCES doc_crypto_sweeps(id) ON DELETE CASCADE,
     line_no       INT NOT NULL DEFAULT 0,
@@ -868,15 +868,15 @@ CREATE TABLE doc_crypto_sweep_lines (
     energy_fee NUMERIC(78,0) NOT NULL DEFAULT 0,
     net_usage BIGINT NOT NULL DEFAULT 0,
 
-    CONSTRAINT doc_crypto_sweep_lines_settlement_status_check
+    CONSTRAINT doc_crypto_sweeps__lines_settlement_status_check
         CHECK (settlement_status IN ('unknown','repairing','recorded','not_applicable','held'))
 );
-CREATE INDEX idx_doc_crypto_sweep_lines_doc ON doc_crypto_sweep_lines (document_id);
-CREATE INDEX idx_crypto_sweep_lines_settlement_repair
-    ON doc_crypto_sweep_lines (settlement_status, settlement_lease_expires_at, line_id)
+CREATE INDEX idx_doc_crypto_sweeps__lines_doc ON doc_crypto_sweeps__lines (document_id);
+CREATE INDEX idx_doc_crypto_sweeps__lines_settlement_repair
+    ON doc_crypto_sweeps__lines (settlement_status, settlement_lease_expires_at, line_id)
     WHERE tx_hash <> '' AND settlement_status IN ('unknown','repairing','held');
-CREATE UNIQUE INDEX idx_crypto_sweep_lines_tx_hash_unique
-    ON doc_crypto_sweep_lines (tx_hash)
+CREATE UNIQUE INDEX idx_doc_crypto_sweeps__lines_tx_hash_unique
+    ON doc_crypto_sweeps__lines (tx_hash)
     WHERE tx_hash <> '';
 
 -- WITHDRAWAL ADDRESS WHITELIST (portal self-service)
@@ -2359,7 +2359,7 @@ DROP TABLE reg_crypto_signing_authorizations;
 DROP TABLE reg_crypto_balance_reservations;
 DROP TABLE doc_withdrawal_requests;
 DROP TABLE reg_withdrawal_addresses;
-DROP TABLE doc_crypto_sweep_lines;
+DROP TABLE doc_crypto_sweeps__lines;
 DROP TABLE doc_crypto_sweeps;
 DROP TABLE doc_crypto_withdrawals;
 DROP FUNCTION fn_money_movement_signing_job_basis_guard();

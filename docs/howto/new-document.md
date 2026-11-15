@@ -60,6 +60,8 @@ ID выделяется в Go до INSERT и проведения. `Validate(ctx
 
 Модель предоставляет `EntityDefinition() entity.Definition`. Регистрация встраивает `v1.EntityRegistration[Model]`: identity, таблица и metadata-структура получаются из модели. `Build` собирает инфраструктуру, `HTTPContracts()` связывает конкретные DTO с разрешёнными capabilities. Для списка и детали с разными проекциями используйте `spec.EntityWithDetail[CreateDTO, UpdateDTO, ListDTO, DetailDTO]`. Optional contracts добавляют presentation, RLS/search fields и actions. Это общий способ для встроенных документов и расширений.
 
+Каждая коллекция модели (срез структур) объявляется в Definition. Табличная часть со своей таблицей — `Parts: []entity.Part{{Key: "lines", Field: "lines"}}`: таблица называется `<Table>__<Key>`, `Field` — JSON-имя коллекции. Коллекция без своей таблицы указывается в `DerivedParts`. Без объявления регистрация метаданных отказывает. В SQL репозитория используйте `Definition.MustPartTable(key)`.
+
 `RegisterDocumentRoutes` публикует только разрешённые capabilities и поддержанные handler-интерфейсы. Явно закройте неподдерживаемые Create/Delete/Copy/Post/Unpost. Для отдельного workflow используйте `CustomDocumentRegistration`.
 
 Подключите фабрику через `internal/content/register.go`, permissions и назначения ролей — через seed. Опишите Create/Update/Response DTO, mapper, version и read projection. Стандартные HTTP method/path выводятся из Definition и capabilities. Custom workflow-команды добавляются в bundle той же регистрации. Codegen собирает bundles из общего factory registry; отдельного списка документов в `internal/infrastructure/http/contracts` нет. Обновите generated artifacts:

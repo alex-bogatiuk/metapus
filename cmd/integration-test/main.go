@@ -97,6 +97,7 @@ func run(ctx context.Context) error {
 		"TestTransactionAfterCommitTracksSavepointOutcome",
 		"TestNullableKeysetEveryDirectionAndExactBoundary",
 		"TestFreshSchemaAuthNamesUUIDDefaultsAndTenantBindingExceptions",
+		"TestDeclaredTablePartsMatchSchema",
 		"TestTenantPoolLifecycleConcurrentCreationReferencesAndShutdown",
 	} {
 		if !strings.Contains("\n"+string(output), "\n"+test+"\n") && !strings.Contains("\n"+string(output), "\n"+test+"\r\n") {

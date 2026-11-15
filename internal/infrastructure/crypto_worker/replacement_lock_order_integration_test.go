@@ -31,7 +31,7 @@ func TestReplacementPublicationLocksAdvisoryAndWalletBeforeExecutionRow(t *testi
 					case "CryptoSweepAttempt":
 						sf := newSweepFinalFixture(t, ctx, tm, f, 2)
 						basis, document, source = sf.tasks[0].LineID, sf.doc.ID, sf.tasks[1].SourceWalletID
-						documentType, rowSQL = "CryptoSweep", "SELECT line_id FROM doc_crypto_sweep_lines WHERE line_id=$1 FOR UPDATE"
+						documentType, rowSQL = "CryptoSweep", "SELECT line_id FROM doc_crypto_sweeps__lines WHERE line_id=$1 FOR UPDATE"
 					default:
 						tf := newTreasuryFinalFixture(t, ctx, tm, f)
 						basis, document, source = tf.doc.ID, tf.doc.ID, f.hot

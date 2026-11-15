@@ -76,6 +76,7 @@ func registerCatalogRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *Fa
 		}
 		identity := factory.EntityDefinition()
 		def.TableName = identity.Table
+		metadata.MustBindParts(&def, identity)
 		def.Key = identity.Key
 		def.ReadPermission = identity.Permission() + ":read"
 		def.RoutePrefix = identity.Route

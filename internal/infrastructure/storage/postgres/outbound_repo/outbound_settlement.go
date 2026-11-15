@@ -109,7 +109,7 @@ func (r *OutboundRepo) claimSweepSettlements(ctx context.Context, workerID strin
 	rows, err := q.Query(ctx, `
 		WITH picked AS (
 			SELECT l.line_id
-			FROM doc_crypto_sweep_lines l
+			FROM doc_crypto_sweeps__lines l
 			JOIN doc_crypto_sweeps s ON s.id=l.document_id
 			WHERE l.tx_hash <> '' AND l.settlement_status IN ($4,$5,$6)
 			  AND (l.settlement_lease_expires_at IS NULL OR l.settlement_lease_expires_at < NOW())
@@ -117,7 +117,7 @@ func (r *OutboundRepo) claimSweepSettlements(ctx context.Context, workerID strin
 			ORDER BY COALESCE(l.settlement_checked_at,s.updated_at),l.line_id
 			FOR UPDATE OF l SKIP LOCKED LIMIT $1
 		), claimed AS (
-			UPDATE doc_crypto_sweep_lines l
+			UPDATE doc_crypto_sweeps__lines l
 			SET settlement_status=$7,settlement_claimed_by=$2,
 			    settlement_claimed_at=NOW(),settlement_lease_expires_at=NOW()+($3*interval '1 second'),
 			    settlement_error=''
@@ -220,7 +220,7 @@ func (r *OutboundRepo) updateOutboundSettlementClaim(ctx context.Context, task o
 			settlement_lease_expires_at=NULL,updated_at=NOW() WHERE id=$1 AND settlement_status=$4`,
 			task.DocumentID, status, message, outbound_settlement.StatusRepairing)
 	case settlementSweep:
-		_, err = q.Exec(ctx, `UPDATE doc_crypto_sweep_lines SET settlement_status=$2,settlement_error=$3,
+		_, err = q.Exec(ctx, `UPDATE doc_crypto_sweeps__lines SET settlement_status=$2,settlement_error=$3,
 			settlement_checked_at=NOW(),settlement_claimed_by='',settlement_claimed_at=NULL,
 			settlement_lease_expires_at=NULL WHERE line_id=$1 AND settlement_status=$4`,
 			task.LineID, status, message, outbound_settlement.StatusRepairing)
@@ -358,7 +358,7 @@ func lockOutboundSettlement(ctx context.Context, q providerBalanceQuerier, task 
 	case settlementWithdrawal:
 		err = q.QueryRow(ctx, `SELECT settlement_status FROM doc_crypto_withdrawals WHERE id=$1 FOR UPDATE`, task.DocumentID).Scan(&status)
 	case settlementSweep:
-		err = q.QueryRow(ctx, `SELECT settlement_status FROM doc_crypto_sweep_lines WHERE line_id=$1 FOR UPDATE`, task.LineID).Scan(&status)
+		err = q.QueryRow(ctx, `SELECT settlement_status FROM doc_crypto_sweeps__lines WHERE line_id=$1 FOR UPDATE`, task.LineID).Scan(&status)
 	case settlementTreasury:
 		err = q.QueryRow(ctx, `SELECT settlement_status FROM doc_treasury_withdrawals WHERE id=$1 FOR UPDATE`, task.DocumentID).Scan(&status)
 	default:
@@ -418,7 +418,7 @@ func updateSettledOutbound(ctx context.Context, q providerBalanceQuerier, task o
 			updated_at=NOW(),version=version+1 WHERE id=$1`, task.RequestID, requestStatus, reason)
 		return err
 	case settlementSweep:
-		if _, err := q.Exec(ctx, `UPDATE doc_crypto_sweep_lines SET network_fee_token_id=$2,network_fee=$3,
+		if _, err := q.Exec(ctx, `UPDATE doc_crypto_sweeps__lines SET network_fee_token_id=$2,network_fee=$3,
 			chain_result=$4,energy_used=$5,net_fee=$6,energy_fee=$7,net_usage=$8,
 			settlement_status=$9,settlement_checked_at=NOW(),settlement_error='',
 			settlement_claimed_by='',settlement_claimed_at=NULL,settlement_lease_expires_at=NULL,
@@ -426,10 +426,10 @@ func updateSettledOutbound(ctx context.Context, q providerBalanceQuerier, task o
 			return err
 		}
 		_, err := q.Exec(ctx, `UPDATE doc_crypto_sweeps s SET status=CASE
-			WHEN EXISTS(SELECT 1 FROM doc_crypto_sweep_lines l WHERE l.document_id=s.id AND l.settlement_status=$2 AND l.chain_result<>$3) THEN $4
-			WHEN NOT EXISTS(SELECT 1 FROM doc_crypto_sweep_lines l WHERE l.document_id=s.id AND l.settlement_status<>$2) THEN $5
+			WHEN EXISTS(SELECT 1 FROM doc_crypto_sweeps__lines l WHERE l.document_id=s.id AND l.settlement_status=$2 AND l.chain_result<>$3) THEN $4
+			WHEN NOT EXISTS(SELECT 1 FROM doc_crypto_sweeps__lines l WHERE l.document_id=s.id AND l.settlement_status<>$2) THEN $5
 			ELSE s.status END,
-			total_fee=(SELECT COALESCE(SUM(network_fee),0) FROM doc_crypto_sweep_lines WHERE document_id=s.id),
+			total_fee=(SELECT COALESCE(SUM(network_fee),0) FROM doc_crypto_sweeps__lines WHERE document_id=s.id),
 			updated_at=NOW(),version=version+1 WHERE s.id=$1`,
 			task.DocumentID,
 			outbound_settlement.StatusRecorded,

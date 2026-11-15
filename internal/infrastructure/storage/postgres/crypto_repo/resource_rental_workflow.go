@@ -41,7 +41,7 @@ func (r *ResourceRentalWorkflowRepo) GetResourceRentalMetrics(ctx context.Contex
 	err = q.QueryRow(ctx, `SELECT
 		(SELECT COUNT(*) FROM doc_crypto_withdrawals WHERE settlement_status IN('unknown','repairing','held') AND tx_hash<>'')+
 		(SELECT COUNT(*) FROM doc_treasury_withdrawals WHERE settlement_status IN('unknown','repairing','held') AND tx_hash<>'')+
-		(SELECT COUNT(*) FROM doc_crypto_sweep_lines WHERE settlement_status IN('unknown','repairing','held') AND tx_hash<>'')`).Scan(&value.SettlementRepairBacklog)
+		(SELECT COUNT(*) FROM doc_crypto_sweeps__lines WHERE settlement_status IN('unknown','repairing','held') AND tx_hash<>'')`).Scan(&value.SettlementRepairBacklog)
 	return value, err
 }
 

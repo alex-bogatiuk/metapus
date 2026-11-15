@@ -12,9 +12,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
-const (
-	_cryptoSweepLinesTable = "doc_crypto_sweep_lines"
-)
+var _cryptoSweepLinesTable = crypto_sweep.Definition.MustPartTable(crypto_sweep.LinesPart)
 
 // CryptoSweepRepo implements crypto_sweep.Repository.
 type CryptoSweepRepo struct {
@@ -195,7 +193,7 @@ func (r *CryptoSweepRepo) RetryHeldSweep(ctx context.Context, docID, actorID id.
 		  AND a.status = 'held'
 		  AND a.broadcast_at IS NULL
 		  AND NOT EXISTS (
-		      SELECT 1 FROM doc_crypto_sweep_lines l
+		      SELECT 1 FROM doc_crypto_sweeps__lines l
 		      WHERE l.line_id = a.id AND l.tx_hash <> ''
 		  )
 		  AND NOT EXISTS (

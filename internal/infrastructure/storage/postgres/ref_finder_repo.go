@@ -14,7 +14,6 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/domain"
 	"metapus/internal/metadata"
-	"metapus/pkg/logger"
 )
 
 // RefFinderRepo scans all registered entity tables for references to a given object.
@@ -100,14 +99,14 @@ func (r *RefFinderRepo) FindReferences(ctx context.Context, req domain.FindRefer
 		spec := specs[i]
 		rows, err := br.Query()
 		if err != nil {
-			logger.Warn(ctx, "FindReferences skipped table", "table", spec.tableName, "error", err)
-			continue
+			return nil, fmt.Errorf("find references in %s: %w", spec.tableName, err)
 		}
 
 		for rows.Next() {
 			var sourceID id.ID
 			if err := rows.Scan(&sourceID); err != nil {
-				continue
+				rows.Close()
+				return nil, fmt.Errorf("find references in %s: %w", spec.tableName, err)
 			}
 			ref := domain.FoundReference{
 				SourceEntityName: spec.entityDef.Name,
@@ -119,6 +118,9 @@ func (r *RefFinderRepo) FindReferences(ctx context.Context, req domain.FindRefer
 			resolveReqs = append(resolveReqs, domain.RefResolveRequest{RefType: spec.entityDef.Name, RefID: sourceID})
 		}
 		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("find references in %s: %w", spec.tableName, err)
+		}
 	}
 
 	if err := br.Close(); err != nil {
@@ -171,11 +173,11 @@ func (r *RefFinderRepo) CountReferences(ctx context.Context, req domain.FindRefe
 		}
 	}()
 
-	for range specs {
+	// A failed count must not let a referenced object be deleted.
+	for _, spec := range specs {
 		var count int
-		err := br.QueryRow().Scan(&count)
-		if err != nil {
-			continue // skip errors for individual tables
+		if err := br.QueryRow().Scan(&count); err != nil {
+			return 0, fmt.Errorf("count references in %s: %w", spec.tableName, err)
 		}
 		total += count
 	}
@@ -227,19 +229,24 @@ func (r *RefFinderRepo) CountReferencesBatch(ctx context.Context, targetEntityNa
 		}
 	}()
 
-	for range specs {
+	for _, spec := range specs {
 		rows, err := br.Query()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("count references in %s: %w", spec.tableName, err)
 		}
 		for rows.Next() {
 			var targetID id.ID
 			var count int
-			if err := rows.Scan(&targetID, &count); err == nil {
-				result[targetID] += count
+			if err := rows.Scan(&targetID, &count); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("count references in %s: %w", spec.tableName, err)
 			}
+			result[targetID] += count
 		}
 		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("count references in %s: %w", spec.tableName, err)
+		}
 	}
 
 	return result, nil
@@ -268,22 +275,13 @@ func (r *RefFinderRepo) buildRefSpecs(targetEntityName string) []refFieldSpec {
 			}
 		}
 
-		// Scan table parts — lines tables follow convention: {table}_lines
+		// Only declared SQL parts are scanned; derived collections have no table.
 		for _, tp := range def.TableParts {
-			// Metapus uses singular base name for parts: doc_crypto_invoice_lines vs doc_crypto_invoices_lines
-			var baseName string
-			switch def.Type {
-			case metadata.TypeCatalog:
-				baseName = "cat_" + toSnakeCase(def.Name)
-			case metadata.TypeDocument:
-				baseName = "doc_" + toSnakeCase(def.Name)
-			default:
-				baseName = tableName
+			if tp.SQLTable == "" {
+				continue
 			}
-			linesTable := baseName + "_" + tp.Name
-
 			for _, col := range tp.Columns {
-				if spec := r.fieldToSpec(col, linesTable, tp.Name+".", def, targetEntityName); spec != nil {
+				if spec := r.fieldToSpec(col, tp.SQLTable, tp.Name+".", def, targetEntityName); spec != nil {
 					spec.isTablePart = true
 					specs = append(specs, *spec)
 				}

@@ -66,7 +66,7 @@ func lockSweepDraftResources(ctx context.Context, attempts []id.ID, candidate *c
 		SELECT wallet_id FROM reg_crypto_sweep_attempts WHERE id=ANY($1)
 		UNION SELECT hot_wallet_id FROM reg_crypto_sweep_attempts WHERE id=ANY($1)
 		UNION SELECT hot_wallet_id FROM doc_crypto_sweeps WHERE id=$2
-		UNION SELECT wallet_id FROM doc_crypto_sweep_lines WHERE document_id=$2
+		UNION SELECT wallet_id FROM doc_crypto_sweeps__lines WHERE document_id=$2
 		UNION SELECT unnest($3::uuid[])))`, ordered, document, proposed)
 	return err
 }

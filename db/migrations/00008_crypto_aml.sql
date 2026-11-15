@@ -516,11 +516,11 @@ BEGIN
             SELECT 'payment',p.id,p.merchant_id,p.network_id,p.token_id FROM doc_crypto_payments p JOIN sys_crypto_aml_routing_scopes s ON s.merchant_id=p.merchant_id AND s.network_id=p.network_id AND s.token_id=p.token_id AND s.enabled
             WHERE p.id=basis AND NOT EXISTS(SELECT 1 FROM reg_crypto_aml_inventory_facts WHERE payment_id=p.id) ON CONFLICT DO NOTHING;
     ELSIF basis_kind='CryptoSweep' THEN
-        PERFORM 1 FROM doc_crypto_sweep_lines line JOIN reg_crypto_aml_internal_allocations plan ON plan.sweep_attempt_id=line.line_id AND plan.status='reserved'
+        PERFORM 1 FROM doc_crypto_sweeps__lines line JOIN reg_crypto_aml_internal_allocations plan ON plan.sweep_attempt_id=line.line_id AND plan.status='reserved'
             JOIN sys_crypto_aml_routing_scopes scope ON scope.merchant_id=plan.merchant_id AND scope.network_id=plan.network_id AND scope.token_id=plan.token_id
             WHERE line.document_id=basis ORDER BY scope.merchant_id,scope.network_id,scope.token_id FOR UPDATE OF scope;
         INSERT INTO reg_crypto_aml_inventory_queue(kind,basis_id,merchant_id,network_id,token_id)
-            SELECT 'transfer',plan.id,plan.merchant_id,plan.network_id,plan.token_id FROM doc_crypto_sweep_lines line JOIN reg_crypto_aml_internal_allocations plan ON plan.sweep_attempt_id=line.line_id AND plan.status='reserved'
+            SELECT 'transfer',plan.id,plan.merchant_id,plan.network_id,plan.token_id FROM doc_crypto_sweeps__lines line JOIN reg_crypto_aml_internal_allocations plan ON plan.sweep_attempt_id=line.line_id AND plan.status='reserved'
             WHERE line.document_id=basis ON CONFLICT DO NOTHING;
     END IF;
 END;

@@ -8,6 +8,8 @@ var Definition = entity.Definition{
 	Route: "treasury-withdrawal",
 	Table: "doc_treasury_withdrawals",
 	Kind:  entity.DocumentKind,
+	// Fee sources are loaded from fee reservations and have no table part.
+	DerivedParts: []string{"feeLines"},
 }
 
 func (TreasuryWithdrawal) EntityDefinition() entity.Definition { return Definition }

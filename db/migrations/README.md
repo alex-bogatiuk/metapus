@@ -95,6 +95,16 @@ signing identity. Meta DB имеет собственные tenant-ссылки 
 | Регистр | `reg_` | `reg_crypto_balance_movements` |
 | Системная | `sys_` | `sys_sequences` |
 | Auth/RBAC/RLS/FLS/CEL/MFA | `auth_` | `auth_users`, `auth_security_profiles`, `auth_user_mfa_totp` |
+| Табличная часть | `<шапка>__<ключ>` | `doc_crypto_sweeps__lines` |
+
+Разделитель `__` зарезервирован для физических табличных частей. Имя шапки
+берётся из `entity.Definition.Table`, ключ части задаётся явно в
+`entity.Definition.Parts` и не выводится из имени поля Go или JSON. Слова в
+имени шапки и в ключе разделяются одним `_`, полное имя не длиннее 63 байт.
+Таблица части имеет `document_id UUID NOT NULL` с внешним ключом на `id` шапки.
+Коллекции модели без своей таблицы перечисляются в `DerivedParts`; регистрация
+метаданных отказывает, если коллекция не объявлена ни там, ни там.
+Integration-тест `TestDeclaredTablePartsMatchSchema` сверяет объявления со схемой.
 
 Preferences хранятся в `sys_user_preferences`. Все новые UUID defaults используют
 `gen_random_uuid_v7()` (helper установлен отдельно в tenant и meta DB и работает

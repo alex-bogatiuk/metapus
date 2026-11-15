@@ -26,7 +26,7 @@ func (*SweepCustodyRepo) ExpectedSweepTransfer(ctx context.Context, lineID id.ID
 		Confirmations: receipt.Confirmations, Finality: crypto.FinalitySolidified, Canonicality: crypto.CanonicalityCanonical}
 	var family, standard string
 	err := tm.GetQuerier(ctx).QueryRow(ctx, `SELECT a.network_id,l.tx_hash,l.amount,a.source_address,a.destination_address,COALESCE(t.contract_address,''),n.chain_family,t.token_standard
-		FROM doc_crypto_sweep_lines l JOIN doc_crypto_sweeps s ON s.id=l.document_id
+		FROM doc_crypto_sweeps__lines l JOIN doc_crypto_sweeps s ON s.id=l.document_id
 		JOIN reg_crypto_sweep_attempts a ON a.id=l.line_id AND a.sweep_id=s.id
 		JOIN cat_tokens t ON t.id=s.token_id JOIN cat_blockchain_networks n ON n.id=t.network_id
 		WHERE l.line_id=$1 AND a.network_id=$2 AND l.tx_hash=$3`, lineID, receipt.NetworkID, receipt.TxHash).
@@ -72,7 +72,7 @@ func (*SweepCustodyRepo) Prepare(ctx context.Context, b crypto.SweepAccountingBa
 	var valid bool
 	err := q.QueryRow(ctx, `SELECT l.settlement_status,l.chain_result,
 		 s.token_id=$3 AND s.hot_wallet_id=$4 AND l.wallet_id=$5 AND l.tx_hash=$6 AND l.amount=$7
-		 FROM doc_crypto_sweep_lines l JOIN doc_crypto_sweeps s ON s.id=l.document_id WHERE l.line_id=$1 AND s.id=$2 FOR UPDATE OF l`, b.LineID, b.DocumentID, b.TokenID, b.DestinationWalletID, b.SourceWalletID, b.TxHash, b.Amount).Scan(&status, &result, &valid)
+		 FROM doc_crypto_sweeps__lines l JOIN doc_crypto_sweeps s ON s.id=l.document_id WHERE l.line_id=$1 AND s.id=$2 FOR UPDATE OF l`, b.LineID, b.DocumentID, b.TokenID, b.DestinationWalletID, b.SourceWalletID, b.TxHash, b.Amount).Scan(&status, &result, &valid)
 	if err != nil {
 		return false, err
 	}

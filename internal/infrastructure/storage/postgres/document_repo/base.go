@@ -111,7 +111,7 @@ func (r *BaseDocumentRepo[T]) RegisterRLSDimension(dimensionName, dbColumn strin
 // EXISTS subqueries instead of direct WHERE conditions on the main table.
 //
 // partName is the snake_case name that arrives from frontend (e.g. "lines").
-// childTable is the SQL table name (e.g. "doc_crypto_invoice_lines").
+// childTable comes from entity.Definition.PartTable (e.g. "doc_crypto_sweeps__lines").
 // foreignKey is the FK column in the child table (e.g. "document_id").
 // columns are the DB column names allowed for filtering.
 func (r *BaseDocumentRepo[T]) RegisterTablePart(partName, childTable, foreignKey string, fields map[string]filter.FieldSpec) {

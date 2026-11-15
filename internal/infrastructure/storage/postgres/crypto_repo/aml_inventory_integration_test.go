@@ -79,7 +79,7 @@ func (f amlRoutingFixture) proveAllocatedSweep(t *testing.T, request aml.Interna
 	sweepID := id.New()
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_sweeps(id,token_id,hot_wallet_id,total_amount,posted,posted_version,status) VALUES($1,$2,$3,$4,TRUE,1,'broadcast')`, sweepID, request.TokenID, request.DestinationID, request.Amount)
 	require.NoError(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_sweep_lines(line_id,document_id,wallet_id,amount,tx_hash) VALUES($1,$2,$3,$4,$5)`, request.SweepAttemptID, sweepID, request.SourceWalletID, request.Amount, txHash)
+	_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_crypto_sweeps__lines(line_id,document_id,wallet_id,amount,tx_hash) VALUES($1,$2,$3,$4,$5)`, request.SweepAttemptID, sweepID, request.SourceWalletID, request.Amount, txHash)
 	require.NoError(t, err)
 	_, err = f.pool.Exec(f.ctx, `UPDATE reg_crypto_sweep_attempts SET sweep_id=$2,status='broadcast' WHERE id=$1`, request.SweepAttemptID, sweepID)
 	require.NoError(t, err)
@@ -102,7 +102,7 @@ func (f amlRoutingFixture) settleSweepLine(t *testing.T, sweepID, lineID, source
 	var proofID id.ID
 	var height int64
 	var block string
-	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT l.tx_hash,v.id,v.block_number,v.block_hash FROM doc_crypto_sweep_lines l
+	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT l.tx_hash,v.id,v.block_number,v.block_hash FROM doc_crypto_sweeps__lines l
 		JOIN reg_crypto_transfer_verifications v ON v.tx_hash=l.tx_hash WHERE l.line_id=$1`, lineID).Scan(&txHash, &proofID, &height, &block))
 	native := id.New()
 	_, err := f.pool.Exec(f.ctx, `INSERT INTO cat_tokens(id,code,name,network_id,symbol,token_standard,contract_address,decimal_places) VALUES($1,$1::uuid::text,'Native',$2,'TRX','native','',6)`, native, network)
@@ -127,7 +127,7 @@ func (f amlRoutingFixture) settleSweepLine(t *testing.T, sweepID, lineID, source
 		if err := repo.RecordPrincipal(ctx, basis, receipt); err != nil {
 			return err
 		}
-		_, err = postgres.MustGetTxManager(ctx).GetQuerier(ctx).Exec(ctx, "UPDATE doc_crypto_sweep_lines SET settlement_status='recorded',chain_result='SUCCESS',confirmed=true,network_fee=0,network_fee_token_id=$2 WHERE line_id=$1", lineID, native)
+		_, err = postgres.MustGetTxManager(ctx).GetQuerier(ctx).Exec(ctx, "UPDATE doc_crypto_sweeps__lines SET settlement_status='recorded',chain_result='SUCCESS',confirmed=true,network_fee=0,network_fee_token_id=$2 WHERE line_id=$1", lineID, native)
 		return err
 	}))
 }

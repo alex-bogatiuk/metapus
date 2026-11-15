@@ -114,7 +114,7 @@ func (r *OutboundRepo) RecordSweepLineBroadcast(ctx context.Context, sweepID, li
 	return txm.RunInTransaction(ctx, func(txCtx context.Context) error {
 		q := txm.GetQuerier(txCtx)
 		tag, err := q.Exec(txCtx, `
-			UPDATE doc_crypto_sweep_lines
+			UPDATE doc_crypto_sweeps__lines
 			SET tx_hash=$3,amount=$5,settlement_status=CASE WHEN tx_hash='' THEN $4 ELSE settlement_status END,settlement_error=CASE WHEN tx_hash='' THEN '' ELSE settlement_error END
 			WHERE document_id=$1 AND line_id=$2 AND (tx_hash='' OR (tx_hash=$3 AND amount=$5))
 		`, sweepID, lineID, txHash, outbound_settlement.StatusUnknown, amount)

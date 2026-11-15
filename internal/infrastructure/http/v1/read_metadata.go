@@ -25,6 +25,7 @@ func InspectReadMetadata(factory ReadMetadataRegistration, kind metadata.EntityT
 		def.ReadPermission = identity.Permission() + ":read"
 		def.RoutePrefix = identity.Route
 		def.TableName = identity.Table
+		metadata.MustBindParts(&def, identity)
 	} else if kind == metadata.TypeRegister {
 		def.Key = deriveEntityKey(factory.Permission())
 		def.ReadPermission = factory.Permission() + ":read"

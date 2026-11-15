@@ -91,7 +91,7 @@ func TestExecutionDraftsAreIdempotent(t *testing.T) {
 		var withdrawalCount, sweepCount, sweepLineCount int
 		require.NoError(t, q.QueryRow(txCtx, `SELECT COUNT(*) FROM doc_crypto_withdrawals WHERE basis_type=$2 AND basis_id=$1`, requestID, withdrawal_request.DocumentType).Scan(&withdrawalCount))
 		require.NoError(t, q.QueryRow(txCtx, `SELECT COUNT(*) FROM doc_crypto_sweeps WHERE id=$1`, firstSweep.ID).Scan(&sweepCount))
-		require.NoError(t, q.QueryRow(txCtx, `SELECT COUNT(*) FROM doc_crypto_sweep_lines WHERE document_id=$1`, firstSweep.ID).Scan(&sweepLineCount))
+		require.NoError(t, q.QueryRow(txCtx, `SELECT COUNT(*) FROM doc_crypto_sweeps__lines WHERE document_id=$1`, firstSweep.ID).Scan(&sweepLineCount))
 		require.Equal(t, 1, withdrawalCount)
 		require.Equal(t, 1, sweepCount)
 		require.Equal(t, 1, sweepLineCount)

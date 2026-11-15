@@ -178,9 +178,12 @@ type SearchColumns struct {
 
 // TablePartDef describes a nested collection (lines).
 type TablePartDef struct {
-	Name    string     `json:"name"`
-	Label   string     `json:"label,omitempty"`
-	Columns []FieldDef `json:"columns"`
+	Name string `json:"name"`
+	// SQLTable is the physical table of a declared entity.Part; empty for a
+	// derived collection that has no table of its own.
+	SQLTable string     `json:"-"`
+	Label    string     `json:"label,omitempty"`
+	Columns  []FieldDef `json:"columns"`
 }
 
 // FieldDef describes a field.

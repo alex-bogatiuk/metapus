@@ -127,7 +127,7 @@ func TestExpectedOutboundHandoffPreservesWorkerLeasesAndMoney(t *testing.T) {
 					owner = f.tasks[0].LineID
 					target = owner
 					document = f.doc.ID
-					table = "doc_crypto_sweep_lines"
+					table = "doc_crypto_sweeps__lines"
 					keyColumn = "line_id"
 				}
 				q := tm.GetQuerier(ctx)

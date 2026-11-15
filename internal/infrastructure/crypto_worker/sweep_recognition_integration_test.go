@@ -111,7 +111,7 @@ func newSweepFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxMana
 		return err
 	}))
 	t.Cleanup(func() {
-		_, _ = q.Exec(context.Background(), "UPDATE doc_crypto_sweep_lines SET settlement_lease_expires_at='infinity' WHERE document_id=$1", doc.ID)
+		_, _ = q.Exec(context.Background(), "UPDATE doc_crypto_sweeps__lines SET settlement_lease_expires_at='infinity' WHERE document_id=$1", doc.ID)
 	})
 	return fixture
 }
@@ -196,7 +196,7 @@ func TestSweepV2RevertedLineHasOnlyActualFee(t *testing.T) {
 		require.NoError(t, tm.GetQuerier(ctx).QueryRow(ctx, "SELECT count(*) FROM reg_crypto_balance_movements WHERE recorder_id=$1", f.doc.ID).Scan(&count))
 		require.Zero(t, count)
 		var confirmed bool
-		require.NoError(t, tm.GetQuerier(ctx).QueryRow(ctx, "SELECT confirmed FROM doc_crypto_sweep_lines WHERE line_id=$1", f.tasks[0].LineID).Scan(&confirmed))
+		require.NoError(t, tm.GetQuerier(ctx).QueryRow(ctx, "SELECT confirmed FROM doc_crypto_sweeps__lines WHERE line_id=$1", f.tasks[0].LineID).Scan(&confirmed))
 		require.False(t, confirmed)
 		var fee string
 		require.NoError(t, tm.GetQuerier(ctx).QueryRow(ctx, "SELECT actual_fee_minor::text FROM reg_crypto_fee_reservations WHERE basis_id=$1", f.tasks[0].LineID).Scan(&fee))
@@ -298,12 +298,12 @@ func TestSweepV2FinalBasisAndPrincipalCannotBeRewritten(t *testing.T) {
 		_, err := q.Exec(ctx, "UPDATE doc_crypto_sweeps SET date=date+interval '1 second' WHERE id=$1", f.doc.ID)
 		require.Error(t, err, "signing freezes the basis before broadcast is recorded")
 		f.broadcast(t)
-		_, err = q.Exec(ctx, "UPDATE doc_crypto_sweep_lines SET amount=amount+1 WHERE line_id=$1", f.tasks[0].LineID)
+		_, err = q.Exec(ctx, "UPDATE doc_crypto_sweeps__lines SET amount=amount+1 WHERE line_id=$1", f.tasks[0].LineID)
 		require.Error(t, err)
 		require.NoError(t, f.service(t, 0).Settle(ctx, f.tasks[0]))
 		for _, query := range []string{
 			"UPDATE doc_crypto_sweeps SET posted=false WHERE id=$1",
-			"DELETE FROM doc_crypto_sweep_lines WHERE document_id=$1",
+			"DELETE FROM doc_crypto_sweeps__lines WHERE document_id=$1",
 			`INSERT INTO reg_crypto_balance_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount,reversal_of_line_id)
 			 SELECT gen_random_uuid_v7(),recorder_id,recorder_type,2,now(),CASE record_type WHEN 'receipt' THEN 'expense' ELSE 'receipt' END,wallet_id,token_id,amount,line_id
 			 FROM reg_crypto_balance_movements WHERE recorder_id=$1`,

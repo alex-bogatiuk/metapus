@@ -587,7 +587,7 @@ func (r *OutboundRepo) updateOutboundReplacementHash(ctx context.Context, basisT
 		tag, err = q.Exec(ctx, `UPDATE doc_crypto_withdrawals cw SET tx_hash=$3,updated_at=NOW()
 			FROM doc_withdrawal_requests wr WHERE wr.id=$1 AND wr.withdrawal_id=cw.id AND cw.tx_hash=$2`, basisID, oldHash, newHash)
 	case _sweepAttemptBasisType:
-		tag, err = q.Exec(ctx, `UPDATE doc_crypto_sweep_lines l SET tx_hash=$3 FROM reg_crypto_sweep_attempts a
+		tag, err = q.Exec(ctx, `UPDATE doc_crypto_sweeps__lines l SET tx_hash=$3 FROM reg_crypto_sweep_attempts a
 			WHERE a.id=$1 AND l.line_id=a.id AND l.document_id=a.sweep_id AND l.tx_hash=$2`, basisID, oldHash, newHash)
 	case treasury_withdrawal.DocumentType:
 		tag, err = q.Exec(ctx, `UPDATE doc_treasury_withdrawals SET tx_hash=$3,updated_at=NOW() WHERE id=$1 AND tx_hash=$2`, basisID, oldHash, newHash)
