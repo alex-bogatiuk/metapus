@@ -80,4 +80,4 @@ CLI import вызывает `Registry.ImportRPC`; он определяет пр
 - Frontend-тест добавляет описание вымышленного провайдера и проверяет работу существующей формы/нормализатора без новой ветки по имени.
 - PostgreSQL-тесты проверяют конкуренцию, атомарность, аудит и сохранение attributes на отдельном временном кластере.
 
-Запустить `go test -race` для изменённых пакетов, интеграционные тесты `integration_repo` с `METAPUS_TEST_INTEGRATIONS_DSN`, `go run ./cmd/http-contracts -check`, frontend typecheck/lint и целевые браузерные сценарии. Общие repository checks выполняются перед завершением изменения.
+Запустить `go test -race` для изменённых пакетов, интеграционные тесты `integration_repo` и `crypto_integration_repo` (RPC-импорт и транспорт) с `METAPUS_TEST_INTEGRATIONS_DSN`, `go run ./cmd/http-contracts -check`, frontend typecheck/lint и целевые браузерные сценарии. Общие repository checks выполняются перед завершением изменения.

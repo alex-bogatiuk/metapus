@@ -19,8 +19,8 @@ import (
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
 
 	"github.com/stretchr/testify/require"
 )
@@ -84,7 +84,7 @@ func newTreasuryFixture(t *testing.T, ctx context.Context, tm *postgres.TxManage
 		doc.Status = treasury_withdrawal.StatusApproved
 	}
 	doc.Number = "TW2-" + id.Compact(doc.ID)
-	require.NoError(t, document_repo.NewTreasuryWithdrawalRepo().Create(ctx, doc))
+	require.NoError(t, crypto_document_repo.NewTreasuryWithdrawalRepo().Create(ctx, doc))
 	var source, key, contract, standard string
 	require.NoError(t, q.QueryRow(ctx, `SELECT w.address,w.vault_key_id,t.contract_address,t.token_standard FROM cat_wallets w,cat_tokens t WHERE w.id=$1 AND t.id=$2`, c.hot, c.token).Scan(&source, &key, &contract, &standard))
 	execution := outboundapp.TreasuryTask{WithdrawalID: doc.ID, TokenID: c.token, SourceWalletID: c.hot, NetworkID: c.network, Amount: doc.Amount, DestAddress: destination, TokenStandard: token.TokenStandard(standard), ContractAddress: contract}
@@ -140,7 +140,7 @@ func (f treasuryFinalFixture) executor(t *testing.T) *outboundapp.TreasuryExecut
 	engine := posting.NewEngine(postgres.NewDocLocker())
 	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoFeeVisitor{})
-	return outboundapp.NewTreasuryExecutor(f.registry(t), nil, document_repo.NewTreasuryWithdrawalRepo(), NewOutboundRepo(), nil, engine, nil, nil, NewFeeBudgetManager(), nil, nil, "test", nil, nil, nil)
+	return outboundapp.NewTreasuryExecutor(f.registry(t), nil, crypto_document_repo.NewTreasuryWithdrawalRepo(), NewOutboundRepo(), nil, engine, nil, nil, NewFeeBudgetManager(), nil, nil, "test", nil, nil, nil)
 }
 
 func (f treasuryFinalFixture) broadcast(t *testing.T) {
@@ -390,7 +390,7 @@ func TestTreasuryV2ConcurrentReservationsCannotOversubscribe(t *testing.T) {
 				for i := range documents {
 					documents[i] = treasury_withdrawal.NewTreasuryWithdrawal(c.token, c.hot, f.doc.AddressID, f.doc.DestAddress, types.NewCryptoAmountFromInt64(50))
 					documents[i].Status = treasury_withdrawal.StatusApproved
-					require.NoError(t, document_repo.NewTreasuryWithdrawalRepo().Create(ctx, documents[i]))
+					require.NoError(t, crypto_document_repo.NewTreasuryWithdrawalRepo().Create(ctx, documents[i]))
 				}
 				t.Cleanup(func() {
 					_, _ = tm.GetQuerier(ctx).Exec(context.Background(), "UPDATE doc_treasury_withdrawals SET status='failed' WHERE id=ANY($1) AND posted=false", []id.ID{f.doc.ID, documents[0].ID, documents[1].ID})

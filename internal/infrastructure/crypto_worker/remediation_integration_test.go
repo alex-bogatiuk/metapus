@@ -19,9 +19,9 @@ import (
 	"metapus/internal/domain/documents/crypto_payment"
 	"metapus/internal/domain/registers/crypto_balance"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	platformtelemetry "metapus/internal/platform/telemetry"
 )
 
@@ -182,7 +182,7 @@ func TestRemediationConfirmationClaimReachesNewPayment(t *testing.T) {
 			FROM generate_series(1,201) AS n`,
 			id.New(), f.merchant, f.network, f.token, f.wallet, f.code)
 		require.NoError(t, err)
-		repo := document_repo.NewCryptoPaymentRepo()
+		repo := crypto_document_repo.NewCryptoPaymentRepo()
 		first, err := repo.ClaimForConfirmation(ctx, []crypto_payment.PaymentStatus{crypto_payment.PaymentStatusDetected},
 			"remediation-worker", 200, 30*time.Second)
 		require.NoError(t, err)

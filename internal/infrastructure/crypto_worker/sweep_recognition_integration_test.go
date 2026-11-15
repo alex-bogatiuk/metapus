@@ -20,8 +20,8 @@ import (
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
 
 	"github.com/stretchr/testify/require"
 )
@@ -100,7 +100,7 @@ func newSweepFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxMana
 		require.NoError(t, err)
 	}
 	doc.TotalAmount = types.NewCryptoAmountFromInt64(int64(count * 23))
-	docs := document_repo.NewCryptoSweepRepo()
+	docs := crypto_document_repo.NewCryptoSweepRepo()
 	require.NoError(t, tm.RunInTransaction(ctx, func(txCtx context.Context) error {
 		if err := docs.Create(txCtx, doc); err != nil {
 			return err
@@ -129,7 +129,7 @@ func (f sweepFinalFixture) executor(t *testing.T) *outboundapp.SweepExecutor {
 	t.Helper()
 	engine := posting.NewEngine(postgres.NewDocLocker())
 	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
-	return outboundapp.NewSweepExecutor(outboundapp.SweepConfig{Repository: NewOutboundRepo(), Documents: document_repo.NewCryptoSweepRepo(), Posting: engine, Drivers: f.registry(t, 0)})
+	return outboundapp.NewSweepExecutor(outboundapp.SweepConfig{Repository: NewOutboundRepo(), Documents: crypto_document_repo.NewCryptoSweepRepo(), Posting: engine, Drivers: f.registry(t, 0)})
 }
 
 func (f sweepFinalFixture) registry(t *testing.T, index int) *crypto.ChainDriverRegistry {

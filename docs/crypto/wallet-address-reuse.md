@@ -66,6 +66,6 @@ internal/domain/crypto/watcher_lag_test.go
 internal/domain/crypto/event_processor.go
 internal/infrastructure/storage/postgres/crypto_repo/wallet_allocation.go
 internal/infrastructure/storage/postgres/crypto_repo/chain_event_inbox.go
-internal/infrastructure/storage/postgres/catalog_repo/wallet.go
+internal/infrastructure/storage/postgres/crypto_catalog_repo/wallet.go
 internal/infrastructure/crypto_worker/lease_block.go
 ```

@@ -42,7 +42,7 @@ func (r *OrganizationRepo) GetDefault(ctx context.Context) (*organization.Organi
 		return nil, fmt.Errorf("build query: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	if err := pgxscan.Get(ctx, querier, org, sql, args...); err != nil {
 		if pgxscan.NotFound(err) {
 			return nil, apperror.NewNotFound(organization.Definition.Table, "default")

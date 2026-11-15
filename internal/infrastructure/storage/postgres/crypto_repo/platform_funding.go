@@ -8,15 +8,15 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/domain/documents/crypto_platform_funding"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 )
 
 type PlatformFundingRepo struct {
-	*document_repo.CryptoPlatformFundingRepo
+	*crypto_document_repo.CryptoPlatformFundingRepo
 }
 
 func NewPlatformFundingRepo() *PlatformFundingRepo {
-	return &PlatformFundingRepo{CryptoPlatformFundingRepo: document_repo.NewCryptoPlatformFundingRepo()}
+	return &PlatformFundingRepo{CryptoPlatformFundingRepo: crypto_document_repo.NewCryptoPlatformFundingRepo()}
 }
 
 func (r *PlatformFundingRepo) LockReceiptRemainder(ctx context.Context, receiptID id.ID) (cryptoapp.ReceiptRemainder, error) {

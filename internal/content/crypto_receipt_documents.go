@@ -9,7 +9,7 @@ import (
 	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	v1 "metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/metadata"
 )
 
@@ -44,7 +44,7 @@ func (r *CryptoCustodyReceiptRegistration) HTTPContracts() spec.Bundle {
 }
 func (r *CryptoCustodyReceiptRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
 	service := domain.NewBaseHeaderDocumentService(domain.BaseHeaderDocumentServiceConfig[*crypto_custody_receipt.CryptoCustodyReceipt]{
-		Definition: &crypto_custody_receipt.Definition, Repo: document_repo.NewCryptoCustodyReceiptRepo(),
+		Definition: &crypto_custody_receipt.Definition, Repo: crypto_document_repo.NewCryptoCustodyReceiptRepo(),
 		PostingEngine: deps.PostingEngine, Numerator: deps.Numerator, PolicyEngine: deps.PolicyEngine, NumeratorPrefix: "CCR",
 	})
 	return handlers.NewReadOnlyDocumentHandler(deps.BaseHandler, service, crypto_custody_receipt.Definition.Key,
@@ -80,7 +80,7 @@ func (r *CryptoMerchantCreditRegistration) HTTPContracts() spec.Bundle {
 }
 func (r *CryptoMerchantCreditRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
 	service := domain.NewBaseHeaderDocumentService(domain.BaseHeaderDocumentServiceConfig[*crypto_merchant_credit.CryptoMerchantCredit]{
-		Definition: &crypto_merchant_credit.Definition, Repo: document_repo.NewCryptoMerchantCreditRepo(),
+		Definition: &crypto_merchant_credit.Definition, Repo: crypto_document_repo.NewCryptoMerchantCreditRepo(),
 		PostingEngine: deps.PostingEngine, Numerator: deps.Numerator, PolicyEngine: deps.PolicyEngine, NumeratorPrefix: "CMC",
 	})
 	return handlers.NewReadOnlyDocumentHandler(deps.BaseHandler, service, crypto_merchant_credit.Definition.Key,
@@ -116,7 +116,7 @@ func (r *CryptoPlatformFundingRegistration) HTTPContracts() spec.Bundle {
 }
 func (r *CryptoPlatformFundingRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
 	service := domain.NewBaseHeaderDocumentService(domain.BaseHeaderDocumentServiceConfig[*crypto_platform_funding.CryptoPlatformFunding]{
-		Definition: &crypto_platform_funding.Definition, Repo: document_repo.NewCryptoPlatformFundingRepo(),
+		Definition: &crypto_platform_funding.Definition, Repo: crypto_document_repo.NewCryptoPlatformFundingRepo(),
 		PostingEngine: deps.PostingEngine, Numerator: deps.Numerator, PolicyEngine: deps.PolicyEngine, NumeratorPrefix: "CPF",
 	})
 	return handlers.NewReadOnlyDocumentHandler(deps.BaseHandler, service, crypto_platform_funding.Definition.Key,

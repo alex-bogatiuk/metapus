@@ -66,7 +66,7 @@ internal/domain/documents/crypto_invoice/model.go — бизнес-реквиз�
 internal/domain/documents/crypto_payment/model.go — системная идентичность блокчейн-платежа
 internal/domain/crypto/event_processor.go — createTopUpInvoice
 internal/application/cryptoapp/merchant_invoice_reference.go — команда привязки реквизитов
-internal/infrastructure/storage/postgres/document_repo/crypto_invoice_reference.go — IsPersistentTopUp и запись реквизитов
+internal/infrastructure/storage/postgres/crypto_document_repo/crypto_invoice_reference.go — IsPersistentTopUp и запись реквизитов
 db/migrations/00006_crypto_core.sql — комментарии и уникальные индексы бизнес-реквизитов
 ```
 

@@ -19,7 +19,7 @@ import (
 	"metapus/internal/core/tenant"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_catalog_repo"
 )
 
 func TestIntegrationConcurrentWalletPoolControllersCreateOnlyDeficit(t *testing.T) {
@@ -231,7 +231,7 @@ func TestIntegrationConcurrentWalletPoolControllersCreateOnlyDeficit(t *testing.
 	`, networkID)
 	require.NoError(t, err)
 
-	walletRepo := catalog_repo.NewWalletRepo()
+	walletRepo := crypto_catalog_repo.NewWalletRepo()
 	expiresAt := time.Now().UTC().Add(47 * time.Minute).Truncate(time.Microsecond)
 	type leaseResult struct {
 		walletID    id.ID

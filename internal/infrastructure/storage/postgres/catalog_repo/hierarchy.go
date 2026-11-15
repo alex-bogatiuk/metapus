@@ -16,7 +16,7 @@ func (r *BaseCatalogRepo[T]) LockHierarchy(ctx context.Context) error {
 	if !r.hierarchical {
 		return nil
 	}
-	txm := r.getTxManager(ctx)
+	txm := r.GetTxManager(ctx)
 	transaction := txm.GetTx(ctx)
 	if transaction == nil {
 		return fmt.Errorf("hierarchy lock requires a transaction")
@@ -39,7 +39,7 @@ func (r *BaseCatalogRepo[T]) withHierarchyWrite(ctx context.Context, value T, wr
 	if !r.hierarchical {
 		return write(ctx)
 	}
-	return r.getTxManager(ctx).RunInTransaction(ctx, func(ctx context.Context) error {
+	return r.GetTxManager(ctx).RunInTransaction(ctx, func(ctx context.Context) error {
 		if err := r.LockHierarchy(ctx); err != nil {
 			return err
 		}
@@ -96,7 +96,7 @@ func (r *BaseCatalogRepo[T]) withHierarchyWrite(ctx context.Context, value T, wr
 
 // Rootless cycles would otherwise disappear from a roots-first recursive read.
 func (r *BaseCatalogRepo[T]) validateHierarchyGraph(ctx context.Context) error {
-	rows, err := r.getTxManager(ctx).GetQuerier(ctx).Query(ctx, "SELECT id, parent_id FROM "+r.tableName)
+	rows, err := r.GetTxManager(ctx).GetQuerier(ctx).Query(ctx, "SELECT id, parent_id FROM "+r.tableName)
 	if err != nil {
 		return err
 	}

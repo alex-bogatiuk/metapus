@@ -11,15 +11,15 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 )
 
 type MerchantCreditRepo struct {
-	*document_repo.CryptoMerchantCreditRepo
+	*crypto_document_repo.CryptoMerchantCreditRepo
 }
 
 func NewMerchantCreditRepo() *MerchantCreditRepo {
-	return &MerchantCreditRepo{CryptoMerchantCreditRepo: document_repo.NewCryptoMerchantCreditRepo()}
+	return &MerchantCreditRepo{CryptoMerchantCreditRepo: crypto_document_repo.NewCryptoMerchantCreditRepo()}
 }
 
 // LockReceiptRemainder serializes every attribution of one receipt on its

@@ -15,8 +15,8 @@ import (
 	"metapus/internal/domain/registers/crypto_merchant_balance"
 	"metapus/internal/domain/registers/crypto_receipt_suspense"
 	"metapus/internal/domain/registers/cryptoposting"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
 
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +43,7 @@ func newPaymentAttributionFixture(t *testing.T) paymentAttributionFixture {
 	f.payment.Status = crypto_payment.PaymentStatusConfirming
 	f.payment.Confirmations, f.payment.Canonicality, f.payment.FinalityStatus = 20, "canonical", "solidified"
 	f.payment.FeeFixed = types.MustCryptoAmount("3")
-	require.NoError(t, document_repo.NewCryptoPaymentRepo().Create(f.ctx, f.payment))
+	require.NoError(t, crypto_document_repo.NewCryptoPaymentRepo().Create(f.ctx, f.payment))
 	// The worker assigns the proof and receipt in memory immediately before
 	// posting; the database receives them in the posting callback.
 	f.payment.VerificationID = f.request.Basis.VerificationID
@@ -73,7 +73,7 @@ func (f paymentAttributionFixture) engineWith(merchant, fee bool) *posting.Engin
 func (f paymentAttributionFixture) post(p *crypto_payment.CryptoPayment, e *posting.Engine) error {
 	return e.Post(f.ctx, p, func(ctx context.Context) error {
 		p.Status = crypto_payment.PaymentStatusConfirmed
-		return document_repo.NewCryptoPaymentRepo().Update(ctx, p)
+		return crypto_document_repo.NewCryptoPaymentRepo().Update(ctx, p)
 	})
 }
 
@@ -130,7 +130,7 @@ func TestPaymentAttributionCannotExceedReceiptRemainder(t *testing.T) {
 		f.payment.TxHash, f.payment.EventIndex+1, f.payment.EventKind, f.payment.BlockHash, f.payment.FromAddress, f.payment.Amount, f.payment.BlockNumber, 19)
 	twin.Number, twin.Date, twin.Status = "PA-"+id.Compact(twin.ID), f.payment.Date, crypto_payment.PaymentStatusConfirming
 	twin.Canonicality, twin.FinalityStatus = "canonical", "solidified"
-	require.NoError(t, document_repo.NewCryptoPaymentRepo().Create(f.ctx, twin))
+	require.NoError(t, crypto_document_repo.NewCryptoPaymentRepo().Create(f.ctx, twin))
 	twin.VerificationID, twin.ReceiptID = f.payment.VerificationID, &f.receipt
 	require.Error(t, f.post(twin, f.posting), "one receipt cannot be attributed twice")
 	require.Equal(t, []string{"0", "20", "3"}, f.balances(t))
@@ -151,7 +151,7 @@ func TestPaymentReorgReturnsAttributionAndReinclusionReusesReceipt(t *testing.T)
 
 	f.payment.MarkUnposted()
 	f.payment.Status = crypto_payment.PaymentStatusReorged
-	require.NoError(t, document_repo.NewCryptoPaymentRepo().Update(f.ctx, f.payment))
+	require.NoError(t, crypto_document_repo.NewCryptoPaymentRepo().Update(f.ctx, f.payment))
 	receipt, err := f.service.RecordPaymentReceipt(f.ctx, f.payment, f.request.Event)
 	require.NoError(t, err)
 	require.Equal(t, f.receipt, receipt)

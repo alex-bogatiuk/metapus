@@ -23,9 +23,9 @@ import (
 	"metapus/internal/domain/registers/crypto_provider_balance"
 	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
 )
 
 type providerTestStepUp struct{ denied atomic.Bool }
@@ -65,7 +65,7 @@ func (f providerOpeningFixture) newService(commands command.Repository) *cryptoa
 	engine := posting.NewEngine(nil)
 	engine.AddVisitor(&cryptoposting.CryptoProviderBalanceVisitor{})
 	engine.AddRecorder(cryptoposting.NewCryptoProviderBalanceRecorder(crypto_provider_balance.NewService(crypto_register_repo.NewCryptoProviderBalanceRepo())))
-	return cryptoapp.NewProviderBalanceWorkflowService(document_repo.NewCryptoProviderBalanceOperationRepo(), crypto_repo.NewProviderBalanceWorkflowRepo(),
+	return cryptoapp.NewProviderBalanceWorkflowService(crypto_document_repo.NewCryptoProviderBalanceOperationRepo(), crypto_repo.NewProviderBalanceWorkflowRepo(),
 		fixedNetworkOperationNumerator{}, engine, command.NewExecutor(f.txm, commands), f.stepUp,
 		crypto_repo.NewProviderOpeningAuthorityRepo(), postgres.NewEventLogRepo())
 }
@@ -136,7 +136,7 @@ func TestProviderOpeningConcurrentReplayAndIndependentApproval(t *testing.T) {
 			require.NoError(t, json.Unmarshal(res.Result.Payload, &doc))
 		}
 		require.Equal(t, 1, first)
-		stored, err := document_repo.NewCryptoProviderBalanceOperationRepo().GetByID(f.ctx, doc.ID)
+		stored, err := crypto_document_repo.NewCryptoProviderBalanceOperationRepo().GetByID(f.ctx, doc.ID)
 		require.NoError(t, err)
 		require.Equal(t, f.maker, stored.CreatedBy)
 		_, err = f.service.Approve(f.actor(f.maker), decisionFor(doc))
@@ -212,7 +212,7 @@ func TestProviderOpeningStaleEvidenceAndDecisionRace(t *testing.T) {
 			}
 		}
 		require.Equal(t, 1, success, "exactly one terminal decision wins")
-		stored, err := document_repo.NewCryptoProviderBalanceOperationRepo().GetByID(f.ctx, doc.ID)
+		stored, err := crypto_document_repo.NewCryptoProviderBalanceOperationRepo().GetByID(f.ctx, doc.ID)
 		require.NoError(t, err)
 		movements := 0
 		if stored.Status == "posted" {
@@ -285,7 +285,7 @@ func TestProviderOpeningRollbackAndDatabaseBypassGuards(t *testing.T) {
 			_, err = q.Exec(f.ctx, sql, doc.ID)
 			require.Error(t, err)
 		}
-		stored, err := document_repo.NewCryptoProviderBalanceOperationRepo().GetByID(f.ctx, doc.ID)
+		stored, err := crypto_document_repo.NewCryptoProviderBalanceOperationRepo().GetByID(f.ctx, doc.ID)
 		require.NoError(t, err)
 		require.Error(t, stored.CanPost(f.ctx), "posted financial facts cannot be reposted")
 		require.Equal(t, pbo.StatusPosted, stored.Status)

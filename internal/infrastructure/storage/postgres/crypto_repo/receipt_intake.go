@@ -12,15 +12,15 @@ import (
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_custody_receipt"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 )
 
 type ReceiptIntakeRepo struct {
-	*document_repo.CryptoCustodyReceiptRepo
+	*crypto_document_repo.CryptoCustodyReceiptRepo
 }
 
 func NewReceiptIntakeRepo() *ReceiptIntakeRepo {
-	return &ReceiptIntakeRepo{CryptoCustodyReceiptRepo: document_repo.NewCryptoCustodyReceiptRepo()}
+	return &ReceiptIntakeRepo{CryptoCustodyReceiptRepo: crypto_document_repo.NewCryptoCustodyReceiptRepo()}
 }
 
 func (r *ReceiptIntakeRepo) LockAdmission(ctx context.Context, basis crypto.AccountingTransferBasis) error {

@@ -10,7 +10,7 @@ import (
 	"metapus/internal/core/security"
 	"metapus/internal/domain/documents/crypto_sweep"
 	"metapus/internal/domain/documents/outbound_settlement"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 )
 
 func TestCryptoSweepDetailSeparatesLinkedCostsAndRespectsFieldPolicies(t *testing.T) {
@@ -19,14 +19,14 @@ func TestCryptoSweepDetailSeparatesLinkedCostsAndRespectsFieldPolicies(t *testin
 		LineID: lineID, LineNo: 1, WalletID: walletID, TxHash: "0xabc", Confirmed: true,
 		SettlementStatus: outbound_settlement.StatusRecorded,
 	}}}
-	facts := document_repo.CryptoSweepCardData{
-		Tokens: []document_repo.CryptoSweepCardToken{
+	facts := crypto_document_repo.CryptoSweepCardData{
+		Tokens: []crypto_document_repo.CryptoSweepCardToken{
 			{ID: tokenID, Symbol: "USDT", DecimalPlaces: 6},
 			{ID: feeTokenID, Symbol: "ETH", DecimalPlaces: 18},
 		},
-		Wallets:       []document_repo.CryptoSweepCardWallet{{ID: walletID, Name: "Pool", Address: "0xwallet"}},
-		NetworkFees:   []document_repo.CryptoSweepCardNetworkFee{{LineID: lineID, SettlementID: id.New(), CostTokenID: feeTokenID, Amount: "23620165128000", TxHash: "0xabc"}},
-		ResourceCosts: []document_repo.CryptoSweepCardResourceCost{{LineID: lineID, RentalID: rentalID, RentalNumber: "R-1", Status: "confirmed", CostTokenID: feeTokenID, Amount: "340"}},
+		Wallets:       []crypto_document_repo.CryptoSweepCardWallet{{ID: walletID, Name: "Pool", Address: "0xwallet"}},
+		NetworkFees:   []crypto_document_repo.CryptoSweepCardNetworkFee{{LineID: lineID, SettlementID: id.New(), CostTokenID: feeTokenID, Amount: "23620165128000", TxHash: "0xabc"}},
+		ResourceCosts: []crypto_document_repo.CryptoSweepCardResourceCost{{LineID: lineID, RentalID: rentalID, RentalNumber: "R-1", Status: "confirmed", CostTokenID: feeTokenID, Amount: "340"}},
 	}
 	result := FromCryptoSweepDetail(context.Background(), doc, &CryptoSweepResponse{}, facts)
 	require.Equal(t, "USDT", result.Asset.Symbol)
@@ -62,8 +62,8 @@ func TestCryptoSweepDetailExposesPreBroadcastAttemptErrorAndRetryability(t *test
 			SettlementStatus: outbound_settlement.StatusUnknown,
 		}},
 	}
-	facts := document_repo.CryptoSweepCardData{
-		Attempts: []document_repo.CryptoSweepCardAttempt{{
+	facts := crypto_document_repo.CryptoSweepCardData{
+		Attempts: []crypto_document_repo.CryptoSweepCardAttempt{{
 			LineID:       lineID,
 			Status:       "held",
 			ErrorMessage: "estimated network fee exceeds per-transaction policy cap",

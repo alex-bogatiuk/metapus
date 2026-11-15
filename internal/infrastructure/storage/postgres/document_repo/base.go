@@ -144,12 +144,18 @@ func (r *BaseDocumentRepo[T]) RegisterReferenceField(fieldName, refTableName, fo
 	}
 }
 
-// getTxManager retrieves TxManager from context.
-func (r *BaseDocumentRepo[T]) getTxManager(ctx context.Context) *postgres.TxManager {
+// GetTxManager returns the TxManager from context (exported for concrete repos).
+func (r *BaseDocumentRepo[T]) GetTxManager(ctx context.Context) *postgres.TxManager {
 	return postgres.MustGetTxManager(ctx)
 }
 
 // Builder returns a new squirrel builder.
+// SelectColumns returns the document columns in table order, for concrete
+// repositories that build their own queries.
+func (r *BaseDocumentRepo[T]) SelectColumns() []string {
+	return r.selectCols
+}
+
 func (r *BaseDocumentRepo[T]) Builder() squirrel.StatementBuilderType {
 	return squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 }
@@ -177,7 +183,7 @@ func (r *BaseDocumentRepo[T]) Create(ctx context.Context, entity T) error {
 		return fmt.Errorf("build insert: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	_, err = querier.Exec(ctx, sql, args...)
 	if err != nil {
 		if postgres.IsForeignKeyViolation(err) {
@@ -236,7 +242,7 @@ func (r *BaseDocumentRepo[T]) Update(ctx context.Context, entity T) error {
 		return fmt.Errorf("build update: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 
 	var newVersion int
 	var updatedAt time.Time
@@ -279,7 +285,7 @@ func (r *BaseDocumentRepo[T]) Delete(ctx context.Context, entityID id.ID) error 
 		return fmt.Errorf("build delete: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	result, err := querier.Exec(ctx, sql, args...)
 	if err != nil {
 		return fmt.Errorf("delete %s: %w", r.tableName, err)
@@ -310,7 +316,7 @@ func (r *BaseDocumentRepo[T]) GetByID(ctx context.Context, entityID id.ID) (T, e
 		return entity, fmt.Errorf("build query: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	if err := pgxscan.Get(ctx, querier, entity, sql, args...); err != nil {
 		if pgxscan.NotFound(err) {
 			return entity, apperror.NewNotFound(r.tableName, entityID.String())
@@ -333,7 +339,7 @@ func (r *BaseDocumentRepo[T]) GetByIDForUpdate(ctx context.Context, entityID id.
 		return entity, fmt.Errorf("build query: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	if err := pgxscan.Get(ctx, querier, entity, sql, args...); err != nil {
 		if pgxscan.NotFound(err) {
 			return entity, apperror.NewNotFound(r.tableName, entityID.String())
@@ -355,7 +361,7 @@ func (r *BaseDocumentRepo[T]) GetByNumber(ctx context.Context, number string) (T
 		return entity, fmt.Errorf("build query: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	if err := pgxscan.Get(ctx, querier, entity, sql, args...); err != nil {
 		if pgxscan.NotFound(err) {
 			return entity, apperror.NewNotFound(r.tableName, number)
@@ -455,7 +461,7 @@ func (r *BaseDocumentRepo[T]) List(ctx context.Context, f domain.ListFilter) (do
 		return result, err
 	}
 
-	spec, err = postgres.ResolveSortSpec(ctx, r.getTxManager(ctx).GetQuerier(ctx), r.tableName, spec)
+	spec, err = postgres.ResolveSortSpec(ctx, r.GetTxManager(ctx).GetQuerier(ctx), r.tableName, spec)
 	if err != nil {
 		return result, err
 	}
@@ -466,7 +472,7 @@ func (r *BaseDocumentRepo[T]) List(ctx context.Context, f domain.ListFilter) (do
 		return result, err
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	limit := f.Limit
 	if limit <= 0 {
 		limit = 50
@@ -554,7 +560,7 @@ func (r *BaseDocumentRepo[T]) listForward(ctx context.Context, spec keyset.SortS
 		return result, fmt.Errorf("build forward query: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	var pageCursors map[id.ID]string
 	result.Items, pageCursors, err = postgres.ScanCursorPage(ctx, querier, r.newFn, spec, sql, args...)
 	if err != nil {
@@ -596,7 +602,7 @@ func (r *BaseDocumentRepo[T]) listBackward(ctx context.Context, spec keyset.Sort
 		return result, fmt.Errorf("build backward query: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	var pageCursors map[id.ID]string
 	result.Items, pageCursors, err = postgres.ScanCursorPage(ctx, querier, r.newFn, spec, sql, args...)
 	if err != nil {
@@ -629,7 +635,7 @@ func (r *BaseDocumentRepo[T]) listAround(ctx context.Context, f domain.ListFilte
 		return result, apperror.NewValidation("invalid around target ID")
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	var sortValue *string
 	lookup := r.Builder().Select(spec.Field + "::text").From(r.tableName).Where(squirrel.Eq{"id": targetID})
 	for _, condition := range conditions {
@@ -747,7 +753,7 @@ func (r *BaseDocumentRepo[T]) ListIDs(ctx context.Context, f domain.ListFilter, 
 		return nil, fmt.Errorf("build list_ids query: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	rows, err := querier.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list_ids query: %w", err)

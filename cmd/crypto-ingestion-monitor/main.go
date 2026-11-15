@@ -15,6 +15,7 @@ import (
 	"metapus/internal/infrastructure/crypto_worker"
 	"metapus/internal/infrastructure/ingestionmonitor"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/tenantdb"
 	"metapus/internal/platform/secretfile"
 	"metapus/internal/platform/telemetry"
@@ -108,7 +109,7 @@ func run() error {
 	if address == "" {
 		address = ":8092"
 	}
-	runtime := ingestionmonitor.Runtime{Observer: observer, History: history, Deliver: postgres.DeliverIngestionAlert, Policy: policy, Interval: interval, SampleTimeout: sampleTimeout, Address: address, Metrics: crypto_worker.NewIngestionMonitorMetrics()}
+	runtime := ingestionmonitor.Runtime{Observer: observer, History: history, Deliver: crypto_repo.DeliverIngestionAlert, Policy: policy, Interval: interval, SampleTimeout: sampleTimeout, Address: address, Metrics: crypto_worker.NewIngestionMonitorMetrics()}
 	logger.Info(ctx, "ingestion monitor started", "version", Version, "build_time", BuildTime, "interval_seconds", interval.Seconds())
 	return runtime.Run(ctx)
 }

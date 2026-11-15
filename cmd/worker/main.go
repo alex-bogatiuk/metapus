@@ -134,7 +134,7 @@ func main() {
 	}
 
 	// Start multi-tenant worker
-	worker := NewMultiTenantWorker(manager, log, webhookSecrets, crypto_worker.NewInvoiceCheckoutHandler(postgres.NewCheckoutReferenceRepo(metaPool)))
+	worker := NewMultiTenantWorker(manager, log, webhookSecrets, crypto_worker.NewInvoiceCheckoutHandler(crypto_repo.NewCheckoutReferenceRepo(metaPool)))
 
 	var wg sync.WaitGroup
 	wg.Go(func() {

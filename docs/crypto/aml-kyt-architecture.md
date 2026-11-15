@@ -348,7 +348,7 @@ Risk change и одноразовый signing/dispatch permit использую
 | Компонент | Необходимое изменение |
 |---|---|
 | `cat_wallets`, wallet model/validation | Неизменяемый custody owner, independent risk segment, batch, revisions; owners у merchant collectors/resource wallets |
-| `catalog_repo/wallet.go`, pool/refill | Sticky owner при transient/persistent allocation; запрет межмерчантского переиспользования, merchant-scoped refill/limits |
+| `crypto_catalog_repo/wallet.go`, pool/refill | Sticky owner при transient/persistent allocation; запрет межмерчантского переиспользования, merchant-scoped refill/limits |
 | `outbound_repo_sweeps.go`, sweep executor | Группировать по owner/network/token/class/batch; gate, capacity reserve и physical links |
 | `outbound_repo_withdrawals.go`, withdrawal/treasury consumers | `FindHotWallet`/`ReserveHotWalletForWithdrawal` получают merchant/class/batch scope; существующие attempts/reserves проходят те же проверки |
 | `jit_funding.go`, resource preparers | Owner-specific sources и parent intent; технические ресурсы не обходят изоляцию |

@@ -9,7 +9,7 @@ import (
 	"metapus/internal/domain/documents/crypto_sweep"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 )
 
 // CryptoSweep is system-only — no Create/Update DTOs needed.
@@ -124,7 +124,7 @@ type CryptoSweepDetailResponse struct {
 	ResourceCosts []CryptoSweepResourceCostResponse `json:"resourceCosts"`
 }
 
-func FromCryptoSweepDetail(ctx context.Context, doc *crypto_sweep.CryptoSweep, summary *CryptoSweepResponse, data document_repo.CryptoSweepCardData) CryptoSweepDetailResponse {
+func FromCryptoSweepDetail(ctx context.Context, doc *crypto_sweep.CryptoSweep, summary *CryptoSweepResponse, data crypto_document_repo.CryptoSweepCardData) CryptoSweepDetailResponse {
 	result := CryptoSweepDetailResponse{
 		CryptoSweepResponse: summary,
 		Lines:               []CryptoSweepLineResponse{}, NetworkFees: []CryptoSweepNetworkFeeResponse{},
@@ -168,7 +168,7 @@ func FromCryptoSweepDetail(ctx context.Context, doc *crypto_sweep.CryptoSweep, s
 	if !allowSource("lines") {
 		return result
 	}
-	attempts := make(map[id.ID]document_repo.CryptoSweepCardAttempt, len(data.Attempts))
+	attempts := make(map[id.ID]crypto_document_repo.CryptoSweepCardAttempt, len(data.Attempts))
 	for _, attempt := range data.Attempts {
 		attempts[attempt.LineID] = attempt
 		if doc.Status == crypto_sweep.SweepStatusHeld && !doc.Posted && attempt.Retryable {

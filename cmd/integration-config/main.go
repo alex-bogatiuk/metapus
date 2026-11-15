@@ -17,7 +17,7 @@ import (
 	"metapus/internal/core/tenant"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/integration_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_integration_repo"
 	"metapus/internal/platform/secretfile"
 )
 
@@ -52,7 +52,7 @@ func run() error {
 			return errors.New("unable to load chains configuration; check file, secret mounts and topology")
 		}
 	}
-	bindings := map[string]integration_repo.ImportBinding{}
+	bindings := map[string]crypto_integration_repo.ImportBinding{}
 	if *mapping != "" {
 		info, e := os.Stat(*mapping)
 		if e != nil || info.Size() > 4<<20 {
@@ -63,10 +63,10 @@ func run() error {
 			return errors.New("invalid non-secret account mapping")
 		}
 	}
-	var report integration_repo.ImportReport
+	var report crypto_integration_repo.ImportReport
 	err = tm.RunInTransaction(ctx, func(ctx context.Context) error {
 		var e error
-		report, e = integration_repo.ImportConfiguration(ctx, cfg, bindings, *activate)
+		report, e = crypto_integration_repo.ImportConfiguration(ctx, cfg, bindings, *activate)
 		if e != nil {
 			return e
 		}
@@ -79,8 +79,8 @@ func run() error {
 		return err
 	}
 	return json.NewEncoder(os.Stdout).Encode(struct {
-		Apply  bool                          `json:"apply"`
-		Report integration_repo.ImportReport `json:"report"`
+		Apply  bool                                 `json:"apply"`
+		Report crypto_integration_repo.ImportReport `json:"report"`
 	}{*apply, report})
 }
 func main() {

@@ -28,10 +28,10 @@ import (
 	"metapus/internal/infrastructure/http/cryptohttp/cryptohandlers"
 	v1 "metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_catalog_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/money_movement_repo"
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
@@ -146,7 +146,7 @@ func (r *CryptoNetworkOperationRegistration) DocumentCapabilities() metadata.Doc
 	return metadata.DocumentCapabilities{List: true, Read: true, ExportList: true, Movements: true, RelatedDocuments: true}
 }
 func (r *CryptoNetworkOperationRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
-	service := crypto_network_operation.NewService(document_repo.NewCryptoNetworkOperationRepo(), deps.PostingEngine, deps.Numerator, nil)
+	service := crypto_network_operation.NewService(crypto_document_repo.NewCryptoNetworkOperationRepo(), deps.PostingEngine, deps.Numerator, nil)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	return cryptohandlers.NewCryptoNetworkOperationHandler(deps.BaseHandler, service,
 		deps.MovementProviders, deps.MovementRefResolver, deps.SettingsRepo, deps.RelatedDocFinder)
@@ -181,7 +181,7 @@ func (r *CryptoProviderBalanceOperationRegistration) DocumentActions() []metadat
 	}
 }
 func (r *CryptoProviderBalanceOperationRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
-	repo := document_repo.NewCryptoProviderBalanceOperationRepo()
+	repo := crypto_document_repo.NewCryptoProviderBalanceOperationRepo()
 	service := crypto_provider_balance_operation.NewService(repo, deps.PostingEngine, deps.Numerator, nil)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	workflow := cryptoapp.NewProviderBalanceWorkflowService(repo, crypto_repo.NewProviderBalanceWorkflowRepo(), deps.Numerator, deps.PostingEngine,
@@ -218,7 +218,7 @@ func (r *CryptoResourceRentalRegistration) DocumentActions() []metadata.EntityAc
 	}
 }
 func (r *CryptoResourceRentalRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
-	repo := document_repo.NewCryptoResourceRentalRepo()
+	repo := crypto_document_repo.NewCryptoResourceRentalRepo()
 	service := crypto_resource_rental.NewService(repo, deps.PostingEngine, deps.Numerator, nil)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	workflow := cryptoapp.NewResourceRentalWorkflowService(crypto_repo.NewResourceRentalWorkflowRepo())
@@ -249,13 +249,13 @@ func (r *CryptoInvoiceRegistration) RLSDimensions() map[string]string {
 }
 
 func (r *CryptoInvoiceRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
-	repo := document_repo.NewCryptoInvoiceRepo()
+	repo := crypto_document_repo.NewCryptoInvoiceRepo()
 	service := crypto_invoice.NewService(repo, deps.PostingEngine, deps.Numerator, nil)
 	service.SetPolicyEngine(deps.PolicyEngine)
 
 	// Pre-allocate repos outside hook closure (single allocation, safe for concurrent use).
-	tokenRepo := catalog_repo.NewTokenRepo()
-	walletRepo := catalog_repo.NewWalletRepo()
+	tokenRepo := crypto_catalog_repo.NewTokenRepo()
+	walletRepo := crypto_catalog_repo.NewWalletRepo()
 	walletSvc := wallet.NewService(walletRepo, numerator.Noop())
 	allocRepo := crypto_repo.NewWalletAllocationRepo()
 
@@ -329,7 +329,7 @@ func (r *CryptoPaymentRegistration) DocumentCapabilities() metadata.DocumentCapa
 }
 
 func (r *CryptoPaymentRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
-	repo := document_repo.NewCryptoPaymentRepo()
+	repo := crypto_document_repo.NewCryptoPaymentRepo()
 	service := crypto_payment.NewService(repo, deps.PostingEngine, deps.Numerator, nil)
 	service.SetPolicyEngine(deps.PolicyEngine)
 
@@ -376,7 +376,7 @@ func (r *CryptoWithdrawalRegistration) DocumentCapabilities() metadata.DocumentC
 }
 
 func (r *CryptoWithdrawalRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
-	repo := document_repo.NewCryptoWithdrawalRepo()
+	repo := crypto_document_repo.NewCryptoWithdrawalRepo()
 	service := crypto_withdrawal.NewService(repo, deps.PostingEngine, deps.Numerator, nil)
 	service.SetPolicyEngine(deps.PolicyEngine)
 
@@ -429,7 +429,7 @@ func (r *CryptoSweepRegistration) DocumentActions() []metadata.EntityActionDef {
 }
 
 func (r *CryptoSweepRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
-	repo := document_repo.NewCryptoSweepRepo()
+	repo := crypto_document_repo.NewCryptoSweepRepo()
 	service := crypto_sweep.NewService(repo, deps.PostingEngine, deps.Numerator, nil)
 	service.SetPolicyEngine(deps.PolicyEngine)
 
@@ -566,7 +566,7 @@ func (r *TreasuryWithdrawalRegistration) DocumentActions() []metadata.EntityActi
 }
 
 func (r *TreasuryWithdrawalRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
-	repo := document_repo.NewTreasuryWithdrawalRepo()
+	repo := crypto_document_repo.NewTreasuryWithdrawalRepo()
 	service := treasury_withdrawal.NewService(repo, deps.PostingEngine, deps.Numerator, nil)
 	service.SetPolicyEngine(deps.PolicyEngine)
 

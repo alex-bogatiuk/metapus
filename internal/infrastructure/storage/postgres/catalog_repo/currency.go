@@ -32,7 +32,7 @@ func NewCurrencyRepo() *CurrencyRepo {
 
 // FindByISOCode retrieves currency by ISO code.
 func (r *CurrencyRepo) FindByISOCode(ctx context.Context, isoCode string) (*currency.Currency, error) {
-	q := r.baseSelect(ctx).
+	q := r.BaseSelect(ctx).
 		Where(squirrel.Eq{"iso_code": isoCode}).
 		Where(squirrel.Eq{"deletion_mark": false}).
 		Limit(1)
@@ -43,7 +43,7 @@ func (r *CurrencyRepo) FindByISOCode(ctx context.Context, isoCode string) (*curr
 	}
 
 	var c currency.Currency
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	if err := pgxscan.Get(ctx, querier, &c, sql, args...); err != nil {
 		if pgxscan.NotFound(err) {
 			return nil, apperror.NewNotFound("currency", isoCode)
@@ -68,7 +68,7 @@ func (r *CurrencyRepo) UpdateExchangeRate(ctx context.Context, currencyID id.ID,
 		return fmt.Errorf("build update: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	_, err = querier.Exec(ctx, sql, args...)
 	if err != nil {
 		return fmt.Errorf("update exchange rate: %w", err)
@@ -88,7 +88,7 @@ func (r *CurrencyRepo) ClearBase(ctx context.Context) error {
 		return fmt.Errorf("build query: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	_, err = querier.Exec(ctx, sql, args...)
 	if err != nil {
 		return fmt.Errorf("clear base: %w", err)
@@ -99,7 +99,7 @@ func (r *CurrencyRepo) ClearBase(ctx context.Context) error {
 
 // GetBaseCurrency retrieves the base (accounting) currency.
 func (r *CurrencyRepo) GetBaseCurrency(ctx context.Context) (*currency.Currency, error) {
-	q := r.baseSelect(ctx).
+	q := r.BaseSelect(ctx).
 		Where(squirrel.Eq{"is_base": true, "deletion_mark": false}).
 		Limit(1)
 
@@ -109,7 +109,7 @@ func (r *CurrencyRepo) GetBaseCurrency(ctx context.Context) (*currency.Currency,
 	}
 
 	c := &currency.Currency{}
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	if err := pgxscan.Get(ctx, querier, c, sql, args...); err != nil {
 		if pgxscan.NotFound(err) {
 			return nil, apperror.NewNotFound("currency", "base")

@@ -29,6 +29,7 @@ import (
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_catalog_repo"
 	"metapus/internal/infrastructure/tenantdb"
 	"metapus/internal/metadata"
 	"metapus/internal/platform"
@@ -383,7 +384,7 @@ func (r *BlockchainNetworkRegistration) EntityPresentation() metadata.Presentati
 	}
 }
 func (r *BlockchainNetworkRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
-	repo := catalog_repo.NewBlockchainNetworkRepo()
+	repo := crypto_catalog_repo.NewBlockchainNetworkRepo()
 	service := blockchain_network.NewService(repo, deps.Numerator)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	domain.NewEventLogCatalogService(service.CatalogService, blockchain_network.Definition.Key, deps.EventWriter)
@@ -426,7 +427,7 @@ func (r *TokenRegistration) EntityPresentation() metadata.Presentation {
 	}
 }
 func (r *TokenRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
-	repo := catalog_repo.NewTokenRepo()
+	repo := crypto_catalog_repo.NewTokenRepo()
 	service := token.NewService(repo, deps.Numerator)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	domain.NewEventLogCatalogService(service.CatalogService, token.Definition.Key, deps.EventWriter)
@@ -473,7 +474,7 @@ func (r *MerchantRegistration) EntityPresentation() metadata.Presentation {
 	}
 }
 func (r *MerchantRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
-	repo := catalog_repo.NewMerchantRepo()
+	repo := crypto_catalog_repo.NewMerchantRepo()
 	service := merchant.NewService(repo, deps.Numerator)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	domain.NewEventLogCatalogService(service.CatalogService, merchant.Definition.Key, deps.EventWriter)
@@ -512,7 +513,7 @@ func (r *WalletRegistration) EntityPresentation() metadata.Presentation {
 	}
 }
 func (r *WalletRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
-	repo := catalog_repo.NewWalletRepo()
+	repo := crypto_catalog_repo.NewWalletRepo()
 	service := wallet.NewService(repo, deps.Numerator)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	domain.NewEventLogCatalogService(service.CatalogService, wallet.Definition.Key, deps.EventWriter)
@@ -570,7 +571,7 @@ func (r *CryptoProviderAccountRegistration) EntityPresentation() metadata.Presen
 	return metadata.Presentation{Singular: "Аккаунт крипто-провайдера", Plural: "Аккаунты крипто-провайдеров", NewLabel: "Новый аккаунт", Genitive: "аккаунта крипто-провайдера"}
 }
 func (r *CryptoProviderAccountRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
-	repo := catalog_repo.NewCryptoProviderAccountRepo()
+	repo := crypto_catalog_repo.NewCryptoProviderAccountRepo()
 	service := crypto_provider_account.NewService(repo, deps.Numerator)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	domain.NewEventLogCatalogService(service.CatalogService, crypto_provider_account.Definition.Key, deps.EventWriter)

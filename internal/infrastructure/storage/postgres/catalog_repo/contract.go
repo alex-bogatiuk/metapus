@@ -28,7 +28,7 @@ func NewContractRepo() *ContractRepo {
 
 // FindByCounterparty retrieves contracts for a counterparty.
 func (r *ContractRepo) FindByCounterparty(ctx context.Context, counterpartyID id.ID) ([]*contract.Contract, error) {
-	q := r.baseSelect(ctx).
+	q := r.BaseSelect(ctx).
 		Where(squirrel.Eq{"counterparty_id": counterpartyID}).
 		Where(squirrel.Eq{"deletion_mark": false}).
 		OrderBy("name ASC")
@@ -39,7 +39,7 @@ func (r *ContractRepo) FindByCounterparty(ctx context.Context, counterpartyID id
 	}
 
 	var contracts []*contract.Contract
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	if err := pgxscan.Select(ctx, querier, &contracts, sql, args...); err != nil {
 		return nil, fmt.Errorf("find by counterparty: %w", err)
 	}

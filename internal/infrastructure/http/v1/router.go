@@ -87,9 +87,9 @@ type RouterConfig struct {
 	// RouteModules mount configuration routes after the platform routes.
 	RouteModules []RouteModule
 
-	// IntegrationProber tests provider connections from the integrations admin
-	// API. Nil disables connection tests.
-	IntegrationProber integrationapp.ConnectionProber
+	// IntegrationConnectionTests tests provider connections from the
+	// integrations admin API. Nil disables connection tests.
+	IntegrationConnectionTests *integrationapp.ConnectionTestService
 
 	// CurrencyResolver resolves document currency (optional).
 	// If nil, the default 1C-style chain resolver is created (Document → Contract → Org → System).

@@ -19,8 +19,8 @@ import (
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo/receipttest"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
 )
 
 func TestInvoiceExpiryAgainstFullPaymentPreservesCommittedWinnerAndCredit(t *testing.T) {
@@ -72,8 +72,8 @@ func TestInvoiceExpiryAgainstFullPaymentPreservesCommittedWinnerAndCredit(t *tes
 	receiptID, _ := receipttest.Record(t, ctx, receipttest.Deps{Proofs: NewBlockIngestionRepo(), Repo: NewReceiptIntakeRepo(), Guard: NewBlockIngestionRepo()},
 		receipttest.Transfer{WalletID: walletID, TokenID: tokenID, TxHash: txHash, Amount: "100", BlockNumber: 100, BlockHash: strings.Repeat("e", 64)})
 
-	invoiceRepo := document_repo.NewCryptoInvoiceRepo()
-	paymentRepo := document_repo.NewCryptoPaymentRepo()
+	invoiceRepo := crypto_document_repo.NewCryptoInvoiceRepo()
+	paymentRepo := crypto_document_repo.NewCryptoPaymentRepo()
 	lifecycle := crypto.NewInvoiceLifecycleService(invoiceRepo, paymentRepo, nil, txm, func() time.Time { return now })
 
 	start := make(chan struct{})
@@ -199,8 +199,8 @@ func TestInvoiceExpiryClosesTransientWalletAllocation(t *testing.T) {
 		invoiceID, now, publicRef, "EXPIRY-CLOSE-"+suffix, allocationID)
 	require.NoError(t, err)
 
-	invoiceRepo := document_repo.NewCryptoInvoiceRepo()
-	lifecycle := crypto.NewInvoiceLifecycleService(invoiceRepo, document_repo.NewCryptoPaymentRepo(), nil, txm, func() time.Time { return now })
+	invoiceRepo := crypto_document_repo.NewCryptoInvoiceRepo()
+	lifecycle := crypto.NewInvoiceLifecycleService(invoiceRepo, crypto_document_repo.NewCryptoPaymentRepo(), nil, txm, func() time.Time { return now })
 	require.NoError(t, txm.RunInTransaction(ctx, func(txCtx context.Context) error {
 		releaseWallet, expireErr := lifecycle.ExpireInTransaction(txCtx, invoiceID)
 		if expireErr != nil {

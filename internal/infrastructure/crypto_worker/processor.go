@@ -42,9 +42,9 @@ import (
 	"metapus/internal/infrastructure/crypto/custody"
 	infraNumerator "metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_catalog_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/money_movement_repo"
 	"metapus/internal/infrastructure/vaultclient"
 	"metapus/pkg/logger"
@@ -168,12 +168,12 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 		log = logger.Default()
 	}
 
-	walletRepo := catalog_repo.NewWalletRepo()
-	invoiceRepo := document_repo.NewCryptoInvoiceRepo()
-	paymentRepo := document_repo.NewCryptoPaymentRepo()
-	withdrawalRepo := document_repo.NewCryptoWithdrawalRepo()
-	sweepRepo := document_repo.NewCryptoSweepRepo()
-	treasuryRepo := document_repo.NewTreasuryWithdrawalRepo()
+	walletRepo := crypto_catalog_repo.NewWalletRepo()
+	invoiceRepo := crypto_document_repo.NewCryptoInvoiceRepo()
+	paymentRepo := crypto_document_repo.NewCryptoPaymentRepo()
+	withdrawalRepo := crypto_document_repo.NewCryptoWithdrawalRepo()
+	sweepRepo := crypto_document_repo.NewCryptoSweepRepo()
+	treasuryRepo := crypto_document_repo.NewTreasuryWithdrawalRepo()
 	outboundRepo := NewOutboundRepo()
 	walletPoolRepo := crypto_repo.NewWalletPoolRepo()
 
@@ -194,7 +194,7 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 	fsm := crypto.NewPaymentFSM(paymentRepo, eventRepo)
 
 	// Sweep config resolver (token defaults + merchant overrides)
-	tokenRepo := catalog_repo.NewTokenRepo()
+	tokenRepo := crypto_catalog_repo.NewTokenRepo()
 	merchantTokenCfgRepo := crypto_repo.NewMerchantTokenConfigRepo()
 	sweepResolver := crypto.NewSweepConfigResolver(merchantTokenCfgRepo, tokenRepo)
 
@@ -566,7 +566,7 @@ func (p *CryptoProcessor) Start(ctx context.Context) error {
 			p.authorizations,
 			p.feeBudget,
 			func() *CryptoNetworkOperationCoordinator {
-				repo := document_repo.NewCryptoNetworkOperationRepo()
+				repo := crypto_document_repo.NewCryptoNetworkOperationRepo()
 				service := crypto_network_operation.NewService(repo, p.postingEngine, p.numerator, nil)
 				return NewCryptoNetworkOperationCoordinator(repo, service, p.feeBudget)
 			}(),

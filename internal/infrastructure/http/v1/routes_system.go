@@ -149,8 +149,8 @@ func registerSystemRoutes(rg, sysGroup, wsGroup *gin.RouterGroup, cfg RouterConf
 
 	integrationRuntime := integration_repo.NewRuntime()
 	var integrationTesters []*integrationapp.ConnectionTestService
-	if cfg.IntegrationProber != nil {
-		integrationTesters = append(integrationTesters, integrationapp.NewConnectionTestService(integrationRuntime, cfg.IntegrationProber))
+	if cfg.IntegrationConnectionTests != nil {
+		integrationTesters = append(integrationTesters, cfg.IntegrationConnectionTests)
 	}
 	handlers.NewIntegrationHandler(integrationapp.New(integrationRuntime, tenant.ContextTxManager{}, cfg.EventLogRepo), integrationTesters...).RegisterRoutes(sysGroup, requireStepUp("system.integrations.write"))
 

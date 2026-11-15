@@ -30,6 +30,7 @@ import (
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/dashboard_repo"
@@ -121,7 +122,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 	)
 	apiKeyHandler := cryptohandlers.NewMerchantAPIKeyHandler(m.cfg.MerchantAPIKeyRepo)
 
-	walletRepo := catalog_repo.NewWalletRepo()
+	walletRepo := crypto_catalog_repo.NewWalletRepo()
 	walletSvc := wallet.NewService(walletRepo, numerator.Noop())
 	merchantCryptoQueries := cryptoapp.NewMerchantCryptoQueryService(crypto_repo.NewMerchantCryptoQueryRepo())
 	addressHandler := cryptohandlers.NewMerchantAddressHandler(walletSvc, merchantCryptoQueries)
@@ -276,7 +277,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 		portalHandler := cryptohandlers.NewPortalHandler(m.cfg.PortalDashboardRepo, m.cfg.MerchantAPIKeyRepo, balanceCalc, m.cfg.MerchantInvoiceAppSvc, m.cfg.CheckoutRefs, m.cfg.PaymentLinkSvc, cryptohandlers.PortalCommandServices{
 			Withdrawals:     cryptoapp.NewPortalWithdrawalService(m.cfg.PortalDashboardRepo, cfg.Numerator, portalPostingEngine, portalMerchantSvc, cryptoapp.NewMoneyMovementApprovalService(moneyMovementApprovals, m.cfg.MoneyMovementApprovalSigners, nil), crypto_repo.NewChainAddressPolicy()),
 			AMLBalances:     cryptoapp.NewAMLBalanceService(crypto_repo.NewAMLRepository()),
-			DepositRotation: cryptoapp.NewDepositAddressRotationService(catalog_repo.NewWalletRepo(), crypto_repo.NewLifecycleWebhookOutbox()),
+			DepositRotation: cryptoapp.NewDepositAddressRotationService(crypto_catalog_repo.NewWalletRepo(), crypto_repo.NewLifecycleWebhookOutbox()),
 			Settings:        portalapp.NewSettingsService(m.cfg.PortalDashboardRepo, m.cfg.MerchantInvoiceAppSvc, tenant.ContextTxManager{}),
 		}, networkPolicyRepo, merchantCryptoQueries, walletSvc)
 

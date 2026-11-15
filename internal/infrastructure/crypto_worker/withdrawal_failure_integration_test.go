@@ -25,8 +25,8 @@ import (
 	"metapus/internal/domain/registers/crypto_merchant_balance"
 	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
 )
 
 type withdrawalRecoveryFixture struct {
@@ -87,7 +87,7 @@ func recoveryExecutor(wr withdrawalRecoveryFixture, f sweepCoordinationFixture, 
 	engine := posting.NewEngine(postgres.NewDocLocker(), cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))
 	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	return &WithdrawalExecutor{outboundRepo: NewOutboundRepo(), tenantID: wr.auth.TenantID, drivers: registry,
-		withdrawalRepo: document_repo.NewCryptoWithdrawalRepo(), postingEngine: engine, feeBudget: NewFeeBudgetManager(),
+		withdrawalRepo: crypto_document_repo.NewCryptoWithdrawalRepo(), postingEngine: engine, feeBudget: NewFeeBudgetManager(),
 		merchantBalanceSvc: crypto_merchant_balance.NewService(crypto_register_repo.NewCryptoMerchantBalanceRepo()), now: func() time.Time { return wr.auth.ExpiresAt.Add(24 * time.Hour) }}
 }
 
@@ -227,4 +227,4 @@ func TestWithdrawalCompensationRacesAuthorizationPublication(t *testing.T) {
 	})
 }
 
-var _ crypto_withdrawal.Repository = (*document_repo.CryptoWithdrawalRepo)(nil)
+var _ crypto_withdrawal.Repository = (*crypto_document_repo.CryptoWithdrawalRepo)(nil)

@@ -17,7 +17,7 @@ import (
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_payment"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 
 	"github.com/stretchr/testify/require"
 )
@@ -119,7 +119,7 @@ func TestFinancialReorgRejectsForeignIncidentAndIncompleteCompensation(t *testin
 				other.TxHash = "other-" + other.ID.String()
 				other.MarkUnposted()
 				other.PostedVersion = 0
-				require.NoError(t, document_repo.NewCryptoPaymentRepo().Create(f.ctx, &other))
+				require.NoError(t, crypto_document_repo.NewCryptoPaymentRepo().Create(f.ctx, &other))
 				owner = other.ID
 			}
 			incident := id.New()

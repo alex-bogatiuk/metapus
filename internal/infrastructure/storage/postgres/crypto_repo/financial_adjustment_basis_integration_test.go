@@ -14,7 +14,7 @@ import (
 	"metapus/internal/domain"
 	"metapus/internal/domain/documents/crypto_payment"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 
 	"github.com/stretchr/testify/require"
 )
@@ -273,7 +273,7 @@ func TestAdjustmentBasisCannotApproveOldGeneration(t *testing.T) {
 	require.NoError(t, NewFinancialReorgRepo().RecordFinancialReorg(f.ctx, f.payment, event))
 	f.payment.MarkUnposted()
 	f.payment.Status = crypto_payment.PaymentStatusConfirming
-	require.NoError(t, document_repo.NewCryptoPaymentRepo().Update(f.ctx, f.payment))
+	require.NoError(t, crypto_document_repo.NewCryptoPaymentRepo().Update(f.ctx, f.payment))
 	require.NoError(t, f.post(f.payment, f.posting)) // The re-included transfer attributes the receipt again.
 	_, err = f.pool.Exec(f.ctx, "UPDATE doc_crypto_payments SET status='settled' WHERE id=$1", f.payment.ID)
 	require.NoError(t, err)

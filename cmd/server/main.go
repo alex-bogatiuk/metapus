@@ -18,6 +18,7 @@ import (
 	"metapus/extensions"
 	"metapus/internal/application/checkout"
 	"metapus/internal/application/cryptoapp"
+	"metapus/internal/application/integrationapp"
 	"metapus/internal/content"
 	"metapus/internal/core/json"
 	"metapus/internal/core/security"
@@ -42,9 +43,10 @@ import (
 	"metapus/internal/infrastructure/pdfrender"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/auth_repo"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_catalog_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_integration_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/integration_repo"
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 	"metapus/internal/infrastructure/storage/postgres/security_repo"
@@ -161,7 +163,7 @@ func main() {
 
 	// MerchantUserRepo feeds merchant portal access scopes into auth.Service JWTs.
 	// Created early so it can be shared with RouterConfig below.
-	merchantUserRepo := catalog_repo.NewMerchantUserRepo()
+	merchantUserRepo := crypto_catalog_repo.NewMerchantUserRepo()
 
 	authConfig := loadAuthServiceConfig(log)
 	authSvc := auth.NewService(
@@ -208,7 +210,7 @@ func main() {
 	// Uses the same wallet-lease hook as the ERP service (CryptoInvoiceRegistration.Build)
 	// to ensure invoices created via the public API get a pool wallet assigned.
 	checkoutRefs, err := checkout.NewService(checkout.Config{
-		Repo:              postgres.NewCheckoutReferenceRepo(metaPool),
+		Repo:              crypto_repo.NewCheckoutReferenceRepo(metaPool),
 		Registry:          registry,
 		PublicBaseURL:     mustEnv("PUBLIC_CHECKOUT_BASE_URL"),
 		TenancyMode:       getEnv("TENANCY_MODE", ""),
@@ -218,9 +220,9 @@ func main() {
 		log.Fatalw("failed to create checkout reference service", "error", err)
 	}
 
-	merchantAPIKeyRepo := catalog_repo.NewMerchantAPIKeyRepo(metaPool)
+	merchantAPIKeyRepo := crypto_catalog_repo.NewMerchantAPIKeyRepo(metaPool)
 	// merchantUserRepo is created above (needed by auth.Service for JWT portal claims).
-	merchantInvoiceRepo := document_repo.NewCryptoInvoiceRepo()
+	merchantInvoiceRepo := crypto_document_repo.NewCryptoInvoiceRepo()
 	merchantInvoiceSvc := crypto_invoice.NewService(
 		merchantInvoiceRepo,
 		nil, // posting engine — invoices are not posted at creation
@@ -230,8 +232,8 @@ func main() {
 
 	// Register wallet-lease hook — same logic as content/document_registrations.go:191-208.
 	// Without this, invoices created via /merchant/v1/ would have wallet_id = NULL.
-	merchantTokenRepo := catalog_repo.NewTokenRepo()
-	merchantWalletRepo := catalog_repo.NewWalletRepo()
+	merchantTokenRepo := crypto_catalog_repo.NewTokenRepo()
+	merchantWalletRepo := crypto_catalog_repo.NewWalletRepo()
 	merchantWalletSvc := wallet.NewService(merchantWalletRepo, numeratorSvc)
 	merchantAllocRepo := crypto_repo.NewWalletAllocationRepo()
 	merchantLifecyclePublisher := crypto_repo.NewLifecycleWebhookOutbox()
@@ -270,7 +272,7 @@ func main() {
 	checkoutInvoiceSvc := cryptoapp.NewCheckoutInvoiceService(merchantInvoiceSvc, checkoutRefs)
 	merchantInvoiceLifecycle := domaincrypto.NewInvoiceLifecycleService(
 		checkoutInvoiceSvc,
-		document_repo.NewCryptoPaymentRepo(),
+		crypto_document_repo.NewCryptoPaymentRepo(),
 		merchantLifecyclePublisher,
 		nil,
 		nil,
@@ -334,27 +336,27 @@ func main() {
 		pdfReady = pdfClient.Ready
 	}
 	router := v1.NewRouter(v1.RouterConfig{
-		PostingModules:    []posting.Module{cryptoregisters.New()},
-		PDFRenderer:       pdfRenderPort,
-		PDFReady:          pdfReady,
-		TenantManager:     tenantManager,
-		MetaPool:          metaPool,
-		Logger:            log,
-		JWTValidator:      accessValidator,
-		AuthSvc:           authSvc,
-		MFARepo:           mfaRepo,
-		AdminMFAMode:      authConfig.AdminMFAMode,
-		AdminSecurityMode: authConfig.AdminSecurityMode,
-		AdminAllowedCIDRs: authConfig.AdminAllowedCIDRs,
-		Numerator:         numeratorSvc,
-		ProfileProvider:   profileProvider,
-		PolicyEngine:      policyEngine,
-		EventLogRepo:      eventLogRepo,
-		Registry:          factoryReg,
-		Version:           Version,
-		BuildTime:         BuildTime,
-		WSTicketStore:     wsTicketStore,
-		IntegrationProber: integrationhttp.ConnectionProber{Accounts: integration_repo.NewRuntime(), EndpointTransport: integration_repo.RPCTransport},
+		PostingModules:             []posting.Module{cryptoregisters.New()},
+		PDFRenderer:                pdfRenderPort,
+		PDFReady:                   pdfReady,
+		TenantManager:              tenantManager,
+		MetaPool:                   metaPool,
+		Logger:                     log,
+		JWTValidator:               accessValidator,
+		AuthSvc:                    authSvc,
+		MFARepo:                    mfaRepo,
+		AdminMFAMode:               authConfig.AdminMFAMode,
+		AdminSecurityMode:          authConfig.AdminSecurityMode,
+		AdminAllowedCIDRs:          authConfig.AdminAllowedCIDRs,
+		Numerator:                  numeratorSvc,
+		ProfileProvider:            profileProvider,
+		PolicyEngine:               policyEngine,
+		EventLogRepo:               eventLogRepo,
+		Registry:                   factoryReg,
+		Version:                    Version,
+		BuildTime:                  BuildTime,
+		WSTicketStore:              wsTicketStore,
+		IntegrationConnectionTests: integrationapp.NewConnectionTestService(crypto_integration_repo.NewConnectionTargets(), integrationhttp.ConnectionProber{Accounts: integration_repo.NewRuntime(), EndpointTransport: crypto_integration_repo.RPCTransport}),
 		RouteModules: []v1.RouteModule{cryptohttp.New(cryptohttp.Config{
 			CheckoutRefs:                 checkoutRefs,
 			MoneyMovementApprovalSigners: approvalSignerProvider,

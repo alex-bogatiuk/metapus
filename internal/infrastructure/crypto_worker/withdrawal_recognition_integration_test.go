@@ -22,9 +22,9 @@ import (
 	"metapus/internal/domain/registers/crypto_merchant_balance"
 	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
 
 	"github.com/stretchr/testify/require"
 )
@@ -74,7 +74,7 @@ func newWithdrawalFinalFixture(t *testing.T, ctx context.Context, tm *postgres.T
 	d.Number = "CW2-" + id.Compact(d.ID)
 	d.BasisType = "WithdrawalRequest"
 	d.BasisID = &r.ID
-	d, err = repo.EnsureWithdrawalExecutionDocument(ctx, r.ID, d, document_repo.NewCryptoWithdrawalRepo())
+	d, err = repo.EnsureWithdrawalExecutionDocument(ctx, r.ID, d, crypto_document_repo.NewCryptoWithdrawalRepo())
 	require.NoError(t, err)
 	var standard, contract string
 	require.NoError(t, q.QueryRow(ctx, "SELECT token_standard,contract_address FROM cat_tokens WHERE id=$1", c.token).Scan(&standard, &contract))
@@ -115,7 +115,7 @@ func (f withdrawalFinalFixture) executor(t *testing.T) *outboundapp.WithdrawalEx
 	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoMerchantBalanceVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoFeeVisitor{})
-	return outboundapp.NewWithdrawalExecutor(outboundapp.WithdrawalConfig{Drivers: f.registry(t), Documents: document_repo.NewCryptoWithdrawalRepo(), Repository: NewOutboundRepo(), Posting: engine, Fees: NewFeeBudgetManager(), Transactions: contextTxManager{}, TenantID: "withdrawal-test"})
+	return outboundapp.NewWithdrawalExecutor(outboundapp.WithdrawalConfig{Drivers: f.registry(t), Documents: crypto_document_repo.NewCryptoWithdrawalRepo(), Repository: NewOutboundRepo(), Posting: engine, Fees: NewFeeBudgetManager(), Transactions: contextTxManager{}, TenantID: "withdrawal-test"})
 }
 func (f withdrawalFinalFixture) broadcast(t *testing.T) {
 	t.Helper()

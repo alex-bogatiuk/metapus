@@ -14,8 +14,8 @@ import (
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/json"
 	"metapus/internal/domain/crypto"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	platformtelemetry "metapus/internal/platform/telemetry"
 )
 
@@ -90,7 +90,7 @@ func (p *CryptoProcessor) processClaimedChainObservation(ctx context.Context, re
 			processErr = err
 		} else if verifier, ok := driver.(crypto.TransferVerifier); ok && verifier.VerificationRequired() {
 			if !event.Amount.IsPositive() || event.FromAddress == "" || event.ToAddress == "" {
-				payment, err := document_repo.NewCryptoPaymentRepo().FindByChainEvent(workCtx, event.NetworkID, event.TxHash, string(event.EffectiveEventKind()), event.EventIndex)
+				payment, err := crypto_document_repo.NewCryptoPaymentRepo().FindByChainEvent(workCtx, event.NetworkID, event.TxHash, string(event.EffectiveEventKind()), event.EventIndex)
 				if err != nil {
 					processErr = err
 				} else if payment != nil {

@@ -28,7 +28,7 @@ func NewCounterpartyRepo() *CounterpartyRepo {
 
 // FindByINN retrieves counterparty by INN.
 func (r *CounterpartyRepo) FindByINN(ctx context.Context, inn string) (*counterparty.Counterparty, error) {
-	q := r.baseSelect(ctx).
+	q := r.BaseSelect(ctx).
 		Where(squirrel.Eq{"inn": inn}).
 		Where(squirrel.Eq{"deletion_mark": false}).
 		Limit(1)

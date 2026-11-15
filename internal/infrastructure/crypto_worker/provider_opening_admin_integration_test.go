@@ -19,9 +19,9 @@ import (
 	"metapus/internal/domain/registers/crypto_provider_balance"
 	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
 
 	"github.com/stretchr/testify/require"
 )
@@ -114,7 +114,7 @@ func TestProviderOpeningAdminSelfDecisionsAndImmutableAudit(t *testing.T) {
 				require.NoError(t, err)
 				_, err = f.txm.GetQuerier(f.ctx).Exec(f.ctx, `DELETE FROM auth_user_roles WHERE user_id=$1`, f.maker)
 				require.NoError(t, err)
-				stored, err := document_repo.NewCryptoProviderBalanceOperationRepo().GetByID(f.ctx, doc.ID)
+				stored, err := crypto_document_repo.NewCryptoProviderBalanceOperationRepo().GetByID(f.ctx, doc.ID)
 				require.NoError(t, err)
 				require.Equal(t, pbo.DecisionAdminSelf, stored.DecisionMode)
 				f.assertState(t, doc.ID, status, count)
@@ -182,7 +182,7 @@ func (f providerOpeningFixture) serviceWithAudit(audit providerFaultAudit) *cryp
 	engine := posting.NewEngine(nil)
 	engine.AddVisitor(&cryptoposting.CryptoProviderBalanceVisitor{})
 	engine.AddRecorder(cryptoposting.NewCryptoProviderBalanceRecorder(crypto_provider_balance.NewService(crypto_register_repo.NewCryptoProviderBalanceRepo())))
-	return cryptoapp.NewProviderBalanceWorkflowService(document_repo.NewCryptoProviderBalanceOperationRepo(), crypto_repo.NewProviderBalanceWorkflowRepo(), fixedNetworkOperationNumerator{}, engine, command.NewExecutor(f.txm, postgres.NewCommandRepository()), f.stepUp, crypto_repo.NewProviderOpeningAuthorityRepo(), audit)
+	return cryptoapp.NewProviderBalanceWorkflowService(crypto_document_repo.NewCryptoProviderBalanceOperationRepo(), crypto_repo.NewProviderBalanceWorkflowRepo(), fixedNetworkOperationNumerator{}, engine, command.NewExecutor(f.txm, postgres.NewCommandRepository()), f.stepUp, crypto_repo.NewProviderOpeningAuthorityRepo(), audit)
 }
 
 func TestProviderOpeningAdminDecisionWinsBeforeRevocation(t *testing.T) {
@@ -303,7 +303,7 @@ func TestProviderOpeningStepUpExpiresAtAuthorityLock(t *testing.T) {
 			engine := posting.NewEngine(nil)
 			engine.AddVisitor(&cryptoposting.CryptoProviderBalanceVisitor{})
 			engine.AddRecorder(cryptoposting.NewCryptoProviderBalanceRecorder(crypto_provider_balance.NewService(crypto_register_repo.NewCryptoProviderBalanceRepo())))
-			service := cryptoapp.NewProviderBalanceWorkflowService(document_repo.NewCryptoProviderBalanceOperationRepo(), crypto_repo.NewProviderBalanceWorkflowRepo(), fixedNetworkOperationNumerator{}, engine,
+			service := cryptoapp.NewProviderBalanceWorkflowService(crypto_document_repo.NewCryptoProviderBalanceOperationRepo(), crypto_repo.NewProviderBalanceWorkflowRepo(), fixedNetworkOperationNumerator{}, engine,
 				command.NewExecutor(f.txm, postgres.NewCommandRepository()), f.stepUp,
 				providerExpiringAuthority{crypto_repo.NewProviderOpeningAuthorityRepo(), f.stepUp}, postgres.NewEventLogRepo())
 			decide := service.Reject

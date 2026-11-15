@@ -17,7 +17,7 @@ import (
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/infrastructure/tenantdb"
 )
 
@@ -30,7 +30,7 @@ type CryptoSweepHandler struct {
 }
 
 type CryptoSweepCardReader interface {
-	ReadCardData(context.Context, *crypto_sweep.CryptoSweep) (document_repo.CryptoSweepCardData, error)
+	ReadCardData(context.Context, *crypto_sweep.CryptoSweep) (crypto_document_repo.CryptoSweepCardData, error)
 }
 
 type CryptoSweepRetryService interface {
@@ -127,7 +127,7 @@ func NewCryptoSweepHandler(
 
 // Related catalog and rental presentations must pass their own row policies.
 // The source sweep authorization alone does not grant access to those entities.
-func restrictCryptoSweepCardRefs(ctx context.Context, facts *document_repo.CryptoSweepCardData) error {
+func restrictCryptoSweepCardRefs(ctx context.Context, facts *crypto_document_repo.CryptoSweepCardData) error {
 	reads, ok := readaccess.FromContext(ctx)
 	if !ok {
 		facts.Tokens = nil

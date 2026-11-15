@@ -116,7 +116,7 @@ func (r *CryptoRPCEndpointRepo) Update(ctx context.Context, e *integrations.RPCE
 				return nil
 			}
 			if old.NetworkID != e.NetworkID {
-				return validateRPCNetworkMutation(ctx, e.NetworkID, apply)
+				return ValidateRPCNetworkMutation(ctx, e.NetworkID, apply)
 			}
 			return apply(ctx)
 		})
@@ -128,7 +128,7 @@ func (r *CryptoRPCEndpointRepo) mutate(ctx context.Context, network id.ID, mutat
 		if err := LockIntegrationConfiguration(ctx); err != nil {
 			return err
 		}
-		return validateRPCNetworkMutation(ctx, network, mutation)
+		return ValidateRPCNetworkMutation(ctx, network, mutation)
 	})
 }
 

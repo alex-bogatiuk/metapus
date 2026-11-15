@@ -20,7 +20,7 @@ import (
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/migration"
 )
@@ -196,7 +196,7 @@ func TestCustodyAllocationNeverReusesAnotherMerchantAddress(t *testing.T) {
 	require.NoError(t, err)
 	_, err = f.pool.Exec(f.ctx, `UPDATE sys_crypto_wallet_pool_policies SET enabled=TRUE,needs_review=FALSE,max_total_wallets=10,max_persistent_addresses_per_merchant=10,max_active_invoice_leases_per_merchant=10 WHERE network_id=$1`, f.network)
 	require.NoError(t, err)
-	repo := catalog_repo.NewWalletRepo()
+	repo := crypto_catalog_repo.NewWalletRepo()
 	assigned, err := repo.AssignPersistentAddress(f.ctx, f.a, f.network, "customer")
 	require.NoError(t, err)
 	require.Equal(t, own, assigned.ID)

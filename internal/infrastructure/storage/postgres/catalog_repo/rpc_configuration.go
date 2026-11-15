@@ -102,6 +102,26 @@ func (r *RPCConfigurationRepo) load(ctx context.Context, network id.ID) (rpcConf
 	return state, nil
 }
 
+// ValidateActiveBindings re-validates the active endpoints of a network whose
+// RPC topology is read from the database; other sources need no check.
+func (r *RPCConfigurationRepo) ValidateActiveBindings(ctx context.Context, network id.ID) error {
+	state, err := r.load(ctx, network)
+	if err != nil {
+		return err
+	}
+	if state.view.Source != "database" {
+		return nil
+	}
+	for _, endpoint := range state.records {
+		if endpoint.IsActive {
+			if err := NewCryptoRPCEndpointRepo().ValidateBinding(ctx, endpoint); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (r *RPCConfigurationRepo) Get(ctx context.Context, network id.ID) (integrations.RPCConfiguration, error) {
 	state, err := r.load(ctx, network)
 	if err == nil {
@@ -219,7 +239,7 @@ func (r *RPCConfigurationRepo) Save(ctx context.Context, network id.ID, expected
 	return r.Get(ctx, network)
 }
 
-func validateRPCNetworkMutation(ctx context.Context, network id.ID, mutate func(context.Context) error) error {
+func ValidateRPCNetworkMutation(ctx context.Context, network id.ID, mutate func(context.Context) error) error {
 	repo := NewRPCConfigurationRepo(os.Getenv("APP_ENV"))
 	beforeState, err := repo.load(ctx, network)
 	if err != nil {

@@ -11,7 +11,7 @@
 
 | Сценарий | Аналог |
 |---|---|
-| Документ без табличных частей | `internal/domain/documents/crypto_invoice/` и `document_repo/crypto_invoice.go` |
+| Документ без табличных частей | `internal/domain/documents/crypto_invoice/` и `crypto_document_repo/crypto_invoice.go` (база — `document_repo/base.go`) |
 | Системный внешний факт только для чтения | `internal/domain/documents/crypto_network_operation/` и `handlers.NewReadOnlyDocumentHandler` |
 | Денежный workflow без generic CRUD/post/unpost | `WithdrawalRequestRegistration` и `CustomDocumentRegistration` |
 | Регистрация маршрутов и metadata | `internal/content/document_registrations.go` |

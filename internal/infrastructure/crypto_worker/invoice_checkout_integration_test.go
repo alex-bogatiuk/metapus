@@ -17,6 +17,7 @@ import (
 	"metapus/internal/core/types"
 	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 )
 
 func TestInvoiceCheckoutCommitRollbackAndIdempotentDelivery(t *testing.T) {
@@ -67,7 +68,7 @@ func TestInvoiceCheckoutCommitRollbackAndIdempotentDelivery(t *testing.T) {
 	require.NoError(t, tenantPool.QueryRow(ctx,
 		`SELECT aggregate_type,aggregate_id,event_type,payload FROM sys_outbox`).Scan(
 		&msg.AggregateType, &msg.AggregateID, &msg.EventType, &msg.Payload))
-	refs := postgres.NewCheckoutReferenceRepo(metaPool)
+	refs := crypto_repo.NewCheckoutReferenceRepo(metaPool)
 	require.NoError(t, NewInvoiceCheckoutHandler(refs).Handle(ctx, &msg))
 	require.NoError(t, NewInvoiceCheckoutHandler(refs).Handle(ctx, &msg))
 	hash, err := publicref.Hash(invoice.PublicRef)

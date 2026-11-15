@@ -20,9 +20,9 @@ import (
 	"metapus/internal/domain/registers/crypto_platform_cost"
 	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/outbound_repo"
 
 	"github.com/stretchr/testify/require"
@@ -146,7 +146,7 @@ func TestActivationExecutionLateSignedAndBroadcastRecoveryKeepNewLease(t *testin
 	engine.AddVisitor(&cryptoposting.CryptoPlatformCostVisitor{})
 	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))
 	engine.AddRecorder(cryptoposting.NewCryptoPlatformCostRecorder(crypto_platform_cost.NewService(crypto_register_repo.NewCryptoPlatformCostRepo())))
-	repo := document_repo.NewCryptoNetworkOperationRepo()
+	repo := crypto_document_repo.NewCryptoNetworkOperationRepo()
 	service := crypto_network_operation.NewService(repo, engine, executionNumerator{}, nil)
 	coordinator := outboundapp.NewNetworkOperationCoordinator(repo, service, fees, outbound_repo.ActivationWorkflowStore{}, tm, time.Now)
 	_, err = coordinator.RecoverActivationBroadcast(f.Ctx, f.task, "another-hash")

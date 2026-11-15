@@ -18,7 +18,7 @@ import (
 	"metapus/internal/domain/tariff"
 	"metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 )
 
 // reorgPayment compensates the posted payment the way the event processor does
@@ -31,7 +31,7 @@ func (f paymentAttributionFixture) reorgPayment(t *testing.T) {
 	require.NoError(t, NewFinancialReorgRepo().RecordFinancialReorg(f.ctx, f.payment, event))
 	f.payment.MarkUnposted()
 	f.payment.Status = crypto_payment.PaymentStatusReorged
-	require.NoError(t, document_repo.NewCryptoPaymentRepo().Update(f.ctx, f.payment))
+	require.NoError(t, crypto_document_repo.NewCryptoPaymentRepo().Update(f.ctx, f.payment))
 }
 
 func (f paymentAttributionFixture) merchantCredits() *cryptoapp.MerchantCreditService {

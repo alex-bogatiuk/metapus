@@ -33,9 +33,9 @@ import (
 	"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware"
 	mw "metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo/receipttest"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 )
 
@@ -48,7 +48,7 @@ type referenceFixture struct {
 	ctx                                                    context.Context
 	pool                                                   *pgxpool.Pool
 	txm                                                    *postgres.TxManager
-	repo                                                   *document_repo.CryptoInvoiceRepo
+	repo                                                   *crypto_document_repo.CryptoInvoiceRepo
 	docSvc                                                 *crypto_invoice.Service
 	merchantID, otherMerchantID, keyID, networkID, tokenID id.ID
 }
@@ -65,7 +65,7 @@ func newReferenceFixture(t *testing.T) *referenceFixture {
 	f := &referenceFixture{pool: pool, merchantID: id.New(), otherMerchantID: id.New(), keyID: id.New(), networkID: id.New(), tokenID: id.New()}
 	f.txm = postgres.NewTxManagerFromRawPool(pool)
 	f.ctx = tenant.WithTxManager(ctx, f.txm)
-	f.repo = document_repo.NewCryptoInvoiceRepo()
+	f.repo = crypto_document_repo.NewCryptoInvoiceRepo()
 	f.docSvc = crypto_invoice.NewService(f.repo, nil, nil, nil)
 	suffix := id.Compact(f.networkID)
 	_, err = pool.Exec(ctx, `
@@ -128,7 +128,7 @@ func (f *referenceFixture) settle(t *testing.T, p referenceTopUp) error {
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT tx_hash,from_address FROM doc_crypto_payments WHERE id=$1`, p.paymentID).Scan(&txHash, &from))
 	receipt, proof := receipttest.Record(t, f.ctx, receipttest.Deps{Proofs: crypto_repo.NewBlockIngestionRepo(), Repo: crypto_repo.NewReceiptIntakeRepo(), Guard: crypto_repo.NewBlockIngestionRepo()},
 		receipttest.Transfer{WalletID: p.walletID, TokenID: f.tokenID, TxHash: txHash, FromAddress: from, Amount: "100", BlockNumber: 100})
-	lifecycle := crypto.NewInvoiceLifecycleService(f.repo, document_repo.NewCryptoPaymentRepo(), nil, f.txm, nil)
+	lifecycle := crypto.NewInvoiceLifecycleService(f.repo, crypto_document_repo.NewCryptoPaymentRepo(), nil, f.txm, nil)
 	return f.txm.RunInTransaction(f.ctx, func(ctx context.Context) error {
 		if _, err := f.repo.GetByIDForUpdate(ctx, p.invoiceID); err != nil {
 			return err

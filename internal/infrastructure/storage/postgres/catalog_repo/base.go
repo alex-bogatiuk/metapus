@@ -121,9 +121,10 @@ func (r *BaseCatalogRepo[T]) RegisterRLSDimension(dimensionName, dbColumn string
 	r.rlsDimensions[dimensionName] = dbColumn
 }
 
-// getTxManager retrieves TxManager from context.
+// GetTxManager retrieves TxManager from context.
 // Panics if not found - this indicates a programming error (missing TenantDB middleware).
-func (r *BaseCatalogRepo[T]) getTxManager(ctx context.Context) *postgres.TxManager {
+// GetTxManager returns the TxManager from context (exported for concrete repos).
+func (r *BaseCatalogRepo[T]) GetTxManager(ctx context.Context) *postgres.TxManager {
 	return postgres.MustGetTxManager(ctx)
 }
 
@@ -174,7 +175,7 @@ func (r *BaseCatalogRepo[T]) create(ctx context.Context, entity T) error {
 		return fmt.Errorf("build insert: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	_, err = querier.Exec(ctx, sql, args...)
 	if err != nil {
 		if postgres.IsForeignKeyViolation(err) {
@@ -236,7 +237,7 @@ func (r *BaseCatalogRepo[T]) update(ctx context.Context, entity T) error {
 		return fmt.Errorf("build update: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 
 	var newVersion int
 	err = querier.QueryRow(ctx, sql, args...).Scan(&newVersion)
@@ -260,8 +261,8 @@ func (r *BaseCatalogRepo[T]) update(ctx context.Context, entity T) error {
 	return nil
 }
 
-// baseSelect creates a SELECT builder.
-func (r *BaseCatalogRepo[T]) baseSelect(ctx context.Context) squirrel.SelectBuilder {
+// BaseSelect starts a catalog query with the entity columns and data scope.
+func (r *BaseCatalogRepo[T]) BaseSelect(ctx context.Context) squirrel.SelectBuilder {
 	return r.Builder().
 		Select(r.selectCols...).
 		From(r.tableName)
@@ -328,7 +329,7 @@ func (r *BaseCatalogRepo[T]) buildWhereConditions(filter domain.ListFilter) ([]s
 func (r *BaseCatalogRepo[T]) GetByID(ctx context.Context, entityID id.ID) (T, error) {
 	entity := r.newFn()
 
-	q := r.baseSelect(ctx).
+	q := r.BaseSelect(ctx).
 		Where(squirrel.Eq{"id": entityID}).
 		Limit(1)
 
@@ -337,7 +338,7 @@ func (r *BaseCatalogRepo[T]) GetByID(ctx context.Context, entityID id.ID) (T, er
 		return entity, fmt.Errorf("build query: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	if err := pgxscan.Get(ctx, querier, entity, sql, args...); err != nil {
 		if pgxscan.NotFound(err) {
 			return entity, apperror.NewNotFound(r.tableName, entityID.String())
@@ -352,7 +353,7 @@ func (r *BaseCatalogRepo[T]) GetByID(ctx context.Context, entityID id.ID) (T, er
 func (r *BaseCatalogRepo[T]) GetByCode(ctx context.Context, code string) (T, error) {
 	entity := r.newFn()
 
-	q := r.baseSelect(ctx).
+	q := r.BaseSelect(ctx).
 		Where(squirrel.Eq{"code": code}).
 		Where(squirrel.Eq{"deletion_mark": false}).
 		Limit(1)
@@ -362,7 +363,7 @@ func (r *BaseCatalogRepo[T]) GetByCode(ctx context.Context, code string) (T, err
 		return entity, fmt.Errorf("build query: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	if err := pgxscan.Get(ctx, querier, entity, sql, args...); err != nil {
 		if pgxscan.NotFound(err) {
 			return entity, apperror.NewNotFound(r.tableName, code)
@@ -383,7 +384,7 @@ func (r *BaseCatalogRepo[T]) List(ctx context.Context, f domain.ListFilter) (dom
 		return result, err
 	}
 
-	spec, err = postgres.ResolveSortSpec(ctx, r.getTxManager(ctx).GetQuerier(ctx), r.tableName, spec)
+	spec, err = postgres.ResolveSortSpec(ctx, r.GetTxManager(ctx).GetQuerier(ctx), r.tableName, spec)
 	if err != nil {
 		return result, err
 	}
@@ -394,7 +395,7 @@ func (r *BaseCatalogRepo[T]) List(ctx context.Context, f domain.ListFilter) (dom
 		return result, err
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	limit := f.Limit
 	if limit <= 0 {
 		limit = 50
@@ -484,7 +485,7 @@ func (r *BaseCatalogRepo[T]) listForward(ctx context.Context, spec keyset.SortSp
 		return result, fmt.Errorf("build forward query: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	var pageCursors map[id.ID]string
 	result.Items, pageCursors, err = postgres.ScanCursorPage(ctx, querier, r.newFn, spec, sql, args...)
 	if err != nil {
@@ -527,7 +528,7 @@ func (r *BaseCatalogRepo[T]) listBackward(ctx context.Context, spec keyset.SortS
 		return result, fmt.Errorf("build backward query: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	var pageCursors map[id.ID]string
 	result.Items, pageCursors, err = postgres.ScanCursorPage(ctx, querier, r.newFn, spec, sql, args...)
 	if err != nil {
@@ -562,7 +563,7 @@ func (r *BaseCatalogRepo[T]) listAround(ctx context.Context, f domain.ListFilter
 	}
 
 	// 1. Get sort value of target row
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	var sortValue *string
 	lookup := r.Builder().Select(spec.Field + "::text").From(r.tableName).Where(squirrel.Eq{"id": targetID})
 	for _, condition := range conditions {
@@ -718,7 +719,7 @@ func (r *BaseCatalogRepo[T]) Exists(ctx context.Context, entityID id.ID) (bool, 
 		return false, fmt.Errorf("build query: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	var exists int
 	err = querier.QueryRow(ctx, sql, args...).Scan(&exists)
 	if err == pgx.ErrNoRows {
@@ -745,7 +746,7 @@ func (r *BaseCatalogRepo[T]) ExistsByCode(ctx context.Context, code string) (boo
 		return false, fmt.Errorf("build query: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	var exists int
 	err = querier.QueryRow(ctx, sql, args...).Scan(&exists)
 	if err == pgx.ErrNoRows {
@@ -769,7 +770,7 @@ func (r *BaseCatalogRepo[T]) Delete(ctx context.Context, entityID id.ID) error {
 		return fmt.Errorf("build delete: %w", err)
 	}
 
-	result, err := r.getTxManager(ctx).GetQuerier(ctx).Exec(ctx, sql, args...)
+	result, err := r.GetTxManager(ctx).GetQuerier(ctx).Exec(ctx, sql, args...)
 	if err != nil {
 		// Check for foreign key violation (23503)
 		var pgErr *pgconn.PgError
@@ -802,7 +803,7 @@ func (r *BaseCatalogRepo[T]) SetDeletionMark(ctx context.Context, entityID id.ID
 		return fmt.Errorf("build set deletion mark: %w", err)
 	}
 
-	result, err := r.getTxManager(ctx).GetQuerier(ctx).Exec(ctx, sql, args...)
+	result, err := r.GetTxManager(ctx).GetQuerier(ctx).Exec(ctx, sql, args...)
 	if err != nil {
 		return fmt.Errorf("execute set deletion mark: %w", err)
 	}
@@ -858,7 +859,7 @@ func (r *BaseCatalogRepo[T]) readTree(ctx context.Context, rootID *id.ID, includ
 		ORDER BY level, name
 	`, cteCols, r.tableName, rootCond, rootVisible, childCols, r.tableName, childVisible, strings.Join(r.selectCols, ", "))
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	if err := pgxscan.Select(ctx, querier, &items, cteSQL, args...); err != nil {
 		return nil, fmt.Errorf("get tree: %w", err)
 	}
@@ -908,7 +909,7 @@ func (r *BaseCatalogRepo[T]) GetPath(ctx context.Context, entityID id.ID) ([]T, 
 		ORDER BY level DESC
 	`, cteCols, r.tableName, childCols, r.tableName, strings.Join(r.selectCols, ", "))
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	if err := pgxscan.Select(ctx, querier, &items, cteSQL, args...); err != nil {
 		return nil, fmt.Errorf("get path: %w", err)
 	}
@@ -937,7 +938,7 @@ func (r *BaseCatalogRepo[T]) FindOne(ctx context.Context, q squirrel.SelectBuild
 		return entity, fmt.Errorf("build query: %w", err)
 	}
 
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	if err := pgxscan.Get(ctx, querier, entity, sql, args...); err != nil {
 		if pgxscan.NotFound(err) {
 			return entity, apperror.NewNotFound(r.tableName, "matching query")

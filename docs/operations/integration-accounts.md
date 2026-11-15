@@ -210,7 +210,7 @@ go run ./cmd/integration-config --chains /secure/chains.json --mapping /secure/i
 Целевые Go race-тесты используют локальные HTTP/RPC mocks. Для БД задайте `METAPUS_TEST_INTEGRATIONS_DSN` отдельного временного PostgreSQL с правом CREATE DATABASE и выполните:
 
 ```sh
-go test -tags integration -race ./internal/infrastructure/storage/postgres/integration_repo
+go test -tags integration -race ./internal/infrastructure/storage/postgres/integration_repo ./internal/infrastructure/storage/postgres/crypto_integration_repo
 ```
 
 Тесты создают собственные tenant-БД и проверяют шифрование, A → B, старые события, месячный reset, единственный recovery probe, tenant-изоляцию, FK/профили, обновление заполненной тестовой схемы, откат dry-run и повторный импорт. Боевой стенд эти тесты не изменяют.

@@ -20,9 +20,9 @@ import (
 	"metapus/internal/domain/registers/crypto_platform_cost"
 	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
 
 	"github.com/stretchr/testify/require"
 )
@@ -165,7 +165,7 @@ func TestNetworkFeeV2ActivationUsesDocumentOwner(t *testing.T) {
 		engine.AddVisitor(&cryptoposting.CryptoPlatformCostVisitor{})
 		engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))
 		engine.AddRecorder(cryptoposting.NewCryptoPlatformCostRecorder(crypto_platform_cost.NewService(crypto_register_repo.NewCryptoPlatformCostRepo())))
-		repo := document_repo.NewCryptoNetworkOperationRepo()
+		repo := crypto_document_repo.NewCryptoNetworkOperationRepo()
 		service := crypto_network_operation.NewService(repo, engine, fixedNetworkOperationNumerator{}, nil)
 		coordinator := NewCryptoNetworkOperationCoordinator(repo, service, NewFeeBudgetManager())
 		doc, err := coordinator.EnsureActivationBroadcast(f.ctx, AccountActivationTask{ActivationID: f.reservation.BasisID, WalletID: target, NetworkID: f.reservation.NetworkID, Address: "0x00000000000000000000000000000000000000cd", HotWallet: HotWallet{ID: f.reservation.PayerWalletID}, CostTokenID: f.reservation.NativeTokenID}, f.receipt.TxHash)

@@ -19,7 +19,7 @@ import (
 	"metapus/internal/domain/documents/outbound_settlement"
 	"metapus/internal/domain/documents/withdrawal_request"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 )
 
 func TestExecutionDraftsAreIdempotent(t *testing.T) {
@@ -55,7 +55,7 @@ func TestExecutionDraftsAreIdempotent(t *testing.T) {
 		require.NoError(t, err)
 
 		outbound := NewOutboundRepo()
-		withdrawalRepo := document_repo.NewCryptoWithdrawalRepo()
+		withdrawalRepo := crypto_document_repo.NewCryptoWithdrawalRepo()
 		withdrawalCandidate := crypto_withdrawal.NewCryptoWithdrawal(merchantID, tokenID, hotWalletID, "TDestination", types.NewCryptoAmountFromInt64(100000))
 		withdrawalCandidate.Number = "CW-TEST-1"
 		withdrawalCandidate.BasisType = withdrawal_request.DocumentType
@@ -71,7 +71,7 @@ func TestExecutionDraftsAreIdempotent(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, firstWithdrawal.ID, secondWithdrawal.ID)
 
-		sweepRepo := document_repo.NewCryptoSweepRepo()
+		sweepRepo := crypto_document_repo.NewCryptoSweepRepo()
 		sweepCandidate := crypto_sweep.NewCryptoSweep(tokenID, hotWalletID)
 		sweepCandidate.Number = "CS-TEST-1"
 		sweepCandidate.TotalAmount = types.NewCryptoAmountFromInt64(100000)

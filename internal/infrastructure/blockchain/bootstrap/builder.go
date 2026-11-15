@@ -17,8 +17,8 @@ import (
 	"metapus/internal/infrastructure/blockchain/evm"
 	"metapus/internal/infrastructure/blockchain/tron"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_integration_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/infrastructure/storage/postgres/integration_repo"
 )
 
 type Builder struct {
@@ -64,7 +64,7 @@ func (b *Builder) Build(ctx context.Context, networks []crypto.NetworkRef, deriv
 	evmConfigs := make(map[id.ID]evm.DriverConfig)
 	for _, network := range networks {
 		fallback := b.config.Networks[network.Code]
-		runtime, loadErr := integration_repo.LoadRPCNetwork(ctx, network, fallback)
+		runtime, loadErr := crypto_integration_repo.LoadRPCNetwork(ctx, network, fallback)
 		if loadErr != nil {
 			buildErrors = append(buildErrors, loadErr)
 			continue
@@ -127,7 +127,7 @@ func (b *Builder) Build(ctx context.Context, networks []crypto.NetworkRef, deriv
 				InitialVersion: fmt.Sprintf("%s/decoder:%d", rpcVersion(runtime), decoderVersion),
 			}
 			poolConfig.Reload = func(ctx context.Context) (tron.RPCPoolConfig, string, error) {
-				next, err := integration_repo.LoadRPCNetwork(ctx, network, fallback)
+				next, err := crypto_integration_repo.LoadRPCNetwork(ctx, network, fallback)
 				if err != nil {
 					return tron.RPCPoolConfig{}, "", err
 				}
@@ -188,7 +188,7 @@ func (b *Builder) Build(ctx context.Context, networks []crypto.NetworkRef, deriv
 			}
 			poolConfig := evm.RPCPoolConfig{NetworkCode: network.Code, ExpectedChainID: chainID, Settings: settings, Endpoints: runtime.Endpoints(chainconfig.RoleRPC), FailureThreshold: failureThreshold, OpenDuration: time.Duration(openSeconds) * time.Second, InitialVersion: rpcVersion(runtime)}
 			poolConfig.Reload = func(ctx context.Context) (evm.RPCPoolConfig, string, error) {
-				next, err := integration_repo.LoadRPCNetwork(ctx, network, fallback)
+				next, err := crypto_integration_repo.LoadRPCNetwork(ctx, network, fallback)
 				if err != nil {
 					return evm.RPCPoolConfig{}, "", err
 				}

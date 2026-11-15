@@ -6,9 +6,10 @@ import (
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 )
 
-const activationWalletSetSQL = postgres.CryptoActivationWalletSetSQL
+const activationWalletSetSQL = crypto_document_repo.CryptoActivationWalletSetSQL
 
 // Called after the common prefix has serialized task creation for this wallet.
 // A delayed success from failed history must not hide a newer live workflow
@@ -33,7 +34,7 @@ func lockActivationState(ctx context.Context, key id.ID, extra ...id.ID) error {
 	return lockActivationResources(ctx, key, false, extra...)
 }
 func lockActivationResources(ctx context.Context, key id.ID, reserving bool, extra ...id.ID) error {
-	return postgres.LockCryptoActivationResources(ctx, key, reserving, extra...)
+	return crypto_document_repo.LockCryptoActivationResources(ctx, key, reserving, extra...)
 }
 
 func (r *OutboundRepo) PrepareAccountActivationState(ctx context.Context, task AccountActivationTask) error {

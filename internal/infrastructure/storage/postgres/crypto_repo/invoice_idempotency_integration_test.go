@@ -27,8 +27,8 @@ import (
 	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_catalog_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/infrastructure/tenantdb"
 )
 
@@ -77,9 +77,9 @@ func TestTwentyConcurrentInvoiceCommandsCreateOneAggregateAllocationAndEvent(t *
 		"m/44'/195'/9000'/0/0", "vault/invoice-idempotency/"+suffix)
 	require.NoError(t, err)
 
-	invoiceRepo := document_repo.NewCryptoInvoiceRepo()
+	invoiceRepo := crypto_document_repo.NewCryptoInvoiceRepo()
 	invoiceService := crypto_invoice.NewService(invoiceRepo, nil, numerator.New(), nil)
-	walletService := wallet.NewService(catalog_repo.NewWalletRepo(), corenumerator.Noop())
+	walletService := wallet.NewService(crypto_catalog_repo.NewWalletRepo(), corenumerator.Noop())
 	allocationRepo := NewWalletAllocationRepo()
 	lifecycle := NewLifecycleWebhookOutbox()
 	invoiceService.Hooks().OnBeforeCreate(func(hookCtx context.Context, invoice *crypto_invoice.CryptoInvoice) error {
