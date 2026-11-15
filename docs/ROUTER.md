@@ -65,6 +65,7 @@
 | Файл | Описание | Ключевые слова |
 |------|----------|----------------|
 | [METADATA.md](METADATA.md) | Структура метаданных в терминах 1С: справочники, документы, реквизиты, табличные части, регистры, перечисления и отчёты | метаданные, 1С, конфигурация, справочники, документы, реквизиты, регистры |
+| [reference/document-register-matrix.md](reference/document-register-matrix.md) | Матрица движений всех реализованных документов и краткий справочник назначения; отличия поступлений, пополнений кошельков и платформы | документы, движения, регистры, пополнение, невыясненные, свип, вывод, комиссии, корректировки |
 | [reference/development-rules.md](reference/development-rules.md) | Строгие архитектурные правила и запреты, **CWE-209**, привязка ID документа | rules, development, invariants, limits, cwe-209, error messages, security, document id |
 | [reference/frontend-guidelines.md](reference/frontend-guidelines.md) | Правила фронтенда, Next.js, shadcn/ui | frontend, guidelines, next.js, shadcn, react |
 | [reference/keyboard-shortcuts.md](reference/keyboard-shortcuts.md) | Глобальные горячие клавиши, useShortcut | shortcuts, keyboard, hotkeys, bindings |
