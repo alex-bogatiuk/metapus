@@ -135,8 +135,10 @@ func (r *Repository) Analytics(ctx context.Context, period string) (dashboard.An
  WHERE posted=TRUE AND status IN ('confirmed','settled') AND canonicality='canonical' AND deletion_mark=FALSE AND _deleted_at IS NULL
  AND COALESCE(confirmed_at,date) >= $1 AND COALESCE(confirmed_at,date) < $2
 ), fees AS (
+ -- Revenue net of reversals. Treasury withdrawals spend fees already earned:
+ -- they lower the withdrawable fee balance, not the revenue of any period.
  SELECT token_id,SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END) amount
- FROM reg_crypto_fee_movements WHERE period >= $1 AND period < $2 AND fee_type='processing' GROUP BY token_id
+ FROM reg_crypto_fee_movements WHERE period >= $1 AND period < $2 AND fee_type='processing' AND recorder_type<>'TreasuryWithdrawal' GROUP BY token_id
 )
  SELECT t.id::text,t.symbol,n.name,t.decimal_places,COALESCE(f.amount,0)::text,
  COALESCE(i.created,0),COALESCE(i.paid,0),COALESCE(i.underpaid,0),COALESCE(i.expired,0),COALESCE(i.pending,0),COALESCE(i.cancelled,0),COALESCE(i.awaiting_confirmation,0),COALESCE(i.reversed,0)

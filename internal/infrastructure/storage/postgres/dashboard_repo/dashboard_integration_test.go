@@ -100,6 +100,7 @@ func TestDashboardReadModels(t *testing.T) {
 		exec(`INSERT INTO reg_crypto_fee_movements(line_id,recorder_id,recorder_type,recorder_version,period,record_type,merchant_id,token_id,fee_type,amount)
    VALUES(gen_random_uuid_v7(),gen_random_uuid_v7(),'CryptoPayment',1,NOW(),'receipt',$1,$2,'processing',100),
    (gen_random_uuid_v7(),gen_random_uuid_v7(),'CryptoPayment',1,NOW(),'expense',$1,$2,'processing',20),
+   (gen_random_uuid_v7(),gen_random_uuid_v7(),'TreasuryWithdrawal',1,NOW(),'expense',$1,$2,'processing',40),
    (gen_random_uuid_v7(),gen_random_uuid_v7(),'CryptoPayment',1,NOW(),'receipt',$1,$2,'network',999)`, merchant, token)
 		exec(`UPDATE cat_tokens SET is_active=FALSE,_deleted_at=NOW() WHERE id=$1`, token)
 		archivedAssets, err := repo.Assets(ctx)
