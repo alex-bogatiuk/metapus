@@ -1,4 +1,4 @@
-package middleware
+package cryptomiddleware
 
 import (
 	"net/http"

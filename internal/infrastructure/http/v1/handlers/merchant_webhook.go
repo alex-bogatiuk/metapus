@@ -14,8 +14,8 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/domain/crypto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware"
 	"metapus/internal/infrastructure/http/v1/dto"
-	mw "metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
 	platformtelemetry "metapus/internal/platform/telemetry"
 )
@@ -37,7 +37,7 @@ func NewMerchantWebhookHandler(repo crypto.MerchantWebhookRepository, secrets cr
 }
 
 func (h *MerchantWebhookHandler) CreateEndpoint(c *gin.Context) {
-	mc := mw.GetMerchant(c.Request.Context())
+	mc := cryptomiddleware.GetMerchant(c.Request.Context())
 	var request dto.CreateWebhookEndpointRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		failMerchantWebhook(c, apperror.NewInvalidRequest(err))
@@ -57,7 +57,7 @@ func (h *MerchantWebhookHandler) CreateEndpoint(c *gin.Context) {
 }
 
 func (h *MerchantWebhookHandler) ListEndpoints(c *gin.Context) {
-	mc := mw.GetMerchant(c.Request.Context())
+	mc := cryptomiddleware.GetMerchant(c.Request.Context())
 	endpoints, err := h.repo.ListEndpoints(c.Request.Context(), mc.MerchantID)
 	if err != nil {
 		failMerchantWebhook(c, err)
@@ -117,7 +117,7 @@ func (h *MerchantWebhookHandler) UpdateEndpoint(c *gin.Context) {
 }
 
 func (h *MerchantWebhookHandler) DeleteEndpoint(c *gin.Context) {
-	mc := mw.GetMerchant(c.Request.Context())
+	mc := cryptomiddleware.GetMerchant(c.Request.Context())
 	endpointID, err := id.Parse(c.Param("id"))
 	if err != nil {
 		failMerchantWebhook(c, apperror.NewValidation("invalid webhook endpoint id"))
@@ -131,7 +131,7 @@ func (h *MerchantWebhookHandler) DeleteEndpoint(c *gin.Context) {
 }
 
 func (h *MerchantWebhookHandler) RotateSecret(c *gin.Context) {
-	mc := mw.GetMerchant(c.Request.Context())
+	mc := cryptomiddleware.GetMerchant(c.Request.Context())
 	endpointID, err := id.Parse(c.Param("id"))
 	if err != nil {
 		failMerchantWebhook(c, apperror.NewValidation("invalid webhook endpoint id"))
@@ -188,7 +188,7 @@ func (h *MerchantWebhookHandler) TestEndpoint(c *gin.Context) {
 }
 
 func (h *MerchantWebhookHandler) ListEvents(c *gin.Context) {
-	mc := mw.GetMerchant(c.Request.Context())
+	mc := cryptomiddleware.GetMerchant(c.Request.Context())
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 	if limit < 1 || limit > 100 {
@@ -215,7 +215,7 @@ func (h *MerchantWebhookHandler) ListEvents(c *gin.Context) {
 }
 
 func (h *MerchantWebhookHandler) ListEventDeliveries(c *gin.Context) {
-	mc := mw.GetMerchant(c.Request.Context())
+	mc := cryptomiddleware.GetMerchant(c.Request.Context())
 	eventID := strings.TrimSpace(c.Param("id"))
 	if _, err := h.repo.GetEvent(c.Request.Context(), mc.MerchantID, eventID); err != nil {
 		failMerchantWebhook(c, err)
@@ -230,7 +230,7 @@ func (h *MerchantWebhookHandler) ListEventDeliveries(c *gin.Context) {
 }
 
 func (h *MerchantWebhookHandler) RedeliverEvent(c *gin.Context) {
-	mc := mw.GetMerchant(c.Request.Context())
+	mc := cryptomiddleware.GetMerchant(c.Request.Context())
 	var request dto.RedeliverMerchantEventRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		failMerchantWebhook(c, apperror.NewInvalidRequest(err))
@@ -249,7 +249,7 @@ func (h *MerchantWebhookHandler) RedeliverEvent(c *gin.Context) {
 }
 
 func (h *MerchantWebhookHandler) mustEndpoint(c *gin.Context) *crypto.MerchantWebhookEndpoint {
-	mc := mw.GetMerchant(c.Request.Context())
+	mc := cryptomiddleware.GetMerchant(c.Request.Context())
 	endpointID, err := id.Parse(c.Param("id"))
 	if err != nil {
 		failMerchantWebhook(c, apperror.NewValidation("invalid webhook endpoint id"))

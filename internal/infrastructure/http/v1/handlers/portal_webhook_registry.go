@@ -3,7 +3,7 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/infrastructure/http/v1/middleware"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware"
 )
 
 // PortalWebhookRegistryHandler reuses the merchant webhook application
@@ -21,7 +21,7 @@ func (h *PortalWebhookRegistryHandler) withMerchant(c *gin.Context, next gin.Han
 		c.Abort()
 		return
 	}
-	ctx := middleware.WithMerchant(c.Request.Context(), &middleware.MerchantContext{MerchantID: merchantID})
+	ctx := cryptomiddleware.WithMerchant(c.Request.Context(), &cryptomiddleware.MerchantContext{MerchantID: merchantID})
 	c.Request = c.Request.WithContext(ctx)
 	next(c)
 }

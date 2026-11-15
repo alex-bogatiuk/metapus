@@ -18,8 +18,8 @@ import (
 	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_invoice"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware"
 	"metapus/internal/infrastructure/http/v1/dto"
-	mw "metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/pkg/logger"
 )
 
@@ -59,7 +59,7 @@ func NewMerchantInvoiceHandler(
 // idempotent, serialized with chain processing by the invoice row lock, and
 // emits invoice.cancelled in the same transaction as wallet release.
 func (h *MerchantInvoiceHandler) CancelInvoice(c *gin.Context) {
-	mc := mw.GetMerchant(c.Request.Context())
+	mc := cryptomiddleware.GetMerchant(c.Request.Context())
 	if mc == nil {
 		_ = c.Error(apperror.NewUnauthorized("merchant context missing"))
 		c.Abort()
@@ -90,7 +90,7 @@ func (h *MerchantInvoiceHandler) CancelInvoice(c *gin.Context) {
 // Idempotency: if orderId is provided and a matching invoice already exists
 // for this merchant, the existing invoice is returned without creating a duplicate.
 func (h *MerchantInvoiceHandler) CreateInvoice(c *gin.Context) {
-	mc := mw.GetMerchant(c.Request.Context())
+	mc := cryptomiddleware.GetMerchant(c.Request.Context())
 	if mc == nil {
 		_ = c.Error(apperror.NewUnauthorized("merchant context missing"))
 		c.Abort()
@@ -252,7 +252,7 @@ func (h *MerchantInvoiceHandler) CreateInvoice(c *gin.Context) {
 // Returns active tokens with their code, network, and decimalPlaces so
 // merchant integrations can convert amounts to minor units without hardcoding.
 func (h *MerchantInvoiceHandler) ListCurrencies(c *gin.Context) {
-	mc := mw.GetMerchant(c.Request.Context())
+	mc := cryptomiddleware.GetMerchant(c.Request.Context())
 	if mc == nil {
 		_ = c.Error(apperror.NewUnauthorized("merchant context missing"))
 		c.Abort()
@@ -288,7 +288,7 @@ func (h *MerchantInvoiceHandler) ListCurrencies(c *gin.Context) {
 // ListInvoices handles GET /merchant/v1/invoices.
 // Supports cursor pagination and reconciliation filters (createdFrom/To, completedFrom/To, status, currency, orderId, externalId, customerId).
 func (h *MerchantInvoiceHandler) ListInvoices(c *gin.Context) {
-	mc := mw.GetMerchant(c.Request.Context())
+	mc := cryptomiddleware.GetMerchant(c.Request.Context())
 	if mc == nil {
 		_ = c.Error(apperror.NewUnauthorized("merchant context missing"))
 		c.Abort()
@@ -342,7 +342,7 @@ func (h *MerchantInvoiceHandler) ListInvoices(c *gin.Context) {
 
 // GetInvoice handles GET /merchant/v1/invoices/:id.
 func (h *MerchantInvoiceHandler) GetInvoice(c *gin.Context) {
-	mc := mw.GetMerchant(c.Request.Context())
+	mc := cryptomiddleware.GetMerchant(c.Request.Context())
 	if mc == nil {
 		_ = c.Error(apperror.NewUnauthorized("merchant context missing"))
 		c.Abort()

@@ -134,13 +134,10 @@ var knownConfigurationLeaks = map[string][]string{
 		"metapus/internal/domain/documents/withdrawal_request",
 		"metapus/internal/infrastructure/crypto/webhook",
 		"metapus/internal/infrastructure/crypto_worker",
+		"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware",
 		"metapus/internal/infrastructure/storage/postgres/crypto_repo",
 		"metapus/internal/infrastructure/storage/postgres/money_movement_repo",
 		"metapus/internal/infrastructure/storage/postgres/portal_repo",
-	},
-	"metapus/internal/infrastructure/http/v1/middleware": {
-		"metapus/internal/application/checkout",
-		"metapus/internal/domain/catalogs/merchant",
 	},
 	"metapus/internal/infrastructure/rate_feed": {
 		"metapus/internal/infrastructure/integrations",

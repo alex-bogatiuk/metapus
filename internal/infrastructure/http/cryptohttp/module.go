@@ -11,6 +11,7 @@ import (
 	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_invoice"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware"
 	v1 "metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
@@ -87,7 +88,7 @@ func (m *Module) registerCheckoutRoutes(router *gin.Engine, api *gin.RouterGroup
 	paymentPageHandler := handlers.NewPaymentPageHandler(checkoutPageService)
 
 	checkoutGroup := api.Group("/checkout")
-	checkoutGroup.Use(middleware.CheckoutTenantDB(cfg.TenantManager, cfg.CheckoutRefs))
+	checkoutGroup.Use(cryptomiddleware.CheckoutTenantDB(cfg.TenantManager, cfg.CheckoutRefs))
 	{
 		invoices := checkoutGroup.Group("/invoices")
 		{

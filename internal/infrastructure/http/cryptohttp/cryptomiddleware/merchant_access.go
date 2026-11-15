@@ -1,5 +1,5 @@
 // Package middleware provides the RequireMerchantAccess middleware.
-package middleware
+package cryptomiddleware
 
 import (
 	"context"

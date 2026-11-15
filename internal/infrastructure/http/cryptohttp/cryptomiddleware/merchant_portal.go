@@ -1,4 +1,4 @@
-package middleware
+package cryptomiddleware
 
 import (
 	"slices"
@@ -10,6 +10,7 @@ import (
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/catalogs/merchant"
+	"metapus/internal/infrastructure/http/v1/middleware"
 )
 
 // MerchantPortal extracts merchant grants and per-merchant roles from the
@@ -57,8 +58,30 @@ func MerchantPortal() gin.HandlerFunc {
 			Roles:       roles,
 		}
 		ctx := merchant.WithPortalScope(c.Request.Context(), scope)
+		ctx = middleware.WithCommandScope(ctx, portalCommandScope(scope))
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
+	}
+}
+
+// portalCommandScope scopes idempotent portal commands to the merchant the
+// request names (merchant_id query or :merchantId), or to the only merchant
+// in scope; any other merchant is rejected.
+func portalCommandScope(scope merchant.PortalScope) middleware.CommandScopeResolver {
+	return func(c *gin.Context) (string, string, error) {
+		candidate := strings.TrimSpace(c.Query("merchant_id"))
+		if candidate == "" {
+			candidate = strings.TrimSpace(c.Param("merchantId"))
+		}
+		if candidate == "" && len(scope.MerchantIDs) == 1 {
+			candidate = scope.MerchantIDs[0].String()
+		}
+		for _, merchantID := range scope.MerchantIDs {
+			if merchantID.String() == candidate {
+				return "merchant", candidate, nil
+			}
+		}
+		return "", "", apperror.NewForbidden("merchant command scope is not allowed")
 	}
 }
 

@@ -1,4 +1,4 @@
-package middleware
+package cryptomiddleware
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/catalogs/merchant"
+	"metapus/internal/infrastructure/http/v1/middleware"
 )
 
 type merchantNetworkPolicyRepoStub struct {
@@ -123,7 +124,7 @@ func merchantNetworkPolicyTestRouter(t *testing.T, merchantID id.ID, repo mercha
 	InvalidateMerchantNetworkPolicyCache(merchantID)
 	router := gin.New()
 	require.NoError(t, router.SetTrustedProxies(trustedProxies))
-	router.Use(ErrorHandler())
+	router.Use(middleware.ErrorHandler())
 	router.Use(func(c *gin.Context) {
 		scope := merchant.PortalScope{
 			MerchantIDs: []id.ID{merchantID},

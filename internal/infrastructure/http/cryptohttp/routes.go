@@ -23,6 +23,7 @@ import (
 	"metapus/internal/domain/registers/crypto_receipt_suspense"
 	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/domain/registers/exchange_rate"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware"
 	v1 "metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
@@ -126,10 +127,10 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 
 	// /merchant/v1/ — public merchant API (API-key auth)
 	merchantBase := router.Group("/merchant/v1")
-	merchantBase.Use(middleware.MerchantAPIKey(m.cfg.MerchantAPIKeyRepo, cfg.TenantManager, cfg.MetaPool))
-	merchantBase.Use(middleware.MerchantNetworkAccess(networkPolicyRepo, merchant.NetworkSurfaceAPI))
+	merchantBase.Use(cryptomiddleware.MerchantAPIKey(m.cfg.MerchantAPIKeyRepo, cfg.TenantManager, cfg.MetaPool))
+	merchantBase.Use(cryptomiddleware.MerchantNetworkAccess(networkPolicyRepo, merchant.NetworkSurfaceAPI))
 	merchantBase.PATCH("/invoices/:id/reference",
-		middleware.RequireMerchantScope(merchant.ScopeInvoiceCreate), invoiceHandler.AuthorizeInvoiceReference,
+		cryptomiddleware.RequireMerchantScope(merchant.ScopeInvoiceCreate), invoiceHandler.AuthorizeInvoiceReference,
 		middleware.CommandIdempotency(true), invoiceHandler.BindInvoiceReference)
 	merchantV1 := merchantBase.Group("")
 	merchantV1.Use(middleware.CommandIdempotency(true))
@@ -153,19 +154,19 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 			webhookHandler := handlers.NewMerchantWebhookHandler(webhookRepo, m.cfg.MerchantWebhookSecretStore, crypto_repo.NewWebhookDeliveryRepo())
 			endpoints := merchantV1.Group("/webhook-endpoints")
 			{
-				endpoints.POST("", middleware.RequireMerchantScope(merchant.ScopeWebhookEndpointWrite), webhookHandler.CreateEndpoint)
-				endpoints.GET("", middleware.RequireMerchantScope(merchant.ScopeWebhookEndpointRead), webhookHandler.ListEndpoints)
-				endpoints.GET("/:id", middleware.RequireMerchantScope(merchant.ScopeWebhookEndpointRead), webhookHandler.GetEndpoint)
-				endpoints.PATCH("/:id", middleware.RequireMerchantScope(merchant.ScopeWebhookEndpointWrite), webhookHandler.UpdateEndpoint)
-				endpoints.DELETE("/:id", middleware.RequireMerchantScope(merchant.ScopeWebhookEndpointWrite), webhookHandler.DeleteEndpoint)
-				endpoints.POST("/:id/rotate-secret", middleware.RequireMerchantScope(merchant.ScopeWebhookEndpointWrite), webhookHandler.RotateSecret)
-				endpoints.POST("/:id/test", middleware.RequireMerchantScope(merchant.ScopeWebhookEndpointWrite), webhookHandler.TestEndpoint)
+				endpoints.POST("", cryptomiddleware.RequireMerchantScope(merchant.ScopeWebhookEndpointWrite), webhookHandler.CreateEndpoint)
+				endpoints.GET("", cryptomiddleware.RequireMerchantScope(merchant.ScopeWebhookEndpointRead), webhookHandler.ListEndpoints)
+				endpoints.GET("/:id", cryptomiddleware.RequireMerchantScope(merchant.ScopeWebhookEndpointRead), webhookHandler.GetEndpoint)
+				endpoints.PATCH("/:id", cryptomiddleware.RequireMerchantScope(merchant.ScopeWebhookEndpointWrite), webhookHandler.UpdateEndpoint)
+				endpoints.DELETE("/:id", cryptomiddleware.RequireMerchantScope(merchant.ScopeWebhookEndpointWrite), webhookHandler.DeleteEndpoint)
+				endpoints.POST("/:id/rotate-secret", cryptomiddleware.RequireMerchantScope(merchant.ScopeWebhookEndpointWrite), webhookHandler.RotateSecret)
+				endpoints.POST("/:id/test", cryptomiddleware.RequireMerchantScope(merchant.ScopeWebhookEndpointWrite), webhookHandler.TestEndpoint)
 			}
 			events := merchantV1.Group("/events")
 			{
-				events.GET("", middleware.RequireMerchantScope(merchant.ScopeWebhookEventRead), webhookHandler.ListEvents)
-				events.GET("/:id/deliveries", middleware.RequireMerchantScope(merchant.ScopeWebhookEventRead), webhookHandler.ListEventDeliveries)
-				events.POST("/:id/redeliver", middleware.RequireMerchantScope(merchant.ScopeWebhookEventRedeliver), webhookHandler.RedeliverEvent)
+				events.GET("", cryptomiddleware.RequireMerchantScope(merchant.ScopeWebhookEventRead), webhookHandler.ListEvents)
+				events.GET("/:id/deliveries", cryptomiddleware.RequireMerchantScope(merchant.ScopeWebhookEventRead), webhookHandler.ListEventDeliveries)
+				events.POST("/:id/redeliver", cryptomiddleware.RequireMerchantScope(merchant.ScopeWebhookEventRedeliver), webhookHandler.RedeliverEvent)
 			}
 		}
 	}
@@ -189,7 +190,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 		// require the user to be associated with that merchant (Owner or Manager).
 		merchantScoped := merchantAdmin.Group("/merchants/:merchantId")
 		if m.cfg.MerchantUserRepo != nil {
-			merchantScoped.Use(middleware.RequireMerchantAccess(m.cfg.MerchantUserRepo, merchant.MerchantRoleManager))
+			merchantScoped.Use(cryptomiddleware.RequireMerchantAccess(m.cfg.MerchantUserRepo, merchant.MerchantRoleManager))
 		}
 
 		// ─── API Keys ────────────────────────────────────────────────────────
@@ -282,8 +283,8 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 		portalV1.Use(middleware.TenantDB(cfg.TenantManager))
 		portalV1.Use(middleware.Auth(cfg.JWTValidator))
 		portalV1.Use(middleware.AdminGuard(cfg.AdminSecurityMode, cfg.AdminAllowedCIDRs, cfg.AdminMFAMode, cfg.MFARepo, cfg.EventLogRepo))
-		portalV1.Use(middleware.MerchantPortal())
-		portalV1.Use(middleware.MerchantNetworkAccess(networkPolicyRepo, merchant.NetworkSurfacePortal))
+		portalV1.Use(cryptomiddleware.MerchantPortal())
+		portalV1.Use(cryptomiddleware.MerchantNetworkAccess(networkPolicyRepo, merchant.NetworkSurfacePortal))
 		portalV1.Use(middleware.CommandIdempotency(true))
 		{
 			portalV1.GET("/merchants", portalHandler.ListMerchants)
@@ -304,7 +305,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 			portalV1.GET("/invoices", portalHandler.ListInvoices)
 			portalV1.GET("/invoices/export", portalHandler.ExportInvoicesCSV)
 			portalV1.POST("/invoices",
-				middleware.RequirePortalRole(merchant.PortalRoleManager),
+				cryptomiddleware.RequirePortalRole(merchant.PortalRoleManager),
 				portalHandler.CreateInvoice,
 			)
 			portalV1.GET("/invoices/:id", portalHandler.GetInvoiceDetail) // MUST be after /invoices/export (Gin static-before-param rule)
@@ -318,12 +319,12 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 			{
 				addrs.GET("", portalHandler.ListWhitelistedAddresses)
 				addrs.POST("",
-					middleware.RequirePortalRole(merchant.PortalRoleOwner),
+					cryptomiddleware.RequirePortalRole(merchant.PortalRoleOwner),
 					requireStepUp("portal.withdrawal_addresses.add"),
 					portalHandler.AddWhitelistedAddress,
 				)
 				addrs.DELETE("/:id",
-					middleware.RequirePortalRole(merchant.PortalRoleOwner),
+					cryptomiddleware.RequirePortalRole(merchant.PortalRoleOwner),
 					requireStepUp("portal.withdrawal_addresses.remove"),
 					portalHandler.RemoveWhitelistedAddress,
 				)
@@ -333,12 +334,12 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 			{
 				wreqs.GET("", portalHandler.ListWithdrawalRequests)
 				wreqs.POST("",
-					middleware.RequirePortalRole(merchant.PortalRoleManager),
+					cryptomiddleware.RequirePortalRole(merchant.PortalRoleManager),
 					requireStepUp("portal.withdrawal_requests.create"),
 					portalHandler.CreateWithdrawalRequest,
 				)
 				wreqs.POST("/:id/reject",
-					middleware.RequirePortalRole(merchant.PortalRoleManager),
+					cryptomiddleware.RequirePortalRole(merchant.PortalRoleManager),
 					requireStepUp("portal.withdrawal_requests.reject"),
 					portalHandler.RejectWithdrawalRequest,
 				)
@@ -351,19 +352,19 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 				registryHandler := handlers.NewPortalWebhookRegistryHandler(merchantWebhookHandler)
 				endpoints := portalV1.Group("/webhook-endpoints")
 				{
-					endpoints.GET("", middleware.RequirePortalRole(merchant.PortalRoleManager), registryHandler.ListEndpoints)
-					endpoints.POST("", middleware.RequirePortalRole(merchant.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.create"), registryHandler.CreateEndpoint)
-					endpoints.GET("/:id", middleware.RequirePortalRole(merchant.PortalRoleManager), registryHandler.GetEndpoint)
-					endpoints.PATCH("/:id", middleware.RequirePortalRole(merchant.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.update"), registryHandler.UpdateEndpoint)
-					endpoints.DELETE("/:id", middleware.RequirePortalRole(merchant.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.delete"), registryHandler.DeleteEndpoint)
-					endpoints.POST("/:id/rotate-secret", middleware.RequirePortalRole(merchant.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.rotate"), registryHandler.RotateSecret)
-					endpoints.POST("/:id/test", middleware.RequirePortalRole(merchant.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.test"), registryHandler.TestEndpoint)
+					endpoints.GET("", cryptomiddleware.RequirePortalRole(merchant.PortalRoleManager), registryHandler.ListEndpoints)
+					endpoints.POST("", cryptomiddleware.RequirePortalRole(merchant.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.create"), registryHandler.CreateEndpoint)
+					endpoints.GET("/:id", cryptomiddleware.RequirePortalRole(merchant.PortalRoleManager), registryHandler.GetEndpoint)
+					endpoints.PATCH("/:id", cryptomiddleware.RequirePortalRole(merchant.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.update"), registryHandler.UpdateEndpoint)
+					endpoints.DELETE("/:id", cryptomiddleware.RequirePortalRole(merchant.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.delete"), registryHandler.DeleteEndpoint)
+					endpoints.POST("/:id/rotate-secret", cryptomiddleware.RequirePortalRole(merchant.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.rotate"), registryHandler.RotateSecret)
+					endpoints.POST("/:id/test", cryptomiddleware.RequirePortalRole(merchant.PortalRoleOwner), requireStepUp("portal.webhook_endpoints.test"), registryHandler.TestEndpoint)
 				}
 				events := portalV1.Group("/events")
 				{
-					events.GET("", middleware.RequirePortalRole(merchant.PortalRoleManager), registryHandler.ListEvents)
-					events.GET("/:id/deliveries", middleware.RequirePortalRole(merchant.PortalRoleManager), registryHandler.ListEventDeliveries)
-					events.POST("/:id/redeliver", middleware.RequirePortalRole(merchant.PortalRoleOwner), requireStepUp("portal.webhook_events.redeliver"), registryHandler.RedeliverEvent)
+					events.GET("", cryptomiddleware.RequirePortalRole(merchant.PortalRoleManager), registryHandler.ListEvents)
+					events.GET("/:id/deliveries", cryptomiddleware.RequirePortalRole(merchant.PortalRoleManager), registryHandler.ListEventDeliveries)
+					events.POST("/:id/redeliver", cryptomiddleware.RequirePortalRole(merchant.PortalRoleOwner), requireStepUp("portal.webhook_events.redeliver"), registryHandler.RedeliverEvent)
 				}
 			}
 
@@ -373,7 +374,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 			if m.cfg.MerchantAPIKeyRepo != nil {
 				keys := portalV1.Group("/api-keys")
 				{
-					keys.Use(middleware.RequirePortalRole(merchant.PortalRoleOwner))
+					keys.Use(cryptomiddleware.RequirePortalRole(merchant.PortalRoleOwner))
 					keys.GET("", portalHandler.ListAPIKeys)
 					keys.POST("", requireStepUp("portal.api_keys.create"), portalHandler.CreateAPIKey)
 					keys.DELETE("/:keyId", requireStepUp("portal.api_keys.delete"), portalHandler.RevokeAPIKey)
@@ -387,7 +388,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 
 			policyHandler := handlers.NewMerchantNetworkPolicyHandler(networkPolicyRepo, cfg.MFARepo, false)
 			policies := portalV1.Group("/security/network-policies")
-			policies.Use(middleware.RequirePortalRole(merchant.PortalRoleOwner))
+			policies.Use(cryptomiddleware.RequirePortalRole(merchant.PortalRoleOwner))
 			{
 				policies.GET("/:surface", policyHandler.Get)
 				policies.PUT("/:surface", policyHandler.SetMode)
@@ -397,7 +398,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 
 			// ── Payment Links ────────────────────────────────────────────
 			links := portalV1.Group("/payment-links")
-			links.Use(middleware.RequirePortalRole(merchant.PortalRoleManager))
+			links.Use(cryptomiddleware.RequirePortalRole(merchant.PortalRoleManager))
 			{
 				links.GET("", portalHandler.ListPaymentLinks)
 				links.POST("", portalHandler.CreatePaymentLink)
@@ -407,9 +408,9 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 			depositAddrs := portalV1.Group("/deposit-addresses")
 			{
 				depositAddrs.GET("", portalHandler.ListDepositAddresses)
-				depositAddrs.POST("/:id/rotate", middleware.RequirePortalRole(merchant.PortalRoleManager), portalHandler.RotateDepositAddress)
+				depositAddrs.POST("/:id/rotate", cryptomiddleware.RequirePortalRole(merchant.PortalRoleManager), portalHandler.RotateDepositAddress)
 				depositAddrs.POST("",
-					middleware.RequirePortalRole(merchant.PortalRoleManager),
+					cryptomiddleware.RequirePortalRole(merchant.PortalRoleManager),
 					portalHandler.CreateDepositAddress,
 				)
 			}
@@ -417,7 +418,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 			// ── Merchant Settings ────────────────────────────────────────
 			portalV1.GET("/settings", portalHandler.GetSettings)
 			portalV1.PATCH("/settings",
-				middleware.RequirePortalRole(merchant.PortalRoleManager),
+				cryptomiddleware.RequirePortalRole(merchant.PortalRoleManager),
 				requireStepUp("portal.settings.update"),
 				portalHandler.UpdateSettings,
 			)

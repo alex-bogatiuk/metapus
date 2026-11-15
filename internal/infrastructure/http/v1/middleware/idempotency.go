@@ -16,7 +16,6 @@ import (
 	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/json"
-	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
@@ -249,24 +248,22 @@ func canonicalQuery(request *http.Request) string {
 	return query.Encode()
 }
 
+// CommandScopeResolver names the trusted owner that idempotent command keys
+// are scoped to, such as a configuration's partner account. Middleware that
+// authenticates such an owner installs it with WithCommandScope.
+type CommandScopeResolver func(c *gin.Context) (kind, ownerID string, err error)
+
+type commandScopeKey struct{}
+
+// WithCommandScope makes idempotent commands in this request scope their
+// keys through resolve instead of the authenticated user.
+func WithCommandScope(ctx context.Context, resolve CommandScopeResolver) context.Context {
+	return context.WithValue(ctx, commandScopeKey{}, resolve)
+}
+
 func trustedCommandScope(c *gin.Context) (string, string, error) {
-	if merchantContext := GetMerchant(c.Request.Context()); merchantContext != nil {
-		return "merchant", merchantContext.MerchantID.String(), nil
-	}
-	if scope, ok := merchant.GetPortalScope(c.Request.Context()); ok {
-		candidate := strings.TrimSpace(c.Query("merchant_id"))
-		if candidate == "" {
-			candidate = strings.TrimSpace(c.Param("merchantId"))
-		}
-		if candidate == "" && len(scope.MerchantIDs) == 1 {
-			candidate = scope.MerchantIDs[0].String()
-		}
-		for _, merchantID := range scope.MerchantIDs {
-			if merchantID.String() == candidate {
-				return "merchant", candidate, nil
-			}
-		}
-		return "", "", apperror.NewForbidden("merchant command scope is not allowed")
+	if resolve, ok := c.Request.Context().Value(commandScopeKey{}).(CommandScopeResolver); ok && resolve != nil {
+		return resolve(c)
 	}
 	if user := appctx.GetUser(c.Request.Context()); user != nil && strings.TrimSpace(user.UserID) != "" {
 		return "user", user.UserID, nil

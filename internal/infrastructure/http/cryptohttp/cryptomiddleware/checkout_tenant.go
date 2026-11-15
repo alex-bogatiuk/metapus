@@ -1,4 +1,4 @@
-package middleware
+package cryptomiddleware
 
 import (
 	"errors"
@@ -8,6 +8,7 @@ import (
 	"metapus/internal/application/checkout"
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/tenant"
+	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/tenantdb"
 	"metapus/pkg/logger"
@@ -24,7 +25,7 @@ func CheckoutTenantDB(manager *tenantdb.Manager, refs *checkout.Service) gin.Han
 	}
 
 	return func(c *gin.Context) {
-		if c.GetHeader(TenantHeader) != "" || c.Query("tenant") != "" || c.Param("tenantId") != "" {
+		if c.GetHeader(middleware.TenantHeader) != "" || c.Query("tenant") != "" || c.Param("tenantId") != "" {
 			_ = c.Error(apperror.NewNotFound("checkout", "reference"))
 			c.Abort()
 			return

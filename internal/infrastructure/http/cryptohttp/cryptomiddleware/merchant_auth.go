@@ -1,5 +1,5 @@
 // Package middleware provides the MerchantAPIKey authentication middleware.
-package middleware
+package cryptomiddleware
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/domain/catalogs/merchant"
+	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/tenantdb"
 	"metapus/pkg/logger"
@@ -30,9 +31,17 @@ type MerchantContext struct {
 	Scopes     []merchant.APIKeyScope
 }
 
-// WithMerchant stores MerchantContext in the request context.
+// WithMerchant stores MerchantContext in the request context. Idempotent
+// commands made in this context are scoped to the merchant.
 func WithMerchant(ctx context.Context, mc *MerchantContext) context.Context {
-	return context.WithValue(ctx, merchantCtxKey{}, mc)
+	ctx = context.WithValue(ctx, merchantCtxKey{}, mc)
+	if mc == nil {
+		return ctx
+	}
+	merchantID := mc.MerchantID.String()
+	return middleware.WithCommandScope(ctx, func(*gin.Context) (string, string, error) {
+		return "merchant", merchantID, nil
+	})
 }
 
 // GetMerchant retrieves MerchantContext from the request context.

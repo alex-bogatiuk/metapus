@@ -11,8 +11,8 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/catalogs/wallet"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware"
 	"metapus/internal/infrastructure/http/v1/dto"
-	mw "metapus/internal/infrastructure/http/v1/middleware"
 )
 
 // MerchantAddressHandler handles /merchant/v1/addresses endpoints.
@@ -40,7 +40,7 @@ func NewMerchantAddressHandler(
 // CreateAddress handles POST /merchant/v1/addresses.
 // Assigns a persistent wallet to a customer. Idempotent by customerId + currency.
 func (h *MerchantAddressHandler) CreateAddress(c *gin.Context) {
-	mc := mw.GetMerchant(c.Request.Context())
+	mc := cryptomiddleware.GetMerchant(c.Request.Context())
 	if mc == nil {
 		_ = c.Error(apperror.NewUnauthorized("merchant context missing"))
 		c.Abort()

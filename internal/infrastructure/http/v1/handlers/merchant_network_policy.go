@@ -9,6 +9,7 @@ import (
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/catalogs/merchant"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
@@ -74,7 +75,7 @@ func (h *MerchantNetworkPolicyHandler) SetMode(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	middleware.InvalidateMerchantNetworkPolicyCache(merchantID)
+	cryptomiddleware.InvalidateMerchantNetworkPolicyCache(merchantID)
 	h.base.OK(c, policy)
 }
 
@@ -98,7 +99,7 @@ func (h *MerchantNetworkPolicyHandler) AddNetwork(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	middleware.InvalidateMerchantNetworkPolicyCache(merchantID)
+	cryptomiddleware.InvalidateMerchantNetworkPolicyCache(merchantID)
 	h.base.OK(c, policy)
 }
 
@@ -127,7 +128,7 @@ func (h *MerchantNetworkPolicyHandler) RevokeNetwork(c *gin.Context) {
 		h.base.Error(c, err)
 		return
 	}
-	middleware.InvalidateMerchantNetworkPolicyCache(merchantID)
+	cryptomiddleware.InvalidateMerchantNetworkPolicyCache(merchantID)
 	h.base.OK(c, policy)
 }
 

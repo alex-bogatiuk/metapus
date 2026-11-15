@@ -8,13 +8,13 @@ import (
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware"
 	"metapus/internal/infrastructure/http/v1/dto"
-	mw "metapus/internal/infrastructure/http/v1/middleware"
 )
 
 // AuthorizeInvoiceReference must precede CommandIdempotency, including replay.
 func (h *MerchantInvoiceHandler) AuthorizeInvoiceReference(c *gin.Context) {
-	mc := mw.GetMerchant(c.Request.Context())
+	mc := cryptomiddleware.GetMerchant(c.Request.Context())
 	if mc == nil {
 		_ = c.Error(apperror.NewUnauthorized("merchant context missing"))
 		c.Abort()
@@ -35,7 +35,7 @@ func (h *MerchantInvoiceHandler) AuthorizeInvoiceReference(c *gin.Context) {
 }
 
 func (h *MerchantInvoiceHandler) BindInvoiceReference(c *gin.Context) {
-	mc := mw.GetMerchant(c.Request.Context())
+	mc := cryptomiddleware.GetMerchant(c.Request.Context())
 	if mc == nil {
 		_ = c.Error(apperror.NewUnauthorized("merchant context missing"))
 		c.Abort()
