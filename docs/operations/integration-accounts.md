@@ -207,7 +207,7 @@ go run ./cmd/integration-config --chains /secure/chains.json --mapping /secure/i
 
 ## Проверки реализации
 
-Целевые Go race-тесты используют локальные HTTP/RPC mocks. Для БД задайте `METAPUS_TEST_INTEGRATIONS_DSN` отдельного временного PostgreSQL с правом CREATE DATABASE и выполните:
+Целевые Go race-тесты используют локальные HTTP/RPC mocks. Полный `go run ./cmd/integration-test` запускает их сам: он передаёт административный DSN тестового кластера в `METAPUS_TEST_INTEGRATIONS_DSN`. Для отдельного запуска задайте `METAPUS_TEST_INTEGRATIONS_DSN` временного PostgreSQL с правом CREATE DATABASE и выполните:
 
 ```sh
 go test -tags integration -race ./internal/infrastructure/storage/postgres/integration_repo ./internal/infrastructure/storage/postgres/crypto_integration_repo

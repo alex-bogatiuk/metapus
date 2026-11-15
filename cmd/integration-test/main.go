@@ -99,6 +99,8 @@ func run(ctx context.Context) error {
 		"TestFreshSchemaAuthNamesUUIDDefaultsAndTenantBindingExceptions",
 		"TestDeclaredTablePartsMatchSchema",
 		"TestTenantPoolLifecycleConcurrentCreationReferencesAndShutdown",
+		"TestIntegrationAccountsPersistQuotaAndConcurrentSelection",
+		"TestRPCBindingPicksUpTenantChangesWithoutRestart",
 	} {
 		if !strings.Contains("\n"+string(output), "\n"+test+"\n") && !strings.Contains("\n"+string(output), "\n"+test+"\r\n") {
 			return fmt.Errorf("integration build omitted required test %s", test)
@@ -158,6 +160,8 @@ func integrationEnv(original []string, adminDSN, dsn string) []string {
 		"METAPUS_TEST_MARKERS_DSN":        dsn,
 		"METAPUS_TEST_EXCHANGE_RATES_DSN": dsn,
 		"TENANT_POSTGRES_TEST_URL":        adminDSN,
+		// Integration repository fixtures create and drop their own databases.
+		"METAPUS_TEST_INTEGRATIONS_DSN": adminDSN,
 	}
 	env := make([]string, 0, len(original)+len(values))
 	for _, value := range original {

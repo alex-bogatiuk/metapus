@@ -23,6 +23,7 @@ func TestIntegrationEnvironmentCannotReuseInputDatabase(t *testing.T) {
 		"METAPUS_TEST_MARKERS_DSN":        "postgres://admin/generated_database",
 		"METAPUS_TEST_EXCHANGE_RATES_DSN": "postgres://admin/generated_database",
 		"TENANT_POSTGRES_TEST_URL":        "postgres://admin/test_cluster",
+		"METAPUS_TEST_INTEGRATIONS_DSN":   "postgres://admin/test_cluster",
 		"PATH":                            "tools",
 	}
 	original := []string{"PATH=tools"}
