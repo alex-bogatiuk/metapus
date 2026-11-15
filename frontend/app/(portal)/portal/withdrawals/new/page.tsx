@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { usePortalStore } from "@/stores/usePortalStore"
 import { api } from "@/lib/api"
@@ -10,6 +10,7 @@ import type {
   PortalCreateWithdrawalRequest,
   PortalTokenBalance,
   PortalCurrencyItem,
+  PortalRefundablePaymentResponse,
  WithdrawalRiskClass,
 } from "@/types/portal-api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -34,13 +35,24 @@ import { rawMinorToMajor } from "@/lib/money"
 import { formatMinorUnits } from "@/lib/format"
 import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 
 
+// "40.500000" → "40.5", "40.000000" → "40": the amount field takes it as typed.
+function trimFraction(value: string): string {
+  return value.includes(".") ? value.replace(/0+$/, "").replace(/\.$/, "") : value
+}
+
 export default function NewWithdrawalRequestPage() {
   const router = useRouter()
   const activeMerchantId = usePortalStore((s) => s.activeMerchantId)
+  // ?refund=<paymentId> turns the request into a refund of that credited payment:
+  // the token is fixed to the payment's and the amount is capped by what is left.
+  const refundPaymentId = useSearchParams().get("refund")
+  const [refund, setRefund] = useState<PortalRefundablePaymentResponse | null>(null)
+  const [refundReason, setRefundReason] = useState("")
 
   // Data
   const [addresses, setAddresses] = useState<PortalWithdrawalAddress[]>([])
@@ -65,23 +77,27 @@ export default function NewWithdrawalRequestPage() {
     setSelectedTokenId("")
     setSelectedAddressId("")
     setRiskAccepted(false)
+    setRefund(null)
     try {
-      const [addrRes, balRes, currRes, riskRes] = await Promise.all([
+      const [addrRes, balRes, currRes, riskRes, refundRes] = await Promise.all([
         api.portal.withdrawalAddresses(activeMerchantId),
         api.portal.balance(activeMerchantId),
         api.portal.currencies(activeMerchantId),
         api.portal.riskBalance(activeMerchantId),
+        refundPaymentId ? api.portal.refundablePayment(activeMerchantId, refundPaymentId) : Promise.resolve(null),
       ])
       setAddresses(addrRes.items)
       setBalances(balRes.byToken)
       setCurrencies(currRes.items)
       setRiskBalance(riskRes)
+      setRefund(refundRes)
+      if (refundRes) setSelectedTokenId(refundRes.tokenId)
     } catch {
-      toast.error("Не удалось загрузить данные")
+      toast.error(refundPaymentId ? "Не удалось загрузить платёж для возврата" : "Не удалось загрузить данные")
     } finally {
       setLoading(false)
     }
-  }, [activeMerchantId])
+  }, [activeMerchantId, refundPaymentId])
 
   useEffect(() => {
     fetchData()
@@ -106,9 +122,17 @@ export default function NewWithdrawalRequestPage() {
   const selectedRiskBucket = riskToken?.buckets.find((entry) => entry.riskClass === riskClass)
   const explicitRisk = riskEnabled && (riskClass === "high" || riskClass === "unknown")
   const selectedRiskAmount = (explicitRisk ? selectedRiskBucket?.total : selectedRiskBucket?.free) ?? "0"
-  const maxAmount = riskEnabled
+  const decimals = riskToken?.decimalPlaces ?? tokenBalance?.decimalPlaces ?? 0
+  const balanceRaw = riskEnabled ? selectedRiskAmount : (tokenBalance?.rawAmount ?? "0")
+  const balanceMax = riskEnabled
     ? rawMinorToMajor(selectedRiskAmount, riskToken?.decimalPlaces ?? 0)
     : tokenBalance?.humanAmount
+  // A refund can take no more than the balance allows and what is left to refund.
+  const maxAmount = refund && BigInt(refund.refundableAmount) < BigInt(balanceRaw)
+    ? trimFraction(rawMinorToMajor(refund.refundableAmount, decimals))
+    : balanceMax
+  const refundReasonBytes = new TextEncoder().encode(refundReason.trim()).length
+  const refundBlocked = !!refundPaymentId && (!refund || BigInt(refund.refundableAmount) === 0n || refundReasonBytes === 0 || refundReasonBytes > 500)
 
   const handleCopyAddress = async () => {
     if (!selectedAddress) return
@@ -121,7 +145,7 @@ export default function NewWithdrawalRequestPage() {
   }
 
   const handleSubmit = async () => {
-    if (!activeMerchantId || !selectedAddress || !amount || !riskBalance || (explicitRisk && !riskAccepted)) return
+    if (!activeMerchantId || !selectedAddress || !amount || !riskBalance || (explicitRisk && !riskAccepted) || refundBlocked) return
 
     setSubmitting(true)
     try {
@@ -130,10 +154,11 @@ export default function NewWithdrawalRequestPage() {
         amount,
         addressId: selectedAddress.id,
         ...(riskEnabled ? { riskClass, riskAccepted } : {}),
+        ...(refund ? { refundPaymentId: refund.paymentId, refundReason: refundReason.trim() } : {}),
       }
 
       const resp = await api.portal.createWithdrawalRequest(activeMerchantId, body)
-      toast.success(`Заявка ${resp.number} создана`)
+      toast.success(refund ? `Заявка на возврат ${resp.number} создана` : `Заявка ${resp.number} создана`)
       router.push("/portal/withdrawals/requests")
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Ошибка создания заявки"
@@ -162,9 +187,11 @@ export default function NewWithdrawalRequestPage() {
           </Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Запрос вывода</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{refundPaymentId ? "Возврат платежа" : "Запрос вывода"}</h1>
           <p className="text-sm text-muted-foreground">
-            Создайте заявку на вывод средств. Заявка будет отправлена на одобрение.
+            {refundPaymentId
+              ? "Сумма возврата списывается с вашего баланса и уходит плательщику после одобрения. Комиссия за обработку не возвращается."
+              : "Создайте заявку на вывод средств. Заявка будет отправлена на одобрение."}
           </p>
         </div>
       </div>
@@ -173,9 +200,18 @@ export default function NewWithdrawalRequestPage() {
         {/* Form */}
         <Card className="min-w-0 lg:col-span-3">
           <CardHeader>
-            <CardTitle className="text-base">Параметры вывода</CardTitle>
+            <CardTitle className="text-base">{refundPaymentId ? "Параметры возврата" : "Параметры вывода"}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {refund && (
+              <dl className="grid gap-2 rounded-md border bg-muted/40 p-3 text-sm" data-testid="refund-payment">
+                <div className="flex flex-wrap justify-between gap-x-3"><dt className="text-muted-foreground">Инвойс</dt><dd className="font-medium">{refund.invoiceNumber || "—"}</dd></div>
+                <div className="flex flex-wrap justify-between gap-x-3"><dt className="text-muted-foreground">Платёж</dt><dd className="font-mono tabular-nums">{formatMinorUnits(refund.amount, decimals)} {selectedCurrency?.symbol}</dd></div>
+                <div className="flex flex-wrap justify-between gap-x-3"><dt className="text-muted-foreground">Уже в возврате</dt><dd className="font-mono tabular-nums">{formatMinorUnits(refund.committedAmount, decimals)} {selectedCurrency?.symbol}</dd></div>
+                <div className="flex flex-wrap justify-between gap-x-3"><dt className="text-muted-foreground">Доступно к возврату</dt><dd className="font-mono font-medium tabular-nums">{formatMinorUnits(refund.refundableAmount, decimals)} {selectedCurrency?.symbol}</dd></div>
+                {refund.fromAddress && <div className="flex min-w-0 flex-col gap-1"><dt className="text-muted-foreground">Отправитель платежа</dt><dd className="break-all font-mono text-xs">{refund.fromAddress}</dd><dd className="text-xs text-muted-foreground">Адрес отправителя может принадлежать бирже. Отправляйте возврат только на адрес, который подтвердил плательщик.</dd></div>}
+              </dl>
+            )}
             {loading ? (
               <div className="space-y-3">
                 <Skeleton className="h-10 w-full" />
@@ -198,7 +234,7 @@ export default function NewWithdrawalRequestPage() {
                 {/* Token */}
                 <div className="space-y-2">
                   <Label htmlFor="withdrawal-token">Токен</Label>
-                  <Select value={selectedTokenId} onValueChange={(v) => {
+                  <Select value={selectedTokenId} disabled={!!refundPaymentId} onValueChange={(v) => {
                     setSelectedTokenId(v)
                     setSelectedAddressId("") // reset address when token changes
                     setRiskClass("low")
@@ -290,6 +326,14 @@ export default function NewWithdrawalRequestPage() {
                   </Select>
                 </div>
 
+                {refundPaymentId && (
+                  <Field>
+                    <FieldLabel htmlFor="refund-reason">Причина возврата</FieldLabel>
+                    <Textarea id="refund-reason" value={refundReason} maxLength={500} onChange={(e) => setRefundReason(e.target.value)} placeholder="Например: заказ отменён по просьбе покупателя" />
+                    <FieldDescription>Сохраняется в заявке и видна при одобрении. До 500 байт.</FieldDescription>
+                  </Field>
+                )}
+
                 {/* Amount */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -374,14 +418,14 @@ export default function NewWithdrawalRequestPage() {
             <Button
               className="w-full"
               onClick={handleSubmit}
-              disabled={submitting || loading || !riskBalance || !amount || !selectedAddress || (explicitRisk && !riskAccepted)}
+              disabled={submitting || loading || !riskBalance || !amount || !selectedAddress || (explicitRisk && !riskAccepted) || refundBlocked}
             >
               {submitting ? (
                 <Loader2 className="size-4 mr-1.5 animate-spin" />
               ) : (
                 <Send className="size-4 mr-1.5" />
               )}
-              Отправить заявку
+              {refundPaymentId ? "Отправить возврат" : "Отправить заявку"}
             </Button>
           </CardContent>
         </Card>

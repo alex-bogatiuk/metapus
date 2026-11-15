@@ -115,6 +115,10 @@ test("outcome shows real credit, closed intake and functional diagnostics", asyn
   await expect(
     page.getByRole("link", { name: "Транзакция в сети" }),
   ).toHaveAttribute("href", /sepolia.etherscan.io\/tx\/0x6/);
+  // A credited payment with nothing refunded yet offers a refund of itself.
+  await expect(
+    page.getByRole("link", { name: "Вернуть плательщику" }),
+  ).toHaveAttribute("href", `/portal/withdrawals/new?refund=${ids.wallet}`);
   await page.getByRole("tab", { name: /Вебхуки/ }).click();
   await expect(page.getByTestId("invoice-payment")).toBeVisible();
   await expect(page.getByText("0 мс", { exact: true })).toBeVisible();

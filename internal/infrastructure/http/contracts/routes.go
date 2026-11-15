@@ -49,6 +49,7 @@ func Routes() []RouteContract {
 	portal("GET", "/invoices", "", "PortalInvoiceListResponse")
 	portal("POST", "/invoices", "PortalCreateInvoiceRequest", "PortalCreateInvoiceResponse")
 	portal("GET", "/invoices/:id", "", "PortalInvoiceDetailResponse")
+	portal("GET", "/payments/:id/refund", "", "PortalRefundablePaymentResponse")
 	portal("GET", "/payment-links", "", "PortalPaymentLinkListResponse")
 	portal("POST", "/payment-links", "CreatePaymentLinkRequest", "PortalPaymentLinkCreateResponse")
 	portal("GET", "/deposit-addresses", "", "PortalDepositAddressListResponse")

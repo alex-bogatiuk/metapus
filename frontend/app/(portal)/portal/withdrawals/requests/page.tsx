@@ -191,6 +191,7 @@ export default function PortalWithdrawalRequestsPage() {
                   return (
                     <TableRow key={item.id}>
                       <TableCell className="font-mono text-sm">{item.number}
+                        {item.refundPaymentId && <div><Badge variant="secondary" title={item.refundReason}>Возврат платежа</Badge></div>}
                         {item.riskClass && <div className="flex flex-col gap-2"><Badge variant="outline">{formatRiskClass(item.riskClass)}</Badge>
                           <Button variant="ghost" size="sm" onClick={()=>setSourceRequest(item)}>Источники ({item.sources?.length??0})</Button></div>}
                       </TableCell>

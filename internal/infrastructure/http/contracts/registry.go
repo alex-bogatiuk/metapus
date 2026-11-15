@@ -203,6 +203,7 @@ func Registry() []Contract {
 		Request[dto.PortalCreateInvoiceRequest]("PortalCreateInvoiceRequest"),
 		Response[dto.PortalCreateInvoiceResponse]("PortalCreateInvoiceResponse"),
 		Request[dto.PortalCreateWithdrawalRequest]("PortalCreateWithdrawalRequest"),
+		Response[dto.PortalRefundablePaymentResponse]("PortalRefundablePaymentResponse"),
 		Response[dto.PortalWithdrawalSource]("PortalWithdrawalSource"),
 		Response[dto.PortalCurrencyItem]("PortalCurrencyItem"),
 		Response[dto.PortalDepositAddressItem]("PortalDepositAddressItem"),

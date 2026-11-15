@@ -1691,6 +1691,39 @@ BEGIN
 END;
 $$;
 
+-- A merchant refund is a withdrawal request whose basis is the credited payment
+-- it returns. The merchant pays it out of the available balance (debit-first),
+-- so it never touches receipt suspense. What all refunds of one payment still
+-- hold or have paid out never exceeds the gross the payer sent: the processing
+-- fee stays earned, the merchant may return it at its own cost.
+CREATE FUNCTION fn_crypto_withdrawal_refund_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE p doc_crypto_payments; committed NUMERIC;
+BEGIN
+    IF TG_OP='UPDATE' THEN
+        IF (NEW.basis_type,NEW.basis_id) IS DISTINCT FROM (OLD.basis_type,OLD.basis_id)
+           OR (OLD.basis_type='CryptoPayment' AND NEW.description IS DISTINCT FROM OLD.description) THEN
+            RAISE EXCEPTION 'withdrawal request basis is immutable' USING ERRCODE='23514'; END IF;
+        RETURN NEW;
+    END IF;
+    IF NEW.basis_type='' AND NEW.basis_id IS NULL THEN RETURN NEW; END IF;
+    IF NEW.basis_type<>'CryptoPayment' OR NEW.basis_id IS NULL THEN
+        RAISE EXCEPTION 'withdrawal request basis must be a credited merchant payment' USING ERRCODE='23514'; END IF;
+    IF btrim(NEW.description)='' THEN
+        RAISE EXCEPTION 'merchant refund requires its reason' USING ERRCODE='23514'; END IF;
+    SELECT * INTO p FROM doc_crypto_payments WHERE id=NEW.basis_id FOR UPDATE;
+    IF NOT FOUND OR p.merchant_id<>NEW.merchant_id OR p.token_id<>NEW.token_id OR NOT p.posted OR p.canonicality<>'canonical'
+       OR p.status NOT IN ('confirmed','settled') OR p.deletion_mark OR p._deleted_at IS NOT NULL THEN
+        RAISE EXCEPTION 'merchant refund requires a credited payment of the same merchant and token' USING ERRCODE='23514'; END IF;
+    -- Net request debits: a rejected or failed refund has restored its debit.
+    SELECT COALESCE(SUM(CASE WHEN m.record_type='expense' THEN m.amount ELSE -m.amount END),0) INTO committed
+      FROM doc_withdrawal_requests r JOIN reg_crypto_merchant_balance_movements m ON m.recorder_id=r.id AND m.recorder_type='WithdrawalRequest'
+     WHERE r.basis_type='CryptoPayment' AND r.basis_id=NEW.basis_id AND r.id<>NEW.id;
+    IF committed+NEW.amount>p.amount THEN
+        RAISE EXCEPTION 'merchant refund exceeds the payment amount' USING ERRCODE='23514'; END IF;
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION fn_crypto_withdrawal_reservation_guard() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE d doc_crypto_withdrawals; balance NUMERIC; reserved NUMERIC; fees NUMERIC;
 BEGIN
@@ -4209,6 +4242,8 @@ CREATE TRIGGER trg_withdrawal_basis BEFORE UPDATE OR DELETE ON doc_crypto_withdr
 
 CREATE TRIGGER trg_withdrawal_request_basis BEFORE UPDATE OR DELETE ON doc_withdrawal_requests FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_basis_guard();
 
+CREATE TRIGGER trg_withdrawal_request_refund BEFORE INSERT OR UPDATE ON doc_withdrawal_requests FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_refund_guard();
+
 CREATE TRIGGER trg_withdrawal_reservation_basis BEFORE INSERT OR UPDATE OR DELETE ON reg_crypto_balance_reservations FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_reservation_guard();
 
 CREATE CONSTRAINT TRIGGER trg_withdrawal_reservation_complete AFTER INSERT OR UPDATE ON reg_crypto_balance_reservations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_crypto_withdrawal_reservation_complete();
@@ -4563,6 +4598,7 @@ DROP TRIGGER trg_withdrawal_chain_complete ON reg_crypto_chain_settlements;
 DROP TRIGGER trg_withdrawal_fee_complete ON reg_crypto_fee_reservations;
 DROP TRIGGER trg_withdrawal_basis ON doc_crypto_withdrawals;
 DROP TRIGGER trg_withdrawal_request_basis ON doc_withdrawal_requests;
+DROP TRIGGER trg_withdrawal_request_refund ON doc_withdrawal_requests;
 DROP TRIGGER trg_withdrawal_reservation_basis ON reg_crypto_balance_reservations;
 DROP TRIGGER trg_withdrawal_reservation_complete ON reg_crypto_balance_reservations;
 DROP TRIGGER trg_withdrawal_fee_release ON reg_crypto_fee_reservations;
@@ -4750,6 +4786,7 @@ DROP FUNCTION fn_crypto_withdrawal_fee_release_guard();
 DROP FUNCTION fn_crypto_withdrawal_reservation_complete();
 DROP FUNCTION fn_crypto_withdrawal_reservation_guard();
 DROP FUNCTION fn_crypto_withdrawal_basis_guard();
+DROP FUNCTION fn_crypto_withdrawal_refund_guard();
 DROP FUNCTION fn_crypto_withdrawal_settlement_complete();
 DROP FUNCTION fn_crypto_withdrawal_financial_complete();
 DROP FUNCTION fn_crypto_withdrawal_posting_complete();

@@ -37,7 +37,9 @@ type PortalWithdrawalRepository interface {
 	RemoveWithdrawalAddress(context.Context, id.ID, id.ID) error
 	GetWithdrawalAddressContext(context.Context, id.ID, id.ID) (PortalWithdrawalAddress, error)
 	GetWithdrawalTokenContext(context.Context, id.ID) (PortalWithdrawalToken, error)
-	CreateWithdrawalRequest(context.Context, id.ID, id.ID, id.ID, types.CryptoAmount, string, id.ID, string, bool, int, aml.Class) error
+	CreateWithdrawalRequest(context.Context, *withdrawal_request.WithdrawalRequest, aml.Class) error
+	GetRefundablePayment(context.Context, id.ID, id.ID) (RefundablePayment, error)
+	LockRefundablePayment(context.Context, id.ID, id.ID) (RefundablePayment, error)
 	EnqueueApprovalSigning(context.Context, crypto.MoneyMovementIntent) error
 	MarkWithdrawalRequestApprovedByPolicy(context.Context, id.ID) error
 	LockWithdrawalRequestForRejection(context.Context, id.ID, id.ID) (id.ID, int, withdrawal_request.Status, error)
@@ -59,6 +61,29 @@ type CreatePortalWithdrawalInput struct {
 	Amount       string
 	RiskClass    aml.Class
 	RiskAccepted bool
+	// RefundPaymentID makes the request a refund of that credited payment;
+	// RefundReason is then required.
+	RefundPaymentID *id.ID
+	RefundReason    string
+}
+
+// RefundablePayment is a credited payment and what its refunds already hold
+// or paid out. Refundable never exceeds the gross the payer sent.
+type RefundablePayment struct {
+	PaymentID     id.ID
+	InvoiceID     id.ID
+	InvoiceNumber string
+	TokenID       id.ID
+	FromAddress   string
+	Amount        types.CryptoAmount
+	Committed     types.CryptoAmount
+}
+
+func (p RefundablePayment) Refundable() types.CryptoAmount {
+	if p.Committed.Cmp(p.Amount) >= 0 {
+		return types.ZeroCryptoAmount()
+	}
+	return p.Amount.Sub(p.Committed)
 }
 
 type PortalRiskWithdrawalRepository interface {
@@ -153,6 +178,11 @@ func (s *PortalWithdrawalService) Create(ctx context.Context, input CreatePortal
 
 	doc := withdrawal_request.NewWithdrawalRequest(input.MerchantID, input.TokenID, input.AddressID, address.Address, amount)
 	doc.Status = withdrawal_request.StatusPendingSignature
+	if input.RefundPaymentID != nil {
+		doc.MarkAsRefund(*input.RefundPaymentID, input.RefundReason)
+	} else if strings.TrimSpace(input.RefundReason) != "" {
+		return CreatePortalWithdrawalResult{}, apperror.NewValidation("refund reason requires the payment it returns").WithDetail("field", "refundPaymentId")
+	}
 	if err := doc.Validate(ctx); err != nil {
 		return CreatePortalWithdrawalResult{}, err
 	}
@@ -175,6 +205,20 @@ func (s *PortalWithdrawalService) Create(ctx context.Context, input CreatePortal
 		return CreatePortalWithdrawalResult{}, apperror.NewInternal(err)
 	}
 	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		if doc.IsRefund() {
+			// Lock the payment before the debit, so refunds of one payment are
+			// capped one after another; the database guard repeats the check.
+			payment, err := s.repo.LockRefundablePayment(ctx, input.MerchantID, *doc.BasisID)
+			if err != nil {
+				return apperror.NewValidation("payment cannot be refunded: it is not a credited payment of this merchant").WithDetail("field", "refundPaymentId").WithCause(err)
+			}
+			if payment.TokenID != input.TokenID {
+				return apperror.NewValidation("refund must be paid in the token of the payment").WithDetail("field", "tokenId")
+			}
+			if amount.Cmp(payment.Refundable()) > 0 {
+				return apperror.NewValidation("refund exceeds what is left to refund of the payment").WithDetail("field", "amount")
+			}
+		}
 		riskRepo, hasRisk := s.repo.(PortalRiskWithdrawalRepository)
 		enabled := false
 		if hasRisk {
@@ -192,7 +236,7 @@ func (s *PortalWithdrawalService) Create(ctx context.Context, input CreatePortal
 			return apperror.NewValidation("risk-class withdrawals are not enabled for this asset")
 		}
 		return s.posting.Post(ctx, doc, func(txCtx context.Context) error {
-			if err := s.repo.CreateWithdrawalRequest(txCtx, doc.GetID(), input.MerchantID, input.TokenID, amount, address.Address, input.AddressID, number, doc.IsPosted(), doc.GetPostedVersion(), input.RiskClass); err != nil {
+			if err := s.repo.CreateWithdrawalRequest(txCtx, doc, input.RiskClass); err != nil {
 				return err
 			}
 			if enabled {
@@ -209,6 +253,14 @@ func (s *PortalWithdrawalService) Create(ctx context.Context, input CreatePortal
 		return CreatePortalWithdrawalResult{}, err
 	}
 	return CreatePortalWithdrawalResult{ID: doc.GetID(), Number: number, Status: withdrawal_request.StatusPendingSignature}, nil
+}
+
+// RefundablePayment reports what is left to refund of a merchant's payment.
+func (s *PortalWithdrawalService) RefundablePayment(ctx context.Context, merchantID, paymentID id.ID) (RefundablePayment, error) {
+	if id.IsNil(merchantID) || id.IsNil(paymentID) {
+		return RefundablePayment{}, apperror.NewValidation("merchant and payment are required")
+	}
+	return s.repo.GetRefundablePayment(ctx, merchantID, paymentID)
 }
 
 func (s *PortalWithdrawalService) Reject(ctx context.Context, merchantID, requestID id.ID, reason string) error {

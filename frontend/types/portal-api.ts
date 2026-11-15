@@ -348,7 +348,11 @@ export interface PortalCreateWithdrawalRequest {
   tokenId: string
   amount: string        // human-readable
   addressId: string     // from whitelist
+  refundPaymentId?: string // makes the request a refund of that credited payment
+  refundReason?: string    // required with refundPaymentId
 }
+
+export type PortalRefundablePaymentResponse = import("./generated/http-contracts").PortalRefundablePaymentResponse
 
 export interface PortalWithdrawalRequestItem {
  riskClass?: string
@@ -365,6 +369,8 @@ export interface PortalWithdrawalRequestItem {
   rejectionReason?: string
   createdAt: string
   approvedAt?: string
+  refundPaymentId?: string
+  refundReason?: string
 }
 
 export interface PortalWithdrawalRequestListResponse {

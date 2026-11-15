@@ -3558,6 +3558,8 @@ export const PortalCreateWithdrawalRequestSchema: z.ZodType<Wire.PortalCreateWit
   "addressId": z.string(),
   "riskClass": z.string().optional(),
   "riskAccepted": z.boolean().optional(),
+  "refundPaymentId": z.string().optional(),
+  "refundReason": z.string().optional(),
 }))
 
 export const PortalCurrencyItemSchema: z.ZodType<Wire.PortalCurrencyItem> = z.lazy(() => z.object({
@@ -3730,6 +3732,9 @@ export const PortalInvoicePaymentSchema: z.ZodType<Wire.PortalInvoicePayment> = 
   "confirmations": z.number().int(),
   "requiredConfs": z.number().int(),
   "ledger": PortalInvoiceLedgerSchema,
+  "refundedAmount": z.string(),
+  "refundPendingAmount": z.string(),
+  "refundableAmount": z.string(),
 }))
 
 export const PortalMerchantItemSchema: z.ZodType<Wire.PortalMerchantItem> = z.lazy(() => z.object({
@@ -3780,6 +3785,17 @@ export const PortalReceiptTotalSchema: z.ZodType<Wire.PortalReceiptTotal> = z.la
   "totalMinor": z.string(),
   "received24hMinor": z.string(),
   "change24hPct": z.string(),
+}))
+
+export const PortalRefundablePaymentResponseSchema: z.ZodType<Wire.PortalRefundablePaymentResponse> = z.lazy(() => z.object({
+  "paymentId": z.string(),
+  "invoiceId": z.string(),
+  "invoiceNumber": z.string(),
+  "tokenId": z.string(),
+  "fromAddress": z.string(),
+  "amount": z.string(),
+  "committedAmount": z.string(),
+  "refundableAmount": z.string(),
 }))
 
 export const PortalRiskBalanceResponseSchema: z.ZodType<Wire.PortalRiskBalanceResponse> = z.lazy(() => z.object({
@@ -3948,6 +3964,8 @@ export const PortalWithdrawalRequestItemSchema: z.ZodType<Wire.PortalWithdrawalR
   "rejectionReason": z.string().optional(),
   "createdAt": z.string(),
   "approvedAt": z.string().optional(),
+  "refundPaymentId": z.string().optional(),
+  "refundReason": z.string().optional(),
 }))
 
 export const PortalWithdrawalRequestListResponseSchema: z.ZodType<Wire.PortalWithdrawalRequestListResponse> = z.lazy(() => z.object({

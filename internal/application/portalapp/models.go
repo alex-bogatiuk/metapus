@@ -214,6 +214,11 @@ type PortalInvoicePayment struct {
 	Confirmations int                 `json:"confirmations"`
 	RequiredConfs int                 `json:"requiredConfs"`
 	Ledger        PortalInvoiceLedger `json:"ledger"`
+	// Refunds of this payment, in token minor units: paid out to the payer,
+	// held by refund requests still in progress, and what is left to refund.
+	RefundedAmount      string `json:"refundedAmount"`
+	RefundPendingAmount string `json:"refundPendingAmount"`
+	RefundableAmount    string `json:"refundableAmount"`
 }
 
 // PortalTimelineEvent is a single FSM transition event in the invoice/payment lifecycle.
@@ -367,6 +372,24 @@ type PortalCreateWithdrawalRequest struct {
 	AddressID    string `json:"addressId" binding:"required"` // from whitelist
 	RiskClass    string `json:"riskClass,omitempty" binding:"omitempty,oneof=low medium high unknown"`
 	RiskAccepted bool   `json:"riskAccepted"`
+	// RefundPaymentID makes the request a refund of that credited payment;
+	// RefundReason is then required and kept with the request.
+	RefundPaymentID string `json:"refundPaymentId,omitempty" binding:"omitempty,uuid"`
+	RefundReason    string `json:"refundReason,omitempty" binding:"omitempty,max=500"`
+}
+
+// PortalRefundablePaymentResponse is what is left to refund of a credited
+// payment. Committed covers refunds in progress and paid out; a rejected or
+// failed refund restores its amount. Amounts are token minor units.
+type PortalRefundablePaymentResponse struct {
+	PaymentID        string `json:"paymentId"`
+	InvoiceID        string `json:"invoiceId"`
+	InvoiceNumber    string `json:"invoiceNumber"`
+	TokenID          string `json:"tokenId"`
+	FromAddress      string `json:"fromAddress"`
+	Amount           string `json:"amount"`
+	CommittedAmount  string `json:"committedAmount"`
+	RefundableAmount string `json:"refundableAmount"`
 }
 
 // PortalWithdrawalRequestItem represents a withdrawal request in the list.
@@ -385,6 +408,9 @@ type PortalWithdrawalRequestItem struct {
 	RejectionReason *string                  `json:"rejectionReason,omitempty"`
 	CreatedAt       string                   `json:"createdAt"`
 	ApprovedAt      *string                  `json:"approvedAt,omitempty"`
+	// RefundPaymentID is set when the request refunds that payment.
+	RefundPaymentID *string `json:"refundPaymentId,omitempty"`
+	RefundReason    *string `json:"refundReason,omitempty"`
 }
 
 type PortalWithdrawalSource struct {

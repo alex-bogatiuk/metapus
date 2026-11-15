@@ -37,6 +37,7 @@ type PortalWithdrawalAddress = portalapp.PortalWithdrawalAddress
 type PortalAddWithdrawalAddressRequest = portalapp.PortalAddWithdrawalAddressRequest
 type PortalWithdrawalAddressListResponse = portalapp.PortalWithdrawalAddressListResponse
 type PortalCreateWithdrawalRequest = portalapp.PortalCreateWithdrawalRequest
+type PortalRefundablePaymentResponse = portalapp.PortalRefundablePaymentResponse
 type PortalWithdrawalRequestItem = portalapp.PortalWithdrawalRequestItem
 type PortalWithdrawalSource = portalapp.PortalWithdrawalSource
 type PortalWithdrawalRequestListResponse = portalapp.PortalWithdrawalRequestListResponse

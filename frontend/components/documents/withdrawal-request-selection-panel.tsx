@@ -137,6 +137,8 @@ export function WithdrawalRequestSelectionPanel({ item, refresh }: WithdrawalReq
     ? `≈ ${valuation.amount} USD`
     : "Оценка USD недоступна"
   const reasonBytes = new TextEncoder().encode(reason.trim()).length
+  // A refund returns a credited payment to its payer out of the merchant's balance.
+  const refund = detail.basisType === "CryptoPayment"
 
   return (
     <aside aria-label="Выбранная заявка на вывод" className="shrink-0 bg-card px-4 py-3">
@@ -146,6 +148,7 @@ export function WithdrawalRequestSelectionPanel({ item, refresh }: WithdrawalReq
             <strong className="text-sm">Заявка {detail.number}</strong>
             <Badge variant="outline">{statusLabels[detail.status] ?? detail.status}</Badge>
 			{detail.riskClass && <Badge variant="outline">Класс: {formatRiskClass(detail.riskClass)}</Badge>}
+            {refund && <Badge variant="secondary">Возврат платежа</Badge>}
             <span className="text-xs text-muted-foreground">{detail.merchantName}</span>
           </div>
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -157,6 +160,12 @@ export function WithdrawalRequestSelectionPanel({ item, refresh }: WithdrawalReq
               Оценка по курсу {valuation.rate} USD за {valuation.multiplier ?? 1} {detail.symbol}
               {valuation.source ? ` · ${valuation.source}` : ""}
               {valuation.rateAsOf ? ` · ${formatDateTime(valuation.rateAsOf)}` : ""}
+            </p>
+          )}
+          {refund && detail.basisId && (
+            <p className="text-xs text-muted-foreground">
+              Возврат по <a className="text-primary hover:underline" href={buildEntityUrlByRoute("crypto-payment", "document", detail.basisId)}>платежу</a>
+              {detail.description ? ` · ${detail.description}` : ""}
             </p>
           )}
           {detail.status === "rejected" && detail.rejectionReason && (
@@ -191,7 +200,7 @@ export function WithdrawalRequestSelectionPanel({ item, refresh }: WithdrawalReq
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Утвердить заявку {detail.number}?</AlertDialogTitle>
-            <AlertDialogDescription>Сумма {amount} будет передана на исполнение по адресу {detail.destAddress}.</AlertDialogDescription>
+            <AlertDialogDescription>{refund ? "Возврат" : "Сумма"} {amount} будет передан{refund ? "" : "а"} на исполнение по адресу {detail.destAddress}.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Назад</AlertDialogCancel>

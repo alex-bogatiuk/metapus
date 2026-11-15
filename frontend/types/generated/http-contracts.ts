@@ -3554,6 +3554,8 @@ export type PortalCreateWithdrawalRequest = {
   "addressId": string
   "riskClass"?: string
   "riskAccepted"?: boolean
+  "refundPaymentId"?: string
+  "refundReason"?: string
 }
 
 export type PortalCurrencyItem = {
@@ -3726,6 +3728,9 @@ export type PortalInvoicePayment = {
   "confirmations": number
   "requiredConfs": number
   "ledger": PortalInvoiceLedger
+  "refundedAmount": string
+  "refundPendingAmount": string
+  "refundableAmount": string
 }
 
 export type PortalMerchantItem = {
@@ -3776,6 +3781,17 @@ export type PortalReceiptTotal = {
   "totalMinor": string
   "received24hMinor": string
   "change24hPct": string
+}
+
+export type PortalRefundablePaymentResponse = {
+  "paymentId": string
+  "invoiceId": string
+  "invoiceNumber": string
+  "tokenId": string
+  "fromAddress": string
+  "amount": string
+  "committedAmount": string
+  "refundableAmount": string
 }
 
 export type PortalRiskBalanceResponse = {
@@ -3944,6 +3960,8 @@ export type PortalWithdrawalRequestItem = {
   "rejectionReason"?: string
   "createdAt": string
   "approvedAt"?: string
+  "refundPaymentId"?: string
+  "refundReason"?: string
 }
 
 export type PortalWithdrawalRequestListResponse = {

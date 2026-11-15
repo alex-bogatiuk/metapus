@@ -36,13 +36,27 @@ func (r *DashboardRepo) loadInvoicePayments(ctx context.Context, invoiceIDs []id
 		return summaries, nil
 	}
 
+	// Refunds are withdrawal requests based on the payment: what they hold is
+	// their net debit (a rejected or failed one restored it), what they paid
+	// out is the principal their recognised payouts spent.
 	const query = `
-		SELECT id, invoice_id, amount, fee_fixed, fee_percent_bp, fee_min, fee_max,
-			status, canonicality, posted, tx_hash, from_address, confirmed_at,
-			created_at, confirmations, required_confs
-		FROM doc_crypto_payments
-		WHERE invoice_id = ANY($1) AND _deleted_at IS NULL AND deletion_mark = FALSE
-		ORDER BY created_at ASC, id ASC`
+		SELECT p.id, p.invoice_id, p.amount, p.fee_fixed, p.fee_percent_bp, p.fee_min, p.fee_max,
+			p.status, p.canonicality, p.posted, p.tx_hash, p.from_address, p.confirmed_at,
+			p.created_at, p.confirmations, p.required_confs, refunds.committed, refunds.paid
+		FROM doc_crypto_payments p
+		CROSS JOIN LATERAL (
+			SELECT COALESCE(SUM(x.debit),0) committed, COALESCE(SUM(x.paid),0) paid FROM (
+				SELECT (SELECT COALESCE(SUM(CASE WHEN m.record_type='expense' THEN m.amount ELSE -m.amount END),0)
+				          FROM reg_crypto_merchant_balance_movements m WHERE m.recorder_id=r.id AND m.recorder_type='WithdrawalRequest') debit,
+				       (SELECT COALESCE(SUM(CASE WHEN m.record_type='expense' THEN m.amount ELSE -m.amount END),0)
+				          FROM reg_crypto_withdrawal_custody_bindings b JOIN reg_crypto_balance_movements m
+				            ON m.recorder_id=b.withdrawal_id AND m.recorder_type='CryptoWithdrawal' AND m.token_id=r.token_id
+				         WHERE b.request_id=r.id) paid
+				FROM doc_withdrawal_requests r WHERE r.basis_type='CryptoPayment' AND r.basis_id=p.id
+			) x
+		) refunds
+		WHERE p.invoice_id = ANY($1) AND p._deleted_at IS NULL AND p.deletion_mark = FALSE
+		ORDER BY p.created_at ASC, p.id ASC`
 	rows, err := querier(ctx).Query(ctx, query, invoiceIDs)
 	if err != nil {
 		return nil, fmt.Errorf("portal invoice payments: %w", err)
@@ -51,7 +65,7 @@ func (r *DashboardRepo) loadInvoicePayments(ctx context.Context, invoiceIDs []id
 
 	for rows.Next() {
 		var paymentID, invoiceID id.ID
-		var amount, feeFixed, feeMin, feeMax types.CryptoAmount
+		var amount, feeFixed, feeMin, feeMax, refundCommitted, refundPaid types.CryptoAmount
 		var feePercentBP int
 		var status, canonicality, txHash, fromAddress string
 		var posted bool
@@ -61,7 +75,7 @@ func (r *DashboardRepo) loadInvoicePayments(ctx context.Context, invoiceIDs []id
 		if err := rows.Scan(
 			&paymentID, &invoiceID, &amount, &feeFixed, &feePercentBP, &feeMin, &feeMax,
 			&status, &canonicality, &posted, &txHash, &fromAddress, &confirmedAt,
-			&createdAt, &confirmations, &requiredConfs,
+			&createdAt, &confirmations, &requiredConfs, &refundCommitted, &refundPaid,
 		); err != nil {
 			return nil, fmt.Errorf("scan portal invoice payment: %w", err)
 		}
@@ -87,6 +101,10 @@ func (r *DashboardRepo) loadInvoicePayments(ctx context.Context, invoiceIDs []id
 				NetAmount: net.String(), Status: status, Canonicality: canonicality,
 				Posted: posted, TxHash: txHash, FromAddress: fromAddress,
 				CreatedAt: createdAt.Format(time.RFC3339), Confirmations: confirmations, RequiredConfs: requiredConfs,
+				RefundedAmount: refundPaid.String(), RefundPendingAmount: refundCommitted.Sub(refundPaid).String(), RefundableAmount: "0",
+			}
+			if posted && canonicality == "canonical" && (status == "confirmed" || status == "settled") && amount.Cmp(refundCommitted) > 0 {
+				payment.RefundableAmount = amount.Sub(refundCommitted).String()
 			}
 			if confirmedAt != nil {
 				formatted := confirmedAt.Format(time.RFC3339)

@@ -202,6 +202,34 @@ func (h *PortalHandler) GetInvoiceDetail(c *gin.Context) {
 	c.JSON(http.StatusOK, detail)
 }
 
+// GetRefundablePayment handles GET /portal/v1/payments/:id/refund?merchant_id=...
+// It reports what is left to refund of a credited payment of the merchant.
+func (h *PortalHandler) GetRefundablePayment(c *gin.Context) {
+	paymentID, err := id.Parse(c.Param("id"))
+	if err != nil {
+		_ = c.Error(apperror.NewValidation("invalid payment id"))
+		c.Abort()
+		return
+	}
+	mid, err := parseRequiredMerchant(c)
+	if err != nil {
+		_ = c.Error(err)
+		c.Abort()
+		return
+	}
+	payment, err := h.withdrawalService.RefundablePayment(c.Request.Context(), mid, paymentID)
+	if err != nil {
+		_ = c.Error(err)
+		c.Abort()
+		return
+	}
+	c.JSON(http.StatusOK, dto.PortalRefundablePaymentResponse{
+		PaymentID: payment.PaymentID.String(), InvoiceID: payment.InvoiceID.String(), InvoiceNumber: payment.InvoiceNumber,
+		TokenID: payment.TokenID.String(), FromAddress: payment.FromAddress, Amount: payment.Amount.String(),
+		CommittedAmount: payment.Committed.String(), RefundableAmount: payment.Refundable().String(),
+	})
+}
+
 // Withdrawals (read-only).
 
 // ListWithdrawals handles GET /portal/v1/withdrawals?merchant_id=...&status=...&sort=...&order=...
@@ -386,12 +414,24 @@ func (h *PortalHandler) CreateWithdrawalRequest(c *gin.Context) {
 		return
 	}
 
+	var refundPaymentID *id.ID
+	if req.RefundPaymentID != "" {
+		paymentID, err := id.Parse(req.RefundPaymentID)
+		if err != nil {
+			_ = c.Error(apperror.NewValidation("invalid refundPaymentId"))
+			c.Abort()
+			return
+		}
+		refundPaymentID = &paymentID
+	}
+
 	result, err := h.withdrawalService.Create(c.Request.Context(), cryptoapp.CreatePortalWithdrawalInput{
 		MerchantID: mid,
 		TokenID:    tokenID,
 		AddressID:  addressID,
 		Amount:     req.Amount,
 		RiskClass:  aml.Class(req.RiskClass), RiskAccepted: req.RiskAccepted,
+		RefundPaymentID: refundPaymentID, RefundReason: req.RefundReason,
 	})
 	if err != nil {
 		_ = c.Error(err)

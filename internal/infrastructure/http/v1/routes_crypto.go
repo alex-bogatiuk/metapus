@@ -306,6 +306,7 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 				portalHandler.CreateInvoice,
 			)
 			portalV1.GET("/invoices/:id", portalHandler.GetInvoiceDetail) // MUST be after /invoices/export (Gin static-before-param rule)
+			portalV1.GET("/payments/:id/refund", portalHandler.GetRefundablePayment)
 
 			// ── Withdrawals ──────────────────────────────────────────────
 			portalV1.GET("/withdrawals", portalHandler.ListWithdrawals)

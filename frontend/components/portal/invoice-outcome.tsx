@@ -10,6 +10,7 @@ import {
   Copy,
   ExternalLink,
   RefreshCw,
+  Undo2,
   Wallet,
   Webhook,
 } from "lucide-react";
@@ -316,7 +317,25 @@ function Payment({
             {outcome.money(payment.netAmount)}
           </Detail>
         )}
+        {(rawAmount(payment.refundedAmount) ?? 0n) > 0n && (
+          <Detail label="Возвращено плательщику">
+            {outcome.money(payment.refundedAmount)}
+          </Detail>
+        )}
+        {(rawAmount(payment.refundPendingAmount) ?? 0n) > 0n && (
+          <Detail label="Возврат в обработке">
+            {outcome.money(payment.refundPendingAmount)}
+          </Detail>
+        )}
       </dl>
+      {(rawAmount(payment.refundableAmount) ?? 0n) > 0n && (
+        <Button variant="outline" size="sm" className="self-start" asChild>
+          <Link href={`/portal/withdrawals/new?refund=${encodeURIComponent(payment.id)}`}>
+            <Undo2 data-icon="inline-start" />
+            Вернуть плательщику
+          </Link>
+        </Button>
+      )}
       {excluded && (
         <p className="text-xs text-muted-foreground">
           Перевод не входит в полученную и подтверждённую сумму. Финансовые

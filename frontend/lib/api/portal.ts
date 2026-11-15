@@ -152,6 +152,11 @@ export const portalApi = {
         return portalFetch<import("@/types/portal-api").PortalInvoiceDetailResponse>(`/invoices/${invoiceId}${qs}`)
     },
 
+    refundablePayment: (merchantId: string, paymentId: string) =>
+        portalFetch<import("@/types/portal-api").PortalRefundablePaymentResponse>(
+            `/payments/${encodeURIComponent(paymentId)}/refund?merchant_id=${encodeURIComponent(merchantId)}`,
+        ),
+
     withdrawals: (params?: { merchantId?: string; status?: string; sort?: string; order?: "asc" | "desc"; limit?: number; offset?: number }) => {
         const entries: [string, string][] = []
         if (params?.merchantId) entries.push(["merchant_id", params.merchantId])

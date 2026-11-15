@@ -115,30 +115,50 @@ func (r *DashboardRepo) RemoveWithdrawalAddress(ctx context.Context, merchantID 
 // CreateWithdrawalRequest inserts a new withdrawal request.
 // docID must come from the domain model (entity.NewDocument) — same ID used by Engine.Post() for movements.
 // The document is created with posted=true and posted_version=1 (debit-first pattern).
-func (r *DashboardRepo) CreateWithdrawalRequest(
-	ctx context.Context,
-	docID id.ID,
-	merchantID id.ID,
-	tokenID id.ID,
-	amount types.CryptoAmount,
-	destAddress string,
-	addressID id.ID,
-	number string,
-	posted bool,
-	postedVersion int,
-	riskClass aml.Class,
-) error {
+func (r *DashboardRepo) CreateWithdrawalRequest(ctx context.Context, doc *withdrawal_request.WithdrawalRequest, riskClass aml.Class) error {
 	q := querier(ctx)
-
 	_, err := q.Exec(ctx, `
-		INSERT INTO doc_withdrawal_requests (id, number, merchant_id, token_id, amount, dest_address, address_id, status, posted, posted_version,risk_class)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending_signature', $8, $9,NULLIF($10,''))
-	`, docID, number, merchantID, tokenID, amount, destAddress, addressID, posted, postedVersion, riskClass)
+		INSERT INTO doc_withdrawal_requests (id, number, merchant_id, token_id, amount, dest_address, address_id, status, posted, posted_version,risk_class,basis_type,basis_id,description)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending_signature', $8, $9,NULLIF($10,''),$11,$12,$13)
+	`, doc.GetID(), doc.Number, doc.MerchantID, doc.TokenID, doc.Amount, doc.DestAddress, doc.AddressID, doc.IsPosted(), doc.GetPostedVersion(), riskClass, doc.BasisType, doc.BasisID, doc.Description)
 	if err != nil {
 		return fmt.Errorf("create withdrawal request: %w", err)
 	}
-
 	return nil
+}
+
+// refundablePaymentQuery reads a credited payment with what its refunds have
+// already committed: net request debits, so a rejected or failed refund that
+// restored its debit frees its amount again. The database guard on
+// doc_withdrawal_requests enforces the same cap.
+const refundablePaymentQuery = `SELECT p.id,p.invoice_id,COALESCE(i.number,''),p.token_id,p.amount,p.from_address,
+ COALESCE((SELECT SUM(CASE WHEN m.record_type='expense' THEN m.amount ELSE -m.amount END)
+   FROM doc_withdrawal_requests r JOIN reg_crypto_merchant_balance_movements m ON m.recorder_id=r.id AND m.recorder_type='WithdrawalRequest'
+   WHERE r.basis_type='CryptoPayment' AND r.basis_id=p.id),0)
+ FROM doc_crypto_payments p LEFT JOIN doc_crypto_invoices i ON i.id=p.invoice_id
+ WHERE p.id=$2 AND p.merchant_id=$1 AND p.posted AND p.canonicality='canonical' AND p.status IN ('confirmed','settled')
+   AND NOT p.deletion_mark AND p._deleted_at IS NULL`
+
+// GetRefundablePayment reads what is left to refund of a merchant's payment.
+func (r *DashboardRepo) GetRefundablePayment(ctx context.Context, merchantID, paymentID id.ID) (cryptoapp.RefundablePayment, error) {
+	return scanRefundablePayment(querier(ctx).QueryRow(ctx, refundablePaymentQuery, merchantID, paymentID))
+}
+
+// LockRefundablePayment locks the payment before the refund debit is posted,
+// so concurrent refunds of one payment are checked one after another.
+func (r *DashboardRepo) LockRefundablePayment(ctx context.Context, merchantID, paymentID id.ID) (cryptoapp.RefundablePayment, error) {
+	return scanRefundablePayment(querier(ctx).QueryRow(ctx, refundablePaymentQuery+` FOR UPDATE OF p`, merchantID, paymentID))
+}
+
+func scanRefundablePayment(row pgx.Row) (cryptoapp.RefundablePayment, error) {
+	var p cryptoapp.RefundablePayment
+	if err := row.Scan(&p.PaymentID, &p.InvoiceID, &p.InvoiceNumber, &p.TokenID, &p.Amount, &p.FromAddress, &p.Committed); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return p, apperror.NewNotFound("crypto_payment", "").WithCause(err)
+		}
+		return p, fmt.Errorf("read refundable payment: %w", err)
+	}
+	return p, nil
 }
 
 func (r *DashboardRepo) EnqueueApprovalSigning(ctx context.Context, intent crypto.MoneyMovementIntent) error {
@@ -189,7 +209,8 @@ func (r *DashboardRepo) ListWithdrawalRequests(ctx context.Context, merchantIDs 
 		SELECT wr.id::text, wr.number, wr.status, wr.amount,
 		       t.symbol, COALESCE(n.name, '') AS network, t.decimal_places,
 		       wr.dest_address, wr.rejection_reason,
-		       wr.created_at, wr.approved_at,` + amlWithdrawalHistoryColumns + `
+		       wr.created_at, wr.approved_at,` + amlWithdrawalHistoryColumns + `,
+		       CASE WHEN wr.basis_type='CryptoPayment' THEN wr.basis_id::text END, CASE WHEN wr.basis_type='CryptoPayment' THEN wr.description END
 		FROM doc_withdrawal_requests wr
 		JOIN cat_tokens t ON t.id = wr.token_id
 		LEFT JOIN cat_blockchain_networks n ON n.id = t.network_id
@@ -217,6 +238,7 @@ func (r *DashboardRepo) ListWithdrawalRequests(ctx context.Context, merchantIDs 
 			&item.Symbol, &item.Network, &item.DecimalPlaces,
 			&item.DestAddress, &rejectionReason,
 			&createdAt, &approvedAt, &item.RiskClass, &item.RiskAccepted, &riskSources,
+			&item.RefundPaymentID, &item.RefundReason,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan withdrawal request: %w", err)
 		}

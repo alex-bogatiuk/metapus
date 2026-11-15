@@ -61,6 +61,9 @@ export function invoiceFixture(
         confirmations: 13,
         requiredConfs: 12,
         ledger: knownLedger(),
+        refundedAmount: "0",
+        refundPendingAmount: "0",
+        refundableAmount: "1000000",
       },
     ],
     timeline: [

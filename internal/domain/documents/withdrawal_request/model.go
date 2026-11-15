@@ -7,6 +7,7 @@ package withdrawal_request
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"metapus/internal/core/apperror"
@@ -88,6 +89,24 @@ type WithdrawalRequest struct {
 	WithdrawalID *id.ID `db:"withdrawal_id" json:"withdrawalId,omitempty" meta:"label:Крипто-вывод,ref:crypto_withdrawal"`
 }
 
+// RefundBasisType is the basis of a merchant refund: the credited CryptoPayment
+// the request returns to its payer. A refund is an ordinary debit-first
+// withdrawal; the basis only ties it to the payment and caps it by that payment.
+const RefundBasisType = "CryptoPayment"
+
+// MaxRefundReasonBytes bounds the reason a refund carries in its description.
+const MaxRefundReasonBytes = 500
+
+// MarkAsRefund ties the request to the payment it returns and records why.
+func (w *WithdrawalRequest) MarkAsRefund(paymentID id.ID, reason string) {
+	w.BasisType = RefundBasisType
+	w.BasisID = &paymentID
+	w.Description = strings.TrimSpace(reason)
+}
+
+// IsRefund reports whether the request returns a credited payment.
+func (w *WithdrawalRequest) IsRefund() bool { return w.BasisType == RefundBasisType }
+
 // NewWithdrawalRequest creates a new WithdrawalRequest in pending_approval state.
 // The document should be posted immediately after creation via Engine.Post().
 func NewWithdrawalRequest(
@@ -128,6 +147,24 @@ func (w *WithdrawalRequest) Validate(ctx context.Context) error {
 	}
 	if id.IsNil(w.AddressID) {
 		return apperror.NewValidation("address ID is required").WithDetail("field", "addressId")
+	}
+	switch w.BasisType {
+	case "":
+		if w.BasisID != nil {
+			return apperror.NewValidation("withdrawal basis type is required").WithDetail("field", "basisType")
+		}
+	case RefundBasisType:
+		if w.BasisID == nil || id.IsNil(*w.BasisID) {
+			return apperror.NewValidation("refund requires the payment it returns").WithDetail("field", "refundPaymentId")
+		}
+		if strings.TrimSpace(w.Description) == "" {
+			return apperror.NewValidation("refund reason is required").WithDetail("field", "reason")
+		}
+		if len(w.Description) > MaxRefundReasonBytes {
+			return apperror.NewValidation("refund reason exceeds 500 bytes").WithDetail("field", "reason")
+		}
+	default:
+		return apperror.NewValidation("withdrawal basis must be a credited payment").WithDetail("field", "basisType")
 	}
 	return nil
 }
