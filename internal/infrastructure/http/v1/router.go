@@ -12,16 +12,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"metapus/internal/application/checkout"
-	"metapus/internal/application/cryptoapp"
 	"metapus/internal/application/readaccess"
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/security"
 	"metapus/internal/domain"
 	"metapus/internal/domain/auth"
-	"metapus/internal/domain/catalogs/merchant"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents"
-	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/printing"
 	"metapus/internal/domain/security_profile"
@@ -31,8 +28,6 @@ import (
 	"metapus/internal/infrastructure/search"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
-	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 	"metapus/internal/infrastructure/tenantdb"
 	"metapus/internal/metadata"
 	"metapus/pkg/logger"
@@ -77,9 +72,6 @@ type RouterConfig struct {
 	// EventLogRepo for event logging in middleware and handlers (optional)
 	EventLogRepo *postgres.EventLogRepo
 
-	// ChainCapabilities describes the family adapters linked into this binary.
-	ChainCapabilities crypto.ChainFamilyCapabilityResolver
-
 	// Registry holds all entity factory registrations (catalogs, documents).
 	// If nil, built-in defaults are used via RegisterDefaults().
 	Registry *FactoryRegistry
@@ -92,6 +84,9 @@ type RouterConfig struct {
 	// PostingModules install configuration registers into the posting engine
 	// and expose their document movements.
 	PostingModules []posting.Module
+
+	// RouteModules mount configuration routes after the platform routes.
+	RouteModules []RouteModule
 
 	// CurrencyResolver resolves document currency (optional).
 	// If nil, the default 1C-style chain resolver is created (Document → Contract → Org → System).
@@ -110,35 +105,8 @@ type RouterConfig struct {
 	// WSTicketStore for WebSocket ticket-based authentication.
 	WSTicketStore *auth.WSTicketStore
 
-	// MerchantAPIKeyRepo enables the /merchant/v1/ public API.
-	// If set, the merchant invoice routes are registered with API-key auth.
-	MerchantAPIKeyRepo merchant.APIKeyRepository
-
-	// MerchantInvoiceSvc is the crypto invoice service for the merchant public API.
-	// Required when MerchantAPIKeyRepo is set.
-	MerchantInvoiceSvc domain.DocumentService[*crypto_invoice.CryptoInvoice]
-
-	// MerchantInvoiceAppSvc owns idempotent invoice creation for the public API and portal.
-	// Required when MerchantAPIKeyRepo or PortalDashboardRepo is set.
-	MerchantInvoiceAppSvc *cryptoapp.MerchantInvoiceService
-
-	// MerchantWebhookSecretStore persists endpoint secrets outside PostgreSQL.
-	// Public webhook management routes are enabled only when this is configured.
-	MerchantWebhookSecretStore crypto.WebhookSecretStore
-
 	// CheckoutRefs resolves and builds customer-facing tenantless checkout URLs.
 	CheckoutRefs *checkout.Service
-
-	// PaymentLinkSvc owns portal payment link creation and public refs.
-	PaymentLinkSvc *cryptoapp.PaymentLinkService
-
-	// MerchantUserRepo manages user ↔ merchant access associations.
-	// Required for merchant user management endpoints.
-	MerchantUserRepo merchant.MerchantUserRepository
-
-	// PortalDashboardRepo provides portal dashboard queries (scope-filtered).
-	// If set, the /portal/v1/ routes are registered.
-	PortalDashboardRepo *portal_repo.DashboardRepo
 
 	// MoneyMovementApprovalSigners signs and verifies configurable withdrawal approval artifacts.
 	MoneyMovementApprovalSigners crypto.MoneyMovementApprovalSignerProvider
@@ -186,9 +154,6 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		// NOTE: /tenants moved to admin group (prevents unauthenticated tenant enumeration)
 	}
 
-	// Public payment page (embedded HTML for /pay/i/:publicRef and /pay/l/:publicRef)
-	RegisterPaymentPage(router)
-
 	// Use provided factory registry — composition root must configure this
 	factoryReg := cfg.Registry
 	if factoryReg == nil {
@@ -199,6 +164,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 	reg := metadata.NewRegistry()
 
 	// API v1
+	var moduleContext RouteContext
 	v1 := router.Group("/api/v1")
 	{
 		// Auth routes - need TenantDB middleware BEFORE auth
@@ -207,29 +173,6 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		// Public system routes (no auth, no tenant needed)
 		versionHandler := handlers.NewSystemVersionHandler(cfg.Version, cfg.BuildTime)
 		v1.GET("/system/version", versionHandler.Version)
-
-		checkoutPageService := cryptoapp.NewCheckoutPageService(crypto_repo.NewCheckoutPageRepo(), cfg.MerchantInvoiceSvc, crypto_repo.NewMerchantInvoiceSettingsRepo())
-		paymentPageHandler := handlers.NewPaymentPageHandler(checkoutPageService)
-
-		if cfg.CheckoutRefs == nil {
-			panic("v1.NewRouter: cfg.CheckoutRefs must not be nil")
-		}
-
-		// Public checkout API: tenant is resolved from the opaque public ref before
-		// a tenant database connection is opened.
-		checkoutGroup := v1.Group("/checkout")
-		checkoutGroup.Use(middleware.CheckoutTenantDB(cfg.TenantManager, cfg.CheckoutRefs))
-		{
-			invoices := checkoutGroup.Group("/invoices")
-			{
-				invoices.GET("/:publicRef", paymentPageHandler.GetPaymentInfo)
-				invoices.GET("/:publicRef/status", paymentPageHandler.GetInvoiceStatus)
-			}
-			links := checkoutGroup.Group("/links")
-			{
-				links.POST("/:publicRef/redeem", paymentPageHandler.RedeemPaymentLink)
-			}
-		}
 
 		// Protected endpoints - TenantDB runs first, then Auth
 		protected := v1.Group("")
@@ -273,8 +216,6 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		registerUserPrefsRoutes(protected)
 		registerListViewRoutes(protected)
 		registerSettingsRoutes(protected, cfg)
-		registerWalletPoolRoutes(protected, cfg)
-		registerCryptoNetworkRoutes(protected, cfg)
 		registerSecurityRoutes(protected, cfg)
 
 		// WebSocket group — TenantDB only, no JWT (ticket-based auth in handler).
@@ -282,7 +223,10 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		wsGroup := v1.Group("")
 		wsGroup.Use(middleware.TenantDB(cfg.TenantManager))
 
-		registerSystemRoutes(protected, wsGroup, cfg, eventLogRepo, reg, cfg.WSTicketStore, reportCompiler)
+		sysGroup := protected.Group("/system")
+		sysGroup.Use(middleware.RequireRole("admin"))
+		registerSystemRoutes(protected, sysGroup, wsGroup, cfg, eventLogRepo, reg, cfg.WSTicketStore, reportCompiler)
+		moduleContext = RouteContext{Root: router, API: v1, Protected: protected, System: sysGroup, Config: cfg, Metadata: reg}
 
 		// Global data search (Ctrl+K) — available to all authenticated users.
 		// Must be registered after entity routes so metadata.Registry is populated.
@@ -305,11 +249,9 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 	adminAuthGroup.Use(middleware.AdminGuard(cfg.AdminSecurityMode, cfg.AdminAllowedCIDRs, cfg.AdminMFAMode, cfg.MFARepo, eventLogRepo))
 	registerAdminTenantRoutes(adminAuthGroup, cfg, healthHandler)
 
-	// ─── Merchant Public API (/merchant/v1/) ──────────────────────────────────
-	// Separate prefix, separate auth (X-Api-Key), no JWT required.
-	// Tenant is resolved from the API key itself through the meta-database key index.
-	if cfg.MerchantAPIKeyRepo != nil {
-		registerMerchantPublicRoutes(router, cfg)
+	// Configuration routes (separate prefixes and /api/v1 additions).
+	for _, module := range cfg.RouteModules {
+		module.RegisterRoutes(moduleContext)
 	}
 
 	return router

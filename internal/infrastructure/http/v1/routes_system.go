@@ -17,7 +17,6 @@ import (
 	"metapus/internal/infrastructure/reporting/compiler"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/auth_repo"
-	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/security_repo"
 	"metapus/internal/metadata"
 )
@@ -108,9 +107,7 @@ func registerSecurityRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 
 // registerSystemRoutes registers system administration endpoints (event log, custom fields, processing).
 // wsGroup is a separate group with TenantDB but without Auth middleware — used for ticket-based WebSocket auth.
-func registerSystemRoutes(rg *gin.RouterGroup, wsGroup *gin.RouterGroup, cfg RouterConfig, eventLogReader eventlog.Reader, reg *metadata.Registry, wsTicketStore *auth.WSTicketStore, reportCompiler *compiler.Compiler) {
-	sysGroup := rg.Group("/system")
-	sysGroup.Use(middleware.RequireRole("admin"))
+func registerSystemRoutes(rg, sysGroup, wsGroup *gin.RouterGroup, cfg RouterConfig, eventLogReader eventlog.Reader, reg *metadata.Registry, wsTicketStore *auth.WSTicketStore, reportCompiler *compiler.Compiler) {
 	requireStepUp := func(actionCode string) gin.HandlerFunc {
 		return middleware.SensitiveActionGuard(cfg.MFARepo, actionCode, cfg.EventLogRepo)
 	}
@@ -177,16 +174,6 @@ func registerSystemRoutes(rg *gin.RouterGroup, wsGroup *gin.RouterGroup, cfg Rou
 	// Admin Automations: Meta (enum values for UI)
 	automationMetaHandler := handlers.NewAutomationMetaHandler(handlers.NewBaseHandler(), reportCompiler)
 	automationMetaHandler.RegisterRoutes(sysGroup)
-
-	// Fee Schedule — global defaults (system admin)
-	feeScheduleRepo := crypto_repo.NewFeeScheduleRepo()
-	feeScheduleHandler := handlers.NewFeeScheduleHandler(feeScheduleRepo)
-	feeGroup := sysGroup.Group("/fee-schedule")
-	{
-		feeGroup.GET("", feeScheduleHandler.ListGlobal)
-		feeGroup.PUT("", requireStepUp("system.fee_schedule.write"), feeScheduleHandler.UpsertGlobal)
-		feeGroup.DELETE("", requireStepUp("system.fee_schedule.delete"), feeScheduleHandler.DeleteGlobal)
-	}
 
 	// Worker Job observability (/system/worker-jobs)
 	workerJobRepo := postgres.NewWorkerJobReadRepo()

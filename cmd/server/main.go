@@ -35,6 +35,7 @@ import (
 	"metapus/internal/infrastructure/crypto/approval_signer"
 	"metapus/internal/infrastructure/crypto/cryptoregisters"
 	"metapus/internal/infrastructure/crypto/webhooksecret"
+	"metapus/internal/infrastructure/http/cryptohttp"
 	v1 "metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/pdfrender"
@@ -345,20 +346,22 @@ func main() {
 		ProfileProvider:              profileProvider,
 		PolicyEngine:                 policyEngine,
 		EventLogRepo:                 eventLogRepo,
-		ChainCapabilities:            chainCapabilities,
 		Registry:                     factoryReg,
 		Version:                      Version,
 		BuildTime:                    BuildTime,
 		WSTicketStore:                wsTicketStore,
-		MerchantAPIKeyRepo:           merchantAPIKeyRepo,
-		MerchantUserRepo:             merchantUserRepo,
-		MerchantInvoiceSvc:           checkoutInvoiceSvc,
-		MerchantInvoiceAppSvc:        merchantInvoiceAppSvc,
-		MerchantWebhookSecretStore:   webhookSecretStore,
 		CheckoutRefs:                 checkoutRefs,
-		PaymentLinkSvc:               paymentLinkSvc,
-		PortalDashboardRepo:          portalDashboardRepo,
 		MoneyMovementApprovalSigners: approvalSignerProvider,
+		RouteModules: []v1.RouteModule{cryptohttp.New(cryptohttp.Config{
+			ChainCapabilities:          chainCapabilities,
+			MerchantAPIKeyRepo:         merchantAPIKeyRepo,
+			MerchantUserRepo:           merchantUserRepo,
+			MerchantInvoiceSvc:         checkoutInvoiceSvc,
+			MerchantInvoiceAppSvc:      merchantInvoiceAppSvc,
+			MerchantWebhookSecretStore: webhookSecretStore,
+			PaymentLinkSvc:             paymentLinkSvc,
+			PortalDashboardRepo:        portalDashboardRepo,
+		})},
 	})
 
 	// --- HTTP Server ---
