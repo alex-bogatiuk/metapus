@@ -24,7 +24,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 
 	"github.com/stretchr/testify/require"
 )
@@ -63,7 +63,7 @@ func newWithdrawalFinalFixture(t *testing.T, ctx context.Context, tm *postgres.T
 	r.Status = withdrawal_request.StatusSigning
 	_, err = q.Exec(ctx, `INSERT INTO doc_withdrawal_requests(id,number,date,merchant_id,token_id,amount,dest_address,address_id,status,posted,posted_version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'signing',true,1)`, r.ID, r.Number, r.Date, merchant, c.token, r.Amount, dest, address)
 	require.NoError(t, err)
-	require.NoError(t, register_repo.NewCryptoMerchantBalanceRepo().CreateMovements(ctx, []crypto_merchant_balance.CryptoMerchantBalanceMovement{
+	require.NoError(t, crypto_register_repo.NewCryptoMerchantBalanceRepo().CreateMovements(ctx, []crypto_merchant_balance.CryptoMerchantBalanceMovement{
 		crypto_merchant_balance.NewCryptoMerchantBalanceMovement(id.New(), "Opening", 1, r.Date, entity.RecordTypeReceipt, merchant, c.token, types.NewCryptoAmountFromInt64(100)),
 		crypto_merchant_balance.NewCryptoMerchantBalanceMovement(r.ID, "WithdrawalRequest", 1, r.Date, entity.RecordTypeExpense, merchant, c.token, r.Amount),
 	}))

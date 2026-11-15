@@ -18,7 +18,7 @@ import (
 	"metapus/internal/domain/registers/crypto_platform_cost"
 	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
@@ -65,8 +65,8 @@ func newCustodyLossFixture(t *testing.T, proofMode string) custodyLossFixture {
 	engine := posting.NewEngine(postgres.NewDocLocker())
 	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoPlatformCostVisitor{})
-	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
-	engine.AddRecorder(cryptoposting.NewCryptoPlatformCostRecorder(crypto_platform_cost.NewService(register_repo.NewCryptoPlatformCostRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoPlatformCostRecorder(crypto_platform_cost.NewService(crypto_register_repo.NewCryptoPlatformCostRepo())))
 	service := cryptoapp.NewExternalOutflowService(tm, NewExternalOutflowWorkflowRepo(), cryptoapp.NewOperationalHoldService(tm, NewOperationalHoldRepo()), engine)
 	classified, err := service.Classify(ctx, cryptoapp.ClassifyExternalOutflowCommand{OutflowID: outflow, Classification: crypto.OutflowUnauthorizedLoss, Reason: "proven unexplained outflow"}, maker)
 	require.NoError(t, err)

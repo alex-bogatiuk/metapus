@@ -1,4 +1,4 @@
-package register_repo
+package crypto_register_repo
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 
 	"metapus/internal/core/id"
 	"metapus/internal/domain/registers/crypto_provider_balance"
+	"metapus/internal/infrastructure/storage/postgres/register_repo"
 )
 
 const _cryptoProviderBalanceMovementsTable = "reg_crypto_provider_balance_movements"
@@ -24,17 +25,17 @@ func cryptoProviderBalanceMovementRowMapper(m crypto_provider_balance.CryptoProv
 }
 
 type CryptoProviderBalanceRepo struct {
-	BaseAccumulationRepo[crypto_provider_balance.CryptoProviderBalanceMovement]
+	register_repo.BaseAccumulationRepo[crypto_provider_balance.CryptoProviderBalanceMovement]
 }
 
 func NewCryptoProviderBalanceRepo() *CryptoProviderBalanceRepo {
-	return &CryptoProviderBalanceRepo{BaseAccumulationRepo: NewBaseAccumulationRepo[crypto_provider_balance.CryptoProviderBalanceMovement](
+	return &CryptoProviderBalanceRepo{BaseAccumulationRepo: register_repo.NewBaseAccumulationRepo[crypto_provider_balance.CryptoProviderBalanceMovement](
 		_cryptoProviderBalanceMovementsTable, _cryptoProviderBalanceMovementColumns, cryptoProviderBalanceMovementRowMapper,
 	)}
 }
 
 func (r *CryptoProviderBalanceRepo) AppendReversalsByRecorder(ctx context.Context, recorderID id.ID, beforeVersion int) error {
-	return r.appendReversalsByRecorder(ctx, recorderID, beforeVersion, []string{
+	return appendReversalsByRecorder(ctx, &r.BaseAccumulationRepo, recorderID, beforeVersion, []string{
 		"provider_account_id", "token_id", "operation_type", "external_ref",
 	})
 }

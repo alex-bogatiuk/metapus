@@ -16,7 +16,7 @@ import (
 	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +31,7 @@ func newPlatformFundingFixture(t *testing.T, custodyOwner bool) platformFundingF
 	f := newMerchantCreditFixture(t, custodyOwner)
 	engine := posting.NewEngine(nil)
 	engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
-	engine.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(crypto_register_repo.NewCryptoReceiptSuspenseRepo())))
 	fundings := cryptoapp.NewPlatformFundingService(postgres.MustGetTxManager(f.ctx), NewPlatformFundingRepo(),
 		engine, numerator.New(), postgres.NewOutboxPublisher(), time.Now)
 	return platformFundingFixture{merchantCreditFixture: f, fundings: fundings}
@@ -80,7 +80,7 @@ func TestPlatformFundingTakesTheRemainderOnlyAfterAnotherOperatorApproves(t *tes
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT count(*) FROM reg_crypto_balance_movements WHERE recorder_id=$1`, doc.ID).Scan(&custody))
 	require.Zero(t, custody, "custody already holds the transfer")
 
-	suspenseRegister := crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())
+	suspenseRegister := crypto_receipt_suspense.NewService(crypto_register_repo.NewCryptoReceiptSuspenseRepo())
 	fundingMovements, err := suspenseRegister.GetDocumentMovements(f.ctx, doc.ID)
 	require.NoError(t, err)
 	require.Len(t, fundingMovements, 1, "the funding document shows its suspense consumption")

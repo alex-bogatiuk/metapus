@@ -22,7 +22,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 
 	"github.com/stretchr/testify/require"
 )
@@ -163,8 +163,8 @@ func TestNetworkFeeV2ActivationUsesDocumentOwner(t *testing.T) {
 		engine := posting.NewEngine(postgres.NewDocLocker())
 		engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 		engine.AddVisitor(&cryptoposting.CryptoPlatformCostVisitor{})
-		engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
-		engine.AddRecorder(cryptoposting.NewCryptoPlatformCostRecorder(crypto_platform_cost.NewService(register_repo.NewCryptoPlatformCostRepo())))
+		engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))
+		engine.AddRecorder(cryptoposting.NewCryptoPlatformCostRecorder(crypto_platform_cost.NewService(crypto_register_repo.NewCryptoPlatformCostRepo())))
 		repo := document_repo.NewCryptoNetworkOperationRepo()
 		service := crypto_network_operation.NewService(repo, engine, fixedNetworkOperationNumerator{}, nil)
 		coordinator := NewCryptoNetworkOperationCoordinator(repo, service, NewFeeBudgetManager())

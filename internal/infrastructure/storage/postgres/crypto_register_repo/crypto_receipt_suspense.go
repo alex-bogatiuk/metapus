@@ -1,4 +1,4 @@
-package register_repo
+package crypto_register_repo
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/registers/crypto_receipt_suspense"
+	"metapus/internal/infrastructure/storage/postgres/register_repo"
 )
 
 var receiptSuspenseColumns = []string{
@@ -15,11 +16,11 @@ var receiptSuspenseColumns = []string{
 }
 
 type CryptoReceiptSuspenseRepo struct {
-	BaseAccumulationRepo[crypto_receipt_suspense.CryptoReceiptSuspenseMovement]
+	register_repo.BaseAccumulationRepo[crypto_receipt_suspense.CryptoReceiptSuspenseMovement]
 }
 
 func NewCryptoReceiptSuspenseRepo() *CryptoReceiptSuspenseRepo {
-	return &CryptoReceiptSuspenseRepo{BaseAccumulationRepo: NewBaseAccumulationRepo(
+	return &CryptoReceiptSuspenseRepo{BaseAccumulationRepo: register_repo.NewBaseAccumulationRepo(
 		"reg_crypto_receipt_suspense_movements", receiptSuspenseColumns,
 		func(m crypto_receipt_suspense.CryptoReceiptSuspenseMovement) []any {
 			return []any{m.LineID, m.RecorderID, m.RecorderType, m.RecorderVersion, m.Period,

@@ -24,7 +24,7 @@ import (
 	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 
 	"github.com/stretchr/testify/require"
 )
@@ -59,9 +59,9 @@ func newMerchantCreditFixture(t *testing.T, custodyOwner bool) merchantCreditFix
 	engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoMerchantBalanceVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoFeeVisitor{})
-	engine.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())))
-	engine.AddRecorder(cryptoposting.NewCryptoMerchantBalanceRecorder(crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())))
-	engine.AddRecorder(cryptoposting.NewCryptoFeeRecorder(crypto_fee.NewService(register_repo.NewCryptoFeeRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(crypto_register_repo.NewCryptoReceiptSuspenseRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoMerchantBalanceRecorder(crypto_merchant_balance.NewService(crypto_register_repo.NewCryptoMerchantBalanceRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoFeeRecorder(crypto_fee.NewService(crypto_register_repo.NewCryptoFeeRepo())))
 	credits := cryptoapp.NewMerchantCreditService(postgres.MustGetTxManager(f.ctx), NewMerchantCreditRepo(), fixedTariff{},
 		engine, numerator.New(), postgres.NewOutboxPublisher(), time.Now)
 	return merchantCreditFixture{receiptIntakeFixture: f, credits: credits, receipt: doc.ID, merchant: merchant}

@@ -14,7 +14,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/outbound_repo"
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
@@ -88,7 +88,7 @@ func TestSweepMaintenanceRejectsRepeatableReadSnapshot(t *testing.T) {
 
 func TestAMLAdminRejectionConcurrentCommandsCompensateOnce(t *testing.T) {
 	f := crypto_repo.NewOutboundPublicationFixture(t, true)
-	service := cryptoapp.NewWithdrawalRejectionService(portal_repo.NewDashboardRepo(), crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo()))
+	service := cryptoapp.NewWithdrawalRejectionService(portal_repo.NewDashboardRepo(), crypto_merchant_balance.NewService(crypto_register_repo.NewCryptoMerchantBalanceRepo()))
 	var wg sync.WaitGroup
 	errs := make([]error, 2)
 	for i := range errs {

@@ -26,7 +26,7 @@ import (
 	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 )
 
 type withdrawalRecoveryFixture struct {
@@ -48,7 +48,7 @@ func seedWithdrawalRecovery(t *testing.T, ctx context.Context, txm *postgres.TxM
 	_, err := q.Exec(ctx, `INSERT INTO cat_merchants(id,code,name) VALUES($1,$2,'Recovery merchant')`, wr.task.MerchantID, suffix)
 	require.NoError(t, err)
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	merchantRepo := register_repo.NewCryptoMerchantBalanceRepo()
+	merchantRepo := crypto_register_repo.NewCryptoMerchantBalanceRepo()
 	require.NoError(t, merchantRepo.CreateMovements(ctx, []crypto_merchant_balance.CryptoMerchantBalanceMovement{
 		crypto_merchant_balance.NewCryptoMerchantBalanceMovement(id.New(), "Opening", 1, time.Now(), entity.RecordTypeReceipt, wr.task.MerchantID, f.token, types.NewCryptoAmountFromInt64(1000)),
 		crypto_merchant_balance.NewCryptoMerchantBalanceMovement(wr.task.RequestID, withdrawal_request.DocumentType, 1, now, entity.RecordTypeExpense, wr.task.MerchantID, f.token, types.NewCryptoAmountFromInt64(100)),
@@ -84,11 +84,11 @@ func seedWithdrawalRecovery(t *testing.T, ctx context.Context, txm *postgres.TxM
 func recoveryExecutor(wr withdrawalRecoveryFixture, f sweepCoordinationFixture, receipt crypto.ChainReceipt) *WithdrawalExecutor {
 	registry := crypto.NewChainDriverRegistry()
 	_ = registry.Register(fundingReceiptDriver{network: crypto.NetworkRef{ID: f.network, Code: "TEST", Family: crypto.ChainFamilyTRON, NetworkIdentifier: "nile", NativeTokenID: f.native, NativeDecimals: 6, RequiredConfirmations: 12, FinalityMode: crypto.FinalityByConfirmations}, receipt: receipt})
-	engine := posting.NewEngine(postgres.NewDocLocker(), cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
+	engine := posting.NewEngine(postgres.NewDocLocker(), cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))
 	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	return &WithdrawalExecutor{outboundRepo: NewOutboundRepo(), tenantID: wr.auth.TenantID, drivers: registry,
 		withdrawalRepo: document_repo.NewCryptoWithdrawalRepo(), postingEngine: engine, feeBudget: NewFeeBudgetManager(),
-		merchantBalanceSvc: crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo()), now: func() time.Time { return wr.auth.ExpiresAt.Add(24 * time.Hour) }}
+		merchantBalanceSvc: crypto_merchant_balance.NewService(crypto_register_repo.NewCryptoMerchantBalanceRepo()), now: func() time.Time { return wr.auth.ExpiresAt.Add(24 * time.Hour) }}
 }
 
 func assertMerchantBalance(t *testing.T, ctx context.Context, txm *postgres.TxManager, wr withdrawalRecoveryFixture, want string) {
@@ -182,7 +182,7 @@ func (failingCompensationWrite) MarkWithdrawalExecutionFailed(context.Context, i
 func TestWithdrawalCompensationFailureRollsBackBalanceAndReservation(t *testing.T) {
 	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
 		wr := seedWithdrawalRecovery(t, ctx, txm, f)
-		s := cryptoapp.NewWithdrawalFailureService(contextTxManager{}, failingCompensationWrite{NewOutboundRepo()}, crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo()))
+		s := cryptoapp.NewWithdrawalFailureService(contextTxManager{}, failingCompensationWrite{NewOutboundRepo()}, crypto_merchant_balance.NewService(crypto_register_repo.NewCryptoMerchantBalanceRepo()))
 		changed, err := s.FailWithdrawalBeforeEffect(ctx, wr.task.RequestID, "approval expired")
 		require.Error(t, err)
 		require.False(t, changed)
@@ -198,7 +198,7 @@ func TestWithdrawalCompensationRacesAuthorizationPublication(t *testing.T) {
 	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
 		wr := seedWithdrawalRecovery(t, ctx, txm, f)
 		repo := NewOutboundRepo()
-		s := cryptoapp.NewWithdrawalFailureService(contextTxManager{}, repo, crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo()))
+		s := cryptoapp.NewWithdrawalFailureService(contextTxManager{}, repo, crypto_merchant_balance.NewService(crypto_register_repo.NewCryptoMerchantBalanceRepo()))
 		start := make(chan struct{})
 		signed := make(chan error, 1)
 		failed := make(chan error, 1)

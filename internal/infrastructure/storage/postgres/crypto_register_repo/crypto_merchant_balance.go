@@ -1,4 +1,4 @@
-package register_repo
+package crypto_register_repo
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/registers/crypto_merchant_balance"
+	"metapus/internal/infrastructure/storage/postgres/register_repo"
 )
 
 const (
@@ -36,13 +37,13 @@ func cryptoMerchantBalanceMovementRowMapper(m crypto_merchant_balance.CryptoMerc
 
 // CryptoMerchantBalanceRepo implements crypto_merchant_balance.Repository.
 type CryptoMerchantBalanceRepo struct {
-	BaseAccumulationRepo[crypto_merchant_balance.CryptoMerchantBalanceMovement]
+	register_repo.BaseAccumulationRepo[crypto_merchant_balance.CryptoMerchantBalanceMovement]
 }
 
 // NewCryptoMerchantBalanceRepo creates a new crypto merchant balance register repository.
 func NewCryptoMerchantBalanceRepo() *CryptoMerchantBalanceRepo {
 	return &CryptoMerchantBalanceRepo{
-		BaseAccumulationRepo: NewBaseAccumulationRepo[crypto_merchant_balance.CryptoMerchantBalanceMovement](
+		BaseAccumulationRepo: register_repo.NewBaseAccumulationRepo[crypto_merchant_balance.CryptoMerchantBalanceMovement](
 			_cryptoMerchantBalanceMovementsTable,
 			_cryptoMerchantBalanceMovementColumns,
 			cryptoMerchantBalanceMovementRowMapper,
@@ -51,7 +52,7 @@ func NewCryptoMerchantBalanceRepo() *CryptoMerchantBalanceRepo {
 }
 
 func (r *CryptoMerchantBalanceRepo) AppendReversalsByRecorder(ctx context.Context, recorderID id.ID, beforeVersion int) error {
-	return r.appendReversalsByRecorder(ctx, recorderID, beforeVersion, []string{"merchant_id", "token_id"})
+	return appendReversalsByRecorder(ctx, &r.BaseAccumulationRepo, recorderID, beforeVersion, []string{"merchant_id", "token_id"})
 }
 
 // GetMovementsByRecorder retrieves movements for a document.

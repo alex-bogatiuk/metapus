@@ -29,7 +29,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/migration"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -119,8 +119,8 @@ func (f fundingFixture) receipt() error {
 	engine := posting.NewEngine(nil)
 	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
-	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
-	engine.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(crypto_register_repo.NewCryptoReceiptSuspenseRepo())))
 	svc := cryptoapp.NewReceiptIntakeService(postgres.MustGetTxManager(f.ctx), crypto_repo.NewReceiptIntakeRepo(), crypto_repo.NewBlockIngestionRepo(), engine, numerator.New(), postgres.NewOutboxPublisher(), time.Now)
 	e := f.proof.Event
 	e.VerificationID = &f.proof.ID

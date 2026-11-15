@@ -31,6 +31,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/dashboard_repo"
 	"metapus/internal/infrastructure/storage/postgres/money_movement_repo"
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
 )
 
@@ -57,9 +58,9 @@ func registerUnidentifiedReceiptRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 	engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoMerchantBalanceVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoFeeVisitor{})
-	engine.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())))
-	engine.AddRecorder(cryptoposting.NewCryptoMerchantBalanceRecorder(crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())))
-	engine.AddRecorder(cryptoposting.NewCryptoFeeRecorder(crypto_fee.NewService(register_repo.NewCryptoFeeRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(crypto_register_repo.NewCryptoReceiptSuspenseRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoMerchantBalanceRecorder(crypto_merchant_balance.NewService(crypto_register_repo.NewCryptoMerchantBalanceRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoFeeRecorder(crypto_fee.NewService(crypto_register_repo.NewCryptoFeeRepo())))
 	txm := postgres.NewContextTxManager()
 	service := cryptoapp.NewMerchantCreditService(txm, crypto_repo.NewMerchantCreditRepo(),
 		crypto.NewFeeConfigResolver(crypto_repo.NewFeeScheduleRepo()), engine, cfg.Numerator, postgres.NewOutboxPublisher(), time.Now)
@@ -261,7 +262,7 @@ func registerMerchantPublicRoutes(router *gin.Engine, cfg RouterConfig) {
 		// Posting engine for debit-first withdrawal requests.
 		// Only needs CryptoMerchantBalance visitor+recorder (balance check + movement recording).
 		portalDocLocker := postgres.NewDocLocker()
-		portalMerchantSvc := crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())
+		portalMerchantSvc := crypto_merchant_balance.NewService(crypto_register_repo.NewCryptoMerchantBalanceRepo())
 		portalPostingEngine := posting.NewEngine(portalDocLocker)
 		portalPostingEngine.AddVisitor(&cryptoposting.CryptoMerchantBalanceVisitor{})
 		portalPostingEngine.AddRecorder(cryptoposting.NewCryptoMerchantBalanceRecorder(portalMerchantSvc))

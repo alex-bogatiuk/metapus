@@ -19,7 +19,7 @@ import (
 	"metapus/internal/domain/registers/cryptoposting"
 	infraNumerator "metapus/internal/infrastructure/numerator"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 )
 
 // The acceptance scenarios of the receipt accounting drive the fully wired
@@ -282,7 +282,7 @@ func TestAcceptanceA33CrashBetweenProofAndPosting(t *testing.T) {
 	engine := posting.NewEngine(nil)
 	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
-	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))
 	broken := newReceiptIntake(engine, infraNumerator.New())
 	recorded, err := broken.poll(f.ctx, f.processor.drivers)
 	require.NoError(t, err)

@@ -9,7 +9,7 @@
 
 `posting.Postable` определяет ID, тип, posted version, проверки и переходы состояния. `RegisterVisitor.CollectMovements` извлекает движения только у поддерживаемого source-интерфейса. Базовый `MovementSet` содержит settlement slice и `Extensions`; crypto visitors хранят в Extensions типизированные slices.
 
-Действующие crypto sources: CryptoBalance, CryptoMerchantBalance, CryptoFee, CryptoPlatformCost, CryptoProviderBalance, CryptoReceiptSuspense. StockVisitor/StockMovementSource в текущем контенте отсутствуют. Новый регистр подключается через `AddVisitor` и `AddRecorder`.
+Действующие crypto sources: CryptoBalance, CryptoMerchantBalance, CryptoFee, CryptoPlatformCost, CryptoProviderBalance, CryptoReceiptSuspense. StockVisitor/StockMovementSource в текущем контенте отсутствуют. Новый регистр подключается через `AddVisitor` и `AddRecorder`. Регистры конфигурации собираются модулем `posting.Module` (криптоконфигурация: [`cryptoregisters`](../../internal/infrastructure/crypto/cryptoregisters/module.go)), который HTTP-сервер получает через `RouterConfig.PostingModules`, а воркер вызывает напрямую. PostgreSQL-репозитории криптовых регистров находятся в `storage/postgres/crypto_register_repo`.
 
 ## 2. Транзакционная граница
 

@@ -1,4 +1,4 @@
-package register_repo
+package crypto_register_repo
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 
 	"metapus/internal/core/id"
 	"metapus/internal/domain/registers/crypto_platform_cost"
+	"metapus/internal/infrastructure/storage/postgres/register_repo"
 )
 
 const _cryptoPlatformCostMovementsTable = "reg_crypto_platform_cost_movements"
@@ -31,13 +32,13 @@ func cryptoPlatformCostMovementRowMapper(m crypto_platform_cost.CryptoPlatformCo
 
 // CryptoPlatformCostRepo implements crypto_platform_cost.Repository.
 type CryptoPlatformCostRepo struct {
-	BaseAccumulationRepo[crypto_platform_cost.CryptoPlatformCostMovement]
+	register_repo.BaseAccumulationRepo[crypto_platform_cost.CryptoPlatformCostMovement]
 }
 
 // NewCryptoPlatformCostRepo creates a new crypto platform cost register repository.
 func NewCryptoPlatformCostRepo() *CryptoPlatformCostRepo {
 	return &CryptoPlatformCostRepo{
-		BaseAccumulationRepo: NewBaseAccumulationRepo[crypto_platform_cost.CryptoPlatformCostMovement](
+		BaseAccumulationRepo: register_repo.NewBaseAccumulationRepo[crypto_platform_cost.CryptoPlatformCostMovement](
 			_cryptoPlatformCostMovementsTable,
 			_cryptoPlatformCostMovementColumns,
 			cryptoPlatformCostMovementRowMapper,
@@ -46,7 +47,7 @@ func NewCryptoPlatformCostRepo() *CryptoPlatformCostRepo {
 }
 
 func (r *CryptoPlatformCostRepo) AppendReversalsByRecorder(ctx context.Context, recorderID id.ID, beforeVersion int) error {
-	return r.appendReversalsByRecorder(ctx, recorderID, beforeVersion, []string{
+	return appendReversalsByRecorder(ctx, &r.BaseAccumulationRepo, recorderID, beforeVersion, []string{
 		"network_id", "operation_token_id", "cost_token_id", "cost_type", "purpose", "provider", "external_order_id",
 	})
 }

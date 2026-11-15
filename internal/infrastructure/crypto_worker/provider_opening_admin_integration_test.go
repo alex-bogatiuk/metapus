@@ -21,7 +21,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 
 	"github.com/stretchr/testify/require"
 )
@@ -181,7 +181,7 @@ func (w providerFaultAudit) Write(ctx context.Context, e eventlog.Event) error {
 func (f providerOpeningFixture) serviceWithAudit(audit providerFaultAudit) *cryptoapp.ProviderBalanceWorkflowService {
 	engine := posting.NewEngine(nil)
 	engine.AddVisitor(&cryptoposting.CryptoProviderBalanceVisitor{})
-	engine.AddRecorder(cryptoposting.NewCryptoProviderBalanceRecorder(crypto_provider_balance.NewService(register_repo.NewCryptoProviderBalanceRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoProviderBalanceRecorder(crypto_provider_balance.NewService(crypto_register_repo.NewCryptoProviderBalanceRepo())))
 	return cryptoapp.NewProviderBalanceWorkflowService(document_repo.NewCryptoProviderBalanceOperationRepo(), crypto_repo.NewProviderBalanceWorkflowRepo(), fixedNetworkOperationNumerator{}, engine, command.NewExecutor(f.txm, postgres.NewCommandRepository()), f.stepUp, crypto_repo.NewProviderOpeningAuthorityRepo(), audit)
 }
 
@@ -302,7 +302,7 @@ func TestProviderOpeningStepUpExpiresAtAuthorityLock(t *testing.T) {
 			doc := f.prepare(t)
 			engine := posting.NewEngine(nil)
 			engine.AddVisitor(&cryptoposting.CryptoProviderBalanceVisitor{})
-			engine.AddRecorder(cryptoposting.NewCryptoProviderBalanceRecorder(crypto_provider_balance.NewService(register_repo.NewCryptoProviderBalanceRepo())))
+			engine.AddRecorder(cryptoposting.NewCryptoProviderBalanceRecorder(crypto_provider_balance.NewService(crypto_register_repo.NewCryptoProviderBalanceRepo())))
 			service := cryptoapp.NewProviderBalanceWorkflowService(document_repo.NewCryptoProviderBalanceOperationRepo(), crypto_repo.NewProviderBalanceWorkflowRepo(), fixedNetworkOperationNumerator{}, engine,
 				command.NewExecutor(f.txm, postgres.NewCommandRepository()), f.stepUp,
 				providerExpiringAuthority{crypto_repo.NewProviderOpeningAuthorityRepo(), f.stepUp}, postgres.NewEventLogRepo())

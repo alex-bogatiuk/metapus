@@ -25,7 +25,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 )
 
 type providerTestStepUp struct{ denied atomic.Bool }
@@ -64,7 +64,7 @@ func withProviderOpening(t *testing.T, fn func(providerOpeningFixture)) {
 func (f providerOpeningFixture) newService(commands command.Repository) *cryptoapp.ProviderBalanceWorkflowService {
 	engine := posting.NewEngine(nil)
 	engine.AddVisitor(&cryptoposting.CryptoProviderBalanceVisitor{})
-	engine.AddRecorder(cryptoposting.NewCryptoProviderBalanceRecorder(crypto_provider_balance.NewService(register_repo.NewCryptoProviderBalanceRepo())))
+	engine.AddRecorder(cryptoposting.NewCryptoProviderBalanceRecorder(crypto_provider_balance.NewService(crypto_register_repo.NewCryptoProviderBalanceRepo())))
 	return cryptoapp.NewProviderBalanceWorkflowService(document_repo.NewCryptoProviderBalanceOperationRepo(), crypto_repo.NewProviderBalanceWorkflowRepo(),
 		fixedNetworkOperationNumerator{}, engine, command.NewExecutor(f.txm, commands), f.stepUp,
 		crypto_repo.NewProviderOpeningAuthorityRepo(), postgres.NewEventLogRepo())

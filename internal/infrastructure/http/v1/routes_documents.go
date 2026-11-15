@@ -8,20 +8,12 @@ import (
 	"metapus/internal/domain/eventlog"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/printing"
-	"metapus/internal/domain/registers/crypto_balance"
-	"metapus/internal/domain/registers/crypto_fee"
-	"metapus/internal/domain/registers/crypto_merchant_balance"
-	"metapus/internal/domain/registers/crypto_platform_cost"
-	"metapus/internal/domain/registers/crypto_provider_balance"
-	"metapus/internal/domain/registers/crypto_receipt_suspense"
-	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/domain/registers/settlement"
 	"metapus/internal/domain/reports/variants"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/reporting/compiler"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/money_movement_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
 	"metapus/internal/metadata"
@@ -46,30 +38,11 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 		postingEngine = posting.NewEngine(docLocker, recorders...)
 	}
 
-	// ── Crypto register visitors + recorders ───────────────────────────
-	// These extend the posting engine to handle CryptoPayment/CryptoWithdrawal/CryptoSweep.
-	// Services are declared at function scope so they can also serve as MovementProviders.
-	cryptoBalSvc := crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())
-	cryptoFeeSvc := crypto_fee.NewService(register_repo.NewCryptoFeeRepo())
-	cryptoMerchantSvc := crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())
-	cryptoPlatformCostSvc := crypto_platform_cost.NewService(register_repo.NewCryptoPlatformCostRepo())
-	cryptoProviderBalanceSvc := crypto_provider_balance.NewService(register_repo.NewCryptoProviderBalanceRepo())
-	cryptoReceiptSuspenseSvc := crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())
-
-	postingEngine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
-	postingEngine.AddVisitor(&cryptoposting.CryptoFeeVisitor{})
-	postingEngine.AddVisitor(&cryptoposting.CryptoMerchantBalanceVisitor{})
-	postingEngine.AddVisitor(&cryptoposting.CryptoPlatformCostVisitor{})
-	postingEngine.AddVisitor(&cryptoposting.CryptoProviderBalanceVisitor{})
-	postingEngine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
-
-	postingEngine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(cryptoBalSvc))
-	postingEngine.AddRecorder(cryptoposting.NewCryptoFeeRecorder(cryptoFeeSvc))
-	postingEngine.AddRecorder(cryptoposting.NewCryptoMerchantBalanceRecorder(cryptoMerchantSvc))
-	postingEngine.AddRecorder(cryptoposting.NewCryptoPlatformCostRecorder(cryptoPlatformCostSvc))
-	postingEngine.AddRecorder(cryptoposting.NewCryptoProviderBalanceRecorder(cryptoProviderBalanceSvc))
-	postingEngine.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(cryptoReceiptSuspenseSvc))
-	postingEngine.ValidateInTransaction(crypto_repo.NewBlockIngestionRepo().ValidatePosting)
+	// Configuration registers extend the engine and expose their movements.
+	movementProviders := []entity.MovementProvider{settlementSvc}
+	for _, module := range cfg.PostingModules {
+		movementProviders = append(movementProviders, module.InstallPosting(postingEngine)...)
+	}
 
 	// CurrencyResolver is guaranteed non-nil here — created in NewRouter before catalog/document registration.
 	currencyResolver := cfg.CurrencyResolver
@@ -95,18 +68,10 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 		StepUpGuard: func(actionCode string) gin.HandlerFunc {
 			return middleware.SensitiveActionGuard(cfg.MFARepo, actionCode, cfg.EventLogRepo)
 		},
-		StepUpChecker:          cfg.MFARepo,
-		MoneyMovementApprovals: moneyMovementApprovals,
-		MoneyMovementSigners:   cfg.MoneyMovementApprovalSigners,
-		MovementProviders: []entity.MovementProvider{
-			settlementSvc,
-			cryptoBalSvc,
-			cryptoFeeSvc,
-			cryptoMerchantSvc,
-			cryptoPlatformCostSvc,
-			cryptoProviderBalanceSvc,
-			cryptoReceiptSuspenseSvc,
-		},
+		StepUpChecker:            cfg.MFARepo,
+		MoneyMovementApprovals:   moneyMovementApprovals,
+		MoneyMovementSigners:     cfg.MoneyMovementApprovalSigners,
+		MovementProviders:        movementProviders,
 		MovementRefResolver:      postgres.NewRefResolverRepo(reg),
 		SettingsRepo:             postgres.NewSettingsRepo(),
 		CurrencyMetadataResolver: cfg.CurrencyMetadataResolver,

@@ -16,7 +16,7 @@ import (
 	"metapus/internal/domain/registers/crypto_receipt_suspense"
 	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 
 	"github.com/stretchr/testify/require"
 )
@@ -59,12 +59,12 @@ func (f paymentAttributionFixture) engineWith(merchant, fee bool) *posting.Engin
 	e.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
 	e.AddVisitor(&cryptoposting.CryptoMerchantBalanceVisitor{})
 	e.AddVisitor(&cryptoposting.CryptoFeeVisitor{})
-	e.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(register_repo.NewCryptoReceiptSuspenseRepo())))
+	e.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(crypto_register_repo.NewCryptoReceiptSuspenseRepo())))
 	if merchant {
-		e.AddRecorder(cryptoposting.NewCryptoMerchantBalanceRecorder(crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())))
+		e.AddRecorder(cryptoposting.NewCryptoMerchantBalanceRecorder(crypto_merchant_balance.NewService(crypto_register_repo.NewCryptoMerchantBalanceRepo())))
 	}
 	if fee {
-		e.AddRecorder(cryptoposting.NewCryptoFeeRecorder(crypto_fee.NewService(register_repo.NewCryptoFeeRepo())))
+		e.AddRecorder(cryptoposting.NewCryptoFeeRecorder(crypto_fee.NewService(crypto_register_repo.NewCryptoFeeRepo())))
 	}
 	e.ValidateInTransaction(NewBlockIngestionRepo().ValidatePosting)
 	return e

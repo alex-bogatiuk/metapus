@@ -26,12 +26,14 @@ import (
 	"metapus/internal/domain/catalogs/wallet"
 	domaincrypto "metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_invoice"
+	"metapus/internal/domain/posting"
 	"metapus/internal/domain/printing"
 	"metapus/internal/domain/security_profile"
 	"metapus/internal/infrastructure/authjwt"
 	"metapus/internal/infrastructure/authqr"
 	chainbootstrap "metapus/internal/infrastructure/blockchain/bootstrap"
 	"metapus/internal/infrastructure/crypto/approval_signer"
+	"metapus/internal/infrastructure/crypto/cryptoregisters"
 	"metapus/internal/infrastructure/crypto/webhooksecret"
 	v1 "metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/numerator"
@@ -327,6 +329,7 @@ func main() {
 		pdfReady = pdfClient.Ready
 	}
 	router := v1.NewRouter(v1.RouterConfig{
+		PostingModules:               []posting.Module{cryptoregisters.New()},
 		PDFRenderer:                  pdfRenderPort,
 		PDFReady:                     pdfReady,
 		TenantManager:                tenantManager,

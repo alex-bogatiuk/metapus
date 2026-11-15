@@ -89,6 +89,10 @@ type RouterConfig struct {
 	// Inject a custom engine to add new register types or wrap with logging/metrics.
 	PostingEngine *posting.Engine
 
+	// PostingModules install configuration registers into the posting engine
+	// and expose their document movements.
+	PostingModules []posting.Module
+
 	// CurrencyResolver resolves document currency (optional).
 	// If nil, the default 1C-style chain resolver is created (Document → Contract → Org → System).
 	CurrencyResolver domain.CurrencyResolveStrategy

@@ -27,7 +27,7 @@ import (
 	"metapus/internal/domain/registers/cryptoposting"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 )
 
 type fixedNetworkOperationNumerator struct{}
@@ -98,8 +98,8 @@ func TestIntegrationActivationFinalityPostsDocumentOnce(t *testing.T) {
 			engine := posting.NewEngine(nil)
 			engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 			engine.AddVisitor(&cryptoposting.CryptoPlatformCostVisitor{})
-			engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())))
-			platformRepo := register_repo.NewCryptoPlatformCostRepo()
+			engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))
+			platformRepo := crypto_register_repo.NewCryptoPlatformCostRepo()
 			engine.AddRecorder(cryptoposting.NewCryptoPlatformCostRecorder(crypto_platform_cost.NewService(platformRepo)))
 			repo := document_repo.NewCryptoNetworkOperationRepo()
 			service := crypto_network_operation.NewService(repo, engine, fixedNetworkOperationNumerator{}, nil)

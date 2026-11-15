@@ -21,7 +21,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 	platformtelemetry "metapus/internal/platform/telemetry"
 )
 
@@ -77,7 +77,7 @@ func TestRemediationReversalPreservesOriginalMovement(t *testing.T) {
 			VALUES($1,$2,'Remediation',1,NOW(),'receipt',$3,$4,100)`,
 			lineID, recorderID, f.wallet, f.token)
 		require.NoError(t, err)
-		svc := crypto_balance.NewService(register_repo.NewCryptoBalanceRepo())
+		svc := crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())
 		require.NoError(t, svc.ReverseMovements(ctx, recorderID, 2))
 		require.NoError(t, svc.ReverseMovements(ctx, recorderID, 2))
 		var count int

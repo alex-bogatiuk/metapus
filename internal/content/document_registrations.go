@@ -32,6 +32,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
 	"metapus/internal/metadata"
 )
@@ -654,7 +655,7 @@ func (r *WithdrawalRequestRegistration) RegisterRoutes(group *gin.RouterGroup, d
 		deps.MoneyMovementApprovals,
 		cryptoapp.NewWithdrawalApprovalService(repo, deps.MoneyMovementApprovals, approvals),
 		deps.StepUpChecker,
-		cryptoapp.NewWithdrawalRejectionService(repo, crypto_merchant_balance.NewService(register_repo.NewCryptoMerchantBalanceRepo())),
+		cryptoapp.NewWithdrawalRejectionService(repo, crypto_merchant_balance.NewService(crypto_register_repo.NewCryptoMerchantBalanceRepo())),
 		portalapp.NewWithdrawalValuationService(repo, exchange_rate.NewService(register_repo.NewExchangeRateRepo())),
 		deps.MovementProviders,
 		deps.MovementRefResolver,

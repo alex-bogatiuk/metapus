@@ -38,7 +38,7 @@ myExtension.Register(factoryReg) // registration uses v1.EntityRegistration[Mode
    ```go
    invoiceService.Hooks().OnBeforeCreate(func(ctx, doc) error { ... })
    ```
-2. **Новые Регистры:** Интегратор может написать свой `RegisterVisitor` и `RegisterRecorder`, чтобы документы, реализующие нужные source-интерфейсы начали двигать новые кастомные регистры.
+2. **Новые Регистры:** Интегратор может написать свой `RegisterVisitor` и `RegisterRecorder`, чтобы документы, реализующие нужные source-интерфейсы начали двигать новые кастомные регистры. Регистры конфигурации подключаются модулем `posting.Module` через `RouterConfig.PostingModules`: модуль добавляет visitors, recorders и проверки в движок и возвращает `MovementProvider` для отчёта о движениях документа. Пример — `cryptoregisters.Registers`.
 3. **Атрибуты (JSONB):** У каждой сущности есть поле `attributes` для произвольных данных интегратора. Схемы, валидации, фильтрации и колонок для них нет; типизированное поле добавляется в Go-модель сущности.
 4. **CEL Политики:** Написание кастомных правил блокировок (например, запрет проведения документов с суммой > 1 млн) в виде конфигурации через CEL (Common Expression Language), без перекомпиляции Go.
 
