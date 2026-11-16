@@ -4,7 +4,6 @@ package postgres
 
 import (
 	"context"
-	"io/fs"
 	"os"
 	"testing"
 
@@ -46,7 +45,7 @@ func markerTestDB(t *testing.T) (*pgxpool.Pool, context.Context) {
 	t.Cleanup(pool.Close)
 	sqlDB := stdlib.OpenDBFromPool(pool)
 	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
-	source, err := fs.Sub(dbassets.Files, "migrations")
+	source, err := dbassets.TenantMigrations()
 	require.NoError(t, err)
 	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, source)
 	require.NoError(t, err)

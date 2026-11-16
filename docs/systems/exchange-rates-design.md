@@ -23,7 +23,7 @@ ERP-принцип — периодический регистр сведени�
 
 ## Схема и неизменяемая история
 
-Исходная миграция `00006_crypto_core.sql` определяет:
+Платформенная миграция `00005_platform.sql` определяет:
 
 - `reg_exchange_rates`: UUID v7, `currency_id`, `base_currency_id`, `rate_source_id`, `rate NUMERIC(38,18)`, целая положительная `multiplier`, `provider_updated_at`, `received_at`, `recorded_at`, `version`, `mapping_version`, `feed_attempt_id`, CDC-поля.
 - `reg_rate_source_mappings`: ключ `(currency_id, base_currency_id, rate_source_id)`, внешний ID, активность и версия. Изменение — атомарные DELETE + INSERT с проверкой ожидаемой версии и событием аудита, содержащим прежние и новые значения.

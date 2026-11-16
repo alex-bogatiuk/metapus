@@ -27,8 +27,7 @@ func TestCryptoInvoiceIdempotencyIndexesAreInBaseMigration(t *testing.T) {
 }
 
 func TestEachMigrationDirectionIsOneGooseStatement(t *testing.T) {
-	files, err := filepath.Glob(filepath.Join("..", "..", "..", "..", "..", "db", "migrations", "*.sql"))
-	require.NoError(t, err)
+	files := tenantMigrationFiles(t)
 	require.NotEmpty(t, files)
 	for _, file := range files {
 		sql := readMigrationSQL(t, filepath.Base(file))
@@ -204,8 +203,7 @@ func TestFinalCryptoSchemaLivesInOwningMigrations(t *testing.T) {
 }
 
 func TestMigrationsDeclareFinalSchemaWithoutTransitionalDDL(t *testing.T) {
-	files, err := filepath.Glob(filepath.Join("..", "..", "..", "..", "..", "db", "migrations", "*.sql"))
-	require.NoError(t, err)
+	files := tenantMigrationFiles(t)
 	// A later domain may only add constraints to an earlier domain's table:
 	// foreign keys to its own tables and checks of its own rules.
 	crossModuleFK := regexp.MustCompile(`^ALTER TABLE \w+ ADD CONSTRAINT \w+ (FOREIGN KEY|CHECK) `)
@@ -349,10 +347,38 @@ func tableSQL(t *testing.T, sql, table string) string {
 	return body
 }
 
+// readMigrationSQL reads a tenant migration from the platform's or a
+// configuration's directory.
 func readMigrationSQL(t *testing.T, name string) string {
 	t.Helper()
+	for _, dir := range tenantMigrationDirs(t) {
+		if data, err := os.ReadFile(filepath.Join(dir, name)); err == nil {
+			return string(data)
+		}
+	}
+	t.Fatalf("tenant migration %s not found", name)
+	return ""
+}
 
-	return readSQL(t, "db", "migrations", name)
+// tenantMigrationDirs lists db/migrations and every db/configuration/<name>.
+func tenantMigrationDirs(t *testing.T) []string {
+	t.Helper()
+	root := filepath.Join("..", "..", "..", "..", "..", "db")
+	configurations, err := filepath.Glob(filepath.Join(root, "configuration", "*"))
+	require.NoError(t, err)
+	return append([]string{filepath.Join(root, "migrations")}, configurations...)
+}
+
+// tenantMigrationFiles lists every tenant migration file.
+func tenantMigrationFiles(t *testing.T) []string {
+	t.Helper()
+	var files []string
+	for _, dir := range tenantMigrationDirs(t) {
+		matches, err := filepath.Glob(filepath.Join(dir, "*.sql"))
+		require.NoError(t, err)
+		files = append(files, matches...)
+	}
+	return files
 }
 
 func readSQL(t *testing.T, parts ...string) string {

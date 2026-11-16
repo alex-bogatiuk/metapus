@@ -73,25 +73,6 @@ BEGIN
 END;
 $func$ LANGUAGE plpgsql;
 
-CREATE FUNCTION guard_exchange_rate_history() RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-    RAISE EXCEPTION 'exchange-rate observations are immutable' USING ERRCODE = '23514';
-END;
-$$;
-
-CREATE FUNCTION guard_rate_source_type() RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-    IF NEW.source_type IS DISTINCT FROM OLD.source_type AND (
-        EXISTS (SELECT 1 FROM reg_rate_source_mappings WHERE rate_source_id = OLD.id)
-        OR EXISTS (SELECT 1 FROM reg_exchange_rates WHERE rate_source_id = OLD.id)
-        OR EXISTS (SELECT 1 FROM sys_settings WHERE exchange_rates->>'sourceId' = OLD.id::text)
-    ) THEN
-        RAISE EXCEPTION 'source type is in use' USING ERRCODE = '23514';
-    END IF;
-    RETURN NEW;
-END;
-$$;
-
 -- Trigger: auto-update merchant balances on movement insert/delete
 CREATE OR REPLACE FUNCTION update_crypto_merchant_balance()
 RETURNS TRIGGER AS $func$
@@ -914,104 +895,6 @@ CREATE INDEX idx_reg_crypto_balance_balances_token
     ON reg_crypto_balance_balances (token_id) WHERE amount != 0;
 CREATE INDEX idx_reg_crypto_balance_balances_wallet
     ON reg_crypto_balance_balances (wallet_id) WHERE amount != 0;
-
--- Rate Sources catalog (Справочник «Источники курсов»)
-CREATE TABLE cat_rate_sources (
-    -- Base catalog fields
-    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid_v7(),
-    deletion_mark BOOLEAN     NOT NULL DEFAULT FALSE,
-    version       INT         NOT NULL DEFAULT 1,
-    attributes    JSONB       DEFAULT '{}',
-
-    _deleted_at TIMESTAMPTZ,
-    _txid       BIGINT DEFAULT txid_current(),
-
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    code      VARCHAR(50)  NOT NULL,
-    name      VARCHAR(255) NOT NULL,
-    parent_id UUID REFERENCES cat_rate_sources(id),
-    is_folder BOOLEAN      NOT NULL DEFAULT FALSE,
-
-    -- Rate source specific fields
-    source_type    VARCHAR(50)  NOT NULL,            -- 'coingecko', 'binance', 'coinmarketcap', 'manual'
-    base_url       VARCHAR(255),                     -- API base URL (e.g. 'https://api.coingecko.com/api/v3')
-    integration_pool_id UUID REFERENCES cat_integration_pools(id) ON DELETE RESTRICT,
-    api_key        TEXT CHECK (api_key IS NULL OR (
-        octet_length(api_key) BETWEEN 1 AND 512 AND api_key !~ '[[:cntrl:]]'
-    )),                                             -- write-only provider credential managed in ERP
-    rate_limit_rpm INT          NOT NULL DEFAULT 100, -- requests per minute
-    priority       INT          NOT NULL DEFAULT 100, -- for fallback ordering (lower = higher priority)
-    is_active      BOOLEAN      NOT NULL DEFAULT TRUE
-);
-CREATE UNIQUE INDEX idx_cat_rate_sources_code ON cat_rate_sources (code) WHERE deletion_mark = FALSE;
-CREATE INDEX idx_cat_rate_sources_name ON cat_rate_sources USING gin (name gin_trgm_ops);
-CREATE INDEX idx_cat_rate_sources_txid ON cat_rate_sources (_txid) WHERE _deleted_at IS NULL;
-CREATE INDEX idx_cat_rate_sources_active ON cat_rate_sources (priority) WHERE is_active = TRUE AND deletion_mark = FALSE;
-CREATE INDEX idx_cat_rate_sources_name_id ON cat_rate_sources (name ASC, id ASC);
-COMMENT ON TABLE cat_rate_sources IS 'Справочник Источники курсов — провайдеры курсов валют (CoinGecko, Binance, ручной ввод)';
-
--- Rate Source Mappings register (Регистр сведений «Соответствие валют источникам»)
-CREATE TABLE reg_rate_source_mappings (
-    currency_id UUID NOT NULL REFERENCES cat_currencies(id),
-    base_currency_id UUID NOT NULL REFERENCES cat_currencies(id),
-    rate_source_id UUID NOT NULL REFERENCES cat_rate_sources(id),
-    external_id VARCHAR(100) NOT NULL CHECK (length(trim(external_id)) > 0),
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    version INT NOT NULL DEFAULT 1 CHECK (version > 0),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    _txid BIGINT NOT NULL DEFAULT txid_current(),
-    _deleted_at TIMESTAMPTZ,
-    PRIMARY KEY (currency_id, base_currency_id, rate_source_id),
-    CHECK (currency_id <> base_currency_id)
-);
-CREATE INDEX idx_rate_source_mappings_active ON reg_rate_source_mappings(rate_source_id, base_currency_id) WHERE is_active;
-
-CREATE TABLE reg_exchange_rates (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
-    currency_id UUID NOT NULL REFERENCES cat_currencies(id),
-    base_currency_id UUID NOT NULL REFERENCES cat_currencies(id),
-    rate_source_id UUID NOT NULL REFERENCES cat_rate_sources(id),
-    rate NUMERIC(38,18) NOT NULL CHECK (rate > 0),
-    multiplier INT NOT NULL DEFAULT 1 CHECK (multiplier > 0),
-    provider_updated_at TIMESTAMPTZ NOT NULL,
-    received_at TIMESTAMPTZ NOT NULL,
-    recorded_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
-    version INT NOT NULL CHECK (version > 0),
-    mapping_version INT NOT NULL CHECK (mapping_version > 0),
-    feed_attempt_id UUID NOT NULL,
-    _txid BIGINT NOT NULL DEFAULT txid_current(),
-    _deleted_at TIMESTAMPTZ,
-    CHECK (provider_updated_at <= received_at),
-    UNIQUE (currency_id, base_currency_id, rate_source_id, provider_updated_at, version),
-    UNIQUE (feed_attempt_id, currency_id, base_currency_id, rate_source_id)
-);
-CREATE INDEX idx_reg_exchange_rates_latest ON reg_exchange_rates(currency_id, base_currency_id, rate_source_id, provider_updated_at DESC, version DESC);
-CREATE INDEX idx_reg_exchange_rates_history ON reg_exchange_rates(currency_id, base_currency_id, provider_updated_at DESC, version DESC, id DESC);
-COMMENT ON TABLE reg_exchange_rates IS 'Immutable provider observations; all history retained. multiplier currency = rate base_currency.';
-
-CREATE TABLE sys_rate_feed_state (
-    rate_source_id UUID NOT NULL REFERENCES cat_rate_sources(id),
-    base_currency_id UUID NOT NULL REFERENCES cat_currencies(id),
-    lease_token UUID,
-    lease_until TIMESTAMPTZ,
-    next_run_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    last_attempt_at TIMESTAMPTZ,
-    last_success_at TIMESTAMPTZ,
-    last_completed_token UUID,
-    status TEXT NOT NULL DEFAULT 'idle',
-    requested INT NOT NULL DEFAULT 0,
-    received INT NOT NULL DEFAULT 0,
-    inserted INT NOT NULL DEFAULT 0,
-    repeated INT NOT NULL DEFAULT 0,
-    rejected INT NOT NULL DEFAULT 0,
-    problems JSONB NOT NULL DEFAULT '[]',
-    _txid BIGINT NOT NULL DEFAULT txid_current(),
-    _deleted_at TIMESTAMPTZ,
-    PRIMARY KEY (rate_source_id, base_currency_id)
-);
 
 -- Crypto Merchant Balance accumulation register
 -- (Регистр накопления «Крипто-расчёты с мерчантами»)
@@ -2531,26 +2414,6 @@ CREATE TRIGGER trg_crypto_balance_movements_balance
     FOR EACH ROW
     EXECUTE FUNCTION update_crypto_balance();
 
-CREATE TRIGGER trg_cat_rate_sources_txid
-    BEFORE UPDATE ON cat_rate_sources
-    FOR EACH ROW EXECUTE FUNCTION update_txid_column();
-
-CREATE TRIGGER trg_cat_rate_sources_soft_delete
-    BEFORE UPDATE OF deletion_mark ON cat_rate_sources
-    FOR EACH ROW EXECUTE FUNCTION soft_delete_with_timestamp();
-
-CREATE TRIGGER trg_cat_rate_sources_updated_at
-    BEFORE UPDATE ON cat_rate_sources
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER trg_rate_source_mappings_txid BEFORE UPDATE ON reg_rate_source_mappings FOR EACH ROW EXECUTE FUNCTION update_txid_column();
-
-CREATE TRIGGER trg_rate_feed_state_txid BEFORE UPDATE ON sys_rate_feed_state FOR EACH ROW EXECUTE FUNCTION update_txid_column();
-
-CREATE TRIGGER trg_exchange_rate_immutable BEFORE UPDATE OR DELETE ON reg_exchange_rates FOR EACH ROW EXECUTE FUNCTION guard_exchange_rate_history();
-
-CREATE TRIGGER trg_rate_source_type BEFORE UPDATE OF source_type ON cat_rate_sources FOR EACH ROW EXECUTE FUNCTION guard_rate_source_type();
-
 CREATE TRIGGER trg_crypto_merchant_balance_movements_balance
     AFTER INSERT OR DELETE ON reg_crypto_merchant_balance_movements
     FOR EACH ROW
@@ -2836,6 +2699,117 @@ WHERE incident_kind = 'posted_payment_reorg'
   AND payment_id IS NOT NULL
   AND details->>'postedVersion' ~ '^[1-9][0-9]*$';
 
+-- Permissions and field policies of this configuration's entities, granted to
+-- the platform roles. The platform seed (00002) holds only platform permissions.
+-- Viewer FLS: hide crypto amounts (allowed_fields with '-' prefix = hidden)
+INSERT INTO auth_security_profile_field_policies (profile_id, entity_name, action, allowed_fields) VALUES
+    ('a0000000-0000-0000-0000-000000000002', 'crypto_invoice', 'read', ARRAY['-expected_amount', '-received_amount']),
+    ('a0000000-0000-0000-0000-000000000002', 'crypto_payment', 'read', ARRAY['-amount']);
+
+INSERT INTO auth_permissions(code,name,description,resource,action) SELECT 'catalog:crypto_rpc_endpoint:'||action,'Подключения RPC: '||action,'Настройки RPC','crypto_rpc_endpoint',action FROM (VALUES ('read'),('create'),('update'),('delete')) AS a(action);
+
+INSERT INTO auth_role_permissions(role_id,permission_id) SELECT 'b0000000-0000-0000-0000-000000000001',id FROM auth_permissions WHERE resource='crypto_rpc_endpoint';
+
+INSERT INTO auth_permissions (code, name, description, resource, action) VALUES
+    ('document:withdrawal_request:read', 'Чтение заявок на вывод', 'View withdrawal requests', 'withdrawal_request', 'read'),
+    ('document:withdrawal_request:post', 'Утверждение заявок на вывод', 'Approve withdrawal requests', 'withdrawal_request', 'post')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO auth_role_permissions (role_id, permission_id)
+SELECT 'b0000000-0000-0000-0000-000000000001', id
+FROM auth_permissions WHERE resource = 'withdrawal_request'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO auth_permissions (code, name, description, resource, action) VALUES
+    ('document:treasury_withdrawal:read', 'Чтение казначейских выводов', 'View treasury withdrawals', 'treasury_withdrawal', 'read'),
+    ('document:treasury_withdrawal:create', 'Создание казначейских выводов', 'Create treasury withdrawals', 'treasury_withdrawal', 'create'),
+    ('document:treasury_withdrawal:update', 'Изменение казначейских выводов', 'Update treasury withdrawals', 'treasury_withdrawal', 'update'),
+    ('document:treasury_withdrawal:delete', 'Удаление казначейских выводов', 'Delete treasury withdrawals', 'treasury_withdrawal', 'delete'),
+    ('document:treasury_withdrawal:post', 'Проведение казначейских выводов', 'Post and approve treasury withdrawals', 'treasury_withdrawal', 'post'),
+    ('document:treasury_withdrawal:unpost', 'Отмена проведения казначейских выводов', 'Unpost treasury withdrawals', 'treasury_withdrawal', 'unpost'),
+    ('crypto_reconciliation:read', 'Чтение криптосверки', 'Read external outflows and evidence', 'crypto_reconciliation', 'read'),
+    ('crypto_reconciliation:classify', 'Классификация outflow', 'Classify external outflows', 'crypto_reconciliation', 'classify'),
+    ('crypto_reconciliation:resolve', 'Разрешение outflow', 'Resolve classified external outflows', 'crypto_reconciliation', 'resolve'),
+    ('crypto_custody_adjustment:approve', 'Подтверждение custody loss', 'Approve custody loss adjustments', 'crypto_custody_adjustment', 'approve')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO auth_role_permissions (role_id, permission_id)
+SELECT 'b0000000-0000-0000-0000-000000000001', id
+FROM auth_permissions WHERE resource IN ('treasury_withdrawal','crypto_reconciliation','crypto_custody_adjustment')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO auth_permissions (code, name, description, resource, action) VALUES
+    ('document:crypto_network_operation:read', 'Чтение сетевых криптоопераций',
+     'View blockchain network operation documents', 'document:crypto_network_operation', 'read')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO auth_role_permissions (role_id, permission_id)
+SELECT 'b0000000-0000-0000-0000-000000000001', id
+FROM auth_permissions WHERE resource = 'document:crypto_network_operation'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO auth_permissions (code,name,description,resource,action) VALUES
+ ('document:crypto_provider_balance_operation:read','Чтение баланса провайдера','Read provider balance operations','document:crypto_provider_balance_operation','read'),
+ ('document:crypto_provider_balance_operation:create','Подготовка opening провайдера','Prepare an evidenced opening with fresh MFA','document:crypto_provider_balance_operation','create'),
+ ('document:crypto_provider_balance_operation:approve','Одобрение opening провайдера','Independent approval or audited system-admin self approval with fresh MFA','document:crypto_provider_balance_operation','approve'),
+ ('document:crypto_provider_balance_operation:reject','Отклонение opening провайдера','Independent rejection or audited system-admin self rejection with fresh MFA','document:crypto_provider_balance_operation','reject')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO auth_role_permissions (role_id,permission_id)
+SELECT 'b0000000-0000-0000-0000-000000000001',id FROM auth_permissions WHERE resource='document:crypto_provider_balance_operation'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO auth_permissions (code, name, description, resource, action) VALUES
+    ('crypto_wallet_pool:read', 'Чтение пула кошельков',
+     'View aggregate crypto wallet pool state and policy', 'crypto_wallet_pool', 'read'),
+    ('crypto_wallet_pool:update', 'Настройка пула кошельков',
+     'Update crypto wallet pool policy and request refill', 'crypto_wallet_pool', 'update')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO auth_role_permissions (role_id, permission_id)
+SELECT 'b0000000-0000-0000-0000-000000000001', id
+FROM auth_permissions
+WHERE resource = 'crypto_wallet_pool'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO auth_permissions (code,name,description,resource,action) VALUES
+    ('crypto_network:read','Чтение криптосетей','View crypto network policies and runtime health','crypto_network','read'),
+    ('crypto_network:update','Настройка криптосетей','Update guarded crypto network execution policies','crypto_network','update')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO auth_role_permissions (role_id,permission_id)
+SELECT 'b0000000-0000-0000-0000-000000000001',id FROM auth_permissions WHERE resource='crypto_network'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO auth_permissions (code,name,description,resource,action)
+VALUES ('crypto_adjustment:post_direct','Прямое проведение криптокорректировок',
+        'Post own crypto adjustment after fresh step-up','crypto_adjustment','post_direct')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO auth_role_permissions(role_id,permission_id)
+SELECT r.id,p.id FROM auth_roles r CROSS JOIN auth_permissions p
+WHERE r.code='admin' AND p.code='crypto_adjustment:post_direct'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO auth_permissions (code,name,description,resource,action) VALUES
+    ('crypto_receipt:read','Журнал невыясненных поступлений','View unidentified custody receipts','crypto_receipt','read'),
+    ('crypto_receipt:credit','Зачисление невыясненных поступлений','Prepare or reject a merchant credit of an unidentified receipt','crypto_receipt','credit'),
+    ('crypto_receipt:approve','Подтверждение зачисления поступлений','Approve a merchant credit prepared by another operator','crypto_receipt','approve')
+ON CONFLICT (code) DO NOTHING;
+
+-- Receipts and their manual attributions are read-only documents with
+-- register movements; they are created only by the receipts workflow.
+INSERT INTO auth_permissions (code,name,description,resource,action) VALUES
+    ('document:crypto_custody_receipt:read','Чтение поступлений на кошельки','View custody receipts and their movements','crypto_custody_receipt','read'),
+    ('document:crypto_merchant_credit:read','Чтение ручных зачислений','View manual merchant credits and their movements','crypto_merchant_credit','read'),
+    ('document:crypto_platform_funding:read','Чтение пополнений платформы','View platform fundings and their movements','crypto_platform_funding','read')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO auth_role_permissions (role_id, permission_id)
+SELECT 'b0000000-0000-0000-0000-000000000001', id FROM auth_permissions
+WHERE resource IN ('crypto_custody_receipt','crypto_merchant_credit','crypto_platform_funding')
+ON CONFLICT DO NOTHING;
+
 -- Integration providers of this configuration (cryptointegrations.Catalog):
 -- the platform's and its own. dRPC is the only provider with a manual key period.
 ALTER TABLE cat_integration_accounts ADD CONSTRAINT ck_integration_accounts_provider CHECK (provider IN ('alchemy','coingecko_demo','tron_api','chainstack','getblock','infura','drpc','telegram','smtp','resource_api','getblock_net','testnet_aml'));
@@ -2846,6 +2820,9 @@ ALTER TABLE cat_integration_pools ADD CONSTRAINT ck_integration_pools_provider C
 -- +goose Down
 -- +goose StatementBegin
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
+DELETE FROM auth_permissions WHERE resource IN ('crypto_rpc_endpoint','withdrawal_request','treasury_withdrawal','crypto_reconciliation','crypto_custody_adjustment','document:crypto_network_operation','document:crypto_provider_balance_operation','crypto_wallet_pool','crypto_network','crypto_adjustment','crypto_receipt','crypto_custody_receipt','crypto_merchant_credit','crypto_platform_funding');
+DELETE FROM auth_security_profile_field_policies
+ WHERE profile_id='a0000000-0000-0000-0000-000000000002' AND entity_name IN ('crypto_invoice','crypto_payment');
 ALTER TABLE cat_integration_pools DROP CONSTRAINT IF EXISTS ck_integration_pools_provider;
 ALTER TABLE cat_integration_accounts
     DROP CONSTRAINT IF EXISTS ck_integration_accounts_drpc_manual_period,
@@ -2905,10 +2882,6 @@ DROP TABLE sys_merchant_users;
 DROP TABLE cat_merchants;
 DROP TABLE reg_crypto_merchant_balance_balances;
 DROP TABLE reg_crypto_merchant_balance_movements;
-DROP TABLE sys_rate_feed_state;
-DROP TABLE reg_exchange_rates;
-DROP TABLE reg_rate_source_mappings;
-DROP TABLE cat_rate_sources;
 DROP TABLE reg_crypto_balance_balances;
 DROP TABLE reg_crypto_balance_movements;
 DROP TABLE doc_crypto_invoices;
@@ -2945,8 +2918,6 @@ DROP FUNCTION fn_deposit_address_retirement_guard();
 DROP FUNCTION fn_cat_merchants_cdc();
 DROP FUNCTION recalculate_crypto_merchant_balance();
 DROP FUNCTION update_crypto_merchant_balance();
-DROP FUNCTION guard_rate_source_type();
-DROP FUNCTION guard_exchange_rate_history();
 DROP FUNCTION recalculate_crypto_balance();
 DROP FUNCTION update_crypto_balance();
 -- +goose StatementEnd

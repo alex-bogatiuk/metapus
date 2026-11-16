@@ -6,7 +6,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"io/fs"
 	"net/url"
 	"os"
 	"sync"
@@ -219,7 +218,7 @@ func TestAMLFoundationRollbackRefusesCustodyEvidence(t *testing.T) {
 	db, err := sql.Open("pgx", pool.Config().ConnConfig.ConnString())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
-	migrations, err := fs.Sub(dbassets.Files, "migrations")
+	migrations, err := dbassets.TenantMigrations()
 	require.NoError(t, err)
 	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
 	require.NoError(t, err)

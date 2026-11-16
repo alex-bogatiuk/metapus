@@ -17,24 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// configurationMigrations declare the crypto-processing configuration's schema.
-var configurationMigrations = []string{
-	"00006_crypto_core.sql",
-	"00007_crypto_outbound.sql",
-	"00008_crypto_aml.sql",
-	"00009_crypto_custody.sql",
-}
-
-// platformTablesInConfigurationMigrations are platform tables (the exchange
-// rate subsystem) still declared in a configuration migration. They belong in
-// a platform migration; until they move there they are not configuration tables.
-var platformTablesInConfigurationMigrations = []string{
-	"cat_rate_sources",
-	"reg_exchange_rates",
-	"reg_rate_source_mappings",
-	"sys_rate_feed_state",
-}
-
 // knownConfigurationTableLeaks lists platform files whose string literals name
 // configuration tables. It is empty: query configuration tables from a
 // configuration package, or invert the dependency (integrations.PoolConsumer),
@@ -68,17 +50,17 @@ func TestPlatformCodeDoesNotQueryConfigurationTables(t *testing.T) {
 	t.Parallel()
 	repoRoot := repositoryRoot(t)
 
+	// Configuration migrations live in db/configuration/<name>/.
+	migrations, err := filepath.Glob(filepath.Join(repoRoot, "db", "configuration", "*", "*.sql"))
+	require.NoError(t, err)
+	require.NotEmpty(t, migrations)
 	tables := map[string]bool{}
-	for _, name := range configurationMigrations {
-		raw, err := os.ReadFile(filepath.Join(repoRoot, "db", "migrations", name))
-		require.NoErrorf(t, err, "configuration migration %s no longer exists; update configurationMigrations", name)
+	for _, path := range migrations {
+		raw, err := os.ReadFile(path)
+		require.NoError(t, err)
 		for _, match := range createRelationPattern.FindAllStringSubmatch(string(raw), -1) {
 			tables[strings.ToLower(match[1])] = true
 		}
-	}
-	for _, table := range platformTablesInConfigurationMigrations {
-		require.Truef(t, tables[table], "%s left the configuration migrations; remove it from platformTablesInConfigurationMigrations", table)
-		delete(tables, table)
 	}
 	names := make([]string, 0, len(tables))
 	for table := range tables {

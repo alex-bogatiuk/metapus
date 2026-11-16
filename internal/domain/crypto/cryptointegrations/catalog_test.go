@@ -51,7 +51,7 @@ func TestCatalogKeepsTheSettingsListingOrder(t *testing.T) {
 func TestMigrationProviderChecksMatchTheCatalog(t *testing.T) {
 	_, file, _, ok := runtime.Caller(0)
 	require.True(t, ok)
-	raw, err := os.ReadFile(filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "db", "migrations", "00006_crypto_core.sql"))
+	raw, err := os.ReadFile(filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "db", "configuration", "crypto", "00006_crypto_core.sql"))
 	require.NoError(t, err)
 	want := []string{}
 	for _, provider := range Catalog().Providers() {

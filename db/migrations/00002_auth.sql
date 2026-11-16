@@ -168,8 +168,8 @@ CREATE TABLE auth_security_profile_dimensions (
 CREATE INDEX idx_spd_profile   ON auth_security_profile_dimensions (profile_id);
 CREATE INDEX idx_spd_dimension ON auth_security_profile_dimensions (dimension_name);
 COMMENT ON TABLE auth_security_profile_dimensions IS 'RLS dimensions — grants access to specific entity IDs per dimension';
-COMMENT ON COLUMN auth_security_profile_dimensions.entity_name IS 'Entity scope (empty = all, or specific like crypto_invoice)';
-COMMENT ON COLUMN auth_security_profile_dimensions.dimension_name IS 'Dimension name (organization, merchant, counterparty)';
+COMMENT ON COLUMN auth_security_profile_dimensions.entity_name IS 'Entity scope (empty = all, or one entity key)';
+COMMENT ON COLUMN auth_security_profile_dimensions.dimension_name IS 'Dimension name (for example organization or counterparty)';
 COMMENT ON COLUMN auth_security_profile_dimensions.allowed_ids IS 'Array of allowed entity IDs for this dimension';
 
 -- FLS Field Policies (field-level security)
@@ -292,11 +292,6 @@ INSERT INTO auth_security_profiles (id, code, name, description, is_system) VALU
     ('a0000000-0000-0000-0000-000000000001', 'full_access', 'Full Access', 'No restrictions — all dimensions, all fields', TRUE),
     ('a0000000-0000-0000-0000-000000000002', 'viewer', 'Viewer (Read-Only)', 'Read-only with hidden financial fields', TRUE);
 
--- Viewer FLS: hide financial fields (allowed_fields with '-' prefix = hidden)
-INSERT INTO auth_security_profile_field_policies (profile_id, entity_name, action, allowed_fields) VALUES
-    ('a0000000-0000-0000-0000-000000000002', 'crypto_invoice', 'read', ARRAY['-expected_amount', '-received_amount']),
-    ('a0000000-0000-0000-0000-000000000002', 'crypto_payment', 'read', ARRAY['-amount']);
-
 INSERT INTO auth_permissions (code, name, description, resource, action) VALUES
     -- Catalogs: Counterparties
     ('counterparty.read',   'Чтение контрагентов',   'View counterparties catalog', 'counterparty', 'read'),
@@ -398,10 +393,6 @@ SELECT 'b0000000-0000-0000-0000-000000000002', id FROM auth_permissions
 WHERE resource LIKE 'automation_%' AND action = 'read'
 ON CONFLICT DO NOTHING;
 
-INSERT INTO auth_permissions(code,name,description,resource,action) SELECT 'catalog:crypto_rpc_endpoint:'||action,'Подключения RPC: '||action,'Настройки RPC','crypto_rpc_endpoint',action FROM (VALUES ('read'),('create'),('update'),('delete')) AS a(action);
-
-INSERT INTO auth_role_permissions(role_id,permission_id) SELECT 'b0000000-0000-0000-0000-000000000001',id FROM auth_permissions WHERE resource='crypto_rpc_endpoint';
-
 INSERT INTO auth_permissions(code,name,resource,action) VALUES
  ('register:exchange_rate:read','Чтение курсов валют','exchange_rate','read'),
  ('catalog:rate_source:read','Чтение источников курсов','rate_source','read'),
@@ -416,109 +407,10 @@ WHERE (r.code IN ('admin','accountant','manager','user') AND p.code='register:ex
  OR (r.code='admin' AND p.resource='rate_source')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO auth_permissions (code, name, description, resource, action) VALUES
-    ('document:withdrawal_request:read', 'Чтение заявок на вывод', 'View withdrawal requests', 'withdrawal_request', 'read'),
-    ('document:withdrawal_request:post', 'Утверждение заявок на вывод', 'Approve withdrawal requests', 'withdrawal_request', 'post')
-ON CONFLICT (code) DO NOTHING;
-
-INSERT INTO auth_role_permissions (role_id, permission_id)
-SELECT 'b0000000-0000-0000-0000-000000000001', id
-FROM auth_permissions WHERE resource = 'withdrawal_request'
-ON CONFLICT DO NOTHING;
-
-INSERT INTO auth_permissions (code, name, description, resource, action) VALUES
-    ('document:treasury_withdrawal:read', 'Чтение казначейских выводов', 'View treasury withdrawals', 'treasury_withdrawal', 'read'),
-    ('document:treasury_withdrawal:create', 'Создание казначейских выводов', 'Create treasury withdrawals', 'treasury_withdrawal', 'create'),
-    ('document:treasury_withdrawal:update', 'Изменение казначейских выводов', 'Update treasury withdrawals', 'treasury_withdrawal', 'update'),
-    ('document:treasury_withdrawal:delete', 'Удаление казначейских выводов', 'Delete treasury withdrawals', 'treasury_withdrawal', 'delete'),
-    ('document:treasury_withdrawal:post', 'Проведение казначейских выводов', 'Post and approve treasury withdrawals', 'treasury_withdrawal', 'post'),
-    ('document:treasury_withdrawal:unpost', 'Отмена проведения казначейских выводов', 'Unpost treasury withdrawals', 'treasury_withdrawal', 'unpost'),
-    ('crypto_reconciliation:read', 'Чтение криптосверки', 'Read external outflows and evidence', 'crypto_reconciliation', 'read'),
-    ('crypto_reconciliation:classify', 'Классификация outflow', 'Classify external outflows', 'crypto_reconciliation', 'classify'),
-    ('crypto_reconciliation:resolve', 'Разрешение outflow', 'Resolve classified external outflows', 'crypto_reconciliation', 'resolve'),
-    ('crypto_custody_adjustment:approve', 'Подтверждение custody loss', 'Approve custody loss adjustments', 'crypto_custody_adjustment', 'approve')
-ON CONFLICT (code) DO NOTHING;
-
-INSERT INTO auth_role_permissions (role_id, permission_id)
-SELECT 'b0000000-0000-0000-0000-000000000001', id
-FROM auth_permissions WHERE resource IN ('treasury_withdrawal','crypto_reconciliation','crypto_custody_adjustment')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO auth_permissions (code, name, description, resource, action) VALUES
-    ('document:crypto_network_operation:read', 'Чтение сетевых криптоопераций',
-     'View blockchain network operation documents', 'document:crypto_network_operation', 'read')
-ON CONFLICT (code) DO NOTHING;
-
-INSERT INTO auth_role_permissions (role_id, permission_id)
-SELECT 'b0000000-0000-0000-0000-000000000001', id
-FROM auth_permissions WHERE resource = 'document:crypto_network_operation'
-ON CONFLICT DO NOTHING;
-
-INSERT INTO auth_permissions (code,name,description,resource,action) VALUES
- ('document:crypto_provider_balance_operation:read','Чтение баланса провайдера','Read provider balance operations','document:crypto_provider_balance_operation','read'),
- ('document:crypto_provider_balance_operation:create','Подготовка opening провайдера','Prepare an evidenced opening with fresh MFA','document:crypto_provider_balance_operation','create'),
- ('document:crypto_provider_balance_operation:approve','Одобрение opening провайдера','Independent approval or audited system-admin self approval with fresh MFA','document:crypto_provider_balance_operation','approve'),
- ('document:crypto_provider_balance_operation:reject','Отклонение opening провайдера','Independent rejection or audited system-admin self rejection with fresh MFA','document:crypto_provider_balance_operation','reject')
-ON CONFLICT (code) DO NOTHING;
-
-INSERT INTO auth_role_permissions (role_id,permission_id)
-SELECT 'b0000000-0000-0000-0000-000000000001',id FROM auth_permissions WHERE resource='document:crypto_provider_balance_operation'
-ON CONFLICT DO NOTHING;
-
 INSERT INTO auth_roles (id, code, name, description, is_system) VALUES
     ('b0000000-0000-0000-0000-000000000006', 'security_admin', 'Администратор безопасности', 'MFA reset and security administration', TRUE)
 ON CONFLICT (code) DO NOTHING;
 
-INSERT INTO auth_permissions (code, name, description, resource, action) VALUES
-    ('crypto_wallet_pool:read', 'Чтение пула кошельков',
-     'View aggregate crypto wallet pool state and policy', 'crypto_wallet_pool', 'read'),
-    ('crypto_wallet_pool:update', 'Настройка пула кошельков',
-     'Update crypto wallet pool policy and request refill', 'crypto_wallet_pool', 'update')
-ON CONFLICT (code) DO NOTHING;
-
-INSERT INTO auth_role_permissions (role_id, permission_id)
-SELECT 'b0000000-0000-0000-0000-000000000001', id
-FROM auth_permissions
-WHERE resource = 'crypto_wallet_pool'
-ON CONFLICT DO NOTHING;
-
-INSERT INTO auth_permissions (code,name,description,resource,action) VALUES
-    ('crypto_network:read','Чтение криптосетей','View crypto network policies and runtime health','crypto_network','read'),
-    ('crypto_network:update','Настройка криптосетей','Update guarded crypto network execution policies','crypto_network','update')
-ON CONFLICT (code) DO NOTHING;
-
-INSERT INTO auth_role_permissions (role_id,permission_id)
-SELECT 'b0000000-0000-0000-0000-000000000001',id FROM auth_permissions WHERE resource='crypto_network'
-ON CONFLICT DO NOTHING;
-
-INSERT INTO auth_permissions (code,name,description,resource,action)
-VALUES ('crypto_adjustment:post_direct','Прямое проведение криптокорректировок',
-        'Post own crypto adjustment after fresh step-up','crypto_adjustment','post_direct')
-ON CONFLICT (code) DO NOTHING;
-
-INSERT INTO auth_role_permissions(role_id,permission_id)
-SELECT r.id,p.id FROM auth_roles r CROSS JOIN auth_permissions p
-WHERE r.code='admin' AND p.code='crypto_adjustment:post_direct'
-ON CONFLICT DO NOTHING;
-
-INSERT INTO auth_permissions (code,name,description,resource,action) VALUES
-    ('crypto_receipt:read','Журнал невыясненных поступлений','View unidentified custody receipts','crypto_receipt','read'),
-    ('crypto_receipt:credit','Зачисление невыясненных поступлений','Prepare or reject a merchant credit of an unidentified receipt','crypto_receipt','credit'),
-    ('crypto_receipt:approve','Подтверждение зачисления поступлений','Approve a merchant credit prepared by another operator','crypto_receipt','approve')
-ON CONFLICT (code) DO NOTHING;
-
--- Receipts and their manual attributions are read-only documents with
--- register movements; they are created only by the receipts workflow.
-INSERT INTO auth_permissions (code,name,description,resource,action) VALUES
-    ('document:crypto_custody_receipt:read','Чтение поступлений на кошельки','View custody receipts and their movements','crypto_custody_receipt','read'),
-    ('document:crypto_merchant_credit:read','Чтение ручных зачислений','View manual merchant credits and their movements','crypto_merchant_credit','read'),
-    ('document:crypto_platform_funding:read','Чтение пополнений платформы','View platform fundings and their movements','crypto_platform_funding','read')
-ON CONFLICT (code) DO NOTHING;
-
-INSERT INTO auth_role_permissions (role_id, permission_id)
-SELECT 'b0000000-0000-0000-0000-000000000001', id FROM auth_permissions
-WHERE resource IN ('crypto_custody_receipt','crypto_merchant_credit','crypto_platform_funding')
-ON CONFLICT DO NOTHING;
 -- +goose StatementEnd
 
 -- +goose Down

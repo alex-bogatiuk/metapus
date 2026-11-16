@@ -821,10 +821,10 @@ internal/infrastructure/blockchain/tron/funding/record.go — операторс
 internal/infrastructure/crypto_worker/wallet_pool_controller.go — warm-pool controller
 cmd/crypto-record-wallet-funding                     — операторская запись funding
 vault-sign-plugins/tron                                 — derivation и Vault-side signing policy
-db/migrations/00006_crypto_core.sql      — сети, токены, кошельки, инвойсы, платежи, watcher, allocation history и inbound inbox
-db/migrations/00007_crypto_outbound.sql  — выводы, sweep, treasury, approval policy, signing, CryptoNetworkOperation и activation state
-db/migrations/00008_crypto_aml.sql       — AML
-db/migrations/00009_crypto_custody.sql   — custody-учёт
+db/configuration/crypto/00006_crypto_core.sql      — сети, токены, кошельки, инвойсы, платежи, watcher, allocation history и inbound inbox
+db/configuration/crypto/00007_crypto_outbound.sql  — выводы, sweep, treasury, approval policy, signing, CryptoNetworkOperation и activation state
+db/configuration/crypto/00008_crypto_aml.sql       — AML
+db/configuration/crypto/00009_crypto_custody.sql   — custody-учёт
 ```
 
 ## Provider opening: авторство, approval и неизменяемый ledger

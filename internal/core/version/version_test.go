@@ -9,10 +9,19 @@ import (
 )
 
 func TestExpectedSchemaVersionMatchesMigrations(t *testing.T) {
-	root := filepath.Join("..", "..", "..", "db", "migrations")
-	entries, err := os.ReadDir(root)
+	// Tenant migrations: the platform's and every configuration's.
+	root := filepath.Join("..", "..", "..", "db")
+	dirs, err := filepath.Glob(filepath.Join(root, "configuration", "*"))
 	if err != nil {
-		t.Fatalf("read migrations dir: %v", err)
+		t.Fatalf("list configuration migrations: %v", err)
+	}
+	var entries []os.DirEntry
+	for _, dir := range append([]string{filepath.Join(root, "migrations")}, dirs...) {
+		dirEntries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("read migrations dir: %v", err)
+		}
+		entries = append(entries, dirEntries...)
 	}
 
 	re := regexp.MustCompile(`^(\d{5})_.+\.sql$`)

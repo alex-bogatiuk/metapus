@@ -48,7 +48,7 @@ Webhook `deposit_address.rotated` использует существующую 
 
 ## Схема
 
-Колонки ротации в `cat_wallets`, журнал `reg_crypto_deposit_address_rotations` и защитные триггеры входят в миграцию [00006_crypto_core.sql](../../db/migrations/00006_crypto_core.sql). Существующие стенды пересоздаются с нуля; отдельного обновления схемы нет.
+Колонки ротации в `cat_wallets`, журнал `reg_crypto_deposit_address_rotations` и защитные триггеры входят в миграцию [00006_crypto_core.sql](../../db/configuration/crypto/00006_crypto_core.sql). Существующие стенды пересоздаются с нуля; отдельного обновления схемы нет.
 
 ## Проверка
 

@@ -57,6 +57,7 @@ myExtension.Register(factoryReg) // registration uses v1.EntityRegistration[Mode
 | `integrations.PoolConsumer` | справочник, читающий аккаунты через пулы интеграций: пул нельзя удалить или сменить ему провайдера, пока потребитель им пользуется; состав пула и новые ключи аккаунта проверяются по его требованиям. Конфигурация создаёт репозитории аккаунтов и пулов со своими потребителями | `crypto_integration_repo.RPCPoolConsumer` |
 | `entity.MovementColumnDef.RefEntity` | колонка-ссылка движения регистра называет сущность, на которую ссылается; по ней разрешаются представление и ссылка `/catalogs|documents/{route}/{id}`. Колонка без `RefEntity` не показывается | колонки регистров `crypto_*` |
 | `platform.MovementSourceProvider` | для документа с движениями: какие его поля раскрывают каждую колонку движения. При FLS-политике на документ колонка видна, только если объявлена и все перечисленные поля читаемы; пустой список — колонка-константа | `content/movement_sources.go` |
+| `db/configuration/<имя>/` | миграции конфигурации: её таблицы, права и FLS её сущностей, ограничения её правил на таблицах платформы. Они в общей последовательности версий с платформенными `db/migrations/` и применяются одним источником `dbassets.TenantMigrations()` | `db/configuration/crypto/` |
 | `spec.Bundle` | контракты HTTP для генератора: `contracts.Registry(bundles...)`, `contracts.Routes(bundles...)` | `content.HTTPContractBundles` |
 
 Граница проверяется тестами в `internal/architecture`:

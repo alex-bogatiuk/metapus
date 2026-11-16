@@ -490,6 +490,146 @@ COMMENT ON COLUMN sys_worker_jobs.items_processed IS 'Rows/records affected (inv
 COMMENT ON COLUMN sys_worker_jobs.metadata    IS 'Arbitrary context, e.g. {tenant_id, threshold}';
 
 
+-- ---- Exchange rates ----
+-- Rate sources, source mappings, immutable observations and feed state of
+-- the platform's exchange rate subsystem.
+CREATE FUNCTION guard_exchange_rate_history() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'exchange-rate observations are immutable' USING ERRCODE = '23514';
+END;
+$$;
+
+CREATE FUNCTION guard_rate_source_type() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.source_type IS DISTINCT FROM OLD.source_type AND (
+        EXISTS (SELECT 1 FROM reg_rate_source_mappings WHERE rate_source_id = OLD.id)
+        OR EXISTS (SELECT 1 FROM reg_exchange_rates WHERE rate_source_id = OLD.id)
+        OR EXISTS (SELECT 1 FROM sys_settings WHERE exchange_rates->>'sourceId' = OLD.id::text)
+    ) THEN
+        RAISE EXCEPTION 'source type is in use' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+-- Rate Sources catalog (Справочник «Источники курсов»)
+CREATE TABLE cat_rate_sources (
+    -- Base catalog fields
+    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid_v7(),
+    deletion_mark BOOLEAN     NOT NULL DEFAULT FALSE,
+    version       INT         NOT NULL DEFAULT 1,
+    attributes    JSONB       DEFAULT '{}',
+
+    _deleted_at TIMESTAMPTZ,
+    _txid       BIGINT DEFAULT txid_current(),
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    code      VARCHAR(50)  NOT NULL,
+    name      VARCHAR(255) NOT NULL,
+    parent_id UUID REFERENCES cat_rate_sources(id),
+    is_folder BOOLEAN      NOT NULL DEFAULT FALSE,
+
+    -- Rate source specific fields
+    source_type    VARCHAR(50)  NOT NULL,            -- 'coingecko', 'binance', 'coinmarketcap', 'manual'
+    base_url       VARCHAR(255),                     -- API base URL (e.g. 'https://api.coingecko.com/api/v3')
+    integration_pool_id UUID REFERENCES cat_integration_pools(id) ON DELETE RESTRICT,
+    api_key        TEXT CHECK (api_key IS NULL OR (
+        octet_length(api_key) BETWEEN 1 AND 512 AND api_key !~ '[[:cntrl:]]'
+    )),                                             -- write-only provider credential managed in ERP
+    rate_limit_rpm INT          NOT NULL DEFAULT 100, -- requests per minute
+    priority       INT          NOT NULL DEFAULT 100, -- for fallback ordering (lower = higher priority)
+    is_active      BOOLEAN      NOT NULL DEFAULT TRUE
+);
+CREATE UNIQUE INDEX idx_cat_rate_sources_code ON cat_rate_sources (code) WHERE deletion_mark = FALSE;
+CREATE INDEX idx_cat_rate_sources_name ON cat_rate_sources USING gin (name gin_trgm_ops);
+CREATE INDEX idx_cat_rate_sources_txid ON cat_rate_sources (_txid) WHERE _deleted_at IS NULL;
+CREATE INDEX idx_cat_rate_sources_active ON cat_rate_sources (priority) WHERE is_active = TRUE AND deletion_mark = FALSE;
+CREATE INDEX idx_cat_rate_sources_name_id ON cat_rate_sources (name ASC, id ASC);
+COMMENT ON TABLE cat_rate_sources IS 'Справочник Источники курсов — провайдеры курсов валют (CoinGecko, Binance, ручной ввод)';
+
+-- Rate Source Mappings register (Регистр сведений «Соответствие валют источникам»)
+CREATE TABLE reg_rate_source_mappings (
+    currency_id UUID NOT NULL REFERENCES cat_currencies(id),
+    base_currency_id UUID NOT NULL REFERENCES cat_currencies(id),
+    rate_source_id UUID NOT NULL REFERENCES cat_rate_sources(id),
+    external_id VARCHAR(100) NOT NULL CHECK (length(trim(external_id)) > 0),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    version INT NOT NULL DEFAULT 1 CHECK (version > 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    _txid BIGINT NOT NULL DEFAULT txid_current(),
+    _deleted_at TIMESTAMPTZ,
+    PRIMARY KEY (currency_id, base_currency_id, rate_source_id),
+    CHECK (currency_id <> base_currency_id)
+);
+CREATE INDEX idx_rate_source_mappings_active ON reg_rate_source_mappings(rate_source_id, base_currency_id) WHERE is_active;
+
+CREATE TABLE reg_exchange_rates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid_v7(),
+    currency_id UUID NOT NULL REFERENCES cat_currencies(id),
+    base_currency_id UUID NOT NULL REFERENCES cat_currencies(id),
+    rate_source_id UUID NOT NULL REFERENCES cat_rate_sources(id),
+    rate NUMERIC(38,18) NOT NULL CHECK (rate > 0),
+    multiplier INT NOT NULL DEFAULT 1 CHECK (multiplier > 0),
+    provider_updated_at TIMESTAMPTZ NOT NULL,
+    received_at TIMESTAMPTZ NOT NULL,
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    version INT NOT NULL CHECK (version > 0),
+    mapping_version INT NOT NULL CHECK (mapping_version > 0),
+    feed_attempt_id UUID NOT NULL,
+    _txid BIGINT NOT NULL DEFAULT txid_current(),
+    _deleted_at TIMESTAMPTZ,
+    CHECK (provider_updated_at <= received_at),
+    UNIQUE (currency_id, base_currency_id, rate_source_id, provider_updated_at, version),
+    UNIQUE (feed_attempt_id, currency_id, base_currency_id, rate_source_id)
+);
+CREATE INDEX idx_reg_exchange_rates_latest ON reg_exchange_rates(currency_id, base_currency_id, rate_source_id, provider_updated_at DESC, version DESC);
+CREATE INDEX idx_reg_exchange_rates_history ON reg_exchange_rates(currency_id, base_currency_id, provider_updated_at DESC, version DESC, id DESC);
+COMMENT ON TABLE reg_exchange_rates IS 'Immutable provider observations; all history retained. multiplier currency = rate base_currency.';
+
+CREATE TABLE sys_rate_feed_state (
+    rate_source_id UUID NOT NULL REFERENCES cat_rate_sources(id),
+    base_currency_id UUID NOT NULL REFERENCES cat_currencies(id),
+    lease_token UUID,
+    lease_until TIMESTAMPTZ,
+    next_run_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_attempt_at TIMESTAMPTZ,
+    last_success_at TIMESTAMPTZ,
+    last_completed_token UUID,
+    status TEXT NOT NULL DEFAULT 'idle',
+    requested INT NOT NULL DEFAULT 0,
+    received INT NOT NULL DEFAULT 0,
+    inserted INT NOT NULL DEFAULT 0,
+    repeated INT NOT NULL DEFAULT 0,
+    rejected INT NOT NULL DEFAULT 0,
+    problems JSONB NOT NULL DEFAULT '[]',
+    _txid BIGINT NOT NULL DEFAULT txid_current(),
+    _deleted_at TIMESTAMPTZ,
+    PRIMARY KEY (rate_source_id, base_currency_id)
+);
+
+CREATE TRIGGER trg_cat_rate_sources_txid
+    BEFORE UPDATE ON cat_rate_sources
+    FOR EACH ROW EXECUTE FUNCTION update_txid_column();
+
+CREATE TRIGGER trg_cat_rate_sources_soft_delete
+    BEFORE UPDATE OF deletion_mark ON cat_rate_sources
+    FOR EACH ROW EXECUTE FUNCTION soft_delete_with_timestamp();
+
+CREATE TRIGGER trg_cat_rate_sources_updated_at
+    BEFORE UPDATE ON cat_rate_sources
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trg_rate_source_mappings_txid BEFORE UPDATE ON reg_rate_source_mappings FOR EACH ROW EXECUTE FUNCTION update_txid_column();
+
+CREATE TRIGGER trg_rate_feed_state_txid BEFORE UPDATE ON sys_rate_feed_state FOR EACH ROW EXECUTE FUNCTION update_txid_column();
+
+CREATE TRIGGER trg_exchange_rate_immutable BEFORE UPDATE OR DELETE ON reg_exchange_rates FOR EACH ROW EXECUTE FUNCTION guard_exchange_rate_history();
+
+CREATE TRIGGER trg_rate_source_type BEFORE UPDATE OF source_type ON cat_rate_sources FOR EACH ROW EXECUTE FUNCTION guard_rate_source_type();
+
 -- ---- Triggers ----
 CREATE TRIGGER trg_sys_automation_accounts_modtime
     BEFORE UPDATE ON sys_automation_accounts
@@ -601,6 +741,12 @@ INSERT INTO sys_settings (singleton) VALUES (TRUE);
 -- +goose Down
 -- +goose StatementBegin
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
+DROP TABLE sys_rate_feed_state;
+DROP TABLE reg_exchange_rates;
+DROP TABLE reg_rate_source_mappings;
+DROP TABLE cat_rate_sources;
+DROP FUNCTION guard_rate_source_type();
+DROP FUNCTION guard_exchange_rate_history();
 DROP TABLE sys_worker_jobs;
 DROP TABLE sys_automation_files;
 DROP TABLE sys_list_views;
