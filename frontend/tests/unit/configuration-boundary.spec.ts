@@ -43,3 +43,16 @@ test("platform UI does not import the configuration", () => {
   expect(unexpected, "platform files import configuration; register through an extension point instead").toEqual([])
   expect(gone, "these leaks are gone; remove them from knownConfigurationLeaks").toEqual([])
 })
+
+// The platform UI names no configuration concept either: navigation, labels,
+// icons and access rules of a configuration are registered from its own code.
+// components/ui wraps Radix primitives, whose Portal is unrelated.
+const configurationVocabulary = /crypto|merchant|portal|blockchain|wallet|withdrawal|treasury/i
+const webCrypto = /\bcrypto\??\.randomUUID\b/g
+
+test("platform UI does not use the configuration's vocabulary", () => {
+  const hits = platformDirs.flatMap(sourceFiles).filter(file => !file.startsWith(join("components", "ui"))).flatMap(file =>
+    readFileSync(join(root, file), "utf8").split("\n").flatMap((line, index) =>
+      configurationVocabulary.test(line.replace(webCrypto, "")) ? [`${file}:${index + 1}: ${line.trim().slice(0, 120)}`] : []))
+  expect(hits, "move configuration-specific code and wording into configuration/ and register it").toEqual([])
+})

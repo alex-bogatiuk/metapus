@@ -50,7 +50,6 @@ export const JOB_STATUSES: { value: WorkerJobStatus; label: string; color: strin
 ]
 
 export const JOB_CATEGORIES: { value: string; label: string }[] = [
-  { value: "crypto", label: "Криптовалюта" },
   { value: "outbox", label: "Outbox" },
   { value: "cleanup", label: "Очистка" },
   { value: "automation", label: "Автоматизация" },
@@ -65,6 +64,10 @@ export const KNOWN_JOB_NAMES: { value: string; label: string }[] = [
   { value: "cleanup.automation_files", label: "Очистка: файлы автоматизации" },
   { value: "cleanup.notifications", label: "Очистка: уведомления" },
   { value: "cleanup.worker_jobs", label: "Очистка: логи задач" },
-  { value: "crypto.expiration", label: "Крипто: истечение инвойсов" },
-  { value: "crypto.sweep_eval", label: "Крипто: оценка свипа" },
 ]
+
+/** Adds a configuration's worker job categories and job names to the filters. */
+export function registerWorkerJobs(jobs: { categories?: { value: string; label: string }[]; names?: { value: string; label: string }[] }): void {
+  JOB_CATEGORIES.push(...(jobs.categories ?? []))
+  KNOWN_JOB_NAMES.push(...(jobs.names ?? []))
+}

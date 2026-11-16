@@ -113,14 +113,14 @@ export interface BaseDocumentEntity extends BaseEntity {
  * Like 1C's "ОписаниеТипов" / "СоставнойТипДанных" or ERPNext's "Dynamic Link".
  *
  * Works with both documents and catalogs:
- * - Document ref: { refType: "CryptoInvoice", refId: "uuid" }
+ * - Document ref: { refType: "GoodsReceipt", refId: "uuid" }
  * - Catalog ref:  { refType: "Counterparty", refId: "uuid" }
  *
  * Used in table parts where a line may reference different entity types
  * (e.g. a bank statement line referencing CashReceipt or CashPayment).
  */
 export interface TypedRef {
-  /** Entity type name from metadata registry (e.g. "CryptoInvoice", "Counterparty") */
+  /** Entity type name from metadata registry (e.g. "GoodsReceipt", "Counterparty") */
   refType: string
   /** UUID of the referenced entity */
   refId: string
@@ -180,10 +180,10 @@ export interface MarkedObject {
  * Returned by GET /api/v1/document/{type}/{id}/related-documents.
  */
 export interface RelatedDocGroup {
-  entityName: string           // e.g. "CryptoPayment"
+  entityName: string           // e.g. "GoodsReceipt"
   entityType: "catalog" | "document"
   presentation: string         // e.g. "Платежи"
-  routePrefix: string          // e.g. "crypto-payments"
+  routePrefix: string          // e.g. "goods-receipts"
   items: RelatedDocItem[]
   totalCount: number
 }

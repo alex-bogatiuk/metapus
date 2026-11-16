@@ -8,13 +8,13 @@ const routes = [...httpRoutes].sort((left, right) => {
   return parameters(left.path) - parameters(right.path)
 }).map(contract => ({ contract, segments: contract.path.split("/") }))
 
-export function findHTTPContract(scope: "api" | "portal", method: string, path: string): HTTPRouteContract | undefined {
+export function findHTTPContract(scope: string, method: string, path: string): HTTPRouteContract | undefined {
   const segments = path.split("?")[0].replace(/\/$/, "").split("/")
   return routes.find(({ contract, segments: expected }) => contract.scope === scope && contract.method === method &&
     expected.length === segments.length && expected.every((part, index) => part.startsWith(":") ? segments[index].length > 0 : part === segments[index]))?.contract
 }
 
-export function requireHTTPContract(scope: "api" | "portal", method: string, path: string): HTTPRouteContract {
+export function requireHTTPContract(scope: string, method: string, path: string): HTTPRouteContract {
   const contract = findHTTPContract(scope, method, path)
   if (!contract) throw new Error(`No HTTP contract for ${scope} ${method} ${path.split("?")[0]}`)
   return contract

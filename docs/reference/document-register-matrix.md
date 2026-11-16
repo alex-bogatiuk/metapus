@@ -159,7 +159,7 @@
 | Что проверено | Источник |
 |---|---|
 | Регистрация 12 типов и расширения | [Контент](../../internal/content/register.go), [расширения](../../extensions/register.go) |
-| Названия и доступность операций | [Регистрации](../../internal/content/document_registrations.go), [документы поступлений](../../internal/content/crypto_receipt_documents.go), [меню](../../frontend/components/layout/app-sidebar.tsx) |
+| Названия и доступность операций | [Регистрации](../../internal/content/document_registrations.go), [документы поступлений](../../internal/content/crypto_receipt_documents.go), [меню](../../frontend/configuration/crypto/lib/navigation.ts) |
 | Все `doc_*`, включая специальные типы | [Crypto core](../../db/configuration/crypto/00006_crypto_core.sql), [outbound](../../db/configuration/crypto/00007_crypto_outbound.sql), [custody](../../db/configuration/crypto/00009_crypto_custody.sql) |
 | Инвойс и платёжная ссылка | [Инвойс](../../internal/domain/documents/crypto_invoice/model.go), [использование ссылки](../../internal/application/cryptoapp/checkout_page_service.go) |
 | Физическое поступление и журналы | [Модель](../../internal/domain/documents/crypto_custody_receipt/model.go), [журналы](../../internal/application/cryptoapp/receipt_journal.go) |

@@ -7,101 +7,49 @@
 import type { LucideIcon } from "lucide-react"
 import {
   Activity,
-  ArrowDownToLine,
-  ArrowLeftRight,
-  ArrowUpFromLine,
-  ArrowUpRight,
   Banknote,
   BarChart3,
   Bell,
-  Blocks,
   BookOpen,
   Building2,
-  Coins,
-  CreditCard,
-  Cpu,
-  FileQuestion,
   FileSignature,
   FileText,
-  Fuel,
-  HandCoins,
   HelpCircle,
   KeyRound,
-  Landmark,
   Layers,
   LayoutDashboard,
-  Link2,
   ListChecks,
-  Merge,
-  Network,
-  PiggyBank,
   Plug,
-  QrCode,
-  Receipt,
   Rss,
-  Scale,
   ScrollText,
   Search,
   Settings,
   ShieldCheck,
   Star,
-  Store,
   Trash2,
   TrendingUp,
   Users,
-  Vault,
-  Wallet,
-  Webhook,
   Workflow,
-  Zap,
 } from "lucide-react"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 
-/** Keyed by backend metadata key (e.g. "crypto_invoice"). */
+/** Keyed by backend metadata key (e.g. "counterparty"). */
 const entityIcons: Record<string, LucideIcon> = {
   // Business
   counterparty: Users,
   organization: Building2,
   contract: FileSignature,
-  merchant: Store,
 
   // Money and rates
   currency: Banknote,
-  token: Coins,
   rate_source: Rss,
   "exchange-rate": TrendingUp,
 
-  // Blockchain
-  blockchain_network: Blocks,
-  wallet: Wallet,
-  crypto_provider_account: Landmark,
+  // Integrations
   integration_account: Plug,
   integration_pool: Layers,
 
-  // Payment intake
-  crypto_invoice: Receipt,
-  crypto_payment: CreditCard,
-
-  // Wallet receipts
-  crypto_custody_receipt: ArrowDownToLine,
-  unidentified_receipts: FileQuestion,
-  crypto_merchant_credit: HandCoins,
-  crypto_platform_funding: PiggyBank,
-  wallet_fundings: Fuel,
-
-  // Payouts and treasury
-  withdrawal_request: ArrowUpFromLine,
-  crypto_withdrawal: ArrowUpRight,
-  treasury_withdrawal: Vault,
-  crypto_sweep: Merge,
-
-  // Technical operations
-  crypto_resource_rental: Zap,
-  crypto_network_operation: Cpu,
-  crypto_provider_balance_operation: ArrowLeftRight,
-
-  // Financial control and reports
-  crypto_adjustment: Scale,
+  // Reports
   "report-document-journal": ScrollText,
 }
 
@@ -113,40 +61,36 @@ export function getEntityIcon(entityType: string): LucideIcon {
   return entityIcons[entityType] ?? Star
 }
 
-/** Pages that are not metadata entities, most specific first. */
-const pageIcons: [prefix: string, icon: LucideIcon][] = [
+/** Pages that are not metadata entities; the longest matching prefix wins. */
+let pageIcons: [prefix: string, icon: LucideIcon][] = ([
   ["/finance/exchange-rates", TrendingUp],
-  ["/crypto/unidentified-receipts", FileQuestion],
-  ["/crypto/wallet-fundings", Fuel],
-  ["/documents/crypto-adjustments", Scale],
-  ["/documents/treasury-withdrawals", Vault],
-  ["/documents/withdrawal-requests", ArrowUpFromLine],
   ["/reports/document-journal", ScrollText],
   ["/reports", BarChart3],
   ["/admin/event-log", ScrollText],
   ["/admin/worker-jobs", Activity],
-  ["/admin/crypto-networks", Network],
   ["/admin/automation-rules", Workflow],
   ["/admin/batch-modify", ListChecks],
   ["/admin/find-references", Search],
   ["/admin/marked-objects", Trash2],
-  ["/admin/merchants", Store],
   ["/admin/security-profiles", KeyRound],
   ["/admin", ShieldCheck],
   ["/settings", Settings],
   ["/notifications", Bell],
   ["/help", HelpCircle],
-  ["/portal/invoices", Receipt],
-  ["/portal/deposit-addresses", QrCode],
-  ["/portal/withdrawals", ArrowUpFromLine],
-  ["/portal/payment-links", Link2],
-  ["/portal/developers/keys", KeyRound],
-  ["/portal/developers/webhooks", Webhook],
-  ["/portal/settings", Settings],
-  ["/portal", LayoutDashboard],
-]
+] satisfies [string, LucideIcon][]).sort(([a], [b]) => b.length - a.length)
 
-/** "withdrawal-requests" → "withdrawal_request", "currencies" → "currency". */
+/**
+ * Adds a configuration's icons: `entities` by metadata key, `pages` by URL
+ * prefix for pages that are not metadata entities.
+ */
+export function registerIcons(icons: { entities?: Record<string, LucideIcon>; pages?: Record<string, LucideIcon> }): void {
+  Object.assign(entityIcons, icons.entities)
+  const pages = new Map(pageIcons)
+  for (const [prefix, icon] of Object.entries(icons.pages ?? {})) pages.set(prefix, icon)
+  pageIcons = [...pages].sort(([a], [b]) => b.length - a.length)
+}
+
+/** "rate-sources" → "rate_source", "currencies" → "currency". */
 function segmentToKey(segment: string): string[] {
   const key = segment.replaceAll("-", "_")
   return [key, key.replace(/ies$/, "y"), key.replace(/s$/, "")]

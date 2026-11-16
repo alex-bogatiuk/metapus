@@ -25,7 +25,7 @@ export function cellMuted(key: string) {
 
 /**
  * Renders a resolved reference field. Backend returns nested RefDisplay objects:
- *   { merchantId: "uuid", merchant: { id: "uuid", name: "Test Merchant" } }
+ *   { counterpartyId: "uuid", counterparty: { id: "uuid", name: "Test Counterparty" } }
  * This renderer accesses item[refKey].name.
  */
 export function cellRef(refKey: string) {
@@ -83,7 +83,7 @@ export function cellTruncated(key: string, maxW = 200) {
     return Cell
 }
 
-// Crypto-specific cell renderers
+// Hash cell renderers
 
 export function cellHashTruncated(key: string) {
     const Cell = (item: JsonObject) => {

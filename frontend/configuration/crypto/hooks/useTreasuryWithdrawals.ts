@@ -7,7 +7,7 @@ import { useLatestRequest } from "@/hooks/useLatestRequest"
 import { useTabDirty } from "@/hooks/useTabDirty"
 import { useTreasuryReconciliation } from "@/configuration/crypto/hooks/useTreasuryReconciliation"
 
-import { compareCryptoAmounts, copyToClipboard, formatMinorUnits, toCryptoMinorUnits } from "@/lib/format"
+import { compareRawAmounts, copyToClipboard, formatMinorUnits, toRawUnits } from "@/lib/format"
 import { createFormDraftKey } from "@/stores/useFormDraftStore"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import type { AdvancedFilterItem } from "@/types/common"
@@ -89,11 +89,11 @@ export function useTreasuryWithdrawals() {
   const selectedAddress = filteredAddresses.find((address) => address.id === addressId)
   const normalizedAmount = amount.trim().replace(",", ".")
   const amountMinor = selectedToken
-    ? toCryptoMinorUnits(normalizedAmount, selectedToken.decimalPlaces)
+    ? toRawUnits(normalizedAmount, selectedToken.decimalPlaces)
     : null
 
-  const amountExceedsWallet = !!selectedWallet && amountMinor !== null && compareCryptoAmounts(amountMinor, selectedWallet.availableAmount) > 0
-  const amountExceedsRevenue = !!availability && amountMinor !== null && compareCryptoAmounts(amountMinor, availability.available) > 0
+  const amountExceedsWallet = !!selectedWallet && amountMinor !== null && compareRawAmounts(amountMinor, selectedWallet.availableAmount) > 0
+  const amountExceedsRevenue = !!availability && amountMinor !== null && compareRawAmounts(amountMinor, availability.available) > 0
   const canCreateWithdrawal = !!selectedToken
     && !!sourceWalletId
     && !!selectedAddress

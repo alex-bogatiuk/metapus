@@ -7,7 +7,7 @@ import { registerScopedStore, getSessionGeneration, isCurrentSession } from "@/l
  *
  * Usage:
  *   const { getLabel } = useMetadataStore()
- *   getLabel("crypto_invoice", "plural")   // → "Crypto Invoices"
+ *   getLabel("goods_receipt", "plural")   // → "Goods Receipts"
  *   getLabel("counterparty", "singular")  // → "Counterparty"
  */
 
@@ -19,11 +19,11 @@ type PresentationField = keyof EntityPresentation
 
 interface MetadataState {
     entities: EntityMeta[]
-    /** key → EntityMeta index (e.g. "crypto_invoice" → EntityMeta) */
+    /** key → EntityMeta index (e.g. "goods_receipt" → EntityMeta) */
     byKey: Record<string, EntityMeta>
-    /** PascalCase name → EntityMeta index (e.g. "CryptoInvoice" → EntityMeta) */
+    /** PascalCase name → EntityMeta index (e.g. "GoodsReceipt" → EntityMeta) */
     byName: Record<string, EntityMeta>
-    /** routePrefix → EntityMeta index (e.g. "crypto-invoices" → EntityMeta) */
+    /** routePrefix → EntityMeta index (e.g. "goods-receipts" → EntityMeta) */
     byRoute: Record<string, EntityMeta>
     loaded: boolean
     loading: boolean
@@ -36,9 +36,9 @@ interface MetadataActions {
     getLabel: (entityKey: string, field?: PresentationField) => string
     /** Get full EntityMeta by key. */
     getEntity: (entityKey: string) => EntityMeta | undefined
-    /** Get EntityMeta by PascalCase name (e.g. "CryptoInvoice"). */
+    /** Get EntityMeta by PascalCase name (e.g. "GoodsReceipt"). */
     getEntityByName: (name: string) => EntityMeta | undefined
-    /** Get EntityMeta by route prefix (e.g. "crypto-invoices", "counterparties"). */
+    /** Get EntityMeta by route prefix (e.g. "goods-receipts", "counterparties"). */
     getEntityByRoute: (routePrefix: string) => EntityMeta | undefined
     /** Get all entities of a given type. */
     getEntitiesByType: (type: "catalog" | "document") => EntityMeta[]
@@ -69,7 +69,7 @@ export const useMetadataStore = create<MetadataState & MetadataActions>()((set, 
                 if (e.routePrefix) {
                     byRoute[e.routePrefix] = e
                     // Also index by pluralized form so catch-all [routePrefix] pages
-                    // can resolve pluralized URL segments (e.g. "crypto-invoices").
+                    // can resolve pluralized URL segments (e.g. "goods-receipts").
                     // Matches pluralizePrefix() in entity-url.ts.
                     const plural = e.routePrefix.endsWith("s")
                         ? e.routePrefix

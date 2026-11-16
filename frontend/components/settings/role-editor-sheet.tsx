@@ -53,6 +53,7 @@ import { api, ApiError } from "@/lib/api"
 import { toast } from "sonner"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import type { RoleResponse, PermissionResponse } from "@/types/security"
+import { getResourceLabel } from "@/lib/security-registry"
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -117,14 +118,6 @@ const CATEGORY_META: Record<string, { label: string; icon: React.ElementType }> 
   register: { label: "Регистры",           icon: Database },
   report:   { label: "Отчёты",             icon: BarChart3 },
   admin:    { label: "Администрирование",  icon: Settings },
-}
-
-const FALLBACK_LABELS: Record<string, string> = {
-  admin: "Система",
-  register_crypto_merchant_balance: "Регистр остатков мерчантов",
-  register_crypto_balance: "Регистр балансов кошельков",
-  report_document_journal: "Журнал документов",
-  report_crypto_turnover: "Отчёт по криптообороту",
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -240,7 +233,7 @@ export function RoleEditorSheet({ role, permissions, rolePerms, onClose }: RoleE
         const metaLabel = getLabel(resource, "plural")
         if (metaLabel !== resource) label = metaLabel
       }
-      if (!label) label = FALLBACK_LABELS[resource] ?? resource
+      if (!label) label = getResourceLabel(resource) ?? resource
 
       const sortedActions = [...actions.entries()]
         .map(([action, { permId, code }]) => ({ action, permId, code }))

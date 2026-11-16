@@ -14,8 +14,6 @@ export const RULE_ACTIONS: { value: string; label: string }[] = [
   { value: "unpost", label: "Отмена проведения" },
 ]
 
-export const RLS_DIMENSION_KEYS = ["organization", "merchant", "counterparty"] as const
-
 export interface FormState {
   code: string
   name: string
@@ -52,37 +50,3 @@ export const tabStateKeys = {
   celEditingId: createTabStateKey<string | null>("frontend/app/admin/security-profiles:celEditingId"),
   celNewRule: createTabStateKey<NewRuleState>("frontend/app/admin/security-profiles:celNewRule"),
 }
-
-export interface AffinityRule {
-  roleHint: string
-  label: string
-  match: (form: FormState) => boolean
-}
-
-export const AFFINITY_RULES: AffinityRule[] = [
-  {
-    roleHint: "viewer",
-    label: "Только просмотр",
-    match: (f) =>
-      f.fieldPolicies.some((p) => p.action === "read" && p.allowedFields.some((a) => a.startsWith("-"))),
-  },
-  {
-    roleHint: "manager",
-    label: "Менеджер",
-    match: (f) =>
-      Object.keys(f.dimensions).includes("organization") && f.fieldPolicies.length === 0,
-  },
-  {
-    roleHint: "merchant_operator",
-    label: "Оператор мерчанта",
-    match: (f) =>
-      Object.keys(f.dimensions).includes("merchant") && f.fieldPolicies.length === 0,
-  },
-  {
-    roleHint: "compliance",
-    label: "Комплаенс",
-    match: (f) =>
-      Object.keys(f.dimensions).includes("merchant") &&
-      f.fieldPolicies.some((p) => p.allowedFields.some((a) => a.startsWith("-"))),
-  },
-]

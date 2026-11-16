@@ -17,7 +17,7 @@ import type { ListView, ListViewConfig, ViewVisibility } from "@/types/list-view
 // ── Types ───────────────────────────────────────────────────────────────
 
 interface UseListViewsOptions {
-    /** Entity key (e.g. "CryptoInvoice", "token"). */
+    /** Entity key (e.g. "GoodsReceipt", "currency"). */
     entityType: string
     /** Called when a saved view is selected — apply its config. */
     onApplyConfig?: (config: ListViewConfig) => void

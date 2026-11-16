@@ -183,7 +183,7 @@ export function valueAfterOperatorChange(
 
 /**
  * All filter entries tracked by FilterSidebar.
- * Keyed by the filter field key (camelCase, e.g. "merchantId").
+ * Keyed by the filter field key (camelCase, e.g. "counterpartyId").
  */
 
 // ── Builder ─────────────────────────────────────────────────────────────

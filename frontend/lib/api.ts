@@ -15,7 +15,6 @@
 // ── Core exports ────────────────────────────────────────────────────────
 export {
     API_BASE,
-    PORTAL_BASE,
     TENANT_ID,
     UUID_PATH_PARAM_RE,
     assertUuidPathParam,
@@ -26,10 +25,10 @@ export {
     idempotencyHeaders,
     shouldRetainMutationKey,
     apiFetch,
-    portalFetch,
     apiFetchResponse,
     apiFetchBlob,
-    portalFetchBlob,
+    createScopedClient,
+    type ScopedClient,
     checkedJSON,
     buildListQS,
     type CatalogApi,

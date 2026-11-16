@@ -15,37 +15,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { api } from "@/lib/api"
+import { getSecurityDimension, type DimensionOption } from "@/lib/security-registry"
 import { Loader2, Search, X } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 
-// ── Dimension → catalog API mapping ──────────────────────────────────
-
-interface CatalogItem {
-  id: string
-  name: string
-  code?: string
-}
-
-type DimensionKey = "organization" | "merchant" | "counterparty"
-
-const DIMENSION_FETCHERS: Record<
-  DimensionKey,
-  (search: string) => Promise<CatalogItem[]>
-> = {
-  organization: async (search) => {
-    const res = await api.organizations.list({ search: search || undefined, limit: 20 })
-    return (res.items ?? []).map((o) => ({ id: o.id, name: o.name, code: o.code }))
-  },
-  merchant: async (search) => {
-    const res = await api.counterparties.list({ search: search || undefined, limit: 20 })
-    return (res.items ?? []).map((c) => ({ id: c.id, name: c.name, code: c.code }))
-  },
-  counterparty: async (search) => {
-    const res = await api.counterparties.list({ search: search || undefined, limit: 20 })
-    return (res.items ?? []).map((c) => ({ id: c.id, name: c.name, code: c.code }))
-  },
-}
+type CatalogItem = DimensionOption
 
 // ── Props ────────────────────────────────────────────────────────────
 
@@ -69,7 +43,7 @@ export function RlsDimensionPicker({
   const [resolvedNames, setResolvedNames] = useState<Record<string, string>>({})
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
 
-  const fetcher = DIMENSION_FETCHERS[dimensionKey as DimensionKey]
+  const fetcher = getSecurityDimension(dimensionKey)?.search
 
   // Resolve names for already-selected IDs on mount
   useEffect(() => {

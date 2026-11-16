@@ -24,24 +24,12 @@ export type EntityMetadata = Omit<Contract.EntityMetadataResponse, "type" | "fie
   tableParts?: { name: string; label?: string; columns: MetadataField[] }[]
   actions?: MetadataAction[]
 }
-const baseEntityMetadataSchema: z.ZodType<EntityMetadata> = Wire.EntityMetadataResponseSchema.and(z.object({
+export const entityMetadataSchema: z.ZodType<EntityMetadata> = Wire.EntityMetadataResponseSchema.and(z.object({
   type: entityTypeSchema,
   fields: z.array(metadataFieldSchema),
   tableParts: z.array(z.object({ name: z.string(), label: z.string().optional(), columns: z.array(metadataFieldSchema) })).optional(),
   actions: z.array(entityActionSchema).optional(),
 }))
-
-const _cryptoResourceIntegerFields = new Set(["requestedAmount", "delegatedAmount", "reservedAmount", "consumedAmount"])
-
-export const entityMetadataSchema: z.ZodType<EntityMetadata> = baseEntityMetadataSchema.transform((meta): EntityMetadata => {
-  if (meta.name === "CryptoResourceRental" || meta.key === "crypto_resource_rental") {
-    return {
-      ...meta,
-      fields: meta.fields.map(f => _cryptoResourceIntegerFields.has(f.name) && f.type === "money" ? { ...f, type: "integer" } : f),
-    }
-  }
-  return meta
-})
 
 export const filterFieldTypeSchema = z.enum(["string", "number", "money", "date", "boolean", "reference", "typed_ref", "enum"])
 export type FilterFieldMetadata = Omit<Contract.FilterFieldMetadataResponse, "fieldType" | "refFields"> & {

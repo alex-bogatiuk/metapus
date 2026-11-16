@@ -9,7 +9,7 @@ import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 import { format as dateFnsFormat } from "date-fns"
 import { rawMinorToMajor, formatRawMinor } from "@/lib/money"
 
-/** Exact aggregate/crypto display; does not impose int64 on a sum of rows. */
+/** Exact aggregate/raw-amount display; does not impose int64 on a sum of rows. */
 export function fmtRawAmount(minor: string, decimalPlaces: number | null | undefined): string {
   if (decimalPlaces == null) return "—"
   const style = useUserPrefsStore.getState().interface.numberFormat ?? "space"
@@ -24,8 +24,8 @@ export function fmtDate(iso: string | Date | undefined | null): string {
   return dateFnsFormat(d, dateFormat)
 }
 
-/** Convert a human crypto amount to canonical raw units without Number. */
-export function toCryptoMinorUnits(s: string, decimalPlaces: number): string | null {
+/** Convert a human amount to canonical raw units without Number. */
+export function toRawUnits(s: string, decimalPlaces: number): string | null {
   const normalized = s.trim().replace(",", ".")
   const match = /^(0|[1-9]\d*)(?:\.(\d*))?$/.exec(normalized)
   if (!match) return null
@@ -36,22 +36,21 @@ export function toCryptoMinorUnits(s: string, decimalPlaces: number): string | n
 }
 
 /** Compare canonical non-negative raw-unit strings exactly. */
-export function compareCryptoAmounts(left: string, right: string): number {
+export function compareRawAmounts(left: string, right: string): number {
   const a = BigInt(left)
   const b = BigInt(right)
   return a < b ? -1 : a > b ? 1 : 0
 }
 
-// ── Portal-specific formatters ────────────────────────────────────────────
-// Used by crypto portal pages (invoices, withdrawals, webhooks).
-// These operate on string-based minor units (blockchain amounts use BigInt-safe strings).
+// ── String minor-unit formatters ──────────────────────────────────────────
+// These operate on string-based minor units (BigInt-safe, unbounded amounts).
 
 /**
  * Convert a minor-units string to a human-readable decimal.
  * Example: formatMinorUnits("1500000", 6) → "1.5"
  *
  * Uses pure string arithmetic — no floating point involved.
- * Works for both positive and negative blockchain balances.
+ * Works for both positive and negative balances.
  */
 export function formatMinorUnits(minor: string, decimals: number): string {
   const exact = rawMinorToMajor(minor || "0", decimals)

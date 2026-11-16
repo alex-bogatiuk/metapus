@@ -60,12 +60,12 @@ export function resolveReferenceUrl(apiEndpoint: string, id: string): string | n
 export interface ResolvedEndpoint {
   entity: EntityMeta
   entityType: EntityType
-  /** PascalCase registry name, e.g. "Counterparty", "CryptoInvoice" */
+  /** PascalCase registry name, e.g. "Counterparty", "GoodsReceipt" */
   entityName: string
 }
 
 /**
- * Resolves an API endpoint (e.g. "/catalog/counterparties" or "/document/crypto-invoices")
+ * Resolves an API endpoint (e.g. "/catalog/counterparties" or "/document/goods-receipts")
  * to full EntityMeta + entityType.
  *
  * Supports both catalog and document endpoints:

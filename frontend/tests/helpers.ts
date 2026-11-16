@@ -61,7 +61,7 @@ export async function installSession(page: Page, user: AuthUserResponse = erpUse
 export async function installPortalSession(page: Page) {
   await installSession(page, portalOwner)
   await page.addInitScript(({ merchantId }) => {
-    localStorage.setItem("metapus-portal", JSON.stringify({
+    localStorage.setItem("metapus-scoped-portal", JSON.stringify({
       state: { activeMerchantId: merchantId },
       version: 0,
     }))

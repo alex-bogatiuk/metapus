@@ -8,7 +8,7 @@ import { AppShell } from "@/components/layout/app-shell"
 import { useAuthStore } from "@/stores/useAuthStore"
 import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 import { ThemeProvider } from "@/components/theme-provider"
-import { isPortalOnly } from "@/lib/access"
+import { landingPath } from "@/lib/access"
 import { api } from "@/lib/api"
 import { useAuthSessionBootstrap } from "@/hooks/useAuthSessionBootstrap"
 import { SessionRecovery } from "@/components/auth/session-recovery"
@@ -58,13 +58,14 @@ export default function MainLayout({
     }
   }, [authReady, hydrated, isAuthenticated, router])
 
-  // Redirect portal-only users away from ERP layout.
-  const portalOnly = isPortalOnly(user)
+  // Send users without ERP access to the workspace a configuration serves them.
+  const workspace = landingPath(user)
+  const elsewhere = workspace !== "/"
   useEffect(() => {
-    if (hydrated && authReady && isAuthenticated && portalOnly) {
-      router.replace("/portal")
+    if (hydrated && authReady && isAuthenticated && elsewhere) {
+      router.replace(workspace)
     }
-  }, [authReady, hydrated, isAuthenticated, portalOnly, router])
+  }, [authReady, hydrated, isAuthenticated, elsewhere, workspace, router])
 
   // Load user preferences from server once authenticated
   useEffect(() => {
@@ -73,11 +74,11 @@ export default function MainLayout({
     }
   }, [authReady, hydrated, isAuthenticated, prefsLoaded, loadPreferences, generation])
 
-  // Synchronous render gate: never show ERP shell to portal-only merchants.
+  // Synchronous render gate: never show the ERP shell to workspace-only users.
   // The useEffect above handles the actual redirect; this prevents any flash.
   if (sessionError) return <SessionRecovery onRetry={retrySession} />
 
-  if (!hydrated || !authReady || !isAuthenticated || !user || portalOnly) {
+  if (!hydrated || !authReady || !isAuthenticated || !user || elsewhere) {
     return null
   }
 

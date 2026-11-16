@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { isPortalOnly } from "@/lib/access"
+import { landingPath } from "@/lib/access"
 import { api, ApiError } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/stores/useAuthStore"
@@ -94,11 +94,9 @@ export function LoginForm() {
 
   function completeLogin(response: LoginResponse) {
     setAuth(response.tokens, response.user)
-    if (isPortalOnly(response.user)) {
-      router.push("/portal")
-    } else {
-      router.push("/")
-    }
+    // The ERP layout sends users without ERP access on to their workspace
+    // when this page has not loaded the configuration's registrations.
+    router.push(landingPath(response.user))
   }
 
   async function startEnrollment(nextChallenge: MFAChallengeResponse) {

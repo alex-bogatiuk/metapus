@@ -1,7 +1,7 @@
 import type { z } from "zod"
 
 export interface HTTPRouteContract {
-  scope: "api" | "portal"
+  scope: string
   method: string
   path: string
   request: z.ZodType | null

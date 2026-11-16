@@ -33,7 +33,7 @@ export interface InterfacePrefs {
 
 /** A bookmarked entity. Title is cached at add-time and self-heals on next open. */
 export interface FavoriteItem {
-  entityType: string   // registry key: "counterparty" | "crypto_invoice" | …
+  entityType: string   // registry key: "counterparty" | "goods_receipt" | …
   entityId: string     // UUID
   title: string        // cached presentation (self-heals on form open)
   url: string          // direct link (e.g. "/catalogs/counterparties/uuid")

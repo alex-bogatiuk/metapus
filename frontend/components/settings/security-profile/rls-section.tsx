@@ -1,7 +1,8 @@
 "use client"
 
 import { RlsDimensionPicker } from "@/components/settings/rls-dimension-picker"
-import { FormState, RLS_DIMENSION_KEYS } from "@/components/settings/security-profile/model"
+import type { FormState } from "@/components/settings/security-profile/model"
+import { getSecurityDimensions } from "@/lib/security-registry"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -38,7 +39,7 @@ export function RlsSection({
   const metaEntities = useMetadataStore((s) => s.entities)
 
   const KNOWN_DIMENSIONS = useMemo(
-    () => RLS_DIMENSION_KEYS.map((key) => ({ key, label: getLabel(key, "plural") })),
+    () => getSecurityDimensions().map(({ key }) => ({ key, label: getLabel(key, "plural") })),
     [getLabel]
   )
 

@@ -75,11 +75,11 @@ export interface EntityFormProps {
 export interface EntityUIRegistration {
     /** Entity type: "catalog" or "document" */
     entityType: EntityRegistrationType
-    /** PascalCase entity name matching backend EntityName (e.g. "Counterparty", "CryptoInvoice") */
+    /** PascalCase entity name matching backend EntityName (e.g. "Counterparty", "GoodsReceipt") */
     entityName: string
-    /** URL path segment matching backend RoutePrefix (e.g. "counterparties", "crypto-invoices") */
+    /** URL path segment matching backend RoutePrefix (e.g. "counterparties", "goods-receipts") */
     routePrefix: string
-    /** snake_case entity key for metadata/API (e.g. "counterparty", "crypto_invoice"). Falls back to routePrefix. */
+    /** snake_case entity key for metadata/API (e.g. "counterparty", "goods_receipt"). Falls back to routePrefix. */
     entityKey?: string
     /** Presentation overlay merged onto metadata list columns (render, width, label). */
     listColumns?: AutoListColumn[]

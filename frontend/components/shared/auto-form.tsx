@@ -90,7 +90,7 @@ export interface AutoFormProps {
     routePrefix: string
     /**
      * Optional content rendered BELOW the auto-generated form fields.
-     * Use for entity-specific extensions (e.g. API key management for merchants).
+     * Use for entity-specific extensions (e.g. API key management for a client account).
      */
     appendContent?: React.ReactNode
     hiddenFields?: readonly string[]
@@ -212,7 +212,7 @@ function fieldToInput(
                     value={String(v)}
                     onChange={(e) => {
                         const raw = e.target.value
-                        // Preserve original type: if server sent a string (e.g. CryptoAmount),
+                        // Preserve original type: if server sent a string (e.g. RawAmount),
                         // keep it as string to match Go DTO contract.
                         if (typeof value === "string") {
                             handleChange(raw === "" ? "0" : raw)

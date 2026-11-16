@@ -7,12 +7,15 @@ const resets = new Set<() => void>()
 let generation = 0
 let controller = new AbortController()
 const marker = "metapus-cache-scope"
-const scopedKeys = new Set(["metapus-tabs", "metapus-recent", "metapus-portal", "metapus-dashboard"])
+const scopedKeys = new Set(["metapus-tabs", "metapus-recent", "metapus-dashboard"])
+// A configuration names its per-user persisted stores with this prefix, so they
+// are cleared on an identity change even before their modules have loaded.
+export const SCOPED_STORAGE_PREFIX = "metapus-scoped-"
 
 function clearPersistedData() {
   if (typeof localStorage === "undefined") return
   for (const key of Object.keys(localStorage)) {
-    if (scopedKeys.has(key) || key.startsWith("metapus-last-used-")) localStorage.removeItem(key)
+    if (scopedKeys.has(key) || key.startsWith(SCOPED_STORAGE_PREFIX) || key.startsWith("metapus-last-used-")) localStorage.removeItem(key)
   }
 }
 

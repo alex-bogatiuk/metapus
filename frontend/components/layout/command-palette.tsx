@@ -273,11 +273,11 @@ export function CommandPalette() {
   }, [calcResult, setOpen])
 
   // Build nav items (memoized since metadata rarely changes)
-  const canReadRates = usePermissions().has("register:exchange_rate:read")
+  const permissions = usePermissions()
   const navEntities = useMetadataStore((s) => s.entities)
   const navItems = React.useMemo<CommandNavItem[]>(() => {
-    return [...getStaticNavItems(), ...getDynamicNavItems(navEntities)].filter(item => item.id !== "nav:exchange-rates" || canReadRates)
-  }, [navEntities, canReadRates])
+    return [...getStaticNavItems(), ...getDynamicNavItems(navEntities)].filter(item => !item.permission || permissions.has(item.permission))
+  }, [navEntities, permissions])
   // Recalculate when palette opens (metadata might have loaded since last open)
 
   // ── Navigation handler ──────────────────────────────────────────────

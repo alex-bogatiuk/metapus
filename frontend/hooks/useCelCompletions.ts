@@ -54,9 +54,9 @@ const BUILTIN_VARIABLES: Omit<languages.CompletionItem, "range">[] = [
   {
     label: "entityType",
     kind: 5,
-    detail: "string — Тип сущности (crypto_invoice, crypto_payment, ...)",
+    detail: "string — Тип сущности (counterparty, goods_receipt, ...)",
     insertText: "entityType",
-    documentation: "Ключ сущности, например: crypto_invoice.",
+    documentation: "Ключ сущности, например: goods_receipt.",
   },
   {
     label: "humanAmounts",
@@ -97,7 +97,7 @@ function celTypeHint(fieldType: string): string {
 /**
  * Hook to register Monaco CEL autocomplete based on entity metadata.
  *
- * @param targetEntities - Array of selected entity keys (e.g. ["crypto_invoice"])
+ * @param targetEntities - Array of selected entity keys (e.g. ["goods_receipt"])
  * @param editorLanguage - Monaco language id to register completions for
  */
 export function useCelCompletions(

@@ -108,7 +108,6 @@ const columnOverlayConfigs: Record<string, ColumnOverlayConfig> = {
         ],
     },
 
-    // ── Crypto Processing Entities ──────────────────────────────────────
 }
 
 // ── Auto-Discovery from Backend Metadata ────────────────────────────────

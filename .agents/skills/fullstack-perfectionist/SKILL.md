@@ -130,7 +130,7 @@ description: Главный инженер и архитектор транза�
 - **UI Страницы**:
   - Списки: использовать `useDocumentListPage` или `CatalogListPage` с `FilterSidebar`.
   - Формы: использовать хуки `useCatalogForm` + `useTabDirty` + `useFormDraft`.
-  - Все запросы выполнять через `apiFetch<T>()` / `portalFetch<T>()`.
+  - Все запросы выполнять через `apiFetch<T>()` или клиент своей HTTP-области из `createScopedClient(scope)`.
   - Стили: компоненты `@/components/ui` (shadcn), токены Tailwind (`cn(...)`), никаких кастомных hex-цветов.
 
 ---

@@ -22,7 +22,7 @@ export interface RecentItem {
   url: string
   /** Cached tab title at time of recording. */
   title: string
-  /** Entity type key for icon resolution (e.g. "counterparty", "crypto_invoice"). */
+  /** Entity type key for icon resolution (e.g. "counterparty", "goods_receipt"). */
   entityType?: string
   /** ISO 8601 timestamp of last visit. */
   visitedAt: string

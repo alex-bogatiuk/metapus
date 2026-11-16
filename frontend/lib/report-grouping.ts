@@ -20,7 +20,7 @@ import type { DisplayRow, ReportTotalDef, ReportTotalValue } from "@/types/repor
  * Transform flat items into grouped DisplayRow[] with subtotals and footer.
  *
  * @param items       - Flat array of report data rows
- * @param groupByKeys - Active grouping keys (e.g. ["merchantName"])
+ * @param groupByKeys - Active grouping keys (e.g. ["counterpartyName"])
  * @param totalDefs   - Which columns to aggregate and how
  * @returns DisplayRow[] ready for ReportTable
  */

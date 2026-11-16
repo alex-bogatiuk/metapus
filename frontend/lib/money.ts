@@ -11,9 +11,9 @@ export const minorUnitsSchema = z.string().max(20).regex(canonicalInteger).refin
   "Сумма выходит за допустимый диапазон",
 ).brand<"MinorUnits">()
 export type MinorUnits = z.infer<typeof minorUnitsSchema>
-/** Separate contract for non-negative raw blockchain amounts (NUMERIC, not BIGINT). */
-export const cryptoUnitsSchema = z.string().regex(/^(?:0|[1-9]\d*)$/).brand<"CryptoUnits">()
-export type CryptoUnits = z.infer<typeof cryptoUnitsSchema>
+/** Separate contract for non-negative raw asset amounts (NUMERIC, not BIGINT). */
+export const rawUnitsSchema = z.string().regex(/^(?:0|[1-9]\d*)$/).brand<"RawUnits">()
+export type RawUnits = z.infer<typeof rawUnitsSchema>
 export const ZERO_MINOR_UNITS = minorUnitsSchema.parse("0")
 
 export function minorUnits(value: string | bigint): MinorUnits {
@@ -49,7 +49,7 @@ export function minorToMajor(value: MinorUnits, scale: number): string {
   return rawMinorToMajor(value, scale)
 }
 
-/** Unbounded raw integer variant for crypto and sums of multiple valid int64 values. */
+/** Unbounded raw integer variant for raw asset amounts and sums of multiple valid int64 values. */
 export function rawMinorToMajor(value: string, scale: number): string {
   checkCurrencyScale(scale)
   if (!canonicalInteger.test(value)) throw new Error("Некорректная сумма")

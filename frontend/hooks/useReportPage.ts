@@ -256,8 +256,8 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
 
 
     const toggleField = useCallback((fieldKey: string) => {
-        // For root ref fields (e.g. "wallet_id"), toggling means toggling
-        // "wallet_id.name" — the default human-readable representation.
+        // For root ref fields (e.g. "counterparty_id"), toggling means toggling
+        // "counterparty_id.name" — the default human-readable representation.
         // This matches 1C behavior: selecting a ref field = show its Представление().
         const node = findFieldNode(availableFields ?? [], fieldKey)
         const effectiveFieldKey = (node?.type === "ref" && !fieldKey.includes("."))
@@ -473,7 +473,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
 
         try {
             // POST with QueryRequest body
-            // selectedFields stores dot-separated paths (e.g. "wallet_id.name")
+            // selectedFields stores dot-separated paths (e.g. "counterparty_id.name")
             // For ref .name fields, also include the parent UUID field for dblclick navigation.
             let selectPaths: string[] | undefined
             if (selectedFields.length > 0) {
@@ -814,7 +814,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
         }
 
         const groupByDataKeys = activeGroupBy.map((groupKey) => {
-            // First check if a dynamic column explicitly matches the path (e.g. merchant_id)
+            // First check if a dynamic column explicitly matches the path (e.g. counterparty_id)
             const dynamicCol = effectiveColumns.find((c) => c.key === groupKey)
             if (dynamicCol && dynamicCol.key) return dynamicCol.key
 

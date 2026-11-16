@@ -1,6 +1,7 @@
 "use client"
 
-import { AFFINITY_RULES, FormState } from "@/components/settings/security-profile/model"
+import type { FormState } from "@/components/settings/security-profile/model"
+import { getAffinityRules } from "@/lib/security-registry"
 import { Badge } from "@/components/ui/badge"
 
 export function RoleAffinityHint({ form }: { form: FormState }) {
@@ -8,7 +9,7 @@ export function RoleAffinityHint({ form }: { form: FormState }) {
   const hasFls = form.fieldPolicies.length > 0
   if (!hasDims && !hasFls) return null
 
-  const matched = AFFINITY_RULES.filter((r) => r.match(form))
+  const matched = getAffinityRules().filter((r) => r.match(form))
   if (matched.length === 0) return null
 
   return (

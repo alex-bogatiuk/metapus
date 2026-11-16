@@ -1,6 +1,6 @@
 import { registerScopedStore } from "@/lib/auth-scope"
 import { create } from "zustand"
-import type { ProfilePreset } from "@/components/settings/profile-presets"
+import type { ProfilePreset } from "@/lib/security-registry"
 
 interface ProfilePresetStore {
   preset: ProfilePreset | null

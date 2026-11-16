@@ -14,8 +14,8 @@ import { useMetadataStore } from "@/stores/useMetadataStore"
 
 /**
  * Normalize routePrefix to plural form for URL consistency.
- * Backend stores singular prefixes for documents (e.g. "crypto-invoice"),
- * but URLs use plural form (e.g. "/documents/crypto-invoices").
+ * Backend stores singular prefixes for documents (e.g. "goods-receipt"),
+ * but URLs use plural form (e.g. "/documents/goods-receipts").
  */
 function pluralizePrefix(prefix: string): string {
   return prefix.endsWith("s") ? prefix : prefix + "s"
@@ -29,9 +29,9 @@ function sectionForType(type: "catalog" | "document"): string {
  * Build canonical URL for an entity by its registry key.
  *
  * @example
- *   buildEntityUrl("crypto_invoice")           → "/documents/crypto-invoices"
- *   buildEntityUrl("crypto_invoice", id)       → "/documents/crypto-invoices/{id}"
- *   buildEntityUrl("crypto_invoice", undefined, "new") → "/documents/crypto-invoices/new"
+ *   buildEntityUrl("goods_receipt")            → "/documents/goods-receipts"
+ *   buildEntityUrl("goods_receipt", id)        → "/documents/goods-receipts/{id}"
+ *   buildEntityUrl("goods_receipt", undefined, "new") → "/documents/goods-receipts/new"
  *   buildEntityUrl("counterparty")            → "/catalogs/counterparties"
  *   buildEntityUrl("currency")                → "/catalogs/currencies"
  */
@@ -55,8 +55,8 @@ export function buildEntityUrl(
  * dedicated pages, while specific routes take priority automatically.
  *
  * @example
- *   buildEntityUrlByRoute("crypto-invoice", "document") → "/documents/crypto-invoices"
- *   buildEntityUrlByRoute("tokens", "catalog")         → "/catalogs/tokens"
+ *   buildEntityUrlByRoute("goods-receipt", "document") → "/documents/goods-receipts"
+ *   buildEntityUrlByRoute("contracts", "catalog")      → "/catalogs/contracts"
  *   buildEntityUrlByRoute("currencies", "catalog")     → "/catalogs/currencies"
  */
 export function buildEntityUrlByRoute(
@@ -85,20 +85,11 @@ const _routeSegmentToEntity: Record<string, string> = {
   organizations: "organization",
   contracts: "contract",
   currencies: "currency",
-  "blockchain-networks": "blockchain_network",
-  tokens: "token",
-  merchants: "merchant",
-  wallets: "wallet",
-  "crypto-invoices": "crypto_invoice",
-  "crypto-payments": "crypto_payment",
-  "crypto-withdrawals": "crypto_withdrawal",
-  "withdrawal-requests": "withdrawal_request",
-  "treasury-withdrawals": "treasury_withdrawal",
-  "crypto-sweeps": "crypto_sweep",
-  "crypto-resource-rentals": "crypto_resource_rental",
-  "crypto-network-operations": "crypto_network_operation",
-  "crypto-provider-accounts": "crypto_provider_account",
-  "crypto-provider-balance-operations": "crypto_provider_balance_operation",
+}
+
+/** Adds a configuration's route segment → entity key fallbacks. */
+export function registerRouteEntities(segments: Record<string, string>): void {
+  Object.assign(_routeSegmentToEntity, segments)
 }
 
 /**
@@ -106,7 +97,7 @@ const _routeSegmentToEntity: Record<string, string> = {
  *
  * @example
  *   parseEntityTypeFromUrl("/catalogs/counterparties/uuid") → "counterparty"
- *   parseEntityTypeFromUrl("/documents/crypto-invoices/uuid") → "crypto_invoice"
+ *   parseEntityTypeFromUrl("/catalogs/currencies/uuid")    → "currency"
  *   parseEntityTypeFromUrl("/settings")                      → undefined
  */
 export function parseEntityTypeFromUrl(url: string): string | undefined {

@@ -1,4 +1,4 @@
-import { registerScopedStore } from "@/lib/auth-scope"
+import { SCOPED_STORAGE_PREFIX, registerScopedStore } from "@/lib/auth-scope"
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import type { PortalMerchantItem } from "@/configuration/crypto/types/portal-api"
@@ -13,6 +13,9 @@ interface PortalActions {
   setMerchants: (items: PortalMerchantItem[]) => void
   reset: () => void
 }
+
+// Before the scoped prefix the store persisted under this key; drop what is left.
+try { if (typeof localStorage !== "undefined") localStorage.removeItem("metapus-portal") } catch { /* storage disabled */ }
 
 export const usePortalStore = create<PortalState & PortalActions>()(
   persist(
@@ -37,7 +40,7 @@ export const usePortalStore = create<PortalState & PortalActions>()(
         set({ activeMerchantId: null, merchants: [] }),
     }),
     {
-      name: "metapus-portal",
+      name: `${SCOPED_STORAGE_PREFIX}portal`,
       partialize: (state) => ({
         activeMerchantId: state.activeMerchantId,
       }),

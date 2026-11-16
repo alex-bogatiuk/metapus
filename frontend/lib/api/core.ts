@@ -12,7 +12,6 @@ import type { CursorListResponse, CursorListParams } from "@/types/common"
 import type { SetDeletionMarkRequest } from "@/types/catalog"
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1"
-export const PORTAL_BASE = API_BASE.replace(/\/api\/v1$/, "/portal/v1")
 export const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? ""
 export const UUID_PATH_PARAM_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -223,7 +222,7 @@ export function shouldRetainMutationKey<T>(err: T): boolean {
         (err.status === 409 && err.parsedBody?.code === "IDEMPOTENCY_IN_PROGRESS")
 }
 
-function withStableMutationKey(scope: "api" | "portal", path: string, options?: RequestInit): {
+function withStableMutationKey(scope: string, path: string, options?: RequestInit): {
     options: RequestInit
     pendingIdentity?: string
     key?: string
@@ -280,7 +279,7 @@ async function requestResponse(base: string, path: string, options: RequestInit,
     return res
 }
 
-async function scopedJSON<T>(scope: "api" | "portal", path: string, options?: RequestInit, stepUpRetried = false): Promise<T> {
+async function scopedJSON<T>(scope: string, base: string, path: string, options?: RequestInit, stepUpRetried = false): Promise<T> {
     const generation = getSessionGeneration()
     const contract = requireHTTPContract(scope, (options?.method ?? "GET").toUpperCase(), path)
     validateHTTPBody(contract, options?.body)
@@ -289,7 +288,7 @@ async function scopedJSON<T>(scope: "api" | "portal", path: string, options?: Re
         if (stable.pendingIdentity && pendingMutationKeys.get(stable.pendingIdentity) === stable.key) pendingMutationKeys.delete(stable.pendingIdentity)
     }
     try {
-        const res = await requestResponse(scope === "api" ? API_BASE : PORTAL_BASE, path, stable.options, stepUpRetried, generation)
+        const res = await requestResponse(base, path, stable.options, stepUpRetried, generation)
         const value: T = res.status === 204 || res.headers.get("content-length") === "0" ? undefined as T : await res.json()
         assertCurrentSession(generation)
         if (contract?.response) contract.response.parse(value)
@@ -302,11 +301,7 @@ async function scopedJSON<T>(scope: "api" | "portal", path: string, options?: Re
 }
 
 export function apiFetch<T>(path: string, options?: RequestInit, stepUpRetried = false): Promise<T> {
-    return scopedJSON<T>("api", path, options, stepUpRetried)
-}
-
-export function portalFetch<T>(path: string, options?: RequestInit, stepUpRetried = false): Promise<T> {
-    return scopedJSON<T>("portal", path, options, stepUpRetried)
+    return scopedJSON<T>("api", API_BASE, path, options, stepUpRetried)
 }
 
 export function apiFetchResponse(path: string, options?: RequestInit): Promise<Response> {
@@ -315,9 +310,9 @@ export function apiFetchResponse(path: string, options?: RequestInit): Promise<R
     return requestResponse(API_BASE, path, options ?? {}, false, getSessionGeneration())
 }
 
-async function scopedBlob(base: string, path: string, options?: RequestInit, stepUpRetried = false): Promise<{ blob: Blob; filename: string }> {
+async function scopedBlob(scope: string, base: string, path: string, options?: RequestInit, stepUpRetried = false): Promise<{ blob: Blob; filename: string }> {
     const generation = getSessionGeneration()
-    const contract = requireHTTPContract(base === API_BASE ? "api" : "portal", (options?.method ?? "GET").toUpperCase(), path)
+    const contract = requireHTTPContract(scope, (options?.method ?? "GET").toUpperCase(), path)
     validateHTTPBody(contract, options?.body)
     const res = await requestResponse(base, path, options ?? {}, stepUpRetried, generation)
     const disposition = res.headers.get("Content-Disposition") ?? ""
@@ -328,11 +323,26 @@ async function scopedBlob(base: string, path: string, options?: RequestInit, ste
 }
 
 export function apiFetchBlob(path: string, options?: RequestInit, stepUpRetried = false) {
-    return scopedBlob(API_BASE, path, options, stepUpRetried)
+    return scopedBlob("api", API_BASE, path, options, stepUpRetried)
 }
 
-export function portalFetchBlob(path: string, options?: RequestInit, stepUpRetried = false) {
-    return scopedBlob(PORTAL_BASE, path, options, stepUpRetried)
+/** A client for one backend HTTP scope other than the platform API. */
+export interface ScopedClient {
+    fetch<T>(path: string, options?: RequestInit, stepUpRetried?: boolean): Promise<T>
+    fetchBlob(path: string, options?: RequestInit, stepUpRetried?: boolean): Promise<{ blob: Blob; filename: string }>
+}
+
+/**
+ * Client for the backend HTTP scope served at /<scope>/v1 next to /api/v1, for
+ * example a configuration's own surface. It shares the session, contract
+ * checks and idempotency handling of apiFetch.
+ */
+export function createScopedClient(scope: string): ScopedClient {
+    const base = API_BASE.replace(/\/api\/v1$/, `/${scope}/v1`)
+    return {
+        fetch: <T>(path: string, options?: RequestInit, stepUpRetried = false) => scopedJSON<T>(scope, base, path, options, stepUpRetried),
+        fetchBlob: (path: string, options?: RequestInit, stepUpRetried = false) => scopedBlob(scope, base, path, options, stepUpRetried),
+    }
 }
 
 export function checkedJSON<T>(path: string, schema: z.ZodType<T>, options?: RequestInit): Promise<T> {

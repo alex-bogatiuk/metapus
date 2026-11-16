@@ -55,20 +55,19 @@ test("AutoForm validates monetary headers and lines before publishing or sending
   expect(parseEntityValues(meta, { id: "card", version: 1, amount: null })).toEqual({ id: "card", version: 1, amount: null })
 })
 
-test("CryptoResourceRental normalizes resource amounts to integer and accepts numeric values", () => {
-  const rentalMeta = entityMetadataSchema.parse({
-    key: "crypto_resource_rental",
-    name: "CryptoResourceRental",
+test("integer fields declared by the backend accept numeric values", () => {
+  const meta = entityMetadataSchema.parse({
+    key: "resource_usage",
+    name: "ResourceUsage",
     type: "document",
-    presentation: { singular: "Аренда", plural: "Аренды" },
+    presentation: { singular: "Расход", plural: "Расходы" },
     fields: [
-      { name: "requestedAmount", label: "Запрошено", type: "money" },
-      { name: "delegatedAmount", label: "Делегировано", type: "money" },
+      { name: "requestedAmount", label: "Запрошено", type: "integer" },
+      { name: "consumedAmount", label: "Потреблено", type: "integer" },
     ],
   })
-  expect(rentalMeta.fields.find(f => f.name === "requestedAmount")?.type).toBe("integer")
-  const valid = { id: "rr-1", version: 1, requestedAmount: 65000, delegatedAmount: 65000 }
-  expect(parseEntityValues(rentalMeta, valid)).toEqual(valid)
+  const valid = { id: "ru-1", version: 1, requestedAmount: 65000, consumedAmount: 65000 }
+  expect(parseEntityValues(meta, valid)).toEqual(valid)
 })
 
 

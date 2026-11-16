@@ -8,7 +8,7 @@ import type { FilterFieldMeta } from "@/components/shared/filter-config-dialog"
  * the backend drives the structure, so adding a new field to the Go struct
  * + label map is enough; the frontend adapts automatically.
  *
- * @param entityName - metadata registry name, e.g. "CryptoInvoice"
+ * @param entityName - metadata registry name, e.g. "GoodsReceipt"
  */
 export function useEntityFiltersMeta(entityName: string) {
     const initialEntityName = entityName.trim()

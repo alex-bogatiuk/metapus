@@ -10,7 +10,7 @@ const recordIdentity = z.object({ id: z.string().min(1), version: z.number().int
 const typedRef = z.object({ refType: z.string(), refId: z.string() })
 
 // Metadata describes display types, not concrete DTO codecs: integer also covers
-// string CryptoAmount, and number covers custom decimals. This validator checks
+// string RawAmount, and number covers custom decimals. This validator checks
 // dynamic entity values; generated DTO schemas remain the stricter wire contract.
 function fieldValueSchema(field: MetadataField): z.ZodType<JsonValue> {
   switch (field.type) {

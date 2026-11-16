@@ -133,7 +133,7 @@ export const settingsSections: SettingSectionDef[] = [
   {
     id: "exchangeRates",
     title: "Курсы валют",
-    description: "Источник оценки баланса Portal",
+    description: "Источник оценки балансов в USD",
     icon: Coins,
     category: "module",
     groups: [

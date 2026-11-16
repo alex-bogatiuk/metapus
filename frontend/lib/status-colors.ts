@@ -16,44 +16,27 @@ const STATUS_CATEGORY_CLASSES = {
     neutral: "bg-secondary text-secondary-foreground",
 } as const
 
-type StatusCategory = keyof typeof STATUS_CATEGORY_CLASSES
+export type StatusCategory = keyof typeof STATUS_CATEGORY_CLASSES
 
 /**
  * Maps status display names to their visual category.
  * New statuses should be added here — not inline in column renderers.
  */
 const STATUS_CATEGORY_MAP: Record<string, StatusCategory> = {
-    // Crypto Invoice
     "Создан": "neutral",
-    "Ожидает оплаты": "warning",
-    "Частично оплачен": "info",
-    "Оплачен": "success",
-    "Переплата": "warning",
     "Подтверждён": "success",
-    "Истёк": "danger",
     "Отменён": "danger",
-
-    // Crypto Payment
-    "Обнаружен": "warning",
-    "Подтверждается": "info",
-    "Подписан": "info",
-    "Отправлен": "warning",
     "Ошибка": "danger",
-    "Reorged": "danger",
-
-    // Wallet
     "Активен": "success",
-    "Свободен": "success",
-    "Занят": "warning",
-    "Ожидает свипа": "info",
-
-    // Merchant KYB
     "Одобрен": "success",
     "На проверке": "warning",
     "Отклонён": "danger",
-
-    // General
     "Частично ошибка": "warning",
+}
+
+/** Adds a configuration's status display names. */
+export function registerStatusColors(statuses: Record<string, StatusCategory>): void {
+    Object.assign(STATUS_CATEGORY_MAP, statuses)
 }
 
 /**

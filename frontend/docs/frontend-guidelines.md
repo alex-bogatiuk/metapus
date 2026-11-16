@@ -72,7 +72,7 @@ frontend/
 ## 3. State Management
 
 ### 3.1. Server State
-Списки и формы используют проектные hooks (`useCachedLoad`, `useLatestRequest`, `useCatalogForm`, `useEntityListPage`) и централизованные `apiFetch`/`portalFetch`. SWR доступен в зависимостях; React Query и `nuqs` не установлены. Request/response проверяются generated route contracts и Zod schemas.
+Списки и формы используют проектные hooks (`useCachedLoad`, `useLatestRequest`, `useCatalogForm`, `useEntityListPage`) и централизованные `apiFetch`/`createScopedClient`. SWR доступен в зависимостях; React Query и `nuqs` не установлены. Request/response проверяются generated route contracts и Zod schemas.
 
 ### 3.2. URL State (Single Source of Truth)
 Состояние списка (фильтры, сортировка, страница, поиск) **должно** храниться в URL search params.

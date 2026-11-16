@@ -59,7 +59,7 @@ interface EntityListApi<T> {
 
 interface UseEntityListPageOptions<T extends { id: string }> {
   rowsState: TabStateKey<T[]>
-  /** Entity key for metadata & prefs (e.g. "CryptoInvoice", "token"). */
+  /** Entity key for metadata & prefs (e.g. "GoodsReceipt", "currency"). */
   entityKey: string
   /** API object with `list` method. */
   api: EntityListApi<T>
@@ -149,7 +149,7 @@ interface UseEntityListPageReturn<T extends { id: string }> {
  * Usage:
  * ```tsx
  * // Documents
- * const list = useEntityListPage({ entityKey: "CryptoInvoice", api: api.cryptoInvoices, periodField: "date" })
+ * const list = useEntityListPage({ entityKey: "GoodsReceipt", api: api.goodsReceipts, periodField: "date" })
  *
  * // Catalogs (no period field)
  * const list = useEntityListPage({ entityKey: "counterparty", api: api.counterparties })

@@ -10,25 +10,7 @@ import { cn } from "@/lib/utils"
 
 // ── Types ────────────────────────────────────────────────────────────────
 
-export interface NavSectionItem {
-  /** Stable entity key matching backend metadata.Key, e.g. "crypto_invoice", "counterparty" */
-  entityKey: string
-  fallback: string
-  description?: string
-  /** Explicit URL overrides entityKey resolution */
-  url?: string
-}
-
-export interface NavSectionGroup {
-  label: string
-  items: NavSectionItem[]
-}
-
-export interface NavSection {
-  title: string
-  icon: LucideIcon
-  groups: NavSectionGroup[]
-}
+export type { NavSection, NavSectionGroup, NavSectionItem } from "@/lib/navigation"
 
 /** Resolved version with titles/urls computed from metadata */
 export interface ResolvedSectionItem {

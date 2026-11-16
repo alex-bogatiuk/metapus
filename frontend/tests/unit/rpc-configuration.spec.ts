@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test"
-import { moveRPCConnection, rpcConfigurationChanges, rpcCoverage, rpcReasonLabel, type RPCConnection } from "../../lib/integrations/rpc-configuration"
+import { moveRPCConnection, rpcConfigurationChanges, rpcCoverage, rpcReasonLabel, type RPCConnection } from "../../configuration/crypto/lib/integrations/rpc-configuration"
 
 const connection = (id: string, role: string, priority: number, group = id): RPCConnection => ({ id, version: 1, name: id, role, providerId: id, trustGroup: group, priority, minRequestIntervalMs: 0, isActive: true })
 

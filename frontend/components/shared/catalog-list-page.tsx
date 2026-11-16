@@ -91,7 +91,7 @@ export interface CatalogListPageConfig<T extends { id: string }> {
    * unless a custom override is provided.
    */
   documentMode?: {
-    /** API base path for batch operations (e.g. "/document/crypto-invoice"). */
+    /** API base path for batch operations (e.g. "/document/goods-receipt"). */
     basePath: string
     /** Metadata-driven generic document capabilities. Missing means legacy full document surface. */
     capabilities?: DocumentCapabilities

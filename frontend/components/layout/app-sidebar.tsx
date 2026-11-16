@@ -3,21 +3,13 @@
 
 import type { LucideIcon } from "lucide-react"
 import {
-  Activity,
-  BarChart3,
   Bell,
-  BookOpen,
   ChevronRight,
-  FileText,
-  HelpCircle,
   LayoutDashboard,
   LogOut,
   MoreHorizontal,
-  Network,
   Puzzle,
-  ScrollText,
   Settings,
-  ShieldCheck,
   User,
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
@@ -28,9 +20,9 @@ import { getEntityIcon } from "@/lib/entity-icon"
 import {
   MobileSectionDrill,
   SectionPanel,
-  type NavSection,
   type ResolvedNavSection,
 } from "@/components/layout/section-panel"
+import { getNavigation } from "@/lib/navigation"
 import { UserPreferencesDialog } from "@/components/shared/user-preferences-dialog"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -80,128 +72,18 @@ interface NavItem {
   icon: LucideIcon
 }
 
-/**
- * Grouped sections — clicking a section button opens a Sheet panel
- * with items organized by group (Документы, Справочники, Отчёты).
- */
-const navSections: NavSection[] = [
-  {
-    title: "Документы",
-    icon: FileText,
-    groups: [
-      {
-        label: "Приём платежей",
-        items: [
-          { entityKey: "crypto_invoice", fallback: "Крипто-инвойсы" },
-          { entityKey: "crypto_payment", fallback: "Крипто-платежи" },
-        ],
-      },
-      {
-        label: "Поступления на кошельки",
-        items: [
-          { entityKey: "crypto_custody_receipt", fallback: "Поступления на кошельки" },
-          { entityKey: "unidentified_receipts", fallback: "Невыясненные поступления", url: "/crypto/unidentified-receipts" },
-          { entityKey: "crypto_merchant_credit", fallback: "Ручные зачисления мерчантам" },
-          { entityKey: "crypto_platform_funding", fallback: "Пополнения платформы" },
-          { entityKey: "wallet_fundings", fallback: "Пополнения кошельков", url: "/crypto/wallet-fundings" },
-        ],
-      },
-      {
-        label: "Выплаты и казна",
-        items: [
-          { entityKey: "withdrawal_request", fallback: "Заявки на вывод" },
-          { entityKey: "crypto_withdrawal", fallback: "Крипто-выводы" },
-          { entityKey: "treasury_withdrawal", fallback: "Казначейские выводы" },
-          { entityKey: "crypto_sweep", fallback: "Крипто-свипы" },
-        ],
-      },
-      {
-        label: "Технические операции",
-        items: [
-          { entityKey: "crypto_resource_rental", fallback: "Аренды TRON-ресурсов" },
-          { entityKey: "crypto_network_operation", fallback: "Сетевые криптооперации" },
-          { entityKey: "crypto_provider_balance_operation", fallback: "Баланс провайдеров" },
-        ],
-      },
-      {
-        label: "Финансовый контроль",
-        items: [
-          { entityKey: "crypto_adjustment", fallback: "Криптокорректировки", url: "/documents/crypto-adjustments" },
-        ],
-      },
-    ],
-  },
-  {
-    title: "Справочники",
-    icon: BookOpen,
-    groups: [
-      {
-        label: "Бизнес и контрагенты",
-        items: [
-          { entityKey: "merchant", fallback: "Мерчанты" },
-          { entityKey: "counterparty", fallback: "Контрагенты" },
-          { entityKey: "contract", fallback: "Договоры" },
-          { entityKey: "organization", fallback: "Организации" },
-        ],
-      },
-      {
-        label: "Блокчейн и сеть",
-        items: [
-          { entityKey: "blockchain_network", fallback: "Блокчейн-сети" },
-          { entityKey: "token", fallback: "Токены" },
-          { entityKey: "wallet", fallback: "Кошельки" },
-          { entityKey: "crypto_provider_account", fallback: "Крипто-провайдеры" },
-        ],
-      },
-      { label: "Интеграции", items: [{ entityKey: "integration_account", fallback: "Аккаунты интеграций" }, { entityKey: "integration_pool", fallback: "Пулы аккаунтов" }, { entityKey: "crypto_rpc_endpoint", fallback: "Подключения RPC" }] },
-      {
-        label: "Финансы и валюты",
-        items: [
-          { entityKey: "currency", fallback: "Валюты" },
-          { entityKey: "exchange-rate", fallback: "Курсы валют", url: "/finance/exchange-rates" },
-          { entityKey: "rate_source", fallback: "Источники курсов" },
-        ],
-      },
-    ],
-  },
-  {
-    title: "Отчёты",
-    icon: BarChart3,
-    groups: [
-      {
-        label: "Реестры и аналитика",
-        items: [
-          { entityKey: "report-document-journal", fallback: "Журнал документов", url: "/reports/document-journal" },
-        ],
-      },
-    ],
-  },
-]
-
 /** Flat top-level items that create tabs directly. */
 const navFlat: NavItem[] = [
   { title: "Главное", url: "/", icon: LayoutDashboard },
 ]
-
-/** Bottom-section flat items */
-const navBottom: NavItem[] = [
-  { title: "Настройки", url: "/settings", icon: Settings },
-  { title: "Управление", url: "/admin", icon: ShieldCheck },
-  { title: "Журнал событий", url: "/admin/event-log", icon: ScrollText },
-  { title: "Задачи воркера", url: "/admin/worker-jobs", icon: Activity },
-  { title: "Криптосети", url: "/admin/crypto-networks", icon: Network },
-  { title: "Помощь", url: "/help", icon: HelpCircle },
-]
-
-
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
   const router = useRouter()
   const openTab = useTabsStore((s) => s.openTab)
   const permissions = usePermissions()
-  const canReadRates = permissions.has("register:exchange_rate:read")
-  const canReadAdjustments = permissions.has("crypto_reconciliation:read")
+  const navigation = getNavigation()
+  const navBottom = navigation.systemLinks.filter((item) => !item.permission || permissions.has(item.permission))
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
   const getEntity = useMetadataStore((s) => s.getEntity)
@@ -215,16 +97,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   // ── Resolve section groups from metadata ───────────────────────────
   const resolvedSections = useMemo(() => {
-    return navSections
+    return navigation.sections
       .filter((s) => s.groups.some((g) => g.items.length > 0))
       .map((section): ResolvedNavSection => ({
         title: section.title,
         icon: section.icon,
         groups: section.groups.map((group) => {
-          const resolvedItems = group.items.filter(item =>
-            (item.entityKey !== "exchange-rate" || canReadRates) &&
-            (item.entityKey !== "crypto_adjustment" || canReadAdjustments)
-          ).flatMap((item) => {
+          const resolvedItems = group.items.filter(item => !item.permission || permissions.has(item.permission)).flatMap((item) => {
             if (item.url) {
               return [{ title: item.fallback, url: item.url, description: item.description, icon: getEntityIcon(item.entityKey) }]
             }
@@ -239,16 +118,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           return { label: group.label, items: resolvedItems }
         }),
       }))
-  }, [entities, canReadRates, canReadAdjustments])
+  }, [navigation, entities, permissions])
 
   // ── Dynamic extension items from metadata ─────────────────────────────
-  // Entities not covered by hardcoded navSections appear here automatically.
+  // Entities not covered by the registered navigation appear here automatically.
   const extensionItems = useMemo(() => {
     if (!metaLoaded) return []
 
-    // Collect all entity keys already in navSections
+    // Collect all entity keys already in the registered navigation
     const coveredKeys = new Set<string>()
-    for (const section of navSections) {
+    for (const section of navigation.sections) {
       for (const group of section.groups) {
         for (const item of group.items) {
           coveredKeys.add(item.entityKey)
@@ -268,7 +147,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         const url = buildEntityUrlByRoute(prefix, e.type)
         return [{ title, url }]
       })
-  }, [metaLoaded])
+  }, [navigation, metaLoaded])
 
   const isActive = (url: string) =>
     url === "/" ? pathname === "/" : pathname.startsWith(url)

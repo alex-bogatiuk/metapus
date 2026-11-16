@@ -1,70 +1,9 @@
 "use client"
 
-import { ShieldCheck, Eye, Briefcase, Calculator, Store } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { getProfilePresets, type ProfilePreset } from "@/lib/security-registry"
 
-// ── Preset definitions ───────────────────────────────────────────────
-
-export interface ProfilePreset {
-  code: string
-  name: string
-  description: string
-  icon: React.ElementType
-  dimensions: Record<string, string[]>
-  entityDimensions?: Record<string, Record<string, string[]>>
-  fieldPolicies: {
-    entityName: string
-    action: "read" | "write"
-    allowedFields: string[]
-    tableParts?: Record<string, string[]>
-  }[]
-}
-
-export const PROFILE_PRESETS: ProfilePreset[] = [
-  {
-    code: "viewer",
-    name: "Только просмотр",
-    description: "Чтение без финансовых полей (суммы, комиссии)",
-    icon: Eye,
-    dimensions: {},
-    fieldPolicies: [
-      {
-        entityName: "CryptoInvoice",
-        action: "read",
-        allowedFields: ["*", "-expected_amount", "-received_amount"],
-      },
-      {
-        entityName: "CryptoPayment",
-        action: "read",
-        allowedFields: ["*", "-amount", "-fee_amount"],
-      },
-    ],
-  },
-  {
-    code: "manager_limited",
-    name: "Менеджер",
-    description: "CRUD без проведения, ограниченные организации",
-    icon: Briefcase,
-    dimensions: { organization: [] },
-    fieldPolicies: [],
-  },
-  {
-    code: "merchant_operator",
-    name: "Оператор мерчанта",
-    description: "Полный доступ к операциям, ограниченные мерчанты",
-    icon: Store,
-    dimensions: { merchant: [] },
-    fieldPolicies: [],
-  },
-  {
-    code: "accountant",
-    name: "Бухгалтер",
-    description: "Полный доступ к документам и отчётам",
-    icon: Calculator,
-    dimensions: {},
-    fieldPolicies: [],
-  },
-]
+export type { ProfilePreset } from "@/lib/security-registry"
 
 // ── Component ────────────────────────────────────────────────────────
 
@@ -84,7 +23,7 @@ export function ProfilePresetPicker({ onSelect, onSkip }: ProfilePresetPickerPro
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {PROFILE_PRESETS.map((preset) => {
+        {getProfilePresets().map((preset) => {
           const Icon = preset.icon
           return (
             <button

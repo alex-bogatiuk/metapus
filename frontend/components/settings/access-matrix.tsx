@@ -27,6 +27,7 @@ import { api } from "@/lib/api"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import { RoleEditorSheet } from "@/components/settings/role-editor-sheet"
 import type { RoleResponse, PermissionResponse } from "@/types/security"
+import { getResourceLabel } from "@/lib/security-registry"
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -108,8 +109,8 @@ const CATEGORY_META: Record<string, { label: string; icon: React.ElementType; de
 // ── Helpers ──────────────────────────────────────────────────────────
 
 /** Determine which category a permission resource belongs to using metadata store.
- *  resource is the raw value from the permission record (e.g. "token", "crypto_invoice",
- *  "register_crypto_balance", "report_document_journal", "admin").
+ *  resource is the raw value from the permission record (e.g. "counterparty",
+ *  "register_exchange_rate", "report_document_journal", "admin").
  */
 function categorizeResource(
   resource: string,
@@ -123,14 +124,6 @@ function categorizeResource(
   if (resource.startsWith("report")) return "report"
   if (resource === "admin") return "admin"
   return "admin"
-}
-
-// Fallback labels for non-entity resources that are not in the metadata store
-const RESOURCE_FALLBACK_LABELS: Record<string, string> = {
-  admin: "Система",
-  register_crypto_balance: "Регистр крипто-остатков",
-  report_document_journal: "Журнал документов",
-  report_documents: "Журнал документов",
 }
 
 // ── Component ────────────────────────────────────────────────────────
@@ -187,11 +180,11 @@ export function AccessMatrix() {
   const categories: CategoryGroup[] = useMemo(() => {
     if (!data) return []
 
-    // Group permissions by resource (e.g. "token", "crypto_invoice", "admin")
+    // Group permissions by resource (e.g. "currency", "counterparty", "admin")
     const entityMap = new Map<string, { resource: string; actions: Map<string, string> }>()
 
     for (const perm of data.permissions) {
-      const resource = perm.resource  // e.g. "token", "crypto_invoice", "admin"
+      const resource = perm.resource  // e.g. "currency", "counterparty", "admin"
       const action = perm.action      // e.g. "read", "create", "users"
 
       if (!entityMap.has(resource)) {
@@ -218,7 +211,7 @@ export function AccessMatrix() {
         if (metaLabel !== resource) label = metaLabel
       }
       if (!label) {
-        label = RESOURCE_FALLBACK_LABELS[resource] ?? resource
+        label = getResourceLabel(resource) ?? resource
       }
 
       // Sort actions in a logical order

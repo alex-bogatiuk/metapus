@@ -12,7 +12,7 @@ import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 // ── Types ───────────────────────────────────────────────────────────────
 
 export interface UseVisibleColumnsOptions<T> {
-    /** Entity key for preferences persistence (e.g. "CryptoInvoice"). */
+    /** Entity key for preferences persistence (e.g. "GoodsReceipt"). */
     entityKey: string
     /** Full registry of all possible columns. */
     allColumns: Column<T>[]

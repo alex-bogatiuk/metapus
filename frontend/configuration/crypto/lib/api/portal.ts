@@ -8,7 +8,10 @@ import type {
     AddMerchantUserRequest,
     UpdateMerchantUserRoleRequest,
 } from "@/configuration/crypto/types/merchant-api"
-import { apiFetch, portalFetch, portalFetchBlob } from "@/lib/api/core"
+import { apiFetch, createScopedClient } from "@/lib/api/core"
+
+// The merchant portal is the configuration's own backend surface, /portal/v1.
+const { fetch: portalFetch, fetchBlob: portalFetchBlob } = createScopedClient("portal")
 
 export const portalApi = {
     merchants: () =>

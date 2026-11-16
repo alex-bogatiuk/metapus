@@ -4,7 +4,7 @@
  * Single source of truth for routing decisions that happen in:
  *  - login-form.tsx  (post-login redirect)
  *  - (main)/layout   (ERP render gate)
- *  - (portal)/layout  (Portal render gate)
+ *  - a configuration's own workspace layout
  *
  * Rules are intentionally simple — they derive from JWT claims only,
  * so they work synchronously without any async calls.
@@ -17,21 +17,26 @@ export function hasErpAccess(user: AuthUserResponse | null): boolean {
   return user.isAdmin || (user.roles?.length ?? 0) > 0
 }
 
-/** Merchants the user may open in the Portal, from the session access scopes. */
-export function merchantIds(user: AuthUserResponse | null): string[] {
-  return user?.accessScopes?.merchant ?? []
+/** A separate interface a configuration serves to users without ERP access. */
+export interface Workspace {
+  /** Root URL of the workspace, e.g. "/cabinet" */
+  path: string
+  hasAccess(user: AuthUserResponse): boolean
 }
 
-/** User has access to the Merchant Portal (`/portal`). */
-export function hasPortalAccess(user: AuthUserResponse | null): boolean {
-  if (!user) return false
-  return merchantIds(user).length > 0
+const workspaces: Workspace[] = []
+
+/** Adds a configuration's workspace. Call at start-up. */
+export function registerWorkspace(workspace: Workspace): void {
+  workspaces.push(workspace)
 }
 
 /**
- * User should be routed to the Portal by default.
- * True when: no ERP access AND has portal access.
+ * Where the user works: the ERP for users with ERP access, otherwise the
+ * first registered workspace they may open. Users with neither see the ERP,
+ * whose API then denies them.
  */
-export function isPortalOnly(user: AuthUserResponse | null): boolean {
-  return !hasErpAccess(user) && hasPortalAccess(user)
+export function landingPath(user: AuthUserResponse | null): string {
+  if (!user || hasErpAccess(user)) return "/"
+  return workspaces.find((workspace) => workspace.hasAccess(user))?.path ?? "/"
 }

@@ -7,7 +7,7 @@ import { preferencesSchema } from "@/lib/schemas/preferences"
 import { listViewSchema, createListViewSchema, updateListViewSchema } from "@/lib/schemas/list-views"
 import { reportVariantSchema, variantConfigSchema } from "@/lib/schemas/report-variants"
 import { systemSettingsSchema, type SettingsSection } from "@/lib/schemas/settings"
-import { type CryptoUnits, cryptoUnitsSchema } from "@/lib/money"
+import { type RawUnits, rawUnitsSchema } from "@/lib/money"
 import type { ListView } from "@/types/list-view"
 import type { FilterFieldMeta } from "@/types/filter"
 import type { DocumentJournalItem, DocumentJournalResponse } from "@/types/reports"
@@ -50,7 +50,7 @@ interface DocumentJournalDatasetRow {
     date: string
     posted: boolean
     counterparty_name?: string | null
-    total_amount?: CryptoUnits | null
+    total_amount?: RawUnits | null
     currency?: string | null
     currency_id?: string | null
     currency_decimal_places?: number | null
@@ -60,7 +60,7 @@ interface DocumentJournalDatasetRow {
 const documentJournalResultSchema = z.object({
     items: z.array(z.object({
         id: z.string(), document_type: z.string(), number: z.string(), date: z.string(), posted: z.boolean(),
-        counterparty_name: z.string().nullable().optional(), total_amount: cryptoUnitsSchema.nullable(),
+        counterparty_name: z.string().nullable().optional(), total_amount: rawUnitsSchema.nullable(),
         currency: z.string().min(1), currency_id: z.string().min(1), currency_decimal_places: z.int().min(0).max(18),
         description: z.string().nullable().optional(),
     })),
@@ -352,7 +352,7 @@ export const reportsApi = {
             date: i.date,
             posted: i.posted,
             counterpartyName: i.counterparty_name ?? undefined,
-            totalAmount: i.total_amount == null ? null : cryptoUnitsSchema.parse(i.total_amount),
+            totalAmount: i.total_amount == null ? null : rawUnitsSchema.parse(i.total_amount),
             currency: i.currency ?? "",
             currencyId: i.currency_id ?? null,
             decimalPlaces: i.currency_decimal_places ?? null,

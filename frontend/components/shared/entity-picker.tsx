@@ -40,7 +40,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
  */
 
 interface EntityPickerProps {
-  /** Currently selected entity type key (e.g. "crypto_invoice") */
+  /** Currently selected entity type key (e.g. "goods_receipt") */
   entityType: string
   /** Currently selected entity ID */
   entityId: string

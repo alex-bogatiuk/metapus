@@ -4,7 +4,6 @@ import { useMetadataStore } from "@/stores/useMetadataStore"
 const sectionLabels: Record<string, string> = {
   catalogs: "Справочники",
   documents: "Документы",
-  crypto: "Крипто",
   finance: "Деньги",
   "exchange-rates": "Курсы валют",
   company: "Компания",
@@ -24,36 +23,6 @@ const sectionLabels: Record<string, string> = {
 
 /** Static fallback for entity route segments when metadata has not loaded yet */
 const staticEntityPluralLabels: Record<string, string> = {
-  "crypto-sweeps": "Крипто-свипы",
-  "crypto-sweep": "Крипто-свипы",
-  "crypto-invoices": "Крипто-инвойсы",
-  "crypto-invoice": "Крипто-инвойсы",
-  "crypto-payments": "Крипто-платежи",
-  "crypto-payment": "Крипто-платежи",
-  "crypto-custody-receipt": "Поступления на кошельки",
-  "crypto-merchant-credit": "Ручные зачисления мерчантам",
-  "crypto-platform-funding": "Пополнения платформы",
-  "wallet-fundings": "Пополнения кошельков",
-  "crypto-withdrawals": "Крипто-выводы",
-  "crypto-withdrawal": "Крипто-выводы",
-  "withdrawal-requests": "Заявки на вывод",
-  "withdrawal-request": "Заявки на вывод",
-  "treasury-withdrawals": "Казначейские выводы",
-  "treasury-withdrawal": "Казначейские выводы",
-  "crypto-resource-rentals": "Аренды TRON-ресурсов",
-  "crypto-resource-rental": "Аренды TRON-ресурсов",
-  "crypto-network-operations": "Сетевые криптооперации",
-  "crypto-network-operation": "Сетевые криптооперации",
-  "crypto-provider-balance-operations": "Баланс провайдеров",
-  "crypto-provider-balance-operation": "Баланс провайдеров",
-  "crypto-provider-accounts": "Аккаунты провайдеров",
-  "crypto-provider-account": "Аккаунты провайдеров",
-  merchants: "Мерчанты",
-  merchant: "Мерчанты",
-  wallets: "Кошельки",
-  wallet: "Кошельки",
-  tokens: "Токены",
-  token: "Токены",
   counterparties: "Контрагенты",
   counterparty: "Контрагенты",
   contracts: "Договоры",
@@ -62,10 +31,17 @@ const staticEntityPluralLabels: Record<string, string> = {
   currency: "Валюты",
   organizations: "Организации",
   organization: "Организации",
-  "blockchain-networks": "Блокчейн-сети",
-  "blockchain-network": "Блокчейн-сети",
   "rate-sources": "Источники курсов",
   "rate-source": "Источники курсов",
+}
+
+/**
+ * Adds a configuration's tab labels: `sections` for route segments that are
+ * not entities, `entities` for entity route segments before metadata loads.
+ */
+export function registerRouteLabels(labels: { sections?: Record<string, string>; entities?: Record<string, string> }): void {
+  Object.assign(sectionLabels, labels.sections)
+  Object.assign(staticEntityPluralLabels, labels.entities)
 }
 
 /**
@@ -77,7 +53,7 @@ const staticEntityPluralLabels: Record<string, string> = {
  * If metadata hasn't loaded yet, gracefully falls back to static labels.
  */
 export function resolveSegmentLabel(segment: string): string | undefined {
-  // 1. Try entity metadata (e.g. "crypto-invoices" → "Crypto Invoices")
+  // 1. Try entity metadata (e.g. "currencies" → "Валюты")
   const metaState = useMetadataStore.getState()
   const entity =
     metaState.getEntityByRoute(segment) ??

@@ -44,7 +44,6 @@ const ACTION_LABELS: Record<string, string> = {
 
 const DIM_LABELS: Record<string, string> = {
   organization: "организации",
-  merchant: "мерчанты",
   counterparty: "контрагенты",
 }
 
@@ -199,7 +198,7 @@ function formatDimensionsSummary(jsonStr: string): string {
   try {
     const parsed = JSON.parse(jsonStr) as Record<string, string[]>
     const parts = Object.entries(parsed).map(([k, v]) => {
-      const label = DIM_LABELS[k] ?? k
+      const label = DIM_LABELS[k] ?? useMetadataStore.getState().getEntity(k)?.presentation.plural.toLowerCase() ?? k
       const count = Array.isArray(v) ? v.length : 0
       return `${label}: ${count}`
     })

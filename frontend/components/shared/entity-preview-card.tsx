@@ -28,7 +28,7 @@ import type { PreviewResponse } from "@/types/search"
 
 interface EntityPreviewCardProps {
     entityType: string   // "catalog" | "document"
-    entityKey: string    // "counterparty" | "crypto_invoice"
+    entityKey: string    // "counterparty" | "goods_receipt"
     entityId: string
     onNavigate: (url: string, title: string) => void
 }

@@ -1227,7 +1227,7 @@ function FieldTreeItem({
     const [expanded, setExpanded] = useState(false)
     const hasChildren = node.children && node.children.length > 0
     // For root ref nodes, "selected" means the .name path is in selectedFields
-    // (e.g. node.key="wallet_id" → check for "wallet_id.name")
+    // (e.g. node.key="counterparty_id" → check for "counterparty_id.name")
     const effectiveKey = (node.type === "ref" && !node.key.includes("."))
         ? node.key + ".name"
         : node.key

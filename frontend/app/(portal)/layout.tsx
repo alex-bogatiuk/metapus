@@ -7,7 +7,7 @@ import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
 import { ThemeProvider } from "@/components/theme-provider"
 import { PortalShell } from "@/configuration/crypto/components/portal/portal-shell"
 import { api } from "@/lib/api"
-import { hasPortalAccess, merchantIds } from "@/lib/access"
+import { hasPortalAccess, merchantIds } from "@/configuration/crypto/lib/access"
 import { useAuthSessionBootstrap } from "@/hooks/useAuthSessionBootstrap"
 import { SessionRecovery } from "@/components/auth/session-recovery"
 

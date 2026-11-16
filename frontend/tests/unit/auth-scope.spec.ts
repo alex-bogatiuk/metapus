@@ -4,7 +4,7 @@ import { useFormDraftStore, createFormDraftKey } from "../../stores/useFormDraft
 import { useTabStateStore, createTabStateKey } from "../../stores/useTabStateStore"
 import { useNotificationStore } from "../../stores/useNotificationStore"
 import { useMetadataStore } from "../../stores/useMetadataStore"
-import { api, apiFetch, portalFetch, apiFetchBlob, bootstrapAccessToken, ApiError } from "../../lib/api"
+import { api, apiFetch, createScopedClient, apiFetchBlob, bootstrapAccessToken, ApiError } from "../../lib/api"
 import { getSessionGeneration, scopeKey } from "../../lib/auth-scope"
 import { erpUser, ids } from "../helpers"
 import type { TokenResponse } from "../../types/auth"
@@ -52,8 +52,8 @@ test("identity, tenant, session and rights transitions clear drafts and caches; 
   expect(() => auth.setTokens(tokens(userB))).toThrow("does not match")
 })
 
-test("late JSON, portal and blob responses cannot complete in the next identity", async () => {
-  for (const fetcher of [() => apiFetch("/auth/me"), () => portalFetch("/merchants"), () => apiFetchBlob(`/document/crypto-invoice/${ids.token}/print`)]) {
+test("late JSON, scoped-client and blob responses cannot complete in the next identity", async () => {
+  for (const fetcher of [() => apiFetch("/auth/me"), () => createScopedClient("portal").fetch("/merchants"), () => apiFetchBlob(`/document/crypto-invoice/${ids.token}/print`)]) {
     useAuthStore.getState().setAuth(tokens(), erpUser)
     const delayed = deferred<Response>()
     let requestSignal: AbortSignal | null | undefined

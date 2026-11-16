@@ -1,4 +1,4 @@
-import type { CryptoUnits } from "@/lib/money"
+import type { RawUnits } from "@/lib/money"
 
 /**
  * Report types — mirrors backend report datasets and journal DTOs.
@@ -22,7 +22,7 @@ export interface DocumentJournalItem {
   posted: boolean
   counterpartyId?: string | null
   counterpartyName?: string
-  totalAmount: CryptoUnits | null
+  totalAmount: RawUnits | null
   currency: string
   currencyId: string | null
   decimalPlaces: number | null
@@ -36,5 +36,5 @@ export interface DocumentTypeSummary {
   documentType: string
   count: number
   postedCount: number
-  totalAmount: CryptoUnits | null
+  totalAmount: RawUnits | null
 }

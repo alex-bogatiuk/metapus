@@ -21,6 +21,7 @@ AppShell
         ├── useRecentStore           (недавние документы)
         ├── useMetadataStore         (метаданные сущностей для группировки результатов)
         ├── command-intent.ts        (взаимоисключающие режимы и проверка внутренних URL)
+        ├── navigation.ts            (реестр навигации: меню, системные ссылки, пункты палитры)
         ├── command-nav-items.ts     (статический + динамический индекс навигации)
         ├── calc-engine.ts           (встроенный калькулятор)
         ├── api.search.query()       (клиент глобального поиска по данным)
@@ -54,7 +55,7 @@ Fuzzy-поиск по навигационному индексу. Резуль�
 | **Система** | `system` | Настройки, Администрирование |
 
 Индекс строится из двух источников:
-1. **Статический** — захардкоженные пункты с русскими ключевыми словами (`command-nav-items.ts`)
+1. **Статический** — пункты с русскими ключевыми словами из реестра навигации (`lib/navigation.ts`): платформенные и добавленные конфигурацией через `registerNavigation({ commands })`; пункт с `permission` виден только при этом праве
 2. **Динамический** — сущности из `useMetadataStore`, не покрытые статическим списком
 
 ### URL-state (внутренняя ссылка)
@@ -163,6 +164,7 @@ Query-параметры и hash сохраняются в адресе пере
 ```
 frontend/stores/useCommandPaletteStore.ts  — Zustand store: isOpen, actionsBySource, version
 frontend/lib/command-intent.ts             — Intent resolver, same-origin URL validation, tab id normalization
+frontend/lib/navigation.ts                 — Реестр навигации (registerNavigation)
 frontend/lib/command-nav-items.ts          — Статический + динамический навигационный индекс
 frontend/lib/calc-engine.ts               — Recursive descent parser для калькулятора
 frontend/components/layout/command-palette.tsx — UI компонент (cmdk + Dialog + preview panel)

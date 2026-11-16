@@ -27,7 +27,7 @@ export interface ReportMeta {
 
 /** Node in the field selection tree for the Report Builder UI. */
 export interface FieldTreeNode {
-  /** Full dot-separated path, e.g. "wallet_id.merchant_id.name" */
+  /** Full dot-separated path, e.g. "contract_id.counterparty_id.name" */
   key: string
   /** Short field name, e.g. "name" */
   name: string
@@ -52,7 +52,7 @@ export interface ReportFilterDef {
   type: "date" | "period" | "reference" | "boolean" | "enum" | "string"
   label: string
   required?: boolean
-  /** Entity name for reference picker (e.g. "merchant") */
+  /** Entity name for reference picker (e.g. "counterparty") */
   ref?: string
   /** Allow multiple values */
   multi?: boolean
@@ -69,9 +69,9 @@ export interface ReportColumnDef {
   sortable?: boolean
   defaultHidden?: boolean
   format?: "number" | "currency" | "percent"
-  /** For reference columns: the column key containing the raw UUID (e.g. "merchant_id") */
+  /** For reference columns: the column key containing the raw UUID (e.g. "counterparty_id") */
   refIdKey?: string
-  /** For reference columns: entity route prefix for navigation (e.g. "merchants") */
+  /** For reference columns: entity route prefix for navigation (e.g. "counterparties") */
   refRoute?: string
 }
 
