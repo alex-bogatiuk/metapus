@@ -1,17 +1,13 @@
 # Криптопроцессинг: pre-production acceptance protocol
 
-> **TL;DR:** Единый release-blocking протокол для проверки приёма, ledger,
-> custody, исходящих операций, webhooks и восстановления. Продакшна пока нет:
-> документ не содержит бессрочных `passed` и по умолчанию имеет вердикт
-> `NO-GO`, пока конкретный release candidate не приложил все обязательные
-> evidence.
+> **TL;DR:** Протокол проверки приёма, ledger, custody, исходящих операций,
+> webhooks и восстановления для конкретного release candidate.
 >
 > **Тип:** Rule
 >
 > **Аудитория:** QA, Developer, SRE, Security, Finance, Risk
 >
 > **Связанные:** [crypto-processing-architecture.md](crypto-processing-architecture.md),
-> [crypto-security-and-risk-review.md](crypto-security-and-risk-review.md),
 > [merchant-webhooks-production-readiness.md](../operations/merchant-webhooks-production-readiness.md),
 > [crypto-mainnet-go-no-go.md](../operations/crypto-mainnet-go-no-go.md)
 
@@ -19,8 +15,7 @@
 
 ## 1. Статус и границы
 
-Этот файл проверяет код и disposable pre-production окружения на schema `76`.
-Он не подтверждает production readiness сам по себе и не разрешает Mainnet.
+Запускайте проверки на disposable pre-production окружении со схемой кандидата. Версия БД должна совпадать с [ExpectedSchemaVersion](../../internal/core/version/version.go).
 
 Правила вердикта:
 
@@ -46,7 +41,7 @@ dirty patch digest (если tree не clean):
 server image digest:
 worker image digest:
 frontend image digest:
-schema version: 76
+schema version from ExpectedSchemaVersion:
 OpenAPI version/digest:
 chain config digest:
 network policy versions:
@@ -129,8 +124,7 @@ go test -tags=integration ./internal/infrastructure/crypto_worker -count=1 -v
 go test -tags=integration ./internal/infrastructure/blockchain/evm -count=1 -v
 ```
 
-Migration gate включает fresh `Up`, полный `Down → Up` и проверку итоговой
-schema `76`. Test database после прогона уничтожается.
+Migration gate включает fresh `Up`, полный `Down → Up` и проверку итоговой версии по `ExpectedSchemaVersion` на disposable БД.
 
 > [!IMPORTANT]
 > Committed Playwright UI-contract specs уже проверяют production HTML публичного
@@ -163,45 +157,38 @@ Test values задаются через seed/bootstrap, а не редактир
 
 ## 5. Матрица покрытия
 
-`Source state` описывает только наличие реализации/автотеста в текущем дереве.
-Колонка не заменяет execution verdict конкретного candidate.
-
-| ID | Риск | Основной автоматический evidence | Source state | Candidate |
-|---|---|---|---|---|
-| T01 | Pool activation/allocation | wallet pool и activation integration suites | реализован | `NOT_RUN` |
-| T02 | API key isolation/scopes | merchant auth/API key tests | реализован | `NOT_RUN` |
-| T03 | Invoice idempotency/exact amount | handler, SDK и idempotency tests | реализован | `NOT_RUN` |
-| T04 | Public checkout | handler tests + production-HTML Playwright contract | реализован; full-stack E2E обязателен | `NOT_RUN` |
-| T05 | Exact payment | `TestPaymentCycle_FullFlow` | реализован | `NOT_RUN` |
-| T06 | Partial payment | payment cycle multi-payment tests | реализован | `NOT_RUN` |
-| T07 | Overpayment | provisional/final overpayment tests | реализован | `NOT_RUN` |
-| T08 | Dust | `TestPaymentCycle_DustRejection` | реализован | `NOT_RUN` |
-| T09 | Expiry/late/reuse | allocation-window и late-payment tests | реализован | `NOT_RUN` |
-| T10 | Persistent address/top-up | wallet allocation tests + testnet | реализован | `NOT_RUN` |
-| T11 | Native watcher | watcher/driver tests + testnet | реализован | `NOT_RUN` |
-| T12 | Sweep threshold | payment/sweep tests | реализован | `NOT_RUN` |
-| T13 | Sweep retain | sweep reserve integration/acceptance | реализован | `NOT_RUN` |
-| T14 | Resource rental | resource manager tests | реализован | `NOT_RUN` |
-| T15 | Withdrawal allowlist/custody | custody-boundary integration test | реализован | `NOT_RUN` |
-| T16 | Merchant withdrawal | approval/executor/settlement integration | реализован | `NOT_RUN` |
-| T17 | Reject/pre-broadcast failure | withdrawal and approval tests | реализован | `NOT_RUN` |
-| T18 | Failed on-chain withdrawal | atomic compensation integration | реализован | `NOT_RUN` |
-| T19 | Treasury withdrawal | approval/fee reservation/testnet | реализован | `NOT_RUN` |
-| T20 | Outbound network fee | outbound settlement integration | реализован | `NOT_RUN` |
-| T21 | Balance reconciliation | reconciliation tests + injected drift | реализован | `NOT_RUN` |
-| T22 | Unknown external outflow | exact-effect/outflow integration + workflow/UI tests | реализован | `NOT_RUN` |
-| T23 | Provider reconciliation | resource/provider tests + `TestProviderOpening.*` + fake/real provider | opening защищён; verified manual funding/refund/adjustment и live acceptance не завершены | `NOT_RUN` |
-| T24 | Webhook security/delivery | webhook unit/integration/SDK suites | реализован | `NOT_RUN` |
-| T25 | Fee resolution failure | `TestPaymentCycle_FeeLookupFailureCreatesNoFinancialEffects` | реализован | `NOT_RUN` |
-| T26 | Restart/idempotency | broadcast recovery and execution draft integration | реализован | `NOT_RUN` |
-| T27 | Concurrency | targeted PostgreSQL integration matrix | реализован; scheduled `-count=100` обязателен | `NOT_RUN` |
-| T28 | Security controls | auth/MFA/SSRF/Vault/CIDR unit и UI-contract tests | реализован; full-stack security-negative gate обязателен | `NOT_RUN` |
-| T29 | Watcher refresh | processor/watcher refresh integration | реализован | `NOT_RUN` |
-| T30 | Multiple token contracts | processor multicontract integration | реализован | `NOT_RUN` |
-
-Source-level blocker T28 снят реализацией отдельных Portal/API/per-key CIDR
-policy и system-admin recovery. Candidate остаётся `NOT_RUN`: общий release
-verdict по-прежнему `NO-GO`, пока policy не пройдёт full-stack negative tests.
+| ID | Риск | Основные автоматические проверки |
+|---|---|---|
+| T01 | Pool activation/allocation | wallet pool и activation integration suites |
+| T02 | API key isolation/scopes | merchant auth/API key tests |
+| T03 | Invoice idempotency/exact amount | handler, SDK и idempotency tests |
+| T04 | Public checkout | handler tests + production-HTML Playwright contract |
+| T05 | Exact payment | `TestPaymentCycle_FullFlow` |
+| T06 | Partial payment | payment cycle multi-payment tests |
+| T07 | Overpayment | provisional/final overpayment tests |
+| T08 | Dust и физическое признание | `TestPaymentCycle_DustRejection`, `TestReceiptIntakeAccountsFinalUnmatchedTransferOnce` |
+| T09 | Expiry/late/reuse | allocation-window и late-payment tests |
+| T10 | Persistent address/top-up | wallet allocation tests + testnet |
+| T11 | Native watcher | watcher/driver tests + testnet |
+| T12 | Sweep threshold | payment/sweep tests |
+| T13 | Sweep retain | sweep reserve integration/acceptance |
+| T14 | Resource rental | resource manager tests |
+| T15 | Withdrawal allowlist/custody | custody-boundary integration test |
+| T16 | Merchant withdrawal | approval/executor/settlement integration |
+| T17 | Reject/pre-broadcast failure | withdrawal and approval tests |
+| T18 | Failed on-chain withdrawal | atomic compensation integration |
+| T19 | Treasury withdrawal | approval/fee reservation/testnet |
+| T20 | Outbound network fee | outbound settlement integration |
+| T21 | Balance reconciliation | reconciliation tests + injected drift |
+| T22 | Unknown external outflow | exact-effect/outflow integration + workflow/UI tests |
+| T23 | Provider reconciliation | resource/provider tests + `TestProviderOpening.*` + fake/real provider |
+| T24 | Webhook security/delivery | webhook unit/integration/SDK suites |
+| T25 | Fee resolution failure | `TestPaymentCycle_FeeLookupFailureCreatesNoFinancialEffects` |
+| T26 | Restart/idempotency | broadcast recovery and execution draft integration |
+| T27 | Concurrency | targeted PostgreSQL integration matrix |
+| T28 | Security controls | auth/MFA/SSRF/Vault/CIDR unit и UI-contract tests |
+| T29 | Watcher refresh | processor/watcher refresh integration |
+| T30 | Multiple token contracts | processor multicontract integration |
 
 ## 6. Приём платежей
 
@@ -282,7 +269,8 @@ created → paid → confirmed → completed
 Переходы `confirmed → completed` могут произойти в одной транзакции; мерчант
 всегда ориентируется на terminal `completed`. Payment проходит
 `detected/confirming → confirmed → settled`. Posting, fee movement, merchant
-credit, event/outbox и wallet transition атомарны.
+credit, event/outbox и wallet transition атомарны. Проверьте один физический
+приход от `CryptoCustodyReceipt` и одно распределение от `CryptoPayment`.
 
 ### T06 — Частичная оплата
 
@@ -301,8 +289,9 @@ invoice может быть `paid`; после posting — `completed`. Усло
 ### T08 — Dust
 
 Отправить значение ниже configured dust threshold. Ожидается audit/telemetry
-с явной причиной, отсутствие merchant credit, fee, sweep и fulfillment event.
-Повтор события остаётся идемпотентным.
+с явной причиной, отсутствие merchant credit, fee и fulfillment event.
+Финальный поддерживаемый перевод с независимым доказательством может попасть
+в невыясненные. Повтор оставляет один физический учётный факт.
 
 ### T09 — Expiry, late payment и reuse boundary
 
@@ -626,8 +615,8 @@ Finance подписывает отчёт только после проверк
 ```text
 canonical received = sum(canonical inbound chain events)
 confirmed          = sum(final chain payments)
-credited           = sum(posted merchant principal movements)
-merchant available = credited - processing fees - active withdrawals/reservations + reversals
+credited           = sum(final invoice payment allocations after processing fee)
+merchant ledger    = signed sum(merchant balance movements, including debit-first and reversals)
 custody assets      = sum(reconciled managed wallet chain balances)
 platform revenue   = posted processing/withdrawal revenue - active treasury reservations
 platform costs     = settled network fees + settled resource rents
@@ -636,6 +625,8 @@ platform costs     = settled network fees + settled resource rents
 Допустимая разница всегда объясняется именованным open incident, finality lag
 или active reservation. Необъяснимая ненулевая разница — `FAIL`. Нулевой
 агрегат при read error — также `FAIL`.
+
+Сверьте доступность средств с merchant ledger и применимыми holds. Debit-first списания и processing fee, уже учтённые в движениях, вычитать повторно нельзя.
 
 Обязательные выборки отчёта:
 
@@ -681,10 +672,10 @@ Screenshots без DB/chain/trace evidence не закрывают финанс�
 Итог остаётся `NO-GO`, если выполняется хотя бы одно условие:
 
 - любой Txx не `PASS`;
-- schema не `76` или migration fresh/down/up не доказан;
+- версия схемы отличается от `ExpectedSchemaVersion` или не проверен цикл fresh Up → Down → Up;
 - integration DSN suites, race, frontend, SDK или Playwright gate отсутствует;
 - Nile и Sepolia не прошли отдельный conformance;
-- merchant-specific CIDR policy не реализована;
+- merchant-specific CIDR policy не прошла T28;
 - нет audited workflow классификации и снятия external-outflow/network hold;
 - есть unexplained ledger/chain/provider delta или open unknown outflow;
 - Vault/signing/RPC/webhook readiness fail-open;
@@ -733,6 +724,6 @@ scripts/ci/write-crypto-evidence-manifest.sh                    — commit/schem
 
 - [crypto-processing-architecture.md](crypto-processing-architecture.md) — фактические компоненты и финансовая модель.
 - [wallet-address-reuse.md](wallet-address-reuse.md) — allocation windows, cooldown и late attribution.
-- [crypto-security-and-risk-review.md](crypto-security-and-risk-review.md) — security controls и residual risks.
+- [Vault и подпись](crypto-processing-architecture.md#9-vault-и-подпись-транзакций) — требования к подписанию.
 - [merchant-webhooks-production-readiness.md](../operations/merchant-webhooks-production-readiness.md) — webhook conformance и canary.
 - [production-deployment.md](../operations/production-deployment.md) — deployment, rollback и DR.

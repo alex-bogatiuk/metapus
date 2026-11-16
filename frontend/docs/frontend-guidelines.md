@@ -3,7 +3,7 @@
 Этот документ описывает принципы разработки frontend-части проекта Metapus.
 Он адаптирует архитектурные правила backend (Clean Architecture, Metadata-driven) к экосистеме Next.js / React.
 
-Frontend находится в `frontend/`. Общие правила: [канонический справочник](../../docs/reference/frontend-guidelines.md).
+Структура проекта описана в [путеводителе Metapus](../../docs/guide/03-project-structure.md).
 
 ---
 
@@ -73,6 +73,14 @@ frontend/
 
 ### 3.1. Server State
 Списки и формы используют проектные hooks (`useCachedLoad`, `useLatestRequest`, `useCatalogForm`, `useEntityListPage`) и централизованные `apiFetch`/`createScopedClient`. SWR доступен в зависимостях; React Query и `nuqs` не установлены. Request/response проверяются generated route contracts и Zod schemas.
+
+#### Зависимости, загрузка и формы
+
+- Соблюдайте `react-hooks/exhaustive-deps`. Значения запроса входят в зависимости, действия события выносите в обработчик или `useEffectEvent`.
+- Для списков с кэшем вкладок используйте `useCachedLoad`. Он пропускает начальную загрузку из кэша и обновляет данные при изменении фильтров.
+- `useLatestRequest` защищает от устаревшего ответа, размонтирования и смены сессии. Основная загрузка вызывает `begin()`, пагинация — `capture()`. Проверяйте возвращённую функцию перед применением результата, ошибки или сбросом индикатора.
+- Связанные поля формы храните в типизированном объекте. `useFormDraft.setField` принимает значение или функцию обновления поля. Загрузка, валидация и сохранение остаются в хуке формы.
+- Используйте `DataTableSkeleton` при загрузке таблицы. Сохраняйте типы DTO и nullability через generated contracts. `unknown` подходит на внешней границе до валидации.
 
 ### 3.2. URL State (Single Source of Truth)
 Состояние списка (фильтры, сортировка, страница, поиск) **должно** храниться в URL search params.

@@ -1,6 +1,6 @@
 # Начальная классификация существующего testnet inventory
 
-Миграция 00075 и `cmd/aml-testnet-bootstrap` добавляют явный однократный импорт существующих средств Nile/Sepolia в синтетический класс `low`. Это начальная тестовая оценка, не отчёт AML-провайдера. Финансовые документы, physical/merchant movements и fee ledger сохраняются.
+`cmd/aml-testnet-bootstrap` выполняет явный однократный импорт существующих средств Nile/Sepolia в синтетический класс `low`. Это начальная тестовая оценка, не отчёт AML-провайдера. Финансовые документы, physical/merchant movements и fee ledger сохраняются.
 
 ## Условия
 
@@ -11,9 +11,9 @@
 - Для каждой пары wallet/token нужна реальная сверка chain=ledger=journal, без delta, не старше 10 минут. Штатная `crypto-preflight -mode balance` получает свежие проверки; их timestamps не изменяются вручную.
 - Canonical cutoff height/hash берутся из остановленного watcher checkpoint. Покрываются все активные кошельки и любые ненулевые остатки сети.
 
-## План и применение
+## Подготовка и применение
 
-`AML_CONTROL_DATABASE_URL`/`AML_CONTROL_DATABASE_URL_FILE` указывают на enrolled tenant-базу. Текущий бинарник ожидает schema 76 (`internal/core/version/version.go`); opening inventory введён миграцией 00075. В `init` Docker image включены `aml-testnet-config`, `aml-testnet-bootstrap`, `aml-wallet-provision` и `aml-pool-controller`.
+`AML_CONTROL_DATABASE_URL`/`AML_CONTROL_DATABASE_URL_FILE` указывают на enrolled tenant-базу. Схема должна совпадать с [ExpectedSchemaVersion](../../internal/core/version/version.go). В `init` Docker image включены `aml-testnet-config`, `aml-testnet-bootstrap`, `aml-wallet-provision` и `aml-pool-controller`.
 
 ```sh
 go run ./cmd/aml-testnet-bootstrap \

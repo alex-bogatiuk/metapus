@@ -1,11 +1,6 @@
-# TRON v1 — Nile acceptance protocol
+# TRON — протокол приёмки на Nile
 
-> **Статус по умолчанию:** `NOT RUN`. Документ является исполняемым протоколом
-> приёмки новой schema `76`; исторические прогоны более ранних схем его не
-> закрывают.
->
-> **Результат:** `NILE ACCEPTED` или `NILE REJECTED`. Успешная приёмка означает
-> только Mainnet-ready candidate и не разрешает Mainnet canary.
+Проверяйте одноразовый стенд с версией схемы кандидата из [ExpectedSchemaVersion](../../internal/core/version/version.go). По результатам зафиксируйте `NILE ACCEPTED` или `NILE REJECTED`. Для canary действует отдельный [Mainnet go/no-go](crypto-mainnet-go-no-go.md).
 
 ## 1. Неизменяемая идентификация прогона
 
@@ -19,7 +14,7 @@ worker image digest:
 frontend image digest:
 TRON Vault plugin SHA-256:
 tenant ID:
-schema version: 76
+schema version from ExpectedSchemaVersion:
 chain config digest:
 policy version before/after:
 started/finished at UTC:
@@ -66,9 +61,11 @@ go test -tags=integration ./internal/infrastructure/crypto_worker -count=1 -v
 
 - [ ] `CRYPTO_PROCESSING_ENABLED=true`; legacy `TRON_RPC_URL`/`TRON_API_KEY`
   отсутствуют в runtime environment.
-- [ ] `CRYPTO_CHAIN_CONFIG_FILE` доступен worker и содержит минимум по одному
-  endpoint каждой роли: `indexer`, `fullnode`, `solidity`.
-- [ ] API keys читаются через `apiKeyFile`; значений ключей нет в JSON/env.
+- [ ] В активном источнике конфигурации сети есть подключения `indexer`,
+  `fullnode` и `solidity`. В режиме `database` проверьте bindings и пулы. В режиме
+  `file` проверьте доступность `CRYPTO_CHAIN_CONFIG_FILE` у worker.
+- [ ] Секреты хранятся в credentials аккаунтов или отдельных `apiKeyFile`.
+  Детали — в [настройке интеграций](integration-accounts.md).
 - [ ] Каталог содержит `TRON-NILE` с `chain_family=tron` и
   `network_identifier=nile`.
 - [ ] Единственный активный `network_fee` wallet не участвует в invoice или

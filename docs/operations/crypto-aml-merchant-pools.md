@@ -1,6 +1,6 @@
 # AML: автоматическое пополнение merchant pools
 
-Миграция 00069 добавляет opt-in политики адресной ёмкости, durable intents, отдельный control-plane consumer и открытие подготовленных collector batches. Она не включает signing/broadcast нового AML executor и не выделяет средства на gas.
+Merchant pool policy явно включает управление адресной ёмкостью. Durable intents обрабатывает отдельный control-plane consumer. Подготовленные collector batches открываются по этой политике, signing/broadcast и gas budget управляются отдельно.
 
 ## Политика и конечный бюджет
 
@@ -72,7 +72,7 @@ go run ./cmd/aml-pool-controller -tenant-id '<enrolled tenant UUID>'
 
 ## Preflight до intake
 
-Автоматически созданные deposit и collector wallets получают отдельный `aml_baseline_pending`. Обычная сверка не снимает его. При `automaticBaseline=true` processor сам получает пустые baselines по двум независимым RPC после подтверждения watcher coverage (миграция 00070). При выключенной опции нужны независимо зарегистрированные пустые baselines по всем enabled активам deposit scope либо по token и native gas scopes collector; проверяются component inventory и chain/physical coverage. Существующие operating native funds не считаются merchant principal.
+Автоматически созданные deposit и collector wallets получают отдельный `aml_baseline_pending`. Обычная сверка не снимает его. При `automaticBaseline=true` processor сам получает пустые baselines по двум независимым RPC после подтверждения watcher coverage. При выключенной опции нужны независимо зарегистрированные пустые baselines по всем enabled активам deposit scope либо по token и native gas scopes collector; проверяются component inventory и chain/physical coverage. Существующие operating native funds не считаются merchant principal.
 
 `ReleaseNextMerchantPoolBaselineHold` повторно проверяет все текущие scope baselines под блокировками и снимает только baseline holds. Reconciliation/activation holds и high-risk holds сохраняются. Сверка с нулевым SQL balance, сам факт derivation, истечение времени и достижение возраста batch не создают baseline. Отдельный loop исключает потерянное пробуждение при конкурентной регистрации разных baselines.
 

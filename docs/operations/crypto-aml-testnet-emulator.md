@@ -1,6 +1,6 @@
 # AML эмулятор для Tron Nile и Ethereum Sepolia
 
-Миграция 00074 добавляет отдельного провайдера `testnet_aml`. Он генерирует синтетические ответы и использует обычные durable jobs, tickets, reports, risk decisions и wallet projections. Blockchain ingestion, подтверждение факта поступления, merchant ownership, principal/gas accounting и dispatch permits работают по прежним правилам.
+Эмулятор зарегистрирован как отдельный провайдер `testnet_aml`. Он генерирует синтетические ответы и использует обычные durable jobs, tickets, reports, risk decisions и wallet projections. Blockchain ingestion, подтверждение факта поступления, merchant ownership, principal/gas accounting и dispatch permits работают по прежним правилам.
 
 Эмулятор не имеет HTTP client, не использует API-ключи и не расходует AML package credits/paid admissions. Автоматического fallback с настоящего провайдера на эмулятор нет. Его использование выбирается явно через account и routing scopes.
 
@@ -15,7 +15,7 @@
 
 Сигналы — `wallet` с точным дробным score и `sanctions=0`. Формат синтетический, а не принятие реального vendor contract. Persisted provider равен `testnet_aml`, contract — `aml-testnet.v1`, adapter — `testnet-aml.v1`; raw response содержит `emulated=true`. В AML preflight число таких scopes видно в `emulatedScopes`.
 
-Для существующих средств доступен отдельный [testnet bootstrap](crypto-aml-testnet-bootstrap.md), migration 00075: явная стартовая оценка low без финансового перезачисления. Он не заменяет случайную оценку новых поступлений.
+Для существующих средств доступен отдельный [testnet bootstrap](crypto-aml-testnet-bootstrap.md): явная стартовая оценка low без финансового перезачисления. Он не заменяет случайную оценку новых поступлений.
 
 ## Настройка
 
@@ -48,11 +48,3 @@ go run ./cmd/aml-testnet-config \
 Адаптер повторно проверяет network identity при каждой resolution. PostgreSQL независимо запрещает binding/job/synthetic mapping на другой сети, смену identity уже привязанной сети, подмену provider/account и смешивание синтетического report с live check. Кредиты и paid admissions для эмулятора запрещены. Отчёты и binding сохраняют неизменяемую историю; rollback с данными требует forward migration.
 
 После настройки выполнить [AML configuration preflight](crypto-aml-preflight.md), ingestion preflight, сверку balances и обычные тестовые платежи. Эмуляция помогает проверить маршрутизацию и ошибки начальной классификации; mainnet vendor coverage и настоящий vendor billing принимаются отдельно.
-
-## Проверка реализации
-
-- Полный `go run ./cmd/integration-test`: 111 пакетов с тестами под `-race`, включая fresh install, пустой Down/Up и PostgreSQL AML pipeline.
-- На обеих сетях проверены submit/poll/report/decision, выбор провайдера для подтверждённого входящего token transfer и rescreen, отсутствие credentials/credits/admissions, неизменяемость binding и запрет mainnet.
-- Unit tests проверяют повторный poll после восстановления ticket, воспроизводимость raw report, корректный диапазон score и получение всех четырёх risk-классов, отказ от смешивания live и synthetic mapping.
-- CLI smoke на отдельной одноразовой базе проверяет enrollment, создание scopes и повтор без seed: сохраняется исходный seed, финансовые movements не создаются, network dispatch остаётся выключенным.
-- `go build ./...`, golangci-lint и 428 HTTP contracts прошли; frontend TypeScript и 14 unit tests integration account settings прошли. Рабочие DB/Vault и реальные chain transactions в этой проверке не использовались.

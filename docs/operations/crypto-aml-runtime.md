@@ -4,7 +4,7 @@ Runtime связывает verified incoming effects с AML jobs, сохраня
 
 Условия полноты покрытия, повторная проверка и ограничения старого вывода описаны в [проекции риска](crypto-aml-risk-projection.md).
 
-Для Tron Nile и Ethereum Sepolia доступен отдельный [testnet AML emulator](crypto-aml-testnet-emulator.md), миграция 00074. Он не использует paid admission и не подменяет live Getblock.net jobs.
+Для Tron Nile и Ethereum Sepolia доступен отдельный [testnet AML emulator](crypto-aml-testnet-emulator.md). Он не использует paid admission и не подменяет live Getblock.net jobs.
 
 ## Профиль и версия контракта
 

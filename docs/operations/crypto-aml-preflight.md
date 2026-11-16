@@ -61,15 +61,4 @@ go run ./cmd/crypto-preflight -mode aml
 
 Реальные binary digests, deployment, публичные testnet transactions и production activation проверяются оператором отдельно. Локальные тесты используют synthetic Vault/RPC/AML responses и одноразовые PostgreSQL базы.
 
-
-## Локальная проверка реализации
-
-- Полный `go run ./cmd/integration-test` с `-race` на создаваемых командой disposable базах: успешно, 110 пакетов с тестами.
-- Оба отдельных Vault plugin modules: `go test ./... -count=1` успешно; readiness публикует точный AML-контракт.
-- Сборка, golangci-lint и 428 HTTP contracts: успешно. Сам read-only preflight не менял schema 73 и Merchant/Portal HTTP-контракт; testnet emulator добавлен отдельно в migration 00074.
-- Проверены custody-only plugin до/после AML enablement, неподдерживаемые schemas, недоступный readiness, отсутствие SQL transaction при Vault reads, отсутствие signing/jobs и сокрытие transport error details.
-- SQL snapshot проверяет namespace/network filter, остановку на старой schema и автоматический адрес без baseline ещё до появления job.
-- CLI smoke без Vault/RPC/approval keys возвращает JSON с `ready=false` и конкретными blockers на неподготовленной базе; `-apply` отклоняется до DB connect. Несуществующие approval-key/RPC config files этот режим не читает.
-
-
 Readiness snapshot проверяет наличие начального baseline у автоматических адресов. Коллектор с ненулевым текущим inventory не становится «unbaselined»: его текущую spendability проверяют risk, inventory, allocation и dispatch gates. При конкурентном изменении EVM cursor во время startup RPC сверка возвращает retryable ошибку; такой снимок не должен создавать nonce divergence hold. Не запускать старую диагностическую сборку параллельно новому воркеру.

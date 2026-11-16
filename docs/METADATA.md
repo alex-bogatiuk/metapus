@@ -3,7 +3,7 @@
 > **TL;DR:** Объекты текущей конфигурации в терминах 1С: справочники, документы, табличные части, регистры, перечисления, настройки и отчёты.
 > **Тип:** Reference
 > **Аудитория:** Developer, Analyst, AI-Agent
-> **Состояние:** 11 ноября 2026 года; схема описана девятью доменными миграциями `00001`–`00009`, `ExpectedSchemaVersion = 9`. Номера «схема 78–104» и ссылки на прежние миграции ниже — исторические. Custody-учёт ([00009](../db/configuration/crypto/00009_crypto_custody.sql)) добавляет accounting evidence index, receipt/suspense, общий registry для funding, JIT native funding, sweep, treasury, merchant withdrawal и custody loss, отдельное признание network fee, expected-transfer routing, source-bound manual corrections, immutable basis повторного financial reorg сторно и общий SQL hold lifecycle guard. Двойной модели учёта нет: исходящие документы и резервы комиссий признают principal и fee только по финальному независимому доказательству.
+> **Схема:** девять доменных миграций `00001`–`00009`. Ожидаемую версию задаёт [ExpectedSchemaVersion](../internal/core/version/version.go). Custody-учёт описывает [00009_crypto_custody.sql](../db/configuration/crypto/00009_crypto_custody.sql).
 > **Связанные:** [ROUTER.md](ROUTER.md), [Базовые сущности](systems/core-layer.md), [Проведение](systems/posting-engine.md).
 
 ## Содержание
@@ -584,7 +584,7 @@ Metapus
 | Комиссия | `TotalFee` / `totalFee` | Криптосумма | — |
 | Статус | `Status` / `status` | Перечисление `crypto_sweep.SweepStatus` | — |
 
-Схема 82: broadcast сохраняет snapshot ресурсных расходов, без principal. `posted` не означает подтверждённый principal; он появляется отдельно при успешном final settlement каждой строки с independent indexed proof. Reverted строка содержит только фактический network fee, `confirmed=false`. Exact AML coverage использует physical movement IDs конкретной строки, без ожидания общего пакета. Generic repost/unpost и новое поколение закрыты.
+Broadcast сохраняет snapshot ресурсных расходов, без principal. `posted` не означает подтверждённый principal; он появляется отдельно при успешном final settlement каждой строки с independent indexed proof. Reverted строка содержит только фактический network fee, `confirmed=false`. Exact AML coverage использует physical movement IDs конкретной строки, без ожидания общего пакета. Generic repost/unpost и новое поколение закрыты.
 
 #### Табличная коллекция «Кошельки» — `lines`
 
@@ -656,7 +656,7 @@ SQL-часть с ключом `lines` объявлена в `crypto_sweep.Defin
 | Комиссия Energy | `EnergyFee` / `energyFee` | Криптосумма | — |
 | Использовано Bandwidth | `NetUsage` / `netUsage` | Целое число | — |
 
-Схема 83: broadcast не создаёт physical principal или expense platform revenue. Wallet/revenue reservations сохраняются active до final outcome. Successful settlement атомарно проводит principal, точные fee partitions, actual network fee/cost и consume резервов; revert записывает только actual network fee и освобождает principal/revenue. `posted` на broadcast означает snapshot состояния.
+Broadcast не создаёт physical principal или expense platform revenue. Wallet/revenue reservations сохраняются active до final outcome. Successful settlement атомарно проводит principal, точные fee partitions, actual network fee/cost и consume резервов; revert записывает только actual network fee и освобождает principal/revenue. `posted` на broadcast означает snapshot состояния.
 
 #### Табличная коллекция «Источники комиссии» — `feeLines`
 
@@ -778,7 +778,7 @@ SQL-часть с ключом `lines` объявлена в `crypto_sweep.Defin
 
 Модель: `FinancialAdjustment`. Таблица: `doc_crypto_adjustments`. Источники: [domain-модель](../internal/domain/crypto/financial_adjustment.go), [application service](../internal/application/cryptoapp/financial_adjustment_service.go).
 
-Схема 88 добавляет immutable `basis_kind` (`payment_attribution` для режима `payment_reversal`, `wallet_variance` для `wallet_balance`) и внутренний `proposal_txid` для замораживания sources. API возвращает `basisKind`. Basis выводится из режима и источника, не из пользовательского evidence/tx hash. Проведённая корректировка требует exact financial set и `financial_correction_posted` outbox; chain effect она не занимает.
+Документ хранит immutable `basis_kind` (`payment_attribution` для режима `payment_reversal`, `wallet_variance` для `wallet_balance`) и внутренний `proposal_txid` для замораживания sources. API возвращает `basisKind`. Basis выводится из режима и источника, не из пользовательского evidence/tx hash. Проведённая корректировка требует exact financial set и `financial_correction_posted` outbox; chain effect она не занимает.
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -1083,11 +1083,11 @@ SQL-часть с ключом `lines` объявлена в `crypto_sweep.Defin
 | `reg_crypto_receipt_suspense_balances` | Проекция нераспределённого остатка receipt/token |
 | `reg_crypto_receipt_intake_audit` | Неизменяемая связь receipt, proof, posting owner и system actor |
 
-Deferred constraints проверяют полный набор receipt/custody/suspense/recognition/audit/posted outbox при коммите. Rollback схемы 78 после финансового использования запрещён; доступна только будущая forward migration. Общий переход legacy writers, availability и компенсационные поколения receipt/funding остаются в [плане реализации](howto/crypto-inbound-provider-accounting-plan.md).
+Deferred constraints проверяют полный набор receipt/custody/suspense/recognition/audit/posted outbox при коммите. Изменения после финансового использования выполняются прямой миграцией с сохранением истории. См. [контракт входящего учёта](crypto/crypto-inbound-provider-accounting-design.md).
 
-Миграция [00009](../db/configuration/crypto/00009_crypto_custody.sql) связывает `reg_crypto_wallet_fundings` с `occurrence_id` и `posting_id`; обе ссылки и `verification_id` — `NOT NULL`. Новые receipts используют occurrence вместо глобальной уникальности tx hash, поэтому разные доказанные effects одной tx учитываются раздельно. `reg_crypto_wallet_funding_audit` хранит funding/proof/posting/actor и запрещает UPDATE/DELETE. Funding receipt, recognition, physical movement, audit и один `CryptoWalletFunding.recorded` outbox обязательны в одном коммите. Двухсторонние SQL guards исключают пересечение funding и платежа по одному chain effect, в том числе при конкурентной вставке: обе стороны берут balance lock. CLI допускает только external funding platform-owned wallet и не создаёт merchant/fee/provider/cost movements. Финансовое использование схемы 79 запрещает её Down; история требует forward migration.
+Миграция [00009](../db/configuration/crypto/00009_crypto_custody.sql) связывает `reg_crypto_wallet_fundings` с `occurrence_id` и `posting_id`; обе ссылки и `verification_id` — `NOT NULL`. Новые receipts используют occurrence вместо глобальной уникальности tx hash, поэтому разные доказанные effects одной tx учитываются раздельно. `reg_crypto_wallet_funding_audit` хранит funding/proof/posting/actor и запрещает UPDATE/DELETE. Funding receipt, recognition, physical movement, audit и один `CryptoWalletFunding.recorded` outbox обязательны в одном коммите. Двухсторонние SQL guards исключают пересечение funding и платежа по одному chain effect, в том числе при конкурентной вставке: обе стороны берут balance lock. CLI допускает только external funding platform-owned wallet и не создаёт merchant/fee/provider/cost movements. История требует forward migration после финансового использования.
 
-Раздел миграции [00009](../db/configuration/crypto/00009_crypto_custody.sql) делает CryptoPayment распределением custody receipt. `doc_crypto_payments.receipt_id` ссылается на receipt перевода; проведённый платёж записывает расход невыясненных (gross), приход мерчанту (net) и processing fee по снимку тарифа, движений по кошельку у него нет. Отложенный инвариант `fn_crypto_assert_payment_attribution` требует точный набор текущего поколения и полную компенсацию предыдущих. `trg_crypto_payment_frozen_basis` после распределения замораживает receipt, invoice/merchant/network/wallet/token, gross, tx и тариф и запрещает удаление. Custody-признание платежа (`reg_crypto_payment_custody_bindings`, predecessor generations, outbox `CryptoPayment.custody_recognized`) и adoption удалены.
+Раздел миграции [00009](../db/configuration/crypto/00009_crypto_custody.sql) делает CryptoPayment распределением custody receipt. `doc_crypto_payments.receipt_id` ссылается на receipt перевода; проведённый платёж записывает расход невыясненных (gross), приход мерчанту (net) и processing fee по снимку тарифа, движений по кошельку у него нет. Отложенный инвариант `fn_crypto_assert_payment_attribution` требует точный набор текущего поколения и полную компенсацию предыдущих. `trg_crypto_payment_frozen_basis` после распределения замораживает receipt, invoice/merchant/network/wallet/token, gross, tx и тариф и запрещает удаление.
 
 Миграция [00009](../db/configuration/crypto/00009_crypto_custody.sql) добавляет `reg_crypto_sweep_custody_bindings`: posting_id (PK/FK), sweep_id, line_id (UNIQUE/FK), period, actor=`sweep-settlement`, created_at. Binding immutable. Каждая final успешная строка имеет один posting generation 1, две principal recognition links, точные fee/cost facts и `CryptoSweep.custody_recognized` outbox с lineId/postingId. Deferred constraints защищают весь набор и запрещают раннее освобождение fee reservation.
 
@@ -1097,7 +1097,7 @@ Deferred constraints проверяют полный набор receipt/custody/
 
 Миграция [00009](../db/configuration/crypto/00009_crypto_custody.sql) добавляет `reg_crypto_native_funding_custody_bindings`: posting/funding, period, системный actor и created_at. Binding immutable; partial unique `uq_crypto_native_funding_custody` закрепляет один generation 1 за funding document. Две точные controlled principal стороны, normalized settlement, fee/cost и `CryptoNativeFunding.custody_recognized` outbox обязательны в одном коммите. SQL замораживает intent и запрещает generic reversal, повторную payment attribution и Down после использования. История не переписывается; новые principal writes требуют independent indexed proof.
 
-Эти объекты добавлены миграциями 61–76 и не регистрируются автоматически как generic CRUD-сущности. Они расширяют финансовый и custody-контур, а не заменяют merchant/wallet ledger. Финансовые crypto movements append-only: корректировка добавляет компенсирующие записи, UPDATE/DELETE исходных движений запрещены.
+Объекты AML и custody подключаются через специализированные сценарии. Они расширяют финансовый и custody-контур, а не заменяют merchant/wallet ledger. Финансовые crypto movements append-only: корректировка добавляет компенсирующие записи, UPDATE/DELETE исходных движений запрещены.
 
 В `cat_wallets` custody owner отделён от текущего lease/assignment. В DTO кошельков и платежей доступна AML display-проекция, а deposit rotation сохраняет immutable историю и retired intake. Заявка AML-вывода получает отдельный `reg_crypto_aml_withdrawal_plans`/lines: выбранный risk class, explicit acceptance, sources, completed/refunded amounts и snapshot. Эти поля нельзя выводить только из прежнего header `WithdrawalRequest`.
 
@@ -1276,19 +1276,21 @@ Deferred constraints проверяют полный набор receipt/custody/
 
 Для проверки развёрнутой конфигурации доступны `GET /api/v1/meta/entities` (состав), `GET /api/v1/meta` (определения общего реестра) и `GET /api/v1/meta/:name` (конкретный объект с добавленными пользовательскими реквизитами). Эти методы не включают автоматически все таблицы и объекты отдельных сценариев.
 
-### Merchant withdrawal recognition схемы 84
+## Исполнение и восстановление криптоопераций
 
-[00009](../db/configuration/crypto/00009_crypto_custody.sql) добавляет immutable `reg_crypto_withdrawal_custody_bindings`: posting_id (PK/FK), withdrawal_id (UNIQUE/FK), request_id (FK/index), nullable line_id (UNIQUE/FK), signing_authorization_id (FK), merchant_debit_line_id (FK), period, actor=`withdrawal-settlement`, created_at. Один outgoing principal owner связывается с исходным debit-first расходом без второго merchant debit. Actual fee/cost записываются на request/AML line basis, physical principal — на CryptoWithdrawal.
+### Merchant withdrawal recognition
 
-В `reg_crypto_aml_withdrawal_facts` expense_movement_id теперь nullable: у failed fact он NULL, success обязан ссылаться на exact recognized expense; это закреплено CHECK. Отдельной refund-ссылки нет: failed withdrawal возвращает средства мерчанту через `WithdrawalRequest`, без physical movement. Valid-fact view принимает только этот контракт; materialized inventory уменьшает только успешную долю. Principal reservations остаются active на broadcast и становятся consumed/released только с final outcome. SQL защищает original merchant debit, frozen financial basis, fee/principal/refund/outbox set и expected owner.
+Миграция [00009](../db/configuration/crypto/00009_crypto_custody.sql) определяет immutable `reg_crypto_withdrawal_custody_bindings`: posting_id (PK/FK), withdrawal_id (UNIQUE/FK), request_id (FK/index), nullable line_id (UNIQUE/FK), signing_authorization_id (FK), merchant_debit_line_id (FK), period, actor=`withdrawal-settlement`, created_at. Один outgoing principal owner связывается с исходным debit-first расходом без второго merchant debit. Actual fee/cost записываются на request/AML line basis, physical principal — на CryptoWithdrawal.
 
-### Custody loss recognition схемы 85
+В `reg_crypto_aml_withdrawal_facts` `expense_movement_id` допускает NULL: у failed fact он NULL, success обязан ссылаться на exact recognized expense; это закреплено CHECK. Отдельной refund-ссылки нет: failed withdrawal возвращает средства мерчанту через `WithdrawalRequest`, без physical movement. Valid-fact view принимает только этот контракт; materialized inventory уменьшает только успешную долю. Principal reservations остаются active на broadcast и становятся consumed/released только с final outcome. SQL защищает original merchant debit, frozen financial basis, fee/principal/refund/outbox set и expected owner.
+
+### Custody loss recognition
 
 [00009](../db/configuration/crypto/00009_crypto_custody.sql) подключает CryptoCustodyAdjustment к registry: он сохраняет loss expense/cost и maker-checker, но требует exact indexed outgoing proof и shared registry owner. Detection/classification не создают финансовых движений.
 
-Immutable `reg_crypto_custody_loss_bindings`: posting_id (PK/FK), adjustment_id (UNIQUE/FK), external_outflow_id (UNIQUE/FK), maker_id/checker_id (разные), period, created_at. Principal и cost получают отдельные стабильные line IDs и общий period из binding. Physical expense, custody-loss cost, checker action audit, reconciliation request, final decision и outbox обязательны в одном коммите. Posting transaction stamp включает новые CryptoCustodyAdjustment lines; исторические movements не обновляются. SQL защищает exact set, immutable basis, generic compensation и ownership через aliases. Generation/reorg recovery не добавлен.
+Immutable `reg_crypto_custody_loss_bindings`: posting_id (PK/FK), adjustment_id (UNIQUE/FK), external_outflow_id (UNIQUE/FK), maker_id/checker_id (разные), period, created_at. Principal и cost получают отдельные стабильные line IDs и общий period из binding. Physical expense, custody-loss cost, checker action audit, reconciliation request, final decision и outbox обязательны в одном коммите. Posting transaction stamp включает новые CryptoCustodyAdjustment lines; исторические movements не обновляются. SQL защищает exact set, immutable basis, generic compensation и ownership через aliases.
 
-### Network fee recognition схемы 86
+### Network fee recognition
 
 [00009](../db/configuration/crypto/00009_crypto_custody.sql) добавляет отдельную независимую fee role; [NetworkFeeProof](../internal/domain/crypto/network_fee_proof.go) не подменяет transfer proof.
 
@@ -1303,7 +1305,7 @@ Immutable `reg_crypto_custody_loss_bindings`: posting_id (PK/FK), adjustment_id 
 
 NativeFunding читает fee accounting version как внутреннюю метаинформацию для строгого terminal replay; она не входит в публичный JSON. Никакого merchant net, fee income или provider credit признание network fee не создаёт. История не принимается автоматически; reorg/compensation требуют отдельного workflow.
 
-### Expected transfer routing схемы 87
+### Expected transfer routing
 
 [00009](../db/configuration/crypto/00009_crypto_custody.sql) не переписывает expected effects, старые event-index matches или финансовую историю.
 
@@ -1314,107 +1316,35 @@ NativeFunding читает fee accounting version как внутреннюю м
 | `reg_crypto_expected_transfer_evidence` | Immutable proof → logical route; новые aliases/occurrences не создают денег |
 | `sys_crypto_expected_transfer_deliveries` | Mutable operational projection: next attempt, delivered time, attempts, version; отдельна от immutable producer facts |
 
-Новые таблицы содержат transaction/deletion metadata; факты защищены append-only guard. Routing не является документом проведения, финансовым разрешением или новым источником available balance. Multi-output и будущие provider/refund intents требуют отдельного профиля. Новый HTTP/CRUD для routing не добавлен.
+Таблицы содержат transaction/deletion metadata. Append-only guard защищает факты маршрутизации. Учёт и проверку доступного остатка выполняет владелец исходной операции.
 
+### Блокировки и повтор исполнения
 
-### Порядок ресурсов учёта схемы 89
+- `fn_crypto_lock_custody_scopes` и `fn_crypto_lock_custody_wallets` берут полный owner/network scope set до wallets. Withdrawal включает scope заявки. Селекторы withdrawal/sweep, draft linking и activation coordinator берут ресурсы до workflow rows. Try-lock освобождает частичный набор при занятости, sweep заново проверяет eligibility на свежем statement snapshot.
+- `fn_crypto_try_lock_funding_confirmation` атомарно захватывает scopes, wallets и funding row либо пропускает занятый funding. Native-funding mutations и expected-transfer nudge используют общий preflight внутри транзакции. Bulk sweep maintenance работает по фиксированному набору кандидатов.
+- Replacement и публикация authorization получают полный execution resource prefix перед записью. AML использует line basis. Replacement требует текущего состояния и точного signed predecessor. Signed-envelope replay проверяет полный signing tuple, единственный expected transfer и canonical payload, сохраняя исходный deadline. Fee replay проверяет outcome, components и movements, сохраняя исходный accounting period. Pending collision требует сверки.
+- AML approval, rejection, cancellation и expiry получают request/execution advisories и scopes/wallets перед request rows. После ожидания проверяют состав ресурсов повторно. Capture/ack и планирование используют read committed. Повтор cancellation сохраняет исходных actor/reason, credit создаётся только по ранее неучтённым remainder facts.
 
-[00009](../db/configuration/crypto/00009_crypto_custody.sql) добавляет SQL helpers `fn_crypto_lock_custody_scopes(uuid[])` и `fn_crypto_lock_custody_wallets(uuid[])` и переводит два fee/resource scope helpers на полный owner/network scope set. Новых документов, регистров, денежных fields или recognition roles нет. PostgreSQL CryptoBalanceRepo реализует domain storage port ResourceLocker для early preflight PostingEngine. Финансовая история не изменяется.
+### Активация и аренда ресурсов
 
-### Selectors и activation схемы 90
+| Объект | Защита |
+|---|---|
+| Activation task | Неизменяемые ID/network/wallet/created_at и однократно привязанная operation. Порядок блокировок — task/operation advisories → policy → scopes/wallets → task row. Terminal replay сохраняет основание. Resource release сверяет исходные reason/event или завершение связанной аренды. |
+| `doc_crypto_resource_rentals.maintenance_claim_token` | Новый token на каждую попытку. State, close и release проверяют token и время lease по часам БД после account → rental locks. |
+| `reg_crypto_account_activations.cost_claim_token` | Token привязан к repairing lease. Completion проверяет claim и linked identity до fee writes. Authoritative finality завершает операцию и отзывает repair token. |
+| `reg_crypto_activation_dispatches` | Неизменяемая связь authorization, activation, phase, claim, network и fingerprint. Один Sign фиксируется до внешнего подписания. Неизвестный результат удерживает fee reserve. Позднее доказательство сохраняет исходную привязку. Pool slot и fee reserve создаются в serializable transaction, state/dispatch используют read committed. |
+| `CryptoNetworkOperation` | Metadata, protection и posting получают тот же префикс блокировок, что activation finality. В набор входят текущие, предложенные и исторические wallets. Состав ресурсов и право ручного изменения проверяются под locks. Document paths используют read committed и явную транзакцию для FOR UPDATE. |
+| Аренда и allocation settlement | Provider account блокируется до rental row, rental row — до allocation settlement. Повтор charge/refund сверяет полный provider/platform set и исходные usage/outcome. Cumulative refund только растёт в пределах gross. Pending или противоречивое состояние требует сверки. |
 
-[00009](../db/configuration/crypto/00009_crypto_custody.sql) добавляет `fn_crypto_try_lock_custody_wallets(uuid[], uuid DEFAULT NULL, uuid DEFAULT NULL)` и `fn_crypto_lock_withdrawal_wallets(uuid[], uuid, uuid)`. Они блокируют объединение wallet-owner scopes и дополнительного scope заявки до wallets. Try-lock освобождает частичный набор при занятости. Withdrawal/sweep selectors, draft linking и activation coordinator получают ресурсы до workflow rows; sweep повторяет eligibility на свежем statement snapshot. Новых финансовых реквизитов, документов, регистров или recognition owners нет.
+### Первое основание и операционная проекция
 
-### Native funding и bulk maintenance схемы 91
-
-[00009](../db/configuration/crypto/00009_crypto_custody.sql) добавляет `fn_crypto_try_lock_funding_confirmation(uuid)`, который атомарно пропускает занятые scopes/wallets/funding row. Native-funding operational mutations и expected-transfer nudge используют общий transaction-only preflight; bulk sweep maintenance фиксирует candidates до получения ресурсов и ограничивает ими все дальнейшие изменения. Новых финансовых сущностей, реквизитов или recognition owners нет.
-
-### Execution/authorization publication — этап 92
-
-Схема остаётся 91. Go adapters получают полный execution resource prefix до replacement UPDATE и authorization INSERT. AML publication использует line basis; новые replacement generations требуют exact signed predecessor и свежего execution state. Expected-effect replay сравнивает полную identity и единственный ordinal текущего transfer profile. Новых документов, реквизитов, financial facts или DTO нет.
-
-### Queue barriers и semantic replay — этап 93
-
-Схема остаётся 91. Capture/ack явно требует read-committed snapshot; signing tuple replay сравнивает полный bound body и canonical unsigned payload, сохраняя исходный deadline. Fee replay проверяет normalized outcome/components и direct movement payload, а pending collision требует reconciliation. Новых реквизитов, таблиц, DTO или финансовых owners нет.
-
-### Reconciliation identity и ручная AML cancellation — этап 94, схема 92
-
-[00009](../db/configuration/crypto/00009_crypto_custody.sql) сохраняет identity заявки на сверку: ID, network/wallet/token, source type/ID и первоначальный requested_at. Для native funding source/destination и custody adjustment target проверяется по исходному документу; для остальных внутренних source types — общая принадлежность wallet/token сети. Status, attempts, leases и результат остаются операционной проекцией. Миграция останавливается при несовместимой существующей identity, требуя разбора до обновления; автоматического исправления истории нет. Go producers проверяют payload после конфликта и сохраняют исходный результат/время; native pair атомарна. Ручная отмена AML allocation/resource требует исходных reason/actor при повторе. Новых таблиц, колонок, финансовых owners или DTO нет.
-
-### Пакетная отмена withdrawal и sweep expiry — этап 95
-
-Схема остаётся 92. Go producers проверяют сохранённый cancellation reason/actor после коллизии INSERT; unsigned terminal replay не меняет основание. Remainder refund требует полностью новых cancellation facts, pending audit evidence требует reconciliation. AML approval/rejection/cancellation получают полный request/execution advisory и scope/wallet prefix до request rows, повторно проверяя resource set после ожидания. AML resource commands и maintenance planning требуют read committed. Таблицы, поля, DTO и financial owners не добавлены; история не переписывается.
-
-### Resource rental accounting replay — этап 96
-
-Схема 92, новых таблиц/полей/DTO нет. Resource rental charge/refund проверяет полный provider/platform financial set и canonical cumulative refund sequence. Refund только нарастает и не превышает gross; pending/corrupt history требует reconciliation. Exact replay сохраняет первый header/period/expiry/close, terminal status не переоткрывается в held. Provider account предшествует rental row; rental предшествует allocation settlement row. Financial writes требуют read committed; allocation receipt связан с rental network и исходными usage/outcome.
-
-### Legacy compensation и allocation replay — этап 97
-
-Схема 92. Legacy finalization этого этапа удалена вместе с двойной моделью учёта. Recorded replay сохраняет первоначальный период и проверяет outcome/fee/usage. Resource allocation reservation/broadcast проверяет сохранённый payload и semantic event; exact replay не меняет timestamps. Financial transaction/preflight precedes fee writes, rental precedes allocation replay locks. Таблицы/поля/DTO/financial owners не добавлены.
-
-
-### Activation task identity и operational replay — этап 98, схема 93
-
-[00009](../db/configuration/crypto/00009_crypto_custody.sql) сохраняет task ID/network/wallet/created_at и установленную operation link; link проверяется по exact task basis/network/target. Удаление identity запрещено; несовместимая history останавливает upgrade без автоматической правки. Activation selector/state используют advisories → policy → scopes/wallets → activation row, read committed и immutable terminal replay. Resource release сверяет первоначальный reason/event либо полный terminal rental close. Таблицы, поля, financial owners и DTO не добавлены.
-
-
-### Rental maintenance fencing — этап 99, схема 94
-
-[00009](../db/configuration/crypto/00009_crypto_custody.sql) добавляет UUID `maintenance_claim_token` к `doc_crypto_resource_rentals`; установленный token требует owner/claimed_at/lease_expires_at. Каждая попытка получает новый token, state/close/release проверяют token и wall-clock lease после account → rental locks. Legacy leases сохраняются без token до expiry, financial history не переписывается. Для выкладки остановить прежние workers; HTTP DTO и financial owners не меняются.
-
-
-### Activation cost-repair fencing — этап 100, схема 95
-
-[00009](../db/configuration/crypto/00009_crypto_custody.sql) добавляет `cost_claim_token` в `reg_crypto_account_activations`; установленный token требует repairing status и owner/claimed_at/lease. Каждая попытка получает новый token; guarded completion проверяет его после общего prefix до fee writes. Authoritative finality сохраняется и отзывает repair token вместе с completion. Legacy leases сохраняются без token до expiry, financial history/owners и HTTP DTO не меняются. Для выкладки остановить прежние activation workers.
-
-
-### Activation execution dispatch audit — этап 101, схема 96
-
-[00009](../db/configuration/crypto/00009_crypto_custody.sql) добавляет immutable `reg_crypto_activation_dispatches` с exact authorization/activation/phase/claim/network/fingerprint. Token основной activation lease передаётся в actor commands и guarded dispatch; один Sign фиксируется до HSM и неизвестный результат не освобождает fee reserve. Pool slot и fee reserve создаются атомарно в serializable transaction; state/dispatch сохраняют read committed. Late signed/broadcast evidence сохраняет original owner и новую чужую lease; authoritative finality остаётся отдельной. Новых financial owners/HTTP DTO нет. Audit запрещено переписывать/удалять; Down после facts требует forward recovery. Для выкладки остановить старые activation workers.
-
-### CryptoNetworkOperation metadata/protection prefix — этап 102
-
-Схема остаётся 96, новых таблиц/полей/HTTP DTO нет. Metadata/protection/row locks существующего документа и post/unpost/repost получают activation workflow/operation → pool policy → scopes/wallets → activation row до document/balance locks. Набор включает current/proposed/historical wallets и проверяется повторно после ожидания. Manual-edit permission читается под prefix; exact protection replay не меняет version/actor/financial history. Document paths требуют read committed и explicit transaction для FOR UPDATE; serializable activation reserve сохраняется отдельно.
-
-### Основание финансового сторно платежей — этап 103, схема 97
-
-[00009](../db/configuration/crypto/00009_crypto_custody.sql) добавляет immutable request_basis JSONB в reg_crypto_reorg_compensations. Старые записи сохраняют NULL; новые требуют schemaVersion=1, UPDATE/DELETE audit запрещены, Down после нового basis запрещён. Replay сверяет исходное основание платежа, compensation/incident/block/basis и полный результат сторно трёх регистров. Incident сохраняет первую observation и проверяет payment owner; network incident использует deterministic content key и semantic legacy lookup без переписывания history. Новых financial owners/HTTP DTO нет. Старые workers остановить перед upgrade, прямым compensation callers требуется read committed.
-
-### Повторы operational holds — этап 104
-
-Схема остаётся 97, новых таблиц/полей/HTTP DTO и движений денег нет. Общий API постановки/снятия сверяет immutable acquisition details и resolution actor/reason, сериализует owner сразу для network/wallet tables и не добавляет targets resolved owner. Read committed обязателен; busy owner возвращает conflict без ожидания. Сверка остатков берёт hold basis из первого immutable observation, последующие delta/run остаются отдельными evidence facts. History не переписывается, прямые SQL hold writers остаются отдельным P3 audit.
-
-### SQL hold lifecycle guard — этап 105, схема 98
-
-[00009](../db/configuration/crypto/00009_crypto_custody.sql) добавляет общие replay/identity guards на INSERT/UPDATE/DELETE hold tables и SQL owner gate, совместимый с Go key этапа 104. Включены raw provisioning/preflight/pool/baseline-release writers; NULL или changed basis не считается успешным replay. Новые pool/preflight owner IDs включают wallet и source, legacy identifiers не переписываются. First payload сохраняется, новое finding после resolution получает отдельный lifecycle. Новых денежных таблиц/полей/движений и HTTP DTO нет. Down после новых wallet-bound facts требует forward recovery; перед upgrade остановить старые workers/controllers.
-
-
-### Отмена заявки и первое наблюдение — этап 106, схема 99
-
-[00009](../db/configuration/crypto/00009_crypto_custody.sql) проверяет reason/actor отмены pool intent до ON CONFLICT и дополняет SQL порядок блокировок scopes перед intent. Coverage guard проверяет действующие полномочия после ожидания по clock_timestamp(), сохраняя первую запись при смене исполнителя и обновлении списка. Приложение отклоняет неверную watcher identity/lease даже без новых адресов. Денежные таблицы, DTO и сохранённые данные не меняются; Down/Up сохраняет историю и переключает только функции. При выкладке/откате остановить старые workers/controllers.
-
-
-### Первое решение AML и история расхождений счёта — этап 107, схема 100
-
-[00009](../db/configuration/crypto/00009_crypto_custody.sql) добавляет nullable evaluated_at в reg_crypto_aml_decisions и episode_id/initial_details/incident_id в sys_invoice_reconciliation_drift. Первое основание и закрытая история защищены SQL; новая ошибка после устранения создаёт отдельный инцидент после двух наблюдений. Legacy NULL clocks/details не восстанавливаются. Новых денежных движений и DTO нет. Старые workers остановить до upgrade. Down оставляет evaluated_at для сохранения audit; после новых invoice episodes/links/history требуется forward recovery.
-
-
-### Основания preflight attempts и activation queue — этап 108, схема 101
-
-[00009](../db/configuration/crypto/00009_crypto_custody.sql) добавляет immutable reg_crypto_aml_preflight_attempts и два initial version поля job. Claim требует snapshot при commit; Save/Retry сверяют весь basis и текущий token после общего resource prefix. Исторические неизвестные данные не backfill, observations FK добавлен NOT VALID для legacy. Activation queue выбирает только готовый fixed target и сохраняет имеющуюся task. HTTP DTO и деньги не меняются; внутренний job содержит PolicyID. Старые workers остановить; после новых registrations/attempts Down требует forward recovery.
-
-
-### Начальные блоки и watch ownership — этап 109, схема 102
-
-[00009](../db/configuration/crypto/00009_crypto_custody.sql) добавляет nullable registration_basis/activation_basis в sys_crypto_block_ingestion и guards источников watch targets/catalog owners. Первый shadow/financial вход сохраняется, activated boundary не передвигается повтором или pause/resume. Общий read-committed network try-gate устраняет обратное ожидание callbacks и stale snapshot обход; TRON driver повторяет только busy. Legacy неизвестные bases не backfill, Up проверяет owner/key и retained history; financial mode без activated_at отклоняется, включая preflight старых rows. Down сохраняет столбцы, после новых activation facts требует forward recovery. Остановить старые workers/catalog writers перед upgrade. Новых денежных движений и HTTP DTO нет.
-
-
-### Первое основание внешних списаний — этап 110, схема 103
-
-[00009](../db/configuration/crypto/00009_crypto_custody.sql) добавляет nullable initial_basis и observation incident_id. DB сохраняет первое основание/clock и проверяет raw effect replay; Go сохраняет прежних catalog owners, согласованно обновляет block tuple/confirmations и не снижает floor. Incident/observation writes проверяют полный source; read-committed try-prefix предшествует workflow rows. Busy отложен в worker без исчерпания attempts. Legacy NULL не backfill; после новых source facts Down закрыт. Остановить старые writers перед upgrade. P3 decision/reappearance audit и P4–P13 остаются в плане.
-
-
-### Основания решений внешних списаний — этап 111, схема 104
-
-[00009](../db/configuration/crypto/00009_crypto_custody.sql) сохраняет nullable decision bases classification/resolution/adjustment/audit. Go UUID seed, DB source/clock, AFTER audit и deferred exact check/run/incident/hold cohort обеспечивают один неизменяемый результат. Same-command replay не создаёт новых денег/audit/release; изменённое основание и superseded classification отклоняются. Legacy NULL не backfill; после новых decision facts Down закрыт. Перед upgrade остановить старые writers. R1 реализован, R2–R8 и P4–P13 остаются открытыми.
+| Объект | Что хранится и проверяется |
+|---|---|
+| Заявка на сверку | Неизменяемые network/wallet/token, source type/ID и `requested_at`. Для native funding и custody adjustment target сверяется с исходным документом. Native source/destination requests создаются атомарно. Статус, attempts и lease хранятся в операционной проекции. |
+| `reg_crypto_reorg_compensations.request_basis` | Повтор проверяет исходное основание, payment/incident/block и полный набор сторно трёх регистров. Incident сохраняет первое наблюдение и проверяет payment owner. |
+| Operational holds | Go и SQL сериализуют owner по network/wallet cohort под read committed без ожидания. Повтор сверяет исходные acquisition details и resolution actor/reason. Новое finding создаёт отдельный lifecycle, а последующие измерения хранятся отдельно от первого основания. |
+| Pool intent и watch coverage | Отмена сверяет исходных actor/reason. Coverage сохраняет первое подтверждение адреса и актива. После ожидания блокировки проверяются текущая watcher identity и срок lease по часам БД. |
+| `reg_crypto_aml_decisions.evaluated_at` и `sys_invoice_reconciliation_drift` | Решение сохраняет исходное время оценки. Первый инцидент и его acknowledgement остаются в истории. Новый эпизод после устранения открывается после двух наблюдений. |
+| `reg_crypto_aml_preflight_attempts` | Job хранит начальные версии, каждая попытка — собственное основание. Callback сверяет полный basis и текущий claim token. Checkpoint читается вне транзакции. Activation queue выбирает готовую сеть и повторно проверяет fixed target. |
+| `sys_crypto_block_ingestion` | `registration_basis` и `activation_basis` хранят первую границу shadow и financial reader. Pause/resume сохраняет границу. Financial mode требует `activated_at`, watchers проверяют актуальность asset metadata и owner. |
+| External outflow | `initial_basis` сохраняет первое основание и исходных catalog owners. Наблюдения обновляют номер блока, hash и confirmations согласованно. Решения classification/approval/rejection/resolution сверяют сохранённое основание и текущего владельца. Точный повтор возвращает исходный результат. |

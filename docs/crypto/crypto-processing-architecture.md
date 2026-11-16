@@ -6,8 +6,7 @@
 >
 > **Аудитория:** Developer, Security, Finance, Admin
 >
-> **Связанные:** [add-blockchain-network.md](../howto/add-blockchain-network.md), [crypto-security-and-risk-review.md](crypto-security-and-risk-review.md), [crypto-environment-setup.md](crypto-environment-setup.md), [crypto-processing-test-scenarios.md](crypto-processing-test-scenarios.md)
->
+> **Связанные:** [add-blockchain-network.md](../howto/add-blockchain-network.md), [crypto-environment-setup.md](crypto-environment-setup.md), [crypto-processing-test-scenarios.md](crypto-processing-test-scenarios.md)
 >
 > Реализованные семейства: TRON (Nile/Mainnet) и EVM (Sepolia, выключен до
 > testnet gate). Финансовое ядро chain-agnostic. TRON Energy — optional
@@ -18,9 +17,9 @@
 
 ## Текущая схема и AML/custody
 
-Текущий release ожидает schema **76**. Внешняя форма обычного invoice/payment сохраняется, но маршрут расходования зависит от custody/AML policy. При enforced custody source, collector и fee wallet принадлежат одному immutable owner; shared warm-pool refill выключен. Без enabled AML scope сохраняется прежний outbound, описанный ниже.
+Схема tenant DB соответствует [ExpectedSchemaVersion](../../internal/core/version/version.go). Внешняя форма обычного invoice/payment сохраняется, но маршрут расходования зависит от custody/AML policy. При enforced custody source, collector и fee wallet принадлежат одному immutable owner; shared warm-pool refill выключен. Без enabled AML scope сохраняется прежний outbound, описанный ниже.
 
-При enabled AML scope свипы и выводы используют verified inventory, batch/source revisions, отдельный operating gas и dispatch permits. Classless legacy spending закрыт. WithdrawalRequest хранит дополнительный class-specific plan/lines и частичные результаты; старое описание одного execution document не заменяет этот план. Точные гарантии и ограничения: [custody](../operations/crypto-merchant-custody.md), [AML architecture](aml-kyt-architecture.md), [AML outbound](../operations/crypto-aml-outbound.md), [метаданные схемы 76](../METADATA.md#aml-и-merchant-custody).
+При enabled AML scope свипы и выводы используют verified inventory, batch/source revisions, отдельный operating gas и dispatch permits. Classless legacy spending закрыт. WithdrawalRequest хранит дополнительный class-specific plan/lines и частичные результаты; старое описание одного execution document не заменяет этот план. Точные гарантии и ограничения: [custody](../operations/crypto-merchant-custody.md), [AML architecture](aml-kyt-architecture.md), [AML outbound](../operations/crypto-aml-outbound.md), [метаданные AML и custody](../METADATA.md#aml-и-merchant-custody).
 
 ## 1. Назначение и границы
 
@@ -240,7 +239,9 @@ Merchant API:
 
 Для transient-сценария инвойсу арендуется свободный pool-кошелёк. Для постоянного адреса `/merchant/v1/addresses` создаёт или возвращает привязку по `merchant + network + customerId`.
 
-Автоматические пополнения persistent-кошельков создаются с `invoice_kind='top_up'` и `creation_source='system'`. `IsPersistentTopUp` проверяет системную классификацию, принадлежность persistent-кошелька и связь с платежом. `externalId` и `orderId` остаются пустыми до привязки реквизитов мерчанта; `/reference` принимает один или оба реквизита. Хэш и идентичность chain event хранятся в `CryptoPayment`. См. [решение о владении реквизитами](invoice-reference-ownership-design.md).
+Автоматические пополнения persistent-кошельков создаются с `invoice_kind='top_up'` и `creation_source='system'`. `IsPersistentTopUp` проверяет тип, происхождение, persistent-кошелёк и связанный платёж с теми же merchant, wallet, token и network. Бизнес-реквизиты, статус и каноничность платежа не участвуют в классификации. Хэш и полная идентичность chain event хранятся в `CryptoPayment`.
+
+`externalId` и `orderId` принадлежат мерчанту и изначально пусты. Команда `/reference` принимает один или оба реквизита. Она атомарно сохраняет реквизиты, версию и аудит `bind_merchant_reference`, проверяя авторизацию и при повторе. Привязка сохраняет тип операции, связь с платежом, суммы, FSM и проводки. [Контракт команды](../reference/merchant-public-api.md#привязка-реквизитов-мерчанта-к-пополнению)
 
 ### 4.2 Наблюдение blockchain
 
@@ -277,7 +278,7 @@ payment processor проверяет совпадение event token с token �
 Для каждого канонического входящего chain effect создаётся не более одного
 `CryptoPayment`. Обработка защищена:
 
-- уникальностью tx hash;
+- уникальной идентичностью эффекта внутри сети и транзакции;
 - транзакционной блокировкой инвойса;
 - FSM платежа;
 - журналом переходов `reg_crypto_payment_events`.
@@ -294,7 +295,7 @@ Canonical/finality observation может вернуть платёж в reorg w
 и settlement повторяемы: unique basis и movement constraints не допускают
 второго economic effect после restart или повторной доставки chain event.
 
-Мелкие входящие переводы менее 1000 минорных единиц по умолчанию считаются dust и не создают платёж. Для USDT с 6 decimals это 0,001 USDT.
+Мелкие входящие переводы ниже порога не сопоставляются с инвойсом как платежи. Физическое признание финального перевода проверяет отдельный intake.
 
 Инвойс обновляется по накопленной полученной сумме:
 
@@ -322,11 +323,11 @@ fee = clamp(fixed_fee + amount * percent_bp / 10000, min_fee, max_fee)
 merchant_net = amount - fee
 ```
 
-Проведение подтверждённого платежа создаёт:
-
-- receipt на blockchain-баланс управляемого pool-кошелька;
-- receipt дохода processing fee;
-- receipt обязательства перед мерчантом на `merchant_net`.
+При финальности `CryptoCustodyReceipt` признаёт физический приход и невыясненный
+остаток. `CryptoPayment` в той же транзакции списывает gross из невыясненных,
+зачисляет net мерчанту и признаёт processing fee по снимку тарифа. Worker
+сохраняет финальные неподобранные переводы в невыясненных до отдельного решения
+о распределении. См. [контракт входящего учёта](crypto-inbound-provider-accounting-design.md).
 
 Отсутствие применимого тарифа означает явно бесплатную операцию. Ошибка чтения
 merchant/global fee repository отличается от отсутствия тарифа и обрабатывается
@@ -740,41 +741,26 @@ Merchant-specific CIDR policies существуют отдельно для `po
 API surface поддерживает per-key override. Baseline и key policy вычисляются как
 intersection, а любой enforce-deny блокирует запрос. Адрес клиента берётся только
 из валидированной trusted proxy chain; IPv4-mapped IPv6 нормализуется. Ошибка
-policy read/audit в enforce path приводит к deny.
+policy read/audit в enforce path приводит к deny. Некорректный
+`TRUSTED_PROXIES` останавливает запуск API. API принимает forwarded IP только
+от доверенного прокси.
 
 Owner меняет policy со fresh object-bound step-up и durable idempotency через
 staged `off -> warn -> enforce`. Enforce требует активного CIDR и проверяет путь
 recovery для текущего IP. Изменение повышает version, инвалидирует cache и
-пишется в security audit. Отдельный system-admin recovery endpoint требует
+пишется в security audit. Локальный cache сбрасывается при изменении, срок
+актуальности policy cache в других процессах ограничен пятью секундами.
+`networkAccess` в ответе `/portal/v1/merchants` служит для UI, business request
+проходит собственную проверку. Отдельный system-admin recovery endpoint требует
 admin MFA/CIDR, fresh step-up и причину; merchant `security_admin` не получает
 эти полномочия.
 
 ## 12. Текущие ограничения и production gates
 
-Программные release blockers закрыты и остаются обязательными regression
-gates: per-tenant Transit/tokenless Vault Proxy, lifecycle webhook outbox,
-failed-withdrawal compensation, fee fail-closed, token isolation, динамический
-address refresh и multi-contract watcher.
-
-Перед промышленным запуском остаются инфраструктурные и продуктовые gates:
-
-1. Вынести Vault из `vault-test`, включить TLS/audit/HA и провести
-   backup/restore, key rotation и disaster-recovery drills.
-2. Настроить PostgreSQL PITR, restore drills, P1 alerting, on-call и операционный
-   SLA для held/failed/reconciliation incidents.
-3. Провести Nile/Sepolia finality/reorg, RPC/provider outage, timeout, restart,
-   concurrency, load и chaos conformance; затем отдельно утвердить Mainnet model.
-4. Проверить treasury happy path, maker-checker, лимиты hot wallet и процедуру
-   proof-of-assets-and-liabilities.
-5. Выполнить full-stack security-negative gate для merchant Portal/API/per-key
-   CIDR, trusted proxies, cache invalidation и system-admin recovery.
-6. Получить полный T01--T30 evidence bundle без `NOT_RUN/PARTIAL/BLOCKED`, включая
-   финансовые snapshots, testnet chain evidence и kill-switch drill.
-
-До закрытия отдельного Mainnet deployment gate текущий контур пригоден для
-dev/staging и контролируемого Nile E2E, но не называется полностью
-production-ready. Полный gate и rollout описаны в
-[production-deployment.md](../operations/production-deployment.md).
+Перед включением Mainnet выполните [приёмку криптопроцессинга](crypto-processing-test-scenarios.md),
+[Nile acceptance](../operations/crypto-nile-acceptance.md) и [Mainnet go/no-go](../operations/crypto-mainnet-go-no-go.md).
+Production-требования к Vault, PostgreSQL, мониторингу и восстановлению описаны
+в [руководстве по развёртыванию](../operations/production-deployment.md).
 
 ## 13. Карта основных сущностей
 
@@ -889,7 +875,6 @@ worker settlement rental charge/refund сохраняется. Эта backend-з
 ## Связанные документы
 
 - [add-blockchain-network.md](../howto/add-blockchain-network.md) — алгоритм подключения новой сети на примере Ethereum/EVM.
-- [crypto-security-and-risk-review.md](crypto-security-and-risk-review.md) — security и executive review.
 - [crypto-environment-setup.md](crypto-environment-setup.md) — развёртывание dev-контура с нуля.
 - [crypto-processing-test-scenarios.md](crypto-processing-test-scenarios.md) — полный verification protocol.
 - [production-deployment.md](../operations/production-deployment.md) — production rollout, rollback и DR.

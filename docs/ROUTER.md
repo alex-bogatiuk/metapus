@@ -28,11 +28,11 @@
 | [systems/core-layer.md](systems/core-layer.md) | Базовые примитивы, BaseEntity, BaseCatalog | core, entity, base, catalog, document |
 | [systems/crud-pipeline.md](systems/crud-pipeline.md) | Generic CRUD pipeline, обработка запросов | crud, generic, pipeline, factory, handler |
 | [systems/command-palette.md](systems/command-palette.md) | Command Palette (Ctrl+K), навигация, калькулятор, глобальный поиск по данным | command palette, ctrl+k, search, calculator, actions, global search, data search, SearchFieldsProvider, RLS |
-| [systems/crypto-processing.md](systems/crypto-processing.md) | Криптопроцессинг: chain watcher, FSM, event processor, compliance, settlement, threshold sweep, sweep retain amount, TRON resource preparation, iTRX energy rental, platform cost accounting, allocation mode, merchant config, **Merchant Public API**, **Merchant Portal API**, **ERP/admin Withdrawal Approval**, Vault outbound execution, API-ключи, SSRF, BOLA, **Withdrawal**, **Address Whitelist**, **Debit-First Posting**, **curl-примеры** | crypto, payment, blockchain, tron, watcher, fsm, invoice, wallet, webhook, settlement, compliance, sweep, threshold, retain, dust, itrx, energy, platform cost, allocation, merchant config, merchant api, api key, scope, ssrf, bola, portal, portal api, dashboard, curl, examples, balance calculator, withdrawal, withdrawal request, approval, vault, outbound, address whitelist, network, debit-first |
+| [systems/crypto-processing.md](systems/crypto-processing.md) | Приём платежей, учёт, свипы, вывод, AML и границы подписания | crypto, watcher, invoice, custody, receipt, settlement, sweep, withdrawal, AML, Vault, webhook |
 | [systems/dashboard-widgets.md](systems/dashboard-widgets.md) | Дашборды, виджеты, layout пользователя | dashboard, widgets, UI, preferences |
 | [systems/domain-layer.md](systems/domain-layer.md) | Бизнес-логика, сервисы, хуки | domain, services, hooks, logic, repository |
 | [systems/exchange-rates.md](systems/exchange-rates.md) | Эксплуатация курсов: CoinGecko, неизменяемые наблюдения, оценка Portal и диагностика | exchange rate, rate source, currency, coingecko, rate feed, currency mapping, multiplier |
-| [systems/exchange-rates-design.md](systems/exchange-rates-design.md) | Реализованная первая версия: CoinGecko, история наблюдений, freshness и оценка Portal; ограничения ручного ввода | exchange rates, architecture, UX, history, asOf, freshness, manual rates, rate policy, currency pair |
+| [systems/exchange-rates-design.md](systems/exchange-rates-design.md) | Загрузчик CoinGecko, история котировок, freshness и оценка Portal | exchange rates, architecture, UX, history, asOf, freshness, manual rates, rate policy, currency pair |
 | [systems/extension-api.md](systems/extension-api.md) | Плагины, кастомные расширения, модули | extensions, plugins, api, modules, custom |
 | [systems/filtering.md](systems/filtering.md) | Система фильтрации, SQL-генерация, типы | filtering, filters, sql, exists, ui |
 | [systems/infrastructure-layer.md](systems/infrastructure-layer.md) | Инфраструктура, PostgreSQL, HTTP сервер | infrastructure, postgres, http, gin |
@@ -56,8 +56,6 @@
 | [howto/new-document.md](howto/new-document.md) | Инструкция по добавлению нового документа | new, document, migration, posting, validation, M15 |
 | [howto/new-entity.md](howto/new-entity.md) | Инструкция по добавлению справочника/документа | new, entity, catalog, document, tutorial |
 | [operations/integration-accounts.md](operations/integration-accounts.md) | Настройка tenant-аккаунтов/пулов, перенос RPC/CoinGecko, dry-run и controlled rollout | integrations, credentials, alchemy, quota, import, polling |
-| [howto/crypto-aml-liquidity-address-screening-plan.md](howto/crypto-aml-liquidity-address-screening-plan.md) | План ежедневных адресных AML-проверок ликвидности через GetBlock, причинного распространения риска и пересмотра исторических High | crypto, AML, getblock.net, checkaddr, liquidity, schedule, risk, provenance, resolution |
-| [howto/crypto-inbound-provider-accounting-plan.md](howto/crypto-inbound-provider-accounting-plan.md) | План реализации receipt/suspense, merchant attribution, возвратов, казначейских оснований, авансов провайдерам и безопасной миграции учёта | crypto, accounting, inbound, suspense, unidentified, receipt, refund, provider, iTRX, transit, reconciliation, migration |
 
 ## 4. Справочник (Reference)
 Таблицы, API, строгие правила.
@@ -67,7 +65,7 @@
 | [METADATA.md](METADATA.md) | Структура метаданных в терминах 1С: справочники, документы, реквизиты, табличные части, регистры, перечисления и отчёты | метаданные, 1С, конфигурация, справочники, документы, реквизиты, регистры |
 | [reference/document-register-matrix.md](reference/document-register-matrix.md) | Матрица движений всех реализованных документов и краткий справочник назначения; отличия поступлений, пополнений кошельков и платформы | документы, движения, регистры, пополнение, невыясненные, свип, вывод, комиссии, корректировки |
 | [reference/development-rules.md](reference/development-rules.md) | Строгие архитектурные правила и запреты, **CWE-209**, привязка ID документа | rules, development, invariants, limits, cwe-209, error messages, security, document id |
-| [reference/frontend-guidelines.md](reference/frontend-guidelines.md) | Правила фронтенда, Next.js, shadcn/ui | frontend, guidelines, next.js, shadcn, react |
+| [Руководство по фронтенду](../frontend/docs/frontend-guidelines.md) | Правила фронтенда, Next.js, shadcn/ui | frontend, guidelines, next.js, shadcn, react |
 | [reference/keyboard-shortcuts.md](reference/keyboard-shortcuts.md) | Глобальные горячие клавиши, useShortcut | shortcuts, keyboard, hotkeys, bindings |
 | [reference/json-contracts.md](reference/json-contracts.md) | Профили JSON v2, строгий HTTP, PostgreSQL codecs, byte-stable legacy protocols | json, encoding/json/v2, pgx, gin, canonical, omitzero, hmac, fingerprint |
 | [reference/crypto-canonical-contracts.md](reference/crypto-canonical-contracts.md) | Канонические декодеры, стабильные evidence/signing schemas, AML coverage, owner-based funding и границы восстановления | crypto, canonical, decoder, evidence, fingerprint, AML, coverage, funding, custody, recovery |
@@ -80,8 +78,6 @@
 | Файл | Описание | Ключевые слова |
 |------|----------|----------------|
 | [meta/00-doc-standard.md](meta/00-doc-standard.md) | Стандарт написания документации | документация, стандарт, шаблон, стиль |
-| [meta/01-documentation-audit.md](meta/01-documentation-audit.md) | Пофайловая сверка 2026-11-02, исправления, источники и выполненные проверки | audit, актуальность, документация, schema 76, verification |
-| [meta/02-refactoring-audit.md](meta/02-refactoring-audit.md) | Ревизия кода 2026-11-11: карта обследования, удалённый мёртвый код, реестр находок и backlog рефакторинга | refactoring, dead code, legacy, backlog, deadcode, print, schema cache, check-all |
 
 ## 6. Криптовалютный контур
 
@@ -90,18 +86,17 @@
 | Файл | Описание | Ключевые слова |
 |------|----------|----------------|
 | [crypto/crypto-processing-architecture.md](crypto/crypto-processing-architecture.md) | Фактическая архитектура приёма, свипов, withdrawal, treasury, сетевых криптоопераций, Vault и reconciliation | crypto, tron, evm, family, adapter, payment, sweep, withdrawal, treasury, crypto network operation, wallet activation, vault, reconciliation |
-| [crypto/crypto-adjustment-v2-design.md](crypto/crypto-adjustment-v2-design.md) | Реализованные сценарии CryptoAdjustment и следующие улучшения: сторно платежа, корректировка кошелька, условное согласование | crypto, adjustment, сторно, кошелёк, согласование |
-| [crypto/crypto-inbound-provider-accounting-design.md](crypto/crypto-inbound-provider-accounting-design.md) | Предлагаемое разделение custody receipt и attribution, невыясненные суммы, provider transit/service accounting, AML и block-bound сверка; изменения существующих механизмов | crypto, accounting, receipt, custody, suspense, unidentified, treasury, refund, provider, iTRX, energy, reorg |
-| [crypto/invoice-reference-ownership-design.md](crypto/invoice-reference-ownership-design.md) | Реквизиты мерчанта externalId/orderId и системная классификация top-up | crypto, invoice, externalId, orderId, topup, invoice_kind, creation_source, merchant reference, сверка, ERP |
+| [crypto/crypto-adjustment-v2-design.md](crypto/crypto-adjustment-v2-design.md) | CryptoAdjustment: сторно распределения, корректировка кошелька и согласование | crypto, adjustment, сторно, кошелёк, согласование |
+| [crypto/crypto-inbound-provider-accounting-design.md](crypto/crypto-inbound-provider-accounting-design.md) | Признание и распределение custody receipt, невыясненные суммы, возврат, reorg и расчёты с ресурсным провайдером | crypto, accounting, receipt, custody, suspense, unidentified, treasury, refund, provider, iTRX, energy, reorg |
 | [howto/add-blockchain-network.md](howto/add-blockchain-network.md) | Алгоритм добавления сети и первого chain family на примере Ethereum/EVM, extension points и production gates | crypto, ethereum, evm, blockchain network, driver, adapter, vault, finality, nonce |
 | [howto/add-resource-provider.md](howto/add-resource-provider.md) | Добавление вендора аренды ресурсов (iTRX, TronSave, …) через adapter registry, без копирования FSM | crypto, itrx, energy, resource provider, adapter, failover |
 | [howto/add-rpc-provider.md](howto/add-rpc-provider.md) | Добавление RPC-провайдера через чистые provider contracts и HTTP registry; границы конфигурации, квот и проверки подключения | rpc, provider, registry, clean architecture, credentials, topology |
-| [crypto/crypto-security-and-risk-review.md](crypto/crypto-security-and-risk-review.md) | Security/executive review, production blockers и merchant IP allowlist | crypto security, ciso, cfo, vault, ip allowlist, stripe, paypal |
 | [crypto/crypto-environment-setup.md](crypto/crypto-environment-setup.md) | Развёртывание PostgreSQL, Vault, tenant, server, worker и frontend с нуля | crypto setup, nile, postgres, vault, worker, mfa |
 | [crypto/crypto-processing-test-scenarios.md](crypto/crypto-processing-test-scenarios.md) | Пошаговые E2E, негативные и финансовые проверки всех механизмов | crypto qa, e2e, invoice, confirmations, sweep, withdrawal, reconciliation |
 | [crypto/wallet-address-reuse.md](crypto/wallet-address-reuse.md) | Реализованные cooldown, история аллокаций, durable inbox, атрибуция поздних платежей и lease-only watcher-lag gate | crypto, wallet pool, cooldown, address reuse, late payment, attribution |
 | [operations/crypto-aml-testnet-emulator.md](operations/crypto-aml-testnet-emulator.md) | Случайные воспроизводимые AML-ответы Nile/Sepolia, отдельный testnet provider, control-plane setup без API-ключей и paid calls | crypto, AML, emulator, testnet, nile, sepolia, seed |
 | [operations/crypto-aml-testnet-bootstrap.md](operations/crypto-aml-testnet-bootstrap.md) | Однократный импорт старых testnet остатков в low, manifests, reconciliation evidence и сохранение financial ledger | crypto, AML, bootstrap, opening inventory, testnet, migration, low |
+| [crypto/aml-kyt-architecture.md](crypto/aml-kyt-architecture.md) | Изоляция мерчантов, проверка происхождения и маршрутизация по риску | AML, KYT, owner, risk, batch, high, unknown |
 | [operations/crypto-aml-runtime.md](operations/crypto-aml-runtime.md) | Getblock.net jobs, pinned mappings, локальный бюджет paid submit и ограничения включения | crypto, AML, KYT, getblock.net, package, submit, poll, quota |
 | [operations/crypto-aml-risk-projection.md](operations/crypto-aml-risk-projection.md) | Verified intake, полнота inventory, rescreen, late high, проекция wallet/token и risk events | crypto, AML, coverage, baseline, projection, rescreen, risk, webhook |
 | [operations/crypto-deposit-address-rotation.md](operations/crypto-deposit-address-rotation.md) | AML в списке депозитных адресов, атомарная ротация, неизменяемая история, late intake без автозачисления и обновление схемы | crypto, deposit, address, rotation, AML, retired, webhook |
@@ -114,16 +109,16 @@
 | [operations/crypto-merchant-custody.md](operations/crypto-merchant-custody.md) | Изоляция principal, immutable owner, независимый Vault registry и переключение custody policy | crypto, merchant custody, owner, allocation, gas, funding, vault, isolation |
 | [operations/crypto-wallet-pool.md](operations/crypto-wallet-pool.md) | Автопополнение wallet pool, activation budget и CNO lifecycle | wallet pool, provisioning, activation, crypto network operation, budget, capacity |
 | [operations/worker-reliability.md](operations/worker-reliability.md) | Аренды и fencing Outbox/webhook/cron, восстановление после сбоев и обновление tenant DB | worker, outbox, lease, fencing, cron, catch-up, recovery, upgrade |
+| [operations/crypto-nile-acceptance.md](operations/crypto-nile-acceptance.md) | Повторяемая приёмка TRON на Nile для конкретной сборки | TRON, Nile, QA, preflight, failover, restart, reconciliation |
+| [operations/crypto-mainnet-go-no-go.md](operations/crypto-mainnet-go-no-go.md) | Критерии допуска Mainnet canary | TRON, Mainnet, rollout, canary, acceptance |
 | [operations/merchant-webhooks-production-readiness.md](operations/merchant-webhooks-production-readiness.md) | Conformance, SLO, chaos, kill switch и Mainnet canary для merchant invoice webhooks | merchant api, webhook, delivery, reconciliation, nile, sepolia, canary, production gate |
 | [operations/deployment-guide.md](operations/deployment-guide.md) | Точка входа: выбор local, публичного Nile или production-контура и правила версии кода | deployment, compose, version, local, test, production |
 | [operations/public-nile-deployment.md](operations/public-nile-deployment.md) | Cross-platform runbook публичного disposable TRON Nile / Ethereum Sepolia стенда | nile, public test, docker compose, tls, vault, e2e |
-| [operations/canonical-stand-update-2026-11-04.md](operations/canonical-stand-update-2026-11-04.md) | Обновление существующего Nile/Sepolia стенда на канонический runtime с сохранением данных, backup/restore и smoke | canonical, deploy, schema 76, backup, restore, nile, sepolia |
 | [operations/production-deployment.md](operations/production-deployment.md) | Production-инварианты, rollout/rollback, backup/restore, мониторинг и Mainnet gate | production, rollout, rollback, backup, restore, dr, mainnet |
 | [operations/vault-tron-production.md](operations/vault-tron-production.md) | Production-контур Vault Proxy, AppRole, Transit, TRON plugin, rotation и внешний Vault | vault, proxy, approle, transit, tron, signing, secret zero, rotation, raft |
 | [operations/local-vault-recovery.md](operations/local-vault-recovery.md) | Восстановление существующего локального тестового стенда после выключения компьютера: unseal, новый wrapped SecretID, Proxy и проверка входа | vault, recovery, restart, sealed, approle, login, powershell |
 | [operations/rpc-ingestion.md](operations/rpc-ingestion.md) | RPC routing, bounded EVM prefetch, atomic checkpoint и read-only ingestion preflight | rpc, ingestion, sepolia, watcher, lag, circuit, preflight |
 | [operations/vault-evm-sepolia.md](operations/vault-evm-sepolia.md) | Отдельный EVM Vault mount, Sepolia custody, tenant seed, sweep allowlist, preflight и rollout | vault, evm, ethereum, sepolia, custody, pyusd, signing, preflight |
-| [operations/vault-kubernetes-migration.md](operations/vault-kubernetes-migration.md) | Будущая замена AppRole на Kubernetes auth без изменения application code | vault, kubernetes, auto-auth, serviceaccount, projected token, migration |
 
 ---
 

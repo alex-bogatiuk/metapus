@@ -11,17 +11,13 @@ Accounting identity использует отдельную schema accounting-ef
 
 Logical key состоит из network, family, canonical transaction hash, effect kind и transaction-local ordinal. Для внутренних TRON effects используется также полный trace hash. EVM block-global log.Index остаётся observation alias и не входит в logical key. Block hash и нормализованные economics образуют отдельную occurrence.
 
-Migration 77 индексирует persisted proofs в reg_crypto_accounting_effects, reg_crypto_accounting_effect_occurrences и reg_crypto_accounting_effect_evidence. Это evidence index без денежных движений и без выбора активной canonical generation.
+`reg_crypto_accounting_effects`, `reg_crypto_accounting_effect_occurrences` и `reg_crypto_accounting_effect_evidence` индексируют сохранённые proofs. Активную каноничность определяет семейство сети. Финансовое признание хранится отдельно в `reg_crypto_custody_effect_postings` и `reg_crypto_custody_effect_recognitions`. У одного эффекта один владелец признания и не более одной principal receipt и одной expense стороны, даже при catalog aliases. Смена block hash сама не создаёт второй principal.
 
-Migration 78 добавляет reg_crypto_custody_effect_postings и reg_crypto_custody_effect_recognitions. Recognition ссылается на точную physical movement line; допускается не более одной principal receipt и одной expense стороны, в том числе при catalog aliases. Migration 80 разрешает поколения 2+ только для того же CryptoPayment/effect: predecessor, следующая posted version, полная компенсация прежних custody/net/fee и неизменяемый economic/fee snapshot обязательны. Receipt/funding/sweep/treasury остаются generation 1. Смена block hash сама не открывает второе признание.
+`CryptoCustodyReceipt` и `CryptoWalletFunding` требуют persisted proof, audit и outbox. `CryptoPayment` распределяет receipt. Каждое новое поколение распределения требует полного сторно прежнего набора suspense/net/fee с сохранением economic/fee snapshot. Для EVM funding используется независимый verifier без signer/nonce dependencies. Display casing адреса EVM не меняет сохранённые proof bytes. [Входящий учёт](../crypto/crypto-inbound-provider-accounting-design.md)
 
-Подключены CryptoCustodyReceipt (внешний приход, в том числе на работающей сети), в migration 79 operator CryptoWalletFunding, в migration 80 CryptoPayment как распределение receipt, в migration 81 CryptoNativeFunding , в migration 82 sweep с одним owner обеих controlled principal сторон, в migration 83 treasury с одним outgoing expense owner. Receipt и funding требуют strict persisted proof и immutable audit/outbox; разные effects одной tx различаются по identity. EVM funding использует тот же независимый verifier, что processing, без signer/nonce dependencies. Различие display casing EVM address не меняет сохранённые proof bytes. Индекс и recognition сами не разрешают расходование; остальные legacy writers требуют отдельного перехода.
+Final native funding получает доказательство до финансовой транзакции и проводит две controlled стороны. Paused ingestion и kill switch блокируют новые отправки и сохраняют восстановление принятого перевода. Revert учитывает только доказанную комиссию.
 
-Final native funding settlement получает proof до DB-транзакции и проверяет его также при paused ingestion/kill switch: восстановление принятого перевода не является новым dispatch. Новые external admission сохраняют policy guards. Native principal требует точного двухстороннего набора; fee/cost остаются отдельно, без собственного accounting identity role. Reverted tx не создаёт principal. Новые native generations и generic reversal закрыты до recovery workflow.
-
-Sweep признаёт principal каждой строки только при final successful settlement. `VerifyExpectedTransfer` ищет transfer по signed economics и возвращает доказанный observation index/transaction-local identity; неоднозначные одинаковые effects отклоняются. Старый `VerifyTransfer` проверяет заданный index как прежде; persisted evidence и EconomicsHash не меняются. Broadcast не создаёт principal, reverted tx создаёт только actual fee. Signing basis и final outcome immutable. Indexed tx требует registry даже при другом payment alias; unsigned alias не даёт второго principal. Fee proof/identity и sweep reorg/re-inclusion ещё требуют отдельного workflow.
-
-Treasury использует тот же strict proof/index для expense controlled source; внешний recipient берётся из frozen approved document. Receipt-side AccountingTransferBasis по умолчанию сохраняется. На broadcast отсутствуют principal/revenue movements; final successful principal и actual fee имеют разные финансовые роли. Независимая fee identity и recovery следующих поколений ещё не подключены. Native principal reservation не превращает principal в fee: дневной network fee budget учитывает только fee, а JIT funding — principal + fee.
+Sweep признаёт principal каждой строки при final successful settlement. `VerifyExpectedTransfer` находит transfer по signed economics и возвращает observation index и transaction-local identity. Неоднозначные совпадения отклоняются. `VerifyTransfer` проверяет заданный index. Treasury применяет тот же strict proof для expense controlled source. Внешний recipient берётся из frozen approved document. Fee и principal учитываются по разным доказательствам. Дневной network fee budget учитывает только fee, JIT funding budget — principal и fee.
 
 | Контракт | Текущее представление | Инвариант |
 |---|---|---|
@@ -71,11 +67,9 @@ Readiness проверяет native fee capital для каждого актив
 
 ## 5. Схема и операторские переходы
 
-Исходные миграции 00041 и 00050 содержат финальную схему по pre-production правилам проекта. Временные CLI upgrades ingestion/decoder/shadow columns и старого EVM header encoding удалены вместе с их SQL helpers. `crypto-preflight` поддерживает read-only режимы `aml`, `balance`, `ingestion`, `rpc`, `evidence`.
+Правила изменения схемы описаны в [инструкции по миграциям](../../db/migrations/README.md). Для запуска нужна версия из [ExpectedSchemaVersion](../../internal/core/version/version.go). Disposable стенд создаётся штатным provisioning. Сохранение данных при переносе требует backup/restore и отдельной проверки.
 
-Рабочие shadow pause/resume, fencing leases, canonical header validation, financial adjustments и settlement сохранены. Исторические proof bytes и audit records не переписываются. Multi-payment policy инвойса является бизнес-режимом и сохраняется при включении single-payment настройки для остальных подходящих инвойсов.
-
-Редактирование исходной миграции не обновляет уже применённую tenant schema. Новый release требует финальных объектов схемы. Disposable стенд создаётся заново штатным provisioning; данные сохраняемого стенда требуют отдельного проверенного плана переноса схемы с backup/restore. Автоматического пересоздания или изменения существующих БД этот рефакторинг не выполняет. Старые schema-60 upgrades и исправление прежнего client header encoding больше не входят в поддерживаемый CLI.
+`crypto-preflight` поддерживает read-only режимы `aml`, `balance`, `ingestion`, `rpc`, `evidence`. Shadow pause/resume, fencing leases, canonical header validation, financial adjustments и settlement используют сохранённые evidence. Proof bytes и audit records неизменяемы. Multi-payment policy сохраняется при включении single-payment для остальных инвойсов.
 
 ## 6. Проверки
 
@@ -83,34 +77,23 @@ Golden-тест `TestCanonicalTransferEvidenceGolden` фиксирует source/
 
 Unit tests покрывают явные coverage states, точный custody owner, отсутствие обходного источника, остатки payer и recovery при выключенной текущей политике. PostgreSQL integration suite проверяет fresh schema, `Up → Down → Up`, capture fencing, immutable evidence, частичное сторно, fee reservations, dispatch и settlement с race detector. Оба Vault plugin modules проверяются отдельно. HTTP declarations и Zod schemas генерируются из Go DTO.
 
-Проверено 04.11.2026:
-
-- `go build ./...` — успешно.
-- `go run ./cmd/integration-test` — полный suite на новых временных PostgreSQL 17 базах, `-tags=integration -race -count=1 -p=1`; 122 пакетов с тестами, ошибок нет.
-- Оба отдельных Vault-модуля: `go test ./... -race -count=1` — успешно.
-- `golangci-lint run ./...` — 0 issues.
-- `go run ./cmd/http-contracts -check` — 436 актуальных HTTP contracts/schemas.
-- Frontend: `tsc --noEmit --incremental false`, `npm run lint` — успешно.
-
-Существующие tenant БД и запущенные сервисы не изменялись. Тесты использовали отдельный PostgreSQL-контейнер с временным хранилищем.
-
-## Merchant withdrawal recognition (84)
+## Merchant withdrawal recognition
 
 Withdrawal использует тот же independent outgoing locator и строгий expense AccountingTransferBasis, что treasury. Proof получается до финансового transaction. Original WithdrawalRequest merchant debit не повторяется. Final principal owner, binding к исходному debit и authorization, actual fee/cost, normalized receipt, principal reserve outcome, AML fact и outbox атомарны. Failed v2 AML fact не имеет physical expense/refund; он подтверждает только точный merchant refund и освобождение резерва. Expected signed effect защищён от других legacy outflow writers. Изменение decoder/signing identity и новое accounting generation не добавлены.
 
-## Custody loss recognition (85)
+## Custody loss recognition
 
 Approval CryptoCustodyAdjustment использует strict expense AccountingTransferBasis по observed outflow: полный network/event/index/block/source/destination/asset/amount basis, независимый indexed canonical proof и общий owner. Матч signed expected effect требует исходного execution workflow. Detection/classification не заменяют proof. Loss cost отделён от network fee; merchant liability не меняется. Новые decoder/signing schemas не добавлены.
 
-## Network fee proof и recognition (86)
+## Network fee proof и recognition
 
 Fee role имеет независимый `network-fee.v1` key по network/family/canonical tx hash. NetworkFeeProof подтверждает controlled payer, canonical final outcome и точный total/components независимо от principal и transfer ordinal. TRON и Ethereum mainnet/Sepolia execution/blob используют два независимых источника/common head; неизвестный fee profile отклоняется. Fee reservations требуют proof/binding/exact financial set. Binding generation 1 не открывает автоматическую reorg-компенсацию.
 
-## Expected-transfer routing (87)
+## Expected-transfer routing
 
 Expected matching использует полный economic tuple и сохранённый signed intent; tx hash и controlled source сами по себе недостаточны. Logical route требует independent indexed proof/current confirmations/MatchingEffects=1 и одного expected transfer на authorization. Chain-specific ordinal берётся из accounting identity, без переписывания legacy event index. Pending request/outbox не создаёт financial owner или signing permission; original settlement basis сохраняется после lease expiry и получает nudge через прежний poller. Legacy/ambiguous/unsupported intents требуют review, без external fallback.
 
 
-## Manual correction basis (88)
+## Manual correction basis
 
 CryptoAdjustment фиксирует `basisKind` при proposal. `payment_attribution` (режим `payment_reversal`) сторнирует выбранные строки распределения текущего поколения платежа обратно в невыясненные receipt; custody не меняется, выбранные строки заморожены. `wallet_variance` (режим `wallet_balance`) не имеет chain recognition, даже если пользователь ввёл hash/proof ID в evidence. Корректировка не приобретает logical effect и не создаёт нового principal posting. DB проверяет точные противоположные движения и accounting outbox.

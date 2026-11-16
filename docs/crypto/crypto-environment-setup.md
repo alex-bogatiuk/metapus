@@ -6,7 +6,7 @@
 >
 > **Аудитория:** Developer, DevOps, QA, Admin
 >
-> **Связанные:** [crypto-processing-architecture.md](crypto-processing-architecture.md), [crypto-security-and-risk-review.md](crypto-security-and-risk-review.md), [crypto-processing-test-scenarios.md](crypto-processing-test-scenarios.md)
+> **Связанные:** [crypto-processing-architecture.md](crypto-processing-architecture.md), [crypto-processing-test-scenarios.md](crypto-processing-test-scenarios.md)
 >
 > Канонический путь для локальной Windows dev-среды на TRON Nile. Для
 > cross-platform публичного disposable стенда используйте
@@ -616,5 +616,5 @@ docker-compose.yml                       — local PostgreSQL; Vault plugin за
 ## Связанные документы
 
 - [crypto-processing-architecture.md](crypto-processing-architecture.md) — назначение компонентов.
-- [crypto-security-and-risk-review.md](crypto-security-and-risk-review.md) — production controls и gates.
+- [Production-развёртывание](../operations/production-deployment.md) — требования к реальному окружению.
 - [crypto-processing-test-scenarios.md](crypto-processing-test-scenarios.md) — следующий обязательный этап.

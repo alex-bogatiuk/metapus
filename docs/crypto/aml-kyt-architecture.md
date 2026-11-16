@@ -2,37 +2,32 @@
 
 > **TL;DR:** Каждый мерчант получает собственный контур депозитных, консолидационных и ресурсных кошельков. Сервис оценивает входящие средства и объединяет их внутри этого контура по risk-классам. High-risk средства остаются отдельно; мерчант может явно вывести их на свой адрес. Деньги одного мерчанта никогда не используются для выплат другому.
 >
-> **Статус:** В коде подключены custody, verified intake, decisions/events, merchant risk balances, token allocations/batches, operating gas, автоматический baseline/activation, class-specific withdrawals и dispatch permits. Для Nile/Sepolia добавлен отдельный AML emulator; production acceptance, общий rollout, replacements и reviewed corrections остаются отдельными этапами.
-> **Редакция:** Дополнена testnet AML эмуляцией, migrations 00074–00076, стартовым testnet inventory, учётом operating opening/signed funding, exact renewal и read-only проверкой signer compatibility.
+> **Статус:** В коде подключены custody, verified intake, decisions/events, merchant risk balances, token allocations/batches, operating gas, автоматический baseline/activation, class-specific withdrawals и dispatch permits. Для Nile/Sepolia предусмотрен отдельный AML emulator.
 > **Объём:** Приём, оценка риска, консолидация и вывод на собственные адреса мерчанта. Правовые процедуры и дальнейшее использование выведенных средств здесь не проектируются.
 > **Связанные:** [Архитектура процессинга](crypto-processing-architecture.md), [Сценарии пересмотра риска](aml-kyt-risk-scenarios.md), [Интеграционные аккаунты](../operations/integration-accounts.md).
 
-## Состояние реализации
+## Компоненты
 
 Реализованы базовый AML-слой, guards изоляции мерчантов и обработка риска входящих средств. Рабочие сети автоматически не переключаются на новую модель. Во включённом AML scope отправки идут только через зарегистрированные class/source contracts и свежие permits; прежний classless outbound путь закрыт.
 
-- [x] [Домен AML](../../internal/domain/crypto/aml/risk.go): точные score bands/freshness, unknown/critical signals, conservative pool class, один risk-класс и один merchant при планировании source lines, net/free/reserved/technical-hold breakdown.
-- [x] [Getblock.net adapter](../../internal/infrastructure/aml/getblocknet/client.go): отдельные submit/poll, pinned account/ticket/asset/effect binding, точная нормализация и запрет автоматического платного retry. Capability mapping включается только явно; тестовые fixtures синтетические и не подтверждают mainnet coverage.
-- [x] [Оркестратор jobs](../../internal/application/cryptoapp/aml_job_service.go) и [PostgreSQL repository](../../internal/infrastructure/storage/postgres/crypto_repo/aml_jobs.go): persisted request IDs, lease/fencing, restart polling, submission_unknown/needs_attention, immutable reports.
-- [x] [Миграция 00008](../../db/configuration/crypto/00008_crypto_aml.sql): неизменяемый custody owner, network/token/merchant FK scopes, subjects/jobs/checks/reports/decisions/risk states/withdrawal snapshots, защита evidence и rollback с данными. Legacy owners автоматически не присваиваются.
-- [x] [Getblock.net runtime](../operations/crypto-aml-runtime.md): отдельный профиль/credentials и package quota без monthly reset; immutable принятые mappings, pinned resolver, opt-in worker submit/poll, однократный локальный paid admission с конечным бюджетом. Новый месяц и смена ключей не пополняют бюджет; pending tickets опрашиваются при отключённых submit.
-- [x] [Verified intake и проекция риска](../operations/crypto-aml-risk-projection.md), [миграция 00008](../../db/configuration/crypto/00008_crypto_aml.sql): атомарный idempotent enqueue, exact effect/proof binding, immutable policy decisions, явный пустой baseline и покрытие физического inventory по financial basis, консервативный риск wallet/token. Поздний high распространяется по своим внутренним sources/collectors; неизвестные средства не становятся low по совпадению сумм.
-- [x] Audited rescreen с expected generation через repository, защита от запоздалого low/неоценённого report, инвалидация при reorg/coverage regression/изменении ledger/policy/mapping, TTL и отдельный `wallet.risk_changed` через merchant event/outbox. Классификация не создаёт повторных financial receipts.
-- [ ] Синхронизация live vendor package balance, административный UI бюджета/mapping/baseline/rescreen, findreport/history recovery для submission_unknown и reviewed resolution исторического high/неполного coverage. Низкий повторный score сам по себе не снимает прежний high.
-- [x] [Guards изоляции мерчантов](../operations/crypto-merchant-custody.md): owner-aware allocation/collectors/gas funding/source reservation; проверки до подписи и каждого broadcast, включая EVM replacement; независимый immutable registry в обоих Vault plugins, readiness enforcement. Миграция 00062 добавляет выключенный по умолчанию переключатель и отдельные fee wallets мерчантов. Сохранённые signing attempts остаются доступны для recovery.
-- [x] [Trusted merchant provisioning](../operations/crypto-aml-batches.md), миграция 00068: отдельный control-plane request/lease, pinned HD path, binding владельца в Vault до SQL publication, replay и защита namespace/БД.
-- [x] [Автоматические merchant pools](../operations/crypto-aml-merchant-pools.md), миграция 00069: конечные scope/network budgets, ready/pending/queued, control-plane consumer, baseline-gated intake и открытие подготовленной партии.
-- [ ] Независимый автоматический checkpoint/baseline preflight, resource-aware activation и согласованное включение SQL/Vault policies. Legacy owners не назначаются автоматически; при enforced custody непривязанные кошельки исключены из новых операций.
-- [x] [Portal баланс по риску](../operations/crypto-aml-risk-balances.md): read-only согласованный snapshot merchant net после комиссии, четыре класса и free/reserved/technicalHold; debit-first claim учитывается один раз. Неоднозначная net/source attribution закрывается консервативно. Опциональная таблица в обзоре, предупреждения при скрытом виде, пользовательская настройка, expiry/error states.
-- [x] [Durable inventory allocations](../operations/crypto-aml-inventory-allocations.md), миграция 00065: payment net/fee facts, reservation split до подписи, exact posted/verified token sweep application, idempotent replay и audited pre-authorization cancellation. Частичный перенос сохраняет доли, late high меняет риск обоих остатков без нового financial credit.
-- [x] [Operating gas budget и native funding](../operations/crypto-aml-resources.md), миграция 00066: отдельные native resource positions/facts, verified operating receipt без merchant credit, резерв funding + fee cap до подписи, exact final cost/funding и reverted fee-only accounting. Unknown outcome удерживает резерв; late high запрещает новую подпись.
-- [x] [Batch intake/capacity](../operations/crypto-aml-batches.md), миграция 00067: immutable token/class collector, лимит gross/age, committed/reserved/unplanned, выбор готовой партии и allocation в одной транзакции; close/hold/audit, late high и guards новой подписи.
-- [x] Activation budgets, точные компенсации withdrawal lines и owner/class/batch-aware dispatch permits (00071–00073).
-- [ ] Resource-aware replacements и general corrective allocations. Исторические transfers и заявки без точной allocation пока остаются technical hold в risk view; прежний outbound gate сохраняется.
-- [x] Risk-class withdrawal API кабинета/approval/signing/dispatch snapshots, sources и класс средств в истории вывода.
-- [x] [Testnet AML emulator](../operations/crypto-aml-testnet-emulator.md): случайные воспроизводимые Nile/Sepolia reports без API-ключей и paid calls, отдельный provider и запрет mainnet.
-- [x] [Testnet opening inventory](../operations/crypto-aml-testnet-bootstrap.md): однократный low для согласованных старых остатков, без изменения финансового ledger; существующий public-test стенд обновлён до schema 75.
-- [ ] Реальные обезличенные vendor fixtures, mainnet capability acceptance и согласованный rollout. На рабочих БД миграция в рамках разработки не применялась.
+- [Домен AML](../../internal/domain/crypto/aml/risk.go): точные score bands/freshness, unknown/critical signals, conservative pool class, один risk-класс и один merchant при планировании source lines, net/free/reserved/technical-hold breakdown.
+- [Getblock.net adapter](../../internal/infrastructure/aml/getblocknet/client.go): отдельные submit/poll, pinned account/ticket/asset/effect binding, точная нормализация и запрет автоматического платного retry. Capability mapping включается только явно; тестовые fixtures синтетические и не подтверждают mainnet coverage.
+- [Оркестратор jobs](../../internal/application/cryptoapp/aml_job_service.go) и [PostgreSQL repository](../../internal/infrastructure/storage/postgres/crypto_repo/aml_jobs.go): persisted request IDs, lease/fencing, restart polling, submission_unknown/needs_attention, immutable reports.
+- [Миграция 00008](../../db/configuration/crypto/00008_crypto_aml.sql): неизменяемый custody owner, network/token/merchant FK scopes, subjects/jobs/checks/reports/decisions/risk states/withdrawal snapshots, защита evidence и rollback с данными. Legacy owners автоматически не присваиваются.
+- [Getblock.net runtime](../operations/crypto-aml-runtime.md): отдельный профиль/credentials и package quota без monthly reset; immutable принятые mappings, pinned resolver, opt-in worker submit/poll, однократный локальный paid admission с конечным бюджетом. Новый месяц и смена ключей не пополняют бюджет; pending tickets опрашиваются при отключённых submit.
+- [Verified intake и проекция риска](../operations/crypto-aml-risk-projection.md), [миграция 00008](../../db/configuration/crypto/00008_crypto_aml.sql): атомарный idempotent enqueue, exact effect/proof binding, immutable policy decisions, явный пустой baseline и покрытие физического inventory по financial basis, консервативный риск wallet/token. Поздний high распространяется по своим внутренним sources/collectors; неизвестные средства не становятся low по совпадению сумм.
+- Audited rescreen с expected generation через repository, защита от запоздалого low/неоценённого report, инвалидация при reorg/coverage regression/изменении ledger/policy/mapping, TTL и отдельный `wallet.risk_changed` через merchant event/outbox. Классификация не создаёт повторных financial receipts.
+- [Guards изоляции мерчантов](../operations/crypto-merchant-custody.md): owner-aware allocation/collectors/gas funding/source reservation; проверки до подписи и каждого broadcast, включая EVM replacement; независимый immutable registry в обоих Vault plugins, readiness enforcement. Политика custody по умолчанию выключена. Мерчанты используют отдельные fee wallets. Сохранённые signing attempts остаются доступны для recovery.
+- [Trusted merchant provisioning](../operations/crypto-aml-batches.md): отдельный control-plane request/lease, pinned HD path, binding владельца в Vault до SQL publication, replay и защита namespace/БД.
+- [Автоматические merchant pools](../operations/crypto-aml-merchant-pools.md): конечные scope/network budgets, ready/pending/queued, control-plane consumer, baseline-gated intake и открытие подготовленной партии.
+- [Portal баланс по риску](../operations/crypto-aml-risk-balances.md): read-only согласованный snapshot merchant net после комиссии, четыре класса и free/reserved/technicalHold; debit-first claim учитывается один раз. Неоднозначная net/source attribution закрывается консервативно. Опциональная таблица в обзоре, предупреждения при скрытом виде, пользовательская настройка, expiry/error states.
+- [Durable inventory allocations](../operations/crypto-aml-inventory-allocations.md): payment net/fee facts, reservation split до подписи, exact posted/verified token sweep application, idempotent replay и audited pre-authorization cancellation. Частичный перенос сохраняет доли, late high меняет риск обоих остатков без нового financial credit.
+- [Operating gas budget и native funding](../operations/crypto-aml-resources.md): отдельные native resource positions/facts, verified operating receipt без merchant credit, резерв funding + fee cap до подписи, exact final cost/funding и reverted fee-only accounting. Unknown outcome удерживает резерв; late high запрещает новую подпись.
+- [Batch intake/capacity](../operations/crypto-aml-batches.md): immutable token/class collector, лимит gross/age, committed/reserved/unplanned, выбор готовой партии и allocation в одной транзакции; close/hold/audit, late high и guards новой подписи.
+- Activation budgets, точные компенсации withdrawal lines и owner/class/batch-aware dispatch permits.
+- Risk-class withdrawal API кабинета/approval/signing/dispatch snapshots, sources и класс средств в истории вывода.
+- [Testnet AML emulator](../operations/crypto-aml-testnet-emulator.md): случайные воспроизводимые Nile/Sepolia reports без API-ключей и paid calls, отдельный provider и запрет mainnet.
+- [Testnet opening inventory](../operations/crypto-aml-testnet-bootstrap.md): однократный low для согласованных старых остатков, без изменения финансового ledger.
 
 ## 1. Ответственность сервиса и инварианты
 
@@ -76,7 +71,7 @@ flowchart LR
 - token scope и `batch_id` для консолидационного кошелька;
 - status, incoming revision, execution revision и технические holds.
 
-Существующий `merchant_id` нельзя без проверки считать неизменяемым custody owner: transient lease и persistent assignment сейчас имеют другую семантику. Поле owner либо вводится отдельно, либо существующее получает новые миграционные guards после аудита всех writers. Для платформенных операционных кошельков owner может отсутствовать, но они не могут быть источниками чужого merchant principal.
+Неизменяемый custody owner хранится отдельно от transient lease и persistent assignment. Для платформенных операционных кошельков owner может отсутствовать, но они не могут быть источниками чужого merchant principal.
 
 Owner закрепляется до первой выдачи адреса/финансирования; кандидат без owner должен быть ранее не использован и проверен preflight. Claim owner атомарен. Общая очередь заранее выведенных, ещё не использованных адресов допустима только до такого закрепления. Исторически использованный адрес не может стать «новым» после обнуления balance.
 
@@ -121,7 +116,7 @@ Capacity резервируется атомарно: `committed + reserved + ne
 
 Подтверждённое canonical поступление учитывается ровно один раз, независимо от risk-класса. Оно принадлежит мерчанту и отображается в его средствах; risk определяет допустимый маршрут, а не факт поступления. Доступность каждого маршрута определяется отдельной проекцией по risk-классам и реальным источникам. Смена score не создаёт новый receipt/fee/merchant credit.
 
-Существующее совместное проведение physical receipt, merchant net и processing fee можно сохранить, если каждый путь расходования использует новую owner/risk/source projection. Для проверенных unmatched/late receipts нужен отдельный idempotent accounting basis с определённым owner. Unknown owner остаётся в техническом разборе; его нельзя угадать по текущему lease или отдать новому пользователю адреса.
+Physical receipt и распределение merchant net/fee имеют отдельные основания. Проверенные неподобранные переводы попадают в невыясненные по правилам [входящего учёта](crypto-inbound-provider-accounting-design.md). Unknown owner остаётся в техническом разборе; его нельзя угадать по текущему lease или отдать новому пользователю адреса.
 
 В UI/API отдельно показываются total, pending risk, low, medium, high, активные withdrawal reservations и фактически выведенное. Это согласованные представления одних денег, а не складываемые дополнительные балансы. Invoice chain confirmations и AML status публикуются отдельно. Сигнал для автоматического исполнения заказа/отгрузки определяется merchant risk policy; сам факт получения high-risk перевода не является обещанием безопасного исполнения заказа.
 
@@ -176,20 +171,19 @@ Merchant balance API возвращает totals и breakdown из одного 
 
 ### 4.1. Идентичность провайдеров и credentials
 
-| Назначение | Название в UI | Provider ID | Состояние плана |
+| Назначение | Название в UI | Provider ID | Подключение |
 |---|---|---|---|
-| Blockchain RPC | Getblock.io | существующий `getblock` | Сохранить идентификатор и рабочие подключения |
+| Blockchain RPC | Getblock.io | `getblock` | RPC-соединения и слоты `fullnode`/`solidity` |
 | AML/KYT | Getblock.net | `getblock_net` | Live AML-провайдер |
 | AML testnet | Локальный эмулятор | `testnet_aml` | Только Tron Nile и Ethereum Sepolia; synthetic provenance |
-| AML Getblock.io | Отдельный будущий профиль | Вне текущей регистрации | Отложено; не является fallback |
 
-У текущего [RPC-профиля](../../internal/domain/crypto/cryptointegrations/catalog.go) меняется отображаемое название на `Getblock.io`; сохранённый ID `getblock`, URLs и slots `fullnode/solidity` остаются совместимыми. Для `Getblock.net` добавить `GetBlockNet`, `KindAML = "aml_kyt"`, один bearer slot `default`, собственные validation/consumer/capabilities. Не использовать неоднозначный `getblock_aml` и не переносить RPC credentials. Протокол JSON-RPC у AML-сервиса не делает его blockchain RPC-провайдером.
+Getblock.io и Getblock.net используют отдельные provider IDs и credentials. Getblock.net относится к `aml_kyt` и использует bearer slot `default`. Подробнее в [реестре интеграций](../operations/integration-accounts.md).
 
 Оба профиля используют существующее шифрование `cat_integration_accounts`, серверный реестр, UI и permission model. Проверка реквизитов выбирается по profile, а не по совпадению бренда. Package balance Getblock.net не получает monthly reset по правилам RPC; добавить соответствующую quota policy и runtime state. Аккаунты/пакеты двух сервисов независимы; секреты не попадают в reports/logs.
 
 ### 4.2. Подтверждённые элементы внешнего контракта
 
-Источник: [Getblock.net API](https://getblock.net/en/api/documentation), проверен 25.10.2026. POST endpoint: `https://api.getblock.net/rpc/v1/request`; JSON-RPC 2.0, bearer token, IP allowlist; `id` — строка до 32 символов.
+Источник: [Getblock.net API](https://getblock.net/en/api/documentation). POST endpoint: `https://api.getblock.net/rpc/v1/request`; JSON-RPC 2.0, bearer token, IP allowlist; `id` — строка до 32 символов.
 
 | Метод | Параметры / результат |
 |---|---|
@@ -223,9 +217,9 @@ Submit списывает проверку из пакета; getresult/findrepo
 
 ### 4.4. Принятый контракт нормализации и ограничения evidence
 
-Для адаптера фиксируется локальная версия `getblock-net-rpc-v1.<revision>`; обязательного provider `schemaVersion` в текущем плане нет. До production принимаются реальные обезличенные fixtures для submit, pending, success, failure и ошибок. Синтаксические неточности примеров документации не копируются в parser.
+Версию локального контракта адаптера задаёт `getblock-net-rpc-v1.<revision>`. До production принимаются реальные обезличенные fixtures для submit, pending, success, failure и ошибок. Синтаксические неточности примеров документации не копируются в parser.
 
-Для `getresult.report.riskscore` план принимает шкалу доли 0..1 с обязательным контрактным подтверждением до enablement: decimal ×10000 → ScoreBP. Например, 0.056 → 560 BP → 5.6 по шкале политики 0..100. Разбор выполняется точно как decimal; если нужны доли BP, округлять вверх и сохранять исходное значение, чтобы не понизить риск на границе policy. История с 0..100 не является источником решения. Если реальные fixtures противоречат выбранной шкале, версия контракта пересматривается, production gate остаётся закрытым. Эвристика «<=1 значит доля, иначе проценты» запрещена.
+Для `getresult.report.riskscore` адаптер использует шкалу доли 0..1 с обязательным контрактным подтверждением до enablement: decimal ×10000 → ScoreBP. Например, 0.056 → 560 BP → 5.6 по шкале политики 0..100. Разбор выполняется точно как decimal; если нужны доли BP, округлять вверх и сохранять исходное значение, чтобы не понизить риск на границе policy. История с 0..100 не является источником решения. Если реальные fixtures противоречат выбранной шкале, версия контракта пересматривается, production gate остаётся закрытым. Эвристика «<=1 значит доля, иначе проценты» запрещена.
 
 Нормализованные значения signals не считаются модельными весами и не используются для пересчёта общего score. Адаптер сохраняет raw name/value и source path; семантика и диапазоны закрепляются fixtures. Direct/indirect attribution, direction, authorities и dataset as-of остаются unknown, если сервис их не вернул. Нулевой/отсутствующий сигнал не заменяет полную проверку покрытия.
 
@@ -253,7 +247,7 @@ Submit списывает проверку из пакета; getresult/findrepo
 1. **Prepare.** Зафиксировать provider/account, asset mapping version, request digest, rescreen generation и submit request ID, например UUID без дефисов. До сетевого запроса сохранить submitting intent. Новый логический submit получает новый ID.
 2. **Submit.** Выполнить один checkaddr/checktx вне SQL-транзакции. При валидном ACK сохранить check hash и назначить poll; не считать hash отчётом и не вызывать платный submit при каждом тике.
 3. **Poll.** Getresult вызывается отдельной job lease в исходном provider account, с новым persisted correlation ID на каждое логическое чтение. Ротация credentials внутри того же аккаунта допустима; переключение на другой аккаунт для старого hash запрещено. Pending → повторный отложенный poll; SUCCESS → validation и AML policy.
-4. **Потерянный ACK.** Timeout/обрыв после submit → submission_unknown. Использовать findreport/history и консервативное сопоставление account/request/time/target/asset. Если есть ambiguity или поиск пока пуст, не признавать submit неисполненным. После deadline — review; повторная платная отправка только по явной политике повторов с новой generation и записью причины/стоимости.
+4. **Потерянный ACK.** Timeout/обрыв после submit → submission_unknown. Неопределённый submit требует разбора с привязкой к account, request, времени, target и asset. Тот же запрос автоматически не отправляется повторно.
 5. **Повтор и rescreen.** JSON-RPC id является correlation; документированное требование уникальности не доказывает exactly-once billing. Transport не повторяет submit автоматически. Повтор poll безопасно отделён от платного создания. Rescreen создаёт новое поколение; поздний результат не снимает свежий hold.
 
 Начальные транспортные настройки: timeout 5 s; breaker после 3 последовательных transport/5xx ошибок на 30 s; backoff с jitter, bounded polling interval и deadline по policy. Истечение polling deadline не отменяет vendor check и не открывает gate. Незавершённые checks продолжают восстанавливаться, а автоматическая маршрутизация ожидает результат или review. Явный export_unknown рассматривается отдельно по §6.
@@ -343,85 +337,11 @@ Risk change и одноразовый signing/dispatch permit использую
 
 Сохраняются существующие financial/reconciliation/network holds, защищающие факты и исполнение. Подтверждение рискованного вывода не снимает техническую блокировку недоказанного balance или неизвестного исхода прежней отправки.
 
-## 8. Изменения в системе
-
-| Компонент | Необходимое изменение |
-|---|---|
-| `cat_wallets`, wallet model/validation | Неизменяемый custody owner, independent risk segment, batch, revisions; owners у merchant collectors/resource wallets |
-| `crypto_catalog_repo/wallet.go`, pool/refill | Sticky owner при transient/persistent allocation; запрет межмерчантского переиспользования, merchant-scoped refill/limits |
-| `outbound_repo_sweeps.go`, sweep executor | Группировать по owner/network/token/class/batch; gate, capacity reserve и physical links |
-| `outbound_repo_withdrawals.go`, withdrawal/treasury consumers | `FindHotWallet`/`ReserveHotWalletForWithdrawal` получают merchant/class/batch scope; существующие attempts/reserves проходят те же проверки |
-| `jit_funding.go`, resource preparers | Owner-specific sources и parent intent; технические ресурсы не обходят изоляцию |
-| EventProcessor, posting, invoice lifecycle | Однократный receipt/credit, отдельные risk projection/events; verified unmatched/late accounting; fee/net source availability и reorg |
-| `domain/crypto/aml`, adapter, worker, repositories | Reports/subjects/jobs/decisions, Getblock.net submit/poll/recovery, versioned risk changes |
-| Signing domain/JWS/SQL и оба family plugins | Trusted merchant owner binding, единый risk_class principal sources, purpose/action для risk export, risk snapshots/revisions, approvals, capability negotiation |
-| Merchant API/UI/outbox | Опциональный вид «Баланс по риску», согласованные totals/free/reserved/technical-hold с revision/as-of, обязательный risk_class заявки, доступная сумма выбранного класса, историческая/текущая оценки вывода и явный risk export |
-
-Минимальные новые данные: AML subjects/jobs/provider checks/immutable reports/decisions, risk projection, batch/intake reservations, physical source links и risk-export acceptance. Для начала достаточно простой ротации batches по сумме/времени без полноценной FSM эпох и отдельной системы treasury rebalance.
-
-Миграции добавляются после актуального HEAD; `wallet_role/status` сейчас TEXT CHECK, не PostgreSQL enum. Новое поле risk segment вводится additive; имя `low` не превращается в существующий legacy `clean` автоматически. Действующий unique index `one active network_fee per network` заменяется owner-aware constraints, иначе отдельные resource wallets создать нельзя. Актуальные SQL/metadata/Go validators меняются согласованно.
+## 8. Исторические общие кошельки
 
 Legacy shared/смешанные wallets нельзя объявить собственностью одного мерчанта простым backfill. До включения нового режима остановить их новый intake, сверить principal/fee/reserves/исполненные операции и разделить остатки по доказанным allocations в отдельном миграционном процессе. Неизвестный owner/provenance требует разбора; старые merchant credits повторно не проводятся. Поздние поступления на исторические shared addresses остаются в legacy recovery и не выдаются случайному новому владельцу.
 
-## 9. Порядок внедрения
-
-### Фаза 0. Зафиксировать контракт
-
-- [ ] Принять merchant-owned topology, пороги/critical signals, auto-withdraw limits и явный high/unknown export.
-- [ ] Зафиксировать immutable owner, выбор risk-export signing purpose и trusted owner manifest; учесть версии обоих family plugins.
-- [ ] Принять vendor fixtures, score scale, currency/contract mapping, coverage и submit/poll recovery.
-- [ ] Зафиксировать fee/net projection, class/source reserves, ресурсный бюджет и миграцию исторических shared wallets.
-
-### Фаза 1. Изоляция мерчантов
-
-- [x] Immutable owner/resource constraints и guards; owner-aware allocation и source selection. Legacy owners автоматически не назначаются.
-- [x] Доверенный provisioning deposit/collector/resource wallets и batch capacity с idempotency/fencing.
-- [x] Автоматические merchant watermarks и очередь следующего collector при дефиците; открытие после подтверждённого preflight.
-- [x] Автоматический baseline по двум независимым RPC, watcher coverage и resource-aware activation для явно включённых merchant pool policies (00070–00071). Общий rollout enrollment остаётся отдельным этапом.
-- [x] Signer owner enforcement в обоих plugins и conformance тесты A → B, включая старые reservations и разные purposes.
-- [x] Явный AML signing contract обоих family plugins, runtime отказ старым версиям и read-only configuration preflight.
-- [ ] Завершить production version-skew/rollout rehearsal. Изолированные SQL tests новой установки, upgrade и signed recovery проходят.
-
-**Приёмка:** A и B не имеют общих merchant principal sources; адрес не переходит B после использования A; никакой withdraw/funding/sweep purpose не обходит эту границу.
-
-### Фаза 2. Проверки и маршрутизация
-
-- [x] Getblock.net profile/adapter/jobs; pinning account/ticket, lost ACK, локальный admission budget и accepted mapping. Live package balance/recovery для submission_unknown остаются отдельно.
-- [x] Verified per-effect intake, decisions и физическая wallet/token projection с baseline/coverage; наблюдение late/hot/retired и unmatched средств. Неподтверждённый coverage остаётся unknown.
-- [x] Merchant net/fee/risk snapshot и durable allocations для payment sources и заранее спланированных token sweeps; неопределённая attribution удерживается, сумма debit-first commitments не дублируется.
-- [x] Native operating capital, fee budget и проверенный funding transfer с финальным cost/failure outcome; merchant net и fee income не расходуются на gas.
-- [x] Activation budgets и final cost, class-specific withdrawal allocations и точные компенсации отменённых/failed lines (00071–00073).
-- [ ] Resource-aware replacements, reorg corrections и отдельный financial basis для unmatched/late поступлений.
-- [x] Планирование token consolidation по owner/class/batch с capacity reservations и проверкой source freshness.
-- [x] Подключить зарегистрированные token sweeps, native operating funding, activation и withdrawal lines к durable dispatch permits на authorize/sign/broadcast.
-- [x] Отдельный `wallet.risk_changed`, инвалидация reorg/replay без второго financial credit.
-- [ ] Invoice/public risk statuses и merchant policy исполнения заказа.
-
-**Приёмка:** low/medium/high/unknown не смешиваются автоматически; ошибка/неполный report не создают low; закрытый batch не превышает controlled intake cap.
-
-### Фаза 3. Вывод и пересмотр риска
-
-- [x] Обычный class-specific withdrawal и явный high/unknown export на собственный destination; обязательный risk_class, один класс principal на заявку без дополнения из другого класса.
-- [x] Signed intent V2 с acceptance и точными sources, source/fee reservations, signing/broadcast/recovery/settlement; оба Vault plugins проверяют source membership и одну generation на line.
-- [x] Сохранение risk/report/source snapshot при первом broadcast dispatch, отображение класса в истории и отдельные последующие risk-changed события; безопасная обработка частично исполненных многострочных заявок.
-- [x] Late-risk повышение ограничений wallet/token и downstream своего мерчанта, generation fencing rescreen и risk event.
-- [x] Подключить revisions и due risk backlog к signing/dispatch permits; immutable snapshot первого broadcast и повторная проверка перед отправкой сохранённых bytes.
-- [ ] Reviewed resolution для исправленного high.
-- [x] Merchant UI с опциональным видом «По риску», согласованными total/free/reserved/technicalHold, предупреждениями и обработкой stale snapshot.
-- [x] Выбор класса в форме вывода, явное high/unknown acceptance, история sources и класса при отправке, отмена неподписанного остатка.
-- [ ] Полная детализация batches/ресурсных причин и проверка всех сценариев companion document в Nile/Sepolia rehearsal.
-
-**Приёмка:** high средства доступны владельцу через отдельное подтверждённое действие; оно не отправляет их через low pool, не использует чужую ликвидность и не отменяет технические gates.
-
-### Фаза 4. Rollout
-
-- [ ] Backup/restore rehearsal; additive schema и совместимые signer/workers до активации новых purposes.
-- [ ] Провести legacy inventory/split/recovery; отключить общие выборки principal и межмерчантское повторное использование адресов.
-- [ ] Shadow сравнение owner/risk routes, ledger и expected effects без заявления enforcement.
-- [ ] Перед switch классифицировать старые pending/signed/broadcast операции; включать tenant/merchant/network/token поэтапно.
-- [ ] При регрессии остановить новые signatures/dispatch, продолжать ingestion/recovery; не возвращать worker с общей ликвидностью и не удалять reports/movements.
-
-## 10. Критерии проверки и эксплуатация
+## 9. Критерии проверки и эксплуатация
 
 | Сценарий | Ожидаемый результат |
 |---|---|
@@ -462,6 +382,6 @@ Legacy shared/смешанные wallets нельзя объявить собс�
 
 - [Сценарии изоляции и изменения риска](aml-kyt-risk-scenarios.md).
 - [Архитектура процессинга](crypto-processing-architecture.md).
-- [Безопасность процессинга](crypto-security-and-risk-review.md) — существующие технические signing/recovery guards.
+- [Vault и подпись](crypto-processing-architecture.md#9-vault-и-подпись-транзакций) — signing guards.
 - [Интеграционные аккаунты](../operations/integration-accounts.md).
 - [Getblock.net API](https://getblock.net/en/api/documentation) — внешний vendor contract; его неоднозначности закрываются fixtures.

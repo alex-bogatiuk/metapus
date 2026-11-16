@@ -614,7 +614,7 @@ Invoke-PublicCompose --profile operator run --rm --no-deps --entrypoint ./crypto
 Команда сама проверяет Nile transaction receipt, token contract, destination,
 minor-unit amount, confirmations и idempotency. Для внешнего TRC-20 funding
 укажите соответствующий token code, например `-token-code USDT-TRC20`.
-Начиная со схемы 79, новые funding receipts обязательно связаны с indexed proof
+Funding receipts обязательно связаны с indexed proof
 и общим custody recognition. Managed sender/внутренний перевод требует своего
 settlement workflow; merchant-owned wallet пополняется через
 [AML operating receipt](crypto-aml-resources.md). Разные доказанные effects
@@ -647,7 +647,7 @@ pool wallet. Для проверки платежей и свипа понадо
 проверки native balance. Bootstrap намеренно оставляет политики выключенными,
 пока сеть не готова к on-chain операциям.
 
-EVM funding схемы 79 требует два независимых RPC trust groups и сохраняет тот же
+EVM funding требует два независимых RPC trust groups и сохраняет тот же
 verification proof, что processing. Успех одиночного receipt read не разрешает
 проводку. Funding receipt, ledger, recognition, audit и outbox атомарны; при
 ошибке проверки или обязательной записи не появляется частичный приход.

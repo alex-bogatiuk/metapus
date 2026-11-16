@@ -1,8 +1,8 @@
 # AML: партии консолидации и доверенный provisioning
 
-Миграции 00067–00068 добавляют batch intake/capacity, выбор своего collector при планировании свипа и отдельный control-plane путь создания merchant wallets. Они не включают отправку через старый outbound контракт.
+AML для batches контролирует intake/capacity, выбор своего collector при планировании свипа и отдельный control-plane путь создания merchant wallets. Они не включают отправку через старый outbound контракт.
 
-Схема 82: для sweep `reserved → committed` определяется отдельным final principal каждой строки и её точными registry movement IDs. Не нужно ждать весь sweep-документ; broadcast не расходует физический principal и не освобождает allocation. Final revert атомарно сохраняет actual fee и audited cancellation, без principal/storno.
+Для sweep `reserved → committed` определяется отдельным final principal каждой строки и её точными registry movement IDs. Не нужно ждать весь sweep-документ; broadcast не расходует физический principal и не освобождает allocation. Final revert атомарно сохраняет actual fee и audited cancellation, без principal/storno.
 
 ## Партии
 
@@ -52,6 +52,6 @@ go run ./cmd/aml-wallet-provision \
 
 ## Границы и проверки
 
-Явный trusted request поддерживается наряду с [автоматическими merchant pool intents](crypto-aml-merchant-pools.md), миграция 00069. Watermarks и ротация подготовленных batches подключены. [Автоматический baseline/activation, class-specific export и permits](crypto-aml-outbound.md) реализованы миграциями 00070–00073. Token sweep allocation проверяется перед authorize/sign/broadcast. Native principal consolidation, общий enrollment/rollout orchestration и административный UI остаются отдельными этапами.
+Явный trusted request поддерживается наряду с [автоматическими merchant pool intents](crypto-aml-merchant-pools.md). Watermarks и ротация подготовленных batches подключены. [Автоматический baseline/activation, class-specific export и permits](crypto-aml-outbound.md) реализованы миграциями 00070–00073. Token sweep allocation проверяется перед authorize/sign/broadcast. Native principal consolidation, общий enrollment/rollout orchestration и административный UI остаются отдельными этапами.
 
 SQL tests проверяют concurrent capacity разных origins, закрытие при неизвестном результате, исполнение ранее зарезервированного свипа после закрытия intake, lifetime committed, безопасную отмену и выбор следующей партии, unsolicited excess, expiry и policy change. Provisioning tests проверяют публикацию после enrollment, отсутствие SQL transaction во время внешнего вызова, replay, потерю ACK, тот же HD path, foreign binding и lease fencing. HTTP tests обоих Vault adapters используют synthetic responses. Рабочие БД и Vault не менялись, настоящих подписей, broadcast и платных AML-запросов нет. Откат с batch/provisioning evidence запрещён.

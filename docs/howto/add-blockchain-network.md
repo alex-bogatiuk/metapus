@@ -10,7 +10,6 @@
 > extension points и обязательные gates для следующей EVM-сети.
 >
 > **Связанные:** [crypto-processing-architecture.md](../crypto/crypto-processing-architecture.md),
-> [crypto-security-and-risk-review.md](../crypto/crypto-security-and-risk-review.md),
 > [crypto-processing-test-scenarios.md](../crypto/crypto-processing-test-scenarios.md)
 
 ---
@@ -523,6 +522,6 @@ db/configuration/crypto/00006_crypto_core.sql            — Sepolia catalog, no
 ## Связанные документы
 
 - [crypto-processing-architecture.md](../crypto/crypto-processing-architecture.md) — фактический TRON-контур и общие финансовые процессы.
-- [crypto-security-and-risk-review.md](../crypto/crypto-security-and-risk-review.md) — security gates и threat model.
+- [Границы подписи](../crypto/crypto-processing-architecture.md#9-vault-и-подпись-транзакций) — проверки формата authorization и signer.
 - [crypto-processing-test-scenarios.md](../crypto/crypto-processing-test-scenarios.md) — общий verification protocol.
 - [vault-evm-sepolia.md](../operations/vault-evm-sepolia.md) — EVM custody и rollout runbook.

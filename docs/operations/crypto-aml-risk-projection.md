@@ -1,6 +1,6 @@
 # AML: verified intake и проекция риска
 
-Состояние на 26.10.2026. Реализован путь verified incoming → immutable effect → pinned AML job/report → decision → wallet/token risk projection → `wallet.risk_changed`. Контур включается явно для merchant/network/token. Миграция 00064 не включает его автоматически и не назначает владельцев старым кошелькам.
+Путь обработки: verified incoming → immutable effect → pinned AML job/report → decision → wallet/token risk projection → `wallet.risk_changed`. Контур включается явно для merchant/network/token. Владельцы существующих кошельков требуют подтверждённой привязки.
 
 ## Входящие средства и финансовый учёт
 
@@ -8,7 +8,7 @@
 
 Effect привязан к network, wallet, token, tx, event kind/index, block hash, economics hash и сумме. SQL guards сверяют его с сохранённым canonical proof. Повтор того же доказательства не создаёт другую job; откат внешней транзакции откатывает proof, effect и job вместе.
 
-AML не проводит `CryptoPayment`, не зачисляет merchant net и не исправляет финансовый ledger. Unmatched observation сама по себе не зачисляет деньги. Классификация и rescreen не создают второго receipt и не публикуют повторный `payment.confirmed`. Учёт unmatched/late средств с отдельным финансовым basis остаётся следующим этапом.
+AML не проводит `CryptoPayment`, не зачисляет merchant net и не исправляет финансовый ledger. Unmatched observation сама по себе не зачисляет деньги. Классификация и rescreen не создают второго receipt и не публикуют повторный `payment.confirmed`. Финальное финансовое признание выполняет [receipt intake](../crypto/crypto-inbound-provider-accounting-design.md).
 
 ## Что позволяет получить low/medium
 

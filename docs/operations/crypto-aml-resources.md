@@ -1,6 +1,6 @@
 # AML: операционные средства и native funding
 
-Миграция 00066 и `AMLRepository` добавляют отдельный учёт native operating capital. Он нужен для комиссии сети и пополнения своих кошельков gas. Merchant principal, processing fee income и operating capital остаются отдельными компонентами физического остатка. Наличие денег мерчанта или заработанной комиссии само по себе не даёт операционного бюджета.
+`AMLRepository` ведёт учёт native operating capital. Он нужен для комиссии сети и пополнения своих кошельков gas. Merchant principal, processing fee income и operating capital остаются отдельными компонентами физического остатка. Наличие денег мерчанта или заработанной комиссии само по себе не даёт операционного бюджета.
 
 ## Входящий операционный запас
 
@@ -20,7 +20,7 @@ SQL guard новой signing authorization повторяет проверки s
 
 ## Финальный исход
 
-Схема 81 требует independent indexed transfer proof до финансового признания нового JIT principal. Две controlled physical стороны, shared posting/recognition, fee/cost, immutable binding и outbox сохраняются вместе. Неподтверждённый principal не коммитится в ожидании будущего resource capture. Recovery завершает уже принятый перевод также при paused ingestion/kill switch и после позднего High; signing и новый dispatch сохраняют свои ограничения. Исторические settled funding rows не переписываются.
+Settlement требует independent indexed transfer proof до финансового признания нового JIT principal. Две controlled physical стороны, shared posting/recognition, fee/cost, immutable binding и outbox сохраняются вместе. Неподтверждённый principal не коммитится в ожидании будущего resource capture. Recovery завершает уже принятый перевод также при paused ingestion/kill switch и после позднего High; signing и новый dispatch сохраняют свои ограничения. Исторические settled funding rows не переписываются.
 
 Durable inventory queue получает `resource` jobs при изменениях fee/funding/normalized settlement, physical movements и canonical transfer proof. Capture не создаёт финансовых проводок; он распределяет уже учтённые движения.
 
@@ -44,6 +44,6 @@ Legacy outbound gate включённых AML scopes остаётся закры
 
 Изолированные SQL tests проверяют success/revert, неизвестный исход, late high до и после подписи, недостаток operating capital при наличии merchant principal/fee income, replay, concurrent reserve, unposted destination, повреждение projection/backoff, несовпадение финального блока, противоречащие final evidence и запрет отката evidence. Regression fee manager/native funding recovery и общий Go suite с race detector проверяют совместимость старого выключенного AML режима.
 
-Схема 86: fee reservations при JIT funding требуют независимый NetworkFeeProof дополнительно к proof успешного principal. При revert признаётся только доказанная комиссия. Нулевой fee не создаёт expense/cost. Недоступный quorum оставляет резерв незавершённым; доказанное превышение cap сохраняет hold.
+Fee reservations при JIT funding требуют независимый NetworkFeeProof дополнительно к proof успешного principal. При revert признаётся только доказанная комиссия. Нулевой fee не создаёт expense/cost. Недоступный quorum оставляет резерв незавершённым; доказанное превышение cap сохраняет hold.
 
-Схема 87 направляет exact expected native funding к исходному funding owner до payment matching. Pending observation создаёт request/outbox, independent proof — logical route; handoff не принимает principal/fee самостоятельно. Nudge меняет только due time и сохраняет claimant/lease/hold. Порядок watcher-before/after-settlement даёт тот же финансовый результат.
+Expected-transfer routing направляет exact expected native funding к исходному funding owner до payment matching. Pending observation создаёт request/outbox, independent proof — logical route; handoff не принимает principal/fee самостоятельно. Nudge меняет только due time и сохраняет claimant/lease/hold. Порядок watcher-before/after-settlement даёт тот же финансовый результат.

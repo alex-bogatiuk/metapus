@@ -7,7 +7,6 @@
 > **Аудитория:** DevOps, Security, Developer, QA
 >
 > **Связанные:** [полный production deployment](production-deployment.md),
-> [Vault-аутентификация в Kubernetes](vault-kubernetes-migration.md),
 > [тестирование криптопроцессинга](../crypto/crypto-processing-test-scenarios.md)
 
 ---
@@ -344,28 +343,14 @@ tenant isolation, negative ACL и renewal checks средствами выбра
 `held`/retry, подпись и broadcast не создаются. Readiness выполняется до заказа
 платных TRON resources.
 
-Повторяемый сценарий и актуальный результат контрольного прогона находятся в
-[сценариях тестирования криптопроцессинга](../crypto/crypto-processing-test-scenarios.md#control-run-2026-07-28).
+Сценарии проверок собраны в [Nile acceptance](crypto-nile-acceptance.md).
 
-## Подтверждённые эксплуатационные инварианты
+## Эксплуатационные инварианты
 
-Контрольный Nile E2E подтвердил:
-
-- production API и worker не содержат `VAULT_TOKEN` и private signing keys;
-- per-tenant Transit `kid` совпадает с keyring plugin;
-- Proxy заменяет подложенный client token и не даёт worker читать config или
-  пути другого tenant;
-- без `auth/token/renew-self` periodic token истекает с `403`, а свип остаётся
-  без подписи и broadcast; после добавления правила renewal работает дольше
-  нескольких периодов;
-- exact retry одного approval intent возвращает ту же подписанную транзакцию;
-- тот же intent с другим txID или authorization ID отклоняется;
-- sweep проходит только на derived address из tenant allowlist;
-- после аренды Energy свип и выплата могут завершиться без сжигания TRX, при
-  этом стоимость provider order остаётся отдельным platform cost;
-- MFA/step-up пользователя и approval principals — разные контроли. Для
-  low-risk policy, требующей только `risk`, заявка может получить системное
-  одобрение без отдельного admin approval.
+- API и worker обращаются к Vault через Proxy без собственного `VAULT_TOKEN` и private signing keys. Proxy применяет AppRole token и его ACL, включая границы tenant и запрет чтения config для worker. Для periodic token нужно право `auth/token/renew-self`.
+- Активный per-tenant Transit `kid` совпадает с keyring plugin. Точный повтор того же approval intent возвращает сохранённую подписанную транзакцию. Новый txID или authorization ID для уже использованного intent отклоняется.
+- После неопределённого broadcast worker сначала ищет исходный txID, затем применяет recovery по сохранённым signed bytes. Неизвестный исход удерживает reservation.
+- Мастер-ключи, approval keys и operator access отделены от PostgreSQL, worker, разработчиков и CI. Vault проверяет intent и allowlist вывода независимо от SQL. [Граница подписи](../crypto/crypto-processing-architecture.md#9-vault-и-подпись-транзакций)
 
 ## Диагностика
 

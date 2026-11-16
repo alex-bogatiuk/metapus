@@ -144,7 +144,7 @@ block height. Inbox identity устраняет дубли при replay.
 Сохранение timestamp window проверяет expected block/timestamp и fencing token
 одним SQL UPDATE, после внешних API и capture. `updated_at` обновляется только
 при продвижении checkpoint. Unchanged Save, Acquire и heartbeat не освежают
-progress. На этапе этой transport-доработки новая миграция не требовалась (историческая schema 60). Текущий release ожидает schema 76; это не инструкция оставить tenant на 60.
+progress. Схема tenant DB должна совпадать с [ExpectedSchemaVersion](../../internal/core/version/version.go) из запускаемой сборки.
 Индексатор по-прежнему имеет safety delay 2 минуты и restart lookback 5 минут.
 Fingerprint ограничен 16 KiB, окно — одним часом, pagination — 1000 страницами;
 исчерпание лимита не продвигает cursor. Для высоконагруженного global contract

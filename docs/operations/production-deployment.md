@@ -146,7 +146,7 @@ release job.
 1. Создайте consistent snapshot/PITR restore point.
 2. Проверьте свободное место, replication lag и backup freshness.
 3. Выполните migrations бинарником `tenant` **того же release**.
-4. Подтвердите ожидаемую schema version (для текущей кодовой базы — `76`, см. `internal/core/version/version.go`).
+4. Сверьте схему tenant DB с [ExpectedSchemaVersion](../../internal/core/version/version.go) из целевого release.
 5. Выполните read-only smoke и только затем запускайте новый runtime.
 
 Не запускайте старый binary поверх schema, для которой его совместимость не

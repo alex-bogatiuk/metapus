@@ -1,6 +1,6 @@
 # AML: баланс мерчанта по риску
 
-Состояние на 26.10.2026. `GET /portal/v1/balances/risk?merchant_id=<uuid>` возвращает один согласованный снимок net principal выбранного мерчанта. В обзоре кабинета добавлен блок «Риск средств» с опциональной таблицей «По риску». Выбранный вид хранится в пользовательских interface preferences (`expandedSections.portalRiskBreakdown`); скрытие таблицы не скрывает предупреждения о высоком/неизвестном риске и суммах, требующих проверки.
+`GET /portal/v1/balances/risk?merchant_id=<uuid>` возвращает один согласованный снимок net principal выбранного мерчанта. В обзоре кабинета добавлен блок «Риск средств» с опциональной таблицей «По риску». Выбранный вид хранится в пользовательских interface preferences (`expandedSections.portalRiskBreakdown`); скрытие таблицы не скрывает предупреждения о высоком/неизвестном риске и суммах, требующих проверки.
 
 ## Контракт и точность
 
@@ -43,7 +43,7 @@ Endpoint требует явный `merchant_id` из авторизованно
 | `source_allocation_incomplete` | Часть net principal ещё нельзя точно привязать к источнику |
 | `source_allocation_complete` | Net principal распределён; наличие резервов/актуальный класс проверяются по каждому source |
 
-`free` означает отсутствие удержания в этом снимке и не разрешает отправку. Существующие signing/dispatch gates остаются обязательными. Включённые AML scopes всё ещё закрывают старый outbound контракт: class-specific withdrawal, high/unknown acceptance, activation, точные компенсации withdrawal lines, независимый автоматический preflight и dispatch permits подключены через [новый outbound contract](crypto-aml-outbound.md), миграции 00070–00073. Для durable inventory facts требуется миграция 00065; native coverage учитывает отдельный [operating capital и gas cost journal](crypto-aml-resources.md) миграции 00066. Operating gas не увеличивает merchant net. Execution hold своей партии учитывается как technicalHold даже при последнем low score; закрытый intake без execution hold сам по себе не блокирует остаток. Старые scopes не включаются от открытия этой страницы; рабочие БД не обновлялись.
+`free` означает отсутствие удержания в этом снимке и не разрешает отправку. Существующие signing/dispatch gates остаются обязательными. Включённые AML scopes всё ещё закрывают старый outbound контракт: class-specific withdrawal, high/unknown acceptance, activation, точные компенсации withdrawal lines, независимый автоматический preflight и dispatch permits подключены через [AML outbound](crypto-aml-outbound.md). Native coverage учитывает отдельный [operating capital и gas cost journal](crypto-aml-resources.md). Operating gas не увеличивает merchant net. Execution hold своей партии учитывается как technicalHold даже при последнем low score; закрытый intake без execution hold сам по себе не блокирует остаток.
 
 ## Проверка
 

@@ -1,6 +1,6 @@
 # AML: baseline, dispatch и выводы по классам
 
-Миграции 00070–00073 добавляют outbound-контур; актуальная schema version — 84 с отдельным [testnet AML emulator](crypto-aml-testnet-emulator.md). Контур реализован для зарегистрированных token sweeps, собственного native operating funding, TRON activation и выводов по risk-классам. Разработка и проверки используют одноразовые PostgreSQL базы, synthetic Vault enrollment и RPC/AML fixtures. Рабочие DB/Vault, платные AML calls и реальные chain broadcasts не выполнялись.
+AML outbound обслуживает зарегистрированные token sweeps, native operating funding, TRON activation и выводы по risk-классам. Для Nile и Sepolia есть отдельный [AML-эмулятор](crypto-aml-testnet-emulator.md).
 
 ## Автоматический baseline и activation
 
@@ -41,7 +41,7 @@ Final success уменьшает principal ровно на line amount. Final re
 ## Порядок включения
 
 1. Проверить backup/restore и legacy inventory: существующие shared balances, pending, signed и broadcast attempts не переносятся автоматически в новые source lines.
-2. Обновить оба Vault plugins с V2/source-line enforcement и owner registries, control-plane consumer, API и workers. Привести схему к версии текущего бинарника (76). До активации маршрутов выполнить [AML configuration preflight](crypto-aml-preflight.md): worker требует точный `aml_signing.v1`, intent V2 и source-line basis от обоих family plugins; новый контракт нельзя направлять в старый signer.
+2. Обновить оба Vault plugins с V2/source-line enforcement и owner registries, control-plane consumer, API и workers. Привести схему к версии [ExpectedSchemaVersion](../../internal/core/version/version.go) текущего бинарника. До активации маршрутов выполнить [AML configuration preflight](crypto-aml-preflight.md): worker требует точный `aml_signing.v1`, intent V2 и source-line basis от обоих family plugins; новый контракт нельзя направлять в старый signer.
 3. При остановленной network policy выполнить trusted enrollment и настроить accepted provider mappings, risk policies, account budget и scopes. Подготовить собственный operating fee source без использования merchant principal.
 4. Настроить merchant pool policy с явным `automaticBaseline=true`, проверить независимые RPC trust groups, ingestion и native/token watch coverage. Дождаться baselines, сверок, activation и готовых batches.
 5. Повторить `crypto-preflight -mode aml`, затем ingestion preflight и Nile/Sepolia rehearsal: class-specific success, отказ по stale/high, поздняя переоценка между фазами, потеря ACK, повтор saved bytes, partial cancellation и final revert. Сверить ledger, principal, operating cost и webhook snapshot.
@@ -50,28 +50,18 @@ Final success уменьшает principal ровно на line amount. Final re
 Автоматический общий rollout enrollment, native principal consolidation, resource-aware replacements, reviewed high resolution, general reorg corrections и живой баланс пакета AML-провайдера остаются отдельными задачами. Миграции с сохранёнными AML evidence/dispatch/withdrawal history не откатываются удалением данных: требуется forward migration.
 
 
-## Проверено локально
+## Планирование и подтверждение
 
-- Go `test -race ./...`, сборка и golangci-lint: успешно.
-- PostgreSQL AML integration: источник principal, отдельный operating gas, low/high/unknown authorize/sign/broadcast, immutable snapshot, late-risk, retry, partial success/revert/refund, конкурирующие requests и отмена неподписанного остатка.
-- Baseline: независимый quorum, nonzero hold, policy/lease fencing, EVM asset-specific coverage и отставшая replica; деактивация merchant address не прекращает наблюдение.
-- Crypto-worker integration/race на чистой базе: успешно, включая legacy signed recovery и запрет внешнего signer call внутри незакоммиченной транзакции.
-- Migration integration/race: fresh install, пустой Down/Up, conventions и schema 60 → TRON upgrade → AML 73.
-- Оба Vault plugin test suites, Go/TypeScript/Python SDK tests и 428 HTTP contracts: успешно.
-- TypeScript/ESLint и 13 Chromium сценариев формы, включая 320 px, сброс acceptance при смене класса и точный high/acceptance payload: успешно.
-
-Эти проверки подтверждают локальную реализацию. Реальные vendor fixtures и Nile/Sepolia rollout rehearsal выполняются отдельно по порядку включения выше.
-
-Автоматический планировщик: после обычного sweep evaluation `PlanNextAMLBatchSweep` резервирует подходящий source и партию low/medium одной транзакцией. До этого зарегистрированные token sweeps могли исполняться через существующий executor, но автоматический выбор партии из `sweep_pending` отсутствовал. Планировщик сохраняет retain amount, отсекает чужие, held, high/unknown и stale sources; деньги не уходят до действующих authorize/sign/broadcast permits.
+Автоматический планировщик: после обычного sweep evaluation `PlanNextAMLBatchSweep` резервирует подходящий source и партию low/medium одной транзакцией. Планировщик сохраняет retain amount, отсекает чужие, held, high/unknown и stale sources; деньги не уходят до действующих authorize/sign/broadcast permits.
 
 TRON checkpoint: стабильное наблюдение одного RPC можно сохранить на время ограниченного ожидания отстающего второго. Принимаются по-прежнему два независимых ответа на одной высоте с одинаковыми hash и balance. Изменение головы внутри чтения, разные balances и невозможность достичь общего checkpoint не создают baseline.
 
 
 ## Однократный повтор истёкшей неподписанной AML-авторизации
 
-В схеме 76 оператор может разрешить повтор только сохранённой sweep-транзакции: `aml-pool-controller -tenant-id <tenant> -renew-exact-sweep <signing-record-id> -actor <operator> -reason <reason>`. Это отдельное явное решение после устранения технической причины отказа. Команда не меняет исходную authorization, unsigned envelope, fingerprint, сумму, адрес или nonce; новая control-подпись и десятиминутный срок записываются в immutable sidecar. Разрешение создаётся только один раз для истёкшей, ещё неподписанной попытки с сохранённой исходной подписью control plane, прежним fee reserve и актуальным low/medium inventory. До подписи повторно выполняются все risk, custody, batch, ingestion и resource gates. Изменившийся риск блокирует повтор. Уже подписанные транзакции восстанавливаются по сохранённым bytes без нового разрешения или замены nonce.
+Оператор может разрешить повтор только сохранённой sweep-транзакции: `aml-pool-controller -tenant-id <tenant> -renew-exact-sweep <signing-record-id> -actor <operator> -reason <reason>`. Это отдельное явное решение после устранения технической причины отказа. Команда не меняет исходную authorization, unsigned envelope, fingerprint, сумму, адрес или nonce; новая control-подпись и десятиминутный срок записываются в immutable sidecar. Разрешение создаётся только один раз для истёкшей, ещё неподписанной попытки с сохранённой исходной подписью control plane, прежним fee reserve и актуальным low/medium inventory. До подписи повторно выполняются все risk, custody, batch, ingestion и resource gates. Изменившийся риск блокирует повтор. Уже подписанные транзакции восстанавливаются по сохранённым bytes без нового разрешения или замены nonce.
 
-Схема 76 также учитывает неизменяемый testnet opening operating balance при применении последующих resource costs и допускает штатный статус `signed` внутреннего native funding в проверках точного плана. Merchant principal не становится источником gas. При временной ошибке активации коллектор остаётся pending в provisioning policy, чтобы контроллер не расходовал lifetime quota на новые адреса.
+Учёт учитывает неизменяемый testnet opening operating balance при применении последующих resource costs и допускает штатный статус `signed` внутреннего native funding в проверках точного плана. Merchant principal не становится источником gas. При временной ошибке активации коллектор остаётся pending в provisioning policy, чтобы контроллер не расходовал lifetime quota на новые адреса.
 
 
 Финальные внутренние переводы проходят отдельный proof recovery: provisional watcher event связывается с подписанным expected effect и успешным chain settlement того же блока, после чего семейный verifier независимо проверяет фактический перевод. В EVM обязательны два RPC/trust group, общий canonical head и требуемые подтверждения. Это восстанавливает operating JIT и principal allocation в AML inventory без повторного зачисления ledger. Ни settlement сам по себе, ни запись в watcher inbox не заменяют независимое доказательство.

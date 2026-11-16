@@ -10,7 +10,7 @@
 ## 1. Идентичность кандидата
 
 В отчёте зафиксировать commit, patch digest для dirty tree, image digests,
-schema version `76`, OpenAPI `2026-08-26`, chain-config digest, policy versions,
+schema version по [ExpectedSchemaVersion](../../internal/core/version/version.go), версию OpenAPI кандидата, chain-config digest, policy versions,
 UTC начала/окончания и операторов. API keys, webhook secrets, Vault refs и raw
 customer metadata в отчёт не включать.
 
@@ -146,7 +146,7 @@ Launch остаётся `NO-GO`, если отсутствует хотя бы �
 - Vault KV secret create/rotate/restore drill;
 - endpoint delete/rotation с успешным завершением уже созданных retry jobs и
   последующей идемпотентной очисткой retired secret из Vault;
-- schema 76 fresh/down/up;
+- версия по `ExpectedSchemaVersion` и проверка fresh Up → Down → Up;
 - 72-hour fake-clock suite и debugger retention;
 - SDK/OpenAPI golden tests;
 - отдельные TRON Mainnet и Ethereum Mainnet low-value canary;
