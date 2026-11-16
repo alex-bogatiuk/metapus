@@ -77,29 +77,34 @@ func TestMovementSourceAuthorizationPrecedesEveryProvider(t *testing.T) {
 		return nil, nil
 	}}
 	for _, failure := range []error{apperror.NewForbidden("RLS/CEL denied"), apperror.NewNotFound("doc", "id"), errors.New("DB unavailable")} {
-		rows, err := service.ReadMovements(ctx, "crypto_invoice", id.New(), snapshot, func(context.Context, id.ID) error { return failure }, []entity.MovementProvider{provider}, nil)
+		rows, err := service.ReadMovements(ctx, "fixture_doc", id.New(), snapshot, func(context.Context, id.ID) error { return failure }, []entity.MovementProvider{provider}, nil)
 		require.ErrorIs(t, err, failure)
 		require.Nil(t, rows)
 	}
 }
 
+// fixtureSource declares which document fields disclose each movement column.
+var fixtureSource = Definition{Key: "fixture_doc", MovementSources: map[string][]string{
+	"amount": {"amount"}, "feeType": {"fee_fixed", "fee_percent_bp"},
+}}
+
 func TestMovementProjectionChecksSourceAndRegisterWithoutMutatingProviderData(t *testing.T) {
-	source := entity.DocumentMovement{PolicyEntity: "crypto_fee", Data: map[string]any{"amount": int64(100), "feeType": "fixed", "unlisted": "private"}, Columns: []entity.MovementColumnDef{
+	source := entity.DocumentMovement{PolicyEntity: "fixture_register", Data: map[string]any{"amount": int64(100), "feeType": "fixed", "unlisted": "private"}, Columns: []entity.MovementColumnDef{
 		{Key: "amount", PolicyField: "amount"}, {Key: "feeType", PolicyField: "fee_type"},
 	}}
 	for _, policies := range []map[string]*security.FieldPolicy{
-		{"crypto_payment:read": {AllowedFields: []string{"*", "-amount"}}},
-		{"crypto_fee:read": {AllowedFields: []string{"*", "-amount"}}},
+		{"fixture_doc:read": {AllowedFields: []string{"*", "-amount"}}},
+		{"fixture_register:read": {AllowedFields: []string{"*", "-amount"}}},
 	} {
 		ctx := security.WithFieldPolicies(context.Background(), policies)
-		projected, ok := projectMovement(ctx, "crypto_payment", source)
+		projected, ok := projectMovement(ctx, fixtureSource, source)
 		require.True(t, ok)
 		require.Len(t, projected.Columns, 1)
 		require.Equal(t, map[string]any{"feeType": "fixed"}, projected.Data)
 		require.Equal(t, int64(100), source.Data["amount"])
 	}
-	ctx := security.WithFieldPolicies(context.Background(), map[string]*security.FieldPolicy{"crypto_payment:read": {AllowedFields: []string{"*", "-posted"}}})
-	_, ok := projectMovement(ctx, "crypto_payment", source)
+	ctx := security.WithFieldPolicies(context.Background(), map[string]*security.FieldPolicy{"fixture_doc:read": {AllowedFields: []string{"*", "-posted"}}})
+	_, ok := projectMovement(ctx, fixtureSource, source)
 	require.False(t, ok, "movement existence must not disclose a hidden posting state")
 }
 
@@ -124,23 +129,42 @@ func TestMovementReferencesAreBatchedAndInaccessibleRepresentationsRemoved(t *te
 	require.NotContains(t, rows[1].Data, "wallet")
 }
 
-func TestMovementProjectionWithdrawalRequest(t *testing.T) {
+func TestMovementProjectionWithoutPoliciesKeepsEveryColumn(t *testing.T) {
 	source := entity.DocumentMovement{
-		PolicyEntity: "crypto_merchant_balance",
+		PolicyEntity: "fixture_register",
 		Data: map[string]any{
-			"merchant": entity.MovementRefValue{ID: "m1", Name: "Merchant 1"},
-			"token":    entity.MovementRefValue{ID: "t1", Name: "USDT"},
-			"amount":   "1000000",
+			"counterparty": entity.MovementRefValue{ID: "c1", Name: "Counterparty 1"},
+			"currency":     entity.MovementRefValue{ID: "u1", Name: "USD"},
+			"amount":       "1000000",
 		},
 		Columns: []entity.MovementColumnDef{
-			{Key: "merchant", PolicyField: "merchant_id"},
-			{Key: "token", PolicyField: "token_id"},
+			{Key: "counterparty", PolicyField: "counterparty_id"},
+			{Key: "currency", PolicyField: "currency_id"},
 			{Key: "amount", PolicyField: "amount"},
 		},
 	}
-	ctx := context.Background()
-	projected, ok := projectMovement(ctx, "withdrawal_request", source)
+	projected, ok := projectMovement(context.Background(), Definition{Key: "undeclared_doc"}, source)
 	require.True(t, ok)
 	require.Len(t, projected.Columns, 3)
 	require.Equal(t, "1000000", projected.Data["amount"])
+}
+
+func TestMovementProjectionHidesUndeclaredColumnsUnderSourcePolicy(t *testing.T) {
+	source := entity.DocumentMovement{PolicyEntity: "fixture_register", Data: map[string]any{"amount": int64(1), "note": "x"}, Columns: []entity.MovementColumnDef{
+		{Key: "amount", PolicyField: "amount"}, {Key: "note", PolicyField: "note"},
+	}}
+	ctx := security.WithFieldPolicies(context.Background(), map[string]*security.FieldPolicy{"fixture_doc:read": {AllowedFields: []string{"*"}}})
+
+	projected, ok := projectMovement(ctx, fixtureSource, source)
+	require.True(t, ok)
+	require.Equal(t, map[string]any{"amount": int64(1)}, projected.Data, "only declared columns pass a source policy")
+
+	_, ok = projectMovement(ctx, Definition{Key: "fixture_doc"}, source)
+	require.False(t, ok, "a document that declares nothing discloses no columns under a source policy")
+
+	constant := Definition{Key: "fixture_doc", MovementSources: map[string][]string{"note": {}}}
+	ctx = security.WithFieldPolicies(context.Background(), map[string]*security.FieldPolicy{"fixture_doc:read": {AllowedFields: []string{"id", "posted"}}})
+	projected, ok = projectMovement(ctx, constant, source)
+	require.True(t, ok)
+	require.Equal(t, map[string]any{"note": "x"}, projected.Data, "a column filled with a constant needs no source field")
 }

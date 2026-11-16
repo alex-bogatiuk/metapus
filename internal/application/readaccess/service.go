@@ -23,6 +23,9 @@ type Definition struct {
 	Dimensions             map[string]string
 	Fields                 []Field
 	SoftDelete             bool
+	// MovementSources maps movement column keys to the source document
+	// fields that disclose them (see platform.MovementSourceProvider).
+	MovementSources map[string][]string
 }
 type Registry interface {
 	Definition(string) (Definition, bool)

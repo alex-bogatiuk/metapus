@@ -54,7 +54,7 @@ func (a *authorizedReadAdapter) Definition(key string) (readaccess.Definition, b
 	if !ok || def.ReadModel == nil || def.TableName == "" {
 		return readaccess.Definition{}, false
 	}
-	d := readaccess.Definition{Key: def.Key, Permission: def.ReadPermission, Table: def.TableName, Dimensions: def.RLSDimensions}
+	d := readaccess.Definition{Key: def.Key, Permission: def.ReadPermission, Table: def.TableName, Dimensions: def.RLSDimensions, MovementSources: def.MovementSources}
 	t := reflect.TypeOf(def.ReadModel)
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()

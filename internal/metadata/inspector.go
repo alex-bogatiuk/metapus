@@ -173,6 +173,7 @@ func inspectColumns(t reflect.Type) []FieldDef {
 			label = guessLabel(field.Name)
 		}
 		fDef := FieldDef{
+			DBColumn:   dbColumnName(field),
 			Name:       jsonName(field),
 			Label:      label,
 			Required:   isRequired(field),

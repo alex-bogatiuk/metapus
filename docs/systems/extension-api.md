@@ -53,6 +53,7 @@ myExtension.Register(factoryReg) // registration uses v1.EntityRegistration[Mode
 | `auth.WithAccessScopeProvider` | объектные права сессии в claim `scp` | `merchant.NewPortalAccessScopes` |
 | `middleware.WithCommandScope` | владелец ключей идемпотентных команд (например, партнёр по API-ключу) | `cryptomiddleware.WithMerchant`, `MerchantPortal` |
 | `content.Services` | сервисы конфигурации для регистраций документов вне `v1.DocumentDeps` | ссылки checkout, подписанты согласований |
+| `platform.MovementSourceProvider` | для документа с движениями: какие его поля раскрывают каждую колонку движения. При FLS-политике на документ колонка видна, только если объявлена и все перечисленные поля читаемы; пустой список — колонка-константа | `content/movement_sources.go` |
 | `spec.Bundle` | контракты HTTP для генератора: `contracts.Registry(bundles...)`, `contracts.Routes(bundles...)` | `content.HTTPContractBundles` |
 
 Граница проверяется тестами в `internal/architecture`:

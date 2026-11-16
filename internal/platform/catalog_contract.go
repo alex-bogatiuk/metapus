@@ -45,6 +45,18 @@ type RLSProvider interface {
 	RLSDimensions() map[string]string
 }
 
+// MovementSourceProvider declares, for a document that posts register
+// movements, which of its own fields disclose each movement column. Keys are
+// movement column keys; values are source columns ("amount") or table part
+// fields ("lines.amount"), named as field policies name them: by db tag, else
+// by JSON name. An empty list marks a column the document fills with a
+// constant. When the reader has a field policy on the document, a column is
+// shown only if it is declared here and every listed field is readable;
+// undeclared columns stay hidden.
+type MovementSourceProvider interface {
+	MovementSources() map[string][]string
+}
+
 // SearchFields configures which columns are searchable in Global Data Search.
 type SearchFields struct {
 	// SearchCols are the DB columns matched against the user query via ILIKE.

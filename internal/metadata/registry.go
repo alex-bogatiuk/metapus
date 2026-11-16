@@ -163,6 +163,10 @@ type EntityDef struct {
 	// Populated via platform.RLSProvider during factory registration.
 	RLSDimensions map[string]string `json:"-"`
 
+	// MovementSources maps movement column keys to the source document fields
+	// that disclose them. Populated via platform.MovementSourceProvider.
+	MovementSources map[string][]string `json:"-"`
+
 	// SearchColumns configures which DB columns are searchable in global search.
 	// If nil, defaults are used: catalogs → name+code, documents → number.
 	// Populated via platform.SearchFieldsProvider during factory registration.

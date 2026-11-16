@@ -40,6 +40,9 @@ func InspectReadMetadata(factory ReadMetadataRegistration, kind metadata.EntityT
 	if rls, ok := factory.(platform.RLSProvider); ok {
 		def.RLSDimensions = rls.RLSDimensions()
 	}
+	if sources, ok := factory.(platform.MovementSourceProvider); ok {
+		def.MovementSources = sources.MovementSources()
+	}
 	return def
 }
 
