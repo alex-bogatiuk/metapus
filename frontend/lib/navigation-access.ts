@@ -24,9 +24,16 @@ export function entityCreatePermission(entity: EntityMeta | undefined): string |
   return read?.endsWith(":read") ? read.slice(0, -":read".length) + ":create" : read
 }
 
-function entityListUrl(entity: EntityMeta): string | undefined {
-  if (entity.type !== "catalog" && entity.type !== "document") return undefined
-  return buildEntityUrlByRoute(entity.routePrefix ?? entity.key, entity.type)
+/**
+ * The URLs of the entity's list: the canonical one, and the one with the
+ * route prefix as declared, which palette entries also use
+ * ("/documents/goods-receipt" next to "/documents/goods-receipts").
+ */
+function entityListUrls(entity: EntityMeta): string[] {
+  if (entity.type !== "catalog" && entity.type !== "document") return []
+  const prefix = entity.routePrefix ?? entity.key
+  const section = entity.type === "document" ? "documents" : "catalogs"
+  return [...new Set([buildEntityUrlByRoute(prefix, entity.type), `/${section}/${prefix}`])]
 }
 
 /**
@@ -37,10 +44,10 @@ function entityListUrl(entity: EntityMeta): string | undefined {
 export function withEntityPermissions<T extends Pick<CommandNavItem, "url" | "permission">>(items: T[], entities: EntityMeta[]): T[] {
   const byUrl = new Map<string, string | undefined>()
   for (const entity of entities) {
-    const url = entityListUrl(entity)
-    if (!url) continue
-    byUrl.set(url, entityReadPermission(entity))
-    byUrl.set(url + "/new", entityCreatePermission(entity))
+    for (const url of entityListUrls(entity)) {
+      byUrl.set(url, entityReadPermission(entity))
+      byUrl.set(url + "/new", entityCreatePermission(entity))
+    }
   }
   return items.map((item) => {
     if (item.permission) return item

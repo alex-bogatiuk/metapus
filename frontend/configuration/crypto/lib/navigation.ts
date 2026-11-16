@@ -152,10 +152,10 @@ export function registerCryptoNavigation(): void {
             label: "Поступления на кошельки",
             items: [
               { entityKey: "crypto_custody_receipt", fallback: "Поступления на кошельки" },
-              { entityKey: "unidentified_receipts", fallback: "Невыясненные поступления", url: "/crypto/unidentified-receipts" },
+              { entityKey: "unidentified_receipts", fallback: "Невыясненные поступления", url: "/crypto/unidentified-receipts", permission: "crypto_receipt:read" },
               { entityKey: "crypto_merchant_credit", fallback: "Ручные зачисления мерчантам" },
               { entityKey: "crypto_platform_funding", fallback: "Пополнения платформы" },
-              { entityKey: "wallet_fundings", fallback: "Пополнения кошельков", url: "/crypto/wallet-fundings" },
+              { entityKey: "wallet_fundings", fallback: "Пополнения кошельков", url: "/crypto/wallet-fundings", permission: "crypto_receipt:read" },
             ],
           },
           {
@@ -202,17 +202,17 @@ export function registerCryptoNavigation(): void {
       },
     ],
     systemLinks: [
-      { title: "Криптосети", url: "/admin/crypto-networks", icon: Network, before: "/help" },
+      { title: "Криптосети", url: "/admin/crypto-networks", icon: Network, before: "/help", permission: "crypto_network:read" },
     ],
     commands: [
       // Navigate
       { id: "nav:crypto-invoices", label: "Крипто-инвойсы", url: "/documents/crypto-invoice", keywords: "крипто инвойс invoice платёж payment", section: "navigate" },
       { id: "nav:crypto-payments", label: "Крипто-платежи", url: "/documents/crypto-payment", keywords: "крипто платёж payment blockchain", section: "navigate" },
-      { id: "nav:unidentified-receipts", label: "Невыясненные поступления", url: "/crypto/unidentified-receipts", keywords: "крипто невыясненные поступления зачисление мерчанту dust", section: "navigate" },
+      { id: "nav:unidentified-receipts", label: "Невыясненные поступления", url: "/crypto/unidentified-receipts", keywords: "крипто невыясненные поступления зачисление мерчанту dust", section: "navigate", permission: "crypto_receipt:read" },
       { id: "nav:custody-receipts", label: "Поступления на кошельки", url: "/documents/crypto-custody-receipt", keywords: "крипто поступления receipt custody кошелёк", section: "navigate" },
       { id: "nav:merchant-credits", label: "Ручные зачисления мерчантам", url: "/documents/crypto-merchant-credit", keywords: "крипто ручное зачисление мерчанту credit", section: "navigate" },
       { id: "nav:platform-fundings", label: "Пополнения платформы", url: "/documents/crypto-platform-funding", keywords: "крипто пополнение платформы funding невыясненные", section: "navigate" },
-      { id: "nav:wallet-fundings", label: "Пополнения кошельков", url: "/crypto/wallet-fundings", keywords: "крипто пополнение кошелька funding hot fee", section: "navigate" },
+      { id: "nav:wallet-fundings", label: "Пополнения кошельков", url: "/crypto/wallet-fundings", keywords: "крипто пополнение кошелька funding hot fee", section: "navigate", permission: "crypto_receipt:read" },
       { id: "nav:crypto-withdrawals", label: "Крипто-выводы", url: "/documents/crypto-withdrawal", keywords: "крипто вывод withdrawal", section: "navigate" },
       { id: "nav:withdrawal-requests", label: "Заявки на вывод", url: "/documents/withdrawal-requests", keywords: "крипто заявки вывод withdrawal requests approve одобрение", section: "navigate" },
       { id: "nav:treasury-withdrawals", label: "Казначейские выводы", url: "/documents/treasury-withdrawals", keywords: "крипто казначейские выводы treasury withdrawal reconciliation", section: "navigate" },
@@ -233,7 +233,7 @@ export function registerCryptoNavigation(): void {
       { id: "create:wallet", label: "Создать кошелек", url: "/catalogs/wallets/new", icon: Plus, keywords: "создать новый кошелек wallet pool", section: "create" },
 
       // System
-      { id: "sys:crypto-networks", label: "Криптосети", url: "/admin/crypto-networks", keywords: "криптовалютные крипто сети настройки runtime rpc signer itrx circuits policy", section: "system" },
+      { id: "sys:crypto-networks", label: "Криптосети", url: "/admin/crypto-networks", keywords: "криптовалютные крипто сети настройки runtime rpc signer itrx circuits policy", section: "system", permission: "crypto_network:read" },
     ],
   })
 }

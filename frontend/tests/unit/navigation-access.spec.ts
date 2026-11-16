@@ -30,6 +30,12 @@ test("palette entries that open an entity need its permissions", () => {
     undefined,
   ])
   expect(entityCreatePermission(probe)).toBe("catalog:nav_probe:create")
+
+  // Documents declare a singular route; palette entries may use it as is.
+  const doc = { ...probe, key: "nav_doc", type: "document", routePrefix: "nav-doc", readPermission: "document:nav_doc:read" } as EntityMeta
+  const entries: { url: string; permission?: string }[] = [{ url: "/documents/nav-doc" }, { url: "/documents/nav-docs" }, { url: "/documents/nav-doc/new" }]
+  expect(withEntityPermissions(entries, [doc])
+    .map(i => i.permission)).toEqual(["document:nav_doc:read", "document:nav_doc:read", "document:nav_doc:create"])
 })
 
 test("an automatically listed entity carries its read permission", () => {
