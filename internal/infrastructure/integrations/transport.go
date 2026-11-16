@@ -50,7 +50,10 @@ type Transport struct {
 	Provider    model.Provider
 	Slot        string
 	// Target is optional for ordinary API calls; RPC bindings can refresh their URL/pool.
-	Target    func(context.Context) (Binding, error)
+	Target func(context.Context) (Binding, error)
+	// Operation names a pooled request in the wire metric; nil or an empty
+	// result counts it as "api". Callers that know their protocol set it.
+	Operation func(*http.Request) string
 	mu        sync.Mutex
 	selected  model.Selection
 	checkedAt time.Time
@@ -216,9 +219,9 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 			}
 		}
 		if !id.IsNil(b.PoolID) {
-			_, operation, _ := strings.Cut(req.URL.Path, "/wallet/")
-			if operation == "" {
-				_, operation, _ = strings.Cut(req.URL.Path, "/walletsolidity/")
+			operation := ""
+			if t.Operation != nil {
+				operation = t.Operation(req)
 			}
 			if operation == "" || len(operation) > 64 || strings.ContainsAny(operation, "/?#") {
 				operation = "api"

@@ -11,7 +11,7 @@ import (
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/json"
 	"metapus/internal/domain/crypto"
-	"metapus/internal/domain/integrations"
+	"metapus/internal/domain/crypto/rpcconfig"
 )
 
 type ingestionRecoveryProber struct {
@@ -169,7 +169,7 @@ func TestConfiguredAlertLagUsesMeasurementsEvenWhenDiagnosticIsReady(t *testing.
 	now := time.Now().UTC()
 	snapshot := IngestionMonitorSnapshot{IngestionPreflightResult: IngestionPreflightResult{Ready: true, Networks: []IngestionNetworkReport{{NetworkCode: "SEPOLIA", State: "ready", Head: &crypto.IngestionHead{}, Streams: []IngestionStreamReport{{WatcherKey: "native_eth", State: "ready", LagSeconds: 45, ProgressAgeSeconds: 1}}}}}}
 	policy := cryptoapp.DefaultIngestionAlertPolicy()
-	policy.NetworkSettings = map[string]integrations.IngestionAlertSettings{"SEPOLIA": {MaxLagSeconds: 40, RecoveryLagSeconds: 20, FireAfterSeconds: 30}}
+	policy.NetworkSettings = map[string]rpcconfig.IngestionAlertSettings{"SEPOLIA": {MaxLagSeconds: 40, RecoveryLagSeconds: 20, FireAfterSeconds: 30}}
 	state := cryptoapp.IngestionAlertState{StartedAt: now.Add(-time.Hour)}
 	cryptoapp.AdvanceIngestionIncidents(&state, now, IngestionConditions(snapshot), policy)
 	cryptoapp.AdvanceIngestionIncidents(&state, now.Add(30*time.Second), IngestionConditions(snapshot), policy)
@@ -186,7 +186,7 @@ func TestConfiguredAlertLagUsesMeasurementsEvenWhenDiagnosticIsReady(t *testing.
 func TestTRONLatestReadySamplesStillRespectConfiguredRecoveryLag(t *testing.T) {
 	now := time.Now().UTC()
 	policy := cryptoapp.DefaultIngestionAlertPolicy()
-	policy.NetworkSettings = map[string]integrations.IngestionAlertSettings{"TRON": {MaxLagSeconds: 60, RecoveryLagSeconds: 2, FireAfterSeconds: 30, RecoverAfterSeconds: 30}}
+	policy.NetworkSettings = map[string]rpcconfig.IngestionAlertSettings{"TRON": {MaxLagSeconds: 60, RecoveryLagSeconds: 2, FireAfterSeconds: 30, RecoverAfterSeconds: 30}}
 	snapshot := IngestionMonitorSnapshot{IngestionPreflightResult: IngestionPreflightResult{Ready: true, Networks: []IngestionNetworkReport{{NetworkCode: "TRON", State: "ready", Head: &crypto.IngestionHead{}, Streams: []IngestionStreamReport{{WatcherKey: "tron:latest", Optional: true, State: "catching_up", LagSeconds: 90}}}}}}
 	state := cryptoapp.IngestionAlertState{StartedAt: now.Add(-time.Hour)}
 	for seconds := 0; seconds <= 30; seconds += 30 {

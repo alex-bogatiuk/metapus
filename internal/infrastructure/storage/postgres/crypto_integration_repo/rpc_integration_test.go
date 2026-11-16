@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/core/id"
+	"metapus/internal/domain/crypto/rpcconfig"
 	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/integration_repo"
 )
 
@@ -23,7 +23,7 @@ func (f mockRPCTransport) RoundTrip(r *http.Request) (*http.Response, error) { r
 func TestRPCBindingPicksUpTenantChangesWithoutRestart(t *testing.T) {
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
 	ctx, db := fixtureDB(t)
-	ar, pr, er := catalog_repo.NewIntegrationAccountRepo(), catalog_repo.NewIntegrationPoolRepo(), catalog_repo.NewCryptoRPCEndpointRepo()
+	ar, pr, er := NewIntegrationAccountRepo(), NewIntegrationPoolRepo(), NewCryptoRPCEndpointRepo()
 	var accounts []*model.Account
 	for _, code := range []string{"A", "B"} {
 		a := model.NewAccount(code, code)
@@ -37,7 +37,7 @@ func TestRPCBindingPicksUpTenantChangesWithoutRestart(t *testing.T) {
 	require.NoError(t, pr.Create(ctx, pool))
 	var networkID id.ID
 	require.NoError(t, db.QueryRow(ctx, `SELECT id FROM cat_blockchain_networks WHERE chain_family='evm' LIMIT 1`).Scan(&networkID))
-	endpoint := model.NewRPCEndpoint("ALCHEMY-RPC", "Alchemy RPC")
+	endpoint := rpcconfig.NewRPCEndpoint("ALCHEMY-RPC", "Alchemy RPC")
 	endpoint.NetworkID = networkID
 	endpoint.URL = "https://eth-sepolia.g.alchemy.com/v2/"
 	endpoint.TrustGroup = "alchemy"

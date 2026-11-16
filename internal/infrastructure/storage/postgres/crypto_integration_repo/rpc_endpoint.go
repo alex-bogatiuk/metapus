@@ -1,4 +1,4 @@
-package catalog_repo
+package crypto_integration_repo
 
 import (
 	"context"
@@ -7,19 +7,21 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/domain/crypto/rpcconfig"
 	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 )
 
 type CryptoRPCEndpointRepo struct {
-	*BaseCatalogRepo[*integrations.RPCEndpoint]
+	*catalog_repo.BaseCatalogRepo[*rpcconfig.RPCEndpoint]
 }
 
 func NewCryptoRPCEndpointRepo() *CryptoRPCEndpointRepo {
-	return &CryptoRPCEndpointRepo{NewCatalogRepoForDefinition[*integrations.RPCEndpoint](integrations.RPCEndpointDefinition, postgres.ExtractDBColumns[integrations.RPCEndpoint](), func() *integrations.RPCEndpoint { return &integrations.RPCEndpoint{} })}
+	return &CryptoRPCEndpointRepo{catalog_repo.NewCatalogRepoForDefinition[*rpcconfig.RPCEndpoint](rpcconfig.RPCEndpointDefinition, postgres.ExtractDBColumns[rpcconfig.RPCEndpoint](), func() *rpcconfig.RPCEndpoint { return &rpcconfig.RPCEndpoint{} })}
 }
-func (r *CryptoRPCEndpointRepo) ValidateBinding(ctx context.Context, e *integrations.RPCEndpoint) error {
-	if err := LockIntegrationConfiguration(ctx); err != nil {
+func (r *CryptoRPCEndpointRepo) ValidateBinding(ctx context.Context, e *rpcconfig.RPCEndpoint) error {
+	if err := catalog_repo.LockIntegrationConfiguration(ctx); err != nil {
 		return err
 	}
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
@@ -65,15 +67,15 @@ func (r *CryptoRPCEndpointRepo) ValidateBinding(ctx context.Context, e *integrat
 	if err := provider.ValidateRPCBinding(binding); err != nil {
 		return err
 	}
-	members, err := poolMemberIDs(ctx, *e.PoolID)
+	members, err := catalog_repo.PoolMemberIDs(ctx, *e.PoolID)
 	if err != nil {
 		return err
 	}
-	accounts, err := loadRPCKeyAccounts(ctx, members)
+	accounts, err := catalog_repo.AccountKeyNames(ctx, members)
 	if err != nil {
 		return err
 	}
-	if err := integrations.RequireRPCKeys([]integrations.RPCKeyUser{{Endpoint: e.Name, Key: e.Slot}}, accounts); err != nil {
+	if err := rpcconfig.RequireRPCKeys([]rpcconfig.RPCKeyUser{{Endpoint: e.Name, Key: e.Slot}}, accounts); err != nil {
 		return err
 	}
 	definition, _ := provider.Definition()
@@ -88,7 +90,7 @@ func (r *CryptoRPCEndpointRepo) ValidateBinding(ctx context.Context, e *integrat
 	}
 	return nil
 }
-func (r *CryptoRPCEndpointRepo) Create(ctx context.Context, e *integrations.RPCEndpoint) error {
+func (r *CryptoRPCEndpointRepo) Create(ctx context.Context, e *rpcconfig.RPCEndpoint) error {
 	return r.mutate(ctx, e.NetworkID, func(ctx context.Context) error {
 		if err := r.ValidateBinding(ctx, e); err != nil {
 			return err
@@ -96,9 +98,9 @@ func (r *CryptoRPCEndpointRepo) Create(ctx context.Context, e *integrations.RPCE
 		return r.BaseCatalogRepo.Create(ctx, e)
 	})
 }
-func (r *CryptoRPCEndpointRepo) Update(ctx context.Context, e *integrations.RPCEndpoint) error {
+func (r *CryptoRPCEndpointRepo) Update(ctx context.Context, e *rpcconfig.RPCEndpoint) error {
 	return postgres.MustGetTxManager(ctx).RunInTransaction(ctx, func(ctx context.Context) error {
-		if err := LockIntegrationConfiguration(ctx); err != nil {
+		if err := catalog_repo.LockIntegrationConfiguration(ctx); err != nil {
 			return err
 		}
 		old, err := r.GetByID(ctx, e.ID)
@@ -125,7 +127,7 @@ func (r *CryptoRPCEndpointRepo) Update(ctx context.Context, e *integrations.RPCE
 
 func (r *CryptoRPCEndpointRepo) mutate(ctx context.Context, network id.ID, mutation func(context.Context) error) error {
 	return postgres.MustGetTxManager(ctx).RunInTransaction(ctx, func(ctx context.Context) error {
-		if err := LockIntegrationConfiguration(ctx); err != nil {
+		if err := catalog_repo.LockIntegrationConfiguration(ctx); err != nil {
 			return err
 		}
 		return ValidateRPCNetworkMutation(ctx, network, mutation)
@@ -134,7 +136,7 @@ func (r *CryptoRPCEndpointRepo) mutate(ctx context.Context, network id.ID, mutat
 
 func (r *CryptoRPCEndpointRepo) SetDeletionMark(ctx context.Context, uid id.ID, marked bool) error {
 	return postgres.MustGetTxManager(ctx).RunInTransaction(ctx, func(ctx context.Context) error {
-		if err := LockIntegrationConfiguration(ctx); err != nil {
+		if err := catalog_repo.LockIntegrationConfiguration(ctx); err != nil {
 			return err
 		}
 		e, err := r.GetByID(ctx, uid)
@@ -154,7 +156,7 @@ func (r *CryptoRPCEndpointRepo) SetDeletionMark(ctx context.Context, uid id.ID, 
 
 func (r *CryptoRPCEndpointRepo) Delete(ctx context.Context, uid id.ID) error {
 	return postgres.MustGetTxManager(ctx).RunInTransaction(ctx, func(ctx context.Context) error {
-		if err := LockIntegrationConfiguration(ctx); err != nil {
+		if err := catalog_repo.LockIntegrationConfiguration(ctx); err != nil {
 			return err
 		}
 		e, err := r.GetByID(ctx, uid)

@@ -1,4 +1,4 @@
-package catalog_repo
+package crypto_integration_repo
 
 import (
 	"context"
@@ -13,8 +13,10 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/core/security"
+	"metapus/internal/domain/crypto/rpcconfig"
 	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 )
 
 type RPCConfigurationRepo struct {
@@ -31,8 +33,8 @@ func NewRPCConfigurationRepo(environment string, engines ...*security.PolicyEngi
 }
 
 type rpcConfigurationState struct {
-	view    integrations.RPCConfiguration
-	records []*integrations.RPCEndpoint
+	view    rpcconfig.RPCConfiguration
+	records []*rpcconfig.RPCEndpoint
 }
 
 // A single SQL statement gives the network, settings and complete endpoint set
@@ -63,8 +65,8 @@ func (r *RPCConfigurationRepo) load(ctx context.Context, network id.ID) (rpcConf
 	if err := json.Unmarshal(raw, &state.records); err != nil {
 		return state, fmt.Errorf("decode RPC configuration: %w", err)
 	}
-	state.view = integrations.RPCConfiguration{NetworkID: network, Family: family, Source: source, Endpoints: []integrations.RPCConfigurationEndpoint{}, Requirements: []integrations.RPCRoleRequirement{}}
-	topology := integrations.RPCTopology{Roles: make(map[string][]integrations.RPCConfiguredEndpoint)}
+	state.view = rpcconfig.RPCConfiguration{NetworkID: network, Family: family, Source: source, Endpoints: []rpcconfig.RPCConfigurationEndpoint{}, Requirements: []rpcconfig.RPCRoleRequirement{}}
+	topology := rpcconfig.RPCTopology{Roles: make(map[string][]rpcconfig.RPCConfiguredEndpoint)}
 	if err := json.Unmarshal(evm, &topology.EVM); err != nil {
 		return state, err
 	}
@@ -76,21 +78,21 @@ func (r *RPCConfigurationRepo) load(ctx context.Context, network id.ID) (rpcConf
 		return state, fmt.Errorf("decode ingestion alert settings: %w", err)
 	}
 	state.view.EffectiveSettings = state.view.Settings.Defaults(family)
-	state.view.DefaultSettings = (integrations.RPCNetworkSettings{}).Defaults(family)
+	state.view.DefaultSettings = (rpcconfig.RPCNetworkSettings{}).Defaults(family)
 	for _, e := range state.records {
-		endpoint := integrations.RPCConfiguredEndpoint{EndpointID: e.ID, ConfigVersion: e.Version, ProviderID: e.ProviderID, TrustGroup: e.TrustGroup, URL: e.URL, Priority: e.Priority, MinRequestIntervalMS: e.MinRequestIntervalMS, DisableKeepAlives: e.DisableKeepAlives}
-		state.view.Endpoints = append(state.view.Endpoints, integrations.RPCConfigurationEndpoint{ID: e.ID, Version: e.Version, Name: e.Name, Role: e.Role, ProviderID: e.ProviderID, TrustGroup: integrations.RPCTrustIdentity(e.URL, e.TrustGroup, e.ProviderID), IsActive: e.IsActive, Priority: e.Priority, MinRequestIntervalMS: e.MinRequestIntervalMS})
+		endpoint := rpcconfig.RPCConfiguredEndpoint{EndpointID: e.ID, ConfigVersion: e.Version, ProviderID: e.ProviderID, TrustGroup: e.TrustGroup, URL: e.URL, Priority: e.Priority, MinRequestIntervalMS: e.MinRequestIntervalMS, DisableKeepAlives: e.DisableKeepAlives}
+		state.view.Endpoints = append(state.view.Endpoints, rpcconfig.RPCConfigurationEndpoint{ID: e.ID, Version: e.Version, Name: e.Name, Role: e.Role, ProviderID: e.ProviderID, TrustGroup: integrations.RPCTrustIdentity(e.URL, e.TrustGroup, e.ProviderID), IsActive: e.IsActive, Priority: e.Priority, MinRequestIntervalMS: e.MinRequestIntervalMS})
 		if e.IsActive {
 			topology.Roles[e.Role] = append(topology.Roles[e.Role], endpoint)
 		}
 	}
-	state.view.Requirements = integrations.RPCRequirements(family, r.environment, state.view.Endpoints)
+	state.view.Requirements = rpcconfig.RPCRequirements(family, r.environment, state.view.Endpoints)
 	encoded, err := json.MarshalDeterministic(struct {
 		NetworkVersion                          int
 		Source, Family, Identifier, Environment string
 		Decoder                                 int
 		EVM, TRON, Alerts                       json.RawMessage
-		Endpoints                               []*integrations.RPCEndpoint
+		Endpoints                               []*rpcconfig.RPCEndpoint
 	}{version, source, family, identifier, r.environment, decoder, evm, tron, alerts, state.records})
 	if err != nil {
 		return state, err
@@ -122,7 +124,7 @@ func (r *RPCConfigurationRepo) ValidateActiveBindings(ctx context.Context, netwo
 	return nil
 }
 
-func (r *RPCConfigurationRepo) Get(ctx context.Context, network id.ID) (integrations.RPCConfiguration, error) {
+func (r *RPCConfigurationRepo) Get(ctx context.Context, network id.ID) (rpcconfig.RPCConfiguration, error) {
 	state, err := r.load(ctx, network)
 	if err == nil {
 		err = r.authorizeRead(ctx, state.records)
@@ -131,7 +133,7 @@ func (r *RPCConfigurationRepo) Get(ctx context.Context, network id.ID) (integrat
 }
 
 // A partial topology cannot be presented as a complete editable snapshot.
-func (r *RPCConfigurationRepo) authorizeRead(ctx context.Context, records []*integrations.RPCEndpoint) error {
+func (r *RPCConfigurationRepo) authorizeRead(ctx context.Context, records []*rpcconfig.RPCEndpoint) error {
 	if policy := security.GetFieldPolicy(ctx, "crypto_rpc_endpoint", "read"); policy != nil {
 		for _, field := range []string{"id", "version", "network_id", "name", "role", "provider_id", "trust_group", "is_active", "priority", "min_request_interval_ms"} {
 			if !policy.IsFieldAllowed(field) {
@@ -152,20 +154,20 @@ func (r *RPCConfigurationRepo) authorizeRead(ctx context.Context, records []*int
 
 // Lock serializes topology writes across the management API and catalog paths.
 func (r *RPCConfigurationRepo) Lock(ctx context.Context) error {
-	return LockIntegrationConfiguration(ctx)
+	return catalog_repo.LockIntegrationConfiguration(ctx)
 }
 
 // Save persists a plan produced under the caller's transaction and configuration
 // lock. SQL/security checks remain here; order and coverage policy live in domain.
-func (r *RPCConfigurationRepo) Save(ctx context.Context, network id.ID, expectedRevision string, changes []integrations.RPCConfigurationChange, settings *integrations.RPCNetworkSettings) (integrations.RPCConfiguration, error) {
+func (r *RPCConfigurationRepo) Save(ctx context.Context, network id.ID, expectedRevision string, changes []rpcconfig.RPCConfigurationChange, settings *rpcconfig.RPCNetworkSettings) (rpcconfig.RPCConfiguration, error) {
 	state, err := r.load(ctx, network)
 	if err != nil {
-		return integrations.RPCConfiguration{}, err
+		return rpcconfig.RPCConfiguration{}, err
 	}
 	if state.view.Revision != expectedRevision {
-		return integrations.RPCConfiguration{}, apperror.NewConcurrentModification("crypto_rpc_configuration", network.String())
+		return rpcconfig.RPCConfiguration{}, apperror.NewConcurrentModification("crypto_rpc_configuration", network.String())
 	}
-	byID := make(map[id.ID]*integrations.RPCEndpoint, len(state.records))
+	byID := make(map[id.ID]*rpcconfig.RPCEndpoint, len(state.records))
 	for _, e := range state.records {
 		byID[e.ID] = e
 	}
@@ -173,7 +175,7 @@ func (r *RPCConfigurationRepo) Save(ctx context.Context, network id.ID, expected
 	for _, change := range changes {
 		e := byID[change.ID]
 		if e == nil || e.Version != change.Version {
-			return integrations.RPCConfiguration{}, apperror.NewConcurrentModification("crypto_rpc_configuration", network.String())
+			return rpcconfig.RPCConfiguration{}, apperror.NewConcurrentModification("crypto_rpc_configuration", network.String())
 		}
 		current := *e
 		e.IsActive, e.Priority = change.IsActive, change.Priority
@@ -181,59 +183,59 @@ func (r *RPCConfigurationRepo) Save(ctx context.Context, network id.ID, expected
 			e.MinRequestIntervalMS = *change.MinRequestIntervalMS
 		}
 		if err := security.CheckRLSAccess(ctx, "crypto_rpc_endpoint", e); err != nil {
-			return integrations.RPCConfiguration{}, err
+			return rpcconfig.RPCConfiguration{}, err
 		}
 		if err := security.CheckCELPolicy(ctx, r.policy, "crypto_rpc_endpoint", "update", &current); err != nil {
-			return integrations.RPCConfiguration{}, err
+			return rpcconfig.RPCConfiguration{}, err
 		}
 		if err := security.ValidateWrite(&current, e, security.GetFieldPolicy(ctx, "crypto_rpc_endpoint", "write")); err != nil {
-			return integrations.RPCConfiguration{}, err
+			return rpcconfig.RPCConfiguration{}, err
 		}
 		if err := repo.BaseCatalogRepo.Update(ctx, e); err != nil {
-			return integrations.RPCConfiguration{}, err
+			return rpcconfig.RPCConfiguration{}, err
 		}
 	}
 	if settings != nil {
 		if policy := security.GetFieldPolicy(ctx, "crypto_rpc_endpoint", "write"); policy != nil {
 			for _, field := range []string{"priority", "is_active", "min_request_interval_ms"} {
 				if !policy.IsFieldAllowed(field) {
-					return integrations.RPCConfiguration{}, apperror.NewForbidden("Недостаточно прав для изменения настроек RPC")
+					return rpcconfig.RPCConfiguration{}, apperror.NewForbidden("Недостаточно прав для изменения настроек RPC")
 				}
 			}
 		}
 		if err := settings.Validate(state.view.Family); err != nil {
-			return integrations.RPCConfiguration{}, err
+			return rpcconfig.RPCConfiguration{}, err
 		}
 		// Reuse the same scope/CEL permissions as the endpoint command.
 		for _, e := range state.records {
 			if err := security.CheckRLSAccess(ctx, "crypto_rpc_endpoint", e); err != nil {
-				return integrations.RPCConfiguration{}, err
+				return rpcconfig.RPCConfiguration{}, err
 			}
 			if err := security.CheckCELPolicy(ctx, r.policy, "crypto_rpc_endpoint", "update", e); err != nil {
-				return integrations.RPCConfiguration{}, err
+				return rpcconfig.RPCConfiguration{}, err
 			}
 		}
 		evm, err := json.Marshal(settings.EVM)
 		if err != nil {
-			return integrations.RPCConfiguration{}, err
+			return rpcconfig.RPCConfiguration{}, err
 		}
 		tron, err := json.Marshal(settings.TRON)
 		if err != nil {
-			return integrations.RPCConfiguration{}, err
+			return rpcconfig.RPCConfiguration{}, err
 		}
 		alerts, err := json.Marshal(settings.Alerts)
 		if err != nil {
-			return integrations.RPCConfiguration{}, err
+			return rpcconfig.RPCConfiguration{}, err
 		}
 		_, err = postgres.MustGetTxManager(ctx).GetQuerier(ctx).Exec(ctx, `INSERT INTO sys_crypto_rpc_network_settings(network_id,evm_settings,tron_settings,ingestion_alert_settings) VALUES($1,$2,$3,$4) ON CONFLICT(network_id) DO UPDATE SET evm_settings=EXCLUDED.evm_settings,tron_settings=EXCLUDED.tron_settings,ingestion_alert_settings=EXCLUDED.ingestion_alert_settings,version=sys_crypto_rpc_network_settings.version+1,updated_at=NOW()`, network, evm, tron, alerts)
 		if err != nil {
-			return integrations.RPCConfiguration{}, fmt.Errorf("save RPC network settings: %w", err)
+			return rpcconfig.RPCConfiguration{}, fmt.Errorf("save RPC network settings: %w", err)
 		}
 	}
 	// Cross-binding constraints must observe the complete final transaction image.
 	for _, e := range state.records {
 		if err := repo.ValidateBinding(ctx, e); err != nil {
-			return integrations.RPCConfiguration{}, err
+			return rpcconfig.RPCConfiguration{}, err
 		}
 	}
 	return r.Get(ctx, network)
@@ -252,5 +254,5 @@ func ValidateRPCNetworkMutation(ctx context.Context, network id.ID, mutate func(
 	if err != nil {
 		return err
 	}
-	return integrations.ValidateRPCCoverageChange(beforeState.view, afterState.view)
+	return rpcconfig.ValidateRPCCoverageChange(beforeState.view, afterState.view)
 }

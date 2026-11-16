@@ -1,4 +1,4 @@
-package handlers
+package cryptohandlers
 
 import (
 	"context"
@@ -9,23 +9,22 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/application/integrationapp"
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
+	"metapus/internal/domain/crypto/rpcconfig"
 	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/middleware"
 )
 
 type rpcKeyNamesRepo struct {
-	integrations.AdministrationRepository
-	query integrations.RPCKeyQuery
+	query rpcconfig.RPCKeyQuery
 }
 
-func (r *rpcKeyNamesRepo) RPCKeyOptions(_ context.Context, q integrations.RPCKeyQuery) (integrations.RPCKeyOptions, error) {
+func (r *rpcKeyNamesRepo) RPCKeyOptions(_ context.Context, q rpcconfig.RPCKeyQuery) (rpcconfig.RPCKeyOptions, error) {
 	r.query = q
-	return integrations.RPCKeyOptions{Required: "sepolia", Names: []string{"sepolia"}, Accounts: []integrations.RPCKeyAccount{{ID: "a", Name: "Infura", HasCredentials: true, Keys: []string{"sepolia"}}}}, nil
+	return rpcconfig.RPCKeyOptions{Required: "sepolia", Names: []string{"sepolia"}, Accounts: []integrations.AccountKeys{{ID: "a", Name: "Infura", HasCredentials: true, Keys: []string{"sepolia"}}}}, nil
 }
 
 func TestRPCKeyNamesPassesEndpointDraftAndChecksPermissions(t *testing.T) {
@@ -48,8 +47,7 @@ func TestRPCKeyNamesPassesEndpointDraftAndChecksPermissions(t *testing.T) {
 				c.Set("permissions_set", map[string]struct{}{tc.permission: {}})
 				c.Next()
 			})
-			guardCalled := false
-			NewIntegrationHandler(integrationapp.New(repo, nil, nil)).RegisterRoutes(router.Group("/system"), func(c *gin.Context) { guardCalled = true; c.Next() })
+			NewRPCKeyNamesHandler(repo).RegisterRoutes(router.Group("/system"))
 			target := "/system/integrations/pools/" + pool.String() + "/rpc-key-names?role=rpc&url=https%3A%2F%2Fsepolia.infura.io%2Fv3%2F"
 			if tc.networkID != "" {
 				target += "&networkId=" + tc.networkID
@@ -57,11 +55,10 @@ func TestRPCKeyNamesPassesEndpointDraftAndChecksPermissions(t *testing.T) {
 			response := httptest.NewRecorder()
 			router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, target, nil))
 			require.Equal(t, tc.status, response.Code, response.Body.String())
-			require.False(t, guardCalled, "reading key names must not require mutation step-up")
 			if tc.status != http.StatusOK {
 				return
 			}
-			var body dto.IntegrationRPCKeyOptionsResponse
+			var body cryptodto.IntegrationRPCKeyOptionsResponse
 			require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 			require.Equal(t, "sepolia", body.Required)
 			require.Equal(t, []string{"sepolia"}, body.Accounts[0].Keys)

@@ -12,7 +12,7 @@ import (
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/json"
 	"metapus/internal/domain/crypto"
-	"metapus/internal/domain/integrations"
+	"metapus/internal/domain/crypto/rpcconfig"
 	"metapus/internal/infrastructure/blockchain/rpcpolicy"
 	"metapus/internal/infrastructure/crypto_worker"
 )
@@ -119,13 +119,13 @@ func (s *HistoryStore) Append(snapshot crypto_worker.IngestionMonitorSnapshot, a
 		RPCOperations []crypto.IngestionOperationStatus `json:"rpcOperations,omitempty"`
 	}
 	compact := struct {
-		AlertSettings map[string]integrations.IngestionAlertSettings `json:"alertSettings,omitempty"`
-		At            time.Time                                      `json:"at"`
-		Ready         bool                                           `json:"ready"`
-		ReadError     bool                                           `json:"readError"`
-		ActiveAlerts  int                                            `json:"activeAlerts"`
-		Networks      []network                                      `json:"networks"`
-		Inbox         map[string]crypto.IngestionInboxBacklog        `json:"inbox"`
+		AlertSettings map[string]rpcconfig.IngestionAlertSettings `json:"alertSettings,omitempty"`
+		At            time.Time                                   `json:"at"`
+		Ready         bool                                        `json:"ready"`
+		ReadError     bool                                        `json:"readError"`
+		ActiveAlerts  int                                         `json:"activeAlerts"`
+		Networks      []network                                   `json:"networks"`
+		Inbox         map[string]crypto.IngestionInboxBacklog     `json:"inbox"`
 	}{AlertSettings: snapshot.AlertSettings, At: snapshot.ObservedAt, Ready: snapshot.Ready, ReadError: snapshot.ReadError, ActiveAlerts: activeAlerts, Inbox: snapshot.Inbox}
 	for _, n := range snapshot.Networks {
 		operations := make([]crypto.IngestionOperationStatus, len(n.RPCOperations))

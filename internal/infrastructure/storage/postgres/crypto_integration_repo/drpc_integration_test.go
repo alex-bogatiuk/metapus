@@ -11,7 +11,6 @@ import (
 	"metapus/internal/core/tenant"
 	model "metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/integration_repo"
 	"sync"
 	"testing"
@@ -38,7 +37,7 @@ func TestDRPCImportRequiresExpiryAndCannotRenewExistingPeriod(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, report.Accounts)
 	require.Zero(t, report.Endpoints)
-	a, err := catalog_repo.NewIntegrationAccountRepo().GetByCode(ctx, importedCode("ACC", "drpc/drpc-import"))
+	a, err := NewIntegrationAccountRepo().GetByCode(ctx, importedCode("ACC", "drpc/drpc-import"))
 	require.NoError(t, err)
 	require.EqualValues(t, 1, a.ManualPeriodVersion)
 	next := end.Add(time.Hour)
@@ -46,7 +45,7 @@ func TestDRPCImportRequiresExpiryAndCannotRenewExistingPeriod(t *testing.T) {
 	bindings[target] = binding
 	_, err = ImportConfiguration(ctx, cfg, bindings, false)
 	require.ErrorContains(t, err, "renew explicitly")
-	after, err := catalog_repo.NewIntegrationAccountRepo().GetByID(ctx, a.ID)
+	after, err := NewIntegrationAccountRepo().GetByID(ctx, a.ID)
 	require.NoError(t, err)
 	require.Equal(t, a.CredentialsExpiresAt, after.CredentialsExpiresAt)
 	require.Equal(t, a.CredentialsEnc, after.CredentialsEnc)
@@ -57,7 +56,7 @@ func TestDRPCConcurrentRenewalsAndReportsAcrossPools(t *testing.T) {
 	ctx, _ := fixtureDB(t)
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	ar, pr := catalog_repo.NewIntegrationAccountRepo(), catalog_repo.NewIntegrationPoolRepo()
+	ar, pr := NewIntegrationAccountRepo(), NewIntegrationPoolRepo()
 	a := model.NewAccount("DRPC-RACE", "Concurrent dRPC")
 	a.Provider = model.DRPC
 	end := time.Now().Add(time.Hour)

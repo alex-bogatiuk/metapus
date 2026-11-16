@@ -35,21 +35,11 @@ var platformTablesInConfigurationMigrations = []string{
 	"sys_rate_feed_state",
 }
 
-// knownConfigurationTableLeaks lists platform files whose string literals still
-// name configuration tables. It only shrinks; query configuration tables from a
-// configuration package instead of listing a new file here.
-var knownConfigurationTableLeaks = map[string][]string{
-	// The RPC subsystem still lives in the platform integration packages.
-	"internal/domain/integrations/definitions.go":                          {"sys_crypto_rpc_endpoints"},
-	"internal/domain/integrations/rpc_endpoint.go":                         {"sys_crypto_rpc_endpoints"},
-	"internal/infrastructure/storage/postgres/catalog_repo/integration.go": {"sys_crypto_rpc_endpoints"},
-	"internal/infrastructure/storage/postgres/catalog_repo/rpc_configuration.go": {
-		"cat_blockchain_networks", "sys_crypto_block_ingestion", "sys_crypto_rpc_endpoints", "sys_crypto_rpc_network_settings",
-	},
-	"internal/infrastructure/storage/postgres/catalog_repo/rpc_endpoint.go":     {"sys_crypto_rpc_endpoints"},
-	"internal/infrastructure/storage/postgres/catalog_repo/rpc_key_names.go":    {"cat_blockchain_networks", "sys_crypto_rpc_endpoints"},
-	"internal/infrastructure/storage/postgres/integration_repo/rpc_settings.go": {"cat_blockchain_networks", "sys_crypto_rpc_network_settings"},
-}
+// knownConfigurationTableLeaks lists platform files whose string literals name
+// configuration tables. It is empty: query configuration tables from a
+// configuration package, or invert the dependency (integrations.PoolConsumer),
+// instead of listing a file here.
+var knownConfigurationTableLeaks = map[string][]string{}
 
 // knownConfigurationTestLeaks lists platform packages whose tests still import
 // configuration packages. It only shrinks; test configuration behaviour from

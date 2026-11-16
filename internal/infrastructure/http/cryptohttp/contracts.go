@@ -14,6 +14,8 @@ func HTTPContracts() spec.Bundle {
 
 func contracts() []spec.Contract {
 	return []spec.Contract{
+		spec.Response[cryptodto.IntegrationRPCKeyAccount]("IntegrationRPCKeyAccount"),
+		spec.Response[cryptodto.IntegrationRPCKeyOptionsResponse]("IntegrationRPCKeyOptionsResponse"),
 		spec.Response[cryptodto.AdminDashboardQueuesResponse]("AdminDashboardQueuesResponse"),
 		spec.Response[cryptodto.AdminDashboardFinanceResponse]("AdminDashboardFinanceResponse"),
 		spec.Response[cryptodto.AdminDashboardAnalyticsResponse]("AdminDashboardAnalyticsResponse"),
@@ -188,6 +190,7 @@ func routes() []spec.RouteContract {
 	add := func(scope, method, path, request, response string) {
 		routes = append(routes, spec.RouteContract{Scope: scope, Method: method, Path: path, Request: request, Response: response})
 	}
+	add("api", "GET", "/system/integrations/pools/:id/rpc-key-names", "", "IntegrationRPCKeyOptionsResponse")
 	add("api", "GET", "/crypto/unidentified-receipts", "", "UnidentifiedReceiptListResponse")
 	add("api", "GET", "/crypto/unidentified-receipts/:id", "", "CustodyReceiptDetailResponse")
 	add("api", "POST", "/crypto/unidentified-receipts/:id/credits", "PrepareMerchantCreditRequest", "MerchantCreditResponse")

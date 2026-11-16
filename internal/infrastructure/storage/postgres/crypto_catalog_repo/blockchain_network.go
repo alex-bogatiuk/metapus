@@ -12,6 +12,7 @@ import (
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_integration_repo"
 )
 
 // BlockchainNetworkRepo implements blockchain_network.Repository.
@@ -35,11 +36,11 @@ func (r *BlockchainNetworkRepo) Update(ctx context.Context, network *blockchain_
 		if err := catalog_repo.LockIntegrationConfiguration(ctx); err != nil {
 			return err
 		}
-		return catalog_repo.ValidateRPCNetworkMutation(ctx, network.ID, func(ctx context.Context) error {
+		return crypto_integration_repo.ValidateRPCNetworkMutation(ctx, network.ID, func(ctx context.Context) error {
 			if err := r.BaseCatalogRepo.Update(ctx, network); err != nil {
 				return err
 			}
-			return catalog_repo.NewRPCConfigurationRepo("").ValidateActiveBindings(ctx, network.ID)
+			return crypto_integration_repo.NewRPCConfigurationRepo("").ValidateActiveBindings(ctx, network.ID)
 		})
 	})
 }

@@ -3,7 +3,7 @@
 import { useId } from "react"
 import { ChevronRight } from "lucide-react"
 
-import type { IntegrationsRPCNetworkSettings } from "@/types/generated/http-contracts"
+import type { RpcconfigRPCNetworkSettings } from "@/types/generated/http-contracts"
 import { rpcSettingsFields, rpcSettingsValue, type RPCSettingsField, type RPCSettingsForm } from "@/lib/integrations/rpc-network-settings"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input"
 interface RPCSettingsFieldsProps {
   family: string
   form: RPCSettingsForm
-  defaults: IntegrationsRPCNetworkSettings
+  defaults: RpcconfigRPCNetworkSettings
   editing: boolean
   disabled: boolean
   errors: Partial<Record<RPCSettingsField, string>>

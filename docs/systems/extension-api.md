@@ -53,6 +53,7 @@ myExtension.Register(factoryReg) // registration uses v1.EntityRegistration[Mode
 | `auth.WithAccessScopeProvider` | объектные права сессии в claim `scp` | `merchant.NewPortalAccessScopes` |
 | `middleware.WithCommandScope` | владелец ключей идемпотентных команд (например, партнёр по API-ключу) | `cryptomiddleware.WithMerchant`, `MerchantPortal` |
 | `content.Services` | сервисы конфигурации для регистраций документов вне `v1.DocumentDeps` | ссылки checkout, подписанты согласований |
+| `integrations.PoolConsumer` | справочник, читающий аккаунты через пулы интеграций: пул нельзя удалить или сменить ему провайдера, пока потребитель им пользуется; состав пула и новые ключи аккаунта проверяются по его требованиям. Конфигурация создаёт репозитории аккаунтов и пулов со своими потребителями | `crypto_integration_repo.RPCPoolConsumer` |
 | `platform.MovementSourceProvider` | для документа с движениями: какие его поля раскрывают каждую колонку движения. При FLS-политике на документ колонка видна, только если объявлена и все перечисленные поля читаемы; пустой список — колонка-константа | `content/movement_sources.go` |
 | `spec.Bundle` | контракты HTTP для генератора: `contracts.Registry(bundles...)`, `contracts.Routes(bundles...)` | `content.HTTPContractBundles` |
 

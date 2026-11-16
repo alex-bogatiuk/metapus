@@ -356,7 +356,7 @@ func main() {
 		Version:                    Version,
 		BuildTime:                  BuildTime,
 		WSTicketStore:              wsTicketStore,
-		IntegrationConnectionTests: integrationapp.NewConnectionTestService(crypto_integration_repo.NewConnectionTargets(), integrationhttp.ConnectionProber{Accounts: integration_repo.NewRuntime(), EndpointTransport: crypto_integration_repo.RPCTransport}),
+		IntegrationConnectionTests: integrationapp.NewConnectionTestService(crypto_integration_repo.NewConnectionTargets(), integrationhttp.ConnectionProber{Accounts: integration_repo.NewRuntime(), EndpointProbe: crypto_integration_repo.RPCProbe, EndpointTransport: crypto_integration_repo.RPCTransport}),
 		RouteModules: []v1.RouteModule{cryptohttp.New(cryptohttp.Config{
 			CheckoutRefs:                 checkoutRefs,
 			MoneyMovementApprovalSigners: approvalSignerProvider,

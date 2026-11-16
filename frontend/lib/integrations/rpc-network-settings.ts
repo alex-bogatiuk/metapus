@@ -1,7 +1,7 @@
-import type { IntegrationsEVMSettings, IntegrationsIngestionAlertSettings, IntegrationsRPCNetworkSettings } from "@/types/generated/http-contracts"
+import type { RpcconfigEVMSettings, RpcconfigIngestionAlertSettings, RpcconfigRPCNetworkSettings } from "@/types/generated/http-contracts"
 
-type RPCField = keyof IntegrationsEVMSettings
-type AlertField = keyof IntegrationsIngestionAlertSettings
+type RPCField = keyof RpcconfigEVMSettings
+type AlertField = keyof RpcconfigIngestionAlertSettings
 export type RPCSettingsField = RPCField | AlertField
 export type RPCSettingsForm = Record<RPCSettingsField, string>
 
@@ -34,22 +34,22 @@ export const rpcSettingsFields: RPCSettingsFieldDefinition[] = [
   { key: "maxBufferedBytes", label: "Память предзагрузки EVM", unit: "байт", group: "advanced", evmOnly: true, min: 1024, max: 512 * 1024 * 1024 },
 ]
 
-function fieldValue(settings: IntegrationsRPCNetworkSettings, key: RPCSettingsField): number {
+function fieldValue(settings: RpcconfigRPCNetworkSettings, key: RPCSettingsField): number {
   if (key in settings.alerts) return settings.alerts[key as AlertField]
   if (settings.evm) return settings.evm[key as RPCField] ?? 0
   if (settings.tron && key in settings.tron) return settings.tron[key as keyof Omit<typeof settings.tron, "ingestionMode">] ?? 0
   return 0
 }
 
-export function rpcSettingsForm(settings: IntegrationsRPCNetworkSettings): RPCSettingsForm {
+export function rpcSettingsForm(settings: RpcconfigRPCNetworkSettings): RPCSettingsForm {
   return Object.fromEntries(rpcSettingsFields.map(field => [field.key, String(fieldValue(settings, field.key))])) as RPCSettingsForm
 }
 
-export function rpcSettingsValue(form: RPCSettingsForm, defaults: IntegrationsRPCNetworkSettings, key: RPCSettingsField): number {
+export function rpcSettingsValue(form: RPCSettingsForm, defaults: RpcconfigRPCNetworkSettings, key: RPCSettingsField): number {
   return Number(form[key]) || fieldValue(defaults, key)
 }
 
-export function rpcSettingsErrors(form: RPCSettingsForm, defaults: IntegrationsRPCNetworkSettings, family: string): Partial<Record<RPCSettingsField, string>> {
+export function rpcSettingsErrors(form: RPCSettingsForm, defaults: RpcconfigRPCNetworkSettings, family: string): Partial<Record<RPCSettingsField, string>> {
   const errors: Partial<Record<RPCSettingsField, string>> = {}
   for (const field of rpcSettingsFields) {
     if (field.evmOnly && family !== "evm") continue
@@ -72,17 +72,17 @@ export function rpcSettingsErrors(form: RPCSettingsForm, defaults: IntegrationsR
 }
 
 // Preserve mode and other read settings not represented by editable controls.
-export function rpcSettingsFromForm(form: RPCSettingsForm, before: IntegrationsRPCNetworkSettings, family: string): IntegrationsRPCNetworkSettings {
+export function rpcSettingsFromForm(form: RPCSettingsForm, before: RpcconfigRPCNetworkSettings, family: string): RpcconfigRPCNetworkSettings {
   const values = Object.fromEntries(rpcSettingsFields.filter(field => field.group !== "alerts" && (!field.evmOnly || family === "evm")).map(field => [field.key, Number(form[field.key])]))
-  const alerts: IntegrationsIngestionAlertSettings = {
+  const alerts: RpcconfigIngestionAlertSettings = {
     maxLagSeconds: Number(form.maxLagSeconds), fireAfterSeconds: Number(form.fireAfterSeconds),
     recoveryLagSeconds: Number(form.recoveryLagSeconds), recoverAfterSeconds: Number(form.recoverAfterSeconds),
   }
   const baseline = rpcSettingsForm(before)
   const rpcChanged = rpcSettingsFields.some(field => field.group !== "alerts" && (!field.evmOnly || family === "evm") && form[field.key] !== baseline[field.key])
   if (!rpcChanged) return { ...before, alerts }
-  if (family === "evm") return { ...before, evm: { ...before.evm, ...values } as IntegrationsEVMSettings, alerts }
-  return { ...before, tron: { ...before.tron, ...values } as NonNullable<IntegrationsRPCNetworkSettings["tron"]>, alerts }
+  if (family === "evm") return { ...before, evm: { ...before.evm, ...values } as RpcconfigEVMSettings, alerts }
+  return { ...before, tron: { ...before.tron, ...values } as NonNullable<RpcconfigRPCNetworkSettings["tron"]>, alerts }
 }
 
 export function rpcSettingsFormsEqual(a: RPCSettingsForm, b: RPCSettingsForm): boolean {

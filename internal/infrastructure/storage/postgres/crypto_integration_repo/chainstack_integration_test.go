@@ -12,15 +12,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/core/id"
+	"metapus/internal/domain/crypto/rpcconfig"
 	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/integration_repo"
 )
 
 func TestChainstackPoolExhaustionRecoveryAndRPCBindings(t *testing.T) {
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
 	ctx, db := fixtureDB(t)
-	ar, pr, er := catalog_repo.NewIntegrationAccountRepo(), catalog_repo.NewIntegrationPoolRepo(), catalog_repo.NewCryptoRPCEndpointRepo()
+	ar, pr, er := NewIntegrationAccountRepo(), NewIntegrationPoolRepo(), NewCryptoRPCEndpointRepo()
 	pool := integrations.NewPool("CHAINSTACK", "Chainstack")
 	pool.Provider = integrations.Chainstack
 	for _, code := range []string{"A", "B"} {
@@ -35,9 +35,9 @@ func TestChainstackPoolExhaustionRecoveryAndRPCBindings(t *testing.T) {
 	require.NoError(t, pr.Create(ctx, pool))
 	var networkID id.ID
 	require.NoError(t, db.QueryRow(ctx, `INSERT INTO cat_blockchain_networks(code,name,chain_family,network_identifier,native_token_symbol,native_decimals) VALUES('CHAINSTACK-TEST-NILE','Chainstack test Nile','tron','nile','TRX',6) RETURNING id`).Scan(&networkID))
-	var fullnode *integrations.RPCEndpoint
+	var fullnode *rpcconfig.RPCEndpoint
 	for _, role := range []string{"fullnode", "solidity"} {
-		e := integrations.NewRPCEndpoint("CHAINSTACK-"+role, role)
+		e := rpcconfig.NewRPCEndpoint("CHAINSTACK-"+role, role)
 		e.NetworkID = networkID
 		e.Role = role
 		e.ProviderID = "chainstack-nile"
@@ -105,7 +105,7 @@ func TestChainstackPoolExhaustionRecoveryAndRPCBindings(t *testing.T) {
 func TestChainstackSepoliaBindingIsNetworkScopedAndReloadsKeys(t *testing.T) {
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
 	ctx, db := fixtureDB(t)
-	ar, pr, er := catalog_repo.NewIntegrationAccountRepo(), catalog_repo.NewIntegrationPoolRepo(), catalog_repo.NewCryptoRPCEndpointRepo()
+	ar, pr, er := NewIntegrationAccountRepo(), NewIntegrationPoolRepo(), NewCryptoRPCEndpointRepo()
 	a := integrations.NewAccount("CS-EVM", "Chainstack EVM")
 	a.Provider = integrations.Chainstack
 	a.ExternalAccountRef = "separate-evm-account"
@@ -120,7 +120,7 @@ func TestChainstackSepoliaBindingIsNetworkScopedAndReloadsKeys(t *testing.T) {
 	require.NoError(t, db.QueryRow(ctx, `SELECT id FROM cat_blockchain_networks WHERE chain_family='evm' AND network_identifier='11155111' LIMIT 1`).Scan(&sepolia))
 	require.NoError(t, db.QueryRow(ctx, `INSERT INTO cat_blockchain_networks(code,name,chain_family,network_identifier,native_token_symbol,native_decimals) VALUES('CS-MAINNET','Mainnet','evm','1','ETH',18) RETURNING id`).Scan(&mainnet))
 	require.NoError(t, db.QueryRow(ctx, `INSERT INTO cat_blockchain_networks(code,name,chain_family,network_identifier,native_token_symbol,native_decimals) VALUES('CS-TRON','TRON','tron','nile','TRX',6) RETURNING id`).Scan(&tron))
-	e := integrations.NewRPCEndpoint("CS-SEPOLIA", "Chainstack Sepolia")
+	e := rpcconfig.NewRPCEndpoint("CS-SEPOLIA", "Chainstack Sepolia")
 	e.NetworkID = sepolia
 	e.ProviderID = "chainstack-sepolia"
 	e.TrustGroup = "chainstack"

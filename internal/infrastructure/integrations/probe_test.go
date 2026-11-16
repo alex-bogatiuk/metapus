@@ -8,34 +8,20 @@ import (
 	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
 	model "metapus/internal/domain/integrations"
+	"metapus/internal/infrastructure/integrations/profiles"
 )
 
-func TestConnectionProbeValidatesConfiguredNetworkIndependentOfVendor(t *testing.T) {
-	for _, provider := range []model.Provider{model.Alchemy, model.Infura, model.Chainstack, "future-provider"} {
-		for _, network := range []struct{ id, hex string }{{"1", "0x1"}, {"11155111", "0xaa36a7"}} {
-			probe, err := rpcProbe(model.ConnectionTarget{Provider: provider, Family: "evm", Role: "rpc", NetworkIdentifier: network.id, URL: "https://fixture.test/"})
-			require.NoError(t, err)
-			require.True(t, probe.Valid([]byte(`{"jsonrpc":"2.0","result":"`+network.hex+`"}`)))
-			require.False(t, probe.Valid([]byte(`{"jsonrpc":"2.0","result":"0x2"}`)))
-			require.False(t, probe.Valid([]byte(`{"error":{"code":402},"result":"`+network.hex+`"}`)))
-			require.False(t, probe.Valid([]byte(`{"result":"0x"}`)))
-		}
+// fixtureProbe stands in for the configuration's endpoint probe: it posts to
+// the binding URL, or to a TRON role path, and accepts any 200 body.
+func fixtureProbe(target model.ConnectionTarget) (profiles.Probe, error) {
+	probe := profiles.Probe{Method: http.MethodPost, URL: target.URL, Body: `{}`, Valid: func([]byte) bool { return true }}
+	switch target.Role {
+	case "fullnode":
+		probe.URL = strings.TrimRight(target.URL, "/") + "/wallet/getnowblock"
+	case "solidity":
+		probe.URL = strings.TrimRight(target.URL, "/") + "/walletsolidity/getnowblock"
 	}
-}
-
-func TestConnectionProbeSelectsTRONRoleAndRejectsIncompleteEvidence(t *testing.T) {
-	for _, role := range []string{"fullnode", "solidity"} {
-		probe, err := rpcProbe(model.ConnectionTarget{Family: "tron", Role: role, URL: "https://fixture.test/"})
-		require.NoError(t, err)
-		path := "/wallet/getnowblock"
-		if role == "solidity" {
-			path = "/walletsolidity/getnowblock"
-		}
-		require.Equal(t, "https://fixture.test"+path, probe.URL)
-		require.True(t, probe.Valid([]byte(`{"blockID":"`+strings.Repeat("a", 64)+`","block_header":{"raw_data":{"number":100}}}`)))
-		require.False(t, probe.Valid([]byte(`{}`)))
-		require.False(t, probe.Valid([]byte(`{"blockID":"`+strings.Repeat("a", 64)+`","Error":"access denied"}`)))
-	}
+	return probe, nil
 }
 
 func TestConnectionProberUsesActualBindingAndRejectsRedirects(t *testing.T) {
@@ -43,7 +29,7 @@ func TestConnectionProberUsesActualBindingAndRejectsRedirects(t *testing.T) {
 		t.Run(http.StatusText(status), func(t *testing.T) {
 			target := model.ConnectionTarget{PoolID: id.New(), EndpointID: id.New(), Provider: model.Alchemy, URL: "https://eth-mainnet.g.alchemy.com/v2/", Family: "evm", Role: "rpc", NetworkIdentifier: "1"}
 			calls := 0
-			prober := ConnectionProber{EndpointTransport: func(uid id.ID, base string) func(http.RoundTripper) http.RoundTripper {
+			prober := ConnectionProber{EndpointProbe: fixtureProbe, EndpointTransport: func(uid id.ID, base string) func(http.RoundTripper) http.RoundTripper {
 				require.Equal(t, target.EndpointID, uid)
 				require.Equal(t, target.URL, base)
 				return func(http.RoundTripper) http.RoundTripper {

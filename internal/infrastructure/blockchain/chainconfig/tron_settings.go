@@ -1,6 +1,8 @@
 package chainconfig
 
-import "metapus/internal/domain/integrations"
+import (
+	"metapus/internal/domain/crypto/rpcconfig"
+)
 
 // TRONSettings is shared with administrative configuration policy.
-type TRONSettings = integrations.TRONSettings
+type TRONSettings = rpcconfig.TRONSettings

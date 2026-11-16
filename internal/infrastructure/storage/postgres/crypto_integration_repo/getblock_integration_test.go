@@ -12,16 +12,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
+	"metapus/internal/domain/crypto/rpcconfig"
 	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 )
 
 func TestGetBlockEncryptedRoleSlotsAndTrustBoundary(t *testing.T) {
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
 	ctx, db := fixtureDB(t)
-	ar, pr, er := catalog_repo.NewIntegrationAccountRepo(), catalog_repo.NewIntegrationPoolRepo(), catalog_repo.NewCryptoRPCEndpointRepo()
+	ar, pr, er := NewIntegrationAccountRepo(), NewIntegrationPoolRepo(), NewCryptoRPCEndpointRepo()
 	a := integrations.NewAccount("GETBLOCK-NILE", "GetBlock Nile")
 	a.Provider, a.ExternalAccountRef = integrations.GetBlock, "one-getblock-subscription"
 	a.PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: "fullnode", Value: "fullnode-secret"}, {Name: "solidity", Value: "solidity-secret"}}}
@@ -39,7 +39,7 @@ func TestGetBlockEncryptedRoleSlotsAndTrustBoundary(t *testing.T) {
 	var networkID id.ID
 	require.NoError(t, db.QueryRow(ctx, `INSERT INTO cat_blockchain_networks(code,name,chain_family,network_identifier,native_token_symbol,native_decimals) VALUES('GETBLOCK-TEST-NILE','GetBlock test Nile','tron','nile','TRX',6) RETURNING id`).Scan(&networkID))
 	for _, role := range []string{"fullnode", "solidity"} {
-		e := integrations.NewRPCEndpoint("GETBLOCK-"+role, role)
+		e := rpcconfig.NewRPCEndpoint("GETBLOCK-"+role, role)
 		e.NetworkID, e.Role, e.ProviderID, e.TrustGroup = networkID, role, "getblock-nile", "getblock"
 		e.URL, e.PoolID, e.Slot = "https://shared.eu-central-1.getblock.io", &pool.ID, role
 		require.NoError(t, er.Create(ctx, e))

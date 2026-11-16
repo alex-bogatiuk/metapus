@@ -7,14 +7,14 @@ import (
 
 	"metapus/internal/core/id"
 	"metapus/internal/domain/crypto"
-	"metapus/internal/domain/integrations"
+	"metapus/internal/domain/crypto/rpcconfig"
 )
 
 type IngestionAlertState struct {
-	NetworkSettings map[string]integrations.IngestionAlertSettings `json:"networkSettings,omitempty"`
-	StartedAt       time.Time                                      `json:"startedAt"`
-	Scopes          map[string]IngestionAlertScope                 `json:"scopes"`
-	Pending         []crypto.IngestionAlertTransition              `json:"pending"`
+	NetworkSettings map[string]rpcconfig.IngestionAlertSettings `json:"networkSettings,omitempty"`
+	StartedAt       time.Time                                   `json:"startedAt"`
+	Scopes          map[string]IngestionAlertScope              `json:"scopes"`
+	Pending         []crypto.IngestionAlertTransition           `json:"pending"`
 }
 
 type IngestionAlertScope struct {
@@ -26,7 +26,7 @@ type IngestionAlertScope struct {
 }
 
 type IngestionAlertPolicy struct {
-	NetworkSettings map[string]integrations.IngestionAlertSettings
+	NetworkSettings map[string]rpcconfig.IngestionAlertSettings
 	StartupGrace    time.Duration
 	FireAfter       time.Duration
 	RecoverAfter    time.Duration
@@ -73,7 +73,7 @@ func AdvanceIngestionAlerts(state *IngestionAlertState, now time.Time, observed 
 		settings = settings.Defaults()
 		old, exists := state.NetworkSettings[network]
 		if !exists {
-			old = (integrations.IngestionAlertSettings{}).Defaults()
+			old = (rpcconfig.IngestionAlertSettings{}).Defaults()
 		}
 		if old != settings {
 			for key, scope := range state.Scopes {
@@ -85,7 +85,7 @@ func AdvanceIngestionAlerts(state *IngestionAlertState, now time.Time, observed 
 		}
 	}
 	if len(policy.NetworkSettings) > 0 {
-		state.NetworkSettings = make(map[string]integrations.IngestionAlertSettings, len(policy.NetworkSettings))
+		state.NetworkSettings = make(map[string]rpcconfig.IngestionAlertSettings, len(policy.NetworkSettings))
 		for network, settings := range policy.NetworkSettings {
 			state.NetworkSettings[network] = settings.Defaults()
 		}

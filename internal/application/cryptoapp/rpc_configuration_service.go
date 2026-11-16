@@ -1,4 +1,4 @@
-package integrationapp
+package cryptoapp
 
 import (
 	"context"
@@ -6,26 +6,26 @@ import (
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tx"
+	"metapus/internal/domain/crypto/rpcconfig"
 	"metapus/internal/domain/eventlog"
-	"metapus/internal/domain/integrations"
 )
 
 type RPCConfigurationService struct {
-	repo   integrations.RPCConfigurationRepository
+	repo   rpcconfig.RPCConfigurationRepository
 	txm    tx.Manager
 	writer eventlog.Writer
 }
 
-func NewRPCConfigurationService(repo integrations.RPCConfigurationRepository, txm tx.Manager, writer eventlog.Writer) *RPCConfigurationService {
+func NewRPCConfigurationService(repo rpcconfig.RPCConfigurationRepository, txm tx.Manager, writer eventlog.Writer) *RPCConfigurationService {
 	return &RPCConfigurationService{repo: repo, txm: txm, writer: writer}
 }
 
-func (s *RPCConfigurationService) Get(ctx context.Context, network id.ID) (integrations.RPCConfiguration, error) {
+func (s *RPCConfigurationService) Get(ctx context.Context, network id.ID) (rpcconfig.RPCConfiguration, error) {
 	return s.repo.Get(ctx, network)
 }
 
-func (s *RPCConfigurationService) Update(ctx context.Context, network id.ID, update integrations.RPCConfigurationUpdate) (integrations.RPCConfiguration, error) {
-	var out integrations.RPCConfiguration
+func (s *RPCConfigurationService) Update(ctx context.Context, network id.ID, update rpcconfig.RPCConfigurationUpdate) (rpcconfig.RPCConfiguration, error) {
+	var out rpcconfig.RPCConfiguration
 	if err := update.Validate(); err != nil {
 		return out, err
 	}
@@ -53,12 +53,12 @@ func (s *RPCConfigurationService) Update(ctx context.Context, network id.ID, upd
 		if err != nil {
 			return err
 		}
-		if integrations.RPCConfigurationChanged(before, after) && s.writer != nil {
+		if rpcconfig.RPCConfigurationChanged(before, after) && s.writer != nil {
 			if err := s.writer.Write(ctx, eventlog.Event{
 				Category: eventlog.CategorySecurity, Severity: eventlog.SeverityInfo,
 				EventType: "integration.rpc.configuration_changed", Source: "api", UserID: appctx.GetUserID(ctx),
 				EntityType: "blockchain_network", EntityID: &network, Message: "RPC configuration updated",
-				Details: map[string]any{"before": before.Endpoints, "after": after.Endpoints, "previousSettings": before.Settings, "settings": after.Settings, "previousRevision": before.Revision, "revision": after.Revision, "comment": integrations.RPCConfigurationComment(update.Comment)},
+				Details: map[string]any{"before": before.Endpoints, "after": after.Endpoints, "previousSettings": before.Settings, "settings": after.Settings, "previousRevision": before.Revision, "revision": after.Revision, "comment": rpcconfig.RPCConfigurationComment(update.Comment)},
 			}); err != nil {
 				return err
 			}

@@ -16,6 +16,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/domain/crypto"
+	"metapus/internal/domain/crypto/rpcconfig"
 	model "metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
 	"metapus/internal/infrastructure/integrations/profiles"
@@ -41,7 +42,7 @@ type ImportReport struct {
 	ActivatedNetworks int `json:"activatedNetworks"`
 }
 type importedEndpoint struct {
-	model    *model.RPCEndpoint
+	model    *rpcconfig.RPCEndpoint
 	poolCode string
 }
 type importedAccount struct {
@@ -141,7 +142,7 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 				if err != nil {
 					return report, fmt.Errorf("invalid RPC credential mapping for %s: %w", target, err)
 				}
-				e := model.NewRPCEndpoint(importedCode("RPC", target), target)
+				e := rpcconfig.NewRPCEndpoint(importedCode("RPC", target), target)
 				e.NetworkID = networkID
 				e.Role = role
 				e.ProviderID = entry.ProviderID
@@ -195,7 +196,7 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 			return report, err
 		}
 	}
-	ar, pr, er := catalog_repo.NewIntegrationAccountRepo(), catalog_repo.NewIntegrationPoolRepo(), catalog_repo.NewCryptoRPCEndpointRepo()
+	ar, pr, er := NewIntegrationAccountRepo(), NewIntegrationPoolRepo(), NewCryptoRPCEndpointRepo()
 	accountIDs := map[string]id.ID{}
 	accountCodes := make([]string, 0, len(accounts))
 	for code := range accounts {

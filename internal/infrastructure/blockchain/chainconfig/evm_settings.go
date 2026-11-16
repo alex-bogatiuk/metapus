@@ -1,6 +1,8 @@
 package chainconfig
 
-import "metapus/internal/domain/integrations"
+import (
+	"metapus/internal/domain/crypto/rpcconfig"
+)
 
 // EVMSettings is shared with administrative configuration policy.
-type EVMSettings = integrations.EVMSettings
+type EVMSettings = rpcconfig.EVMSettings

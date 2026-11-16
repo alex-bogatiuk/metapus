@@ -1,4 +1,4 @@
-package integrationapp
+package cryptoapp
 
 import (
 	"context"
@@ -8,12 +8,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
+	"metapus/internal/domain/crypto/rpcconfig"
 	"metapus/internal/domain/eventlog"
-	"metapus/internal/domain/integrations"
 )
 
 type configurationStore struct {
-	view        integrations.RPCConfiguration
+	view        rpcconfig.RPCConfiguration
 	transaction bool
 	locked      bool
 	writes      int
@@ -30,7 +30,7 @@ func (r *configurationStore) RunInTransaction(ctx context.Context, fn func(conte
 	}
 	return nil
 }
-func (r *configurationStore) Get(context.Context, id.ID) (integrations.RPCConfiguration, error) {
+func (r *configurationStore) Get(context.Context, id.ID) (rpcconfig.RPCConfiguration, error) {
 	return r.view, nil
 }
 func (r *configurationStore) Lock(context.Context) error {
@@ -40,15 +40,15 @@ func (r *configurationStore) Lock(context.Context) error {
 	r.locked = true
 	return r.lockError
 }
-func (r *configurationStore) Save(_ context.Context, _ id.ID, _ string, changes []integrations.RPCConfigurationChange, settings *integrations.RPCNetworkSettings) (integrations.RPCConfiguration, error) {
+func (r *configurationStore) Save(_ context.Context, _ id.ID, _ string, changes []rpcconfig.RPCConfigurationChange, settings *rpcconfig.RPCNetworkSettings) (rpcconfig.RPCConfiguration, error) {
 	if !r.transaction || !r.locked {
-		return integrations.RPCConfiguration{}, errors.New("write without configuration lock")
+		return rpcconfig.RPCConfiguration{}, errors.New("write without configuration lock")
 	}
 	if settings != nil {
 		r.view.Settings = *settings
 	}
 	r.writes++
-	r.view.Endpoints = append([]integrations.RPCConfigurationEndpoint(nil), r.view.Endpoints...)
+	r.view.Endpoints = append([]rpcconfig.RPCConfigurationEndpoint(nil), r.view.Endpoints...)
 	for _, change := range changes {
 		for i := range r.view.Endpoints {
 			e := &r.view.Endpoints[i]
@@ -76,12 +76,12 @@ func (w *configurationAudit) WriteBatch(context.Context, []eventlog.Event) error
 func TestRPCConfigurationUseCaseOwnsValidationTransactionAndAudit(t *testing.T) {
 	for _, kind := range []string{"success", "invalid coverage", "noop", "audit failure", "lock failure"} {
 		t.Run(kind, func(t *testing.T) {
-			r := &configurationStore{view: integrations.RPCConfiguration{NetworkID: id.New(), Source: "database", Revision: strings.Repeat("a", 64),
-				Endpoints:    []integrations.RPCConfigurationEndpoint{{ID: id.New(), Version: 1, Role: "rpc", TrustGroup: "one", IsActive: true, Priority: 10}, {ID: id.New(), Version: 1, Role: "rpc", TrustGroup: "two", IsActive: true, Priority: 20}},
-				Requirements: []integrations.RPCRoleRequirement{{Role: "rpc", RequiredProviders: 1, ConfiguredProviders: 2}}}}
+			r := &configurationStore{view: rpcconfig.RPCConfiguration{NetworkID: id.New(), Source: "database", Revision: strings.Repeat("a", 64),
+				Endpoints:    []rpcconfig.RPCConfigurationEndpoint{{ID: id.New(), Version: 1, Role: "rpc", TrustGroup: "one", IsActive: true, Priority: 10}, {ID: id.New(), Version: 1, Role: "rpc", TrustGroup: "two", IsActive: true, Priority: 20}},
+				Requirements: []rpcconfig.RPCRoleRequirement{{Role: "rpc", RequiredProviders: 1, ConfiguredProviders: 2}}}}
 			before := r.view
 			w := &configurationAudit{}
-			u := integrations.RPCConfigurationUpdate{ExpectedRevision: r.view.Revision, Endpoints: []integrations.RPCConfigurationChange{{ID: r.view.Endpoints[1].ID, Version: 1, IsActive: false, Priority: 20}}}
+			u := rpcconfig.RPCConfigurationUpdate{ExpectedRevision: r.view.Revision, Endpoints: []rpcconfig.RPCConfigurationChange{{ID: r.view.Endpoints[1].ID, Version: 1, IsActive: false, Priority: 20}}}
 			switch kind {
 			case "invalid coverage":
 				r.view.Requirements[0].RequiredProviders = 2

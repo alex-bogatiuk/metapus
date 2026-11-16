@@ -1,6 +1,6 @@
 //go:build integration
 
-package integration_repo
+package crypto_integration_repo
 
 import (
 	"errors"
@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/domain/crypto/rpcconfig"
 	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 )
 
 func requireKeyError(t *testing.T, err error, reason string) {
@@ -27,7 +27,7 @@ func requireKeyError(t *testing.T, err error, reason string) {
 func TestRPCKeyNameFollowsProfileAndPoolAccounts(t *testing.T) {
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
 	ctx, db := fixtureDB(t)
-	ar, pr, er := catalog_repo.NewIntegrationAccountRepo(), catalog_repo.NewIntegrationPoolRepo(), catalog_repo.NewCryptoRPCEndpointRepo()
+	ar, pr, er := NewIntegrationAccountRepo(), NewIntegrationPoolRepo(), NewCryptoRPCEndpointRepo()
 	account := func(code string, provider integrations.Provider, keys ...integrations.NamedKey) *integrations.Account {
 		a := integrations.NewAccount(code, code)
 		a.Provider = provider
@@ -48,7 +48,7 @@ func TestRPCKeyNameFollowsProfileAndPoolAccounts(t *testing.T) {
 	infuraPool := integrations.NewPool("INFURA-KEYS", "Infura")
 	infuraPool.Provider, infuraPool.AccountIDs = integrations.Infura, []id.ID{infura.ID}
 	require.NoError(t, pr.Create(ctx, infuraPool))
-	e := integrations.NewRPCEndpoint("INFURA-KEYS-RPC", "ETHEREUM-SEPOLIA/rpc/infura-sepolia")
+	e := rpcconfig.NewRPCEndpoint("INFURA-KEYS-RPC", "ETHEREUM-SEPOLIA/rpc/infura-sepolia")
 	e.NetworkID, e.ProviderID, e.TrustGroup = sepolia, "infura-sepolia", "infura"
 	e.URL, e.PoolID = "https://sepolia.infura.io/v3/", &infuraPool.ID
 	require.Equal(t, "default", e.Slot)
@@ -63,7 +63,7 @@ func TestRPCKeyNameFollowsProfileAndPoolAccounts(t *testing.T) {
 	require.True(t, errors.As(err, &appErr))
 	require.Equal(t, "rpc_binding_invalid", appErr.Details["reasonCode"])
 
-	options, err := catalog_repo.RPCKeyOptions(ctx, integrations.RPCKeyQuery{PoolID: infuraPool.ID, NetworkID: sepolia, Role: "rpc", URL: e.URL})
+	options, err := RPCPoolConsumer{}.RPCKeyOptions(ctx, rpcconfig.RPCKeyQuery{PoolID: infuraPool.ID, NetworkID: sepolia, Role: "rpc", URL: e.URL})
 	require.NoError(t, err)
 	require.Equal(t, "sepolia", options.Required)
 	require.Equal(t, []string{"sepolia"}, options.Names)
@@ -89,11 +89,11 @@ func TestRPCKeyNameFollowsProfileAndPoolAccounts(t *testing.T) {
 	alchemyPool := integrations.NewPool("ALCHEMY-KEYS", "Alchemy")
 	alchemyPool.Provider, alchemyPool.AccountIDs = integrations.Alchemy, []id.ID{first.ID, second.ID}
 	require.NoError(t, pr.Create(ctx, alchemyPool))
-	options, err = catalog_repo.RPCKeyOptions(ctx, integrations.RPCKeyQuery{PoolID: alchemyPool.ID, NetworkID: nile, Role: "fullnode", URL: "https://tron-testnet.g.alchemy.com/v2/"})
+	options, err = RPCPoolConsumer{}.RPCKeyOptions(ctx, rpcconfig.RPCKeyQuery{PoolID: alchemyPool.ID, NetworkID: nile, Role: "fullnode", URL: "https://tron-testnet.g.alchemy.com/v2/"})
 	require.NoError(t, err)
 	require.Empty(t, options.Required)
 	require.Equal(t, []string{"nile"}, options.Names)
-	a := integrations.NewRPCEndpoint("ALCHEMY-KEYS-RPC", "TRON-NILE/fullnode/alchemy-nile")
+	a := rpcconfig.NewRPCEndpoint("ALCHEMY-KEYS-RPC", "TRON-NILE/fullnode/alchemy-nile")
 	a.NetworkID, a.Role, a.ProviderID, a.TrustGroup = nile, "fullnode", "alchemy-nile", "alchemy"
 	a.URL, a.PoolID, a.Slot = "https://tron-testnet.g.alchemy.com/v2/", &alchemyPool.ID, "sepolia"
 	requireKeyError(t, er.Create(ctx, a), "rpc_key_missing")
@@ -101,32 +101,10 @@ func TestRPCKeyNameFollowsProfileAndPoolAccounts(t *testing.T) {
 	require.NoError(t, er.Create(ctx, a))
 
 	// Anonymous endpoints carry no account key.
-	public := integrations.NewRPCEndpoint("PUBLIC-KEYS-RPC", "ETHEREUM-SEPOLIA/rpc/public")
+	public := rpcconfig.NewRPCEndpoint("PUBLIC-KEYS-RPC", "ETHEREUM-SEPOLIA/rpc/public")
 	public.NetworkID, public.ProviderID, public.TrustGroup = sepolia, "public-keys", "public-keys"
 	public.URL, public.Slot = "https://rpc.example.invalid/", "anything"
 	require.NoError(t, er.Create(ctx, public))
 	require.NoError(t, db.QueryRow(ctx, `SELECT credential_slot FROM sys_crypto_rpc_endpoints WHERE id=$1`, public.ID).Scan(&stored))
 	require.Equal(t, "default", stored)
-}
-
-func TestSelectionReportsMissingKeyName(t *testing.T) {
-	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
-	ctx, _ := fixtureDB(t)
-	ar, pr := catalog_repo.NewIntegrationAccountRepo(), catalog_repo.NewIntegrationPoolRepo()
-	a := integrations.NewAccount("INFURA-SELECT", "Infura")
-	a.Provider = integrations.Infura
-	a.PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: "sepolia", Value: "0123456789abcdef0123456789abcdef"}}}
-	require.NoError(t, a.Validate(ctx))
-	require.NoError(t, ar.Prepare(ctx, a))
-	require.NoError(t, ar.Create(ctx, a))
-	pool := integrations.NewPool("INFURA-SELECT", "Infura")
-	pool.Provider, pool.AccountIDs = integrations.Infura, []id.ID{a.ID}
-	require.NoError(t, pr.Create(ctx, pool))
-	_, err := NewRuntime().Select(ctx, pool.ID, "default", integrations.Infura)
-	var unavailable *integrations.PoolUnavailableError
-	require.True(t, errors.As(err, &unavailable), "%v", err)
-	require.Equal(t, integrations.KeyMissing, unavailable.Reason)
-	selected, err := NewRuntime().Select(ctx, pool.ID, "sepolia", integrations.Infura)
-	require.NoError(t, err)
-	require.Equal(t, a.ID, selected.AccountID)
 }

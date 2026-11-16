@@ -10,22 +10,21 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/application/integrationapp"
+	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/core/security"
 	"metapus/internal/core/tenant"
 	"metapus/internal/domain/catalogs/blockchain_network"
 	"metapus/internal/domain/crypto"
+	"metapus/internal/domain/crypto/rpcconfig"
 	"metapus/internal/domain/eventlog"
-	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
+	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
-	"metapus/internal/infrastructure/storage/postgres/crypto_catalog_repo"
-	"metapus/internal/infrastructure/storage/postgres/integration_repo"
 )
 
-func rpcManagementFixture(t *testing.T) (context.Context, *pgxpool.Pool, id.ID, []*integrations.RPCEndpoint) {
+func rpcManagementFixture(t *testing.T) (context.Context, *pgxpool.Pool, id.ID, []*rpcconfig.RPCEndpoint) {
 	t.Helper()
 	t.Setenv("APP_ENV", "production")
 	ctx, db := fixtureDB(t)
@@ -35,10 +34,10 @@ func rpcManagementFixture(t *testing.T) (context.Context, *pgxpool.Pool, id.ID, 
 		_, err := db.Exec(ctx, `UPDATE cat_blockchain_networks SET rpc_config_source='file' WHERE id=$1`, network)
 		return err
 	}())
-	repo := catalog_repo.NewCryptoRPCEndpointRepo()
-	var endpoints []*integrations.RPCEndpoint
+	repo := NewCryptoRPCEndpointRepo()
+	var endpoints []*rpcconfig.RPCEndpoint
 	for index, provider := range []string{"first", "second", "reserve"} {
-		e := integrations.NewRPCEndpoint("RPC-"+provider, provider)
+		e := rpcconfig.NewRPCEndpoint("RPC-"+provider, provider)
 		e.NetworkID, e.ProviderID, e.TrustGroup, e.URL, e.Priority = network, provider, provider, "https://"+provider+".example.test/", (index+1)*10
 		e.SetAttribute("operatorNote", "preserve-on-reorder")
 		require.NoError(t, repo.Create(ctx, e))
@@ -49,21 +48,21 @@ func rpcManagementFixture(t *testing.T) (context.Context, *pgxpool.Pool, id.ID, 
 	return ctx, db, network, endpoints
 }
 
-func managementUpdate(snapshot integrations.RPCConfiguration, changes ...integrations.RPCConfigurationChange) integrations.RPCConfigurationUpdate {
-	return integrations.RPCConfigurationUpdate{ExpectedRevision: snapshot.Revision, Endpoints: changes}
+func managementUpdate(snapshot rpcconfig.RPCConfiguration, changes ...rpcconfig.RPCConfigurationChange) rpcconfig.RPCConfigurationUpdate {
+	return rpcconfig.RPCConfigurationUpdate{ExpectedRevision: snapshot.Revision, Endpoints: changes}
 }
 
-func managementApply(repo integrations.RPCConfigurationRepository, ctx context.Context, network id.ID, update integrations.RPCConfigurationUpdate) (integrations.RPCConfiguration, error) {
+func managementApply(repo rpcconfig.RPCConfigurationRepository, ctx context.Context, network id.ID, update rpcconfig.RPCConfigurationUpdate) (rpcconfig.RPCConfiguration, error) {
 	txm, err := tenant.GetTxManager(ctx)
 	if err != nil {
-		return integrations.RPCConfiguration{}, err
+		return rpcconfig.RPCConfiguration{}, err
 	}
-	return integrationapp.NewRPCConfigurationService(repo, txm, nil).Update(ctx, network, update)
+	return cryptoapp.NewRPCConfigurationService(repo, txm, nil).Update(ctx, network, update)
 }
 
 func TestRPCManagementAtomicDisableRestoreAndSharedRevision(t *testing.T) {
 	ctx, _, network, endpoints := rpcManagementFixture(t)
-	repo := catalog_repo.NewRPCConfigurationRepo("production")
+	repo := NewRPCConfigurationRepo("production")
 	before, err := repo.Get(ctx, network)
 	require.NoError(t, err)
 	require.Equal(t, 3, before.Requirements[0].ConfiguredProviders)
@@ -74,9 +73,9 @@ func TestRPCManagementAtomicDisableRestoreAndSharedRevision(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, before.EffectiveRevision, loaded.Revision("evm", 2))
 	after, err := managementApply(repo, ctx, network, managementUpdate(before,
-		integrations.RPCConfigurationChange{ID: endpoints[0].ID, Version: 1, IsActive: true, Priority: 20},
-		integrations.RPCConfigurationChange{ID: endpoints[1].ID, Version: 1, IsActive: true, Priority: 10},
-		integrations.RPCConfigurationChange{ID: endpoints[2].ID, Version: 1, IsActive: false, Priority: 30},
+		rpcconfig.RPCConfigurationChange{ID: endpoints[0].ID, Version: 1, IsActive: true, Priority: 20},
+		rpcconfig.RPCConfigurationChange{ID: endpoints[1].ID, Version: 1, IsActive: true, Priority: 10},
+		rpcconfig.RPCConfigurationChange{ID: endpoints[2].ID, Version: 1, IsActive: false, Priority: 30},
 	))
 	require.NoError(t, err)
 	require.Equal(t, endpoints[1].ID, after.Endpoints[0].ID)
@@ -90,10 +89,10 @@ func TestRPCManagementAtomicDisableRestoreAndSharedRevision(t *testing.T) {
 	_, err = managementApply(repo, ctx, network, managementUpdate(before))
 	require.Error(t, err)
 	reserve := after.Endpoints[2]
-	restored, err := managementApply(repo, ctx, network, managementUpdate(after, integrations.RPCConfigurationChange{ID: reserve.ID, Version: reserve.Version, IsActive: true, Priority: reserve.Priority}))
+	restored, err := managementApply(repo, ctx, network, managementUpdate(after, rpcconfig.RPCConfigurationChange{ID: reserve.ID, Version: reserve.Version, IsActive: true, Priority: reserve.Priority}))
 	require.NoError(t, err)
 	require.True(t, restored.Endpoints[2].IsActive)
-	stored, err := catalog_repo.NewCryptoRPCEndpointRepo().GetByID(ctx, reserve.ID)
+	stored, err := NewCryptoRPCEndpointRepo().GetByID(ctx, reserve.ID)
 	require.NoError(t, err)
 	require.Equal(t, endpoints[2].URL, stored.URL)
 	require.Equal(t, endpoints[2].Slot, stored.Slot)
@@ -115,12 +114,12 @@ func (rpcAuditFailure) Write(context.Context, eventlog.Event) error {
 
 func TestRPCManagementRollsBackInvalidCoverageAndAuditFailure(t *testing.T) {
 	ctx, _, network, endpoints := rpcManagementFixture(t)
-	repo := catalog_repo.NewRPCConfigurationRepo("production")
+	repo := NewRPCConfigurationRepo("production")
 	before, err := repo.Get(ctx, network)
 	require.NoError(t, err)
 	_, err = managementApply(repo, ctx, network, managementUpdate(before,
-		integrations.RPCConfigurationChange{ID: endpoints[0].ID, Version: 1, IsActive: false, Priority: 10},
-		integrations.RPCConfigurationChange{ID: endpoints[1].ID, Version: 1, IsActive: false, Priority: 20},
+		rpcconfig.RPCConfigurationChange{ID: endpoints[0].ID, Version: 1, IsActive: false, Priority: 10},
+		rpcconfig.RPCConfigurationChange{ID: endpoints[1].ID, Version: 1, IsActive: false, Priority: 20},
 	))
 	require.Error(t, err)
 	after, err := repo.Get(ctx, network)
@@ -128,19 +127,19 @@ func TestRPCManagementRollsBackInvalidCoverageAndAuditFailure(t *testing.T) {
 	require.Equal(t, before.Revision, after.Revision)
 	txm, err := tenant.GetTxManager(ctx)
 	require.NoError(t, err)
-	svc := integrationapp.NewRPCConfigurationService(repo, txm, rpcAuditFailure{})
-	_, err = svc.Update(ctx, network, managementUpdate(before, integrations.RPCConfigurationChange{ID: endpoints[2].ID, Version: 1, IsActive: false, Priority: 30}))
+	svc := cryptoapp.NewRPCConfigurationService(repo, txm, rpcAuditFailure{})
+	_, err = svc.Update(ctx, network, managementUpdate(before, rpcconfig.RPCConfigurationChange{ID: endpoints[2].ID, Version: 1, IsActive: false, Priority: 30}))
 	require.ErrorContains(t, err, "audit unavailable")
 	after, err = repo.Get(ctx, network)
 	require.NoError(t, err)
 	require.Equal(t, before.Revision, after.Revision)
-	_, err = managementApply(repo, ctx, network, managementUpdate(before, integrations.RPCConfigurationChange{ID: id.New(), Version: 1, IsActive: false, Priority: 10}))
+	_, err = managementApply(repo, ctx, network, managementUpdate(before, rpcconfig.RPCConfigurationChange{ID: id.New(), Version: 1, IsActive: false, Priority: 10}))
 	require.Error(t, err)
 }
 
 func TestRPCManagementConcurrentCommandsAndCatalogGuards(t *testing.T) {
 	ctx, _, network, endpoints := rpcManagementFixture(t)
-	repo := catalog_repo.NewRPCConfigurationRepo("production")
+	repo := NewRPCConfigurationRepo("production")
 	before, err := repo.Get(ctx, network)
 	require.NoError(t, err)
 	var wg sync.WaitGroup
@@ -150,7 +149,7 @@ func TestRPCManagementConcurrentCommandsAndCatalogGuards(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			e := endpoints[index]
-			_, err := managementApply(repo, ctx, network, managementUpdate(before, integrations.RPCConfigurationChange{ID: e.ID, Version: 1, IsActive: false, Priority: e.Priority}))
+			_, err := managementApply(repo, ctx, network, managementUpdate(before, rpcconfig.RPCConfigurationChange{ID: e.ID, Version: 1, IsActive: false, Priority: e.Priority}))
 			errs <- err
 		}()
 	}
@@ -172,7 +171,7 @@ func TestRPCManagementConcurrentCommandsAndCatalogGuards(t *testing.T) {
 		}
 	}
 	require.Len(t, active, 2)
-	catalog := catalog_repo.NewCryptoRPCEndpointRepo()
+	catalog := NewCryptoRPCEndpointRepo()
 	require.Error(t, catalog.Delete(ctx, active[0]))
 	require.Error(t, catalog.SetDeletionMark(ctx, active[0], true))
 	e, err := catalog.GetByID(ctx, active[0])
@@ -183,7 +182,7 @@ func TestRPCManagementConcurrentCommandsAndCatalogGuards(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, after.Revision, unchanged.Revision)
 	// Insertion changes the snapshot even though every existing row kept its version.
-	added := integrations.NewRPCEndpoint("RPC-new", "new")
+	added := rpcconfig.NewRPCEndpoint("RPC-new", "new")
 	added.NetworkID, added.ProviderID, added.TrustGroup, added.URL = network, "new", "new", "https://new.example.test/"
 	require.NoError(t, catalog.Create(ctx, added))
 	_, err = managementApply(repo, ctx, network, managementUpdate(after))
@@ -193,13 +192,13 @@ func TestRPCManagementConcurrentCommandsAndCatalogGuards(t *testing.T) {
 func TestRPCManagementFileModeAndDevelopmentCoverage(t *testing.T) {
 	ctx, db, network, endpoints := rpcManagementFixture(t)
 	t.Setenv("APP_ENV", "development")
-	repo := catalog_repo.NewRPCConfigurationRepo("development")
+	repo := NewRPCConfigurationRepo("development")
 	before, err := repo.Get(ctx, network)
 	require.NoError(t, err)
 	require.Equal(t, 1, before.Requirements[0].RequiredProviders)
 	_, err = managementApply(repo, ctx, network, managementUpdate(before,
-		integrations.RPCConfigurationChange{ID: endpoints[0].ID, Version: 1, IsActive: false, Priority: 10},
-		integrations.RPCConfigurationChange{ID: endpoints[1].ID, Version: 1, IsActive: false, Priority: 20},
+		rpcconfig.RPCConfigurationChange{ID: endpoints[0].ID, Version: 1, IsActive: false, Priority: 10},
+		rpcconfig.RPCConfigurationChange{ID: endpoints[1].ID, Version: 1, IsActive: false, Priority: 20},
 	))
 	require.NoError(t, err)
 	_, err = db.Exec(ctx, `UPDATE cat_blockchain_networks SET rpc_config_source='file',version=version+1 WHERE id=$1`, network)
@@ -213,15 +212,18 @@ func TestRPCManagementFileModeAndDevelopmentCoverage(t *testing.T) {
 func TestRPCManagementTronValidatesEachRoleIndependently(t *testing.T) {
 	ctx, db, _, _ := rpcManagementFixture(t)
 	tron := blockchain_network.NewBlockchainNetwork("RPC-MANAGEMENT-TRON", "TRON", crypto.ChainFamilyTRON, "nile", "TRX", 6)
-	require.NoError(t, crypto_catalog_repo.NewBlockchainNetworkRepo().Create(ctx, tron))
+	networks := catalog_repo.NewCatalogRepoForDefinition[*blockchain_network.BlockchainNetwork](blockchain_network.Definition,
+		postgres.ExtractDBColumns[blockchain_network.BlockchainNetwork](),
+		func() *blockchain_network.BlockchainNetwork { return &blockchain_network.BlockchainNetwork{} })
+	require.NoError(t, networks.Create(ctx, tron))
 	network := tron.ID
 	_, err := db.Exec(ctx, `UPDATE cat_blockchain_networks SET rpc_config_source='file' WHERE id=$1`, network)
 	require.NoError(t, err)
-	catalog := catalog_repo.NewCryptoRPCEndpointRepo()
-	var victim *integrations.RPCEndpoint
+	catalog := NewCryptoRPCEndpointRepo()
+	var victim *rpcconfig.RPCEndpoint
 	for _, role := range []string{"fullnode", "solidity"} {
 		for _, provider := range []string{"node-one", "node-two"} {
-			e := integrations.NewRPCEndpoint(role+"-"+provider, role+" "+provider)
+			e := rpcconfig.NewRPCEndpoint(role+"-"+provider, role+" "+provider)
 			e.NetworkID, e.Role, e.ProviderID, e.TrustGroup, e.URL = network, role, provider, provider, "https://"+provider+".example.test/"
 			require.NoError(t, catalog.Create(ctx, e))
 			victim = e
@@ -229,14 +231,14 @@ func TestRPCManagementTronValidatesEachRoleIndependently(t *testing.T) {
 	}
 	_, err = db.Exec(ctx, `UPDATE cat_blockchain_networks SET rpc_config_source='database',version=version+1 WHERE id=$1`, network)
 	require.NoError(t, err)
-	repo := catalog_repo.NewRPCConfigurationRepo("production")
+	repo := NewRPCConfigurationRepo("production")
 	before, err := repo.Get(ctx, network)
 	require.NoError(t, err)
 	require.Len(t, before.Requirements, 2)
 	for _, role := range before.Requirements {
 		require.Equal(t, 2, role.ConfiguredProviders)
 	}
-	_, err = managementApply(repo, ctx, network, managementUpdate(before, integrations.RPCConfigurationChange{ID: victim.ID, Version: 1, IsActive: false, Priority: 0}))
+	_, err = managementApply(repo, ctx, network, managementUpdate(before, rpcconfig.RPCConfigurationChange{ID: victim.ID, Version: 1, IsActive: false, Priority: 0}))
 	require.Error(t, err)
 	after, err := repo.Get(ctx, network)
 	require.NoError(t, err)
@@ -245,14 +247,14 @@ func TestRPCManagementTronValidatesEachRoleIndependently(t *testing.T) {
 
 func TestRPCManagementHonorsFieldPolicies(t *testing.T) {
 	ctx, _, network, endpoints := rpcManagementFixture(t)
-	repo := catalog_repo.NewRPCConfigurationRepo("production")
+	repo := NewRPCConfigurationRepo("production")
 	before, err := repo.Get(ctx, network)
 	require.NoError(t, err)
 	readDenied := security.WithFieldPolicies(ctx, map[string]*security.FieldPolicy{"crypto_rpc_endpoint:read": {AllowedFields: []string{"*", "-name"}}})
 	_, err = repo.Get(readDenied, network)
 	require.Error(t, err)
 	writeDenied := security.WithFieldPolicies(ctx, map[string]*security.FieldPolicy{"crypto_rpc_endpoint:write": {AllowedFields: []string{"*", "-is_active"}}})
-	_, err = managementApply(repo, writeDenied, network, managementUpdate(before, integrations.RPCConfigurationChange{ID: endpoints[2].ID, Version: 1, IsActive: false, Priority: 30}))
+	_, err = managementApply(repo, writeDenied, network, managementUpdate(before, rpcconfig.RPCConfigurationChange{ID: endpoints[2].ID, Version: 1, IsActive: false, Priority: 30}))
 	require.Error(t, err)
 	after, err := repo.Get(ctx, network)
 	require.NoError(t, err)
@@ -261,14 +263,14 @@ func TestRPCManagementHonorsFieldPolicies(t *testing.T) {
 
 func TestRPCSettingsAndEndpointPacingShareAtomicRevision(t *testing.T) {
 	ctx, db, network, endpoints := rpcManagementFixture(t)
-	repo := catalog_repo.NewRPCConfigurationRepo("production")
+	repo := NewRPCConfigurationRepo("production")
 	before, err := repo.Get(ctx, network)
 	require.NoError(t, err)
 	settings := before.Settings
-	settings.EVM = &integrations.EVMSettings{AttemptTimeoutMS: 10000, ReadBudgetMS: 25000, ProviderConcurrency: 12, BackfillConcurrency: 6}
-	settings.Alerts = integrations.IngestionAlertSettings{MaxLagSeconds: 120, RecoveryLagSeconds: 20, FireAfterSeconds: 90, RecoverAfterSeconds: 180}
+	settings.EVM = &rpcconfig.EVMSettings{AttemptTimeoutMS: 10000, ReadBudgetMS: 25000, ProviderConcurrency: 12, BackfillConcurrency: 6}
+	settings.Alerts = rpcconfig.IngestionAlertSettings{MaxLagSeconds: 120, RecoveryLagSeconds: 20, FireAfterSeconds: 90, RecoverAfterSeconds: 180}
 	interval := 500
-	update := managementUpdate(before, integrations.RPCConfigurationChange{ID: endpoints[0].ID, Version: 1, IsActive: true, Priority: 10, MinRequestIntervalMS: &interval})
+	update := managementUpdate(before, rpcconfig.RPCConfigurationChange{ID: endpoints[0].ID, Version: 1, IsActive: true, Priority: 10, MinRequestIntervalMS: &interval})
 	update.Settings = &settings
 	after, err := managementApply(repo, ctx, network, update)
 	require.NoError(t, err)
@@ -279,7 +281,7 @@ func TestRPCSettingsAndEndpointPacingShareAtomicRevision(t *testing.T) {
 	loaded, err := LoadRPCNetwork(ctx, crypto.NetworkRef{ID: network}, chainconfig.Network{})
 	require.NoError(t, err)
 	require.Equal(t, after.EffectiveRevision, loaded.Revision("evm", 2))
-	alerts, err := integration_repo.LoadIngestionAlertSettings(ctx)
+	alerts, err := LoadIngestionAlertSettings(ctx)
 	require.NoError(t, err)
 	var code string
 	require.NoError(t, db.QueryRow(ctx, `SELECT code FROM cat_blockchain_networks WHERE id=$1`, network).Scan(&code))
@@ -289,7 +291,7 @@ func TestRPCSettingsAndEndpointPacingShareAtomicRevision(t *testing.T) {
 	// A valid endpoint edit rolls back with an invalid settings object.
 	invalid := after.Settings
 	invalid.Alerts.RecoveryLagSeconds = 200
-	bad := managementUpdate(after, integrations.RPCConfigurationChange{ID: endpoints[0].ID, Version: after.Endpoints[0].Version, IsActive: false, Priority: 10})
+	bad := managementUpdate(after, rpcconfig.RPCConfigurationChange{ID: endpoints[0].ID, Version: after.Endpoints[0].Version, IsActive: false, Priority: 10})
 	bad.Settings = &invalid
 	_, err = managementApply(repo, ctx, network, bad)
 	require.Error(t, err)
@@ -302,7 +304,7 @@ func TestRPCSettingsAndEndpointPacingShareAtomicRevision(t *testing.T) {
 	update.Settings = &settings
 	tm, err := tenant.GetTxManager(ctx)
 	require.NoError(t, err)
-	_, err = integrationapp.NewRPCConfigurationService(repo, tm, rpcAuditFailure{}).Update(ctx, network, update)
+	_, err = cryptoapp.NewRPCConfigurationService(repo, tm, rpcAuditFailure{}).Update(ctx, network, update)
 	require.Error(t, err)
 	unchanged, err = repo.Get(ctx, network)
 	require.NoError(t, err)
@@ -314,7 +316,7 @@ func TestRPCSettingsAndEndpointPacingShareAtomicRevision(t *testing.T) {
 
 func TestRPCSettingsCannotBypassEndpointFieldRestrictions(t *testing.T) {
 	ctx, _, network, _ := rpcManagementFixture(t)
-	repo := catalog_repo.NewRPCConfigurationRepo("production")
+	repo := NewRPCConfigurationRepo("production")
 	before, err := repo.Get(ctx, network)
 	require.NoError(t, err)
 	settings := before.Settings

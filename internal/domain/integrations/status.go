@@ -31,32 +31,15 @@ type PoolStatus struct {
 	Accounts         []AccountStatus
 }
 
-// RPCKeyAccount lists key names, never values, of one pool account.
-type RPCKeyAccount struct {
+// AccountKeys lists key names, never values, of one pool account.
+type AccountKeys struct {
 	ID             string
 	Name           string
 	HasCredentials bool
 	Keys           []string
 }
 
-// RPCKeyOptions tells an endpoint form which account key it may read.
-// Required is set when the provider profile fixes the name; otherwise Names
-// lists the names every pool account with credentials has.
-type RPCKeyOptions struct {
-	Required string
-	Names    []string
-	Accounts []RPCKeyAccount
-}
-
-type RPCKeyQuery struct {
-	PoolID    id.ID
-	NetworkID id.ID
-	Role      string
-	URL       string
-}
-
 type AdministrationRepository interface {
 	Status(context.Context, id.ID) (PoolStatus, error)
 	Command(context.Context, id.ID, string, int64) error
-	RPCKeyOptions(context.Context, RPCKeyQuery) (RPCKeyOptions, error)
 }

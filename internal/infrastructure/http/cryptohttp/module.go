@@ -16,6 +16,7 @@ import (
 	"metapus/internal/infrastructure/http/cryptohttp/cryptomiddleware"
 	v1 "metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/http/v1/middleware"
+	"metapus/internal/infrastructure/storage/postgres/crypto_integration_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 )
@@ -77,6 +78,7 @@ func (m *Module) RegisterRoutes(rc v1.RouteContext) {
 	m.registerWalletPoolRoutes(rc.Protected, cfg)
 	m.registerCryptoNetworkRoutes(rc.Protected, cfg)
 	m.registerFeeScheduleRoutes(rc.System, cfg)
+	cryptohandlers.NewRPCKeyNamesHandler(crypto_integration_repo.RPCPoolConsumer{}).RegisterRoutes(rc.System)
 	if m.cfg.MerchantAPIKeyRepo != nil {
 		m.registerMerchantPublicRoutes(rc.Root, cfg)
 	}

@@ -2,7 +2,7 @@ package cryptodto
 
 import (
 	"metapus/internal/core/id"
-	"metapus/internal/domain/integrations"
+	"metapus/internal/domain/crypto/rpcconfig"
 	"metapus/internal/infrastructure/http/v1/dto"
 )
 
@@ -27,7 +27,7 @@ type UpdateCryptoRPCEndpointRequest struct {
 	Version int `json:"version" binding:"required"`
 }
 
-func (r CryptoRPCEndpointFields) ApplyTo(e *integrations.RPCEndpoint) {
+func (r CryptoRPCEndpointFields) ApplyTo(e *rpcconfig.RPCEndpoint) {
 	e.Code = r.Code
 	e.Name = r.Name
 	e.NetworkID, _ = id.Parse(r.NetworkID)
@@ -42,14 +42,14 @@ func (r CryptoRPCEndpointFields) ApplyTo(e *integrations.RPCEndpoint) {
 	e.DisableKeepAlives = r.DisableKeepAlives
 	e.IsActive = r.IsActive
 }
-func (r *CreateCryptoRPCEndpointRequest) ToEntity() *integrations.RPCEndpoint {
-	e := integrations.NewRPCEndpoint(r.Code, r.Name)
+func (r *CreateCryptoRPCEndpointRequest) ToEntity() *rpcconfig.RPCEndpoint {
+	e := rpcconfig.NewRPCEndpoint(r.Code, r.Name)
 	r.ApplyTo(e)
 	return e
 }
-func (r *UpdateCryptoRPCEndpointRequest) Apply(e *integrations.RPCEndpoint) {
+func (r *UpdateCryptoRPCEndpointRequest) Apply(e *rpcconfig.RPCEndpoint) {
 	r.ApplyTo(e)
 	e.Version = r.Version
 }
 
-type CryptoRPCEndpointResponse struct{ integrations.RPCEndpoint }
+type CryptoRPCEndpointResponse struct{ rpcconfig.RPCEndpoint }

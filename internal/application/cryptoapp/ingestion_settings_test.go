@@ -7,15 +7,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/domain/crypto"
-	"metapus/internal/domain/integrations"
+	"metapus/internal/domain/crypto/rpcconfig"
 )
 
 func TestIngestionSettingsApplyIndependentlyAndResetContinuousEvidence(t *testing.T) {
 	now := time.Now().UTC()
 	state := IngestionAlertState{StartedAt: now.Add(-time.Hour)}
 	policy := DefaultIngestionAlertPolicy()
-	settings := integrations.IngestionAlertSettings{MaxLagSeconds: 120, RecoveryLagSeconds: 20, FireAfterSeconds: 90, RecoverAfterSeconds: 60}
-	policy.NetworkSettings = map[string]integrations.IngestionAlertSettings{"CUSTOM": settings}
+	settings := rpcconfig.IngestionAlertSettings{MaxLagSeconds: 120, RecoveryLagSeconds: 20, FireAfterSeconds: 90, RecoverAfterSeconds: 60}
+	policy.NetworkSettings = map[string]rpcconfig.IngestionAlertSettings{"CUSTOM": settings}
 	lag := int64(90)
 	observed := map[string]*crypto.IngestionCondition{}
 	for _, network := range []string{"CUSTOM", "DEFAULT"} {
@@ -60,7 +60,7 @@ func TestConfiguredCheckpointDelayCountsExistingStallEvidenceOnce(t *testing.T) 
 	now := time.Now().UTC()
 	state := IngestionAlertState{StartedAt: now.Add(-time.Hour)}
 	policy := DefaultIngestionAlertPolicy()
-	policy.NetworkSettings = map[string]integrations.IngestionAlertSettings{"TRON": {FireAfterSeconds: 120}}
+	policy.NetworkSettings = map[string]rpcconfig.IngestionAlertSettings{"TRON": {FireAfterSeconds: 120}}
 	condition := &crypto.IngestionCondition{Scope: "network/TRON/tron:solidified", NetworkCode: "TRON", WatcherKey: "tron:solidified", Severity: "error", Reason: "checkpoint stalled"}
 	for seconds := 0; seconds < 60; seconds += 30 {
 		AdvanceIngestionIncidents(&state, now.Add(time.Duration(seconds)*time.Second), map[string]*crypto.IngestionCondition{condition.Scope: condition}, policy)

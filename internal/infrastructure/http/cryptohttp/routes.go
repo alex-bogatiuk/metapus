@@ -9,7 +9,6 @@ import (
 	"metapus/internal/application/command"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/application/dashboardapp"
-	"metapus/internal/application/integrationapp"
 	"metapus/internal/application/portalapp"
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/tenant"
@@ -28,8 +27,8 @@ import (
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_catalog_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_integration_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/infrastructure/storage/postgres/dashboard_repo"
@@ -77,7 +76,7 @@ func (m *Module) registerUnidentifiedReceiptRoutes(rg *gin.RouterGroup, cfg v1.R
 }
 
 func (m *Module) registerCryptoNetworkRoutes(rg *gin.RouterGroup, cfg v1.RouterConfig) {
-	cryptohandlers.NewCryptoRPCConfigurationHandler(integrationapp.NewRPCConfigurationService(catalog_repo.NewRPCConfigurationRepo(os.Getenv("APP_ENV"), cfg.PolicyEngine), tenant.ContextTxManager{}, cfg.EventLogRepo)).RegisterRoutes(rg, middleware.SensitiveActionGuard(cfg.MFARepo, "system.integrations.write", cfg.EventLogRepo))
+	cryptohandlers.NewCryptoRPCConfigurationHandler(cryptoapp.NewRPCConfigurationService(crypto_integration_repo.NewRPCConfigurationRepo(os.Getenv("APP_ENV"), cfg.PolicyEngine), tenant.ContextTxManager{}, cfg.EventLogRepo)).RegisterRoutes(rg, middleware.SensitiveActionGuard(cfg.MFARepo, "system.integrations.write", cfg.EventLogRepo))
 	dashboardSvc := dashboardapp.NewService(dashboard_repo.New(), exchange_rate.NewService(register_repo.NewExchangeRateRepo()), register_repo.RateSnapshot)
 	cryptohandlers.NewAdminDashboardHandler(dashboardSvc).RegisterRoutes(rg)
 	repo := crypto_repo.NewNetworkPolicyRepo()

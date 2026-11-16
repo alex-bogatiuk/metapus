@@ -1,4 +1,4 @@
-package integrations
+package rpcconfig
 
 import (
 	"context"
@@ -11,6 +11,17 @@ import (
 	"metapus/internal/core/numerator"
 	"metapus/internal/domain"
 )
+
+// RPCEndpointDefinition identifies the RPC endpoint catalog.
+var RPCEndpointDefinition = entity.Definition{
+	Key:   "crypto_rpc_endpoint",
+	Name:  "CryptoRPCEndpoint",
+	Route: "crypto-rpc-endpoints",
+	Table: "sys_crypto_rpc_endpoints",
+	Kind:  entity.CatalogKind,
+}
+
+func (RPCEndpoint) EntityDefinition() entity.Definition { return RPCEndpointDefinition }
 
 // RPCEndpoint keeps chain-specific bindings separate from reusable accounts.
 type RPCEndpoint struct {

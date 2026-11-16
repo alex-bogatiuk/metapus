@@ -11,16 +11,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"metapus/internal/core/id"
+	"metapus/internal/domain/crypto/rpcconfig"
 	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/integration_repo"
 )
 
 func TestInfuraEncryptedKeyBindingAndDailyStatus(t *testing.T) {
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
 	ctx, db := fixtureDB(t)
-	ar, pr, er := catalog_repo.NewIntegrationAccountRepo(), catalog_repo.NewIntegrationPoolRepo(), catalog_repo.NewCryptoRPCEndpointRepo()
+	ar, pr, er := NewIntegrationAccountRepo(), NewIntegrationPoolRepo(), NewCryptoRPCEndpointRepo()
 	secret := "0123456789abcdef0123456789abcdef"
 	a := integrations.NewAccount("INFURA", "Infura Sepolia")
 	a.Provider = integrations.Infura
@@ -36,7 +36,7 @@ func TestInfuraEncryptedKeyBindingAndDailyStatus(t *testing.T) {
 	require.NoError(t, pr.Create(ctx, pool))
 	var networkID id.ID
 	require.NoError(t, db.QueryRow(ctx, `SELECT id FROM cat_blockchain_networks WHERE code='ETHEREUM-SEPOLIA'`).Scan(&networkID))
-	e := integrations.NewRPCEndpoint("INFURA-RPC", "Infura Sepolia")
+	e := rpcconfig.NewRPCEndpoint("INFURA-RPC", "Infura Sepolia")
 	e.NetworkID, e.ProviderID, e.TrustGroup = networkID, "infura-sepolia", "infura"
 	e.URL, e.PoolID, e.Slot = "https://sepolia.infura.io/v3/", &pool.ID, "sepolia"
 	require.NoError(t, er.Create(ctx, e))

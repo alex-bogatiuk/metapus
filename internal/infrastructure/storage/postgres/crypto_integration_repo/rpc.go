@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,7 +22,6 @@ import (
 	integrationhttp "metapus/internal/infrastructure/integrations"
 	"metapus/internal/infrastructure/providerpolicy"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/integration_repo"
 )
 
@@ -117,7 +117,7 @@ func rpcTransportAt(uid id.ID, originalURL string, now func() time.Time) func(ht
 		}
 		runtime := integration_repo.NewRuntime()
 		runtime.Now = now
-		return &integrationhttp.Transport{Base: base, Repository: runtime, Target: load, OriginalURL: originalURL, Now: now}
+		return &integrationhttp.Transport{Base: base, Repository: runtime, Target: load, OriginalURL: originalURL, Now: now, Operation: RPCOperation}
 	}
 }
 
@@ -151,7 +151,7 @@ func (r ConnectionTargets) ConnectionEndpoint(ctx context.Context, poolID id.ID)
 }
 
 func (r ConnectionTargets) ConnectionTarget(ctx context.Context, poolID id.ID) (model.ConnectionTarget, error) {
-	pool, err := catalog_repo.NewIntegrationPoolRepo().GetByID(ctx, poolID)
+	pool, err := NewIntegrationPoolRepo().GetByID(ctx, poolID)
 	if err != nil {
 		return model.ConnectionTarget{}, err
 	}
@@ -168,4 +168,14 @@ func (r ConnectionTargets) ConnectionTarget(ctx context.Context, poolID id.ID) (
 		out.Family, out.NetworkIdentifier = endpoint.Family, endpoint.NetworkIdentifier
 	}
 	return out, nil
+}
+
+// RPCOperation names a TRON HTTP API call by its /wallet/ or /walletsolidity/
+// method for the integration wire metric; other RPC calls count as "api".
+func RPCOperation(req *http.Request) string {
+	_, operation, _ := strings.Cut(req.URL.Path, "/wallet/")
+	if operation == "" {
+		_, operation, _ = strings.Cut(req.URL.Path, "/walletsolidity/")
+	}
+	return operation
 }

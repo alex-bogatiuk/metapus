@@ -12,15 +12,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/core/id"
+	"metapus/internal/domain/crypto/rpcconfig"
 	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/blockchain/tron"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 )
 
 func TestAlchemyTRONBindingsReloadKeysAndPreserveRoleMethods(t *testing.T) {
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
 	ctx, db := fixtureDB(t)
-	ar, pr, er := catalog_repo.NewIntegrationAccountRepo(), catalog_repo.NewIntegrationPoolRepo(), catalog_repo.NewCryptoRPCEndpointRepo()
+	ar, pr, er := NewIntegrationAccountRepo(), NewIntegrationPoolRepo(), NewCryptoRPCEndpointRepo()
 	a := integrations.NewAccount("ALCH-NILE", "Alchemy Nile")
 	a.PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: "nile", Value: "nile-key"}}}
 	require.NoError(t, ar.Prepare(ctx, a))
@@ -33,7 +33,7 @@ func TestAlchemyTRONBindingsReloadKeysAndPreserveRoleMethods(t *testing.T) {
 	require.NoError(t, db.QueryRow(ctx, `SELECT id FROM cat_blockchain_networks WHERE chain_family='evm' LIMIT 1`).Scan(&sepolia))
 	current := "nile-key"
 	for _, role := range []string{"fullnode", "solidity"} {
-		e := integrations.NewRPCEndpoint("ALCH-"+role, "Alchemy "+role)
+		e := rpcconfig.NewRPCEndpoint("ALCH-"+role, "Alchemy "+role)
 		e.NetworkID, e.Role, e.ProviderID, e.TrustGroup = nile, role, "alchemy-nile", "alchemy"
 		e.URL, e.PoolID, e.Slot = "https://tron-testnet.g.alchemy.com/v2/", &pool.ID, "nile"
 		require.NoError(t, er.Create(ctx, e))

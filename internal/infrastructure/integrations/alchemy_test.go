@@ -90,7 +90,7 @@ func TestAlchemyTRONConnectionProbeUsesAuthenticatedRolePath(t *testing.T) {
 		t.Run(role, func(t *testing.T) {
 			repo := fixture()
 			target := model.ConnectionTarget{PoolID: repo.selections[0].PoolID, EndpointID: id.New(), Provider: model.Alchemy, URL: "https://tron-testnet.g.alchemy.com/v2/", Family: "tron", Role: role, NetworkIdentifier: "nile"}
-			prober := ConnectionProber{EndpointTransport: func(id.ID, string) func(http.RoundTripper) http.RoundTripper {
+			prober := ConnectionProber{EndpointProbe: fixtureProbe, EndpointTransport: func(id.ID, string) func(http.RoundTripper) http.RoundTripper {
 				return func(http.RoundTripper) http.RoundTripper {
 					return &Transport{PoolID: target.PoolID, Provider: target.Provider, Repository: repo, OriginalURL: target.URL, Target: func(context.Context) (Binding, error) {
 						return Binding{URL: target.URL, PoolID: target.PoolID, Provider: target.Provider}, nil

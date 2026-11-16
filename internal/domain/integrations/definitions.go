@@ -21,13 +21,3 @@ var PoolDefinition = entity.Definition{
 }
 
 func (Pool) EntityDefinition() entity.Definition { return PoolDefinition }
-
-var RPCEndpointDefinition = entity.Definition{
-	Key:   "crypto_rpc_endpoint",
-	Name:  "CryptoRPCEndpoint",
-	Route: "crypto-rpc-endpoints",
-	Table: "sys_crypto_rpc_endpoints",
-	Kind:  entity.CatalogKind,
-}
-
-func (RPCEndpoint) EntityDefinition() entity.Definition { return RPCEndpointDefinition }

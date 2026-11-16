@@ -380,7 +380,7 @@ Metapus
 
 ### Подключения RPC — `crypto_rpc_endpoint`
 
-Модель: `RPCEndpoint`. Таблица: `sys_crypto_rpc_endpoints`. Источник: [rpc_endpoint.go](../internal/domain/integrations/rpc_endpoint.go).
+Модель: `RPCEndpoint`. Таблица: `sys_crypto_rpc_endpoints`. Источник: [endpoint.go](../internal/domain/crypto/rpcconfig/endpoint.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|

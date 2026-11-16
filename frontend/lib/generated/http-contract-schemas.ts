@@ -1484,15 +1484,15 @@ export const CryptoRPCConfigurationChangeSchema: z.ZodType<Wire.CryptoRPCConfigu
 
 export const CryptoRPCConfigurationResponseSchema: z.ZodType<Wire.CryptoRPCConfigurationResponse> = z.lazy(() => z.object({
   "family": z.string(),
-  "settings": IntegrationsRPCNetworkSettingsSchema,
-  "defaultSettings": IntegrationsRPCNetworkSettingsSchema,
-  "effectiveSettings": IntegrationsRPCNetworkSettingsSchema,
+  "settings": RpcconfigRPCNetworkSettingsSchema,
+  "defaultSettings": RpcconfigRPCNetworkSettingsSchema,
+  "effectiveSettings": RpcconfigRPCNetworkSettingsSchema,
   "networkId": z.string(),
   "source": z.string(),
   "revision": z.string(),
   "effectiveRevision": z.string(),
-  "endpoints": z.array(IntegrationsRPCConfigurationEndpointSchema),
-  "requirements": z.array(IntegrationsRPCRoleRequirementSchema),
+  "endpoints": z.array(RpcconfigRPCConfigurationEndpointSchema),
+  "requirements": z.array(RpcconfigRPCRoleRequirementSchema),
   "canManage": z.boolean(),
   "lockedReason": z.string().optional(),
 }))
@@ -2850,105 +2850,9 @@ export const IntegrationsCredentialsInputSchema: z.ZodType<Wire.IntegrationsCred
   "username": z.string().optional(),
 }))
 
-export const IntegrationsEVMSettingsSchema: z.ZodType<Wire.IntegrationsEVMSettings> = z.lazy(() => z.object({
-  "maxHeadAgeSeconds": z.number().int(),
-  "attemptTimeoutMs": z.number().int(),
-  "readBudgetMs": z.number().int(),
-  "logsTimeoutMs": z.number().int(),
-  "maxAttempts": z.number().int(),
-  "providerConcurrency": z.number().int(),
-  "backfillConcurrency": z.number().int(),
-  "requestsPerSecond": z.number().int(),
-  "nativeConcurrency": z.number().int(),
-  "prefetchBlocks": z.number().int(),
-  "maxResponseBytes": z.number().int(),
-  "maxBufferedBytes": z.number().int(),
-}))
-
-export const IntegrationsEVMSettingsInputSchema: z.ZodType<Wire.IntegrationsEVMSettingsInput> = z.lazy(() => z.strictObject({
-  "maxHeadAgeSeconds": z.number().int().optional(),
-  "attemptTimeoutMs": z.number().int().optional(),
-  "readBudgetMs": z.number().int().optional(),
-  "logsTimeoutMs": z.number().int().optional(),
-  "maxAttempts": z.number().int().optional(),
-  "providerConcurrency": z.number().int().optional(),
-  "backfillConcurrency": z.number().int().optional(),
-  "requestsPerSecond": z.number().int().optional(),
-  "nativeConcurrency": z.number().int().optional(),
-  "prefetchBlocks": z.number().int().optional(),
-  "maxResponseBytes": z.number().int().optional(),
-  "maxBufferedBytes": z.number().int().optional(),
-}))
-
-export const IntegrationsIngestionAlertSettingsSchema: z.ZodType<Wire.IntegrationsIngestionAlertSettings> = z.lazy(() => z.object({
-  "maxLagSeconds": z.number().int(),
-  "fireAfterSeconds": z.number().int(),
-  "recoveryLagSeconds": z.number().int(),
-  "recoverAfterSeconds": z.number().int(),
-}))
-
-export const IntegrationsIngestionAlertSettingsInputSchema: z.ZodType<Wire.IntegrationsIngestionAlertSettingsInput> = z.lazy(() => z.strictObject({
-  "maxLagSeconds": z.number().int().optional(),
-  "fireAfterSeconds": z.number().int().optional(),
-  "recoveryLagSeconds": z.number().int().optional(),
-  "recoverAfterSeconds": z.number().int().optional(),
-}))
-
 export const IntegrationsNamedKeyInputSchema: z.ZodType<Wire.IntegrationsNamedKeyInput> = z.lazy(() => z.strictObject({
   "name": z.string().optional(),
   "value": z.string().optional(),
-}))
-
-export const IntegrationsRPCConfigurationEndpointSchema: z.ZodType<Wire.IntegrationsRPCConfigurationEndpoint> = z.lazy(() => z.object({
-  "id": z.string(),
-  "version": z.number().int(),
-  "name": z.string(),
-  "role": z.string(),
-  "providerId": z.string(),
-  "trustGroup": z.string(),
-  "isActive": z.boolean(),
-  "priority": z.number().int(),
-  "minRequestIntervalMs": z.number().int(),
-}))
-
-export const IntegrationsRPCNetworkSettingsSchema: z.ZodType<Wire.IntegrationsRPCNetworkSettings> = z.lazy(() => z.object({
-  "evm": IntegrationsEVMSettingsSchema.optional(),
-  "tron": IntegrationsTRONSettingsSchema.optional(),
-  "alerts": IntegrationsIngestionAlertSettingsSchema,
-}))
-
-export const IntegrationsRPCNetworkSettingsInputSchema: z.ZodType<Wire.IntegrationsRPCNetworkSettingsInput> = z.lazy(() => z.strictObject({
-  "evm": IntegrationsEVMSettingsInputSchema.nullable().optional(),
-  "tron": IntegrationsTRONSettingsInputSchema.nullable().optional(),
-  "alerts": IntegrationsIngestionAlertSettingsInputSchema.optional(),
-}))
-
-export const IntegrationsRPCRoleRequirementSchema: z.ZodType<Wire.IntegrationsRPCRoleRequirement> = z.lazy(() => z.object({
-  "role": z.string(),
-  "requiredProviders": z.number().int(),
-  "configuredProviders": z.number().int(),
-}))
-
-export const IntegrationsTRONSettingsSchema: z.ZodType<Wire.IntegrationsTRONSettings> = z.lazy(() => z.object({
-  "ingestionMode": z.string().optional(),
-  "attemptTimeoutMs": z.number().int(),
-  "readBudgetMs": z.number().int(),
-  "maxAttempts": z.number().int(),
-  "providerConcurrency": z.number().int(),
-  "backfillConcurrency": z.number().int(),
-  "requestsPerSecond": z.number().int(),
-  "maxResponseBytes": z.number().int(),
-}))
-
-export const IntegrationsTRONSettingsInputSchema: z.ZodType<Wire.IntegrationsTRONSettingsInput> = z.lazy(() => z.strictObject({
-  "ingestionMode": z.string().optional(),
-  "attemptTimeoutMs": z.number().int().optional(),
-  "readBudgetMs": z.number().int().optional(),
-  "maxAttempts": z.number().int().optional(),
-  "providerConcurrency": z.number().int().optional(),
-  "backfillConcurrency": z.number().int().optional(),
-  "requestsPerSecond": z.number().int().optional(),
-  "maxResponseBytes": z.number().int().optional(),
 }))
 
 export const ListViewListResponseSchema: z.ZodType<Wire.ListViewListResponse> = z.lazy(() => z.array(ListViewResponseSchema))
@@ -4231,6 +4135,102 @@ export const RoleResponseSchema: z.ZodType<Wire.RoleResponse> = z.lazy(() => z.o
   "userCount": z.number().int().optional(),
 }))
 
+export const RpcconfigEVMSettingsSchema: z.ZodType<Wire.RpcconfigEVMSettings> = z.lazy(() => z.object({
+  "maxHeadAgeSeconds": z.number().int(),
+  "attemptTimeoutMs": z.number().int(),
+  "readBudgetMs": z.number().int(),
+  "logsTimeoutMs": z.number().int(),
+  "maxAttempts": z.number().int(),
+  "providerConcurrency": z.number().int(),
+  "backfillConcurrency": z.number().int(),
+  "requestsPerSecond": z.number().int(),
+  "nativeConcurrency": z.number().int(),
+  "prefetchBlocks": z.number().int(),
+  "maxResponseBytes": z.number().int(),
+  "maxBufferedBytes": z.number().int(),
+}))
+
+export const RpcconfigEVMSettingsInputSchema: z.ZodType<Wire.RpcconfigEVMSettingsInput> = z.lazy(() => z.strictObject({
+  "maxHeadAgeSeconds": z.number().int().optional(),
+  "attemptTimeoutMs": z.number().int().optional(),
+  "readBudgetMs": z.number().int().optional(),
+  "logsTimeoutMs": z.number().int().optional(),
+  "maxAttempts": z.number().int().optional(),
+  "providerConcurrency": z.number().int().optional(),
+  "backfillConcurrency": z.number().int().optional(),
+  "requestsPerSecond": z.number().int().optional(),
+  "nativeConcurrency": z.number().int().optional(),
+  "prefetchBlocks": z.number().int().optional(),
+  "maxResponseBytes": z.number().int().optional(),
+  "maxBufferedBytes": z.number().int().optional(),
+}))
+
+export const RpcconfigIngestionAlertSettingsSchema: z.ZodType<Wire.RpcconfigIngestionAlertSettings> = z.lazy(() => z.object({
+  "maxLagSeconds": z.number().int(),
+  "fireAfterSeconds": z.number().int(),
+  "recoveryLagSeconds": z.number().int(),
+  "recoverAfterSeconds": z.number().int(),
+}))
+
+export const RpcconfigIngestionAlertSettingsInputSchema: z.ZodType<Wire.RpcconfigIngestionAlertSettingsInput> = z.lazy(() => z.strictObject({
+  "maxLagSeconds": z.number().int().optional(),
+  "fireAfterSeconds": z.number().int().optional(),
+  "recoveryLagSeconds": z.number().int().optional(),
+  "recoverAfterSeconds": z.number().int().optional(),
+}))
+
+export const RpcconfigRPCConfigurationEndpointSchema: z.ZodType<Wire.RpcconfigRPCConfigurationEndpoint> = z.lazy(() => z.object({
+  "id": z.string(),
+  "version": z.number().int(),
+  "name": z.string(),
+  "role": z.string(),
+  "providerId": z.string(),
+  "trustGroup": z.string(),
+  "isActive": z.boolean(),
+  "priority": z.number().int(),
+  "minRequestIntervalMs": z.number().int(),
+}))
+
+export const RpcconfigRPCNetworkSettingsSchema: z.ZodType<Wire.RpcconfigRPCNetworkSettings> = z.lazy(() => z.object({
+  "evm": RpcconfigEVMSettingsSchema.optional(),
+  "tron": RpcconfigTRONSettingsSchema.optional(),
+  "alerts": RpcconfigIngestionAlertSettingsSchema,
+}))
+
+export const RpcconfigRPCNetworkSettingsInputSchema: z.ZodType<Wire.RpcconfigRPCNetworkSettingsInput> = z.lazy(() => z.strictObject({
+  "evm": RpcconfigEVMSettingsInputSchema.nullable().optional(),
+  "tron": RpcconfigTRONSettingsInputSchema.nullable().optional(),
+  "alerts": RpcconfigIngestionAlertSettingsInputSchema.optional(),
+}))
+
+export const RpcconfigRPCRoleRequirementSchema: z.ZodType<Wire.RpcconfigRPCRoleRequirement> = z.lazy(() => z.object({
+  "role": z.string(),
+  "requiredProviders": z.number().int(),
+  "configuredProviders": z.number().int(),
+}))
+
+export const RpcconfigTRONSettingsSchema: z.ZodType<Wire.RpcconfigTRONSettings> = z.lazy(() => z.object({
+  "ingestionMode": z.string().optional(),
+  "attemptTimeoutMs": z.number().int(),
+  "readBudgetMs": z.number().int(),
+  "maxAttempts": z.number().int(),
+  "providerConcurrency": z.number().int(),
+  "backfillConcurrency": z.number().int(),
+  "requestsPerSecond": z.number().int(),
+  "maxResponseBytes": z.number().int(),
+}))
+
+export const RpcconfigTRONSettingsInputSchema: z.ZodType<Wire.RpcconfigTRONSettingsInput> = z.lazy(() => z.strictObject({
+  "ingestionMode": z.string().optional(),
+  "attemptTimeoutMs": z.number().int().optional(),
+  "readBudgetMs": z.number().int().optional(),
+  "maxAttempts": z.number().int().optional(),
+  "providerConcurrency": z.number().int().optional(),
+  "backfillConcurrency": z.number().int().optional(),
+  "requestsPerSecond": z.number().int().optional(),
+  "maxResponseBytes": z.number().int().optional(),
+}))
+
 export const SearchPreviewFieldSchema: z.ZodType<Wire.SearchPreviewField> = z.lazy(() => z.object({
   "label": z.string(),
   "value": z.string(),
@@ -4761,7 +4761,7 @@ export const UpdateCryptoRPCConfigurationRequestSchema: z.ZodType<Wire.UpdateCry
   "expectedRevision": z.string(),
   "endpoints": z.array(CryptoRPCConfigurationChangeSchema).optional(),
   "comment": z.string().optional(),
-  "settings": IntegrationsRPCNetworkSettingsInputSchema.nullable().optional(),
+  "settings": RpcconfigRPCNetworkSettingsInputSchema.nullable().optional(),
 }))
 
 export const UpdateCryptoRPCEndpointRequestSchema: z.ZodType<Wire.UpdateCryptoRPCEndpointRequest> = z.lazy(() => z.strictObject({

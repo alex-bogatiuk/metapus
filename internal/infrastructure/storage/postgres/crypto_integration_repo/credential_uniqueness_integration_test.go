@@ -15,7 +15,6 @@ import (
 	"metapus/internal/core/tenant"
 	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 )
 
 func accountWithKeys(code string, provider integrations.Provider, keys ...integrations.NamedKey) *integrations.Account {
@@ -42,7 +41,7 @@ func requireCredentialConflict(t *testing.T, err error, owner *integrations.Acco
 func TestIntegrationAccountUniqueKeysAcrossSlotsAndUpdates(t *testing.T) {
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
 	ctx, db := fixtureDB(t)
-	repo := catalog_repo.NewIntegrationAccountRepo()
+	repo := NewIntegrationAccountRepo()
 	service := integrations.NewAccountService(repo, nil)
 	const shared = "private-shared-secondary-key"
 	owner := accountWithKeys("OWNER", integrations.Alchemy,
@@ -95,7 +94,7 @@ func TestIntegrationAccountUniqueKeysAcrossSlotsAndUpdates(t *testing.T) {
 func TestIntegrationAccountUniqueKeysOnRestoreAndRemoval(t *testing.T) {
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
 	ctx, _ := fixtureDB(t)
-	repo := catalog_repo.NewIntegrationAccountRepo()
+	repo := NewIntegrationAccountRepo()
 	service := integrations.NewAccountService(repo, nil)
 	const shared = "private-restored-key"
 	original := accountWithKeys("ORIGINAL", integrations.Alchemy, integrations.NamedKey{Name: "default", Value: shared})
@@ -126,7 +125,7 @@ func TestIntegrationAccountConcurrentDuplicateKeys(t *testing.T) {
 	ctx, db := fixtureDB(t)
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	repo := catalog_repo.NewIntegrationAccountRepo()
+	repo := NewIntegrationAccountRepo()
 	const shared = "private-concurrent-key"
 	accounts := []*integrations.Account{
 		accountWithKeys("FIRST", integrations.Alchemy, integrations.NamedKey{Name: "default", Value: shared}),
@@ -177,7 +176,7 @@ func TestIntegrationAccountUniqueKeysAreTenantLocal(t *testing.T) {
 	for range 2 {
 		ctx, _ := fixtureDB(t)
 		a := accountWithKeys("SAME", integrations.Alchemy, integrations.NamedKey{Name: "default", Value: "same-key-in-isolated-tenants"})
-		require.NoError(t, integrations.NewAccountService(catalog_repo.NewIntegrationAccountRepo(), nil).Create(ctx, a))
+		require.NoError(t, integrations.NewAccountService(NewIntegrationAccountRepo(), nil).Create(ctx, a))
 	}
 }
 
@@ -186,7 +185,7 @@ func TestIntegrationImportRejectsDuplicateKeys(t *testing.T) {
 	ctx, db := fixtureDB(t)
 	const shared = "private-import-key"
 	owner := accountWithKeys("EXISTING", integrations.Alchemy, integrations.NamedKey{Name: "default", Value: shared})
-	require.NoError(t, integrations.NewAccountService(catalog_repo.NewIntegrationAccountRepo(), nil).Create(ctx, owner))
+	require.NoError(t, integrations.NewAccountService(NewIntegrationAccountRepo(), nil).Create(ctx, owner))
 	var code string
 	require.NoError(t, db.QueryRow(ctx, `SELECT code FROM cat_blockchain_networks WHERE chain_family='evm' LIMIT 1`).Scan(&code))
 	cfg := &chainconfig.File{Networks: map[string]chainconfig.Network{

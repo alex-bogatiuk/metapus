@@ -22,7 +22,6 @@ func Routes(bundles ...spec.Bundle) []RouteContract {
 		{Scope: "api", Method: "GET", Path: "/system/integrations/pools/:id/status", Response: "IntegrationPoolStatusResponse"},
 		{Scope: "api", Method: "POST", Path: "/system/integrations/pools/:id/command", Request: "IntegrationPoolCommandRequest", Response: "IntegrationPoolStatusResponse"},
 		{Scope: "api", Method: "POST", Path: "/system/integrations/pools/:id/test", Response: "IntegrationConnectionTestResponse"},
-		{Scope: "api", Method: "GET", Path: "/system/integrations/pools/:id/rpc-key-names", Response: "IntegrationRPCKeyOptionsResponse"},
 	}
 	return slices.Concat(routes, automationRoutes(), systemRoutes(), securityRoutes(), serviceOperationRoutes(), bundleRoutes(bundles))
 }

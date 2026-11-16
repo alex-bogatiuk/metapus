@@ -12,9 +12,11 @@
 | `domain/integrations.ProviderDefinition` | Назначения, формат и состав credentials, политика квоты, допустимые сети/роли/адреса, оператор и минимальный интервал аккаунта |
 | `infrastructure/integrations/profiles` | Подстановка ключа в копию HTTP-запроса, особенности ответов, retry hints и импорт старой конфигурации |
 | `infrastructure/integrations.Transport` | Выбор аккаунта, ограничение попыток, pacing, отчёт о квоте/credentials, сохранение тела запроса |
-| `application/integrationapp` | Транзакционный сценарий изменения конфигурации и сценарий проверки подключения |
-| `domain/integrations.RPCConfiguration.Plan` | Построение итогового набора изменений, конфликты, порядок и покрытие без SQL |
-| `domain/integrations.RPCTopology` | Общая конфигурация и каноническая ревизия без transport и значений секретов |
+| `application/integrationapp` | Сценарий проверки подключения пула (`ConnectionTestService`) |
+| `application/cryptoapp.RPCConfigurationService` | Транзакционный сценарий изменения RPC-конфигурации сети |
+| `domain/crypto/rpcconfig.RPCConfiguration.Plan` | Построение итогового набора изменений, конфликты, порядок и покрытие без SQL |
+| `domain/crypto/rpcconfig.RPCTopology` | Общая конфигурация и каноническая ревизия без transport и значений секретов |
+| `crypto_integration_repo` | Хранение RPC-подключений и настроек сетей; `RPCPoolConsumer` держит имена ключей пула согласованными с подключениями; `RPCProbe` и `RPCTransport` проверяют подключение |
 | EVM/TRON adapters | Протокол сети, routing, quorum, operation circuits и поколения клиентов |
 
 Тип провайдера (`Provider`, например `alchemy`), UUID подключения, имя подключения (`ProviderID`), аккаунт и группа доверия — разные идентичности. Несколько ключей, аккаунтов или подключений одного оператора не создают независимые голоса.
@@ -48,7 +50,7 @@
 - `RetryAt` обрабатывает особый срок повторной попытки, если стандартного `Retry-After` недостаточно;
 - `ResponseError` возвращает безопасную ошибку операции, например отсутствие архивного доступа, без отключения исправного аккаунта;
 - `ImportCredentials` нужен только для особого legacy-формата. Обычный импорт использует общий профиль и secret file;
-- `Probe` нужен для отдельного протокола интеграции, например CoinGecko ping. EVM/TRON проверяются общими protocol probes.
+- `Probe` нужен для отдельного протокола интеграции, например CoinGecko ping. EVM/TRON проверяются протокольной проверкой конфигурации `crypto_integration_repo.RPCProbe`, которую `ConnectionProber` получает как `EndpointProbe`.
 
 Профиль не выбирает следующий аккаунт, не выполняет собственные HTTP retries, не меняет quota state и не создаёт отдельный RPC pool. В ошибки не включаются ключи, полные credential URL и тела ответов.
 

@@ -1480,15 +1480,15 @@ export type CryptoRPCConfigurationChange = {
 
 export type CryptoRPCConfigurationResponse = {
   "family": string
-  "settings": IntegrationsRPCNetworkSettings
-  "defaultSettings": IntegrationsRPCNetworkSettings
-  "effectiveSettings": IntegrationsRPCNetworkSettings
+  "settings": RpcconfigRPCNetworkSettings
+  "defaultSettings": RpcconfigRPCNetworkSettings
+  "effectiveSettings": RpcconfigRPCNetworkSettings
   "networkId": string
   "source": string
   "revision": string
   "effectiveRevision": string
-  "endpoints": Array<IntegrationsRPCConfigurationEndpoint>
-  "requirements": Array<IntegrationsRPCRoleRequirement>
+  "endpoints": Array<RpcconfigRPCConfigurationEndpoint>
+  "requirements": Array<RpcconfigRPCRoleRequirement>
   "canManage": boolean
   "lockedReason"?: string
 }
@@ -2846,105 +2846,9 @@ export type IntegrationsCredentialsInput = {
   "username"?: string
 }
 
-export type IntegrationsEVMSettings = {
-  "maxHeadAgeSeconds": number
-  "attemptTimeoutMs": number
-  "readBudgetMs": number
-  "logsTimeoutMs": number
-  "maxAttempts": number
-  "providerConcurrency": number
-  "backfillConcurrency": number
-  "requestsPerSecond": number
-  "nativeConcurrency": number
-  "prefetchBlocks": number
-  "maxResponseBytes": number
-  "maxBufferedBytes": number
-}
-
-export type IntegrationsEVMSettingsInput = {
-  "maxHeadAgeSeconds"?: number
-  "attemptTimeoutMs"?: number
-  "readBudgetMs"?: number
-  "logsTimeoutMs"?: number
-  "maxAttempts"?: number
-  "providerConcurrency"?: number
-  "backfillConcurrency"?: number
-  "requestsPerSecond"?: number
-  "nativeConcurrency"?: number
-  "prefetchBlocks"?: number
-  "maxResponseBytes"?: number
-  "maxBufferedBytes"?: number
-}
-
-export type IntegrationsIngestionAlertSettings = {
-  "maxLagSeconds": number
-  "fireAfterSeconds": number
-  "recoveryLagSeconds": number
-  "recoverAfterSeconds": number
-}
-
-export type IntegrationsIngestionAlertSettingsInput = {
-  "maxLagSeconds"?: number
-  "fireAfterSeconds"?: number
-  "recoveryLagSeconds"?: number
-  "recoverAfterSeconds"?: number
-}
-
 export type IntegrationsNamedKeyInput = {
   "name"?: string
   "value"?: string
-}
-
-export type IntegrationsRPCConfigurationEndpoint = {
-  "id": string
-  "version": number
-  "name": string
-  "role": string
-  "providerId": string
-  "trustGroup": string
-  "isActive": boolean
-  "priority": number
-  "minRequestIntervalMs": number
-}
-
-export type IntegrationsRPCNetworkSettings = {
-  "evm"?: IntegrationsEVMSettings
-  "tron"?: IntegrationsTRONSettings
-  "alerts": IntegrationsIngestionAlertSettings
-}
-
-export type IntegrationsRPCNetworkSettingsInput = {
-  "evm"?: IntegrationsEVMSettingsInput | null
-  "tron"?: IntegrationsTRONSettingsInput | null
-  "alerts"?: IntegrationsIngestionAlertSettingsInput
-}
-
-export type IntegrationsRPCRoleRequirement = {
-  "role": string
-  "requiredProviders": number
-  "configuredProviders": number
-}
-
-export type IntegrationsTRONSettings = {
-  "ingestionMode"?: string
-  "attemptTimeoutMs": number
-  "readBudgetMs": number
-  "maxAttempts": number
-  "providerConcurrency": number
-  "backfillConcurrency": number
-  "requestsPerSecond": number
-  "maxResponseBytes": number
-}
-
-export type IntegrationsTRONSettingsInput = {
-  "ingestionMode"?: string
-  "attemptTimeoutMs"?: number
-  "readBudgetMs"?: number
-  "maxAttempts"?: number
-  "providerConcurrency"?: number
-  "backfillConcurrency"?: number
-  "requestsPerSecond"?: number
-  "maxResponseBytes"?: number
 }
 
 export type ListViewListResponse = Array<ListViewResponse>
@@ -4227,6 +4131,102 @@ export type RoleResponse = {
   "userCount"?: number
 }
 
+export type RpcconfigEVMSettings = {
+  "maxHeadAgeSeconds": number
+  "attemptTimeoutMs": number
+  "readBudgetMs": number
+  "logsTimeoutMs": number
+  "maxAttempts": number
+  "providerConcurrency": number
+  "backfillConcurrency": number
+  "requestsPerSecond": number
+  "nativeConcurrency": number
+  "prefetchBlocks": number
+  "maxResponseBytes": number
+  "maxBufferedBytes": number
+}
+
+export type RpcconfigEVMSettingsInput = {
+  "maxHeadAgeSeconds"?: number
+  "attemptTimeoutMs"?: number
+  "readBudgetMs"?: number
+  "logsTimeoutMs"?: number
+  "maxAttempts"?: number
+  "providerConcurrency"?: number
+  "backfillConcurrency"?: number
+  "requestsPerSecond"?: number
+  "nativeConcurrency"?: number
+  "prefetchBlocks"?: number
+  "maxResponseBytes"?: number
+  "maxBufferedBytes"?: number
+}
+
+export type RpcconfigIngestionAlertSettings = {
+  "maxLagSeconds": number
+  "fireAfterSeconds": number
+  "recoveryLagSeconds": number
+  "recoverAfterSeconds": number
+}
+
+export type RpcconfigIngestionAlertSettingsInput = {
+  "maxLagSeconds"?: number
+  "fireAfterSeconds"?: number
+  "recoveryLagSeconds"?: number
+  "recoverAfterSeconds"?: number
+}
+
+export type RpcconfigRPCConfigurationEndpoint = {
+  "id": string
+  "version": number
+  "name": string
+  "role": string
+  "providerId": string
+  "trustGroup": string
+  "isActive": boolean
+  "priority": number
+  "minRequestIntervalMs": number
+}
+
+export type RpcconfigRPCNetworkSettings = {
+  "evm"?: RpcconfigEVMSettings
+  "tron"?: RpcconfigTRONSettings
+  "alerts": RpcconfigIngestionAlertSettings
+}
+
+export type RpcconfigRPCNetworkSettingsInput = {
+  "evm"?: RpcconfigEVMSettingsInput | null
+  "tron"?: RpcconfigTRONSettingsInput | null
+  "alerts"?: RpcconfigIngestionAlertSettingsInput
+}
+
+export type RpcconfigRPCRoleRequirement = {
+  "role": string
+  "requiredProviders": number
+  "configuredProviders": number
+}
+
+export type RpcconfigTRONSettings = {
+  "ingestionMode"?: string
+  "attemptTimeoutMs": number
+  "readBudgetMs": number
+  "maxAttempts": number
+  "providerConcurrency": number
+  "backfillConcurrency": number
+  "requestsPerSecond": number
+  "maxResponseBytes": number
+}
+
+export type RpcconfigTRONSettingsInput = {
+  "ingestionMode"?: string
+  "attemptTimeoutMs"?: number
+  "readBudgetMs"?: number
+  "maxAttempts"?: number
+  "providerConcurrency"?: number
+  "backfillConcurrency"?: number
+  "requestsPerSecond"?: number
+  "maxResponseBytes"?: number
+}
+
 export type SearchPreviewField = {
   "label": string
   "value": string
@@ -4757,7 +4757,7 @@ export type UpdateCryptoRPCConfigurationRequest = {
   "expectedRevision": string
   "endpoints"?: Array<CryptoRPCConfigurationChange>
   "comment"?: string
-  "settings"?: IntegrationsRPCNetworkSettingsInput | null
+  "settings"?: RpcconfigRPCNetworkSettingsInput | null
 }
 
 export type UpdateCryptoRPCEndpointRequest = {

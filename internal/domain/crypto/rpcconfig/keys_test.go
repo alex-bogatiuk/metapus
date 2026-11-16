@@ -1,13 +1,15 @@
-package integrations
+package rpcconfig
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"metapus/internal/domain/integrations"
 )
 
 func TestRPCKeysOfAPool(t *testing.T) {
-	accounts := []RPCKeyAccount{
+	accounts := []integrations.AccountKeys{
 		{Name: "a", HasCredentials: true, Keys: []string{"primary", "archive"}},
 		{Name: "b", HasCredentials: true, Keys: []string{"archive"}},
 		{Name: "unconfigured"},

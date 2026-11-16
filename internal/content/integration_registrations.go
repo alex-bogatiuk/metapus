@@ -2,12 +2,13 @@ package content
 
 import (
 	"metapus/internal/domain"
+	"metapus/internal/domain/crypto/rpcconfig"
 	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"metapus/internal/infrastructure/storage/postgres/crypto_integration_repo"
 	"metapus/internal/metadata"
 )
 
@@ -36,7 +37,7 @@ func (*IntegrationAccountRegistration) SensitiveMutationAction() string {
 	return "system.integrations.write"
 }
 func (*IntegrationAccountRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
-	repo := catalog_repo.NewIntegrationAccountRepo()
+	repo := crypto_integration_repo.NewIntegrationAccountRepo()
 	service := integrations.NewAccountService(repo, deps.Numerator)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	domain.NewEventLogCatalogService(service, integrations.AccountDefinition.Key, deps.EventWriter)
@@ -64,7 +65,7 @@ func (*IntegrationPoolRegistration) SensitiveMutationAction() string {
 	return "system.integrations.write"
 }
 func (*IntegrationPoolRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
-	repo := catalog_repo.NewIntegrationPoolRepo()
+	repo := crypto_integration_repo.NewIntegrationPoolRepo()
 	service := integrations.NewPoolService(repo, deps.Numerator)
 	service.SetPolicyEngine(deps.PolicyEngine)
 	domain.NewEventLogCatalogService(service, integrations.PoolDefinition.Key, deps.EventWriter)
@@ -80,7 +81,7 @@ func (*IntegrationPoolRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHa
 }
 
 type CryptoRPCEndpointRegistration struct {
-	v1.CatalogRegistrationFor[integrations.RPCEndpoint, cryptodto.CreateCryptoRPCEndpointRequest, cryptodto.UpdateCryptoRPCEndpointRequest, cryptodto.CryptoRPCEndpointResponse]
+	v1.CatalogRegistrationFor[rpcconfig.RPCEndpoint, cryptodto.CreateCryptoRPCEndpointRequest, cryptodto.UpdateCryptoRPCEndpointRequest, cryptodto.CryptoRPCEndpointResponse]
 }
 
 func (*CryptoRPCEndpointRegistration) ReferenceTypes() []string {
@@ -94,12 +95,12 @@ func (*CryptoRPCEndpointRegistration) SensitiveMutationAction() string {
 	return "system.integrations.write"
 }
 func (*CryptoRPCEndpointRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
-	repo := catalog_repo.NewCryptoRPCEndpointRepo()
-	service := integrations.NewRPCEndpointService(repo, deps.Numerator)
+	repo := crypto_integration_repo.NewCryptoRPCEndpointRepo()
+	service := rpcconfig.NewRPCEndpointService(repo, deps.Numerator)
 	service.SetPolicyEngine(deps.PolicyEngine)
-	domain.NewEventLogCatalogService(service, integrations.RPCEndpointDefinition.Key, deps.EventWriter)
-	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[*integrations.RPCEndpoint, cryptodto.CreateCryptoRPCEndpointRequest, cryptodto.UpdateCryptoRPCEndpointRequest]{Service: service, EntityName: integrations.RPCEndpointDefinition.Key, MapCreateDTO: func(r cryptodto.CreateCryptoRPCEndpointRequest) *integrations.RPCEndpoint { return r.ToEntity() }, MapUpdateDTO: func(r cryptodto.UpdateCryptoRPCEndpointRequest, e *integrations.RPCEndpoint) *integrations.RPCEndpoint {
+	domain.NewEventLogCatalogService(service, rpcconfig.RPCEndpointDefinition.Key, deps.EventWriter)
+	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[*rpcconfig.RPCEndpoint, cryptodto.CreateCryptoRPCEndpointRequest, cryptodto.UpdateCryptoRPCEndpointRequest]{Service: service, EntityName: rpcconfig.RPCEndpointDefinition.Key, MapCreateDTO: func(r cryptodto.CreateCryptoRPCEndpointRequest) *rpcconfig.RPCEndpoint { return r.ToEntity() }, MapUpdateDTO: func(r cryptodto.UpdateCryptoRPCEndpointRequest, e *rpcconfig.RPCEndpoint) *rpcconfig.RPCEndpoint {
 		r.Apply(e)
 		return e
-	}, MapToDTO: func(e *integrations.RPCEndpoint) any { return cryptodto.CryptoRPCEndpointResponse{RPCEndpoint: *e} }})
+	}, MapToDTO: func(e *rpcconfig.RPCEndpoint) any { return cryptodto.CryptoRPCEndpointResponse{RPCEndpoint: *e} }})
 }

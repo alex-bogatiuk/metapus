@@ -28,8 +28,12 @@ func (r *IntegrationAccountRepo) writeWithUniqueKeys(ctx context.Context, a *int
 		if err := r.validateUniqueKeys(ctx, a); err != nil {
 			return err
 		}
-		if err := validateAccountRPCKeys(ctx, a); err != nil {
-			return err
+		if !a.DeletionMark && len(a.CredentialsEnc) > 0 {
+			for _, consumer := range r.consumers {
+				if err := consumer.ValidateAccount(ctx, a); err != nil {
+					return err
+				}
+			}
 		}
 		return write(ctx, a)
 	})

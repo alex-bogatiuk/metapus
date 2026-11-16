@@ -6,12 +6,12 @@ import (
 	"slices"
 
 	"github.com/gin-gonic/gin"
-	"metapus/internal/application/integrationapp"
+	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/core/security"
-	"metapus/internal/domain/integrations"
+	"metapus/internal/domain/crypto/rpcconfig"
 	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
@@ -19,10 +19,10 @@ import (
 
 type CryptoRPCConfigurationHandler struct {
 	*handlers.BaseHandler
-	service *integrationapp.RPCConfigurationService
+	service *cryptoapp.RPCConfigurationService
 }
 
-func NewCryptoRPCConfigurationHandler(service *integrationapp.RPCConfigurationService) *CryptoRPCConfigurationHandler {
+func NewCryptoRPCConfigurationHandler(service *cryptoapp.RPCConfigurationService) *CryptoRPCConfigurationHandler {
 	return &CryptoRPCConfigurationHandler{BaseHandler: handlers.NewBaseHandler(), service: service}
 }
 
@@ -32,7 +32,7 @@ func (h *CryptoRPCConfigurationHandler) RegisterRoutes(rg *gin.RouterGroup, guar
 	g.PATCH("/:networkId/rpc-configuration", middleware.RequirePermission("catalog:crypto_rpc_endpoint:update"), guard, middleware.CommandIdempotency(true), h.Update)
 }
 
-func rpcConfigurationResponse(ctx context.Context, state integrations.RPCConfiguration) cryptodto.CryptoRPCConfigurationResponse {
+func rpcConfigurationResponse(ctx context.Context, state rpcconfig.RPCConfiguration) cryptodto.CryptoRPCConfigurationResponse {
 	u := appctx.GetUser(ctx)
 	canManage := u != nil && (u.IsAdmin || slices.Contains(u.Permissions, "catalog:crypto_rpc_endpoint:update"))
 	if policy := security.GetFieldPolicy(ctx, "crypto_rpc_endpoint", "write"); policy != nil {

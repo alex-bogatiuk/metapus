@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"metapus/internal/domain/crypto"
-	"metapus/internal/domain/integrations"
+	"metapus/internal/domain/crypto/rpcconfig"
+	"metapus/internal/infrastructure/storage/postgres/crypto_integration_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/infrastructure/storage/postgres/integration_repo"
 )
 
 // IngestionObserver owns dedicated read adapters. It never starts watchers,
@@ -22,9 +22,9 @@ type IngestionObserver struct {
 
 type IngestionMonitorSnapshot struct {
 	IngestionPreflightResult
-	Inbox         map[string]crypto.IngestionInboxBacklog        `json:"inbox"`
-	AlertSettings map[string]integrations.IngestionAlertSettings `json:"alertSettings,omitempty"`
-	ReadError     bool                                           `json:"readError"`
+	Inbox         map[string]crypto.IngestionInboxBacklog     `json:"inbox"`
+	AlertSettings map[string]rpcconfig.IngestionAlertSettings `json:"alertSettings,omitempty"`
+	ReadError     bool                                        `json:"readError"`
 }
 
 func (p *CryptoProcessor) NewIngestionObserver(networkCode string) *IngestionObserver {
@@ -42,7 +42,7 @@ func (o *IngestionObserver) Read(ctx context.Context) (IngestionMonitorSnapshot,
 		snapshot.ReadError = true
 		return snapshot, errors.New("no active networks for ingestion observer")
 	}
-	snapshot.AlertSettings, err = integration_repo.LoadIngestionAlertSettings(ctx)
+	snapshot.AlertSettings, err = crypto_integration_repo.LoadIngestionAlertSettings(ctx)
 	if err != nil {
 		snapshot.ReadError = true
 		return snapshot, err

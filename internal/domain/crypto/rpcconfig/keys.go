@@ -1,4 +1,4 @@
-package integrations
+package rpcconfig
 
 import (
 	"fmt"
@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"metapus/internal/core/apperror"
+	"metapus/internal/core/id"
+	"metapus/internal/domain/integrations"
 )
 
 // An RPC endpoint reads one named key from whichever pool account is selected,
@@ -21,7 +23,7 @@ type RPCKeyUser struct {
 
 // RequireRPCKeys rejects a pool in which an account with credentials lacks a
 // key that one of its endpoints reads.
-func RequireRPCKeys(users []RPCKeyUser, accounts []RPCKeyAccount) error {
+func RequireRPCKeys(users []RPCKeyUser, accounts []integrations.AccountKeys) error {
 	for _, u := range users {
 		var missing []string
 		for _, a := range accounts {
@@ -38,7 +40,7 @@ func RequireRPCKeys(users []RPCKeyUser, accounts []RPCKeyAccount) error {
 }
 
 // CommonRPCKeyNames are the key names every account with credentials has, sorted.
-func CommonRPCKeyNames(accounts []RPCKeyAccount) []string {
+func CommonRPCKeyNames(accounts []integrations.AccountKeys) []string {
 	names := []string{}
 	first := true
 	for _, a := range accounts {
@@ -53,4 +55,20 @@ func CommonRPCKeyNames(accounts []RPCKeyAccount) []string {
 	}
 	slices.Sort(names)
 	return slices.Compact(names)
+}
+
+// RPCKeyOptions tells an endpoint form which account key it may read.
+// Required is set when the provider profile fixes the name; otherwise Names
+// lists the names every pool account with credentials has.
+type RPCKeyOptions struct {
+	Required string
+	Names    []string
+	Accounts []integrations.AccountKeys
+}
+
+type RPCKeyQuery struct {
+	PoolID    id.ID
+	NetworkID id.ID
+	Role      string
+	URL       string
 }

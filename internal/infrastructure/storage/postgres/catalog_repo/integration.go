@@ -20,10 +20,13 @@ import (
 
 type IntegrationAccountRepo struct {
 	*BaseCatalogRepo[*integrations.Account]
+	consumers []integrations.PoolConsumer
 }
 
-func NewIntegrationAccountRepo() *IntegrationAccountRepo {
-	return &IntegrationAccountRepo{NewCatalogRepoForDefinition[*integrations.Account](integrations.AccountDefinition, postgres.ExtractDBColumns[integrations.Account](), func() *integrations.Account { return &integrations.Account{} })}
+// NewIntegrationAccountRepo checks credential changes against the consumers
+// of the account's pools.
+func NewIntegrationAccountRepo(consumers ...integrations.PoolConsumer) *IntegrationAccountRepo {
+	return &IntegrationAccountRepo{NewCatalogRepoForDefinition[*integrations.Account](integrations.AccountDefinition, postgres.ExtractDBColumns[integrations.Account](), func() *integrations.Account { return &integrations.Account{} }), consumers}
 }
 func IntegrationEncryptionKey() ([]byte, error) {
 	s, err := secretfile.Get("AUTOMATION_ENCRYPTION_KEY", "")
@@ -126,18 +129,38 @@ func (r *IntegrationAccountRepo) Prepare(ctx context.Context, a *integrations.Ac
 
 type IntegrationPoolRepo struct {
 	*BaseCatalogRepo[*integrations.Pool]
+	consumers []integrations.PoolConsumer
 }
 
-func NewIntegrationPoolRepo() *IntegrationPoolRepo {
-	return &IntegrationPoolRepo{NewCatalogRepoForDefinition[*integrations.Pool](integrations.PoolDefinition, postgres.ExtractDBColumns[integrations.Pool](), func() *integrations.Pool { return &integrations.Pool{AccountIDs: []id.ID{}} })}
+// NewIntegrationPoolRepo keeps pools usable by their consumers: a used pool
+// cannot be deleted or change provider, and its members must satisfy them.
+func NewIntegrationPoolRepo(consumers ...integrations.PoolConsumer) *IntegrationPoolRepo {
+	return &IntegrationPoolRepo{NewCatalogRepoForDefinition[*integrations.Pool](integrations.PoolDefinition, postgres.ExtractDBColumns[integrations.Pool](), func() *integrations.Pool { return &integrations.Pool{AccountIDs: []id.ID{}} }), consumers}
+}
+
+// poolInUse reports whether exchange rate sources or a consumer read through the pool.
+func (r *IntegrationPoolRepo) poolInUse(ctx context.Context, poolID id.ID) (bool, error) {
+	var used bool
+	if err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM cat_rate_sources WHERE integration_pool_id=$1 AND NOT deletion_mark)`, poolID).Scan(&used); err != nil || used {
+		return used, err
+	}
+	for _, consumer := range r.consumers {
+		if used, err := consumer.UsesPool(ctx, poolID); err != nil || used {
+			return used, err
+		}
+	}
+	return false, nil
 }
 func (r *IntegrationPoolRepo) ValidateMembers(ctx context.Context, p *integrations.Pool) error {
 	if err := LockIntegrationConfiguration(ctx); err != nil {
 		return err
 	}
-	qcheck := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
-	var used, incompatible bool
-	if err := qcheck.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM sys_crypto_rpc_endpoints WHERE pool_id=$1 AND NOT deletion_mark) OR EXISTS(SELECT 1 FROM cat_rate_sources WHERE integration_pool_id=$1 AND NOT deletion_mark),EXISTS(SELECT 1 FROM cat_integration_pools WHERE id=$1 AND provider<>$2)`, p.ID, p.Provider).Scan(&used, &incompatible); err != nil {
+	used, err := r.poolInUse(ctx, p.ID)
+	if err != nil {
+		return err
+	}
+	var incompatible bool
+	if err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM cat_integration_pools WHERE id=$1 AND provider<>$2)`, p.ID, p.Provider).Scan(&incompatible); err != nil {
 		return err
 	}
 	if used && (p.DeletionMark || incompatible) {
@@ -156,7 +179,12 @@ func (r *IntegrationPoolRepo) ValidateMembers(ctx context.Context, p *integratio
 	if p.DeletionMark {
 		return nil
 	}
-	return validatePoolRPCKeys(ctx, p)
+	for _, consumer := range r.consumers {
+		if err := consumer.ValidatePool(ctx, p); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 func (r *IntegrationPoolRepo) saveMembers(ctx context.Context, p *integrations.Pool) error {
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
@@ -267,8 +295,8 @@ func (r *IntegrationPoolRepo) SetDeletionMark(ctx context.Context, uid id.ID, ma
 		if err := LockIntegrationConfiguration(ctx); err != nil {
 			return err
 		}
-		var used bool
-		if err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM sys_crypto_rpc_endpoints WHERE pool_id=$1 AND NOT deletion_mark) OR EXISTS(SELECT 1 FROM cat_rate_sources WHERE integration_pool_id=$1 AND NOT deletion_mark)`, uid).Scan(&used); err != nil {
+		used, err := r.poolInUse(ctx, uid)
+		if err != nil {
 			return err
 		}
 		if used {

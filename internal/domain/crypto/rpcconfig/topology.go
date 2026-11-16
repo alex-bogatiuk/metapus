@@ -1,4 +1,4 @@
-package integrations
+package rpcconfig
 
 import (
 	"crypto/sha256"
