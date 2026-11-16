@@ -25,13 +25,13 @@ type Contract struct {
 	entity.Catalog
 
 	// CounterpartyID is the reference to the counterparty
-	CounterpartyID id.ID `db:"counterparty_id" json:"counterpartyId" meta:"label:Контрагент"`
+	CounterpartyID id.ID `db:"counterparty_id" json:"counterpartyId" meta:"label:Контрагент,ref:counterparty" binding:"required"`
 
 	// Type defines the contract type
-	Type ContractType `db:"type" json:"type" meta:"label:Тип"`
+	Type ContractType `db:"type" json:"type" meta:"label:Тип" binding:"required"`
 
 	// CurrencyID is the optional currency for this contract
-	CurrencyID *id.ID `db:"currency_id" json:"currencyId,omitempty" meta:"label:Валюта"`
+	CurrencyID *id.ID `db:"currency_id" json:"currencyId,omitempty" meta:"label:Валюта,ref:currency"`
 
 	// ValidFrom is the start date of the contract
 	ValidFrom *time.Time `db:"valid_from" json:"validFrom,omitempty" meta:"label:Дата начала"`

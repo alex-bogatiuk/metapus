@@ -24,16 +24,6 @@ type RefDisplay struct {
 	Code string `json:"code,omitempty"`
 }
 
-// CurrencyRefDisplay extends RefDisplay with currency-specific fields.
-// Used in CurrencyAware document responses so the frontend knows how to
-// format monetary values (decimal places, symbol) without extra API calls.
-type CurrencyRefDisplay struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	DecimalPlaces int    `json:"decimalPlaces"`
-	Symbol        string `json:"symbol"`
-}
-
 // ReferenceResolver batch-resolves catalog IDs to display names.
 // It collects IDs per table, executes one SELECT per table, and returns a map.
 //

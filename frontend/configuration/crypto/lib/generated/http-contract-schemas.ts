@@ -367,6 +367,7 @@ export const CreateReceiptRefundRequestSchema: z.ZodType<Wire.CreateReceiptRefun
 export const CreateTokenRequestSchema: z.ZodType<Wire.CreateTokenRequest> = z.lazy(() => z.strictObject({
   "code": z.string().optional(),
   "name": z.string(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "networkId": z.string(),
   "contractAddress": z.string().optional(),
   "symbol": z.string(),
@@ -377,9 +378,6 @@ export const CreateTokenRequestSchema: z.ZodType<Wire.CreateTokenRequest> = z.la
   "sweepThreshold": z.string().optional(),
   "sweepMaxAgeHours": z.number().int().optional(),
   "sweepRetainAmount": z.string().optional(),
-  "parentId": z.string().nullable().optional(),
-  "isFolder": z.boolean().optional(),
-  "attributes": z.record(z.string(), jsonValueSchema).optional(),
 }))
 
 export const CreateTreasuryAddressRequestSchema: z.ZodType<Wire.CreateTreasuryAddressRequest> = z.lazy(() => z.strictObject({
@@ -1154,8 +1152,11 @@ export const CryptoTokenCursorResponseSchema: z.ZodType<Wire.CryptoTokenCursorRe
 
 export const CryptoTokenResponseSchema: z.ZodType<Wire.CryptoTokenResponse> = z.lazy(() => z.object({
   "id": z.string(),
+  "version": z.number().int(),
+  "deletionMark": z.boolean(),
   "code": z.string(),
   "name": z.string(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "networkId": z.string(),
   "contractAddress": z.string(),
   "symbol": z.string(),
@@ -1166,11 +1167,6 @@ export const CryptoTokenResponseSchema: z.ZodType<Wire.CryptoTokenResponse> = z.
   "sweepThreshold": z.string(),
   "sweepMaxAgeHours": z.number().int(),
   "sweepRetainAmount": z.string(),
-  "parentId": z.string().optional(),
-  "isFolder": z.boolean(),
-  "deletionMark": z.boolean(),
-  "version": z.number().int(),
-  "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "network": Platform.PostgresRefDisplaySchema.optional(),
   "currency": Platform.PostgresRefDisplaySchema.optional(),
 }))
@@ -2867,6 +2863,7 @@ export const UpdatePortalSettingsRequestSchema: z.ZodType<Wire.UpdatePortalSetti
 export const UpdateTokenRequestSchema: z.ZodType<Wire.UpdateTokenRequest> = z.lazy(() => z.strictObject({
   "code": z.string().optional(),
   "name": z.string(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "networkId": z.string(),
   "contractAddress": z.string().optional(),
   "symbol": z.string(),
@@ -2877,9 +2874,6 @@ export const UpdateTokenRequestSchema: z.ZodType<Wire.UpdateTokenRequest> = z.la
   "sweepThreshold": z.string().optional(),
   "sweepMaxAgeHours": z.number().int().optional(),
   "sweepRetainAmount": z.string().optional(),
-  "parentId": z.string().nullable().optional(),
-  "isFolder": z.boolean().optional(),
-  "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "version": z.number().int(),
 }))
 

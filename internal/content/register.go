@@ -41,10 +41,10 @@ func RegisterDefaults(reg *v1.FactoryRegistry, services ...Services) {
 // RegisterPlatform registers the platform's applied entities: the shared
 // catalogs, integrations and exchange rates that any configuration uses.
 func RegisterPlatform(reg *v1.FactoryRegistry) {
-	reg.RegisterCatalog(&CounterpartyRegistration{})
-	reg.RegisterCatalog(&CurrencyRegistration{})
-	reg.RegisterCatalog(&OrganizationRegistration{})
-	reg.RegisterCatalog(&ContractRegistration{})
+	reg.RegisterCatalog(counterpartyRegistration())
+	reg.RegisterCatalog(currencyRegistration())
+	reg.RegisterCatalog(organizationRegistration())
+	reg.RegisterCatalog(contractRegistration())
 	reg.RegisterCatalog(&IntegrationAccountRegistration{})
 	reg.RegisterCatalog(&IntegrationPoolRegistration{})
 	reg.RegisterCatalog(&RateSourceRegistration{})
@@ -56,7 +56,7 @@ func RegisterPlatform(reg *v1.FactoryRegistry) {
 func registerCryptoEntities(reg *v1.FactoryRegistry, svc Services) {
 	reg.RegisterCatalog(&CryptoRPCEndpointRegistration{})
 	reg.RegisterCatalog(&BlockchainNetworkRegistration{})
-	reg.RegisterCatalog(&TokenRegistration{})
+	reg.RegisterCatalog(tokenRegistration())
 	reg.RegisterCatalog(&MerchantRegistration{})
 	reg.RegisterCatalog(&WalletRegistration{})
 	reg.RegisterCatalog(&CryptoProviderAccountRegistration{})

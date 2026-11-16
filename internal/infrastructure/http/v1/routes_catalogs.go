@@ -85,8 +85,8 @@ func registerCatalogRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *Fa
 		if rls, ok := factory.(platform.RLSProvider); ok {
 			def.RLSDimensions = rls.RLSDimensions()
 		}
-		if sf, ok := factory.(platform.SearchFieldsProvider); ok {
-			fields := sf.SearchableFields()
+		if sf, ok := searchableFields(factory); ok {
+			fields := sf
 			def.SearchColumns = &metadata.SearchColumns{
 				SearchCols:  fields.SearchCols,
 				TitleCol:    fields.TitleCol,
@@ -95,4 +95,16 @@ func registerCatalogRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *Fa
 		}
 		reg.Register(def)
 	}
+}
+
+// searchableFields returns the global-search columns of a catalog: those of a
+// SearchFieldsProvider, or those a declared catalog set with Search.
+func searchableFields(factory CatalogRegistration) (platform.SearchFields, bool) {
+	if sf, ok := factory.(platform.SearchFieldsProvider); ok {
+		return sf.SearchableFields(), true
+	}
+	if auto, ok := factory.(autoSearchable); ok && auto.searchFields() != nil {
+		return *auto.searchFields(), true
+	}
+	return platform.SearchFields{}, false
 }

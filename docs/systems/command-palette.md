@@ -245,17 +245,16 @@ Headers: Authorization: Bearer <token>, X-Tenant-ID: <uuid>
 ### Расширение поисковых полей (SearchFieldsProvider)
 
 По умолчанию все справочники ищутся по `name` + `code`, документы — по `number`.
-Чтобы добавить свои поля, фабрика реализует интерфейс `platform.SearchFieldsProvider`:
+Чтобы добавить свои поля, декларативная регистрация вызывает `.Search(...)`, а явная фабрика реализует интерфейс `platform.SearchFieldsProvider`:
 
 ```go
 // internal/content/catalog_registrations.go
-func (r *CounterpartyRegistration) SearchableFields() platform.SearchFields {
-    return platform.SearchFields{
+v1.Catalog[counterparty.Counterparty](presentation).
+    Search(platform.SearchFields{
         SearchCols:  []string{"name", "code", "inn", "phone", "email"},
         TitleCol:    "name",
         SubtitleCol: "code",
-    }
-}
+    })
 ```
 
 **Контракт `platform.SearchFields`:**

@@ -27,6 +27,8 @@ func NewService(repo Repository, numerator numerator.Generator) *Service {
 		repo:           repo,
 		numerator:      numerator,
 	}
+	base.Hooks().OnBeforeCreate(func(_ context.Context, org *Organization) error { org.normalize(); return nil })
+	base.Hooks().OnBeforeUpdate(func(_ context.Context, org *Organization) error { org.normalize(); return nil })
 
 	return svc
 }

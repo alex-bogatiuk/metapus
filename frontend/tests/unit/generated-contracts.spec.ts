@@ -4,11 +4,11 @@ import { CreateCryptoInvoiceRequestSchema } from "../../configuration/crypto/lib
 import { cursorListSchema } from "../../lib/schemas/documents"
 
 test("generated schemas distinguish omitted, nullable and required zero-valued fields", () => {
-  const currency = { id: "id", code: "X", name: "Name", isoCode: null, symbol: null, decimalPlaces: 0, isBase: false, isFolder: false, deletionMark: false, version: 0 }
+  const currency = { id: "id", code: "X", name: "Name", isoCode: null, symbol: null, decimalPlaces: 0, isBase: false, deletionMark: false, version: 0 }
   expect(CurrencyResponseSchema.parse(currency)).toEqual(currency)
   expect(CurrencyResponseSchema.safeParse({ ...currency, decimalPlaces: "0" }).success).toBe(false)
   expect(CurrencyResponseSchema.safeParse({ ...currency, version: undefined }).success).toBe(false)
-  expect(CurrencyResponseSchema.safeParse({ ...currency, parentId: null }).success).toBe(false)
+  expect(CurrencyResponseSchema.safeParse({ ...currency, country: null }).success).toBe(false)
   const list = cursorListSchema(CurrencyResponseSchema)
   expect(list.safeParse({ items: [currency], hasMore: false, hasPrev: false, totalCount: null }).success).toBe(true)
   expect(list.safeParse({ items: [{ ...currency, decimalPlaces: "2" }], hasMore: false, hasPrev: false, totalCount: 1 }).success).toBe(false)

@@ -365,6 +365,7 @@ export type CreateReceiptRefundRequest = {
 export type CreateTokenRequest = {
   "code"?: string
   "name": string
+  "attributes"?: Record<string, JsonValue>
   "networkId": string
   "contractAddress"?: string
   "symbol": string
@@ -375,9 +376,6 @@ export type CreateTokenRequest = {
   "sweepThreshold"?: string
   "sweepMaxAgeHours"?: number
   "sweepRetainAmount"?: string
-  "parentId"?: string | null
-  "isFolder"?: boolean
-  "attributes"?: Record<string, JsonValue>
 }
 
 export type CreateTreasuryAddressRequest = {
@@ -1152,8 +1150,11 @@ export type CryptoTokenCursorResponse = {
 
 export type CryptoTokenResponse = {
   "id": string
+  "version": number
+  "deletionMark": boolean
   "code": string
   "name": string
+  "attributes"?: Record<string, JsonValue>
   "networkId": string
   "contractAddress": string
   "symbol": string
@@ -1164,11 +1165,6 @@ export type CryptoTokenResponse = {
   "sweepThreshold": string
   "sweepMaxAgeHours": number
   "sweepRetainAmount": string
-  "parentId"?: string
-  "isFolder": boolean
-  "deletionMark": boolean
-  "version": number
-  "attributes"?: Record<string, JsonValue>
   "network"?: Platform.PostgresRefDisplay
   "currency"?: Platform.PostgresRefDisplay
 }
@@ -2865,6 +2861,7 @@ export type UpdatePortalSettingsRequest = {
 export type UpdateTokenRequest = {
   "code"?: string
   "name": string
+  "attributes"?: Record<string, JsonValue>
   "networkId": string
   "contractAddress"?: string
   "symbol": string
@@ -2875,9 +2872,6 @@ export type UpdateTokenRequest = {
   "sweepThreshold"?: string
   "sweepMaxAgeHours"?: number
   "sweepRetainAmount"?: string
-  "parentId"?: string | null
-  "isFolder"?: boolean
-  "attributes"?: Record<string, JsonValue>
   "version": number
 }
 

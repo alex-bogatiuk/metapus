@@ -19,13 +19,13 @@ type Currency struct {
 	entity.Catalog
 
 	// ISOCode is the ISO 4217 alphabetic code or crypto ticker (e.g., "USD", "PYUSD").
-	ISOCode *string `db:"iso_code" json:"isoCode" meta:"label:ISO-код / тикер"`
+	ISOCode *string `db:"iso_code" json:"isoCode" meta:"label:ISO-код / тикер" binding:"required"`
 
 	// ISONumericCode is an optional three-digit ISO 4217 code (e.g., "840", "008").
 	ISONumericCode *string `db:"iso_numeric_code" json:"isoNumericCode,omitempty" meta:"label:Цифровой код ISO (3 цифры)"`
 
 	// Symbol is the currency symbol (e.g., "$", "€", "₽")
-	Symbol *string `db:"symbol" json:"symbol" meta:"label:Символ"`
+	Symbol *string `db:"symbol" json:"symbol" meta:"label:Символ" binding:"required"`
 
 	// DecimalPlaces is the number of decimal places
 	DecimalPlaces int `db:"decimal_places" json:"decimalPlaces" meta:"label:Знаков после запятой"`

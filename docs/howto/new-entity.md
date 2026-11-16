@@ -14,8 +14,7 @@
 | Модель и интерфейс repository | `internal/domain/catalogs/counterparty/model.go`, `repo.go` |
 | Сервис и хуки | `internal/domain/catalogs/counterparty/service.go` |
 | PostgreSQL | `internal/infrastructure/storage/postgres/catalog_repo/counterparty.go` |
-| DTO | `internal/infrastructure/http/v1/dto/counterparty.go` |
-| Фабрика | `CounterpartyRegistration` в `internal/content/catalog_registrations.go` |
+| Регистрация | `counterpartyRegistration()` в `internal/content/catalog_registrations.go`: `v1.Catalog` на собственном сервисе, DTO и контракты выводятся из модели |
 | Таблица | `db/migrations/00003_catalogs.sql` |
 
 Domain-модель находится в `internal/domain/catalogs/<name>/`, регистрации — в `internal/content/`. Клиентское расширение размещается в `extensions/<name>/` внутри Go-модуля Metapus. Доступны базовые типы `internal/core/entity` и совместимые aliases в `internal/platform`; `pkg/extension` пока содержит только версию API.
@@ -50,12 +49,12 @@ go run ./cmd/scaffold --name vehicle --type catalog --table cat_vehicles
 
 - Встройте `catalog_repo.BaseCatalogRepo[*YourEntity]`. Создавайте его через `NewCatalogRepoForDefinition`: Definition задаёт table, logical key и полную hierarchy policy; отдельно передаются select columns и фабрика объекта. RLS dimensions и reference fields подключаются по аналогу.
 - Встройте `domain.CatalogService[*YourEntity]`; настройте `CatalogServiceConfig`. `BeforeCreate/Update` выполняются в транзакции. Обязательные audit/outbox эффекты регистрируются на `Transaction*`, необязательные — на `After*` после внешнего коммита.
-- Опишите Create/Update/Response DTO и mapper-функции. Update передаёт ожидаемую `version`; не принимайте серверные поля через AutoForm.
-- Используйте `handlers.NewCatalogHandler` с `CatalogHandlerConfig[T, CreateDTO, UpdateDTO]`, `deps.BaseHandler` и service; настройте read projection по аналогу.
+- DTO не пишутся: запросы и ответ выводятся из модели ([правило](../systems/extension-api.md#2-регистрация-новых-сущностей)). Поле, которое заполняет только сервер, пометьте `meta:"readOnly:true"`; обязательное — `binding:"required"`; ссылку — `meta:"ref:<ключ>"`, тогда ответ содержит её представление. Значения по умолчанию и нормализация — в хуках сервиса, а не в DTO.
+- Свои DTO с `handlers.NewCatalogHandler` нужны, только если справочник не укладывается в правило: секреты только для записи, вычисляемые поля ответа, коллекции, поля, которые можно менять лишь при изменении. Так устроены кошельки, мерчанты, сети, интеграции и источники курсов.
 
 ## 4. Фабрика, права и HTTP-контракт
 
-Модель реализует `EntityDefinition() entity.Definition`. Регистрация встраивает `v1.CatalogRegistrationFor[Model, CreateDTO, UpdateDTO, ResponseDTO]`: этот generic выводит identity, структуру metadata и стандартные HTTP-контракты из модели и конкретных DTO. Реализуйте `Build(deps v1.CatalogDeps)`, presentation, reference aliases, RLS/search declarations по необходимости. Это один путь для встроенных справочников и расширений.
+Модель реализует `EntityDefinition() entity.Definition`. Регистрация — `v1.Catalog[Model](presentation)`; собственный сервис со своим репозиторием подключает `.Service(func(deps v1.CatalogDeps) *domain.CatalogService[*Model] { ... })`, псевдонимы ссылок — `.References(...)`, поисковые колонки — `.Search(...)`, имя ответа при конфликте — `.ResponseName(...)`. Явная регистрация `v1.CatalogRegistrationFor[Model, CreateDTO, UpdateDTO, ResponseDTO]` с `Build` остаётся для справочников вне правила. Оба пути общие для встроенных справочников и расширений.
 
 Встроенную фабрику подключите в `internal/content/register.go` через `RegisterCatalog`. Расширение подключается в composition root. Права стандартных действий создаются из регистрации при `cmd/tenant migrate` и выдаются роли admin ([RBAC](../systems/auth-security.md#2-rbac-role-based-access-control)); назначения другим ролям и права рукописных маршрутов добавьте в seed. Регистрация metadata не выдаёт пользователю право доступа.
 

@@ -20,10 +20,10 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/core/security"
+	"metapus/internal/domain"
 	"metapus/internal/domain/catalogs/counterparty"
 	"metapus/internal/domain/security_profile"
 	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
@@ -43,17 +43,13 @@ func TestCatalogPresenterMasksEveryResponseAndReauthorizesReplay(t *testing.T) {
 	require.NoError(t, err)
 	defer engine.Stop()
 	reads := postgres.NewAuthorizedReadService(reg, engine)
-	svc := counterparty.NewService(catalog_repo.NewCounterpartyRepo(), nil)
-	svc.SetPolicyEngine(engine)
-	h := handlers.NewCatalogHandler(handlers.NewBaseHandler(), handlers.CatalogHandlerConfig[*counterparty.Counterparty, dto.CreateCounterpartyRequest, dto.UpdateCounterpartyRequest]{
-		Service: svc.CatalogService, EntityName: "counterparty",
-		MapCreateDTO: func(req dto.CreateCounterpartyRequest) *counterparty.Counterparty { return req.ToEntity() },
-		MapUpdateDTO: func(req dto.UpdateCounterpartyRequest, old *counterparty.Counterparty) *counterparty.Counterparty {
-			req.ApplyTo(old)
-			return old
-		},
-		MapToDTO: func(row *counterparty.Counterparty) any { return dto.FromCounterparty(row) },
-	})
+	// The counterparty catalog as the application declares it: derived DTOs
+	// on its own domain service.
+	h := v1.Catalog[counterparty.Counterparty](metadata.Presentation{Plural: "Контрагенты"}).
+		Service(func(v1.CatalogDeps) *domain.CatalogService[*counterparty.Counterparty] {
+			return counterparty.NewService(catalog_repo.NewCounterpartyRepo(), nil).CatalogService
+		}).
+		Build(v1.CatalogDeps{BaseHandler: handlers.NewBaseHandler(), PolicyEngine: engine})
 	router := gin.New()
 	router.Use(middleware.ErrorHandler())
 	router.Use(func(c *gin.Context) {
@@ -85,7 +81,10 @@ func TestCatalogPresenterMasksEveryResponseAndReauthorizesReplay(t *testing.T) {
 	first := request(masked, http.MethodPost, "/counterparties", body, "create-presenter")
 	require.Equal(t, http.StatusCreated, first.Code, first.Body.String())
 	require.NotContains(t, first.Body.String(), "private-comment")
-	var created dto.CounterpartyResponse
+	var created struct {
+		ID      string `json:"id"`
+		Version int    `json:"version"`
+	}
 	require.NoError(t, json.Unmarshal(first.Body.Bytes(), &created))
 	require.NotEmpty(t, created.ID)
 	var stored string

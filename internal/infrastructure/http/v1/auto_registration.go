@@ -16,6 +16,7 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
 	"metapus/internal/metadata"
+	"metapus/internal/platform"
 )
 
 // Declarative registration: an applied module declares a model and registers
@@ -50,9 +51,14 @@ type documentModel[T any] interface {
 // AutoCatalog is a catalog registration derived from its model.
 type AutoCatalog[T entity.DefinitionProvider, PT catalogModel[T]] struct {
 	EntityRegistration[T]
+	autoRegistry
 	presentation metadata.Presentation
 	codePrefix   string
 	configure    []func(*domain.CatalogService[PT])
+	service      func(CatalogDeps) *domain.CatalogService[PT]
+	references   []string
+	search       *platform.SearchFields
+	responseName string
 }
 
 // Catalog declares a catalog from its model T, which embeds entity.Catalog
@@ -76,42 +82,90 @@ func (r *AutoCatalog[T, PT]) Configure(fn func(*domain.CatalogService[PT])) *Aut
 	return r
 }
 
+// Service builds the catalog on the entity's own domain service (its
+// repository, hooks and business rules) instead of the generic one; the
+// registration still derives DTOs, routes, contracts, event log and policies.
+func (r *AutoCatalog[T, PT]) Service(build func(CatalogDeps) *domain.CatalogService[PT]) *AutoCatalog[T, PT] {
+	r.service = build
+	return r
+}
+
+// References replaces the reference keys other models use for this catalog in
+// meta:"ref:<key>"; by default the entity key.
+func (r *AutoCatalog[T, PT]) References(keys ...string) *AutoCatalog[T, PT] {
+	r.references = keys
+	return r
+}
+
+// ResponseName names the response contract when the standard <Name>Response
+// is taken by another contract; the list and tree contracts follow it.
+func (r *AutoCatalog[T, PT]) ResponseName(name string) *AutoCatalog[T, PT] {
+	r.responseName = name
+	return r
+}
+
+// Search sets the columns the global search matches and shows; without it a
+// catalog is searched by name and code.
+func (r *AutoCatalog[T, PT]) Search(fields platform.SearchFields) *AutoCatalog[T, PT] {
+	r.search = &fields
+	return r
+}
+
 func (r *AutoCatalog[T, PT]) EntityPresentation() metadata.Presentation { return r.presentation }
-func (r *AutoCatalog[T, PT]) ReferenceTypes() []string                  { return []string{r.EntityDefinition().Key} }
+func (r *AutoCatalog[T, PT]) EntityLabel() string                       { return r.presentation.Plural }
+func (r *AutoCatalog[T, PT]) ReferenceTypes() []string {
+	if len(r.references) > 0 {
+		return r.references
+	}
+	return []string{r.EntityDefinition().Key}
+}
+
+// SearchableFields is declared only through Search; see autoSearchable.
+func (r *AutoCatalog[T, PT]) searchFields() *platform.SearchFields { return r.search }
 
 func (r *AutoCatalog[T, PT]) HTTPContracts() spec.Bundle {
 	shape := autoShapeFor[T]()
-	return spec.EntityOf(r.EntityDefinition(), metadata.DocumentCapabilities{}, shape.create, shape.update, shape.read)
+	return spec.EntityOf(r.EntityDefinition(), metadata.DocumentCapabilities{}, shape.create, shape.update, shape.read, r.responseName)
 }
 
 func (r *AutoCatalog[T, PT]) Build(deps CatalogDeps) CatalogRouteHandler {
 	def := r.EntityDefinition()
 	shape := autoShapeFor[T]()
-	repo := catalog_repo.NewCatalogRepoForDefinition(def, postgres.ExtractDBColumns[T](), func() PT { return new(T) })
-	service := domain.NewCatalogService(domain.CatalogServiceConfig[PT]{Definition: &def, Repo: repo, Numerator: deps.Numerator, PolicyEngine: deps.PolicyEngine})
-	prefix := r.codePrefix
-	if prefix == "" {
-		prefix = autoCodePrefix(def.Key)
-	}
-	service.Hooks().OnBeforeCreate(func(ctx context.Context, model PT) error {
-		code := reflect.ValueOf(model).Elem().FieldByName("Code")
-		if code.String() != "" || deps.Numerator == nil {
+	var service *domain.CatalogService[PT]
+	if r.service != nil {
+		service = r.service(deps)
+		service.SetPolicyEngine(deps.PolicyEngine)
+	} else {
+		repo := catalog_repo.NewCatalogRepoForDefinition(def, postgres.ExtractDBColumns[T](), func() PT { return new(T) })
+		service = domain.NewCatalogService(domain.CatalogServiceConfig[PT]{Definition: &def, Repo: repo, Numerator: deps.Numerator, PolicyEngine: deps.PolicyEngine})
+		prefix := r.codePrefix
+		if prefix == "" {
+			prefix = autoCodePrefix(def.Key)
+		}
+		service.Hooks().OnBeforeCreate(func(ctx context.Context, model PT) error {
+			code := reflect.ValueOf(model).Elem().FieldByName("Code")
+			if code.String() != "" || deps.Numerator == nil {
+				return nil
+			}
+			next, err := deps.Numerator.GetNextNumber(ctx, numerator.DefaultConfig(prefix), nil, time.Now())
+			if err != nil {
+				return fmt.Errorf("generate code: %w", err)
+			}
+			code.SetString(next)
 			return nil
-		}
-		next, err := deps.Numerator.GetNextNumber(ctx, numerator.DefaultConfig(prefix), nil, time.Now())
-		if err != nil {
-			return fmt.Errorf("generate code: %w", err)
-		}
-		code.SetString(next)
-		return nil
-	})
+		})
+	}
 	for _, fn := range r.configure {
 		fn(service)
 	}
 	domain.NewEventLogCatalogService(service, def.Key, deps.EventWriter)
+	tables := r.referenceTables(shape)
+	resolveRefs, mapWithRefs := autoReferenceMappers[PT](shape, tables)
 	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[PT, AutoCreate[T], AutoUpdate[T]]{
-		Service:    service,
-		EntityName: def.Key,
+		Service:          service,
+		EntityName:       def.Key,
+		ResolveRefs:      resolveRefs,
+		MapToDTOWithRefs: mapWithRefs,
 		MapCreateDTO: func(req AutoCreate[T]) PT {
 			model := newAutoModel[T](req.value, entity.CatalogKind)
 			shape.applyAutoRequest(req.value, model)
@@ -122,7 +176,7 @@ func (r *AutoCatalog[T, PT]) Build(deps CatalogDeps) CatalogRouteHandler {
 			reflect.ValueOf(existing).Elem().FieldByName("Version").SetInt(req.value.FieldByName("Version").Int())
 			return existing
 		},
-		MapToDTO: func(model PT) any { return shape.response(model) },
+		MapToDTO: func(model PT) any { return shape.response(model, tables, nil) },
 	})
 }
 
@@ -135,6 +189,7 @@ var autoDocumentCapabilities = metadata.DocumentCapabilities{
 // AutoDocument is a header-only document registration derived from its model.
 type AutoDocument[T entity.DefinitionProvider, PT documentModel[T]] struct {
 	EntityRegistration[T]
+	autoRegistry
 	presentation metadata.Presentation
 	numberPrefix string
 	configure    []func(*domain.BaseHeaderDocumentService[PT])
@@ -168,7 +223,7 @@ func (r *AutoDocument[T, PT]) DocumentCapabilities() metadata.DocumentCapabiliti
 
 func (r *AutoDocument[T, PT]) HTTPContracts() spec.Bundle {
 	shape := autoShapeFor[T]()
-	return spec.EntityOf(r.EntityDefinition(), r.DocumentCapabilities(), shape.create, shape.update, shape.read)
+	return spec.EntityOf(r.EntityDefinition(), r.DocumentCapabilities(), shape.create, shape.update, shape.read, "")
 }
 
 func (r *AutoDocument[T, PT]) Build(deps DocumentDeps) DocumentRouteHandler {
@@ -187,9 +242,13 @@ func (r *AutoDocument[T, PT]) Build(deps DocumentDeps) DocumentRouteHandler {
 		fn(service)
 	}
 	decorated := domain.WithEventLog[PT](def.Key, deps.EventWriter)(service)
+	tables := r.referenceTables(shape)
+	resolveRefs, mapWithRefs := autoReferenceMappers[PT](shape, tables)
 	return handlers.NewBaseDocumentHandler(deps.BaseHandler, handlers.BaseDocumentHandlerConfig[PT, AutoCreate[T], AutoUpdate[T]]{
-		Service:    decorated,
-		EntityName: def.Key,
+		Service:          decorated,
+		EntityName:       def.Key,
+		ResolveRefs:      resolveRefs,
+		MapToDTOWithRefs: mapWithRefs,
 		MapCreateDTO: func(req AutoCreate[T]) (PT, error) {
 			model := newAutoModel[T](req.value, entity.DocumentKind)
 			shape.applyAutoRequest(req.value, model)
@@ -200,7 +259,7 @@ func (r *AutoDocument[T, PT]) Build(deps DocumentDeps) DocumentRouteHandler {
 			reflect.ValueOf(existing).Elem().FieldByName("Version").SetInt(req.value.FieldByName("Version").Int())
 			return existing, nil
 		},
-		MapToDTO:            func(model PT) any { return shape.response(model) },
+		MapToDTO:            func(model PT) any { return shape.response(model, tables, nil) },
 		IsPostImmediately:   func(req AutoCreate[T]) bool { return req.value.FieldByName("PostImmediately").Bool() },
 		MovementProviders:   deps.MovementProviders,
 		MovementRefResolver: deps.MovementRefResolver,
@@ -223,3 +282,69 @@ func autoCodePrefix(key string) string {
 	}
 	return strings.ToUpper(prefix.String())
 }
+
+// autoRegistry gives a declared registration the registry it was added to, so
+// Build can find the tables of the entities its references point to.
+type autoRegistry struct{ registry *FactoryRegistry }
+
+func (a *autoRegistry) bindRegistry(r *FactoryRegistry) { a.registry = r }
+
+// referenceTables maps each reference key of the shape to the table of the
+// registered catalog or document that answers to it (its entity key or one
+// of its ReferenceTypes). An unknown key is a declaration error.
+func (a *autoRegistry) referenceTables(shape *autoShape) map[string]string {
+	tables := map[string]string{}
+	if len(shape.refs) == 0 {
+		return tables
+	}
+	known := map[string]string{}
+	if a.registry != nil {
+		add := func(reg any, def entity.Definition) {
+			known[def.Key] = def.Table
+			if provider, ok := reg.(platform.ReferenceProvider); ok {
+				for _, key := range provider.ReferenceTypes() {
+					if _, taken := known[key]; !taken {
+						known[key] = def.Table
+					}
+				}
+			}
+		}
+		for _, c := range a.registry.catalogs {
+			add(c, c.EntityDefinition())
+		}
+		for _, d := range a.registry.documents {
+			add(d, d.EntityDefinition())
+		}
+	}
+	for _, ref := range shape.refs {
+		table, ok := known[ref.key]
+		if !ok {
+			panic(fmt.Sprintf("declared reference %s → %q: no registered entity answers to this key", ref.field, ref.key))
+		}
+		tables[ref.key] = table
+	}
+	return tables
+}
+
+// autoReferenceMappers resolves the shape's references for a page of models
+// through the authorized reference reader; nil when it has none.
+func autoReferenceMappers[PT any](shape *autoShape, tables map[string]string) (func(context.Context, ...PT) (any, error), func(PT, any) any) {
+	if len(shape.refs) == 0 {
+		return nil, nil
+	}
+	resolve := func(ctx context.Context, models ...PT) (any, error) {
+		resolver := postgres.NewReferenceResolver()
+		for _, model := range models {
+			shape.collectRefs(resolver, tables, model)
+		}
+		return resolver.Resolve(ctx, nil)
+	}
+	mapWithRefs := func(model PT, refs any) any {
+		resolved, _ := refs.(postgres.ResolvedRefs)
+		return shape.response(model, tables, resolved)
+	}
+	return resolve, mapWithRefs
+}
+
+// autoSearchable is implemented by declared catalogs that set Search.
+type autoSearchable interface{ searchFields() *platform.SearchFields }

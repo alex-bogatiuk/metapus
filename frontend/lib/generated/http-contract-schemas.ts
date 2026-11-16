@@ -345,8 +345,11 @@ export const ContractReportTotalSchema: z.ZodType<Wire.ContractReportTotal> = z.
 
 export const ContractResponseSchema: z.ZodType<Wire.ContractResponse> = z.lazy(() => z.object({
   "id": z.string(),
+  "version": z.number().int(),
+  "deletionMark": z.boolean(),
   "code": z.string(),
   "name": z.string(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "counterpartyId": z.string(),
   "type": z.string(),
   "currencyId": z.string().optional(),
@@ -354,13 +357,8 @@ export const ContractResponseSchema: z.ZodType<Wire.ContractResponse> = z.lazy((
   "validTo": z.string().optional(),
   "paymentTermDays": z.number().int(),
   "description": z.string().optional(),
-  "parentId": z.string().optional(),
-  "isFolder": z.boolean(),
-  "deletionMark": z.boolean(),
-  "version": z.number().int(),
-  "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "counterparty": PostgresRefDisplaySchema.optional(),
-  "currency": PostgresCurrencyRefDisplaySchema.optional(),
+  "currency": PostgresRefDisplaySchema.optional(),
 }))
 
 export const ContractTreeResponseSchema: z.ZodType<Wire.ContractTreeResponse> = z.lazy(() => z.array(ContractResponseSchema))
@@ -377,8 +375,13 @@ export const CounterpartyCursorResponseSchema: z.ZodType<Wire.CounterpartyCursor
 
 export const CounterpartyResponseSchema: z.ZodType<Wire.CounterpartyResponse> = z.lazy(() => z.object({
   "id": z.string(),
+  "version": z.number().int(),
+  "deletionMark": z.boolean(),
   "code": z.string(),
   "name": z.string(),
+  "parentId": z.string().optional(),
+  "isFolder": z.boolean(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "type": z.string(),
   "legalForm": z.string(),
   "fullName": z.string().nullable(),
@@ -391,11 +394,6 @@ export const CounterpartyResponseSchema: z.ZodType<Wire.CounterpartyResponse> = 
   "email": z.string().optional(),
   "contactPerson": z.string().optional(),
   "comment": z.string().optional(),
-  "parentId": z.string().optional(),
-  "isFolder": z.boolean(),
-  "deletionMark": z.boolean(),
-  "version": z.number().int(),
-  "attributes": z.record(z.string(), jsonValueSchema).optional(),
 }))
 
 export const CounterpartyTreeResponseSchema: z.ZodType<Wire.CounterpartyTreeResponse> = z.lazy(() => z.array(CounterpartyResponseSchema))
@@ -447,6 +445,7 @@ export const CreateCatalogRequestSchema: z.ZodType<Wire.CreateCatalogRequest> = 
 export const CreateContractRequestSchema: z.ZodType<Wire.CreateContractRequest> = z.lazy(() => z.strictObject({
   "code": z.string().optional(),
   "name": z.string(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "counterpartyId": z.string(),
   "type": z.string(),
   "currencyId": z.string().nullable().optional(),
@@ -454,14 +453,14 @@ export const CreateContractRequestSchema: z.ZodType<Wire.CreateContractRequest> 
   "validTo": z.string().nullable().optional(),
   "paymentTermDays": z.number().int().optional(),
   "description": z.string().nullable().optional(),
-  "parentId": z.string().nullable().optional(),
-  "isFolder": z.boolean().optional(),
-  "attributes": z.record(z.string(), jsonValueSchema).optional(),
 }))
 
 export const CreateCounterpartyRequestSchema: z.ZodType<Wire.CreateCounterpartyRequest> = z.lazy(() => z.strictObject({
   "code": z.string().optional(),
   "name": z.string(),
+  "parentId": z.string().nullable().optional(),
+  "isFolder": z.boolean().optional(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "type": z.string(),
   "legalForm": z.string(),
   "fullName": z.string().nullable().optional(),
@@ -474,23 +473,18 @@ export const CreateCounterpartyRequestSchema: z.ZodType<Wire.CreateCounterpartyR
   "email": z.string().nullable().optional(),
   "contactPerson": z.string().nullable().optional(),
   "comment": z.string().nullable().optional(),
-  "parentId": z.string().nullable().optional(),
-  "isFolder": z.boolean().optional(),
-  "attributes": z.record(z.string(), jsonValueSchema).optional(),
 }))
 
 export const CreateCurrencyRequestSchema: z.ZodType<Wire.CreateCurrencyRequest> = z.lazy(() => z.strictObject({
   "code": z.string().optional(),
   "name": z.string(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "isoCode": z.string(),
   "isoNumericCode": z.string().nullable().optional(),
   "symbol": z.string(),
   "decimalPlaces": z.number().int().optional(),
   "isBase": z.boolean().optional(),
   "country": z.string().nullable().optional(),
-  "parentId": z.string().nullable().optional(),
-  "isFolder": z.boolean().optional(),
-  "attributes": z.record(z.string(), jsonValueSchema).optional(),
 }))
 
 export const CreateIntegrationAccountRequestSchema: z.ZodType<Wire.CreateIntegrationAccountRequest> = z.lazy(() => z.strictObject({
@@ -524,20 +518,21 @@ export const CreateListViewRequestSchema: z.ZodType<Wire.CreateListViewRequest> 
 export const CreateOrganizationRequestSchema: z.ZodType<Wire.CreateOrganizationRequest> = z.lazy(() => z.strictObject({
   "code": z.string().optional(),
   "name": z.string(),
-  "fullName": z.string().optional(),
-  "inn": z.string().optional(),
-  "kpp": z.string().optional(),
-  "ogrn": z.string().optional(),
-  "legalAddress": z.string().optional(),
-  "actualAddress": z.string().optional(),
-  "phone": z.string().optional(),
-  "email": z.string().optional(),
-  "website": z.string().optional(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
+  "fullName": z.string().nullable().optional(),
+  "inn": z.string().nullable().optional(),
+  "kpp": z.string().nullable().optional(),
+  "ogrn": z.string().nullable().optional(),
+  "legalAddress": z.string().nullable().optional(),
+  "actualAddress": z.string().nullable().optional(),
+  "phone": z.string().nullable().optional(),
+  "email": z.string().nullable().optional(),
+  "website": z.string().nullable().optional(),
   "baseCurrencyId": z.string().optional(),
   "isDefault": z.boolean().optional(),
-  "director": z.string().optional(),
-  "accountant": z.string().optional(),
-  "logoUrl": z.string().optional(),
+  "director": z.string().nullable().optional(),
+  "accountant": z.string().nullable().optional(),
+  "logoUrl": z.string().nullable().optional(),
   "taxSystem": z.string().optional(),
   "vatPayer": z.boolean().optional(),
   "fiscalYearStart": z.string().optional(),
@@ -610,19 +605,17 @@ export const CurrencyCursorResponseSchema: z.ZodType<Wire.CurrencyCursorResponse
 
 export const CurrencyResponseSchema: z.ZodType<Wire.CurrencyResponse> = z.lazy(() => z.object({
   "id": z.string(),
+  "version": z.number().int(),
+  "deletionMark": z.boolean(),
   "code": z.string(),
   "name": z.string(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "isoCode": z.string().nullable(),
   "isoNumericCode": z.string().optional(),
   "symbol": z.string().nullable(),
   "decimalPlaces": z.number().int(),
   "isBase": z.boolean(),
   "country": z.string().optional(),
-  "parentId": z.string().optional(),
-  "isFolder": z.boolean(),
-  "deletionMark": z.boolean(),
-  "version": z.number().int(),
-  "attributes": z.record(z.string(), jsonValueSchema).optional(),
 }))
 
 export const CurrencyTreeResponseSchema: z.ZodType<Wire.CurrencyTreeResponse> = z.lazy(() => z.array(CurrencyResponseSchema))
@@ -1457,27 +1450,28 @@ export const OrganizationCursorResponseSchema: z.ZodType<Wire.OrganizationCursor
 export const OrganizationResponseSchema: z.ZodType<Wire.OrganizationResponse> = z.lazy(() => z.object({
   "id": z.string(),
   "version": z.number().int(),
+  "deletionMark": z.boolean(),
   "code": z.string(),
   "name": z.string(),
-  "fullName": z.string(),
-  "inn": z.string(),
-  "kpp": z.string(),
-  "ogrn": z.string(),
-  "legalAddress": z.string(),
-  "actualAddress": z.string(),
-  "phone": z.string(),
-  "email": z.string(),
-  "website": z.string(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
+  "fullName": z.string().optional(),
+  "inn": z.string().optional(),
+  "kpp": z.string().optional(),
+  "ogrn": z.string().optional(),
+  "legalAddress": z.string().optional(),
+  "actualAddress": z.string().optional(),
+  "phone": z.string().optional(),
+  "email": z.string().optional(),
+  "website": z.string().optional(),
   "baseCurrencyId": z.string(),
   "isDefault": z.boolean(),
-  "deletionMark": z.boolean(),
-  "director": z.string(),
-  "accountant": z.string(),
-  "logoUrl": z.string(),
+  "director": z.string().optional(),
+  "accountant": z.string().optional(),
+  "logoUrl": z.string().optional(),
   "taxSystem": z.string(),
   "vatPayer": z.boolean(),
   "fiscalYearStart": z.string(),
-  "baseCurrency": PostgresCurrencyRefDisplaySchema.optional(),
+  "baseCurrency": PostgresRefDisplaySchema.optional(),
 }))
 
 export const OrganizationTreeResponseSchema: z.ZodType<Wire.OrganizationTreeResponse> = z.lazy(() => z.array(OrganizationResponseSchema))
@@ -1528,13 +1522,6 @@ export const PoolStatsResponseSchema: z.ZodType<Wire.PoolStatsResponse> = z.lazy
   "acquired_conns": z.number().int(),
   "idle_conns": z.number().int(),
   "max_conns": z.number().int().optional(),
-}))
-
-export const PostgresCurrencyRefDisplaySchema: z.ZodType<Wire.PostgresCurrencyRefDisplay> = z.lazy(() => z.object({
-  "id": z.string(),
-  "name": z.string(),
-  "decimalPlaces": z.number().int(),
-  "symbol": z.string(),
 }))
 
 export const PostgresRefDisplaySchema: z.ZodType<Wire.PostgresRefDisplay> = z.lazy(() => z.object({
@@ -1931,6 +1918,7 @@ export const UpdateCatalogRequestSchema: z.ZodType<Wire.UpdateCatalogRequest> = 
 export const UpdateContractRequestSchema: z.ZodType<Wire.UpdateContractRequest> = z.lazy(() => z.strictObject({
   "code": z.string().optional(),
   "name": z.string(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "counterpartyId": z.string(),
   "type": z.string(),
   "currencyId": z.string().nullable().optional(),
@@ -1938,15 +1926,15 @@ export const UpdateContractRequestSchema: z.ZodType<Wire.UpdateContractRequest> 
   "validTo": z.string().nullable().optional(),
   "paymentTermDays": z.number().int().optional(),
   "description": z.string().nullable().optional(),
-  "parentId": z.string().nullable().optional(),
-  "isFolder": z.boolean().optional(),
-  "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "version": z.number().int(),
 }))
 
 export const UpdateCounterpartyRequestSchema: z.ZodType<Wire.UpdateCounterpartyRequest> = z.lazy(() => z.strictObject({
   "code": z.string().optional(),
   "name": z.string(),
+  "parentId": z.string().nullable().optional(),
+  "isFolder": z.boolean().optional(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "type": z.string(),
   "legalForm": z.string(),
   "fullName": z.string().nullable().optional(),
@@ -1959,24 +1947,19 @@ export const UpdateCounterpartyRequestSchema: z.ZodType<Wire.UpdateCounterpartyR
   "email": z.string().nullable().optional(),
   "contactPerson": z.string().nullable().optional(),
   "comment": z.string().nullable().optional(),
-  "parentId": z.string().nullable().optional(),
-  "isFolder": z.boolean().optional(),
-  "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "version": z.number().int(),
 }))
 
 export const UpdateCurrencyRequestSchema: z.ZodType<Wire.UpdateCurrencyRequest> = z.lazy(() => z.strictObject({
   "code": z.string().optional(),
   "name": z.string(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "isoCode": z.string(),
   "isoNumericCode": z.string().nullable().optional(),
   "symbol": z.string(),
   "decimalPlaces": z.number().int().optional(),
   "isBase": z.boolean().optional(),
   "country": z.string().nullable().optional(),
-  "parentId": z.string().nullable().optional(),
-  "isFolder": z.boolean().optional(),
-  "attributes": z.record(z.string(), jsonValueSchema).optional(),
   "version": z.number().int(),
 }))
 
@@ -2045,28 +2028,27 @@ export const UpdateNumberingSettingsRequestSchema: z.ZodType<Wire.UpdateNumberin
 }))
 
 export const UpdateOrganizationRequestSchema: z.ZodType<Wire.UpdateOrganizationRequest> = z.lazy(() => z.strictObject({
-  "id": z.string(),
-  "version": z.number().int(),
   "code": z.string().optional(),
   "name": z.string(),
-  "fullName": z.string().optional(),
-  "inn": z.string().optional(),
-  "kpp": z.string().optional(),
-  "ogrn": z.string().optional(),
-  "legalAddress": z.string().optional(),
-  "actualAddress": z.string().optional(),
-  "phone": z.string().optional(),
-  "email": z.string().optional(),
-  "website": z.string().optional(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
+  "fullName": z.string().nullable().optional(),
+  "inn": z.string().nullable().optional(),
+  "kpp": z.string().nullable().optional(),
+  "ogrn": z.string().nullable().optional(),
+  "legalAddress": z.string().nullable().optional(),
+  "actualAddress": z.string().nullable().optional(),
+  "phone": z.string().nullable().optional(),
+  "email": z.string().nullable().optional(),
+  "website": z.string().nullable().optional(),
   "baseCurrencyId": z.string().optional(),
   "isDefault": z.boolean().optional(),
-  "deletionMark": z.boolean().optional(),
-  "director": z.string().optional(),
-  "accountant": z.string().optional(),
-  "logoUrl": z.string().optional(),
+  "director": z.string().nullable().optional(),
+  "accountant": z.string().nullable().optional(),
+  "logoUrl": z.string().nullable().optional(),
   "taxSystem": z.string().optional(),
   "vatPayer": z.boolean().optional(),
   "fiscalYearStart": z.string().optional(),
+  "version": z.number().int(),
 }))
 
 export const UpdatePerformanceSettingsRequestSchema: z.ZodType<Wire.UpdatePerformanceSettingsRequest> = z.lazy(() => z.strictObject({

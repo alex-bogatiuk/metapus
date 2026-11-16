@@ -146,7 +146,8 @@ func TestEncodingJSONV1IsIsolatedToCompatibilityFacades(t *testing.T) {
 				return filepath.SkipDir
 			}
 			switch entry.Name() {
-			case ".git", "node_modules", "vendor":
+			// .claude holds local agent worktrees: whole checkouts of other branches.
+			case ".git", "node_modules", "vendor", ".claude":
 				return filepath.SkipDir
 			}
 			return nil

@@ -43,10 +43,10 @@ type Counterparty struct {
 	entity.Catalog
 
 	// Type defines whether this is a customer, supplier, or both
-	Type CounterpartyType `db:"type" json:"type" meta:"label:Тип"`
+	Type CounterpartyType `db:"type" json:"type" meta:"label:Тип" binding:"required"`
 
 	// LegalForm defines the legal status
-	LegalForm LegalForm `db:"legal_form" json:"legalForm" meta:"label:Юр. форма"`
+	LegalForm LegalForm `db:"legal_form" json:"legalForm" meta:"label:Юр. форма" binding:"required"`
 
 	// FullName is the official registered name
 	FullName *string `db:"full_name" json:"fullName" meta:"label:Полное наименование"`

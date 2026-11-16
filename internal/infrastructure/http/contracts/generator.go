@@ -254,6 +254,19 @@ func (g *generator) describe(t reflect.Type, direction Direction, inline bool) (
 	if hasCustomCodec(t) {
 		return "", fmt.Errorf("custom codec %v requires an explicit HTTP mapping", t)
 	}
+	if !inline && t.Kind() == reflect.Struct && t.Name() == "" {
+		// A type built at run time (declarative registrations) has no Go
+		// name; where it is also a root contract, refer to it by that name.
+		key := shape{t, direction}
+		if g.base != nil {
+			if name, ok := g.base.names[key]; ok {
+				return g.representation("Platform."+name, "Platform."+name+"Schema"), nil
+			}
+		}
+		if name, ok := g.names[key]; ok {
+			return g.representation(name, name+"Schema"), nil
+		}
+	}
 	if !inline && t.Kind() == reflect.Struct && t.Name() != "" {
 		key := shape{t, direction}
 		if g.base != nil {

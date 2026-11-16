@@ -54,12 +54,14 @@ func NewFactoryRegistry() *FactoryRegistry {
 // RegisterCatalog adds a catalog factory to the registry.
 func (r *FactoryRegistry) RegisterCatalog(reg CatalogRegistration) {
 	r.validateEntity(reg, entity.CatalogKind)
+	r.bind(reg)
 	r.catalogs = append(r.catalogs, reg)
 }
 
 // RegisterDocument adds a document factory to the registry.
 func (r *FactoryRegistry) RegisterDocument(reg DocumentRegistration) {
 	r.validateEntity(reg, entity.DocumentKind)
+	r.bind(reg)
 	r.documents = append(r.documents, reg)
 }
 
@@ -68,6 +70,13 @@ func (r *FactoryRegistry) RegisterDocument(reg DocumentRegistration) {
 func (r *FactoryRegistry) RegisterCustomDocument(reg CustomDocumentRegistration) {
 	r.validateEntity(reg, entity.DocumentKind)
 	r.customDocuments = append(r.customDocuments, reg)
+}
+
+// bind lets a declared registration look up other registrations at Build.
+func (r *FactoryRegistry) bind(reg any) {
+	if b, ok := reg.(interface{ bindRegistry(*FactoryRegistry) }); ok {
+		b.bindRegistry(r)
+	}
 }
 
 type entityIdentity interface {

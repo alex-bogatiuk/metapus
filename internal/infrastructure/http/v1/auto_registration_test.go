@@ -13,10 +13,14 @@ import (
 
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
+	"metapus/internal/domain"
 	"metapus/internal/infrastructure/http/contracts"
 	_ "metapus/internal/infrastructure/http/jsoncodec"
 	"metapus/internal/infrastructure/http/v1/handlers"
+	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/metadata"
+	"metapus/internal/platform"
 )
 
 var autoProbeDefinition = entity.Definition{Kind: entity.CatalogKind, Key: "auto_probe", Name: "AutoProbe", Route: "auto-probes", Table: "cat_auto_probes"}
@@ -103,7 +107,7 @@ func TestAutoRequestsAreStrictValidatedAndMappedOntoTheModel(t *testing.T) {
 	created.Version = 3
 	created.CheckedAt = time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
 	created.Secret = "never"
-	response := reflect.ValueOf(autoShapeFor[autoProbe]().response(created))
+	response := reflect.ValueOf(autoShapeFor[autoProbe]().response(created, nil, nil))
 	require.Equal(t, created.ID.String(), response.FieldByName("ID").String())
 	require.Equal(t, 3, int(response.FieldByName("Version").Int()))
 	require.Equal(t, created.CheckedAt, response.FieldByName("CheckedAt").Interface())
@@ -168,4 +172,62 @@ func TestAutoRegistrationRejectsModelsOutsideTheRule(t *testing.T) {
 	}
 	_, err = deriveAutoShape(reflect.TypeFor[clash](), autoProbeDefinition)
 	require.ErrorContains(t, err, `json name "name"`)
+}
+
+var autoRefDefinition = entity.Definition{Kind: entity.CatalogKind, Key: "auto_route", Name: "AutoRoute", Route: "auto-routes", Table: "cat_auto_routes"}
+
+type autoRoute struct {
+	entity.Catalog
+	VehicleID  id.ID  `db:"vehicle_id" json:"vehicleId" meta:"label:ТС,ref:carrier"`
+	CurrencyID *id.ID `db:"currency_id" json:"currencyId,omitempty" meta:"ref:auto_probe"`
+	OwnerID    id.ID  `db:"owner_id" json:"ownerId"`
+}
+
+func (autoRoute) EntityDefinition() entity.Definition { return autoRefDefinition }
+
+func TestAutoReferencesResolveThroughTheRegistry(t *testing.T) {
+	shape := autoShapeFor[autoRoute]()
+	require.Equal(t, []string{"id", "version", "deletionMark", "code", "name", "attributes", "vehicleId", "currencyId", "ownerId", "vehicle", "currency"}, jsonNames(shape.read),
+		"a ref-tagged id gets a display; an untagged id does not")
+
+	reg := NewFactoryRegistry()
+	probe := Catalog[autoProbe](metadata.Presentation{Plural: "Пробы"}).References("carrier", "auto_probe")
+	route := Catalog[autoRoute](metadata.Presentation{Plural: "Маршруты"})
+	reg.RegisterCatalog(probe)
+	reg.RegisterCatalog(route)
+	tables := route.referenceTables(shape)
+	require.Equal(t, map[string]string{"carrier": "cat_auto_probes", "auto_probe": "cat_auto_probes"}, tables)
+
+	vehicle, currency := id.New(), id.New()
+	model := &autoRoute{Catalog: entity.NewCatalog("R-1", "Маршрут"), VehicleID: vehicle, CurrencyID: &currency}
+	resolved := postgres.ResolvedRefs{"cat_auto_probes": {vehicle.String(): {ID: vehicle.String(), Name: "Газель", Code: "V-1"}}}
+	out := reflect.ValueOf(shape.response(model, tables, resolved))
+	require.Equal(t, "Газель", out.FieldByName("VehicleRef").Interface().(*postgres.RefDisplay).Name)
+	require.True(t, out.FieldByName("CurrencyRef").IsNil(), "an unresolved reference stays absent")
+
+	lonely := NewFactoryRegistry()
+	orphan := Catalog[autoRoute](metadata.Presentation{Plural: "Маршруты"})
+	lonely.RegisterCatalog(orphan)
+	require.Panics(t, func() { orphan.referenceTables(shape) }, "a reference to an unregistered key is a declaration error")
+}
+
+func TestAutoCatalogOptionsShapeItsRegistration(t *testing.T) {
+	built := false
+	reg := Catalog[autoProbe](metadata.Presentation{Plural: "Пробы"}).
+		References("supplier", "customer").
+		Search(platform.SearchFields{SearchCols: []string{"name", "plate"}, TitleCol: "name"}).
+		Service(func(deps CatalogDeps) *domain.CatalogService[*autoProbe] {
+			built = true
+			def := autoProbeDefinition
+			return domain.NewCatalogService(domain.CatalogServiceConfig[*autoProbe]{Definition: &def, Repo: catalog_repo.NewCatalogRepoForDefinition(def, postgres.ExtractDBColumns[autoProbe](), func() *autoProbe { return new(autoProbe) })})
+		})
+	require.Equal(t, []string{"supplier", "customer"}, reg.ReferenceTypes())
+	require.Equal(t, "Пробы", reg.EntityLabel())
+	fields, ok := searchableFields(reg)
+	require.True(t, ok)
+	require.Equal(t, []string{"name", "plate"}, fields.SearchCols)
+	_, ok = searchableFields(Catalog[autoProbe](metadata.Presentation{}))
+	require.False(t, ok, "a catalog without Search keeps the default name/code search")
+	reg.Build(CatalogDeps{BaseHandler: handlers.NewBaseHandler()})
+	require.True(t, built, "Build uses the entity's own service")
 }

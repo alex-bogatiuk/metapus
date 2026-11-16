@@ -341,8 +341,11 @@ export type ContractReportTotal = {
 
 export type ContractResponse = {
   "id": string
+  "version": number
+  "deletionMark": boolean
   "code": string
   "name": string
+  "attributes"?: Record<string, JsonValue>
   "counterpartyId": string
   "type": string
   "currencyId"?: string
@@ -350,13 +353,8 @@ export type ContractResponse = {
   "validTo"?: string
   "paymentTermDays": number
   "description"?: string
-  "parentId"?: string
-  "isFolder": boolean
-  "deletionMark": boolean
-  "version": number
-  "attributes"?: Record<string, JsonValue>
   "counterparty"?: PostgresRefDisplay
-  "currency"?: PostgresCurrencyRefDisplay
+  "currency"?: PostgresRefDisplay
 }
 
 export type ContractTreeResponse = Array<ContractResponse>
@@ -373,8 +371,13 @@ export type CounterpartyCursorResponse = {
 
 export type CounterpartyResponse = {
   "id": string
+  "version": number
+  "deletionMark": boolean
   "code": string
   "name": string
+  "parentId"?: string
+  "isFolder": boolean
+  "attributes"?: Record<string, JsonValue>
   "type": string
   "legalForm": string
   "fullName": string | null
@@ -387,11 +390,6 @@ export type CounterpartyResponse = {
   "email"?: string
   "contactPerson"?: string
   "comment"?: string
-  "parentId"?: string
-  "isFolder": boolean
-  "deletionMark": boolean
-  "version": number
-  "attributes"?: Record<string, JsonValue>
 }
 
 export type CounterpartyTreeResponse = Array<CounterpartyResponse>
@@ -443,6 +441,7 @@ export type CreateCatalogRequest = {
 export type CreateContractRequest = {
   "code"?: string
   "name": string
+  "attributes"?: Record<string, JsonValue>
   "counterpartyId": string
   "type": string
   "currencyId"?: string | null
@@ -450,14 +449,14 @@ export type CreateContractRequest = {
   "validTo"?: string | null
   "paymentTermDays"?: number
   "description"?: string | null
-  "parentId"?: string | null
-  "isFolder"?: boolean
-  "attributes"?: Record<string, JsonValue>
 }
 
 export type CreateCounterpartyRequest = {
   "code"?: string
   "name": string
+  "parentId"?: string | null
+  "isFolder"?: boolean
+  "attributes"?: Record<string, JsonValue>
   "type": string
   "legalForm": string
   "fullName"?: string | null
@@ -470,23 +469,18 @@ export type CreateCounterpartyRequest = {
   "email"?: string | null
   "contactPerson"?: string | null
   "comment"?: string | null
-  "parentId"?: string | null
-  "isFolder"?: boolean
-  "attributes"?: Record<string, JsonValue>
 }
 
 export type CreateCurrencyRequest = {
   "code"?: string
   "name": string
+  "attributes"?: Record<string, JsonValue>
   "isoCode": string
   "isoNumericCode"?: string | null
   "symbol": string
   "decimalPlaces"?: number
   "isBase"?: boolean
   "country"?: string | null
-  "parentId"?: string | null
-  "isFolder"?: boolean
-  "attributes"?: Record<string, JsonValue>
 }
 
 export type CreateIntegrationAccountRequest = {
@@ -520,20 +514,21 @@ export type CreateListViewRequest = {
 export type CreateOrganizationRequest = {
   "code"?: string
   "name": string
-  "fullName"?: string
-  "inn"?: string
-  "kpp"?: string
-  "ogrn"?: string
-  "legalAddress"?: string
-  "actualAddress"?: string
-  "phone"?: string
-  "email"?: string
-  "website"?: string
+  "attributes"?: Record<string, JsonValue>
+  "fullName"?: string | null
+  "inn"?: string | null
+  "kpp"?: string | null
+  "ogrn"?: string | null
+  "legalAddress"?: string | null
+  "actualAddress"?: string | null
+  "phone"?: string | null
+  "email"?: string | null
+  "website"?: string | null
   "baseCurrencyId"?: string
   "isDefault"?: boolean
-  "director"?: string
-  "accountant"?: string
-  "logoUrl"?: string
+  "director"?: string | null
+  "accountant"?: string | null
+  "logoUrl"?: string | null
   "taxSystem"?: string
   "vatPayer"?: boolean
   "fiscalYearStart"?: string
@@ -606,19 +601,17 @@ export type CurrencyCursorResponse = {
 
 export type CurrencyResponse = {
   "id": string
+  "version": number
+  "deletionMark": boolean
   "code": string
   "name": string
+  "attributes"?: Record<string, JsonValue>
   "isoCode": string | null
   "isoNumericCode"?: string
   "symbol": string | null
   "decimalPlaces": number
   "isBase": boolean
   "country"?: string
-  "parentId"?: string
-  "isFolder": boolean
-  "deletionMark": boolean
-  "version": number
-  "attributes"?: Record<string, JsonValue>
 }
 
 export type CurrencyTreeResponse = Array<CurrencyResponse>
@@ -1453,27 +1446,28 @@ export type OrganizationCursorResponse = {
 export type OrganizationResponse = {
   "id": string
   "version": number
+  "deletionMark": boolean
   "code": string
   "name": string
-  "fullName": string
-  "inn": string
-  "kpp": string
-  "ogrn": string
-  "legalAddress": string
-  "actualAddress": string
-  "phone": string
-  "email": string
-  "website": string
+  "attributes"?: Record<string, JsonValue>
+  "fullName"?: string
+  "inn"?: string
+  "kpp"?: string
+  "ogrn"?: string
+  "legalAddress"?: string
+  "actualAddress"?: string
+  "phone"?: string
+  "email"?: string
+  "website"?: string
   "baseCurrencyId": string
   "isDefault": boolean
-  "deletionMark": boolean
-  "director": string
-  "accountant": string
-  "logoUrl": string
+  "director"?: string
+  "accountant"?: string
+  "logoUrl"?: string
   "taxSystem": string
   "vatPayer": boolean
   "fiscalYearStart": string
-  "baseCurrency"?: PostgresCurrencyRefDisplay
+  "baseCurrency"?: PostgresRefDisplay
 }
 
 export type OrganizationTreeResponse = Array<OrganizationResponse>
@@ -1524,13 +1518,6 @@ export type PoolStatsResponse = {
   "acquired_conns": number
   "idle_conns": number
   "max_conns"?: number
-}
-
-export type PostgresCurrencyRefDisplay = {
-  "id": string
-  "name": string
-  "decimalPlaces": number
-  "symbol": string
 }
 
 export type PostgresRefDisplay = {
@@ -1927,6 +1914,7 @@ export type UpdateCatalogRequest = {
 export type UpdateContractRequest = {
   "code"?: string
   "name": string
+  "attributes"?: Record<string, JsonValue>
   "counterpartyId": string
   "type": string
   "currencyId"?: string | null
@@ -1934,15 +1922,15 @@ export type UpdateContractRequest = {
   "validTo"?: string | null
   "paymentTermDays"?: number
   "description"?: string | null
-  "parentId"?: string | null
-  "isFolder"?: boolean
-  "attributes"?: Record<string, JsonValue>
   "version": number
 }
 
 export type UpdateCounterpartyRequest = {
   "code"?: string
   "name": string
+  "parentId"?: string | null
+  "isFolder"?: boolean
+  "attributes"?: Record<string, JsonValue>
   "type": string
   "legalForm": string
   "fullName"?: string | null
@@ -1955,24 +1943,19 @@ export type UpdateCounterpartyRequest = {
   "email"?: string | null
   "contactPerson"?: string | null
   "comment"?: string | null
-  "parentId"?: string | null
-  "isFolder"?: boolean
-  "attributes"?: Record<string, JsonValue>
   "version": number
 }
 
 export type UpdateCurrencyRequest = {
   "code"?: string
   "name": string
+  "attributes"?: Record<string, JsonValue>
   "isoCode": string
   "isoNumericCode"?: string | null
   "symbol": string
   "decimalPlaces"?: number
   "isBase"?: boolean
   "country"?: string | null
-  "parentId"?: string | null
-  "isFolder"?: boolean
-  "attributes"?: Record<string, JsonValue>
   "version": number
 }
 
@@ -2041,28 +2024,27 @@ export type UpdateNumberingSettingsRequest = {
 }
 
 export type UpdateOrganizationRequest = {
-  "id": string
-  "version": number
   "code"?: string
   "name": string
-  "fullName"?: string
-  "inn"?: string
-  "kpp"?: string
-  "ogrn"?: string
-  "legalAddress"?: string
-  "actualAddress"?: string
-  "phone"?: string
-  "email"?: string
-  "website"?: string
+  "attributes"?: Record<string, JsonValue>
+  "fullName"?: string | null
+  "inn"?: string | null
+  "kpp"?: string | null
+  "ogrn"?: string | null
+  "legalAddress"?: string | null
+  "actualAddress"?: string | null
+  "phone"?: string | null
+  "email"?: string | null
+  "website"?: string | null
   "baseCurrencyId"?: string
   "isDefault"?: boolean
-  "deletionMark"?: boolean
-  "director"?: string
-  "accountant"?: string
-  "logoUrl"?: string
+  "director"?: string | null
+  "accountant"?: string | null
+  "logoUrl"?: string | null
   "taxSystem"?: string
   "vatPayer"?: boolean
   "fiscalYearStart"?: string
+  "version": number
 }
 
 export type UpdatePerformanceSettingsRequest = {

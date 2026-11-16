@@ -28,20 +28,20 @@ type Token struct {
 	entity.Catalog
 
 	// NetworkID references the blockchain network (FK → cat_blockchain_networks)
-	NetworkID id.ID `db:"network_id" json:"networkId" meta:"label:Сеть,ref:blockchain_network"`
+	NetworkID id.ID `db:"network_id" json:"networkId" meta:"label:Сеть,ref:blockchain_network" binding:"required"`
 
 	// ContractAddress is the smart contract address. Empty string for native tokens.
 	ContractAddress string `db:"contract_address" json:"contractAddress" meta:"label:Адрес контракта"`
 
 	// Symbol is the ticker symbol (e.g., "USDT", "ETH", "BTC")
-	Symbol string `db:"symbol" json:"symbol" meta:"label:Символ"`
+	Symbol string `db:"symbol" json:"symbol" meta:"label:Символ" binding:"required"`
 
 	// DecimalPlaces defines the token precision.
 	// NEVER hardcode this value — always read from this field.
 	DecimalPlaces int `db:"decimal_places" json:"decimalPlaces" meta:"label:Десятичные знаки"`
 
 	// TokenStandard identifies the token protocol (native, TRC-20, ERC-20, etc.)
-	Standard TokenStandard `db:"token_standard" json:"tokenStandard" meta:"label:Стандарт"`
+	Standard TokenStandard `db:"token_standard" json:"tokenStandard" meta:"label:Стандарт" binding:"required"`
 
 	// IsActive enables/disables the token for processing
 	IsActive bool `db:"is_active" json:"isActive" meta:"label:Активен"`

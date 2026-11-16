@@ -1,4 +1,4 @@
-package handlers
+package content
 
 import (
 	"net/http"
@@ -12,20 +12,19 @@ import (
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/json"
 	"metapus/internal/core/security"
-	"metapus/internal/domain"
-	"metapus/internal/domain/catalogs/currency"
-	"metapus/internal/infrastructure/http/v1/dto"
+	_ "metapus/internal/infrastructure/http/jsoncodec"
+	v1 "metapus/internal/infrastructure/http/v1"
+	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/http/v1/middleware"
 )
 
 func TestCreateCurrencyInvalidNumericCodeReturnsBadRequest(t *testing.T) {
-	// No repository or transaction manager: invalid input must be rejected
-	// before the persistence layer is reached.
-	service := domain.NewCatalogService(domain.CatalogServiceConfig[*currency.Currency]{Definition: &currency.Definition})
-	handler := NewCatalogHandler(NewBaseHandler(), CatalogHandlerConfig[*currency.Currency, dto.CreateCurrencyRequest, dto.UpdateCurrencyRequest]{
-		Service:      service,
-		MapCreateDTO: func(req dto.CreateCurrencyRequest) *currency.Currency { return req.ToEntity() },
-	})
+	// The declared currency catalog validates the model before its service
+	// reaches the repository or a transaction.
+	gin.SetMode(gin.TestMode)
+	reg := v1.NewFactoryRegistry()
+	reg.RegisterCatalog(currencyRegistration())
+	handler := reg.Catalogs()[0].Build(v1.CatalogDeps{BaseHandler: handlers.NewBaseHandler()})
 	router := gin.New()
 	router.Use(middleware.ErrorHandler())
 	router.POST("/api/v1/catalog/currencies", handler.Create)

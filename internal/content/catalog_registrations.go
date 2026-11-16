@@ -153,195 +153,62 @@ func init() {
 }
 
 // ---------------------------------------------------------------------------
-// Counterparty
+// Platform catalogs declared from their models: DTOs, routes, contracts,
+// references and permissions are derived; each keeps its domain service.
 // ---------------------------------------------------------------------------
 
-type CounterpartyRegistration struct {
-	v1.CatalogRegistrationFor[counterparty.Counterparty, dto.CreateCounterpartyRequest, dto.UpdateCounterpartyRequest, dto.CounterpartyResponse]
-}
-
-func (r *CounterpartyRegistration) ReferenceTypes() []string { return []string{"supplier", "customer"} }
-func (r *CounterpartyRegistration) EntityLabel() string      { return "Контрагенты" }
-func (r *CounterpartyRegistration) EntityPresentation() metadata.Presentation {
-	return metadata.Presentation{
-		Singular: "Контрагент",
-		Plural:   "Контрагенты",
-		NewLabel: "Новый контрагент",
-		Genitive: "контрагента",
-	}
-}
-func (r *CounterpartyRegistration) SearchableFields() platform.SearchFields {
-	return platform.SearchFields{
-		SearchCols:  []string{"name", "code", "inn", "phone", "email"},
-		TitleCol:    "name",
-		SubtitleCol: "code",
-	}
-}
-
-func (r *CounterpartyRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
-	repo := catalog_repo.NewCounterpartyRepo()
-	service := counterparty.NewService(repo, deps.Numerator)
-	service.SetPolicyEngine(deps.PolicyEngine)
-	domain.NewEventLogCatalogService(service.CatalogService, counterparty.Definition.Key, deps.EventWriter)
-	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
-		*counterparty.Counterparty,
-		dto.CreateCounterpartyRequest,
-		dto.UpdateCounterpartyRequest,
-	]{
-		Service:      service.CatalogService,
-		EntityName:   counterparty.Definition.Key,
-		MapCreateDTO: func(req dto.CreateCounterpartyRequest) *counterparty.Counterparty { return req.ToEntity() },
-		MapUpdateDTO: func(req dto.UpdateCounterpartyRequest, existing *counterparty.Counterparty) *counterparty.Counterparty {
-			req.ApplyTo(existing)
-			return existing
-		},
-		MapToDTO: func(entity *counterparty.Counterparty) any { return dto.FromCounterparty(entity) },
-	})
-}
-
-// ---------------------------------------------------------------------------
-// Currency
-// ---------------------------------------------------------------------------
-
-type CurrencyRegistration struct {
-	v1.CatalogRegistrationFor[currency.Currency, dto.CreateCurrencyRequest, dto.UpdateCurrencyRequest, dto.CurrencyResponse]
-}
-
-func (r *CurrencyRegistration) ReferenceTypes() []string { return []string{"currency"} }
-func (r *CurrencyRegistration) EntityLabel() string      { return "Валюты" }
-func (r *CurrencyRegistration) EntityPresentation() metadata.Presentation {
-	return metadata.Presentation{
-		Singular: "Валюта",
-		Plural:   "Валюты",
-		NewLabel: "Новая валюта",
-		Genitive: "валюты",
-	}
-}
-func (r *CurrencyRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
-	repo := catalog_repo.NewCurrencyRepo()
-	service := currency.NewService(repo, deps.Numerator)
-	service.SetPolicyEngine(deps.PolicyEngine)
-	domain.NewEventLogCatalogService(service.CatalogService, currency.Definition.Key, deps.EventWriter)
-	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
-		*currency.Currency,
-		dto.CreateCurrencyRequest,
-		dto.UpdateCurrencyRequest,
-	]{
-		Service:      service.CatalogService,
-		EntityName:   currency.Definition.Key,
-		MapCreateDTO: func(req dto.CreateCurrencyRequest) *currency.Currency { return req.ToEntity() },
-		MapUpdateDTO: func(req dto.UpdateCurrencyRequest, existing *currency.Currency) *currency.Currency {
-			req.ApplyTo(existing)
-			return existing
-		},
-		MapToDTO: func(entity *currency.Currency) any { return dto.FromCurrency(entity) },
-	})
-}
-
-// ---------------------------------------------------------------------------
-// Organization
-// ---------------------------------------------------------------------------
-
-type OrganizationRegistration struct {
-	v1.CatalogRegistrationFor[organization.Organization, dto.CreateOrganizationRequest, dto.UpdateOrganizationRequest, dto.OrganizationResponse]
-}
-
-func (r *OrganizationRegistration) ReferenceTypes() []string { return []string{"organization"} }
-func (r *OrganizationRegistration) EntityLabel() string      { return "Организации" }
-func (r *OrganizationRegistration) EntityPresentation() metadata.Presentation {
-	return metadata.Presentation{
-		Singular: "Организация",
-		Plural:   "Организации",
-		NewLabel: "Новая организация",
-		Genitive: "организации",
-	}
-}
-func (r *OrganizationRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
-	repo := catalog_repo.NewOrganizationRepo()
-	service := organization.NewService(repo, deps.Numerator)
-	service.SetPolicyEngine(deps.PolicyEngine)
-	domain.NewEventLogCatalogService(service.CatalogService, organization.Definition.Key, deps.EventWriter)
-
-	// Invalidate CurrencyResolver cache when org's base currency changes
-	if deps.CurrencyCacheInvalidator != nil {
-		inv := deps.CurrencyCacheInvalidator
-		service.Hooks().OnAfterUpdate(func(_ context.Context, org *organization.Organization) error {
-			inv.InvalidateOrgCurrency(org.ID)
-			return nil
+func counterpartyRegistration() v1.CatalogRegistration {
+	return v1.Catalog[counterparty.Counterparty](metadata.Presentation{
+		Singular: "Контрагент", Plural: "Контрагенты", NewLabel: "Новый контрагент", Genitive: "контрагента",
+	}).
+		References("supplier", "customer").
+		Search(platform.SearchFields{SearchCols: []string{"name", "code", "inn", "phone", "email"}, TitleCol: "name", SubtitleCol: "code"}).
+		Service(func(deps v1.CatalogDeps) *domain.CatalogService[*counterparty.Counterparty] {
+			return counterparty.NewService(catalog_repo.NewCounterpartyRepo(), deps.Numerator).CatalogService
 		})
-	}
-
-	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
-		*organization.Organization,
-		dto.CreateOrganizationRequest,
-		dto.UpdateOrganizationRequest,
-	]{
-		Service:      service.CatalogService,
-		EntityName:   organization.Definition.Key,
-		MapCreateDTO: func(req dto.CreateOrganizationRequest) *organization.Organization { return req.ToEntity() },
-		MapUpdateDTO: func(req dto.UpdateOrganizationRequest, existing *organization.Organization) *organization.Organization {
-			req.ApplyTo(existing)
-			return existing
-		},
-		MapToDTO:    func(entity *organization.Organization) any { return dto.FromOrganization(entity) },
-		ResolveRefs: resolveOrganizationRefs,
-		MapToDTOWithRefs: func(entity *organization.Organization, refs any) any {
-			return dto.FromOrganization(entity, refs.(postgres.ResolvedRefs))
-		},
-	})
 }
 
-// ---------------------------------------------------------------------------
-// Contract
-// ---------------------------------------------------------------------------
-
-type ContractRegistration struct {
-	v1.CatalogRegistrationFor[contract.Contract, dto.CreateContractRequest, dto.UpdateContractRequest, dto.ContractResponse]
-}
-
-func (r *ContractRegistration) ReferenceTypes() []string { return []string{"contract"} }
-func (r *ContractRegistration) EntityLabel() string      { return "Договоры" }
-func (r *ContractRegistration) EntityPresentation() metadata.Presentation {
-	return metadata.Presentation{
-		Singular: "Договор",
-		Plural:   "Договоры",
-		NewLabel: "Новый договор",
-		Genitive: "договора",
-	}
-}
-func (r *ContractRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
-	repo := catalog_repo.NewContractRepo()
-	service := contract.NewService(repo, deps.Numerator)
-	service.SetPolicyEngine(deps.PolicyEngine)
-	domain.NewEventLogCatalogService(service.CatalogService, contract.Definition.Key, deps.EventWriter)
-
-	// Invalidate CurrencyResolver cache when contract's currency changes
-	if deps.CurrencyCacheInvalidator != nil {
-		inv := deps.CurrencyCacheInvalidator
-		service.Hooks().OnAfterUpdate(func(_ context.Context, c *contract.Contract) error {
-			inv.InvalidateContractCurrency(c.ID)
-			return nil
+func currencyRegistration() v1.CatalogRegistration {
+	return v1.Catalog[currency.Currency](metadata.Presentation{
+		Singular: "Валюта", Plural: "Валюты", NewLabel: "Новая валюта", Genitive: "валюты",
+	}).
+		Service(func(deps v1.CatalogDeps) *domain.CatalogService[*currency.Currency] {
+			return currency.NewService(catalog_repo.NewCurrencyRepo(), deps.Numerator).CatalogService
 		})
-	}
+}
 
-	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
-		*contract.Contract,
-		dto.CreateContractRequest,
-		dto.UpdateContractRequest,
-	]{
-		Service:      service.CatalogService,
-		EntityName:   contract.Definition.Key,
-		MapCreateDTO: func(req dto.CreateContractRequest) *contract.Contract { return req.ToEntity() },
-		MapUpdateDTO: func(req dto.UpdateContractRequest, existing *contract.Contract) *contract.Contract {
-			req.ApplyTo(existing)
-			return existing
-		},
-		MapToDTO:    func(entity *contract.Contract) any { return dto.FromContract(entity) },
-		ResolveRefs: resolveContractRefs,
-		MapToDTOWithRefs: func(entity *contract.Contract, refs any) any {
-			return dto.FromContract(entity, refs.(postgres.ResolvedRefs))
-		},
-	})
+func organizationRegistration() v1.CatalogRegistration {
+	return v1.Catalog[organization.Organization](metadata.Presentation{
+		Singular: "Организация", Plural: "Организации", NewLabel: "Новая организация", Genitive: "организации",
+	}).
+		Service(func(deps v1.CatalogDeps) *domain.CatalogService[*organization.Organization] {
+			service := organization.NewService(catalog_repo.NewOrganizationRepo(), deps.Numerator)
+			// Invalidate CurrencyResolver cache when org's base currency changes
+			if inv := deps.CurrencyCacheInvalidator; inv != nil {
+				service.Hooks().OnAfterUpdate(func(_ context.Context, org *organization.Organization) error {
+					inv.InvalidateOrgCurrency(org.ID)
+					return nil
+				})
+			}
+			return service.CatalogService
+		})
+}
+
+func contractRegistration() v1.CatalogRegistration {
+	return v1.Catalog[contract.Contract](metadata.Presentation{
+		Singular: "Договор", Plural: "Договоры", NewLabel: "Новый договор", Genitive: "договора",
+	}).
+		Service(func(deps v1.CatalogDeps) *domain.CatalogService[*contract.Contract] {
+			service := contract.NewService(catalog_repo.NewContractRepo(), deps.Numerator)
+			// Invalidate CurrencyResolver cache when contract's currency changes
+			if inv := deps.CurrencyCacheInvalidator; inv != nil {
+				service.Hooks().OnAfterUpdate(func(_ context.Context, c *contract.Contract) error {
+					inv.InvalidateContractCurrency(c.ID)
+					return nil
+				})
+			}
+			return service.CatalogService
+		})
 }
 
 // ── ResolveRefs callbacks for catalogs with FK references ───────────────
@@ -353,14 +220,6 @@ func resolveCatalogRefs[T any](ctx context.Context, collect func(*postgres.Refer
 	}
 	pool := tenantdb.MustGetPool(ctx)
 	return resolver.Resolve(ctx, pool)
-}
-
-func resolveOrganizationRefs(ctx context.Context, entities ...*organization.Organization) (any, error) {
-	return resolveCatalogRefs(ctx, dto.CollectOrganizationRefs, entities...)
-}
-
-func resolveContractRefs(ctx context.Context, entities ...*contract.Contract) (any, error) {
-	return resolveCatalogRefs(ctx, dto.CollectContractRefs, entities...)
 }
 
 // ---------------------------------------------------------------------------
@@ -412,47 +271,15 @@ func (r *BlockchainNetworkRegistration) Build(deps v1.CatalogDeps) v1.CatalogRou
 // Token
 // ---------------------------------------------------------------------------
 
-type TokenRegistration struct {
-	v1.CatalogRegistrationFor[token.Token, cryptodto.CreateTokenRequest, cryptodto.UpdateTokenRequest, cryptodto.CryptoTokenResponse]
-}
-
-func (r *TokenRegistration) ReferenceTypes() []string { return []string{"token"} }
-func (r *TokenRegistration) EntityLabel() string      { return "Токены" }
-func (r *TokenRegistration) EntityPresentation() metadata.Presentation {
-	return metadata.Presentation{
-		Singular: "Токен",
-		Plural:   "Токены",
-		NewLabel: "Новый токен",
-		Genitive: "токена",
-	}
-}
-func (r *TokenRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
-	repo := crypto_catalog_repo.NewTokenRepo()
-	service := token.NewService(repo, deps.Numerator)
-	service.SetPolicyEngine(deps.PolicyEngine)
-	domain.NewEventLogCatalogService(service.CatalogService, token.Definition.Key, deps.EventWriter)
-	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
-		*token.Token,
-		cryptodto.CreateTokenRequest,
-		cryptodto.UpdateTokenRequest,
-	]{
-		Service:      service.CatalogService,
-		EntityName:   token.Definition.Key,
-		MapCreateDTO: func(req cryptodto.CreateTokenRequest) *token.Token { return req.ToEntity() },
-		MapUpdateDTO: func(req cryptodto.UpdateTokenRequest, existing *token.Token) *token.Token {
-			req.ApplyTo(existing)
-			return existing
-		},
-		MapToDTO:    func(entity *token.Token) any { return cryptodto.FromToken(entity) },
-		ResolveRefs: resolveTokenRefs,
-		MapToDTOWithRefs: func(entity *token.Token, refs any) any {
-			return cryptodto.FromToken(entity, refs.(postgres.ResolvedRefs))
-		},
-	})
-}
-
-func resolveTokenRefs(ctx context.Context, entities ...*token.Token) (any, error) {
-	return resolveCatalogRefs(ctx, cryptodto.CollectTokenRefs, entities...)
+func tokenRegistration() v1.CatalogRegistration {
+	return v1.Catalog[token.Token](metadata.Presentation{
+		Singular: "Токен", Plural: "Токены", NewLabel: "Новый токен", Genitive: "токена",
+	}).
+		// TokenResponse is the platform's auth token contract.
+		ResponseName("CryptoTokenResponse").
+		Service(func(deps v1.CatalogDeps) *domain.CatalogService[*token.Token] {
+			return token.NewService(crypto_catalog_repo.NewTokenRepo(), deps.Numerator).CatalogService
+		})
 }
 
 // ---------------------------------------------------------------------------

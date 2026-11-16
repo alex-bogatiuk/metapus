@@ -19,7 +19,7 @@ const nativeFetch = globalThis.fetch
 test.afterEach(() => { globalThis.fetch = nativeFetch })
 
 test("catalog factory validates all reads and rejects malformed mutations before HTTP", async () => {
-  const currency = { id: ids.token, code: "X", name: "Name", isoCode: null, symbol: null, decimalPlaces: 2, isBase: false, isFolder: false, deletionMark: false, version: 1 }
+  const currency = { id: ids.token, code: "X", name: "Name", isoCode: null, symbol: null, decimalPlaces: 2, isBase: false, deletionMark: false, version: 1 }
   let calls = 0
   globalThis.fetch = async () => { calls++; return Response.json(currency) }
   expect(await api.currencies.get(ids.token)).toEqual(currency)

@@ -39,7 +39,7 @@ type Organization struct {
 	Website *string `db:"website" json:"website,omitempty" meta:"label:Вебсайт"`
 
 	// ── Currency ────────────────────────────────────────────────────────
-	BaseCurrencyID id.ID `db:"base_currency_id" json:"baseCurrencyId,omitempty" meta:"label:Валюта учёта"`
+	BaseCurrencyID id.ID `db:"base_currency_id" json:"baseCurrencyId,omitempty" meta:"label:Валюта учёта,ref:currency"`
 	IsDefault      bool  `db:"is_default" json:"isDefault" meta:"label:Основная"`
 
 	// ── Responsible persons ─────────────────────────────────────────────
@@ -60,6 +60,23 @@ func NewOrganization(code, name string, baseCurrencyID id.ID) *Organization {
 		BaseCurrencyID:  baseCurrencyID,
 		TaxSystem:       TaxSystemOSNO,
 		FiscalYearStart: "01-01",
+	}
+}
+
+// normalize applies the accounting-policy defaults to an organization saved
+// without them and stores empty optional requisites as absent.
+func (o *Organization) normalize() {
+	if o.TaxSystem == "" {
+		o.TaxSystem = TaxSystemOSNO
+	}
+	if o.FiscalYearStart == "" {
+		o.FiscalYearStart = "01-01"
+	}
+	for _, field := range []**string{&o.FullName, &o.INN, &o.KPP, &o.OGRN, &o.LegalAddress, &o.ActualAddress,
+		&o.Phone, &o.Email, &o.Website, &o.Director, &o.Accountant, &o.LogoURL} {
+		if *field != nil && **field == "" {
+			*field = nil
+		}
 	}
 }
 

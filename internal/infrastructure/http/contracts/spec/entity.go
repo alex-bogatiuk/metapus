@@ -54,10 +54,11 @@ func EntityWithDetail[Create, Update, List, Read any](def entity.Definition, cap
 }
 
 // EntityOf is Entity for wire types built at run time, e.g. derived from the
-// model by a declarative registration. Unnamed types get the standard names
-// Create<Name>Request, Update<Name>Request and <Name>Response.
-func EntityOf(def entity.Definition, caps metadata.DocumentCapabilities, create, update, read reflect.Type) Bundle {
-	return entityBundle(def, caps, create, update, read, read, cursorOf(read))
+// model by a declarative registration. They get the standard names
+// Create<Name>Request, Update<Name>Request and <Name>Response; readName
+// replaces the response name for an entity whose standard name is taken.
+func EntityOf(def entity.Definition, caps metadata.DocumentCapabilities, create, update, read reflect.Type, readName string) Bundle {
+	return entityBundleNamed(def, caps, create, update, read, read, cursorOf(read), readName)
 }
 
 // cursorOf mirrors dto.TypedCursorListResponse for an item type that only
@@ -75,12 +76,19 @@ func cursorOf(item reflect.Type) reflect.Type {
 }
 
 func entityBundle(def entity.Definition, caps metadata.DocumentCapabilities, createType, updateType, listType, readType, cursorType reflect.Type) Bundle {
+	return entityBundleNamed(def, caps, createType, updateType, listType, readType, cursorType, "")
+}
+
+func entityBundleNamed(def entity.Definition, caps metadata.DocumentCapabilities, createType, updateType, listType, readType, cursorType reflect.Type, readName string) Bundle {
 	if err := def.Validate(); err != nil {
 		panic(err)
 	}
 	name := def.Name
 	create, update := wireNameOf(createType, "Create"+name+"Request"), wireNameOf(updateType, "Update"+name+"Request")
 	read, list := wireNameOf(readType, name+"Response"), wireNameOf(listType, name+"Response")
+	if readName != "" {
+		read, list = readName, readName
+	}
 	cursor := strings.TrimSuffix(list, "Response") + "CursorResponse"
 	tree := strings.TrimSuffix(list, "Response") + "TreeResponse"
 	b := Bundle{Contracts: []Contract{{create, createType, Input}, {update, updateType, Input}, {read, readType, Output}, {cursor, cursorType, Output}}}

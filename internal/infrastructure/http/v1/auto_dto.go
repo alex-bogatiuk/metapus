@@ -10,7 +10,9 @@ import (
 	"github.com/gin-gonic/gin/binding"
 
 	"metapus/internal/core/entity"
+	"metapus/internal/core/id"
 	"metapus/internal/core/json"
+	"metapus/internal/infrastructure/storage/postgres"
 )
 
 // autoShape is the wire projection of a declared entity, derived from its
@@ -23,16 +25,28 @@ import (
 //   - create request: the writable fields (documents add postImmediately);
 //   - update request: the writable fields and the expected version;
 //   - response: id, version, deletionMark (documents add posted and
-//     postedVersion), the writable fields and the model's read-only fields.
+//     postedVersion), the writable fields and the model's read-only fields;
+//     a reference field (id.ID or *id.ID tagged meta:"ref:<entity key>" whose
+//     json name ends in "Id") also gets its resolved display under the name
+//     without "Id", e.g. counterpartyId → counterparty: {id, name, code}.
 //
 // Server-owned base fields (id, version, posting state, timestamps) are never
 // writable, and a model field without a db column is never on the wire. Only
-// the json and binding tags are carried over, so validation rules such as
-// binding:"required" apply to the request as declared on the model.
+// the json tag (name and options such as omitempty) and the binding tag are
+// carried over, so validation rules such as binding:"required" apply to the
+// request as declared on the model.
 type autoShape struct {
 	create, update, read reflect.Type
-	writable             []string // Go field names copied from a request onto the model
-	readable             []string // Go field names copied from the model onto the response
+	writable             []string  // Go field names copied from a request onto the model
+	readable             []string  // Go field names copied from the model onto the response
+	refs                 []autoRef // reference fields resolved into the response
+}
+
+// autoRef is a reference field of the model and its display in the response.
+type autoRef struct {
+	field   string // model field holding the id.ID or *id.ID
+	display string // response field holding *postgres.RefDisplay
+	key     string // referenced entity key (meta ref)
 }
 
 var autoShapes sync.Map // reflect.Type (model struct) → *autoShape
@@ -90,7 +104,12 @@ func deriveAutoShape(model reflect.Type, def entity.Definition) (*autoShape, err
 			return fmt.Errorf("json name %q of %s is already used by %s", jsonName, f.Name, other)
 		}
 		names[jsonName] = f.Name
-		tag := `json:"` + jsonName + `"`
+		// The model's json options (omitempty, …) carry over with the name.
+		tag := `json:"` + jsonName
+		if _, options, ok := strings.Cut(f.Tag.Get("json"), ","); ok {
+			tag += "," + options
+		}
+		tag += `"`
 		if bindingTag != "" {
 			tag += ` binding:"` + bindingTag + `"`
 		}
@@ -148,6 +167,22 @@ func deriveAutoShape(model reflect.Type, def entity.Definition) (*autoShape, err
 	for _, f := range read[1:] {
 		shape.readable = append(shape.readable, f.Name)
 	}
+	for _, f := range append(append([]reflect.StructField(nil), writable...), readOnly...) {
+		original, _ := model.FieldByName(f.Name)
+		key := autoRefKey(original)
+		jsonName, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		if key == "" || (f.Type != reflect.TypeFor[id.ID]() && f.Type != reflect.TypeFor[*id.ID]()) || !strings.HasSuffix(jsonName, "Id") {
+			continue
+		}
+		displayJSON := strings.TrimSuffix(jsonName, "Id")
+		if other, taken := names[displayJSON]; taken {
+			return nil, fmt.Errorf("reference display %q of %s is already used by %s", displayJSON, f.Name, other)
+		}
+		names[displayJSON] = f.Name
+		display := strings.TrimSuffix(f.Name, "ID") + "Ref"
+		read = append(read, reflect.StructField{Name: display, Type: reflect.TypeFor[*postgres.RefDisplay](), Tag: reflect.StructTag(`json:"` + displayJSON + `,omitempty"`)})
+		shape.refs = append(shape.refs, autoRef{field: f.Name, display: display, key: key})
+	}
 
 	shape.create, shape.update, shape.read = reflect.StructOf(create), reflect.StructOf(update), reflect.StructOf(read)
 	return shape, nil
@@ -160,6 +195,16 @@ func embeds(model, base reflect.Type) bool {
 		}
 	}
 	return false
+}
+
+// autoRefKey is the entity key of meta:"ref:<key>", or "".
+func autoRefKey(f reflect.StructField) string {
+	for part := range strings.SplitSeq(f.Tag.Get("meta"), ",") {
+		if key, ok := strings.CutPrefix(strings.TrimSpace(part), "ref:"); ok {
+			return key
+		}
+	}
+	return ""
 }
 
 func autoReadOnly(f reflect.StructField) bool {
@@ -199,15 +244,48 @@ func (s *autoShape) applyAutoRequest(request reflect.Value, model any) {
 	}
 }
 
-// response projects the model onto the response type.
-func (s *autoShape) response(model any) any {
+// response projects the model onto the response type. tables maps each
+// reference key to its table; refs are the displays resolved for the batch,
+// nil when the entity has no references.
+func (s *autoShape) response(model any, tables map[string]string, refs postgres.ResolvedRefs) any {
 	source := reflect.ValueOf(model).Elem()
 	out := reflect.New(s.read).Elem()
 	out.FieldByName("ID").SetString(fmt.Sprint(source.FieldByName("ID").Interface()))
 	for _, name := range s.readable {
 		out.FieldByName(name).Set(source.FieldByName(name))
 	}
+	for _, ref := range s.refs {
+		if refs == nil {
+			break
+		}
+		if target, ok := autoRefID(source.FieldByName(ref.field)); ok {
+			if display := refs.Get(tables[ref.key], target); display.ID != "" {
+				out.FieldByName(ref.display).Set(reflect.ValueOf(&display))
+			}
+		}
+	}
 	return out.Interface()
+}
+
+// collectRefs registers the model's references with the resolver.
+func (s *autoShape) collectRefs(resolver *postgres.ReferenceResolver, tables map[string]string, model any) {
+	source := reflect.ValueOf(model).Elem()
+	for _, ref := range s.refs {
+		if target, ok := autoRefID(source.FieldByName(ref.field)); ok {
+			resolver.Add(tables[ref.key], target)
+		}
+	}
+}
+
+func autoRefID(v reflect.Value) (id.ID, bool) {
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return id.ID{}, false
+		}
+		v = v.Elem()
+	}
+	target := v.Interface().(id.ID)
+	return target, !id.IsNil(target)
 }
 
 // AutoCreate is the create request body of a declared entity. It decodes

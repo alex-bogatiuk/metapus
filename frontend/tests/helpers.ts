@@ -94,7 +94,7 @@ export function commonAPIResponse(pathname: string, user: AuthUserResponse = erp
 export const tokenRecord = {
  id: ids.token, code: "TOKEN", name: "Token", networkId: ids.network, contractAddress: "",
  symbol: "TKN", decimalPlaces: 9, tokenStandard: "native", isActive: true,
- sweepThreshold: "0", sweepMaxAgeHours: 24, sweepRetainAmount: "0", isFolder: false,
+ sweepThreshold: "0", sweepMaxAgeHours: 24, sweepRetainAmount: "0",
  deletionMark: false, version: 1,
 } satisfies import("../configuration/crypto/types/generated/http-contracts").CryptoTokenResponse
 export const tokenRequiredFields = [

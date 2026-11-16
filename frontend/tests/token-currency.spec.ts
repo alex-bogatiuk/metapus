@@ -7,7 +7,7 @@ const tokenId = "11155111-0000-4000-8000-000000000003"
 const networkId = "11155111-0000-4000-8000-000000000001"
 const currencyId = "01a0771b-c4ed-7bbf-be93-97b80b171c55"
 const currency = { id: currencyId, code: "PYUSD", name: "PayPal USD", isoCode: null, symbol: null, decimalPlaces: 6,
-  isBase: false, isFolder: false, deletionMark: false, version: 1 } satisfies import("../types/generated/http-contracts").CurrencyResponse
+  isBase: false, deletionMark: false, version: 1 } satisfies import("../types/generated/http-contracts").CurrencyResponse
 const path = `/api/v1/catalog/tokens/${tokenId}`
 const editableToken = {
   code: "PYUSD-SEPOLIA", name: "PayPal USD", networkId,
