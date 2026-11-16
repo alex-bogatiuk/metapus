@@ -23,3 +23,10 @@ func UnmarshalStrictWithOptions(data []byte, v any, options ...Options) error {
 	opts := append([]Options{defaultOpts, jsonv2.RejectUnknownMembers(true)}, options...)
 	return jsonv2.Unmarshal(data, v, jsonv2.JoinOptions(opts...))
 }
+
+// UnmarshalDecode reads the next value from dec into v with the options of
+// the enclosing call, e.g. inside an UnmarshalerFrom that decodes into a
+// type chosen at run time.
+func UnmarshalDecode(dec *jsontext.Decoder, v any) error {
+	return jsonv2.UnmarshalDecode(dec, v)
+}

@@ -49,17 +49,43 @@ func Entity[Create, Update, Read any](def entity.Definition, caps metadata.Docum
 // EntityWithDetail supports an explicit detail projection without changing the
 // list DTO or granting additional mutation capabilities.
 func EntityWithDetail[Create, Update, List, Read any](def entity.Definition, caps metadata.DocumentCapabilities) Bundle {
+	return entityBundle(def, caps, reflect.TypeFor[Create](), reflect.TypeFor[Update](), reflect.TypeFor[List](), reflect.TypeFor[Read](),
+		reflect.TypeFor[dto.TypedCursorListResponse[List]]())
+}
+
+// EntityOf is Entity for wire types built at run time, e.g. derived from the
+// model by a declarative registration. Unnamed types get the standard names
+// Create<Name>Request, Update<Name>Request and <Name>Response.
+func EntityOf(def entity.Definition, caps metadata.DocumentCapabilities, create, update, read reflect.Type) Bundle {
+	return entityBundle(def, caps, create, update, read, read, cursorOf(read))
+}
+
+// cursorOf mirrors dto.TypedCursorListResponse for an item type that only
+// exists at run time.
+func cursorOf(item reflect.Type) reflect.Type {
+	template := reflect.TypeFor[dto.TypedCursorListResponse[struct{}]]()
+	fields := make([]reflect.StructField, template.NumField())
+	for i := range fields {
+		fields[i] = template.Field(i)
+		if fields[i].Name == "Items" {
+			fields[i].Type = reflect.SliceOf(item)
+		}
+	}
+	return reflect.StructOf(fields)
+}
+
+func entityBundle(def entity.Definition, caps metadata.DocumentCapabilities, createType, updateType, listType, readType, cursorType reflect.Type) Bundle {
 	if err := def.Validate(); err != nil {
 		panic(err)
 	}
 	name := def.Name
-	create, update := wireName[Create]("Create"+name+"Request"), wireName[Update]("Update"+name+"Request")
-	read, list := wireName[Read](name+"Response"), wireName[List](name+"Response")
+	create, update := wireNameOf(createType, "Create"+name+"Request"), wireNameOf(updateType, "Update"+name+"Request")
+	read, list := wireNameOf(readType, name+"Response"), wireNameOf(listType, name+"Response")
 	cursor := strings.TrimSuffix(list, "Response") + "CursorResponse"
 	tree := strings.TrimSuffix(list, "Response") + "TreeResponse"
-	b := Bundle{Contracts: []Contract{Request[Create](create), Request[Update](update), Response[Read](read), Response[dto.TypedCursorListResponse[List]](cursor)}}
-	if read != list || reflect.TypeFor[Read]() != reflect.TypeFor[List]() {
-		b.Contracts = append(b.Contracts, Response[List](list))
+	b := Bundle{Contracts: []Contract{{create, createType, Input}, {update, updateType, Input}, {read, readType, Output}, {cursor, cursorType, Output}}}
+	if read != list || readType != listType {
+		b.Contracts = append(b.Contracts, Contract{list, listType, Output})
 	}
 	base := "/" + string(def.Kind) + "/" + def.Route
 	add := func(enabled bool, method, suffix, request, response string) {
@@ -69,7 +95,7 @@ func EntityWithDetail[Create, Update, List, Read any](def entity.Definition, cap
 	}
 	if def.Kind == entity.CatalogKind {
 		caps = metadata.DocumentCapabilities{List: true, Read: true, Create: true, Update: true, Delete: true, SetDeletionMark: true, ExportList: true}
-		b.Contracts = append(b.Contracts, Response[[]Read](tree))
+		b.Contracts = append(b.Contracts, Contract{tree, reflect.SliceOf(readType), Output})
 		add(true, "GET", "/tree", "", tree)
 	}
 	add(caps.List, "GET", "", "", cursor)
@@ -95,8 +121,8 @@ func EntityWithDetail[Create, Update, List, Read any](def entity.Definition, cap
 	return b
 }
 
-func wireName[T any](fallback string) string {
-	name := reflect.TypeFor[T]().Name()
+func wireNameOf(t reflect.Type, fallback string) string {
+	name := t.Name()
 	if name == "" || name == strings.TrimSuffix(fallback, "Response") {
 		return fallback
 	}

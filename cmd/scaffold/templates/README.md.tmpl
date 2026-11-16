@@ -4,10 +4,11 @@
    The server and `go run ./cmd/http-contracts` read this same module list.
 2. Run `go run ./cmd/http-contracts` and `go run ./cmd/http-contracts -check`.
 3. The migration is in `db/configuration/{{.Name}}/{{printf "%05d" .Version}}_{{.Table}}.sql`. It is embedded into the binaries and applied with the platform's by `go run ./cmd/tenant migrate`, which then creates the module's permissions (`{{if .Document}}document{{else}}catalog{{end}}:{{.Key}}:read`, `create`, …) from its registration and grants them to the admin role; assign other roles explicitly.
-4. Customize the writable Fields DTO, response projection, model and SQL together; localize presentation labels.
+4. Add business fields to the model in `model.go` and their columns to the migration together; localize the presentation labels in `register.go`. Wire contracts are derived from the model: a field with `db` and `json` tags is writable, `meta:"readOnly:true"` makes it read-only, `json:"-"` keeps it off the wire. Rerun step 2 after changing fields.
 5. Check `go build ./extensions/...`, tests and the generic list/form in the frontend.
 
 Identity, table, route and hierarchy come from Definition. Do not add a second hierarchy flag.
-Update requires version. Server fields are excluded from the writable projection.
+Update requires version. Server fields (id, version, posting state) are never writable.
+An entity that needs its own DTOs, references in responses or custom routes switches to an explicit registration (`v1.CatalogRegistrationFor`, see `internal/content`).
 Before and Transaction hooks run in the mutation transaction. After hooks run only after the outer commit.
 {{if .Document}}This is a header-only document. Add typed fields, domain invariants and MovementSource methods for its accounting registers. Register any new Visitor/Recorder in both HTTP and worker composition roots. CurrencyAwareDoc is optional.{{end}}

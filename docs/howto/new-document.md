@@ -24,7 +24,7 @@
 go run ./cmd/scaffold --name adjustment_note --type document
 ```
 
-Добавьте import пакета и `adjustment_note.Register(reg)` в `extensions/register.go`. Сервер и HTTP codegen используют общий список. Генератор создаёт document-модель, header repository/service, DTO с обязательной update-version, capabilities, HTTP-контракты и миграцию. Identity берётся из `entity.Definition`. Специфические движения и бизнес-правила добавляются вручную.
+Добавьте import пакета и `adjustment_note.Register(reg)` в `extensions/register.go`. Сервер и HTTP codegen используют общий список. Генератор создаёт document-модель и регистрацию одной строкой `v1.Document[AdjustmentNote](presentation)`, которая выводит header repository/service, DTO с обязательной update-version, capabilities и HTTP-контракты; плюс миграцию. Identity берётся из `entity.Definition`. Специфические движения и бизнес-правила добавляются вручную.
 
 ## 2. Таблица и domain-модель
 

@@ -20,11 +20,37 @@
 
 ## 2. Регистрация новых сущностей
 
-Чтобы добавить новый Справочник или Документ, интегратор не пишет CRUD-хэндлеры с нуля. Он создаёт структуру, реализующую `CatalogRegistration` или `DocumentRegistration`.
+Справочник или header-only документ объявляется моделью и одной строкой регистрации. Модель встраивает `entity.Catalog` или `entity.Document`, объявляет поля с тегами `db`, `json`, `meta` (и `binding` для проверок запроса), возвращает `entity.Definition` и держит бизнес-методы (`Validate`, `CanPost`, источники движений):
 
-Затем модуль подключается в общем Composition Root `extensions/register.go`; сервер и генератор контрактов используют этот список:
 ```go
-myExtension.Register(factoryReg) // registration uses v1.EntityRegistration[Model]
+type Vehicle struct {
+	entity.Catalog
+	Plate   string `db:"plate" json:"plate" meta:"label:Госномер" binding:"required"`
+	Mileage int    `db:"mileage" json:"mileage" meta:"label:Пробег"`
+}
+
+func (Vehicle) EntityDefinition() entity.Definition { return Definition }
+
+func Register(reg *v1.FactoryRegistry) {
+	reg.RegisterCatalog(v1.Catalog[Vehicle](metadata.Presentation{Singular: "ТС", Plural: "Транспорт"}))
+}
+```
+
+`v1.Catalog` и `v1.Document` (`internal/infrastructure/http/v1/auto_registration.go`) выводят из модели и Definition всё остальное: репозиторий, сервис (генерация кода или номера, журнал событий, CEL-политики), стандартные маршруты, HTTP-контракты, metadata и права. Хуки и настройки сервиса добавляет `.Configure(func(s *domain.CatalogService[*Vehicle]) { ... })`, префикс нумерации — `.CodePrefix` / `.NumberPrefix`.
+
+Запросы и ответ строятся по одному правилу (`autoShape`):
+
+- **запись:** стандартные поля вида (справочник: `code`, `name`, у иерархического `parentId` и `isFolder`; документ: `number`, `date`, `description`), `attributes` и каждое экспортируемое поле самой модели с тегами `db` и `json`, кроме `meta:"readOnly:true"`;
+- **create** — поля записи (документ — ещё `postImmediately`), **update** — они же и `version`;
+- **ответ** — `id`, `version`, `deletionMark` (документ — ещё `posted`, `postedVersion`), поля записи и поля модели только для чтения.
+
+Серверные поля базовых типов (`id`, `version`, состояние проведения) никогда не записываются; поле без колонки `db` или с `json:"-"` не попадает в контракт. Из тегов модели в запрос переносятся только `json` и `binding`, поэтому `binding:"required"` поля модели проверяется при запросе. Тело запроса читается так же строго, как типизированный DTO: неизвестное или недоступное для записи поле — ошибка 400.
+
+Сущность, которой нужны свои DTO, ссылки в ответе (`ResolveRefs`), табличные части или собственные маршруты, объявляет явную регистрацию (`v1.CatalogRegistrationFor[Model, Create, Update, Read]` с `Build`), как встроенные сущности в `internal/content`.
+
+Модуль подключается в общем Composition Root `extensions/register.go`; сервер, генератор контрактов и `cmd/tenant` используют этот список:
+```go
+myExtension.Register(factoryReg)
 ```
 
 **Frontend Auto-Discovery:**
@@ -100,9 +126,9 @@ myExtension.Register(factoryReg) // registration uses v1.EntityRegistration[Mode
 ```bash
 go run cmd/scaffold/main.go --name waybill --type document
 ```
-Генератор создаёт модель выбранного вида, service/repository, явные writable DTO, update-version, регистрацию, типизированный HTTP bundle и миграцию с актуальными CDC triggers. Права модуля миграция не объявляет: `cmd/tenant migrate` выводит их из регистрации и выдаёт роли admin. Миграция пишется в `db/configuration/<name>/` с версией 10000+: оттуда она встраивается в бинарники и применяется вместе с платформенными. Документ создаётся без искусственной табличной части. `--hierarchical` включает папки и проверки иерархии справочника; без флага справочник плоский.
+Генератор создаёт модуль из двух Go-файлов — `model.go` (Definition и модель) и `register.go` (одна строка `v1.Catalog`/`v1.Document`) — и миграцию с актуальными CDC triggers. DTO, репозиторий, сервис и регистрация выводятся из модели (раздел 2). Права модуля миграция не объявляет: `cmd/tenant migrate` выводит их из регистрации и выдаёт роли admin. Миграция пишется в `db/configuration/<name>/` с версией 10000+: оттуда она встраивается в бинарники и применяется вместе с платформенными. Документ создаётся без искусственной табличной части. `--hierarchical` включает папки и проверки иерархии справочника; без флага справочник плоский.
 
-Общее `entity.Definition` связывает identity, таблицу, маршрут и hierarchy. `contracts/spec.Entity` выводит стандартные HTTP-контракты из Definition и конкретных DTO. После добавления модуля в `extensions/register.go` выполните `go run ./cmd/http-contracts`; отдельные правки registry/routes для расширения не нужны. Права других ролей, бизнес-поля, локализация, движения и новый worker workflow требуют явной настройки.
+Общее `entity.Definition` связывает identity, таблицу, маршрут и hierarchy. `contracts/spec.Entity` выводит стандартные HTTP-контракты из Definition и конкретных DTO, `spec.EntityOf` — из типов, построенных во время выполнения (декларативная регистрация). После добавления модуля в `extensions/register.go` выполните `go run ./cmd/http-contracts`; отдельные правки registry/routes для расширения не нужны. Права других ролей, бизнес-поля, локализация, движения и новый worker workflow требуют явной настройки.
 
 Модули `extensions/` компилируются внутри Metapus. Публичный внешний SDK в `pkg/extension` пока ограничен версией API; не используйте его как готовый фасад регистрации.
 

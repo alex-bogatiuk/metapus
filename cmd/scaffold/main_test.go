@@ -101,12 +101,19 @@ func TestGeneratedModulesCompileAndMatchTheirHTTPContracts(t *testing.T) {
 		probe := strings.ReplaceAll(generatedProbe, "PACKAGE", fixture.name)
 		pascal := []string{"A", "TreeProbe", "DocProbe"}[i]
 		probe = strings.ReplaceAll(probe, "ENTITY", pascal)
-		mount := `v1.RegisterCatalogRoutes(router.Group("/catalog/"+Definition.Route), handler, Definition.Permission())`
+		for _, generated := range []string{"model.go", "register.go"} {
+			if _, err := os.Stat(filepath.Join(dir, generated)); err != nil {
+				t.Fatalf("declarative module lacks %s: %v", generated, err)
+			}
+		}
+		if files, _ := filepath.Glob(filepath.Join(dir, "*.go")); len(files) != 2 {
+			t.Fatalf("a declarative module is a model and its registration, got %v", files)
+		}
+		mount := `v1.RegisterCatalogRoutes(router.Group("/catalog/"+Definition.Route), registry.Catalogs()[0].Build(v1.CatalogDeps{BaseHandler:handlers.NewBaseHandler(),Numerator:numerator.Noop()}), Definition.Permission())`
 		if fixture.kind == "document" {
-			mount = `v1.RegisterDocumentRoutes(router.Group("/document/"+Definition.Route), handler, Definition.Permission(), registration.DocumentCapabilities())`
+			mount = `registration:=registry.Documents()[0]; v1.RegisterDocumentRoutes(router.Group("/document/"+Definition.Route), registration.Build(v1.DocumentDeps{BaseHandler:handlers.NewBaseHandler(),Numerator:numerator.Noop()}), Definition.Permission(), registration.(v1.DocumentCapabilitiesProvider).DocumentCapabilities())`
 		}
 		probe = strings.ReplaceAll(probe, "MOUNT", mount)
-		probe = strings.ReplaceAll(probe, "DEPS", "v1."+map[string]string{"catalog": "Catalog", "document": "Document"}[fixture.kind]+"Deps{BaseHandler:handlers.NewBaseHandler(),Numerator:numerator.Noop()}")
 		if err := os.WriteFile(filepath.Join(dir, "generated_test.go"), []byte(probe), 0644); err != nil {
 			t.Fatal(err)
 		}
@@ -133,11 +140,9 @@ import (
 func TestGeneratedBoundary(t *testing.T) {
  gin.SetMode(gin.TestMode)
  registry:=v1.NewFactoryRegistry(); Register(registry)
- registration:=&ENTITYRegistration{}
- handler:=registration.Build(DEPS)
  router:=gin.New()
  MOUNT
- bundle:=registration.HTTPContracts()
+ bundle:=registry.HTTPContracts()
  declared:=map[string]bool{}
  for _, route:=range bundle.Routes { declared[route.Method+" "+route.Path]=true }
  for _, route:=range router.Routes() {

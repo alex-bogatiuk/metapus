@@ -5,24 +5,37 @@ import (
  "metapus/internal/core/entity"
 )
 
-// {{.PascalName}} stores the business data. Add typed fields and pure validation here.
+// Definition is shared by persistence, service, registration and wire contracts.
+var Definition = entity.Definition{
+ Key: "{{.Key}}", Name: "{{.PascalName}}", Route: "{{.Route}}", Table: "{{.Table}}",
+ Kind: entity.{{if .Document}}DocumentKind{{else}}CatalogKind{{end}},
+ {{if .Hierarchical}}Hierarchy: entity.CatalogMeta{Hierarchical: true, HierarchyType: entity.HierarchyGroupsAndItems, FolderAsParentOnly: true},{{end}}
+}
+
+// {{.PascalName}} stores the business data. Its storage, HTTP routes, wire
+// contracts, metadata and permissions are derived from it (see register.go).
+//
+// Add a business field with its column in the migration, for example:
+//
+//	Plate string `db:"plate" json:"plate" meta:"label:Госномер" binding:"required"`
+//
+// A field with db and json tags is writable through the API; mark one that
+// only the server sets with meta:"readOnly:true", keep one off the wire with
+// json:"-". Put pure validation in Validate.
 type {{.PascalName}} struct {
  entity.{{if .Document}}Document{{else}}Catalog{{end}}
 }
 
+func ({{.PascalName}}) EntityDefinition() entity.Definition { return Definition }
+
+func (e *{{.PascalName}}) Validate(ctx context.Context) error { return e.{{if .Document}}Document{{else}}Catalog{{end}}.Validate(ctx) }
 {{if .Document}}
-func New{{.PascalName}}() *{{.PascalName}} { return &{{.PascalName}}{Document: entity.NewDocument()} }
 func (e *{{.PascalName}}) GetDocumentType() string { return Definition.Name }
-// Override CanPost and implement the required MovementSource interfaces when
-// this document affects accounting. Generate movements without SQL or RPC.
+
+// CanPost checks the document before posting. Implement the MovementSource
+// interfaces of the registers it affects; generate movements without SQL or RPC.
 func (e *{{.PascalName}}) CanPost(ctx context.Context) error {
- if err := e.Document.CanPost(ctx); err != nil { return err }; return e.Validate(ctx)
-}
-{{else}}
-func New{{.PascalName}}(code, name string) *{{.PascalName}} {
- return &{{.PascalName}}{Catalog: entity.NewCatalog(code, name)}
+ if err := e.Document.CanPost(ctx); err != nil { return err }
+ return e.Validate(ctx)
 }
 {{end}}
-func (e *{{.PascalName}}) Validate(ctx context.Context) error { return e.{{if .Document}}Document{{else}}Catalog{{end}}.Validate(ctx) }
-
-func ({{.PascalName}}) EntityDefinition() entity.Definition { return Definition }
