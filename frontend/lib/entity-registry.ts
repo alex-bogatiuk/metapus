@@ -26,6 +26,7 @@ import type { JsonObject } from "@/lib/json-value"
  */
 
 import type { ComponentType, LazyExoticComponent, ReactNode } from "react"
+import type { AutoFormProps } from "@/components/shared/auto-form"
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -91,6 +92,10 @@ export interface EntityUIRegistration {
     formComponent?: LazyExoticComponent<ComponentType<EntityFormProps>>
     /** Lazy-loaded custom list component. If undefined → use AutoList */
     listComponent?: LazyExoticComponent<ComponentType<{ entityName: string }>>
+    /** Panels shown under the metadata form of an existing record. */
+    detailContent?: ComponentType<{ id: string }>
+    /** Custom editors for some fields of the metadata form. */
+    renderField?: AutoFormProps["renderField"]
 }
 
 // ── Registry Singleton ──────────────────────────────────────────────────

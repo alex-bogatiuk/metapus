@@ -26,7 +26,7 @@ import { useMetadataStore } from "@/stores/useMetadataStore"
 // Enum columns use `enumEntity` for dynamic label resolution in AutoList.
 
 type ColumnOverlayConfig = Pick<EntityUIRegistration,
-    "listColumns" | "defaultVisibleKeys" | "defaultFilterKeys" | "entityKey" | "formComponent" | "listComponent">
+    "listColumns" | "defaultVisibleKeys" | "defaultFilterKeys" | "entityKey" | "formComponent" | "listComponent" | "detailContent" | "renderField">
 
 /** EntityOverlay is a configuration's presentation for one metadata entity. */
 export type EntityOverlay = ColumnOverlayConfig
@@ -35,7 +35,8 @@ const configurationOverlays: Record<string, EntityOverlay> = {}
 
 /**
  * Registers a configuration's overlays by entity name: list columns, default
- * columns and filters, and an optional form or list component. Call it from
+ * columns and filters, an optional form or list component, panels under the
+ * metadata form and custom field editors. Call it from
  * the composition root (app/) before the first registerFromMetadata().
  */
 export function registerEntityOverlays(overlays: Record<string, EntityOverlay>): void {
@@ -165,6 +166,8 @@ export function registerFromMetadata(): void {
             listColumns: overlay?.listColumns,
             defaultVisibleKeys: overlay?.defaultVisibleKeys,
             defaultFilterKeys: overlay?.defaultFilterKeys,
+            detailContent: overlay?.detailContent,
+            renderField: overlay?.renderField,
         }
 
         if (type === "catalog") {

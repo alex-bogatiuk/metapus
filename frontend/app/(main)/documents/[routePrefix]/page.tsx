@@ -73,7 +73,7 @@ export default function DocumentCatchAllPage({ params }: PageProps) {
 
     const entityName = registration?.entityName ?? entity?.key ?? routePrefix
     // Use canonical singular routePrefix from metadata for API calls,
-    // not the pluralized URL segment (e.g. "crypto-invoice" not "crypto-invoices").
+    // not the pluralized URL segment (e.g. "goods-receipt" not "goods-receipts").
     const canonicalPrefix = entity?.routePrefix ?? registration?.routePrefix ?? routePrefix
 
     return (

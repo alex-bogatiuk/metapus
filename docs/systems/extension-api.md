@@ -65,7 +65,11 @@ myExtension.Register(factoryReg) // registration uses v1.EntityRegistration[Mode
 - `configuration_boundary_test.go`: платформенный пакет не импортирует пакет конфигурации; список исключений пуст и должен таким остаться;
 - `configuration_storage_test.go`: строковые литералы платформенного кода не называют таблицы из миграций конфигурации (`db/configuration/*`), а тесты платформы не импортируют конфигурацию. Список известных исключений (проверки сгенерированных контрактов и наборов отчётов) только сокращается.
 
-Во фронтенде код конфигурации лежит в `frontend/configuration/<имя>/` (`components`, `lib`, `hooks`, `types`, `stores` с той же структурой, что у платформы), платформенный — в `frontend/components`, `lib`, `hooks`, `stores`, `types`. `frontend/app/` — точка сборки: маршруты Next.js подключают и платформу, и конфигурацию. Тест `frontend/tests/unit/configuration-boundary.spec.ts` запрещает платформенным файлам импортировать `configuration/`; список исключений пуст.
+Во фронтенде код конфигурации лежит в `frontend/configuration/<имя>/` (`components`, `lib`, `hooks`, `types`, `stores` с той же структурой, что у платформы), платформенный — в `frontend/components`, `lib`, `hooks`, `stores`, `types`. Страницы и layout конфигурации лежат в `frontend/configuration/<имя>/pages/` по структуре маршрутов. `frontend/app/` — точка сборки: маршрут конфигурации в нём — однострочная обёртка `export { default } from "@/configuration/<имя>/pages/…"`, которую требует Next.js. Тест `frontend/tests/unit/configuration-boundary.spec.ts` проверяет, что:
+
+- платформенные файлы не импортируют `configuration/`, и список исключений пуст;
+- платформенный код и маршруты `app/` не используют словарь конфигурации (crypto, merchant, portal, wallet и т. п.), кроме путей модулей;
+- `app/` обращается к конфигурации только через такие обёртки и `app/configuration.ts`.
 
 Конфигурация подключает свои части при старте: `frontend/app/configuration.ts` вызывает `registerCryptoConfiguration()`, его импортируют первыми клиентский layout `app/(main)` и страница дашборда.
 
@@ -74,7 +78,17 @@ myExtension.Register(factoryReg) // registration uses v1.EntityRegistration[Mode
 | `registerEntityOverlays` (`lib/entity-registry-defaults`) | колонки, видимость, фильтры, форма и список для сущностей из metadata | `configuration/crypto/lib/entity-overlays.ts` |
 | `registerWidget` (`lib/widget-registry`) | виджет дашборда со своей схемой настроек (`configSchema`) и редактором (`configEditor`) | `configuration/crypto/lib/widgets.tsx` |
 | `registerDefaultDashboard` (`lib/dashboard-layout`) | дашборд пользователя по умолчанию | там же |
+| `detailContent`, `renderField` в overlay сущности | панели под формой существующей записи и свои редакторы полей на generic-страницах `[routePrefix]/[id]` | `configuration/crypto/components/detail-panels.tsx` |
+| `registerNavigation` (`lib/navigation`) | группы разделов меню (в существующую группу или после указанной), системные ссылки, пункты палитры команд; у пункта может быть `permission` | `configuration/crypto/lib/navigation.ts` |
+| `registerRouteEntities`, `registerIcons`, `registerRouteLabels` | ключ сущности, иконка и заголовок вкладки по URL до загрузки metadata | там же |
+| `registerWorkspace` (`lib/access`) | отдельный интерфейс для пользователей без доступа к ERP; `landingPath(user)` выбирает его после входа | `configuration/crypto/lib/access.ts` (портал) |
+| `createScopedClient(scope)` (`lib/api`) | клиент своей HTTP-области `/<scope>/v1` с общей сессией, проверкой контрактов и идемпотентностью | `configuration/crypto/lib/api/portal.ts` |
+| `registerSecurityDimension`, `registerProfilePreset`, `registerAffinityRule`, `registerResourceLabels` (`lib/security-registry`) | RLS-измерение с поиском значений, шаблоны профилей безопасности, подсказки ролей, названия ресурсов прав | `configuration/crypto/lib/security.ts` |
+| `registerSettingsPage` (`lib/settings-registry`), `registerAdminSection` (`lib/admin-registry`) | свои страницы в «Настройках» и разделы в «Управлении» | `configuration/crypto/lib/settings.tsx`, `lib/admin.ts` |
+| `registerStatusColors`, `registerWorkerJobs` | цвет статусов и фильтры журнала задач воркера | `configuration/crypto/lib/labels.ts` |
 | собственный API-клиент | её эндпоинты; платформенный `@/lib/api` содержит только платформенные | `configuration/crypto/lib/api` (`cryptoApi`) |
+
+Регистрации выполняются при загрузке модуля `app/configuration.ts`, поэтому платформа читает реестры при рендере, а не при загрузке своих модулей. Хранилища конфигурации, сохраняемые в `localStorage`, называются с префиксом `SCOPED_STORAGE_PREFIX` (`metapus-scoped-`): платформа очищает их при смене пользователя, даже если модуль ещё не загружен.
 
 Печатные формы документ конфигурации объявляет через `v1.PrintFormsProvider`; типы областей команд (`command.Metadata.ScopeType`) и маршрутов контрактов — открытые идентификаторы, конфигурация добавляет свои (`merchant`, `portal`) без правок ядра. Состояние раскрытых секций интерфейса хранится в `interface.expandedSections` под ключом, который выбирает UI.
 

@@ -17,19 +17,10 @@ import { notFound } from "next/navigation"
 import { entityRegistry } from "@/lib/entity-registry"
 import { registerFromMetadata } from "@/lib/entity-registry-defaults"
 import { useMetadataStore } from "@/stores/useMetadataStore"
-import AutoForm, { type AutoFormProps } from "@/components/shared/auto-form"
-import { RPCKeyNameField } from "@/components/integrations/rpc-key-name-field"
-
-import { WalletAMLPanel } from "@/configuration/crypto/components/crypto/aml-risk"
+import AutoForm from "@/components/shared/auto-form"
 
 // Auto-discover entities from backend metadata
 registerFromMetadata()
-
-// RPC connections choose the account key from their pool, not as free text.
-const renderRPCEndpointField: NonNullable<AutoFormProps["renderField"]> = (field, context) =>
-    field.name === "credentialSlot"
-        ? <RPCKeyNameField value={context.value} values={context.values} onChange={context.onChange} readOnly={context.readOnly} />
-        : undefined
 
 interface PageProps {
     params: Promise<{
@@ -87,6 +78,8 @@ export default function CatalogCatchAllFormPage({ params }: PageProps) {
 
     const entityName = registration?.entityName ?? entity?.key ?? routePrefix
     const canonicalPrefix = entity?.routePrefix ?? registration?.routePrefix ?? routePrefix
+    // A configuration adds panels under the form of an existing record.
+    const DetailContent = registration?.detailContent
 
     return (
         <Suspense fallback={<LoadingFallback />}>
@@ -95,8 +88,8 @@ export default function CatalogCatchAllFormPage({ params }: PageProps) {
                 entityType="catalog"
                 routePrefix={canonicalPrefix}
                 id={id === "new" ? undefined : id}
-                appendContent={canonicalPrefix === "wallets" && id !== "new" ? <WalletAMLPanel walletId={id} /> : undefined}
-                renderField={canonicalPrefix === "crypto-rpc-endpoints" ? renderRPCEndpointField : undefined}
+                appendContent={DetailContent && id !== "new" ? <DetailContent id={id} /> : undefined}
+                renderField={registration?.renderField}
             />
         </Suspense>
     )

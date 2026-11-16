@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useTabState } from "@/hooks/useTabState"
 import {
@@ -14,7 +14,6 @@ import {
   Cloud,
   Plug,
   Pencil,
-  Store,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -25,7 +24,7 @@ import { SystemInfoSection } from "@/components/settings/system-info-section"
 import { TenantOverviewSection } from "@/components/settings/tenant-overview-section"
 import { IntegrationsSection } from "@/components/settings/integrations-section"
 import { useSettingsStore } from "@/stores/useSettingsStore"
-import { MerchantsSection } from "@/configuration/crypto/components/settings/merchants-section"
+import { getAdminSections, type AdminSectionDef } from "@/lib/admin-registry"
 import { createTabStateKey } from "@/stores/useTabStateStore"
 
 const tabStateKeys = {
@@ -33,14 +32,10 @@ const tabStateKeys = {
 }
 
 
-type AdminSection = "users" | "security" | "matrix" | "integrations" | "system" | "tenants" | "merchants"
+// Platform section ids, or the id of a section a configuration registered.
+type AdminSection = "users" | "security" | "matrix" | "integrations" | "system" | "tenants" | (string & {})
 
-interface SectionItem {
-  id: AdminSection
-  title: string
-  description: string
-  icon: React.ElementType
-}
+type SectionItem = Omit<AdminSectionDef, "component">
 
 interface ToolItem {
   title: string
@@ -49,7 +44,7 @@ interface ToolItem {
   href: string
 }
 
-const sections: SectionItem[] = [
+const platformSections: SectionItem[] = [
   {
     id: "users",
     title: "Пользователи и роли",
@@ -86,12 +81,6 @@ const sections: SectionItem[] = [
     description: "Мониторинг тенантов и версий схем",
     icon: Cloud,
   },
-  {
-    id: "merchants",
-    title: "Мерчанты",
-    description: "Пользователи и доступ к мерчантам",
-    icon: Store,
-  },
 ]
 
 const tools: ToolItem[] = [
@@ -115,18 +104,28 @@ const tools: ToolItem[] = [
   },
 ]
 
-const sectionComponents: Record<AdminSection, React.ComponentType> = {
+const platformComponents: Record<string, React.ComponentType> = {
   users: UsersRolesSection,
   security: SecurityProfilesSection,
   matrix: AccessMatrix,
   integrations: IntegrationsSection,
   system: SystemInfoSection,
   tenants: TenantOverviewSection,
-  merchants: MerchantsSection,
+}
+
+// Read at render: configuration sections register at start-up, and a page
+// module may evaluate before the layout that runs the registration.
+function adminSections(): { sections: SectionItem[]; sectionComponents: Record<string, React.ComponentType> } {
+  const registered = getAdminSections()
+  return {
+    sections: [...platformSections, ...registered],
+    sectionComponents: { ...platformComponents, ...Object.fromEntries(registered.map((s) => [s.id, s.component])) },
+  }
 }
 
 export default function AdminPage() {
   const router = useRouter()
+  const { sections, sectionComponents } = useMemo(() => adminSections(), [])
   const [activeSection, setActiveSection] =
     useTabState(tabStateKeys["activeSection"], "users")
 
@@ -143,7 +142,7 @@ export default function AdminPage() {
     if (!(activeSection in sectionComponents)) {
       setActiveSection("users")
     }
-  }, [activeSection, setActiveSection])
+  }, [activeSection, sectionComponents, setActiveSection])
 
   return (
     <div className="flex h-full flex-col md:flex-row">

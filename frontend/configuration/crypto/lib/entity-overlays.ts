@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { COPY_VALUE_ATTR } from "@/components/shared/data-table"
 import { AMLRiskBadge } from "@/configuration/crypto/components/crypto/aml-risk"
+import { CryptoPaymentDetailPanels, WalletDetailPanels, renderRPCEndpointField } from "@/configuration/crypto/components/detail-panels"
 
 const CryptoProviderAccountForm = React.lazy(() => import("@/configuration/crypto/components/catalogs/crypto-provider-account-form"))
 const CryptoSweepCard = React.lazy(() => import("@/configuration/crypto/components/documents/crypto-sweep-card"))
@@ -82,6 +83,7 @@ const overlays: Record<string, EntityOverlay> = {
     },
     Wallet: {
         entityKey: "wallet",
+        detailContent: WalletDetailPanels,
         defaultVisibleKeys: ["address", "network", "statusName", "tierName", "custodyMerchant", "riskClass"],
         listColumns: [
             { key: "address", label: "Адрес", sortable: false, width: 180, render: cellHashTruncated("address") },
@@ -134,6 +136,7 @@ const overlays: Record<string, EntityOverlay> = {
     },
     CryptoPayment: {
         entityKey: "crypto_payment",
+        detailContent: CryptoPaymentDetailPanels,
         defaultVisibleKeys: ["number", "date", "statusName", "riskClass", "amount", "txHash", "confirmations"],
         defaultFilterKeys: ["status"],
         listColumns: [
@@ -258,6 +261,10 @@ const overlays: Record<string, EntityOverlay> = {
             { key: "amount", label: "Сумма", sortable: true, width: 120, render: cellAmount("amount") },
             { key: "externalRef", label: "Основание", sortable: false, width: 170, render: cellMono("externalRef") },
         ],
+    },
+    CryptoRPCEndpoint: {
+        entityKey: "crypto_rpc_endpoint",
+        renderField: renderRPCEndpointField,
     },
 }
 

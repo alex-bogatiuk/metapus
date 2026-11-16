@@ -56,3 +56,23 @@ test("platform UI does not use the configuration's vocabulary", () => {
       configurationVocabulary.test(line.replace(webCrypto, "")) ? [`${file}:${index + 1}: ${line.trim().slice(0, 120)}`] : []))
   expect(hits, "move configuration-specific code and wording into configuration/ and register it").toEqual([])
 })
+
+// app/ is the composition root. It reaches the configuration only through
+// app/configuration.ts and one-line route wrappers that re-export a page or
+// layout the configuration provides; the platform's own routes stay neutral.
+const routeWrapper = /^export \{ default \} from "@\/configuration\/[^"]+"\r?\n?$/
+const moduleSpecifier = /(?:from|import)\s*\(?\s*["'][^"']+["']/g
+
+test("app/ reaches the configuration only through route wrappers", () => {
+  const offenders = sourceFiles("app").filter(file => file !== join("app", "configuration.ts")).flatMap(file => {
+    const source = readFileSync(join(root, file), "utf8")
+    const importsConfiguration = [...source.matchAll(importPattern)].some(([, spec]) => {
+      const target = resolveImport(file, spec)
+      return target !== undefined && relative("configuration", target).split(/[\\/]/)[0] !== ".."
+    })
+    if (importsConfiguration && !routeWrapper.test(source)) return [`${file}: imports the configuration outside a route wrapper`]
+    return source.split("\n").flatMap((line, index) =>
+      configurationVocabulary.test(line.replace(moduleSpecifier, "").replace(webCrypto, "")) ? [`${file}:${index + 1}: ${line.trim().slice(0, 120)}`] : [])
+  })
+  expect(offenders, "register the configuration's parts or move its page into configuration/ behind a route wrapper").toEqual([])
+})

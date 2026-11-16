@@ -18,10 +18,6 @@ import { entityRegistry } from "@/lib/entity-registry"
 import { registerFromMetadata } from "@/lib/entity-registry-defaults"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import AutoForm from "@/components/shared/auto-form"
-import { CryptoPaymentAdjustments } from "@/configuration/crypto/components/documents/crypto-payment-adjustments"
-import { CryptoPaymentReceipt } from "@/configuration/crypto/components/documents/crypto-payment-receipt"
-
-import { PaymentAMLPanel } from "@/configuration/crypto/components/crypto/aml-risk"
 
 // Auto-discover entities from backend metadata
 registerFromMetadata()
@@ -82,6 +78,8 @@ export default function DocumentCatchAllFormPage({ params }: PageProps) {
 
     const entityName = registration?.entityName ?? entity?.key ?? routePrefix
     const canonicalPrefix = entity?.routePrefix ?? registration?.routePrefix ?? routePrefix
+    // A configuration adds panels under the form of an existing record.
+    const DetailContent = registration?.detailContent
 
     return (
         <Suspense fallback={<LoadingFallback />}>
@@ -90,7 +88,8 @@ export default function DocumentCatchAllFormPage({ params }: PageProps) {
                 entityType="document"
                 routePrefix={canonicalPrefix}
                 id={id === "new" ? undefined : id}
-                appendContent={canonicalPrefix === "crypto-payment" && id !== "new" ? <div className="space-y-4"><CryptoPaymentReceipt paymentId={id} /><PaymentAMLPanel paymentId={id} /><CryptoPaymentAdjustments paymentId={id} /></div> : undefined}
+                appendContent={DetailContent && id !== "new" ? <DetailContent id={id} /> : undefined}
+                renderField={registration?.renderField}
             />
         </Suspense>
     )

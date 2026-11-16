@@ -9,6 +9,7 @@
  * No new .tsx files needed.
  */
 
+import type { ComponentType } from "react"
 import type { LucideIcon } from "lucide-react"
 import type { SettingsSection } from "@/stores/useSettingsStore"
 import {
@@ -152,3 +153,33 @@ export const settingsSections: SettingSectionDef[] = [
     ],
   },
 ]
+
+// ── Configuration settings pages ─────────────────────────────────────────
+
+/**
+ * A settings page with its own UI rather than sys_settings fields, e.g. a
+ * configuration's tariffs. Pages are grouped in the sidebar under `group`.
+ */
+export interface SettingsPageDef {
+  id: string
+  group: string
+  title: string
+  /** One line under the title in the sidebar */
+  summary: string
+  /** Text under the page heading */
+  description: string
+  icon: LucideIcon
+  component: ComponentType
+}
+
+const settingsPages: SettingsPageDef[] = []
+
+/** Adds a configuration's settings page. Call at start-up. */
+export function registerSettingsPage(page: SettingsPageDef): void {
+  if (settingsPages.some((p) => p.id === page.id)) throw new Error(`Settings page ${page.id} is already registered`)
+  settingsPages.push(page)
+}
+
+export function getSettingsPages(): SettingsPageDef[] {
+  return [...settingsPages]
+}
