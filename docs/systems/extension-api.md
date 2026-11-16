@@ -100,7 +100,7 @@ myExtension.Register(factoryReg) // registration uses v1.EntityRegistration[Mode
 ```bash
 go run cmd/scaffold/main.go --name waybill --type document
 ```
-Генератор создаёт модель выбранного вида, service/repository, явные writable DTO, update-version, регистрацию, типизированный HTTP bundle и миграцию с актуальными CDC triggers и permissions. Миграция пишется в `db/configuration/<name>/` с версией 10000+: оттуда она встраивается в бинарники и применяется вместе с платформенными. Документ создаётся без искусственной табличной части. `--hierarchical` включает папки и проверки иерархии справочника; без флага справочник плоский.
+Генератор создаёт модель выбранного вида, service/repository, явные writable DTO, update-version, регистрацию, типизированный HTTP bundle и миграцию с актуальными CDC triggers. Права модуля миграция не объявляет: `cmd/tenant migrate` выводит их из регистрации и выдаёт роли admin. Миграция пишется в `db/configuration/<name>/` с версией 10000+: оттуда она встраивается в бинарники и применяется вместе с платформенными. Документ создаётся без искусственной табличной части. `--hierarchical` включает папки и проверки иерархии справочника; без флага справочник плоский.
 
 Общее `entity.Definition` связывает identity, таблицу, маршрут и hierarchy. `contracts/spec.Entity` выводит стандартные HTTP-контракты из Definition и конкретных DTO. После добавления модуля в `extensions/register.go` выполните `go run ./cmd/http-contracts`; отдельные правки registry/routes для расширения не нужны. Права других ролей, бизнес-поля, локализация, движения и новый worker workflow требуют явной настройки.
 

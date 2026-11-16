@@ -17,6 +17,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"metapus/extensions"
+	"metapus/internal/content"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/version"
 	postgresstore "metapus/internal/infrastructure/storage/postgres"
@@ -454,9 +456,10 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
-// runAllMigrations delegates to the shared migration package.
+// runAllMigrations delegates to the shared migration package and syncs the
+// permissions of the registered entities, built-in and client extensions.
 func runAllMigrations(dsn string) error {
-	output, err := migration.RunAll(dsn)
+	output, err := migration.RunAll(dsn, migration.WithPermissions(content.Permissions(extensions.Register)))
 	if output != "" {
 		fmt.Print(output)
 	}

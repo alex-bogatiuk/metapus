@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"metapus/extensions"
+	"metapus/internal/content"
 	"metapus/internal/core/id"
 	"metapus/internal/infrastructure/storage/postgres/migration"
 )
@@ -119,7 +121,7 @@ func run(ctx context.Context) error {
 	if actual != name {
 		return errors.New("integration database identity mismatch")
 	}
-	if output, err := migration.RunAll(dsn); err != nil {
+	if output, err := migration.RunAll(dsn, migration.WithPermissions(content.Permissions(extensions.Register))); err != nil {
 		return fmt.Errorf("prepare integration schema: %w\n%s", err, output)
 	}
 	fmt.Println("Integration database:", name)

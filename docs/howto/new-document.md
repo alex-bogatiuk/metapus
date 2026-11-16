@@ -64,7 +64,7 @@ ID выделяется в Go до INSERT и проведения. `Validate(ctx
 
 `RegisterDocumentRoutes` публикует только разрешённые capabilities и поддержанные handler-интерфейсы. Явно закройте неподдерживаемые Create/Delete/Copy/Post/Unpost. Для отдельного workflow используйте `CustomDocumentRegistration`.
 
-Подключите фабрику через `internal/content/register.go`, permissions и назначения ролей — через seed. Опишите Create/Update/Response DTO, mapper, version и read projection. Стандартные HTTP method/path выводятся из Definition и capabilities. Custom workflow-команды добавляются в bundle той же регистрации. Codegen собирает bundles из общего factory registry; отдельного списка документов в `internal/infrastructure/http/contracts` нет. Обновите generated artifacts:
+Подключите фабрику через `internal/content/register.go`. Права `document:<key>:*` для открытых capabilities и объявленных действий создаёт `cmd/tenant migrate` и выдаёт роли admin; назначения другим ролям — через seed. Опишите Create/Update/Response DTO, mapper, version и read projection. Стандартные HTTP method/path выводятся из Definition и capabilities. Custom workflow-команды добавляются в bundle той же регистрации. Codegen собирает bundles из общего factory registry; отдельного списка документов в `internal/infrastructure/http/contracts` нет. Обновите generated artifacts:
 
 ```bash
 go run ./cmd/http-contracts

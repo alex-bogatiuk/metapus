@@ -294,27 +294,27 @@ INSERT INTO auth_security_profiles (id, code, name, description, is_system) VALU
 
 INSERT INTO auth_permissions (code, name, description, resource, action) VALUES
     -- Catalogs: Counterparties
-    ('counterparty.read',   'Чтение контрагентов',   'View counterparties catalog', 'counterparty', 'read'),
-    ('counterparty.create', 'Создание контрагентов', 'Create counterparties', 'counterparty', 'create'),
-    ('counterparty.update', 'Изменение контрагентов', 'Update counterparties', 'counterparty', 'update'),
-    ('counterparty.delete', 'Удаление контрагентов', 'Delete counterparties', 'counterparty', 'delete'),
+    ('catalog:counterparty:read',   'Чтение контрагентов',   'View counterparties catalog', 'counterparty', 'read'),
+    ('catalog:counterparty:create', 'Создание контрагентов', 'Create counterparties', 'counterparty', 'create'),
+    ('catalog:counterparty:update', 'Изменение контрагентов', 'Update counterparties', 'counterparty', 'update'),
+    ('catalog:counterparty:delete', 'Удаление контрагентов', 'Delete counterparties', 'counterparty', 'delete'),
     -- Catalogs: Currencies
-    ('currency.read',   'Чтение валют',   'View currencies catalog', 'currency', 'read'),
-    ('currency.create', 'Создание валют', 'Create currencies', 'currency', 'create'),
-    ('currency.update', 'Изменение валют', 'Update currencies', 'currency', 'update'),
-    ('currency.delete', 'Удаление валют', 'Delete currencies', 'currency', 'delete'),
+    ('catalog:currency:read',   'Чтение валют',   'View currencies catalog', 'currency', 'read'),
+    ('catalog:currency:create', 'Создание валют', 'Create currencies', 'currency', 'create'),
+    ('catalog:currency:update', 'Изменение валют', 'Update currencies', 'currency', 'update'),
+    ('catalog:currency:delete', 'Удаление валют', 'Delete currencies', 'currency', 'delete'),
     -- Catalogs: Organizations
-    ('organization.read',   'Чтение организаций',   'View organizations catalog', 'organization', 'read'),
-    ('organization.create', 'Создание организаций', 'Create organizations', 'organization', 'create'),
-    ('organization.update', 'Изменение организаций', 'Update organizations', 'organization', 'update'),
-    ('organization.delete', 'Удаление организаций', 'Delete organizations', 'organization', 'delete'),
+    ('catalog:organization:read',   'Чтение организаций',   'View organizations catalog', 'organization', 'read'),
+    ('catalog:organization:create', 'Создание организаций', 'Create organizations', 'organization', 'create'),
+    ('catalog:organization:update', 'Изменение организаций', 'Update organizations', 'organization', 'update'),
+    ('catalog:organization:delete', 'Удаление организаций', 'Delete organizations', 'organization', 'delete'),
     -- Catalogs: Contracts
-    ('contract.read',   'Чтение договоров',   'View contracts catalog', 'contract', 'read'),
-    ('contract.create', 'Создание договоров', 'Create contracts', 'contract', 'create'),
-    ('contract.update', 'Изменение договоров', 'Update contracts', 'contract', 'update'),
-    ('contract.delete', 'Удаление договоров', 'Delete contracts', 'contract', 'delete'),
+    ('catalog:contract:read',   'Чтение договоров',   'View contracts catalog', 'contract', 'read'),
+    ('catalog:contract:create', 'Создание договоров', 'Create contracts', 'contract', 'create'),
+    ('catalog:contract:update', 'Изменение договоров', 'Update contracts', 'contract', 'update'),
+    ('catalog:contract:delete', 'Удаление договоров', 'Delete contracts', 'contract', 'delete'),
     -- Reports
-    ('report_documents.read', 'Журнал документов',    'View documents journal report', 'report_documents', 'read'),
+    ('report:document-journal:read', 'Журнал документов', 'View documents journal report', 'report_document_journal', 'read'),
     -- Admin
     ('admin.users',  'Управление пользователями', 'User management', 'admin', 'users'),
     ('admin.roles',  'Управление ролями',         'Role management', 'admin', 'roles')
@@ -337,14 +337,14 @@ ON CONFLICT DO NOTHING;
 INSERT INTO auth_role_permissions (role_id, permission_id)
 SELECT 'b0000000-0000-0000-0000-000000000002', id FROM auth_permissions
 WHERE action = 'read'
-   OR resource IN ('report_documents')
+   OR resource IN ('report_document_journal')
 ON CONFLICT DO NOTHING;
 
 -- Manager: full catalogs + read/create/update documents + reports
 INSERT INTO auth_role_permissions (role_id, permission_id)
 SELECT 'b0000000-0000-0000-0000-000000000003', id FROM auth_permissions
 WHERE (resource IN ('counterparty', 'currency', 'organization', 'contract'))
-   OR resource IN ('report_documents')
+   OR resource IN ('report_document_journal')
 ON CONFLICT DO NOTHING;
 
 -- User: read-only everything

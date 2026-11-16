@@ -28,7 +28,7 @@ go run ./cmd/scaffold --name vehicle --type catalog --table cat_vehicles
 
 Для иерархического справочника добавьте `--hierarchical`. По умолчанию создаётся плоский справочник. Модуль создаётся в `extensions/<name>/`, его миграция — в `db/configuration/<name>/`: только этот каталог и `db/migrations/` встраиваются в бинарники и применяются `cmd/tenant migrate`. Генератор выбирает следующую свободную версию из диапазона 10000+ по всем tenant-миграциям; `--migration-version` позволяет задать её явно.
 
-Подключите import нового пакета и `<name>.Register(reg)` **один раз** в `extensions/register.go`. Этот список используется сервером и генератором HTTP-контрактов. Сгенерированные регистрация и `HTTPContracts()` связывают конкретные DTO и маршруты через `contracts/spec.Entity`. Затем выполните `go run ./cmd/http-contracts` и `go run ./cmd/tenant migrate`. Миграция создаёт permissions и назначает их роли admin; остальные роли назначаются явно.
+Подключите import нового пакета и `<name>.Register(reg)` **один раз** в `extensions/register.go`. Этот список используется сервером и генератором HTTP-контрактов. Сгенерированные регистрация и `HTTPContracts()` связывают конкретные DTO и маршруты через `contracts/spec.Entity`. Затем выполните `go run ./cmd/http-contracts` и `go run ./cmd/tenant migrate`. После миграций команда создаёт права зарегистрированного справочника (`catalog:<key>:read|create|update|delete`) и выдаёт их роли admin; остальные роли назначаются явно.
 
 `definition.go` содержит `entity.Definition`: key, name, route, table и hierarchy. Repository создаётся через `NewCatalogRepoForDefinition`, service получает `CatalogServiceConfig.Definition`. Они используют одну настройку иерархии без глобального реестра `CatalogMeta`. Настройте бизнес-поля, writable DTO, response projection, SQL и локализацию; кодгенератор не определяет бизнес-правила.
 
@@ -57,7 +57,7 @@ go run ./cmd/scaffold --name vehicle --type catalog --table cat_vehicles
 
 Модель реализует `EntityDefinition() entity.Definition`. Регистрация встраивает `v1.CatalogRegistrationFor[Model, CreateDTO, UpdateDTO, ResponseDTO]`: этот generic выводит identity, структуру metadata и стандартные HTTP-контракты из модели и конкретных DTO. Реализуйте `Build(deps v1.CatalogDeps)`, presentation, reference aliases, RLS/search declarations по необходимости. Это один путь для встроенных справочников и расширений.
 
-Встроенную фабрику подключите в `internal/content/register.go` через `RegisterCatalog`. Расширение подключается в composition root. Добавьте permissions и назначения ролей в seed. Регистрация metadata не выдаёт пользователю право доступа.
+Встроенную фабрику подключите в `internal/content/register.go` через `RegisterCatalog`. Расширение подключается в composition root. Права стандартных действий создаются из регистрации при `cmd/tenant migrate` и выдаются роли admin ([RBAC](../systems/auth-security.md#2-rbac-role-based-access-control)); назначения другим ролям и права рукописных маршрутов добавьте в seed. Регистрация metadata не выдаёт пользователю право доступа.
 
 Стандартные DTO и маршруты собираются из factory registry через `HTTPContracts()` самой регистрации. Отдельного списка справочников или документов в HTTP codegen нет. Для custom подресурсов дополните bundle в регистрации сущности. Встроенные сущности подключаются в `content.RegisterDefaults`, расширения — в `extensions.Register`; сервер и codegen используют оба списка. `apiFetch` отклоняет незарегистрированные URL. Выполните:
 

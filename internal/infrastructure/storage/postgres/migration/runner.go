@@ -94,18 +94,23 @@ func newProvider(dir string, db *sql.DB) (*goose.Provider, error) {
 }
 
 // RunAll runs goose migrations from all configured directories in order.
-// Tenant migrations run first, then each MIGRATION_EXTRA_DIRS entry.
+// Tenant migrations run first, then each MIGRATION_EXTRA_DIRS entry. With
+// WithPermissions it then syncs the registry's permissions (SyncPermissions).
 // Output is captured and returned as a combined string.
-func RunAll(dsn string) (output string, err error) {
-	return runDirectories(dsn, Dirs())
+func RunAll(dsn string, opts ...Option) (output string, err error) {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+	return runDirectories(dsn, Dirs(), o)
 }
 
 // RunMeta initializes and upgrades the control-plane metadata database.
 func RunMeta(dsn string) (output string, err error) {
-	return runDirectories(dsn, []string{metaMigrationsDir})
+	return runDirectories(dsn, []string{metaMigrationsDir}, options{})
 }
 
-func runDirectories(dsn string, dirs []string) (output string, err error) {
+func runDirectories(dsn string, dirs []string, o options) (output string, err error) {
 	db, err := openDB(dsn)
 	if err != nil {
 		return "", err
@@ -134,6 +139,14 @@ func runDirectories(dsn string, dirs []string) (output string, err error) {
 		if uperr != nil {
 			return combined.String(), fmt.Errorf("%s: %w", dir, uperr)
 		}
+	}
+	if len(o.permissions) > 0 {
+		synced, serr := SyncPermissions(ctx, db, o.permissions)
+		if serr != nil {
+			return combined.String(), serr
+		}
+		fmt.Fprintf(&combined, "[permissions] %d created and granted to %s, %d regrouped\n",
+			len(synced.Created), AdminRoleCode, len(synced.Updated))
 	}
 	return combined.String(), nil
 }

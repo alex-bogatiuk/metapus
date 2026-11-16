@@ -155,6 +155,16 @@ Audit/security journal — `sys_event_log`, category `security`, event types
 Формат entity permissions: `сущность:имя:действие` (например, `document:crypto_invoice:post`); административные permissions также используют отдельные коды, например `admin.users`.
 JWT содержит список разрешений пользователя. Middleware `RequirePermission` делает проверку за `O(1)` (Set lookup). Роль `admin` игнорирует RBAC проверки.
 
+Права зарегистрированных сущностей в миграциях не объявляются: `v1.FactoryRegistry.Permissions()` выводит их из того же реестра, что монтирует маршруты. Справочник получает `read`, `create`, `update`, `delete`; документ — те из `read`, `create`, `update`, `delete`, `post`, `unpost`, что открывают его capabilities; кроме того — права объявленных действий документа (`DocumentActions`) и `read` каждого отчёта (`Dataset.Permission`). Ресурс права — ключ сущности (`currency`, для отчёта `report_<key>`), по нему редактор ролей подписывает строку из metadata.
+
+`cmd/tenant migrate` (и `create`) после goose-миграций вызывает `migration.SyncPermissions` со списком `content.Permissions(extensions.Register)`:
+
+- недостающий код создаётся и выдаётся роли `admin`; остальные роли назначаются явно;
+- у существующего кода сохраняются имя, описание и назначения ролей, исправляются только `resource` и `action`;
+- снятое с `admin` право повторно не выдаётся, удалённые из реестра коды не удаляются.
+
+Права, которые проверяют рукописные маршруты вне стандартного набора (route modules, subresources, например `crypto_network:update`), из реестра не выводятся и объявляются миграцией. Соответствие выведенного списка маршрутам проверяют тесты `internal/infrastructure/http/v1/permissions_test.go`.
+
 ## 3. Security Profiles (RLS и FLS)
 
 Security Profile — это набор тонких политик безопасности, назначаемый пользователю.

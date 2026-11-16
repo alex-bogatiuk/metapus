@@ -1,6 +1,7 @@
 package content
 
 import (
+	"metapus/internal/domain/auth"
 	"metapus/internal/infrastructure/http/contracts/spec"
 	"metapus/internal/infrastructure/http/cryptohttp"
 	v1 "metapus/internal/infrastructure/http/v1"
@@ -81,6 +82,18 @@ func AllDatasets() []*schema.Dataset {
 	return []*schema.Dataset{
 		&DocumentJournalDataset,
 	}
+}
+
+// Permissions returns every permission the assembled application's entities
+// and reports require (v1.FactoryRegistry.Permissions): the built-in content
+// and the given client extensions. Migration runs sync them into each tenant.
+func Permissions(register ...func(*v1.FactoryRegistry)) []auth.Permission {
+	reg := v1.NewFactoryRegistry()
+	RegisterDefaults(reg)
+	for _, fn := range register {
+		fn(reg)
+	}
+	return reg.Permissions()
 }
 
 // HTTPContractBundles returns every wire contract of the application: the
