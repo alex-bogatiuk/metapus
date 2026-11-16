@@ -1,17 +1,19 @@
 "use client"
 import { api } from "@/lib/api"
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 import { cn } from "@/lib/utils"
 import { useWidgetData } from "@/hooks/useWidgetData"
 import { formatPortalAmount } from "@/configuration/crypto/lib/portal-overview"
-import { observedTime } from "@/lib/admin-dashboard"
+import { observedTime } from "@/configuration/crypto/lib/admin-dashboard"
 import type { WidgetRenderProps } from "@/types/dashboard"
+import type { ReconciliationConfig } from "@/configuration/crypto/lib/widget-configs"
 import { ShieldCheck } from "lucide-react"
 import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from "@/components/ui/table"
-import { FooterLink, StatusBadge, WidgetBody, WidgetEmpty } from "../../../../../components/dashboard/widgets/widget-state"
-import { useCompactRows } from "../../../../../components/dashboard/widgets/compact-rows"
+import { FooterLink, StatusBadge, WidgetBody, WidgetEmpty } from "@/components/dashboard/widgets/widget-state"
+import { useCompactRows } from "@/components/dashboard/widgets/compact-rows"
 
-export default function Reconciliation({ config, isEditMode }: WidgetRenderProps<"custody-reconciliation">) {
-  const state = useWidgetData(api.dashboard.finance, { key: "widget:admin-finance", isEditMode, pollInterval: 60_000 })
+export default function Reconciliation({ config, isEditMode }: WidgetRenderProps<ReconciliationConfig>) {
+  const state = useWidgetData(cryptoApi.dashboard.finance, { key: "widget:admin-finance", isEditMode, pollInterval: 60_000 })
   const assets = [...(state.data?.assets ?? [])].sort((a, b) => {
     const priority = (x: typeof a) => x.mismatchedWalletCount > 0 ? 0 : x.deltaMinor == null ? 1 : 2
     return priority(a) - priority(b)

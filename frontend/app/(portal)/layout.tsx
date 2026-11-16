@@ -11,6 +11,7 @@ import { hasPortalAccess, merchantIds } from "@/lib/access"
 import { useAuthSessionBootstrap } from "@/hooks/useAuthSessionBootstrap"
 import { SessionRecovery } from "@/components/auth/session-recovery"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 const emptySubscribe = () => () => {}
 
 export default function PortalLayout({
@@ -66,7 +67,7 @@ export default function PortalLayout({
   useEffect(() => {
     if (!hydrated || !authReady || !isAuthenticated || !user || merchantIdsCount === 0) return
 
-    api.portal.merchants()
+    cryptoApi.portal.merchants()
       .then((res) => setMerchants(res.items))
       .catch(() => {
         // Silently fail — merchants will remain empty

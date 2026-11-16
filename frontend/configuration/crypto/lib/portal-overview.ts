@@ -1,5 +1,5 @@
-import { formatDecimal } from "../../../lib/exchange-rates"
-import { MoneyDecimal, rawMinorToMajor } from "../../../lib/money"
+import { formatDecimal } from "@/lib/exchange-rates"
+import { MoneyDecimal, rawMinorToMajor } from "@/lib/money"
 import type { PortalChartPoint, PortalTokenBalance } from "../types/portal-api"
 
 export type ReceiptPeriod = "7d" | "30d" | "90d"

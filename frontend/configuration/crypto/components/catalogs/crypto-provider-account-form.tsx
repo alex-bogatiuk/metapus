@@ -51,6 +51,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 export default function CryptoProviderAccountForm({
   id,
   entityName,
@@ -100,7 +101,7 @@ export default function CryptoProviderAccountForm({
 
     try {
       setLoading(true)
-      const res = await api.cryptoProviderAccounts.get(id!)
+      const res = await cryptoApi.cryptoProviderAccounts.get(id!)
       setCode(res.code || "")
       setName(res.name || "")
       setProvider(res.provider || "itrx")
@@ -177,7 +178,7 @@ export default function CryptoProviderAccountForm({
         if (apiSecret.trim()) payload.apiSecret = apiSecret.trim()
         if (callbackUrl.trim()) payload.callbackUrl = callbackUrl.trim()
 
-        const created = await api.cryptoProviderAccounts.create(payload)
+        const created = await cryptoApi.cryptoProviderAccounts.create(payload)
         markClean()
         toast.success("Аккаунт успешно создан")
 
@@ -211,7 +212,7 @@ export default function CryptoProviderAccountForm({
         if (apiSecret.trim()) payload.apiSecret = apiSecret.trim()
         if (callbackUrl.trim()) payload.callbackUrl = callbackUrl.trim()
 
-        const updated = await api.cryptoProviderAccounts.update(id!, payload)
+        const updated = await cryptoApi.cryptoProviderAccounts.update(id!, payload)
         setVersion(updated.version)
         setHasCredentials(updated.hasCredentials)
         setMaskedApiKey(updated.maskedApiKey)

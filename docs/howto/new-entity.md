@@ -70,7 +70,7 @@ Generated types, Zod schemas и route registry не редактируются �
 
 ## 5. Frontend и проверка
 
-Generic страницы находятся в `frontend/app/(main)/catalogs/[routePrefix]/`. Метаданные определяют поля и список колонок. `frontend/lib/entity-registry-defaults.ts` может задавать custom form, renderers и defaults; отдельная форма нужна только при специализированном UX. Новые сущности автоматически появляются в разделе расширений меню. Ручная frontend-регистрация нужна только для custom UX или размещения в существующем разделе. Канонический `entity.key` поступает из backend metadata и не зависит от множественного числа в `routePrefix`.
+Generic страницы находятся в `frontend/app/(main)/catalogs/[routePrefix]/`. Метаданные определяют поля и список колонок. Custom form, renderers и defaults задаёт `frontend/lib/entity-registry-defaults.ts` для платформенных сущностей и `registerEntityOverlays(...)` конфигурации для её сущностей (`frontend/configuration/crypto/lib/entity-overlays.ts`); отдельная форма нужна только при специализированном UX. Новые сущности автоматически появляются в разделе расширений меню. Ручная frontend-регистрация нужна только для custom UX или размещения в существующем разделе. Канонический `entity.key` поступает из backend metadata и не зависит от множественного числа в `routePrefix`.
 
 Поле списка должно присутствовать в list response. AutoForm отправляет writable projection **конкретного request DTO** и проверяет её generated schema; metadata не расширяет разрешённый payload.
 

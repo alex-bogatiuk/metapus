@@ -9,28 +9,10 @@ const root = join(__dirname, "..", "..")
 const platformDirs = ["components", "lib", "hooks", "stores", "types"]
 
 // knownConfigurationLeaks lists tolerated platform → configuration imports.
-// It only shrinks: register configuration parts through a platform extension
-// point instead of importing them here.
-const knownConfigurationLeaks: Record<string, string[]> = {
-  "components/dashboard/widgets/attention-counter-renderer.tsx": ["configuration/crypto/hooks/useAdminNetworks.ts"],
-  "components/dashboard/widgets/attention-queue-renderer.tsx": ["configuration/crypto/lib/portal-overview.ts"],
-  "components/dashboard/widgets/financial-summary-renderer.tsx": ["configuration/crypto/lib/portal-overview.ts"],
-  "components/dashboard/widgets/platform-fees-renderer.tsx": ["configuration/crypto/lib/portal-overview.ts"],
-  "components/dashboard/widgets/processing-health-renderer.tsx": ["configuration/crypto/hooks/useAdminNetworks.ts", "configuration/crypto/types/crypto-network.ts"],
-  "lib/admin-dashboard.ts": ["configuration/crypto/lib/crypto-network-readiness.ts", "configuration/crypto/types/crypto-network.ts"],
-  "lib/api/catalogs.ts": ["configuration/crypto/types/crypto-network.ts"],
-  "lib/api.ts": ["configuration/crypto/lib/api/crypto.ts", "configuration/crypto/lib/api/portal.ts"],
-  "lib/entity-registry-defaults.ts": [
-    "configuration/crypto/components/catalogs/crypto-provider-account-form.tsx",
-    "configuration/crypto/components/crypto/aml-risk.tsx",
-    "configuration/crypto/components/documents/crypto-custody-receipt-card.tsx",
-    "configuration/crypto/components/documents/crypto-sweep-card.tsx",
-  ],
-  "lib/widget-registry.ts": [
-    "configuration/crypto/components/dashboard/widgets/custody-reconciliation-renderer.tsx",
-    "configuration/crypto/components/dashboard/widgets/receipts-volume-renderer.tsx",
-  ],
-}
+// It is empty: register configuration parts through a platform extension
+// point (entity overlays, widgets, the configuration's own API client)
+// instead of importing them here.
+const knownConfigurationLeaks: Record<string, string[]> = {}
 
 const importPattern = /(?:from|import)\s*\(?\s*["']([^"']+)["']/g
 

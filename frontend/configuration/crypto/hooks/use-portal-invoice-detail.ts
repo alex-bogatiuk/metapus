@@ -1,4 +1,5 @@
 "use client";
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 import useSWR from "swr";
 import { api } from "@/lib/api";
 import { scopeKey } from "@/lib/auth-scope";
@@ -24,7 +25,7 @@ export function usePortalInvoiceDetail(invoiceId: string) {
   const result = useSWR(
     key,
     ([, , selectedMerchant, selectedInvoice]) =>
-      api.portal.invoiceDetail(selectedInvoice, selectedMerchant),
+      cryptoApi.portal.invoiceDetail(selectedInvoice, selectedMerchant),
     {
       revalidateOnMount: true,
       revalidateIfStale: false,

@@ -1,21 +1,23 @@
 "use client"
 import { api } from "@/lib/api"
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 import { useWidgetData } from "@/hooks/useWidgetData"
 import { formatPortalAmount } from "@/configuration/crypto/lib/portal-overview"
 import { formatDecimal } from "@/lib/exchange-rates"
-import { observedTime } from "@/lib/admin-dashboard"
+import { observedTime } from "@/configuration/crypto/lib/admin-dashboard"
 import { paletteColor, resolvePaletteKey } from "@/lib/palette"
 import type { WidgetRenderProps } from "@/types/dashboard"
+import type { FinanceConfig } from "@/configuration/crypto/lib/widget-configs"
 import { Wallet } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { FooterLink, WidgetBody, WidgetEmpty } from "./widget-state"
+import { FooterLink, WidgetBody, WidgetEmpty } from "@/components/dashboard/widgets/widget-state"
 
 // A token takes its network's colour; tokens of one network are told apart by lightness,
 // so the bar reads by network first and by token second, in both themes.
 const shadeAlphas = [1, 0.6, 0.35, 0.2]
 
-export default function Finance({ config, isEditMode }: WidgetRenderProps<"financial-summary">) {
-  const state = useWidgetData(api.dashboard.finance, { key: "widget:admin-finance", isEditMode, pollInterval: 60_000 })
+export default function Finance({ config, isEditMode }: WidgetRenderProps<FinanceConfig>) {
+  const state = useWidgetData(cryptoApi.dashboard.finance, { key: "widget:admin-finance", isEditMode, pollInterval: 60_000 })
   const balance = state.data?.[config.view]
   const bucket = balance?.valuation.total
   const assets = state.data?.assets ?? []

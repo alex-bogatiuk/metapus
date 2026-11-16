@@ -3,13 +3,14 @@
 import { useState } from "react"
 import Link from "next/link"
 import useSWR from "swr"
-import { api } from "@/lib/api"
+
 import { formatDateTime, formatMinorUnits } from "@/lib/format"
 import { usePermissions } from "@/hooks/use-permissions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 const pageSize = 50
 
 function short(value: string) {
@@ -25,7 +26,7 @@ export default function WalletFundingsPage() {
   const permissions = usePermissions()
   const canRead = permissions.has("crypto_receipt:read")
   const [offset, setOffset] = useState(0)
-  const { data, error, isLoading, mutate } = useSWR(canRead ? ["wallet-fundings", offset] : null, () => api.unidentifiedReceipts.walletFundings(offset))
+  const { data, error, isLoading, mutate } = useSWR(canRead ? ["wallet-fundings", offset] : null, () => cryptoApi.unidentifiedReceipts.walletFundings(offset))
 
   if (!canRead) return <p className="p-6 text-muted-foreground">Нет доступа к пополнениям кошельков.</p>
   const items = data?.items ?? []

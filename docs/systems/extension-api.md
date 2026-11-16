@@ -65,7 +65,16 @@ myExtension.Register(factoryReg) // registration uses v1.EntityRegistration[Mode
 - `configuration_boundary_test.go`: платформенный пакет не импортирует пакет конфигурации; список исключений пуст и должен таким остаться;
 - `configuration_storage_test.go`: строковые литералы платформенного кода не называют таблицы из миграций конфигурации (`db/configuration/*`), а тесты платформы не импортируют конфигурацию. Список известных исключений (проверки сгенерированных контрактов и наборов отчётов) только сокращается.
 
-Во фронтенде код конфигурации лежит в `frontend/configuration/<имя>/` (`components`, `lib`, `hooks`, `types`, `stores` с той же структурой, что у платформы), платформенный — в `frontend/components`, `lib`, `hooks`, `stores`, `types`. `frontend/app/` — точка сборки: маршруты Next.js подключают и платформу, и конфигурацию. Тест `frontend/tests/unit/configuration-boundary.spec.ts` запрещает платформенным файлам импортировать `configuration/`; его список известных исключений (реестр сущностей и виджетов, виджеты дашборда, общий API-клиент) только сокращается.
+Во фронтенде код конфигурации лежит в `frontend/configuration/<имя>/` (`components`, `lib`, `hooks`, `types`, `stores` с той же структурой, что у платформы), платформенный — в `frontend/components`, `lib`, `hooks`, `stores`, `types`. `frontend/app/` — точка сборки: маршруты Next.js подключают и платформу, и конфигурацию. Тест `frontend/tests/unit/configuration-boundary.spec.ts` запрещает платформенным файлам импортировать `configuration/`; список исключений пуст.
+
+Конфигурация подключает свои части при старте: `frontend/app/configuration.ts` вызывает `registerCryptoConfiguration()`, его импортируют первыми клиентский layout `app/(main)` и страница дашборда.
+
+| Точка расширения фронтенда | Что даёт конфигурация | Пример |
+|---|---|---|
+| `registerEntityOverlays` (`lib/entity-registry-defaults`) | колонки, видимость, фильтры, форма и список для сущностей из metadata | `configuration/crypto/lib/entity-overlays.ts` |
+| `registerWidget` (`lib/widget-registry`) | виджет дашборда со своей схемой настроек (`configSchema`) и редактором (`configEditor`) | `configuration/crypto/lib/widgets.tsx` |
+| `registerDefaultDashboard` (`lib/dashboard-layout`) | дашборд пользователя по умолчанию | там же |
+| собственный API-клиент | её эндпоинты; платформенный `@/lib/api` содержит только платформенные | `configuration/crypto/lib/api` (`cryptoApi`) |
 
 Печатные формы документ конфигурации объявляет через `v1.PrintFormsProvider`; типы областей команд (`command.Metadata.ScopeType`) и маршрутов контрактов — открытые идентификаторы, конфигурация добавляет свои (`merchant`, `portal`) без правок ядра. Состояние раскрытых секций интерфейса хранится в `interface.expandedSections` под ключом, который выбирает UI.
 

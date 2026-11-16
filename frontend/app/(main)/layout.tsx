@@ -1,5 +1,7 @@
 "use client"
 
+// Registers the configuration before any page reads the platform registries.
+import "../configuration"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AppShell } from "@/components/layout/app-shell"

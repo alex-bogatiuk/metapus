@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react"
 import useSWR from "swr"
-import { api } from "@/lib/api"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 export function useRiskBalance(merchantId: string) {
-  const result = useSWR(["risk-balance", merchantId], () => api.portal.riskBalance(merchantId), {
+  const result = useSWR(["risk-balance", merchantId], () => cryptoApi.portal.riskBalance(merchantId), {
     refreshInterval: 15000, keepPreviousData: false,
   })
   const [expiredAt, setExpiredAt] = useState<string | null>(null)

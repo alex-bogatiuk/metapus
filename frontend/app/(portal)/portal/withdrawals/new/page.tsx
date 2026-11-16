@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
-import { api } from "@/lib/api"
+
 import type {
   PortalWithdrawalAddress,
   PortalCreateWithdrawalRequest,
@@ -38,8 +38,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
-
-
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 // "40.500000" → "40.5", "40.000000" → "40": the amount field takes it as typed.
 function trimFraction(value: string): string {
   return value.includes(".") ? value.replace(/0+$/, "").replace(/\.$/, "") : value
@@ -80,11 +79,11 @@ export default function NewWithdrawalRequestPage() {
     setRefund(null)
     try {
       const [addrRes, balRes, currRes, riskRes, refundRes] = await Promise.all([
-        api.portal.withdrawalAddresses(activeMerchantId),
-        api.portal.balance(activeMerchantId),
-        api.portal.currencies(activeMerchantId),
-        api.portal.riskBalance(activeMerchantId),
-        refundPaymentId ? api.portal.refundablePayment(activeMerchantId, refundPaymentId) : Promise.resolve(null),
+        cryptoApi.portal.withdrawalAddresses(activeMerchantId),
+        cryptoApi.portal.balance(activeMerchantId),
+        cryptoApi.portal.currencies(activeMerchantId),
+        cryptoApi.portal.riskBalance(activeMerchantId),
+        refundPaymentId ? cryptoApi.portal.refundablePayment(activeMerchantId, refundPaymentId) : Promise.resolve(null),
       ])
       setAddresses(addrRes.items)
       setBalances(balRes.byToken)
@@ -157,7 +156,7 @@ export default function NewWithdrawalRequestPage() {
         ...(refund ? { refundPaymentId: refund.paymentId, refundReason: refundReason.trim() } : {}),
       }
 
-      const resp = await api.portal.createWithdrawalRequest(activeMerchantId, body)
+      const resp = await cryptoApi.portal.createWithdrawalRequest(activeMerchantId, body)
       toast.success(refund ? `Заявка на возврат ${resp.number} создана` : `Заявка ${resp.number} создана`)
       router.push("/portal/withdrawals/requests")
     } catch (err) {

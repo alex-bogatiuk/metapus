@@ -10,6 +10,7 @@ import {
 import { formatLocalYYYYMMDD } from "../../lib/filter-utils"
 import { ids } from "../helpers"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 const nativeFetch = globalThis.fetch
 test.describe.configure({ mode: "serial" })
 test.afterEach(() => { globalThis.fetch = nativeFetch })
@@ -29,17 +30,17 @@ test("portal validates bodies before sending and keeps human amount, false, zero
     return Response.json({ defaultTtlMinutes: 0, singlePaymentPerInvoice: false })
   }
   const patch = { defaultTtlMinutes: null }
-  await api.portal.settings.update(ids.merchant, patch)
+  await cryptoApi.portal.settings.update(ids.merchant, patch)
   expect(body).toBe(JSON.stringify(patch))
   const bad = { tokenId: ids.token, amount: "9007199254740993.000000001", injected: true }
-  await expect(api.portal.createInvoice(ids.merchant, bad)).rejects.toThrow("Unrecognized key")
+  await expect(cryptoApi.portal.createInvoice(ids.merchant, bad)).rejects.toThrow("Unrecognized key")
   expect(calls).toBe(1)
   globalThis.fetch = async (_url, options) => {
     body = options?.body
     return Response.json({ object: "payment_link", id: ids.token, publicRef: "ref", payUrl: "https://example.test/ref" })
   }
   const request = { tokenId: ids.token, amount: "9007199254740993", reusable: false, maxUses: 0 }
-  await api.portal.paymentLinks.create(ids.merchant, request)
+  await cryptoApi.portal.paymentLinks.create(ids.merchant, request)
   expect(body).toBe(JSON.stringify(request))
 })
 
@@ -63,7 +64,7 @@ test("portal deposit-addresses validates request and response contracts with cus
       createdAt: "2026-09-30T10:00:00Z",
     })
   }
-  const created = await api.portal.depositAddresses.create(ids.merchant, {
+  const created = await cryptoApi.portal.depositAddresses.create(ids.merchant, {
     networkId: ids.network,
     customerId: "cust_42",
   })
@@ -118,22 +119,22 @@ test("invoice network and token selectors require explicit choice and scope by n
 
 test("portal rejects numeric money and malformed list envelopes before returning to stores", async () => {
   globalThis.fetch = async () => Response.json({ totalInvoices: 0, paidInvoices: 0, pendingInvoices: 0, receiptTotals: [{tokenId: ids.wallet, networkId: ids.merchant, symbol: "ETH", decimalPlaces: 18, totalMinor: 42, received24hMinor: "0", change24hPct: "0.00"}] })
-  await expect(api.portal.summary(ids.merchant)).rejects.toThrow()
+  await expect(cryptoApi.portal.summary(ids.merchant)).rejects.toThrow()
   globalThis.fetch = async () => Response.json({ items: [null], total: 1 })
-  await expect(api.portal.invoices()).rejects.toThrow()
-  await expect(api.merchantApiKeys.list(ids.merchant)).rejects.toThrow()
+  await expect(cryptoApi.portal.invoices()).rejects.toThrow()
+  await expect(cryptoApi.merchantApiKeys.list(ids.merchant)).rejects.toThrow()
   globalThis.fetch = async () => Response.json({ items: [], total: 0 })
-  expect(await api.portal.invoices()).toEqual({ items: [], total: 0 })
+  expect(await cryptoApi.portal.invoices()).toEqual({ items: [], total: 0 })
 })
 
 test("webhook response retains unknown status separately from missing delivery and zero duration", async () => {
   for (const response of [{ eventId: "event", success: false },
     { eventId: "event", success: false, deliveryId: "delivery", statusCode: null, durationMs: 0 }]) {
     globalThis.fetch = async () => Response.json(response)
-    expect(await api.portal.webhookEndpoints.test(ids.merchant, ids.wallet)).toEqual(response)
+    expect(await cryptoApi.portal.webhookEndpoints.test(ids.merchant, ids.wallet)).toEqual(response)
   }
   globalThis.fetch = async () => Response.json({ eventId: "event", success: "false" })
-  await expect(api.portal.webhookEndpoints.test(ids.merchant, ids.wallet)).rejects.toThrow()
+  await expect(cryptoApi.portal.webhookEndpoints.test(ids.merchant, ids.wallet)).rejects.toThrow()
 })
 
 test("portal invoice date formatting preserves local calendar date without UTC offset shift", () => {

@@ -56,7 +56,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { api } from "@/lib/api"
+
 import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
 import type {
   PortalMerchantEvent,
@@ -64,6 +64,7 @@ import type {
   PortalWebhookEndpoint,
 } from "@/configuration/crypto/types/portal-api"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 const BASE_EVENTS = [
   "invoice.created",
   "invoice.paid",
@@ -199,8 +200,8 @@ export default function WebhooksPage() {
     setLoading(true)
     try {
       const [endpointResult, eventResult] = await Promise.all([
-        api.portal.webhookEndpoints.list(activeMerchantId),
-        api.portal.merchantEvents(activeMerchantId, {
+        cryptoApi.portal.webhookEndpoints.list(activeMerchantId),
+        cryptoApi.portal.merchantEvents(activeMerchantId, {
           limit: PAGE_SIZE,
           offset: eventPage * PAGE_SIZE,
         }),
@@ -224,7 +225,7 @@ export default function WebhooksPage() {
     setSelectedEvent(event)
     setDeliveriesLoading(true)
     try {
-      const result = await api.portal.eventDeliveries(activeMerchantId, event.id)
+      const result = await cryptoApi.portal.eventDeliveries(activeMerchantId, event.id)
       setDeliveries(result.items)
     } catch (error) {
       setDeliveries([])
@@ -239,7 +240,7 @@ export default function WebhooksPage() {
     if (!activeMerchantId || !canManageRegistry) return
     setCreating(true)
     try {
-      const endpoint = await api.portal.webhookEndpoints.create(activeMerchantId, {
+      const endpoint = await cryptoApi.portal.webhookEndpoints.create(activeMerchantId, {
         name: name.trim(),
         url: url.trim(),
         enabledEvents: selectedEvents,
@@ -269,7 +270,7 @@ export default function WebhooksPage() {
     if (!activeMerchantId || !canManageRegistry) return
     setBusyEndpoint(endpoint.id)
     try {
-      const result = await api.portal.webhookEndpoints.test(activeMerchantId, endpoint.id)
+      const result = await cryptoApi.portal.webhookEndpoints.test(activeMerchantId, endpoint.id)
       if (result.success) {
         toast.success(`Тест доставлен${result.statusCode ? `: HTTP ${result.statusCode}` : ""}`)
       } else {
@@ -286,7 +287,7 @@ export default function WebhooksPage() {
     if (!activeMerchantId || !canManageRegistry) return
     setBusyEndpoint(endpoint.id)
     try {
-      const updated = await api.portal.webhookEndpoints.rotateSecret(activeMerchantId, endpoint.id)
+      const updated = await cryptoApi.portal.webhookEndpoints.rotateSecret(activeMerchantId, endpoint.id)
       setRevealedSecret(updated.secret ?? null)
       toast.success("Secret обновлён. Предыдущий действует ещё 24 часа")
       await loadRegistry()
@@ -301,7 +302,7 @@ export default function WebhooksPage() {
     if (!activeMerchantId || !canManageRegistry) return
     setBusyEndpoint(endpoint.id)
     try {
-      await api.portal.webhookEndpoints.update(activeMerchantId, endpoint.id, {
+      await cryptoApi.portal.webhookEndpoints.update(activeMerchantId, endpoint.id, {
         version: endpoint.version,
         isActive: !endpoint.isActive,
       })
@@ -331,7 +332,7 @@ export default function WebhooksPage() {
     }
     setBusyEndpoint(endpointDraft.id)
     try {
-      await api.portal.webhookEndpoints.update(activeMerchantId, endpointDraft.id, {
+      await cryptoApi.portal.webhookEndpoints.update(activeMerchantId, endpointDraft.id, {
         version: endpoints.find((endpoint) => endpoint.id === endpointDraft.id)?.version ?? 0,
         name: endpointDraft.name.trim(),
         url: endpointDraft.url.trim(),
@@ -353,7 +354,7 @@ export default function WebhooksPage() {
     const endpoint = deleteCandidate
     setBusyEndpoint(endpoint.id)
     try {
-      await api.portal.webhookEndpoints.remove(activeMerchantId, endpoint.id)
+      await cryptoApi.portal.webhookEndpoints.remove(activeMerchantId, endpoint.id)
       if (endpointDraft?.id === endpoint.id) setEndpointDraft(null)
       setDeleteCandidate(null)
       toast.success("Endpoint удалён")
@@ -375,7 +376,7 @@ export default function WebhooksPage() {
     }
     setRedelivering(true)
     try {
-      await api.portal.redeliverEvent(activeMerchantId, selectedEvent.id, endpoint.id)
+      await cryptoApi.portal.redeliverEvent(activeMerchantId, selectedEvent.id, endpoint.id)
       toast.success(`Событие поставлено в очередь для ${endpoint.name}`)
       await openEvent(selectedEvent)
     } catch (error) {

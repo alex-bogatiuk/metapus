@@ -3,13 +3,14 @@
 import useSWR from "swr"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { api } from "@/lib/api"
+
 import { OverviewEmpty, OverviewError, OverviewLoading } from "./overview-states"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 export function ConversionFunnelCard({ merchantId }: { merchantId?: string }) {
   const { data, error, isLoading, mutate } = useSWR(
     merchantId ? ["portal-funnel", merchantId] : null,
-    () => api.portal.funnel(merchantId),
+    () => cryptoApi.portal.funnel(merchantId),
     { keepPreviousData: false, refreshInterval: 60000 },
   )
   const steps = data ? [

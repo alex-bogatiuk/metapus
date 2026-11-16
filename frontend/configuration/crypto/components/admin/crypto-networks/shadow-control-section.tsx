@@ -5,7 +5,7 @@ import useSWR from "swr"
 import { LoaderCircle, Pause, Play, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 
-import { api, ApiError } from "@/lib/api"
+import { ApiError } from "@/lib/api"
 import { isSystemAdmin, useAuthStore } from "@/stores/useAuthStore"
 import { usePermissions } from "@/hooks/use-permissions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { formatTimestamp } from "./types-and-helpers"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 interface ShadowControlSectionProps { networkId: string; networkCode: string }
 interface ShadowCommand { paused: boolean; version: number; key: string }
 
@@ -35,7 +36,7 @@ export function ShadowControlSection({ networkId, networkCode }: ShadowControlSe
   const systemAdmin = useAuthStore((state) => isSystemAdmin(state.user))
   const { has } = usePermissions()
   const { data, error, isLoading, isValidating, mutate } = useSWR(
-    ["admin-shadow-control", networkId], () => api.cryptoNetworks.shadowStatus(networkId),
+    ["admin-shadow-control", networkId], () => cryptoApi.cryptoNetworks.shadowStatus(networkId),
     { refreshInterval: 5_000, revalidateOnFocus: true },
   )
   const [command, setCommand] = useState<ShadowCommand | null>(null)
@@ -56,7 +57,7 @@ export function ShadowControlSection({ networkId, networkCode }: ShadowControlSe
     setBusy(true)
     setSubmitError("")
     try {
-      const updated = await api.cryptoNetworks.setShadowPaused(networkId,
+      const updated = await cryptoApi.cryptoNetworks.setShadowPaused(networkId,
         { paused: command.paused, version: command.version, reason: reason.trim() }, command.key)
       await mutate(updated, { revalidate: false })
       setCommand(null)

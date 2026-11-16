@@ -18,7 +18,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { api } from "@/lib/api"
+
 import type {
   FeeScheduleResponse,
   FeeScheduleUpsertRequest,
@@ -80,6 +80,7 @@ import {
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 // ── Props ──────────────────────────────────────────────────────────────────
 
 interface FeeScheduleTableProps {
@@ -130,8 +131,8 @@ export function FeeScheduleTable({ merchantId, isNew, tokenNames }: FeeScheduleT
     setLoading(true)
     try {
       const res = merchantId
-        ? await api.merchantFeeSchedule.list(merchantId)
-        : await api.feeSchedule.list()
+        ? await cryptoApi.merchantFeeSchedule.list(merchantId)
+        : await cryptoApi.feeSchedule.list()
       setEntries(res.items ?? [])
     } catch {
       toast.error("Не удалось загрузить тарифы")
@@ -146,12 +147,12 @@ export function FeeScheduleTable({ merchantId, isNew, tokenNames }: FeeScheduleT
     if (!deleteTarget) return
     try {
       if (merchantId) {
-        await api.merchantFeeSchedule.delete(merchantId, {
+        await cryptoApi.merchantFeeSchedule.delete(merchantId, {
           tokenId: deleteTarget.tokenId,
           direction: deleteTarget.direction,
         })
       } else {
-        await api.feeSchedule.delete({
+        await cryptoApi.feeSchedule.delete({
           tokenId: deleteTarget.tokenId,
           direction: deleteTarget.direction,
         })
@@ -443,9 +444,9 @@ function FeeScheduleFormDialog({
     setSubmitting(true)
     try {
       if (merchantId) {
-        await api.merchantFeeSchedule.upsert(merchantId, body)
+        await cryptoApi.merchantFeeSchedule.upsert(merchantId, body)
       } else {
-        await api.feeSchedule.upsert(body)
+        await cryptoApi.feeSchedule.upsert(body)
       }
       toast.success(isEdit ? "Тариф обновлён" : "Тариф добавлен")
       onSaved()

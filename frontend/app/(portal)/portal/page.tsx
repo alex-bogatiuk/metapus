@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
-import { useValuedBalance } from "@/hooks/use-valued-balance"
+import { useValuedBalance } from "@/configuration/crypto/hooks/use-valued-balance"
 import { BalanceOverview, BalanceAssets, BalanceCalculationSheet, type BalanceCalculation } from "@/configuration/crypto/components/portal/balance-overview"
 import { VolumeChartCard } from "@/configuration/crypto/components/portal/volume-chart-card"
 import { RecentOperationsCard } from "@/configuration/crypto/components/portal/recent-operations-card"

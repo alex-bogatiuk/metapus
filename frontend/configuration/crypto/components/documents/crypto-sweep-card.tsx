@@ -5,7 +5,6 @@ import Link from "next/link"
 import { ArrowLeft, ArrowRight, ArrowDownLeft, ArrowUpRight, Copy, ExternalLink, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 
-import { api } from "@/lib/api"
 import { copyToClipboard, formatDateTime, formatMinorUnits } from "@/lib/format"
 import { useEnumFormatter } from "@/hooks/useEntityFiltersMeta"
 import type {
@@ -25,6 +24,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useTabTitle } from "@/hooks/useTabTitle"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 interface CryptoSweepCardProps {
     id?: string
     entityName?: string
@@ -108,7 +108,7 @@ export default function CryptoSweepCard({ id, entityName = "CryptoSweep" }: Cryp
     useEffect(() => {
         if (!id) return
         let active = true
-        Promise.allSettled([api.cryptoSweeps.get(id), api.cryptoSweeps.movements(id)]).then(([docResult, movementResult]) => {
+        Promise.allSettled([cryptoApi.cryptoSweeps.get(id), cryptoApi.cryptoSweeps.movements(id)]).then(([docResult, movementResult]) => {
             if (!active) return
             if (docResult.status === "fulfilled") {
                 setDetail(docResult.value)
@@ -135,7 +135,7 @@ export default function CryptoSweepCard({ id, entityName = "CryptoSweep" }: Cryp
         if (!id) return
         setRetryingSweep(true)
         try {
-            await api.cryptoSweeps.retry(id)
+            await cryptoApi.cryptoSweeps.retry(id)
             toast.success("Свип поставлен в очередь на повторное выполнение")
             retry()
         } catch (err) {

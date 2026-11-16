@@ -7,7 +7,6 @@ import useSWR from "swr"
 import { toast } from "sonner"
 import { Plus, RefreshCw } from "lucide-react"
 
-import { api } from "@/lib/api"
 import { formatDateTime } from "@/lib/format"
 import { usePermissions } from "@/hooks/use-permissions"
 import { isSystemAdmin, useAuthStore } from "@/stores/useAuthStore"
@@ -20,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea"
 import type { FinancialAdjustmentSourceResponse } from "@/types/generated/http-contracts"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 const statusLabels: Record<string, string> = {
   pending_approval: "Ожидает согласования",
   posted: "Проведена",
@@ -63,12 +63,12 @@ export default function CryptoAdjustmentsPage() {
   const [saving, setSaving] = useState(false)
   const { data, error, isLoading, mutate } = useSWR(
     canRead ? ["financial-adjustments", status, filterPaymentId] : null,
-    () => api.financialAdjustments.list(status, filterPaymentId),
+    () => cryptoApi.financialAdjustments.list(status, filterPaymentId),
   )
   const { data: sources, error: sourcesError, isLoading: sourcesLoading } = useSWR(
     createOpen && mode === "payment_reversal" && /^[0-9a-f-]{36}$/i.test(paymentId)
       ? ["adjustment-payment-sources", paymentId] : null,
-    () => api.financialAdjustments.paymentSources(paymentId),
+    () => cryptoApi.financialAdjustments.paymentSources(paymentId),
   )
   useEffect(() => {
     const basis = new URLSearchParams(window.location.search).get("paymentId")
@@ -104,7 +104,7 @@ export default function CryptoAdjustmentsPage() {
     }
     setSaving(true)
     try {
-      const adjustment = await api.financialAdjustments.propose({
+      const adjustment = await cryptoApi.financialAdjustments.propose({
         mode,
         ...(mode === "payment_reversal"
           ? { paymentId, expectedPostedVersion: sources?.postedVersion, sourceLines: scope === "partial" ? sources?.lines.filter((line) => selected[lineKey(line)])

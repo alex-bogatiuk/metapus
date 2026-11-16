@@ -5,7 +5,6 @@ import useSWR from "swr"
 import { Copy, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 
-import { api } from "@/lib/api"
 import { copyToClipboard, formatDateTime, formatMinorUnits } from "@/lib/format"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useTabTitle } from "@/hooks/useTabTitle"
@@ -24,6 +23,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 interface CustodyReceiptCardProps {
     id?: string
     entityName?: string
@@ -68,7 +68,7 @@ export default function CustodyReceiptCard({ id }: CustodyReceiptCardProps) {
     const canRead = permissions.has("crypto_receipt:read")
     const { data, error, isLoading, mutate } = useSWR<CustodyReceiptDetailResponse>(
         canRead && id ? ["custody-receipt", id] : null,
-        () => api.unidentifiedReceipts.detail(id!),
+        () => cryptoApi.unidentifiedReceipts.detail(id!),
     )
     useTabTitle(data?.receipt.number, "Поступление")
 

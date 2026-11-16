@@ -1,3 +1,6 @@
+// The application configuration registers widgets and the default dashboard
+// before the dashboard modules load, as app/(main)/layout.tsx does.
+import "../../app/configuration"
 import { test, expect } from "@playwright/test"
 import { api } from "../../lib/api"
 import { useDashboardStore } from "../../stores/useDashboardStore"

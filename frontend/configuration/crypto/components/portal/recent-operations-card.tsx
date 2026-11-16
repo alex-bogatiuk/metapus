@@ -9,11 +9,12 @@ import { Button } from "@/components/ui/button"
 import { Badge, type BadgeProps } from "@/components/ui/badge"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { api } from "@/lib/api"
+
 import { formatPortalAmount } from "@/configuration/crypto/lib/portal-overview"
 import type { PortalInvoiceListResponse, PortalWithdrawalListResponse } from "@/configuration/crypto/types/portal-api"
 import { OverviewEmpty, OverviewError, OverviewLoading } from "./overview-states"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 const statuses: Record<string, { label: string; variant: BadgeProps["variant"] }> = {
   created: { label: "Создан", variant: "outline" },
   partially_paid: { label: "Оплачен частично", variant: "warning" },
@@ -37,8 +38,8 @@ export function RecentOperationsCard({ merchantId }: { merchantId: string | null
   const { data, error, isLoading, mutate } = useSWR<PortalInvoiceListResponse | PortalWithdrawalListResponse>(
     merchantId ? ["portal-recent-operations", merchantId, kind] : null,
     () => kind === "invoices"
-      ? api.portal.invoices({ merchantId: merchantId!, limit: 5, sort: "created_at", order: "desc" })
-      : api.portal.withdrawals({ merchantId: merchantId!, limit: 5, sort: "created_at", order: "desc" }),
+      ? cryptoApi.portal.invoices({ merchantId: merchantId!, limit: 5, sort: "created_at", order: "desc" })
+      : cryptoApi.portal.withdrawals({ merchantId: merchantId!, limit: 5, sort: "created_at", order: "desc" }),
     { keepPreviousData: false, refreshInterval: 60000 },
   )
   const listHref = kind === "invoices" ? "/portal/invoices" : "/portal/withdrawals"

@@ -2,10 +2,11 @@
 import { Coins } from "lucide-react"
 import { formatPortalAmount } from "@/configuration/crypto/lib/portal-overview"
 import type { WidgetRenderProps } from "@/types/dashboard"
-import { WidgetBody, WidgetEmpty } from "./widget-state"
-import { useCompactRows } from "./compact-rows"
+import type { AnalyticsConfig } from "@/configuration/crypto/lib/widget-configs"
+import { WidgetBody, WidgetEmpty } from "@/components/dashboard/widgets/widget-state"
+import { useCompactRows } from "@/components/dashboard/widgets/compact-rows"
 import { useAnalytics } from "./analytics-controls"
-export default function Fees(props: WidgetRenderProps<"platform-fees">) {
+export default function Fees(props: WidgetRenderProps<AnalyticsConfig>) {
   const state = useAnalytics(props)
   useCompactRows(state.data && !state.error && !state.asset ? 2 : null)
   return <WidgetBody title="Комиссии платформы" description="Комиссии за обработку за вычетом сторно · UTC" loading={state.loading} error={state.error} retry={state.refetch} controls={state.controls}>

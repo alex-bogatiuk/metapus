@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 import { ChevronDown, RefreshCw } from "lucide-react"
-import { useRiskBalance } from "@/hooks/use-risk-balance"
+import { useRiskBalance } from "@/configuration/crypto/hooks/use-risk-balance"
 import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"

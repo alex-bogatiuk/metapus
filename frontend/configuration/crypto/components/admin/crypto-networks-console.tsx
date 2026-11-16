@@ -4,7 +4,6 @@ import { useCallback, useRef, useSyncExternalStore } from "react"
 import useSWR from "swr"
 import { AlertTriangle, Network, RefreshCw } from "lucide-react"
 
-import { api } from "@/lib/api"
 import { useTabDirty } from "@/hooks/useTabDirty"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -19,12 +18,13 @@ import {
 } from "./crypto-networks/types-and-helpers"
 import { CryptoNetworkCard } from "./crypto-networks/crypto-network-card"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 export function CryptoNetworksConsole() {
   const dirtyNetworks = useRef(new Set<string>())
   const { markDirty, markClean } = useTabDirty()
   const { data, error, isLoading, isValidating, mutate } = useSWR(
     "admin-crypto-networks",
-    api.cryptoNetworks.list,
+    cryptoApi.cryptoNetworks.list,
     { refreshInterval: 15_000, revalidateOnFocus: true }
   )
   const expandedById = useSyncExternalStore(

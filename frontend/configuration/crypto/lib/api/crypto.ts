@@ -1,7 +1,7 @@
 import type { CursorListResponse, CursorListParams } from "@/types/common"
-import { apiFetch, assertUuidPathParam, buildListQS, idempotencyHeaders } from "../../../../lib/api/core"
+import { apiFetch, assertUuidPathParam, buildListQS, idempotencyHeaders } from "@/lib/api/core"
 
-export const cryptoApi = {
+export const cryptoOperationsApi = {
     unidentifiedReceipts: {
         list: (state: import("@/configuration/crypto/types/unidentified-receipt").ReceiptJournalState, includeDust: boolean, offset = 0) =>
             apiFetch<import("@/types/generated/http-contracts").UnidentifiedReceiptListResponse>(

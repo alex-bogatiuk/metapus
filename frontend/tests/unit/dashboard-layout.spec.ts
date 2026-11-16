@@ -1,3 +1,6 @@
+// The application configuration registers widgets and the default dashboard
+// before the dashboard modules load, as app/(main)/layout.tsx does.
+import "../../app/configuration"
 import { test, expect } from "@playwright/test"
 import {
   defaultDashboardLayout, distributeColumns, fitRows, layoutLines, layoutWidgets, placeWidget, readDashboardLayout,
@@ -5,7 +8,7 @@ import {
 } from "../../lib/dashboard-layout"
 import { allWidgetDefinitions } from "../../lib/widget-registry"
 import { preferencesSchema } from "../../lib/schemas/preferences"
-import { networkHealth, networkProblem } from "../../lib/admin-dashboard"
+import { networkHealth, networkProblem } from "../../configuration/crypto/lib/admin-dashboard"
 import type { CryptoNetworkState } from "../../configuration/crypto/types/crypto-network"
 import type { WidgetPlacement } from "../../types/dashboard"
 

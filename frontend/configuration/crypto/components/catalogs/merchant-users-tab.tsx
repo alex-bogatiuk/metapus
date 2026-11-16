@@ -16,7 +16,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { api } from "@/lib/api"
+
 import type { MerchantUserItem } from "@/configuration/crypto/types/merchant-api"
 import { MerchantRole, MERCHANT_ROLES } from "@/configuration/crypto/types/merchant-api"
 import { Button } from "@/components/ui/button"
@@ -69,6 +69,7 @@ import { format } from "date-fns"
 import { ru } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface MerchantUsersTabProps {
@@ -113,7 +114,7 @@ export function MerchantUsersTab({ merchantId, isNew }: MerchantUsersTabProps) {
     if (!merchantId || isNew) return
     setLoading(true)
     try {
-      const items = await api.merchantUsers.list(merchantId)
+      const items = await cryptoApi.merchantUsers.list(merchantId)
       setUsers(items)
     } catch {
       toast.error("Не удалось загрузить пользователей")
@@ -132,7 +133,7 @@ export function MerchantUsersTab({ merchantId, isNew }: MerchantUsersTabProps) {
     setUsers((u) => u.map((x) => x.userId === user.userId ? { ...x, role: newRole } : x))
     setRoleSaving((s) => ({ ...s, [user.userId]: true }))
     try {
-      await api.merchantUsers.updateRole(merchantId, user.userId, { role: newRole })
+      await cryptoApi.merchantUsers.updateRole(merchantId, user.userId, { role: newRole })
       toast.success("Роль обновлена")
     } catch {
       setUsers(prev) // rollback
@@ -168,7 +169,7 @@ export function MerchantUsersTab({ merchantId, isNew }: MerchantUsersTabProps) {
   const handleRemoveConfirm = async () => {
     if (!removeTarget) return
     try {
-      await api.merchantUsers.remove(merchantId, removeTarget.userId)
+      await cryptoApi.merchantUsers.remove(merchantId, removeTarget.userId)
       toast.success("Доступ пользователя отозван")
       setRemoveTarget(null)
       await loadUsers()
@@ -192,7 +193,7 @@ export function MerchantUsersTab({ merchantId, isNew }: MerchantUsersTabProps) {
     }
     setSavingAdd(true)
     try {
-      await api.merchantUsers.add(merchantId, { userId: addingRow.userId, role: addingRow.role })
+      await cryptoApi.merchantUsers.add(merchantId, { userId: addingRow.userId, role: addingRow.role })
       toast.success("Доступ предоставлен")
       setAddingRow(null)
       await loadUsers()

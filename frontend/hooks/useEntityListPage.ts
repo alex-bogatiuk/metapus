@@ -152,7 +152,7 @@ interface UseEntityListPageReturn<T extends { id: string }> {
  * const list = useEntityListPage({ entityKey: "CryptoInvoice", api: api.cryptoInvoices, periodField: "date" })
  *
  * // Catalogs (no period field)
- * const list = useEntityListPage({ entityKey: "token", api: api.tokens })
+ * const list = useEntityListPage({ entityKey: "counterparty", api: api.counterparties })
  * ```
  */
 export function useEntityListPage<T extends { id: string }>(

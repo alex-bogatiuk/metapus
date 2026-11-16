@@ -9,7 +9,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { api, ApiError } from "@/lib/api"
+import { ApiError } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import type {
   CryptoNetworkState,
@@ -77,6 +77,7 @@ import { ShadowControlSection } from "./shadow-control-section"
 import { NetworkWatchingSection } from "./network-watching-section"
 import { IngestionPill, IngestionStreamsSection } from "./ingestion-status"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 export interface CryptoNetworkCardProps {
   incoming: CryptoNetworkState
   expanded: boolean
@@ -132,7 +133,7 @@ export function CryptoNetworkCard({
     }
     setSaving(true)
     try {
-      const updated = await api.cryptoNetworks.updatePolicy(
+      const updated = await cryptoApi.cryptoNetworks.updatePolicy(
         incoming.network.id,
         toPatch(form, hasExternalResources)
       )

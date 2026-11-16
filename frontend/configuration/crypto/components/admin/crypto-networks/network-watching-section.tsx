@@ -4,7 +4,7 @@ import { useId, useState } from "react"
 import { Eye, EyeOff, LoaderCircle } from "lucide-react"
 import { toast } from "sonner"
 
-import { api, ApiError } from "@/lib/api"
+import { ApiError } from "@/lib/api"
 import { usePermissions } from "@/hooks/use-permissions"
 import type { CryptoNetworkListResponse, CryptoNetworkState } from "@/configuration/crypto/types/crypto-network"
 import { Badge } from "@/components/ui/badge"
@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Textarea } from "@/components/ui/textarea"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 interface NetworkWatchingSectionProps {
   state: CryptoNetworkState
   onUpdated: () => Promise<CryptoNetworkListResponse | undefined>
@@ -50,7 +51,7 @@ export function NetworkWatchingSection({ state, onUpdated }: NetworkWatchingSect
     setBusy(true)
     setSubmitError("")
     try {
-      await api.cryptoNetworks.setWatching(state.network.id, { watching: command.watching, reason: reason.trim() }, command.key)
+      await cryptoApi.cryptoNetworks.setWatching(state.network.id, { watching: command.watching, reason: reason.trim() }, command.key)
       await onUpdated()
       setCommand(null)
       toast.success(command.watching

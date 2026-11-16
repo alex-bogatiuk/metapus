@@ -42,13 +42,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Skeleton } from "@/components/ui/skeleton"
-import { api } from "@/lib/api"
+
 import { formatRiskClass } from "@/configuration/crypto/lib/aml-risk"
 import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
 import { buildTransactionExplorerUrl, truncateAddress } from "@/configuration/crypto/lib/blockchain"
 import { formatMinorUnits, formatDateTime, copyToClipboard } from "@/lib/format"
 import type { PortalWithdrawalItem } from "@/configuration/crypto/types/portal-api"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 // ── Status Config ──────────────────────────────────────────────────────
 
 const WITHDRAWAL_STATUS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: typeof CheckCircle2 }> = {
@@ -58,8 +59,6 @@ const WITHDRAWAL_STATUS: Record<string, { label: string; variant: "default" | "s
   confirmed: { label: "Подтверждён", variant: "default",      icon: CheckCircle2 },
   failed:    { label: "Ошибка",      variant: "destructive",  icon: XCircle },
 }
-
-
 
 // ── Sortable Head ──────────────────────────────────────────────────────
 
@@ -110,7 +109,7 @@ export default function WithdrawalsPage() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api.portal.withdrawals({
+      const res = await cryptoApi.portal.withdrawals({
         merchantId: activeMerchantId || undefined,
         status: statusFilter === "all" ? undefined : statusFilter,
         sort,
@@ -143,7 +142,6 @@ export default function WithdrawalsPage() {
   }
 
   const totalPages = Math.ceil(total / limit)
-
 
   return (
     <div className="space-y-6">

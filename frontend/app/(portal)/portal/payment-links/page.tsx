@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
-import { api } from "@/lib/api"
+
 import { getNetworkColor } from "@/configuration/crypto/lib/blockchain"
 import {
   derivePortalNetworks,
@@ -53,6 +53,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Plus, Copy, Check, Link2, ExternalLink, QrCode } from "lucide-react"
 import { toast } from "sonner"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 const TTL_OPTIONS = [
   { value: "default", label: "По умолчанию (настройка мерчанта)" },
   { value: "15", label: "15 минут" },
@@ -100,8 +101,8 @@ export default function PaymentLinksPage() {
     setLoading(true)
     try {
       const [linksResp, currenciesResp] = await Promise.all([
-        api.portal.paymentLinks.list({ merchantId: activeMerchantId }),
-        api.portal.currencies(activeMerchantId),
+        cryptoApi.portal.paymentLinks.list({ merchantId: activeMerchantId }),
+        cryptoApi.portal.currencies(activeMerchantId),
       ])
       setLinks(linksResp.items)
       setTokens(currenciesResp.items)
@@ -118,7 +119,7 @@ export default function PaymentLinksPage() {
     if (!activeMerchantId || !selectedTokenId || !form.amount) return
     setCreating(true)
     try {
-      const resp = await api.portal.paymentLinks.create(activeMerchantId, {
+      const resp = await cryptoApi.portal.paymentLinks.create(activeMerchantId, {
         ...form,
         tokenId: selectedTokenId,
       })

@@ -12,7 +12,6 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { api } from "@/lib/api"
 import type { CryptoProviderAccount } from "@/configuration/crypto/types/crypto-network"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -37,6 +36,7 @@ import {
 import { FieldHelp } from "./types-and-helpers"
 import { ProviderAccountCredentialsDialog } from "./provider-account-credentials-dialog"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 export interface ProviderAccountsOrderSectionProps {
   networkId: string
   accountIds: string[]
@@ -52,7 +52,7 @@ export function ProviderAccountsOrderSection({
 }: ProviderAccountsOrderSectionProps) {
   const { data, mutate } = useSWR(
     `/catalog/crypto-provider-accounts?networkId=${networkId}`,
-    () => api.cryptoProviderAccounts.list({ limit: 50 })
+    () => cryptoApi.cryptoProviderAccounts.list({ limit: 50 })
   )
 
   const [dialogAccount, setDialogAccount] = useState<CryptoProviderAccount | null | undefined>(undefined)

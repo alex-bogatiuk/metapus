@@ -52,12 +52,13 @@ import {
 } from "@/components/ui/tooltip"
 import { AccountingPeriodPicker, type DateRangeValue } from "@/components/ui/accounting-period-picker"
 import { formatLocalYYYYMMDD } from "@/lib/filter-utils"
-import { api } from "@/lib/api"
+
 import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
 import { cn } from "@/lib/utils"
 import type { PortalInvoiceItem, PortalInvoiceDetailResponse, PortalCurrencyItem } from "@/configuration/crypto/types/portal-api"
 import { buildTransactionExplorerUrl, getNetworkColor } from "@/configuration/crypto/lib/blockchain"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" | "success"; icon: typeof CheckCircle2 }> = {
@@ -72,12 +73,8 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
   cancelled: { label: "Отменён", variant: "destructive", icon: XCircle },
 }
 
-
-
 const PAGE_SIZES = [10, 20, 50, 100]
 const DEFAULT_PAGE_SIZE = 20
-
-
 
 type SortField = "created_at" | "number" | "status" | "amount" | "received_amount"
 type SortOrder = "asc" | "desc"
@@ -145,10 +142,9 @@ export default function PortalInvoicesPage() {
 
   // Fetch token list for the active merchant.
   useEffect(() => {
-    api.portal.currencies(activeMerchantId ?? undefined)
+    cryptoApi.portal.currencies(activeMerchantId ?? undefined)
       .then((res) => setTokens(res.items))
       .catch(() => setTokens([]))
-
 
   }, [activeMerchantId])
 
@@ -161,7 +157,7 @@ export default function PortalInvoicesPage() {
       ? tokens.find((t) => `${t.symbol}-${t.network}` === tokenFilter)
       : undefined
 
-    api.portal.invoices({
+    cryptoApi.portal.invoices({
       merchantId: activeMerchantId ?? undefined,
       status: statusFilter !== "all" ? statusFilter : undefined,
       search: debouncedSearch || undefined,
@@ -213,7 +209,7 @@ export default function PortalInvoicesPage() {
 
   const handleExportCsv = useCallback(async () => {
     try {
-      await api.portal.exportInvoicesCsv({
+      await cryptoApi.portal.exportInvoicesCsv({
         merchantId: activeMerchantId ?? undefined,
         status: statusFilter !== "all" ? statusFilter : undefined,
         search: debouncedSearch || undefined,
@@ -592,7 +588,7 @@ function ExpandedDetails({ invoice: inv, merchantId }: { invoice: PortalInvoiceI
 
   useEffect(() => {
     let active = true
-    api.portal.invoiceDetail(inv.id, merchantId ?? undefined)
+    cryptoApi.portal.invoiceDetail(inv.id, merchantId ?? undefined)
       .then((result) => { if (active) setDetail(result) })
       .catch(() => { if (active) setError(true) })
     return () => { active = false }

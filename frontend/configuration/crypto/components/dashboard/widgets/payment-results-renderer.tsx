@@ -2,8 +2,9 @@
 import { Receipt } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { WidgetRenderProps } from "@/types/dashboard"
-import { WidgetBody, WidgetEmpty } from "./widget-state"
-import { useCompactRows } from "./compact-rows"
+import type { AnalyticsConfig } from "@/configuration/crypto/lib/widget-configs"
+import { WidgetBody, WidgetEmpty } from "@/components/dashboard/widgets/widget-state"
+import { useCompactRows } from "@/components/dashboard/widgets/compact-rows"
 import { useAnalytics } from "./analytics-controls"
 
 type Asset = NonNullable<ReturnType<typeof useAnalytics>["asset"]>
@@ -19,7 +20,7 @@ const outcomes: { key: keyof Asset & ("paid" | "underpaid" | "awaitingConfirmati
 ]
 const percent = (count: number, total: number) => (count / total * 100).toFixed(1).replace(".", ",") + "%"
 
-export default function Results(props: WidgetRenderProps<"payment-results">) {
+export default function Results(props: WidgetRenderProps<AnalyticsConfig>) {
   const state = useAnalytics(props)
   useCompactRows(state.data && !state.error && !state.asset?.created ? 2 : null)
   const a = state.asset

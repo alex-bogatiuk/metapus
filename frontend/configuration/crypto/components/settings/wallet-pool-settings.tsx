@@ -9,7 +9,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { api, ApiError } from "@/lib/api"
+import { ApiError } from "@/lib/api"
 import type {
   WalletPoolActivationPolicy,
   WalletPoolPolicy,
@@ -44,6 +44,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { useTabDirty } from "@/hooks/useTabDirty"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 type EditablePolicy = Pick<
   WalletPoolPolicy,
   | "enabled"
@@ -179,7 +180,7 @@ export function WalletPoolSettings() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await api.walletPools.list()
+      const response = await cryptoApi.walletPools.list()
       setItems(response.items)
     } catch {
       toast.error(
@@ -322,7 +323,7 @@ function WalletPoolNetworkCard({
         ...common,
         ...(requiresActivation ? { activation } : {}),
       }
-      const updated = await api.walletPools.updatePolicy(
+      const updated = await cryptoApi.walletPools.updatePolicy(
         state.policy.networkId,
         payload
       )
@@ -346,7 +347,7 @@ function WalletPoolNetworkCard({
   const reconcile = async () => {
     setReconciling(true)
     try {
-      const response = await api.walletPools.reconcile(state.policy.networkId)
+      const response = await cryptoApi.walletPools.reconcile(state.policy.networkId)
       setState(response.state)
       setForm(toEditable(response.state.policy))
       onDirtyChange(response.state.policy.networkId, false)

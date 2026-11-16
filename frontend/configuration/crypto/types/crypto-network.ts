@@ -49,7 +49,7 @@ export interface ExternalResourcePolicy {
   providerOpenSeconds: number
 }
 
-export type CryptoProviderAccount = import("../../../types/generated/http-contracts").CryptoProviderAccountResponse
+export type CryptoProviderAccount = import("@/types/generated/http-contracts").CryptoProviderAccountResponse
 
 export interface CryptoNetworkPolicy {
   networkId: string
@@ -101,8 +101,8 @@ export interface CryptoNetworkRuntime {
   ingestion?: CryptoNetworkIngestion
 }
 
-export type CryptoNetworkIngestion = import("../../../types/generated/http-contracts").CryptoNetworkIngestionStatus
-export type CryptoIngestionStream = import("../../../types/generated/http-contracts").CryptoIngestionStreamStatus
+export type CryptoNetworkIngestion = import("@/types/generated/http-contracts").CryptoNetworkIngestionStatus
+export type CryptoIngestionStream = import("@/types/generated/http-contracts").CryptoIngestionStreamStatus
 
 export interface CryptoNetworkState {
   network: CryptoNetworkRef

@@ -2,10 +2,11 @@
 
 import Link from "next/link"
 import useSWR from "swr"
-import { api } from "@/lib/api"
+
 import { usePermissions } from "@/hooks/use-permissions"
 import { Button } from "@/components/ui/button"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 const reasonLabels: Record<string, string> = {
   incorrect_payment_posting: "Ошибка проведения платежа",
   duplicate_financial_effect: "Повторный учёт платежа",
@@ -16,7 +17,7 @@ export function CryptoPaymentAdjustments({ paymentId }: { paymentId: string }) {
   const permissions = usePermissions()
   const canRead = permissions.has("crypto_reconciliation:read")
   const { data } = useSWR(canRead ? ["payment-adjustments", paymentId] : null,
-    () => api.financialAdjustments.list("", paymentId))
+    () => cryptoApi.financialAdjustments.list("", paymentId))
   if (!canRead) return null
   return <section className="rounded-lg border bg-workspace-surface p-4">
     <h2 className="mb-2 font-semibold">Криптокорректировки</h2>

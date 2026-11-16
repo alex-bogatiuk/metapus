@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { LoaderCircle, Save } from "lucide-react"
 import { toast } from "sonner"
 
-import { api, ApiError } from "@/lib/api"
+import { ApiError } from "@/lib/api"
 import type {
   MerchantWalletAllocationLimits,
   MerchantWalletAllocationLimitsUpdate,
@@ -16,6 +16,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 interface MerchantWalletAllocationLimitsProps {
   merchantId: string
   isNew: boolean
@@ -40,11 +41,11 @@ export function MerchantWalletAllocationLimitsEditor({
     setLoading(true)
     setError("")
     try {
-      const pools = await api.walletPools.list()
+      const pools = await cryptoApi.walletPools.list()
       const loaded = await Promise.all(
         pools.items.map(async ({ policy }) => ({
           policy,
-          limits: await api.walletPools.getMerchantOverride(
+          limits: await cryptoApi.walletPools.getMerchantOverride(
             policy.networkId,
             merchantId
           ),
@@ -142,7 +143,7 @@ function AllocationNetworkRow({
     if (Object.keys(errors).length > 0) return
     setSaving(true)
     try {
-      const updated = await api.walletPools.updateMerchantOverride(
+      const updated = await cryptoApi.walletPools.updateMerchantOverride(
         row.policy.networkId,
         merchantId,
         form

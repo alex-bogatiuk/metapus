@@ -1,12 +1,14 @@
 "use client"
 import { api } from "@/lib/api"
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 import { useWidgetData } from "@/hooks/useWidgetData"
 import type { WidgetRenderProps } from "@/types/dashboard"
+import type { AnalyticsConfig } from "@/configuration/crypto/lib/widget-configs"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
-export function useAnalytics<T extends "receipts-volume" | "platform-fees" | "payment-results">(props: WidgetRenderProps<T>) {
-  const state = useWidgetData(() => api.dashboard.analytics(props.config.period), { key: `widget:admin-analytics:${props.config.period}`, isEditMode: props.isEditMode, pollInterval: 60_000 })
+export function useAnalytics(props: WidgetRenderProps<AnalyticsConfig>) {
+  const state = useWidgetData(() => cryptoApi.dashboard.analytics(props.config.period), { key: `widget:admin-analytics:${props.config.period}`, isEditMode: props.isEditMode, pollInterval: 60_000 })
   const assets = state.data?.assets ?? []
   const asset = assets.find(a => a.tokenId === props.config.tokenId) ?? assets[0]
   const controls = <div className="flex flex-wrap items-center gap-1.5">

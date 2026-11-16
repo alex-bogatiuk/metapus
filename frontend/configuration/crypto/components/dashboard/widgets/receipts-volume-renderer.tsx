@@ -5,11 +5,12 @@ import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from "@
 import { ChartContainer } from "@/components/ui/chart"
 import { formatPortalAmount, receiptSeries, receiptAxisLabel, receiptAxisTicks } from "@/configuration/crypto/lib/portal-overview"
 import type { WidgetRenderProps } from "@/types/dashboard"
-import { WidgetBody, WidgetEmpty } from "../../../../../components/dashboard/widgets/widget-state"
-import { useCompactRows } from "../../../../../components/dashboard/widgets/compact-rows"
-import { useAnalytics } from "../../../../../components/dashboard/widgets/analytics-controls"
+import type { AnalyticsConfig } from "@/configuration/crypto/lib/widget-configs"
+import { WidgetBody, WidgetEmpty } from "@/components/dashboard/widgets/widget-state"
+import { useCompactRows } from "@/components/dashboard/widgets/compact-rows"
+import { useAnalytics } from "./analytics-controls"
 
-export default function Receipts(props: WidgetRenderProps<"receipts-volume">) {
+export default function Receipts(props: WidgetRenderProps<AnalyticsConfig>) {
   const state = useAnalytics(props)
   const series = receiptSeries(state.data?.receipts ?? [], state.asset?.tokenId ?? "", props.config.period, state.data ? new Date(state.data.toDay + "T00:00:00Z") : new Date())
   const scale = state.asset?.decimalPlaces ?? 0

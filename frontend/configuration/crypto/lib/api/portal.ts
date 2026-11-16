@@ -8,7 +8,7 @@ import type {
     AddMerchantUserRequest,
     UpdateMerchantUserRoleRequest,
 } from "@/configuration/crypto/types/merchant-api"
-import { apiFetch, portalFetch, portalFetchBlob } from "../../../../lib/api/core"
+import { apiFetch, portalFetch, portalFetchBlob } from "@/lib/api/core"
 
 export const portalApi = {
     merchants: () =>

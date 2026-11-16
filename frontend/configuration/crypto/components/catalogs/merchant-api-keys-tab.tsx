@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { api } from "@/lib/api"
+
 import type {
   MerchantAPIKeyListItem,
   MerchantAPIKeyResponse,
@@ -49,6 +49,7 @@ import { toast } from "sonner"
 import { format } from "date-fns"
 import { ru } from "date-fns/locale"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 interface MerchantAPIKeysTabProps {
   merchantId: string
   /** true when the parent entity hasn't been saved yet (hide until saved) */
@@ -67,7 +68,7 @@ export function MerchantAPIKeysTab({ merchantId, isNew }: MerchantAPIKeysTabProp
     if (!merchantId || isNew) return
     setLoading(true)
     try {
-      const items = await api.merchantApiKeys.list(merchantId)
+      const items = await cryptoApi.merchantApiKeys.list(merchantId)
       setKeys(items)
     } catch {
       toast.error("Не удалось загрузить API ключи")
@@ -83,7 +84,7 @@ export function MerchantAPIKeysTab({ merchantId, isNew }: MerchantAPIKeysTabProp
   const handleRevoke = async () => {
     if (!revokeTarget) return
     try {
-      await api.merchantApiKeys.revoke(merchantId, revokeTarget.id)
+      await cryptoApi.merchantApiKeys.revoke(merchantId, revokeTarget.id)
       toast.success(`Ключ «${revokeTarget.name}» отозван`)
       setRevokeTarget(null)
       await loadKeys()
@@ -321,7 +322,7 @@ function CreateAPIKeyDialog({
     setSubmitting(true)
     try {
       const body: CreateMerchantAPIKeyRequest = { name: name.trim(), scopes }
-      const created = await api.merchantApiKeys.create(merchantId, body)
+      const created = await cryptoApi.merchantApiKeys.create(merchantId, body)
       onCreated(created)
       toast.success("API-ключ создан")
       setName("")

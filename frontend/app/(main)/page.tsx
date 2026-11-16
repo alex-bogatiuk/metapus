@@ -1,4 +1,7 @@
 "use client"
+// The dashboard store reads the widget registry when it loads, so the
+// configuration registers its widgets first (see app/configuration.ts).
+import "../configuration"
 import { useEffect, useState } from "react"
 import { useTabDirty } from "@/hooks/useTabDirty"
 import { useSWRConfig } from "swr"

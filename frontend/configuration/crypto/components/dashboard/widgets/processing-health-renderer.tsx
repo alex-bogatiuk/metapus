@@ -4,12 +4,13 @@ import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { useAdminNetworks } from "@/configuration/crypto/hooks/useAdminNetworks"
 import { useWidgetData } from "@/hooks/useWidgetData"
-import { networkHealth, observedTime } from "@/lib/admin-dashboard"
+import { networkHealth, observedTime } from "@/configuration/crypto/lib/admin-dashboard"
 import type { WidgetRenderProps } from "@/types/dashboard"
+import type { HealthConfig } from "@/configuration/crypto/lib/widget-configs"
 import type { CryptoNetworkState } from "@/configuration/crypto/types/crypto-network"
 import { Network } from "lucide-react"
-import { StatusBadge, WidgetBody, WidgetEmpty, WidgetLink } from "./widget-state"
-import { useCompactRows } from "./compact-rows"
+import { StatusBadge, WidgetBody, WidgetEmpty, WidgetLink } from "@/components/dashboard/widgets/widget-state"
+import { useCompactRows } from "@/components/dashboard/widgets/compact-rows"
 
 type Tone = "success" | "warning" | "destructive" | "neutral"
 const dots: Record<Tone, string> = {
@@ -27,7 +28,7 @@ function networkStatus(state: CryptoNetworkState, now?: number): { tone: Tone; l
   return { tone: health.level === "problem" ? "destructive" : "warning", label: health.label }
 }
 
-export default function Health({ config, isEditMode }: WidgetRenderProps<"processing-health">) {
+export default function Health({ config, isEditMode }: WidgetRenderProps<HealthConfig>) {
   const networks = useAdminNetworks({ isEditMode })
   const workers = useWidgetData(() => api.system.workerJobs.stats(), { key: "widget:admin-worker-stats", isEditMode, enabled: config.showWorkerStats, pollInterval: 60_000 })
   const items = networks.data?.items ?? []

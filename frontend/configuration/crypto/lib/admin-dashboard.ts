@@ -1,7 +1,7 @@
 import type { CryptoNetworkState } from "@/configuration/crypto/types/crypto-network"
-import { networkHealth } from "../configuration/crypto/lib/crypto-network-readiness"
+import { networkHealth } from "./crypto-network-readiness"
 
-export { networkHealth } from "../configuration/crypto/lib/crypto-network-readiness"
+export { networkHealth } from "./crypto-network-readiness"
 
 /** Counted on the dashboard: networks that cannot process operations. */
 export function networkProblem(state: CryptoNetworkState, now = Date.now()): string | null {

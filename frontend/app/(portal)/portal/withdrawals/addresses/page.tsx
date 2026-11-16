@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
-import { api } from "@/lib/api"
+
 import type { PortalWithdrawalAddress, PortalCurrencyItem } from "@/configuration/crypto/types/portal-api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -38,6 +38,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ArrowLeft, Loader2, Plus, Shield, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 export default function WithdrawalAddressesPage() {
   const activeMerchantId = usePortalStore((s) => s.activeMerchantId)
   const [addresses, setAddresses] = useState<PortalWithdrawalAddress[]>([])
@@ -64,8 +65,8 @@ export default function WithdrawalAddressesPage() {
     setLoading(true)
     try {
       const [addrRes, tokenRes] = await Promise.all([
-        api.portal.withdrawalAddresses(activeMerchantId),
-        api.portal.currencies(activeMerchantId),
+        cryptoApi.portal.withdrawalAddresses(activeMerchantId),
+        cryptoApi.portal.currencies(activeMerchantId),
       ])
       setAddresses(addrRes.items)
       setTokens(tokenRes.items)
@@ -88,7 +89,7 @@ export default function WithdrawalAddressesPage() {
     if (!activeMerchantId || !newNetworkId || !newAddress) return
     setAdding(true)
     try {
-      await api.portal.addWithdrawalAddress(activeMerchantId, {
+      await cryptoApi.portal.addWithdrawalAddress(activeMerchantId, {
         networkId: newNetworkId,
         address: newAddress.trim(),
         label: newLabel.trim() || undefined,
@@ -109,7 +110,7 @@ export default function WithdrawalAddressesPage() {
   const handleRemove = async (addressId: string) => {
     if (!activeMerchantId) return
     try {
-      await api.portal.removeWithdrawalAddress(activeMerchantId, addressId)
+      await cryptoApi.portal.removeWithdrawalAddress(activeMerchantId, addressId)
       toast.success("Адрес удалён")
       setAddresses((prev) => prev.filter((a) => a.id !== addressId))
     } catch (err) {

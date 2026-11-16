@@ -1,62 +1,46 @@
 import type { JsonObject } from "@/lib/json-value"
 /**
- * Dashboard widget system types + Zod config schemas.
+ * Dashboard widget system types.
  *
- * Each widget type has a strictly typed config validated at runtime.
- * Adding a new widget? Add its Zod schema here and entry in WidgetConfigMap.
+ * A widget definition carries its own Zod config schema, so every widget's
+ * config is strictly typed and validated at runtime. Configurations register
+ * their widgets through registerWidget (lib/widget-registry).
  */
 
 import type { LucideIcon } from "lucide-react"
-import { z } from "zod"
+import type { z } from "zod"
 
-export const counterConfigSchema = z.object({ metric: z.enum(["withdrawals", "inbound", "outflows", "networks"]) })
-export const queueConfigSchema = z.object({ kind: z.enum(["all", "withdrawal", "inbound", "outflow"]).default("all"), limit: z.int().min(1).max(20).default(5) })
-export const healthConfigSchema = z.object({ showWorkerStats: z.boolean().default(true) })
-export const financeConfigSchema = z.object({ view: z.enum(["obligations", "wallets"]).default("obligations") })
-export const reconciliationConfigSchema = z.object({ limit: z.int().min(1).max(20).default(8) })
-export const analyticsConfigSchema = z.object({ period: z.enum(["7d", "30d", "90d"]).default("30d"), tokenId: z.string().default("") })
-
-export type WidgetConfigMap = {
-  "attention-counter": z.infer<typeof counterConfigSchema>
-  "attention-queue": z.infer<typeof queueConfigSchema>
-  "processing-health": z.infer<typeof healthConfigSchema>
-  "financial-summary": z.infer<typeof financeConfigSchema>
-  "custody-reconciliation": z.infer<typeof reconciliationConfigSchema>
-  "receipts-volume": z.infer<typeof analyticsConfigSchema>
-  "platform-fees": z.infer<typeof analyticsConfigSchema>
-  "payment-results": z.infer<typeof analyticsConfigSchema>
-}
-export type WidgetType = keyof WidgetConfigMap
-export const widgetConfigSchemas: { [K in WidgetType]: z.ZodType<WidgetConfigMap[K]> } = {
-  "attention-counter": counterConfigSchema,
-  "attention-queue": queueConfigSchema,
-  "processing-health": healthConfigSchema,
-  "financial-summary": financeConfigSchema,
-  "custody-reconciliation": reconciliationConfigSchema,
-  "receipts-volume": analyticsConfigSchema,
-  "platform-fees": analyticsConfigSchema,
-  "payment-results": analyticsConfigSchema,
-}
+/** A widget type is the identifier a configuration registers it under. */
+export type WidgetType = string
 
 // ── Core Types ──────────────────────────────────────────────────────
 
 export type WidgetCategory = "kpi" | "lists" | "charts" | "system"
 export type WidgetSize = "2x1" | "3x1" | "4x1" | "2x2" | "3x2" | "4x2" | "4x3" | "4x4" | "2x3" | "4x4-compact" | "fullx3" | "3x3" | "2x4"
 
-export interface WidgetDefinition<T extends WidgetType = WidgetType> {
-  type: T
+export interface WidgetDefinition<C = JsonObject> {
+  type: WidgetType
   label: string
   description: string
   icon: LucideIcon
   allowedSizes: WidgetSize[]
   defaultSize: WidgetSize
   category: WidgetCategory
-  defaultConfig: WidgetConfigMap[T]
+  /** Schema of this widget's config; stored configs are validated against it. */
+  configSchema: z.ZodType<C>
+  defaultConfig: C
   /** Permission required to see this widget's data. Null = no restriction. */
   requiredPermission: string | null
   adminOnly?: boolean
-  // Registration binds this component to the schema for its exact widget type.
-  component: React.LazyExoticComponent<React.ComponentType<WidgetRenderProps<T>>>
+  // Registration binds this component to the widget's config schema.
+  component: React.LazyExoticComponent<React.ComponentType<WidgetRenderProps<C>>>
+  /** Optional editor of the config in the gallery and the settings dialog. */
+  configEditor?: React.ComponentType<WidgetConfigEditorProps<C>>
+}
+
+export interface WidgetConfigEditorProps<C = JsonObject> {
+  config: C
+  onConfigChange: (config: C) => void
 }
 
 export interface WidgetPlacement {
@@ -78,11 +62,11 @@ export interface DashboardLayout {
   rows: WidgetPlacement[][]
 }
 
-export interface WidgetRenderProps<T extends WidgetType = WidgetType> {
+export interface WidgetRenderProps<C = JsonObject> {
   placement: WidgetPlacement
-  config: WidgetConfigMap[T]
+  config: C
   isEditMode: boolean
-  onConfigChange: (config: WidgetConfigMap[T]) => void
+  onConfigChange: (config: C) => void
 }
 
 // ── Shared Constants ────────────────────────────────────────────────
@@ -135,9 +119,12 @@ export const ROW_COLUMNS = 12
 export const rowHeightPx = (units: number) => units * GRID_ROW_HEIGHT + (units - 1) * GRID_MARGIN
 
 /** Runtime registry entry closes over a concrete typed component and config schema. */
-export interface RegisteredWidgetDefinition extends Omit<WidgetDefinition, "component" | "defaultConfig"> {
+export interface RegisteredWidgetDefinition extends Omit<WidgetDefinition, "component" | "defaultConfig" | "configSchema" | "configEditor"> {
   defaultConfig: JsonObject
+  /** Parses a stored config into this widget's config, or fails. */
+  parseConfig: (config: JsonObject) => JsonObject | null
   component: React.ComponentType<WidgetRuntimeProps>
+  configEditor?: React.ComponentType<WidgetConfigEditorProps>
 }
 export interface WidgetRuntimeProps {
   placement: WidgetPlacement

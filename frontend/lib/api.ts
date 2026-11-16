@@ -9,7 +9,7 @@
  *
  * Usage:
  *   import { api } from "@/lib/api"
- *   const items = await api.tokens.list()
+ *   const items = await api.counterparties.list()
  */
 
 // ── Core exports ────────────────────────────────────────────────────────
@@ -54,17 +54,12 @@ export {
 // ── Domain sub-APIs ─────────────────────────────────────────────────────
 import { authApi, usersApi, rolesApi, permissionsApi } from "./api/auth"
 import { catalogsApi } from "./api/catalogs"
-import { cryptoApi } from "../configuration/crypto/lib/api/crypto"
 import { automationApi } from "./api/automation"
 import { metaApi, preferencesApi, listViewsApi, reportsApi, settingsApi } from "./api/meta"
 import { securityApi } from "./api/security"
-import { portalApi, merchantApiKeysApi, merchantUsersApi, feeScheduleApi, merchantFeeScheduleApi } from "../configuration/crypto/lib/api/portal"
 import { searchApi, systemApi, adminApi } from "./api/system"
 
-import { dashboardApi } from "./api/dashboard"
-
 export const api = {
-    dashboard: dashboardApi,
     auth: authApi,
     users: usersApi,
     roles: rolesApi,
@@ -72,9 +67,6 @@ export const api = {
 
     // Catalogs
     ...catalogsApi,
-
-    // Documents & Crypto
-    ...cryptoApi,
 
     // Automation
     automation: automationApi,
@@ -88,13 +80,6 @@ export const api = {
 
     // Security
     security: securityApi,
-
-    // Merchant & Portal
-    merchantApiKeys: merchantApiKeysApi,
-    merchantUsers: merchantUsersApi,
-    portal: portalApi,
-    feeSchedule: feeScheduleApi,
-    merchantFeeSchedule: merchantFeeScheduleApi,
 
     // System & Admin
     search: searchApi,

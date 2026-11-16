@@ -3,23 +3,25 @@ import Link from "next/link"
 import type { ReactNode } from "react"
 import { ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, Check, ChevronRight, Network, type LucideIcon } from "lucide-react"
 import { api } from "@/lib/api"
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 import { cn } from "@/lib/utils"
 import { useAdminNetworks } from "@/configuration/crypto/hooks/useAdminNetworks"
 import { useWidgetData } from "@/hooks/useWidgetData"
-import { counterLabels, networkProblem, queueHref } from "@/lib/admin-dashboard"
+import { counterLabels, networkProblem, queueHref } from "@/configuration/crypto/lib/admin-dashboard"
 import type { WidgetRenderProps } from "@/types/dashboard"
+import type { CounterConfig } from "@/configuration/crypto/lib/widget-configs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
-import { StatusBadge } from "./widget-state"
+import { StatusBadge } from "@/components/dashboard/widgets/widget-state"
 
-type Metric = WidgetRenderProps<"attention-counter">["config"]["metric"]
+type Metric = WidgetRenderProps<CounterConfig>["config"]["metric"]
 const icons: Record<Metric, LucideIcon> = { withdrawals: ArrowUpFromLine, inbound: ArrowDownToLine, outflows: ArrowRightLeft, networks: Network }
 const busyHint: Record<Metric, string> = { withdrawals: "Ждут решения", inbound: "Ждут зачисления", outflows: "Ждут классификации", networks: "Не обрабатывают операции" }
 const calmHint: Record<Metric, string> = { withdrawals: "Очередь пуста", inbound: "Очередь пуста", outflows: "Очередь пуста", networks: "Все сети работают" }
 
-export default function Counter({ config, isEditMode }: WidgetRenderProps<"attention-counter">) {
+export default function Counter({ config, isEditMode }: WidgetRenderProps<CounterConfig>) {
   const { metric } = config
-  const queues = useWidgetData(() => api.dashboard.queues(), { key: "widget:admin-queue:all:5", isEditMode, enabled: metric !== "networks", pollInterval: 60_000 })
+  const queues = useWidgetData(() => cryptoApi.dashboard.queues(), { key: "widget:admin-queue:all:5", isEditMode, enabled: metric !== "networks", pollInterval: 60_000 })
   const networks = useAdminNetworks({ isEditMode, enabled: metric === "networks" })
   const data = metric === "networks" ? networks : queues
   const count = metric === "networks" ? networks.data?.items.filter(n => networkProblem(n, networks.data?.evaluatedAt)).length : queues.data?.[metric]

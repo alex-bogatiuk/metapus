@@ -172,16 +172,16 @@ export interface PortalTokenBalance {
   rawAmount: string; humanAmount: string; pendingRaw: string; pendingHuman: string
   availableRaw: string; availableHuman: string
   valuation: {
-    status: import("../../../types/exchange-rates").RateStatus; reason: string
-    selectedQuote: import("../../../types/exchange-rates").RateQuote | null
-    lastKnownQuote: import("../../../types/exchange-rates").RateQuote | null
+    status: import("@/types/exchange-rates").RateStatus; reason: string
+    selectedQuote: import("@/types/exchange-rates").RateQuote | null
+    lastKnownQuote: import("@/types/exchange-rates").RateQuote | null
     freshUntil: string | null; total: string | null; pending: string | null; available: string | null
   }
 }
 export interface ValuationBucket { amount: string | null; coverage: "complete" | "partial" | "none"; unvaluedCount: number }
 export interface PortalBalanceResponse {
-  baseCurrency: import("../../../types/exchange-rates").RateCurrency
-  source: import("../../../types/exchange-rates").RateSource | null
+  baseCurrency: import("@/types/exchange-rates").RateCurrency
+  source: import("@/types/exchange-rates").RateSource | null
   evaluatedAt: string; freshUntil: string | null
   valuation: { total: ValuationBucket; pending: ValuationBucket; available: ValuationBucket }
   byToken: PortalTokenBalance[]
@@ -189,9 +189,9 @@ export interface PortalBalanceResponse {
 
 // ── Invoice Detail ─────────────────────────────────────────────────────
 
-export type PortalInvoiceDetailResponse = import("../../../types/generated/http-contracts").PortalInvoiceDetailResponse
-export type PortalInvoicePayment = import("../../../types/generated/http-contracts").PortalInvoicePayment
-export type PortalTimelineEvent = import("../../../types/generated/http-contracts").PortalTimelineEvent
+export type PortalInvoiceDetailResponse = import("@/types/generated/http-contracts").PortalInvoiceDetailResponse
+export type PortalInvoicePayment = import("@/types/generated/http-contracts").PortalInvoicePayment
+export type PortalTimelineEvent = import("@/types/generated/http-contracts").PortalTimelineEvent
 export type PortalInvoiceLedger = PortalInvoiceDetailResponse["financialSummary"]["ledger"]
 
 export interface PortalWebhookDeliveryItem {
@@ -264,7 +264,7 @@ export interface PortalMerchantEvent {
   payload: JsonObject
 }
 
-export type PortalWebhookTestResponse = import("../../../types/generated/http-contracts").WebhookTestResponse
+export type PortalWebhookTestResponse = import("@/types/generated/http-contracts").WebhookTestResponse
 
 // ── Webhook Secret ────────────────────────────────────────────────────
 
@@ -352,7 +352,7 @@ export interface PortalCreateWithdrawalRequest {
   refundReason?: string    // required with refundPaymentId
 }
 
-export type PortalRefundablePaymentResponse = import("../../../types/generated/http-contracts").PortalRefundablePaymentResponse
+export type PortalRefundablePaymentResponse = import("@/types/generated/http-contracts").PortalRefundablePaymentResponse
 
 export interface PortalWithdrawalRequestItem {
  riskClass?: string

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
-import { api } from "@/lib/api"
+
 import { formatMinorUnits } from "@/lib/format"
 import type { PortalFeeItem } from "@/configuration/crypto/types/portal-api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -37,6 +37,7 @@ import { toast } from "sonner"
 import Link from "next/link"
 import { NetworkPolicySettings } from "@/configuration/crypto/components/portal/network-policy-settings"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 const TTL_OPTIONS = [
   { value: "15", label: "15 минут" },
   { value: "30", label: "30 минут" },
@@ -71,7 +72,7 @@ export default function SettingsPage() {
     if (!activeMerchantId) return
     setLoading(true)
     try {
-      const data = await api.portal.settings.get(activeMerchantId)
+      const data = await cryptoApi.portal.settings.get(activeMerchantId)
       setDefaultTtl(String(data.defaultTtlMinutes))
       setSinglePaymentPerInvoice(data.singlePaymentPerInvoice)
       setDirty(false)
@@ -86,7 +87,7 @@ export default function SettingsPage() {
     if (!activeMerchantId) return
     setFeesLoading(true)
     try {
-      const data = await api.portal.settings.fees(activeMerchantId)
+      const data = await cryptoApi.portal.settings.fees(activeMerchantId)
       setFees(data.items)
     } catch {
       setFees([])
@@ -104,7 +105,7 @@ export default function SettingsPage() {
     if (!activeMerchantId) return
     setSaving(true)
     try {
-      const resp = await api.portal.settings.update(activeMerchantId, {
+      const resp = await cryptoApi.portal.settings.update(activeMerchantId, {
         defaultTtlMinutes: parseInt(defaultTtl),
         singlePaymentPerInvoice,
       })

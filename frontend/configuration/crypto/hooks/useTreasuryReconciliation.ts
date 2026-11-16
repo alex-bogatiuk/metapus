@@ -1,7 +1,7 @@
 "use client"
 
 import { useLatestRequest } from "@/hooks/useLatestRequest"
-import { api, UUID_PATH_PARAM_RE } from "@/lib/api"
+import { UUID_PATH_PARAM_RE } from "@/lib/api"
 import { jsonObjectSchema, type JsonObject } from "@/lib/json-value"
 import type {
   ExternalOutflow,
@@ -12,6 +12,7 @@ import { useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 interface IncidentDraft {
   classification: ExternalOutflowClassification
   incidentReason: string
@@ -40,7 +41,7 @@ export function useTreasuryReconciliation(loadLists: () => Promise<void>) {
     setIncidentAction(false)
     setDraft({ ...EMPTY_INCIDENT, classification: outflow.classification || "unauthorized_loss" })
     try {
-      const detail = await api.treasuryWithdrawals.reconciliation.getOutflow(outflow.id)
+      const detail = await cryptoApi.treasuryWithdrawals.reconciliation.getOutflow(outflow.id)
       if (isCurrent()) setOutflowDetail(detail)
     } catch (err) {
       if (!isCurrent()) return
@@ -54,7 +55,7 @@ export function useTreasuryReconciliation(loadLists: () => Promise<void>) {
   const refreshOutflowDetail = async () => {
     if (!selectedOutflowID) return
     const isCurrent = requests.capture()
-    const detail = await api.treasuryWithdrawals.reconciliation.getOutflow(selectedOutflowID)
+    const detail = await cryptoApi.treasuryWithdrawals.reconciliation.getOutflow(selectedOutflowID)
     if (isCurrent()) setOutflowDetail(detail)
   }
 
@@ -79,7 +80,7 @@ export function useTreasuryReconciliation(loadLists: () => Promise<void>) {
     const isCurrent = requests.capture()
     setIncidentAction(true)
     try {
-      const detail = await api.treasuryWithdrawals.reconciliation.classifyOutflow(selectedOutflowID, {
+      const detail = await cryptoApi.treasuryWithdrawals.reconciliation.classifyOutflow(selectedOutflowID, {
         classification,
         matchedBasisType: matchedBasisType.trim() || undefined,
         matchedBasisId: matchedBasisId.trim() || undefined,
@@ -108,9 +109,9 @@ export function useTreasuryReconciliation(loadLists: () => Promise<void>) {
     setIncidentAction(true)
     try {
       if (decision === "approve") {
-        await api.treasuryWithdrawals.reconciliation.approveCustodyAdjustment(adjustmentID, incidentReason.trim())
+        await cryptoApi.treasuryWithdrawals.reconciliation.approveCustodyAdjustment(adjustmentID, incidentReason.trim())
       } else {
-        await api.treasuryWithdrawals.reconciliation.rejectCustodyAdjustment(adjustmentID, incidentReason.trim())
+        await cryptoApi.treasuryWithdrawals.reconciliation.rejectCustodyAdjustment(adjustmentID, incidentReason.trim())
       }
       if (!isCurrent()) return
       await refreshOutflowDetail()
@@ -133,7 +134,7 @@ export function useTreasuryReconciliation(loadLists: () => Promise<void>) {
     const isCurrent = requests.capture()
     setIncidentAction(true)
     try {
-      const detail = await api.treasuryWithdrawals.reconciliation.resolveOutflow(selectedOutflowID, incidentReason.trim())
+      const detail = await cryptoApi.treasuryWithdrawals.reconciliation.resolveOutflow(selectedOutflowID, incidentReason.trim())
       if (!isCurrent()) return
       setOutflowDetail(detail)
       changeIncident({ incidentReason: "" })

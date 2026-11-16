@@ -75,7 +75,7 @@ go run ./cmd/http-contracts -check
 
 ## 6. Frontend
 
-Generic list/detail маршруты находятся в `frontend/app/(main)/documents/[routePrefix]/`. Metadata и capabilities управляют доступными командами. Custom forms/renderers подключаются через `frontend/lib/entity-registry-defaults.ts`; отдельные list/workflow pages нужны только при специализированном сценарии.
+Generic list/detail маршруты находятся в `frontend/app/(main)/documents/[routePrefix]/`. Metadata и capabilities управляют доступными командами. Custom forms/renderers платформенных сущностей задаёт `frontend/lib/entity-registry-defaults.ts`, сущностей конфигурации — её `registerEntityOverlays(...)` (например, `frontend/configuration/crypto/lib/entity-overlays.ts`); отдельные list/workflow pages нужны только при специализированном сценарии.
 
 API consumer использует generated wire types, Zod schemas и зарегистрированный route contract. AutoForm проецирует writable fields конкретного request DTO. Для custom формы подключите dirty state, валидацию и обработку version conflict по существующему аналогу. `useFormValidation` использует `data-field` для фокуса и отображения ошибки. `useShortcut` принимает `mod+s`/`mod+f` для macOS и Windows/Linux.
 

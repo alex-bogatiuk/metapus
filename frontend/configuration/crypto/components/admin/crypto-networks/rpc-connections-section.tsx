@@ -6,7 +6,7 @@ import useSWR from "swr"
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, LoaderCircle, Settings2 } from "lucide-react"
 import { toast } from "sonner"
 
-import { api, ApiError, shouldRetainMutationKey } from "@/lib/api"
+import { ApiError, shouldRetainMutationKey } from "@/lib/api"
 import { usePermissions } from "@/hooks/use-permissions"
 import type { CryptoNetworkState, CryptoRuntimeEndpoint } from "@/configuration/crypto/types/crypto-network"
 import type { CryptoRPCConfigurationResponse, UpdateCryptoRPCConfigurationRequest } from "@/types/generated/http-contracts"
@@ -23,6 +23,7 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { endpointLabels, formatTimestamp, isRuntimeFresh, stateLabels, stateVariants } from "./types-and-helpers"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 interface RPCConnectionsSectionProps {
   state: CryptoNetworkState
   onDirtyChange: (dirty: boolean) => void
@@ -47,7 +48,7 @@ export function RPCConnectionsSection({ state, onDirtyChange }: RPCConnectionsSe
   const canRead = has("catalog:crypto_rpc_endpoint:read")
   const { data, error, isLoading, mutate } = useSWR(
     canRead ? ["admin-rpc-configuration", networkId] : null,
-    () => api.cryptoNetworks.rpcConfiguration(networkId), { refreshInterval: 15_000, revalidateOnFocus: true },
+    () => cryptoApi.cryptoNetworks.rpcConfiguration(networkId), { refreshInterval: 15_000, revalidateOnFocus: true },
   )
   const [baseline, setBaseline] = useState<CryptoRPCConfigurationResponse | null>(null)
   const [draft, setDraft] = useState<RPCConnection[]>([])
@@ -98,7 +99,7 @@ export function RPCConnectionsSection({ state, onDirtyChange }: RPCConnectionsSe
     setBusy(true)
     setSubmitError("")
     try {
-      const updated = await api.cryptoNetworks.updateRPCConfiguration(networkId, command.request, command.key)
+      const updated = await cryptoApi.cryptoNetworks.updateRPCConfiguration(networkId, command.request, command.key)
       await mutate(updated, { revalidate: false })
       setPending(null)
       setBaseline(null)

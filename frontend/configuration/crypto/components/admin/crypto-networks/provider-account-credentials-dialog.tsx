@@ -33,6 +33,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { ReferenceField } from "@/components/shared/reference-field"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 export interface ProviderAccountCredentialsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -65,7 +66,7 @@ export function ProviderAccountCredentialsDialog({
 
   const { data: tokensData } = useSWR(
     open ? `/catalog/tokens?networkId=${networkId}` : null,
-    () => api.tokens.list({ limit: 50 })
+    () => cryptoApi.tokens.list({ limit: 50 })
   )
 
   useEffect(() => {
@@ -126,7 +127,7 @@ export function ProviderAccountCredentialsDialog({
         if (apiSecret.trim()) payload.apiSecret = apiSecret.trim()
         if (callbackUrl.trim()) payload.callbackUrl = callbackUrl.trim()
 
-        const created = await api.cryptoProviderAccounts.create(payload)
+        const created = await cryptoApi.cryptoProviderAccounts.create(payload)
         onSaved(created, true)
         onOpenChange(false)
       } else {
@@ -145,7 +146,7 @@ export function ProviderAccountCredentialsDialog({
         if (apiSecret.trim()) payload.apiSecret = apiSecret.trim()
         if (callbackUrl.trim()) payload.callbackUrl = callbackUrl.trim()
 
-        const updated = await api.cryptoProviderAccounts.update(account.id, payload)
+        const updated = await cryptoApi.cryptoProviderAccounts.update(account.id, payload)
         onSaved(updated, false)
         onOpenChange(false)
       }

@@ -10,11 +10,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { api, ApiError } from "@/lib/api"
+import { ApiError } from "@/lib/api"
 import { formatDateTime } from "@/lib/format"
 import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
 import type { PortalDepositAddressItem, PortalRotateDepositAddressRequest, PortalRotateDepositAddressResponse } from "@/configuration/crypto/types/portal-api"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 const blockedReasons: Record<string, string> = {
   unused_address: "Неиспользованный адрес можно заменить только после первого подтверждённого пополнения. Это защищает пул от исчерпания.",
   sweep_in_progress: "Дождитесь завершения свипа, затем обновите список адресов.",
@@ -70,7 +71,7 @@ export function DepositAddressRotationAction({ item, merchantId, onRotated }: De
     setSaving(true)
     setError(null)
     try {
-      const result = await api.portal.depositAddresses.rotate(merchantId, item.id, { reason })
+      const result = await cryptoApi.portal.depositAddresses.rotate(merchantId, item.id, { reason })
       if (usePortalStore.getState().activeMerchantId !== merchantId) return
       setOpen(false)
       toast.success("Адрес заменён. Старый адрес выведен из обращения.")

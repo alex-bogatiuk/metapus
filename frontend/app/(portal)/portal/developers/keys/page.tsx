@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
-import { api } from "@/lib/api"
+
 import { cn } from "@/lib/utils"
 import type { MerchantAPIKeyListItem, MerchantAPIKeyResponse, APIKeyScope } from "@/configuration/crypto/types/merchant-api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -44,6 +44,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Plus, Copy, Check, Trash2, KeyRound, ShieldAlert } from "lucide-react"
 import { toast } from "sonner"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 const AVAILABLE_SCOPES: { value: APIKeyScope; label: string }[] = [
   { value: "invoice:create", label: "Создание инвойсов" },
   { value: "invoice:read", label: "Чтение инвойсов" },
@@ -96,7 +97,7 @@ export default function APIKeysPage() {
     }
     setLoading(true)
     try {
-      const data = await api.portal.apiKeys.list(activeMerchantId)
+      const data = await cryptoApi.portal.apiKeys.list(activeMerchantId)
       setKeys(data.items)
     } catch {
       toast.error("Не удалось загрузить API-ключи")
@@ -111,7 +112,7 @@ export default function APIKeysPage() {
     if (!activeMerchantId || !canManageKeys || !newKeyName.trim()) return
     setCreating(true)
     try {
-      const resp = await api.portal.apiKeys.create(activeMerchantId, {
+      const resp = await cryptoApi.portal.apiKeys.create(activeMerchantId, {
         name: newKeyName.trim(),
         scopes: newKeyScopes.length > 0 ? newKeyScopes : undefined,
       })
@@ -131,7 +132,7 @@ export default function APIKeysPage() {
   const handleRevoke = async (keyId: string) => {
     if (!activeMerchantId || !canManageKeys) return
     try {
-      await api.portal.apiKeys.revoke(activeMerchantId, keyId)
+      await cryptoApi.portal.apiKeys.revoke(activeMerchantId, keyId)
       await fetchKeys()
       toast.success("Ключ отозван. Запросы с ним больше не принимаются.")
     } catch {

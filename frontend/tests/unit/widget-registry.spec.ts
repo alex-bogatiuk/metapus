@@ -6,13 +6,14 @@ import { Wallet } from "lucide-react"
 import { defineWidget } from "../../lib/widget-registry"
 import type { WidgetRenderProps } from "../../types/dashboard"
 import type { JsonObject } from "../../lib/json-value"
+import { counterConfigSchema, type CounterConfig } from "../../configuration/crypto/lib/widget-configs"
 
 test("widget registry validates configs before rendering and before publishing changes", async () => {
-  let received: WidgetRenderProps<"attention-counter"> | undefined
+  let received: WidgetRenderProps<CounterConfig> | undefined
   const definition = defineWidget({
     type: "attention-counter", label: "KPI", description: "", icon: Wallet, allowedSizes: ["2x1"], defaultSize: "2x1",
-    category: "kpi", requiredPermission: null, defaultConfig: { metric: "withdrawals" },
-    component: lazy(async () => ({ default: (props: WidgetRenderProps<"attention-counter">) => {
+    category: "kpi", requiredPermission: null, configSchema: counterConfigSchema, defaultConfig: { metric: "withdrawals" },
+    component: lazy(async () => ({ default: (props: WidgetRenderProps<CounterConfig>) => {
       received = props
       return createElement("span", null, props.config.metric)
     } })),

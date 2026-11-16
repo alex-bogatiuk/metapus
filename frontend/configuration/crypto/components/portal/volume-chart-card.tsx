@@ -8,10 +8,11 @@ import { ChartContainer } from "@/components/ui/chart"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { OverviewEmpty, OverviewError, OverviewLoading } from "./overview-states"
-import { api } from "@/lib/api"
+
 import { formatPortalAmount, receiptAssets, receiptAxisLabel, receiptSeries, type ReceiptAsset, type ReceiptPeriod } from "@/configuration/crypto/lib/portal-overview"
 import type { PortalTokenBalance } from "@/configuration/crypto/types/portal-api"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 const chartConfig = { height: { label: "Поступления", color: "hsl(var(--primary))" } }
 function dateLabel(day: string) {
   return new Date(day + "T00:00:00Z").toLocaleDateString("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" })
@@ -30,7 +31,7 @@ export function VolumeChartCard({ merchantId, balances = [] }: { merchantId: str
   const [selectedToken, setSelectedToken] = useState("")
   const { data, error, isLoading, mutate } = useSWR(
     merchantId ? ["portal-receipts", merchantId, period] : null,
-    () => api.portal.chart(period, merchantId!),
+    () => cryptoApi.portal.chart(period, merchantId!),
     { keepPreviousData: false, refreshInterval: 60000 },
   )
   const assets = useMemo(() => receiptAssets(data?.items ?? [], balances), [data, balances])

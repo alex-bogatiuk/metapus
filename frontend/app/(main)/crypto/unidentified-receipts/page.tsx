@@ -4,7 +4,7 @@ import { useRef, useState } from "react"
 import Link from "next/link"
 import useSWR from "swr"
 import { toast } from "sonner"
-import { api, ApiError, idempotencyHeaders, shouldRetainMutationKey } from "@/lib/api"
+import { ApiError, idempotencyHeaders, shouldRetainMutationKey } from "@/lib/api"
 import { formatDateTime, formatMinorUnits } from "@/lib/format"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useAuthStore } from "@/stores/useAuthStore"
@@ -27,6 +27,7 @@ import type { TreasurySourceWallet, TreasuryWithdrawal } from "@/configuration/c
 import { receiptJournalStates, receiptMerchantLinks, receiptReasons, receiptRowStateHints, receiptRowStates, type ReceiptJournalState } from "@/configuration/crypto/types/unidentified-receipt"
 import { AlertTriangle } from "lucide-react"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 type Dialogs =
   | { kind: "credit"; item: UnidentifiedReceiptItem; merchantId: string; merchantName: string }
   | { kind: "funding"; item: UnidentifiedReceiptItem; reason: string; acknowledged: boolean }
@@ -96,7 +97,7 @@ export default function UnidentifiedReceiptsPage() {
   const commandKey = useRef("")
   const { data, error, isLoading, mutate } = useSWR(
     canRead ? ["unidentified-receipts", state, includeDust, offset] : null,
-    () => api.unidentifiedReceipts.list(state, includeDust, offset),
+    () => cryptoApi.unidentifiedReceipts.list(state, includeDust, offset),
   )
 
   const run = async (action: () => Promise<MerchantCreditResponse | PlatformFundingResponse | TreasuryWithdrawal>, done: string) => {
@@ -129,7 +130,7 @@ export default function UnidentifiedReceiptsPage() {
     const next: Dialogs = { kind: "refund", item, wallets: null, walletId: "", destination: "", evidence: "", reason: "",
       amount: trimFraction(rawMinorToMajor(item.remainder, decimals)), gasPayer: "platform", withheld: "" }
     openDialog(next)
-    api.treasuryWithdrawals.sourceWallets(item.tokenId)
+    cryptoApi.treasuryWithdrawals.sourceWallets(item.tokenId)
       .then((res) => setDialog((current) => current?.kind === "refund" && current.item === item ? { ...current, wallets: res.items } : current))
       .catch(() => setDialog((current) => current?.kind === "refund" && current.item === item ? { ...current, wallets: [] } : current))
   }
@@ -137,7 +138,7 @@ export default function UnidentifiedReceiptsPage() {
   const approve = (item: UnidentifiedReceiptItem) => {
     if (!item.credit) return
     commandKey.current = ""
-    void run(() => api.unidentifiedReceipts.approveCredit(item.credit!.id, item.credit!.version, commandKey.current), "Зачисление подтверждено")
+    void run(() => cryptoApi.unidentifiedReceipts.approveCredit(item.credit!.id, item.credit!.version, commandKey.current), "Зачисление подтверждено")
   }
 
   if (!canRead) return <p className="p-6 text-muted-foreground">Нет доступа к журналу невыясненных поступлений.</p>
@@ -279,7 +280,7 @@ export default function UnidentifiedReceiptsPage() {
           </FieldGroup>
           <DialogFooter>
             <Button disabled={busy || !dialog.merchantId}
-              onClick={() => run(() => api.unidentifiedReceipts.prepareCredit(dialog.item.receiptId, dialog.merchantId, commandKey.current), "Зачисление создано")}>
+              onClick={() => run(() => cryptoApi.unidentifiedReceipts.prepareCredit(dialog.item.receiptId, dialog.merchantId, commandKey.current), "Зачисление создано")}>
               {busy ? "Сохранение…" : "Зачислить"}
             </Button>
           </DialogFooter>
@@ -309,7 +310,7 @@ export default function UnidentifiedReceiptsPage() {
           </FieldGroup>
           <DialogFooter>
             <Button disabled={busy || !dialog.reason.trim() || (!!dialog.item.merchantTie && !dialog.acknowledged)}
-              onClick={() => run(() => api.unidentifiedReceipts.preparePlatformFunding(dialog.item.receiptId,
+              onClick={() => run(() => cryptoApi.unidentifiedReceipts.preparePlatformFunding(dialog.item.receiptId,
                 { reason: dialog.reason.trim(), acknowledgeMerchantTie: dialog.acknowledged }, commandKey.current), "Пополнение создано, ждёт подтверждения")}>
               {busy ? "Сохранение…" : "Отнести к пополнению"}
             </Button>
@@ -324,14 +325,14 @@ export default function UnidentifiedReceiptsPage() {
           </DialogHeader>
           <MerchantTieWarning item={dialog.item} />
           <DialogFooter>
-            <Button disabled={busy} onClick={() => run(() => api.unidentifiedReceipts.approvePlatformFunding(
+            <Button disabled={busy} onClick={() => run(() => cryptoApi.unidentifiedReceipts.approvePlatformFunding(
               dialog.item.platformFunding!.id, dialog.item.platformFunding!.version, commandKey.current), "Пополнение подтверждено")}>
               {busy ? "Сохранение…" : "Подтвердить"}
             </Button>
           </DialogFooter>
         </>}
         {dialog?.kind === "refund" && <RefundDialog dialog={dialog} busy={busy} onChange={setDialog}
-          onSubmit={(body) => run(() => api.treasuryWithdrawals.createReceiptRefund(body, commandKey.current),
+          onSubmit={(body) => run(() => cryptoApi.treasuryWithdrawals.createReceiptRefund(body, commandKey.current),
             "Возврат создан. Его утверждает другой сотрудник в казначействе")} />}
         {dialog?.kind === "reject" && (dialog.target === "funding" ? dialog.item.platformFunding : dialog.item.credit) && <>
           <DialogHeader>
@@ -348,8 +349,8 @@ export default function UnidentifiedReceiptsPage() {
           <DialogFooter>
             <Button variant="destructive" disabled={busy || !dialog.reason.trim()}
               onClick={() => run(() => dialog.target === "funding"
-                ? api.unidentifiedReceipts.rejectPlatformFunding(dialog.item.platformFunding!.id, dialog.item.platformFunding!.version, dialog.reason.trim(), commandKey.current)
-                : api.unidentifiedReceipts.rejectCredit(dialog.item.credit!.id, dialog.item.credit!.version, dialog.reason.trim(), commandKey.current),
+                ? cryptoApi.unidentifiedReceipts.rejectPlatformFunding(dialog.item.platformFunding!.id, dialog.item.platformFunding!.version, dialog.reason.trim(), commandKey.current)
+                : cryptoApi.unidentifiedReceipts.rejectCredit(dialog.item.credit!.id, dialog.item.credit!.version, dialog.reason.trim(), commandKey.current),
                 dialog.target === "funding" ? "Пополнение отклонено" : "Зачисление отклонено")}>
               {busy ? "Сохранение…" : "Отклонить"}
             </Button>

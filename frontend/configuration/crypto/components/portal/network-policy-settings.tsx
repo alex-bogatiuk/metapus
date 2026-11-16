@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { AlertTriangle, Loader2, Network, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
-import { api } from "@/lib/api"
 import type { MerchantAPIKeyListItem } from "@/configuration/crypto/types/merchant-api"
 import type {
   MerchantNetworkPolicy,
@@ -28,6 +27,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 type PolicyTarget = {
   surface: MerchantNetworkSurface
   keyId?: string
@@ -65,8 +65,8 @@ export function NetworkPolicySettings({ merchantId }: { merchantId: string }) {
     setLoading(true)
     try {
       const next = nextTarget.keyId
-        ? await api.portal.networkPolicies.getForKey(merchantId, nextTarget.keyId)
-        : await api.portal.networkPolicies.get(merchantId, nextTarget.surface)
+        ? await cryptoApi.portal.networkPolicies.getForKey(merchantId, nextTarget.keyId)
+        : await cryptoApi.portal.networkPolicies.get(merchantId, nextTarget.surface)
       setResponse(next)
     } catch (error) {
       setResponse(null)
@@ -82,7 +82,7 @@ export function NetworkPolicySettings({ merchantId }: { merchantId: string }) {
 
   useEffect(() => {
     let active = true
-    api.portal.apiKeys.list(merchantId)
+    cryptoApi.portal.apiKeys.list(merchantId)
       .then((result) => {
         if (active) setApiKeys(result.items.filter((item) => item.isActive))
       })
@@ -110,8 +110,8 @@ export function NetworkPolicySettings({ merchantId }: { merchantId: string }) {
     setSaving(true)
     try {
       const policy = target.keyId
-        ? await api.portal.networkPolicies.setModeForKey(merchantId, target.keyId, mode, reason.trim())
-        : await api.portal.networkPolicies.setMode(merchantId, target.surface, mode, reason.trim())
+        ? await cryptoApi.portal.networkPolicies.setModeForKey(merchantId, target.keyId, mode, reason.trim())
+        : await cryptoApi.portal.networkPolicies.setMode(merchantId, target.surface, mode, reason.trim())
       updatePolicy(policy)
       await loadPolicy(target)
       toast.success("Режим сетевого доступа изменён")
@@ -130,8 +130,8 @@ export function NetworkPolicySettings({ merchantId }: { merchantId: string }) {
     setSaving(true)
     try {
       const policy = target.keyId
-        ? await api.portal.networkPolicies.addNetworkForKey(merchantId, target.keyId, cidr.trim(), label.trim(), reason.trim())
-        : await api.portal.networkPolicies.addNetwork(merchantId, target.surface, cidr.trim(), label.trim(), reason.trim())
+        ? await cryptoApi.portal.networkPolicies.addNetworkForKey(merchantId, target.keyId, cidr.trim(), label.trim(), reason.trim())
+        : await cryptoApi.portal.networkPolicies.addNetwork(merchantId, target.surface, cidr.trim(), label.trim(), reason.trim())
       updatePolicy(policy)
       setCidr("")
       setLabel("")
@@ -148,8 +148,8 @@ export function NetworkPolicySettings({ merchantId }: { merchantId: string }) {
     setSaving(true)
     try {
       const policy = target.keyId
-        ? await api.portal.networkPolicies.revokeNetworkForKey(merchantId, target.keyId, networkId, reason.trim())
-        : await api.portal.networkPolicies.revokeNetwork(merchantId, target.surface, networkId, reason.trim())
+        ? await cryptoApi.portal.networkPolicies.revokeNetworkForKey(merchantId, target.keyId, networkId, reason.trim())
+        : await cryptoApi.portal.networkPolicies.revokeNetwork(merchantId, target.surface, networkId, reason.trim())
       updatePolicy(policy)
       toast.success("Сеть отозвана")
     } catch (error) {

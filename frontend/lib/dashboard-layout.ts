@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { jsonObjectSchema, jsonObjectSnapshot, jsonValueSchema } from "./json-value"
 import { allWidgetDefinitions } from "./widget-registry"
-import { ROW_COLUMNS, SIZE_TO_WH, widgetConfigSchemas, type DashboardLayout, type WidgetPlacement, type WidgetSize, type WidgetType } from "../types/dashboard"
+import { ROW_COLUMNS, SIZE_TO_WH, type DashboardLayout, type WidgetPlacement, type WidgetSize, type WidgetType } from "../types/dashboard"
 
 /** Most widgets a page may hold. */
 export const MAX_WIDGETS = 20
@@ -15,17 +15,18 @@ export const spanOf = (size: WidgetSize) => SIZE_TO_WH[size].w
 export const rowSpan = (row: readonly WidgetPlacement[]) => row.reduce((sum, w) => sum + spanOf(w.size), 0)
 export const layoutWidgets = (layout: DashboardLayout) => layout.rows.flat()
 
+let defaultRows: () => Rows = () => []
+
+/**
+ * Sets the dashboard a user gets before arranging their own: the
+ * configuration knows its widgets, the platform starts empty.
+ */
+export function registerDefaultDashboard(rows: () => Rows): void {
+  defaultRows = rows
+}
+
 export function defaultDashboardLayout(): DashboardLayout {
-  const widget = (key: string, widgetType: WidgetType, size: WidgetSize, config: WidgetPlacement["config"]): WidgetPlacement =>
-    ({ instanceId: `default-${key}`, widgetType, size, config })
-  return { catalogVersion: 3, version: 1, rows: [
-    ["withdrawals", "inbound", "outflows", "networks"].map(metric => widget(metric, "attention-counter", "2x1", { metric })),
-    [widget("queue", "attention-queue", "4x3", { kind: "all", limit: 5 }), widget("health", "processing-health", "2x3", { showWorkerStats: true })],
-    [widget("obligations", "financial-summary", "3x3", { view: "obligations" }), widget("wallets", "financial-summary", "3x3", { view: "wallets" })],
-    [widget("reconciliation", "custody-reconciliation", "fullx3", { limit: 8 })],
-    [widget("receipts", "receipts-volume", "4x4", { period: "30d", tokenId: "" })],
-    [widget("fees", "platform-fees", "3x2", { period: "30d", tokenId: "" }), widget("results", "payment-results", "3x2", { period: "30d", tokenId: "" })],
-  ] }
+  return { catalogVersion: 3, version: 1, rows: defaultRows() }
 }
 
 // ── Reading a stored layout ─────────────────────────────────────────
@@ -37,12 +38,11 @@ const storedLayoutSchema = z.object({
 
 /** A widget is kept only with a known type, a size its definition allows and a valid config. */
 function checkedWidget(raw: z.infer<typeof storedLayoutSchema>["rows"][number][number]): WidgetPlacement | null {
-  if (!Object.hasOwn(widgetConfigSchemas, raw.widgetType)) return null
-  const widgetType = raw.widgetType as WidgetType
-  const config = widgetConfigSchemas[widgetType].safeParse(raw.config)
+  const definition = definitionOf(raw.widgetType)
+  const config = definition?.parseConfig(raw.config)
   const size = raw.size as WidgetSize
-  if (!config.success || !definitionOf(widgetType)?.allowedSizes.includes(size)) return null
-  return { instanceId: raw.instanceId, widgetType, size, config: jsonObjectSnapshot(config.data) }
+  if (!definition || !config || !definition.allowedSizes.includes(size)) return null
+  return { instanceId: raw.instanceId, widgetType: definition.type, size, config }
 }
 
 /**

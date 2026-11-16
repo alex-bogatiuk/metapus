@@ -5,7 +5,6 @@ import { Copy, ExternalLink } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
-import { api } from "@/lib/api"
 import { formatRiskClass } from "@/configuration/crypto/lib/aml-risk"
 import { usePermissions } from "@/hooks/use-permissions"
 import { buildEntityUrlByRoute } from "@/lib/entity-url"
@@ -23,6 +22,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 interface WithdrawalRequestSelectionPanelProps {
   item: { id: string } | null
   refresh: () => void
@@ -57,11 +57,11 @@ export function WithdrawalRequestSelectionPanel({ item, refresh }: WithdrawalReq
   const [reason, setReason] = useState("")
 
   const loadDetail = useCallback(async (id: string) => {
-    const next = await api.withdrawalRequests.get(id)
+    const next = await cryptoApi.withdrawalRequests.get(id)
     if (selectedIDRef.current !== id) return
     setDetail(next)
     if (next.status === "pending_signature") {
-      const job = await api.withdrawalRequests.signingJob(id).catch(() => null)
+      const job = await cryptoApi.withdrawalRequests.signingJob(id).catch(() => null)
       if (selectedIDRef.current === id) setSigningJob(job)
     } else {
       setSigningJob(null)
@@ -88,7 +88,7 @@ export function WithdrawalRequestSelectionPanel({ item, refresh }: WithdrawalReq
     if (!detail || busy || signingJob?.status !== "needs_review") return
     setBusy(true)
     try {
-      await api.withdrawalRequests.retrySigning(detail.id)
+      await cryptoApi.withdrawalRequests.retrySigning(detail.id)
       toast.success("Задание подписи снова в очереди")
       await loadDetail(detail.id)
     } catch (error) {
@@ -103,10 +103,10 @@ export function WithdrawalRequestSelectionPanel({ item, refresh }: WithdrawalReq
     setBusy(true)
     try {
       if (action === "approve") {
-        await api.withdrawalRequests.approve(detail.id)
+        await cryptoApi.withdrawalRequests.approve(detail.id)
         toast.success("Заявка утверждена")
       } else {
-        await api.withdrawalRequests.reject(detail.id, reason.trim())
+        await cryptoApi.withdrawalRequests.reject(detail.id, reason.trim())
         toast.success("Заявка отклонена; сумма возвращена на баланс")
         setReason("")
         setRejectOpen(false)

@@ -6,7 +6,7 @@ import { useFormDraft } from "@/hooks/useFormDraft"
 import { useLatestRequest } from "@/hooks/useLatestRequest"
 import { useTabDirty } from "@/hooks/useTabDirty"
 import { useTreasuryReconciliation } from "@/configuration/crypto/hooks/useTreasuryReconciliation"
-import { api } from "@/lib/api"
+
 import { compareCryptoAmounts, copyToClipboard, formatMinorUnits, toCryptoMinorUnits } from "@/lib/format"
 import { createFormDraftKey } from "@/stores/useFormDraftStore"
 import { useMetadataStore } from "@/stores/useMetadataStore"
@@ -24,6 +24,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 export type StatusFilter = "all" | TreasuryWithdrawalStatus
 
 interface WithdrawalDraft {
@@ -121,10 +122,10 @@ export function useTreasuryWithdrawals() {
         ? []
         : [{ field: "status", fieldType: "string", operator: "eq", value: statusFilter }]
       const [tokenRes, addressRes, withdrawalRes, outflowRes] = await Promise.all([
-        api.tokens.list({ limit: 500 }),
-        api.treasuryWithdrawals.addresses.list(),
-        api.treasuryWithdrawals.list({ limit: 200, orderBy: "-date", filter: withdrawalFilters }),
-        api.treasuryWithdrawals.reconciliation.outflows({ limit: 100 }),
+        cryptoApi.tokens.list({ limit: 500 }),
+        cryptoApi.treasuryWithdrawals.addresses.list(),
+        cryptoApi.treasuryWithdrawals.list({ limit: 200, orderBy: "-date", filter: withdrawalFilters }),
+        cryptoApi.treasuryWithdrawals.reconciliation.outflows({ limit: 100 }),
       ])
       if (!isCurrent()) return
       const activeTokens = tokenRes.items.filter((token) => !token.deletionMark)
@@ -152,8 +153,8 @@ export function useTreasuryWithdrawals() {
     }
     try {
       const [availabilityRes, walletsRes] = await Promise.all([
-        api.treasuryWithdrawals.availability(tokenId),
-        api.treasuryWithdrawals.sourceWallets(tokenId),
+        cryptoApi.treasuryWithdrawals.availability(tokenId),
+        cryptoApi.treasuryWithdrawals.sourceWallets(tokenId),
       ])
       if (!isCurrent()) return
       setAvailability(availabilityRes)
@@ -189,7 +190,7 @@ export function useTreasuryWithdrawals() {
     }
     setSaving(true)
     try {
-      await api.treasuryWithdrawals.addresses.create({
+      await cryptoApi.treasuryWithdrawals.addresses.create({
         networkId: selectedToken.networkId,
         address: newAddress.trim(),
         label: newAddressLabel.trim(),
@@ -225,7 +226,7 @@ export function useTreasuryWithdrawals() {
     const savedRevision = formRevision.current
     setSaving(true)
     try {
-      await api.treasuryWithdrawals.create({
+      await cryptoApi.treasuryWithdrawals.create({
         tokenId,
         sourceWalletId,
         addressId,
@@ -250,7 +251,7 @@ export function useTreasuryWithdrawals() {
   const handleApprove = async (id: string) => {
     setActionID(id)
     try {
-      await api.treasuryWithdrawals.approve(id)
+      await cryptoApi.treasuryWithdrawals.approve(id)
       toast.success("Казначейский вывод одобрен")
       await Promise.all([loadLists(), loadTokenState()])
     } catch (err) {
@@ -263,7 +264,7 @@ export function useTreasuryWithdrawals() {
   const handleLoadSigningJob = async (id: string) => {
     setSigningJobLoadingID(id)
     try {
-      const job = await api.treasuryWithdrawals.signingJob(id)
+      const job = await cryptoApi.treasuryWithdrawals.signingJob(id)
       setSigningJobs((current) => ({ ...current, [id]: job }))
       if (job.status !== "needs_review") toast.info("Задание подписи: " + job.status)
     } catch (err) {
@@ -277,7 +278,7 @@ export function useTreasuryWithdrawals() {
     if (signingJobs[id]?.status !== "needs_review") return
     setActionID(id)
     try {
-      await api.treasuryWithdrawals.retrySigning(id)
+      await cryptoApi.treasuryWithdrawals.retrySigning(id)
       toast.success("Задание подписи снова в очереди")
       await loadLists()
     } catch (err) {
@@ -291,7 +292,7 @@ export function useTreasuryWithdrawals() {
   const handleReject = async (id: string) => {
     setActionID(id)
     try {
-      await api.treasuryWithdrawals.reject(id)
+      await cryptoApi.treasuryWithdrawals.reject(id)
       toast.success("Казначейский вывод отклонён")
       await Promise.all([loadLists(), loadTokenState()])
     } catch (err) {

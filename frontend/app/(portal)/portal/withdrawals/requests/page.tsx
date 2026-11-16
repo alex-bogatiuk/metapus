@@ -17,7 +17,6 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { api } from "@/lib/api"
 import { formatRiskClass } from "@/configuration/crypto/lib/aml-risk"
 import { copyToClipboard, formatDateTime, formatMinorUnits } from "@/lib/format"
 import { truncateAddress } from "@/configuration/crypto/lib/blockchain"
@@ -51,6 +50,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 const REQUEST_STATUS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: typeof Clock }> = {
   pending_signature: { label: "Ожидает подписи", variant: "outline", icon: Clock },
   pending_approval: { label: "На одобрении", variant: "outline", icon: Clock },
@@ -81,7 +81,7 @@ export default function PortalWithdrawalRequestsPage() {
     }
     setLoading(true)
     try {
-      const res = await api.portal.withdrawalRequests(activeMerchantId)
+      const res = await cryptoApi.portal.withdrawalRequests(activeMerchantId)
       setItems(res.items)
     } catch {
       toast.error("Не удалось загрузить заявки")
@@ -99,7 +99,7 @@ export default function PortalWithdrawalRequestsPage() {
     if (!activeMerchantId || !rejectingId) return
     setSubmitting(true)
     try {
-      await api.portal.rejectWithdrawalRequest(activeMerchantId, rejectingId, rejectReason)
+      await cryptoApi.portal.rejectWithdrawalRequest(activeMerchantId, rejectingId, rejectReason)
       toast.success("Неотправленные средства возвращены на баланс")
       setRejectingId(null)
       setRejectReason("")

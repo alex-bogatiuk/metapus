@@ -23,7 +23,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
-import { api } from "@/lib/api"
+
 import { getNetworkColor } from "@/configuration/crypto/lib/blockchain"
 import {
   derivePortalNetworks,
@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils"
 import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
 import type { PortalCreateInvoiceRequest, PortalCurrencyItem } from "@/configuration/crypto/types/portal-api"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 const TTL_OPTIONS = [
   { value: "default", label: "По умолчанию (настройка мерчанта)" },
   { value: "15", label: "15 минут" },
@@ -55,7 +56,7 @@ interface PoolRetryState extends MerchantTokenSelection {
 }
 
 function fetchPortalCurrencies([, merchantId]: readonly [string, string]) {
-  return api.portal.currencies(merchantId)
+  return cryptoApi.portal.currencies(merchantId)
 }
 
 export default function CreateInvoicePage() {
@@ -129,7 +130,7 @@ export default function CreateInvoicePage() {
         customerId: customerId.trim() || undefined,
       }
 
-      const response = await api.portal.createInvoice(activeMerchantId, body)
+      const response = await cryptoApi.portal.createInvoice(activeMerchantId, body)
       toast.success(`Инвойс ${response.number} создан`)
       router.push(`/portal/invoices/${response.id}`)
     } catch (error) {

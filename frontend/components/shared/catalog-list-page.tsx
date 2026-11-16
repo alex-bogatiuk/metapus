@@ -50,7 +50,7 @@ export interface CatalogListPageConfig<T extends { id: string }> {
   editHref: (item: T) => string
   /** Column definitions for DataTable. */
   columns: Column<T>[]
-  /** API fetcher function (e.g. api.tokens.list). */
+  /** API fetcher function (e.g. api.counterparties.list). */
   fetcher: (params?: CursorListParams) => Promise<CursorListResponse<T>>
   /** Empty state message. */
   emptyMessage?: string

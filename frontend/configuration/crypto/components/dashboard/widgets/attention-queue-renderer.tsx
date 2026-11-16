@@ -1,21 +1,23 @@
 "use client"
 import Link from "next/link"
 import { api } from "@/lib/api"
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 import { useWidgetData } from "@/hooks/useWidgetData"
-import { queueKinds, queueHref, queueItemLabels, queueStatusLabels, observedTime } from "@/lib/admin-dashboard"
+import { queueKinds, queueHref, queueItemLabels, queueStatusLabels, observedTime } from "@/configuration/crypto/lib/admin-dashboard"
 import { formatPortalAmount } from "@/configuration/crypto/lib/portal-overview"
 import type { WidgetRenderProps } from "@/types/dashboard"
+import type { QueueConfig } from "@/configuration/crypto/lib/widget-configs"
 import { CircleCheck } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from "@/components/ui/table"
-import { WidgetBody, WidgetEmpty, WidgetLink } from "./widget-state"
-import { useCompactRows } from "./compact-rows"
+import { WidgetBody, WidgetEmpty, WidgetLink } from "@/components/dashboard/widgets/widget-state"
+import { useCompactRows } from "@/components/dashboard/widgets/compact-rows"
 
 type Kind = "withdrawal" | "inbound" | "outflow"
 const listLabels: Record<Kind, string> = { withdrawal: "Все заявки", inbound: "Все поступления", outflow: "Все списания" }
 
-export default function Queue({ config, isEditMode }: WidgetRenderProps<"attention-queue">) {
-  const state = useWidgetData(() => api.dashboard.queues(config.kind, config.limit), { key: `widget:admin-queue:${config.kind}:${config.limit}`, isEditMode, pollInterval: 60_000 })
+export default function Queue({ config, isEditMode }: WidgetRenderProps<QueueConfig>) {
+  const state = useWidgetData(() => cryptoApi.dashboard.queues(config.kind, config.limit), { key: `widget:admin-queue:${config.kind}:${config.limit}`, isEditMode, pollInterval: 60_000 })
   const data = state.data
   const counts: Record<Kind, number> = { withdrawal: data?.withdrawals ?? 0, inbound: data?.inbound ?? 0, outflow: data?.outflows ?? 0 }
   const total = config.kind === "all" ? data?.total : data ? counts[config.kind] : undefined

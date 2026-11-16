@@ -57,7 +57,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { api, ApiError } from "@/lib/api"
+import { ApiError } from "@/lib/api"
 import { getNetworkColor, truncateAddress } from "@/configuration/crypto/lib/blockchain"
 import { copyToClipboard, formatDateTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -69,6 +69,7 @@ import type {
   PortalDepositAddressQuotaItem,
 } from "@/configuration/crypto/types/portal-api"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 const PAGE_SIZES = [10, 20, 50, 100]
 const DEFAULT_PAGE_SIZE = 20
 const PORTAL_ROLE_MANAGER = 2
@@ -155,7 +156,7 @@ export default function PortalDepositAddressesPage() {
     if (refreshTick === 0) setLoading(true)
     const offset = (currentPage - 1) * pageSize
 
-    api.portal.depositAddresses
+    cryptoApi.portal.depositAddresses
       .list({
         merchantId: activeMerchantId,
         networkId: networkFilter !== "all" ? networkFilter : undefined,
@@ -216,7 +217,7 @@ export default function PortalDepositAddressesPage() {
     setCreating(true)
     setCreateError(null)
     try {
-      const res = await api.portal.depositAddresses.create(activeMerchantId, {
+      const res = await cryptoApi.portal.depositAddresses.create(activeMerchantId, {
         networkId: selectedNetworkId,
         customerId: trimmedCustomer,
       })

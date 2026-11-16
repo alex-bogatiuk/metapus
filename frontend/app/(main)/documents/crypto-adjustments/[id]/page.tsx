@@ -5,7 +5,6 @@ import Link from "next/link"
 import useSWR from "swr"
 import { toast } from "sonner"
 
-import { api } from "@/lib/api"
 import { buildEntityUrlByRoute } from "@/lib/entity-url"
 import { formatDateTime } from "@/lib/format"
 import { usePermissions } from "@/hooks/use-permissions"
@@ -14,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
+import { cryptoApi } from "@/configuration/crypto/lib/api"
 const statusLabels: Record<string, string> = {
   pending_approval: "Ожидает согласования",
   posted: "Проведена",
@@ -40,7 +40,7 @@ export default function CryptoAdjustmentDetailPage({ params }: { params: Promise
   const canResolve = permissions.has("crypto_reconciliation:resolve")
   const { data, error, isLoading, mutate } = useSWR(
     canRead ? ["financial-adjustment", id] : null,
-    () => api.financialAdjustments.get(id),
+    () => cryptoApi.financialAdjustments.get(id),
   )
   const [decisionReason, setDecisionReason] = useState("")
   const [saving, setSaving] = useState(false)
@@ -54,8 +54,8 @@ export default function CryptoAdjustmentDetailPage({ params }: { params: Promise
     setSaving(true)
     try {
       const updated = action === "approve"
-        ? await api.financialAdjustments.approve(id, decisionReason.trim())
-        : await api.financialAdjustments.reject(id, decisionReason.trim())
+        ? await cryptoApi.financialAdjustments.approve(id, decisionReason.trim())
+        : await cryptoApi.financialAdjustments.reject(id, decisionReason.trim())
       await mutate(updated, { revalidate: false })
       toast.success(action === "approve" ? "Корректировка проведена" : "Корректировка отклонена")
     } catch (cause) {
