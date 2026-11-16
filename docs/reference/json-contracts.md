@@ -84,7 +84,12 @@ Frontend использует проверяемый `MinorUnits` из `lib/mone
 
 ## Генерируемые wire-типы и проверки во время выполнения
 
-`internal/infrastructure/http/contracts.Registry()` явно регистрирует request/response DTO и дополнительные проекции отчётов, поиска и ссылок. `go run ./cmd/http-contracts` обновляет `frontend/types/generated/http-contracts.ts`, `frontend/lib/generated/http-contract-schemas.ts` и `frontend/lib/generated/http-contract-routes.ts`; `-check` проверяет актуальность всех трёх файлов в CI и Makefile. Новый DTO добавляется в реестр вместе с подключением схемы к API consumer. Coverage-тест обнаруживает пропущенные экспортируемые JSON DTO.
+`internal/infrastructure/http/contracts.Registry()` явно регистрирует request/response DTO и дополнительные проекции отчётов, поиска и ссылок. `go run ./cmd/http-contracts` обновляет два набора файлов, а `-check` проверяет их актуальность в CI и Makefile:
+
+- платформенные `frontend/types/generated/http-contracts.ts`, `frontend/lib/generated/http-contract-schemas.ts` и `frontend/lib/generated/http-contract-routes.ts`. В них только контракты платформы и клиентских расширений. Платформенный слой генерируется отдельно, поэтому платформенный маршрут не может ссылаться на тип конфигурации;
+- такие же три файла каждой конфигурации в `frontend/configuration/<имя>/types/generated/` и `lib/generated/`. Типы платформы они импортируют (`Platform.…`), а не объявляют заново. Конфигурация регистрирует свою таблицу маршрутов через `registerHTTPRoutes` из `lib/http-contracts` до первого запроса.
+
+Новый DTO добавляется в реестр вместе с подключением схемы к API consumer. Coverage-тест обнаруживает пропущенные экспортируемые JSON DTO.
 
 Генератор использует действующий `http/jsoncodec`, чтобы определить присутствие и nullable-представление полей. В JSON v2 `omitempty` не убирает false и numeric zero; `omitzero` убирает нулевое Go-значение. Указатель в response с `omitempty` — опциональное поле без null, указатель без omission — nullable. Для input учитывается `binding:"required"`. Required денежное поле принимает строку `"0"`, но не null или JSON number. Неизвестные custom codecs и JSON options требуют явного transport mapping и останавливают генерацию.
 

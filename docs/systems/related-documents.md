@@ -19,7 +19,7 @@ Preview fields объявляются инспектором metadata. Ссыл�
 
 Ответ содержит optional `tree`, optional `flatGroups` и `total`. Узел дерева включает `RelatedDocItem`, `entityName`, `entityType`, `routePrefix`, `isCurrent` и optional `children`. Item содержит ID, presentation, number/date, posted/deletionMark, optional `amount`, `currencyId`, `previewData`.
 
-`amount` — **строка**, не JSON number. `previewData` — словарь label → разрешённое отображаемое значение. Точные wire types генерируются в `frontend/types/generated/http-contracts.ts`; `frontend/types/common.ts` использует транспортные контракты.
+`amount` — **строка**, не JSON number. `previewData` — словарь label → разрешённое отображаемое значение. Точные wire types генерируются в `frontend/types/generated/http-contracts.ts` (платформа) и `frontend/configuration/<имя>/types/generated/http-contracts.ts` (конфигурации); `frontend/types/common.ts` использует транспортные контракты.
 
 ## Frontend
 

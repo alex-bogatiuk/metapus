@@ -58,7 +58,7 @@ myExtension.Register(factoryReg) // registration uses v1.EntityRegistration[Mode
 | `entity.MovementColumnDef.RefEntity` | колонка-ссылка движения регистра называет сущность, на которую ссылается; по ней разрешаются представление и ссылка `/catalogs|documents/{route}/{id}`. Колонка без `RefEntity` не показывается | колонки регистров `crypto_*` |
 | `platform.MovementSourceProvider` | для документа с движениями: какие его поля раскрывают каждую колонку движения. При FLS-политике на документ колонка видна, только если объявлена и все перечисленные поля читаемы; пустой список — колонка-константа | `content/movement_sources.go` |
 | `db/configuration/<имя>/` | миграции конфигурации: её таблицы, права и FLS её сущностей, ограничения её правил на таблицах платформы. Они в общей последовательности версий с платформенными `db/migrations/` и применяются одним источником `dbassets.TenantMigrations()` | `db/configuration/crypto/` |
-| `spec.Bundle` | контракты HTTP для генератора: `contracts.Registry(bundles...)`, `contracts.Routes(bundles...)` | `content.HTTPContractBundles` |
+| `spec.Bundle` | контракты HTTP конфигурации; генератор пишет их в её собственные файлы `frontend/configuration/<имя>/{types,lib}/generated/`, а типы платформы импортирует из платформенных файлов (`contracts.GenerateOn`, `contracts.GenerateRoutesOn`) | `content.CryptoHTTPContractBundles`, `content.HTTPArtifacts` |
 
 Граница проверяется тестами в `internal/architecture`:
 

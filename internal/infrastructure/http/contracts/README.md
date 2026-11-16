@@ -11,14 +11,19 @@ When adding or changing an endpoint:
    and server route template to those names. Empty responses have no response
    schema. A union must list concrete response variants. Optional request bodies
    must be explicit (for example, refresh by httpOnly cookie).
-3. Run `go run ./cmd/http-contracts`. Do not edit the three generated files.
+3. Run `go run ./cmd/http-contracts`. Do not edit the generated files: the
+   platform's three (`frontend/types/generated`, `frontend/lib/generated`) and
+   each configuration's three under `frontend/configuration/<name>/`. A
+   configuration's contracts belong in its bundle (`content.CryptoHTTPContractBundles`);
+   its files import platform types instead of declaring them again.
 4. Use the generated types in consumers. Add local schemas for frontend-owned
    state or domain refinements; validate before publishing to a store. Normalize
    omitted fields explicitly rather than asserting a different type.
 5. Run `go run ./cmd/http-contracts -check`, the contract tests and frontend checks.
    Route registration tests should include the handler's actual Gin registration.
 
-`apiFetch` and `portalFetch` reject unregistered routes. They validate request JSON
+`apiFetch` and the clients from `createScopedClient` reject unregistered routes; a
+configuration registers its generated route table with `registerHTTPRoutes`. They validate request JSON
 before network access and response JSON before it reaches consumers. Binary and
 SSE calls validate request DTOs too; stream events have their own runtime schema.
 Literal route segments take precedence over parameters. Route authorization still

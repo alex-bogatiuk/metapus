@@ -19,7 +19,9 @@ const importPattern = /(?:from|import)\s*\(?\s*["']([^"']+)["']/g
 function sourceFiles(dir: string): string[] {
   return readdirSync(join(root, dir)).flatMap(name => {
     const path = join(dir, name)
-    if (statSync(join(root, path)).isDirectory()) return name === "generated" ? [] : sourceFiles(path)
+    // Generated wire files are included: the platform's describe platform
+    // contracts only, each configuration's live in configuration/<name>/.
+    if (statSync(join(root, path)).isDirectory()) return sourceFiles(path)
     return /\.tsx?$/.test(name) ? [path] : []
   })
 }
