@@ -26,15 +26,15 @@ Domain-модель находится в `internal/domain/catalogs/<name>/`, р
 go run ./cmd/scaffold --name vehicle --type catalog --table cat_vehicles
 ```
 
-Для иерархического справочника добавьте `--hierarchical`. По умолчанию создаётся плоский справочник. Генератор выбирает следующую свободную версию extension-миграции; `--migration-version` позволяет задать её явно.
+Для иерархического справочника добавьте `--hierarchical`. По умолчанию создаётся плоский справочник. Модуль создаётся в `extensions/<name>/`, его миграция — в `db/configuration/<name>/`: только этот каталог и `db/migrations/` встраиваются в бинарники и применяются `cmd/tenant migrate`. Генератор выбирает следующую свободную версию из диапазона 10000+ по всем tenant-миграциям; `--migration-version` позволяет задать её явно.
 
-Подключите import нового пакета и `<name>.Register(reg)` **один раз** в `extensions/register.go`. Этот список используется сервером и генератором HTTP-контрактов. Сгенерированные регистрация и `HTTPContracts()` связывают конкретные DTO и маршруты через `contracts/spec.Entity`. Затем выполните `go run ./cmd/http-contracts` и примените extension-миграции. Миграция создаёт permissions и назначает их роли admin; остальные роли назначаются явно.
+Подключите import нового пакета и `<name>.Register(reg)` **один раз** в `extensions/register.go`. Этот список используется сервером и генератором HTTP-контрактов. Сгенерированные регистрация и `HTTPContracts()` связывают конкретные DTO и маршруты через `contracts/spec.Entity`. Затем выполните `go run ./cmd/http-contracts` и `go run ./cmd/tenant migrate`. Миграция создаёт permissions и назначает их роли admin; остальные роли назначаются явно.
 
 `definition.go` содержит `entity.Definition`: key, name, route, table и hierarchy. Repository создаётся через `NewCatalogRepoForDefinition`, service получает `CatalogServiceConfig.Definition`. Они используют одну настройку иерархии без глобального реестра `CatalogMeta`. Настройте бизнес-поля, writable DTO, response projection, SQL и локализацию; кодгенератор не определяет бизнес-правила.
 
 ## 2. Таблица и модель
 
-Для новой сущности добавьте исходную goose-миграцию со свободной версией; для расширений диапазон начинается с 10000. Изменения существующей сущности до production вносятся в миграцию, владеющую таблицей. [Правила миграций](../../db/migrations/README.md) определяют CDC, UUIDv7 и типы служебных таблиц.
+Для новой сущности добавьте исходную goose-миграцию со свободной версией; для расширений диапазон начинается с 10000, файл лежит в `db/configuration/<name>/`. Изменения существующей сущности до production вносятся в миграцию, владеющую таблицей. [Правила миграций](../../db/migrations/README.md) определяют CDC, UUIDv7 и типы служебных таблиц.
 
 Модель встраивает `entity.Catalog`, добавляет поля с `db`, `json` и `meta` тегами. `Validate(ctx)` проверяет только данные в памяти. FK, колонки и nullability модели должны совпасть с SQL. `attributes` и `_txid` получают NOT NULL/default по выбранному аналогу.
 

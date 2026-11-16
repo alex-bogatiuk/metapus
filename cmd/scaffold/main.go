@@ -67,10 +67,20 @@ func run(args []string, root string, out io.Writer) error {
 	if !valid.MatchString(*table) || !strings.HasPrefix(*table, prefix) {
 		return fmt.Errorf("--table must be a valid %s SQL identifier", prefix)
 	}
+	// Extension migrations are tenant migrations: they live with the
+	// configurations' in db/configuration/<name>/, are embedded into the
+	// binaries and share one version sequence with db/migrations/.
 	used := map[int]bool{}
-	migrations, err := filepath.Glob(filepath.Join(root, "extensions", "*", "migrations", "*.sql"))
-	if err != nil {
-		return err
+	var migrations []string
+	for _, pattern := range []string{
+		filepath.Join(root, "db", "migrations", "*.sql"),
+		filepath.Join(root, "db", "configuration", "*", "*.sql"),
+	} {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			return err
+		}
+		migrations = append(migrations, matches...)
 	}
 	next := 10001
 	for _, path := range migrations {
@@ -104,6 +114,8 @@ func run(args []string, root string, out io.Writer) error {
 	data := scaffoldData{Name: *name, PascalName: pascal, Key: *name, Route: route, Table: *table, Kind: *kind, Prefix: code, Document: *kind == "document", Hierarchical: *hierarchical, Version: *version}
 	// Render and format everything before creating a module directory.
 	files := map[string][]byte{}
+	var migration []byte
+	var migrationName string
 	entries, err := templates.ReadDir("templates")
 	if err != nil {
 		return err
@@ -123,7 +135,9 @@ func run(args []string, root string, out io.Writer) error {
 		}
 		filename := strings.TrimSuffix(entry.Name(), ".tmpl")
 		if filename == "migration.sql" {
-			filename = filepath.Join("migrations", fmt.Sprintf("%05d_%s.sql", *version, *table))
+			migration = buffer.Bytes()
+			migrationName = fmt.Sprintf("%05d_%s.sql", *version, *table)
+			continue
 		}
 		content := buffer.Bytes()
 		if strings.HasSuffix(filename, ".go") {
@@ -134,20 +148,27 @@ func run(args []string, root string, out io.Writer) error {
 		}
 		files[filename] = content
 	}
-	base := filepath.Join(root, "extensions")
-	if err := os.MkdirAll(base, 0755); err != nil {
-		return err
-	}
-	dir := filepath.Join(base, *name)
-	if err := os.Mkdir(dir, 0755); err != nil {
-		return err
+	dir := filepath.Join(root, "extensions", *name)
+	migrationDir := filepath.Join(root, "db", "configuration", *name)
+	for _, target := range []string{dir, migrationDir} {
+		if _, err := os.Stat(target); err == nil {
+			return fmt.Errorf("%s already exists", target)
+		} else if !os.IsNotExist(err) {
+			return err
+		}
 	}
 	complete := false
 	defer func() {
 		if !complete {
 			_ = os.RemoveAll(dir)
+			_ = os.RemoveAll(migrationDir)
 		}
 	}()
+	for _, target := range []string{dir, migrationDir} {
+		if err := os.MkdirAll(target, 0755); err != nil {
+			return err
+		}
+	}
 	for name, content := range files {
 		path := filepath.Join(dir, name)
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
@@ -157,7 +178,11 @@ func run(args []string, root string, out io.Writer) error {
 			return err
 		}
 	}
+	migrationPath := filepath.Join(migrationDir, migrationName)
+	if err := os.WriteFile(migrationPath, migration, 0644); err != nil {
+		return err
+	}
 	complete = true
-	_, err = fmt.Fprintf(out, "Created %s module: %s\nAdd %s.Register(reg) and its import to extensions/register.go, then run go run ./cmd/http-contracts.\n", *kind, dir, *name)
+	_, err = fmt.Fprintf(out, "Created %s module: %s\nCreated migration: %s\nAdd %s.Register(reg) and its import to extensions/register.go, then run go run ./cmd/http-contracts.\n", *kind, dir, migrationPath, *name)
 	return err
 }

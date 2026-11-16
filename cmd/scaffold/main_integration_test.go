@@ -42,7 +42,7 @@ func TestGeneratedMigrationsRoundTripAndDocumentHooksRollback(t *testing.T) {
 			args = append(args, "--hierarchical")
 		}
 		require.NoError(t, run(args, root, io.Discard))
-		provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS(filepath.Join(root, "extensions", fixture.name, "migrations")), goose.WithAllowOutofOrder(true))
+		provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS(filepath.Join(root, "db", "configuration", fixture.name)), goose.WithAllowOutofOrder(true))
 		require.NoError(t, err)
 		_, err = provider.Up(ctx)
 		require.NoError(t, err)

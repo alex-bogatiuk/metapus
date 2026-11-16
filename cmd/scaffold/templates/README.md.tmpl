@@ -3,7 +3,7 @@
 1. Add the import `metapus/extensions/{{.Name}}` and `{{.Name}}.Register(reg)` to `extensions/register.go`.
    The server and `go run ./cmd/http-contracts` read this same module list.
 2. Run `go run ./cmd/http-contracts` and `go run ./cmd/http-contracts -check`.
-3. Apply extension migrations through the tenant migration command. New permissions are assigned to the admin role; assign other roles explicitly.
+3. The migration is in `db/configuration/{{.Name}}/{{printf "%05d" .Version}}_{{.Table}}.sql`. It is embedded into the binaries and applied with the platform's by `go run ./cmd/tenant migrate`. New permissions are assigned to the admin role; assign other roles explicitly.
 4. Customize the writable Fields DTO, response projection, model and SQL together; localize presentation labels.
 5. Check `go build ./extensions/...`, tests and the generic list/form in the frontend.
 

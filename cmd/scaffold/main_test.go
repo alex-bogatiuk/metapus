@@ -22,6 +22,47 @@ func TestRejectsInvalidOptionsBeforeWriting(t *testing.T) {
 	}
 }
 
+func TestMigrationGoesToTheEmbeddedTenantSequence(t *testing.T) {
+	root := t.TempDir()
+	for path, body := range map[string]string{
+		"db/migrations/00001_core.sql":                "core",
+		"db/configuration/other/10004_cat_others.sql": "other",
+	} {
+		full := filepath.Join(root, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := run([]string{"--name", "vehicle"}, root, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "db", "configuration", "vehicle", "10005_cat_vehicles.sql")); err != nil {
+		t.Fatalf("migration must take the next free version in db/configuration/vehicle: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "extensions", "vehicle", "migrations")); !os.IsNotExist(err) {
+		t.Fatalf("extensions/<name>/migrations is not embedded and must not be generated: %v", err)
+	}
+	if err := run([]string{"--name", "vehicle", "--migration-version", "10004"}, root, io.Discard); err == nil {
+		t.Fatal("accepted an existing module")
+	}
+}
+
+func TestRefusesAnExistingConfigurationMigrationDirectory(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "db", "configuration", "crypto"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := run([]string{"--name", "crypto"}, root, io.Discard); err == nil {
+		t.Fatal("accepted a name whose db/configuration directory already exists")
+	}
+	if _, err := os.Stat(filepath.Join(root, "extensions", "crypto")); !os.IsNotExist(err) {
+		t.Fatalf("refused run left a module behind: %v", err)
+	}
+}
+
 func TestGeneratedModulesCompileAndMatchTheirHTTPContracts(t *testing.T) {
 	// Keep generated packages inside the module so Go's internal visibility rules
 	// are tested, without registering a test entity in the application.
@@ -46,7 +87,7 @@ func TestGeneratedModulesCompileAndMatchTheirHTTPContracts(t *testing.T) {
 			t.Fatal(err)
 		}
 		dir := filepath.Join(work, "extensions", fixture.name)
-		migrations, err := filepath.Glob(filepath.Join(dir, "migrations", "*.sql"))
+		migrations, err := filepath.Glob(filepath.Join(work, "db", "configuration", fixture.name, "*.sql"))
 		if err != nil || len(migrations) != 1 {
 			t.Fatalf("migration: %v %v", migrations, err)
 		}

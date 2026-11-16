@@ -3,10 +3,10 @@
 //
 // Migration sources follow the numbering convention:
 //   - Tenant (db/migrations/ for the platform and db/configuration/<name>/ for
-//     each configuration): one sequence of versions 00001–09999, applied as a
-//     single goose source; a version is never reused across directories
-//   - Extensions (extensions/*/migrations/): versions 10000+ (e.g. 10001–10999, etc.)
-//   - Additional (MIGRATION_EXTRA_DIRS): custom ranges
+//     each configuration and each extension module): one goose source embedded
+//     in the binary. The platform and configurations use versions 00001–09999,
+//     extensions 10000+; a version is never reused across directories
+//   - Additional (MIGRATION_EXTRA_DIRS): custom ranges read from disk
 //
 // All sources share a single goose_db_version table.
 package migration
@@ -33,44 +33,11 @@ const (
 )
 
 // Dirs returns ordered list of migration directories to apply.
-// Tenant migrations (platform and configurations, see dbassets.TenantMigrations)
-// always run first.
-// Extension directories are auto-discovered from extensions/*/migrations/.
-// Additional directories can be added via MIGRATION_EXTRA_DIRS (comma-separated).
-//
-// Ordering:
-//
-//  1. db/migrations/ + db/configuration/*/ (tenant — numbers 00001–09999)
-//  2. extensions/*/migrations/ (auto-discovered — numbers 10000+)
-//  3. MIGRATION_EXTRA_DIRS     (manual overrides)
+// Tenant migrations (platform, configurations and extensions, see
+// dbassets.TenantMigrations) come embedded and always run first. Additional
+// directories can be added via MIGRATION_EXTRA_DIRS (comma-separated).
 func Dirs() []string {
 	dirs := []string{coreMigrationsDir}
-
-	// Auto-discover extension migration directories
-	extEntries, err := os.ReadDir("extensions")
-	if err == nil {
-		for _, entry := range extEntries {
-			if !entry.IsDir() {
-				continue
-			}
-			migrDir := fmt.Sprintf("extensions/%s/migrations", entry.Name())
-			if info, serr := os.Stat(migrDir); serr == nil && info.IsDir() {
-				files, _ := os.ReadDir(migrDir)
-				hasSQL := false
-				for _, f := range files {
-					if strings.HasSuffix(f.Name(), ".sql") {
-						hasSQL = true
-						break
-					}
-				}
-				if hasSQL {
-					dirs = append(dirs, migrDir)
-				}
-			}
-		}
-	}
-
-	// Manual overrides via env var
 	extra := os.Getenv("MIGRATION_EXTRA_DIRS")
 	if extra != "" {
 		for d := range strings.SplitSeq(extra, ",") {
@@ -84,7 +51,7 @@ func Dirs() []string {
 }
 
 // fsForDir returns the appropriate fs.FS for a migration directory.
-// Tenant migrations come embedded from dbassets; extension directories use
+// Tenant migrations come embedded from dbassets; MIGRATION_EXTRA_DIRS use
 // os.DirFS.
 func fsForDir(dir string) (fs.FS, error) {
 	if dir == coreMigrationsDir {
@@ -93,7 +60,7 @@ func fsForDir(dir string) (fs.FS, error) {
 	if dir == metaMigrationsDir {
 		return fs.Sub(dbassets.Files, "meta")
 	}
-	// Extension or extra directories — use OS filesystem.
+	// Extra directories — use OS filesystem.
 	return os.DirFS(dir), nil
 }
 
@@ -108,9 +75,9 @@ func openDB(dsn string) (*sql.DB, error) {
 }
 
 // newProvider creates a goose.Provider for a specific migration directory.
-// WithAllowMissing is required because core and extension directories share
-// a single goose_db_version table — extensions may have higher version numbers
-// than newly-added core migrations.
+// WithAllowOutofOrder is required because every source shares a single
+// goose_db_version table: an extension (10000+) may already be applied when a
+// new platform or configuration migration arrives with a lower version.
 func newProvider(dir string, db *sql.DB) (*goose.Provider, error) {
 	dirFS, err := fsForDir(dir)
 	if err != nil {
@@ -127,7 +94,7 @@ func newProvider(dir string, db *sql.DB) (*goose.Provider, error) {
 }
 
 // RunAll runs goose migrations from all configured directories in order.
-// Core migrations run first, then each extension directory sequentially.
+// Tenant migrations run first, then each MIGRATION_EXTRA_DIRS entry.
 // Output is captured and returned as a combined string.
 func RunAll(dsn string) (output string, err error) {
 	return runDirectories(dsn, Dirs())
