@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/core/id"
-	"metapus/internal/core/publicref"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/types"
+	"metapus/internal/domain/crypto/publicref"
 	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"

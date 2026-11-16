@@ -23,6 +23,7 @@ import (
 	"metapus/internal/domain/documents/crypto_withdrawal"
 	"metapus/internal/domain/documents/treasury_withdrawal"
 	"metapus/internal/domain/documents/withdrawal_request"
+	"metapus/internal/domain/printing"
 	"metapus/internal/domain/registers/crypto_merchant_balance"
 	"metapus/internal/domain/registers/exchange_rate"
 	"metapus/internal/infrastructure/http/cryptohttp/cryptohandlers"
@@ -246,6 +247,12 @@ func (r *CryptoInvoiceRegistration) EntityPresentation() metadata.Presentation {
 }
 func (r *CryptoInvoiceRegistration) RLSDimensions() map[string]string {
 	return map[string]string{"organization": "organization_id"}
+}
+
+var _ v1.PrintFormsProvider = (*CryptoInvoiceRegistration)(nil)
+
+func (r *CryptoInvoiceRegistration) PrintForms() []printing.PrintFormDef {
+	return cryptohandlers.CryptoInvoicePrintForms()
 }
 
 func (r *CryptoInvoiceRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {

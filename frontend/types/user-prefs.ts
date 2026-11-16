@@ -23,9 +23,10 @@ export interface InterfacePrefs {
   showTooltips?: boolean
   compactMode?: boolean
   sidebarCollapsed?: boolean
-  portalRiskBreakdown?: boolean
-  /** Per-entity toggle: show deletion-marked items in list views. Key = entity type (e.g. "CryptoInvoice"). */
+  /** Per-entity toggle: show deletion-marked items in list views. Key = entity type (e.g. "Counterparty"). */
   showDeletedEntities?: Record<string, boolean>
+  /** Per-section toggle: whether a collapsible UI section is expanded. Key = section id owned by the UI. */
+  expandedSections?: Record<string, boolean>
 }
 
 // ── Favorites ───────────────────────────────────────────────────────────

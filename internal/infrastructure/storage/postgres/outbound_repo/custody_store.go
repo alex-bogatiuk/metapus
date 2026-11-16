@@ -24,7 +24,7 @@ func (CustodyStore) FindWallet(ctx context.Context, network id.ID, address strin
 }
 
 func (CustodyStore) IsEnforced(ctx context.Context, network id.ID) (bool, error) {
-	return postgres.MerchantCustodyEnforced(ctx, network)
+	return merchantCustodyEnforced(ctx, network)
 }
 
 func (CustodyStore) IsManagedDestination(ctx context.Context, network id.ID, address, family string) (bool, error) {

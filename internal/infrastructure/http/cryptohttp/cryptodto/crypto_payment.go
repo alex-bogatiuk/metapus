@@ -6,7 +6,6 @@ import (
 	"metapus/internal/core/types"
 	"metapus/internal/domain/crypto/aml"
 	"metapus/internal/domain/documents/crypto_payment"
-	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
@@ -94,11 +93,11 @@ func FromCryptoPayment(p *crypto_payment.CryptoPayment, refs ...postgres.Resolve
 	}
 
 	if len(refs) > 0 {
-		merch := refs[0].Get(dto.TableMerchants, p.MerchantID)
+		merch := refs[0].Get(TableMerchants, p.MerchantID)
 		resp.Merchant = &merch
-		tok := refs[0].Get(dto.TableTokens, p.TokenID)
+		tok := refs[0].Get(TableTokens, p.TokenID)
 		resp.Token = &tok
-		wlt := refs[0].Get(dto.TableWallets, p.WalletID)
+		wlt := refs[0].Get(TableWallets, p.WalletID)
 		resp.Wallet = &wlt
 	}
 
@@ -114,9 +113,9 @@ func FromCryptoPayment(p *crypto_payment.CryptoPayment, refs ...postgres.Resolve
 
 // CollectCryptoPaymentRefs collects FK references for batch resolution.
 func CollectCryptoPaymentRefs(resolver *postgres.ReferenceResolver, p *crypto_payment.CryptoPayment) {
-	resolver.Add(dto.TableMerchants, p.MerchantID)
-	resolver.Add(dto.TableTokens, p.TokenID)
-	resolver.Add(dto.TableWallets, p.WalletID)
+	resolver.Add(TableMerchants, p.MerchantID)
+	resolver.Add(TableTokens, p.TokenID)
+	resolver.Add(TableWallets, p.WalletID)
 }
 
 // --- Create/Update DTOs for BaseDocumentHandler compliance ---

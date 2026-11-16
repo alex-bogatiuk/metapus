@@ -1,4 +1,4 @@
-package architecture_test
+package crypto_test
 
 import (
 	"os"
@@ -16,7 +16,7 @@ import (
 func TestPublicEventCatalogMatchesOpenAPIAndAllSDKs(t *testing.T) {
 	_, file, _, ok := runtime.Caller(0)
 	require.True(t, ok)
-	root := filepath.Dir(filepath.Dir(filepath.Dir(file)))
+	root := filepath.Join(filepath.Dir(file), "..", "..", "..")
 	expected := []string{}
 	for _, event := range crypto.AllWebhookEventTypes() {
 		expected = append(expected, string(event))

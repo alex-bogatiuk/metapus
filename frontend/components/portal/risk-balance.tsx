@@ -48,15 +48,17 @@ function AssetSummary({ item }: { item: AmlMerchantRiskBalance }) {
   </section>
 }
 
+const riskBreakdownSection = "portalRiskBreakdown"
+
 export function RiskBalance({ merchantId }: { merchantId: string }) {
   const { data, error, isLoading, isValidating, expired, mutate } = useRiskBalance(merchantId)
-  const expanded = useUserPrefsStore(state => state.interface.portalRiskBreakdown ?? false)
+  const expanded = useUserPrefsStore(state => state.interface.expandedSections?.[riskBreakdownSection] ?? false)
   const loaded = useUserPrefsStore(state => state.isLoaded)
   const loadPreferences = useUserPrefsStore(state => state.loadPreferences)
   const updateInterface = useUserPrefsStore(state => state.updateInterface)
   useEffect(() => { if (!loaded) void loadPreferences() }, [loaded, loadPreferences])
   const refresh = () => { void mutate().catch(() => undefined) }
-  return <Collapsible open={expanded} onOpenChange={portalRiskBreakdown => updateInterface({ portalRiskBreakdown })}>
+  return <Collapsible open={expanded} onOpenChange={open => updateInterface({ expandedSections: { ...useUserPrefsStore.getState().interface.expandedSections, [riskBreakdownSection]: open } })}>
     <Card data-testid="risk-balance">
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">

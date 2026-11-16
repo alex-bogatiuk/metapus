@@ -140,7 +140,7 @@ func FromToken(t *token.Token, refs ...postgres.ResolvedRefs) *CryptoTokenRespon
 	}
 
 	if len(refs) > 0 {
-		net := refs[0].Get(dto.TableBlockchainNetworks, t.NetworkID)
+		net := refs[0].Get(TableBlockchainNetworks, t.NetworkID)
 		resp.Network = &net
 
 		if t.CurrencyID != nil {
@@ -154,7 +154,7 @@ func FromToken(t *token.Token, refs ...postgres.ResolvedRefs) *CryptoTokenRespon
 
 // CollectTokenRefs collects FK references for batch resolution.
 func CollectTokenRefs(resolver *postgres.ReferenceResolver, t *token.Token) {
-	resolver.Add(dto.TableBlockchainNetworks, t.NetworkID)
+	resolver.Add(TableBlockchainNetworks, t.NetworkID)
 	if t.CurrencyID != nil {
 		resolver.Add(dto.TableCurrencies, *t.CurrencyID)
 	}

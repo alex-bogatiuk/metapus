@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"metapus/internal/core/id"
-	"metapus/internal/core/publicref"
 	"metapus/internal/core/tenant"
+	"metapus/internal/domain/crypto/publicref"
 )
 
 func TestResolveTenantUsesMetaReferenceWithoutTenantHint(t *testing.T) {

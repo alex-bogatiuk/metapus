@@ -58,12 +58,11 @@ const (
 
 // Data events — documents
 const (
-	EventDocumentCreate          EventType = "document.create"
-	EventDocumentUpdate          EventType = "document.update"
-	EventDocumentDelete          EventType = "document.delete"
-	EventDocumentPost            EventType = "document.post"
-	EventDocumentUnpost          EventType = "document.unpost"
-	EventProviderOpeningDecision EventType = "crypto.provider_opening.decision"
+	EventDocumentCreate EventType = "document.create"
+	EventDocumentUpdate EventType = "document.update"
+	EventDocumentDelete EventType = "document.delete"
+	EventDocumentPost   EventType = "document.post"
+	EventDocumentUnpost EventType = "document.unpost"
 )
 
 // Data events — catalogs

@@ -12,8 +12,8 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
-	"metapus/internal/core/publicref"
 	"metapus/internal/core/tenant"
+	"metapus/internal/domain/crypto/publicref"
 )
 
 var ErrReferenceCollision = errors.New("checkout public reference collision")

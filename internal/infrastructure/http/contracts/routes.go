@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"metapus/internal/infrastructure/http/contracts/spec"
 	"reflect"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -26,6 +27,10 @@ func Routes(bundles ...spec.Bundle) []RouteContract {
 	return slices.Concat(routes, automationRoutes(), systemRoutes(), securityRoutes(), serviceOperationRoutes(), bundleRoutes(bundles))
 }
 
+// routeScopePattern names the API surface a route belongs to: "api" for the
+// platform, others (for example "portal") for configuration surfaces.
+var routeScopePattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+
 func GenerateRoutes(contracts []Contract, routes []RouteContract) ([]byte, error) {
 	types := make(map[string]Direction, len(contracts))
 	shapes := make(map[string]reflect.Type, len(contracts))
@@ -44,7 +49,7 @@ func GenerateRoutes(contracts []Contract, routes []RouteContract) ([]byte, error
 			return nil, fmt.Errorf("duplicate HTTP route contract %s", key)
 		}
 		seen[key] = true
-		if (route.Scope != "api" && route.Scope != "portal") || !strings.HasPrefix(route.Path, "/") {
+		if !routeScopePattern.MatchString(route.Scope) || !strings.HasPrefix(route.Path, "/") {
 			return nil, fmt.Errorf("invalid HTTP route contract %s", key)
 		}
 		switch route.Method {

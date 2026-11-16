@@ -207,8 +207,7 @@ func TestCryptoInvoicePrintFormEscapesReferenceValues(t *testing.T) {
 	require.NoError(t, err)
 	renderer, err := printadapter.NewRenderer()
 	require.NoError(t, err)
-	form, ok := printing.NewPrintFormRegistry().GetForm("crypto_invoice", "")
-	require.True(t, ok)
+	form := CryptoInvoicePrintForms()[0]
 
 	var html bytes.Buffer
 	require.NoError(t, renderer.Render(&html, form.Template, data))

@@ -7,7 +7,6 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/documents/crypto_invoice"
-	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
@@ -178,11 +177,11 @@ func FromCryptoInvoice(doc *crypto_invoice.CryptoInvoice, refs postgres.Resolved
 
 	// Resolved references
 	if refs != nil {
-		merch := refs.Get(dto.TableMerchants, doc.MerchantID)
+		merch := refs.Get(TableMerchants, doc.MerchantID)
 		resp.Merchant = &merch
-		tok := refs.Get(dto.TableTokens, doc.TokenID)
+		tok := refs.Get(TableTokens, doc.TokenID)
 		resp.Token = &tok
-		resp.Wallet = refs.GetPtr(dto.TableWallets, doc.WalletID)
+		resp.Wallet = refs.GetPtr(TableWallets, doc.WalletID)
 	}
 
 	return resp
@@ -190,7 +189,7 @@ func FromCryptoInvoice(doc *crypto_invoice.CryptoInvoice, refs postgres.Resolved
 
 // CollectCryptoInvoiceRefs registers reference IDs for batch resolution.
 func CollectCryptoInvoiceRefs(resolver *postgres.ReferenceResolver, doc *crypto_invoice.CryptoInvoice) {
-	resolver.Add(dto.TableMerchants, doc.MerchantID)
-	resolver.Add(dto.TableTokens, doc.TokenID)
-	resolver.AddPtr(dto.TableWallets, doc.WalletID)
+	resolver.Add(TableMerchants, doc.MerchantID)
+	resolver.Add(TableTokens, doc.TokenID)
+	resolver.AddPtr(TableWallets, doc.WalletID)
 }

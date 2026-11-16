@@ -9,8 +9,8 @@ export const interfacePrefsSchema: z.ZodType<InterfacePrefs> = z.object({
   dateFormat: z.enum(["dd.MM.yyyy", "yyyy-MM-dd", "MM/dd/yyyy"]).optional(),
   numberFormat: z.enum(["space", "comma", "none"]).optional(), showTooltips: z.boolean().optional(),
   compactMode: z.boolean().optional(), sidebarCollapsed: z.boolean().optional(),
-  portalRiskBreakdown: z.boolean().optional(),
   showDeletedEntities: z.record(z.string(), z.boolean()).optional(),
+  expandedSections: z.record(z.string(), z.boolean()).optional(),
 })
 export const columnWidthsSchema = z.record(z.string(), z.number().finite().nonnegative())
 export const listColumnsSchema = z.record(z.string(), z.union([z.array(z.string()), columnWidthsSchema]))

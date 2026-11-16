@@ -29,7 +29,7 @@ func NewRenderer() (*Renderer, error) {
 	return &Renderer{templates: tmpl}, nil
 }
 
-// Render executes the named template (e.g. "crypto_invoice.gohtml") into w.
+// Render executes the named template (e.g. printing.TableTemplate) into w.
 func (r *Renderer) Render(w io.Writer, templateName string, data *printmodel.PrintData) error {
 	return r.templates.ExecuteTemplate(w, templateName, data)
 }

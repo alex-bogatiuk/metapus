@@ -21,6 +21,8 @@ func TestRouteContractsResolveConcreteDirectionsAndStayCurrent(t *testing.T) {
 	require.Equal(t, string(generated), string(bytes.ReplaceAll(committed, []byte("\r\n"), []byte("\n"))))
 	for _, routes := range [][]RouteContract{
 		{{Scope: "api", Method: "POST", Path: "/test", Request: "PortalSummaryResponse"}},
+		{{Scope: "", Method: "GET", Path: "/test", Response: "LoginResponse"}},
+		{{Scope: "API", Method: "GET", Path: "/test", Response: "LoginResponse"}},
 		{{Scope: "api", Method: "GET", Path: "/test", Response: "Missing"}},
 		{Routes(configurationBundles()...)[0], Routes(configurationBundles()...)[0]},
 		{{Scope: "api", Method: "POST", Path: "/test", ResponseVariants: []string{"LoginResponse"}}},

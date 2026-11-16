@@ -7,7 +7,6 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/security"
 	"metapus/internal/domain/documents/crypto_sweep"
-	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 )
@@ -53,7 +52,7 @@ func FromCryptoSweep(s *crypto_sweep.CryptoSweep, refs ...postgres.ResolvedRefs)
 	}
 
 	if len(refs) > 0 {
-		tok := refs[0].Get(dto.TableTokens, s.TokenID)
+		tok := refs[0].Get(TableTokens, s.TokenID)
 		resp.Token = &tok
 	}
 
@@ -62,7 +61,7 @@ func FromCryptoSweep(s *crypto_sweep.CryptoSweep, refs ...postgres.ResolvedRefs)
 
 // CollectCryptoSweepRefs collects FK references for batch resolution.
 func CollectCryptoSweepRefs(resolver *postgres.ReferenceResolver, s *crypto_sweep.CryptoSweep) {
-	resolver.Add(dto.TableTokens, s.TokenID)
+	resolver.Add(TableTokens, s.TokenID)
 }
 
 type CryptoSweepTokenDisplay struct {

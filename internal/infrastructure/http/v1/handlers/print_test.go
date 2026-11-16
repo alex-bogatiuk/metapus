@@ -29,6 +29,12 @@ func (printFixtureService) GetByID(context.Context, id.ID) (*printFixtureDoc, er
 	return &printFixtureDoc{TotalAmount: 9007199254740993}, nil
 }
 
+func fixturePrintRegistry() *printing.PrintFormRegistry {
+	registry := printing.NewPrintFormRegistry()
+	registry.Register("fixture_doc", printing.PrintFormDef{Name: "standard", Label: "Форма", Template: printing.TableTemplate})
+	return registry
+}
+
 type unavailablePrintRenderer struct{}
 
 func (unavailablePrintRenderer) Render(context.Context, []byte, printing.PDFOptions) ([]byte, error) {
@@ -41,10 +47,10 @@ func TestPDFOutageLeavesHTMLAndDOCXAvailable(t *testing.T) {
 	require.NoError(t, err)
 	for _, pdf := range []printing.PDFRenderer{nil, unavailablePrintRenderer{}} {
 		handler := NewDocumentPrintHandler(NewBaseHandler(), DocumentPrintHandlerConfig[*printFixtureDoc]{
-			Service: printFixtureService{}, EntityName: "crypto_invoice", DocType: "crypto_invoice",
-			Registry: printing.NewPrintFormRegistry(), Renderer: renderer, PDFRenderer: pdf,
+			Service: printFixtureService{}, EntityName: "fixture_doc", DocType: "fixture_doc",
+			Registry: fixturePrintRegistry(), Renderer: renderer, PDFRenderer: pdf,
 			BuildPrintData: func(_ context.Context, doc *printFixtureDoc, _ *security.FieldPolicy) (*printing.PrintData, error) {
-				return &printing.PrintData{Doc: doc, Table: &printing.PrintTable{Title: "Инвойс", Columns: []string{"Сумма"}}}, nil
+				return &printing.PrintData{Doc: doc, Table: &printing.PrintTable{Title: "Документ", Columns: []string{"Сумма"}}}, nil
 			},
 		})
 		router := gin.New()
@@ -74,17 +80,17 @@ func TestPrintBuildsFromReadProjectionWithCallerPolicy(t *testing.T) {
 	var seen *printFixtureDoc
 	var seenPolicy *security.FieldPolicy
 	handler := NewDocumentPrintHandler(NewBaseHandler(), DocumentPrintHandlerConfig[*printFixtureDoc]{
-		Service: printFixtureService{}, EntityName: "crypto_invoice", DocType: "crypto_invoice",
-		Registry: printing.NewPrintFormRegistry(), Renderer: renderer,
+		Service: printFixtureService{}, EntityName: "fixture_doc", DocType: "fixture_doc",
+		Registry: fixturePrintRegistry(), Renderer: renderer,
 		BuildPrintData: func(_ context.Context, doc *printFixtureDoc, policy *security.FieldPolicy) (*printing.PrintData, error) {
 			seen, seenPolicy = doc, policy
-			return &printing.PrintData{Table: &printing.PrintTable{Title: "Инвойс"}}, nil
+			return &printing.PrintData{Table: &printing.PrintTable{Title: "Документ"}}, nil
 		},
 	})
 	policy := &security.FieldPolicy{AllowedFields: []string{"*", "-total_amount"}}
 	router := gin.New()
 	router.Use(middleware.ErrorHandler(), func(c *gin.Context) {
-		c.Request = c.Request.WithContext(security.WithFieldPolicies(c.Request.Context(), map[string]*security.FieldPolicy{"crypto_invoice:read": policy}))
+		c.Request = c.Request.WithContext(security.WithFieldPolicies(c.Request.Context(), map[string]*security.FieldPolicy{"fixture_doc:read": policy}))
 	})
 	router.GET("/document/:id/print", handler.Print)
 	recorder := httptest.NewRecorder()
@@ -93,14 +99,14 @@ func TestPrintBuildsFromReadProjectionWithCallerPolicy(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.Zero(t, seen.TotalAmount, "the template must see the FLS projection")
 	require.Same(t, policy, seenPolicy)
-	require.Contains(t, recorder.Body.String(), "Инвойс")
+	require.Contains(t, recorder.Body.String(), "Документ")
 }
 
 func TestPrintWithoutTemplatesFailsInsteadOfPanicking(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	handler := NewDocumentPrintHandler(NewBaseHandler(), DocumentPrintHandlerConfig[*printFixtureDoc]{
-		Service: printFixtureService{}, EntityName: "crypto_invoice", DocType: "crypto_invoice",
-		Registry: printing.NewPrintFormRegistry(),
+		Service: printFixtureService{}, EntityName: "fixture_doc", DocType: "fixture_doc",
+		Registry: fixturePrintRegistry(),
 	})
 	router := gin.New()
 	router.Use(middleware.ErrorHandler())

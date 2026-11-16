@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"metapus/internal/core/json"
@@ -176,7 +177,7 @@ func (e *Executor) execute(
 }
 
 func (m Metadata) Validate() error {
-	if !oneOf(m.ScopeType, "user", "merchant", "api_key", "system") {
+	if !scopeTypePattern.MatchString(m.ScopeType) {
 		return fmt.Errorf("invalid command scope type %q", m.ScopeType)
 	}
 	if strings.TrimSpace(m.ScopeID) == "" || strings.TrimSpace(m.Operation) == "" || strings.TrimSpace(m.IdempotencyKey) == "" {
@@ -204,11 +205,7 @@ func (r Result) Validate() error {
 	return nil
 }
 
-func oneOf(value string, allowed ...string) bool {
-	for _, candidate := range allowed {
-		if value == candidate {
-			return true
-		}
-	}
-	return false
-}
+// scopeTypePattern accepts the platform scope types (user, api_key, system)
+// and those a configuration adds through a command scope resolver. It matches
+// the sys_idempotency.scope_type check.
+var scopeTypePattern = regexp.MustCompile(`^[a-z][a-z_]{0,31}$`)

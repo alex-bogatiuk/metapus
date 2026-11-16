@@ -13,16 +13,17 @@ import (
 // InterfacePrefs holds typed UI settings for a user.
 // All fields are optional (omitempty) — partial updates are supported.
 type InterfacePrefs struct {
-	Theme               string `json:"theme,omitempty"` // "light"|"dark"|"system"
-	Language            string `json:"language,omitempty"`
-	DateFormat          string `json:"dateFormat,omitempty"`
-	NumberFormat        string `json:"numberFormat,omitempty"`
-	ShowTooltips        *bool  `json:"showTooltips,omitempty"`
-	CompactMode         *bool  `json:"compactMode,omitempty"`
-	SidebarCollapsed    *bool  `json:"sidebarCollapsed,omitempty"`
-	PortalRiskBreakdown *bool  `json:"portalRiskBreakdown,omitempty"`
-	// Per-entity toggle: show deletion-marked items in list views. Key = entity type (e.g. "CryptoInvoice").
+	Theme            string `json:"theme,omitempty"` // "light"|"dark"|"system"
+	Language         string `json:"language,omitempty"`
+	DateFormat       string `json:"dateFormat,omitempty"`
+	NumberFormat     string `json:"numberFormat,omitempty"`
+	ShowTooltips     *bool  `json:"showTooltips,omitempty"`
+	CompactMode      *bool  `json:"compactMode,omitempty"`
+	SidebarCollapsed *bool  `json:"sidebarCollapsed,omitempty"`
+	// Per-entity toggle: show deletion-marked items in list views. Key = entity type (e.g. "Counterparty").
 	ShowDeletedEntities map[string]bool `json:"showDeletedEntities,omitempty"`
+	// Per-section toggle: whether a collapsible UI section is expanded. Key = section id owned by the UI.
+	ExpandedSections map[string]bool `json:"expandedSections,omitempty"`
 }
 
 // UserPreferences represents all preferences for a single user (1 row in DB).

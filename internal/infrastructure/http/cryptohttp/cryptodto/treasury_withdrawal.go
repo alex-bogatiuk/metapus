@@ -6,7 +6,6 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/documents/treasury_withdrawal"
-	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
@@ -129,9 +128,9 @@ func FromTreasuryWithdrawal(w *treasury_withdrawal.TreasuryWithdrawal, refs ...p
 		resp.ApprovedAt = w.ApprovedAt.Format(time.RFC3339)
 	}
 	if len(refs) > 0 {
-		tok := refs[0].Get(dto.TableTokens, w.TokenID)
+		tok := refs[0].Get(TableTokens, w.TokenID)
 		resp.Token = &tok
-		wlt := refs[0].Get(dto.TableWallets, w.SourceWalletID)
+		wlt := refs[0].Get(TableWallets, w.SourceWalletID)
 		resp.SourceWallet = &wlt
 	}
 	return resp
@@ -139,6 +138,6 @@ func FromTreasuryWithdrawal(w *treasury_withdrawal.TreasuryWithdrawal, refs ...p
 
 // CollectTreasuryWithdrawalRefs collects FK references for batch resolution.
 func CollectTreasuryWithdrawalRefs(resolver *postgres.ReferenceResolver, w *treasury_withdrawal.TreasuryWithdrawal) {
-	resolver.Add(dto.TableTokens, w.TokenID)
-	resolver.Add(dto.TableWallets, w.SourceWalletID)
+	resolver.Add(TableTokens, w.TokenID)
+	resolver.Add(TableWallets, w.SourceWalletID)
 }

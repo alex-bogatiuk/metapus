@@ -41,3 +41,15 @@ func findCustodyWallet(ctx context.Context, networkID id.ID, address string) (Cu
 func ownerMatchesMerchant(owner *id.ID, merchant id.ID, enforced bool) bool {
 	return crypto.CustodyOwnerMatchesMerchant(owner, merchant, enforced)
 }
+
+// merchantCustodyEnforced is independent of AML enablement. Read failures
+// propagate; they never fall back to shared merchant liquidity.
+func merchantCustodyEnforced(ctx context.Context, networkID id.ID) (bool, error) {
+	var enforced bool
+	err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `SELECT EXISTS(
+		SELECT 1 FROM sys_crypto_custody_policies WHERE network_id=$1 AND enforced)`, networkID).Scan(&enforced)
+	if err != nil {
+		return false, fmt.Errorf("read merchant custody policy: %w", err)
+	}
+	return enforced, nil
+}

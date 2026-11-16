@@ -95,6 +95,12 @@ type DocumentCapabilitiesProvider interface {
 	DocumentCapabilities() metadata.DocumentCapabilities
 }
 
+// PrintFormsProvider declares the print forms of a document type. The router
+// registers them under the document's definition key before building handlers.
+type PrintFormsProvider interface {
+	PrintForms() []printing.PrintFormDef
+}
+
 // DocumentActionsProvider exposes explicit custom document actions in metadata.
 type DocumentActionsProvider interface {
 	DocumentActions() []metadata.EntityActionDef

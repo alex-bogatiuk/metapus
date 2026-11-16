@@ -73,10 +73,10 @@ test("risk balance keeps adverse warnings visible and saves the optional breakdo
   let expanded = false
   await page.route("**/api/v1/me/preferences**", async route => {
     if (route.request().method() === "PUT") {
-      expanded = route.request().postDataJSON().portalRiskBreakdown === true
+      expanded = route.request().postDataJSON().expandedSections?.portalRiskBreakdown === true
       return route.fulfill({ status: 204 })
     }
-    return json(route, { userId: ids.user, interface: { portalRiskBreakdown: expanded }, listFilters: {}, listColumns: {}, dashboardLayout: null, favorites: [], updatedAt: now.toISOString() })
+    return json(route, { userId: ids.user, interface: { expandedSections: { portalRiskBreakdown: expanded } }, listFilters: {}, listColumns: {}, dashboardLayout: null, favorites: [], updatedAt: now.toISOString() })
   })
   await page.goto("/portal")
   const card = page.getByTestId("risk-balance")

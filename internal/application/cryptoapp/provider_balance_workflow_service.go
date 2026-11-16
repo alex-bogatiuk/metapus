@@ -19,6 +19,10 @@ import (
 	"metapus/internal/domain/eventlog"
 )
 
+// EventProviderOpeningDecision records a provider opening approval or
+// rejection. The 00007 migration protects these rows from edits and deletes.
+const EventProviderOpeningDecision eventlog.EventType = "crypto.provider_opening.decision"
+
 type ProviderBalanceOpeningEvidence struct {
 	ProviderAccountID id.ID
 	TokenID           id.ID
@@ -209,7 +213,7 @@ func (s *ProviderBalanceWorkflowService) decide(ctx context.Context, req Provide
 			return nil, err
 		}
 		err = s.audit.Write(txCtx, eventlog.Event{
-			Category: eventlog.CategorySecurity, Severity: eventlog.SeverityInfo, EventType: eventlog.EventProviderOpeningDecision,
+			Category: eventlog.CategorySecurity, Severity: eventlog.SeverityInfo, EventType: EventProviderOpeningDecision,
 			Source: "provider_balance_workflow", EntityType: doc.GetDocumentType(), EntityID: &doc.ID, EntityNumber: doc.Number,
 			UserID: actor.String(), SessionID: session.String(), Message: "Provider opening decision recorded", CreatedAt: checkedAt,
 			Details: map[string]any{"action": action, "makerId": doc.CreatedBy.String(), "actorId": actor.String(), "decisionMode": authorization.Mode,

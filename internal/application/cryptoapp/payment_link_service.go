@@ -7,8 +7,8 @@ import (
 	"metapus/internal/application/checkout"
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
-	"metapus/internal/core/publicref"
 	"metapus/internal/core/types"
+	"metapus/internal/domain/crypto/publicref"
 )
 
 type PaymentLinkRepository interface {

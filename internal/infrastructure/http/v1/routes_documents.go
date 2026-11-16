@@ -45,7 +45,7 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 	// CurrencyResolver is guaranteed non-nil here — created in NewRouter before catalog/document registration.
 	currencyResolver := cfg.CurrencyResolver
 
-	printRegistry := printing.NewPrintFormRegistry()
+	printRegistry := documentPrintForms(factoryReg)
 	printRenderer, printErr := printadapter.NewRenderer()
 	if printErr != nil {
 		cfg.Logger.Errorw("failed to load print templates", "error", printErr)
@@ -223,4 +223,18 @@ func registerReportRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *Fac
 	}
 
 	return comp
+}
+
+// documentPrintForms collects the print forms that document registrations
+// declare through PrintFormsProvider.
+func documentPrintForms(factoryReg *FactoryRegistry) *printing.PrintFormRegistry {
+	registry := printing.NewPrintFormRegistry()
+	for _, factory := range factoryReg.Documents() {
+		if provider, ok := factory.(PrintFormsProvider); ok {
+			for _, form := range provider.PrintForms() {
+				registry.Register(factory.EntityDefinition().Key, form)
+			}
+		}
+	}
+	return registry
 }

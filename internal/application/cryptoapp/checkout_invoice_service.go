@@ -6,8 +6,8 @@ import (
 
 	"metapus/internal/application/checkout"
 	"metapus/internal/core/id"
-	"metapus/internal/core/publicref"
 	"metapus/internal/domain"
+	"metapus/internal/domain/crypto/publicref"
 	"metapus/internal/domain/documents/crypto_invoice"
 )
 

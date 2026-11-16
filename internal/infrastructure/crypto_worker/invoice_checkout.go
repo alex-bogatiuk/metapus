@@ -8,9 +8,9 @@ import (
 	"metapus/internal/application/checkout"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
-	"metapus/internal/core/publicref"
 	"metapus/internal/core/tenant"
 	"metapus/internal/domain"
+	"metapus/internal/domain/crypto/publicref"
 	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/infrastructure/storage/postgres"
 )

@@ -6,7 +6,6 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 	"metapus/internal/domain/documents/crypto_withdrawal"
-	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
@@ -110,9 +109,9 @@ func FromCryptoWithdrawal(w *crypto_withdrawal.CryptoWithdrawal, refs ...postgre
 	}
 
 	if len(refs) > 0 {
-		merch := refs[0].Get(dto.TableMerchants, w.MerchantID)
+		merch := refs[0].Get(TableMerchants, w.MerchantID)
 		resp.Merchant = &merch
-		tok := refs[0].Get(dto.TableTokens, w.TokenID)
+		tok := refs[0].Get(TableTokens, w.TokenID)
 		resp.Token = &tok
 	}
 
@@ -121,6 +120,6 @@ func FromCryptoWithdrawal(w *crypto_withdrawal.CryptoWithdrawal, refs ...postgre
 
 // CollectCryptoWithdrawalRefs collects FK references for batch resolution.
 func CollectCryptoWithdrawalRefs(resolver *postgres.ReferenceResolver, w *crypto_withdrawal.CryptoWithdrawal) {
-	resolver.Add(dto.TableMerchants, w.MerchantID)
-	resolver.Add(dto.TableTokens, w.TokenID)
+	resolver.Add(TableMerchants, w.MerchantID)
+	resolver.Add(TableTokens, w.TokenID)
 }

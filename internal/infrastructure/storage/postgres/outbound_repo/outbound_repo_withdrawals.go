@@ -305,7 +305,7 @@ func (r *OutboundRepo) ReserveHotWalletForWithdrawal(
 		if basis.merchant != merchantID || basis.token != tokenID || basis.network != networkID || !basis.amount.Equal(required) {
 			return holdExecution(fmt.Errorf("%w: withdrawal request identity mismatch", ErrMerchantCustody))
 		}
-		enforced, err := postgres.MerchantCustodyEnforced(txCtx, networkID)
+		enforced, err := merchantCustodyEnforced(txCtx, networkID)
 		if err != nil {
 			return err
 		}

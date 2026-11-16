@@ -55,7 +55,12 @@ myExtension.Register(factoryReg) // registration uses v1.EntityRegistration[Mode
 | `content.Services` | сервисы конфигурации для регистраций документов вне `v1.DocumentDeps` | ссылки checkout, подписанты согласований |
 | `spec.Bundle` | контракты HTTP для генератора: `contracts.Registry(bundles...)`, `contracts.Routes(bundles...)` | `content.HTTPContractBundles` |
 
-Граница проверяется тестом `internal/architecture/configuration_boundary_test.go`: платформенный пакет не может импортировать пакет конфигурации, список известных исключений пуст и должен таким остаться.
+Граница проверяется тестами в `internal/architecture`:
+
+- `configuration_boundary_test.go`: платформенный пакет не импортирует пакет конфигурации; список исключений пуст и должен таким остаться;
+- `configuration_storage_test.go`: строковые литералы платформенного кода не называют таблицы из миграций конфигурации (`00006`–`00009`), а тесты платформы не импортируют конфигурацию. Списки известных исключений (RPC-подсистема, проверки сгенерированных контрактов и наборов отчётов) только сокращаются.
+
+Печатные формы документ конфигурации объявляет через `v1.PrintFormsProvider`; типы областей команд (`command.Metadata.ScopeType`) и маршрутов контрактов — открытые идентификаторы, конфигурация добавляет свои (`merchant`, `portal`) без правок ядра. Состояние раскрытых секций интерфейса хранится в `interface.expandedSections` под ключом, который выбирает UI.
 
 Коды ошибок конфигурации объявляются рядом с её доменом и собираются из `apperror.AppError`; `core/apperror` хранит только платформенные коды. Например, `WALLET_POOL_EXHAUSTED` объявлен в `catalogs/wallet`, `CRYPTO_NETWORK_UNAVAILABLE` в `catalogs/blockchain_network`. Подсказку `details.retryAfterSeconds` любой ошибки `ErrorHandler` выставляет в заголовок `Retry-After`.
 

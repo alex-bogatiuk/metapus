@@ -47,9 +47,9 @@ type CryptoResourceRentalResponse struct {
 }
 
 func CollectCryptoResourceRentalRefs(resolver *postgres.ReferenceResolver, r *crypto_resource_rental.CryptoResourceRental) {
-	resolver.Add(dto.TableBlockchainNetworks, r.NetworkID)
-	resolver.Add(dto.TableWallets, r.ReceiveWalletID)
-	resolver.Add(dto.TableTokens, r.CostTokenID)
+	resolver.Add(TableBlockchainNetworks, r.NetworkID)
+	resolver.Add(TableWallets, r.ReceiveWalletID)
+	resolver.Add(TableTokens, r.CostTokenID)
 }
 
 func FromCryptoResourceRental(r *crypto_resource_rental.CryptoResourceRental, refs postgres.ResolvedRefs) CryptoResourceRentalResponse {
@@ -69,7 +69,7 @@ func FromCryptoResourceRental(r *crypto_resource_rental.CryptoResourceRental, re
 		resp.ProviderBalanceAfter = &balance
 	}
 	if refs != nil {
-		network, wallet, token := refs.Get(dto.TableBlockchainNetworks, r.NetworkID), refs.Get(dto.TableWallets, r.ReceiveWalletID), refs.Get(dto.TableTokens, r.CostTokenID)
+		network, wallet, token := refs.Get(TableBlockchainNetworks, r.NetworkID), refs.Get(TableWallets, r.ReceiveWalletID), refs.Get(TableTokens, r.CostTokenID)
 		resp.Network, resp.ReceiveWallet, resp.CostToken = &network, &wallet, &token
 	}
 	return resp

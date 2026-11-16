@@ -10,8 +10,8 @@ import (
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
-	"metapus/internal/core/publicref"
 	"metapus/internal/core/types"
+	"metapus/internal/domain/crypto/publicref"
 )
 
 // InvoiceStatus defines the lifecycle state of a crypto invoice.

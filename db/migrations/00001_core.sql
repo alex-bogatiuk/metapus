@@ -197,7 +197,7 @@ CREATE TABLE sys_outbox_dlq (
 
 CREATE TABLE sys_idempotency (
     scope_type           TEXT               NOT NULL
-                         CHECK (scope_type IN ('user','merchant','api_key','system')),
+                         CHECK (scope_type ~ '^[a-z][a-z_]{0,31}$'),
     scope_id             TEXT               NOT NULL CHECK (BTRIM(scope_id) <> ''),
     operation            VARCHAR(200)       NOT NULL CHECK (BTRIM(operation) <> ''),
     idempotency_key      VARCHAR(200)       NOT NULL CHECK (BTRIM(idempotency_key) <> ''),

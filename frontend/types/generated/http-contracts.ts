@@ -4850,8 +4850,8 @@ export type UpdateInterfacePreferencesRequest = {
   "showTooltips"?: boolean | null
   "compactMode"?: boolean | null
   "sidebarCollapsed"?: boolean | null
-  "portalRiskBreakdown"?: boolean | null
   "showDeletedEntities"?: Record<string, boolean>
+  "expandedSections"?: Record<string, boolean>
 }
 
 export type UpdateJSONPreferencesRequest = JsonValue
@@ -5121,8 +5121,8 @@ export type UserprefInterfacePrefs = {
   "showTooltips"?: boolean
   "compactMode"?: boolean
   "sidebarCollapsed"?: boolean
-  "portalRiskBreakdown"?: boolean
   "showDeletedEntities"?: Record<string, boolean>
+  "expandedSections"?: Record<string, boolean>
 }
 
 export type ValidateExpressionRequest = {

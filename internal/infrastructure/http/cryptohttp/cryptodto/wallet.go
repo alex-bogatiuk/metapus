@@ -194,14 +194,14 @@ func FromWallet(w *wallet.Wallet, refs ...postgres.ResolvedRefs) *WalletResponse
 		resp.LastSweptAt = &s
 	}
 	if len(refs) > 0 {
-		net := refs[0].Get(dto.TableBlockchainNetworks, w.NetworkID)
+		net := refs[0].Get(TableBlockchainNetworks, w.NetworkID)
 		resp.Network = &net
 		if w.CustodyMerchantID != nil {
-			owner := refs[0].Get(dto.TableMerchants, *w.CustodyMerchantID)
+			owner := refs[0].Get(TableMerchants, *w.CustodyMerchantID)
 			resp.CustodyMerchant = &owner
 		}
 		if w.MerchantID != nil {
-			merch := refs[0].Get(dto.TableMerchants, *w.MerchantID)
+			merch := refs[0].Get(TableMerchants, *w.MerchantID)
 			resp.Merchant = &merch
 		}
 	}
@@ -218,11 +218,11 @@ func FromWallet(w *wallet.Wallet, refs ...postgres.ResolvedRefs) *WalletResponse
 // CollectWalletRefs collects FK references for batch resolution.
 func CollectWalletRefs(resolver *postgres.ReferenceResolver, w *wallet.Wallet) {
 	if w.CustodyMerchantID != nil {
-		resolver.Add(dto.TableMerchants, *w.CustodyMerchantID)
+		resolver.Add(TableMerchants, *w.CustodyMerchantID)
 	}
-	resolver.Add(dto.TableBlockchainNetworks, w.NetworkID)
+	resolver.Add(TableBlockchainNetworks, w.NetworkID)
 	if w.MerchantID != nil {
-		resolver.Add(dto.TableMerchants, *w.MerchantID)
+		resolver.Add(TableMerchants, *w.MerchantID)
 	}
 }
 

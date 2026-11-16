@@ -148,12 +148,6 @@ const (
 	TableCurrencies     = "cat_currencies"
 	TableContracts      = "cat_contracts"
 
-	// Crypto catalogs
-	TableMerchants          = "cat_merchants"
-	TableBlockchainNetworks = "cat_blockchain_networks"
-	TableTokens             = "cat_tokens"
-	TableWallets            = "cat_wallets"
-
 	// System
 	TableUsers = "users"
 )

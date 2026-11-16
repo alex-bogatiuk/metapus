@@ -1,6 +1,6 @@
 # Система печатных форм (Printing System)
 
-> **TL;DR:** Code is Metadata. Печатные формы описаны в статическом реестре и `.gohtml`-шаблонах. Документ получает печать, когда объявляет capability `printForms` и его handler реализует `Print`/`ListPrintForms`. Сейчас печать есть у `crypto_invoice`.
+> **TL;DR:** Code is Metadata. Печатные формы объявляет регистрация документа, а рендерятся они `.gohtml`-шаблонами платформы. Документ получает печать, когда объявляет capability `printForms`, перечисляет формы через `v1.PrintFormsProvider` и его handler реализует `Print`/`ListPrintForms`. Сейчас печать есть у `crypto_invoice`.
 
 > **Тип:** Concept
 > **Аудитория:** Developer
@@ -9,12 +9,12 @@
 
 ## 1. Архитектура: Code is Metadata
 
-Печатные формы не хранятся в базе данных. Они описываются в статическом реестре (`internal/domain/printing/registry.go`). Это даёт строгую типизацию, версионирование через Git и защищает от поломок при миграциях БД.
+Печатные формы не хранятся в базе данных. Регистрация документа возвращает их из `PrintForms()`, а роутер при старте собирает их в реестр (`internal/domain/printing/registry.go`) под ключом определения документа. Платформа сама форм не регистрирует. Это даёт строгую типизацию, версионирование через Git и защищает от поломок при миграциях БД.
 
 ### Определение формы
 Каждая форма (`PrintFormDef`) привязывается к ключу документа и имеет:
 - идентификатор (`"standard"` для `crypto_invoice`; пустой `format` выбирает первую форму);
-- имя файла шаблона (`crypto_invoice.gohtml`);
+- имя файла шаблона (обычно `printing.TableTemplate` = `table.gohtml`: заголовок и `PrintData.Table`);
 - размер бумаги (`A4`, `A5`);
 - категорию (`standard` — системная, `custom` — добавленная интегратором).
 
@@ -23,9 +23,10 @@
 | Шаг | Где |
 |---|---|
 | Capability `PrintForms: true` | `DocumentCapabilities()` регистрации, например `internal/content/entity_contracts.go`. Флаг включает маршруты `GET /print-forms`, `GET /:id/print`, их HTTP-контракты и `capabilities.printForms` в метаданных |
-| Handler | Поле `*DocumentPrintHandler[T]` и методы `Print`, `ListPrintForms`, делегирующие ему (`handlers/crypto_invoice.go`). Зависимости — `DocumentDeps.PrintRegistry/PrintRenderer/PDFRenderer` |
-| Данные формы | `BuildPrintData(ctx, doc, policy)` возвращает `PrintData.Table` (`handlers/crypto_invoice_print.go`) |
-| Шаблон | `templates/<doc>.gohtml`, обычно только `{{template "table_form" .}}` |
+| Формы | `PrintForms() []printing.PrintFormDef` регистрации (`v1.PrintFormsProvider`), например `CryptoInvoiceRegistration` → `cryptohandlers.CryptoInvoicePrintForms()` |
+| Handler | Поле `*DocumentPrintHandler[T]` и методы `Print`, `ListPrintForms`, делегирующие ему (`cryptohandlers/crypto_invoice.go`). Зависимости — `DocumentDeps.PrintRegistry/PrintRenderer/PDFRenderer` |
+| Данные формы | `BuildPrintData(ctx, doc, policy)` возвращает `PrintData.Table` (`cryptohandlers/crypto_invoice_print.go`) |
+| Шаблон | `printing.TableTemplate` подходит большинству документов; свой шаблон нужен только для другой вёрстки |
 
 Оба маршрута требуют `<permission>:read`. Если флаг объявлен без методов handler, тест `builtin_entities_test.go` найдёт расхождение маршрутов и контрактов.
 
@@ -60,7 +61,7 @@
 internal/domain/printing/registry.go — реестр форм
 internal/domain/printing/data.go, table.go — PrintData и PrintTable
 internal/infrastructure/printing/renderer.go — HTML-рендерер, FormatCryptoUnits
-internal/infrastructure/printing/templates/ — base.gohtml (styles, table_form), crypto_invoice.gohtml
+internal/infrastructure/printing/templates/ — base.gohtml (styles, table_form), table.gohtml (страница с таблицей)
 internal/infrastructure/printing/docx_renderer.go — DOCX
 internal/infrastructure/http/v1/handlers/print.go — DocumentPrintHandler
 internal/infrastructure/http/cryptohttp/cryptohandlers/crypto_invoice_print.go — данные формы инвойса

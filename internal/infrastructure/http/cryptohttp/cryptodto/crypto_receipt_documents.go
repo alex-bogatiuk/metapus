@@ -50,10 +50,10 @@ type CryptoCustodyReceiptResponse struct {
 }
 
 func CollectCryptoCustodyReceiptRefs(resolver *postgres.ReferenceResolver, r *crypto_custody_receipt.CryptoCustodyReceipt) {
-	resolver.Add(dto.TableBlockchainNetworks, r.NetworkID)
-	resolver.Add(dto.TableWallets, r.WalletID)
-	resolver.Add(dto.TableTokens, r.TokenID)
-	resolver.AddPtr(dto.TableMerchants, r.CustodyMerchantID)
+	resolver.Add(TableBlockchainNetworks, r.NetworkID)
+	resolver.Add(TableWallets, r.WalletID)
+	resolver.Add(TableTokens, r.TokenID)
+	resolver.AddPtr(TableMerchants, r.CustodyMerchantID)
 }
 
 func FromCryptoCustodyReceipt(r *crypto_custody_receipt.CryptoCustodyReceipt, refs postgres.ResolvedRefs) CryptoCustodyReceiptResponse {
@@ -64,9 +64,9 @@ func FromCryptoCustodyReceipt(r *crypto_custody_receipt.CryptoCustodyReceipt, re
 		Amount: r.Amount.String(), ReasonCode: string(r.ReasonCode),
 	}
 	if refs != nil {
-		network, wallet, token := refs.Get(dto.TableBlockchainNetworks, r.NetworkID), refs.Get(dto.TableWallets, r.WalletID), refs.Get(dto.TableTokens, r.TokenID)
+		network, wallet, token := refs.Get(TableBlockchainNetworks, r.NetworkID), refs.Get(TableWallets, r.WalletID), refs.Get(TableTokens, r.TokenID)
 		resp.Network, resp.Wallet, resp.Token = &network, &wallet, &token
-		resp.CustodyMerchant = refs.GetPtr(dto.TableMerchants, r.CustodyMerchantID)
+		resp.CustodyMerchant = refs.GetPtr(TableMerchants, r.CustodyMerchantID)
 	}
 	return resp
 }
@@ -98,8 +98,8 @@ type CryptoMerchantCreditResponse struct {
 }
 
 func CollectCryptoMerchantCreditRefs(resolver *postgres.ReferenceResolver, c *crypto_merchant_credit.CryptoMerchantCredit) {
-	resolver.Add(dto.TableMerchants, c.MerchantID)
-	resolver.Add(dto.TableTokens, c.TokenID)
+	resolver.Add(TableMerchants, c.MerchantID)
+	resolver.Add(TableTokens, c.TokenID)
 }
 
 func FromCryptoMerchantCredit(c *crypto_merchant_credit.CryptoMerchantCredit, refs postgres.ResolvedRefs) CryptoMerchantCreditResponse {
@@ -113,7 +113,7 @@ func FromCryptoMerchantCredit(c *crypto_merchant_credit.CryptoMerchantCredit, re
 		DecisionReason: c.DecisionReason,
 	}
 	if refs != nil {
-		merchant, token := refs.Get(dto.TableMerchants, c.MerchantID), refs.Get(dto.TableTokens, c.TokenID)
+		merchant, token := refs.Get(TableMerchants, c.MerchantID), refs.Get(TableTokens, c.TokenID)
 		resp.Merchant, resp.Token = &merchant, &token
 	}
 	return resp
@@ -143,9 +143,9 @@ type CryptoPlatformFundingResponse struct {
 }
 
 func CollectCryptoPlatformFundingRefs(resolver *postgres.ReferenceResolver, f *crypto_platform_funding.CryptoPlatformFunding) {
-	resolver.Add(dto.TableWallets, f.WalletID)
-	resolver.Add(dto.TableTokens, f.TokenID)
-	resolver.AddPtr(dto.TableMerchants, f.MerchantID)
+	resolver.Add(TableWallets, f.WalletID)
+	resolver.Add(TableTokens, f.TokenID)
+	resolver.AddPtr(TableMerchants, f.MerchantID)
 }
 
 func FromCryptoPlatformFunding(f *crypto_platform_funding.CryptoPlatformFunding, refs postgres.ResolvedRefs) CryptoPlatformFundingResponse {
@@ -162,9 +162,9 @@ func FromCryptoPlatformFunding(f *crypto_platform_funding.CryptoPlatformFunding,
 		resp.MerchantLink = &link
 	}
 	if refs != nil {
-		wallet, token := refs.Get(dto.TableWallets, f.WalletID), refs.Get(dto.TableTokens, f.TokenID)
+		wallet, token := refs.Get(TableWallets, f.WalletID), refs.Get(TableTokens, f.TokenID)
 		resp.Wallet, resp.Token = &wallet, &token
-		resp.Merchant = refs.GetPtr(dto.TableMerchants, f.MerchantID)
+		resp.Merchant = refs.GetPtr(TableMerchants, f.MerchantID)
 	}
 	return resp
 }

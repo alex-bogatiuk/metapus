@@ -4854,8 +4854,8 @@ export const UpdateInterfacePreferencesRequestSchema: z.ZodType<Wire.UpdateInter
   "showTooltips": z.boolean().nullable().optional(),
   "compactMode": z.boolean().nullable().optional(),
   "sidebarCollapsed": z.boolean().nullable().optional(),
-  "portalRiskBreakdown": z.boolean().nullable().optional(),
   "showDeletedEntities": z.record(z.string(), z.boolean()).optional(),
+  "expandedSections": z.record(z.string(), z.boolean()).optional(),
 }))
 
 export const UpdateJSONPreferencesRequestSchema: z.ZodType<Wire.UpdateJSONPreferencesRequest> = z.lazy(() => jsonValueSchema)
@@ -5125,8 +5125,8 @@ export const UserprefInterfacePrefsSchema: z.ZodType<Wire.UserprefInterfacePrefs
   "showTooltips": z.boolean().optional(),
   "compactMode": z.boolean().optional(),
   "sidebarCollapsed": z.boolean().optional(),
-  "portalRiskBreakdown": z.boolean().optional(),
   "showDeletedEntities": z.record(z.string(), z.boolean()).optional(),
+  "expandedSections": z.record(z.string(), z.boolean()).optional(),
 }))
 
 export const ValidateExpressionRequestSchema: z.ZodType<Wire.ValidateExpressionRequest> = z.lazy(() => z.strictObject({

@@ -139,7 +139,7 @@ func (r *OutboundRepo) ReserveHotWalletForTreasury(ctx context.Context, task Tre
 			if scopeErr != nil {
 				return scopeErr
 			}
-			enforced, scopeErr := postgres.MerchantCustodyEnforced(txCtx, task.NetworkID)
+			enforced, scopeErr := merchantCustodyEnforced(txCtx, task.NetworkID)
 			if scopeErr != nil {
 				return scopeErr
 			}

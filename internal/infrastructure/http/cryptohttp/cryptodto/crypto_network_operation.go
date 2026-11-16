@@ -30,10 +30,10 @@ type CryptoNetworkOperationResponse struct {
 }
 
 func CollectCryptoNetworkOperationRefs(resolver *postgres.ReferenceResolver, d *crypto_network_operation.CryptoNetworkOperation) {
-	resolver.Add(dto.TableBlockchainNetworks, d.NetworkID)
-	resolver.Add(dto.TableWallets, d.TargetWalletID)
-	resolver.Add(dto.TableWallets, d.SourceWalletID)
-	resolver.Add(dto.TableTokens, d.CostTokenID)
+	resolver.Add(TableBlockchainNetworks, d.NetworkID)
+	resolver.Add(TableWallets, d.TargetWalletID)
+	resolver.Add(TableWallets, d.SourceWalletID)
+	resolver.Add(TableTokens, d.CostTokenID)
 }
 
 func FromCryptoNetworkOperation(d *crypto_network_operation.CryptoNetworkOperation, refs postgres.ResolvedRefs) CryptoNetworkOperationResponse {
@@ -44,8 +44,8 @@ func FromCryptoNetworkOperation(d *crypto_network_operation.CryptoNetworkOperati
 		CostTokenID: d.CostTokenID.String(), CostAmount: d.CostAmount.String(), TxHash: d.TxHash, FinalizedAt: d.FinalizedAt,
 	}
 	if refs != nil {
-		network, target := refs.Get(dto.TableBlockchainNetworks, d.NetworkID), refs.Get(dto.TableWallets, d.TargetWalletID)
-		source, token := refs.Get(dto.TableWallets, d.SourceWalletID), refs.Get(dto.TableTokens, d.CostTokenID)
+		network, target := refs.Get(TableBlockchainNetworks, d.NetworkID), refs.Get(TableWallets, d.TargetWalletID)
+		source, token := refs.Get(TableWallets, d.SourceWalletID), refs.Get(TableTokens, d.CostTokenID)
 		resp.Network, resp.TargetWallet, resp.SourceWallet, resp.CostToken = &network, &target, &source, &token
 	}
 	return resp

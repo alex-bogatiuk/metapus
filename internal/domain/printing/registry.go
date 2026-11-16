@@ -22,9 +22,10 @@ const (
 type PrintFormDef struct {
 	// Name is the machine-readable form identifier used in API query param, e.g. "standard".
 	Name string
-	// Label is the human-readable form name shown in the UI, e.g. "Crypto Invoice".
+	// Label is the human-readable form name shown in the UI, e.g. "Счёт".
 	Label string
 	// Template is the .gohtml file name inside the templates/ directory.
+	// TableTemplate renders PrintData.Table and suits most documents.
 	Template string
 	// PaperSize is the CSS @page paper size hint, e.g. "A4".
 	PaperSize string
@@ -34,6 +35,10 @@ type PrintFormDef struct {
 	SortOrder int
 }
 
+// TableTemplate is the platform template that renders the form label and
+// PrintData.Table on an A4 page.
+const TableTemplate = "table.gohtml"
+
 // PrintFormRegistry stores available print forms per document type.
 // Follows the same Abstract Factory pattern as catalogFactories / documentFactories.
 type PrintFormRegistry struct {
@@ -41,24 +46,14 @@ type PrintFormRegistry struct {
 	forms map[string][]PrintFormDef // docType → []PrintFormDef (ordered, first = default)
 }
 
-// NewPrintFormRegistry creates a registry for print forms.
+// NewPrintFormRegistry creates an empty registry. Document registrations
+// declare their forms through v1.PrintFormsProvider.
 func NewPrintFormRegistry() *PrintFormRegistry {
-	r := &PrintFormRegistry{
-		forms: make(map[string][]PrintFormDef),
-	}
-	r.Register("crypto_invoice", PrintFormDef{
-		Name:      "standard",
-		Label:     "Инвойс",
-		Template:  "crypto_invoice.gohtml",
-		PaperSize: "A4",
-		Category:  CategoryStandard,
-		SortOrder: 0,
-	})
-	return r
+	return &PrintFormRegistry{forms: make(map[string][]PrintFormDef)}
 }
 
 // Register adds a print form definition for a document type.
-// Documents types are keyed by their snake_case name, e.g. "crypto_invoice".
+// Document types are keyed by their snake_case definition key.
 func (r *PrintFormRegistry) Register(docType string, def PrintFormDef) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

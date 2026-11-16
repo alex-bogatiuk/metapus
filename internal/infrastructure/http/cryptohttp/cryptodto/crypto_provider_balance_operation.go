@@ -38,8 +38,8 @@ type CryptoProviderBalanceOperationResponse struct {
 }
 
 func CollectCryptoProviderBalanceOperationRefs(resolver *postgres.ReferenceResolver, o *crypto_provider_balance_operation.CryptoProviderBalanceOperation) {
-	resolver.Add(dto.TableTokens, o.TokenID)
-	resolver.AddPtr(dto.TableWallets, o.SourceWalletID)
+	resolver.Add(TableTokens, o.TokenID)
+	resolver.AddPtr(TableWallets, o.SourceWalletID)
 }
 
 func FromCryptoProviderBalanceOperation(o *crypto_provider_balance_operation.CryptoProviderBalanceOperation, refs postgres.ResolvedRefs) CryptoProviderBalanceOperationResponse {
@@ -53,9 +53,9 @@ func FromCryptoProviderBalanceOperation(o *crypto_provider_balance_operation.Cry
 		RejectionReason: o.RejectionReason, DecisionMode: string(o.DecisionMode), DecisionPolicyVersion: o.DecisionPolicyVersion,
 	}
 	if refs != nil {
-		token := refs.Get(dto.TableTokens, o.TokenID)
+		token := refs.Get(TableTokens, o.TokenID)
 		resp.Token = &token
-		resp.SourceWallet = refs.GetPtr(dto.TableWallets, o.SourceWalletID)
+		resp.SourceWallet = refs.GetPtr(TableWallets, o.SourceWalletID)
 	}
 	return resp
 }

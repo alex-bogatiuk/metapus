@@ -11,8 +11,8 @@ import (
 
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/core/apperror"
-	"metapus/internal/core/publicref"
 	"metapus/internal/core/types"
+	"metapus/internal/domain/crypto/publicref"
 )
 
 // PaymentPageResponse is the public-facing response for the payment widget.

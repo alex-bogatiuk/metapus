@@ -87,6 +87,9 @@ func NewCryptoInvoiceHandler(
 	registry := printDeps.Registry
 	if registry == nil {
 		registry = printing.NewPrintFormRegistry()
+		for _, form := range CryptoInvoicePrintForms() {
+			registry.Register(crypto_invoice.Definition.Key, form)
+		}
 	}
 	h := &CryptoInvoiceHandler{
 		BaseDocumentHandler: handlers.NewBaseDocumentHandler(base, cfg),
@@ -107,6 +110,17 @@ func NewCryptoInvoiceHandler(
 	}
 
 	return h
+}
+
+// CryptoInvoicePrintForms lists the invoice print forms; the first is the default.
+func CryptoInvoicePrintForms() []printing.PrintFormDef {
+	return []printing.PrintFormDef{{
+		Name:      "standard",
+		Label:     "Инвойс",
+		Template:  printing.TableTemplate,
+		PaperSize: "A4",
+		Category:  printing.CategoryStandard,
+	}}
 }
 
 // Print handles GET /document/crypto-invoice/:id/print.

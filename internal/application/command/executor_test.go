@@ -50,7 +50,7 @@ func (r *testRepository) Complete(_ context.Context, metadata Metadata, result R
 func TestExecutorReplaysCommittedResult(t *testing.T) {
 	repo := &testRepository{}
 	executor := NewExecutor(testTxManager{}, repo)
-	metadata := Metadata{ScopeType: "merchant", ScopeID: "m1", Operation: "invoice.create", IdempotencyKey: "k1", RequestFingerprint: strings.Repeat("a", 64)}
+	metadata := Metadata{ScopeType: "partner", ScopeID: "p1", Operation: "order.create", IdempotencyKey: "k1", RequestFingerprint: strings.Repeat("a", 64)}
 	calls := 0
 	callback := func(context.Context) (Result, error) {
 		calls++
@@ -70,7 +70,7 @@ func TestExecutorReplaysCommittedResult(t *testing.T) {
 func TestExecutorRejectsFingerprintReuse(t *testing.T) {
 	repo := &testRepository{}
 	executor := NewExecutor(testTxManager{}, repo)
-	metadata := Metadata{ScopeType: "merchant", ScopeID: "m1", Operation: "invoice.create", IdempotencyKey: "k1", RequestFingerprint: strings.Repeat("a", 64)}
+	metadata := Metadata{ScopeType: "partner", ScopeID: "p1", Operation: "order.create", IdempotencyKey: "k1", RequestFingerprint: strings.Repeat("a", 64)}
 	_, err := executor.Execute(context.Background(), metadata, func(context.Context) (Result, error) { return Result{Outcome: "created"}, nil })
 	if err != nil {
 		t.Fatal(err)
@@ -86,7 +86,7 @@ func TestExecutorPersistsMappedFailureAfterSavepointRollback(t *testing.T) {
 	repo := &testRepository{}
 	txm := &testSavepointManager{}
 	executor := NewExecutor(txm, repo)
-	metadata := Metadata{ScopeType: "merchant", ScopeID: "m1", Operation: "invoice.create", IdempotencyKey: "k1", RequestFingerprint: strings.Repeat("a", 64)}
+	metadata := Metadata{ScopeType: "partner", ScopeID: "p1", Operation: "order.create", IdempotencyKey: "k1", RequestFingerprint: strings.Repeat("a", 64)}
 	calls := 0
 	businessErr := errors.New("stable business rejection")
 	mapper := func(err error) (Result, bool) {
@@ -116,7 +116,7 @@ func TestExecutorDoesNotPersistUnmappedFailure(t *testing.T) {
 	repo := &testRepository{}
 	txm := &testSavepointManager{}
 	executor := NewExecutor(txm, repo)
-	metadata := Metadata{ScopeType: "merchant", ScopeID: "m1", Operation: "invoice.create", IdempotencyKey: "k1", RequestFingerprint: strings.Repeat("a", 64)}
+	metadata := Metadata{ScopeType: "partner", ScopeID: "p1", Operation: "order.create", IdempotencyKey: "k1", RequestFingerprint: strings.Repeat("a", 64)}
 	failure := errors.New("transient")
 
 	_, err := executor.ExecuteWithFailureMapper(context.Background(), metadata, func(context.Context) (Result, error) {
@@ -138,5 +138,21 @@ func TestFingerprintIgnoresMapFieldOrder(t *testing.T) {
 	}
 	if a != b {
 		t.Fatalf("fingerprints differ: %s != %s", a, b)
+	}
+}
+
+func TestMetadataScopeTypeIsAnIdentifier(t *testing.T) {
+	valid := Metadata{ScopeID: "s1", Operation: "op", IdempotencyKey: "k1", RequestFingerprint: strings.Repeat("a", 64)}
+	for _, scope := range []string{"user", "api_key", "system", "partner"} {
+		valid.ScopeType = scope
+		if err := valid.Validate(); err != nil {
+			t.Fatalf("scope %q rejected: %v", scope, err)
+		}
+	}
+	for _, scope := range []string{"", "Partner", "api-key", "1user", "user ", strings.Repeat("a", 33)} {
+		valid.ScopeType = scope
+		if err := valid.Validate(); err == nil {
+			t.Fatalf("scope %q accepted", scope)
+		}
 	}
 }
