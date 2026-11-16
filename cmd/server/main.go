@@ -1,19 +1,18 @@
 // Package main is the entry point for the Metapus API server.
 // Multi-tenant architecture: Database-per-Tenant.
+//
+// main.go is the composition root: it builds the dependency graph and runs
+// the HTTP server. Environment parsing lives in config.go and business rules
+// live in the application and content packages.
 package main
 
 import (
 	"context"
-	"crypto/ed25519"
-	"encoding/base64"
+	"errors"
 	"fmt"
-	"metapus/internal/domain/crypto/cryptointegrations"
-	"metapus/internal/infrastructure/crypto/cryptoprofiles"
 	"net/http"
-	"net/netip"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -22,12 +21,12 @@ import (
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/application/integrationapp"
 	"metapus/internal/content"
-	"metapus/internal/core/json"
+	corenumerator "metapus/internal/core/numerator"
 	"metapus/internal/core/security"
 	"metapus/internal/domain/auth"
 	"metapus/internal/domain/catalogs/merchant"
-	"metapus/internal/domain/catalogs/wallet"
 	domaincrypto "metapus/internal/domain/crypto"
+	"metapus/internal/domain/crypto/cryptointegrations"
 	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/printing"
@@ -36,6 +35,7 @@ import (
 	"metapus/internal/infrastructure/authqr"
 	chainbootstrap "metapus/internal/infrastructure/blockchain/bootstrap"
 	"metapus/internal/infrastructure/crypto/approval_signer"
+	"metapus/internal/infrastructure/crypto/cryptoprofiles"
 	"metapus/internal/infrastructure/crypto/cryptoregisters"
 	"metapus/internal/infrastructure/crypto/webhooksecret"
 	"metapus/internal/infrastructure/http/cryptohttp"
@@ -54,7 +54,6 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/security_repo"
 	"metapus/internal/infrastructure/tenantdb"
 	"metapus/internal/infrastructure/vaultclient"
-	"metapus/internal/platform/secretfile"
 	platformtelemetry "metapus/internal/platform/telemetry"
 	"metapus/pkg/logger"
 )
@@ -68,20 +67,32 @@ var (
 )
 
 func main() {
-	// Initialize logger
-	log, err := logger.New(logger.Config{
-		Level:       getEnv("LOG_LEVEL", "info"),
-		Development: getEnv("APP_ENV", "development") == "development",
-	})
+	cfg, err := loadConfig()
 	if err != nil {
-		fmt.Printf("failed to initialize logger: %v\n", err)
+		fmt.Fprintf(os.Stderr, "invalid configuration:\n%v\n", err)
 		os.Exit(1)
 	}
+	log, err := logger.New(logger.Config{Level: cfg.LogLevel, Development: cfg.development()})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+		os.Exit(1)
+	}
+	if err := run(context.Background(), cfg, log); err != nil {
+		log.Errorw("server failed", "error", err)
+		_ = log.Sync()
+		os.Exit(1)
+	}
+}
 
-	ctx := context.Background()
+// run builds the server and serves until SIGINT/SIGTERM or a listener
+// failure. Every resource it opens is closed by a defer, so an error returned
+// from any step still releases what earlier steps acquired. ctx is the
+// lifetime of the built components; it is not cancelled by the signal, so
+// background work keeps running while in-flight requests drain.
+func run(ctx context.Context, cfg config, log *logger.Logger) error {
 	shutdownTracing, err := platformtelemetry.ConfigureTracing(ctx, "metapus-api", Version, os.Getenv)
 	if err != nil {
-		log.Fatalw("failed to initialize OTLP tracing", "error", err)
+		return fmt.Errorf("initialize OTLP tracing: %w", err)
 	}
 	defer func() {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -97,15 +108,14 @@ func main() {
 	)
 
 	// --- Meta-database connection ---
-	metaDSN := mustEnv("META_DATABASE_URL")
-	metaPool, err := postgres.OpenPool(ctx, metaDSN)
+	metaPool, err := postgres.OpenPool(ctx, cfg.MetaDatabaseURL)
 	if err != nil {
-		log.Fatalw("failed to connect to meta database", "error", err)
+		return fmt.Errorf("connect to meta database: %w", err)
 	}
 	defer metaPool.Close()
 
 	if err := metaPool.Ping(ctx); err != nil {
-		log.Fatalw("failed to ping meta database", "error", err)
+		return fmt.Errorf("ping meta database: %w", err)
 	}
 	log.Info("meta database connection established")
 
@@ -113,20 +123,12 @@ func main() {
 	registry := tenantdb.NewPostgresRegistry(metaPool)
 
 	managerCfg := tenantdb.DefaultManagerConfig()
-	managerCfg.DBUser = mustEnv("TENANT_DB_USER")
-	managerCfg.DBPassword = mustEnv("TENANT_DB_PASSWORD")
+	managerCfg.DBUser = cfg.TenantDBUser
+	managerCfg.DBPassword = cfg.TenantDBPassword
 	managerCfg.ConfigurePool = postgres.ConfigurePool
-
-	// Optional configuration overrides
-	if maxPools := getEnvInt("TENANT_MAX_POOLS", 100); maxPools > 0 {
-		managerCfg.MaxTotalPools = maxPools
-	}
-	if maxConns := getEnvInt("TENANT_MAX_CONNS_PER_POOL", 10); maxConns > 0 {
-		managerCfg.MaxConnsPerTenant = int32(maxConns)
-	}
-	if idleTimeout := getEnvDuration("TENANT_POOL_IDLE_TIMEOUT", 30*time.Minute); idleTimeout > 0 {
-		managerCfg.PoolIdleTimeout = idleTimeout
-	}
+	managerCfg.MaxTotalPools = cfg.TenantMaxPools
+	managerCfg.MaxConnsPerTenant = int32(cfg.TenantMaxConnsPerPool)
+	managerCfg.PoolIdleTimeout = cfg.TenantPoolIdleTimeout
 
 	tenantManager := tenantdb.NewManager(managerCfg, registry, log)
 	defer tenantManager.Close()
@@ -137,8 +139,7 @@ func main() {
 		"idle_timeout", managerCfg.PoolIdleTimeout,
 	)
 
-	// Optional: Prewarm pools for known tenants
-	if getEnv("PREWARM_POOLS", "false") == "true" {
+	if cfg.PrewarmPools {
 		log.Info("prewarming tenant pools...")
 		if err := tenantManager.PrewarmPools(ctx); err != nil {
 			log.Warnw("failed to prewarm some pools", "error", err)
@@ -146,9 +147,7 @@ func main() {
 	}
 
 	// --- JWT Service ---
-	jwtSecret := mustEnv("JWT_SECRET")
-	jwtConfig := authjwt.DefaultJWTConfig(jwtSecret)
-	jwtSvc := authjwt.NewJWTService(jwtConfig)
+	jwtSvc := authjwt.NewJWTService(authjwt.DefaultJWTConfig(cfg.JWTSecret))
 
 	// --- Auth Service ---
 	// Note: Auth repos will get TxManager from context per-request
@@ -160,14 +159,13 @@ func main() {
 	mfaRepo := auth_repo.NewMFARepo()
 	eventLogRepo := postgres.NewEventLogRepo()
 	notificationRepo := postgres.NewNotificationRepo()
-	authStateCache := auth.NewAuthStateCache(getEnvDuration("AUTH_STATE_CACHE_TTL", 5*time.Minute), getEnvInt("AUTH_STATE_CACHE_MAX_ENTRIES", 10000))
+	authStateCache := auth.NewAuthStateCache(cfg.AuthStateCacheTTL, cfg.AuthStateCacheMaxEntries)
 	accessValidator := auth.NewAccessTokenValidator(jwtSvc, sessionRepo, authStateCache)
 
 	// MerchantUserRepo feeds merchant portal access scopes into auth.Service JWTs.
 	// Created early so it can be shared with RouterConfig below.
 	merchantUserRepo := crypto_catalog_repo.NewMerchantUserRepo()
 
-	authConfig := loadAuthServiceConfig(log)
 	authSvc := auth.NewService(
 		userRepo,
 		roleRepo,
@@ -180,7 +178,7 @@ func main() {
 		jwtSvc,
 		eventLogRepo,
 		notificationRepo,
-		authConfig,
+		cfg.Auth,
 		auth.WithQRCodeEncoder(authqr.Encoder{}),
 		auth.WithAccessScopeProvider(merchant.NewPortalAccessScopes(merchantUserRepo)),
 	)
@@ -189,88 +187,39 @@ func main() {
 	numeratorSvc := numerator.New()
 
 	// --- Security Profile Provider (cached) ---
-	profileRepo := security_repo.NewProfileRepo()
-	profileCacheTTL := getEnvDuration("SECURITY_PROFILE_CACHE_TTL", 5*time.Minute)
-	profileProvider := security_profile.NewCachedProfileProvider(profileRepo, profileCacheTTL, getEnvInt("SECURITY_PROFILE_CACHE_MAX_ENTRIES", 10000))
+	profileProvider := security_profile.NewCachedProfileProvider(
+		security_repo.NewProfileRepo(),
+		cfg.SecurityProfileCacheTTL,
+		cfg.SecurityProfileCacheMaxEntries,
+	)
 
 	// --- CEL Policy Engine ---
 	policyEngine, err := security.NewPolicyEngine()
 	if err != nil {
-		log.Fatal("failed to create policy engine", "error", err)
+		return fmt.Errorf("create policy engine: %w", err)
 	}
 	defer policyEngine.Stop()
-
-	// --- Entity Registry (composition root) ---
-	// Create factory registry and populate with built-in business content.
 
 	// --- WebSocket Ticket Store ---
 	wsTicketStore := auth.NewWSTicketStore()
 	defer wsTicketStore.Stop()
 
 	// --- Merchant Public API ---
-	// MerchantAPIKeyRepo and a minimal CryptoInvoice service for /merchant/v1/ endpoints.
-	// Uses the same wallet-lease hook as the ERP service (CryptoInvoiceRegistration.Build)
-	// to ensure invoices created via the public API get a pool wallet assigned.
 	checkoutRefs, err := checkout.NewService(checkout.Config{
 		Repo:              crypto_repo.NewCheckoutReferenceRepo(metaPool),
 		Registry:          registry,
-		PublicBaseURL:     mustEnv("PUBLIC_CHECKOUT_BASE_URL"),
-		TenancyMode:       getEnv("TENANCY_MODE", ""),
-		DedicatedTenantID: getEnv("DEDICATED_TENANT_ID", ""),
+		PublicBaseURL:     cfg.PublicCheckoutBaseURL,
+		TenancyMode:       cfg.TenancyMode,
+		DedicatedTenantID: cfg.DedicatedTenantID,
 	})
 	if err != nil {
-		log.Fatalw("failed to create checkout reference service", "error", err)
+		return fmt.Errorf("create checkout reference service: %w", err)
 	}
 
 	merchantAPIKeyRepo := crypto_catalog_repo.NewMerchantAPIKeyRepo(metaPool)
-	// merchantUserRepo is created above (needed by auth.Service for JWT portal claims).
 	merchantInvoiceRepo := crypto_document_repo.NewCryptoInvoiceRepo()
-	merchantInvoiceSvc := crypto_invoice.NewService(
-		merchantInvoiceRepo,
-		nil, // posting engine — invoices are not posted at creation
-		numeratorSvc,
-		nil, // TxManager from context
-	)
-
-	// Register wallet-lease hook — same logic as content/document_registrations.go:191-208.
-	// Without this, invoices created via /merchant/v1/ would have wallet_id = NULL.
-	merchantTokenRepo := crypto_catalog_repo.NewTokenRepo()
-	merchantWalletRepo := crypto_catalog_repo.NewWalletRepo()
-	merchantWalletSvc := wallet.NewService(merchantWalletRepo, numeratorSvc)
-	merchantAllocRepo := crypto_repo.NewWalletAllocationRepo()
 	merchantLifecyclePublisher := crypto_repo.NewLifecycleWebhookOutbox()
-
-	merchantInvoiceSvc.Hooks().OnBeforeCreate(func(ctx context.Context, doc *crypto_invoice.CryptoInvoice) error {
-		tok, err := merchantTokenRepo.GetByID(ctx, doc.TokenID)
-		if err != nil {
-			return fmt.Errorf("resolve token for wallet lease: %w", err)
-		}
-		w, err := merchantWalletSvc.LeaseForInvoice(ctx, doc.MerchantID, doc.ID, tok.NetworkID, tok.ID, doc.ExpiresAt)
-		if err != nil {
-			return fmt.Errorf("lease wallet for invoice: %w", err)
-		}
-		doc.WalletID = &w.ID
-		if err := merchantAllocRepo.Open(ctx, domaincrypto.WalletAllocation{
-			WalletID:   w.ID,
-			InvoiceID:  doc.ID,
-			MerchantID: doc.MerchantID,
-			TokenID:    doc.TokenID,
-			NetworkID:  tok.NetworkID,
-		}); err != nil {
-			return fmt.Errorf("record wallet allocation: %w", err)
-		}
-		return nil
-	})
-	merchantInvoiceSvc.OnCreatedInTransaction(func(ctx context.Context, doc *crypto_invoice.CryptoInvoice) error {
-		invoiceID := doc.ID
-		return merchantLifecyclePublisher.PublishLifecycleWebhook(ctx, domaincrypto.LifecycleWebhookEvent{
-			Event: domaincrypto.WebhookInvoiceCreated, AggregateID: doc.ID,
-			MerchantID: doc.MerchantID, InvoiceID: &invoiceID,
-			ResourceVersion: doc.Version, OccurredAt: time.Now().UTC(),
-			Data: domaincrypto.InvoiceWebhookData(doc, nil),
-		})
-	})
-
+	merchantInvoiceSvc := newMerchantInvoiceService(merchantInvoiceRepo, numeratorSvc, merchantLifecyclePublisher)
 	checkoutInvoiceSvc := cryptoapp.NewCheckoutInvoiceService(merchantInvoiceSvc, checkoutRefs)
 	merchantInvoiceLifecycle := domaincrypto.NewInvoiceLifecycleService(
 		checkoutInvoiceSvc,
@@ -292,10 +241,24 @@ func main() {
 		IsUniqueViolation:   postgres.IsUniqueViolation,
 	})
 	if err != nil {
-		log.Fatalw("failed to create merchant invoice application service", "error", err)
+		return fmt.Errorf("create merchant invoice application service: %w", err)
 	}
 	portalDashboardRepo := portal_repo.NewDashboardRepo()
-	approvalSignerProvider := loadMoneyMovementApprovalSignerProvider(ctx, log)
+
+	// --- Vault-backed crypto services ---
+	approvalVaultClient, err := vaultclient.New(vaultclient.Config{Addr: cfg.VaultAddr, Token: cfg.VaultToken})
+	if err != nil {
+		return fmt.Errorf("create approval Vault client: %w", err)
+	}
+	approvalSignerProvider, err := approval_signer.NewTransitProvider(ctx, approval_signer.TransitProviderConfig{
+		Client:          approvalVaultClient,
+		Mount:           cfg.CryptoTransitMount,
+		PolicyPublicKey: cfg.ApprovalPolicyKey,
+		PolicyJWS:       cfg.ApprovalPolicyJWS,
+	})
+	if err != nil {
+		return fmt.Errorf("create money movement approval signer provider: %w", err)
+	}
 
 	// Entity factories: built-in content (with its crypto services), then client extensions.
 	factoryReg := v1.NewFactoryRegistry()
@@ -306,34 +269,29 @@ func main() {
 		Refs: checkoutRefs,
 	})
 	if err != nil {
-		log.Fatalw("failed to create payment link service", "error", err)
+		return fmt.Errorf("create payment link service: %w", err)
 	}
 	chainCapabilities, err := chainbootstrap.NewFamilyCapabilityRegistry()
 	if err != nil {
-		log.Fatalw("failed to compose blockchain family capabilities", "error", err)
+		return fmt.Errorf("compose blockchain family capabilities: %w", err)
 	}
-	webhookVaultClient, err := vaultclient.New(vaultclient.Config{
-		Addr: mustEnv("VAULT_ADDR"), Token: strings.TrimSpace(getEnv("VAULT_TOKEN", "")),
-	})
+	webhookVaultClient, err := vaultclient.New(vaultclient.Config{Addr: cfg.VaultAddr, Token: cfg.VaultToken})
 	if err != nil {
-		log.Fatalw("failed to create webhook Vault client", "error", err)
+		return fmt.Errorf("create webhook Vault client: %w", err)
 	}
-	webhookSecretStore, err := webhooksecret.NewVaultStore(webhookVaultClient, getEnv("WEBHOOK_SECRET_KV_MOUNT", "secret"))
+	webhookSecretStore, err := webhooksecret.NewVaultStore(webhookVaultClient, cfg.WebhookSecretKVMount)
 	if err != nil {
-		log.Fatalw("failed to create webhook secret store", "error", err)
+		return fmt.Errorf("create webhook secret store: %w", err)
 	}
 
 	// --- Router ---
-	var pdfClient *pdfrender.Client
-	if endpoint := os.Getenv("PDF_RENDERER_URL"); endpoint != "" {
-		pdfClient, err = pdfrender.NewClient(endpoint)
-		if err != nil {
-			log.Fatalw("invalid PDF renderer configuration", "error", err)
-		}
-	}
 	var pdfRenderPort printing.PDFRenderer
 	var pdfReady func(context.Context) error
-	if pdfClient != nil {
+	if cfg.PDFRendererURL != "" {
+		pdfClient, err := pdfrender.NewClient(cfg.PDFRendererURL)
+		if err != nil {
+			return fmt.Errorf("invalid PDF renderer configuration: %w", err)
+		}
 		pdfRenderPort = pdfClient
 		pdfReady = pdfClient.Ready
 	}
@@ -347,9 +305,9 @@ func main() {
 		JWTValidator:               accessValidator,
 		AuthSvc:                    authSvc,
 		MFARepo:                    mfaRepo,
-		AdminMFAMode:               authConfig.AdminMFAMode,
-		AdminSecurityMode:          authConfig.AdminSecurityMode,
-		AdminAllowedCIDRs:          authConfig.AdminAllowedCIDRs,
+		AdminMFAMode:               cfg.Auth.AdminMFAMode,
+		AdminSecurityMode:          cfg.Auth.AdminSecurityMode,
+		AdminAllowedCIDRs:          cfg.Auth.AdminAllowedCIDRs,
 		Numerator:                  numeratorSvc,
 		ProfileProvider:            profileProvider,
 		PolicyEngine:               policyEngine,
@@ -375,208 +333,74 @@ func main() {
 	})
 
 	// --- HTTP Server ---
-	port := getEnv("APP_PORT", "8080")
 	server := &http.Server{
-		Addr:           ":" + port,
+		Addr:           ":" + cfg.Port,
 		Handler:        http.MaxBytesHandler(router, 10<<20), // 10 MiB global body limit
 		ReadTimeout:    15 * time.Second,
 		WriteTimeout:   30 * time.Second,
 		IdleTimeout:    60 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1 MiB max header size
 	}
+	return serve(ctx, server, log)
+}
 
-	// Start server in goroutine
+// newMerchantInvoiceService builds the CryptoInvoice service behind the public
+// /merchant/v1/ API. It leases the receiving wallet through the same step as
+// the ERP CryptoInvoice registration (content.NewInvoiceWalletLease), so an
+// invoice created here is never stored with wallet_id = NULL, and it queues
+// the invoice.created lifecycle webhook in the creation transaction.
+func newMerchantInvoiceService(
+	repo crypto_invoice.Repository,
+	num corenumerator.Generator,
+	lifecycle *crypto_repo.LifecycleWebhookOutbox,
+) *crypto_invoice.Service {
+	svc := crypto_invoice.NewService(
+		repo,
+		nil, // posting engine — invoices are not posted at creation
+		num,
+		nil, // TxManager from context
+	)
+	svc.Hooks().OnBeforeCreate(content.NewInvoiceWalletLease().Apply)
+	svc.OnCreatedInTransaction(func(ctx context.Context, doc *crypto_invoice.CryptoInvoice) error {
+		invoiceID := doc.ID
+		return lifecycle.PublishLifecycleWebhook(ctx, domaincrypto.LifecycleWebhookEvent{
+			Event: domaincrypto.WebhookInvoiceCreated, AggregateID: doc.ID,
+			MerchantID: doc.MerchantID, InvoiceID: &invoiceID,
+			ResourceVersion: doc.Version, OccurredAt: time.Now().UTC(),
+			Data: domaincrypto.InvoiceWebhookData(doc, nil),
+		})
+	})
+	return svc
+}
+
+// serve runs server until SIGINT/SIGTERM, then gives outstanding requests
+// 30 seconds to finish. A listener failure is returned instead of exiting, so
+// run's deferred cleanup still executes.
+func serve(ctx context.Context, server *http.Server, log *logger.Logger) error {
+	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	serveErr := make(chan error, 1)
 	go func() {
-		log.Infow("server starting", "port", port, "mode", "multi-tenant")
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalw("server failed", "error", err)
-		}
+		log.Infow("server starting", "addr", server.Addr, "mode", "multi-tenant")
+		serveErr <- server.ListenAndServe()
 	}()
 
-	// --- Graceful shutdown ---
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	select {
+	case err := <-serveErr:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return fmt.Errorf("listen: %w", err)
+	case <-ctx.Done():
+	}
 
 	log.Info("shutting down server...")
-
-	// Give outstanding requests 30 seconds to complete
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Fatalw("server forced to shutdown", "error", err)
+		return fmt.Errorf("graceful shutdown: %w", err)
 	}
-
 	log.Info("server stopped")
-}
-
-func getEnv(key, defaultValue string) string {
-	value, err := secretfile.Get(key, defaultValue)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "invalid configuration for %s: %v\n", key, err)
-		os.Exit(1)
-	}
-	return value
-}
-
-func mustEnv(key string) string {
-	value := getEnv(key, "")
-	if value == "" {
-		fmt.Printf("required environment variable %s not set\n", key)
-		os.Exit(1)
-	}
-	return value
-}
-
-func loadMoneyMovementApprovalSignerProvider(ctx context.Context, log *logger.Logger) domaincrypto.MoneyMovementApprovalSignerProvider {
-	policyPublicKey := mustParseApprovalPublicKey(log, "CRYPTO_APPROVAL_POLICY_PUBLIC_KEY")
-	vaultToken := strings.TrimSpace(getEnv("VAULT_TOKEN", ""))
-	if getEnv("APP_ENV", "development") == "production" && vaultToken != "" {
-		log.Fatalw("VAULT_TOKEN is forbidden in production; use tokenless Vault Proxy mode")
-	}
-	client, err := vaultclient.New(vaultclient.Config{
-		Addr:  mustEnv("VAULT_ADDR"),
-		Token: vaultToken,
-	})
-	if err != nil {
-		log.Fatalw("failed to create approval Vault client", "error", err)
-	}
-	provider, err := approval_signer.NewTransitProvider(ctx, approval_signer.TransitProviderConfig{
-		Client:          client,
-		Mount:           getEnv("CRYPTO_TRANSIT_MOUNT", "transit"),
-		PolicyPublicKey: policyPublicKey,
-		PolicyJWS:       loadApprovalPolicyJWSByTenant(log),
-	})
-	if err != nil {
-		log.Fatalw("failed to create money movement approval signer provider", "error", err)
-	}
-	return provider
-}
-
-func loadApprovalPolicyJWSByTenant(log *logger.Logger) map[string]string {
-	rawSingle := strings.TrimSpace(getEnv("CRYPTO_APPROVAL_POLICY_BUNDLE_JWS", ""))
-	rawMap := strings.TrimSpace(getEnv("CRYPTO_APPROVAL_POLICY_BUNDLES_JWS", ""))
-	if rawSingle != "" && rawMap != "" {
-		log.Fatalw("configure only one of CRYPTO_APPROVAL_POLICY_BUNDLE_JWS or CRYPTO_APPROVAL_POLICY_BUNDLES_JWS")
-	}
-	if rawMap != "" {
-		var policies map[string]string
-		if err := json.Unmarshal([]byte(rawMap), &policies); err != nil {
-			log.Fatalw("CRYPTO_APPROVAL_POLICY_BUNDLES_JWS must be a JSON object of tenant labels to policy JWS values", "error", err)
-		}
-		if len(policies) == 0 {
-			log.Fatalw("CRYPTO_APPROVAL_POLICY_BUNDLES_JWS must contain at least one signed policy")
-		}
-		return policies
-	}
-	if rawSingle == "" {
-		log.Fatalw("CRYPTO_APPROVAL_POLICY_BUNDLE_JWS is required")
-	}
-	return map[string]string{"default": rawSingle}
-}
-
-func mustParseApprovalPublicKey(log *logger.Logger, envName string) ed25519.PublicKey {
-	raw := strings.TrimSpace(getEnv(envName, ""))
-	if raw == "" {
-		log.Fatalw(envName + " is required")
-	}
-	key, err := domaincrypto.ParseEd25519PublicKey(raw)
-	if err != nil {
-		log.Fatalw("invalid "+envName, "error", err)
-	}
-	return key
-}
-
-func loadAuthServiceConfig(log *logger.Logger) auth.ServiceConfig {
-	cfg := auth.DefaultServiceConfig()
-	cfg.AdminMFAMode = parseMFAMode(getEnv("ADMIN_MFA_MODE", string(cfg.AdminMFAMode)), log)
-	cfg.AdminMFAGracePeriod = time.Duration(getEnvInt("ADMIN_MFA_GRACE_PERIOD_HOURS", 168)) * time.Hour
-	cfg.AdminStepUpTTL = time.Duration(getEnvInt("ADMIN_STEP_UP_TTL_SECONDS", 300)) * time.Second
-	cfg.AdminSecurityMode = parseAdminSecurityMode(getEnv("ADMIN_SECURITY_MODE", string(cfg.AdminSecurityMode)), log)
-	cfg.AdminAllowedCIDRs = parseCIDRs(getEnv("ADMIN_ALLOWED_CIDRS", ""), "ADMIN_ALLOWED_CIDRS", log)
-	cfg.MFAIssuer = getEnv("AUTH_MFA_ISSUER", cfg.MFAIssuer)
-
-	if raw := strings.TrimSpace(getEnv("AUTH_MFA_ENCRYPTION_KEY", "")); raw != "" {
-		key, err := base64.StdEncoding.DecodeString(raw)
-		if err != nil || len(key) != 32 {
-			log.Fatalw("AUTH_MFA_ENCRYPTION_KEY must be base64-encoded 32 bytes", "error", err)
-		}
-		cfg.MFAEncryptionKey = key
-	} else {
-		log.Fatalw("AUTH_MFA_ENCRYPTION_KEY is required for MFA enrollment and step-up")
-	}
-
-	return cfg
-}
-
-func parseMFAMode(value string, log *logger.Logger) auth.MFAMode {
-	switch auth.MFAMode(strings.ToLower(strings.TrimSpace(value))) {
-	case auth.MFAModeOff:
-		return auth.MFAModeOff
-	case auth.MFAModeOptional:
-		return auth.MFAModeOptional
-	case auth.MFAModeRequired:
-		return auth.MFAModeRequired
-	default:
-		log.Fatalw("invalid ADMIN_MFA_MODE", "value", value)
-		return auth.MFAModeOff
-	}
-}
-
-func parseAdminSecurityMode(value string, log *logger.Logger) auth.AdminSecurityMode {
-	switch auth.AdminSecurityMode(strings.ToLower(strings.TrimSpace(value))) {
-	case auth.AdminSecurityOff:
-		return auth.AdminSecurityOff
-	case auth.AdminSecurityWarn:
-		return auth.AdminSecurityWarn
-	case auth.AdminSecurityEnforce:
-		return auth.AdminSecurityEnforce
-	default:
-		log.Fatalw("invalid ADMIN_SECURITY_MODE", "value", value)
-		return auth.AdminSecurityOff
-	}
-}
-
-func parseCIDRs(value, envName string, log *logger.Logger) []netip.Prefix {
-	if strings.TrimSpace(value) == "" {
-		return nil
-	}
-	parts := strings.Split(value, ",")
-	prefixes := make([]netip.Prefix, 0, len(parts))
-	for _, part := range parts {
-		raw := strings.TrimSpace(part)
-		if raw == "" {
-			continue
-		}
-		prefix, err := netip.ParsePrefix(raw)
-		if err != nil {
-			addr, addrErr := netip.ParseAddr(raw)
-			if addrErr != nil {
-				log.Fatalw("invalid CIDR", "env", envName, "value", raw, "error", err)
-			}
-			prefix = netip.PrefixFrom(addr.Unmap(), addr.BitLen())
-		}
-		prefixes = append(prefixes, prefix.Masked())
-	}
-	return prefixes
-}
-
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		var result int
-		if _, err := fmt.Sscanf(value, "%d", &result); err == nil {
-			return result
-		}
-	}
-	return defaultValue
-}
-
-func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
-	if value := os.Getenv(key); value != "" {
-		if d, err := time.ParseDuration(value); err == nil {
-			return d
-		}
-	}
-	return defaultValue
+	return nil
 }

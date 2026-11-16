@@ -62,6 +62,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	resources, err := loadResourceSettings()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "invalid configuration:\n%v\n", err)
+		os.Exit(1)
+	}
 	log, err := logger.New(logger.Config{
 		Level:       getEnv("LOG_LEVEL", "info"),
 		Development: getEnv("APP_ENV", "development") == "development",
@@ -135,6 +140,7 @@ func main() {
 
 	// Start multi-tenant worker
 	worker := NewMultiTenantWorker(manager, log, webhookSecrets, crypto_worker.NewInvoiceCheckoutHandler(crypto_repo.NewCheckoutReferenceRepo(metaPool)))
+	worker.resources = resources
 
 	var wg sync.WaitGroup
 	wg.Go(func() {
@@ -192,6 +198,7 @@ type MultiTenantWorker struct {
 	log                *logger.Logger
 	webhookSecrets     crypto.WebhookSecretStore
 	checkoutReferences *crypto_worker.InvoiceCheckoutHandler
+	resources          resourceSettings
 	ready              metric.Int64Gauge
 	restarts           metric.Int64Counter
 }
@@ -205,6 +212,7 @@ func NewMultiTenantWorker(manager *tenantdb.Manager, log *logger.Logger, webhook
 		log:                log.WithComponent("worker"),
 		webhookSecrets:     webhookSecrets,
 		checkoutReferences: checkoutReferences,
+		resources:          defaultResourceSettings(),
 	}
 }
 
@@ -381,9 +389,9 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 					TenantID:                       t.ID,
 					JobRecorder:                    recorder,
 					AccountProviderFactory:         buildAccountProviderFactory(getEnv("APP_ENV", "development")),
-					ResourceLeaseTargetEnergy:      getEnvInt64("CRYPTO_RESOURCE_LEASE_TARGET_ENERGY", 65000),
-					ResourceSafetyMarginPct:        getEnvInt64("CRYPTO_RESOURCE_SAFETY_MARGIN_PCT", 10),
-					ResourceReservationCutoff:      time.Duration(getEnvInt64("CRYPTO_RESOURCE_RESERVATION_CUTOFF_SECONDS", 120)) * time.Second,
+					ResourceLeaseTargetEnergy:      w.resources.LeaseTargetEnergy,
+					ResourceSafetyMarginPct:        w.resources.SafetyMarginPct,
+					ResourceReservationCutoff:      w.resources.ReservationCutoff,
 				}, w.log)
 				return cp.Start(runCtx)
 			})
@@ -681,18 +689,6 @@ func getEnv(key, defaultValue string) string {
 		os.Exit(1)
 	}
 	return value
-}
-
-func getEnvInt64(key string, defaultValue int64) int64 {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-	parsed, err := strconv.ParseInt(value, 10, 64)
-	if err != nil {
-		return defaultValue
-	}
-	return parsed
 }
 
 func mustEnv(key string) string {

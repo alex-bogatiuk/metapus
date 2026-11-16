@@ -2,18 +2,14 @@ package content
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gin-gonic/gin"
 
 	"metapus/internal/application/command"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/application/portalapp"
-	"metapus/internal/core/numerator"
 	"metapus/internal/domain"
 	"metapus/internal/domain/audit"
-	"metapus/internal/domain/catalogs/wallet"
-	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/domain/documents/crypto_network_operation"
 	"metapus/internal/domain/documents/crypto_payment"
@@ -29,7 +25,6 @@ import (
 	"metapus/internal/infrastructure/http/cryptohttp/cryptohandlers"
 	v1 "metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/crypto_catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
@@ -260,38 +255,10 @@ func (r *CryptoInvoiceRegistration) Build(deps v1.DocumentDeps) v1.DocumentRoute
 	service := crypto_invoice.NewService(repo, deps.PostingEngine, deps.Numerator, nil)
 	service.SetPolicyEngine(deps.PolicyEngine)
 
-	// Pre-allocate repos outside hook closure (single allocation, safe for concurrent use).
-	tokenRepo := crypto_catalog_repo.NewTokenRepo()
-	walletRepo := crypto_catalog_repo.NewWalletRepo()
-	walletSvc := wallet.NewService(walletRepo, numerator.Noop())
-	allocRepo := crypto_repo.NewWalletAllocationRepo()
-
+	walletLease := NewInvoiceWalletLease()
 	service.Hooks().OnBeforeCreate(func(ctx context.Context, doc *crypto_invoice.CryptoInvoice) error {
 		audit.EnrichCreatedByDirect(ctx, &doc.CreatedBy, &doc.UpdatedBy)
-
-		// Auto-lease a pool wallet for receiving payment.
-		// Resolve token → network, then lease a free pool wallet.
-		tok, err := tokenRepo.GetByID(ctx, doc.TokenID)
-		if err != nil {
-			return fmt.Errorf("resolve token for wallet lease: %w", err)
-		}
-
-		w, err := walletSvc.LeaseForInvoice(ctx, doc.MerchantID, doc.ID, tok.NetworkID, tok.ID, doc.ExpiresAt)
-		if err != nil {
-			return fmt.Errorf("lease wallet for invoice: %w", err)
-		}
-
-		doc.WalletID = &w.ID
-		if err := allocRepo.Open(ctx, crypto.WalletAllocation{
-			WalletID:   w.ID,
-			InvoiceID:  doc.ID,
-			MerchantID: doc.MerchantID,
-			TokenID:    doc.TokenID,
-			NetworkID:  tok.NetworkID,
-		}); err != nil {
-			return fmt.Errorf("record wallet allocation: %w", err)
-		}
-		return nil
+		return walletLease.Apply(ctx, doc)
 	})
 	service.Hooks().OnBeforeUpdate(func(ctx context.Context, doc *crypto_invoice.CryptoInvoice) error {
 		audit.EnrichUpdatedByDirect(ctx, &doc.UpdatedBy)
