@@ -53,3 +53,20 @@ func TestImportUsesProviderProfilesAndRejectsCredentialExfiltration(t *testing.T
 		require.NotContains(t, err.Error(), raw)
 	}
 }
+
+func TestTronGridPaginationIsPinnedToTheIssuingAccount(t *testing.T) {
+	profile, ok := Registry().Lookup(cryptointegrations.TronAPI)
+	require.True(t, ok)
+	require.Equal(t, &profiles.CursorPin{PathContains: "/v1/", Param: "fingerprint"}, profile.CursorPin)
+	require.Equal(t, profile.CursorPin, TronGridCursor(), "anonymous TronGrid endpoints use the same pin")
+}
+
+// TRON's {"Error": ...} envelope is a configuration rule: crypto profiles
+// classify it, the platform default does not know it.
+func TestTRONErrorEnvelopeIsClassifiedByCryptoProfiles(t *testing.T) {
+	body := []byte(`{"Error":"monthly request limit exceeded"}`)
+	require.Equal(t, integrations.Exhausted, classifyFor(cryptointegrations.TronAPI, 200, body))
+	require.Equal(t, integrations.Exhausted, classifyFor(cryptointegrations.Alchemy, 200, body))
+	require.Empty(t, profiles.Classify(200, body))
+	require.Empty(t, classifyFor(cryptointegrations.TronAPI, 200, []byte(`{"blockID":"x"}`)))
+}

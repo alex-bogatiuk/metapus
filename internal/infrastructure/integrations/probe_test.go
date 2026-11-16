@@ -15,7 +15,7 @@ import (
 // the binding URL, or to a TRON role path, and accepts any 200 body.
 func fixtureProbe(target model.ConnectionTarget) (profiles.Probe, error) {
 	probe := profiles.Probe{Method: http.MethodPost, URL: target.URL, Body: `{}`, Valid: func([]byte) bool { return true }}
-	switch target.Role {
+	switch target.Attributes["role"] {
 	case "fullnode":
 		probe.URL = strings.TrimRight(target.URL, "/") + "/wallet/getnowblock"
 	case "solidity":
@@ -27,7 +27,7 @@ func fixtureProbe(target model.ConnectionTarget) (profiles.Probe, error) {
 func TestConnectionProberUsesActualBindingAndRejectsRedirects(t *testing.T) {
 	for _, status := range []int{200, 302} {
 		t.Run(http.StatusText(status), func(t *testing.T) {
-			target := model.ConnectionTarget{PoolID: id.New(), EndpointID: id.New(), Provider: "fixture_suffix", URL: "https://fixture.test/v2/", Family: "evm", Role: "rpc", NetworkIdentifier: "1"}
+			target := model.ConnectionTarget{PoolID: id.New(), EndpointID: id.New(), Provider: "fixture_suffix", URL: "https://fixture.test/v2/"}
 			calls := 0
 			prober := ConnectionProber{Profiles: fixtureProfiles, EndpointProbe: fixtureProbe, EndpointTransport: func(uid id.ID, base string) func(http.RoundTripper) http.RoundTripper {
 				require.Equal(t, target.EndpointID, uid)

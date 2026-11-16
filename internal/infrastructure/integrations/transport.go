@@ -54,6 +54,9 @@ type Transport struct {
 	// Operation names a pooled request in the wire metric; nil or an empty
 	// result counts it as "api". Callers that know their protocol set it.
 	Operation func(*http.Request) string
+	// CursorPin pins pagination for bindings without a provider profile
+	// (anonymous endpoints of Target); a provider's profile declares its own.
+	CursorPin *profiles.CursorPin
 	mu        sync.Mutex
 	selected  model.Selection
 	checkedAt time.Time
@@ -195,10 +198,11 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 			}
 		}
 		r.Host = ""
-		pagination := strings.Contains(r.URL.Path, "/v1/") && (profile.PinsPagination || b.Provider == "" && t.Target != nil)
+		pin := t.cursorPin(profile, b)
+		pagination := pin != nil && strings.Contains(r.URL.Path, pin.PathContains)
 		if pagination {
 			q := r.URL.Query()
-			fingerprint := q.Get("fingerprint")
+			fingerprint := q.Get(pin.Param)
 			if fingerprint != "" && !strings.HasPrefix(fingerprint, "mp1.") {
 				cancelCredential()
 				return nil, ErrAccountChanged
@@ -209,12 +213,12 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 					cancelCredential()
 					return nil, ErrAccountChanged
 				}
-				var pin pagePin
-				if json.Unmarshal(raw, &pin) != nil || pin.Account != s.AccountID.String() || pin.Version != s.CredentialsVersion || pin.Slot != b.Slot || pin.Binding != b.URL {
+				var page pagePin
+				if json.Unmarshal(raw, &page) != nil || page.Account != s.AccountID.String() || page.Version != s.CredentialsVersion || page.Slot != b.Slot || page.Binding != b.URL {
 					cancelCredential()
 					return nil, ErrAccountChanged
 				}
-				q.Set("fingerprint", pin.Cursor)
+				q.Set(pin.Param, page.Cursor)
 				r.URL.RawQuery = q.Encode()
 			}
 		}
@@ -278,7 +282,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 			t.forget()
 			// A cursor cannot be replayed against another account. The caller must
 			// retry its complete durable ingestion window instead.
-			if req.URL.Query().Get("fingerprint") != "" {
+			if pin := t.cursorPin(profile, b); pin != nil && req.URL.Query().Get(pin.Param) != "" {
 				return nil, ErrAccountChanged
 			}
 			continue
@@ -301,8 +305,8 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 		resp.Header.Del(responsePinHeader)
 		if pagination {
-			pin, _ := json.Marshal(pagePin{Account: s.AccountID.String(), Version: s.CredentialsVersion, Slot: b.Slot, Binding: b.URL})
-			resp.Header.Set(responsePinHeader, base64.RawURLEncoding.EncodeToString(pin))
+			marker, _ := json.Marshal(pagePin{Account: s.AccountID.String(), Version: s.CredentialsVersion, Slot: b.Slot, Binding: b.URL})
+			resp.Header.Set(responsePinHeader, base64.RawURLEncoding.EncodeToString(marker))
 		}
 
 		resp.Body = &prefixBody{Reader: io.MultiReader(bytes.NewReader(prefix), resp.Body), Closer: resp.Body}
@@ -358,6 +362,19 @@ func hasProviderError(body []byte) bool {
 	}
 	return len(v.Error) > 0 && string(v.Error) != "null" || v.Result.Result != nil && !*v.Result.Result
 }
+
+// cursorPin returns the pagination pin of the provider's profile, or the
+// transport's own for an anonymous binding.
+func (t *Transport) cursorPin(profile profiles.Profile, b Binding) *profiles.CursorPin {
+	if profile.CursorPin != nil {
+		return profile.CursorPin
+	}
+	if b.Provider == "" && t.Target != nil {
+		return t.CursorPin
+	}
+	return nil
+}
+
 func (t *Transport) CloseIdleConnections() {
 	t.pacerMu.Lock()
 	for key, pacer := range t.pacers {

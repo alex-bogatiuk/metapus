@@ -15,7 +15,7 @@ func getBlock() profiles.Profile {
 			if status == http.StatusPaymentRequired || strings.Contains(strings.ToLower(string(body)), "out of cu") {
 				return model.Exhausted
 			}
-			return profiles.Classify(status, body)
+			return classify(status, body)
 		},
 	}
 }

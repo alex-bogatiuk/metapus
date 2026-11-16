@@ -13,6 +13,18 @@ import (
 	"metapus/internal/infrastructure/integrations/profiles"
 )
 
+// Connection target attributes of an RPC endpoint, read by RPCProbe.
+const (
+	RPCTargetFamily  = "family"
+	RPCTargetNetwork = "network"
+	RPCTargetRole    = "role"
+)
+
+// RPCTargetAttributes describes an RPC endpoint for its connection check.
+func RPCTargetAttributes(family, network, role string) map[string]string {
+	return map[string]string{RPCTargetFamily: family, RPCTargetNetwork: network, RPCTargetRole: role}
+}
+
 // RPCProbe builds the connection check of an RPC endpoint. Probe semantics follow the chain protocol and configured network, independent
 // of the service hosting the endpoint.
 func RPCProbe(target model.ConnectionTarget) (profiles.Probe, error) {
@@ -23,10 +35,11 @@ func RPCProbe(target model.ConnectionTarget) (profiles.Probe, error) {
 	if id.IsNil(target.EndpointID) {
 		return probe, apperror.NewValidation("Для проверки настройте RPC-подключение этого пула")
 	}
-	switch target.Family {
+	family, network, role := target.Attributes[RPCTargetFamily], target.Attributes[RPCTargetNetwork], target.Attributes[RPCTargetRole]
+	switch family {
 	case "evm":
-		chain, ok := new(big.Int).SetString(target.NetworkIdentifier, 10)
-		if !ok || chain.Sign() <= 0 || target.Role != "rpc" {
+		chain, ok := new(big.Int).SetString(network, 10)
+		if !ok || chain.Sign() <= 0 || role != "rpc" {
 			return probe, apperror.NewValidation("Некорректная сеть для проверки RPC")
 		}
 		probe.Body = `{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}`
@@ -43,9 +56,9 @@ func RPCProbe(target model.ConnectionTarget) (profiles.Probe, error) {
 		}
 	case "tron":
 		path := "/wallet/getnowblock"
-		if target.Role == "solidity" {
+		if role == "solidity" {
 			path = "/walletsolidity/getnowblock"
-		} else if target.Role != "fullnode" && target.Role != "indexer" {
+		} else if role != "fullnode" && role != "indexer" {
 			return probe, apperror.NewValidation("Некорректная роль для проверки RPC")
 		}
 		probe.URL, probe.Body = strings.TrimRight(target.URL, "/")+path, `{}`

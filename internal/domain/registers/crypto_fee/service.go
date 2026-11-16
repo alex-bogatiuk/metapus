@@ -154,8 +154,8 @@ func (s *Service) GetDocumentMovements(ctx context.Context, recorderID id.ID) ([
 	}
 
 	columns := []entity.MovementColumnDef{
-		{Key: "merchant", PolicyField: "merchant_id", Label: "Мерчант", Type: "ref"},
-		{Key: "token", PolicyField: "token_id", Label: "Токен", Type: "ref"},
+		{Key: "merchant", PolicyField: "merchant_id", Label: "Мерчант", Type: "ref", RefEntity: "Merchant"},
+		{Key: "token", PolicyField: "token_id", Label: "Токен", Type: "ref", RefEntity: "Token"},
 		{Key: "feeType", PolicyField: "fee_type", Label: "Тип комиссии", Type: "text"},
 		{Key: "amount", PolicyField: "amount", Label: "Сумма", Type: "text"},
 	}

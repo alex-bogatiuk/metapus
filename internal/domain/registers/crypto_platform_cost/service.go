@@ -67,9 +67,9 @@ func (s *Service) GetDocumentMovements(ctx context.Context, recorderID id.ID) ([
 	}
 
 	columns := []entity.MovementColumnDef{
-		{Key: "network", PolicyField: "network_id", Label: "Сеть", Type: "ref"},
-		{Key: "operationToken", PolicyField: "operation_token_id", Label: "Токен операции", Type: "ref"},
-		{Key: "costToken", PolicyField: "cost_token_id", Label: "Токен расхода", Type: "ref"},
+		{Key: "network", PolicyField: "network_id", Label: "Сеть", Type: "ref", RefEntity: "BlockchainNetwork"},
+		{Key: "operationToken", PolicyField: "operation_token_id", Label: "Токен операции", Type: "ref", RefEntity: "Token"},
+		{Key: "costToken", PolicyField: "cost_token_id", Label: "Токен расхода", Type: "ref", RefEntity: "Token"},
 		{Key: "costType", PolicyField: "cost_type", Label: "Тип расхода", Type: "text"},
 		{Key: "purpose", PolicyField: "purpose", Label: "Назначение", Type: "text"},
 		{Key: "provider", PolicyField: "provider", Label: "Провайдер", Type: "text"},

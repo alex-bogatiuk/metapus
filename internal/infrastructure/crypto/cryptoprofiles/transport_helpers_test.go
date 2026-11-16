@@ -75,7 +75,7 @@ func retryHintFor(provider model.Provider, header string, body []byte, now time.
 // or to a TRON role path, and accepts any 200 body.
 func fixtureProbe(target model.ConnectionTarget) (profiles.Probe, error) {
 	probe := profiles.Probe{Method: http.MethodPost, URL: target.URL, Body: `{}`, Valid: func([]byte) bool { return true }}
-	switch target.Role {
+	switch target.Attributes["role"] {
 	case "fullnode":
 		probe.URL = strings.TrimRight(target.URL, "/") + "/wallet/getnowblock"
 	case "solidity":

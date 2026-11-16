@@ -16,7 +16,7 @@ import (
 func chainstack() profiles.Profile {
 	return profiles.Profile{Provider: cryptointegrations.Chainstack, Authorize: pathPrefix(cryptointegrations.Chainstack),
 		Classify: func(status int, body []byte) model.Failure {
-			failure := profiles.Classify(status, body)
+			failure := classify(status, body)
 			if status == http.StatusForbidden && failure == model.Unauthorized {
 				return ""
 			}

@@ -8,25 +8,16 @@ import (
 	"metapus/internal/domain"
 )
 
-// refKeyToEntityName maps movement data keys to metadata entity names
-// for batch-resolving UUIDs → human-readable names.
-var refKeyToEntityName = map[string]struct {
-	EntityName string
-	URLPrefix  string // URL prefix for building frontend links
-}{
-	"currency":     {EntityName: "Currency", URLPrefix: "/catalogs/currencies"},
-	"counterparty": {EntityName: "Counterparty", URLPrefix: "/catalogs/counterparties"},
-	"contract":     {EntityName: "Contract", URLPrefix: "/catalogs/contracts"},
-	"organization": {EntityName: "Organization", URLPrefix: "/catalogs/organizations"},
-	// Crypto processing catalogs
-	"merchant":        {EntityName: "Merchant", URLPrefix: "/catalogs/merchants"},
-	"token":           {EntityName: "Token", URLPrefix: "/catalogs/tokens"},
-	"wallet":          {EntityName: "Wallet", URLPrefix: "/catalogs/wallets"},
-	"network":         {EntityName: "BlockchainNetwork", URLPrefix: "/catalogs/blockchain-networks"},
-	"operationToken":  {EntityName: "Token", URLPrefix: "/catalogs/tokens"},
-	"costToken":       {EntityName: "Token", URLPrefix: "/catalogs/tokens"},
-	"providerAccount": {EntityName: "CryptoProviderAccount", URLPrefix: "/catalogs/crypto-provider-accounts"},
-	"receipt":         {EntityName: "CryptoCustodyReceipt", URLPrefix: "/documents/crypto-custody-receipt"},
+// movementRefURL builds the frontend link of a resolved reference.
+func movementRefURL(ref domain.RefResolveResult, id string) string {
+	if ref.Route == "" {
+		return ""
+	}
+	section := "/catalogs/"
+	if ref.EntityType == "document" {
+		section = "/documents/"
+	}
+	return section + ref.Route + "/" + id
 }
 
 // EnrichMovementRefs batch-resolves all ref-type fields in movement data
@@ -48,7 +39,7 @@ func EnrichMovementRefs(ctx context.Context, movements []entity.DocumentMovement
 		id         string
 	}
 	seen := make(map[refKey]bool)
-	var requests = make([]domain.RefResolveRequest, 0, len(refKeyToEntityName))
+	var requests []domain.RefResolveRequest
 
 	for _, m := range movements {
 		for _, col := range m.Columns {
@@ -60,13 +51,12 @@ func EnrichMovementRefs(ctx context.Context, movements []entity.DocumentMovement
 				delete(m.Data, col.Key)
 				continue
 			}
-			mapping, mapped := refKeyToEntityName[col.Key]
-			if !mapped {
+			if col.RefEntity == "" {
 				delete(m.Data, col.Key)
 				continue
 			}
 
-			key := refKey{entityName: mapping.EntityName, id: refVal.ID}
+			key := refKey{entityName: col.RefEntity, id: refVal.ID}
 			if seen[key] {
 				continue
 			}
@@ -78,7 +68,7 @@ func EnrichMovementRefs(ctx context.Context, movements []entity.DocumentMovement
 				continue
 			}
 			requests = append(requests, domain.RefResolveRequest{
-				RefType: mapping.EntityName,
+				RefType: col.RefEntity,
 				RefID:   parsedID,
 			})
 		}
@@ -114,18 +104,17 @@ func EnrichMovementRefs(ctx context.Context, movements []entity.DocumentMovement
 				delete(m.Data, col.Key)
 				continue
 			}
-			mapping, mapped := refKeyToEntityName[col.Key]
-			if !mapped {
+			if col.RefEntity == "" {
 				delete(m.Data, col.Key)
 				continue
 			}
 
-			key := refKey{entityName: mapping.EntityName, id: refVal.ID}
+			key := refKey{entityName: col.RefEntity, id: refVal.ID}
 			if ref, found := resolved[key]; found {
 				refVal.Name = ref.Presentation
 				refVal.CurrencyCode = ref.CurrencyCode
 				refVal.DecimalPlaces = ref.DecimalPlaces
-				refVal.URL = mapping.URLPrefix + "/" + refVal.ID
+				refVal.URL = movementRefURL(ref, refVal.ID)
 				movements[i].Data[col.Key] = refVal
 			} else {
 				delete(movements[i].Data, col.Key)

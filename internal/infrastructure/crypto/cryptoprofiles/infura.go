@@ -15,7 +15,7 @@ func infura() profiles.Profile {
 			if status == http.StatusPaymentRequired {
 				return model.Throttled
 			}
-			return profiles.Classify(status, body)
+			return classify(status, body)
 		},
 		RetryAt: func(status int, headers http.Header, _ []byte, now time.Time) time.Time {
 			if status == http.StatusPaymentRequired {

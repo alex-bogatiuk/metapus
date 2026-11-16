@@ -171,6 +171,10 @@ type MovementColumnDef struct {
 	Key         string `json:"key"`   // Field key in Data map, e.g. "product"
 	Label       string `json:"label"` // Human-readable, e.g. "Товар"
 	Type        string `json:"type"`  // "ref" | "amount" | "quantity" | "text"
+	// RefEntity names the metadata entity a "ref" column points to, e.g.
+	// "Counterparty". Readers resolve the reference and its link through it;
+	// a ref column without it is not shown.
+	RefEntity string `json:"-"`
 }
 
 // MovementRefValue is the enriched value for ref-type columns.

@@ -11,16 +11,19 @@ import (
 )
 
 // Classify is the default classification of a failed provider response.
-func Classify(status int, body []byte) model.Failure {
+func Classify(status int, body []byte) model.Failure { return ClassifyResponse(status, body, false) }
+
+// ClassifyResponse classifies a response whose body may carry an error
+// envelope the default does not know; a profile reports it as extraError.
+func ClassifyResponse(status int, body []byte, extraError bool) model.Failure {
 	var envelope struct {
-		Error     json.RawMessage `json:"error"`
-		TronError json.RawMessage `json:"Error"`
-		Status    struct {
+		Error  json.RawMessage `json:"error"`
+		Status struct {
 			ErrorCode int `json:"error_code"`
 		} `json:"status"`
 	}
 	_ = json.Unmarshal(body, &envelope)
-	hasError := len(envelope.Error) > 0 && string(envelope.Error) != "null" || len(envelope.TronError) > 0 || envelope.Status.ErrorCode != 0
+	hasError := len(envelope.Error) > 0 && string(envelope.Error) != "null" || extraError || envelope.Status.ErrorCode != 0
 	if status < 400 && !hasError {
 		return ""
 	}

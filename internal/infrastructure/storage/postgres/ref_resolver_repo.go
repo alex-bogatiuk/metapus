@@ -58,7 +58,7 @@ func (r *RefResolverRepo) ResolveRefs(ctx context.Context, refs []domain.RefReso
 			return nil, err
 		}
 		for _, row := range rows {
-			result := domain.RefResolveResult{RefType: key, RefID: row.ID, EntityType: string(def.Type), PreviewData: previews[row.ID]}
+			result := domain.RefResolveResult{RefType: key, RefID: row.ID, EntityType: string(def.Type), Route: def.RoutePrefix, PreviewData: previews[row.ID]}
 			if def.Key == "currency" {
 				if unit, ok := readaccess.CurrencyUnitFromProjection(row); ok {
 					result.CurrencyCode = unit.Code

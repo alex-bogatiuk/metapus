@@ -120,7 +120,7 @@ func rpcTransportAt(uid id.ID, originalURL string, now func() time.Time) func(ht
 		}
 		runtime := integration_repo.NewRuntime(cryptointegrations.Catalog())
 		runtime.Now = now
-		return &integrationhttp.Transport{Base: base, Repository: runtime, Profiles: cryptoprofiles.Registry(), Target: load, OriginalURL: originalURL, Now: now, Operation: RPCOperation}
+		return &integrationhttp.Transport{Base: base, Repository: runtime, Profiles: cryptoprofiles.Registry(), CursorPin: cryptoprofiles.TronGridCursor(), Target: load, OriginalURL: originalURL, Now: now, Operation: RPCOperation}
 	}
 }
 
@@ -167,8 +167,8 @@ func (r ConnectionTargets) ConnectionTarget(ctx context.Context, poolID id.ID) (
 		return out, err
 	}
 	if endpoint != nil {
-		out.EndpointID, out.URL, out.Role = endpoint.ID, endpoint.URL, endpoint.Role
-		out.Family, out.NetworkIdentifier = endpoint.Family, endpoint.NetworkIdentifier
+		out.EndpointID, out.URL = endpoint.ID, endpoint.URL
+		out.Attributes = RPCTargetAttributes(endpoint.Family, endpoint.NetworkIdentifier, endpoint.Role)
 	}
 	return out, nil
 }

@@ -18,7 +18,7 @@ func alchemy() profiles.Profile {
 			if alchemyNetworkDisabled(status, body) {
 				return ""
 			}
-			return profiles.Classify(status, body)
+			return classify(status, body)
 		},
 		ResponseError: func(status int, body []byte) error {
 			if alchemyNetworkDisabled(status, body) {

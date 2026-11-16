@@ -18,12 +18,23 @@ type Profile struct {
 	MinRequestIntervalMS int
 	Authorize            func(*http.Request, string) error
 	ReplaceTargetPath    bool
-	PinsPagination       bool
-	Classify             func(int, []byte) model.Failure
-	RetryAt              func(int, http.Header, []byte, time.Time) time.Time
-	ResponseError        func(int, []byte) error
-	Probe                *Probe
-	ImportCredentials    func(string, string) (string, string, error)
+	// CursorPin, when set, binds the provider's pagination cursor to the
+	// account that issued it.
+	CursorPin         *CursorPin
+	Classify          func(int, []byte) model.Failure
+	RetryAt           func(int, http.Header, []byte, time.Time) time.Time
+	ResponseError     func(int, []byte) error
+	Probe             *Probe
+	ImportCredentials func(string, string) (string, string, error)
+}
+
+// CursorPin names a pagination cursor: the query parameter that carries it
+// and the request paths that use it. The transport hands a cursor back only
+// wrapped with the issuing account, so a page is never continued with
+// another account's key.
+type CursorPin struct {
+	PathContains string
+	Param        string
 }
 
 type Probe struct {
@@ -62,6 +73,10 @@ func clone(p Profile) Profile {
 	if p.Probe != nil {
 		copy := *p.Probe
 		p.Probe = &copy
+	}
+	if p.CursorPin != nil {
+		copy := *p.CursorPin
+		p.CursorPin = &copy
 	}
 	return p
 }

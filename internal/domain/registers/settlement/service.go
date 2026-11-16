@@ -77,8 +77,8 @@ func (s *Service) GetDocumentMovements(ctx context.Context, recorderID id.ID) ([
 	}
 
 	columns := []entity.MovementColumnDef{
-		{Key: "counterparty", PolicyField: "counterparty_id", Label: "Контрагент", Type: "ref"},
-		{Key: "currency", PolicyField: "currency_id", Label: "Валюта", Type: "ref"},
+		{Key: "counterparty", PolicyField: "counterparty_id", Label: "Контрагент", Type: "ref", RefEntity: "Counterparty"},
+		{Key: "currency", PolicyField: "currency_id", Label: "Валюта", Type: "ref", RefEntity: "Currency"},
 		{Key: "amount", PolicyField: "amount", Label: "Сумма", Type: "amount", CurrencyRef: "currency"},
 	}
 	// Add contract column only if any movement has a contract
@@ -90,7 +90,7 @@ func (s *Service) GetDocumentMovements(ctx context.Context, recorderID id.ID) ([
 		}
 	}
 	if hasContract {
-		columns = append(columns, entity.MovementColumnDef{Key: "contract", PolicyField: "contract_id", Label: "Договор", Type: "ref"})
+		columns = append(columns, entity.MovementColumnDef{Key: "contract", PolicyField: "contract_id", Label: "Договор", Type: "ref", RefEntity: "Contract"})
 	}
 
 	result := make([]entity.DocumentMovement, 0, len(movements))

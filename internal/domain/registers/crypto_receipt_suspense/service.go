@@ -47,8 +47,8 @@ func (s *Service) GetDocumentMovements(ctx context.Context, recorderID id.ID) ([
 		return nil, fmt.Errorf("get receipt suspense movements: %w", err)
 	}
 	columns := []entity.MovementColumnDef{
-		{Key: "receipt", PolicyField: "receipt_id", Label: "Поступление", Type: "ref"},
-		{Key: "token", PolicyField: "token_id", Label: "Токен", Type: "ref"},
+		{Key: "receipt", PolicyField: "receipt_id", Label: "Поступление", Type: "ref", RefEntity: "CryptoCustodyReceipt"},
+		{Key: "token", PolicyField: "token_id", Label: "Токен", Type: "ref", RefEntity: "Token"},
 		{Key: "amount", PolicyField: "amount", Label: "Сумма", Type: "text"},
 	}
 	result := make([]entity.DocumentMovement, 0, len(movements))

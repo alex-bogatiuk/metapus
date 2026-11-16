@@ -91,7 +91,7 @@ func TestAlchemyTRONConnectionProbeUsesAuthenticatedRolePath(t *testing.T) {
 	for _, role := range []string{"fullnode", "solidity"} {
 		t.Run(role, func(t *testing.T) {
 			repo := fixture()
-			target := model.ConnectionTarget{PoolID: repo.selections[0].PoolID, EndpointID: id.New(), Provider: cryptointegrations.Alchemy, URL: "https://tron-testnet.g.alchemy.com/v2/", Family: "tron", Role: role, NetworkIdentifier: "nile"}
+			target := model.ConnectionTarget{PoolID: repo.selections[0].PoolID, EndpointID: id.New(), Provider: cryptointegrations.Alchemy, URL: "https://tron-testnet.g.alchemy.com/v2/", Attributes: map[string]string{"family": "tron", "network": "nile", "role": role}}
 			prober := integrationhttp.ConnectionProber{Profiles: Registry(), EndpointProbe: fixtureProbe, EndpointTransport: func(id.ID, string) func(http.RoundTripper) http.RoundTripper {
 				return func(http.RoundTripper) http.RoundTripper {
 					return &integrationhttp.Transport{Profiles: Registry(), PoolID: target.PoolID, Provider: target.Provider, Repository: repo, OriginalURL: target.URL, Target: func(context.Context) (integrationhttp.Binding, error) {

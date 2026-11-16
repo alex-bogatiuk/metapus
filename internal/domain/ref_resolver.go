@@ -21,6 +21,8 @@ type RefResolveResult struct {
 	RefID         id.ID  `json:"refId"`        // UUID
 	Presentation  string `json:"presentation"` // e.g. "Крипто-инвойс CI-00042 от 15.03.2026"
 	EntityType    string `json:"entityType"`   // "catalog" | "document"
+	// Route is the entity's route prefix, for links such as /catalogs/{route}/{id}.
+	Route string `json:"-"`
 
 	// Document-specific resolution fields
 	Number       string            `json:"number"`

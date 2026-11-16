@@ -45,8 +45,8 @@ func (s *Service) GetDocumentMovements(ctx context.Context, recorderID id.ID) ([
 		result = append(result, entity.DocumentMovement{PolicyEntity: "crypto_provider_balance",
 			RegisterName: "Авансы крипто-провайдерам", RecordType: string(m.RecordType), Period: m.Period,
 			Columns: []entity.MovementColumnDef{
-				{Key: "providerAccount", PolicyField: "provider_account_id", Label: "Аккаунт провайдера", Type: "ref"},
-				{Key: "token", PolicyField: "token_id", Label: "Токен", Type: "ref"},
+				{Key: "providerAccount", PolicyField: "provider_account_id", Label: "Аккаунт провайдера", Type: "ref", RefEntity: "CryptoProviderAccount"},
+				{Key: "token", PolicyField: "token_id", Label: "Токен", Type: "ref", RefEntity: "Token"},
 				{Key: "operationType", PolicyField: "operation_type", Label: "Операция", Type: "text"},
 				{Key: "externalRef", PolicyField: "external_ref", Label: "Внешнее основание", Type: "text"},
 				{Key: "amount", PolicyField: "amount", Label: "Сумма", Type: "text"},

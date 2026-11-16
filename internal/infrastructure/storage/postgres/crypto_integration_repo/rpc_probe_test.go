@@ -17,7 +17,7 @@ import (
 func TestConnectionProbeValidatesConfiguredNetworkIndependentOfVendor(t *testing.T) {
 	for _, provider := range []model.Provider{cryptointegrations.Alchemy, cryptointegrations.Infura, cryptointegrations.Chainstack, cryptointegrations.DRPC} {
 		for _, network := range []struct{ id, hex string }{{"1", "0x1"}, {"11155111", "0xaa36a7"}} {
-			probe, err := RPCProbe(model.ConnectionTarget{Provider: provider, EndpointID: id.New(), Family: "evm", Role: "rpc", NetworkIdentifier: network.id, URL: "https://fixture.test/"})
+			probe, err := RPCProbe(model.ConnectionTarget{Provider: provider, EndpointID: id.New(), Attributes: RPCTargetAttributes("evm", network.id, "rpc"), URL: "https://fixture.test/"})
 			require.NoError(t, err)
 			require.True(t, probe.Valid([]byte(`{"jsonrpc":"2.0","result":"`+network.hex+`"}`)))
 			require.False(t, probe.Valid([]byte(`{"jsonrpc":"2.0","result":"0x2"}`)))
@@ -29,7 +29,7 @@ func TestConnectionProbeValidatesConfiguredNetworkIndependentOfVendor(t *testing
 
 func TestConnectionProbeSelectsTRONRoleAndRejectsIncompleteEvidence(t *testing.T) {
 	for _, role := range []string{"fullnode", "solidity"} {
-		probe, err := RPCProbe(model.ConnectionTarget{Provider: cryptointegrations.TronAPI, EndpointID: id.New(), Family: "tron", Role: role, URL: "https://fixture.test/"})
+		probe, err := RPCProbe(model.ConnectionTarget{Provider: cryptointegrations.TronAPI, EndpointID: id.New(), Attributes: RPCTargetAttributes("tron", "", role), URL: "https://fixture.test/"})
 		require.NoError(t, err)
 		path := "/wallet/getnowblock"
 		if role == "solidity" {
@@ -53,8 +53,8 @@ func TestRPCOperationNamesTRONMethods(t *testing.T) {
 }
 
 func TestRPCProbeRejectsOtherKindsAndPoolsWithoutEndpoint(t *testing.T) {
-	_, err := RPCProbe(model.ConnectionTarget{Provider: model.CoinGeckoDemo, EndpointID: id.New(), Family: "evm", Role: "rpc", NetworkIdentifier: "1", URL: "https://fixture.test/"})
+	_, err := RPCProbe(model.ConnectionTarget{Provider: model.CoinGeckoDemo, EndpointID: id.New(), Attributes: RPCTargetAttributes("evm", "1", "rpc"), URL: "https://fixture.test/"})
 	require.ErrorContains(t, err, "подсистемой")
-	_, err = RPCProbe(model.ConnectionTarget{Provider: cryptointegrations.Alchemy, Family: "evm", Role: "rpc", NetworkIdentifier: "1", URL: "https://fixture.test/"})
+	_, err = RPCProbe(model.ConnectionTarget{Provider: cryptointegrations.Alchemy, Attributes: RPCTargetAttributes("evm", "1", "rpc"), URL: "https://fixture.test/"})
 	require.ErrorContains(t, err, "RPC-подключение")
 }

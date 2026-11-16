@@ -51,14 +51,14 @@ func response(r *http.Request, status int, body string) *http.Response {
 }
 
 // fixtureProfiles stand in for a configuration's providers: fixture_suffix
-// appends the key to the path, fixture_pins pins pagination like a cursor API.
+// appends the key to the path, fixture_pins pins its "cursor" pagination.
 var fixtureProfiles = func() *profiles.Registry {
 	r, err := profiles.New(append(profiles.Platform(),
 		profiles.Profile{Provider: "fixture_suffix", Authorize: func(r *http.Request, key string) error {
 			r.URL.Path, r.URL.RawPath = strings.TrimRight(r.URL.Path, "/")+"/"+key, ""
 			return nil
 		}},
-		profiles.Profile{Provider: "fixture_pins", PinsPagination: true, Authorize: func(r *http.Request, key string) error {
+		profiles.Profile{Provider: "fixture_pins", CursorPin: &profiles.CursorPin{PathContains: "/v1/", Param: "cursor"}, Authorize: func(r *http.Request, key string) error {
 			r.Header.Set("X-Fixture-Key", key)
 			return nil
 		}},
@@ -151,7 +151,7 @@ func TestPaginationFingerprintCannotMoveToAnotherAccount(t *testing.T) {
 
 	repo.current = 1
 	tr.forget()
-	req, _ = http.NewRequest(http.MethodGet, "https://fixture.test/v1/accounts/test/transactions?fingerprint="+cursor, nil)
+	req, _ = http.NewRequest(http.MethodGet, "https://fixture.test/v1/accounts/test/transactions?cursor="+cursor, nil)
 	_, err = tr.RoundTrip(req)
 	require.ErrorIs(t, err, ErrAccountChanged)
 }

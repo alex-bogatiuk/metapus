@@ -161,8 +161,8 @@ func (s *Service) GetDocumentMovements(ctx context.Context, recorderID id.ID) ([
 	}
 
 	columns := []entity.MovementColumnDef{
-		{Key: "wallet", PolicyField: "wallet_id", Label: "Кошелёк", Type: "ref"},
-		{Key: "token", PolicyField: "token_id", Label: "Токен", Type: "ref"},
+		{Key: "wallet", PolicyField: "wallet_id", Label: "Кошелёк", Type: "ref", RefEntity: "Wallet"},
+		{Key: "token", PolicyField: "token_id", Label: "Токен", Type: "ref", RefEntity: "Token"},
 		{Key: "amount", PolicyField: "amount", Label: "Сумма", Type: "text"}, // text — CryptoAmount is string
 	}
 

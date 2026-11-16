@@ -23,7 +23,7 @@ func (movementRegistry) Definition(key string) (Definition, bool) {
 
 func TestMovementMoneyRequiresAuthorizedCurrencyUnits(t *testing.T) {
 	visible, hidden, denied := id.New(), id.New(), id.New()
-	columns := []entity.MovementColumnDef{{Key: "currency", Type: "ref"}, {Key: "amount", Type: "amount", CurrencyRef: "currency"}}
+	columns := []entity.MovementColumnDef{{Key: "currency", Type: "ref", RefEntity: "Currency"}, {Key: "amount", Type: "amount", CurrencyRef: "currency"}}
 	rows := make([]entity.DocumentMovement, 0, 4)
 	for _, uid := range []id.ID{visible, hidden, denied, visible} {
 		rows = append(rows, entity.DocumentMovement{Columns: columns, Data: map[string]any{
@@ -110,7 +110,8 @@ func TestMovementProjectionChecksSourceAndRegisterWithoutMutatingProviderData(t 
 
 func TestMovementReferencesAreBatchedAndInaccessibleRepresentationsRemoved(t *testing.T) {
 	visible, denied := id.New(), id.New()
-	columns := []entity.MovementColumnDef{{Key: "wallet", Type: "ref"}, {Key: "unexpected", Type: "ref"}}
+	// "unexpected" declares no entity, so it is never resolved or shown.
+	columns := []entity.MovementColumnDef{{Key: "wallet", Type: "ref", RefEntity: "Wallet"}, {Key: "unexpected", Type: "ref"}}
 	rows := []entity.DocumentMovement{
 		{Columns: columns, Data: map[string]any{"wallet": entity.MovementRefValue{ID: visible.String(), Name: "unsafe"}, "unexpected": entity.MovementRefValue{ID: visible.String(), Name: "private"}}},
 		{Columns: columns, Data: map[string]any{"wallet": entity.MovementRefValue{ID: denied.String(), Name: "private"}}},
@@ -120,11 +121,12 @@ func TestMovementReferencesAreBatchedAndInaccessibleRepresentationsRemoved(t *te
 	resolver := movementResolver{resolve: func(refs []domain.RefResolveRequest) ([]domain.RefResolveResult, error) {
 		calls++
 		require.Len(t, refs, 2)
-		return []domain.RefResolveResult{{RefType: "Wallet", RefID: visible, Presentation: "Allowed wallet"}}, nil
+		return []domain.RefResolveResult{{RefType: "Wallet", RefID: visible, Presentation: "Allowed wallet", EntityType: "catalog", Route: "wallets"}}, nil
 	}}
 	require.NoError(t, EnrichMovementRefs(context.Background(), rows, resolver))
 	require.Equal(t, 1, calls)
 	require.Equal(t, "Allowed wallet", rows[0].Data["wallet"].(entity.MovementRefValue).Name)
+	require.Equal(t, "/catalogs/wallets/"+visible.String(), rows[0].Data["wallet"].(entity.MovementRefValue).URL)
 	require.NotContains(t, rows[0].Data, "unexpected")
 	require.NotContains(t, rows[1].Data, "wallet")
 }
@@ -167,4 +169,10 @@ func TestMovementProjectionHidesUndeclaredColumnsUnderSourcePolicy(t *testing.T)
 	projected, ok = projectMovement(ctx, constant, source)
 	require.True(t, ok)
 	require.Equal(t, map[string]any{"note": "x"}, projected.Data, "a column filled with a constant needs no source field")
+}
+
+func TestMovementRefURLFollowsEntityKindAndRoute(t *testing.T) {
+	require.Equal(t, "/documents/fixture-doc/1", movementRefURL(domain.RefResolveResult{EntityType: "document", Route: "fixture-doc"}, "1"))
+	require.Equal(t, "/catalogs/fixtures/2", movementRefURL(domain.RefResolveResult{EntityType: "catalog", Route: "fixtures"}, "2"))
+	require.Empty(t, movementRefURL(domain.RefResolveResult{EntityType: "catalog"}, "3"), "no route, no link")
 }
