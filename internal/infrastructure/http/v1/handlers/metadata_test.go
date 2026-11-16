@@ -26,7 +26,8 @@ func TestListEntitiesSummaryIncludesDocumentCapabilitiesAndActions(t *testing.T)
 			Singular: "Заявка на вывод",
 			Plural:   "Заявки на вывод",
 		},
-		Capabilities: &caps,
+		Capabilities:   &caps,
+		ReadPermission: "document:withdrawal_request:read",
 		Actions: []metadata.EntityActionDef{
 			{
 				Key:        "approve",
@@ -63,5 +64,8 @@ func TestListEntitiesSummaryIncludesDocumentCapabilitiesAndActions(t *testing.T)
 	}
 	if len(summaries[0].Actions) != 1 || summaries[0].Actions[0].Key != "approve" {
 		t.Fatalf("unexpected actions: %#v", summaries[0].Actions)
+	}
+	if summaries[0].ReadPermission != "document:withdrawal_request:read" {
+		t.Fatalf("navigation needs the read permission, got %q", summaries[0].ReadPermission)
 	}
 }

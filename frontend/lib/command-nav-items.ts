@@ -13,6 +13,7 @@
 import { buildEntityUrlByRoute } from "@/lib/entity-url"
 import { getRouteIcon } from "@/lib/entity-icon"
 import { getNavigation, type CommandNavItem } from "@/lib/navigation"
+import { entityReadPermission } from "@/lib/navigation-access"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import type { EntityMeta } from "@/types/metadata"
 
@@ -52,6 +53,7 @@ export function getDynamicNavItems(entities: EntityMeta[] = useMetadataStore.get
       icon: getRouteIcon(url), // known entities share their icon; others fall back to a section icon
       keywords: `${label.toLowerCase()} ${entity.key.replace(/_/g, " ")}`,
       section: "navigate",
+      permission: entityReadPermission(entity),
     })
   }
 

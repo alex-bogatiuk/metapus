@@ -34,13 +34,14 @@ func (h *MetadataHandler) ListEntitiesSummary(c *gin.Context) {
 	result := make([]dto.EntitySummaryResponse, 0, len(entities))
 	for _, e := range entities {
 		result = append(result, dto.EntitySummaryResponse{
-			Key:          e.Key,
-			Name:         e.Name,
-			Type:         e.Type,
-			Presentation: e.Presentation,
-			RoutePrefix:  e.RoutePrefix,
-			Capabilities: e.Capabilities,
-			Actions:      e.Actions,
+			Key:            e.Key,
+			Name:           e.Name,
+			Type:           e.Type,
+			Presentation:   e.Presentation,
+			RoutePrefix:    e.RoutePrefix,
+			Capabilities:   e.Capabilities,
+			Actions:        e.Actions,
+			ReadPermission: e.ReadPermission,
 		})
 	}
 	c.JSON(http.StatusOK, result)

@@ -166,6 +166,7 @@ frontend/stores/useCommandPaletteStore.ts  — Zustand store: isOpen, actionsByS
 frontend/lib/command-intent.ts             — Intent resolver, same-origin URL validation, tab id normalization
 frontend/lib/navigation.ts                 — Реестр навигации (registerNavigation)
 frontend/lib/command-nav-items.ts          — Статический + динамический навигационный индекс
+frontend/lib/navigation-access.ts          — Права пунктов, открывающих сущности (readPermission из metadata)
 frontend/lib/calc-engine.ts               — Recursive descent parser для калькулятора
 frontend/components/layout/command-palette.tsx — UI компонент (cmdk + Dialog + preview panel)
 frontend/components/shared/entity-preview-card.tsx — Универсальная карточка предпросмотра сущности

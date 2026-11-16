@@ -11,4 +11,7 @@ type EntitySummaryResponse struct {
 	RoutePrefix  string                         `json:"routePrefix,omitempty"`
 	Capabilities *metadata.DocumentCapabilities `json:"capabilities,omitempty"`
 	Actions      []metadata.EntityActionDef     `json:"actions,omitempty"`
+	// ReadPermission is the permission that opens the entity's list and
+	// records; navigation hides the entity from users without it.
+	ReadPermission string `json:"readPermission,omitempty"`
 }

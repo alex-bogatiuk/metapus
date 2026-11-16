@@ -28,7 +28,7 @@ myExtension.Register(factoryReg) // registration uses v1.EntityRegistration[Mode
 ```
 
 **Frontend Auto-Discovery:**
-Платформа генерирует UI для расширений автоматически! Фронтенд получает `/api/v1/meta/entities` и использует generic routes `[routePrefix]` для списка и AutoForm. Запросы/ответы должны быть зарегистрированы в HTTP contracts registry: metadata не разрешает незарегистрированный URL или дополнительное writable поле. Новые сущности автоматически появляются в разделе расширений меню; custom forms и особое размещение подключаются через frontend registry/navigation. Подробности — [новый справочник](../howto/new-entity.md).
+Платформа генерирует UI для расширений автоматически! Фронтенд получает `/api/v1/meta/entities` и использует generic routes `[routePrefix]` для списка и AutoForm. Запросы/ответы должны быть зарегистрированы в HTTP contracts registry: metadata не разрешает незарегистрированный URL или дополнительное writable поле. Новые сущности автоматически появляются в разделе расширений меню и в палитре команд у пользователей с их правом чтения: `/meta/entities` отдаёт `readPermission` сущности, а `lib/navigation-access` скрывает пункт без него (форма `/new` требует права `create`; пункт с явным `permission` проверяется по нему); custom forms и особое размещение подключаются через frontend registry/navigation. Подробности — [новый справочник](../howto/new-entity.md).
 
 ## 3. Точки расширения
 

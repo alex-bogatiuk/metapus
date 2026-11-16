@@ -52,6 +52,7 @@ import {
 import { usePermissions } from "@/hooks/use-permissions"
 import { api } from "@/lib/api"
 import { buildEntityUrlByRoute } from "@/lib/entity-url"
+import { allowed, entityReadPermission } from "@/lib/navigation-access"
 import { useAuthStore } from "@/stores/useAuthStore"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import { useNotificationStore } from "@/stores/useNotificationStore"
@@ -96,32 +97,39 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const setPanelOpen = useNotificationStore((s) => s.setPanelOpen)
 
   // ── Resolve section groups from metadata ───────────────────────────
+  // An entity item without an explicit permission needs the entity's read
+  // permission; groups and sections left without items are not shown.
   const resolvedSections = useMemo(() => {
     return navigation.sections
-      .filter((s) => s.groups.some((g) => g.items.length > 0))
       .map((section): ResolvedNavSection => ({
         title: section.title,
         icon: section.icon,
-        groups: section.groups.map((group) => {
-          const resolvedItems = group.items.filter(item => !item.permission || permissions.has(item.permission)).flatMap((item) => {
-            if (item.url) {
-              return [{ title: item.fallback, url: item.url, description: item.description, icon: getEntityIcon(item.entityKey) }]
-            }
-            const entity = entities.find((entity) => entity.key === item.entityKey)
-            const title = entity?.presentation.plural ?? item.fallback
-            const routePrefix = entity?.routePrefix ?? item.entityKey
-            const entityType = entity?.type ?? "catalog"
-            if (entityType === "register") return []
-            const url = buildEntityUrlByRoute(routePrefix, entityType)
-            return [{ title, url, description: item.description, icon: getEntityIcon(item.entityKey) }]
+        groups: section.groups
+          .map((group) => {
+            const resolvedItems = group.items.flatMap((item) => {
+              if (item.url) {
+                if (!allowed(item.permission, permissions.has)) return []
+                return [{ title: item.fallback, url: item.url, description: item.description, icon: getEntityIcon(item.entityKey) }]
+              }
+              const entity = entities.find((entity) => entity.key === item.entityKey)
+              if (!allowed(item.permission ?? entityReadPermission(entity), permissions.has)) return []
+              const title = entity?.presentation.plural ?? item.fallback
+              const routePrefix = entity?.routePrefix ?? item.entityKey
+              const entityType = entity?.type ?? "catalog"
+              if (entityType === "register") return []
+              const url = buildEntityUrlByRoute(routePrefix, entityType)
+              return [{ title, url, description: item.description, icon: getEntityIcon(item.entityKey) }]
+            })
+            return { label: group.label, items: resolvedItems }
           })
-          return { label: group.label, items: resolvedItems }
-        }),
+          .filter((group) => group.items.length > 0),
       }))
+      .filter((section) => section.groups.length > 0)
   }, [navigation, entities, permissions])
 
   // ── Dynamic extension items from metadata ─────────────────────────────
-  // Entities not covered by the registered navigation appear here automatically.
+  // Entities not covered by the registered navigation appear here
+  // automatically, for users with their read permission.
   const extensionItems = useMemo(() => {
     if (!metaLoaded) return []
 
@@ -135,19 +143,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       }
     }
 
-    const { entities } = useMetadataStore.getState()
     return entities
-      .filter((e) => {
-        return !coveredKeys.has(e.key) && (e.type === "catalog" || e.type === "document")
-      })
+      .filter((e) => !coveredKeys.has(e.key) && allowed(entityReadPermission(e), permissions.has))
       .flatMap((e) => {
-        if (e.type === "register") return []
+        if (e.type !== "catalog" && e.type !== "document") return []
         const prefix = e.routePrefix ?? e.key
         const title = e.presentation?.plural ?? e.name
         const url = buildEntityUrlByRoute(prefix, e.type)
         return [{ title, url }]
       })
-  }, [navigation, metaLoaded])
+  }, [navigation, metaLoaded, entities, permissions])
 
   const isActive = (url: string) =>
     url === "/" ? pathname === "/" : pathname.startsWith(url)

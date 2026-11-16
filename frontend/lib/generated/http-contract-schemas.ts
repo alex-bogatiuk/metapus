@@ -845,6 +845,7 @@ export const EntitySummaryResponseSchema: z.ZodType<Wire.EntitySummaryResponse> 
   "routePrefix": z.string().optional(),
   "capabilities": MetadataDocumentCapabilitiesSchema.optional(),
   "actions": z.array(MetadataEntityActionDefSchema).optional(),
+  "readPermission": z.string().optional(),
 }))
 
 export const ErrorResponseSchema: z.ZodType<Wire.ErrorResponse> = z.lazy(() => z.object({

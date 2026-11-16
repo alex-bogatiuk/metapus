@@ -841,6 +841,7 @@ export type EntitySummaryResponse = {
   "routePrefix"?: string
   "capabilities"?: MetadataDocumentCapabilities
   "actions"?: Array<MetadataEntityActionDef>
+  "readPermission"?: string
 }
 
 export type ErrorResponse = {

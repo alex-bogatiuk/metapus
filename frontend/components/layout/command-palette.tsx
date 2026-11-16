@@ -17,6 +17,7 @@
  */
 
 import { usePermissions } from "@/hooks/use-permissions"
+import { allowed, withEntityPermissions } from "@/lib/navigation-access"
 import {
   Calculator,
   ChevronRight,
@@ -276,7 +277,8 @@ export function CommandPalette() {
   const permissions = usePermissions()
   const navEntities = useMetadataStore((s) => s.entities)
   const navItems = React.useMemo<CommandNavItem[]>(() => {
-    return [...getStaticNavItems(), ...getDynamicNavItems(navEntities)].filter(item => !item.permission || permissions.has(item.permission))
+    return withEntityPermissions([...getStaticNavItems(), ...getDynamicNavItems(navEntities)], navEntities)
+      .filter(item => allowed(item.permission, permissions.has))
   }, [navEntities, permissions])
   // Recalculate when palette opens (metadata might have loaded since last open)
 
