@@ -1,7 +1,7 @@
 import { test, expect, type Page, type Route } from "@playwright/test"
 import { commonAPIResponse, ids, installPortalSession, json, portalOwner } from "./helpers"
 import type { PortalBalanceResponse, PortalChartPoint } from "../configuration/crypto/types/portal-api"
-import type { PortalRiskBalanceResponse } from "../types/generated/http-contracts"
+import type { PortalRiskBalanceResponse } from "../configuration/crypto/types/generated/http-contracts"
 
 const secondMerchant = "10000000-0000-4000-8000-000000000021"
 const ethToken = "10000000-0000-4000-8000-000000000022"

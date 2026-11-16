@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test"
-import type { RpcconfigRPCNetworkSettings } from "../../types/generated/http-contracts"
+import type { RpcconfigRPCNetworkSettings } from "../../configuration/crypto/types/generated/http-contracts"
 import { rpcSettingsErrors, rpcSettingsForm, rpcSettingsFromForm } from "../../configuration/crypto/lib/integrations/rpc-network-settings"
 
 const defaults: RpcconfigRPCNetworkSettings = {

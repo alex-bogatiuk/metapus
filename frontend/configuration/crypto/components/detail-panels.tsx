@@ -5,7 +5,7 @@
  * metadata-driven detail pages, registered through its entity overlays.
  */
 import type { AutoFormProps } from "@/components/shared/auto-form"
-import { RPCKeyNameField } from "@/components/integrations/rpc-key-name-field"
+import { RPCKeyNameField } from "@/configuration/crypto/components/integrations/rpc-key-name-field"
 import { PaymentAMLPanel, WalletAMLPanel } from "@/configuration/crypto/components/crypto/aml-risk"
 import { CryptoPaymentAdjustments } from "@/configuration/crypto/components/documents/crypto-payment-adjustments"
 import { CryptoPaymentReceipt } from "@/configuration/crypto/components/documents/crypto-payment-receipt"

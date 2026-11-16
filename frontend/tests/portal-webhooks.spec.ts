@@ -37,7 +37,7 @@ const terminalEvent = {
   createdAt: "2026-08-30T11:00:00Z",
   payload: { id: eventId, object: "event", apiVersion: "2026-08-30", type: "invoice.completed", createdAt: "2026-08-30T11:00:00Z",
     data: { object: { id: ids.adjustment, status: "completed", amount: "12500000" } } },
-} satisfies import("../types/generated/http-contracts").MerchantEventResponse
+} satisfies import("../configuration/crypto/types/generated/http-contracts").MerchantEventResponse
 
 async function installCommonRoutes(page: Parameters<typeof installPortalSession>[0]) {
   await page.route("**/api/v1/**", async (route) => {

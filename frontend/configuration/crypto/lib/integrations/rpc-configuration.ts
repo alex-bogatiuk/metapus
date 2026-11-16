@@ -1,4 +1,4 @@
-import type { CryptoRPCConfigurationResponse, UpdateCryptoRPCConfigurationRequest } from "@/types/generated/http-contracts"
+import type { CryptoRPCConfigurationResponse, UpdateCryptoRPCConfigurationRequest } from "@/configuration/crypto/types/generated/http-contracts"
 
 export type RPCConnection = CryptoRPCConfigurationResponse["endpoints"][number]
 

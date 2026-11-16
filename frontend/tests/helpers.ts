@@ -96,12 +96,12 @@ export const tokenRecord = {
  symbol: "TKN", decimalPlaces: 9, tokenStandard: "native", isActive: true,
  sweepThreshold: "0", sweepMaxAgeHours: 24, sweepRetainAmount: "0", isFolder: false,
  deletionMark: false, version: 1,
-} satisfies import("../types/generated/http-contracts").CryptoTokenResponse
+} satisfies import("../configuration/crypto/types/generated/http-contracts").CryptoTokenResponse
 export const tokenRequiredFields = [
  { name: "networkId", type: "string" }, { name: "symbol", type: "string" }, { name: "tokenStandard", type: "string" },
 ]
 
-export function unvaluedPortalBalance(assets: { tokenId: string; symbol: string }[]): import("../types/generated/http-contracts").PortalBalanceResponse {
+export function unvaluedPortalBalance(assets: { tokenId: string; symbol: string }[]): import("../configuration/crypto/types/generated/http-contracts").PortalBalanceResponse {
   const bucket = { amount: null, coverage: "none", unvaluedCount: assets.length }
   return {
     baseCurrency: { id: ids.network, code: "USD", name: "US Dollar", decimalPlaces: 2 },

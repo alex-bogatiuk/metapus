@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { OverviewEmpty, OverviewError, OverviewLoading } from "./overview-states"
 import { fmtRawAmount, formatDateTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
-import type { AmlMerchantRiskBalance } from "@/types/generated/http-contracts"
+import type { AmlMerchantRiskBalance } from "@/configuration/crypto/types/generated/http-contracts"
 
 const classLabels: Record<string, string> = { low: "Низкий", medium: "Средний", high: "Высокий", unknown: "Не определён" }
 const reasonLabels: Record<string, string> = {

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { apiFetch } from "@/lib/api/core"
-import type { AmlAssessmentDisplay, CryptoPaymentResponse, WalletResponse } from "@/types/generated/http-contracts"
+import type { AmlAssessmentDisplay, CryptoPaymentResponse, WalletResponse } from "@/configuration/crypto/types/generated/http-contracts"
 
 const riskLabels: Record<string, string> = { low: "Низкий · low", medium: "Средний · medium", high: "Высокий · high", unknown: "Не определён · unknown" }
 const sources: Record<string, string> = { testnet_bootstrap: "Начальная классификация тестового стенда", testnet_aml: "Эмулятор AML для тестовой сети", provider: "AML-провайдер", inventory: "Оценка состава средств", none: "Нет оценки" }

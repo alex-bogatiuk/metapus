@@ -12,6 +12,10 @@ import (
 	"slices"
 )
 
+// BundleContracts lists only the contracts the bundles declare, without the
+// platform's service DTOs.
+func BundleContracts(bundles ...spec.Bundle) []Contract { return bundleContracts(bundles) }
+
 // Registry combines the platform service DTOs with configuration bundles:
 // entity factory bundles and configuration route-module bundles. Entity DTOs
 // belong in their registration bundle.

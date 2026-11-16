@@ -22,7 +22,7 @@ import { ReferenceField } from "@/components/shared/reference-field"
 import { Input } from "@/components/ui/input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { majorToMinor, rawMinorToMajor } from "@/lib/money"
-import type { MerchantCreditResponse, PlatformFundingResponse, UnidentifiedReceiptItem } from "@/types/generated/http-contracts"
+import type { MerchantCreditResponse, PlatformFundingResponse, UnidentifiedReceiptItem } from "@/configuration/crypto/types/generated/http-contracts"
 import type { TreasurySourceWallet, TreasuryWithdrawal } from "@/configuration/crypto/types/treasury"
 import { receiptJournalStates, receiptMerchantLinks, receiptReasons, receiptRowStateHints, receiptRowStates, type ReceiptJournalState } from "@/configuration/crypto/types/unidentified-receipt"
 import { AlertTriangle } from "lucide-react"
@@ -367,7 +367,7 @@ function RefundDialog({ dialog, busy, onChange, onSubmit }: {
   dialog: RefundDialogState
   busy: boolean
   onChange: (next: Dialogs) => void
-  onSubmit: (body: import("@/types/generated/http-contracts").CreateReceiptRefundRequest) => void
+  onSubmit: (body: import("@/configuration/crypto/types/generated/http-contracts").CreateReceiptRefundRequest) => void
 }) {
   const { item } = dialog
   const scale = item.decimalPlaces

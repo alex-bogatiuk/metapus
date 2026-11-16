@@ -1,3 +1,4 @@
+import "./contracts" // registers the configuration's route contracts before any request
 import type {
     MerchantAPIKeyListItem,
     MerchantAPIKeyResponse,
@@ -53,7 +54,7 @@ export const portalApi = {
     },
 
     riskBalance: (merchantId: string) =>
-        portalFetch<import("@/types/generated/http-contracts").PortalRiskBalanceResponse>(
+        portalFetch<import("@/configuration/crypto/types/generated/http-contracts").PortalRiskBalanceResponse>(
             `/balances/risk?${new URLSearchParams({ merchant_id: merchantId })}`
         ),
 

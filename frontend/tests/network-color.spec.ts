@@ -34,7 +34,7 @@ const metadata = {
 test("a network colour is picked from swatches with the pointer or the keyboard and saved as a palette key", async ({ page }) => {
   await installSession(page)
   const saved: JsonObject[] = []
-  let network: import("../types/generated/http-contracts").BlockchainNetworkResponse = {
+  let network: import("../configuration/crypto/types/generated/http-contracts").BlockchainNetworkResponse = {
     id: networkId, code: "ETHEREUM-SEPOLIA", name: "Ethereum Sepolia", rpcConfigSource: "file", chainFamily: "evm",
     networkIdentifier: "11155111", nativeTokenSymbol: "ETH", nativeDecimals: 18, confirmationsNeeded: 12, blockTimeSeconds: 12,
     explorerUrl: "", color: "", isActive: false, isFolder: false, deletionMark: false, version: 3,

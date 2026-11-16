@@ -19,10 +19,7 @@ import {
 import { api, ApiError } from "@/lib/api"
 import type { EntityFormProps } from "@/lib/entity-registry"
 import type { CryptoProviderAccount } from "@/configuration/crypto/types/crypto-network"
-import type {
-  CreateCryptoProviderAccountRequest,
-  UpdateCryptoProviderAccountRequest,
-} from "@/types/generated/http-contracts"
+import type { CreateCryptoProviderAccountRequest, UpdateCryptoProviderAccountRequest } from "@/configuration/crypto/types/generated/http-contracts"
 import { useTabTitle } from "@/hooks/useTabTitle"
 import { useTabDirty } from "@/hooks/useTabDirty"
 import { useCloseTab } from "@/hooks/useCloseTab"

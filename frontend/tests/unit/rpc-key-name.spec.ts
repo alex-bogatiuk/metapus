@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test"
-import { accountsWithoutKey, suggestedKeyName } from "../../components/integrations/rpc-key-name-field"
+import { accountsWithoutKey, suggestedKeyName } from "../../configuration/crypto/components/integrations/rpc-key-name-field"
 
 const accounts = [
   { id: "a", name: "A", hasCredentials: true, keys: ["nile", "sepolia"] },

@@ -8,7 +8,7 @@ import { toast } from "sonner"
 import { copyToClipboard, formatDateTime, formatMinorUnits } from "@/lib/format"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useTabTitle } from "@/hooks/useTabTitle"
-import type { CustodyReceiptAttribution, CustodyReceiptDetailResponse } from "@/types/generated/http-contracts"
+import type { CustodyReceiptAttribution, CustodyReceiptDetailResponse } from "@/configuration/crypto/types/generated/http-contracts"
 import {
     receiptAttributionStatuses,
     receiptAttributionTypes,

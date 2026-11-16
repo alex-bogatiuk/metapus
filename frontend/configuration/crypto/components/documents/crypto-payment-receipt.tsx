@@ -4,7 +4,7 @@ import Link from "next/link"
 import useSWR from "swr"
 import { apiFetch, assertUuidPathParam } from "@/lib/api/core"
 import { usePermissions } from "@/hooks/use-permissions"
-import type { CryptoPaymentResponse } from "@/types/generated/http-contracts"
+import type { CryptoPaymentResponse } from "@/configuration/crypto/types/generated/http-contracts"
 
 /** Link from an invoice payment to the custody receipt it attributes. */
 export function CryptoPaymentReceipt({ paymentId }: { paymentId: string }) {

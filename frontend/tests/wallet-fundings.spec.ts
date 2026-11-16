@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test"
-import type { WalletFundingListResponse } from "../types/generated/http-contracts"
+import type { WalletFundingListResponse } from "../configuration/crypto/types/generated/http-contracts"
 import { commonAPIResponse, erpUser, ids, installSession, json } from "./helpers"
 
 const list: WalletFundingListResponse = {

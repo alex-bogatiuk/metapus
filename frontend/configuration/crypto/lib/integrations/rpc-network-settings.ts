@@ -1,4 +1,4 @@
-import type { RpcconfigEVMSettings, RpcconfigIngestionAlertSettings, RpcconfigRPCNetworkSettings } from "@/types/generated/http-contracts"
+import type { RpcconfigEVMSettings, RpcconfigIngestionAlertSettings, RpcconfigRPCNetworkSettings } from "@/configuration/crypto/types/generated/http-contracts"
 
 type RPCField = keyof RpcconfigEVMSettings
 type AlertField = keyof RpcconfigIngestionAlertSettings

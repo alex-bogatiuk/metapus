@@ -83,3 +83,39 @@ func TestGenerationRejectsUnknownCustomCodecs(t *testing.T) {
 	_, err = Generate([]Contract{Response[stringNumber]("StringNumber")})
 	require.ErrorContains(t, err, "requires an explicit HTTP projection")
 }
+
+type layerShared struct {
+	Value string `json:"value"`
+}
+type layerOwn struct {
+	Shared layerShared `json:"shared"`
+	Note   string      `json:"note"`
+}
+
+func TestConfigurationLayerImportsPlatformTypesInsteadOfRedeclaringThem(t *testing.T) {
+	platform := []Contract{Response[layerShared]("SharedResponse")}
+	base, err := NewLayer(PlatformModules, platform)
+	require.NoError(t, err)
+	modules := Modules{Declarations: "@/configuration/probe/types/generated/http-contracts", Schemas: "@/configuration/probe/lib/generated/http-contract-schemas"}
+	roots := []Contract{Response[layerOwn]("OwnResponse"), Response[layerShared]("SharedResponse")}
+	declarations, err := GenerateOn(base, modules, roots, false)
+	require.NoError(t, err)
+	require.Contains(t, string(declarations), `import type * as Platform from "@/types/generated/http-contracts"`)
+	require.Contains(t, string(declarations), `"shared": Platform.SharedResponse`)
+	require.NotContains(t, string(declarations), "export type SharedResponse")
+	require.NotContains(t, string(declarations), "MinorUnits", "only used imports are emitted")
+	schemas, err := GenerateOn(base, modules, roots, true)
+	require.NoError(t, err)
+	require.Contains(t, string(schemas), `import * as Platform from "@/lib/generated/http-contract-schemas"`)
+	require.Contains(t, string(schemas), `"shared": Platform.SharedResponseSchema`)
+	routes, err := GenerateRoutesOn(base, modules, roots, []RouteContract{
+		{Scope: "probe", Method: "GET", Path: "/own", Response: "OwnResponse"},
+		{Scope: "probe", Method: "GET", Path: "/shared", Response: "SharedResponse"},
+	})
+	require.NoError(t, err)
+	require.Contains(t, string(routes), "response: Wire.OwnResponseSchema")
+	require.Contains(t, string(routes), "response: Platform.SharedResponseSchema")
+	// A configuration cannot reuse a platform name for another shape.
+	_, err = GenerateOn(base, modules, []Contract{Response[layerOwn]("SharedResponse")}, false)
+	require.ErrorContains(t, err, "already declared by the platform")
+}

@@ -1,5 +1,6 @@
-import type * as contracts from "@/types/generated/http-contracts"
-import * as wireSchemas from "@/lib/generated/http-contract-schemas"
+import "./contracts" // registers the configuration's route contracts before any request
+import type * as contracts from "@/configuration/crypto/types/generated/http-contracts"
+import * as wireSchemas from "@/configuration/crypto/lib/generated/http-contract-schemas"
 import { createCatalogApi } from "@/lib/api/core"
 
 // Catalogs of the crypto-processing configuration.
@@ -42,8 +43,8 @@ export const cryptoCatalogsApi = {
 
     cryptoProviderAccounts: createCatalogApi<
         import("@/configuration/crypto/types/crypto-network").CryptoProviderAccount,
-        import("@/types/generated/http-contracts").CreateCryptoProviderAccountRequest,
-        import("@/types/generated/http-contracts").UpdateCryptoProviderAccountRequest
+        import("@/configuration/crypto/types/generated/http-contracts").CreateCryptoProviderAccountRequest,
+        import("@/configuration/crypto/types/generated/http-contracts").UpdateCryptoProviderAccountRequest
     >(
         "/catalog/crypto-provider-accounts",
         wireSchemas.CryptoProviderAccountResponseSchema,

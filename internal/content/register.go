@@ -24,25 +24,42 @@ func RegisterDefaults(reg *v1.FactoryRegistry, services ...Services) {
 		svc = services[0]
 	}
 
-	// Catalogs
+	RegisterPlatform(reg)
+	registerCryptoEntities(reg, svc)
+
+	for key, executor := range DatasetExecutors() {
+		reg.RegisterDatasetExecutor(key, executor)
+	}
+
+	// Datasets — declarative, metadata-driven reports
+	for _, ds := range AllDatasets() {
+		reg.RegisterDataset(ds)
+	}
+}
+
+// RegisterPlatform registers the platform's applied entities: the shared
+// catalogs, integrations and exchange rates that any configuration uses.
+func RegisterPlatform(reg *v1.FactoryRegistry) {
 	reg.RegisterCatalog(&CounterpartyRegistration{})
 	reg.RegisterCatalog(&CurrencyRegistration{})
 	reg.RegisterCatalog(&OrganizationRegistration{})
 	reg.RegisterCatalog(&ContractRegistration{})
-
 	reg.RegisterCatalog(&IntegrationAccountRegistration{})
 	reg.RegisterCatalog(&IntegrationPoolRegistration{})
-	reg.RegisterCatalog(&CryptoRPCEndpointRegistration{})
+	reg.RegisterCatalog(&RateSourceRegistration{})
+	reg.RegisterRegister(&ExchangeRateRegisterRegistration{})
+}
 
-	// Crypto catalogs
+// registerCryptoEntities registers the crypto-processing configuration's
+// entities.
+func registerCryptoEntities(reg *v1.FactoryRegistry, svc Services) {
+	reg.RegisterCatalog(&CryptoRPCEndpointRegistration{})
 	reg.RegisterCatalog(&BlockchainNetworkRegistration{})
 	reg.RegisterCatalog(&TokenRegistration{})
 	reg.RegisterCatalog(&MerchantRegistration{})
 	reg.RegisterCatalog(&WalletRegistration{})
 	reg.RegisterCatalog(&CryptoProviderAccountRegistration{})
-	reg.RegisterCatalog(&RateSourceRegistration{})
 
-	// Documents
 	reg.RegisterDocument(&CryptoInvoiceRegistration{services: svc})
 	reg.RegisterDocument(&CryptoPaymentRegistration{})
 	reg.RegisterDocument(&CryptoWithdrawalRegistration{})
@@ -55,18 +72,6 @@ func RegisterDefaults(reg *v1.FactoryRegistry, services ...Services) {
 	reg.RegisterDocument(&CryptoMerchantCreditRegistration{})
 	reg.RegisterDocument(&CryptoPlatformFundingRegistration{})
 	reg.RegisterCustomDocument(&WithdrawalRequestRegistration{services: svc})
-
-	// Registers
-	reg.RegisterRegister(&ExchangeRateRegisterRegistration{})
-
-	for key, executor := range DatasetExecutors() {
-		reg.RegisterDatasetExecutor(key, executor)
-	}
-
-	// Datasets — declarative, metadata-driven reports
-	for _, ds := range AllDatasets() {
-		reg.RegisterDataset(ds)
-	}
 }
 
 // AllDatasets returns all built-in report dataset definitions.
@@ -78,15 +83,30 @@ func AllDatasets() []*schema.Dataset {
 	}
 }
 
-// HTTPContractBundles returns the configuration's wire contracts: the entity
-// factory bundle (built-in content plus the given extension registrations) and
-// the crypto route module bundle. The contract generator and route tests pass
-// them to contracts.Registry and contracts.Routes.
+// HTTPContractBundles returns every wire contract of the application: the
+// platform's (with client extensions) followed by the crypto configuration's.
+// Route checks of the assembled server use it.
 func HTTPContractBundles(register ...func(*v1.FactoryRegistry)) []spec.Bundle {
+	return append(PlatformHTTPContractBundles(register...), CryptoHTTPContractBundles()...)
+}
+
+// PlatformHTTPContractBundles are the platform entities' contracts and those
+// of client extensions, which use the platform's generic UI. The generator
+// writes them to the platform's frontend files.
+func PlatformHTTPContractBundles(register ...func(*v1.FactoryRegistry)) []spec.Bundle {
 	reg := v1.NewFactoryRegistry()
-	RegisterDefaults(reg)
+	RegisterPlatform(reg)
 	for _, fn := range register {
 		fn(reg)
 	}
+	return []spec.Bundle{reg.HTTPContracts()}
+}
+
+// CryptoHTTPContractBundles are the crypto configuration's contracts: its
+// entities and its route module. The generator writes them to the
+// configuration's own frontend files.
+func CryptoHTTPContractBundles() []spec.Bundle {
+	reg := v1.NewFactoryRegistry()
+	registerCryptoEntities(reg, Services{})
 	return []spec.Bundle{reg.HTTPContracts(), cryptohttp.HTTPContracts()}
 }

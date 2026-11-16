@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Route } from "@playwright/test"
 import { commonAPIResponse, erpUser, ids, installSession, json, unvaluedPortalBalance } from "./helpers"
-import type { AdminDashboardFinanceResponse, AdminDashboardAnalyticsResponse, AdminDashboardQueuesResponse, CryptoNetworkStateResponse } from "../types/generated/http-contracts"
+import type { AdminDashboardFinanceResponse, AdminDashboardAnalyticsResponse, AdminDashboardQueuesResponse, CryptoNetworkStateResponse } from "../configuration/crypto/types/generated/http-contracts"
 import type { JsonValue } from "../lib/json-value"
 
 const admin = { ...erpUser, isAdmin: true }

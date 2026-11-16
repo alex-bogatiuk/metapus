@@ -7,10 +7,7 @@ import { toast } from "sonner"
 
 import { api, ApiError } from "@/lib/api"
 import type { CryptoProviderAccount } from "@/configuration/crypto/types/crypto-network"
-import type {
-  CreateCryptoProviderAccountRequest,
-  UpdateCryptoProviderAccountRequest,
-} from "@/types/generated/http-contracts"
+import type { CreateCryptoProviderAccountRequest, UpdateCryptoProviderAccountRequest } from "@/configuration/crypto/types/generated/http-contracts"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {

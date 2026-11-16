@@ -3,7 +3,7 @@
 import { useId } from "react"
 import { ChevronRight } from "lucide-react"
 
-import type { RpcconfigRPCNetworkSettings } from "@/types/generated/http-contracts"
+import type { RpcconfigRPCNetworkSettings } from "@/configuration/crypto/types/generated/http-contracts"
 import { rpcSettingsFields, rpcSettingsValue, type RPCSettingsField, type RPCSettingsForm } from "@/configuration/crypto/lib/integrations/rpc-network-settings"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"

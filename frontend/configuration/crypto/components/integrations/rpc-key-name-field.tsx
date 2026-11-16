@@ -6,8 +6,8 @@ import useSWR from "swr"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { integrationRuntime } from "@/lib/api/integrations"
-import type { IntegrationRPCKeyOptionsResponse } from "@/types/generated/http-contracts"
+import { cryptoApi } from "@/configuration/crypto/lib/api"
+import type { IntegrationRPCKeyOptionsResponse } from "@/configuration/crypto/types/generated/http-contracts"
 import type { JsonValue } from "@/lib/json-value"
 
 type Draft = Record<string, JsonValue | undefined>
@@ -45,7 +45,7 @@ export function RPCKeyNameField({ value, values, onChange, readOnly }: {
   const draft = { networkId: text(values.networkId), role: text(values.role), url: text(values.url) }
   const { data, error, isLoading } = useSWR(
     poolId ? ["integration-rpc-key-names", poolId, draft.networkId, draft.role, draft.url] : null,
-    () => integrationRuntime.rpcKeyNames(poolId, draft),
+    () => cryptoApi.rpcKeys.names(poolId, draft),
     { keepPreviousData: true },
   )
   const suggestion = data && !readOnly ? suggestedKeyName(data, current) : undefined

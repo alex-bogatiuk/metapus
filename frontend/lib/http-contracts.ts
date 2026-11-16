@@ -2,11 +2,31 @@ import { httpRoutes } from "@/lib/generated/http-contract-routes"
 import type { HTTPRouteContract } from "@/lib/http-contract-types"
 import type { JsonObject } from "@/lib/json-value"
 
+type IndexedRoute = { contract: HTTPRouteContract; segments: string[] }
+
 // Literal segments precede parameters regardless of declaration order.
-const routes = [...httpRoutes].sort((left, right) => {
+function indexRoutes(contracts: readonly HTTPRouteContract[]): IndexedRoute[] {
   const parameters = (path: string) => path.split("/").filter(part => part.startsWith(":")).length
-  return parameters(left.path) - parameters(right.path)
-}).map(contract => ({ contract, segments: contract.path.split("/") }))
+  return [...contracts].sort((left, right) => parameters(left.path) - parameters(right.path))
+    .map(contract => ({ contract, segments: contract.path.split("/") }))
+}
+
+const registered = new Set<readonly HTTPRouteContract[]>([httpRoutes])
+let routes = indexRoutes(httpRoutes)
+
+/**
+ * Adds a configuration's generated route table (its own
+ * configuration/<name>/lib/generated/http-contract-routes.ts). Registering the
+ * same table again is a no-op; a route both tables declare is an error.
+ */
+export function registerHTTPRoutes(table: readonly HTTPRouteContract[]): void {
+  if (registered.has(table)) return
+  const known = new Set(routes.map(({ contract }) => `${contract.scope} ${contract.method} ${contract.path}`))
+  const duplicate = table.find(contract => known.has(`${contract.scope} ${contract.method} ${contract.path}`))
+  if (duplicate) throw new Error(`HTTP contract ${duplicate.scope} ${duplicate.method} ${duplicate.path} is already registered`)
+  registered.add(table)
+  routes = indexRoutes([...routes.map(({ contract }) => contract), ...table])
+}
 
 export function findHTTPContract(scope: string, method: string, path: string): HTTPRouteContract | undefined {
   const segments = path.split("?")[0].replace(/\/$/, "").split("/")

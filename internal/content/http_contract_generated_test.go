@@ -17,18 +17,21 @@ import (
 )
 
 // The generated frontend files describe the assembled application: the
-// platform with every configuration and extension.
-
-func TestRouteContractsOfTheApplicationStayCurrent(t *testing.T) {
-	bundles := content.HTTPContractBundles(extensions.Register)
-	generated, err := contracts.GenerateRoutes(contracts.Registry(bundles...), contracts.Routes(bundles...))
+// platform's files (with client extensions) and the configuration's files on
+// top of them. Generating the platform layer alone also proves that no
+// platform route depends on a configuration contract.
+func TestHTTPArtifactsStayCurrent(t *testing.T) {
+	artifacts, _, err := content.HTTPArtifacts(extensions.Register)
 	require.NoError(t, err)
-	committed, err := os.ReadFile("../../frontend/lib/generated/http-contract-routes.ts")
-	require.NoError(t, err)
-	require.Equal(t, string(generated), string(bytes.ReplaceAll(committed, []byte("\r\n"), []byte("\n"))), "run go run ./cmd/http-contracts")
+	require.Len(t, artifacts, 6)
+	for _, artifact := range artifacts {
+		committed, err := os.ReadFile(filepath.Join("../..", artifact.Path))
+		require.NoError(t, err, artifact.Path)
+		require.Equal(t, string(artifact.Data), string(bytes.ReplaceAll(committed, []byte("\r\n"), []byte("\n"))), "run go run ./cmd/http-contracts: %s", artifact.Path)
+	}
 }
 
-func TestRegistryCoversOwnedJSONDTOsAndGeneratedFileIsCurrent(t *testing.T) {
+func TestRegistryCoversOwnedJSONDTOs(t *testing.T) {
 	bundles := content.HTTPContractBundles(extensions.Register)
 	registered := map[string]bool{}
 	for _, contract := range contracts.Registry(bundles...) {
@@ -61,14 +64,4 @@ func TestRegistryCoversOwnedJSONDTOsAndGeneratedFileIsCurrent(t *testing.T) {
 			}
 		}
 	}
-	generated, err := contracts.Generate(contracts.Registry(bundles...))
-	require.NoError(t, err)
-	committed, err := os.ReadFile("../../frontend/types/generated/http-contracts.ts")
-	require.NoError(t, err)
-	require.Equal(t, string(generated), string(bytes.ReplaceAll(committed, []byte("\r\n"), []byte("\n"))), "run go run ./cmd/http-contracts")
-	schemas, err := contracts.GenerateSchemas(contracts.Registry(bundles...))
-	require.NoError(t, err)
-	committed, err = os.ReadFile("../../frontend/lib/generated/http-contract-schemas.ts")
-	require.NoError(t, err)
-	require.Equal(t, string(schemas), string(bytes.ReplaceAll(committed, []byte("\r\n"), []byte("\n"))), "run go run ./cmd/http-contracts")
 }

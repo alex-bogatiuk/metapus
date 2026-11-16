@@ -13,8 +13,4 @@ export const integrationRuntime = {
   status: (id: string) => apiFetch<Types.IntegrationPoolStatusResponse>(`/system/integrations/pools/${id}/status`),
   command: (id: string, data: Types.IntegrationPoolCommandRequest) => apiFetch<Types.IntegrationPoolStatusResponse>(`/system/integrations/pools/${id}/command`, { method: "POST", body: JSON.stringify(data) }),
   test: (id: string) => apiFetch<Types.IntegrationConnectionTestResponse>(`/system/integrations/pools/${id}/test`, { method: "POST" }),
-  rpcKeyNames: (poolId: string, draft: { networkId?: string; role?: string; url?: string }) => {
-    const query = new URLSearchParams(Object.entries(draft).filter((entry): entry is [string, string] => !!entry[1])).toString()
-    return apiFetch<Types.IntegrationRPCKeyOptionsResponse>(`/system/integrations/pools/${poolId}/rpc-key-names${query ? `?${query}` : ""}`)
-  },
 }

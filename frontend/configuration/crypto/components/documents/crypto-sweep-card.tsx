@@ -7,13 +7,8 @@ import { toast } from "sonner"
 
 import { copyToClipboard, formatDateTime, formatMinorUnits } from "@/lib/format"
 import { useEnumFormatter } from "@/hooks/useEntityFiltersMeta"
-import type {
-    CryptoSweepDetailResponse,
-    CryptoSweepTokenDisplay,
-    CryptoSweepWalletDisplay,
-    DocumentMovementsResponse,
-    EntityDocumentMovement,
-} from "@/types/generated/http-contracts"
+import type { DocumentMovementsResponse, EntityDocumentMovement } from "@/types/generated/http-contracts"
+import type { CryptoSweepDetailResponse, CryptoSweepTokenDisplay, CryptoSweepWalletDisplay } from "@/configuration/crypto/types/generated/http-contracts"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"

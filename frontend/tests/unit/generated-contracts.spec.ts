@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test"
-import { CreateCryptoInvoiceRequestSchema, CurrencyResponseSchema, CounterpartyResponseSchema } from "../../lib/generated/http-contract-schemas"
+import { CurrencyResponseSchema, CounterpartyResponseSchema } from "../../lib/generated/http-contract-schemas"
+import { CreateCryptoInvoiceRequestSchema } from "../../configuration/crypto/lib/generated/http-contract-schemas"
 import { cursorListSchema } from "../../lib/schemas/documents"
 
 test("generated schemas distinguish omitted, nullable and required zero-valued fields", () => {

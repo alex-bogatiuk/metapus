@@ -10,6 +10,7 @@ import { cryptoCatalogsApi } from "./catalogs"
 import { cryptoOperationsApi } from "./crypto"
 import { dashboardApi } from "./dashboard"
 import { portalApi, merchantApiKeysApi, merchantUsersApi, feeScheduleApi, merchantFeeScheduleApi } from "./portal"
+import { rpcKeysApi } from "./rpc-keys"
 
 export const cryptoApi = {
     ...cryptoCatalogsApi,
@@ -20,4 +21,5 @@ export const cryptoApi = {
     merchantUsers: merchantUsersApi,
     feeSchedule: feeScheduleApi,
     merchantFeeSchedule: merchantFeeScheduleApi,
+    rpcKeys: rpcKeysApi,
 } as const

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
-import type { CryptoNetworkStateResponse, CryptoRPCConfigurationResponse, UpdateCryptoRPCConfigurationRequest } from "../types/generated/http-contracts"
+import type { CryptoNetworkStateResponse, CryptoRPCConfigurationResponse, UpdateCryptoRPCConfigurationRequest } from "../configuration/crypto/types/generated/http-contracts"
 import { commonAPIResponse, erpUser, ids, installSession, json } from "./helpers"
 
 const revision = "a".repeat(64)

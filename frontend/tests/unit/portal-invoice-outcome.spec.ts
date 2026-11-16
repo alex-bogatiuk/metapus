@@ -5,7 +5,7 @@ import {
   paymentOutcome,
   webhookOutcome,
 } from "../../configuration/crypto/lib/portal-invoice-outcome";
-import { PortalInvoiceDetailResponseSchema } from "../../lib/generated/http-contract-schemas";
+import { PortalInvoiceDetailResponseSchema } from "../../configuration/crypto/lib/generated/http-contract-schemas";
 import { invoiceFixture, knownLedger } from "../invoice-detail-fixture";
 
 test("underpaid invoice separates balance credit, shortage and closed intake", () => {

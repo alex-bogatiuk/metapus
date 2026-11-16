@@ -6,6 +6,7 @@ import { useNotificationStore } from "../../stores/useNotificationStore"
 import { useMetadataStore } from "../../stores/useMetadataStore"
 import { api, apiFetch, createScopedClient, apiFetchBlob, bootstrapAccessToken, ApiError } from "../../lib/api"
 import { getSessionGeneration, scopeKey } from "../../lib/auth-scope"
+import { registerHTTPRoutes } from "../../lib/http-contracts"
 import { erpUser, ids } from "../helpers"
 import type { TokenResponse } from "../../types/auth"
 
@@ -52,8 +53,14 @@ test("identity, tenant, session and rights transitions clear drafts and caches; 
   expect(() => auth.setTokens(tokens(userB))).toThrow("does not match")
 })
 
+// Probe routes: a configuration's own HTTP scope and a binary download.
+registerHTTPRoutes([
+  { scope: "probe", method: "GET", path: "/items", request: null, requestFields: null, response: null, optionalRequest: false },
+  { scope: "api", method: "GET", path: "/probe/:id/print", request: null, requestFields: null, response: null, optionalRequest: false },
+])
+
 test("late JSON, scoped-client and blob responses cannot complete in the next identity", async () => {
-  for (const fetcher of [() => apiFetch("/auth/me"), () => createScopedClient("portal").fetch("/merchants"), () => apiFetchBlob(`/document/crypto-invoice/${ids.token}/print`)]) {
+  for (const fetcher of [() => apiFetch("/auth/me"), () => createScopedClient("probe").fetch("/items"), () => apiFetchBlob(`/probe/${ids.token}/print`)]) {
     useAuthStore.getState().setAuth(tokens(), erpUser)
     const delayed = deferred<Response>()
     let requestSignal: AbortSignal | null | undefined

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
-import type { CreateReceiptRefundRequest, UnidentifiedReceiptItem } from "../types/generated/http-contracts"
+import type { CreateReceiptRefundRequest, UnidentifiedReceiptItem } from "../configuration/crypto/types/generated/http-contracts"
 import { commonAPIResponse, erpUser, ids, installSession, json } from "./helpers"
 
 const receiptId = "20000000-0000-4000-8000-000000000011"

@@ -14,7 +14,7 @@ export type WithdrawalRequestStatus =
 export interface AdminWithdrawalRequestItem {
  riskClass?: string
  riskAccepted: boolean
- sources?: import("@/types/generated/http-contracts").PortalWithdrawalSource[]
+ sources?: import("@/configuration/crypto/types/generated/http-contracts").PortalWithdrawalSource[]
   id: string
   number: string
   date: string

@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-import type { FinancialAdjustmentSourceResponse } from "@/types/generated/http-contracts"
+import type { FinancialAdjustmentSourceResponse } from "@/configuration/crypto/types/generated/http-contracts"
 
 import { cryptoApi } from "@/configuration/crypto/lib/api"
 const statusLabels: Record<string, string> = {

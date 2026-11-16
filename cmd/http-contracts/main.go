@@ -1,4 +1,6 @@
-// Command http-contracts generates declarations from the explicit HTTP registry.
+// Command http-contracts generates the frontend wire declarations, runtime
+// schemas and route tables from the explicit HTTP registry: the platform's
+// files and each configuration's own files on top of them.
 package main
 
 import (
@@ -10,45 +12,28 @@ import (
 
 	"metapus/extensions"
 	"metapus/internal/content"
-	"metapus/internal/infrastructure/http/contracts"
 )
 
 func main() {
 	check := flag.Bool("check", false, "fail if committed declarations are stale")
-	output := flag.String("out", "frontend/types/generated/http-contracts.ts", "generated declaration path")
-	schemas := flag.String("schemas-out", "frontend/lib/generated/http-contract-schemas.ts", "generated runtime schema path")
-	routes := flag.String("routes-out", "frontend/lib/generated/http-contract-routes.ts", "generated route contract path")
 	flag.Parse()
-	if err := run(*check, *output, *schemas, *routes); err != nil {
+	if err := run(*check); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run(check bool, output, schemas, routePath string) error {
-	bundles := content.HTTPContractBundles(extensions.Register)
-	registry := contracts.Registry(bundles...)
-	data, err := contracts.Generate(registry)
+func run(check bool) error {
+	artifacts, count, err := content.HTTPArtifacts(extensions.Register)
 	if err != nil {
 		return err
 	}
-	runtime, err := contracts.GenerateSchemas(registry)
-	if err != nil {
-		return err
-	}
-	routes, err := contracts.GenerateRoutes(registry, contracts.Routes(bundles...))
-	if err != nil {
-		return err
-	}
-	for _, artifact := range []struct {
-		path string
-		data []byte
-	}{{output, data}, {schemas, runtime}, {routePath, routes}} {
-		if err := writeArtifact(check, artifact.path, artifact.data); err != nil {
+	for _, artifact := range artifacts {
+		if err := writeArtifact(check, artifact.Path, artifact.Data); err != nil {
 			return err
 		}
 	}
-	fmt.Printf("Verified %d registered HTTP contracts and schemas\n", len(registry))
+	fmt.Printf("Verified %d registered HTTP contracts and schemas\n", count)
 	return nil
 }
 
@@ -59,15 +44,12 @@ func writeArtifact(check bool, output string, data []byte) error {
 			return err
 		}
 		if !bytes.Equal(bytes.ReplaceAll(current, []byte("\r\n"), []byte("\n")), data) {
-			return fmt.Errorf("HTTP declarations are stale: run go run ./cmd/http-contracts")
+			return fmt.Errorf("HTTP declarations are stale: run go run ./cmd/http-contracts (%s)", output)
 		}
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(output, data, 0644); err != nil {
-		return err
-	}
-	return nil
+	return os.WriteFile(output, data, 0644)
 }

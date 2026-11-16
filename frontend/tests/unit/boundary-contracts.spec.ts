@@ -11,7 +11,8 @@ import { ids } from "../helpers"
 import type { BatchProgressEvent } from "../../types/common"
 import type { JsonValue } from "../../lib/json-value"
 import { invalidateResolveCache, resolveRefs, resolveSingleRef } from "../../lib/ref-resolver"
-import { ResolveRefsRequestSchema } from "../../lib/generated/http-contract-schemas"
+import { BatchActionByFilterRequestSchema, ResolveRefsRequestSchema } from "../../lib/generated/http-contract-schemas"
+import { registerHTTPRoutes } from "../../lib/http-contracts"
 
 test.describe.configure({ mode: "serial" })
 const nativeFetch = globalThis.fetch
@@ -127,7 +128,9 @@ test("SSE validates split frames and omitted zero counters before callbacks", as
     controller.close()
   } }), { headers: { "Content-Type": "text/event-stream" } })
   const events: BatchProgressEvent[] = []
-  await fetchSSE("/document/crypto-invoice/batch-action-by-filter", { action: "post", filter: [] }, batchProgressSchema, event => events.push(event))
+  registerHTTPRoutes([{ scope: "api", method: "POST", path: "/document/probe/batch-action-by-filter", request: BatchActionByFilterRequestSchema,
+    requestFields: ["action", "filter"], response: null, optionalRequest: false }])
+  await fetchSSE("/document/probe/batch-action-by-filter", { action: "post", filter: [] }, batchProgressSchema, event => events.push(event))
   expect(events).toEqual([
     { type: "started", total: 2, processed: 0, success: 0, failed: 0 },
     { type: "progress", total: 2, processed: 1, success: 1, failed: 0 },

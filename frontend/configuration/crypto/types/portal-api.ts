@@ -1,10 +1,10 @@
 import type { JsonObject } from "@/lib/json-value"
-import type { AmlWalletAssetDisplay } from "@/types/generated/http-contracts"
+import type { AmlWalletAssetDisplay } from "@/configuration/crypto/types/generated/http-contracts"
 /**
  * Portal API types — mirrors backend dto/portal_api.go.
  */
 
-export type PortalSummaryResponse = import("@/types/generated/http-contracts").PortalSummaryResponse
+export type PortalSummaryResponse = import("@/configuration/crypto/types/generated/http-contracts").PortalSummaryResponse
 
 export interface PortalCurrencyItem {
   tokenId: string
@@ -189,9 +189,9 @@ export interface PortalBalanceResponse {
 
 // ── Invoice Detail ─────────────────────────────────────────────────────
 
-export type PortalInvoiceDetailResponse = import("@/types/generated/http-contracts").PortalInvoiceDetailResponse
-export type PortalInvoicePayment = import("@/types/generated/http-contracts").PortalInvoicePayment
-export type PortalTimelineEvent = import("@/types/generated/http-contracts").PortalTimelineEvent
+export type PortalInvoiceDetailResponse = import("@/configuration/crypto/types/generated/http-contracts").PortalInvoiceDetailResponse
+export type PortalInvoicePayment = import("@/configuration/crypto/types/generated/http-contracts").PortalInvoicePayment
+export type PortalTimelineEvent = import("@/configuration/crypto/types/generated/http-contracts").PortalTimelineEvent
 export type PortalInvoiceLedger = PortalInvoiceDetailResponse["financialSummary"]["ledger"]
 
 export interface PortalWebhookDeliveryItem {
@@ -264,7 +264,7 @@ export interface PortalMerchantEvent {
   payload: JsonObject
 }
 
-export type PortalWebhookTestResponse = import("@/types/generated/http-contracts").WebhookTestResponse
+export type PortalWebhookTestResponse = import("@/configuration/crypto/types/generated/http-contracts").WebhookTestResponse
 
 // ── Webhook Secret ────────────────────────────────────────────────────
 
@@ -352,12 +352,12 @@ export interface PortalCreateWithdrawalRequest {
   refundReason?: string    // required with refundPaymentId
 }
 
-export type PortalRefundablePaymentResponse = import("@/types/generated/http-contracts").PortalRefundablePaymentResponse
+export type PortalRefundablePaymentResponse = import("@/configuration/crypto/types/generated/http-contracts").PortalRefundablePaymentResponse
 
 export interface PortalWithdrawalRequestItem {
  riskClass?: string
  riskAccepted: boolean
- sources?: import("@/types/generated/http-contracts").PortalWithdrawalSource[]
+ sources?: import("@/configuration/crypto/types/generated/http-contracts").PortalWithdrawalSource[]
   id: string
   number: string
   status: string        // pending_signature, pending_approval, approved, signing, broadcast, confirmed, rejected, failed

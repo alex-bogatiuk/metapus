@@ -1,5 +1,6 @@
+import "./contracts" // registers the configuration's route contracts before any request
 import { apiFetch } from "@/lib/api/core"
-import { AdminDashboardQueuesResponseSchema, AdminDashboardFinanceResponseSchema, AdminDashboardAnalyticsResponseSchema } from "@/lib/generated/http-contract-schemas"
+import { AdminDashboardQueuesResponseSchema, AdminDashboardFinanceResponseSchema, AdminDashboardAnalyticsResponseSchema } from "@/configuration/crypto/lib/generated/http-contract-schemas"
 
 export const dashboardApi = {
   queues: (kind = "all", limit = 5) => apiFetch(`/admin/dashboard/queues?${new URLSearchParams({ kind, limit: String(limit) })}`).then(v => AdminDashboardQueuesResponseSchema.parse(v)),

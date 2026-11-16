@@ -1,52 +1,53 @@
+import "./contracts" // registers the configuration's route contracts before any request
 import type { CursorListResponse, CursorListParams } from "@/types/common"
 import { apiFetch, assertUuidPathParam, buildListQS, idempotencyHeaders } from "@/lib/api/core"
 
 export const cryptoOperationsApi = {
     unidentifiedReceipts: {
         list: (state: import("@/configuration/crypto/types/unidentified-receipt").ReceiptJournalState, includeDust: boolean, offset = 0) =>
-            apiFetch<import("@/types/generated/http-contracts").UnidentifiedReceiptListResponse>(
+            apiFetch<import("@/configuration/crypto/types/generated/http-contracts").UnidentifiedReceiptListResponse>(
                 `/crypto/unidentified-receipts?state=${state}&includeDust=${includeDust}&limit=50&offset=${offset}`,
             ),
         detail: (receiptId: string) =>
-            apiFetch<import("@/types/generated/http-contracts").CustodyReceiptDetailResponse>(
+            apiFetch<import("@/configuration/crypto/types/generated/http-contracts").CustodyReceiptDetailResponse>(
                 `/crypto/unidentified-receipts/${assertUuidPathParam(receiptId, "receiptId")}`,
             ),
         prepareCredit: (receiptId: string, merchantId: string, key: string) =>
-            apiFetch<import("@/types/generated/http-contracts").MerchantCreditResponse>(
+            apiFetch<import("@/configuration/crypto/types/generated/http-contracts").MerchantCreditResponse>(
                 `/crypto/unidentified-receipts/${assertUuidPathParam(receiptId, "receiptId")}/credits`,
                 { method: "POST", headers: idempotencyHeaders(key), body: JSON.stringify({ merchantId: assertUuidPathParam(merchantId, "merchantId") }) },
             ),
         approveCredit: (creditId: string, version: number, key: string) =>
-            apiFetch<import("@/types/generated/http-contracts").MerchantCreditResponse>(
+            apiFetch<import("@/configuration/crypto/types/generated/http-contracts").MerchantCreditResponse>(
                 `/crypto/merchant-credits/${assertUuidPathParam(creditId, "creditId")}/approve`,
                 { method: "POST", headers: idempotencyHeaders(key), body: JSON.stringify({ version }) },
             ),
         rejectCredit: (creditId: string, version: number, reason: string, key: string) =>
-            apiFetch<import("@/types/generated/http-contracts").MerchantCreditResponse>(
+            apiFetch<import("@/configuration/crypto/types/generated/http-contracts").MerchantCreditResponse>(
                 `/crypto/merchant-credits/${assertUuidPathParam(creditId, "creditId")}/reject`,
                 { method: "POST", headers: idempotencyHeaders(key), body: JSON.stringify({ version, reason }) },
             ),
         walletFundings: (offset = 0) =>
-            apiFetch<import("@/types/generated/http-contracts").WalletFundingListResponse>(`/crypto/wallet-fundings?limit=50&offset=${offset}`),
-        preparePlatformFunding: (receiptId: string, command: import("@/types/generated/http-contracts").PreparePlatformFundingRequest, key: string) =>
-            apiFetch<import("@/types/generated/http-contracts").PlatformFundingResponse>(
+            apiFetch<import("@/configuration/crypto/types/generated/http-contracts").WalletFundingListResponse>(`/crypto/wallet-fundings?limit=50&offset=${offset}`),
+        preparePlatformFunding: (receiptId: string, command: import("@/configuration/crypto/types/generated/http-contracts").PreparePlatformFundingRequest, key: string) =>
+            apiFetch<import("@/configuration/crypto/types/generated/http-contracts").PlatformFundingResponse>(
                 `/crypto/unidentified-receipts/${assertUuidPathParam(receiptId, "receiptId")}/platform-fundings`,
                 { method: "POST", headers: idempotencyHeaders(key), body: JSON.stringify(command) },
             ),
         approvePlatformFunding: (fundingId: string, version: number, key: string) =>
-            apiFetch<import("@/types/generated/http-contracts").PlatformFundingResponse>(
+            apiFetch<import("@/configuration/crypto/types/generated/http-contracts").PlatformFundingResponse>(
                 `/crypto/platform-fundings/${assertUuidPathParam(fundingId, "fundingId")}/approve`,
                 { method: "POST", headers: idempotencyHeaders(key), body: JSON.stringify({ version }) },
             ),
         rejectPlatformFunding: (fundingId: string, version: number, reason: string, key: string) =>
-            apiFetch<import("@/types/generated/http-contracts").PlatformFundingResponse>(
+            apiFetch<import("@/configuration/crypto/types/generated/http-contracts").PlatformFundingResponse>(
                 `/crypto/platform-fundings/${assertUuidPathParam(fundingId, "fundingId")}/reject`,
                 { method: "POST", headers: idempotencyHeaders(key), body: JSON.stringify({ version, reason }) },
             ),
     },
     financialAdjustments: {
         paymentSources: (paymentId: string) =>
-            apiFetch<import("@/types/generated/http-contracts").FinancialAdjustmentPaymentSourcesResponse>(
+            apiFetch<import("@/configuration/crypto/types/generated/http-contracts").FinancialAdjustmentPaymentSourcesResponse>(
                 `/document/treasury-withdrawal/reconciliation/financial-adjustments/payment/${assertUuidPathParam(paymentId, "paymentId")}/sources`,
             ),
         list: (status = "", paymentId = "") => {
@@ -54,33 +55,33 @@ export const cryptoOperationsApi = {
             if (status) params.set("status", status)
             if (paymentId) params.set("paymentId", assertUuidPathParam(paymentId, "paymentId"))
             const qs = params.size ? `?${params}` : ""
-            return apiFetch<import("@/types/generated/http-contracts").FinancialAdjustmentListResponse>(
+            return apiFetch<import("@/configuration/crypto/types/generated/http-contracts").FinancialAdjustmentListResponse>(
                 `/document/treasury-withdrawal/reconciliation/financial-adjustments${qs}`,
             )
         },
         get: (id: string) =>
-            apiFetch<import("@/types/generated/http-contracts").FinancialAdjustmentResponse>(
+            apiFetch<import("@/configuration/crypto/types/generated/http-contracts").FinancialAdjustmentResponse>(
                 `/document/treasury-withdrawal/reconciliation/financial-adjustments/${assertUuidPathParam(id, "adjustmentId")}`,
             ),
-        propose: (data: import("@/types/generated/http-contracts").ProposeFinancialAdjustmentRequest) =>
-            apiFetch<import("@/types/generated/http-contracts").FinancialAdjustmentResponse>(
+        propose: (data: import("@/configuration/crypto/types/generated/http-contracts").ProposeFinancialAdjustmentRequest) =>
+            apiFetch<import("@/configuration/crypto/types/generated/http-contracts").FinancialAdjustmentResponse>(
                 "/document/treasury-withdrawal/reconciliation/financial-adjustments",
                 { method: "POST", headers: idempotencyHeaders(), body: JSON.stringify(data) },
             ),
         approve: (id: string, reason: string) =>
-            apiFetch<import("@/types/generated/http-contracts").FinancialAdjustmentResponse>(
+            apiFetch<import("@/configuration/crypto/types/generated/http-contracts").FinancialAdjustmentResponse>(
                 `/document/treasury-withdrawal/reconciliation/financial-adjustments/${assertUuidPathParam(id, "adjustmentId")}/approve`,
                 { method: "POST", headers: idempotencyHeaders(), body: JSON.stringify({ reason }) },
             ),
         reject: (id: string, reason: string) =>
-            apiFetch<import("@/types/generated/http-contracts").FinancialAdjustmentResponse>(
+            apiFetch<import("@/configuration/crypto/types/generated/http-contracts").FinancialAdjustmentResponse>(
                 `/document/treasury-withdrawal/reconciliation/financial-adjustments/${assertUuidPathParam(id, "adjustmentId")}/reject`,
                 { method: "POST", headers: idempotencyHeaders(), body: JSON.stringify({ reason }) },
             ),
     },
     cryptoSweeps: {
         get: (id: string) =>
-            apiFetch<import("@/types/generated/http-contracts").CryptoSweepDetailResponse>(
+            apiFetch<import("@/configuration/crypto/types/generated/http-contracts").CryptoSweepDetailResponse>(
                 `/document/crypto-sweep/${assertUuidPathParam(id, "id")}`,
             ),
         movements: (id: string) =>
@@ -170,7 +171,7 @@ export const cryptoOperationsApi = {
             apiFetch<import("@/configuration/crypto/types/treasury").TreasuryAvailability>(
                 `/document/treasury-withdrawal/availability?tokenId=${encodeURIComponent(tokenId)}`,
             ),
-        createReceiptRefund: (data: import("@/types/generated/http-contracts").CreateReceiptRefundRequest, idempotencyKey: string) =>
+        createReceiptRefund: (data: import("@/configuration/crypto/types/generated/http-contracts").CreateReceiptRefundRequest, idempotencyKey: string) =>
             apiFetch<import("@/configuration/crypto/types/treasury").TreasuryWithdrawal>("/document/treasury-withdrawal/receipt-refunds", {
                 method: "POST",
                 headers: idempotencyHeaders(idempotencyKey),
@@ -282,24 +283,24 @@ export const cryptoOperationsApi = {
 
     cryptoNetworks: {
 		rpcConfiguration: (networkId: string) =>
-			apiFetch<import("@/types/generated/http-contracts").CryptoRPCConfigurationResponse>(
+			apiFetch<import("@/configuration/crypto/types/generated/http-contracts").CryptoRPCConfigurationResponse>(
 				`/admin/crypto/networks/${assertUuidPathParam(networkId, "networkId")}/rpc-configuration`,
 			),
-		updateRPCConfiguration: (networkId: string, data: import("@/types/generated/http-contracts").UpdateCryptoRPCConfigurationRequest, key: string) =>
-			apiFetch<import("@/types/generated/http-contracts").CryptoRPCConfigurationResponse>(
+		updateRPCConfiguration: (networkId: string, data: import("@/configuration/crypto/types/generated/http-contracts").UpdateCryptoRPCConfigurationRequest, key: string) =>
+			apiFetch<import("@/configuration/crypto/types/generated/http-contracts").CryptoRPCConfigurationResponse>(
 				`/admin/crypto/networks/${assertUuidPathParam(networkId, "networkId")}/rpc-configuration`,
 				{ method: "PATCH", headers: idempotencyHeaders(key), body: JSON.stringify(data) },
 			),
         shadowStatus: (networkId: string) =>
-            apiFetch<import("@/types/generated/http-contracts").CryptoShadowControlResponse>(
+            apiFetch<import("@/configuration/crypto/types/generated/http-contracts").CryptoShadowControlResponse>(
                 `/admin/crypto/networks/${assertUuidPathParam(networkId, "networkId")}/shadow`
             ),
         setShadowPaused: (
             networkId: string,
-            command: import("@/types/generated/http-contracts").SetCryptoShadowControlRequest,
+            command: import("@/configuration/crypto/types/generated/http-contracts").SetCryptoShadowControlRequest,
             idempotencyKey: string,
         ) =>
-            apiFetch<import("@/types/generated/http-contracts").CryptoShadowControlResponse>(
+            apiFetch<import("@/configuration/crypto/types/generated/http-contracts").CryptoShadowControlResponse>(
                 `/admin/crypto/networks/${assertUuidPathParam(networkId, "networkId")}/shadow`,
                 { method: "POST", headers: idempotencyHeaders(idempotencyKey), body: JSON.stringify(command) },
             ),
@@ -309,7 +310,7 @@ export const cryptoOperationsApi = {
             ),
         setWatching: (
             networkId: string,
-            command: import("@/types/generated/http-contracts").SetCryptoNetworkWatchingRequest,
+            command: import("@/configuration/crypto/types/generated/http-contracts").SetCryptoNetworkWatchingRequest,
             idempotencyKey: string,
         ) =>
             apiFetch<import("@/configuration/crypto/types/crypto-network").CryptoNetworkState>(

@@ -76,7 +76,7 @@ test("catalog payload excludes form-specific hidden requisites", () => {
 test("token currency can be selected and saved repeatedly with a strict update body", async ({ page }) => {
   await installSession(page)
   const requests: JsonObject[] = []
-  let token: import("../types/generated/http-contracts").CryptoTokenResponse = {
+  let token: import("../configuration/crypto/types/generated/http-contracts").CryptoTokenResponse = {
     ...editableToken, id: tokenId, version: 7, deletionMark: false,
     network: { id: networkId, code: "ETHEREUM-SEPOLIA", name: "Ethereum Sepolia" },
   }

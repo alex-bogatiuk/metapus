@@ -1,6 +1,6 @@
 import type { JsonObject } from "@/lib/json-value"
 import { expect, test, type Page } from "@playwright/test"
-import type { CryptoRPCEndpointResponse, IntegrationRPCKeyOptionsResponse } from "@/types/generated/http-contracts"
+import type { CryptoRPCEndpointResponse, IntegrationRPCKeyOptionsResponse } from "@/configuration/crypto/types/generated/http-contracts"
 import { commonAPIResponse, erpUser, ids, installSession, json } from "./helpers"
 
 const at = "2026-11-12T10:00:00Z"
