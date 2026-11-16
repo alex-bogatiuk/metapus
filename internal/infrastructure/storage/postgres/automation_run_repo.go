@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"metapus/internal/core/id"
 	"metapus/internal/core/workerjob"
 	"metapus/internal/domain/automations"
 )
@@ -100,32 +101,64 @@ func (r *AutomationRunRepo) Claim(ctx context.Context, limit int) ([]automations
  AND (NOT r.is_active OR r.deletion_mark OR r.trigger_type<>'scheduled')`); err != nil {
 		return nil, err
 	}
-	rows, err := q.Query(ctx, `WITH rules AS (
- SELECT r.id FROM sys_automation_rules r WHERE r.is_active AND NOT r.deletion_mark AND r.trigger_type='scheduled'
+	var runs []automations.ScheduledRun
+	txm := MustGetTxManager(ctx)
+	err := txm.RunInTransaction(ctx, func(txCtx context.Context) error {
+		runs = nil
+		q := txm.GetQuerier(txCtx)
+		// The rule row lock is the per-rule execution slot. It must be taken in
+		// its own statement: a claimer whose snapshot predates a competitor's
+		// commit can still win the lock after that commit, and would then miss
+		// the competitor's new processing run and collide with
+		// uq_automation_runs_processing_rule. The claim below runs with a fresh
+		// READ COMMITTED snapshot taken after the lock, so it sees that run.
+		ruleRows, err := q.Query(txCtx, `SELECT r.id FROM sys_automation_rules r
+ WHERE r.is_active AND NOT r.deletion_mark AND r.trigger_type='scheduled'
  AND EXISTS(SELECT 1 FROM sys_automation_runs j WHERE j.rule_id=r.id AND j.status='pending' AND j.next_attempt_at<=clock_timestamp())
  AND NOT EXISTS(SELECT 1 FROM sys_automation_runs j WHERE j.rule_id=r.id AND j.status='processing')
- ORDER BY r.last_executed_at NULLS FIRST,r.id LIMIT $1 FOR UPDATE OF r SKIP LOCKED
- ),due AS (
- SELECT candidate.id FROM rules r CROSS JOIN LATERAL (
+ ORDER BY r.last_executed_at NULLS FIRST,r.id LIMIT $1 FOR UPDATE OF r SKIP LOCKED`, max(1, limit))
+		if err != nil {
+			return err
+		}
+		var ruleIDs []id.ID
+		for ruleRows.Next() {
+			var ruleID id.ID
+			if err := ruleRows.Scan(&ruleID); err != nil {
+				ruleRows.Close()
+				return err
+			}
+			ruleIDs = append(ruleIDs, ruleID)
+		}
+		ruleRows.Close()
+		if err := ruleRows.Err(); err != nil || len(ruleIDs) == 0 {
+			return err
+		}
+		rows, err := q.Query(txCtx, `WITH due AS (
+ SELECT candidate.id FROM unnest($1::uuid[]) AS r(id) CROSS JOIN LATERAL (
  SELECT j.id FROM sys_automation_runs j WHERE j.rule_id=r.id AND j.status='pending'
  AND j.next_attempt_at<=clock_timestamp() ORDER BY j.scheduled_for LIMIT 1 FOR UPDATE OF j SKIP LOCKED
  ) candidate
+ WHERE NOT EXISTS(SELECT 1 FROM sys_automation_runs p WHERE p.rule_id=r.id AND p.status='processing')
  ) UPDATE sys_automation_runs j SET status='processing',attempt=attempt+1,
  claim_token=gen_random_uuid_v7(),lease_until=clock_timestamp()+INTERVAL '2 minutes',updated_at=clock_timestamp()
- FROM due WHERE j.id=due.id RETURNING j.id,j.rule_id,j.expression,j.scheduled_for,j.claim_token,j.attempt,j.max_attempts`, max(1, limit))
+ FROM due WHERE j.id=due.id RETURNING j.id,j.rule_id,j.expression,j.scheduled_for,j.claim_token,j.attempt,j.max_attempts`, ruleIDs)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var run automations.ScheduledRun
+			if err := rows.Scan(&run.ID, &run.RuleID, &run.Expression, &run.ScheduledFor, &run.ClaimToken, &run.Attempt, &run.MaxAttempts); err != nil {
+				return err
+			}
+			runs = append(runs, run)
+		}
+		return rows.Err()
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var runs []automations.ScheduledRun
-	for rows.Next() {
-		var run automations.ScheduledRun
-		if err := rows.Scan(&run.ID, &run.RuleID, &run.Expression, &run.ScheduledFor, &run.ClaimToken, &run.Attempt, &run.MaxAttempts); err != nil {
-			return nil, err
-		}
-		runs = append(runs, run)
-	}
-	return runs, rows.Err()
+	return runs, nil
 }
 
 func (r *AutomationRunRepo) Renew(ctx context.Context, run automations.ScheduledRun) error {
