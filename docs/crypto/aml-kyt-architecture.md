@@ -183,7 +183,7 @@ Merchant balance API возвращает totals и breakdown из одного 
 | AML testnet | Локальный эмулятор | `testnet_aml` | Только Tron Nile и Ethereum Sepolia; synthetic provenance |
 | AML Getblock.io | Отдельный будущий профиль | Вне текущей регистрации | Отложено; не является fallback |
 
-У текущего [RPC-профиля](../../internal/domain/integrations/providers.go) меняется отображаемое название на `Getblock.io`; сохранённый ID `getblock`, URLs и slots `fullnode/solidity` остаются совместимыми. Для `Getblock.net` добавить `GetBlockNet`, `KindAML = "aml_kyt"`, один bearer slot `default`, собственные validation/consumer/capabilities. Не использовать неоднозначный `getblock_aml` и не переносить RPC credentials. Протокол JSON-RPC у AML-сервиса не делает его blockchain RPC-провайдером.
+У текущего [RPC-профиля](../../internal/domain/crypto/cryptointegrations/catalog.go) меняется отображаемое название на `Getblock.io`; сохранённый ID `getblock`, URLs и slots `fullnode/solidity` остаются совместимыми. Для `Getblock.net` добавить `GetBlockNet`, `KindAML = "aml_kyt"`, один bearer slot `default`, собственные validation/consumer/capabilities. Не использовать неоднозначный `getblock_aml` и не переносить RPC credentials. Протокол JSON-RPC у AML-сервиса не делает его blockchain RPC-провайдером.
 
 Оба профиля используют существующее шифрование `cat_integration_accounts`, серверный реестр, UI и permission model. Проверка реквизитов выбирается по profile, а не по совпадению бренда. Package balance Getblock.net не получает monthly reset по правилам RPC; добавить соответствующую quota policy и runtime state. Аккаунты/пакеты двух сервисов независимы; секреты не попадают в reports/logs.
 
