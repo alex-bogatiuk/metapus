@@ -24,7 +24,7 @@ func (r *DashboardRepo) LockAMLWithdrawalScope(ctx context.Context, merchant, ne
 	return crypto_repo.NewAMLRepository().LockAMLWithdrawalScope(ctx, merchant, network, token)
 }
 
-func (r *DashboardRepo) CancelAMLWithdrawalRemainder(ctx context.Context, merchant, requestID id.ID, reason string) (types.CryptoAmount, error) {
+func (r *DashboardRepo) CancelAMLWithdrawalRemainder(ctx context.Context, merchant, requestID id.ID, reason string) (types.RawAmount, error) {
 	return crypto_repo.NewAMLRepository().CancelAMLWithdrawalRemainder(ctx, merchant, requestID, reason)
 }
 

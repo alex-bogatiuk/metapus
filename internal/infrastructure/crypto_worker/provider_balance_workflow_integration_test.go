@@ -51,7 +51,7 @@ func withProviderOpening(t *testing.T, fn func(providerOpeningFixture)) {
 			if err != nil {
 				return err
 			}
-			return NewOutboundRepo().RecordProviderBalanceObservation(ctx, f.account, f.token, "test-opening", types.NewCryptoAmountFromInt64(1000))
+			return NewOutboundRepo().RecordProviderBalanceObservation(ctx, f.account, f.token, "test-opening", types.NewRawAmountFromInt64(1000))
 		})
 		require.NoError(t, err)
 		require.NoError(t, txm.GetQuerier(ctx).QueryRow(ctx, `SELECT id FROM reg_crypto_provider_balance_incidents WHERE provider_account_id=$1`, f.account).Scan(&f.incident))
@@ -177,7 +177,7 @@ func TestProviderOpeningConcurrentReplayAndIndependentApproval(t *testing.T) {
 		require.NoError(t, f.txm.GetQuerier(f.ctx).QueryRow(f.ctx, `SELECT status FROM reg_crypto_provider_balance_incidents WHERE id=$1`, f.incident).Scan(&status))
 		require.Equal(t, "open", status, "old provider evidence cannot resolve a newly posted opening")
 		require.NoError(t, f.txm.RunInTransaction(f.ctx, func(ctx context.Context) error {
-			return NewOutboundRepo().RecordProviderBalanceObservation(ctx, f.account, f.token, "fresh-after-opening", types.NewCryptoAmountFromInt64(1000))
+			return NewOutboundRepo().RecordProviderBalanceObservation(ctx, f.account, f.token, "fresh-after-opening", types.NewRawAmountFromInt64(1000))
 		}))
 		require.NoError(t, f.txm.GetQuerier(f.ctx).QueryRow(f.ctx, `SELECT status FROM reg_crypto_provider_balance_incidents WHERE id=$1`, f.incident).Scan(&status))
 		require.Equal(t, "resolved", status)
@@ -188,7 +188,7 @@ func TestProviderOpeningStaleEvidenceAndDecisionRace(t *testing.T) {
 	withProviderOpening(t, func(f providerOpeningFixture) {
 		doc := f.prepare(t)
 		require.NoError(t, f.txm.RunInTransaction(f.ctx, func(ctx context.Context) error {
-			return NewOutboundRepo().RecordProviderBalanceObservation(ctx, f.account, f.token, "new-evidence", types.NewCryptoAmountFromInt64(1000))
+			return NewOutboundRepo().RecordProviderBalanceObservation(ctx, f.account, f.token, "new-evidence", types.NewRawAmountFromInt64(1000))
 		}))
 		_, err := f.service.Approve(f.actor(f.checker), decisionFor(doc))
 		require.Error(t, err, "even a same-value newer observation invalidates the old authorization")
@@ -306,7 +306,7 @@ func TestProviderOpeningSerializesWithProviderConsumption(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				return NewOutboundRepo().RecordProviderBalanceObservation(ctx, f.account, f.token, "provider-after-consumption", types.NewCryptoAmountFromInt64(999))
+				return NewOutboundRepo().RecordProviderBalanceObservation(ctx, f.account, f.token, "provider-after-consumption", types.NewRawAmountFromInt64(999))
 			})
 		})
 		wg.Wait()

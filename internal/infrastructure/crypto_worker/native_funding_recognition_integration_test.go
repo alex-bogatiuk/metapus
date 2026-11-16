@@ -112,7 +112,7 @@ func TestNativeFundingFeeCannotReleasePrincipalBeforeRecognition(t *testing.T) {
 	for _, feeAmount := range []int64{0, 2} {
 		runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture) {
 			funding, _, receipt := seedNativeFundingConfirmation(t, ctx, tm, f)
-			receipt.Fee.TotalFee = types.NewCryptoAmountFromInt64(feeAmount)
+			receipt.Fee.TotalFee = types.NewRawAmountFromInt64(feeAmount)
 			receipt = reproveNetworkFee(t, ctx, receipt)
 			var reservation id.ID
 			require.NoError(t, tm.GetQuerier(ctx).QueryRow(ctx, "SELECT fee_reservation_id FROM doc_crypto_native_fundings WHERE id=$1", funding).Scan(&reservation))

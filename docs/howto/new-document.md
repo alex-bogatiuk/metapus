@@ -34,7 +34,7 @@ go run ./cmd/scaffold --name adjustment_note --type document
 
 Табличная часть нужна только когда она есть в бизнес-модели. Документ без строк не требует `doc_*_lines` или товарных справочников. Набор select/insert/update columns repository должен совпасть с моделью и DDL.
 
-ID выделяется в Go до INSERT и проведения. `Validate(ctx)` выполняет чистые проверки без SQL/RPC. Точные crypto amounts хранятся как `CryptoAmount`; HTTP DTO сохраняет строковый arbitrary-precision контракт. Для ERP MinorUnits и Quantity действуют [JSON-контракты](../reference/json-contracts.md).
+ID выделяется в Go до INSERT и проведения. `Validate(ctx)` выполняет чистые проверки без SQL/RPC. Точные crypto amounts хранятся как `RawAmount`; HTTP DTO сохраняет строковый arbitrary-precision контракт. Для ERP MinorUnits и Quantity действуют [JSON-контракты](../reference/json-contracts.md).
 
 ## 3. Движения и проведение
 

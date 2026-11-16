@@ -27,7 +27,7 @@ func (r *CreateCryptoWithdrawalRequest) ToEntity() *crypto_withdrawal.CryptoWith
 	merchantID, _ := id.Parse(r.MerchantID)
 	tokenID, _ := id.Parse(r.TokenID)
 	sourceWalletID, _ := id.Parse(r.SourceWalletID)
-	amount, _ := types.NewCryptoAmountFromString(r.Amount)
+	amount, _ := types.NewRawAmountFromString(r.Amount)
 
 	doc := crypto_withdrawal.NewCryptoWithdrawal(merchantID, tokenID, sourceWalletID, r.DestAddress, amount)
 	doc.Date = r.Date
@@ -49,7 +49,7 @@ func (r *UpdateCryptoWithdrawalRequest) ApplyTo(w *crypto_withdrawal.CryptoWithd
 		w.DestAddress = r.DestAddress
 	}
 	if r.Amount != "" {
-		if amt, err := types.NewCryptoAmountFromString(r.Amount); err == nil {
+		if amt, err := types.NewRawAmountFromString(r.Amount); err == nil {
 			w.Amount = amt
 		}
 	}

@@ -35,21 +35,21 @@ type ConfirmedTransfer struct {
 	BlockHash      string
 	FromAddress    string
 	ToAddress      string
-	Amount         types.CryptoAmount
+	Amount         types.RawAmount
 	BlockNumber    int64
 	BlockTimestamp time.Time
 	Confirmations  int
 }
 
 type Result struct {
-	ID            id.ID              `json:"id"`
-	WalletCode    string             `json:"walletCode"`
-	TokenCode     string             `json:"tokenCode"`
-	TxHash        string             `json:"txHash"`
-	Amount        types.CryptoAmount `json:"amount"`
-	BlockNumber   int64              `json:"blockNumber"`
-	Confirmations int                `json:"confirmations"`
-	Existing      bool               `json:"existing"`
+	ID            id.ID           `json:"id"`
+	WalletCode    string          `json:"walletCode"`
+	TokenCode     string          `json:"tokenCode"`
+	TxHash        string          `json:"txHash"`
+	Amount        types.RawAmount `json:"amount"`
+	BlockNumber   int64           `json:"blockNumber"`
+	Confirmations int             `json:"confirmations"`
+	Existing      bool            `json:"existing"`
 }
 
 type fundingRecordedPayload struct {
@@ -107,7 +107,7 @@ func record(ctx context.Context, walletCode string, target Target, txHash string
 			return fmt.Errorf("wallet funding transfer evidence: %w", err)
 		}
 		var storedWallet, storedToken id.ID
-		var storedAmount types.CryptoAmount
+		var storedAmount types.RawAmount
 		err = q.QueryRow(ctx, `SELECT id,wallet_id,token_id,amount FROM reg_crypto_wallet_fundings WHERE occurrence_id=$1`,
 			evidence.OccurrenceID).Scan(&result.ID, &storedWallet, &storedToken, &storedAmount)
 		if err == nil {

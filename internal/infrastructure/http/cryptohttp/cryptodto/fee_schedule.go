@@ -9,12 +9,12 @@ import (
 
 // FeeScheduleRequest is the request body for upserting a fee schedule entry.
 type FeeScheduleRequest struct {
-	TokenID   string             `json:"tokenId" binding:"required"`
-	Direction string             `json:"direction" binding:"required"`
-	FixedFee  types.CryptoAmount `json:"fixedFee"`
-	PercentBP int                `json:"percentBp"`
-	MinFee    types.CryptoAmount `json:"minFee"`
-	MaxFee    types.CryptoAmount `json:"maxFee"`
+	TokenID   string          `json:"tokenId" binding:"required"`
+	Direction string          `json:"direction" binding:"required"`
+	FixedFee  types.RawAmount `json:"fixedFee"`
+	PercentBP int             `json:"percentBp"`
+	MinFee    types.RawAmount `json:"minFee"`
+	MaxFee    types.RawAmount `json:"maxFee"`
 }
 
 // FeeScheduleResponse is the response body for a fee schedule entry.

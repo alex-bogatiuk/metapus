@@ -58,7 +58,7 @@ worker.
   только для `derived_with_activation`, и тогда `activation.maxConcurrent`
   положителен;
 - policy-суммы хранятся как `NUMERIC(78,0)` raw units, в Go представлены
-  `CryptoAmount`, а в JSON передаются каноническими десятичными строками;
+  `RawAmount`, а в JSON передаются каноническими десятичными строками;
 - обновление требует актуальный `version`;
 - policy с `needsReview=true` нельзя включить;
 - `(network_id, address)` и `(network_id, derivation_path)` уникальны;

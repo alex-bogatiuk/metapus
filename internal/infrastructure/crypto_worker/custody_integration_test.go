@@ -113,20 +113,20 @@ func TestCustodyWithdrawalNeverBorrowsAndKeepsForeignReservation(t *testing.T) {
 	f.enforce(t)
 	repo := NewOutboundRepo()
 	request := f.request(t, f.a, "70")
-	selected, err := repo.ReserveHotWalletForWithdrawal(f.ctx, request, f.a, f.network, f.token, types.MustCryptoAmount("70"))
+	selected, err := repo.ReserveHotWalletForWithdrawal(f.ctx, request, f.a, f.network, f.token, types.MustRawAmount("70"))
 	require.NoError(t, err)
 	require.Equal(t, own, selected.ID)
-	replay, err := repo.ReserveHotWalletForWithdrawal(f.ctx, request, f.a, f.network, f.token, types.MustCryptoAmount("70"))
+	replay, err := repo.ReserveHotWalletForWithdrawal(f.ctx, request, f.a, f.network, f.token, types.MustRawAmount("70"))
 	require.NoError(t, err)
 	require.Equal(t, selected.ID, replay.ID)
-	_, err = repo.ReserveHotWalletForWithdrawal(f.ctx, f.request(t, f.a, "40"), f.a, f.network, f.token, types.MustCryptoAmount("40"))
+	_, err = repo.ReserveHotWalletForWithdrawal(f.ctx, f.request(t, f.a, "40"), f.a, f.network, f.token, types.MustRawAmount("40"))
 	require.ErrorIs(t, err, ErrNoHotWalletLiquidity)
-	_, err = repo.ReserveHotWalletForWithdrawal(f.ctx, request, f.b, f.network, f.token, types.MustCryptoAmount("70"))
+	_, err = repo.ReserveHotWalletForWithdrawal(f.ctx, request, f.b, f.network, f.token, types.MustRawAmount("70"))
 	require.ErrorIs(t, err, ErrMerchantCustody)
 	bad := f.request(t, f.a, "10")
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_balance_reservations(wallet_id,token_id,amount,purpose,document_type,document_id) VALUES($1,$2,10,'withdrawal','WithdrawalRequest',$3)`, foreign, f.token, bad)
 	require.NoError(t, err)
-	_, err = repo.ReserveHotWalletForWithdrawal(f.ctx, bad, f.a, f.network, f.token, types.MustCryptoAmount("10"))
+	_, err = repo.ReserveHotWalletForWithdrawal(f.ctx, bad, f.a, f.network, f.token, types.MustRawAmount("10"))
 	require.ErrorIs(t, err, ErrMerchantCustody)
 	var count int
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT COUNT(*) FROM reg_crypto_balance_reservations WHERE document_id=$1`, bad).Scan(&count))
@@ -171,7 +171,7 @@ func TestFundingReadinessRequiresFeeCapitalForEveryCustodyOwner(t *testing.T) {
 	f.wallet(t, &f.b, "merchant_pool", "free", "100")
 	f.wallet(t, nil, "network_fee", "free", "1000000")
 	repo := crypto_repo.NewNetworkPolicyRepo()
-	minimum := types.NewCryptoAmountFromInt64(10)
+	minimum := types.NewRawAmountFromInt64(10)
 	ready, err := repo.NetworkFundingSourcesReady(f.ctx, f.network, minimum)
 	require.NoError(t, err)
 	require.False(t, ready, "platform and another merchant cannot supply the missing owner's fee source")
@@ -299,7 +299,7 @@ func TestCustodyLegacySignedSweepRecoversAfterIsolationWithoutSigner(t *testing.
 	auth := crypto.SigningAuthorization{SchemaVersion: 2, AuthorizationID: id.New().String(), TenantID: id.New().String(), Purpose: crypto.SigningPurposeSweep,
 		BasisType: "CryptoSweepAttempt", BasisID: attemptID, Attempt: 1, Generation: 1, NetworkSequence: "0", ExpiresAt: time.Now().Add(time.Hour),
 		NetworkID: f.network, NetworkCode: f.network.String(), ChainFamily: crypto.ChainFamilyEVM, NetworkIdentifier: f.network.String(), SourceAddress: from.Address, FeePayerAddress: from.Address,
-		VaultKeyID: from.VaultKeyID, DestinationAddress: to.Address, AssetStandard: "native", AmountMinorUnits: types.MustCryptoAmount("100"), MaxNetworkFeeMinor: types.MustCryptoAmount("10"), UnsignedFingerprint: "historical-fingerprint", PolicyVersion: "evm-v1"}
+		VaultKeyID: from.VaultKeyID, DestinationAddress: to.Address, AssetStandard: "native", AmountMinorUnits: types.MustRawAmount("100"), MaxNetworkFeeMinor: types.MustRawAmount("10"), UnsignedFingerprint: "historical-fingerprint", PolicyVersion: "evm-v1"}
 	unsigned := crypto.UnsignedTxEnvelope{Family: crypto.ChainFamilyEVM, SchemaVersion: 1, UnsignedFingerprint: auth.UnsignedFingerprint, Generation: 1, NetworkSequence: "0", Payload: []byte(`{"historical":true}`)}
 	repo := NewOutboundRepo()
 	_, err = repo.InsertSigningAuthorization(f.ctx, auth, "historical-jws", unsigned)
@@ -353,7 +353,7 @@ func TestCustodyTreasuryOnlyReservesPlatformTreasuryWallet(t *testing.T) {
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_treasury_withdrawal_addresses(id,network_id,address,address_key) VALUES($1,$2,$3,$3)`, addressID, f.network, destination)
 	require.NoError(t, err)
 	makeTask := func(source id.ID) TreasuryTask {
-		task := TreasuryTask{WithdrawalID: id.New(), TokenID: f.token, NetworkID: f.network, SourceWalletID: source, Amount: types.MustCryptoAmount("100"), DestAddress: destination}
+		task := TreasuryTask{WithdrawalID: id.New(), TokenID: f.token, NetworkID: f.network, SourceWalletID: source, Amount: types.MustRawAmount("100"), DestAddress: destination}
 		_, err = f.pool.Exec(f.ctx, `INSERT INTO doc_treasury_withdrawals(id,token_id,source_wallet_id,dest_address,address_id,amount,status) VALUES($1,$2,$3,$4,$5,100,'approved')`, task.WithdrawalID, task.TokenID, source, destination, addressID)
 		require.NoError(t, err)
 		return task
@@ -366,7 +366,7 @@ func TestCustodyTreasuryOnlyReservesPlatformTreasuryWallet(t *testing.T) {
 	_, err = repo.ReserveHotWalletForTreasury(f.ctx, makeTask(merchant))
 	require.ErrorIs(t, err, ErrNoHotWalletLiquidity)
 	wrong := task
-	wrong.Amount = types.MustCryptoAmount("101")
+	wrong.Amount = types.MustRawAmount("101")
 	_, err = repo.ReserveHotWalletForTreasury(f.ctx, wrong)
 	require.ErrorIs(t, err, ErrMerchantCustody)
 }

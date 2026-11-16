@@ -19,9 +19,9 @@ type CheckoutPageData struct {
 	Status              string
 	AcceptsPayments     bool
 	WalletAddress       string
-	ExpectedAmount      types.CryptoAmount
-	ReceivedAmount      types.CryptoAmount
-	OverpaidAmount      types.CryptoAmount
+	ExpectedAmount      types.RawAmount
+	ReceivedAmount      types.RawAmount
+	OverpaidAmount      types.RawAmount
 	ExpiresAt           time.Time
 	OrderID             string
 	Description         string
@@ -38,8 +38,8 @@ type CheckoutPageData struct {
 type CheckoutStatus struct {
 	Status          string
 	AcceptsPayments bool
-	ReceivedAmount  types.CryptoAmount
-	OverpaidAmount  types.CryptoAmount
+	ReceivedAmount  types.RawAmount
+	OverpaidAmount  types.RawAmount
 	Confirmations   int
 	DecimalPlaces   int
 }
@@ -48,7 +48,7 @@ type RedeemablePaymentLink struct {
 	ID          id.ID
 	MerchantID  id.ID
 	TokenID     id.ID
-	Amount      types.CryptoAmount
+	Amount      types.RawAmount
 	Description string
 	MaxUses     int
 	CurrentUses int

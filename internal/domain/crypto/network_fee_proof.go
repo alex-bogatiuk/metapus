@@ -31,7 +31,7 @@ type NetworkFeeProof struct {
 	BlockHash     string               `json:"blockHash"`
 	BlockNumber   int64                `json:"blockNumber"`
 	Status        ReceiptStatus        `json:"status"`
-	TotalFee      types.CryptoAmount   `json:"totalFee"`
+	TotalFee      types.RawAmount      `json:"totalFee"`
 	Components    []FeeComponent       `json:"components"`
 	Confirmations int                  `json:"confirmations"`
 	Finality      FinalityStatus       `json:"finality"`
@@ -83,7 +83,7 @@ func (p NetworkFeeProof) Validate() error {
 	} else if !feeTRONPayer.MatchString(p.PayerAddress) {
 		return invalid()
 	}
-	total := types.ZeroCryptoAmount()
+	total := types.ZeroRawAmount()
 	seen := map[string]bool{}
 	for _, c := range p.Components {
 		if !feeComponentName.MatchString(c.Name) || seen[c.Name] || c.Quantity < 0 {

@@ -52,17 +52,17 @@ func (r UpdateWalletPoolPolicyRequest) ToDomain() crypto.WalletPoolPolicyPatch {
 }
 
 type UpdateWalletPoolActivationPolicyRequest struct {
-	MaxConcurrent      *int                `json:"maxConcurrent"`
-	ReserveMinor       *types.CryptoAmount `json:"reserveMinor"`
-	MinHotBalanceMinor *types.CryptoAmount `json:"minHotBalanceMinor"`
-	DailyBudgetMinor   *types.CryptoAmount `json:"dailyBudgetMinor"`
+	MaxConcurrent      *int             `json:"maxConcurrent"`
+	ReserveMinor       *types.RawAmount `json:"reserveMinor"`
+	MinHotBalanceMinor *types.RawAmount `json:"minHotBalanceMinor"`
+	DailyBudgetMinor   *types.RawAmount `json:"dailyBudgetMinor"`
 }
 
 type WalletPoolActivationPolicyResponse struct {
-	MaxConcurrent      int                `json:"maxConcurrent"`
-	ReserveMinor       types.CryptoAmount `json:"reserveMinor"`
-	MinHotBalanceMinor types.CryptoAmount `json:"minHotBalanceMinor"`
-	DailyBudgetMinor   types.CryptoAmount `json:"dailyBudgetMinor"`
+	MaxConcurrent      int             `json:"maxConcurrent"`
+	ReserveMinor       types.RawAmount `json:"reserveMinor"`
+	MinHotBalanceMinor types.RawAmount `json:"minHotBalanceMinor"`
+	DailyBudgetMinor   types.RawAmount `json:"dailyBudgetMinor"`
 }
 
 type WalletPoolPolicyResponse struct {

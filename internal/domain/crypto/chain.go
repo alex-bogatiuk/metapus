@@ -91,17 +91,17 @@ type AssetRef struct {
 }
 
 type TransferIntent struct {
-	BasisType          string             `json:"basisType"`
-	Purpose            SigningPurpose     `json:"purpose"`
-	BasisID            id.ID              `json:"basisId"`
-	Attempt            int                `json:"attempt"`
-	Generation         int                `json:"generation,omitzero"`
-	Network            NetworkRef         `json:"network"`
-	Asset              AssetRef           `json:"asset"`
-	SourceWalletID     id.ID              `json:"sourceWalletId"`
-	SourceAddress      string             `json:"sourceAddress"`
-	DestinationAddress string             `json:"destinationAddress"`
-	Amount             types.CryptoAmount `json:"amount"`
+	BasisType          string          `json:"basisType"`
+	Purpose            SigningPurpose  `json:"purpose"`
+	BasisID            id.ID           `json:"basisId"`
+	Attempt            int             `json:"attempt"`
+	Generation         int             `json:"generation,omitzero"`
+	Network            NetworkRef      `json:"network"`
+	Asset              AssetRef        `json:"asset"`
+	SourceWalletID     id.ID           `json:"sourceWalletId"`
+	SourceAddress      string          `json:"sourceAddress"`
+	DestinationAddress string          `json:"destinationAddress"`
+	Amount             types.RawAmount `json:"amount"`
 }
 
 func (i TransferIntent) EffectiveGeneration() int {
@@ -119,8 +119,8 @@ const (
 )
 
 type FeeQuote struct {
-	EstimatedFee         types.CryptoAmount    `json:"estimatedFee"`
-	MaxFee               types.CryptoAmount    `json:"maxFee"`
+	EstimatedFee         types.RawAmount       `json:"estimatedFee"`
+	MaxFee               types.RawAmount       `json:"maxFee"`
 	NativeAsset          AssetRef              `json:"nativeAsset"`
 	Payer                FeePayer              `json:"payer"`
 	ExpiresAt            time.Time             `json:"expiresAt"`
@@ -264,16 +264,16 @@ const (
 )
 
 type FeeComponent struct {
-	Name        string             `json:"name"`
-	Amount      types.CryptoAmount `json:"amount"`
-	Quantity    int64              `json:"quantity,omitzero"`
-	RawEvidence json.RawMessage    `json:"rawEvidence,omitempty"`
+	Name        string          `json:"name"`
+	Amount      types.RawAmount `json:"amount"`
+	Quantity    int64           `json:"quantity,omitzero"`
+	RawEvidence json.RawMessage `json:"rawEvidence,omitempty"`
 }
 
 type FeeSettlementReport struct {
-	NativeAsset AssetRef           `json:"nativeAsset"`
-	TotalFee    types.CryptoAmount `json:"totalFee"`
-	Components  []FeeComponent     `json:"components,omitempty"`
+	NativeAsset AssetRef        `json:"nativeAsset"`
+	TotalFee    types.RawAmount `json:"totalFee"`
+	Components  []FeeComponent  `json:"components,omitempty"`
 }
 
 type ChainReceipt struct {
@@ -355,7 +355,7 @@ type TransactionBuilder interface {
 // ReplacementTransactionBuilder is implemented by account-sequence chains
 // that support fee-only replacement of a previously authorized transaction.
 type ReplacementTransactionBuilder interface {
-	BuildReplacement(ctx context.Context, intent TransferIntent, previous UnsignedTxEnvelope, policyMaxFee types.CryptoAmount) (UnsignedTxEnvelope, FeeQuote, error)
+	BuildReplacement(ctx context.Context, intent TransferIntent, previous UnsignedTxEnvelope, policyMaxFee types.RawAmount) (UnsignedTxEnvelope, FeeQuote, error)
 }
 
 type ReplacementDisposition string
@@ -424,8 +424,8 @@ type CanonicalBlockReader interface {
 }
 
 type BalanceReader interface {
-	NativeBalance(ctx context.Context, address string) (types.CryptoAmount, error)
-	TokenBalance(ctx context.Context, asset AssetRef, address string) (types.CryptoAmount, error)
+	NativeBalance(ctx context.Context, address string) (types.RawAmount, error)
+	TokenBalance(ctx context.Context, asset AssetRef, address string) (types.RawAmount, error)
 }
 
 type WalletDerivation struct {

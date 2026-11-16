@@ -27,9 +27,9 @@ type ProviderBalanceOpeningEvidence struct {
 	ProviderAccountID id.ID
 	TokenID           id.ID
 	Status            string
-	LedgerAmount      types.CryptoDelta
-	ProviderAmount    types.CryptoAmount
-	DeltaAmount       types.CryptoDelta
+	LedgerAmount      types.RawDelta
+	ProviderAmount    types.RawAmount
+	DeltaAmount       types.RawDelta
 	ObservationID     id.ID
 	ObservedAt        time.Time
 }

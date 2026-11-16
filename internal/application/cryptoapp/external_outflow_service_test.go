@@ -176,7 +176,7 @@ func newExternalOutflowRepoStub() *externalOutflowRepoStub {
 	networkID, walletID, tokenID := id.New(), id.New(), id.New()
 	return &externalOutflowRepoStub{outflow: crypto.ExternalOutflow{
 		ID: id.New(), NetworkID: networkID, SourceWalletID: &walletID, TokenID: &tokenID,
-		Status: crypto.ExternalOutflowPendingReview, Amount: types.NewCryptoAmountFromInt64(1250),
+		Status: crypto.ExternalOutflowPendingReview, Amount: types.NewRawAmountFromInt64(1250),
 		FinalityStatus: "finalized", Confirmations: 20, RequiredConfirmations: 20,
 	}}
 }

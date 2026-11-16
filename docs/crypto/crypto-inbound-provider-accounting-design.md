@@ -103,7 +103,7 @@ Suspense означает сумму с неразрешённым эконом�
 
 ### 4.4. Натуральные единицы и противоположные стороны
 
-Суммы — CryptoAmount/отдельный signed delta, NUMERIC(78,0), HTTP strings. Масштаб, сеть и контракт закреплены metadata/evidence. Symbol USDT не является asset identity.
+Суммы — RawAmount/отдельный signed delta, NUMERIC(78,0), HTTP strings. Масштаб, сеть и контракт закреплены metadata/evidence. Symbol USDT не является asset identity.
 
 Регистры накопления не образуют GL автоматически. Для каждого типа документа задаётся проверяемый набор встречных учётных эффектов. Проверка выполняется domain policy и deferred SQL constraint в общей транзакции. Это не глобальное суммирование всех custody и merchant регистров: оно задвоило бы экономический смысл.
 

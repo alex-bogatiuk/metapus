@@ -25,16 +25,16 @@ func TestFinalityUsesConfirmationsOrProtocolFinalized(t *testing.T) {
 }
 
 func TestValidateQuoteRecomputesIntegerFeeTotals(t *testing.T) {
-	driver := &Driver{maxFee: types.MustCryptoAmount("1000000")}
+	driver := &Driver{maxFee: types.MustRawAmount("1000000")}
 	evidence := feeEvidence{GasEstimate: 100, GasLimit: 120, BaseFeePerGasWei: "10", MaxPriorityFeePerGasWei: "2", MaxFeePerGasWei: "22"}
 	raw, err := json.Marshal(evidence)
 	require.NoError(t, err)
-	quote := crypto.FeeQuote{EstimatedFee: types.MustCryptoAmount("1200"), MaxFee: types.MustCryptoAmount("2640"),
+	quote := crypto.FeeQuote{EstimatedFee: types.MustRawAmount("1200"), MaxFee: types.MustRawAmount("2640"),
 		ExpiresAt: time.Now().UTC().Add(time.Minute), RawEvidence: raw}
 	_, err = driver.validateQuote(quote)
 	require.NoError(t, err)
 
-	quote.MaxFee = types.MustCryptoAmount("2639")
+	quote.MaxFee = types.MustRawAmount("2639")
 	_, err = driver.validateQuote(quote)
 	require.ErrorContains(t, err, "totals")
 }
@@ -43,7 +43,7 @@ func TestERC20SemanticsProduceExactTransferCalldata(t *testing.T) {
 	driver := &Driver{}
 	destination := "0x1111111111111111111111111111111111111111"
 	intent := crypto.TransferIntent{Asset: crypto.AssetRef{Standard: token.TokenStandardERC20, ContractAddress: "0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9"},
-		DestinationAddress: destination, Amount: types.MustCryptoAmount("115792089237316195423570985008687907853269984665640564039457584007913129639935")}
+		DestinationAddress: destination, Amount: types.MustRawAmount("115792089237316195423570985008687907853269984665640564039457584007913129639935")}
 	to, value, data, err := driver.transactionSemantics(intent)
 	require.NoError(t, err)
 	require.Equal(t, common.HexToAddress(intent.Asset.ContractAddress), to)
@@ -67,8 +67,8 @@ func TestReplacementRejectsAnyBusinessIntentMutationBeforeRPC(t *testing.T) {
 	previous := crypto.UnsignedTxEnvelope{Family: crypto.ChainFamilyEVM, SchemaVersion: evmEnvelopeSchemaVersion, Generation: 1, NetworkSequence: "7", Payload: raw}
 	intent := crypto.TransferIntent{BasisType: "CryptoSweepAttempt", BasisID: id.New(), Purpose: crypto.SigningPurposeSweep, Attempt: 1, Generation: 2,
 		Network: driver.network, Asset: crypto.AssetRef{TokenID: tokenID, Standard: token.TokenStandardNative, Decimals: 18},
-		SourceAddress: "0x2222222222222222222222222222222222222222", DestinationAddress: "0x3333333333333333333333333333333333333333", Amount: types.MustCryptoAmount("10")}
-	_, _, err = driver.BuildReplacement(t.Context(), intent, previous, types.MustCryptoAmount("10000000"))
+		SourceAddress: "0x2222222222222222222222222222222222222222", DestinationAddress: "0x3333333333333333333333333333333333333333", Amount: types.MustRawAmount("10")}
+	_, _, err = driver.BuildReplacement(t.Context(), intent, previous, types.MustRawAmount("10000000"))
 	require.ErrorContains(t, err, "changes immutable transaction intent")
 }
 

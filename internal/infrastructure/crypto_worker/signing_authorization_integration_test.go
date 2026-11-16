@@ -99,8 +99,8 @@ func TestIntegrationSigningAuthorizationJWSIsWriteOnce(t *testing.T) {
 			VaultKeyID:          "test-key",
 			DestinationAddress:  "destination",
 			AssetStandard:       "native",
-			AmountMinorUnits:    types.MustCryptoAmount("1"),
-			MaxNetworkFeeMinor:  types.MustCryptoAmount("1"),
+			AmountMinorUnits:    types.MustRawAmount("1"),
+			MaxNetworkFeeMinor:  types.MustRawAmount("1"),
 			UnsignedFingerprint: fingerprint,
 			PolicyVersion:       crypto.SigningAuthorizationPolicyVersion(chainFamily),
 		}

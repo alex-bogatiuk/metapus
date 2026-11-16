@@ -11,13 +11,13 @@ import (
 // TestnetOpening is a synthetic partition of already booked physical money.
 // It is not a payment, provider report, or permission to move funds.
 type TestnetOpening struct {
-	WalletID   id.ID              `json:"walletId"`
-	TokenID    id.ID              `json:"tokenId"`
-	CheckID    id.ID              `json:"reconciliationCheckId"`
-	Principal  types.CryptoAmount `json:"principal"`
-	ServiceFee types.CryptoAmount `json:"serviceFee"`
-	Operating  types.CryptoAmount `json:"operating"`
-	LedgerHash string             `json:"ledgerHash"`
+	WalletID   id.ID           `json:"walletId"`
+	TokenID    id.ID           `json:"tokenId"`
+	CheckID    id.ID           `json:"reconciliationCheckId"`
+	Principal  types.RawAmount `json:"principal"`
+	ServiceFee types.RawAmount `json:"serviceFee"`
+	Operating  types.RawAmount `json:"operating"`
+	LedgerHash string          `json:"ledgerHash"`
 }
 
 type TestnetBootstrap struct {

@@ -139,19 +139,19 @@ func (p *RPCPool) GetAccountResource(ctx context.Context, address string) (*Acco
 	defer release()
 	return gen.GetAccountResource(ctx, address)
 }
-func (p *RPCPool) GetTRXBalance(ctx context.Context, address string) (types.CryptoAmount, error) {
+func (p *RPCPool) GetTRXBalance(ctx context.Context, address string) (types.RawAmount, error) {
 	gen, release, err := p.runtime.Acquire(ctx)
 	if err != nil {
-		var zero0 types.CryptoAmount
+		var zero0 types.RawAmount
 		return zero0, err
 	}
 	defer release()
 	return gen.GetTRXBalance(ctx, address)
 }
-func (p *RPCPool) GetTRC20Balance(ctx context.Context, address, contract string) (types.CryptoAmount, error) {
+func (p *RPCPool) GetTRC20Balance(ctx context.Context, address, contract string) (types.RawAmount, error) {
 	gen, release, err := p.runtime.Acquire(ctx)
 	if err != nil {
-		var zero0 types.CryptoAmount
+		var zero0 types.RawAmount
 		return zero0, err
 	}
 	defer release()

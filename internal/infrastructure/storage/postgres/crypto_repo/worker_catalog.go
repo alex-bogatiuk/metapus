@@ -17,7 +17,7 @@ type WorkerSweepCandidate struct {
 	WalletID        id.ID
 	MerchantID      *id.ID
 	TokenID         id.ID
-	Balance         types.CryptoAmount
+	Balance         types.RawAmount
 	LastSweptAt     *time.Time
 	OldestPaymentAt *time.Time // MIN(confirmed_at) — for max-age check on never-swept wallets
 }

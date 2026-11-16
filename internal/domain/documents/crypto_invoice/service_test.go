@@ -71,7 +71,7 @@ func TestCreateRunsWalletAdmissionHookAndInsertInSameTransaction(t *testing.T) {
 		return nil
 	})
 
-	invoice := NewCryptoInvoice(id.New(), id.New(), types.NewCryptoAmountFromInt64(1))
+	invoice := NewCryptoInvoice(id.New(), id.New(), types.NewRawAmountFromInt64(1))
 	invoice.SetNumber("CI-TEST")
 	invoice.ExpiresAt = time.Now().UTC().Add(time.Hour)
 

@@ -67,7 +67,7 @@ func (s *replacementFeeStub) Get(context.Context, string, id.ID, crypto.SigningP
 	return s.reservation, true, nil
 }
 func (*replacementFeeStub) LoadPolicy(context.Context, id.ID) (crypto.NetworkPolicy, error) {
-	return crypto.NetworkPolicy{PerTransactionMaxFee: types.NewCryptoAmountFromInt64(10)}, nil
+	return crypto.NetworkPolicy{PerTransactionMaxFee: types.NewRawAmountFromInt64(10)}, nil
 }
 func (s *replacementFeeStub) MarkReplacementBroadcast(ctx context.Context, _ id.ID, _, _, fingerprint, hash string, _ int) error {
 	if s.rebindErr != nil {

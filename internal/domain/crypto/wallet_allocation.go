@@ -164,39 +164,39 @@ type LeaseCloser interface {
 
 // InboundChainEvent is a durable inbound transfer before or after attribution.
 type InboundChainEvent struct {
-	ID             id.ID              `db:"id" json:"id"`
-	NetworkID      id.ID              `db:"network_id" json:"networkId"`
-	TxHash         string             `db:"tx_hash" json:"txHash"`
-	EventKind      EventKind          `db:"event_kind" json:"eventKind"`
-	EventIndex     int64              `db:"event_index" json:"eventIndex"`
-	FromAddress    string             `db:"from_address" json:"fromAddress"`
-	ToAddress      string             `db:"to_address" json:"toAddress"`
-	TokenContract  string             `db:"token_contract" json:"tokenContract"`
-	TokenID        *id.ID             `db:"token_id" json:"tokenId,omitempty"`
-	WalletID       *id.ID             `db:"wallet_id" json:"walletId,omitempty"`
-	Amount         types.CryptoAmount `db:"amount" json:"amount"`
-	BlockNumber    int64              `db:"block_number" json:"blockNumber"`
-	BlockHash      string             `db:"block_hash" json:"blockHash"`
-	BlockTimestamp time.Time          `db:"block_timestamp" json:"blockTimestamp"`
-	Confirmations  int                `db:"confirmations" json:"confirmations"`
-	RequiredConfs  int                `db:"required_confs" json:"requiredConfs"`
-	FinalityStatus string             `db:"finality_status" json:"finalityStatus"`
-	Canonicality   string             `db:"canonicality" json:"canonicality"`
-	EventType      string             `db:"event_type" json:"eventType"`
-	Direction      string             `db:"direction" json:"direction"`
-	Payload        json.RawMessage    `db:"payload" json:"payload"`
-	MatchStatus    InboxMatchStatus   `db:"match_status" json:"matchStatus"`
-	MatchReason    string             `db:"match_reason" json:"matchReason"`
-	InvoiceID      *id.ID             `db:"invoice_id" json:"invoiceId,omitempty"`
-	PaymentID      *id.ID             `db:"payment_id" json:"paymentId,omitempty"`
-	AllocationID   *id.ID             `db:"allocation_id" json:"allocationId,omitempty"`
-	ReceiptID      *id.ID             `db:"receipt_id" json:"receiptId,omitempty"`
-	Details        json.RawMessage    `db:"details" json:"details"`
-	RetryCount     int                `db:"retry_count" json:"retryCount"`
-	NextRetryAt    *time.Time         `db:"next_retry_at" json:"nextRetryAt,omitempty"`
-	Version        int                `db:"version" json:"version"`
-	CreatedAt      time.Time          `db:"created_at" json:"createdAt"`
-	UpdatedAt      time.Time          `db:"updated_at" json:"updatedAt"`
+	ID             id.ID            `db:"id" json:"id"`
+	NetworkID      id.ID            `db:"network_id" json:"networkId"`
+	TxHash         string           `db:"tx_hash" json:"txHash"`
+	EventKind      EventKind        `db:"event_kind" json:"eventKind"`
+	EventIndex     int64            `db:"event_index" json:"eventIndex"`
+	FromAddress    string           `db:"from_address" json:"fromAddress"`
+	ToAddress      string           `db:"to_address" json:"toAddress"`
+	TokenContract  string           `db:"token_contract" json:"tokenContract"`
+	TokenID        *id.ID           `db:"token_id" json:"tokenId,omitempty"`
+	WalletID       *id.ID           `db:"wallet_id" json:"walletId,omitempty"`
+	Amount         types.RawAmount  `db:"amount" json:"amount"`
+	BlockNumber    int64            `db:"block_number" json:"blockNumber"`
+	BlockHash      string           `db:"block_hash" json:"blockHash"`
+	BlockTimestamp time.Time        `db:"block_timestamp" json:"blockTimestamp"`
+	Confirmations  int              `db:"confirmations" json:"confirmations"`
+	RequiredConfs  int              `db:"required_confs" json:"requiredConfs"`
+	FinalityStatus string           `db:"finality_status" json:"finalityStatus"`
+	Canonicality   string           `db:"canonicality" json:"canonicality"`
+	EventType      string           `db:"event_type" json:"eventType"`
+	Direction      string           `db:"direction" json:"direction"`
+	Payload        json.RawMessage  `db:"payload" json:"payload"`
+	MatchStatus    InboxMatchStatus `db:"match_status" json:"matchStatus"`
+	MatchReason    string           `db:"match_reason" json:"matchReason"`
+	InvoiceID      *id.ID           `db:"invoice_id" json:"invoiceId,omitempty"`
+	PaymentID      *id.ID           `db:"payment_id" json:"paymentId,omitempty"`
+	AllocationID   *id.ID           `db:"allocation_id" json:"allocationId,omitempty"`
+	ReceiptID      *id.ID           `db:"receipt_id" json:"receiptId,omitempty"`
+	Details        json.RawMessage  `db:"details" json:"details"`
+	RetryCount     int              `db:"retry_count" json:"retryCount"`
+	NextRetryAt    *time.Time       `db:"next_retry_at" json:"nextRetryAt,omitempty"`
+	Version        int              `db:"version" json:"version"`
+	CreatedAt      time.Time        `db:"created_at" json:"createdAt"`
+	UpdatedAt      time.Time        `db:"updated_at" json:"updatedAt"`
 }
 
 // ChainEventInbox persists inbound transfers before business matching.

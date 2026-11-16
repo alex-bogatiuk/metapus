@@ -30,10 +30,10 @@ type BalanceKey struct {
 
 // BalanceEntry represents a locked fee balance.
 type BalanceEntry struct {
-	MerchantID id.ID              `db:"merchant_id"`
-	TokenID    id.ID              `db:"token_id"`
-	FeeType    FeeType            `db:"fee_type"`
-	Balance    types.CryptoAmount `db:"balance"`
+	MerchantID id.ID           `db:"merchant_id"`
+	TokenID    id.ID           `db:"token_id"`
+	FeeType    FeeType         `db:"fee_type"`
+	Balance    types.RawAmount `db:"balance"`
 }
 
 // BalanceReservation represents a required fee balance amount.
@@ -41,7 +41,7 @@ type BalanceReservation struct {
 	MerchantID id.ID
 	TokenID    id.ID
 	FeeType    FeeType
-	Required   types.CryptoAmount
+	Required   types.RawAmount
 }
 
 // Service provides business operations for the crypto fee register.
@@ -110,7 +110,7 @@ func (s *Service) CheckAndReserveCryptoFee(ctx context.Context, items []BalanceR
 		m, t id.ID
 		ft   FeeType
 	}
-	balanceMap := make(map[dimKey]types.CryptoAmount, len(balances))
+	balanceMap := make(map[dimKey]types.RawAmount, len(balances))
 	for _, b := range balances {
 		balanceMap[dimKey{b.MerchantID, b.TokenID, b.FeeType}] = b.Balance
 	}

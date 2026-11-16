@@ -220,7 +220,7 @@ func (d *TransferVerifier) VerifyNetworkFee(ctx context.Context, hash string) (c
 					}
 				}
 			}
-			amount, err := types.NewCryptoAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(r.GasUsed), r.EffectiveGasPrice))
+			amount, err := types.NewRawAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(r.GasUsed), r.EffectiveGasPrice))
 			if err != nil {
 				return out, nil, err
 			}
@@ -239,7 +239,7 @@ func (d *TransferVerifier) VerifyNetworkFee(ctx context.Context, hash string) (c
 				if r.BlobGasUsed == 0 || r.BlobGasUsed != tx.BlobGas() || r.BlobGasUsed > math.MaxInt64 || r.BlobGasPrice == nil || r.BlobGasPrice.Sign() < 0 || r.BlobGasPrice.Cmp(tx.BlobGasFeeCap()) > 0 {
 					return out, nil, crypto.ErrVerificationMismatch
 				}
-				blob, err := types.NewCryptoAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(r.BlobGasUsed), r.BlobGasPrice))
+				blob, err := types.NewRawAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(r.BlobGasUsed), r.BlobGasPrice))
 				if err != nil {
 					return out, nil, err
 				}

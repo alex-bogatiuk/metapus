@@ -11,48 +11,48 @@ import (
 )
 
 type ResourceRentalMetrics struct {
-	ActiveRentals           int64              `json:"activeRentals"`
-	ExpiringRentals         int64              `json:"expiringRentals"`
-	ReservedEnergy          int64              `json:"reservedEnergy"`
-	UnusedEnergy            int64              `json:"unusedEnergy"`
-	AllocatedCost           types.CryptoAmount `json:"allocatedCost"`
-	UnusedCost              types.CryptoAmount `json:"unusedCost"`
-	ReclaimFailures         int64              `json:"reclaimFailures"`
-	ProviderBalanceDelta    types.CryptoDelta  `json:"providerBalanceDelta"`
-	SettlementRepairBacklog int64              `json:"settlementRepairBacklog"`
+	ActiveRentals           int64           `json:"activeRentals"`
+	ExpiringRentals         int64           `json:"expiringRentals"`
+	ReservedEnergy          int64           `json:"reservedEnergy"`
+	UnusedEnergy            int64           `json:"unusedEnergy"`
+	AllocatedCost           types.RawAmount `json:"allocatedCost"`
+	UnusedCost              types.RawAmount `json:"unusedCost"`
+	ReclaimFailures         int64           `json:"reclaimFailures"`
+	ProviderBalanceDelta    types.RawDelta  `json:"providerBalanceDelta"`
+	SettlementRepairBacklog int64           `json:"settlementRepairBacklog"`
 }
 
 type ProviderBalanceIncident struct {
-	ID                id.ID              `json:"id"`
-	ProviderAccountID id.ID              `json:"providerAccountId"`
-	TokenID           id.ID              `json:"tokenId"`
-	Status            string             `json:"status"`
-	LedgerAmount      types.CryptoDelta  `json:"ledgerAmount"`
-	ProviderAmount    types.CryptoAmount `json:"providerAmount"`
-	DeltaAmount       types.CryptoDelta  `json:"deltaAmount"`
-	FirstSeenAt       time.Time          `json:"firstSeenAt"`
-	LastSeenAt        time.Time          `json:"lastSeenAt"`
-	OccurrenceCount   int                `json:"occurrenceCount"`
-	ResolutionReason  string             `json:"resolutionReason"`
-	ResolvedAt        *time.Time         `json:"resolvedAt"`
-	ObservationID     *id.ID             `json:"observationId,omitempty"`
-	ObservedAt        *time.Time         `json:"observedAt,omitempty"`
+	ID                id.ID           `json:"id"`
+	ProviderAccountID id.ID           `json:"providerAccountId"`
+	TokenID           id.ID           `json:"tokenId"`
+	Status            string          `json:"status"`
+	LedgerAmount      types.RawDelta  `json:"ledgerAmount"`
+	ProviderAmount    types.RawAmount `json:"providerAmount"`
+	DeltaAmount       types.RawDelta  `json:"deltaAmount"`
+	FirstSeenAt       time.Time       `json:"firstSeenAt"`
+	LastSeenAt        time.Time       `json:"lastSeenAt"`
+	OccurrenceCount   int             `json:"occurrenceCount"`
+	ResolutionReason  string          `json:"resolutionReason"`
+	ResolvedAt        *time.Time      `json:"resolvedAt"`
+	ObservationID     *id.ID          `json:"observationId,omitempty"`
+	ObservedAt        *time.Time      `json:"observedAt,omitempty"`
 }
 
 type ResourceAllocation struct {
-	ID                  id.ID              `json:"id"`
-	BasisType           string             `json:"basisType"`
-	BasisID             id.ID              `json:"basisId"`
-	Purpose             string             `json:"purpose"`
-	OperationTokenID    id.ID              `json:"operationTokenId"`
-	SourceWalletID      id.ID              `json:"sourceWalletId"`
-	Status              string             `json:"status"`
-	ReservedAmount      int64              `json:"reservedAmount"`
-	ActualAmount        int64              `json:"actualAmount"`
-	AllocatedCostAmount types.CryptoAmount `json:"allocatedCostAmount"`
-	TxHash              string             `json:"txHash"`
-	ChainResult         string             `json:"chainResult"`
-	ReservedAt          time.Time          `json:"reservedAt"`
+	ID                  id.ID           `json:"id"`
+	BasisType           string          `json:"basisType"`
+	BasisID             id.ID           `json:"basisId"`
+	Purpose             string          `json:"purpose"`
+	OperationTokenID    id.ID           `json:"operationTokenId"`
+	SourceWalletID      id.ID           `json:"sourceWalletId"`
+	Status              string          `json:"status"`
+	ReservedAmount      int64           `json:"reservedAmount"`
+	ActualAmount        int64           `json:"actualAmount"`
+	AllocatedCostAmount types.RawAmount `json:"allocatedCostAmount"`
+	TxHash              string          `json:"txHash"`
+	ChainResult         string          `json:"chainResult"`
+	ReservedAt          time.Time       `json:"reservedAt"`
 }
 
 type ResourceRentalWorkflowRepository interface {

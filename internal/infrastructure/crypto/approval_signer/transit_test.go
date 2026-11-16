@@ -80,7 +80,7 @@ func TestTransitProviderBuildsVerifiableArtifactsWithoutExportingPrivateKeys(t *
 		TenantID:      tenantID, Purpose: crypto.SigningPurposeWithdrawal,
 		BasisType: "test", BasisID: id.New(), NetworkCode: "tron_nile",
 		TokenID: id.New(), TokenStandard: "native",
-		AmountMinorUnits:   types.NewCryptoAmountFromInt64(100),
+		AmountMinorUnits:   types.NewRawAmountFromInt64(100),
 		DestinationAddress: "TQZiVXDjShcTrAKbkYuoH6dVvnpcZANw7V", AddressID: id.New(),
 	}
 	artifacts, err := signer.BuildArtifacts(context.Background(), intent, nil, "")

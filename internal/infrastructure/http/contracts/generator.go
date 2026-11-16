@@ -212,7 +212,7 @@ func scalarMapping(t reflect.Type, direction Direction) (string, bool) {
 			return "number | string", true
 		}
 		return "string", true
-	case reflect.TypeFor[id.ID](), reflect.TypeFor[time.Time](), reflect.TypeFor[types.CryptoAmount](), reflect.TypeFor[types.CryptoDelta]():
+	case reflect.TypeFor[id.ID](), reflect.TypeFor[time.Time](), reflect.TypeFor[types.RawAmount](), reflect.TypeFor[types.RawDelta]():
 		return "string", true
 	case reflect.TypeFor[json.RawMessage]():
 		return "JsonValue", true

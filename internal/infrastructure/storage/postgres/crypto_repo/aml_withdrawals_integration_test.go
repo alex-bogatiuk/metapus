@@ -20,7 +20,7 @@ import (
 func reserveRiskWithdrawal(f amlRoutingFixture, class aml.Class, amount string, accepted bool) (crypto.MoneyMovementIntent, error) {
 	parent := id.New()
 	merchant := f.input.Request.MerchantID
-	intent := crypto.MoneyMovementIntent{SchemaVersion: crypto.MoneyMovementIntentV1, IntentID: id.New().String(), TenantID: id.New().String(), Purpose: crypto.SigningPurposeWithdrawal, BasisType: "WithdrawalRequest", BasisID: parent, MerchantID: &merchant, NetworkCode: "RISK-TEST", TokenID: f.input.Request.TokenID, TokenStandard: "trc20", ContractAddress: "test-contract", DestinationAddress: "own-external-wallet", AmountMinorUnits: types.MustCryptoAmount(amount), AddressID: id.New()}
+	intent := crypto.MoneyMovementIntent{SchemaVersion: crypto.MoneyMovementIntentV1, IntentID: id.New().String(), TenantID: id.New().String(), Purpose: crypto.SigningPurposeWithdrawal, BasisType: "WithdrawalRequest", BasisID: parent, MerchantID: &merchant, NetworkCode: "RISK-TEST", TokenID: f.input.Request.TokenID, TokenStandard: "trc20", ContractAddress: "test-contract", DestinationAddress: "own-external-wallet", AmountMinorUnits: types.MustRawAmount(amount), AddressID: id.New()}
 	err := postgres.MustGetTxManager(f.ctx).RunInTransaction(f.ctx, func(ctx context.Context) error {
 		enabled, err := f.repo.LockAMLWithdrawalScope(ctx, merchant, f.input.Request.NetworkID, f.input.Request.TokenID)
 		if err != nil {
@@ -139,7 +139,7 @@ func TestAMLRiskWithdrawalCancellationRefundsOnlyUnsignedRemainder(t *testing.T)
 	// not an accepted signature or a call to a real signer.
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_signing_authorizations(id,authorization_id,tenant_id,merchant_id,purpose,schema_version,network_id,network_code,chain_family,network_identifier,source_address,fee_payer_address,vault_key_id,destination_address,asset_standard,contract_address,amount_minor_units,basis_type,basis_id,expires_at,policy_version,authorization_jws,unsigned_fingerprint,unsigned_envelope,approval_bundle_digest,approval_bundle_json) VALUES($1::uuid,$1::text,$2,$3,'withdrawal',1,$4,$5,'tron','nile',$6,$6,$7,$8,'trc20','test-contract',$9,'CryptoAMLWithdrawalLine',$10,$11,'tron-v1','',$12,'{}','synthetic','{"synthetic":true}')`, auth.AuthorizationID, auth.TenantID, auth.MerchantID, auth.NetworkID, auth.NetworkCode, auth.SourceAddress, auth.VaultKeyID, auth.DestinationAddress, auth.AmountMinorUnits, auth.BasisID, auth.ExpiresAt, auth.UnsignedFingerprint)
 	require.NoError(t, err)
-	var refunded types.CryptoAmount
+	var refunded types.RawAmount
 	err = postgres.MustGetTxManager(f.ctx).RunInTransaction(f.ctx, func(ctx context.Context) error {
 		var e error
 		refunded, e = f.repo.CancelAMLWithdrawalRemainder(ctx, f.input.Request.MerchantID, intent.BasisID, "cancel unsigned remainder")

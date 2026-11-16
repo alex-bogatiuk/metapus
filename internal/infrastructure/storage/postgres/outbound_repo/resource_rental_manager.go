@@ -291,7 +291,7 @@ func (r *OutboundRepo) CreateResourceRental(ctx context.Context, rental *Resourc
 	return nil
 }
 
-func (r *OutboundRepo) ActivateResourceRental(ctx context.Context, rentalID id.ID, serial string, delegated int64, cost types.CryptoAmount, providerBalance *types.CryptoAmount, responseJSON []byte, expiresAt time.Time) error {
+func (r *OutboundRepo) ActivateResourceRental(ctx context.Context, rentalID id.ID, serial string, delegated int64, cost types.RawAmount, providerBalance *types.RawAmount, responseJSON []byte, expiresAt time.Time) error {
 	if delegated <= 0 || strings.TrimSpace(serial) == "" {
 		return apperror.NewValidation("resource rental requires a provider serial and positive delegation")
 	}
@@ -396,7 +396,7 @@ type providerBalanceQuerier interface {
 	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
 }
 
-func recordProviderBalanceObservation(ctx context.Context, q providerBalanceQuerier, accountID, tokenID id.ID, externalRef string, providerAmount types.CryptoAmount) error {
+func recordProviderBalanceObservation(ctx context.Context, q providerBalanceQuerier, accountID, tokenID id.ID, externalRef string, providerAmount types.RawAmount) error {
 	// Caller owns the transaction. Serialize the ledger snapshot with opening
 	// decisions and all provider movement inserts (also guarded by PostgreSQL).
 	var lockedAccount id.ID
@@ -406,15 +406,15 @@ func recordProviderBalanceObservation(ctx context.Context, q providerBalanceQuer
 	// A provider account can legitimately have a negative internal ledger before
 	// its opening balance is posted: the first observed rental charge is an
 	// expense, while the pre-existing provider balance is still unexplained.
-	// Preserve that signed evidence instead of forcing it through CryptoAmount.
-	var ledgerAmount types.CryptoDelta
+	// Preserve that signed evidence instead of forcing it through RawAmount.
+	var ledgerAmount types.RawDelta
 	if err := q.QueryRow(ctx, `
 		SELECT COALESCE(SUM(CASE WHEN record_type='receipt' THEN amount ELSE -amount END),0)
 		FROM reg_crypto_provider_balance_movements WHERE provider_account_id=$1 AND token_id=$2
 	`, accountID, tokenID).Scan(&ledgerAmount); err != nil {
 		return err
 	}
-	providerDelta := types.ZeroCryptoAmount().Difference(providerAmount).Neg()
+	providerDelta := types.ZeroRawAmount().Difference(providerAmount).Neg()
 	delta := providerDelta.Add(ledgerAmount.Neg())
 	if _, err := q.Exec(ctx, `
 		INSERT INTO reg_crypto_provider_balance_observations
@@ -465,10 +465,10 @@ func (r *OutboundRepo) markResourceRentalReclaiming(ctx context.Context, rentalI
 	})
 }
 
-func (r *OutboundRepo) CloseResourceRental(ctx context.Context, rentalID id.ID, refund types.CryptoAmount, providerBalance *types.CryptoAmount, responseJSON []byte, status string) error {
+func (r *OutboundRepo) CloseResourceRental(ctx context.Context, rentalID id.ID, refund types.RawAmount, providerBalance *types.RawAmount, responseJSON []byte, status string) error {
 	return r.closeResourceRental(ctx, rentalID, nil, refund, providerBalance, responseJSON, status)
 }
-func (r *OutboundRepo) closeResourceRental(ctx context.Context, rentalID id.ID, claim *outboundapp.ResourceRentalClaim, refund types.CryptoAmount, providerBalance *types.CryptoAmount, responseJSON []byte, status string) error {
+func (r *OutboundRepo) closeResourceRental(ctx context.Context, rentalID id.ID, claim *outboundapp.ResourceRentalClaim, refund types.RawAmount, providerBalance *types.RawAmount, responseJSON []byte, status string) error {
 	if status != "closed" && status != "failed" {
 		return apperror.NewValidation("resource rental close requires a terminal outcome")
 	}
@@ -486,7 +486,7 @@ func (r *OutboundRepo) closeResourceRental(ctx context.Context, rentalID id.ID, 
 		}
 		var accountID, networkID, tokenID id.ID
 		var provider, serial, outTradeNo string
-		var gross, oldRefund types.CryptoAmount
+		var gross, oldRefund types.RawAmount
 		var currentStatus string
 		var posted bool
 		var postedVersion int
@@ -517,7 +517,7 @@ func (r *OutboundRepo) closeResourceRental(ctx context.Context, rentalID id.ID, 
 			}
 			return nil
 		}
-		delta := types.ZeroCryptoAmount()
+		delta := types.ZeroRawAmount()
 		if refund.Cmp(oldRefund) > 0 {
 			delta = refund.Sub(oldRefund)
 		}
@@ -531,7 +531,7 @@ func (r *OutboundRepo) closeResourceRental(ctx context.Context, rentalID id.ID, 
 			}
 		}
 		var consumed int64
-		var allocated types.CryptoAmount
+		var allocated types.RawAmount
 		if err := q.QueryRow(ctx, `SELECT COALESCE(SUM(CASE WHEN status='confirmed' THEN LEAST(actual_amount,reserved_amount) ELSE 0 END),0),COALESCE(SUM(allocated_cost_amount),0) FROM reg_crypto_resource_allocations WHERE rental_id=$1`, rentalID).Scan(&consumed, &allocated); err != nil {
 			return err
 		}
@@ -728,12 +728,12 @@ func (r *OutboundRepo) SettleResourceAllocation(ctx context.Context, txHash stri
 		if _, err := q.Exec(ctx, `UPDATE reg_crypto_resource_allocations SET status='confirmed',actual_amount=$2,chain_result=$3,confirmed_at=COALESCE(confirmed_at,NOW()),updated_at=NOW() WHERE id=$1`, allocationID, actual, result); err != nil {
 			return err
 		}
-		var net types.CryptoAmount
+		var net types.RawAmount
 		var delegated int64
 		if err := q.QueryRow(ctx, `SELECT net_cost_amount,delegated_amount FROM doc_crypto_resource_rentals WHERE id=$1 FOR UPDATE`, rentalID).Scan(&net, &delegated); err != nil {
 			return err
 		}
-		allocated := types.ZeroCryptoAmount()
+		allocated := types.ZeroRawAmount()
 		if delegated > 0 {
 			allocated = net.MulDiv(actual, delegated)
 		}
@@ -898,6 +898,6 @@ func (r *OutboundRepo) claimResourceRentalsForMaintenance(ctx context.Context, w
 }
 
 // RecordProviderBalanceObservation records provider evidence in the caller's transaction.
-func (r *OutboundRepo) RecordProviderBalanceObservation(ctx context.Context, accountID, tokenID id.ID, externalRef string, providerAmount types.CryptoAmount) error {
+func (r *OutboundRepo) RecordProviderBalanceObservation(ctx context.Context, accountID, tokenID id.ID, externalRef string, providerAmount types.RawAmount) error {
 	return recordProviderBalanceObservation(ctx, postgres.MustGetTxManager(ctx).GetQuerier(ctx), accountID, tokenID, externalRef, providerAmount)
 }

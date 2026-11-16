@@ -67,7 +67,7 @@ func TestApprovalPolicyRequiredPrincipals(t *testing.T) {
 
 func TestApprovalPolicyOverlappingRulesUnionPrincipals(t *testing.T) {
 	now := time.Date(2026, 7, 5, 12, 0, 0, 0, time.UTC)
-	limit := types.NewCryptoAmountFromInt64(1_000_000)
+	limit := types.NewRawAmountFromInt64(1_000_000)
 	policy := ApprovalPolicyBundle{
 		SchemaVersion:             ApprovalPolicySchemaV1,
 		PolicyVersion:             "test-policy",
@@ -348,7 +348,7 @@ func testMoneyMovementIntent(purpose SigningPurpose, amount int64) MoneyMovement
 		NetworkCode:        "tron_mainnet",
 		TokenID:            id.New(),
 		TokenStandard:      "native",
-		AmountMinorUnits:   types.NewCryptoAmountFromInt64(amount),
+		AmountMinorUnits:   types.NewRawAmountFromInt64(amount),
 		DestinationAddress: "TQZiVXDjShcTrAKbkYuoH6dVvnpcZANw7V",
 		AddressID:          id.New(),
 	}

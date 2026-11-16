@@ -97,9 +97,9 @@ func buildPaymentPageResponse(publicRef string, data *cryptoapp.CheckoutPageData
 		Status:          data.Status,
 		AcceptsPayments: data.AcceptsPayments,
 		WalletAddress:   address,
-		ExpectedAmount:  formatCryptoAmount(data.ExpectedAmount, data.DecimalPlaces),
-		ReceivedAmount:  formatCryptoAmount(data.ReceivedAmount, data.DecimalPlaces),
-		OverpaidAmount:  formatCryptoAmount(data.OverpaidAmount, data.DecimalPlaces),
+		ExpectedAmount:  formatRawAmount(data.ExpectedAmount, data.DecimalPlaces),
+		ReceivedAmount:  formatRawAmount(data.ReceivedAmount, data.DecimalPlaces),
+		OverpaidAmount:  formatRawAmount(data.OverpaidAmount, data.DecimalPlaces),
 		TokenSymbol:     data.TokenSymbol,
 		TokenName:       data.TokenName,
 		NetworkName:     data.NetworkName,
@@ -115,7 +115,7 @@ func buildPaymentPageResponse(publicRef string, data *cryptoapp.CheckoutPageData
 	}
 }
 
-func formatCryptoAmount(amount types.CryptoAmount, decimalPlaces int) string {
+func formatRawAmount(amount types.RawAmount, decimalPlaces int) string {
 	raw := amount.String()
 	if decimalPlaces <= 0 {
 		return raw
@@ -156,8 +156,8 @@ func (h *PaymentPageHandler) GetInvoiceStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":          status.Status,
 		"acceptsPayments": status.AcceptsPayments,
-		"receivedAmount":  formatCryptoAmount(status.ReceivedAmount, status.DecimalPlaces),
-		"overpaidAmount":  formatCryptoAmount(status.OverpaidAmount, status.DecimalPlaces),
+		"receivedAmount":  formatRawAmount(status.ReceivedAmount, status.DecimalPlaces),
+		"overpaidAmount":  formatRawAmount(status.OverpaidAmount, status.DecimalPlaces),
 		"confirmations":   status.Confirmations,
 	})
 }

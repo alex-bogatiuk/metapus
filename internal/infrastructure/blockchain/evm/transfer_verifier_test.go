@@ -31,7 +31,7 @@ func TestTransferVerificationRequiresIndependentExactFinalEVMQuorum(t *testing.T
 			tx, err := gethtypes.SignTx(gethtypes.NewTx(&gethtypes.DynamicFeeTx{ChainID: chain, Nonce: 4, To: &to, Value: big.NewInt(12), Gas: 21000, GasFeeCap: big.NewInt(100), GasTipCap: big.NewInt(1)}), gethtypes.LatestSignerForChainID(chain), key)
 			require.NoError(t, err)
 			header := &gethtypes.Header{Number: big.NewInt(100), Difficulty: big.NewInt(0), GasLimit: 30000000, Time: uint64(time.Now().Unix()), BaseFee: big.NewInt(1)}
-			event := crypto.BlockchainEvent{NetworkID: id.New(), TxHash: tx.Hash().Hex(), EventKind: crypto.EventKindNativeValue, FromAddress: from.Hex(), ToAddress: to.Hex(), Amount: types.MustCryptoAmount("12"), BlockNumber: 100, BlockHash: header.Hash().Hex(), Direction: crypto.TransferDirectionInternal}
+			event := crypto.BlockchainEvent{NetworkID: id.New(), TxHash: tx.Hash().Hex(), EventKind: crypto.EventKindNativeValue, FromAddress: from.Hex(), ToAddress: to.Hex(), Amount: types.MustRawAmount("12"), BlockNumber: 100, BlockHash: header.Hash().Hex(), Direction: crypto.TransferDirectionInternal}
 			token := scenario == "erc20" || scenario == "duplicate_log" || scenario == "wrong_log"
 			if token {
 				event.EventKind = crypto.EventKindContractLog
@@ -39,7 +39,7 @@ func TestTransferVerificationRequiresIndependentExactFinalEVMQuorum(t *testing.T
 				event.EventIndex = 7
 			}
 			if scenario == "wrong_amount" {
-				event.Amount = types.MustCryptoAmount("13")
+				event.Amount = types.MustRawAmount("13")
 			}
 			var calls [3]atomic.Int64
 			server := func(index int) *httptest.Server {

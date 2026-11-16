@@ -41,10 +41,10 @@ func newRentalReplayFixture(t *testing.T) rentalReplayFixture {
 }
 
 func (f rentalReplayFixture) activate(cost string) error {
-	return outbound_repo.NewOutboundRepo().ActivateResourceRental(f.Ctx, f.rental, "serial", 100, types.MustCryptoAmount(cost), nil, nil, f.expiry)
+	return outbound_repo.NewOutboundRepo().ActivateResourceRental(f.Ctx, f.rental, "serial", 100, types.MustRawAmount(cost), nil, nil, f.expiry)
 }
 func (f rentalReplayFixture) close(refund string) error {
-	return outbound_repo.NewOutboundRepo().CloseResourceRental(f.Ctx, f.rental, types.MustCryptoAmount(refund), nil, nil, "closed")
+	return outbound_repo.NewOutboundRepo().CloseResourceRental(f.Ctx, f.rental, types.MustRawAmount(refund), nil, nil, "closed")
 }
 func (f rentalReplayFixture) snapshot(t *testing.T) string {
 	t.Helper()
@@ -75,11 +75,11 @@ func TestRentalChargeConcurrentReplayPreservesFirstFinancialSet(t *testing.T) {
 		require.NoError(t, err)
 	}
 	before := f.snapshot(t)
-	require.NoError(t, outbound_repo.NewOutboundRepo().ActivateResourceRental(f.Ctx, f.rental, "serial", 100, types.MustCryptoAmount("1000"), nil, []byte(`{"later":true}`), f.expiry.Add(time.Hour)))
+	require.NoError(t, outbound_repo.NewOutboundRepo().ActivateResourceRental(f.Ctx, f.rental, "serial", 100, types.MustRawAmount("1000"), nil, []byte(`{"later":true}`), f.expiry.Add(time.Hour)))
 	require.Equal(t, before, f.snapshot(t))
 	require.ErrorContains(t, f.activate("999"), "activation replay differs")
-	require.ErrorContains(t, outbound_repo.NewOutboundRepo().ActivateResourceRental(f.Ctx, f.rental, "another", 100, types.MustCryptoAmount("1000"), nil, nil, f.expiry), "activation replay differs")
-	require.ErrorContains(t, outbound_repo.NewOutboundRepo().ActivateResourceRental(f.Ctx, f.rental, "serial", 101, types.MustCryptoAmount("1000"), nil, nil, f.expiry), "activation replay differs")
+	require.ErrorContains(t, outbound_repo.NewOutboundRepo().ActivateResourceRental(f.Ctx, f.rental, "another", 100, types.MustRawAmount("1000"), nil, nil, f.expiry), "activation replay differs")
+	require.ErrorContains(t, outbound_repo.NewOutboundRepo().ActivateResourceRental(f.Ctx, f.rental, "serial", 101, types.MustRawAmount("1000"), nil, nil, f.expiry), "activation replay differs")
 	require.Equal(t, []string{"0", "-1000", "1000"}, f.amounts(t))
 }
 
@@ -98,7 +98,7 @@ func TestRentalCumulativeRefundNeverRegressesOrDuplicatesCredit(t *testing.T) {
 	require.NoError(t, outbound_repo.NewOutboundRepo().MarkResourceRentalHeld(f.Ctx, f.rental, "stale provider reply", nil))
 	require.Equal(t, before, f.snapshot(t))
 	require.ErrorContains(t, f.close("1001"), "exceeds its original charge")
-	require.ErrorContains(t, outbound_repo.NewOutboundRepo().CloseResourceRental(f.Ctx, f.rental, types.MustCryptoAmount("1000"), nil, nil, "failed"), "terminal outcome")
+	require.ErrorContains(t, outbound_repo.NewOutboundRepo().CloseResourceRental(f.Ctx, f.rental, types.MustRawAmount("1000"), nil, nil, "failed"), "terminal outcome")
 	require.Equal(t, []string{"1000", "0", "0"}, f.amounts(t))
 	var preserved bool
 	require.NoError(t, f.Pool.QueryRow(f.Ctx, `SELECT closed_at=($2::jsonb->>'closed_at')::timestamptz FROM doc_crypto_resource_rentals WHERE id=$1`, f.rental, first).Scan(&preserved))
@@ -183,7 +183,7 @@ func TestRentalFinancialLocksAccountBeforeRental(t *testing.T) {
 			return err
 		},
 		func(ctx context.Context) error {
-			return outbound_repo.NewOutboundRepo().ActivateResourceRental(ctx, f.rental, "serial", 100, types.MustCryptoAmount("1000"), nil, nil, f.expiry)
+			return outbound_repo.NewOutboundRepo().ActivateResourceRental(ctx, f.rental, "serial", 100, types.MustRawAmount("1000"), nil, nil, f.expiry)
 		})
 }
 
@@ -226,7 +226,7 @@ func TestRentalFreeChargeAndIsolationContract(t *testing.T) {
 	opts := postgres.DefaultTxOptions()
 	opts.IsolationLevel = pgx.RepeatableRead
 	err := tm.RunInTransactionWithOptions(f.Ctx, opts, func(ctx context.Context) error {
-		return outbound_repo.NewOutboundRepo().ActivateResourceRental(ctx, f.rental, "serial", 100, types.ZeroCryptoAmount(), nil, nil, f.expiry)
+		return outbound_repo.NewOutboundRepo().ActivateResourceRental(ctx, f.rental, "serial", 100, types.ZeroRawAmount(), nil, nil, f.expiry)
 	})
 	require.ErrorContains(t, err, "read committed")
 	require.NoError(t, f.activate("0"))

@@ -40,7 +40,7 @@ func TestCheckAndReserveCryptoFeeRejectsInsufficientBalance(t *testing.T) {
 				MerchantID: merchantID,
 				TokenID:    tokenID,
 				FeeType:    FeeTypeProcessing,
-				Balance:    types.NewCryptoAmountFromInt64(100),
+				Balance:    types.NewRawAmountFromInt64(100),
 			},
 		},
 	})
@@ -50,7 +50,7 @@ func TestCheckAndReserveCryptoFeeRejectsInsufficientBalance(t *testing.T) {
 			MerchantID: merchantID,
 			TokenID:    tokenID,
 			FeeType:    FeeTypeProcessing,
-			Required:   types.NewCryptoAmountFromInt64(101),
+			Required:   types.NewRawAmountFromInt64(101),
 		},
 	})
 	require.Error(t, err)
@@ -66,7 +66,7 @@ func TestCheckAndReserveCryptoFeeAllowsSufficientBalance(t *testing.T) {
 				MerchantID: merchantID,
 				TokenID:    tokenID,
 				FeeType:    FeeTypeProcessing,
-				Balance:    types.NewCryptoAmountFromInt64(100),
+				Balance:    types.NewRawAmountFromInt64(100),
 			},
 		},
 	})
@@ -76,7 +76,7 @@ func TestCheckAndReserveCryptoFeeAllowsSufficientBalance(t *testing.T) {
 			MerchantID: merchantID,
 			TokenID:    tokenID,
 			FeeType:    FeeTypeProcessing,
-			Required:   types.NewCryptoAmountFromInt64(100),
+			Required:   types.NewRawAmountFromInt64(100),
 		},
 	})
 	require.NoError(t, err)

@@ -74,7 +74,7 @@ func validExternalOutflowEvent() crypto.BlockchainEvent {
 	return crypto.BlockchainEvent{
 		NetworkID: id.New(), TxHash: "tx-external-1", EventKind: crypto.EventKindContractLog,
 		EventIndex: 3, FromAddress: "TManaged", ToAddress: "TDestination",
-		TokenContract: "TContract", Amount: types.MustCryptoAmount("42"), BlockNumber: 10,
+		TokenContract: "TContract", Amount: types.MustRawAmount("42"), BlockNumber: 10,
 		Confirmations: 1, RequiredConfs: 19, Direction: crypto.TransferDirectionOutgoing,
 	}
 }

@@ -30,8 +30,8 @@ const (
 	defaultMaxFeeWei         = "1000000000000000000"
 )
 
-func DefaultProtocolMaxFee() types.CryptoAmount {
-	return types.MustCryptoAmount(defaultMaxFeeWei)
+func DefaultProtocolMaxFee() types.RawAmount {
+	return types.MustRawAmount(defaultMaxFeeWei)
 }
 
 var erc20ABI = mustABI(`[
@@ -59,7 +59,7 @@ type DriverConfig struct {
 	NetworkHoldRecorder    crypto.NetworkOperationalHoldRecorder
 	WalletDeriver          crypto.WalletDeriver
 	NonceManager           NonceManager
-	MaxFeeMinor            types.CryptoAmount
+	MaxFeeMinor            types.RawAmount
 	QuoteTTL               time.Duration
 	WatcherPollInterval    time.Duration
 	WatcherLookback        int64
@@ -90,7 +90,7 @@ type Driver struct {
 	holdRecorder    crypto.NetworkOperationalHoldRecorder
 	deriver         crypto.WalletDeriver
 	nonces          NonceManager
-	maxFee          types.CryptoAmount
+	maxFee          types.RawAmount
 	quoteTTL        time.Duration
 	pollInterval    time.Duration
 	lookback        int64
@@ -206,8 +206,8 @@ func (d *Driver) QuoteFee(ctx context.Context, intent crypto.TransferIntent) (cr
 	if expectedGasPrice.Cmp(maxFeePerGas) > 0 {
 		expectedGasPrice.Set(maxFeePerGas)
 	}
-	estimated, _ := types.NewCryptoAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(gasEstimate), expectedGasPrice))
-	maximum, _ := types.NewCryptoAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(gasLimit), maxFeePerGas))
+	estimated, _ := types.NewRawAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(gasEstimate), expectedGasPrice))
+	maximum, _ := types.NewRawAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(gasLimit), maxFeePerGas))
 	if maximum.Cmp(d.maxFee) > 0 {
 		return crypto.FeeQuote{}, fmt.Errorf("EVM maximum fee %s exceeds driver safety ceiling %s", maximum, d.maxFee)
 	}
@@ -291,7 +291,7 @@ func (d *Driver) buildEnvelope(intent crypto.TransferIntent, nonce uint64, gener
 		UnsignedFingerprint: fingerprint, Generation: generation, NetworkSequence: payload.Nonce, Payload: raw}, nil
 }
 
-func (d *Driver) BuildReplacement(ctx context.Context, intent crypto.TransferIntent, previous crypto.UnsignedTxEnvelope, policyMaxFee types.CryptoAmount) (crypto.UnsignedTxEnvelope, crypto.FeeQuote, error) {
+func (d *Driver) BuildReplacement(ctx context.Context, intent crypto.TransferIntent, previous crypto.UnsignedTxEnvelope, policyMaxFee types.RawAmount) (crypto.UnsignedTxEnvelope, crypto.FeeQuote, error) {
 	if previous.Family != crypto.ChainFamilyEVM || previous.SchemaVersion != evmEnvelopeSchemaVersion || previous.Generation <= 0 {
 		return crypto.UnsignedTxEnvelope{}, crypto.FeeQuote{}, errors.New("invalid EVM replacement predecessor")
 	}
@@ -334,7 +334,7 @@ func (d *Driver) BuildReplacement(ctx context.Context, intent crypto.TransferInt
 	tip = maxBig(tip, bump125(oldTip))
 	cap = maxBig(cap, bump125(oldCap))
 	fees.MaxPriorityFeePerGasWei, fees.MaxFeePerGasWei, fees.GasLimit = tip.String(), cap.String(), old.GasLimit
-	maximum, _ := types.NewCryptoAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(old.GasLimit), cap))
+	maximum, _ := types.NewRawAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(old.GasLimit), cap))
 	if maximum.Cmp(policyMaxFee) > 0 || maximum.Cmp(d.maxFee) > 0 {
 		return crypto.UnsignedTxEnvelope{}, crypto.FeeQuote{}, errors.New("EVM replacement exceeds fee policy")
 	}
@@ -358,7 +358,7 @@ func (d *Driver) BuildReplacement(ctx context.Context, intent crypto.TransferInt
 	if expectedPrice.Cmp(cap) > 0 {
 		expectedPrice = new(big.Int).Set(cap)
 	}
-	fresh.EstimatedFee, _ = types.NewCryptoAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(fees.GasEstimate), expectedPrice))
+	fresh.EstimatedFee, _ = types.NewRawAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(fees.GasEstimate), expectedPrice))
 	fresh.MaxFee = maximum
 	fresh.RawEvidence, _ = json.Marshal(fees)
 	return envelope, fresh, err
@@ -391,12 +391,12 @@ func (d *Driver) validateQuote(quote crypto.FeeQuote) (feeEvidence, error) {
 	if !baseOK || !tipOK || !capOK || baseFee.Sign() <= 0 || tip.Sign() <= 0 || cap.Sign() <= 0 || tip.Cmp(cap) > 0 {
 		return evidence, errors.New("EVM fee quote evidence contains invalid fee values")
 	}
-	maximum, _ := types.NewCryptoAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(evidence.GasLimit), cap))
+	maximum, _ := types.NewRawAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(evidence.GasLimit), cap))
 	expectedPrice := new(big.Int).Add(baseFee, tip)
 	if expectedPrice.Cmp(cap) > 0 {
 		expectedPrice = new(big.Int).Set(cap)
 	}
-	estimated, _ := types.NewCryptoAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(evidence.GasEstimate), expectedPrice))
+	estimated, _ := types.NewRawAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(evidence.GasEstimate), expectedPrice))
 	if !maximum.Equal(quote.MaxFee) || !estimated.Equal(quote.EstimatedFee) {
 		return evidence, errors.New("EVM fee quote totals do not match immutable evidence")
 	}
@@ -526,7 +526,7 @@ func (d *Driver) Receipt(ctx context.Context, txHash string) (crypto.ChainReceip
 	if price == nil {
 		price = new(big.Int)
 	}
-	total, _ := types.NewCryptoAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), price))
+	total, _ := types.NewRawAmountFromBigInt(new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), price))
 	result.Fee.TotalFee = total
 	result.Fee.Components = []crypto.FeeComponent{{Name: "execution_gas", Amount: total, Quantity: int64(receipt.GasUsed)}}
 	// A financially final receipt is replaced by its independent fee proof; a
@@ -586,45 +586,45 @@ func (d *Driver) CanonicalBlock(ctx context.Context, height int64) (string, erro
 	return header.Hash().Hex(), nil
 }
 
-func (d *Driver) NativeBalance(ctx context.Context, address string) (types.CryptoAmount, error) {
+func (d *Driver) NativeBalance(ctx context.Context, address string) (types.RawAmount, error) {
 	normalized, err := NormalizeAddress(address)
 	if err != nil {
-		return types.ZeroCryptoAmount(), err
+		return types.ZeroRawAmount(), err
 	}
 	balance, err := d.rpc.BalanceAt(ctx, common.HexToAddress(normalized))
 	if err != nil {
-		return types.ZeroCryptoAmount(), err
+		return types.ZeroRawAmount(), err
 	}
-	return types.NewCryptoAmountFromBigInt(balance)
+	return types.NewRawAmountFromBigInt(balance)
 }
 
-func (d *Driver) TokenBalance(ctx context.Context, asset crypto.AssetRef, address string) (types.CryptoAmount, error) {
+func (d *Driver) TokenBalance(ctx context.Context, asset crypto.AssetRef, address string) (types.RawAmount, error) {
 	if !asset.Standard.IsEVMContract() {
-		return types.ZeroCryptoAmount(), errors.New("EVM token balance requires an EVM contract token")
+		return types.ZeroRawAmount(), errors.New("EVM token balance requires an EVM contract token")
 	}
 	normalized, err := NormalizeAddress(address)
 	if err != nil {
-		return types.ZeroCryptoAmount(), err
+		return types.ZeroRawAmount(), err
 	}
 	contract, err := NormalizeAddress(asset.ContractAddress)
 	if err != nil {
-		return types.ZeroCryptoAmount(), err
+		return types.ZeroRawAmount(), err
 	}
 	data, _ := erc20ABI.Pack("balanceOf", common.HexToAddress(normalized))
 	to := common.HexToAddress(contract)
 	output, err := d.rpc.CallContract(ctx, ethereum.CallMsg{To: &to, Data: data})
 	if err != nil {
-		return types.ZeroCryptoAmount(), err
+		return types.ZeroRawAmount(), err
 	}
 	values, err := erc20ABI.Unpack("balanceOf", output)
 	if err != nil || len(values) != 1 {
-		return types.ZeroCryptoAmount(), errors.New("invalid ERC-20 balanceOf response")
+		return types.ZeroRawAmount(), errors.New("invalid ERC-20 balanceOf response")
 	}
 	balance, ok := values[0].(*big.Int)
 	if !ok {
-		return types.ZeroCryptoAmount(), errors.New("invalid ERC-20 balance type")
+		return types.ZeroRawAmount(), errors.New("invalid ERC-20 balance type")
 	}
-	return types.NewCryptoAmountFromBigInt(balance)
+	return types.NewRawAmountFromBigInt(balance)
 }
 
 func (d *Driver) DeriveAddress(ctx context.Context, network crypto.NetworkRef, derivationPath string) (crypto.WalletDerivation, error) {

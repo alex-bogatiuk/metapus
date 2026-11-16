@@ -89,10 +89,10 @@ func TestFinancialAdjustmentPartialReversalBeforeReorg(t *testing.T) {
 		payment := &crypto_payment.CryptoPayment{
 			NetworkID: f.network, InvoiceID: invoiceID, WalletID: f.wallet,
 			TokenID: f.token, MerchantID: f.merchant, TxHash: txHash,
-			EventKind: "native_value", Amount: types.NewCryptoAmountFromInt64(100),
+			EventKind: "native_value", Amount: types.NewRawAmountFromInt64(100),
 		}
 		payment.ID, payment.PostedVersion = paymentID, 1
-		payment.FeeFixed = types.NewCryptoAmountFromInt64(5)
+		payment.FeeFixed = types.NewRawAmountFromInt64(5)
 		require.NoError(t, q.QueryRow(ctx, `SELECT receipt_id,event_kind FROM doc_crypto_payments WHERE id=$1`, paymentID).Scan(&payment.ReceiptID, &payment.EventKind))
 		reorg := crypto_repo.NewFinancialReorgRepo()
 		require.NoError(t, reorg.RecordFinancialReorg(ctx, payment, crypto.BlockchainEvent{BlockNumber: 1, BlockHash: "orphaned"}))

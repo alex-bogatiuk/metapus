@@ -140,7 +140,7 @@ func (f paymentE2EFixture) watch(t *testing.T, event crypto.BlockchainEvent) {
 
 func (f paymentE2EFixture) transfer(block int64, hash string, finality crypto.FinalityStatus) crypto.BlockchainEvent {
 	return crypto.BlockchainEvent{NetworkID: f.network, TxHash: f.txHash, EventKind: crypto.EventKindContractLog, EventIndex: 0,
-		FromAddress: f.payer, ToAddress: f.walletAddress, TokenContract: f.contract, Amount: types.MustCryptoAmount("100000000"),
+		FromAddress: f.payer, ToAddress: f.walletAddress, TokenContract: f.contract, Amount: types.MustRawAmount("100000000"),
 		BlockNumber: block, BlockHash: hash, Confirmations: 1, RequiredConfs: 19, Finality: finality,
 		Canonicality: crypto.CanonicalityCanonical, EventType: crypto.EventTypeTransfer, Direction: crypto.TransferDirectionIncoming,
 		DecoderVersion: crypto.TRONTransferEvidenceSchema, Timestamp: time.Now().UTC()}
@@ -207,7 +207,7 @@ func TestPaymentE2EReorgCompensatesAndReinclusionCreditsAgain(t *testing.T) {
 	// The watcher reports the block gone; the absence is proven independently.
 	*f.state = e2eOrphaned
 	reorg := f.transfer(100, e2eBlockHash("c"), crypto.FinalityProvisional)
-	reorg.EventType, reorg.Canonicality, reorg.Amount = crypto.EventTypeReorg, crypto.CanonicalityOrphaned, types.ZeroCryptoAmount()
+	reorg.EventType, reorg.Canonicality, reorg.Amount = crypto.EventTypeReorg, crypto.CanonicalityOrphaned, types.ZeroRawAmount()
 	f.watch(t, reorg)
 	reorged := f.read(t)
 	require.Equal(t, crypto_payment.PaymentStatusReorged, reorged.payment)
@@ -285,7 +285,7 @@ func TestPaymentE2EReceiptAuditRollsBackOrphanWhenPaymentCannotBeCompensated(t *
 	require.Equal(t, "97000000", f.read(t).merchant)
 }
 
-func itoa(v int) string { return types.NewCryptoAmountFromInt64(int64(v)).String() }
+func itoa(v int) string { return types.NewRawAmountFromInt64(int64(v)).String() }
 
 // requireUnsettled: the provisional observation created (or reactivated) the
 // payment, but nothing is credited before finality.

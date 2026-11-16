@@ -22,7 +22,7 @@ func validCustodyAdjustment() *CryptoCustodyAdjustment {
 		NetworkID:         id.New(),
 		WalletID:          id.New(),
 		TokenID:           id.New(),
-		Amount:            types.NewCryptoAmountFromInt64(1250),
+		Amount:            types.NewRawAmountFromInt64(1250),
 		Status:            "pending_approval",
 		MakerID:           id.New(),
 	}
@@ -126,7 +126,7 @@ func TestCryptoCustodyAdjustmentRejectsIncompleteOrNonPositiveDocument(t *testin
 		mutate func(*CryptoCustodyAdjustment)
 	}{
 		{name: "missing wallet", mutate: func(a *CryptoCustodyAdjustment) { a.WalletID = id.Nil() }},
-		{name: "zero amount", mutate: func(a *CryptoCustodyAdjustment) { a.Amount = types.ZeroCryptoAmount() }},
+		{name: "zero amount", mutate: func(a *CryptoCustodyAdjustment) { a.Amount = types.ZeroRawAmount() }},
 		{name: "rejected", mutate: func(a *CryptoCustodyAdjustment) { a.Status = "rejected" }},
 	}
 	for _, tt := range tests {

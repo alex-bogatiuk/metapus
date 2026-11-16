@@ -327,7 +327,7 @@ func (w *Watcher) processNativeBlock(ctx context.Context, state *crypto.WatcherS
 		if err != nil {
 			return fmt.Errorf("recover EVM inbound sender: %w", err)
 		}
-		amount, amountErr := types.NewCryptoAmountFromBigInt(tx.Value())
+		amount, amountErr := types.NewRawAmountFromBigInt(tx.Value())
 		if amountErr != nil {
 			return amountErr
 		}
@@ -437,7 +437,7 @@ func (w *Watcher) processTokenBlock(ctx context.Context, state *crypto.WatcherSt
 		if receipt.Status != gethtypes.ReceiptStatusSuccessful {
 			continue
 		}
-		amount, amountErr := types.NewCryptoAmountFromBigInt(amountBig)
+		amount, amountErr := types.NewRawAmountFromBigInt(amountBig)
 		if amountErr != nil {
 			return amountErr
 		}

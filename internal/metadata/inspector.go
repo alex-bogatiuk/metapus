@@ -17,7 +17,7 @@ import (
 var (
 	quantityType     = reflect.TypeFor[types.Quantity]()
 	minorUnitsType   = reflect.TypeFor[types.MinorUnits]()
-	cryptoAmountType = reflect.TypeFor[types.CryptoAmount]()
+	rawAmountType    = reflect.TypeFor[types.RawAmount]()
 	typedRefType     = reflect.TypeFor[entity.TypedRef]()
 	decimalType      = reflect.TypeFor[decimal.Decimal]()
 	paletteColorType = reflect.TypeFor[types.PaletteColor]()
@@ -286,8 +286,8 @@ func mapFieldType(def *FieldDef, field reflect.StructField) {
 		// (cat_currencies.minor_multiplier). Resolved dynamically at SQL level.
 		return
 	}
-	if actual == cryptoAmountType {
-		// CryptoAmount is stored in token minor units (sun/wei) — no currency scaling.
+	if actual == rawAmountType {
+		// RawAmount is stored in the asset's raw units — no currency scaling.
 		// Use TypeInteger for simple numeric comparison (no currency_id lookup).
 		def.Type = TypeInteger
 		return

@@ -8,6 +8,6 @@ import (
 type TreasuryAccountingBasis struct {
 	DocumentID, NetworkID, TokenID, SourceWalletID id.ID
 	TxHash                                         string
-	Amount                                         types.CryptoAmount
+	Amount                                         types.RawAmount
 	VerificationID                                 *id.ID
 }

@@ -228,7 +228,7 @@ func (r *DashboardRepo) ListWithdrawalRequests(ctx context.Context, merchantIDs 
 	items := make([]portalapp.PortalWithdrawalRequestItem, 0, 32)
 	for rows.Next() {
 		var item portalapp.PortalWithdrawalRequestItem
-		var amount types.CryptoAmount
+		var amount types.RawAmount
 		var createdAt time.Time
 		var approvedAt *time.Time
 		var rejectionReason string
@@ -353,7 +353,7 @@ type rowScanner interface {
 
 func scanAdminWithdrawalRequestListItem(row rowScanner) (portalapp.AdminWithdrawalRequestItem, int, error) {
 	var item portalapp.AdminWithdrawalRequestItem
-	var amount types.CryptoAmount
+	var amount types.RawAmount
 	var approvedByID *string
 	var approvedByName *string
 	var approvedAt *time.Time
@@ -394,7 +394,7 @@ func scanAdminWithdrawalRequestListItem(row rowScanner) (portalapp.AdminWithdraw
 
 func scanAdminWithdrawalRequestDetail(row rowScanner) (portalapp.AdminWithdrawalRequestDetail, error) {
 	var item portalapp.AdminWithdrawalRequestDetail
-	var amount types.CryptoAmount
+	var amount types.RawAmount
 	var createdAt, updatedAt, date time.Time
 	var approvedAt *time.Time
 	var rejectionReason string

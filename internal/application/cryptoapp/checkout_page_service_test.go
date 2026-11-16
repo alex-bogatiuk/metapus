@@ -77,7 +77,7 @@ func TestCheckoutPageRedeemOwnsAtomicInvoiceAndLinkTransition(t *testing.T) {
 	fixedNow := time.Date(2026, 8, 30, 10, 0, 0, 0, time.UTC)
 	repo := &checkoutPageRepoStub{
 		link: RedeemablePaymentLink{
-			ID: id.New(), MerchantID: id.New(), TokenID: id.New(), Amount: types.NewCryptoAmountFromInt64(2500000),
+			ID: id.New(), MerchantID: id.New(), TokenID: id.New(), Amount: types.NewRawAmountFromInt64(2500000),
 			Description: "order", MaxUses: 1, Status: "active", TTLMinutes: 30,
 		},
 		page:          CheckoutPageData{ID: id.New(), Status: "created"},

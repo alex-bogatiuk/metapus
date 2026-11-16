@@ -36,9 +36,9 @@ func (r *CreateTokenRequest) ToEntity() *token.Token {
 	t := token.NewToken(r.Code, r.Name, networkID, r.Symbol, r.DecimalPlaces, token.TokenStandard(r.Standard))
 	t.ContractAddress = r.ContractAddress
 	t.IsActive = r.IsActive
-	t.SweepThreshold, _ = types.NewCryptoAmountFromString(r.SweepThreshold)
+	t.SweepThreshold, _ = types.NewRawAmountFromString(r.SweepThreshold)
 	t.SweepMaxAgeHours = r.SweepMaxAgeHours
-	t.SweepRetainAmount, _ = types.NewCryptoAmountFromString(r.SweepRetainAmount)
+	t.SweepRetainAmount, _ = types.NewRawAmountFromString(r.SweepRetainAmount)
 	t.CurrencyID = dto.StringPtrToIDPtr(r.CurrencyID)
 	t.ParentID = dto.StringPtrToIDPtr(r.ParentID)
 	t.IsFolder = r.IsFolder
@@ -77,9 +77,9 @@ func (r *UpdateTokenRequest) ApplyTo(t *token.Token) {
 	t.DecimalPlaces = r.DecimalPlaces
 	t.Standard = token.TokenStandard(r.Standard)
 	t.IsActive = r.IsActive
-	t.SweepThreshold, _ = types.NewCryptoAmountFromString(r.SweepThreshold)
+	t.SweepThreshold, _ = types.NewRawAmountFromString(r.SweepThreshold)
 	t.SweepMaxAgeHours = r.SweepMaxAgeHours
-	t.SweepRetainAmount, _ = types.NewCryptoAmountFromString(r.SweepRetainAmount)
+	t.SweepRetainAmount, _ = types.NewRawAmountFromString(r.SweepRetainAmount)
 	t.CurrencyID = dto.StringPtrToIDPtr(r.CurrencyID)
 	t.ParentID = dto.StringPtrToIDPtr(r.ParentID)
 	t.IsFolder = r.IsFolder

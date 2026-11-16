@@ -58,8 +58,8 @@ func TestReorgedPaymentReceiptCannotBeCreditedManually(t *testing.T) {
 	require.ErrorContains(t, err, "reversed by a chain reorganization")
 
 	// The database refuses the credit even without the service check.
-	doc, err := crypto_merchant_credit.Prepare(f.receipt, f.payment.MerchantID, f.payment.TokenID, nil, types.MustCryptoAmount("23"),
-		tariff.Fee{Fixed: types.ZeroCryptoAmount(), Min: types.ZeroCryptoAmount(), Max: types.ZeroCryptoAmount()},
+	doc, err := crypto_merchant_credit.Prepare(f.receipt, f.payment.MerchantID, f.payment.TokenID, nil, types.MustRawAmount("23"),
+		tariff.Fee{Fixed: types.ZeroRawAmount(), Min: types.ZeroRawAmount(), Max: types.ZeroRawAmount()},
 		true, id.New(), time.Now())
 	require.NoError(t, err)
 	doc.Number = "CMC-" + id.Compact(doc.ID)

@@ -58,18 +58,18 @@ func (s Status) Final() bool { return s == StatusSucceeded || s == StatusReverte
 type CryptoNetworkOperation struct {
 	entity.Document
 
-	OperationType           OperationType      `db:"operation_type" json:"operationType" meta:"label:Операция"`
-	Status                  Status             `db:"status" json:"status" meta:"label:Статус"`
-	NetworkID               id.ID              `db:"network_id" json:"networkId" meta:"label:Сеть,ref:blockchain_network"`
-	TargetWalletID          id.ID              `db:"target_wallet_id" json:"targetWalletId" meta:"label:Целевой кошелёк,ref:wallet"`
-	TargetAddress           string             `db:"target_address" json:"targetAddress" meta:"label:Адрес назначения"`
-	SourceWalletID          id.ID              `db:"source_wallet_id" json:"sourceWalletId" meta:"label:Кошелёк списания,ref:wallet"`
-	CostTokenID             id.ID              `db:"cost_token_id" json:"costTokenId" meta:"label:Токен расхода,ref:token"`
-	CostAmount              types.CryptoAmount `db:"cost_amount" json:"costAmount" meta:"label:Сумма расхода"`
-	TxHash                  string             `db:"tx_hash" json:"txHash" meta:"label:Хеш транзакции"`
-	ChainSettlementID       *id.ID             `db:"chain_settlement_id" json:"chainSettlementId,omitempty" meta:"label:Сетевой расчёт"`
-	NetworkFeeReservationID *id.ID             `db:"network_fee_reservation_id" json:"networkFeeReservationId,omitempty"`
-	FinalizedAt             *time.Time         `db:"finalized_at" json:"finalizedAt,omitempty" meta:"label:Дата финальности"`
+	OperationType           OperationType   `db:"operation_type" json:"operationType" meta:"label:Операция"`
+	Status                  Status          `db:"status" json:"status" meta:"label:Статус"`
+	NetworkID               id.ID           `db:"network_id" json:"networkId" meta:"label:Сеть,ref:blockchain_network"`
+	TargetWalletID          id.ID           `db:"target_wallet_id" json:"targetWalletId" meta:"label:Целевой кошелёк,ref:wallet"`
+	TargetAddress           string          `db:"target_address" json:"targetAddress" meta:"label:Адрес назначения"`
+	SourceWalletID          id.ID           `db:"source_wallet_id" json:"sourceWalletId" meta:"label:Кошелёк списания,ref:wallet"`
+	CostTokenID             id.ID           `db:"cost_token_id" json:"costTokenId" meta:"label:Токен расхода,ref:token"`
+	CostAmount              types.RawAmount `db:"cost_amount" json:"costAmount" meta:"label:Сумма расхода"`
+	TxHash                  string          `db:"tx_hash" json:"txHash" meta:"label:Хеш транзакции"`
+	ChainSettlementID       *id.ID          `db:"chain_settlement_id" json:"chainSettlementId,omitempty" meta:"label:Сетевой расчёт"`
+	NetworkFeeReservationID *id.ID          `db:"network_fee_reservation_id" json:"networkFeeReservationId,omitempty"`
+	FinalizedAt             *time.Time      `db:"finalized_at" json:"finalizedAt,omitempty" meta:"label:Дата финальности"`
 }
 
 func NewWalletActivation(

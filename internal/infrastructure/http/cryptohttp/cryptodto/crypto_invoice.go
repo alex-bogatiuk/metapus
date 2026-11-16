@@ -18,7 +18,7 @@ type CreateCryptoInvoiceRequest struct {
 	Date            time.Time  `json:"date" binding:"required"`
 	MerchantID      string     `json:"merchantId" binding:"required"`
 	TokenID         string     `json:"tokenId" binding:"required"`
-	ExpectedAmount  string     `json:"expectedAmount" binding:"required"` // string for CryptoAmount
+	ExpectedAmount  string     `json:"expectedAmount" binding:"required"` // string for RawAmount
 	ExpiresAt       *time.Time `json:"expiresAt,omitempty"`
 	NotificationURL string     `json:"notificationUrl,omitempty"`
 	ExternalID      string     `json:"externalId,omitempty"`
@@ -32,7 +32,7 @@ type CreateCryptoInvoiceRequest struct {
 func (r *CreateCryptoInvoiceRequest) ToEntity() *crypto_invoice.CryptoInvoice {
 	merchantID, _ := id.Parse(r.MerchantID)
 	tokenID, _ := id.Parse(r.TokenID)
-	expectedAmount, _ := types.NewCryptoAmountFromString(r.ExpectedAmount)
+	expectedAmount, _ := types.NewRawAmountFromString(r.ExpectedAmount)
 
 	doc := crypto_invoice.NewCryptoInvoice(merchantID, tokenID, expectedAmount)
 	doc.Number = r.Number
@@ -84,7 +84,7 @@ func (r *UpdateCryptoInvoiceRequest) ApplyTo(doc *crypto_invoice.CryptoInvoice) 
 		doc.TokenID = tokenID
 	}
 	if r.ExpectedAmount != nil {
-		amount, _ := types.NewCryptoAmountFromString(*r.ExpectedAmount)
+		amount, _ := types.NewRawAmountFromString(*r.ExpectedAmount)
 		doc.ExpectedAmount = amount
 	}
 	if r.ExpiresAt != nil {

@@ -9,14 +9,14 @@ import (
 // ResourceRequirement spends service operating capital only. A native funding
 // amount is gas delivered to a wallet, never merchant principal or fee income.
 type ResourceRequirement struct {
-	Funding       types.CryptoAmount
-	MaxFee        types.CryptoAmount
+	Funding       types.RawAmount
+	MaxFee        types.RawAmount
 	RentalCovered bool
 }
 
-func (r ResourceRequirement) Total() types.CryptoAmount { return r.Funding.Add(r.MaxFee) }
+func (r ResourceRequirement) Total() types.RawAmount { return r.Funding.Add(r.MaxFee) }
 
-func (r ResourceRequirement) ValidateAvailable(available types.CryptoAmount) error {
+func (r ResourceRequirement) ValidateAvailable(available types.RawAmount) error {
 	if !r.MaxFee.IsPositive() {
 		return apperror.NewValidation("resource fee cap must be positive")
 	}

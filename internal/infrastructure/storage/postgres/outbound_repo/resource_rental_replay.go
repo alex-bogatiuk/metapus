@@ -43,7 +43,7 @@ func lockRentalFinancialResources(ctx context.Context, rental id.ID) error {
 type rentalFinancialIdentity struct {
 	rental, account, network, token id.ID
 	provider, serial                string
-	gross, refund                   types.CryptoAmount
+	gross, refund                   types.RawAmount
 }
 
 // The cumulative refund sequence is reconstructed from immutable provider
@@ -54,7 +54,7 @@ func validateRentalFinancials(ctx context.Context, q postgres.Querier, f rentalF
 		line               id.ID
 		version            int
 		ref                string
-		amount, cumulative types.CryptoAmount
+		amount, cumulative types.RawAmount
 		period             time.Time
 		matches            bool
 	}
@@ -99,7 +99,7 @@ func validateRentalFinancials(ctx context.Context, q postgres.Querier, f rentalF
 			if !strings.HasPrefix(item.ref, prefix) {
 				return conflict()
 			}
-			item.cumulative, err = types.NewCryptoAmountFromString(strings.TrimPrefix(item.ref, prefix))
+			item.cumulative, err = types.NewRawAmountFromString(strings.TrimPrefix(item.ref, prefix))
 			if err != nil || item.ref != prefix+item.cumulative.String() || item.line != deterministicMovementID(f.rental, "provider:"+item.ref) {
 				return conflict()
 			}
@@ -126,7 +126,7 @@ func validateRentalFinancials(ctx context.Context, q postgres.Querier, f rentalF
 		return conflict()
 	}
 	sort.Slice(facts, func(i, j int) bool { return facts[i].cumulative.Cmp(facts[j].cumulative) < 0 })
-	total := types.ZeroCryptoAmount()
+	total := types.ZeroRawAmount()
 	for _, item := range facts {
 		if item.version != 2 {
 			continue

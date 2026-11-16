@@ -84,7 +84,7 @@ type BlockchainEvent struct {
 	TokenContract string `json:"tokenContract"`
 
 	// Amount received in token minor units
-	Amount types.CryptoAmount `json:"amount"`
+	Amount types.RawAmount `json:"amount"`
 
 	// BlockNumber where the transaction was included
 	BlockNumber int64 `json:"blockNumber"`

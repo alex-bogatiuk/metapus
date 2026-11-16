@@ -68,7 +68,7 @@ func (r *OutboundRepo) MarkResourceRentalClaimHeld(ctx context.Context, claim ou
 	return r.markResourceRentalHeld(ctx, claim.RentalID, &claim, reason, responseJSON)
 }
 
-func (r *OutboundRepo) CloseResourceRentalClaim(ctx context.Context, claim outboundapp.ResourceRentalClaim, refund types.CryptoAmount, providerBalance *types.CryptoAmount, responseJSON []byte, status string) error {
+func (r *OutboundRepo) CloseResourceRentalClaim(ctx context.Context, claim outboundapp.ResourceRentalClaim, refund types.RawAmount, providerBalance *types.RawAmount, responseJSON []byte, status string) error {
 	return r.closeResourceRental(ctx, claim.RentalID, &claim, refund, providerBalance, responseJSON, status)
 }
 

@@ -37,7 +37,7 @@ func TestWithdrawalSelectorSkipsBusyWalletWithoutReservingIt(t *testing.T) {
 	request := f.request(t, f.a, "70")
 	ctx, cancel := context.WithTimeout(f.ctx, 3*time.Second)
 	defer cancel()
-	selected, err := NewOutboundRepo().ReserveHotWalletForWithdrawal(ctx, request, f.a, f.network, f.token, types.MustCryptoAmount("70"))
+	selected, err := NewOutboundRepo().ReserveHotWalletForWithdrawal(ctx, request, f.a, f.network, f.token, types.MustRawAmount("70"))
 	require.NoError(t, err)
 	require.Equal(t, available, selected.ID)
 	var count int
@@ -131,7 +131,7 @@ func TestWithdrawalReservationReplayLocksWalletBeforeRequest(t *testing.T) {
 	wallet := f.wallet(t, &f.a, "liquidity_hot", "free", "100")
 	request := f.request(t, f.a, "70")
 	repo := NewOutboundRepo()
-	_, err := repo.ReserveHotWalletForWithdrawal(f.ctx, request, f.a, f.network, f.token, types.MustCryptoAmount("70"))
+	_, err := repo.ReserveHotWalletForWithdrawal(f.ctx, request, f.a, f.network, f.token, types.MustRawAmount("70"))
 	require.NoError(t, err)
 	assertWorkerResourceOrder(t, f.ctx,
 		func(ctx context.Context) error {
@@ -142,7 +142,7 @@ func TestWithdrawalReservationReplayLocksWalletBeforeRequest(t *testing.T) {
 			return err
 		},
 		func(ctx context.Context) error {
-			_, err := repo.ReserveHotWalletForWithdrawal(ctx, request, f.a, f.network, f.token, types.MustCryptoAmount("70"))
+			_, err := repo.ReserveHotWalletForWithdrawal(ctx, request, f.a, f.network, f.token, types.MustRawAmount("70"))
 			return err
 		})
 	var count int

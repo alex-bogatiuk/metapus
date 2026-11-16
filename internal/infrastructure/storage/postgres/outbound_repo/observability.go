@@ -9,7 +9,7 @@ import (
 )
 
 type FeeBudgetObserver interface {
-	Reserve(context.Context, FeeReservationRequest) (context.Context, func(error, *types.CryptoAmount))
+	Reserve(context.Context, FeeReservationRequest) (context.Context, func(error, *types.RawAmount))
 	Settle(context.Context, crypto.ChainReceipt) (context.Context, func(crypto.SigningPurpose, time.Time, error))
 }
 

@@ -45,10 +45,10 @@ type CryptoSweep struct {
 	HotWalletID id.ID `db:"hot_wallet_id" json:"hotWalletId" meta:"label:Hot Wallet,ref:wallet"`
 
 	// TotalAmount is the sum of all sweep line amounts
-	TotalAmount types.CryptoAmount `db:"total_amount" json:"totalAmount" meta:"label:Итого"`
+	TotalAmount types.RawAmount `db:"total_amount" json:"totalAmount" meta:"label:Итого"`
 
 	// TotalFee is the sum of all network fees
-	TotalFee types.CryptoAmount `db:"total_fee" json:"totalFee" meta:"label:Комиссия"`
+	TotalFee types.RawAmount `db:"total_fee" json:"totalFee" meta:"label:Комиссия"`
 
 	// Status is the current lifecycle state
 	Status SweepStatus `db:"status" json:"status" meta:"label:Статус"`
@@ -65,8 +65,8 @@ type CryptoSweepLine struct {
 	LineID                   id.ID                           `db:"line_id" json:"lineId"`
 	LineNo                   int                             `db:"line_no" json:"lineNo" meta:"label:№"`
 	WalletID                 id.ID                           `db:"wallet_id" json:"walletId" meta:"label:Кошелёк,ref:wallet"`
-	Amount                   types.CryptoAmount              `db:"amount" json:"amount" meta:"label:Сумма"`
-	NetworkFee               types.CryptoAmount              `db:"network_fee" json:"networkFee" meta:"label:Комиссия"`
+	Amount                   types.RawAmount                 `db:"amount" json:"amount" meta:"label:Сумма"`
+	NetworkFee               types.RawAmount                 `db:"network_fee" json:"networkFee" meta:"label:Комиссия"`
 	TxHash                   string                          `db:"tx_hash" json:"txHash,omitempty" meta:"label:TX Hash"`
 	Confirmed                bool                            `db:"confirmed" json:"confirmed" meta:"label:Подтверждён"`
 	NetworkFeeTokenID        *id.ID                          `db:"network_fee_token_id" json:"networkFeeTokenId,omitempty"`
@@ -78,8 +78,8 @@ type CryptoSweepLine struct {
 	SettlementLeaseExpiresAt *time.Time                      `db:"settlement_lease_expires_at" json:"-"`
 	ChainResult              outbound_settlement.ChainResult `db:"chain_result" json:"chainResult,omitempty"`
 	EnergyUsed               int64                           `db:"energy_used" json:"energyUsed"`
-	NetFee                   types.CryptoAmount              `db:"net_fee" json:"netFee"`
-	EnergyFee                types.CryptoAmount              `db:"energy_fee" json:"energyFee"`
+	NetFee                   types.RawAmount                 `db:"net_fee" json:"netFee"`
+	EnergyFee                types.RawAmount                 `db:"energy_fee" json:"energyFee"`
 	NetUsage                 int64                           `db:"net_usage" json:"netUsage"`
 }
 
@@ -90,7 +90,7 @@ type CryptoSweepPlatformCostLine struct {
 	CostType        crypto_platform_cost.PlatformCostType `json:"costType"`
 	Provider        string                                `json:"provider"`
 	ExternalOrderID string                                `json:"externalOrderId"`
-	Amount          types.CryptoAmount                    `json:"amount"`
+	Amount          types.RawAmount                       `json:"amount"`
 }
 
 // NewCryptoSweep creates a new CryptoSweep in Created state.
@@ -99,8 +99,8 @@ func NewCryptoSweep(tokenID, hotWalletID id.ID) *CryptoSweep {
 		Document:    entity.NewDocument(),
 		TokenID:     tokenID,
 		HotWalletID: hotWalletID,
-		TotalAmount: types.ZeroCryptoAmount(),
-		TotalFee:    types.ZeroCryptoAmount(),
+		TotalAmount: types.ZeroRawAmount(),
+		TotalFee:    types.ZeroRawAmount(),
 		Status:      SweepStatusCreated,
 		Lines:       make([]CryptoSweepLine, 0),
 	}

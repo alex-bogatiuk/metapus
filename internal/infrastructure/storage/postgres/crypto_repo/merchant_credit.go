@@ -62,7 +62,7 @@ func lockReceiptRemainder(ctx context.Context, receiptID id.ID) (cryptoapp.Recei
 
 // ApprovalRequired follows the token policy; without a policy every credit
 // needs a second operator.
-func (r *MerchantCreditRepo) ApprovalRequired(ctx context.Context, tokenID id.ID, amount types.CryptoAmount) (bool, error) {
+func (r *MerchantCreditRepo) ApprovalRequired(ctx context.Context, tokenID id.ID, amount types.RawAmount) (bool, error) {
 	var required bool
 	err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `SELECT COALESCE(
 		(SELECT $2::numeric>dual_approval_threshold FROM sys_crypto_receipt_credit_policies WHERE token_id=$1),TRUE)`,

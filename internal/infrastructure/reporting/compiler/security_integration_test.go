@@ -151,7 +151,7 @@ func TestReportPoliciesApplyBeforeUnionAndAggregation(t *testing.T) {
 	// scanning and the returned string must all keep the full raw amount.
 	_, err = pool.Exec(context.Background(), `ALTER TABLE report_policy_a ALTER COLUMN amount TYPE NUMERIC(78,0); UPDATE report_policy_a SET amount=100000000000000000000000000001 WHERE number='PUBLIC'`)
 	require.NoError(t, err)
-	ds.FindField("amount").Money.AmountType = "crypto"
+	ds.FindField("amount").Money.AmountType = reportcontract.AmountTypeRaw
 	result, err = c.Execute(ctx, query)
 	require.NoError(t, err)
 	require.Equal(t, "100000000000000000000000000016", result.Items[0]["amount"])

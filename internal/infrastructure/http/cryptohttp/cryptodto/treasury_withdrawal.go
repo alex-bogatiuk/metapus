@@ -11,12 +11,12 @@ import (
 
 // CreateTreasuryWithdrawalRequest is the request body for creating a treasury withdrawal.
 type CreateTreasuryWithdrawalRequest struct {
-	TokenID        string             `json:"tokenId" binding:"required"`
-	SourceWalletID string             `json:"sourceWalletId" binding:"required"`
-	AddressID      string             `json:"addressId" binding:"required"`
-	DestAddress    string             `json:"destAddress" binding:"required"`
-	Amount         types.CryptoAmount `json:"amount" binding:"required"`
-	Description    string             `json:"description,omitempty"`
+	TokenID        string          `json:"tokenId" binding:"required"`
+	SourceWalletID string          `json:"sourceWalletId" binding:"required"`
+	AddressID      string          `json:"addressId" binding:"required"`
+	DestAddress    string          `json:"destAddress" binding:"required"`
+	Amount         types.RawAmount `json:"amount" binding:"required"`
+	Description    string          `json:"description,omitempty"`
 }
 
 func (r CreateTreasuryWithdrawalRequest) ToEntity() *treasury_withdrawal.TreasuryWithdrawal {
@@ -39,14 +39,14 @@ func (r CreateTreasuryWithdrawalRequest) ToEntity() *treasury_withdrawal.Treasur
 // gasPayer "recipient" withheldAmount of it stays with the platform and the
 // payer receives the rest.
 type CreateReceiptRefundRequest struct {
-	ReceiptID      string             `json:"receiptId" binding:"required,uuid"`
-	SourceWalletID string             `json:"sourceWalletId" binding:"required,uuid"`
-	DestAddress    string             `json:"destAddress" binding:"required"`
-	Evidence       string             `json:"evidence" binding:"required,max=2000"`
-	Reason         string             `json:"reason" binding:"required,max=2000"`
-	Amount         types.CryptoAmount `json:"amount" binding:"required"`
-	GasPayer       string             `json:"gasPayer" binding:"required,oneof=platform recipient"`
-	WithheldAmount types.CryptoAmount `json:"withheldAmount"`
+	ReceiptID      string          `json:"receiptId" binding:"required,uuid"`
+	SourceWalletID string          `json:"sourceWalletId" binding:"required,uuid"`
+	DestAddress    string          `json:"destAddress" binding:"required"`
+	Evidence       string          `json:"evidence" binding:"required,max=2000"`
+	Reason         string          `json:"reason" binding:"required,max=2000"`
+	Amount         types.RawAmount `json:"amount" binding:"required"`
+	GasPayer       string          `json:"gasPayer" binding:"required,oneof=platform recipient"`
+	WithheldAmount types.RawAmount `json:"withheldAmount"`
 }
 
 // UpdateTreasuryWithdrawalRequest updates editable fields before approval.

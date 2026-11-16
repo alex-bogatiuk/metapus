@@ -101,8 +101,8 @@ func validSigningAuthorization(now time.Time) SigningAuthorization {
 		VaultKeyID:          "vault-key",
 		DestinationAddress:  "destination",
 		AssetStandard:       "native",
-		AmountMinorUnits:    types.NewCryptoAmountFromInt64(1),
-		MaxNetworkFeeMinor:  types.NewCryptoAmountFromInt64(1_000_000),
+		AmountMinorUnits:    types.NewRawAmountFromInt64(1),
+		MaxNetworkFeeMinor:  types.NewRawAmountFromInt64(1_000_000),
 		UnsignedFingerprint: "9a5ba2e42fc6a3e87fcbe97355576361f80f861d4034f4e8ea09544db7d00258",
 		PolicyVersion:       SigningAuthorizationPolicyVersion(ChainFamilyTRON),
 	}

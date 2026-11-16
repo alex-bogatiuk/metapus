@@ -12,9 +12,9 @@ import (
 // InvoicePaymentSummary is the canonical projection used to advance invoice
 // lifecycle. All values are exact token minor units.
 type InvoicePaymentSummary struct {
-	ReceivedAmount  types.CryptoAmount
-	ConfirmedAmount types.CryptoAmount
-	CreditedAmount  types.CryptoAmount
+	ReceivedAmount  types.RawAmount
+	ConfirmedAmount types.RawAmount
+	CreditedAmount  types.RawAmount
 	ChainObservedAt *time.Time
 }
 

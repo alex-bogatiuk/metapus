@@ -271,10 +271,10 @@ func reconciliationKind(standard token.TokenStandard) string {
 	return crypto.BalanceMismatchToken
 }
 
-func (p *CryptoProcessor) readChainBalance(ctx context.Context, w reconciliationWalletBalance) (types.CryptoAmount, error) {
+func (p *CryptoProcessor) readChainBalance(ctx context.Context, w reconciliationWalletBalance) (types.RawAmount, error) {
 	driver, err := p.drivers.Resolve(w.NetworkID)
 	if err != nil {
-		return types.ZeroCryptoAmount(), err
+		return types.ZeroRawAmount(), err
 	}
 	if w.TokenStandard == token.TokenStandardNative {
 		return driver.Balances().NativeBalance(ctx, w.Address)

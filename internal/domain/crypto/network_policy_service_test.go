@@ -44,7 +44,7 @@ func (r *networkPolicyAdminRepoStub) GetNetworkPolicyState(context.Context, id.I
 	return r.state, nil
 }
 
-func (r *networkPolicyAdminRepoStub) NetworkFundingSourcesReady(context.Context, id.ID, types.CryptoAmount) (bool, error) {
+func (r *networkPolicyAdminRepoStub) NetworkFundingSourcesReady(context.Context, id.ID, types.RawAmount) (bool, error) {
 	r.feeWalletChecks++
 	return r.feeWalletReady, nil
 }
@@ -196,9 +196,9 @@ func validNetworkPolicyState(now time.Time) NetworkPolicyState {
 		Watching: true,
 		Policy: NetworkPolicy{
 			NetworkID: networkID, Enabled: true,
-			PerTransactionMaxFee: types.NewCryptoAmountFromInt64(100), DailyNetworkFeeBudget: types.NewCryptoAmountFromInt64(1_000),
-			FeeFunding: FeeFundingPolicy{Mode: FeeFundingJIT, DailyBudget: types.NewCryptoAmountFromInt64(2_000),
-				MinFeeWalletBalance: types.NewCryptoAmountFromInt64(10), MinSourceWalletResidual: types.NewCryptoAmountFromInt64(1), MaxFundingAmount: types.NewCryptoAmountFromInt64(101)},
+			PerTransactionMaxFee: types.NewRawAmountFromInt64(100), DailyNetworkFeeBudget: types.NewRawAmountFromInt64(1_000),
+			FeeFunding: FeeFundingPolicy{Mode: FeeFundingJIT, DailyBudget: types.NewRawAmountFromInt64(2_000),
+				MinFeeWalletBalance: types.NewRawAmountFromInt64(10), MinSourceWalletResidual: types.NewRawAmountFromInt64(1), MaxFundingAmount: types.NewRawAmountFromInt64(101)},
 			ExternalResources: &ExternalResourcePolicy{Strategy: ResourcePreferRental, ProviderAccountIDs: []id.ID{id.New()}, ProviderFailureThreshold: 3, ProviderOpenDuration: time.Minute},
 			RetryDelay:        time.Second, RPCFailureThreshold: 3, RPCOpenDuration: time.Minute,
 			Version: 1,

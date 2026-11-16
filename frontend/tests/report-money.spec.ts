@@ -42,7 +42,7 @@ test("report preserves amounts above 2^53 at every currency scale and keeps curr
 })
 
 test("crypto report uses token scale and exact values beyond int64", async ({ page }) => {
-  const cryptoSources = { ...sources, amountType: "crypto" }
+  const cryptoSources = { ...sources, amountType: "raw" }
   const cryptoMetadata: JsonObject = { ...metadata,
     columns: [{ key: "number", label: "Документ", type: "string" }, { key: "amount", label: "Сумма", type: "money", money: cryptoSources }],
     totals: [{ column: "amount", func: "sum", money: cryptoSources }],

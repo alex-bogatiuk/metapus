@@ -23,7 +23,7 @@ func TestCreateMerchantInvoice_ReplayReturnsExistingInvoice(t *testing.T) {
 	merchantID := id.New()
 	tokenID := id.New()
 	apiKeyID := id.New()
-	input := merchantInvoiceInput(merchantID, tokenID, apiKeyID, types.NewCryptoAmountFromInt64(11000000))
+	input := merchantInvoiceInput(merchantID, tokenID, apiKeyID, types.NewRawAmountFromInt64(11000000))
 	existing := invoiceFromInput(input)
 
 	repo := newFakeInvoiceRepo()
@@ -51,7 +51,7 @@ func TestCreateMerchantInvoice_WeekDefaultExplicitOverrideAndLimit(t *testing.T)
 		Settings: settings, IsUniqueViolation: func(error) bool { return false }, Now: func() time.Time { return now },
 	})
 	require.NoError(t, err)
-	input := merchantInvoiceInput(id.New(), id.New(), id.New(), types.NewCryptoAmountFromInt64(11_000_000))
+	input := merchantInvoiceInput(id.New(), id.New(), id.New(), types.NewRawAmountFromInt64(11_000_000))
 	input.TTLMinutes = 0
 	input.ExpiresAt = time.Time{}
 	created, err := svc.CreateMerchantInvoice(context.Background(), input)
@@ -86,9 +86,9 @@ func TestCreateMerchantInvoice_ReplayWithDifferentPayloadReturnsConflict(t *test
 	merchantID := id.New()
 	tokenID := id.New()
 	apiKeyID := id.New()
-	input := merchantInvoiceInput(merchantID, tokenID, apiKeyID, types.NewCryptoAmountFromInt64(11000000))
+	input := merchantInvoiceInput(merchantID, tokenID, apiKeyID, types.NewRawAmountFromInt64(11000000))
 	existing := invoiceFromInput(input)
-	existing.ExpectedAmount = types.NewCryptoAmountFromInt64(12000000)
+	existing.ExpectedAmount = types.NewRawAmountFromInt64(12000000)
 
 	repo := newFakeInvoiceRepo()
 	repo.invoices[existing.ID] = existing
@@ -103,7 +103,7 @@ func TestCreateMerchantInvoice_ReplayWithDifferentPayloadReturnsConflict(t *test
 
 func TestCreateMerchantInvoice_OrderReplayAllowsNewRequestIdempotencyKey(t *testing.T) {
 	ctx := context.Background()
-	input := merchantInvoiceInput(id.New(), id.New(), id.New(), types.NewCryptoAmountFromInt64(11_000_000))
+	input := merchantInvoiceInput(id.New(), id.New(), id.New(), types.NewRawAmountFromInt64(11_000_000))
 	existing := invoiceFromInput(input)
 
 	repo := newFakeInvoiceRepo()
@@ -122,7 +122,7 @@ func TestCreateMerchantInvoice_PortalReplayUsesSharedIdempotencyPath(t *testing.
 	input := CreateMerchantInvoiceInput{
 		MerchantID:     id.New(),
 		TokenID:        id.New(),
-		Amount:         types.NewCryptoAmountFromInt64(11_000_000),
+		Amount:         types.NewRawAmountFromInt64(11_000_000),
 		CreatedByID:    id.New(),
 		CreationSource: crypto_invoice.CreationSourcePortal,
 		ExpiresAt:      time.Now().Add(time.Hour),
@@ -150,7 +150,7 @@ func TestCreateMerchantInvoice_PortalReplayUsesSharedIdempotencyPath(t *testing.
 
 func TestCreateMerchantInvoice_ConcurrentOrderReplayConverges(t *testing.T) {
 	ctx := context.Background()
-	input := merchantInvoiceInput(id.New(), id.New(), id.New(), types.NewCryptoAmountFromInt64(11_000_000))
+	input := merchantInvoiceInput(id.New(), id.New(), id.New(), types.NewRawAmountFromInt64(11_000_000))
 	input.ExternalID = ""
 	errUnique := errors.New("unique violation")
 
@@ -197,7 +197,7 @@ func TestCreateMerchantInvoice_UniqueViolationRereadsExistingInvoice(t *testing.
 	merchantID := id.New()
 	tokenID := id.New()
 	apiKeyID := id.New()
-	input := merchantInvoiceInput(merchantID, tokenID, apiKeyID, types.NewCryptoAmountFromInt64(11000000))
+	input := merchantInvoiceInput(merchantID, tokenID, apiKeyID, types.NewRawAmountFromInt64(11000000))
 	existing := invoiceFromInput(input)
 	errUnique := errors.New("unique violation")
 
@@ -220,7 +220,7 @@ func TestCreateMerchantInvoice_PoolDepletionCanRetryWithoutDuplicate(t *testing.
 		id.New(),
 		id.New(),
 		id.New(),
-		types.NewCryptoAmountFromInt64(11_000_000),
+		types.NewRawAmountFromInt64(11_000_000),
 	)
 	repo := newFakeInvoiceRepo()
 	poolErr := wallet.NewWalletPoolExhausted(id.New().String(), 30)
@@ -247,7 +247,7 @@ func TestCreateMerchantInvoice_PoolDepletionCanRetryWithoutDuplicate(t *testing.
 
 func TestCancelMerchantInvoiceOwnsTransactionAndWalletRelease(t *testing.T) {
 	merchantID := id.New()
-	invoice := crypto_invoice.NewCryptoInvoice(merchantID, id.New(), types.NewCryptoAmountFromInt64(10))
+	invoice := crypto_invoice.NewCryptoInvoice(merchantID, id.New(), types.NewRawAmountFromInt64(10))
 	repo := newFakeInvoiceRepo()
 	repo.invoices[invoice.ID] = invoice
 	lifecycle := &fakeInvoiceCancellationLifecycle{cancelled: true}
@@ -270,7 +270,7 @@ func TestCancelMerchantInvoiceOwnsTransactionAndWalletRelease(t *testing.T) {
 }
 
 func TestCancelMerchantInvoiceHidesForeignInvoice(t *testing.T) {
-	invoice := crypto_invoice.NewCryptoInvoice(id.New(), id.New(), types.NewCryptoAmountFromInt64(10))
+	invoice := crypto_invoice.NewCryptoInvoice(id.New(), id.New(), types.NewRawAmountFromInt64(10))
 	repo := newFakeInvoiceRepo()
 	repo.invoices[invoice.ID] = invoice
 	svc, err := NewMerchantInvoiceService(MerchantInvoiceServiceConfig{
@@ -317,10 +317,10 @@ func TestEnableSinglePaymentForActiveInvoicesSkipsMultiplePayments(t *testing.T)
 	merchantID := id.New()
 	base := newFakeInvoiceRepo()
 	repo := &activationInvoiceRepo{fakeInvoiceRepo: base, payments: make(map[id.ID][]id.ID)}
-	empty := crypto_invoice.NewCryptoInvoice(merchantID, id.New(), types.NewCryptoAmountFromInt64(10))
-	one := crypto_invoice.NewCryptoInvoice(merchantID, id.New(), types.NewCryptoAmountFromInt64(10))
+	empty := crypto_invoice.NewCryptoInvoice(merchantID, id.New(), types.NewRawAmountFromInt64(10))
+	one := crypto_invoice.NewCryptoInvoice(merchantID, id.New(), types.NewRawAmountFromInt64(10))
 	one.Status = crypto_invoice.InvoiceStatusPartiallyPaid
-	multiple := crypto_invoice.NewCryptoInvoice(merchantID, id.New(), types.NewCryptoAmountFromInt64(10))
+	multiple := crypto_invoice.NewCryptoInvoice(merchantID, id.New(), types.NewRawAmountFromInt64(10))
 	multiple.Status = crypto_invoice.InvoiceStatusPartiallyPaid
 	for _, invoice := range []*crypto_invoice.CryptoInvoice{empty, one, multiple} {
 		base.invoices[invoice.ID] = invoice
@@ -361,7 +361,7 @@ func newTestMerchantInvoiceService(
 	return svc
 }
 
-func merchantInvoiceInput(merchantID, tokenID, apiKeyID id.ID, amount types.CryptoAmount) CreateMerchantInvoiceInput {
+func merchantInvoiceInput(merchantID, tokenID, apiKeyID id.ID, amount types.RawAmount) CreateMerchantInvoiceInput {
 	keyID := apiKeyID
 	return CreateMerchantInvoiceInput{
 		MerchantID:      merchantID,

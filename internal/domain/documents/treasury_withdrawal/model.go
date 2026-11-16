@@ -70,17 +70,17 @@ const MaxRefundTextBytes = 2000
 type TreasuryWithdrawal struct {
 	entity.Document
 
-	Purpose        Purpose            `db:"purpose" json:"purpose" meta:"label:Назначение"`
-	ReceiptID      *id.ID             `db:"receipt_id" json:"receiptId,omitempty" meta:"label:Возвращаемое поступление,ref:crypto_custody_receipt"`
-	GasPayer       GasPayer           `db:"gas_payer" json:"gasPayer" meta:"label:Комиссию сети оплачивает"`
-	WithheldAmount types.CryptoAmount `db:"withheld_amount" json:"withheldAmount" meta:"label:Удержано на комиссию"`
+	Purpose        Purpose         `db:"purpose" json:"purpose" meta:"label:Назначение"`
+	ReceiptID      *id.ID          `db:"receipt_id" json:"receiptId,omitempty" meta:"label:Возвращаемое поступление,ref:crypto_custody_receipt"`
+	GasPayer       GasPayer        `db:"gas_payer" json:"gasPayer" meta:"label:Комиссию сети оплачивает"`
+	WithheldAmount types.RawAmount `db:"withheld_amount" json:"withheldAmount" meta:"label:Удержано на комиссию"`
 
 	TokenID                  id.ID                           `db:"token_id" json:"tokenId" meta:"label:Токен,ref:token"`
 	SourceWalletID           id.ID                           `db:"source_wallet_id" json:"sourceWalletId" meta:"label:Исходный кошелёк,ref:wallet"`
 	DestAddress              string                          `db:"dest_address" json:"destAddress" meta:"label:Адрес назначения"`
 	AddressID                id.ID                           `db:"address_id" json:"addressId" meta:"label:Адрес назначения,ref:treasury_withdrawal_address"`
-	Amount                   types.CryptoAmount              `db:"amount" json:"amount" meta:"label:Сумма"`
-	NetworkFee               types.CryptoAmount              `db:"network_fee" json:"networkFee" meta:"label:Комиссия сети"`
+	Amount                   types.RawAmount                 `db:"amount" json:"amount" meta:"label:Сумма"`
+	NetworkFee               types.RawAmount                 `db:"network_fee" json:"networkFee" meta:"label:Комиссия сети"`
 	NetworkFeeTokenID        *id.ID                          `db:"network_fee_token_id" json:"networkFeeTokenId,omitempty" meta:"label:Токен комиссии,ref:token"`
 	TxHash                   string                          `db:"tx_hash" json:"txHash,omitempty" meta:"label:TX Hash"`
 	Status                   Status                          `db:"status" json:"status" meta:"label:Статус"`
@@ -96,8 +96,8 @@ type TreasuryWithdrawal struct {
 	SettlementLeaseExpiresAt *time.Time                      `db:"settlement_lease_expires_at" json:"-"`
 	ChainResult              outbound_settlement.ChainResult `db:"chain_result" json:"chainResult,omitempty"`
 	EnergyUsed               int64                           `db:"energy_used" json:"energyUsed"`
-	NetFee                   types.CryptoAmount              `db:"net_fee" json:"netFee"`
-	EnergyFee                types.CryptoAmount              `db:"energy_fee" json:"energyFee"`
+	NetFee                   types.RawAmount                 `db:"net_fee" json:"netFee"`
+	EnergyFee                types.RawAmount                 `db:"energy_fee" json:"energyFee"`
 	NetUsage                 int64                           `db:"net_usage" json:"netUsage"`
 
 	FeeLines []FeeLine `db:"-" json:"feeLines,omitempty" meta:"label:Источники комиссии"`
@@ -108,11 +108,11 @@ type FeeLine struct {
 	MerchantID id.ID              `json:"merchantId"`
 	TokenID    id.ID              `json:"tokenId"`
 	FeeType    crypto_fee.FeeType `json:"feeType"`
-	Amount     types.CryptoAmount `json:"amount"`
+	Amount     types.RawAmount    `json:"amount"`
 }
 
 // NewTreasuryWithdrawal creates a pending admin treasury withdrawal.
-func NewTreasuryWithdrawal(tokenID, sourceWalletID, addressID id.ID, destAddress string, amount types.CryptoAmount) *TreasuryWithdrawal {
+func NewTreasuryWithdrawal(tokenID, sourceWalletID, addressID id.ID, destAddress string, amount types.RawAmount) *TreasuryWithdrawal {
 	return &TreasuryWithdrawal{
 		Document:         entity.NewDocument(),
 		TokenID:          tokenID,
@@ -120,19 +120,19 @@ func NewTreasuryWithdrawal(tokenID, sourceWalletID, addressID id.ID, destAddress
 		AddressID:        addressID,
 		DestAddress:      destAddress,
 		Amount:           amount,
-		NetworkFee:       types.ZeroCryptoAmount(),
+		NetworkFee:       types.ZeroRawAmount(),
 		Status:           StatusPendingApproval,
 		SettlementStatus: outbound_settlement.StatusNotApplicable,
 		Purpose:          PurposeRevenue,
 		GasPayer:         GasPayerPlatform,
-		WithheldAmount:   types.ZeroCryptoAmount(),
+		WithheldAmount:   types.ZeroRawAmount(),
 	}
 }
 
 // NewReceiptRefund returns total of an unidentified receipt to destinationID.
 // With the recipient paying gas, withheld stays with the platform and the
 // payer receives total-withheld; otherwise withheld must be zero.
-func NewReceiptRefund(receiptID, tokenID, sourceWalletID, destinationID id.ID, destAddress string, total, withheld types.CryptoAmount, gasPayer GasPayer, reason string) (*TreasuryWithdrawal, error) {
+func NewReceiptRefund(receiptID, tokenID, sourceWalletID, destinationID id.ID, destAddress string, total, withheld types.RawAmount, gasPayer GasPayer, reason string) (*TreasuryWithdrawal, error) {
 	if !total.IsPositive() {
 		return nil, apperror.NewValidation("refund amount must be positive").WithDetail("field", "amount")
 	}
@@ -152,7 +152,7 @@ func NewReceiptRefund(receiptID, tokenID, sourceWalletID, destinationID id.ID, d
 func (w *TreasuryWithdrawal) IsReceiptRefund() bool { return w.Purpose == PurposeReceiptRefund }
 
 // RefundTotal is what a receipt refund takes out of receipt suspense.
-func (w *TreasuryWithdrawal) RefundTotal() types.CryptoAmount { return w.Amount.Add(w.WithheldAmount) }
+func (w *TreasuryWithdrawal) RefundTotal() types.RawAmount { return w.Amount.Add(w.WithheldAmount) }
 
 func (w *TreasuryWithdrawal) validateRefundTerms() error {
 	switch w.Purpose {

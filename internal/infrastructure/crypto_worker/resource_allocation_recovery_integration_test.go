@@ -127,7 +127,7 @@ func TestResourceAllocationNewGenerationAndExactBroadcastRecovery(t *testing.T) 
 			NetworkID: networkID, TxHash: txHash, Status: crypto.ReceiptSucceeded,
 			Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalitySolidified,
 			Fee: crypto.FeeSettlementReport{Components: []crypto.FeeComponent{{
-				Name: "energy_fee", Quantity: 29650, Amount: types.ZeroCryptoAmount(),
+				Name: "energy_fee", Quantity: 29650, Amount: types.ZeroRawAmount(),
 			}}},
 		}
 		require.NoError(t, repo.SettleResourceAllocation(txCtx, txHash, receipt))
@@ -135,7 +135,7 @@ func TestResourceAllocationNewGenerationAndExactBroadcastRecovery(t *testing.T) 
 		var generation int
 		var status string
 		var actual int64
-		var allocated types.CryptoAmount
+		var allocated types.RawAmount
 		require.NoError(t, q.QueryRow(txCtx, `
 			SELECT generation,status,actual_amount,allocated_cost_amount
 			FROM reg_crypto_resource_allocations WHERE tx_hash=$1

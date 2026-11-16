@@ -9,8 +9,8 @@ import (
 )
 
 func TestInvoicePaymentSummaryUsesEveryCurrentPaymentAndEachFeeSnapshot(t *testing.T) {
-	amount := types.NewCryptoAmountFromInt64
-	zero := types.ZeroCryptoAmount()
+	amount := types.NewRawAmountFromInt64
+	zero := types.ZeroRawAmount()
 	summary := &invoicePaymentSummary{Fee: zero, Net: zero}
 	summary.addPayment(amount(1000000), zero, 0, zero, zero, "settled", "canonical")
 	summary.addPayment(amount(9000000), zero, 0, zero, zero, "settled", "canonical")

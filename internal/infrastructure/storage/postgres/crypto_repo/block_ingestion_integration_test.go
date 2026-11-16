@@ -43,7 +43,7 @@ func TestTRONBlockCaptureAtomicFenceProofAndTargetRegistration(t *testing.T) {
 	to := "T" + id.Compact(wallet)
 	state, err := NewWatcherStateRepo().Acquire(ctx, &crypto.WatcherState{NetworkID: network, WatcherKey: "tron:solidified", LastBlock: 100, Fingerprint: baseline.BlockHash, LastTimestamp: baseline.Timestamp}, "first")
 	require.NoError(t, err)
-	event := crypto.BlockchainEvent{NetworkID: network, TxHash: strings.Repeat("a", 64), EventKind: crypto.EventKindInternalValue, EventIndex: 3, FromAddress: "source", ToAddress: to, Amount: types.NewCryptoAmountFromInt64(23), BlockNumber: 101, BlockHash: fmt.Sprintf("%064x", 101), Confirmations: 20, Finality: crypto.FinalitySolidified, Canonicality: crypto.CanonicalityCanonical, EventType: crypto.EventTypeTransfer, Timestamp: time.UnixMilli(baseline.Timestamp + 3000)}
+	event := crypto.BlockchainEvent{NetworkID: network, TxHash: strings.Repeat("a", 64), EventKind: crypto.EventKindInternalValue, EventIndex: 3, FromAddress: "source", ToAddress: to, Amount: types.NewRawAmountFromInt64(23), BlockNumber: 101, BlockHash: fmt.Sprintf("%064x", 101), Confirmations: 20, Finality: crypto.FinalitySolidified, Canonicality: crypto.CanonicalityCanonical, EventType: crypto.EventTypeTransfer, Timestamp: time.UnixMilli(baseline.Timestamp + 3000)}
 	candidate := *state
 	candidate.LastBlock = 101
 	candidate.Fingerprint = event.BlockHash
@@ -129,7 +129,7 @@ func TestTRONBlockCaptureAtomicFenceProofAndTargetRegistration(t *testing.T) {
 	require.Equal(t, event.TraceHash, expected.TraceHash)
 	require.Equal(t, event.CallValueIndex, expected.CallValueIndex)
 
-	payment.Amount = types.NewCryptoAmountFromInt64(24)
+	payment.Amount = types.NewRawAmountFromInt64(24)
 	require.ErrorIs(t, validateEvidence(), crypto.ErrVerificationPending)
 	payment.Amount = event.Amount
 	payment.RequiredConfs = 21
@@ -183,7 +183,7 @@ func TestTRONShadowStoresAuditWithoutFinancialInboxOrEvidence(t *testing.T) {
 	require.NoError(t, err)
 	state, err := NewWatcherStateRepo().Acquire(ctx, &crypto.WatcherState{NetworkID: network, WatcherKey: "tron:shadow", LastBlock: 10, Fingerprint: baseline.BlockHash}, "shadow")
 	require.NoError(t, err)
-	event := crypto.BlockchainEvent{DecoderVersion: 2, NetworkID: network, TxHash: strings.Repeat("b", 64), EventKind: crypto.EventKindNativeValue, FromAddress: "source", ToAddress: to, Amount: types.NewCryptoAmountFromInt64(1), BlockNumber: 11, BlockHash: fmt.Sprintf("%064x", 11), Confirmations: 1, Finality: crypto.FinalitySolidified, Canonicality: crypto.CanonicalityCanonical, EventType: crypto.EventTypeTransfer, Timestamp: time.UnixMilli(baseline.Timestamp + 3000)}
+	event := crypto.BlockchainEvent{DecoderVersion: 2, NetworkID: network, TxHash: strings.Repeat("b", 64), EventKind: crypto.EventKindNativeValue, FromAddress: "source", ToAddress: to, Amount: types.NewRawAmountFromInt64(1), BlockNumber: 11, BlockHash: fmt.Sprintf("%064x", 11), Confirmations: 1, Finality: crypto.FinalitySolidified, Canonicality: crypto.CanonicalityCanonical, EventType: crypto.EventTypeTransfer, Timestamp: time.UnixMilli(baseline.Timestamp + 3000)}
 	candidate := *state
 	candidate.LastBlock, candidate.LastTimestamp, candidate.Fingerprint = 11, event.Timestamp.UnixMilli(), event.BlockHash
 	capture := crypto.CapturedBlock{DecoderVersion: 2, Commit: crypto.WatcherBlockCommit{Candidate: candidate, ExpectedBlock: 10, ExpectedHash: baseline.BlockHash, Block: crypto.WatcherBlockFingerprint{BlockNumber: 11, BlockHash: event.BlockHash, Timestamp: candidate.LastTimestamp}}, ParentHash: baseline.BlockHash, Events: []crypto.BlockchainEvent{event}, Sources: []crypto.VerificationSource{{ProviderID: "untrusted-a"}, {ProviderID: "untrusted-b"}}, Shadow: true, Sequential: true}

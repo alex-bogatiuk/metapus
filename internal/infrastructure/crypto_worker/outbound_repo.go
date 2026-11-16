@@ -39,7 +39,7 @@ type FeeReservationLine struct {
 	MerchantID id.ID
 	TokenID    id.ID
 	FeeType    crypto_fee.FeeType
-	Amount     types.CryptoAmount
+	Amount     types.RawAmount
 }
 
 type BroadcastTreasuryWithdrawal = outbound_repo.BroadcastTreasuryWithdrawal

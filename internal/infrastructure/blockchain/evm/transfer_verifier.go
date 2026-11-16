@@ -210,7 +210,7 @@ func (d *TransferVerifier) verifyTransfer(ctx context.Context, expected crypto.B
 					if to == common.HexToAddress(event.ToAddress) {
 						matching++
 					}
-					amount, err := types.NewCryptoAmountFromBigInt(new(big.Int).SetBytes(log.Data))
+					amount, err := types.NewRawAmountFromBigInt(new(big.Int).SetBytes(log.Data))
 					if err != nil {
 						return out, err
 					}

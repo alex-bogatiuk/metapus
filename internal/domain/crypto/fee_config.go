@@ -36,29 +36,29 @@ func IsValidFeeDirection(d FeeDirection) bool {
 // FeeSchedule represents a fee configuration entry (one row in reg_fee_schedule).
 // MerchantID == nil means this is a global default for all merchants.
 type FeeSchedule struct {
-	MerchantID *id.ID             `db:"merchant_id" json:"merchantId"`
-	TokenID    id.ID              `db:"token_id" json:"tokenId"`
-	Direction  FeeDirection       `db:"direction" json:"direction"`
-	FixedFee   types.CryptoAmount `db:"fixed_fee" json:"fixedFee"`
-	PercentBP  int                `db:"percent_bp" json:"percentBp"`
-	MinFee     types.CryptoAmount `db:"min_fee" json:"minFee"`
-	MaxFee     types.CryptoAmount `db:"max_fee" json:"maxFee"`
-	UpdatedAt  time.Time          `db:"updated_at" json:"updatedAt"`
+	MerchantID *id.ID          `db:"merchant_id" json:"merchantId"`
+	TokenID    id.ID           `db:"token_id" json:"tokenId"`
+	Direction  FeeDirection    `db:"direction" json:"direction"`
+	FixedFee   types.RawAmount `db:"fixed_fee" json:"fixedFee"`
+	PercentBP  int             `db:"percent_bp" json:"percentBp"`
+	MinFee     types.RawAmount `db:"min_fee" json:"minFee"`
+	MaxFee     types.RawAmount `db:"max_fee" json:"maxFee"`
+	UpdatedAt  time.Time       `db:"updated_at" json:"updatedAt"`
 }
 
 // EffectiveFee is the resolved fee config for a specific operation.
 // Computed by FeeConfigResolver via NULL-coalescing:
 // merchant-specific → global default → zero fee.
 type EffectiveFee struct {
-	FixedFee  types.CryptoAmount // fixed part (token minor units)
-	PercentBP int                // percentage in basis points [0..10000]
-	MinFee    types.CryptoAmount // minimum total fee (0 = no floor)
-	MaxFee    types.CryptoAmount // maximum total fee (0 = no cap)
+	FixedFee  types.RawAmount // fixed part (token minor units)
+	PercentBP int             // percentage in basis points [0..10000]
+	MinFee    types.RawAmount // minimum total fee (0 = no floor)
+	MaxFee    types.RawAmount // maximum total fee (0 = no cap)
 }
 
 // Calculate computes the actual fee amount for a given operation amount with
 // the shared processing tariff rule.
-func (f EffectiveFee) Calculate(amount types.CryptoAmount) types.CryptoAmount {
+func (f EffectiveFee) Calculate(amount types.RawAmount) types.RawAmount {
 	return f.Tariff().Amount(amount)
 }
 

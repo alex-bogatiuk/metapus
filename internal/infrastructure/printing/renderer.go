@@ -95,13 +95,13 @@ func formatMoneyStr(v interface{ MinorUnitsValue() int64 }, dp int) string {
 	return groupDecimal(exact)
 }
 
-// FormatCryptoUnits formats raw token units with the token's own scale.
+// FormatRawUnits formats an asset's raw units with the asset's own scale.
 // The conversion is exact: no floating point and no assumed scale. Trailing
-// fractional zeros beyond two digits (or the token scale, if smaller) are
+// fractional zeros beyond two digits (or the asset scale, if smaller) are
 // dropped because they carry no value.
-// Example: FormatCryptoUnits(1500000, 6) → "1,50"; (1234567, 6) → "1,234567"
-func FormatCryptoUnits(v types.CryptoAmount, decimalPlaces int) string {
-	if decimalPlaces < 0 || decimalPlaces > _maxCryptoDecimals {
+// Example: FormatRawUnits(1500000, 6) → "1,50"; (1234567, 6) → "1,234567"
+func FormatRawUnits(v types.RawAmount, decimalPlaces int) string {
+	if decimalPlaces < 0 || decimalPlaces > _maxRawDecimals {
 		return "—"
 	}
 	exact := v.ToDecimal(decimalPlaces).StringFixed(int32(decimalPlaces))
@@ -115,8 +115,8 @@ func FormatCryptoUnits(v types.CryptoAmount, decimalPlaces int) string {
 	return groupDecimal(exact)
 }
 
-// _maxCryptoDecimals bounds token metadata accepted for display.
-const _maxCryptoDecimals = 36
+// _maxRawDecimals bounds asset scales accepted for display.
+const _maxRawDecimals = 36
 
 // groupDecimal renders a canonical "-1234.5600" string with non-breaking
 // thousands separators and a decimal comma.

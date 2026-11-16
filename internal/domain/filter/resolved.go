@@ -20,7 +20,7 @@ const (
 	DateValue
 	QuantityValue
 	MoneyValue
-	CryptoAmountValue
+	RawAmountValue
 )
 
 // FieldSpec describes storage semantics independently of the HTTP filter hints.
@@ -46,7 +46,7 @@ func (r ResolvedItem) WithOperator(op ComparisonType) ResolvedItem {
 }
 
 func Resolve(item Item, spec FieldSpec) (ResolvedItem, error) {
-	if spec.Kind == UnknownValue || spec.Kind > CryptoAmountValue {
+	if spec.Kind == UnknownValue || spec.Kind > RawAmountValue {
 		return ResolvedItem{}, fmt.Errorf("unsupported filter field kind")
 	}
 	if err := ValidateItems([]Item{item}); err != nil {
@@ -56,7 +56,7 @@ func Resolve(item Item, spec FieldSpec) (ResolvedItem, error) {
 	if item.Operator == IsNull || item.Operator == IsNotNull {
 		return resolved, nil
 	}
-	if spec.Kind == MoneyValue || spec.Kind == QuantityValue || spec.Kind == CryptoAmountValue {
+	if spec.Kind == MoneyValue || spec.Kind == QuantityValue || spec.Kind == RawAmountValue {
 		switch item.Operator {
 		case Equal, NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual, InList, NotInList:
 		default:
@@ -94,12 +94,12 @@ func Resolve(item Item, spec FieldSpec) (ResolvedItem, error) {
 
 func resolveValue(value any, kind ValueKind) (any, error) {
 	switch kind {
-	case CryptoAmountValue:
+	case RawAmountValue:
 		text, ok := value.(string)
 		if !ok {
-			return nil, fmt.Errorf("crypto filter requires a raw-unit string")
+			return nil, fmt.Errorf("raw amount filter requires a raw-unit string")
 		}
-		amount, err := types.NewCryptoAmountFromString(text)
+		amount, err := types.NewRawAmountFromString(text)
 		return amount.String(), err
 	case MoneyValue:
 		text, ok := value.(string)

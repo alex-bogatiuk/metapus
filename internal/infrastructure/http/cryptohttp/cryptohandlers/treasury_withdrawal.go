@@ -180,7 +180,7 @@ func (h *TreasuryWithdrawalHandler) CreateReceiptRefund(c *gin.Context) {
 	}
 	withheld := req.WithheldAmount
 	if withheld.IsZero() {
-		withheld = types.ZeroCryptoAmount()
+		withheld = types.ZeroRawAmount()
 	}
 	userID := parseContextUserID(c.Request.Context())
 	doc, err := h.workflowHandler.treasuryService.CreateReceiptRefund(c.Request.Context(), cryptoapp.CreateReceiptRefundInput{

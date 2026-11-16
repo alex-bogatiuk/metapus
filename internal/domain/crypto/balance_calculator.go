@@ -14,19 +14,19 @@ import (
 )
 
 type BalanceRow struct {
-	MerchantID    id.ID              `db:"merchant_id"`
-	TokenID       id.ID              `db:"token_id"`
-	TokenSymbol   string             `db:"symbol"`
-	NetworkID     id.ID              `db:"network_id"`
-	Network       string             `db:"network"`
-	DecimalPlaces int                `db:"decimal_places"`
-	CurrencyID    *id.ID             `db:"currency_id"`
-	CurrencyCode  string             `db:"iso_code"`
-	RawAmount     types.CryptoAmount `db:"amount"`
+	MerchantID    id.ID           `db:"merchant_id"`
+	TokenID       id.ID           `db:"token_id"`
+	TokenSymbol   string          `db:"symbol"`
+	NetworkID     id.ID           `db:"network_id"`
+	Network       string          `db:"network"`
+	DecimalPlaces int             `db:"decimal_places"`
+	CurrencyID    *id.ID          `db:"currency_id"`
+	CurrencyCode  string          `db:"iso_code"`
+	RawAmount     types.RawAmount `db:"amount"`
 }
 type BalanceQueryRepo interface {
 	GetMerchantBalances(context.Context, []id.ID) ([]BalanceRow, error)
-	GetPendingAmounts(context.Context, []id.ID) (map[string]types.CryptoAmount, error)
+	GetPendingAmounts(context.Context, []id.ID) (map[string]types.RawAmount, error)
 }
 
 // QuoteDetails intentionally omits ingestion and mapping configuration from Portal.
@@ -138,7 +138,7 @@ func (b *bucketAccumulator) result(places int) ValuationBucket {
 }
 
 // CalculateBalance is pure: one immutable set of quantities and resolutions.
-func CalculateBalance(rows []BalanceRow, pending map[string]types.CryptoAmount, rates map[id.ID]er.Resolution, cfg er.Configuration, at time.Time) MerchantBalance {
+func CalculateBalance(rows []BalanceRow, pending map[string]types.RawAmount, rates map[id.ID]er.Resolution, cfg er.Configuration, at time.Time) MerchantBalance {
 	result := MerchantBalance{BaseCurrency: cfg.BaseCurrency, Source: cfg.Source, EvaluatedAt: at, ByToken: make([]TokenBalance, 0, len(rows))}
 	// Scope may include multiple merchants; pending totals must be applied once per token.
 	byToken := make(map[id.ID]BalanceRow, len(rows))

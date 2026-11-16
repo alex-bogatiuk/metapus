@@ -8,8 +8,8 @@ import (
 )
 
 func TestInvoiceLedgerGenerationsAndCompensations(t *testing.T) {
-	amount := types.MustCryptoAmount("9007199254740993000000001")
-	fee := types.MustCryptoAmount("1")
+	amount := types.MustRawAmount("9007199254740993000000001")
+	fee := types.MustRawAmount("1")
 	net := amount.Sub(fee)
 	payment := func(posted bool, version int, generations map[int]invoiceLedgerGeneration) *invoiceLedgerPayment {
 		return &invoiceLedgerPayment{amount: amount, fee: fee, net: net, posted: posted, version: version, generations: generations}
@@ -24,7 +24,7 @@ func TestInvoiceLedgerGenerationsAndCompensations(t *testing.T) {
 	}{
 		{"not posted", payment(false, 0, nil), "known", "0", "0", "0"},
 		{"posted", payment(true, 1, map[int]invoiceLedgerGeneration{1: original(net.String(), "1", "0")}), "known", net.String(), "1", "0"},
-		{"partial adjustment", payment(true, 1, map[int]invoiceLedgerGeneration{1: original(net.Sub(types.NewCryptoAmountFromInt64(5)).String(), "0", "5")}), "known", net.Sub(types.NewCryptoAmountFromInt64(5)).String(), "0", "5"},
+		{"partial adjustment", payment(true, 1, map[int]invoiceLedgerGeneration{1: original(net.Sub(types.NewRawAmountFromInt64(5)).String(), "0", "5")}), "known", net.Sub(types.NewRawAmountFromInt64(5)).String(), "0", "5"},
 		{"reorg compensation", payment(false, 1, map[int]invoiceLedgerGeneration{1: original("0", "0", net.String())}), "known", "0", "0", net.String()},
 		{"reposted", payment(true, 2, map[int]invoiceLedgerGeneration{1: original("0", "0", net.String()), 2: original(net.String(), "1", "0")}), "known", net.String(), "1", net.String()},
 		{"missing generation", payment(true, 2, map[int]invoiceLedgerGeneration{1: original(net.String(), "1", "0")}), "inconsistent", "", "", ""},
@@ -52,7 +52,7 @@ func TestInvoiceLedgerGenerationsAndCompensations(t *testing.T) {
 }
 func TestInvoiceLedgerZeroFeeAndZeroNetAreKnown(t *testing.T) {
 	for _, tc := range []struct{ fee, net string }{{"0", "10"}, {"10", "0"}} {
-		_, total, err := summarizeInvoiceLedger(map[string]*invoiceLedgerPayment{"p": {amount: types.MustCryptoAmount("10"), fee: types.MustCryptoAmount(tc.fee), net: types.MustCryptoAmount(tc.net), posted: true, version: 1, generations: map[int]invoiceLedgerGeneration{1: {gross: "10", fee: tc.fee, net: tc.net, currentGross: "10", currentFee: tc.fee, currentNet: tc.net, reversedNet: "0"}}}})
+		_, total, err := summarizeInvoiceLedger(map[string]*invoiceLedgerPayment{"p": {amount: types.MustRawAmount("10"), fee: types.MustRawAmount(tc.fee), net: types.MustRawAmount(tc.net), posted: true, version: 1, generations: map[int]invoiceLedgerGeneration{1: {gross: "10", fee: tc.fee, net: tc.net, currentGross: "10", currentFee: tc.fee, currentNet: tc.net, reversedNet: "0"}}}})
 		require.NoError(t, err)
 		require.Equal(t, "known", total.Status)
 		require.Equal(t, tc.net, *total.CreditedNetAmount)

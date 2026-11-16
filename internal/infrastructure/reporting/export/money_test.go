@@ -13,7 +13,7 @@ import (
 )
 
 func TestCryptoReportExportsBeyondInt64RemainExactText(t *testing.T) {
-	sources := &reportcontract.MoneySources{AmountType: "crypto", CurrencyID: "id", CurrencyCode: "code", DecimalPlaces: "scale"}
+	sources := &reportcontract.MoneySources{AmountType: reportcontract.AmountTypeRaw, CurrencyID: "id", CurrencyCode: "code", DecimalPlaces: "scale"}
 	meta := reportcontract.ReportMeta{Name: "Токены", Columns: []reportcontract.ReportColumn{{Key: "amount", Label: "Сумма", Type: "money", Money: sources}}}
 	items := []map[string]any{{"amount": strings.Repeat("9", 78), "id": "eth", "code": "ETH", "scale": 18}}
 	want := strings.Repeat("9", 60) + "." + strings.Repeat("9", 18)

@@ -69,7 +69,7 @@ func TestFundingRecoveryUsesSavedEffectWhenCurrentJITPolicyIsDisabled(t *testing
 	settlement := &fundingSettlementStub{}
 	service := NewNativeFundingService(fundingRecoveryStore{funding: funding}, nil, unusedFundingFees{}, unusedFundingAuthorization{}, settlement, nil, fundingEvidenceStub{})
 	request := NativeFundingRequest{BasisType: "CryptoSweepAttempt", BasisID: id.New(), NetworkID: network, WalletID: wallet, Address: "destination"}
-	ready, err := service.Ensure(t.Context(), driver, crypto.NetworkPolicy{}, request, nil, types.NewCryptoAmountFromInt64(1))
+	ready, err := service.Ensure(t.Context(), driver, crypto.NetworkPolicy{}, request, nil, types.NewRawAmountFromInt64(1))
 	require.NoError(t, err)
 	require.True(t, ready)
 	require.Equal(t, fundingID, settlement.funding)
@@ -77,12 +77,12 @@ func TestFundingRecoveryUsesSavedEffectWhenCurrentJITPolicyIsDisabled(t *testing
 	// A temporary settlement failure must remain retryable, never a permanent hold.
 	temporary := errors.New("database unavailable during atomic settlement")
 	settlement.err = temporary
-	ready, err = service.Ensure(t.Context(), driver, crypto.NetworkPolicy{}, request, nil, types.NewCryptoAmountFromInt64(1))
+	ready, err = service.Ensure(t.Context(), driver, crypto.NetworkPolicy{}, request, nil, types.NewRawAmountFromInt64(1))
 	require.ErrorIs(t, err, temporary)
 	require.False(t, ready)
 	require.Equal(t, 2, settlement.called)
 	service.evidence = fundingEvidenceStub{err: crypto.ErrVerificationPending}
-	_, err = service.Ensure(t.Context(), driver, crypto.NetworkPolicy{}, request, nil, types.NewCryptoAmountFromInt64(1))
+	_, err = service.Ensure(t.Context(), driver, crypto.NetworkPolicy{}, request, nil, types.NewRawAmountFromInt64(1))
 	require.ErrorIs(t, err, crypto.ErrVerificationPending)
 	require.ErrorIs(t, err, ErrNativeFundingPending, "proof delay must keep the parent waiting rather than permanently held")
 	require.Equal(t, 2, settlement.called, "missing principal evidence must not enter fee/principal settlement")

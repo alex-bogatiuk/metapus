@@ -142,7 +142,7 @@ func (r *UpdateCryptoPaymentRequest) ApplyTo(p *crypto_payment.CryptoPayment) {
 
 // ToEntity creates a minimal entity for type compliance.
 func (r *CreateCryptoPaymentRequest) ToEntityFull(
-	amount types.CryptoAmount,
+	amount types.RawAmount,
 ) *crypto_payment.CryptoPayment {
 	_ = amount // prevent unused warning
 	return &crypto_payment.CryptoPayment{}

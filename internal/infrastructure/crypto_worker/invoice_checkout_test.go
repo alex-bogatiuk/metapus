@@ -43,7 +43,7 @@ func (r *checkoutReferenceCapture) EnsureActive(_ context.Context, ref checkout.
 
 func checkoutMessage(t *testing.T) (*crypto_invoice.CryptoInvoice, *postgres.OutboxMessage) {
 	t.Helper()
-	invoice := crypto_invoice.NewCryptoInvoice(id.New(), id.New(), types.NewCryptoAmountFromInt64(1000000))
+	invoice := crypto_invoice.NewCryptoInvoice(id.New(), id.New(), types.NewRawAmountFromInt64(1000000))
 	publisher := &checkoutEventCapture{}
 	require.NoError(t, publishInvoiceCheckout(context.Background(), publisher, invoice))
 	payload, err := json.Marshal(publisher.event.Payload)

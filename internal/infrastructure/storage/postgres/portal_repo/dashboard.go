@@ -82,7 +82,7 @@ func (r *DashboardRepo) GetSummary(ctx context.Context, activeMerchantID *id.ID)
 	for rows.Next() {
 		var item portalapp.PortalReceiptTotal
 		var tokenID, networkID id.ID
-		var total, current, previous types.CryptoAmount
+		var total, current, previous types.RawAmount
 		if err := rows.Scan(&tokenID, &networkID, &item.Symbol, &item.DecimalPlaces, &total, &current, &previous); err != nil {
 			return nil, fmt.Errorf("portal receipt total: %w", err)
 		}
@@ -135,7 +135,7 @@ func (r *DashboardRepo) GetCurrencies(ctx context.Context, activeMerchantID *id.
 	items := make([]portalapp.PortalCurrencyItem, 0, 8)
 	for rows.Next() {
 		var item portalapp.PortalCurrencyItem
-		var totalMinor types.CryptoAmount
+		var totalMinor types.RawAmount
 		var sharePct float64
 		if err := rows.Scan(
 			&item.TokenID, &item.Symbol, &item.NetworkID, &item.Network, &item.DecimalPlaces,
@@ -192,7 +192,7 @@ func (r *DashboardRepo) GetChart(ctx context.Context, period string, activeMerch
 	points := make([]portalapp.PortalChartPoint, 0, 30)
 	for rows.Next() {
 		var day time.Time
-		var deposits types.CryptoAmount
+		var deposits types.RawAmount
 		var tokenID id.ID
 		var symbol, network string
 		var decimalPlaces int
@@ -351,7 +351,7 @@ func (r *DashboardRepo) ListInvoices(ctx context.Context, activeMerchantID *id.I
 	for rows.Next() {
 		var item portalapp.PortalInvoiceItem
 		var iid id.ID
-		var amount, received types.CryptoAmount
+		var amount, received types.RawAmount
 		var createdAt time.Time
 		var externalID, orderID, customerID, invoiceKind string
 
@@ -392,7 +392,7 @@ func (r *DashboardRepo) ListInvoices(ctx context.Context, activeMerchantID *id.I
 
 // calculateFee replicates CryptoPayment.FeeAmount() logic in pure Go:
 // clamp(fixed + amount * percentBP / 10000, minFee, maxFee).
-func calculateFee(fixed types.CryptoAmount, percentBP int, minFee, maxFee, amount types.CryptoAmount) types.CryptoAmount {
+func calculateFee(fixed types.RawAmount, percentBP int, minFee, maxFee, amount types.RawAmount) types.RawAmount {
 	return (crypto.EffectiveFee{
 		FixedFee: fixed, PercentBP: percentBP, MinFee: minFee, MaxFee: maxFee,
 	}).Calculate(amount)

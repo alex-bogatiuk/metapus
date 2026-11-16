@@ -106,6 +106,6 @@ export type DisplayRow =
 
 export type ReportStatus = "idle" | "loading" | "done" | "empty" | "error" | "export-only"
 
-export interface MoneySources { amountType?: "crypto"; currencyId: string; currencyCode: string; decimalPlaces: string }
+export interface MoneySources { amountType?: "raw"; currencyId: string; currencyCode: string; decimalPlaces: string }
 export interface MoneyTotal { amount: string; currencyId: string; currencyCode: string; decimalPlaces: number }
 export type ReportTotalValue = number | MoneyTotal[]

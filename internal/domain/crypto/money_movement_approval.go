@@ -64,8 +64,8 @@ type ApprovalPolicyBundle struct {
 type ApprovalPolicyRule struct {
 	ID                     string              `json:"id"`
 	Purpose                SigningPurpose      `json:"purpose,omitempty"`
-	AmountMinorLTE         *types.CryptoAmount `json:"amount_minor_lte,omitempty"`
-	AmountMinorGTE         *types.CryptoAmount `json:"amount_minor_gte,omitempty"`
+	AmountMinorLTE         *types.RawAmount    `json:"amount_minor_lte,omitempty"`
+	AmountMinorGTE         *types.RawAmount    `json:"amount_minor_gte,omitempty"`
 	NetworkCode            string              `json:"network_code,omitempty"`
 	TokenID                string              `json:"token_id,omitempty"`
 	RiskLevelIn            []ApprovalRiskLevel `json:"risk_level_in,omitempty"`
@@ -85,7 +85,7 @@ type MoneyMovementIntent struct {
 	TokenID            id.ID                     `json:"token_id"`
 	TokenStandard      string                    `json:"token_standard"`
 	ContractAddress    string                    `json:"contract_address"`
-	AmountMinorUnits   types.CryptoAmount        `json:"amount_minor_units"`
+	AmountMinorUnits   types.RawAmount           `json:"amount_minor_units"`
 	DestinationAddress string                    `json:"destination_address"`
 	AddressID          id.ID                     `json:"address_id"`
 	SourceAddress      string                    `json:"source_address,omitempty"`
@@ -101,14 +101,14 @@ type MoneyMovementIntent struct {
 // MoneyMovementSourceLine is part of the merchant-approved intent. Each line
 // authorizes one exact source/outflow; its technical revisions cannot be edited.
 type MoneyMovementSourceLine struct {
-	LineID           id.ID              `json:"line_id"`
-	WalletID         id.ID              `json:"wallet_id"`
-	SourceAddress    string             `json:"source_address"`
-	SourceVaultKeyID string             `json:"source_vault_key_id"`
-	AmountMinorUnits types.CryptoAmount `json:"amount_minor_units"`
-	RiskRevision     int64              `json:"risk_revision"`
-	ScopeVersion     int64              `json:"scope_version"`
-	EvidenceHash     string             `json:"evidence_hash"`
+	LineID           id.ID           `json:"line_id"`
+	WalletID         id.ID           `json:"wallet_id"`
+	SourceAddress    string          `json:"source_address"`
+	SourceVaultKeyID string          `json:"source_vault_key_id"`
+	AmountMinorUnits types.RawAmount `json:"amount_minor_units"`
+	RiskRevision     int64           `json:"risk_revision"`
+	ScopeVersion     int64           `json:"scope_version"`
+	EvidenceHash     string          `json:"evidence_hash"`
 }
 
 func (intent MoneyMovementIntent) ValidateSources() error {
@@ -127,7 +127,7 @@ func (intent MoneyMovementIntent) ValidateSources() error {
 	if (intent.RiskClass == "high" || intent.RiskClass == "unknown") && !intent.RiskAccepted {
 		return fmt.Errorf("explicit risk acceptance is required")
 	}
-	total := types.ZeroCryptoAmount()
+	total := types.ZeroRawAmount()
 	ids, wallets := map[id.ID]bool{}, map[id.ID]bool{}
 	for _, line := range intent.SourceLines {
 		if id.IsNil(line.LineID) || id.IsNil(line.WalletID) || ids[line.LineID] || wallets[line.WalletID] || line.SourceAddress == "" || line.SourceVaultKeyID == "" || !line.AmountMinorUnits.IsPositive() || line.RiskRevision <= 0 || line.ScopeVersion <= 0 {
@@ -142,7 +142,7 @@ func (intent MoneyMovementIntent) ValidateSources() error {
 	return nil
 }
 
-func (intent MoneyMovementIntent) AuthorizesSource(basis string, basisID id.ID, address, key string, amount types.CryptoAmount) bool {
+func (intent MoneyMovementIntent) AuthorizesSource(basis string, basisID id.ID, address, key string, amount types.RawAmount) bool {
 	if intent.SchemaVersion == MoneyMovementIntentV1 {
 		return intent.BasisType == basis && intent.BasisID == basisID && intent.AmountMinorUnits.Equal(amount)
 	}

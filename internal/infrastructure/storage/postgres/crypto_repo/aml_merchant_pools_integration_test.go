@@ -40,7 +40,7 @@ func automaticPoolFixture(t *testing.T, role string, target, maxTotal int, famil
 		p.RiskClass = "low"
 		_, err = f.pool.Exec(f.ctx, `INSERT INTO sys_crypto_network_policies(network_id) VALUES($1) ON CONFLICT DO NOTHING`, p.NetworkID)
 		require.NoError(t, err)
-		_, err = f.repo.ConfigureAMLBatchPolicy(f.ctx, aml.BatchPolicyRequest{MerchantID: p.MerchantID, NetworkID: p.NetworkID, TokenID: *p.TokenID, Class: aml.Low, MaxGross: types.MustCryptoAmount("100"), MaxAgeSeconds: 600, Actor: "operator"})
+		_, err = f.repo.ConfigureAMLBatchPolicy(f.ctx, aml.BatchPolicyRequest{MerchantID: p.MerchantID, NetworkID: p.NetworkID, TokenID: *p.TokenID, Class: aml.Low, MaxGross: types.MustRawAmount("100"), MaxAgeSeconds: 600, Actor: "operator"})
 		require.NoError(t, err)
 	}
 	p, err = f.repo.ConfigureMerchantPoolPolicy(f.ctx, crypto.MerchantPoolPolicyRequest{Policy: p, Actor: "operator"})

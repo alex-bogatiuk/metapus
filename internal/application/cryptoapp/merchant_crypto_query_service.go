@@ -68,9 +68,9 @@ type MerchantInvoicePayment struct {
 	DetectedAt            time.Time
 	ConfirmedAt           *time.Time
 	UpdatedAt             time.Time
-	RawAmount             types.CryptoAmount
-	RawFeeAmount          types.CryptoAmount
-	RawNetAmount          types.CryptoAmount
+	RawAmount             types.RawAmount
+	RawFeeAmount          types.RawAmount
+	RawNetAmount          types.RawAmount
 }
 
 type MerchantInvoicePaymentsSummary struct {
@@ -251,8 +251,8 @@ func (s *MerchantCryptoQueryService) ListInvoices(ctx context.Context, filter Me
 }
 
 func summarizeMerchantInvoicePayments(items []MerchantInvoicePayment) MerchantInvoicePaymentsSummary {
-	totalFee := types.ZeroCryptoAmount()
-	totalNet := types.ZeroCryptoAmount()
+	totalFee := types.ZeroRawAmount()
+	totalNet := types.ZeroRawAmount()
 	var latest time.Time
 
 	payments := make([]MerchantInvoicePayment, len(items))

@@ -48,7 +48,7 @@ Invoice statuses: `created`, `partially_paid`, `paid`, `confirmed`, `completed`,
 
 ## Финансовый учёт
 
-`CryptoAmount` хранит точное неотрицательное целое arbitrary precision; БД использует `NUMERIC(78,0)`, HTTP — десятичные строки. Для signed deltas применяются отдельные типы. Масштаб берётся из token/currency metadata; деление на 100 или преобразование через float недопустимы.
+`RawAmount` хранит точное неотрицательное целое arbitrary precision; БД использует `NUMERIC(78,0)`, HTTP — десятичные строки. Для signed deltas применяются отдельные типы. Масштаб берётся из token/currency metadata; деление на 100 или преобразование через float недопустимы.
 
 | Регистр | Экономический смысл |
 |---|---|

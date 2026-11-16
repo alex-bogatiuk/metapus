@@ -3,7 +3,7 @@ import { minorUnitsSchema, cryptoUnitsSchema, formatRawMinor } from "@/lib/money
 import type { MoneySources, MoneyTotal, ReportColumnDef, ReportTotalDef, ReportTotalValue } from "@/types/report-meta"
 
 export function readReportMoney(row: object, column: string, sources: MoneySources) {
-  const amounts = z.object({ [column]: (sources.amountType === "crypto" ? cryptoUnitsSchema : minorUnitsSchema).nullish() }).parse(row)
+  const amounts = z.object({ [column]: (sources.amountType === "raw" ? cryptoUnitsSchema : minorUnitsSchema).nullish() }).parse(row)
   const amount = amounts[column]
   if (amount == null) return null
   const strings = z.object({ [sources.currencyId]: z.string().min(1), [sources.currencyCode]: z.string().min(1) }).parse(row)

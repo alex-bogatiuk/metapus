@@ -74,7 +74,7 @@ func (b *Builder) Build(ctx context.Context, networks []crypto.NetworkRef, deriv
 			continue
 		}
 		var failureThreshold, openSeconds int
-		var maxFee types.CryptoAmount
+		var maxFee types.RawAmount
 		if err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `
 			SELECT rpc_failure_threshold,rpc_open_seconds,per_transaction_max_fee_minor
 			FROM sys_crypto_network_policies WHERE network_id=$1 AND _deleted_at IS NULL

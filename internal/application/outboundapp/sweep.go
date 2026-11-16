@@ -88,7 +88,7 @@ func (e *SweepExecutor) ExecuteGroup(ctx context.Context, group []SweepTask) err
 		return cause
 	}
 
-	total := types.ZeroCryptoAmount()
+	total := types.ZeroRawAmount()
 	for _, task := range group {
 		total = total.Add(task.Balance)
 	}
@@ -99,12 +99,12 @@ func (e *SweepExecutor) ExecuteGroup(ctx context.Context, group []SweepTask) err
 	if group[0].SweepID == nil {
 		candidate = crypto_sweep.NewCryptoSweep(group[0].TokenID, hotWallet.ID)
 		candidate.TotalAmount = total
-		candidate.TotalFee = types.ZeroCryptoAmount()
+		candidate.TotalFee = types.ZeroRawAmount()
 		placeholderLines := make([]crypto_sweep.CryptoSweepLine, 0, len(group))
 		for i, task := range group {
 			placeholderLines = append(placeholderLines, crypto_sweep.CryptoSweepLine{
 				LineID: task.AttemptID, LineNo: i + 1, WalletID: task.WalletID,
-				Amount: task.Balance, NetworkFee: types.ZeroCryptoAmount(),
+				Amount: task.Balance, NetworkFee: types.ZeroRawAmount(),
 				SettlementStatus: outbound_settlement.StatusNotApplicable,
 			})
 		}
@@ -125,7 +125,7 @@ func (e *SweepExecutor) ExecuteGroup(ctx context.Context, group []SweepTask) err
 	}
 	lines := make([]crypto_sweep.CryptoSweepLine, 0, len(group))
 	platformCosts := make([]crypto_sweep.CryptoSweepPlatformCostLine, 0, len(group))
-	broadcastTotal := types.ZeroCryptoAmount()
+	broadcastTotal := types.ZeroRawAmount()
 	finalLines := make(map[id.ID]bool)
 	for _, line := range doc.Lines {
 		finalLines[line.LineID] = line.SettlementStatus == outbound_settlement.StatusRecorded
@@ -163,7 +163,7 @@ func (e *SweepExecutor) ExecuteGroup(ctx context.Context, group []SweepTask) err
 			_ = e.outboundRepo.MarkSweepExecutionStatus(ctx, doc.ID, string(crypto_sweep.SweepStatusHeld))
 			return HoldExecution(err)
 		}
-		networkFee := types.ZeroCryptoAmount()
+		networkFee := types.ZeroRawAmount()
 		if result.CostLine != nil {
 			networkFee = result.CostLine.Amount
 			platformCosts = append(platformCosts, crypto_sweep.CryptoSweepPlatformCostLine{
@@ -190,7 +190,7 @@ func (e *SweepExecutor) ExecuteGroup(ctx context.Context, group []SweepTask) err
 	doc.Status = crypto_sweep.SweepStatusBroadcast
 	doc.TotalAmount = broadcastTotal
 	doc.PlatformCostLines = platformCosts
-	doc.TotalFee = types.ZeroCryptoAmount()
+	doc.TotalFee = types.ZeroRawAmount()
 
 	// A v2 broadcast may already have its cost snapshot, while a poller has
 	// not finished principal yet. Resuming it must never repost prior lines.
@@ -220,7 +220,7 @@ func (e *SweepExecutor) ExecuteGroup(ctx context.Context, group []SweepTask) err
 type SweepLineBroadcastResult struct {
 	TxHash   string
 	LineID   id.ID
-	Amount   types.CryptoAmount
+	Amount   types.RawAmount
 	CostLine *SweepPlatformCostLine
 }
 
@@ -533,11 +533,11 @@ func (e *SweepExecutor) BroadcastLine(ctx context.Context, task SweepTask, hotWa
 	}, nil
 }
 
-func sweepNativePrincipal(task SweepTask, amount types.CryptoAmount) types.CryptoAmount {
+func sweepNativePrincipal(task SweepTask, amount types.RawAmount) types.RawAmount {
 	if task.TokenStandard == token.TokenStandardNative {
 		return amount
 	}
-	return types.ZeroCryptoAmount()
+	return types.ZeroRawAmount()
 }
 
 func (e *SweepExecutor) EnsureSourceAccountActive(ctx context.Context, driver crypto.NetworkDriver, task SweepTask) error {

@@ -244,7 +244,7 @@ func decodeTransfers(network crypto.NetworkRef, data completeBlock, finality cry
 			event := base
 			event.EventKind, event.EventIndex = crypto.EventKindNativeValue, int64(index)
 			event.FromAddress, event.ToAddress = NormalizeTronAddress(value.OwnerAddress), NormalizeTronAddress(to)
-			event.Amount = types.NewCryptoAmountFromInt64(amount)
+			event.Amount = types.NewRawAmountFromInt64(amount)
 			if err := validateTransferAddresses(event); err != nil {
 				return nil, err
 			}
@@ -261,7 +261,7 @@ func decodeTransfers(network crypto.NetworkRef, data completeBlock, finality cry
 			if !ok || value.Sign() <= 0 {
 				continue
 			}
-			amount, err := types.NewCryptoAmountFromBigInt(value)
+			amount, err := types.NewRawAmountFromBigInt(value)
 			if err != nil {
 				return nil, err
 			}
@@ -289,7 +289,7 @@ func decodeTransfers(network crypto.NetworkRef, data completeBlock, finality cry
 				tracePosition, callPosition := int64(data.OriginalTraceIndices[i][traceIndex]), int64(callIndex)
 				event.TraceIndex, event.CallValueIndex = &tracePosition, &callPosition
 				event.FromAddress, event.ToAddress = NormalizeTronAddress(trace.CallerAddress), NormalizeTronAddress(trace.TransferToAddress)
-				event.Amount = types.NewCryptoAmountFromInt64(value.CallValue)
+				event.Amount = types.NewRawAmountFromInt64(value.CallValue)
 				if !validHash(trace.Hash) {
 					return nil, providerpolicy.ErrInvalidResponse
 				}

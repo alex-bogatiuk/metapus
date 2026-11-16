@@ -29,7 +29,7 @@ func accountingProof(t *testing.T, ctx context.Context, pool *pgxpool.Pool) cryp
 		FromAddress:   "0x00000000000000000000000000000000000000AB",
 		ToAddress:     "0x00000000000000000000000000000000000000CD",
 		TokenContract: "0x00000000000000000000000000000000000000EF",
-		Amount:        types.MustCryptoAmount("23"), BlockNumber: 100,
+		Amount:        types.MustRawAmount("23"), BlockNumber: 100,
 		BlockHash: "0x" + strings.Repeat("b", 64), Confirmations: 20,
 		Finality: crypto.FinalitySolidified, Canonicality: crypto.CanonicalityCanonical,
 	}
@@ -87,7 +87,7 @@ func TestAccountingEffectEvidenceConcurrentReplayAndReinclusion(t *testing.T) {
 	require.Equal(t, []int{1, 2, 1}, []int{effects, occurrences, links})
 
 	conflicting := proof
-	conflicting.Event.Amount = types.MustCryptoAmount("24")
+	conflicting.Event.Amount = types.MustRawAmount("24")
 	_, err = repo.SaveVerification(ctx, conflicting)
 	require.ErrorContains(t, err, "accounting occurrence evidence conflicts")
 	require.NoError(t, pool.QueryRow(ctx, "SELECT COUNT(*) FROM reg_crypto_transfer_verifications WHERE network_id=$1", proof.Event.NetworkID).Scan(&links))

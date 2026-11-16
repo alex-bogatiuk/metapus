@@ -75,13 +75,13 @@ type RefundablePayment struct {
 	InvoiceNumber string
 	TokenID       id.ID
 	FromAddress   string
-	Amount        types.CryptoAmount
-	Committed     types.CryptoAmount
+	Amount        types.RawAmount
+	Committed     types.RawAmount
 }
 
-func (p RefundablePayment) Refundable() types.CryptoAmount {
+func (p RefundablePayment) Refundable() types.RawAmount {
 	if p.Committed.Cmp(p.Amount) >= 0 {
-		return types.ZeroCryptoAmount()
+		return types.ZeroRawAmount()
 	}
 	return p.Amount.Sub(p.Committed)
 }
@@ -90,7 +90,7 @@ type PortalRiskWithdrawalRepository interface {
 	LockAMLWithdrawalScope(context.Context, id.ID, id.ID, id.ID) (bool, error)
 	ReserveAMLWithdrawalSources(context.Context, crypto.MoneyMovementIntent, aml.WithdrawalRequest) (crypto.MoneyMovementIntent, error)
 	CancelUnsignedAMLWithdrawal(context.Context, id.ID, string, string) error
-	CancelAMLWithdrawalRemainder(context.Context, id.ID, id.ID, string) (types.CryptoAmount, error)
+	CancelAMLWithdrawalRemainder(context.Context, id.ID, id.ID, string) (types.RawAmount, error)
 }
 
 type CreatePortalWithdrawalResult struct {
@@ -299,18 +299,18 @@ func (s *PortalWithdrawalService) Reject(ctx context.Context, merchantID, reques
 	})
 }
 
-func parseHumanTokenAmount(raw string, decimalPlaces int) (types.CryptoAmount, error) {
+func parseHumanTokenAmount(raw string, decimalPlaces int) (types.RawAmount, error) {
 	human, err := decimal.NewFromString(raw)
 	if err != nil || !human.IsPositive() {
-		return types.ZeroCryptoAmount(), apperror.NewValidation("amount must be a positive decimal string")
+		return types.ZeroRawAmount(), apperror.NewValidation("amount must be a positive decimal string")
 	}
 	minor := human.Shift(int32(decimalPlaces))
 	if !minor.Equal(minor.Truncate(0)) {
-		return types.ZeroCryptoAmount(), apperror.NewValidation("amount has too many decimal places for this token")
+		return types.ZeroRawAmount(), apperror.NewValidation("amount has too many decimal places for this token")
 	}
-	amount, err := types.NewCryptoAmountFromBigInt(minor.BigInt())
+	amount, err := types.NewRawAmountFromBigInt(minor.BigInt())
 	if err != nil {
-		return types.ZeroCryptoAmount(), apperror.NewValidation("amount must be a positive integer").WithCause(fmt.Errorf("convert minor units: %w", err))
+		return types.ZeroRawAmount(), apperror.NewValidation("amount must be a positive integer").WithCause(fmt.Errorf("convert minor units: %w", err))
 	}
 	return amount, nil
 }

@@ -69,7 +69,7 @@ func TestAccountingCustodyGuardRequiresProofOutsideLegacyActivation(t *testing.T
 	require.ErrorContains(t, err, "requires a transaction")
 
 	wrong := basis
-	wrong.Amount = types.MustCryptoAmount("24")
+	wrong.Amount = types.MustRawAmount("24")
 	_, err = authorize(wrong, event)
 	require.ErrorIs(t, err, crypto.ErrVerificationMismatch)
 	wrong = basis

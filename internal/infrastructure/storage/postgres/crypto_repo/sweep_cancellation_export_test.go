@@ -47,7 +47,7 @@ func NewSweepCancellationFixture(t *testing.T, resource bool) SweepCancellationF
 		auth := crypto.SigningAuthorization{SchemaVersion: 1, AuthorizationID: id.New().String(), TenantID: id.New().String(), MerchantID: &f.input.Request.MerchantID,
 			Purpose: crypto.SigningPurposeNativeFunding, BasisType: "CryptoNativeFunding", BasisID: funding, Attempt: 1, Generation: 1, ExpiresAt: time.Now().Add(-time.Hour),
 			NetworkID: f.input.Request.NetworkID, NetworkCode: "RESOURCE-TEST", ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: "nile", SourceAddress: f.input.Request.Address, FeePayerAddress: f.input.Request.Address,
-			VaultKeyID: "resource-key", DestinationAddress: destination, AssetStandard: "native", AmountMinorUnits: types.MustCryptoAmount("20"), MaxNetworkFeeMinor: types.MustCryptoAmount("10"), UnsignedFingerprint: "expiry-" + funding.String(), PolicyVersion: "tron-v1"}
+			VaultKeyID: "resource-key", DestinationAddress: destination, AssetStandard: "native", AmountMinorUnits: types.MustRawAmount("20"), MaxNetworkFeeMinor: types.MustRawAmount("10"), UnsignedFingerprint: "expiry-" + funding.String(), PolicyVersion: "tron-v1"}
 		unsigned := crypto.UnsignedTxEnvelope{Family: crypto.ChainFamilyTRON, SchemaVersion: 1, Generation: 1, UnsignedFingerprint: auth.UnsignedFingerprint, Payload: []byte(`{"synthetic":true}`)}
 		authorization, err := newHistoricalAMLAuthorization(f.ctx, auth, unsigned)
 		require.NoError(t, err)

@@ -22,7 +22,7 @@ func NewValuationService(balances crypto.BalanceQueryRepo, rates *er.Service, sn
 func (s *ValuationService) Calculate(ctx context.Context, merchants []id.ID) (crypto.MerchantBalance, error) {
 	var cfg er.Configuration
 	var rows []crypto.BalanceRow
-	var pending map[string]types.CryptoAmount
+	var pending map[string]types.RawAmount
 	var rates map[id.ID]er.Resolution
 	var at time.Time
 	err := s.snapshot(ctx, func(ctx context.Context) error {

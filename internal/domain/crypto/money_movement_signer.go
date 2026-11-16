@@ -129,9 +129,9 @@ func NewMoneyMovementApprovalSigner(jwsSigner ApprovalJWSSigner, publicKeys Appr
 }
 
 func DefaultMoneyMovementApprovalPolicy(tenantID string, now time.Time) ApprovalPolicyBundle {
-	lowWithdrawal := types.NewCryptoAmountFromInt64(100_000_000)
-	smallTreasury := types.NewCryptoAmountFromInt64(500_000_000)
-	highValue := types.NewCryptoAmountFromInt64(5_000_000_000)
+	lowWithdrawal := types.NewRawAmountFromInt64(100_000_000)
+	smallTreasury := types.NewRawAmountFromInt64(500_000_000)
+	highValue := types.NewRawAmountFromInt64(5_000_000_000)
 	effectiveFrom := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	expiresAt := time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC)
 	if now.Before(effectiveFrom) {
@@ -391,11 +391,11 @@ func (s *MoneyMovementApprovalSigner) assessRisk(intent MoneyMovementIntent, int
 	level := ApprovalRiskLevelLow
 	score := 10
 	signals := []string{"policy_static_v1", "allowlisted_address"}
-	if intent.AmountMinorUnits.Cmp(types.NewCryptoAmountFromInt64(5_000_000_000)) >= 0 {
+	if intent.AmountMinorUnits.Cmp(types.NewRawAmountFromInt64(5_000_000_000)) >= 0 {
 		level = ApprovalRiskLevelHigh
 		score = 90
 		signals = append(signals, "high_value")
-	} else if intent.AmountMinorUnits.Cmp(types.NewCryptoAmountFromInt64(1_000_000_000)) >= 0 {
+	} else if intent.AmountMinorUnits.Cmp(types.NewRawAmountFromInt64(1_000_000_000)) >= 0 {
 		level = ApprovalRiskLevelMedium
 		score = 50
 		signals = append(signals, "medium_value")

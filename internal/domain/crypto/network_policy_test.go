@@ -19,9 +19,9 @@ func TestNetworkPolicyEnabledIsFailClosed(t *testing.T) {
 	require.NoError(t, base.Validate())
 	base.Enabled = true
 	require.Error(t, base.Validate())
-	base.PerTransactionMaxFee = types.NewCryptoAmountFromInt64(100)
-	base.DailyNetworkFeeBudget = types.NewCryptoAmountFromInt64(1_000)
-	base.FeeFunding = FeeFundingPolicy{Mode: FeeFundingJIT, MinSourceWalletResidual: types.NewCryptoAmountFromInt64(1), MaxFundingAmount: types.NewCryptoAmountFromInt64(101), DailyBudget: types.NewCryptoAmountFromInt64(10_000)}
+	base.PerTransactionMaxFee = types.NewRawAmountFromInt64(100)
+	base.DailyNetworkFeeBudget = types.NewRawAmountFromInt64(1_000)
+	base.FeeFunding = FeeFundingPolicy{Mode: FeeFundingJIT, MinSourceWalletResidual: types.NewRawAmountFromInt64(1), MaxFundingAmount: types.NewRawAmountFromInt64(101), DailyBudget: types.NewRawAmountFromInt64(10_000)}
 	require.NoError(t, base.Validate())
 	require.NoError(t, base.ValidateForCapabilities(evmWalletPoolCapabilities(), true))
 }
@@ -30,41 +30,41 @@ func TestNetworkPolicyEnabledRequiresJITFeeCapacity(t *testing.T) {
 	networkID := id.New()
 	policy := NetworkPolicy{
 		NetworkID: networkID, Enabled: true, Version: 1,
-		PerTransactionMaxFee:  types.NewCryptoAmountFromInt64(100),
-		DailyNetworkFeeBudget: types.NewCryptoAmountFromInt64(1),
-		FeeFunding: FeeFundingPolicy{Mode: FeeFundingJIT, DailyBudget: types.NewCryptoAmountFromInt64(101),
-			MinSourceWalletResidual: types.NewCryptoAmountFromInt64(1), MaxFundingAmount: types.NewCryptoAmountFromInt64(101)},
+		PerTransactionMaxFee:  types.NewRawAmountFromInt64(100),
+		DailyNetworkFeeBudget: types.NewRawAmountFromInt64(1),
+		FeeFunding: FeeFundingPolicy{Mode: FeeFundingJIT, DailyBudget: types.NewRawAmountFromInt64(101),
+			MinSourceWalletResidual: types.NewRawAmountFromInt64(1), MaxFundingAmount: types.NewRawAmountFromInt64(101)},
 		RetryDelay: time.Second, RPCFailureThreshold: 1, RPCOpenDuration: time.Second,
 	}
 
 	require.ErrorContains(t, policy.ValidateForCapabilities(evmWalletPoolCapabilities(), true), "daily JIT funding budget")
-	policy.FeeFunding.DailyBudget = types.NewCryptoAmountFromInt64(102)
+	policy.FeeFunding.DailyBudget = types.NewRawAmountFromInt64(102)
 	require.NoError(t, policy.ValidateForCapabilities(evmWalletPoolCapabilities(), true))
 }
 
 func TestNetworkPolicyBoundFeeQuoteRejectsMaxFeeAboveRuntimeCap(t *testing.T) {
 	policy := NetworkPolicy{
 		Enabled:              true,
-		PerTransactionMaxFee: types.NewCryptoAmountFromInt64(20),
+		PerTransactionMaxFee: types.NewRawAmountFromInt64(20),
 	}
 	quote := FeeQuote{
-		EstimatedFee: types.NewCryptoAmountFromInt64(15),
-		MaxFee:       types.NewCryptoAmountFromInt64(100),
+		EstimatedFee: types.NewRawAmountFromInt64(15),
+		MaxFee:       types.NewRawAmountFromInt64(100),
 	}
 
 	_, err := policy.BoundFeeQuote(quote)
 	require.ErrorContains(t, err, "maximum network fee")
-	require.Equal(t, types.NewCryptoAmountFromInt64(100), quote.MaxFee, "fee quotes are immutable by value")
+	require.Equal(t, types.NewRawAmountFromInt64(100), quote.MaxFee, "fee quotes are immutable by value")
 }
 
 func TestNetworkPolicyBoundFeeQuoteRejectsEstimateAboveRuntimeCap(t *testing.T) {
 	policy := NetworkPolicy{
 		Enabled:              true,
-		PerTransactionMaxFee: types.NewCryptoAmountFromInt64(20),
+		PerTransactionMaxFee: types.NewRawAmountFromInt64(20),
 	}
 	quote := FeeQuote{
-		EstimatedFee: types.NewCryptoAmountFromInt64(21),
-		MaxFee:       types.NewCryptoAmountFromInt64(100),
+		EstimatedFee: types.NewRawAmountFromInt64(21),
+		MaxFee:       types.NewRawAmountFromInt64(100),
 	}
 
 	_, err := policy.BoundFeeQuote(quote)
@@ -74,14 +74,14 @@ func TestNetworkPolicyBoundFeeQuoteRejectsEstimateAboveRuntimeCap(t *testing.T) 
 func TestNetworkPolicyBoundFeeQuoteAllowsRentalRequiredContractQuoteAboveBurnCap(t *testing.T) {
 	policy := NetworkPolicy{
 		Enabled:              true,
-		PerTransactionMaxFee: types.NewCryptoAmountFromInt64(15_000_000),
+		PerTransactionMaxFee: types.NewRawAmountFromInt64(15_000_000),
 		ExternalResources: &ExternalResourcePolicy{
 			Strategy: ResourceRentalRequired,
 		},
 	}
 	quote := FeeQuote{
-		EstimatedFee:         types.NewCryptoAmountFromInt64(15_566_460),
-		MaxFee:               types.NewCryptoAmountFromInt64(15_566_460),
+		EstimatedFee:         types.NewRawAmountFromInt64(15_566_460),
+		MaxFee:               types.NewRawAmountFromInt64(15_566_460),
 		ResourceRequirements: []ResourceRequirement{{Name: "energy", Quantity: 37_063}},
 	}
 

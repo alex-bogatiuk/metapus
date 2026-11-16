@@ -11,12 +11,12 @@ import (
 // PendingAmount holds current receipts awaiting posting per token.
 type PendingAmount struct {
 	TokenID id.ID
-	Amount  types.CryptoAmount // raw token units
+	Amount  types.RawAmount // raw token units
 }
 
 // GetPendingAmounts includes partial payments and excludes already posted,
 // noncanonical and failed receipts. Invoice lifecycle status is not a funds bucket.
-func (r *DashboardRepo) GetPendingAmounts(ctx context.Context, merchantIDs []id.ID) (map[string]types.CryptoAmount, error) {
+func (r *DashboardRepo) GetPendingAmounts(ctx context.Context, merchantIDs []id.ID) (map[string]types.RawAmount, error) {
 	q := querier(ctx)
 
 	const sqlQuery = `
@@ -35,10 +35,10 @@ func (r *DashboardRepo) GetPendingAmounts(ctx context.Context, merchantIDs []id.
 	}
 	defer rows.Close()
 
-	result := make(map[string]types.CryptoAmount, 8)
+	result := make(map[string]types.RawAmount, 8)
 	for rows.Next() {
 		var tokenID string
-		var amount types.CryptoAmount
+		var amount types.RawAmount
 		if err := rows.Scan(&tokenID, &amount); err != nil {
 			return nil, fmt.Errorf("scan pending amount: %w", err)
 		}
@@ -107,7 +107,7 @@ type TokenMeta struct {
 
 // FormatMinorUnits converts raw token units to a human-readable decimal string.
 // E.g. 1500000 with 6 decimals в†’ "1.500000"
-func FormatMinorUnits(amount types.CryptoAmount, decimalPlaces int) string {
+func FormatMinorUnits(amount types.RawAmount, decimalPlaces int) string {
 	return amount.ToDecimal(decimalPlaces).StringFixed(int32(decimalPlaces))
 }
 

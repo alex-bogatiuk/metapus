@@ -46,7 +46,7 @@ type ExternalOutflow struct {
 	FromAddress            string
 	ToAddress              string
 	ContractAddress        string
-	Amount                 types.CryptoAmount
+	Amount                 types.RawAmount
 	BlockNumber            int64
 	BlockHash              string
 	Confirmations          int
@@ -98,7 +98,7 @@ type CryptoCustodyAdjustment struct {
 	NetworkID         id.ID
 	WalletID          id.ID
 	TokenID           id.ID
-	Amount            types.CryptoAmount
+	Amount            types.RawAmount
 	Status            string
 	MakerID           id.ID
 	DecisionBy        *id.ID

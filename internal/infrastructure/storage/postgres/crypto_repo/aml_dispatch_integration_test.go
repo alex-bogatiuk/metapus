@@ -42,7 +42,7 @@ func resourceActivation(t *testing.T) (amlRoutingFixture, id.ID, id.ID, id.ID) {
 	require.NoError(t, f.repo.EnsureAMLResourceBudget(f.ctx, fee))
 	var dest string
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT address FROM cat_wallets WHERE id=$1`, target).Scan(&dest))
-	auth := crypto.SigningAuthorization{SchemaVersion: 1, AuthorizationID: id.New().String(), TenantID: id.New().String(), MerchantID: &f.input.Request.MerchantID, Purpose: crypto.SigningPurposeActivation, BasisType: "CryptoAccountActivationTask", BasisID: task, Attempt: 1, Generation: 1, ExpiresAt: time.Now().Add(time.Hour), NetworkID: f.input.Request.NetworkID, NetworkCode: "RESOURCE-TEST", ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: "nile", SourceAddress: f.input.Request.Address, FeePayerAddress: f.input.Request.Address, VaultKeyID: "resource-key", DestinationAddress: dest, AssetStandard: "native", MaxNetworkFeeMinor: types.MustCryptoAmount("10"), UnsignedFingerprint: "activation-" + task.String(), PolicyVersion: "tron-v1"}
+	auth := crypto.SigningAuthorization{SchemaVersion: 1, AuthorizationID: id.New().String(), TenantID: id.New().String(), MerchantID: &f.input.Request.MerchantID, Purpose: crypto.SigningPurposeActivation, BasisType: "CryptoAccountActivationTask", BasisID: task, Attempt: 1, Generation: 1, ExpiresAt: time.Now().Add(time.Hour), NetworkID: f.input.Request.NetworkID, NetworkCode: "RESOURCE-TEST", ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: "nile", SourceAddress: f.input.Request.Address, FeePayerAddress: f.input.Request.Address, VaultKeyID: "resource-key", DestinationAddress: dest, AssetStandard: "native", MaxNetworkFeeMinor: types.MustRawAmount("10"), UnsignedFingerprint: "activation-" + task.String(), PolicyVersion: "tron-v1"}
 	unsigned := crypto.UnsignedTxEnvelope{Family: crypto.ChainFamilyTRON, SchemaVersion: 1, Generation: 1, UnsignedFingerprint: auth.UnsignedFingerprint, Payload: []byte(`{"synthetic":true}`)}
 	_, err = f.pool.Exec(f.ctx, `UPDATE reg_crypto_fee_reservations SET unsigned_fingerprint=$2 WHERE id=$1`, fee, auth.UnsignedFingerprint)
 	require.NoError(t, err)
@@ -109,7 +109,7 @@ func TestAMLActivationSettlesOperatingCostWithoutPrincipalTransfer(t *testing.T)
 			_, err := f.pool.Exec(f.ctx, `UPDATE reg_crypto_fee_reservations SET status='broadcast',tx_hash=$2 WHERE id=$1`, fee, hash)
 			require.NoError(t, err)
 			receipt := crypto.ChainReceipt{Status: crypto.ReceiptStatus(status), BlockHash: strings.Repeat("a", 64), BlockHeight: 10, Confirmations: 20, Canonicality: crypto.CanonicalityCanonical,
-				Finality: crypto.FinalitySolidified, ObservedAt: time.Now().UTC().Truncate(time.Microsecond), Fee: crypto.FeeSettlementReport{TotalFee: types.MustCryptoAmount("3")}}
+				Finality: crypto.FinalitySolidified, ObservedAt: time.Now().UTC().Truncate(time.Microsecond), Fee: crypto.FeeSettlementReport{TotalFee: types.MustRawAmount("3")}}
 			require.NoError(t, postgres.MustGetTxManager(f.ctx).RunInTransaction(f.ctx, func(ctx context.Context) error {
 				if err := recognizeTestNetworkFeeFor(ctx, fee, receipt, settlement, "CryptoNetworkOperation", operation); err != nil {
 					return err

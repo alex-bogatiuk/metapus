@@ -25,9 +25,9 @@ type TreasuryAddress struct {
 
 type TreasuryAvailability struct {
 	TokenID   id.ID
-	Amount    types.CryptoAmount
-	Reserved  types.CryptoAmount
-	Available types.CryptoAmount
+	Amount    types.RawAmount
+	Reserved  types.RawAmount
+	Available types.RawAmount
 }
 
 type TreasurySourceWallet struct {
@@ -35,9 +35,9 @@ type TreasurySourceWallet struct {
 	NetworkID            id.ID
 	Name                 string
 	Address              string
-	LedgerAmount         types.CryptoAmount
-	ReservedAmount       types.CryptoAmount
-	AvailableAmount      types.CryptoAmount
+	LedgerAmount         types.RawAmount
+	ReservedAmount       types.RawAmount
+	AvailableAmount      types.RawAmount
 	LastChainAmount      *string
 	LastReconciliationAt *time.Time
 }
@@ -46,7 +46,7 @@ type LockedTreasuryWithdrawal struct {
 	Status    treasury_withdrawal.Status
 	CreatedBy *id.ID
 	TokenID   id.ID
-	Amount    types.CryptoAmount
+	Amount    types.RawAmount
 }
 
 // RefundableReceipt is what is left of an unidentified receipt in suspense.
@@ -55,7 +55,7 @@ type RefundableReceipt struct {
 	Number    string
 	NetworkID id.ID
 	TokenID   id.ID
-	Remainder types.CryptoAmount
+	Remainder types.RawAmount
 	Orphaned  bool
 }
 
@@ -80,9 +80,9 @@ type CreateReceiptRefundInput struct {
 	DestAddress    string
 	Evidence       string
 	Reason         string
-	Total          types.CryptoAmount
+	Total          types.RawAmount
 	GasPayer       treasury_withdrawal.GasPayer
-	Withheld       types.CryptoAmount
+	Withheld       types.RawAmount
 }
 
 type TreasuryWorkflowRepository interface {
@@ -107,7 +107,7 @@ type TreasuryIntentRepository interface {
 }
 
 type TreasuryReservationRepository interface {
-	ReserveFeeForTreasury(context.Context, id.ID, id.ID, types.CryptoAmount) error
+	ReserveFeeForTreasury(context.Context, id.ID, id.ID, types.RawAmount) error
 	ReleaseTreasuryReservations(context.Context, id.ID) error
 }
 

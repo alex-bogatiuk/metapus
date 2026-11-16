@@ -18,9 +18,9 @@ type MerchantBalanceEvidence struct {
 	DecimalPlaces   int
 	RoutingEnabled  bool
 	ScopeVersion    int64
-	Ledger          types.CryptoAmount
+	Ledger          types.RawAmount
 	LedgerMatches   bool
-	PendingChain    types.CryptoAmount
+	PendingChain    types.RawAmount
 	HasHighExposure bool
 	Sources         []PrincipalPosition
 	Commitments     []DebitCommitment
@@ -31,7 +31,7 @@ type MerchantBalanceEvidence struct {
 // incoming merchant credits is not proof of the remaining net principal.
 type PrincipalPosition struct {
 	WalletID     id.ID
-	Amount       types.CryptoAmount
+	Amount       types.RawAmount
 	Class        Class
 	Revision     int64
 	RiskRevision int64
@@ -45,30 +45,30 @@ type PrincipalPosition struct {
 // Source reservations are not another merchant debit and are never added here.
 type DebitCommitment struct {
 	RequestID  id.ID
-	Amount     types.CryptoAmount
+	Amount     types.RawAmount
 	Executable bool // held/signing/unknown outcome remain executable
 }
 
 type MerchantRiskBalance struct {
-	MerchantID         id.ID              `json:"merchantId"`
-	NetworkID          id.ID              `json:"networkId"`
-	TokenID            id.ID              `json:"tokenId"`
-	Symbol             string             `json:"symbol"`
-	Network            string             `json:"network"`
-	DecimalPlaces      int                `json:"decimalPlaces"`
-	RoutingEnabled     bool               `json:"routingEnabled"`
-	ScopeVersion       int64              `json:"scopeVersion"`
-	AllocationComplete bool               `json:"allocationComplete"`
-	Reason             string             `json:"reason"`
-	HasHighExposure    bool               `json:"hasHighExposure"`
-	LedgerBalance      types.CryptoAmount `json:"ledgerBalance"`
-	PendingChain       types.CryptoAmount `json:"pendingChain"`
-	PendingRestoration types.CryptoAmount `json:"pendingRestoration"`
-	Total              types.CryptoAmount `json:"total"`
-	Free               types.CryptoAmount `json:"free"`
-	Reserved           types.CryptoAmount `json:"reserved"`
-	TechnicalHold      types.CryptoAmount `json:"technicalHold"`
-	Buckets            []BalanceBucket    `json:"buckets"`
+	MerchantID         id.ID           `json:"merchantId"`
+	NetworkID          id.ID           `json:"networkId"`
+	TokenID            id.ID           `json:"tokenId"`
+	Symbol             string          `json:"symbol"`
+	Network            string          `json:"network"`
+	DecimalPlaces      int             `json:"decimalPlaces"`
+	RoutingEnabled     bool            `json:"routingEnabled"`
+	ScopeVersion       int64           `json:"scopeVersion"`
+	AllocationComplete bool            `json:"allocationComplete"`
+	Reason             string          `json:"reason"`
+	HasHighExposure    bool            `json:"hasHighExposure"`
+	LedgerBalance      types.RawAmount `json:"ledgerBalance"`
+	PendingChain       types.RawAmount `json:"pendingChain"`
+	PendingRestoration types.RawAmount `json:"pendingRestoration"`
+	Total              types.RawAmount `json:"total"`
+	Free               types.RawAmount `json:"free"`
+	Reserved           types.RawAmount `json:"reserved"`
+	TechnicalHold      types.RawAmount `json:"technicalHold"`
+	Buckets            []BalanceBucket `json:"buckets"`
 }
 
 type MerchantBalanceSnapshot struct {
@@ -108,7 +108,7 @@ func BuildMerchantRiskBalance(e MerchantBalanceEvidence, now time.Time) (Merchan
 	}
 	r.Total = e.Ledger.Add(r.Reserved).Add(r.PendingRestoration)
 	positions := make([]BalancePosition, 0, len(e.Sources)+1)
-	attributed := types.ZeroCryptoAmount()
+	attributed := types.ZeroRawAmount()
 	allocationCovered := true
 	clear(seen)
 	for _, s := range e.Sources {

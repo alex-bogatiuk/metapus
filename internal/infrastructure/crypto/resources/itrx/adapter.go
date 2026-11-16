@@ -90,8 +90,8 @@ func (a *Adapter) Reclaim(ctx context.Context, ref crypto.ResourceOrderRef) (cry
 	}, nil
 }
 
-func (a *Adapter) Balance(context.Context, crypto.ProviderAccountRef) (types.CryptoAmount, error) {
-	return types.ZeroCryptoAmount(), fmt.Errorf("itrx balance is observed from order replies")
+func (a *Adapter) Balance(context.Context, crypto.ProviderAccountRef) (types.RawAmount, error) {
+	return types.ZeroRawAmount(), fmt.Errorf("itrx balance is observed from order replies")
 }
 
 func (a *Adapter) placeRequest(intent crypto.ResourceOrderIntent) (energyOrderRequest, error) {
@@ -122,7 +122,7 @@ func (a *Adapter) orderFromPlace(intent crypto.ResourceOrderIntent, requestJSON 
 		ResponseJSON:    resp.RawJSON,
 	}
 	if resp.Amount >= 0 {
-		order.CostAmount = types.NewCryptoAmountFromInt64(resp.Amount)
+		order.CostAmount = types.NewRawAmountFromInt64(resp.Amount)
 	}
 	order.ProviderBalance = optionalAmount(resp.Balance)
 	return order
@@ -140,10 +140,10 @@ func (a *Adapter) orderFromQuery(ref crypto.ResourceOrderRef, resp orderQueryRes
 		ResponseJSON:    resp.RawJSON,
 	}
 	if resp.Amount >= 0 {
-		order.CostAmount = types.NewCryptoAmountFromInt64(resp.Amount)
+		order.CostAmount = types.NewRawAmountFromInt64(resp.Amount)
 	}
 	if resp.RefundAmount >= 0 {
-		order.RefundAmount = types.NewCryptoAmountFromInt64(resp.RefundAmount)
+		order.RefundAmount = types.NewRawAmountFromInt64(resp.RefundAmount)
 	}
 	order.ProviderBalance = optionalAmount(resp.Balance)
 	return order
@@ -160,14 +160,14 @@ func mapITRXStatus(status int) crypto.ResourceOrderStatus {
 	}
 }
 
-func optionalAmount(value *int64) *types.CryptoAmount {
+func optionalAmount(value *int64) *types.RawAmount {
 	if value == nil {
 		return nil
 	}
 	if *value < 0 {
 		return nil
 	}
-	amount := types.NewCryptoAmountFromInt64(*value)
+	amount := types.NewRawAmountFromInt64(*value)
 	return &amount
 }
 

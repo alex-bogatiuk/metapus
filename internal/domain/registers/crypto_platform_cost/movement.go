@@ -41,7 +41,7 @@ type CryptoPlatformCostMovement struct {
 	Purpose          PlatformCostPurpose `db:"purpose" json:"purpose"`
 	Provider         string              `db:"provider" json:"provider"`
 	ExternalOrderID  string              `db:"external_order_id" json:"externalOrderId"`
-	Amount           types.CryptoAmount  `db:"amount" json:"amount"`
+	Amount           types.RawAmount     `db:"amount" json:"amount"`
 }
 
 // NewCryptoPlatformCostMovement creates a new platform cost movement.
@@ -55,7 +55,7 @@ func NewCryptoPlatformCostMovement(
 	costType PlatformCostType,
 	purpose PlatformCostPurpose,
 	provider, externalOrderID string,
-	amount types.CryptoAmount,
+	amount types.RawAmount,
 ) CryptoPlatformCostMovement {
 	operationTokenRef := operationTokenID
 	return CryptoPlatformCostMovement{
@@ -83,7 +83,7 @@ func NewSharedCryptoPlatformCostMovement(
 	costType PlatformCostType,
 	purpose PlatformCostPurpose,
 	provider, externalOrderID string,
-	amount types.CryptoAmount,
+	amount types.RawAmount,
 ) CryptoPlatformCostMovement {
 	return CryptoPlatformCostMovement{
 		MovementBase:    entity.NewMovementBase(recorderID, recorderType, recorderVersion, period, recordType),

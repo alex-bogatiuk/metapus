@@ -56,7 +56,7 @@ func newWithdrawalFinalFixture(t *testing.T, ctx context.Context, tm *postgres.T
 	dest := "external-" + address.String()
 	_, err = q.Exec(ctx, `INSERT INTO reg_withdrawal_addresses(id,merchant_id,network_id,address,address_key) VALUES($1,$2,$3,$4,$4)`, address, merchant, c.network, dest)
 	require.NoError(t, err)
-	r := withdrawal_request.NewWithdrawalRequest(merchant, c.token, address, dest, types.NewCryptoAmountFromInt64(23))
+	r := withdrawal_request.NewWithdrawalRequest(merchant, c.token, address, dest, types.NewRawAmountFromInt64(23))
 	r.Number = "WR2-" + id.Compact(r.ID)
 	r.Posted = true
 	r.PostedVersion = 1
@@ -64,7 +64,7 @@ func newWithdrawalFinalFixture(t *testing.T, ctx context.Context, tm *postgres.T
 	_, err = q.Exec(ctx, `INSERT INTO doc_withdrawal_requests(id,number,date,merchant_id,token_id,amount,dest_address,address_id,status,posted,posted_version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'signing',true,1)`, r.ID, r.Number, r.Date, merchant, c.token, r.Amount, dest, address)
 	require.NoError(t, err)
 	require.NoError(t, crypto_register_repo.NewCryptoMerchantBalanceRepo().CreateMovements(ctx, []crypto_merchant_balance.CryptoMerchantBalanceMovement{
-		crypto_merchant_balance.NewCryptoMerchantBalanceMovement(id.New(), "Opening", 1, r.Date, entity.RecordTypeReceipt, merchant, c.token, types.NewCryptoAmountFromInt64(100)),
+		crypto_merchant_balance.NewCryptoMerchantBalanceMovement(id.New(), "Opening", 1, r.Date, entity.RecordTypeReceipt, merchant, c.token, types.NewRawAmountFromInt64(100)),
 		crypto_merchant_balance.NewCryptoMerchantBalanceMovement(r.ID, "WithdrawalRequest", 1, r.Date, entity.RecordTypeExpense, merchant, c.token, r.Amount),
 	}))
 	repo := NewOutboundRepo()
@@ -82,7 +82,7 @@ func newWithdrawalFinalFixture(t *testing.T, ctx context.Context, tm *postgres.T
 	auth := crypto.SigningAuthorization{SchemaVersion: 1, AuthorizationID: id.New().String(), TenantID: "withdrawal-test", MerchantID: &merchant, Purpose: crypto.SigningPurposeWithdrawal,
 		BasisType: "WithdrawalRequest", BasisID: r.ID, Attempt: 1, Generation: 1, ExpiresAt: time.Now().Add(time.Hour), NetworkID: c.network, NetworkCode: "WITHDRAWAL-TEST", ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: networkIdentifier,
 		SourceAddress: source.Address, FeePayerAddress: source.Address, VaultKeyID: source.VaultKeyID, DestinationAddress: dest, AssetStandard: standard, ContractAddress: contract, AmountMinorUnits: r.Amount,
-		MaxNetworkFeeMinor: types.NewCryptoAmountFromInt64(10), UnsignedFingerprint: "withdrawal-" + d.ID.String(), PolicyVersion: "tron-v1", ApprovalBundleDigest: "test-approval"}
+		MaxNetworkFeeMinor: types.NewRawAmountFromInt64(10), UnsignedFingerprint: "withdrawal-" + d.ID.String(), PolicyVersion: "tron-v1", ApprovalBundleDigest: "test-approval"}
 	unsigned := crypto.UnsignedTxEnvelope{Family: crypto.ChainFamilyTRON, SchemaVersion: 1, Generation: 1, UnsignedFingerprint: auth.UnsignedFingerprint, Payload: []byte(`{}`)}
 	_, err = repo.InsertSigningAuthorization(ctx, auth, "test-jws", unsigned, crypto.ApprovalBundle{IntentJWS: "test-intent"})
 	require.NoError(t, err)
@@ -94,7 +94,7 @@ func newWithdrawalFinalFixture(t *testing.T, ctx context.Context, tm *postgres.T
 		task:      outboundapp.SettlementTask{Kind: outboundapp.SettlementWithdrawal, DocumentID: d.ID, RequestID: r.ID, MerchantID: merchant, NetworkID: c.network, OperationTokenID: c.token, SourceWalletID: c.hot, TxHash: hash, Amount: r.Amount, PostedVersion: 1},
 		execution: outboundapp.WithdrawalTask{RequestID: r.ID, MerchantID: merchant, TokenID: c.token, NetworkID: c.network, Amount: r.Amount, DestAddress: dest, TokenStandard: token.TokenStandard(standard), ContractAddress: contract},
 		receipt: crypto.ChainReceipt{NetworkID: c.network, TxHash: hash, Status: crypto.ReceiptSucceeded, BlockHeight: 100, BlockHash: strings.Repeat("b", 64), Confirmations: 20, Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalitySolidified, ObservedAt: time.Now().UTC(),
-			Fee: crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: c.native}, TotalFee: types.NewCryptoAmountFromInt64(2)}}}
+			Fee: crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: c.native}, TotalFee: types.NewRawAmountFromInt64(2)}}}
 	t.Cleanup(func() {
 		_, _ = q.Exec(context.Background(), "UPDATE doc_crypto_withdrawals SET settlement_lease_expires_at='infinity' WHERE id=$1", d.ID)
 	})
@@ -223,7 +223,7 @@ func TestWithdrawalV2NativePrincipalCannotBeReleasedOrSpentOnGas(t *testing.T) {
 		runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
 			c.token = c.native
 			f := newWithdrawalFinalFixture(t, ctx, tm, c)
-			f.receipt.Fee.TotalFee = types.NewCryptoAmountFromInt64(actual)
+			f.receipt.Fee.TotalFee = types.NewRawAmountFromInt64(actual)
 			f.broadcast(t)
 			fee, found, err := NewFeeBudgetManager().Get(ctx, "WithdrawalRequest", f.request.ID, crypto.SigningPurposeWithdrawal, 1)
 			require.NoError(t, err)
@@ -238,12 +238,12 @@ func TestWithdrawalV2NativePrincipalCannotBeReleasedOrSpentOnGas(t *testing.T) {
 				fee_funding_mode='source_only',min_fee_wallet_balance_minor=0,min_source_wallet_residual_minor=0 WHERE network_id=$1`, c.network)
 			require.NoError(t, err)
 			_, err = NewFeeBudgetManager().Reserve(ctx, FeeReservationRequest{NetworkID: c.network, PayerWalletID: c.hot, NativeTokenID: c.native, OperationTokenID: c.native,
-				BasisType: "CryptoNetworkOperation", BasisID: id.New(), Purpose: crypto.SigningPurposeActivation, Attempt: 1, Strategy: crypto.FeeStrategyNativeBurn, MaxFee: types.NewCryptoAmountFromInt64(80)})
+				BasisType: "CryptoNetworkOperation", BasisID: id.New(), Purpose: crypto.SigningPurposeActivation, Attempt: 1, Strategy: crypto.FeeStrategyNativeBurn, MaxFee: types.NewRawAmountFromInt64(80)})
 			require.ErrorIs(t, err, crypto.ErrFeeBalanceResidual)
 			require.NoError(t, f.service(t).Settle(ctx, f.task))
 			var balance string
 			require.NoError(t, q.QueryRow(ctx, "SELECT amount::text FROM reg_crypto_balance_balances WHERE wallet_id=$1 AND token_id=$2", c.hot, c.native).Scan(&balance))
-			require.Equal(t, types.NewCryptoAmountFromInt64(77-actual).String(), balance)
+			require.Equal(t, types.NewRawAmountFromInt64(77-actual).String(), balance)
 		})
 	}
 }

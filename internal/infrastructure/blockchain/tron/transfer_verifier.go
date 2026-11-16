@@ -172,8 +172,8 @@ func (d *Driver) quorumReceipt(ctx context.Context, txHash string) (crypto.Chain
 		if ValidateTronAddress(payer) != nil {
 			return receipt, crypto.ErrVerificationMismatch
 		}
-		receipt.Fee.TotalFee = types.NewCryptoAmountFromInt64(info.Fee)
-		receipt.Fee.Components = []crypto.FeeComponent{{Name: "energy_fee", Amount: types.NewCryptoAmountFromInt64(info.Receipt.EnergyFee), Quantity: info.Receipt.EnergyUsageTotal}, {Name: "bandwidth_fee", Amount: types.NewCryptoAmountFromInt64(info.Receipt.NetFee), Quantity: info.Receipt.NetUsage}}
+		receipt.Fee.TotalFee = types.NewRawAmountFromInt64(info.Fee)
+		receipt.Fee.Components = []crypto.FeeComponent{{Name: "energy_fee", Amount: types.NewRawAmountFromInt64(info.Receipt.EnergyFee), Quantity: info.Receipt.EnergyUsageTotal}, {Name: "bandwidth_fee", Amount: types.NewRawAmountFromInt64(info.Receipt.NetFee), Quantity: info.Receipt.NetUsage}}
 		known := receipt.Fee.Components[0].Amount.Add(receipt.Fee.Components[1].Amount)
 		if known.Cmp(receipt.Fee.TotalFee) > 0 {
 			return receipt, crypto.ErrVerificationMismatch

@@ -13,7 +13,7 @@ import (
 )
 
 func TestFundingRejectsClientReceiptAssertions(t *testing.T) {
-	doc := &CryptoProviderBalanceOperation{Document: entity.NewDocument(), ProviderAccountID: id.New(), TokenID: id.New(), OperationType: "funding", RecordType: entity.RecordTypeReceipt, Amount: types.NewCryptoAmountFromInt64(1), TxHash: "tx", ExternalRef: "funding-1", Status: StatusApproved, Evidence: []byte(`{"chainReceiptVerified":true}`)}
+	doc := &CryptoProviderBalanceOperation{Document: entity.NewDocument(), ProviderAccountID: id.New(), TokenID: id.New(), OperationType: "funding", RecordType: entity.RecordTypeReceipt, Amount: types.NewRawAmountFromInt64(1), TxHash: "tx", ExternalRef: "funding-1", Status: StatusApproved, Evidence: []byte(`{"chainReceiptVerified":true}`)}
 	doc.CreatedBy = id.New()
 	doc.Description = "funding reason"
 	actor := id.New()
@@ -38,7 +38,7 @@ func TestOpeningBalanceRequiresReconciliationEvidence(t *testing.T) {
 		ProviderObservationID: &observationID,
 		OperationType:         OperationTypeOpening,
 		RecordType:            entity.RecordTypeReceipt,
-		Amount:                types.NewCryptoAmountFromInt64(989_250_000),
+		Amount:                types.NewRawAmountFromInt64(989_250_000),
 		ExternalRef:           "opening-observation:" + observationID.String(),
 		Status:                StatusPendingApproval,
 	}
@@ -83,7 +83,7 @@ func TestOpeningBalanceRejectsExpenseDirection(t *testing.T) {
 		ProviderObservationID: &observationID,
 		OperationType:         OperationTypeOpening,
 		RecordType:            entity.RecordTypeExpense,
-		Amount:                types.NewCryptoAmountFromInt64(1),
+		Amount:                types.NewRawAmountFromInt64(1),
 		ExternalRef:           "opening-observation:" + observationID.String(),
 	}
 	doc.BasisType = "CryptoProviderBalanceIncident"

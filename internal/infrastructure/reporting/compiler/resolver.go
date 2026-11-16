@@ -3,6 +3,7 @@ package compiler
 import (
 	"fmt"
 	"metapus/internal/core/apperror"
+	reportcontract "metapus/internal/domain/reports/contract"
 	"strings"
 
 	"metapus/internal/core/types"
@@ -28,7 +29,7 @@ type JoinStep struct {
 // Created per-request — not safe for concurrent use.
 type resolver struct {
 	moneyOutputs          map[string]bool
-	cryptoOutputs         map[string]bool
+	rawOutputs            map[string]bool
 	filterFields          map[string]filter.FieldSpec
 	authorizeField        func(entity, field string) error
 	authorizeDatasetField func(*schema.Field) error
@@ -47,14 +48,14 @@ type resolver struct {
 // newResolver creates a resolver for a single query compilation.
 func newResolver(reg *metadata.Registry, ds *schema.Dataset, maxDepth int) *resolver {
 	return &resolver{
-		registry:      reg,
-		moneyOutputs:  make(map[string]bool),
-		cryptoOutputs: make(map[string]bool),
-		filterFields:  make(map[string]filter.FieldSpec),
-		dataset:       ds,
-		maxDepth:      maxDepth,
-		joins:         make([]JoinStep, 0),
-		joinIndex:     make(map[string]string),
+		registry:     reg,
+		moneyOutputs: make(map[string]bool),
+		rawOutputs:   make(map[string]bool),
+		filterFields: make(map[string]filter.FieldSpec),
+		dataset:      ds,
+		maxDepth:     maxDepth,
+		joins:        make([]JoinStep, 0),
+		joinIndex:    make(map[string]string),
 	}
 }
 
@@ -122,7 +123,7 @@ func (r *resolver) resolvePath(path string, bare bool) (string, string, error) {
 			expr += " AS \"" + field.Alias + "\""
 		}
 		r.moneyOutputs[field.OutputName()] = field.Type == schema.TypeMoney
-		r.cryptoOutputs[field.OutputName()] = field.Type == schema.TypeMoney && field.Money != nil && field.Money.AmountType == "crypto"
+		r.rawOutputs[field.OutputName()] = field.Type == schema.TypeMoney && field.Money != nil && field.Money.AmountType == reportcontract.AmountTypeRaw
 		r.filterFields[path] = datasetFilterSpec(field)
 		return expr, field.OutputName(), nil
 	}
@@ -269,8 +270,8 @@ func datasetFilterSpec(field *schema.Field) filter.FieldSpec {
 	switch field.Type {
 	case schema.TypeMoney:
 		kind = filter.MoneyValue
-		if field.Money != nil && field.Money.AmountType == "crypto" {
-			kind = filter.CryptoAmountValue
+		if field.Money != nil && field.Money.AmountType == reportcontract.AmountTypeRaw {
+			kind = filter.RawAmountValue
 		}
 	case schema.TypeQuantity:
 		kind = filter.QuantityValue

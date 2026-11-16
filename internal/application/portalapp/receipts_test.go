@@ -12,9 +12,9 @@ func TestReceiptChangeKeepsArbitraryPrecisionAndSignedChanges(t *testing.T) {
 		{"200000000000000000000000000000000000000", "100000000000000000000000000000000000000", "+100.00"},
 		{"1000000000000000001", "1000000000000000000", "0.00"},
 	} {
-		current, err := types.NewCryptoAmountFromString(tt.current)
+		current, err := types.NewRawAmountFromString(tt.current)
 		require.NoError(t, err)
-		previous, err := types.NewCryptoAmountFromString(tt.previous)
+		previous, err := types.NewRawAmountFromString(tt.previous)
 		require.NoError(t, err)
 		require.Equal(t, tt.want, ReceiptChangePercent(current, previous))
 	}

@@ -90,7 +90,7 @@ func TestReceiptRefundMovesSuspenseToPayableOnApprovalAndBackOnCancel(t *testing
 	open := f.journal(t, cryptoapp.ReceiptJournalOpen, false)
 	require.Equal(t, 1, open.Total)
 	require.Equal(t, "awaiting_approval", open.Items[0].State)
-	require.Equal(t, []string{refundID.String(), "pending_approval", types.NewCryptoAmountFromInt64(total - 2).String(), "2"},
+	require.Equal(t, []string{refundID.String(), "pending_approval", types.NewRawAmountFromInt64(total - 2).String(), "2"},
 		[]string{*open.Items[0].RefundID, *open.Items[0].RefundStatus, *open.Items[0].RefundAmount, *open.Items[0].RefundWithheld})
 
 	// Approval without moving the money is refused at commit.
@@ -109,7 +109,7 @@ func TestReceiptRefundMovesSuspenseToPayableOnApprovalAndBackOnCancel(t *testing
 	require.NoError(t, f.tx(approve), "opening the payable is idempotent for the executor")
 	suspense, _, _ = f.amounts(t)
 	require.Equal(t, "0", suspense, "suspense gives up the amount and the withheld gas")
-	require.Equal(t, types.NewCryptoAmountFromInt64(total-2).String(), f.payable(t), "the payable owes what the payer receives")
+	require.Equal(t, types.NewRawAmountFromInt64(total-2).String(), f.payable(t), "the payable owes what the payer receives")
 
 	// A cancellation must give the money back to suspense.
 	err = f.tx(func(ctx context.Context) error { return f.setStatus(ctx, refundID, "rejected") })

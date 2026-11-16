@@ -15,7 +15,7 @@ import (
 
 func validateFeeComponents(report crypto.FeeSettlementReport) error {
 	seen := make(map[string]bool, len(report.Components))
-	total := types.ZeroCryptoAmount()
+	total := types.ZeroRawAmount()
 	for _, component := range report.Components {
 		if strings.TrimSpace(component.Name) == "" || seen[component.Name] || component.Quantity < 0 {
 			return apperror.NewValidation("fee components require unique names and nonnegative quantities")
@@ -64,7 +64,7 @@ func loadFeeSettlementReplay(ctx context.Context, tx pgx.Tx, f crypto.FeeReserva
 	count := 0
 	for rows.Next() {
 		var name string
-		var amount types.CryptoAmount
+		var amount types.RawAmount
 		var quantity int64
 		if err := rows.Scan(&name, &amount, &quantity); err != nil {
 			rows.Close()
@@ -88,7 +88,7 @@ func loadFeeSettlementReplay(ctx context.Context, tx pgx.Tx, f crypto.FeeReserva
 	return result, err
 }
 
-func validateFeeSettlementMovements(ctx context.Context, tx pgx.Tx, f crypto.FeeReservation, amount types.CryptoAmount, period time.Time) error {
+func validateFeeSettlementMovements(ctx context.Context, tx pgx.Tx, f crypto.FeeReservation, amount types.RawAmount, period time.Time) error {
 	purpose := string(f.Purpose)
 	if f.Purpose == crypto.SigningPurposeTreasury {
 		purpose = "treasury"

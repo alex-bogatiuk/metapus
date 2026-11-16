@@ -8,7 +8,7 @@ import (
 type WithdrawalAccountingBasis struct {
 	DocumentID, RequestID, LineID, MerchantID, NetworkID, TokenID, SourceWalletID id.ID
 	TxHash                                                                        string
-	Amount                                                                        types.CryptoAmount
+	Amount                                                                        types.RawAmount
 	VerificationID                                                                *id.ID
 }
 

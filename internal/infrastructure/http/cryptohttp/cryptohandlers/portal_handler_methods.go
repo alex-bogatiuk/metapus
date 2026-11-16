@@ -82,7 +82,7 @@ func (h *PortalHandler) CreateInvoice(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	amount, err := types.NewCryptoAmountFromBigInt(minorDec.BigInt())
+	amount, err := types.NewRawAmountFromBigInt(minorDec.BigInt())
 	if err != nil {
 		_ = c.Error(apperror.NewValidation("amount must be a positive integer"))
 		c.Abort()

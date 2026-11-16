@@ -65,7 +65,7 @@ func TestWithdrawalRecoveryReusesSignedAttemptAfterBroadcastBeforePostFailure(t 
 			NetworkCode: "BR-" + suffix, ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: "br-" + suffix,
 			SourceAddress: "THot" + suffix, FeePayerAddress: "THot" + suffix, VaultKeyID: "vault/hot/" + suffix,
 			DestinationAddress: "TDestination" + suffix, AssetStandard: "TRC-20", ContractAddress: "TContract" + suffix,
-			AmountMinorUnits: types.NewCryptoAmountFromInt64(100000), MaxNetworkFeeMinor: types.NewCryptoAmountFromInt64(1000),
+			AmountMinorUnits: types.NewRawAmountFromInt64(100000), MaxNetworkFeeMinor: types.NewRawAmountFromInt64(1000),
 			UnsignedFingerprint: fingerprint, ApprovalBundleDigest: "approval-digest",
 			PolicyVersion: crypto.SigningAuthorizationPolicyVersion(crypto.ChainFamilyTRON),
 		}

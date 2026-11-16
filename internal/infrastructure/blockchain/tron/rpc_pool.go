@@ -321,14 +321,14 @@ func (p *rpcGeneration) GetAccountResource(ctx context.Context, address string) 
 	})
 }
 
-func (p *rpcGeneration) GetTRXBalance(ctx context.Context, address string) (types.CryptoAmount, error) {
-	return rpcRead(ctx, p, chainconfig.RoleSolidity, "GetTRXBalance", func(attempt context.Context, c *Client) (types.CryptoAmount, error) {
+func (p *rpcGeneration) GetTRXBalance(ctx context.Context, address string) (types.RawAmount, error) {
+	return rpcRead(ctx, p, chainconfig.RoleSolidity, "GetTRXBalance", func(attempt context.Context, c *Client) (types.RawAmount, error) {
 		return c.GetSolidifiedTRXBalance(attempt, address)
 	})
 }
 
-func (p *rpcGeneration) GetTRC20Balance(ctx context.Context, address, contract string) (types.CryptoAmount, error) {
-	return rpcRead(ctx, p, chainconfig.RoleSolidity, "GetTRC20Balance", func(attempt context.Context, c *Client) (types.CryptoAmount, error) {
+func (p *rpcGeneration) GetTRC20Balance(ctx context.Context, address, contract string) (types.RawAmount, error) {
+	return rpcRead(ctx, p, chainconfig.RoleSolidity, "GetTRC20Balance", func(attempt context.Context, c *Client) (types.RawAmount, error) {
 		return c.GetSolidifiedTRC20Balance(attempt, address, contract)
 	})
 }

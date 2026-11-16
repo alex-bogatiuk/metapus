@@ -24,8 +24,8 @@ type CryptoMerchantBalanceMovement struct {
 	MerchantID id.ID `db:"merchant_id" json:"merchantId"`
 	TokenID    id.ID `db:"token_id" json:"tokenId"`
 
-	// Resources — CryptoAmount for arbitrary precision
-	Amount types.CryptoAmount `db:"amount" json:"amount"`
+	// Resources — RawAmount for arbitrary precision
+	Amount types.RawAmount `db:"amount" json:"amount"`
 }
 
 // NewCryptoMerchantBalanceMovement creates a new crypto merchant balance movement.
@@ -36,7 +36,7 @@ func NewCryptoMerchantBalanceMovement(
 	period time.Time,
 	recordType entity.RecordType,
 	merchantID, tokenID id.ID,
-	amount types.CryptoAmount,
+	amount types.RawAmount,
 ) CryptoMerchantBalanceMovement {
 	return CryptoMerchantBalanceMovement{
 		MovementBase: entity.NewMovementBase(recorderID, recorderType, recorderVersion, period, recordType),

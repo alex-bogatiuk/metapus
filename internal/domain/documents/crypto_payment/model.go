@@ -76,7 +76,7 @@ type CryptoPayment struct {
 	ReplacementTxHash string `db:"replacement_tx_hash" json:"replacementTxHash,omitempty" meta:"label:Замещающая транзакция"`
 
 	// Amount received in this transaction (token minor units)
-	Amount types.CryptoAmount `db:"amount" json:"amount" meta:"label:Сумма"`
+	Amount types.RawAmount `db:"amount" json:"amount" meta:"label:Сумма"`
 
 	// BlockNumber where the transaction was included
 	BlockNumber int64 `db:"block_number" json:"blockNumber" meta:"label:Блок"`
@@ -98,10 +98,10 @@ type CryptoPayment struct {
 
 	// Fee snapshot — snapshotted from reg_fee_schedule at payment creation time.
 	// Formula: clamp(FeeFixed + Amount × FeePercentBP / 10000, FeeMin, FeeMax)
-	FeeFixed     types.CryptoAmount `db:"fee_fixed" json:"feeFixed" meta:"label:Комиссия фикс"`
-	FeePercentBP int                `db:"fee_percent_bp" json:"feePercentBp" meta:"label:Комиссия %"`
-	FeeMin       types.CryptoAmount `db:"fee_min" json:"feeMin" meta:"label:Мин. комиссия"`
-	FeeMax       types.CryptoAmount `db:"fee_max" json:"feeMax" meta:"label:Макс. комиссия"`
+	FeeFixed     types.RawAmount `db:"fee_fixed" json:"feeFixed" meta:"label:Комиссия фикс"`
+	FeePercentBP int             `db:"fee_percent_bp" json:"feePercentBp" meta:"label:Комиссия %"`
+	FeeMin       types.RawAmount `db:"fee_min" json:"feeMin" meta:"label:Мин. комиссия"`
+	FeeMax       types.RawAmount `db:"fee_max" json:"feeMax" meta:"label:Макс. комиссия"`
 
 	// DetectedAt is when the transaction was first seen
 	DetectedAt time.Time `db:"detected_at" json:"detectedAt" meta:"label:Обнаружен"`
@@ -121,7 +121,7 @@ type CryptoPayment struct {
 func NewCryptoPayment(
 	invoiceID, merchantID, tokenID, walletID, networkID id.ID,
 	txHash string, eventIndex int64, eventKind, blockHash, fromAddress string,
-	amount types.CryptoAmount,
+	amount types.RawAmount,
 	blockNumber int64,
 	requiredConfs int,
 ) *CryptoPayment {
@@ -157,7 +157,7 @@ func NewCryptoPayment(
 // SetFeeConfig snapshots the resolved fee configuration onto this payment.
 // Accepts raw values to avoid import cycle with crypto package.
 // Should be called at creation time with the result of FeeConfigResolver.Resolve().
-func (p *CryptoPayment) SetFeeConfig(fixedFee types.CryptoAmount, percentBP int, minFee, maxFee types.CryptoAmount) {
+func (p *CryptoPayment) SetFeeConfig(fixedFee types.RawAmount, percentBP int, minFee, maxFee types.RawAmount) {
 	p.FeeFixed = fixedFee
 	p.FeePercentBP = percentBP
 	p.FeeMin = minFee
@@ -171,12 +171,12 @@ func (p *CryptoPayment) Tariff() tariff.Fee {
 
 // FeeAmount calculates the platform fee using the snapshotted fee config.
 // Formula: clamp(FeeFixed + Amount × FeePercentBP / 10000, FeeMin, FeeMax)
-func (p *CryptoPayment) FeeAmount() types.CryptoAmount {
+func (p *CryptoPayment) FeeAmount() types.RawAmount {
 	return p.Tariff().Amount(p.Amount)
 }
 
 // NetAmount returns amount minus commission fee.
-func (p *CryptoPayment) NetAmount() types.CryptoAmount {
+func (p *CryptoPayment) NetAmount() types.RawAmount {
 	_, net := p.Tariff().Split(p.Amount)
 	return net
 }

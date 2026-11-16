@@ -11,7 +11,7 @@ import (
 
 func TestBalanceObservationValidatesEvidenceIdentity(t *testing.T) {
 	o := BalanceObservation{RunID: id.New(), WalletID: id.New(), NetworkID: id.New(), TokenID: id.New(),
-		Kind: BalanceMismatchToken, LedgerAmount: types.NewCryptoAmountFromInt64(100), ChainAmount: types.NewCryptoAmountFromInt64(90)}
+		Kind: BalanceMismatchToken, LedgerAmount: types.NewRawAmountFromInt64(100), ChainAmount: types.NewRawAmountFromInt64(90)}
 	require.NoError(t, o.Validate())
 	require.Equal(t, "-10", o.Delta().String())
 	for _, field := range []*id.ID{&o.RunID, &o.WalletID, &o.NetworkID, &o.TokenID} {

@@ -182,7 +182,7 @@ func (r *TreasuryWorkflowRepo) GetTreasuryAvailability(ctx context.Context, toke
 	if err != nil {
 		return result, fmt.Errorf("get treasury availability: %w", err)
 	}
-	result.Available = types.ZeroCryptoAmount()
+	result.Available = types.ZeroRawAmount()
 	if result.Amount.Cmp(result.Reserved) >= 0 {
 		result.Available = result.Amount.Sub(result.Reserved)
 	}
@@ -226,7 +226,7 @@ func (r *TreasuryWorkflowRepo) ListTreasurySourceWallets(ctx context.Context, to
 	items := make([]cryptoapp.TreasurySourceWallet, 0, 8)
 	for rows.Next() {
 		var item cryptoapp.TreasurySourceWallet
-		var chainAmount postgres.NullableCryptoAmount
+		var chainAmount postgres.NullableRawAmount
 		if err := rows.Scan(&item.ID, &item.NetworkID, &item.Name, &item.Address,
 			&item.LedgerAmount, &item.ReservedAmount, &item.AvailableAmount,
 			&chainAmount, &item.LastReconciliationAt); err != nil {

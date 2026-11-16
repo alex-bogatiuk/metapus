@@ -123,7 +123,7 @@ func (r *MerchantCryptoQueryRepo) ListMerchantInvoicePaymentsByInvoices(ctx cont
 	defer rows.Close()
 	for rows.Next() {
 		var item cryptoapp.MerchantInvoicePayment
-		var rawAmount, feeFixed, feeMin, feeMax types.CryptoAmount
+		var rawAmount, feeFixed, feeMin, feeMax types.RawAmount
 		var feePercentBP int
 		if err := rows.Scan(
 			&item.ID, &item.InvoiceID, &item.TxHash, &item.EventIndex, &item.EventKind,

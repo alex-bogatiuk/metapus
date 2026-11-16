@@ -49,14 +49,14 @@ func (m *mockTokenRepo) FindByContractAndNetwork(_ context.Context, _ string, _ 
 
 func makeToken(threshold int64, maxAgeHours int) *token.Token {
 	return &token.Token{
-		SweepThreshold:    types.NewCryptoAmountFromInt64(threshold),
+		SweepThreshold:    types.NewRawAmountFromInt64(threshold),
 		SweepMaxAgeHours:  maxAgeHours,
-		SweepRetainAmount: types.NewCryptoAmountFromInt64(1),
+		SweepRetainAmount: types.NewRawAmountFromInt64(1),
 	}
 }
 
-func cryptoAmountPtr(v int64) *types.CryptoAmount {
-	a := types.NewCryptoAmountFromInt64(v)
+func rawAmountPtr(v int64) *types.RawAmount {
+	a := types.NewRawAmountFromInt64(v)
 	return &a
 }
 
@@ -97,9 +97,9 @@ func TestSweepConfigResolver_Resolve(t *testing.T) {
 				cfg: &MerchantTokenConfig{
 					MerchantID:        merchantID,
 					TokenID:           tokenID,
-					SweepThreshold:    cryptoAmountPtr(5_000_000),
+					SweepThreshold:    rawAmountPtr(5_000_000),
 					SweepMaxAgeHours:  new(1),
-					SweepRetainAmount: cryptoAmountPtr(100),
+					SweepRetainAmount: rawAmountPtr(100),
 				},
 			},
 			wantThreshold: 5_000_000,
@@ -114,7 +114,7 @@ func TestSweepConfigResolver_Resolve(t *testing.T) {
 				cfg: &MerchantTokenConfig{
 					MerchantID:       merchantID,
 					TokenID:          tokenID,
-					SweepThreshold:   cryptoAmountPtr(20_000_000),
+					SweepThreshold:   rawAmountPtr(20_000_000),
 					SweepMaxAgeHours: nil,
 				},
 			},
@@ -145,7 +145,7 @@ func TestSweepConfigResolver_Resolve(t *testing.T) {
 			overrideRepo: &mockMerchantConfigRepo{
 				// This should never be called for nil merchantID
 				cfg: &MerchantTokenConfig{
-					SweepThreshold:   cryptoAmountPtr(999),
+					SweepThreshold:   rawAmountPtr(999),
 					SweepMaxAgeHours: new(999),
 				},
 			},
@@ -189,13 +189,13 @@ func TestSweepConfigResolver_Resolve(t *testing.T) {
 			}
 
 			gotThreshold := cfg.Threshold.String()
-			if gotThreshold != types.NewCryptoAmountFromInt64(tt.wantThreshold).String() {
+			if gotThreshold != types.NewRawAmountFromInt64(tt.wantThreshold).String() {
 				t.Errorf("Threshold = %s, want %d", gotThreshold, tt.wantThreshold)
 			}
 			if cfg.MaxAgeHours != tt.wantMaxAge {
 				t.Errorf("MaxAgeHours = %d, want %d", cfg.MaxAgeHours, tt.wantMaxAge)
 			}
-			if cfg.RetainAmount.String() != types.NewCryptoAmountFromInt64(tt.wantRetain).String() {
+			if cfg.RetainAmount.String() != types.NewRawAmountFromInt64(tt.wantRetain).String() {
 				t.Errorf("RetainAmount = %s, want %d", cfg.RetainAmount.String(), tt.wantRetain)
 			}
 		})

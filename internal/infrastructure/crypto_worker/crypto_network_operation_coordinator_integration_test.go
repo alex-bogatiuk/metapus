@@ -124,8 +124,8 @@ func TestIntegrationActivationFinalityPostsDocumentOnce(t *testing.T) {
 				BlockHash: strings.Repeat("b", 64), BlockHeight: 10, Confirmations: 20,
 				Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalitySolidified,
 				Fee: crypto.FeeSettlementReport{
-					NativeAsset: crypto.AssetRef{TokenID: tokenID}, TotalFee: types.NewCryptoAmountFromInt64(25),
-					Components: []crypto.FeeComponent{{Name: "energy", Amount: types.NewCryptoAmountFromInt64(25)}},
+					NativeAsset: crypto.AssetRef{TokenID: tokenID}, TotalFee: types.NewRawAmountFromInt64(25),
+					Components: []crypto.FeeComponent{{Name: "energy", Amount: types.NewRawAmountFromInt64(25)}},
 				},
 				RawReceipt: json.RawMessage(`{"result":true}`), ObservedAt: time.Now().UTC(),
 			}
@@ -134,7 +134,7 @@ func TestIntegrationActivationFinalityPostsDocumentOnce(t *testing.T) {
 			finalized, err := coordinator.FinalizeActivation(ctx, activationID, reservationID, receipt)
 			require.NoError(t, err)
 			require.True(t, finalized.Posted)
-			require.True(t, types.NewCryptoAmountFromInt64(25).Equal(finalized.CostAmount))
+			require.True(t, types.NewRawAmountFromInt64(25).Equal(finalized.CostAmount))
 			// Cost repair must replay the original owner and fee without
 			// introducing another posting, for success and revert alike.
 			_, err = pool.Exec(ctx, `UPDATE reg_crypto_account_activations SET cost_status='unknown' WHERE id=$1`, activationID)

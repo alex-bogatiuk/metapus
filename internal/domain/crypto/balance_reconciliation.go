@@ -16,7 +16,7 @@ const (
 type BalanceObservation struct {
 	RunID, NetworkID, WalletID, TokenID id.ID
 	Kind                                string
-	LedgerAmount, ChainAmount           types.CryptoAmount
+	LedgerAmount, ChainAmount           types.RawAmount
 }
 
 func (o BalanceObservation) Validate() error {
@@ -29,6 +29,6 @@ func (o BalanceObservation) Validate() error {
 	return nil
 }
 
-func (o BalanceObservation) Delta() types.CryptoDelta {
+func (o BalanceObservation) Delta() types.RawDelta {
 	return o.ChainAmount.Difference(o.LedgerAmount)
 }

@@ -22,7 +22,7 @@ type WorkerReconciliationWalletBalance struct {
 	ContractAddress string
 	TokenStandard   token.TokenStandard
 	TokenDecimals   int
-	LedgerAmount    types.CryptoAmount
+	LedgerAmount    types.RawAmount
 }
 
 type WorkerReconciliationCursor struct {

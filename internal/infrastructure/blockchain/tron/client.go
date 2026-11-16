@@ -382,25 +382,25 @@ func (c *Client) EstimateEnergy(ctx context.Context, params TriggerContractParam
 }
 
 // GetTRC20Balance returns balanceOf(owner) for a TRC-20 contract.
-func (c *Client) GetTRC20Balance(ctx context.Context, ownerAddress, contractAddress string) (types.CryptoAmount, error) {
+func (c *Client) GetTRC20Balance(ctx context.Context, ownerAddress, contractAddress string) (types.RawAmount, error) {
 	return c.GetTRC20BalanceFor(ctx, ownerAddress, ownerAddress, contractAddress)
 }
 
 // GetTRC20BalanceFor returns balanceOf(accountAddress), using callerAddress as
 // the constant-contract owner. This permits checking an inactive pool address
 // while the caller is an already-active platform hot wallet.
-func (c *Client) GetTRC20BalanceFor(ctx context.Context, callerAddress, accountAddress, contractAddress string) (types.CryptoAmount, error) {
+func (c *Client) GetTRC20BalanceFor(ctx context.Context, callerAddress, accountAddress, contractAddress string) (types.RawAmount, error) {
 	return c.getTRC20BalanceForPath(ctx, _triggerConstantPath, callerAddress, accountAddress, contractAddress)
 }
 
-func (c *Client) GetSolidifiedTRC20Balance(ctx context.Context, ownerAddress, contractAddress string) (types.CryptoAmount, error) {
+func (c *Client) GetSolidifiedTRC20Balance(ctx context.Context, ownerAddress, contractAddress string) (types.RawAmount, error) {
 	return c.getTRC20BalanceForPath(ctx, _solidityTriggerConstantPath, ownerAddress, ownerAddress, contractAddress)
 }
 
-func (c *Client) getTRC20BalanceForPath(ctx context.Context, path, callerAddress, accountAddress, contractAddress string) (types.CryptoAmount, error) {
+func (c *Client) getTRC20BalanceForPath(ctx context.Context, path, callerAddress, accountAddress, contractAddress string) (types.RawAmount, error) {
 	parameter, err := abiEncodeAddress(accountAddress)
 	if err != nil {
-		return types.ZeroCryptoAmount(), err
+		return types.ZeroRawAmount(), err
 	}
 
 	body := map[string]any{
@@ -413,46 +413,46 @@ func (c *Client) getTRC20BalanceForPath(ctx context.Context, path, callerAddress
 
 	var resp ConstantContractResponse
 	if err := c.doPost(ctx, path, body, &resp); err != nil {
-		return types.ZeroCryptoAmount(), fmt.Errorf("trigger constant contract: %w", err)
+		return types.ZeroRawAmount(), fmt.Errorf("trigger constant contract: %w", err)
 	}
 	if !resp.Result.Result {
-		return types.ZeroCryptoAmount(), fmt.Errorf("constant contract rejected: code=%s message=%s", resp.Result.Code, decodeHexMessage(resp.Result.Message))
+		return types.ZeroRawAmount(), fmt.Errorf("constant contract rejected: code=%s message=%s", resp.Result.Code, decodeHexMessage(resp.Result.Message))
 	}
 	if len(resp.ConstantResult) == 0 {
-		return types.ZeroCryptoAmount(), fmt.Errorf("constant contract returned empty result")
+		return types.ZeroRawAmount(), fmt.Errorf("constant contract returned empty result")
 	}
 	value := new(big.Int)
 	if _, ok := value.SetString(strings.TrimPrefix(resp.ConstantResult[0], "0x"), 16); !ok {
-		return types.ZeroCryptoAmount(), fmt.Errorf("invalid balanceOf result: %s", resp.ConstantResult[0])
+		return types.ZeroRawAmount(), fmt.Errorf("invalid balanceOf result: %s", resp.ConstantResult[0])
 	}
-	amount, err := types.NewCryptoAmountFromBigInt(value)
+	amount, err := types.NewRawAmountFromBigInt(value)
 	if err != nil {
-		return types.ZeroCryptoAmount(), fmt.Errorf("invalid balanceOf amount: %w", err)
+		return types.ZeroRawAmount(), fmt.Errorf("invalid balanceOf amount: %w", err)
 	}
 	return amount, nil
 }
 
 // GetTRXBalance returns the native TRX balance in SUN for an account.
-func (c *Client) GetTRXBalance(ctx context.Context, address string) (types.CryptoAmount, error) {
+func (c *Client) GetTRXBalance(ctx context.Context, address string) (types.RawAmount, error) {
 	resp, err := c.GetAccount(ctx, address)
 	if err != nil {
-		return types.ZeroCryptoAmount(), fmt.Errorf("get TRX account balance: %w", err)
+		return types.ZeroRawAmount(), fmt.Errorf("get TRX account balance: %w", err)
 	}
 	if resp.Balance < 0 {
-		return types.ZeroCryptoAmount(), fmt.Errorf("TRX account balance is negative")
+		return types.ZeroRawAmount(), fmt.Errorf("TRX account balance is negative")
 	}
-	return types.NewCryptoAmountFromInt64(resp.Balance), nil
+	return types.NewRawAmountFromInt64(resp.Balance), nil
 }
 
-func (c *Client) GetSolidifiedTRXBalance(ctx context.Context, address string) (types.CryptoAmount, error) {
+func (c *Client) GetSolidifiedTRXBalance(ctx context.Context, address string) (types.RawAmount, error) {
 	resp, err := c.getAccountAtPath(ctx, _solidityAccountPath, address)
 	if err != nil {
-		return types.ZeroCryptoAmount(), fmt.Errorf("get solidified TRX account balance: %w", err)
+		return types.ZeroRawAmount(), fmt.Errorf("get solidified TRX account balance: %w", err)
 	}
 	if resp.Balance < 0 {
-		return types.ZeroCryptoAmount(), fmt.Errorf("solidified TRX account balance is negative")
+		return types.ZeroRawAmount(), fmt.Errorf("solidified TRX account balance is negative")
 	}
-	return types.NewCryptoAmountFromInt64(resp.Balance), nil
+	return types.NewRawAmountFromInt64(resp.Balance), nil
 }
 
 // GetAccount returns TRON account state. Inactive accounts usually return an empty object.
@@ -874,15 +874,15 @@ func base58Decode(input string) ([]byte, error) {
 	return decoded, nil
 }
 
-// ParseSunAmount converts a TronGrid amount string (in sun/wei) to CryptoAmount.
-func ParseSunAmount(s string) (types.CryptoAmount, error) {
-	return types.NewCryptoAmountFromString(s)
+// ParseSunAmount converts a TronGrid amount string (in sun/wei) to RawAmount.
+func ParseSunAmount(s string) (types.RawAmount, error) {
+	return types.NewRawAmountFromString(s)
 }
 
-// FormatCryptoAmount formats a CryptoAmount to a human-readable string with the
+// FormatRawAmount formats a RawAmount to a human-readable string with the
 // given number of decimal places. decimalPlaces MUST come from Token.DecimalPlaces
 // metadata — never hardcode (§2.5).
-func FormatCryptoAmount(amount types.CryptoAmount, decimalPlaces int) string {
+func FormatRawAmount(amount types.RawAmount, decimalPlaces int) string {
 	raw := amount.String()
 	if decimalPlaces <= 0 {
 		return raw

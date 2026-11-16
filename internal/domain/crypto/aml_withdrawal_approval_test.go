@@ -17,7 +17,7 @@ func riskApprovalIntent() MoneyMovementIntent {
 	intent.SchemaVersion = MoneyMovementIntentV2
 	intent.RiskClass = "high"
 	intent.RiskAccepted = true
-	intent.SourceLines = []MoneyMovementSourceLine{{LineID: id.New(), WalletID: id.New(), SourceAddress: "source-a", SourceVaultKeyID: "key-a", AmountMinorUnits: types.MustCryptoAmount("60"), RiskRevision: 2, ScopeVersion: 1, EvidenceHash: "evidence-a"}, {LineID: id.New(), WalletID: id.New(), SourceAddress: "source-b", SourceVaultKeyID: "key-b", AmountMinorUnits: types.MustCryptoAmount("40"), RiskRevision: 3, ScopeVersion: 1, EvidenceHash: "evidence-b"}}
+	intent.SourceLines = []MoneyMovementSourceLine{{LineID: id.New(), WalletID: id.New(), SourceAddress: "source-a", SourceVaultKeyID: "key-a", AmountMinorUnits: types.MustRawAmount("60"), RiskRevision: 2, ScopeVersion: 1, EvidenceHash: "evidence-a"}, {LineID: id.New(), WalletID: id.New(), SourceAddress: "source-b", SourceVaultKeyID: "key-b", AmountMinorUnits: types.MustRawAmount("40"), RiskRevision: 3, ScopeVersion: 1, EvidenceHash: "evidence-b"}}
 	return intent
 }
 func TestAMLWithdrawalApprovalV2BindsExactSourceLinesAndAcceptance(t *testing.T) {

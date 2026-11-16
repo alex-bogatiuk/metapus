@@ -10,7 +10,7 @@ import (
 
 // CryptoBalanceMovement represents a movement in the crypto balance register.
 // Tracks cryptocurrency amounts for wallets by token.
-// Uses CryptoAmount (big.Int) instead of MinorUnits — ETH has 18 decimals.
+// Uses RawAmount (big.Int) instead of MinorUnits — ETH has 18 decimals.
 type CryptoBalanceMovement struct {
 	entity.MovementBase
 
@@ -18,8 +18,8 @@ type CryptoBalanceMovement struct {
 	WalletID id.ID `db:"wallet_id" json:"walletId"`
 	TokenID  id.ID `db:"token_id" json:"tokenId"`
 
-	// Resources — CryptoAmount for arbitrary precision
-	Amount types.CryptoAmount `db:"amount" json:"amount"`
+	// Resources — RawAmount for arbitrary precision
+	Amount types.RawAmount `db:"amount" json:"amount"`
 }
 
 // NewCryptoBalanceMovement creates a new crypto balance movement.
@@ -30,7 +30,7 @@ func NewCryptoBalanceMovement(
 	period time.Time,
 	recordType entity.RecordType,
 	walletID, tokenID id.ID,
-	amount types.CryptoAmount,
+	amount types.RawAmount,
 ) CryptoBalanceMovement {
 	return CryptoBalanceMovement{
 		MovementBase: entity.NewMovementBase(recorderID, recorderType, recorderVersion, period, recordType),

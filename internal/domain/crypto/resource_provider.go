@@ -123,7 +123,7 @@ type ResourceOrderIntent struct {
 
 type ResourceQuote struct {
 	Quantity      int64
-	EstimatedCost types.CryptoAmount
+	EstimatedCost types.RawAmount
 	ExpiresAt     time.Time
 }
 
@@ -138,9 +138,9 @@ type ResourceOrder struct {
 	ExternalID      string
 	Status          ResourceOrderStatus
 	DelegatedAmount int64
-	CostAmount      types.CryptoAmount
-	RefundAmount    types.CryptoAmount
-	ProviderBalance *types.CryptoAmount
+	CostAmount      types.RawAmount
+	RefundAmount    types.RawAmount
+	ProviderBalance *types.RawAmount
 	ExpiresAt       time.Time
 	RequestJSON     json.RawMessage
 	ResponseJSON    json.RawMessage
@@ -160,5 +160,5 @@ type ExternalResourceProvider interface {
 	Place(ctx context.Context, intent ResourceOrderIntent) (ResourceOrder, error)
 	Query(ctx context.Context, ref ResourceOrderRef) (ResourceOrder, error)
 	Reclaim(ctx context.Context, ref ResourceOrderRef) (ResourceOrder, error)
-	Balance(ctx context.Context, account ProviderAccountRef) (types.CryptoAmount, error)
+	Balance(ctx context.Context, account ProviderAccountRef) (types.RawAmount, error)
 }

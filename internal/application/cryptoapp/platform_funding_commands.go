@@ -18,7 +18,7 @@ type PlatformFundingResult struct {
 	ReceiptID                id.ID                          `json:"receiptId"`
 	Status                   crypto_platform_funding.Status `json:"status"`
 	Version                  int                            `json:"version"`
-	Amount                   types.CryptoAmount             `json:"amount"`
+	Amount                   types.RawAmount                `json:"amount"`
 	Reason                   string                         `json:"reason"`
 	MerchantID               *id.ID                         `json:"merchantId,omitempty"`
 	MerchantLink             string                         `json:"merchantLink,omitempty"`

@@ -72,7 +72,7 @@ type rowScanner interface {
 func scanWalletPoolState(row rowScanner) (crypto.WalletPoolState, error) {
 	var state crypto.WalletPoolState
 	var maxConcurrent pgtype.Int4
-	var activationReserve, minHotBalance, dailyActivationBudget postgres.NullableCryptoAmount
+	var activationReserve, minHotBalance, dailyActivationBudget postgres.NullableRawAmount
 	err := row.Scan(
 		&state.Policy.NetworkID,
 		&state.Policy.NetworkCode,

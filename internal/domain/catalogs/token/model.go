@@ -53,7 +53,7 @@ type Token struct {
 	// SweepThreshold is the minimum accumulated balance on a pool wallet
 	// before a sweep is triggered (in minor units). 0 = sweep after every payment.
 	// Merchant can override via reg_merchant_token_config.
-	SweepThreshold types.CryptoAmount `db:"sweep_threshold" json:"sweepThreshold" meta:"label:Порог свипа"`
+	SweepThreshold types.RawAmount `db:"sweep_threshold" json:"sweepThreshold" meta:"label:Порог свипа"`
 
 	// SweepMaxAgeHours is the maximum time (hours) before a forced sweep
 	// regardless of threshold. 0 = disabled (only threshold-based sweep).
@@ -62,7 +62,7 @@ type Token struct {
 	// SweepRetainAmount is the minimal token dust, in raw integer units of this
 	// token contract, left on a reusable pool wallet after sweep. Merchant can
 	// override it via reg_merchant_token_config.
-	SweepRetainAmount types.CryptoAmount `db:"sweep_retain_amount" json:"sweepRetainAmount" meta:"label:Остаток после свипа"`
+	SweepRetainAmount types.RawAmount `db:"sweep_retain_amount" json:"sweepRetainAmount" meta:"label:Остаток после свипа"`
 }
 
 // NewToken creates a new Token with required fields.

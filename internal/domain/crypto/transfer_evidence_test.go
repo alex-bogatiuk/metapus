@@ -10,7 +10,7 @@ import (
 )
 
 func TestTransferEvidenceKeepsOrdinaryEconomicsAndBindsInternalTrace(t *testing.T) {
-	event := BlockchainEvent{TxHash: strings.Repeat("a", 64), EventKind: EventKindNativeValue, FromAddress: "from", ToAddress: "to", Amount: types.NewCryptoAmountFromInt64(23)}
+	event := BlockchainEvent{TxHash: strings.Repeat("a", 64), EventKind: EventKindNativeValue, FromAddress: "from", ToAddress: "to", Amount: types.NewRawAmountFromInt64(23)}
 	original := event.EconomicsHash()
 	event.DecoderVersion = 2
 	require.Equal(t, original, event.EconomicsHash())

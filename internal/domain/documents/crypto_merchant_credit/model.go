@@ -29,32 +29,32 @@ const (
 
 type CryptoMerchantCredit struct {
 	entity.Document
-	ReceiptID        id.ID              `db:"receipt_id" json:"receiptId" meta:"label:Поступление,ref:crypto_custody_receipt"`
-	MerchantID       id.ID              `db:"merchant_id" json:"merchantId" meta:"label:Мерчант,ref:merchant"`
-	InvoiceID        *id.ID             `db:"invoice_id" json:"invoiceId,omitempty" meta:"label:Счёт,ref:crypto_invoice"`
-	TokenID          id.ID              `db:"token_id" json:"tokenId" meta:"label:Токен,ref:token"`
-	Amount           types.CryptoAmount `db:"amount" json:"amount" meta:"label:Сумма"`
-	NetAmount        types.CryptoAmount `db:"net_amount" json:"netAmount" meta:"label:Зачислено мерчанту"`
-	ProcessingFee    types.CryptoAmount `db:"processing_fee" json:"processingFee" meta:"label:Комиссия"`
-	FeeFixed         types.CryptoAmount `db:"fee_fixed" json:"feeFixed" meta:"label:Фиксированная часть тарифа,list:false"`
-	FeePercentBP     int                `db:"fee_percent_bp" json:"feePercentBp" meta:"label:Процент тарифа (б.п.),list:false"`
-	FeeMin           types.CryptoAmount `db:"fee_min" json:"feeMin" meta:"label:Минимальная комиссия,list:false"`
-	FeeMax           types.CryptoAmount `db:"fee_max" json:"feeMax" meta:"label:Максимальная комиссия,list:false"`
-	Status           Status             `db:"status" json:"status" meta:"label:Статус"`
-	ApprovalRequired bool               `db:"approval_required" json:"approvalRequired" meta:"label:Нужно подтверждение"`
-	PreparedBy       id.ID              `db:"prepared_by" json:"preparedBy" meta:"label:Подготовил,list:false"`
-	PreparedAt       time.Time          `db:"prepared_at" json:"preparedAt" meta:"label:Подготовлено"`
-	DecidedBy        *id.ID             `db:"decided_by" json:"decidedBy,omitempty" meta:"label:Решение принял,list:false"`
-	DecidedAt        *time.Time         `db:"decided_at" json:"decidedAt,omitempty" meta:"label:Решение принято"`
-	DecisionReason   string             `db:"decision_reason" json:"decisionReason,omitempty" meta:"label:Причина отклонения,list:false"`
-	SuspenseLineID   id.ID              `db:"suspense_line_id" json:"-"`
-	MerchantLineID   id.ID              `db:"merchant_line_id" json:"-"`
-	FeeLineID        id.ID              `db:"fee_line_id" json:"-"`
+	ReceiptID        id.ID           `db:"receipt_id" json:"receiptId" meta:"label:Поступление,ref:crypto_custody_receipt"`
+	MerchantID       id.ID           `db:"merchant_id" json:"merchantId" meta:"label:Мерчант,ref:merchant"`
+	InvoiceID        *id.ID          `db:"invoice_id" json:"invoiceId,omitempty" meta:"label:Счёт,ref:crypto_invoice"`
+	TokenID          id.ID           `db:"token_id" json:"tokenId" meta:"label:Токен,ref:token"`
+	Amount           types.RawAmount `db:"amount" json:"amount" meta:"label:Сумма"`
+	NetAmount        types.RawAmount `db:"net_amount" json:"netAmount" meta:"label:Зачислено мерчанту"`
+	ProcessingFee    types.RawAmount `db:"processing_fee" json:"processingFee" meta:"label:Комиссия"`
+	FeeFixed         types.RawAmount `db:"fee_fixed" json:"feeFixed" meta:"label:Фиксированная часть тарифа,list:false"`
+	FeePercentBP     int             `db:"fee_percent_bp" json:"feePercentBp" meta:"label:Процент тарифа (б.п.),list:false"`
+	FeeMin           types.RawAmount `db:"fee_min" json:"feeMin" meta:"label:Минимальная комиссия,list:false"`
+	FeeMax           types.RawAmount `db:"fee_max" json:"feeMax" meta:"label:Максимальная комиссия,list:false"`
+	Status           Status          `db:"status" json:"status" meta:"label:Статус"`
+	ApprovalRequired bool            `db:"approval_required" json:"approvalRequired" meta:"label:Нужно подтверждение"`
+	PreparedBy       id.ID           `db:"prepared_by" json:"preparedBy" meta:"label:Подготовил,list:false"`
+	PreparedAt       time.Time       `db:"prepared_at" json:"preparedAt" meta:"label:Подготовлено"`
+	DecidedBy        *id.ID          `db:"decided_by" json:"decidedBy,omitempty" meta:"label:Решение принял,list:false"`
+	DecidedAt        *time.Time      `db:"decided_at" json:"decidedAt,omitempty" meta:"label:Решение принято"`
+	DecisionReason   string          `db:"decision_reason" json:"decisionReason,omitempty" meta:"label:Причина отклонения,list:false"`
+	SuspenseLineID   id.ID           `db:"suspense_line_id" json:"-"`
+	MerchantLineID   id.ID           `db:"merchant_line_id" json:"-"`
+	FeeLineID        id.ID           `db:"fee_line_id" json:"-"`
 }
 
 // Prepare creates a credit of the whole receipt remainder with the merchant
 // tariff fixed at this moment.
-func Prepare(receiptID, merchantID, tokenID id.ID, invoiceID *id.ID, amount types.CryptoAmount,
+func Prepare(receiptID, merchantID, tokenID id.ID, invoiceID *id.ID, amount types.RawAmount,
 	fee tariff.Fee, approvalRequired bool, actor id.ID, at time.Time) (*CryptoMerchantCredit, error) {
 	if id.IsNil(receiptID) || id.IsNil(merchantID) || id.IsNil(tokenID) || id.IsNil(actor) || !amount.IsPositive() ||
 		(invoiceID != nil && id.IsNil(*invoiceID)) {

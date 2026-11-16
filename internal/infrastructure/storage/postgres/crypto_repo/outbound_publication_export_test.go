@@ -46,7 +46,7 @@ func NewOutboundPublicationFixture(t *testing.T, pending ...bool) OutboundPublic
 		Purpose: crypto.SigningPurposeWithdrawal, BasisType: "CryptoAMLWithdrawalLine", BasisID: line.LineID, Attempt: 1, Generation: 1, ExpiresAt: time.Now().Add(time.Hour),
 		NetworkID: f.input.Request.NetworkID, NetworkCode: networkCode, ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: networkIdentifier, SourceAddress: line.SourceAddress,
 		FeePayerAddress: line.SourceAddress, VaultKeyID: line.SourceVaultKeyID, DestinationAddress: intent.DestinationAddress, AssetStandard: "trc20", ContractAddress: "test-contract",
-		AmountMinorUnits: line.AmountMinorUnits, MaxNetworkFeeMinor: types.MustCryptoAmount("1"), UnsignedFingerprint: "publication-" + line.LineID.String(), ApprovalBundleDigest: digest, PolicyVersion: "tron-v1"}
+		AmountMinorUnits: line.AmountMinorUnits, MaxNetworkFeeMinor: types.MustRawAmount("1"), UnsignedFingerprint: "publication-" + line.LineID.String(), ApprovalBundleDigest: digest, PolicyVersion: "tron-v1"}
 	unsigned := crypto.UnsignedTxEnvelope{Family: crypto.ChainFamilyTRON, SchemaVersion: 1, Generation: 1, UnsignedFingerprint: auth.UnsignedFingerprint, Payload: []byte(`{"synthetic":true}`)}
 	return OutboundPublicationFixture{f.ctx, f.pool, intent.BasisID, line.WalletID, auth, unsigned, bundle}
 }

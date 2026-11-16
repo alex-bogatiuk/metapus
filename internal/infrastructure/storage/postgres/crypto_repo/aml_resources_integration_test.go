@@ -59,7 +59,7 @@ func nativeResourceFixture(t *testing.T) (amlRoutingFixture, id.ID, id.ID) {
 func nativeResourceProof(t *testing.T, f amlRoutingFixture, destination, tx, amount string) crypto.TransferVerification {
 	proof := f.proof(destination, tx, 1)
 	proof.Event.TokenContract, proof.Event.EventKind = "", crypto.EventKindNativeValue
-	proof.Event.Amount = types.MustCryptoAmount(amount)
+	proof.Event.Amount = types.MustRawAmount(amount)
 	proof.DecoderVersion, proof.Event.DecoderVersion = 2, 2
 	for i := range proof.Sources {
 		proof.Sources[i].DecoderVersion, proof.Sources[i].SourceDigest = 2, "native-source"
@@ -114,7 +114,7 @@ func signResourceFunding(t *testing.T, f amlRoutingFixture, target, fee, funding
 	auth := crypto.SigningAuthorization{SchemaVersion: 1, AuthorizationID: id.New().String(), TenantID: id.New().String(), MerchantID: &f.input.Request.MerchantID,
 		Purpose: crypto.SigningPurposeNativeFunding, BasisType: "CryptoNativeFunding", BasisID: funding, Attempt: 1, Generation: 1, ExpiresAt: time.Now().Add(time.Hour),
 		NetworkID: f.input.Request.NetworkID, NetworkCode: "RESOURCE-TEST", ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: networkIdentifier, SourceAddress: f.input.Request.Address, FeePayerAddress: f.input.Request.Address,
-		VaultKeyID: "resource-key", DestinationAddress: destination, AssetStandard: "native", AmountMinorUnits: types.MustCryptoAmount(amount), MaxNetworkFeeMinor: types.MustCryptoAmount(cap), UnsignedFingerprint: "resource-" + funding.String(), PolicyVersion: "tron-v1"}
+		VaultKeyID: "resource-key", DestinationAddress: destination, AssetStandard: "native", AmountMinorUnits: types.MustRawAmount(amount), MaxNetworkFeeMinor: types.MustRawAmount(cap), UnsignedFingerprint: "resource-" + funding.String(), PolicyVersion: "tron-v1"}
 	unsigned := crypto.UnsignedTxEnvelope{Family: crypto.ChainFamilyTRON, SchemaVersion: 1, Generation: 1, UnsignedFingerprint: auth.UnsignedFingerprint, Payload: []byte(`{"synthetic":true}`)}
 	authID, err := newHistoricalAMLAuthorization(f.ctx, auth, unsigned)
 	require.NoError(t, err)
@@ -139,7 +139,7 @@ func settleResourceEvidence(t *testing.T, f amlRoutingFixture, fee, funding id.I
 }
 
 func recordResourceEvidence(f amlRoutingFixture, fee, funding id.ID, txHash, status, actual string, fundingPhysical bool) error {
-	receipt := crypto.ChainReceipt{NetworkID: f.input.Request.NetworkID, TxHash: txHash, Status: crypto.ReceiptStatus(status), BlockHash: strings.Repeat("a", 64), BlockHeight: 10, Confirmations: 20, Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalitySolidified, ObservedAt: time.Now().UTC(), Fee: crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: f.input.Request.TokenID}, TotalFee: types.MustCryptoAmount(actual)}}
+	receipt := crypto.ChainReceipt{NetworkID: f.input.Request.NetworkID, TxHash: txHash, Status: crypto.ReceiptStatus(status), BlockHash: strings.Repeat("a", 64), BlockHeight: 10, Confirmations: 20, Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalitySolidified, ObservedAt: time.Now().UTC(), Fee: crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: f.input.Request.TokenID}, TotalFee: types.MustRawAmount(actual)}}
 	return postgres.MustGetTxManager(f.ctx).RunInTransaction(f.ctx, func(ctx context.Context) error {
 		repo := NativeFundingSettlementRepo{}
 		var doc crypto.NativeFunding
@@ -288,7 +288,7 @@ func TestAMLResourceLateHighBlocksNewAuthorization(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT amount_minor::text,w.address FROM doc_crypto_native_fundings f JOIN cat_wallets w ON w.id=f.destination_wallet_id WHERE f.id=$1`, funding).Scan(&amount, &address))
 	auth := crypto.SigningAuthorization{SchemaVersion: 1, AuthorizationID: id.New().String(), TenantID: id.New().String(), MerchantID: &f.input.Request.MerchantID, Purpose: crypto.SigningPurposeNativeFunding, BasisType: "CryptoNativeFunding", BasisID: funding,
 		NetworkID: f.input.Request.NetworkID, NetworkCode: "RESOURCE-TEST", ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: "nile", SourceAddress: f.input.Request.Address, VaultKeyID: "resource-key", DestinationAddress: address, AssetStandard: "native",
-		AmountMinorUnits: types.MustCryptoAmount(amount), MaxNetworkFeeMinor: types.MustCryptoAmount("10"), UnsignedFingerprint: "late-high", ExpiresAt: time.Now().Add(time.Hour), PolicyVersion: "tron-v1"}
+		AmountMinorUnits: types.MustRawAmount(amount), MaxNetworkFeeMinor: types.MustRawAmount("10"), UnsignedFingerprint: "late-high", ExpiresAt: time.Now().Add(time.Hour), PolicyVersion: "tron-v1"}
 	_, err = newHistoricalAMLAuthorization(f.ctx, auth, crypto.UnsignedTxEnvelope{Payload: []byte(`{}`)})
 	require.ErrorContains(t, err, "authorization is cancelled or stale")
 }

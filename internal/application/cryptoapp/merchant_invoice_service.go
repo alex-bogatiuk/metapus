@@ -70,7 +70,7 @@ type MerchantInvoiceServiceConfig struct {
 type CreateMerchantInvoiceInput struct {
 	MerchantID            id.ID
 	TokenID               id.ID
-	Amount                types.CryptoAmount
+	Amount                types.RawAmount
 	APIKeyID              *id.ID
 	CreatedByID           id.ID
 	CreationSource        crypto_invoice.CreationSource

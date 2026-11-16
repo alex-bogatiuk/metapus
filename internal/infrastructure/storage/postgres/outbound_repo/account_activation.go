@@ -122,7 +122,7 @@ func (r *OutboundRepo) ReserveAccountActivationBudget(
 
 		var enabled, needsReview bool
 		var maxConcurrent int
-		var reserve, minHotBalance, dailyBudget types.CryptoAmount
+		var reserve, minHotBalance, dailyBudget types.RawAmount
 		if err := q.QueryRow(ctx, `
 			SELECT enabled,
 			       needs_review,
@@ -150,7 +150,7 @@ func (r *OutboundRepo) ReserveAccountActivationBudget(
 			return fmt.Errorf("wallet activation policy is disabled or needs review")
 		}
 
-		var existingReserve types.CryptoAmount
+		var existingReserve types.RawAmount
 		var existingReservedAt *time.Time
 		var status string
 		if err := q.QueryRow(ctx, `
@@ -169,7 +169,7 @@ func (r *OutboundRepo) ReserveAccountActivationBudget(
 		}
 
 		var concurrent int
-		var reservedTotal, spentToday, hotBalance types.CryptoAmount
+		var reservedTotal, spentToday, hotBalance types.RawAmount
 		if err := q.QueryRow(ctx, `
 			SELECT COUNT(*)::INT,
 			       COALESCE(SUM(activation_cost_reserved_minor), 0)

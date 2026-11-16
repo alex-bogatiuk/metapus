@@ -46,8 +46,8 @@ type ResourceRental struct {
 	CostTokenID           id.ID
 	RequestedAmount       int64
 	DelegatedAmount       int64
-	GrossCostAmount       types.CryptoAmount
-	RefundAmount          types.CryptoAmount
+	GrossCostAmount       types.RawAmount
+	RefundAmount          types.RawAmount
 	Provider              string
 	OutTradeNo            string
 	ExternalSerial        string
@@ -89,10 +89,10 @@ type ResourceRentalRepository interface {
 	GetResourceAllocationByBasis(ctx context.Context, basisType string, basisID id.ID) (*ResourceAllocation, error)
 	TryReserveResource(ctx context.Context, req ResourceRequest, required int64, cutoff time.Duration) (*ResourceAllocation, *ResourceRental, error)
 	CreateResourceRental(ctx context.Context, rental *ResourceRental, req ResourceRequest, requestJSON []byte) error
-	ActivateResourceRental(ctx context.Context, rentalID id.ID, serial string, delegated int64, cost types.CryptoAmount, providerBalance *types.CryptoAmount, responseJSON []byte, expiresAt time.Time) error
+	ActivateResourceRental(ctx context.Context, rentalID id.ID, serial string, delegated int64, cost types.RawAmount, providerBalance *types.RawAmount, responseJSON []byte, expiresAt time.Time) error
 	MarkResourceRentalHeld(ctx context.Context, rentalID id.ID, reason string, responseJSON []byte) error
 	MarkResourceRentalReclaiming(ctx context.Context, rentalID id.ID) error
-	CloseResourceRental(ctx context.Context, rentalID id.ID, refund types.CryptoAmount, providerBalance *types.CryptoAmount, responseJSON []byte, status string) error
+	CloseResourceRental(ctx context.Context, rentalID id.ID, refund types.RawAmount, providerBalance *types.RawAmount, responseJSON []byte, status string) error
 	MarkResourceAllocationBroadcast(ctx context.Context, command ResourceBroadcastCommand) error
 	SettleResourceAllocation(ctx context.Context, txHash string, receipt crypto.ChainReceipt) error
 	ReleaseResourceAllocation(ctx context.Context, allocationID id.ID, reason string) error
@@ -100,6 +100,6 @@ type ResourceRentalRepository interface {
 	RenewResourceRentalClaim(ctx context.Context, claim ResourceRentalClaim) error
 	MarkResourceRentalClaimReclaiming(ctx context.Context, claim ResourceRentalClaim) error
 	MarkResourceRentalClaimHeld(ctx context.Context, claim ResourceRentalClaim, reason string, responseJSON []byte) error
-	CloseResourceRentalClaim(ctx context.Context, claim ResourceRentalClaim, refund types.CryptoAmount, providerBalance *types.CryptoAmount, responseJSON []byte, status string) error
+	CloseResourceRentalClaim(ctx context.Context, claim ResourceRentalClaim, refund types.RawAmount, providerBalance *types.RawAmount, responseJSON []byte, status string) error
 	ReleaseResourceRentalClaim(ctx context.Context, claim ResourceRentalClaim) error
 }

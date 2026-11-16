@@ -22,18 +22,18 @@ import (
 
 // ReceiptAuditTask is one accounted receipt whose transfer is re-proven.
 type ReceiptAuditTask struct {
-	ReceiptID     id.ID              `db:"receipt_id"`
-	NetworkID     id.ID              `db:"network_id"`
-	WalletID      id.ID              `db:"wallet_id"`
-	TokenID       id.ID              `db:"token_id"`
-	Amount        types.CryptoAmount `db:"amount"`
-	TxHash        string             `db:"tx_hash"`
-	EventKind     string             `db:"event_kind"`
-	EventIndex    int64              `db:"event_index"`
-	BlockNumber   int64              `db:"block_number"`
-	BlockHash     string             `db:"block_hash"`
-	FromAddress   string             `db:"from_address"`
-	RequiredConfs int                `db:"required_confs"`
+	ReceiptID     id.ID           `db:"receipt_id"`
+	NetworkID     id.ID           `db:"network_id"`
+	WalletID      id.ID           `db:"wallet_id"`
+	TokenID       id.ID           `db:"token_id"`
+	Amount        types.RawAmount `db:"amount"`
+	TxHash        string          `db:"tx_hash"`
+	EventKind     string          `db:"event_kind"`
+	EventIndex    int64           `db:"event_index"`
+	BlockNumber   int64           `db:"block_number"`
+	BlockHash     string          `db:"block_hash"`
+	FromAddress   string          `db:"from_address"`
+	RequiredConfs int             `db:"required_confs"`
 }
 
 func (t ReceiptAuditTask) Basis() crypto.AccountingTransferBasis {

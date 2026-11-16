@@ -15,7 +15,7 @@ func TestFundingRequiresExactIndependentTransferProof(t *testing.T) {
 	target := walletFundingTarget{networkID: id.New(), address: "TRecipient", requiredConfirmations: 7}
 	txHash := strings.Repeat("a", 64)
 	makeProof := func() crypto.TransferVerification {
-		event := crypto.BlockchainEvent{NetworkID: target.networkID, TxHash: txHash, EventKind: crypto.EventKindNativeValue, EventIndex: 0, FromAddress: "TSender", ToAddress: target.address, Amount: types.NewCryptoAmountFromInt64(25_000_000), BlockNumber: 100, BlockHash: strings.Repeat("b", 64), Finality: crypto.FinalitySolidified, Canonicality: crypto.CanonicalityCanonical, Confirmations: 21, DecoderVersion: 2}
+		event := crypto.BlockchainEvent{NetworkID: target.networkID, TxHash: txHash, EventKind: crypto.EventKindNativeValue, EventIndex: 0, FromAddress: "TSender", ToAddress: target.address, Amount: types.NewRawAmountFromInt64(25_000_000), BlockNumber: 100, BlockHash: strings.Repeat("b", 64), Finality: crypto.FinalitySolidified, Canonicality: crypto.CanonicalityCanonical, Confirmations: 21, DecoderVersion: 2}
 		sources := []crypto.VerificationSource{{ProviderID: "trongrid", LatestProviderID: "trongrid", TrustGroup: "trongrid", Digest: "same", SourceDigest: "source-a", HeadHash: "head", HeadHeight: 120, DecoderVersion: 2}, {ProviderID: "chainstack", LatestProviderID: "chainstack", TrustGroup: "chainstack", Digest: "same", SourceDigest: "source-b", HeadHash: "head", HeadHeight: 120, DecoderVersion: 2}}
 		identity, err := crypto.NewAccountingEffectIdentity(event, crypto.ChainFamilyTRON, 0)
 		require.NoError(t, err)

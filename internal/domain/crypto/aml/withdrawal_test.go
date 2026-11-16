@@ -10,12 +10,12 @@ import (
 )
 
 func testWithdrawal() WithdrawalRequest {
-	return WithdrawalRequest{MerchantID: id.New(), NetworkID: id.New(), TokenID: id.New(), Class: Low, Amount: types.NewCryptoAmountFromInt64(1000)}
+	return WithdrawalRequest{MerchantID: id.New(), NetworkID: id.New(), TokenID: id.New(), Class: Low, Amount: types.NewRawAmountFromInt64(1000)}
 }
 
 func testSource(r WithdrawalRequest, class Class, available int64) Source {
 	return Source{WalletID: id.New(), MerchantID: r.MerchantID, NetworkID: r.NetworkID, TokenID: r.TokenID,
-		Class: class, Revision: 1, Available: types.NewCryptoAmountFromInt64(available)}
+		Class: class, Revision: 1, Available: types.NewRawAmountFromInt64(available)}
 }
 
 func TestSelectedClassCannotBorrowOtherRiskOrMerchant(t *testing.T) {
@@ -83,13 +83,13 @@ func TestAutomaticConsolidationRequiresSameOwnerAssetAndClass(t *testing.T) {
 
 func TestBalanceIncludesDebitFirstCommitmentExactlyOnce(t *testing.T) {
 	scope := BalanceScope{MerchantID: id.New(), NetworkID: id.New(), TokenID: id.New()}
-	buckets, err := SummarizeBalance(scope, []BalancePosition{{Scope: scope, Class: Low, Free: types.NewCryptoAmountFromInt64(390), Reserved: types.NewCryptoAmountFromInt64(600)}})
+	buckets, err := SummarizeBalance(scope, []BalancePosition{{Scope: scope, Class: Low, Free: types.NewRawAmountFromInt64(390), Reserved: types.NewRawAmountFromInt64(600)}})
 	require.NoError(t, err)
 	require.Equal(t, "990", buckets[0].Total.String())
 	require.Equal(t, "390", buckets[0].Free.String())
 	require.Equal(t, "600", buckets[0].Reserved.String())
 	require.Equal(t, "0", buckets[0].TechnicalHold.String())
-	reclassified, err := SummarizeBalance(scope, []BalancePosition{{Scope: scope, Class: High, Free: types.NewCryptoAmountFromInt64(390), Reserved: types.NewCryptoAmountFromInt64(600)}})
+	reclassified, err := SummarizeBalance(scope, []BalancePosition{{Scope: scope, Class: High, Free: types.NewRawAmountFromInt64(390), Reserved: types.NewRawAmountFromInt64(600)}})
 	require.NoError(t, err)
 	require.Equal(t, "0", reclassified[0].Total.String())
 	require.Equal(t, "990", reclassified[2].Total.String())
@@ -102,7 +102,7 @@ func TestRiskBalanceCannotMixAssetsOrMerchants(t *testing.T) {
 		{MerchantID: scope.MerchantID, NetworkID: id.New(), TokenID: scope.TokenID},
 		{MerchantID: scope.MerchantID, NetworkID: scope.NetworkID, TokenID: id.New()},
 	} {
-		_, err := SummarizeBalance(scope, []BalancePosition{{Scope: other, Class: Low, Free: types.NewCryptoAmountFromInt64(100)}})
+		_, err := SummarizeBalance(scope, []BalancePosition{{Scope: other, Class: Low, Free: types.NewRawAmountFromInt64(100)}})
 		require.ErrorContains(t, err, "cannot combine")
 	}
 }

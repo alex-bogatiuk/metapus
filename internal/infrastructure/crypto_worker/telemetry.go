@@ -196,7 +196,7 @@ func recordResourceDecision(ctx context.Context, networkID id.ID, policy crypto.
 	))
 }
 
-func recordFeeReservation(ctx context.Context, req FeeReservationRequest, err error, remaining *types.CryptoAmount) {
+func recordFeeReservation(ctx context.Context, req FeeReservationRequest, err error, remaining *types.RawAmount) {
 	attrs := []attribute.KeyValue{
 		attribute.String("crypto.network.id", req.NetworkID.String()),
 		attribute.String("crypto.purpose", string(req.Purpose)),
@@ -233,7 +233,7 @@ func recordFeeSettlement(ctx context.Context, receipt crypto.ChainReceipt, purpo
 	}
 }
 
-func recordNativeFunding(ctx context.Context, networkID id.ID, amount types.CryptoAmount) {
+func recordNativeFunding(ctx context.Context, networkID id.ID, amount types.RawAmount) {
 	if value, err := amount.Int64Exact(); err == nil {
 		cryptoMetrics.nativeFunding.Add(ctx, value, metric.WithAttributes(
 			attribute.String("crypto.network.id", networkID.String()),

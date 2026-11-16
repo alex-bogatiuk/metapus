@@ -16,7 +16,7 @@ import (
 type FeeSettlementResult struct {
 	ReservationID id.ID
 	SettlementID  id.ID
-	ActualFee     types.CryptoAmount
+	ActualFee     types.RawAmount
 }
 type ActivationWorkflowRepository interface {
 	LockOperation(context.Context, AccountActivationTask) (*id.ID, error)

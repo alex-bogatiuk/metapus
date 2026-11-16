@@ -23,7 +23,7 @@ func (NativeFundingStore) LoadWallet(ctx context.Context, wallet, network id.ID,
 	return loadNativeFundingWallet(ctx, wallet, network, role)
 }
 
-func (NativeFundingStore) OperatingBalance(ctx context.Context, wallet, token id.ID) (types.CryptoAmount, bool, error) {
+func (NativeFundingStore) OperatingBalance(ctx context.Context, wallet, token id.ID) (types.RawAmount, bool, error) {
 	return amlAvailableOperatingBalance(ctx, wallet, token)
 }
 

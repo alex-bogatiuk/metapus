@@ -135,7 +135,7 @@ Withdrawal фиксирует один класс, конкретные source w
 
 Processing fee сохраняется как отдельная часть движения, недоступная для merchant principal withdrawal. Если fee физически остаётся на адресе, это учитывается в source spendable amount. Её последующий сбор — отдельная операция оплаты услуги с точной суммой и owner/basis; он не разрешает объединять principal мерчантов или оплачивать B остатками A. Риск собранных средств сервиса отслеживается отдельно от merchant principal.
 
-При reorg используются компенсирующие движения по конкретному verified effect. Internal sweep/funding не создаёт второе внешнее поступление/merchant credit на destination. Деньги — `types.CryptoAmount` / `NUMERIC(78,0)` minor units.
+При reorg используются компенсирующие движения по конкретному verified effect. Internal sweep/funding не создаёт второе внешнее поступление/merchant credit на destination. Деньги — `types.RawAmount` / `NUMERIC(78,0)` minor units.
 
 ### 3.3. Durable risk jobs и reports
 

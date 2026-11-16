@@ -174,9 +174,9 @@ func (r *memPaymentRepo) FindBySenderNonce(_ context.Context, networkID id.ID, s
 }
 func (r *memPaymentRepo) SummarizeByInvoice(_ context.Context, invoiceID id.ID) (crypto_payment.InvoicePaymentSummary, error) {
 	summary := crypto_payment.InvoicePaymentSummary{
-		ReceivedAmount:  types.ZeroCryptoAmount(),
-		ConfirmedAmount: types.ZeroCryptoAmount(),
-		CreditedAmount:  types.ZeroCryptoAmount(),
+		ReceivedAmount:  types.ZeroRawAmount(),
+		ConfirmedAmount: types.ZeroRawAmount(),
+		CreditedAmount:  types.ZeroRawAmount(),
 	}
 	for _, payment := range r.payments {
 		if payment.InvoiceID != invoiceID || payment.DeletionMark || payment.Canonicality != string(CanonicalityCanonical) {
@@ -374,7 +374,7 @@ func setupTestFixture(t *testing.T, sweepThreshold int64) *testFixture {
 
 	// Seed invoice (created, awaiting payment)
 	invoiceRepo := newMemInvoiceRepo()
-	inv := crypto_invoice.NewCryptoInvoice(merchantID, tokenID, types.NewCryptoAmountFromInt64(5_000_000))
+	inv := crypto_invoice.NewCryptoInvoice(merchantID, tokenID, types.NewRawAmountFromInt64(5_000_000))
 	inv.ID = invoiceID
 	inv.WalletID = &walletID
 	inv.ExpiresAt = time.Now().Add(30 * time.Minute)
@@ -391,7 +391,7 @@ func setupTestFixture(t *testing.T, sweepThreshold int64) *testFixture {
 	walletSvc := wallet.NewService(walletRepo, nil)
 
 	// Sweep resolver (with threshold)
-	tok := &token.Token{SweepThreshold: types.NewCryptoAmountFromInt64(sweepThreshold), DecimalPlaces: 6}
+	tok := &token.Token{SweepThreshold: types.NewRawAmountFromInt64(sweepThreshold), DecimalPlaces: 6}
 	tok.ID = tokenID
 	mockTokenRepo := &mockTokenRepo{tok: tok}
 	sweepResolver := NewSweepConfigResolver(&mockMerchantConfigRepo{}, mockTokenRepo)
@@ -434,7 +434,7 @@ func (f *testFixture) makeTransferEvent(amount int64) BlockchainEvent {
 		TxHash:        "0xtesthash_" + id.Compact(id.New()),
 		ToAddress:     f.walletAddr,
 		FromAddress:   "TSenderAddress",
-		Amount:        types.NewCryptoAmountFromInt64(amount),
+		Amount:        types.NewRawAmountFromInt64(amount),
 		BlockNumber:   100,
 		Finality:      FinalityProvisional,
 		Confirmations: 0,
@@ -445,7 +445,7 @@ func (f *testFixture) makeTransferEvent(amount int64) BlockchainEvent {
 }
 
 func (f *testFixture) makeConfirmationEvent(txHash string, confs int) BlockchainEvent {
-	amount := types.NewCryptoAmountFromInt64(5_000_000)
+	amount := types.NewRawAmountFromInt64(5_000_000)
 	for _, payment := range f.paymentRepo.payments {
 		if payment.TxHash == txHash {
 			amount = payment.Amount
@@ -651,7 +651,7 @@ func TestPaymentCycle_DoesNotCompleteUntilCanonicalFinalizedSumCoversInvoice(t *
 	ctx := tenant.WithTxManager(context.Background(), &noopTxManager{})
 	f := setupTestFixture(t, 20_000_000)
 	invoice, _ := f.invoiceRepo.GetByID(ctx, f.invoiceID)
-	invoice.ExpectedAmount = types.NewCryptoAmountFromInt64(10_000_000)
+	invoice.ExpectedAmount = types.NewRawAmountFromInt64(10_000_000)
 
 	first := f.makeTransferEvent(4_000_000)
 	second := f.makeTransferEvent(6_000_000)
@@ -801,7 +801,7 @@ func TestInvoiceLifecycle_ProvisionalOverpaymentDoesNotDowngradeCompleted(t *tes
 	overpayment := crypto_payment.NewCryptoPayment(
 		f.invoiceID, f.merchantID, f.tokenID, f.walletID, f.networkID,
 		"0xpost-completion-overpayment", 0, string(EventKindContractLog), "0xblock-overpayment", "0xsender",
-		types.NewCryptoAmountFromInt64(1_000_000), 120, 19,
+		types.NewRawAmountFromInt64(1_000_000), 120, 19,
 	)
 	if err := f.paymentRepo.Create(ctx, overpayment); err != nil {
 		t.Fatalf("persist overpayment: %v", err)
@@ -834,7 +834,7 @@ func TestInvoiceLifecycle_ExpireWithPartialPaymentBecomesUnderpaid(t *testing.T)
 	payment := crypto_payment.NewCryptoPayment(
 		f.invoiceID, f.merchantID, f.tokenID, f.walletID, f.networkID,
 		"0xpartial-expiry", 0, string(EventKindContractLog), "0xblock", "0xsender",
-		types.NewCryptoAmountFromInt64(2_000_000), 100, 19,
+		types.NewRawAmountFromInt64(2_000_000), 100, 19,
 	)
 	if err := f.paymentRepo.Create(ctx, payment); err != nil {
 		t.Fatal(err)
@@ -1261,7 +1261,7 @@ func TestPaymentCycle_ReuseLastSecondCreditsFirstAllocation(t *testing.T) {
 	closed := now.Add(-time.Second)
 	cooldown := now
 	bLeased := cooldown.Add(time.Millisecond)
-	invoiceB := crypto_invoice.NewCryptoInvoice(f.merchantID, f.tokenID, types.NewCryptoAmountFromInt64(5_000_000))
+	invoiceB := crypto_invoice.NewCryptoInvoice(f.merchantID, f.tokenID, types.NewRawAmountFromInt64(5_000_000))
 	invoiceB.Status = crypto_invoice.InvoiceStatusCreated
 	f.invoiceRepo.invoices[invoiceB.ID] = invoiceB
 
@@ -1303,7 +1303,7 @@ func TestPaymentCycle_GapAfterCooldownNeverCreditsB(t *testing.T) {
 	closed := now.Add(-2 * time.Minute)
 	cooldown := now.Add(-time.Minute)
 	bLeased := now
-	invoiceB := crypto_invoice.NewCryptoInvoice(f.merchantID, f.tokenID, types.NewCryptoAmountFromInt64(5_000_000))
+	invoiceB := crypto_invoice.NewCryptoInvoice(f.merchantID, f.tokenID, types.NewRawAmountFromInt64(5_000_000))
 	invoiceB.Status = crypto_invoice.InvoiceStatusCreated
 	f.invoiceRepo.invoices[invoiceB.ID] = invoiceB
 

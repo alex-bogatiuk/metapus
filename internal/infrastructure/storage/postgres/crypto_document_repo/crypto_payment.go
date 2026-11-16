@@ -122,10 +122,10 @@ func (r *CryptoPaymentRepo) SummarizeByInvoice(ctx context.Context, invoiceID id
 		WHERE invoice_id=$1 AND deletion_mark=FALSE`
 
 	var projection struct {
-		ReceivedAmount  types.CryptoAmount `db:"received_amount"`
-		ConfirmedAmount types.CryptoAmount `db:"confirmed_amount"`
-		CreditedAmount  types.CryptoAmount `db:"credited_amount"`
-		ChainObservedAt *time.Time         `db:"chain_observed_at"`
+		ReceivedAmount  types.RawAmount `db:"received_amount"`
+		ConfirmedAmount types.RawAmount `db:"confirmed_amount"`
+		CreditedAmount  types.RawAmount `db:"credited_amount"`
+		ChainObservedAt *time.Time      `db:"chain_observed_at"`
 	}
 	querier := r.GetTxManager(ctx).GetQuerier(ctx)
 	if err := pgxscan.Get(ctx, querier, &projection, query, invoiceID); err != nil {

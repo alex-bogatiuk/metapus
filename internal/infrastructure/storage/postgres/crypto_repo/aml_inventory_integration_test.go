@@ -38,7 +38,7 @@ func readyAMLInventory(t *testing.T) (amlRoutingFixture, id.ID, id.ID) {
 func (f amlRoutingFixture) allocationRequest(t *testing.T, destination id.ID, amount string) aml.InternalAllocationRequest {
 	t.Helper()
 	r := aml.InternalAllocationRequest{SweepAttemptID: id.New(), MerchantID: f.input.Request.MerchantID, NetworkID: f.input.Request.NetworkID,
-		TokenID: f.input.Request.TokenID, SourceWalletID: f.input.WalletID, DestinationID: destination, Amount: types.MustCryptoAmount(amount), Class: aml.Low}
+		TokenID: f.input.Request.TokenID, SourceWalletID: f.input.WalletID, DestinationID: destination, Amount: types.MustRawAmount(amount), Class: aml.Low}
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT p.revision,r.revision,s.version FROM reg_crypto_aml_inventory_positions p JOIN reg_crypto_wallet_risk_states r ON r.wallet_id=p.wallet_id AND r.token_id=p.token_id
  JOIN sys_crypto_aml_routing_scopes s ON s.merchant_id=p.merchant_id AND s.network_id=p.network_id AND s.token_id=p.token_id WHERE p.wallet_id=$1 AND p.token_id=$2`, r.SourceWalletID, r.TokenID).Scan(&r.SourceRevision, &r.RiskRevision, &r.ScopeVersion))
 	_, err := f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_sweep_attempts(id,wallet_id,token_id,network_id,hot_wallet_id,source_address,destination_address,amount,status,expires_at)
@@ -55,7 +55,7 @@ func (f amlRoutingFixture) allocationAuthorization(t *testing.T, request aml.Int
 		Purpose: crypto.SigningPurposeSweep, BasisType: "CryptoSweepAttempt", BasisID: request.SweepAttemptID, Attempt: 1, Generation: 1, ExpiresAt: time.Now().Add(time.Hour),
 		NetworkID: request.NetworkID, NetworkCode: "RISK-TEST", ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: "nile", SourceAddress: f.input.Request.Address, FeePayerAddress: f.input.Request.Address,
 		VaultKeyID: "test-key", DestinationAddress: address, AssetStandard: "trc20", ContractAddress: "test-contract", AmountMinorUnits: request.Amount,
-		MaxNetworkFeeMinor: types.MustCryptoAmount("1"), UnsignedFingerprint: "partition-" + request.SweepAttemptID.String(), PolicyVersion: "tron-v1"}
+		MaxNetworkFeeMinor: types.MustRawAmount("1"), UnsignedFingerprint: "partition-" + request.SweepAttemptID.String(), PolicyVersion: "tron-v1"}
 	unsigned := crypto.UnsignedTxEnvelope{Family: crypto.ChainFamilyTRON, SchemaVersion: 1, UnsignedFingerprint: auth.UnsignedFingerprint, Generation: 1, Payload: []byte(`{"synthetic":true}`)}
 	return auth, unsigned
 }
@@ -96,7 +96,7 @@ func (f amlRoutingFixture) postAllocatedSweep(t *testing.T, request aml.Internal
 	f.settleSweepLine(t, sweepID, request.SweepAttemptID, request.SourceWalletID, request.DestinationID, request.TokenID, request.NetworkID, request.Amount)
 }
 
-func (f amlRoutingFixture) settleSweepLine(t *testing.T, sweepID, lineID, source, destination, token, network id.ID, amount types.CryptoAmount) {
+func (f amlRoutingFixture) settleSweepLine(t *testing.T, sweepID, lineID, source, destination, token, network id.ID, amount types.RawAmount) {
 	t.Helper()
 	var txHash string
 	var proofID id.ID
@@ -218,7 +218,7 @@ func TestAMLInventoryConcurrentReservationIsIdempotentAndExpiredAttemptDoesNotRe
 		require.Equal(t, planID, result.ID)
 	}
 	changed := request
-	changed.Amount = types.MustCryptoAmount("59")
+	changed.Amount = types.MustRawAmount("59")
 	_, err := f.repo.ReserveAMLInternalAllocation(f.ctx, changed)
 	require.ErrorContains(t, err, "request changed")
 	_, err = f.pool.Exec(f.ctx, `UPDATE reg_crypto_sweep_attempts SET status='expired' WHERE id=$1`, request.SweepAttemptID)
@@ -318,9 +318,9 @@ func TestAMLInventoryRejectsForeignCustodyAndDifferentDestinationClass(t *testin
 
 func TestAMLInventorySQLReservationPreservesNumeric78IntegerQuotient(t *testing.T) {
 	f := newAMLRoutingFixture(t, true)
-	net := types.MustCryptoAmount("999999999999999999999999999999999999999999999999999999999999999999999999999998")
+	net := types.MustRawAmount("999999999999999999999999999999999999999999999999999999999999999999999999999998")
 	proof := f.proof(f.input.Request.Address, "numeric78-deposit", 1)
-	proof.Event.Amount = net.Add(types.MustCryptoAmount("1"))
+	proof.Event.Amount = net.Add(types.MustRawAmount("1"))
 	proofID, effectID := f.save(t, proof)
 	f.postPaymentFee(t, proof, proofID, f.input.WalletID, "1")
 	f.attribute(t, proof.Event.TxHash, net.String(), "1")
@@ -332,7 +332,7 @@ func TestAMLInventorySQLReservationPreservesNumeric78IntegerQuotient(t *testing.
 	request := f.allocationRequest(t, destination, net.String())
 	plan, err := f.repo.ReserveAMLInternalAllocation(f.ctx, request)
 	require.NoError(t, err)
-	require.Equal(t, net.Sub(types.MustCryptoAmount("1")).String(), plan.Partition.Principal.String())
+	require.Equal(t, net.Sub(types.MustRawAmount("1")).String(), plan.Partition.Principal.String())
 	require.Equal(t, "1", plan.Partition.ServiceFee.String())
 }
 

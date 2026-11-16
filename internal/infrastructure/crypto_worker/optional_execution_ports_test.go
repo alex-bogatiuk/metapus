@@ -12,7 +12,7 @@ import (
 
 func TestOptionalExecutionFacadesFailClosedWhenAbsent(t *testing.T) {
 	var funding *NativeFundingService
-	ready, err := funding.Ensure(t.Context(), nil, crypto.NetworkPolicy{}, NativeFundingRequest{}, nil, types.ZeroCryptoAmount())
+	ready, err := funding.Ensure(t.Context(), nil, crypto.NetworkPolicy{}, NativeFundingRequest{}, nil, types.ZeroRawAmount())
 	require.False(t, ready)
 	require.ErrorIs(t, err, ErrNativeFundingHeld)
 	var operations *CryptoNetworkOperationCoordinator

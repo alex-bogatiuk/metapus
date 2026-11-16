@@ -29,9 +29,9 @@ func testTRONAddress() string {
 // providers would report for the reservation payer of r.
 func proveTestNetworkFee(ctx context.Context, payer string, r *crypto.ChainReceipt) error {
 	if r.Fee.TotalFee.IsZero() {
-		r.Fee.TotalFee = types.ZeroCryptoAmount()
+		r.Fee.TotalFee = types.ZeroRawAmount()
 	}
-	r.Fee.Components = []crypto.FeeComponent{{Name: "energy_fee", Amount: types.ZeroCryptoAmount()}, {Name: "bandwidth_fee", Amount: r.Fee.TotalFee, Quantity: 2}}
+	r.Fee.Components = []crypto.FeeComponent{{Name: "energy_fee", Amount: types.ZeroRawAmount()}, {Name: "bandwidth_fee", Amount: r.Fee.TotalFee, Quantity: 2}}
 	head := r.BlockHeight + int64(r.Confirmations) - 1
 	p := crypto.NetworkFeeProof{SchemaVersion: 1, Family: crypto.ChainFamilyTRON, NetworkID: r.NetworkID, TxHash: r.TxHash, PayerAddress: payer, NativeTokenID: r.Fee.NativeAsset.TokenID,
 		BlockHash: r.BlockHash, BlockNumber: r.BlockHeight, Status: r.Status, TotalFee: r.Fee.TotalFee, Components: r.Fee.Components, Confirmations: r.Confirmations,

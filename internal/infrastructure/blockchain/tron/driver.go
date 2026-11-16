@@ -23,8 +23,8 @@ const (
 	defaultEnergyPriceSun       = 420
 )
 
-func DefaultProtocolMaxFee() types.CryptoAmount {
-	return types.NewCryptoAmountFromInt64(defaultMaxFeeSun)
+func DefaultProtocolMaxFee() types.RawAmount {
+	return types.NewRawAmountFromInt64(defaultMaxFeeSun)
 }
 
 type DriverConfig struct {
@@ -33,9 +33,9 @@ type DriverConfig struct {
 	WatcherStateRepository crypto.WatcherStateRepository
 	BlockCaptureRepository crypto.BlockCaptureRepository
 	WalletDeriver          crypto.WalletDeriver
-	MaxFeeMinor            types.CryptoAmount
-	NativeTransferFeeMinor types.CryptoAmount
-	EnergyPriceMinor       types.CryptoAmount
+	MaxFeeMinor            types.RawAmount
+	NativeTransferFeeMinor types.RawAmount
+	EnergyPriceMinor       types.RawAmount
 	QuoteTTL               time.Duration
 }
 
@@ -69,9 +69,9 @@ type Driver struct {
 	stateRepo   crypto.WatcherStateRepository
 	blockRepo   crypto.BlockCaptureRepository
 	deriver     crypto.WalletDeriver
-	maxFee      types.CryptoAmount
-	nativeFee   types.CryptoAmount
-	energyPrice types.CryptoAmount
+	maxFee      types.RawAmount
+	nativeFee   types.RawAmount
+	energyPrice types.RawAmount
 	quoteTTL    time.Duration
 }
 
@@ -89,10 +89,10 @@ func NewDriver(cfg DriverConfig) (*Driver, error) {
 		return nil, errors.New("TRON driver fee configuration is invalid")
 	}
 	if !cfg.NativeTransferFeeMinor.IsPositive() {
-		cfg.NativeTransferFeeMinor = types.NewCryptoAmountFromInt64(defaultNativeTransferFeeSun)
+		cfg.NativeTransferFeeMinor = types.NewRawAmountFromInt64(defaultNativeTransferFeeSun)
 	}
 	if !cfg.EnergyPriceMinor.IsPositive() {
-		cfg.EnergyPriceMinor = types.NewCryptoAmountFromInt64(defaultEnergyPriceSun)
+		cfg.EnergyPriceMinor = types.NewRawAmountFromInt64(defaultEnergyPriceSun)
 	}
 	if cfg.QuoteTTL <= 0 {
 		cfg.QuoteTTL = 30 * time.Second
@@ -231,19 +231,19 @@ func (d *Driver) Broadcast(ctx context.Context, envelope crypto.SignedTxEnvelope
 	return d.rpc.BroadcastSignedEnvelope(ctx, envelope)
 }
 
-func (d *Driver) NativeBalance(ctx context.Context, address string) (types.CryptoAmount, error) {
+func (d *Driver) NativeBalance(ctx context.Context, address string) (types.RawAmount, error) {
 	if err := d.Validate(address); err != nil {
-		return types.ZeroCryptoAmount(), err
+		return types.ZeroRawAmount(), err
 	}
 	return d.rpc.GetTRXBalance(ctx, address)
 }
 
-func (d *Driver) TokenBalance(ctx context.Context, asset crypto.AssetRef, address string) (types.CryptoAmount, error) {
+func (d *Driver) TokenBalance(ctx context.Context, asset crypto.AssetRef, address string) (types.RawAmount, error) {
 	if asset.Standard != token.TokenStandardTRC20 || asset.ContractAddress == "" {
-		return types.ZeroCryptoAmount(), errors.New("TRON token balance requires a TRC-20 contract")
+		return types.ZeroRawAmount(), errors.New("TRON token balance requires a TRC-20 contract")
 	}
 	if err := d.Validate(address); err != nil {
-		return types.ZeroCryptoAmount(), err
+		return types.ZeroRawAmount(), err
 	}
 	return d.rpc.GetTRC20Balance(ctx, address, asset.ContractAddress)
 }

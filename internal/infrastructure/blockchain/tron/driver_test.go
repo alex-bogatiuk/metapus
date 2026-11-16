@@ -28,8 +28,8 @@ func TestQuoteFeeActivationUsesNativeFeeBound(t *testing.T) {
 	}
 	driver := &Driver{
 		network:   network,
-		maxFee:    types.NewCryptoAmountFromInt64(100_000_000),
-		nativeFee: types.NewCryptoAmountFromInt64(2_000_000),
+		maxFee:    types.NewRawAmountFromInt64(100_000_000),
+		nativeFee: types.NewRawAmountFromInt64(2_000_000),
 		quoteTTL:  30 * time.Second,
 	}
 
@@ -43,10 +43,10 @@ func TestQuoteFeeActivationUsesNativeFeeBound(t *testing.T) {
 		SourceWalletID:     id.New(),
 		SourceAddress:      "TQv6ey7rE6YuK1rXeRgQpb7WLHaZakWQCK",
 		DestinationAddress: "TVAw5xjGeZ97P23FLf1MsKhavERzwrPsfF",
-		Amount:             types.ZeroCryptoAmount(),
+		Amount:             types.ZeroRawAmount(),
 	})
 	require.NoError(t, err)
-	require.Equal(t, types.NewCryptoAmountFromInt64(2_000_000), quote.EstimatedFee)
+	require.Equal(t, types.NewRawAmountFromInt64(2_000_000), quote.EstimatedFee)
 	require.Equal(t, quote.EstimatedFee, quote.MaxFee)
 }
 

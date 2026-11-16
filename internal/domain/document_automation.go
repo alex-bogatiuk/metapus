@@ -109,16 +109,16 @@ func (d *DocumentOutboxDecorator[T]) buildEvent(ctx context.Context, action stri
 	}
 }
 
-// extractHumanAmounts uses reflection to find MinorUnits and CryptoAmount fields
+// extractHumanAmounts uses reflection to find MinorUnits and RawAmount fields
 // on the top-level struct and converts them to transport-safe values.
 //
 // MinorUnits → exact decimal string (divided by currency's decimal places): 150000 → "1500.00"
-// CryptoAmount → canonical decimal string: 6000000 → "6000000"
+// RawAmount → canonical decimal string: 6000000 → "6000000"
 //
-// CryptoAmount stays in raw units because:
-//   - crypto invoices have no currency metadata (no decimalPlaces)
+// RawAmount stays in raw units because:
+//   - its asset's scale is not part of the document (no decimalPlaces)
 //   - a string preserves integers larger than JavaScript's safe range
-//   - divisor varies by token and is resolved on frontend, not in templates
+//   - the divisor varies by asset and is resolved on frontend, not in templates
 func extractHumanAmounts(entity any, currencyInfo *CurrencyInfo) (map[string]any, error) {
 	result := make(map[string]any)
 
@@ -134,7 +134,7 @@ func extractHumanAmounts(entity any, currencyInfo *CurrencyInfo) (map[string]any
 	typ := val.Type()
 
 	minorUnitsType := reflect.TypeFor[types.MinorUnits]()
-	cryptoAmountType := reflect.TypeFor[types.CryptoAmount]()
+	rawAmountType := reflect.TypeFor[types.RawAmount]()
 
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
@@ -160,10 +160,10 @@ func extractHumanAmounts(entity any, currencyInfo *CurrencyInfo) (map[string]any
 				return nil, fmt.Errorf("invalid currency metadata: %w", err)
 			}
 			result[name] = amount
-		case cryptoAmountType:
-			// CryptoAmount is a struct-backed immutable value object; keep its
+		case rawAmountType:
+			// RawAmount is a struct-backed immutable value object; keep its
 			// canonical string representation at the JSON/template boundary.
-			result[name] = fieldVal.Interface().(types.CryptoAmount).String()
+			result[name] = fieldVal.Interface().(types.RawAmount).String()
 		}
 	}
 

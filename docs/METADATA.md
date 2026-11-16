@@ -110,7 +110,7 @@ Metapus
 |---|---|
 | Ссылка / UUID | `id.ID` или `uuid.UUID`; идентификатор объекта. Основные идентификаторы создаются как UUIDv7 |
 | Дата и время | `time.Time`; формат и часовой пояс вывода зависят от контракта |
-| Криптосумма | `types.CryptoAmount`; целое число минимальных единиц токена произвольной точности, в финансовых таблицах `NUMERIC(78,0)` |
+| Криптосумма | `types.RawAmount`; целое число минимальных единиц токена произвольной точности, в финансовых таблицах `NUMERIC(78,0)` |
 | Денежная сумма | `types.MinorUnits`; целое число минимальных единиц валюты |
 | Десятичное число | `decimal.Decimal`; например, курс `NUMERIC(38,18)` |
 | Перечисление | Именованный строковый тип Go; варианты приведены в разделе перечислений |
@@ -768,7 +768,7 @@ SQL-часть с ключом `lines` объявлена в `crypto_sweep.Defin
 | Доказательство | `VerificationID` / `verificationId` | Persisted transfer verification; совпадает с document basis |
 | Включение в блок | `OccurrenceID` / `occurrenceId` | Accounting occurrence |
 | Признание principal | `PostingID` / `postingId` | Posting owner одного logical effect |
-| Полная сумма | `Amount` / `amount` | CryptoAmount, целые minor units |
+| Полная сумма | `Amount` / `amount` | RawAmount, целые minor units |
 | Строки регистров | `CustodyLineID` / `custodyLineId`, `SuspenseLineID` / `suspenseLineId` | Стабильные UUID физических и suspense movements |
 | Причина | `ReasonCode` / `reasonCode` | Закрытый набор reason codes |
 
@@ -876,11 +876,11 @@ SQL-часть с ключом `lines` объявлена в `crypto_sweep.Defin
 | Регистр | Измерения | Ресурс | Дополнительные реквизиты | Таблицы |
 |---|---|---|---|---|
 | Взаиморасчёты с контрагентами | Контрагент, договор, валюта | Сумма (`MinorUnits`) | Общие реквизиты движения | `reg_settlement_movements`, `reg_settlement_balances` |
-| Криптоостатки кошельков | Кошелёк, токен | Сумма (`CryptoAmount`) | Общие реквизиты движения | `reg_crypto_balance_movements`, `reg_crypto_balance_balances` |
-| Крипторасчёты с мерчантами | Мерчант, токен | Сумма (`CryptoAmount`) | Общие реквизиты движения | `reg_crypto_merchant_balance_movements`, `reg_crypto_merchant_balance_balances` |
-| Криптокомиссии | Мерчант, токен, вид комиссии | Сумма (`CryptoAmount`) | Общие реквизиты движения | `reg_crypto_fee_movements`, `reg_crypto_fee_balances` |
-| Расходы платформы | Сеть, токен операции, токен расхода, вид расхода, назначение, провайдер | Сумма (`CryptoAmount`) | Внешний заказ | `reg_crypto_platform_cost_movements` |
-| Балансы провайдеров | Аккаунт провайдера, токен | Сумма (`CryptoAmount`) | Операция, внешнее основание | `reg_crypto_provider_balance_movements` |
+| Криптоостатки кошельков | Кошелёк, токен | Сумма (`RawAmount`) | Общие реквизиты движения | `reg_crypto_balance_movements`, `reg_crypto_balance_balances` |
+| Крипторасчёты с мерчантами | Мерчант, токен | Сумма (`RawAmount`) | Общие реквизиты движения | `reg_crypto_merchant_balance_movements`, `reg_crypto_merchant_balance_balances` |
+| Криптокомиссии | Мерчант, токен, вид комиссии | Сумма (`RawAmount`) | Общие реквизиты движения | `reg_crypto_fee_movements`, `reg_crypto_fee_balances` |
+| Расходы платформы | Сеть, токен операции, токен расхода, вид расхода, назначение, провайдер | Сумма (`RawAmount`) | Внешний заказ | `reg_crypto_platform_cost_movements` |
+| Балансы провайдеров | Аккаунт провайдера, токен | Сумма (`RawAmount`) | Операция, внешнее основание | `reg_crypto_provider_balance_movements` |
 | Излишки и недостачи кошельков | Кошелёк, токен, вид расхождения (`surplus` / `shortage`) | Сумма `NUMERIC(78,0)` | Корректировка, период, идентификатор строки | `reg_crypto_wallet_variance_movements` |
 
 Последний регистр имеет собственную SQL-структуру из [миграции 00006](../db/migrations/00006_crypto_core.sql), без встраивания `MovementBase`. Регистр взаиморасчётов реализован на уровне модели и сервиса; стандартных документов-регистраторов для него в текущем `RegisterDefaults` нет.

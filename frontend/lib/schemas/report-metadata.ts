@@ -3,7 +3,7 @@ import { jsonValueSchema } from "@/lib/json-value"
 import type { FieldTreeNode, ReportMeta } from "@/types/report-meta"
 import type { ReportMetadataResponse } from "@/types/generated/http-contracts"
 
-const moneySources = z.object({ amountType: z.literal("crypto").optional(), currencyId: z.string().min(1), currencyCode: z.string().min(1), decimalPlaces: z.string().min(1) })
+const moneySources = z.object({ amountType: z.literal("raw").optional(), currencyId: z.string().min(1), currencyCode: z.string().min(1), decimalPlaces: z.string().min(1) })
 const enumValue = z.object({ value: z.string(), label: z.string() })
 const fieldTreeNode: z.ZodType<FieldTreeNode> = z.lazy(() => z.object({
     key: z.string(), name: z.string(), label: z.string(), type: z.string(), kind: z.string(),

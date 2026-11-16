@@ -31,7 +31,7 @@ func prepareAutomaticBaseline(t *testing.T, family ...crypto.ChainFamily) (amlRo
 }
 func checkpointForJob(job crypto.AMLPreflightJob, amount string) crypto.EmptyCheckpoint {
 	hash := strings.Repeat("a", 64)
-	return crypto.EmptyCheckpoint{NetworkID: job.NetworkID, Asset: job.Asset, Address: job.Address, Height: 30, Hash: hash, ObservedAt: time.Now().UTC(), Sources: []crypto.EmptyCheckpointSource{{ProviderID: "one", TrustGroup: "first", Height: 30, Hash: hash, Balance: types.MustCryptoAmount(amount), Method: "solidified_bracket"}, {ProviderID: "two", TrustGroup: "second", Height: 30, Hash: hash, Balance: types.MustCryptoAmount(amount), Method: "solidified_bracket"}}}
+	return crypto.EmptyCheckpoint{NetworkID: job.NetworkID, Asset: job.Asset, Address: job.Address, Height: 30, Hash: hash, ObservedAt: time.Now().UTC(), Sources: []crypto.EmptyCheckpointSource{{ProviderID: "one", TrustGroup: "first", Height: 30, Hash: hash, Balance: types.MustRawAmount(amount), Method: "solidified_bracket"}, {ProviderID: "two", TrustGroup: "second", Height: 30, Hash: hash, Balance: types.MustRawAmount(amount), Method: "solidified_bracket"}}}
 }
 func TestAMLAutomaticBaselineQuorumAndLeaseFence(t *testing.T) {
 	f, p, wallet := prepareAutomaticBaseline(t)

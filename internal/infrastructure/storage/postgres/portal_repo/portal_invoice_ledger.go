@@ -12,7 +12,7 @@ import (
 )
 
 type invoiceLedgerPayment struct {
-	amount, fee, net types.CryptoAmount
+	amount, fee, net types.RawAmount
 	posted           bool
 	version          int
 	generations      map[int]invoiceLedgerGeneration
@@ -78,14 +78,14 @@ func (r *DashboardRepo) loadInvoiceLedger(ctx context.Context, invoiceID, mercha
 	for rows.Next() {
 		var pid id.ID
 		var p invoiceLedgerPayment
-		var fixed, minFee, maxFee types.CryptoAmount
+		var fixed, minFee, maxFee types.RawAmount
 		var bp int
 		if err := rows.Scan(&pid, &p.amount, &fixed, &bp, &minFee, &maxFee, &p.posted, &p.version); err != nil {
 			rows.Close()
 			return nil, portalapp.PortalInvoiceLedger{}, err
 		}
 		p.fee = calculateFee(fixed, bp, minFee, maxFee, p.amount)
-		p.net = types.ZeroCryptoAmount()
+		p.net = types.ZeroRawAmount()
 		if p.amount.Cmp(p.fee) > 0 {
 			p.net = p.amount.Sub(p.fee)
 		}

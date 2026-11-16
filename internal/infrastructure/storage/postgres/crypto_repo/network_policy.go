@@ -147,7 +147,7 @@ func scanNetworkPolicyState(row policyStateScanner) (crypto.NetworkPolicyState, 
 
 // NetworkFundingSourcesReady checks the source registered to each active owner.
 // The same owner match is repeated when an individual funding operation starts.
-func (r *NetworkPolicyRepo) NetworkFundingSourcesReady(ctx context.Context, networkID id.ID, minimum types.CryptoAmount) (bool, error) {
+func (r *NetworkPolicyRepo) NetworkFundingSourcesReady(ctx context.Context, networkID id.ID, minimum types.RawAmount) (bool, error) {
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
 	var ready bool
 	err := q.QueryRow(ctx, `

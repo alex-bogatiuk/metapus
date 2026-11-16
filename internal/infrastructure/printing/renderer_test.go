@@ -8,7 +8,7 @@ import (
 	"metapus/internal/core/types"
 )
 
-func TestFormatCryptoUnitsIsExactForTheTokenScale(t *testing.T) {
+func TestFormatRawUnitsIsExactForTheTokenScale(t *testing.T) {
 	tests := []struct {
 		give     string
 		decimals int
@@ -25,6 +25,6 @@ func TestFormatCryptoUnitsIsExactForTheTokenScale(t *testing.T) {
 		{give: "5", decimals: -1, want: "—"},
 	}
 	for _, tt := range tests {
-		require.Equal(t, tt.want, FormatCryptoUnits(types.MustCryptoAmount(tt.give), tt.decimals), "%s/%d", tt.give, tt.decimals)
+		require.Equal(t, tt.want, FormatRawUnits(types.MustRawAmount(tt.give), tt.decimals), "%s/%d", tt.give, tt.decimals)
 	}
 }

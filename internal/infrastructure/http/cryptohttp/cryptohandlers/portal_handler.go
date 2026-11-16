@@ -513,7 +513,7 @@ func (h *PortalHandler) CreatePaymentLink(c *gin.Context) {
 	}
 
 	// Parse amount
-	amount, err := types.NewCryptoAmountFromString(req.Amount)
+	amount, err := types.NewRawAmountFromString(req.Amount)
 	if err != nil || !amount.IsPositive() {
 		_ = c.Error(apperror.NewValidation("amount must be a positive integer string"))
 		c.Abort()

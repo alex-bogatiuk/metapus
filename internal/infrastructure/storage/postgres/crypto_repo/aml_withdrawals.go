@@ -56,7 +56,7 @@ func (r *AMLRepository) ReserveAMLWithdrawalSources(ctx context.Context, intent 
 	type source struct {
 		line              crypto.MoneyMovementSourceLine
 		inventoryRevision int64
-		available         types.CryptoAmount
+		available         types.RawAmount
 	}
 	sources := map[id.ID]source{}
 	var candidates []aml.Source
@@ -166,8 +166,8 @@ func (r *AMLRepository) CancelUnsignedAMLWithdrawal(ctx context.Context, request
 	return err
 }
 
-func (r *AMLRepository) CancelAMLWithdrawalRemainder(ctx context.Context, merchant, requestID id.ID, reason string) (types.CryptoAmount, error) {
-	amount := types.ZeroCryptoAmount()
+func (r *AMLRepository) CancelAMLWithdrawalRemainder(ctx context.Context, merchant, requestID id.ID, reason string) (types.RawAmount, error) {
+	amount := types.ZeroRawAmount()
 	if postgres.MustGetTxManager(ctx).GetTx(ctx) == nil {
 		return amount, apperror.NewValidation("withdrawal cancellation requires the compensation transaction")
 	}

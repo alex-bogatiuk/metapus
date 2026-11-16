@@ -59,7 +59,7 @@ func (r *DashboardRepo) getInvoiceDetailSnapshot(ctx context.Context, invoiceID 
 	var iid, merchantID, tokenID id.ID
 	var singlePayment, selectedPayment bool
 	var observedAt time.Time
-	var amount, received types.CryptoAmount
+	var amount, received types.RawAmount
 	var createdAt, expiresAt time.Time
 	var externalID, customerID, invoiceKind string
 
@@ -320,7 +320,7 @@ func (r *DashboardRepo) ListWithdrawals(ctx context.Context, activeMerchantID *i
 	for rows.Next() {
 		var item portalapp.PortalWithdrawalItem
 		var wid id.ID
-		var amount, networkFee types.CryptoAmount
+		var amount, networkFee types.RawAmount
 		var createdAt time.Time
 
 		if err := rows.Scan(

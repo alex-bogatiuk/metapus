@@ -47,7 +47,7 @@ func (f paymentE2EFixture) freeWallet(t *testing.T, role string) (id.ID, string)
 func (f paymentE2EFixture) incoming(to string, native bool, amount string) crypto.BlockchainEvent {
 	event := f.transfer(100, e2eBlockHash("b"), crypto.FinalityProvisional)
 	event.TxHash = strings.ReplaceAll(id.New().String()+id.New().String(), "-", "")
-	event.ToAddress, event.Amount = to, types.MustCryptoAmount(amount)
+	event.ToAddress, event.Amount = to, types.MustRawAmount(amount)
 	if native {
 		event.EventKind, event.TokenContract = crypto.EventKindNativeValue, ""
 	}

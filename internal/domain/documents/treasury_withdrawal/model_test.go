@@ -14,7 +14,7 @@ import (
 
 func TestTreasuryWithdrawalAdminStillCannotApproveOwnOperation(t *testing.T) {
 	actor := id.New()
-	doc := NewTreasuryWithdrawal(id.New(), id.New(), id.New(), "external", types.NewCryptoAmountFromInt64(1))
+	doc := NewTreasuryWithdrawal(id.New(), id.New(), id.New(), "external", types.NewRawAmountFromInt64(1))
 	doc.CreatedBy = actor
 	doc.ApprovedBy = &actor
 	ctx := appctx.WithUser(context.Background(), &appctx.UserContext{UserID: actor.String(), IsAdmin: true, Roles: []string{"admin"}})
@@ -25,7 +25,7 @@ func TestTreasuryWithdrawalAdminStillCannotApproveOwnOperation(t *testing.T) {
 
 func TestTreasuryWithdrawalPostingCreatesNoPrincipalOrRevenueExpense(t *testing.T) {
 	// Principal and revenue are recognized only at final chain settlement.
-	var doc any = NewTreasuryWithdrawal(id.New(), id.New(), id.New(), "external", types.NewCryptoAmountFromInt64(23))
+	var doc any = NewTreasuryWithdrawal(id.New(), id.New(), id.New(), "external", types.NewRawAmountFromInt64(23))
 	_, balance := doc.(cryptoposting.CryptoBalanceMovementSource)
 	_, fee := doc.(cryptoposting.CryptoFeeMovementSource)
 	require.False(t, balance)
@@ -38,7 +38,7 @@ func TestTreasuryWithdrawalCanPostRequiresBroadcastTxHash(t *testing.T) {
 		id.New(),
 		id.New(),
 		"T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb",
-		types.NewCryptoAmountFromInt64(100),
+		types.NewRawAmountFromInt64(100),
 	)
 
 	if err := doc.CanPost(context.Background()); err == nil {
@@ -58,7 +58,7 @@ func TestTreasuryWithdrawalCanPostRequiresBroadcastTxHash(t *testing.T) {
 
 func TestReceiptRefundTermsFollowTheGasPayer(t *testing.T) {
 	receipt, token, wallet, destination := id.New(), id.New(), id.New(), id.New()
-	amount := types.NewCryptoAmountFromInt64
+	amount := types.NewRawAmountFromInt64
 	refund, err := NewReceiptRefund(receipt, token, wallet, destination, "payer", amount(25), amount(2), GasPayerRecipient, " Sent by mistake ")
 	require.NoError(t, err)
 	require.True(t, refund.IsReceiptRefund())
@@ -71,9 +71,9 @@ func TestReceiptRefundTermsFollowTheGasPayer(t *testing.T) {
 	require.ErrorContains(t, err, "below the refund amount")
 	_, err = NewReceiptRefund(receipt, token, wallet, destination, "payer", amount(25), amount(1), GasPayerPlatform, "reason")
 	require.ErrorContains(t, err, "platform-paid gas withholds nothing")
-	_, err = NewReceiptRefund(receipt, token, wallet, destination, "payer", amount(25), types.ZeroCryptoAmount(), GasPayerRecipient, "reason")
+	_, err = NewReceiptRefund(receipt, token, wallet, destination, "payer", amount(25), types.ZeroRawAmount(), GasPayerRecipient, "reason")
 	require.ErrorContains(t, err, "requires the withheld amount")
-	_, err = NewReceiptRefund(receipt, token, wallet, destination, "payer", amount(25), types.ZeroCryptoAmount(), GasPayerPlatform, "  ")
+	_, err = NewReceiptRefund(receipt, token, wallet, destination, "payer", amount(25), types.ZeroRawAmount(), GasPayerPlatform, "  ")
 	require.ErrorContains(t, err, "refund reason is required")
 
 	revenue := NewTreasuryWithdrawal(token, wallet, destination, "treasury", amount(5))

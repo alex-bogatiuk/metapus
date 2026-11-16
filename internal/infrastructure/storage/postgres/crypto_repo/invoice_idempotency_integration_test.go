@@ -108,7 +108,7 @@ func TestTwentyConcurrentInvoiceCommandsCreateOneAggregateAllocationAndEvent(t *
 	require.NoError(t, err)
 
 	input := cryptoapp.CreateMerchantInvoiceInput{
-		MerchantID: merchantID, TokenID: tokenID, Amount: types.MustCryptoAmount("42000000"),
+		MerchantID: merchantID, TokenID: tokenID, Amount: types.MustRawAmount("42000000"),
 		CreatedByID: id.New(), CreationSource: crypto_invoice.CreationSourcePortal,
 		ExpiresAt: now.Add(time.Hour), TTLMinutes: 60, OrderID: "order-" + suffix,
 		ExternalID: "external-" + suffix, Description: "one user operation",

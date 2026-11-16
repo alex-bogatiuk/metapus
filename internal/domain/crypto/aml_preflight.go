@@ -12,12 +12,12 @@ import (
 )
 
 type EmptyCheckpointSource struct {
-	ProviderID string             `json:"providerId"`
-	TrustGroup string             `json:"trustGroup"`
-	Height     int64              `json:"height"`
-	Hash       string             `json:"hash"`
-	Balance    types.CryptoAmount `json:"balance"`
-	Method     string             `json:"method"`
+	ProviderID string          `json:"providerId"`
+	TrustGroup string          `json:"trustGroup"`
+	Height     int64           `json:"height"`
+	Hash       string          `json:"hash"`
+	Balance    types.RawAmount `json:"balance"`
+	Method     string          `json:"method"`
 }
 
 // EmptyCheckpoint contains two pinned state observations at one financially

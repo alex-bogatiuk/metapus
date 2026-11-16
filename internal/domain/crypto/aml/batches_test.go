@@ -10,18 +10,18 @@ import (
 )
 
 func TestBatchCapacityUsesLifetimeGrossAndSaturatesOnUnwantedExcess(t *testing.T) {
-	b := Batch{MaxGross: types.MustCryptoAmount("900719925474099300000000003"), Committed: types.MustCryptoAmount("900719925474099300000000000"), Reserved: types.MustCryptoAmount("2")}
+	b := Batch{MaxGross: types.MustRawAmount("900719925474099300000000003"), Committed: types.MustRawAmount("900719925474099300000000000"), Reserved: types.MustRawAmount("2")}
 	require.Equal(t, "1", b.AvailableCapacity().String())
-	b.Unplanned = types.MustCryptoAmount("100")
+	b.Unplanned = types.MustRawAmount("100")
 	require.Equal(t, "0", b.AvailableCapacity().String())
 }
 
 func TestBatchFieldsPreserveLegacyAllocationRequestDigest(t *testing.T) {
-	r := InternalAllocationRequest{SweepAttemptID: id.New(), MerchantID: id.New(), NetworkID: id.New(), TokenID: id.New(), SourceWalletID: id.New(), DestinationID: id.New(), Amount: types.MustCryptoAmount("20"), SourceRevision: 1, RiskRevision: 1, ScopeVersion: 1, Class: Low}
+	r := InternalAllocationRequest{SweepAttemptID: id.New(), MerchantID: id.New(), NetworkID: id.New(), TokenID: id.New(), SourceWalletID: id.New(), DestinationID: id.New(), Amount: types.MustRawAmount("20"), SourceRevision: 1, RiskRevision: 1, ScopeVersion: 1, Class: Low}
 	// The old persisted digest covered this exact shape, before batch fields.
 	legacy := struct {
 		SweepAttemptID, MerchantID, NetworkID, TokenID, SourceWalletID, DestinationID id.ID
-		Amount                                                                        types.CryptoAmount
+		Amount                                                                        types.RawAmount
 		SourceRevision, RiskRevision, ScopeVersion                                    int64
 		Class                                                                         Class
 	}{r.SweepAttemptID, r.MerchantID, r.NetworkID, r.TokenID, r.SourceWalletID, r.DestinationID, r.Amount, r.SourceRevision, r.RiskRevision, r.ScopeVersion, r.Class}

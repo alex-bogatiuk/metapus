@@ -12,12 +12,12 @@ import (
 func TestMovementPlansAreDeterministicAndStampedOnlyOnStorageCopy(t *testing.T) {
 	type testMovement struct {
 		entity.MovementBase
-		Amount types.CryptoAmount
+		Amount types.RawAmount
 	}
 	recorder := id.New()
 	at := time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC)
 	generate := func() testMovement {
-		return testMovement{MovementBase: entity.NewMovementBase(recorder, "TestDocument", 1, at, entity.RecordTypeReceipt), Amount: types.NewCryptoAmountFromInt64(42)}
+		return testMovement{MovementBase: entity.NewMovementBase(recorder, "TestDocument", 1, at, entity.RecordTypeReceipt), Amount: types.NewRawAmountFromInt64(42)}
 	}
 	a, b := generate(), generate()
 	require.Equal(t, a, b)

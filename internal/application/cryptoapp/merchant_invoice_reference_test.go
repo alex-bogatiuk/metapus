@@ -58,7 +58,7 @@ func TestMerchantReferenceBindingIsIndependentOfStatusAndNoOpOnRepeat(t *testing
 		crypto_invoice.InvoiceStatusReversed, crypto_invoice.InvoiceStatusCancelled,
 	} {
 		t.Run(string(status), func(t *testing.T) {
-			invoice := crypto_invoice.NewCryptoInvoice(id.New(), id.New(), types.NewCryptoAmountFromInt64(100))
+			invoice := crypto_invoice.NewCryptoInvoice(id.New(), id.New(), types.NewRawAmountFromInt64(100))
 			invoice.Status, invoice.ExternalID = status, "ERP-45001"
 			invoice.Metadata = map[string]string{"original": "value"}
 			creationKey := id.New()
@@ -102,7 +102,7 @@ func TestMerchantReferenceBindingIsIndependentOfStatusAndNoOpOnRepeat(t *testing
 }
 
 func TestMerchantReferenceBindsExternalIDWithoutOrderAndPreservesOmittedReferences(t *testing.T) {
-	invoice := crypto_invoice.NewCryptoInvoice(id.New(), id.New(), types.NewCryptoAmountFromInt64(100))
+	invoice := crypto_invoice.NewCryptoInvoice(id.New(), id.New(), types.NewRawAmountFromInt64(100))
 	invoice.InvoiceKind, invoice.CreationSource = crypto_invoice.InvoiceKindTopUp, crypto_invoice.CreationSourceSystem
 	repo := &referenceRepoStub{invoice: invoice, topUp: true}
 	audit := &referenceAuditStub{}
@@ -143,7 +143,7 @@ func TestMerchantReferenceBindsExternalIDWithoutOrderAndPreservesOmittedReferenc
 }
 
 func TestMerchantReferenceRejectsOtherOwnerAndNonTopUp(t *testing.T) {
-	invoice := crypto_invoice.NewCryptoInvoice(id.New(), id.New(), types.NewCryptoAmountFromInt64(100))
+	invoice := crypto_invoice.NewCryptoInvoice(id.New(), id.New(), types.NewRawAmountFromInt64(100))
 	repo := &referenceRepoStub{invoice: invoice}
 	svc := &MerchantInvoiceService{referenceRepo: repo, events: &referenceAuditStub{}}
 	ctx := tenant.WithTxManager(context.Background(), &merchantInvoiceTestTxManager{})

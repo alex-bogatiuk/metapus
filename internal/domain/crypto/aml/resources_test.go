@@ -10,19 +10,19 @@ import (
 )
 
 func TestOperatingResourceCapUsesExactNativeUnits(t *testing.T) {
-	r := ResourceRequirement{Funding: types.MustCryptoAmount("900719925474099300000000000000000000"), MaxFee: types.MustCryptoAmount("3")}
+	r := ResourceRequirement{Funding: types.MustRawAmount("900719925474099300000000000000000000"), MaxFee: types.MustRawAmount("3")}
 	require.Equal(t, "900719925474099300000000000000000003", r.Total().String())
 	require.NoError(t, r.ValidateAvailable(r.Total()))
-	require.ErrorContains(t, r.ValidateAvailable(types.MustCryptoAmount("900719925474099300000000000000000002")), "merchant principal cannot fund gas")
-	require.Error(t, (ResourceRequirement{}).ValidateAvailable(types.MustCryptoAmount("100")))
+	require.ErrorContains(t, r.ValidateAvailable(types.MustRawAmount("900719925474099300000000000000000002")), "merchant principal cannot fund gas")
+	require.Error(t, (ResourceRequirement{}).ValidateAvailable(types.MustRawAmount("100")))
 
-	rentalCovered := ResourceRequirement{MaxFee: types.MustCryptoAmount("27300000"), RentalCovered: true}
-	require.NoError(t, rentalCovered.ValidateAvailable(types.ZeroCryptoAmount()))
-	require.NoError(t, rentalCovered.ValidateAvailable(types.MustCryptoAmount("1000000")))
+	rentalCovered := ResourceRequirement{MaxFee: types.MustRawAmount("27300000"), RentalCovered: true}
+	require.NoError(t, rentalCovered.ValidateAvailable(types.ZeroRawAmount()))
+	require.NoError(t, rentalCovered.ValidateAvailable(types.MustRawAmount("1000000")))
 
-	rentalWithFunding := ResourceRequirement{Funding: types.MustCryptoAmount("500"), MaxFee: types.MustCryptoAmount("27300000"), RentalCovered: true}
-	require.NoError(t, rentalWithFunding.ValidateAvailable(types.MustCryptoAmount("500")))
-	require.ErrorContains(t, rentalWithFunding.ValidateAvailable(types.MustCryptoAmount("499")), "merchant principal cannot fund gas")
+	rentalWithFunding := ResourceRequirement{Funding: types.MustRawAmount("500"), MaxFee: types.MustRawAmount("27300000"), RentalCovered: true}
+	require.NoError(t, rentalWithFunding.ValidateAvailable(types.MustRawAmount("500")))
+	require.ErrorContains(t, rentalWithFunding.ValidateAvailable(types.MustRawAmount("499")), "merchant principal cannot fund gas")
 }
 
 func TestOperatingResourceReserveRequiresCurrentOwnedLowOrMedium(t *testing.T) {

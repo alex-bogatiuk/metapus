@@ -16,7 +16,7 @@ func TestNewCryptoPayment(t *testing.T) {
 	merchantID := id.New()
 	tokenID := id.New()
 	walletID := id.New()
-	amount := types.NewCryptoAmountFromInt64(5_000_000)
+	amount := types.NewRawAmountFromInt64(5_000_000)
 
 	p := NewCryptoPayment(invoiceID, merchantID, tokenID, walletID, id.New(), "txhash123", 0, "contract_log", "block123", "TSender", amount, 12345, 19)
 
@@ -69,7 +69,7 @@ func TestCryptoPayment_Validate(t *testing.T) {
 		return NewCryptoPayment(
 			id.New(), id.New(), id.New(), id.New(), id.New(),
 			"0xabc123", 0, "contract_log", "block123", "TSender",
-			types.NewCryptoAmountFromInt64(1_000_000),
+			types.NewRawAmountFromInt64(1_000_000),
 			100, 19,
 		)
 	}
@@ -111,7 +111,7 @@ func TestCryptoPayment_Validate(t *testing.T) {
 		},
 		{
 			give:    "zero amount → error",
-			modify:  func(p *CryptoPayment) { p.Amount = types.ZeroCryptoAmount() },
+			modify:  func(p *CryptoPayment) { p.Amount = types.ZeroRawAmount() },
 			wantErr: true,
 		},
 	}
@@ -170,7 +170,7 @@ func TestCryptoPayment_GetRLSDimensions(t *testing.T) {
 
 func TestCryptoPayment_GenerateCryptoReceiptSuspenseMovements(t *testing.T) {
 	ctx := context.Background()
-	newPayment := func(amount types.CryptoAmount) *CryptoPayment {
+	newPayment := func(amount types.RawAmount) *CryptoPayment {
 		p := NewCryptoPayment(
 			id.New(), id.New(), id.New(), id.New(), id.New(),
 			"tx1", 0, "contract_log", "block1", "sender",
@@ -181,7 +181,7 @@ func TestCryptoPayment_GenerateCryptoReceiptSuspenseMovements(t *testing.T) {
 	}
 
 	t.Run("attributed receipt → single suspense expense of the gross", func(t *testing.T) {
-		p := newPayment(types.NewCryptoAmountFromInt64(5_000_000))
+		p := newPayment(types.NewRawAmountFromInt64(5_000_000))
 		receipt := id.New()
 		p.ReceiptID = &receipt
 		movements, err := p.GenerateCryptoReceiptSuspenseMovements(ctx)
@@ -195,16 +195,16 @@ func TestCryptoPayment_GenerateCryptoReceiptSuspenseMovements(t *testing.T) {
 	})
 
 	t.Run("no receipt → posting refused", func(t *testing.T) {
-		if _, err := newPayment(types.NewCryptoAmountFromInt64(5_000_000)).GenerateCryptoReceiptSuspenseMovements(ctx); err == nil {
+		if _, err := newPayment(types.NewRawAmountFromInt64(5_000_000)).GenerateCryptoReceiptSuspenseMovements(ctx); err == nil {
 			t.Fatal("payment without a receipt must not consume suspense")
 		}
 	})
 
 	t.Run("fee above gross → posting refused", func(t *testing.T) {
-		p := newPayment(types.NewCryptoAmountFromInt64(3))
+		p := newPayment(types.NewRawAmountFromInt64(3))
 		receipt := id.New()
 		p.ReceiptID = &receipt
-		p.SetFeeConfig(types.NewCryptoAmountFromInt64(5), 0, types.ZeroCryptoAmount(), types.ZeroCryptoAmount())
+		p.SetFeeConfig(types.NewRawAmountFromInt64(5), 0, types.ZeroRawAmount(), types.ZeroRawAmount())
 		if _, err := p.GenerateCryptoReceiptSuspenseMovements(ctx); err == nil {
 			t.Fatal("fee above the gross must not be posted")
 		}
@@ -212,7 +212,7 @@ func TestCryptoPayment_GenerateCryptoReceiptSuspenseMovements(t *testing.T) {
 }
 
 func TestFeeAboveGrossDoesNotUnderflow(t *testing.T) {
-	p := &CryptoPayment{Amount: types.MustCryptoAmount("3"), FeeFixed: types.MustCryptoAmount("5"), FeeMin: types.ZeroCryptoAmount(), FeeMax: types.ZeroCryptoAmount()}
+	p := &CryptoPayment{Amount: types.MustRawAmount("3"), FeeFixed: types.MustRawAmount("5"), FeeMin: types.ZeroRawAmount(), FeeMax: types.ZeroRawAmount()}
 	if p.FeeAmount().String() != "5" || !p.NetAmount().IsZero() {
 		t.Fatalf("fee=%s net=%s", p.FeeAmount(), p.NetAmount())
 	}

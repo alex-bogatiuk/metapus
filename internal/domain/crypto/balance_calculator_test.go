@@ -21,7 +21,7 @@ func TestBalanceCalculatorPreservesTokenDecimalPlaces(t *testing.T) {
 			NetworkID:     networkID,
 			Network:       "TRON Nile Testnet",
 			DecimalPlaces: 6,
-			RawAmount:     types.NewCryptoAmountFromInt64(1_500_000),
+			RawAmount:     types.NewRawAmountFromInt64(1_500_000),
 		},
 	}, nil, nil, cfg, time.Now())
 	if len(got.ByToken) != 1 {

@@ -24,7 +24,7 @@ func TestCreateTopUpInvoiceLeavesBusinessReferencesForMerchant(t *testing.T) {
 	tok.ID = id.New()
 	p := &EventProcessor{invoiceSvc: newMemInvoiceRepo()}
 	invoice, err := p.createTopUpInvoice(context.Background(), w, BlockchainEvent{
-		TxHash: "chain-transaction", Amount: types.NewCryptoAmountFromInt64(100),
+		TxHash: "chain-transaction", Amount: types.NewRawAmountFromInt64(100),
 	}, tok)
 	if err != nil {
 		t.Fatal(err)
@@ -139,7 +139,7 @@ func TestHandleWalletAfterConfirm(t *testing.T) {
 			give: "zero threshold → immediate sweep",
 			resolver: &mockSweepResolver{
 				cfg: SweepConfig{
-					Threshold:   types.ZeroCryptoAmount(),
+					Threshold:   types.ZeroRawAmount(),
 					MaxAgeHours: 0,
 				},
 			},
@@ -150,7 +150,7 @@ func TestHandleWalletAfterConfirm(t *testing.T) {
 			give: "positive threshold + transient → release",
 			resolver: &mockSweepResolver{
 				cfg: SweepConfig{
-					Threshold:   types.NewCryptoAmountFromInt64(10_000_000),
+					Threshold:   types.NewRawAmountFromInt64(10_000_000),
 					MaxAgeHours: 24,
 				},
 			},
@@ -163,7 +163,7 @@ func TestHandleWalletAfterConfirm(t *testing.T) {
 			give: "positive threshold + persistent → no-op (stays assigned)",
 			resolver: &mockSweepResolver{
 				cfg: SweepConfig{
-					Threshold:   types.NewCryptoAmountFromInt64(10_000_000),
+					Threshold:   types.NewRawAmountFromInt64(10_000_000),
 					MaxAgeHours: 24,
 				},
 			},
@@ -299,7 +299,7 @@ func TestDefaultDustThreshold(t *testing.T) {
 }
 
 func TestDustThresholdUsesAssetPrecision(t *testing.T) {
-	processor := NewEventProcessor(EventProcessorConfig{DustThreshold: types.NewCryptoAmountFromInt64(2500)})
+	processor := NewEventProcessor(EventProcessorConfig{DustThreshold: types.NewRawAmountFromInt64(2500)})
 	for _, tc := range []struct {
 		decimals int
 		want     string
@@ -340,7 +340,7 @@ func TestEventType_Values(t *testing.T) {
 
 func TestBlockchainEvent_Fields(t *testing.T) {
 	netID := id.New()
-	amount := types.NewCryptoAmountFromInt64(5_000_000)
+	amount := types.NewRawAmountFromInt64(5_000_000)
 	ts := time.Now().UTC()
 
 	event := BlockchainEvent{

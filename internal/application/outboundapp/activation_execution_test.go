@@ -61,7 +61,7 @@ func TestActivationSigningFenceKeepsLateSignerEvidence(t *testing.T) {
 	for _, loss := range []string{"before dispatch", "during authorize", "during sign"} {
 		t.Run(loss, func(t *testing.T) {
 			now := time.Now().UTC()
-			auth := crypto.SigningAuthorization{SchemaVersion: crypto.SigningAuthorizationSchemaVersion, AuthorizationID: id.New().String(), TenantID: id.New().String(), Purpose: crypto.SigningPurposeActivation, BasisType: "CryptoAccountActivationTask", BasisID: id.New(), Attempt: 1, Generation: 1, NetworkSequence: "0", ExpiresAt: now.Add(time.Hour), NetworkID: id.New(), NetworkCode: "TEST", ChainFamily: crypto.ChainFamilyEVM, NetworkIdentifier: "1", SourceAddress: "source", FeePayerAddress: "source", VaultKeyID: "key", DestinationAddress: "target", AssetStandard: "native", AmountMinorUnits: types.ZeroCryptoAmount(), MaxNetworkFeeMinor: types.MustCryptoAmount("10"), UnsignedFingerprint: "fingerprint", PolicyVersion: crypto.SigningAuthorizationPolicyVersion(crypto.ChainFamilyEVM)}
+			auth := crypto.SigningAuthorization{SchemaVersion: crypto.SigningAuthorizationSchemaVersion, AuthorizationID: id.New().String(), TenantID: id.New().String(), Purpose: crypto.SigningPurposeActivation, BasisType: "CryptoAccountActivationTask", BasisID: id.New(), Attempt: 1, Generation: 1, NetworkSequence: "0", ExpiresAt: now.Add(time.Hour), NetworkID: id.New(), NetworkCode: "TEST", ChainFamily: crypto.ChainFamilyEVM, NetworkIdentifier: "1", SourceAddress: "source", FeePayerAddress: "source", VaultKeyID: "key", DestinationAddress: "target", AssetStandard: "native", AmountMinorUnits: types.ZeroRawAmount(), MaxNetworkFeeMinor: types.MustRawAmount("10"), UnsignedFingerprint: "fingerprint", PolicyVersion: crypto.SigningAuthorizationPolicyVersion(crypto.ChainFamilyEVM)}
 			unsigned := crypto.UnsignedTxEnvelope{Family: auth.ChainFamily, SchemaVersion: 1, Generation: 1, NetworkSequence: "0", UnsignedFingerprint: auth.UnsignedFingerprint}
 			signed := crypto.SignedTxEnvelope{Family: auth.ChainFamily, SchemaVersion: 1, Generation: 1, NetworkSequence: "0", UnsignedFingerprint: auth.UnsignedFingerprint, TxHash: "signed-hash", Payload: []byte("signed bytes")}
 			record := SigningAuthorizationRecord{Authorization: auth, UnsignedTx: unsigned}
@@ -235,7 +235,7 @@ func TestActivationActorKeepsEvidenceAfterLeaseLossDuringExternalIO(t *testing.T
 			_, record, now := signingReplayFixture(t)
 			record.Authorization.Purpose = crypto.SigningPurposeActivation
 			record.Authorization.BasisType = "CryptoAccountActivationTask"
-			record.Authorization.AmountMinorUnits = types.ZeroCryptoAmount()
+			record.Authorization.AmountMinorUnits = types.ZeroRawAmount()
 			record.Authorization.ApprovalBundleDigest = ""
 			record.JWS = "saved-jws"
 			signed := crypto.SignedTxEnvelope{Family: record.UnsignedTx.Family, SchemaVersion: record.UnsignedTx.SchemaVersion, Generation: record.UnsignedTx.Generation, NetworkSequence: record.UnsignedTx.NetworkSequence, UnsignedFingerprint: record.UnsignedTx.UnsignedFingerprint, TxHash: "activation-result", Payload: []byte(`{"signed":true}`)}

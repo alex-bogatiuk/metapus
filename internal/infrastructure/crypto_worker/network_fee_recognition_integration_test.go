@@ -54,12 +54,12 @@ func newNetworkFeeFixture(t *testing.T, purpose crypto.SigningPurpose) networkFe
 	if purpose == crypto.SigningPurposeActivation {
 		basisType = crypto_network_operation.ActivationTaskBasisType
 	}
-	rsv, err := NewFeeBudgetManager().Reserve(ctx, FeeReservationRequest{NetworkID: network, PayerWalletID: wallet, NativeTokenID: asset, OperationTokenID: asset, BasisType: basisType, BasisID: basis, Purpose: purpose, Attempt: 1, Strategy: crypto.FeeStrategyNativeBurn, MaxFee: types.NewCryptoAmountFromInt64(10)})
+	rsv, err := NewFeeBudgetManager().Reserve(ctx, FeeReservationRequest{NetworkID: network, PayerWalletID: wallet, NativeTokenID: asset, OperationTokenID: asset, BasisType: basisType, BasisID: basis, Purpose: purpose, Attempt: 1, Strategy: crypto.FeeStrategyNativeBurn, MaxFee: types.NewRawAmountFromInt64(10)})
 	require.NoError(t, err)
 	hash := id.Compact(basis) + id.Compact(basis)
 	require.NoError(t, NewFeeBudgetManager().BindUnsignedFingerprint(ctx, rsv.ID, "fee-"+basis.String()))
 	require.NoError(t, NewFeeBudgetManager().MarkBroadcast(ctx, rsv.ID, "fee-"+basis.String(), hash))
-	r := crypto.ChainReceipt{NetworkID: network, TxHash: hash, Status: crypto.ReceiptSucceeded, BlockHash: strings.Repeat("b", 64), BlockHeight: 100, Confirmations: 20, Finality: crypto.FinalitySolidified, Canonicality: crypto.CanonicalityCanonical, ObservedAt: time.Now().UTC().Truncate(time.Microsecond), Fee: crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: asset}, TotalFee: types.NewCryptoAmountFromInt64(2), Components: []crypto.FeeComponent{{Name: "execution_gas", Amount: types.NewCryptoAmountFromInt64(2), Quantity: 1}}}}
+	r := crypto.ChainReceipt{NetworkID: network, TxHash: hash, Status: crypto.ReceiptSucceeded, BlockHash: strings.Repeat("b", 64), BlockHeight: 100, Confirmations: 20, Finality: crypto.FinalitySolidified, Canonicality: crypto.CanonicalityCanonical, ObservedAt: time.Now().UTC().Truncate(time.Microsecond), Fee: crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: asset}, TotalFee: types.NewRawAmountFromInt64(2), Components: []crypto.FeeComponent{{Name: "execution_gas", Amount: types.NewRawAmountFromInt64(2), Quantity: 1}}}}
 	f := networkFeeFixture{ctx, tm, rsv, r}
 	f.prove(t)
 	t.Cleanup(func() {
@@ -112,7 +112,7 @@ func TestNetworkFeeV2ZeroAndRevertedFees(t *testing.T) {
 		for _, amount := range []int64{0, 2} {
 			f := newNetworkFeeFixture(t, crypto.SigningPurposeSweep)
 			f.receipt.Status = status
-			f.receipt.Fee.TotalFee = types.NewCryptoAmountFromInt64(amount)
+			f.receipt.Fee.TotalFee = types.NewRawAmountFromInt64(amount)
 			f.receipt.Fee.Components[0].Amount = f.receipt.Fee.TotalFee
 			f.prove(t)
 			require.NoError(t, NewFeeBudgetManager().Settle(f.ctx, f.reservation.ID, f.receipt))
@@ -137,7 +137,7 @@ func TestNetworkFeeV2MissingOrWrongProofRetainsReservation(t *testing.T) {
 					f.receipt.FeeProof.Sources[i].Digest = f.receipt.FeeProof.Digest()
 				}
 			case "amount":
-				f.receipt.Fee.TotalFee = types.NewCryptoAmountFromInt64(3)
+				f.receipt.Fee.TotalFee = types.NewRawAmountFromInt64(3)
 			case "block":
 				f.receipt.BlockHash = strings.Repeat("d", 64)
 			case "quorum":
@@ -151,7 +151,7 @@ func TestNetworkFeeV2MissingOrWrongProofRetainsReservation(t *testing.T) {
 func TestNetworkFeeV2ActivationUsesDocumentOwner(t *testing.T) {
 	for _, amount := range []int64{0, 2} {
 		f := newNetworkFeeFixture(t, crypto.SigningPurposeActivation)
-		f.receipt.Fee.TotalFee = types.NewCryptoAmountFromInt64(amount)
+		f.receipt.Fee.TotalFee = types.NewRawAmountFromInt64(amount)
 		f.receipt.Fee.Components[0].Amount = f.receipt.Fee.TotalFee
 		f.prove(t)
 		q := f.tm.GetQuerier(f.ctx)
@@ -193,7 +193,7 @@ func TestNetworkFeeV2FundingPrincipalAndFeeHaveDifferentOwners(t *testing.T) {
 		runSweepCoordinationFixtureWithAddresses(t, true, payer, "", func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
 			funding, _, receipt := seedNativeFunding(t, ctx, tm, c, 1, status == crypto.ReceiptSucceeded)
 			receipt.Status = status
-			receipt.Fee.Components = []crypto.FeeComponent{{Name: "energy_fee", Amount: types.ZeroCryptoAmount()}, {Name: "bandwidth_fee", Amount: receipt.Fee.TotalFee, Quantity: 2}}
+			receipt.Fee.Components = []crypto.FeeComponent{{Name: "energy_fee", Amount: types.ZeroRawAmount()}, {Name: "bandwidth_fee", Amount: receipt.Fee.TotalFee, Quantity: 2}}
 			p := crypto.NetworkFeeProof{SchemaVersion: 1, Family: crypto.ChainFamilyTRON, NetworkID: c.network, TxHash: receipt.TxHash, PayerAddress: payer, NativeTokenID: c.native, BlockHash: receipt.BlockHash, BlockNumber: receipt.BlockHeight, Status: status, TotalFee: receipt.Fee.TotalFee, Components: receipt.Fee.Components, Confirmations: receipt.Confirmations, Finality: receipt.Finality, Canonicality: receipt.Canonicality, VerifiedAt: receipt.ObservedAt,
 				Sources: []crypto.VerificationSource{{ProviderID: "one", TrustGroup: "one", SourceDigest: strings.Repeat("a", 64), HeadHash: strings.Repeat("c", 64), HeadHeight: 119}, {ProviderID: "two", TrustGroup: "two", SourceDigest: strings.Repeat("b", 64), HeadHash: strings.Repeat("c", 64), HeadHeight: 119}}}
 			for i := range p.Sources {
@@ -216,7 +216,7 @@ func TestNetworkFeeV2FundingPrincipalAndFeeHaveDifferentOwners(t *testing.T) {
 			}
 			require.Equal(t, expected, balance)
 			require.Equal(t, 1, fees)
-			receipt.Fee.TotalFee = types.NewCryptoAmountFromInt64(3)
+			receipt.Fee.TotalFee = types.NewRawAmountFromInt64(3)
 			receipt.Fee.Components[1].Amount = receipt.Fee.TotalFee
 			p.TotalFee = receipt.Fee.TotalFee
 			p.Components = receipt.Fee.Components
@@ -352,7 +352,7 @@ func TestNetworkFeeV2ReplacementRequiresSignedAttemptAndAtomicAudit(t *testing.T
 }
 func TestNetworkFeeV2InvalidPayerCannotCreateCapHold(t *testing.T) {
 	f := newNetworkFeeFixture(t, crypto.SigningPurposeSweep)
-	f.receipt.Fee.TotalFee = types.NewCryptoAmountFromInt64(11)
+	f.receipt.Fee.TotalFee = types.NewRawAmountFromInt64(11)
 	f.receipt.Fee.Components[0].Amount = f.receipt.Fee.TotalFee
 	f.prove(t)
 	f.receipt.FeeProof.PayerAddress = "0x00000000000000000000000000000000000000cd"
@@ -372,7 +372,7 @@ func TestNetworkFeeV2InvalidPayerCannotCreateCapHold(t *testing.T) {
 
 func proveTRONNetworkFee(t *testing.T, r *crypto.ChainReceipt, payer string) {
 	t.Helper()
-	r.Fee.Components = []crypto.FeeComponent{{Name: "energy_fee", Amount: types.ZeroCryptoAmount()}, {Name: "bandwidth_fee", Amount: r.Fee.TotalFee, Quantity: 2}}
+	r.Fee.Components = []crypto.FeeComponent{{Name: "energy_fee", Amount: types.ZeroRawAmount()}, {Name: "bandwidth_fee", Amount: r.Fee.TotalFee, Quantity: 2}}
 	p := crypto.NetworkFeeProof{SchemaVersion: 1, Family: crypto.ChainFamilyTRON, NetworkID: r.NetworkID, TxHash: r.TxHash, PayerAddress: payer, NativeTokenID: r.Fee.NativeAsset.TokenID, BlockHash: r.BlockHash, BlockNumber: r.BlockHeight, Status: r.Status, TotalFee: r.Fee.TotalFee, Components: r.Fee.Components, Confirmations: r.Confirmations, Finality: r.Finality, Canonicality: r.Canonicality, VerifiedAt: r.ObservedAt,
 		Sources: []crypto.VerificationSource{{ProviderID: "one", TrustGroup: "one", SourceDigest: strings.Repeat("a", 64), HeadHash: strings.Repeat("c", 64), HeadHeight: r.BlockHeight + int64(r.Confirmations) - 1}, {ProviderID: "two", TrustGroup: "two", SourceDigest: strings.Repeat("b", 64), HeadHash: strings.Repeat("c", 64), HeadHeight: r.BlockHeight + int64(r.Confirmations) - 1}}}
 	for i := range p.Sources {
@@ -430,7 +430,7 @@ func TestNetworkFeeV2OutboundPrincipalCommitsWithItsIndependentFee(t *testing.T)
 						}
 					}
 					require.Equal(t, expected, principal)
-					r.Fee.TotalFee = types.NewCryptoAmountFromInt64(3)
+					r.Fee.TotalFee = types.NewRawAmountFromInt64(3)
 					proveTRONNetworkFee(t, r, payer)
 					require.Error(t, service().Settle(ctx, task), "terminal outbound replay must validate its recognized fee")
 				})

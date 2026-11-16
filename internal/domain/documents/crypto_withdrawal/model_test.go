@@ -11,7 +11,7 @@ import (
 
 func TestWithdrawalPostingDoesNotSpendPrincipalOrChargeMerchant(t *testing.T) {
 	// The merchant is debited by WithdrawalRequest; principal moves at final settlement.
-	var doc any = NewCryptoWithdrawal(id.New(), id.New(), id.New(), "external", types.NewCryptoAmountFromInt64(10))
+	var doc any = NewCryptoWithdrawal(id.New(), id.New(), id.New(), "external", types.NewRawAmountFromInt64(10))
 	_, balance := doc.(cryptoposting.CryptoBalanceMovementSource)
 	_, fee := doc.(cryptoposting.CryptoFeeMovementSource)
 	_, merchant := doc.(cryptoposting.CryptoMerchantBalanceMovementSource)

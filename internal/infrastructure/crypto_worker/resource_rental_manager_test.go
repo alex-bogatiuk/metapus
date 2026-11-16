@@ -27,9 +27,9 @@ type fakeSharedResourceStore struct {
 	allocations       map[id.ID]*resourceAllocationRecord
 	reserved          int64
 	createCount       int
-	activatedCost     types.CryptoAmount
+	activatedCost     types.RawAmount
 	closedStatus      string
-	closedRefund      types.CryptoAmount
+	closedRefund      types.RawAmount
 	rentalBasisType   string
 	rentalBasisID     id.ID
 	accounts          map[id.ID]*providerAccountRecord
@@ -94,7 +94,7 @@ func (s *fakeSharedResourceStore) CreateResourceRental(_ context.Context, rental
 	s.rentalBasisID = req.RentalBasisID
 	return nil
 }
-func (s *fakeSharedResourceStore) ActivateResourceRental(_ context.Context, rentalID id.ID, serial string, delegated int64, cost types.CryptoAmount, _ *types.CryptoAmount, _ []byte, expiresAt time.Time) error {
+func (s *fakeSharedResourceStore) ActivateResourceRental(_ context.Context, rentalID id.ID, serial string, delegated int64, cost types.RawAmount, _ *types.RawAmount, _ []byte, expiresAt time.Time) error {
 	s.rental.ID = rentalID
 	s.rental.ExternalSerial = serial
 	s.rental.DelegatedAmount = delegated
@@ -110,7 +110,7 @@ func (*fakeSharedResourceStore) MarkResourceRentalHeld(context.Context, id.ID, s
 func (*fakeSharedResourceStore) MarkResourceRentalReclaiming(context.Context, id.ID) error {
 	return nil
 }
-func (s *fakeSharedResourceStore) CloseResourceRental(_ context.Context, _ id.ID, refund types.CryptoAmount, _ *types.CryptoAmount, _ []byte, status string) error {
+func (s *fakeSharedResourceStore) CloseResourceRental(_ context.Context, _ id.ID, refund types.RawAmount, _ *types.RawAmount, _ []byte, status string) error {
 	s.closedStatus = status
 	s.closedRefund = refund
 	s.rental.Status = status
@@ -149,7 +149,7 @@ func (s *fakeSharedResourceStore) MarkResourceRentalClaimHeld(ctx context.Contex
 	s.claimHeldCalls++
 	return s.MarkResourceRentalHeld(ctx, claim.RentalID, reason, body)
 }
-func (s *fakeSharedResourceStore) CloseResourceRentalClaim(ctx context.Context, claim outboundapp.ResourceRentalClaim, refund types.CryptoAmount, balance *types.CryptoAmount, body []byte, status string) error {
+func (s *fakeSharedResourceStore) CloseResourceRentalClaim(ctx context.Context, claim outboundapp.ResourceRentalClaim, refund types.RawAmount, balance *types.RawAmount, body []byte, status string) error {
 	s.claimCloseCalls++
 	if s.claimCloseErr != nil {
 		return s.claimCloseErr
@@ -190,11 +190,11 @@ func (p *fakeResourceProvider) Place(_ context.Context, intent crypto.ResourceOr
 		order.Provider = p.code
 		return order, nil
 	}
-	balance := types.NewCryptoAmountFromInt64(900000)
+	balance := types.NewRawAmountFromInt64(900000)
 	return crypto.ResourceOrder{
 		Provider: p.code, ClientOrderID: intent.ClientOrderID, ExternalID: "lease-1",
 		Status: crypto.ResourceOrderActive, DelegatedAmount: intent.Quantity,
-		CostAmount: types.NewCryptoAmountFromInt64(250000), ProviderBalance: &balance,
+		CostAmount: types.NewRawAmountFromInt64(250000), ProviderBalance: &balance,
 	}, nil
 }
 func (p *fakeResourceProvider) Query(context.Context, crypto.ResourceOrderRef) (crypto.ResourceOrder, error) {
@@ -210,8 +210,8 @@ func (p *fakeResourceProvider) Reclaim(context.Context, crypto.ResourceOrderRef)
 	p.reclaimCalls++
 	return crypto.ResourceOrder{Provider: p.code, Status: crypto.ResourceOrderReclaiming}, nil
 }
-func (*fakeResourceProvider) Balance(context.Context, crypto.ProviderAccountRef) (types.CryptoAmount, error) {
-	return types.ZeroCryptoAmount(), nil
+func (*fakeResourceProvider) Balance(context.Context, crypto.ProviderAccountRef) (types.RawAmount, error) {
+	return types.ZeroRawAmount(), nil
 }
 
 func testPreparer(store *fakeSharedResourceStore, providers ...crypto.ExternalResourceProvider) *SharedResourcePreparer {
@@ -253,7 +253,7 @@ func testResourceRequest(networkID, walletID, tokenID, basisID id.ID) ResourceRe
 		TenantID: "tenant", BasisType: withdrawal_request.DocumentType, BasisID: basisID,
 		Purpose: crypto_platform_cost.PlatformCostPurposeWithdrawal, NetworkID: networkID, OperationTokenID: tokenID,
 		SourceWalletID: walletID, SourceAddress: "TSource", ContractAddress: "TContract",
-		DestinationAddress: "TDest", Amount: types.NewCryptoAmountFromInt64(1_000_000),
+		DestinationAddress: "TDest", Amount: types.NewRawAmountFromInt64(1_000_000),
 		Requirements: []crypto.ResourceRequirement{{Name: resourceTypeEnergy, Quantity: 14000}},
 	}
 }
@@ -284,7 +284,7 @@ func TestPrepareResourceRecoversOrderingRentalByOutTradeNo(t *testing.T) {
 			RequestedAmount: 65000, Provider: crypto.ResourceProviderITRX, OutTradeNo: "rr-existing", Status: "ordering", ExpiresAt: &expires},
 	}
 	provider := &fakeResourceProvider{code: crypto.ResourceProviderITRX, queryOrder: crypto.ResourceOrder{
-		ExternalID: "serial-existing", DelegatedAmount: 65000, CostAmount: types.NewCryptoAmountFromInt64(250000), Status: crypto.ResourceOrderActive,
+		ExternalID: "serial-existing", DelegatedAmount: 65000, CostAmount: types.NewRawAmountFromInt64(250000), Status: crypto.ResourceOrderActive,
 	}}
 	preparer := testPreparer(store, provider)
 	result, err := preparer.PrepareResource(context.Background(), testResourceRequest(networkID, walletID, tokenID, id.New()))
@@ -316,8 +316,8 @@ func TestPrepareResourceRecordsFailedProviderChargeAndRefund(t *testing.T) {
 	expires := time.Now().Add(time.Hour)
 	store := &fakeSharedResourceStore{providerAccountID: id.New(), costTokenID: id.New(), allocations: map[id.ID]*resourceAllocationRecord{}, rental: &resourceRentalRecord{ID: id.New(), NetworkID: networkID, ReceiveWalletID: walletID, RequestedAmount: 65000, Provider: crypto.ResourceProviderITRX, OutTradeNo: "rr-failed", Status: "ordering", ExpiresAt: &expires}}
 	provider := &fakeResourceProvider{code: crypto.ResourceProviderITRX, queryOrder: crypto.ResourceOrder{
-		ExternalID: "serial-failed", DelegatedAmount: 65000, CostAmount: types.NewCryptoAmountFromInt64(300000),
-		RefundAmount: types.NewCryptoAmountFromInt64(100000), Status: crypto.ResourceOrderFailed,
+		ExternalID: "serial-failed", DelegatedAmount: 65000, CostAmount: types.NewRawAmountFromInt64(300000),
+		RefundAmount: types.NewRawAmountFromInt64(100000), Status: crypto.ResourceOrderFailed,
 	}}
 	preparer := testPreparer(store, provider)
 	_, err := preparer.PrepareResource(context.Background(), testResourceRequest(networkID, walletID, tokenID, id.New()))
@@ -336,7 +336,7 @@ func TestPrepareResourceKeepsRentalLinkedToExecutionDocument(t *testing.T) {
 		RentalBasisType: crypto_withdrawal.DocumentType, RentalBasisID: withdrawalID,
 		Purpose: crypto_platform_cost.PlatformCostPurposeWithdrawal, NetworkID: id.New(), OperationTokenID: id.New(),
 		SourceWalletID: id.New(), SourceAddress: "TSource", ContractAddress: "TContract",
-		DestinationAddress: "TDest", Amount: types.NewCryptoAmountFromInt64(1),
+		DestinationAddress: "TDest", Amount: types.NewRawAmountFromInt64(1),
 		Requirements: []crypto.ResourceRequirement{{Name: resourceTypeEnergy, Quantity: 14000}},
 	})
 	require.NoError(t, err)

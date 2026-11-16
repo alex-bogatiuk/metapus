@@ -148,7 +148,7 @@ type replacementContractDriver struct {
 	capabilityContractDriver
 }
 
-func (replacementContractDriver) BuildReplacement(context.Context, TransferIntent, UnsignedTxEnvelope, types.CryptoAmount) (UnsignedTxEnvelope, FeeQuote, error) {
+func (replacementContractDriver) BuildReplacement(context.Context, TransferIntent, UnsignedTxEnvelope, types.RawAmount) (UnsignedTxEnvelope, FeeQuote, error) {
 	return UnsignedTxEnvelope{}, FeeQuote{}, nil
 }
 

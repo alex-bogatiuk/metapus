@@ -17,7 +17,7 @@ type PaymentLinkRepository interface {
 		linkID id.ID,
 		merchantID id.ID,
 		tokenID id.ID,
-		amount types.CryptoAmount,
+		amount types.RawAmount,
 		description string,
 		reusable bool,
 		maxUses int,
@@ -40,7 +40,7 @@ type PaymentLinkServiceConfig struct {
 type CreatePaymentLinkInput struct {
 	MerchantID  id.ID
 	TokenID     id.ID
-	Amount      types.CryptoAmount
+	Amount      types.RawAmount
 	Description string
 	Reusable    bool
 	MaxUses     int

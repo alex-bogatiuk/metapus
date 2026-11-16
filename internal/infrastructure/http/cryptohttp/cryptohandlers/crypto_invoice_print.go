@@ -46,12 +46,12 @@ func buildCryptoInvoicePrintData(ctx context.Context, doc *crypto_invoice.Crypto
 		return nil, err
 	}
 
-	amount := func(column string, value types.CryptoAmount) string {
+	amount := func(column string, value types.RawAmount) string {
 		if !visible(column) {
 			return _printHidden
 		}
 		if refs.hasTokenDecimals {
-			return printadapter.FormatCryptoUnits(value, refs.tokenDecimals) + suffix(refs.tokenSymbol)
+			return printadapter.FormatRawUnits(value, refs.tokenDecimals) + suffix(refs.tokenSymbol)
 		}
 		// Without an authorized scale the exact raw units are shown as such.
 		return value.String() + " мин. ед." + suffix(refs.tokenSymbol)

@@ -143,7 +143,7 @@ func (r *AMLRepository) ReserveAMLResourceBudget(ctx context.Context, request am
 		}
 		var networkID, tokenID, walletID id.ID
 		var fundingID *id.ID
-		var available types.CryptoAmount
+		var available types.RawAmount
 		err = q.QueryRow(ctx, `SELECT f.network_id,f.native_token_id,f.payer_wallet_id,funding.id,COALESCE(funding.amount_minor,0),f.max_fee_minor,
  p.amount-COALESCE((SELECT SUM(CASE WHEN fee.strategy<>'resource_rental' THEN b.max_fee ELSE 0 END + b.funding_amount) FROM reg_crypto_aml_resource_budgets b JOIN reg_crypto_fee_reservations fee ON fee.id=b.fee_reservation_id WHERE b.wallet_id=p.wallet_id AND b.token_id=p.token_id AND b.status='reserved'),0),
  f.strategy='resource_rental'

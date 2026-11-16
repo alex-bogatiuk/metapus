@@ -16,7 +16,7 @@ import (
 
 type withdrawalResourceBasis struct {
 	request, merchant, network, token id.ID
-	amount                            types.CryptoAmount
+	amount                            types.RawAmount
 	execution                         *id.ID
 }
 

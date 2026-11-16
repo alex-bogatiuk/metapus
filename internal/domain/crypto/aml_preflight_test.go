@@ -22,7 +22,7 @@ func TestEmptyCheckpointRequiresIndependentFreshConsistentState(t *testing.T) {
 		func(p *EmptyCheckpoint) { p.Sources = p.Sources[:1] },
 		func(p *EmptyCheckpoint) { p.Sources[1].ProviderID = " ONE " },
 		func(p *EmptyCheckpoint) { p.Sources[1].TrustGroup = "first" },
-		func(p *EmptyCheckpoint) { p.Sources[1].Balance = types.MustCryptoAmount("1") },
+		func(p *EmptyCheckpoint) { p.Sources[1].Balance = types.MustRawAmount("1") },
 		func(p *EmptyCheckpoint) { p.Sources[1].Height++ },
 		func(p *EmptyCheckpoint) { p.Sources[1].Hash = strings.Repeat("b", 64) },
 		func(p *EmptyCheckpoint) { p.Sources[1].Method = "latest" },
@@ -35,7 +35,7 @@ func TestEmptyCheckpointRequiresIndependentFreshConsistentState(t *testing.T) {
 	}
 	p := valid()
 	for i := range p.Sources {
-		p.Sources[i].Balance = types.MustCryptoAmount("9")
+		p.Sources[i].Balance = types.MustRawAmount("9")
 	}
 	require.NoError(t, p.Validate(now))
 	require.False(t, p.Empty())

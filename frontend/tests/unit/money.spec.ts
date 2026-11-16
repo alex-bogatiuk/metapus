@@ -6,7 +6,7 @@ import { movementMoneyTotal, formatMovementMoney, validateMovementMoney } from "
 import type { DocumentMovement, MovementColumnDef } from "../../types/common"
 
 test("crypto report rows and totals keep arbitrary precision separately from int64 ERP", () => {
-  const money = { amountType: "crypto", currencyId: "uid", currencyCode: "code", decimalPlaces: "dp" } as const
+  const money = { amountType: "raw", currencyId: "uid", currencyCode: "code", decimalPlaces: "dp" } as const
   const column: ReportColumnDef = { key: "amount", label: "Сумма", type: "money", money }
   const raw = "9".repeat(78)
   const rows = [{ amount: raw, uid: "eth", code: "ETH", dp: 18 }, { amount: "2", uid: "eth", code: "ETH", dp: 18 }]

@@ -17,7 +17,7 @@ func receiptModel() *CryptoCustodyReceipt {
 	doc.PostingID, doc.OccurrenceID, doc.VerificationID = id.New(), id.New(), id.New()
 	doc.Number, doc.ReasonCode = "CCR-2026-1", ReasonNoAllocation
 	doc.BasisType, doc.BasisID = "CryptoTransferVerification", &doc.VerificationID
-	doc.Amount = types.MustCryptoAmount("123456789012345678901234567890")
+	doc.Amount = types.MustRawAmount("123456789012345678901234567890")
 	return doc
 }
 
@@ -55,7 +55,7 @@ func TestReceiptRequiresEvidenceAndDistinctPhysicalCounterpartLines(t *testing.T
 		func(r *CryptoCustodyReceipt) { r.PostingID = id.Nil() },
 		func(r *CryptoCustodyReceipt) { r.OccurrenceID = id.Nil() },
 		func(r *CryptoCustodyReceipt) { r.SuspenseLineID = r.CustodyLineID },
-		func(r *CryptoCustodyReceipt) { r.Amount = types.ZeroCryptoAmount() },
+		func(r *CryptoCustodyReceipt) { r.Amount = types.ZeroRawAmount() },
 		func(r *CryptoCustodyReceipt) { r.ReasonCode = Reason("automatic_income") },
 		func(r *CryptoCustodyReceipt) { r.BasisID = nil },
 	} {

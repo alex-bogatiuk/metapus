@@ -35,32 +35,32 @@ func SigningAuthorizationSchemaVersionFor(sequence SequenceModel) int {
 // plane. A family plugin must independently decode the opaque transaction and
 // prove that every relevant field matches this authorization.
 type SigningAuthorization struct {
-	SchemaVersion        int                `json:"schema_version"`
-	AuthorizationID      string             `json:"authorization_id"`
-	TenantID             string             `json:"tenant_id"`
-	MerchantID           *id.ID             `json:"merchant_id,omitempty"`
-	Purpose              SigningPurpose     `json:"purpose"`
-	BasisType            string             `json:"basis_type"`
-	BasisID              id.ID              `json:"basis_id"`
-	Attempt              int                `json:"attempt"`
-	Generation           int                `json:"generation"`
-	NetworkSequence      string             `json:"network_sequence,omitempty"`
-	ExpiresAt            time.Time          `json:"expires_at"`
-	NetworkID            id.ID              `json:"network_id"`
-	NetworkCode          string             `json:"network_code"`
-	ChainFamily          ChainFamily        `json:"chain_family"`
-	NetworkIdentifier    string             `json:"network_identifier"`
-	SourceAddress        string             `json:"source_address"`
-	FeePayerAddress      string             `json:"fee_payer_address"`
-	VaultKeyID           string             `json:"vault_key_id"`
-	DestinationAddress   string             `json:"destination_address"`
-	AssetStandard        string             `json:"asset_standard"`
-	ContractAddress      string             `json:"contract_address"`
-	AmountMinorUnits     types.CryptoAmount `json:"amount_minor_units"`
-	MaxNetworkFeeMinor   types.CryptoAmount `json:"max_network_fee_minor"`
-	UnsignedFingerprint  string             `json:"unsigned_fingerprint"`
-	ApprovalBundleDigest string             `json:"approval_bundle_digest"`
-	PolicyVersion        string             `json:"policy_version"`
+	SchemaVersion        int             `json:"schema_version"`
+	AuthorizationID      string          `json:"authorization_id"`
+	TenantID             string          `json:"tenant_id"`
+	MerchantID           *id.ID          `json:"merchant_id,omitempty"`
+	Purpose              SigningPurpose  `json:"purpose"`
+	BasisType            string          `json:"basis_type"`
+	BasisID              id.ID           `json:"basis_id"`
+	Attempt              int             `json:"attempt"`
+	Generation           int             `json:"generation"`
+	NetworkSequence      string          `json:"network_sequence,omitempty"`
+	ExpiresAt            time.Time       `json:"expires_at"`
+	NetworkID            id.ID           `json:"network_id"`
+	NetworkCode          string          `json:"network_code"`
+	ChainFamily          ChainFamily     `json:"chain_family"`
+	NetworkIdentifier    string          `json:"network_identifier"`
+	SourceAddress        string          `json:"source_address"`
+	FeePayerAddress      string          `json:"fee_payer_address"`
+	VaultKeyID           string          `json:"vault_key_id"`
+	DestinationAddress   string          `json:"destination_address"`
+	AssetStandard        string          `json:"asset_standard"`
+	ContractAddress      string          `json:"contract_address"`
+	AmountMinorUnits     types.RawAmount `json:"amount_minor_units"`
+	MaxNetworkFeeMinor   types.RawAmount `json:"max_network_fee_minor"`
+	UnsignedFingerprint  string          `json:"unsigned_fingerprint"`
+	ApprovalBundleDigest string          `json:"approval_bundle_digest"`
+	PolicyVersion        string          `json:"policy_version"`
 }
 
 // SigningAuthorizationPolicyVersion returns the policy contract understood by

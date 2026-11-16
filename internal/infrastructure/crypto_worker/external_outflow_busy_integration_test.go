@@ -27,7 +27,7 @@ func TestExternalOutflowBusyDefersObservationWithoutExhaustingAttempts(t *testin
 		var source, contract string
 		require.NoError(t, pool.QueryRow(ctx, `SELECT w.address,t.contract_address FROM cat_wallets w,cat_tokens t WHERE w.id=$1 AND t.id=$2`, f.wallet, f.token).Scan(&source, &contract))
 		event := crypto.BlockchainEvent{NetworkID: f.network, TxHash: strings.Repeat("a", 64), EventKind: crypto.EventKindContractLog,
-			FromAddress: source, ToAddress: "external-destination", TokenContract: contract, Amount: types.MustCryptoAmount("42"),
+			FromAddress: source, ToAddress: "external-destination", TokenContract: contract, Amount: types.MustRawAmount("42"),
 			BlockNumber: 10, BlockHash: strings.Repeat("b", 64), Confirmations: 1, RequiredConfs: 19, Direction: crypto.TransferDirectionOutgoing}
 		repo := crypto_repo.NewChainObservationRepo()
 		require.NoError(t, repo.Capture(ctx, event))

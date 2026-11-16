@@ -35,7 +35,7 @@ func balanceObservation(t *testing.T, ctx context.Context, txm *postgres.TxManag
 	t.Helper()
 	return crypto.BalanceObservation{RunID: seedBalanceReconciliationRun(t, ctx, txm), NetworkID: f.network,
 		WalletID: f.wallet, TokenID: f.token, Kind: crypto.BalanceMismatchToken,
-		LedgerAmount: types.NewCryptoAmountFromInt64(100), ChainAmount: types.NewCryptoAmountFromInt64(90)}
+		LedgerAmount: types.NewRawAmountFromInt64(100), ChainAmount: types.NewRawAmountFromInt64(90)}
 }
 
 func TestReconciliationHoldConcurrentReplayAndResolution(t *testing.T) {
@@ -86,7 +86,7 @@ func TestReconciliationHoldConcurrentReplayAndResolution(t *testing.T) {
 		var firstHold, afterObservation string
 		require.NoError(t, txm.GetQuerier(ctx).QueryRow(ctx, `SELECT to_jsonb(h)::text FROM reg_crypto_wallet_allocation_holds h WHERE wallet_id=$1 AND owner_type='reconciliation_incident'`, f.wallet).Scan(&firstHold))
 		second := first
-		second.RunID, second.ChainAmount = seedBalanceReconciliationRun(t, ctx, txm), types.NewCryptoAmountFromInt64(80)
+		second.RunID, second.ChainAmount = seedBalanceReconciliationRun(t, ctx, txm), types.NewRawAmountFromInt64(80)
 		for i := range repeated {
 			repeated[i] = second
 		}
@@ -248,20 +248,20 @@ func TestReconciliationHoldRejectsConflictingReplay(t *testing.T) {
 
 type reconciliationBalanceDriver struct {
 	fundingReceiptDriver
-	nativeAmount, tokenAmount types.CryptoAmount
+	nativeAmount, tokenAmount types.RawAmount
 	readErr                   error
 }
 
 func (d reconciliationBalanceDriver) Balances() crypto.BalanceReader { return d }
-func (d reconciliationBalanceDriver) NativeBalance(ctx context.Context, _ string) (types.CryptoAmount, error) {
+func (d reconciliationBalanceDriver) NativeBalance(ctx context.Context, _ string) (types.RawAmount, error) {
 	if postgres.MustGetTxManager(ctx).GetTx(ctx) != nil {
-		return types.ZeroCryptoAmount(), errors.New("RPC inside transaction")
+		return types.ZeroRawAmount(), errors.New("RPC inside transaction")
 	}
 	return d.nativeAmount, d.readErr
 }
-func (d reconciliationBalanceDriver) TokenBalance(ctx context.Context, _ crypto.AssetRef, _ string) (types.CryptoAmount, error) {
+func (d reconciliationBalanceDriver) TokenBalance(ctx context.Context, _ crypto.AssetRef, _ string) (types.RawAmount, error) {
 	if postgres.MustGetTxManager(ctx).GetTx(ctx) != nil {
-		return types.ZeroCryptoAmount(), errors.New("RPC inside transaction")
+		return types.ZeroRawAmount(), errors.New("RPC inside transaction")
 	}
 	return d.tokenAmount, d.readErr
 }
@@ -272,7 +272,7 @@ func TestReconciliationHoldWorkerFailureIsNotSuccessfulRun(t *testing.T) {
 		driver := reconciliationBalanceDriver{fundingReceiptDriver: fundingReceiptDriver{network: crypto.NetworkRef{
 			ID: f.network, Code: "TEST", Family: crypto.ChainFamilyTRON, NetworkIdentifier: "nile",
 			NativeTokenID: f.native, NativeDecimals: 6, RequiredConfirmations: 12, FinalityMode: crypto.FinalityByConfirmations}},
-			nativeAmount: types.NewCryptoAmountFromInt64(199999999), tokenAmount: types.NewCryptoAmountFromInt64(999999)}
+			nativeAmount: types.NewRawAmountFromInt64(199999999), tokenAmount: types.NewRawAmountFromInt64(999999)}
 		require.NoError(t, registry.Register(driver))
 		p := &CryptoProcessor{drivers: registry, log: logger.Default(), workerID: "reconciliation-test",
 			balanceReconciler: reconciliationServiceWithFailure(true, false)}
@@ -307,11 +307,11 @@ func TestReconciliationHoldRepeatedMismatchPreservesAcquisition(t *testing.T) {
 	withSweepCoordinationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
 		service := newBalanceReconciliationService()
 		w := reconciliationWalletBalance{WalletID: f.wallet, NetworkID: f.network, TokenID: f.token,
-			TokenStandard: token.TokenStandardTRC20, LedgerAmount: types.NewCryptoAmountFromInt64(100)}
+			TokenStandard: token.TokenStandardTRC20, LedgerAmount: types.NewRawAmountFromInt64(100)}
 		first := seedBalanceReconciliationRun(t, ctx, txm)
 		observation := crypto.BalanceObservation{RunID: first, WalletID: w.WalletID, NetworkID: w.NetworkID,
 			TokenID: w.TokenID, Kind: reconciliationKind(w.TokenStandard), LedgerAmount: w.LedgerAmount,
-			ChainAmount: types.NewCryptoAmountFromInt64(90)}
+			ChainAmount: types.NewRawAmountFromInt64(90)}
 		outcome, err := service.Record(ctx, observation)
 		require.NoError(t, err)
 		require.True(t, outcome.Created)
@@ -319,7 +319,7 @@ func TestReconciliationHoldRepeatedMismatchPreservesAcquisition(t *testing.T) {
 		q := txm.GetQuerier(ctx)
 		require.NoError(t, q.QueryRow(ctx, `SELECT row_to_json(h)::text FROM reg_crypto_wallet_allocation_holds h WHERE wallet_id=$1`, f.wallet).Scan(&acquisition))
 		second := seedBalanceReconciliationRun(t, ctx, txm)
-		observation.RunID, observation.ChainAmount = second, types.NewCryptoAmountFromInt64(80)
+		observation.RunID, observation.ChainAmount = second, types.NewRawAmountFromInt64(80)
 		outcome, err = service.Record(ctx, observation)
 		require.NoError(t, err, "a new observation must not overwrite hold acquisition details")
 		require.True(t, outcome.Updated)

@@ -86,7 +86,7 @@ func newFundingFixture(t *testing.T, native bool) fundingFixture {
 	require.NoError(t, err)
 	e := crypto.BlockchainEvent{NetworkID: f.target.NetworkID, TxHash: "0x" + strings.Repeat("a", 64), EventKind: kind, EventIndex: 7,
 		FromAddress: "0x00000000000000000000000000000000000000AB", ToAddress: f.target.Address, TokenContract: f.target.ContractAddress,
-		Amount: types.MustCryptoAmount("23"), BlockNumber: 100, BlockHash: "0x" + strings.Repeat("b", 64), Confirmations: 20,
+		Amount: types.MustRawAmount("23"), BlockNumber: 100, BlockHash: "0x" + strings.Repeat("b", 64), Confirmations: 20,
 		Finality: crypto.FinalitySolidified, Canonicality: crypto.CanonicalityCanonical, DecoderVersion: 1, Timestamp: time.Unix(1750000003, 0).UTC()}
 	if native {
 		e.EventIndex = 0

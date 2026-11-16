@@ -73,7 +73,7 @@ func TestExternalOutflowCreatesOneIncidentAndFailClosedHolds(t *testing.T) {
 			FromAddress:   fromAddress,
 			ToAddress:     "TExternalDestination" + suffix,
 			TokenContract: contractAddress,
-			Amount:        types.MustCryptoAmount("42000000"),
+			Amount:        types.MustRawAmount("42000000"),
 			BlockNumber:   100,
 			Confirmations: 1,
 			RequiredConfs: 19,
@@ -124,7 +124,7 @@ func TestExternalOutflowCreatesOneIncidentAndFailClosedHolds(t *testing.T) {
 		require.Equal(t, 2, outflowObservations)
 		require.Equal(t, 19, confirmations)
 
-		event.Amount = types.MustCryptoAmount("42000001")
+		event.Amount = types.MustRawAmount("42000001")
 		conflictErr := recorder.RecordExternalOutflow(txCtx, event)
 		var appErr *apperror.AppError
 		require.ErrorAs(t, conflictErr, &appErr)
@@ -161,7 +161,7 @@ func TestConcurrentExternalOutflowWorkflowCreatesOneAdjustmentAndSelectiveResolu
 				NetworkID: networkID, TxHash: id.Compact(networkID) + id.Compact(networkID),
 				EventKind: crypto.EventKindContractLog, EventIndex: 7,
 				FromAddress: fromAddress, ToAddress: "TConcurrentOutflowDestination" + suffix,
-				TokenContract: contractAddress, Amount: types.MustCryptoAmount("42000000"),
+				TokenContract: contractAddress, Amount: types.MustRawAmount("42000000"),
 				BlockNumber: 100, BlockHash: strings.Repeat("b", 64),
 				Confirmations: 20, RequiredConfs: 20, Finality: crypto.FinalityFinalized,
 				Direction: crypto.TransferDirectionOutgoing,

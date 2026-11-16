@@ -42,7 +42,7 @@ func seedWithdrawalRecovery(t *testing.T, ctx context.Context, txm *postgres.TxM
 	t.Helper()
 	wr := withdrawalRecoveryFixture{documentID: id.New(), feeID: id.New()}
 	wr.task = WithdrawalTask{RequestID: id.New(), MerchantID: id.New(), TokenID: f.token, NetworkID: f.network,
-		Amount: types.NewCryptoAmountFromInt64(100), DestAddress: "external", ContractAddress: "COORD-" + id.Compact(f.network) + "-contract", TokenStandard: token.TokenStandardTRC20, PostedVersion: 1}
+		Amount: types.NewRawAmountFromInt64(100), DestAddress: "external", ContractAddress: "COORD-" + id.Compact(f.network) + "-contract", TokenStandard: token.TokenStandardTRC20, PostedVersion: 1}
 	suffix := id.Compact(wr.task.RequestID)
 	q := txm.GetQuerier(ctx)
 	_, err := q.Exec(ctx, `INSERT INTO cat_merchants(id,code,name) VALUES($1,$2,'Recovery merchant')`, wr.task.MerchantID, suffix)
@@ -50,8 +50,8 @@ func seedWithdrawalRecovery(t *testing.T, ctx context.Context, txm *postgres.TxM
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	merchantRepo := crypto_register_repo.NewCryptoMerchantBalanceRepo()
 	require.NoError(t, merchantRepo.CreateMovements(ctx, []crypto_merchant_balance.CryptoMerchantBalanceMovement{
-		crypto_merchant_balance.NewCryptoMerchantBalanceMovement(id.New(), "Opening", 1, time.Now(), entity.RecordTypeReceipt, wr.task.MerchantID, f.token, types.NewCryptoAmountFromInt64(1000)),
-		crypto_merchant_balance.NewCryptoMerchantBalanceMovement(wr.task.RequestID, withdrawal_request.DocumentType, 1, now, entity.RecordTypeExpense, wr.task.MerchantID, f.token, types.NewCryptoAmountFromInt64(100)),
+		crypto_merchant_balance.NewCryptoMerchantBalanceMovement(id.New(), "Opening", 1, time.Now(), entity.RecordTypeReceipt, wr.task.MerchantID, f.token, types.NewRawAmountFromInt64(1000)),
+		crypto_merchant_balance.NewCryptoMerchantBalanceMovement(wr.task.RequestID, withdrawal_request.DocumentType, 1, now, entity.RecordTypeExpense, wr.task.MerchantID, f.token, types.NewRawAmountFromInt64(100)),
 	}))
 	_, err = q.Exec(ctx, `
 		INSERT INTO reg_crypto_balance_balances(wallet_id,token_id,amount) VALUES($6,$5,1000) ON CONFLICT DO NOTHING;
@@ -70,7 +70,7 @@ func seedWithdrawalRecovery(t *testing.T, ctx context.Context, txm *postgres.TxM
 		ExpiresAt: time.Now().Add(time.Hour), NetworkID: f.network, NetworkCode: "TEST", ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: "nile",
 		SourceAddress: f.hotAddress, FeePayerAddress: f.hotAddress, VaultKeyID: "test/hot",
 		DestinationAddress: "external", AssetStandard: "TRC-20", ContractAddress: wr.task.ContractAddress,
-		AmountMinorUnits: wr.task.Amount, MaxNetworkFeeMinor: types.NewCryptoAmountFromInt64(10), UnsignedFingerprint: "fp-" + suffix,
+		AmountMinorUnits: wr.task.Amount, MaxNetworkFeeMinor: types.NewRawAmountFromInt64(10), UnsignedFingerprint: "fp-" + suffix,
 		ApprovalBundleDigest: "expired-bundle", PolicyVersion: crypto.SigningAuthorizationPolicyVersion(crypto.ChainFamilyTRON),
 	}
 	wr.unsigned = crypto.UnsignedTxEnvelope{Family: crypto.ChainFamilyTRON, SchemaVersion: 1, Generation: 1, UnsignedFingerprint: wr.auth.UnsignedFingerprint, Payload: []byte(`{"raw":"tx"}`)}

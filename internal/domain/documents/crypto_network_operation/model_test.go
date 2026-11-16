@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func finalActivation(cost types.CryptoAmount) *CryptoNetworkOperation {
+func finalActivation(cost types.RawAmount) *CryptoNetworkOperation {
 	doc := NewWalletActivation(id.New(), id.New(), id.New(), id.New(), id.New(), "TTarget", "0xtx")
 	doc.CostAmount = cost
 	doc.Status = StatusSucceeded
@@ -26,19 +26,19 @@ func finalActivation(cost types.CryptoAmount) *CryptoNetworkOperation {
 }
 
 func TestFinalActivationRequiresItsFeeReservationAndNeverUnposts(t *testing.T) {
-	doc := finalActivation(types.NewCryptoAmountFromInt64(10))
+	doc := finalActivation(types.NewRawAmountFromInt64(10))
 	require.NoError(t, doc.Validate(context.Background()))
 	require.Error(t, doc.CanUnpost(context.Background()))
 	doc.NetworkFeeReservationID = nil
 	require.Error(t, doc.Validate(context.Background()))
-	doc = finalActivation(types.NewCryptoAmountFromInt64(10))
+	doc = finalActivation(types.NewRawAmountFromInt64(10))
 	doc.FinalizedAt = nil
 	_, err := doc.GenerateCryptoBalanceMovements(context.Background())
 	require.Error(t, err)
 }
 
 func TestWalletActivationGeneratesBothExpenses(t *testing.T) {
-	doc := finalActivation(types.NewCryptoAmountFromInt64(1250))
+	doc := finalActivation(types.NewRawAmountFromInt64(1250))
 	require.Equal(t, ActivationTaskBasisType, doc.BasisType)
 	require.NotNil(t, doc.BasisID)
 
@@ -60,7 +60,7 @@ func TestWalletActivationGeneratesBothExpenses(t *testing.T) {
 }
 
 func TestWalletActivationRequiresTechnicalTaskBasis(t *testing.T) {
-	doc := finalActivation(types.NewCryptoAmountFromInt64(10))
+	doc := finalActivation(types.NewRawAmountFromInt64(10))
 	doc.BasisType = "LegacyActivationDocument"
 
 	require.Error(t, doc.Validate(context.Background()))
@@ -68,7 +68,7 @@ func TestWalletActivationRequiresTechnicalTaskBasis(t *testing.T) {
 }
 
 func TestWalletActivationZeroCostHasNoMovementsButCanPost(t *testing.T) {
-	doc := finalActivation(types.ZeroCryptoAmount())
+	doc := finalActivation(types.ZeroRawAmount())
 
 	balance, err := doc.GenerateCryptoBalanceMovements(context.Background())
 	require.NoError(t, err)
@@ -80,7 +80,7 @@ func TestWalletActivationZeroCostHasNoMovementsButCanPost(t *testing.T) {
 }
 
 func TestUnknownOperationCannotValidateOrGenerateMovements(t *testing.T) {
-	doc := finalActivation(types.NewCryptoAmountFromInt64(10))
+	doc := finalActivation(types.NewRawAmountFromInt64(10))
 	doc.OperationType = OperationType("future_operation")
 
 	require.Error(t, doc.Validate(context.Background()))

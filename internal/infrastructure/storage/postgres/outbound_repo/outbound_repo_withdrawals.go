@@ -254,7 +254,7 @@ func (r *OutboundRepo) MarkWithdrawalExecutionFailed(ctx context.Context, reques
 	return nil
 }
 
-func (r *OutboundRepo) FindHotWallet(ctx context.Context, merchantID, networkID, tokenID id.ID, required types.CryptoAmount) (HotWallet, error) {
+func (r *OutboundRepo) FindHotWallet(ctx context.Context, merchantID, networkID, tokenID id.ID, required types.RawAmount) (HotWallet, error) {
 	txm := postgres.MustGetTxManager(ctx)
 	querier := txm.GetQuerier(ctx)
 
@@ -291,7 +291,7 @@ func (r *OutboundRepo) FindHotWallet(ctx context.Context, merchantID, networkID,
 func (r *OutboundRepo) ReserveHotWalletForWithdrawal(
 	ctx context.Context,
 	requestID, merchantID, networkID, tokenID id.ID,
-	required types.CryptoAmount,
+	required types.RawAmount,
 ) (HotWallet, error) {
 	txm := postgres.MustGetTxManager(ctx)
 
@@ -317,7 +317,7 @@ func (r *OutboundRepo) ReserveHotWalletForWithdrawal(
 			return err
 		}
 		var actualMerchant, actualToken, actualNetwork id.ID
-		var actualAmount types.CryptoAmount
+		var actualAmount types.RawAmount
 		if err := querier.QueryRow(txCtx, `SELECT wr.merchant_id,wr.token_id,t.network_id,wr.amount
 			FROM doc_withdrawal_requests wr JOIN cat_tokens t ON t.id=wr.token_id WHERE wr.id=$1 FOR UPDATE OF wr`, requestID).
 			Scan(&actualMerchant, &actualToken, &actualNetwork, &actualAmount); err != nil {
@@ -328,7 +328,7 @@ func (r *OutboundRepo) ReserveHotWalletForWithdrawal(
 		}
 		var reservedOwner *id.ID
 		var reservedNetwork, reservedToken id.ID
-		var reservedAmount types.CryptoAmount
+		var reservedAmount types.RawAmount
 
 		err = querier.QueryRow(txCtx, `
 			SELECT w.id, w.address, w.vault_key_id, COALESCE(b.amount, 0) AS balance,

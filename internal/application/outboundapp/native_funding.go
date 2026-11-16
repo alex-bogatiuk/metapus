@@ -18,7 +18,7 @@ type NativeFundingRepository interface {
 	Lookup(context.Context, string, id.ID, int) (crypto.NativeFunding, bool, error)
 	Create(context.Context, crypto.NativeFunding) (crypto.NativeFunding, error)
 	LoadWallet(context.Context, id.ID, id.ID, string) (HotWallet, error)
-	OperatingBalance(context.Context, id.ID, id.ID) (types.CryptoAmount, bool, error)
+	OperatingBalance(context.Context, id.ID, id.ID) (types.RawAmount, bool, error)
 	LinkReservation(context.Context, id.ID, id.ID) error
 	RetryBeforeAuthorization(context.Context, id.ID) error
 	SetStatus(context.Context, id.ID, string, string, string, *id.ID) error
@@ -41,7 +41,7 @@ type FundingSettlement interface {
 type FundingObserver interface {
 	Observer
 	FundingFinality(context.Context, crypto.NetworkRef) (context.Context, func(error))
-	FundingSettled(context.Context, id.ID, types.CryptoAmount)
+	FundingSettled(context.Context, id.ID, types.RawAmount)
 }
 type NativeFundingService struct {
 	repository     NativeFundingRepository
@@ -62,7 +62,7 @@ func (s *NativeFundingService) Ensure(
 	policy crypto.NetworkPolicy,
 	req NativeFundingRequest,
 	signer crypto.PolicyAwareTransactionSigner,
-	requiredMaxFee types.CryptoAmount,
+	requiredMaxFee types.RawAmount,
 ) (ready bool, err error) {
 	if s != nil && s.observer != nil {
 		var finish func(error)

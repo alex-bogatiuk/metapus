@@ -16,7 +16,7 @@ type Source struct {
 	TokenID    id.ID
 	Class      Class
 	Revision   int64
-	Available  types.CryptoAmount // net of fees, holds and existing reservations
+	Available  types.RawAmount // net of fees, holds and existing reservations
 }
 
 type WithdrawalRequest struct {
@@ -24,7 +24,7 @@ type WithdrawalRequest struct {
 	NetworkID    id.ID
 	TokenID      id.ID
 	Class        Class
-	Amount       types.CryptoAmount
+	Amount       types.RawAmount
 	RiskAccepted bool
 }
 
@@ -42,7 +42,7 @@ type SourceLine struct {
 	WalletID id.ID
 	Class    Class
 	Revision int64
-	Amount   types.CryptoAmount
+	Amount   types.RawAmount
 }
 
 // SelectSources is a deterministic plan, not a reservation. The repository
@@ -53,7 +53,7 @@ func SelectSources(request WithdrawalRequest, candidates []Source) ([]SourceLine
 	}
 	ordered := slices.Clone(candidates)
 	slices.SortFunc(ordered, func(a, b Source) int { return bytes.Compare(a.WalletID[:], b.WalletID[:]) })
-	available := types.ZeroCryptoAmount()
+	available := types.ZeroRawAmount()
 	seen := make(map[id.ID]bool, len(ordered))
 	for _, source := range ordered {
 		if id.IsNil(source.WalletID) || source.Revision <= 0 || seen[source.WalletID] {

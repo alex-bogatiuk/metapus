@@ -509,7 +509,7 @@ db/migrations/00006_crypto_core.sql            — Sepolia catalog, nonce, final
 
 ## 9. Чеклист
 
-- [x] Raw-unit precision зафиксирован общим `CryptoAmount`/`NUMERIC(78,0)`/string-контрактом.
+- [x] Raw-unit precision зафиксирован общим `RawAmount`/`NUMERIC(78,0)`/string-контрактом.
 - [x] Зафиксированы native transfer scope, finality и nonce model.
 - [x] EVM factory/driver объявляют `WalletProvisioningDerived`.
 - [x] Реализован отдельный policy-aware Vault signer семейства.

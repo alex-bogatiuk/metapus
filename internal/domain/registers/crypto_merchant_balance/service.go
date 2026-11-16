@@ -34,16 +34,16 @@ type MerchantBalanceKey struct {
 
 // MerchantBalanceEntry represents a locked balance row.
 type MerchantBalanceEntry struct {
-	MerchantID id.ID              `db:"merchant_id"`
-	TokenID    id.ID              `db:"token_id"`
-	Amount     types.CryptoAmount `db:"amount"`
+	MerchantID id.ID           `db:"merchant_id"`
+	TokenID    id.ID           `db:"token_id"`
+	Amount     types.RawAmount `db:"amount"`
 }
 
 // MerchantBalanceReservation represents a balance check request.
 type MerchantBalanceReservation struct {
 	MerchantID id.ID
 	TokenID    id.ID
-	Required   types.CryptoAmount
+	Required   types.RawAmount
 }
 
 // Service provides business operations for the crypto merchant balance register.
@@ -172,7 +172,7 @@ func (s *Service) CheckAndReserveMerchantBalance(ctx context.Context, items []Me
 	type dimKey struct {
 		m, t id.ID
 	}
-	balanceMap := make(map[dimKey]types.CryptoAmount, len(balances))
+	balanceMap := make(map[dimKey]types.RawAmount, len(balances))
 	for _, b := range balances {
 		balanceMap[dimKey{b.MerchantID, b.TokenID}] = b.Amount
 	}
@@ -221,7 +221,7 @@ func (s *Service) GetDocumentMovements(ctx context.Context, recorderID id.ID) ([
 	columns := []entity.MovementColumnDef{
 		{Key: "merchant", PolicyField: "merchant_id", Label: "Мерчант", Type: "ref", RefEntity: "Merchant"},
 		{Key: "token", PolicyField: "token_id", Label: "Токен", Type: "ref", RefEntity: "Token"},
-		{Key: "amount", PolicyField: "amount", Label: "Сумма", Type: "text"}, // text — CryptoAmount is string
+		{Key: "amount", PolicyField: "amount", Label: "Сумма", Type: "text"}, // text — RawAmount is string
 	}
 
 	result := make([]entity.DocumentMovement, 0, len(movements))

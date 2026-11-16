@@ -375,8 +375,8 @@ func (c *Compiler) Execute(ctx context.Context, req QueryRequest) (*QueryResult,
 			val := values[i]
 			if outputs.moneyOutputs[key] && val != nil {
 				amount, err := normalizeMoney(val)
-				if outputs.cryptoOutputs[key] {
-					amount, err = normalizeCryptoMoney(val)
+				if outputs.rawOutputs[key] {
+					amount, err = normalizeRawMoney(val)
 				}
 				if err != nil {
 					return nil, apperror.NewValidation("report amount violates its registered units").WithDetail("field", key).WithCause(err)
@@ -510,15 +510,15 @@ func formatUUID(b [16]byte) string {
 	)
 }
 
-// normalizeCryptoMoney preserves raw integer NUMERIC values without narrowing.
-func normalizeCryptoMoney(value any) (string, error) {
+// normalizeRawMoney preserves raw integer NUMERIC values without narrowing.
+func normalizeRawMoney(value any) (string, error) {
 	if numeric, ok := value.(pgtype.Numeric); ok {
 		if !numeric.Valid || numeric.NaN || numeric.InfinityModifier != pgtype.Finite || numeric.Int == nil {
-			return "", fmt.Errorf("non-finite crypto amount")
+			return "", fmt.Errorf("non-finite raw amount")
 		}
 		amount := decimal.NewFromBigInt(numeric.Int, numeric.Exp)
 		if !amount.IsInteger() || amount.IsNegative() {
-			return "", fmt.Errorf("invalid raw crypto amount")
+			return "", fmt.Errorf("invalid raw amount")
 		}
 		return amount.StringFixed(0), nil
 	}
@@ -526,7 +526,7 @@ func normalizeCryptoMoney(value any) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	amount, err := types.NewCryptoAmountFromString(text)
+	amount, err := types.NewRawAmountFromString(text)
 	return amount.String(), err
 }
 

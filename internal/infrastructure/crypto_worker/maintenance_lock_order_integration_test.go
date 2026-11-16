@@ -170,7 +170,7 @@ func TestSweepMaintenanceDoesNotExpandFrozenCohort(t *testing.T) {
 func TestNativeFundingConcurrentCreationValidatesImmutableReplay(t *testing.T) {
 	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture) {
 		candidate := crypto.NativeFunding{BasisType: "CryptoSweepAttempt", BasisID: id.New(), Attempt: 1,
-			NetworkID: f.network, NativeTokenID: f.native, SourceWalletID: f.hot, DestinationWalletID: f.wallet, Amount: types.MustCryptoAmount("100")}
+			NetworkID: f.network, NativeTokenID: f.native, SourceWalletID: f.hot, DestinationWalletID: f.wallet, Amount: types.MustRawAmount("100")}
 		store := nativeFundingStore{OutboundRepo: NewOutboundRepo()}
 		type result struct {
 			value crypto.NativeFunding
@@ -197,7 +197,7 @@ func TestNativeFundingConcurrentCreationValidatesImmutableReplay(t *testing.T) {
 			require.Equal(t, actual, item.value.ID)
 		}
 		candidate.ID = id.New()
-		candidate.Amount = types.MustCryptoAmount("101")
+		candidate.Amount = types.MustRawAmount("101")
 		_, err := store.Create(ctx, candidate)
 		require.ErrorContains(t, err, "immutable intent")
 		var count, movements int

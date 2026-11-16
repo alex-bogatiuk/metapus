@@ -9,8 +9,8 @@ import (
 )
 
 func TestSplitInventoryConservesPrincipalAndFeeAcrossPartialTransfers(t *testing.T) {
-	remaining := InventoryPartition{types.MustCryptoAmount("2"), types.MustCryptoAmount("1")}
-	first, err := SplitInventory(remaining, types.MustCryptoAmount("1"))
+	remaining := InventoryPartition{types.MustRawAmount("2"), types.MustRawAmount("1")}
+	first, err := SplitInventory(remaining, types.MustRawAmount("1"))
 	require.NoError(t, err)
 	require.Equal(t, "0", first.Principal.String(), "indivisible raw unit must not round principal up")
 	require.Equal(t, "1", first.ServiceFee.String())
@@ -21,20 +21,20 @@ func TestSplitInventoryConservesPrincipalAndFeeAcrossPartialTransfers(t *testing
 	require.Equal(t, "2", second.Principal.String())
 	require.True(t, second.ServiceFee.IsZero())
 	require.Equal(t, "3", first.Gross().Add(second.Gross()).String())
-	_, err = SplitInventory(remaining, types.MustCryptoAmount("3"))
+	_, err = SplitInventory(remaining, types.MustRawAmount("3"))
 	require.ErrorContains(t, err, "insufficient")
-	_, err = SplitInventory(remaining, types.ZeroCryptoAmount())
+	_, err = SplitInventory(remaining, types.ZeroRawAmount())
 	require.Error(t, err)
 }
 
 func TestSplitInventoryRetainsRawUnitPrecisionAtNumeric78Limit(t *testing.T) {
 	// A decimal division rounded before floor would incorrectly allocate the
 	// near-integer principal. Both Go and PostgreSQL must use integer quotient.
-	principal := types.MustCryptoAmount("999999999999999999999999999999999999999999999999999999999999999999999999999998")
-	available := InventoryPartition{Principal: principal, ServiceFee: types.MustCryptoAmount("1")}
+	principal := types.MustRawAmount("999999999999999999999999999999999999999999999999999999999999999999999999999998")
+	available := InventoryPartition{Principal: principal, ServiceFee: types.MustRawAmount("1")}
 	split, err := SplitInventory(available, principal)
 	require.NoError(t, err)
-	require.Equal(t, principal.Sub(types.MustCryptoAmount("1")).String(), split.Principal.String())
+	require.Equal(t, principal.Sub(types.MustRawAmount("1")).String(), split.Principal.String())
 	require.Equal(t, "1", split.ServiceFee.String())
 	require.Equal(t, principal.String(), split.Gross().String())
 	full, err := SplitInventory(available, available.Gross())

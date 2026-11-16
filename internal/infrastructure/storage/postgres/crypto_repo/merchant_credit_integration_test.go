@@ -32,8 +32,8 @@ import (
 type fixedTariff struct{}
 
 func (fixedTariff) Resolve(context.Context, id.ID, id.ID, crypto.FeeDirection) (crypto.EffectiveFee, error) {
-	return crypto.EffectiveFee{FixedFee: types.MustCryptoAmount("1"), PercentBP: 100,
-		MinFee: types.ZeroCryptoAmount(), MaxFee: types.ZeroCryptoAmount()}, nil
+	return crypto.EffectiveFee{FixedFee: types.MustRawAmount("1"), PercentBP: 100,
+		MinFee: types.ZeroRawAmount(), MaxFee: types.ZeroRawAmount()}, nil
 }
 
 type merchantCreditFixture struct {
@@ -87,7 +87,7 @@ func TestMerchantCreditBelowThresholdPostsAtOnce(t *testing.T) {
 	require.Equal(t, crypto_merchant_credit.StatusPosted, doc.Status)
 	require.False(t, doc.ApprovalRequired)
 	gross := f.request.Basis.Amount
-	fee, net := crypto.EffectiveFee{FixedFee: types.MustCryptoAmount("1"), PercentBP: 100}.Calculate(gross), types.ZeroCryptoAmount()
+	fee, net := crypto.EffectiveFee{FixedFee: types.MustRawAmount("1"), PercentBP: 100}.Calculate(gross), types.ZeroRawAmount()
 	net = gross.Sub(fee)
 	suspense, merchant, charged := f.amounts(t)
 	require.Equal(t, []string{"0", net.String(), fee.String()}, []string{suspense, merchant, charged})

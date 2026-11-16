@@ -15,12 +15,12 @@ func TestSweepConfig_IsZeroThreshold(t *testing.T) {
 	}{
 		{
 			give: "zero amount → true",
-			cfg:  SweepConfig{Threshold: types.NewCryptoAmountFromInt64(0)},
+			cfg:  SweepConfig{Threshold: types.NewRawAmountFromInt64(0)},
 			want: true,
 		},
 		{
 			give: "positive amount → false",
-			cfg:  SweepConfig{Threshold: types.NewCryptoAmountFromInt64(1000)},
+			cfg:  SweepConfig{Threshold: types.NewRawAmountFromInt64(1000)},
 			want: false,
 		},
 		{
@@ -30,7 +30,7 @@ func TestSweepConfig_IsZeroThreshold(t *testing.T) {
 		},
 		{
 			give: "large threshold 10M → false",
-			cfg:  SweepConfig{Threshold: types.NewCryptoAmountFromInt64(10_000_000)},
+			cfg:  SweepConfig{Threshold: types.NewRawAmountFromInt64(10_000_000)},
 			want: false,
 		},
 	}
@@ -46,7 +46,7 @@ func TestSweepConfig_IsZeroThreshold(t *testing.T) {
 }
 
 func TestSweepConfig_SweepableAmountRetainsRawDust(t *testing.T) {
-	cfg := SweepConfig{RetainAmount: types.NewCryptoAmountFromInt64(10)}
+	cfg := SweepConfig{RetainAmount: types.NewRawAmountFromInt64(10)}
 
 	tests := []struct {
 		name        string
@@ -62,8 +62,8 @@ func TestSweepConfig_SweepableAmountRetainsRawDust(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := cfg.SweepableAmount(types.NewCryptoAmountFromInt64(tt.giveBalance))
-			if got.String() != types.NewCryptoAmountFromInt64(tt.want).String() {
+			got := cfg.SweepableAmount(types.NewRawAmountFromInt64(tt.giveBalance))
+			if got.String() != types.NewRawAmountFromInt64(tt.want).String() {
 				t.Fatalf("SweepableAmount(%d) = %s, want %d", tt.giveBalance, got.String(), tt.want)
 			}
 		})
@@ -71,14 +71,14 @@ func TestSweepConfig_SweepableAmountRetainsRawDust(t *testing.T) {
 }
 
 func TestSweepConfig_RepeatedSweepDoesNotConsumeReserve(t *testing.T) {
-	cfg := SweepConfig{RetainAmount: types.NewCryptoAmountFromInt64(1)}
+	cfg := SweepConfig{RetainAmount: types.NewRawAmountFromInt64(1)}
 
-	firstSweep := cfg.SweepableAmount(types.NewCryptoAmountFromInt64(100_000_000))
+	firstSweep := cfg.SweepableAmount(types.NewRawAmountFromInt64(100_000_000))
 	if firstSweep.String() != "99999999" {
 		t.Fatalf("first sweep = %s, want 99999999", firstSweep.String())
 	}
 
-	remaining := types.NewCryptoAmountFromInt64(100_000_000).Sub(firstSweep)
+	remaining := types.NewRawAmountFromInt64(100_000_000).Sub(firstSweep)
 	if secondSweep := cfg.SweepableAmount(remaining); !secondSweep.IsZero() {
 		t.Fatalf("second sweep = %s, want 0", secondSweep.String())
 	}

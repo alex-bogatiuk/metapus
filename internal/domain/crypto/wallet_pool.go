@@ -29,10 +29,10 @@ const (
 // WalletPoolActivationPolicy is present only for families whose receiving
 // addresses must be materialized on-chain before allocation.
 type WalletPoolActivationPolicy struct {
-	MaxConcurrent      int                `json:"maxConcurrent"`
-	ReserveMinor       types.CryptoAmount `json:"reserveMinor"`
-	MinHotBalanceMinor types.CryptoAmount `json:"minHotBalanceMinor"`
-	DailyBudgetMinor   types.CryptoAmount `json:"dailyBudgetMinor"`
+	MaxConcurrent      int             `json:"maxConcurrent"`
+	ReserveMinor       types.RawAmount `json:"reserveMinor"`
+	MinHotBalanceMinor types.RawAmount `json:"minHotBalanceMinor"`
+	DailyBudgetMinor   types.RawAmount `json:"dailyBudgetMinor"`
 }
 
 // WalletPoolPolicy controls warm-pool capacity for one blockchain network.
@@ -138,9 +138,9 @@ func (p WalletPoolActivationPolicy) Validate() error {
 
 type WalletPoolActivationPolicyPatch struct {
 	MaxConcurrent      *int
-	ReserveMinor       *types.CryptoAmount
-	MinHotBalanceMinor *types.CryptoAmount
-	DailyBudgetMinor   *types.CryptoAmount
+	ReserveMinor       *types.RawAmount
+	MinHotBalanceMinor *types.RawAmount
+	DailyBudgetMinor   *types.RawAmount
 }
 
 // WalletPoolPolicyPatch is the transport-independent update command. Pointer

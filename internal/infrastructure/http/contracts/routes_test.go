@@ -54,7 +54,7 @@ func TestWebhookTestResultPreservesOmittedNullAndZero(t *testing.T) {
 func ptr[T any](value T) *T { return &value }
 
 func TestCustodyAdjustmentResponseUsesSameExactWireShapeForDetailAndActions(t *testing.T) {
-	amount, err := types.NewCryptoAmountFromString("9007199254740993")
+	amount, err := types.NewRawAmountFromString("9007199254740993")
 	require.NoError(t, err)
 	response := cryptodto.FromCustodyAdjustment(&crypto.CryptoCustodyAdjustment{Amount: amount, Status: "posted", PostedVersion: 2})
 	encoded, err := jsoncodec.Marshal(response)

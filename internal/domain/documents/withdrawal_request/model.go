@@ -67,7 +67,7 @@ type WithdrawalRequest struct {
 	TokenID id.ID `db:"token_id" json:"tokenId" meta:"label:Токен,ref:token"`
 
 	// Amount to withdraw (token minor units)
-	Amount types.CryptoAmount `db:"amount" json:"amount" meta:"label:Сумма"`
+	Amount types.RawAmount `db:"amount" json:"amount" meta:"label:Сумма"`
 
 	// DestAddress — external blockchain address
 	DestAddress string `db:"dest_address" json:"destAddress" meta:"label:Адрес назначения"`
@@ -114,7 +114,7 @@ func (w *WithdrawalRequest) IsRefund() bool { return w.BasisType == RefundBasisT
 func NewWithdrawalRequest(
 	merchantID, tokenID, addressID id.ID,
 	destAddress string,
-	amount types.CryptoAmount,
+	amount types.RawAmount,
 ) *WithdrawalRequest {
 	return &WithdrawalRequest{
 		Document:    entity.NewDocument(),

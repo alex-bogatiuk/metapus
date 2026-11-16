@@ -45,11 +45,11 @@ type CryptoWithdrawal struct {
 	DestAddress string `db:"dest_address" json:"destAddress" meta:"label:Адрес назначения"`
 
 	// Amount to withdraw (token minor units)
-	Amount types.CryptoAmount `db:"amount" json:"amount" meta:"label:Сумма"`
+	Amount types.RawAmount `db:"amount" json:"amount" meta:"label:Сумма"`
 
 	// NetworkFee paid for the transaction (filled after broadcast)
-	NetworkFee        types.CryptoAmount `db:"network_fee" json:"networkFee" meta:"label:Комиссия сети"`
-	NetworkFeeTokenID *id.ID             `db:"network_fee_token_id" json:"networkFeeTokenId,omitempty" meta:"label:Токен комиссии,ref:token"`
+	NetworkFee        types.RawAmount `db:"network_fee" json:"networkFee" meta:"label:Комиссия сети"`
+	NetworkFeeTokenID *id.ID          `db:"network_fee_token_id" json:"networkFeeTokenId,omitempty" meta:"label:Токен комиссии,ref:token"`
 
 	// TxHash is the broadcast transaction hash (filled after broadcast)
 	TxHash string `db:"tx_hash" json:"txHash,omitempty" meta:"label:TX Hash"`
@@ -64,8 +64,8 @@ type CryptoWithdrawal struct {
 	SettlementLeaseExpiresAt *time.Time                      `db:"settlement_lease_expires_at" json:"-"`
 	ChainResult              outbound_settlement.ChainResult `db:"chain_result" json:"chainResult,omitempty"`
 	EnergyUsed               int64                           `db:"energy_used" json:"energyUsed"`
-	NetFee                   types.CryptoAmount              `db:"net_fee" json:"netFee"`
-	EnergyFee                types.CryptoAmount              `db:"energy_fee" json:"energyFee"`
+	NetFee                   types.RawAmount                 `db:"net_fee" json:"netFee"`
+	EnergyFee                types.RawAmount                 `db:"energy_fee" json:"energyFee"`
 	NetUsage                 int64                           `db:"net_usage" json:"netUsage"`
 }
 
@@ -73,7 +73,7 @@ type CryptoWithdrawal struct {
 func NewCryptoWithdrawal(
 	merchantID, tokenID, sourceWalletID id.ID,
 	destAddress string,
-	amount types.CryptoAmount,
+	amount types.RawAmount,
 ) *CryptoWithdrawal {
 	return &CryptoWithdrawal{
 		Document:         entity.NewDocument(),
@@ -82,7 +82,7 @@ func NewCryptoWithdrawal(
 		SourceWalletID:   sourceWalletID,
 		DestAddress:      destAddress,
 		Amount:           amount,
-		NetworkFee:       types.ZeroCryptoAmount(),
+		NetworkFee:       types.ZeroRawAmount(),
 		Status:           WithdrawalStatusCreated,
 		SettlementStatus: outbound_settlement.StatusNotApplicable,
 	}

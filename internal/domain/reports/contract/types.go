@@ -103,11 +103,15 @@ type ReportTotal struct {
 	Label  string        `json:"label,omitempty"` // optional override label
 }
 
+// AmountTypeRaw marks a money column of arbitrary-precision raw asset units
+// (types.RawAmount) instead of checked int64 minor units.
+const AmountTypeRaw = "raw"
+
 // MoneySources names the row fields that define a monetary column's unit.
 // Values are minor units; no report-wide currency scale is assumed.
 type MoneySources struct {
-	// AmountType is "crypto" for arbitrary-precision raw token units; omitted
-	// means the existing checked int64 ERP contract.
+	// AmountType is AmountTypeRaw for raw asset units; omitted means the
+	// checked int64 minor units contract.
 	AmountType    string `json:"amountType,omitempty"`
 	CurrencyID    string `json:"currencyId"`
 	CurrencyCode  string `json:"currencyCode"`

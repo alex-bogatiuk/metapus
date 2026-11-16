@@ -100,7 +100,7 @@ func TestReceiptIntakeAccountsFinalUnmatchedTransferOnce(t *testing.T) {
 		require.Equal(t, "25", amount)
 		require.Equal(t, "25", suspense)
 		require.Equal(t, crypto.MatchReasonWrongToken, reason)
-		var custody types.CryptoAmount
+		var custody types.RawAmount
 		require.NoError(t, txm.GetQuerier(ctx).QueryRow(ctx, `SELECT amount FROM reg_crypto_balance_movements
 			WHERE recorder_id=$1 AND recorder_type='CryptoCustodyReceipt' AND wallet_id=$2 AND token_id=$3 AND record_type='receipt'`,
 			receiptID, f.wallet, f.token).Scan(&custody))

@@ -46,7 +46,7 @@ func testOpening() *CryptoProviderBalanceOperation {
 	observation, incident := id.New(), id.New()
 	doc := &CryptoProviderBalanceOperation{Document: entity.NewDocument(), ProviderAccountID: id.New(), TokenID: id.New(),
 		ProviderObservationID: &observation, OperationType: OperationTypeOpening, RecordType: entity.RecordTypeReceipt,
-		Amount: types.NewCryptoAmountFromInt64(1), ExternalRef: "opening-observation:" + observation.String(), Status: StatusPendingApproval}
+		Amount: types.NewRawAmountFromInt64(1), ExternalRef: "opening-observation:" + observation.String(), Status: StatusPendingApproval}
 	doc.BasisID, doc.BasisType, doc.CreatedBy, doc.Description = &incident, "CryptoProviderBalanceIncident", id.New(), "verified observation"
 	return doc
 }

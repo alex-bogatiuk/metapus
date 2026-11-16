@@ -7,7 +7,7 @@ import (
 
 // ReceiptChangePercent compares two periods of the same asset. Callers must not
 // combine different tokens, networks or raw-unit scales before this operation.
-func ReceiptChangePercent(current, previous types.CryptoAmount) string {
+func ReceiptChangePercent(current, previous types.RawAmount) string {
 	if !previous.IsPositive() {
 		if current.IsPositive() {
 			return "+100.00"

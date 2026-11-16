@@ -20,7 +20,7 @@ func accountingReceipt(t *testing.T, blockIndex uint) (crypto.BlockchainEvent, *
 		NetworkID: id.MustParse("01900000-0000-7000-8000-000000000001"),
 		TxHash:    "0x" + strings.Repeat("a", 64), BlockHash: "0x" + strings.Repeat("b", 64),
 		EventKind: crypto.EventKindContractLog, EventIndex: int64(blockIndex + 2), BlockNumber: 100,
-		FromAddress: from.Hex(), ToAddress: to.Hex(), TokenContract: contract.Hex(), Amount: types.MustCryptoAmount("12"),
+		FromAddress: from.Hex(), ToAddress: to.Hex(), TokenContract: contract.Hex(), Amount: types.MustRawAmount("12"),
 	}
 	receipt := &gethtypes.Receipt{
 		Status: gethtypes.ReceiptStatusSuccessful, TxHash: common.HexToHash(event.TxHash),

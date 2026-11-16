@@ -40,8 +40,8 @@ func signingReplayFixture(t *testing.T) (SigningAttemptInput, SigningAuthorizati
 	network, asset, source, merchant := id.New(), id.New(), id.New(), id.New()
 	input := SigningAttemptInput{Intent: crypto.TransferIntent{BasisType: "WithdrawalRequest", BasisID: id.New(), Purpose: crypto.SigningPurposeWithdrawal, Attempt: 1, Generation: 1,
 		Network: crypto.NetworkRef{ID: network, Code: "TEST", Family: crypto.ChainFamilyEVM, NetworkIdentifier: "1", NativeTokenID: asset, NativeTokenSymbol: "ETH", NativeDecimals: 18, RequiredConfirmations: 1, FinalityMode: crypto.FinalityByConfirmations},
-		Asset:   crypto.AssetRef{TokenID: asset, Standard: token.TokenStandardNative, Decimals: 18}, SourceWalletID: source, SourceAddress: "source", DestinationAddress: "destination", Amount: types.MustCryptoAmount("70")},
-		Capabilities: crypto.ChainFamilyCapabilities{Family: crypto.ChainFamilyEVM, SequenceModel: crypto.SequenceAccount, WalletProvisioning: crypto.WalletProvisioningDerived, ExternalResourceMode: crypto.ExternalResourceNone, CheckpointTimeUnit: crypto.CheckpointUnixSeconds, TokenAccountModel: crypto.TokenAccountSameAddress, RequiredRPCRoles: []string{"fullnode"}}, MerchantID: &merchant, VaultKeyID: "key", FeePayerAddress: "source", MaxNetworkFee: types.MustCryptoAmount("10"), ApprovalBundle: crypto.ApprovalBundle{IntentJWS: "intent"}}
+		Asset:   crypto.AssetRef{TokenID: asset, Standard: token.TokenStandardNative, Decimals: 18}, SourceWalletID: source, SourceAddress: "source", DestinationAddress: "destination", Amount: types.MustRawAmount("70")},
+		Capabilities: crypto.ChainFamilyCapabilities{Family: crypto.ChainFamilyEVM, SequenceModel: crypto.SequenceAccount, WalletProvisioning: crypto.WalletProvisioningDerived, ExternalResourceMode: crypto.ExternalResourceNone, CheckpointTimeUnit: crypto.CheckpointUnixSeconds, TokenAccountModel: crypto.TokenAccountSameAddress, RequiredRPCRoles: []string{"fullnode"}}, MerchantID: &merchant, VaultKeyID: "key", FeePayerAddress: "source", MaxNetworkFee: types.MustRawAmount("10"), ApprovalBundle: crypto.ApprovalBundle{IntentJWS: "intent"}}
 	payload := []byte(`{"nonce":"0","amount":"70"}`)
 	fingerprint, err := crypto.CanonicalUnsignedFingerprint(crypto.ChainFamilyEVM, 1, payload)
 	require.NoError(t, err)
@@ -67,9 +67,9 @@ func TestSigningCreateReplayChecksBoundIdentityBeforeDispatch(t *testing.T) {
 				case "destination":
 					input.Intent.DestinationAddress = "other-destination"
 				case "amount":
-					input.Intent.Amount = types.MustCryptoAmount("71")
+					input.Intent.Amount = types.MustRawAmount("71")
 				case "fee_cap":
-					input.MaxNetworkFee = types.MustCryptoAmount("11")
+					input.MaxNetworkFee = types.MustRawAmount("11")
 				case "key":
 					input.VaultKeyID = "other-key"
 				case "approval":

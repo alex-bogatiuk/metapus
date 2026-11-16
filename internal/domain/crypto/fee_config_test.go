@@ -30,7 +30,7 @@ func TestEffectiveFee_Calculate(t *testing.T) {
 		{
 			give: "fixed only: 2 USDT",
 			fee: EffectiveFee{
-				FixedFee: types.NewCryptoAmountFromInt64(2_000_000),
+				FixedFee: types.NewRawAmountFromInt64(2_000_000),
 			},
 			amount: 100_000_000,
 			want:   2_000_000,
@@ -38,8 +38,8 @@ func TestEffectiveFee_Calculate(t *testing.T) {
 		{
 			give: "compound: 1% + 1 USDT on 500 USDT",
 			fee: EffectiveFee{
-				FixedFee:  types.NewCryptoAmountFromInt64(1_000_000), // 1 USDT
-				PercentBP: 100,                                       // 1%
+				FixedFee:  types.NewRawAmountFromInt64(1_000_000), // 1 USDT
+				PercentBP: 100,                                    // 1%
 			},
 			amount: 500_000_000, // 500 USDT
 			want:   6_000_000,   // 1 + 5 = 6 USDT
@@ -47,9 +47,9 @@ func TestEffectiveFee_Calculate(t *testing.T) {
 		{
 			give: "min floor applies: calculated < minFee",
 			fee: EffectiveFee{
-				FixedFee:  types.NewCryptoAmountFromInt64(1_000_000), // 1 USDT
-				PercentBP: 100,                                       // 1%
-				MinFee:    types.NewCryptoAmountFromInt64(5_000_000), // 5 USDT min
+				FixedFee:  types.NewRawAmountFromInt64(1_000_000), // 1 USDT
+				PercentBP: 100,                                    // 1%
+				MinFee:    types.NewRawAmountFromInt64(5_000_000), // 5 USDT min
 			},
 			amount: 50_000_000, // 50 USDT → 1 + 0.5 = 1.5 < 5
 			want:   5_000_000,  // min kicks in
@@ -57,8 +57,8 @@ func TestEffectiveFee_Calculate(t *testing.T) {
 		{
 			give: "min floor does not apply: calculated >= minFee",
 			fee: EffectiveFee{
-				PercentBP: 100,                                       // 1%
-				MinFee:    types.NewCryptoAmountFromInt64(2_000_000), // 2 USDT min
+				PercentBP: 100,                                    // 1%
+				MinFee:    types.NewRawAmountFromInt64(2_000_000), // 2 USDT min
 			},
 			amount: 500_000_000, // 500 USDT → 5 USDT > 2 USDT min
 			want:   5_000_000,
@@ -66,8 +66,8 @@ func TestEffectiveFee_Calculate(t *testing.T) {
 		{
 			give: "max cap applies: calculated > maxFee",
 			fee: EffectiveFee{
-				PercentBP: 50,                                         // 0.5%
-				MaxFee:    types.NewCryptoAmountFromInt64(10_000_000), // 10 USDT max
+				PercentBP: 50,                                      // 0.5%
+				MaxFee:    types.NewRawAmountFromInt64(10_000_000), // 10 USDT max
 			},
 			amount: 5_000_000_000, // 5000 USDT → 25 USDT > 10 max
 			want:   10_000_000,    // cap kicks in
@@ -75,8 +75,8 @@ func TestEffectiveFee_Calculate(t *testing.T) {
 		{
 			give: "max cap does not apply: calculated <= maxFee",
 			fee: EffectiveFee{
-				PercentBP: 50,                                          // 0.5%
-				MaxFee:    types.NewCryptoAmountFromInt64(100_000_000), // 100 USDT max
+				PercentBP: 50,                                       // 0.5%
+				MaxFee:    types.NewRawAmountFromInt64(100_000_000), // 100 USDT max
 			},
 			amount: 500_000_000, // 500 USDT → 2.5 USDT < 100 max
 			want:   2_500_000,
@@ -84,9 +84,9 @@ func TestEffectiveFee_Calculate(t *testing.T) {
 		{
 			give: "both min and max: min applies",
 			fee: EffectiveFee{
-				PercentBP: 10,                                         // 0.1%
-				MinFee:    types.NewCryptoAmountFromInt64(3_000_000),  // 3 USDT min
-				MaxFee:    types.NewCryptoAmountFromInt64(50_000_000), // 50 USDT max
+				PercentBP: 10,                                      // 0.1%
+				MinFee:    types.NewRawAmountFromInt64(3_000_000),  // 3 USDT min
+				MaxFee:    types.NewRawAmountFromInt64(50_000_000), // 50 USDT max
 			},
 			amount: 10_000_000, // 10 USDT → 0.01 USDT < 3 min
 			want:   3_000_000,
@@ -94,9 +94,9 @@ func TestEffectiveFee_Calculate(t *testing.T) {
 		{
 			give: "both min and max: max applies",
 			fee: EffectiveFee{
-				PercentBP: 500,                                        // 5%
-				MinFee:    types.NewCryptoAmountFromInt64(1_000_000),  // 1 USDT min
-				MaxFee:    types.NewCryptoAmountFromInt64(20_000_000), // 20 USDT max
+				PercentBP: 500,                                     // 5%
+				MinFee:    types.NewRawAmountFromInt64(1_000_000),  // 1 USDT min
+				MaxFee:    types.NewRawAmountFromInt64(20_000_000), // 20 USDT max
 			},
 			amount: 1_000_000_000, // 1000 USDT → 50 USDT > 20 max
 			want:   20_000_000,
@@ -104,9 +104,9 @@ func TestEffectiveFee_Calculate(t *testing.T) {
 		{
 			give: "both min and max: in range, neither applies",
 			fee: EffectiveFee{
-				PercentBP: 100,                                        // 1%
-				MinFee:    types.NewCryptoAmountFromInt64(1_000_000),  // 1 USDT min
-				MaxFee:    types.NewCryptoAmountFromInt64(50_000_000), // 50 USDT max
+				PercentBP: 100,                                     // 1%
+				MinFee:    types.NewRawAmountFromInt64(1_000_000),  // 1 USDT min
+				MaxFee:    types.NewRawAmountFromInt64(50_000_000), // 50 USDT max
 			},
 			amount: 500_000_000, // 500 USDT → 5 USDT (in [1, 50])
 			want:   5_000_000,
@@ -130,9 +130,9 @@ func TestEffectiveFee_Calculate(t *testing.T) {
 		{
 			give: "full compound with clamp: fixed 1 + 1% on 50 USDT, min 2",
 			fee: EffectiveFee{
-				FixedFee:  types.NewCryptoAmountFromInt64(1_000_000),
+				FixedFee:  types.NewRawAmountFromInt64(1_000_000),
 				PercentBP: 100,
-				MinFee:    types.NewCryptoAmountFromInt64(2_000_000),
+				MinFee:    types.NewRawAmountFromInt64(2_000_000),
 			},
 			amount: 50_000_000, // 50 USDT → 1 + 0.5 = 1.5 < 2 → min=2
 			want:   2_000_000,
@@ -141,9 +141,9 @@ func TestEffectiveFee_Calculate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.give, func(t *testing.T) {
-			amount := types.NewCryptoAmountFromInt64(tt.amount)
+			amount := types.NewRawAmountFromInt64(tt.amount)
 			got := tt.fee.Calculate(amount)
-			want := types.NewCryptoAmountFromInt64(tt.want)
+			want := types.NewRawAmountFromInt64(tt.want)
 
 			if got.Cmp(want) != 0 {
 				t.Errorf("Calculate(%d) = %s, want %s", tt.amount, got.String(), want.String())
@@ -170,17 +170,17 @@ func TestEffectiveFee_IsZero(t *testing.T) {
 		},
 		{
 			give: "has fixed",
-			fee:  EffectiveFee{FixedFee: types.NewCryptoAmountFromInt64(1)},
+			fee:  EffectiveFee{FixedFee: types.NewRawAmountFromInt64(1)},
 			want: false,
 		},
 		{
 			give: "has minFee only",
-			fee:  EffectiveFee{MinFee: types.NewCryptoAmountFromInt64(1000)},
+			fee:  EffectiveFee{MinFee: types.NewRawAmountFromInt64(1000)},
 			want: false,
 		},
 		{
 			give: "has maxFee only — still zero (maxFee doesn't generate fee)",
-			fee:  EffectiveFee{MaxFee: types.NewCryptoAmountFromInt64(1000)},
+			fee:  EffectiveFee{MaxFee: types.NewRawAmountFromInt64(1000)},
 			want: true,
 		},
 	}

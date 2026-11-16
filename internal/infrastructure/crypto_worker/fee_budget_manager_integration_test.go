@@ -86,7 +86,7 @@ func TestFeeBudgetConcurrentReservationsCannotOversubscribe(t *testing.T) {
 				NetworkID: networkID, PayerWalletID: payerWalletID,
 				NativeTokenID: tokenID, OperationTokenID: tokenID,
 				BasisType: "ConcurrencyTest", BasisID: id.New(), Purpose: crypto.SigningPurposeSweep,
-				Attempt: 1, Strategy: crypto.FeeStrategyNativeBurn, MaxFee: types.NewCryptoAmountFromInt64(70),
+				Attempt: 1, Strategy: crypto.FeeStrategyNativeBurn, MaxFee: types.NewRawAmountFromInt64(70),
 			})
 			errs <- reserveErr
 		}()
@@ -172,7 +172,7 @@ func TestFeeBudgetRejectsInsufficientUnsignedBalanceWithoutPanic(t *testing.T) {
 			NetworkID: networkID, PayerWalletID: payerWalletID,
 			NativeTokenID: tokenID, OperationTokenID: tokenID,
 			BasisType: "UnsignedBalanceTest", BasisID: id.New(), Purpose: crypto.SigningPurposeSweep,
-			Attempt: 1, Strategy: crypto.FeeStrategyNativeBurn, MaxFee: types.NewCryptoAmountFromInt64(100),
+			Attempt: 1, Strategy: crypto.FeeStrategyNativeBurn, MaxFee: types.NewRawAmountFromInt64(100),
 		})
 	})
 	require.ErrorIs(t, reserveErr, ErrFeeBalanceResidual)
@@ -238,7 +238,7 @@ func TestNativeFundingCreationIsIdempotentUnderConcurrency(t *testing.T) {
 				ID: id.New(), BasisType: "ConcurrencyFunding", BasisID: basisID, Attempt: 1,
 				NetworkID: networkID, NativeTokenID: tokenID,
 				SourceWalletID: sourceWalletID, DestinationWalletID: destinationWalletID,
-				Amount: types.NewCryptoAmountFromInt64(100),
+				Amount: types.NewRawAmountFromInt64(100),
 			})
 			results <- record
 			errs <- createErr

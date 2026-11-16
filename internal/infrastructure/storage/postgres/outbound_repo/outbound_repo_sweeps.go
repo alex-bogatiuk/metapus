@@ -109,7 +109,7 @@ func (r *OutboundRepo) EnsureSweepExecutionDocument(
 	return result, err
 }
 
-func (r *OutboundRepo) RecordSweepLineBroadcast(ctx context.Context, sweepID, lineID id.ID, txHash string, amount types.CryptoAmount) error {
+func (r *OutboundRepo) RecordSweepLineBroadcast(ctx context.Context, sweepID, lineID id.ID, txHash string, amount types.RawAmount) error {
 	txm := postgres.MustGetTxManager(ctx)
 	return txm.RunInTransaction(ctx, func(txCtx context.Context) error {
 		q := txm.GetQuerier(txCtx)

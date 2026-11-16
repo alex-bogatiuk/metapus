@@ -81,7 +81,7 @@ func amlTxHash(tx string) string {
 }
 
 func (f amlRoutingFixture) proof(to, tx string, matching int) crypto.TransferVerification {
-	event := crypto.BlockchainEvent{NetworkID: f.input.Request.NetworkID, TxHash: amlTxHash(tx), EventKind: crypto.EventKindContractLog, EventIndex: 0, FromAddress: "payer", ToAddress: to, TokenContract: "test-contract", Amount: types.MustCryptoAmount("100"), BlockNumber: 10, BlockHash: strings.Repeat("a", 64), Finality: crypto.FinalitySolidified, Canonicality: crypto.CanonicalityCanonical, Confirmations: 20, RequiredConfs: 1, EventType: crypto.EventTypeTransfer, Direction: crypto.TransferDirectionIncoming, Timestamp: time.Now().UTC()}
+	event := crypto.BlockchainEvent{NetworkID: f.input.Request.NetworkID, TxHash: amlTxHash(tx), EventKind: crypto.EventKindContractLog, EventIndex: 0, FromAddress: "payer", ToAddress: to, TokenContract: "test-contract", Amount: types.MustRawAmount("100"), BlockNumber: 10, BlockHash: strings.Repeat("a", 64), Finality: crypto.FinalitySolidified, Canonicality: crypto.CanonicalityCanonical, Confirmations: 20, RequiredConfs: 1, EventType: crypto.EventTypeTransfer, Direction: crypto.TransferDirectionIncoming, Timestamp: time.Now().UTC()}
 	sources := []crypto.VerificationSource{{ProviderID: "one", LatestProviderID: "one", TrustGroup: "one", Digest: "same-digest", HeadHeight: 29, HeadHash: "same-head"}, {ProviderID: "two", LatestProviderID: "two", TrustGroup: "two", Digest: "same-digest", HeadHeight: 29, HeadHash: "same-head"}}
 	return crypto.TransferVerification{Event: event, Sources: sources, DecoderVersion: crypto.TransferEvidenceSchemaV1, MatchingEffects: matching, VerifiedAt: time.Now().UTC(), Outcome: "verified", ExecutionStatus: crypto.ReceiptSucceeded}
 }

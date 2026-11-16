@@ -227,7 +227,7 @@ func verifyNativeTransfer(
 			hash.Hex(), confirmations, target.requiredConfirmations, byFinalized,
 		)
 	}
-	amount, err := types.NewCryptoAmountFromBigInt(tx.Value())
+	amount, err := types.NewRawAmountFromBigInt(tx.Value())
 	if err != nil {
 		return chainfunding.ConfirmedTransfer{}, fmt.Errorf("decode EVM funding amount: %w", err)
 	}

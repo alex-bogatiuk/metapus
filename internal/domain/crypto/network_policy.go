@@ -32,11 +32,11 @@ const (
 func (m FeeFundingMode) Valid() bool { return m == FeeFundingSourceOnly || m == FeeFundingJIT }
 
 type FeeFundingPolicy struct {
-	Mode                    FeeFundingMode     `json:"mode"`
-	DailyBudget             types.CryptoAmount `json:"dailyBudgetMinor"`
-	MinFeeWalletBalance     types.CryptoAmount `json:"minFeeWalletBalanceMinor"`
-	MinSourceWalletResidual types.CryptoAmount `json:"minSourceWalletResidualMinor"`
-	MaxFundingAmount        types.CryptoAmount `json:"maxFundingAmountMinor"`
+	Mode                    FeeFundingMode  `json:"mode"`
+	DailyBudget             types.RawAmount `json:"dailyBudgetMinor"`
+	MinFeeWalletBalance     types.RawAmount `json:"minFeeWalletBalanceMinor"`
+	MinSourceWalletResidual types.RawAmount `json:"minSourceWalletResidualMinor"`
+	MaxFundingAmount        types.RawAmount `json:"maxFundingAmountMinor"`
 }
 
 type ExternalResourcePolicy struct {
@@ -69,8 +69,8 @@ func (p *ExternalResourcePolicy) Validate() error {
 type NetworkPolicy struct {
 	NetworkID             id.ID                   `json:"networkId"`
 	Enabled               bool                    `json:"enabled"`
-	PerTransactionMaxFee  types.CryptoAmount      `json:"perTransactionMaxFeeMinor"`
-	DailyNetworkFeeBudget types.CryptoAmount      `json:"dailyNetworkFeeBudgetMinor"`
+	PerTransactionMaxFee  types.RawAmount         `json:"perTransactionMaxFeeMinor"`
+	DailyNetworkFeeBudget types.RawAmount         `json:"dailyNetworkFeeBudgetMinor"`
 	FeeFunding            FeeFundingPolicy        `json:"feeFunding"`
 	ExternalResources     *ExternalResourcePolicy `json:"externalResources,omitempty"`
 	RetryDelay            time.Duration           `json:"retryDelay"`
@@ -292,8 +292,8 @@ type NetworkPolicyState struct {
 type NetworkPolicyPatch struct {
 	Version                int
 	Enabled                *bool
-	PerTransactionMaxFee   *types.CryptoAmount
-	DailyNetworkFeeBudget  *types.CryptoAmount
+	PerTransactionMaxFee   *types.RawAmount
+	DailyNetworkFeeBudget  *types.RawAmount
 	FeeFunding             *FeeFundingPolicy
 	ExternalResources      *ExternalResourcePolicy
 	ClearExternalResources bool
@@ -342,7 +342,7 @@ func (p NetworkPolicy) ApplyPatch(patch NetworkPolicyPatch) NetworkPolicy {
 type NetworkPolicyAdminRepository interface {
 	ListNetworkPolicyStates(ctx context.Context) ([]NetworkPolicyState, error)
 	GetNetworkPolicyState(ctx context.Context, networkID id.ID) (NetworkPolicyState, error)
-	NetworkFundingSourcesReady(ctx context.Context, networkID id.ID, minimum types.CryptoAmount) (bool, error)
+	NetworkFundingSourcesReady(ctx context.Context, networkID id.ID, minimum types.RawAmount) (bool, error)
 	NetworkHasActiveContractAssets(ctx context.Context, networkID id.ID) (bool, error)
 	NetworkProviderAccountCodes(ctx context.Context, networkID id.ID, accountIDs []id.ID, observedAt time.Time) (map[id.ID]string, error)
 	UpdateNetworkPolicy(ctx context.Context, policy NetworkPolicy, expectedVersion int, actor string) (NetworkPolicyState, error)
@@ -379,14 +379,14 @@ type FeeReservation struct {
 	PayerWalletID       id.ID
 	NativeTokenID       id.ID
 	OperationTokenID    id.ID
-	ReservedPrincipal   types.CryptoAmount
+	ReservedPrincipal   types.RawAmount
 	BasisType           string
 	BasisID             id.ID
 	Purpose             SigningPurpose
 	Attempt             int
 	Strategy            FeeStrategy
-	MaxFee              types.CryptoAmount
-	ActualFee           types.CryptoAmount
+	MaxFee              types.RawAmount
+	ActualFee           types.RawAmount
 	UnsignedFingerprint string
 	TxHash              string
 	Status              FeeReservationStatus

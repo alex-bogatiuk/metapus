@@ -109,15 +109,15 @@ func TestFeeConfigResolver_Resolve(t *testing.T) {
 	}{
 		{
 			give:          "merchant-specific takes priority",
-			merchantEntry: &FeeSchedule{MerchantID: &merchantID, TokenID: tokenID, Direction: direction, PercentBP: 50, FixedFee: types.NewCryptoAmountFromInt64(500_000)},
-			globalEntry:   &FeeSchedule{TokenID: tokenID, Direction: direction, PercentBP: 100, FixedFee: types.NewCryptoAmountFromInt64(1_000_000)},
+			merchantEntry: &FeeSchedule{MerchantID: &merchantID, TokenID: tokenID, Direction: direction, PercentBP: 50, FixedFee: types.NewRawAmountFromInt64(500_000)},
+			globalEntry:   &FeeSchedule{TokenID: tokenID, Direction: direction, PercentBP: 100, FixedFee: types.NewRawAmountFromInt64(1_000_000)},
 			wantPercentBP: 50,
 			wantFixed:     500_000,
 		},
 		{
 			give:          "fallback to global when no merchant entry",
 			merchantEntry: nil,
-			globalEntry:   &FeeSchedule{TokenID: tokenID, Direction: direction, PercentBP: 100, FixedFee: types.NewCryptoAmountFromInt64(1_000_000)},
+			globalEntry:   &FeeSchedule{TokenID: tokenID, Direction: direction, PercentBP: 100, FixedFee: types.NewRawAmountFromInt64(1_000_000)},
 			wantPercentBP: 100,
 			wantFixed:     1_000_000,
 		},
@@ -133,8 +133,8 @@ func TestFeeConfigResolver_Resolve(t *testing.T) {
 			merchantEntry: &FeeSchedule{
 				MerchantID: &merchantID, TokenID: tokenID, Direction: direction,
 				PercentBP: 200,
-				MinFee:    types.NewCryptoAmountFromInt64(3_000_000),
-				MaxFee:    types.NewCryptoAmountFromInt64(50_000_000),
+				MinFee:    types.NewRawAmountFromInt64(3_000_000),
+				MaxFee:    types.NewRawAmountFromInt64(50_000_000),
 			},
 			globalEntry:   &FeeSchedule{TokenID: tokenID, Direction: direction, PercentBP: 100},
 			wantPercentBP: 200,
@@ -163,17 +163,17 @@ func TestFeeConfigResolver_Resolve(t *testing.T) {
 				t.Errorf("PercentBP = %d, want %d", got.PercentBP, tt.wantPercentBP)
 			}
 
-			wantFixed := types.NewCryptoAmountFromInt64(tt.wantFixed)
+			wantFixed := types.NewRawAmountFromInt64(tt.wantFixed)
 			if got.FixedFee.Cmp(wantFixed) != 0 {
 				t.Errorf("FixedFee = %s, want %s", got.FixedFee.String(), wantFixed.String())
 			}
 
-			wantMinFee := types.NewCryptoAmountFromInt64(tt.wantMinFee)
+			wantMinFee := types.NewRawAmountFromInt64(tt.wantMinFee)
 			if got.MinFee.Cmp(wantMinFee) != 0 {
 				t.Errorf("MinFee = %s, want %s", got.MinFee.String(), wantMinFee.String())
 			}
 
-			wantMaxFee := types.NewCryptoAmountFromInt64(tt.wantMaxFee)
+			wantMaxFee := types.NewRawAmountFromInt64(tt.wantMaxFee)
 			if got.MaxFee.Cmp(wantMaxFee) != 0 {
 				t.Errorf("MaxFee = %s, want %s", got.MaxFee.String(), wantMaxFee.String())
 			}

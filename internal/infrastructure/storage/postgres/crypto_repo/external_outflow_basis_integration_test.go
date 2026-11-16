@@ -34,7 +34,7 @@ func newOutflowFixture110(t *testing.T, family string) outflowFixture110 {
 	}
 	f.event = crypto.BlockchainEvent{NetworkID: f.network, TxHash: strings.Repeat("c", 64), EventKind: crypto.EventKindContractLog,
 		FromAddress: "source-" + f.wallet.String(), ToAddress: "external-destination", TokenContract: "asset-" + f.asset.String(),
-		Amount: types.MustCryptoAmount("42"), BlockNumber: 100, BlockHash: strings.Repeat("a", 64), Confirmations: 1, RequiredConfs: 19,
+		Amount: types.MustRawAmount("42"), BlockNumber: 100, BlockHash: strings.Repeat("a", 64), Confirmations: 1, RequiredConfs: 19,
 		Direction: crypto.TransferDirectionOutgoing}
 	_, err := pool.Exec(ctx, `INSERT INTO cat_blockchain_networks(id,code,name,chain_family,network_identifier,native_token_symbol,native_decimals,is_active)
  VALUES($1,$1::uuid::text,'Outflow history',$2,$1::uuid::text,'N',6,FALSE)`, f.network, family)
@@ -194,7 +194,7 @@ func TestExternalOutflowObservationsRejectForeignSources(t *testing.T) {
 		func(e *crypto.BlockchainEvent) { e.FromAddress = "other-source" },
 		func(e *crypto.BlockchainEvent) { e.ToAddress = "other-destination" },
 		func(e *crypto.BlockchainEvent) { e.TokenContract = "other-contract" },
-		func(e *crypto.BlockchainEvent) { e.Amount = types.MustCryptoAmount("43") },
+		func(e *crypto.BlockchainEvent) { e.Amount = types.MustRawAmount("43") },
 	} {
 		bad := f.event
 		change(&bad)

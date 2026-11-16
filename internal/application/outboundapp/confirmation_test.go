@@ -84,9 +84,9 @@ func (*workflowDriver) QuoteFee(context.Context, crypto.TransferIntent) (crypto.
 func (*workflowDriver) Build(context.Context, crypto.TransferIntent, crypto.FeeQuote) (crypto.UnsignedTxEnvelope, error) {
 	panic("unexpected new transaction")
 }
-func (s *workflowDriver) BuildReplacement(context.Context, crypto.TransferIntent, crypto.UnsignedTxEnvelope, types.CryptoAmount) (crypto.UnsignedTxEnvelope, crypto.FeeQuote, error) {
+func (s *workflowDriver) BuildReplacement(context.Context, crypto.TransferIntent, crypto.UnsignedTxEnvelope, types.RawAmount) (crypto.UnsignedTxEnvelope, crypto.FeeQuote, error) {
 	s.builds++
-	return s.replacement, crypto.FeeQuote{MaxFee: types.NewCryptoAmountFromInt64(9)}, nil
+	return s.replacement, crypto.FeeQuote{MaxFee: types.NewRawAmountFromInt64(9)}, nil
 }
 func (s *workflowDriver) HoldNonceDivergence(context.Context, string, string) error {
 	s.divergenceHolds++
@@ -163,7 +163,7 @@ func TestSettlementAdmissionFailurePrecedesFeeAndFinancialWrites(t *testing.T) {
 	failed := errors.New("resource prefix unavailable")
 	txm := &workflowTx{}
 	store := &settlementStoreStub{t: t, admissionErr: failed}
-	fees := &settlementFeeStub{t: t, reservation: crypto.FeeReservation{ID: id.New(), MaxFee: types.MustCryptoAmount("10")}}
+	fees := &settlementFeeStub{t: t, reservation: crypto.FeeReservation{ID: id.New(), MaxFee: types.MustRawAmount("10")}}
 	service := NewSettlementService(SettlementConfig{WithdrawalEvidence: withdrawalEvidenceStub{}, Drivers: drivers, Repository: store, Fees: fees, Transactions: txm})
 	require.ErrorIs(t, service.Settle(t.Context(), task), failed)
 	require.Zero(t, fees.calls)
@@ -223,10 +223,10 @@ func TestSettlementKeepsFeesDocumentResourceAndWebhookAtomic(t *testing.T) {
 			task := SettlementTask{Kind: SettlementWithdrawal, DocumentID: id.New(), RequestID: id.New(), MerchantID: id.New(), NetworkID: driver.network.ID, TxHash: "saved-effect"}
 			driver.receipt = crypto.ChainReceipt{NetworkID: task.NetworkID, TxHash: task.TxHash, Status: tt.status,
 				Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalityFinalized,
-				Fee: crypto.FeeSettlementReport{TotalFee: types.NewCryptoAmountFromInt64(tt.fee)}}
+				Fee: crypto.FeeSettlementReport{TotalFee: types.NewRawAmountFromInt64(tt.fee)}}
 			txm := &workflowTx{}
 			store := &settlementStoreStub{t: t}
-			fees := &settlementFeeStub{t: t, reservation: crypto.FeeReservation{ID: id.New(), MaxFee: types.NewCryptoAmountFromInt64(10)}}
+			fees := &settlementFeeStub{t: t, reservation: crypto.FeeReservation{ID: id.New(), MaxFee: types.NewRawAmountFromInt64(10)}}
 			resources := &settlementResourceStub{t: t}
 			webhooks := &settlementWebhookStub{t: t, err: tt.webhookErr}
 			now := time.Unix(1000, 0).UTC()

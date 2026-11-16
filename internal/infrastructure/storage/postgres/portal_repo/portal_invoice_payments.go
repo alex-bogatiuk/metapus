@@ -12,12 +12,12 @@ import (
 
 type invoicePaymentSummary struct {
 	Count      int
-	Fee        types.CryptoAmount
-	Net        types.CryptoAmount
+	Fee        types.RawAmount
+	Net        types.RawAmount
 	Payments   []portalapp.PortalInvoicePayment
-	Received   types.CryptoAmount
-	Confirmed  types.CryptoAmount
-	PendingNet types.CryptoAmount
+	Received   types.RawAmount
+	Confirmed  types.RawAmount
+	PendingNet types.RawAmount
 }
 
 // loadInvoicePayments reads payment snapshots once for the whole invoice page.
@@ -27,8 +27,8 @@ func (r *DashboardRepo) loadInvoicePayments(ctx context.Context, invoiceIDs []id
 	summaries := make(map[string]*invoicePaymentSummary, len(invoiceIDs))
 	for _, invoiceID := range invoiceIDs {
 		summaries[invoiceID.String()] = &invoicePaymentSummary{
-			Fee: types.ZeroCryptoAmount(), Net: types.ZeroCryptoAmount(),
-			Received: types.ZeroCryptoAmount(), Confirmed: types.ZeroCryptoAmount(), PendingNet: types.ZeroCryptoAmount(),
+			Fee: types.ZeroRawAmount(), Net: types.ZeroRawAmount(),
+			Received: types.ZeroRawAmount(), Confirmed: types.ZeroRawAmount(), PendingNet: types.ZeroRawAmount(),
 			Payments: []portalapp.PortalInvoicePayment{},
 		}
 	}
@@ -65,7 +65,7 @@ func (r *DashboardRepo) loadInvoicePayments(ctx context.Context, invoiceIDs []id
 
 	for rows.Next() {
 		var paymentID, invoiceID id.ID
-		var amount, feeFixed, feeMin, feeMax, refundCommitted, refundPaid types.CryptoAmount
+		var amount, feeFixed, feeMin, feeMax, refundCommitted, refundPaid types.RawAmount
 		var feePercentBP int
 		var status, canonicality, txHash, fromAddress string
 		var posted bool
@@ -119,9 +119,9 @@ func (r *DashboardRepo) loadInvoicePayments(ctx context.Context, invoiceIDs []id
 	return summaries, nil
 }
 
-func (s *invoicePaymentSummary) addPayment(amount, feeFixed types.CryptoAmount, feePercentBP int, feeMin, feeMax types.CryptoAmount, status, canonicality string) (types.CryptoAmount, types.CryptoAmount) {
+func (s *invoicePaymentSummary) addPayment(amount, feeFixed types.RawAmount, feePercentBP int, feeMin, feeMax types.RawAmount, status, canonicality string) (types.RawAmount, types.RawAmount) {
 	s.Count++
-	zero := types.ZeroCryptoAmount()
+	zero := types.ZeroRawAmount()
 	if canonicality != "canonical" || (status != "detected" && status != "confirming" && status != "confirmed" && status != "settled") {
 		return zero, zero
 	}

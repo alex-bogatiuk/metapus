@@ -51,8 +51,8 @@ func (s *stubMerchantCryptoQueryRepo) ListMerchantInvoices(_ context.Context, fi
 }
 
 func TestSummarizeMerchantInvoicePayments(t *testing.T) {
-	mustAmount := func(v string) types.CryptoAmount {
-		a, err := types.NewCryptoAmountFromString(v)
+	mustAmount := func(v string) types.RawAmount {
+		a, err := types.NewRawAmountFromString(v)
 		if err != nil {
 			t.Fatalf("unexpected amount error: %v", err)
 		}

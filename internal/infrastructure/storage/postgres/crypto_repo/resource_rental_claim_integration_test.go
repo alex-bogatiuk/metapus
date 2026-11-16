@@ -49,7 +49,7 @@ func rejectRentalClaim(t *testing.T, f rentalReplayFixture, c outboundapp.Resour
 		func() error { return r.MarkResourceRentalClaimReclaiming(f.Ctx, c) },
 		func() error { return r.MarkResourceRentalClaimHeld(f.Ctx, c, "stale result", nil) },
 		func() error {
-			return r.CloseResourceRentalClaim(f.Ctx, c, types.MustCryptoAmount("200"), nil, nil, "closed")
+			return r.CloseResourceRentalClaim(f.Ctx, c, types.MustRawAmount("200"), nil, nil, "closed")
 		},
 	} {
 		require.ErrorContains(t, run(), "claim is missing or stale")
@@ -85,7 +85,7 @@ func TestRentalMaintenanceClaimFencesOldWorkerAndUnclaimedRecovery(t *testing.T)
 	rejectRentalClaim(t, f, first)
 	require.NoError(t, r.RenewResourceRentalClaim(f.Ctx, next))
 	require.NoError(t, r.MarkResourceRentalClaimReclaiming(f.Ctx, next))
-	require.NoError(t, r.CloseResourceRentalClaim(f.Ctx, next, types.MustCryptoAmount("200"), nil, nil, "closed"))
+	require.NoError(t, r.CloseResourceRentalClaim(f.Ctx, next, types.MustRawAmount("200"), nil, nil, "closed"))
 	require.Equal(t, []string{"200", "-800", "800"}, f.amounts(t))
 	rejectRentalClaim(t, f, next)
 	terminal := f.snapshot(t)

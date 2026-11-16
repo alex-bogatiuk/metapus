@@ -22,13 +22,13 @@ import (
 
 // The threshold is denominated in microtokens (10^-6 token), independent of
 // each asset's raw-unit precision.
-func _defaultDustThreshold() types.CryptoAmount {
-	return types.NewCryptoAmountFromInt64(1000)
+func _defaultDustThreshold() types.RawAmount {
+	return types.NewRawAmountFromInt64(1000)
 }
 
 // dustThresholdForToken converts a microtoken threshold to raw units, rounding
 // up so a positive threshold never becomes zero for a low-precision asset.
-func (p *EventProcessor) dustThresholdForToken(tok *token.Token) types.CryptoAmount {
+func (p *EventProcessor) dustThresholdForToken(tok *token.Token) types.RawAmount {
 	if tok == nil {
 		return p.dustThreshold
 	}
@@ -41,7 +41,7 @@ func (p *EventProcessor) dustThresholdForToken(tok *token.Token) types.CryptoAmo
 		value.Add(value, new(big.Int).Sub(factor, big.NewInt(1)))
 		value.Quo(value, factor)
 	}
-	amount, _ := types.NewCryptoAmountFromBigInt(value)
+	amount, _ := types.NewRawAmountFromBigInt(value)
 	return amount
 }
 
@@ -104,7 +104,7 @@ type EventProcessor struct {
 	postingEngine     *posting.Engine
 	txManager         tx.Manager
 	numerator         numerator.Generator
-	dustThreshold     types.CryptoAmount
+	dustThreshold     types.RawAmount
 	sweepResolver     *SweepConfigResolver
 	feeResolver       *FeeConfigResolver // optional: nil means an explicitly free product
 	tokenResolver     TokenResolver      // required for every new incoming transfer
@@ -155,7 +155,7 @@ type EventProcessorConfig struct {
 	OnLatePayment     func(ctx context.Context)
 	// DustThreshold is measured in microtokens (10^-6 token) and scaled to the
 	// asset's decimal places. Zero selects the default 1000 microtokens.
-	DustThreshold types.CryptoAmount
+	DustThreshold types.RawAmount
 }
 
 // NewEventProcessor creates a new event processor.

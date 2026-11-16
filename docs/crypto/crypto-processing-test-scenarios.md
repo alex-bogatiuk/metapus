@@ -65,7 +65,7 @@ seed material в evidence не попадают.
 Проверка прекращается с `FAIL` при нарушении любого правила:
 
 1. Денежные и blockchain-значения передаются как canonical decimal strings.
-   JSON number для `CryptoAmount` запрещён.
+   JSON number для `RawAmount` запрещён.
 2. Мутирующая операция использует стандартный `Idempotency-Key`.
    `X-Idempotency-Key` не является частью контракта.
 3. Один chain event создаёт не более одного payment/outflow economic effect.

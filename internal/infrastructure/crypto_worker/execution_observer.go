@@ -34,7 +34,7 @@ func (executionObserver) FundingFinality(ctx context.Context, network crypto.Net
 	ctx, span := startCryptoPhase(ctx, "crypto.native_funding.finality", networkAttributes(network)...)
 	return ctx, func(err error) { finishCryptoPhase(span, err) }
 }
-func (executionObserver) FundingSettled(ctx context.Context, network id.ID, amount types.CryptoAmount) {
+func (executionObserver) FundingSettled(ctx context.Context, network id.ID, amount types.RawAmount) {
 	recordNativeFunding(ctx, network, amount)
 }
 

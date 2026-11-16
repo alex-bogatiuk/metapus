@@ -26,7 +26,7 @@ func TestAccountingTransferBasisRequiresPhysicalEvidenceWithoutMerchant(t *testi
 		func(b *AccountingTransferBasis) { b.TokenID = id.Nil() },
 		func(b *AccountingTransferBasis) { b.VerificationID = nil },
 		func(b *AccountingTransferBasis) { zero := id.Nil(); b.VerificationID = &zero },
-		func(b *AccountingTransferBasis) { b.Amount = types.ZeroCryptoAmount() },
+		func(b *AccountingTransferBasis) { b.Amount = types.ZeroRawAmount() },
 		func(b *AccountingTransferBasis) { b.EventKind = "" },
 		func(b *AccountingTransferBasis) { b.EventIndex = -1 },
 		func(b *AccountingTransferBasis) { b.RequiredConfs = 0 },

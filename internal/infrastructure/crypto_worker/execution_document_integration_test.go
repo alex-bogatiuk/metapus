@@ -56,14 +56,14 @@ func TestExecutionDraftsAreIdempotent(t *testing.T) {
 
 		outbound := NewOutboundRepo()
 		withdrawalRepo := crypto_document_repo.NewCryptoWithdrawalRepo()
-		withdrawalCandidate := crypto_withdrawal.NewCryptoWithdrawal(merchantID, tokenID, hotWalletID, "TDestination", types.NewCryptoAmountFromInt64(100000))
+		withdrawalCandidate := crypto_withdrawal.NewCryptoWithdrawal(merchantID, tokenID, hotWalletID, "TDestination", types.NewRawAmountFromInt64(100000))
 		withdrawalCandidate.Number = "CW-TEST-1"
 		withdrawalCandidate.BasisType = withdrawal_request.DocumentType
 		withdrawalCandidate.BasisID = &requestID
 		firstWithdrawal, err := outbound.EnsureWithdrawalExecutionDocument(txCtx, requestID, withdrawalCandidate, withdrawalRepo)
 		require.NoError(t, err)
 
-		secondCandidate := crypto_withdrawal.NewCryptoWithdrawal(merchantID, tokenID, hotWalletID, "TDestination", types.NewCryptoAmountFromInt64(100000))
+		secondCandidate := crypto_withdrawal.NewCryptoWithdrawal(merchantID, tokenID, hotWalletID, "TDestination", types.NewRawAmountFromInt64(100000))
 		secondCandidate.Number = "CW-TEST-2"
 		secondCandidate.BasisType = withdrawal_request.DocumentType
 		secondCandidate.BasisID = &requestID
@@ -74,11 +74,11 @@ func TestExecutionDraftsAreIdempotent(t *testing.T) {
 		sweepRepo := crypto_document_repo.NewCryptoSweepRepo()
 		sweepCandidate := crypto_sweep.NewCryptoSweep(tokenID, hotWalletID)
 		sweepCandidate.Number = "CS-TEST-1"
-		sweepCandidate.TotalAmount = types.NewCryptoAmountFromInt64(100000)
+		sweepCandidate.TotalAmount = types.NewRawAmountFromInt64(100000)
 		sweepCandidate.SetLines([]crypto_sweep.CryptoSweepLine{{
 			LineID: attemptID, LineNo: 1, WalletID: poolWalletID,
-			Amount:     types.NewCryptoAmountFromInt64(100000),
-			NetworkFee: types.ZeroCryptoAmount(), SettlementStatus: outbound_settlement.StatusNotApplicable,
+			Amount:     types.NewRawAmountFromInt64(100000),
+			NetworkFee: types.ZeroRawAmount(), SettlementStatus: outbound_settlement.StatusNotApplicable,
 		}})
 		firstSweep, err := outbound.EnsureSweepExecutionDocument(txCtx, []id.ID{attemptID}, sweepCandidate, sweepRepo)
 		require.NoError(t, err)

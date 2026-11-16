@@ -70,8 +70,8 @@ func (m *FeeBudgetManager) LoadPolicy(ctx context.Context, networkID id.ID) (cry
 }
 
 func (m *FeeBudgetManager) Reserve(ctx context.Context, req FeeReservationRequest) (reserved crypto.FeeReservation, err error) {
-	var budgetRemaining *types.CryptoAmount
-	finish := func(error, *types.CryptoAmount) {}
+	var budgetRemaining *types.RawAmount
+	finish := func(error, *types.RawAmount) {}
 	if m != nil && m.observer != nil {
 		ctx, finish = m.observer.Reserve(ctx, req)
 	}
@@ -106,7 +106,7 @@ func (m *FeeBudgetManager) Reserve(ctx context.Context, req FeeReservationReques
 
 		budget := policy.FeeBudgetFor(req.Strategy)
 		if budget.IsPositive() {
-			var committed types.CryptoAmount
+			var committed types.RawAmount
 			if err := q.QueryRow(txCtx, `
 				SELECT COALESCE(SUM(CASE WHEN strategy='native_funding' THEN reserved_principal_minor ELSE 0 END + CASE WHEN status='settled' THEN actual_fee_minor ELSE max_fee_minor END),0)
 				FROM reg_crypto_fee_reservations
@@ -141,14 +141,14 @@ func (m *FeeBudgetManager) Reserve(ctx context.Context, req FeeReservationReques
 		}
 
 		if req.Strategy != crypto.FeeStrategyResourceRental {
-			var ledgerBalance types.CryptoAmount
+			var ledgerBalance types.RawAmount
 			err = q.QueryRow(txCtx, `
 				SELECT amount FROM reg_crypto_balance_balances
 				WHERE wallet_id=$1 AND token_id=$2
 				FOR UPDATE
 			`, req.PayerWalletID, req.NativeTokenID).Scan(&ledgerBalance)
 			if errors.Is(err, pgx.ErrNoRows) {
-				ledgerBalance = types.ZeroCryptoAmount()
+				ledgerBalance = types.ZeroRawAmount()
 			} else if err != nil {
 				return fmt.Errorf("lock fee payer native ledger balance: %w", err)
 			}
@@ -158,7 +158,7 @@ func (m *FeeBudgetManager) Reserve(ctx context.Context, req FeeReservationReques
 			}
 			// AML operating funds can only reduce the balance available for fees.
 			ledgerBalance = crypto.EffectiveFeeBalance(ledgerBalance, operating, amlEnabled)
-			var activeReserved types.CryptoAmount
+			var activeReserved types.RawAmount
 			if err := q.QueryRow(txCtx, `
 				SELECT COALESCE(SUM(
 					CASE
@@ -177,7 +177,7 @@ func (m *FeeBudgetManager) Reserve(ctx context.Context, req FeeReservationReques
 			`, req.PayerWalletID).Scan(&activeReserved); err != nil {
 				return fmt.Errorf("load active wallet fee reservations: %w", err)
 			}
-			var principalReserved types.CryptoAmount
+			var principalReserved types.RawAmount
 			if err := q.QueryRow(txCtx, `SELECT COALESCE(sum(amount),0) FROM reg_crypto_balance_reservations WHERE wallet_id=$1 AND token_id=$2 AND status='active'`, req.PayerWalletID, req.NativeTokenID).Scan(&principalReserved); err != nil {
 				return err
 			}
@@ -251,7 +251,7 @@ func (m *FeeBudgetManager) MarkBroadcast(ctx context.Context, reservationID id.I
 // attempt. A replacement is not a second spend: only the delta is charged to
 // the daily and wallet commitments, while every change remains append-only in
 // reg_crypto_fee_reservation_events.
-func (m *FeeBudgetManager) IncreaseMaxFee(ctx context.Context, reservationID id.ID, newMax types.CryptoAmount, generation int) error {
+func (m *FeeBudgetManager) IncreaseMaxFee(ctx context.Context, reservationID id.ID, newMax types.RawAmount, generation int) error {
 	if id.IsNil(reservationID) || !newMax.IsPositive() || generation < 2 || generation > 3 {
 		return fmt.Errorf("invalid replacement fee reservation increase")
 	}
@@ -297,7 +297,7 @@ func (m *FeeBudgetManager) IncreaseMaxFee(ctx context.Context, reservationID id.
 		delta := newMax.Sub(reservation.MaxFee)
 		budget := policy.FeeBudgetFor(reservation.Strategy)
 		if budget.IsPositive() {
-			var committed types.CryptoAmount
+			var committed types.RawAmount
 			if err := q.QueryRow(txCtx, `
 				SELECT COALESCE(SUM(CASE WHEN strategy='native_funding' THEN reserved_principal_minor ELSE 0 END + CASE WHEN status='settled' THEN actual_fee_minor ELSE max_fee_minor END),0)
 				FROM reg_crypto_fee_reservations
@@ -312,11 +312,11 @@ func (m *FeeBudgetManager) IncreaseMaxFee(ctx context.Context, reservationID id.
 			}
 		}
 		if reservation.Strategy != crypto.FeeStrategyResourceRental {
-			var ledgerBalance, activeReserved types.CryptoAmount
+			var ledgerBalance, activeReserved types.RawAmount
 			if err := q.QueryRow(txCtx, `SELECT amount FROM reg_crypto_balance_balances
 				WHERE wallet_id=$1 AND token_id=(SELECT native_token_id FROM reg_crypto_fee_reservations WHERE id=$2)
 				FOR UPDATE`, reservation.PayerWalletID, reservationID).Scan(&ledgerBalance); errors.Is(err, pgx.ErrNoRows) {
-				ledgerBalance = types.ZeroCryptoAmount()
+				ledgerBalance = types.ZeroRawAmount()
 			} else if err != nil {
 				return fmt.Errorf("lock replacement fee wallet balance: %w", err)
 			}
@@ -324,7 +324,7 @@ func (m *FeeBudgetManager) IncreaseMaxFee(ctx context.Context, reservationID id.
 				FROM reg_crypto_fee_reservations WHERE payer_wallet_id=$1 AND status IN ('reserved','broadcast','held')`, reservation.PayerWalletID).Scan(&activeReserved); err != nil {
 				return fmt.Errorf("load replacement wallet commitments: %w", err)
 			}
-			var principalReserved types.CryptoAmount
+			var principalReserved types.RawAmount
 			if err := q.QueryRow(txCtx, `SELECT COALESCE(sum(amount),0) FROM reg_crypto_balance_reservations WHERE wallet_id=$1 AND status='active'
 				AND token_id=(SELECT native_token_id FROM reg_crypto_fee_reservations WHERE id=$2)`, reservation.PayerWalletID, reservationID).Scan(&principalReserved); err != nil {
 				return err
@@ -357,7 +357,7 @@ func (m *FeeBudgetManager) MarkReplacementBroadcast(ctx context.Context, reserva
 		}
 		q := postgres.MustGetTxManager(txCtx).GetQuerier(txCtx)
 		var status crypto.FeeReservationStatus
-		var maxFee types.CryptoAmount
+		var maxFee types.RawAmount
 		var currentFingerprint, currentTxHash string
 		if err := q.QueryRow(txCtx, `SELECT status,max_fee_minor,unsigned_fingerprint,tx_hash
 			FROM reg_crypto_fee_reservations WHERE id=$1 FOR UPDATE`, reservationID).
@@ -651,7 +651,7 @@ func (m *FeeBudgetManager) transition(ctx context.Context, reservationID id.ID, 
 		}
 		tx := postgres.MustGetTxManager(txCtx).GetTx(txCtx)
 		var from crypto.FeeReservationStatus
-		var amount types.CryptoAmount
+		var amount types.RawAmount
 		if err := tx.QueryRow(txCtx, `SELECT status,max_fee_minor FROM reg_crypto_fee_reservations WHERE id=$1 FOR UPDATE`, reservationID).Scan(&from, &amount); err != nil {
 			return err
 		}
@@ -781,7 +781,7 @@ func findFeeReservation(ctx context.Context, q interface {
 
 func appendFeeReservationEvent(ctx context.Context, q interface {
 	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
-}, reservationID id.ID, from crypto.FeeReservationStatus, to crypto.FeeReservationStatus, reason string, amount types.CryptoAmount, metadata any) error {
+}, reservationID id.ID, from crypto.FeeReservationStatus, to crypto.FeeReservationStatus, reason string, amount types.RawAmount, metadata any) error {
 	raw := []byte("{}")
 	if metadata != nil {
 		raw, _ = json.Marshal(metadata)

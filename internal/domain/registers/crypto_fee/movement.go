@@ -28,8 +28,8 @@ type CryptoFeeMovement struct {
 	TokenID    id.ID   `db:"token_id" json:"tokenId"`
 	FeeType    FeeType `db:"fee_type" json:"feeType"`
 
-	// Resources — CryptoAmount for arbitrary precision
-	Amount types.CryptoAmount `db:"amount" json:"amount"`
+	// Resources — RawAmount for arbitrary precision
+	Amount types.RawAmount `db:"amount" json:"amount"`
 }
 
 // NewCryptoFeeMovement creates a new crypto fee movement.
@@ -41,7 +41,7 @@ func NewCryptoFeeMovement(
 	recordType entity.RecordType,
 	merchantID, tokenID id.ID,
 	feeType FeeType,
-	amount types.CryptoAmount,
+	amount types.RawAmount,
 ) CryptoFeeMovement {
 	return CryptoFeeMovement{
 		MovementBase: entity.NewMovementBase(recorderID, recorderType, recorderVersion, period, recordType),

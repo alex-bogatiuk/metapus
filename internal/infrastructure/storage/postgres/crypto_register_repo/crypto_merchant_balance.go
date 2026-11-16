@@ -140,7 +140,7 @@ func (r *CryptoMerchantBalanceRepo) GetBalancesForUpdate(
 			result[i] = crypto_merchant_balance.MerchantBalanceEntry{
 				MerchantID: k.MerchantID,
 				TokenID:    k.TokenID,
-				Amount:     types.ZeroCryptoAmount(),
+				Amount:     types.ZeroRawAmount(),
 			}
 		}
 	}

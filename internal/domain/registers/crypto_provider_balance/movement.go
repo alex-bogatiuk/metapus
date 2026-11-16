@@ -14,11 +14,11 @@ import (
 type CryptoProviderBalanceMovement struct {
 	entity.MovementBase
 
-	ProviderAccountID id.ID              `db:"provider_account_id" json:"providerAccountId"`
-	TokenID           id.ID              `db:"token_id" json:"tokenId"`
-	OperationType     string             `db:"operation_type" json:"operationType"`
-	ExternalRef       string             `db:"external_ref" json:"externalRef"`
-	Amount            types.CryptoAmount `db:"amount" json:"amount"`
+	ProviderAccountID id.ID           `db:"provider_account_id" json:"providerAccountId"`
+	TokenID           id.ID           `db:"token_id" json:"tokenId"`
+	OperationType     string          `db:"operation_type" json:"operationType"`
+	ExternalRef       string          `db:"external_ref" json:"externalRef"`
+	Amount            types.RawAmount `db:"amount" json:"amount"`
 }
 
 // NewCryptoProviderBalanceMovement creates one immutable provider prepayment movement.
@@ -30,7 +30,7 @@ func NewCryptoProviderBalanceMovement(
 	recordType entity.RecordType,
 	providerAccountID, tokenID id.ID,
 	operationType, externalRef string,
-	amount types.CryptoAmount,
+	amount types.RawAmount,
 ) CryptoProviderBalanceMovement {
 	return CryptoProviderBalanceMovement{
 		MovementBase:      entity.NewMovementBase(recorderID, recorderType, recorderVersion, period, recordType),

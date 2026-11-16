@@ -8,7 +8,7 @@ import (
 	"metapus/internal/core/types"
 )
 
-func amount(v int64) types.CryptoAmount { return types.NewCryptoAmountFromInt64(v) }
+func amount(v int64) types.RawAmount { return types.NewRawAmountFromInt64(v) }
 
 func TestFeeClampsAndSplits(t *testing.T) {
 	fee := Fee{Fixed: amount(10), PercentBP: 100, Min: amount(15), Max: amount(50)}

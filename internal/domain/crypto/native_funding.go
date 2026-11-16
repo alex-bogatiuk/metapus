@@ -14,7 +14,7 @@ type NativeFunding struct {
 	ID, BasisID, NetworkID, NativeTokenID, SourceWalletID, DestinationWalletID id.ID
 	BasisType                                                                  string
 	Attempt                                                                    int
-	Amount                                                                     types.CryptoAmount
+	Amount                                                                     types.RawAmount
 	FeeReservationID, SigningAuthorizationID                                   *id.ID
 	UnsignedFingerprint, TxHash, Status, LastError                             string
 }

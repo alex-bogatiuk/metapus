@@ -97,7 +97,7 @@ func TestShadowWorkerPausesReleasesLeaseAndResumesWithoutRestart(t *testing.T) {
 	_, err = repo.EnsureCutover(ctx, crypto.NetworkRef{ID: network}, baseline, "shadow", nil)
 	require.NoError(t, err)
 	ref := crypto.NetworkRef{ID: network, Code: code, Family: crypto.ChainFamilyTRON, NetworkIdentifier: code, NativeTokenID: nativeToken, NativeDecimals: 6, RequiredConfirmations: 20, FinalityMode: crypto.FinalityByConfirmations}
-	driver, err := tron.NewDriver(tron.DriverConfig{Network: ref, RPC: rpc, WatcherStateRepository: crypto_repo.NewWatcherStateRepo(), BlockCaptureRepository: repo, WalletDeriver: shadowTestDeriver{}, MaxFeeMinor: types.NewCryptoAmountFromInt64(30000000)})
+	driver, err := tron.NewDriver(tron.DriverConfig{Network: ref, RPC: rpc, WatcherStateRepository: crypto_repo.NewWatcherStateRepo(), BlockCaptureRepository: repo, WalletDeriver: shadowTestDeriver{}, MaxFeeMinor: types.NewRawAmountFromInt64(30000000)})
 	require.NoError(t, err)
 	watchers, err := driver.NetworkWatchers(ctx, ref, nil, nil)
 	require.NoError(t, err)

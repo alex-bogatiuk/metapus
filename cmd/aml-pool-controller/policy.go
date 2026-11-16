@@ -85,7 +85,7 @@ func decodeBatchPolicyManifest(raw []byte) (aml.BatchPolicyRequest, error) {
 	if err := json.UnmarshalStrict(raw, &m); err != nil {
 		return request, fmt.Errorf("invalid batch policy manifest: %w", err)
 	}
-	amount, err := types.NewCryptoAmountFromString(m.MaxGross)
+	amount, err := types.NewRawAmountFromString(m.MaxGross)
 	if err != nil {
 		return request, err
 	}

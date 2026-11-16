@@ -156,7 +156,7 @@ func (r *CryptoBalanceRepo) GetBalancesForUpdate(
 			result[i] = crypto_balance.BalanceEntry{
 				WalletID: k.WalletID,
 				TokenID:  k.TokenID,
-				Amount:   types.ZeroCryptoAmount(),
+				Amount:   types.ZeroRawAmount(),
 			}
 		}
 	}

@@ -43,7 +43,7 @@ func TestInternalFundingReplayKeepsOneReceiptAndLedgerMovement(t *testing.T) {
 		_, err = q.Exec(ctx, `INSERT INTO sys_crypto_block_ingestion(network_id,start_height,start_hash,start_timestamp,mode,decoder_version,activated_at) VALUES($1,100,$2,1750000000000,'hybrid',2,NOW())`, network, strings.Repeat("a", 64))
 		require.NoError(t, err)
 		index, rawIndex := int64(0), int64(1)
-		event := crypto.BlockchainEvent{NetworkID: network, TxHash: strings.Repeat("b", 64), EventKind: crypto.EventKindInternalValue, DecoderVersion: 2, TraceHash: strings.Repeat("c", 64), TraceIndex: &rawIndex, CallValueIndex: &index, FromAddress: "sender", ToAddress: "recipient", Amount: types.NewCryptoAmountFromInt64(23), BlockNumber: 101, BlockHash: strings.Repeat("d", 64), Confirmations: 20, Finality: crypto.FinalitySolidified, Canonicality: crypto.CanonicalityCanonical, Timestamp: time.Unix(1750000003, 0)}
+		event := crypto.BlockchainEvent{NetworkID: network, TxHash: strings.Repeat("b", 64), EventKind: crypto.EventKindInternalValue, DecoderVersion: 2, TraceHash: strings.Repeat("c", 64), TraceIndex: &rawIndex, CallValueIndex: &index, FromAddress: "sender", ToAddress: "recipient", Amount: types.NewRawAmountFromInt64(23), BlockNumber: 101, BlockHash: strings.Repeat("d", 64), Confirmations: 20, Finality: crypto.FinalitySolidified, Canonicality: crypto.CanonicalityCanonical, Timestamp: time.Unix(1750000003, 0)}
 		proof := crypto.TransferVerification{Event: event, DecoderVersion: 2, VerifiedAt: time.Now(), Outcome: "verified", ExecutionStatus: crypto.ReceiptSucceeded, Sources: []crypto.VerificationSource{{ProviderID: "first", LatestProviderID: "first", TrustGroup: "first", Digest: "canonical", SourceDigest: "extended", DecoderVersion: 2, HeadHeight: 120, HeadHash: "head"}, {ProviderID: "second", LatestProviderID: "second", TrustGroup: "second", Digest: "canonical", SourceDigest: "standard", DecoderVersion: 2, HeadHeight: 120, HeadHash: "head"}}}
 		identity, err := crypto.NewAccountingEffectIdentity(event, crypto.ChainFamilyTRON, 0)
 		require.NoError(t, err)
@@ -71,7 +71,7 @@ func TestInternalFundingReplayKeepsOneReceiptAndLedgerMovement(t *testing.T) {
 		require.NoError(t, q.QueryRow(ctx, `SELECT (SELECT count(*) FROM reg_crypto_wallet_fundings WHERE network_id=$1),(SELECT count(*) FROM reg_crypto_balance_movements WHERE recorder_id=$2)`, network, first.ID).Scan(&receipts, &movements))
 		require.Equal(t, 1, receipts)
 		require.Equal(t, 1, movements)
-		transfer.Amount = types.NewCryptoAmountFromInt64(24)
+		transfer.Amount = types.NewRawAmountFromInt64(24)
 		_, err = Record(ctx, code, target, event.TxHash, transfer)
 		require.Error(t, err)
 		return rollback

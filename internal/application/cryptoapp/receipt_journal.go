@@ -142,10 +142,10 @@ type ReceiptAttribution struct {
 	ProcessingFee string    `db:"processing_fee"`
 	Outstanding   string    `db:"outstanding"`
 	// The payment tariff snapshot; a credit stores its net and fee directly.
-	FeeFixed     types.CryptoAmount `db:"fee_fixed"`
-	FeePercentBP int                `db:"fee_percent_bp"`
-	FeeMin       types.CryptoAmount `db:"fee_min"`
-	FeeMax       types.CryptoAmount `db:"fee_max"`
+	FeeFixed     types.RawAmount `db:"fee_fixed"`
+	FeePercentBP int             `db:"fee_percent_bp"`
+	FeeMin       types.RawAmount `db:"fee_min"`
+	FeeMax       types.RawAmount `db:"fee_max"`
 }
 
 // ReceiptDetail is the receipt card: the journal line, its proof, its audit
@@ -244,7 +244,7 @@ func (j *ReceiptJournal) Detail(ctx context.Context, receiptID id.ID) (ReceiptDe
 		if a.DocumentType != crypto_payment.Definition.Name {
 			continue
 		}
-		gross, err := types.NewCryptoAmountFromString(a.Amount)
+		gross, err := types.NewRawAmountFromString(a.Amount)
 		if err != nil {
 			return detail, fmt.Errorf("decode payment amount: %w", err)
 		}

@@ -27,15 +27,15 @@ func (r *AMLRepository) PlanAMLTestnetBootstrap(ctx context.Context, plan aml.Te
 	opts.AccessMode, opts.IsolationLevel = pgx.ReadOnly, pgx.RepeatableRead
 	err := tm.RunInTransactionWithOptions(ctx, opts, func(ctx context.Context) error {
 		q := tm.GetQuerier(ctx)
-		principal := map[id.ID]types.CryptoAmount{}
-		fees := map[id.ID]types.CryptoAmount{}
+		principal := map[id.ID]types.RawAmount{}
+		fees := map[id.ID]types.RawAmount{}
 		rows, err := q.Query(ctx, `SELECT s.token_id,COALESCE(b.amount,0),COALESCE((SELECT SUM(CASE WHEN f.record_type='receipt' THEN f.amount ELSE -f.amount END) FROM reg_crypto_fee_movements f WHERE f.token_id=s.token_id),0) FROM sys_crypto_aml_routing_scopes s LEFT JOIN reg_crypto_merchant_balance_balances b ON b.merchant_id=s.merchant_id AND b.token_id=s.token_id WHERE s.merchant_id=$1 AND s.network_id=$2 AND s.enabled ORDER BY s.token_id`, plan.MerchantID, plan.NetworkID)
 		if err != nil {
 			return err
 		}
 		for rows.Next() {
 			var token id.ID
-			var p, f types.CryptoAmount
+			var p, f types.RawAmount
 			if err := rows.Scan(&token, &p, &f); err != nil {
 				rows.Close()
 				return err
@@ -61,7 +61,7 @@ func (r *AMLRepository) PlanAMLTestnetBootstrap(ctx context.Context, plan aml.Te
 			var o aml.TestnetOpening
 			var native bool
 			var role string
-			var physical types.CryptoAmount
+			var physical types.RawAmount
 			var check *id.ID
 			if err := rows.Scan(&o.WalletID, &o.TokenID, &native, &role, &physical, &check, &o.LedgerHash); err != nil {
 				rows.Close()
@@ -161,7 +161,7 @@ func (r *AMLRepository) ApplyAMLTestnetBootstrap(ctx context.Context, plan aml.T
 	})
 }
 
-func minAMLBootstrapAmount(a, b types.CryptoAmount) types.CryptoAmount {
+func minAMLBootstrapAmount(a, b types.RawAmount) types.RawAmount {
 	if a.Cmp(b) < 0 {
 		return a
 	}

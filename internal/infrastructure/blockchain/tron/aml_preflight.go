@@ -31,7 +31,7 @@ func (d *Driver) EmptyCheckpoint(ctx context.Context, asset crypto.AssetRef, add
 			if err != nil {
 				return crypto.EmptyCheckpointSource{}, err
 			}
-			balance, err := pinnedRead(ctx, gen, endpoint, "AMLCheckpointBalance", func(ctx context.Context, client *Client) (types.CryptoAmount, error) {
+			balance, err := pinnedRead(ctx, gen, endpoint, "AMLCheckpointBalance", func(ctx context.Context, client *Client) (types.RawAmount, error) {
 				if asset.Standard == token.TokenStandardNative {
 					return client.GetSolidifiedTRXBalance(ctx, address)
 				}

@@ -32,7 +32,7 @@ func TestMoneyMovementIntentMatchesEveryEconomicField(t *testing.T) {
 		BasisType: "withdrawal_request", BasisID: basisID, MerchantID: &merchantID,
 		NetworkCode: "ethereum-sepolia", TokenID: tokenID, TokenStandard: "erc20",
 		ContractAddress:    "0x1111111111111111111111111111111111111111",
-		AmountMinorUnits:   types.NewCryptoAmountFromInt64(5000000),
+		AmountMinorUnits:   types.NewRawAmountFromInt64(5000000),
 		DestinationAddress: "0x2222222222222222222222222222222222222222", AddressID: addressID,
 		SourceAddress: "0x3333333333333333333333333333333333333333", SourceVaultKeyID: "vault-key-a",
 	}
@@ -48,7 +48,7 @@ func TestMoneyMovementIntentMatchesEveryEconomicField(t *testing.T) {
 		"network":  func(v *crypto.MoneyMovementIntent) { v.NetworkCode = "tron-nile" },
 		"token":    func(v *crypto.MoneyMovementIntent) { v.TokenID = id.New() },
 		"contract": func(v *crypto.MoneyMovementIntent) { v.ContractAddress = "0x4444444444444444444444444444444444444444" },
-		"amount":   func(v *crypto.MoneyMovementIntent) { v.AmountMinorUnits = types.NewCryptoAmountFromInt64(5000001) },
+		"amount":   func(v *crypto.MoneyMovementIntent) { v.AmountMinorUnits = types.NewRawAmountFromInt64(5000001) },
 		"destination": func(v *crypto.MoneyMovementIntent) {
 			v.DestinationAddress = "0x5555555555555555555555555555555555555555"
 		},

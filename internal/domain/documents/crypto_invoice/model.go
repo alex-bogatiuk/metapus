@@ -76,19 +76,19 @@ type CryptoInvoice struct {
 	WalletID *id.ID `db:"wallet_id" json:"walletId,omitempty" meta:"label:Кошелёк,ref:wallet"`
 
 	// Expected amount in token minor units (e.g., wei, satoshi)
-	ExpectedAmount types.CryptoAmount `db:"expected_amount" json:"expectedAmount" meta:"label:Ожидаемая сумма"`
+	ExpectedAmount types.RawAmount `db:"expected_amount" json:"expectedAmount" meta:"label:Ожидаемая сумма"`
 
 	// Received amount (updated by chain watcher)
-	ReceivedAmount types.CryptoAmount `db:"received_amount" json:"receivedAmount" meta:"label:Полученная сумма"`
+	ReceivedAmount types.RawAmount `db:"received_amount" json:"receivedAmount" meta:"label:Полученная сумма"`
 
 	// ConfirmedAmount is the sum of canonical payments that reached network finality.
-	ConfirmedAmount types.CryptoAmount `db:"confirmed_amount" json:"confirmedAmount" meta:"label:Подтвержденная сумма"`
+	ConfirmedAmount types.RawAmount `db:"confirmed_amount" json:"confirmedAmount" meta:"label:Подтвержденная сумма"`
 
 	// CreditedAmount is the sum of canonical finalized payments posted to the merchant ledger.
-	CreditedAmount types.CryptoAmount `db:"credited_amount" json:"creditedAmount" meta:"label:Зачисленная сумма"`
+	CreditedAmount types.RawAmount `db:"credited_amount" json:"creditedAmount" meta:"label:Зачисленная сумма"`
 
 	// Overpaid amount: received - expected, when received > expected (zero otherwise)
-	OverpaidAmount types.CryptoAmount `db:"overpaid_amount" json:"overpaidAmount" meta:"label:Сумма переплаты"`
+	OverpaidAmount types.RawAmount `db:"overpaid_amount" json:"overpaidAmount" meta:"label:Сумма переплаты"`
 
 	// Invoice status (FSM)
 	Status InvoiceStatus `db:"status" json:"status" meta:"label:Статус"`
@@ -158,7 +158,7 @@ func (inv *CryptoInvoice) AcceptsPayments() bool {
 }
 
 // NewCryptoInvoice creates a new CryptoInvoice with required fields.
-func NewCryptoInvoice(merchantID, tokenID id.ID, expectedAmount types.CryptoAmount) *CryptoInvoice {
+func NewCryptoInvoice(merchantID, tokenID id.ID, expectedAmount types.RawAmount) *CryptoInvoice {
 	return &CryptoInvoice{
 		Document:        entity.NewDocument(),
 		PublicRef:       publicref.MustNewInvoice(),
@@ -166,10 +166,10 @@ func NewCryptoInvoice(merchantID, tokenID id.ID, expectedAmount types.CryptoAmou
 		TokenID:         tokenID,
 		ExpectedAmount:  expectedAmount,
 		TTLMinutes:      60,
-		ReceivedAmount:  types.ZeroCryptoAmount(),
-		ConfirmedAmount: types.ZeroCryptoAmount(),
-		CreditedAmount:  types.ZeroCryptoAmount(),
-		OverpaidAmount:  types.ZeroCryptoAmount(),
+		ReceivedAmount:  types.ZeroRawAmount(),
+		ConfirmedAmount: types.ZeroRawAmount(),
+		CreditedAmount:  types.ZeroRawAmount(),
+		OverpaidAmount:  types.ZeroRawAmount(),
 		Metadata:        make(map[string]string),
 		Status:          InvoiceStatusCreated,
 		CreationSource:  CreationSourcePortal,
@@ -219,7 +219,7 @@ func (inv *CryptoInvoice) Validate(ctx context.Context) error {
 		return apperror.NewValidation("expected amount must be positive").
 			WithDetail("field", "expectedAmount")
 	}
-	zero := types.ZeroCryptoAmount()
+	zero := types.ZeroRawAmount()
 	if inv.ReceivedAmount.Cmp(zero) < 0 || inv.ConfirmedAmount.Cmp(zero) < 0 || inv.CreditedAmount.Cmp(zero) < 0 || inv.OverpaidAmount.Cmp(zero) < 0 {
 		return apperror.NewValidation("invoice amounts must be non-negative").
 			WithDetail("field", "amounts")

@@ -30,16 +30,16 @@ description: Главный инженер и архитектор транза�
 ### Примитивы ядра (`internal/core/types/`)
 1. **Фиат и ERP-деньги**: `types.MinorUnits` (`int64`, минимальные единицы: центы, копейки).
    - Масштаб (`decimalPlaces`) берётся строго из метаданных валюты/токена. Запрещён хардкод `/ 100`.
-2. **Криптовалютные суммы**: `types.CryptoAmount` (`big.Int` внутри, immutable).
+2. **Криптовалютные суммы**: `types.RawAmount` (`big.Int` внутри, immutable).
    - Сериализация в JSON и БД — каноническая десятичная строка (string), **не** JSON number (JS теряет точность выше $2^{53} - 1$).
-   - Для знаковых разниц используется `types.CryptoDelta`.
+   - Для знаковых разниц используется `types.RawDelta`.
 3. **Количества**: `types.Quantity` (`int64`, 4 знака после запятой).
 
 ### Контракт API (Backend ↔ Frontend)
 - Go DTO (`internal/infrastructure/http/v1/dto/`): теги `json:"fieldName,omitempty"`, `camelCase`. Обязательно `Version int `json:"version"`` для optimistic locking.
 - Проверка контрактов: `go run ./cmd/http-contracts -check`.
 - TypeScript (`frontend/types/`):
-  - `MinorUnits` / `CryptoAmount` → `string`.
+  - `MinorUnits` / `RawAmount` → `string`.
   - Арифметика на клиенте — через `bigint` или `decimal.js`.
   - Валидация входных данных — Zod-схемы из `frontend/lib/schemas/`.
 

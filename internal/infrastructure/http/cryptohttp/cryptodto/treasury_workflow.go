@@ -25,44 +25,44 @@ type ApproveRejectRequest struct {
 }
 
 type TreasuryAvailabilityResponse struct {
-	TokenID   string             `json:"tokenId"`
-	Amount    types.CryptoAmount `json:"amount"`
-	Reserved  types.CryptoAmount `json:"reserved"`
-	Available types.CryptoAmount `json:"available"`
+	TokenID   string          `json:"tokenId"`
+	Amount    types.RawAmount `json:"amount"`
+	Reserved  types.RawAmount `json:"reserved"`
+	Available types.RawAmount `json:"available"`
 }
 
 type TreasurySourceWalletResponse struct {
-	ID                   string             `json:"id"`
-	NetworkID            string             `json:"networkId"`
-	Name                 string             `json:"name"`
-	Address              string             `json:"address"`
-	LedgerAmount         types.CryptoAmount `json:"ledgerAmount"`
-	ReservedAmount       types.CryptoAmount `json:"reservedAmount"`
-	AvailableAmount      types.CryptoAmount `json:"availableAmount"`
-	LastChainAmount      *string            `json:"lastChainAmount,omitempty"`
-	LastReconciliationAt string             `json:"lastReconciliationAt,omitempty"`
+	ID                   string          `json:"id"`
+	NetworkID            string          `json:"networkId"`
+	Name                 string          `json:"name"`
+	Address              string          `json:"address"`
+	LedgerAmount         types.RawAmount `json:"ledgerAmount"`
+	ReservedAmount       types.RawAmount `json:"reservedAmount"`
+	AvailableAmount      types.RawAmount `json:"availableAmount"`
+	LastChainAmount      *string         `json:"lastChainAmount,omitempty"`
+	LastReconciliationAt string          `json:"lastReconciliationAt,omitempty"`
 }
 
 type ExternalOutflowResponse struct {
-	ID              string             `json:"id"`
-	NetworkID       string             `json:"networkId"`
-	TokenID         string             `json:"tokenId,omitempty"`
-	SourceWalletID  string             `json:"sourceWalletId,omitempty"`
-	TxHash          string             `json:"txHash"`
-	EventKind       string             `json:"eventKind"`
-	EventIndex      int64              `json:"eventIndex"`
-	FromAddress     string             `json:"fromAddress"`
-	ToAddress       string             `json:"toAddress"`
-	ContractAddress string             `json:"contractAddress"`
-	Amount          types.CryptoAmount `json:"amount"`
-	BlockNumber     int64              `json:"blockNumber"`
-	BlockHash       string             `json:"blockHash"`
-	Confirmations   int                `json:"confirmations"`
-	RequiredConfs   int                `json:"requiredConfirmations"`
-	Status          string             `json:"status"`
-	FinalityStatus  string             `json:"finalityStatus"`
-	Classification  string             `json:"classification,omitempty"`
-	DetectedAt      string             `json:"detectedAt"`
+	ID              string          `json:"id"`
+	NetworkID       string          `json:"networkId"`
+	TokenID         string          `json:"tokenId,omitempty"`
+	SourceWalletID  string          `json:"sourceWalletId,omitempty"`
+	TxHash          string          `json:"txHash"`
+	EventKind       string          `json:"eventKind"`
+	EventIndex      int64           `json:"eventIndex"`
+	FromAddress     string          `json:"fromAddress"`
+	ToAddress       string          `json:"toAddress"`
+	ContractAddress string          `json:"contractAddress"`
+	Amount          types.RawAmount `json:"amount"`
+	BlockNumber     int64           `json:"blockNumber"`
+	BlockHash       string          `json:"blockHash"`
+	Confirmations   int             `json:"confirmations"`
+	RequiredConfs   int             `json:"requiredConfirmations"`
+	Status          string          `json:"status"`
+	FinalityStatus  string          `json:"finalityStatus"`
+	Classification  string          `json:"classification,omitempty"`
+	DetectedAt      string          `json:"detectedAt"`
 }
 
 type ExternalOutflowActionResponse struct {

@@ -59,7 +59,7 @@ func seedNativeFunding(t *testing.T, ctx context.Context, txm *postgres.TxManage
 		BlockHash: strings.Repeat("b", 64), BlockHeight: 100, Confirmations: 20,
 		Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalitySolidified,
 		ObservedAt: time.Now().UTC(),
-		Fee:        crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: f.native}, TotalFee: types.NewCryptoAmountFromInt64(2)},
+		Fee:        crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: f.native}, TotalFee: types.NewRawAmountFromInt64(2)},
 	}
 	if verified {
 		proof := nativeFundingProof(t, ctx, txm, fundingID, receipt)
@@ -149,9 +149,9 @@ func attachNetworkFeeProof(ctx context.Context, r crypto.ChainReceipt) (crypto.C
 		return crypto.ChainReceipt{}, err
 	}
 	if r.Fee.TotalFee.IsZero() {
-		r.Fee.TotalFee = types.ZeroCryptoAmount()
+		r.Fee.TotalFee = types.ZeroRawAmount()
 	}
-	r.Fee.Components = []crypto.FeeComponent{{Name: "energy_fee", Amount: types.ZeroCryptoAmount()}, {Name: "bandwidth_fee", Amount: r.Fee.TotalFee, Quantity: 2}}
+	r.Fee.Components = []crypto.FeeComponent{{Name: "energy_fee", Amount: types.ZeroRawAmount()}, {Name: "bandwidth_fee", Amount: r.Fee.TotalFee, Quantity: 2}}
 	head := r.BlockHeight + int64(r.Confirmations) - 1
 	p := crypto.NetworkFeeProof{SchemaVersion: 1, Family: crypto.ChainFamilyTRON, NetworkID: r.NetworkID, TxHash: r.TxHash, PayerAddress: payer, NativeTokenID: r.Fee.NativeAsset.TokenID,
 		BlockHash: r.BlockHash, BlockNumber: r.BlockHeight, Status: r.Status, TotalFee: r.Fee.TotalFee, Components: r.Fee.Components, Confirmations: r.Confirmations,
@@ -336,7 +336,7 @@ func TestNativeFundingRevertedAndProvisionalReceipts(t *testing.T) {
 				case "wrong_network":
 					receipt.NetworkID = id.New()
 				case "cap_exceeded":
-					receipt.Fee.TotalFee = types.NewCryptoAmountFromInt64(11)
+					receipt.Fee.TotalFee = types.NewRawAmountFromInt64(11)
 				}
 				receipt = reproveNetworkFee(t, ctx, receipt)
 				service := cryptoapp.NewNativeFundingSettlementService(contextTxManager{}, nativeFundingSettlementRepo{}, NewFeeBudgetManager())

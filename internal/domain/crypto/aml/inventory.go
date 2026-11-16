@@ -11,22 +11,22 @@ import (
 // InventoryPartition splits beneficial ownership, never risk. The entire
 // fungible wallet/token still inherits its conservative risk class.
 type InventoryPartition struct {
-	Principal  types.CryptoAmount
-	ServiceFee types.CryptoAmount
+	Principal  types.RawAmount
+	ServiceFee types.RawAmount
 }
 
-func (p InventoryPartition) Gross() types.CryptoAmount { return p.Principal.Add(p.ServiceFee) }
+func (p InventoryPartition) Gross() types.RawAmount { return p.Principal.Add(p.ServiceFee) }
 
 // SplitInventory allocates a partial transfer from the unreserved inventory.
 // Principal rounds down in integer raw units; the indivisible remainder stays
 // in service fee. The persisted split is never recomputed after later receipts.
-func SplitInventory(available InventoryPartition, amount types.CryptoAmount) (InventoryPartition, error) {
+func SplitInventory(available InventoryPartition, amount types.RawAmount) (InventoryPartition, error) {
 	if !amount.IsPositive() || amount.Cmp(available.Gross()) > 0 {
 		return InventoryPartition{}, apperror.NewConflict("insufficient allocated inventory")
 	}
 	net := new(big.Int).Mul(amount.BigInt(), available.Principal.BigInt())
 	net.Quo(net, available.Gross().BigInt())
-	principal, err := types.NewCryptoAmountFromBigInt(net)
+	principal, err := types.NewRawAmountFromBigInt(net)
 	if err != nil {
 		return InventoryPartition{}, apperror.NewInternal(err)
 	}
@@ -42,7 +42,7 @@ type InternalAllocationRequest struct {
 	TokenID                id.ID
 	SourceWalletID         id.ID
 	DestinationID          id.ID
-	Amount                 types.CryptoAmount
+	Amount                 types.RawAmount
 	SourceRevision         int64
 	RiskRevision           int64
 	ScopeVersion           int64

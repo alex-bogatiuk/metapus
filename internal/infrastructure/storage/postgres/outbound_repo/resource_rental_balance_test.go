@@ -50,7 +50,7 @@ func (q *providerBalanceQuerierStub) Exec(_ context.Context, query string, args 
 
 func TestRecordProviderBalanceObservationAcceptsNegativePreOpeningLedger(t *testing.T) {
 	q := &providerBalanceQuerierStub{ledger: "-650000"}
-	providerAmount := types.NewCryptoAmountFromInt64(99_350_000)
+	providerAmount := types.NewRawAmountFromInt64(99_350_000)
 
 	err := recordProviderBalanceObservation(
 		context.Background(), q, id.New(), id.New(), "rental-1", providerAmount,
@@ -58,10 +58,10 @@ func TestRecordProviderBalanceObservationAcceptsNegativePreOpeningLedger(t *test
 	require.NoError(t, err)
 	require.Len(t, q.execs, 2)
 
-	ledger, ok := q.execs[0].args[3].(types.CryptoDelta)
+	ledger, ok := q.execs[0].args[3].(types.RawDelta)
 	require.True(t, ok)
 	require.Equal(t, "-650000", ledger.String())
-	delta, ok := q.execs[0].args[5].(types.CryptoDelta)
+	delta, ok := q.execs[0].args[5].(types.RawDelta)
 	require.True(t, ok)
 	require.Equal(t, "100000000", delta.String())
 }

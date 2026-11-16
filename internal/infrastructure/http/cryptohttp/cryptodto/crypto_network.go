@@ -28,11 +28,11 @@ type SetCryptoNetworkWatchingRequest struct {
 }
 
 type FeeFundingPolicyRequest struct {
-	Mode                         string             `json:"mode" binding:"required"`
-	DailyBudgetMinor             types.CryptoAmount `json:"dailyBudgetMinor"`
-	MinFeeWalletBalanceMinor     types.CryptoAmount `json:"minFeeWalletBalanceMinor"`
-	MinSourceWalletResidualMinor types.CryptoAmount `json:"minSourceWalletResidualMinor"`
-	MaxFundingAmountMinor        types.CryptoAmount `json:"maxFundingAmountMinor"`
+	Mode                         string          `json:"mode" binding:"required"`
+	DailyBudgetMinor             types.RawAmount `json:"dailyBudgetMinor"`
+	MinFeeWalletBalanceMinor     types.RawAmount `json:"minFeeWalletBalanceMinor"`
+	MinSourceWalletResidualMinor types.RawAmount `json:"minSourceWalletResidualMinor"`
+	MaxFundingAmountMinor        types.RawAmount `json:"maxFundingAmountMinor"`
 }
 
 type ExternalResourcePolicyRequest struct {
@@ -45,8 +45,8 @@ type ExternalResourcePolicyRequest struct {
 type UpdateCryptoNetworkPolicyRequest struct {
 	Version                    int                            `json:"version" binding:"required,gt=0"`
 	Enabled                    *bool                          `json:"enabled"`
-	PerTransactionMaxFeeMinor  *types.CryptoAmount            `json:"perTransactionMaxFeeMinor"`
-	DailyNetworkFeeBudgetMinor *types.CryptoAmount            `json:"dailyNetworkFeeBudgetMinor"`
+	PerTransactionMaxFeeMinor  *types.RawAmount               `json:"perTransactionMaxFeeMinor"`
+	DailyNetworkFeeBudgetMinor *types.RawAmount               `json:"dailyNetworkFeeBudgetMinor"`
 	FeeFunding                 *FeeFundingPolicyRequest       `json:"feeFunding"`
 	ExternalResources          *ExternalResourcePolicyRequest `json:"externalResources"`
 	ClearExternalResources     bool                           `json:"clearExternalResources"`
@@ -57,10 +57,10 @@ type UpdateCryptoNetworkPolicyRequest struct {
 
 type FeeFundingPolicyResponse struct {
 	Mode                         crypto.FeeFundingMode `json:"mode"`
-	DailyBudgetMinor             types.CryptoAmount    `json:"dailyBudgetMinor"`
-	MinFeeWalletBalanceMinor     types.CryptoAmount    `json:"minFeeWalletBalanceMinor"`
-	MinSourceWalletResidualMinor types.CryptoAmount    `json:"minSourceWalletResidualMinor"`
-	MaxFundingAmountMinor        types.CryptoAmount    `json:"maxFundingAmountMinor"`
+	DailyBudgetMinor             types.RawAmount       `json:"dailyBudgetMinor"`
+	MinFeeWalletBalanceMinor     types.RawAmount       `json:"minFeeWalletBalanceMinor"`
+	MinSourceWalletResidualMinor types.RawAmount       `json:"minSourceWalletResidualMinor"`
+	MaxFundingAmountMinor        types.RawAmount       `json:"maxFundingAmountMinor"`
 }
 
 type ExternalResourcePolicyResponse struct {
@@ -73,8 +73,8 @@ type ExternalResourcePolicyResponse struct {
 type CryptoNetworkPolicyResponse struct {
 	NetworkID                  id.ID                           `json:"networkId"`
 	Enabled                    bool                            `json:"enabled"`
-	PerTransactionMaxFeeMinor  types.CryptoAmount              `json:"perTransactionMaxFeeMinor"`
-	DailyNetworkFeeBudgetMinor types.CryptoAmount              `json:"dailyNetworkFeeBudgetMinor"`
+	PerTransactionMaxFeeMinor  types.RawAmount                 `json:"perTransactionMaxFeeMinor"`
+	DailyNetworkFeeBudgetMinor types.RawAmount                 `json:"dailyNetworkFeeBudgetMinor"`
 	FeeFunding                 FeeFundingPolicyResponse        `json:"feeFunding"`
 	ExternalResources          *ExternalResourcePolicyResponse `json:"externalResources,omitempty"`
 	RetryDelaySeconds          int64                           `json:"retryDelaySeconds"`

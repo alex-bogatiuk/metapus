@@ -71,15 +71,15 @@ func newSweepFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxMana
 		var source, destination, key, contract, standard string
 		require.NoError(t, q.QueryRow(ctx, `SELECT s.address,d.address,s.vault_key_id,t.contract_address,t.token_standard FROM cat_wallets s,cat_wallets d,cat_tokens t
 			WHERE s.id=$1 AND d.id=$2 AND t.id=$3`, wallet, f.hot, f.token).Scan(&source, &destination, &key, &contract, &standard))
-		amount := types.NewCryptoAmountFromInt64(23)
+		amount := types.NewRawAmountFromInt64(23)
 		doc.Lines = append(doc.Lines, crypto_sweep.CryptoSweepLine{LineID: line, LineNo: i + 1, WalletID: wallet, Amount: amount, SettlementStatus: outbound_settlement.StatusNotApplicable})
 		fixture.tasks = append(fixture.tasks, outboundapp.SettlementTask{Kind: outboundapp.SettlementSweep, DocumentID: doc.ID, LineID: line, NetworkID: f.network, OperationTokenID: f.token, SourceWalletID: wallet, HotWalletID: f.hot, TxHash: hash, Amount: amount, PostedVersion: 1})
 		fixture.group = append(fixture.group, outboundapp.SweepTask{AttemptID: line, SweepID: &doc.ID, NetworkID: f.network, TokenID: f.token, TokenStandard: token.TokenStandard(standard), WalletID: wallet, Address: source, HotWalletID: f.hot, Balance: amount})
-		fixture.receipts = append(fixture.receipts, crypto.ChainReceipt{NetworkID: f.network, TxHash: hash, Status: crypto.ReceiptSucceeded, BlockHeight: 100, BlockHash: strings.Repeat("b", 64), Confirmations: 20, Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalitySolidified, ObservedAt: time.Now().UTC(), Fee: crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: f.native}, TotalFee: types.NewCryptoAmountFromInt64(2)}})
+		fixture.receipts = append(fixture.receipts, crypto.ChainReceipt{NetworkID: f.network, TxHash: hash, Status: crypto.ReceiptSucceeded, BlockHeight: 100, BlockHash: strings.Repeat("b", 64), Confirmations: 20, Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalitySolidified, ObservedAt: time.Now().UTC(), Fee: crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: f.native}, TotalFee: types.NewRawAmountFromInt64(2)}})
 		_, err = q.Exec(ctx, `INSERT INTO reg_crypto_sweep_attempts(id,wallet_id,token_id,network_id,hot_wallet_id,source_address,destination_address,amount,status,expires_at)
 			VALUES($1,$2,$3,$4,$5,$6,$7,23,'claimed',now()+interval '1 hour')`, line, wallet, f.token, f.network, f.hot, source, destination)
 		require.NoError(t, err)
-		principal := types.ZeroCryptoAmount()
+		principal := types.ZeroRawAmount()
 		if f.token == f.native {
 			principal = amount
 		}
@@ -89,7 +89,7 @@ func newSweepFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxMana
 		auth := crypto.SigningAuthorization{SchemaVersion: 1, AuthorizationID: id.New().String(), TenantID: id.New().String(), Purpose: crypto.SigningPurposeSweep,
 			BasisType: "CryptoSweepAttempt", BasisID: line, Attempt: 1, Generation: 1, ExpiresAt: time.Now().Add(time.Hour), NetworkID: f.network, NetworkCode: "SWEEP-TEST", ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: networkIdentifier,
 			SourceAddress: source, FeePayerAddress: source, VaultKeyID: key, DestinationAddress: destination, AssetStandard: standard, ContractAddress: contract, AmountMinorUnits: amount,
-			MaxNetworkFeeMinor: types.NewCryptoAmountFromInt64(10), UnsignedFingerprint: "sweep-" + line.String(), PolicyVersion: "tron-v1"}
+			MaxNetworkFeeMinor: types.NewRawAmountFromInt64(10), UnsignedFingerprint: "sweep-" + line.String(), PolicyVersion: "tron-v1"}
 		unsigned := crypto.UnsignedTxEnvelope{Family: crypto.ChainFamilyTRON, SchemaVersion: 1, Generation: 1, UnsignedFingerprint: auth.UnsignedFingerprint, Payload: []byte(`{}`)}
 		repo := NewOutboundRepo()
 		_, err = repo.InsertSigningAuthorization(ctx, auth, "test-jws", unsigned, crypto.ApprovalBundle{})
@@ -99,7 +99,7 @@ func newSweepFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxMana
 		_, err = q.Exec(ctx, "UPDATE reg_crypto_sweep_attempts SET status='broadcast' WHERE id=$1", line)
 		require.NoError(t, err)
 	}
-	doc.TotalAmount = types.NewCryptoAmountFromInt64(int64(count * 23))
+	doc.TotalAmount = types.NewRawAmountFromInt64(int64(count * 23))
 	docs := crypto_document_repo.NewCryptoSweepRepo()
 	require.NoError(t, tm.RunInTransaction(ctx, func(txCtx context.Context) error {
 		if err := docs.Create(txCtx, doc); err != nil {
@@ -266,7 +266,7 @@ func TestSweepV2FeeCannotReleasePrincipalSeparately(t *testing.T) {
 		runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
 			f := newSweepFinalFixture(t, ctx, tm, c, 1)
 			f.broadcast(t)
-			f.receipts[0].Fee.TotalFee = types.NewCryptoAmountFromInt64(actual)
+			f.receipts[0].Fee.TotalFee = types.NewRawAmountFromInt64(actual)
 			var fee id.ID
 			require.NoError(t, tm.GetQuerier(ctx).QueryRow(ctx, "SELECT id FROM reg_crypto_fee_reservations WHERE basis_id=$1", f.tasks[0].LineID).Scan(&fee))
 			require.Error(t, NewFeeBudgetManager().Settle(ctx, fee, f.receipts[0]))

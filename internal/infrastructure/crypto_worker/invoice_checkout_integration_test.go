@@ -49,7 +49,7 @@ func TestInvoiceCheckoutCommitRollbackAndIdempotentDelivery(t *testing.T) {
 	txm := postgres.NewTxManagerFromRawPool(tenantPool)
 	ctx = tenant.WithTxManager(ctx, txm)
 	ctx = tenant.WithTenant(ctx, &tenant.Tenant{ID: id.New().String()})
-	invoice := crypto_invoice.NewCryptoInvoice(id.New(), id.New(), types.NewCryptoAmountFromInt64(1000000))
+	invoice := crypto_invoice.NewCryptoInvoice(id.New(), id.New(), types.NewRawAmountFromInt64(1000000))
 	publisher := postgres.NewOutboxPublisher()
 	rollback := errors.New("rollback invoice transaction")
 	err = txm.RunInTransaction(ctx, func(txCtx context.Context) error {

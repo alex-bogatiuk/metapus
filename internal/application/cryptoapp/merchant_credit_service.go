@@ -21,7 +21,7 @@ type ReceiptRemainder struct {
 	ReceiptID         id.ID
 	WalletID          id.ID
 	TokenID           id.ID
-	Amount            types.CryptoAmount
+	Amount            types.RawAmount
 	CustodyMerchantID *id.ID
 	// Orphaned receipts stay on the books for investigation but cannot be attributed.
 	Orphaned bool
@@ -54,7 +54,7 @@ func (r ReceiptRemainder) attributable() error {
 
 type MerchantCreditRepository interface {
 	LockReceiptRemainder(context.Context, id.ID) (ReceiptRemainder, error)
-	ApprovalRequired(context.Context, id.ID, types.CryptoAmount) (bool, error)
+	ApprovalRequired(context.Context, id.ID, types.RawAmount) (bool, error)
 	Create(context.Context, *crypto_merchant_credit.CryptoMerchantCredit) error
 	GetByID(context.Context, id.ID) (*crypto_merchant_credit.CryptoMerchantCredit, error)
 	GetByIDForUpdate(context.Context, id.ID) (*crypto_merchant_credit.CryptoMerchantCredit, error)

@@ -132,7 +132,7 @@ func TestResolveDeclaredFieldKindsPreserveSQL(t *testing.T) {
 		{"date", filter.DateValue, "2026-09-21", "DATE(value) = ?", "2026-09-21"},
 		{"quantity", filter.QuantityValue, "1.25", "value = ?", int64(12500)},
 		{"money", filter.MoneyValue, "125", "value = ?", int64(125)},
-		{"crypto", filter.CryptoAmountValue, "9007199254740993", "value = ?", "9007199254740993"},
+		{"crypto", filter.RawAmountValue, "9007199254740993", "value = ?", "9007199254740993"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -247,7 +247,7 @@ func TestRetiredDepositIntakeNeverCreatesPaymentAndWaitsForReceipt(t *testing.T)
 		TokenResolver: crypto_catalog_repo.NewTokenRepo(), TxManager: txm, Inbox: inbox,
 	})
 	event := crypto.BlockchainEvent{NetworkID: f.network, TxHash: "late-retired-transfer", ToAddress: rotation.OldAddress, FromAddress: "external-payer",
-		TokenContract: "rotation-contract", Amount: types.MustCryptoAmount("7000000"), EventKind: crypto.EventKindContractLog, EventType: crypto.EventTypeTransfer,
+		TokenContract: "rotation-contract", Amount: types.MustRawAmount("7000000"), EventKind: crypto.EventKindContractLog, EventType: crypto.EventTypeTransfer,
 		Direction: crypto.TransferDirectionIncoming, Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalityProvisional, RequiredConfs: 2, Confirmations: 1, Timestamp: time.Now().UTC()}
 	for range 2 {
 		require.NoError(t, processor.ProcessEvent(f.ctx, event))

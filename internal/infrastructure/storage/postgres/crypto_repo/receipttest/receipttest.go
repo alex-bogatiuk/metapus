@@ -83,7 +83,7 @@ func Record(t testing.TB, ctx context.Context, deps Deps, transfer Transfer) (re
 	}
 	event := crypto.BlockchainEvent{
 		NetworkID: network, TxHash: transfer.TxHash, EventKind: kind, EventIndex: transfer.EventIndex, DecoderVersion: decoder,
-		FromAddress: from, ToAddress: address, TokenContract: contract, Amount: types.MustCryptoAmount(transfer.Amount),
+		FromAddress: from, ToAddress: address, TokenContract: contract, Amount: types.MustRawAmount(transfer.Amount),
 		BlockNumber: transfer.BlockNumber, BlockHash: blockHash, Confirmations: 120,
 		Finality: crypto.FinalitySolidified, Canonicality: crypto.CanonicalityCanonical,
 		EventType: crypto.EventTypeTransfer, Direction: crypto.TransferDirectionIncoming,

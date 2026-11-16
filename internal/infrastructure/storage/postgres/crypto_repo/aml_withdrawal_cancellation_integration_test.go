@@ -93,7 +93,7 @@ func TestAMLWithdrawalRemainderRollbackAndConcurrentRetryCreditOnce(t *testing.T
 		wg.Go(func() {
 			errs[i] = tm.RunInTransaction(f.ctx, func(ctx context.Context) error {
 				amount, err := f.repo.CancelAMLWithdrawalRemainder(ctx, f.input.Request.MerchantID, intent.BasisID, "cancel remainder")
-				if err == nil && !amount.Equal(types.MustCryptoAmount("150")) {
+				if err == nil && !amount.Equal(types.MustRawAmount("150")) {
 					return errors.New("unexpected refunded amount")
 				}
 				return err

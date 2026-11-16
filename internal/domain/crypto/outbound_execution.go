@@ -10,7 +10,7 @@ type SpendWallet struct {
 	ID         id.ID
 	Address    string
 	VaultKeyID string
-	Balance    types.CryptoAmount
+	Balance    types.RawAmount
 }
 
 type WithdrawalExecutionTask struct {
@@ -23,7 +23,7 @@ type WithdrawalExecutionTask struct {
 	TokenID         id.ID
 	NetworkID       id.ID
 	NetworkCode     string
-	Amount          types.CryptoAmount
+	Amount          types.RawAmount
 	DestAddress     string
 	ContractAddress string
 	TokenStandard   token.TokenStandard

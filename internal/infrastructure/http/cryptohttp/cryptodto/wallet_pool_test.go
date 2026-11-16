@@ -12,7 +12,7 @@ import (
 
 func TestUpdateWalletPoolPolicyRequestMapsNestedActivation(t *testing.T) {
 	maxConcurrent := 2
-	reserve := types.NewCryptoAmountFromInt64(3)
+	reserve := types.NewRawAmountFromInt64(3)
 	request := UpdateWalletPoolPolicyRequest{
 		Activation: &UpdateWalletPoolActivationPolicyRequest{
 			MaxConcurrent: &maxConcurrent,

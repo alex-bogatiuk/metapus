@@ -12,14 +12,14 @@ import (
 // Its dimension is the receipt, not the current physical location of coins.
 type CryptoReceiptSuspenseMovement struct {
 	entity.MovementBase
-	ReceiptID id.ID              `db:"receipt_id" json:"receiptId"`
-	TokenID   id.ID              `db:"token_id" json:"tokenId"`
-	Amount    types.CryptoAmount `db:"amount" json:"amount"`
+	ReceiptID id.ID           `db:"receipt_id" json:"receiptId"`
+	TokenID   id.ID           `db:"token_id" json:"tokenId"`
+	Amount    types.RawAmount `db:"amount" json:"amount"`
 }
 
 func NewCryptoReceiptSuspenseMovement(
 	recorderID id.ID, recorderType string, version int, period time.Time,
-	recordType entity.RecordType, receiptID, tokenID id.ID, amount types.CryptoAmount,
+	recordType entity.RecordType, receiptID, tokenID id.ID, amount types.RawAmount,
 ) CryptoReceiptSuspenseMovement {
 	return CryptoReceiptSuspenseMovement{
 		MovementBase: entity.NewMovementBase(recorderID, recorderType, version, period, recordType),

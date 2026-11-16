@@ -102,7 +102,7 @@ func (r *OutboundRepo) ReserveHotWalletForTreasury(ctx context.Context, task Tre
 		}
 		querier := txm.GetQuerier(txCtx)
 		var actualSource, actualToken, actualNetwork id.ID
-		var actualAmount types.CryptoAmount
+		var actualAmount types.RawAmount
 		if err := querier.QueryRow(txCtx, `SELECT tw.source_wallet_id,tw.token_id,t.network_id,tw.amount FROM doc_treasury_withdrawals tw
             JOIN cat_tokens t ON t.id=tw.token_id WHERE tw.id=$1`, task.WithdrawalID).Scan(&actualSource, &actualToken, &actualNetwork, &actualAmount); err != nil {
 			return err
@@ -121,7 +121,7 @@ func (r *OutboundRepo) ReserveHotWalletForTreasury(ctx context.Context, task Tre
 			return holdExecution(fmt.Errorf("%w: treasury request identity changed", ErrMerchantCustody))
 		}
 		var reservedToken id.ID
-		var reservedAmount types.CryptoAmount
+		var reservedAmount types.RawAmount
 
 		err := querier.QueryRow(txCtx, `
 			SELECT w.id, w.address, w.vault_key_id, COALESCE(b.amount, 0) AS balance,r.token_id,r.amount
@@ -217,7 +217,7 @@ func (r *OutboundRepo) ReserveHotWalletForTreasury(ctx context.Context, task Tre
 }
 
 // ReserveFeeForTreasury creates deterministic platform-revenue reservations for a treasury withdrawal.
-func (r *OutboundRepo) ReserveFeeForTreasury(ctx context.Context, withdrawalID, tokenID id.ID, amount types.CryptoAmount) error {
+func (r *OutboundRepo) ReserveFeeForTreasury(ctx context.Context, withdrawalID, tokenID id.ID, amount types.RawAmount) error {
 	txm := postgres.MustGetTxManager(ctx)
 	return txm.RunInTransaction(ctx, func(txCtx context.Context) error {
 		if err := postgres.NewDocLocker().LockDocument(txCtx, treasury_withdrawal.DocumentType, withdrawalID); err != nil {
@@ -236,7 +236,7 @@ func (r *OutboundRepo) ReserveFeeForTreasury(ctx context.Context, withdrawalID, 
 			return err
 		}
 
-		var existing types.CryptoAmount
+		var existing types.RawAmount
 		if err := querier.QueryRow(txCtx, `
 			SELECT COALESCE(SUM(amount), 0)
 			FROM reg_crypto_revenue_reservations
@@ -284,7 +284,7 @@ func (r *OutboundRepo) ReserveFeeForTreasury(ctx context.Context, withdrawalID, 
 			merchantID id.ID
 			tokenID    id.ID
 			feeType    crypto_fee.FeeType
-			available  types.CryptoAmount
+			available  types.RawAmount
 		}
 		selected := make([]feeRow, 0, 4)
 		for rows.Next() {

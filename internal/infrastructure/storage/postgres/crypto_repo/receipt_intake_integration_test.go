@@ -238,7 +238,7 @@ func TestCustodyReceiptWorksOnLiveNetworkWithExistingInventory(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT b.amount::text,s.amount::text FROM reg_crypto_balance_balances b
 		JOIN reg_crypto_receipt_suspense_balances s ON s.receipt_id=$3 WHERE b.wallet_id=$1 AND b.token_id=$2`,
 		f.request.Basis.WalletID, f.request.Basis.TokenID, doc.ID).Scan(&balance, &suspense))
-	require.Equal(t, f.request.Basis.Amount.Add(types.MustCryptoAmount("5")).String(), balance)
+	require.Equal(t, f.request.Basis.Amount.Add(types.MustRawAmount("5")).String(), balance)
 	require.Equal(t, f.request.Basis.Amount.String(), suspense)
 	// Other writers keep using the wallet after a receipt; the receipt owns only its effect.
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO reg_crypto_balance_movements(recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount)

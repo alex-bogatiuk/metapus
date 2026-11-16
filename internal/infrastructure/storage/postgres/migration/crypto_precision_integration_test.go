@@ -65,14 +65,14 @@ func TestCryptoPrecisionIntegration(t *testing.T) {
 	}
 
 	const maximumUint256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935"
-	input := types.MustCryptoAmount(maximumUint256)
-	var output types.CryptoAmount
+	input := types.MustRawAmount(maximumUint256)
+	var output types.RawAmount
 	require.NoError(t, pool.QueryRow(ctx, `SELECT $1::numeric(78,0)`, input).Scan(&output))
 	require.True(t, input.Equal(output))
 
-	inputDelta, err := types.NewCryptoDeltaFromString("-115792089237316195423570985008687907853269984665640564039457584007913129639935")
+	inputDelta, err := types.NewRawDeltaFromString("-115792089237316195423570985008687907853269984665640564039457584007913129639935")
 	require.NoError(t, err)
-	var outputDelta types.CryptoDelta
+	var outputDelta types.RawDelta
 	require.NoError(t, pool.QueryRow(ctx, `SELECT $1::numeric(78,0)`, inputDelta).Scan(&outputDelta))
 	require.Zero(t, inputDelta.Cmp(outputDelta))
 }

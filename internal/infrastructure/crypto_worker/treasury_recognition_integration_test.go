@@ -70,13 +70,13 @@ func newTreasuryFixture(t *testing.T, ctx context.Context, tm *postgres.TxManage
 	require.NoError(t, err)
 	_, err = q.Exec(ctx, `INSERT INTO reg_crypto_fee_balances(merchant_id,token_id,fee_type,balance) VALUES($1,$2,'processing',10),($1,$2,'withdrawal',90)`, merchant, c.token)
 	require.NoError(t, err)
-	doc := treasury_withdrawal.NewTreasuryWithdrawal(c.token, c.hot, address, destination, types.NewCryptoAmountFromInt64(23))
+	doc := treasury_withdrawal.NewTreasuryWithdrawal(c.token, c.hot, address, destination, types.NewRawAmountFromInt64(23))
 	if refundOf != nil {
 		_, err = q.Exec(ctx, `INSERT INTO reg_crypto_receipt_refund_destinations(id,receipt_id,network_id,address,address_key,evidence,created_by)
 			VALUES($1,$2,$3,$4,$4,'Sender proved the address',$5)`, address, *refundOf, c.network, destination, id.New())
 		require.NoError(t, err)
 		doc, err = treasury_withdrawal.NewReceiptRefund(*refundOf, c.token, c.hot, address, destination,
-			types.NewCryptoAmountFromInt64(25), types.NewCryptoAmountFromInt64(2), treasury_withdrawal.GasPayerRecipient, "Sent by mistake")
+			types.NewRawAmountFromInt64(25), types.NewRawAmountFromInt64(2), treasury_withdrawal.GasPayerRecipient, "Sent by mistake")
 		require.NoError(t, err)
 	} else {
 		_, err = q.Exec(ctx, `INSERT INTO reg_treasury_withdrawal_addresses(id,network_id,address,address_key) VALUES($1,$2,$3,$3)`, address, c.network, destination)
@@ -111,7 +111,7 @@ func newTreasuryFixture(t *testing.T, ctx context.Context, tm *postgres.TxManage
 	auth := crypto.SigningAuthorization{SchemaVersion: 1, AuthorizationID: id.New().String(), TenantID: id.New().String(), Purpose: crypto.SigningPurposeTreasury,
 		BasisType: "TreasuryWithdrawal", BasisID: doc.ID, Attempt: 1, Generation: 1, ExpiresAt: time.Now().Add(time.Hour), NetworkID: c.network, NetworkCode: "TW-TEST", ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: networkIdentifier,
 		SourceAddress: source, FeePayerAddress: source, VaultKeyID: key, DestinationAddress: destination, AssetStandard: standard, ContractAddress: contract, AmountMinorUnits: doc.Amount,
-		MaxNetworkFeeMinor: types.NewCryptoAmountFromInt64(10), UnsignedFingerprint: "treasury-" + doc.ID.String(), PolicyVersion: "tron-v1", ApprovalBundleDigest: "test-approval"}
+		MaxNetworkFeeMinor: types.NewRawAmountFromInt64(10), UnsignedFingerprint: "treasury-" + doc.ID.String(), PolicyVersion: "tron-v1", ApprovalBundleDigest: "test-approval"}
 	unsigned := crypto.UnsignedTxEnvelope{Family: crypto.ChainFamilyTRON, SchemaVersion: 1, Generation: 1, UnsignedFingerprint: auth.UnsignedFingerprint, Payload: []byte(`{}`)}
 	_, err = repo.InsertSigningAuthorization(ctx, auth, "test-jws", unsigned, crypto.ApprovalBundle{IntentJWS: "test-intent"})
 	require.NoError(t, err)
@@ -119,7 +119,7 @@ func newTreasuryFixture(t *testing.T, ctx context.Context, tm *postgres.TxManage
 	f := treasuryFinalFixture{ctx: ctx, tm: tm, doc: doc, execution: execution, merchant: merchant,
 		task: outboundapp.SettlementTask{Kind: outboundapp.SettlementTreasury, DocumentID: doc.ID, NetworkID: c.network, OperationTokenID: c.token, SourceWalletID: c.hot, Amount: doc.Amount, TxHash: hash, PostedVersion: 1},
 		receipt: crypto.ChainReceipt{NetworkID: c.network, TxHash: hash, Status: crypto.ReceiptSucceeded, BlockHeight: 100, BlockHash: strings.Repeat("b", 64), Confirmations: 20, Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalitySolidified, ObservedAt: time.Now().UTC(),
-			Fee: crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: c.native}, TotalFee: types.NewCryptoAmountFromInt64(2)}}}
+			Fee: crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: c.native}, TotalFee: types.NewRawAmountFromInt64(2)}}}
 	t.Cleanup(func() {
 		_, _ = q.Exec(context.Background(), "UPDATE doc_treasury_withdrawals SET settlement_lease_expires_at='infinity',status=CASE WHEN posted THEN status ELSE 'failed' END WHERE id=$1", doc.ID)
 	})
@@ -252,7 +252,7 @@ func TestTreasuryV2NativePrincipalAndFeeStayReservedUntilFinal(t *testing.T) {
 		runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
 			c.token = c.native
 			f := newTreasuryFinalFixture(t, ctx, tm, c)
-			f.receipt.Fee.TotalFee = types.NewCryptoAmountFromInt64(actual)
+			f.receipt.Fee.TotalFee = types.NewRawAmountFromInt64(actual)
 			f.broadcast(t)
 			fee, found, err := NewFeeBudgetManager().Get(ctx, "TreasuryWithdrawal", f.doc.ID, crypto.SigningPurposeTreasury, 1)
 			require.NoError(t, err)
@@ -262,7 +262,7 @@ func TestTreasuryV2NativePrincipalAndFeeStayReservedUntilFinal(t *testing.T) {
 			require.NoError(t, f.service(t).Settle(ctx, f.task))
 			var balance string
 			require.NoError(t, tm.GetQuerier(ctx).QueryRow(ctx, "SELECT amount::text FROM reg_crypto_balance_balances WHERE wallet_id=$1 AND token_id=$2", c.hot, c.native).Scan(&balance))
-			require.Equal(t, types.NewCryptoAmountFromInt64(77-actual).String(), balance)
+			require.Equal(t, types.NewRawAmountFromInt64(77-actual).String(), balance)
 		})
 	}
 }
@@ -298,7 +298,7 @@ func TestTreasuryV2NativeFeeCannotSpendPrincipalReservation(t *testing.T) {
 			fee_funding_mode='source_only',daily_jit_funding_budget_minor=0,min_fee_wallet_balance_minor=0,min_source_wallet_residual_minor=0,jit_funding_max_amount_minor=0 WHERE network_id=$1`, c.network)
 		require.NoError(t, err)
 		_, err = NewFeeBudgetManager().Reserve(ctx, FeeReservationRequest{NetworkID: c.network, PayerWalletID: c.hot, NativeTokenID: c.native, OperationTokenID: c.native,
-			BasisType: "CryptoNetworkOperation", BasisID: id.New(), Purpose: crypto.SigningPurposeActivation, Attempt: 1, Strategy: crypto.FeeStrategyNativeBurn, MaxFee: types.NewCryptoAmountFromInt64(80)})
+			BasisType: "CryptoNetworkOperation", BasisID: id.New(), Purpose: crypto.SigningPurposeActivation, Attempt: 1, Strategy: crypto.FeeStrategyNativeBurn, MaxFee: types.NewRawAmountFromInt64(80)})
 		require.ErrorIs(t, err, crypto.ErrFeeBalanceResidual)
 	})
 }
@@ -309,10 +309,10 @@ func TestNativeSweepPrincipalDoesNotConsumeDailyNetworkFeeBudget(t *testing.T) {
 			fee_funding_mode='source_only',daily_jit_funding_budget_minor=0,min_fee_wallet_balance_minor=0,min_source_wallet_residual_minor=0,jit_funding_max_amount_minor=0 WHERE network_id=$1`, c.network)
 		require.NoError(t, err)
 		reserve, err := NewFeeBudgetManager().Reserve(ctx, FeeReservationRequest{NetworkID: c.network, PayerWalletID: c.wallet, NativeTokenID: c.native, OperationTokenID: c.native,
-			ReservedPrincipal: types.NewCryptoAmountFromInt64(23), BasisType: "CryptoSweepAttempt", BasisID: id.New(), Purpose: crypto.SigningPurposeSweep, Attempt: 1, Strategy: crypto.FeeStrategyNativeBurn, MaxFee: types.NewCryptoAmountFromInt64(10)})
+			ReservedPrincipal: types.NewRawAmountFromInt64(23), BasisType: "CryptoSweepAttempt", BasisID: id.New(), Purpose: crypto.SigningPurposeSweep, Attempt: 1, Strategy: crypto.FeeStrategyNativeBurn, MaxFee: types.NewRawAmountFromInt64(10)})
 		require.NoError(t, err)
 		require.Equal(t, "23", reserve.ReservedPrincipal.String())
-		require.NoError(t, NewFeeBudgetManager().IncreaseMaxFee(ctx, reserve.ID, types.NewCryptoAmountFromInt64(15), 2), "replacement budgets charge only fee delta")
+		require.NoError(t, NewFeeBudgetManager().IncreaseMaxFee(ctx, reserve.ID, types.NewRawAmountFromInt64(15), 2), "replacement budgets charge only fee delta")
 	})
 }
 
@@ -329,7 +329,7 @@ func (d treasuryBadProofDriver) VerifyExpectedTransfer(ctx context.Context, e cr
 	if err != nil {
 		return proof, err
 	}
-	proof.Event.Amount = proof.Event.Amount.Add(types.NewCryptoAmountFromInt64(1))
+	proof.Event.Amount = proof.Event.Amount.Add(types.NewRawAmountFromInt64(1))
 	return proof, nil
 }
 
@@ -388,7 +388,7 @@ func TestTreasuryV2ConcurrentReservationsCannotOversubscribe(t *testing.T) {
 				f := newTreasuryFinalFixture(t, ctx, tm, c)
 				documents := make([]*treasury_withdrawal.TreasuryWithdrawal, 2)
 				for i := range documents {
-					documents[i] = treasury_withdrawal.NewTreasuryWithdrawal(c.token, c.hot, f.doc.AddressID, f.doc.DestAddress, types.NewCryptoAmountFromInt64(50))
+					documents[i] = treasury_withdrawal.NewTreasuryWithdrawal(c.token, c.hot, f.doc.AddressID, f.doc.DestAddress, types.NewRawAmountFromInt64(50))
 					documents[i].Status = treasury_withdrawal.StatusApproved
 					require.NoError(t, crypto_document_repo.NewTreasuryWithdrawalRepo().Create(ctx, documents[i]))
 				}

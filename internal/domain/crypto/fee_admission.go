@@ -21,13 +21,13 @@ type FeeReservationRequest struct {
 	PayerWalletID     id.ID
 	NativeTokenID     id.ID
 	OperationTokenID  id.ID
-	ReservedPrincipal types.CryptoAmount
+	ReservedPrincipal types.RawAmount
 	BasisType         string
 	BasisID           id.ID
 	Purpose           SigningPurpose
 	Attempt           int
 	Strategy          FeeStrategy
-	MaxFee            types.CryptoAmount
+	MaxFee            types.RawAmount
 }
 
 func (req FeeReservationRequest) Validate() error {
@@ -47,7 +47,7 @@ func (req FeeReservationRequest) Validate() error {
 }
 
 // CheckFeeCap applies the same admission policy to first attempts and replacements.
-func (p NetworkPolicy) CheckFeeCap(strategy FeeStrategy, maxFee types.CryptoAmount) error {
+func (p NetworkPolicy) CheckFeeCap(strategy FeeStrategy, maxFee types.RawAmount) error {
 	if !p.Enabled {
 		return ErrNetworkPolicyDisabled
 	}
@@ -59,16 +59,16 @@ func (p NetworkPolicy) CheckFeeCap(strategy FeeStrategy, maxFee types.CryptoAmou
 	}
 	return nil
 }
-func (p NetworkPolicy) FeeBudgetFor(strategy FeeStrategy) types.CryptoAmount {
+func (p NetworkPolicy) FeeBudgetFor(strategy FeeStrategy) types.RawAmount {
 	switch strategy {
 	case FeeStrategyNativeBurn:
 		return p.DailyNetworkFeeBudget
 	case FeeStrategyNativeFunding:
 		return p.FeeFunding.DailyBudget
 	}
-	return types.ZeroCryptoAmount()
+	return types.ZeroRawAmount()
 }
-func (p NetworkPolicy) CheckDailyFeeCommitment(strategy FeeStrategy, committed, requested types.CryptoAmount) (*types.CryptoAmount, error) {
+func (p NetworkPolicy) CheckDailyFeeCommitment(strategy FeeStrategy, committed, requested types.RawAmount) (*types.RawAmount, error) {
 	budget := p.FeeBudgetFor(strategy)
 	if !budget.IsPositive() {
 		return nil, nil
@@ -88,13 +88,13 @@ func (req FeeReservationRequest) ValidatePayer(networkID id.ID, role string) err
 	}
 	return nil
 }
-func EffectiveFeeBalance(ledger, operating types.CryptoAmount, amlEnabled bool) types.CryptoAmount {
+func EffectiveFeeBalance(ledger, operating types.RawAmount, amlEnabled bool) types.RawAmount {
 	if amlEnabled && operating.Cmp(ledger) < 0 {
 		return operating
 	}
 	return ledger
 }
-func (p NetworkPolicy) CheckFeeWalletBalance(payerRole string, balance, activeReserved, requested types.CryptoAmount) error {
+func (p NetworkPolicy) CheckFeeWalletBalance(payerRole string, balance, activeReserved, requested types.RawAmount) error {
 	minimum := p.FeeFunding.MinSourceWalletResidual
 	if payerRole == "network_fee" {
 		minimum = p.FeeFunding.MinFeeWalletBalance

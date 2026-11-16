@@ -8,6 +8,6 @@ import (
 type SweepAccountingBasis struct {
 	DocumentID, LineID, NetworkID, TokenID, SourceWalletID, DestinationWalletID id.ID
 	TxHash                                                                      string
-	Amount                                                                      types.CryptoAmount
+	Amount                                                                      types.RawAmount
 	VerificationID                                                              *id.ID
 }

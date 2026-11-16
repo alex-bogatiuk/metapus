@@ -17,17 +17,17 @@ type BalanceScope struct {
 type BalancePosition struct {
 	Scope         BalanceScope
 	Class         Class
-	Free          types.CryptoAmount
-	Reserved      types.CryptoAmount
-	TechnicalHold types.CryptoAmount
+	Free          types.RawAmount
+	Reserved      types.RawAmount
+	TechnicalHold types.RawAmount
 }
 
 type BalanceBucket struct {
-	Class         Class              `json:"riskClass"`
-	Total         types.CryptoAmount `json:"total"`
-	Free          types.CryptoAmount `json:"free"`
-	Reserved      types.CryptoAmount `json:"reserved"`
-	TechnicalHold types.CryptoAmount `json:"technicalHold"`
+	Class         Class           `json:"riskClass"`
+	Total         types.RawAmount `json:"total"`
+	Free          types.RawAmount `json:"free"`
+	Reserved      types.RawAmount `json:"reserved"`
+	TechnicalHold types.RawAmount `json:"technicalHold"`
 }
 
 // SummarizeBalance expects one merchant/network/token snapshot. It does not

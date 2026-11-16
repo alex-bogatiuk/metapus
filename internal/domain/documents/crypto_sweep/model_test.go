@@ -20,7 +20,7 @@ func TestCryptoSweepPlatformCostDoesNotCreateCryptoFeeMovement(t *testing.T) {
 	costTokenID := id.New()
 
 	sweep := NewCryptoSweep(tokenID, hotWalletID)
-	sweep.TotalFee = types.NewCryptoAmountFromInt64(4_000_000)
+	sweep.TotalFee = types.NewRawAmountFromInt64(4_000_000)
 	sweep.PlatformCostLines = []CryptoSweepPlatformCostLine{
 		{
 			NetworkID:       networkID,
@@ -28,7 +28,7 @@ func TestCryptoSweepPlatformCostDoesNotCreateCryptoFeeMovement(t *testing.T) {
 			CostType:        crypto_platform_cost.PlatformCostTypeChainResourceRent,
 			Provider:        "itrx",
 			ExternalOrderID: "serial-1",
-			Amount:          types.NewCryptoAmountFromInt64(4_000_000),
+			Amount:          types.NewRawAmountFromInt64(4_000_000),
 		},
 	}
 

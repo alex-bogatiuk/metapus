@@ -72,7 +72,7 @@ func TestSweepAuthorizationPublicationLocksCollectorBeforeSQLGuards(t *testing.T
 		require.NoError(t, err)
 		auth := crypto.SigningAuthorization{SchemaVersion: 1, AuthorizationID: id.New().String(), TenantID: id.New().String(), Purpose: crypto.SigningPurposeSweep,
 			BasisType: "CryptoSweepAttempt", BasisID: attempt, Attempt: 1, Generation: 1, ExpiresAt: time.Now().Add(time.Hour), NetworkID: f.network, NetworkCode: "TEST", ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: network,
-			SourceAddress: from, FeePayerAddress: from, VaultKeyID: "test/deposit", DestinationAddress: to, AssetStandard: "TRC-20", ContractAddress: "COORD-" + id.Compact(f.network) + "-contract", AmountMinorUnits: types.MustCryptoAmount("23"), MaxNetworkFeeMinor: types.MustCryptoAmount("10"), UnsignedFingerprint: "pub-" + attempt.String(), PolicyVersion: "tron-v1"}
+			SourceAddress: from, FeePayerAddress: from, VaultKeyID: "test/deposit", DestinationAddress: to, AssetStandard: "TRC-20", ContractAddress: "COORD-" + id.Compact(f.network) + "-contract", AmountMinorUnits: types.MustRawAmount("23"), MaxNetworkFeeMinor: types.MustRawAmount("10"), UnsignedFingerprint: "pub-" + attempt.String(), PolicyVersion: "tron-v1"}
 		unsigned := crypto.UnsignedTxEnvelope{Family: crypto.ChainFamilyTRON, SchemaVersion: 1, Generation: 1, UnsignedFingerprint: auth.UnsignedFingerprint, Payload: []byte(`{}`)}
 		assertWorkerResourceOrder(t, ctx,
 			func(ctx context.Context) error {
@@ -99,7 +99,7 @@ func TestWithdrawalReplacementPublicationRequiresExactSignedPredecessor(t *testi
 			source := f.wallet(t, &f.a, "liquidity_hot", "free", "100")
 			request := f.request(t, f.a, "70")
 			repo := NewOutboundRepo()
-			selected, err := repo.ReserveHotWalletForWithdrawal(f.ctx, request, f.a, f.network, f.token, types.MustCryptoAmount("70"))
+			selected, err := repo.ReserveHotWalletForWithdrawal(f.ctx, request, f.a, f.network, f.token, types.MustRawAmount("70"))
 			require.NoError(t, err)
 			require.Equal(t, source, selected.ID)
 			bundle := crypto.ApprovalBundle{IntentJWS: "synthetic-intent"}
@@ -107,7 +107,7 @@ func TestWithdrawalReplacementPublicationRequiresExactSignedPredecessor(t *testi
 			require.NoError(t, err)
 			auth := crypto.SigningAuthorization{SchemaVersion: 2, AuthorizationID: id.New().String(), TenantID: id.New().String(), MerchantID: &f.a, Purpose: crypto.SigningPurposeWithdrawal,
 				BasisType: "WithdrawalRequest", BasisID: request, Attempt: 1, Generation: 1, NetworkSequence: "0", ExpiresAt: time.Now().Add(time.Hour), NetworkID: f.network, NetworkCode: f.network.String(), ChainFamily: crypto.ChainFamilyEVM, NetworkIdentifier: f.network.String(),
-				SourceAddress: selected.Address, FeePayerAddress: selected.Address, VaultKeyID: selected.VaultKeyID, DestinationAddress: "0x1111111111111111111111111111111111111111", AssetStandard: "native", AmountMinorUnits: types.MustCryptoAmount("70"), MaxNetworkFeeMinor: types.MustCryptoAmount("10"), UnsignedFingerprint: "first-" + request.String(), ApprovalBundleDigest: digest, PolicyVersion: "evm-v1"}
+				SourceAddress: selected.Address, FeePayerAddress: selected.Address, VaultKeyID: selected.VaultKeyID, DestinationAddress: "0x1111111111111111111111111111111111111111", AssetStandard: "native", AmountMinorUnits: types.MustRawAmount("70"), MaxNetworkFeeMinor: types.MustRawAmount("10"), UnsignedFingerprint: "first-" + request.String(), ApprovalBundleDigest: digest, PolicyVersion: "evm-v1"}
 			unsigned := crypto.UnsignedTxEnvelope{Family: crypto.ChainFamilyEVM, SchemaVersion: 1, Generation: 1, NetworkSequence: "0", UnsignedFingerprint: auth.UnsignedFingerprint, Payload: []byte(`{}`)}
 			_, err = repo.InsertSigningAuthorization(f.ctx, auth, "synthetic-jws", unsigned, bundle)
 			require.NoError(t, err)
@@ -129,7 +129,7 @@ func TestWithdrawalReplacementPublicationRequiresExactSignedPredecessor(t *testi
 			case "destination":
 				auth.DestinationAddress = "0x2222222222222222222222222222222222222222"
 			case "amount":
-				auth.AmountMinorUnits = types.MustCryptoAmount("71")
+				auth.AmountMinorUnits = types.MustRawAmount("71")
 			case "sequence":
 				auth.NetworkSequence = "1"
 			case "skipped_generation":

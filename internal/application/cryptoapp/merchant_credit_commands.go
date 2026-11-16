@@ -23,9 +23,9 @@ type MerchantCreditResult struct {
 	Status           crypto_merchant_credit.Status `json:"status"`
 	Version          int                           `json:"version"`
 	ApprovalRequired bool                          `json:"approvalRequired"`
-	Amount           types.CryptoAmount            `json:"amount"`
-	NetAmount        types.CryptoAmount            `json:"netAmount"`
-	ProcessingFee    types.CryptoAmount            `json:"processingFee"`
+	Amount           types.RawAmount               `json:"amount"`
+	NetAmount        types.RawAmount               `json:"netAmount"`
+	ProcessingFee    types.RawAmount               `json:"processingFee"`
 }
 
 // MerchantCreditCommands exposes merchant credits as idempotent operator

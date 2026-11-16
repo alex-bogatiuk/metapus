@@ -10,9 +10,9 @@ import (
 
 type feeBudgetObserver struct{}
 
-func (feeBudgetObserver) Reserve(ctx context.Context, req FeeReservationRequest) (context.Context, func(error, *types.CryptoAmount)) {
+func (feeBudgetObserver) Reserve(ctx context.Context, req FeeReservationRequest) (context.Context, func(error, *types.RawAmount)) {
 	ctx, span := startCryptoPhase(ctx, "crypto.fee.reserve", executionAttributes(req.NetworkID, req.Purpose)...)
-	return ctx, func(err error, remaining *types.CryptoAmount) {
+	return ctx, func(err error, remaining *types.RawAmount) {
 		recordFeeReservation(ctx, req, err, remaining)
 		finishCryptoPhase(span, err)
 	}

@@ -1022,7 +1022,7 @@ type sweepCandidate struct {
 	walletID        id.ID
 	merchantID      *id.ID
 	tokenID         id.ID
-	balance         types.CryptoAmount
+	balance         types.RawAmount
 	lastSweptAt     *time.Time
 	oldestPaymentAt *time.Time // MIN(confirmed_at) — for max-age check on never-swept wallets
 }

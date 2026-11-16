@@ -20,7 +20,7 @@ type AccountingTransferBasis struct {
 	FromAddress                  string
 	ToAddress                    string
 	RecordType                   entity.RecordType
-	Amount                       types.CryptoAmount
+	Amount                       types.RawAmount
 	BlockNumber                  int64
 	BlockHash                    string
 	RequiredConfs                int

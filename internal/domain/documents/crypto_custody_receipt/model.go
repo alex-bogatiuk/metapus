@@ -41,17 +41,17 @@ func (r Reason) Valid() bool {
 // independently of invoice attribution, merchant credit or risk classification.
 type CryptoCustodyReceipt struct {
 	entity.Document
-	NetworkID         id.ID              `db:"network_id" json:"networkId" meta:"label:Сеть,ref:blockchain_network"`
-	WalletID          id.ID              `db:"wallet_id" json:"walletId" meta:"label:Кошелёк,ref:wallet"`
-	TokenID           id.ID              `db:"token_id" json:"tokenId" meta:"label:Токен,ref:token"`
-	CustodyMerchantID *id.ID             `db:"custody_merchant_id" json:"custodyMerchantId,omitempty" meta:"label:Владелец custody,ref:merchant"`
-	VerificationID    id.ID              `db:"verification_id" json:"verificationId" meta:"list:false"`
-	OccurrenceID      id.ID              `db:"occurrence_id" json:"occurrenceId" meta:"list:false"`
-	PostingID         id.ID              `db:"posting_id" json:"postingId" meta:"list:false"`
-	Amount            types.CryptoAmount `db:"amount" json:"amount" meta:"label:Сумма"`
-	CustodyLineID     id.ID              `db:"custody_line_id" json:"custodyLineId" meta:"list:false"`
-	SuspenseLineID    id.ID              `db:"suspense_line_id" json:"suspenseLineId" meta:"list:false"`
-	ReasonCode        Reason             `db:"reason_code" json:"reasonCode" meta:"label:Причина"`
+	NetworkID         id.ID           `db:"network_id" json:"networkId" meta:"label:Сеть,ref:blockchain_network"`
+	WalletID          id.ID           `db:"wallet_id" json:"walletId" meta:"label:Кошелёк,ref:wallet"`
+	TokenID           id.ID           `db:"token_id" json:"tokenId" meta:"label:Токен,ref:token"`
+	CustodyMerchantID *id.ID          `db:"custody_merchant_id" json:"custodyMerchantId,omitempty" meta:"label:Владелец custody,ref:merchant"`
+	VerificationID    id.ID           `db:"verification_id" json:"verificationId" meta:"list:false"`
+	OccurrenceID      id.ID           `db:"occurrence_id" json:"occurrenceId" meta:"list:false"`
+	PostingID         id.ID           `db:"posting_id" json:"postingId" meta:"list:false"`
+	Amount            types.RawAmount `db:"amount" json:"amount" meta:"label:Сумма"`
+	CustodyLineID     id.ID           `db:"custody_line_id" json:"custodyLineId" meta:"list:false"`
+	SuspenseLineID    id.ID           `db:"suspense_line_id" json:"suspenseLineId" meta:"list:false"`
+	ReasonCode        Reason          `db:"reason_code" json:"reasonCode" meta:"label:Причина"`
 }
 
 func New() *CryptoCustodyReceipt {

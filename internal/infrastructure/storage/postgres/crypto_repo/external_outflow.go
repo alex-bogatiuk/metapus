@@ -157,7 +157,7 @@ func (r *ExternalOutflowIncidentRepo) UpsertExternalOutflowIncident(ctx context.
 		return id.Nil(), err
 	}
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
-	delta := types.ZeroCryptoAmount().Difference(event.Amount)
+	delta := types.ZeroRawAmount().Difference(event.Amount)
 	eventKind := event.EffectiveEventKind()
 	var incidentID id.ID
 	if detected.Status == crypto.ExternalOutflowResolved {
@@ -216,7 +216,7 @@ func (r *ExternalOutflowObservationRepo) AppendExternalOutflowObservations(ctx c
 		return err
 	}
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
-	delta := types.ZeroCryptoAmount().Difference(event.Amount)
+	delta := types.ZeroRawAmount().Difference(event.Amount)
 	eventKind := event.EffectiveEventKind()
 	if _, err := q.Exec(ctx, `
 		INSERT INTO reg_crypto_reconciliation_observations (

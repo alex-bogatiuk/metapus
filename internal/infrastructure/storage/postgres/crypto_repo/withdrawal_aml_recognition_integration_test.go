@@ -139,7 +139,7 @@ func TestWithdrawalV2AMLPartialSuccessAndRevertPreserveExactPrincipal(t *testing
 	require.Equal(t, "partially_completed", state)
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT amount::text FROM reg_crypto_merchant_balance_balances WHERE merchant_id=$1 AND token_id=$2`, intent.MerchantID, intent.TokenID).Scan(&merchant))
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT sum(principal)::text FROM reg_crypto_aml_inventory_positions WHERE merchant_id=$1 AND token_id=$2`, intent.MerchantID, intent.TokenID).Scan(&principal))
-	expected := types.NewCryptoAmountFromInt64(180).Sub(intent.SourceLines[0].AmountMinorUnits).String()
+	expected := types.NewRawAmountFromInt64(180).Sub(intent.SourceLines[0].AmountMinorUnits).String()
 	require.Equal(t, []string{expected, expected}, []string{merchant, principal})
 	var expenses, refunds int
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM reg_crypto_balance_movements m JOIN doc_crypto_withdrawals w ON w.id=m.recorder_id),
@@ -159,7 +159,7 @@ func TestWithdrawalV2AMLCancellationPreservesCompletedPrincipal(t *testing.T) {
 	_, err = f.pool.Exec(f.ctx, `INSERT INTO sys_crypto_block_ingestion(network_id,start_height,start_hash,start_timestamp,mode,decoder_version) VALUES($1,0,'checkpoint',0,'paused',2)`, f.input.Request.NetworkID)
 	require.NoError(t, err)
 	settleRiskLineV2(t, f, intent, intent.SourceLines[0], native, true, nil)
-	var refunded types.CryptoAmount
+	var refunded types.RawAmount
 	err = postgres.MustGetTxManager(f.ctx).RunInTransaction(f.ctx, func(ctx context.Context) error {
 		var cancelErr error
 		refunded, cancelErr = f.repo.CancelAMLWithdrawalRemainder(ctx, *intent.MerchantID, intent.BasisID, "cancel unsigned remainder after one final transfer")
@@ -173,6 +173,6 @@ func TestWithdrawalV2AMLCancellationPreservesCompletedPrincipal(t *testing.T) {
 	require.Equal(t, "partially_completed", state)
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT amount::text FROM reg_crypto_merchant_balance_balances WHERE merchant_id=$1 AND token_id=$2`, intent.MerchantID, intent.TokenID).Scan(&balance))
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT sum(principal)::text FROM reg_crypto_aml_inventory_positions WHERE merchant_id=$1 AND token_id=$2`, intent.MerchantID, intent.TokenID).Scan(&principal))
-	expected := types.NewCryptoAmountFromInt64(180).Sub(intent.SourceLines[0].AmountMinorUnits).String()
+	expected := types.NewRawAmountFromInt64(180).Sub(intent.SourceLines[0].AmountMinorUnits).String()
 	require.Equal(t, []string{expected, expected}, []string{balance, principal})
 }

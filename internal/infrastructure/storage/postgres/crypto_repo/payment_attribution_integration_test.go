@@ -42,7 +42,7 @@ func newPaymentAttributionFixture(t *testing.T) paymentAttributionFixture {
 	f.payment.Date = time.Unix(1750000003, 0).UTC()
 	f.payment.Status = crypto_payment.PaymentStatusConfirming
 	f.payment.Confirmations, f.payment.Canonicality, f.payment.FinalityStatus = 20, "canonical", "solidified"
-	f.payment.FeeFixed = types.MustCryptoAmount("3")
+	f.payment.FeeFixed = types.MustRawAmount("3")
 	require.NoError(t, crypto_document_repo.NewCryptoPaymentRepo().Create(f.ctx, f.payment))
 	// The worker assigns the proof and receipt in memory immediately before
 	// posting; the database receives them in the posting callback.

@@ -243,7 +243,7 @@ func (e *AccountActivationExecutor) prepareSigningAuthorization(ctx context.Cont
 		return SigningAuthorizationRecord{}, crypto.FeeReservation{}, fmt.Errorf("activation authorizations do not support execution fencing")
 	}
 	intent := crypto.TransferIntent{BasisType: _accountActivationBasisType, Purpose: crypto.SigningPurposeActivation, BasisID: task.ActivationID, Attempt: 1, Network: driver.Network(),
-		Asset: crypto.AssetRef{TokenID: task.CostTokenID, Standard: token.TokenStandardNative, Decimals: driver.Network().NativeDecimals}, SourceWalletID: task.HotWallet.ID, SourceAddress: task.HotWallet.Address, DestinationAddress: task.Address, Amount: types.ZeroCryptoAmount()}
+		Asset: crypto.AssetRef{TokenID: task.CostTokenID, Standard: token.TokenStandardNative, Decimals: driver.Network().NativeDecimals}, SourceWalletID: task.HotWallet.ID, SourceAddress: task.HotWallet.Address, DestinationAddress: task.Address, Amount: types.ZeroRawAmount()}
 	if _, err := e.authorizations.PrepareTransferCustody(ctx, intent, nil); err != nil {
 		return SigningAuthorizationRecord{}, crypto.FeeReservation{}, HoldExecution(err)
 	}

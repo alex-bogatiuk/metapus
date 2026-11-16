@@ -87,7 +87,7 @@ func (d *Driver) EmptyCheckpoint(ctx context.Context, asset crypto.AssetRef, add
 			if after.Hash() != before.Hash() {
 				return crypto.EmptyCheckpointSource{}, crypto.ErrVerificationMismatch
 			}
-			amount, err := types.NewCryptoAmountFromBigInt(balance)
+			amount, err := types.NewRawAmountFromBigInt(balance)
 			if err != nil {
 				return crypto.EmptyCheckpointSource{}, err
 			}

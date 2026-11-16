@@ -13,7 +13,7 @@ type BatchPolicyRequest struct {
 	MerchantID, NetworkID, TokenID id.ID
 	Class                          Class
 	ExpectedVersion                int64
-	MaxGross                       types.CryptoAmount
+	MaxGross                       types.RawAmount
 	MaxAgeSeconds                  int
 	Actor                          string
 }
@@ -44,7 +44,7 @@ func (r OpenBatchRequest) Validate() error {
 type Batch struct {
 	ID, CollectorID                          id.ID
 	Revision, ExecutionRevision              int64
-	MaxGross, Committed, Reserved, Unplanned types.CryptoAmount
+	MaxGross, Committed, Reserved, Unplanned types.RawAmount
 	IntakeClosesAt                           time.Time
 	IntakeClosedAt                           *time.Time
 	ExecutionHeld                            bool
@@ -52,17 +52,17 @@ type Batch struct {
 
 // AvailableCapacity is lifetime controlled intake. An outgoing transfer does
 // not replenish capacity; an uncertain incoming continues to occupy its cap.
-func (b Batch) AvailableCapacity() types.CryptoAmount {
+func (b Batch) AvailableCapacity() types.RawAmount {
 	used := b.Committed.Add(b.Reserved).Add(b.Unplanned)
 	if used.Cmp(b.MaxGross) >= 0 {
-		return types.CryptoAmount{}
+		return types.RawAmount{}
 	}
 	return b.MaxGross.Sub(used)
 }
 
 type BatchSweepRequest struct {
 	SweepAttemptID, MerchantID, NetworkID, TokenID, SourceWalletID id.ID
-	Amount                                                         types.CryptoAmount
+	Amount                                                         types.RawAmount
 	SourceRevision, RiskRevision, ScopeVersion                     int64
 	Class                                                          Class
 }

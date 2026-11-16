@@ -65,7 +65,7 @@ func (s *InvoiceLifecycleService) SyncInTransaction(ctx context.Context, invoice
 	if summary.ReceivedAmount.Cmp(invoice.ExpectedAmount) > 0 {
 		invoice.OverpaidAmount = summary.ReceivedAmount.Sub(invoice.ExpectedAmount)
 	} else {
-		invoice.OverpaidAmount = types.ZeroCryptoAmount()
+		invoice.OverpaidAmount = types.ZeroRawAmount()
 	}
 
 	if InvoiceIsLateTerminal(previousStatus) {
@@ -207,7 +207,7 @@ func (s *InvoiceLifecycleService) ExpireInTransaction(ctx context.Context, invoi
 	invoice.ReceivedAmount = summary.ReceivedAmount
 	invoice.ConfirmedAmount = summary.ConfirmedAmount
 	invoice.CreditedAmount = summary.CreditedAmount
-	invoice.OverpaidAmount = types.ZeroCryptoAmount()
+	invoice.OverpaidAmount = types.ZeroRawAmount()
 	eventType := WebhookInvoiceExpired
 	if summary.ReceivedAmount.IsPositive() {
 		invoice.Status = crypto_invoice.InvoiceStatusUnderpaid
@@ -259,7 +259,7 @@ func (s *InvoiceLifecycleService) CancelInTransaction(ctx context.Context, invoi
 	if summary.ReceivedAmount.Cmp(invoice.ExpectedAmount) > 0 {
 		invoice.OverpaidAmount = summary.ReceivedAmount.Sub(invoice.ExpectedAmount)
 	} else {
-		invoice.OverpaidAmount = types.ZeroCryptoAmount()
+		invoice.OverpaidAmount = types.ZeroRawAmount()
 	}
 	invoice.Status = crypto_invoice.InvoiceStatusCancelled
 	if err := s.invoices.Update(ctx, invoice); err != nil {
@@ -271,7 +271,7 @@ func (s *InvoiceLifecycleService) CancelInTransaction(ctx context.Context, invoi
 	return true, nil
 }
 
-func (s *InvoiceLifecycleService) saveIfProjectionChanged(ctx context.Context, invoice *crypto_invoice.CryptoInvoice, oldReceived, oldConfirmed, oldCredited, oldOverpaid types.CryptoAmount, oldStatus crypto_invoice.InvoiceStatus) error {
+func (s *InvoiceLifecycleService) saveIfProjectionChanged(ctx context.Context, invoice *crypto_invoice.CryptoInvoice, oldReceived, oldConfirmed, oldCredited, oldOverpaid types.RawAmount, oldStatus crypto_invoice.InvoiceStatus) error {
 	if invoice.ReceivedAmount.Equal(oldReceived) && invoice.ConfirmedAmount.Equal(oldConfirmed) &&
 		invoice.CreditedAmount.Equal(oldCredited) && invoice.OverpaidAmount.Equal(oldOverpaid) && invoice.Status == oldStatus {
 		return nil

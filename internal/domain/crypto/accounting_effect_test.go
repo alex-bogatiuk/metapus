@@ -17,7 +17,7 @@ func accountingEvent() BlockchainEvent {
 		NetworkID: id.MustParse("01900000-0000-7000-8000-000000000001"),
 		TxHash:    "0x" + strings.Repeat("a", 64), EventKind: EventKindContractLog, EventIndex: 7,
 		FromAddress: "0xABC", ToAddress: "0xDEF", TokenContract: "0x123",
-		Amount: types.MustCryptoAmount("12000000"), BlockNumber: 100,
+		Amount: types.MustRawAmount("12000000"), BlockNumber: 100,
 		BlockHash: "0x" + strings.Repeat("b", 64), Confirmations: 20,
 		Finality: FinalitySolidified, Canonicality: CanonicalityCanonical,
 	}
@@ -57,7 +57,7 @@ func TestAccountingEffectSeparatesIdentityFromEconomics(t *testing.T) {
 	original, err := identity.Occurrence(event)
 	require.NoError(t, err)
 	for _, change := range []func(*BlockchainEvent){
-		func(e *BlockchainEvent) { e.Amount = e.Amount.Add(types.MustCryptoAmount("1")) },
+		func(e *BlockchainEvent) { e.Amount = e.Amount.Add(types.MustRawAmount("1")) },
 		func(e *BlockchainEvent) { e.FromAddress = "different-source" },
 		func(e *BlockchainEvent) { e.ToAddress = "different-destination" },
 		func(e *BlockchainEvent) { e.TokenContract = "different-contract" },

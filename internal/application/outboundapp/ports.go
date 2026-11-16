@@ -34,7 +34,7 @@ type TreasuryTask struct {
 	SourceWalletID  id.ID
 	NetworkID       id.ID
 	NetworkCode     string
-	Amount          types.CryptoAmount
+	Amount          types.RawAmount
 	DestAddress     string
 	ContractAddress string
 	TokenStandard   token.TokenStandard
@@ -56,12 +56,12 @@ type SweepTask struct {
 	TokenStandard         token.TokenStandard
 	TokenDecimals         int
 	ChainActivationStatus wallet.ChainActivationStatus
-	Balance               types.CryptoAmount
+	Balance               types.RawAmount
 	RequiredConfs         int
 	HotWalletID           id.ID
 	HotWalletAddress      string
 	HotWalletVaultKeyID   string
-	HotWalletBalance      types.CryptoAmount
+	HotWalletBalance      types.RawAmount
 }
 type FeeReservationRequest = crypto.FeeReservationRequest
 
@@ -71,7 +71,7 @@ type SigningAttemptInput struct {
 	MerchantID      *id.ID
 	VaultKeyID      string
 	FeePayerAddress string
-	MaxNetworkFee   types.CryptoAmount
+	MaxNetworkFee   types.RawAmount
 	Unsigned        crypto.UnsignedTxEnvelope
 	ApprovalBundle  crypto.ApprovalBundle
 }
@@ -88,7 +88,7 @@ type ResourceRequest struct {
 	SourceAddress            string
 	ContractAddress          string
 	DestinationAddress       string
-	Amount                   types.CryptoAmount
+	Amount                   types.RawAmount
 	Requirements             []crypto.ResourceRequirement
 	ProviderAccountIDs       []id.ID
 	ProviderFailureThreshold int
@@ -123,7 +123,7 @@ type SweepPlatformCostLine struct {
 	CostType        crypto_platform_cost.PlatformCostType
 	Provider        string
 	ExternalOrderID string
-	Amount          types.CryptoAmount
+	Amount          types.RawAmount
 }
 type NativeFundingRequest struct {
 	BasisType string
@@ -148,7 +148,7 @@ type HotWallet = crypto.SpendWallet
 type TreasuryRepository interface {
 	GetTreasurySigningAttempt(context.Context, id.ID) (HotWallet, SigningAuthorizationRecord, bool, error)
 	ValidateExternalWithdrawalDestination(context.Context, id.ID, string) error
-	ReserveFeeForTreasury(context.Context, id.ID, id.ID, types.CryptoAmount) error
+	ReserveFeeForTreasury(context.Context, id.ID, id.ID, types.RawAmount) error
 	ReserveHotWalletForTreasury(context.Context, TreasuryTask) (HotWallet, error)
 	LoadTreasuryFeeReservationLines(context.Context, id.ID) ([]treasury_withdrawal.FeeLine, error)
 	ConsumeTreasuryReservations(context.Context, id.ID) error
@@ -206,11 +206,11 @@ type SweepRepository interface {
 	MarkSweepAttemptResourceReady(ctx context.Context, attemptID id.ID) error
 	MarkSweepAttemptSigning(ctx context.Context, attemptID id.ID) error
 	MarkSweepExecutionStatus(ctx context.Context, sweepID id.ID, status string) error
-	RecordSweepLineBroadcast(ctx context.Context, sweepID, lineID id.ID, txHash string, amount types.CryptoAmount) error
+	RecordSweepLineBroadcast(ctx context.Context, sweepID, lineID id.ID, txHash string, amount types.RawAmount) error
 	ReleaseSweepClaims(ctx context.Context, walletIDs []id.ID) error
 }
 type NativeFunding interface {
-	Ensure(context.Context, crypto.NetworkDriver, crypto.NetworkPolicy, NativeFundingRequest, crypto.PolicyAwareTransactionSigner, types.CryptoAmount) (bool, error)
+	Ensure(context.Context, crypto.NetworkDriver, crypto.NetworkPolicy, NativeFundingRequest, crypto.PolicyAwareTransactionSigner, types.RawAmount) (bool, error)
 }
 
 type WithdrawalTask = crypto.WithdrawalExecutionTask
@@ -242,7 +242,7 @@ type WithdrawalRepository interface {
 	ReserveHotWalletForWithdrawal(
 		ctx context.Context,
 		requestID, merchantID, networkID, tokenID id.ID,
-		required types.CryptoAmount,
+		required types.RawAmount,
 	) (HotWallet, error)
 	ValidateExternalWithdrawalDestination(
 		ctx context.Context,

@@ -22,7 +22,7 @@ import (
 type CreateMerchantInvoiceRequest struct {
 	// Amount in token minor units (e.g. 10_500_000 for 10.5 USDT with 6 decimal places). Required.
 	// Use the token's decimalPlaces to convert: amount = humanAmount × 10^decimalPlaces.
-	Amount types.CryptoAmount `json:"amount" binding:"required"`
+	Amount types.RawAmount `json:"amount" binding:"required"`
 
 	// Currency code matching a configured token, e.g. "USDT-TRC20". Required.
 	Currency string `json:"currency" binding:"required"`

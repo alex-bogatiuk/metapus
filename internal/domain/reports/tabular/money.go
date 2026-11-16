@@ -56,14 +56,14 @@ func AmountFor(value any, sources *reportcontract.MoneySources) (decimal.Decimal
 	if sources == nil || sources.AmountType == "" {
 		return Amount(value)
 	}
-	if sources.AmountType != "crypto" {
+	if sources.AmountType != reportcontract.AmountTypeRaw {
 		return decimal.Zero, fmt.Errorf("unsupported report amount type")
 	}
 	text, ok := value.(string)
 	if !ok {
-		return decimal.Zero, fmt.Errorf("crypto amount must be a raw-unit string")
+		return decimal.Zero, fmt.Errorf("raw amount must be a raw-unit string")
 	}
-	amount, err := types.NewCryptoAmountFromString(text)
+	amount, err := types.NewRawAmountFromString(text)
 	if err != nil {
 		return decimal.Zero, err
 	}

@@ -35,7 +35,7 @@
 - **RLS/CEL:** документ читается через `DocumentService.GetByID`, как в `GET /:id`.
 - **FLS документа:** построитель получает `security.ProjectForRead(doc, policy)` и саму политику. Скрытое поле в проекции равно нулю, поэтому построитель проверяет `policy.IsFieldAllowed(<db column>)` и выводит «скрыто», а не `0`.
 - **Связанные сущности** (мерчант, токен, сеть, кошелёк) читаются только через `readaccess.Service`: проверяются право чтения, RLS, CEL-правила и FLS целевой сущности. Запрещённая ссылка показывается как «скрыто» и не прерывает форму. Без `readaccess` в контексте печать возвращает `403`.
-- **Суммы crypto:** `printing.FormatCryptoUnits` переводит `CryptoAmount` по `decimalPlaces` токена точно, без float. Если масштаб токена недоступен, печатаются сырые единицы с пометкой «мин. ед.» — масштаб не угадывается.
+- **Суммы crypto:** `printing.FormatRawUnits` переводит `RawAmount` по `decimalPlaces` токена точно, без float. Если масштаб токена недоступен, печатаются сырые единицы с пометкой «мин. ед.» — масштаб не угадывается.
 - **Шаблоны** — `html/template`: значения экранируются; активного содержимого (`onclick`, скриптов) в формах нет.
 
 ## 4. Форматы вывода
@@ -60,7 +60,7 @@
 ```path
 internal/domain/printing/registry.go — реестр форм
 internal/domain/printing/data.go, table.go — PrintData и PrintTable
-internal/infrastructure/printing/renderer.go — HTML-рендерер, FormatCryptoUnits
+internal/infrastructure/printing/renderer.go — HTML-рендерер, FormatRawUnits
 internal/infrastructure/printing/templates/ — base.gohtml (styles, table_form), table.gohtml (страница с таблицей)
 internal/infrastructure/printing/docx_renderer.go — DOCX
 internal/infrastructure/http/v1/handlers/print.go — DocumentPrintHandler

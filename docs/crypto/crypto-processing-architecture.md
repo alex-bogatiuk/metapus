@@ -353,7 +353,7 @@ reserveRaw = sweep_retain_amount
 sweepRaw = managedWalletBalanceRaw - reserveRaw
 ```
 
-Расчёт выполняется в `NUMERIC(78,0)`/`CryptoAmount` поверх `big.Int` без floating-point. При
+Расчёт выполняется в `NUMERIC(78,0)`/`RawAmount` поверх `big.Int` без floating-point. При
 `managedWalletBalanceRaw <= reserveRaw` durable attempt и on-chain транзакция
 не создаются. Reserve относится к одному `token_id`/контракту и не зависит от
 TRX-баланса адреса.

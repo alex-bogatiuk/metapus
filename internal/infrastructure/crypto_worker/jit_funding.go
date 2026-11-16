@@ -42,7 +42,7 @@ func NewNativeFundingService(repo *OutboundRepo, fees *FeeBudgetManager, auth *S
 
 type nativeFundingSettlementRepo = outbound_repo.NativeFundingSettlementRepo
 
-func (s *NativeFundingService) Ensure(ctx context.Context, driver crypto.NetworkDriver, policy crypto.NetworkPolicy, request NativeFundingRequest, signer crypto.PolicyAwareTransactionSigner, requiredFee types.CryptoAmount) (bool, error) {
+func (s *NativeFundingService) Ensure(ctx context.Context, driver crypto.NetworkDriver, policy crypto.NetworkPolicy, request NativeFundingRequest, signer crypto.PolicyAwareTransactionSigner, requiredFee types.RawAmount) (bool, error) {
 	var service *outboundapp.NativeFundingService
 	if s != nil {
 		service = s.NativeFundingService

@@ -22,7 +22,7 @@ func TestSignedAuthorizationValidatesCompleteExpectedEffectReplay(t *testing.T) 
 			require.NoError(t, f.pool.QueryRow(f.ctx, "SELECT address,vault_key_id FROM cat_wallets WHERE id=$1", source).Scan(&address, &key))
 			auth := crypto.SigningAuthorization{SchemaVersion: 2, AuthorizationID: id.New().String(), TenantID: id.New().String(), Purpose: crypto.SigningPurposeSweep,
 				BasisType: "ExpectedEffectPublicationTest", BasisID: id.New(), Attempt: 1, Generation: 1, NetworkSequence: "0", ExpiresAt: time.Now().Add(time.Hour), NetworkID: f.network, NetworkCode: f.network.String(), ChainFamily: crypto.ChainFamilyEVM, NetworkIdentifier: f.network.String(),
-				SourceAddress: address, FeePayerAddress: address, VaultKeyID: key, DestinationAddress: "0x1111111111111111111111111111111111111111", AssetStandard: "native", AmountMinorUnits: types.MustCryptoAmount("70"), MaxNetworkFeeMinor: types.MustCryptoAmount("10"), UnsignedFingerprint: "fp-" + id.New().String(), PolicyVersion: "evm-v1"}
+				SourceAddress: address, FeePayerAddress: address, VaultKeyID: key, DestinationAddress: "0x1111111111111111111111111111111111111111", AssetStandard: "native", AmountMinorUnits: types.MustRawAmount("70"), MaxNetworkFeeMinor: types.MustRawAmount("10"), UnsignedFingerprint: "fp-" + id.New().String(), PolicyVersion: "evm-v1"}
 			unsigned := crypto.UnsignedTxEnvelope{Family: crypto.ChainFamilyEVM, SchemaVersion: 1, Generation: 1, NetworkSequence: "0", UnsignedFingerprint: auth.UnsignedFingerprint, Payload: []byte(`{}`)}
 			repo := NewOutboundRepo()
 			row, err := repo.InsertSigningAuthorization(f.ctx, auth, "synthetic-jws", unsigned)

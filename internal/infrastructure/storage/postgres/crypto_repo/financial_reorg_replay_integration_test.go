@@ -87,7 +87,7 @@ func TestFinancialReorgRejectsChangedRequestAndStalePosting(t *testing.T) {
 	for _, change := range []func(*crypto.BlockchainEvent){
 		func(e *crypto.BlockchainEvent) { e.BlockNumber++ }, func(e *crypto.BlockchainEvent) { e.BlockHash = "another-block" },
 		func(e *crypto.BlockchainEvent) { e.TxHash = "replacement" }, func(e *crypto.BlockchainEvent) { e.EventIndex++ },
-		func(e *crypto.BlockchainEvent) { e.Amount = types.MustCryptoAmount("99") }, func(e *crypto.BlockchainEvent) { e.NetworkID = id.New() },
+		func(e *crypto.BlockchainEvent) { e.Amount = types.MustRawAmount("99") }, func(e *crypto.BlockchainEvent) { e.NetworkID = id.New() },
 	} {
 		altered := event
 		change(&altered)
@@ -95,11 +95,11 @@ func TestFinancialReorgRejectsChangedRequestAndStalePosting(t *testing.T) {
 		require.Equal(t, before, financialReorgSnapshot(t, f))
 	}
 	for _, change := range []func(*crypto_payment.CryptoPayment){
-		func(p *crypto_payment.CryptoPayment) { p.Amount = types.MustCryptoAmount("99") }, func(p *crypto_payment.CryptoPayment) { p.WalletID = id.New() },
+		func(p *crypto_payment.CryptoPayment) { p.Amount = types.MustRawAmount("99") }, func(p *crypto_payment.CryptoPayment) { p.WalletID = id.New() },
 		func(p *crypto_payment.CryptoPayment) { p.TokenID = id.New() }, func(p *crypto_payment.CryptoPayment) { p.InvoiceID = id.New() },
 		func(p *crypto_payment.CryptoPayment) { p.MerchantID = id.New() }, func(p *crypto_payment.CryptoPayment) { p.TxHash = "changed" },
 		func(p *crypto_payment.CryptoPayment) { p.EventIndex++ }, func(p *crypto_payment.CryptoPayment) { p.PostedVersion++ },
-		func(p *crypto_payment.CryptoPayment) { p.FeeFixed = types.MustCryptoAmount("4") }, func(p *crypto_payment.CryptoPayment) { p.BlockHash = "changed" },
+		func(p *crypto_payment.CryptoPayment) { p.FeeFixed = types.MustRawAmount("4") }, func(p *crypto_payment.CryptoPayment) { p.BlockHash = "changed" },
 	} {
 		altered := *f.payment
 		change(&altered)

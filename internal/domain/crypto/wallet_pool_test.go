@@ -22,9 +22,9 @@ func validWalletPoolPolicy() WalletPoolPolicy {
 		MinGlobalReadyReserve:              1,
 		Activation: &WalletPoolActivationPolicy{
 			MaxConcurrent:      1,
-			ReserveMinor:       types.NewCryptoAmountFromInt64(2_000_000),
-			MinHotBalanceMinor: types.NewCryptoAmountFromInt64(2_000_000),
-			DailyBudgetMinor:   types.NewCryptoAmountFromInt64(10_000_000),
+			ReserveMinor:       types.NewRawAmountFromInt64(2_000_000),
+			MinHotBalanceMinor: types.NewRawAmountFromInt64(2_000_000),
+			DailyBudgetMinor:   types.NewRawAmountFromInt64(10_000_000),
 		},
 		RetryAfterSeconds:   30,
 		DerivationNamespace: "m/44'/195'/42'/0",

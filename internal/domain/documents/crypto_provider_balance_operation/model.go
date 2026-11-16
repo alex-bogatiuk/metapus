@@ -30,25 +30,25 @@ const (
 
 type CryptoProviderBalanceOperation struct {
 	entity.Document
-	ProviderAccountID     id.ID              `db:"provider_account_id" json:"providerAccountId" meta:"label:Аккаунт провайдера,ref:crypto_provider_account"`
-	TokenID               id.ID              `db:"token_id" json:"tokenId" meta:"label:Токен,ref:token"`
-	ProviderObservationID *id.ID             `db:"provider_observation_id" json:"providerObservationId,omitempty" meta:"label:Наблюдение баланса"`
-	SourceWalletID        *id.ID             `db:"source_wallet_id" json:"sourceWalletId,omitempty" meta:"label:Кошелёк-источник,ref:wallet"`
-	OperationType         string             `db:"operation_type" json:"operationType" meta:"label:Операция"`
-	RecordType            entity.RecordType  `db:"record_type" json:"recordType" meta:"label:Направление"`
-	Amount                types.CryptoAmount `db:"amount" json:"amount" meta:"label:Сумма"`
-	TxHash                string             `db:"tx_hash" json:"txHash,omitempty" meta:"label:TX Hash"`
-	ExternalRef           string             `db:"external_ref" json:"externalRef" meta:"label:Внешнее основание"`
-	Evidence              []byte             `db:"evidence" json:"-"`
-	Status                string             `db:"status" json:"status" meta:"label:Статус"`
-	ApprovedBy            *id.ID             `db:"approved_by" json:"approvedBy,omitempty" meta:"label:Утвердил,ref:user"`
-	ApprovedAt            *time.Time         `db:"approved_at" json:"approvedAt,omitempty" meta:"label:Дата одобрения"`
-	ApprovalReason        string             `db:"approval_reason" json:"approvalReason,omitempty" meta:"label:Причина одобрения"`
-	RejectedBy            *id.ID             `db:"rejected_by" json:"rejectedBy,omitempty" meta:"label:Отклонил,ref:user"`
-	RejectedAt            *time.Time         `db:"rejected_at" json:"rejectedAt,omitempty" meta:"label:Дата отклонения"`
-	RejectionReason       string             `db:"rejection_reason" json:"rejectionReason,omitempty" meta:"label:Причина отклонения"`
-	DecisionMode          DecisionMode       `db:"decision_mode" json:"decisionMode,omitempty" meta:"label:Режим решения"`
-	DecisionPolicyVersion int                `db:"decision_policy_version" json:"decisionPolicyVersion,omitzero"`
+	ProviderAccountID     id.ID             `db:"provider_account_id" json:"providerAccountId" meta:"label:Аккаунт провайдера,ref:crypto_provider_account"`
+	TokenID               id.ID             `db:"token_id" json:"tokenId" meta:"label:Токен,ref:token"`
+	ProviderObservationID *id.ID            `db:"provider_observation_id" json:"providerObservationId,omitempty" meta:"label:Наблюдение баланса"`
+	SourceWalletID        *id.ID            `db:"source_wallet_id" json:"sourceWalletId,omitempty" meta:"label:Кошелёк-источник,ref:wallet"`
+	OperationType         string            `db:"operation_type" json:"operationType" meta:"label:Операция"`
+	RecordType            entity.RecordType `db:"record_type" json:"recordType" meta:"label:Направление"`
+	Amount                types.RawAmount   `db:"amount" json:"amount" meta:"label:Сумма"`
+	TxHash                string            `db:"tx_hash" json:"txHash,omitempty" meta:"label:TX Hash"`
+	ExternalRef           string            `db:"external_ref" json:"externalRef" meta:"label:Внешнее основание"`
+	Evidence              []byte            `db:"evidence" json:"-"`
+	Status                string            `db:"status" json:"status" meta:"label:Статус"`
+	ApprovedBy            *id.ID            `db:"approved_by" json:"approvedBy,omitempty" meta:"label:Утвердил,ref:user"`
+	ApprovedAt            *time.Time        `db:"approved_at" json:"approvedAt,omitempty" meta:"label:Дата одобрения"`
+	ApprovalReason        string            `db:"approval_reason" json:"approvalReason,omitempty" meta:"label:Причина одобрения"`
+	RejectedBy            *id.ID            `db:"rejected_by" json:"rejectedBy,omitempty" meta:"label:Отклонил,ref:user"`
+	RejectedAt            *time.Time        `db:"rejected_at" json:"rejectedAt,omitempty" meta:"label:Дата отклонения"`
+	RejectionReason       string            `db:"rejection_reason" json:"rejectionReason,omitempty" meta:"label:Причина отклонения"`
+	DecisionMode          DecisionMode      `db:"decision_mode" json:"decisionMode,omitempty" meta:"label:Режим решения"`
+	DecisionPolicyVersion int               `db:"decision_policy_version" json:"decisionPolicyVersion,omitzero"`
 }
 
 func (o *CryptoProviderBalanceOperation) Validate(ctx context.Context) error {

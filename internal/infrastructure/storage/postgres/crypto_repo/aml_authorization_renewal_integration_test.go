@@ -99,7 +99,7 @@ func renewableSweepFixture(t *testing.T) (amlRoutingFixture, aml.Batch, id.ID) {
 	collector := f.collector(t, f.input.Request.MerchantID, "renewal-collector")
 	f.baseline(t, collector)
 	f.rebuild(t)
-	version, err := f.repo.ConfigureAMLBatchPolicy(f.ctx, aml.BatchPolicyRequest{MerchantID: f.input.Request.MerchantID, NetworkID: f.input.Request.NetworkID, TokenID: asset, Class: aml.Low, MaxGross: types.MustCryptoAmount("200"), MaxAgeSeconds: 600, Actor: "test"})
+	version, err := f.repo.ConfigureAMLBatchPolicy(f.ctx, aml.BatchPolicyRequest{MerchantID: f.input.Request.MerchantID, NetworkID: f.input.Request.NetworkID, TokenID: asset, Class: aml.Low, MaxGross: types.MustRawAmount("200"), MaxAgeSeconds: 600, Actor: "test"})
 	require.NoError(t, err)
 	batch, err := f.repo.OpenAMLBatch(f.ctx, aml.OpenBatchRequest{ID: id.New(), MerchantID: f.input.Request.MerchantID, NetworkID: f.input.Request.NetworkID, TokenID: asset, CollectorID: collector, Class: aml.Low, PolicyVersion: version, ScopeVersion: 1, Actor: "test"})
 	require.NoError(t, err)

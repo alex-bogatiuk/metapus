@@ -27,14 +27,14 @@ func TestToken_Validate_SweepFields(t *testing.T) {
 		{
 			give: "zero sweep threshold (immediate mode) → OK",
 			modify: func(tok *Token) {
-				tok.SweepThreshold = types.NewCryptoAmountFromInt64(0)
+				tok.SweepThreshold = types.NewRawAmountFromInt64(0)
 			},
 			wantErr: false,
 		},
 		{
 			give: "positive sweep threshold 10M → OK",
 			modify: func(tok *Token) {
-				tok.SweepThreshold = types.NewCryptoAmountFromInt64(10_000_000)
+				tok.SweepThreshold = types.NewRawAmountFromInt64(10_000_000)
 			},
 			wantErr: false,
 		},

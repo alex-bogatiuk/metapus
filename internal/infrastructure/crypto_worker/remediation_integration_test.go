@@ -115,9 +115,9 @@ func TestRemediationSecondFinancialReorgCompensatesNewGeneration(t *testing.T) {
 		invoiceID := id.New()
 		paymentID, _, _, _ := attributedRemediationPayment(t, ctx, f, invoiceID, "second-reorg")
 		p := &crypto_payment.CryptoPayment{NetworkID: f.network, InvoiceID: invoiceID, WalletID: f.wallet,
-			TokenID: f.token, MerchantID: f.merchant, Amount: types.NewCryptoAmountFromInt64(100)}
+			TokenID: f.token, MerchantID: f.merchant, Amount: types.NewRawAmountFromInt64(100)}
 		p.ID = paymentID
-		p.FeeFixed = types.NewCryptoAmountFromInt64(5)
+		p.FeeFixed = types.NewRawAmountFromInt64(5)
 		require.NoError(t, q.QueryRow(ctx, `SELECT tx_hash,event_kind,receipt_id FROM doc_crypto_payments WHERE id=$1`, paymentID).
 			Scan(&p.TxHash, &p.EventKind, &p.ReceiptID))
 		repo := crypto_repo.NewFinancialReorgRepo()

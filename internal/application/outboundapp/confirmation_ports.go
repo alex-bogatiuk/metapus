@@ -26,7 +26,7 @@ type SettlementTask struct {
 	SourceWalletID   id.ID
 	HotWalletID      id.ID
 	TxHash           string
-	Amount           types.CryptoAmount
+	Amount           types.RawAmount
 	RequiredConfs    int
 	PostedVersion    int
 	VerificationID   *id.ID
@@ -98,7 +98,7 @@ type ReplacementRepository interface {
 
 type ReplacementFees interface {
 	FeeBudget
-	IncreaseMaxFee(context.Context, id.ID, types.CryptoAmount, int) error
+	IncreaseMaxFee(context.Context, id.ID, types.RawAmount, int) error
 	MarkReplacementBroadcast(context.Context, id.ID, string, string, string, string, int) error
 }
 

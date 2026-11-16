@@ -36,9 +36,9 @@ func (f *valuationFixture) GetMerchantBalances(_ context.Context, merchants []id
 	if f.failure != nil {
 		return nil, f.failure
 	}
-	return []crypto.BalanceRow{{MerchantID: merchants[0], TokenID: id.New(), TokenSymbol: "USDT", CurrencyID: &f.candidate.Currency.ID, RawAmount: types.NewCryptoAmountFromInt64(5)}}, nil
+	return []crypto.BalanceRow{{MerchantID: merchants[0], TokenID: id.New(), TokenSymbol: "USDT", CurrencyID: &f.candidate.Currency.ID, RawAmount: types.NewRawAmountFromInt64(5)}}, nil
 }
-func (f *valuationFixture) GetPendingAmounts(context.Context, []id.ID) (map[string]types.CryptoAmount, error) {
+func (f *valuationFixture) GetPendingAmounts(context.Context, []id.ID) (map[string]types.RawAmount, error) {
 	return nil, nil
 }
 func TestPortalValuationContractScopeAndDatabaseErrors(t *testing.T) {

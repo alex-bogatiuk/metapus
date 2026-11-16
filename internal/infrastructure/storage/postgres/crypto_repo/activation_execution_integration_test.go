@@ -53,7 +53,7 @@ func newActivationExecutionFixture(t *testing.T) activationExecutionFixture {
 	fp, err := crypto.CanonicalUnsignedFingerprint(crypto.ChainFamilyTRON, 1, payload)
 	require.NoError(t, err)
 	f.unsigned = crypto.UnsignedTxEnvelope{Family: crypto.ChainFamilyTRON, SchemaVersion: 1, Generation: 1, UnsignedFingerprint: fp, Payload: payload}
-	f.auth = crypto.SigningAuthorization{SchemaVersion: crypto.SigningAuthorizationSequenceLessSchemaVersion, AuthorizationID: id.New().String(), TenantID: id.New().String(), Purpose: crypto.SigningPurposeActivation, BasisType: "CryptoAccountActivationTask", BasisID: f.task.ActivationID, Attempt: 1, Generation: 1, ExpiresAt: time.Now().Add(time.Hour), NetworkID: f.Network, NetworkCode: f.Network.String(), ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: f.Network.String(), SourceAddress: f.task.HotWallet.Address, FeePayerAddress: f.task.HotWallet.Address, VaultKeyID: f.task.HotWallet.VaultKeyID, DestinationAddress: f.task.Address, AssetStandard: "native", AmountMinorUnits: types.ZeroCryptoAmount(), MaxNetworkFeeMinor: types.MustCryptoAmount("10"), UnsignedFingerprint: fp, PolicyVersion: crypto.SigningAuthorizationPolicyVersion(crypto.ChainFamilyTRON)}
+	f.auth = crypto.SigningAuthorization{SchemaVersion: crypto.SigningAuthorizationSequenceLessSchemaVersion, AuthorizationID: id.New().String(), TenantID: id.New().String(), Purpose: crypto.SigningPurposeActivation, BasisType: "CryptoAccountActivationTask", BasisID: f.task.ActivationID, Attempt: 1, Generation: 1, ExpiresAt: time.Now().Add(time.Hour), NetworkID: f.Network, NetworkCode: f.Network.String(), ChainFamily: crypto.ChainFamilyTRON, NetworkIdentifier: f.Network.String(), SourceAddress: f.task.HotWallet.Address, FeePayerAddress: f.task.HotWallet.Address, VaultKeyID: f.task.HotWallet.VaultKeyID, DestinationAddress: f.task.Address, AssetStandard: "native", AmountMinorUnits: types.ZeroRawAmount(), MaxNetworkFeeMinor: types.MustRawAmount("10"), UnsignedFingerprint: fp, PolicyVersion: crypto.SigningAuthorizationPolicyVersion(crypto.ChainFamilyTRON)}
 	_, err = f.Pool.Exec(f.Ctx, `INSERT INTO reg_crypto_fee_reservations(id,network_id,payer_wallet_id,native_token_id,operation_token_id,basis_type,basis_id,purpose,attempt,strategy,max_fee_minor,unsigned_fingerprint,status)
  VALUES($1,$2,$3,$4,$4,'CryptoAccountActivationTask',$5,'activation',1,'native_burn',10,$6,'reserved')`, f.fee, f.Network, f.Hot, f.Native, f.task.ActivationID, fp)
 	require.NoError(t, err)
@@ -96,7 +96,7 @@ func TestActivationExecutionClaimRejectsStaleCommandsAndDispatch(t *testing.T) {
 	require.Equal(t, before, activationSnapshot(t, f.ActivationSelectorFixture, f.task.ActivationID))
 	require.NoError(t, r.BeginAccountActivationDispatch(f.Ctx, next, f.auth, "authorize"))
 	changed := f.auth
-	changed.AmountMinorUnits = types.MustCryptoAmount("1")
+	changed.AmountMinorUnits = types.MustRawAmount("1")
 	require.ErrorContains(t, r.BeginAccountActivationDispatch(f.Ctx, next, changed, "sign"), "original intent")
 }
 
@@ -165,7 +165,7 @@ func TestActivationExecutionLateSignedAndBroadcastRecoveryKeepNewLease(t *testin
 	require.NoError(t, err)
 	require.Equal(t, operation, repeated)
 	require.Equal(t, snapshot, activationSnapshot(t, f.ActivationSelectorFixture, f.task.ActivationID))
-	receipt := crypto.ChainReceipt{NetworkID: f.Network, TxHash: f.signed.TxHash, Status: crypto.ReceiptSucceeded, BlockHash: "final-block", BlockHeight: 10, Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalitySolidified, ObservedAt: time.Now(), Fee: crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: f.Native}, TotalFee: types.MustCryptoAmount("5"), Components: []crypto.FeeComponent{{Name: "energy", Amount: types.MustCryptoAmount("5")}}}}
+	receipt := crypto.ChainReceipt{NetworkID: f.Network, TxHash: f.signed.TxHash, Status: crypto.ReceiptSucceeded, BlockHash: "final-block", BlockHeight: 10, Canonicality: crypto.CanonicalityCanonical, Finality: crypto.FinalitySolidified, ObservedAt: time.Now(), Fee: crypto.FeeSettlementReport{NativeAsset: crypto.AssetRef{TokenID: f.Native}, TotalFee: types.MustRawAmount("5"), Components: []crypto.FeeComponent{{Name: "energy", Amount: types.MustRawAmount("5")}}}}
 	receipt.BlockHash, receipt.Confirmations = strings.Repeat("f", 64), 20
 	var payer string
 	require.NoError(t, f.Pool.QueryRow(f.Ctx, `SELECT w.address_key FROM reg_crypto_fee_reservations r JOIN cat_wallets w ON w.id=r.payer_wallet_id WHERE r.id=$1`, f.fee).Scan(&payer))
@@ -280,7 +280,7 @@ func TestActivationCombinedReservationIsAtomicAndSerializable(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, tasks, 1)
 	task := tasks[0]
-	req := outboundapp.FeeReservationRequest{NetworkID: f.Network, PayerWalletID: task.HotWallet.ID, NativeTokenID: f.Native, OperationTokenID: f.Native, BasisType: "CryptoAccountActivationTask", BasisID: task.ActivationID, Purpose: crypto.SigningPurposeActivation, Attempt: 1, Strategy: crypto.FeeStrategyNativeBurn, MaxFee: types.MustCryptoAmount("10")}
+	req := outboundapp.FeeReservationRequest{NetworkID: f.Network, PayerWalletID: task.HotWallet.ID, NativeTokenID: f.Native, OperationTokenID: f.Native, BasisType: "CryptoAccountActivationTask", BasisID: task.ActivationID, Purpose: crypto.SigningPurposeActivation, Attempt: 1, Strategy: crypto.FeeStrategyNativeBurn, MaxFee: types.MustRawAmount("10")}
 	before := activationSnapshot(t, f, task.ActivationID)
 	// Fee policy starts disabled. A fee failure must roll back the pool slot.
 	_, err = fees.ReserveActivation(f.Ctx, task, req)

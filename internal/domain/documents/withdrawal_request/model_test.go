@@ -14,7 +14,7 @@ import (
 func TestRefundBasisRequiresPaymentAndReason(t *testing.T) {
 	ctx := context.Background()
 	newRequest := func() *WithdrawalRequest {
-		return NewWithdrawalRequest(id.New(), id.New(), id.New(), "destination", types.NewCryptoAmountFromInt64(10))
+		return NewWithdrawalRequest(id.New(), id.New(), id.New(), "destination", types.NewRawAmountFromInt64(10))
 	}
 
 	plain := newRequest()
