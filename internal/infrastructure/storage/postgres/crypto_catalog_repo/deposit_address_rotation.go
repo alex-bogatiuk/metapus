@@ -118,7 +118,7 @@ func (r *WalletRepo) RotatePersistentAddress(ctx context.Context, command wallet
 		return nil, err
 	}
 	if ready == 0 || (!policy.CustodyEnforced && ready <= policy.MinGlobalReadyReserve) {
-		return nil, apperror.NewWalletPoolExhausted(networkID.String(), policy.RetryAfterSeconds)
+		return nil, wallet.NewWalletPoolExhausted(networkID.String(), policy.RetryAfterSeconds)
 	}
 	rateRetryAfter, err := r.consumeLeaseRateWindow(ctx, command.MerchantID, networkID, policy.MaxLeaseStartsPerMinute)
 	if err != nil {

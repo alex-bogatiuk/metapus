@@ -16,6 +16,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/domain"
 	"metapus/internal/domain/catalogs/merchant"
+	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
@@ -210,7 +211,7 @@ func (h *MerchantInvoiceHandler) CreateInvoice(c *gin.Context) {
 		CustomerID:            customerID,
 	})
 	if err != nil {
-		if appErr, ok := apperror.AsAppError(err); ok && appErr.Code == apperror.CodeWalletPoolExhausted {
+		if appErr, ok := apperror.AsAppError(err); ok && appErr.Code == wallet.CodeWalletPoolExhausted {
 			err = appErr.WithDetail("currency", req.Currency)
 		}
 		_ = c.Error(err)

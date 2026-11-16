@@ -11,24 +11,26 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/json"
-	"metapus/internal/domain/catalogs/wallet"
 )
 
-func TestErrorHandlerSerializesWrappedWalletPoolExhausted(t *testing.T) {
+func TestErrorHandlerSerializesWrappedAppErrorWithRetryAfter(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	const networkID = "network-123"
 	router := gin.New()
 	router.Use(ErrorHandler())
 	router.GET("/fail", func(c *gin.Context) {
-		err := fmt.Errorf("lease wallet for invoice: %w", apperror.NewWalletPoolExhausted(networkID, 45))
-		_ = c.Error(err)
+		capacity := &apperror.AppError{
+			Code:       "CAPACITY_EXHAUSTED",
+			Message:    "Ресурс временно недоступен.",
+			HTTPStatus: http.StatusServiceUnavailable,
+			Details:    map[string]any{"resource": "pool", "retryAfterSeconds": 45},
+		}
+		_ = c.Error(fmt.Errorf("reserve capacity: %w", capacity))
 		c.Abort()
 	})
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/fail", nil)
-	router.ServeHTTP(w, req)
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/fail", nil))
 
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusServiceUnavailable, w.Body.String())
@@ -45,38 +47,31 @@ func TestErrorHandlerSerializesWrappedWalletPoolExhausted(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
-
-	if body.Code != apperror.CodeWalletPoolExhausted {
-		t.Fatalf("code = %q, want %q", body.Code, apperror.CodeWalletPoolExhausted)
+	if body.Code != "CAPACITY_EXHAUSTED" || body.Message != "Ресурс временно недоступен." {
+		t.Fatalf("body = %+v", body)
 	}
-	if body.Message != "Нет свободного кошелька для приема платежа. Повторите позже или обратитесь в поддержку." {
-		t.Fatalf("message = %q", body.Message)
-	}
-	if body.Details["resource"] != "wallet_pool" {
-		t.Fatalf("details.resource = %v, want wallet_pool", body.Details["resource"])
-	}
-	if body.Details["networkId"] != networkID {
-		t.Fatalf("details.networkId = %v, want %s", body.Details["networkId"], networkID)
+	if body.Details["resource"] != "pool" {
+		t.Fatalf("details.resource = %v, want pool", body.Details["resource"])
 	}
 }
 
-func TestErrorHandlerAddsRetryAfterForMerchantLeaseLimit(t *testing.T) {
+func TestErrorHandlerOmitsRetryAfterWithoutHint(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(ErrorHandler())
 	router.GET("/fail", func(c *gin.Context) {
-		_ = c.Error(wallet.NewMerchantWalletLeaseLimitExceeded("network-123", 17))
+		_ = c.Error(apperror.NewConflict("busy"))
 		c.Abort()
 	})
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/fail", nil))
 
-	if w.Code != http.StatusTooManyRequests {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusTooManyRequests)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusConflict)
 	}
-	if got := w.Header().Get("Retry-After"); got != "17" {
-		t.Fatalf("Retry-After = %q, want 17", got)
+	if got := w.Header().Get("Retry-After"); got != "" {
+		t.Fatalf("Retry-After = %q, want empty", got)
 	}
 }
 

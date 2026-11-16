@@ -1,7 +1,6 @@
 package apperror
 
 import (
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,40 +8,6 @@ import (
 	"metapus/internal/core/json"
 	"metapus/internal/core/types"
 )
-
-func TestNewWalletPoolExhausted(t *testing.T) {
-	const networkID = "network-123"
-
-	err := NewWalletPoolExhausted(networkID)
-
-	if err.Code != CodeWalletPoolExhausted {
-		t.Fatalf("Code = %q, want %q", err.Code, CodeWalletPoolExhausted)
-	}
-	if err.Message != "Нет свободного кошелька для приема платежа. Повторите позже или обратитесь в поддержку." {
-		t.Fatalf("Message = %q", err.Message)
-	}
-	if err.HTTPStatus != http.StatusServiceUnavailable {
-		t.Fatalf("HTTPStatus = %d, want %d", err.HTTPStatus, http.StatusServiceUnavailable)
-	}
-	if err.Details["resource"] != "wallet_pool" {
-		t.Fatalf("Details[resource] = %v, want wallet_pool", err.Details["resource"])
-	}
-	if err.Details["networkId"] != networkID {
-		t.Fatalf("Details[networkId] = %v, want %s", err.Details["networkId"], networkID)
-	}
-	if err.Details["retryAfterSeconds"] != 30 {
-		t.Fatalf("Details[retryAfterSeconds] = %v, want 30", err.Details["retryAfterSeconds"])
-	}
-}
-
-func TestNewCryptoNetworkUnavailable(t *testing.T) {
-	err := NewCryptoNetworkUnavailable("network-123")
-	require.Equal(t, CodeCryptoNetworkUnavailable, err.Code)
-	require.Equal(t, http.StatusServiceUnavailable, err.HTTPStatus)
-	require.Equal(t, "crypto_network", err.Details["resource"])
-	require.Equal(t, "network-123", err.Details["networkId"])
-	require.Equal(t, 60, err.Details["retryAfterSeconds"])
-}
 
 func TestAppErrorPreservesFixedPointQuantities(t *testing.T) {
 	requested := types.NewQuantityFromInt64Scaled(9_007_199_254_740_993)

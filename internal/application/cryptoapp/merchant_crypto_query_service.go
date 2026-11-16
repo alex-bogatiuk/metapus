@@ -10,6 +10,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/core/types"
+	"metapus/internal/domain/catalogs/blockchain_network"
 	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/domain/documents/crypto_payment"
 )
@@ -148,7 +149,7 @@ func (s *MerchantCryptoQueryService) ResolveToken(ctx context.Context, code stri
 		return value, apperror.NewValidation(fmt.Sprintf("unknown currency: %s", code)).WithDetail("field", "currency")
 	}
 	if !value.Enabled || value.Held {
-		return value, apperror.NewCryptoNetworkUnavailable(value.NetworkID)
+		return value, blockchain_network.NewNetworkUnavailable(value.NetworkID)
 	}
 	return value, nil
 }

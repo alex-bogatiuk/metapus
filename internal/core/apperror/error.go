@@ -50,10 +50,6 @@ const (
 
 	// Method Not Allowed (405)
 	CodeMethodNotAllowed = "METHOD_NOT_ALLOWED"
-
-	// Capacity and admission errors (422, 429, 503)
-	CodeWalletPoolExhausted      = "WALLET_POOL_EXHAUSTED"
-	CodeCryptoNetworkUnavailable = "CRYPTO_NETWORK_UNAVAILABLE"
 )
 
 // AppError is the standard error type for the platform.
@@ -133,41 +129,6 @@ func NewNotFound(entity string, id any) *AppError {
 		Message:    "Запись не найдена. Возможно, она была удалена.",
 		HTTPStatus: http.StatusNotFound,
 		Details:    map[string]any{"entity": entity, "id": id},
-	}
-}
-
-// NewWalletPoolExhausted creates a retryable capacity error for exhausted
-// receiving wallet pools. The optional retry value defaults to 30 seconds.
-func NewWalletPoolExhausted(networkID any, retryAfter ...int) *AppError {
-	seconds := 30
-	if len(retryAfter) > 0 && retryAfter[0] > 0 {
-		seconds = retryAfter[0]
-	}
-	return &AppError{
-		Code:       CodeWalletPoolExhausted,
-		Message:    "Нет свободного кошелька для приема платежа. Повторите позже или обратитесь в поддержку.",
-		HTTPStatus: http.StatusServiceUnavailable,
-		Details: map[string]any{
-			"resource":          "wallet_pool",
-			"networkId":         networkID,
-			"retryAfterSeconds": seconds,
-		},
-	}
-}
-
-// NewCryptoNetworkUnavailable rejects new payment allocations while a
-// network policy is disabled or an operational hold is open. Existing events
-// and delivery jobs remain durable and can resume after the hold is cleared.
-func NewCryptoNetworkUnavailable(networkID any) *AppError {
-	return &AppError{
-		Code:       CodeCryptoNetworkUnavailable,
-		Message:    "Платёжная сеть временно недоступна. Повторите позже.",
-		HTTPStatus: http.StatusServiceUnavailable,
-		Details: map[string]any{
-			"resource":          "crypto_network",
-			"networkId":         networkID,
-			"retryAfterSeconds": 60,
-		},
 	}
 }
 

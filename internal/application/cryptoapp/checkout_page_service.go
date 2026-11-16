@@ -10,6 +10,7 @@ import (
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/types"
 	"metapus/internal/domain"
+	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/domain/documents/crypto_invoice"
 )
 
@@ -129,7 +130,7 @@ func (s *CheckoutPageService) RedeemPaymentLink(ctx context.Context, linkRef str
 		invoice.TTLMinutes = link.TTLMinutes
 		invoice.Description = link.Description
 		if err := s.invoices.Create(txCtx, invoice); err != nil {
-			if appErr, ok := apperror.AsAppError(err); ok && appErr.Code == apperror.CodeWalletPoolExhausted {
+			if appErr, ok := apperror.AsAppError(err); ok && appErr.Code == wallet.CodeWalletPoolExhausted {
 				return appErr.WithDetail("paymentLink", linkRef)
 			}
 			return err

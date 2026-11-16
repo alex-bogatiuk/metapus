@@ -17,6 +17,7 @@ import (
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
+	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/crypto_catalog_repo"
@@ -260,7 +261,7 @@ func TestIntegrationConcurrentWalletPoolControllersCreateOnlyDeficit(t *testing.
 		if result.err != nil {
 			appErr, ok := apperror.AsAppError(result.err)
 			require.True(t, ok)
-			require.Equal(t, apperror.CodeWalletPoolExhausted, appErr.Code)
+			require.Equal(t, wallet.CodeWalletPoolExhausted, appErr.Code)
 			require.Equal(t, 503, appErr.HTTPStatus)
 			exhausted++
 			continue

@@ -14,6 +14,7 @@ import (
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/types"
 	"metapus/internal/domain"
+	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/domain/documents/crypto_invoice"
 )
 
@@ -222,7 +223,7 @@ func TestCreateMerchantInvoice_PoolDepletionCanRetryWithoutDuplicate(t *testing.
 		types.NewCryptoAmountFromInt64(11_000_000),
 	)
 	repo := newFakeInvoiceRepo()
-	poolErr := apperror.NewWalletPoolExhausted(id.New().String(), 30)
+	poolErr := wallet.NewWalletPoolExhausted(id.New().String(), 30)
 	docSvc := &fakeInvoiceDocumentService{repo: repo, createErr: poolErr}
 	svc := newTestMerchantInvoiceService(t, repo, docSvc, nil)
 

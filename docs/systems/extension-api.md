@@ -55,7 +55,9 @@ myExtension.Register(factoryReg) // registration uses v1.EntityRegistration[Mode
 | `content.Services` | сервисы конфигурации для регистраций документов вне `v1.DocumentDeps` | ссылки checkout, подписанты согласований |
 | `spec.Bundle` | контракты HTTP для генератора: `contracts.Registry(bundles...)`, `contracts.Routes(bundles...)` | `content.HTTPContractBundles` |
 
-Граница проверяется тестом `internal/architecture/configuration_boundary_test.go`: платформенный пакет не может импортировать пакет конфигурации, а список известных исключений только сокращается.
+Граница проверяется тестом `internal/architecture/configuration_boundary_test.go`: платформенный пакет не может импортировать пакет конфигурации, список известных исключений пуст и должен таким остаться.
+
+Коды ошибок конфигурации объявляются рядом с её доменом и собираются из `apperror.AppError`; `core/apperror` хранит только платформенные коды. Например, `WALLET_POOL_EXHAUSTED` объявлен в `catalogs/wallet`, `CRYPTO_NETWORK_UNAVAILABLE` в `catalogs/blockchain_network`. Подсказку `details.retryAfterSeconds` любой ошибки `ErrorHandler` выставляет в заголовок `Retry-After`.
 
 ## 5. Scaffold CLI
 

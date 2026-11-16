@@ -144,7 +144,7 @@ func (r *WalletRepo) LeaseForInvoice(
 			return err
 		}
 		if ready == 0 || (!policy.CustodyEnforced && ready <= policy.MinGlobalReadyReserve) {
-			return apperror.NewWalletPoolExhausted(networkID.String(), policy.RetryAfterSeconds)
+			return wallet.NewWalletPoolExhausted(networkID.String(), policy.RetryAfterSeconds)
 		}
 
 		rateRetryAfter, err := r.consumeLeaseRateWindow(ctx, merchantID, networkID, policy.MaxLeaseStartsPerMinute)
@@ -214,7 +214,7 @@ func (r *WalletRepo) leaseReadyWallet(
 		merchantID, custodyEnforced,
 	); err != nil {
 		if pgxscan.NotFound(err) {
-			return nil, apperror.NewWalletPoolExhausted(networkID.String(), retryAfter)
+			return nil, wallet.NewWalletPoolExhausted(networkID.String(), retryAfter)
 		}
 		return nil, fmt.Errorf("update wallet lease: %w", err)
 	}
@@ -273,7 +273,7 @@ func (r *WalletRepo) lockEffectiveAllocationPolicy(
 	)
 	if err != nil {
 		if pgxscan.NotFound(err) {
-			return effectiveWalletAllocationPolicy{}, apperror.NewWalletPoolExhausted(networkID.String(), 30)
+			return effectiveWalletAllocationPolicy{}, wallet.NewWalletPoolExhausted(networkID.String(), 30)
 		}
 		return effectiveWalletAllocationPolicy{}, fmt.Errorf("lock wallet allocation policy: %w", err)
 	}
@@ -533,7 +533,7 @@ func (r *WalletRepo) AssignPersistentAddress(ctx context.Context, merchantID, ne
 			return err
 		}
 		if ready == 0 || (!policy.CustodyEnforced && ready <= policy.MinGlobalReadyReserve) {
-			return apperror.NewWalletPoolExhausted(networkID.String(), policy.RetryAfterSeconds)
+			return wallet.NewWalletPoolExhausted(networkID.String(), policy.RetryAfterSeconds)
 		}
 
 		retryAfter, err := r.consumeLeaseRateWindow(ctx, merchantID, networkID, policy.MaxLeaseStartsPerMinute)
@@ -613,7 +613,7 @@ func (r *WalletRepo) assignReadyPersistentWallet(
 
 	if err != nil {
 		if pgxscan.NotFound(err) {
-			return nil, apperror.NewWalletPoolExhausted(networkID.String(), retryAfter)
+			return nil, wallet.NewWalletPoolExhausted(networkID.String(), retryAfter)
 		}
 		return nil, fmt.Errorf("update wallet to persistent: %w", err)
 	}

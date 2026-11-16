@@ -218,7 +218,7 @@ func TestTwentyConcurrentInvoiceCommandsCreateOneAggregateAllocationAndEvent(t *
 			continue
 		}
 		appErr, ok := apperror.AsAppError(createErr)
-		if ok && appErr.Code == apperror.CodeWalletPoolExhausted {
+		if ok && appErr.Code == wallet.CodeWalletPoolExhausted {
 			capacityFailures++
 			continue
 		}
