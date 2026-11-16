@@ -28,7 +28,7 @@
 | Данные формы | `BuildPrintData(ctx, doc, policy)` возвращает `PrintData.Table` (`cryptohandlers/crypto_invoice_print.go`) |
 | Шаблон | `printing.TableTemplate` подходит большинству документов; свой шаблон нужен только для другой вёрстки |
 
-Оба маршрута требуют `<permission>:read`. Если флаг объявлен без методов handler, тест `builtin_entities_test.go` найдёт расхождение маршрутов и контрактов.
+Оба маршрута требуют `<permission>:read`. Если флаг объявлен без методов handler, тест `internal/content/http_contract_entities_test.go` найдёт расхождение маршрутов и контрактов.
 
 ## 3. Безопасность данных
 

@@ -69,7 +69,6 @@ func contracts() []spec.Contract {
 		spec.Response[cryptodto.MerchantUserListResponse]("MerchantUserListResponse"),
 		spec.Response[cryptodto.PortalWithdrawalAddressCreatedResponse]("PortalWithdrawalAddressCreatedResponse"),
 		spec.Response[cryptodto.PortalWithdrawalCreatedResponse]("PortalWithdrawalCreatedResponse"),
-		spec.Response[cryptodto.StatusResponse]("StatusResponse"),
 		spec.Response[cryptodto.SigningJobStatusResponse]("SigningJobStatusResponse"),
 		spec.Request[cryptodto.ReasonRequest]("ReasonRequest"),
 		spec.Request[cryptodto.SetMerchantNetworkPolicyRequest]("SetMerchantNetworkPolicyRequest"),

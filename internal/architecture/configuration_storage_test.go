@@ -23,26 +23,11 @@ import (
 // instead of listing a file here.
 var knownConfigurationTableLeaks = map[string][]string{}
 
-// knownConfigurationTestLeaks lists platform packages whose tests still import
-// configuration packages. It only shrinks; test configuration behaviour from
-// the configuration side instead of listing a new package here.
-var knownConfigurationTestLeaks = map[string][]string{
-	// Generated contract files are checked against the full configuration.
-	"metapus/internal/infrastructure/http/contracts": {
-		"metapus/internal/content",
-		"metapus/internal/domain/crypto",
-		"metapus/internal/infrastructure/http/cryptohttp/cryptodto",
-		"metapus/internal/infrastructure/http/cryptohttp/cryptohandlers",
-	},
-	// Report security runs against the configuration's datasets.
-	"metapus/internal/infrastructure/reporting/compiler": {"metapus/internal/content"},
-	// Valuation snapshot consistency shares the exchange rate fixture.
-	"metapus/internal/infrastructure/storage/postgres/register_repo": {
-		"metapus/internal/application/cryptoapp",
-		"metapus/internal/domain/crypto",
-		"metapus/internal/infrastructure/storage/postgres/portal_repo",
-	},
-}
+// knownConfigurationTestLeaks lists platform packages whose tests import
+// configuration packages. It is empty: a test of the assembled application
+// (all contracts, the configuration's datasets) lives in internal/content, and
+// a test of configuration behaviour in the configuration's own package.
+var knownConfigurationTestLeaks = map[string][]string{}
 
 var createRelationPattern = regexp.MustCompile(`(?i)\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:UNLOGGED\s+)?(?:TABLE|(?:MATERIALIZED\s+)?VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-z_][a-z0-9_]*)`)
 

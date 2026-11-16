@@ -1,13 +1,6 @@
 package contracts
 
 import (
-	"bytes"
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -89,48 +82,4 @@ func TestGenerationRejectsUnknownCustomCodecs(t *testing.T) {
 	}
 	_, err = Generate([]Contract{Response[stringNumber]("StringNumber")})
 	require.ErrorContains(t, err, "requires an explicit HTTP projection")
-}
-
-func TestRegistryCoversOwnedJSONDTOsAndGeneratedFileIsCurrent(t *testing.T) {
-	registered := map[string]bool{}
-	for _, contract := range Registry(configurationBundles()...) {
-		registered[contract.Name] = true
-	}
-	// These have no HTTP JSON body: two form/query binders and a mapper's internal bag.
-	excluded := map[string]bool{"PaginationRequest": true, "BaseFilter": true, "DocRefsBag": true}
-	files, err := filepath.Glob("../v1/dto/*.go")
-	require.NoError(t, err)
-	configurationDTOs, err := filepath.Glob("../cryptohttp/cryptodto/*.go")
-	require.NoError(t, err)
-	files = append(files, configurationDTOs...)
-	for _, file := range files {
-		if strings.HasSuffix(file, "_test.go") {
-			continue
-		}
-		source, err := parser.ParseFile(token.NewFileSet(), file, nil, 0)
-		require.NoError(t, err)
-		for _, declaration := range source.Decls {
-			general, ok := declaration.(*ast.GenDecl)
-			if !ok || general.Tok != token.TYPE {
-				continue
-			}
-			for _, spec := range general.Specs {
-				typeSpec := spec.(*ast.TypeSpec)
-				if !typeSpec.Name.IsExported() || typeSpec.TypeParams != nil || excluded[typeSpec.Name.Name] {
-					continue
-				}
-				require.True(t, registered[typeSpec.Name.Name], "%s must be registered as an HTTP contract", typeSpec.Name)
-			}
-		}
-	}
-	generated, err := Generate(Registry(configurationBundles()...))
-	require.NoError(t, err)
-	committed, err := os.ReadFile("../../../../frontend/types/generated/http-contracts.ts")
-	require.NoError(t, err)
-	require.Equal(t, string(generated), string(bytes.ReplaceAll(committed, []byte("\r\n"), []byte("\n"))), "run go run ./cmd/http-contracts")
-	schemas, err := GenerateSchemas(Registry(configurationBundles()...))
-	require.NoError(t, err)
-	committed, err = os.ReadFile("../../../../frontend/lib/generated/http-contract-schemas.ts")
-	require.NoError(t, err)
-	require.Equal(t, string(schemas), string(bytes.ReplaceAll(committed, []byte("\r\n"), []byte("\n"))), "run go run ./cmd/http-contracts")
 }

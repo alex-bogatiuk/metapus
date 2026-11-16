@@ -1,4 +1,4 @@
-package contracts_test
+package content_test
 
 import (
 	"testing"

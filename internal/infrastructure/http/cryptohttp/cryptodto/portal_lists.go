@@ -1,6 +1,9 @@
 package cryptodto
 
-import "metapus/internal/domain/crypto"
+import (
+	"metapus/internal/domain/crypto"
+	"metapus/internal/infrastructure/http/v1/dto"
+)
 
 type PortalMerchantListResponse struct {
 	Items []PortalMerchantItem `json:"items"`
@@ -36,9 +39,8 @@ type PortalWithdrawalCreatedResponse struct {
 	Number  string `json:"number"`
 	Status  string `json:"status"`
 }
-type StatusResponse struct {
-	Status string `json:"status"`
-}
+// StatusResponse is the platform's command acknowledgement.
+type StatusResponse = dto.StatusResponse
 type ReasonRequest struct {
 	Reason string `json:"reason"`
 }

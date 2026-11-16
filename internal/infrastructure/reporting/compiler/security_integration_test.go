@@ -9,10 +9,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/content"
 	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
@@ -23,38 +21,7 @@ import (
 	"metapus/internal/domain/reports/schema"
 	"metapus/internal/infrastructure/reporting/compiler"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/metadata"
 )
-
-// Independent sources exercise the compiler's security contract without tying
-// policy coverage to the lifecycle of any particular business document.
-type reportSecurityRow struct {
-	ID             id.ID  `db:"id" json:"id"`
-	Number         string `db:"number" json:"number"`
-	OrganizationID *id.ID `db:"organization_id" json:"organizationId"`
-	CurrencyID     id.ID  `db:"currency_id" json:"currencyId"`
-	Amount         int64  `db:"amount" json:"amount"`
-}
-type reportSecurityCurrency struct {
-	ID            id.ID  `db:"id" json:"id"`
-	Code          string `db:"code" json:"code"`
-	DecimalPlaces int    `db:"decimal_places" json:"decimalPlaces"`
-}
-type securityUnionExecutor struct{}
-
-func (securityUnionExecutor) BuildQuery(_ context.Context, _ map[string]any, constraints readpolicy.ReadConstraints) (squirrel.SelectBuilder, error) {
-	a, err := constraints.Source("a")
-	if err != nil {
-		return squirrel.SelectBuilder{}, err
-	}
-	b, err := constraints.Source("b")
-	if err != nil {
-		return squirrel.SelectBuilder{}, err
-	}
-	columns := []string{"d.number", "d.amount", "c.id AS currency_id", "c.code AS currency_code", "c.decimal_places"}
-	union := squirrel.Expr("(?) UNION ALL (?)", a.Columns(columns...), b.Columns(columns...))
-	return squirrel.Select().PrefixExpr(squirrel.Expr("WITH base AS (?)", union)).From("base"), nil
-}
 
 func TestReportPoliciesApplyBeforeUnionAndAggregation(t *testing.T) {
 	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
@@ -78,34 +45,11 @@ func TestReportPoliciesApplyBeforeUnionAndAggregation(t *testing.T) {
 		_, err = pool.Exec(context.Background(), "INSERT INTO "+table+" VALUES($1,'PUBLIC',$2,$4,15),($1,'SECRET',$2,$4,1000),($1,'OTHER_SCOPE',$3,$4,2000),($1,'NULL_SCOPE',NULL,$4,4000),($1,'PRIVATE_CURRENCY',$2,$5,8000)", id.New(), orgA, orgB, usd, eur)
 		require.NoError(t, err)
 	}
-	registry := metadata.NewRegistry()
-	for _, key := range []string{"a", "b"} {
-		def := metadata.Inspect(reportSecurityRow{}, key, metadata.TypeDocument)
-		def.Key, def.TableName, def.ReadPermission = key, "report_policy_"+key, key+":read"
-		def.RLSDimensions = map[string]string{"organization": "organization_id"}
-		registry.Register(def)
-	}
-	currency := metadata.Inspect(reportSecurityCurrency{}, "currency", metadata.TypeCatalog)
-	currency.Key, currency.TableName, currency.ReadPermission = "currency", "report_policy_currency", "currency:read"
-	registry.Register(currency)
-	amountAccess := []schema.FieldAccess{{Entity: "a", Fields: []string{"amount"}}, {Entity: "b", Fields: []string{"amount"}}}
-	ds := schema.Dataset{Key: "security-union", Permission: "report:security-union:read", ExecutorKey: "security-union",
-		Sources: []schema.Source{
-			{Key: "a", Entity: "a", Alias: "d", Relations: []schema.SourceRelation{{Entity: "currency", Alias: "c", Column: "currency_id", Required: true}}},
-			{Key: "b", Entity: "b", Alias: "d", Relations: []schema.SourceRelation{{Entity: "currency", Alias: "c", Column: "currency_id", Required: true}}},
-		},
-		Fields: []schema.Field{
-			{Name: "number", Type: schema.TypeString, Kind: schema.FieldDimension, Access: []schema.FieldAccess{{Entity: "a", Fields: []string{"number"}}, {Entity: "b", Fields: []string{"number"}}}},
-			{Name: "amount", Type: schema.TypeMoney, Kind: schema.FieldMeasure, Agg: schema.AggSum, Access: amountAccess, Money: &reportcontract.MoneySources{CurrencyID: "currency_id", CurrencyCode: "currency_code", DecimalPlaces: "decimal_places"}},
-			{Name: "currency_id", Type: schema.TypeString, Kind: schema.FieldDimension, Access: []schema.FieldAccess{{Entity: "currency", Fields: []string{"id"}}}},
-			{Name: "currency_code", Type: schema.TypeString, Kind: schema.FieldDimension, Access: []schema.FieldAccess{{Entity: "currency", Fields: []string{"code"}}}},
-			{Name: "decimal_places", Type: schema.TypeInteger, Kind: schema.FieldDimension, Access: []schema.FieldAccess{{Entity: "currency", Fields: []string{"decimal_places"}}}},
-		},
-	}
+	registry, ds := securityFixture()
 	engine, err := security.NewPolicyEngine()
 	require.NoError(t, err)
 	defer engine.Stop()
-	c := compiler.NewCompiler(registry, []*schema.Dataset{&ds}, postgres.NewAuthorizedReadService(registry, engine), map[string]readpolicy.DatasetExecutor{"security-union": securityUnionExecutor{}}, content.DatasetExecutors())
+	c := compiler.NewCompiler(registry, []*schema.Dataset{&ds}, postgres.NewAuthorizedReadService(registry, engine), map[string]readpolicy.DatasetExecutor{"security-union": securityUnionExecutor{}})
 	principal := appctx.UserContext{UserID: id.New().String(), Permissions: []string{ds.Permission, "a:read", "b:read", "currency:read"}}
 	actor := appctx.WithUser(context.Background(), &principal)
 	ctx := tenant.WithTxManager(actor, postgres.NewTxManagerFromRawPool(pool))
@@ -147,8 +91,8 @@ func TestReportPoliciesApplyBeforeUnionAndAggregation(t *testing.T) {
 	require.ErrorAs(t, err, &app)
 	require.Equal(t, "REPORT_POLICY_UNSUPPORTED", app.Code)
 
-	// A crypto source has a different range from ERP BIGINT. Filters, SQL SUM,
-	// scanning and the returned string must all keep the full raw amount.
+	// A raw-amount source (NUMERIC) has a wider range than BIGINT. Filters, SQL
+	// SUM, scanning and the returned string must all keep the full raw amount.
 	_, err = pool.Exec(context.Background(), `ALTER TABLE report_policy_a ALTER COLUMN amount TYPE NUMERIC(78,0); UPDATE report_policy_a SET amount=100000000000000000000000000001 WHERE number='PUBLIC'`)
 	require.NoError(t, err)
 	ds.FindField("amount").Money.AmountType = reportcontract.AmountTypeRaw
@@ -160,17 +104,4 @@ func TestReportPoliciesApplyBeforeUnionAndAggregation(t *testing.T) {
 	result, err = c.Execute(ctx, filtered)
 	require.NoError(t, err)
 	require.Equal(t, "100000000000000000000000000001", result.Items[0]["amount"])
-}
-
-func TestBuiltInJournalUsesFreshCryptoSchema(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
-	require.NotEmpty(t, dsn)
-	pool, err := pgxpool.New(context.Background(), dsn)
-	require.NoError(t, err)
-	defer pool.Close()
-	ctx := tenant.WithTxManager(appctx.WithUser(context.Background(), &appctx.UserContext{UserID: id.New().String(), IsAdmin: true}), postgres.NewTxManagerFromRawPool(pool))
-	for _, dataset := range content.AllDatasets() {
-		_, err := reportCompiler(t).Execute(ctx, compiler.QueryRequest{Dataset: dataset.Key, Limit: 1})
-		require.NoError(t, err, dataset.Key)
-	}
 }

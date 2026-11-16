@@ -63,7 +63,7 @@ myExtension.Register(factoryReg) // registration uses v1.EntityRegistration[Mode
 Граница проверяется тестами в `internal/architecture`:
 
 - `configuration_boundary_test.go`: платформенный пакет не импортирует пакет конфигурации; список исключений пуст и должен таким остаться;
-- `configuration_storage_test.go`: строковые литералы платформенного кода не называют таблицы из миграций конфигурации (`db/configuration/*`), а тесты платформы не импортируют конфигурацию. Список известных исключений (проверки сгенерированных контрактов и наборов отчётов) только сокращается.
+- `configuration_storage_test.go`: строковые литералы платформенного кода не называют таблицы из миграций конфигурации (`db/configuration/*`), а тесты платформы не импортируют конфигурацию; оба списка исключений пусты. Проверки собранного приложения (все HTTP-контракты, актуальность сгенерированных файлов, наборы отчётов конфигурации) лежат в `internal/content`, проверки поведения конфигурации — в её пакетах.
 
 Во фронтенде код конфигурации лежит в `frontend/configuration/<имя>/` (`components`, `lib`, `hooks`, `types`, `stores` с той же структурой, что у платформы), платформенный — в `frontend/components`, `lib`, `hooks`, `stores`, `types`. Страницы и layout конфигурации лежат в `frontend/configuration/<имя>/pages/` по структуре маршрутов. `frontend/app/` — точка сборки: маршрут конфигурации в нём — однострочная обёртка `export { default } from "@/configuration/<имя>/pages/…"`, которую требует Next.js. Тест `frontend/tests/unit/configuration-boundary.spec.ts` проверяет, что:
 

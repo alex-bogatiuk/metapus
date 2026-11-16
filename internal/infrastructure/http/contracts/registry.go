@@ -50,6 +50,7 @@ func Registry(bundles ...spec.Bundle) []Contract {
 		Request[dto.AssignRoleRequest]("AssignRoleRequest"),
 		Response[dto.AuditEntryResponse]("AuditEntryResponse"),
 		Response[dto.BaseResponse]("BaseResponse"),
+		Response[dto.StatusResponse]("StatusResponse"),
 		Response[dto.CatalogResponse]("CatalogResponse"),
 		Request[dto.CreateCatalogRequest]("CreateCatalogRequest"),
 		Request[dto.CreateListViewRequest]("CreateListViewRequest"),

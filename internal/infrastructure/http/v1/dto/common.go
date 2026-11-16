@@ -8,6 +8,11 @@ import (
 	"metapus/internal/core/id"
 )
 
+// StatusResponse acknowledges a command whose only result is its status.
+type StatusResponse struct {
+	Status string `json:"status"`
+}
+
 // --- Pagination ---
 
 // PaginationRequest contains pagination parameters.

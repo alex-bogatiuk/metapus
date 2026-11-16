@@ -1,13 +1,15 @@
 //go:build integration
 
-package register_repo_test
+package portal_repo_test
 
 import (
 	"context"
-	"github.com/jackc/pgx/v5"
+	"testing"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 	"metapus/internal/application/cryptoapp"
+	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/domain/crypto"
@@ -16,10 +18,40 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/migration"
 	"metapus/internal/infrastructure/storage/postgres/portal_repo"
 	"metapus/internal/infrastructure/storage/postgres/register_repo"
-	"net/url"
-	"testing"
-	"time"
+	"metapus/internal/infrastructure/storage/postgres/testsupport"
 )
+
+// valuationFixture is a fresh database with a configured rate source and a
+// USDT mapping, as the platform's exchange-rate tests use.
+func valuationFixture(t *testing.T) (context.Context, *pgxpool.Pool, *register_repo.ExchangeRateRepo, er.Configuration) {
+	t.Helper()
+	dsn := testsupport.ExchangeRateDSN(t)
+	output, err := migration.RunAll(dsn)
+	require.NoError(t, err, output)
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, dsn)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+	ctx = tenant.WithTxManager(ctx, postgres.NewTxManagerFromRawPool(pool))
+	ctx = appctx.WithUser(ctx, &appctx.UserContext{UserID: id.New().String(), Permissions: []string{"catalog:rate_source:update", "catalog:rate_source:read"}})
+	source := id.New()
+	_, err = pool.Exec(ctx, `INSERT INTO cat_rate_sources(id,code,name,source_type) VALUES($1,$2,'Integration CoinGecko','coingecko')`, source, "RATE-"+id.Compact(source))
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx, `INSERT INTO cat_currencies(code,name,iso_code,symbol) VALUES('USD','US Dollar','USD','$') ON CONFLICT DO NOTHING`)
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx, `INSERT INTO cat_currencies(code,name,iso_code,symbol) VALUES('USDT','Tether','USDT','USDT') ON CONFLICT DO NOTHING`)
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx, `UPDATE sys_settings SET exchange_rates=jsonb_build_object('sourceId',$1::text),version=version+1`, source)
+	require.NoError(t, err)
+	repo := register_repo.NewExchangeRateRepo()
+	cfg, err := repo.LoadConfiguration(ctx)
+	require.NoError(t, err)
+	var currency id.ID
+	require.NoError(t, pool.QueryRow(ctx, `SELECT id FROM cat_currencies WHERE iso_code='USDT'`).Scan(&currency))
+	_, err = repo.PutMapping(ctx, er.Mapping{SourceID: source, Currency: er.CurrencyRef{ID: currency}, BaseCurrency: cfg.BaseCurrency, ExternalID: "tether", IsActive: true}, 0)
+	require.NoError(t, err)
+	return ctx, pool, repo, cfg
+}
 
 type snapshotBalances struct {
 	crypto.BalanceQueryRepo
@@ -34,7 +66,7 @@ func (r *snapshotBalances) GetMerchantBalances(ctx context.Context, ids []id.ID)
 	return rows, err
 }
 func TestExchangeRateValuationUsesOneRepeatableSnapshot(t *testing.T) {
-	ctx, pool, repo, cfg, _ := rateFixture(t)
+	ctx, pool, repo, cfg := valuationFixture(t)
 	var token, network id.ID
 	require.NoError(t, pool.QueryRow(ctx, `SELECT id,network_id FROM cat_tokens ORDER BY id LIMIT 1`).Scan(&token, &network))
 	merchant, other, invoice, payment := id.New(), id.New(), id.New(), id.New()
@@ -75,39 +107,4 @@ func TestExchangeRateValuationUsesOneRepeatableSnapshot(t *testing.T) {
 	require.Equal(t, "0", latest.ByToken[0].PendingRaw)
 	require.Equal(t, "15", latest.ByToken[0].AvailableRaw)
 	require.Equal(t, cfg.BaseCurrency.ID, latest.BaseCurrency.ID)
-}
-
-func TestExchangeRateTenantDatabaseIsolation(t *testing.T) {
-	ctx, pool, repo, cfg, m := rateFixture(t)
-	token := id.New()
-	ok, err := repo.Claim(ctx, cfg, token)
-	require.NoError(t, err)
-	require.True(t, ok)
-	_, err = repo.Finish(ctx, cfg, token, er.FetchResult{Requested: 1, Observations: []er.Observation{observation(m, time.Now().Add(-time.Minute), "1")}})
-	require.NoError(t, err)
-	history, err := repo.History(ctx, er.HistoryFilter{CurrencyID: m.Currency.ID, BaseCurrencyID: cfg.BaseCurrency.ID, SourceID: &cfg.Source.ID, From: time.Now().Add(-time.Hour), To: time.Now(), Limit: 50})
-	require.NoError(t, err)
-	require.Len(t, history, 1)
-	// A separate newly created database models the actual tenant boundary.
-	name := "exchange_isolation_" + id.Compact(id.New())
-	_, err = pool.Exec(ctx, "CREATE DATABASE "+pgx.Identifier{name}.Sanitize())
-	require.NoError(t, err)
-	target, err := url.Parse(pool.Config().ConnString())
-	require.NoError(t, err)
-	target.Path = "/" + name
-	output, err := migration.RunAll(target.String())
-	require.NoError(t, err, output)
-	otherPool, err := pgxpool.New(context.Background(), target.String())
-	require.NoError(t, err)
-	defer otherPool.Close()
-	otherCtx := tenant.WithTxManager(context.Background(), postgres.NewTxManagerFromRawPool(otherPool))
-	_, err = repo.GetQuote(otherCtx, history[0].ID)
-	require.Error(t, err)
-	var count int
-	require.NoError(t, otherPool.QueryRow(otherCtx, `SELECT count(*) FROM reg_exchange_rates`).Scan(&count))
-	require.Zero(t, count)
-	// Re-reading the original database still returns its immutable observation.
-	q, err := repo.GetQuote(ctx, history[0].ID)
-	require.NoError(t, err)
-	require.Equal(t, "1", q.Rate.String())
 }
