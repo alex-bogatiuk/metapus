@@ -57,7 +57,7 @@ func (securityUnionExecutor) BuildQuery(_ context.Context, _ map[string]any, con
 }
 
 func TestReportPoliciesApplyBeforeUnionAndAggregation(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	require.NotEmpty(t, dsn, "explicit disposable database is required")
 	cfg, err := pgxpool.ParseConfig(dsn)
 	require.NoError(t, err)
@@ -163,7 +163,7 @@ func TestReportPoliciesApplyBeforeUnionAndAggregation(t *testing.T) {
 }
 
 func TestBuiltInJournalUsesFreshCryptoSchema(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	require.NotEmpty(t, dsn)
 	pool, err := pgxpool.New(context.Background(), dsn)
 	require.NoError(t, err)

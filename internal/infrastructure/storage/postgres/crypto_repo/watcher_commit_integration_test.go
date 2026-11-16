@@ -18,7 +18,7 @@ import (
 )
 
 func TestWatcherBlockCommitAtomicRollbackAndFencing(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	require.NotEmpty(t, dsn, "dedicated integration DB required")
 	pool, err := pgxpool.New(t.Context(), dsn)
 	require.NoError(t, err)

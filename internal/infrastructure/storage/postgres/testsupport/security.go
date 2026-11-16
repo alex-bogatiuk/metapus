@@ -28,7 +28,7 @@ type SecurityTenant struct {
 
 func NewSecurityTenants(t *testing.T) [2]*SecurityTenant {
 	t.Helper()
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	require.NotEmpty(t, dsn, "explicit isolated PostgreSQL DSN is required")
 	target, err := url.Parse(dsn)
 	require.NoError(t, err)

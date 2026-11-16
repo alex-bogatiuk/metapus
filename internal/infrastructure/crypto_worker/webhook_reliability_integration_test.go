@@ -21,9 +21,9 @@ import (
 )
 
 func TestWorkerReliabilityWebhookClaimsAcrossReplicas(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	if dsn == "" {
-		t.Skip("METAPUS_TEST_CRYPTO_DSN is required")
+		t.Skip("METAPUS_TEST_DATABASE_DSN is required")
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()

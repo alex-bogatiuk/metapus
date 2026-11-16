@@ -36,7 +36,7 @@ func runSweepCoordinationFixture(t *testing.T, committed bool, fn func(context.C
 
 func runSweepCoordinationFixtureWithAddresses(t *testing.T, committed bool, hotAddress, depositAddress string, fn func(context.Context, *postgres.TxManager, sweepCoordinationFixture)) {
 	t.Helper()
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	require.NotEmpty(t, dsn, "a disposable integration database is required")
 	pool, err := pgxpool.New(context.Background(), dsn)
 	require.NoError(t, err)

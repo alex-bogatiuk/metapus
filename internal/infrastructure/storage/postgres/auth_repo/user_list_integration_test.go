@@ -28,7 +28,7 @@ func (c *userListQueryCounter) TraceQueryStart(ctx context.Context, _ *pgx.Conn,
 func (*userListQueryCounter) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
 
 func TestListUsersUsesFourQueriesAndPropagatesMFAReadErrors(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	require.NotEmpty(t, dsn, "explicit disposable PostgreSQL database is required")
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

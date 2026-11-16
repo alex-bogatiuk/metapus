@@ -16,9 +16,9 @@ import (
 // Real schema, temporary tables and a rolled-back transaction. No production
 // document, movement, balance or reconciliation observation is modified.
 func TestDashboardReadModels(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	if dsn == "" {
-		t.Fatal("METAPUS_TEST_CRYPTO_DSN is required")
+		t.Fatal("METAPUS_TEST_DATABASE_DSN is required")
 	}
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, dsn)

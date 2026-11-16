@@ -34,7 +34,7 @@ func (shadowTestDeriver) DeriveAddress(context.Context, crypto.NetworkRef, strin
 }
 
 func TestShadowWorkerPausesReleasesLeaseAndResumesWithoutRestart(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	require.NotEmpty(t, dsn)
 	pg, err := pgxpool.New(t.Context(), dsn)
 	require.NoError(t, err)

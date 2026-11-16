@@ -58,7 +58,7 @@ docker compose -f single-tenant-deployment/docker-compose.yml -f single-tenant-d
 $env:METAPUS_TEST_MIGRATION_DSN = '<disposable-postgres-dsn>'
 go test -tags=integration ./internal/infrastructure/storage/postgres/migration -run TestRunAllFreshCryptoLifecycleSchema -count=1 -v
 
-$env:METAPUS_TEST_CRYPTO_DSN = $env:METAPUS_TEST_MIGRATION_DSN
+$env:METAPUS_TEST_DATABASE_DSN = $env:METAPUS_TEST_MIGRATION_DSN
 go test -tags=integration ./internal/infrastructure/crypto_worker -count=1 -v
 ```
 

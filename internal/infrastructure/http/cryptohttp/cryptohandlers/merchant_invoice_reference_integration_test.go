@@ -55,8 +55,8 @@ type referenceFixture struct {
 
 func newReferenceFixture(t *testing.T) *referenceFixture {
 	t.Helper()
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
-	require.NotEmpty(t, dsn, "METAPUS_TEST_CRYPTO_DSN must point to the isolated test database")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
+	require.NotEmpty(t, dsn, "METAPUS_TEST_DATABASE_DSN must point to the isolated test database")
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	t.Cleanup(cancel)
 	pool, err := pgxpool.New(ctx, dsn)

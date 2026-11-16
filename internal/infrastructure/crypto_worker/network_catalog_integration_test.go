@@ -21,7 +21,7 @@ import (
 
 func withNetworkCatalog(t *testing.T, fn func(context.Context, *postgres.TxManager)) {
 	t.Helper()
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	require.NotEmpty(t, dsn, "a disposable integration database is required")
 	pool, err := pgxpool.New(context.Background(), dsn)
 	require.NoError(t, err)

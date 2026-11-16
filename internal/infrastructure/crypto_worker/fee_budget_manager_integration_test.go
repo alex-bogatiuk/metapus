@@ -19,9 +19,9 @@ import (
 )
 
 func TestFeeBudgetConcurrentReservationsCannotOversubscribe(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	if dsn == "" {
-		t.Fatal("METAPUS_TEST_CRYPTO_DSN is required and must point to a disposable database")
+		t.Fatal("METAPUS_TEST_DATABASE_DSN is required and must point to a disposable database")
 	}
 
 	ctx := context.Background()
@@ -112,9 +112,9 @@ func TestFeeBudgetConcurrentReservationsCannotOversubscribe(t *testing.T) {
 }
 
 func TestFeeBudgetRejectsInsufficientUnsignedBalanceWithoutPanic(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	if dsn == "" {
-		t.Fatal("METAPUS_TEST_CRYPTO_DSN is required for integration tests")
+		t.Fatal("METAPUS_TEST_DATABASE_DSN is required for integration tests")
 	}
 
 	ctx := context.Background()
@@ -183,9 +183,9 @@ func TestFeeBudgetRejectsInsufficientUnsignedBalanceWithoutPanic(t *testing.T) {
 }
 
 func TestNativeFundingCreationIsIdempotentUnderConcurrency(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	if dsn == "" {
-		t.Fatal("METAPUS_TEST_CRYPTO_DSN is required for integration tests")
+		t.Fatal("METAPUS_TEST_DATABASE_DSN is required for integration tests")
 	}
 
 	ctx := context.Background()

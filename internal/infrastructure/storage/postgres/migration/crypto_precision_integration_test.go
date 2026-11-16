@@ -14,9 +14,9 @@ import (
 )
 
 func TestCryptoPrecisionIntegration(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	if dsn == "" {
-		t.Fatal("METAPUS_TEST_CRYPTO_DSN is required for integration tests")
+		t.Fatal("METAPUS_TEST_DATABASE_DSN is required for integration tests")
 	}
 
 	_, err := RunAll(dsn)

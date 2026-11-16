@@ -17,9 +17,9 @@ import (
 )
 
 func TestSummaryKeepsDifferentAssetsSeparateAndSharesCountInvoices(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	if dsn == "" {
-		t.Skip("METAPUS_TEST_CRYPTO_DSN is not set")
+		t.Skip("METAPUS_TEST_DATABASE_DSN is not set")
 	}
 	pool, err := pgxpool.New(t.Context(), dsn)
 	require.NoError(t, err)

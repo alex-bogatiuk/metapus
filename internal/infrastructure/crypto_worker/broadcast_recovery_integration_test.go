@@ -141,9 +141,9 @@ func TestSweepRecoveryPreservesBroadcastStateForPostRetry(t *testing.T) {
 
 func cryptoIntegrationTxManager(t *testing.T) (context.Context, *postgres.TxManager, func()) {
 	t.Helper()
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	if dsn == "" {
-		t.Fatal("METAPUS_TEST_CRYPTO_DSN is required for integration tests")
+		t.Fatal("METAPUS_TEST_DATABASE_DSN is required for integration tests")
 	}
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, dsn)

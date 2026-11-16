@@ -29,7 +29,7 @@ func (r fixtureRegistry) GetByID(_ context.Context, id string) (*tenant.Tenant, 
 }
 
 func TestTenantPoolLifecycleConcurrentCreationReferencesAndShutdown(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	require.NotEmpty(t, dsn, "explicit disposable PostgreSQL required")
 	config, err := pgx.ParseConfig(dsn)
 	require.NoError(t, err)

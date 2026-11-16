@@ -21,7 +21,7 @@ import (
 
 func TestExternalOutflowBusyDefersObservationWithoutExhaustingAttempts(t *testing.T) {
 	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture) {
-		pool, err := pgxpool.New(ctx, os.Getenv("METAPUS_TEST_CRYPTO_DSN"))
+		pool, err := pgxpool.New(ctx, os.Getenv("METAPUS_TEST_DATABASE_DSN"))
 		require.NoError(t, err)
 		t.Cleanup(pool.Close)
 		var source, contract string

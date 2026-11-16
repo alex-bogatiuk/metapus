@@ -155,7 +155,7 @@ func financialSnapshot(ctx context.Context, env []string, directory, phase strin
 func integrationEnv(original []string, adminDSN, dsn string) []string {
 	values := map[string]string{
 		"DATABASE_URL":                    dsn,
-		"METAPUS_TEST_CRYPTO_DSN":         dsn,
+		"METAPUS_TEST_DATABASE_DSN":       dsn,
 		"METAPUS_TEST_MIGRATION_DSN":      dsn,
 		"METAPUS_TEST_MARKERS_DSN":        dsn,
 		"METAPUS_TEST_EXCHANGE_RATES_DSN": dsn,

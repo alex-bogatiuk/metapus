@@ -34,7 +34,7 @@ func (h *traceCapturingOutboxHandler) Handle(ctx context.Context, _ *OutboxMessa
 }
 
 func TestRemediationOutboxTracePropagationAndDLQ(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	require.NotEmpty(t, dsn)
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, dsn)

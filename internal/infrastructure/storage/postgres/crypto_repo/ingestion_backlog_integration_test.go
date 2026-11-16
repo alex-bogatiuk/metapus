@@ -15,7 +15,7 @@ import (
 )
 
 func TestIngestionInboxAgeExcludesProcessedHistoryAndNeedsReview(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	require.NotEmpty(t, dsn, "disposable PostgreSQL required")
 	cfg, err := pgxpool.ParseConfig(dsn)
 	require.NoError(t, err)

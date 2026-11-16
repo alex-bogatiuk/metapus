@@ -27,9 +27,9 @@ func (f reliabilityHandler) Handle(ctx context.Context, msg *OutboxMessage) erro
 
 func reliabilityPool(t *testing.T) (context.Context, *pgxpool.Pool) {
 	t.Helper()
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	if dsn == "" {
-		t.Skip("METAPUS_TEST_CRYPTO_DSN is required")
+		t.Skip("METAPUS_TEST_DATABASE_DSN is required")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)

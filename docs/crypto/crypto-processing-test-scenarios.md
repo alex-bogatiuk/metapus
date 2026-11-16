@@ -120,7 +120,7 @@ Pop-Location
 
 ```powershell
 $env:METAPUS_TEST_MIGRATION_DSN = '<disposable-postgres-dsn>'
-$env:METAPUS_TEST_CRYPTO_DSN = $env:METAPUS_TEST_MIGRATION_DSN
+$env:METAPUS_TEST_DATABASE_DSN = $env:METAPUS_TEST_MIGRATION_DSN
 
 go test -tags=integration ./internal/infrastructure/storage/postgres/migration -count=1 -v
 go test -tags=integration ./internal/infrastructure/storage/postgres/crypto_repo -count=1 -v

@@ -19,7 +19,7 @@ import (
 )
 
 func TestCELSQLMatchesGoPolicyEngineBeforeAggregation(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	require.NotEmpty(t, dsn)
 	pool, err := pgxpool.New(context.Background(), dsn)
 	require.NoError(t, err)

@@ -18,7 +18,7 @@ func TestIntegrationRunnerRequiresExplicitCluster(t *testing.T) {
 func TestIntegrationEnvironmentCannotReuseInputDatabase(t *testing.T) {
 	want := map[string]string{
 		"DATABASE_URL":                    "postgres://admin/generated_database",
-		"METAPUS_TEST_CRYPTO_DSN":         "postgres://admin/generated_database",
+		"METAPUS_TEST_DATABASE_DSN":       "postgres://admin/generated_database",
 		"METAPUS_TEST_MIGRATION_DSN":      "postgres://admin/generated_database",
 		"METAPUS_TEST_MARKERS_DSN":        "postgres://admin/generated_database",
 		"METAPUS_TEST_EXCHANGE_RATES_DSN": "postgres://admin/generated_database",

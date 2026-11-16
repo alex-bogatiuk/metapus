@@ -31,9 +31,9 @@ import (
 )
 
 func TestExternalOutflowCreatesOneIncidentAndFailClosedHolds(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	if dsn == "" {
-		t.Fatal("METAPUS_TEST_CRYPTO_DSN is required for integration tests")
+		t.Fatal("METAPUS_TEST_DATABASE_DSN is required for integration tests")
 	}
 
 	ctx := context.Background()
@@ -137,9 +137,9 @@ func TestExternalOutflowCreatesOneIncidentAndFailClosedHolds(t *testing.T) {
 func TestConcurrentExternalOutflowWorkflowCreatesOneAdjustmentAndSelectiveResolution(t *testing.T) {
 	for _, internalV2 := range []bool{false, true} {
 		t.Run(fmt.Sprintf("internal_v2_%t", internalV2), func(t *testing.T) {
-			dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+			dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 			if dsn == "" {
-				t.Fatal("METAPUS_TEST_CRYPTO_DSN is required for integration tests")
+				t.Fatal("METAPUS_TEST_DATABASE_DSN is required for integration tests")
 			}
 
 			ctx := context.Background()

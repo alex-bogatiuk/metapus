@@ -23,7 +23,7 @@ import (
 
 func TestTRONBlockCaptureAtomicFenceProofAndTargetRegistration(t *testing.T) {
 	version := crypto.TRONTransferEvidenceSchema
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	require.NotEmpty(t, dsn)
 	pool, err := pgxpool.New(t.Context(), dsn)
 	require.NoError(t, err)
@@ -167,7 +167,7 @@ func TestTRONBlockCaptureAtomicFenceProofAndTargetRegistration(t *testing.T) {
 }
 
 func TestTRONShadowStoresAuditWithoutFinancialInboxOrEvidence(t *testing.T) {
-	pool, err := pgxpool.New(t.Context(), os.Getenv("METAPUS_TEST_CRYPTO_DSN"))
+	pool, err := pgxpool.New(t.Context(), os.Getenv("METAPUS_TEST_DATABASE_DSN"))
 	require.NoError(t, err)
 	defer pool.Close()
 	ctx := tenant.WithTxManager(t.Context(), postgres.NewTxManagerFromRawPool(pool))

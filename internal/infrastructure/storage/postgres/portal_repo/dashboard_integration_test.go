@@ -21,9 +21,9 @@ import (
 )
 
 func TestPortalTransactionItemsIncludeExplorerURLTemplate(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	if dsn == "" {
-		t.Fatal("METAPUS_TEST_CRYPTO_DSN is required for integration tests")
+		t.Fatal("METAPUS_TEST_DATABASE_DSN is required for integration tests")
 	}
 
 	ctx := context.Background()
@@ -118,9 +118,9 @@ func TestPortalTransactionItemsIncludeExplorerURLTemplate(t *testing.T) {
 }
 
 func TestGetCurrenciesIncludesActiveTokensWithoutInvoiceHistory(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	if dsn == "" {
-		t.Fatal("METAPUS_TEST_CRYPTO_DSN is required for integration tests")
+		t.Fatal("METAPUS_TEST_DATABASE_DSN is required for integration tests")
 	}
 
 	ctx := context.Background()

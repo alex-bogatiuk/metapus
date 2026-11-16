@@ -25,7 +25,7 @@ import (
 // parts: every declared part has its table, a mandatory document_id with a
 // single-column FK to the header id, and no other table uses the separator.
 func TestDeclaredTablePartsMatchSchema(t *testing.T) {
-	dsn := os.Getenv("METAPUS_TEST_CRYPTO_DSN")
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	require.NotEmpty(t, dsn, "a migrated disposable database is required")
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, dsn)

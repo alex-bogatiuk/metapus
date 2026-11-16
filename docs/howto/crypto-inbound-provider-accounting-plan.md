@@ -131,13 +131,13 @@
 
 ## 5. Как проверять
 
-Интеграционные тесты создают отдельную БД на каждый тест через `METAPUS_TEST_ADMIN_DSN`. Для части тестов нужна уже размеченная БД в `METAPUS_TEST_CRYPTO_DSN`.
+Интеграционные тесты создают отдельную БД на каждый тест через `METAPUS_TEST_ADMIN_DSN`. Для части тестов нужна уже размеченная БД в `METAPUS_TEST_DATABASE_DSN`.
 
 ```bash
 go build ./...
 go test -short -race ./...
 export METAPUS_TEST_ADMIN_DSN='postgres://postgres@localhost:5432/postgres?sslmode=disable'
-export METAPUS_TEST_CRYPTO_DSN='<disposable db, migrated>' METAPUS_TEST_MIGRATION_DSN="$METAPUS_TEST_CRYPTO_DSN"
+export METAPUS_TEST_DATABASE_DSN='<disposable db, migrated>' METAPUS_TEST_MIGRATION_DSN="$METAPUS_TEST_DATABASE_DSN"
 go test -tags=integration -race ./internal/infrastructure/storage/postgres/crypto_repo -count=1 -timeout 30m
 go test -tags=integration -race ./internal/infrastructure/crypto_worker ./internal/infrastructure/blockchain/funding ./internal/infrastructure/blockchain/evm/funding ./internal/infrastructure/storage/postgres/migration -count=1
 ```
