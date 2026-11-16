@@ -4,6 +4,7 @@ package crypto_integration_repo
 
 import (
 	"io"
+	"metapus/internal/domain/crypto/cryptointegrations"
 	"net/http"
 	"strings"
 	"testing"
@@ -27,12 +28,14 @@ func TestRPCBindingPicksUpTenantChangesWithoutRestart(t *testing.T) {
 	var accounts []*model.Account
 	for _, code := range []string{"A", "B"} {
 		a := model.NewAccount(code, code)
+		a.Provider = cryptointegrations.Alchemy
 		a.PendingCredentials = &model.Credentials{Keys: []model.NamedKey{{Name: "default", Value: "key-" + code}}}
-		require.NoError(t, ar.Prepare(ctx, a))
+		require.NoError(t, ar.Prepare(ctx, a, appDefinition(a.Provider)))
 		require.NoError(t, ar.Create(ctx, a))
 		accounts = append(accounts, a)
 	}
 	pool := model.NewPool("ALCHEMY", "Alchemy")
+	pool.Provider = cryptointegrations.Alchemy
 	pool.AccountIDs = []id.ID{accounts[0].ID, accounts[1].ID}
 	require.NoError(t, pr.Create(ctx, pool))
 	var networkID id.ID
@@ -71,13 +74,13 @@ func TestRPCBindingPicksUpTenantChangesWithoutRestart(t *testing.T) {
 	read(monitor)
 	require.Equal(t, "/v2/key-B", observed[len(observed)-1])
 	accounts[1].PendingCredentials = &model.Credentials{Keys: []model.NamedKey{{Name: "default", Value: "replacement-B"}}}
-	require.NoError(t, ar.Prepare(ctx, accounts[1]))
+	require.NoError(t, ar.Prepare(ctx, accounts[1], appDefinition(accounts[1].Provider)))
 	require.NoError(t, ar.Update(ctx, accounts[1]))
 	now = now.Add(11 * time.Second)
 	read(worker)
 	read(monitor)
 	require.Equal(t, "/v2/replacement-B", observed[len(observed)-1])
-	state, err := integration_repo.NewRuntime().Status(ctx, pool.ID)
+	state, err := integration_repo.NewRuntime(cryptointegrations.Catalog()).Status(ctx, pool.ID)
 	require.NoError(t, err)
 	require.Len(t, state.Accounts, 2)
 	require.Equal(t, accounts[1].ID.String(), *state.AccountID)

@@ -5,17 +5,12 @@ import (
 	"time"
 )
 
-func (a *Account) ManualPeriod() bool {
-	definition, _ := a.Provider.Definition()
-	return definition.QuotaPolicy == QuotaManual
-}
-
 // Expired fails closed for an incomplete manual period. It never advances a date.
-func (a *Account) Expired(now time.Time) bool {
-	if !a.ManualPeriod() {
+func (a *Account) Expired(definition ProviderDefinition, now time.Time) bool {
+	if !definition.ManualPeriod() {
 		return false
 	}
-	start, end, err := a.Period(now, time.UTC)
+	start, end, err := a.Period(definition, now, time.UTC)
 	return err != nil || now.Before(start) || !now.Before(end)
 }
 
@@ -25,8 +20,8 @@ func sameTime(a, b *time.Time) bool {
 
 // PrepareManualPeriod plans an atomic credential replacement without I/O.
 // sameKey compares the current decrypted key, not randomized ciphertext.
-func (a *Account) PrepareManualPeriod(previous *Account, sameKey bool, now time.Time) error {
-	if !a.ManualPeriod() {
+func (a *Account) PrepareManualPeriod(definition ProviderDefinition, previous *Account, sameKey bool, now time.Time) error {
+	if !definition.ManualPeriod() {
 		return nil
 	}
 	if a.CredentialsExpiresAt != nil {

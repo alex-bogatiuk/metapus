@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"metapus/internal/domain/crypto/cryptointegrations"
+	"metapus/internal/infrastructure/crypto/cryptoprofiles"
 	"sort"
 	"strings"
 	"time"
@@ -19,7 +21,6 @@ import (
 	"metapus/internal/domain/crypto/rpcconfig"
 	model "metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
-	"metapus/internal/infrastructure/integrations/profiles"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 )
@@ -95,7 +96,7 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 		if previous, exists := a.keys[b.Slot]; exists && previous != secret {
 			return "", "", fmt.Errorf("conflicting keys for account %s slot %s", b.Name, b.Slot)
 		}
-		definition, _ := a.provider.Definition()
+		definition, _ := cryptointegrations.Catalog().Definition(a.provider)
 		if definition.QuotaPolicy == model.QuotaManual {
 			if b.CredentialsExpiresAt == nil || a.binding.CredentialsExpiresAt == nil || !b.CredentialsExpiresAt.Equal(*a.binding.CredentialsExpiresAt) {
 				return "", "", fmt.Errorf("explicit consistent credential expiry required for manual account %s", b.Name)
@@ -138,7 +139,7 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 		for _, role := range roles {
 			for _, entry := range n.Endpoints(chainconfig.Role(role)) {
 				target := code + "/" + role + "/" + entry.ProviderID
-				provider, baseURL, secret, err := (*profiles.Registry)(nil).ImportRPC(entry.URL, entry.APIKey, role, bindings[target].Slot)
+				provider, baseURL, secret, err := cryptoprofiles.ImportRPC(entry.URL, entry.APIKey, role, bindings[target].Slot)
 				if err != nil {
 					return report, fmt.Errorf("invalid RPC credential mapping for %s: %w", target, err)
 				}
@@ -153,7 +154,7 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 				e.DisableKeepAlives = entry.DisableKeepAlives
 				poolCode := ""
 				if secret != "" {
-					profileSlot := provider.RPCKeyName(model.RPCBinding{Family: family, NetworkIdentifier: networkIdentifier, Role: role, URL: baseURL})
+					profileSlot := rpcconfig.RPCKeyName(provider, rpcconfig.RPCBinding{Family: family, NetworkIdentifier: networkIdentifier, Role: role, URL: baseURL})
 					poolCode, e.Slot, err = add(target, provider, secret, profileSlot)
 					if err != nil {
 						return report, err
@@ -230,7 +231,14 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 			if err = a.Validate(ctx); err != nil {
 				return report, err
 			}
-			if err = ar.Prepare(ctx, a); err != nil {
+			definition, err := cryptointegrations.Catalog().Require(a.Provider)
+			if err != nil {
+				return report, err
+			}
+			if err = a.ValidateFor(definition); err != nil {
+				return report, err
+			}
+			if err = ar.Prepare(ctx, a, definition); err != nil {
 				return report, err
 			}
 			if err = ar.Create(ctx, a); err != nil {
@@ -240,7 +248,7 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 		} else if a.Provider != item.provider || a.ExternalAccountRef != item.binding.ExternalAccountRef {
 			return report, fmt.Errorf("imported account identity conflict")
 		}
-		if a.ManualPeriod() && (item.binding.CredentialsExpiresAt == nil || a.CredentialsExpiresAt == nil || !item.binding.CredentialsExpiresAt.Equal(*a.CredentialsExpiresAt)) {
+		if definition, _ := cryptointegrations.Catalog().Definition(a.Provider); definition.ManualPeriod() && (item.binding.CredentialsExpiresAt == nil || a.CredentialsExpiresAt == nil || !item.binding.CredentialsExpiresAt.Equal(*a.CredentialsExpiresAt)) {
 			return report, fmt.Errorf("existing account period differs from import; renew explicitly")
 		}
 		// Re-import never overwrites a manually replaced key or clears the only copy.

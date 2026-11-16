@@ -6,7 +6,7 @@ import (
 )
 
 func coinGecko() Profile {
-	return Profile{Provider: model.CoinGeckoDemo, Authorize: headerKey("x-cg-demo-api-key", func(host string) bool { return host == "api.coingecko.com" }),
+	return Profile{Provider: model.CoinGeckoDemo, Authorize: HeaderKey("x-cg-demo-api-key", func(host string) bool { return host == "api.coingecko.com" }),
 		Probe: &Probe{Method: "GET", URL: "https://api.coingecko.com/api/v3/ping", Valid: func(body []byte) bool {
 			var v struct {
 				Says string `json:"gecko_says"`
@@ -14,7 +14,7 @@ func coinGecko() Profile {
 			return json.Unmarshal(body, &v) == nil && v.Says != ""
 		}},
 		Classify: func(status int, body []byte) model.Failure {
-			failure := classify(status, body)
+			failure := Classify(status, body)
 			if failure != "" {
 				return failure
 			}

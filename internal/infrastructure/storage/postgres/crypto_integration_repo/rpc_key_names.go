@@ -59,16 +59,16 @@ func loadRPCKeyUsers(ctx context.Context, query string, arg any) ([]rpcconfig.RP
 }
 
 // rpcBindingFor resolves the network contract of an endpoint draft.
-func rpcBindingFor(ctx context.Context, networkID id.ID, role, url, trustGroup, slot string) (integrations.RPCBinding, error) {
+func rpcBindingFor(ctx context.Context, networkID id.ID, role, url, trustGroup, slot string) (rpcconfig.RPCBinding, error) {
 	var family, network string
 	err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `SELECT chain_family,network_identifier FROM cat_blockchain_networks WHERE id=$1 AND NOT deletion_mark`, networkID).Scan(&family, &network)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return integrations.RPCBinding{}, apperror.NewValidation("Выберите действующую сеть")
+		return rpcconfig.RPCBinding{}, apperror.NewValidation("Выберите действующую сеть")
 	}
 	if err != nil {
-		return integrations.RPCBinding{}, fmt.Errorf("read RPC endpoint network: %w", err)
+		return rpcconfig.RPCBinding{}, fmt.Errorf("read RPC endpoint network: %w", err)
 	}
-	return integrations.RPCBinding{Family: family, NetworkIdentifier: network, Role: role, URL: url, TrustGroup: trustGroup, Slot: slot}, nil
+	return rpcconfig.RPCBinding{Family: family, NetworkIdentifier: network, Role: role, URL: url, TrustGroup: trustGroup, Slot: slot}, nil
 }
 
 // RPCKeyOptions describes the key names an endpoint bound to the pool may use.
@@ -87,7 +87,7 @@ func (RPCPoolConsumer) RPCKeyOptions(ctx context.Context, q rpcconfig.RPCKeyQuer
 		if err != nil {
 			return out, err
 		}
-		out.Required = provider.RPCKeyName(b)
+		out.Required = rpcconfig.RPCKeyName(provider, b)
 	}
 	members, err := catalog_repo.PoolMemberIDs(ctx, q.PoolID)
 	if err != nil {

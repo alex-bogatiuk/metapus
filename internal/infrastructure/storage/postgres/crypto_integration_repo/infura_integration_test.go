@@ -4,6 +4,7 @@ package crypto_integration_repo
 
 import (
 	"io"
+	"metapus/internal/domain/crypto/cryptointegrations"
 	"net/http"
 	"strings"
 	"testing"
@@ -23,16 +24,16 @@ func TestInfuraEncryptedKeyBindingAndDailyStatus(t *testing.T) {
 	ar, pr, er := NewIntegrationAccountRepo(), NewIntegrationPoolRepo(), NewCryptoRPCEndpointRepo()
 	secret := "0123456789abcdef0123456789abcdef"
 	a := integrations.NewAccount("INFURA", "Infura Sepolia")
-	a.Provider = integrations.Infura
+	a.Provider = cryptointegrations.Infura
 	a.PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: "sepolia", Value: secret}}}
 	require.NoError(t, a.Validate(ctx))
-	require.NoError(t, ar.Prepare(ctx, a))
+	require.NoError(t, ar.Prepare(ctx, a, appDefinition(a.Provider)))
 	require.NoError(t, ar.Create(ctx, a))
 	var ciphertext []byte
 	require.NoError(t, db.QueryRow(ctx, `SELECT credentials_enc FROM cat_integration_accounts WHERE id=$1`, a.ID).Scan(&ciphertext))
 	require.NotContains(t, string(ciphertext), secret)
 	pool := integrations.NewPool("INFURA", "Infura")
-	pool.Provider, pool.AccountIDs = integrations.Infura, []id.ID{a.ID}
+	pool.Provider, pool.AccountIDs = cryptointegrations.Infura, []id.ID{a.ID}
 	require.NoError(t, pr.Create(ctx, pool))
 	var networkID id.ID
 	require.NoError(t, db.QueryRow(ctx, `SELECT id FROM cat_blockchain_networks WHERE code='ETHEREUM-SEPOLIA'`).Scan(&networkID))
@@ -51,7 +52,7 @@ func TestInfuraEncryptedKeyBindingAndDailyStatus(t *testing.T) {
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 	require.Equal(t, "https://sepolia.infura.io/v3/", req.URL.String())
-	state, err := integration_repo.NewRuntime().Status(ctx, pool.ID)
+	state, err := integration_repo.NewRuntime(cryptointegrations.Catalog()).Status(ctx, pool.ID)
 	require.NoError(t, err)
 	require.Len(t, state.Accounts, 1)
 	require.Equal(t, time.Now().UTC().Truncate(24*time.Hour).Add(24*time.Hour), *state.Accounts[0].NextResetAt)

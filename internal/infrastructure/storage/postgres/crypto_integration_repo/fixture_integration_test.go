@@ -4,6 +4,8 @@ package crypto_integration_repo
 
 import (
 	"context"
+	"metapus/internal/domain/crypto/cryptointegrations"
+	"metapus/internal/domain/integrations"
 	"net/url"
 	"os"
 	"testing"
@@ -49,4 +51,13 @@ func fixtureDB(t *testing.T) (context.Context, *pgxpool.Pool) {
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
 	return tenant.WithTxManager(context.Background(), postgres.NewTxManagerFromRawPool(p)), p
+}
+
+// appDefinition returns a provider's definition from the application catalog.
+func appDefinition(provider integrations.Provider) integrations.ProviderDefinition {
+	definition, err := cryptointegrations.Catalog().Require(provider)
+	if err != nil {
+		panic(err)
+	}
+	return definition
 }

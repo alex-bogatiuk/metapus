@@ -8,8 +8,8 @@ import (
 )
 
 func manualFixture(now time.Time) *Account {
-	a := NewAccount("DRPC", "dRPC")
-	a.Provider = DRPC
+	a := NewAccount("MANUAL", "Manual key")
+	a.Provider = manualFixtureDefinition.ID
 	start, end := now.Add(-time.Hour), now.Add(time.Hour)
 	a.ManualPeriodStartedAt = &start
 	a.CredentialsExpiresAt = &end
@@ -20,17 +20,17 @@ func TestManualPeriodNeverAdvancesOrRecoversAtExpiry(t *testing.T) {
 	now := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
 	a := manualFixture(now)
 	for _, stamp := range []time.Time{now, now.AddDate(0, 1, 0), now.AddDate(1, 0, 0)} {
-		start, end, err := a.Period(stamp, time.UTC)
+		start, end, err := a.Period(manualFixtureDefinition, stamp, time.UTC)
 		require.NoError(t, err)
 		require.Equal(t, *a.ManualPeriodStartedAt, start)
 		require.Equal(t, *a.CredentialsExpiresAt, end)
 	}
-	require.False(t, a.Expired(now))
-	require.False(t, a.Expired(a.CredentialsExpiresAt.Add(-time.Nanosecond)))
-	require.True(t, a.Expired(*a.CredentialsExpiresAt))
-	require.True(t, a.Expired(now.AddDate(0, 1, 0)))
+	require.False(t, a.Expired(manualFixtureDefinition, now))
+	require.False(t, a.Expired(manualFixtureDefinition, a.CredentialsExpiresAt.Add(-time.Nanosecond)))
+	require.True(t, a.Expired(manualFixtureDefinition, *a.CredentialsExpiresAt))
+	require.True(t, a.Expired(manualFixtureDefinition, now.AddDate(0, 1, 0)))
 	a.ManualPeriodStartedAt = nil
-	require.True(t, a.Expired(now))
+	require.True(t, a.Expired(manualFixtureDefinition, now))
 }
 func TestManualRenewalRejectsDateOnlyKeyOnlyAndCurrentKey(t *testing.T) {
 	now := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
@@ -55,7 +55,7 @@ func TestManualRenewalRejectsDateOnlyKeyOnlyAndCurrentKey(t *testing.T) {
 				}
 				a.CredentialsExpiresAt = &date
 			}
-			err := a.PrepareManualPeriod(previous, tc.same, now)
+			err := a.PrepareManualPeriod(manualFixtureDefinition, previous, tc.same, now)
 			if !tc.wantOK {
 				require.Error(t, err)
 				return
@@ -71,22 +71,9 @@ func TestManualRenewalRejectsDateOnlyKeyOnlyAndCurrentKey(t *testing.T) {
 	}
 	a := manualFixture(now)
 	a.PendingCredentials = &Credentials{}
-	require.NoError(t, a.PrepareManualPeriod(previous, false, now))
+	require.NoError(t, a.PrepareManualPeriod(manualFixtureDefinition, previous, false, now))
 	require.EqualValues(t, 1, a.ManualPeriodVersion)
 	expired := manualFixture(now.AddDate(0, -1, 0))
 	require.NoError(t, expired.Validate(context.Background()), "ordinary edits remain possible after expiry")
-}
-func TestDRPCDeclarativeBindingAndSingleKey(t *testing.T) {
-	binding := RPCBinding{Family: "evm", NetworkIdentifier: "11155111", Role: "rpc", URL: "https://lb.drpc.live/sepolia/", TrustGroup: "drpc", Slot: "sepolia"}
-	require.NoError(t, DRPC.ValidateRPCBinding(binding))
-	for _, mutate := range []func(*RPCBinding){func(b *RPCBinding) { b.NetworkIdentifier = "1" }, func(b *RPCBinding) { b.Role = "indexer" }, func(b *RPCBinding) { b.TrustGroup = "second-vote" }, func(b *RPCBinding) { b.URL += "secret" }, func(b *RPCBinding) { b.Slot = "default" }, func(b *RPCBinding) { b.URL = "https://lb.drpc.live.evil.test/sepolia/" }} {
-		bad := binding
-		mutate(&bad)
-		require.Error(t, DRPC.ValidateRPCBinding(bad))
-	}
-	require.Equal(t, "drpc", RPCTrustIdentity(binding.URL, "another", "arbitrary-name"))
-	d, _ := DRPC.Definition()
-	require.NoError(t, d.Credentials.Validate(Credentials{Keys: []NamedKey{{Name: "sepolia", Value: "opaque_123-key"}}}))
-	require.Error(t, d.Credentials.Validate(Credentials{Keys: []NamedKey{{Name: "default", Value: "opaque"}}}))
-	require.Error(t, d.Credentials.Validate(Credentials{Keys: []NamedKey{{Name: "sepolia", Value: "secret/segment"}}}))
+	require.NoError(t, expired.ValidateFor(manualFixtureDefinition))
 }

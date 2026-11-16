@@ -3,6 +3,7 @@ package v1
 
 import (
 	"context"
+	"metapus/internal/domain/integrations"
 	"net/http"
 	"net/netip"
 	"os"
@@ -86,6 +87,10 @@ type RouterConfig struct {
 
 	// RouteModules mount configuration routes after the platform routes.
 	RouteModules []RouteModule
+
+	// IntegrationCatalog lists the integration kinds and providers of the
+	// application. Nil means the platform providers only.
+	IntegrationCatalog *integrations.Catalog
 
 	// IntegrationConnectionTests tests provider connections from the
 	// integrations admin API. Nil disables connection tests.

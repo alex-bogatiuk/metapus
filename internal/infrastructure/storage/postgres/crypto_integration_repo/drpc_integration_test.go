@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/tenant"
+	"metapus/internal/domain/crypto/cryptointegrations"
 	model "metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
 	"metapus/internal/infrastructure/storage/postgres/integration_repo"
@@ -58,22 +59,22 @@ func TestDRPCConcurrentRenewalsAndReportsAcrossPools(t *testing.T) {
 	defer cancel()
 	ar, pr := NewIntegrationAccountRepo(), NewIntegrationPoolRepo()
 	a := model.NewAccount("DRPC-RACE", "Concurrent dRPC")
-	a.Provider = model.DRPC
+	a.Provider = cryptointegrations.DRPC
 	end := time.Now().Add(time.Hour)
 	a.CredentialsExpiresAt = &end
 	a.PendingCredentials = &model.Credentials{Keys: []model.NamedKey{{Name: "sepolia", Value: "original-key"}}}
-	require.NoError(t, ar.Prepare(ctx, a))
+	require.NoError(t, ar.Prepare(ctx, a, appDefinition(a.Provider)))
 	require.NoError(t, ar.Create(ctx, a))
-	r := integration_repo.NewRuntime()
+	r := integration_repo.NewRuntime(cryptointegrations.Catalog())
 	var pools []*model.Pool
 	var old []model.Selection
 	for _, code := range []string{"DRPC-P", "DRPC-Q"} {
 		p := model.NewPool(code, code)
-		p.Provider = model.DRPC
+		p.Provider = cryptointegrations.DRPC
 		p.AccountIDs = append(p.AccountIDs, a.ID)
 		require.NoError(t, pr.Create(ctx, p))
 		pools = append(pools, p)
-		s, err := r.Select(ctx, p.ID, "sepolia", model.DRPC)
+		s, err := r.Select(ctx, p.ID, "sepolia", cryptointegrations.DRPC)
 		require.NoError(t, err)
 		old = append(old, s)
 	}
@@ -96,7 +97,7 @@ func TestDRPCConcurrentRenewalsAndReportsAcrossPools(t *testing.T) {
 			defer wg.Done()
 			<-start
 			err := tenant.MustGetTxManager(ctx).RunInTransaction(ctx, func(tx context.Context) error {
-				if err := ar.Prepare(tx, a); err != nil {
+				if err := ar.Prepare(tx, a, appDefinition(a.Provider)); err != nil {
 					return err
 				}
 				return ar.Update(tx, a)
@@ -121,7 +122,7 @@ func TestDRPCConcurrentRenewalsAndReportsAcrossPools(t *testing.T) {
 		defer wg.Done()
 		<-start
 		for i := range 8 {
-			_, err := r.Select(ctx, pools[i%2].ID, "sepolia", model.DRPC)
+			_, err := r.Select(ctx, pools[i%2].ID, "sepolia", cryptointegrations.DRPC)
 			var unavailable *model.PoolUnavailableError
 			if err != nil && !errors.As(err, &unavailable) {
 				otherErrors <- err
@@ -152,7 +153,7 @@ func TestDRPCConcurrentRenewalsAndReportsAcrossPools(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 2, updated.ManualPeriodVersion)
 	for _, p := range pools {
-		s, err := r.Select(ctx, p.ID, "sepolia", model.DRPC)
+		s, err := r.Select(ctx, p.ID, "sepolia", cryptointegrations.DRPC)
 		require.NoError(t, err)
 		require.EqualValues(t, 2, s.ManualPeriodVersion)
 		require.NotEqual(t, "original-key", s.Key)

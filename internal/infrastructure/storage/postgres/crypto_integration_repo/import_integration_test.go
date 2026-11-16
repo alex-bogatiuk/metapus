@@ -5,6 +5,7 @@ package crypto_integration_repo
 import (
 	"context"
 	"errors"
+	"metapus/internal/domain/crypto/cryptointegrations"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -74,7 +75,7 @@ func TestImportIsAtomicAndRepeatable(t *testing.T) {
 	require.NoError(t, db.QueryRow(ctx, `SELECT integration_pool_id,api_key FROM cat_rate_sources WHERE id=$1`, sourceID).Scan(&poolID, &legacyKey))
 	require.NotNil(t, poolID)
 	require.Nil(t, legacyKey)
-	selected, err := integration_repo.NewRuntime().Select(ctx, *poolID, "default", integrations.CoinGeckoDemo)
+	selected, err := integration_repo.NewRuntime(cryptointegrations.Catalog()).Select(ctx, *poolID, "default", integrations.CoinGeckoDemo)
 	require.NoError(t, err)
 	require.Equal(t, "legacy-cg-key", selected.Key)
 	require.NoError(t, db.QueryRow(ctx, `SELECT count(*) FROM reg_rate_source_mappings WHERE currency_id=$1 AND base_currency_id=$2 AND rate_source_id=$3 AND version=1`, currencyID, baseID, sourceID).Scan(&unchanged))

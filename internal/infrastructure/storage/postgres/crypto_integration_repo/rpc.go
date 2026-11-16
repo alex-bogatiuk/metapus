@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"metapus/internal/domain/crypto/cryptointegrations"
+	"metapus/internal/domain/crypto/rpcconfig"
+	"metapus/internal/infrastructure/crypto/cryptoprofiles"
 	"net/http"
 	"net/url"
 	"os"
@@ -107,7 +110,7 @@ func rpcTransportAt(uid id.ID, originalURL string, now func() time.Time) func(ht
 				return b, fmt.Errorf("invalid RPC endpoint")
 			}
 			if b.Provider != "" {
-				if _, ok := b.Provider.RPCProfileForURL(b.URL); !ok {
+				if _, ok := rpcconfig.RPCProfileForURL(b.Provider, b.URL); !ok {
 					return b, fmt.Errorf("unsupported or invalid RPC profile")
 				}
 			}
@@ -115,9 +118,9 @@ func rpcTransportAt(uid id.ID, originalURL string, now func() time.Time) func(ht
 			checked = now()
 			return b, nil
 		}
-		runtime := integration_repo.NewRuntime()
+		runtime := integration_repo.NewRuntime(cryptointegrations.Catalog())
 		runtime.Now = now
-		return &integrationhttp.Transport{Base: base, Repository: runtime, Target: load, OriginalURL: originalURL, Now: now, Operation: RPCOperation}
+		return &integrationhttp.Transport{Base: base, Repository: runtime, Profiles: cryptoprofiles.Registry(), Target: load, OriginalURL: originalURL, Now: now, Operation: RPCOperation}
 	}
 }
 
@@ -156,7 +159,7 @@ func (r ConnectionTargets) ConnectionTarget(ctx context.Context, poolID id.ID) (
 		return model.ConnectionTarget{}, err
 	}
 	out := model.ConnectionTarget{PoolID: poolID, Provider: pool.Provider}
-	if !pool.Provider.Supports(model.KindRPC) {
+	if !cryptointegrations.Catalog().Supports(pool.Provider, cryptointegrations.KindRPC) {
 		return out, nil
 	}
 	endpoint, err := r.ConnectionEndpoint(ctx, poolID)

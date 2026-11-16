@@ -3,6 +3,7 @@ package v1
 import (
 	"metapus/internal/application/integrationapp"
 	"metapus/internal/core/tenant"
+	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/storage/postgres/integration_repo"
 	"strings"
 
@@ -147,12 +148,16 @@ func registerSystemRoutes(rg, sysGroup, wsGroup *gin.RouterGroup, cfg RouterConf
 	sysGroup.GET("/marked-objects", markedHandler.List)
 	sysGroup.POST("/marked-objects/delete", requireStepUp("system.marked_objects.delete"), markedHandler.Delete)
 
-	integrationRuntime := integration_repo.NewRuntime()
+	integrationCatalog := cfg.IntegrationCatalog
+	if integrationCatalog == nil {
+		integrationCatalog = integrations.PlatformCatalog()
+	}
+	integrationRuntime := integration_repo.NewRuntime(integrationCatalog)
 	var integrationTesters []*integrationapp.ConnectionTestService
 	if cfg.IntegrationConnectionTests != nil {
 		integrationTesters = append(integrationTesters, cfg.IntegrationConnectionTests)
 	}
-	handlers.NewIntegrationHandler(integrationapp.New(integrationRuntime, tenant.ContextTxManager{}, cfg.EventLogRepo), integrationTesters...).RegisterRoutes(sysGroup, requireStepUp("system.integrations.write"))
+	handlers.NewIntegrationHandler(integrationapp.New(integrationRuntime, tenant.ContextTxManager{}, cfg.EventLogRepo), integrationCatalog, integrationTesters...).RegisterRoutes(sysGroup, requireStepUp("system.integrations.write"))
 
 	// Admin Automations: Accounts (replaces old Service Accounts)
 	automationAccountRepo := postgres.NewAutomationAccountRepo()

@@ -1,7 +1,9 @@
-package profiles
+package cryptoprofiles
 
 import (
 	"math/rand/v2"
+	"metapus/internal/domain/crypto/cryptointegrations"
+	"metapus/internal/infrastructure/integrations/profiles"
 	"net/http"
 	"strings"
 	"time"
@@ -11,19 +13,17 @@ import (
 	"metapus/internal/infrastructure/providerpolicy"
 )
 
-var ErrAccessDenied = providerpolicy.ErrAccessDenied
-
-func chainstack() Profile {
-	return Profile{Provider: model.Chainstack, Authorize: pathPrefix(model.Chainstack),
+func chainstack() profiles.Profile {
+	return profiles.Profile{Provider: cryptointegrations.Chainstack, Authorize: pathPrefix(cryptointegrations.Chainstack),
 		Classify: func(status int, body []byte) model.Failure {
-			failure := classify(status, body)
+			failure := profiles.Classify(status, body)
 			if status == http.StatusForbidden && failure == model.Unauthorized {
 				return ""
 			}
 			return failure
 		},
 		RetryAt: func(_ int, headers http.Header, body []byte, now time.Time) time.Time {
-			at := RetryAt(headers.Get("Retry-After"), now)
+			at := profiles.RetryAt(headers.Get("Retry-After"), now)
 			var envelope struct {
 				Error struct {
 					Data struct {
@@ -36,7 +36,7 @@ func chainstack() Profile {
 					at = now.Add(min(delay, 24*time.Hour))
 				}
 			}
-			return minTime(at.Add(time.Duration(rand.IntN(251))*time.Millisecond), now.Add(24*time.Hour))
+			return profiles.MinTime(at.Add(time.Duration(rand.IntN(251))*time.Millisecond), now.Add(24*time.Hour))
 		},
 		ResponseError: func(status int, body []byte) error {
 			if status != http.StatusForbidden {
@@ -51,7 +51,7 @@ func chainstack() Profile {
 			if json.Unmarshal(body, &denied) == nil && denied.Error.Code == -32002 && strings.Contains(strings.ToLower(denied.Error.Message), "archive, debug and trace requests are not available on your current plan") {
 				return providerpolicy.ErrArchiveUnavailable
 			}
-			return ErrAccessDenied
+			return profiles.ErrAccessDenied
 		},
 	}
 }

@@ -206,7 +206,9 @@ func TestFinalCryptoSchemaLivesInOwningMigrations(t *testing.T) {
 func TestMigrationsDeclareFinalSchemaWithoutTransitionalDDL(t *testing.T) {
 	files, err := filepath.Glob(filepath.Join("..", "..", "..", "..", "..", "db", "migrations", "*.sql"))
 	require.NoError(t, err)
-	crossModuleFK := regexp.MustCompile(`^ALTER TABLE \w+ ADD CONSTRAINT \w+ FOREIGN KEY `)
+	// A later domain may only add constraints to an earlier domain's table:
+	// foreign keys to its own tables and checks of its own rules.
+	crossModuleFK := regexp.MustCompile(`^ALTER TABLE \w+ ADD CONSTRAINT \w+ (FOREIGN KEY|CHECK) `)
 	for _, file := range files {
 		up, _, ok := strings.Cut(readMigrationSQL(t, filepath.Base(file)), "-- +goose Down\n")
 		require.True(t, ok, file)

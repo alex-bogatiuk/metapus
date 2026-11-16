@@ -10,7 +10,8 @@ import (
 	model "metapus/internal/domain/integrations"
 )
 
-func classify(status int, body []byte) model.Failure {
+// Classify is the default classification of a failed provider response.
+func Classify(status int, body []byte) model.Failure {
 	var envelope struct {
 		Error     json.RawMessage `json:"error"`
 		TronError json.RawMessage `json:"Error"`
@@ -41,12 +42,13 @@ func RetryAt(value string, now time.Time) time.Time {
 		return now.Add(time.Duration(min(n, 86400)) * time.Second)
 	}
 	if at, err := http.ParseTime(value); err == nil && at.After(now) {
-		return minTime(at, now.Add(24*time.Hour))
+		return MinTime(at, now.Add(24*time.Hour))
 	}
 	return now.Add(5 * time.Second)
 }
 
-func minTime(a, b time.Time) time.Time {
+// MinTime returns the earlier time.
+func MinTime(a, b time.Time) time.Time {
 	if a.Before(b) {
 		return a
 	}

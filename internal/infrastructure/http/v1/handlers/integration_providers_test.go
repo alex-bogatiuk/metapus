@@ -10,6 +10,7 @@ import (
 
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/json"
+	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/http/v1/middleware"
 )
@@ -37,7 +38,7 @@ func TestIntegrationProvidersUsesExistingCatalogPermissions(t *testing.T) {
 				c.Next()
 			})
 			guardCalled := false
-			NewIntegrationHandler(nil).RegisterRoutes(router.Group("/system"), func(c *gin.Context) { guardCalled = true; c.Next() })
+			NewIntegrationHandler(nil, integrations.PlatformCatalog()).RegisterRoutes(router.Group("/system"), func(c *gin.Context) { guardCalled = true; c.Next() })
 			response := httptest.NewRecorder()
 			router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/system/integrations/providers", nil))
 			require.Equal(t, tc.status, response.Code, response.Body.String())
@@ -45,8 +46,8 @@ func TestIntegrationProvidersUsesExistingCatalogPermissions(t *testing.T) {
 			if tc.status == http.StatusOK {
 				var body dto.IntegrationProvidersResponse
 				require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
-				require.NotEmpty(t, body.Kinds)
-				require.NotEmpty(t, body.Providers)
+				require.Len(t, body.Kinds, len(integrations.PlatformKinds()))
+				require.Equal(t, integrations.CoinGeckoDemo, body.Providers[0].ID, "the handler lists the catalog it was given")
 			}
 		})
 	}

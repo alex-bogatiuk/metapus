@@ -13,6 +13,7 @@ import (
 
 	"metapus/internal/core/id"
 	model "metapus/internal/domain/integrations"
+	"metapus/internal/infrastructure/integrations/profiles"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -48,6 +49,26 @@ func (r *memoryAccounts) Report(_ context.Context, _ model.Selection, f model.Fa
 func response(r *http.Request, status int, body string) *http.Response {
 	return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}
 }
+
+// fixtureProfiles stand in for a configuration's providers: fixture_suffix
+// appends the key to the path, fixture_pins pins pagination like a cursor API.
+var fixtureProfiles = func() *profiles.Registry {
+	r, err := profiles.New(append(profiles.Platform(),
+		profiles.Profile{Provider: "fixture_suffix", Authorize: func(r *http.Request, key string) error {
+			r.URL.Path, r.URL.RawPath = strings.TrimRight(r.URL.Path, "/")+"/"+key, ""
+			return nil
+		}},
+		profiles.Profile{Provider: "fixture_pins", PinsPagination: true, Authorize: func(r *http.Request, key string) error {
+			r.Header.Set("X-Fixture-Key", key)
+			return nil
+		}},
+	)...)
+	if err != nil {
+		panic(err)
+	}
+	return r
+}()
+
 func fixture() *memoryAccounts {
 	pid := id.New()
 	return &memoryAccounts{selections: []model.Selection{{PoolID: pid, AccountID: id.New(), CredentialsVersion: 1, Slot: "default", Key: "key-a"}, {PoolID: pid, AccountID: id.New(), CredentialsVersion: 1, Slot: "default", Key: "key-b"}}}
@@ -78,9 +99,9 @@ func TestTransportRotatesPermanentKeysAndReplaysIdenticalBody(t *testing.T) {
 func TestTransportPollsWithoutPersistingKeysInRequest(t *testing.T) {
 	repo := fixture()
 	now := time.Now().UTC()
-	tr := &Transport{Repository: repo, PoolID: repo.selections[0].PoolID, Provider: model.Alchemy, Now: func() time.Time { return now }, Base: roundTripFunc(func(r *http.Request) (*http.Response, error) { return response(r, 200, `{"result":"ok"}`), nil })}
+	tr := &Transport{Profiles: fixtureProfiles, Repository: repo, PoolID: repo.selections[0].PoolID, Provider: "fixture_suffix", Now: func() time.Time { return now }, Base: roundTripFunc(func(r *http.Request) (*http.Response, error) { return response(r, 200, `{"result":"ok"}`), nil })}
 	for i := 0; i < 2; i++ {
-		req, _ := http.NewRequest(http.MethodGet, "https://eth-sepolia.g.alchemy.com/v2/", nil)
+		req, _ := http.NewRequest(http.MethodGet, "https://fixture.test/v2/", nil)
 		resp, err := tr.RoundTrip(req)
 		require.NoError(t, err)
 		_ = resp.Body.Close()
@@ -88,7 +109,7 @@ func TestTransportPollsWithoutPersistingKeysInRequest(t *testing.T) {
 	}
 	require.Equal(t, 1, repo.calls)
 	now = now.Add(11 * time.Second)
-	req, _ := http.NewRequest(http.MethodGet, "https://eth-sepolia.g.alchemy.com/v2/", nil)
+	req, _ := http.NewRequest(http.MethodGet, "https://fixture.test/v2/", nil)
 	resp, err := tr.RoundTrip(req)
 	require.NoError(t, err)
 	_ = resp.Body.Close()
@@ -108,16 +129,16 @@ func TestClassificationDoesNotTreatEvery429AsMonthlyExhaustion(t *testing.T) {
 		{"ordinary data", 200, `{"data":{"name":"monthly quota report"}}`, ""},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) { require.Equal(t, tt.want, Classify(model.Alchemy, tt.status, []byte(tt.body))) })
+		t.Run(tt.name, func(t *testing.T) { require.Equal(t, tt.want, profiles.Classify(tt.status, []byte(tt.body))) })
 	}
 }
 func TestPaginationFingerprintCannotMoveToAnotherAccount(t *testing.T) {
 	repo := fixture()
 	var cursor string
-	tr := &Transport{Repository: repo, PoolID: repo.selections[0].PoolID, Provider: model.TronAPI, Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+	tr := &Transport{Profiles: fixtureProfiles, Repository: repo, PoolID: repo.selections[0].PoolID, Provider: "fixture_pins", Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		return response(r, 200, `{"data":[],"meta":{"fingerprint":"upstream-cursor"}}`), nil
 	})}
-	req, _ := http.NewRequest(http.MethodGet, "https://nile.trongrid.io/v1/accounts/test/transactions", nil)
+	req, _ := http.NewRequest(http.MethodGet, "https://fixture.test/v1/accounts/test/transactions", nil)
 	resp, err := tr.RoundTrip(req)
 	require.NoError(t, err)
 	raw, err := io.ReadAll(resp.Body)
@@ -130,15 +151,17 @@ func TestPaginationFingerprintCannotMoveToAnotherAccount(t *testing.T) {
 
 	repo.current = 1
 	tr.forget()
-	req, _ = http.NewRequest(http.MethodGet, "https://nile.trongrid.io/v1/accounts/test/transactions?fingerprint="+cursor, nil)
+	req, _ = http.NewRequest(http.MethodGet, "https://fixture.test/v1/accounts/test/transactions?fingerprint="+cursor, nil)
 	_, err = tr.RoundTrip(req)
 	require.ErrorIs(t, err, ErrAccountChanged)
 }
 
 func TestProviderQuotaClassificationAndRetryBounds(t *testing.T) {
-	require.Equal(t, model.Unauthorized, Classify(model.CoinGeckoDemo, 200, []byte(`{"status":{"error_code": 10010}}`)))
-	require.Equal(t, model.Exhausted, Classify(model.Alchemy, 403, []byte(`{"error":"Monthly capacity limit exceeded"}`)))
-	require.Equal(t, model.Throttled, Classify(model.Alchemy, 429, []byte(`{"error":"Account includes monthly capacity; reduce requests per second"}`)))
+	coinGecko, ok := (*profiles.Registry)(nil).Lookup(model.CoinGeckoDemo)
+	require.True(t, ok, "a nil registry serves the platform profiles")
+	require.Equal(t, model.Unauthorized, coinGecko.Failure(200, []byte(`{"status":{"error_code": 10010}}`)))
+	require.Equal(t, model.Exhausted, profiles.Classify(403, []byte(`{"error":"Monthly capacity limit exceeded"}`)))
+	require.Equal(t, model.Throttled, profiles.Classify(429, []byte(`{"error":"Account includes monthly capacity; reduce requests per second"}`)))
 	now := time.Now()
 	require.Equal(t, now.Add(24*time.Hour), retryAt("9223372036854775807", now))
 }

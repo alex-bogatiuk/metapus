@@ -17,9 +17,18 @@ import (
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 )
 
-type Runtime struct{ Now func() time.Time }
+// Runtime selects pool accounts under the provider rules of its catalog.
+type Runtime struct {
+	Now     func() time.Time
+	catalog *integrations.Catalog
+}
 
-func NewRuntime() *Runtime { return &Runtime{Now: func() time.Time { return time.Now().UTC() }} }
+func NewRuntime(catalog *integrations.Catalog) *Runtime {
+	if catalog == nil {
+		panic("integration_repo.NewRuntime: catalog is required")
+	}
+	return &Runtime{Now: func() time.Time { return time.Now().UTC() }, catalog: catalog}
+}
 
 type candidate struct {
 	account                     integrations.Account
@@ -31,15 +40,19 @@ type candidate struct {
 }
 
 func (r *Runtime) Select(ctx context.Context, poolID id.ID, slot string, provider integrations.Provider) (integrations.Selection, error) {
-	if provider.Supports(integrations.KindAML) {
-		return integrations.Selection{}, apperror.NewValidation("AML использует отдельный пакет и закреплённый аккаунт")
+	definition, err := r.catalog.Require(provider)
+	if err != nil {
+		return integrations.Selection{}, err
+	}
+	if definition.PoolSelectionDenied != "" {
+		return integrations.Selection{}, apperror.NewValidation(definition.PoolSelectionDenied)
 	}
 	if slot == "" {
 		slot = "default"
 	}
 	var out integrations.Selection
 	tm := postgres.MustGetTxManager(ctx)
-	err := tm.RunInTransaction(ctx, func(ctx context.Context) error {
+	err = tm.RunInTransaction(ctx, func(ctx context.Context) error {
 		q := tm.GetQuerier(ctx)
 		var actual integrations.Provider
 		var poolVersion int
@@ -107,8 +120,8 @@ func (r *Runtime) Select(ctx context.Context, poolID id.ID, slot string, provide
 		for n := 0; n < len(candidates); n++ {
 			c := candidates[(start+n)%len(candidates)]
 			a := c.account
-			if a.ManualPeriod() {
-				if a.Expired(now) {
+			if definition.ManualPeriod() {
+				if a.Expired(definition, now) {
 					expiredCount++
 					continue
 				}
@@ -118,9 +131,9 @@ func (r *Runtime) Select(ctx context.Context, poolID id.ID, slot string, provide
 					c.invalidSlots = nil
 				}
 			}
-			if c.exhausted != nil && (a.ManualPeriod() || now.Before(*c.exhausted)) {
+			if c.exhausted != nil && (definition.ManualPeriod() || now.Before(*c.exhausted)) {
 				exhaustedCount++
-				if !a.ManualPeriod() {
+				if !definition.ManualPeriod() {
 					noteRetry(*c.exhausted)
 				}
 				continue
@@ -144,7 +157,7 @@ func (r *Runtime) Select(ctx context.Context, poolID id.ID, slot string, provide
 			if invalid {
 				continue
 			}
-			begin, end, err := quotaPeriod(&a, now)
+			begin, end, err := quotaPeriod(definition, &a, now)
 			if err != nil {
 				return err
 			}
@@ -187,7 +200,7 @@ func (r *Runtime) Select(ctx context.Context, poolID id.ID, slot string, provide
 					return err
 				}
 			}
-			out = integrations.Selection{PoolID: poolID, AccountID: a.ID, AccountName: a.Name, Provider: provider, PoolVersion: poolVersion, AccountVersion: a.Version, CredentialsVersion: a.CredentialsVersion, SelectionVersion: selectionVersion, PeriodStart: begin, PeriodEnd: end, Slot: slot, Key: secret, Recovery: c.exhausted != nil && !a.ManualPeriod(), CredentialsExpiresAt: a.CredentialsExpiresAt, ManualPeriodVersion: a.ManualPeriodVersion}
+			out = integrations.Selection{PoolID: poolID, AccountID: a.ID, AccountName: a.Name, Provider: provider, PoolVersion: poolVersion, AccountVersion: a.Version, CredentialsVersion: a.CredentialsVersion, SelectionVersion: selectionVersion, PeriodStart: begin, PeriodEnd: end, Slot: slot, Key: secret, Recovery: c.exhausted != nil && !definition.ManualPeriod(), CredentialsExpiresAt: a.CredentialsExpiresAt, ManualPeriodVersion: a.ManualPeriodVersion}
 			return nil
 		}
 		if len(candidates) > 0 && expiredCount == len(candidates) {

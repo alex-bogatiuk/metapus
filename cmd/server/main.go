@@ -7,6 +7,8 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"fmt"
+	"metapus/internal/domain/crypto/cryptointegrations"
+	"metapus/internal/infrastructure/crypto/cryptoprofiles"
 	"net/http"
 	"net/netip"
 	"os"
@@ -356,7 +358,8 @@ func main() {
 		Version:                    Version,
 		BuildTime:                  BuildTime,
 		WSTicketStore:              wsTicketStore,
-		IntegrationConnectionTests: integrationapp.NewConnectionTestService(crypto_integration_repo.NewConnectionTargets(), integrationhttp.ConnectionProber{Accounts: integration_repo.NewRuntime(), EndpointProbe: crypto_integration_repo.RPCProbe, EndpointTransport: crypto_integration_repo.RPCTransport}),
+		IntegrationConnectionTests: integrationapp.NewConnectionTestService(crypto_integration_repo.NewConnectionTargets(), integrationhttp.ConnectionProber{Accounts: integration_repo.NewRuntime(cryptointegrations.Catalog()), Profiles: cryptoprofiles.Registry(), EndpointProbe: crypto_integration_repo.RPCProbe, EndpointTransport: crypto_integration_repo.RPCTransport}),
+		IntegrationCatalog:         cryptointegrations.Catalog(),
 		RouteModules: []v1.RouteModule{cryptohttp.New(cryptohttp.Config{
 			CheckoutRefs:                 checkoutRefs,
 			MoneyMovementApprovalSigners: approvalSignerProvider,

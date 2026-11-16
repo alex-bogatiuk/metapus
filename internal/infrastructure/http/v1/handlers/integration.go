@@ -8,6 +8,7 @@ import (
 	"metapus/internal/application/integrationapp"
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
+	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/http/v1/middleware"
 )
@@ -15,11 +16,12 @@ import (
 type IntegrationHandler struct {
 	*BaseHandler
 	service *integrationapp.Service
+	catalog *integrations.Catalog
 	tester  *integrationapp.ConnectionTestService
 }
 
-func NewIntegrationHandler(service *integrationapp.Service, testers ...*integrationapp.ConnectionTestService) *IntegrationHandler {
-	h := &IntegrationHandler{BaseHandler: NewBaseHandler(), service: service}
+func NewIntegrationHandler(service *integrationapp.Service, catalog *integrations.Catalog, testers ...*integrationapp.ConnectionTestService) *IntegrationHandler {
+	h := &IntegrationHandler{BaseHandler: NewBaseHandler(), service: service, catalog: catalog}
 	if len(testers) > 0 {
 		h.tester = testers[0]
 	}
@@ -34,7 +36,7 @@ func (h *IntegrationHandler) RegisterRoutes(group *gin.RouterGroup, guard gin.Ha
 }
 
 func (h *IntegrationHandler) Providers(c *gin.Context) {
-	h.OK(c, dto.IntegrationProviders())
+	h.OK(c, dto.IntegrationProviders(h.catalog))
 }
 func (h *IntegrationHandler) poolID(c *gin.Context) (id.ID, bool) {
 	uid, err := id.Parse(c.Param("id"))

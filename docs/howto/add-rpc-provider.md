@@ -1,6 +1,6 @@
 # Добавление RPC-провайдера
 
-> **TL;DR:** Провайдер добавляется описанием поддерживаемых привязок в domain, HTTP-профилем и явной регистрацией. Выбор аккаунтов, квоты, retry, EVM/TRON pools, HTTP handlers и формы остаются общими.
+> **TL;DR:** RPC-провайдер — часть конфигурации: описание в каталоге `cryptointegrations`, профиль привязок в `rpcconfig`, HTTP-профиль в `cryptoprofiles` и строка в списке провайдеров миграции `00006`. Выбор аккаунтов, квоты, retry, EVM/TRON pools, HTTP handlers и формы остаются общими.
 > **Тип:** How-To
 > **Аудитория:** Developer, AI-Agent
 > **Связанные:** [Аккаунты интеграций](../operations/integration-accounts.md), [RPC ingestion](../operations/rpc-ingestion.md)
@@ -9,8 +9,11 @@
 
 | Часть | Ответственность |
 |---|---|
-| `domain/integrations.ProviderDefinition` | Назначения, формат и состав credentials, политика квоты, допустимые сети/роли/адреса, оператор и минимальный интервал аккаунта |
-| `infrastructure/integrations/profiles` | Подстановка ключа в копию HTTP-запроса, особенности ответов, retry hints и импорт старой конфигурации |
+| `domain/integrations.ProviderDefinition`, `Catalog` | Контракт платформы: назначения, формат и состав credentials, политика квоты, минимальный интервал аккаунта; неизменяемый каталог приложения, который передаётся сервисам, выбору аккаунтов и HTTP явно |
+| `domain/crypto/cryptointegrations` | Провайдеры и назначения конфигурации (`rpc`, `aml_kyt`, `blockchain_resources`) и `Catalog()` — каталог приложения |
+| `domain/crypto/rpcconfig` (`profiles.go`) | Допустимые сети, роли и адреса RPC-операторов, managed-only, имя ключа и группа доверия |
+| `infrastructure/integrations/profiles` | Реестр профилей платформы (`Registry`, CoinGecko) и общие помощники: `Classify`, `RetryAt`, `HeaderKey`, `ClearAuthorization` |
+| `infrastructure/crypto/cryptoprofiles` | HTTP-профили RPC-операторов, `Registry()` приложения и `ImportRPC` |
 | `infrastructure/integrations.Transport` | Выбор аккаунта, ограничение попыток, pacing, отчёт о квоте/credentials, сохранение тела запроса |
 | `application/integrationapp` | Сценарий проверки подключения пула (`ConnectionTestService`) |
 | `application/cryptoapp.RPCConfigurationService` | Транзакционный сценарий изменения RPC-конфигурации сети |
@@ -23,25 +26,28 @@
 
 ## 2. Объявить поддерживаемый контракт
 
-Добавить стабильный `Provider` в `internal/domain/integrations/model.go` и описание в `providers.go`:
+Добавить стабильный `Provider` и описание в `internal/domain/crypto/cryptointegrations/catalog.go` (`Providers()`, место в `providerOrder`) и тот же идентификатор в оба `ck_integration_*_provider` миграции `00006_crypto_core.sql`; тест каталога сверяет их. В описании:
 
-- `Kinds: []Kind{KindRPC}`, `CanCreate`, подписи и политику квоты;
-- `RPCProfiles`: family, network identifier, роли, точный host либо проверенный suffix, базовый путь без секрета и trust group;
-- `ManagedRPCOnly`, если доступ должен использовать пул аккаунтов;
+- `Kinds: []integrations.Kind{KindRPC}`, `CanCreate`, подписи и политику квоты;
 - `AccountMinRequestIntervalMS`, если все привязки аккаунта должны использовать общий pacer;
 - `Credentials.KeyFormat`: существующий `hex32`, `url_safe`, `bearer` либо обычный непрозрачный ключ;
 - фиксированные credential fields, `RequireFields`, `SingleKey`, `KeyOnly` при необходимости;
 - `Credentials.URLImports`, если UI может извлекать ключ из строго проверенной ссылки. URL не посещается и не сохраняется.
 
-Пустой `NetworkIdentifier` разрешает любую сеть указанного family; конкретный identifier ограничивает профиль одной сетью. `SlotByRole` связывает имя ключа с RPC-ролью, например `fullnode`/`solidity`. `KeyName` фиксирует имя ключа профиля, например `sepolia`; пустое значение оставляет выбор оператору среди общих имён ключей аккаунтов пула. Итоговое имя возвращает `Provider.RPCKeyName`; оно совпадает с полем credentials, которое заполняет форма аккаунта.
+В `internal/domain/crypto/rpcconfig/profiles.go` добавить:
 
-`Provider.ValidateRPCBinding` используется каталогом; `RPCProfileForURL` повторно проверяет адрес при загрузке managed binding и при авторизации запроса. Проверки на разных границах используют одну политику. Нельзя заменять их проверкой только в UI.
+- `rpcProfiles`: family, network identifier, роли, точный host либо проверенный suffix, базовый путь без секрета и trust group; провайдер — в `rpcProviderOrder`;
+- `managedRPCOnly`, если доступ должен использовать пул аккаунтов.
+
+Пустой `NetworkIdentifier` разрешает любую сеть указанного family; конкретный identifier ограничивает профиль одной сетью. `SlotByRole` связывает имя ключа с RPC-ролью, например `fullnode`/`solidity`. `KeyName` фиксирует имя ключа профиля, например `sepolia`; пустое значение оставляет выбор оператору среди общих имён ключей аккаунтов пула. Итоговое имя возвращает `rpcconfig.RPCKeyName`; оно совпадает с полем credentials, которое заполняет форма аккаунта.
+
+`rpcconfig.ValidateRPCBinding` используется каталогом; `rpcconfig.RPCProfileForURL` повторно проверяет адрес при загрузке managed binding и при авторизации запроса. Проверки на разных границах используют одну политику. Нельзя заменять их проверкой только в UI.
 
 Группа доверия известного managed RPC выводится из профиля оператора. Пользовательское имя подключения или trust group не должно создавать дополнительный голос. Правила legacy public/file-only операторов сохранены в `RPCTrustIdentity`.
 
 ## 3. Добавить HTTP-профиль
 
-Создать файл в `internal/infrastructure/integrations/profiles/` по аналогии с `infura.go`, `chainstack.go`, `getblock.go` или `tron_api.go`. Для существующего способа авторизации использовать общие `pathSuffix`, `pathPrefix` либо `headerKey`.
+Создать файл в `internal/infrastructure/crypto/cryptoprofiles/` по аналогии с `infura.go`, `chainstack.go`, `getblock.go` или `tron_api.go`. Для существующего способа авторизации использовать `pathSuffix`, `pathPrefix` либо платформенный `profiles.HeaderKey`.
 
 `Profile` содержит только необходимые особенности:
 
@@ -54,13 +60,13 @@
 
 Профиль не выбирает следующий аккаунт, не выполняет собственные HTTP retries, не меняет quota state и не создаёт отдельный RPC pool. В ошибки не включаются ключи, полные credential URL и тела ответов.
 
-Добавить профиль в `newBuiltins()` в `registry.go`. Реестр неизменяемый после создания; `init()` и глобальная регистрация во время запросов не используются. Новый экземпляр registry можно внедрить через `Transport.Profiles` для проверки расширения.
+Добавить профиль в `Profiles()` пакета `cryptoprofiles`; интервал pacing берётся из описания провайдера. Реестр неизменяемый после создания; `init()` и глобальная регистрация не используются. Транспорт и `ConnectionProber` получают `cryptoprofiles.Registry()` явно через `Profiles`; без него (nil) доступны только профили платформы.
 
 ## 4. UI, импорт и проверка подключения
 
 Форма читает credential fields, формат ключа, обязательность набора и правила извлечения URL из `/system/integrations/providers`. Новый провайдер с уже поддерживаемым форматом не требует веток по его имени на frontend. После изменения DTO использовать генератор контрактов; generated-файлы вручную не редактировать.
 
-CLI import вызывает `Registry.ImportRPC`; он определяет провайдера и возвращает только базовый адрес без секрета. Неизвестный адрес допускается только без managed credentials. Для отдельного аккаунта/пула по-прежнему требуется явный mapping.
+CLI import вызывает `cryptoprofiles.ImportRPC`; он определяет провайдера и возвращает только базовый адрес без секрета. Неизвестный адрес допускается только без managed credentials. Для отдельного аккаунта/пула по-прежнему требуется явный mapping.
 
 Проверка RPC-пула требует существующую активную привязку к сети. Она использует UUID этой привязки, family, роль и фактический network identifier. Для EVM проверяется точный chain ID, для TRON — ответ соответствующей FullNode/Solidity роли. Проверка аккаунта без привязки не обращается к произвольно выбранной тестовой сети. Недоступность upstream возвращает безопасный результат проверки.
 
@@ -74,7 +80,7 @@ CLI import вызывает `Registry.ImportRPC`; он определяет пр
 
 ## 6. Проверки
 
-- Тест полноты реестра требует HTTP-профиль для каждого managed RPC provider.
+- Тест полноты реестра требует HTTP-профиль для каждого RPC-провайдера каталога; тест каталога сверяет список провайдеров с миграцией.
 - Негативные тесты проверяют чужой host, несовместимую сеть/роль, credential URL, encoded path, неверный ключ и подмену trust group.
 - Тест transport проверяет сохранение тела, отсутствие секрета в исходном запросе и штатное переключение аккаунтов.
 - Ошибки авторизации, временный throttle, исчерпание квоты и ограничения метода/архива проверяются отдельно.

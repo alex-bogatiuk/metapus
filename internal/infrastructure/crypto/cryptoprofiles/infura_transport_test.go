@@ -1,8 +1,10 @@
-package integrations
+package cryptoprofiles
 
 import (
 	"context"
 	"io"
+	"metapus/internal/domain/crypto/cryptointegrations"
+	integrationhttp "metapus/internal/infrastructure/integrations"
 	"net/http"
 	"strings"
 	"testing"
@@ -31,7 +33,7 @@ func TestInfuraAccountFailoverPreservesRPCAndDoesNotExposeKeys(t *testing.T) {
 			now := time.Date(2026, 10, 22, 23, 59, 55, 0, time.UTC)
 			var paths []string
 			payload := `{"jsonrpc":"2.0","id":37,"method":"eth_getBlockByNumber","params":["0xb46013",true]}`
-			tr := &Transport{PoolID: repo.selections[0].PoolID, Provider: model.Infura, Slot: "sepolia", Repository: repo, Now: func() time.Time { return now }, Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			tr := &integrationhttp.Transport{Profiles: Registry(), PoolID: repo.selections[0].PoolID, Provider: cryptointegrations.Infura, Slot: "sepolia", Repository: repo, Now: func() time.Time { return now }, Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 				paths = append(paths, r.URL.Path)
 				body, err := io.ReadAll(r.Body)
 				require.NoError(t, err)
@@ -64,7 +66,7 @@ func TestInfuraRejectsWrongHostsCredentialURLsAndUnsafeKeys(t *testing.T) {
 	for _, target := range []string{"https://evil.test/v3/", "https://sepolia.infura.io.evil.test/v3/", "https://mainnet.infura.io/v3/", "https://sepolia.infura.io/v3/key", "https://sepolia.infura.io/v3/?", "http://sepolia.infura.io/v3/"} {
 		repo := fixture()
 		repo.selections[0].Key = strings.Repeat("a", 32)
-		tr := &Transport{PoolID: repo.selections[0].PoolID, Provider: model.Infura, Repository: repo, Base: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		tr := &integrationhttp.Transport{Profiles: Registry(), PoolID: repo.selections[0].PoolID, Provider: cryptointegrations.Infura, Repository: repo, Base: roundTripFunc(func(*http.Request) (*http.Response, error) {
 			t.Fatal("unsafe target must not receive credentials")
 			return nil, nil
 		})}
@@ -75,6 +77,6 @@ func TestInfuraRejectsWrongHostsCredentialURLsAndUnsafeKeys(t *testing.T) {
 		require.NotContains(t, err.Error(), target)
 		require.NotContains(t, err.Error(), repo.selections[0].Key)
 	}
-	require.Equal(t, model.Throttled, Classify(model.Infura, 402, []byte(`{"error":{"code":402,"event":-33000}}`)))
-	require.Equal(t, model.Throttled, Classify(model.Infura, 429, nil))
+	require.Equal(t, model.Throttled, classifyFor(cryptointegrations.Infura, 402, []byte(`{"error":{"code":402,"event":-33000}}`)))
+	require.Equal(t, model.Throttled, classifyFor(cryptointegrations.Infura, 429, nil))
 }

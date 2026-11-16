@@ -95,7 +95,7 @@ CREATE TABLE cat_integration_accounts (
     attributes JSONB NOT NULL DEFAULT '{}', _deleted_at TIMESTAMPTZ,
     _txid BIGINT DEFAULT txid_current(), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    provider TEXT NOT NULL CHECK(provider IN ('alchemy','coingecko_demo','tron_api','chainstack','getblock','infura','drpc','telegram','smtp','resource_api','getblock_net','testnet_aml')),
+    provider TEXT NOT NULL CHECK(provider ~ '^[a-z][a-z0-9_]{0,63}$'),
     external_account_ref VARCHAR(255) NOT NULL DEFAULT '', is_active BOOLEAN NOT NULL DEFAULT TRUE,
     reset_day INT NOT NULL DEFAULT 1 CHECK (reset_day BETWEEN 1 AND 31),
     reset_timezone TEXT NOT NULL DEFAULT 'UTC', credentials_enc BYTEA,
@@ -103,10 +103,12 @@ CREATE TABLE cat_integration_accounts (
     credentials_updated_at TIMESTAMPTZ,
     credentials_expires_at TIMESTAMPTZ, manual_period_started_at TIMESTAMPTZ,
     manual_period_version BIGINT NOT NULL DEFAULT 0,
+    -- A manual key period is complete or absent. Which providers use one is
+    -- the configuration's rule (its migration adds the provider checks).
     CONSTRAINT cat_integration_accounts_manual_period_check CHECK (
-      (provider='drpc' AND credentials_expires_at IS NOT NULL AND manual_period_started_at IS NOT NULL
+      (credentials_expires_at IS NOT NULL AND manual_period_started_at IS NOT NULL
        AND manual_period_version>0 AND credentials_expires_at>manual_period_started_at)
-      OR (provider<>'drpc' AND credentials_expires_at IS NULL AND manual_period_started_at IS NULL AND manual_period_version=0)),
+      OR (credentials_expires_at IS NULL AND manual_period_started_at IS NULL AND manual_period_version=0)),
     CHECK (parent_id IS NULL)
 );
 CREATE UNIQUE INDEX uq_integration_accounts_external ON cat_integration_accounts(provider,external_account_ref)
@@ -123,7 +125,7 @@ CREATE TABLE cat_integration_pools (
     attributes JSONB NOT NULL DEFAULT '{}', _deleted_at TIMESTAMPTZ,
     _txid BIGINT DEFAULT txid_current(), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    provider TEXT NOT NULL CHECK(provider IN ('alchemy','coingecko_demo','tron_api','chainstack','getblock','infura','drpc','telegram','smtp','resource_api','getblock_net','testnet_aml')), is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    provider TEXT NOT NULL CHECK(provider ~ '^[a-z][a-z0-9_]{0,63}$'), is_active BOOLEAN NOT NULL DEFAULT TRUE,
     CHECK (parent_id IS NULL)
 );
 CREATE UNIQUE INDEX uq_cat_integration_pools_code ON cat_integration_pools(code) WHERE NOT deletion_mark;

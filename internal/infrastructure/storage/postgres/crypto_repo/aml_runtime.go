@@ -3,6 +3,7 @@ package crypto_repo
 import (
 	"context"
 	"fmt"
+	"metapus/internal/domain/crypto/cryptointegrations"
 
 	"metapus/internal/core/apperror"
 	corecrypto "metapus/internal/core/crypto"
@@ -15,7 +16,7 @@ import (
 
 func (r *AMLRepository) LoadAMLRuntimeConfig(ctx context.Context, job aml.Job) (aml.RuntimeConfig, error) {
 	var cfg aml.RuntimeConfig
-	if (job.Provider != string(integrations.GetBlockNet) && job.Provider != aml.TestnetProvider) || job.RequestDigest != job.Request.Digest(job.MappingVersion) {
+	if (job.Provider != string(cryptointegrations.GetBlockNet) && job.Provider != aml.TestnetProvider) || job.RequestDigest != job.Request.Digest(job.MappingVersion) {
 		return cfg, apperror.NewValidation("invalid pinned AML provider context")
 	}
 	var encrypted []byte
@@ -51,7 +52,7 @@ func (r *AMLRepository) LoadAMLRuntimeConfig(ctx context.Context, job aml.Job) (
 		return cfg, apperror.NewValidation("AML account credentials are unavailable")
 	}
 	bearer, ok := credentials.Key("default")
-	if !ok || len(credentials.Keys) != 1 || credentials.APISecret != "" || credentials.Username != "" || !integrations.ValidGetBlockNetToken(bearer) {
+	if !ok || len(credentials.Keys) != 1 || credentials.APISecret != "" || credentials.Username != "" || !cryptointegrations.ValidGetBlockNetToken(bearer) {
 		return cfg, apperror.NewValidation("AML account requires one bearer token")
 	}
 	cfg.BearerToken = bearer

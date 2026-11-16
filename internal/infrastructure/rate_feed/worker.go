@@ -15,6 +15,9 @@ import (
 	"net/http"
 )
 
+// feedCatalog holds the platform providers; the feed reads only CoinGecko pools.
+var feedCatalog = integrations.PlatformCatalog()
+
 type Worker struct {
 	repo     er.FeedRepository
 	fetcher  *CoinGeckoFetcher
@@ -93,7 +96,7 @@ func (w *Worker) doFetch(ctx context.Context) (int, error) {
 	if cfg.IntegrationPoolID != nil {
 		copyFetcher := *w.fetcher
 		client := *w.fetcher.client
-		client.Transport = &integrationhttp.Transport{Base: client.Transport, Repository: integration_repo.NewRuntime(), PoolID: *cfg.IntegrationPoolID, Provider: integrations.CoinGeckoDemo}
+		client.Transport = &integrationhttp.Transport{Base: client.Transport, Repository: integration_repo.NewRuntime(feedCatalog), PoolID: *cfg.IntegrationPoolID, Provider: integrations.CoinGeckoDemo}
 		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 		copyFetcher.client = &client
 		fetcher = &copyFetcher

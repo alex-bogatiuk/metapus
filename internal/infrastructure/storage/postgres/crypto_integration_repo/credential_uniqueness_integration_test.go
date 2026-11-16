@@ -5,6 +5,7 @@ package crypto_integration_repo
 import (
 	"context"
 	"fmt"
+	"metapus/internal/domain/crypto/cryptointegrations"
 	"net/http"
 	"testing"
 	"time"
@@ -42,15 +43,15 @@ func TestIntegrationAccountUniqueKeysAcrossSlotsAndUpdates(t *testing.T) {
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
 	ctx, db := fixtureDB(t)
 	repo := NewIntegrationAccountRepo()
-	service := integrations.NewAccountService(repo, nil)
+	service := integrations.NewAccountService(repo, nil, cryptointegrations.Catalog())
 	const shared = "private-shared-secondary-key"
-	owner := accountWithKeys("OWNER", integrations.Alchemy,
+	owner := accountWithKeys("OWNER", cryptointegrations.Alchemy,
 		integrations.NamedKey{Name: "default", Value: "private-primary-key"},
 		integrations.NamedKey{Name: "secondary", Value: shared})
 	owner.IsActive = false // Disabling an account must not free its credentials.
 	require.NoError(t, service.Create(ctx, owner))
 
-	duplicate := accountWithKeys("DUPLICATE", integrations.Alchemy,
+	duplicate := accountWithKeys("DUPLICATE", cryptointegrations.Alchemy,
 		integrations.NamedKey{Name: "new", Value: "private-new-key"},
 		integrations.NamedKey{Name: "renamed", Value: shared})
 	duplicate.ExternalAccountRef = "different-external-account"
@@ -72,7 +73,7 @@ func TestIntegrationAccountUniqueKeysAcrossSlotsAndUpdates(t *testing.T) {
 	require.NoError(t, service.Update(ctx, loaded))
 	owner = loaded
 
-	other := accountWithKeys("OTHER", integrations.Alchemy, integrations.NamedKey{Name: "default", Value: "private-other-key"})
+	other := accountWithKeys("OTHER", cryptointegrations.Alchemy, integrations.NamedKey{Name: "default", Value: "private-other-key"})
 	require.NoError(t, service.Create(ctx, other))
 	before, err := repo.GetByID(ctx, other.ID)
 	require.NoError(t, err)
@@ -85,9 +86,9 @@ func TestIntegrationAccountUniqueKeysAcrossSlotsAndUpdates(t *testing.T) {
 	require.Equal(t, before.Version, after.Version)
 
 	// Providers own independent key namespaces; changing provider rechecks them.
-	crossProvider := accountWithKeys("CROSS-PROVIDER", integrations.Chainstack, integrations.NamedKey{Name: "default", Value: shared})
+	crossProvider := accountWithKeys("CROSS-PROVIDER", cryptointegrations.Chainstack, integrations.NamedKey{Name: "default", Value: shared})
 	require.NoError(t, service.Create(ctx, crossProvider))
-	crossProvider.Provider = integrations.Alchemy
+	crossProvider.Provider = cryptointegrations.Alchemy
 	requireCredentialConflict(t, service.Update(ctx, crossProvider), owner, shared)
 }
 
@@ -95,12 +96,12 @@ func TestIntegrationAccountUniqueKeysOnRestoreAndRemoval(t *testing.T) {
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
 	ctx, _ := fixtureDB(t)
 	repo := NewIntegrationAccountRepo()
-	service := integrations.NewAccountService(repo, nil)
+	service := integrations.NewAccountService(repo, nil, cryptointegrations.Catalog())
 	const shared = "private-restored-key"
-	original := accountWithKeys("ORIGINAL", integrations.Alchemy, integrations.NamedKey{Name: "default", Value: shared})
+	original := accountWithKeys("ORIGINAL", cryptointegrations.Alchemy, integrations.NamedKey{Name: "default", Value: shared})
 	require.NoError(t, service.Create(ctx, original))
 	require.NoError(t, service.SetDeletionMark(ctx, original.ID, true))
-	replacement := accountWithKeys("REPLACEMENT", integrations.Alchemy, integrations.NamedKey{Name: "another-slot", Value: shared})
+	replacement := accountWithKeys("REPLACEMENT", cryptointegrations.Alchemy, integrations.NamedKey{Name: "another-slot", Value: shared})
 	require.NoError(t, service.Create(ctx, replacement))
 	requireCredentialConflict(t, service.SetDeletionMark(ctx, original.ID, false), replacement, shared)
 	stored, err := repo.GetByID(ctx, original.ID)
@@ -128,11 +129,11 @@ func TestIntegrationAccountConcurrentDuplicateKeys(t *testing.T) {
 	repo := NewIntegrationAccountRepo()
 	const shared = "private-concurrent-key"
 	accounts := []*integrations.Account{
-		accountWithKeys("FIRST", integrations.Alchemy, integrations.NamedKey{Name: "default", Value: shared}),
-		accountWithKeys("SECOND", integrations.Alchemy, integrations.NamedKey{Name: "different-slot", Value: shared}),
+		accountWithKeys("FIRST", cryptointegrations.Alchemy, integrations.NamedKey{Name: "default", Value: shared}),
+		accountWithKeys("SECOND", cryptointegrations.Alchemy, integrations.NamedKey{Name: "different-slot", Value: shared}),
 	}
 	for _, account := range accounts {
-		require.NoError(t, repo.Prepare(ctx, account))
+		require.NoError(t, repo.Prepare(ctx, account, appDefinition(account.Provider)))
 	}
 	require.NotEqual(t, accounts[0].CredentialsEnc, accounts[1].CredentialsEnc)
 	start := make(chan struct{})
@@ -175,8 +176,8 @@ func TestIntegrationAccountUniqueKeysAreTenantLocal(t *testing.T) {
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
 	for range 2 {
 		ctx, _ := fixtureDB(t)
-		a := accountWithKeys("SAME", integrations.Alchemy, integrations.NamedKey{Name: "default", Value: "same-key-in-isolated-tenants"})
-		require.NoError(t, integrations.NewAccountService(NewIntegrationAccountRepo(), nil).Create(ctx, a))
+		a := accountWithKeys("SAME", cryptointegrations.Alchemy, integrations.NamedKey{Name: "default", Value: "same-key-in-isolated-tenants"})
+		require.NoError(t, integrations.NewAccountService(NewIntegrationAccountRepo(), nil, cryptointegrations.Catalog()).Create(ctx, a))
 	}
 }
 
@@ -184,8 +185,8 @@ func TestIntegrationImportRejectsDuplicateKeys(t *testing.T) {
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
 	ctx, db := fixtureDB(t)
 	const shared = "private-import-key"
-	owner := accountWithKeys("EXISTING", integrations.Alchemy, integrations.NamedKey{Name: "default", Value: shared})
-	require.NoError(t, integrations.NewAccountService(NewIntegrationAccountRepo(), nil).Create(ctx, owner))
+	owner := accountWithKeys("EXISTING", cryptointegrations.Alchemy, integrations.NamedKey{Name: "default", Value: shared})
+	require.NoError(t, integrations.NewAccountService(NewIntegrationAccountRepo(), nil, cryptointegrations.Catalog()).Create(ctx, owner))
 	var code string
 	require.NoError(t, db.QueryRow(ctx, `SELECT code FROM cat_blockchain_networks WHERE chain_family='evm' LIMIT 1`).Scan(&code))
 	cfg := &chainconfig.File{Networks: map[string]chainconfig.Network{

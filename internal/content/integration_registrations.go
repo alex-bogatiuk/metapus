@@ -2,6 +2,7 @@ package content
 
 import (
 	"metapus/internal/domain"
+	"metapus/internal/domain/crypto/cryptointegrations"
 	"metapus/internal/domain/crypto/rpcconfig"
 	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
@@ -14,7 +15,7 @@ import (
 
 func init() {
 	values := make([]metadata.EnumValue, 0)
-	for _, provider := range integrations.ProviderDefinitions() {
+	for _, provider := range cryptointegrations.Catalog().Providers() {
 		values = append(values, metadata.EnumValue{Value: string(provider.ID), Label: provider.Label})
 	}
 	metadata.RegisterEnum[integrations.Provider](values)
@@ -38,7 +39,7 @@ func (*IntegrationAccountRegistration) SensitiveMutationAction() string {
 }
 func (*IntegrationAccountRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 	repo := crypto_integration_repo.NewIntegrationAccountRepo()
-	service := integrations.NewAccountService(repo, deps.Numerator)
+	service := integrations.NewAccountService(repo, deps.Numerator, cryptointegrations.Catalog())
 	service.SetPolicyEngine(deps.PolicyEngine)
 	domain.NewEventLogCatalogService(service, integrations.AccountDefinition.Key, deps.EventWriter)
 	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[*integrations.Account, dto.CreateIntegrationAccountRequest, dto.UpdateIntegrationAccountRequest]{
@@ -66,7 +67,7 @@ func (*IntegrationPoolRegistration) SensitiveMutationAction() string {
 }
 func (*IntegrationPoolRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
 	repo := crypto_integration_repo.NewIntegrationPoolRepo()
-	service := integrations.NewPoolService(repo, deps.Numerator)
+	service := integrations.NewPoolService(repo, deps.Numerator, cryptointegrations.Catalog())
 	service.SetPolicyEngine(deps.PolicyEngine)
 	domain.NewEventLogCatalogService(service, integrations.PoolDefinition.Key, deps.EventWriter)
 	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[*integrations.Pool, dto.CreateIntegrationPoolRequest, dto.UpdateIntegrationPoolRequest]{

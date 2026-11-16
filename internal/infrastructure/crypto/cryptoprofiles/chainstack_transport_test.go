@@ -1,9 +1,11 @@
-package integrations
+package cryptoprofiles
 
 import (
 	"context"
 	"errors"
 	"io"
+	"metapus/internal/domain/crypto/cryptointegrations"
+	integrationhttp "metapus/internal/infrastructure/integrations"
 	"net/http"
 	"strings"
 	"testing"
@@ -23,7 +25,7 @@ func TestChainstackRotatesMoreThanFourAccountsAndPreservesRequest(t *testing.T) 
 		repo.selections = append(repo.selections, model.Selection{PoolID: pid, AccountID: id.New(), Slot: "nile", Key: id.Compact(id.New())})
 	}
 	var paths []string
-	tr := &Transport{PoolID: pid, Provider: model.Chainstack, Slot: "nile", Repository: repo, Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+	tr := &integrationhttp.Transport{Profiles: Registry(), PoolID: pid, Provider: cryptointegrations.Chainstack, Slot: "nile", Repository: repo, Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		paths = append(paths, r.URL.Path)
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
@@ -46,13 +48,13 @@ func TestChainstackRotatesMoreThanFourAccountsAndPreservesRequest(t *testing.T) 
 
 func TestChainstackSharesAccountPacerAcrossBindingsAndHonorsCancellation(t *testing.T) {
 	repo := fixture()
-	makeTransport := func() *Transport {
-		return &Transport{PoolID: repo.selections[0].PoolID, Provider: model.Chainstack, Repository: repo, Base: roundTripFunc(func(r *http.Request) (*http.Response, error) { return response(r, 200, `{}`), nil })}
+	makeTransport := func() *integrationhttp.Transport {
+		return &integrationhttp.Transport{Profiles: Registry(), PoolID: repo.selections[0].PoolID, Provider: cryptointegrations.Chainstack, Repository: repo, Base: roundTripFunc(func(r *http.Request) (*http.Response, error) { return response(r, 200, `{}`), nil })}
 	}
 	first, second := makeTransport(), makeTransport()
 	t.Cleanup(first.CloseIdleConnections)
 	t.Cleanup(second.CloseIdleConnections)
-	read := func(ctx context.Context, tr *Transport) error {
+	read := func(ctx context.Context, tr *integrationhttp.Transport) error {
 		req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://tron-nile.core.chainstack.com/wallet/getnowblock", nil)
 		resp, err := tr.RoundTrip(req)
 		if resp != nil {
@@ -80,7 +82,7 @@ func (unavailableAccounts) Report(context.Context, model.Selection, model.Failur
 
 func TestChainstackPreservesPoolCauseAndRejectsForeignHosts(t *testing.T) {
 	want := &model.PoolUnavailableError{Reason: model.Exhausted, RetryAt: time.Now().Add(time.Hour)}
-	tr := &Transport{PoolID: id.New(), Provider: model.Chainstack, Repository: unavailableAccounts{want}}
+	tr := &integrationhttp.Transport{Profiles: Registry(), PoolID: id.New(), Provider: cryptointegrations.Chainstack, Repository: unavailableAccounts{want}}
 	req, _ := http.NewRequest(http.MethodPost, "https://tron-nile.core.chainstack.com/wallet/getnowblock", nil)
 	_, err := tr.RoundTrip(req)
 	var got *model.PoolUnavailableError
@@ -98,23 +100,23 @@ func TestChainstackPreservesPoolCauseAndRejectsForeignHosts(t *testing.T) {
 
 func TestChainstackRetryHintAndAmbiguousForbidden(t *testing.T) {
 	now := time.Now()
-	at := providerRetryAt(model.Chainstack, "", []byte(`{"error":{"code":-32005,"data":{"try_again_in":"292ms"}}}`), now)
+	at := retryHintFor(cryptointegrations.Chainstack, "", []byte(`{"error":{"code":-32005,"data":{"try_again_in":"292ms"}}}`), now)
 	require.False(t, at.Before(now.Add(292*time.Millisecond)))
 	require.WithinDuration(t, now.Add(292*time.Millisecond), at, 250*time.Millisecond)
-	at = providerRetryAt(model.Chainstack, "1", []byte(`{}`), now)
+	at = retryHintFor(cryptointegrations.Chainstack, "1", []byte(`{}`), now)
 	require.False(t, at.Before(now.Add(time.Second)))
 	require.WithinDuration(t, now.Add(time.Second), at, 250*time.Millisecond)
-	require.Equal(t, model.Throttled, Classify(model.Chainstack, 429, []byte(`{"error":{"code":-32005,"message":"RPS limit exceeded"}}`)))
-	require.Empty(t, Classify(model.Chainstack, 403, []byte(`{"error":"access forbidden"}`)))
-	require.Equal(t, model.Exhausted, Classify(model.Chainstack, 403, []byte(`{"error":"monthly quota exhausted"}`)))
+	require.Equal(t, model.Throttled, classifyFor(cryptointegrations.Chainstack, 429, []byte(`{"error":{"code":-32005,"message":"RPS limit exceeded"}}`)))
+	require.Empty(t, classifyFor(cryptointegrations.Chainstack, 403, []byte(`{"error":"access forbidden"}`)))
+	require.Equal(t, model.Exhausted, classifyFor(cryptointegrations.Chainstack, 403, []byte(`{"error":"monthly quota exhausted"}`)))
 }
 
 func TestChainstackSepoliaRotatesAccountsAndPreservesJSONRPC(t *testing.T) {
 	repo := fixture()
 	body := `{"jsonrpc":"2.0","id":73,"method":"eth_getBlockByNumber","params":["0x64",true]}`
 	var paths []string
-	tr := &Transport{PoolID: repo.selections[0].PoolID, Provider: model.Chainstack, Repository: repo, OriginalURL: "https://ethereum-sepolia.core.chainstack.com/", Target: func(context.Context) (Binding, error) {
-		return Binding{URL: "https://ethereum-sepolia.core.chainstack.com", PoolID: repo.selections[0].PoolID, Provider: model.Chainstack, Slot: "default"}, nil
+	tr := &integrationhttp.Transport{Profiles: Registry(), PoolID: repo.selections[0].PoolID, Provider: cryptointegrations.Chainstack, Repository: repo, OriginalURL: "https://ethereum-sepolia.core.chainstack.com/", Target: func(context.Context) (integrationhttp.Binding, error) {
+		return integrationhttp.Binding{URL: "https://ethereum-sepolia.core.chainstack.com", PoolID: repo.selections[0].PoolID, Provider: cryptointegrations.Chainstack, Slot: "default"}, nil
 	}, Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		raw, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
@@ -143,7 +145,7 @@ func TestChainstackRejectsCrossProtocolRequestPaths(t *testing.T) {
 	for _, raw := range []string{"https://ethereum-sepolia.core.chainstack.com/wallet/getnowblock", "https://ethereum-sepolia.core.chainstack.com/beacon", "https://ethereum-sepolia.core.chainstack.com/?token=x", "https://tron-nile.core.chainstack.com/", "https://ethereum-sepolia.core.chainstack.com/%2f"} {
 		t.Run(raw, func(t *testing.T) {
 			repo := fixture()
-			tr := &Transport{PoolID: repo.selections[0].PoolID, Provider: model.Chainstack, Repository: repo, Base: roundTripFunc(func(*http.Request) (*http.Response, error) { t.Fatal("invalid request reached wire"); return nil, nil })}
+			tr := &integrationhttp.Transport{Profiles: Registry(), PoolID: repo.selections[0].PoolID, Provider: cryptointegrations.Chainstack, Repository: repo, Base: roundTripFunc(func(*http.Request) (*http.Response, error) { t.Fatal("invalid request reached wire"); return nil, nil })}
 			req, err := http.NewRequest(http.MethodPost, raw, nil)
 			require.NoError(t, err)
 			_, err = tr.RoundTrip(req)
@@ -154,7 +156,7 @@ func TestChainstackRejectsCrossProtocolRequestPaths(t *testing.T) {
 
 func TestChainstackArchiveForbiddenDoesNotRotateOrLeakResponse(t *testing.T) {
 	repo := fixture()
-	tr := &Transport{PoolID: repo.selections[0].PoolID, Provider: model.Chainstack, Repository: repo, Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+	tr := &integrationhttp.Transport{Profiles: Registry(), PoolID: repo.selections[0].PoolID, Provider: cryptointegrations.Chainstack, Repository: repo, Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		return response(r, 403, `{"error":{"code":-32002,"message":"Archive, Debug and Trace requests are not available on your current plan. Visit https://provider.invalid/private-token to upgrade.."}}`), nil
 	})}
 	t.Cleanup(tr.CloseIdleConnections)

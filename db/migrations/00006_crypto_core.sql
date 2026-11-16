@@ -2835,11 +2835,21 @@ FROM reg_crypto_security_incidents
 WHERE incident_kind = 'posted_payment_reorg'
   AND payment_id IS NOT NULL
   AND details->>'postedVersion' ~ '^[1-9][0-9]*$';
+
+-- Integration providers of this configuration (cryptointegrations.Catalog):
+-- the platform's and its own. dRPC is the only provider with a manual key period.
+ALTER TABLE cat_integration_accounts ADD CONSTRAINT ck_integration_accounts_provider CHECK (provider IN ('alchemy','coingecko_demo','tron_api','chainstack','getblock','infura','drpc','telegram','smtp','resource_api','getblock_net','testnet_aml'));
+ALTER TABLE cat_integration_accounts ADD CONSTRAINT ck_integration_accounts_drpc_manual_period CHECK ((provider='drpc') = (credentials_expires_at IS NOT NULL));
+ALTER TABLE cat_integration_pools ADD CONSTRAINT ck_integration_pools_provider CHECK (provider IN ('alchemy','coingecko_demo','tron_api','chainstack','getblock','infura','drpc','telegram','smtp','resource_api','getblock_net','testnet_aml'));
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
+ALTER TABLE cat_integration_pools DROP CONSTRAINT IF EXISTS ck_integration_pools_provider;
+ALTER TABLE cat_integration_accounts
+    DROP CONSTRAINT IF EXISTS ck_integration_accounts_drpc_manual_period,
+    DROP CONSTRAINT IF EXISTS ck_integration_accounts_provider;
 DROP TABLE reg_crypto_wallet_variance_movements;
 DROP TABLE reg_crypto_adjustment_sources;
 DROP TABLE doc_crypto_adjustments;

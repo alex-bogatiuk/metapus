@@ -1,6 +1,8 @@
-package profiles
+package cryptoprofiles
 
 import (
+	"metapus/internal/domain/crypto/cryptointegrations"
+	"metapus/internal/infrastructure/integrations/profiles"
 	"net/http"
 	"strings"
 	"time"
@@ -31,8 +33,8 @@ func drpcRangeLimit(status int, body []byte) bool {
 	return code == 35 && strings.Contains(text, "range") && strings.Contains(text, "blocks") && strings.Contains(text, "not supported") && strings.Contains(text, "plan")
 }
 
-func drpc() Profile {
-	return Profile{Provider: model.DRPC, Authorize: pathSuffix(model.DRPC, model.CredentialURLSafe),
+func drpc() profiles.Profile {
+	return profiles.Profile{Provider: cryptointegrations.DRPC, Authorize: pathSuffix(cryptointegrations.DRPC, model.CredentialURLSafe),
 		Classify: func(status int, body []byte) model.Failure {
 			if status == http.StatusUnauthorized {
 				return model.Unauthorized
@@ -61,7 +63,7 @@ func drpc() Profile {
 			if (status == http.StatusForbidden || status == http.StatusOK) && code == 24 {
 				return now.UTC().Truncate(24 * time.Hour).Add(24 * time.Hour)
 			}
-			return RetryAt(headers.Get("Retry-After"), now)
+			return profiles.RetryAt(headers.Get("Retry-After"), now)
 		},
 		ResponseError: func(status int, body []byte) error {
 			if drpcRangeLimit(status, body) {
@@ -70,7 +72,7 @@ func drpc() Profile {
 			if status == http.StatusForbidden || status == http.StatusBadRequest || status == http.StatusOK {
 				code, message := drpcError(body)
 				if code == 35 && strings.Contains(message, "chain is not available") && strings.Contains(message, "plan") {
-					return ErrAccessDenied
+					return profiles.ErrAccessDenied
 				}
 				switch code {
 				case 29, 48, 51:
@@ -78,11 +80,11 @@ func drpc() Profile {
 				case 47:
 					return providerpolicy.ErrInvalidRequest
 				case 50:
-					return ErrAccessDenied
+					return profiles.ErrAccessDenied
 				}
 			}
 			if status == http.StatusForbidden {
-				return ErrAccessDenied
+				return profiles.ErrAccessDenied
 			}
 			return nil
 		},

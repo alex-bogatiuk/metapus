@@ -3,6 +3,7 @@ package crypto_integration_repo
 import (
 	"context"
 	"fmt"
+	"metapus/internal/domain/crypto/cryptointegrations"
 	"net/url"
 
 	"metapus/internal/core/apperror"
@@ -40,9 +41,8 @@ func (r *CryptoRPCEndpointRepo) ValidateBinding(ctx context.Context, e *rpcconfi
 		if err != nil {
 			return err
 		}
-		if provider, ok := integrations.RPCProviderForHost(u.Hostname()); ok {
-			definition, _ := provider.Definition()
-			if definition.ManagedRPCOnly {
+		if provider, ok := rpcconfig.RPCProviderForHost(u.Hostname()); ok {
+			if rpcconfig.ManagedRPCOnly(provider) {
 				return apperror.NewValidation("Для этого RPC выберите пул аккаунтов; адрес сохраняется без ключа")
 			}
 		}
@@ -52,19 +52,19 @@ func (r *CryptoRPCEndpointRepo) ValidateBinding(ctx context.Context, e *rpcconfi
 	if err := q.QueryRow(ctx, `SELECT provider FROM cat_integration_pools WHERE id=$1 AND NOT deletion_mark`, e.PoolID).Scan(&provider); err != nil {
 		return apperror.NewValidation("Выберите существующий пул аккаунтов")
 	}
-	if !provider.Supports(integrations.KindRPC) {
+	if !cryptointegrations.Catalog().Supports(provider, cryptointegrations.KindRPC) {
 		return apperror.NewValidation("Выберите пул провайдера с назначением «Доступ к блокчейну — RPC»")
 	}
 	// The provider profile fixes the key name for most bindings. An omitted
 	// name (or the generic default) takes that name; another one is rejected.
-	if name := provider.RPCKeyName(binding); name != "" && (e.Slot == "" || e.Slot == "default") {
+	if name := rpcconfig.RPCKeyName(provider, binding); name != "" && (e.Slot == "" || e.Slot == "default") {
 		e.Slot = name
 	}
 	if e.Slot == "" {
 		e.Slot = "default"
 	}
 	binding.Slot = e.Slot
-	if err := provider.ValidateRPCBinding(binding); err != nil {
+	if err := rpcconfig.ValidateRPCBinding(provider, binding); err != nil {
 		return err
 	}
 	members, err := catalog_repo.PoolMemberIDs(ctx, *e.PoolID)
@@ -78,7 +78,7 @@ func (r *CryptoRPCEndpointRepo) ValidateBinding(ctx context.Context, e *rpcconfi
 	if err := rpcconfig.RequireRPCKeys([]rpcconfig.RPCKeyUser{{Endpoint: e.Name, Key: e.Slot}}, accounts); err != nil {
 		return err
 	}
-	definition, _ := provider.Definition()
+	definition, _ := cryptointegrations.Catalog().Definition(provider)
 	if e.IsActive && definition.AccountMinRequestIntervalMS > 0 {
 		var conflicting bool
 		if err := q.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM sys_crypto_rpc_endpoints other JOIN sys_integration_pool_accounts own ON own.pool_id=$1 JOIN sys_integration_pool_accounts shared ON shared.pool_id=other.pool_id AND shared.account_id=own.account_id WHERE other.id<>$2 AND other.is_active AND NOT other.deletion_mark AND other._deleted_at IS NULL AND GREATEST(other.min_request_interval_ms,$4::int)<>GREATEST($3::int,$4::int))`, e.PoolID, e.ID, e.MinRequestIntervalMS, definition.AccountMinRequestIntervalMS).Scan(&conflicting); err != nil {

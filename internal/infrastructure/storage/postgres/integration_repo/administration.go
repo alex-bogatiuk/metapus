@@ -43,17 +43,17 @@ func (r *Runtime) Status(ctx context.Context, uid id.ID) (integrations.PoolStatu
 		if err = rows.Scan(&state.ID, &state.Name, &state.IsActive, &state.HasCredentials, &state.CredentialsVersion, &a.ResetDay, &a.ResetTimezone, &a.CredentialsExpiresAt, &a.ManualPeriodStartedAt, &a.ManualPeriodVersion, &stateManualVersion, &state.ExhaustedUntil, &state.ThrottledUntil, &state.LastError, &invalidVersion, &state.InvalidSlots, &a.Provider); err != nil {
 			return out, err
 		}
-		definition, _ := a.Provider.Definition()
+		definition, _ := r.catalog.Definition(a.Provider)
 		state.QuotaPolicy = definition.QuotaPolicy
 		state.CredentialsExpiresAt, state.ManualPeriodVersion = a.CredentialsExpiresAt, a.ManualPeriodVersion
-		if a.ManualPeriod() && stateManualVersion != a.ManualPeriodVersion {
+		if definition.ManualPeriod() && stateManualVersion != a.ManualPeriodVersion {
 			state.ExhaustedUntil, state.ThrottledUntil = nil, nil
 			state.InvalidSlots = []string{}
 			state.LastError = ""
 			invalidVersion = -1
 		}
 		if definition.QuotaPolicy != integrations.QuotaPackage && definition.QuotaPolicy != integrations.QuotaManual {
-			_, end, periodErr := quotaPeriod(&a, r.Now())
+			_, end, periodErr := quotaPeriod(definition, &a, r.Now())
 			if periodErr != nil {
 				return out, periodErr
 			}
@@ -76,10 +76,10 @@ func (r *Runtime) Status(ctx context.Context, uid id.ID) (integrations.PoolStatu
 			state.Availability = "disabled"
 		case !state.HasCredentials:
 			state.Availability = "unconfigured"
-		case a.Expired(r.Now()):
+		case a.Expired(definition, r.Now()):
 			state.Availability = string(integrations.Expired)
 			state.LastError = state.Availability
-		case state.ExhaustedUntil != nil && (a.ManualPeriod() || r.Now().Before(*state.ExhaustedUntil)):
+		case state.ExhaustedUntil != nil && (definition.ManualPeriod() || r.Now().Before(*state.ExhaustedUntil)):
 			state.Availability = string(integrations.Exhausted)
 		case len(state.InvalidSlots) > 0:
 			state.Availability = string(integrations.Unauthorized)
@@ -126,10 +126,14 @@ func (r *Runtime) Command(ctx context.Context, uid id.ID, action string, expecte
 			if err != nil {
 				return err
 			}
-			if a.Expired(r.Now()) {
+			definition, err := r.catalog.Require(a.Provider)
+			if err != nil {
+				return err
+			}
+			if a.Expired(definition, r.Now()) {
 				return apperror.NewValidation("Срок ключа истёк. Продлите аккаунт новым ключом и датой")
 			}
-			start, end, err := quotaPeriod(a, r.Now())
+			start, end, err := quotaPeriod(definition, a, r.Now())
 			if err != nil {
 				return err
 			}

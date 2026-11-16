@@ -4,6 +4,7 @@ package crypto_integration_repo
 
 import (
 	"io"
+	"metapus/internal/domain/crypto/cryptointegrations"
 	"net/http"
 	"strings"
 	"testing"
@@ -22,10 +23,12 @@ func TestAlchemyTRONBindingsReloadKeysAndPreserveRoleMethods(t *testing.T) {
 	ctx, db := fixtureDB(t)
 	ar, pr, er := NewIntegrationAccountRepo(), NewIntegrationPoolRepo(), NewCryptoRPCEndpointRepo()
 	a := integrations.NewAccount("ALCH-NILE", "Alchemy Nile")
+	a.Provider = cryptointegrations.Alchemy
 	a.PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: "nile", Value: "nile-key"}}}
-	require.NoError(t, ar.Prepare(ctx, a))
+	require.NoError(t, ar.Prepare(ctx, a, appDefinition(a.Provider)))
 	require.NoError(t, ar.Create(ctx, a))
 	pool := integrations.NewPool("ALCH-NILE", "Alchemy Nile")
+	pool.Provider = cryptointegrations.Alchemy
 	pool.AccountIDs = []id.ID{a.ID}
 	require.NoError(t, pr.Create(ctx, pool))
 	var nile, sepolia id.ID
@@ -80,7 +83,7 @@ func TestAlchemyTRONBindingsReloadKeysAndPreserveRoleMethods(t *testing.T) {
 		require.Equal(t, "/v2/"+current+method, observed)
 		current = "replacement-" + role
 		a.PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: "nile", Value: current}}}
-		require.NoError(t, ar.Prepare(ctx, a))
+		require.NoError(t, ar.Prepare(ctx, a, appDefinition(a.Provider)))
 		require.NoError(t, ar.Update(ctx, a))
 		clock = clock.Add(11 * time.Second)
 		read()

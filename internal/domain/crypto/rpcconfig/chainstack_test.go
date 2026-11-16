@@ -1,7 +1,8 @@
-package integrations
+package rpcconfig
 
 import (
 	"github.com/stretchr/testify/require"
+	"metapus/internal/domain/crypto/cryptointegrations"
 	"testing"
 )
 
@@ -25,6 +26,9 @@ func TestChainstackBaseProfilesRejectCredentialsAndOtherAPIs(t *testing.T) {
 		{"https://ethereum-mainnet.core.chainstack.com", false},
 		{"https://ethereum-sepolia.core.chainstack.com/%2f", false},
 	} {
-		t.Run(tt.give, func(t *testing.T) { _, ok := Chainstack.RPCProfileForURL(tt.give); require.Equal(t, tt.want, ok) })
+		t.Run(tt.give, func(t *testing.T) {
+			_, ok := RPCProfileForURL(cryptointegrations.Chainstack, tt.give)
+			require.Equal(t, tt.want, ok)
+		})
 	}
 }

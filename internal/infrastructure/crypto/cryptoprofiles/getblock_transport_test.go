@@ -1,7 +1,9 @@
-package integrations
+package cryptoprofiles
 
 import (
 	"io"
+	"metapus/internal/domain/crypto/cryptointegrations"
+	integrationhttp "metapus/internal/infrastructure/integrations"
 	"net/http"
 	"strings"
 	"testing"
@@ -15,7 +17,7 @@ func TestGetBlockRotatesAccountsWithoutChangingRoleOrBody(t *testing.T) {
 		t.Run(role, func(t *testing.T) {
 			repo := fixture()
 			var paths []string
-			tr := &Transport{PoolID: repo.selections[0].PoolID, Provider: model.GetBlock, Repository: repo, Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			tr := &integrationhttp.Transport{Profiles: Registry(), PoolID: repo.selections[0].PoolID, Provider: cryptointegrations.GetBlock, Repository: repo, Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 				paths = append(paths, r.URL.Path)
 				body, err := io.ReadAll(r.Body)
 				require.NoError(t, err)
@@ -54,7 +56,7 @@ func TestGetBlockRejectsUnsafeBindingsBeforeSendingCredentials(t *testing.T) {
 	} {
 		t.Run(target, func(t *testing.T) {
 			repo := fixture()
-			tr := &Transport{PoolID: repo.selections[0].PoolID, Provider: model.GetBlock, Repository: repo, Base: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			tr := &integrationhttp.Transport{Profiles: Registry(), PoolID: repo.selections[0].PoolID, Provider: cryptointegrations.GetBlock, Repository: repo, Base: roundTripFunc(func(*http.Request) (*http.Response, error) {
 				t.Fatal("invalid binding must never send a credential")
 				return nil, nil
 			})}
@@ -70,15 +72,15 @@ func TestGetBlockRejectsUnsafeBindingsBeforeSendingCredentials(t *testing.T) {
 	for _, token := range []string{"https://example.com/secret", "a/b", "a%2fb", "a?b", "a#b", "a b"} {
 		repo := fixture()
 		repo.selections[0].Key = token
-		tr := &Transport{PoolID: repo.selections[0].PoolID, Provider: model.GetBlock, Repository: repo}
+		tr := &integrationhttp.Transport{Profiles: Registry(), PoolID: repo.selections[0].PoolID, Provider: cryptointegrations.GetBlock, Repository: repo}
 		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://shared.eu-central-1.getblock.io/wallet/getnowblock", nil)
 		_, err := tr.RoundTrip(req)
 		require.Error(t, err)
 		require.NotContains(t, err.Error(), token)
 	}
-	require.Equal(t, model.Throttled, Classify(model.GetBlock, 429, []byte(`{"error":"Too many requests"}`)))
-	require.Equal(t, model.Exhausted, Classify(model.GetBlock, 429, []byte(`{"error":"monthly CU quota exceeded"}`)))
-	require.Equal(t, model.Exhausted, Classify(model.GetBlock, 402, []byte("Out of CU")))
-	require.Equal(t, model.Exhausted, Classify(model.GetBlock, 402, []byte("")))
-	require.Equal(t, model.Unauthorized, Classify(model.GetBlock, 403, []byte(`{"error":"access denied"}`)))
+	require.Equal(t, model.Throttled, classifyFor(cryptointegrations.GetBlock, 429, []byte(`{"error":"Too many requests"}`)))
+	require.Equal(t, model.Exhausted, classifyFor(cryptointegrations.GetBlock, 429, []byte(`{"error":"monthly CU quota exceeded"}`)))
+	require.Equal(t, model.Exhausted, classifyFor(cryptointegrations.GetBlock, 402, []byte("Out of CU")))
+	require.Equal(t, model.Exhausted, classifyFor(cryptointegrations.GetBlock, 402, []byte("")))
+	require.Equal(t, model.Unauthorized, classifyFor(cryptointegrations.GetBlock, 403, []byte(`{"error":"access denied"}`)))
 }

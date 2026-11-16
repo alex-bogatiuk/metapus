@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"metapus/internal/domain/crypto/rpcconfig"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,7 +15,6 @@ import (
 
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
-	"metapus/internal/domain/integrations"
 )
 
 const maxConfigBytes = 4 << 20
@@ -202,7 +202,7 @@ func readSecret(path string) (string, error) {
 
 // TrustIdentity prevents separate API keys of one service from voting independently.
 func (e Endpoint) TrustIdentity() string {
-	return integrations.RPCTrustIdentity(e.URL, e.TrustGroup, e.ProviderID)
+	return rpcconfig.RPCTrustIdentity(e.URL, e.TrustGroup, e.ProviderID)
 }
 func (n Network) IndependentProviders(role Role) int {
 	groups := map[string]bool{}

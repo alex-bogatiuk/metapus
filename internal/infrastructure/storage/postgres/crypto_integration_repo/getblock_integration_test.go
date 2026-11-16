@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"metapus/internal/domain/crypto/cryptointegrations"
 	"net/http"
 	"strings"
 	"testing"
@@ -23,17 +24,17 @@ func TestGetBlockEncryptedRoleSlotsAndTrustBoundary(t *testing.T) {
 	ctx, db := fixtureDB(t)
 	ar, pr, er := NewIntegrationAccountRepo(), NewIntegrationPoolRepo(), NewCryptoRPCEndpointRepo()
 	a := integrations.NewAccount("GETBLOCK-NILE", "GetBlock Nile")
-	a.Provider, a.ExternalAccountRef = integrations.GetBlock, "one-getblock-subscription"
+	a.Provider, a.ExternalAccountRef = cryptointegrations.GetBlock, "one-getblock-subscription"
 	a.PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: "fullnode", Value: "fullnode-secret"}, {Name: "solidity", Value: "solidity-secret"}}}
 	require.NoError(t, a.Validate(ctx))
-	require.NoError(t, ar.Prepare(ctx, a))
+	require.NoError(t, ar.Prepare(ctx, a, appDefinition(a.Provider)))
 	require.NoError(t, ar.Create(ctx, a))
 	var ciphertext []byte
 	require.NoError(t, db.QueryRow(ctx, `SELECT credentials_enc FROM cat_integration_accounts WHERE id=$1`, a.ID).Scan(&ciphertext))
 	require.NotContains(t, string(ciphertext), "fullnode-secret")
 	require.NotContains(t, string(ciphertext), "solidity-secret")
 	pool := integrations.NewPool("GETBLOCK-NILE", "GetBlock Nile")
-	pool.Provider, pool.AccountIDs = integrations.GetBlock, []id.ID{a.ID}
+	pool.Provider, pool.AccountIDs = cryptointegrations.GetBlock, []id.ID{a.ID}
 	require.NoError(t, pr.ValidateMembers(ctx, pool))
 	require.NoError(t, pr.Create(ctx, pool))
 	var networkID id.ID

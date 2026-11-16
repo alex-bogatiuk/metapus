@@ -4,6 +4,7 @@ package crypto_integration_repo
 
 import (
 	"errors"
+	"metapus/internal/domain/crypto/cryptointegrations"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -35,7 +36,7 @@ func TestRPCKeyNameFollowsProfileAndPoolAccounts(t *testing.T) {
 			a.PendingCredentials = &integrations.Credentials{Keys: keys}
 		}
 		require.NoError(t, a.Validate(ctx))
-		require.NoError(t, ar.Prepare(ctx, a))
+		require.NoError(t, ar.Prepare(ctx, a, appDefinition(a.Provider)))
 		require.NoError(t, ar.Create(ctx, a))
 		return a
 	}
@@ -44,9 +45,9 @@ func TestRPCKeyNameFollowsProfileAndPoolAccounts(t *testing.T) {
 	require.NoError(t, db.QueryRow(ctx, `INSERT INTO cat_blockchain_networks(code,name,chain_family,network_identifier,native_token_symbol,native_decimals) VALUES('KEYS-TEST-NILE','Keys test Nile','tron','nile','TRX',6) RETURNING id`).Scan(&nile))
 
 	// Infura: the profile fixes the name; an omitted or default name becomes it.
-	infura := account("INFURA-KEYS", integrations.Infura, integrations.NamedKey{Name: "sepolia", Value: "0123456789abcdef0123456789abcdef"})
+	infura := account("INFURA-KEYS", cryptointegrations.Infura, integrations.NamedKey{Name: "sepolia", Value: "0123456789abcdef0123456789abcdef"})
 	infuraPool := integrations.NewPool("INFURA-KEYS", "Infura")
-	infuraPool.Provider, infuraPool.AccountIDs = integrations.Infura, []id.ID{infura.ID}
+	infuraPool.Provider, infuraPool.AccountIDs = cryptointegrations.Infura, []id.ID{infura.ID}
 	require.NoError(t, pr.Create(ctx, infuraPool))
 	e := rpcconfig.NewRPCEndpoint("INFURA-KEYS-RPC", "ETHEREUM-SEPOLIA/rpc/infura-sepolia")
 	e.NetworkID, e.ProviderID, e.TrustGroup = sepolia, "infura-sepolia", "infura"
@@ -70,24 +71,24 @@ func TestRPCKeyNameFollowsProfileAndPoolAccounts(t *testing.T) {
 	require.Equal(t, []string{"sepolia"}, options.Accounts[0].Keys)
 
 	// Pool members and credentials cannot drop the key the endpoint reads.
-	stray := account("INFURA-STRAY", integrations.Infura, integrations.NamedKey{Name: "default", Value: "fedcba9876543210fedcba9876543210"})
+	stray := account("INFURA-STRAY", cryptointegrations.Infura, integrations.NamedKey{Name: "default", Value: "fedcba9876543210fedcba9876543210"})
 	infuraPool.AccountIDs = []id.ID{infura.ID, stray.ID}
 	requireKeyError(t, pr.ValidateMembers(ctx, infuraPool), "rpc_key_missing")
-	unconfigured := account("INFURA-EMPTY", integrations.Infura)
+	unconfigured := account("INFURA-EMPTY", cryptointegrations.Infura)
 	infuraPool.AccountIDs = []id.ID{infura.ID, unconfigured.ID}
 	require.NoError(t, pr.ValidateMembers(ctx, infuraPool), "an account without credentials is shown as unconfigured, not rejected")
 
 	current, err := ar.GetByID(ctx, infura.ID)
 	require.NoError(t, err)
 	current.PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: "default", Value: "00112233445566778899aabbccddeeff"}}}
-	require.NoError(t, ar.Prepare(ctx, current))
+	require.NoError(t, ar.Prepare(ctx, current, appDefinition(current.Provider)))
 	requireKeyError(t, ar.Update(ctx, current), "rpc_key_missing")
 
 	// Alchemy accounts may hold several keys; the operator chooses a common one.
-	first := account("ALCHEMY-KEYS-1", integrations.Alchemy, integrations.NamedKey{Name: "nile", Value: "alchemy-nile-1"}, integrations.NamedKey{Name: "sepolia", Value: "alchemy-sepolia-1"})
-	second := account("ALCHEMY-KEYS-2", integrations.Alchemy, integrations.NamedKey{Name: "nile", Value: "alchemy-nile-2"})
+	first := account("ALCHEMY-KEYS-1", cryptointegrations.Alchemy, integrations.NamedKey{Name: "nile", Value: "alchemy-nile-1"}, integrations.NamedKey{Name: "sepolia", Value: "alchemy-sepolia-1"})
+	second := account("ALCHEMY-KEYS-2", cryptointegrations.Alchemy, integrations.NamedKey{Name: "nile", Value: "alchemy-nile-2"})
 	alchemyPool := integrations.NewPool("ALCHEMY-KEYS", "Alchemy")
-	alchemyPool.Provider, alchemyPool.AccountIDs = integrations.Alchemy, []id.ID{first.ID, second.ID}
+	alchemyPool.Provider, alchemyPool.AccountIDs = cryptointegrations.Alchemy, []id.ID{first.ID, second.ID}
 	require.NoError(t, pr.Create(ctx, alchemyPool))
 	options, err = RPCPoolConsumer{}.RPCKeyOptions(ctx, rpcconfig.RPCKeyQuery{PoolID: alchemyPool.ID, NetworkID: nile, Role: "fullnode", URL: "https://tron-testnet.g.alchemy.com/v2/"})
 	require.NoError(t, err)

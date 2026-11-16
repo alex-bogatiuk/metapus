@@ -14,27 +14,8 @@ import (
 	"metapus/internal/domain"
 )
 
+// Provider identifies a ProviderDefinition of the application's Catalog.
 type Provider string
-
-const (
-	Alchemy       Provider = "alchemy"
-	Infura        Provider = "infura"
-	DRPC          Provider = "drpc"
-	CoinGeckoDemo Provider = "coingecko_demo"
-	TronAPI       Provider = "tron_api"
-	Chainstack    Provider = "chainstack"
-	GetBlock      Provider = "getblock"
-	GetBlockNet   Provider = "getblock_net"
-	TestnetAML    Provider = "testnet_aml"
-	Telegram      Provider = "telegram"
-	SMTP          Provider = "smtp"
-	ResourceAPI   Provider = "resource_api"
-)
-
-func (p Provider) Valid() bool {
-	_, ok := p.Definition()
-	return ok
-}
 
 // Credentials is write-only at the HTTP boundary. Named keys share the account quota.
 type Credentials struct {
@@ -92,15 +73,12 @@ type Account struct {
 }
 
 func NewAccount(code, name string) *Account {
-	return &Account{Catalog: entity.NewCatalog(code, name), Provider: Alchemy, IsActive: true, ResetDay: 1, ResetTimezone: "UTC"}
+	return &Account{Catalog: entity.NewCatalog(code, name), IsActive: true, ResetDay: 1, ResetTimezone: "UTC"}
 }
 func (Account) TableName() string { return "cat_integration_accounts" }
 func (a *Account) Validate(ctx context.Context) error {
 	if err := a.Catalog.Validate(ctx); err != nil {
 		return err
-	}
-	if !a.Provider.Valid() {
-		return apperror.NewValidation("Неизвестный провайдер интеграции")
 	}
 	if a.IsFolder || a.ParentID != nil {
 		return apperror.NewValidation("Аккаунты интеграций не поддерживают группы")
@@ -114,29 +92,27 @@ func (a *Account) Validate(ctx context.Context) error {
 	if len(a.ExternalAccountRef) > 255 {
 		return apperror.NewValidation("Слишком длинный идентификатор аккаунта")
 	}
-	if a.ManualPeriod() && a.CredentialsExpiresAt == nil {
+	return nil
+}
+
+// ValidateFor checks the rules of the account's provider: its key period and
+// the shape of replacement credentials.
+func (a *Account) ValidateFor(definition ProviderDefinition) error {
+	if definition.ManualPeriod() && a.CredentialsExpiresAt == nil {
 		return apperror.NewValidation("Укажите срок действия ключа").WithDetail("field", "credentialsExpiresAt")
 	}
-	if !a.ManualPeriod() && (a.CredentialsExpiresAt != nil || a.ManualPeriodStartedAt != nil || a.ManualPeriodVersion != 0) {
+	if !definition.ManualPeriod() && (a.CredentialsExpiresAt != nil || a.ManualPeriodStartedAt != nil || a.ManualPeriodVersion != 0) {
 		return apperror.NewValidation("Этот профиль не использует ручной срок ключа").WithDetail("field", "credentialsExpiresAt")
 	}
 	if a.PendingCredentials != nil {
-		definition, _ := a.Provider.Definition()
 		return definition.Credentials.Validate(*a.PendingCredentials)
 	}
 	return nil
 }
 
-// ValidGetBlockNetToken accepts an opaque bearer token, never an RPC URL or
-// header prefix. Format-specific IDs are intentionally not guessed.
-func ValidGetBlockNetToken(value string) bool {
-	return CredentialBearer.Valid(value)
-}
-
 // Period clamps billing anchors to the last day of each local calendar month.
-func (a *Account) Period(now time.Time, loc *time.Location) (time.Time, time.Time, error) {
-	definition, _ := a.Provider.Definition()
-	if a.ManualPeriod() {
+func (a *Account) Period(definition ProviderDefinition, now time.Time, loc *time.Location) (time.Time, time.Time, error) {
+	if definition.ManualPeriod() {
 		if a.ManualPeriodStartedAt == nil || a.CredentialsExpiresAt == nil || a.ManualPeriodVersion < 1 || !a.CredentialsExpiresAt.After(*a.ManualPeriodStartedAt) {
 			return time.Time{}, time.Time{}, apperror.NewValidation("Ручной период ключа не настроен")
 		}
@@ -177,15 +153,12 @@ type Pool struct {
 }
 
 func NewPool(code, name string) *Pool {
-	return &Pool{Catalog: entity.NewCatalog(code, name), Provider: Alchemy, IsActive: true, AccountIDs: []id.ID{}}
+	return &Pool{Catalog: entity.NewCatalog(code, name), IsActive: true, AccountIDs: []id.ID{}}
 }
 func (Pool) TableName() string { return "cat_integration_pools" }
 func (p *Pool) Validate(ctx context.Context) error {
 	if err := p.Catalog.Validate(ctx); err != nil {
 		return err
-	}
-	if !p.Provider.Valid() {
-		return apperror.NewValidation("Неизвестный провайдер пула")
 	}
 	if p.IsFolder || p.ParentID != nil {
 		return apperror.NewValidation("Пулы не поддерживают группы")
@@ -208,33 +181,59 @@ func (p *Pool) Validate(ctx context.Context) error {
 
 type AccountRepository interface {
 	domain.CatalogRepository[*Account]
-	Prepare(context.Context, *Account) error
+	// Prepare encrypts pending credentials and plans the key period under
+	// the rules of the account's provider.
+	Prepare(context.Context, *Account, ProviderDefinition) error
 }
 type PoolRepository interface {
 	domain.CatalogRepository[*Pool]
 	ValidateMembers(context.Context, *Pool) error
 }
 
-func NewAccountService(repo AccountRepository, num numerator.Generator) *domain.CatalogService[*Account] {
+// NewAccountService validates accounts against the catalog's provider rules.
+func NewAccountService(repo AccountRepository, num numerator.Generator, catalog *Catalog) *domain.CatalogService[*Account] {
+	if catalog == nil {
+		panic("integrations.NewAccountService: catalog is required")
+	}
 	s := domain.NewCatalogService(domain.CatalogServiceConfig[*Account]{Repo: repo, Numerator: num, Definition: &AccountDefinition})
-	s.Hooks().OnBeforeCreate(func(ctx context.Context, a *Account) error {
-		if err := a.Provider.ValidateCreation(); err != nil {
+	prepare := func(ctx context.Context, a *Account) error {
+		definition, err := catalog.Require(a.Provider)
+		if err != nil {
 			return err
 		}
-		return repo.Prepare(ctx, a)
+		if err := a.ValidateFor(definition); err != nil {
+			return err
+		}
+		return repo.Prepare(ctx, a, definition)
+	}
+	s.Hooks().OnBeforeCreate(func(ctx context.Context, a *Account) error {
+		if err := catalog.ValidateCreation(a.Provider); err != nil {
+			return err
+		}
+		return prepare(ctx, a)
 	})
-	s.Hooks().OnBeforeUpdate(repo.Prepare)
+	s.Hooks().OnBeforeUpdate(prepare)
 	return s
 }
-func NewPoolService(repo PoolRepository, num numerator.Generator) *domain.CatalogService[*Pool] {
+
+// NewPoolService validates pools against the catalog's providers.
+func NewPoolService(repo PoolRepository, num numerator.Generator, catalog *Catalog) *domain.CatalogService[*Pool] {
+	if catalog == nil {
+		panic("integrations.NewPoolService: catalog is required")
+	}
 	s := domain.NewCatalogService(domain.CatalogServiceConfig[*Pool]{Repo: repo, Numerator: num, Definition: &PoolDefinition})
 	s.Hooks().OnBeforeCreate(func(ctx context.Context, p *Pool) error {
-		if err := p.Provider.ValidateCreation(); err != nil {
+		if err := catalog.ValidateCreation(p.Provider); err != nil {
 			return err
 		}
 		return repo.ValidateMembers(ctx, p)
 	})
-	s.Hooks().OnBeforeUpdate(repo.ValidateMembers)
+	s.Hooks().OnBeforeUpdate(func(ctx context.Context, p *Pool) error {
+		if _, ok := catalog.Definition(p.Provider); !ok {
+			return apperror.NewValidation("Неизвестный провайдер пула").WithDetail("field", "provider")
+		}
+		return repo.ValidateMembers(ctx, p)
+	})
 	return s
 }
 

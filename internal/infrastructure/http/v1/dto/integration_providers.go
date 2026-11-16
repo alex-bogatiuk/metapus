@@ -46,12 +46,13 @@ type IntegrationProvidersResponse struct {
 	Providers []IntegrationProviderResponse `json:"providers"`
 }
 
-func IntegrationProviders() IntegrationProvidersResponse {
+// IntegrationProviders describes the application's catalog for the settings UI.
+func IntegrationProviders(catalog *integrations.Catalog) IntegrationProvidersResponse {
 	out := IntegrationProvidersResponse{Kinds: []IntegrationKindResponse{}, Providers: []IntegrationProviderResponse{}}
-	for _, kind := range integrations.KindDefinitions() {
+	for _, kind := range catalog.Kinds() {
 		out.Kinds = append(out.Kinds, IntegrationKindResponse{ID: kind.ID, Label: kind.Label, Description: kind.Description})
 	}
-	for _, provider := range integrations.ProviderDefinitions() {
+	for _, provider := range catalog.Providers() {
 		profile := IntegrationCredentialProfileResponse{Fields: []IntegrationCredentialFieldResponse{}, ReplaceLabel: provider.Credentials.ReplaceLabel, Description: provider.Credentials.Description, InputFormat: provider.Credentials.InputFormat}
 		profile.KeyFormat, profile.RequireFields, profile.SingleKey = provider.Credentials.KeyFormat, provider.Credentials.RequireFields, provider.Credentials.SingleKey
 		for _, rule := range provider.Credentials.URLImports {

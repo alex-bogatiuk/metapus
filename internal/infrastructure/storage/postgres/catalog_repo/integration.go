@@ -38,7 +38,7 @@ func IntegrationEncryptionKey() ([]byte, error) {
 	}
 	return []byte(s), nil
 }
-func (r *IntegrationAccountRepo) Prepare(ctx context.Context, a *integrations.Account) error {
+func (r *IntegrationAccountRepo) Prepare(ctx context.Context, a *integrations.Account, definition integrations.ProviderDefinition) error {
 	if _, err := time.LoadLocation(a.ResetTimezone); err != nil {
 		return apperror.NewValidation("Неизвестный часовой пояс квоты").WithDetail("field", "resetTimezone")
 	}
@@ -63,7 +63,7 @@ func (r *IntegrationAccountRepo) Prepare(ctx context.Context, a *integrations.Ac
 	if count > 0 {
 		return apperror.NewValidation("Провайдер аккаунта не соответствует использующим его пулам")
 	}
-	if a.ManualPeriod() {
+	if definition.ManualPeriod() {
 		previous := &integrations.Account{}
 		err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `SELECT credentials_enc,credentials_version,credentials_expires_at,manual_period_started_at,manual_period_version,version FROM cat_integration_accounts WHERE id=$1`, a.ID).Scan(&previous.CredentialsEnc, &previous.CredentialsVersion, &previous.CredentialsExpiresAt, &previous.ManualPeriodStartedAt, &previous.ManualPeriodVersion, &previous.Version)
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -96,7 +96,7 @@ func (r *IntegrationAccountRepo) Prepare(ctx context.Context, a *integrations.Ac
 				}
 			}
 		}
-		if err := a.PrepareManualPeriod(previous, sameKey, time.Now().UTC()); err != nil {
+		if err := a.PrepareManualPeriod(definition, previous, sameKey, time.Now().UTC()); err != nil {
 			return err
 		}
 	}

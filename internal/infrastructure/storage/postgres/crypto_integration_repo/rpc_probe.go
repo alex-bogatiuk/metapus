@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	"metapus/internal/core/apperror"
+	"metapus/internal/core/id"
 	"metapus/internal/core/json"
+	"metapus/internal/domain/crypto/cryptointegrations"
 	model "metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/integrations/profiles"
 )
@@ -15,6 +17,12 @@ import (
 // of the service hosting the endpoint.
 func RPCProbe(target model.ConnectionTarget) (profiles.Probe, error) {
 	probe := profiles.Probe{Method: http.MethodPost, URL: target.URL}
+	if !cryptointegrations.Catalog().Supports(target.Provider, cryptointegrations.KindRPC) {
+		return probe, apperror.NewValidation("Проверка этого типа выполняется его подсистемой")
+	}
+	if id.IsNil(target.EndpointID) {
+		return probe, apperror.NewValidation("Для проверки настройте RPC-подключение этого пула")
+	}
 	switch target.Family {
 	case "evm":
 		chain, ok := new(big.Int).SetString(target.NetworkIdentifier, 10)

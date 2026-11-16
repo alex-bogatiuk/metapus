@@ -4,6 +4,7 @@ package crypto_integration_repo
 
 import (
 	"io"
+	"metapus/internal/domain/crypto/cryptointegrations"
 	"net/http"
 	"strings"
 	"testing"
@@ -22,13 +23,13 @@ func TestChainstackPoolExhaustionRecoveryAndRPCBindings(t *testing.T) {
 	ctx, db := fixtureDB(t)
 	ar, pr, er := NewIntegrationAccountRepo(), NewIntegrationPoolRepo(), NewCryptoRPCEndpointRepo()
 	pool := integrations.NewPool("CHAINSTACK", "Chainstack")
-	pool.Provider = integrations.Chainstack
+	pool.Provider = cryptointegrations.Chainstack
 	for _, code := range []string{"A", "B"} {
 		a := integrations.NewAccount(code, code)
-		a.Provider = integrations.Chainstack
+		a.Provider = cryptointegrations.Chainstack
 		a.ExternalAccountRef = "account-" + code
 		a.PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: "nile", Value: "key-" + code}}}
-		require.NoError(t, ar.Prepare(ctx, a))
+		require.NoError(t, ar.Prepare(ctx, a, appDefinition(a.Provider)))
 		require.NoError(t, ar.Create(ctx, a))
 		pool.AccountIDs = append(pool.AccountIDs, a.ID)
 	}
@@ -76,27 +77,27 @@ func TestChainstackPoolExhaustionRecoveryAndRPCBindings(t *testing.T) {
 	a, err := ar.GetByID(ctx, pool.AccountIDs[0])
 	require.NoError(t, err)
 	a.PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: "nile", Value: "replacement-A"}}}
-	require.NoError(t, ar.Prepare(ctx, a))
+	require.NoError(t, ar.Prepare(ctx, a, appDefinition(a.Provider)))
 	require.NoError(t, ar.Update(ctx, a))
 	clock = clock.Add(11 * time.Second)
 	read()
 	require.Equal(t, "/replacement-A/wallet/getnowblock", observed)
-	r := integration_repo.NewRuntime()
+	r := integration_repo.NewRuntime(cryptointegrations.Catalog())
 	now := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
 	r.Now = func() time.Time { return now }
 	for _, uid := range pool.AccountIDs {
-		s, err := r.Select(ctx, pool.ID, "nile", integrations.Chainstack)
+		s, err := r.Select(ctx, pool.ID, "nile", cryptointegrations.Chainstack)
 		require.NoError(t, err)
 		require.Equal(t, uid, s.AccountID)
 		require.NoError(t, r.Report(ctx, s, integrations.Exhausted, time.Time{}))
 	}
-	_, err = r.Select(ctx, pool.ID, "nile", integrations.Chainstack)
+	_, err = r.Select(ctx, pool.ID, "nile", cryptointegrations.Chainstack)
 	var unavailable *integrations.PoolUnavailableError
 	require.ErrorAs(t, err, &unavailable)
 	require.Equal(t, integrations.Exhausted, unavailable.Reason)
 	require.Equal(t, time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), unavailable.RetryAt.UTC())
 	now = unavailable.RetryAt.Add(time.Second)
-	s, err := r.Select(ctx, pool.ID, "nile", integrations.Chainstack)
+	s, err := r.Select(ctx, pool.ID, "nile", cryptointegrations.Chainstack)
 	require.NoError(t, err)
 	require.True(t, s.Recovery)
 	require.NoError(t, r.Report(ctx, s, "", time.Time{}))
@@ -107,13 +108,13 @@ func TestChainstackSepoliaBindingIsNetworkScopedAndReloadsKeys(t *testing.T) {
 	ctx, db := fixtureDB(t)
 	ar, pr, er := NewIntegrationAccountRepo(), NewIntegrationPoolRepo(), NewCryptoRPCEndpointRepo()
 	a := integrations.NewAccount("CS-EVM", "Chainstack EVM")
-	a.Provider = integrations.Chainstack
+	a.Provider = cryptointegrations.Chainstack
 	a.ExternalAccountRef = "separate-evm-account"
 	a.PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: "sepolia", Value: "evm-key"}}}
-	require.NoError(t, ar.Prepare(ctx, a))
+	require.NoError(t, ar.Prepare(ctx, a, appDefinition(a.Provider)))
 	require.NoError(t, ar.Create(ctx, a))
 	pool := integrations.NewPool("CS-EVM", "Chainstack EVM")
-	pool.Provider = integrations.Chainstack
+	pool.Provider = cryptointegrations.Chainstack
 	pool.AccountIDs = []id.ID{a.ID}
 	require.NoError(t, pr.Create(ctx, pool))
 	var sepolia, mainnet, tron id.ID
@@ -163,7 +164,7 @@ func TestChainstackSepoliaBindingIsNetworkScopedAndReloadsKeys(t *testing.T) {
 	read()
 	require.Equal(t, "/evm-key", path)
 	a.PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: "sepolia", Value: "replacement-evm"}}}
-	require.NoError(t, ar.Prepare(ctx, a))
+	require.NoError(t, ar.Prepare(ctx, a, appDefinition(a.Provider)))
 	require.NoError(t, ar.Update(ctx, a))
 	clock = clock.Add(11 * time.Second)
 	read()

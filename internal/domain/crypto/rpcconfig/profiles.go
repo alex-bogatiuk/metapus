@@ -1,12 +1,58 @@
-package integrations
+package rpcconfig
 
 import (
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 
 	"metapus/internal/core/apperror"
+	"metapus/internal/domain/crypto/cryptointegrations"
+	"metapus/internal/domain/integrations"
 )
+
+// rpcProfiles lists the networks, roles and secret-free bases each RPC
+// operator supports. Storage and HTTP adapters enforce the same policy.
+var rpcProfiles = map[integrations.Provider][]RPCProfile{
+	cryptointegrations.DRPC: {{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "lb.drpc.live", BasePath: "/sepolia", TrustGroup: "drpc", KeyName: "sepolia"}},
+	cryptointegrations.Alchemy: {
+		{Family: "evm", Roles: []string{"rpc"}, HostSuffix: ".g.alchemy.com", BasePath: "/v2", TrustGroup: "alchemy"},
+		{Family: "tron", NetworkIdentifier: "mainnet", Roles: []string{"fullnode", "solidity"}, Host: "tron-mainnet.g.alchemy.com", BasePath: "/v2", TrustGroup: "alchemy"},
+		{Family: "tron", NetworkIdentifier: "nile", Roles: []string{"fullnode", "solidity"}, Host: "tron-testnet.g.alchemy.com", BasePath: "/v2", TrustGroup: "alchemy"},
+	},
+	cryptointegrations.Infura: {{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "sepolia.infura.io", BasePath: "/v3", TrustGroup: "infura", KeyName: "sepolia"}},
+	cryptointegrations.TronAPI: {
+		{Family: "tron", NetworkIdentifier: "nile", Roles: []string{"fullnode", "solidity", "indexer"}, Host: "nile.trongrid.io", TrustGroup: "trongrid"},
+		{Family: "tron", NetworkIdentifier: "mainnet", Roles: []string{"fullnode", "solidity", "indexer"}, Host: "api.trongrid.io", TrustGroup: "trongrid"},
+	},
+	cryptointegrations.Chainstack: {
+		{Family: "tron", NetworkIdentifier: "nile", Roles: []string{"fullnode", "solidity"}, Host: "tron-nile.core.chainstack.com", TrustGroup: "chainstack", KeyName: "nile"},
+		{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "ethereum-sepolia.core.chainstack.com", TrustGroup: "chainstack", KeyName: "sepolia"},
+	},
+	cryptointegrations.GetBlock: {{Family: "tron", NetworkIdentifier: "nile", Roles: []string{"fullnode", "solidity"}, Host: "shared.eu-central-1.getblock.io", TrustGroup: "getblock", SlotByRole: true}},
+}
+
+// rpcProviderOrder fixes host lookup order across operators.
+var rpcProviderOrder = []integrations.Provider{cryptointegrations.DRPC, cryptointegrations.Alchemy, cryptointegrations.Infura, cryptointegrations.TronAPI, cryptointegrations.Chainstack, cryptointegrations.GetBlock}
+
+// managedRPCOnly marks operators whose endpoints must read keys from an
+// integration account pool.
+var managedRPCOnly = map[integrations.Provider]bool{
+	cryptointegrations.DRPC: true, cryptointegrations.Alchemy: true, cryptointegrations.Infura: true,
+	cryptointegrations.Chainstack: true, cryptointegrations.GetBlock: true,
+}
+
+// RPCProfiles returns copies of the provider's RPC profiles.
+func RPCProfiles(p integrations.Provider) []RPCProfile {
+	profiles := slices.Clone(rpcProfiles[p])
+	for i := range profiles {
+		profiles[i].Roles = slices.Clone(profiles[i].Roles)
+	}
+	return profiles
+}
+
+// ManagedRPCOnly reports whether the provider's endpoints require a pool.
+func ManagedRPCOnly(p integrations.Provider) bool { return managedRPCOnly[p] }
 
 // RPCProfile declares the supported external contract. It contains no clients,
 // secrets or I/O; storage and HTTP adapters enforce the same binding policy.
@@ -53,8 +99,9 @@ func (p RPCProfile) Supports(b RPCBinding) bool {
 	return false
 }
 
-func (p Provider) RPCProfileForURL(raw string) (RPCProfile, bool) {
-	d, ok := p.Definition()
+// RPCProfileForURL returns the provider profile that owns a secret-free base.
+func RPCProfileForURL(p integrations.Provider, raw string) (RPCProfile, bool) {
+	profiles, ok := rpcProfiles[p]
 	u, err := url.Parse(raw)
 	if !ok || err != nil {
 		return RPCProfile{}, false
@@ -62,7 +109,7 @@ func (p Provider) RPCProfileForURL(raw string) (RPCProfile, bool) {
 	// A specific host owns its contract even when a broader suffix also matches.
 	// Do not fall back to another family when its base path is invalid.
 	var best RPCProfile
-	for _, profile := range d.RPCProfiles {
+	for _, profile := range profiles {
 		if !profile.OwnsHost(u.Hostname()) {
 			continue
 		}
@@ -78,12 +125,12 @@ func (p Provider) RPCProfileForURL(raw string) (RPCProfile, bool) {
 
 // RPCKeyName returns the account key name that the provider profile requires
 // for a binding. An empty result means the profile leaves the choice open.
-func (p Provider) RPCKeyName(b RPCBinding) string {
-	definition, _ := p.Definition()
+func RPCKeyName(p integrations.Provider, b RPCBinding) string {
+	definition, _ := cryptointegrations.Catalog().Definition(p)
 	if definition.Credentials.RequireFields && definition.Credentials.SingleKey && len(definition.Credentials.Fields) == 1 {
 		return definition.Credentials.Fields[0].Name
 	}
-	profile, ok := p.RPCProfileForURL(b.URL)
+	profile, ok := RPCProfileForURL(p, b.URL)
 	if !ok || !profile.Supports(b) {
 		return ""
 	}
@@ -93,12 +140,12 @@ func (p Provider) RPCKeyName(b RPCBinding) string {
 	return profile.KeyName
 }
 
-func (p Provider) ValidateRPCBinding(b RPCBinding) error {
-	profile, ok := p.RPCProfileForURL(b.URL)
+func ValidateRPCBinding(p integrations.Provider, b RPCBinding) error {
+	profile, ok := RPCProfileForURL(p, b.URL)
 	if !ok || !profile.Supports(b) || b.TrustGroup != profile.TrustGroup {
 		return apperror.NewValidation("Параметры RPC не соответствуют поддерживаемому профилю провайдера").WithDetail("reasonCode", "rpc_binding_invalid")
 	}
-	if name := p.RPCKeyName(b); name != "" && b.Slot != name {
+	if name := RPCKeyName(p, b); name != "" && b.Slot != name {
 		return apperror.NewValidation(fmt.Sprintf("Для этого подключения используется ключ «%s»", name)).WithDetail("reasonCode", "rpc_binding_invalid").WithDetail("field", "credentialSlot")
 	}
 	return nil
@@ -106,11 +153,11 @@ func (p Provider) ValidateRPCBinding(b RPCBinding) error {
 
 // RPCProviderForHost identifies the operator even for a credential URL. Callers
 // still have to validate the complete secret-free base before using credentials.
-func RPCProviderForHost(host string) (Provider, bool) {
-	for _, d := range providerDefinitions {
-		for _, profile := range d.RPCProfiles {
+func RPCProviderForHost(host string) (integrations.Provider, bool) {
+	for _, provider := range rpcProviderOrder {
+		for _, profile := range rpcProfiles[provider] {
 			if profile.OwnsHost(host) {
-				return d.ID, true
+				return provider, true
 			}
 		}
 	}
@@ -121,8 +168,7 @@ func RPCTrustIdentity(raw, configured, endpointName string) string {
 	u, _ := url.Parse(raw)
 	if u != nil {
 		if provider, ok := RPCProviderForHost(u.Hostname()); ok {
-			d, _ := provider.Definition()
-			for _, profile := range d.RPCProfiles {
+			for _, profile := range rpcProfiles[provider] {
 				if profile.OwnsHost(u.Hostname()) {
 					return profile.TrustGroup
 				}

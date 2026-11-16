@@ -1,6 +1,7 @@
-package integrations
+package rpcconfig
 
 import (
+	"metapus/internal/domain/crypto/cryptointegrations"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,25 +16,25 @@ func TestAlchemySpecificHostsSelectTheirNetworkBeforeEVMSuffix(t *testing.T) {
 		{"https://tron-mainnet.g.alchemy.com/v2", "tron", "mainnet", "solidity"},
 	} {
 		t.Run(tt.give, func(t *testing.T) {
-			profile, ok := Alchemy.RPCProfileForURL(tt.give)
+			profile, ok := RPCProfileForURL(cryptointegrations.Alchemy, tt.give)
 			require.True(t, ok)
 			require.Equal(t, tt.family, profile.Family)
 			binding := RPCBinding{URL: tt.give, Family: tt.family, NetworkIdentifier: tt.network, Role: tt.role, TrustGroup: "alchemy", Slot: "default"}
-			require.NoError(t, Alchemy.ValidateRPCBinding(binding))
+			require.NoError(t, ValidateRPCBinding(cryptointegrations.Alchemy, binding))
 			binding.TrustGroup = "independent-alchemy-account"
-			require.Error(t, Alchemy.ValidateRPCBinding(binding))
+			require.Error(t, ValidateRPCBinding(cryptointegrations.Alchemy, binding))
 			binding.TrustGroup = "alchemy"
 			binding.Family, binding.Role = "evm", "rpc"
 			if tt.family == "tron" {
-				require.Error(t, Alchemy.ValidateRPCBinding(binding))
+				require.Error(t, ValidateRPCBinding(cryptointegrations.Alchemy, binding))
 				binding.Family, binding.Role = "tron", tt.role
 				binding.NetworkIdentifier = "shasta"
-				require.Error(t, Alchemy.ValidateRPCBinding(binding))
+				require.Error(t, ValidateRPCBinding(cryptointegrations.Alchemy, binding))
 				binding.NetworkIdentifier, binding.Role = tt.network, "indexer"
-				require.Error(t, Alchemy.ValidateRPCBinding(binding))
+				require.Error(t, ValidateRPCBinding(cryptointegrations.Alchemy, binding))
 			} else {
 				binding.NetworkIdentifier = "1"
-				require.NoError(t, Alchemy.ValidateRPCBinding(binding))
+				require.NoError(t, ValidateRPCBinding(cryptointegrations.Alchemy, binding))
 			}
 		})
 	}
@@ -53,7 +54,7 @@ func TestAlchemyBaseRejectsCredentialsAndMethodPaths(t *testing.T) {
 		"https://tron-testnet.g.alchemy.com/%76%32/",
 	} {
 		t.Run(give, func(t *testing.T) {
-			_, ok := Alchemy.RPCProfileForURL(give)
+			_, ok := RPCProfileForURL(cryptointegrations.Alchemy, give)
 			require.False(t, ok)
 		})
 	}

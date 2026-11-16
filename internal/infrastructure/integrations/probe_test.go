@@ -27,9 +27,9 @@ func fixtureProbe(target model.ConnectionTarget) (profiles.Probe, error) {
 func TestConnectionProberUsesActualBindingAndRejectsRedirects(t *testing.T) {
 	for _, status := range []int{200, 302} {
 		t.Run(http.StatusText(status), func(t *testing.T) {
-			target := model.ConnectionTarget{PoolID: id.New(), EndpointID: id.New(), Provider: model.Alchemy, URL: "https://eth-mainnet.g.alchemy.com/v2/", Family: "evm", Role: "rpc", NetworkIdentifier: "1"}
+			target := model.ConnectionTarget{PoolID: id.New(), EndpointID: id.New(), Provider: "fixture_suffix", URL: "https://fixture.test/v2/", Family: "evm", Role: "rpc", NetworkIdentifier: "1"}
 			calls := 0
-			prober := ConnectionProber{EndpointProbe: fixtureProbe, EndpointTransport: func(uid id.ID, base string) func(http.RoundTripper) http.RoundTripper {
+			prober := ConnectionProber{Profiles: fixtureProfiles, EndpointProbe: fixtureProbe, EndpointTransport: func(uid id.ID, base string) func(http.RoundTripper) http.RoundTripper {
 				require.Equal(t, target.EndpointID, uid)
 				require.Equal(t, target.URL, base)
 				return func(http.RoundTripper) http.RoundTripper {

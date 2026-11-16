@@ -1,7 +1,10 @@
-package profiles
+package cryptoprofiles
 
 import (
 	"errors"
+	"metapus/internal/domain/crypto/cryptointegrations"
+	"metapus/internal/domain/crypto/rpcconfig"
+	"metapus/internal/infrastructure/integrations/profiles"
 	"net/http"
 	"net/url"
 	"strings"
@@ -9,17 +12,17 @@ import (
 	model "metapus/internal/domain/integrations"
 )
 
-func alchemy() Profile {
-	return Profile{Provider: model.Alchemy, Authorize: authorizeAlchemy,
+func alchemy() profiles.Profile {
+	return profiles.Profile{Provider: cryptointegrations.Alchemy, Authorize: authorizeAlchemy,
 		Classify: func(status int, body []byte) model.Failure {
 			if alchemyNetworkDisabled(status, body) {
 				return ""
 			}
-			return classify(status, body)
+			return profiles.Classify(status, body)
 		},
 		ResponseError: func(status int, body []byte) error {
 			if alchemyNetworkDisabled(status, body) {
-				return ErrAccessDenied
+				return profiles.ErrAccessDenied
 			}
 			return nil
 		},
@@ -56,7 +59,7 @@ func alchemyNetworkDisabled(status int, body []byte) bool {
 func authorizeAlchemy(r *http.Request, key string) error {
 	base := *r.URL
 	base.Path = "/v2/"
-	profile, ok := model.Alchemy.RPCProfileForURL(base.String())
+	profile, ok := rpcconfig.RPCProfileForURL(cryptointegrations.Alchemy, base.String())
 	if !ok || r.URL.RawPath != "" || key == "" || strings.ContainsAny(key, "/\\?#%\r\n\t ") {
 		return errors.New("invalid Alchemy HTTP binding or key")
 	}
@@ -71,7 +74,7 @@ func authorizeAlchemy(r *http.Request, key string) error {
 	} else {
 		suffix = ""
 	}
-	clearAuthorization(r)
+	profiles.ClearAuthorization(r, tronHeader)
 	r.URL.Path = profile.BasePath + "/" + key + suffix
 	r.URL.RawPath = ""
 	return nil

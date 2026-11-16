@@ -15,9 +15,10 @@ import (
 )
 
 // ConnectionProber checks that a pool answers through its real binding.
-// Providers with their own probe are checked directly; RPC pools are checked
-// through an endpoint, whose request (EndpointProbe) and transport
-// (EndpointTransport) the configuration that owns the endpoints supplies.
+// Providers whose profile has a Probe are checked directly. For the others
+// the configuration supplies the request (EndpointProbe, which also rejects
+// providers it does not check) and, for a target bound to an endpoint, the
+// transport (EndpointTransport).
 type ConnectionProber struct {
 	Accounts          model.RuntimeRepository
 	Profiles          *profiles.Registry
@@ -32,21 +33,15 @@ func (p ConnectionProber) Probe(ctx context.Context, target model.ConnectionTarg
 		return false, apperror.NewValidation("Проверка этого типа выполняется его подсистемой")
 	}
 	var probe profiles.Probe
-	if target.Provider.Supports(model.KindRPC) {
-		if id.IsNil(target.EndpointID) {
-			return false, apperror.NewValidation("Для проверки настройте RPC-подключение этого пула")
-		}
-		if p.EndpointProbe == nil {
-			return false, apperror.NewInternal(errors.New("RPC endpoint probe is not configured"))
-		}
+	switch {
+	case profile.Probe != nil:
+		probe = *profile.Probe
+	case p.EndpointProbe != nil:
 		var err error
-		probe, err = p.EndpointProbe(target)
-		if err != nil {
+		if probe, err = p.EndpointProbe(target); err != nil {
 			return false, err
 		}
-	} else if profile.Probe != nil {
-		probe = *profile.Probe
-	} else {
+	default:
 		return false, apperror.NewValidation("Проверка этого типа выполняется его подсистемой")
 	}
 	base := p.Base

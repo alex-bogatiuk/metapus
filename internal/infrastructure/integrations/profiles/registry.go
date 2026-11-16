@@ -8,18 +8,22 @@ import (
 	"time"
 
 	model "metapus/internal/domain/integrations"
+	"metapus/internal/infrastructure/providerpolicy"
 )
 
 type Profile struct {
-	Provider          model.Provider
-	Authorize         func(*http.Request, string) error
-	ReplaceTargetPath bool
-	PinsPagination    bool
-	Classify          func(int, []byte) model.Failure
-	RetryAt           func(int, http.Header, []byte, time.Time) time.Time
-	ResponseError     func(int, []byte) error
-	Probe             *Probe
-	ImportCredentials func(string, string) (string, string, error)
+	Provider model.Provider
+	// MinRequestIntervalMS paces every binding of one account; the profile's
+	// builder copies it from the provider definition.
+	MinRequestIntervalMS int
+	Authorize            func(*http.Request, string) error
+	ReplaceTargetPath    bool
+	PinsPagination       bool
+	Classify             func(int, []byte) model.Failure
+	RetryAt              func(int, http.Header, []byte, time.Time) time.Time
+	ResponseError        func(int, []byte) error
+	Probe                *Probe
+	ImportCredentials    func(string, string) (string, string, error)
 }
 
 type Probe struct {
@@ -29,6 +33,7 @@ type Probe struct {
 
 // Registry is immutable after construction and can be injected in tests or at
 // composition roots. No package init hooks or mutable global registrations.
+// A nil *Registry has the platform profiles only.
 type Registry struct{ profiles map[model.Provider]Profile }
 
 func New(definitions ...Profile) (*Registry, error) {
@@ -65,7 +70,7 @@ func (p Profile) Failure(status int, body []byte) model.Failure {
 	if p.Classify != nil {
 		return p.Classify(status, body)
 	}
-	return classify(status, body)
+	return Classify(status, body)
 }
 
 func (p Profile) NextAttempt(status int, headers http.Header, body []byte, now time.Time) time.Time {
@@ -75,20 +80,23 @@ func (p Profile) NextAttempt(status int, headers http.Header, body []byte, now t
 	return RetryAt(headers.Get("Retry-After"), now)
 }
 
-func (p Profile) MinRequestIntervalMS() int {
-	d, _ := p.Provider.Definition()
-	return d.AccountMinRequestIntervalMS
+// ErrAccessDenied marks a provider response that denies the operation, not the account.
+var ErrAccessDenied = providerpolicy.ErrAccessDenied
+
+// Platform lists the platform's profiles: anonymous requests and the
+// exchange rate feed. A configuration appends its own and calls New.
+func Platform() []Profile {
+	return []Profile{
+		{Provider: "", Authorize: func(*http.Request, string) error { return nil }},
+		coinGecko(),
+	}
 }
 
-var builtins = newBuiltins()
-
-func newBuiltins() *Registry {
-	r, err := New(
-		Profile{Provider: "", Authorize: func(*http.Request, string) error { return nil }},
-		alchemy(), infura(), drpc(), tronAPI(), chainstack(), getBlock(), coinGecko(),
-	)
+// builtins serves a nil *Registry with the platform profiles only.
+var builtins = func() *Registry {
+	r, err := New(Platform()...)
 	if err != nil {
 		panic(err)
 	}
 	return r
-}
+}()

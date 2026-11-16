@@ -1,6 +1,7 @@
 package content
 
 import (
+	"metapus/internal/domain/crypto/cryptointegrations"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,7 @@ func TestIntegrationProviderMetadataIncludesAllRegisteredProfiles(t *testing.T) 
 				continue
 			}
 			found = true
-			require.Len(t, field.EnumValues, len(integrations.ProviderDefinitions()))
+			require.Len(t, field.EnumValues, len(cryptointegrations.Catalog().Providers()))
 			require.Contains(t, field.EnumValues, metadata.EnumValue{Value: "infura", Label: "Infura"})
 		}
 		require.True(t, found)

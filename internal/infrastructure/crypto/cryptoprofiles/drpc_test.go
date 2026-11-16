@@ -1,9 +1,11 @@
-package profiles
+package cryptoprofiles
 
 import (
 	"fmt"
 	"github.com/stretchr/testify/require"
+	"metapus/internal/domain/crypto/cryptointegrations"
 	model "metapus/internal/domain/integrations"
+	"metapus/internal/infrastructure/integrations/profiles"
 	"metapus/internal/infrastructure/providerpolicy"
 	"net/http"
 	"testing"
@@ -37,16 +39,16 @@ func TestDRPCUsesSuffixAndSeparatesQueryLimitsFromAccountFailures(t *testing.T) 
 		require.Empty(t, p.Failure(403, []byte(fmt.Sprintf(`{"error":{"code":%d}}`, code))))
 	}
 	require.ErrorIs(t, p.ResponseError(403, []byte(`{"error":{"code":48}}`)), providerpolicy.ErrUnsupported)
-	require.ErrorIs(t, p.ResponseError(403, []byte(`{"error":{"code":99}}`)), ErrAccessDenied)
+	require.ErrorIs(t, p.ResponseError(403, []byte(`{"error":{"code":99}}`)), profiles.ErrAccessDenied)
 	now := time.Date(2026, 10, 29, 12, 30, 0, 0, time.UTC)
 	daily := []byte(`{"error":{"code":24}}`)
 	require.Equal(t, model.Throttled, p.Failure(403, daily))
 	require.Equal(t, time.Date(2026, 10, 30, 0, 0, 0, 0, time.UTC), p.NextAttempt(403, http.Header{}, daily, now))
 	bad, _ := http.NewRequest(http.MethodPost, "https://lb.drpc.live/sepolia/secret", nil)
 	require.Error(t, p.Authorize(bad, "key"))
-	provider, base, key, err := (*Registry)(nil).ImportRPC("https://lb.drpc.live/sepolia/", "private-key", "rpc", "sepolia")
+	provider, base, key, err := ImportRPC("https://lb.drpc.live/sepolia/", "private-key", "rpc", "sepolia")
 	require.NoError(t, err)
-	require.Equal(t, model.DRPC, provider)
+	require.Equal(t, cryptointegrations.DRPC, provider)
 	require.Equal(t, "https://lb.drpc.live/sepolia/", base)
 	require.Equal(t, "private-key", key)
 }

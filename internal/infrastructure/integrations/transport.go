@@ -183,7 +183,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 			cancelCredential()
 			return nil, err
 		}
-		if interval := profile.MinRequestIntervalMS(); interval > 0 {
+		if interval := profile.MinRequestIntervalMS; interval > 0 {
 			if err := t.waitAccount(callCtx, b, s, interval); err != nil {
 				if errors.Is(context.Cause(callCtx), providerpolicy.ErrCredentialsExpired) {
 					cancelCredential()
@@ -344,22 +344,6 @@ type pagePin struct {
 	Binding string `json:"binding"`
 }
 
-// Classify remains available to diagnostic callers; the transport uses its
-// injected registry so classification and authorization always select one profile.
-func Classify(provider model.Provider, status int, body []byte) model.Failure {
-	profile, ok := (*profiles.Registry)(nil).Lookup(provider)
-	if !ok {
-		return ""
-	}
-	return profile.Failure(status, body)
-}
-
-func providerRetryAt(provider model.Provider, header string, body []byte, now time.Time) time.Time {
-	profile, _ := (*profiles.Registry)(nil).Lookup(provider)
-	headers := make(http.Header)
-	headers.Set("Retry-After", header)
-	return profile.NextAttempt(0, headers, body, now)
-}
 func retryAt(value string, now time.Time) time.Time { return profiles.RetryAt(value, now) }
 
 func hasProviderError(body []byte) bool {

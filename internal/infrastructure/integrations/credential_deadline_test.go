@@ -42,13 +42,13 @@ func TestCredentialCacheCannotOutliveExpiry(t *testing.T) {
 	a, b := deadlineFixture(now)
 	repo := &clockAccounts{choices: []model.Selection{a, b}, now: func() time.Time { return now }}
 	var paths []string
-	tr := &Transport{Repository: repo, Provider: model.DRPC, PoolID: a.PoolID, Slot: "sepolia", Now: func() time.Time { return now }, Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+	tr := &Transport{Repository: repo, Profiles: fixtureProfiles, Provider: "fixture_suffix", PoolID: a.PoolID, Slot: "sepolia", Now: func() time.Time { return now }, Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		paths = append(paths, r.URL.Path)
 		return response(r, 200, `{"result":"ok"}`), nil
 	})}
 	defer tr.CloseIdleConnections()
 	for range 2 {
-		req, _ := http.NewRequest(http.MethodPost, "https://lb.drpc.live/sepolia/", strings.NewReader(`{"id":1}`))
+		req, _ := http.NewRequest(http.MethodPost, "https://fixture.test/sepolia/", strings.NewReader(`{"id":1}`))
 		res, err := tr.RoundTrip(req)
 		require.NoError(t, err)
 		require.NoError(t, res.Body.Close())
@@ -65,7 +65,7 @@ func TestCredentialExpiryIsRecheckedAfterAdmission(t *testing.T) {
 	repo := &clockAccounts{choices: []model.Selection{a, b}, now: func() time.Time { return now }}
 	reads := 0
 	var paths []string
-	tr := &Transport{Repository: repo, Provider: model.DRPC, PoolID: a.PoolID, Slot: "sepolia", Now: func() time.Time {
+	tr := &Transport{Repository: repo, Profiles: fixtureProfiles, Provider: "fixture_suffix", PoolID: a.PoolID, Slot: "sepolia", Now: func() time.Time {
 		reads++
 		if reads == 4 {
 			now = *a.CredentialsExpiresAt
@@ -76,7 +76,7 @@ func TestCredentialExpiryIsRecheckedAfterAdmission(t *testing.T) {
 		return response(r, 200, `{"result":"ok"}`), nil
 	})}
 	defer tr.CloseIdleConnections()
-	req, _ := http.NewRequest(http.MethodPost, "https://lb.drpc.live/sepolia/", nil)
+	req, _ := http.NewRequest(http.MethodPost, "https://fixture.test/sepolia/", nil)
 	res, err := tr.RoundTrip(req)
 	require.NoError(t, err)
 	require.NoError(t, res.Body.Close())
@@ -90,13 +90,13 @@ func TestCredentialDeadlineCancelsWireWorkWithoutReportingUpstreamFailure(t *tes
 	a.CredentialsExpiresAt = &end
 	repo := &clockAccounts{choices: []model.Selection{a}, now: time.Now}
 	wire := 0
-	tr := &Transport{Repository: repo, Provider: model.DRPC, PoolID: a.PoolID, Slot: "sepolia", Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+	tr := &Transport{Repository: repo, Profiles: fixtureProfiles, Provider: "fixture_suffix", PoolID: a.PoolID, Slot: "sepolia", Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		wire++
 		<-r.Context().Done()
 		return nil, r.Context().Err()
 	})}
 	defer tr.CloseIdleConnections()
-	req, _ := http.NewRequest(http.MethodPost, "https://lb.drpc.live/sepolia/", nil)
+	req, _ := http.NewRequest(http.MethodPost, "https://fixture.test/sepolia/", nil)
 	_, err := tr.RoundTrip(req)
 	require.ErrorIs(t, err, providerpolicy.ErrCredentialsExpired)
 	require.Equal(t, 1, wire)
@@ -137,11 +137,11 @@ func TestCredentialExpiryDuringReturnedBodyIsTyped(t *testing.T) {
 	end := now.Add(500 * time.Millisecond)
 	a.CredentialsExpiresAt = &end
 	repo := &clockAccounts{choices: []model.Selection{a}, now: time.Now}
-	tr := &Transport{Repository: repo, Provider: model.DRPC, PoolID: a.PoolID, Slot: "sepolia", Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+	tr := &Transport{Repository: repo, Profiles: fixtureProfiles, Provider: "fixture_suffix", PoolID: a.PoolID, Slot: "sepolia", Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 200, Body: &deadlineResponseBody{ctx: r.Context(), prefix: strings.NewReader(strings.Repeat(" ", 8192))}, Header: make(http.Header)}, nil
 	})}
 	defer tr.CloseIdleConnections()
-	req, _ := http.NewRequest(http.MethodPost, "https://lb.drpc.live/sepolia/", nil)
+	req, _ := http.NewRequest(http.MethodPost, "https://fixture.test/sepolia/", nil)
 	res, err := tr.RoundTrip(req)
 	require.NoError(t, err)
 	defer func() { _ = res.Body.Close() }()

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"metapus/internal/domain/crypto/cryptointegrations"
+	"metapus/internal/infrastructure/crypto/cryptoprofiles"
 	"net/http"
 	"net/url"
 	"strings"
@@ -74,7 +76,7 @@ func TestChainstackAccountRotationThenWholeBlockProviderFailover(t *testing.T) {
 	repo := &chainstackTestAccounts{accounts: []model.Selection{{PoolID: pid, AccountID: id.New(), Slot: "nile", Key: "key-a"}, {PoolID: pid, AccountID: id.New(), Slot: "nile", Key: "key-b"}}}
 	var exhaustB atomic.Bool
 	wrap := func(http.RoundTripper) http.RoundTripper {
-		return &integrationhttp.Transport{Provider: model.Chainstack, PoolID: pid, Slot: "nile", Repository: repo, Base: chainstackTestRoundTrip(func(req *http.Request) (*http.Response, error) {
+		return &integrationhttp.Transport{Profiles: cryptoprofiles.Registry(), Provider: cryptointegrations.Chainstack, PoolID: pid, Slot: "nile", Repository: repo, Base: chainstackTestRoundTrip(func(req *http.Request) (*http.Response, error) {
 			if strings.HasPrefix(req.URL.Path, "/key-a/") || exhaustB.Load() && strings.HasSuffix(req.URL.Path, "gettransactioninfobyblocknum") {
 				return &http.Response{StatusCode: 429, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"error":"monthly quota exhausted"}`))}, nil
 			}
