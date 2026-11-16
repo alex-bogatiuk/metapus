@@ -1,7 +1,7 @@
 "use client"
 
 import AutoList from "@/components/shared/auto-list"
-import { WithdrawalRequestSelectionPanel } from "@/components/documents/withdrawal-request-selection-panel"
+import { WithdrawalRequestSelectionPanel } from "@/configuration/crypto/components/documents/withdrawal-request-selection-panel"
 
 export default function WithdrawalRequestsPage() {
   return (

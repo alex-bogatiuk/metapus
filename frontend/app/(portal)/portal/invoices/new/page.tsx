@@ -24,7 +24,7 @@ import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { api } from "@/lib/api"
-import { getNetworkColor } from "@/lib/blockchain"
+import { getNetworkColor } from "@/configuration/crypto/lib/blockchain"
 import {
   derivePortalNetworks,
   filterInvoiceTokensByNetwork,
@@ -32,10 +32,10 @@ import {
   resolveInvoiceTokenId,
   walletPoolRetryDelaySeconds,
   type MerchantTokenSelection,
-} from "@/lib/portal-invoice-state"
+} from "@/configuration/crypto/lib/portal-invoice-state"
 import { cn } from "@/lib/utils"
-import { usePortalStore } from "@/stores/usePortalStore"
-import type { PortalCreateInvoiceRequest, PortalCurrencyItem } from "@/types/portal-api"
+import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
+import type { PortalCreateInvoiceRequest, PortalCurrencyItem } from "@/configuration/crypto/types/portal-api"
 
 const TTL_OPTIONS = [
   { value: "default", label: "По умолчанию (настройка мерчанта)" },

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test"
-import { formatPortalAmount, receiptAssets, receiptAxisLabel, receiptAxisTicks, receiptSeries } from "../../lib/portal-overview"
-import type { PortalChartPoint } from "../../types/portal-api"
+import { formatPortalAmount, receiptAssets, receiptAxisLabel, receiptAxisTicks, receiptSeries } from "../../configuration/crypto/lib/portal-overview"
+import type { PortalChartPoint } from "../../configuration/crypto/types/portal-api"
 
 const today = new Date("2026-10-02T23:30:00Z")
 const point = (day: string, deposits: string, tokenId = "eth"): PortalChartPoint => ({

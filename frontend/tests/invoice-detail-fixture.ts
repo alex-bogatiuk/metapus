@@ -1,7 +1,7 @@
 import type {
   PortalInvoiceDetailResponse,
   PortalInvoiceLedger,
-} from "../types/portal-api";
+} from "../configuration/crypto/types/portal-api";
 import { ids } from "./helpers";
 export const invoiceId = "01a0fbd7-8920-75fa-8327-255933b7256e";
 export const knownLedger = (

@@ -11,8 +11,8 @@ import { settingsSections } from "@/lib/settings-registry"
 import type { SettingSectionDef } from "@/lib/settings-registry"
 import { SettingsSectionRenderer } from "@/components/settings/settings-section-renderer"
 import { PreferencesContent } from "@/components/settings/preferences-content"
-import { FeeScheduleTable } from "@/components/catalogs/fee-schedule-table"
-import { WalletPoolSettings } from "@/components/settings/wallet-pool-settings"
+import { FeeScheduleTable } from "@/configuration/crypto/components/catalogs/fee-schedule-table"
+import { WalletPoolSettings } from "@/configuration/crypto/components/settings/wallet-pool-settings"
 import { createTabStateKey } from "@/stores/useTabStateStore"
 
 const tabStateKeys = {

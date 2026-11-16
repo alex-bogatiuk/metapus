@@ -1,10 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { usePortalStore } from "@/stores/usePortalStore"
+import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
-import type { MerchantAPIKeyListItem, MerchantAPIKeyResponse, APIKeyScope } from "@/types/merchant-api"
+import type { MerchantAPIKeyListItem, MerchantAPIKeyResponse, APIKeyScope } from "@/configuration/crypto/types/merchant-api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"

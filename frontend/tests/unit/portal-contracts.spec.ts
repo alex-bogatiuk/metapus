@@ -6,7 +6,7 @@ import {
   filterInvoiceTokensByNetwork,
   resolveInvoiceNetworkId,
   resolveInvoiceTokenId,
-} from "../../lib/portal-invoice-state"
+} from "../../configuration/crypto/lib/portal-invoice-state"
 import { formatLocalYYYYMMDD } from "../../lib/filter-utils"
 import { ids } from "../helpers"
 

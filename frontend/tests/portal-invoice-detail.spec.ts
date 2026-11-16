@@ -11,7 +11,7 @@ import {
   invoiceId,
   knownLedger,
 } from "./invoice-detail-fixture";
-import type { PortalInvoiceDetailResponse } from "../types/portal-api";
+import type { PortalInvoiceDetailResponse } from "../configuration/crypto/types/portal-api";
 declare global {
   interface Window {
     copiedText: string;

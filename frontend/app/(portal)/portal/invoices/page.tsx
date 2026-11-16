@@ -53,10 +53,10 @@ import {
 import { AccountingPeriodPicker, type DateRangeValue } from "@/components/ui/accounting-period-picker"
 import { formatLocalYYYYMMDD } from "@/lib/filter-utils"
 import { api } from "@/lib/api"
-import { usePortalStore } from "@/stores/usePortalStore"
+import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
 import { cn } from "@/lib/utils"
-import type { PortalInvoiceItem, PortalInvoiceDetailResponse, PortalCurrencyItem } from "@/types/portal-api"
-import { buildTransactionExplorerUrl, getNetworkColor } from "@/lib/blockchain"
+import type { PortalInvoiceItem, PortalInvoiceDetailResponse, PortalCurrencyItem } from "@/configuration/crypto/types/portal-api"
+import { buildTransactionExplorerUrl, getNetworkColor } from "@/configuration/crypto/lib/blockchain"
 
 // ── Constants ──────────────────────────────────────────────────────────────
 

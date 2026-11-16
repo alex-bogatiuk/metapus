@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 import type { RpcconfigRPCNetworkSettings } from "../../types/generated/http-contracts"
-import { rpcSettingsErrors, rpcSettingsForm, rpcSettingsFromForm } from "../../lib/integrations/rpc-network-settings"
+import { rpcSettingsErrors, rpcSettingsForm, rpcSettingsFromForm } from "../../configuration/crypto/lib/integrations/rpc-network-settings"
 
 const defaults: RpcconfigRPCNetworkSettings = {
   evm: { maxHeadAgeSeconds: 30, attemptTimeoutMs: 2000, readBudgetMs: 5000, logsTimeoutMs: 5000, maxAttempts: 2, providerConcurrency: 8, backfillConcurrency: 4, requestsPerSecond: 20, nativeConcurrency: 4, prefetchBlocks: 32, maxResponseBytes: 8388608, maxBufferedBytes: 268435456 },

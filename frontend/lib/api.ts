@@ -54,11 +54,11 @@ export {
 // ── Domain sub-APIs ─────────────────────────────────────────────────────
 import { authApi, usersApi, rolesApi, permissionsApi } from "./api/auth"
 import { catalogsApi } from "./api/catalogs"
-import { cryptoApi } from "./api/crypto"
+import { cryptoApi } from "../configuration/crypto/lib/api/crypto"
 import { automationApi } from "./api/automation"
 import { metaApi, preferencesApi, listViewsApi, reportsApi, settingsApi } from "./api/meta"
 import { securityApi } from "./api/security"
-import { portalApi, merchantApiKeysApi, merchantUsersApi, feeScheduleApi, merchantFeeScheduleApi } from "./api/portal"
+import { portalApi, merchantApiKeysApi, merchantUsersApi, feeScheduleApi, merchantFeeScheduleApi } from "../configuration/crypto/lib/api/portal"
 import { searchApi, systemApi, adminApi } from "./api/system"
 
 import { dashboardApi } from "./api/dashboard"

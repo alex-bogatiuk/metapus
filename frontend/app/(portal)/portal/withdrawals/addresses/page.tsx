@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { usePortalStore } from "@/stores/usePortalStore"
+import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
 import { api } from "@/lib/api"
-import type { PortalWithdrawalAddress, PortalCurrencyItem } from "@/types/portal-api"
+import type { PortalWithdrawalAddress, PortalCurrencyItem } from "@/configuration/crypto/types/portal-api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"

@@ -20,7 +20,7 @@ import { useMetadataStore } from "@/stores/useMetadataStore"
 import AutoForm, { type AutoFormProps } from "@/components/shared/auto-form"
 import { RPCKeyNameField } from "@/components/integrations/rpc-key-name-field"
 
-import { WalletAMLPanel } from "@/components/crypto/aml-risk"
+import { WalletAMLPanel } from "@/configuration/crypto/components/crypto/aml-risk"
 
 // Auto-discover entities from backend metadata
 registerFromMetadata()

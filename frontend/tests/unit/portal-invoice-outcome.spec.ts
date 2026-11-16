@@ -4,7 +4,7 @@ import {
   invoiceMoney,
   paymentOutcome,
   webhookOutcome,
-} from "../../lib/portal-invoice-outcome";
+} from "../../configuration/crypto/lib/portal-invoice-outcome";
 import { PortalInvoiceDetailResponseSchema } from "../../lib/generated/http-contract-schemas";
 import { invoiceFixture, knownLedger } from "../invoice-detail-fixture";
 

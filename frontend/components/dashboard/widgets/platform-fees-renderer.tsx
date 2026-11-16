@@ -1,6 +1,6 @@
 "use client"
 import { Coins } from "lucide-react"
-import { formatPortalAmount } from "@/lib/portal-overview"
+import { formatPortalAmount } from "@/configuration/crypto/lib/portal-overview"
 import type { WidgetRenderProps } from "@/types/dashboard"
 import { WidgetBody, WidgetEmpty } from "./widget-state"
 import { useCompactRows } from "./compact-rows"

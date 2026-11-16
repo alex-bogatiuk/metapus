@@ -70,13 +70,13 @@ const WIDGET_DEFINITIONS: RegisteredWidgetDefinition[] = [
         type: "custody-reconciliation", label: "Сверка кошельков", description: "Последние проверки учёта и блокчейна по токенам и сетям", icon: ShieldCheck, category: "lists",
         allowedSizes: ["4x3", "fullx3", "4x4"], defaultSize: "fullx3", defaultConfig: { limit: 8 },
         requiredPermission: null, adminOnly: true,
-        component: lazy(() => import("@/components/dashboard/widgets/custody-reconciliation-renderer")),
+        component: lazy(() => import("@/configuration/crypto/components/dashboard/widgets/custody-reconciliation-renderer")),
     }),
     defineWidget({
         type: "receipts-volume", label: "Объём поступлений", description: "Подтверждённые поступления по дням, токену и сети", icon: BarChart3, category: "charts",
         allowedSizes: ["4x3", "4x4-compact", "4x4"], defaultSize: "4x4-compact", defaultConfig: { period: "30d", tokenId: "" },
         requiredPermission: null, adminOnly: true,
-        component: lazy(() => import("@/components/dashboard/widgets/receipts-volume-renderer")),
+        component: lazy(() => import("@/configuration/crypto/components/dashboard/widgets/receipts-volume-renderer")),
     }),
     defineWidget({
         type: "platform-fees", label: "Комиссии платформы", description: "Учтённые комиссии за обработку платежей, за вычетом сторно", icon: Percent, category: "kpi",

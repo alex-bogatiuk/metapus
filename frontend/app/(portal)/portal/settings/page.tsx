@@ -1,10 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { usePortalStore } from "@/stores/usePortalStore"
+import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
 import { api } from "@/lib/api"
 import { formatMinorUnits } from "@/lib/format"
-import type { PortalFeeItem } from "@/types/portal-api"
+import type { PortalFeeItem } from "@/configuration/crypto/types/portal-api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -35,7 +35,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
-import { NetworkPolicySettings } from "@/components/portal/network-policy-settings"
+import { NetworkPolicySettings } from "@/configuration/crypto/components/portal/network-policy-settings"
 
 const TTL_OPTIONS = [
   { value: "15", label: "15 минут" },

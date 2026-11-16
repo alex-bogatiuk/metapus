@@ -6,7 +6,7 @@ import {
 import { allWidgetDefinitions } from "../../lib/widget-registry"
 import { preferencesSchema } from "../../lib/schemas/preferences"
 import { networkHealth, networkProblem } from "../../lib/admin-dashboard"
-import type { CryptoNetworkState } from "../../types/crypto-network"
+import type { CryptoNetworkState } from "../../configuration/crypto/types/crypto-network"
 import type { WidgetPlacement } from "../../types/dashboard"
 
 const ids = (rows: WidgetPlacement[][]) => rows.map(row => row.map(w => w.instanceId))

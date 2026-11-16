@@ -2,8 +2,8 @@
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle, RefreshCw } from "lucide-react";
-import { InvoiceOutcomePage } from "@/components/portal/invoice-outcome";
-import { usePortalInvoiceDetail } from "@/hooks/use-portal-invoice-detail";
+import { InvoiceOutcomePage } from "@/configuration/crypto/components/portal/invoice-outcome";
+import { usePortalInvoiceDetail } from "@/configuration/crypto/hooks/use-portal-invoice-detail";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";

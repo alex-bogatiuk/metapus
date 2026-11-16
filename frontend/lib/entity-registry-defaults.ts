@@ -23,7 +23,7 @@ import { useMetadataStore } from "@/stores/useMetadataStore"
 import { formatRawMinor } from "@/lib/money"
 import { copyToClipboard } from "@/lib/format"
 import { toast } from "sonner"
-import { AMLRiskBadge } from "@/components/crypto/aml-risk"
+import { AMLRiskBadge } from "@/configuration/crypto/components/crypto/aml-risk"
 import { Button } from "@/components/ui/button"
 import { COPY_VALUE_ATTR } from "@/components/shared/data-table"
 
@@ -468,9 +468,9 @@ const IntegrationList = React.lazy(() => import("@/components/integrations/integ
 const IntegrationAccountForm = React.lazy(() => import("@/components/integrations/account-form"))
 const IntegrationPoolForm = React.lazy(() => import("@/components/integrations/pool-form"))
 const RateSourceForm = React.lazy(() => import("@/components/exchange-rates/rate-source-form"))
-const CryptoProviderAccountForm = React.lazy(() => import("@/components/catalogs/crypto-provider-account-form"))
-const CryptoSweepCard = React.lazy(() => import("@/components/documents/crypto-sweep-card"))
-const CustodyReceiptCard = React.lazy(() => import("@/components/documents/crypto-custody-receipt-card"))
+const CryptoProviderAccountForm = React.lazy(() => import("@/configuration/crypto/components/catalogs/crypto-provider-account-form"))
+const CryptoSweepCard = React.lazy(() => import("@/configuration/crypto/components/documents/crypto-sweep-card"))
+const CustodyReceiptCard = React.lazy(() => import("@/configuration/crypto/components/documents/crypto-custody-receipt-card"))
 
 // A custody receipt is a system-owned fact without a metadata-driven list or
 // form; payments and the receipt journal link to its read-only card.

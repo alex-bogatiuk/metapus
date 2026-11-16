@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test"
 import { commonAPIResponse, ids, installPortalSession, json, portalOwner } from "./helpers"
-import type { PortalDepositAddressItem, PortalRotateDepositAddressResponse } from "../types/portal-api"
+import type { PortalDepositAddressItem, PortalRotateDepositAddressResponse } from "../configuration/crypto/types/portal-api"
 
 const newWallet = "10000000-0000-4000-8000-000000000099"
 const newAddress = "TNewCustomerDepositAddressForRotation"

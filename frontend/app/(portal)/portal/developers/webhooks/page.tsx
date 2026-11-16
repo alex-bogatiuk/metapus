@@ -57,12 +57,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { api } from "@/lib/api"
-import { usePortalStore } from "@/stores/usePortalStore"
+import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
 import type {
   PortalMerchantEvent,
   PortalWebhookDeliveryItem,
   PortalWebhookEndpoint,
-} from "@/types/portal-api"
+} from "@/configuration/crypto/types/portal-api"
 
 const BASE_EVENTS = [
   "invoice.created",

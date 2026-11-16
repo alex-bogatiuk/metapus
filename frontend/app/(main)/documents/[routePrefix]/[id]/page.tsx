@@ -18,10 +18,10 @@ import { entityRegistry } from "@/lib/entity-registry"
 import { registerFromMetadata } from "@/lib/entity-registry-defaults"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import AutoForm from "@/components/shared/auto-form"
-import { CryptoPaymentAdjustments } from "@/components/documents/crypto-payment-adjustments"
-import { CryptoPaymentReceipt } from "@/components/documents/crypto-payment-receipt"
+import { CryptoPaymentAdjustments } from "@/configuration/crypto/components/documents/crypto-payment-adjustments"
+import { CryptoPaymentReceipt } from "@/configuration/crypto/components/documents/crypto-payment-receipt"
 
-import { PaymentAMLPanel } from "@/components/crypto/aml-risk"
+import { PaymentAMLPanel } from "@/configuration/crypto/components/crypto/aml-risk"
 
 // Auto-discover entities from backend metadata
 registerFromMetadata()

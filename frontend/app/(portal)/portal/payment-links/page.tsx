@@ -1,23 +1,23 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { usePortalStore } from "@/stores/usePortalStore"
+import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
 import { api } from "@/lib/api"
-import { getNetworkColor } from "@/lib/blockchain"
+import { getNetworkColor } from "@/configuration/crypto/lib/blockchain"
 import {
   derivePortalNetworks,
   filterInvoiceTokensByNetwork,
   resolveInvoiceNetworkId,
   resolveInvoiceTokenId,
   type MerchantTokenSelection,
-} from "@/lib/portal-invoice-state"
+} from "@/configuration/crypto/lib/portal-invoice-state"
 import { cn } from "@/lib/utils"
 import type {
   PortalCurrencyItem,
   PortalPaymentLinkItem,
   CreatePaymentLinkRequest,
   PortalPaymentLinkCreateResponse,
-} from "@/types/portal-api"
+} from "@/configuration/crypto/types/portal-api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"

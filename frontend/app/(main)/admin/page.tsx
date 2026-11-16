@@ -25,7 +25,7 @@ import { SystemInfoSection } from "@/components/settings/system-info-section"
 import { TenantOverviewSection } from "@/components/settings/tenant-overview-section"
 import { IntegrationsSection } from "@/components/settings/integrations-section"
 import { useSettingsStore } from "@/stores/useSettingsStore"
-import { MerchantsSection } from "@/components/settings/merchants-section"
+import { MerchantsSection } from "@/configuration/crypto/components/settings/merchants-section"
 import { createTabStateKey } from "@/stores/useTabStateStore"
 
 const tabStateKeys = {

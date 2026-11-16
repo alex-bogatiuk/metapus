@@ -82,7 +82,7 @@ export const catalogsApi = {
     ),
 
     cryptoProviderAccounts: createCatalogApi<
-        import("@/types/crypto-network").CryptoProviderAccount,
+        import("@/configuration/crypto/types/crypto-network").CryptoProviderAccount,
         import("@/types/generated/http-contracts").CreateCryptoProviderAccountRequest,
         import("@/types/generated/http-contracts").UpdateCryptoProviderAccountRequest
     >(

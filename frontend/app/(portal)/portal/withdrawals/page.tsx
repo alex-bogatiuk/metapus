@@ -43,11 +43,11 @@ import {
 } from "@/components/ui/tooltip"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/lib/api"
-import { formatRiskClass } from "@/lib/aml-risk"
-import { usePortalStore } from "@/stores/usePortalStore"
-import { buildTransactionExplorerUrl, truncateAddress } from "@/lib/blockchain"
+import { formatRiskClass } from "@/configuration/crypto/lib/aml-risk"
+import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
+import { buildTransactionExplorerUrl, truncateAddress } from "@/configuration/crypto/lib/blockchain"
 import { formatMinorUnits, formatDateTime, copyToClipboard } from "@/lib/format"
-import type { PortalWithdrawalItem } from "@/types/portal-api"
+import type { PortalWithdrawalItem } from "@/configuration/crypto/types/portal-api"
 
 // ── Status Config ──────────────────────────────────────────────────────
 

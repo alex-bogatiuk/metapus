@@ -58,16 +58,16 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { api, ApiError } from "@/lib/api"
-import { getNetworkColor, truncateAddress } from "@/lib/blockchain"
+import { getNetworkColor, truncateAddress } from "@/configuration/crypto/lib/blockchain"
 import { copyToClipboard, formatDateTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
-import { usePortalStore } from "@/stores/usePortalStore"
-import { DepositAddressRisk, DepositAddressRotationAction } from "@/components/portal/deposit-address-actions"
+import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
+import { DepositAddressRisk, DepositAddressRotationAction } from "@/configuration/crypto/components/portal/deposit-address-actions"
 import type {
   PortalCreateDepositAddressResponse,
   PortalDepositAddressItem,
   PortalDepositAddressQuotaItem,
-} from "@/types/portal-api"
+} from "@/configuration/crypto/types/portal-api"
 
 const PAGE_SIZES = [10, 20, 50, 100]
 const DEFAULT_PAGE_SIZE = 20

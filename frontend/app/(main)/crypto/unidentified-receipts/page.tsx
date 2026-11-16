@@ -23,8 +23,8 @@ import { Input } from "@/components/ui/input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { majorToMinor, rawMinorToMajor } from "@/lib/money"
 import type { MerchantCreditResponse, PlatformFundingResponse, UnidentifiedReceiptItem } from "@/types/generated/http-contracts"
-import type { TreasurySourceWallet, TreasuryWithdrawal } from "@/types/treasury"
-import { receiptJournalStates, receiptMerchantLinks, receiptReasons, receiptRowStateHints, receiptRowStates, type ReceiptJournalState } from "@/types/unidentified-receipt"
+import type { TreasurySourceWallet, TreasuryWithdrawal } from "@/configuration/crypto/types/treasury"
+import { receiptJournalStates, receiptMerchantLinks, receiptReasons, receiptRowStateHints, receiptRowStates, type ReceiptJournalState } from "@/configuration/crypto/types/unidentified-receipt"
 import { AlertTriangle } from "lucide-react"
 
 type Dialogs =

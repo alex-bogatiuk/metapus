@@ -1,7 +1,7 @@
 "use client"
 import { api } from "@/lib/api"
 import { useWidgetData } from "@/hooks/useWidgetData"
-import { formatPortalAmount } from "@/lib/portal-overview"
+import { formatPortalAmount } from "@/configuration/crypto/lib/portal-overview"
 import { formatDecimal } from "@/lib/exchange-rates"
 import { observedTime } from "@/lib/admin-dashboard"
 import { paletteColor, resolvePaletteKey } from "@/lib/palette"

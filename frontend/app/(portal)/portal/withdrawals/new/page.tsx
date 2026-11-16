@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { usePortalStore } from "@/stores/usePortalStore"
+import { usePortalStore } from "@/configuration/crypto/stores/usePortalStore"
 import { api } from "@/lib/api"
 import type {
   PortalWithdrawalAddress,
@@ -12,7 +12,7 @@ import type {
   PortalCurrencyItem,
   PortalRefundablePaymentResponse,
  WithdrawalRiskClass,
-} from "@/types/portal-api"
+} from "@/configuration/crypto/types/portal-api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,7 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Copy, Loader2, Send, Shield, Wallet } from "lucide-react"
 import { toast } from "sonner"
-import { riskClassLabels as riskLabels, isRiskClass } from "@/lib/aml-risk"
+import { riskClassLabels as riskLabels, isRiskClass } from "@/configuration/crypto/lib/aml-risk"
 import type { PortalRiskBalanceResponse } from "@/types/generated/http-contracts"
 import { rawMinorToMajor } from "@/lib/money"
 import { formatMinorUnits } from "@/lib/format"

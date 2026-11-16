@@ -1,4 +1,4 @@
-import { CryptoNetworksConsole } from "@/components/admin/crypto-networks-console"
+import { CryptoNetworksConsole } from "@/configuration/crypto/components/admin/crypto-networks-console"
 
 export default function CryptoNetworksPage() {
   return (

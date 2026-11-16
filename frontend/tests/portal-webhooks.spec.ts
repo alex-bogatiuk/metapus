@@ -1,7 +1,7 @@
 import type { JsonObject } from "@/lib/json-value"
 import { expect, test } from "@playwright/test"
 
-import type { PortalWebhookEndpoint } from "../types/portal-api"
+import type { PortalWebhookEndpoint } from "../configuration/crypto/types/portal-api"
 import { commonAPIResponse, ids, installPortalSession, json, portalOwner, portalRoles } from "./helpers"
 
 const endpointId = "10000000-0000-4000-8000-000000000020"
