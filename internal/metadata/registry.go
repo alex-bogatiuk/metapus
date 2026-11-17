@@ -230,6 +230,10 @@ type FieldDef struct {
 	// Widget asks forms for a dedicated input instead of the default one for
 	// Type; consumers that do not know it fall back to Type. Set from the Go type.
 	Widget FieldWidget `json:"widget,omitempty"`
+
+	// Group places the field in a named group of the generic form, overriding
+	// its automatic layout. Set via meta:"group:<title>".
+	Group string `json:"group,omitempty"`
 }
 
 // FilterFieldMeta is a flat, frontend-compatible representation of a filterable field.

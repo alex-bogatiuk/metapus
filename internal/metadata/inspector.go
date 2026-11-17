@@ -109,6 +109,7 @@ func inspectStruct(t reflect.Type, def *EntityDef, topLevel bool) {
 			ReadOnly:   isReadOnly(field),
 			WriteOnly:  metaHasWriteOnlyTrue(field),
 			ListHidden: metaHasListFalse(field),
+			Group:      metaValue(field, "group"),
 		}
 
 		// Type mapping
@@ -383,6 +384,16 @@ func isRequired(field reflect.StructField) bool {
 		return strings.Contains(tag, "required")
 	}
 	return false
+}
+
+// metaValue returns the value of meta:"<key>:<value>", or "".
+func metaValue(field reflect.StructField, key string) string {
+	for part := range strings.SplitSeq(field.Tag.Get("meta"), ",") {
+		if value, ok := strings.CutPrefix(strings.TrimSpace(part), key+":"); ok {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func isReadOnly(field reflect.StructField) bool {

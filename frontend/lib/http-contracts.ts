@@ -69,6 +69,12 @@ function projectRows(fields: readonly string[] | undefined, value: JsonValue): J
     : row)
 }
 
+/** Fields the form request of method/path accepts; null when no contract is known. */
+export function formRequestFieldNames(method: string, path: string): ReadonlySet<string> | null {
+  const fields = findHTTPContract("api", method, path)?.requestFields
+  return fields ? new Set(fields) : null
+}
+
 /**
  * Line fields the form request of method/path accepts for each table part;
  * a part without them is not writable through that request.

@@ -20,6 +20,8 @@ export interface TablePartEditorProps {
     readOnly: boolean
     disabled: boolean
     hiddenColumns: ReadonlySet<string>
+    /** On a tab the tab names the part, so the editor shows no title of its own. */
+    bare?: boolean
     onChange: (rows: JsonObject[]) => void
     /** Renders a non-reference editor (the form's own field inputs). */
     renderInput: (column: MetadataField, value: JsonValue | undefined, onChange: (value: JsonValue) => void) => React.ReactNode
@@ -37,15 +39,15 @@ function cellText(row: JsonObject, column: MetadataField): string {
  * field. A writable part adds, removes and reorders lines; a cell is editable
  * when the line request accepts its field.
  */
-export function TablePartEditor({ part, rows, writable, readOnly, disabled, hiddenColumns, onChange, renderInput }: TablePartEditorProps) {
+export function TablePartEditor({ part, rows, writable, readOnly, disabled, hiddenColumns, bare = false, onChange, renderInput }: TablePartEditorProps) {
     const columns = part.columns.filter((column) => !hiddenColumns.has(column.name) && !LINE_IDENTITY_COLUMNS.has(column.name))
     const editable = !readOnly && writable !== null
     const title = part.label || part.name
 
     return (
-        <section className="mt-8 space-y-2" aria-label={title} data-table-part={part.name}>
-            <div className="flex items-center justify-between gap-2">
-                <Label className="text-sm font-semibold">{title}</Label>
+        <section className={bare ? "space-y-2" : "mt-8 space-y-2"} aria-label={title} data-table-part={part.name}>
+            <div className={bare && !editable ? "hidden" : "flex items-center justify-between gap-2"}>
+                {bare ? <span /> : <Label className="text-sm font-semibold">{title}</Label>}
                 {editable && (
                     <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => onChange(addRow(rows))}>
                         <Plus className="h-3.5 w-3.5" />

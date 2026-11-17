@@ -1395,6 +1395,7 @@ export const MetadataFieldDefSchema: z.ZodType<Wire.MetadataFieldDef> = z.lazy((
   "enumValues": z.array(MetadataEnumValueSchema).optional(),
   "listHidden": z.boolean().optional(),
   "widget": z.string().optional(),
+  "group": z.string().optional(),
 }))
 
 export const MetadataPresentationSchema: z.ZodType<Wire.MetadataPresentation> = z.lazy(() => z.object({

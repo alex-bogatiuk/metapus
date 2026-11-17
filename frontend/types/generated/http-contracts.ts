@@ -1391,6 +1391,7 @@ export type MetadataFieldDef = {
   "enumValues"?: Array<MetadataEnumValue>
   "listHidden"?: boolean
   "widget"?: string
+  "group"?: string
 }
 
 export type MetadataPresentation = {

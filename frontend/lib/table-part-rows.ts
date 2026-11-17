@@ -77,7 +77,11 @@ export function moveRow(rows: JsonObject[], index: number, delta: -1 | 1): JsonO
 }
 
 /** A line the form can tell is incomplete before sending it. */
-export class LineInputError extends Error {}
+export class LineInputError extends Error {
+    constructor(message: string, readonly part: string) {
+        super(message)
+    }
+}
 
 /**
  * Checks the required, editable cells of every writable part and throws the
@@ -98,7 +102,7 @@ export function checkRequiredCells(
                 if (!column.required || !isEditableColumn(column, writable, false)) continue
                 const value = row[column.name]
                 if (value === undefined || value === null || value === "") {
-                    throw new LineInputError(`${part.label || part.name}, строка ${index + 1}: заполните «${column.label || column.name}»`)
+                    throw new LineInputError(`${part.label || part.name}, строка ${index + 1}: заполните «${column.label || column.name}»`, part.name)
                 }
             }
         })

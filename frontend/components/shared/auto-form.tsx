@@ -50,7 +50,7 @@ import { ReferenceField } from "@/components/shared/reference-field"
 import { UserPicker } from "@/components/shared/user-picker"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { useMetadataStore } from "@/stores/useMetadataStore"
-import { Save, ArrowLeft, ArrowRightLeft, Network } from "lucide-react"
+import { Save, ArrowLeft, ArrowRightLeft, ChevronRight, Network } from "lucide-react"
 import { FormSkeleton } from "@/components/shared/form-skeleton"
 import { toast } from "sonner"
 import { useTabTitle } from "@/hooks/useTabTitle"
@@ -69,7 +69,10 @@ import { createTabStateKey } from "@/stores/useTabStateStore"
 import { minorUnitsSchema } from "@/lib/money"
 import type { EntityMetadata, MetadataField } from "@/lib/schemas/metadata"
 import { parseEntityValues } from "@/lib/schemas/entity-values"
-import { formRequestParts, projectFormRequest } from "@/lib/http-contracts"
+import { formRequestFieldNames, formRequestParts, projectFormRequest } from "@/lib/http-contracts"
+import { displayValue, isWideField, isWritableField, planFormLayout } from "@/lib/form-layout"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { resolveRefEndpoint } from "@/lib/reference-endpoint"
 import { TablePartEditor } from "@/components/shared/table-part-editor"
 import { LineInputError, checkRequiredCells } from "@/lib/table-part-rows"
@@ -113,6 +116,9 @@ export interface AutoFormFieldContext {
 }
 
 /** System/auto-managed fields that should not appear in the form */
+/** Tab value of the "Дополнительно" zone when table parts are on tabs. */
+const EXTRA_TAB = "__extra"
+
 const HIDDEN_FIELDS = new Set([
     "id", "version", "deletionMark", "attributes",
     "createdAt", "updatedAt", "createdBy", "updatedBy",
@@ -432,7 +438,13 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
 
     // Table-part line fields come from the form's own request contract: create
     // for a new document, update (repost takes the same request) otherwise.
-    const tablePartFields = formRequestParts(isNew ? "POST" : "PUT", isNew ? basePath : `${basePath}/${id}`)
+    const formRoute = isNew ? basePath : `${basePath}/${id}`
+    const tablePartFields = formRequestParts(isNew ? "POST" : "PUT", formRoute)
+    // Fields the form's own request does not accept are shown read-only under
+    // "Дополнительно" instead of as inputs whose values would be dropped.
+    const formRequestFields = formRequestFieldNames(isNew ? "POST" : "PUT", formRoute)
+    const [activePart, setActivePart] = useState<string | undefined>(undefined)
+    const [partError, setPartError] = useState<string | null>(null)
 
     const handleFieldChange = useCallback((name: string, value: JsonValue) => {
         editDraft(name, value)
@@ -491,6 +503,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                 }
             }
             checkRequiredCells(meta.tableParts ?? [], data, tablePartFields)
+            setPartError(null)
             const requisites = entityType === "catalog" ? buildCatalogFormPayload(meta.fields, data, isNew, hiddenFields) : data
             const repost = !isNew && isDocument && ticket.draft.posted && canRepost
             const target = isNew ? basePath : `${basePath}/${id}${repost ? "/repost" : ""}`
@@ -516,6 +529,8 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
             if (err instanceof ApiError) {
                 toast.error(err.parsedBody?.message ?? `Не удалось сохранить данные (код ${err.status})`)
             } else if (err instanceof LineInputError) {
+                setPartError(err.part)
+                setActivePart(err.part)
                 toast.error(err.message)
             } else {
                 toast.error("Не удалось сохранить данные")
@@ -557,6 +572,8 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
             if (err instanceof ApiError) {
                 toast.error(err.parsedBody?.message ?? "Не удалось провести документ")
             } else if (err instanceof LineInputError) {
+                setPartError(err.part)
+                setActivePart(err.part)
                 toast.error(err.message)
             } else {
                 toast.error("Не удалось провести документ")
@@ -702,6 +719,101 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
     }
 
     const editableFields = meta.fields.filter((f) => !HIDDEN_FIELDS.has(f.name) && !hiddenFields.includes(f.name))
+    const tableParts = meta.tableParts ?? []
+    const layout = planFormLayout({ kind: entityType, fields: editableFields, partCount: tableParts.length, accepted: formRequestFields })
+    const activeTab = activePart ?? tableParts[0]?.name ?? EXTRA_TAB
+    // M7: autoFocus on the first editable non-boolean field of a new entity, in layout order
+    const firstEditable = isNew && !formReadOnly
+        ? [...layout.header, ...layout.groups.flatMap((group) => group.fields), ...layout.wide]
+            .find((f) => isWritableField(f, formRequestFields) && f.type !== "boolean")?.name
+        : undefined
+
+    const renderFieldBlock = (field: FieldDef, forceReadOnly = false) => {
+        // Server-owned values read as text, not as inputs that look editable;
+        // a reference keeps its picker for the display name and navigation.
+        const ownReadOnly = forceReadOnly && renderField
+            ? renderField(field, { value: formData[field.name], values: formData, onChange: () => undefined, readOnly: true })
+            : undefined
+        const value = formData[field.name]
+        const emptyReference = field.type === "reference" && (value === undefined || value === null || value === "")
+        if (forceReadOnly && ownReadOnly === undefined && (field.type !== "reference" || emptyReference)) {
+            return (
+                <div key={field.name} data-field={field.name}>
+                    <p className="text-xs text-muted-foreground">{field.label || field.name}</p>
+                    <p className="mt-1 break-words text-sm">{displayValue(field, value)}</p>
+                </div>
+            )
+        }
+        const writeOnlyModified = Object.prototype.hasOwnProperty.call(formData, field.name)
+        const writeOnlyConfigured = formData[`${field.name}Configured`] === true
+        const fieldReadOnly = formReadOnly || forceReadOnly
+        const wide = isWideField(field)
+        return (
+            <div key={field.name} className={wide ? "md:col-span-2" : ""} data-field={field.name}>
+                <Label htmlFor={field.name} className="text-xs text-muted-foreground">
+                    {field.label || field.name}
+                    {field.required && !fieldReadOnly && <span className="ml-0.5 text-destructive">*</span>}
+                </Label>
+                <div className="mt-1">
+                    {renderField?.(field, {
+                        value: formData[field.name],
+                        values: formData,
+                        onChange: (value) => handleFieldChange(field.name, value),
+                        readOnly: fieldReadOnly || !!field.readOnly,
+                    }) ?? fieldToInput(
+                        field,
+                        formData[field.name],
+                        handleFieldChange,
+                        false,
+                        fieldReadOnly,
+                        field.name === firstEditable,
+                        writeOnlyConfigured,
+                    )}
+                </div>
+                {field.writeOnly && (
+                    <div className="mt-1 flex items-center justify-between gap-3">
+                        <p className="text-xs text-muted-foreground" role="status">
+                            {writeOnlyModified
+                                ? formData[field.name] === ""
+                                    ? "Ключ будет очищен после записи."
+                                    : writeOnlyConfigured
+                                        ? "Ключ будет заменён после записи."
+                                        : "Ключ будет сохранён после записи."
+                                : writeOnlyConfigured
+                                    ? "Ключ настроен. Сохранённое значение не отображается."
+                                    : "Ключ не настроен."}
+                        </p>
+                        {writeOnlyConfigured && !writeOnlyModified && !fieldReadOnly && (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                disabled={saving}
+                                onClick={() => handleFieldChange(field.name, "")}
+                            >
+                                Очистить
+                            </Button>
+                        )}
+                    </div>
+                )}
+            </div>
+        )
+    }
+
+    const renderTablePart = (tp: (typeof tableParts)[number], bare: boolean) => (
+        <TablePartEditor
+            key={tp.name}
+            part={tp}
+            rows={z.array(jsonObjectSchema).parse(formData[tp.name] ?? [])}
+            writable={tablePartFields[tp.name] ?? null}
+            readOnly={formReadOnly}
+            disabled={saving}
+            hiddenColumns={HIDDEN_FIELDS}
+            bare={bare}
+            onChange={(rows) => handleFieldChange(tp.name, rows)}
+            renderInput={(column, value, onChange) => fieldToInput(column, value, (_, next) => onChange(next), saving, false)}
+        />
+    )
     const title = isNew
         ? (tabTitle ?? meta.presentation?.new ?? `Новый: ${meta.presentation?.singular ?? entityName}`)
         : (meta.presentation?.singular ?? entityName)
@@ -847,83 +959,75 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                             <AlertTitle>Независимое решение</AlertTitle>
                             <AlertDescription>Решение принято другим оператором. Версия политики: {String(formData.decisionPolicyVersion)}.</AlertDescription>
                         </Alert>}
-                        {/* Auto-generated fields */}
-                        <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
-                            {editableFields.map((field, idx) => {
-                                // M7: autoFocus on first editable non-boolean field for new entities
-                                const isFirstEditable = isNew && !formReadOnly && idx === editableFields.findIndex(
-                                    (f) => !f.readOnly && f.type !== "boolean"
-                                )
-                                const writeOnlyModified = Object.prototype.hasOwnProperty.call(formData, field.name)
-                                const writeOnlyConfigured = formData[`${field.name}Configured`] === true
-                                const fieldReadOnly = formReadOnly
-                                return (
-                                    <div key={field.name} className={field.type === "string" && field.name === "comment" ? "md:col-span-2" : ""}>
-                                        <Label htmlFor={field.name} className="text-xs text-muted-foreground">
-                                            {field.label || field.name}
-                                            {field.required && <span className="ml-0.5 text-destructive">*</span>}
-                                        </Label>
-                                        <div className="mt-1">
-                                            {renderField?.(field, {
-                                                value: formData[field.name],
-                                                values: formData,
-                                                onChange: (value) => handleFieldChange(field.name, value),
-                                                readOnly: fieldReadOnly || !!field.readOnly,
-                                            }) ?? fieldToInput(
-                                                field,
-                                                formData[field.name],
-                                                handleFieldChange,
-                                                false,
-                                                fieldReadOnly,
-                                                isFirstEditable,
-                                                writeOnlyConfigured,
-                                            )}
-                                        </div>
-                                        {field.writeOnly && (
-                                            <div className="mt-1 flex items-center justify-between gap-3">
-                                                <p className="text-xs text-muted-foreground" role="status">
-                                                    {writeOnlyModified
-                                                        ? formData[field.name] === ""
-                                                            ? "Ключ будет очищен после записи."
-                                                            : writeOnlyConfigured
-                                                                ? "Ключ будет заменён после записи."
-                                                                : "Ключ будет сохранён после записи."
-                                                        : writeOnlyConfigured
-                                                            ? "Ключ настроен. Сохранённое значение не отображается."
-                                                            : "Ключ не настроен."}
-                                                </p>
-                                                {writeOnlyConfigured && !writeOnlyModified && !fieldReadOnly && (
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        disabled={saving}
-                                                        onClick={() => handleFieldChange(field.name, "")}
-                                                    >
-                                                        Очистить
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                )
-                            })}
-                        </div>
-
-                        {/* Table parts: lines the form's request accepts are editable */}
-                        {meta.tableParts?.map((tp) => (
-                            <TablePartEditor
-                                key={tp.name}
-                                part={tp}
-                                rows={z.array(jsonObjectSchema).parse(formData[tp.name] ?? [])}
-                                writable={tablePartFields[tp.name] ?? null}
-                                readOnly={formReadOnly}
-                                disabled={saving}
-                                hiddenColumns={HIDDEN_FIELDS}
-                                onChange={(rows) => handleFieldChange(tp.name, rows)}
-                                renderInput={(column, value, onChange) => fieldToInput(column, value, (_, next) => onChange(next), saving, false)}
-                            />
+                        {/* Auto-generated fields, placed by lib/form-layout */}
+                        {layout.header.length > 0 && (
+                            <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2" data-form-zone="header">
+                                {layout.header.map((field) => renderFieldBlock(field))}
+                            </div>
+                        )}
+                        {layout.groups.map((group) => (
+                            <section key={group.key} aria-label={group.title} className="space-y-3" data-form-group={group.key}>
+                                {group.title && <h3 className="border-b pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.title}</h3>}
+                                <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
+                                    {group.fields.map((field) => renderFieldBlock(field))}
+                                </div>
+                            </section>
                         ))}
+                        {layout.wide.length > 0 && (
+                            <div className="grid grid-cols-1 gap-y-4" data-form-zone="wide">
+                                {layout.wide.map((field) => renderFieldBlock(field))}
+                            </div>
+                        )}
+
+                        {layout.partsMode === "inline" && (
+                            <>
+                                {tableParts.map((tp) => renderTablePart(tp, false))}
+                                {layout.extra.length > 0 && (
+                                    <Collapsible className="rounded border" data-form-zone="extra">
+                                        <CollapsibleTrigger className="group flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium">
+                                            <ChevronRight className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-90" />
+                                            Дополнительно <span className="text-muted-foreground">({layout.extra.length})</span>
+                                        </CollapsibleTrigger>
+                                        <CollapsibleContent>
+                                            <div className="grid grid-cols-1 gap-x-6 gap-y-4 border-t px-3 py-3 md:grid-cols-2">
+                                                {layout.extra.map((field) => renderFieldBlock(field, true))}
+                                            </div>
+                                        </CollapsibleContent>
+                                    </Collapsible>
+                                )}
+                            </>
+                        )}
+                        {layout.partsMode === "tabs" && (
+                            <Tabs value={activeTab} onValueChange={setActivePart} data-form-zone="parts">
+                                <TabsList>
+                                    {tableParts.map((tp) => {
+                                        const count = Array.isArray(formData[tp.name]) ? (formData[tp.name] as JsonValue[]).length : 0
+                                        return (
+                                            <TabsTrigger key={tp.name} value={tp.name} className="gap-1.5">
+                                                {tp.label || tp.name}
+                                                <span className="tabular-nums text-muted-foreground">{count}</span>
+                                                {partError === tp.name && <span className="h-1.5 w-1.5 rounded-full bg-destructive" aria-label="Есть ошибка" />}
+                                            </TabsTrigger>
+                                        )
+                                    })}
+                                    {layout.extra.length > 0 && (
+                                        <TabsTrigger value={EXTRA_TAB} className="gap-1.5">
+                                            Дополнительно <span className="tabular-nums text-muted-foreground">{layout.extra.length}</span>
+                                        </TabsTrigger>
+                                    )}
+                                </TabsList>
+                                {tableParts.map((tp) => (
+                                    <TabsContent key={tp.name} value={tp.name} className="mt-3">
+                                        {renderTablePart(tp, true)}
+                                    </TabsContent>
+                                ))}
+                                {layout.extra.length > 0 && (
+                                    <TabsContent value={EXTRA_TAB} className="mt-3 grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
+                                        {layout.extra.map((field) => renderFieldBlock(field, true))}
+                                    </TabsContent>
+                                )}
+                            </Tabs>
+                        )}
                     </div>
 
                     {/* Entity-specific extensions (e.g. API keys, user access).
