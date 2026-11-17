@@ -7,8 +7,9 @@ import { MoneyDecimal } from "@/lib/money"
  * by the same rules as the server (internal/core/formula and v1 auto_calc):
  * numbers, sibling field names, + - * /, parentheses and unary minus in exact
  * decimal arithmetic; a quotient rounded to 16 places, division by zero = 0;
- * the result rounded half away from zero to the field's scale. The server
- * computes the stored value; this one only keeps the form in step.
+ * the result rounded half away from zero to the field's scale. A header can
+ * total a table-part column, sum(items.amount). The server computes the
+ * stored value; this one only keeps the form in step.
  */
 
 type Decimal = InstanceType<typeof MoneyDecimal>
@@ -19,14 +20,29 @@ const DIVISION_PLACES = 16
 type FormulaNode =
     | { kind: "number"; value: Decimal }
     | { kind: "ref"; name: string }
+    | { kind: "sum"; part: string; field: string }
     | { kind: "negate"; operand: FormulaNode }
     | { kind: "binary"; op: "+" | "-" | "*" | "/"; left: FormulaNode; right: FormulaNode }
+
+/** A table-part column a formula totals: sum(part.field). */
+export interface SumRef {
+    part: string
+    field: string
+}
+
+/** A formula's values: the row's own fields and the totals of its table parts' columns. */
+export interface FormulaEnv {
+    value: (name: string) => Decimal
+    sum: (ref: SumRef) => Decimal
+}
 
 export interface Formula {
     source: string
     /** Names the formula reads, in order of first use. */
     vars: string[]
-    evaluate: (value: (name: string) => Decimal) => Decimal
+    /** Table-part columns the formula totals. */
+    sums: SumRef[]
+    evaluate: (env: FormulaEnv) => Decimal
 }
 
 const cache = new Map<string, Formula | null>()
@@ -36,6 +52,13 @@ export function parseFormula(source: string): Formula | null {
     if (cache.has(source)) return cache.get(source) ?? null
     let pos = 0
     const vars: string[] = []
+    const sums: SumRef[] = []
+    const name = (): string => {
+        skip()
+        const start = pos
+        if (/[\p{L}_]/u.test(source[pos] ?? "")) while (/[\p{L}\p{N}_]/u.test(source[pos] ?? "")) pos++
+        return source.slice(start, pos)
+    }
     const skip = () => { while (source[pos] === " " || source[pos] === "\t") pos++ }
     const peek = () => { skip(); return source[pos] ?? "" }
     const fail = (): never => { throw new Error(`formula ${source}`) }
@@ -79,11 +102,22 @@ export function parseFormula(source: string): Formula | null {
             return { kind: "number", value: new MoneyDecimal(text) }
         }
         if (/[\p{L}_]/u.test(c)) {
-            const start = pos
-            while (/[\p{L}\p{N}_]/u.test(source[pos] ?? "")) pos++
-            const name = source.slice(start, pos)
-            if (!vars.includes(name)) vars.push(name)
-            return { kind: "ref", name }
+            const word = name()
+            if (peek() === "(") {
+                // sum(part.field), the only function: the total of a table-part column.
+                if (word !== "sum") fail()
+                pos++
+                const part = name()
+                if (!part || peek() !== ".") fail()
+                pos++
+                const field = name()
+                if (!field || peek() !== ")") fail()
+                pos++
+                if (!sums.some((ref) => ref.part === part && ref.field === field)) sums.push({ part, field })
+                return { kind: "sum", part, field }
+            }
+            if (!vars.includes(word)) vars.push(word)
+            return { kind: "ref", name: word }
         }
         return fail()
     }
@@ -92,14 +126,15 @@ export function parseFormula(source: string): Formula | null {
         if (peek() === "") fail()
         const root = sum()
         if (peek() !== "") fail()
-        const run = (node: FormulaNode, value: (name: string) => Decimal): Decimal => {
+        const run = (node: FormulaNode, env: FormulaEnv): Decimal => {
             switch (node.kind) {
                 case "number": return node.value
-                case "ref": return value(node.name)
-                case "negate": return run(node.operand, value).neg()
+                case "ref": return env.value(node.name)
+                case "sum": return env.sum({ part: node.part, field: node.field })
+                case "negate": return run(node.operand, env).neg()
                 case "binary": {
-                    const left = run(node.left, value)
-                    const right = run(node.right, value)
+                    const left = run(node.left, env)
+                    const right = run(node.right, env)
                     if (node.op === "+") return left.plus(right)
                     if (node.op === "-") return left.minus(right)
                     if (node.op === "*") return left.times(right)
@@ -107,7 +142,7 @@ export function parseFormula(source: string): Formula | null {
                 }
             }
         }
-        formula = { source, vars, evaluate: (value) => run(root, value) }
+        formula = { source, vars, sums, evaluate: (env) => run(root, env) }
     } catch {
         formula = null
     }
@@ -166,7 +201,17 @@ export function applyFormulas(row: JsonObject, fields: readonly MetadataField[])
     for (const field of ordered(fields)) {
         const formula = parseFormula(field.calc ?? "")
         if (!formula) continue
-        const result = formula.evaluate((name) => operand(next[name])).toDecimalPlaces(formulaScale(field), MoneyDecimal.ROUND_HALF_UP)
+        const row = next
+        const result = formula.evaluate({
+            value: (name) => operand(row[name]),
+            // A header totals its table part's lines, already recomputed by the part.
+            sum: ({ part, field: column }) => {
+                const lines = row[part]
+                if (!Array.isArray(lines)) return new MoneyDecimal(0)
+                return lines.reduce<Decimal>((total, line) =>
+                    line && typeof line === "object" && !Array.isArray(line) ? total.plus(operand(line[column])) : total, new MoneyDecimal(0))
+            },
+        }).toDecimalPlaces(formulaScale(field), MoneyDecimal.ROUND_HALF_UP)
         const current = next[field.name]
         // The wire's JSON type: money (minor units) and decimals travel as text, other numbers as numbers.
         const text = typeof current === "string" || ((current === undefined || current === null) && (field.type === "decimal" || field.type === "money"))
@@ -178,9 +223,15 @@ export function applyFormulas(row: JsonObject, fields: readonly MetadataField[])
 }
 
 /** A formula for people: names replaced by the fields' labels ("Количество × Цена"). */
-export function formulaLabel(source: string, fields: readonly MetadataField[]): string {
+export function formulaLabel(source: string, fields: readonly MetadataField[], parts: readonly { name: string; label?: string; columns: readonly MetadataField[] }[] = []): string {
     const labels = new Map(fields.map((field) => [field.name, field.label || field.name]))
+    const id = "[\\p{L}_][\\p{L}\\p{N}_]*"
+    // One pass: sum(items.amount) → Σ «Товары: Сумма», a field name → its label.
     return source
-        .replace(/[\p{L}_][\p{L}\p{N}_]*/gu, (name) => labels.get(name) ?? name)
+        .replace(new RegExp(`sum\\s*\\(\\s*(${id})\\s*\\.\\s*(${id})\\s*\\)|(${id})`, "gu"), (match, partName?: string, column?: string, name?: string) => {
+            if (!partName || !column) return labels.get(name ?? match) ?? match
+            const part = parts.find((p) => p.name === partName)
+            return `Σ «${part?.label || partName}: ${part?.columns.find((c) => c.name === column)?.label || column}»`
+        })
         .replace(/\s*\*\s*/g, " × ").replace(/\s*\/\s*/g, " ÷ ").replace(/\s*([+-])\s*/g, " $1 ")
 }

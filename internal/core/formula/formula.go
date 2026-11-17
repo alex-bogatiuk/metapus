@@ -1,9 +1,11 @@
 // Package formula evaluates the arithmetic of calculated fields
 // (meta:"calc:quantity*price"): numbers, names of sibling fields, + - * /,
-// parentheses and unary minus, in exact decimal arithmetic.
+// parentheses and unary minus, in exact decimal arithmetic. A document
+// header can also total a column of a table part, sum(items.amount), as a
+// 1C document's total is the sum of its lines.
 //
-// The frontend mirrors these rules in lib/formula.ts so a table part can
-// show a result as the user types; the server's result is the one stored.
+// The frontend mirrors these rules in lib/formula.ts so a form can show a
+// result as the user types; the server's result is the one stored.
 //
 // Division rounds to DivisionPlaces half away from zero; division by zero
 // gives zero, so an empty quantity does not block saving a document.
@@ -25,29 +27,43 @@ type Expr struct {
 	source string
 	root   node
 	vars   []string
+	sums   []SumRef
+}
+
+// SumRef is a column a formula totals: sum(Part.Field).
+type SumRef struct {
+	Part  string // json name of the table part
+	Field string // json name of the line field
+}
+
+// Env gives a formula its values: the struct's own fields and, for a
+// header, the totals of its table parts' columns.
+type Env struct {
+	Value func(name string) decimal.Decimal
+	Sum   func(ref SumRef) decimal.Decimal
 }
 
 type node interface {
-	eval(value func(string) decimal.Decimal) decimal.Decimal
+	eval(env Env) decimal.Decimal
 }
 
 type number struct{ value decimal.Decimal }
 type ref struct{ name string }
+type total struct{ ref SumRef }
 type negate struct{ operand node }
 type binary struct {
 	op          byte
 	left, right node
 }
 
-func (n number) eval(func(string) decimal.Decimal) decimal.Decimal { return n.value }
-func (r ref) eval(value func(string) decimal.Decimal) decimal.Decimal {
-	return value(r.name)
+func (n number) eval(Env) decimal.Decimal    { return n.value }
+func (r ref) eval(env Env) decimal.Decimal   { return env.Value(r.name) }
+func (t total) eval(env Env) decimal.Decimal { return env.Sum(t.ref) }
+func (n negate) eval(env Env) decimal.Decimal {
+	return n.operand.eval(env).Neg()
 }
-func (n negate) eval(value func(string) decimal.Decimal) decimal.Decimal {
-	return n.operand.eval(value).Neg()
-}
-func (b binary) eval(value func(string) decimal.Decimal) decimal.Decimal {
-	left, right := b.left.eval(value), b.right.eval(value)
+func (b binary) eval(env Env) decimal.Decimal {
+	left, right := b.left.eval(env), b.right.eval(env)
 	switch b.op {
 	case '+':
 		return left.Add(right)
@@ -78,7 +94,7 @@ func Parse(source string) (*Expr, error) {
 	if p.pos != len(p.src) {
 		return nil, fmt.Errorf("formula %q: unexpected %q at %d", source, p.src[p.pos], p.pos+1)
 	}
-	return &Expr{source: source, root: root, vars: p.vars}, nil
+	return &Expr{source: source, root: root, vars: p.vars, sums: p.sums}, nil
 }
 
 // Source is the formula as written.
@@ -87,15 +103,17 @@ func (e *Expr) Source() string { return e.source }
 // Vars are the names the formula reads, in order of first use.
 func (e *Expr) Vars() []string { return append([]string(nil), e.vars...) }
 
-// Eval computes the formula with the given values of its names.
-func (e *Expr) Eval(value func(name string) decimal.Decimal) decimal.Decimal {
-	return e.root.eval(value)
-}
+// Sums are the table-part columns the formula totals, in order of first use.
+func (e *Expr) Sums() []SumRef { return append([]SumRef(nil), e.sums...) }
+
+// Eval computes the formula with the given values.
+func (e *Expr) Eval(env Env) decimal.Decimal { return e.root.eval(env) }
 
 type parser struct {
 	src  string
 	pos  int
 	vars []string
+	sums []SumRef
 }
 
 func (p *parser) skipSpace() {
@@ -159,7 +177,22 @@ func (p *parser) unary() (node, error) {
 	return p.primary()
 }
 
-// primary := number | name | '(' sum ')'
+func isNameStart(c byte) bool { return c == '_' || unicode.IsLetter(rune(c)) }
+func isNamePart(c byte) bool  { return isNameStart(c) || unicode.IsDigit(rune(c)) }
+
+// name reads an identifier at the current position ("" when there is none).
+func (p *parser) name() string {
+	p.skipSpace()
+	start := p.pos
+	if p.pos < len(p.src) && isNameStart(p.src[p.pos]) {
+		for p.pos < len(p.src) && isNamePart(p.src[p.pos]) {
+			p.pos++
+		}
+	}
+	return p.src[start:p.pos]
+}
+
+// primary := number | name | 'sum' '(' name '.' name ')' | '(' sum ')'
 func (p *parser) primary() (node, error) {
 	c := p.peek()
 	switch {
@@ -184,12 +217,11 @@ func (p *parser) primary() (node, error) {
 			return nil, fmt.Errorf("formula %q: bad number %q", p.src, p.src[start:p.pos])
 		}
 		return number{value}, nil
-	case c == '_' || unicode.IsLetter(rune(c)):
-		start := p.pos
-		for p.pos < len(p.src) && (p.src[p.pos] == '_' || unicode.IsLetter(rune(p.src[p.pos])) || unicode.IsDigit(rune(p.src[p.pos]))) {
-			p.pos++
+	case isNameStart(c):
+		name := p.name()
+		if p.peek() == '(' {
+			return p.call(name)
 		}
-		name := p.src[start:p.pos]
 		if !slices.Contains(p.vars, name) {
 			p.vars = append(p.vars, name)
 		}
@@ -199,4 +231,27 @@ func (p *parser) primary() (node, error) {
 	default:
 		return nil, fmt.Errorf("formula %q: unexpected %q at %d", p.src, c, p.pos+1)
 	}
+}
+
+// call reads sum(part.field), the only function: the total of a column.
+func (p *parser) call(function string) (node, error) {
+	if function != "sum" {
+		return nil, fmt.Errorf("formula %q: unknown function %q (only sum(part.field))", p.src, function)
+	}
+	p.pos++ // (
+	part := p.name()
+	if part == "" || p.peek() != '.' {
+		return nil, fmt.Errorf("formula %q: sum takes a table part column, sum(part.field)", p.src)
+	}
+	p.pos++ // .
+	field := p.name()
+	if field == "" || p.peek() != ')' {
+		return nil, fmt.Errorf("formula %q: sum takes a table part column, sum(part.field)", p.src)
+	}
+	p.pos++ // )
+	ref := SumRef{Part: part, Field: field}
+	if !slices.Contains(p.sums, ref) {
+		p.sums = append(p.sums, ref)
+	}
+	return total{ref}, nil
 }

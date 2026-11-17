@@ -22,6 +22,9 @@ import (
 // or updated. The frontend recomputes it while the user types
 // (lib/formula.ts); the stored value is the server's.
 //
+// A header formula can total a table-part column, sum(items.amount): the
+// lines are computed first, so a total sees their calculated amounts.
+//
 // Values take part as the user sees them in their own units: money as its
 // minor units (amount = quantity × price stays in the price's currency),
 // a Quantity as its decimal value, integers and decimals as they are. The
@@ -82,6 +85,13 @@ type autoCalc struct {
 	kind     calcKind
 	expr     *formula.Expr
 	operands map[string]calcOperand
+	sums     map[formula.SumRef]calcSum
+}
+
+// calcSum is a table-part column a header formula totals.
+type calcSum struct {
+	part   []int // the model's []Line field
+	column calcOperand
 }
 
 // autoCalcs are the calculated fields of one struct in the order they are
@@ -144,7 +154,14 @@ func deriveAutoCalcs(t reflect.Type, kind entity.Kind) (autoCalcs, error) {
 		if err != nil {
 			return nil, fmt.Errorf("calculated field %s: %w", f.Name, err)
 		}
-		c := autoCalc{label: calcLabel(f, json), index: f.Index, kind: target, expr: expr, operands: map[string]calcOperand{}}
+		c := autoCalc{label: calcLabel(f, json), index: f.Index, kind: target, expr: expr, operands: map[string]calcOperand{}, sums: map[formula.SumRef]calcSum{}}
+		for _, ref := range expr.Sums() {
+			total, err := deriveCalcSum(byJSON, ref)
+			if err != nil {
+				return nil, fmt.Errorf("calculated field %s: %w", f.Name, err)
+			}
+			c.sums[ref] = total
+		}
 		for _, name := range expr.Vars() {
 			operand, ok := byJSON[name]
 			if !ok {
@@ -195,6 +212,30 @@ func deriveAutoCalcs(t reflect.Type, kind entity.Kind) (autoCalcs, error) {
 	return sorted, nil
 }
 
+// deriveCalcSum finds the column sum(part.field) totals: a table part of the
+// struct (a slice of line structs) and a numeric field of its line.
+func deriveCalcSum(byJSON map[string]reflect.StructField, ref formula.SumRef) (calcSum, error) {
+	part, ok := byJSON[ref.Part]
+	if !ok || part.Type.Kind() != reflect.Slice || part.Type.Elem().Kind() != reflect.Struct {
+		return calcSum{}, fmt.Errorf("sum(%s.%s): %q is not a table part here", ref.Part, ref.Field, ref.Part)
+	}
+	for _, f := range reflect.VisibleFields(part.Type.Elem()) {
+		if name, _, _ := strings.Cut(f.Tag.Get("json"), ","); name != ref.Field || !f.IsExported() {
+			continue
+		}
+		fieldType, pointer := f.Type, false
+		if fieldType.Kind() == reflect.Pointer {
+			fieldType, pointer = fieldType.Elem(), true
+		}
+		kind, ok := calcKindOf(fieldType)
+		if !ok {
+			return calcSum{}, fmt.Errorf("sum(%s.%s): the column is not a number", ref.Part, ref.Field)
+		}
+		return calcSum{part: part.Index, column: calcOperand{index: f.Index, kind: kind, pointer: pointer}}, nil
+	}
+	return calcSum{}, fmt.Errorf("sum(%s.%s): the line has no field %q", ref.Part, ref.Field, ref.Field)
+}
+
 func readCalc(v reflect.Value, operand calcOperand) decimal.Decimal {
 	if operand.pointer {
 		if v.IsNil() {
@@ -216,9 +257,20 @@ func readCalc(v reflect.Value, operand calcOperand) decimal.Decimal {
 // the target's range is a validation error naming the field.
 func (calcs autoCalcs) apply(v reflect.Value) error {
 	for _, c := range calcs {
-		result := c.expr.Eval(func(name string) decimal.Decimal {
-			operand := c.operands[name]
-			return readCalc(v.FieldByIndex(operand.index), operand)
+		result := c.expr.Eval(formula.Env{
+			Value: func(name string) decimal.Decimal {
+				operand := c.operands[name]
+				return readCalc(v.FieldByIndex(operand.index), operand)
+			},
+			Sum: func(ref formula.SumRef) decimal.Decimal {
+				total := c.sums[ref]
+				lines := v.FieldByIndex(total.part)
+				sum := decimal.Zero
+				for i := 0; i < lines.Len(); i++ {
+					sum = sum.Add(readCalc(lines.Index(i).FieldByIndex(total.column.index), total.column))
+				}
+				return sum
+			},
 		}).Round(c.kind.scale())
 		target := v.FieldByIndex(c.index)
 		switch c.kind {

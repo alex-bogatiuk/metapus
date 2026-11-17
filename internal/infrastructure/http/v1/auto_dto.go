@@ -389,13 +389,11 @@ func (s *autoShape) applyAutoRequest(request reflect.Value, model any) {
 	}
 }
 
-// computeAutoCalcs computes the calculated fields of the header and of every
-// line, after the request is applied (a kept line's inputs may have changed).
+// computeAutoCalcs computes the calculated fields of every line and then of
+// the header, after the request is applied (a kept line's inputs may have
+// changed); lines go first so a header total sees their calculated values.
 func (s *autoShape) computeAutoCalcs(model any) error {
 	target := reflect.ValueOf(model).Elem()
-	if err := s.calcs.apply(target); err != nil {
-		return err
-	}
 	for _, part := range s.parts {
 		if len(part.calcs) == 0 {
 			continue
@@ -407,7 +405,7 @@ func (s *autoShape) computeAutoCalcs(model any) error {
 			}
 		}
 	}
-	return nil
+	return s.calcs.apply(target)
 }
 
 // apply replaces the model's lines with the requested ones. A requested

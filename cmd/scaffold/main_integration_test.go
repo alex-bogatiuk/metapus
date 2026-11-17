@@ -446,6 +446,7 @@ type calcInvoice struct {
 	Rate  int64             `db:"rate" json:"rate" meta:"label:Ставка"`
 	Base  types.MinorUnits  `db:"base" json:"base" meta:"label:База"`
 	Fee   types.MinorUnits  `db:"fee" json:"fee" meta:"label:Комиссия,calc:base*rate/100"`
+	Total types.MinorUnits  `db:"total" json:"total" meta:"label:Итого,calc:sum(lines.amount)"`
 	Lines []calcInvoiceLine `db:"-" json:"lines" meta:"label:Строки"`
 }
 
@@ -467,7 +468,7 @@ func TestDeclaredDocumentStoresItsCalculatedFields(t *testing.T) {
 	require.NoError(t, err)
 	_, err = provider.Up(ctx)
 	require.NoError(t, err)
-	_, err = tenant.Pool.Exec(ctx, `ALTER TABLE doc_calc_invoices ADD COLUMN rate BIGINT NOT NULL DEFAULT 0, ADD COLUMN base BIGINT NOT NULL DEFAULT 0, ADD COLUMN fee BIGINT NOT NULL DEFAULT 0;
+	_, err = tenant.Pool.Exec(ctx, `ALTER TABLE doc_calc_invoices ADD COLUMN rate BIGINT NOT NULL DEFAULT 0, ADD COLUMN base BIGINT NOT NULL DEFAULT 0, ADD COLUMN fee BIGINT NOT NULL DEFAULT 0, ADD COLUMN total BIGINT NOT NULL DEFAULT 0;
 		ALTER TABLE doc_calc_invoices__lines ADD COLUMN quantity BIGINT NOT NULL, ADD COLUMN price BIGINT NOT NULL, ADD COLUMN amount BIGINT NOT NULL`)
 	require.NoError(t, err)
 
@@ -493,6 +494,7 @@ func TestDeclaredDocumentStoresItsCalculatedFields(t *testing.T) {
 	lines := body["lines"].([]any)
 	require.Equal(t, "2999", fmt.Sprint(lines[0].(map[string]any)["amount"]), "1.5 × 1999 = 2998.5 → 2999, half away from zero")
 	require.Equal(t, "1000", fmt.Sprint(lines[1].(map[string]any)["amount"]))
+	require.Equal(t, "3999", fmt.Sprint(body["total"]), "the document's total is the sum of its lines' calculated amounts")
 	docID := body["id"].(string)
 	storedAmounts := func() (out []int64) {
 		rows, err := tenant.Pool.Query(ctx, "SELECT amount FROM doc_calc_invoices__lines WHERE document_id=$1 ORDER BY line_no", docID)
@@ -521,4 +523,7 @@ func TestDeclaredDocumentStoresItsCalculatedFields(t *testing.T) {
 		"lines":[{"lineId":"`+firstLine+`","quantity":3,"price":"1999"}]}`)
 	require.Equal(t, 200, status, body)
 	require.Equal(t, []int64{5997}, storedAmounts())
+	var total int64
+	require.NoError(t, tenant.Pool.QueryRow(ctx, "SELECT total FROM doc_calc_invoices WHERE id=$1", docID).Scan(&total))
+	require.EqualValues(t, 5997, total, "the stored total follows the lines")
 }

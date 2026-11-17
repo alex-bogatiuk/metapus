@@ -34,6 +34,7 @@ type autoInvoice struct {
 	Rate  int64             `db:"rate" json:"rate"`
 	Base  types.MinorUnits  `db:"base" json:"base"`
 	Fee   types.MinorUnits  `db:"fee" json:"fee" meta:"label:Комиссия,calc:base*rate/100"`
+	Total types.MinorUnits  `db:"total" json:"total" meta:"label:Итого,calc:sum(lines.amount)+fee"`
 	Lines []autoInvoiceLine `db:"-" json:"lines"`
 }
 
@@ -60,6 +61,7 @@ func TestAutoCalculatedFieldsAreTheServersAndComputedInOrder(t *testing.T) {
 	require.Equal(t, types.MinorUnits(2849), invoice.Lines[0].Amount, "a formula reads another one computed first")
 	require.Equal(t, "949.6667", invoice.Lines[0].Share.String())
 	require.Equal(t, types.MinorUnits(1000), invoice.Lines[1].Amount, "a nil operand counts as zero")
+	require.Equal(t, types.MinorUnits(2849+1000+300), invoice.Total, "the header totals the lines' calculated amounts")
 
 	invoice.Base = types.MinorUnits(1 << 62)
 	invoice.Rate = 1000
@@ -87,6 +89,20 @@ type calcProbeText struct {
 	A    int64  `db:"a" json:"a" meta:"calc:note*2"`
 }
 
+type calcProbeNoPart struct {
+	entity.Document
+	A int64 `db:"a" json:"a"`
+	B int64 `db:"b" json:"b" meta:"calc:sum(a.x)"`
+}
+
+type calcProbeTextColumn struct {
+	entity.Document
+	Lines []struct {
+		Note string `db:"note" json:"note"`
+	} `db:"-" json:"lines"`
+	B int64 `db:"b" json:"b" meta:"calc:sum(lines.note)"`
+}
+
 type calcProbeCatalog struct {
 	entity.Catalog
 	A int64 `db:"a" json:"a"`
@@ -99,12 +115,15 @@ func TestAutoCalculatedFieldsAreCheckedAtRegistration(t *testing.T) {
 		reflect.TypeFor[calcProbeLoop]():    "cycle",
 		reflect.TypeFor[calcProbeUnknown](): "not a field",
 		reflect.TypeFor[calcProbeText]():    "not a number",
+		reflect.TypeFor[calcProbeNoPart]():  "not a table part",
 	}
+	_, err := deriveAutoCalcs(reflect.TypeFor[calcProbeTextColumn](), entity.DocumentKind)
+	require.ErrorContains(t, err, "not a number", "a total needs a numeric column")
 	for model, want := range cases {
 		_, err := deriveAutoShape(model, document)
 		require.ErrorContains(t, err, want, model.Name())
 	}
 	catalog := entity.Definition{Kind: entity.CatalogKind, Key: "calc_item", Name: "CalcItem", Route: "calc-items", Table: "cat_calc_items"}
-	_, err := deriveAutoShape(reflect.TypeFor[calcProbeCatalog](), catalog)
+	_, err = deriveAutoShape(reflect.TypeFor[calcProbeCatalog](), catalog)
 	require.ErrorContains(t, err, "documents")
 }

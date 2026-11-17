@@ -808,7 +808,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
         if (forceReadOnly && ownReadOnly === undefined && (field.type !== "reference" || emptyReference)) {
             return (
                 <div key={field.name} data-field={field.name}>
-                    <p className="text-xs text-muted-foreground" title={field.calc ? `Рассчитывается: ${formulaLabel(field.calc, meta?.fields ?? [])}` : undefined}>
+                    <p className="text-xs text-muted-foreground" title={field.calc ? `Рассчитывается: ${formulaLabel(field.calc, meta?.fields ?? [], meta?.tableParts ?? [])}` : undefined}>
                         {field.label || field.name}
                         {field.calc && <span className="ml-1 font-serif italic text-muted-foreground/70" aria-label="рассчитывается">ƒ</span>}
                     </p>

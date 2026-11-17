@@ -5,7 +5,10 @@ import { MoneyDecimal } from "../../lib/money"
 import { applyFormulas, formulaLabel, formulaScale, parseFormula } from "../../lib/formula"
 
 const evaluate = (source: string, values: Record<string, string>) =>
-    parseFormula(source)!.evaluate((name) => new MoneyDecimal(values[name])).toString()
+    parseFormula(source)!.evaluate({
+        value: (name) => new MoneyDecimal(values[name]),
+        sum: ({ part, field }) => new MoneyDecimal(values[`${part}.${field}`]),
+    }).toString()
 
 test("formulas compute exactly, with precedence, as the server does", () => {
     // The same cases as internal/core/formula/formula_test.go.
@@ -20,7 +23,8 @@ test("formulas compute exactly, with precedence, as the server does", () => {
     expect(evaluate("price/3", values)).toBe("666.3333333333333333")
     expect(evaluate("(quantity*price)*(1+vatRate/100)", values)).toBe("3598.2")
     expect(parseFormula("quantity*price + quantity")?.vars).toEqual(["quantity", "price"])
-    for (const bad of ["", "quantity*", "(price", "price)", "price $ 2", "1..2"]) expect(parseFormula(bad)).toBeNull()
+    for (const bad of ["", "quantity*", "(price", "price)", "price $ 2", "1..2",
+        "avg(items.amount)", "sum(items)", "sum(items.amount", "sum(items.amount*2)", "sum(.amount)"]) expect(parseFormula(bad)).toBeNull()
 })
 
 const lineFields = [
@@ -45,4 +49,23 @@ test("a row's calculated fields follow its inputs, in dependency order, rounded 
     expect(formulaScale(lineFields[1])).toBe(0)
     expect(formulaLabel("quantity*price", lineFields)).toBe("Количество × Цена")
     expect(formulaLabel("gross - discount", lineFields)).toBe("Без скидки - Скидка")
+})
+
+test("a header totals a table-part column, as the server does", () => {
+    // Mirrors TestHeaderFormulasTotalTablePartColumns.
+    expect(evaluate("sum(items.amount) + sum( services . amount ) - discount", { "items.amount": "5997", "services.amount": "1500", discount: "97" })).toBe("7400")
+    const formula = parseFormula("sum(items.amount) + sum(items.amount) + sum(services.amount)")!
+    expect(formula.sums).toEqual([{ part: "items", field: "amount" }, { part: "services", field: "amount" }])
+    expect(formula.vars).toEqual([])
+    expect(evaluate("sum * 2", { sum: "4" }), "a field named sum still reads as a field").toBe("8")
+
+    const header = [
+        { name: "discount", label: "Скидка", type: "money" },
+        { name: "total", label: "Итого", type: "money", readOnly: true, calc: "sum(items.amount)-discount" },
+    ] as MetadataField[]
+    const document: JsonObject = { discount: "97", items: [{ amount: "5997" }, { amount: "1000" }, { amount: null }] }
+    expect(applyFormulas(document, header)).toMatchObject({ total: "6900" })
+    expect(applyFormulas({ discount: "0" }, header), "no lines yet: zero").toMatchObject({ total: "0" })
+    const parts = [{ name: "items", label: "Товары", columns: lineFields }]
+    expect(formulaLabel("sum(items.amount)-discount", header, parts)).toBe("Σ «Товары: Сумма» - Скидка")
 })
