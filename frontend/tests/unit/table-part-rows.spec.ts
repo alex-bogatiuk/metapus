@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test"
 import { z } from "zod"
 import { formRequestParts, projectFormRequest, registerHTTPRoutes } from "../../lib/http-contracts"
 import {
-  LineInputError, ROW_KEY, addRow, checkRequiredCells, copyRows, isEditableColumn, moveRow, referenceDisplayName, removeRow, removeRows,
+  LineInputError, ROW_KEY, addRow, checkRequiredCells, copyRows, isEditableColumn, moveRow, moveRows, referenceDisplayName, removeRow, removeRows,
   restoreRow, rowKey, setCell,
 } from "../../lib/table-part-rows"
 import type { HTTPRouteContract } from "../../lib/http-contract-types"
@@ -106,4 +106,14 @@ test("lines are removed by key and an edit is cancelled by restoring the stored 
     expect(removeRows(rows, new Set(["a", "c"]))).toEqual([{ lineId: "b", quantity: 2 }])
     const edited = setCell(rows, 1, "quantity", 20)
     expect(restoreRow(edited, "b", rows[1])).toEqual(rows)
+})
+
+test("selected lines move up and down as a block and stop at the edge", () => {
+    const rows: JsonObject[] = ["a", "b", "c", "d", "e"].map((lineId) => ({ lineId }))
+    const ids = (list: JsonObject[] | null) => list?.map((row) => row.lineId)
+    expect(ids(moveRows(rows, new Set(["b", "d"]), -1))).toEqual(["b", "a", "d", "c", "e"])
+    expect(ids(moveRows(rows, new Set(["c", "d"]), 1))).toEqual(["a", "b", "e", "c", "d"])
+    expect(moveRows(rows, new Set(["a", "c"]), -1)).toBeNull()
+    expect(moveRows(rows, new Set(["e"]), 1)).toBeNull()
+    expect(moveRows(rows, new Set(), 1)).toBeNull()
 })

@@ -1,11 +1,11 @@
 "use client"
 
 import React, { useEffect, useMemo, useRef, useState } from "react"
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react"
+import { ArrowDown, ArrowUp, CopyPlus, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ReferenceField } from "@/components/shared/reference-field"
 import { OVERLAY_SELECTOR } from "@/components/shared/data-table"
 import type { JsonObject, JsonValue } from "@/lib/json-value"
@@ -18,7 +18,7 @@ import { SelectionSummaryPopover, copyText } from "@/components/shared/selection
 import { useTablePartCellMode } from "@/hooks/useCompactMode"
 import { cn } from "@/lib/utils"
 import {
-    LINE_IDENTITY_COLUMNS, addRow, copyRows, isEditableColumn, moveRow, referenceDisplayName, removeRow, removeRows,
+    LINE_IDENTITY_COLUMNS, addRow, copyRows, isEditableColumn, moveRows, referenceDisplayName, removeRows,
     restoreRow, rowKey, setCell,
 } from "@/lib/table-part-rows"
 
@@ -41,6 +41,50 @@ const NUMERIC = new Set(["integer", "number", "decimal", "money"])
 /** Rows a PageUp/PageDown step moves in a table part (it grows with the page, not scrolls). */
 const PAGE_ROWS = 10
 const CURRENT_CELL = "shadow-[inset_0_0_0_1px_hsl(var(--ring))]"
+
+/** "1 строка", "3 строки", "5 строк". */
+function linesLabel(count: number): string {
+    const tens = count % 100
+    const ones = count % 10
+    if (tens >= 11 && tens <= 14) return `${count} строк`
+    if (ones === 1) return `${count} строка`
+    if (ones >= 2 && ones <= 4) return `${count} строки`
+    return `${count} строк`
+}
+
+/**
+ * A command of the part's command bar: an icon (with a caption for the main
+ * command) and a tooltip naming it with its key. It never takes focus, so the
+ * keyboard stays in the grid or the cell being edited.
+ */
+function CommandButton({ label, shortcut, icon, caption, disabled, destructive, onClick }: {
+    label: string
+    shortcut?: string
+    icon: React.ReactNode
+    caption?: string
+    disabled: boolean
+    destructive?: boolean
+    onClick: () => void
+}) {
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <Button type="button" variant="ghost" size="sm" disabled={disabled} aria-label={label}
+                    aria-keyshortcuts={shortcut}
+                    className={cn("h-7 gap-1.5 px-2 text-xs font-normal", !caption && "w-7 px-0",
+                        destructive && "hover:bg-destructive/10 hover:text-destructive")}
+                    onMouseDown={(event) => event.preventDefault()} onClick={onClick}>
+                    {icon}
+                    {caption}
+                </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+                {label}
+                {shortcut ? <kbd className="ml-2 font-sans text-muted-foreground">{shortcut}</kbd> : null}
+            </TooltipContent>
+        </Tooltip>
+    )
+}
 
 function cellText(row: JsonObject, column: MetadataField): string {
     if (column.type === "reference") return referenceDisplayName(row, column.name) ?? String(row[column.name] ?? "")
@@ -181,7 +225,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
         const first = columns.find((column) => isEditableColumn(column, writable, readOnly))
         if (first) {
             setCurrentColumn(first.name)
-            if (first.type !== "boolean") setEditing({ key, column: first.name, original: next[next.length - 1], added: true })
+            if (cellMode && first.type !== "boolean") setEditing({ key, column: first.name, original: next[next.length - 1], added: true })
         }
     }
     const deleteLines = () => {
@@ -200,10 +244,12 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
         onChange(next)
         select({ selected: copied, current: copied[0], anchor: copied[0] })
     }
-    const moveLine = (step: -1 | 1) => {
-        const index = selection.current ? keys.indexOf(selection.current) : -1
-        if (index === -1) return
-        onChange(moveRow(rows, index, step))
+    // The selected lines move as a block; the current line alone when it is outside the selection.
+    const movedLines = (step: -1 | 1) => moveRows(rows, targetKeys(), step)
+    const moveLines = (step: -1 | 1) => {
+        const next = movedLines(step)
+        if (!next) return
+        onChange(next)
         revealNext.current = true
     }
     const copyToClipboard = () => {
@@ -263,7 +309,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                 copyToClipboard()
             } else if (event.shiftKey && (event.key === "ArrowUp" || event.key === "ArrowDown") && editable && !disabled) {
                 handled()
-                moveLine(event.key === "ArrowUp" ? -1 : 1)
+                moveLines(event.key === "ArrowUp" ? -1 : 1)
             } else if (event.key === "Backspace" && editable && !disabled) {
                 handled()
                 deleteLines()
@@ -309,6 +355,15 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
         }
     }
 
+    // Command bar state: what the commands would act on, and where the user is.
+    const targetCount = targetKeys().size
+    const hasTarget = targetCount > 0
+    const hasMany = targetCount > 1
+    const currentIndex = selection.current ? keys.indexOf(selection.current) : -1
+    const statusText = hasMany
+        ? `Выделено ${targetCount} из ${rows.length}`
+        : currentIndex !== -1 ? `Строка ${currentIndex + 1} из ${rows.length}` : linesLabel(rows.length)
+
     const onGridBlur = (event: React.FocusEvent<HTMLDivElement>) => {
         // Focus leaving for outside the grid closes the cell; a picker's popover is still the cell's.
         if (!editing) return
@@ -319,20 +374,40 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
 
     return (
         <section className={bare ? "space-y-2" : "mt-8 space-y-2"} aria-label={title} data-table-part={part.name}>
-            <div className={bare && !editable ? "hidden" : "flex items-center justify-between gap-2"}>
-                {bare ? <span /> : <Label className="text-sm font-semibold">{title}</Label>}
-                {editable && (
-                    <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => (cellMode ? insertLine() : onChange(addRow(rows)))}>
-                        <Plus className="h-3.5 w-3.5" />
-                        Добавить строку
-                    </Button>
-                )}
-            </div>
+            {!bare && (
+                <div className="flex items-baseline gap-2">
+                    <h3 className="text-sm font-semibold">{title}</h3>
+                    <span className="text-xs tabular-nums text-muted-foreground">{rows.length || ""}</span>
+                </div>
+            )}
             <div
                 ref={gridRef}
-                className={cn("overflow-x-auto rounded border text-sm", cellMode && "outline-none focus-visible:ring-1 focus-visible:ring-ring")}
+                className={cn("overflow-hidden rounded-md border bg-card text-sm shadow-control", cellMode && "outline-none focus-visible:ring-1 focus-visible:ring-ring")}
                 {...(cellMode ? { tabIndex: 0, onKeyDown: onGridKeyDown, onBlur: onGridBlur, "data-cell-mode": "true" } : {})}
             >
+                {editable && (
+                    // 1C command bar: line commands sit between the title and the grid
+                    // and act on the selected lines (else the current one).
+                    <TooltipProvider delayDuration={400}>
+                        <div role="toolbar" aria-label={`Команды: ${title}`}
+                            className="flex items-center gap-0.5 border-b bg-muted/30 px-1.5 py-1">
+                            <CommandButton label="Добавить строку" shortcut={cellMode ? "Ins" : undefined} caption="Добавить"
+                                icon={<Plus className="h-3.5 w-3.5" />} disabled={disabled} onClick={insertLine} />
+                            <CommandButton label={hasMany ? "Скопировать строки" : "Скопировать строку"} shortcut={cellMode ? "F9" : undefined}
+                                icon={<CopyPlus className="h-3.5 w-3.5" />} disabled={disabled || !hasTarget} onClick={duplicateLines} />
+                            <span className="mx-1 h-4 w-px bg-border" aria-hidden />
+                            <CommandButton label="Переместить вверх" shortcut={cellMode ? "Ctrl+Shift+↑" : undefined}
+                                icon={<ArrowUp className="h-3.5 w-3.5" />} disabled={disabled || !movedLines(-1)} onClick={() => moveLines(-1)} />
+                            <CommandButton label="Переместить вниз" shortcut={cellMode ? "Ctrl+Shift+↓" : undefined}
+                                icon={<ArrowDown className="h-3.5 w-3.5" />} disabled={disabled || !movedLines(1)} onClick={() => moveLines(1)} />
+                            <span className="mx-1 h-4 w-px bg-border" aria-hidden />
+                            <CommandButton label={hasMany ? "Удалить строки" : "Удалить строку"} shortcut={cellMode ? "Del" : undefined} destructive
+                                icon={<Trash2 className="h-3.5 w-3.5" />} disabled={disabled || !hasTarget} onClick={deleteLines} />
+                            <span className="ml-auto px-1.5 text-xs tabular-nums text-muted-foreground" aria-live="polite">{statusText}</span>
+                        </div>
+                    </TooltipProvider>
+                )}
+                <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                     <thead className="bg-muted/50">
                         <tr className="border-b">
@@ -342,14 +417,13 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                     {column.label || column.name}{column.required && editable ? <span className="text-destructive"> *</span> : null}
                                 </th>
                             ))}
-                            {editable && <th scope="col" className="w-24 px-2 py-2"><span className="sr-only">Действия со строкой</span></th>}
                         </tr>
                     </thead>
                     <tbody>
                         {rows.length === 0 && (
                             <tr>
-                                <td colSpan={columns.length + (editable ? 2 : 1)} className="px-3 py-4 text-center text-muted-foreground">
-                                    {cellMode && editable ? "Нет строк. Insert или «Добавить строку» — новая строка" : "Нет строк"}
+                                <td colSpan={columns.length + 1} className="px-3 py-4 text-center text-muted-foreground">
+                                    {editable ? "Нет строк. Добавьте первую командой «Добавить»" : "Нет строк"}
                                 </td>
                             </tr>
                         )}
@@ -426,27 +500,12 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                             </td>)
                                         )
                                     })}
-                                    {editable && (
-                                        <td className="whitespace-nowrap px-1 py-1 text-right">
-                                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={disabled || index === 0} tabIndex={cellMode ? -1 : undefined}
-                                                aria-label={`Переместить строку ${lineNo} вверх`} onClick={() => onChange(moveRow(rows, index, -1))}>
-                                                <ArrowUp className="h-3.5 w-3.5" />
-                                            </Button>
-                                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={disabled || index === rows.length - 1} tabIndex={cellMode ? -1 : undefined}
-                                                aria-label={`Переместить строку ${lineNo} вниз`} onClick={() => onChange(moveRow(rows, index, 1))}>
-                                                <ArrowDown className="h-3.5 w-3.5" />
-                                            </Button>
-                                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={disabled} tabIndex={cellMode ? -1 : undefined}
-                                                aria-label={`Удалить строку ${lineNo}`} onClick={() => onChange(removeRow(rows, index))}>
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </Button>
-                                        </td>
-                                    )}
                                 </tr>
                             )
                         })}
                     </tbody>
                 </table>
+                </div>
             </div>
         </section>
     )

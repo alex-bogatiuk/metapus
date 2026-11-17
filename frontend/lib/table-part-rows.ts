@@ -76,6 +76,25 @@ export function moveRow(rows: JsonObject[], index: number, delta: -1 | 1): JsonO
     return next
 }
 
+/**
+ * Moves the rows with the given keys one place up (-1) or down (+1) as a
+ * block, keeping their order (1C "Переместить вверх/вниз" on a selection).
+ * Null when none is given or one of them is already at that edge.
+ */
+export function moveRows(rows: JsonObject[], keys: ReadonlySet<string>, delta: -1 | 1): JsonObject[] | null {
+    const picked = rows.map((row, index) => keys.has(rowKey(row, index)))
+    if (!picked.includes(true) || (delta === -1 ? picked[0] : picked[picked.length - 1])) return null
+    const next = [...rows]
+    const order = delta === -1 ? rows.map((_, index) => index) : rows.map((_, index) => rows.length - 1 - index)
+    for (const index of order) {
+        if (!picked[index]) continue
+        const target = index + delta
+        ;[next[index], next[target]] = [next[target], next[index]]
+        ;[picked[index], picked[target]] = [picked[target], picked[index]]
+    }
+    return next
+}
+
 /** Removes the rows with the given keys. */
 export function removeRows(rows: JsonObject[], keys: ReadonlySet<string>): JsonObject[] {
     return rows.filter((row, index) => !keys.has(rowKey(row, index)))
