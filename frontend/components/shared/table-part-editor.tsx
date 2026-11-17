@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ArrowDown, ArrowUp, ClipboardCopy, CopyPlus, Plus, Trash2 } from "lucide-react"
+import { ArrowDown, ArrowUp, ClipboardCopy, CopyPlus, PackagePlus, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -17,6 +17,8 @@ import { EMPTY_ROW_SELECTION, clickRow, keepExisting, rowMoveTarget, summaryRows
 import { fieldSummaryExtractor, isSummableField, summarize, summaryCopyText, summaryGroupText, type SelectionSummary } from "@/lib/selection-summary"
 import { SelectionSummaryPopover, copyText } from "@/components/shared/selection-summary-popover"
 import { useTablePartCellMode } from "@/hooks/useCompactMode"
+import { TablePartPickDialog } from "@/components/shared/table-part-pick-dialog"
+import { documentQuantities, pickTarget, transferPicks, type CartLine } from "@/lib/pick-lines"
 import { useColumnResize } from "@/hooks/useColumnResize"
 import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 import { cn } from "@/lib/utils"
@@ -321,6 +323,26 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
             if (cellMode && first.type !== "boolean") setEditing({ key, column: first.name, original: next[next.length - 1], added: true })
         }
     }
+    // "Подбор" (1C): the part picks into its editable reference column, with a
+    // quantity when it has one; parts with nothing to pick have no command.
+    const target = useMemo(() => (editable ? pickTarget(part.columns, writable) : null), [editable, part.columns, writable])
+    const pickEndpoint = target?.item.referenceType ? resolveRefEndpoint(target.item.referenceType) : null
+    const [pickOpen, setPickOpen] = useState(false)
+    const canPick = !!target && !!pickEndpoint && !disabled
+    const transferPicked = (cart: CartLine[], merge: boolean) => {
+        if (!target) return
+        const result = transferPicks(rows, cart, target, merge)
+        onChange(result.rows)
+        // What the pick touched becomes the selection, so totals and commands apply to it.
+        if (result.touched.length) {
+            select({ selected: result.touched, current: result.touched[0], anchor: result.touched[0] })
+            setCurrentColumn(target.quantity?.name ?? target.item.name)
+        }
+        const parts = [result.added && `добавлено строк: ${result.added}`, result.merged && `дополнено: ${result.merged}`].filter(Boolean)
+        toast.success(`Перенесено позиций: ${cart.length}`, { description: parts.join(", ") })
+        if (cellMode) requestAnimationFrame(focusGrid)
+    }
+
     const deleteLines = () => {
         const targets = targetKeys()
         if (targets.size === 0) return
@@ -442,6 +464,9 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
             case "F9":
                 if (editable && !disabled) { handled(); duplicateLines() }
                 return
+            case "F7":
+                if (canPick) { handled(); setPickOpen(true) }
+                return
             case "Escape":
                 if (selection.current && selection.selected.length > 1) { handled(); setSelection(only(selection.current)) }
                 return
@@ -474,6 +499,11 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                         <ContextMenuItem disabled={disabled} onSelect={insertLine}>
                             <Plus className="mr-2 h-3.5 w-3.5" />Добавить{cellMode && <ContextMenuShortcut>Ins</ContextMenuShortcut>}
                         </ContextMenuItem>
+                        {target && pickEndpoint && (
+                            <ContextMenuItem disabled={!canPick} onSelect={() => setPickOpen(true)}>
+                                <PackagePlus className="mr-2 h-3.5 w-3.5" />Подбор…{cellMode && <ContextMenuShortcut>F7</ContextMenuShortcut>}
+                            </ContextMenuItem>
+                        )}
                         <ContextMenuItem disabled={disabled || !hasTarget} onSelect={duplicateLines}>
                             <CopyPlus className="mr-2 h-3.5 w-3.5" />{hasMany ? "Скопировать строки" : "Скопировать строку"}{cellMode && <ContextMenuShortcut>F9</ContextMenuShortcut>}
                         </ContextMenuItem>
@@ -527,6 +557,10 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                             className="flex items-center gap-0.5 border-b bg-muted/30 px-1.5 py-1">
                             <CommandButton label="Добавить строку" shortcut={cellMode ? "Ins" : undefined} caption="Добавить"
                                 icon={<Plus className="h-3.5 w-3.5" />} disabled={disabled} onClick={insertLine} />
+                            {target && pickEndpoint && (
+                                <CommandButton label={`Подбор: ${target.item.label || target.item.name}`} shortcut={cellMode ? "F7" : undefined} caption="Подбор"
+                                    icon={<PackagePlus className="h-3.5 w-3.5" />} disabled={!canPick} onClick={() => setPickOpen(true)} />
+                            )}
                             <CommandButton label={hasMany ? "Скопировать строки" : "Скопировать строку"} shortcut={cellMode ? "F9" : undefined}
                                 icon={<CopyPlus className="h-3.5 w-3.5" />} disabled={disabled || !hasTarget} onClick={duplicateLines} />
                             <span className="mx-1 h-4 w-px bg-border" aria-hidden />
@@ -570,7 +604,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                         {rows.length === 0 && (
                             <tr>
                                 <td colSpan={columns.length + 1} className="px-3 py-4 text-center text-muted-foreground">
-                                    {editable ? "Нет строк. Добавьте первую командой «Добавить»" : "Нет строк"}
+                                    {editable ? (target && pickEndpoint ? "Нет строк. «Добавить» — одну строку, «Подбор» — сразу несколько позиций" : "Нет строк. Добавьте первую командой «Добавить»") : "Нет строк"}
                                 </td>
                             </tr>
                         )}
@@ -686,6 +720,11 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                 </table>
                 </div>
             </div>
+            {target && pickEndpoint && pickOpen && (
+                <TablePartPickDialog open={pickOpen} onOpenChange={(open) => { setPickOpen(open); if (!open && cellMode) requestAnimationFrame(focusGrid) }}
+                    title={title} target={target} endpoint={pickEndpoint}
+                    inDocument={documentQuantities(rows, target)} onTransfer={transferPicked} />
+            )}
         </section>
     )
 }
