@@ -11,20 +11,21 @@
 
 | Сценарий | Аналог |
 |---|---|
-| Документ без табличных частей | `internal/domain/documents/crypto_invoice/` и `crypto_document_repo/crypto_invoice.go` (база — `document_repo/base.go`) |
+| Документ конфигурации, с табличными частями или без | `go run ./cmd/scaffold --type document [--parts ...]` и декларативная регистрация `v1.Document` ([Extension API](../systems/extension-api.md#2-регистрация-новых-сущностей)) |
+| Документ без табличных частей с явной регистрацией | `internal/domain/documents/crypto_invoice/` и `crypto_document_repo/crypto_invoice.go` (база — `document_repo/base.go`) |
 | Системный внешний факт только для чтения | `internal/domain/documents/crypto_network_operation/` и `handlers.NewReadOnlyDocumentHandler` |
 | Денежный workflow без generic CRUD/post/unpost | `WithdrawalRequestRegistration` и `CustomDocumentRegistration` |
 | Регистрация маршрутов и metadata | `internal/content/document_registrations.go` |
 
 Изучите целиком model, service, repository, handler и регистрацию выбранного аналога: разные документы имеют разные запреты на создание, проведение и отмену.
 
-Для нового header-only extension-документа используйте:
+Для нового extension-документа используйте:
 
 ```bash
-go run ./cmd/scaffold --name adjustment_note --type document
+go run ./cmd/scaffold --name goods_receipt --type document --parts goods,services
 ```
 
-Добавьте import пакета и `adjustment_note.Register(reg)` в `extensions/register.go`. Сервер и HTTP codegen используют общий список. Генератор создаёт document-модель и регистрацию одной строкой `v1.Document[AdjustmentNote](presentation)`, которая выводит header repository/service, DTO с обязательной update-version, capabilities и HTTP-контракты; плюс миграцию. Identity берётся из `entity.Definition`. Специфические движения и бизнес-правила добавляются вручную.
+Добавьте import пакета и `goods_receipt.Register(reg)` в `extensions/register.go`. Сервер и HTTP codegen используют общий список. Генератор создаёт document-модель с типами строк и регистрацию одной строкой `v1.Document[GoodsReceipt](presentation)`, которая выводит repository и service шапки и строк, DTO с обязательной update-version, capabilities и HTTP-контракты; плюс миграцию с таблицами частей. Без `--parts` документ создаётся без табличных частей. Identity берётся из `entity.Definition`. Специфические движения и бизнес-правила добавляются вручную.
 
 ## 2. Таблица и domain-модель
 
@@ -32,7 +33,7 @@ go run ./cmd/scaffold --name adjustment_note --type document
 
 Модель в `internal/domain/documents/<name>/` встраивает `entity.Document`. Этот тип содержит ID, номер/дату, audit, posted/version, basis и description, но **не OrganizationID**. Добавляйте организацию, merchant/token/wallet и другие измерения явно с FK и `meta:"ref:…"`.
 
-Табличная часть нужна только когда она есть в бизнес-модели. Документ без строк не требует `doc_*_lines` или товарных справочников. Набор select/insert/update columns repository должен совпасть с моделью и DDL.
+Табличная часть нужна только когда она есть в бизнес-модели. Документ без строк не требует таблиц частей или товарных справочников. Колонки строки задаются тегами `db` её типа и должны совпасть с DDL таблицы части; при явной регистрации набор select/insert/update columns repository должен совпасть с моделью и DDL.
 
 ID выделяется в Go до INSERT и проведения. `Validate(ctx)` выполняет чистые проверки без SQL/RPC. Точные crypto amounts хранятся как `RawAmount`; HTTP DTO сохраняет строковый arbitrary-precision контракт. Для ERP MinorUnits и Quantity действуют [JSON-контракты](../reference/json-contracts.md).
 
@@ -46,7 +47,7 @@ ID выделяется в Go до INSERT и проведения. `Validate(ctx
 
 ## 4. Repository и service
 
-Для header-only документа используйте действующий `domain.BaseHeaderDocumentService` и соответствующий repository. `BaseDocumentService[T,L]` остаётся основой документов с табличными частями. Не добавляйте пустые строки только ради generic-типа.
+Используйте `domain.BaseHeaderDocumentService` и соответствующий repository. Табличные части, сколько бы их ни было, он загружает и сохраняет вместе с шапкой через `Parts` (`document_repo.NewPartStore`, его подключает декларативная регистрация). `BaseDocumentService[T,L]` с одной типизированной частью и своими `GetLines`/`SaveLines` остаётся у существующего `crypto_sweep`. Не добавляйте пустые строки только ради generic-типа.
 
 В `Build(deps v1.DocumentDeps)` создайте repository, service и handler; подключите policy engine, audit и outbox decorators по выбранному аналогу. Оба базовых document service используют единый lifecycle: `BeforeCreate/Update/Delete`, разрешение валюты и выдача номера выполняются в транзакции/savepoint; `TransactionCreate/Update/Delete` — после записи и до внешнего коммита; `AfterCreate/Update/Delete` — после успешного внешнего коммита. Ошибка обязательного хука откатывает и запись, и изменения `Before*`, даже если внешний command обработал ошибку. Для пометки удаления доступны `TransactionSetDeletionMark` и `TransactionClearDeletionMark`. `PostAndSave` и `UpdateAndRepost` завершают соответствующие create/update hooks в транзакции проведения.
 

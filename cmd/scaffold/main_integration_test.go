@@ -6,18 +6,21 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"net/http/httptest"
+	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/require"
 	"metapus/internal/application/readaccess"
+	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
@@ -159,48 +162,7 @@ func TestDeclaredEntitiesServeCRUDAndPostingOverTheirGeneratedTables(t *testing.
 	reg := v1.NewFactoryRegistry()
 	reg.RegisterCatalog(v1.Catalog[declaredVehicle](metadata.Presentation{Singular: "ТС", Plural: "Транспорт"}).CodePrefix("FV"))
 	reg.RegisterDocument(v1.Document[declaredWaybill](metadata.Presentation{Singular: "Путевой лист", Plural: "Путевые листы"}).NumberPrefix("FW"))
-	metaReg := metadata.NewRegistry()
-	for _, entry := range []struct {
-		model any
-		def   entity.Definition
-		kind  metadata.EntityType
-	}{{declaredVehicle{}, declaredCatalogDefinition, metadata.TypeCatalog}, {declaredWaybill{}, declaredDocumentDefinition, metadata.TypeDocument}} {
-		def := metadata.Inspect(entry.model, entry.def.Name, entry.kind)
-		def.Key, def.TableName, def.ReadPermission = entry.def.Key, entry.def.Table, entry.def.Permission()+":read"
-		metaReg.Register(def)
-	}
-	engine, err := security.NewPolicyEngine()
-	require.NoError(t, err)
-	defer engine.Stop()
-	reads := postgres.NewAuthorizedReadService(metaReg, engine)
-	principal := appctx.UserContext{UserID: id.New().String(), IsAdmin: true, Roles: []string{"admin"}}
-	_, err = tenant.Pool.Exec(ctx, `INSERT INTO auth_users(id,email,password_hash) VALUES($1,'declared@test','fixture')`, principal.UserID)
-	require.NoError(t, err)
-	router := gin.New()
-	router.Use(func(c *gin.Context) {
-		c.Request = c.Request.WithContext(readaccess.WithService(tenant.Context(principal), reads))
-		c.Next()
-	})
-	router.Use(middleware.ErrorHandler())
-	base := handlers.NewBaseHandler()
-	catalog := reg.Catalogs()[0]
-	v1.RegisterCatalogRoutes(router.Group("/catalog/"+catalog.RoutePrefix()), catalog.Build(v1.CatalogDeps{BaseHandler: base, Numerator: numerator.Noop()}), catalog.Permission())
-	document := reg.Documents()[0]
-	v1.RegisterDocumentRoutes(router.Group("/document/"+document.RoutePrefix()), document.Build(v1.DocumentDeps{BaseHandler: base, Numerator: numerator.Noop(), PostingEngine: posting.NewEngine(nil)}),
-		document.Permission(), document.(v1.DocumentCapabilitiesProvider).DocumentCapabilities())
-
-	call := func(method, path, body string) (int, map[string]any) {
-		t.Helper()
-		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(method, path, strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		router.ServeHTTP(rec, req)
-		var out map[string]any
-		if rec.Body.Len() > 0 {
-			_ = json.Unmarshal(rec.Body.Bytes(), &out)
-		}
-		return rec.Code, out
-	}
+	call := serveDeclared(t, tenant, reg, []declaredModel{{declaredVehicle{}, declaredCatalogDefinition}, {declaredWaybill{}, declaredDocumentDefinition}})
 
 	status, created := call("POST", "/catalog/fleet-vehicles", `{"code":"V-1","name":"Газель","plate":"А001АА","mileage":12000}`)
 	require.Equal(t, 201, status, created)
@@ -234,4 +196,234 @@ func TestDeclaredEntitiesServeCRUDAndPostingOverTheirGeneratedTables(t *testing.
 	status, posted := call("POST", "/document/fleet-waybill/"+waybill["id"].(string)+"/post", "")
 	require.Equal(t, 200, status, posted)
 	require.Equal(t, true, posted["posted"])
+}
+
+type declaredModel struct {
+	model any
+	def   entity.Definition
+}
+
+// serveDeclared mounts the registry's declared catalogs and documents on a
+// router that reads as an administrator of tenant, and returns a JSON caller.
+func serveDeclared(t *testing.T, tenant *testsupport.SecurityTenant, reg *v1.FactoryRegistry, models []declaredModel) func(method, path, body string) (int, map[string]any) {
+	t.Helper()
+	ctx := context.Background()
+	metaReg := metadata.NewRegistry()
+	for _, entry := range models {
+		kind := metadata.TypeCatalog
+		if entry.def.Kind == entity.DocumentKind {
+			kind = metadata.TypeDocument
+		}
+		def := metadata.Inspect(entry.model, entry.def.Name, kind)
+		def.Key, def.TableName, def.ReadPermission = entry.def.Key, entry.def.Table, entry.def.Permission()+":read"
+		metaReg.Register(def)
+	}
+	engine, err := security.NewPolicyEngine()
+	require.NoError(t, err)
+	t.Cleanup(engine.Stop)
+	reads := postgres.NewAuthorizedReadService(metaReg, engine)
+	principal := appctx.UserContext{UserID: id.New().String(), IsAdmin: true, Roles: []string{"admin"}}
+	_, err = tenant.Pool.Exec(ctx, `INSERT INTO auth_users(id,email,password_hash) VALUES($1,$2,'fixture')`, principal.UserID, principal.UserID+"@declared.test")
+	require.NoError(t, err)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Request = c.Request.WithContext(readaccess.WithService(tenant.Context(principal), reads))
+		c.Next()
+	})
+	router.Use(middleware.ErrorHandler())
+	base := handlers.NewBaseHandler()
+	for _, catalog := range reg.Catalogs() {
+		v1.RegisterCatalogRoutes(router.Group("/catalog/"+catalog.RoutePrefix()), catalog.Build(v1.CatalogDeps{BaseHandler: base, Numerator: numerator.Noop()}), catalog.Permission())
+	}
+	for _, document := range reg.Documents() {
+		v1.RegisterDocumentRoutes(router.Group("/document/"+document.RoutePrefix()), document.Build(v1.DocumentDeps{BaseHandler: base, Numerator: numerator.Noop(), PostingEngine: posting.NewEngine(nil)}),
+			document.Permission(), document.(v1.DocumentCapabilitiesProvider).DocumentCapabilities())
+	}
+	return func(method, path, body string) (int, map[string]any) {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(method, path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(rec, req)
+		var out map[string]any
+		if rec.Body.Len() > 0 {
+			_ = json.Unmarshal(rec.Body.Bytes(), &out)
+		}
+		return rec.Code, out
+	}
+}
+
+// A goods receipt with two table parts, scaffolded with --parts and grown
+// with business columns: goods reference a product catalog, services do not.
+// The goods part is served as "items" to keep the SQL key and the wire name
+// apart.
+var (
+	productDefinition = entity.Definition{Kind: entity.CatalogKind, Key: "goods_product", Name: "GoodsProduct", Route: "goods-products", Table: "cat_goods_products"}
+	receiptDefinition = entity.Definition{Kind: entity.DocumentKind, Key: "goods_receipt", Name: "GoodsReceipt", Route: "goods-receipt", Table: "doc_goods_receipts",
+		Parts: []entity.Part{{Key: "goods", Field: "items"}, {Key: "services", Field: "services"}}}
+)
+
+type declaredProduct struct{ entity.Catalog }
+
+func (declaredProduct) EntityDefinition() entity.Definition { return productDefinition }
+
+type receiptItem struct {
+	LineID    id.ID  `db:"line_id" json:"lineId"`
+	LineNo    int    `db:"line_no" json:"lineNo" meta:"label:№"`
+	ProductID id.ID  `db:"product_id" json:"productId" meta:"label:Товар,ref:goods_product" binding:"required"`
+	Quantity  int    `db:"quantity" json:"quantity" meta:"label:Количество" binding:"min=1"`
+	Batch     string `db:"batch" json:"batch" meta:"label:Партия,readOnly:true"`
+}
+
+type receiptService struct {
+	LineID id.ID  `db:"line_id" json:"lineId"`
+	LineNo int    `db:"line_no" json:"lineNo" meta:"label:№"`
+	Title  string `db:"title" json:"title" meta:"label:Услуга" binding:"required"`
+}
+
+type declaredReceipt struct {
+	entity.Document
+	Warehouse string           `db:"warehouse" json:"warehouse"`
+	Items     []receiptItem    `db:"-" json:"items" meta:"label:Товары"`
+	Services  []receiptService `db:"-" json:"services" meta:"label:Услуги"`
+}
+
+func (declaredReceipt) EntityDefinition() entity.Definition { return receiptDefinition }
+func (*declaredReceipt) GetDocumentType() string            { return receiptDefinition.Name }
+
+// Validate is the model's business rule over its lines.
+func (r *declaredReceipt) Validate(ctx context.Context) error {
+	if len(r.Items) == 0 {
+		return apperror.NewValidation("В поступлении нет товаров")
+	}
+	return r.Document.Validate(ctx)
+}
+
+func TestDeclaredDocumentStoresItsTablePartsWithTheHeader(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tenant := testsupport.NewSecurityTenants(t)[0]
+	ctx := context.Background()
+	db, err := sql.Open("pgx", tenant.Pool.Config().ConnConfig.ConnString())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	root := t.TempDir()
+	for _, args := range [][]string{{"--name", "goods_product"}, {"--name", "goods_receipt", "--type", "document", "--parts", "goods,services"}} {
+		require.NoError(t, run(args, root, io.Discard))
+		provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS(filepath.Join(root, "db", "configuration", args[1])), goose.WithAllowOutofOrder(true))
+		require.NoError(t, err)
+		_, err = provider.Up(ctx)
+		require.NoError(t, err)
+	}
+	_, err = tenant.Pool.Exec(ctx, `ALTER TABLE doc_goods_receipts ADD COLUMN warehouse TEXT NOT NULL DEFAULT '';
+		ALTER TABLE doc_goods_receipts__goods ADD COLUMN product_id UUID NOT NULL REFERENCES cat_goods_products(id), ADD COLUMN quantity INT NOT NULL, ADD COLUMN batch TEXT NOT NULL DEFAULT '';
+		ALTER TABLE doc_goods_receipts__services ADD COLUMN title TEXT NOT NULL`)
+	require.NoError(t, err)
+
+	reg := v1.NewFactoryRegistry()
+	reg.RegisterCatalog(v1.Catalog[declaredProduct](metadata.Presentation{Singular: "Товар", Plural: "Товары"}))
+	reg.RegisterDocument(v1.Document[declaredReceipt](metadata.Presentation{Singular: "Поступление", Plural: "Поступления"}))
+	call := serveDeclared(t, tenant, reg, []declaredModel{{declaredProduct{}, productDefinition}, {declaredReceipt{}, receiptDefinition}})
+
+	product := func(name string) string {
+		status, created := call("POST", "/catalog/goods-products", `{"code":"`+name+`","name":"`+name+`"}`)
+		require.Equal(t, 201, status, created)
+		return created["id"].(string)
+	}
+	nails, screws, bolts := product("Гвозди"), product("Шурупы"), product("Болты")
+	lines := func(doc map[string]any, part string) []map[string]any {
+		raw, _ := doc[part].([]any)
+		out := make([]map[string]any, 0, len(raw))
+		for _, line := range raw {
+			out = append(out, line.(map[string]any))
+		}
+		return out
+	}
+	stored := func(table, docID string) (ids []string) {
+		rows, err := tenant.Pool.Query(ctx, "SELECT line_id::text, line_no FROM "+table+" WHERE document_id=$1 ORDER BY line_no", docID)
+		require.NoError(t, err)
+		defer rows.Close()
+		for rows.Next() {
+			var lineID string
+			var lineNo int
+			require.NoError(t, rows.Scan(&lineID, &lineNo))
+			ids = append(ids, lineID)
+			require.Equal(t, len(ids), lineNo, "stored lines are numbered by position")
+		}
+		require.NoError(t, rows.Err())
+		return ids
+	}
+
+	status, body := call("POST", "/document/goods-receipt", `{"number":"GR-`+id.New().String()[:8]+`","date":"2026-11-17T09:00:00Z","warehouse":"Основной","services":[{"title":"Доставка"}]}`)
+	require.Equal(t, 400, status, "the model's Validate sees the lines: a receipt without goods is refused")
+	require.Contains(t, fmt.Sprint(body), "нет товаров")
+	status, _ = call("POST", "/document/goods-receipt", `{"number":"GR-`+id.New().String()[:8]+`","date":"2026-11-17T09:00:00Z","items":[{"productId":"`+nails+`","quantity":0}]}`)
+	require.Equal(t, 400, status, "line binding rules apply")
+	status, body = call("POST", "/document/goods-receipt", `{"number":"GR-`+id.New().String()[:8]+`","date":"2026-11-17T09:00:00Z","items":[{"productId":"`+id.New().String()+`","quantity":1}]}`)
+	require.Equal(t, 422, status, body)
+	require.Contains(t, fmt.Sprint(body), "items.productId", "a dangling line reference names its line field")
+	var orphans int
+	require.NoError(t, tenant.Pool.QueryRow(ctx, "SELECT count(*) FROM doc_goods_receipts").Scan(&orphans))
+	require.Zero(t, orphans, "a failed line write rolls the header back")
+
+	status, receipt := call("POST", "/document/goods-receipt", `{"number":"GR-`+id.New().String()[:8]+`","date":"2026-11-17T09:00:00Z","warehouse":"Основной",
+		"items":[{"productId":"`+nails+`","quantity":10},{"productId":"`+screws+`","quantity":5}],
+		"services":[{"title":"Доставка"}]}`)
+	require.Equal(t, 201, status, receipt)
+	docID, number := receipt["id"].(string), receipt["number"].(string)
+	items := lines(receipt, "items")
+	require.Len(t, items, 2)
+	require.Equal(t, float64(1), items[0]["lineNo"])
+	require.Equal(t, float64(2), items[1]["lineNo"])
+	require.Equal(t, "Гвозди", items[0]["product"].(map[string]any)["name"], "line references resolve in the response")
+	require.Equal(t, "Доставка", lines(receipt, "services")[0]["title"])
+	goodsIDs := stored("doc_goods_receipts__goods", docID)
+	require.Equal(t, []string{items[0]["lineId"].(string), items[1]["lineId"].(string)}, goodsIDs)
+	_, err = tenant.Pool.Exec(ctx, "UPDATE doc_goods_receipts__goods SET batch='B-7' WHERE line_id=$1", goodsIDs[1])
+	require.NoError(t, err)
+
+	status, read := call("GET", "/document/goods-receipt/"+docID, "")
+	require.Equal(t, 200, status, read)
+	require.Equal(t, "B-7", lines(read, "items")[1]["batch"], "read-only line columns are served")
+	require.Equal(t, "Шурупы", lines(read, "items")[1]["product"].(map[string]any)["name"])
+	status, list := call("GET", "/document/goods-receipt?limit=10", "")
+	require.Equal(t, 200, status, list)
+	require.NotContains(t, list["items"].([]any)[0].(map[string]any), "items", "list rows carry no lines")
+
+	// Keep the screws line, drop nails, add bolts; services are omitted and kept.
+	status, updated := call("PUT", "/document/goods-receipt/"+docID, `{"number":"`+number+`","date":"2026-11-17T09:00:00Z","warehouse":"Основной","version":1,
+		"items":[{"lineId":"`+goodsIDs[1]+`","productId":"`+screws+`","quantity":6},{"lineId":"`+goodsIDs[0]+`","productId":"`+bolts+`","quantity":3},{"productId":"`+bolts+`","quantity":1}]}`)
+	require.Equal(t, 200, status, updated)
+	items = lines(updated, "items")
+	require.Len(t, items, 3)
+	require.Equal(t, goodsIDs[1], items[0]["lineId"], "a line sent back with its lineId keeps it")
+	require.Equal(t, goodsIDs[0], items[1]["lineId"])
+	require.Equal(t, float64(1), items[0]["lineNo"], "lines are renumbered by position")
+	require.Equal(t, float64(6), items[0]["quantity"])
+	require.Equal(t, "Болты", items[2]["product"].(map[string]any)["name"])
+	newIDs := stored("doc_goods_receipts__goods", docID)
+	require.Equal(t, []string{goodsIDs[1], goodsIDs[0], items[2]["lineId"].(string)}, newIDs)
+	serviceIDs := stored("doc_goods_receipts__services", docID)
+	require.Len(t, serviceIDs, 1, "an omitted part keeps its stored lines")
+
+	filtered := func(productID string) int {
+		query := url.QueryEscape(`[{"field":"items.product_id","operator":"eq","value":"` + productID + `"}]`)
+		status, list := call("GET", "/document/goods-receipt?limit=10&filter="+query, "")
+		require.Equal(t, 200, status, list)
+		return len(list["items"].([]any))
+	}
+	require.Equal(t, 1, filtered(bolts), "a list filter reaches the lines")
+	require.Zero(t, filtered(nails), "nails were dropped from the receipt")
+
+	status, posted := call("POST", "/document/goods-receipt/"+docID+"/post", "")
+	require.Equal(t, 200, status, posted)
+	require.Equal(t, true, posted["posted"])
+	postedIDs := stored("doc_goods_receipts__goods", docID)
+	require.Equal(t, newIDs, postedIDs, "posting keeps the lines")
+
+	status, cleared := call("PUT", "/document/goods-receipt/"+docID+"/repost", `{"number":"`+number+`","date":"2026-11-17T09:00:00Z","warehouse":"Основной","version":`+fmt.Sprint(posted["version"])+`,"services":[]}`)
+	require.Equal(t, 200, status, cleared)
+	require.Empty(t, lines(cleared, "services"))
+	serviceIDs = stored("doc_goods_receipts__services", docID)
+	require.Empty(t, serviceIDs, "an empty array clears the part")
+	require.Len(t, lines(cleared, "items"), 3)
 }

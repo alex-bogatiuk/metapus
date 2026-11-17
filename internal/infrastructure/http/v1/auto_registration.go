@@ -33,8 +33,8 @@ import (
 //
 // The wire projection follows one rule (see autoShape); business behaviour
 // stays on the model (Validate, CanPost, movement sources) or in hooks added
-// with Configure. An entity that needs its own DTOs, references in responses
-// or custom routes keeps an explicit registration (CatalogRegistrationFor).
+// with Configure. An entity that needs its own DTOs or custom routes keeps an
+// explicit registration (CatalogRegistrationFor).
 
 // catalogModel is satisfied by *T for a catalog model T.
 type catalogModel[T any] interface {
@@ -42,7 +42,7 @@ type catalogModel[T any] interface {
 	entity.CatalogEntity
 }
 
-// documentModel is satisfied by *T for a header-only document model T.
+// documentModel is satisfied by *T for a document model T.
 type documentModel[T any] interface {
 	*T
 	domain.HeaderDocumentEntity
@@ -186,7 +186,8 @@ var autoDocumentCapabilities = metadata.DocumentCapabilities{
 	Post: true, Unpost: true, Repost: true, ExportList: true, Movements: true, BatchAction: true, BatchActionByFilter: true,
 }
 
-// AutoDocument is a header-only document registration derived from its model.
+// AutoDocument is a document registration derived from its model: the header
+// and the table parts its Definition declares.
 type AutoDocument[T entity.DefinitionProvider, PT documentModel[T]] struct {
 	EntityRegistration[T]
 	autoRegistry
@@ -195,8 +196,11 @@ type AutoDocument[T entity.DefinitionProvider, PT documentModel[T]] struct {
 	configure    []func(*domain.BaseHeaderDocumentService[PT])
 }
 
-// Document declares a header-only document from its model T, which embeds
-// entity.Document and returns its Definition from EntityDefinition.
+// Document declares a document from its model T, which embeds entity.Document
+// and returns its Definition from EntityDefinition. Each table part in the
+// Definition is a []Line field of T named by the part's Field; its rows are
+// stored, validated and served with the header (see autoShape and
+// document_repo.PartStore).
 func Document[T entity.DefinitionProvider, PT documentModel[T]](presentation metadata.Presentation) *AutoDocument[T, PT] {
 	r := &AutoDocument[T, PT]{presentation: presentation}
 	autoShapeFor[T]()
@@ -222,8 +226,15 @@ func (r *AutoDocument[T, PT]) DocumentCapabilities() metadata.DocumentCapabiliti
 }
 
 func (r *AutoDocument[T, PT]) HTTPContracts() spec.Bundle {
+	def := r.EntityDefinition()
 	shape := autoShapeFor[T]()
-	return spec.EntityOf(r.EntityDefinition(), r.DocumentCapabilities(), shape.create, shape.update, shape.read, "")
+	bundle := spec.EntityOf(def, r.DocumentCapabilities(), shape.create, shape.update, shape.read, "")
+	for _, part := range shape.parts {
+		bundle.Contracts = append(bundle.Contracts,
+			spec.Contract{Name: def.Name + part.contract + "LineRequest", Type: part.create, Direction: spec.Input},
+			spec.Contract{Name: def.Name + part.contract + "LineResponse", Type: part.read, Direction: spec.Output})
+	}
+	return bundle
 }
 
 func (r *AutoDocument[T, PT]) Build(deps DocumentDeps) DocumentRouteHandler {
@@ -237,6 +248,7 @@ func (r *AutoDocument[T, PT]) Build(deps DocumentDeps) DocumentRouteHandler {
 	service := domain.NewBaseHeaderDocumentService(domain.BaseHeaderDocumentServiceConfig[PT]{
 		Definition: &def, Repo: repo, PostingEngine: deps.PostingEngine, Numerator: deps.Numerator, PolicyEngine: deps.PolicyEngine,
 		NumeratorPrefix: prefix, NumeratorStrategy: numerator.StrategyStrict, EntityName: def.Key,
+		Parts: autoDocumentParts(def, repo),
 	})
 	for _, fn := range r.configure {
 		fn(service)
@@ -267,6 +279,17 @@ func (r *AutoDocument[T, PT]) Build(deps DocumentDeps) DocumentRouteHandler {
 	})
 }
 
+// autoDocumentParts is the store of the document's table parts, nil when the
+// Definition declares none; list filters of repo reach the parts' lines.
+func autoDocumentParts[T any, PT documentModel[T]](def entity.Definition, repo *document_repo.BaseDocumentRepo[PT]) domain.DocumentParts[PT] {
+	if len(def.Parts) == 0 {
+		return nil
+	}
+	store := document_repo.NewPartStore[PT](def)
+	store.RegisterFilters(repo)
+	return store
+}
+
 // autoCodePrefix derives a numerator prefix from an entity key: the first
 // letters of its words, e.g. "fuel_card" → "FC", "vehicle" → "VE".
 func autoCodePrefix(key string) string {
@@ -294,7 +317,8 @@ func (a *autoRegistry) bindRegistry(r *FactoryRegistry) { a.registry = r }
 // of its ReferenceTypes). An unknown key is a declaration error.
 func (a *autoRegistry) referenceTables(shape *autoShape) map[string]string {
 	tables := map[string]string{}
-	if len(shape.refs) == 0 {
+	refs := shape.allRefs()
+	if len(refs) == 0 {
 		return tables
 	}
 	known := map[string]string{}
@@ -316,7 +340,7 @@ func (a *autoRegistry) referenceTables(shape *autoShape) map[string]string {
 			add(d, d.EntityDefinition())
 		}
 	}
-	for _, ref := range shape.refs {
+	for _, ref := range refs {
 		table, ok := known[ref.key]
 		if !ok {
 			panic(fmt.Sprintf("declared reference %s → %q: no registered entity answers to this key", ref.field, ref.key))
@@ -329,7 +353,7 @@ func (a *autoRegistry) referenceTables(shape *autoShape) map[string]string {
 // autoReferenceMappers resolves the shape's references for a page of models
 // through the authorized reference reader; nil when it has none.
 func autoReferenceMappers[PT any](shape *autoShape, tables map[string]string) (func(context.Context, ...PT) (any, error), func(PT, any) any) {
-	if len(shape.refs) == 0 {
+	if len(shape.allRefs()) == 0 {
 		return nil, nil
 	}
 	resolve := func(ctx context.Context, models ...PT) (any, error) {

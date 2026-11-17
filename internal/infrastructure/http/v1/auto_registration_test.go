@@ -13,6 +13,7 @@ import (
 
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
+	"metapus/internal/core/json"
 	"metapus/internal/domain"
 	"metapus/internal/infrastructure/http/contracts"
 	_ "metapus/internal/infrastructure/http/jsoncodec"
@@ -230,4 +231,168 @@ func TestAutoCatalogOptionsShapeItsRegistration(t *testing.T) {
 	require.False(t, ok, "a catalog without Search keeps the default name/code search")
 	reg.Build(CatalogDeps{BaseHandler: handlers.NewBaseHandler()})
 	require.True(t, built, "Build uses the entity's own service")
+}
+
+var autoReceiptDefinition = entity.Definition{
+	Kind: entity.DocumentKind, Key: "auto_receipt", Name: "AutoReceipt", Route: "auto-receipts", Table: "doc_auto_receipts",
+	Parts: []entity.Part{{Key: "goods", Field: "items"}, {Key: "services", Field: "services"}},
+}
+
+type autoReceiptItem struct {
+	LineID    id.ID  `db:"line_id" json:"lineId"`
+	LineNo    int    `db:"line_no" json:"lineNo"`
+	ProductID id.ID  `db:"product_id" json:"productId" meta:"ref:auto_probe" binding:"required"`
+	Quantity  int    `db:"quantity" json:"quantity" binding:"min=1"`
+	Batch     string `db:"batch" json:"batch,omitempty" meta:"readOnly:true"`
+}
+
+type autoReceiptService struct {
+	LineID id.ID  `db:"line_id" json:"lineId"`
+	LineNo int    `db:"line_no" json:"lineNo"`
+	Title  string `db:"title" json:"title" binding:"required"`
+}
+
+type autoReceipt struct {
+	entity.Document
+	Warehouse string               `db:"warehouse" json:"warehouse"`
+	Items     []autoReceiptItem    `db:"-" json:"items" meta:"label:Товары"`
+	Services  []autoReceiptService `db:"-" json:"services" meta:"label:Услуги"`
+}
+
+func (autoReceipt) EntityDefinition() entity.Definition { return autoReceiptDefinition }
+func (*autoReceipt) GetDocumentType() string            { return autoReceiptDefinition.Name }
+
+func TestAutoDocumentPartsAreOnTheWireWithTheirLineRules(t *testing.T) {
+	shape := autoShapeFor[autoReceipt]()
+	require.Equal(t, []string{"number", "date", "description", "attributes", "warehouse", "items", "services", "postImmediately"}, jsonNames(shape.create))
+	require.Equal(t, []string{"id", "version", "deletionMark", "posted", "postedVersion", "number", "date", "description", "attributes", "warehouse", "items", "services"}, jsonNames(shape.read))
+	require.Len(t, shape.parts, 2)
+	items := shape.parts[0]
+	require.Equal(t, []string{"lineId", "productId", "quantity"}, jsonNames(items.create), "lineNo and read-only columns are not writable")
+	require.Equal(t, []string{"lineId", "lineNo", "productId", "quantity", "batch", "product"}, jsonNames(items.read))
+
+	gin.SetMode(gin.TestMode)
+	base := handlers.NewBaseHandler()
+	router := gin.New()
+	router.POST("/", func(c *gin.Context) {
+		var req AutoCreate[autoReceipt]
+		if !base.BindJSON(c, &req) {
+			c.Status(http.StatusBadRequest)
+			return
+		}
+		c.Status(http.StatusCreated)
+	})
+	post := func(body string) int {
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body)))
+		return rec.Code
+	}
+	product := id.New().String()
+	require.Equal(t, http.StatusCreated, post(`{"date":"2026-11-17T00:00:00Z","items":[{"productId":"`+product+`","quantity":2}]}`))
+	require.Equal(t, http.StatusBadRequest, post(`{"date":"2026-11-17T00:00:00Z","items":[{"productId":"`+product+`","quantity":0}]}`), "line binding rules apply to every line")
+	require.Equal(t, http.StatusBadRequest, post(`{"date":"2026-11-17T00:00:00Z","services":[{}]}`), "a required line field is required")
+	require.Equal(t, http.StatusBadRequest, post(`{"date":"2026-11-17T00:00:00Z","items":[{"productId":"`+product+`","quantity":1,"batch":"B"}]}`), "a read-only line field is not writable")
+	require.Equal(t, http.StatusBadRequest, post(`{"date":"2026-11-17T00:00:00Z","items":[{"productId":"`+product+`","quantity":1,"lineNo":5}]}`), "line numbers are the server's")
+}
+
+func TestAutoDocumentPartsKeepKnownLineIDsAndRenumber(t *testing.T) {
+	shape := autoShapeFor[autoReceipt]()
+	kept, foreign := id.New(), id.New()
+	stored := &autoReceipt{Document: entity.NewDocument(),
+		Items:    []autoReceiptItem{{LineID: kept, LineNo: 1, ProductID: id.New(), Quantity: 1, Batch: "B-1"}},
+		Services: []autoReceiptService{{LineID: id.New(), LineNo: 1, Title: "Доставка"}},
+	}
+	request := reflect.New(shape.update).Elem()
+	items := reflect.MakeSlice(reflect.SliceOf(shape.parts[0].create), 3, 3)
+	for i, lineID := range []*id.ID{&foreign, &kept, &kept} {
+		items.Index(i).FieldByName("LineID").Set(reflect.ValueOf(lineID))
+		items.Index(i).FieldByName("ProductID").Set(reflect.ValueOf(id.New()))
+		items.Index(i).FieldByName("Quantity").SetInt(int64(i + 1))
+	}
+	request.FieldByName("Items").Set(items)
+	shape.applyAutoRequest(request, stored)
+
+	require.Len(t, stored.Items, 3)
+	require.NotEqual(t, foreign, stored.Items[0].LineID, "an id of no stored line of this document is replaced")
+	require.Equal(t, kept, stored.Items[1].LineID, "a stored line keeps its id")
+	require.NotEqual(t, kept, stored.Items[2].LineID, "an id already taken by an earlier line is replaced")
+	require.Equal(t, []int{1, 2, 3}, []int{stored.Items[0].LineNo, stored.Items[1].LineNo, stored.Items[2].LineNo})
+	require.Empty(t, stored.Items[1].Batch, "read-only line fields are the server's to fill")
+	require.Equal(t, "Доставка", stored.Services[0].Title, "an omitted part keeps its stored lines")
+
+	request.FieldByName("Services").Set(reflect.MakeSlice(reflect.SliceOf(shape.parts[1].create), 0, 0))
+	shape.applyAutoRequest(request, stored)
+	require.Empty(t, stored.Services, "an empty array clears the part")
+
+	created := newAutoModel[autoReceipt](reflect.New(shape.create).Elem(), entity.DocumentKind)
+	shape.applyAutoRequest(reflect.New(shape.create).Elem(), created)
+	require.NotNil(t, created.Items, "a new document starts with empty parts")
+}
+
+func TestAutoDocumentPartsResolveLineReferencesAndPublishLineContracts(t *testing.T) {
+	reg := NewFactoryRegistry()
+	reg.RegisterCatalog(Catalog[autoProbe](metadata.Presentation{Plural: "Пробы"}))
+	receipt := Document[autoReceipt](metadata.Presentation{Singular: "Поступление", Plural: "Поступления"})
+	reg.RegisterDocument(receipt)
+	shape := autoShapeFor[autoReceipt]()
+	tables := receipt.referenceTables(shape)
+	require.Equal(t, map[string]string{"auto_probe": "cat_auto_probes"}, tables)
+
+	product := id.New()
+	model := &autoReceipt{Document: entity.NewDocument(), Items: []autoReceiptItem{{LineID: id.New(), LineNo: 1, ProductID: product, Quantity: 4}}}
+	resolver := postgres.NewReferenceResolver()
+	shape.collectRefs(resolver, tables, model)
+	resolved := postgres.ResolvedRefs{"cat_auto_probes": {product.String(): {ID: product.String(), Name: "Гвозди"}}}
+	out := reflect.ValueOf(shape.response(model, tables, resolved))
+	line := out.FieldByName("Items").Index(0)
+	require.Equal(t, "Гвозди", line.FieldByName("ProductRef").Interface().(*postgres.RefDisplay).Name)
+	require.Equal(t, 1, int(line.FieldByName("LineNo").Int()))
+	require.True(t, out.FieldByName("Services").IsNil(), "a part that was not loaded stays off the response")
+
+	encoded, err := json.Marshal(shape.response(&autoReceipt{Document: entity.NewDocument()}, tables, nil))
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), `"items"`, "list rows carry no lines")
+
+	parts := map[string]string{}
+	for _, def := range BuildReadRegistry(reg).List() {
+		for _, tp := range def.TableParts {
+			parts[def.Name+"."+tp.Name] = tp.SQLTable
+		}
+	}
+	require.Equal(t, "doc_auto_receipts__goods", parts["AutoReceipt.items"], "filters and FLS reach the part through its SQL table")
+	require.Equal(t, "doc_auto_receipts__services", parts["AutoReceipt.services"])
+
+	output, err := contracts.Generate(reg.HTTPContracts().Contracts)
+	require.NoError(t, err)
+	generated := string(output)
+	require.Contains(t, generated, "export type AutoReceiptItemsLineRequest")
+	require.Contains(t, generated, "export type AutoReceiptServicesLineResponse")
+	create := generated[strings.Index(generated, "export type CreateAutoReceiptRequest"):]
+	create = create[:strings.Index(create, "}")]
+	require.Contains(t, create, `"items"?: Array<AutoReceiptItemsLineRequest>`)
+}
+
+func TestAutoDocumentPartsRejectUndeclaredLines(t *testing.T) {
+	type noLineNo struct {
+		LineID id.ID  `db:"line_id" json:"lineId"`
+		Title  string `db:"title" json:"title"`
+	}
+	type broken struct {
+		entity.Document
+		Services []noLineNo `db:"-" json:"services"`
+	}
+	def := entity.Definition{Kind: entity.DocumentKind, Key: "auto_broken", Name: "AutoBroken", Route: "auto-broken", Table: "doc_auto_broken",
+		Parts: []entity.Part{{Key: "services", Field: "services"}}}
+	_, err := deriveAutoShape(reflect.TypeFor[broken](), def)
+	require.ErrorContains(t, err, "line_id and line_no")
+
+	missing := def
+	missing.Parts = []entity.Part{{Key: "goods", Field: "goods"}}
+	_, err = deriveAutoShape(reflect.TypeFor[broken](), missing)
+	require.ErrorContains(t, err, `no field with json name "goods"`)
+
+	catalog := autoProbeDefinition
+	catalog.Parts = []entity.Part{{Key: "goods", Field: "goods"}}
+	_, err = deriveAutoShape(reflect.TypeFor[autoProbe](), catalog)
+	require.ErrorContains(t, err, "documents only")
 }

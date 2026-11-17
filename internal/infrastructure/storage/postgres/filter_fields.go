@@ -13,6 +13,12 @@ import (
 // types and db tags. An optional column whitelist restricts the exposed fields.
 // It is used once when repositories are registered, never for each SQL row.
 func ExtractFilterFields[T any](columns ...string) map[string]filter.FieldSpec {
+	return ExtractFilterFieldsOf(reflect.TypeFor[T](), columns...)
+}
+
+// ExtractFilterFieldsOf is ExtractFilterFields for a type known at run time,
+// such as the line type of a table part.
+func ExtractFilterFieldsOf(model reflect.Type, columns ...string) map[string]filter.FieldSpec {
 	fields := make(map[string]filter.FieldSpec)
 	var inspect func(reflect.Type)
 	inspect = func(model reflect.Type) {
@@ -47,7 +53,7 @@ func ExtractFilterFields[T any](columns ...string) map[string]filter.FieldSpec {
 			fields[column] = filter.FieldSpec{Kind: kind}
 		}
 	}
-	inspect(reflect.TypeFor[T]())
+	inspect(model)
 	if len(columns) == 0 {
 		return fields
 	}
@@ -55,7 +61,7 @@ func ExtractFilterFields[T any](columns ...string) map[string]filter.FieldSpec {
 	for _, column := range columns {
 		spec, ok := fields[column]
 		if !ok {
-			panic(fmt.Sprintf("filter column %q is not declared by %v", column, reflect.TypeFor[T]()))
+			panic(fmt.Sprintf("filter column %q is not declared by %v", column, model))
 		}
 		selected[column] = spec
 	}

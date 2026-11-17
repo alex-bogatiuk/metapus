@@ -30,10 +30,19 @@ CREATE INDEX idx_{{.Table}}_txid ON {{.Table}} (_txid) WHERE _deleted_at IS NULL
 CREATE TRIGGER trg_{{.Table}}_txid BEFORE UPDATE ON {{.Table}} FOR EACH ROW EXECUTE FUNCTION update_txid_column();
 CREATE TRIGGER trg_{{.Table}}_soft_delete BEFORE UPDATE OF deletion_mark ON {{.Table}} FOR EACH ROW EXECUTE FUNCTION soft_delete_with_timestamp();
 CREATE TRIGGER trg_{{.Table}}_updated_at BEFORE UPDATE ON {{.Table}} FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
+{{range .Parts}}
+-- Table part {{.Key}}: one row per line, replaced with the document.
+CREATE TABLE {{.Table}} (
+ line_id UUID PRIMARY KEY,
+ document_id UUID NOT NULL REFERENCES {{$.Table}}(id) ON DELETE CASCADE,
+ line_no INT NOT NULL
+);
+CREATE INDEX idx_{{.Table}}_document ON {{.Table}} (document_id, line_no);
+{{end}}
 -- Permissions ({{if .Document}}document{{else}}catalog{{end}}:{{.Key}}:<action>) are not declared here: the tenant
 -- migration command derives them from the registered module and grants them
 -- to the admin role.
 
 -- +goose Down
-DROP TABLE {{.Table}};
+{{range .Parts}}DROP TABLE {{.Table}};
+{{end}}DROP TABLE {{.Table}};

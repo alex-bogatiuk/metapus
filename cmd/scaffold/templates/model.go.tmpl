@@ -2,14 +2,20 @@ package {{.Name}}
 
 import (
  "context"
- "metapus/internal/core/entity"
+ "metapus/internal/core/entity"{{if .Parts}}
+ "metapus/internal/core/id"{{end}}
 )
 
 // Definition is shared by persistence, service, registration and wire contracts.
 var Definition = entity.Definition{
  Key: "{{.Key}}", Name: "{{.PascalName}}", Route: "{{.Route}}", Table: "{{.Table}}",
  Kind: entity.{{if .Document}}DocumentKind{{else}}CatalogKind{{end}},
- {{if .Hierarchical}}Hierarchy: entity.CatalogMeta{Hierarchical: true, HierarchyType: entity.HierarchyGroupsAndItems, FolderAsParentOnly: true},{{end}}
+{{- if .Hierarchical}}
+ Hierarchy: entity.CatalogMeta{Hierarchical: true, HierarchyType: entity.HierarchyGroupsAndItems, FolderAsParentOnly: true},
+{{- end}}
+{{- if .Parts}}
+ Parts: []entity.Part{ {{range .Parts}}{Key: "{{.Key}}", Field: "{{.Field}}"}, {{end}} },
+{{- end}}
 }
 
 // {{.PascalName}} stores the business data. Its storage, HTTP routes, wire
@@ -21,11 +27,24 @@ var Definition = entity.Definition{
 //
 // A field with db and json tags is writable through the API; mark one that
 // only the server sets with meta:"readOnly:true", keep one off the wire with
-// json:"-". Put pure validation in Validate.
+// json:"-". Put pure validation in Validate.{{if .Parts}}
+//
+// Each table part is a []Line field named by its Definition.Parts Field and
+// stored in its own table; add line columns to the line struct and its table
+// the same way. Lines are numbered by the server and keep their lineId.{{end}}
 type {{.PascalName}} struct {
  entity.{{if .Document}}Document{{else}}Catalog{{end}}
+{{- range .Parts}}
+ {{.PascalName}} []{{$.PascalName}}{{.PascalName}}Line `db:"-" json:"{{.Field}}" meta:"label:{{.PascalName}}"`
+{{- end}}
 }
-
+{{range .Parts}}
+// {{$.PascalName}}{{.PascalName}}Line is a row of the {{.Key}} table part ({{.Table}}).
+type {{$.PascalName}}{{.PascalName}}Line struct {
+ LineID id.ID `db:"line_id" json:"lineId"`
+ LineNo int `db:"line_no" json:"lineNo" meta:"label:№"`
+}
+{{end}}
 func ({{.PascalName}}) EntityDefinition() entity.Definition { return Definition }
 
 func (e *{{.PascalName}}) Validate(ctx context.Context) error { return e.{{if .Document}}Document{{else}}Catalog{{end}}.Validate(ctx) }

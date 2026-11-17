@@ -26,12 +26,23 @@ type BaseHeaderDocumentServiceConfig[T HeaderDocumentEntity] struct {
 	NumeratorPrefix   string
 	NumeratorStrategy numerator.Strategy
 	EntityName        string // for logging (e.g., "crypto_invoice")
+	// Parts persists the document's table parts with it; nil for a
+	// document whose data lives in the header alone.
+	Parts DocumentParts[T]
 }
 
-// BaseHeaderDocumentService provides generic business logic for header-only documents.
-// Identical to BaseDocumentService but without line operations (GetLines/SaveLines).
-// Used for documents where all business data lives in the header (e.g., CryptoInvoice,
-// CryptoPayment, CryptoWithdrawal).
+// DocumentParts loads and stores the table parts of a document together with
+// its header. SaveParts replaces the stored rows with the document's own and
+// runs inside the transaction that writes the header.
+type DocumentParts[T any] interface {
+	LoadParts(ctx context.Context, doc T) error
+	SaveParts(ctx context.Context, doc T) error
+}
+
+// BaseHeaderDocumentService provides generic business logic for documents
+// whose header is one row (e.g., CryptoInvoice, CryptoPayment). Unlike
+// BaseDocumentService it is not generic over one line type: table parts, any
+// number of them, are loaded and stored with the header through Parts.
 //
 // Implements DocumentService[T] — handlers and decorators are agnostic to this distinction.
 type BaseHeaderDocumentService[T HeaderDocumentEntity] struct {
@@ -45,6 +56,7 @@ type BaseHeaderDocumentService[T HeaderDocumentEntity] struct {
 	NumeratorPrefix   string
 	NumeratorStrategy numerator.Strategy
 	EntityName        string
+	parts             DocumentParts[T]
 }
 
 // NewBaseHeaderDocumentService creates a new BaseHeaderDocumentService.
@@ -70,7 +82,37 @@ func NewBaseHeaderDocumentService[T HeaderDocumentEntity](cfg BaseHeaderDocument
 		NumeratorPrefix:   cfg.NumeratorPrefix,
 		NumeratorStrategy: cfg.NumeratorStrategy,
 		EntityName:        cfg.EntityName,
+		parts:             cfg.Parts,
 	}
+}
+
+// loadParts fills the table parts of a document read from the repository.
+func (s *BaseHeaderDocumentService[T]) loadParts(ctx context.Context, doc T) error {
+	if s.parts == nil {
+		return nil
+	}
+	return s.parts.LoadParts(ctx, doc)
+}
+
+// saveParts stores the table parts of a document whose header was written.
+func (s *BaseHeaderDocumentService[T]) saveParts(ctx context.Context, doc T) error {
+	if s.parts == nil {
+		return nil
+	}
+	return s.parts.SaveParts(ctx, doc)
+}
+
+// getStored reads a document with its table parts, without access checks.
+func (s *BaseHeaderDocumentService[T]) getStored(ctx context.Context, docID id.ID) (T, error) {
+	doc, err := s.Repo.GetByID(ctx, docID)
+	if err != nil {
+		return doc, err
+	}
+	if err := s.loadParts(ctx, doc); err != nil {
+		var zero T
+		return zero, err
+	}
+	return doc, nil
 }
 
 // GetHooks returns the hook registry for external registration.
@@ -121,7 +163,7 @@ func (s *BaseHeaderDocumentService[T]) checkCELPolicy(ctx context.Context, actio
 	return security.CheckCELPolicy(ctx, s.PolicyEngine, s.EntityName, action, doc)
 }
 
-// Create creates a new document in a transaction (no lines).
+// Create creates a new document and its table parts in a transaction.
 func (s *BaseHeaderDocumentService[T]) Create(ctx context.Context, doc T) error {
 	return runDocumentMutation(ctx, s.GetTxManager, func(ctx context.Context) error {
 		if err := s.hooks.RunBeforeCreate(ctx, doc); err != nil {
@@ -143,17 +185,24 @@ func (s *BaseHeaderDocumentService[T]) Create(ctx context.Context, doc T) error 
 		if err := s.Repo.Create(ctx, doc); err != nil {
 			return err
 		}
+		if err := s.saveParts(ctx, doc); err != nil {
+			return err
+		}
 		return completeDocumentMutation(ctx, s.hooks, doc, TransactionCreate, AfterCreate)
 	})
 }
 
-// GetByID retrieves a document by ID (no lines to load).
+// GetByID retrieves a document by ID with its table parts.
 func (s *BaseHeaderDocumentService[T]) GetByID(ctx context.Context, docID id.ID) (T, error) {
 	doc, err := s.Repo.GetByID(ctx, docID)
 	if err != nil {
 		return doc, err
 	}
 	if err := s.checkRLSAccess(ctx, doc); err != nil {
+		var zero T
+		return zero, err
+	}
+	if err := s.loadParts(ctx, doc); err != nil {
 		var zero T
 		return zero, err
 	}
@@ -173,6 +222,10 @@ func (s *BaseHeaderDocumentService[T]) GetByIDForUpdate(ctx context.Context, doc
 		var zero T
 		return zero, err
 	}
+	if err := s.loadParts(ctx, doc); err != nil {
+		var zero T
+		return zero, err
+	}
 	if err := s.checkCELPolicy(ctx, "read", doc); err != nil {
 		var zero T
 		return zero, err
@@ -180,14 +233,14 @@ func (s *BaseHeaderDocumentService[T]) GetByIDForUpdate(ctx context.Context, doc
 	return doc, nil
 }
 
-// Update updates a document (must be unposted, no lines).
+// Update updates a document and replaces its table parts (must be unposted).
 func (s *BaseHeaderDocumentService[T]) Update(ctx context.Context, doc T) error {
 	return runDocumentMutation(ctx, s.GetTxManager, func(ctx context.Context) error {
 		if err := s.checkRLSAccess(ctx, doc); err != nil {
 			return err
 		}
 
-		oldDoc, err := s.Repo.GetByID(ctx, doc.GetID())
+		oldDoc, err := s.getStored(ctx, doc.GetID())
 		if err != nil {
 			return fmt.Errorf("fetch existing document: %w", err)
 		}
@@ -222,6 +275,9 @@ func (s *BaseHeaderDocumentService[T]) Update(ctx context.Context, doc T) error 
 		if err := s.Repo.Update(ctx, doc); err != nil {
 			return err
 		}
+		if err := s.saveParts(ctx, doc); err != nil {
+			return err
+		}
 		return completeDocumentMutation(ctx, s.hooks, doc, TransactionUpdate, AfterUpdate)
 	})
 }
@@ -232,7 +288,7 @@ func (s *BaseHeaderDocumentService[T]) Delete(ctx context.Context, docID id.ID) 
 		if err := security.GetDataScope(ctx).CanMutate(); err != nil {
 			return err
 		}
-		doc, err := s.Repo.GetByID(ctx, docID)
+		doc, err := s.getStored(ctx, docID)
 		if err != nil {
 			return err
 		}
@@ -338,7 +394,7 @@ func (s *BaseHeaderDocumentService[T]) Unpost(ctx context.Context, docID id.ID) 
 	return s.PostingEngine.Unpost(ctx, doc, updateDoc)
 }
 
-// PostAndSave posts document and saves changes atomically (no lines).
+// PostAndSave posts document and saves changes atomically.
 func (s *BaseHeaderDocumentService[T]) PostAndSave(ctx context.Context, doc T) error {
 	return runDocumentMutation(ctx, s.GetTxManager, func(ctx context.Context) error {
 		if err := security.GetDataScope(ctx).CanMutate(); err != nil {
@@ -362,9 +418,15 @@ func (s *BaseHeaderDocumentService[T]) PostAndSave(ctx context.Context, doc T) e
 				if err := s.Repo.Create(ctx, doc); err != nil {
 					return err
 				}
+				if err := s.saveParts(ctx, doc); err != nil {
+					return err
+				}
 				return completeDocumentMutation(ctx, s.hooks, doc, TransactionCreate, AfterCreate)
 			}
 			if err := s.Repo.Update(ctx, doc); err != nil {
+				return err
+			}
+			if err := s.saveParts(ctx, doc); err != nil {
 				return err
 			}
 			return completeDocumentMutation(ctx, s.hooks, doc, TransactionUpdate, AfterUpdate)
@@ -373,7 +435,7 @@ func (s *BaseHeaderDocumentService[T]) PostAndSave(ctx context.Context, doc T) e
 	})
 }
 
-// UpdateAndRepost atomically updates a posted document and re-posts it (no lines).
+// UpdateAndRepost atomically updates a posted document and re-posts it.
 func (s *BaseHeaderDocumentService[T]) UpdateAndRepost(ctx context.Context, doc T) error {
 	return runDocumentMutation(ctx, s.GetTxManager, func(ctx context.Context) error {
 		if err := security.GetDataScope(ctx).CanMutate(); err != nil {
@@ -383,7 +445,7 @@ func (s *BaseHeaderDocumentService[T]) UpdateAndRepost(ctx context.Context, doc 
 			return err
 		}
 
-		oldDoc, err := s.Repo.GetByID(ctx, doc.GetID())
+		oldDoc, err := s.getStored(ctx, doc.GetID())
 		if err != nil {
 			return fmt.Errorf("fetch existing document: %w", err)
 		}
@@ -414,6 +476,9 @@ func (s *BaseHeaderDocumentService[T]) UpdateAndRepost(ctx context.Context, doc 
 
 		updateDoc := func(ctx context.Context) error {
 			if err := s.Repo.Update(ctx, doc); err != nil {
+				return err
+			}
+			if err := s.saveParts(ctx, doc); err != nil {
 				return err
 			}
 			return completeDocumentMutation(ctx, s.hooks, doc, TransactionUpdate, AfterUpdate)

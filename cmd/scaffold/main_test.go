@@ -10,7 +10,7 @@ import (
 )
 
 func TestRejectsInvalidOptionsBeforeWriting(t *testing.T) {
-	for _, args := range [][]string{{"--name", "../escape"}, {"--name", "type"}, {"--name", "ok", "--type", "other"}, {"--name", "ok", "--type", "document", "--hierarchical"}, {"--name", "ok", "--table", "cat_ok;drop"}, {"--name", "ok", "--migration-version", "1"}} {
+	for _, args := range [][]string{{"--name", "../escape"}, {"--name", "type"}, {"--name", "ok", "--type", "other"}, {"--name", "ok", "--type", "document", "--hierarchical"}, {"--name", "ok", "--table", "cat_ok;drop"}, {"--name", "ok", "--migration-version", "1"}, {"--name", "ok", "--parts", "goods"}, {"--name", "ok", "--type", "document", "--parts", "Goods"}, {"--name", "ok", "--type", "document", "--parts", "goods,goods"}} {
 		root := t.TempDir()
 		if err := run(args, root, io.Discard); err == nil {
 			t.Fatalf("accepted %v", args)
@@ -78,10 +78,14 @@ func TestGeneratedModulesCompileAndMatchTheirHTTPContracts(t *testing.T) {
 	for i, fixture := range []struct {
 		name, kind string
 		hierarchy  bool
-	}{{"a", "catalog", false}, {"tree_probe", "catalog", true}, {"doc_probe", "document", false}} {
+		parts      string
+	}{{"a", "catalog", false, ""}, {"tree_probe", "catalog", true, ""}, {"doc_probe", "document", false, ""}, {"parts_probe", "document", false, "goods,extra_costs"}} {
 		args := []string{"--name", fixture.name, "--type", fixture.kind}
 		if fixture.hierarchy {
 			args = append(args, "--hierarchical")
+		}
+		if fixture.parts != "" {
+			args = append(args, "--parts", fixture.parts)
 		}
 		if err := run(args, work, io.Discard); err != nil {
 			t.Fatal(err)
@@ -91,7 +95,7 @@ func TestGeneratedModulesCompileAndMatchTheirHTTPContracts(t *testing.T) {
 		if err != nil || len(migrations) != 1 {
 			t.Fatalf("migration: %v %v", migrations, err)
 		}
-		if !strings.HasPrefix(filepath.Base(migrations[0]), []string{"10001_", "10002_", "10003_"}[i]) {
+		if !strings.HasPrefix(filepath.Base(migrations[0]), []string{"10001_", "10002_", "10003_", "10004_"}[i]) {
 			t.Fatal("migration versions must not collide")
 		}
 		source, _ := os.ReadFile(migrations[0])
@@ -99,7 +103,20 @@ func TestGeneratedModulesCompileAndMatchTheirHTTPContracts(t *testing.T) {
 			t.Fatal("obsolete SQL in generated migration")
 		}
 		probe := strings.ReplaceAll(generatedProbe, "PACKAGE", fixture.name)
-		pascal := []string{"A", "TreeProbe", "DocProbe"}[i]
+		if fixture.parts != "" {
+			for _, want := range []string{"CREATE TABLE doc_parts_probes__goods", "CREATE TABLE doc_parts_probes__extra_costs", "REFERENCES doc_parts_probes(id) ON DELETE CASCADE", "DROP TABLE doc_parts_probes__extra_costs;"} {
+				if !strings.Contains(string(source), want) {
+					t.Fatalf("part migration lacks %q:\n%s", want, source)
+				}
+			}
+			model, _ := os.ReadFile(filepath.Join(dir, "model.go"))
+			for _, want := range []string{`{Key: "extra_costs", Field: "extraCosts"}`, "ExtraCosts []PartsProbeExtraCostsLine", "type PartsProbeGoodsLine struct"} {
+				if !strings.Contains(string(model), want) {
+					t.Fatalf("part model lacks %q:\n%s", want, model)
+				}
+			}
+		}
+		pascal := []string{"A", "TreeProbe", "DocProbe", "PartsProbe"}[i]
 		probe = strings.ReplaceAll(probe, "ENTITY", pascal)
 		for _, generated := range []string{"model.go", "register.go"} {
 			if _, err := os.Stat(filepath.Join(dir, generated)); err != nil {

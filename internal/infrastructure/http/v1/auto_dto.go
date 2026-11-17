@@ -13,6 +13,7 @@ import (
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/document_repo"
 )
 
 // autoShape is the wire projection of a declared entity, derived from its
@@ -28,7 +29,14 @@ import (
 //     postedVersion), the writable fields and the model's read-only fields;
 //     a reference field (id.ID or *id.ID tagged meta:"ref:<entity key>" whose
 //     json name ends in "Id") also gets its resolved display under the name
-//     without "Id", e.g. counterpartyId → counterparty: {id, name, code}.
+//     without "Id", e.g. counterpartyId → counterparty: {id, name, code};
+//   - table parts (documents): each part of the Definition is the model's
+//     []Line field named by the part's Field (see document_repo.PartStore).
+//     A request line carries the line's writable fields and, optionally, the
+//     lineId of a line it keeps; a response line adds lineId, lineNo, the
+//     read-only fields and reference displays, by the same rules as the
+//     header. An update that omits a part keeps its stored lines; an empty
+//     array clears them.
 //
 // Server-owned base fields (id, version, posting state, timestamps) are never
 // writable, and a model field without a db column is never on the wire. Only
@@ -40,6 +48,20 @@ type autoShape struct {
 	writable             []string  // Go field names copied from a request onto the model
 	readable             []string  // Go field names copied from the model onto the response
 	refs                 []autoRef // reference fields resolved into the response
+	parts                []autoPart
+}
+
+// autoPart is the wire projection of one table part.
+type autoPart struct {
+	field        string       // model []Line field
+	elem         reflect.Type // model line type
+	create, read reflect.Type // request and response line types
+	contract     string       // PascalCase part name used in contract names
+	lineID       string       // line field mapped to line_id
+	lineNo       string       // line field mapped to line_no
+	writable     []string
+	readable     []string
+	refs         []autoRef
 }
 
 // autoRef is a reference field of the model and its display in the response.
@@ -97,61 +119,48 @@ func deriveAutoShape(model reflect.Type, def entity.Definition) (*autoShape, err
 	base = append(base, autoField{"Attributes", "attributes", ""})
 
 	shape := &autoShape{}
-	var writable, readOnly []reflect.StructField
-	names := map[string]string{}
-	add := func(list *[]reflect.StructField, f reflect.StructField, jsonName, bindingTag string) error {
-		if other, taken := names[jsonName]; taken {
-			return fmt.Errorf("json name %q of %s is already used by %s", jsonName, f.Name, other)
-		}
-		names[jsonName] = f.Name
-		// The model's json options (omitempty, …) carry over with the name.
-		tag := `json:"` + jsonName
-		if _, options, ok := strings.Cut(f.Tag.Get("json"), ","); ok {
-			tag += "," + options
-		}
-		tag += `"`
-		if bindingTag != "" {
-			tag += ` binding:"` + bindingTag + `"`
-		}
-		*list = append(*list, reflect.StructField{Name: f.Name, Type: f.Type, Tag: reflect.StructTag(tag)})
-		return nil
-	}
+	fields := newAutoFields()
 	for _, b := range base {
 		f, ok := model.FieldByName(b.name)
 		if !ok {
 			return nil, fmt.Errorf("standard field %s is missing", b.name)
 		}
-		if err := add(&writable, f, b.json, b.binding); err != nil {
+		if err := fields.add(&fields.writable, f, b.json, b.binding); err != nil {
 			return nil, err
 		}
 	}
-	for i := 0; i < model.NumField(); i++ {
-		f := model.Field(i)
-		if f.Anonymous || !f.IsExported() {
-			continue
-		}
-		jsonName, _, _ := strings.Cut(f.Tag.Get("json"), ",")
-		column, _, _ := strings.Cut(f.Tag.Get("db"), ",")
-		if jsonName == "" || jsonName == "-" || column == "" || column == "-" {
-			continue
-		}
-		list := &writable
-		if autoReadOnly(f) {
-			list = &readOnly
-		}
-		if err := add(list, f, jsonName, f.Tag.Get("binding")); err != nil {
-			return nil, err
-		}
+	if err := fields.addColumns(model, false, nil); err != nil {
+		return nil, err
 	}
+	writable, readOnly := fields.writable, fields.readOnly
 	for _, f := range writable {
 		shape.writable = append(shape.writable, f.Name)
 	}
+	if len(def.Parts) > 0 && def.Kind != entity.DocumentKind {
+		return nil, fmt.Errorf("declarative registration stores table parts of documents only")
+	}
+	var partRequest, partResponse []reflect.StructField
+	for _, part := range def.Parts {
+		p, err := deriveAutoPart(model, part)
+		if err != nil {
+			return nil, fmt.Errorf("table part %s: %w", part.Key, err)
+		}
+		if other, taken := fields.names[part.Field]; taken {
+			return nil, fmt.Errorf("json name %q of table part %s is already used by %s", part.Field, part.Key, other)
+		}
+		fields.names[part.Field] = p.field
+		shape.parts = append(shape.parts, p)
+		partRequest = append(partRequest, reflect.StructField{Name: p.field, Type: reflect.SliceOf(p.create),
+			Tag: reflect.StructTag(`json:"` + part.Field + `,omitempty" binding:"omitempty,dive"`)})
+		partResponse = append(partResponse, reflect.StructField{Name: p.field, Type: reflect.SliceOf(p.read),
+			Tag: reflect.StructTag(`json:"` + part.Field + `,omitzero"`)})
+	}
 
-	create := append([]reflect.StructField(nil), writable...)
+	create := append(append([]reflect.StructField(nil), writable...), partRequest...)
 	if def.Kind == entity.DocumentKind {
 		create = append(create, reflect.StructField{Name: "PostImmediately", Type: reflect.TypeFor[bool](), Tag: `json:"postImmediately"`})
 	}
-	update := append(append([]reflect.StructField(nil), writable...),
+	update := append(append(append([]reflect.StructField(nil), writable...), partRequest...),
 		reflect.StructField{Name: "Version", Type: reflect.TypeFor[int](), Tag: `json:"version" binding:"required,min=1"`})
 
 	read := []reflect.StructField{
@@ -167,7 +176,82 @@ func deriveAutoShape(model reflect.Type, def entity.Definition) (*autoShape, err
 	for _, f := range read[1:] {
 		shape.readable = append(shape.readable, f.Name)
 	}
-	for _, f := range append(append([]reflect.StructField(nil), writable...), readOnly...) {
+	displays, refs, err := fields.refDisplays(model)
+	if err != nil {
+		return nil, err
+	}
+	read = append(append(read, displays...), partResponse...)
+	shape.refs = refs
+
+	shape.create, shape.update, shape.read = reflect.StructOf(create), reflect.StructOf(update), reflect.StructOf(read)
+	return shape, nil
+}
+
+// autoFields collects the wire fields of a model or a line struct, keeping
+// json names unique.
+type autoFields struct {
+	writable, readOnly []reflect.StructField
+	names              map[string]string // json name → Go field name
+}
+
+func newAutoFields() *autoFields { return &autoFields{names: map[string]string{}} }
+
+func (a *autoFields) add(list *[]reflect.StructField, f reflect.StructField, jsonName, bindingTag string) error {
+	if other, taken := a.names[jsonName]; taken {
+		return fmt.Errorf("json name %q of %s is already used by %s", jsonName, f.Name, other)
+	}
+	a.names[jsonName] = f.Name
+	// The model's json options (omitempty, …) carry over with the name.
+	tag := `json:"` + jsonName
+	if _, options, ok := strings.Cut(f.Tag.Get("json"), ","); ok {
+		tag += "," + options
+	}
+	tag += `"`
+	if bindingTag != "" {
+		tag += ` binding:"` + bindingTag + `"`
+	}
+	*list = append(*list, reflect.StructField{Name: f.Name, Type: f.Type, Tag: reflect.StructTag(tag)})
+	return nil
+}
+
+// addColumns adds the exported fields of t that have a db column and a json
+// name, read-only ones apart; skip names columns the caller maps itself.
+// Embedded structs are taken as declared (flattened) only for lines.
+func (a *autoFields) addColumns(t reflect.Type, flatten bool, skip map[string]bool) error {
+	var candidates []reflect.StructField
+	if flatten {
+		candidates = reflect.VisibleFields(t)
+	} else {
+		for i := 0; i < t.NumField(); i++ {
+			candidates = append(candidates, t.Field(i))
+		}
+	}
+	for _, f := range candidates {
+		if f.Anonymous || !f.IsExported() {
+			continue
+		}
+		jsonName, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		column, _, _ := strings.Cut(f.Tag.Get("db"), ",")
+		if jsonName == "" || jsonName == "-" || column == "" || column == "-" || skip[column] {
+			continue
+		}
+		list := &a.writable
+		if autoReadOnly(f) {
+			list = &a.readOnly
+		}
+		if err := a.add(list, f, jsonName, f.Tag.Get("binding")); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// refDisplays derives the response display of every reference field among
+// the collected fields of model.
+func (a *autoFields) refDisplays(model reflect.Type) ([]reflect.StructField, []autoRef, error) {
+	var displays []reflect.StructField
+	var refs []autoRef
+	for _, f := range append(append([]reflect.StructField(nil), a.writable...), a.readOnly...) {
 		original, _ := model.FieldByName(f.Name)
 		key := autoRefKey(original)
 		jsonName, _, _ := strings.Cut(f.Tag.Get("json"), ",")
@@ -175,17 +259,60 @@ func deriveAutoShape(model reflect.Type, def entity.Definition) (*autoShape, err
 			continue
 		}
 		displayJSON := strings.TrimSuffix(jsonName, "Id")
-		if other, taken := names[displayJSON]; taken {
-			return nil, fmt.Errorf("reference display %q of %s is already used by %s", displayJSON, f.Name, other)
+		if other, taken := a.names[displayJSON]; taken {
+			return nil, nil, fmt.Errorf("reference display %q of %s is already used by %s", displayJSON, f.Name, other)
 		}
-		names[displayJSON] = f.Name
+		a.names[displayJSON] = f.Name
 		display := strings.TrimSuffix(f.Name, "ID") + "Ref"
-		read = append(read, reflect.StructField{Name: display, Type: reflect.TypeFor[*postgres.RefDisplay](), Tag: reflect.StructTag(`json:"` + displayJSON + `,omitempty"`)})
-		shape.refs = append(shape.refs, autoRef{field: f.Name, display: display, key: key})
+		displays = append(displays, reflect.StructField{Name: display, Type: reflect.TypeFor[*postgres.RefDisplay](), Tag: reflect.StructTag(`json:"` + displayJSON + `,omitempty"`)})
+		refs = append(refs, autoRef{field: f.Name, display: display, key: key})
 	}
+	return displays, refs, nil
+}
 
-	shape.create, shape.update, shape.read = reflect.StructOf(create), reflect.StructOf(update), reflect.StructOf(read)
-	return shape, nil
+func deriveAutoPart(model reflect.Type, part entity.Part) (autoPart, error) {
+	f, ok := document_repo.PartField(model, part)
+	if !ok {
+		return autoPart{}, fmt.Errorf("the model has no field with json name %q", part.Field)
+	}
+	if f.Type.Kind() != reflect.Slice || f.Type.Elem().Kind() != reflect.Struct || len(f.Index) != 1 {
+		return autoPart{}, fmt.Errorf("field %s must be a slice of a line struct declared on the model", f.Name)
+	}
+	p := autoPart{field: f.Name, elem: f.Type.Elem(), contract: strings.ToUpper(part.Field[:1]) + part.Field[1:]}
+	for _, lf := range reflect.VisibleFields(p.elem) {
+		switch column, _, _ := strings.Cut(lf.Tag.Get("db"), ","); column {
+		case "line_id":
+			p.lineID = lf.Name
+		case "line_no":
+			p.lineNo = lf.Name
+		}
+	}
+	if p.lineID == "" || p.lineNo == "" {
+		return autoPart{}, fmt.Errorf("line %v must map line_id and line_no", p.elem)
+	}
+	fields := newAutoFields()
+	fields.names["lineId"], fields.names["lineNo"] = p.lineID, p.lineNo
+	if err := fields.addColumns(p.elem, true, map[string]bool{"line_id": true, "line_no": true, "document_id": true}); err != nil {
+		return autoPart{}, err
+	}
+	displays, refs, err := fields.refDisplays(p.elem)
+	if err != nil {
+		return autoPart{}, err
+	}
+	for _, wf := range fields.writable {
+		p.writable = append(p.writable, wf.Name)
+	}
+	create := append([]reflect.StructField{{Name: "LineID", Type: reflect.TypeFor[*id.ID](), Tag: `json:"lineId,omitempty"`}}, fields.writable...)
+	read := []reflect.StructField{
+		{Name: "LineID", Type: reflect.TypeFor[id.ID](), Tag: `json:"lineId"`},
+		{Name: "LineNo", Type: reflect.TypeFor[int](), Tag: `json:"lineNo"`},
+	}
+	for _, rf := range append(append([]reflect.StructField(nil), fields.writable...), fields.readOnly...) {
+		p.readable = append(p.readable, rf.Name)
+	}
+	read = append(append(append(read, fields.writable...), fields.readOnly...), displays...)
+	p.create, p.read, p.refs = reflect.StructOf(create), reflect.StructOf(read), refs
+	return p, nil
 }
 
 func embeds(model, base reflect.Type) bool {
@@ -232,7 +359,7 @@ func newAutoModel[T any](request reflect.Value, kind entity.Kind) *T {
 }
 
 // applyAutoRequest copies the writable fields of a decoded request onto the
-// model. An omitted attributes object keeps the stored one.
+// model. An omitted attributes object or table part keeps the stored one.
 func (s *autoShape) applyAutoRequest(request reflect.Value, model any) {
 	target := reflect.ValueOf(model).Elem()
 	for _, name := range s.writable {
@@ -242,6 +369,43 @@ func (s *autoShape) applyAutoRequest(request reflect.Value, model any) {
 		}
 		target.FieldByName(name).Set(value)
 	}
+	for _, part := range s.parts {
+		part.apply(request.FieldByName(part.field), target.FieldByName(part.field))
+	}
+}
+
+// apply replaces the model's lines with the requested ones. A requested
+// lineId is kept only when it names a stored line of this document not yet
+// taken by an earlier line; every other line gets a new id. Lines are
+// numbered by position.
+func (p autoPart) apply(requested, stored reflect.Value) {
+	if requested.IsNil() {
+		if stored.IsNil() {
+			stored.Set(reflect.MakeSlice(stored.Type(), 0, 0))
+		}
+		return
+	}
+	known := map[id.ID]bool{}
+	for i := 0; i < stored.Len(); i++ {
+		known[stored.Index(i).FieldByName(p.lineID).Interface().(id.ID)] = true
+	}
+	lines := reflect.MakeSlice(stored.Type(), requested.Len(), requested.Len())
+	for i := 0; i < requested.Len(); i++ {
+		in, line := requested.Index(i), lines.Index(i)
+		for _, name := range p.writable {
+			line.FieldByName(name).Set(in.FieldByName(name))
+		}
+		lineID := id.New()
+		if keep := in.FieldByName("LineID"); !keep.IsNil() {
+			if candidate := keep.Elem().Interface().(id.ID); known[candidate] {
+				lineID = candidate
+				delete(known, candidate)
+			}
+		}
+		line.FieldByName(p.lineID).Set(reflect.ValueOf(lineID))
+		line.FieldByName(p.lineNo).SetInt(int64(i + 1))
+	}
+	stored.Set(lines)
 }
 
 // response projects the model onto the response type. tables maps each
@@ -254,25 +418,65 @@ func (s *autoShape) response(model any, tables map[string]string, refs postgres.
 	for _, name := range s.readable {
 		out.FieldByName(name).Set(source.FieldByName(name))
 	}
-	for _, ref := range s.refs {
-		if refs == nil {
-			break
+	setRefDisplays(s.refs, source, out, tables, refs)
+	for _, part := range s.parts {
+		lines := source.FieldByName(part.field)
+		if lines.IsNil() {
+			continue // not loaded, e.g. a list row
 		}
+		projected := reflect.MakeSlice(reflect.SliceOf(part.read), lines.Len(), lines.Len())
+		for i := 0; i < lines.Len(); i++ {
+			line, into := lines.Index(i), projected.Index(i)
+			into.FieldByName("LineID").Set(line.FieldByName(part.lineID))
+			into.FieldByName("LineNo").Set(line.FieldByName(part.lineNo))
+			for _, name := range part.readable {
+				into.FieldByName(name).Set(line.FieldByName(name))
+			}
+			setRefDisplays(part.refs, line, into, tables, refs)
+		}
+		out.FieldByName(part.field).Set(projected)
+	}
+	return out.Interface()
+}
+
+func setRefDisplays(list []autoRef, source, out reflect.Value, tables map[string]string, refs postgres.ResolvedRefs) {
+	if refs == nil {
+		return
+	}
+	for _, ref := range list {
 		if target, ok := autoRefID(source.FieldByName(ref.field)); ok {
 			if display := refs.Get(tables[ref.key], target); display.ID != "" {
 				out.FieldByName(ref.display).Set(reflect.ValueOf(&display))
 			}
 		}
 	}
-	return out.Interface()
 }
 
-// collectRefs registers the model's references with the resolver.
+// allRefs lists the reference fields of the header and of every table part.
+func (s *autoShape) allRefs() []autoRef {
+	all := append([]autoRef(nil), s.refs...)
+	for _, part := range s.parts {
+		all = append(all, part.refs...)
+	}
+	return all
+}
+
+// collectRefs registers the model's references, its lines' included, with
+// the resolver.
 func (s *autoShape) collectRefs(resolver *postgres.ReferenceResolver, tables map[string]string, model any) {
 	source := reflect.ValueOf(model).Elem()
-	for _, ref := range s.refs {
-		if target, ok := autoRefID(source.FieldByName(ref.field)); ok {
-			resolver.Add(tables[ref.key], target)
+	add := func(list []autoRef, v reflect.Value) {
+		for _, ref := range list {
+			if target, ok := autoRefID(v.FieldByName(ref.field)); ok {
+				resolver.Add(tables[ref.key], target)
+			}
+		}
+	}
+	add(s.refs, source)
+	for _, part := range s.parts {
+		lines := source.FieldByName(part.field)
+		for i := 0; i < lines.Len(); i++ {
+			add(part.refs, lines.Index(i))
 		}
 	}
 }

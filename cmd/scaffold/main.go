@@ -1,4 +1,5 @@
-// Command scaffold creates a typed catalog or header-only document module.
+// Command scaffold creates a typed catalog or document module, a document
+// optionally with table parts.
 package main
 
 import (
@@ -24,6 +25,13 @@ type scaffoldData struct {
 	Name, PascalName, Key, Route, Table, Kind, Prefix string
 	Document, Hierarchical                            bool
 	Version                                           int
+	Parts                                             []scaffoldPart
+}
+
+// scaffoldPart is a document table part: Key names its SQL table
+// (Table = <document table>__<Key>), Field is its collection on the wire.
+type scaffoldPart struct {
+	Key, Field, PascalName, Table string
 }
 
 func main() {
@@ -40,6 +48,7 @@ func run(args []string, root string, out io.Writer) error {
 	kind := fs.String("type", "catalog", "catalog or document")
 	table := fs.String("table", "", "SQL table (default cat_<name>s or doc_<name>s)")
 	hierarchical := fs.Bool("hierarchical", false, "catalog with folders and hierarchy validation")
+	parts := fs.String("parts", "", "comma-separated snake_case table parts of a document, e.g. goods,services")
 	version := fs.Int("migration-version", 0, "unique extension migration version (default next free version)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -56,6 +65,9 @@ func run(args []string, root string, out io.Writer) error {
 	}
 	if *hierarchical && *kind != "catalog" {
 		return fmt.Errorf("--hierarchical is only valid for catalogs")
+	}
+	if *parts != "" && *kind != "document" {
+		return fmt.Errorf("--parts is only valid for documents")
 	}
 	prefix := "cat_"
 	if *kind == "document" {
@@ -112,6 +124,30 @@ func run(args []string, root string, out io.Writer) error {
 		code = code[:2]
 	}
 	data := scaffoldData{Name: *name, PascalName: pascal, Key: *name, Route: route, Table: *table, Kind: *kind, Prefix: code, Document: *kind == "document", Hierarchical: *hierarchical, Version: *version}
+	seen := map[string]bool{}
+	for _, key := range strings.Split(*parts, ",") {
+		if key = strings.TrimSpace(key); key == "" {
+			continue
+		}
+		if !valid.MatchString(key) || seen[key] {
+			return fmt.Errorf("--parts: %q must be a unique snake_case name", key)
+		}
+		seen[key] = true
+		partPascal, field := "", ""
+		for i, word := range strings.Split(key, "_") {
+			partPascal += strings.ToUpper(word[:1]) + word[1:]
+			if i == 0 {
+				field += word
+			} else {
+				field += strings.ToUpper(word[:1]) + word[1:]
+			}
+		}
+		partTable := *table + "__" + key
+		if len(partTable) > 63 {
+			return fmt.Errorf("--parts: table %s exceeds PostgreSQL's 63-byte identifiers", partTable)
+		}
+		data.Parts = append(data.Parts, scaffoldPart{Key: key, Field: field, PascalName: partPascal, Table: partTable})
+	}
 	// Render and format everything before creating a module directory.
 	files := map[string][]byte{}
 	var migration []byte
