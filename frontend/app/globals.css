@@ -440,6 +440,15 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
+  /* Search matches in a table part: a tint laid over the cell's own
+     background, so frozen cells (which inherit their line's) keep it. */
+  td[data-match] {
+    background-image: linear-gradient(hsl(var(--primary) / 0.12), hsl(var(--primary) / 0.12));
+  }
+  td[data-match="current"] {
+    background-image: linear-gradient(hsl(var(--primary) / 0.3), hsl(var(--primary) / 0.3));
+  }
+
   /* Shake for validation error feedback */
   .animate-shake {
     animation: shake 300ms ease-in-out;

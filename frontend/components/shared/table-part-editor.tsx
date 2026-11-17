@@ -1,13 +1,20 @@
 "use client"
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ArrowDown, ArrowDownToLine, ArrowUp, ClipboardCopy, CopyPlus, PackagePlus, Plus, Trash2, Undo2 } from "lucide-react"
+import { AlertCircle, ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpDown, ChevronDown, ChevronUp, ClipboardCopy, Columns3, CopyPlus, PackagePlus, PanelRight, Plus, Search, Trash2, Undo2, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuShortcut, ContextMenuTrigger } from "@/components/ui/context-menu"
+import {
+    DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
+    DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { TablePartLinePanel } from "@/components/shared/table-part-line-panel"
+import { useRowMotion } from "@/hooks/useRowMotion"
+import { SCAN_TARGET_ATTR, useBarcodeScan } from "@/hooks/useBarcodeScan"
 import { ReferenceField } from "@/components/shared/reference-field"
 import { OVERLAY_SELECTOR } from "@/components/shared/data-table"
 import type { JsonObject, JsonValue } from "@/lib/json-value"
@@ -24,8 +31,8 @@ import { useColumnResize } from "@/hooks/useColumnResize"
 import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 import { cn } from "@/lib/utils"
 import {
-    LINE_IDENTITY_COLUMNS, ROW_KEY, addRow, copyRows, fillColumn, isEditableColumn, moveRows, newRowKey, referenceDisplayName,
-    removeRows, restoreRow, rowKey, setCell,
+    LINE_IDENTITY_COLUMNS, ROW_KEY, addRow, copyRows, fillColumn, findCells, isEditableColumn, missingCells, moveRows, newRowKey,
+    referenceDisplayName, removeRows, restoreRow, rowKey, setCell, sortRows, type LineCell,
 } from "@/lib/table-part-rows"
 import { convertCellText, evaluateNumberInput, moneyFromNumber, moneyText, parseClipboardGrid, parseNumberText, pasteGrid } from "@/lib/grid-paste"
 import type { DocumentCurrency } from "@/hooks/useDocumentCurrency"
@@ -173,6 +180,11 @@ function CommandButton({ label, shortcut, icon, caption, disabled, destructive, 
  * paragraph, which has no room in a grid line.
  */
 const CALC_TYPES = new Set(["integer", "number", "decimal", "money"])
+/** Item fields a scanned code is matched against, the most specific first. */
+const SCAN_FIELDS = ["barcode", "ean", "gtin", "code", "sku", "article", "vendorCode"]
+/** Missing-value mark of a cell with an input (cell mode draws its own): a red dashed rule, as in 1C. */
+const MISSING_MARK = "after:pointer-events-none after:absolute after:inset-x-2 after:bottom-[3px] after:border-b after:border-dashed after:border-destructive/60 after:content-['']"
+
 /** Most steps the line history keeps for Ctrl+Z. */
 const HISTORY_LIMIT = 50
 
@@ -261,9 +273,17 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
     // 32 px lines (28 in compact mode): editors 28/24 px high in 2 px of padding.
     const rowHeight = compact ? "h-7" : "h-8"
     const editorHeight = compact ? "[&_input]:h-6" : "[&_input]:h-7"
-    const columns = useMemo(
+    const allColumns = useMemo(
         () => part.columns.filter((column) => !hiddenColumns.has(column.name) && !LINE_IDENTITY_COLUMNS.has(column.name)),
         [part.columns, hiddenColumns],
+    )
+    // The columns the user keeps in the grid ("Колонки"); the line panel shows all.
+    const visibleKey = widthsKey ? `${widthsKey}__columns` : ""
+    const shownNames = useUserPrefsStore((state) => (visibleKey ? state.listColumns[visibleKey] : undefined))
+    const saveShown = useUserPrefsStore((state) => state.setListColumns)
+    const columns = useMemo(
+        () => (shownNames?.length ? allColumns.filter((column) => shownNames.includes(column.name)) : allColumns),
+        [allColumns, shownNames],
     )
     const editable = !readOnly && writable !== null
     const title = part.label || part.name
@@ -312,6 +332,8 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
     // № and the first column (the item, as a rule) stay put when the grid scrolls sideways.
     const frozenWidth = NUMBER_COLUMN + (columns.length > 1 ? colWidths[0] ?? 0 : 0)
     const scrollRef = useRef<HTMLDivElement>(null)
+    const sectionRef = useRef<HTMLElement>(null)
+    const { flash } = useRowMotion(scrollRef, navKeys)
     /**
      * Double click on a column edge fits the column to its widest content, as
      * in Excel. Each cell's text is measured in its own font, and the room
@@ -548,6 +570,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
         if (result.touched.length) {
             select({ selected: result.touched, current: result.touched[0], anchor: result.touched[0] })
             setCurrentColumn(target.quantity?.name ?? target.item.name)
+            flash(result.touched)
         }
         const parts = [result.added && `добавлено строк: ${result.added}`, result.merged && `дополнено: ${result.merged}`].filter(Boolean)
         toast.success(`Перенесено позиций: ${cart.length}`, { description: parts.join(", "), action: undoAction })
@@ -570,6 +593,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
         if (copied.length === 0) return
         change(next, "копирование строк")
         select({ selected: copied, current: copied[0], anchor: copied[0] })
+        flash(copied)
     }
     // The selected lines move as a block; the current line alone when it is outside the selection.
     const movedLines = (step: -1 | 1) => moveRows(rows, targetKeys(), step)
@@ -609,6 +633,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
         if (!fillTarget || disabled) return
         const { column, index, others } = fillTarget
         change(fillColumn(rows, new Set(others), rows[index], column.name), "заполнение колонки")
+        flash(others)
         toast(`Заполнено строк: ${others.length}`, { description: `«${column.label || column.name}» = ${cellText(rows[index], column, currency) || "пусто"}`, action: undoAction })
     }
 
@@ -648,7 +673,10 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
             () => ({ [ROW_KEY]: newRowKey() }))
         if (!result.touched.length && !result.failures.length) return
         change(result.rows, "вставка")
-        if (result.touched.length) select({ selected: result.touched, current: result.touched[0], anchor: result.touched[0] })
+        if (result.touched.length) {
+            select({ selected: result.touched, current: result.touched[0], anchor: result.touched[0] })
+            flash(result.touched)
+        }
         const failed = result.failures.slice(0, 3).map((failure) => `«${failure.text}» (${failure.column})`).join(", ")
         const description = result.failures.length
             ? `Не распознано: ${failed}${result.failures.length > 3 ? ` и ещё ${result.failures.length - 3}` : ""}`
@@ -765,6 +793,10 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
             case "Enter":
             case "F2":
             case " ":
+                if (event.key === "Enter" && event.shiftKey) {
+                    if (selection.current && selection.current !== ghostKey) { handled(); openLine() }
+                    return
+                }
                 if (index === -1 || !column || !isEditableColumn(column, writable, readOnly) || disabled) return
                 if (event.key === " " && column.type !== "boolean") return
                 handled()
@@ -787,6 +819,127 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                 return
         }
     }
+
+    // ── Missing values as the user works (1C red underline) ─────────────
+    // Required cells left empty are marked in both modes; the bar counts them
+    // and takes the user to the next one.
+    const gaps: LineCell[] = editable ? missingCells(rows, columns, editableColumn) : []
+    /** Makes a cell current and brings it into view; with inputs in the cells, its input takes focus. */
+    const goToCell = (cell: LineCell, focusInput = !cellMode) => {
+        select(only(cell.key))
+        setCurrentColumn(cell.column)
+        if (cellMode) focusGrid()
+        if (focusInput) {
+            requestAnimationFrame(() => gridRef.current?.querySelector<HTMLElement>(`td[data-field="${CSS.escape(`${part.name}.${cell.line}.${cell.column}`)}"]`)
+                ?.querySelector<HTMLElement>("input, textarea, select, button")?.focus())
+        }
+    }
+    const nextGap = () => {
+        if (!gaps.length) return
+        const here = selection.current ? keys.indexOf(selection.current) : -1
+        const at = gaps.findIndex((cell) => cell.line > here || (cell.line === here && columns.findIndex((c) => c.name === cell.column) > columns.findIndex((c) => c.name === currentColumn)))
+        goToCell(gaps[at === -1 ? 0 : at])
+    }
+
+    // ── Search in the part (Ctrl/Cmd+F) ──────────────────────────────────
+    const [searchOpen, setSearchOpen] = useState(false)
+    const [query, setQuery] = useState("")
+    const [matchIndex, setMatchIndex] = useState(0)
+    const searchRef = useRef<HTMLInputElement>(null)
+    const textOf = (row: JsonObject, column: MetadataField) => cellText(row, column, currency)
+    const matches = searchOpen ? findCells(rows, columns, query, textOf) : []
+    const currentMatch = matches.length ? matches[Math.min(matchIndex, matches.length - 1)] : null
+    const matchState = (key: string, column: string) => !matches.length ? undefined
+        : currentMatch?.key === key && currentMatch.column === column ? "current"
+            : matches.some((cell) => cell.key === key && cell.column === column) ? "true" : undefined
+    const openSearch = () => {
+        setSearchOpen(true)
+        requestAnimationFrame(() => { searchRef.current?.focus(); searchRef.current?.select() })
+    }
+    const closeSearch = () => {
+        setSearchOpen(false)
+        setQuery("")
+        if (cellMode) focusGrid()
+    }
+    const showMatch = (list: LineCell[], at: number) => {
+        if (!list.length) return
+        const index = (at + list.length) % list.length
+        setMatchIndex(index)
+        goToCell(list[index], false)
+        // The search box keeps the keyboard: Enter goes on to the next match.
+        requestAnimationFrame(() => searchRef.current?.focus())
+    }
+
+    // ── Ordering (1C "Упорядочить"): changes the lines' order ────────────
+    const orderBy = (column: MetadataField, direction: "asc" | "desc") => {
+        const next = sortRows(rows, column, direction, textOf)
+        change(next, `упорядочивание по «${column.label || column.name}»`)
+        toast(`Строки упорядочены по «${column.label || column.name}»`, { action: undoAction })
+    }
+
+    // ── Columns the grid shows ────────────────────────────────────────────
+    const shown = new Set(columns.map((column) => column.name))
+    const toggleColumn = (column: MetadataField, visible: boolean) => {
+        if (!visibleKey) return
+        const next = allColumns.filter((c) => (c.name === column.name ? visible : shown.has(c.name))).map((c) => c.name)
+        saveShown(visibleKey, next.length === allColumns.length ? [] : next)
+    }
+    /** A column the user must fill stays in the grid, so its gaps can be seen. */
+    const pinnedColumn = (column: MetadataField) => (column.required && editableColumn(column)) || (shown.has(column.name) && shown.size === 1)
+
+    // ── Line details panel ───────────────────────────────────────────────
+    const [panelOpen, setPanelOpen] = useState(false)
+    const openLine = (key = selection.current) => {
+        if (!key || key === ghostKey || !keys.includes(key)) return
+        if (key !== selection.current) select(only(key))
+        setPanelOpen(true)
+    }
+    const panelLine = selection.current ? keys.indexOf(selection.current) : -1
+
+    // ── Barcode scanner ──────────────────────────────────────────────────
+    // A scan finds the item by barcode or code and adds one to its line (or a
+    // new line), wherever the keyboard is on the page.
+    const canScan = editable && !disabled && !!target && !!pickEndpoint
+    const applyScan = (item: { id: string; name: string; code?: string }) => {
+        if (!target) return
+        const result = transferPicks(rows, [{ ...item, quantity: "1" }], target, true)
+        change(result.rows, "сканирование")
+        if (result.touched.length) {
+            select(only(result.touched[0]))
+            setCurrentColumn(target.quantity?.name ?? target.item.name)
+            flash(result.touched)
+        }
+        toast.success(`${item.name}: +1`, { duration: 1500 })
+    }
+    const applyScanRef = useRef(applyScan)
+    useEffect(() => { applyScanRef.current = applyScan })
+    useBarcodeScan(sectionRef, canScan, (code) => {
+        // Whatever the scan typed into an open cell is taken back. Its first key
+        // may have opened a cell this render has not seen yet, so the cell is
+        // closed unconditionally; nothing reached it while its keys were held back.
+        seedRef.current = null
+        if (editing) finishEdit(true)
+        else setEditing(null)
+        if (cellMode) requestAnimationFrame(focusGrid)
+        if (!pickEndpoint) return
+        void apiFetch<CursorListResponse<JsonObject & { id: string }>>(withReferenceListParams(pickEndpoint, { search: code, limit: 10 }))
+            .then((result) => {
+                const wanted = code.trim().toLowerCase()
+                const item = (result.items ?? []).filter((candidate) => candidate.isFolder !== true)
+                    .map((candidate) => ({ candidate, rank: SCAN_FIELDS.findIndex((field) => {
+                        const value = candidate[field]
+                        return typeof value === "string" && value.trim().toLowerCase() === wanted
+                    }) }))
+                    .filter(({ rank }) => rank !== -1)
+                    .sort((a, b) => a.rank - b.rank)[0]?.candidate
+                if (!item) {
+                    toast.error(`Штрихкод «${code}» не найден`)
+                    return
+                }
+                applyScanRef.current({ id: item.id, name: String(item.name ?? item.code ?? code), code: typeof item.code === "string" ? item.code : undefined })
+            })
+            .catch(() => toast.error(`Не удалось найти «${code}»`))
+    })
 
     // Command bar state: what the commands would act on, and where the user is.
     const targetCount = targetKeys().size
@@ -839,12 +992,53 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                         <ContextMenuSeparator />
                     </>
                 )}
+                <ContextMenuItem disabled={panelLine === -1} onSelect={() => openLine()}>
+                    <PanelRight className="mr-2 h-3.5 w-3.5" />Открыть строку{cellMode && <ContextMenuShortcut>Shift+Enter</ContextMenuShortcut>}
+                </ContextMenuItem>
                 <ContextMenuItem disabled={!hasTarget} onSelect={copyToClipboard}>
                     <ClipboardCopy className="mr-2 h-3.5 w-3.5" />Копировать в буфер{cellMode && <ContextMenuShortcut>Ctrl+C</ContextMenuShortcut>}
                 </ContextMenuItem>
             </ContextMenuContent>
         </ContextMenu>
     )
+
+    /** The editor of a cell: a picker, the number editor or the form's input. Shared by the grid and the line panel. */
+    const renderEditor = (column: MetadataField, row: JsonObject, index: number, options: { compact: boolean; isEditing?: boolean; isGhost?: boolean }) => {
+        const endpoint = column.type === "reference" && column.referenceType ? resolveRefEndpoint(column.referenceType) : null
+        if (endpoint) {
+            return (
+                <ReferenceField
+                    value={typeof row[column.name] === "string" ? String(row[column.name]) : ""}
+                    displayName={referenceDisplayName(row, column.name)}
+                    onChange={(value, display) => {
+                        updateCell(index, column.name, value, display)
+                        if (options.isEditing) {
+                            // Picking a value finishes the cell; focus returns to the
+                            // grid once the picker has handed it back.
+                            setEditing(null)
+                            requestAnimationFrame(() => requestAnimationFrame(focusGrid))
+                        }
+                    }}
+                    apiEndpoint={endpoint}
+                    placeholder={options.isGhost ? "" : "Выберите…"}
+                    compact={options.compact}
+                    disabled={disabled}
+                />
+            )
+        }
+        if (CALC_TYPES.has(column.type)) {
+            return (
+                <NumberCellInput value={row[column.name]} disabled={disabled}
+                    integer={column.type === "integer" || (column.type === "money" && (currency?.scale ?? 0) === 0)}
+                    money={column.type === "money" ? currency?.scale ?? null : null}
+                    // Money travels as a string of minor units; a decimal the server sent as text stays text.
+                    onValue={(value) => updateCell(index, column.name, column.type === "money"
+                        ? (currency ? moneyFromNumber(value, currency.scale) : String(Math.round(value)))
+                        : typeof row[column.name] === "string" ? String(value) : value)} />
+            )
+        }
+        return renderInput(column, row[column.name], (value) => updateCell(index, column.name, value))
+    }
 
     const onGridBlur = (event: React.FocusEvent<HTMLDivElement>) => {
         // Focus leaving for outside the grid closes the cell; a picker's popover is still the cell's.
@@ -855,7 +1049,8 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
     }
 
     return (
-        <section className={bare ? "space-y-2" : "mt-8 space-y-2"} aria-label={title} data-table-part={part.name}>
+        <section ref={sectionRef} className={bare ? "space-y-2" : "mt-8 space-y-2"} aria-label={title} data-table-part={part.name}
+            {...(canScan ? { [SCAN_TARGET_ATTR]: "" } : {})}>
             {!bare && (
                 <div className="flex items-baseline gap-2">
                     <h3 className="text-sm font-semibold">{title}</h3>
@@ -864,8 +1059,17 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
             )}
             <div
                 ref={gridRef}
-                className={cn("overflow-hidden rounded-md border bg-card text-sm shadow-control", cellMode && "outline-none focus-visible:ring-1 focus-visible:ring-ring")}
+                // overflow-clip, not hidden: revealing a cell must scroll the grid, never shift the frame.
+                className={cn("overflow-clip rounded-md border bg-card text-sm shadow-control", cellMode && "outline-none focus-visible:ring-1 focus-visible:ring-ring")}
                 onPaste={onGridPaste}
+                onKeyDownCapture={(event) => {
+                    // Ctrl/Cmd+F searches the part, from a cell's input as from the grid.
+                    if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.code === "KeyF" && editable) {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        openSearch()
+                    }
+                }}
                 {...(cellMode ? { tabIndex: 0, onKeyDown: onGridKeyDown, onBlur: onGridBlur, "data-cell-mode": "true" } : {})}
             >
                 {editable && (
@@ -873,7 +1077,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                     // and act on the selected lines (else the current one).
                     <TooltipProvider delayDuration={400}>
                         <div role="toolbar" aria-label={`Команды: ${title}`}
-                            className="flex items-center gap-0.5 border-b bg-muted/30 px-1.5 py-1">
+                            className="flex flex-wrap items-center gap-0.5 gap-y-1 border-b bg-muted/30 px-1.5 py-1">
                             <CommandButton label="Добавить строку" shortcut={cellMode ? "Ins" : undefined} caption="Добавить"
                                 icon={<Plus className="h-3.5 w-3.5" />} disabled={disabled} onClick={insertLine} />
                             {target && pickEndpoint && (
@@ -889,13 +1093,113 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                 icon={<ArrowUp className="h-3.5 w-3.5" />} disabled={disabled || !movedLines(-1)} onClick={() => moveLines(-1)} />
                             <CommandButton label="Переместить вниз" shortcut={cellMode ? "Ctrl+Shift+↓" : undefined}
                                 icon={<ArrowDown className="h-3.5 w-3.5" />} disabled={disabled || !movedLines(1)} onClick={() => moveLines(1)} />
+                            <DropdownMenu>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button type="button" variant="ghost" size="sm" className="h-7 w-7 px-0" aria-label="Упорядочить строки"
+                                                disabled={disabled || rows.length < 2} onMouseDown={(event) => event.preventDefault()}>
+                                                <ArrowUpDown className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom">Упорядочить строки по колонке</TooltipContent>
+                                </Tooltip>
+                                <DropdownMenuContent align="start" className="w-56" onCloseAutoFocus={(event) => { if (cellMode) { event.preventDefault(); focusGrid() } }}>
+                                    <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Упорядочить строки по</DropdownMenuLabel>
+                                    {columns.map((column) => (
+                                        <DropdownMenuSub key={column.name}>
+                                            <DropdownMenuSubTrigger>{column.label || column.name}</DropdownMenuSubTrigger>
+                                            <DropdownMenuSubContent>
+                                                <DropdownMenuItem onSelect={() => orderBy(column, "asc")}>По возрастанию</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => orderBy(column, "desc")}>По убыванию</DropdownMenuItem>
+                                            </DropdownMenuSubContent>
+                                        </DropdownMenuSub>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                             <span className="mx-1 h-4 w-px bg-border" aria-hidden />
                             <CommandButton label={hasMany ? "Удалить строки" : "Удалить строку"} shortcut={cellMode ? "Del" : undefined} destructive
                                 icon={<Trash2 className="h-3.5 w-3.5" />} disabled={disabled || !hasTarget} onClick={deleteLines} />
                             <span className="mx-1 h-4 w-px bg-border" aria-hidden />
                             <CommandButton label={history.length ? `Отменить: ${history[history.length - 1].label}` : "Отменить"} shortcut={cellMode ? "Ctrl+Z" : undefined}
                                 icon={<Undo2 className="h-3.5 w-3.5" />} disabled={disabled || !history.length} onClick={undo} />
-                            <span className="ml-auto px-1.5 text-xs tabular-nums text-muted-foreground" aria-live="polite">{statusText}</span>
+                            <CommandButton label="Открыть строку: все её поля" shortcut={cellMode ? "Shift+Enter" : undefined}
+                                icon={<PanelRight className="h-3.5 w-3.5" />} disabled={panelLine === -1} onClick={() => openLine()} />
+                            <div className="ml-auto flex items-center gap-0.5">
+                                {gaps.length > 0 && !searchOpen && (
+                                    <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={nextGap}
+                                        title="Перейти к следующей незаполненной ячейке"
+                                        className="flex h-7 items-center gap-1 rounded px-1.5 text-xs text-destructive hover:bg-destructive/10 animate-badge-in">
+                                        <AlertCircle className="h-3.5 w-3.5" />
+                                        <span className="tabular-nums">Не заполнено: {gaps.length}</span>
+                                    </button>
+                                )}
+                                {searchOpen ? (
+                                    <div className="flex items-center gap-0.5 animate-in fade-in-0 slide-in-from-right-1 duration-150 motion-reduce:animate-none">
+                                        <div className="relative">
+                                            <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+                                            <input ref={searchRef} value={query} aria-label={`Поиск: ${title}`} placeholder="Найти в строках"
+                                                className="h-7 w-44 rounded-md border bg-background pl-6 pr-2 text-xs outline-none focus:border-ring"
+                                                onChange={(event) => {
+                                                    setQuery(event.target.value)
+                                                    const found = findCells(rows, columns, event.target.value, textOf)
+                                                    setMatchIndex(0)
+                                                    if (found.length) goToCell(found[0], false)
+                                                }}
+                                                onKeyDown={(event) => {
+                                                    if (event.key === "Enter" || event.key === "ArrowDown" || event.key === "ArrowUp") {
+                                                        event.preventDefault()
+                                                        event.stopPropagation()
+                                                        showMatch(matches, matchIndex + (event.shiftKey || event.key === "ArrowUp" ? -1 : 1))
+                                                    } else if (event.key === "Escape") {
+                                                        event.preventDefault()
+                                                        event.stopPropagation()
+                                                        closeSearch()
+                                                    }
+                                                }} />
+                                        </div>
+                                        <span className="w-14 text-center text-xs tabular-nums text-muted-foreground" aria-live="polite">
+                                            {matches.length ? `${Math.min(matchIndex, matches.length - 1) + 1} из ${matches.length}` : query.trim() ? "нет" : ""}
+                                        </span>
+                                        <Button type="button" variant="ghost" size="icon" className="h-7 w-6" aria-label="Предыдущее совпадение" disabled={!matches.length}
+                                            onMouseDown={(event) => event.preventDefault()} onClick={() => showMatch(matches, matchIndex - 1)}><ChevronUp className="h-3.5 w-3.5" /></Button>
+                                        <Button type="button" variant="ghost" size="icon" className="h-7 w-6" aria-label="Следующее совпадение" disabled={!matches.length}
+                                            onMouseDown={(event) => event.preventDefault()} onClick={() => showMatch(matches, matchIndex + 1)}><ChevronDown className="h-3.5 w-3.5" /></Button>
+                                        <Button type="button" variant="ghost" size="icon" className="h-7 w-6" aria-label="Закрыть поиск"
+                                            onMouseDown={(event) => event.preventDefault()} onClick={closeSearch}><X className="h-3.5 w-3.5" /></Button>
+                                    </div>
+                                ) : (
+                                    <CommandButton label="Найти в строках" shortcut="Ctrl+F" icon={<Search className="h-3.5 w-3.5" />} disabled={!rows.length} onClick={openSearch} />
+                                )}
+                                {visibleKey && (
+                                    <DropdownMenu>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button type="button" variant="ghost" size="sm" className="h-7 w-7 px-0" aria-label="Колонки"
+                                                        onMouseDown={(event) => event.preventDefault()}>
+                                                        <Columns3 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="bottom">Колонки таблицы</TooltipContent>
+                                        </Tooltip>
+                                        <DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={(event) => { if (cellMode) { event.preventDefault(); focusGrid() } }}>
+                                            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Показывать в таблице</DropdownMenuLabel>
+                                            {allColumns.map((column) => (
+                                                <DropdownMenuCheckboxItem key={column.name} checked={shown.has(column.name)} disabled={pinnedColumn(column)}
+                                                    onSelect={(event) => event.preventDefault()} onCheckedChange={(checked) => toggleColumn(column, checked === true)}>
+                                                    {column.label || column.name}
+                                                </DropdownMenuCheckboxItem>
+                                            ))}
+                                            <DropdownMenuSeparator />
+                                            <p className="px-2 py-1 text-[11px] text-muted-foreground">Скрытые поля видны в панели строки (Shift+Enter)</p>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                )}
+                                {!searchOpen && <span className="whitespace-nowrap px-1.5 text-xs tabular-nums text-muted-foreground" aria-live="polite">{statusText}</span>}
+                            </div>
                         </div>
                     </TooltipProvider>
                 )}
@@ -956,13 +1260,14 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                     isCurrent ? "font-medium text-foreground shadow-[inset_2px_0_0_hsl(var(--ring))]"
                                         : selectedSet.has(key) ? "text-muted-foreground shadow-[inset_2px_0_0_hsl(var(--ring)/0.45)]" : "text-muted-foreground")}
                                     onMouseDown={onCellMouseDown} onClick={(event) => onCellClick(key, null, event)}
+                                    onDoubleClick={() => openLine(key)}
                                     onContextMenu={wrapRowInMenu ? undefined : () => onLineContextMenu(key)}
                                     title={isGhost ? "Новая строка: начните вводить в любую ячейку" : undefined}>
                                     {isGhost ? <Plus className="h-3.5 w-3.5 text-muted-foreground/70" aria-label="Новая строка" /> : lineNo}
                                 </td>
                             )
                             const rowElement = (
-                                <tr key={key} data-selected={selectedSet.has(key) ? "true" : undefined} data-current={isCurrent ? "true" : undefined}
+                                <tr key={key} data-row-key={key} data-selected={selectedSet.has(key) ? "true" : undefined} data-current={isCurrent ? "true" : undefined}
                                     onContextMenu={wrapRowInMenu ? () => onLineContextMenu(key) : undefined}
                                     data-entry-line={isGhost ? "true" : undefined}
                                     className={cn("align-middle", isCurrent ? CURRENT_BG : selectedSet.has(key) ? SELECTED_BG : ROW_BG)}>
@@ -988,6 +1293,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                             // Cell mode: the value as text; a double click opens it.
                                             return withTotals(
                                                 <td key={column.name} data-current-cell={isCurrentCell ? "true" : undefined} data-field={`${part.name}.${index}.${column.name}`}
+                                                    data-match={matchState(key, column.name)}
                                                     title={missing ? `Заполните «${column.label || column.name}»` : undefined} style={placeStyle}
                                                     className={cn(place, rowHeight, "cursor-default select-none truncate px-2 py-0.5",
                                                         NUMERIC.has(column.type) && "text-right tabular-nums",
@@ -1014,45 +1320,20 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                         }
                                         if (!cellEditable) {
                                             return withTotals(<td key={column.name} data-current-cell={isCurrentCell ? "true" : undefined} style={placeStyle}
+                                                data-match={matchState(key, column.name)}
                                                 className={cn(place, rowHeight, "truncate px-2 py-0.5", !column.calc && "text-muted-foreground", NUMERIC.has(column.type) && "text-right tabular-nums", isCurrentCell && CURRENT_CELL)}
                                                 {...selectHandlers}>{cellText(row, column, currency)}</td>)
                                         }
-                                        const endpoint = column.type === "reference" && column.referenceType ? resolveRefEndpoint(column.referenceType) : null
                                         return (
                                             withTotals(<td key={column.name} data-current-cell={isCurrentCell ? "true" : undefined} data-editing={isEditing ? "true" : undefined}
-                                                style={placeStyle}
+                                                style={placeStyle} data-match={matchState(key, column.name)}
+                                                title={missing ? `Заполните «${column.label || column.name}»` : undefined}
                                                 className={cn(place, rowHeight, editorHeight, QUIET_EDITORS, "px-0.5 py-0.5", NUMERIC.has(column.type) && "[&_input]:text-right [&_input]:tabular-nums",
+                                                    // Inputs get the same red dashed mark of a required gap as text cells.
+                                                    missing && !isEditing && MISSING_MARK, missing && !isEditing && !frozen && "relative",
                                                     isCurrentCell && CURRENT_CELL, isErrorCell && ERROR_CELL)}
                                                 data-field={`${part.name}.${index}.${column.name}`} {...selectHandlers}>
-                                                {endpoint ? (
-                                                    <ReferenceField
-                                                        value={typeof row[column.name] === "string" ? String(row[column.name]) : ""}
-                                                        displayName={referenceDisplayName(row, column.name)}
-                                                        onChange={(value, display) => {
-                                                            updateCell(index, column.name, value, display)
-                                                            if (isEditing) {
-                                                                // Picking a value finishes the cell; focus returns to the
-                                                                // grid once the picker has handed it back.
-                                                                setEditing(null)
-                                                                requestAnimationFrame(() => requestAnimationFrame(focusGrid))
-                                                            }
-                                                        }}
-                                                        apiEndpoint={endpoint}
-                                                        placeholder={isGhost ? "" : "Выберите…"}
-                                                        compact
-                                                        disabled={disabled}
-                                                    />
-                                                ) : CALC_TYPES.has(column.type) ? (
-                                                    <NumberCellInput value={row[column.name]} disabled={disabled}
-                                                        integer={column.type === "integer" || (column.type === "money" && (currency?.scale ?? 0) === 0)}
-                                                        money={column.type === "money" ? currency?.scale ?? null : null}
-                                                        // Money travels as a string of minor units; a decimal the server sent as text stays text.
-                                                        onValue={(value) => updateCell(index, column.name, column.type === "money"
-                                                            ? (currency ? moneyFromNumber(value, currency.scale) : String(Math.round(value)))
-                                                            : typeof row[column.name] === "string" ? String(value) : value)} />
-                                                ) : (
-                                                    renderInput(column, row[column.name], (value) => updateCell(index, column.name, value))
-                                                )}
+                                                {renderEditor(column, row, index, { compact: true, isEditing, isGhost })}
                                             </td>)
                                         )
                                     })}
@@ -1077,6 +1358,17 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                 </table>
                 </div>
             </div>
+            {panelOpen && panelLine !== -1 && (
+                <TablePartLinePanel open={panelOpen} onOpenChange={(open) => { setPanelOpen(open); if (!open && cellMode) requestAnimationFrame(focusGrid) }}
+                    title={title} columns={allColumns} line={panelLine} lineCount={rows.length}
+                    onNavigate={(line) => select(only(keys[line]))}
+                    renderField={(column) => isEditableColumn(column, writable, readOnly)
+                        ? renderEditor(column, rows[panelLine], panelLine, { compact: false })
+                        : <p className={cn("min-h-8 py-1.5 text-sm", NUMERIC.has(column.type) && "tabular-nums")}>
+                            {cellText(rows[panelLine], column, currency) || "—"}
+                            {column.calc && <span className="ml-1.5 font-serif text-xs italic text-muted-foreground" title={formulaLabel(column.calc, part.columns)}>ƒ</span>}
+                        </p>} />
+            )}
             {target && pickEndpoint && pickOpen && (
                 <TablePartPickDialog open={pickOpen} onOpenChange={(open) => { setPickOpen(open); if (!open && cellMode) requestAnimationFrame(focusGrid) }}
                     title={title} target={target} endpoint={pickEndpoint}

@@ -183,3 +183,69 @@ export function checkRequiredCells(
         })
     }
 }
+
+/** A cell of a line: its key, position and column. */
+export interface LineCell {
+    key: string
+    line: number
+    column: string
+}
+
+/**
+ * The required cells a user can fill and has left empty, in reading order
+ * (1C marks them with a red underline as the user works, not only on save).
+ */
+export function missingCells(rows: readonly JsonObject[], columns: readonly MetadataField[], editable: (column: MetadataField) => boolean): LineCell[] {
+    const required = columns.filter((column) => column.required && column.type !== "boolean" && editable(column))
+    const out: LineCell[] = []
+    rows.forEach((row, line) => {
+        for (const column of required) {
+            const value = row[column.name]
+            if (value === undefined || value === null || value === "") out.push({ key: rowKey(row, line), line, column: column.name })
+        }
+    })
+    return out
+}
+
+/** Cells whose shown text contains the query (any case), in reading order. */
+export function findCells(rows: readonly JsonObject[], columns: readonly MetadataField[], query: string, textOf: (row: JsonObject, column: MetadataField) => string): LineCell[] {
+    const wanted = query.trim().toLocaleLowerCase("ru")
+    if (!wanted) return []
+    const out: LineCell[] = []
+    rows.forEach((row, line) => {
+        for (const column of columns) {
+            if (textOf(row, column).toLocaleLowerCase("ru").includes(wanted)) out.push({ key: rowKey(row, line), line, column: column.name })
+        }
+    })
+    return out
+}
+
+/**
+ * The lines ordered by a column (1C "Упорядочить"), which changes their
+ * order in the document, not a view of it: numbers by value, text and
+ * references by what they show; empty values last; equal lines keep their order.
+ */
+export function sortRows(rows: readonly JsonObject[], column: MetadataField, direction: "asc" | "desc", textOf: (row: JsonObject, column: MetadataField) => string): JsonObject[] {
+    const numeric = ["integer", "number", "decimal", "money"].includes(column.type)
+    const valueOf = (row: JsonObject): number | string | null => {
+        const raw = row[column.name]
+        if (raw === undefined || raw === null || raw === "") return null
+        if (numeric) {
+            const n = Number(raw)
+            return Number.isFinite(n) ? n : null
+        }
+        if (column.type === "date" || column.type === "datetime") return typeof raw === "string" ? raw : null
+        return textOf(row, column)
+    }
+    const sign = direction === "asc" ? 1 : -1
+    return rows
+        .map((row, index) => ({ row, index, value: valueOf(row) }))
+        .sort((a, b) => {
+            if (a.value === null || b.value === null) return a.value === b.value ? a.index - b.index : a.value === null ? 1 : -1
+            const order = typeof a.value === "number" && typeof b.value === "number"
+                ? a.value - b.value
+                : String(a.value).localeCompare(String(b.value), "ru", { numeric: true, sensitivity: "base" })
+            return order * sign || a.index - b.index
+        })
+        .map(({ row }) => row)
+}
