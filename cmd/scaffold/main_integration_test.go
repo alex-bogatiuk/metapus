@@ -27,6 +27,7 @@ import (
 	"metapus/internal/core/json"
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/security"
+	"metapus/internal/core/types"
 	"metapus/internal/domain"
 	"metapus/internal/domain/posting"
 	_ "metapus/internal/infrastructure/http/jsoncodec"
@@ -427,4 +428,97 @@ func TestDeclaredDocumentStoresItsTablePartsWithTheHeader(t *testing.T) {
 	serviceIDs = stored("doc_goods_receipts__services", docID)
 	require.Empty(t, serviceIDs, "an empty array clears the part")
 	require.Len(t, lines(cleared, "items"), 3)
+}
+
+var calcInvoiceDefinition = entity.Definition{Kind: entity.DocumentKind, Key: "calc_invoice", Name: "CalcInvoice", Route: "calc-invoice", Table: "doc_calc_invoices",
+	Parts: []entity.Part{{Key: "lines", Field: "lines"}}}
+
+type calcInvoiceLine struct {
+	LineID   id.ID            `db:"line_id" json:"lineId"`
+	LineNo   int              `db:"line_no" json:"lineNo" meta:"label:№"`
+	Quantity types.Quantity   `db:"quantity" json:"quantity" meta:"label:Количество"`
+	Price    types.MinorUnits `db:"price" json:"price" meta:"label:Цена"`
+	Amount   types.MinorUnits `db:"amount" json:"amount" meta:"label:Сумма,calc:quantity*price"`
+}
+
+type calcInvoice struct {
+	entity.Document
+	Rate  int64             `db:"rate" json:"rate" meta:"label:Ставка"`
+	Base  types.MinorUnits  `db:"base" json:"base" meta:"label:База"`
+	Fee   types.MinorUnits  `db:"fee" json:"fee" meta:"label:Комиссия,calc:base*rate/100"`
+	Lines []calcInvoiceLine `db:"-" json:"lines" meta:"label:Строки"`
+}
+
+func (calcInvoice) EntityDefinition() entity.Definition { return calcInvoiceDefinition }
+func (*calcInvoice) GetDocumentType() string            { return calcInvoiceDefinition.Name }
+
+// A declared document's calculated fields are the server's: requests may not
+// set them, and every write stores them computed from the stored inputs.
+func TestDeclaredDocumentStoresItsCalculatedFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tenant := testsupport.NewSecurityTenants(t)[0]
+	ctx := context.Background()
+	db, err := sql.Open("pgx", tenant.Pool.Config().ConnConfig.ConnString())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	root := t.TempDir()
+	require.NoError(t, run([]string{"--name", "calc_invoice", "--type", "document", "--parts", "lines"}, root, io.Discard))
+	provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS(filepath.Join(root, "db", "configuration", "calc_invoice")), goose.WithAllowOutofOrder(true))
+	require.NoError(t, err)
+	_, err = provider.Up(ctx)
+	require.NoError(t, err)
+	_, err = tenant.Pool.Exec(ctx, `ALTER TABLE doc_calc_invoices ADD COLUMN rate BIGINT NOT NULL DEFAULT 0, ADD COLUMN base BIGINT NOT NULL DEFAULT 0, ADD COLUMN fee BIGINT NOT NULL DEFAULT 0;
+		ALTER TABLE doc_calc_invoices__lines ADD COLUMN quantity BIGINT NOT NULL, ADD COLUMN price BIGINT NOT NULL, ADD COLUMN amount BIGINT NOT NULL`)
+	require.NoError(t, err)
+
+	meta := metadata.Inspect(calcInvoice{}, calcInvoiceDefinition.Name, metadata.TypeDocument)
+	var amount metadata.FieldDef
+	for _, column := range meta.TableParts[0].Columns {
+		if column.Name == "amount" {
+			amount = column
+		}
+	}
+	require.Equal(t, "quantity*price", amount.Calc, "metadata carries the formula for forms")
+	require.True(t, amount.ReadOnly)
+
+	reg := v1.NewFactoryRegistry()
+	reg.RegisterDocument(v1.Document[calcInvoice](metadata.Presentation{Singular: "Счёт", Plural: "Счета"}))
+	call := serveDeclared(t, tenant, reg, []declaredModel{{calcInvoice{}, calcInvoiceDefinition}})
+
+	number := "CI-" + id.New().String()[:8]
+	status, body := call("POST", "/document/calc-invoice", `{"number":"`+number+`","date":"2026-11-17T09:00:00Z","rate":3,"base":"10001",
+		"lines":[{"quantity":1.5,"price":"1999"},{"quantity":"2","price":"500"}]}`)
+	require.Equal(t, 201, status, body)
+	require.Equal(t, "300", fmt.Sprint(body["fee"]), "10001 × 3 / 100 = 300.03 → 300; money is a string of minor units")
+	lines := body["lines"].([]any)
+	require.Equal(t, "2999", fmt.Sprint(lines[0].(map[string]any)["amount"]), "1.5 × 1999 = 2998.5 → 2999, half away from zero")
+	require.Equal(t, "1000", fmt.Sprint(lines[1].(map[string]any)["amount"]))
+	docID := body["id"].(string)
+	storedAmounts := func() (out []int64) {
+		rows, err := tenant.Pool.Query(ctx, "SELECT amount FROM doc_calc_invoices__lines WHERE document_id=$1 ORDER BY line_no", docID)
+		require.NoError(t, err)
+		defer rows.Close()
+		for rows.Next() {
+			var value int64
+			require.NoError(t, rows.Scan(&value))
+			out = append(out, value)
+		}
+		require.NoError(t, rows.Err())
+		return out
+	}
+	require.Equal(t, []int64{2999, 1000}, storedAmounts())
+	var fee int64
+	require.NoError(t, tenant.Pool.QueryRow(ctx, "SELECT fee FROM doc_calc_invoices WHERE id=$1", docID).Scan(&fee))
+	require.EqualValues(t, 300, fee)
+
+	status, body = call("POST", "/document/calc-invoice", `{"number":"CI-`+id.New().String()[:8]+`","date":"2026-11-17T09:00:00Z",
+		"lines":[{"quantity":1,"price":"100","amount":"1"}]}`)
+	require.Equal(t, 400, status, "a request may not set a calculated field: %v", body)
+
+	// A kept line's inputs change: its amount follows on the server.
+	firstLine := lines[0].(map[string]any)["lineId"].(string)
+	status, body = call("PUT", "/document/calc-invoice/"+docID, `{"number":"`+number+`","date":"2026-11-17T09:00:00Z","rate":3,"base":"10001","version":1,
+		"lines":[{"lineId":"`+firstLine+`","quantity":3,"price":"1999"}]}`)
+	require.Equal(t, 200, status, body)
+	require.Equal(t, []int64{5997}, storedAmounts())
 }

@@ -76,6 +76,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { resolveRefEndpoint } from "@/lib/reference-endpoint"
 import { TablePartEditor } from "@/components/shared/table-part-editor"
 import { LineInputError, checkRequiredCells } from "@/lib/table-part-rows"
+import { applyFormulas, formulaLabel, hasFormulas } from "@/lib/formula"
 
 const tabStateKeys = {
   "autoFormMeta": createTabStateKey<EntityMetaDef | null>("frontend/components/shared/auto-form.tsx:autoFormMeta"),
@@ -449,8 +450,16 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
     const [lineFocus, setLineFocus] = useState<{ part: string; line: number; column: string; seq: number } | null>(null)
 
     const handleFieldChange = useCallback((name: string, value: JsonValue) => {
-        editDraft(name, value)
-    }, [editDraft])
+        const next = editDraft(name, value)
+        // Calculated header fields follow their inputs as the user types; the
+        // server computes the stored value on save.
+        const fields = meta?.fields ?? []
+        if (!hasFormulas(fields)) return
+        const computed = applyFormulas(next.draft, fields)
+        for (const field of fields) {
+            if (field.calc && computed[field.name] !== next.draft[field.name]) editDraft(field.name, computed[field.name])
+        }
+    }, [editDraft, meta])
 
     // Background refresh observes the server without replacing a dirty draft.
     const refetchDoc = useCallback(async (discard = false) => {
@@ -743,7 +752,10 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
         if (forceReadOnly && ownReadOnly === undefined && (field.type !== "reference" || emptyReference)) {
             return (
                 <div key={field.name} data-field={field.name}>
-                    <p className="text-xs text-muted-foreground">{field.label || field.name}</p>
+                    <p className="text-xs text-muted-foreground" title={field.calc ? `Рассчитывается: ${formulaLabel(field.calc, meta?.fields ?? [])}` : undefined}>
+                        {field.label || field.name}
+                        {field.calc && <span className="ml-1 font-serif italic text-muted-foreground/70" aria-label="рассчитывается">ƒ</span>}
+                    </p>
                     <p className="mt-1 break-words text-sm">{displayValue(field, value)}</p>
                 </div>
             )
@@ -978,7 +990,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                             <section key={group.key} aria-label={group.title} className="space-y-3" data-form-group={group.key}>
                                 {group.title && <h3 className="border-b pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.title}</h3>}
                                 <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
-                                    {group.fields.map((field) => renderFieldBlock(field))}
+                                    {group.fields.map((field) => renderFieldBlock(field, !!field.calc))}
                                 </div>
                             </section>
                         ))}

@@ -1383,6 +1383,7 @@ export type MetadataFieldDef = {
   "referenceType"?: string
   "required"?: boolean
   "readOnly"?: boolean
+  "calc"?: string
   "writeOnly"?: boolean
   "scale"?: number
   "options"?: Array<string>

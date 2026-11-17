@@ -49,6 +49,7 @@ type autoShape struct {
 	readable             []string  // Go field names copied from the model onto the response
 	refs                 []autoRef // reference fields resolved into the response
 	parts                []autoPart
+	calcs                autoCalcs // calculated header fields (meta:"calc:..."), in order
 }
 
 // autoPart is the wire projection of one table part.
@@ -62,6 +63,7 @@ type autoPart struct {
 	writable     []string
 	readable     []string
 	refs         []autoRef
+	calcs        autoCalcs // calculated line fields, in order
 }
 
 // autoRef is a reference field of the model and its display in the response.
@@ -183,6 +185,12 @@ func deriveAutoShape(model reflect.Type, def entity.Definition) (*autoShape, err
 	read = append(append(read, displays...), partResponse...)
 	shape.refs = refs
 
+	calcs, err := deriveAutoCalcs(model, def.Kind)
+	if err != nil {
+		return nil, err
+	}
+	shape.calcs = calcs
+
 	shape.create, shape.update, shape.read = reflect.StructOf(create), reflect.StructOf(update), reflect.StructOf(read)
 	return shape, nil
 }
@@ -302,6 +310,9 @@ func deriveAutoPart(model reflect.Type, part entity.Part) (autoPart, error) {
 	for _, wf := range fields.writable {
 		p.writable = append(p.writable, wf.Name)
 	}
+	if p.calcs, err = deriveAutoCalcs(p.elem, entity.DocumentKind); err != nil {
+		return autoPart{}, err
+	}
 	create := append([]reflect.StructField{{Name: "LineID", Type: reflect.TypeFor[*id.ID](), Tag: `json:"lineId,omitempty"`}}, fields.writable...)
 	read := []reflect.StructField{
 		{Name: "LineID", Type: reflect.TypeFor[id.ID](), Tag: `json:"lineId"`},
@@ -335,6 +346,10 @@ func autoRefKey(f reflect.StructField) string {
 }
 
 func autoReadOnly(f reflect.StructField) bool {
+	// A calculated field is the server's: requests never carry it.
+	if calcTag(f) != "" {
+		return true
+	}
 	for part := range strings.SplitSeq(f.Tag.Get("meta"), ",") {
 		if strings.TrimSpace(part) == "readOnly:true" {
 			return true
@@ -372,6 +387,27 @@ func (s *autoShape) applyAutoRequest(request reflect.Value, model any) {
 	for _, part := range s.parts {
 		part.apply(request.FieldByName(part.field), target.FieldByName(part.field))
 	}
+}
+
+// computeAutoCalcs computes the calculated fields of the header and of every
+// line, after the request is applied (a kept line's inputs may have changed).
+func (s *autoShape) computeAutoCalcs(model any) error {
+	target := reflect.ValueOf(model).Elem()
+	if err := s.calcs.apply(target); err != nil {
+		return err
+	}
+	for _, part := range s.parts {
+		if len(part.calcs) == 0 {
+			continue
+		}
+		lines := target.FieldByName(part.field)
+		for i := 0; i < lines.Len(); i++ {
+			if err := part.calcs.apply(lines.Index(i)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // apply replaces the model's lines with the requested ones. A requested

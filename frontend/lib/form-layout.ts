@@ -241,7 +241,8 @@ export function planFormLayout({ kind, fields, partCount, accepted }: FormLayout
         // An explicit group is the author's override and wins over every rule.
         if (field.group) {
             explicit.set(field.group, [...(explicit.get(field.group) ?? []), field])
-        } else if (!isWritableField(field, accepted) && !field.required) {
+        } else if (!isWritableField(field, accepted) && !field.required && !field.calc) {
+            // Server state goes apart; a calculated field stays among its inputs.
             extra.push(field)
         } else if (isWideField(field)) {
             wide.push(field)

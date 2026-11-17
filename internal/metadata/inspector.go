@@ -110,6 +110,7 @@ func inspectStruct(t reflect.Type, def *EntityDef, topLevel bool) {
 			WriteOnly:  metaHasWriteOnlyTrue(field),
 			ListHidden: metaHasListFalse(field),
 			Group:      metaValue(field, "group"),
+			Calc:       metaValue(field, "calc"),
 		}
 
 		// Type mapping
@@ -180,6 +181,7 @@ func inspectColumns(t reflect.Type) []FieldDef {
 			Required:   isRequired(field),
 			ReadOnly:   isReadOnly(field),
 			ListHidden: metaHasListFalse(field),
+			Calc:       metaValue(field, "calc"),
 		}
 		mapFieldType(&fDef, field)
 		if fDef.Name == "-" {
@@ -397,6 +399,10 @@ func metaValue(field reflect.StructField, key string) string {
 }
 
 func isReadOnly(field reflect.StructField) bool {
+	// A calculated field is computed by the server, never written by a form.
+	if metaValue(field, "calc") != "" {
+		return true
+	}
 	for part := range strings.SplitSeq(field.Tag.Get("meta"), ",") {
 		if strings.TrimSpace(part) == "readOnly:true" {
 			return true

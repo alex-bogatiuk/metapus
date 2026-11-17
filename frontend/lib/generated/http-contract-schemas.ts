@@ -1387,6 +1387,7 @@ export const MetadataFieldDefSchema: z.ZodType<Wire.MetadataFieldDef> = z.lazy((
   "referenceType": z.string().optional(),
   "required": z.boolean().optional(),
   "readOnly": z.boolean().optional(),
+  "calc": z.string().optional(),
   "writeOnly": z.boolean().optional(),
   "scale": z.number().int().optional(),
   "options": z.array(z.string()).optional(),

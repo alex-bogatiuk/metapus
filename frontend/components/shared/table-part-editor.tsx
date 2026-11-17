@@ -28,6 +28,7 @@ import {
     removeRows, restoreRow, rowKey, setCell,
 } from "@/lib/table-part-rows"
 import { convertCellText, evaluateNumberInput, parseClipboardGrid, parseNumberText, pasteGrid } from "@/lib/grid-paste"
+import { applyFormulas, formulaLabel, hasFormulas } from "@/lib/formula"
 import { apiFetch } from "@/lib/api"
 import { withReferenceListParams } from "@/lib/reference-utils"
 import type { CursorListResponse } from "@/types/common"
@@ -160,8 +161,12 @@ function CommandButton({ label, shortcut, icon, caption, disabled, destructive, 
     )
 }
 
-/** Number columns get the grid's own editor (calculator, "+5"); money keeps the form's minor-units input. */
-const CALC_TYPES = new Set(["integer", "number", "decimal"])
+/**
+ * Number columns get the grid's own editor (calculator, "+5"). Money is
+ * entered as minor units, as in the form, but without the form's hint
+ * paragraph, which has no room in a grid line.
+ */
+const CALC_TYPES = new Set(["integer", "number", "decimal", "money"])
 /** Most steps the line history keeps for Ctrl+Z. */
 const HISTORY_LIMIT = 50
 
@@ -265,7 +270,8 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
     const [dismissedSummary, setDismissedSummary] = useState("")
     const extractors = useMemo(() => {
         const units = amountUnitPairs(part.columns, true)
-        return new Map(part.columns.map((column) => [column.name, fieldSummaryExtractor(column, column.name, units.get(column.name))]))
+        // One document's lines share its currency: money is summed in minor units.
+        return new Map(part.columns.map((column) => [column.name, fieldSummaryExtractor(column, column.name, units.get(column.name), true)]))
     }, [part.columns])
     const totalsRows = summaryRows(selection)
     const extractor = currentColumn ? extractors.get(currentColumn) : undefined
@@ -339,10 +345,13 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
         setWasDisabled(disabled)
         if (disabled) setHistory([])
     }
+    // Calculated columns (meta:"calc:...") follow their inputs on every change,
+    // as 1C recalculates a line's amount; the server stores its own result.
+    const calculated = hasFormulas(part.columns)
     const change = (next: JsonObject[], label: string, cell?: string) => {
         const top = history[history.length - 1]
         if (!(cell && top?.cell === cell)) setHistory([...history, { before: rows, label, cell }].slice(-HISTORY_LIMIT))
-        onChange(next)
+        onChange(calculated ? next.map((row) => applyFormulas(row, part.columns)) : next)
     }
     const undo = () => {
         const steps = historyRef.current
@@ -894,6 +903,10 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                         currentColumn === column.name && "text-foreground")}
                                     style={index === 0 && columns.length > 1 ? { left: NUMBER_COLUMN } : undefined}>
                                     {column.label || column.name}{column.required && editable ? <span className="text-destructive"> *</span> : null}
+                                    {column.calc && (
+                                        <span className="ml-1 font-serif italic text-muted-foreground/70" title={`Рассчитывается: ${formulaLabel(column.calc, part.columns)}`}
+                                            aria-label={`рассчитывается: ${formulaLabel(column.calc, part.columns)}`}>ƒ</span>
+                                    )}
                                     {index < columns.length - 1 && (
                                         <div aria-hidden title="Перетащите, чтобы изменить ширину; двойной клик — по содержимому"
                                             className="group/resize absolute right-0 top-0 z-10 h-full w-[5px] cursor-col-resize hover:bg-primary/30 active:bg-primary/50"
@@ -961,7 +974,8 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                                     title={missing ? `Заполните «${column.label || column.name}»` : undefined} style={placeStyle}
                                                     className={cn(place, rowHeight, "cursor-default select-none truncate px-2 py-0.5",
                                                         NUMERIC.has(column.type) && "text-right tabular-nums",
-                                                        !cellEditable && "text-muted-foreground",
+                                                        // Server values read muted; a calculated value is data and reads as such.
+                                                        !cellEditable && !column.calc && "text-muted-foreground",
                                                         isCurrentCell && CURRENT_CELL, isErrorCell && ERROR_CELL)}
                                                     onMouseDown={onCellMouseDown}
                                                     onClick={(event) => onCellClick(key, column.name, event)}
@@ -983,7 +997,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                         }
                                         if (!cellEditable) {
                                             return withTotals(<td key={column.name} data-current-cell={isCurrentCell ? "true" : undefined} style={placeStyle}
-                                                className={cn(place, rowHeight, "truncate px-2 py-0.5 text-muted-foreground", NUMERIC.has(column.type) && "text-right tabular-nums", isCurrentCell && CURRENT_CELL)}
+                                                className={cn(place, rowHeight, "truncate px-2 py-0.5", !column.calc && "text-muted-foreground", NUMERIC.has(column.type) && "text-right tabular-nums", isCurrentCell && CURRENT_CELL)}
                                                 {...selectHandlers}>{cellText(row, column)}</td>)
                                         }
                                         const endpoint = column.type === "reference" && column.referenceType ? resolveRefEndpoint(column.referenceType) : null
@@ -1012,9 +1026,9 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                                         disabled={disabled}
                                                     />
                                                 ) : CALC_TYPES.has(column.type) ? (
-                                                    <NumberCellInput value={row[column.name]} integer={column.type === "integer"} disabled={disabled}
-                                                        // A decimal the server sent as text stays text (the wire contract), a number stays a number.
-                                                        onValue={(value) => updateCell(index, column.name, typeof row[column.name] === "string" ? String(value) : value)} />
+                                                    <NumberCellInput value={row[column.name]} integer={column.type === "integer" || column.type === "money"} disabled={disabled}
+                                                        // Money (minor units) and a decimal the server sent as text travel as text (the wire contract).
+                                                        onValue={(value) => updateCell(index, column.name, typeof row[column.name] === "string" || column.type === "money" ? String(value) : value)} />
                                                 ) : (
                                                     renderInput(column, row[column.name], (value) => updateCell(index, column.name, value))
                                                 )}

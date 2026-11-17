@@ -264,11 +264,17 @@ func (r *AutoDocument[T, PT]) Build(deps DocumentDeps) DocumentRouteHandler {
 		MapCreateDTO: func(req AutoCreate[T]) (PT, error) {
 			model := newAutoModel[T](req.value, entity.DocumentKind)
 			shape.applyAutoRequest(req.value, model)
+			if err := shape.computeAutoCalcs(model); err != nil {
+				return nil, err
+			}
 			return model, nil
 		},
 		MapUpdateDTO: func(req AutoUpdate[T], existing PT) (PT, error) {
 			shape.applyAutoRequest(req.value, existing)
 			reflect.ValueOf(existing).Elem().FieldByName("Version").SetInt(req.value.FieldByName("Version").Int())
+			if err := shape.computeAutoCalcs(existing); err != nil {
+				return nil, err
+			}
 			return existing, nil
 		},
 		MapToDTO:            func(model PT) any { return shape.response(model, tables, nil) },

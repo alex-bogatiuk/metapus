@@ -111,11 +111,16 @@ export function summaryGroupText(group: SummaryGroup): string {
  * number. Money is minor units in the row's currency; another number takes
  * its unit from the paired currency or token field, when there is one.
  */
-export function fieldSummaryExtractor(field: PairableField, key: string, unit?: PairableField): SummaryExtractor | undefined {
+export function fieldSummaryExtractor(field: PairableField, key: string, unit?: PairableField, sameCurrency = false): SummaryExtractor | undefined {
     if (field.type === "money") {
         return (row) => {
             const minor = minorUnitsSchema.safeParse(row[key])
             const currency = row.currency
+            // The lines of one document share its currency, so there money
+            // without a currency of its own is summed in the minor units it is
+            // shown and entered in. A list row without one is not summed:
+            // rows of different documents may be in different currencies.
+            if (!currency && sameCurrency) return numericOperand(row[key] ?? undefined)
             if (!minor.success || !currency || typeof currency !== "object" || Array.isArray(currency)) return null
             const scale = currency.decimalPlaces
             if (typeof scale !== "number") return null

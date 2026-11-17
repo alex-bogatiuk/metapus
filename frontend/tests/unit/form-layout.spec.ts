@@ -88,3 +88,16 @@ test("a catalog pairs an amount only with a unit named like it", () => {
   expect(names(pairAmountsWithUnits(fields, false))).toEqual(["sweepKeepAmount", "currencyId", "feeAmount", "feeTokenId"])
   expect(names(pairAmountsWithUnits([fields[1], fields[0]], false))).toEqual(["currencyId", "sweepKeepAmount"])
 })
+
+test("a calculated field stays among its inputs instead of going to Дополнительно", () => {
+    const fields = [
+        { name: "number", type: "string" },
+        { name: "date", type: "date" },
+        { name: "base", label: "База", type: "money" },
+        { name: "fee", label: "Комиссия", type: "money", readOnly: true, calc: "base*rate/100" },
+        { name: "postedAt", label: "Проведён", type: "datetime", readOnly: true },
+    ] as MetadataField[]
+    const layout = planFormLayout({ kind: "document", fields, partCount: 0, accepted: new Set(["number", "date", "base"]) })
+    expect(layout.groups.flatMap((group) => group.fields.map((field) => field.name))).toEqual(["base", "fee"])
+    expect(layout.extra.map((field) => field.name)).toEqual(["postedAt"])
+})

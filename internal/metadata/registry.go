@@ -200,6 +200,10 @@ type FieldDef struct {
 	ReferenceType string    `json:"referenceType,omitempty"` // For references, e.g. "merchant"
 	Required      bool      `json:"required,omitzero"`
 	ReadOnly      bool      `json:"readOnly,omitzero"`
+	// Calc is the formula of a calculated field (meta:"calc:quantity*price"):
+	// arithmetic over sibling fields' json names. The server computes and
+	// stores it; forms recompute it as the user types (lib/formula.ts).
+	Calc string `json:"calc,omitempty"`
 	// WriteOnly renders an input in forms but prevents consumers from assuming
 	// that the current value is returned by read APIs. Typical use: provider
 	// credentials that can be replaced through the ordinary optimistic-locking

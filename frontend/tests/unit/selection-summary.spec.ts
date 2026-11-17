@@ -32,6 +32,9 @@ test("money is summed in major units of the row's currency; numbers take their p
   const money = fieldSummaryExtractor({ name: "amount", type: "money" }, "amount")!
   expect(money({ amount: "12345", currency: { decimalPlaces: 2, symbol: "₽" } })).toEqual({ value: "123.45", unit: "₽" })
   expect(money({ amount: "12345" })).toBeNull()
+  // A table part's lines share the document's currency: their minor units add up.
+  const lineMoney = fieldSummaryExtractor({ name: "amount", type: "money" }, "amount", undefined, true)!
+  expect(lineMoney({ amount: "12345" })).toEqual({ value: "12345", unit: "" })
   const columns = mergeListColumns({
     entityName: "Probe", pairAnyUnit: true,
     fields: [{ name: "expectedAmount", type: "decimal" }, { name: "tokenId", type: "reference", referenceType: "token" }, { name: "code", type: "string" }] as MetadataField[],
