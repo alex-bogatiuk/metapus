@@ -1,10 +1,11 @@
 "use client"
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ArrowDown, ArrowUp, ClipboardCopy, CopyPlus, PackagePlus, Plus, Trash2 } from "lucide-react"
+import { ArrowDown, ArrowDownToLine, ArrowUp, ClipboardCopy, CopyPlus, PackagePlus, Plus, Trash2, Undo2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuShortcut, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { ReferenceField } from "@/components/shared/reference-field"
@@ -23,9 +24,13 @@ import { useColumnResize } from "@/hooks/useColumnResize"
 import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 import { cn } from "@/lib/utils"
 import {
-    LINE_IDENTITY_COLUMNS, addRow, copyRows, isEditableColumn, moveRows, referenceDisplayName, removeRows,
-    restoreRow, rowKey, setCell,
+    LINE_IDENTITY_COLUMNS, ROW_KEY, addRow, copyRows, fillColumn, isEditableColumn, moveRows, newRowKey, referenceDisplayName,
+    removeRows, restoreRow, rowKey, setCell,
 } from "@/lib/table-part-rows"
+import { convertCellText, evaluateNumberInput, parseClipboardGrid, parseNumberText, pasteGrid } from "@/lib/grid-paste"
+import { apiFetch } from "@/lib/api"
+import { withReferenceListParams } from "@/lib/reference-utils"
+import type { CursorListResponse } from "@/types/common"
 
 export interface TablePartEditorProps {
     part: { name: string; label?: string; columns: MetadataField[] }
@@ -155,6 +160,62 @@ function CommandButton({ label, shortcut, icon, caption, disabled, destructive, 
     )
 }
 
+/** Number columns get the grid's own editor (calculator, "+5"); money keeps the form's minor-units input. */
+const CALC_TYPES = new Set(["integer", "number", "decimal"])
+/** Most steps the line history keeps for Ctrl+Z. */
+const HISTORY_LIMIT = 50
+
+/** Sets a React-controlled input's value as typing would, so its onChange runs. */
+function typeInto(input: HTMLInputElement, text: string) {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, text)
+    input.dispatchEvent(new Event("input", { bubbles: true }))
+}
+
+/**
+ * A number cell's editor (1C and Excel style): takes "1 234,5", an
+ * expression ("500*4") or a change of the value it had ("+5", "*2", "/4"),
+ * worked out on Enter, Tab or leaving the cell. Plain numbers apply as they
+ * are typed, so the footer follows.
+ */
+function NumberCellInput({ value, integer, disabled, onValue }: {
+    value: JsonValue | undefined
+    integer: boolean
+    disabled: boolean
+    onValue: (value: number) => void
+}) {
+    const [draft, setDraft] = useState<string | null>(null)
+    const [start, setStart] = useState<number | null>(null)
+    const shown = value === undefined || value === null || value === "" ? "" : String(value)
+    const commit = () => {
+        if (draft === null) return
+        const result = evaluateNumberInput(draft, start, integer)
+        setDraft(null)
+        if (result !== null) onValue(result)
+        else if (draft.trim()) toast.error(`Не число: «${draft.trim()}»`)
+    }
+    return (
+        <Input type="text" inputMode="decimal" autoComplete="off" value={draft ?? shown} disabled={disabled}
+            aria-invalid={draft !== null && draft.trim() !== "" && parseNumberText(draft) === null && evaluateNumberInput(draft, start, integer) === null}
+            onChange={(event) => {
+                const text = event.target.value
+                if (draft === null) setStart(parseNumberText(shown))
+                setDraft(text)
+                const plain = parseNumberText(text)
+                if (plain !== null && (!integer || Number.isInteger(plain))) onValue(plain)
+            }}
+            onBlur={commit}
+            onKeyDown={(event) => {
+                // Worked out here; in cell mode the grid then closes the cell. (The
+                // form has no <form> element, so Enter submits nothing.)
+                if (event.key === "Enter" || event.key === "Tab") {
+                    commit()
+                } else if (event.key === "Escape") {
+                    setDraft(null)
+                }
+            }} />
+    )
+}
+
 function cellText(row: JsonObject, column: MetadataField): string {
     if (column.type === "reference") return referenceDisplayName(row, column.name) ?? String(row[column.name] ?? "")
     if (column.type === "boolean") return row[column.name] ? "Да" : "Нет"
@@ -192,8 +253,14 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
     // With the current row in a selection of several, a numeric current
     // column shows its totals beside the current cell.
     const keys = rows.map(rowKey)
+    // The entry line (Excel, Airtable): an empty line after the last one;
+    // typing into it makes it a line and a new entry line appears below. It
+    // keeps its key when it becomes a line, so the cell being typed in stays.
+    const [ghostKey, setGhostKey] = useState(newRowKey)
+    const showGhost = editable
+    const navKeys = showGhost ? [...keys, ghostKey] : keys
     const [selectionState, setSelection] = useState<RowSelection>(EMPTY_ROW_SELECTION)
-    const selection = keepExisting(selectionState, keys)
+    const selection = keepExisting(selectionState, navKeys)
     const [currentColumn, setCurrentColumn] = useState<string | null>(null)
     const [dismissedSummary, setDismissedSummary] = useState("")
     const extractors = useMemo(() => {
@@ -256,7 +323,46 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
     // Cell mode: the cell open for editing and its row as it was, for Escape.
     // A line added by Insert is taken back by Escape while it is still open.
     const [editing, setEditing] = useState<{ key: string; column: string; original: JsonObject; added?: boolean } | null>(null)
-    const editingCell = editing && keys.includes(editing.key) ? `${editing.key}|${editing.column}` : ""
+    const editingCell = editing && navKeys.includes(editing.key) ? `${editing.key}|${editing.column}` : ""
+    // A key typed on a cell (type-to-edit) goes into its editor once it opens.
+    const seedRef = useRef<string | null>(null)
+
+    // ── Line history (Ctrl+Z, "Вернуть") ────────────────────────────────
+    // Each change keeps the lines it replaced; changes to one cell in a row
+    // count as one step. Saving starts the history over.
+    type HistoryStep = { before: JsonObject[]; label: string; cell?: string }
+    const [history, setHistory] = useState<HistoryStep[]>([])
+    const historyRef = useRef<HistoryStep[]>([])
+    useEffect(() => { historyRef.current = history })
+    const [wasDisabled, setWasDisabled] = useState(disabled)
+    if (disabled !== wasDisabled) {
+        setWasDisabled(disabled)
+        if (disabled) setHistory([])
+    }
+    const change = (next: JsonObject[], label: string, cell?: string) => {
+        const top = history[history.length - 1]
+        if (!(cell && top?.cell === cell)) setHistory([...history, { before: rows, label, cell }].slice(-HISTORY_LIMIT))
+        onChange(next)
+    }
+    const undo = () => {
+        const steps = historyRef.current
+        const step = steps[steps.length - 1]
+        if (!step) return
+        setHistory(steps.slice(0, -1))
+        setEditing(null)
+        onChange(step.before)
+        toast(`Отменено: ${step.label}`)
+    }
+    const undoAction = { label: "Вернуть", onClick: () => undo() }
+    /** Writes a cell; on the entry line it first makes that line a real one. */
+    const updateCell = (index: number, column: string, value: JsonValue, display?: string) => {
+        if (index < rows.length) {
+            change(setCell(rows, index, column, value, display), "изменение ячейки", `${keys[index]}|${column}`)
+            return
+        }
+        change(setCell([...rows, { [ROW_KEY]: ghostKey }], rows.length, column, value, display), "новая строка", `${ghostKey}|${column}`)
+        setGhostKey(newRowKey())
+    }
     const gridRef = useRef<HTMLDivElement>(null)
     const revealNext = useRef(false)
     const focusGrid = () => gridRef.current?.focus({ preventScroll: true })
@@ -267,9 +373,22 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
         const cell = gridRef.current?.querySelector<HTMLElement>('td[data-editing="true"]')
         const control = cell?.querySelector<HTMLElement>("input, textarea, select, button, [tabindex]:not([tabindex='-1'])")
         control?.focus()
-        if (control instanceof HTMLInputElement && control.type !== "checkbox") control.select()
-        // A reference cell opens straight into its picker, as 1C opens the choice.
-        if (control?.getAttribute("role") === "combobox" && control.getAttribute("aria-expanded") === "false") control.click()
+        const seed = seedRef.current
+        seedRef.current = null
+        if (control instanceof HTMLInputElement && control.type !== "checkbox") {
+            // Typed over: the key that opened the cell replaces its value.
+            if (seed) typeInto(control, seed)
+            else control.select()
+        }
+        // A reference cell opens straight into its picker, as 1C opens the
+        // choice, with the typed key already in its search.
+        if (control?.getAttribute("role") === "combobox" && control.getAttribute("aria-expanded") === "false") {
+            control.click()
+            if (seed) requestAnimationFrame(() => {
+                const search = document.activeElement
+                if (search instanceof HTMLInputElement) typeInto(search, seed)
+            })
+        }
     }, [editingCell])
 
     // Scrolls to the cell the form sent the user to and, with inputs in the
@@ -330,7 +449,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
             event.preventDefault()
             event.stopPropagation()
         }
-        setSelection(clickRow(selection, keys, key, { shift: event.shiftKey, toggle }))
+        setSelection(clickRow(selection, navKeys, key, { shift: event.shiftKey, toggle }))
         if (column) setCurrentColumn(column)
         if (cellMode) {
             if (editing && (editing.key !== key || editing.column !== column)) setEditing(null)
@@ -339,28 +458,35 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
     }
 
     // ── Cell mode: editing ──────────────────────────────────────────────
-    const startEdit = (key: string, column: MetadataField) => {
-        const index = keys.indexOf(key)
+    const startEdit = (key: string, column: MetadataField, seed?: string) => {
+        const index = navKeys.indexOf(key)
         if (index === -1 || disabled || !isEditableColumn(column, writable, readOnly)) return
+        const ghost = key === ghostKey
+        const row = ghost ? { [ROW_KEY]: ghostKey } : rows[index]
         setCurrentColumn(column.name)
         // A flag has nothing to type: it flips in place.
         if (column.type === "boolean") {
-            onChange(setCell(rows, index, column.name, !rows[index][column.name]))
+            updateCell(index, column.name, !row[column.name])
             return
         }
-        setEditing({ key, column: column.name, original: rows[index] })
+        seedRef.current = seed ?? null
+        // A cell opened on the entry line is a line being added: Escape takes it back.
+        setEditing({ key, column: column.name, original: row, added: ghost })
     }
     const finishEdit = (cancel: boolean) => {
         if (!editing) return
         if (cancel && editing.added) {
             // As in 1C, Escape on a line just added takes the line back.
             const index = keys.indexOf(editing.key)
-            onChange(removeRows(rows, new Set([editing.key])))
-            const landing = keys[index - 1] ?? keys[index + 1]
+            if (index !== -1) onChange(removeRows(rows, new Set([editing.key])))
+            const landing = keys[index === -1 ? keys.length - 1 : index - 1] ?? keys[index + 1]
             select(landing ? only(landing) : EMPTY_ROW_SELECTION)
         } else if (cancel) {
             onChange(restoreRow(rows, editing.key, editing.original))
         }
+        // A cancelled edit leaves nothing to undo.
+        const top = history[history.length - 1]
+        if (cancel && top?.cell === `${editing.key}|${editing.column}`) setHistory(history.slice(0, -1))
         setEditing(null)
         focusGrid()
     }
@@ -368,13 +494,14 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
     // ── Cell mode: lines ────────────────────────────────────────────────
     /** The lines a command acts on: the selection holding the current line, else the current line. */
     const targetKeys = (): Set<string> => {
-        if (selection.current && selection.selected.includes(selection.current)) return new Set(selection.selected)
-        return new Set(selection.current ? [selection.current] : [])
+        const real = (list: readonly string[]) => new Set(list.filter((key) => key !== ghostKey))
+        if (selection.current && selection.selected.includes(selection.current)) return real(selection.selected)
+        return real(selection.current ? [selection.current] : [])
     }
     const insertLine = () => {
         const next = addRow(rows)
         const key = rowKey(next[next.length - 1], next.length - 1)
-        onChange(next)
+        change(next, "добавление строки")
         select(only(key))
         const first = columns.find((column) => isEditableColumn(column, writable, readOnly))
         if (first) {
@@ -391,14 +518,14 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
     const transferPicked = (cart: CartLine[], merge: boolean) => {
         if (!target) return
         const result = transferPicks(rows, cart, target, merge)
-        onChange(result.rows)
+        change(result.rows, "подбор")
         // What the pick touched becomes the selection, so totals and commands apply to it.
         if (result.touched.length) {
             select({ selected: result.touched, current: result.touched[0], anchor: result.touched[0] })
             setCurrentColumn(target.quantity?.name ?? target.item.name)
         }
         const parts = [result.added && `добавлено строк: ${result.added}`, result.merged && `дополнено: ${result.merged}`].filter(Boolean)
-        toast.success(`Перенесено позиций: ${cart.length}`, { description: parts.join(", ") })
+        toast.success(`Перенесено позиций: ${cart.length}`, { description: parts.join(", "), action: undoAction })
         if (cellMode) requestAnimationFrame(focusGrid)
     }
 
@@ -407,15 +534,16 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
         if (targets.size === 0) return
         const first = keys.findIndex((key) => targets.has(key))
         const next = removeRows(rows, targets)
-        onChange(next)
+        change(next, targets.size > 1 ? "удаление строк" : "удаление строки")
         const landing = next.length ? rowKey(next[Math.min(first, next.length - 1)], Math.min(first, next.length - 1)) : null
         select(landing ? only(landing) : EMPTY_ROW_SELECTION)
+        toast(targets.size > 1 ? `Удалено строк: ${targets.size}` : "Строка удалена", { action: undoAction })
     }
     const duplicateLines = () => {
         if (!writable) return
         const { rows: next, copied } = copyRows(rows, targetKeys(), writable)
         if (copied.length === 0) return
-        onChange(next)
+        change(next, "копирование строк")
         select({ selected: copied, current: copied[0], anchor: copied[0] })
     }
     // The selected lines move as a block; the current line alone when it is outside the selection.
@@ -423,7 +551,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
     const moveLines = (step: -1 | 1) => {
         const next = movedLines(step)
         if (!next) return
-        onChange(next)
+        change(next, "перемещение строк")
         revealNext.current = true
     }
     const copyToClipboard = () => {
@@ -443,12 +571,90 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
             else if (targets.size > 1) toast.success(`Скопировано строк: ${targets.size}`)
         })
     }
+    // ── Fill (1C "Заполнить", Excel Ctrl+D) ─────────────────────────────
+    // The current line's value of the current column goes to the other selected lines.
+    const fillTarget = (() => {
+        const column = columns.find((col) => col.name === currentColumn)
+        const index = selection.current ? keys.indexOf(selection.current) : -1
+        const others = [...targetKeys()].filter((key) => key !== selection.current)
+        if (!column || index === -1 || !others.length || !isEditableColumn(column, writable, readOnly)) return null
+        return { column, index, others }
+    })()
+    const fillLines = () => {
+        if (!fillTarget || disabled) return
+        const { column, index, others } = fillTarget
+        change(fillColumn(rows, new Set(others), rows[index], column.name), "заполнение колонки")
+        toast(`Заполнено строк: ${others.length}`, { description: `«${column.label || column.name}» = ${cellText(rows[index], column) || "пусто"}`, action: undoAction })
+    }
+
+    // ── Paste from a spreadsheet ────────────────────────────────────────
+    // Lines copied in Excel or Google Sheets land from the current cell (or
+    // the cell whose input has focus), adding lines past the end. References
+    // are found by code or name; what is not found is reported and left as it was.
+    const editableColumn = (column: MetadataField) => isEditableColumn(column, writable, readOnly)
+    const resolveReferences = async (column: MetadataField, texts: string[]) => {
+        const found = new Map<string, { id: string; name: string }>()
+        const endpoint = column.referenceType ? resolveRefEndpoint(column.referenceType) : null
+        if (!endpoint) return found
+        await Promise.all(texts.map(async (text) => {
+            try {
+                const result = await apiFetch<CursorListResponse<JsonObject & { id: string }>>(withReferenceListParams(endpoint, { search: text, limit: 10 }))
+                const items = (result.items ?? []).filter((item) => item.isFolder !== true)
+                const wanted = text.toLowerCase()
+                const exact = items.find((item) => [item.code, item.name].some((value) => typeof value === "string" && value.toLowerCase() === wanted))
+                const item = exact ?? (items.length === 1 ? items[0] : undefined)
+                if (item) found.set(wanted, { id: item.id, name: String(item.name ?? item.code ?? text) })
+            } catch { /* not found: reported with the others */ }
+        }))
+        return found
+    }
+    const pasteLines = async (text: string, start: { line: number; column: number }) => {
+        const grid = parseClipboardGrid(text)
+        if (!grid.length) return
+        const references = new Map<string, Map<string, { id: string; name: string }>>()
+        for (let j = 0; j < Math.max(...grid.map((cells) => cells.length)); j++) {
+            const column = columns[start.column + j]
+            if (!column || column.type !== "reference" || !editableColumn(column)) continue
+            const texts = [...new Set(grid.map((cells) => cells[j]?.trim() ?? "").filter(Boolean))]
+            references.set(column.name, await resolveReferences(column, texts))
+        }
+        const resolve = (column: string, value: string) => references.get(column)?.get(value.toLowerCase()) ?? null
+        const result = pasteGrid(rows, start, grid, columns, editableColumn, (column, value) => convertCellText(column, value, resolve),
+            () => ({ [ROW_KEY]: newRowKey() }))
+        if (!result.touched.length && !result.failures.length) return
+        change(result.rows, "вставка")
+        if (result.touched.length) select({ selected: result.touched, current: result.touched[0], anchor: result.touched[0] })
+        const failed = result.failures.slice(0, 3).map((failure) => `«${failure.text}» (${failure.column})`).join(", ")
+        const description = result.failures.length
+            ? `Не распознано: ${failed}${result.failures.length > 3 ? ` и ещё ${result.failures.length - 3}` : ""}`
+            : undefined
+        const message = `Вставлено строк: ${result.touched.length}`
+        if (result.failures.length) toast.warning(message, { description, action: undoAction })
+        else toast.success(message, { action: undoAction })
+    }
+    const onGridPaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+        if (!editable || disabled) return
+        const text = event.clipboardData.getData("text/plain")
+        const target = event.target instanceof Element ? event.target : null
+        const inField = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
+        // A single value pasted into a field stays the field's own paste.
+        if (inField && !/[\t\n]/.test(text.replace(/\r?\n$/, ""))) return
+        // From a cell (its field or picker) or the grid itself; not from the command bar.
+        const cell = target?.closest<HTMLElement>("td[data-field]")
+        if (!cell && target !== event.currentTarget) return
+        event.preventDefault()
+        const field = cell?.dataset.field?.split(".")
+        const line = field ? Number(field[1]) : Math.max(0, selection.current ? navKeys.indexOf(selection.current) : 0)
+        const column = Math.max(0, columns.findIndex((col) => col.name === (field ? field[2] : currentColumn)))
+        void pasteLines(text, { line, column })
+    }
+
     const moveColumn = (step: -1 | 1): boolean => {
         const at = columns.findIndex((column) => column.name === currentColumn)
         const next = at === -1 ? 0 : at + step
         if (next < 0 || next >= columns.length) return false
         setCurrentColumn(columns[next].name)
-        if (!selection.current && keys[0]) select(only(keys[0]))
+        if (!selection.current && navKeys[0]) select(only(navKeys[0]))
         revealNext.current = true
         return true
     }
@@ -460,6 +666,13 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
             event.stopPropagation()
         }
         if (editing) {
+            // Keys typed before the opened cell's editor takes focus are kept
+            // and typed into it, so a fast "15" does not lose its "5".
+            if (event.target === event.currentTarget && event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+                handled()
+                seedRef.current = (seedRef.current ?? "") + event.key
+                return
+            }
             // A picker or menu inside the cell handles its own keys first.
             if (event.defaultPrevented) return
             if (event.key === "Escape") { handled(); finishEdit(true); return }
@@ -471,9 +684,19 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
             return
         }
         if (event.target !== event.currentTarget || event.altKey) return
-        const index = selection.current ? keys.indexOf(selection.current) : -1
+        const index = selection.current ? navKeys.indexOf(selection.current) : -1
         const column = columns.find((col) => col.name === currentColumn)
         if (event.metaKey || event.ctrlKey) {
+            if (event.code === "KeyZ" && !event.shiftKey) {
+                handled()
+                undo()
+                return
+            }
+            if (event.code === "KeyD" && !event.shiftKey && editable && !disabled) {
+                handled()
+                fillLines()
+                return
+            }
             if (event.code === "KeyA" && !event.shiftKey && keys.length) {
                 handled()
                 setSelection({ selected: keys, current: selection.current ?? keys[0], anchor: selection.anchor ?? keys[0] })
@@ -490,11 +713,19 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
             }
             return
         }
-        const target = rowMoveTarget(event.key, index, rows.length, PAGE_ROWS)
+        const target = rowMoveTarget(event.key, index, navKeys.length, PAGE_ROWS)
         if (target !== null) {
             handled()
-            select(clickRow(selection, keys, keys[target], { shift: event.shiftKey, toggle: false }))
+            select(clickRow(selection, navKeys, navKeys[target], { shift: event.shiftKey, toggle: false }))
             if (!currentColumn && columns[0]) setCurrentColumn(columns[0].name)
+            return
+        }
+        // Type-to-edit (Excel, 1C): a printable key on an editable cell opens it
+        // with that key typed; a reference cell opens its picker searching for it.
+        if (event.key.length === 1 && index !== -1 && column && column.type !== "boolean" && !disabled
+            && isEditableColumn(column, writable, readOnly) && !(event.key === " " && column.type === "reference")) {
+            handled()
+            startEdit(navKeys[index], column, event.key)
             return
         }
         switch (event.key) {
@@ -512,7 +743,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                 if (index === -1 || !column || !isEditableColumn(column, writable, readOnly) || disabled) return
                 if (event.key === " " && column.type !== "boolean") return
                 handled()
-                startEdit(keys[index], column)
+                startEdit(navKeys[index], column)
                 return
             case "Delete":
                 if (editable && !disabled) { handled(); deleteLines() }
@@ -537,7 +768,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
     const hasTarget = targetCount > 0
     const hasMany = targetCount > 1
     const currentIndex = selection.current ? keys.indexOf(selection.current) : -1
-    const statusText = hasMany
+    const statusText = selection.current === ghostKey && showGhost ? `Новая строка · ${linesLabel(rows.length)}` : hasMany
         ? `Выделено ${targetCount} из ${rows.length}`
         : currentIndex !== -1 ? `Строка ${currentIndex + 1} из ${rows.length}` : linesLabel(rows.length)
 
@@ -565,6 +796,9 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                         )}
                         <ContextMenuItem disabled={disabled || !hasTarget} onSelect={duplicateLines}>
                             <CopyPlus className="mr-2 h-3.5 w-3.5" />{hasMany ? "Скопировать строки" : "Скопировать строку"}{cellMode && <ContextMenuShortcut>F9</ContextMenuShortcut>}
+                        </ContextMenuItem>
+                        <ContextMenuItem disabled={disabled || !fillTarget} onSelect={fillLines}>
+                            <ArrowDownToLine className="mr-2 h-3.5 w-3.5" />Заполнить выделенные{cellMode && <ContextMenuShortcut>Ctrl+D</ContextMenuShortcut>}
                         </ContextMenuItem>
                         <ContextMenuSeparator />
                         <ContextMenuItem disabled={disabled || !movedLines(-1)} onSelect={() => moveLines(-1)}>
@@ -606,6 +840,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
             <div
                 ref={gridRef}
                 className={cn("overflow-hidden rounded-md border bg-card text-sm shadow-control", cellMode && "outline-none focus-visible:ring-1 focus-visible:ring-ring")}
+                onPaste={onGridPaste}
                 {...(cellMode ? { tabIndex: 0, onKeyDown: onGridKeyDown, onBlur: onGridBlur, "data-cell-mode": "true" } : {})}
             >
                 {editable && (
@@ -622,6 +857,8 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                             )}
                             <CommandButton label={hasMany ? "Скопировать строки" : "Скопировать строку"} shortcut={cellMode ? "F9" : undefined}
                                 icon={<CopyPlus className="h-3.5 w-3.5" />} disabled={disabled || !hasTarget} onClick={duplicateLines} />
+                            <CommandButton label="Заполнить выделенные значением текущей строки" shortcut={cellMode ? "Ctrl+D" : undefined}
+                                icon={<ArrowDownToLine className="h-3.5 w-3.5" />} disabled={disabled || !fillTarget} onClick={fillLines} />
                             <span className="mx-1 h-4 w-px bg-border" aria-hidden />
                             <CommandButton label="Переместить вверх" shortcut={cellMode ? "Ctrl+Shift+↑" : undefined}
                                 icon={<ArrowUp className="h-3.5 w-3.5" />} disabled={disabled || !movedLines(-1)} onClick={() => moveLines(-1)} />
@@ -630,6 +867,9 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                             <span className="mx-1 h-4 w-px bg-border" aria-hidden />
                             <CommandButton label={hasMany ? "Удалить строки" : "Удалить строку"} shortcut={cellMode ? "Del" : undefined} destructive
                                 icon={<Trash2 className="h-3.5 w-3.5" />} disabled={disabled || !hasTarget} onClick={deleteLines} />
+                            <span className="mx-1 h-4 w-px bg-border" aria-hidden />
+                            <CommandButton label={history.length ? `Отменить: ${history[history.length - 1].label}` : "Отменить"} shortcut={cellMode ? "Ctrl+Z" : undefined}
+                                icon={<Undo2 className="h-3.5 w-3.5" />} disabled={disabled || !history.length} onClick={undo} />
                             <span className="ml-auto px-1.5 text-xs tabular-nums text-muted-foreground" aria-live="polite">{statusText}</span>
                         </div>
                     </TooltipProvider>
@@ -668,16 +908,17 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                     </thead>
                     {/* The last line's rule would double the footer's (or the frame's) edge. */}
                     <tbody className="[&>tr:last-child>td]:border-b-0">
-                        {rows.length === 0 && (
+                        {rows.length === 0 && !showGhost && (
                             <tr>
                                 <td colSpan={columns.length + 1} className="border-b px-3 py-4 text-center text-muted-foreground">
                                     {editable ? (target && pickEndpoint ? "Нет строк. «Добавить» — одну строку, «Подбор» — сразу несколько позиций" : "Нет строк. Добавьте первую командой «Добавить»") : "Нет строк"}
                                 </td>
                             </tr>
                         )}
-                        {rows.map((row, index) => {
+                        {(showGhost ? [...rows, { [ROW_KEY]: ghostKey }] : rows).map((row, index) => {
                             const lineNo = index + 1
-                            const key = keys[index]
+                            const key = navKeys[index]
+                            const isGhost = key === ghostKey && showGhost
                             const isCurrent = selection.current === key
                             const numberCell = (
                                 <td className={cn("sticky left-0 z-10 cursor-pointer select-none border-b bg-inherit px-2 py-0.5 tabular-nums scroll-my-9", rowHeight,
@@ -685,11 +926,15 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                     isCurrent ? "font-medium text-foreground shadow-[inset_2px_0_0_hsl(var(--ring))]"
                                         : selectedSet.has(key) ? "text-muted-foreground shadow-[inset_2px_0_0_hsl(var(--ring)/0.45)]" : "text-muted-foreground")}
                                     onMouseDown={onCellMouseDown} onClick={(event) => onCellClick(key, null, event)}
-                                    onContextMenu={wrapRowInMenu ? undefined : () => onLineContextMenu(key)}>{lineNo}</td>
+                                    onContextMenu={wrapRowInMenu ? undefined : () => onLineContextMenu(key)}
+                                    title={isGhost ? "Новая строка: начните вводить в любую ячейку" : undefined}>
+                                    {isGhost ? <Plus className="h-3.5 w-3.5 text-muted-foreground/70" aria-label="Новая строка" /> : lineNo}
+                                </td>
                             )
                             const rowElement = (
                                 <tr key={key} data-selected={selectedSet.has(key) ? "true" : undefined} data-current={isCurrent ? "true" : undefined}
                                     onContextMenu={wrapRowInMenu ? () => onLineContextMenu(key) : undefined}
+                                    data-entry-line={isGhost ? "true" : undefined}
                                     className={cn("align-middle", isCurrent ? CURRENT_BG : selectedSet.has(key) ? SELECTED_BG : ROW_BG)}>
                                     {wrapRowInMenu ? numberCell : lineMenu(numberCell)}
                                     {columns.map((column, columnIndex) => {
@@ -707,7 +952,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                             </SelectionSummaryPopover>
                                         ) : cell
 
-                                        const missing = cellEditable && column.required && column.type !== "boolean" && isEmptyValue(row[column.name])
+                                        const missing = !isGhost && cellEditable && column.required && column.type !== "boolean" && isEmptyValue(row[column.name])
                                         const isErrorCell = missing && errorCell === `${key}|${column.name}`
                                         if (cellMode && !isEditing) {
                                             // Cell mode: the value as text; a double click opens it.
@@ -753,7 +998,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                                         value={typeof row[column.name] === "string" ? String(row[column.name]) : ""}
                                                         displayName={referenceDisplayName(row, column.name)}
                                                         onChange={(value, display) => {
-                                                            onChange(setCell(rows, index, column.name, value, display))
+                                                            updateCell(index, column.name, value, display)
                                                             if (isEditing) {
                                                                 // Picking a value finishes the cell; focus returns to the
                                                                 // grid once the picker has handed it back.
@@ -762,12 +1007,16 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                                             }
                                                         }}
                                                         apiEndpoint={endpoint}
-                                                        placeholder="Выберите…"
+                                                        placeholder={isGhost ? "" : "Выберите…"}
                                                         compact
                                                         disabled={disabled}
                                                     />
+                                                ) : CALC_TYPES.has(column.type) ? (
+                                                    <NumberCellInput value={row[column.name]} integer={column.type === "integer"} disabled={disabled}
+                                                        // A decimal the server sent as text stays text (the wire contract), a number stays a number.
+                                                        onValue={(value) => updateCell(index, column.name, typeof row[column.name] === "string" ? String(value) : value)} />
                                                 ) : (
-                                                    renderInput(column, row[column.name], (value) => onChange(setCell(rows, index, column.name, value)))
+                                                    renderInput(column, row[column.name], (value) => updateCell(index, column.name, value))
                                                 )}
                                             </td>)
                                         )

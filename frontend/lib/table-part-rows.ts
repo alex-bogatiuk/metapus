@@ -51,9 +51,28 @@ export const ROW_KEY = "__rowKey"
 
 let nextRowKey = 0
 
-export function addRow(rows: JsonObject[]): JsonObject[] {
+/** A fresh client key for a line not saved yet. */
+export function newRowKey(): string {
     nextRowKey += 1
-    return [...rows, { [ROW_KEY]: `new-${nextRowKey}` }]
+    return `new-${nextRowKey}`
+}
+
+export function addRow(rows: JsonObject[]): JsonObject[] {
+    return [...rows, { [ROW_KEY]: newRowKey() }]
+}
+
+/**
+ * Gives the lines with the given keys the source line's value of a column
+ * (1C "Заполнить", Excel Ctrl+D), with a reference's display alongside.
+ */
+export function fillColumn(rows: JsonObject[], keys: ReadonlySet<string>, source: JsonObject, column: string): JsonObject[] {
+    const display = referenceDisplayKey(column)
+    return rows.map((row, index) => {
+        if (!keys.has(rowKey(row, index))) return row
+        const next: JsonObject = { ...row, [column]: source[column] ?? null }
+        if (display && display in source) next[display] = source[display]
+        return next
+    })
 }
 
 /** A stable key for a row: its lineId once saved, its client key before. */
@@ -115,8 +134,7 @@ export function copyRows(rows: JsonObject[], keys: ReadonlySet<string>, writable
     const sources = rows.filter((row, index) => keys.has(rowKey(row, index)))
     if (sources.length === 0) return { rows, copied: [] }
     const copies = sources.map((source) => {
-        nextRowKey += 1
-        const copy: JsonObject = { [ROW_KEY]: `new-${nextRowKey}` }
+        const copy: JsonObject = { [ROW_KEY]: newRowKey() }
         for (const field of writable) {
             if (LINE_IDENTITY_COLUMNS.has(field) || !(field in source)) continue
             copy[field] = source[field]
