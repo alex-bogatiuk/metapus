@@ -614,7 +614,7 @@ export function CatalogListPage<T extends { id: string }>({
   }, [focusedItem])
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" data-list-page>
       <DataToolbar
         title={title}
         onCreateHref={config.createHref}

@@ -147,6 +147,11 @@ function SortIcon({
     )
 }
 
+/** The list page (marked data-list-page) whose toolbar hands focus back to the table. */
+const LIST_PAGE_SELECTOR = "[data-list-page]"
+const OVERLAY_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]'
+const OPEN_OVERLAY_SELECTOR = '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [role="menu"][data-state="open"]'
+
 /** Rows that fit the table's scroll viewport below its header: a PageUp/PageDown step. */
 function visibleRowCount(table: HTMLTableElement): number {
     const viewport = table.closest<HTMLElement>("[data-radix-scroll-area-viewport]") ?? table.parentElement
@@ -325,6 +330,42 @@ export function DataTable<T extends { id: string }>({
         const onKeyDown = (event: KeyboardEvent) => navigateRef.current(event)
         document.addEventListener("keydown", onKeyDown)
         return () => document.removeEventListener("keydown", onKeyDown)
+    }, [])
+
+    // 1C style: when a menu or dialog of this list closes and hands focus
+    // back to a toolbar button, focus returns to the current row, so the
+    // keyboard keeps working in the table. Focus given to an editor (search,
+    // a filter field) or to anything outside the list page stays where it is.
+    useEffect(() => {
+        let fromOverlay = false
+        const noteOrigin = (event: Event) => {
+            fromOverlay = event.target instanceof Element && event.target.closest(OVERLAY_SELECTOR) !== null
+        }
+        const onFocusIn = (event: FocusEvent) => {
+            if (!fromOverlay) return
+            const target = event.target
+            const table = tableRef.current
+            if (!(target instanceof HTMLElement) || !table || table.contains(target) || isEditable(target)) return
+            if (target.closest(OVERLAY_SELECTOR)) return
+            const page = table.closest(LIST_PAGE_SELECTOR)
+            if (!page?.contains(target)) return
+            fromOverlay = false
+            requestAnimationFrame(() => {
+                // Another overlay may have opened meanwhile (a menu item that opens a dialog).
+                if (document.activeElement !== target || document.querySelector(OPEN_OVERLAY_SELECTOR)) return
+                const row = table.querySelector<HTMLElement>('tr[data-focused="true"]')
+                if (row) row.focus({ preventScroll: true })
+                else target.blur()
+            })
+        }
+        document.addEventListener("pointerdown", noteOrigin, true)
+        document.addEventListener("keydown", noteOrigin, true)
+        document.addEventListener("focusin", onFocusIn)
+        return () => {
+            document.removeEventListener("pointerdown", noteOrigin, true)
+            document.removeEventListener("keydown", noteOrigin, true)
+            document.removeEventListener("focusin", onFocusIn)
+        }
     }, [])
 
     // Determine the checked state for the header checkbox
