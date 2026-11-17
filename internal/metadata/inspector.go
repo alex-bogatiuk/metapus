@@ -177,6 +177,7 @@ func inspectColumns(t reflect.Type) []FieldDef {
 			Name:       jsonName(field),
 			Label:      label,
 			Required:   isRequired(field),
+			ReadOnly:   isReadOnly(field),
 			ListHidden: metaHasListFalse(field),
 		}
 		mapFieldType(&fDef, field)

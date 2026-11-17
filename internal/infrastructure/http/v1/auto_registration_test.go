@@ -317,7 +317,9 @@ func TestAutoDocumentPartsKeepKnownLineIDsAndRenumber(t *testing.T) {
 	require.Equal(t, kept, stored.Items[1].LineID, "a stored line keeps its id")
 	require.NotEqual(t, kept, stored.Items[2].LineID, "an id already taken by an earlier line is replaced")
 	require.Equal(t, []int{1, 2, 3}, []int{stored.Items[0].LineNo, stored.Items[1].LineNo, stored.Items[2].LineNo})
-	require.Empty(t, stored.Items[1].Batch, "read-only line fields are the server's to fill")
+	require.Equal(t, "B-1", stored.Items[1].Batch, "a kept line keeps its read-only fields")
+	require.Empty(t, stored.Items[0].Batch, "a new line starts without them")
+	require.Equal(t, 2, stored.Items[1].Quantity, "a kept line takes the requested writable fields")
 	require.Equal(t, "Доставка", stored.Services[0].Title, "an omitted part keeps its stored lines")
 
 	request.FieldByName("Services").Set(reflect.MakeSlice(reflect.SliceOf(shape.parts[1].create), 0, 0))

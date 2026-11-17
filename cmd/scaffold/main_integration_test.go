@@ -399,6 +399,7 @@ func TestDeclaredDocumentStoresItsTablePartsWithTheHeader(t *testing.T) {
 	require.Equal(t, goodsIDs[0], items[1]["lineId"])
 	require.Equal(t, float64(1), items[0]["lineNo"], "lines are renumbered by position")
 	require.Equal(t, float64(6), items[0]["quantity"])
+	require.Equal(t, "B-7", items[0]["batch"], "a kept line keeps the read-only columns the server filled")
 	require.Equal(t, "Болты", items[2]["product"].(map[string]any)["name"])
 	newIDs := stored("doc_goods_receipts__goods", docID)
 	require.Equal(t, []string{goodsIDs[1], goodsIDs[0], items[2]["lineId"].(string)}, newIDs)

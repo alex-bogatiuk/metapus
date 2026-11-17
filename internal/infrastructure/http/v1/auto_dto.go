@@ -376,8 +376,9 @@ func (s *autoShape) applyAutoRequest(request reflect.Value, model any) {
 
 // apply replaces the model's lines with the requested ones. A requested
 // lineId is kept only when it names a stored line of this document not yet
-// taken by an earlier line; every other line gets a new id. Lines are
-// numbered by position.
+// taken by an earlier line; that line keeps its read-only fields (filled by
+// the server, e.g. at posting) and takes the request's writable ones. Every
+// other line is new, with a new id. Lines are numbered by position.
 func (p autoPart) apply(requested, stored reflect.Value) {
 	if requested.IsNil() {
 		if stored.IsNil() {
@@ -385,22 +386,25 @@ func (p autoPart) apply(requested, stored reflect.Value) {
 		}
 		return
 	}
-	known := map[id.ID]bool{}
+	known := map[id.ID]reflect.Value{}
 	for i := 0; i < stored.Len(); i++ {
-		known[stored.Index(i).FieldByName(p.lineID).Interface().(id.ID)] = true
+		line := stored.Index(i)
+		known[line.FieldByName(p.lineID).Interface().(id.ID)] = line
 	}
 	lines := reflect.MakeSlice(stored.Type(), requested.Len(), requested.Len())
 	for i := 0; i < requested.Len(); i++ {
 		in, line := requested.Index(i), lines.Index(i)
-		for _, name := range p.writable {
-			line.FieldByName(name).Set(in.FieldByName(name))
-		}
 		lineID := id.New()
 		if keep := in.FieldByName("LineID"); !keep.IsNil() {
-			if candidate := keep.Elem().Interface().(id.ID); known[candidate] {
+			candidate := keep.Elem().Interface().(id.ID)
+			if previous, ok := known[candidate]; ok {
+				line.Set(previous)
 				lineID = candidate
 				delete(known, candidate)
 			}
+		}
+		for _, name := range p.writable {
+			line.FieldByName(name).Set(in.FieldByName(name))
 		}
 		line.FieldByName(p.lineID).Set(reflect.ValueOf(lineID))
 		line.FieldByName(p.lineNo).SetInt(int64(i + 1))

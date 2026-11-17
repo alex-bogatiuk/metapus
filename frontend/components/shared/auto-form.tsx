@@ -69,7 +69,10 @@ import { createTabStateKey } from "@/stores/useTabStateStore"
 import { minorUnitsSchema } from "@/lib/money"
 import type { EntityMetadata, MetadataField } from "@/lib/schemas/metadata"
 import { parseEntityValues } from "@/lib/schemas/entity-values"
-import { projectFormRequest } from "@/lib/http-contracts"
+import { formRequestParts, projectFormRequest } from "@/lib/http-contracts"
+import { resolveRefEndpoint } from "@/lib/reference-endpoint"
+import { TablePartEditor } from "@/components/shared/table-part-editor"
+import { LineInputError, checkRequiredCells } from "@/lib/table-part-rows"
 
 const tabStateKeys = {
   "autoFormMeta": createTabStateKey<EntityMetaDef | null>("frontend/components/shared/auto-form.tsx:autoFormMeta"),
@@ -116,17 +119,6 @@ const HIDDEN_FIELDS = new Set([
     "posted", "postedVersion", "txid", "deletedAt",
     "basisType", "basisId",
 ])
-
-/**
- * Resolve a referenceType to an API endpoint path.
- * Uses metadata store (byKey) to find entity type + routePrefix.
- */
-function resolveRefEndpoint(referenceType: string): string | null {
-    const entity = useMetadataStore.getState().byKey[referenceType]
-    if (!entity?.routePrefix) return null
-    const prefix = entity.type === "document" ? "/document" : "/catalog"
-    return `${prefix}/${entity.routePrefix}`
-}
 
 function isRenderableItemAction(action: EntityActionDef, placement: "formToolbar" | "toolbarMenu"): boolean {
     if (action.scope !== "item" || !action.ui?.[placement]) return false
@@ -438,6 +430,10 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
     const canPrint = isDocument && !isNew && !!id && documentCapabilities?.printForms === true
     const formReadOnly = readOnly || (!isNew && isDocument && !canUpdate && !canRepost)
 
+    // Table-part line fields come from the form's own request contract: create
+    // for a new document, update (repost takes the same request) otherwise.
+    const tablePartFields = formRequestParts(isNew ? "POST" : "PUT", isNew ? basePath : `${basePath}/${id}`)
+
     const handleFieldChange = useCallback((name: string, value: JsonValue) => {
         editDraft(name, value)
     }, [editDraft])
@@ -494,6 +490,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                     if (!minorUnitsSchema.safeParse(data[field.name]).success) throw new Error(`${field.label ?? field.name}: введите целое число минимальных единиц в допустимом диапазоне`)
                 }
             }
+            checkRequiredCells(meta.tableParts ?? [], data, tablePartFields)
             const requisites = entityType === "catalog" ? buildCatalogFormPayload(meta.fields, data, isNew, hiddenFields) : data
             const repost = !isNew && isDocument && ticket.draft.posted && canRepost
             const target = isNew ? basePath : `${basePath}/${id}${repost ? "/repost" : ""}`
@@ -518,6 +515,8 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
             if (!isCurrentSession(generation)) return
             if (err instanceof ApiError) {
                 toast.error(err.parsedBody?.message ?? `Не удалось сохранить данные (код ${err.status})`)
+            } else if (err instanceof LineInputError) {
+                toast.error(err.message)
             } else {
                 toast.error("Не удалось сохранить данные")
             }
@@ -539,6 +538,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
         try {
             if (canRepost) {
                 const target = `${basePath}/${id}/repost`
+                checkRequiredCells(meta.tableParts ?? [], ticket.draft, tablePartFields)
                 const payload = projectFormRequest("PUT", target, ticket.draft)
                 parseEntityValues(meta, payload, "request")
                 const updated = await apiFetch<Record<string, JsonValue>>(target, { method: "PUT", body: JSON.stringify(payload) })
@@ -556,6 +556,8 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
             if (!isCurrentSession(generation)) return
             if (err instanceof ApiError) {
                 toast.error(err.parsedBody?.message ?? "Не удалось провести документ")
+            } else if (err instanceof LineInputError) {
+                toast.error(err.message)
             } else {
                 toast.error("Не удалось провести документ")
             }
@@ -908,36 +910,20 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                             })}
                         </div>
 
-                        {/* Table parts */}
-                        {meta.tableParts?.map((tp) => {
-                            const visibleColumns = tp.columns.filter((column) => !HIDDEN_FIELDS.has(column.name))
-                            const gridTemplateColumns = `repeat(${visibleColumns.length}, 1fr)`
-                            const rows = z.array(jsonObjectSchema).parse(formData[tp.name] ?? [])
-
-                            return (
-                                <div key={tp.name} className="space-y-2 mt-8">
-                                    <Label className="text-sm font-semibold">{tp.label || tp.name}</Label>
-                                    <div className="rounded border text-sm">
-                                        <div className="grid border-b bg-muted/50 px-3 py-2 font-medium" style={{ gridTemplateColumns }}>
-                                            {visibleColumns.map((col) => (
-                                                <div key={col.name}>{col.label || col.name}</div>
-                                            ))}
-                                        </div>
-                                        {rows.length > 0 ? (
-                                            rows.map((row, idx) => (
-                                                <div key={idx} className="grid border-b px-3 py-2 last:border-0" style={{ gridTemplateColumns }}>
-                                                    {visibleColumns.map((col) => (
-                                                        <div key={col.name} className="truncate">{String(row[col.name] ?? "")}</div>
-                                                    ))}
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <div className="px-3 py-4 text-center text-muted-foreground">Нет строк</div>
-                                        )}
-                                    </div>
-                                </div>
-                            )
-                        })}
+                        {/* Table parts: lines the form's request accepts are editable */}
+                        {meta.tableParts?.map((tp) => (
+                            <TablePartEditor
+                                key={tp.name}
+                                part={tp}
+                                rows={z.array(jsonObjectSchema).parse(formData[tp.name] ?? [])}
+                                writable={tablePartFields[tp.name] ?? null}
+                                readOnly={formReadOnly}
+                                disabled={saving}
+                                hiddenColumns={HIDDEN_FIELDS}
+                                onChange={(rows) => handleFieldChange(tp.name, rows)}
+                                renderInput={(column, value, onChange) => fieldToInput(column, value, (_, next) => onChange(next), saving, false)}
+                            />
+                        ))}
                     </div>
 
                     {/* Entity-specific extensions (e.g. API keys, user access).

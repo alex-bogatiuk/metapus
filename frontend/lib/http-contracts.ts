@@ -1,6 +1,6 @@
 import { httpRoutes } from "@/lib/generated/http-contract-routes"
 import type { HTTPRouteContract } from "@/lib/http-contract-types"
-import type { JsonObject } from "@/lib/json-value"
+import type { JsonObject, JsonValue } from "@/lib/json-value"
 
 type IndexedRoute = { contract: HTTPRouteContract; segments: string[] }
 
@@ -55,7 +55,24 @@ export function projectFormRequest(method: string, path: string, draft: JsonObje
   if (!contract?.request || !contract.requestFields) throw new Error(`No form request contract for ${method} ${path}`)
   const payload = Object.fromEntries(contract.requestFields
     .filter(name => Object.prototype.hasOwnProperty.call(draft, name))
-    .map(name => [name, draft[name]]))
+    .map(name => [name, projectRows(contract.requestParts?.[name], draft[name])]))
   contract.request.parse(payload)
   return payload
+}
+
+// A table part's rows carry response-only values (lineNo, reference displays,
+// read-only columns); the request takes only the fields its line contract declares.
+function projectRows(fields: readonly string[] | undefined, value: JsonValue): JsonValue {
+  if (!fields || !Array.isArray(value)) return value
+  return value.map(row => row !== null && typeof row === "object" && !Array.isArray(row)
+    ? Object.fromEntries(fields.filter(name => row[name] !== undefined && row[name] !== null).map(name => [name, row[name]]))
+    : row)
+}
+
+/**
+ * Line fields the form request of method/path accepts for each table part;
+ * a part without them is not writable through that request.
+ */
+export function formRequestParts(method: string, path: string): Readonly<Record<string, readonly string[]>> {
+  return findHTTPContract("api", method, path)?.requestParts ?? {}
 }
