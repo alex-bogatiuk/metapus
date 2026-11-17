@@ -16,7 +16,7 @@ import { amountUnitPairs, displayValue } from "@/lib/form-layout"
 import { EMPTY_ROW_SELECTION, clickRow, keepExisting, rowMoveTarget, summaryRows, type RowSelection } from "@/lib/row-selection"
 import { fieldSummaryExtractor, isSummableField, summarize, summaryCopyText, summaryGroupText, type SelectionSummary } from "@/lib/selection-summary"
 import { SelectionSummaryPopover, copyText } from "@/components/shared/selection-summary-popover"
-import { useTablePartCellMode } from "@/hooks/useCompactMode"
+import { useCompactMode, useTablePartCellMode } from "@/hooks/useCompactMode"
 import { TablePartPickDialog } from "@/components/shared/table-part-pick-dialog"
 import { documentQuantities, pickTarget, transferPicks, type CartLine } from "@/lib/pick-lines"
 import { useColumnResize } from "@/hooks/useColumnResize"
@@ -53,6 +53,32 @@ const CURRENT_CELL = "shadow-[inset_0_0_0_1px_hsl(var(--ring))]"
 const ERROR_CELL = "shadow-[inset_0_0_0_1px_hsl(var(--destructive))] bg-destructive/5"
 /** Width of the № column, px. */
 const NUMBER_COLUMN = 44
+/** Auto-fit bounds of a column, px. */
+const FIT_MIN = 64
+const FIT_MAX = 640
+/** Air added to the widest content of a fitted column, px. */
+const FIT_AIR = 6
+
+/**
+ * Line backgrounds are opaque (mixed with the card colour) so the frozen
+ * № and item cells, which inherit them, hide what scrolls beneath.
+ */
+const ROW_BG = "bg-card hover:bg-[color:color-mix(in_srgb,hsl(var(--muted))_45%,hsl(var(--card)))]"
+const SELECTED_BG = "bg-[color:color-mix(in_srgb,hsl(var(--accent))_55%,hsl(var(--card)))]"
+const CURRENT_BG = "bg-accent"
+
+/**
+ * In-cell editors without a frame until hovered or focused (as in Google
+ * Sheets and Airtable): the grid reads as data, not as a stack of inputs.
+ */
+const QUIET_EDITORS = cn(
+    "[&_input]:border-transparent [&_input]:bg-transparent [&_input]:shadow-none hover:[&_input]:border-input",
+    "[&_input:focus-visible]:border-ring [&_input:focus-visible]:bg-field",
+    "[&_[role=combobox]]:border-transparent [&_[role=combobox]]:bg-transparent [&_[role=combobox]]:shadow-none hover:[&_[role=combobox]]:border-input",
+    // One type size across the line: a picker reads like the text and numbers beside it.
+    "[&_[role=combobox]]:text-sm",
+    "[&_[role=combobox]_svg]:opacity-0 hover:[&_[role=combobox]_svg]:opacity-100 focus-within:[&_[role=combobox]_svg]:opacity-100",
+)
 
 /** A column's starting width by what it holds: references and texts wide, numbers and flags narrow. */
 function defaultColumnWidth(column: MetadataField): number {
@@ -151,6 +177,10 @@ function cellText(row: JsonObject, column: MetadataField): string {
  */
 export function TablePartEditor({ part, rows, writable, readOnly, disabled, hiddenColumns, bare = false, onChange, renderInput, widthsKey, focusRequest }: TablePartEditorProps) {
     const cellMode = useTablePartCellMode()
+    const compact = useCompactMode()
+    // 32 px lines (28 in compact mode): editors 28/24 px high in 2 px of padding.
+    const rowHeight = compact ? "h-7" : "h-8"
+    const editorHeight = compact ? "[&_input]:h-6" : "[&_input]:h-7"
     const columns = useMemo(
         () => part.columns.filter((column) => !hiddenColumns.has(column.name) && !LINE_IDENTITY_COLUMNS.has(column.name)),
         [part.columns, hiddenColumns],
@@ -190,6 +220,35 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
     const onWidthsChange = useCallback((widths: Record<string, number>) => { if (widthsKey) saveWidths(widthsKey, widths) }, [widthsKey, saveWidths])
     const { colWidths, onResizeStart, isResizing } = useColumnResize({ columns: resizeDefs, storedWidths, onWidthsChange })
     const tableWidth = NUMBER_COLUMN + colWidths.reduce((total, width) => total + width, 0)
+    // № and the first column (the item, as a rule) stay put when the grid scrolls sideways.
+    const frozenWidth = NUMBER_COLUMN + (columns.length > 1 ? colWidths[0] ?? 0 : 0)
+    const scrollRef = useRef<HTMLDivElement>(null)
+    /**
+     * Double click on a column edge fits the column to its widest content, as
+     * in Excel. Each cell's text is measured in its own font, and the room
+     * around the text in that cell (padding, a picker's icons) is added.
+     */
+    const fitColumn = (index: number) => {
+        const table = scrollRef.current?.querySelector("table")
+        const context = document.createElement("canvas").getContext("2d")
+        if (!table || !context || !widthsKey) return
+        const padding = (element: HTMLElement) => {
+            const style = getComputedStyle(element)
+            return parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
+        }
+        let widest = 0
+        table.querySelectorAll<HTMLElement>(`tr > :nth-child(${index + 2})`).forEach((cell) => {
+            const input = cell.querySelector<HTMLInputElement>("input:not([type=checkbox])")
+            // The text holder: an input, a picker's label (inside its button, past its icons), a footer total, else the cell.
+            const holder = input ?? cell.querySelector<HTMLElement>("[role=combobox] > span:first-child") ?? cell.querySelector<HTMLElement>("button") ?? cell
+            const text = input ? input.value : holder.innerText.trim()
+            context.font = getComputedStyle(holder).font
+            const around = holder === cell ? padding(cell) : cell.clientWidth - holder.clientWidth + padding(holder)
+            widest = Math.max(widest, context.measureText(text).width + around)
+        })
+        const width = Math.min(FIT_MAX, Math.max(FIT_MIN, Math.ceil(widest) + FIT_AIR))
+        saveWidths(widthsKey, Object.fromEntries(columns.map((column, i) => [column.name, i === index ? width : colWidths[i]])))
+    }
 
     // The cell a failed save pointed at stays marked until it is filled.
     const [errorCell, setErrorCell] = useState("")
@@ -575,24 +634,31 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                         </div>
                     </TooltipProvider>
                 )}
-                <div className="overflow-x-auto">
-                <table className={cn("w-full table-fixed border-collapse", isResizing && "select-none")} style={{ minWidth: tableWidth }}>
+                {/* The grid scrolls on its own once it is taller than the screen, as a
+                    1C table part does: the column header and the totals stay in view,
+                    and sideways scrolling keeps № and the item column in place. */}
+                <div ref={scrollRef} className="max-h-[max(18rem,calc(100dvh-15rem))] overflow-auto overscroll-contain">
+                <table className={cn("w-full table-fixed border-separate border-spacing-0", isResizing && "select-none")} style={{ minWidth: tableWidth }}>
                     <colgroup>
                         <col style={{ width: NUMBER_COLUMN }} />
                         {/* The last column takes the room left, as in 1C, so the others keep exactly the width they were given. */}
                         {columns.map((column, index) => <col key={column.name} style={{ width: index === columns.length - 1 ? undefined : colWidths[index] }} />)}
                     </colgroup>
-                    <thead className="bg-muted/50 text-xs text-muted-foreground">
-                        <tr className="border-b">
-                            <th scope="col" className="px-2 py-2 text-left font-medium">№</th>
+                    <thead className="text-xs text-muted-foreground">
+                        <tr>
+                            <th scope="col" className="sticky left-0 top-0 z-30 border-b bg-muted px-2 py-1.5 text-left font-medium">№</th>
                             {columns.map((column, index) => (
                                 <th key={column.name} scope="col"
-                                    className={cn("relative truncate px-2 py-2 text-left font-medium", NUMERIC.has(column.type) && "text-right",
-                                        currentColumn === column.name && "text-foreground")}>
+                                    className={cn("sticky top-0 z-20 truncate border-b bg-muted px-2 py-1.5 text-left font-medium", NUMERIC.has(column.type) && "text-right",
+                                        index === 0 && columns.length > 1 && "z-30 border-r",
+                                        currentColumn === column.name && "text-foreground")}
+                                    style={index === 0 && columns.length > 1 ? { left: NUMBER_COLUMN } : undefined}>
                                     {column.label || column.name}{column.required && editable ? <span className="text-destructive"> *</span> : null}
                                     {index < columns.length - 1 && (
-                                        <div aria-hidden className="group/resize absolute right-0 top-0 z-10 h-full w-[5px] cursor-col-resize hover:bg-primary/30 active:bg-primary/50"
-                                            onMouseDown={(event) => { event.preventDefault(); onResizeStart(index, event) }}>
+                                        <div aria-hidden title="Перетащите, чтобы изменить ширину; двойной клик — по содержимому"
+                                            className="group/resize absolute right-0 top-0 z-10 h-full w-[5px] cursor-col-resize hover:bg-primary/30 active:bg-primary/50"
+                                            onMouseDown={(event) => { event.preventDefault(); onResizeStart(index, event) }}
+                                            onDoubleClick={(event) => { event.preventDefault(); fitColumn(index) }}>
                                             <div className="absolute right-0 top-1/4 h-1/2 w-px bg-border group-hover/resize:bg-primary/60" />
                                         </div>
                                     )}
@@ -600,10 +666,11 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                             ))}
                         </tr>
                     </thead>
-                    <tbody>
+                    {/* The last line's rule would double the footer's (or the frame's) edge. */}
+                    <tbody className="[&>tr:last-child>td]:border-b-0">
                         {rows.length === 0 && (
                             <tr>
-                                <td colSpan={columns.length + 1} className="px-3 py-4 text-center text-muted-foreground">
+                                <td colSpan={columns.length + 1} className="border-b px-3 py-4 text-center text-muted-foreground">
                                     {editable ? (target && pickEndpoint ? "Нет строк. «Добавить» — одну строку, «Подбор» — сразу несколько позиций" : "Нет строк. Добавьте первую командой «Добавить»") : "Нет строк"}
                                 </td>
                             </tr>
@@ -613,21 +680,25 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                             const key = keys[index]
                             const isCurrent = selection.current === key
                             const numberCell = (
-                                <td className={cn("cursor-pointer select-none px-2 py-1 tabular-nums", isCurrent ? "font-medium text-foreground" : "text-muted-foreground")}
+                                <td className={cn("sticky left-0 z-10 cursor-pointer select-none border-b bg-inherit px-2 py-0.5 tabular-nums scroll-my-9", rowHeight,
+                                    // The accent bar of the current line sits on its frozen № cell, which hides the row's own edge.
+                                    isCurrent ? "font-medium text-foreground shadow-[inset_2px_0_0_hsl(var(--ring))]"
+                                        : selectedSet.has(key) ? "text-muted-foreground shadow-[inset_2px_0_0_hsl(var(--ring)/0.45)]" : "text-muted-foreground")}
                                     onMouseDown={onCellMouseDown} onClick={(event) => onCellClick(key, null, event)}
                                     onContextMenu={wrapRowInMenu ? undefined : () => onLineContextMenu(key)}>{lineNo}</td>
                             )
                             const rowElement = (
                                 <tr key={key} data-selected={selectedSet.has(key) ? "true" : undefined} data-current={isCurrent ? "true" : undefined}
                                     onContextMenu={wrapRowInMenu ? () => onLineContextMenu(key) : undefined}
-                                    className={cn("border-b align-middle transition-colors last:border-0",
-                                        // The current line carries an accent bar on its edge, as list rows do.
-                                        isCurrent ? "bg-accent shadow-[inset_2px_0_0_hsl(var(--ring))]"
-                                            : selectedSet.has(key) ? "bg-accent/50 shadow-[inset_2px_0_0_hsl(var(--ring)/0.45)]"
-                                                : "hover:bg-muted/40")}>
+                                    className={cn("align-middle", isCurrent ? CURRENT_BG : selectedSet.has(key) ? SELECTED_BG : ROW_BG)}>
                                     {wrapRowInMenu ? numberCell : lineMenu(numberCell)}
-                                    {columns.map((column) => {
+                                    {columns.map((column, columnIndex) => {
                                         const cellEditable = isEditableColumn(column, writable, readOnly)
+                                        // Every cell: a bottom rule, room for the sticky header and
+                                        // footer when revealed, and past the frozen columns sideways.
+                                        const frozen = columnIndex === 0 && columns.length > 1
+                                        const place = cn("border-b scroll-my-9", frozen && "sticky z-10 border-r bg-inherit")
+                                        const placeStyle: React.CSSProperties = frozen ? { left: NUMBER_COLUMN } : { scrollMarginLeft: frozenWidth }
                                         const isCurrentCell = selection.current === key && currentColumn === column.name
                                         const isEditing = cellMode && editingCell === `${key}|${column.name}`
                                         const withTotals = (cell: React.ReactElement) => isCurrentCell && summary && dismissedSummary !== summaryKey ? (
@@ -642,8 +713,8 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                             // Cell mode: the value as text; a double click opens it.
                                             return withTotals(
                                                 <td key={column.name} data-current-cell={isCurrentCell ? "true" : undefined} data-field={`${part.name}.${index}.${column.name}`}
-                                                    title={missing ? `Заполните «${column.label || column.name}»` : undefined}
-                                                    className={cn("h-9 cursor-default select-none truncate px-2 py-1",
+                                                    title={missing ? `Заполните «${column.label || column.name}»` : undefined} style={placeStyle}
+                                                    className={cn(place, rowHeight, "cursor-default select-none truncate px-2 py-0.5",
                                                         NUMERIC.has(column.type) && "text-right tabular-nums",
                                                         !cellEditable && "text-muted-foreground",
                                                         isCurrentCell && CURRENT_CELL, isErrorCell && ERROR_CELL)}
@@ -666,14 +737,15 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                             onFocusCapture: () => { setCurrentColumn(column.name); if (selection.current !== key) setSelection(only(key)) },
                                         }
                                         if (!cellEditable) {
-                                            return withTotals(<td key={column.name} data-current-cell={isCurrentCell ? "true" : undefined}
-                                                className={cn("truncate px-2 py-1 text-muted-foreground", NUMERIC.has(column.type) && "text-right tabular-nums", isCurrentCell && CURRENT_CELL)}
+                                            return withTotals(<td key={column.name} data-current-cell={isCurrentCell ? "true" : undefined} style={placeStyle}
+                                                className={cn(place, rowHeight, "truncate px-2 py-0.5 text-muted-foreground", NUMERIC.has(column.type) && "text-right tabular-nums", isCurrentCell && CURRENT_CELL)}
                                                 {...selectHandlers}>{cellText(row, column)}</td>)
                                         }
                                         const endpoint = column.type === "reference" && column.referenceType ? resolveRefEndpoint(column.referenceType) : null
                                         return (
                                             withTotals(<td key={column.name} data-current-cell={isCurrentCell ? "true" : undefined} data-editing={isEditing ? "true" : undefined}
-                                                className={cn("px-1 py-1", NUMERIC.has(column.type) && "[&_input]:text-right [&_input]:tabular-nums",
+                                                style={placeStyle}
+                                                className={cn(place, rowHeight, editorHeight, QUIET_EDITORS, "px-0.5 py-0.5", NUMERIC.has(column.type) && "[&_input]:text-right [&_input]:tabular-nums",
                                                     isCurrentCell && CURRENT_CELL, isErrorCell && ERROR_CELL)}
                                                 data-field={`${part.name}.${index}.${column.name}`} {...selectHandlers}>
                                                 {endpoint ? (
@@ -706,11 +778,12 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                         })}
                     </tbody>
                     {hasFooter && (
-                        <tfoot className="border-t bg-muted/40 text-sm font-medium">
+                        <tfoot className="text-sm font-medium">
                             <tr>
-                                <td className="px-2 py-1.5 text-xs font-normal text-muted-foreground">Итого</td>
+                                <td className="sticky bottom-0 left-0 z-30 border-t bg-muted px-2 py-1.5 text-xs font-normal text-muted-foreground">Итого</td>
                                 {columns.map((column, index) => (
-                                    <td key={column.name} className="px-1 py-1.5">
+                                    <td key={column.name} className={cn("sticky bottom-0 z-20 border-t bg-muted px-1 py-1.5", index === 0 && columns.length > 1 && "z-30 border-r")}
+                                        style={index === 0 && columns.length > 1 ? { left: NUMBER_COLUMN } : undefined}>
                                         {footer[index] ? <FooterTotal summary={footer[index]} /> : null}
                                     </td>
                                 ))}

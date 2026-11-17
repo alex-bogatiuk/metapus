@@ -950,7 +950,10 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                 } : undefined}
             />
 
-            <ScrollArea className="flex-1">
+            {/* The form's content keeps the panel's width (Radix lays the viewport's
+                content out as a table that grows to its widest child), so a wide
+                table part scrolls sideways inside its own frame, not the page. */}
+            <ScrollArea className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block [&_[data-radix-scroll-area-viewport]>div]:!min-w-0">
                 <div className="p-6">
                     <div className="max-w-3xl space-y-6">
                         {hasReasonedActions && formData.status === "pending_approval" && customFormActions.some((action) => !actionAvailability?.[action.key]?.allowed) && <Alert>
@@ -984,12 +987,17 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                                 {layout.wide.map((field) => renderFieldBlock(field))}
                             </div>
                         )}
+                    </div>
 
+                    {/* Table parts take the full width of the form, as in 1C and SAP:
+                        the header fields stay a readable column, the grid gets room
+                        for its columns. "Дополнительно" goes back to the column. */}
+                    <div className="space-y-6">
                         {layout.partsMode === "inline" && (
                             <>
                                 {tableParts.map((tp) => renderTablePart(tp, false))}
                                 {layout.extra.length > 0 && (
-                                    <Collapsible className="rounded border" data-form-zone="extra">
+                                    <Collapsible className="mt-6 max-w-3xl rounded border" data-form-zone="extra">
                                         <CollapsibleTrigger className="group flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium">
                                             <ChevronRight className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-90" />
                                             Дополнительно <span className="text-muted-foreground">({layout.extra.length})</span>
@@ -1004,7 +1012,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                             </>
                         )}
                         {layout.partsMode === "tabs" && (
-                            <Tabs value={activeTab} onValueChange={setActivePart} data-form-zone="parts">
+                            <Tabs value={activeTab} onValueChange={setActivePart} data-form-zone="parts" className="mt-6">
                                 <TabsList>
                                     {tableParts.map((tp) => {
                                         const count = Array.isArray(formData[tp.name]) ? (formData[tp.name] as JsonValue[]).length : 0
@@ -1028,7 +1036,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                                     </TabsContent>
                                 ))}
                                 {layout.extra.length > 0 && (
-                                    <TabsContent value={EXTRA_TAB} className="mt-3 grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
+                                    <TabsContent value={EXTRA_TAB} className="mt-3 grid max-w-3xl grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
                                         {layout.extra.map((field) => renderFieldBlock(field, true))}
                                     </TabsContent>
                                 )}
