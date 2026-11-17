@@ -90,6 +90,22 @@ function unitLabel(row: JsonObject, unit: PairableField): string {
 
 const NUMERIC_TYPES = new Set(["integer", "number", "decimal"])
 
+/** Per-unit values (a price, a rate, a percent) that mean nothing when added up. */
+const NON_ADDITIVE = /(price|rate|percent|pct|ratio|coef|factor|multiplier)/i
+
+/**
+ * Whether a column's values add up to a meaningful total (1C "Подвал"): a
+ * number or money, not a per-unit value such as a price or a rate.
+ */
+export function isSummableField(field: PairableField): boolean {
+    return (field.type === "money" || NUMERIC_TYPES.has(field.type)) && !NON_ADDITIVE.test(field.name)
+}
+
+/** A total group as shown: "1 234,5" or "1 234,5 USDT". */
+export function summaryGroupText(group: SummaryGroup): string {
+    return group.unit ? `${formatSummaryNumber(group.sum)} ${group.unit}` : formatSummaryNumber(group.sum)
+}
+
 /**
  * The extractor of a metadata field, or undefined when the field is not a
  * number. Money is minor units in the row's currency; another number takes

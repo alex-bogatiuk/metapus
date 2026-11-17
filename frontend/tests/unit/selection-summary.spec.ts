@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { fieldSummaryExtractor, formatSummaryNumber, numericOperand, summarize, summaryCopyText } from "../../lib/selection-summary"
+import { fieldSummaryExtractor, formatSummaryNumber, isSummableField, numericOperand, summarize, summaryCopyText, summaryGroupText } from "../../lib/selection-summary"
 import { EMPTY_ROW_SELECTION, clickRow, keepExisting, rowMoveTarget, rowRange, summaryRows } from "../../lib/row-selection"
 import { mergeListColumns } from "../../lib/metadata-columns"
 import type { MetadataField } from "../../lib/schemas/metadata"
@@ -76,4 +76,16 @@ test("arrow, page and Home/End keys move the current row within the rows", () =>
     expect(rowRange(keys, "b", "d")).toEqual(["b", "c", "d"])
     expect(rowRange(keys, "c", "a")).toEqual(["a", "b", "c"])
     expect(rowRange(keys, "gone", "c")).toEqual(["c"])
+})
+
+test("the footer totals quantities and amounts, not prices or rates", () => {
+    expect(isSummableField({ name: "quantity", type: "integer" })).toBe(true)
+    expect(isSummableField({ name: "amount", type: "money" })).toBe(true)
+    expect(isSummableField({ name: "discountAmount", type: "decimal" })).toBe(true)
+    expect(isSummableField({ name: "price", type: "money" })).toBe(false)
+    expect(isSummableField({ name: "vatRate", type: "decimal" })).toBe(false)
+    expect(isSummableField({ name: "discountPercent", type: "number" })).toBe(false)
+    expect(isSummableField({ name: "comment", type: "string" })).toBe(false)
+    expect(summaryGroupText({ unit: "USDT", count: 2, sum: "1234.5", average: "617.25" })).toBe("1\u00a0234,5 USDT")
+    expect(summaryGroupText({ unit: "", count: 2, sum: "26", average: "13" })).toBe("26")
 })

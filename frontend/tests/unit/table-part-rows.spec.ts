@@ -85,6 +85,12 @@ test("an empty required cell of a writable part is named before saving", () => {
   expect(() => checkRequiredCells([goods], { goods: [{ productId: "p-1" }] }, writable)).not.toThrow()
   expect(() => checkRequiredCells([goods], { goods: [{}] }, {}), "a part the request does not accept is not checked").not.toThrow()
   expect(() => checkRequiredCells([goods], { goods: [{}] }, writable)).toThrow(LineInputError)
+  // The error names the cell, so the form can put the user right into it.
+  try {
+    checkRequiredCells([goods], { goods: [{ productId: "p-1" }, { quantity: 2 }] }, writable)
+  } catch (error) {
+    expect(error).toMatchObject({ part: "goods", line: 1, column: "productId" })
+  }
 })
 
 test("F9 copies the selected lines after the last of them as new lines with only writable fields", () => {

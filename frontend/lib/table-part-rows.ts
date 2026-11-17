@@ -134,7 +134,8 @@ export function copyRows(rows: JsonObject[], keys: ReadonlySet<string>, writable
 
 /** A line the form can tell is incomplete before sending it. */
 export class LineInputError extends Error {
-    constructor(message: string, readonly part: string) {
+    /** The part, the line index and the column of the cell to fill. */
+    constructor(message: string, readonly part: string, readonly line = -1, readonly column = "") {
         super(message)
     }
 }
@@ -158,7 +159,7 @@ export function checkRequiredCells(
                 if (!column.required || !isEditableColumn(column, writable, false)) continue
                 const value = row[column.name]
                 if (value === undefined || value === null || value === "") {
-                    throw new LineInputError(`${part.label || part.name}, строка ${index + 1}: заполните «${column.label || column.name}»`, part.name)
+                    throw new LineInputError(`${part.label || part.name}, строка ${index + 1}: заполните «${column.label || column.name}»`, part.name, index, column.name)
                 }
             }
         })

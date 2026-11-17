@@ -445,6 +445,8 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
     const formRequestFields = formRequestFieldNames(isNew ? "POST" : "PUT", formRoute)
     const [activePart, setActivePart] = useState<string | undefined>(undefined)
     const [partError, setPartError] = useState<string | null>(null)
+    // The table part cell a failed save takes the user to.
+    const [lineFocus, setLineFocus] = useState<{ part: string; line: number; column: string; seq: number } | null>(null)
 
     const handleFieldChange = useCallback((name: string, value: JsonValue) => {
         editDraft(name, value)
@@ -531,6 +533,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
             } else if (err instanceof LineInputError) {
                 setPartError(err.part)
                 setActivePart(err.part)
+                setLineFocus({ part: err.part, line: err.line, column: err.column, seq: Date.now() })
                 toast.error(err.message)
             } else {
                 toast.error("Не удалось сохранить данные")
@@ -574,6 +577,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
             } else if (err instanceof LineInputError) {
                 setPartError(err.part)
                 setActivePart(err.part)
+                setLineFocus({ part: err.part, line: err.line, column: err.column, seq: Date.now() })
                 toast.error(err.message)
             } else {
                 toast.error("Не удалось провести документ")
@@ -812,6 +816,8 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
             bare={bare}
             onChange={(rows) => handleFieldChange(tp.name, rows)}
             renderInput={(column, value, onChange) => fieldToInput(column, value, (_, next) => onChange(next), saving, false)}
+            widthsKey={`${entityName}.${tp.name}`}
+            focusRequest={lineFocus?.part === tp.name ? lineFocus : null}
         />
     )
     const title = isNew

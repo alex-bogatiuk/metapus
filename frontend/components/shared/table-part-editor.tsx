@@ -1,11 +1,12 @@
 "use client"
 
-import React, { useEffect, useMemo, useRef, useState } from "react"
-import { ArrowDown, ArrowUp, CopyPlus, Plus, Trash2 } from "lucide-react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { ArrowDown, ArrowUp, ClipboardCopy, CopyPlus, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuShortcut, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { ReferenceField } from "@/components/shared/reference-field"
 import { OVERLAY_SELECTOR } from "@/components/shared/data-table"
 import type { JsonObject, JsonValue } from "@/lib/json-value"
@@ -13,9 +14,11 @@ import type { MetadataField } from "@/lib/schemas/metadata"
 import { resolveRefEndpoint } from "@/lib/reference-endpoint"
 import { amountUnitPairs, displayValue } from "@/lib/form-layout"
 import { EMPTY_ROW_SELECTION, clickRow, keepExisting, rowMoveTarget, summaryRows, type RowSelection } from "@/lib/row-selection"
-import { fieldSummaryExtractor, summarize } from "@/lib/selection-summary"
+import { fieldSummaryExtractor, isSummableField, summarize, summaryCopyText, summaryGroupText, type SelectionSummary } from "@/lib/selection-summary"
 import { SelectionSummaryPopover, copyText } from "@/components/shared/selection-summary-popover"
 import { useTablePartCellMode } from "@/hooks/useCompactMode"
+import { useColumnResize } from "@/hooks/useColumnResize"
+import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 import { cn } from "@/lib/utils"
 import {
     LINE_IDENTITY_COLUMNS, addRow, copyRows, isEditableColumn, moveRows, referenceDisplayName, removeRows,
@@ -35,12 +38,50 @@ export interface TablePartEditorProps {
     onChange: (rows: JsonObject[]) => void
     /** Renders a non-reference editor (the form's own field inputs). */
     renderInput: (column: MetadataField, value: JsonValue | undefined, onChange: (value: JsonValue) => void) => React.ReactNode
+    /** Key the user's column widths are kept under (entity and part); none keeps them for the page only. */
+    widthsKey?: string
+    /** A cell to take the user to (a required cell left empty); a new seq repeats the request. */
+    focusRequest?: { line: number; column: string; seq: number } | null
 }
 
 const NUMERIC = new Set(["integer", "number", "decimal", "money"])
 /** Rows a PageUp/PageDown step moves in a table part (it grows with the page, not scrolls). */
 const PAGE_ROWS = 10
 const CURRENT_CELL = "shadow-[inset_0_0_0_1px_hsl(var(--ring))]"
+const ERROR_CELL = "shadow-[inset_0_0_0_1px_hsl(var(--destructive))] bg-destructive/5"
+/** Width of the № column, px. */
+const NUMBER_COLUMN = 44
+
+/** A column's starting width by what it holds: references and texts wide, numbers and flags narrow. */
+function defaultColumnWidth(column: MetadataField): number {
+    if (column.type === "reference" || column.type === "typed_ref") return 240
+    if (NUMERIC.has(column.type)) return 120
+    if (column.type === "boolean") return 84
+    if (column.type === "date") return 130
+    if (column.type === "datetime") return 170
+    if (column.enumValues?.length) return 160
+    return 200
+}
+
+function isEmptyValue(value: JsonValue | undefined): boolean {
+    return value === undefined || value === null || value === ""
+}
+
+/** A footer total: the sum per unit, a click copies it for a calculator. */
+function FooterTotal({ summary }: { summary: SelectionSummary }) {
+    const groups = summary.groups
+    const copy = async () => {
+        const text = groups.map((group) => summaryCopyText(group.sum)).join("\t")
+        if (await copyText(text)) toast.success(`Скопировано: ${text}`)
+        else toast.error("Не удалось скопировать")
+    }
+    return (
+        <button type="button" tabIndex={-1} title="Скопировать итог" onMouseDown={(event) => event.preventDefault()} onClick={copy}
+            className="w-full truncate rounded px-1 text-right tabular-nums hover:bg-accent">
+            {groups.map(summaryGroupText).join(" · ")}
+        </button>
+    )
+}
 
 /** "1 строка", "3 строки", "5 строк". */
 function linesLabel(count: number): string {
@@ -106,9 +147,12 @@ function cellText(row: JsonObject, column: MetadataField): string {
  * Delete (Cmd+Backspace) removes the selected lines, Insert adds one, F9
  * copies the selected lines and Ctrl/Cmd+Shift+↑/↓ moves the current one.
  */
-export function TablePartEditor({ part, rows, writable, readOnly, disabled, hiddenColumns, bare = false, onChange, renderInput }: TablePartEditorProps) {
+export function TablePartEditor({ part, rows, writable, readOnly, disabled, hiddenColumns, bare = false, onChange, renderInput, widthsKey, focusRequest }: TablePartEditorProps) {
     const cellMode = useTablePartCellMode()
-    const columns = part.columns.filter((column) => !hiddenColumns.has(column.name) && !LINE_IDENTITY_COLUMNS.has(column.name))
+    const columns = useMemo(
+        () => part.columns.filter((column) => !hiddenColumns.has(column.name) && !LINE_IDENTITY_COLUMNS.has(column.name)),
+        [part.columns, hiddenColumns],
+    )
     const editable = !readOnly && writable !== null
     const title = part.label || part.name
 
@@ -130,6 +174,24 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
     const summaryKey = summary ? `${currentColumn}|${totalsRows?.join(",")}` : ""
     const selectedSet = new Set(selection.selected)
 
+    // Footer (1C "Подвал"): totals of the columns whose values add up, over all lines.
+    const footer = columns.map((column) => {
+        const extract = isSummableField(column) ? extractors.get(column.name) : undefined
+        return extract && rows.length ? summarize(rows.map(extract)) : null
+    })
+    const hasFooter = footer.some(Boolean)
+
+    // Column widths: by type at first, then as the user drags them, kept per entity and part.
+    const storedWidths = useUserPrefsStore((state) => (widthsKey ? state.getListColumnWidths(widthsKey) : undefined))
+    const saveWidths = useUserPrefsStore((state) => state.setListColumnWidths)
+    const resizeDefs = useMemo(() => columns.map((column) => ({ key: column.name, width: defaultColumnWidth(column), minWidth: 64 })), [columns])
+    const onWidthsChange = useCallback((widths: Record<string, number>) => { if (widthsKey) saveWidths(widthsKey, widths) }, [widthsKey, saveWidths])
+    const { colWidths, onResizeStart, isResizing } = useColumnResize({ columns: resizeDefs, storedWidths, onWidthsChange })
+    const tableWidth = NUMBER_COLUMN + colWidths.reduce((total, width) => total + width, 0)
+
+    // The cell a failed save pointed at stays marked until it is filled.
+    const [errorCell, setErrorCell] = useState("")
+
     // Cell mode: the cell open for editing and its row as it was, for Escape.
     // A line added by Insert is taken back by Escape while it is still open.
     const [editing, setEditing] = useState<{ key: string; column: string; original: JsonObject; added?: boolean } | null>(null)
@@ -149,6 +211,20 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
         if (control?.getAttribute("role") === "combobox" && control.getAttribute("aria-expanded") === "false") control.click()
     }, [editingCell])
 
+    // Scrolls to the cell the form sent the user to and, with inputs in the
+    // cells, focuses its input (cell mode opens the cell instead, see below).
+    const focusSeq = focusRequest?.seq
+    const focusField = focusRequest ? `${part.name}.${focusRequest.line}.${focusRequest.column}` : ""
+    useEffect(() => {
+        if (focusSeq === undefined || !focusField) return
+        const frame = requestAnimationFrame(() => {
+            const cell = gridRef.current?.querySelector<HTMLElement>(`td[data-field="${CSS.escape(focusField)}"]`)
+            cell?.scrollIntoView({ block: "center", inline: "nearest" })
+            if (!cellMode) cell?.querySelector<HTMLElement>("input, textarea, select, button")?.focus()
+        })
+        return () => cancelAnimationFrame(frame)
+    }, [focusSeq, focusField, cellMode])
+
     // A keyboard move scrolls the current cell into view (new lines included).
     const currentKey = selection.current
     useEffect(() => {
@@ -164,6 +240,23 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
         revealNext.current = true
     }
     const only = (key: string): RowSelection => ({ selected: [key], current: key, anchor: key })
+
+    // A cell the form sends the user to (a required cell left empty on save)
+    // becomes current and marked, and in cell mode opens; each request once.
+    const [handledFocusSeq, setHandledFocusSeq] = useState<number | null>(null)
+    if (focusRequest && focusRequest.seq !== handledFocusSeq) {
+        setHandledFocusSeq(focusRequest.seq)
+        const key = keys[focusRequest.line]
+        const column = columns.find((col) => col.name === focusRequest.column)
+        if (key && column) {
+            setSelection(only(key))
+            setCurrentColumn(column.name)
+            setErrorCell(`${key}|${column.name}`)
+            if (cellMode && isEditableColumn(column, writable, readOnly) && column.type !== "boolean") {
+                setEditing({ key, column: column.name, original: rows[focusRequest.line] })
+            }
+        }
+    }
 
     const onCellMouseDown = (event: React.MouseEvent) => {
         // Shift/Cmd/Ctrl+click selects rows instead of selecting text or focusing an input.
@@ -364,6 +457,47 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
         ? `Выделено ${targetCount} из ${rows.length}`
         : currentIndex !== -1 ? `Строка ${currentIndex + 1} из ${rows.length}` : linesLabel(rows.length)
 
+    // Line context menu (1C): the same commands as the bar, on a right click.
+    // A line outside the selection becomes the only selected one first. With
+    // inputs in the cells the menu sits on № only, so an input keeps the
+    // browser's own menu (paste, spelling).
+    const wrapRowInMenu = cellMode || !editable
+    const onLineContextMenu = (key: string) => {
+        if (!selectedSet.has(key)) setSelection(only(key))
+    }
+    const lineMenu = (trigger: React.ReactElement) => (
+        <ContextMenu>
+            <ContextMenuTrigger asChild>{trigger}</ContextMenuTrigger>
+            <ContextMenuContent className="w-60" onCloseAutoFocus={(event) => { if (cellMode) { event.preventDefault(); focusGrid() } }}>
+                {editable && (
+                    <>
+                        <ContextMenuItem disabled={disabled} onSelect={insertLine}>
+                            <Plus className="mr-2 h-3.5 w-3.5" />Добавить{cellMode && <ContextMenuShortcut>Ins</ContextMenuShortcut>}
+                        </ContextMenuItem>
+                        <ContextMenuItem disabled={disabled || !hasTarget} onSelect={duplicateLines}>
+                            <CopyPlus className="mr-2 h-3.5 w-3.5" />{hasMany ? "Скопировать строки" : "Скопировать строку"}{cellMode && <ContextMenuShortcut>F9</ContextMenuShortcut>}
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem disabled={disabled || !movedLines(-1)} onSelect={() => moveLines(-1)}>
+                            <ArrowUp className="mr-2 h-3.5 w-3.5" />Переместить вверх{cellMode && <ContextMenuShortcut>Ctrl+Shift+↑</ContextMenuShortcut>}
+                        </ContextMenuItem>
+                        <ContextMenuItem disabled={disabled || !movedLines(1)} onSelect={() => moveLines(1)}>
+                            <ArrowDown className="mr-2 h-3.5 w-3.5" />Переместить вниз{cellMode && <ContextMenuShortcut>Ctrl+Shift+↓</ContextMenuShortcut>}
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem disabled={disabled || !hasTarget} onSelect={deleteLines} className="text-destructive focus:text-destructive">
+                            <Trash2 className="mr-2 h-3.5 w-3.5" />{hasMany ? "Удалить строки" : "Удалить строку"}{cellMode && <ContextMenuShortcut>Del</ContextMenuShortcut>}
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                    </>
+                )}
+                <ContextMenuItem disabled={!hasTarget} onSelect={copyToClipboard}>
+                    <ClipboardCopy className="mr-2 h-3.5 w-3.5" />Копировать в буфер{cellMode && <ContextMenuShortcut>Ctrl+C</ContextMenuShortcut>}
+                </ContextMenuItem>
+            </ContextMenuContent>
+        </ContextMenu>
+    )
+
     const onGridBlur = (event: React.FocusEvent<HTMLDivElement>) => {
         // Focus leaving for outside the grid closes the cell; a picker's popover is still the cell's.
         if (!editing) return
@@ -408,13 +542,26 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                     </TooltipProvider>
                 )}
                 <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                    <thead className="bg-muted/50">
+                <table className={cn("w-full table-fixed border-collapse", isResizing && "select-none")} style={{ minWidth: tableWidth }}>
+                    <colgroup>
+                        <col style={{ width: NUMBER_COLUMN }} />
+                        {/* The last column takes the room left, as in 1C, so the others keep exactly the width they were given. */}
+                        {columns.map((column, index) => <col key={column.name} style={{ width: index === columns.length - 1 ? undefined : colWidths[index] }} />)}
+                    </colgroup>
+                    <thead className="bg-muted/50 text-xs text-muted-foreground">
                         <tr className="border-b">
-                            <th scope="col" className="w-10 px-2 py-2 text-left font-medium">№</th>
-                            {columns.map((column) => (
-                                <th key={column.name} scope="col" className={cn("min-w-32 px-2 py-2 text-left font-medium", cellMode && NUMERIC.has(column.type) && "text-right")}>
+                            <th scope="col" className="px-2 py-2 text-left font-medium">№</th>
+                            {columns.map((column, index) => (
+                                <th key={column.name} scope="col"
+                                    className={cn("relative truncate px-2 py-2 text-left font-medium", NUMERIC.has(column.type) && "text-right",
+                                        currentColumn === column.name && "text-foreground")}>
                                     {column.label || column.name}{column.required && editable ? <span className="text-destructive"> *</span> : null}
+                                    {index < columns.length - 1 && (
+                                        <div aria-hidden className="group/resize absolute right-0 top-0 z-10 h-full w-[5px] cursor-col-resize hover:bg-primary/30 active:bg-primary/50"
+                                            onMouseDown={(event) => { event.preventDefault(); onResizeStart(index, event) }}>
+                                            <div className="absolute right-0 top-1/4 h-1/2 w-px bg-border group-hover/resize:bg-primary/60" />
+                                        </div>
+                                    )}
                                 </th>
                             ))}
                         </tr>
@@ -430,12 +577,21 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                         {rows.map((row, index) => {
                             const lineNo = index + 1
                             const key = keys[index]
-                            return (
-                                <tr key={key} data-selected={selectedSet.has(key) ? "true" : undefined} data-current={selection.current === key ? "true" : undefined}
-                                    className={cn("border-b align-middle last:border-0",
-                                        selection.current === key ? "bg-accent" : selectedSet.has(key) && "bg-accent/50")}>
-                                    <td className="cursor-pointer select-none px-2 py-1 tabular-nums text-muted-foreground"
-                                        onMouseDown={onCellMouseDown} onClick={(event) => onCellClick(key, null, event)}>{lineNo}</td>
+                            const isCurrent = selection.current === key
+                            const numberCell = (
+                                <td className={cn("cursor-pointer select-none px-2 py-1 tabular-nums", isCurrent ? "font-medium text-foreground" : "text-muted-foreground")}
+                                    onMouseDown={onCellMouseDown} onClick={(event) => onCellClick(key, null, event)}
+                                    onContextMenu={wrapRowInMenu ? undefined : () => onLineContextMenu(key)}>{lineNo}</td>
+                            )
+                            const rowElement = (
+                                <tr key={key} data-selected={selectedSet.has(key) ? "true" : undefined} data-current={isCurrent ? "true" : undefined}
+                                    onContextMenu={wrapRowInMenu ? () => onLineContextMenu(key) : undefined}
+                                    className={cn("border-b align-middle transition-colors last:border-0",
+                                        // The current line carries an accent bar on its edge, as list rows do.
+                                        isCurrent ? "bg-accent shadow-[inset_2px_0_0_hsl(var(--ring))]"
+                                            : selectedSet.has(key) ? "bg-accent/50 shadow-[inset_2px_0_0_hsl(var(--ring)/0.45)]"
+                                                : "hover:bg-muted/40")}>
+                                    {wrapRowInMenu ? numberCell : lineMenu(numberCell)}
                                     {columns.map((column) => {
                                         const cellEditable = isEditableColumn(column, writable, readOnly)
                                         const isCurrentCell = selection.current === key && currentColumn === column.name
@@ -446,20 +602,26 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                             </SelectionSummaryPopover>
                                         ) : cell
 
+                                        const missing = cellEditable && column.required && column.type !== "boolean" && isEmptyValue(row[column.name])
+                                        const isErrorCell = missing && errorCell === `${key}|${column.name}`
                                         if (cellMode && !isEditing) {
                                             // Cell mode: the value as text; a double click opens it.
                                             return withTotals(
-                                                <td key={column.name} data-current-cell={isCurrentCell ? "true" : undefined}
-                                                    className={cn("h-9 max-w-48 cursor-default select-none truncate px-2 py-1",
+                                                <td key={column.name} data-current-cell={isCurrentCell ? "true" : undefined} data-field={`${part.name}.${index}.${column.name}`}
+                                                    title={missing ? `Заполните «${column.label || column.name}»` : undefined}
+                                                    className={cn("h-9 cursor-default select-none truncate px-2 py-1",
                                                         NUMERIC.has(column.type) && "text-right tabular-nums",
                                                         !cellEditable && "text-muted-foreground",
-                                                        isCurrentCell && CURRENT_CELL)}
+                                                        isCurrentCell && CURRENT_CELL, isErrorCell && ERROR_CELL)}
                                                     onMouseDown={onCellMouseDown}
                                                     onClick={(event) => onCellClick(key, column.name, event)}
                                                     onDoubleClick={(event) => { if (!event.shiftKey && !event.metaKey && !event.ctrlKey) startEdit(key, column) }}>
                                                     {column.type === "boolean"
                                                         ? <Checkbox checked={!!row[column.name]} tabIndex={-1} aria-hidden className="pointer-events-none" />
-                                                        : cellText(row, column)}
+                                                        : missing
+                                                            // 1C marks an unfilled required field with a red dashed underline.
+                                                            ? <span aria-label="Не заполнено" className="block h-4 border-b border-dashed border-destructive/60" />
+                                                            : cellText(row, column)}
                                                 </td>,
                                             )
                                         }
@@ -470,12 +632,16 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                             onFocusCapture: () => { setCurrentColumn(column.name); if (selection.current !== key) setSelection(only(key)) },
                                         }
                                         if (!cellEditable) {
-                                            return withTotals(<td key={column.name} data-current-cell={isCurrentCell ? "true" : undefined} className={cn("max-w-48 truncate px-2 py-1", isCurrentCell && CURRENT_CELL)} {...selectHandlers}>{cellText(row, column)}</td>)
+                                            return withTotals(<td key={column.name} data-current-cell={isCurrentCell ? "true" : undefined}
+                                                className={cn("truncate px-2 py-1 text-muted-foreground", NUMERIC.has(column.type) && "text-right tabular-nums", isCurrentCell && CURRENT_CELL)}
+                                                {...selectHandlers}>{cellText(row, column)}</td>)
                                         }
                                         const endpoint = column.type === "reference" && column.referenceType ? resolveRefEndpoint(column.referenceType) : null
                                         return (
                                             withTotals(<td key={column.name} data-current-cell={isCurrentCell ? "true" : undefined} data-editing={isEditing ? "true" : undefined}
-                                                className={cn("px-1 py-1", isCurrentCell && CURRENT_CELL)} data-field={`${part.name}.${index}.${column.name}`} {...selectHandlers}>
+                                                className={cn("px-1 py-1", NUMERIC.has(column.type) && "[&_input]:text-right [&_input]:tabular-nums",
+                                                    isCurrentCell && CURRENT_CELL, isErrorCell && ERROR_CELL)}
+                                                data-field={`${part.name}.${index}.${column.name}`} {...selectHandlers}>
                                                 {endpoint ? (
                                                     <ReferenceField
                                                         value={typeof row[column.name] === "string" ? String(row[column.name]) : ""}
@@ -502,8 +668,21 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                     })}
                                 </tr>
                             )
+                            return wrapRowInMenu ? <React.Fragment key={key}>{lineMenu(rowElement)}</React.Fragment> : rowElement
                         })}
                     </tbody>
+                    {hasFooter && (
+                        <tfoot className="border-t bg-muted/40 text-sm font-medium">
+                            <tr>
+                                <td className="px-2 py-1.5 text-xs font-normal text-muted-foreground">Итого</td>
+                                {columns.map((column, index) => (
+                                    <td key={column.name} className="px-1 py-1.5">
+                                        {footer[index] ? <FooterTotal summary={footer[index]} /> : null}
+                                    </td>
+                                ))}
+                            </tr>
+                        </tfoot>
+                    )}
                 </table>
                 </div>
             </div>
