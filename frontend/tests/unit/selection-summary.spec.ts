@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test"
 import { fieldSummaryExtractor, formatSummaryNumber, numericOperand, summarize, summaryCopyText } from "../../lib/selection-summary"
-import { EMPTY_ROW_SELECTION, clickRow, keepExisting, summaryRows } from "../../lib/row-selection"
+import { EMPTY_ROW_SELECTION, clickRow, keepExisting, rowMoveTarget, rowRange, summaryRows } from "../../lib/row-selection"
 import { mergeListColumns } from "../../lib/metadata-columns"
 import type { MetadataField } from "../../lib/schemas/metadata"
 
@@ -55,4 +55,25 @@ test("rows are selected by click, Shift+click range and Cmd/Ctrl+click toggle", 
   state = clickRow(state, keys, "e", { shift: false, toggle: true })
   expect(summaryRows(state)).toBeNull()
   expect(keepExisting({ selected: ["a", "x"], current: "x", anchor: "a" }, keys)).toEqual({ selected: ["a"], current: null, anchor: "a" })
+})
+
+test("arrow, page and Home/End keys move the current row within the rows", () => {
+    expect(rowMoveTarget("ArrowDown", 2, 5, 3)).toBe(3)
+    expect(rowMoveTarget("ArrowDown", 4, 5, 3)).toBe(4)
+    expect(rowMoveTarget("ArrowUp", 0, 5, 3)).toBe(0)
+    expect(rowMoveTarget("PageDown", 1, 5, 3)).toBe(4)
+    expect(rowMoveTarget("PageUp", 4, 5, 3)).toBe(1)
+    expect(rowMoveTarget("PageUp", 1, 5, 3)).toBe(0)
+    expect(rowMoveTarget("Home", 3, 5, 3)).toBe(0)
+    expect(rowMoveTarget("End", 0, 5, 3)).toBe(4)
+    // Without a current row the first step lands on an edge.
+    expect(rowMoveTarget("ArrowDown", -1, 5, 3)).toBe(0)
+    expect(rowMoveTarget("ArrowUp", -1, 5, 3)).toBe(4)
+    expect(rowMoveTarget("ArrowLeft", 2, 5, 3)).toBeNull()
+    expect(rowMoveTarget("ArrowDown", -1, 0, 3)).toBeNull()
+
+    const keys = ["a", "b", "c", "d"]
+    expect(rowRange(keys, "b", "d")).toEqual(["b", "c", "d"])
+    expect(rowRange(keys, "c", "a")).toEqual(["a", "b", "c"])
+    expect(rowRange(keys, "gone", "c")).toEqual(["c"])
 })

@@ -7,6 +7,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import { summarize, type SummaryOperand } from "@/lib/selection-summary"
+import { rowMoveTarget, rowRange } from "@/lib/row-selection"
 import { SelectionSummaryPopover } from "@/components/shared/selection-summary-popover"
 import { useCompactMode } from "@/hooks/useCompactMode"
 import {
@@ -146,6 +147,14 @@ function SortIcon({
     )
 }
 
+/** Rows that fit the table's scroll viewport below its header: a PageUp/PageDown step. */
+function visibleRowCount(table: HTMLTableElement): number {
+    const viewport = table.closest<HTMLElement>("[data-radix-scroll-area-viewport]") ?? table.parentElement
+    const rowHeight = table.tBodies[0]?.rows[0]?.offsetHeight || 36
+    const header = table.tHead?.offsetHeight ?? 0
+    return Math.max(1, Math.floor(((viewport?.clientHeight ?? 0) - header) / rowHeight) - 1)
+}
+
 // ── Component ───────────────────────────────────────────────────────────
 
 export function DataTable<T extends { id: string }>({
@@ -252,6 +261,70 @@ export function DataTable<T extends { id: string }>({
             document.removeEventListener("keydown", onKeyDown)
             document.removeEventListener("copy", onCopy)
         }
+    }, [])
+
+    // Keyboard navigation (1C style) while focus is in the table or nowhere:
+    // ↑/↓, PageUp/PageDown, Home/End move the current row, and with Shift
+    // select the rows from the anchor to it; ←/→ move the current column;
+    // Enter opens the current row. Keys typed into an editor are left alone.
+    const navigateRef = useRef<(event: KeyboardEvent) => void>(() => {})
+    useEffect(() => {
+        navigateRef.current = (event) => {
+            if (event.defaultPrevented || event.altKey || event.metaKey || event.ctrlKey) return
+            const table = tableRef.current
+            if (!table || table.offsetParent === null) return
+            const active = document.activeElement
+            if (isEditable(active)) return
+            const idle = !active || active === document.body
+            if (!idle && !table.contains(active)) return
+
+            const reveal = (id: string, columnKey: string | null) => {
+                const row = table.querySelector<HTMLElement>(`tr[data-row-id="${CSS.escape(id)}"]`)
+                if (!row) return
+                const cell = columnKey ? row.querySelector<HTMLElement>(`td[data-column-key="${CSS.escape(columnKey)}"]`) : null
+                ;(cell ?? row).scrollIntoView({ block: "nearest", inline: "nearest" })
+                row.focus({ preventScroll: true })
+            }
+            const index = focusedId ? data.findIndex((row) => row.id === focusedId) : -1
+
+            if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                if (event.shiftKey || index === -1 || columns.length === 0) return
+                const at = columns.findIndex((col) => col.key === focusedColumnKey)
+                const step = event.key === "ArrowRight" ? 1 : -1
+                const next = at === -1 ? 0 : Math.min(columns.length - 1, Math.max(0, at + step))
+                event.preventDefault()
+                onCellClick?.(data[index], columns[next].key)
+                reveal(data[index].id, columns[next].key)
+                return
+            }
+            if (event.key === "Enter") {
+                // A focused control in a cell (a button, a link) handles Enter itself.
+                if (event.shiftKey || index === -1 || !onRowDoubleClick || !(idle || active?.tagName === "TR")) return
+                event.preventDefault()
+                onRowDoubleClick(data[index])
+                return
+            }
+
+            const target = rowMoveTarget(event.key, index, data.length, visibleRowCount(table))
+            if (target === null) return
+            event.preventDefault()
+            const item = data[target]
+            if (event.shiftKey && onSelectRows) {
+                const anchor = anchorRef.current ?? focusedId ?? item.id
+                onSelectRows(rowRange(data.map((row) => row.id), anchor, item.id), "replace")
+                anchorRef.current = anchor
+            } else {
+                anchorRef.current = item.id
+            }
+            onRowClick?.(item)
+            if (focusedColumnKey) onCellClick?.(item, focusedColumnKey)
+            reveal(item.id, focusedColumnKey)
+        }
+    })
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent) => navigateRef.current(event)
+        document.addEventListener("keydown", onKeyDown)
+        return () => document.removeEventListener("keydown", onKeyDown)
     }, [])
 
     // Determine the checked state for the header checkbox
@@ -368,7 +441,8 @@ export function DataTable<T extends { id: string }>({
                             aria-current={isFocused ? "true" : undefined}
                             aria-selected={isSelected}
                             className={cn(
-                                "cursor-pointer border-b border-border/60 transition-colors",
+                                // The sticky header and the bottom banner must not cover a row revealed by the keyboard.
+                                "cursor-pointer border-b border-border/60 transition-colors scroll-mt-10 scroll-mb-12",
                                 rowH,
                                 hasSelectionIndicator && "shadow-[inset_2px_0_0_hsl(var(--ring))]",
                                 isFocused
@@ -416,7 +490,7 @@ export function DataTable<T extends { id: string }>({
                                     data-column-key={col.key}
                                     data-current-cell={isCurrentCell ? "true" : undefined}
                                     className={cn(
-                                        "py-0",
+                                        "py-0 scroll-mt-10 scroll-mb-12",
                                         cellPx, rowH,
                                         `max-${rowH}`,
                                         alignClass(col.align),

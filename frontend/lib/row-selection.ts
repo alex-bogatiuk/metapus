@@ -42,3 +42,33 @@ export function summaryRows(state: RowSelection): readonly string[] | null {
     if (!state.current || state.selected.length < 2 || !state.selected.includes(state.current)) return null
     return state.selected
 }
+
+/** Keys that move the current row of a grid. */
+export const ROW_MOVE_KEYS = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"])
+
+/**
+ * The row index a key moves the current row to, clamped to the rows; null for
+ * a key that does not move rows or a grid without rows. With no current row
+ * (index -1) a step down starts at the first row and a step up at the last.
+ */
+export function rowMoveTarget(key: string, index: number, length: number, pageSize: number): number | null {
+    if (length === 0 || !ROW_MOVE_KEYS.has(key)) return null
+    const page = Math.max(1, pageSize)
+    const clamp = (value: number) => Math.min(length - 1, Math.max(0, value))
+    switch (key) {
+        case "Home": return 0
+        case "End": return length - 1
+        case "ArrowDown": return index === -1 ? 0 : clamp(index + 1)
+        case "ArrowUp": return index === -1 ? length - 1 : clamp(index - 1)
+        case "PageDown": return index === -1 ? clamp(page - 1) : clamp(index + page)
+        default: return index === -1 ? 0 : clamp(index - page)
+    }
+}
+
+/** The keys from the anchor to the target, inclusive, in grid order. */
+export function rowRange(keys: readonly string[], anchor: string, target: string): string[] {
+    const from = keys.indexOf(anchor)
+    const to = keys.indexOf(target)
+    if (from === -1 || to === -1) return [target]
+    return keys.slice(Math.min(from, to), Math.max(from, to) + 1)
+}

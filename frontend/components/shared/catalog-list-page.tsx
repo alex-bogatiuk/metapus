@@ -333,6 +333,12 @@ export function CatalogListPage<T extends { id: string }>({
     config.createHref ? () => router.push(config.createHref!) : () => {}
   )
 
+  // Handled by DataTable while focus is in the list; listed here for the help dialog.
+  useShortcut("list.nav-rows", "arrowdown", "Перейти по строкам (также ↑, PgUp, PgDn, Home, End)", "list", () => {}, { passive: true })
+  useShortcut("list.nav-select", "shift+arrowdown", "Выделить строки (также Shift+↑)", "list", () => {}, { passive: true })
+  useShortcut("list.nav-columns", "arrowright", "Перейти по колонкам (также ←)", "list", () => {}, { passive: true })
+  useShortcut("list.open", "enter", "Открыть", "list", () => {}, { passive: true })
+
   // ── Document mode: context menu ───────────────────────────────────
   const renderDocContextMenu = useCallback((item: T, targets: T[]) => {
     if (!isDocumentMode) return null
