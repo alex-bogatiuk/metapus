@@ -1,7 +1,7 @@
 import type { JsonObject, JsonValue } from "@/lib/json-value"
 import type { MetadataField } from "@/lib/schemas/metadata"
 import { evaluateExpression } from "@/lib/calc-engine"
-import { MoneyDecimal } from "@/lib/money"
+import { MoneyDecimal, rawMinorToMajor } from "@/lib/money"
 import { rowKey, setCell } from "@/lib/table-part-rows"
 
 /**
@@ -99,11 +99,29 @@ export function evaluateNumberInput(text: string, previous: number | null, integ
     return integer ? Math.round(value) : new MoneyDecimal(value).toDecimalPlaces(10).toNumber()
 }
 
+/**
+ * Money in a document's currency: stored and sent as minor units (a string),
+ * shown and typed in major units. Amounts typed or calculated with more
+ * places than the currency has are rounded half away from zero, as the
+ * server rounds calculated money.
+ */
+export function moneyFromNumber(major: number, scale: number): string {
+    return new MoneyDecimal(major).times(new MoneyDecimal(10).pow(scale)).toDecimalPlaces(0, MoneyDecimal.ROUND_HALF_UP).toFixed()
+}
+
+/** Minor units as major units for editing ("1999" → "19,99"); "" when the value is not minor units. */
+export function moneyText(value: JsonValue | undefined, scale: number): string {
+    const minor = typeof value === "number" && Number.isInteger(value) ? String(value) : value
+    if (typeof minor !== "string" || !/^-?\d+$/.test(minor)) return ""
+    // BigInt gives the canonical integer ("007" → "7", "-0" → "0") the conversion expects.
+    return rawMinorToMajor(BigInt(minor).toString(), scale).replace(".", ",")
+}
+
 /** A converted cell, or null when the text names nothing the column takes. */
 export type CellConversion = { value: JsonValue; display?: string } | null
 
 /** Converts pasted text by the column's type; references go through `resolve`. */
-export function convertCellText(column: MetadataField, text: string, resolve: (column: string, text: string) => { id: string; name: string } | null): CellConversion {
+export function convertCellText(column: MetadataField, text: string, resolve: (column: string, text: string) => { id: string; name: string } | null, moneyScale: number | null = null): CellConversion {
     const value = text.trim()
     switch (column.type) {
         case "reference": {
@@ -116,6 +134,13 @@ export function convertCellText(column: MetadataField, text: string, resolve: (c
             const number = parseNumberText(value)
             if (number === null || (column.type === "integer" && !Number.isInteger(number))) return null
             return { value: number }
+        }
+        case "money": {
+            // Pasted amounts read in the document's currency (major units); without one, as minor units.
+            const number = parseNumberText(value)
+            if (number === null) return null
+            if (moneyScale !== null) return { value: moneyFromNumber(number, moneyScale) }
+            return Number.isInteger(number) ? { value: String(number) } : null
         }
         case "boolean": {
             const flag = parseBooleanText(value)

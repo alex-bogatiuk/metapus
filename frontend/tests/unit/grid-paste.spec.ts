@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test"
 import type { JsonObject } from "../../lib/json-value"
 import type { MetadataField } from "../../lib/schemas/metadata"
 import {
-    convertCellText, evaluateNumberInput, parseBooleanText, parseClipboardGrid, parseDateText, parseNumberText, pasteGrid,
+    convertCellText, evaluateNumberInput, moneyFromNumber, moneyText, parseBooleanText, parseClipboardGrid, parseDateText, parseNumberText, pasteGrid,
 } from "../../lib/grid-paste"
 import { ROW_KEY, fillColumn } from "../../lib/table-part-rows"
 
@@ -70,4 +70,20 @@ test("fill gives the selected lines the source line's value with its display", (
         { lineId: "b", warehouseId: "w1", warehouse: { id: "w1", name: "Основной" } },
         { lineId: "c", warehouseId: "w1", warehouse: { id: "w1", name: "Основной" } },
     ])
+})
+
+test("money is shown and typed in the document currency and kept in minor units", () => {
+    expect(moneyText("199999", 2)).toBe("1999,99")
+    expect(moneyText("-5", 2)).toBe("-0,05")
+    expect(moneyText("007", 2)).toBe("0,07")
+    expect(moneyText(1500, 0)).toBe("1500")
+    expect(moneyText("abc", 2)).toBe("")
+    expect(moneyFromNumber(19.99, 2)).toBe("1999")
+    expect(moneyFromNumber(0.005, 2), "half away from zero, as the server rounds money").toBe("1")
+    expect(moneyFromNumber(-0.005, 2)).toBe("-1")
+    expect(moneyFromNumber(1500, 0)).toBe("1500")
+    const price = { name: "price", type: "money" } as MetadataField
+    expect(convertCellText(price, "1 999,99", () => null, 2)).toEqual({ value: "199999" })
+    expect(convertCellText(price, "1999", () => null), "no currency: minor units").toEqual({ value: "1999" })
+    expect(convertCellText(price, "19,99", () => null)).toBeNull()
 })

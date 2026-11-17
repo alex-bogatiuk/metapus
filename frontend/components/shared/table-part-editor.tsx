@@ -15,7 +15,7 @@ import type { MetadataField } from "@/lib/schemas/metadata"
 import { resolveRefEndpoint } from "@/lib/reference-endpoint"
 import { amountUnitPairs, displayValue } from "@/lib/form-layout"
 import { EMPTY_ROW_SELECTION, clickRow, keepExisting, rowMoveTarget, summaryRows, type RowSelection } from "@/lib/row-selection"
-import { fieldSummaryExtractor, isSummableField, summarize, summaryCopyText, summaryGroupText, type SelectionSummary } from "@/lib/selection-summary"
+import { fieldSummaryExtractor, formatSummaryNumber, isSummableField, summarize, summaryCopyText, summaryGroupText, type SelectionSummary } from "@/lib/selection-summary"
 import { SelectionSummaryPopover, copyText } from "@/components/shared/selection-summary-popover"
 import { useCompactMode, useTablePartCellMode } from "@/hooks/useCompactMode"
 import { TablePartPickDialog } from "@/components/shared/table-part-pick-dialog"
@@ -27,7 +27,8 @@ import {
     LINE_IDENTITY_COLUMNS, ROW_KEY, addRow, copyRows, fillColumn, isEditableColumn, moveRows, newRowKey, referenceDisplayName,
     removeRows, restoreRow, rowKey, setCell,
 } from "@/lib/table-part-rows"
-import { convertCellText, evaluateNumberInput, parseClipboardGrid, parseNumberText, pasteGrid } from "@/lib/grid-paste"
+import { convertCellText, evaluateNumberInput, moneyFromNumber, moneyText, parseClipboardGrid, parseNumberText, pasteGrid } from "@/lib/grid-paste"
+import type { DocumentCurrency } from "@/hooks/useDocumentCurrency"
 import { applyFormulas, formulaLabel, hasFormulas } from "@/lib/formula"
 import { apiFetch } from "@/lib/api"
 import { withReferenceListParams } from "@/lib/reference-utils"
@@ -50,6 +51,11 @@ export interface TablePartEditorProps {
     widthsKey?: string
     /** A cell to take the user to (a required cell left empty); a new seq repeats the request. */
     focusRequest?: { line: number; column: string; seq: number } | null
+    /**
+     * The document's currency: money reads and is typed in its major units
+     * (stored as minor units). Null keeps minor units (no currency known).
+     */
+    currency?: DocumentCurrency | null
 }
 
 const NUMERIC = new Set(["integer", "number", "decimal", "money"])
@@ -182,15 +188,18 @@ function typeInto(input: HTMLInputElement, text: string) {
  * worked out on Enter, Tab or leaving the cell. Plain numbers apply as they
  * are typed, so the footer follows.
  */
-function NumberCellInput({ value, integer, disabled, onValue }: {
+function NumberCellInput({ value, integer, disabled, money = null, onValue }: {
     value: JsonValue | undefined
     integer: boolean
     disabled: boolean
+    /** Money in a currency with this many places: shown and typed in major units. */
+    money?: number | null
     onValue: (value: number) => void
 }) {
     const [draft, setDraft] = useState<string | null>(null)
     const [start, setStart] = useState<number | null>(null)
-    const shown = value === undefined || value === null || value === "" ? "" : String(value)
+    const shown = money !== null ? moneyText(value, money)
+        : value === undefined || value === null || value === "" ? "" : String(value)
     const commit = () => {
         if (draft === null) return
         const result = evaluateNumberInput(draft, start, integer)
@@ -221,8 +230,13 @@ function NumberCellInput({ value, integer, disabled, onValue }: {
     )
 }
 
-function cellText(row: JsonObject, column: MetadataField): string {
+function cellText(row: JsonObject, column: MetadataField, currency?: DocumentCurrency | null): string {
     if (column.type === "reference") return referenceDisplayName(row, column.name) ?? String(row[column.name] ?? "")
+    if (column.type === "money" && currency) {
+        // "1 999,00": major units of the document's currency, grouped like the totals.
+        const major = moneyText(row[column.name], currency.scale)
+        return major ? formatSummaryNumber(major.replace(",", ".")) : ""
+    }
     if (column.type === "boolean") return row[column.name] ? "Да" : "Нет"
     const text = displayValue(column, row[column.name])
     return text === "—" ? "" : text
@@ -241,7 +255,7 @@ function cellText(row: JsonObject, column: MetadataField): string {
  * Delete (Cmd+Backspace) removes the selected lines, Insert adds one, F9
  * copies the selected lines and Ctrl/Cmd+Shift+↑/↓ moves the current one.
  */
-export function TablePartEditor({ part, rows, writable, readOnly, disabled, hiddenColumns, bare = false, onChange, renderInput, widthsKey, focusRequest }: TablePartEditorProps) {
+export function TablePartEditor({ part, rows, writable, readOnly, disabled, hiddenColumns, bare = false, onChange, renderInput, widthsKey, focusRequest, currency = null }: TablePartEditorProps) {
     const cellMode = useTablePartCellMode()
     const compact = useCompactMode()
     // 32 px lines (28 in compact mode): editors 28/24 px high in 2 px of padding.
@@ -270,9 +284,11 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
     const [dismissedSummary, setDismissedSummary] = useState("")
     const extractors = useMemo(() => {
         const units = amountUnitPairs(part.columns, true)
-        // One document's lines share its currency: money is summed in minor units.
-        return new Map(part.columns.map((column) => [column.name, fieldSummaryExtractor(column, column.name, units.get(column.name), true)]))
-    }, [part.columns])
+        // One document's lines share its currency: money adds up in it (in
+        // minor units while the currency is not known).
+        const shared = currency ? { decimalPlaces: currency.scale, symbol: currency.code } : true as const
+        return new Map(part.columns.map((column) => [column.name, fieldSummaryExtractor(column, column.name, units.get(column.name), shared)]))
+    }, [part.columns, currency])
     const totalsRows = summaryRows(selection)
     const extractor = currentColumn ? extractors.get(currentColumn) : undefined
     const summary = totalsRows && extractor ? summarize(rows.filter((row, index) => totalsRows.includes(keys[index])).map(extractor)) : null
@@ -568,12 +584,12 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
         let text = ""
         if (targets.size > 1) {
             text = rows.filter((_, index) => targets.has(keys[index]))
-                .map((row) => columns.map((column) => cellText(row, column)).join("\t"))
+                .map((row) => columns.map((column) => cellText(row, column, currency)).join("\t"))
                 .join("\n")
         } else {
             const index = selection.current ? keys.indexOf(selection.current) : -1
             const column = columns.find((col) => col.name === currentColumn)
-            if (index !== -1 && column) text = cellText(rows[index], column)
+            if (index !== -1 && column) text = cellText(rows[index], column, currency)
         }
         void copyText(text).then((copied) => {
             if (!copied) toast.error("Не удалось скопировать")
@@ -593,7 +609,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
         if (!fillTarget || disabled) return
         const { column, index, others } = fillTarget
         change(fillColumn(rows, new Set(others), rows[index], column.name), "заполнение колонки")
-        toast(`Заполнено строк: ${others.length}`, { description: `«${column.label || column.name}» = ${cellText(rows[index], column) || "пусто"}`, action: undoAction })
+        toast(`Заполнено строк: ${others.length}`, { description: `«${column.label || column.name}» = ${cellText(rows[index], column, currency) || "пусто"}`, action: undoAction })
     }
 
     // ── Paste from a spreadsheet ────────────────────────────────────────
@@ -628,7 +644,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
             references.set(column.name, await resolveReferences(column, texts))
         }
         const resolve = (column: string, value: string) => references.get(column)?.get(value.toLowerCase()) ?? null
-        const result = pasteGrid(rows, start, grid, columns, editableColumn, (column, value) => convertCellText(column, value, resolve),
+        const result = pasteGrid(rows, start, grid, columns, editableColumn, (column, value) => convertCellText(column, value, resolve, currency?.scale ?? null),
             () => ({ [ROW_KEY]: newRowKey() }))
         if (!result.touched.length && !result.failures.length) return
         change(result.rows, "вставка")
@@ -903,6 +919,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                         currentColumn === column.name && "text-foreground")}
                                     style={index === 0 && columns.length > 1 ? { left: NUMBER_COLUMN } : undefined}>
                                     {column.label || column.name}{column.required && editable ? <span className="text-destructive"> *</span> : null}
+                                    {column.type === "money" && currency?.code && <span className="ml-1 font-normal text-muted-foreground/70">{currency.code}</span>}
                                     {column.calc && (
                                         <span className="ml-1 font-serif italic text-muted-foreground/70" title={`Рассчитывается: ${formulaLabel(column.calc, part.columns)}`}
                                             aria-label={`рассчитывается: ${formulaLabel(column.calc, part.columns)}`}>ƒ</span>
@@ -985,7 +1002,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                                         : missing
                                                             // 1C marks an unfilled required field with a red dashed underline.
                                                             ? <span aria-label="Не заполнено" className="block h-4 border-b border-dashed border-destructive/60" />
-                                                            : cellText(row, column)}
+                                                            : cellText(row, column, currency)}
                                                 </td>,
                                             )
                                         }
@@ -998,7 +1015,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                         if (!cellEditable) {
                                             return withTotals(<td key={column.name} data-current-cell={isCurrentCell ? "true" : undefined} style={placeStyle}
                                                 className={cn(place, rowHeight, "truncate px-2 py-0.5", !column.calc && "text-muted-foreground", NUMERIC.has(column.type) && "text-right tabular-nums", isCurrentCell && CURRENT_CELL)}
-                                                {...selectHandlers}>{cellText(row, column)}</td>)
+                                                {...selectHandlers}>{cellText(row, column, currency)}</td>)
                                         }
                                         const endpoint = column.type === "reference" && column.referenceType ? resolveRefEndpoint(column.referenceType) : null
                                         return (
@@ -1026,9 +1043,13 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                                         disabled={disabled}
                                                     />
                                                 ) : CALC_TYPES.has(column.type) ? (
-                                                    <NumberCellInput value={row[column.name]} integer={column.type === "integer" || column.type === "money"} disabled={disabled}
-                                                        // Money (minor units) and a decimal the server sent as text travel as text (the wire contract).
-                                                        onValue={(value) => updateCell(index, column.name, typeof row[column.name] === "string" || column.type === "money" ? String(value) : value)} />
+                                                    <NumberCellInput value={row[column.name]} disabled={disabled}
+                                                        integer={column.type === "integer" || (column.type === "money" && (currency?.scale ?? 0) === 0)}
+                                                        money={column.type === "money" ? currency?.scale ?? null : null}
+                                                        // Money travels as a string of minor units; a decimal the server sent as text stays text.
+                                                        onValue={(value) => updateCell(index, column.name, column.type === "money"
+                                                            ? (currency ? moneyFromNumber(value, currency.scale) : String(Math.round(value)))
+                                                            : typeof row[column.name] === "string" ? String(value) : value)} />
                                                 ) : (
                                                     renderInput(column, row[column.name], (value) => updateCell(index, column.name, value))
                                                 )}

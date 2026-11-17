@@ -66,7 +66,7 @@ import { buildEntityUrlByRoute } from "@/lib/entity-url"
 import { buildCatalogFormPayload } from "@/lib/catalog-form-payload"
 import { isSystemAdmin, useAuthStore } from "@/stores/useAuthStore"
 import { createTabStateKey } from "@/stores/useTabStateStore"
-import { minorUnitsSchema } from "@/lib/money"
+import { majorToMinor, minorUnitsSchema } from "@/lib/money"
 import type { EntityMetadata, MetadataField } from "@/lib/schemas/metadata"
 import { parseEntityValues } from "@/lib/schemas/entity-values"
 import { formRequestFieldNames, formRequestParts, projectFormRequest } from "@/lib/http-contracts"
@@ -77,6 +77,9 @@ import { resolveRefEndpoint } from "@/lib/reference-endpoint"
 import { TablePartEditor } from "@/components/shared/table-part-editor"
 import { LineInputError, checkRequiredCells } from "@/lib/table-part-rows"
 import { applyFormulas, formulaLabel, hasFormulas } from "@/lib/formula"
+import { useDocumentCurrency, type DocumentCurrency } from "@/hooks/useDocumentCurrency"
+import { moneyText } from "@/lib/grid-paste"
+import { formatSummaryNumber } from "@/lib/selection-summary"
 
 const tabStateKeys = {
   "autoFormMeta": createTabStateKey<EntityMetaDef | null>("frontend/components/shared/auto-form.tsx:autoFormMeta"),
@@ -144,6 +147,52 @@ function buildItemActionPath(basePath: string, id: string, action: EntityActionD
         .replace("{id}", encodeURIComponent(id))}`
 }
 
+/**
+ * Money typed in the document's currency (major units, "1 999,99") and sent
+ * as minor units, exactly: more places than the currency has are refused,
+ * not rounded, since the user typed them.
+ */
+function MajorMoneyInput({ value, currency, disabled, readOnly, autoFocus, onChange }: {
+    value: JsonValue | undefined
+    currency: DocumentCurrency
+    disabled: boolean
+    readOnly: boolean
+    autoFocus: boolean
+    onChange: (minor: string) => void
+}) {
+    const [draft, setDraft] = useState<string | null>(null)
+    const parse = (text: string): { minor: string } | { error: string } => {
+        try {
+            return { minor: majorToMinor(text.replace(/[\s\u00a0]/g, ""), currency.scale) }
+        } catch (error) {
+            return { error: error instanceof Error ? error.message : "Введите сумму" }
+        }
+    }
+    const shown = draft ?? moneyText(value, currency.scale)
+    const parsed = draft !== null && draft.trim() !== "" ? parse(draft) : null
+    const error = parsed && "error" in parsed ? parsed.error : null
+    return (
+        <div className="grid gap-1">
+            <div className="relative">
+                <Input type="text" inputMode="decimal" autoComplete="off" value={shown} className="pr-12 text-right tabular-nums"
+                    aria-invalid={!!error} disabled={disabled} readOnly={readOnly} autoFocus={autoFocus}
+                    onChange={(event) => {
+                        const text = event.target.value
+                        setDraft(text)
+                        if (!text.trim()) onChange("")
+                        else {
+                            const result = parse(text)
+                            if ("minor" in result) onChange(result.minor)
+                        }
+                    }}
+                    onBlur={() => { if (!error) setDraft(null) }} />
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{currency.code}</span>
+            </div>
+            {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
+        </div>
+    )
+}
+
 function fieldToInput(
     field: FieldDef,
     value: JsonValue | undefined,
@@ -152,6 +201,7 @@ function fieldToInput(
     readOnly: boolean,
     isFirstEditable = false,
     writeOnlyConfigured = false,
+    currency: DocumentCurrency | null = null,
 ) {
     const v = value ?? ""
     const handleChange = (val: JsonValue) => onChange(field.name, val)
@@ -192,6 +242,10 @@ function fieldToInput(
                 />
             )
         case "money":
+            if (currency) {
+                return <MajorMoneyInput value={value} currency={currency} disabled={disabled} readOnly={effectiveReadOnly}
+                    autoFocus={isFirstEditable} onChange={handleChange} />
+            }
             return (
                 <div className="grid gap-1">
                     <Input type="text" inputMode="numeric" value={String(v)}
@@ -327,6 +381,8 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
     const meta = cachedMeta ?? metaRef.current
     const { state: formState, edit: editDraft, startRead, finishRead, startSave, finishSave, current: currentDraft } = useAutoFormDraft()
     const formData = formState.draft
+    // The document's currency: its money reads and is typed in major units.
+    const currency = useDocumentCurrency(meta?.fields, formData)
     const generation = getSessionGeneration()
     const [confirmReload, setConfirmReload] = useState(false)
     const [loading, setLoading] = useState(!hasCachedContent)
@@ -756,7 +812,11 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                         {field.label || field.name}
                         {field.calc && <span className="ml-1 font-serif italic text-muted-foreground/70" aria-label="рассчитывается">ƒ</span>}
                     </p>
-                    <p className="mt-1 break-words text-sm">{displayValue(field, value)}</p>
+                    <p className="mt-1 break-words text-sm">
+                        {field.type === "money" && currency && moneyText(value, currency.scale)
+                            ? `${formatSummaryNumber(moneyText(value, currency.scale).replace(",", "."))} ${currency.code}`
+                            : displayValue(field, value)}
+                    </p>
                 </div>
             )
         }
@@ -784,6 +844,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                         fieldReadOnly,
                         field.name === firstEditable,
                         writeOnlyConfigured,
+                        currency,
                     )}
                 </div>
                 {field.writeOnly && (
@@ -830,6 +891,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
             renderInput={(column, value, onChange) => fieldToInput(column, value, (_, next) => onChange(next), saving, false)}
             widthsKey={`${entityName}.${tp.name}`}
             focusRequest={lineFocus?.part === tp.name ? lineFocus : null}
+            currency={currency}
         />
     )
     const title = isNew

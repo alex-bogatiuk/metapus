@@ -111,7 +111,10 @@ export function summaryGroupText(group: SummaryGroup): string {
  * number. Money is minor units in the row's currency; another number takes
  * its unit from the paired currency or token field, when there is one.
  */
-export function fieldSummaryExtractor(field: PairableField, key: string, unit?: PairableField, sameCurrency = false): SummaryExtractor | undefined {
+/** The currency all rows share (a document's lines): true when only that they share one is known. */
+export type SharedCurrency = { decimalPlaces: number; symbol: string } | true
+
+export function fieldSummaryExtractor(field: PairableField, key: string, unit?: PairableField, sameCurrency?: SharedCurrency): SummaryExtractor | undefined {
     if (field.type === "money") {
         return (row) => {
             const minor = minorUnitsSchema.safeParse(row[key])
@@ -120,7 +123,10 @@ export function fieldSummaryExtractor(field: PairableField, key: string, unit?: 
             // without a currency of its own is summed in the minor units it is
             // shown and entered in. A list row without one is not summed:
             // rows of different documents may be in different currencies.
-            if (!currency && sameCurrency) return numericOperand(row[key] ?? undefined)
+            if (!currency && sameCurrency === true) return numericOperand(row[key] ?? undefined)
+            if (!currency && typeof sameCurrency === "object") {
+                return minor.success ? { value: rawMinorToMajor(minor.data, sameCurrency.decimalPlaces), unit: sameCurrency.symbol } : null
+            }
             if (!minor.success || !currency || typeof currency !== "object" || Array.isArray(currency)) return null
             const scale = currency.decimalPlaces
             if (typeof scale !== "number") return null
