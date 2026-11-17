@@ -11,6 +11,8 @@ export interface UseListSelectionReturn {
     /** IDs explicitly excluded from virtual select all (user unchecked). */
     excludedIds: string[]
     toggleItem: (id: string, shiftKey: boolean) => void
+    /** Cell-click selection: replace it with a range, or toggle one row. Leaves "select all by filter". */
+    selectRows: (ids: string[], mode: "replace" | "toggle") => void
     toggleAll: () => void
     clearSelection: () => void
     /** Activate virtual "select all by filter" mode. */
@@ -112,6 +114,21 @@ export function useListSelection(visibleIds: string[]): UseListSelectionReturn {
         [visibleIds, selectAllByFilter]
     )
 
+    const selectRows = useCallback((ids: string[], mode: "replace" | "toggle") => {
+        setSelectAllByFilter(false)
+        setExcludedIds([])
+        if (mode === "replace") {
+            setSelectedIds(ids)
+        } else {
+            setSelectedIds((prev) => {
+                const set = new Set(prev)
+                ids.forEach((id) => { if (set.has(id)) set.delete(id); else set.add(id) })
+                return Array.from(set)
+            })
+        }
+        lastClickedIdRef.current = ids[ids.length - 1] ?? lastClickedIdRef.current
+    }, [])
+
     const toggleAll = useCallback(() => {
         if (selectAllByFilter) {
             // Deactivate virtual mode
@@ -157,6 +174,7 @@ export function useListSelection(visibleIds: string[]): UseListSelectionReturn {
         selectAllByFilter,
         excludedIds,
         toggleItem,
+        selectRows,
         toggleAll,
         clearSelection,
         activateSelectAll,

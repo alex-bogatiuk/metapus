@@ -90,6 +90,7 @@ interface UseEntityListPageReturn<T extends { id: string }> {
   isAllSelected: boolean
   isIndeterminate: boolean
   toggleItem: (id: string, shiftKey: boolean) => void
+  selectRows: (ids: string[], mode: "replace" | "toggle") => void
   toggleAll: () => void
   // Virtual select-all (Gmail-style)
   selectAllByFilter: boolean
@@ -496,7 +497,7 @@ export function useEntityListPage<T extends { id: string }>(
   // ── Selection ────────────────────────────────────────────────────────
   const visibleIds = useMemo(() => items.map((d) => d.id), [items])
   const {
-    selectedIds, isAllSelected, isIndeterminate, toggleItem, toggleAll,
+    selectedIds, isAllSelected, isIndeterminate, toggleItem, selectRows, toggleAll,
     selectAllByFilter, excludedIds, activateSelectAll, clearSelection,
   } = useListSelection(visibleIds)
 
@@ -534,6 +535,7 @@ export function useEntityListPage<T extends { id: string }>(
     isAllSelected,
     isIndeterminate,
     toggleItem,
+    selectRows,
     toggleAll,
     selectAllByFilter,
     excludedIds,

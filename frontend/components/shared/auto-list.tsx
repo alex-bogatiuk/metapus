@@ -100,6 +100,7 @@ function useResolvedColumns(
                     className: col.className,
                     filterKey: col.filterKey,
                     render: col.render,
+                    summary: col.summary,
                 }
             }
 
@@ -132,6 +133,7 @@ function useResolvedColumns(
                 align: col.align,
                 className: col.className,
                 filterKey: col.filterKey,
+                summary: col.summary,
                 render: (item) => {
                     const value = getFieldValue(item, col.key)
                     return React.createElement("span", {
@@ -187,6 +189,7 @@ export default function AutoList({ entityName, entityType, routePrefix, renderSe
     const rawColumns = useMemo<AutoListColumn[]>(() => {
         if (metaFields) {
             return mergeListColumns({
+                pairAnyUnit: entityType === "document",
                 fields: metaFields,
                 overlay: [...(regEntry?.listColumns ?? []), ...(additionalColumns ?? [])],
                 entityName,
@@ -202,7 +205,7 @@ export default function AutoList({ entityName, entityType, routePrefix, renderSe
             ]
         }
         return []
-    }, [metaFields, metaFailed, regEntry, entityName, additionalColumns])
+    }, [metaFields, metaFailed, regEntry, entityName, entityType, additionalColumns])
 
     const defaultVisibleKeys = useMemo(
         () => resolveDefaultVisibleKeys(regEntry?.defaultVisibleKeys, rawColumns, entityType),

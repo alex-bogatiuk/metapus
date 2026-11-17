@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useMemo, useState } from "react"
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -8,6 +8,11 @@ import { ReferenceField } from "@/components/shared/reference-field"
 import type { JsonObject, JsonValue } from "@/lib/json-value"
 import type { MetadataField } from "@/lib/schemas/metadata"
 import { resolveRefEndpoint } from "@/lib/reference-endpoint"
+import { amountUnitPairs } from "@/lib/form-layout"
+import { EMPTY_ROW_SELECTION, clickRow, keepExisting, summaryRows, type RowSelection } from "@/lib/row-selection"
+import { fieldSummaryExtractor, summarize } from "@/lib/selection-summary"
+import { SelectionSummaryPopover } from "@/components/shared/selection-summary-popover"
+import { cn } from "@/lib/utils"
 import {
     LINE_IDENTITY_COLUMNS, addRow, isEditableColumn, moveRow, referenceDisplayName, removeRow, rowKey, setCell,
 } from "@/lib/table-part-rows"
@@ -44,6 +49,39 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
     const editable = !readOnly && writable !== null
     const title = part.label || part.name
 
+    // 1C-style row selection: click, Shift+click range, Cmd/Ctrl+click toggle.
+    // With the current row in a selection of several, a numeric current
+    // column shows its totals beside the current cell.
+    const keys = rows.map(rowKey)
+    const [selectionState, setSelection] = useState<RowSelection>(EMPTY_ROW_SELECTION)
+    const selection = keepExisting(selectionState, keys)
+    const [currentColumn, setCurrentColumn] = useState<string | null>(null)
+    const [dismissedSummary, setDismissedSummary] = useState("")
+    const extractors = useMemo(() => {
+        const units = amountUnitPairs(part.columns, true)
+        return new Map(part.columns.map((column) => [column.name, fieldSummaryExtractor(column, column.name, units.get(column.name))]))
+    }, [part.columns])
+    const totalsRows = summaryRows(selection)
+    const extractor = currentColumn ? extractors.get(currentColumn) : undefined
+    const summary = totalsRows && extractor ? summarize(rows.filter((row, index) => totalsRows.includes(keys[index])).map(extractor)) : null
+    const summaryKey = summary ? `${currentColumn}|${totalsRows?.join(",")}` : ""
+    const selectedSet = new Set(selection.selected)
+
+    const onCellMouseDown = (event: React.MouseEvent) => {
+        // Shift/Cmd/Ctrl+click selects rows instead of selecting text or focusing an input.
+        if (event.shiftKey || event.metaKey || event.ctrlKey) event.preventDefault()
+    }
+    const onCellClick = (key: string, column: string | null, event: React.MouseEvent) => {
+        const toggle = event.metaKey || event.ctrlKey
+        if (event.shiftKey || toggle) {
+            // A selection click must not also open a picker or flip a switch in the cell.
+            event.preventDefault()
+            event.stopPropagation()
+        }
+        setSelection(clickRow(selection, keys, key, { shift: event.shiftKey, toggle }))
+        if (column) setCurrentColumn(column)
+    }
+
     return (
         <section className={bare ? "space-y-2" : "mt-8 space-y-2"} aria-label={title} data-table-part={part.name}>
             <div className={bare && !editable ? "hidden" : "flex items-center justify-between gap-2"}>
@@ -77,16 +115,30 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                         {rows.map((row, index) => {
                             const lineNo = index + 1
                             return (
-                                <tr key={rowKey(row, index)} className="border-b align-middle last:border-0">
-                                    <td className="px-2 py-1 tabular-nums text-muted-foreground">{lineNo}</td>
+                                <tr key={keys[index]} data-selected={selectedSet.has(keys[index]) ? "true" : undefined}
+                                    className={cn("border-b align-middle last:border-0",
+                                        selection.current === keys[index] ? "bg-accent" : selectedSet.has(keys[index]) && "bg-accent/50")}>
+                                    <td className="cursor-pointer select-none px-2 py-1 tabular-nums text-muted-foreground"
+                                        onMouseDown={onCellMouseDown} onClick={(event) => onCellClick(keys[index], null, event)}>{lineNo}</td>
                                     {columns.map((column) => {
                                         const cellEditable = isEditableColumn(column, writable, readOnly)
+                                        const isCurrentCell = selection.current === keys[index] && currentColumn === column.name
+                                        const select = {
+                                            onMouseDownCapture: onCellMouseDown,
+                                            onClickCapture: (event: React.MouseEvent) => onCellClick(keys[index], column.name, event),
+                                            onFocusCapture: () => { setCurrentColumn(column.name); if (selection.current !== keys[index]) setSelection(clickRow(selection, keys, keys[index], { shift: false, toggle: false })) },
+                                        }
+                                        const withTotals = (cell: React.ReactElement) => isCurrentCell && summary && dismissedSummary !== summaryKey ? (
+                                            <SelectionSummaryPopover key={column.name} summary={summary} label={column.label || column.name} onDismiss={() => setDismissedSummary(summaryKey)}>
+                                                {cell}
+                                            </SelectionSummaryPopover>
+                                        ) : cell
                                         if (!cellEditable) {
-                                            return <td key={column.name} className="max-w-48 truncate px-2 py-1">{cellText(row, column)}</td>
+                                            return withTotals(<td key={column.name} className={cn("max-w-48 truncate px-2 py-1", isCurrentCell && "shadow-[inset_0_0_0_1px_hsl(var(--ring))]")} {...select}>{cellText(row, column)}</td>)
                                         }
                                         const endpoint = column.type === "reference" && column.referenceType ? resolveRefEndpoint(column.referenceType) : null
                                         return (
-                                            <td key={column.name} className="px-1 py-1" data-field={`${part.name}.${index}.${column.name}`}>
+                                            withTotals(<td key={column.name} className={cn("px-1 py-1", isCurrentCell && "shadow-[inset_0_0_0_1px_hsl(var(--ring))]")} data-field={`${part.name}.${index}.${column.name}`} {...select}>
                                                 {endpoint ? (
                                                     <ReferenceField
                                                         value={typeof row[column.name] === "string" ? String(row[column.name]) : ""}
@@ -100,7 +152,7 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                                 ) : (
                                                     renderInput(column, row[column.name], (value) => onChange(setCell(rows, index, column.name, value)))
                                                 )}
-                                            </td>
+                                            </td>)
                                         )
                                     })}
                                     {editable && (

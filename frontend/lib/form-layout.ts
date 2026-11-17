@@ -82,11 +82,18 @@ export function isWritableField(field: MetadataField, accepted: ReadonlySet<stri
     return accepted === null || accepted.has(field.name)
 }
 
-function isAmount(field: MetadataField): boolean {
+/** What pairing an amount with its unit needs to know of a field. */
+export interface PairableField {
+    name: string
+    type: string
+    referenceType?: string | null
+}
+
+function isAmount(field: PairableField): boolean {
     return field.type === "money" || (NUMERIC.has(field.type) && AMOUNT_NAME.test(field.name))
 }
 
-function isMoneyUnit(field: MetadataField): boolean {
+function isMoneyUnit(field: PairableField): boolean {
     return field.type === "reference" && !!field.referenceType && MONEY_UNIT_REFS.has(field.referenceType)
 }
 
@@ -118,10 +125,10 @@ function orderWithinGroup(fields: MetadataField[]): MetadataField[] {
  * the first unpaired unit. In a catalog an amount is usually a setting and a
  * currency there describes the item itself, so only named pairs are made.
  */
-export function pairAmountsWithUnits(fields: MetadataField[], anyUnit = true): MetadataField[] {
+export function pairAmountsWithUnits<F extends PairableField>(fields: F[], anyUnit = true): F[] {
     const units = fields.filter(isMoneyUnit)
-    const paired = new Map<MetadataField, MetadataField>()
-    const used = new Set<MetadataField>()
+    const paired = new Map<F, F>()
+    const used = new Set<F>()
     for (const amount of fields.filter(isAmount)) {
         const base = amount.name.replace(/(amount|sum|total|price)$/i, "")
         const unit = (base && units.find((u) => !used.has(u) && u.name.startsWith(base)))
@@ -131,7 +138,7 @@ export function pairAmountsWithUnits(fields: MetadataField[], anyUnit = true): M
             used.add(unit)
         }
     }
-    const out: MetadataField[] = []
+    const out: F[] = []
     for (const field of fields) {
         if (used.has(field)) continue
         out.push(field)
@@ -161,6 +168,17 @@ export function alignPairsToRows(fields: MetadataField[]): MetadataField[] {
         index += 1
     }
     return out
+}
+
+/** The currency or token field paired with each amount field, by amount name. */
+export function amountUnitPairs<F extends PairableField>(fields: F[], anyUnit: boolean): Map<string, F> {
+    const ordered = pairAmountsWithUnits(fields, anyUnit)
+    const pairs = new Map<string, F>()
+    ordered.forEach((field, index) => {
+        const next = ordered[index + 1]
+        if (isAmount(field) && next && isMoneyUnit(next)) pairs.set(field.name, next)
+    })
+    return pairs
 }
 
 type Bucket = "main" | "amounts" | "dates" | "details" | "flags"

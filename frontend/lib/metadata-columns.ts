@@ -1,3 +1,5 @@
+import { fieldSummaryExtractor } from "@/lib/selection-summary"
+import { amountUnitPairs } from "@/lib/form-layout"
 import type { JsonObject, JsonValue } from "@/lib/json-value"
 /**
  * metadata-columns.ts — shared utility for auto-generating table columns
@@ -182,6 +184,8 @@ export interface MergeListColumnsOptions {
     fields: MetadataField[]
     overlay?: AutoListColumn[]
     entityName: string
+    /** Documents pair an amount with any currency or token field (see form-layout). */
+    pairAnyUnit?: boolean
 }
 
 function isSkippedListField(field: MetadataField): boolean {
@@ -190,11 +194,13 @@ function isSkippedListField(field: MetadataField): boolean {
     return field.type === "json"
 }
 
-function columnFromField(field: MetadataField, entityName: string): AutoListColumn {
+function columnFromField(field: MetadataField, entityName: string, unit?: MetadataField): AutoListColumn {
     const type = mapFieldType(field.type)
     const isRef = type === "reference"
+    const key = listKeyForField(field)
     return {
-        key: listKeyForField(field),
+        key,
+        summary: fieldSummaryExtractor(field, key, unit),
         label: field.label ?? field.name,
         type,
         align: (type === "number" || type === "money") ? "right" : undefined,
@@ -215,6 +221,7 @@ function applyOverlay(base: AutoListColumn, overlay: AutoListColumn): AutoListCo
         align: overlay.align ?? base.align,
         className: overlay.className ?? base.className,
         render: overlay.render ?? base.render,
+        summary: overlay.summary ?? base.summary,
         enumEntity: overlay.enumEntity ?? base.enumEntity,
         refEndpoint: overlay.refEndpoint ?? base.refEndpoint,
         filterKey: overlay.filterKey ?? base.filterKey,
@@ -227,11 +234,12 @@ function applyOverlay(base: AutoListColumn, overlay: AutoListColumn): AutoListCo
  */
 export function mergeListColumns(options: MergeListColumnsOptions): AutoListColumn[] {
     const { fields, overlay, entityName } = options
+    const units = amountUnitPairs(fields, options.pairAnyUnit ?? false)
     const metaColumns: AutoListColumn[] = []
     const seenMeta = new Set<string>()
     for (const field of fields) {
         if (isSkippedListField(field)) continue
-        const col = columnFromField(field, entityName)
+        const col = columnFromField(field, entityName, units.get(field.name))
         if (seenMeta.has(col.key)) continue
         seenMeta.add(col.key)
         metaColumns.push(col)

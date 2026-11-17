@@ -2,10 +2,12 @@
 
 import type { JsonObject } from "@/lib/json-value"
 
-import React, { useEffect, useMemo, useRef } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
+import { summarize, type SummaryOperand } from "@/lib/selection-summary"
+import { SelectionSummaryPopover } from "@/components/shared/selection-summary-popover"
 import { useCompactMode } from "@/hooks/useCompactMode"
 import {
     ContextMenu,
@@ -34,6 +36,8 @@ export interface Column<T> {
     minWidth?: number
     /** Canonical filter field key (e.g. networkId for a `network` display column). */
     filterKey?: string
+    /** Number of a row for selection totals; absent for non-numeric columns. */
+    summary?: (item: T) => SummaryOperand | null
 }
 
 export interface DataTableProps<T extends { id: string }> {
@@ -62,6 +66,13 @@ export interface DataTableProps<T extends { id: string }> {
     onRowClick?: (item: T) => void
     /** Called on click of a data cell. Sets the current column for Alt+F. */
     onCellClick?: (item: T, columnKey: string) => void
+    /**
+     * Row selection by cell clicks (1C style): Shift+click selects the rows
+     * from the anchor (the current row before the first Shift+click) to the
+     * clicked one ("replace"); Cmd/Ctrl+click toggles the clicked row.
+     * With the current row selected, a numeric current column shows totals.
+     */
+    onSelectRows?: (ids: string[], mode: "replace" | "toggle") => void
     /** Called on double-click of a row. */
     onRowDoubleClick?: (item: T) => void
     /** ID of the current row. Independent of checkbox selection. */
@@ -150,6 +161,7 @@ export function DataTable<T extends { id: string }>({
     onSort,
     onRowClick,
     onCellClick,
+    onSelectRows,
     onRowDoubleClick,
     focusedId = null,
     focusedColumnKey = null,
@@ -169,6 +181,35 @@ export function DataTable<T extends { id: string }>({
 
     // O(1) selection lookup via Set instead of O(N) Array.includes() per row.
     const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
+
+    // Anchor of Shift+click ranges: the row clicked last without Shift.
+    const anchorRef = useRef<string | null>(null)
+    const handleCellClick = (item: T, columnKey: string, event: React.MouseEvent) => {
+        if (event.shiftKey && onSelectRows) {
+            const anchor = anchorRef.current ?? focusedId ?? item.id
+            const from = data.findIndex((row) => row.id === anchor)
+            const to = data.findIndex((row) => row.id === item.id)
+            if (from !== -1 && to !== -1) {
+                onSelectRows(data.slice(Math.min(from, to), Math.max(from, to) + 1).map((row) => row.id), "replace")
+            }
+            anchorRef.current = anchor
+        } else {
+            if ((event.metaKey || event.ctrlKey) && onSelectRows) onSelectRows([item.id], "toggle")
+            anchorRef.current = item.id
+        }
+        onCellClick?.(item, columnKey)
+    }
+
+    // Totals of the current column over the selection that holds the current row.
+    const summaryColumn = columns.find((col) => col.key === focusedColumnKey)
+    const summary = useMemo(() => {
+        if (!summaryColumn?.summary || !focusedId || !selectedSet.has(focusedId)) return null
+        const rows = data.filter((row) => selectedSet.has(row.id))
+        if (rows.length < 2) return null
+        return summarize(rows.map((row) => summaryColumn.summary!(row)))
+    }, [summaryColumn, focusedId, selectedSet, data])
+    const summaryKey = summary ? `${focusedColumnKey}|${selectedIds.length}|${focusedId}` : ""
+    const [dismissedSummary, setDismissedSummary] = useState("")
 
     // 1C-style copy: Cmd/Ctrl+C (or Edit → Copy) with no text selected puts
     // the current cell's value on the clipboard. A real text selection,
@@ -369,7 +410,7 @@ export function DataTable<T extends { id: string }>({
                             {/* Data cells — fixed height, horizontally clipped */}
                             {columns.map((col) => {
                                 const isCurrentCell = isFocused && focusedColumnKey === col.key
-                                return (
+                                const cell = (
                                 <td
                                     key={col.key}
                                     data-column-key={col.key}
@@ -382,15 +423,22 @@ export function DataTable<T extends { id: string }>({
                                         isCurrentCell && "relative z-[1] shadow-[inset_0_0_0_1px_hsl(var(--ring))]",
                                         col.className
                                     )}
-                                    onClick={() => onCellClick?.(item, col.key)}
+                                    onMouseDown={(event) => { if (event.shiftKey && onSelectRows) event.preventDefault() }}
+                                    onClick={(event) => handleCellClick(item, col.key, event)}
                                 >
-                                    <div className={cn("flex items-center min-w-0 whitespace-nowrap overflow-hidden text-ellipsis", rowH)}>
+                                    <div className={cn("flex items-center min-w-0 whitespace-nowrap overflow-hidden text-ellipsis", rowH,
+                                        col.align === "right" && "justify-end", col.align === "center" && "justify-center")}>
                                         {col.render
                                             ? col.render(item)
                                             : String((item as JsonObject)[col.key] ?? "")}
                                     </div>
                                 </td>
                                 )
+                                return isCurrentCell && summary && dismissedSummary !== summaryKey ? (
+                                    <SelectionSummaryPopover key={col.key} summary={summary} label={col.label} onDismiss={() => setDismissedSummary(summaryKey)}>
+                                        {cell}
+                                    </SelectionSummaryPopover>
+                                ) : cell
                             })}
                         </tr>
                     )

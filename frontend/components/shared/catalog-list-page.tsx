@@ -134,6 +134,7 @@ export function CatalogListPage<T extends { id: string }>({
     isAllSelected,
     isIndeterminate,
     toggleItem,
+    selectRows,
     toggleAll,
     sortColumn,
     sortDirection,
@@ -643,16 +644,6 @@ export function CatalogListPage<T extends { id: string }>({
               onRetry={refresh}
               emptyMessage={config.emptyMessage ?? "Список пуст."}
             >
-              {effectiveSelectAll && (
-                <SelectAllBanner
-                  selectedCount={selectedIds.length}
-                  totalCount={effectiveSelectAll.totalCount}
-                  selectAllByFilter={effectiveSelectAll.selectAllByFilter}
-                  excludedCount={effectiveSelectAll.excludedIds.length}
-                  onSelectAll={effectiveSelectAll.activateSelectAll}
-                  onClearAll={effectiveSelectAll.clearSelection}
-                />
-              )}
               <DataTable
                 data={items}
                 columns={effectiveColumns}
@@ -668,6 +659,7 @@ export function CatalogListPage<T extends { id: string }>({
                 focusedColumnKey={focusedColumnKey}
                 onRowClick={onRowClick}
                 onCellClick={focusCell}
+                onSelectRows={selectRows}
                 onRowDoubleClick={(item) => router.push(config.editHref(item))}
                 colWidths={colWidths}
                 onResizeStart={onResizeStart}
@@ -676,6 +668,19 @@ export function CatalogListPage<T extends { id: string }>({
                 rowClassName={config.rowClassName}
                 renderContextMenu={effectiveRenderContextMenu}
               />
+              {/* Below the rows and pinned to the bottom, so selecting rows does not move them. */}
+              {effectiveSelectAll && (
+                <div className="sticky bottom-0 z-20 bg-background shadow-[0_-1px_0_hsl(var(--border))] empty:hidden">
+                  <SelectAllBanner
+                    selectedCount={selectedIds.length}
+                    totalCount={effectiveSelectAll.totalCount}
+                    selectAllByFilter={effectiveSelectAll.selectAllByFilter}
+                    excludedCount={effectiveSelectAll.excludedIds.length}
+                    onSelectAll={effectiveSelectAll.activateSelectAll}
+                    onClearAll={effectiveSelectAll.clearSelection}
+                  />
+                </div>
+              )}
             </ListContent>
             <ScrollSentinel
               onIntersect={loadMore}

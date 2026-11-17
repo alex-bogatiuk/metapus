@@ -1,3 +1,4 @@
+import type { SummaryExtractor } from "@/lib/selection-summary"
 import type { JsonObject } from "@/lib/json-value"
 /**
  * Entity UI Registry — extensible registry for entity page components.
@@ -52,6 +53,8 @@ export interface AutoListColumn {
     align?: "left" | "right" | "center"
     /** Extra className applied to both th and td. */
     className?: string
+    /** Number of a row for selection totals (sum, average); absent for non-numeric columns. */
+    summary?: SummaryExtractor
     /** Custom cell renderer. When provided, takes priority over type-based formatting. */
     render?: (item: JsonObject) => ReactNode
     /**
