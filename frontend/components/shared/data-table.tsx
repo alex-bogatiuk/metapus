@@ -149,7 +149,8 @@ function SortIcon({
 
 /** The list page (marked data-list-page) whose toolbar hands focus back to the table. */
 const LIST_PAGE_SELECTOR = "[data-list-page]"
-const OVERLAY_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]'
+/** Menus, dialogs and popovers: focus inside them still belongs to what opened them. */
+export const OVERLAY_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]'
 const OPEN_OVERLAY_SELECTOR = '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [role="menu"][data-state="open"]'
 
 /** Rows that fit the table's scroll viewport below its header: a PageUp/PageDown step. */

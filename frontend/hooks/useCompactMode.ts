@@ -11,3 +11,8 @@ import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 export function useCompactMode(): boolean {
     return useUserPrefsStore((s) => s.interface.compactMode ?? false)
 }
+
+/** Whether table parts work like 1C: cells are selected by a click and edited on a double click, Enter or F2. */
+export function useTablePartCellMode(): boolean {
+    return useUserPrefsStore((s) => s.interface.tablePartCellMode ?? false)
+}

@@ -260,6 +260,13 @@ export function PreferencesContent() {
         />
 
         <SwitchField
+          label="Табличные части как в 1С"
+          description="Клик выбирает ячейку, двойной клик, Enter или F2 открывают её для правки. Строки выделяются стрелками с Shift и Ctrl+A, Del удаляет, Ins добавляет, F9 копирует строку"
+          checked={ui.tablePartCellMode ?? false}
+          onCheckedChange={(v) => update("tablePartCellMode", v)}
+        />
+
+        <SwitchField
           label="Всплывающие подсказки"
           description="Показывать tooltip при наведении на элементы"
           checked={ui.showTooltips ?? true}

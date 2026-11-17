@@ -2005,6 +2005,7 @@ export type UpdateInterfacePreferencesRequest = {
   "showTooltips"?: boolean | null
   "compactMode"?: boolean | null
   "sidebarCollapsed"?: boolean | null
+  "tablePartCellMode"?: boolean | null
   "showDeletedEntities"?: Record<string, boolean>
   "expandedSections"?: Record<string, boolean>
 }
@@ -2169,6 +2170,7 @@ export type UserprefInterfacePrefs = {
   "showTooltips"?: boolean
   "compactMode"?: boolean
   "sidebarCollapsed"?: boolean
+  "tablePartCellMode"?: boolean
   "showDeletedEntities"?: Record<string, boolean>
   "expandedSections"?: Record<string, boolean>
 }

@@ -76,6 +76,43 @@ export function moveRow(rows: JsonObject[], index: number, delta: -1 | 1): JsonO
     return next
 }
 
+/** Removes the rows with the given keys. */
+export function removeRows(rows: JsonObject[], keys: ReadonlySet<string>): JsonObject[] {
+    return rows.filter((row, index) => !keys.has(rowKey(row, index)))
+}
+
+/** Puts a stored copy back in place of the row with the key (an edit cancelled). */
+export function restoreRow(rows: JsonObject[], key: string, original: JsonObject): JsonObject[] {
+    return rows.map((row, index) => (rowKey(row, index) === key ? original : row))
+}
+
+/**
+ * Copies the rows with the given keys (1C F9) and inserts the copies after
+ * the last of them. A copy is a new line: it keeps only the fields the line
+ * request accepts (and their reference displays), not the line's identity or
+ * server-owned values. Returns the rows and the keys of the copies.
+ */
+export function copyRows(rows: JsonObject[], keys: ReadonlySet<string>, writable: readonly string[]): { rows: JsonObject[]; copied: string[] } {
+    const sources = rows.filter((row, index) => keys.has(rowKey(row, index)))
+    if (sources.length === 0) return { rows, copied: [] }
+    const copies = sources.map((source) => {
+        nextRowKey += 1
+        const copy: JsonObject = { [ROW_KEY]: `new-${nextRowKey}` }
+        for (const field of writable) {
+            if (LINE_IDENTITY_COLUMNS.has(field) || !(field in source)) continue
+            copy[field] = source[field]
+            const display = referenceDisplayKey(field)
+            if (display && display in source) copy[display] = source[display]
+        }
+        return copy
+    })
+    const last = rows.reduce((at, row, index) => (keys.has(rowKey(row, index)) ? index : at), -1)
+    return {
+        rows: [...rows.slice(0, last + 1), ...copies, ...rows.slice(last + 1)],
+        copied: copies.map((copy) => String(copy[ROW_KEY])),
+    }
+}
+
 /** A line the form can tell is incomplete before sending it. */
 export class LineInputError extends Error {
     constructor(message: string, readonly part: string) {

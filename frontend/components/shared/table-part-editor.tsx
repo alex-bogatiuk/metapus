@@ -1,20 +1,25 @@
 "use client"
 
-import React, { useMemo, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { ReferenceField } from "@/components/shared/reference-field"
+import { OVERLAY_SELECTOR } from "@/components/shared/data-table"
 import type { JsonObject, JsonValue } from "@/lib/json-value"
 import type { MetadataField } from "@/lib/schemas/metadata"
 import { resolveRefEndpoint } from "@/lib/reference-endpoint"
-import { amountUnitPairs } from "@/lib/form-layout"
-import { EMPTY_ROW_SELECTION, clickRow, keepExisting, summaryRows, type RowSelection } from "@/lib/row-selection"
+import { amountUnitPairs, displayValue } from "@/lib/form-layout"
+import { EMPTY_ROW_SELECTION, clickRow, keepExisting, rowMoveTarget, summaryRows, type RowSelection } from "@/lib/row-selection"
 import { fieldSummaryExtractor, summarize } from "@/lib/selection-summary"
-import { SelectionSummaryPopover } from "@/components/shared/selection-summary-popover"
+import { SelectionSummaryPopover, copyText } from "@/components/shared/selection-summary-popover"
+import { useTablePartCellMode } from "@/hooks/useCompactMode"
 import { cn } from "@/lib/utils"
 import {
-    LINE_IDENTITY_COLUMNS, addRow, isEditableColumn, moveRow, referenceDisplayName, removeRow, rowKey, setCell,
+    LINE_IDENTITY_COLUMNS, addRow, copyRows, isEditableColumn, moveRow, referenceDisplayName, removeRow, removeRows,
+    restoreRow, rowKey, setCell,
 } from "@/lib/table-part-rows"
 
 export interface TablePartEditorProps {
@@ -32,19 +37,33 @@ export interface TablePartEditorProps {
     renderInput: (column: MetadataField, value: JsonValue | undefined, onChange: (value: JsonValue) => void) => React.ReactNode
 }
 
+const NUMERIC = new Set(["integer", "number", "decimal", "money"])
+/** Rows a PageUp/PageDown step moves in a table part (it grows with the page, not scrolls). */
+const PAGE_ROWS = 10
+const CURRENT_CELL = "shadow-[inset_0_0_0_1px_hsl(var(--ring))]"
+
 function cellText(row: JsonObject, column: MetadataField): string {
     if (column.type === "reference") return referenceDisplayName(row, column.name) ?? String(row[column.name] ?? "")
     if (column.type === "boolean") return row[column.name] ? "Да" : "Нет"
-    const value = row[column.name]
-    return value === undefined || value === null ? "" : String(value)
+    const text = displayValue(column, row[column.name])
+    return text === "—" ? "" : text
 }
 
 /**
  * A document table part as a grid: № from the position, one column per line
  * field. A writable part adds, removes and reorders lines; a cell is editable
  * when the line request accepts its field.
+ *
+ * With the user's "table parts like 1C" setting (cell mode) cells show their
+ * values and a click only makes a cell current; a double click, Enter or F2
+ * opens it for editing, Enter or Tab finish and Escape cancels. The keyboard
+ * then works the grid: arrows, PageUp/PageDown, Home/End and Tab move, Shift
+ * extends the selection, Ctrl/Cmd+A selects all lines, Ctrl/Cmd+C copies,
+ * Delete (Cmd+Backspace) removes the selected lines, Insert adds one, F9
+ * copies the selected lines and Ctrl/Cmd+Shift+↑/↓ moves the current one.
  */
 export function TablePartEditor({ part, rows, writable, readOnly, disabled, hiddenColumns, bare = false, onChange, renderInput }: TablePartEditorProps) {
+    const cellMode = useTablePartCellMode()
     const columns = part.columns.filter((column) => !hiddenColumns.has(column.name) && !LINE_IDENTITY_COLUMNS.has(column.name))
     const editable = !readOnly && writable !== null
     const title = part.label || part.name
@@ -67,6 +86,41 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
     const summaryKey = summary ? `${currentColumn}|${totalsRows?.join(",")}` : ""
     const selectedSet = new Set(selection.selected)
 
+    // Cell mode: the cell open for editing and its row as it was, for Escape.
+    // A line added by Insert is taken back by Escape while it is still open.
+    const [editing, setEditing] = useState<{ key: string; column: string; original: JsonObject; added?: boolean } | null>(null)
+    const editingCell = editing && keys.includes(editing.key) ? `${editing.key}|${editing.column}` : ""
+    const gridRef = useRef<HTMLDivElement>(null)
+    const revealNext = useRef(false)
+    const focusGrid = () => gridRef.current?.focus({ preventScroll: true })
+
+    // An opened cell takes focus with its value selected, ready to be typed over.
+    useEffect(() => {
+        if (!editingCell) return
+        const cell = gridRef.current?.querySelector<HTMLElement>('td[data-editing="true"]')
+        const control = cell?.querySelector<HTMLElement>("input, textarea, select, button, [tabindex]:not([tabindex='-1'])")
+        control?.focus()
+        if (control instanceof HTMLInputElement && control.type !== "checkbox") control.select()
+        // A reference cell opens straight into its picker, as 1C opens the choice.
+        if (control?.getAttribute("role") === "combobox" && control.getAttribute("aria-expanded") === "false") control.click()
+    }, [editingCell])
+
+    // A keyboard move scrolls the current cell into view (new lines included).
+    const currentKey = selection.current
+    useEffect(() => {
+        if (!revealNext.current) return
+        revealNext.current = false
+        const grid = gridRef.current
+        const target = grid?.querySelector<HTMLElement>('td[data-current-cell="true"]') ?? grid?.querySelector<HTMLElement>('tr[data-current="true"]')
+        target?.scrollIntoView({ block: "nearest", inline: "nearest" })
+    }, [currentKey, currentColumn, rows.length])
+
+    const select = (state: RowSelection) => {
+        setSelection(state)
+        revealNext.current = true
+    }
+    const only = (key: string): RowSelection => ({ selected: [key], current: key, anchor: key })
+
     const onCellMouseDown = (event: React.MouseEvent) => {
         // Shift/Cmd/Ctrl+click selects rows instead of selecting text or focusing an input.
         if (event.shiftKey || event.metaKey || event.ctrlKey) event.preventDefault()
@@ -80,6 +134,187 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
         }
         setSelection(clickRow(selection, keys, key, { shift: event.shiftKey, toggle }))
         if (column) setCurrentColumn(column)
+        if (cellMode) {
+            if (editing && (editing.key !== key || editing.column !== column)) setEditing(null)
+            focusGrid()
+        }
+    }
+
+    // ── Cell mode: editing ──────────────────────────────────────────────
+    const startEdit = (key: string, column: MetadataField) => {
+        const index = keys.indexOf(key)
+        if (index === -1 || disabled || !isEditableColumn(column, writable, readOnly)) return
+        setCurrentColumn(column.name)
+        // A flag has nothing to type: it flips in place.
+        if (column.type === "boolean") {
+            onChange(setCell(rows, index, column.name, !rows[index][column.name]))
+            return
+        }
+        setEditing({ key, column: column.name, original: rows[index] })
+    }
+    const finishEdit = (cancel: boolean) => {
+        if (!editing) return
+        if (cancel && editing.added) {
+            // As in 1C, Escape on a line just added takes the line back.
+            const index = keys.indexOf(editing.key)
+            onChange(removeRows(rows, new Set([editing.key])))
+            const landing = keys[index - 1] ?? keys[index + 1]
+            select(landing ? only(landing) : EMPTY_ROW_SELECTION)
+        } else if (cancel) {
+            onChange(restoreRow(rows, editing.key, editing.original))
+        }
+        setEditing(null)
+        focusGrid()
+    }
+
+    // ── Cell mode: lines ────────────────────────────────────────────────
+    /** The lines a command acts on: the selection holding the current line, else the current line. */
+    const targetKeys = (): Set<string> => {
+        if (selection.current && selection.selected.includes(selection.current)) return new Set(selection.selected)
+        return new Set(selection.current ? [selection.current] : [])
+    }
+    const insertLine = () => {
+        const next = addRow(rows)
+        const key = rowKey(next[next.length - 1], next.length - 1)
+        onChange(next)
+        select(only(key))
+        const first = columns.find((column) => isEditableColumn(column, writable, readOnly))
+        if (first) {
+            setCurrentColumn(first.name)
+            if (first.type !== "boolean") setEditing({ key, column: first.name, original: next[next.length - 1], added: true })
+        }
+    }
+    const deleteLines = () => {
+        const targets = targetKeys()
+        if (targets.size === 0) return
+        const first = keys.findIndex((key) => targets.has(key))
+        const next = removeRows(rows, targets)
+        onChange(next)
+        const landing = next.length ? rowKey(next[Math.min(first, next.length - 1)], Math.min(first, next.length - 1)) : null
+        select(landing ? only(landing) : EMPTY_ROW_SELECTION)
+    }
+    const duplicateLines = () => {
+        if (!writable) return
+        const { rows: next, copied } = copyRows(rows, targetKeys(), writable)
+        if (copied.length === 0) return
+        onChange(next)
+        select({ selected: copied, current: copied[0], anchor: copied[0] })
+    }
+    const moveLine = (step: -1 | 1) => {
+        const index = selection.current ? keys.indexOf(selection.current) : -1
+        if (index === -1) return
+        onChange(moveRow(rows, index, step))
+        revealNext.current = true
+    }
+    const copyToClipboard = () => {
+        const targets = targetKeys()
+        let text = ""
+        if (targets.size > 1) {
+            text = rows.filter((_, index) => targets.has(keys[index]))
+                .map((row) => columns.map((column) => cellText(row, column)).join("\t"))
+                .join("\n")
+        } else {
+            const index = selection.current ? keys.indexOf(selection.current) : -1
+            const column = columns.find((col) => col.name === currentColumn)
+            if (index !== -1 && column) text = cellText(rows[index], column)
+        }
+        void copyText(text).then((copied) => {
+            if (!copied) toast.error("Не удалось скопировать")
+            else if (targets.size > 1) toast.success(`Скопировано строк: ${targets.size}`)
+        })
+    }
+    const moveColumn = (step: -1 | 1): boolean => {
+        const at = columns.findIndex((column) => column.name === currentColumn)
+        const next = at === -1 ? 0 : at + step
+        if (next < 0 || next >= columns.length) return false
+        setCurrentColumn(columns[next].name)
+        if (!selection.current && keys[0]) select(only(keys[0]))
+        revealNext.current = true
+        return true
+    }
+
+    const onGridKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+        const handled = () => {
+            // Handled keys end here: the form's and the app's shortcuts do not see them.
+            event.preventDefault()
+            event.stopPropagation()
+        }
+        if (editing) {
+            // A picker or menu inside the cell handles its own keys first.
+            if (event.defaultPrevented) return
+            if (event.key === "Escape") { handled(); finishEdit(true); return }
+            if (event.key === "Enter" && !event.shiftKey && !(event.target instanceof HTMLTextAreaElement)) { handled(); finishEdit(false); return }
+            if (event.key === "Tab") {
+                setEditing(null)
+                if (moveColumn(event.shiftKey ? -1 : 1)) { handled(); focusGrid() }
+            }
+            return
+        }
+        if (event.target !== event.currentTarget || event.altKey) return
+        const index = selection.current ? keys.indexOf(selection.current) : -1
+        const column = columns.find((col) => col.name === currentColumn)
+        if (event.metaKey || event.ctrlKey) {
+            if (event.code === "KeyA" && !event.shiftKey && keys.length) {
+                handled()
+                setSelection({ selected: keys, current: selection.current ?? keys[0], anchor: selection.anchor ?? keys[0] })
+                if (!currentColumn && columns[0]) setCurrentColumn(columns[0].name)
+            } else if (event.code === "KeyC" && !event.shiftKey) {
+                handled()
+                copyToClipboard()
+            } else if (event.shiftKey && (event.key === "ArrowUp" || event.key === "ArrowDown") && editable && !disabled) {
+                handled()
+                moveLine(event.key === "ArrowUp" ? -1 : 1)
+            } else if (event.key === "Backspace" && editable && !disabled) {
+                handled()
+                deleteLines()
+            }
+            return
+        }
+        const target = rowMoveTarget(event.key, index, rows.length, PAGE_ROWS)
+        if (target !== null) {
+            handled()
+            select(clickRow(selection, keys, keys[target], { shift: event.shiftKey, toggle: false }))
+            if (!currentColumn && columns[0]) setCurrentColumn(columns[0].name)
+            return
+        }
+        switch (event.key) {
+            case "ArrowLeft":
+            case "ArrowRight":
+                if (!event.shiftKey && moveColumn(event.key === "ArrowRight" ? 1 : -1)) handled()
+                return
+            case "Tab":
+                // At the edge Tab leaves the grid, so the keyboard is never trapped in it.
+                if (moveColumn(event.shiftKey ? -1 : 1)) handled()
+                return
+            case "Enter":
+            case "F2":
+            case " ":
+                if (index === -1 || !column || !isEditableColumn(column, writable, readOnly) || disabled) return
+                if (event.key === " " && column.type !== "boolean") return
+                handled()
+                startEdit(keys[index], column)
+                return
+            case "Delete":
+                if (editable && !disabled) { handled(); deleteLines() }
+                return
+            case "Insert":
+                if (editable && !disabled) { handled(); insertLine() }
+                return
+            case "F9":
+                if (editable && !disabled) { handled(); duplicateLines() }
+                return
+            case "Escape":
+                if (selection.current && selection.selected.length > 1) { handled(); setSelection(only(selection.current)) }
+                return
+        }
+    }
+
+    const onGridBlur = (event: React.FocusEvent<HTMLDivElement>) => {
+        // Focus leaving for outside the grid closes the cell; a picker's popover is still the cell's.
+        if (!editing) return
+        const next = event.relatedTarget
+        if (next instanceof Element && (event.currentTarget.contains(next) || next.closest(OVERLAY_SELECTOR))) return
+        setEditing(null)
     }
 
     return (
@@ -87,19 +322,23 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
             <div className={bare && !editable ? "hidden" : "flex items-center justify-between gap-2"}>
                 {bare ? <span /> : <Label className="text-sm font-semibold">{title}</Label>}
                 {editable && (
-                    <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => onChange(addRow(rows))}>
+                    <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => (cellMode ? insertLine() : onChange(addRow(rows)))}>
                         <Plus className="h-3.5 w-3.5" />
                         Добавить строку
                     </Button>
                 )}
             </div>
-            <div className="overflow-x-auto rounded border text-sm">
+            <div
+                ref={gridRef}
+                className={cn("overflow-x-auto rounded border text-sm", cellMode && "outline-none focus-visible:ring-1 focus-visible:ring-ring")}
+                {...(cellMode ? { tabIndex: 0, onKeyDown: onGridKeyDown, onBlur: onGridBlur, "data-cell-mode": "true" } : {})}
+            >
                 <table className="w-full border-collapse">
                     <thead className="bg-muted/50">
                         <tr className="border-b">
                             <th scope="col" className="w-10 px-2 py-2 text-left font-medium">№</th>
                             {columns.map((column) => (
-                                <th key={column.name} scope="col" className="min-w-32 px-2 py-2 text-left font-medium">
+                                <th key={column.name} scope="col" className={cn("min-w-32 px-2 py-2 text-left font-medium", cellMode && NUMERIC.has(column.type) && "text-right")}>
                                     {column.label || column.name}{column.required && editable ? <span className="text-destructive"> *</span> : null}
                                 </th>
                             ))}
@@ -109,41 +348,73 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                     <tbody>
                         {rows.length === 0 && (
                             <tr>
-                                <td colSpan={columns.length + (editable ? 2 : 1)} className="px-3 py-4 text-center text-muted-foreground">Нет строк</td>
+                                <td colSpan={columns.length + (editable ? 2 : 1)} className="px-3 py-4 text-center text-muted-foreground">
+                                    {cellMode && editable ? "Нет строк. Insert или «Добавить строку» — новая строка" : "Нет строк"}
+                                </td>
                             </tr>
                         )}
                         {rows.map((row, index) => {
                             const lineNo = index + 1
+                            const key = keys[index]
                             return (
-                                <tr key={keys[index]} data-selected={selectedSet.has(keys[index]) ? "true" : undefined}
+                                <tr key={key} data-selected={selectedSet.has(key) ? "true" : undefined} data-current={selection.current === key ? "true" : undefined}
                                     className={cn("border-b align-middle last:border-0",
-                                        selection.current === keys[index] ? "bg-accent" : selectedSet.has(keys[index]) && "bg-accent/50")}>
+                                        selection.current === key ? "bg-accent" : selectedSet.has(key) && "bg-accent/50")}>
                                     <td className="cursor-pointer select-none px-2 py-1 tabular-nums text-muted-foreground"
-                                        onMouseDown={onCellMouseDown} onClick={(event) => onCellClick(keys[index], null, event)}>{lineNo}</td>
+                                        onMouseDown={onCellMouseDown} onClick={(event) => onCellClick(key, null, event)}>{lineNo}</td>
                                     {columns.map((column) => {
                                         const cellEditable = isEditableColumn(column, writable, readOnly)
-                                        const isCurrentCell = selection.current === keys[index] && currentColumn === column.name
-                                        const select = {
-                                            onMouseDownCapture: onCellMouseDown,
-                                            onClickCapture: (event: React.MouseEvent) => onCellClick(keys[index], column.name, event),
-                                            onFocusCapture: () => { setCurrentColumn(column.name); if (selection.current !== keys[index]) setSelection(clickRow(selection, keys, keys[index], { shift: false, toggle: false })) },
-                                        }
+                                        const isCurrentCell = selection.current === key && currentColumn === column.name
+                                        const isEditing = cellMode && editingCell === `${key}|${column.name}`
                                         const withTotals = (cell: React.ReactElement) => isCurrentCell && summary && dismissedSummary !== summaryKey ? (
                                             <SelectionSummaryPopover key={column.name} summary={summary} label={column.label || column.name} onDismiss={() => setDismissedSummary(summaryKey)}>
                                                 {cell}
                                             </SelectionSummaryPopover>
                                         ) : cell
+
+                                        if (cellMode && !isEditing) {
+                                            // Cell mode: the value as text; a double click opens it.
+                                            return withTotals(
+                                                <td key={column.name} data-current-cell={isCurrentCell ? "true" : undefined}
+                                                    className={cn("h-9 max-w-48 cursor-default select-none truncate px-2 py-1",
+                                                        NUMERIC.has(column.type) && "text-right tabular-nums",
+                                                        !cellEditable && "text-muted-foreground",
+                                                        isCurrentCell && CURRENT_CELL)}
+                                                    onMouseDown={onCellMouseDown}
+                                                    onClick={(event) => onCellClick(key, column.name, event)}
+                                                    onDoubleClick={(event) => { if (!event.shiftKey && !event.metaKey && !event.ctrlKey) startEdit(key, column) }}>
+                                                    {column.type === "boolean"
+                                                        ? <Checkbox checked={!!row[column.name]} tabIndex={-1} aria-hidden className="pointer-events-none" />
+                                                        : cellText(row, column)}
+                                                </td>,
+                                            )
+                                        }
+
+                                        const selectHandlers = cellMode ? {} : {
+                                            onMouseDownCapture: onCellMouseDown,
+                                            onClickCapture: (event: React.MouseEvent) => onCellClick(key, column.name, event),
+                                            onFocusCapture: () => { setCurrentColumn(column.name); if (selection.current !== key) setSelection(only(key)) },
+                                        }
                                         if (!cellEditable) {
-                                            return withTotals(<td key={column.name} className={cn("max-w-48 truncate px-2 py-1", isCurrentCell && "shadow-[inset_0_0_0_1px_hsl(var(--ring))]")} {...select}>{cellText(row, column)}</td>)
+                                            return withTotals(<td key={column.name} data-current-cell={isCurrentCell ? "true" : undefined} className={cn("max-w-48 truncate px-2 py-1", isCurrentCell && CURRENT_CELL)} {...selectHandlers}>{cellText(row, column)}</td>)
                                         }
                                         const endpoint = column.type === "reference" && column.referenceType ? resolveRefEndpoint(column.referenceType) : null
                                         return (
-                                            withTotals(<td key={column.name} className={cn("px-1 py-1", isCurrentCell && "shadow-[inset_0_0_0_1px_hsl(var(--ring))]")} data-field={`${part.name}.${index}.${column.name}`} {...select}>
+                                            withTotals(<td key={column.name} data-current-cell={isCurrentCell ? "true" : undefined} data-editing={isEditing ? "true" : undefined}
+                                                className={cn("px-1 py-1", isCurrentCell && CURRENT_CELL)} data-field={`${part.name}.${index}.${column.name}`} {...selectHandlers}>
                                                 {endpoint ? (
                                                     <ReferenceField
                                                         value={typeof row[column.name] === "string" ? String(row[column.name]) : ""}
                                                         displayName={referenceDisplayName(row, column.name)}
-                                                        onChange={(value, display) => onChange(setCell(rows, index, column.name, value, display))}
+                                                        onChange={(value, display) => {
+                                                            onChange(setCell(rows, index, column.name, value, display))
+                                                            if (isEditing) {
+                                                                // Picking a value finishes the cell; focus returns to the
+                                                                // grid once the picker has handed it back.
+                                                                setEditing(null)
+                                                                requestAnimationFrame(() => requestAnimationFrame(focusGrid))
+                                                            }
+                                                        }}
                                                         apiEndpoint={endpoint}
                                                         placeholder="Выберите…"
                                                         compact
@@ -157,15 +428,15 @@ export function TablePartEditor({ part, rows, writable, readOnly, disabled, hidd
                                     })}
                                     {editable && (
                                         <td className="whitespace-nowrap px-1 py-1 text-right">
-                                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={disabled || index === 0}
+                                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={disabled || index === 0} tabIndex={cellMode ? -1 : undefined}
                                                 aria-label={`Переместить строку ${lineNo} вверх`} onClick={() => onChange(moveRow(rows, index, -1))}>
                                                 <ArrowUp className="h-3.5 w-3.5" />
                                             </Button>
-                                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={disabled || index === rows.length - 1}
+                                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={disabled || index === rows.length - 1} tabIndex={cellMode ? -1 : undefined}
                                                 aria-label={`Переместить строку ${lineNo} вниз`} onClick={() => onChange(moveRow(rows, index, 1))}>
                                                 <ArrowDown className="h-3.5 w-3.5" />
                                             </Button>
-                                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={disabled}
+                                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={disabled} tabIndex={cellMode ? -1 : undefined}
                                                 aria-label={`Удалить строку ${lineNo}`} onClick={() => onChange(removeRow(rows, index))}>
                                                 <Trash2 className="h-3.5 w-3.5" />
                                             </Button>

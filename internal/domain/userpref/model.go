@@ -20,6 +20,9 @@ type InterfacePrefs struct {
 	ShowTooltips     *bool  `json:"showTooltips,omitempty"`
 	CompactMode      *bool  `json:"compactMode,omitempty"`
 	SidebarCollapsed *bool  `json:"sidebarCollapsed,omitempty"`
+	// Table parts work like 1C: a click selects a cell, a double click,
+	// Enter or F2 edits it, and the keyboard moves and selects lines.
+	TablePartCellMode *bool `json:"tablePartCellMode,omitempty"`
 	// Per-entity toggle: show deletion-marked items in list views. Key = entity type (e.g. "Counterparty").
 	ShowDeletedEntities map[string]bool `json:"showDeletedEntities,omitempty"`
 	// Per-section toggle: whether a collapsible UI section is expanded. Key = section id owned by the UI.

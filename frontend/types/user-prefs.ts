@@ -23,6 +23,8 @@ export interface InterfacePrefs {
   showTooltips?: boolean
   compactMode?: boolean
   sidebarCollapsed?: boolean
+  /** Table parts work like 1C: a click selects a cell, a double click, Enter or F2 edits it. */
+  tablePartCellMode?: boolean
   /** Per-entity toggle: show deletion-marked items in list views. Key = entity type (e.g. "Counterparty"). */
   showDeletedEntities?: Record<string, boolean>
   /** Per-section toggle: whether a collapsible UI section is expanded. Key = section id owned by the UI. */

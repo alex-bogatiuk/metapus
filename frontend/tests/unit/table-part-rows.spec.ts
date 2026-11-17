@@ -2,10 +2,12 @@ import { test, expect } from "@playwright/test"
 import { z } from "zod"
 import { formRequestParts, projectFormRequest, registerHTTPRoutes } from "../../lib/http-contracts"
 import {
-  LineInputError, ROW_KEY, addRow, checkRequiredCells, isEditableColumn, moveRow, referenceDisplayName, removeRow, rowKey, setCell,
+  LineInputError, ROW_KEY, addRow, checkRequiredCells, copyRows, isEditableColumn, moveRow, referenceDisplayName, removeRow, removeRows,
+  restoreRow, rowKey, setCell,
 } from "../../lib/table-part-rows"
 import type { HTTPRouteContract } from "../../lib/http-contract-types"
 import type { MetadataField } from "../../lib/schemas/metadata"
+import type { JsonObject } from "../../lib/json-value"
 
 const line = z.object({ lineId: z.string().nullable().optional(), productId: z.string(), quantity: z.number().optional() }).strict()
 const receiptRoutes: HTTPRouteContract[] = [
@@ -83,4 +85,25 @@ test("an empty required cell of a writable part is named before saving", () => {
   expect(() => checkRequiredCells([goods], { goods: [{ productId: "p-1" }] }, writable)).not.toThrow()
   expect(() => checkRequiredCells([goods], { goods: [{}] }, {}), "a part the request does not accept is not checked").not.toThrow()
   expect(() => checkRequiredCells([goods], { goods: [{}] }, writable)).toThrow(LineInputError)
+})
+
+test("F9 copies the selected lines after the last of them as new lines with only writable fields", () => {
+    const rows: JsonObject[] = [
+        { lineId: "l1", lineNo: 1, productId: "p1", product: { id: "p1", name: "Гвозди" }, quantity: 2, batch: "B-7" },
+        { lineId: "l2", lineNo: 2, productId: "p2", product: { id: "p2", name: "Шурупы" }, quantity: 3 },
+        { lineId: "l3", lineNo: 3, productId: "p1", quantity: 7 },
+    ]
+    const { rows: next, copied } = copyRows(rows, new Set(["l1", "l2"]), ["productId", "quantity"])
+    expect(copied).toHaveLength(2)
+    expect(next.map((row, index) => rowKey(row, index))).toEqual(["l1", "l2", ...copied, "l3"])
+    // A copy is a new line: no identity, no server-owned batch, the reference display kept.
+    expect(next[2]).toEqual({ [ROW_KEY]: copied[0], productId: "p1", product: { id: "p1", name: "Гвозди" }, quantity: 2 })
+    expect(copyRows(rows, new Set(["gone"]), ["quantity"]).copied).toEqual([])
+})
+
+test("lines are removed by key and an edit is cancelled by restoring the stored row", () => {
+    const rows: JsonObject[] = [{ lineId: "a", quantity: 1 }, { lineId: "b", quantity: 2 }, { lineId: "c", quantity: 3 }]
+    expect(removeRows(rows, new Set(["a", "c"]))).toEqual([{ lineId: "b", quantity: 2 }])
+    const edited = setCell(rows, 1, "quantity", 20)
+    expect(restoreRow(edited, "b", rows[1])).toEqual(rows)
 })

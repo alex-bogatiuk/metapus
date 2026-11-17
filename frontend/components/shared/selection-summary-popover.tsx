@@ -19,7 +19,7 @@ export interface SelectionSummaryPopoverProps {
  * Copies text: the Clipboard API, else a hidden textarea and execCommand for
  * browsers or embedded views that deny clipboard permission.
  */
-async function copyText(text: string): Promise<boolean> {
+export async function copyText(text: string): Promise<boolean> {
     try {
         await navigator.clipboard.writeText(text)
         return true
