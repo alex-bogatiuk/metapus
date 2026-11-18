@@ -131,7 +131,7 @@ type declaredVehicle struct {
 
 func (declaredVehicle) EntityDefinition() entity.Definition { return declaredCatalogDefinition }
 
-var declaredDocumentDefinition = entity.Definition{Kind: entity.DocumentKind, Key: "fleet_waybill", Name: "FleetWaybill", Route: "fleet-waybill", Table: "doc_fleet_waybills"}
+var declaredDocumentDefinition = entity.Definition{Kind: entity.DocumentKind, Key: "fleet_waybill", Name: "FleetWaybill", Route: "fleet-waybill", Table: "doc_fleet_waybills", Number: entity.NumberRule{Prefix: "FW"}}
 
 type declaredWaybill struct {
 	entity.Document
@@ -162,7 +162,7 @@ func TestDeclaredEntitiesServeCRUDAndPostingOverTheirGeneratedTables(t *testing.
 
 	reg := v1.NewFactoryRegistry()
 	reg.RegisterCatalog(v1.Catalog[declaredVehicle](metadata.Presentation{Singular: "ТС", Plural: "Транспорт"}))
-	reg.RegisterDocument(v1.Document[declaredWaybill](metadata.Presentation{Singular: "Путевой лист", Plural: "Путевые листы"}).NumberPrefix("FW"))
+	reg.RegisterDocument(v1.Document[declaredWaybill](metadata.Presentation{Singular: "Путевой лист", Plural: "Путевые листы"}))
 	call := serveDeclared(t, tenant, reg, []declaredModel{{declaredVehicle{}, declaredCatalogDefinition}, {declaredWaybill{}, declaredDocumentDefinition}})
 
 	status, created := call("POST", "/catalog/fleet-vehicles", `{"code":"V-1","name":"Газель","plate":"А001АА","mileage":12000}`)

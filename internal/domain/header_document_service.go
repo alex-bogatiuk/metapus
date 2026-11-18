@@ -22,8 +22,7 @@ type BaseHeaderDocumentServiceConfig[T HeaderDocumentEntity] struct {
 	TxManager        tx.Manager // Optional for Database-per-Tenant
 	CurrencyResolver CurrencyResolveStrategy
 	PolicyEngine     *security.PolicyEngine // Optional — CEL policy evaluation
-	NumeratorPrefix  string
-	EntityName       string // for logging (e.g., "crypto_invoice")
+	EntityName       string                 // for logging (e.g., "crypto_invoice")
 	// Parts persists the document's table parts with it; nil for a
 	// document whose data lives in the header alone.
 	Parts DocumentParts[T]
@@ -51,9 +50,10 @@ type BaseHeaderDocumentService[T HeaderDocumentEntity] struct {
 	CurrencyResolver CurrencyResolveStrategy
 	PolicyEngine     *security.PolicyEngine
 	hooks            *HookRegistry[T]
-	NumeratorPrefix  string
 	EntityName       string
-	parts            DocumentParts[T]
+	// numberSeries numbers the document; nil without a Definition.
+	numberSeries *numerator.Config
+	parts        DocumentParts[T]
 }
 
 // NewBaseHeaderDocumentService creates a new BaseHeaderDocumentService.
@@ -67,6 +67,11 @@ func NewBaseHeaderDocumentService[T HeaderDocumentEntity](cfg BaseHeaderDocument
 		}
 		cfg.EntityName = cfg.Definition.Key
 	}
+	var series *numerator.Config
+	if cfg.Definition != nil {
+		documentSeries := numerator.DocumentSeries(*cfg.Definition)
+		series = &documentSeries
+	}
 
 	return &BaseHeaderDocumentService[T]{
 		Repo:             cfg.Repo,
@@ -76,7 +81,7 @@ func NewBaseHeaderDocumentService[T HeaderDocumentEntity](cfg BaseHeaderDocument
 		CurrencyResolver: cfg.CurrencyResolver,
 		PolicyEngine:     cfg.PolicyEngine,
 		hooks:            NewHookRegistry[T](),
-		NumeratorPrefix:  cfg.NumeratorPrefix,
+		numberSeries:     series,
 		EntityName:       cfg.EntityName,
 		parts:            cfg.Parts,
 	}
@@ -135,13 +140,16 @@ func (s *BaseHeaderDocumentService[T]) ResolveCurrency(ctx context.Context, doc 
 	return resolveDocumentCurrency(ctx, doc, s.CurrencyResolver)
 }
 
-// GenerateNumber generates a document number if it is empty.
+// GenerateNumber gives a document without a number the next one of the
+// series its Definition declares (see numerator.DocumentSeries).
 func (s *BaseHeaderDocumentService[T]) GenerateNumber(ctx context.Context, doc T) error {
 	if doc.GetNumber() != "" {
 		return nil
 	}
-	cfg := numerator.DefaultConfig(s.NumeratorPrefix)
-	number, err := s.Numerator.GetNextNumber(ctx, cfg, numberPeriod(doc))
+	if s.numberSeries == nil {
+		return fmt.Errorf("document %s has no Definition to number it by", s.EntityName)
+	}
+	number, err := s.Numerator.GetNextNumber(ctx, *s.numberSeries, numberPeriod(doc))
 	if err != nil {
 		return fmt.Errorf("generate number: %w", err)
 	}

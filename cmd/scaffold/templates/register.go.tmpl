@@ -8,5 +8,5 @@ import (
 // Register adds the {{if .Document}}document{{else}}catalog{{end}} to the application. Add hooks with
 // .Configure(func(s *domain.{{if .Document}}BaseHeaderDocumentService{{else}}CatalogService{{end}}[*{{.PascalName}}]) { ... }).
 func Register(reg *v1.FactoryRegistry) {
- reg.Register{{if .Document}}Document(v1.Document{{else}}Catalog(v1.Catalog{{end}}[{{.PascalName}}](metadata.Presentation{Singular: "{{.PascalName}}", Plural: "{{.PascalName}}s", NewLabel: "New {{.PascalName}}"}){{if .Document}}.NumberPrefix("{{.Prefix}}"){{end}})
+ reg.Register{{if .Document}}Document(v1.Document{{else}}Catalog(v1.Catalog{{end}}[{{.PascalName}}](metadata.Presentation{Singular: "{{.PascalName}}", Plural: "{{.PascalName}}s", NewLabel: "New {{.PascalName}}"}))
 }

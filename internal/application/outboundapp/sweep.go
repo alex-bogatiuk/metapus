@@ -109,7 +109,7 @@ func (e *SweepExecutor) ExecuteGroup(ctx context.Context, group []SweepTask) err
 			})
 		}
 		candidate.SetLines(placeholderLines)
-		number, err := e.numerator.GetNextNumber(ctx, numerator.DefaultConfig("CS"), e.now())
+		number, err := e.numerator.GetNextNumber(ctx, numerator.DocumentSeries(crypto_sweep.Definition), e.now())
 		if err != nil {
 			return releaseClaims(fmt.Errorf("generate sweep number: %w", err))
 		}

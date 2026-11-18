@@ -111,7 +111,7 @@ func (s *ProviderBalanceWorkflowService) PrepareOpening(ctx context.Context, req
 			return nil, apperror.NewValidation("an opening already exists for this provider account and token").WithDetail("operationId", existing.String())
 		}
 		now := s.now().UTC()
-		number, err := s.numerator.GetNextNumber(txCtx, numerator.DefaultConfig("PBO"), now)
+		number, err := s.numerator.GetNextNumber(txCtx, numerator.DocumentSeries(pbo.Definition), now)
 		if err != nil {
 			return nil, err
 		}

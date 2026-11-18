@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"metapus/internal/domain/documents/crypto_resource_rental"
 	"strings"
 	"time"
 
@@ -278,7 +279,7 @@ func (r *OutboundRepo) CreateResourceRental(ctx context.Context, rental *Resourc
 			requested_amount, provider, out_trade_no, status, request_json, expires_at
 		) VALUES ($1,$2,NOW(),$3,$4,$5,$6,$7,$8,'energy','fixed','1H',$9,$10,$11,'ordering',$12::jsonb,$13)
 		ON CONFLICT DO NOTHING
-	`, rental.ID, "RR-"+id.Compact(rental.ID),
+	`, rental.ID, crypto_resource_rental.Definition.NumberPrefix()+"-"+id.Compact(rental.ID),
 		rentalBasisType, rentalBasisID, rental.ProviderAccountID, rental.NetworkID,
 		rental.ReceiveWalletID, rental.CostTokenID, rental.RequestedAmount,
 		rental.Provider, rental.OutTradeNo, string(requestJSON), rental.ExpiresAt)

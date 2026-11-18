@@ -24,6 +24,9 @@ func TestDocumentsAreNumberedInTheSeriesOfTheirBusinessDate(t *testing.T) {
 	require.WithinDuration(t, time.Now(), numberPeriod(struct{}{}), time.Minute)
 }
 
+// lifecycleDefinition numbers lifecycle documents L-YEAR-NNNNN.
+var lifecycleDefinition = entity.Definition{Kind: entity.DocumentKind, Key: "lifecycle", Name: "Lifecycle", Route: "lifecycles", Table: "doc_lifecycles", Number: entity.NumberRule{Prefix: "L"}}
+
 // orderRecorder notes when the posting engine records movements.
 type orderRecorder struct{ order *[]string }
 
@@ -51,7 +54,8 @@ func (r *orderRepository) Create(ctx context.Context, doc *lifecycleDocument) er
 func TestPostAndSaveTakesTheNumberAfterTheMovements(t *testing.T) {
 	for _, lines := range []bool{false, true} {
 		var order []string
-		numbers := &numerator.MockGenerator{GetNextNumberFunc: func(context.Context, numerator.Config, time.Time) (string, error) {
+		numbers := &numerator.MockGenerator{GetNextNumberFunc: func(_ context.Context, cfg numerator.Config, _ time.Time) (string, error) {
+			require.Equal(t, numerator.DocumentSeries(lifecycleDefinition), cfg, "the series comes from the Definition")
 			order = append(order, "number")
 			return "L-2026-00001", nil
 		}}
@@ -62,9 +66,9 @@ func TestPostAndSaveTakesTheNumberAfterTheMovements(t *testing.T) {
 		manager := &outboxTestTx{}
 		var svc DocumentService[*lifecycleDocument]
 		if lines {
-			svc = NewBaseDocumentService(BaseDocumentServiceConfig[*lifecycleDocument, int]{Repo: repo, TxManager: manager, Numerator: numbers, PostingEngine: engine, EntityName: "lifecycle", NumeratorPrefix: "L"})
+			svc = NewBaseDocumentService(BaseDocumentServiceConfig[*lifecycleDocument, int]{Repo: repo, TxManager: manager, Numerator: numbers, PostingEngine: engine, Definition: &lifecycleDefinition})
 		} else {
-			svc = NewBaseHeaderDocumentService(BaseHeaderDocumentServiceConfig[*lifecycleDocument]{Repo: repo, TxManager: manager, Numerator: numbers, PostingEngine: engine, EntityName: "lifecycle", NumeratorPrefix: "L"})
+			svc = NewBaseHeaderDocumentService(BaseHeaderDocumentServiceConfig[*lifecycleDocument]{Repo: repo, TxManager: manager, Numerator: numbers, PostingEngine: engine, Definition: &lifecycleDefinition})
 		}
 
 		require.NoError(t, svc.PostAndSave(tenant.WithTxManager(context.Background(), manager), doc))

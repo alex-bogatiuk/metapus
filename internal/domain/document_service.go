@@ -57,8 +57,7 @@ type BaseDocumentServiceConfig[T DocumentEntity[L], L any] struct {
 	TxManager        tx.Manager // Optional for Database-per-Tenant
 	CurrencyResolver CurrencyResolveStrategy
 	PolicyEngine     *security.PolicyEngine // Optional — CEL policy evaluation
-	NumeratorPrefix  string
-	EntityName       string // for logging (e.g., "goods receipt", "goods issue")
+	EntityName       string                 // for logging (e.g., "goods receipt", "goods issue")
 }
 
 // BaseDocumentService provides generic business logic for document entities.
@@ -72,8 +71,9 @@ type BaseDocumentService[T DocumentEntity[L], L any] struct {
 	CurrencyResolver CurrencyResolveStrategy
 	PolicyEngine     *security.PolicyEngine
 	hooks            *HookRegistry[T]
-	NumeratorPrefix  string
 	EntityName       string
+	// numberSeries numbers the document; nil without a Definition.
+	numberSeries *numerator.Config
 }
 
 // NewBaseDocumentService creates a new BaseDocumentService.
@@ -87,6 +87,11 @@ func NewBaseDocumentService[T DocumentEntity[L], L any](cfg BaseDocumentServiceC
 		}
 		cfg.EntityName = cfg.Definition.Key
 	}
+	var series *numerator.Config
+	if cfg.Definition != nil {
+		documentSeries := numerator.DocumentSeries(*cfg.Definition)
+		series = &documentSeries
+	}
 
 	return &BaseDocumentService[T, L]{
 		Repo:             cfg.Repo,
@@ -96,7 +101,7 @@ func NewBaseDocumentService[T DocumentEntity[L], L any](cfg BaseDocumentServiceC
 		CurrencyResolver: cfg.CurrencyResolver,
 		PolicyEngine:     cfg.PolicyEngine,
 		hooks:            NewHookRegistry[T](),
-		NumeratorPrefix:  cfg.NumeratorPrefix,
+		numberSeries:     series,
 		EntityName:       cfg.EntityName,
 	}
 }
@@ -136,13 +141,16 @@ func numberPeriod(doc any) time.Time {
 	return time.Now()
 }
 
-// GenerateNumber generates a document number if it is empty.
+// GenerateNumber gives a document without a number the next one of the
+// series its Definition declares (see numerator.DocumentSeries).
 func (s *BaseDocumentService[T, L]) GenerateNumber(ctx context.Context, doc T) error {
 	if doc.GetNumber() != "" {
 		return nil
 	}
-	cfg := numerator.DefaultConfig(s.NumeratorPrefix)
-	number, err := s.Numerator.GetNextNumber(ctx, cfg, numberPeriod(doc))
+	if s.numberSeries == nil {
+		return fmt.Errorf("document %s has no Definition to number it by", s.EntityName)
+	}
+	number, err := s.Numerator.GetNextNumber(ctx, *s.numberSeries, numberPeriod(doc))
 	if err != nil {
 		return fmt.Errorf("generate number: %w", err)
 	}

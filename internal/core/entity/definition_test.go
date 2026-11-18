@@ -86,3 +86,24 @@ func TestDefinitionCodeRuleDefaultsToASeriesOfTheCatalog(t *testing.T) {
 		t.Fatal("a document declared a catalog code rule")
 	}
 }
+
+func TestDefinitionNumberRuleGivesTheDocumentPrefix(t *testing.T) {
+	document := Definition{Key: "fuel_waybill", Name: "FuelWaybill", Route: "fuel-waybill", Table: "doc_fuel_waybills", Kind: DocumentKind}
+	if got := document.NumberPrefix(); got != "FW" {
+		t.Fatalf("default prefix = %q, want one derived from the key", got)
+	}
+	document.Number = NumberRule{Prefix: "ПЛ"}
+	if err := document.Validate(); err != nil || document.NumberPrefix() != "ПЛ" {
+		t.Fatalf("declared prefix: %q, %v", document.NumberPrefix(), err)
+	}
+	for name, prefix := range map[string]string{"dash": "P-L", "space": "P L", "too long": "ABCDEFGHIJK"} {
+		document.Number = NumberRule{Prefix: prefix}
+		if err := document.Validate(); err == nil {
+			t.Fatalf("%s prefix %q accepted", name, prefix)
+		}
+	}
+	catalog := Definition{Key: "vehicle", Name: "Vehicle", Route: "vehicles", Table: "cat_vehicles", Kind: CatalogKind, Number: NumberRule{Prefix: "V"}}
+	if err := catalog.Validate(); err == nil || !strings.Contains(err.Error(), "only a document") {
+		t.Fatalf("a catalog declared a number rule: %v", err)
+	}
+}

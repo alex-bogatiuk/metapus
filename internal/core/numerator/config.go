@@ -68,6 +68,14 @@ func (c Config) Format(period time.Time, n int64) string {
 	return fmt.Sprintf("%s-%0*d", c.Prefix, width, n)
 }
 
+// DocumentSeries is the numerator configuration of a document's numbers:
+// PREFIX-YEAR-00001 from a yearly series keyed by the prefix. Every service
+// that numbers a document takes it from here, so the prefix lives only in the
+// document's Definition.
+func DocumentSeries(def entity.Definition) Config {
+	return DefaultConfig(def.NumberPrefix())
+}
+
 // CatalogSeries is the numerator configuration of a catalog code series: a
 // never-resetting counter keyed by the series, not by its prefix.
 func CatalogSeries(series entity.CodeSeries) Config {

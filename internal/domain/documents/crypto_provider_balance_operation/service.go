@@ -18,7 +18,7 @@ type Service struct {
 func NewService(repo Repository, engine *posting.Engine, num numerator.Generator, txm tx.Manager) *Service {
 	return &Service{BaseHeaderDocumentService: domain.NewBaseHeaderDocumentService(domain.BaseHeaderDocumentServiceConfig[*CryptoProviderBalanceOperation]{
 		Repo: repo, PostingEngine: engine, Numerator: num, TxManager: txm,
-		NumeratorPrefix: "PBO", Definition: &Definition,
+		Definition: &Definition,
 	})}
 }
 

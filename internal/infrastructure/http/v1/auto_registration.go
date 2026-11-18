@@ -165,7 +165,6 @@ type AutoDocument[T entity.DefinitionProvider, PT documentModel[T]] struct {
 	EntityRegistration[T]
 	autoRegistry
 	presentation metadata.Presentation
-	numberPrefix string
 	configure    []func(*domain.BaseHeaderDocumentService[PT])
 }
 
@@ -177,13 +176,6 @@ type AutoDocument[T entity.DefinitionProvider, PT documentModel[T]] struct {
 func Document[T entity.DefinitionProvider, PT documentModel[T]](presentation metadata.Presentation) *AutoDocument[T, PT] {
 	r := &AutoDocument[T, PT]{presentation: presentation}
 	autoShapeFor[T]()
-	return r
-}
-
-// NumberPrefix sets the numerator prefix of document numbers; by default it
-// is derived from the entity key.
-func (r *AutoDocument[T, PT]) NumberPrefix(prefix string) *AutoDocument[T, PT] {
-	r.numberPrefix = prefix
 	return r
 }
 
@@ -213,15 +205,11 @@ func (r *AutoDocument[T, PT]) HTTPContracts() spec.Bundle {
 func (r *AutoDocument[T, PT]) Build(deps DocumentDeps) DocumentRouteHandler {
 	def := r.EntityDefinition()
 	shape := autoShapeFor[T]()
-	prefix := r.numberPrefix
-	if prefix == "" {
-		prefix = entity.DefaultCodePrefix(def.Key)
-	}
 	repo := document_repo.NewDocumentRepoForDefinition(def, postgres.ExtractDBColumns[T](), func() PT { return new(T) })
 	service := domain.NewBaseHeaderDocumentService(domain.BaseHeaderDocumentServiceConfig[PT]{
 		Definition: &def, Repo: repo, PostingEngine: deps.PostingEngine, Numerator: deps.Numerator, PolicyEngine: deps.PolicyEngine,
-		NumeratorPrefix: prefix, EntityName: def.Key,
-		Parts: autoDocumentParts(def, repo),
+		EntityName: def.Key,
+		Parts:      autoDocumentParts(def, repo),
 	})
 	for _, fn := range r.configure {
 		fn(service)

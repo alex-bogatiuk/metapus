@@ -186,7 +186,7 @@ func (s *PortalWithdrawalService) Create(ctx context.Context, input CreatePortal
 	if err := doc.Validate(ctx); err != nil {
 		return CreatePortalWithdrawalResult{}, err
 	}
-	number, err := s.numerator.GetNextNumber(ctx, numerator.DefaultConfig("WR"), s.now())
+	number, err := s.numerator.GetNextNumber(ctx, numerator.DocumentSeries(withdrawal_request.Definition), s.now())
 	if err != nil {
 		return CreatePortalWithdrawalResult{}, apperror.NewInternal(err)
 	}

@@ -84,9 +84,9 @@ func TestDocumentNumberAllocationRunsInsideMutationTransaction(t *testing.T) {
 		repo := &lifecycleRepository{doc: doc}
 		var svc DocumentService[*lifecycleDocument]
 		if lines {
-			svc = NewBaseDocumentService(BaseDocumentServiceConfig[*lifecycleDocument, int]{Repo: repo, TxManager: manager, Numerator: num})
+			svc = NewBaseDocumentService(BaseDocumentServiceConfig[*lifecycleDocument, int]{Repo: repo, TxManager: manager, Numerator: num, Definition: &lifecycleDefinition})
 		} else {
-			svc = NewBaseHeaderDocumentService(BaseHeaderDocumentServiceConfig[*lifecycleDocument]{Repo: repo, TxManager: manager, Numerator: num})
+			svc = NewBaseHeaderDocumentService(BaseHeaderDocumentServiceConfig[*lifecycleDocument]{Repo: repo, TxManager: manager, Numerator: num, Definition: &lifecycleDefinition})
 		}
 		require.NoError(t, svc.Create(context.Background(), doc))
 		require.Equal(t, 1, num.calls)

@@ -21,7 +21,7 @@ func NewService(repo Repository, engine *posting.Engine, num numerator.Generator
 	return &Service{
 		BaseHeaderDocumentService: domain.NewBaseHeaderDocumentService(domain.BaseHeaderDocumentServiceConfig[*CryptoNetworkOperation]{
 			Repo: repo, PostingEngine: engine, Numerator: num, TxManager: txm,
-			NumeratorPrefix: "CNO", Definition: &Definition,
+			Definition: &Definition,
 		}),
 		repo: repo,
 	}

@@ -11,6 +11,7 @@ var Definition = entity.Definition{
 	Parts: []entity.Part{{Key: LinesPart, Field: "lines"}},
 	// Platform costs are assembled during posting and have no table part.
 	DerivedParts: []string{"platformCostLines"},
+	Number:       entity.NumberRule{Prefix: "CS"},
 }
 
 // LinesPart is the SQL key of the per-wallet sweep lines.

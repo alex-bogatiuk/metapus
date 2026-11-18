@@ -331,7 +331,7 @@ func (e *TreasuryExecutor) completeTreasuryBroadcast(ctx context.Context, task T
 		return HoldExecution(fmt.Errorf("treasury withdrawal has no fee reservation lines"))
 	}
 	if doc.Number == "" {
-		number, err := e.numerator.GetNextNumber(ctx, numerator.DefaultConfig("TW"), e.now())
+		number, err := e.numerator.GetNextNumber(ctx, numerator.DocumentSeries(treasury_withdrawal.Definition), e.now())
 		if err != nil {
 			return fmt.Errorf("generate treasury withdrawal number: %w", err)
 		}

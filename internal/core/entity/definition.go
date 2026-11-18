@@ -30,6 +30,9 @@ type Definition struct {
 	// Code declares how a catalog's Code is assigned (see CodeRule); the
 	// zero value numbers the catalog from its own series.
 	Code CodeRule
+	// Number declares how a document is numbered (see NumberRule); the zero
+	// value takes a prefix derived from the key.
+	Number NumberRule
 }
 
 // PartSeparator joins a header table name and a part key. It is reserved for
@@ -114,5 +117,8 @@ func (d Definition) Validate() error {
 		}
 		fields[field] = true
 	}
-	return d.validateCode()
+	if err := d.validateCode(); err != nil {
+		return err
+	}
+	return d.validateNumber()
 }

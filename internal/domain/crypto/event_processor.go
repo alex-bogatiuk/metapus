@@ -429,7 +429,7 @@ func (p *EventProcessor) processEventInTx(ctx context.Context, event BlockchainE
 	// Generate sequential number via the system numerator (e.g. CP-2026-00001).
 	// Falls back to UUID-based number only if numerator is unavailable.
 	if p.numerator != nil {
-		cfg := numerator.DefaultConfig("CP")
+		cfg := numerator.DocumentSeries(crypto_payment.Definition)
 		number, err := p.numerator.GetNextNumber(ctx, cfg, event.Timestamp)
 		if err != nil {
 			logger.Warn(ctx, "numerator failed for crypto payment, using fallback",
@@ -873,7 +873,7 @@ func (p *EventProcessor) createTopUpInvoice(ctx context.Context, w *wallet.Walle
 
 	// Assign a numerator if available
 	if p.numerator != nil {
-		cfg := numerator.DefaultConfig("CI")
+		cfg := numerator.DocumentSeries(crypto_invoice.Definition)
 		number, err := p.numerator.GetNextNumber(ctx, cfg, p.nowFunc())
 		if err == nil {
 			invoice.Number = number

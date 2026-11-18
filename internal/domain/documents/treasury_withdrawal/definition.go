@@ -10,6 +10,7 @@ var Definition = entity.Definition{
 	Kind:  entity.DocumentKind,
 	// Fee sources are loaded from fee reservations and have no table part.
 	DerivedParts: []string{"feeLines"},
+	Number:       entity.NumberRule{Prefix: "TW"},
 }
 
 func (TreasuryWithdrawal) EntityDefinition() entity.Definition { return Definition }
