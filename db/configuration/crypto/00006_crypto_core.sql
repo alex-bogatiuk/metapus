@@ -2137,6 +2137,9 @@ CREATE TABLE doc_crypto_payments (
     verification_id   UUID REFERENCES reg_crypto_transfer_verifications(id),
     receipt_id        UUID
 );
+-- A document number belongs to one document: a retried write or a stale copy
+-- cannot store a number another document holds. Unnumbered documents keep ''.
+CREATE UNIQUE INDEX uq_doc_crypto_payments_number ON doc_crypto_payments (number) WHERE number <> '';
 -- One transaction can contain multiple transfer events. The chain event index
 -- is part of the idempotency identity.
 CREATE UNIQUE INDEX idx_doc_crypto_payments_chain_event

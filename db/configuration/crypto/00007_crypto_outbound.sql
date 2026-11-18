@@ -798,6 +798,9 @@ CREATE TABLE doc_crypto_withdrawals (
     CONSTRAINT doc_crypto_withdrawals_settlement_status_check
         CHECK (settlement_status IN ('unknown','repairing','recorded','not_applicable','held'))
 );
+-- A document number belongs to one document: a retried write or a stale copy
+-- cannot store a number another document holds. Unnumbered documents keep ''.
+CREATE UNIQUE INDEX uq_doc_crypto_withdrawals_number ON doc_crypto_withdrawals (number) WHERE number <> '';
 CREATE INDEX idx_doc_crypto_withdrawals_merchant ON doc_crypto_withdrawals (merchant_id);
 CREATE INDEX idx_doc_crypto_withdrawals_status ON doc_crypto_withdrawals (status) WHERE status NOT IN ('confirmed','failed');
 CREATE INDEX idx_doc_crypto_withdrawals_date ON doc_crypto_withdrawals (date DESC);
@@ -842,6 +845,9 @@ CREATE TABLE doc_crypto_sweeps (
     CONSTRAINT doc_crypto_sweeps_no_internal_attempt_basis
         CHECK (basis_type <> 'CryptoSweepAttempt')
 );
+-- A document number belongs to one document: a retried write or a stale copy
+-- cannot store a number another document holds. Unnumbered documents keep ''.
+CREATE UNIQUE INDEX uq_doc_crypto_sweeps_number ON doc_crypto_sweeps (number) WHERE number <> '';
 CREATE INDEX idx_doc_crypto_sweeps_status ON doc_crypto_sweeps (status) WHERE status NOT IN ('confirmed','partial_failed');
 CREATE INDEX idx_doc_crypto_sweeps_date ON doc_crypto_sweeps (date DESC);
 
@@ -929,6 +935,9 @@ CREATE TABLE doc_withdrawal_requests (
     _txid            BIGINT NOT NULL DEFAULT txid_current(),
     risk_class       TEXT CHECK(risk_class IN ('low','medium','high','unknown'))
 );
+-- A document number belongs to one document: a retried write or a stale copy
+-- cannot store a number another document holds. Unnumbered documents keep ''.
+CREATE UNIQUE INDEX uq_doc_withdrawal_requests_number ON doc_withdrawal_requests (number) WHERE number <> '';
 CREATE INDEX idx_doc_withdrawal_requests_merchant ON doc_withdrawal_requests (merchant_id);
 CREATE INDEX idx_doc_withdrawal_requests_status ON doc_withdrawal_requests (status)
     WHERE status NOT IN ('confirmed','rejected','failed');
@@ -1138,6 +1147,9 @@ CREATE TABLE doc_treasury_withdrawals (
     CONSTRAINT doc_treasury_withdrawals_settlement_status_check
         CHECK (settlement_status IN ('unknown','repairing','recorded','not_applicable','held'))
 );
+-- A document number belongs to one document: a retried write or a stale copy
+-- cannot store a number another document holds. Unnumbered documents keep ''.
+CREATE UNIQUE INDEX uq_doc_treasury_withdrawals_number ON doc_treasury_withdrawals (number) WHERE number <> '';
 CREATE INDEX idx_doc_treasury_withdrawals_receipt
     ON doc_treasury_withdrawals (receipt_id) WHERE receipt_id IS NOT NULL;
 CREATE INDEX idx_doc_treasury_withdrawals_status
@@ -1463,6 +1475,9 @@ CREATE TABLE doc_crypto_network_operations (
     CONSTRAINT fk_crypto_network_operation_settlement
     FOREIGN KEY (chain_settlement_id) REFERENCES reg_crypto_chain_settlements(id)
 );
+-- A document number belongs to one document: a retried write or a stale copy
+-- cannot store a number another document holds. Unnumbered documents keep ''.
+CREATE UNIQUE INDEX uq_doc_crypto_network_operations_number ON doc_crypto_network_operations (number) WHERE number <> '';
 CREATE UNIQUE INDEX idx_crypto_network_operations_chain_tx
     ON doc_crypto_network_operations (operation_type, network_id, tx_hash);
 CREATE UNIQUE INDEX idx_crypto_network_operations_basis
@@ -1728,6 +1743,9 @@ CREATE TABLE doc_crypto_resource_rentals (
     CONSTRAINT chk_crypto_resource_rental_claim_token
  CHECK (maintenance_claim_token IS NULL OR (claimed_by<>'' AND claimed_at IS NOT NULL AND lease_expires_at IS NOT NULL))
 );
+-- A document number belongs to one document: a retried write or a stale copy
+-- cannot store a number another document holds. Unnumbered documents keep ''.
+CREATE UNIQUE INDEX uq_doc_crypto_resource_rentals_number ON doc_crypto_resource_rentals (number) WHERE number <> '';
 CREATE UNIQUE INDEX idx_crypto_resource_rentals_out_trade_no
     ON doc_crypto_resource_rentals (provider_account_id, out_trade_no);
 CREATE UNIQUE INDEX idx_crypto_resource_rentals_one_active
@@ -1888,6 +1906,9 @@ CREATE TABLE doc_crypto_provider_balance_operations (
     -- Client assertions in evidence JSON must never authorize a money movement.
     CHECK (operation_type='opening' AND record_type='receipt' AND source_wallet_id IS NULL AND tx_hash='')
 );
+-- A document number belongs to one document: a retried write or a stale copy
+-- cannot store a number another document holds. Unnumbered documents keep ''.
+CREATE UNIQUE INDEX uq_doc_crypto_provider_balance_operations_number ON doc_crypto_provider_balance_operations (number) WHERE number <> '';
 CREATE UNIQUE INDEX idx_crypto_provider_balance_operations_external
     ON doc_crypto_provider_balance_operations (provider_account_id, external_ref)
     WHERE deletion_mark = FALSE;
@@ -2002,6 +2023,9 @@ CREATE TABLE doc_crypto_native_fundings (
     CONSTRAINT chk_crypto_native_funding_wallets
         CHECK (source_wallet_id <> destination_wallet_id)
 );
+-- A document number belongs to one document: a retried write or a stale copy
+-- cannot store a number another document holds. Unnumbered documents keep ''.
+CREATE UNIQUE INDEX uq_doc_crypto_native_fundings_number ON doc_crypto_native_fundings (number) WHERE number <> '';
 CREATE UNIQUE INDEX idx_crypto_native_funding_basis_attempt
     ON doc_crypto_native_fundings (basis_type, basis_id, attempt);
 CREATE UNIQUE INDEX idx_crypto_native_funding_tx_hash

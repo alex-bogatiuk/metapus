@@ -103,7 +103,8 @@ func TestActivationExecutionClaimRejectsStaleCommandsAndDispatch(t *testing.T) {
 type executionNumerator struct{}
 
 func (executionNumerator) GetNextNumber(context.Context, numerator.Config, time.Time) (string, error) {
-	return "ACT-RECOVERY", nil
+	// Document numbers are unique, so every document gets its own.
+	return "ACT-RECOVERY-" + id.Compact(id.New()), nil
 }
 func (executionNumerator) SetNextNumber(context.Context, numerator.Config, time.Time, int64) error {
 	return nil

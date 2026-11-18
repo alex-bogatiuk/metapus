@@ -33,7 +33,8 @@ import (
 type fixedNetworkOperationNumerator struct{}
 
 func (fixedNetworkOperationNumerator) GetNextNumber(context.Context, numerator.Config, time.Time) (string, error) {
-	return "CNO-TEST", nil
+	// Document numbers are unique, so every document gets its own.
+	return "CNO-TEST-" + id.Compact(id.New()), nil
 }
 func (fixedNetworkOperationNumerator) SetNextNumber(context.Context, numerator.Config, time.Time, int64) error {
 	return nil

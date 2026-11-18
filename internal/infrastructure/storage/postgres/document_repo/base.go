@@ -191,10 +191,18 @@ func (r *BaseDocumentRepo[T]) Create(ctx context.Context, entity T) error {
 			return apperror.NewBusinessRule("INVALID_REFERENCE", "Связанный элемент удален. Выберите другой.").
 				WithDetail("field", field)
 		}
+		if postgres.UniqueViolationOn(err, "number") {
+			return duplicateNumber(err)
+		}
 		return fmt.Errorf("insert %s: %w", r.tableName, err)
 	}
 
 	return nil
+}
+
+// duplicateNumber is the error of a write whose number another document holds.
+func duplicateNumber(err error) error {
+	return apperror.NewConflict("Номер уже занят другим документом").WithDetail("field", "number").WithCause(err)
 }
 
 // Update updates an existing document with optimistic locking.
@@ -256,6 +264,9 @@ func (r *BaseDocumentRepo[T]) Update(ctx context.Context, entity T) error {
 			field := postgres.ExtractForeignKeyField(err, r.tableName)
 			return apperror.NewBusinessRule("INVALID_REFERENCE", "Связанный элемент удален. Выберите другой.").
 				WithDetail("field", field)
+		}
+		if postgres.UniqueViolationOn(err, "number") {
+			return duplicateNumber(err)
 		}
 		return fmt.Errorf("update %s: %w", r.tableName, err)
 	}

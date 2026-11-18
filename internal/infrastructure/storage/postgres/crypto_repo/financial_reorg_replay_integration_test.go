@@ -117,6 +117,7 @@ func TestFinancialReorgRejectsForeignIncidentAndIncompleteCompensation(t *testin
 				other := *f.payment
 				other.ID = id.New()
 				other.TxHash = "other-" + other.ID.String()
+				other.Number = "CP-OTHER-" + id.Compact(other.ID)
 				other.MarkUnposted()
 				other.PostedVersion = 0
 				require.NoError(t, crypto_document_repo.NewCryptoPaymentRepo().Create(f.ctx, &other))
