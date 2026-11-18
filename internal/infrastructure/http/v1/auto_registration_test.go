@@ -160,8 +160,6 @@ func TestAutoRegistrationsPublishDerivedContractsAndRoutes(t *testing.T) {
 	}
 	require.True(t, codes["catalog:auto_probe:create"])
 	require.True(t, codes["document:auto_waybill:unpost"])
-	require.Equal(t, "AP", autoCodePrefix("auto_probe"))
-	require.Equal(t, "VE", autoCodePrefix("vehicle"))
 }
 
 func TestAutoRegistrationRejectsModelsOutsideTheRule(t *testing.T) {

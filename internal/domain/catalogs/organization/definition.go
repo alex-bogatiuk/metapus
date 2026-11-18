@@ -8,6 +8,7 @@ var Definition = entity.Definition{
 	Route: "organizations",
 	Table: "cat_organizations",
 	Kind:  entity.CatalogKind,
+	Code:  entity.CodeRule{Prefix: "ORG"},
 }
 
 func (Organization) EntityDefinition() entity.Definition { return Definition }

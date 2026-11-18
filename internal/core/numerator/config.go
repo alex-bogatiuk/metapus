@@ -34,6 +34,11 @@ func DefaultOptions() *Options {
 
 // Config holds numbering configuration.
 type Config struct {
+	// Key identifies the counter when set: a stable series key such as
+	// "catalog.organization", so that changing Prefix keeps the sequence.
+	// Without it the counter is keyed by Prefix.
+	Key string
+
 	// Prefix added to all numbers (e.g., "INV", "GR")
 	Prefix string
 

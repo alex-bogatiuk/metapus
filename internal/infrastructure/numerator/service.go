@@ -223,13 +223,17 @@ func (s *Service) SetNextNumber(ctx context.Context, cfg corenumerator.Config, p
 
 // buildKey creates the sequence key based on config and period.
 func (s *Service) buildKey(cfg corenumerator.Config, period time.Time) string {
+	base := cfg.Key
+	if base == "" {
+		base = cfg.Prefix
+	}
 	switch cfg.ResetPeriod {
 	case "month":
-		return fmt.Sprintf("%s_%s", cfg.Prefix, period.Format("2006_01"))
+		return fmt.Sprintf("%s_%s", base, period.Format("2006_01"))
 	case "year":
-		return fmt.Sprintf("%s_%s", cfg.Prefix, period.Format("2006"))
+		return fmt.Sprintf("%s_%s", base, period.Format("2006"))
 	default:
-		return cfg.Prefix
+		return base
 	}
 }
 

@@ -2,8 +2,6 @@ package counterparty
 
 import (
 	"context"
-	"fmt"
-	"time"
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
@@ -16,7 +14,6 @@ import (
 type Service struct {
 	*domain.CatalogService[*Counterparty] // Embedded for delegation
 	repo                                  Repository
-	numerator                             numerator.Generator
 }
 
 // NewService creates a new Counterparty service.
@@ -36,7 +33,6 @@ func NewService(
 	svc := &Service{
 		CatalogService: base,
 		repo:           repo,
-		numerator:      numerator,
 	}
 
 	// Register hooks for entity-specific logic
@@ -46,18 +42,9 @@ func NewService(
 	return svc
 }
 
-// prepareForCreate handles code generation and uniqueness checks before create.
+// prepareForCreate checks INN uniqueness before create; the platform assigns
+// an empty code from the series of the Definition.
 func (s *Service) prepareForCreate(ctx context.Context, cp *Counterparty) error {
-	// Generate code if not provided
-	if cp.Code == "" {
-		cfg := numerator.DefaultConfig("CP")
-		code, err := s.numerator.GetNextNumber(ctx, cfg, nil, time.Now())
-		if err != nil {
-			return fmt.Errorf("generate code: %w", err)
-		}
-		cp.Code = code
-	}
-
 	// Check INN uniqueness
 	if cp.INN != nil && *cp.INN != "" {
 		exists, err := s.checkINNExists(ctx, *cp.INN, cp.ID)

@@ -183,10 +183,18 @@ func (r *BaseCatalogRepo[T]) create(ctx context.Context, entity T) error {
 			return apperror.NewBusinessRule("INVALID_REFERENCE", "Связанный элемент удален. Выберите другой.").
 				WithDetail("field", field)
 		}
+		if postgres.UniqueViolationOn(err, "code") {
+			return duplicateCode(err)
+		}
 		return fmt.Errorf("insert %s: %w", r.tableName, err)
 	}
 
 	return nil
+}
+
+// duplicateCode is the error of a write whose code another item holds.
+func duplicateCode(err error) error {
+	return apperror.NewConflict("Код уже занят другим элементом").WithDetail("field", "code").WithCause(err)
 }
 
 // Update modifies an existing entity with optimistic locking.
@@ -249,6 +257,9 @@ func (r *BaseCatalogRepo[T]) update(ctx context.Context, entity T) error {
 			field := postgres.ExtractForeignKeyField(err, r.tableName)
 			return apperror.NewBusinessRule("INVALID_REFERENCE", "Связанный элемент удален. Выберите другой.").
 				WithDetail("field", field)
+		}
+		if postgres.UniqueViolationOn(err, "code") {
+			return duplicateCode(err)
 		}
 		return fmt.Errorf("update %s: %w", r.tableName, err)
 	}

@@ -120,7 +120,7 @@ func TestGeneratedMigrationsRoundTripAndDocumentHooksRollback(t *testing.T) {
 
 // Models a scaffolded module grows into: the generated table plus business
 // columns, registered with one declarative line each.
-var declaredCatalogDefinition = entity.Definition{Kind: entity.CatalogKind, Key: "fleet_vehicle", Name: "FleetVehicle", Route: "fleet-vehicles", Table: "cat_fleet_vehicles"}
+var declaredCatalogDefinition = entity.Definition{Kind: entity.CatalogKind, Key: "fleet_vehicle", Name: "FleetVehicle", Route: "fleet-vehicles", Table: "cat_fleet_vehicles", Code: entity.CodeRule{Prefix: "FV"}}
 
 type declaredVehicle struct {
 	entity.Catalog
@@ -161,7 +161,7 @@ func TestDeclaredEntitiesServeCRUDAndPostingOverTheirGeneratedTables(t *testing.
 	require.NoError(t, err)
 
 	reg := v1.NewFactoryRegistry()
-	reg.RegisterCatalog(v1.Catalog[declaredVehicle](metadata.Presentation{Singular: "ТС", Plural: "Транспорт"}).CodePrefix("FV"))
+	reg.RegisterCatalog(v1.Catalog[declaredVehicle](metadata.Presentation{Singular: "ТС", Plural: "Транспорт"}))
 	reg.RegisterDocument(v1.Document[declaredWaybill](metadata.Presentation{Singular: "Путевой лист", Plural: "Путевые листы"}).NumberPrefix("FW"))
 	call := serveDeclared(t, tenant, reg, []declaredModel{{declaredVehicle{}, declaredCatalogDefinition}, {declaredWaybill{}, declaredDocumentDefinition}})
 

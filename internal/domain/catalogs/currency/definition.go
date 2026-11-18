@@ -8,6 +8,8 @@ var Definition = entity.Definition{
 	Route: "currencies",
 	Table: "cat_currencies",
 	Kind:  entity.CatalogKind,
+	// The service takes the code from the ISO code or ticker.
+	Code: entity.CodeRule{Source: entity.CodeDerived},
 }
 
 func (Currency) EntityDefinition() entity.Definition { return Definition }

@@ -15,6 +15,29 @@ func IsUniqueViolation(err error) bool {
 	return strings.Contains(err.Error(), "23505") || strings.Contains(err.Error(), "duplicate key value")
 }
 
+// UniqueViolationOn reports whether err violates a unique index that covers
+// column, read from the violation's "Key (a, b)=(...)" detail.
+func UniqueViolationOn(err error, column string) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+		return false
+	}
+	columns, ok := strings.CutPrefix(pgErr.Detail, "Key (")
+	if !ok {
+		return false
+	}
+	columns, _, ok = strings.Cut(columns, ")=")
+	if !ok {
+		return false
+	}
+	for _, name := range strings.Split(columns, ",") {
+		if strings.TrimSpace(name) == column {
+			return true
+		}
+	}
+	return false
+}
+
 // IsForeignKeyViolation checks whether the error is a Postgres FK constraint violation (23503).
 func IsForeignKeyViolation(err error) bool {
 	if err == nil {

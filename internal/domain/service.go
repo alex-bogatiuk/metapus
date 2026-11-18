@@ -4,6 +4,8 @@ package domain
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
@@ -32,6 +34,10 @@ type CatalogService[T entity.CatalogEntity] struct {
 
 	// hierarchyValidator validates hierarchy constraints (nil for flat catalogs)
 	hierarchyValidator *HierarchyValidator
+
+	// codeSource and codeSeries are the Definition's rule for the item code.
+	codeSource entity.CodeSource
+	codeSeries numerator.Config
 }
 
 // CatalogServiceConfig configures the catalog service.
@@ -73,7 +79,13 @@ func NewCatalogService[T entity.CatalogEntity](cfg CatalogServiceConfig[T]) *Cat
 		entityName:         cfg.Definition.Key,
 		meta:               meta,
 		hierarchyValidator: hv,
+		codeSource:         cfg.Definition.CodeSource(),
+		codeSeries:         codeSeriesConfig(cfg.Definition.CodeSeries()),
 	}
+}
+
+func codeSeriesConfig(series entity.CodeSeries) numerator.Config {
+	return numerator.Config{Key: series.Key, Prefix: series.Prefix, PadWidth: series.Width, ResetPeriod: "never"}
 }
 
 // getTxManager returns TxManager from config or context.
@@ -164,6 +176,9 @@ func (s *CatalogService[T]) Create(ctx context.Context, ent T) error {
 		if err := s.validateHierarchy(ctx, ent); err != nil {
 			return err
 		}
+		if err := s.assignCode(ctx, ent); err != nil {
+			return err
+		}
 		if err := s.repo.Create(ctx, ent); err != nil {
 			return fmt.Errorf("create %s: %w", s.entityName, err)
 		}
@@ -238,6 +253,9 @@ func (s *CatalogService[T]) Update(ctx context.Context, ent T) error {
 			return err
 		}
 		if err := s.validateHierarchy(ctx, ent); err != nil {
+			return err
+		}
+		if err := s.assignCode(ctx, ent); err != nil {
 			return err
 		}
 		if err := s.repo.Update(ctx, ent); err != nil {
@@ -495,6 +513,47 @@ func (s *CatalogService[T]) validateHierarchy(ctx context.Context, ent T) error 
 	}
 
 	return s.hierarchyValidator.ValidateHierarchy(ctx, accessor, getByID)
+}
+
+// maxTakenCodes bounds how many codes of a series taken by hand are skipped
+// before a write gives up.
+const maxTakenCodes = 100
+
+// assignCode applies the Definition's code rule as the last step before the
+// item is written, inside the write's transaction: the counter moves only
+// when the write commits. An empty code of a series catalog gets the next
+// code that no item holds; other sources require a code by now.
+func (s *CatalogService[T]) assignCode(ctx context.Context, ent T) error {
+	coded, ok := any(ent).(entity.Coded)
+	if !ok {
+		return nil
+	}
+	code := strings.TrimSpace(coded.GetCode())
+	coded.SetCode(code)
+	if code != "" {
+		return nil
+	}
+	if s.codeSource != entity.CodeFromSeries {
+		return apperror.NewValidation("Укажите код").WithDetail("field", "code")
+	}
+	if s.numerator == nil {
+		return apperror.NewInternal(fmt.Errorf("catalog %s numbers its codes but has no numerator", s.entityName))
+	}
+	for range maxTakenCodes {
+		next, err := s.numerator.GetNextNumber(ctx, s.codeSeries, nil, time.Time{})
+		if err != nil {
+			return fmt.Errorf("assign %s code: %w", s.entityName, err)
+		}
+		taken, err := s.repo.ExistsByCode(ctx, next)
+		if err != nil {
+			return fmt.Errorf("assign %s code: %w", s.entityName, err)
+		}
+		if !taken {
+			coded.SetCode(next)
+			return nil
+		}
+	}
+	return apperror.NewInternal(fmt.Errorf("series %s: %d consecutive codes are already taken", s.codeSeries.Key, maxTakenCodes))
 }
 
 func normalizeCatalog(ent any) {

@@ -2,8 +2,6 @@ package contract
 
 import (
 	"context"
-	"fmt"
-	"time"
 
 	"metapus/internal/core/id"
 	"metapus/internal/core/numerator"
@@ -15,7 +13,6 @@ import (
 type Service struct {
 	*domain.CatalogService[*Contract] // Embedded for delegation
 	repo                              Repository
-	numerator                         numerator.Generator
 }
 
 // NewService creates a new Contract service.
@@ -34,26 +31,9 @@ func NewService(
 	svc := &Service{
 		CatalogService: base,
 		repo:           repo,
-		numerator:      numerator,
 	}
-
-	base.Hooks().OnBeforeCreate(svc.prepareForCreate)
 
 	return svc
-}
-
-// prepareForCreate handles code generation.
-func (s *Service) prepareForCreate(ctx context.Context, c *Contract) error {
-	// Generate code if not provided
-	if c.Code == "" {
-		code, err := s.numerator.GetNextNumber(ctx, numerator.DefaultConfig("CT"), nil, time.Now())
-		if err != nil {
-			return fmt.Errorf("generate code: %w", err)
-		}
-		c.Code = code
-	}
-
-	return nil
 }
 
 // --- Entity-specific methods ---

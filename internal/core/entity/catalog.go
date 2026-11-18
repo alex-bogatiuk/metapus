@@ -49,11 +49,23 @@ func (c *Catalog) Validate(ctx context.Context) error {
 			WithDetail("field", "name")
 	}
 
-	// Code can be auto-generated, so it's optional at creation
-	// but required at save time
-
+	// Code may be empty here: the catalog service assigns it under the
+	// rule of the entity Definition before the item is written.
 	return nil
 }
+
+// Coded is a catalog item with a human-readable code: every model that
+// embeds Catalog.
+type Coded interface {
+	GetCode() string
+	SetCode(code string)
+}
+
+// GetCode returns the item's code.
+func (c *Catalog) GetCode() string { return c.Code }
+
+// SetCode replaces the item's code.
+func (c *Catalog) SetCode(code string) { c.Code = code }
 
 // SetParent sets the parent reference.
 func (c *Catalog) SetParent(parentID id.ID) {

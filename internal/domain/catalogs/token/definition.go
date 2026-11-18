@@ -8,6 +8,8 @@ var Definition = entity.Definition{
 	Route: "tokens",
 	Table: "cat_tokens",
 	Kind:  entity.CatalogKind,
+	// The service takes the code from the token symbol.
+	Code: entity.CodeRule{Source: entity.CodeDerived},
 }
 
 func (Token) EntityDefinition() entity.Definition { return Definition }

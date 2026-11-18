@@ -27,6 +27,9 @@ type Definition struct {
 	// DerivedParts are API collections of the entity (metadata table parts
 	// by their JSON name) that have no SQL table of their own.
 	DerivedParts []string
+	// Code declares how a catalog's Code is assigned (see CodeRule); the
+	// zero value numbers the catalog from its own series.
+	Code CodeRule
 }
 
 // PartSeparator joins a header table name and a part key. It is reserved for
@@ -111,5 +114,5 @@ func (d Definition) Validate() error {
 		}
 		fields[field] = true
 	}
-	return nil
+	return d.validateCode()
 }

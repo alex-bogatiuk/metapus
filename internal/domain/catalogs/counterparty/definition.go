@@ -9,6 +9,7 @@ var Definition = entity.Definition{
 	Table:     "cat_counterparties",
 	Kind:      entity.CatalogKind,
 	Hierarchy: entity.CatalogMeta{Hierarchical: true, HierarchyType: entity.HierarchyGroupsAndItems, FolderAsParentOnly: true},
+	Code:      entity.CodeRule{Prefix: "CP"},
 }
 
 func (Counterparty) EntityDefinition() entity.Definition { return Definition }

@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"strings"
-	"time"
 
 	"metapus/internal/core/entity"
 	"metapus/internal/core/numerator"
@@ -53,7 +51,6 @@ type AutoCatalog[T entity.DefinitionProvider, PT catalogModel[T]] struct {
 	EntityRegistration[T]
 	autoRegistry
 	presentation metadata.Presentation
-	codePrefix   string
 	configure    []func(*domain.CatalogService[PT])
 	service      func(CatalogDeps) *domain.CatalogService[PT]
 	references   []string
@@ -66,13 +63,6 @@ type AutoCatalog[T entity.DefinitionProvider, PT catalogModel[T]] struct {
 func Catalog[T entity.DefinitionProvider, PT catalogModel[T]](presentation metadata.Presentation) *AutoCatalog[T, PT] {
 	r := &AutoCatalog[T, PT]{presentation: presentation}
 	autoShapeFor[T]() // fail at registration, not on the first request
-	return r
-}
-
-// CodePrefix sets the numerator prefix of generated codes; by default it is
-// derived from the entity key.
-func (r *AutoCatalog[T, PT]) CodePrefix(prefix string) *AutoCatalog[T, PT] {
-	r.codePrefix = prefix
 	return r
 }
 
@@ -138,22 +128,6 @@ func (r *AutoCatalog[T, PT]) Build(deps CatalogDeps) CatalogRouteHandler {
 	} else {
 		repo := catalog_repo.NewCatalogRepoForDefinition(def, postgres.ExtractDBColumns[T](), func() PT { return new(T) })
 		service = domain.NewCatalogService(domain.CatalogServiceConfig[PT]{Definition: &def, Repo: repo, Numerator: deps.Numerator, PolicyEngine: deps.PolicyEngine})
-		prefix := r.codePrefix
-		if prefix == "" {
-			prefix = autoCodePrefix(def.Key)
-		}
-		service.Hooks().OnBeforeCreate(func(ctx context.Context, model PT) error {
-			code := reflect.ValueOf(model).Elem().FieldByName("Code")
-			if code.String() != "" || deps.Numerator == nil {
-				return nil
-			}
-			next, err := deps.Numerator.GetNextNumber(ctx, numerator.DefaultConfig(prefix), nil, time.Now())
-			if err != nil {
-				return fmt.Errorf("generate code: %w", err)
-			}
-			code.SetString(next)
-			return nil
-		})
 	}
 	for _, fn := range r.configure {
 		fn(service)
@@ -242,7 +216,7 @@ func (r *AutoDocument[T, PT]) Build(deps DocumentDeps) DocumentRouteHandler {
 	shape := autoShapeFor[T]()
 	prefix := r.numberPrefix
 	if prefix == "" {
-		prefix = autoCodePrefix(def.Key)
+		prefix = entity.DefaultCodePrefix(def.Key)
 	}
 	repo := document_repo.NewDocumentRepoForDefinition(def, postgres.ExtractDBColumns[T](), func() PT { return new(T) })
 	service := domain.NewBaseHeaderDocumentService(domain.BaseHeaderDocumentServiceConfig[PT]{
@@ -294,22 +268,6 @@ func autoDocumentParts[T any, PT documentModel[T]](def entity.Definition, repo *
 	store := document_repo.NewPartStore[PT](def)
 	store.RegisterFilters(repo)
 	return store
-}
-
-// autoCodePrefix derives a numerator prefix from an entity key: the first
-// letters of its words, e.g. "fuel_card" → "FC", "vehicle" → "VE".
-func autoCodePrefix(key string) string {
-	words := strings.Split(key, "_")
-	if len(words) == 1 {
-		return strings.ToUpper(key[:min(2, len(key))])
-	}
-	var prefix strings.Builder
-	for _, w := range words[:min(3, len(words))] {
-		if w != "" {
-			prefix.WriteByte(w[0])
-		}
-	}
-	return strings.ToUpper(prefix.String())
 }
 
 // autoRegistry gives a declared registration the registry it was added to, so

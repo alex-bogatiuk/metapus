@@ -10,8 +10,7 @@ import (
 // Service provides business logic for Organization catalog.
 type Service struct {
 	*domain.CatalogService[*Organization]
-	repo      Repository
-	numerator numerator.Generator
+	repo Repository
 }
 
 // NewService creates a new Organization service.
@@ -25,7 +24,6 @@ func NewService(repo Repository, numerator numerator.Generator) *Service {
 	svc := &Service{
 		CatalogService: base,
 		repo:           repo,
-		numerator:      numerator,
 	}
 	base.Hooks().OnBeforeCreate(func(_ context.Context, org *Organization) error { org.normalize(); return nil })
 	base.Hooks().OnBeforeUpdate(func(_ context.Context, org *Organization) error { org.normalize(); return nil })

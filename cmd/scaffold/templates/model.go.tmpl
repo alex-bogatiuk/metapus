@@ -10,6 +10,10 @@ import (
 var Definition = entity.Definition{
  Key: "{{.Key}}", Name: "{{.PascalName}}", Route: "{{.Route}}", Table: "{{.Table}}",
  Kind: entity.{{if .Document}}DocumentKind{{else}}CatalogKind{{end}},
+{{- if not .Document}}
+ // Code: an empty code is numbered from the catalog's series ({{.Prefix}}-000001).
+ Code: entity.CodeRule{Prefix: "{{.Prefix}}"},
+{{- end}}
 {{- if .Hierarchical}}
  Hierarchy: entity.CatalogMeta{Hierarchical: true, HierarchyType: entity.HierarchyGroupsAndItems, FolderAsParentOnly: true},
 {{- end}}
