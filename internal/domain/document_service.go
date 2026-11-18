@@ -484,12 +484,13 @@ func (s *BaseDocumentService[T, L]) PostAndSave(ctx context.Context, doc T) erro
 			return err
 		}
 
-		// Generate number if empty
-		if err := s.GenerateNumber(ctx, doc); err != nil {
-			return err
-		}
-
+		// The engine writes the document after its movements, so the number
+		// is taken here: the series counter stays locked only from this write
+		// to commit, not for the whole posting.
 		updateDoc := func(ctx context.Context) error {
+			if err := s.GenerateNumber(ctx, doc); err != nil {
+				return err
+			}
 			if doc.GetVersion() == 1 {
 				// New document - create
 				if err := s.Repo.Create(ctx, doc); err != nil {

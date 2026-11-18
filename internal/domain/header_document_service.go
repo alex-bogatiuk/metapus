@@ -405,11 +405,14 @@ func (s *BaseHeaderDocumentService[T]) PostAndSave(ctx context.Context, doc T) e
 		if err := s.checkCELPolicy(ctx, "create", doc); err != nil {
 			return err
 		}
-		if err := s.GenerateNumber(ctx, doc); err != nil {
-			return err
-		}
 
+		// The engine writes the document after its movements, so the number
+		// is taken here: the series counter stays locked only from this write
+		// to commit, not for the whole posting.
 		updateDoc := func(ctx context.Context) error {
+			if err := s.GenerateNumber(ctx, doc); err != nil {
+				return err
+			}
 			if doc.GetVersion() == 1 {
 				if err := s.Repo.Create(ctx, doc); err != nil {
 					return err
