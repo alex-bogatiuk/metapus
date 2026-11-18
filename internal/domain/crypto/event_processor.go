@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"metapus/internal/core/apperror"
+	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/tx"
@@ -426,23 +427,11 @@ func (p *EventProcessor) processEventInTx(ctx context.Context, event BlockchainE
 		payment.SetFeeConfig(fee.FixedFee, fee.PercentBP, fee.MinFee, fee.MaxFee)
 	}
 
-	// Generate sequential number via the system numerator (e.g. CP-2026-00001).
-	// Falls back to UUID-based number only if numerator is unavailable.
-	if p.numerator != nil {
-		cfg := numerator.DocumentSeries(crypto_payment.Definition)
-		number, err := p.numerator.GetNextNumber(ctx, cfg, event.Timestamp)
-		if err != nil {
-			logger.Warn(ctx, "numerator failed for crypto payment, using fallback",
-				"error", err,
-				"tx_hash", event.TxHash,
-			)
-			payment.Number = fmt.Sprintf("CP-%s", id.Compact(id.New()))
-		} else {
-			payment.Number = number
-		}
-	} else {
-		payment.Number = fmt.Sprintf("CP-%s", id.Compact(id.New()))
+	number, err := p.documentNumber(ctx, crypto_payment.Definition, event.Timestamp)
+	if err != nil {
+		return fmt.Errorf("number payment for tx %s: %w", event.TxHash, err)
 	}
+	payment.Number = number
 
 	if err := p.paymentRepo.Create(ctx, payment); err != nil {
 		return fmt.Errorf("create payment for tx %s: %w", event.TxHash, err)
@@ -871,18 +860,11 @@ func (p *EventProcessor) createTopUpInvoice(ctx context.Context, w *wallet.Walle
 	// The lifecycle service will derive Paid after the payment fact is persisted.
 	invoice.Status = crypto_invoice.InvoiceStatusCreated
 
-	// Assign a numerator if available
-	if p.numerator != nil {
-		cfg := numerator.DocumentSeries(crypto_invoice.Definition)
-		number, err := p.numerator.GetNextNumber(ctx, cfg, p.nowFunc())
-		if err == nil {
-			invoice.Number = number
-		} else {
-			invoice.Number = fmt.Sprintf("CI-%s", id.Compact(id.New()))
-		}
-	} else {
-		invoice.Number = fmt.Sprintf("CI-%s", id.Compact(id.New()))
+	number, err := p.documentNumber(ctx, crypto_invoice.Definition, p.nowFunc())
+	if err != nil {
+		return nil, fmt.Errorf("number top-up invoice: %w", err)
 	}
+	invoice.Number = number
 
 	if err := p.invoiceSvc.Create(ctx, invoice); err != nil {
 		return nil, fmt.Errorf("save top-up invoice: %w", err)
@@ -896,6 +878,17 @@ func (p *EventProcessor) createTopUpInvoice(ctx context.Context, w *wallet.Walle
 	)
 
 	return invoice, nil
+}
+
+// documentNumber takes the next number of the document's series in the event's
+// transaction. There is no fallback number: a numerator failure (or a missing
+// numerator) fails the event, its transaction rolls back and the event is
+// retried, so every payment and top-up invoice stays in its series.
+func (p *EventProcessor) documentNumber(ctx context.Context, def entity.Definition, period time.Time) (string, error) {
+	if p.numerator == nil {
+		return "", fmt.Errorf("numerator is not configured for %s", def.Key)
+	}
+	return p.numerator.GetNextNumber(ctx, numerator.DocumentSeries(def), period)
 }
 
 func (p *EventProcessor) publishInvoiceLifecycle(

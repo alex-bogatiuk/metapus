@@ -404,6 +404,7 @@ func setupTestFixture(t *testing.T, sweepThreshold int64) *testFixture {
 		InvoiceSvc:       invoiceRepo,
 		PaymentRepo:      paymentRepo,
 		TxManager:        &noopTxManager{},
+		Numerator:        seriesNumbers(),
 		SweepResolver:    sweepResolver,
 		TokenResolver:    mockTokenRepo,
 		PostingEngine:    posting.NewEngine(nil), // provide dummy engine

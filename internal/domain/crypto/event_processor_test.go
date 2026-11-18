@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,7 +23,7 @@ func TestCreateTopUpInvoiceLeavesBusinessReferencesForMerchant(t *testing.T) {
 	w.ID = id.New()
 	tok := &token.Token{}
 	tok.ID = id.New()
-	p := &EventProcessor{invoiceSvc: newMemInvoiceRepo()}
+	p := &EventProcessor{invoiceSvc: newMemInvoiceRepo(), numerator: seriesNumbers(), nowFunc: time.Now}
 	invoice, err := p.createTopUpInvoice(context.Background(), w, BlockchainEvent{
 		TxHash: "chain-transaction", Amount: types.NewRawAmountFromInt64(100),
 	}, tok)
@@ -37,6 +38,9 @@ func TestCreateTopUpInvoiceLeavesBusinessReferencesForMerchant(t *testing.T) {
 	}
 	if invoice.WalletID == nil || *invoice.WalletID != w.ID || invoice.CustomerID != w.CustomerID || invoice.TokenID != tok.ID {
 		t.Fatal("top-up attribution was lost")
+	}
+	if !strings.HasPrefix(invoice.Number, "CI-") {
+		t.Fatalf("top-up invoice number = %q, want the CI series", invoice.Number)
 	}
 }
 
