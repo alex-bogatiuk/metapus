@@ -1,4 +1,5 @@
 -- +goose Up
+-- +goose StatementBegin
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 CREATE TABLE {{.Table}} (
  id UUID PRIMARY KEY{{if not .Document}} DEFAULT gen_random_uuid_v7(){{end}},
@@ -38,11 +39,15 @@ CREATE TABLE {{.Table}} (
  line_no INT NOT NULL
 );
 CREATE INDEX idx_{{.Table}}_document ON {{.Table}} (document_id, line_no);
-{{end}}
+{{end}}-- +goose StatementEnd
+
 -- Permissions ({{if .Document}}document{{else}}catalog{{end}}:{{.Key}}:<action>) are not declared here: the tenant
 -- migration command derives them from the registered module and grants them
 -- to the admin role.
 
 -- +goose Down
+-- +goose StatementBegin
+SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 {{range .Parts}}DROP TABLE {{.Table}};
 {{end}}DROP TABLE {{.Table}};
+-- +goose StatementEnd

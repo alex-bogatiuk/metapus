@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 
+	"metapus/extensions"
 	"metapus/internal/application/automation"
 	"metapus/internal/application/readaccess"
 	"metapus/internal/content"
@@ -36,6 +37,7 @@ import (
 	"metapus/internal/infrastructure/crypto/resources/itrx"
 	"metapus/internal/infrastructure/crypto/webhooksecret"
 	"metapus/internal/infrastructure/crypto_worker"
+	v1 "metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/rate_feed"
 	"metapus/internal/infrastructure/reporting/compiler"
 	"metapus/internal/infrastructure/storage/postgres"
@@ -139,7 +141,10 @@ func main() {
 	}
 
 	// Start multi-tenant worker
-	worker := NewMultiTenantWorker(manager, log, webhookSecrets, crypto_worker.NewInvoiceCheckoutHandler(crypto_repo.NewCheckoutReferenceRepo(metaPool)))
+	// The same composition as the server's: scheduled reports see every
+	// dataset the HTTP reports do, the extensions' included.
+	factories := content.Compose(content.Services{}, extensions.Register)
+	worker := NewMultiTenantWorker(manager, log, factories, webhookSecrets, crypto_worker.NewInvoiceCheckoutHandler(crypto_repo.NewCheckoutReferenceRepo(metaPool)))
 	worker.resources = resources
 
 	var wg sync.WaitGroup
@@ -195,6 +200,7 @@ func validateProductionVaultEnvironment(getenv func(string) string) error {
 // MultiTenantWorker processes background jobs for all tenants.
 type MultiTenantWorker struct {
 	manager            *tenantdb.Manager
+	factories          *v1.FactoryRegistry
 	log                *logger.Logger
 	webhookSecrets     crypto.WebhookSecretStore
 	checkoutReferences *crypto_worker.InvoiceCheckoutHandler
@@ -203,12 +209,13 @@ type MultiTenantWorker struct {
 	restarts           metric.Int64Counter
 }
 
-func NewMultiTenantWorker(manager *tenantdb.Manager, log *logger.Logger, webhookSecrets crypto.WebhookSecretStore, checkoutReferences *crypto_worker.InvoiceCheckoutHandler) *MultiTenantWorker {
+func NewMultiTenantWorker(manager *tenantdb.Manager, log *logger.Logger, factories *v1.FactoryRegistry, webhookSecrets crypto.WebhookSecretStore, checkoutReferences *crypto_worker.InvoiceCheckoutHandler) *MultiTenantWorker {
 	ready, _ := otel.Meter("metapus/worker").Int64Gauge("worker.component.ready")
 	restarts, _ := otel.Meter("metapus/worker").Int64Counter("worker.component.restarts")
 	return &MultiTenantWorker{
-		manager: manager,
-		ready:   ready, restarts: restarts,
+		manager:   manager,
+		factories: factories,
+		ready:     ready, restarts: restarts,
 		log:                log.WithComponent("worker"),
 		webhookSecrets:     webhookSecrets,
 		checkoutReferences: checkoutReferences,
@@ -498,10 +505,7 @@ func (w *MultiTenantWorker) buildAutomationEngine(policies *security.PolicyEngin
 	}
 
 	// ── Report Generator ────────────────────────────────────────────────
-	// Build Compiler from the same datasets as the HTTP layer.
-	datasets := content.AllDatasets()
-	reportRegistry := content.BuildReportRegistry()
-	comp := compiler.NewCompiler(reportRegistry, datasets, postgres.NewAuthorizedReadService(reportRegistry, policies), content.DatasetExecutors())
+	comp := w.reportCompiler(policies)
 
 	fileRepo := postgres.NewAutomationFileRepo()
 	settingsRepo := postgres.NewSettingsRepo()
@@ -515,6 +519,12 @@ func (w *MultiTenantWorker) buildAutomationEngine(policies *security.PolicyEngin
 	engine.SetReportGenerator(reportGen, emailRenderer)
 
 	return engine, nil
+}
+
+// reportCompiler builds the scheduled reports' compiler from the worker's
+// factory registry, the way the HTTP report routes build theirs.
+func (w *MultiTenantWorker) reportCompiler(policies *security.PolicyEngine) *compiler.Compiler {
+	return v1.NewReportCompiler(w.factories, v1.BuildReadRegistry(w.factories), policies)
 }
 
 // settingsLoaderAdapter bridges postgres.SettingsRepo (Get) → automation.SettingsLoader (GetSettings).

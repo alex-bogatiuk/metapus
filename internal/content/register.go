@@ -76,9 +76,21 @@ func registerCryptoEntities(reg *v1.FactoryRegistry, svc Services) {
 	reg.RegisterCustomDocument(&WithdrawalRequestRegistration{services: svc})
 }
 
-// AllDatasets returns all built-in report dataset definitions.
-// Decoupled from FactoryRegistry so that non-HTTP components (worker, scheduler)
-// can build a Compiler without the HTTP routing layer.
+// Compose assembles the application's factory registry: the built-in
+// content, then each client extension (extensions.Register). The server and
+// the worker both start from it, so a dataset an extension registers is
+// served over HTTP and run by scheduled reports alike.
+func Compose(svc Services, register ...func(*v1.FactoryRegistry)) *v1.FactoryRegistry {
+	reg := v1.NewFactoryRegistry()
+	RegisterDefaults(reg, svc)
+	for _, fn := range register {
+		fn(reg)
+	}
+	return reg
+}
+
+// AllDatasets returns all built-in report dataset definitions. Processes
+// that run reports take them from Compose, which adds the extensions'.
 func AllDatasets() []*schema.Dataset {
 	return []*schema.Dataset{
 		&DocumentJournalDataset,
@@ -89,23 +101,14 @@ func AllDatasets() []*schema.Dataset {
 // and reports require (v1.FactoryRegistry.Permissions): the built-in content
 // and the given client extensions. Migration runs sync them into each tenant.
 func Permissions(register ...func(*v1.FactoryRegistry)) []auth.Permission {
-	reg := v1.NewFactoryRegistry()
-	RegisterDefaults(reg)
-	for _, fn := range register {
-		fn(reg)
-	}
-	return reg.Permissions()
+	return Compose(Services{}, register...).Permissions()
 }
 
 // CatalogDefinitions returns the Definitions of every registered catalog,
 // built-in and of client extensions; tenant migrations number their items
 // stored without a code (migration.WithCatalogCodes).
 func CatalogDefinitions(register ...func(*v1.FactoryRegistry)) []entity.Definition {
-	reg := v1.NewFactoryRegistry()
-	RegisterDefaults(reg)
-	for _, fn := range register {
-		fn(reg)
-	}
+	reg := Compose(Services{}, register...)
 	definitions := make([]entity.Definition, 0, len(reg.Catalogs()))
 	for _, catalog := range reg.Catalogs() {
 		definitions = append(definitions, catalog.EntityDefinition())

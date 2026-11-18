@@ -261,9 +261,7 @@ func run(ctx context.Context, cfg config, log *logger.Logger) error {
 	}
 
 	// Entity factories: built-in content (with its crypto services), then client extensions.
-	factoryReg := v1.NewFactoryRegistry()
-	content.RegisterDefaults(factoryReg, content.Services{CheckoutRefs: checkoutRefs, MoneyMovementSigners: approvalSignerProvider})
-	extensions.Register(factoryReg)
+	factoryReg := content.Compose(content.Services{CheckoutRefs: checkoutRefs, MoneyMovementSigners: approvalSignerProvider}, extensions.Register)
 	paymentLinkSvc, err := cryptoapp.NewPaymentLinkService(cryptoapp.PaymentLinkServiceConfig{
 		Repo: portalDashboardRepo,
 		Refs: checkoutRefs,

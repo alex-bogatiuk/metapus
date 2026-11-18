@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+
+	schemaversion "metapus/internal/core/version"
 )
 
 //go:embed templates/*
@@ -94,7 +96,7 @@ func run(args []string, root string, out io.Writer) error {
 		}
 		migrations = append(migrations, matches...)
 	}
-	next := 10001
+	next := schemaversion.FirstExtensionMigration + 1
 	for _, path := range migrations {
 		v, err := strconv.Atoi(strings.SplitN(filepath.Base(path), "_", 2)[0])
 		if err != nil {
@@ -108,7 +110,7 @@ func run(args []string, root string, out io.Writer) error {
 	if *version == 0 {
 		*version = next
 	}
-	if *version < 10000 || used[*version] {
+	if *version < schemaversion.FirstExtensionMigration || used[*version] {
 		return fmt.Errorf("extension migration version %d is unavailable", *version)
 	}
 	pascal := ""

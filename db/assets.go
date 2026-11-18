@@ -9,6 +9,7 @@ import (
 	"path"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -61,6 +62,30 @@ func tenantMigrations(source fs.FS) (fs.FS, error) {
 		}
 	}
 	return flatFS(files), nil
+}
+
+// CheckMigrationFormat reports a tenant migration that does not run each
+// direction as one goose statement: "-- +goose Up" and "-- +goose Down" are
+// each followed directly by one StatementBegin … StatementEnd block. Tests
+// apply it to the shipped migrations and to what cmd/scaffold generates.
+func CheckMigrationFormat(sql string) error {
+	if begins := strings.Count(sql, "-- +goose StatementBegin\n"); begins != 2 {
+		return fmt.Errorf("want 2 StatementBegin markers (Up and Down), got %d", begins)
+	}
+	if ends := strings.Count(sql, "-- +goose StatementEnd\n"); ends != 2 {
+		return fmt.Errorf("want 2 StatementEnd markers (Up and Down), got %d", ends)
+	}
+	up, down, ok := strings.Cut(sql, "-- +goose Down\n")
+	if !ok {
+		return fmt.Errorf("no -- +goose Down section")
+	}
+	if !strings.Contains(up, "-- +goose Up\n-- +goose StatementBegin\n") {
+		return fmt.Errorf("-- +goose Up is not followed by StatementBegin")
+	}
+	if !strings.HasPrefix(down, "-- +goose StatementBegin\n") {
+		return fmt.Errorf("-- +goose Down is not followed by StatementBegin")
+	}
+	return nil
 }
 
 // flatFS is a read-only in-memory directory of files.

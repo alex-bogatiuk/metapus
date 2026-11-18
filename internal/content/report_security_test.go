@@ -16,6 +16,7 @@ import (
 	"metapus/internal/domain/filter"
 	"metapus/internal/domain/reports/schema"
 	"metapus/internal/domain/security_profile"
+	v1 "metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/reporting/compiler"
 	"metapus/internal/infrastructure/storage/postgres"
 )
@@ -25,14 +26,15 @@ func reportCompiler(t *testing.T) *compiler.Compiler {
 	engine, err := security.NewPolicyEngine()
 	require.NoError(t, err)
 	t.Cleanup(engine.Stop)
-	registry := content.BuildReportRegistry()
+	factories := content.Compose(content.Services{})
+	registry := v1.BuildReadRegistry(factories)
 	datasets := []*schema.Dataset{}
-	for _, original := range content.AllDatasets() {
+	for _, original := range factories.Datasets() {
 		copy := *original
 		copy.Fields = append([]schema.Field(nil), original.Fields...)
 		datasets = append(datasets, &copy)
 	}
-	return compiler.NewCompiler(registry, datasets, postgres.NewAuthorizedReadService(registry, engine), content.DatasetExecutors())
+	return compiler.NewCompiler(registry, datasets, postgres.NewAuthorizedReadService(registry, engine), factories.DatasetExecutors())
 }
 
 func reportPrincipal() appctx.UserContext {

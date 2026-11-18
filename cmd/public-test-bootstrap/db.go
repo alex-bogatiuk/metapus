@@ -188,7 +188,7 @@ func validateDerivedWalletSet(walletSet derivedWalletSet) error {
 
 func configureTenantDatabase(ctx context.Context, tx pgx.Tx, stateDir string, walletSet derivedWalletSet, keepOtherFamilies bool) error {
 	var schema int
-	if err := tx.QueryRow(ctx, `SELECT COALESCE(MAX(version_id),0) FROM goose_db_version WHERE is_applied AND version_id<10000`).Scan(&schema); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT COALESCE(MAX(version_id),0) FROM goose_db_version WHERE is_applied AND version_id<$1`, version.FirstExtensionMigration).Scan(&schema); err != nil {
 		return fmt.Errorf("verify schema version: %w", err)
 	}
 	if !version.CompatibleSchema(schema) {

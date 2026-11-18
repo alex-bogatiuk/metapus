@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	dbassets "metapus/db"
 )
 
 func TestRejectsInvalidOptionsBeforeWriting(t *testing.T) {
@@ -99,6 +101,9 @@ func TestGeneratedModulesCompileAndMatchTheirHTTPContracts(t *testing.T) {
 			t.Fatal("migration versions must not collide")
 		}
 		source, _ := os.ReadFile(migrations[0])
+		if err := dbassets.CheckMigrationFormat(string(source)); err != nil {
+			t.Fatalf("generated migration breaks the migration format: %v\n%s", err, source)
+		}
 		if strings.Contains(string(source), "fn_uuid_v7") || strings.Contains(string(source), "UNIQUE (") {
 			t.Fatal("obsolete SQL in generated migration")
 		}

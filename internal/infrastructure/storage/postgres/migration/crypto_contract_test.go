@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	dbassets "metapus/db"
 	"metapus/internal/core/types"
 )
 
@@ -30,13 +31,7 @@ func TestEachMigrationDirectionIsOneGooseStatement(t *testing.T) {
 	files := tenantMigrationFiles(t)
 	require.NotEmpty(t, files)
 	for _, file := range files {
-		sql := readMigrationSQL(t, filepath.Base(file))
-		require.Equal(t, 2, strings.Count(sql, "-- +goose StatementBegin\n"), file)
-		require.Equal(t, 2, strings.Count(sql, "-- +goose StatementEnd\n"), file)
-		up, down, ok := strings.Cut(sql, "-- +goose Down\n")
-		require.True(t, ok, file)
-		require.Contains(t, up, "-- +goose Up\n-- +goose StatementBegin\n", file)
-		require.True(t, strings.HasPrefix(down, "-- +goose StatementBegin\n"), file)
+		require.NoError(t, dbassets.CheckMigrationFormat(readMigrationSQL(t, filepath.Base(file))), file)
 	}
 	core := readMigrationSQL(t, "00001_core.sql")
 	require.Contains(t, core, "CREATE OR REPLACE FUNCTION fn_sys_idempotency_guard()")

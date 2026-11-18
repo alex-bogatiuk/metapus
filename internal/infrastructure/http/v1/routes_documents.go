@@ -188,7 +188,7 @@ func registerReportRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *Fac
 	}
 
 	baseHandler := handlers.NewBaseHandler()
-	comp := compiler.NewCompiler(reg, datasets, postgres.NewAuthorizedReadService(reg, cfg.PolicyEngine), factoryReg.DatasetExecutors())
+	comp := NewReportCompiler(factoryReg, reg, cfg.PolicyEngine)
 	dsHandler := handlers.NewDatasetReportHandler(baseHandler, comp, reg)
 
 	variantRepo := postgres.NewReportVariantRepo()

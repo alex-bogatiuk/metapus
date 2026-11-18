@@ -19,7 +19,7 @@ func (r *AMLRepository) ReadAMLConfiguration(ctx context.Context, networkCode st
 	opts.AccessMode, opts.IsolationLevel = pgx.ReadOnly, pgx.RepeatableRead
 	err := tm.RunInTransactionWithOptions(ctx, opts, func(ctx context.Context) error {
 		q := tm.GetQuerier(ctx)
-		if err := q.QueryRow(ctx, `SELECT transaction_timestamp(),COALESCE(MAX(version_id),0) FROM goose_db_version WHERE is_applied AND version_id<10000`).Scan(&result.ObservedAt, &result.DatabaseSchema); err != nil {
+		if err := q.QueryRow(ctx, `SELECT transaction_timestamp(),COALESCE(MAX(version_id),0) FROM goose_db_version WHERE is_applied AND version_id<$1`, version.FirstExtensionMigration).Scan(&result.ObservedAt, &result.DatabaseSchema); err != nil {
 			return err
 		}
 		if !version.CompatibleSchema(result.DatabaseSchema) {
