@@ -72,10 +72,17 @@ export const systemApi = {
         }),
 
     markedObjects: {
+        /** Deletion plan with every marked object selected. */
         list: () =>
-            apiFetch<{ items: import("@/types/common").MarkedObject[]; total: number }>("/system/marked-objects"),
-        delete: (items: { entityName: string; entityId: string }[]) =>
-            apiFetch<{ deleted: number; skipped: number; errors: number }>("/system/marked-objects/delete", {
+            apiFetch<import("@/types/common").DeletionPlan>("/system/marked-objects"),
+        /** Deletion plan for the given selection. */
+        plan: (items: import("@/types/common").MarkedObjectRef[]) =>
+            apiFetch<import("@/types/common").DeletionPlan>("/system/marked-objects/plan", {
+                method: "POST",
+                body: JSON.stringify({ items }),
+            }),
+        delete: (items: import("@/types/common").MarkedObjectRef[]) =>
+            apiFetch<import("@/types/common").DeleteMarkedResult>("/system/marked-objects/delete", {
                 method: "POST",
                 body: JSON.stringify({ items }),
             }),

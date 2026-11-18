@@ -129,18 +129,22 @@ func (r *RefFinderRepo) FindReferences(ctx context.Context, req domain.FindRefer
 	if len(resolveReqs) == 0 {
 		return results, nil
 	}
-	resolved, err := resolver.ResolveRefs(ctx, resolveReqs)
+	// Marked objects still reference the target and block its deletion, so
+	// they are listed too, flagged by their deletion mark.
+	resolved, err := resolver.ResolveRefsWithDeletionMarked(ctx, resolveReqs)
 	if err != nil {
 		return nil, err
 	}
-	presentations := make(map[domain.RefResolveRequest]string, len(resolved))
+	presentations := make(map[domain.RefResolveRequest]domain.RefResolveResult, len(resolved))
 	for _, row := range resolved {
-		presentations[domain.RefResolveRequest{RefType: row.RefType, RefID: row.RefID}] = row.Presentation
+		presentations[domain.RefResolveRequest{RefType: row.RefType, RefID: row.RefID}] = row
 	}
 	allowed := make([]domain.FoundReference, 0, len(results))
 	for _, row := range results {
-		if text, ok := presentations[domain.RefResolveRequest{RefType: row.SourceEntityName, RefID: row.SourceID}]; ok {
-			row.Presentation = text
+		if source, ok := presentations[domain.RefResolveRequest{RefType: row.SourceEntityName, RefID: row.SourceID}]; ok {
+			row.Presentation = source.Presentation
+			row.DeletionMark = source.DeletionMark
+			row.Posted = source.Posted
 			allowed = append(allowed, row)
 		}
 	}
@@ -263,8 +267,19 @@ func (r *RefFinderRepo) buildRefSpecs(targetEntityName string) []refFieldSpec {
 			continue
 		}
 
-		// Skip self-references
+		// Within the target's own table only the hierarchy parent refers to
+		// the same entity; other self-typed fields would match by name only.
 		if def.Name == targetEntityName {
+			for _, field := range def.Fields {
+				if field.Type == metadata.TypeReference && field.ReferenceType == "parent" {
+					specs = append(specs, refFieldSpec{
+						tableName: tableName,
+						fieldName: field.Name,
+						dbColumn:  referenceColumn(field),
+						entityDef: def,
+					})
+				}
+			}
 			continue
 		}
 
@@ -312,15 +327,11 @@ func (r *RefFinderRepo) fieldToSpec(
 	case metadata.TypeReference:
 		// FK reference — check if the reference type matches target
 		if field.ReferenceType != "" && r.refTypeMatchesEntity(field.ReferenceType, targetEntityName) {
-			dbCol := toSnakeCase(field.Name)
-			if !strings.HasSuffix(dbCol, "_id") {
-				dbCol = dbCol + "_id"
-			}
 			return &refFieldSpec{
 				tableName:  tableName,
 				fieldName:  fieldPrefix + field.Name,
 				isTypedRef: false,
-				dbColumn:   dbCol,
+				dbColumn:   referenceColumn(field),
 				entityDef:  entityDef,
 			}
 		}
@@ -400,6 +411,19 @@ func (r *RefFinderRepo) buildCountQuery(spec refFieldSpec, req domain.FindRefere
 	}
 
 	return sql, args
+}
+
+// referenceColumn is the column of a reference field: the declared one, or
+// the snake_case field name with an "_id" suffix.
+func referenceColumn(field metadata.FieldDef) string {
+	if field.DBColumn != "" {
+		return field.DBColumn
+	}
+	column := toSnakeCase(field.Name)
+	if !strings.HasSuffix(column, "_id") {
+		column += "_id"
+	}
+	return column
 }
 
 // toSnakeCase converts camelCase field name to snake_case column name.

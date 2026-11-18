@@ -21,7 +21,8 @@ func serviceOperationContracts() []Contract {
 		Request[json.RawMessage]("UpdateJSONPreferencesRequest"),
 		Request[domain.FindReferencesRequest]("FindReferencesRequest"),
 		Response[dto.FindReferencesResponse]("FindReferencesResponse"),
-		Response[dto.MarkedObjectsResponse]("MarkedObjectsResponse"),
+		Response[domain.DeletionPlan]("MarkedObjectsResponse"),
+		Request[dto.PlanMarkedRequest]("PlanMarkedRequest"),
 		Request[dto.DeleteMarkedRequest]("DeleteMarkedRequest"),
 		Response[domain.DeleteMarkedResult]("DeleteMarkedResponse"),
 		Response[exchangerateapp.CurrentPage]("CurrentExchangeRatesResponse"),
@@ -50,6 +51,7 @@ func serviceOperationRoutes() []RouteContract {
 	}
 	add("POST", "/system/find-references", "FindReferencesRequest", "FindReferencesResponse")
 	add("GET", "/system/marked-objects", "", "MarkedObjectsResponse")
+	add("POST", "/system/marked-objects/plan", "PlanMarkedRequest", "MarkedObjectsResponse")
 	add("POST", "/system/marked-objects/delete", "DeleteMarkedRequest", "DeleteMarkedResponse")
 	add("GET", "/registers/exchange-rates/current", "", "CurrentExchangeRatesResponse")
 	add("GET", "/registers/exchange-rates/history", "", "ExchangeRateHistoryResponse")

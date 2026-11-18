@@ -37,6 +37,11 @@ type Query struct {
 	Search        string
 	SearchColumns []string
 	Scope         *security.DataScope
+	// IncludeDeletionMarked also returns rows hidden by the soft-delete
+	// filter. Setting a deletion mark fills _deleted_at, so ordinary reads
+	// never see marked objects; tools that work on them (the deletion plan,
+	// "Найти ссылки") opt in. Every other constraint still applies.
+	IncludeDeletionMarked bool
 }
 type Record struct {
 	ID         id.ID
@@ -98,6 +103,15 @@ func FieldAllowed(ctx context.Context, d Definition, field Field) bool {
 }
 
 func (s *Service) ReadIDs(ctx context.Context, key string, ids []id.ID) ([]Projection, error) {
+	return s.readIDs(ctx, key, ids, false)
+}
+
+// ReadIDsWithDeletionMarked is ReadIDs that also returns deletion-marked rows.
+func (s *Service) ReadIDsWithDeletionMarked(ctx context.Context, key string, ids []id.ID) ([]Projection, error) {
+	return s.readIDs(ctx, key, ids, true)
+}
+
+func (s *Service) readIDs(ctx context.Context, key string, ids []id.ID, includeMarked bool) ([]Projection, error) {
 	d, err := s.Require(ctx, key)
 	if err != nil {
 		return nil, err
@@ -113,7 +127,7 @@ func (s *Service) ReadIDs(ctx context.Context, key string, ids []id.ID) ([]Proje
 	if len(unique) == 0 {
 		return []Projection{}, nil
 	}
-	rows, err := s.read(ctx, d, Query{IDs: unique})
+	rows, err := s.read(ctx, d, Query{IDs: unique, IncludeDeletionMarked: includeMarked})
 	if err != nil {
 		return nil, err
 	}

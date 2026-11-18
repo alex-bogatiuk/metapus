@@ -20,23 +20,42 @@ func NewMarkedObjectsHandler(processor domain.MarkedObjectsProcessor) *MarkedObj
 	return &MarkedObjectsHandler{processor: processor}
 }
 
-// List handles GET /system/marked-objects — list all deletion-marked entities.
+// List handles GET /system/marked-objects — the deletion plan for every
+// marked object.
 func (h *MarkedObjectsHandler) List(c *gin.Context) {
-	results, err := h.processor.ListMarkedObjects(c.Request.Context())
+	plan, err := h.processor.PlanDeletion(c.Request.Context(), nil)
 	if err != nil {
 		_ = c.Error(err)
 		c.Abort()
 		return
 	}
-
-	if results == nil {
-		results = []domain.MarkedObject{}
-	}
-
-	c.JSON(http.StatusOK, dto.MarkedObjectsResponse{Items: results, Total: len(results)})
+	c.JSON(http.StatusOK, plan)
 }
 
-// Delete handles POST /system/marked-objects/delete — physically delete entities.
+// Plan handles POST /system/marked-objects/plan — the deletion plan for the
+// selected objects.
+func (h *MarkedObjectsHandler) Plan(c *gin.Context) {
+	var req dto.PlanMarkedRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(apperror.NewInvalidRequest(err))
+		c.Abort()
+		return
+	}
+	selection := req.Items
+	if selection == nil {
+		selection = []domain.MarkedObjectRef{}
+	}
+	plan, err := h.processor.PlanDeletion(c.Request.Context(), selection)
+	if err != nil {
+		_ = c.Error(err)
+		c.Abort()
+		return
+	}
+	c.JSON(http.StatusOK, plan)
+}
+
+// Delete handles POST /system/marked-objects/delete — physically delete the
+// selected objects the plan allows.
 func (h *MarkedObjectsHandler) Delete(c *gin.Context) {
 	var req dto.DeleteMarkedRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

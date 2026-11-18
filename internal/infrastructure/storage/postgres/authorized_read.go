@@ -82,7 +82,7 @@ func (a *authorizedReadAdapter) Read(ctx context.Context, d readaccess.Definitio
 	}
 	columns := extractColumnsFromType(modelType)
 	q := squirrel.Select(columns...).From(d.Table).OrderBy("id ASC")
-	if slices.Contains(columns, "_deleted_at") {
+	if slices.Contains(columns, "_deleted_at") && !request.IncludeDeletionMarked {
 		q = q.Where(squirrel.Eq{"_deleted_at": nil})
 	}
 	if d.Key == "user" {

@@ -20,6 +20,8 @@ type FoundReference struct {
 	SourceField      string `json:"sourceField"`      // field name, e.g. "counterpartyId" or "lines.ref"
 	SourceID         id.ID  `json:"sourceId"`         // ID of the referencing entity
 	Presentation     string `json:"presentation"`     // resolved display string
+	DeletionMark     bool   `json:"deletionMark"`     // the source is marked for deletion
+	Posted           bool   `json:"posted"`           // the source is a posted document
 }
 
 // RefFinder searches for all references to a given entity across all registered tables.

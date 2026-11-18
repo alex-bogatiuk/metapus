@@ -7,13 +7,14 @@ type FindReferencesResponse struct {
 	Total int                     `json:"total"`
 }
 
-type MarkedObjectsResponse struct {
-	Items []domain.MarkedObject `json:"items"`
-	Total int                   `json:"total"`
+// PlanMarkedRequest selects the marked objects a deletion plan is built for;
+// an empty list selects nothing.
+type PlanMarkedRequest struct {
+	Items []domain.MarkedObjectRef `json:"items" binding:"max=5000,dive"`
 }
 
 type DeleteMarkedRequest struct {
-	Items []domain.DeleteMarkedRequest `json:"items" binding:"required,min=1"`
+	Items []domain.MarkedObjectRef `json:"items" binding:"required,min=1,max=1000,dive"`
 }
 
 type UpdateRateMappingRequest struct {

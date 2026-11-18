@@ -8,8 +8,8 @@
  * all objects that reference it across all registered tables.
  */
 
-import { useState, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useCallback, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Search, Loader2, ArrowLeft, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -27,17 +27,23 @@ import { CompoundReferenceField } from "@/components/shared/compound-reference-f
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import { useTabsStore } from "@/stores/useTabsStore"
 import { resolveTitleFromUrl } from "@/lib/tab-utils"
+import { buildEntityUrlByRoute } from "@/lib/entity-url"
 import { api } from "@/lib/api"
 import type { TypedRef, FoundReference } from "@/types/common"
 
 export default function FindReferencesPage() {
     const router = useRouter()
+    const searchParams = useSearchParams()
     const openTab = useTabsStore((s) => s.openTab)
     const getEntityByName = useMetadataStore((s) => s.getEntityByName)
     const getLabel = useMetadataStore((s) => s.getLabel)
 
     // ── State ────────────────────────────────────────────────────────────
-    const [targetRef, setTargetRef] = useState<TypedRef>({ refType: "", refId: "" })
+    // "Удаление помеченных объектов" opens the page with the object in the URL.
+    const [targetRef, setTargetRef] = useState<TypedRef>(() => ({
+        refType: searchParams.get("entityName") ?? "",
+        refId: searchParams.get("entityId") ?? "",
+    }))
     const [targetPresentation, setTargetPresentation] = useState("")
     const [results, setResults] = useState<FoundReference[]>([])
     const [loading, setLoading] = useState(false)
@@ -51,14 +57,14 @@ export default function FindReferencesPage() {
         setSearched(false)
     }, [])
 
-    const handleSearch = useCallback(async () => {
-        if (!targetRef.refType || !targetRef.refId) return
+    const search = useCallback(async (target: TypedRef) => {
+        if (!target.refType || !target.refId) return
 
         setLoading(true)
         try {
             const data = await api.system.findReferences({
-                entityName: targetRef.refType,
-                entityId: targetRef.refId,
+                entityName: target.refType,
+                entityId: target.refId,
             })
             setResults(data.items)
             setSearched(true)
@@ -68,16 +74,24 @@ export default function FindReferencesPage() {
         } finally {
             setLoading(false)
         }
-    }, [targetRef])
+    }, [])
+
+    const handleSearch = useCallback(() => search(targetRef), [search, targetRef])
+
+    const initialEntityName = searchParams.get("entityName")
+    const initialEntityId = searchParams.get("entityId")
+    useEffect(() => {
+        if (!initialEntityName || !initialEntityId) return
+        const target = { refType: initialEntityName, refId: initialEntityId }
+        setTargetRef(target)
+        void search(target)
+    }, [initialEntityName, initialEntityId, search])
 
     const navigateToEntity = useCallback(
         (entityName: string, entityId: string) => {
             const meta = getEntityByName(entityName)
-            if (!meta) return
-
-            const prefix = meta.routePrefix ?? meta.key
-            const basePath = meta.type === "catalog" ? "catalogs" : meta.type === "document" ? entityName.toLowerCase() : ""
-            const url = `/${basePath}/${prefix}/${entityId}`
+            if (!meta?.routePrefix || (meta.type !== "catalog" && meta.type !== "document")) return
+            const url = buildEntityUrlByRoute(meta.routePrefix, meta.type, entityId)
 
             openTab({ id: url, title: resolveTitleFromUrl(url), url })
             router.push(url)
@@ -190,6 +204,12 @@ export default function FindReferencesPage() {
                                                 </TableCell>
                                                 <TableCell className="font-medium text-sm">
                                                     {ref.presentation || ref.sourceId.slice(0, 8) + "…"}
+                                                    {ref.deletionMark && (
+                                                        <Badge variant="secondary" className="ml-2 text-xs font-normal">Помечен на удаление</Badge>
+                                                    )}
+                                                    {ref.posted && (
+                                                        <Badge variant="outline" className="ml-2 text-xs font-normal">Проведён</Badge>
+                                                    )}
                                                 </TableCell>
                                                 <TableCell>
                                                     <Badge

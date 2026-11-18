@@ -36,6 +36,7 @@
 | [systems/extension-api.md](systems/extension-api.md) | Плагины, кастомные расширения, модули | extensions, plugins, api, modules, custom |
 | [systems/filtering.md](systems/filtering.md) | Система фильтрации, SQL-генерация, типы | filtering, filters, sql, exists, ui |
 | [systems/infrastructure-layer.md](systems/infrastructure-layer.md) | Инфраструктура, PostgreSQL, HTTP сервер | infrastructure, postgres, http, gin |
+| [systems/marked-deletion.md](systems/marked-deletion.md) | Удаление помеченных объектов: план по графу ссылок, цепочки, FK-страховка, транзакция | deletion mark, marked objects, delete, purge, references, find references, удаление помеченных |
 | [systems/multi-tenancy.md](systems/multi-tenancy.md) | Физическая изоляция Database-per-Tenant | multi-tenant, tenant, isolation, database |
 | [systems/numerator.md](systems/numerator.md) | Автонумерация, генерация кодов и номеров | numerator, codes, auto-increment, numbering |
 | [systems/operational-modes.md](systems/operational-modes.md) | SaaS, Self-Hosted, Dedicated режимы | saas, dedicated, self-hosted, modes, deployment |

@@ -158,19 +158,87 @@ export interface FoundReference {
   sourceField: string
   sourceId: string
   presentation: string
+  /** The referencing object is itself marked for deletion. */
+  deletionMark: boolean
+  /** The referencing object is a posted document. */
+  posted: boolean
+}
+
+// ── Delete Marked Objects ───────────────────────────────────────────────
+
+/** Identifies one object by entity name and ID. */
+export interface MarkedObjectRef {
+  entityName: string
+  entityId: string
 }
 
 /**
- * Marked object — an entity with deletion mark, enriched with reference count.
- * Returned by GET /api/v1/system/marked-objects.
+ * Planned status of a marked object:
+ * - ready: nothing references it;
+ * - withGroup: only objects deleted in the same run reference it;
+ * - blocked: something that stays references it;
+ * - excluded: marked, but not selected.
+ */
+export type DeletionStatus = "ready" | "withGroup" | "blocked" | "excluded"
+
+/** Why a selected object cannot be deleted. */
+export type BlockReason = "liveReference" | "notSelected" | "chain" | "cycle"
+
+/** One object (or, for system tables, a group of rows) referencing a marked object. */
+export interface IncomingReference {
+  sourceEntityName?: string
+  sourceEntityType: "catalog" | "document" | "register" | "system"
+  sourceId?: string
+  sourceField: string
+  presentation: string
+  sourceMarked: boolean
+  sourcePosted: boolean
+  sourceStatus?: DeletionStatus
+  count: number
+}
+
+/**
+ * Marked object with its incoming references and planned status.
+ * Returned by GET /system/marked-objects and POST /system/marked-objects/plan.
  */
 export interface MarkedObject {
   entityName: string
   entityType: "catalog" | "document"
   entityId: string
   presentation: string
+  status: DeletionStatus
+  reason?: BlockReason
+  blockedBy?: IncomingReference
   refCount: number
-  canDelete: boolean
+  liveRefCount: number
+  references: IncomingReference[]
+  referencesTruncated: boolean
+}
+
+export interface DeletionPlan {
+  items: MarkedObject[]
+  total: number
+  selected: number
+  deletable: number
+  blocked: number
+  /** An entity had more marked objects than one scan lists. */
+  truncated: boolean
+}
+
+export type DeletionOutcome = "deleted" | "skipped" | "failed"
+
+export interface DeletedObjectResult extends MarkedObjectRef {
+  presentation: string
+  outcome: DeletionOutcome
+  reason?: BlockReason
+  message?: string
+}
+
+export interface DeleteMarkedResult {
+  deleted: number
+  skipped: number
+  errors: number
+  items: DeletedObjectResult[]
 }
 
 // ── Related Documents ───────────────────────────────────────────────────

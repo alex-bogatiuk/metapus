@@ -658,13 +658,14 @@ export type DatasetQueryResponse = {
 }
 
 export type DeleteMarkedRequest = {
-  "items": Array<DomainDeleteMarkedRequestInput>
+  "items": Array<DomainMarkedObjectRefInput>
 }
 
 export type DeleteMarkedResponse = {
   "deleted": number
   "skipped": number
   "errors": number
+  "items": Array<DomainDeletedObjectResult>
 }
 
 export type DeleteRoleResponse = {
@@ -691,9 +692,13 @@ export type DocumentResponse = {
   "description"?: string
 }
 
-export type DomainDeleteMarkedRequestInput = {
+export type DomainDeletedObjectResult = {
   "entityName": string
   "entityId": string
+  "presentation": string
+  "outcome": string
+  "reason"?: string
+  "message"?: string
 }
 
 export type DomainFoundReference = {
@@ -702,6 +707,20 @@ export type DomainFoundReference = {
   "sourceField": string
   "sourceId": string
   "presentation": string
+  "deletionMark": boolean
+  "posted": boolean
+}
+
+export type DomainIncomingReference = {
+  "sourceEntityName"?: string
+  "sourceEntityType": string
+  "sourceId"?: string
+  "sourceField": string
+  "presentation": string
+  "sourceMarked": boolean
+  "sourcePosted": boolean
+  "sourceStatus"?: string
+  "count": number
 }
 
 export type DomainMarkedObject = {
@@ -709,8 +728,18 @@ export type DomainMarkedObject = {
   "entityType": string
   "entityId": string
   "presentation": string
+  "status": string
+  "reason"?: string
+  "blockedBy"?: DomainIncomingReference
   "refCount": number
-  "canDelete": boolean
+  "liveRefCount": number
+  "references": Array<DomainIncomingReference>
+  "referencesTruncated": boolean
+}
+
+export type DomainMarkedObjectRefInput = {
+  "entityName": string
+  "entityId": string
 }
 
 export type DomainRefResolveRequestInput = {
@@ -1317,6 +1346,10 @@ export type MFAVerifyRequest = {
 export type MarkedObjectsResponse = {
   "items": Array<DomainMarkedObject>
   "total": number
+  "selected": number
+  "deletable": number
+  "blocked": number
+  "truncated": boolean
 }
 
 export type MetadataCodeAssignment = {
@@ -1503,6 +1536,10 @@ export type PermissionResponse = {
   "description"?: string
   "resource": string
   "action": string
+}
+
+export type PlanMarkedRequest = {
+  "items"?: Array<DomainMarkedObjectRefInput>
 }
 
 export type PolicyRuleListResponse = Array<PolicyRuleResponse>

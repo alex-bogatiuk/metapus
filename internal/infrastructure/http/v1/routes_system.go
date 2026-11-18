@@ -143,9 +143,14 @@ func registerSystemRoutes(rg, sysGroup, wsGroup *gin.RouterGroup, cfg RouterConf
 	sysGroup.POST("/find-references", refFinderHandler.FindReferences)
 
 	// Processing: Delete Marked Objects (Удаление помеченных объектов)
-	markedRepo := postgres.NewMarkedObjectsRepo(reg)
+	var deletionEvents eventlog.Writer
+	if cfg.EventLogRepo != nil {
+		deletionEvents = cfg.EventLogRepo
+	}
+	markedRepo := postgres.NewMarkedObjectsRepo(reg, deletionEvents)
 	markedHandler := handlers.NewMarkedObjectsHandler(markedRepo)
 	sysGroup.GET("/marked-objects", markedHandler.List)
+	sysGroup.POST("/marked-objects/plan", markedHandler.Plan)
 	sysGroup.POST("/marked-objects/delete", requireStepUp("system.marked_objects.delete"), markedHandler.Delete)
 
 	integrationCatalog := cfg.IntegrationCatalog

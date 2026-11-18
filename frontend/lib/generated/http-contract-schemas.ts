@@ -662,13 +662,14 @@ export const DatasetQueryResponseSchema: z.ZodType<Wire.DatasetQueryResponse> = 
 }))
 
 export const DeleteMarkedRequestSchema: z.ZodType<Wire.DeleteMarkedRequest> = z.lazy(() => z.strictObject({
-  "items": z.array(DomainDeleteMarkedRequestInputSchema),
+  "items": z.array(DomainMarkedObjectRefInputSchema),
 }))
 
 export const DeleteMarkedResponseSchema: z.ZodType<Wire.DeleteMarkedResponse> = z.lazy(() => z.object({
   "deleted": z.number().int(),
   "skipped": z.number().int(),
   "errors": z.number().int(),
+  "items": z.array(DomainDeletedObjectResultSchema),
 }))
 
 export const DeleteRoleResponseSchema: z.ZodType<Wire.DeleteRoleResponse> = z.lazy(() => z.object({
@@ -695,9 +696,13 @@ export const DocumentResponseSchema: z.ZodType<Wire.DocumentResponse> = z.lazy((
   "description": z.string().optional(),
 }))
 
-export const DomainDeleteMarkedRequestInputSchema: z.ZodType<Wire.DomainDeleteMarkedRequestInput> = z.lazy(() => z.strictObject({
+export const DomainDeletedObjectResultSchema: z.ZodType<Wire.DomainDeletedObjectResult> = z.lazy(() => z.object({
   "entityName": z.string(),
   "entityId": z.string(),
+  "presentation": z.string(),
+  "outcome": z.string(),
+  "reason": z.string().optional(),
+  "message": z.string().optional(),
 }))
 
 export const DomainFoundReferenceSchema: z.ZodType<Wire.DomainFoundReference> = z.lazy(() => z.object({
@@ -706,6 +711,20 @@ export const DomainFoundReferenceSchema: z.ZodType<Wire.DomainFoundReference> = 
   "sourceField": z.string(),
   "sourceId": z.string(),
   "presentation": z.string(),
+  "deletionMark": z.boolean(),
+  "posted": z.boolean(),
+}))
+
+export const DomainIncomingReferenceSchema: z.ZodType<Wire.DomainIncomingReference> = z.lazy(() => z.object({
+  "sourceEntityName": z.string().optional(),
+  "sourceEntityType": z.string(),
+  "sourceId": z.string().optional(),
+  "sourceField": z.string(),
+  "presentation": z.string(),
+  "sourceMarked": z.boolean(),
+  "sourcePosted": z.boolean(),
+  "sourceStatus": z.string().optional(),
+  "count": z.number().int(),
 }))
 
 export const DomainMarkedObjectSchema: z.ZodType<Wire.DomainMarkedObject> = z.lazy(() => z.object({
@@ -713,8 +732,18 @@ export const DomainMarkedObjectSchema: z.ZodType<Wire.DomainMarkedObject> = z.la
   "entityType": z.string(),
   "entityId": z.string(),
   "presentation": z.string(),
+  "status": z.string(),
+  "reason": z.string().optional(),
+  "blockedBy": DomainIncomingReferenceSchema.optional(),
   "refCount": z.number().int(),
-  "canDelete": z.boolean(),
+  "liveRefCount": z.number().int(),
+  "references": z.array(DomainIncomingReferenceSchema),
+  "referencesTruncated": z.boolean(),
+}))
+
+export const DomainMarkedObjectRefInputSchema: z.ZodType<Wire.DomainMarkedObjectRefInput> = z.lazy(() => z.strictObject({
+  "entityName": z.string(),
+  "entityId": z.string(),
 }))
 
 export const DomainRefResolveRequestInputSchema: z.ZodType<Wire.DomainRefResolveRequestInput> = z.lazy(() => z.strictObject({
@@ -1321,6 +1350,10 @@ export const MFAVerifyRequestSchema: z.ZodType<Wire.MFAVerifyRequest> = z.lazy((
 export const MarkedObjectsResponseSchema: z.ZodType<Wire.MarkedObjectsResponse> = z.lazy(() => z.object({
   "items": z.array(DomainMarkedObjectSchema),
   "total": z.number().int(),
+  "selected": z.number().int(),
+  "deletable": z.number().int(),
+  "blocked": z.number().int(),
+  "truncated": z.boolean(),
 }))
 
 export const MetadataCodeAssignmentSchema: z.ZodType<Wire.MetadataCodeAssignment> = z.lazy(() => z.object({
@@ -1507,6 +1540,10 @@ export const PermissionResponseSchema: z.ZodType<Wire.PermissionResponse> = z.la
   "description": z.string().optional(),
   "resource": z.string(),
   "action": z.string(),
+}))
+
+export const PlanMarkedRequestSchema: z.ZodType<Wire.PlanMarkedRequest> = z.lazy(() => z.strictObject({
+  "items": z.array(DomainMarkedObjectRefInputSchema).optional(),
 }))
 
 export const PolicyRuleListResponseSchema: z.ZodType<Wire.PolicyRuleListResponse> = z.lazy(() => z.array(PolicyRuleResponseSchema))

@@ -21,6 +21,16 @@ func NewRefResolverRepo(registry *metadata.Registry) *RefResolverRepo {
 	return &RefResolverRepo{registry}
 }
 func (r *RefResolverRepo) ResolveRefs(ctx context.Context, refs []domain.RefResolveRequest) ([]domain.RefResolveResult, error) {
+	return r.resolveRefs(ctx, refs, false)
+}
+
+// ResolveRefsWithDeletionMarked also resolves deletion-marked objects, which
+// ordinary reads hide. Tools that work on marked objects use it.
+func (r *RefResolverRepo) ResolveRefsWithDeletionMarked(ctx context.Context, refs []domain.RefResolveRequest) ([]domain.RefResolveResult, error) {
+	return r.resolveRefs(ctx, refs, true)
+}
+
+func (r *RefResolverRepo) resolveRefs(ctx context.Context, refs []domain.RefResolveRequest, includeMarked bool) ([]domain.RefResolveResult, error) {
 	results := make([]domain.RefResolveResult, 0, len(refs))
 	if len(refs) == 0 {
 		return results, nil
@@ -45,7 +55,11 @@ func (r *RefResolverRepo) ResolveRefs(ctx context.Context, refs []domain.RefReso
 			}
 			return nil, err
 		}
-		rows, err := reads.ReadIDs(ctx, def.Key, ids)
+		read := reads.ReadIDs
+		if includeMarked {
+			read = reads.ReadIDsWithDeletionMarked
+		}
+		rows, err := read(ctx, def.Key, ids)
 		if err != nil {
 			return nil, err
 		}

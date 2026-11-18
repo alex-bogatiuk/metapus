@@ -124,6 +124,7 @@ export const httpRoutes = [
   { scope: "api", method: "PUT", path: "/me/preferences/favorites", request: Wire.UpdateJSONPreferencesRequestSchema, requestFields: null, response: null, optionalRequest: false },
   { scope: "api", method: "POST", path: "/system/find-references", request: Wire.FindReferencesRequestSchema, requestFields: ["entityName", "entityId"], response: Wire.FindReferencesResponseSchema, optionalRequest: false },
   { scope: "api", method: "GET", path: "/system/marked-objects", request: null, requestFields: null, response: Wire.MarkedObjectsResponseSchema, optionalRequest: false },
+  { scope: "api", method: "POST", path: "/system/marked-objects/plan", request: Wire.PlanMarkedRequestSchema, requestFields: ["items"], requestParts: { "items": ["entityName", "entityId"] }, response: Wire.MarkedObjectsResponseSchema, optionalRequest: false },
   { scope: "api", method: "POST", path: "/system/marked-objects/delete", request: Wire.DeleteMarkedRequestSchema, requestFields: ["items"], requestParts: { "items": ["entityName", "entityId"] }, response: Wire.DeleteMarkedResponseSchema, optionalRequest: false },
   { scope: "api", method: "GET", path: "/registers/exchange-rates/current", request: null, requestFields: null, response: Wire.CurrentExchangeRatesResponseSchema, optionalRequest: false },
   { scope: "api", method: "GET", path: "/registers/exchange-rates/history", request: null, requestFields: null, response: Wire.ExchangeRateHistoryResponseSchema, optionalRequest: false },
