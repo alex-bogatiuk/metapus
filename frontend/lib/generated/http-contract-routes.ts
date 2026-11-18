@@ -36,7 +36,6 @@ export const httpRoutes = [
   { scope: "api", method: "GET", path: "/system/automation-meta/datasets", request: null, requestFields: null, response: Wire.AutomationDatasetsResponseSchema, optionalRequest: false },
   { scope: "api", method: "GET", path: "/settings", request: null, requestFields: null, response: Wire.SystemSettingsResponseSchema, optionalRequest: false },
   { scope: "api", method: "PATCH", path: "/settings/general", request: Wire.UpdateGeneralSettingsRequestSchema, requestFields: ["data", "version"], response: Wire.SystemSettingsResponseSchema, optionalRequest: false },
-  { scope: "api", method: "PATCH", path: "/settings/numbering", request: Wire.UpdateNumberingSettingsRequestSchema, requestFields: ["data", "version"], response: Wire.SystemSettingsResponseSchema, optionalRequest: false },
   { scope: "api", method: "PATCH", path: "/settings/performance", request: Wire.UpdatePerformanceSettingsRequestSchema, requestFields: ["data", "version"], response: Wire.SystemSettingsResponseSchema, optionalRequest: false },
   { scope: "api", method: "PATCH", path: "/settings/exchangeRates", request: Wire.UpdateExchangeRatesSettingsRequestSchema, requestFields: ["data", "version"], response: Wire.SystemSettingsResponseSchema, optionalRequest: false },
   { scope: "api", method: "GET", path: "/system/version", request: null, requestFields: null, response: Wire.SystemVersionResponseSchema, optionalRequest: false },

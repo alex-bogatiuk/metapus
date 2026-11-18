@@ -13,7 +13,6 @@ import type { ComponentType } from "react"
 import type { LucideIcon } from "lucide-react"
 import type { SettingsSection } from "@/stores/useSettingsStore"
 import {
-  Hash,
   Gauge,
   Coins,
 } from "lucide-react"
@@ -29,7 +28,7 @@ export interface SelectOption {
 
 /** Definition of a single setting field. */
 export interface SettingFieldDef {
-  /** JSON key in the section object (e.g. "autoNumbering"). */
+  /** JSON key in the section object (e.g. "batchConcurrency"). */
   key: string
   /** Display label (noun, no verbs per UX-editor). */
   label: string
@@ -58,7 +57,7 @@ export interface SettingGroupDef {
 
 /** A full settings section (maps to one JSONB column). */
 export interface SettingSectionDef {
-  /** Store section key (e.g. "numbering"). */
+  /** Store section key (e.g. "performance"). */
   id: SettingsSection
   /** Display title (noun, именительный падеж). */
   title: string
@@ -78,33 +77,6 @@ export interface SettingSectionDef {
 
 export const settingsSections: SettingSectionDef[] = [
   // ── General ──
-  {
-    id: "numbering",
-    title: "Нумерация",
-    description: "Автонумерация документов",
-    icon: Hash,
-    category: "general",
-    groups: [
-      {
-        label: "Документы",
-        fields: [
-          {
-            key: "autoNumbering",
-            label: "Автонумерация",
-            description: "Номера присваиваются автоматически при записи",
-            type: "switch",
-          },
-          {
-            key: "numberPrefix",
-            label: "Префикс номера",
-            description: "Добавляется перед порядковым номером (например, «ИНВ-»)",
-            type: "text",
-          },
-        ],
-      },
-    ],
-    saveHint: "Изменения применятся к новым документам",
-  },
   {
     id: "performance",
     title: "Производительность",

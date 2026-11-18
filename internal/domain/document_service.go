@@ -50,32 +50,30 @@ type HeaderDocumentEntity interface {
 
 // BaseDocumentServiceConfig configures the BaseDocumentService.
 type BaseDocumentServiceConfig[T DocumentEntity[L], L any] struct {
-	Definition        *entity.Definition
-	Repo              DocumentRepository[T, L]
-	PostingEngine     *posting.Engine
-	Numerator         numerator.Generator
-	TxManager         tx.Manager // Optional for Database-per-Tenant
-	CurrencyResolver  CurrencyResolveStrategy
-	PolicyEngine      *security.PolicyEngine // Optional — CEL policy evaluation
-	NumeratorPrefix   string
-	NumeratorStrategy numerator.Strategy
-	EntityName        string // for logging (e.g., "goods receipt", "goods issue")
+	Definition       *entity.Definition
+	Repo             DocumentRepository[T, L]
+	PostingEngine    *posting.Engine
+	Numerator        numerator.Generator
+	TxManager        tx.Manager // Optional for Database-per-Tenant
+	CurrencyResolver CurrencyResolveStrategy
+	PolicyEngine     *security.PolicyEngine // Optional — CEL policy evaluation
+	NumeratorPrefix  string
+	EntityName       string // for logging (e.g., "goods receipt", "goods issue")
 }
 
 // BaseDocumentService provides generic business logic for document entities.
 // Implements the Template Method pattern: common operations are defined here,
 // document-specific behaviour is provided via interfaces on T.
 type BaseDocumentService[T DocumentEntity[L], L any] struct {
-	Repo              DocumentRepository[T, L]
-	PostingEngine     *posting.Engine
-	Numerator         numerator.Generator
-	TxManager         tx.Manager
-	CurrencyResolver  CurrencyResolveStrategy
-	PolicyEngine      *security.PolicyEngine
-	hooks             *HookRegistry[T]
-	NumeratorPrefix   string
-	NumeratorStrategy numerator.Strategy
-	EntityName        string
+	Repo             DocumentRepository[T, L]
+	PostingEngine    *posting.Engine
+	Numerator        numerator.Generator
+	TxManager        tx.Manager
+	CurrencyResolver CurrencyResolveStrategy
+	PolicyEngine     *security.PolicyEngine
+	hooks            *HookRegistry[T]
+	NumeratorPrefix  string
+	EntityName       string
 }
 
 // NewBaseDocumentService creates a new BaseDocumentService.
@@ -91,16 +89,15 @@ func NewBaseDocumentService[T DocumentEntity[L], L any](cfg BaseDocumentServiceC
 	}
 
 	return &BaseDocumentService[T, L]{
-		Repo:              cfg.Repo,
-		PostingEngine:     cfg.PostingEngine,
-		Numerator:         cfg.Numerator,
-		TxManager:         cfg.TxManager,
-		CurrencyResolver:  cfg.CurrencyResolver,
-		PolicyEngine:      cfg.PolicyEngine,
-		hooks:             NewHookRegistry[T](),
-		NumeratorPrefix:   cfg.NumeratorPrefix,
-		NumeratorStrategy: cfg.NumeratorStrategy,
-		EntityName:        cfg.EntityName,
+		Repo:             cfg.Repo,
+		PostingEngine:    cfg.PostingEngine,
+		Numerator:        cfg.Numerator,
+		TxManager:        cfg.TxManager,
+		CurrencyResolver: cfg.CurrencyResolver,
+		PolicyEngine:     cfg.PolicyEngine,
+		hooks:            NewHookRegistry[T](),
+		NumeratorPrefix:  cfg.NumeratorPrefix,
+		EntityName:       cfg.EntityName,
 	}
 }
 
@@ -128,13 +125,24 @@ func (s *BaseDocumentService[T, L]) ResolveCurrency(ctx context.Context, doc T) 
 	return resolveDocumentCurrency(ctx, doc, s.CurrencyResolver)
 }
 
+// numberPeriod is the date whose year (or month) numbers a document: its
+// business date, so a document dated 30 December takes a number of that
+// year's series even when it is entered in January. A document without a
+// date is numbered by today.
+func numberPeriod(doc any) time.Time {
+	if dated, ok := doc.(interface{ GetDate() time.Time }); ok && !dated.GetDate().IsZero() {
+		return dated.GetDate()
+	}
+	return time.Now()
+}
+
 // GenerateNumber generates a document number if it is empty.
 func (s *BaseDocumentService[T, L]) GenerateNumber(ctx context.Context, doc T) error {
 	if doc.GetNumber() != "" {
 		return nil
 	}
 	cfg := numerator.DefaultConfig(s.NumeratorPrefix)
-	number, err := s.Numerator.GetNextNumber(ctx, cfg, &numerator.Options{Strategy: s.NumeratorStrategy}, time.Now())
+	number, err := s.Numerator.GetNextNumber(ctx, cfg, numberPeriod(doc))
 	if err != nil {
 		return fmt.Errorf("generate number: %w", err)
 	}

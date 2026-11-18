@@ -113,6 +113,11 @@ func (d *Document) SetNumber(n string) {
 	d.Number = n
 }
 
+// GetDate returns the business date of the document.
+func (d *Document) GetDate() time.Time {
+	return d.Date
+}
+
 // GetRLSDimensions implements security.RLSDimensionable.
 // Base implementation returns an empty map — no dimensions at the base level.
 // Document-specific types override to add their dimensions

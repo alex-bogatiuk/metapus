@@ -13,7 +13,6 @@ import (
 type Settings struct {
 	// General
 	General     GeneralSettings     `json:"general"`
-	Numbering   NumberingSettings   `json:"numbering"`
 	Performance PerformanceSettings `json:"performance"`
 
 	// Module-scoped
@@ -36,22 +35,6 @@ type GeneralSettings struct {
 func DefaultGeneral() GeneralSettings {
 	return GeneralSettings{
 		Timezone: "UTC",
-	}
-}
-
-// ── Numbering ───────────────────────────────────────────────────────────
-
-// NumberingSettings holds document auto-numbering parameters (system-wide).
-type NumberingSettings struct {
-	AutoNumbering bool   `json:"autoNumbering"`
-	NumberPrefix  string `json:"numberPrefix"`
-}
-
-// DefaultNumbering returns sensible defaults for numbering settings.
-func DefaultNumbering() NumberingSettings {
-	return NumberingSettings{
-		AutoNumbering: true,
-		NumberPrefix:  "",
 	}
 }
 

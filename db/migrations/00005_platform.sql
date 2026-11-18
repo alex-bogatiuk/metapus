@@ -24,7 +24,6 @@ CREATE TABLE sys_settings (
 
     -- General
     general      JSONB        NOT NULL DEFAULT '{"timezone": "UTC"}',
-    numbering    JSONB        NOT NULL DEFAULT '{"autoNumbering": true, "numberPrefix": ""}',
     performance  JSONB        NOT NULL DEFAULT '{"batchConcurrency": 5}',
 
     -- Exchange rates
@@ -38,7 +37,6 @@ CREATE TABLE sys_settings (
 COMMENT ON TABLE  sys_settings              IS 'Single-row tenant settings (system-wide only)';
 COMMENT ON COLUMN sys_settings.singleton    IS 'Always TRUE — enforces exactly one row via CHECK constraint';
 COMMENT ON COLUMN sys_settings.general      IS 'General settings: timezone (IANA), display preferences';
-COMMENT ON COLUMN sys_settings.numbering    IS 'Document numbering: autoNumbering, numberPrefix';
 COMMENT ON COLUMN sys_settings.performance  IS 'Batch concurrency, processing limits';
 COMMENT ON COLUMN sys_settings.exchange_rates IS 'Exchange rates feed settings: sourceId';
 COMMENT ON COLUMN sys_settings.version      IS 'Optimistic locking version — incremented on each update';

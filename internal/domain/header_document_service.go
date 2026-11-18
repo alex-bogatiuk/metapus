@@ -3,7 +3,6 @@ package domain
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
@@ -16,16 +15,15 @@ import (
 
 // BaseHeaderDocumentServiceConfig configures the BaseHeaderDocumentService.
 type BaseHeaderDocumentServiceConfig[T HeaderDocumentEntity] struct {
-	Definition        *entity.Definition
-	Repo              HeaderDocumentRepository[T]
-	PostingEngine     *posting.Engine
-	Numerator         numerator.Generator
-	TxManager         tx.Manager // Optional for Database-per-Tenant
-	CurrencyResolver  CurrencyResolveStrategy
-	PolicyEngine      *security.PolicyEngine // Optional — CEL policy evaluation
-	NumeratorPrefix   string
-	NumeratorStrategy numerator.Strategy
-	EntityName        string // for logging (e.g., "crypto_invoice")
+	Definition       *entity.Definition
+	Repo             HeaderDocumentRepository[T]
+	PostingEngine    *posting.Engine
+	Numerator        numerator.Generator
+	TxManager        tx.Manager // Optional for Database-per-Tenant
+	CurrencyResolver CurrencyResolveStrategy
+	PolicyEngine     *security.PolicyEngine // Optional — CEL policy evaluation
+	NumeratorPrefix  string
+	EntityName       string // for logging (e.g., "crypto_invoice")
 	// Parts persists the document's table parts with it; nil for a
 	// document whose data lives in the header alone.
 	Parts DocumentParts[T]
@@ -46,17 +44,16 @@ type DocumentParts[T any] interface {
 //
 // Implements DocumentService[T] — handlers and decorators are agnostic to this distinction.
 type BaseHeaderDocumentService[T HeaderDocumentEntity] struct {
-	Repo              HeaderDocumentRepository[T]
-	PostingEngine     *posting.Engine
-	Numerator         numerator.Generator
-	TxManager         tx.Manager
-	CurrencyResolver  CurrencyResolveStrategy
-	PolicyEngine      *security.PolicyEngine
-	hooks             *HookRegistry[T]
-	NumeratorPrefix   string
-	NumeratorStrategy numerator.Strategy
-	EntityName        string
-	parts             DocumentParts[T]
+	Repo             HeaderDocumentRepository[T]
+	PostingEngine    *posting.Engine
+	Numerator        numerator.Generator
+	TxManager        tx.Manager
+	CurrencyResolver CurrencyResolveStrategy
+	PolicyEngine     *security.PolicyEngine
+	hooks            *HookRegistry[T]
+	NumeratorPrefix  string
+	EntityName       string
+	parts            DocumentParts[T]
 }
 
 // NewBaseHeaderDocumentService creates a new BaseHeaderDocumentService.
@@ -72,17 +69,16 @@ func NewBaseHeaderDocumentService[T HeaderDocumentEntity](cfg BaseHeaderDocument
 	}
 
 	return &BaseHeaderDocumentService[T]{
-		Repo:              cfg.Repo,
-		PostingEngine:     cfg.PostingEngine,
-		Numerator:         cfg.Numerator,
-		TxManager:         cfg.TxManager,
-		CurrencyResolver:  cfg.CurrencyResolver,
-		PolicyEngine:      cfg.PolicyEngine,
-		hooks:             NewHookRegistry[T](),
-		NumeratorPrefix:   cfg.NumeratorPrefix,
-		NumeratorStrategy: cfg.NumeratorStrategy,
-		EntityName:        cfg.EntityName,
-		parts:             cfg.Parts,
+		Repo:             cfg.Repo,
+		PostingEngine:    cfg.PostingEngine,
+		Numerator:        cfg.Numerator,
+		TxManager:        cfg.TxManager,
+		CurrencyResolver: cfg.CurrencyResolver,
+		PolicyEngine:     cfg.PolicyEngine,
+		hooks:            NewHookRegistry[T](),
+		NumeratorPrefix:  cfg.NumeratorPrefix,
+		EntityName:       cfg.EntityName,
+		parts:            cfg.Parts,
 	}
 }
 
@@ -145,7 +141,7 @@ func (s *BaseHeaderDocumentService[T]) GenerateNumber(ctx context.Context, doc T
 		return nil
 	}
 	cfg := numerator.DefaultConfig(s.NumeratorPrefix)
-	number, err := s.Numerator.GetNextNumber(ctx, cfg, &numerator.Options{Strategy: s.NumeratorStrategy}, time.Now())
+	number, err := s.Numerator.GetNextNumber(ctx, cfg, numberPeriod(doc))
 	if err != nil {
 		return fmt.Errorf("generate number: %w", err)
 	}

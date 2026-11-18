@@ -84,7 +84,7 @@ func (s *PlatformFundingService) Prepare(ctx context.Context, cmd PreparePlatfor
 		if err != nil {
 			return err
 		}
-		if doc.Number, err = s.numbers.GetNextNumber(ctx, numerator.DefaultConfig("CPF"), nil, doc.Date); err != nil {
+		if doc.Number, err = s.numbers.GetNextNumber(ctx, numerator.DefaultConfig("CPF"), doc.Date); err != nil {
 			return fmt.Errorf("number platform funding: %w", err)
 		}
 		if err := s.repo.Create(ctx, doc); err != nil {

@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { useEntityFiltersMeta } from "@/hooks/useEntityFiltersMeta"
 import { counterpartyTypeSchema, legalFormSchema } from "@/lib/schemas/catalog-values"
 import type { CounterpartyFormState } from "@/lib/counterparty-form"
+import { codePlaceholder, useCatalogCode } from "@/lib/catalog-code"
 
 interface CounterpartyFormProps {
   value: CounterpartyFormState
@@ -20,6 +21,7 @@ export function CounterpartyForm({ value: f, onChange: update }: CounterpartyFor
   const { fieldsMeta, loading: filtersLoading } = useEntityFiltersMeta("Counterparty")
   const typeFieldMeta = fieldsMeta.find(field => field.key === "type")
   const legalFormFieldMeta = fieldsMeta.find(field => field.key === "legalForm")
+  const code = useCatalogCode("counterparty")
 
   return (
       <ScrollArea className="flex-1">
@@ -32,7 +34,7 @@ export function CounterpartyForm({ value: f, onChange: update }: CounterpartyFor
             </Field>
             <Field>
               <FieldLabel htmlFor={`${fieldId}-field-2`} className="text-xs text-muted-foreground">Код</FieldLabel>
-              <Input id={`${fieldId}-field-2`} className="mt-1" value={f.code} onChange={(e) => { update({ code: e.target.value }) }} placeholder="Авто" />
+              <Input id={`${fieldId}-field-2`} className="mt-1" value={f.code} onChange={(e) => { update({ code: e.target.value }) }} placeholder={codePlaceholder(code)} />
             </Field>
             <Field>
               <FieldLabel htmlFor={`${fieldId}-field-3`} className="text-xs text-muted-foreground">Тип *</FieldLabel>

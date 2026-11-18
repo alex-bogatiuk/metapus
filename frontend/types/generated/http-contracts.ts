@@ -812,6 +812,7 @@ export type EntityMetadataResponse = {
   "tableParts"?: Array<MetadataTablePartDef>
   "capabilities"?: MetadataDocumentCapabilities
   "actions"?: Array<MetadataEntityActionDef>
+  "code"?: MetadataCodeAssignment
   "previewFields"?: Array<MetadataPreviewFieldDef>
 }
 
@@ -834,6 +835,7 @@ export type EntitySummaryResponse = {
   "routePrefix"?: string
   "capabilities"?: MetadataDocumentCapabilities
   "actions"?: Array<MetadataEntityActionDef>
+  "code"?: MetadataCodeAssignment
   "readPermission"?: string
 }
 
@@ -1317,6 +1319,11 @@ export type MarkedObjectsResponse = {
   "total": number
 }
 
+export type MetadataCodeAssignment = {
+  "source": string
+  "prefix"?: string
+}
+
 export type MetadataDocumentCapabilities = {
   "list": boolean
   "read": boolean
@@ -1751,16 +1758,6 @@ export type SettingsGeneralSettingsInput = {
   "timezone"?: string
 }
 
-export type SettingsNumberingSettings = {
-  "autoNumbering": boolean
-  "numberPrefix": string
-}
-
-export type SettingsNumberingSettingsInput = {
-  "autoNumbering"?: boolean
-  "numberPrefix"?: string
-}
-
 export type SettingsPerformanceSettings = {
   "batchConcurrency": number
 }
@@ -1790,7 +1787,6 @@ export type SuccessResponse = {
 
 export type SystemSettingsResponse = {
   "general": SettingsGeneralSettings
-  "numbering": SettingsNumberingSettings
   "performance": SettingsPerformanceSettings
   "exchangeRates": SettingsExchangeRatesSettings
   "version": number
@@ -2018,11 +2014,6 @@ export type UpdateListViewRequest = {
   "visibility": string
   "isDefault"?: boolean
   "config"?: ListviewConfigInput
-  "version": number
-}
-
-export type UpdateNumberingSettingsRequest = {
-  "data": SettingsNumberingSettingsInput
   "version": number
 }
 

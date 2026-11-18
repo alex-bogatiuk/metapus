@@ -15,7 +15,7 @@ func Noop() Generator {
 	return noopGenerator{}
 }
 
-func (noopGenerator) GetNextNumber(_ context.Context, _ Config, _ *Options, _ time.Time) (string, error) {
+func (noopGenerator) GetNextNumber(_ context.Context, _ Config, _ time.Time) (string, error) {
 	panic("numerator.Noop: GetNextNumber called — this indicates a bug")
 }
 

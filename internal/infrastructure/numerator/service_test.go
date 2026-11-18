@@ -12,7 +12,6 @@ import (
 	"metapus/internal/core/tenant"
 )
 
-// Mock objects
 type mockRow struct {
 	val int64
 	err error
@@ -30,10 +29,27 @@ func (m *mockRow) Scan(dest ...any) error {
 	return nil
 }
 
+// mockQuerier simulates sys_sequences: one counter per key.
 type mockQuerier struct {
-	mu           sync.Mutex
-	currentValue int64 // Simulates DB sequence value
-	lastIncr     int64 // Track last increment passed
+	mu       sync.Mutex
+	counters map[string]int64
+	calls    int
+}
+
+func (m *mockQuerier) QueryRow(_ context.Context, _ string, args ...any) pgx.Row {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.counters == nil {
+		m.counters = map[string]int64{}
+	}
+	m.calls++
+	key := args[0].(string)
+	if len(args) == 2 {
+		m.counters[key] = args[1].(int64)
+	} else {
+		m.counters[key]++
+	}
+	return &mockRow{val: m.counters[key]}
 }
 
 type transactionQuerier struct {
@@ -44,23 +60,6 @@ func (q *transactionQuerier) RunInTransaction(ctx context.Context, fn func(conte
 	return fn(ctx)
 }
 
-func (m *mockQuerier) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	var increment int64 = 1
-	if len(args) == 2 {
-		if val, ok := args[1].(int64); ok {
-			increment = val
-		}
-	}
-
-	m.currentValue += increment
-	m.lastIncr = increment
-
-	return &mockRow{val: m.currentValue}
-}
-
 // newTestService creates a Service with a mock querier injected via querierFn.
 func newTestService(q Querier) *Service {
 	svc := New()
@@ -68,28 +67,45 @@ func newTestService(q Querier) *Service {
 	return svc
 }
 
-func TestGetNextNumber_Strict(t *testing.T) {
+var december = time.Date(2025, 12, 30, 10, 0, 0, 0, time.UTC)
+
+func TestGetNextNumberIncrementsTheSeriesOfThePeriod(t *testing.T) {
 	q := &mockQuerier{}
 	svc := newTestService(q)
 	ctx := context.Background()
 	cfg := corenumerator.DefaultConfig("TEST")
 
-	// 1. First call
-	num, err := svc.GetNextNumber(ctx, cfg, nil, time.Now())
+	for _, want := range []string{"TEST-2025-00001", "TEST-2025-00002"} {
+		num, err := svc.GetNextNumber(ctx, cfg, december)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if num != want {
+			t.Errorf("got %s, want %s", num, want)
+		}
+	}
+	num, err := svc.GetNextNumber(ctx, cfg, december.AddDate(0, 0, 3))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatal(err)
 	}
-	if num != "TEST-2026-00001" { // mock starts at 1
-		t.Errorf("expected TEST-2026-00001, got %s", num)
+	if num != "TEST-2026-00001" {
+		t.Errorf("a new year starts its own counter, got %s", num)
 	}
+}
 
-	// 2. Second call
-	num, err = svc.GetNextNumber(ctx, cfg, nil, time.Now())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+func TestGetNextNumberKeysACatalogSeriesByItsKey(t *testing.T) {
+	q := &mockQuerier{}
+	svc := newTestService(q)
+	series := corenumerator.Config{Key: "catalog.organization", Prefix: "ORG", PadWidth: 6, ResetPeriod: "never"}
+	if num, _ := svc.GetNextNumber(context.Background(), series, time.Time{}); num != "ORG-000001" {
+		t.Fatalf("got %s", num)
 	}
-	if num != "TEST-2026-00002" {
-		t.Errorf("expected TEST-2026-00002, got %s", num)
+	series.Prefix = "ОРГ"
+	if num, _ := svc.GetNextNumber(context.Background(), series, time.Time{}); num != "ОРГ-000002" {
+		t.Fatalf("a new prefix continues the counter, got %s", num)
+	}
+	if q.counters["catalog.organization"] != 2 {
+		t.Fatalf("counters %v", q.counters)
 	}
 }
 
@@ -97,101 +113,26 @@ func TestGetNextNumberPrefersTransactionAwareQuerier(t *testing.T) {
 	txQuerier := &transactionQuerier{mockQuerier: &mockQuerier{}}
 	ctx := tenant.WithTxManager(context.Background(), txQuerier)
 
-	number, err := New().GetNextNumber(ctx, corenumerator.DefaultConfig("TX"), nil, time.Now())
+	number, err := New().GetNextNumber(ctx, corenumerator.DefaultConfig("TX"), december)
 	if err != nil {
 		t.Fatalf("GetNextNumber() error = %v", err)
 	}
-	if number != "TX-2026-00001" {
-		t.Fatalf("number = %q, want TX-2026-00001", number)
+	if number != "TX-2025-00001" {
+		t.Fatalf("number = %q, want TX-2025-00001", number)
 	}
-	if txQuerier.currentValue != 1 {
-		t.Fatalf("transaction querier calls = %d, want 1", txQuerier.currentValue)
-	}
-}
-
-func TestGetNextNumber_Cached(t *testing.T) {
-	q := &mockQuerier{}
-	svc := newTestService(q)
-	ctx := context.Background()
-	cfg := corenumerator.DefaultConfig("ORD")
-
-	opts := &corenumerator.Options{
-		Strategy:  corenumerator.StrategyCached,
-		RangeSize: 10,
-	}
-
-	// 1. First call - should trigger DB fetch (allocate 1..10)
-	num, err := svc.GetNextNumber(ctx, cfg, opts, time.Now())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if num != "ORD-2026-00001" {
-		t.Errorf("expected ORD-2026-00001, got %s", num)
-	}
-
-	// Check DB calls
-	if q.currentValue != 10 {
-		t.Errorf("expected DB value to be 10, got %d", q.currentValue)
-	}
-
-	// 2. Second call - should be from memory
-	num, err = svc.GetNextNumber(ctx, cfg, opts, time.Now())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if num != "ORD-2026-00002" {
-		t.Errorf("expected ORD-2026-00002, got %s", num)
-	}
-	if q.currentValue != 10 {
-		t.Errorf("expected DB value to stay 10, got %d", q.currentValue)
-	}
-
-	// 3. Exhaust range
-	for range 8 {
-		_, _ = svc.GetNextNumber(ctx, cfg, opts, time.Now())
-	}
-
-	// Next call should trigger DB again (allocate 11..20)
-	num, err = svc.GetNextNumber(ctx, cfg, opts, time.Now())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if num != "ORD-2026-00011" {
-		t.Errorf("expected ORD-2026-00011, got %s", num)
-	}
-	if q.currentValue != 20 {
-		t.Errorf("expected DB value to be 20, got %d", q.currentValue)
+	if txQuerier.calls != 1 {
+		t.Fatalf("transaction querier calls = %d, want 1", txQuerier.calls)
 	}
 }
 
-func TestSetNextNumber_InvalidatesCache(t *testing.T) {
+func TestSetNextNumberMovesTheCounter(t *testing.T) {
 	q := &mockQuerier{}
 	svc := newTestService(q)
-	ctx := context.Background()
 	cfg := corenumerator.DefaultConfig("INV")
-	opts := &corenumerator.Options{Strategy: corenumerator.StrategyCached, RangeSize: 10}
-	now := time.Now()
-
-	// 1. Fill cache (1..10)
-	_, _ = svc.GetNextNumber(ctx, cfg, opts, now)
-
-	// 2. Verify cache entry exists (via sharded lock)
-	key := svc.buildKey(cfg, now)
-	sh := svc.getShard(key)
-	sh.mu.Lock()
-	_, hasBefore := sh.ranges[key]
-	sh.mu.Unlock()
-	if !hasBefore {
-		t.Fatal("expected cache entry to exist after GetNextNumber")
+	if err := svc.SetNextNumber(context.Background(), cfg, december, 100); err != nil {
+		t.Fatal(err)
 	}
-
-	// 3. SetNextNumber should invalidate cache
-	_ = svc.SetNextNumber(ctx, cfg, now, 100)
-
-	sh.mu.Lock()
-	_, hasAfter := sh.ranges[key]
-	sh.mu.Unlock()
-	if hasAfter {
-		t.Error("expected cache entry to be invalidated after SetNextNumber")
+	if num, _ := svc.GetNextNumber(context.Background(), cfg, december); num != "INV-2025-00101" {
+		t.Fatalf("got %s", num)
 	}
 }

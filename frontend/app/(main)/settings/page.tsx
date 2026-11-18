@@ -36,7 +36,7 @@ function settingsPageGroups() {
 
 export default function SettingsPage() {
   const [activeSection, setActiveSection] =
-    useTabState(tabStateKeys["activeSection"], "numbering")
+    useTabState(tabStateKeys["activeSection"], "performance")
 
   const fetchSettings = useSettingsStore((s) => s.fetchSettings)
 
@@ -47,6 +47,11 @@ export default function SettingsPage() {
   const activeDef = settingsSections.find((s) => s.id === activeSection) as SettingSectionDef | undefined
   const pageGroups = settingsPageGroups()
   const activePage = getSettingsPages().find((p) => p.id === activeSection)
+  // A remembered section that no longer exists opens the first one.
+  const sectionExists = !!activeDef || !!activePage || activeSection === PROFILE_ID
+  useEffect(() => {
+    if (!sectionExists) setActiveSection("performance")
+  }, [sectionExists, setActiveSection])
 
   return (
     <div className="flex h-full flex-col md:flex-row">

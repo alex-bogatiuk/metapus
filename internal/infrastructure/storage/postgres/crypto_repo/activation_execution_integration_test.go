@@ -102,7 +102,7 @@ func TestActivationExecutionClaimRejectsStaleCommandsAndDispatch(t *testing.T) {
 
 type executionNumerator struct{}
 
-func (executionNumerator) GetNextNumber(context.Context, numerator.Config, *numerator.Options, time.Time) (string, error) {
+func (executionNumerator) GetNextNumber(context.Context, numerator.Config, time.Time) (string, error) {
 	return "ACT-RECOVERY", nil
 }
 func (executionNumerator) SetNextNumber(context.Context, numerator.Config, time.Time, int64) error {

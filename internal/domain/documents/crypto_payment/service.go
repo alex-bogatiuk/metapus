@@ -21,13 +21,12 @@ func NewService(
 	txManager tx.Manager,
 ) *Service {
 	base := domain.NewBaseHeaderDocumentService(domain.BaseHeaderDocumentServiceConfig[*CryptoPayment]{
-		Repo:              repo,
-		PostingEngine:     postingEngine,
-		Numerator:         num,
-		TxManager:         txManager,
-		NumeratorPrefix:   "CP",
-		NumeratorStrategy: _numeratorStrategy,
-		Definition:        &Definition,
+		Repo:            repo,
+		PostingEngine:   postingEngine,
+		Numerator:       num,
+		TxManager:       txManager,
+		NumeratorPrefix: "CP",
+		Definition:      &Definition,
 	})
 	return &Service{BaseHeaderDocumentService: base}
 }

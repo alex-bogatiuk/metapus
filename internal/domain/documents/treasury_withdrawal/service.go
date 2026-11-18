@@ -20,13 +20,12 @@ func NewService(
 	txManager tx.Manager,
 ) *Service {
 	base := domain.NewBaseHeaderDocumentService(domain.BaseHeaderDocumentServiceConfig[*TreasuryWithdrawal]{
-		Repo:              repo,
-		PostingEngine:     postingEngine,
-		Numerator:         num,
-		TxManager:         txManager,
-		NumeratorPrefix:   "TW",
-		NumeratorStrategy: _numeratorStrategy,
-		Definition:        &Definition,
+		Repo:            repo,
+		PostingEngine:   postingEngine,
+		Numerator:       num,
+		TxManager:       txManager,
+		NumeratorPrefix: "TW",
+		Definition:      &Definition,
 	})
 	return &Service{BaseHeaderDocumentService: base}
 }

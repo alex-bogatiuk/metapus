@@ -131,7 +131,7 @@ func (s *MerchantCreditService) Prepare(ctx context.Context, cmd PrepareMerchant
 		if err != nil {
 			return err
 		}
-		if doc.Number, err = s.numbers.GetNextNumber(ctx, numerator.DefaultConfig("CMC"), nil, doc.Date); err != nil {
+		if doc.Number, err = s.numbers.GetNextNumber(ctx, numerator.DefaultConfig("CMC"), doc.Date); err != nil {
 			return fmt.Errorf("number merchant credit: %w", err)
 		}
 		if err := s.repo.Create(ctx, doc); err != nil {

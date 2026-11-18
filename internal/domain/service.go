@@ -540,7 +540,7 @@ func (s *CatalogService[T]) assignCode(ctx context.Context, ent T, stored string
 		return apperror.NewInternal(fmt.Errorf("catalog %s numbers its codes but has no numerator", s.entityName))
 	}
 	for range maxTakenCodes {
-		next, err := s.numerator.GetNextNumber(ctx, s.codeSeries, nil, time.Time{})
+		next, err := s.numerator.GetNextNumber(ctx, s.codeSeries, time.Time{})
 		if err != nil {
 			return fmt.Errorf("assign %s code: %w", s.entityName, err)
 		}

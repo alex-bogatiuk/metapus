@@ -147,6 +147,10 @@ type EntityDef struct {
 	Capabilities *DocumentCapabilities `json:"capabilities,omitempty"`
 	Actions      []EntityActionDef     `json:"actions,omitempty"`
 
+	// Code is how the server fills a catalog's code (see BindCode); nil for
+	// documents.
+	Code *CodeAssignment `json:"code,omitempty"`
+
 	// PreviewFields defines which fields appear in hover preview cards.
 	// Auto-populated by Inspect(): all reference fields from document header
 	// (except parent, organization — org is always shown via self).

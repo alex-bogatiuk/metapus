@@ -49,7 +49,7 @@ type seriesCounter struct {
 	configs []numerator.Config
 }
 
-func (c *seriesCounter) GetNextNumber(_ context.Context, cfg numerator.Config, _ *numerator.Options, _ time.Time) (string, error) {
+func (c *seriesCounter) GetNextNumber(_ context.Context, cfg numerator.Config, _ time.Time) (string, error) {
 	c.configs = append(c.configs, cfg)
 	c.next[cfg.Key]++
 	return fmt.Sprintf("%s-%0*d", cfg.Prefix, cfg.PadWidth, c.next[cfg.Key]), nil

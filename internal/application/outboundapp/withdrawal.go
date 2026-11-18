@@ -124,7 +124,7 @@ func (e *WithdrawalExecutor) Execute(ctx context.Context, task WithdrawalTask) (
 	candidate := crypto_withdrawal.NewCryptoWithdrawal(task.MerchantID, task.TokenID, hotWallet.ID, task.DestAddress, task.Amount)
 	candidate.BasisType = task.SigningBasis()
 	candidate.BasisID = new(task.RequestID)
-	number, err := e.numerator.GetNextNumber(ctx, numerator.DefaultConfig("CW"), nil, e.now())
+	number, err := e.numerator.GetNextNumber(ctx, numerator.DefaultConfig("CW"), e.now())
 	if err != nil {
 		return fmt.Errorf("generate withdrawal number: %w", err)
 	}

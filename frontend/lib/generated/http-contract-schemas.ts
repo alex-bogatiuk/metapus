@@ -816,6 +816,7 @@ export const EntityMetadataResponseSchema: z.ZodType<Wire.EntityMetadataResponse
   "tableParts": z.array(MetadataTablePartDefSchema).optional(),
   "capabilities": MetadataDocumentCapabilitiesSchema.optional(),
   "actions": z.array(MetadataEntityActionDefSchema).optional(),
+  "code": MetadataCodeAssignmentSchema.optional(),
   "previewFields": z.array(MetadataPreviewFieldDefSchema).optional(),
 }))
 
@@ -838,6 +839,7 @@ export const EntitySummaryResponseSchema: z.ZodType<Wire.EntitySummaryResponse> 
   "routePrefix": z.string().optional(),
   "capabilities": MetadataDocumentCapabilitiesSchema.optional(),
   "actions": z.array(MetadataEntityActionDefSchema).optional(),
+  "code": MetadataCodeAssignmentSchema.optional(),
   "readPermission": z.string().optional(),
 }))
 
@@ -1321,6 +1323,11 @@ export const MarkedObjectsResponseSchema: z.ZodType<Wire.MarkedObjectsResponse> 
   "total": z.number().int(),
 }))
 
+export const MetadataCodeAssignmentSchema: z.ZodType<Wire.MetadataCodeAssignment> = z.lazy(() => z.object({
+  "source": z.string(),
+  "prefix": z.string().optional(),
+}))
+
 export const MetadataDocumentCapabilitiesSchema: z.ZodType<Wire.MetadataDocumentCapabilities> = z.lazy(() => z.object({
   "list": z.boolean(),
   "read": z.boolean(),
@@ -1755,16 +1762,6 @@ export const SettingsGeneralSettingsInputSchema: z.ZodType<Wire.SettingsGeneralS
   "timezone": z.string().optional(),
 }))
 
-export const SettingsNumberingSettingsSchema: z.ZodType<Wire.SettingsNumberingSettings> = z.lazy(() => z.object({
-  "autoNumbering": z.boolean(),
-  "numberPrefix": z.string(),
-}))
-
-export const SettingsNumberingSettingsInputSchema: z.ZodType<Wire.SettingsNumberingSettingsInput> = z.lazy(() => z.strictObject({
-  "autoNumbering": z.boolean().optional(),
-  "numberPrefix": z.string().optional(),
-}))
-
 export const SettingsPerformanceSettingsSchema: z.ZodType<Wire.SettingsPerformanceSettings> = z.lazy(() => z.object({
   "batchConcurrency": z.number().int(),
 }))
@@ -1794,7 +1791,6 @@ export const SuccessResponseSchema: z.ZodType<Wire.SuccessResponse> = z.lazy(() 
 
 export const SystemSettingsResponseSchema: z.ZodType<Wire.SystemSettingsResponse> = z.lazy(() => z.object({
   "general": SettingsGeneralSettingsSchema,
-  "numbering": SettingsNumberingSettingsSchema,
   "performance": SettingsPerformanceSettingsSchema,
   "exchangeRates": SettingsExchangeRatesSettingsSchema,
   "version": z.number().int(),
@@ -2022,11 +2018,6 @@ export const UpdateListViewRequestSchema: z.ZodType<Wire.UpdateListViewRequest> 
   "visibility": z.string(),
   "isDefault": z.boolean().optional(),
   "config": ListviewConfigInputSchema.optional(),
-  "version": z.number().int(),
-}))
-
-export const UpdateNumberingSettingsRequestSchema: z.ZodType<Wire.UpdateNumberingSettingsRequest> = z.lazy(() => z.strictObject({
-  "data": SettingsNumberingSettingsInputSchema,
   "version": z.number().int(),
 }))
 

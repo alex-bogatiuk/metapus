@@ -41,6 +41,7 @@ func (h *MetadataHandler) ListEntitiesSummary(c *gin.Context) {
 			RoutePrefix:    e.RoutePrefix,
 			Capabilities:   e.Capabilities,
 			Actions:        e.Actions,
+			Code:           e.Code,
 			ReadPermission: e.ReadPermission,
 		})
 	}

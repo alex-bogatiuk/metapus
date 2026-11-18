@@ -13,11 +13,10 @@ import (
 // In Database-per-Tenant architecture, implementations should obtain
 // database connections from context using tenant.GetTxManager.
 type Generator interface {
-	// GetNextNumber generates the next document number.
-	// Pattern: PREFIX-YEAR-XXXXX (e.g., INV-2024-00001)
-	//
-	// Supports Strict (DB-level) and Cached (Memory-level) strategies.
-	GetNextNumber(ctx context.Context, cfg Config, opts *Options, period time.Time) (string, error)
+	// GetNextNumber takes the next number of the series for the period, e.g.
+	// INV-2026-00001, in the transaction of ctx: the number commits or rolls
+	// back with the record that holds it.
+	GetNextNumber(ctx context.Context, cfg Config, period time.Time) (string, error)
 
 	// SetNextNumber sets the next number value (for migration purposes).
 	SetNextNumber(ctx context.Context, cfg Config, period time.Time, value int64) error

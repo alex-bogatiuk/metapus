@@ -4,20 +4,6 @@
  * Organization-specific settings (requisites, accounting policy) are in catalog.ts.
  */
 
-// ── Numbering ───────────────────────────────────────────────────────────
-
-export interface NumberingSettings {
-  autoNumbering: boolean
-  numberPrefix: string
-}
-
-export function defaultNumberingSettings(): NumberingSettings {
-  return {
-    autoNumbering: true,
-    numberPrefix: "",
-  }
-}
-
 // ── Performance ─────────────────────────────────────────────────────────
 
 export interface PerformanceSettings {
@@ -58,7 +44,6 @@ export interface RoleRecord {
 
 export interface SystemSettings {
   exchangeRates: { sourceId: string | null }
-  numbering: NumberingSettings
   performance: PerformanceSettings
   version: number
   updatedAt: string
@@ -67,7 +52,6 @@ export interface SystemSettings {
 export function defaultSystemSettings(): SystemSettings {
   return {
     exchangeRates: { sourceId: null },
-    numbering: defaultNumberingSettings(),
     performance: defaultPerformanceSettings(),
     version: 1,
     updatedAt: new Date().toISOString(),

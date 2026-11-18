@@ -32,7 +32,7 @@ import (
 
 type fixedNetworkOperationNumerator struct{}
 
-func (fixedNetworkOperationNumerator) GetNextNumber(context.Context, numerator.Config, *numerator.Options, time.Time) (string, error) {
+func (fixedNetworkOperationNumerator) GetNextNumber(context.Context, numerator.Config, time.Time) (string, error) {
 	return "CNO-TEST", nil
 }
 func (fixedNetworkOperationNumerator) SetNextNumber(context.Context, numerator.Config, time.Time, int64) error {

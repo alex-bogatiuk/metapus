@@ -119,7 +119,7 @@ func (s *ReceiptIntakeService) Record(ctx context.Context, req RecordCustodyRece
 		doc.PostingID = id.New()
 		doc.Amount, doc.ReasonCode = req.Basis.Amount, req.Reason
 		doc.BasisType, doc.BasisID = "CryptoTransferVerification", &doc.VerificationID
-		doc.Number, err = s.numbers.GetNextNumber(ctx, numerator.DefaultConfig("CCR"), nil, doc.Date)
+		doc.Number, err = s.numbers.GetNextNumber(ctx, numerator.DefaultConfig("CCR"), doc.Date)
 		if err != nil {
 			return fmt.Errorf("number custody receipt: %w", err)
 		}

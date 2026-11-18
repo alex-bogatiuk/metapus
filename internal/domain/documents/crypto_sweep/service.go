@@ -26,13 +26,12 @@ func NewService(
 	txManager tx.Manager,
 ) *Service {
 	base := domain.NewBaseDocumentService(domain.BaseDocumentServiceConfig[*CryptoSweep, CryptoSweepLine]{
-		Repo:              repo,
-		PostingEngine:     postingEngine,
-		Numerator:         num,
-		TxManager:         txManager,
-		NumeratorPrefix:   "SW",
-		NumeratorStrategy: _numeratorStrategy,
-		Definition:        &Definition,
+		Repo:            repo,
+		PostingEngine:   postingEngine,
+		Numerator:       num,
+		TxManager:       txManager,
+		NumeratorPrefix: "SW",
+		Definition:      &Definition,
 	})
 	return &Service{BaseDocumentService: base, repo: repo}
 }

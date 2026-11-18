@@ -50,6 +50,7 @@ import { ReferenceField } from "@/components/shared/reference-field"
 import { UserPicker } from "@/components/shared/user-picker"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { useMetadataStore } from "@/stores/useMetadataStore"
+import { codePlaceholder } from "@/lib/catalog-code"
 import { Save, ArrowLeft, ArrowRightLeft, ChevronRight, Network } from "lucide-react"
 import { FormSkeleton } from "@/components/shared/form-skeleton"
 import { toast } from "sonner"
@@ -202,6 +203,7 @@ function fieldToInput(
     isFirstEditable = false,
     writeOnlyConfigured = false,
     currency: DocumentCurrency | null = null,
+    placeholder?: string,
 ) {
     const v = value ?? ""
     const handleChange = (val: JsonValue) => onChange(field.name, val)
@@ -358,6 +360,7 @@ function fieldToInput(
                     disabled={disabled}
                     readOnly={effectiveReadOnly}
                     autoFocus={isFirstEditable}
+                    placeholder={placeholder}
                 />
             )
     }
@@ -845,6 +848,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                         field.name === firstEditable,
                         writeOnlyConfigured,
                         currency,
+                        field.name === "code" ? codePlaceholder(meta?.code) : undefined,
                     )}
                 </div>
                 {field.writeOnly && (

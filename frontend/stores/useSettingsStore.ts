@@ -2,7 +2,6 @@ import { registerScopedStore, getSessionGeneration, isCurrentSession } from "@/l
 import { create } from "zustand"
 import type {
   SystemSettings,
-  NumberingSettings,
   PerformanceSettings,
 } from "@/types/settings"
 import { defaultSystemSettings } from "@/types/settings"
@@ -28,7 +27,6 @@ interface SettingsState {
   setSettings: (settings: SystemSettings) => void
 
   /** Partially updates a section (local state). */
-  updateNumbering: (patch: Partial<NumberingSettings>) => void
   updatePerformance: (patch: Partial<PerformanceSettings>) => void
 
   /** Generic section updater for metadata-driven renderer. */
@@ -88,14 +86,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   setSettings: (settings) => set({ settings }),
-
-  updateNumbering: (patch) =>
-    set((state) => ({
-      settings: {
-        ...state.settings,
-        numbering: { ...state.settings.numbering, ...patch },
-      },
-    })),
 
   updatePerformance: (patch) =>
     set((state) => ({

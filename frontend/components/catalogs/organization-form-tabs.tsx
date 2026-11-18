@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select"
 import { useEntityFiltersMeta } from "@/hooks/useEntityFiltersMeta"
 import type { TaxSystem } from "@/types/catalog"
+import { codePlaceholder, useCatalogCode } from "@/lib/catalog-code"
 
 // ── Shared form state ────────────────────────────────────────────────────
 
@@ -113,6 +114,7 @@ interface OrganizationFormTabsProps {
 }
 
 export function OrganizationFormTabs({ f, update, onChange }: OrganizationFormTabsProps) {
+  const code = useCatalogCode("organization")
   const { fieldsMeta, loading: filtersLoading } = useEntityFiltersMeta("Organization")
   const taxSystemFieldMeta = fieldsMeta.find((f) => f.key === "taxSystem")
 
@@ -135,7 +137,7 @@ export function OrganizationFormTabs({ f, update, onChange }: OrganizationFormTa
         {/* Name / Code / FullName */}
         <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
           <Field label="Наименование *" value={f.name} onChange={(v) => set({ name: v })} />
-          <Field label="Код" value={f.code} onChange={(v) => set({ code: v })} placeholder="Авто" />
+          <Field label="Код" value={f.code} onChange={(v) => set({ code: v })} placeholder={codePlaceholder(code)} />
           <Field label="Полное наименование" value={f.fullName} onChange={(v) => set({ fullName: v })} colSpan />
         </div>
 

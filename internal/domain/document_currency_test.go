@@ -69,7 +69,7 @@ type transactionalNumerator struct {
 	calls int
 }
 
-func (n *transactionalNumerator) GetNextNumber(ctx context.Context, _ numerator.Config, _ *numerator.Options, _ time.Time) (string, error) {
+func (n *transactionalNumerator) GetNextNumber(ctx context.Context, _ numerator.Config, _ time.Time) (string, error) {
 	if ctx.Value(outboxTxKey{}) == nil {
 		return "", errors.New("number allocated outside transaction")
 	}

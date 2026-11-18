@@ -8,37 +8,6 @@ import (
 	"metapus/internal/core/entity"
 )
 
-// Strategy defines the numbering generation strategy.
-type Strategy int
-
-const (
-	// StrategyStrict uses UPDATE ... RETURNING for every number.
-	// Guarantees sequential numbers without gaps.
-	// Slower, suitable for invoices and accounting documents.
-	StrategyStrict Strategy = iota + 1
-
-	// StrategyCached allocates ranges of numbers in memory.
-	// Much faster, but may produce gaps if application restarts.
-	// Suitable for internal documents (orders, shipments).
-	StrategyCached
-)
-
-// Options configuration for number generation.
-type Options struct {
-	// Strategy to use for number generation
-	Strategy Strategy
-	// RangeSize is the number of IDs to allocate at once in Cached strategy.
-	// Default is 50.
-	RangeSize int64
-}
-
-// DefaultOptions returns standard options (Strict).
-func DefaultOptions() *Options {
-	return &Options{
-		Strategy: StrategyStrict,
-	}
-}
-
 // Config holds numbering configuration.
 type Config struct {
 	// Key identifies the counter when set: a stable series key such as

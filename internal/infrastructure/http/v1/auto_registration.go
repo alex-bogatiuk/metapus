@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	"metapus/internal/core/entity"
-	"metapus/internal/core/numerator"
 	"metapus/internal/domain"
 	"metapus/internal/infrastructure/http/contracts/spec"
 	"metapus/internal/infrastructure/http/v1/handlers"
@@ -221,7 +220,7 @@ func (r *AutoDocument[T, PT]) Build(deps DocumentDeps) DocumentRouteHandler {
 	repo := document_repo.NewDocumentRepoForDefinition(def, postgres.ExtractDBColumns[T](), func() PT { return new(T) })
 	service := domain.NewBaseHeaderDocumentService(domain.BaseHeaderDocumentServiceConfig[PT]{
 		Definition: &def, Repo: repo, PostingEngine: deps.PostingEngine, Numerator: deps.Numerator, PolicyEngine: deps.PolicyEngine,
-		NumeratorPrefix: prefix, NumeratorStrategy: numerator.StrategyStrict, EntityName: def.Key,
+		NumeratorPrefix: prefix, EntityName: def.Key,
 		Parts: autoDocumentParts(def, repo),
 	})
 	for _, fn := range r.configure {
