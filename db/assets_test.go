@@ -2,11 +2,44 @@ package dbassets
 
 import (
 	"io/fs"
+	"strings"
 	"testing"
 	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestCheckMigrationFormat(t *testing.T) {
+	const up = "-- +goose Up\n"
+	const down = "-- +goose Down\n"
+	const begin = "-- +goose StatementBegin\n"
+	const end = "-- +goose StatementEnd\n"
+	const statement = "SELECT 1;\n"
+	const block = begin + statement + end
+	valid := "-- migration notes\n" + up + block + "\n-- rollback\n" + down + block
+	require.NoError(t, CheckMigrationFormat(valid))
+	t.Run("CRLF and no final newline", func(t *testing.T) {
+		require.NoError(t, CheckMigrationFormat(strings.ReplaceAll(strings.TrimSuffix(valid, "\n"), "\n", "\r\n")))
+	})
+	t.Run("goose options", func(t *testing.T) {
+		sql := "-- +goose NO TRANSACTION\n" + up + begin + "-- +goose ENVSUB ON\n" + statement + "-- +goose ENVSUB OFF\n" + end + down + block
+		require.NoError(t, CheckMigrationFormat(sql))
+	})
+
+	for _, tt := range []struct{ name, sql, want string }{
+		{"both ends in Down", up + begin + statement + down + block + end, "unexpected goose directive"},
+		{"SQL before Up", statement + up + block + down + block, "outside"},
+		{"SQL after Up block", up + block + statement + down + block, "outside"},
+		{"SQL after Down block", up + block + down + block + statement, "outside"},
+		{"duplicate block in Up", up + block + block + down + block, "unexpected goose directive"},
+		{"comment before begin", up + "-- note\n" + block + down + block, "immediately"},
+		{"missing Down end", up + block + down + begin + statement, "expected -- +goose StatementEnd"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.ErrorContains(t, CheckMigrationFormat(tt.sql), tt.want)
+		})
+	}
+}
 
 func TestTenantMigrationsJoinPlatformAndConfigurationsIntoOneSequence(t *testing.T) {
 	source := fstest.MapFS{

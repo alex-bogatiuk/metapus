@@ -69,21 +69,36 @@ func tenantMigrations(source fs.FS) (fs.FS, error) {
 // each followed directly by one StatementBegin … StatementEnd block. Tests
 // apply it to the shipped migrations and to what cmd/scaffold generates.
 func CheckMigrationFormat(sql string) error {
-	if begins := strings.Count(sql, "-- +goose StatementBegin\n"); begins != 2 {
-		return fmt.Errorf("want 2 StatementBegin markers (Up and Down), got %d", begins)
+	const begin, end = "-- +goose StatementBegin", "-- +goose StatementEnd"
+	remaining := []string{"-- +goose Up", begin, end, "-- +goose Down", begin, end}
+	lineNumber := 0
+	for line := range strings.Lines(sql) {
+		lineNumber++
+		line = strings.TrimRight(line, " \t\r\n")
+		if len(remaining) > 0 && line == remaining[0] {
+			remaining = remaining[1:]
+			continue
+		}
+		if len(remaining) > 0 && remaining[0] == begin {
+			return fmt.Errorf("line %d: expected %s immediately after direction", lineNumber, begin)
+		}
+		comment := strings.TrimSpace(line)
+		if strings.HasPrefix(comment, "--") && strings.Contains(comment, "+goose") {
+			switch strings.ToUpper(line) {
+			case "-- +GOOSE NO TRANSACTION", "-- +GOOSE ENVSUB ON", "-- +GOOSE ENVSUB OFF":
+				continue
+			}
+			return fmt.Errorf("line %d: unexpected goose directive %q", lineNumber, line)
+		}
+		if line == "" || strings.HasPrefix(comment, "--") {
+			continue
+		}
+		if len(remaining) == 0 || remaining[0] != end {
+			return fmt.Errorf("line %d: SQL outside StatementBegin … StatementEnd", lineNumber)
+		}
 	}
-	if ends := strings.Count(sql, "-- +goose StatementEnd\n"); ends != 2 {
-		return fmt.Errorf("want 2 StatementEnd markers (Up and Down), got %d", ends)
-	}
-	up, down, ok := strings.Cut(sql, "-- +goose Down\n")
-	if !ok {
-		return fmt.Errorf("no -- +goose Down section")
-	}
-	if !strings.Contains(up, "-- +goose Up\n-- +goose StatementBegin\n") {
-		return fmt.Errorf("-- +goose Up is not followed by StatementBegin")
-	}
-	if !strings.HasPrefix(down, "-- +goose StatementBegin\n") {
-		return fmt.Errorf("-- +goose Down is not followed by StatementBegin")
+	if len(remaining) > 0 {
+		return fmt.Errorf("expected %s before end of migration", remaining[0])
 	}
 	return nil
 }
