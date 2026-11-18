@@ -8,37 +8,48 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/content"
+	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
+	"metapus/internal/core/entity"
 	"metapus/internal/core/id"
 	"metapus/internal/core/security"
 	"metapus/internal/domain/reports/schema"
 	v1 "metapus/internal/infrastructure/http/v1"
 	"metapus/internal/infrastructure/readpolicy"
 	"metapus/internal/infrastructure/reporting/compiler"
+	"metapus/internal/metadata"
 )
 
-// probeDataset is a client extension's report over a platform catalog.
+type reportProbeItem struct{ entity.Catalog }
+
+func (reportProbeItem) EntityDefinition() entity.Definition { return probeCatalog }
+
+var probeCatalog = entity.Definition{
+	Kind: entity.CatalogKind, Key: "report_probe_item", Name: "ReportProbeItem",
+	Route: "report-probe-items", Table: "cat_report_probe_items", Code: entity.CodeRule{Prefix: "RP"},
+}
+
 var probeDataset = &schema.Dataset{
 	Key:         "extension-probe",
 	Name:        "Extension probe",
 	Permission:  "report:extension-probe:read",
-	Sources:     []schema.Source{{Key: "currency", Entity: "currency", Alias: "c"}},
-	Fields:      []schema.Field{{Name: "code", Access: []schema.FieldAccess{{Entity: "currency", Fields: []string{"code"}}}, Label: "Code", Kind: schema.FieldAttribute, Type: schema.TypeString}},
+	Sources:     []schema.Source{{Key: "items", Entity: probeCatalog.Key, Alias: "c"}},
+	Fields:      []schema.Field{{Name: "code", Access: []schema.FieldAccess{{Entity: probeCatalog.Key, Fields: []string{"code"}}}, Label: "Code", Kind: schema.FieldAttribute, Type: schema.TypeString}},
 	ExecutorKey: "extension-probe",
 }
 
 type probeExecutor struct{}
 
 func (probeExecutor) BuildQuery(_ context.Context, _ map[string]any, access readpolicy.ReadConstraints) (squirrel.SelectBuilder, error) {
-	q, err := access.Source("currency")
+	q, err := access.Source("items")
 	if err != nil {
 		return squirrel.SelectBuilder{}, err
 	}
 	return squirrel.Select().PrefixExpr(squirrel.Expr("WITH base AS (?)", q.Columns("c.code AS code", "'extension-probe' AS probe_marker"))).From("base"), nil
 }
 
-// registerProbe stands in for extensions.Register with one report module.
 func registerProbe(reg *v1.FactoryRegistry) {
+	reg.RegisterCatalog(v1.Catalog[reportProbeItem](metadata.Presentation{Singular: "Probe item", Plural: "Probe items"}))
 	reg.RegisterDataset(probeDataset)
 	reg.RegisterDatasetExecutor(probeDataset.ExecutorKey, probeExecutor{})
 }
@@ -55,10 +66,20 @@ func TestScheduledReportsRunExtensionDatasets(t *testing.T) {
 	require.Same(t, probeDataset, reports.GetDataset(probeDataset.Key))
 	require.NotNil(t, reports.GetDataset("document-journal"), "the built-in reports stay")
 
-	user := appctx.UserContext{UserID: id.New().String(), Permissions: []string{probeDataset.Permission, "catalog:currency:read"}}
-	query, err := reports.BuildQuery(appctx.WithUser(context.Background(), &user), compiler.QueryRequest{Dataset: probeDataset.Key})
+	user := appctx.UserContext{UserID: id.New().String(), Permissions: []string{probeDataset.Permission}}
+	request := compiler.QueryRequest{Dataset: probeDataset.Key}
+	ctx := appctx.WithUser(t.Context(), &user)
+	_, err = reports.BuildQuery(ctx, request)
+	require.True(t, apperror.IsForbidden(err), "expected a source permission error, got %v", err)
+	denied, _ := apperror.AsAppError(err)
+	sourcePermission := probeCatalog.Permission() + ":read"
+	require.Equal(t, sourcePermission, denied.Details["required_permission"])
+
+	user.Permissions = append(user.Permissions, sourcePermission)
+	query, err := reports.BuildQuery(ctx, request)
 	require.NoError(t, err)
 	sql, _, err := query.ToSql()
 	require.NoError(t, err)
+	require.Contains(t, sql, probeCatalog.Table)
 	require.Contains(t, sql, "'extension-probe' AS probe_marker", "the extension's executor builds the query")
 }

@@ -33,8 +33,8 @@ func (r *MerchantDimensionResolver) Resolve(ctx context.Context, userID id.ID) (
 	querier := txm.GetQuerier(ctx)
 
 	const query = `
-		SELECT merchant_id::text FROM sys_merchant_users 
-		WHERE user_id = $1 AND is_active = true
+		SELECT merchant_id::text FROM sys_merchant_users
+		WHERE user_id = $1
 	`
 
 	var merchantIDs []string
