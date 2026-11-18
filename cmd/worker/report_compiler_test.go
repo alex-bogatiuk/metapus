@@ -48,8 +48,18 @@ func (probeExecutor) BuildQuery(_ context.Context, _ map[string]any, access read
 	return squirrel.Select().PrefixExpr(squirrel.Expr("WITH base AS (?)", q.Columns("c.code AS code", "'extension-probe' AS probe_marker"))).From("base"), nil
 }
 
+// merchantScopedProbe scopes probe items by their merchant, as the crypto
+// configuration scopes its documents, so security profiles restrict them.
+type merchantScopedProbe struct {
+	*v1.AutoCatalog[reportProbeItem, *reportProbeItem]
+}
+
+func (merchantScopedProbe) RLSDimensions() map[string]string {
+	return map[string]string{"merchant": "merchant_id"}
+}
+
 func registerProbe(reg *v1.FactoryRegistry) {
-	reg.RegisterCatalog(v1.Catalog[reportProbeItem](metadata.Presentation{Singular: "Probe item", Plural: "Probe items"}))
+	reg.RegisterCatalog(merchantScopedProbe{v1.Catalog[reportProbeItem](metadata.Presentation{Singular: "Probe item", Plural: "Probe items"})})
 	reg.RegisterDataset(probeDataset)
 	reg.RegisterDatasetExecutor(probeDataset.ExecutorKey, probeExecutor{})
 }

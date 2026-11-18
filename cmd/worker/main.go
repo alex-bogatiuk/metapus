@@ -509,7 +509,7 @@ func (w *MultiTenantWorker) buildAutomationEngine(policies *security.PolicyEngin
 
 	fileRepo := postgres.NewAutomationFileRepo()
 	settingsRepo := postgres.NewSettingsRepo()
-	reportGen := automationreport.NewReportGenerator(comp, nil, fileRepo, &settingsLoaderAdapter{repo: settingsRepo}, readaccess.NewPrincipalLoader(auth_repo.NewUserRepo(), security_repo.NewProfileRepo(), crypto_repo.NewMerchantDimensionResolver()))
+	reportGen := automationreport.NewReportGenerator(comp, nil, fileRepo, &settingsLoaderAdapter{repo: settingsRepo}, readaccess.NewPrincipalLoader(auth_repo.NewUserRepo(), security_repo.NewProfileRepo()))
 
 	emailRenderer, err := automationreport.NewEmailTemplateRenderer()
 	if err != nil {
