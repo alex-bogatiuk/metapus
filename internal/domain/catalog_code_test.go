@@ -92,9 +92,16 @@ func TestCatalogServiceNumbersAnEmptyCodeFromTheDefinitionSeries(t *testing.T) {
 	require.NoError(t, svc.Create(ctx, skipped))
 	require.Equal(t, "ORG-000005", skipped.Code, "codes of the series taken by hand are skipped")
 
-	first.Code = ""
-	require.NoError(t, svc.Update(ctx, first))
-	require.Equal(t, "ORG-000006", first.Code, "an item written with an emptied code is numbered again")
+	edited := *first
+	edited.Code = ""
+	require.NoError(t, svc.Update(ctx, &edited))
+	require.Equal(t, "ORG-000001", edited.Code, "an update without a code keeps the stored one")
+
+	legacy := newCodedItem("")
+	repo.items[""] = legacy
+	stored := *legacy
+	require.NoError(t, svc.Update(ctx, &stored))
+	require.Equal(t, "ORG-000006", stored.Code, "an item stored without a code is numbered when it is written")
 }
 
 func TestCatalogServiceNumbersCatalogsWithTheirOwnHooks(t *testing.T) {
@@ -118,7 +125,12 @@ func TestCatalogServiceRequiresDerivedAndManualCodes(t *testing.T) {
 		appErr, ok := apperror.AsAppError(err)
 		require.True(t, ok && appErr.Code == apperror.CodeValidation, "%s: %v", source, err)
 		require.Empty(t, repo.items)
-		require.NoError(t, svc.Create(context.Background(), newCodedItem("USD")))
+		usd := newCodedItem("USD")
+		require.NoError(t, svc.Create(context.Background(), usd))
+		edited := *usd
+		edited.Code = ""
+		require.NoError(t, svc.Update(context.Background(), &edited), "%s: an update without a code keeps the stored one", source)
+		require.Equal(t, "USD", edited.Code)
 	}
 }
 

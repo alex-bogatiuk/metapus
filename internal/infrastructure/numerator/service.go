@@ -223,31 +223,12 @@ func (s *Service) SetNextNumber(ctx context.Context, cfg corenumerator.Config, p
 
 // buildKey creates the sequence key based on config and period.
 func (s *Service) buildKey(cfg corenumerator.Config, period time.Time) string {
-	base := cfg.Key
-	if base == "" {
-		base = cfg.Prefix
-	}
-	switch cfg.ResetPeriod {
-	case "month":
-		return fmt.Sprintf("%s_%s", base, period.Format("2006_01"))
-	case "year":
-		return fmt.Sprintf("%s_%s", base, period.Format("2006"))
-	default:
-		return base
-	}
+	return cfg.SequenceKey(period)
 }
 
 // formatNumber creates the final number string.
 func (s *Service) formatNumber(cfg corenumerator.Config, period time.Time, num int64) string {
-	padWidth := cfg.PadWidth
-	if padWidth == 0 {
-		padWidth = 5
-	}
-
-	if cfg.IncludeYear {
-		return fmt.Sprintf("%s-%s-%0*d", cfg.Prefix, period.Format("2006"), padWidth, num)
-	}
-	return fmt.Sprintf("%s-%0*d", cfg.Prefix, padWidth, num)
+	return cfg.Format(period, num)
 }
 
 // ParseNumber extracts numeric part from formatted number.

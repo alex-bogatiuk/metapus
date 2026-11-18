@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"metapus/internal/core/entity"
 	"metapus/internal/domain/auth"
 )
 
@@ -16,6 +17,7 @@ type Option func(*options)
 
 type options struct {
 	permissions []auth.Permission
+	catalogs    []entity.Definition
 }
 
 // WithPermissions makes RunAll sync the given permissions into the tenant

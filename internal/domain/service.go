@@ -80,12 +80,8 @@ func NewCatalogService[T entity.CatalogEntity](cfg CatalogServiceConfig[T]) *Cat
 		meta:               meta,
 		hierarchyValidator: hv,
 		codeSource:         cfg.Definition.CodeSource(),
-		codeSeries:         codeSeriesConfig(cfg.Definition.CodeSeries()),
+		codeSeries:         numerator.CatalogSeries(cfg.Definition.CodeSeries()),
 	}
-}
-
-func codeSeriesConfig(series entity.CodeSeries) numerator.Config {
-	return numerator.Config{Key: series.Key, Prefix: series.Prefix, PadWidth: series.Width, ResetPeriod: "never"}
 }
 
 // getTxManager returns TxManager from config or context.
@@ -176,7 +172,7 @@ func (s *CatalogService[T]) Create(ctx context.Context, ent T) error {
 		if err := s.validateHierarchy(ctx, ent); err != nil {
 			return err
 		}
-		if err := s.assignCode(ctx, ent); err != nil {
+		if err := s.assignCode(ctx, ent, ""); err != nil {
 			return err
 		}
 		if err := s.repo.Create(ctx, ent); err != nil {
@@ -255,7 +251,7 @@ func (s *CatalogService[T]) Update(ctx context.Context, ent T) error {
 		if err := s.validateHierarchy(ctx, ent); err != nil {
 			return err
 		}
-		if err := s.assignCode(ctx, ent); err != nil {
+		if err := s.assignCode(ctx, ent, storedCode(current)); err != nil {
 			return err
 		}
 		if err := s.repo.Update(ctx, ent); err != nil {
@@ -521,14 +517,18 @@ const maxTakenCodes = 100
 
 // assignCode applies the Definition's code rule as the last step before the
 // item is written, inside the write's transaction: the counter moves only
-// when the write commits. An empty code of a series catalog gets the next
-// code that no item holds; other sources require a code by now.
-func (s *CatalogService[T]) assignCode(ctx context.Context, ent T) error {
+// when the write commits. A code once given stays: an update without one
+// keeps stored. An empty code of a series catalog gets the next code that no
+// item holds; other sources require a code by now.
+func (s *CatalogService[T]) assignCode(ctx context.Context, ent T, stored string) error {
 	coded, ok := any(ent).(entity.Coded)
 	if !ok {
 		return nil
 	}
 	code := strings.TrimSpace(coded.GetCode())
+	if code == "" {
+		code = stored
+	}
 	coded.SetCode(code)
 	if code != "" {
 		return nil
@@ -554,6 +554,15 @@ func (s *CatalogService[T]) assignCode(ctx context.Context, ent T) error {
 		}
 	}
 	return apperror.NewInternal(fmt.Errorf("series %s: %d consecutive codes are already taken", s.codeSeries.Key, maxTakenCodes))
+}
+
+// storedCode is the code of the item as it is stored, empty for a catalog
+// without codes.
+func storedCode(item any) string {
+	if coded, ok := item.(entity.Coded); ok {
+		return strings.TrimSpace(coded.GetCode())
+	}
+	return ""
 }
 
 func normalizeCatalog(ent any) {

@@ -1,6 +1,7 @@
 package content
 
 import (
+	"metapus/internal/core/entity"
 	"metapus/internal/domain/auth"
 	"metapus/internal/infrastructure/http/contracts/spec"
 	"metapus/internal/infrastructure/http/cryptohttp"
@@ -94,6 +95,22 @@ func Permissions(register ...func(*v1.FactoryRegistry)) []auth.Permission {
 		fn(reg)
 	}
 	return reg.Permissions()
+}
+
+// CatalogDefinitions returns the Definitions of every registered catalog,
+// built-in and of client extensions; tenant migrations number their items
+// stored without a code (migration.WithCatalogCodes).
+func CatalogDefinitions(register ...func(*v1.FactoryRegistry)) []entity.Definition {
+	reg := v1.NewFactoryRegistry()
+	RegisterDefaults(reg)
+	for _, fn := range register {
+		fn(reg)
+	}
+	definitions := make([]entity.Definition, 0, len(reg.Catalogs()))
+	for _, catalog := range reg.Catalogs() {
+		definitions = append(definitions, catalog.EntityDefinition())
+	}
+	return definitions
 }
 
 // HTTPContractBundles returns every wire contract of the application: the

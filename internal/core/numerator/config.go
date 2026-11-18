@@ -1,6 +1,13 @@
 // Package numerator provides domain contracts for document auto-numbering.
 package numerator
 
+import (
+	"fmt"
+	"time"
+
+	"metapus/internal/core/entity"
+)
+
 // Strategy defines the numbering generation strategy.
 type Strategy int
 
@@ -60,4 +67,40 @@ func DefaultConfig(prefix string) Config {
 		PadWidth:    5,
 		ResetPeriod: "year",
 	}
+}
+
+// SequenceKey is the counter of the series for the period: Key (or Prefix
+// without a Key) followed by the year or month of a periodic series.
+func (c Config) SequenceKey(period time.Time) string {
+	base := c.Key
+	if base == "" {
+		base = c.Prefix
+	}
+	switch c.ResetPeriod {
+	case "month":
+		return fmt.Sprintf("%s_%s", base, period.Format("2006_01"))
+	case "year":
+		return fmt.Sprintf("%s_%s", base, period.Format("2006"))
+	default:
+		return base
+	}
+}
+
+// Format renders the n-th number of the series: PREFIX-00001, or
+// PREFIX-YEAR-00001 with IncludeYear.
+func (c Config) Format(period time.Time, n int64) string {
+	width := c.PadWidth
+	if width == 0 {
+		width = 5
+	}
+	if c.IncludeYear {
+		return fmt.Sprintf("%s-%s-%0*d", c.Prefix, period.Format("2006"), width, n)
+	}
+	return fmt.Sprintf("%s-%0*d", c.Prefix, width, n)
+}
+
+// CatalogSeries is the numerator configuration of a catalog code series: a
+// never-resetting counter keyed by the series, not by its prefix.
+func CatalogSeries(series entity.CodeSeries) Config {
+	return Config{Key: series.Key, Prefix: series.Prefix, PadWidth: series.Width, ResetPeriod: "never"}
 }

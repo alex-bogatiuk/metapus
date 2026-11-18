@@ -95,7 +95,9 @@ func newProvider(dir string, db *sql.DB) (*goose.Provider, error) {
 
 // RunAll runs goose migrations from all configured directories in order.
 // Tenant migrations run first, then each MIGRATION_EXTRA_DIRS entry. With
-// WithPermissions it then syncs the registry's permissions (SyncPermissions).
+// WithPermissions it then syncs the registry's permissions (SyncPermissions),
+// and with WithCatalogCodes it numbers catalog items stored without a code
+// (BackfillCatalogCodes).
 // Output is captured and returned as a combined string.
 func RunAll(dsn string, opts ...Option) (output string, err error) {
 	var o options
@@ -147,6 +149,18 @@ func runDirectories(dsn string, dirs []string, o options) (output string, err er
 		}
 		fmt.Fprintf(&combined, "[permissions] %d created and granted to %s, %d regrouped\n",
 			len(synced.Created), AdminRoleCode, len(synced.Updated))
+	}
+	if len(o.catalogs) > 0 {
+		assigned, berr := BackfillCatalogCodes(ctx, db, o.catalogs)
+		if berr != nil {
+			return combined.String(), berr
+		}
+		for _, def := range o.catalogs {
+			if n := assigned[def.Key]; n > 0 {
+				fmt.Fprintf(&combined, "[catalog codes] %s: %d assigned\n", def.Key, n)
+				delete(assigned, def.Key)
+			}
+		}
 	}
 	return combined.String(), nil
 }

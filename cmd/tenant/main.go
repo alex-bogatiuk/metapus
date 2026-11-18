@@ -456,10 +456,13 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
-// runAllMigrations delegates to the shared migration package and syncs the
-// permissions of the registered entities, built-in and client extensions.
+// runAllMigrations delegates to the shared migration package, syncs the
+// permissions of the registered entities, built-in and client extensions, and
+// numbers their catalog items stored without a code.
 func runAllMigrations(dsn string) error {
-	output, err := migration.RunAll(dsn, migration.WithPermissions(content.Permissions(extensions.Register)))
+	output, err := migration.RunAll(dsn,
+		migration.WithPermissions(content.Permissions(extensions.Register)),
+		migration.WithCatalogCodes(content.CatalogDefinitions(extensions.Register)))
 	if output != "" {
 		fmt.Print(output)
 	}

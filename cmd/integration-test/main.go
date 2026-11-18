@@ -121,7 +121,9 @@ func run(ctx context.Context) error {
 	if actual != name {
 		return errors.New("integration database identity mismatch")
 	}
-	if output, err := migration.RunAll(dsn, migration.WithPermissions(content.Permissions(extensions.Register))); err != nil {
+	if output, err := migration.RunAll(dsn,
+		migration.WithPermissions(content.Permissions(extensions.Register)),
+		migration.WithCatalogCodes(content.CatalogDefinitions(extensions.Register))); err != nil {
 		return fmt.Errorf("prepare integration schema: %w\n%s", err, output)
 	}
 	fmt.Println("Integration database:", name)
