@@ -499,6 +499,7 @@ func configureWalletPool(
 		    min_global_ready_reserve,
 		    activation_reserve_minor, min_hot_native_balance_minor,
 		    daily_activation_budget_minor, retry_after_seconds,
+		    address_reuse_cooldown_seconds, max_watcher_lag_seconds,
 		    derivation_namespace, needs_review, updated_by,
 		    last_error_code, last_error_message
 		) VALUES (
@@ -507,6 +508,7 @@ func configureWalletPool(
 		    5, 5, 20, 1,
 		    $8, $9,
 		    $10, 30,
+		    86400, 300,
 		    $3, $6, 'public-test-bootstrap', $4, $5
 		)
 		ON CONFLICT (network_id) DO UPDATE
@@ -524,6 +526,8 @@ func configureWalletPool(
 		    min_hot_native_balance_minor = EXCLUDED.min_hot_native_balance_minor,
 		    daily_activation_budget_minor = EXCLUDED.daily_activation_budget_minor,
 		    retry_after_seconds = EXCLUDED.retry_after_seconds,
+		    address_reuse_cooldown_seconds = EXCLUDED.address_reuse_cooldown_seconds,
+		    max_watcher_lag_seconds = EXCLUDED.max_watcher_lag_seconds,
 		    derivation_namespace = EXCLUDED.derivation_namespace,
 		    needs_review = EXCLUDED.needs_review,
 		    updated_by = EXCLUDED.updated_by,

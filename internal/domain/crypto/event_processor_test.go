@@ -319,6 +319,20 @@ func TestDustThresholdUsesAssetPrecision(t *testing.T) {
 	}
 }
 
+// Stand: a 0.0005 ETH top-up (~$0.9) was dust under the 0.001 token default.
+func TestDustThresholdPrefersTokenAttribute(t *testing.T) {
+	processor := NewEventProcessor(EventProcessorConfig{})
+	eth := &token.Token{DecimalPlaces: 18}
+	eth.Attributes = map[string]any{token.DustThresholdAttribute: "10000000000000"}
+	if got := processor.dustThresholdForToken(eth); got.String() != "10000000000000" {
+		t.Fatalf("configured dust threshold = %s, want 10000000000000", got)
+	}
+	eth.Attributes[token.DustThresholdAttribute] = 12 // invalid type falls back
+	if got := processor.dustThresholdForToken(eth); got.String() != "1000000000000000" {
+		t.Fatalf("invalid attribute must keep the default, got %s", got)
+	}
+}
+
 // ── Test: BlockchainEvent EventType constants ───────────────────────────
 
 func TestEventType_Values(t *testing.T) {

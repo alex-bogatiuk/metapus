@@ -148,3 +148,58 @@ func TestSequentialScannerStopsAtMissingReceiptWhileLatestAdvances(t *testing.T)
 	require.NoError(t, latest.pollLatest(t.Context(), &latestState, pending, completed, &seeded))
 	require.Len(t, completed, 4)
 }
+
+// Behind the agreed head the solidified window grows to the catch-up size and
+// reports a backlog, so the scanner recovers faster than TRON produces blocks.
+func TestSolidifiedScannerCatchesUpWithLargerWindowAndBacklog(t *testing.T) {
+	blocks := map[int64]*BlockInfo{}
+	receipts := map[int64][]TransactionInfo{}
+	const last, head = int64(9), int64(30)
+	for height := last; height <= head; height++ {
+		blocks[height], receipts[height] = blockFixture(t, height, false)
+	}
+	server := func() *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var request struct {
+				Number int64 `json:"num"`
+			}
+			if r.Body != nil {
+				_ = json.NewDecoder(r.Body).Decode(&request)
+			}
+			switch {
+			case strings.HasSuffix(r.URL.Path, "getnowblock"):
+				_ = json.NewEncoder(w).Encode(blocks[head])
+			case strings.HasSuffix(r.URL.Path, "getblockbynum"):
+				_ = json.NewEncoder(w).Encode(blocks[request.Number])
+			case strings.HasSuffix(r.URL.Path, "gettransactioninfobyblocknum"):
+				_ = json.NewEncoder(w).Encode(receipts[request.Number])
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+	}
+	first, second := server(), server()
+	defer first.Close()
+	defer second.Close()
+	pool := newTestRPCPool(t, []string{first.URL, second.URL}, []string{first.URL, second.URL})
+	pool.settings.IngestionMode = "hybrid"
+	for _, role := range []chainconfig.Role{chainconfig.RoleFullNode, chainconfig.RoleSolidity} {
+		for i, e := range pool.byRole[role] {
+			e.trustGroup = fmt.Sprint(i)
+		}
+	}
+	repo := &captureRepoStub{}
+	driver := &Driver{rpc: pool, network: crypto.NetworkRef{ID: id.New()}, blockRepo: repo}
+	state := &crypto.WatcherState{NetworkID: driver.network.ID, WatcherKey: "tron:solidified", LastBlock: last, Fingerprint: blocks[last].BlockID}
+	watcher := &blockWatcher{driver: driver, key: "tron:solidified", lastAudit: time.Now()}
+
+	require.NoError(t, watcher.pollSolidified(t.Context(), state))
+	catchUp := int64(pool.settings.Defaults().SolidifiedCatchUpBlocks)
+	require.Equal(t, last+catchUp, state.LastBlock, "a backlog uses the catch-up window, not four heights")
+	require.True(t, watcher.backlog)
+
+	require.NoError(t, watcher.pollSolidified(t.Context(), state))
+	require.Equal(t, head, state.LastBlock)
+	require.False(t, watcher.backlog, "at the agreed head the scanner waits for the poll interval")
+	require.Len(t, repo.blocks, int(head-last))
+}

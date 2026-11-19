@@ -217,8 +217,24 @@ func (p *CryptoProcessor) runBalanceReconciliation(
 				return result, err
 			}
 
-			result.WalletsChecked++
 			delta := chainAmount.Difference(walletBalance.LedgerAmount)
+			if !delta.IsZero() {
+				inFlight, err := crypto_repo.NewWorkerRuntimeRepo().InFlightInbound(ctx, walletBalance.WalletID, walletBalance.TokenID)
+				if err != nil {
+					_ = p.finishReconciliationRun(ctx, result, "failed", err.Error())
+					return result, err
+				}
+				if inFlightExplainsDelta(chainAmount, walletBalance.LedgerAmount, inFlight) {
+					// The chain is ahead by exactly the transfers awaiting their
+					// payment or receipt: re-check next run instead of opening an
+					// incident that takes the wallet out of allocation.
+					currentState.allReadsSucceeded = false
+					p.log.Infow("reconciliation deferred: chain delta equals in-flight inbound",
+						"wallet_id", walletBalance.WalletID, "token_id", walletBalance.TokenID, "in_flight", inFlight.String())
+					continue
+				}
+			}
+			result.WalletsChecked++
 			if !delta.IsZero() {
 				currentState.hasMismatch = true
 			}
@@ -291,6 +307,13 @@ func (p *CryptoProcessor) reconciliationEligibleCount(ctx context.Context, walle
 
 func (p *CryptoProcessor) reconciliationUpperBound(ctx context.Context, walletID *id.ID, networkCode string) (*reconciliationCursor, error) {
 	return crypto_repo.NewWorkerRuntimeRepo().ReconciliationUpperBound(ctx, walletID, networkCode)
+}
+
+// inFlightExplainsDelta is true only when the chain is ahead of the ledger by
+// exactly the positive in-flight inbound amount. Any other delta, including a
+// shortfall, remains a reconciliation incident.
+func inFlightExplainsDelta(chain, ledger, inFlight types.RawAmount) bool {
+	return inFlight.IsPositive() && chain.Cmp(ledger.Add(inFlight)) == 0
 }
 
 func (p *CryptoProcessor) loadReconciliationWalletsPage(ctx context.Context, walletID *id.ID, networkCode string, cursor, upper *reconciliationCursor) ([]reconciliationWalletBalance, error) {

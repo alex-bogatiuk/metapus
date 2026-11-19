@@ -49,6 +49,9 @@ type CryptoProviderAccount struct {
 	CredentialsVersion   int        `db:"credentials_version" json:"credentialsVersion"`
 	CredentialsUpdatedAt *time.Time `db:"credentials_updated_at" json:"credentialsUpdatedAt,omitempty"`
 	IsActive             bool       `db:"is_active" json:"isActive" meta:"label:Активен"`
+	// SubmittedBaseURL is the base URL of credentials submitted with this
+	// write. Credentials are stored encrypted, so it is validated here.
+	SubmittedBaseURL string `db:"-" json:"-"`
 }
 
 func New(code, name, provider string, networkID, balanceTokenID id.ID) *CryptoProviderAccount {
@@ -74,6 +77,11 @@ func (a *CryptoProviderAccount) Validate(ctx context.Context) error {
 	}
 	if id.IsNil(a.BalanceTokenID) {
 		return apperror.NewValidation("balance token is required").WithDetail("field", "balanceTokenId")
+	}
+	if a.SubmittedBaseURL != "" {
+		if err := ValidateBaseURL(a.SubmittedBaseURL); err != nil {
+			return apperror.NewValidation(err.Error()).WithDetail("field", "baseUrl")
+		}
 	}
 	return nil
 }

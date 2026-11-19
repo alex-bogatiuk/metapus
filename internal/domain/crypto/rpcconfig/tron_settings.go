@@ -15,6 +15,9 @@ type TRONSettings struct {
 	BackfillConcurrency int    `json:"backfillConcurrency,omitempty"`
 	RequestsPerSecond   int    `json:"requestsPerSecond,omitempty"`
 	MaxResponseBytes    int64  `json:"maxResponseBytes,omitempty"`
+	// SolidifiedCatchUpBlocks bounds the solidified window while the scanner
+	// is behind the agreed head; at the head the window stays small.
+	SolidifiedCatchUpBlocks int `json:"solidifiedCatchUpBlocks,omitempty"`
 }
 
 func (s TRONSettings) Defaults() TRONSettings {
@@ -42,6 +45,9 @@ func (s TRONSettings) Defaults() TRONSettings {
 	if s.MaxResponseBytes == 0 {
 		s.MaxResponseBytes = 10 << 20
 	}
+	if s.SolidifiedCatchUpBlocks == 0 {
+		s.SolidifiedCatchUpBlocks = 16
+	}
 	return s
 }
 func (s TRONSettings) Validate() error {
@@ -54,7 +60,7 @@ func (s TRONSettings) Validate() error {
 	if s.AttemptTimeoutMS < 1 || s.AttemptTimeoutMS > 30000 || s.ReadBudgetMS < s.AttemptTimeoutMS || s.ReadBudgetMS > 60000 {
 		return fmt.Errorf("invalid TRON read timeouts/budget")
 	}
-	if s.MaxAttempts < 1 || s.MaxAttempts > 8 || s.ProviderConcurrency < 2 || s.ProviderConcurrency > 64 || s.BackfillConcurrency < 1 || s.BackfillConcurrency >= s.ProviderConcurrency || s.RequestsPerSecond < 1 || s.RequestsPerSecond > 1000 || s.MaxResponseBytes < 1024 || s.MaxResponseBytes > 64<<20 {
+	if s.MaxAttempts < 1 || s.MaxAttempts > 8 || s.ProviderConcurrency < 2 || s.ProviderConcurrency > 64 || s.BackfillConcurrency < 1 || s.BackfillConcurrency >= s.ProviderConcurrency || s.RequestsPerSecond < 1 || s.RequestsPerSecond > 1000 || s.MaxResponseBytes < 1024 || s.MaxResponseBytes > 64<<20 || s.SolidifiedCatchUpBlocks < 4 || s.SolidifiedCatchUpBlocks > 64 {
 		return fmt.Errorf("invalid TRON admission/response limits")
 	}
 	return nil

@@ -87,3 +87,81 @@ func TestFundingRecoveryUsesSavedEffectWhenCurrentJITPolicyIsDisabled(t *testing
 	require.ErrorIs(t, err, ErrNativeFundingPending, "proof delay must keep the parent waiting rather than permanently held")
 	require.Equal(t, 2, settlement.called, "missing principal evidence must not enter fee/principal settlement")
 }
+
+type fundingTopUpStore struct {
+	NativeFundingRepository
+	prior   crypto.NativeFunding
+	created []crypto.NativeFunding
+}
+
+var errStopAfterCreate = errors.New("stop after funding intent")
+
+func (s *fundingTopUpStore) Lookup(context.Context, string, id.ID, int) (crypto.NativeFunding, bool, error) {
+	return s.prior, true, nil
+}
+func (s *fundingTopUpStore) OperatingBalance(context.Context, id.ID, id.ID) (types.RawAmount, bool, error) {
+	return types.ZeroRawAmount(), false, nil // no AML operating partition
+}
+func (s *fundingTopUpStore) LoadWallet(_ context.Context, wallet, _ id.ID, _ string) (HotWallet, error) {
+	return HotWallet{ID: wallet, Address: "destination"}, nil
+}
+func (s *fundingTopUpStore) Create(_ context.Context, funding crypto.NativeFunding) (crypto.NativeFunding, error) {
+	s.created = append(s.created, funding)
+	return funding, errStopAfterCreate
+}
+
+type fundingSource struct{ wallet HotWallet }
+
+func (s fundingSource) ResolveNativeFundingSource(context.Context, id.ID, id.ID) (HotWallet, error) {
+	return s.wallet, nil
+}
+
+type fundingBalances struct {
+	crypto.BalanceReader
+	balance types.RawAmount
+}
+
+func (s fundingBalances) NativeBalance(context.Context, string) (types.RawAmount, error) {
+	return s.balance, nil
+}
+
+type fundingTopUpDriver struct {
+	crypto.NetworkDriver
+	network crypto.NetworkRef
+	balance types.RawAmount
+}
+
+func (s fundingTopUpDriver) Network() crypto.NetworkRef { return s.network }
+func (s fundingTopUpDriver) Balances() crypto.BalanceReader {
+	return fundingBalances{balance: s.balance}
+}
+
+// Stand CS-2026-00005: after round 1 settled, the re-quoted sweep fee grew and
+// the sweep was held forever, because a wallet without an AML operating
+// partition was reported ready without looking at its balance.
+func TestSettledFundingTopsUpWhenTheQuoteOutgrewTheBalance(t *testing.T) {
+	network, wallet := id.New(), id.New()
+	policy := crypto.NetworkPolicy{FeeFunding: crypto.FeeFundingPolicy{Mode: crypto.FeeFundingJIT,
+		MinSourceWalletResidual: types.MustRawAmount("100000000000000"), MaxFundingAmount: types.MustRawAmount("1000000000000000")}}
+	request := NativeFundingRequest{BasisType: "CryptoSweepAttempt", BasisID: id.New(), NetworkID: network, WalletID: wallet, Address: "destination"}
+	requiredFee := types.MustRawAmount("189653003224101")
+	prior := crypto.NativeFunding{ID: id.New(), NetworkID: network, DestinationWalletID: wallet, Status: "settled", Attempt: 1}
+
+	store := &fundingTopUpStore{prior: prior}
+	driver := fundingTopUpDriver{network: crypto.NetworkRef{ID: network}, balance: types.MustRawAmount("289653003034448")}
+	service := NewNativeFundingService(store, fundingSource{wallet: HotWallet{ID: id.New(), Address: "fee"}}, unusedFundingFees{}, unusedFundingAuthorization{}, &fundingSettlementStub{}, nil, fundingEvidenceStub{})
+	ready, err := service.Ensure(t.Context(), driver, policy, request, nil, requiredFee)
+	require.ErrorIs(t, err, errStopAfterCreate)
+	require.False(t, ready)
+	require.Len(t, store.created, 1)
+	require.Equal(t, 2, store.created[0].Attempt, "the next bounded top-up round")
+	require.Equal(t, "189653", store.created[0].Amount.String(), "exactly the deficit")
+
+	store = &fundingTopUpStore{prior: prior}
+	driver.balance = types.MustRawAmount("300000000000000")
+	service = NewNativeFundingService(store, nil, unusedFundingFees{}, unusedFundingAuthorization{}, &fundingSettlementStub{}, nil, fundingEvidenceStub{})
+	ready, err = service.Ensure(t.Context(), driver, crypto.NetworkPolicy{}, request, nil, requiredFee)
+	require.NoError(t, err)
+	require.True(t, ready, "a sufficient chain balance needs no policy or new round")
+	require.Empty(t, store.created)
+}

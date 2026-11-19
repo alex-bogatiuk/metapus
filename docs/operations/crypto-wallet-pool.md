@@ -10,7 +10,16 @@
 
 Если готового адреса нет, API возвращает `503 WALLET_POOL_EXHAUSTED` с
 `Retry-After`. Повтор с тем же `orderId` или idempotency key безопасен:
-неуспешная попытка не создаёт инвойс и не фиксирует lease.
+неуспешная попытка не создаёт инвойс и не фиксирует lease. Поле
+`details.reason` и предупреждение `wallet pool admission refused` в логе
+сервера называют причину: `no_ready_wallet`, `pool_disabled`,
+`pool_needs_review`, `watcher_lag`, `network_disabled` или `network_hold`.
+
+Включение пула требует `addressReuseCooldownSeconds > 0` (и, соответственно,
+`maxWatcherLagSeconds > 0`): без паузы адрес закрытого инвойса выдаётся сразу,
+поздняя оплата зачисляется новому владельцу адреса, а `invoice.late_payment`
+не публикуется. Уже включённый пул с паузой 0 продолжает работать, но любое
+изменение его политики потребует задать паузу.
 
 ## Жизненный цикл
 

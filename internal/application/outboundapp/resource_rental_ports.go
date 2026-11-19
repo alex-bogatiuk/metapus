@@ -54,6 +54,7 @@ type ResourceRental struct {
 	Status                string
 	ExpiresAt             *time.Time
 	ReceiveAddress        string
+	CreatedAt             time.Time
 }
 
 // ResourceRentalClaim identifies one attempt, including when a worker name is reused.

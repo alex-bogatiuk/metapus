@@ -305,3 +305,23 @@ func (r *WorkerRuntimeRepo) FinishReconciliationRun(ctx context.Context, workerI
 	}
 	return nil
 }
+
+// InFlightInbound sums incoming transfers to the wallet that the chain already
+// shows but the custody ledger has not recognized yet: no custody receipt and
+// no posted payment. Orphaned and ignored transfers are excluded.
+func (r *WorkerRuntimeRepo) InFlightInbound(ctx context.Context, walletID, tokenID id.ID) (types.RawAmount, error) {
+	var raw string
+	err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `
+		SELECT COALESCE(SUM(e.amount),0)::text
+		FROM reg_crypto_inbound_chain_events e
+		WHERE e.wallet_id=$1 AND e.token_id=$2 AND e._deleted_at IS NULL
+		  AND e.direction IN ('incoming','') AND e.canonicality<>'orphaned'
+		  AND e.match_status IN ('received','matched','unmatched','needs_review')
+		  AND e.receipt_id IS NULL
+		  AND NOT EXISTS (SELECT 1 FROM doc_crypto_payments p WHERE p.id=e.payment_id AND p.posted)`,
+		walletID, tokenID).Scan(&raw)
+	if err != nil {
+		return types.ZeroRawAmount(), fmt.Errorf("sum in-flight inbound transfers: %w", err)
+	}
+	return types.NewRawAmountFromString(raw)
+}

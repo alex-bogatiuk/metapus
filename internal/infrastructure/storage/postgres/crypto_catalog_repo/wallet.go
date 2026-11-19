@@ -15,6 +15,7 @@ import (
 	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"metapus/pkg/logger"
 )
 
 // WalletRepo implements wallet.Repository.
@@ -144,7 +145,7 @@ func (r *WalletRepo) LeaseForInvoice(
 			return err
 		}
 		if ready == 0 || (!policy.CustodyEnforced && ready <= policy.MinGlobalReadyReserve) {
-			return wallet.NewWalletPoolExhausted(networkID.String(), policy.RetryAfterSeconds)
+			return wallet.NewWalletPoolUnavailable(networkID.String(), policy.RetryAfterSeconds, wallet.PoolReasonNoReadyWallet)
 		}
 
 		rateRetryAfter, err := r.consumeLeaseRateWindow(ctx, merchantID, networkID, policy.MaxLeaseStartsPerMinute)
@@ -273,11 +274,36 @@ func (r *WalletRepo) lockEffectiveAllocationPolicy(
 	)
 	if err != nil {
 		if pgxscan.NotFound(err) {
-			return effectiveWalletAllocationPolicy{}, wallet.NewWalletPoolExhausted(networkID.String(), 30)
+			return effectiveWalletAllocationPolicy{}, r.walletPoolUnavailable(ctx, networkID)
 		}
 		return effectiveWalletAllocationPolicy{}, fmt.Errorf("lock wallet allocation policy: %w", err)
 	}
 	return policy, nil
+}
+
+// walletPoolUnavailable names why no allocation policy is admissible. A
+// disabled pool used to be indistinguishable from an empty one.
+func (r *WalletRepo) walletPoolUnavailable(ctx context.Context, networkID id.ID) error {
+	reason, retryAfter := wallet.PoolReasonDisabled, 30
+	err := r.GetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `
+		SELECT CASE
+		         WHEN np.network_id IS NULL OR NOT np.enabled THEN $2
+		         WHEN EXISTS(SELECT 1 FROM reg_crypto_network_holds h WHERE h.network_id=p.network_id AND h.status='open') THEN $3
+		         WHEN NOT p.enabled THEN $4
+		         WHEN p.needs_review THEN $5
+		         WHEN p.lease_blocked_reason<>'' THEN $6
+		         ELSE $7 END,
+		       p.retry_after_seconds
+		FROM sys_crypto_wallet_pool_policies p
+		LEFT JOIN sys_crypto_network_policies np ON np.network_id=p.network_id AND np._deleted_at IS NULL
+		WHERE p.network_id=$1 AND p._deleted_at IS NULL`, networkID,
+		wallet.PoolReasonNetworkDisabled, wallet.PoolReasonNetworkHold, wallet.PoolReasonDisabled,
+		wallet.PoolReasonNeedsReview, wallet.PoolReasonWatcherLag, wallet.PoolReasonNoReadyWallet).Scan(&reason, &retryAfter)
+	if err != nil && !pgxscan.NotFound(err) {
+		return fmt.Errorf("diagnose wallet pool admission: %w", err)
+	}
+	logger.Warn(ctx, "wallet pool admission refused", "network_id", networkID, "reason", reason)
+	return wallet.NewWalletPoolUnavailable(networkID.String(), retryAfter, reason)
 }
 
 func (r *WalletRepo) countActiveInvoiceLeases(

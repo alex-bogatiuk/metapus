@@ -63,6 +63,13 @@ func ExpiredUnbroadcastSigningAttempt(record SigningAuthorizationRecord, now tim
 		!record.Authorization.ExpiresAt.IsZero() && !now.Before(record.Authorization.ExpiresAt)
 }
 
+// FailedUnsignedSigningAttempt reports an attempt whose authorization failed
+// before any transaction was signed. Its immutable identity cannot be signed
+// again, so the attempt must be retired rather than retried.
+func FailedUnsignedSigningAttempt(record SigningAuthorizationRecord) bool {
+	return record.Status == "failed" && record.SignedTx == nil && strings.TrimSpace(record.TxID) == ""
+}
+
 func ValidateSignedEnvelope(auth crypto.SigningAuthorization, unsigned crypto.UnsignedTxEnvelope, signed crypto.SignedTxEnvelope) error {
 	if signed.Family != auth.ChainFamily || signed.Family != unsigned.Family ||
 		signed.SchemaVersion != unsigned.SchemaVersion ||

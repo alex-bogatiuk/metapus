@@ -51,6 +51,9 @@ var (
 	ErrResourceProviderInvalidReply = errors.New("resource provider returned an invalid response")
 	ErrResourceOrderAmbiguous       = errors.New("resource provider order status is ambiguous")
 	ErrResourceProviderNotFound     = errors.New("resource provider not found")
+	// ErrResourceOrderNotFound is the provider's explicit answer that it has no
+	// order for the client order ID: unlike a transport failure it is evidence.
+	ErrResourceOrderNotFound = errors.New("resource provider has no such order")
 )
 
 // ExternalResourceCapabilities is the compile-time contract of one vendor

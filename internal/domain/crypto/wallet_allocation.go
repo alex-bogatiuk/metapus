@@ -44,14 +44,17 @@ const (
 )
 
 const (
-	MatchReasonNoAllocation            = "no_allocation"
-	MatchReasonWrongToken              = "wrong_token"
-	MatchReasonOverlappingWindows      = "overlapping_windows"
-	MatchReasonTimestampBeforeLease    = "timestamp_before_lease"
-	MatchReasonDust                    = "dust"
-	MatchReasonNonPositive             = "non_positive"
-	MatchReasonUnknownToken            = "unknown_token"
-	MatchReasonUnknownWallet           = "unknown_wallet"
+	MatchReasonNoAllocation         = "no_allocation"
+	MatchReasonWrongToken           = "wrong_token"
+	MatchReasonOverlappingWindows   = "overlapping_windows"
+	MatchReasonTimestampBeforeLease = "timestamp_before_lease"
+	MatchReasonDust                 = "dust"
+	MatchReasonNonPositive          = "non_positive"
+	MatchReasonUnknownToken         = "unknown_token"
+	MatchReasonUnknownWallet        = "unknown_wallet"
+	// MatchReasonWalletFunding marks a transfer already recognized as a
+	// platform wallet funding (Funding CLI); it needs no custody receipt.
+	MatchReasonWalletFunding           = "wallet_funding"
 	MatchReasonAdditionalSinglePayment = "additional_single_payment"
 	MatchReasonRetiredDepositAddress   = "retired_deposit_address"
 )

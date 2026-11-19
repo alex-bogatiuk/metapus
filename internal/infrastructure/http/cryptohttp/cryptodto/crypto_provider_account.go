@@ -40,6 +40,7 @@ func (r CreateCryptoProviderAccountRequest) ToEntity() *crypto_provider_account.
 	account := crypto_provider_account.New(r.Code, r.Name, r.Provider, networkID, tokenID)
 	account.ExternalAccountRef = r.ExternalAccountRef
 	account.IsActive = r.IsActive
+	account.SubmittedBaseURL = r.BaseURL
 
 	if r.APIKey != "" || r.APISecret != "" || r.BaseURL != "" || r.CallbackURL != "" {
 		creds := crypto_provider_account.ProviderCredentials{
@@ -72,6 +73,7 @@ func (r UpdateCryptoProviderAccountRequest) ApplyTo(account *crypto_provider_acc
 	account.NetworkID, account.BalanceTokenID = updated.NetworkID, updated.BalanceTokenID
 	account.ExternalAccountRef, account.IsActive = updated.ExternalAccountRef, updated.IsActive
 	account.Version = r.Version
+	account.SubmittedBaseURL = r.BaseURL
 
 	if r.APIKey != "" || r.APISecret != "" || r.BaseURL != "" || r.CallbackURL != "" {
 		creds := crypto_provider_account.ProviderCredentials{}

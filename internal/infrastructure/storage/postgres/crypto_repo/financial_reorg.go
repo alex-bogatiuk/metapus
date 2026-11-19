@@ -55,6 +55,52 @@ func (r *NetworkHoldRepo) HoldNetwork(ctx context.Context, networkID id.ID, reas
 	})
 }
 
+// ReleaseNetworkHolds resolves every open incident of the reason whose details
+// contain the subject, together with the network holds it owns. Holds are
+// resolved through the owner workflow, so replays keep actor and reason.
+func (r *NetworkHoldRepo) ReleaseNetworkHolds(ctx context.Context, networkID id.ID, reason crypto.OperationalHoldReason, subject map[string]string, resolution string) error {
+	if id.IsNil(networkID) || reason == "" || len(subject) == 0 || resolution == "" {
+		return fmt.Errorf("network, hold reason, subject and resolution are required")
+	}
+	encoded, err := json.MarshalDeterministic(subject)
+	if err != nil {
+		return fmt.Errorf("marshal network hold subject: %w", err)
+	}
+	txm := postgres.MustGetTxManager(ctx)
+	return txm.RunInTransaction(ctx, func(txCtx context.Context) error {
+		q := txm.GetQuerier(txCtx)
+		rows, err := q.Query(txCtx, `SELECT id FROM reg_crypto_security_incidents
+ WHERE network_id=$1 AND incident_kind=$2 AND status<>'resolved' AND details @> $3::jsonb
+ ORDER BY id FOR UPDATE`, networkID, string(reason), string(encoded))
+		if err != nil {
+			return fmt.Errorf("lock network incidents: %w", err)
+		}
+		var incidents []id.ID
+		for rows.Next() {
+			var incident id.ID
+			if err := rows.Scan(&incident); err != nil {
+				rows.Close()
+				return err
+			}
+			incidents = append(incidents, incident)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		holds := cryptoapp.NewOperationalHoldService(txm, NewOperationalHoldRepo())
+		for _, incident := range incidents {
+			if err := holds.ResolveOwner(txCtx, "security_incident", incident.String(), "crypto-worker", resolution); err != nil && !apperror.IsNotFound(err) {
+				return fmt.Errorf("resolve network holds of incident %s: %w", incident, err)
+			}
+			if _, err := q.Exec(txCtx, `UPDATE reg_crypto_security_incidents SET status='resolved',resolved_at=NOW() WHERE id=$1 AND status<>'resolved'`, incident); err != nil {
+				return fmt.Errorf("resolve network incident %s: %w", incident, err)
+			}
+		}
+		return nil
+	})
+}
+
 func (r *FinancialReorgRepo) RecordFinancialReorg(ctx context.Context, payment *crypto_payment.CryptoPayment, event crypto.BlockchainEvent) error {
 	txm := postgres.MustGetTxManager(ctx)
 	return txm.RunInTransaction(ctx, func(txCtx context.Context) error {

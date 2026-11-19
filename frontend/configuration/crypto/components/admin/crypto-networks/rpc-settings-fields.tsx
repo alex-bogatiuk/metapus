@@ -4,7 +4,7 @@ import { useId } from "react"
 import { ChevronRight } from "lucide-react"
 
 import type { RpcconfigRPCNetworkSettings } from "@/configuration/crypto/types/generated/http-contracts"
-import { rpcSettingsFields, rpcSettingsValue, type RPCSettingsField, type RPCSettingsForm } from "@/configuration/crypto/lib/integrations/rpc-network-settings"
+import { rpcSettingsFieldApplies, rpcSettingsFields, rpcSettingsValue, type RPCSettingsField, type RPCSettingsForm } from "@/configuration/crypto/lib/integrations/rpc-network-settings"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
@@ -23,7 +23,7 @@ interface RPCSettingsFieldsProps {
 export function RPCSettingsFields({ family, form, defaults, editing, disabled, errors, onChange }: RPCSettingsFieldsProps) {
   const prefix = useId()
   const fields = (group: "rpc" | "alerts" | "advanced") => <FieldGroup className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-    {rpcSettingsFields.filter(field => field.group === group && (!field.evmOnly || family === "evm")).map(field => {
+    {rpcSettingsFields.filter(field => field.group === group && rpcSettingsFieldApplies(field, family)).map(field => {
       const inputId = `${prefix}-${field.key}`
       const effective = rpcSettingsValue(form, defaults, field.key)
       const automatic = form[field.key] === "0"

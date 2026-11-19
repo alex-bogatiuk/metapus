@@ -191,6 +191,13 @@ type NetworkOperationalHoldRecorder interface {
 	HoldNetwork(ctx context.Context, networkID id.ID, reason OperationalHoldReason, details map[string]any) error
 }
 
+// NetworkOperationalHoldReleaser resolves the incidents and network holds of
+// one evidence subject after the caller re-verified that evidence as false.
+// Subject keys must all match the incident details; resolution is idempotent.
+type NetworkOperationalHoldReleaser interface {
+	ReleaseNetworkHolds(ctx context.Context, networkID id.ID, reason OperationalHoldReason, subject map[string]string, resolution string) error
+}
+
 // ResourceQuantity returns a normalized family resource requirement without
 // exposing chain-specific RPC types to orchestration.
 func (q FeeQuote) ResourceQuantity(name string) int64 {

@@ -333,6 +333,17 @@ func (p *ResourceRentalService) activateFromOrder(ctx context.Context, rental *R
 	return p.sharedRepo.CloseResourceRental(ctx, rental.ID, order.RefundAmount, order.ProviderBalance, order.ResponseJSON, status)
 }
 
+// resourceOrderAbsenceGrace is how long a provider may take to make a placed
+// order queryable; a "not found" reply inside it stays ambiguous.
+const resourceOrderAbsenceGrace = 5 * time.Minute
+
+func (p *ResourceRentalService) orderAbsenceIsSettled(rental *ResourceRental, err error) bool {
+	if !errors.Is(err, crypto.ErrResourceOrderNotFound) || rental.ExternalSerial != "" || rental.CreatedAt.IsZero() {
+		return false
+	}
+	return p.now().UTC().Sub(rental.CreatedAt.UTC()) >= resourceOrderAbsenceGrace
+}
+
 func (p *ResourceRentalService) recoverPendingRental(ctx context.Context, rental *ResourceRental, req ResourceRequest) (bool, error) {
 	provider, err := p.resolveProviderForRental(ctx, rental)
 	if err != nil {
@@ -340,6 +351,12 @@ func (p *ResourceRentalService) recoverPendingRental(ctx context.Context, rental
 		return false, fmt.Errorf("%w: recover rental %s: %v", crypto.ErrResourceOrderAmbiguous, rental.OutTradeNo, err)
 	}
 	order, queryErr := provider.Query(ctx, crypto.ResourceOrderRef{ClientOrderID: rental.OutTradeNo, ExternalID: rental.ExternalSerial})
+	if queryErr != nil && p.orderAbsenceIsSettled(rental, queryErr) {
+		// The provider explicitly has no order for this client ID long after the
+		// attempt: the original placement never reached it. Re-placing with the
+		// same out_trade_no below is idempotent at the provider.
+		order, queryErr = crypto.ResourceOrder{}, nil
+	}
 	if queryErr != nil {
 		_ = p.sharedRepo.MarkResourceRentalHeld(ctx, rental.ID, queryErr.Error(), nil)
 		return false, fmt.Errorf("%w: recover rental %s: %v", crypto.ErrResourceOrderAmbiguous, rental.OutTradeNo, queryErr)

@@ -1,6 +1,6 @@
-import type { RpcconfigEVMSettings, RpcconfigIngestionAlertSettings, RpcconfigRPCNetworkSettings } from "@/configuration/crypto/types/generated/http-contracts"
+import type { RpcconfigEVMSettings, RpcconfigIngestionAlertSettings, RpcconfigRPCNetworkSettings, RpcconfigTRONSettings } from "@/configuration/crypto/types/generated/http-contracts"
 
-type RPCField = keyof RpcconfigEVMSettings
+type RPCField = keyof RpcconfigEVMSettings | Exclude<keyof RpcconfigTRONSettings, "ingestionMode">
 type AlertField = keyof RpcconfigIngestionAlertSettings
 export type RPCSettingsField = RPCField | AlertField
 export type RPCSettingsForm = Record<RPCSettingsField, string>
@@ -11,6 +11,7 @@ export interface RPCSettingsFieldDefinition {
   unit: string
   group: "rpc" | "alerts" | "advanced"
   evmOnly?: boolean
+  tronOnly?: boolean
   min: number
   max: number
 }
@@ -30,13 +31,14 @@ export const rpcSettingsFields: RPCSettingsFieldDefinition[] = [
   { key: "maxHeadAgeSeconds", label: "Допустимый возраст блока EVM", unit: "с", group: "advanced", evmOnly: true, min: 5, max: 600 },
   { key: "nativeConcurrency", label: "Одновременных загрузок блоков EVM", unit: "", group: "advanced", evmOnly: true, min: 1, max: 16 },
   { key: "prefetchBlocks", label: "Блоков в окне предзагрузки EVM", unit: "", group: "advanced", evmOnly: true, min: 1, max: 128 },
+  { key: "solidifiedCatchUpBlocks", label: "Блоков в окне догона TRON", unit: "", group: "advanced", tronOnly: true, min: 4, max: 64 },
   { key: "maxResponseBytes", label: "Максимальный размер ответа", unit: "байт", group: "advanced", min: 1024, max: 64 * 1024 * 1024 },
   { key: "maxBufferedBytes", label: "Память предзагрузки EVM", unit: "байт", group: "advanced", evmOnly: true, min: 1024, max: 512 * 1024 * 1024 },
 ]
 
 function fieldValue(settings: RpcconfigRPCNetworkSettings, key: RPCSettingsField): number {
   if (key in settings.alerts) return settings.alerts[key as AlertField]
-  if (settings.evm) return settings.evm[key as RPCField] ?? 0
+  if (settings.evm) return settings.evm[key as keyof RpcconfigEVMSettings] ?? 0
   if (settings.tron && key in settings.tron) return settings.tron[key as keyof Omit<typeof settings.tron, "ingestionMode">] ?? 0
   return 0
 }
@@ -49,10 +51,15 @@ export function rpcSettingsValue(form: RPCSettingsForm, defaults: RpcconfigRPCNe
   return Number(form[key]) || fieldValue(defaults, key)
 }
 
+// A family-specific field applies only to its own chain family.
+export function rpcSettingsFieldApplies(field: RPCSettingsFieldDefinition, family: string): boolean {
+  return (!field.evmOnly || family === "evm") && (!field.tronOnly || family === "tron")
+}
+
 export function rpcSettingsErrors(form: RPCSettingsForm, defaults: RpcconfigRPCNetworkSettings, family: string): Partial<Record<RPCSettingsField, string>> {
   const errors: Partial<Record<RPCSettingsField, string>> = {}
   for (const field of rpcSettingsFields) {
-    if (field.evmOnly && family !== "evm") continue
+    if (!rpcSettingsFieldApplies(field, family)) continue
     const raw = form[field.key]
     const value = Number(raw)
     if (!/^\d+$/.test(raw) || !Number.isSafeInteger(value) || (value !== 0 && (value < field.min || value > field.max))) {
@@ -73,13 +80,13 @@ export function rpcSettingsErrors(form: RPCSettingsForm, defaults: RpcconfigRPCN
 
 // Preserve mode and other read settings not represented by editable controls.
 export function rpcSettingsFromForm(form: RPCSettingsForm, before: RpcconfigRPCNetworkSettings, family: string): RpcconfigRPCNetworkSettings {
-  const values = Object.fromEntries(rpcSettingsFields.filter(field => field.group !== "alerts" && (!field.evmOnly || family === "evm")).map(field => [field.key, Number(form[field.key])]))
+  const values = Object.fromEntries(rpcSettingsFields.filter(field => field.group !== "alerts" && rpcSettingsFieldApplies(field, family)).map(field => [field.key, Number(form[field.key])]))
   const alerts: RpcconfigIngestionAlertSettings = {
     maxLagSeconds: Number(form.maxLagSeconds), fireAfterSeconds: Number(form.fireAfterSeconds),
     recoveryLagSeconds: Number(form.recoveryLagSeconds), recoverAfterSeconds: Number(form.recoverAfterSeconds),
   }
   const baseline = rpcSettingsForm(before)
-  const rpcChanged = rpcSettingsFields.some(field => field.group !== "alerts" && (!field.evmOnly || family === "evm") && form[field.key] !== baseline[field.key])
+  const rpcChanged = rpcSettingsFields.some(field => field.group !== "alerts" && rpcSettingsFieldApplies(field, family) && form[field.key] !== baseline[field.key])
   if (!rpcChanged) return { ...before, alerts }
   if (family === "evm") return { ...before, evm: { ...before.evm, ...values } as RpcconfigEVMSettings, alerts }
   return { ...before, tron: { ...before.tron, ...values } as NonNullable<RpcconfigRPCNetworkSettings["tron"]>, alerts }

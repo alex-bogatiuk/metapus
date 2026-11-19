@@ -131,3 +131,51 @@ func TestNonceStartupConcurrentReservationRetriesWithoutFalseDivergence(t *testi
 	require.NoError(t, err)
 	require.Len(t, divergences, 1, "real chain advancement beyond the current cursor still fails closed")
 }
+
+// A provider-disagreement hold is reported as verified only when the startup
+// checks pass again, and released only for the exact verified cursor.
+func TestNonceStartupVerifiesAndReleasesOnlyProviderDisagreementHolds(t *testing.T) {
+	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
+	require.NotEmpty(t, dsn)
+	pool, err := pgxpool.New(t.Context(), dsn)
+	require.NoError(t, err)
+	defer pool.Close()
+	ctx := tenant.WithTxManager(t.Context(), postgres.NewTxManagerFromRawPool(pool))
+	network := id.New()
+	_, err = pool.Exec(ctx, "INSERT INTO cat_blockchain_networks(id,code,name,chain_family,network_identifier,native_token_symbol,native_decimals) VALUES($1,$1::uuid::text,'Nonce hold release fixture','evm',$1::uuid::text,'ETH',18)", network)
+	require.NoError(t, err)
+	manager := NewPostgresNonceManager()
+	disagreed, consumed := "0x"+id.Compact(id.New())+"00000000", "0x"+id.Compact(id.New())+"00000000"
+	for _, source := range []string{disagreed, consumed} {
+		_, err := manager.Reserve(ctx, NonceRequest{NetworkID: network, SourceAddress: source, BasisType: "CryptoSweepAttempt", BasisID: id.New(), Purpose: crypto.SigningPurposeSweep, Attempt: 1, Generation: 1})
+		require.NoError(t, err)
+		_, err = pool.Exec(ctx, "UPDATE reg_evm_nonce_leases SET status='finalized' WHERE network_id=$1 AND LOWER(source_address)=LOWER($2)", network, source)
+		require.NoError(t, err)
+	}
+	require.NoError(t, manager.HoldSource(ctx, network, disagreed, NonceProviderDisagreement))
+	require.NoError(t, manager.HoldSource(ctx, network, consumed, "nonce 0 was consumed without a persisted transaction hash"))
+
+	report, err := manager.ReconcileStartupReport(ctx, network, changingStartupObserver{latest: 1})
+	require.NoError(t, err)
+	require.Empty(t, report.Divergences)
+	require.Len(t, report.Verified, 1, "only the provider-disagreement hold is release-eligible")
+	verified := report.Verified[0]
+	require.Equal(t, "1", verified.NextNonce)
+
+	stale := verified
+	stale.NextNonce = "2"
+	require.NoError(t, manager.ReleaseVerifiedHold(ctx, network, stale))
+	held := func(source string) bool {
+		var value bool
+		require.NoError(t, pool.QueryRow(ctx, "SELECT held FROM reg_evm_nonce_cursors WHERE network_id=$1 AND LOWER(source_address)=LOWER($2)", network, source).Scan(&value))
+		return value
+	}
+	require.True(t, held(disagreed), "a cursor that moved after verification stays held")
+	require.NoError(t, manager.ReleaseVerifiedHold(ctx, network, verified))
+	require.False(t, held(disagreed))
+	require.True(t, held(consumed), "chain or DB evidence holds stay for an operator")
+
+	report, err = manager.ReconcileStartupReport(ctx, network, changingStartupObserver{latest: 1})
+	require.NoError(t, err)
+	require.Empty(t, report.Verified, "a released cursor is not reported again")
+}

@@ -2535,6 +2535,7 @@ export type RpcconfigTRONSettings = {
   "backfillConcurrency": number
   "requestsPerSecond": number
   "maxResponseBytes": number
+  "solidifiedCatchUpBlocks": number
 }
 
 export type RpcconfigTRONSettingsInput = {
@@ -2546,6 +2547,7 @@ export type RpcconfigTRONSettingsInput = {
   "backfillConcurrency"?: number
   "requestsPerSecond"?: number
   "maxResponseBytes"?: number
+  "solidifiedCatchUpBlocks"?: number
 }
 
 export type SetCryptoNetworkWatchingRequest = {

@@ -23,3 +23,16 @@ test("automatic defaults participate in cross-field budget, capacity and recover
   expect(rpcSettingsErrors({ ...form, providerConcurrency: "0", backfillConcurrency: "8" }, defaults, "evm").backfillConcurrency).toBeTruthy()
   expect(rpcSettingsErrors({ ...form, maxAttempts: "1.5" }, defaults, "evm").maxAttempts).toBeTruthy()
 })
+
+test("TRON catch-up window is edited only for TRON and validated against its bounds", () => {
+  const tronDefaults: RpcconfigRPCNetworkSettings = {
+    tron: { ingestionMode: "hybrid", attemptTimeoutMs: 5000, readBudgetMs: 12000, maxAttempts: 2, providerConcurrency: 8, backfillConcurrency: 4, requestsPerSecond: 10, maxResponseBytes: 10485760, solidifiedCatchUpBlocks: 16 },
+    alerts: defaults.alerts,
+  }
+  const form = { ...rpcSettingsForm(tronDefaults), solidifiedCatchUpBlocks: "32" }
+  expect(rpcSettingsErrors(form, tronDefaults, "tron")).toEqual({})
+  expect(rpcSettingsFromForm(form, tronDefaults, "tron").tron?.solidifiedCatchUpBlocks).toBe(32)
+  expect(rpcSettingsErrors({ ...form, solidifiedCatchUpBlocks: "2" }, tronDefaults, "tron").solidifiedCatchUpBlocks).toBeTruthy()
+  expect(rpcSettingsErrors({ ...rpcSettingsForm(defaults), solidifiedCatchUpBlocks: "2" }, defaults, "evm").solidifiedCatchUpBlocks).toBeUndefined()
+  expect(rpcSettingsFromForm({ ...rpcSettingsForm(defaults), maxAttempts: "3" }, defaults, "evm").evm).not.toHaveProperty("solidifiedCatchUpBlocks")
+})

@@ -2537,6 +2537,7 @@ export const RpcconfigTRONSettingsSchema: z.ZodType<Wire.RpcconfigTRONSettings> 
   "backfillConcurrency": z.number().int(),
   "requestsPerSecond": z.number().int(),
   "maxResponseBytes": z.number().int(),
+  "solidifiedCatchUpBlocks": z.number().int(),
 }))
 
 export const RpcconfigTRONSettingsInputSchema: z.ZodType<Wire.RpcconfigTRONSettingsInput> = z.lazy(() => z.strictObject({
@@ -2548,6 +2549,7 @@ export const RpcconfigTRONSettingsInputSchema: z.ZodType<Wire.RpcconfigTRONSetti
   "backfillConcurrency": z.number().int().optional(),
   "requestsPerSecond": z.number().int().optional(),
   "maxResponseBytes": z.number().int().optional(),
+  "solidifiedCatchUpBlocks": z.number().int().optional(),
 }))
 
 export const SetCryptoNetworkWatchingRequestSchema: z.ZodType<Wire.SetCryptoNetworkWatchingRequest> = z.lazy(() => z.strictObject({

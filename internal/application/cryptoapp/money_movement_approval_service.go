@@ -173,7 +173,10 @@ func (s *MoneyMovementApprovalService) loadAndVerify(ctx context.Context, basisT
 		return intent, bundle, "", err
 	}
 	if !ok {
-		return intent, bundle, "", fmt.Errorf("money movement intent is required")
+		// The intent is signed asynchronously after creation (pending_signature).
+		// Approving before that is a retryable state conflict, not a server error.
+		return intent, bundle, "", apperror.NewConflict("money movement is not ready for approval: its intent is still being signed").
+			WithDetail("basisType", basisType).WithDetail("basisId", basisID.String())
 	}
 	tenantID, err := requiredTenantID(ctx)
 	if err != nil {

@@ -189,7 +189,7 @@ func (e *AccountActivationExecutor) handleAlreadyActiveAccount(ctx context.Conte
 				return err
 			}
 		}
-		if hasSigningAttempt {
+		if hasSigningAttempt && auth.Status != "failed" {
 			if err := e.outboundRepo.MarkSigningAuthorizationFailed(ctx, auth.Authorization.AuthorizationID, auth.TxID); err != nil {
 				return err
 			}
@@ -230,6 +230,44 @@ func (e *AccountActivationExecutor) retireExpiredSigningAttempt(ctx context.Cont
 	})
 	if err != nil {
 		return fmt.Errorf("retire expired staged activation: %w", err)
+	}
+	if exposed {
+		return HoldExecution(errors.New(reason))
+	}
+	return nil
+}
+
+// retireFailedUnsignedAttempt ends an activation whose only attempt failed
+// before signing. Retrying would reuse a released fee reservation forever and
+// keep the network's activation slot occupied; failing it frees the slot and
+// lets the pool replace the wallet, as an expired staged attempt does.
+func (e *AccountActivationExecutor) retireFailedUnsignedAttempt(ctx context.Context, task AccountActivationTask, reservation crypto.FeeReservation) error {
+	reason := "activation signing attempt failed before transaction signing"
+	exposed := false
+	err := e.executionGuard(task).Run(ctx, func(ctx context.Context) error {
+		var err error
+		exposed, err = e.outboundRepo.HasAccountActivationSigningExposure(ctx, task)
+		if err != nil {
+			return err
+		}
+		if exposed {
+			reason = "activation signing was dispatched but its signed result is not available"
+			if reservation.Status != crypto.FeeReservationReleased {
+				if err := e.feeBudget.Hold(ctx, reservation.ID, reason); err != nil {
+					return err
+				}
+			}
+			return e.updateClaim(ctx, task, ActivationClaimHeld, reason, 0)
+		}
+		if reservation.Status == crypto.FeeReservationReserved || reservation.Status == crypto.FeeReservationHeld {
+			if err := e.feeBudget.ReleaseUnbroadcast(ctx, reservation.ID, reason); err != nil {
+				return err
+			}
+		}
+		return e.updateClaim(ctx, task, ActivationClaimFailed, reason, 0)
+	})
+	if err != nil {
+		return fmt.Errorf("retire failed unsigned activation: %w", err)
 	}
 	if exposed {
 		return HoldExecution(errors.New(reason))
@@ -433,6 +471,9 @@ func (e *AccountActivationExecutor) Execute(ctx context.Context, task AccountAct
 		}
 		if !found {
 			return fmt.Errorf("persisted activation signing attempt has no fee reservation")
+		}
+		if FailedUnsignedSigningAttempt(auth) {
+			return e.retireFailedUnsignedAttempt(ctx, task, feeReservation)
 		}
 		if ExpiredUnbroadcastSigningAttempt(auth, e.now().UTC()) {
 			return e.retireExpiredSigningAttempt(ctx, task, auth, feeReservation.ID)

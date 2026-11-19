@@ -110,8 +110,21 @@ func (s *NativeFundingService) Ensure(
 		if err != nil {
 			return false, err
 		}
-		if !enabled || balance.Cmp(requiredMaxFee.Add(policy.FeeFunding.MinSourceWalletResidual)) >= 0 {
+		// Without an AML operating partition the settled round proves nothing
+		// about today's fee quote: fall through to the chain balance check, which
+		// opens the next bounded top-up round when the quote has grown.
+		required := requiredMaxFee.Add(policy.FeeFunding.MinSourceWalletResidual)
+		if enabled && balance.Cmp(required) >= 0 {
 			return true, nil
+		}
+		if !enabled {
+			chainBalance, err := driver.Balances().NativeBalance(ctx, req.Address)
+			if err != nil {
+				return false, fmt.Errorf("%w: read destination native balance: %v", ErrNativeFundingHeld, err)
+			}
+			if chainBalance.Cmp(required) >= 0 {
+				return true, nil
+			}
 		}
 	}
 	if priorFound && (prior.Status == "broadcast" || prior.Status == "solidified") {

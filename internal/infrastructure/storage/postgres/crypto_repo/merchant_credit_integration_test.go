@@ -307,3 +307,22 @@ func TestMerchantCreditCommandsAreIdempotent(t *testing.T) {
 func receiptJournal() *cryptoapp.ReceiptJournal {
 	return cryptoapp.NewReceiptJournal(NewUnidentifiedReceiptRepo(), NewWalletFundingJournalRepo())
 }
+
+// Stand: operator2, an owner of the merchant, approved a credit to it.
+func TestMerchantUserCannotApproveCreditToTheirMerchant(t *testing.T) {
+	f := newMerchantCreditFixture(t, false)
+	doc, err := f.credits.Prepare(f.ctx, cryptoapp.PrepareMerchantCreditCommand{ReceiptID: f.receipt, MerchantID: f.merchant, Actor: id.New()})
+	require.NoError(t, err)
+	owner := id.New()
+	_, err = f.pool.Exec(f.ctx, `INSERT INTO sys_merchant_users(user_id,merchant_id,role) VALUES($1,$2,1)`, owner, f.merchant)
+	require.NoError(t, err)
+
+	_, err = f.credits.Approve(f.ctx, cryptoapp.DecideMerchantCreditCommand{CreditID: doc.ID, ExpectedVersion: doc.Version, Actor: owner})
+	require.True(t, apperror.IsForbidden(err), "%v", err)
+	suspense, merchant, _ := f.amounts(t)
+	require.Equal(t, []string{f.request.Basis.Amount.String(), "0"}, []string{suspense, merchant}, "nothing was posted")
+
+	approved, err := f.credits.Approve(f.ctx, cryptoapp.DecideMerchantCreditCommand{CreditID: doc.ID, ExpectedVersion: doc.Version, Actor: id.New()})
+	require.NoError(t, err)
+	require.Equal(t, crypto_merchant_credit.StatusPosted, approved.Status)
+}

@@ -3,6 +3,8 @@ package crypto
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"metapus/internal/core/id"
 	"metapus/internal/core/types"
 )
@@ -26,9 +28,11 @@ func validWalletPoolPolicy() WalletPoolPolicy {
 			MinHotBalanceMinor: types.NewRawAmountFromInt64(2_000_000),
 			DailyBudgetMinor:   types.NewRawAmountFromInt64(10_000_000),
 		},
-		RetryAfterSeconds:   30,
-		DerivationNamespace: "m/44'/195'/42'/0",
-		Version:             1,
+		RetryAfterSeconds:           30,
+		AddressReuseCooldownSeconds: 86400,
+		MaxWatcherLagSeconds:        300,
+		DerivationNamespace:         "m/44'/195'/42'/0",
+		Version:                     1,
 	}
 }
 
@@ -74,7 +78,7 @@ func TestWalletPoolPolicyValidation(t *testing.T) {
 		{"global reserve is negative", func(p *WalletPoolPolicy) { p.MinGlobalReadyReserve = -1 }},
 		{"global reserve exceeds low watermark", func(p *WalletPoolPolicy) { p.MinGlobalReadyReserve = p.LowWatermark + 1 }},
 		{"retry after is zero", func(p *WalletPoolPolicy) { p.RetryAfterSeconds = 0 }},
-		{"cooldown without lag", func(p *WalletPoolPolicy) { p.AddressReuseCooldownSeconds = 1800 }},
+		{"cooldown without lag", func(p *WalletPoolPolicy) { p.AddressReuseCooldownSeconds, p.MaxWatcherLagSeconds = 1800, 0 }},
 		{"tron cooldown lag below floor", func(p *WalletPoolPolicy) {
 			p.AddressReuseCooldownSeconds = 1800
 			p.MaxWatcherLagSeconds = 60
@@ -198,4 +202,16 @@ func TestValidateWalletDerivationRejectsPathMismatch(t *testing.T) {
 	if err := ValidateWalletDerivation(job, result); err == nil {
 		t.Fatal("expected derivation path mismatch")
 	}
+}
+
+// Stand: with a zero cooldown a confirmed invoice address became another
+// customer's persistent address four minutes later.
+func TestEnabledWalletPoolUpdateRequiresAddressReuseCooldown(t *testing.T) {
+	policy := validWalletPoolPolicy()
+	require.NoError(t, policy.ValidateUpdate(tronWalletPoolCapabilities()))
+	policy.AddressReuseCooldownSeconds, policy.MaxWatcherLagSeconds = 0, 0
+	require.NoError(t, policy.Validate(tronWalletPoolCapabilities()), "an existing pool keeps running")
+	require.ErrorContains(t, policy.ValidateUpdate(tronWalletPoolCapabilities()), "addressReuseCooldownSeconds")
+	policy.Enabled = false
+	require.NoError(t, policy.ValidateUpdate(tronWalletPoolCapabilities()), "a disabled pool may be prepared without it")
 }

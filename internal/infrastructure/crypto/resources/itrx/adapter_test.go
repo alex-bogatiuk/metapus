@@ -160,6 +160,11 @@ func TestNewRejectsPartialCredentialsAndPlaintextProduction(t *testing.T) {
 	require.Error(t, err)
 	_, err = New(Config{BaseURL: "https://key:secret@itrx.example", APIKey: "key", APISecret: "secret"})
 	require.Error(t, err)
+	// The stand stored a duplicated scheme; url.Parse reads its host as "https".
+	_, err = New(Config{BaseURL: "https://https//nile.itrx.io", APIKey: "key", APISecret: "secret"})
+	require.ErrorContains(t, err, "base URL")
+	_, err = New(Config{BaseURL: "https://nile.itrx.io", APIKey: "key", APISecret: "secret", AppEnv: "production"})
+	require.NoError(t, err)
 }
 
 func TestCapabilitiesValidate(t *testing.T) {

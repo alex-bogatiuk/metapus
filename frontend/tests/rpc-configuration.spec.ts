@@ -33,7 +33,7 @@ async function setup(page: Page, scenario?: "conflict" | "lost" | "file" | "read
     current.family = "tron"
     currentNetwork.network.family = "tron"
     currentNetwork.network.code = "TRON-NILE"
-    const tron = { ingestionMode: "hybrid", attemptTimeoutMs: 5000, readBudgetMs: 12000, maxAttempts: 2, providerConcurrency: 8, backfillConcurrency: 4, requestsPerSecond: 10, maxResponseBytes: 10485760 }
+    const tron = { ingestionMode: "hybrid", attemptTimeoutMs: 5000, readBudgetMs: 12000, maxAttempts: 2, providerConcurrency: 8, backfillConcurrency: 4, requestsPerSecond: 10, maxResponseBytes: 10485760, solidifiedCatchUpBlocks: 16 }
     current.defaultSettings = { tron, alerts: defaultSettings.alerts }
     current.settings = { tron: { ...tron, ingestionMode: "solidified", maxAttempts: 0, providerConcurrency: 0 }, alerts: defaultSettings.alerts }
     current.effectiveSettings = { tron: { ...tron, ingestionMode: "solidified" }, alerts: defaultSettings.alerts }

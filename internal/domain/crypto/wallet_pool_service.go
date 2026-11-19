@@ -73,7 +73,7 @@ func (s *WalletPoolAdminService) UpdatePolicy(
 		if err != nil {
 			return err
 		}
-		if err := policy.Validate(capabilities); err != nil {
+		if err := policy.ValidateUpdate(capabilities); err != nil {
 			return err
 		}
 		if policy.Enabled && capabilities.WalletProvisioning.RequiresActivation() {

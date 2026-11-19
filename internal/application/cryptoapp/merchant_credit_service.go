@@ -176,7 +176,24 @@ func (s *MerchantCreditService) decide(ctx context.Context, cmd DecideMerchantCr
 	return decideReceiptAttribution(ctx, s.txm, s.repo, crypto_merchant_credit.DocumentType, cmd.CreditID, cmd.ExpectedVersion, apply)
 }
 
+// MerchantAssociationChecker reports an operator's own role in a merchant.
+type MerchantAssociationChecker interface {
+	IsMerchantUser(ctx context.Context, userID, merchantID id.ID) (bool, error)
+}
+
 func (s *MerchantCreditService) post(ctx context.Context, doc *crypto_merchant_credit.CryptoMerchantCredit, actor id.ID) error {
+	// Segregation of duties: an operator who is also a user of the receiving
+	// merchant cannot post unidentified money to it, whether as the checker or
+	// as the preparer of a credit that needs no second approval.
+	if checker, ok := s.repo.(MerchantAssociationChecker); ok {
+		associated, err := checker.IsMerchantUser(ctx, actor, doc.MerchantID)
+		if err != nil {
+			return err
+		}
+		if associated {
+			return apperror.NewForbidden("an operator associated with the merchant cannot post a credit to it")
+		}
+	}
 	if err := doc.Approve(actor, s.now()); err != nil {
 		return err
 	}

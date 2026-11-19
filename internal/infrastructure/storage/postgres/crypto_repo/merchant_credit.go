@@ -74,3 +74,14 @@ func (r *MerchantCreditRepo) ApprovalRequired(ctx context.Context, tokenID id.ID
 }
 
 var _ cryptoapp.MerchantCreditRepository = (*MerchantCreditRepo)(nil)
+
+// IsMerchantUser reports whether the operator holds any role in the merchant.
+func (r *MerchantCreditRepo) IsMerchantUser(ctx context.Context, userID, merchantID id.ID) (bool, error) {
+	var associated bool
+	err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM sys_merchant_users WHERE user_id=$1 AND merchant_id=$2)`, userID, merchantID).Scan(&associated)
+	if err != nil {
+		return false, fmt.Errorf("check merchant association: %w", err)
+	}
+	return associated, nil
+}

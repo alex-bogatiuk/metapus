@@ -99,10 +99,35 @@ type NonceStartupObserver interface {
 type NonceDivergence struct {
 	SourceAddress string
 	Reason        string
+	NextNonce     string
+}
+
+// NonceProviderDisagreement is the hold reason for providers that returned
+// different nonce state. It is the only hold that startup re-verification may
+// release: the other reasons describe chain or DB evidence, not observation.
+const NonceProviderDisagreement = "RPC providers disagree on latest or pending nonce"
+
+// VerifiedNonceHold is a cursor held for provider disagreement whose state a
+// later fresh quorum observed as consistent with the DB and its leases.
+type VerifiedNonceHold struct {
+	SourceAddress string
+	NextNonce     string
+}
+
+type NonceStartupReport struct {
+	Divergences []NonceDivergence
+	Verified    []VerifiedNonceHold
 }
 
 type StartupNonceManager interface {
 	ReconcileStartup(ctx context.Context, networkID id.ID, observer NonceStartupObserver) ([]NonceDivergence, error)
+}
+
+// StartupNonceRecoverer releases provider-disagreement holds after the same
+// startup checks pass again.
+type StartupNonceRecoverer interface {
+	ReconcileStartupReport(ctx context.Context, networkID id.ID, observer NonceStartupObserver) (NonceStartupReport, error)
+	ReleaseVerifiedHold(ctx context.Context, networkID id.ID, hold VerifiedNonceHold) error
 }
 
 type UnsignedTailNonceManager interface {
@@ -321,33 +346,64 @@ func (m *PostgresNonceManager) HoldSource(ctx context.Context, networkID id.ID, 
 	return err
 }
 
+// ReleaseVerifiedHold clears a provider-disagreement hold only while the
+// cursor still has the verified next nonce and every lease is fenced below it.
+func (m *PostgresNonceManager) ReleaseVerifiedHold(ctx context.Context, networkID id.ID, hold VerifiedNonceHold) error {
+	_, err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).Exec(ctx, `
+		UPDATE reg_evm_nonce_cursors c SET held=FALSE,hold_reason='',version=version+1,updated_at=NOW()
+		WHERE c.network_id=$1 AND c.source_address=$2 AND c.next_nonce=$3::numeric
+		  AND c.held AND c.hold_reason=$4
+		  AND NOT EXISTS(SELECT 1 FROM reg_evm_nonce_leases l
+		      WHERE l.network_id=c.network_id AND l.source_address=c.source_address AND l.nonce>=c.next_nonce)
+	`, networkID, hold.SourceAddress, hold.NextNonce, NonceProviderDisagreement)
+	if err != nil {
+		return fmt.Errorf("release verified EVM nonce hold: %w", err)
+	}
+	return nil
+}
+
 func (m *PostgresNonceManager) ReconcileStartup(ctx context.Context, networkID id.ID, observer NonceStartupObserver) ([]NonceDivergence, error) {
+	report, err := m.ReconcileStartupReport(ctx, networkID, observer)
+	return report.Divergences, err
+}
+
+func (m *PostgresNonceManager) ReconcileStartupReport(ctx context.Context, networkID id.ID, observer NonceStartupObserver) (report NonceStartupReport, err error) {
+	divergences, verified, err := m.reconcileStartup(ctx, networkID, observer)
+	return NonceStartupReport{Divergences: divergences, Verified: verified}, err
+}
+
+func (m *PostgresNonceManager) reconcileStartup(ctx context.Context, networkID id.ID, observer NonceStartupObserver) ([]NonceDivergence, []VerifiedNonceHold, error) {
 	if id.IsNil(networkID) || observer == nil {
-		return nil, errors.New("EVM startup nonce reconciliation requires network and observer")
+		return nil, nil, errors.New("EVM startup nonce reconciliation requires network and observer")
 	}
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
 	rows, err := q.Query(ctx, `
-		SELECT source_address,next_nonce::text
+		SELECT source_address,next_nonce::text,held,hold_reason
 		FROM reg_evm_nonce_cursors WHERE network_id=$1 ORDER BY source_address
 	`, networkID)
 	if err != nil {
-		return nil, fmt.Errorf("list EVM nonce cursors: %w", err)
+		return nil, nil, fmt.Errorf("list EVM nonce cursors: %w", err)
 	}
 	defer rows.Close()
-	type cursor struct{ source, next string }
+	type cursor struct {
+		source, next, holdReason string
+		held                     bool
+	}
 	var cursors []cursor
 	for rows.Next() {
 		var value cursor
-		if err := rows.Scan(&value.source, &value.next); err != nil {
-			return nil, err
+		if err := rows.Scan(&value.source, &value.next, &value.held, &value.holdReason); err != nil {
+			return nil, nil, err
 		}
 		cursors = append(cursors, value)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var divergences []NonceDivergence
+	var verified []VerifiedNonceHold
 	for _, cursor := range cursors {
+		before := len(divergences)
 		next, err := strconv.ParseUint(cursor.next, 10, 64)
 		if err != nil {
 			divergences = append(divergences, NonceDivergence{SourceAddress: cursor.source, Reason: "database nonce cursor exceeds uint64"})
@@ -355,7 +411,7 @@ func (m *PostgresNonceManager) ReconcileStartup(ctx context.Context, networkID i
 		}
 		snapshot, err := observer.ObserveNonceState(ctx, cursor.source)
 		if err != nil {
-			return divergences, fmt.Errorf("observe EVM nonce state for %s: %w", cursor.source, err)
+			return divergences, nil, fmt.Errorf("observe EVM nonce state for %s: %w", cursor.source, err)
 		}
 		// An active worker may reserve while RPC is read. Such a changed
 		// snapshot is retryable, not evidence of an unfenced/consumed nonce.
@@ -370,10 +426,10 @@ func (m *PostgresNonceManager) ReconcileStartup(ctx context.Context, networkID i
 			return nil
 		}
 		if err := stable(); err != nil {
-			return divergences, err
+			return divergences, nil, err
 		}
 		if snapshot.Divergent {
-			divergences = append(divergences, NonceDivergence{SourceAddress: cursor.source, Reason: "RPC providers disagree on latest or pending nonce"})
+			divergences = append(divergences, NonceDivergence{SourceAddress: cursor.source, Reason: NonceProviderDisagreement, NextNonce: cursor.next})
 			continue
 		}
 		if snapshot.Pending > next || snapshot.Latest > next {
@@ -383,10 +439,10 @@ func (m *PostgresNonceManager) ReconcileStartup(ctx context.Context, networkID i
 		}
 		leases, err := m.loadStartupLeases(ctx, q, networkID, cursor.source)
 		if err != nil {
-			return divergences, err
+			return divergences, nil, err
 		}
 		if err := stable(); err != nil {
-			return divergences, err
+			return divergences, nil, err
 		}
 		for _, lease := range leases {
 			if lease.Nonce >= next {
@@ -404,7 +460,7 @@ func (m *PostgresNonceManager) ReconcileStartup(ctx context.Context, networkID i
 			}
 			assessment, err := observer.AssessReplacement(ctx, cursor.source, strconv.FormatUint(lease.Nonce, 10), lease.TxHashes)
 			if err != nil {
-				return divergences, fmt.Errorf("assess startup nonce %d: %w", lease.Nonce, err)
+				return divergences, nil, fmt.Errorf("assess startup nonce %d: %w", lease.Nonce, err)
 			}
 			switch assessment.Disposition {
 			case crypto.ReplacementNonceConsumed:
@@ -413,18 +469,21 @@ func (m *PostgresNonceManager) ReconcileStartup(ctx context.Context, networkID i
 				if strings.Contains(strings.ToLower(assessment.Reason), "disagree") || strings.Contains(strings.ToLower(assessment.Reason), "different mined") {
 					divergences = append(divergences, NonceDivergence{SourceAddress: cursor.source, Reason: assessment.Reason})
 				} else {
-					return divergences, fmt.Errorf("startup nonce evidence is uncertain: %s", assessment.Reason)
+					return divergences, nil, fmt.Errorf("startup nonce evidence is uncertain: %s", assessment.Reason)
 				}
 			}
 			if len(divergences) > 0 && divergences[len(divergences)-1].SourceAddress == cursor.source {
 				break
 			}
 		}
+		if len(divergences) == before && cursor.held && cursor.holdReason == NonceProviderDisagreement {
+			verified = append(verified, VerifiedNonceHold{SourceAddress: cursor.source, NextNonce: cursor.next})
+		}
 	}
 	for _, divergence := range divergences {
 		recordNonceDivergence(ctx, networkID, divergence.Reason)
 	}
-	return divergences, nil
+	return divergences, verified, nil
 }
 
 func (m *PostgresNonceManager) ReclaimUnsignedTail(ctx context.Context, request NonceRequest) error {

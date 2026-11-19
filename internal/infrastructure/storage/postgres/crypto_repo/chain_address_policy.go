@@ -29,9 +29,9 @@ func (p *ChainAddressPolicy) ValidateAndNormalize(ctx context.Context, networkID
 	trimmed := strings.TrimSpace(address)
 	switch family {
 	case "tron":
-		normalized := tron.NormalizeTronAddress(trimmed)
-		if err := tron.ValidateTronAddress(normalized); err != nil {
-			return cryptoapp.NormalizedChainAddress{}, apperror.NewValidation("invalid TRON address").WithDetail("field", "address")
+		normalized, err := normalizeTronDestination(trimmed)
+		if err != nil {
+			return cryptoapp.NormalizedChainAddress{}, err
 		}
 		return cryptoapp.NormalizedChainAddress{Address: normalized, CanonicalKey: normalized, ChainFamily: family}, nil
 	case "evm":
@@ -43,6 +43,23 @@ func (p *ChainAddressPolicy) ValidateAndNormalize(ctx context.Context, networkID
 	default:
 		return cryptoapp.NormalizedChainAddress{}, apperror.NewValidation(fmt.Sprintf("unsupported chain family %q", family))
 	}
+}
+
+// normalizeTronDestination accepts only the base58 form an operator copies
+// from a TRON wallet. A hex form, including an Ethereum 0x address, would be
+// silently converted to the TRON address of the same 20 bytes: funds meant
+// for an exchange or contract on Ethereum would land where nobody controls them.
+func normalizeTronDestination(address string) (string, error) {
+	if !strings.HasPrefix(address, "T") {
+		if strings.HasPrefix(address, "0x") || strings.HasPrefix(address, "0X") {
+			return "", apperror.NewValidation("this looks like an Ethereum address; enter the TRON address that starts with T").WithDetail("field", "address")
+		}
+		return "", apperror.NewValidation("TRON address must be the base58 address that starts with T").WithDetail("field", "address")
+	}
+	if err := tron.ValidateTronAddress(address); err != nil {
+		return "", apperror.NewValidation("invalid TRON address").WithDetail("field", "address")
+	}
+	return address, nil
 }
 
 var _ cryptoapp.ChainAddressPolicy = (*ChainAddressPolicy)(nil)

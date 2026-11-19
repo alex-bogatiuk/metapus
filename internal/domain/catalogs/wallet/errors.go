@@ -14,6 +14,25 @@ const (
 	CodeMerchantPersistentAddressLimitExceeded = "MERCHANT_PERSISTENT_ADDRESS_LIMIT_EXCEEDED"
 )
 
+// Wallet pool unavailability reasons. They extend WALLET_POOL_EXHAUSTED
+// details so operators can tell a disabled or blocked pool from an empty one;
+// the public code and retry contract stay the same for merchants.
+const (
+	PoolReasonNoReadyWallet   = "no_ready_wallet"
+	PoolReasonDisabled        = "pool_disabled"
+	PoolReasonNeedsReview     = "pool_needs_review"
+	PoolReasonWatcherLag      = "watcher_lag"
+	PoolReasonNetworkDisabled = "network_disabled"
+	PoolReasonNetworkHold     = "network_hold"
+)
+
+// NewWalletPoolUnavailable is WALLET_POOL_EXHAUSTED with the operational reason.
+func NewWalletPoolUnavailable(networkID any, retryAfter int, reason string) *apperror.AppError {
+	err := NewWalletPoolExhausted(networkID, retryAfter)
+	err.Details["reason"] = reason
+	return err
+}
+
 // NewWalletPoolExhausted creates a retryable capacity error for exhausted
 // receiving wallet pools. A non-positive retryAfter defaults to 30 seconds.
 func NewWalletPoolExhausted(networkID any, retryAfter int) *apperror.AppError {

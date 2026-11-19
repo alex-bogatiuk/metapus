@@ -71,6 +71,22 @@ type WalletPoolPolicy struct {
 
 // Validate rejects configurations that are inconsistent with the installed
 // family adapter or could overrun capacity and spend limits.
+// ValidateUpdate applies the operator rules of a policy change on top of the
+// runtime invariants. An enabled pool must keep a closed invoice address out of
+// rotation: with no cooldown it is reissued at once, a late payment for the old
+// invoice is credited to the next owner and invoice.late_payment never fires.
+// Runtime reads keep Validate so an existing pool is not stopped by this rule.
+func (p WalletPoolPolicy) ValidateUpdate(capabilities ChainFamilyCapabilities) error {
+	if err := p.Validate(capabilities); err != nil {
+		return err
+	}
+	if p.Enabled && p.AddressReuseCooldownSeconds <= 0 {
+		return apperror.NewValidation("addressReuseCooldownSeconds must be positive for an enabled wallet pool").
+			WithDetail("field", "addressReuseCooldownSeconds")
+	}
+	return nil
+}
+
 func (p WalletPoolPolicy) Validate(capabilities ChainFamilyCapabilities) error {
 	if err := capabilities.Validate(); err != nil {
 		return apperror.NewValidation("invalid wallet pool capabilities").WithCause(err)

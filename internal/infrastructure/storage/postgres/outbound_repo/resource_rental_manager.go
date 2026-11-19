@@ -135,7 +135,7 @@ func scanResourceRental(row pgx.Row, claimed ...bool) (*ResourceRentalRecord, er
 	fields := []any{&rental.ID, &rental.ProviderAccountID, &rental.NetworkID, &rental.ReceiveWalletID,
 		&rental.CostTokenID, &rental.RequestedAmount, &rental.DelegatedAmount,
 		&rental.GrossCostAmount, &rental.RefundAmount, &rental.Provider,
-		&rental.OutTradeNo, &rental.ExternalSerial, &rental.Status, &rental.ExpiresAt, &rental.ReceiveAddress}
+		&rental.OutTradeNo, &rental.ExternalSerial, &rental.Status, &rental.ExpiresAt, &rental.ReceiveAddress, &rental.CreatedAt}
 	if len(claimed) > 0 && claimed[0] {
 		fields = append(fields, &rental.MaintenanceClaimToken)
 	}
@@ -155,7 +155,7 @@ func (r *OutboundRepo) GetOpenWalletRental(ctx context.Context, networkID, walle
 		SELECT id, provider_account_id, network_id, receive_wallet_id, cost_token_id,
 		       requested_amount, delegated_amount, gross_cost_amount, refund_amount,
 		       provider, out_trade_no, external_serial, status, expires_at,
-		       (SELECT address FROM cat_wallets WHERE id=receive_wallet_id)
+		       (SELECT address FROM cat_wallets WHERE id=receive_wallet_id), created_at
 		FROM doc_crypto_resource_rentals
 		WHERE network_id = $1 AND receive_wallet_id = $2
 		  AND resource_type = 'energy'
@@ -199,7 +199,7 @@ func (r *OutboundRepo) TryReserveResource(ctx context.Context, req ResourceReque
 			SELECT id, provider_account_id, network_id, receive_wallet_id, cost_token_id,
 			       requested_amount, delegated_amount, gross_cost_amount, refund_amount,
 			       provider, out_trade_no, external_serial, status, expires_at,
-			       (SELECT address FROM cat_wallets WHERE id=receive_wallet_id)
+			       (SELECT address FROM cat_wallets WHERE id=receive_wallet_id), created_at
 			FROM doc_crypto_resource_rentals
 			WHERE network_id = $1 AND receive_wallet_id = $2
 			  AND resource_type = 'energy' AND status = 'active'
@@ -879,7 +879,7 @@ func (r *OutboundRepo) claimResourceRentalsForMaintenance(ctx context.Context, w
 			RETURNING r.id,r.provider_account_id,r.network_id,r.receive_wallet_id,r.cost_token_id,
 			          r.requested_amount,r.delegated_amount,r.gross_cost_amount,r.refund_amount,
 			          r.provider,r.out_trade_no,r.external_serial,r.status,r.expires_at,
-			          (SELECT address FROM cat_wallets WHERE id=r.receive_wallet_id),r.maintenance_claim_token
+			          (SELECT address FROM cat_wallets WHERE id=r.receive_wallet_id),r.created_at,r.maintenance_claim_token
 		)
 		SELECT * FROM claimed
 	`, limit, workerID, int64(outboundSettlementLease.Seconds()))

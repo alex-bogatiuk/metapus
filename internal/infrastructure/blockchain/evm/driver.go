@@ -22,6 +22,7 @@ import (
 	"metapus/internal/domain/catalogs/token"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
+	"metapus/pkg/logger"
 )
 
 const (
@@ -711,17 +712,55 @@ func (d *Driver) ReconcileStartup(ctx context.Context) error {
 	if !ok {
 		return errors.New("EVM nonce manager does not implement startup reconciliation")
 	}
-	divergences, err := reconciler.ReconcileStartup(ctx, d.network.ID, d)
-	if err != nil {
-		return err
+	var divergences []NonceDivergence
+	recoverer, recoverable := d.nonces.(StartupNonceRecoverer)
+	if recoverable {
+		report, err := recoverer.ReconcileStartupReport(ctx, d.network.ID, d)
+		if err != nil {
+			return err
+		}
+		divergences = report.Divergences
+		if err := d.releaseVerifiedNonceHolds(ctx, recoverer, report.Verified); err != nil {
+			return err
+		}
+	} else {
+		var err error
+		if divergences, err = reconciler.ReconcileStartup(ctx, d.network.ID, d); err != nil {
+			return err
+		}
 	}
 	for _, divergence := range divergences {
-		if err := d.HoldNonceDivergence(ctx, divergence.SourceAddress, divergence.Reason); err != nil {
+		if err := d.holdNonceDivergence(ctx, divergence); err != nil {
 			return err
 		}
 	}
 	if len(divergences) > 0 {
 		return fmt.Errorf("EVM startup nonce reconciliation found %d divergence(s)", len(divergences))
+	}
+	return nil
+}
+
+// releaseVerifiedNonceHolds resolves the network hold before the cursor hold:
+// an interrupted release leaves the cursor held, and the next startup repeats
+// both idempotent steps.
+func (d *Driver) releaseVerifiedNonceHolds(ctx context.Context, recoverer StartupNonceRecoverer, verified []VerifiedNonceHold) error {
+	if len(verified) == 0 {
+		return nil
+	}
+	releaser, ok := d.holdRecorder.(crypto.NetworkOperationalHoldReleaser)
+	if !ok {
+		return nil // Without network hold resolution the cursor stays held for an operator.
+	}
+	for _, hold := range verified {
+		subject := map[string]string{"sourceAddress": hold.SourceAddress, "reason": NonceProviderDisagreement}
+		if err := releaser.ReleaseNetworkHolds(ctx, d.network.ID, crypto.OperationalHoldNonceDivergence, subject,
+			"provider disagreement re-verified: fresh provider quorum agrees with the fenced DB cursor"); err != nil {
+			return fmt.Errorf("release nonce divergence network hold for %s: %w", hold.SourceAddress, err)
+		}
+		if err := recoverer.ReleaseVerifiedHold(ctx, d.network.ID, hold); err != nil {
+			return err
+		}
+		logger.Info(ctx, "EVM nonce provider-disagreement hold released after re-verification", "network_id", d.network.ID, "source_address", hold.SourceAddress, "next_nonce", hold.NextNonce)
 	}
 	return nil
 }
@@ -747,6 +786,19 @@ func (d *Driver) AssessReplacement(ctx context.Context, sourceAddress, networkSe
 		hashes = append(hashes, common.HexToHash(value))
 	}
 	return d.rpc.assessReplacement(ctx, common.HexToAddress(source), nonce, hashes), nil
+}
+
+// holdNonceDivergence keys the startup incident by the fenced DB cursor, so a
+// divergence recurring after a re-verified release opens a new incident.
+func (d *Driver) holdNonceDivergence(ctx context.Context, divergence NonceDivergence) error {
+	if divergence.NextNonce == "" {
+		return d.HoldNonceDivergence(ctx, divergence.SourceAddress, divergence.Reason)
+	}
+	if err := d.nonces.HoldSource(ctx, d.network.ID, divergence.SourceAddress, divergence.Reason); err != nil {
+		return err
+	}
+	return d.holdRecorder.HoldNetwork(ctx, d.network.ID, crypto.OperationalHoldNonceDivergence,
+		map[string]any{"sourceAddress": divergence.SourceAddress, "reason": divergence.Reason, "dbNextNonce": divergence.NextNonce})
 }
 
 func (d *Driver) HoldNonceDivergence(ctx context.Context, sourceAddress, reason string) error {

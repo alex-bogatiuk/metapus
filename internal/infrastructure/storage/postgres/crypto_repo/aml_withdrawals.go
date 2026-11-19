@@ -176,6 +176,15 @@ func (r *AMLRepository) CancelAMLWithdrawalRemainder(ctx context.Context, mercha
 	var postedVersion int
 	err := q.QueryRow(ctx, `SELECT p.network_id,p.token_id,r.posted_version FROM reg_crypto_aml_withdrawal_plans p JOIN doc_withdrawal_requests r ON r.id=p.request_id WHERE p.request_id=$1 AND p.merchant_id=$2 AND r.status IN ('approved','signing','broadcast','held')`, requestID, merchant).Scan(&network, &token, &postedVersion)
 	if errors.Is(err, pgx.ErrNoRows) {
+		var status string
+		var planned bool
+		if lookupErr := q.QueryRow(ctx, `SELECT r.status,EXISTS(SELECT 1 FROM reg_crypto_aml_withdrawal_plans p WHERE p.request_id=r.id)
+ FROM doc_withdrawal_requests r WHERE r.id=$1 AND r.merchant_id=$2`, requestID, merchant).Scan(&status, &planned); lookupErr == nil && !planned {
+			// A request without an AML plan has no remainder to release: its
+			// whole amount is already in execution and cannot be cancelled.
+			return amount, apperror.NewConflict("withdrawal request can no longer be cancelled: it is already "+status).
+				WithDetail("status", status)
+		}
 		return amount, apperror.NewConflict("withdrawal has no cancellable AML remainder")
 	}
 	if err != nil {

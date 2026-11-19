@@ -4,6 +4,7 @@ package token
 
 import (
 	"context"
+	"fmt"
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/entity"
@@ -113,8 +114,35 @@ func (t *Token) Validate(ctx context.Context) error {
 		return apperror.NewValidation("sweep max age must be non-negative").
 			WithDetail("field", "sweepMaxAgeHours")
 	}
+	if _, _, err := t.DustThreshold(); err != nil {
+		return apperror.NewValidation(err.Error()).WithDetail("field", "attributes."+DustThresholdAttribute)
+	}
 
 	return nil
+}
+
+// DustThresholdAttribute overrides the incoming dust threshold of a token in
+// raw units. The network default is one value in token units (0.001 token),
+// which is $0.001 for a stablecoin but about $2 for ETH, so valuable natives
+// need their own threshold.
+const DustThresholdAttribute = "dustThreshold"
+
+// DustThreshold returns the configured raw dust threshold, if any. The value
+// must be a canonical non-negative integer string, like every money amount.
+func (t *Token) DustThreshold() (types.RawAmount, bool, error) {
+	raw, exists := t.Attributes[DustThresholdAttribute]
+	if !exists || raw == nil {
+		return types.ZeroRawAmount(), false, nil
+	}
+	value, ok := raw.(string)
+	if !ok {
+		return types.ZeroRawAmount(), false, fmt.Errorf("%s must be a decimal string in raw units", DustThresholdAttribute)
+	}
+	amount, err := types.NewRawAmountFromString(value)
+	if err != nil {
+		return types.ZeroRawAmount(), false, fmt.Errorf("%s must be a canonical non-negative integer in raw units", DustThresholdAttribute)
+	}
+	return amount, true, nil
 }
 
 // IsNative returns true if this is the network's native token.

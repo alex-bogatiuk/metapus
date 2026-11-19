@@ -418,6 +418,12 @@ func (p *rpcGeneration) ObserveNonceState(ctx context.Context, sourceAddress str
 		}
 		type values struct{ latest, pending uint64 }
 		observation, readErr := endpointRead(ctx, p, endpoint, opState, func(attempt context.Context, client *ethclient.Client) (values, error) {
+			// A provider with a stale head reports the nonce of an old block.
+			// It is unavailable evidence, never a disagreement: counting it
+			// would hold healthy sources permanently on a lagging RPC.
+			if _, err := p.readHeader(attempt, client, nil); err != nil {
+				return values{}, err
+			}
 			latest, err := client.NonceAt(attempt, common.HexToAddress(normalized), nil)
 			if err != nil {
 				return values{}, err

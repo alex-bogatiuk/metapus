@@ -33,6 +33,9 @@ func (p *EventProcessor) dustThresholdForToken(tok *token.Token) types.RawAmount
 	if tok == nil {
 		return p.dustThreshold
 	}
+	if configured, ok, err := tok.DustThreshold(); err == nil && ok {
+		return configured
+	}
 	value := p.dustThreshold.BigInt()
 	if tok.DecimalPlaces >= 6 {
 		factor := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(tok.DecimalPlaces-6)), nil)

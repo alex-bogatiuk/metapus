@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"metapus/internal/core/json"
+	"metapus/internal/domain/catalogs/crypto_provider_account"
 	"metapus/internal/domain/crypto"
 )
 
@@ -60,10 +61,10 @@ func (c Config) validate() error {
 	if strings.TrimSpace(c.BaseURL) == "" {
 		return fmt.Errorf("iTRX base URL is required when provider credentials are configured")
 	}
-	parsed, err := url.Parse(c.BaseURL)
-	if err != nil || parsed.Host == "" || parsed.User != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") {
-		return fmt.Errorf("iTRX base URL must be an absolute HTTP(S) URL without userinfo")
+	if err := crypto_provider_account.ValidateBaseURL(c.BaseURL); err != nil {
+		return fmt.Errorf("iTRX base URL is invalid: %w", err)
 	}
+	parsed, _ := url.Parse(strings.TrimSpace(c.BaseURL))
 	if strings.EqualFold(strings.TrimSpace(c.AppEnv), "production") && parsed.Scheme != "https" {
 		return fmt.Errorf("iTRX base URL must use HTTPS in production")
 	}
@@ -232,9 +233,21 @@ func (c *client) QueryOrder(ctx context.Context, serial, outTradeNo string) (ord
 		if resp.Message == "" {
 			resp.Message = fmt.Sprintf("itrx errno %d", resp.Errno)
 		}
+		if orderNotFoundMessage(resp.Message) {
+			return resp, fmt.Errorf("%w: itrx query order rejected: %s", crypto.ErrResourceOrderNotFound, resp.Message)
+		}
 		return resp, fmt.Errorf("itrx query order rejected: %s", resp.Message)
 	}
 	return resp, nil
+}
+
+// orderNotFoundMessage recognizes iTRX's explicit "no such order" reply
+// ("Can’t find the order.", typographic or plain apostrophe). Other rejections
+// stay ambiguous.
+func orderNotFoundMessage(message string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(message, "’", "'"))
+	return strings.Contains(normalized, "can't find the order") || strings.Contains(normalized, "order not found") ||
+		strings.Contains(normalized, "order does not exist")
 }
 
 func (c *client) doSignedPost(ctx context.Context, path string, payload any) (json.RawMessage, error) {

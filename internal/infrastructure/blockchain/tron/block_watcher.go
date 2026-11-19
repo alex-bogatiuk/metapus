@@ -32,7 +32,16 @@ type blockWatcher struct {
 	assets     []crypto.AssetRef
 	lastAudit  time.Time
 	prefetched map[int64]prefetchedBlock
+	// backlog reports that the last successful solidified poll ended below the
+	// agreed head, so the next window starts without the poll interval.
+	backlog bool
 }
+
+// solidifiedTipWindow is the window at the agreed head. Behind it the window
+// grows to TRONSettings.SolidifiedCatchUpBlocks: a fixed four-block window
+// every two seconds commits slower than TRON produces blocks, so an outage
+// longer than a few minutes never recovers.
+const solidifiedTipWindow = 4
 
 // Targets are refreshed transactionally by CaptureBlock, including when an
 // address is issued during the RPC read.
@@ -176,6 +185,9 @@ func (w *blockWatcher) run(ctx context.Context, _ crypto.BlockchainEventSink) er
 				}
 			}
 		}
+		if pollErr == nil && !w.latest && w.backlog {
+			continue // Behind the agreed head: the next window starts at once.
+		}
 		select {
 		case <-workCtx.Done():
 		case <-ticker.C:
@@ -227,9 +239,16 @@ func (w *blockWatcher) pollSolidified(ctx context.Context, state *crypto.Watcher
 	if err != nil {
 		return err
 	}
-	end := min(window.solidified.BlockHeader.RawData.Number, state.LastBlock+4)
+	w.backlog = false
+	settings := w.driver.rpc.settings.Defaults()
+	head := window.solidified.BlockHeader.RawData.Number
+	size := int64(solidifiedTipWindow)
+	if head-state.LastBlock > size {
+		size = int64(settings.SolidifiedCatchUpBlocks)
+	}
+	end := min(head, state.LastBlock+size)
 	if w.prefetched == nil {
-		w.prefetched = make(map[int64]prefetchedBlock, 4)
+		w.prefetched = make(map[int64]prefetchedBlock, size)
 	}
 	for height := range w.prefetched {
 		if height <= state.LastBlock || height > end {
@@ -261,7 +280,7 @@ func (w *blockWatcher) pollSolidified(ctx context.Context, state *crypto.Watcher
 	}
 	close(jobs)
 	var wg sync.WaitGroup
-	for range min(2, len(results)) {
+	for range min(settings.BackfillConcurrency, len(results)) {
 		wg.Go(func() {
 			for i := range jobs {
 				if ctx.Err() != nil {
@@ -305,6 +324,7 @@ func (w *blockWatcher) pollSolidified(ctx context.Context, state *crypto.Watcher
 		}
 		delete(w.prefetched, height)
 	}
+	w.backlog = head > state.LastBlock
 	return nil
 }
 

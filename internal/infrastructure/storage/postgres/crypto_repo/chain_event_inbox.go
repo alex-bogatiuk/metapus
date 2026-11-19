@@ -289,6 +289,19 @@ func (r *ChainEventInboxRepo) ClaimReceiptCandidates(ctx context.Context, limit 
 	if limit <= 0 {
 		limit = 50
 	}
+	// A transfer the Funding CLI already recognized has its financial owner:
+	// retrying a receipt for it can never succeed and, once its RPC history is
+	// pruned, retried forever.
+	if _, err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).Exec(ctx, `
+		UPDATE `+_inboundChainEventsTable+` e
+		SET match_status = $1, match_reason = $2, receipt_check_at = NULL, receipt_error = '', version = version + 1
+		WHERE e.receipt_id IS NULL AND e._deleted_at IS NULL AND e.match_status IN ('unmatched','needs_review')
+		  AND EXISTS (SELECT 1 FROM reg_crypto_wallet_fundings f
+		      WHERE f.network_id = e.network_id AND f.wallet_id = e.wallet_id AND f.token_id = e.token_id
+		        AND regexp_replace(LOWER(f.tx_hash), '^0x', '') = regexp_replace(LOWER(e.tx_hash), '^0x', '') AND f.amount = e.amount)
+	`, crypto.InboxIgnored, crypto.MatchReasonWalletFunding); err != nil {
+		return nil, fmt.Errorf("retire inbox events recognized as wallet funding: %w", err)
+	}
 	var rows []crypto.InboundChainEvent
 	err := pgxscan.Select(ctx, postgres.MustGetTxManager(ctx).GetQuerier(ctx), &rows, `
 		UPDATE `+_inboundChainEventsTable+`
