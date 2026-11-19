@@ -21,6 +21,7 @@ var rpcProfiles = map[integrations.Provider][]RPCProfile{
 		{Family: "tron", NetworkIdentifier: "nile", Roles: []string{"fullnode", "solidity"}, Host: "tron-testnet.g.alchemy.com", BasePath: "/v2", TrustGroup: "alchemy"},
 	},
 	cryptointegrations.Infura: {{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "sepolia.infura.io", BasePath: "/v3", TrustGroup: "infura", KeyName: "sepolia"}},
+	cryptointegrations.Ankr:   {{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "rpc.ankr.com", BasePath: "/eth_sepolia", TrustGroup: "ankr", KeyName: "sepolia"}},
 	cryptointegrations.TronAPI: {
 		{Family: "tron", NetworkIdentifier: "nile", Roles: []string{"fullnode", "solidity", "indexer"}, Host: "nile.trongrid.io", TrustGroup: "trongrid"},
 		{Family: "tron", NetworkIdentifier: "mainnet", Roles: []string{"fullnode", "solidity", "indexer"}, Host: "api.trongrid.io", TrustGroup: "trongrid"},
@@ -33,13 +34,13 @@ var rpcProfiles = map[integrations.Provider][]RPCProfile{
 }
 
 // rpcProviderOrder fixes host lookup order across operators.
-var rpcProviderOrder = []integrations.Provider{cryptointegrations.DRPC, cryptointegrations.Alchemy, cryptointegrations.Infura, cryptointegrations.TronAPI, cryptointegrations.Chainstack, cryptointegrations.GetBlock}
+var rpcProviderOrder = []integrations.Provider{cryptointegrations.DRPC, cryptointegrations.Alchemy, cryptointegrations.Ankr, cryptointegrations.Infura, cryptointegrations.TronAPI, cryptointegrations.Chainstack, cryptointegrations.GetBlock}
 
 // managedRPCOnly marks operators whose endpoints must read keys from an
 // integration account pool.
 var managedRPCOnly = map[integrations.Provider]bool{
 	cryptointegrations.DRPC: true, cryptointegrations.Alchemy: true, cryptointegrations.Infura: true,
-	cryptointegrations.Chainstack: true, cryptointegrations.GetBlock: true,
+	cryptointegrations.Chainstack: true, cryptointegrations.GetBlock: true, cryptointegrations.Ankr: true,
 }
 
 // RPCProfiles returns copies of the provider's RPC profiles.

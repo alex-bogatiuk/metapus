@@ -7,31 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/core/json"
 	model "metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/providerpolicy"
 )
-
-func drpcError(body []byte) (int, string) {
-	var envelope struct {
-		Error struct {
-			Code    int    `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if json.Unmarshal(body, &envelope) != nil {
-		return 0, ""
-	}
-	return envelope.Error.Code, strings.ToLower(envelope.Error.Message)
-}
-
-func drpcRangeLimit(status int, body []byte) bool {
-	if status != http.StatusBadRequest && status != http.StatusOK {
-		return false
-	}
-	code, text := drpcError(body)
-	return code == 35 && strings.Contains(text, "range") && strings.Contains(text, "blocks") && strings.Contains(text, "not supported") && strings.Contains(text, "plan")
-}
 
 func drpc() profiles.Profile {
 	return profiles.Profile{Provider: cryptointegrations.DRPC, Authorize: pathSuffix(cryptointegrations.DRPC, model.CredentialURLSafe),
@@ -45,10 +23,9 @@ func drpc() profiles.Profile {
 			if status != http.StatusForbidden && status != http.StatusOK {
 				return ""
 			}
-			code, _ := drpcError(body)
 			// dRPC documents separate billing, key authentication and feature errors.
 			// An unknown 403 must not invalidate an otherwise usable account.
-			switch code {
+			switch readRPCError[rpcErrorDetails](body).Code {
 			case 10, 52, 53:
 				return model.Exhausted
 			case 4, 9, 32:
@@ -59,29 +36,31 @@ func drpc() profiles.Profile {
 			return ""
 		},
 		RetryAt: func(status int, headers http.Header, body []byte, now time.Time) time.Time {
-			code, _ := drpcError(body)
-			if (status == http.StatusForbidden || status == http.StatusOK) && code == 24 {
+			if (status == http.StatusForbidden || status == http.StatusOK) && readRPCError[rpcErrorDetails](body).Code == 24 {
 				return now.UTC().Truncate(24 * time.Hour).Add(24 * time.Hour)
 			}
 			return profiles.RetryAt(headers.Get("Retry-After"), now)
 		},
 		ResponseError: func(status int, body []byte) error {
-			if drpcRangeLimit(status, body) {
-				return providerpolicy.ErrQueryLimit
+			if status != http.StatusForbidden && status != http.StatusBadRequest && status != http.StatusOK {
+				return nil
 			}
-			if status == http.StatusForbidden || status == http.StatusBadRequest || status == http.StatusOK {
-				code, message := drpcError(body)
-				if code == 35 && strings.Contains(message, "chain is not available") && strings.Contains(message, "plan") {
+			detail := readRPCError[rpcErrorDetails](body)
+			switch detail.Code {
+			case 35:
+				message := strings.ToLower(detail.Message)
+				if status != http.StatusForbidden && strings.Contains(message, "range") && strings.Contains(message, "blocks") && strings.Contains(message, "not supported") && strings.Contains(message, "plan") {
+					return providerpolicy.ErrQueryLimit
+				}
+				if strings.Contains(message, "chain is not available") && strings.Contains(message, "plan") {
 					return profiles.ErrAccessDenied
 				}
-				switch code {
-				case 29, 48, 51:
-					return providerpolicy.ErrUnsupported
-				case 47:
-					return providerpolicy.ErrInvalidRequest
-				case 50:
-					return profiles.ErrAccessDenied
-				}
+			case 29, 48, 51:
+				return providerpolicy.ErrUnsupported
+			case 47:
+				return providerpolicy.ErrInvalidRequest
+			case 50:
+				return profiles.ErrAccessDenied
 			}
 			if status == http.StatusForbidden {
 				return profiles.ErrAccessDenied

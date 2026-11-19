@@ -118,6 +118,24 @@ test("new accounts require a purpose and only show providers of that purpose", a
   await page.screenshot({ path: testInfo.outputPath("purpose-rpc-infura.png"), fullPage: true })
 })
 
+test("Ankr Freemium creates a monthly account from a Sepolia endpoint", async ({ page }) => {
+  const writes = await setup(page, "ankr")
+  await page.goto("/catalogs/integration-accounts/new")
+  await chooseProvider(page, "Ankr")
+  await page.getByLabel("Наименование", { exact: true }).fill("Ankr Sepolia")
+  await expect(page.getByLabel("День обновления квоты", { exact: true })).toBeVisible()
+  const key = page.getByLabel("Ключ Ankr", { exact: true })
+  await key.fill("https://rpc.ankr.com/eth/test-project-key")
+  await page.getByRole("button", { name: "Записать", exact: true }).click()
+  await expect(key).toHaveAttribute("aria-invalid", "true")
+  expect(writes).toHaveLength(0)
+  await key.fill("https://rpc.ankr.com/eth_sepolia/test-project-key")
+  await page.getByRole("button", { name: "Записать", exact: true }).click()
+  await expect.poll(() => writes.length).toBe(1)
+  expect(writes[0]).toMatchObject({ provider: "ankr", credentials: { keys: [{ name: "sepolia", value: "test-project-key" }] } })
+  expect(JSON.stringify(writes[0])).not.toContain("rpc.ankr.com")
+})
+
 test("changing purpose confirms clearing secrets and sends no duplicate account type", async ({ page }) => {
   const writes = await setup(page)
   await page.goto("/catalogs/integration-accounts/new")

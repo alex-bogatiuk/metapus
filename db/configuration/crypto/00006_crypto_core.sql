@@ -2815,9 +2815,9 @@ ON CONFLICT DO NOTHING;
 
 -- Integration providers of this configuration (cryptointegrations.Catalog):
 -- the platform's and its own. dRPC is the only provider with a manual key period.
-ALTER TABLE cat_integration_accounts ADD CONSTRAINT ck_integration_accounts_provider CHECK (provider IN ('alchemy','coingecko_demo','tron_api','chainstack','getblock','infura','drpc','telegram','smtp','resource_api','getblock_net','testnet_aml'));
+ALTER TABLE cat_integration_accounts ADD CONSTRAINT ck_integration_accounts_provider CHECK (provider IN ('alchemy','ankr','coingecko_demo','tron_api','chainstack','getblock','infura','drpc','telegram','smtp','resource_api','getblock_net','testnet_aml'));
 ALTER TABLE cat_integration_accounts ADD CONSTRAINT ck_integration_accounts_drpc_manual_period CHECK ((provider='drpc') = (credentials_expires_at IS NOT NULL));
-ALTER TABLE cat_integration_pools ADD CONSTRAINT ck_integration_pools_provider CHECK (provider IN ('alchemy','coingecko_demo','tron_api','chainstack','getblock','infura','drpc','telegram','smtp','resource_api','getblock_net','testnet_aml'));
+ALTER TABLE cat_integration_pools ADD CONSTRAINT ck_integration_pools_provider CHECK (provider IN ('alchemy','ankr','coingecko_demo','tron_api','chainstack','getblock','infura','drpc','telegram','smtp','resource_api','getblock_net','testnet_aml'));
 -- +goose StatementEnd
 
 -- +goose Down

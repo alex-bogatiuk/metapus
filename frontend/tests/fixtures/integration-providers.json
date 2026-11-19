@@ -77,6 +77,28 @@
       "quotaPolicy": "monthly"
     },
     {
+      "id": "ankr",
+      "label": "Ankr",
+      "description": "Ethereum Sepolia по тарифу Freemium.",
+      "kinds": ["rpc"],
+      "canCreate": true,
+      "credentials": {
+        "fields": [{
+          "name": "sepolia",
+          "label": "Ключ Ankr",
+          "description": "Ключ проекта или HTTPS-ссылка Ethereum Sepolia из Ankr."
+        }],
+        "replaceLabel": "Заменить ключ…",
+        "description": "Укажите день и часовой пояс обновления месячной квоты аккаунта Ankr.",
+        "inputFormat": "",
+        "keyFormat": "url_safe",
+        "requireFields": true,
+        "singleKey": true,
+        "urlImports": [{ "host": "rpc.ankr.com", "pathPrefix": "/eth_sepolia" }]
+      },
+      "quotaPolicy": "monthly"
+    },
+    {
       "id": "infura",
       "label": "Infura",
       "description": "Доступ к Ethereum Sepolia через RPC.",

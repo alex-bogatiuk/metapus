@@ -8,10 +8,15 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/core/json"
 	model "metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/providerpolicy"
 )
+
+type chainstackRetryHint struct {
+	Data struct {
+		TryAgainIn string `json:"try_again_in"`
+	} `json:"data"`
+}
 
 func chainstack() profiles.Profile {
 	return profiles.Profile{Provider: cryptointegrations.Chainstack, Authorize: pathPrefix(cryptointegrations.Chainstack),
@@ -24,15 +29,9 @@ func chainstack() profiles.Profile {
 		},
 		RetryAt: func(_ int, headers http.Header, body []byte, now time.Time) time.Time {
 			at := profiles.RetryAt(headers.Get("Retry-After"), now)
-			var envelope struct {
-				Error struct {
-					Data struct {
-						TryAgainIn string `json:"try_again_in"`
-					} `json:"data"`
-				} `json:"error"`
-			}
-			if headers.Get("Retry-After") == "" && json.Unmarshal(body, &envelope) == nil {
-				if delay, err := time.ParseDuration(envelope.Error.Data.TryAgainIn); err == nil && delay > 0 {
+			if headers.Get("Retry-After") == "" {
+				hint := readRPCError[chainstackRetryHint](body)
+				if delay, err := time.ParseDuration(hint.Data.TryAgainIn); err == nil && delay > 0 {
 					at = now.Add(min(delay, 24*time.Hour))
 				}
 			}
@@ -42,13 +41,8 @@ func chainstack() profiles.Profile {
 			if status != http.StatusForbidden {
 				return nil
 			}
-			var denied struct {
-				Error struct {
-					Code    int    `json:"code"`
-					Message string `json:"message"`
-				} `json:"error"`
-			}
-			if json.Unmarshal(body, &denied) == nil && denied.Error.Code == -32002 && strings.Contains(strings.ToLower(denied.Error.Message), "archive, debug and trace requests are not available on your current plan") {
+			denied := readRPCError[rpcErrorDetails](body)
+			if denied.Code == -32002 && strings.Contains(strings.ToLower(denied.Message), "archive, debug and trace requests are not available on your current plan") {
 				return providerpolicy.ErrArchiveUnavailable
 			}
 			return profiles.ErrAccessDenied

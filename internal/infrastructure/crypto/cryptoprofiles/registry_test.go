@@ -37,6 +37,7 @@ func TestImportUsesProviderProfilesAndRejectsCredentialExfiltration(t *testing.T
 		{"https://eth-sepolia.g.alchemy.com/v2", "file-key", "rpc", "default", "https://eth-sepolia.g.alchemy.com/v2/", cryptointegrations.Alchemy},
 		{"https://tron-testnet.g.alchemy.com/v2", "file-key", "fullnode", "nile", "https://tron-testnet.g.alchemy.com/v2/", cryptointegrations.Alchemy},
 		{"https://sepolia.infura.io/v3/", "0123456789abcdef0123456789abcdef", "rpc", "sepolia", "https://sepolia.infura.io/v3/", cryptointegrations.Infura},
+		{"https://rpc.ankr.com/eth_sepolia", "file-key", "rpc", "sepolia", "https://rpc.ankr.com/eth_sepolia", cryptointegrations.Ankr},
 		{"https://tron-nile.core.chainstack.com/", "opaque-token", "fullnode", "nile", "https://tron-nile.core.chainstack.com/", cryptointegrations.Chainstack},
 		{"https://shared.eu-central-1.getblock.io/", "opaque-token", "solidity", "solidity", "https://shared.eu-central-1.getblock.io/", cryptointegrations.GetBlock},
 	} {

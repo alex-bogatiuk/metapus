@@ -21,6 +21,7 @@ const (
 // databases and must stay stable.
 const (
 	Alchemy     integrations.Provider = "alchemy"
+	Ankr        integrations.Provider = "ankr"
 	Infura      integrations.Provider = "infura"
 	DRPC        integrations.Provider = "drpc"
 	TronAPI     integrations.Provider = "tron_api"
@@ -50,6 +51,18 @@ func Providers() []integrations.ProviderDefinition {
 			Credentials:                 integrations.CredentialProfile{Fields: []integrations.CredentialField{{Name: "sepolia", Label: "Ключ dRPC", Description: "Ключ или HTTPS-ссылка Sepolia из dRPC."}}, ReplaceLabel: "Продлить ключ…", Description: "Новый ключ и новая дата сохраняются вместе. После срока доступ не возобновляется автоматически.", KeyFormat: integrations.CredentialURLSafe, RequireFields: true, SingleKey: true, KeyOnly: true, URLImports: []integrations.CredentialURLImport{{Host: "lb.drpc.live", PathPrefix: "/sepolia"}}},
 			AccountMinRequestIntervalMS: 200},
 		{ID: Alchemy, Label: "Alchemy", Description: "Доступ к EVM и TRON через RPC.", Kinds: []integrations.Kind{KindRPC}, CanCreate: true, QuotaPolicy: integrations.QuotaMonthly},
+		{
+			ID: Ankr, Label: "Ankr", Description: "Ethereum Sepolia по тарифу Freemium.",
+			Kinds: []integrations.Kind{KindRPC}, CanCreate: true, QuotaPolicy: integrations.QuotaMonthly,
+			Credentials: integrations.CredentialProfile{
+				Fields:       []integrations.CredentialField{{Name: "sepolia", Label: "Ключ Ankr", Description: "Ключ проекта или HTTPS-ссылка Ethereum Sepolia из Ankr."}},
+				ReplaceLabel: "Заменить ключ…", Description: "Укажите день и часовой пояс обновления месячной квоты аккаунта Ankr.",
+				KeyFormat: integrations.CredentialURLSafe, RequireFields: true, SingleKey: true, KeyOnly: true,
+				URLImports: []integrations.CredentialURLImport{{Host: "rpc.ankr.com", PathPrefix: "/eth_sepolia"}},
+			},
+			// Freemium Node API allows about 1800 requests/minute across endpoints.
+			AccountMinRequestIntervalMS: 34,
+		},
 		{ID: Infura, Label: "Infura", Description: "Доступ к Ethereum Sepolia через RPC.", Kinds: []integrations.Kind{KindRPC}, CanCreate: true, QuotaPolicy: integrations.QuotaDailyUTC, Credentials: integrations.CredentialProfile{
 			Fields:       []integrations.CredentialField{{Name: "sepolia", Label: "Ключ Infura", Description: "Ключ из 32 шестнадцатеричных символов или HTTPS-ссылка Ethereum Sepolia из Infura."}},
 			ReplaceLabel: "Заменить ключ…", Description: "Ссылка преобразуется в ключ. Суточная квота аккаунта обновляется в 00:00 UTC.", InputFormat: "infura_key", KeyFormat: integrations.CredentialHex32,
@@ -101,7 +114,7 @@ var catalog = sync.OnceValue(func() *integrations.Catalog {
 // kindOrder and providerOrder fix the listing order of the settings UI.
 var (
 	kindOrder     = []integrations.Kind{KindAML, KindRPC, integrations.KindExchangeRates, integrations.KindNotifications, KindResources}
-	providerOrder = []integrations.Provider{DRPC, Alchemy, Infura, integrations.CoinGeckoDemo, TronAPI, Chainstack, GetBlock, GetBlockNet, TestnetAML, integrations.Telegram, integrations.SMTP, ResourceAPI}
+	providerOrder = []integrations.Provider{DRPC, Alchemy, Ankr, Infura, integrations.CoinGeckoDemo, TronAPI, Chainstack, GetBlock, GetBlockNet, TestnetAML, integrations.Telegram, integrations.SMTP, ResourceAPI}
 )
 
 // Catalog is the application's catalog: platform and crypto kinds and
