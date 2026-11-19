@@ -136,6 +136,24 @@ test("Ankr Freemium creates a monthly account from a Sepolia endpoint", async ({
   expect(JSON.stringify(writes[0])).not.toContain("rpc.ankr.com")
 })
 
+for (const [label, provider, slot, input] of [
+  ["Validation Cloud", "validation_cloud", "sepolia", "https://sepolia.ethereum.validationcloud.io/v1/test-project-key"],
+  ["ZAN", "zan", "default", "https://api.zan.top/node/v1/tron/nile/test-project-key/jsonrpc"],
+  ["Uniblock", "uniblock", "default", "test-project-key"],
+]) {
+  test(`${label} saves its project key in the declared slot`, async ({ page }) => {
+    const writes = await setup(page, provider)
+    await page.goto("/catalogs/integration-accounts/new")
+    await chooseProvider(page, label)
+    await page.getByLabel("Наименование", { exact: true }).fill(label)
+    await page.getByLabel(`Ключ ${label}`, { exact: true }).fill(input)
+    await page.getByRole("button", { name: "Записать", exact: true }).click()
+    await expect.poll(() => writes.length).toBe(1)
+    expect(writes[0]).toMatchObject({ provider, credentials: { keys: [{ name: slot, value: "test-project-key" }] } })
+    expect(JSON.stringify(writes[0])).not.toContain("https://")
+  })
+}
+
 test("changing purpose confirms clearing secrets and sends no duplicate account type", async ({ page }) => {
   const writes = await setup(page)
   await page.goto("/catalogs/integration-accounts/new")

@@ -20,16 +20,19 @@ const (
 // Providers of the crypto configuration. Identifiers are stored in tenant
 // databases and must stay stable.
 const (
-	Alchemy     integrations.Provider = "alchemy"
-	Ankr        integrations.Provider = "ankr"
-	Infura      integrations.Provider = "infura"
-	DRPC        integrations.Provider = "drpc"
-	TronAPI     integrations.Provider = "tron_api"
-	Chainstack  integrations.Provider = "chainstack"
-	GetBlock    integrations.Provider = "getblock"
-	GetBlockNet integrations.Provider = "getblock_net"
-	TestnetAML  integrations.Provider = "testnet_aml"
-	ResourceAPI integrations.Provider = "resource_api"
+	Alchemy         integrations.Provider = "alchemy"
+	Ankr            integrations.Provider = "ankr"
+	ValidationCloud integrations.Provider = "validation_cloud"
+	ZAN             integrations.Provider = "zan"
+	Uniblock        integrations.Provider = "uniblock"
+	Infura          integrations.Provider = "infura"
+	DRPC            integrations.Provider = "drpc"
+	TronAPI         integrations.Provider = "tron_api"
+	Chainstack      integrations.Provider = "chainstack"
+	GetBlock        integrations.Provider = "getblock"
+	GetBlockNet     integrations.Provider = "getblock_net"
+	TestnetAML      integrations.Provider = "testnet_aml"
+	ResourceAPI     integrations.Provider = "resource_api"
 )
 
 const amlPoolSelectionDenied = "AML использует отдельный пакет и закреплённый аккаунт"
@@ -51,6 +54,14 @@ func Providers() []integrations.ProviderDefinition {
 			Credentials:                 integrations.CredentialProfile{Fields: []integrations.CredentialField{{Name: "sepolia", Label: "Ключ dRPC", Description: "Ключ или HTTPS-ссылка Sepolia из dRPC."}}, ReplaceLabel: "Продлить ключ…", Description: "Новый ключ и новая дата сохраняются вместе. После срока доступ не возобновляется автоматически.", KeyFormat: integrations.CredentialURLSafe, RequireFields: true, SingleKey: true, KeyOnly: true, URLImports: []integrations.CredentialURLImport{{Host: "lb.drpc.live", PathPrefix: "/sepolia"}}},
 			AccountMinRequestIntervalMS: 200},
 		{ID: Alchemy, Label: "Alchemy", Description: "Доступ к EVM и TRON через RPC.", Kinds: []integrations.Kind{KindRPC}, CanCreate: true, QuotaPolicy: integrations.QuotaMonthly},
+		monthlyRPC(ValidationCloud, "Validation Cloud", "Ethereum Sepolia.", "sepolia",
+			"Ключ или HTTPS-ссылка Ethereum Sepolia из Validation Cloud.",
+			integrations.CredentialURLImport{Host: "sepolia.ethereum.validationcloud.io", PathPrefix: "/v1"}),
+		monthlyRPC(ZAN, "ZAN", "Ethereum Sepolia и TRON Nile.", "default",
+			"Ключ проекта или HTTPS-ссылка Sepolia или Nile из ZAN.",
+			integrations.CredentialURLImport{Host: "api.zan.top", PathPrefix: "/node/v1/eth/sepolia"},
+			integrations.CredentialURLImport{Host: "api.zan.top", PathPrefix: "/node/v1/tron/nile", RolePaths: map[string]string{"default": "jsonrpc"}}),
+		monthlyRPC(Uniblock, "Uniblock", "Ethereum Sepolia через Uniblock JSON-RPC.", "default", "API-ключ проекта Uniblock."),
 		{
 			ID: Ankr, Label: "Ankr", Description: "Ethereum Sepolia по тарифу Freemium.",
 			Kinds: []integrations.Kind{KindRPC}, CanCreate: true, QuotaPolicy: integrations.QuotaMonthly,
@@ -88,6 +99,19 @@ func Providers() []integrations.ProviderDefinition {
 	}
 }
 
+// monthlyRPC describes an RPC account with one project key and a monthly quota.
+func monthlyRPC(provider integrations.Provider, label, description, slot, keyHelp string, imports ...integrations.CredentialURLImport) integrations.ProviderDefinition {
+	return integrations.ProviderDefinition{
+		ID: provider, Label: label, Description: description, Kinds: []integrations.Kind{KindRPC},
+		CanCreate: true, QuotaPolicy: integrations.QuotaMonthly,
+		Credentials: integrations.CredentialProfile{
+			Fields:       []integrations.CredentialField{{Name: slot, Label: "Ключ " + label, Description: keyHelp}},
+			ReplaceLabel: "Заменить ключ…", KeyFormat: integrations.CredentialURLSafe,
+			RequireFields: true, SingleKey: true, KeyOnly: true, URLImports: imports,
+		},
+	}
+}
+
 var catalog = sync.OnceValue(func() *integrations.Catalog {
 	kinds := map[integrations.Kind]integrations.KindDefinition{}
 	for _, kind := range append(integrations.PlatformKinds(), Kinds()...) {
@@ -114,7 +138,7 @@ var catalog = sync.OnceValue(func() *integrations.Catalog {
 // kindOrder and providerOrder fix the listing order of the settings UI.
 var (
 	kindOrder     = []integrations.Kind{KindAML, KindRPC, integrations.KindExchangeRates, integrations.KindNotifications, KindResources}
-	providerOrder = []integrations.Provider{DRPC, Alchemy, Ankr, Infura, integrations.CoinGeckoDemo, TronAPI, Chainstack, GetBlock, GetBlockNet, TestnetAML, integrations.Telegram, integrations.SMTP, ResourceAPI}
+	providerOrder = []integrations.Provider{DRPC, Alchemy, Ankr, Infura, ValidationCloud, ZAN, Uniblock, integrations.CoinGeckoDemo, TronAPI, Chainstack, GetBlock, GetBlockNet, TestnetAML, integrations.Telegram, integrations.SMTP, ResourceAPI}
 )
 
 // Catalog is the application's catalog: platform and crypto kinds and

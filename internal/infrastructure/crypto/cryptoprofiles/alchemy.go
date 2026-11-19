@@ -3,7 +3,6 @@ package cryptoprofiles
 import (
 	"errors"
 	"metapus/internal/domain/crypto/cryptointegrations"
-	"metapus/internal/domain/crypto/rpcconfig"
 	"metapus/internal/infrastructure/integrations/profiles"
 	"net/http"
 	"net/url"
@@ -13,7 +12,7 @@ import (
 )
 
 func alchemy() profiles.Profile {
-	return profiles.Profile{Provider: cryptointegrations.Alchemy, Authorize: authorizeAlchemy,
+	return profiles.Profile{Provider: cryptointegrations.Alchemy, Authorize: chainPathKey(cryptointegrations.Alchemy, ""),
 		Classify: func(status int, body []byte) model.Failure {
 			if alchemyNetworkDisabled(status, body) {
 				return ""
@@ -54,28 +53,4 @@ func alchemy() profiles.Profile {
 
 func alchemyNetworkDisabled(status int, body []byte) bool {
 	return status == http.StatusForbidden && strings.Contains(strings.ToLower(string(body)), "is not enabled for this app")
-}
-
-func authorizeAlchemy(r *http.Request, key string) error {
-	base := *r.URL
-	base.Path = "/v2/"
-	profile, ok := rpcconfig.RPCProfileForURL(cryptointegrations.Alchemy, base.String())
-	if !ok || r.URL.RawPath != "" || key == "" || strings.ContainsAny(key, "/\\?#%\r\n\t ") {
-		return errors.New("invalid Alchemy HTTP binding or key")
-	}
-	suffix := strings.TrimPrefix(r.URL.Path, profile.BasePath)
-	if profile.Family == "tron" {
-		role, method, found := strings.Cut(strings.TrimPrefix(suffix, "/"), "/")
-		if !strings.HasPrefix(suffix, "/") || !found || (role != "wallet" && role != "walletsolidity") || method == "" || strings.ContainsAny(method, "/\\.?#% \r\n\t") {
-			return errors.New("invalid Alchemy TRON method path")
-		}
-	} else if suffix != "" && suffix != "/" {
-		return errors.New("invalid Alchemy EVM method path")
-	} else {
-		suffix = ""
-	}
-	profiles.ClearAuthorization(r, tronHeader)
-	r.URL.Path = profile.BasePath + "/" + key + suffix
-	r.URL.RawPath = ""
-	return nil
 }

@@ -20,8 +20,14 @@ var rpcProfiles = map[integrations.Provider][]RPCProfile{
 		{Family: "tron", NetworkIdentifier: "mainnet", Roles: []string{"fullnode", "solidity"}, Host: "tron-mainnet.g.alchemy.com", BasePath: "/v2", TrustGroup: "alchemy"},
 		{Family: "tron", NetworkIdentifier: "nile", Roles: []string{"fullnode", "solidity"}, Host: "tron-testnet.g.alchemy.com", BasePath: "/v2", TrustGroup: "alchemy"},
 	},
-	cryptointegrations.Infura: {{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "sepolia.infura.io", BasePath: "/v3", TrustGroup: "infura", KeyName: "sepolia"}},
-	cryptointegrations.Ankr:   {{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "rpc.ankr.com", BasePath: "/eth_sepolia", TrustGroup: "ankr", KeyName: "sepolia"}},
+	cryptointegrations.Infura:          {{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "sepolia.infura.io", BasePath: "/v3", TrustGroup: "infura", KeyName: "sepolia"}},
+	cryptointegrations.Ankr:            {{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "rpc.ankr.com", BasePath: "/eth_sepolia", TrustGroup: "ankr", KeyName: "sepolia"}},
+	cryptointegrations.ValidationCloud: {{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "sepolia.ethereum.validationcloud.io", BasePath: "/v1", TrustGroup: "validation_cloud", KeyName: "sepolia"}},
+	cryptointegrations.ZAN: {
+		{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "api.zan.top", BasePath: "/node/v1/eth/sepolia", TrustGroup: "zan", KeyName: "default"},
+		{Family: "tron", NetworkIdentifier: "nile", Roles: []string{"fullnode", "solidity"}, Host: "api.zan.top", BasePath: "/node/v1/tron/nile", TrustGroup: "zan", KeyName: "default"},
+	},
+	cryptointegrations.Uniblock: {{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "api.uniblock.dev", BasePath: "/uni/v1/json-rpc", TrustGroup: "uniblock", KeyName: "default"}},
 	cryptointegrations.TronAPI: {
 		{Family: "tron", NetworkIdentifier: "nile", Roles: []string{"fullnode", "solidity", "indexer"}, Host: "nile.trongrid.io", TrustGroup: "trongrid"},
 		{Family: "tron", NetworkIdentifier: "mainnet", Roles: []string{"fullnode", "solidity", "indexer"}, Host: "api.trongrid.io", TrustGroup: "trongrid"},
@@ -34,13 +40,14 @@ var rpcProfiles = map[integrations.Provider][]RPCProfile{
 }
 
 // rpcProviderOrder fixes host lookup order across operators.
-var rpcProviderOrder = []integrations.Provider{cryptointegrations.DRPC, cryptointegrations.Alchemy, cryptointegrations.Ankr, cryptointegrations.Infura, cryptointegrations.TronAPI, cryptointegrations.Chainstack, cryptointegrations.GetBlock}
+var rpcProviderOrder = []integrations.Provider{cryptointegrations.DRPC, cryptointegrations.Alchemy, cryptointegrations.Ankr, cryptointegrations.ValidationCloud, cryptointegrations.ZAN, cryptointegrations.Uniblock, cryptointegrations.Infura, cryptointegrations.TronAPI, cryptointegrations.Chainstack, cryptointegrations.GetBlock}
 
 // managedRPCOnly marks operators whose endpoints must read keys from an
 // integration account pool.
 var managedRPCOnly = map[integrations.Provider]bool{
 	cryptointegrations.DRPC: true, cryptointegrations.Alchemy: true, cryptointegrations.Infura: true,
 	cryptointegrations.Chainstack: true, cryptointegrations.GetBlock: true, cryptointegrations.Ankr: true,
+	cryptointegrations.ValidationCloud: true, cryptointegrations.ZAN: true, cryptointegrations.Uniblock: true,
 }
 
 // RPCProfiles returns copies of the provider's RPC profiles.
@@ -110,18 +117,23 @@ func RPCProfileForURL(p integrations.Provider, raw string) (RPCProfile, bool) {
 	// A specific host owns its contract even when a broader suffix also matches.
 	// Do not fall back to another family when its base path is invalid.
 	var best RPCProfile
+	exactHost := false
 	for _, profile := range profiles {
 		if !profile.OwnsHost(u.Hostname()) {
 			continue
 		}
 		if profile.Host != "" {
-			return profile, profile.ValidBase(raw)
+			exactHost = true
+			if profile.ValidBase(raw) {
+				return profile, true
+			}
+			continue
 		}
 		if len(profile.HostSuffix) > len(best.HostSuffix) {
 			best = profile
 		}
 	}
-	return best, best.HostSuffix != "" && best.ValidBase(raw)
+	return best, !exactHost && best.HostSuffix != "" && best.ValidBase(raw)
 }
 
 // RPCKeyName returns the account key name that the provider profile requires

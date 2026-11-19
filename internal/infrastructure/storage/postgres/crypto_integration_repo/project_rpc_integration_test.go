@@ -1,0 +1,87 @@
+//go:build integration
+
+package crypto_integration_repo
+
+import (
+	"io"
+	"net/http"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"metapus/internal/core/id"
+	"metapus/internal/domain/crypto/cryptointegrations"
+	"metapus/internal/domain/crypto/rpcconfig"
+	"metapus/internal/domain/integrations"
+	"metapus/internal/infrastructure/crypto/cryptoprofiles"
+	integrationhttp "metapus/internal/infrastructure/integrations"
+)
+
+func TestProjectRPCPoolProbes(t *testing.T) {
+	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
+	ctx, db := fixtureDB(t)
+	var sepolia, nile id.ID
+	require.NoError(t, db.QueryRow(ctx, `SELECT id FROM cat_blockchain_networks WHERE code='ETHEREUM-SEPOLIA'`).Scan(&sepolia))
+	require.NoError(t, db.QueryRow(ctx, `INSERT INTO cat_blockchain_networks(code,name,chain_family,network_identifier,native_token_symbol,native_decimals) VALUES ('ZAN-NILE','ZAN Nile','tron','nile','TRX',6) RETURNING id`).Scan(&nile))
+	pools := map[integrations.Provider]id.ID{}
+	const key = "test-project-key"
+	for _, tt := range []struct {
+		provider                     integrations.Provider
+		slot, base, role, wireSuffix string
+		networkID                    id.ID
+	}{
+		{cryptointegrations.ValidationCloud, "sepolia", "https://sepolia.ethereum.validationcloud.io/v1", "rpc", "/" + key, sepolia},
+		{cryptointegrations.ZAN, "default", "https://api.zan.top/node/v1/eth/sepolia", "rpc", "/" + key, sepolia},
+		{cryptointegrations.ZAN, "default", "https://api.zan.top/node/v1/tron/nile", "fullnode", "/" + key + "/wallet/getnowblock", nile},
+		{cryptointegrations.ZAN, "default", "https://api.zan.top/node/v1/tron/nile", "solidity", "/" + key + "/walletsolidity/getnowblock", nile},
+		{cryptointegrations.Uniblock, "default", "https://api.uniblock.dev/uni/v1/json-rpc", "rpc", "?chainId=11155111", sepolia},
+	} {
+		t.Run(string(tt.provider)+"/"+tt.role, func(t *testing.T) {
+			code := strings.ToUpper(string(tt.provider))
+			poolID, exists := pools[tt.provider]
+			if !exists {
+				a := integrations.NewAccount(code, code)
+				a.Provider = tt.provider
+				a.PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: tt.slot, Value: key}}}
+				ar := NewIntegrationAccountRepo()
+				require.NoError(t, ar.Prepare(ctx, a, appDefinition(a.Provider)))
+				require.NoError(t, ar.Create(ctx, a))
+				p := integrations.NewPool(code, code)
+				p.Provider, p.AccountIDs = a.Provider, []id.ID{a.ID}
+				require.NoError(t, NewIntegrationPoolRepo().Create(ctx, p))
+				poolID, pools[tt.provider] = p.ID, p.ID
+			}
+			e := rpcconfig.NewRPCEndpoint(code+"-"+tt.role, code+" "+tt.role)
+			e.NetworkID, e.Role, e.ProviderID, e.TrustGroup = tt.networkID, tt.role, string(tt.provider), string(tt.provider)
+			e.URL, e.PoolID = tt.base, &poolID
+			require.NoError(t, NewCryptoRPCEndpointRepo().Create(ctx, e))
+			require.Equal(t, tt.slot, e.Slot)
+			target, err := NewConnectionTargets().ConnectionTarget(ctx, poolID)
+			require.NoError(t, err)
+			// One ZAN pool serves both networks. Exercise each concrete endpoint through the runtime resolver.
+			target.EndpointID, target.URL = e.ID, e.URL
+			target.Attributes = RPCTargetAttributes("evm", "11155111", tt.role)
+			reply := `{"jsonrpc":"2.0","id":1,"result":"0xaa36a7"}`
+			if tt.networkID == nile {
+				target.Attributes = RPCTargetAttributes("tron", "nile", tt.role)
+				reply = `{"blockID":"` + strings.Repeat("a", 64) + `","block_header":{"raw_data":{"number":100}}}`
+			}
+			calls := 0
+			prober := integrationhttp.ConnectionProber{Profiles: cryptoprofiles.Registry(), EndpointProbe: RPCProbe, EndpointTransport: RPCTransport, Base: mockRPCTransport(func(req *http.Request) (*http.Response, error) {
+				calls++
+				require.Equal(t, tt.base+tt.wireSuffix, req.URL.String())
+				if tt.provider == cryptointegrations.Uniblock {
+					require.Equal(t, key, req.Header.Get("X-Api-Key"))
+				} else {
+					require.Empty(t, req.Header.Get("X-Api-Key"))
+				}
+				return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(reply))}, nil
+			})}
+			ok, err := prober.Probe(ctx, target)
+			require.NoError(t, err)
+			require.True(t, ok)
+			require.Equal(t, 1, calls)
+		})
+	}
+}

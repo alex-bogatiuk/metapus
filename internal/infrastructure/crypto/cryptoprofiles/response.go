@@ -1,6 +1,8 @@
 package cryptoprofiles
 
 import (
+	"net/http"
+
 	"metapus/internal/core/json"
 	model "metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/integrations/profiles"
@@ -39,4 +41,15 @@ func hasTRONError(body []byte) bool {
 		Error json.RawMessage `json:"Error"`
 	}
 	return json.Unmarshal(body, &envelope) == nil && len(envelope.Error) > 0
+}
+
+// Only an HTTP gateway failure can change the account state. In particular, a
+// contract revert can contain arbitrary text that resembles a quota error.
+func gatewayHTTPFailure(status int, body []byte) model.Failure {
+	switch status {
+	case http.StatusUnauthorized, http.StatusForbidden, http.StatusPaymentRequired, http.StatusTooManyRequests:
+		return profiles.Classify(status, body)
+	default:
+		return ""
+	}
 }

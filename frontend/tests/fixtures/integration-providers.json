@@ -130,6 +130,100 @@
       "quotaPolicy": "daily_utc"
     },
     {
+      "id": "validation_cloud",
+      "label": "Validation Cloud",
+      "description": "Ethereum Sepolia.",
+      "kinds": [
+        "rpc"
+      ],
+      "canCreate": true,
+      "credentials": {
+        "fields": [
+          {
+            "name": "sepolia",
+            "label": "Ключ Validation Cloud",
+            "description": "Ключ или HTTPS-ссылка Ethereum Sepolia из Validation Cloud."
+          }
+        ],
+        "replaceLabel": "Заменить ключ…",
+        "description": "",
+        "inputFormat": "",
+        "keyFormat": "url_safe",
+        "requireFields": true,
+        "singleKey": true,
+        "urlImports": [
+          {
+            "host": "sepolia.ethereum.validationcloud.io",
+            "pathPrefix": "/v1"
+          }
+        ]
+      },
+      "quotaPolicy": "monthly"
+    },
+    {
+      "id": "zan",
+      "label": "ZAN",
+      "description": "Ethereum Sepolia и TRON Nile.",
+      "kinds": [
+        "rpc"
+      ],
+      "canCreate": true,
+      "credentials": {
+        "fields": [
+          {
+            "name": "default",
+            "label": "Ключ ZAN",
+            "description": "Ключ проекта или HTTPS-ссылка Sepolia или Nile из ZAN."
+          }
+        ],
+        "replaceLabel": "Заменить ключ…",
+        "description": "",
+        "inputFormat": "",
+        "keyFormat": "url_safe",
+        "requireFields": true,
+        "singleKey": true,
+        "urlImports": [
+          {
+            "host": "api.zan.top",
+            "pathPrefix": "/node/v1/eth/sepolia"
+          },
+          {
+            "host": "api.zan.top",
+            "pathPrefix": "/node/v1/tron/nile",
+            "rolePaths": {
+              "default": "jsonrpc"
+            }
+          }
+        ]
+      },
+      "quotaPolicy": "monthly"
+    },
+    {
+      "id": "uniblock",
+      "label": "Uniblock",
+      "description": "Ethereum Sepolia через Uniblock JSON-RPC.",
+      "kinds": [
+        "rpc"
+      ],
+      "canCreate": true,
+      "credentials": {
+        "fields": [
+          {
+            "name": "default",
+            "label": "Ключ Uniblock",
+            "description": "API-ключ проекта Uniblock."
+          }
+        ],
+        "replaceLabel": "Заменить ключ…",
+        "description": "",
+        "inputFormat": "",
+        "keyFormat": "url_safe",
+        "requireFields": true,
+        "singleKey": true
+      },
+      "quotaPolicy": "monthly"
+    },
+    {
       "id": "coingecko_demo",
       "label": "CoinGecko Demo",
       "description": "Котировки CoinGecko через Demo API.",

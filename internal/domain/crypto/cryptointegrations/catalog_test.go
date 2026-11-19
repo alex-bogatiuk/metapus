@@ -17,7 +17,7 @@ import (
 
 func TestProviderPurposesAndCreation(t *testing.T) {
 	catalog := Catalog()
-	for _, provider := range []integrations.Provider{Alchemy, Ankr, Infura, TronAPI, Chainstack, GetBlock, DRPC} {
+	for _, provider := range []integrations.Provider{Alchemy, Ankr, ValidationCloud, ZAN, Uniblock, Infura, TronAPI, Chainstack, GetBlock, DRPC} {
 		require.True(t, catalog.Supports(provider, KindRPC))
 		require.False(t, catalog.Supports(provider, integrations.KindExchangeRates))
 		require.NoError(t, catalog.ValidateCreation(provider))
