@@ -252,7 +252,15 @@ func (r *Runtime) Report(ctx context.Context, s integrations.Selection, f integr
 		invalid := -1
 		slots := []string{}
 		if f == integrations.Exhausted {
-			exhausted = &s.PeriodEnd
+			until := s.PeriodEnd
+			definition, err := r.catalog.Require(s.Provider)
+			if err != nil {
+				return err
+			}
+			if delay := definition.ExhaustionRecheck; delay > 0 && now.Add(delay).Before(until) {
+				until = now.Add(delay)
+			}
+			exhausted = &until
 		}
 		if f == integrations.Throttled {
 			throttled = &retry

@@ -159,3 +159,20 @@ func TestCanonicalHeaderCountsOneVotePerAlchemyAccountPool(t *testing.T) {
 	_, err = p.CanonicalHeaderByNumber(t.Context(), big.NewInt(100))
 	require.Error(t, err, "two Alchemy accounts must not replace an unavailable independent observation")
 }
+
+func TestAutoRoutedGatewayCanReadButCannotAttestToCanonicalHeader(t *testing.T) {
+	gateway := newHeaderRPCServer(t, common.HexToHash("0xaa"))
+	defer gateway.Close()
+	p, err := NewRPCPool(t.Context(), RPCPoolConfig{
+		NetworkCode: "test", ExpectedChainID: big.NewInt(11155111), FailureThreshold: 2, OpenDuration: time.Second,
+		Endpoints: []chainconfig.Endpoint{{ProviderID: "gateway", TrustGroup: "uniblock", URL: gateway.URL}},
+	})
+	require.NoError(t, err)
+	defer p.Close()
+	header, err := p.HeaderByNumber(t.Context(), big.NewInt(100))
+	require.NoError(t, err)
+	require.Equal(t, common.HexToHash("0xaa"), header.ParentHash)
+	header, err = p.CanonicalHeaderByNumber(t.Context(), big.NewInt(100))
+	require.Error(t, err)
+	require.Nil(t, header)
+}

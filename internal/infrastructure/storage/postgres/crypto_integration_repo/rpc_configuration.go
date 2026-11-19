@@ -80,7 +80,7 @@ func (r *RPCConfigurationRepo) load(ctx context.Context, network id.ID) (rpcConf
 	state.view.DefaultSettings = (rpcconfig.RPCNetworkSettings{}).Defaults(family)
 	for _, e := range state.records {
 		endpoint := rpcconfig.RPCConfiguredEndpoint{EndpointID: e.ID, ConfigVersion: e.Version, ProviderID: e.ProviderID, TrustGroup: e.TrustGroup, URL: e.URL, Priority: e.Priority, MinRequestIntervalMS: e.MinRequestIntervalMS, DisableKeepAlives: e.DisableKeepAlives}
-		state.view.Endpoints = append(state.view.Endpoints, rpcconfig.RPCConfigurationEndpoint{ID: e.ID, Version: e.Version, Name: e.Name, Role: e.Role, ProviderID: e.ProviderID, TrustGroup: rpcconfig.RPCTrustIdentity(e.URL, e.TrustGroup, e.ProviderID), IsActive: e.IsActive, Priority: e.Priority, MinRequestIntervalMS: e.MinRequestIntervalMS})
+		state.view.Endpoints = append(state.view.Endpoints, rpcconfig.RPCConfigurationEndpoint{ID: e.ID, Version: e.Version, Name: e.Name, Role: e.Role, ProviderID: e.ProviderID, TrustGroup: rpcconfig.RPCVotingGroup(e.URL, e.TrustGroup, e.ProviderID), IsActive: e.IsActive, Priority: e.Priority, MinRequestIntervalMS: e.MinRequestIntervalMS})
 		if e.IsActive {
 			topology.Roles[e.Role] = append(topology.Roles[e.Role], endpoint)
 		}

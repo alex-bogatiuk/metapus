@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -16,6 +17,7 @@ import (
 	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/crypto/cryptoprofiles"
 	integrationhttp "metapus/internal/infrastructure/integrations"
+	"metapus/internal/infrastructure/storage/postgres/integration_repo"
 )
 
 func TestProjectRPCPoolProbes(t *testing.T) {
@@ -84,4 +86,25 @@ func TestProjectRPCPoolProbes(t *testing.T) {
 			require.Equal(t, 1, calls)
 		})
 	}
+	// Exhaustion applies across both networks. A recovery probe can discover ZAN's
+	// 30-day renewal before the configured calendar-month reset.
+	now := time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC)
+	runtime := integration_repo.NewRuntime(cryptointegrations.Catalog())
+	runtime.Now = func() time.Time { return now }
+	selectZAN := func() (integrations.Selection, error) {
+		return runtime.Select(ctx, pools[cryptointegrations.ZAN], "default", cryptointegrations.ZAN)
+	}
+	selected, err := selectZAN()
+	require.NoError(t, err)
+	require.NoError(t, runtime.Report(ctx, selected, integrations.Exhausted, time.Time{}))
+	_, err = selectZAN()
+	var unavailable *integrations.PoolUnavailableError
+	require.ErrorAs(t, err, &unavailable)
+	require.Equal(t, integrations.Exhausted, unavailable.Reason)
+	require.True(t, now.Add(time.Hour).Equal(unavailable.RetryAt))
+	now = unavailable.RetryAt
+	selected, err = selectZAN()
+	require.NoError(t, err)
+	require.True(t, selected.Recovery)
+	require.NoError(t, runtime.Report(ctx, selected, "", time.Time{}))
 }

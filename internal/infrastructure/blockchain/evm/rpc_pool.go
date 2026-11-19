@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"math/big"
 	"net/http"
 	"sort"
@@ -153,7 +154,7 @@ func newRPCGeneration(ctx context.Context, cfg RPCPoolConfig) (*rpcGeneration, e
 		}
 		pool.endpoints = append(pool.endpoints, &rpcEndpoint{
 			endpointID: endpoint.EndpointID,
-			providerID: endpoint.ProviderID, trustGroup: endpoint.TrustIdentity(), priority: endpoint.Priority, quotaLimited: endpoint.MinRequestIntervalMS > 0,
+			providerID: endpoint.ProviderID, trustGroup: endpoint.VotingGroup(), priority: endpoint.Priority, quotaLimited: endpoint.MinRequestIntervalMS > 0,
 			raw: raw, httpClient: endpointClient, client: ethclient.NewClient(raw), state: rpcStateClosed,
 			operations: make(map[rpcOperation]*operationCircuit), unsupportedMethods: make(map[string]bool), admission: admission,
 		})
@@ -411,7 +412,7 @@ func (p *rpcGeneration) ObserveNonceState(ctx context.Context, sourceAddress str
 	latestValues, pendingValues := make(map[uint64]struct{}), make(map[uint64]struct{})
 	observations := 0
 	observedGroups := map[string]bool{}
-	for _, endpoint := range p.endpoints {
+	for endpoint := range votingEndpoints(p.endpoints) {
 		if !p.beginRead(endpoint, opState, time.Now()) {
 			continue
 		}
@@ -463,7 +464,7 @@ func (p *rpcGeneration) CanonicalHeaderByNumber(ctx context.Context, number *big
 		return nil, errors.New("canonical EVM header requires a non-negative block number")
 	}
 	primary, fallback := []*rpcEndpoint{}, []*rpcEndpoint{}
-	for _, endpoint := range p.endpoints {
+	for endpoint := range votingEndpoints(p.endpoints) {
 		if endpoint.quotaLimited {
 			fallback = append(fallback, endpoint)
 		} else {
@@ -591,7 +592,7 @@ func (p *rpcGeneration) assessReplacement(ctx context.Context, source [20]byte, 
 	observedGroups := map[string]bool{}
 	pendingNonces := make(map[uint64]struct{})
 	mined := make(map[string]struct{})
-	for _, endpoint := range p.endpoints {
+	for endpoint := range votingEndpoints(p.endpoints) {
 		if !p.available(endpoint, time.Now().UTC()) {
 			continue
 		}
@@ -663,8 +664,19 @@ type headerObservation struct {
 
 func (p *rpcGeneration) independentProviders() int {
 	groups := map[string]bool{}
-	for _, e := range p.endpoints {
+	for e := range votingEndpoints(p.endpoints) {
 		groups[e.trustGroup] = true
 	}
 	return len(groups)
+}
+
+// votingEndpoints retains read priority while excluding opaque upstreams from proofs.
+func votingEndpoints(endpoints []*rpcEndpoint) iter.Seq[*rpcEndpoint] {
+	return func(yield func(*rpcEndpoint) bool) {
+		for _, endpoint := range endpoints {
+			if endpoint.trustGroup != "" && !yield(endpoint) {
+				return
+			}
+		}
+	}
 }

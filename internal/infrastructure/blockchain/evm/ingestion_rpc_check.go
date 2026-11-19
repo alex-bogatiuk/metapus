@@ -108,7 +108,7 @@ func (d *Driver) CheckIngestionRPC(ctx context.Context, assets []crypto.AssetRef
 			}
 			provider.Operations = append(provider.Operations, check)
 		}
-		if provider.Ready {
+		if provider.Ready && endpoint.trustGroup != "" {
 			complete[endpoint.trustGroup] = true
 		}
 		result.Providers = append(result.Providers, provider)

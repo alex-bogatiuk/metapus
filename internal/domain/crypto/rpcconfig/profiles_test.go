@@ -113,3 +113,13 @@ func TestProjectProvidersRejectUnsupportedNetworksAndRoles(t *testing.T) {
 		require.Error(t, ValidateRPCBinding(tt.provider, b))
 	}
 }
+
+func TestAutoRoutedGatewayCannotIncreaseIndependentCoverage(t *testing.T) {
+	group := RPCVotingGroup("https://api.uniblock.dev/uni/v1/json-rpc", "my-node", "alias")
+	require.Empty(t, group)
+	rows := []RPCConfigurationEndpoint{
+		{Role: "rpc", IsActive: true, TrustGroup: group},
+		{Role: "rpc", IsActive: true, TrustGroup: "direct"},
+	}
+	require.Equal(t, 1, RPCRequirements("evm", "production", rows)[0].ConfiguredProviders)
+}

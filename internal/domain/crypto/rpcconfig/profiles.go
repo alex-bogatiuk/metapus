@@ -203,3 +203,13 @@ func RPCTrustIdentity(raw, configured, endpointName string) string {
 	}
 	return endpointName
 }
+
+// RPCVotingGroup is empty for a gateway whose upstream may be another configured
+// operator. Its endpoints can service ordinary calls but cannot attest to chain state.
+func RPCVotingGroup(raw, configured, endpointName string) string {
+	group := RPCTrustIdentity(raw, configured, endpointName)
+	if group == string(cryptointegrations.Uniblock) {
+		return ""
+	}
+	return group
+}

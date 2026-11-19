@@ -53,7 +53,7 @@ func RPCRequirements(family, environment string, endpoints []RPCConfigurationEnd
 	for _, role := range roles {
 		groups := make(map[string]bool)
 		for _, e := range endpoints {
-			if e.IsActive && e.Role == role {
+			if e.IsActive && e.Role == role && e.TrustGroup != "" {
 				groups[e.TrustGroup] = true
 			}
 		}

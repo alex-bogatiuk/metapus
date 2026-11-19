@@ -200,7 +200,7 @@ func (c RPCConfiguration) Plan(update RPCConfigurationUpdate) ([]RPCConfiguratio
 		r := &candidate.Requirements[i]
 		groups := make(map[string]bool)
 		for _, e := range endpoints {
-			if e.IsActive && e.Role == r.Role {
+			if e.IsActive && e.Role == r.Role && e.TrustGroup != "" {
 				groups[e.TrustGroup] = true
 			}
 		}

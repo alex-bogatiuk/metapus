@@ -28,7 +28,7 @@ export function rpcConfigurationChanges(before: RPCConnection[], after: RPCConne
 export function rpcCoverage(rows: RPCConnection[], requirements: CryptoRPCConfigurationResponse["requirements"]) {
   return requirements.map(requirement => ({
     ...requirement,
-    configuredProviders: new Set(rows.filter(row => row.isActive && row.role === requirement.role).map(row => row.trustGroup)).size,
+    configuredProviders: new Set(rows.filter(row => row.isActive && row.role === requirement.role && row.trustGroup).map(row => row.trustGroup)).size,
   }))
 }
 

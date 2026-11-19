@@ -15,7 +15,7 @@ test("RPC ordering stays inside a role and preserves inactive records", () => {
 })
 
 test("two accounts of one operator do not provide two independent votes", () => {
-  const rows = [connection("tenderly-a", "rpc", 10, "tenderly"), connection("tenderly-b", "rpc", 20, "tenderly"), connection("other", "rpc", 30)]
+  const rows = [connection("tenderly-a", "rpc", 10, "tenderly"), connection("tenderly-b", "rpc", 20, "tenderly"), connection("other", "rpc", 30), connection("gateway", "rpc", 40, "")]
   const requirement = [{ role: "rpc", requiredProviders: 2, configuredProviders: 2 }]
   expect(rpcCoverage(rows, requirement)[0].configuredProviders).toBe(2)
   expect(rpcCoverage(rows.map(row => ({ ...row, isActive: row.id !== "other" })), requirement)[0].configuredProviders).toBe(1)

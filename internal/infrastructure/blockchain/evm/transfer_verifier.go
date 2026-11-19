@@ -87,7 +87,7 @@ func (d *TransferVerifier) verifyTransfer(ctx context.Context, expected crypto.B
 	if expected.EffectiveEventKind() == crypto.EventKindNativeValue {
 		requests++ // historical recipient code
 	}
-	for _, endpoint := range gen.readOrder(opReceipt) {
+	for endpoint := range votingEndpoints(gen.readOrder(opReceipt)) {
 		if ctx.Err() != nil {
 			failures = append(failures, ctx.Err())
 			break

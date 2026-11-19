@@ -204,10 +204,16 @@ func readSecret(path string) (string, error) {
 func (e Endpoint) TrustIdentity() string {
 	return rpcconfig.RPCTrustIdentity(e.URL, e.TrustGroup, e.ProviderID)
 }
+func (e Endpoint) VotingGroup() string {
+	return rpcconfig.RPCVotingGroup(e.URL, e.TrustGroup, e.ProviderID)
+}
+
 func (n Network) IndependentProviders(role Role) int {
 	groups := map[string]bool{}
 	for _, e := range n.Endpoints(role) {
-		groups[e.TrustIdentity()] = true
+		if group := e.VotingGroup(); group != "" {
+			groups[group] = true
+		}
 	}
 	return len(groups)
 }

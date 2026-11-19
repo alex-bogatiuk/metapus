@@ -6,6 +6,7 @@ package cryptointegrations
 
 import (
 	"sync"
+	"time"
 
 	"metapus/internal/domain/integrations"
 )
@@ -49,6 +50,12 @@ func Kinds() []integrations.KindDefinition {
 // Providers lists the configuration's providers. RPC providers' supported
 // networks, roles and addresses live in rpcconfig.
 func Providers() []integrations.ProviderDefinition {
+	zan := monthlyRPC(ZAN, "ZAN", "Ethereum Sepolia и TRON Nile.", "default",
+		"Ключ проекта или HTTPS-ссылка Sepolia или Nile из ZAN.",
+		integrations.CredentialURLImport{Host: "api.zan.top", PathPrefix: "/node/v1/eth/sepolia"},
+		integrations.CredentialURLImport{Host: "api.zan.top", PathPrefix: "/node/v1/tron/nile", RolePaths: map[string]string{"default": "jsonrpc"}})
+	// Free credits renew every 30 days from activation, independently of calendar months.
+	zan.ExhaustionRecheck = time.Hour
 	return []integrations.ProviderDefinition{
 		{ID: DRPC, Label: "dRPC", Description: "Ethereum Sepolia с ручным сроком ключа.", Kinds: []integrations.Kind{KindRPC}, CanCreate: true, QuotaPolicy: integrations.QuotaManual,
 			Credentials:                 integrations.CredentialProfile{Fields: []integrations.CredentialField{{Name: "sepolia", Label: "Ключ dRPC", Description: "Ключ или HTTPS-ссылка Sepolia из dRPC."}}, ReplaceLabel: "Продлить ключ…", Description: "Новый ключ и новая дата сохраняются вместе. После срока доступ не возобновляется автоматически.", KeyFormat: integrations.CredentialURLSafe, RequireFields: true, SingleKey: true, KeyOnly: true, URLImports: []integrations.CredentialURLImport{{Host: "lb.drpc.live", PathPrefix: "/sepolia"}}},
@@ -57,10 +64,7 @@ func Providers() []integrations.ProviderDefinition {
 		monthlyRPC(ValidationCloud, "Validation Cloud", "Ethereum Sepolia.", "sepolia",
 			"Ключ или HTTPS-ссылка Ethereum Sepolia из Validation Cloud.",
 			integrations.CredentialURLImport{Host: "sepolia.ethereum.validationcloud.io", PathPrefix: "/v1"}),
-		monthlyRPC(ZAN, "ZAN", "Ethereum Sepolia и TRON Nile.", "default",
-			"Ключ проекта или HTTPS-ссылка Sepolia или Nile из ZAN.",
-			integrations.CredentialURLImport{Host: "api.zan.top", PathPrefix: "/node/v1/eth/sepolia"},
-			integrations.CredentialURLImport{Host: "api.zan.top", PathPrefix: "/node/v1/tron/nile", RolePaths: map[string]string{"default": "jsonrpc"}}),
+		zan,
 		monthlyRPC(Uniblock, "Uniblock", "Ethereum Sepolia через Uniblock JSON-RPC.", "default", "API-ключ проекта Uniblock."),
 		{
 			ID: Ankr, Label: "Ankr", Description: "Ethereum Sepolia по тарифу Freemium.",

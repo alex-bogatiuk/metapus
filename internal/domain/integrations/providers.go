@@ -1,6 +1,9 @@
 package integrations
 
-import "slices"
+import (
+	"slices"
+	"time"
+)
 
 // Kind describes a supported use, not a separate account or quota owner.
 type Kind string
@@ -62,6 +65,9 @@ type ProviderDefinition struct {
 	Credentials                 CredentialProfile
 	QuotaPolicy                 QuotaPolicy
 	AccountMinRequestIntervalMS int
+	// ExhaustionRecheck bounds the wait before a recovery probe when the gateway's
+	// credit renewal does not reliably align with the configured billing calendar.
+	ExhaustionRecheck time.Duration
 	// PoolSelectionDenied, when set, is the reason the provider's accounts are
 	// never chosen from a pool: its own subsystem pins them.
 	PoolSelectionDenied string

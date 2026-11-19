@@ -70,7 +70,7 @@ func (d *TransferVerifier) VerifyNetworkFee(ctx context.Context, hash string) (c
 	defer release()
 	groups := map[string]bool{}
 	providers := map[string]bool{}
-	for _, e := range gen.endpoints {
+	for e := range votingEndpoints(gen.endpoints) {
 		if !providers[e.providerID] {
 			providers[e.providerID] = true
 			groups[e.trustGroup] = true
@@ -89,7 +89,7 @@ func (d *TransferVerifier) VerifyNetworkFee(ctx context.Context, hash string) (c
 	var result crypto.ChainReceipt
 	var proof crypto.NetworkFeeProof
 	failures := []error{}
-	for _, endpoint := range gen.readOrder(opReceipt) {
+	for endpoint := range votingEndpoints(gen.readOrder(opReceipt)) {
 		if ctx.Err() != nil {
 			break
 		}

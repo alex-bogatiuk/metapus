@@ -29,7 +29,7 @@ func (d *Driver) EmptyCheckpoint(ctx context.Context, asset crypto.AssetRef, add
 	}
 	defer release()
 	proof = crypto.EmptyCheckpoint{NetworkID: d.network.ID, Asset: asset, Address: normalized}
-	for _, endpoint := range gen.readOrder(opState) {
+	for endpoint := range votingEndpoints(gen.readOrder(opState)) {
 		if len(proof.Sources) > 0 && (endpoint.providerID == proof.Sources[0].ProviderID || endpoint.trustGroup == proof.Sources[0].TrustGroup) {
 			continue
 		}
