@@ -361,7 +361,8 @@ func (p *ResourceRentalService) recoverPendingRental(ctx context.Context, rental
 		_ = p.sharedRepo.MarkResourceRentalHeld(ctx, rental.ID, queryErr.Error(), nil)
 		return false, fmt.Errorf("%w: recover rental %s: %v", crypto.ErrResourceOrderAmbiguous, rental.OutTradeNo, queryErr)
 	}
-	if order.ExternalID == "" {
+	replaced := order.ExternalID == ""
+	if replaced {
 		receiveAddress := req.SourceAddress
 		if receiveAddress == "" {
 			receiveAddress = rental.ReceiveAddress
@@ -382,7 +383,10 @@ func (p *ResourceRentalService) recoverPendingRental(ctx context.Context, rental
 		order = placed
 	}
 	expiresAt := p.now().UTC().Add(provider.Capabilities().DefaultDuration)
-	if rental.ExpiresAt != nil {
+	// A recovered order keeps its original expiry; an order placed only now
+	// lives for a full period from now. Reusing the original expiry made a
+	// fresh delegation look expired, and maintenance reclaimed it at once.
+	if rental.ExpiresAt != nil && !replaced {
 		expiresAt = *rental.ExpiresAt
 	}
 	if err := p.activateFromOrder(ctx, rental, order, expiresAt); err != nil {
