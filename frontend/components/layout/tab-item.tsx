@@ -38,6 +38,42 @@ interface TabItemProps {
 const TAB_COLOR_TRANSITION =
   "background-color 150ms ease, color 150ms ease, border-color 150ms ease"
 
+/**
+ * Browser-style divider on each tab's left edge, centred in the 2px strip gap.
+ * Like Chrome, it hides wherever a filled tab already marks the boundary:
+ * the first tab, the active or hovered tab, and the tab right after them.
+ */
+const TAB_SEPARATOR =
+  "before:pointer-events-none before:absolute before:left-[-1.5px] before:top-1/2 before:h-4 before:w-px before:-translate-y-1/2 before:bg-border before:content-[''] before:transition-opacity before:duration-150 " +
+  "first:before:opacity-0 hover:before:opacity-0 aria-[current=page]:before:opacity-0 " +
+  "[:hover+&]:before:opacity-0 [[aria-current=page]+&]:before:opacity-0"
+
+/** Clipped titles dissolve into the tab instead of ending in an ellipsis. */
+const TAB_TITLE_FADE =
+  "data-[overflow=true]:[-webkit-mask-image:linear-gradient(to_right,black_calc(100%_-_1.25rem),transparent)] data-[overflow=true]:[mask-image:linear-gradient(to_right,black_calc(100%_-_1.25rem),transparent)]"
+
+/** Tracks whether the element's text is wider than its box, so only clipped titles fade. */
+function useOverflowFlag<E extends HTMLElement>(text: string) {
+  const ref = React.useRef<E>(null)
+  const [overflow, setOverflow] = React.useState(false)
+  React.useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const measure = () => setOverflow(el.scrollWidth > el.clientWidth + 1)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    // Web fonts can land after the first measure and change the text width.
+    let alive = true
+    void document.fonts?.ready.then(() => { if (alive) measure() })
+    return () => {
+      alive = false
+      observer.disconnect()
+    }
+  }, [text])
+  return [ref, overflow] as const
+}
+
 function tabClassName({
   isActive,
   isDragging,
@@ -47,20 +83,27 @@ function tabClassName({
 }) {
   return cn(
     "group relative flex h-7 min-w-[7.5rem] max-w-[12.5rem] flex-[1_1_0] items-center gap-1.5 rounded-md pl-2 pr-1.5 text-[13px] select-none focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/25",
+    TAB_SEPARATOR,
     isActive
       ? "z-10 bg-accent font-medium text-foreground"
       : "text-muted-foreground hover:bg-muted hover:text-foreground",
-    isDragging && "z-50 bg-popover shadow-floating ring-1 ring-border",
+    isDragging && "z-50 bg-popover shadow-floating ring-1 ring-border before:opacity-0",
   )
 }
 
-function TabTitle({ tab }: { tab: Tab }) {
+function TabTitle({ tab, isActive }: { tab: Tab; isActive: boolean }) {
   // Metadata may arrive after the tab opens; re-render so entity tabs pick up their icon.
   useMetadataStore((s) => s.loaded)
+  // Active tabs use a heavier weight, which widens the text without resizing the box.
+  const [titleRef, overflow] = useOverflowFlag<HTMLSpanElement>(`${isActive ? 1 : 0}${tab.isDirty ? "● " : ""}${tab.title}`)
   return (
     <>
     {React.createElement(getRouteIcon(tab.url), { "aria-hidden": true, className: "size-3.5 shrink-0 opacity-80" })}
-    <span className="flex-1 truncate text-left">
+    <span
+      ref={titleRef}
+      data-overflow={overflow ? "true" : undefined}
+      className={cn("min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left", TAB_TITLE_FADE)}
+    >
       {tab.isDirty && (
         <span className="mr-1 text-destructive">●</span>
       )}
@@ -199,7 +242,7 @@ export const TabItem = React.memo(function TabItem({
                 {...listeners}
               >
                 {/* Title + dirty indicator */}
-                <TabTitle tab={tab} />
+                <TabTitle tab={tab} isActive={isActive} />
 
                 {/* Close button — show if not the only tab */}
                 {tabCount > 1 && (
