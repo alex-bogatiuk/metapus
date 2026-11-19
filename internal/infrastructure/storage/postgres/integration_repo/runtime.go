@@ -200,7 +200,7 @@ func (r *Runtime) Select(ctx context.Context, poolID id.ID, slot string, provide
 					return err
 				}
 			}
-			out = integrations.Selection{PoolID: poolID, AccountID: a.ID, AccountName: a.Name, Provider: provider, PoolVersion: poolVersion, AccountVersion: a.Version, CredentialsVersion: a.CredentialsVersion, SelectionVersion: selectionVersion, PeriodStart: begin, PeriodEnd: end, Slot: slot, Key: secret, Recovery: c.exhausted != nil && !definition.ManualPeriod(), CredentialsExpiresAt: a.CredentialsExpiresAt, ManualPeriodVersion: a.ManualPeriodVersion}
+			out = integrations.Selection{ExhaustionRecheck: definition.ExhaustionRecheck, PoolID: poolID, AccountID: a.ID, AccountName: a.Name, Provider: provider, PoolVersion: poolVersion, AccountVersion: a.Version, CredentialsVersion: a.CredentialsVersion, SelectionVersion: selectionVersion, PeriodStart: begin, PeriodEnd: end, Slot: slot, Key: secret, Recovery: c.exhausted != nil && !definition.ManualPeriod(), CredentialsExpiresAt: a.CredentialsExpiresAt, ManualPeriodVersion: a.ManualPeriodVersion}
 			return nil
 		}
 		if len(candidates) > 0 && expiredCount == len(candidates) {
@@ -253,11 +253,7 @@ func (r *Runtime) Report(ctx context.Context, s integrations.Selection, f integr
 		slots := []string{}
 		if f == integrations.Exhausted {
 			until := s.PeriodEnd
-			definition, err := r.catalog.Require(s.Provider)
-			if err != nil {
-				return err
-			}
-			if delay := definition.ExhaustionRecheck; delay > 0 && now.Add(delay).Before(until) {
+			if delay := s.ExhaustionRecheck; delay > 0 && now.Add(delay).Before(until) {
 				until = now.Add(delay)
 			}
 			exhausted = &until
@@ -273,7 +269,7 @@ func (r *Runtime) Report(ctx context.Context, s integrations.Selection, f integr
  SELECT id,$2,$3,$4,$5,$6,$7,$8,$10 FROM cat_integration_accounts WHERE id=$1 AND credentials_version=$9 AND manual_period_version=$10
  ON CONFLICT(account_id) DO UPDATE SET
  period_start=EXCLUDED.period_start,period_end=EXCLUDED.period_end,
- exhausted_until=CASE WHEN sys_integration_account_state.manual_period_version<>EXCLUDED.manual_period_version THEN EXCLUDED.exhausted_until WHEN $8='' AND EXCLUDED.manual_period_version=0 THEN NULL WHEN EXCLUDED.exhausted_until IS NOT NULL THEN EXCLUDED.exhausted_until ELSE sys_integration_account_state.exhausted_until END,
+ exhausted_until=CASE WHEN sys_integration_account_state.manual_period_version<>EXCLUDED.manual_period_version THEN EXCLUDED.exhausted_until WHEN $8='' AND EXCLUDED.manual_period_version=0 THEN NULL WHEN EXCLUDED.exhausted_until IS NOT NULL THEN GREATEST(sys_integration_account_state.exhausted_until,EXCLUDED.exhausted_until) ELSE sys_integration_account_state.exhausted_until END,
  throttled_until=EXCLUDED.throttled_until,probe_lease_until=NULL,
  invalid_credentials_version=CASE WHEN sys_integration_account_state.manual_period_version<>EXCLUDED.manual_period_version THEN EXCLUDED.invalid_credentials_version WHEN $6>=0 THEN $6 ELSE sys_integration_account_state.invalid_credentials_version END,
  invalid_slots=CASE WHEN sys_integration_account_state.manual_period_version<>EXCLUDED.manual_period_version THEN EXCLUDED.invalid_slots WHEN $6>=0 THEN CASE WHEN sys_integration_account_state.invalid_credentials_version=$6 THEN ARRAY(SELECT DISTINCT unnest(sys_integration_account_state.invalid_slots||$7::text[])) ELSE $7 END ELSE sys_integration_account_state.invalid_slots END,

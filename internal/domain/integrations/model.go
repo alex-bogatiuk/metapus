@@ -253,6 +253,10 @@ type Selection struct {
 	PeriodEnd            time.Time  `json:"periodEnd"`
 	Slot                 string     `json:"slot"`
 	Key                  string     `json:"-"`
+
+	// ExhaustionRecheck is set for automatic requests to providers with rolling
+	// quotas. An operator's manual exhaustion lasts until the end of the period.
+	ExhaustionRecheck time.Duration `json:"-"`
 }
 type Failure string
 

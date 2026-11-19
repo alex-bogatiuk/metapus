@@ -107,4 +107,13 @@ func TestProjectRPCPoolProbes(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, selected.Recovery)
 	require.NoError(t, runtime.Report(ctx, selected, "", time.Time{}))
+
+	selected, err = selectZAN()
+	require.NoError(t, err)
+	require.NoError(t, runtime.Command(ctx, selected.PoolID, "exhaust", selected.SelectionVersion))
+	// An in-flight gateway response cannot shorten the operator's manual hold.
+	require.NoError(t, runtime.Report(ctx, selected, integrations.Exhausted, time.Time{}))
+	_, err = selectZAN()
+	require.ErrorAs(t, err, &unavailable)
+	require.True(t, selected.PeriodEnd.Equal(unavailable.RetryAt))
 }
