@@ -1,0 +1,823 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Metapus Crypto Processing</title>
+<meta name="description" content="Open-source криптопроцессинг на ERP-платформе Metapus: приём USDT на своих серверах, ключи в HashiCorp Vault, база на каждого клиента и учёт на регистрах.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: graphite surfaces of the Metapus cabinet; left-set hero over a full-width product shot;
+   one action blue from the platform's ring/info token, bronze only in the logo. Two dark bands max. */
+:root{
+  --bg:#F2F2F4;
+  --surface:#FFFFFF;
+  --sunken:#F6F6F7;
+  --fg:#0C0C0E;
+  --muted:#5E5E67;
+  --dim:#80808A;
+  --line:#E4E4E8;
+  --chip:#EFEFF1;
+  --accent:#2563EB;
+  --accent-text:#1D4ED8;
+  --accent-soft:rgba(37,99,235,.08);
+  --brand:#AB895A;
+  --inv:#111113;
+  --inv-card:#1C1C1F;
+  --inv-fg:#EDEDEF;
+  --inv-muted:#A1A1AA;
+  --inv-line:#2C2C30;
+  --ok:#15803D;
+  --ok-soft:rgba(21,128,61,.10);
+  --warn:#B45309;
+  --warn-soft:rgba(180,83,9,.10);
+  --bad:#B42318;
+  --shadow:0 1px 2px rgba(12,12,14,.04),0 24px 48px -24px rgba(12,12,14,.22);
+  --f-sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+  --f-mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --r:20px;
+  --r-s:12px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0D0D0F;--surface:#17171A;--sunken:#121214;--fg:#ECECEE;--muted:#A1A1AA;--dim:#71717A;--line:#26262A;--chip:#222226;
+  --accent:#2563EB;--accent-text:#7AAEFF;--accent-soft:rgba(122,174,255,.12);--brand:#C8AC78;
+  --inv:#17171A;--inv-card:#202024;--inv-fg:#ECECEE;--inv-muted:#A1A1AA;--inv-line:#2E2E33;
+  --ok:#4ADE80;--ok-soft:rgba(74,222,128,.12);--warn:#FBBF24;--warn-soft:rgba(251,191,36,.12);--bad:#F87171;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 24px 48px -24px rgba(0,0,0,.8);color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0D0D0F;--surface:#17171A;--sunken:#121214;--fg:#ECECEE;--muted:#A1A1AA;--dim:#71717A;--line:#26262A;--chip:#222226;
+  --accent:#2563EB;--accent-text:#7AAEFF;--accent-soft:rgba(122,174,255,.12);--brand:#C8AC78;
+  --inv:#17171A;--inv-card:#202024;--inv-fg:#ECECEE;--inv-muted:#A1A1AA;--inv-line:#2E2E33;
+  --ok:#4ADE80;--ok-soft:rgba(74,222,128,.12);--warn:#FBBF24;--warn-soft:rgba(251,191,36,.12);--bad:#F87171;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 24px 48px -24px rgba(0,0,0,.8);color-scheme:dark}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+body{background:var(--bg);color:var(--fg);font:16px/1.55 var(--f-sans);-webkit-font-smoothing:antialiased}
+.page{overflow-x:clip}
+[id]{scroll-margin-top:96px}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+h1,h2,h3{margin:0;text-wrap:balance;font-weight:600;letter-spacing:-.03em;line-height:1.08}
+p{margin:0}
+.mono{font-family:var(--f-mono);font-size:.875em}
+code{font-family:var(--f-mono);font-size:.875em;background:var(--chip);padding:1px 6px;border-radius:6px}
+.wrap{max-width:1200px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.section{padding-block:clamp(72px,9vw,128px)}
+.inv{background:var(--inv);color:var(--inv-fg)}
+
+/* one label style, one heading style */
+.kicker{font-weight:600;font-size:14px;color:var(--accent-text);letter-spacing:0}
+.inv .kicker{color:#7AAEFF}
+.h2{font-size:clamp(32px,4.4vw,52px);letter-spacing:-.04em;line-height:1.04}
+.h2 .dim{color:var(--dim)}
+.inv .h2 .dim{color:var(--inv-muted)}
+.lead{font-size:clamp(16px,1.4vw,18px);color:var(--muted);max-width:56ch}
+.inv .lead{color:var(--inv-muted)}
+.head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.75fr);gap:20px 48px;align-items:end;margin-bottom:clamp(36px,5vw,64px)}
+.head > div{display:grid;gap:14px;min-width:0}
+@media (max-width:860px){.head{grid-template-columns:1fr}}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;height:50px;padding:0 22px;border-radius:999px;font:600 15px/1 var(--f-sans);text-decoration:none;border:1px solid transparent;transition:background .15s,border-color .15s,transform .15s;white-space:nowrap;cursor:pointer}
+.btn svg{width:18px;height:18px;flex:none}
+.btn--accent{background:var(--accent);color:#fff}
+.btn--accent:hover{background:#1D4ED8}
+.btn--ghost{color:var(--fg);border-color:var(--line);background:var(--surface)}
+.btn--ghost:hover{border-color:var(--dim)}
+.btn--sm{height:40px;padding:0 16px;font-size:14px}
+.btn--light{background:#fff;color:#0C0C0E}
+.btn--light:hover{background:#E9E9EC}
+
+/* ---------- nav ---------- */
+.nav-shell{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;padding-top:14px}
+.nav{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px;background:color-mix(in srgb,var(--surface) 88%,transparent);
+  backdrop-filter:saturate(1.4) blur(14px);-webkit-backdrop-filter:saturate(1.4) blur(14px);border:1px solid var(--line);border-radius:999px;padding:7px 7px 7px 14px;box-shadow:0 1px 2px rgba(12,12,14,.04),0 8px 24px -16px rgba(12,12,14,.2)}
+.logo{display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px;letter-spacing:-.02em;text-decoration:none}
+.logo svg{width:30px;height:30px;flex:none}
+.nav-links{display:flex;gap:2px;list-style:none;margin:0;padding:0}
+.nav-links a{display:block;padding:9px 14px;border-radius:999px;text-decoration:none;font-weight:500;font-size:14px;color:var(--muted)}
+.nav-links a:hover{color:var(--fg);background:var(--chip)}
+.nav-right{display:flex;gap:8px;align-items:center}
+.menu-btn{display:none;width:40px;height:40px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer;place-items:center;padding:0}
+.menu-btn svg{width:18px;height:18px}
+.theme-btn{display:grid;width:40px;height:40px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer;place-items:center;padding:0;transition:border-color .15s}
+.theme-btn svg{width:18px;height:18px}
+.theme-btn:hover,.menu-btn:hover{border-color:var(--dim)}
+body,.nav,.card,.shot,.side,.chrome{transition:background-color .25s,border-color .25s,color .25s}
+.menu{position:absolute;left:0;right:0;top:calc(100% + 8px);background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:8px}
+.menu a{display:block;padding:14px 16px;border-radius:var(--r-s);text-decoration:none;font-weight:500}
+.menu a:hover{background:var(--chip)}
+@media (max-width:960px){.nav-links{display:none}.menu-btn{display:grid}}
+@media (max-width:420px){.nav .btn--sm span{display:none}.nav .btn--sm{width:40px;padding:0}}
+
+/* ---------- hero ---------- */
+.hero{padding-block:clamp(56px,8vw,112px) 0}
+.hero-top{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr);gap:28px 56px;align-items:end}
+@media (max-width:920px){.hero-top{grid-template-columns:1fr}}
+.h1{font-size:clamp(40px,6.6vw,84px);letter-spacing:-.05em;line-height:.98;font-weight:600}
+.h1 .dim{color:var(--dim);display:block}
+.hero-side{display:grid;gap:24px;min-width:0}
+.hero-side p{font-size:clamp(16px,1.35vw,18px);color:var(--muted)}
+.cta{display:flex;flex-wrap:wrap;gap:10px}
+.hero-meta{display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px;margin-top:clamp(28px,4vw,44px);font-size:14px;color:var(--muted)}
+.net{display:inline-flex;align-items:center;gap:8px;font-weight:500;color:var(--fg)}
+.coin{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;flex:none}
+.coin svg{width:13px;height:13px}
+.sep{width:1px;height:16px;background:var(--line)}
+
+/* product shot */
+.shot-wrap{position:relative;margin-top:clamp(40px,5vw,64px)}
+.shot-wrap::before{content:"";position:absolute;inset:-6% 6% 30%;background:radial-gradient(50% 60% at 50% 30%,var(--accent-soft),transparent 70%);z-index:-1}
+.shot{border-radius:var(--r);border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);overflow:hidden}
+.chrome{display:flex;align-items:center;gap:14px;padding:11px 16px;border-bottom:1px solid var(--line);background:var(--sunken)}
+.chrome .dots{display:flex;gap:6px}
+.chrome .dots i{width:11px;height:11px;border-radius:50%;background:var(--line)}
+.chrome .url{flex:1;max-width:360px;margin:0 auto;text-align:center;font:12px/1 var(--f-mono);color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.app{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:520px}
+.side{border-right:1px solid var(--line);background:var(--sunken);padding:16px 12px;display:grid;align-content:start;gap:2px;font-size:13.5px}
+.side-org{display:flex;align-items:center;gap:10px;padding:6px 8px 14px;font-weight:600}
+.side-org svg{width:26px;height:26px}
+.side-org small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.side a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;color:var(--muted);text-decoration:none}
+.side a i{width:16px;height:16px;border-radius:4px;border:1.5px solid currentColor;opacity:.55;flex:none}
+.side a.on{background:var(--surface);color:var(--fg);font-weight:500;box-shadow:0 1px 2px rgba(12,12,14,.06)}
+.side a.on i{opacity:1;border-color:var(--accent)}
+.side .grp{font-size:11px;color:var(--dim);padding:14px 10px 6px;font-weight:500}
+.main{padding:22px 24px;display:grid;gap:18px;align-content:start;min-width:0}
+.main-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.main-head h4{margin:0;font-size:20px;font-weight:600;letter-spacing:-.02em}
+.seg{display:flex;background:var(--chip);border-radius:9px;padding:3px;font-size:12.5px}
+.seg span{padding:5px 10px;border-radius:7px;color:var(--muted)}
+.seg span.on{background:var(--surface);color:var(--fg);font-weight:500;box-shadow:0 1px 2px rgba(12,12,14,.08)}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.kpi{border:1px solid var(--line);border-radius:var(--r-s);padding:14px 16px;display:grid;gap:6px;min-width:0}
+.kpi small{font-size:12.5px;color:var(--muted)}
+.kpi b{font-size:22px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.kpi b span{font-size:13px;color:var(--muted);font-weight:500;margin-left:4px;letter-spacing:0}
+.kpi em{font-style:normal;font-size:12px;color:var(--ok)}
+.kpi em.mut{color:var(--muted)}
+.panels{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:12px}
+.panel{border:1px solid var(--line);border-radius:var(--r-s);min-width:0;overflow:hidden}
+.panel-h{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;font-size:13px;font-weight:600;border-bottom:1px solid var(--line)}
+.panel-h span{font-weight:400;color:var(--muted)}
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl th{font-weight:500;color:var(--dim);text-align:left;padding:9px 16px;border-bottom:1px solid var(--line)}
+.tbl td{padding:10px 16px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl tr:last-child td{border-bottom:0}
+.tbl .r{text-align:right;font-variant-numeric:tabular-nums}
+.st{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:999px;font-size:11.5px;font-weight:500}
+.st::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.st--ok{background:var(--ok-soft);color:var(--ok)}
+.st--wait{background:var(--accent-soft);color:var(--accent-text)}
+.st--warn{background:var(--warn-soft);color:var(--warn)}
+.st--off{background:var(--chip);color:var(--muted)}
+.chart{padding:16px;display:grid;gap:10px}
+.bars{display:flex;align-items:flex-end;gap:8px;height:132px;border-bottom:1px solid var(--line)}
+.bars i{flex:1;border-radius:5px 5px 0 0;background:color-mix(in srgb,var(--accent) 22%,transparent)}
+.bars i:last-child{background:var(--accent)}
+.bars-x{display:flex;gap:8px;font-size:11px;color:var(--dim)}
+.bars-x span{flex:1;text-align:center}
+.chart-sum{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted)}
+.chart-sum b{color:var(--fg);font-variant-numeric:tabular-nums}
+
+.pay{position:absolute;right:-20px;bottom:-72px;width:300px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:18px;display:grid;gap:14px}
+.pay-h{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted)}
+.pay-amt{font-size:28px;font-weight:600;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.pay-amt span{font-size:14px;color:var(--muted);font-weight:500;margin-left:4px;letter-spacing:0}
+.pay-body{display:grid;grid-template-columns:96px minmax(0,1fr);gap:14px;align-items:center}
+.qr{width:96px;height:96px;padding:6px;border-radius:10px;background:#fff;border:1px solid var(--line)}
+.qr svg{display:block;width:100%;height:100%}
+.pay-rows{display:grid;gap:8px;font-size:12px;color:var(--muted);min-width:0}
+.pay-rows b{display:block;color:var(--fg);font-weight:500;font-family:var(--f-mono);font-size:12px;overflow-wrap:anywhere}
+.pay-t{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--muted);background:var(--sunken);border-radius:10px;padding:10px 12px}
+.pay-t b{font-family:var(--f-mono);color:var(--fg);font-weight:500;font-variant-numeric:tabular-nums}
+.shot-note{margin-top:14px;font-size:13px;color:var(--muted)}
+@media (max-width:1100px){.pay{display:none}}
+@media (max-width:860px){.app{grid-template-columns:1fr;min-height:0}.side{display:none}.panels{grid-template-columns:1fr}.chart{display:none}}
+@media (max-width:640px){.kpis{grid-template-columns:1fr}.main{padding:16px}.tbl .hide-s{display:none}}
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin-top:clamp(72px,8vw,112px);border-top:1px solid var(--line)}
+.stat{padding:28px 28px 0 0;display:grid;gap:8px;align-content:start;min-width:0}
+.stat + .stat{padding-left:28px;border-left:1px solid var(--line)}
+.stat b{font-size:clamp(36px,3.8vw,52px);font-weight:600;letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums}
+.stat p{font-size:15px;color:var(--muted);max-width:28ch}
+@media (max-width:860px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.stat:nth-child(3){padding-left:0;border-left:0}}
+@media (max-width:460px){.stats{grid-template-columns:1fr}.stat + .stat{padding-left:0;border-left:0}}
+
+/* ---------- cards ---------- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:clamp(24px,2.8vw,36px);display:grid;gap:16px;align-content:start;min-width:0}
+.card h3{font-size:clamp(20px,1.9vw,24px);letter-spacing:-.025em}
+.card > p{color:var(--muted);font-size:15px;max-width:46ch}
+.bento{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px}
+.s2{grid-column:span 2}.s3{grid-column:span 3}.s4{grid-column:span 4}
+@media (max-width:980px){.s2,.s3,.s4{grid-column:span 6}}
+.vis{margin-top:auto;padding-top:8px}
+.card--dark{background:var(--inv);color:var(--inv-fg);border-color:var(--inv)}
+.card--dark > p{color:var(--inv-muted)}
+.card--blue{background:var(--accent);color:#fff;border-color:var(--accent)}
+.card--blue > p{color:rgba(255,255,255,.82)}
+.big{font-size:clamp(72px,8vw,112px);font-weight:600;letter-spacing:-.06em;line-height:.9}
+
+.flow{display:grid;grid-template-columns:minmax(0,1fr) 28px minmax(0,1.3fr) 28px minmax(0,1fr);align-items:stretch;gap:6px}
+@media (max-width:700px){.flow{grid-template-columns:1fr}.flow .ar{transform:rotate(90deg);justify-self:center;height:24px}}
+.fn{border-radius:var(--r-s);background:var(--inv-card);border:1px solid var(--inv-line);padding:14px;display:grid;gap:6px;align-content:start}
+.fn small{font-size:12px;color:var(--inv-muted)}
+.fn b{font-weight:600;font-size:14.5px}
+.fn--v{border-color:color-mix(in srgb,#7AAEFF 45%,transparent)}
+.fn ul{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:13px}
+.fn li::before{content:"✓ ";color:#7AAEFF}
+.ar{align-self:center;justify-self:center;color:var(--inv-muted);width:22px;height:22px}
+
+.dbs{display:flex;gap:12px;align-items:flex-end}
+.db{flex:1;display:grid;justify-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.cyl{width:100%;max-width:72px;aspect-ratio:3/3.4;position:relative;background:var(--sunken);border:1px solid var(--line);border-radius:50%/15%}
+.cyl::before{content:"";position:absolute;left:-1px;right:-1px;top:-1px;height:30%;border-radius:50%;border:1px solid var(--line);background:var(--surface)}
+.cyl.on{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+.cyl.on::before{border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+
+.mini{width:100%;border-collapse:collapse;font-size:14px}
+.mini td{padding:11px 0;border-bottom:1px solid var(--line)}
+.mini tr:last-child td{border-bottom:0}
+.mini td small{display:block;color:var(--dim);font-size:12px;font-family:var(--f-mono)}
+.mini .r{text-align:right;font-variant-numeric:tabular-nums;font-weight:500;white-space:nowrap}
+.pos{color:var(--ok)}
+
+.gas{display:grid;gap:14px}
+.gas-top{display:flex;justify-content:space-between;gap:12px;font-size:14px;color:var(--muted);margin-bottom:6px;flex-wrap:wrap}
+.gas-top b{color:var(--fg);font-weight:600}
+.track{height:10px;border-radius:99px;background:var(--chip)}
+.track i{display:block;height:100%;border-radius:inherit}
+
+.log{display:grid;border:1px solid var(--line);border-radius:var(--r-s);overflow:hidden;font-size:13px}
+.log div{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line)}
+.log div:last-child{border-bottom:0}
+.log code{background:none;padding:0;font-size:12.5px;color:var(--fg)}
+.log span{color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* problem */
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media (max-width:860px){.two{grid-template-columns:1fr}}
+.cons{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.cons li{display:grid;grid-template-columns:20px minmax(0,1fr);gap:12px;color:var(--muted);font-size:15px}
+.cons li::before{content:"✕";width:20px;height:20px;border-radius:50%;background:var(--chip);color:var(--bad);font-size:10px;font-weight:700;display:grid;place-items:center;margin-top:2px}
+.calc{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:clamp(24px,4vw,64px);align-items:center}
+@media (max-width:860px){.calc{grid-template-columns:1fr}}
+.calc-l{display:grid;gap:14px;min-width:0}
+.calc-l label{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;font-size:14px;color:var(--muted)}
+.calc-l output{font-size:26px;font-weight:600;letter-spacing:-.03em;color:var(--fg);font-variant-numeric:tabular-nums}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:999px;background:linear-gradient(90deg,var(--accent) var(--p,50%),var(--line) var(--p,50%));margin:6px 0}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;border:2px solid var(--accent);box-shadow:0 2px 6px rgba(12,12,14,.2);cursor:grab}
+input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#fff;border:2px solid var(--accent);cursor:grab}
+.note{font-size:13px;color:var(--muted)}
+.calc-r{display:grid;gap:16px;min-width:0}
+.cb-top{display:flex;justify-content:space-between;gap:12px;font-size:14px;color:var(--muted);margin-bottom:6px;flex-wrap:wrap}
+.cb-top b{color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
+.cb-top b small{color:var(--muted);font-weight:400;font-size:13px}
+
+/* platform */
+.plat{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:clamp(32px,5vw,80px);align-items:center}
+@media (max-width:920px){.plat{grid-template-columns:1fr}}
+.plat-l{display:grid;gap:20px;min-width:0}
+.stack3{display:grid;gap:10px}
+.layer{border-radius:var(--r);border:1px solid var(--inv-line);background:var(--inv-card);padding:20px 22px;display:grid;gap:14px}
+.layer h4{margin:0;font-size:13px;font-weight:500;color:var(--inv-muted)}
+.mods{display:flex;flex-wrap:wrap;gap:8px}
+.mods span{font-size:14px;padding:9px 14px;border-radius:999px;border:1px solid var(--inv-line);color:var(--inv-muted)}
+.mods span.on{background:#fff;color:#0C0C0E;border-color:#fff;font-weight:500}
+.prims{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media (max-width:560px){.prims{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.prims div{border-radius:var(--r-s);background:var(--inv);border:1px solid var(--inv-line);padding:14px;display:grid;gap:4px}
+.prims b{font-size:14.5px;font-weight:600}
+.prims small{font-size:12.5px;color:var(--inv-muted)}
+.core{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.core b{font-size:15px}
+.core small{font-size:13px;color:var(--inv-muted)}
+
+/* compare */
+.cmp-wrap{overflow-x:auto;border-radius:var(--r);border:1px solid var(--line);background:var(--surface)}
+.cmp{width:100%;border-collapse:collapse;min-width:820px}
+.cmp th,.cmp td{padding:17px 22px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);font-size:15px}
+.cmp thead th{font-weight:600;font-size:14px;color:var(--muted)}
+.cmp thead th.us{color:var(--fg)}
+.cmp thead th.us span{display:inline-flex;align-items:center;gap:8px}
+.cmp thead th.us svg{width:22px;height:22px}
+.cmp tbody th{font-weight:500;width:22%}
+.cmp td{color:var(--muted);width:24%}
+.cmp .us{background:var(--accent-soft);color:var(--fg);font-weight:500;width:30%}
+.cmp tr:last-child th,.cmp tr:last-child td{border-bottom:0}
+.y,.n{display:inline-flex;align-items:flex-start;gap:9px}
+.y::before,.n::before{flex:none;width:18px;height:18px;margin-top:2px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:700}
+.y::before{content:"✓";background:var(--ok-soft);color:var(--ok)}
+.n::before{content:"✕";background:var(--chip);color:var(--bad)}
+
+/* engineers */
+.eng{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:clamp(32px,5vw,72px);align-items:start}
+@media (max-width:920px){.eng{grid-template-columns:1fr}}
+.eng-l{display:grid;gap:28px;min-width:0}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:14px;counter-reset:s}
+.steps li{counter-increment:s;display:grid;grid-template-columns:28px minmax(0,1fr);gap:14px;font-size:15px;color:var(--muted)}
+.steps li::before{content:counter(s);width:28px;height:28px;border-radius:50%;background:var(--chip);color:var(--fg);font-size:13px;font-weight:600;display:grid;place-items:center}
+.steps b{color:var(--fg);font-weight:600}
+.spec{display:grid;border-top:1px solid var(--line)}
+.spec div{display:grid;grid-template-columns:120px minmax(0,1fr);gap:16px;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px}
+.spec dt,.spec span:first-child{color:var(--muted)}
+.code{background:#111113;color:#EDEDEF;border-radius:var(--r);overflow:hidden;min-width:0;border:1px solid var(--line)}
+.tabs{display:flex;align-items:center;gap:4px;padding:8px;border-bottom:1px solid #2C2C30;overflow-x:auto}
+.tab{font:500 13px var(--f-sans);color:#A1A1AA;background:none;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.tab[aria-selected="true"]{background:#232327;color:#EDEDEF}
+.copy{margin-left:auto;font:500 12px var(--f-sans);background:none;color:#EDEDEF;border:1px solid #2C2C30;border-radius:8px;padding:7px 11px;cursor:pointer;white-space:nowrap}
+.copy:hover{border-color:#5E5E67}
+.code pre{margin:0;padding:18px 20px;overflow-x:auto;font:13px/1.75 var(--f-mono);tab-size:2;min-height:300px}
+.c-k{color:#E2C792}.c-s{color:#9CCFA6}.c-c{color:#71717A}.c-t{color:#A9B8FF}
+
+/* limits, faq */
+.limits{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+@media (max-width:920px){.limits{grid-template-columns:1fr}}
+.limits h3{font-size:19px}
+.faq-grid{display:grid;grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr);gap:clamp(24px,5vw,72px);align-items:start}
+@media (max-width:860px){.faq-grid{grid-template-columns:1fr}}
+.faq{display:grid;gap:10px}
+.faq details{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-s)}
+.faq summary{cursor:pointer;list-style:none;padding:18px 56px 18px 20px;font-weight:600;font-size:16px;position:relative;letter-spacing:-.01em}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"";position:absolute;right:22px;top:50%;width:9px;height:9px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:translateY(-70%) rotate(45deg);transition:transform .2s}
+.faq details[open] summary::after{transform:translateY(-30%) rotate(-135deg)}
+.faq .a{padding:0 20px 20px;color:var(--muted);font-size:15px;max-width:68ch}
+
+/* final */
+.final{border-radius:28px;padding:clamp(36px,6vw,80px);display:grid;gap:28px;justify-items:start;position:relative;overflow:hidden}
+.final::after{content:"";position:absolute;right:-12%;bottom:-60%;width:70%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(37,99,235,.35),transparent 65%);pointer-events:none}
+.final > *{position:relative;z-index:1}
+.final .h2{max-width:16ch}
+.foot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;padding-block:28px 40px;font-size:13px;color:var(--muted)}
+.foot .logo{font-size:15px;color:var(--fg)}
+.foot .logo svg{width:24px;height:24px}
+body{margin:0}
+[hidden]{display:none!important}
+img{max-width:100%}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="logo" viewBox="0 0 1200 1200">
+    <path fill="var(--brand)" d="M 600 0 C 1146 0 1200 54 1200 600 C 1200 1146 1146 1200 600 1200 C 54 1200 0 1146 0 600 C 0 54 54 0 600 0 Z"/>
+    <path fill="#FEFEFE" d="M 585.562 174.443 C 696.597 167.062 813.622 234.524 865.612 332.536 C 909.489 415.383 911.932 514.02 872.213 598.938 C 859.165 626.701 839.284 652.008 830.625 680.401 C 821.452 710.784 824.676 743.563 839.591 771.578 C 877.32 842.18 973.93 834.416 997.787 757.521 C 1002.28 742.232 1002.46 723.114 994.152 709.002 C 985.879 693.82 968.411 680.885 950.697 688.247 C 942.891 691.492 937.056 696.035 933.817 703.744 C 929.124 714.916 929.466 728.146 917.667 734.61 C 915.394 735.855 911.464 736.415 909.181 735.164 C 890.025 724.666 891.254 696.013 898.634 678.456 C 914.329 641.224 960.037 626.896 996.729 638.265 C 1020.4 645.598 1036.92 661.378 1049.95 681.954 C 1073.42 719.025 1073.57 771.454 1056.47 811.23 C 1038.13 854.296 1003.42 888.305 959.991 905.762 C 915.333 923.267 865.523 922.147 821.696 902.653 C 766.527 878.766 713.959 822.343 691.94 766.917 C 666.043 811.571 615.99 891.017 662.553 940.177 C 674.594 952.89 691.75 955.885 708.564 955.277 C 728.271 954.566 738.309 939.083 749.794 925.463 C 763.141 909.342 783.125 921.505 782.405 939.618 C 781.593 960.074 767.786 979.775 753.223 993.506 C 745.588 1000.08 737.019 1005.48 727.797 1009.53 C 693.063 1025.11 645.614 1025.22 610.435 1011.36 C 528.544 979.114 504.907 884.986 505.784 805.312 C 505.957 789.622 505.635 782.181 499.229 767.812 C 496.138 773.245 492.647 781.581 489.456 787.642 C 482.402 800.894 474.289 813.555 465.197 825.5 C 430.988 871.377 381.381 907.231 323.789 916.033 C 276.934 923.193 229.272 912.022 191.29 883.399 C 156.425 856.347 129.83 814.901 123.645 771.033 C 115.379 712.402 145.267 644.97 208.77 635.216 C 251.116 628.699 291.269 654.191 297.964 697.429 C 300.119 711.345 295.464 733.39 277.874 734.841 C 261.578 736.186 261.13 701.225 250.08 693.184 C 243.946 688.721 237.768 686.137 229.749 686.276 C 203.156 687.621 189.589 715.949 190.927 739.51 C 192.199 761.907 201.902 782.842 217.977 797.621 C 234.967 812.963 257.297 821.03 280.17 820.089 C 356.229 816.87 384.509 717.406 352.21 659.299 C 339.225 635.94 324.807 612.55 314.346 588.103 C 270.168 484.871 290.332 358.803 366.138 275.497 C 423.421 212.524 500.791 177.999 585.562 174.443 z"/>
+    <path fill="var(--brand)" d="M 458.954 449.016 C 527.481 445.446 537.331 568.374 470.817 584.029 C 410.86 594.004 384.562 471.841 458.954 449.016 z"/>
+    <path fill="var(--brand)" d="M 723.26 449.311 C 787.682 447.167 800.336 566.612 732.342 584.441 C 663.742 590.468 654.723 457.815 723.26 449.311 z"/>
+  </symbol>
+  <symbol id="gh" viewBox="0 0 24 24"><path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.56-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.16-1.18 3.16-1.18.63 1.59.24 2.76.12 3.05.74.81 1.18 1.83 1.18 3.09 0 4.41-2.69 5.39-5.25 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></symbol>
+  <symbol id="arr" viewBox="0 0 24 24"><path d="M4 12h15M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<div lang="ru" class="page">
+
+<div class="nav-shell">
+  <div class="wrap">
+    <nav class="nav" aria-label="Основная навигация">
+      <a class="logo" href="#top"><svg aria-hidden="true"><use href="#logo"/></svg>Metapus</a>
+      <ul class="nav-links">
+        <li><a href="#benefits">Возможности</a></li>
+        <li><a href="#why">Зачем</a></li>
+        <li><a href="#platform">Платформа</a></li>
+        <li><a href="#compare">Сравнение</a></li>
+        <li><a href="#engineers">Запуск</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+      <div class="nav-right">
+        <button class="theme-btn" id="themeBtn" type="button" aria-label="Переключить тему"></button>
+        <a class="btn btn--accent btn--sm" href="https://github.com/metapus/metapus" target="_blank" rel="noopener" aria-label="GitHub"><svg aria-hidden="true"><use href="#gh"/></svg><span>GitHub</span></a>
+        <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="menu" aria-label="Открыть меню"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      </div>
+      <div class="menu" id="menu" hidden>
+        <a href="#benefits">Возможности</a><a href="#why">Зачем</a><a href="#platform">Платформа</a><a href="#compare">Сравнение</a><a href="#engineers">Запуск</a><a href="#faq">FAQ</a>
+      </div>
+    </nav>
+  </div>
+</div>
+
+<!-- =============== HERO =============== -->
+<header class="wrap hero" id="top">
+  <div class="hero-top">
+    <h1 class="h1">Криптопроцессинг <span class="dim">на открытой ERP-платформе</span></h1>
+    <div class="hero-side">
+      <p>Принимайте USDT и криптовалюту на своих серверах. Без процентов посреднику, с ключами в HashiCorp Vault и учётом на регистрах.</p>
+      <div class="cta">
+        <a class="btn btn--accent" href="https://github.com/metapus/metapus" target="_blank" rel="noopener"><svg aria-hidden="true"><use href="#gh"/></svg>Код на GitHub</a>
+        <a class="btn btn--ghost" href="#engineers">Быстрый запуск</a>
+      </div>
+    </div>
+  </div>
+  <div class="hero-meta">
+    <span>Open-source · AGPL-3.0</span><span class="sep"></span>
+    <span class="net"><span class="coin" style="background:#EF0027"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"><path d="M2 3l12 2.5-6.5 9z"/><path d="M2 3l5.5 11.5M9.5 7L14 5.5M9.5 7 2 3m7.5 4-2 7.5"/></svg></span>TRON</span>
+    <span class="net"><span class="coin" style="background:#26A17B"><svg viewBox="0 0 16 16" fill="#fff"><path d="M3 3h10v2.3H9.3v1.6c2.3.15 3.9.65 3.9 1.2s-1.6 1.05-3.9 1.2V13H6.7V9.3C4.4 9.15 2.8 8.65 2.8 8.1s1.6-1.05 3.9-1.2V5.3H3z"/></svg></span>USDT TRC-20</span>
+    <span class="net"><span class="coin" style="background:#627EEA"><svg viewBox="0 0 16 16" fill="#fff"><path d="M8 1 3.8 8.2 8 10.6l4.2-2.4z"/><path d="M8 11.6 3.8 9.2 8 15l4.2-5.8z" opacity=".75"/></svg></span>Ethereum · EVM</span>
+  </div>
+
+  <div class="shot-wrap">
+    <div class="shot" role="img" aria-label="Кабинет мерчанта Metapus: обзор балансов, график поступлений и последние инвойсы">
+      <div class="chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">pay.mystore.com/portal</span><span class="dots" style="visibility:hidden"><i></i><i></i><i></i></span></div>
+      <div class="app">
+        <aside class="side" aria-hidden="true">
+          <div class="side-org"><svg><use href="#logo"/></svg><span>My Store<small>Кабинет мерчанта</small></span></div>
+          <a class="on"><i></i>Обзор</a>
+          <a><i></i>Инвойсы</a>
+          <a><i></i>Депозитные адреса</a>
+          <a><i></i>Платёжные ссылки</a>
+          <span class="grp">Выплаты</span>
+          <a><i></i>Выводы</a>
+          <a><i></i>Заявки на вывод</a>
+          <span class="grp">Интеграция</span>
+          <a><i></i>API-ключи</a>
+          <a><i></i>Вебхуки</a>
+          <a><i></i>Настройки</a>
+        </aside>
+        <div class="main" aria-hidden="true">
+          <div class="main-head"><h4>Обзор</h4><div class="seg"><span>24 часа</span><span class="on">Неделя</span><span>30 дней</span></div></div>
+          <div class="kpis">
+            <div class="kpi"><small>Доступно к выводу</small><b>98 412.50<span>USDT</span></b><em class="mut">TRON · TRC-20</em></div>
+            <div class="kpi"><small>Поступления за неделю</small><b>41 230.00<span>USDT</span></b><em>+12,4% к прошлой</em></div>
+            <div class="kpi"><small>Заявки на вывод</small><b>5 000.00<span>USDT</span></b><em class="mut">2 на одобрении</em></div>
+          </div>
+          <div class="panels">
+            <div class="panel">
+              <div class="panel-h">Последние инвойсы <span>Все →</span></div>
+              <table class="tbl">
+                <thead><tr><th>Номер</th><th class="hide-s">Дата</th><th class="r">Сумма</th><th>Статус</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono">INV-000123</td><td class="hide-s">19.11, 14:02</td><td class="r">100.00</td><td><span class="st st--wait">Ожидает</span></td></tr>
+                  <tr><td class="mono">INV-000122</td><td class="hide-s">19.11, 13:47</td><td class="r">2 450.00</td><td><span class="st st--ok">Оплачен</span></td></tr>
+                  <tr><td class="mono">INV-000121</td><td class="hide-s">19.11, 12:15</td><td class="r">380.00</td><td><span class="st st--warn">Недоплата</span></td></tr>
+                  <tr><td class="mono">INV-000120</td><td class="hide-s">19.11, 11:30</td><td class="r">1 200.00</td><td><span class="st st--ok">Оплачен</span></td></tr>
+                  <tr><td class="mono">INV-000119</td><td class="hide-s">18.11, 22:04</td><td class="r">75.00</td><td><span class="st st--off">Отменён</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="panel">
+              <div class="panel-h">Поступления <span>USDT</span></div>
+              <div class="chart">
+                <div class="bars"><i style="height:46%"></i><i style="height:62%"></i><i style="height:38%"></i><i style="height:71%"></i><i style="height:55%"></i><i style="height:83%"></i><i style="height:94%"></i></div>
+                <div class="bars-x"><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span><span>18</span><span>19</span></div>
+                <div class="chart-sum"><span>Сегодня</span><b>7 640.00</b></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pay" aria-hidden="true">
+      <div class="pay-h"><span>My Store · заказ №8812</span><span class="st st--wait">Ожидает</span></div>
+      <div class="pay-amt">100.00<span>USDT</span></div>
+      <div class="pay-body">
+        <div class="qr" id="qr"></div>
+        <div class="pay-rows"><span>Сеть<b>TRON · TRC-20</b></span><span>Адрес<b>TQ5Nf…3hJk8</b></span></div>
+      </div>
+      <div class="pay-t"><span>Адрес закреплён за счётом</span><b>21:37</b></div>
+    </div>
+  </div>
+  <p class="shot-note">Кабинет мерчанта и страница оплаты. Данные на макете условные.</p>
+
+  <div class="stats">
+    <div class="stat"><b>0%</b><p>комиссии посреднику. Платите только сетевую комиссию.</p></div>
+    <div class="stat"><b>0</b><p>приватных ключей в базе данных приложения.</p></div>
+    <div class="stat"><b>1:1</b><p>отдельная база PostgreSQL на каждого клиента.</p></div>
+    <div class="stat"><b>100%</b><p>открытого кода: ядро, кабинет и воркеры.</p></div>
+  </div>
+</header>
+
+<!-- =============== BENEFITS =============== -->
+<section class="wrap section" id="benefits">
+  <div class="head">
+    <div><span class="kicker">Возможности</span><h2 class="h2">Всё для приёма платежей <span class="dim">в одной установке</span></h2></div>
+    <p class="lead">Безопасность, учёт и экономия на газе встроены в ядро, а не собраны из сторонних сервисов.</p>
+  </div>
+  <div class="bento">
+    <article class="card card--dark s4">
+      <h3>Ключи живут только в HashiCorp Vault</h3>
+      <p>Деривация адресов и подпись происходят внутри плагина Vault. Захват сервера или базы не даёт подписать перевод на чужой адрес.</p>
+      <div class="vis flow" aria-label="Подпись вывода через Vault">
+        <div class="fn"><small>Документ</small><b>Заявка на вывод</b></div>
+        <svg class="ar" aria-hidden="true"><use href="#arr"/></svg>
+        <div class="fn fn--v"><small>Политика Vault</small><ul><li>лимит суммы</li><li>адрес в allowlist</li><li>одобрение оператора</li></ul></div>
+        <svg class="ar" aria-hidden="true"><use href="#arr"/></svg>
+        <div class="fn"><small>Результат</small><b>Подписанная транзакция</b></div>
+      </div>
+    </article>
+
+    <article class="card card--blue s2">
+      <div class="big">0%</div>
+      <h3>Без комиссии посреднику</h3>
+      <p>При обороте $500 000 в месяц это $2 500–10 000, которые остаются у вас.</p>
+    </article>
+
+    <article class="card s2">
+      <h3>Отдельная база на каждого клиента</h3>
+      <p>Ошибка в запросе физически не раскроет данные соседнего бизнеса.</p>
+      <div class="vis dbs" aria-hidden="true">
+        <div class="db"><div class="cyl on"></div>acme</div>
+        <div class="db"><div class="cyl"></div>shop-2</div>
+        <div class="db"><div class="cyl"></div>default</div>
+      </div>
+    </article>
+
+    <article class="card s4">
+      <h3>Учёт на регистрах, а не лог транзакций</h3>
+      <p>Каждый платёж раскладывается по регистрам: активы, обязательства перед мерчантом, доход и расходы на газ. Реорги и недоплаты ядро учитывает само.</p>
+      <table class="mini vis" aria-label="Пример проводок по оплате 100 USDT">
+        <tr><td>Активы на кошельках<small>crypto_balance</small></td><td class="r pos">+100.00</td></tr>
+        <tr><td>Обязательства перед мерчантом<small>crypto_merchant_balance</small></td><td class="r pos">+99.00</td></tr>
+        <tr><td>Доход от комиссий<small>crypto_fee</small></td><td class="r pos">+1.00</td></tr>
+      </table>
+    </article>
+
+    <article class="card s3">
+      <h3>Аренда Energy вместо сжигания TRX</h3>
+      <p>Для переводов USDT TRC-20 система сама арендует Energy у провайдеров ресурсов и собирает средства с адресов по порогу.</p>
+      <div class="vis gas" aria-label="Стоимость одного перевода USDT TRC-20, ориентир">
+        <div><div class="gas-top"><span>Сжигание TRX</span><b>$1,5–3</b></div><div class="track"><i style="width:100%;background:var(--dim)"></i></div></div>
+        <div><div class="gas-top"><span>Аренда Energy</span><b>на 60–80% дешевле</b></div><div class="track"><i style="width:30%;background:var(--accent)"></i></div></div>
+      </div>
+    </article>
+
+    <article class="card s3">
+      <h3>API и вебхуки, которые не теряются</h3>
+      <p>REST API с ключами идемпотентности. Вебхук сохраняется в одной транзакции с платежом и подписывается HMAC-SHA256.</p>
+      <div class="vis log" aria-label="Пример журнала вебхуков">
+        <div><span class="st st--ok">200</span><code>invoice.paid</code><span>84 мс</span></div>
+        <div><span class="st st--ok">200</span><code>payment.confirming</code><span>61 мс</span></div>
+        <div><span class="st st--ok">200</span><code>payment.detected</code><span>72 мс</span></div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- =============== WHY =============== -->
+<section class="wrap section" id="why" style="padding-top:0">
+  <div class="head">
+    <div><span class="kicker">Зачем</span><h2 class="h2">Почему не SaaS <span class="dim">и не свой скрипт</span></h2></div>
+    <p class="lead">У обоих привычных вариантов есть цена, которую видно не сразу.</p>
+  </div>
+  <div class="two">
+    <article class="card">
+      <h3>SaaS-процессинг</h3>
+      <ul class="cons">
+        <li>0,5–2% с каждого платежа</li>
+        <li>Деньги на чужих кошельках, аккаунт могут заморозить по AML-политике</li>
+        <li>Ваши обороты и клиенты видны третьей стороне</li>
+      </ul>
+    </article>
+    <article class="card">
+      <h3>Самописный скрипт</h3>
+      <ul class="cons">
+        <li>Нет двойной записи: газ, недоплаты и повторы смешаны</li>
+        <li><span>Ключи в <code>.env</code> или в горячем кошельке</span></li>
+        <li>Реорг блока после отгрузки товара — прямой убыток</li>
+      </ul>
+    </article>
+    <article class="card calc">
+      <div class="calc-l">
+        <h3>Сколько уходит посреднику</h3>
+        <label for="turnover">Оборот в месяц <output id="turnoverOut" for="turnover">$500 000</output></label>
+        <input id="turnover" type="range" min="0" max="100" step="1" value="60" aria-describedby="calcNote">
+        <p class="note" id="calcNote">Сетевая комиссия платится в любом случае. Серверы и Vault — ваши расходы на инфраструктуру.</p>
+      </div>
+      <div class="calc-r" aria-live="polite">
+        <div><div class="cb-top"><span>SaaS, 2%</span><b><span id="feeHigh">$10 000</span> <small id="feeHighY">· $120 000 в год</small></b></div><div class="track"><i style="width:100%;background:var(--fg)"></i></div></div>
+        <div><div class="cb-top"><span>SaaS, 0,5%</span><b><span id="feeLow">$2 500</span> <small id="feeLowY">· $30 000 в год</small></b></div><div class="track"><i style="width:25%;background:var(--dim)"></i></div></div>
+        <div><div class="cb-top"><span>Metapus</span><b>$0 <small>· только сеть</small></b></div><div class="track"></div></div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- =============== PLATFORM (dark band 1 of 2) =============== -->
+<section class="inv" id="platform">
+  <div class="wrap section">
+    <div class="plat">
+      <div class="plat-l">
+        <span class="kicker">Платформа</span>
+        <h2 class="h2">Это не шлюз. <span class="dim">Это ERP-платформа</span></h2>
+        <p class="lead">Криптопроцессинг — первая конфигурация на ядре Metapus. На том же ядре разворачиваются склад, биллинг или договоры, без склейки сервисов по API.</p>
+      </div>
+      <div class="stack3" aria-label="Устройство платформы">
+        <div class="layer"><h4>Конфигурации</h4>
+          <div class="mods"><span class="on">Криптопроцессинг</span><span>Складской учёт</span><span>Биллинг подписок</span><span>Договоры</span><span>Документооборот</span></div>
+        </div>
+        <div class="layer"><h4>Объекты метаданных, описанные на Go</h4>
+          <div class="prims"><div><b>Справочники</b><small>мерчанты, токены</small></div><div><b>Документы</b><small>инвойсы, выводы</small></div><div><b>Регистры</b><small>остатки, обороты</small></div><div><b>Автоматизация</b><small>триггеры, события</small></div></div>
+        </div>
+        <div class="layer core"><span><b>Ядро Metapus</b><br><small>Go · PostgreSQL · Database-per-Tenant</small></span><small>AGPL-3.0</small></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== COMPARE =============== -->
+<section class="wrap section" id="compare">
+  <div class="head">
+    <div><span class="kicker">Сравнение</span><h2 class="h2">Три подхода <span class="dim">к приёму криптовалюты</span></h2></div>
+  </div>
+  <div class="cmp-wrap">
+    <table class="cmp">
+      <thead><tr><th scope="col">Параметр</th><th scope="col">Облачный SaaS</th><th scope="col">Самописный скрипт</th><th scope="col" class="us"><span><svg aria-hidden="true"><use href="#logo"/></svg>Metapus</span></th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Комиссия сервиса</th><td><span class="n">0,5–2% с оборота</span></td><td><span class="y">0%</span></td><td class="us"><span class="y">0%, только комиссия сети</span></td></tr>
+        <tr><th scope="row">Контроль ключей</th><td><span class="n">У чужого сервиса</span></td><td><span class="n">В коде или на сервере</span></td><td class="us"><span class="y">Изолированы в HashiCorp Vault</span></td></tr>
+        <tr><th scope="row">Риск блокировки</th><td><span class="n">Высокий: санкции, KYC/AML</span></td><td><span class="y">Нет</span></td><td class="us"><span class="y">Исключён, self-hosted</span></td></tr>
+        <tr><th scope="row">Изоляция данных</th><td>Общая БД с фильтром по tenant_id</td><td>Своя БД</td><td class="us"><span class="y">Физическая база на каждого клиента</span></td></tr>
+        <tr><th scope="row">Финансовый учёт</th><td>Лог транзакций</td><td><span class="n">Нет</span></td><td class="us"><span class="y">Регистры и проводки</span></td></tr>
+        <tr><th scope="row">Экономия на газе в TRON</th><td>Редко, только внутренняя</td><td>Ручная разработка</td><td class="us"><span class="y">Встроенная аренда Energy</span></td></tr>
+        <tr><th scope="row">Кастомизация</th><td>Закрытый API</td><td>Зависит от разработчика</td><td class="us"><span class="y">Открытая ERP-платформа</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- =============== ENGINEERS =============== -->
+<section class="wrap section" id="engineers" style="padding-top:0">
+  <div class="eng">
+    <div class="eng-l">
+      <div style="display:grid;gap:14px"><span class="kicker">Для инженеров</span><h2 class="h2">Локальный стенд <span class="dim">за несколько минут</span></h2></div>
+      <ol class="steps">
+        <li><span><b>Клонируйте репозиторий</b> и откройте single-tenant-deployment</span></li>
+        <li><span><b>Скопируйте .env</b> из шаблона</span></li>
+        <li><span><b>Поднимите базу</b> и создайте первого тенанта</span></li>
+        <li><span><b>Запустите сервисы:</b> кабинет на :3000, API на :8080</span></li>
+      </ol>
+      <div class="spec">
+        <div><span>Бэкенд</span><span>Go 1.24+, Gin, pgx, squirrel</span></div>
+        <div><span>База</span><span>PostgreSQL 17, Database-per-Tenant</span></div>
+        <div><span>Ключи</span><span>HashiCorp Vault, плагин для TRON, Transit</span></div>
+        <div><span>Кабинет</span><span>Next.js 16, React 19, TypeScript, shadcn/ui</span></div>
+        <div><span>Воркер</span><span>Вотчеры сетей, реорги, свипы</span></div>
+      </div>
+    </div>
+    <div class="code">
+      <div class="tabs" role="tablist" aria-label="Примеры кода">
+        <button class="tab" role="tab" id="t-run" aria-selected="true" aria-controls="p-run" type="button">Запуск</button>
+        <button class="tab" role="tab" id="t-api" aria-selected="false" aria-controls="p-api" type="button" tabindex="-1">Создать счёт</button>
+        <button class="tab" role="tab" id="t-reg" aria-selected="false" aria-controls="p-reg" type="button" tabindex="-1">Регистр на Go</button>
+        <button class="copy" id="copyBtn" type="button">Копировать</button>
+      </div>
+<pre role="tabpanel" id="p-run" aria-labelledby="t-run"><span class="c-c"># 1. Репозиторий</span>
+git clone https://github.com/metapus/metapus.git
+cd metapus/single-tenant-deployment
+
+<span class="c-c"># 2. Переменные окружения</span>
+cp .env.example .env
+
+<span class="c-c"># 3. База, мета-схема и первый тенант</span>
+docker compose up -d postgres
+docker compose --profile init run --rm init init-meta
+docker compose --profile init run --rm init create --slug default --name <span class="c-s">"My Business"</span>
+
+<span class="c-c"># 4. API, воркер и кабинет</span>
+docker compose up -d</pre>
+<pre role="tabpanel" id="p-api" aria-labelledby="t-api" hidden><span class="c-k">curl</span> -X POST $METAPUS/merchant/v1/invoices \
+  -H <span class="c-s">"X-Api-Key: $KEY"</span> \
+  -H <span class="c-s">"Idempotency-Key: order-8812"</span> \
+  -H <span class="c-s">"Content-Type: application/json"</span> \
+  -d <span class="c-s">'{
+    "amount": "100000000",
+    "currency": "USDT-TRC20",
+    "orderId": "8812",
+    "ttlMinutes": 30
+  }'</span>
+
+<span class="c-c"># Сумма в минимальных единицах: 100 USDT × 10^6.
+# Статусы приходят вебхуками с заголовком Metapus-Signature.</span></pre>
+<pre role="tabpanel" id="p-reg" aria-labelledby="t-reg" hidden><span class="c-c">// Регистр «Крипто-расчёты с мерчантами».
+// Приход: платформа должна мерчанту больше.
+// Расход: долг погашен выводом.</span>
+<span class="c-k">type</span> <span class="c-t">CryptoMerchantBalanceMovement</span> <span class="c-k">struct</span> {
+  entity.MovementBase
+
+  <span class="c-c">// Измерения</span>
+  MerchantID id.ID <span class="c-s">`db:"merchant_id"`</span>
+  TokenID    id.ID <span class="c-s">`db:"token_id"`</span>
+
+  <span class="c-c">// Ресурсы: произвольная точность</span>
+  Amount types.RawAmount <span class="c-s">`db:"amount"`</span>
+}</pre>
+    </div>
+  </div>
+</section>
+
+<!-- =============== LIMITS =============== -->
+<section class="wrap section" style="padding-top:0">
+  <div class="head">
+    <div><span class="kicker">Ограничения</span><h2 class="h2">Кому Metapus <span class="dim">не подойдёт</span></h2></div>
+    <p class="lead">Мы открыли код, но не продаём облако.</p>
+  </div>
+  <div class="limits">
+    <article class="card"><h3>Нужны свои серверы</h3><p>Потребуются базовые навыки DevOps: PostgreSQL, Docker и настройка HashiCorp Vault.</p></article>
+    <article class="card"><h3>Инфраструктура на вас</h3><p>Резервные копии, безопасность хоста и сохранность ключей в проде обеспечивает владелец сервера.</p></article>
+    <article class="card"><h3>На старте TRON и EVM</h3><p>Отлажены USDT TRC-20, TRX и базовый адаптер EVM. Новые сети подключаются отдельными адаптерами.</p></article>
+  </div>
+</section>
+
+<!-- =============== FAQ =============== -->
+<section class="wrap section" id="faq" style="padding-top:0">
+  <div class="faq-grid">
+    <div style="display:grid;gap:14px;align-content:start"><span class="kicker">FAQ</span><h2 class="h2">Вопросы <span class="dim">и ответы</span></h2></div>
+    <div class="faq">
+      <details id="faq1" open><summary>Где хранятся деньги клиентов?</summary><div class="a">Платежи поступают напрямую на ваши блокчейн-кошельки. Доступ к адресам и балансам есть только у владельцев установленного экземпляра Metapus.</div></details>
+      <details id="faq2"><summary>Что будет, если сервер с приложением взломают?</summary><div class="a">Захват сервера приложений или базы не даёт доступа к приватным ключам: они изолированы в HashiCorp Vault. Каждый перевод проверяется плагином Vault, сверяется с исходным финансовым документом и разрешён только на адреса из белого списка.</div></details>
+      <details id="faq3"><summary>Как Metapus помогает экономить на комиссии TRON?</summary><div class="a">Обычный перевод USDT в сети TRON сжигает TRX на $1,5–3. Metapus автоматически арендует Energy у провайдеров ресурсов, например iTRX, и это снижает себестоимость перевода на 60–80%.</div></details>
+      <details id="faq4"><summary>Можно ли использовать только API, без кабинета?</summary><div class="a">Да. Выпустите API-ключи с нужными скоупами (<code>invoice:create</code>, <code>address:read</code>), создавайте инвойсы из своего бэкенда и получайте статусы по вебхукам. Кабинет остаётся для сверки и подтверждения выплат.</div></details>
+      <details id="faq5"><summary>Как добавить свою логику или другую сеть?</summary><div class="a">Новая EVM-совместимая сеть или собственный бизнес-документ подключается отдельным адаптером через интерфейсы <code>ChainFamilyCapabilities</code>. Финансовое ядро переписывать не нужно.</div></details>
+    </div>
+  </div>
+</section>
+
+<!-- =============== FINAL (dark band 2 of 2) =============== -->
+<footer class="wrap">
+  <div class="final inv">
+    <span class="kicker">Начать</span>
+    <h2 class="h2">Ваши ключи, ваша база, <span class="dim">ваш учёт</span></h2>
+    <div class="cta">
+      <a class="btn btn--light" href="https://github.com/metapus/metapus" target="_blank" rel="noopener"><svg aria-hidden="true"><use href="#gh"/></svg>Открыть репозиторий</a>
+      <a class="btn btn--ghost" href="#engineers" style="background:transparent;color:var(--inv-fg);border-color:var(--inv-line)">Быстрый запуск</a>
+    </div>
+  </div>
+  <div class="foot">
+    <span class="logo"><svg aria-hidden="true"><use href="#logo"/></svg>Metapus</span>
+    <span>Open-Source ERP Platform · AGPL-3.0</span>
+    <span>Прототип лендинга · ноябрь 2026</span>
+  </div>
+</footer>
+</div>
+
+<script>
+(function(){
+  // decorative QR-like pattern for the payment mock
+  var n=25,m=[],seed=8812;function rnd(){seed=(seed*16807)%2147483647;return seed/2147483647}
+  for(var y=0;y<n;y++){m[y]=[];for(var x=0;x<n;x++)m[y][x]=rnd()>.52}
+  function finder(ox,oy){for(var y=0;y<7;y++)for(var x=0;x<7;x++){var e=x==0||y==0||x==6||y==6,c=x>1&&x<5&&y>1&&y<5;m[oy+y][ox+x]=e||c}
+    for(var i=-1;i<8;i++){[[ox+i,oy-1],[ox+i,oy+7],[ox-1,oy+i],[ox+7,oy+i]].forEach(function(p){if(p[0]>=0&&p[1]>=0&&p[0]<n&&p[1]<n)m[p[1]][p[0]]=false})}}
+  finder(0,0);finder(n-7,0);finder(0,n-7);
+  var d='';for(var y=0;y<n;y++)for(var x=0;x<n;x++)if(m[y][x])d+='M'+x+' '+y+'h1v1h-1z';
+  document.getElementById('qr').innerHTML='<svg viewBox="0 0 '+n+' '+n+'" shape-rendering="crispEdges"><path d="'+d+'" fill="#0C0C0E"/></svg>';
+
+  // theme toggle: explicit choice wins over the system setting and is remembered per viewer
+  var root=document.documentElement,tb=document.getElementById('themeBtn'),mq=window.matchMedia('(prefers-color-scheme: dark)');
+  var SUN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></svg>';
+  var MOON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>';
+  function eff(){var t=root.getAttribute('data-theme');return t==='dark'||t==='light'?t:(mq.matches?'dark':'light')}
+  function paint(){var d=eff()==='dark',l=d?'Включить светлую тему':'Включить тёмную тему';tb.innerHTML=d?SUN:MOON;tb.setAttribute('aria-label',l);tb.title=l}
+  try{var saved=localStorage.getItem('metapus-theme');if(saved==='dark'||saved==='light')root.setAttribute('data-theme',saved)}catch(e){}
+  tb.addEventListener('click',function(){var n=eff()==='dark'?'light':'dark';root.setAttribute('data-theme',n);try{localStorage.setItem('metapus-theme',n)}catch(e){}paint()});
+  if(mq.addEventListener)mq.addEventListener('change',paint);
+  new MutationObserver(paint).observe(root,{attributes:true,attributeFilter:['data-theme']});
+  paint();
+
+  // mobile menu
+  var mb=document.getElementById('menuBtn'),menu=document.getElementById('menu');
+  function setMenu(open){menu.hidden=!open;mb.setAttribute('aria-expanded',String(open));mb.setAttribute('aria-label',open?'Закрыть меню':'Открыть меню')}
+  mb.addEventListener('click',function(){setMenu(menu.hidden)});
+  menu.addEventListener('click',function(e){if(e.target.tagName==='A')setMenu(false)});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')setMenu(false)});
+
+  // fee calculator
+  var r=document.getElementById('turnover');
+  var min=Math.log(10000),max=Math.log(5000000);
+  function val(p){var v=Math.exp(min+(max-min)*p/100);var step=v<100000?5000:v<1000000?10000:50000;return Math.round(v/step)*step}
+  function fmt(n){return '$'+Math.round(n).toLocaleString('ru-RU').replace(/ /g,' ')}
+  function upd(){
+    var p=+r.value,v=val(p);
+    r.style.setProperty('--p',p+'%');
+    document.getElementById('turnoverOut').textContent=fmt(v);
+    document.getElementById('feeLow').textContent=fmt(v*.005);
+    document.getElementById('feeHigh').textContent=fmt(v*.02);
+    document.getElementById('feeLowY').textContent='· '+fmt(v*.005*12)+' в год';
+    document.getElementById('feeHighY').textContent='· '+fmt(v*.02*12)+' в год';
+  }
+  r.value=String(Math.round((Math.log(500000)-min)/(max-min)*100));
+  r.addEventListener('input',upd);upd();
+
+  // code tabs
+  var tabs=[].slice.call(document.querySelectorAll('.tab'));
+  function select(t){tabs.forEach(function(x){var on=x===t;x.setAttribute('aria-selected',String(on));x.tabIndex=on?0:-1;document.getElementById(x.getAttribute('aria-controls')).hidden=!on})}
+  tabs.forEach(function(t,i){
+    t.addEventListener('click',function(){select(t)});
+    t.addEventListener('keydown',function(e){var k=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;if(k){var nx=tabs[(i+k+tabs.length)%tabs.length];select(nx);nx.focus()}});
+  });
+
+  var btn=document.getElementById('copyBtn');
+  btn.addEventListener('click',function(){
+    var pane=document.querySelector('.code pre:not([hidden])');
+    function done(){btn.textContent='Скопировано';setTimeout(function(){btn.textContent='Копировать'},1600)}
+    function fallback(){var s=window.getSelection(),rg=document.createRange();rg.selectNodeContents(pane);s.removeAllRanges();s.addRange(rg);btn.textContent='Выделено, нажмите ⌘C'}
+    try{navigator.clipboard.writeText(pane.innerText).then(done,fallback)}catch(e){fallback()}
+  });
+})();
+</script>
+</body>
+</html>
