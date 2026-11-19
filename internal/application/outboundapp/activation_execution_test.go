@@ -171,6 +171,62 @@ func (s *activationActorStore) MarkSigningAuthorizationBroadcast(ctx context.Con
 	return nil
 }
 
+type activationDispatchStore struct {
+	ActivationRepository
+	t      *testing.T
+	valid  bool
+	events []string
+}
+
+func (s *activationDispatchStore) PrepareAccountActivationState(ctx context.Context, _ AccountActivationTask) error {
+	require.NotNil(s.t, ctx.Value(workflowTxKey{}))
+	if !s.valid {
+		return apperror.NewConflict("stale actor")
+	}
+	s.events = append(s.events, "fence")
+	return nil
+}
+func (s *activationDispatchStore) BeginAccountActivationDispatch(ctx context.Context, _ AccountActivationTask, _ crypto.SigningAuthorization, phase string) error {
+	require.NotNil(s.t, ctx.Value(workflowTxKey{}))
+	s.events = append(s.events, "marker:"+phase)
+	return nil
+}
+
+// The custody permit refuses a caller transaction (BeginAMLDispatch), so the
+// guard must run it outside the claim transaction and commit the marker last.
+func TestActivationDispatchRunsCustodyPermitOutsideClaimTransaction(t *testing.T) {
+	store := &activationDispatchStore{t: t, valid: true}
+	transactions := &workflowTx{}
+	guard := activationExecutionGuard{repo: store, transactions: transactions, task: AccountActivationTask{ActivationID: id.New()}}
+	err := guard.BeginDispatch(t.Context(), crypto.SigningAuthorization{}, "authorize", func(ctx context.Context) error {
+		require.Nil(t, ctx.Value(workflowTxKey{}), "custody permit must not run inside the claim transaction")
+		store.events = append(store.events, "permit")
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"fence", "permit", "fence", "marker:authorize"}, store.events)
+	require.Equal(t, 2, transactions.commits)
+}
+
+func TestActivationDispatchStopsWithoutMarkerOnStaleClaimOrPermitFailure(t *testing.T) {
+	stale := &activationDispatchStore{t: t, valid: false}
+	permitted := false
+	err := activationExecutionGuard{repo: stale, transactions: &workflowTx{}}.BeginDispatch(t.Context(), crypto.SigningAuthorization{}, "sign", func(context.Context) error {
+		permitted = true
+		return nil
+	})
+	require.Error(t, err)
+	require.False(t, permitted)
+	require.Empty(t, stale.events)
+
+	store := &activationDispatchStore{t: t, valid: true}
+	err = activationExecutionGuard{repo: store, transactions: &workflowTx{}}.BeginDispatch(t.Context(), crypto.SigningAuthorization{}, "sign", func(context.Context) error {
+		return apperror.NewConflict("AML dispatch scope was disabled")
+	})
+	require.ErrorContains(t, err, "AML dispatch scope was disabled")
+	require.Equal(t, []string{"fence"}, store.events, "a refused permit must not record signing exposure")
+}
+
 type activationEvidenceFees struct {
 	ActivationFees
 	t           *testing.T

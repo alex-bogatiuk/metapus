@@ -118,9 +118,9 @@ func (r *DashboardRepo) RemoveWithdrawalAddress(ctx context.Context, merchantID 
 func (r *DashboardRepo) CreateWithdrawalRequest(ctx context.Context, doc *withdrawal_request.WithdrawalRequest, riskClass aml.Class) error {
 	q := querier(ctx)
 	_, err := q.Exec(ctx, `
-		INSERT INTO doc_withdrawal_requests (id, number, merchant_id, token_id, amount, dest_address, address_id, status, posted, posted_version,risk_class,basis_type,basis_id,description)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending_signature', $8, $9,NULLIF($10,''),$11,$12,$13)
-	`, doc.GetID(), doc.Number, doc.MerchantID, doc.TokenID, doc.Amount, doc.DestAddress, doc.AddressID, doc.IsPosted(), doc.GetPostedVersion(), riskClass, doc.BasisType, doc.BasisID, doc.Description)
+		INSERT INTO doc_withdrawal_requests (id, number, date, merchant_id, token_id, amount, dest_address, address_id, status, posted, posted_version,risk_class,basis_type,basis_id,description)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending_signature', $9, $10,NULLIF($11,''),$12,$13,$14)
+	`, doc.GetID(), doc.Number, doc.Date, doc.MerchantID, doc.TokenID, doc.Amount, doc.DestAddress, doc.AddressID, doc.IsPosted(), doc.GetPostedVersion(), riskClass, doc.BasisType, doc.BasisID, doc.Description)
 	if err != nil {
 		return fmt.Errorf("create withdrawal request: %w", err)
 	}

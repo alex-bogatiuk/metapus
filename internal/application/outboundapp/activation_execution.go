@@ -63,12 +63,23 @@ func (g activationExecutionGuard) Run(ctx context.Context, work func(context.Con
 		return nil
 	})
 }
+
+// BeginDispatch admits one external phase. The custody dispatch permit
+// commits its own transaction and refuses a caller transaction, so it runs
+// between two fenced claim checks. The dispatch marker commits last, right
+// before the caller's signer/RPC call: a permit left by a lost lease is only
+// a permit, never signing exposure.
 func (g activationExecutionGuard) BeginDispatch(ctx context.Context, auth crypto.SigningAuthorization, phase string, work func(context.Context) error) error {
-	return g.Run(ctx, func(ctx context.Context) error {
-		if err := g.repo.BeginAccountActivationDispatch(ctx, g.task, auth, phase); err != nil {
+	if err := g.Run(ctx, nil); err != nil {
+		return err
+	}
+	if work != nil {
+		if err := work(ctx); err != nil {
 			return err
 		}
-		return work(ctx)
+	}
+	return g.Run(ctx, func(ctx context.Context) error {
+		return g.repo.BeginAccountActivationDispatch(ctx, g.task, auth, phase)
 	})
 }
 func (e *AccountActivationExecutor) executionGuard(task AccountActivationTask) SigningExecutionGuard {
