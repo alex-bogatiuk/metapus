@@ -1,5 +1,7 @@
 "use client"
 
+import { PermissionGate } from "@/components/auth/permission-gate"
+import { SYSTEM_ADMIN } from "@/lib/system-permissions"
 import { FormToolbar } from "@/components/shared/form-toolbar"
 import { AutomationRuleForm } from "@/components/settings/automation-rule-form"
 import { useCatalogForm } from "@/hooks/useCatalogForm"
@@ -15,7 +17,7 @@ import { toast } from "sonner"
 
 const formKey = createFormDraftKey<RuleFormState>("frontend/app/(main)/admin/automation-rules/[id]/page.tsx")
 
-export default function EditAutomationRulePage() {
+function EditAutomationRulePageContent() {
   const { f, update, handleChange, handleSave, saving, error, loading, deletionMark, entityId } = useCatalogForm<RuleFormState, AutomationRule, never, UpdateRuleRequest>({
     draftKey: formKey,
     entityName: "Правило автоматизации",
@@ -107,5 +109,13 @@ export default function EditAutomationRulePage() {
 
       <AutomationRuleForm value={f} onChange={patch => { update(patch); handleChange() }} />
     </div>
+  )
+}
+
+export default function EditAutomationRulePage() {
+  return (
+    <PermissionGate permission={SYSTEM_ADMIN} subject="правилам автоматизации">
+      <EditAutomationRulePageContent />
+    </PermissionGate>
   )
 }

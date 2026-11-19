@@ -1,5 +1,7 @@
 "use client"
 
+import { PermissionGate } from "@/components/auth/permission-gate"
+import { SYSTEM_ADMIN } from "@/lib/system-permissions"
 /**
  * Delete Marked Objects — admin tool page.
  *
@@ -76,7 +78,7 @@ const toneClass = {
     muted: "text-muted-foreground",
 } as const
 
-export default function MarkedObjectsPage() {
+function MarkedObjectsPageContent() {
     const router = useRouter()
     const openTab = useTabsStore((s) => s.openTab)
     const getEntityByName = useMetadataStore((s) => s.getEntityByName)
@@ -662,4 +664,12 @@ function ReferenceList({
             )}
         </div>
     )
+}
+
+export default function MarkedObjectsPage() {
+  return (
+    <PermissionGate permission={SYSTEM_ADMIN} subject="удалению помеченных объектов">
+      <MarkedObjectsPageContent />
+    </PermissionGate>
+  )
 }

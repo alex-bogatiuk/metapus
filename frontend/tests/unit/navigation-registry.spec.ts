@@ -3,6 +3,7 @@ import { Star } from "lucide-react"
 import { getNavigation, registerNavigation } from "../../lib/navigation"
 import { getStaticNavItems } from "../../lib/command-nav-items"
 import { getProfilePresets, registerProfilePreset } from "../../lib/security-registry"
+import { EVENT_LOG_READ, SYSTEM_ADMIN, WORKER_JOB_READ } from "../../lib/system-permissions"
 
 test("a contribution extends groups, inserts groups and links at their anchors", () => {
   registerNavigation({
@@ -41,4 +42,20 @@ test("a preset goes after its anchor and an extension adds to an existing preset
   const codes = presets.map(p => p.code)
   expect(codes.indexOf("probe")).toBe(codes.indexOf("viewer") + 1)
   expect(presets.find(p => p.code === "viewer")?.fieldPolicies.at(-1)?.entityName).toBe("Probe")
+})
+
+test("system administration links and commands require their permissions, settings and help do not", () => {
+  const { systemLinks, commands } = getNavigation()
+  const linkPermission = (url: string) => systemLinks.find(l => l.url === url)?.permission
+  expect(linkPermission("/settings")).toBeUndefined()
+  expect(linkPermission("/help")).toBeUndefined()
+  expect(linkPermission("/admin")).toBe(SYSTEM_ADMIN)
+  expect(linkPermission("/admin/event-log")).toBe(EVENT_LOG_READ)
+  expect(linkPermission("/admin/worker-jobs")).toBe(WORKER_JOB_READ)
+  const commandPermission = (id: string) => commands.find(c => c.id === id)?.permission
+  expect(commandPermission("sys:settings")).toBeUndefined()
+  expect(commandPermission("sys:admin")).toBe(SYSTEM_ADMIN)
+  expect(commandPermission("sys:automation-rules")).toBe(SYSTEM_ADMIN)
+  expect(commandPermission("sys:event-log")).toBe(EVENT_LOG_READ)
+  expect(commandPermission("sys:worker-jobs")).toBe(WORKER_JOB_READ)
 })

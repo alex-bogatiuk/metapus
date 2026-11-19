@@ -1,5 +1,7 @@
 "use client"
 
+import { PermissionGate } from "@/components/auth/permission-gate"
+import { SYSTEM_ADMIN } from "@/lib/system-permissions"
 /**
  * Find References — admin tool page.
  *
@@ -31,7 +33,7 @@ import { buildEntityUrlByRoute } from "@/lib/entity-url"
 import { api } from "@/lib/api"
 import type { TypedRef, FoundReference } from "@/types/common"
 
-export default function FindReferencesPage() {
+function FindReferencesPageContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const openTab = useTabsStore((s) => s.openTab)
@@ -237,4 +239,12 @@ export default function FindReferencesPage() {
         </div>
         </ScrollArea>
     )
+}
+
+export default function FindReferencesPage() {
+  return (
+    <PermissionGate permission={SYSTEM_ADMIN} subject="поиску ссылок">
+      <FindReferencesPageContent />
+    </PermissionGate>
+  )
 }

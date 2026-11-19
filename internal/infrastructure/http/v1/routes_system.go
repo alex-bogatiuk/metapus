@@ -63,7 +63,7 @@ func registerSecurityRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 	profileHandler := handlers.NewSecurityProfileHandler(profileRepo, auditSvc, cfg.ProfileProvider)
 
 	secGroup := rg.Group("/security")
-	secGroup.Use(middleware.RequireRole("admin"))
+	secGroup.Use(middleware.RequirePermissionOrSystemAdmin(auth.PermissionSystemAdmin))
 	requireStepUp := func(actionCode string) gin.HandlerFunc {
 		return middleware.SensitiveActionGuard(cfg.MFARepo, actionCode, cfg.EventLogRepo)
 	}
@@ -113,11 +113,12 @@ func registerSystemRoutes(rg, sysGroup, wsGroup *gin.RouterGroup, cfg RouterConf
 	}
 
 	eventLogHandler := handlers.NewEventLogHandler(eventLogReader)
+	eventLogGroup := rg.Group("/system", middleware.RequirePermissionOrSystemAdmin(auth.PermissionEventLogRead))
 	{
-		sysGroup.GET("/event-log", eventLogHandler.List)
-		sysGroup.GET("/event-log/stats", eventLogHandler.Stats)
-		sysGroup.GET("/event-log/trace/:traceId", eventLogHandler.Trace)
-		sysGroup.GET("/event-log/:id", eventLogHandler.Get)
+		eventLogGroup.GET("/event-log", eventLogHandler.List)
+		eventLogGroup.GET("/event-log/stats", eventLogHandler.Stats)
+		eventLogGroup.GET("/event-log/trace/:traceId", eventLogHandler.Trace)
+		eventLogGroup.GET("/event-log/:id", eventLogHandler.Get)
 	}
 
 	// Notifications & Real-Time Hub
@@ -191,7 +192,7 @@ func registerSystemRoutes(rg, sysGroup, wsGroup *gin.RouterGroup, cfg RouterConf
 	// Worker Job observability (/system/worker-jobs)
 	workerJobRepo := postgres.NewWorkerJobReadRepo()
 	workerJobHandler := handlers.NewWorkerJobHandler(workerJobRepo)
-	workerJobHandler.RegisterRoutes(sysGroup)
+	workerJobHandler.RegisterRoutes(rg.Group("/system", middleware.RequirePermissionOrSystemAdmin(auth.PermissionWorkerJobRead)))
 }
 
 // registerUserPrefsRoutes registers user preferences endpoints.
@@ -225,7 +226,7 @@ func registerAdminTenantRoutes(rg *gin.RouterGroup, cfg RouterConfig, healthHand
 	h := handlers.NewAdminTenantHandler(base, registry)
 
 	admin := rg.Group("/admin/tenants")
-	admin.Use(middleware.RequireRole("admin"))
+	admin.Use(middleware.RequirePermissionOrSystemAdmin(auth.PermissionSystemAdmin))
 	{
 		admin.GET("", h.List)
 		admin.GET("/:tenantId", h.Get)
@@ -233,6 +234,6 @@ func registerAdminTenantRoutes(rg *gin.RouterGroup, cfg RouterConfig, healthHand
 
 	// Tenant health stats — admin-only (moved from public /health group)
 	adminHealth := rg.Group("/admin")
-	adminHealth.Use(middleware.RequireRole("admin"))
+	adminHealth.Use(middleware.RequirePermissionOrSystemAdmin(auth.PermissionSystemAdmin))
 	adminHealth.GET("/health/tenants", healthHandler.TenantsStats)
 }

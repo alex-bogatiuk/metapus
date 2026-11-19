@@ -1,5 +1,7 @@
 "use client"
 
+import { PermissionGate } from "@/components/auth/permission-gate"
+import { SYSTEM_ADMIN } from "@/lib/system-permissions"
 import { AuditSection } from "@/components/settings/security-profile/audit-section"
 import { FlsSection } from "@/components/settings/security-profile/fls-section"
 import { RlsSection } from "@/components/settings/security-profile/rls-section"
@@ -25,7 +27,7 @@ import {
   Save
 } from "lucide-react"
 
-export default function SecurityProfilePage() {
+function SecurityProfilePageContent() {
   const { router, profileId, isNew, profile, form, setForm, rules, setRules, loading, saving, activeTab, setActiveTab, handleSave } = useSecurityProfile()
 
   if (loading) {
@@ -186,5 +188,13 @@ export default function SecurityProfilePage() {
         </div>
       </ScrollArea>
     </div>
+  )
+}
+
+export default function SecurityProfilePage() {
+  return (
+    <PermissionGate permission={SYSTEM_ADMIN} subject="профилям безопасности">
+      <SecurityProfilePageContent />
+    </PermissionGate>
   )
 }

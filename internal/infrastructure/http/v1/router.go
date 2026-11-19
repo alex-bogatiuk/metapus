@@ -225,8 +225,10 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		wsGroup := v1.Group("")
 		wsGroup.Use(middleware.TenantDB(cfg.TenantManager))
 
+		// The system administration; the event log and the worker jobs, which
+		// have permissions of their own, are mounted next to it.
 		sysGroup := protected.Group("/system")
-		sysGroup.Use(middleware.RequireRole("admin"))
+		sysGroup.Use(middleware.RequirePermissionOrSystemAdmin(auth.PermissionSystemAdmin))
 		registerSystemRoutes(protected, sysGroup, wsGroup, cfg, eventLogRepo, reg, cfg.WSTicketStore, reportCompiler)
 		moduleContext = RouteContext{Root: router, API: v1, Protected: protected, System: sysGroup, Config: cfg, Metadata: reg}
 

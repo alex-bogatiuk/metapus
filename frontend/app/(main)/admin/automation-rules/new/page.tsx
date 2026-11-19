@@ -1,5 +1,7 @@
 "use client"
 
+import { PermissionGate } from "@/components/auth/permission-gate"
+import { SYSTEM_ADMIN } from "@/lib/system-permissions"
 import { useRouter } from "next/navigation"
 import { FormToolbar } from "@/components/shared/form-toolbar"
 import { AutomationRuleForm } from "@/components/settings/automation-rule-form"
@@ -11,7 +13,7 @@ import type { CreateRuleRequest } from "@/types/automation"
 
 const formKey = createFormDraftKey<RuleFormState>("frontend/app/(main)/admin/automation-rules/new/page.tsx")
 
-export default function NewAutomationRulePage() {
+function NewAutomationRulePageContent() {
   const router = useRouter()
   const { f, update, handleChange, handleSave, saving, error } = useCatalogForm<RuleFormState, never, CreateRuleRequest, never>({
     draftKey: formKey,
@@ -48,5 +50,13 @@ export default function NewAutomationRulePage() {
 
       <AutomationRuleForm value={f} onChange={patch => { update(patch); handleChange() }} />
     </div>
+  )
+}
+
+export default function NewAutomationRulePage() {
+  return (
+    <PermissionGate permission={SYSTEM_ADMIN} subject="правилам автоматизации">
+      <NewAutomationRulePageContent />
+    </PermissionGate>
   )
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 
 	"github.com/gin-gonic/gin"
 
@@ -858,6 +859,22 @@ func (h *AuthHandler) Impersonate(c *gin.Context) {
 	})
 }
 
+// effectivePermissions are the codes the user's routes accept: the granted
+// ones and, for a system administrator, the system permissions, which
+// RequirePermissionOrSystemAdmin lets them through without a grant.
+func effectivePermissions(user *appctx.UserContext) []string {
+	permissions := append([]string{}, user.Permissions...)
+	if !appctx.IsSystemAdmin(user) {
+		return permissions
+	}
+	for _, code := range auth.SystemPermissionCodes() {
+		if !slices.Contains(permissions, code) {
+			permissions = append(permissions, code)
+		}
+	}
+	return permissions
+}
+
 // RegisterRoutes registers auth routes.
 func (h *AuthHandler) RegisterRoutes(public, protected *gin.RouterGroup, stepUp func(string) gin.HandlerFunc) {
 	requireStepUp := func(actionCode string) gin.HandlerFunc {
@@ -866,6 +883,8 @@ func (h *AuthHandler) RegisterRoutes(public, protected *gin.RouterGroup, stepUp 
 		}
 		return stepUp(actionCode)
 	}
+	requireSystemAdmin := middleware.RequirePermissionOrSystemAdmin(auth.PermissionSystemAdmin)
+
 	// Public routes (no auth required)
 	public.POST("/register", h.Register)
 	public.POST("/login", h.Login)
@@ -883,31 +902,27 @@ func (h *AuthHandler) RegisterRoutes(public, protected *gin.RouterGroup, stepUp 
 			h.Error(c, apperror.NewUnauthorized("authentication required"))
 			return
 		}
-		permissions := user.Permissions
-		if permissions == nil {
-			permissions = []string{}
-		}
-		h.OK(c, dto.PermissionCodesResponse{Items: permissions})
+		h.OK(c, dto.PermissionCodesResponse{Items: effectivePermissions(user)})
 	})
 	protected.POST("/step-up", h.StepUp)
 	protected.POST("/mfa/enroll/start-session", h.MFAEnrollStartSession)
 	protected.POST("/mfa/reset", middleware.RequireRole("security_admin"), requireStepUp("auth.mfa.reset"), h.ResetMFA)
 	// NOTE: These endpoints are privileged. Keep them protected from privilege escalation.
-	protected.POST("/assign-role", middleware.RequireRole("admin"), requireStepUp("auth.roles.assign"), h.AssignRole)
-	protected.POST("/revoke-role", middleware.RequireRole("admin"), requireStepUp("auth.roles.revoke"), h.RevokeRole)
-	protected.GET("/users", middleware.RequireRole("admin"), h.ListUsers)
-	protected.POST("/users", middleware.RequireRole("admin"), requireStepUp("auth.users.create"), h.CreateUserByAdmin)
-	protected.GET("/users/:userId", middleware.RequireRole("admin"), h.GetUser)
-	protected.PUT("/users/:userId", middleware.RequireRole("admin"), requireStepUp("auth.users.update"), h.UpdateUser)
-	protected.GET("/users/:userId/effective-access", middleware.RequireRole("admin"), h.GetEffectiveAccess)
-	protected.POST("/users/:userId/impersonate", middleware.RequireRole("admin"), requireStepUp("auth.impersonate"), h.Impersonate)
+	protected.POST("/assign-role", requireSystemAdmin, requireStepUp("auth.roles.assign"), h.AssignRole)
+	protected.POST("/revoke-role", requireSystemAdmin, requireStepUp("auth.roles.revoke"), h.RevokeRole)
+	protected.GET("/users", requireSystemAdmin, h.ListUsers)
+	protected.POST("/users", requireSystemAdmin, requireStepUp("auth.users.create"), h.CreateUserByAdmin)
+	protected.GET("/users/:userId", requireSystemAdmin, h.GetUser)
+	protected.PUT("/users/:userId", requireSystemAdmin, requireStepUp("auth.users.update"), h.UpdateUser)
+	protected.GET("/users/:userId/effective-access", requireSystemAdmin, h.GetEffectiveAccess)
+	protected.POST("/users/:userId/impersonate", requireSystemAdmin, requireStepUp("auth.impersonate"), h.Impersonate)
 	protected.GET("/roles", h.ListRoles)
-	protected.POST("/roles", middleware.RequireRole("admin"), requireStepUp("auth.roles.create"), h.CreateRole)
+	protected.POST("/roles", requireSystemAdmin, requireStepUp("auth.roles.create"), h.CreateRole)
 	protected.GET("/roles/:roleId", h.GetRole)
-	protected.PUT("/roles/:roleId", middleware.RequireRole("admin"), requireStepUp("auth.roles.update"), h.UpdateRole)
-	protected.DELETE("/roles/:roleId", middleware.RequireRole("admin"), requireStepUp("auth.roles.delete"), h.DeleteRole)
+	protected.PUT("/roles/:roleId", requireSystemAdmin, requireStepUp("auth.roles.update"), h.UpdateRole)
+	protected.DELETE("/roles/:roleId", requireSystemAdmin, requireStepUp("auth.roles.delete"), h.DeleteRole)
 	protected.GET("/roles/:roleId/permissions", h.ListRolePermissions)
-	protected.PUT("/roles/:roleId/permissions", middleware.RequireRole("admin"), requireStepUp("auth.roles.permissions"), h.SetRolePermissions)
+	protected.PUT("/roles/:roleId/permissions", requireSystemAdmin, requireStepUp("auth.roles.permissions"), h.SetRolePermissions)
 	protected.GET("/permissions", h.ListPermissions)
 
 	// WebSocket ticket issuer (requires JWT auth)

@@ -9,6 +9,7 @@ import (
 
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/json"
+	"metapus/internal/domain/auth"
 	"metapus/internal/domain/settings"
 	"metapus/internal/infrastructure/http/v1/middleware"
 )
@@ -86,7 +87,7 @@ func (h *SettingsHandler) UpdateSection(c *gin.Context) {
 // RegisterRoutes registers settings routes on the given router group.
 func (h *SettingsHandler) RegisterRoutes(rg *gin.RouterGroup, updateGuards ...gin.HandlerFunc) {
 	sg := rg.Group("/settings")
-	sg.Use(middleware.RequireRole("admin"))
+	sg.Use(middleware.RequirePermissionOrSystemAdmin(auth.PermissionSystemAdmin))
 	{
 		sg.GET("", h.Get)
 		sg.PATCH("/:section", appendRouteGuards(updateGuards, h.UpdateSection)...)

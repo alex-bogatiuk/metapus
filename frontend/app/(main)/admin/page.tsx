@@ -1,5 +1,7 @@
 "use client"
 
+import { PermissionGate } from "@/components/auth/permission-gate"
+import { SYSTEM_ADMIN } from "@/lib/system-permissions"
 import { useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useTabState } from "@/hooks/useTabState"
@@ -123,7 +125,7 @@ function adminSections(): { sections: SectionItem[]; sectionComponents: Record<s
   }
 }
 
-export default function AdminPage() {
+function AdminPageContent() {
   const router = useRouter()
   const { sections, sectionComponents } = useMemo(() => adminSections(), [])
   const [activeSection, setActiveSection] =
@@ -247,5 +249,13 @@ export default function AdminPage() {
         </div>
       </ScrollArea>
     </div>
+  )
+}
+
+export default function AdminPage() {
+  return (
+    <PermissionGate permission={SYSTEM_ADMIN} subject="администрированию системы">
+      <AdminPageContent />
+    </PermissionGate>
   )
 }

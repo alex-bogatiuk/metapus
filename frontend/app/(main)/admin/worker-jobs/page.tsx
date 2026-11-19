@@ -1,5 +1,7 @@
 "use client"
 
+import { PermissionGate } from "@/components/auth/permission-gate"
+import { WORKER_JOB_READ } from "@/lib/system-permissions"
 import { format } from "date-fns"
 import { ru } from "date-fns/locale"
 import {
@@ -226,7 +228,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 // Main page
 // ---------------------------------------------------------------------------
 
-export default function WorkerJobsPage() {
+function WorkerJobsPageContent() {
   const hasCachedItems = useHasTabCache(tabStateKeys["items"])
 
   const [items, setItems] = useTabState(tabStateKeys["items"], [])
@@ -518,5 +520,13 @@ export default function WorkerJobsPage() {
         onOpenChange={setDetailOpen}
       />
     </div>
+  )
+}
+
+export default function WorkerJobsPage() {
+  return (
+    <PermissionGate permission={WORKER_JOB_READ} subject="задачам воркера">
+      <WorkerJobsPageContent />
+    </PermissionGate>
   )
 }

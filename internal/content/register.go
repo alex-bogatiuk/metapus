@@ -99,9 +99,11 @@ func AllDatasets() []*schema.Dataset {
 
 // Permissions returns every permission the assembled application's entities
 // and reports require (v1.FactoryRegistry.Permissions): the built-in content
-// and the given client extensions. Migration runs sync them into each tenant.
+// and the given client extensions, followed by the platform's system
+// administration permissions (auth.SystemPermissions). Migration runs sync
+// them into each tenant.
 func Permissions(register ...func(*v1.FactoryRegistry)) []auth.Permission {
-	return Compose(Services{}, register...).Permissions()
+	return append(Compose(Services{}, register...).Permissions(), auth.SystemPermissions()...)
 }
 
 // CatalogDefinitions returns the Definitions of every registered catalog,

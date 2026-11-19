@@ -1,5 +1,7 @@
 "use client"
 
+import { PermissionGate } from "@/components/auth/permission-gate"
+import { EVENT_LOG_READ } from "@/lib/system-permissions"
 import { format } from "date-fns"
 import { ru } from "date-fns/locale"
 import {
@@ -102,7 +104,7 @@ const SEVERITY_ROW_STYLES: Record<string, string> = {
 // Main page
 // ---------------------------------------------------------------------------
 
-export default function EventLogPage() {
+function EventLogPageContent() {
   const searchParams = useSearchParams()
   const hasCachedItems = useHasTabCache(tabStateKeys["items"])
 
@@ -622,5 +624,13 @@ export default function EventLogPage() {
       />
       <TraceDialog traceId={traceId} open={traceOpen} onOpenChange={setTraceOpen} />
     </div>
+  )
+}
+
+export default function EventLogPage() {
+  return (
+    <PermissionGate permission={EVENT_LOG_READ} subject="журналу событий">
+      <EventLogPageContent />
+    </PermissionGate>
   )
 }

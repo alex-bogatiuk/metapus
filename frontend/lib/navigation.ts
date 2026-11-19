@@ -17,6 +17,7 @@ import {
   Settings,
   ShieldCheck,
 } from "lucide-react"
+import { EVENT_LOG_READ, SYSTEM_ADMIN, WORKER_JOB_READ } from "@/lib/system-permissions"
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -143,10 +144,11 @@ const platformNavigation: Navigation = {
     },
   ],
   systemLinks: [
+    // Everyone has the personal settings; the page hides the system ones.
     { title: "Настройки", url: "/settings", icon: Settings },
-    { title: "Управление", url: "/admin", icon: ShieldCheck },
-    { title: "Журнал событий", url: "/admin/event-log", icon: ScrollText },
-    { title: "Задачи воркера", url: "/admin/worker-jobs", icon: Activity },
+    { title: "Управление", url: "/admin", icon: ShieldCheck, permission: SYSTEM_ADMIN },
+    { title: "Журнал событий", url: "/admin/event-log", icon: ScrollText, permission: EVENT_LOG_READ },
+    { title: "Задачи воркера", url: "/admin/worker-jobs", icon: Activity, permission: WORKER_JOB_READ },
     { title: "Помощь", url: "/help", icon: HelpCircle },
   ],
   commands: [
@@ -167,10 +169,10 @@ const platformNavigation: Navigation = {
 
     // System
     { id: "sys:settings", label: "Настройки", url: "/settings", keywords: "настройки settings preferences", section: "system" },
-    { id: "sys:admin", label: "Управление", url: "/admin", keywords: "управление администрирование admin", section: "system" },
-    { id: "sys:automation-rules", label: "Правила автоматизации", url: "/admin/automation-rules", keywords: "автоматизация правила события уведомления расписание automation rules", section: "system" },
-    { id: "sys:event-log", label: "Журнал событий", url: "/admin/event-log", keywords: "журнал событий лог event log", section: "system" },
-    { id: "sys:worker-jobs", label: "Задачи воркера", url: "/admin/worker-jobs", keywords: "задачи воркер worker jobs фоновые background", section: "system" },
+    { id: "sys:admin", label: "Управление", url: "/admin", keywords: "управление администрирование admin", section: "system", permission: SYSTEM_ADMIN },
+    { id: "sys:automation-rules", label: "Правила автоматизации", url: "/admin/automation-rules", keywords: "автоматизация правила события уведомления расписание automation rules", section: "system", permission: SYSTEM_ADMIN },
+    { id: "sys:event-log", label: "Журнал событий", url: "/admin/event-log", keywords: "журнал событий лог event log", section: "system", permission: EVENT_LOG_READ },
+    { id: "sys:worker-jobs", label: "Задачи воркера", url: "/admin/worker-jobs", keywords: "задачи воркер worker jobs фоновые background", section: "system", permission: WORKER_JOB_READ },
     { id: "sys:help", label: "Помощь", url: "/help", keywords: "помощь help", section: "system" },
   ],
 }

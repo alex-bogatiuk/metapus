@@ -32,7 +32,9 @@ var permissionActionLabels = map[string]string{
 // migration.WithPermissions). Codes are "<kind>:<entity key>:<action>", the
 // resource is the entity key, so the role editor labels it from metadata.
 // Permissions checked by hand-written routes outside the standard surface
-// (route modules, subresources) are not derivable and stay in migrations.
+// (route modules, subresources) are not derivable: the platform's system
+// administration lists its own (auth.SystemPermissions), the others stay in
+// migrations.
 func (r *FactoryRegistry) Permissions() []auth.Permission {
 	set := permissionSet{}
 	for _, factory := range r.catalogs {

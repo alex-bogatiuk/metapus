@@ -1,5 +1,7 @@
 "use client"
 
+import { PermissionGate } from "@/components/auth/permission-gate"
+import { SYSTEM_ADMIN } from "@/lib/system-permissions"
 import { Badge } from "@/components/ui/badge"
 import { CatalogListPage } from "@/components/shared/catalog-list-page"
 import { createTabStateKey } from "@/stores/useTabStateStore"
@@ -62,7 +64,7 @@ const DEFAULT_VISIBLE_KEYS = ["name", "eventType", "reactionType", "isActive", "
 
 // ── Page ────────────────────────────────────────────────────────────────
 
-export default function AutomationRulesListPage() {
+function AutomationRulesListPageContent() {
   return (
     <CatalogListPage
       config={{
@@ -81,5 +83,13 @@ export default function AutomationRulesListPage() {
         emptyMessage: "Нет правил автоматизации. Создайте первое правило.",
       }}
     />
+  )
+}
+
+export default function AutomationRulesListPage() {
+  return (
+    <PermissionGate permission={SYSTEM_ADMIN} subject="правилам автоматизации">
+      <AutomationRulesListPageContent />
+    </PermissionGate>
   )
 }

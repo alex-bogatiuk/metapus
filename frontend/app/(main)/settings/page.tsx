@@ -8,6 +8,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { useSettingsStore } from "@/stores/useSettingsStore"
 import type { SettingsSection } from "@/stores/useSettingsStore"
 import { useTabState } from "@/hooks/useTabState"
+import { usePermissions } from "@/hooks/use-permissions"
+import { SYSTEM_ADMIN } from "@/lib/system-permissions"
 import { getSettingsPages, settingsSections } from "@/lib/settings-registry"
 import type { SettingSectionDef } from "@/lib/settings-registry"
 import { SettingsSectionRenderer } from "@/components/settings/settings-section-renderer"
@@ -24,8 +26,8 @@ const tabStateKeys = {
 const PROFILE_ID = "__profile__" as const
 type ActiveSection = SettingsSection | typeof PROFILE_ID | (string & {})
 
-const generalSections = settingsSections.filter((s) => s.category === "general")
-const moduleSections = settingsSections.filter((s) => s.category === "module")
+const platformGeneralSections = settingsSections.filter((s) => s.category === "general")
+const platformModuleSections = settingsSections.filter((s) => s.category === "module")
 
 /** Registered settings pages, grouped by their sidebar group in registration order. */
 function settingsPageGroups() {
@@ -39,19 +41,26 @@ export default function SettingsPage() {
     useTabState(tabStateKeys["activeSection"], "performance")
 
   const fetchSettings = useSettingsStore((s) => s.fetchSettings)
+  const permissions = usePermissions()
+  // The system settings are for administrators; everyone has the profile.
+  const canAdminister = permissions.has(SYSTEM_ADMIN)
 
   useEffect(() => {
-    fetchSettings()
-  }, [fetchSettings])
+    if (canAdminister) fetchSettings()
+  }, [canAdminister, fetchSettings])
 
-  const activeDef = settingsSections.find((s) => s.id === activeSection) as SettingSectionDef | undefined
-  const pageGroups = settingsPageGroups()
-  const activePage = getSettingsPages().find((p) => p.id === activeSection)
-  // A remembered section that no longer exists opens the first one.
+  const activeDef = canAdminister ? settingsSections.find((s) => s.id === activeSection) as SettingSectionDef | undefined : undefined
+  const pageGroups = canAdminister ? settingsPageGroups() : []
+  const activePage = canAdminister ? getSettingsPages().find((p) => p.id === activeSection) : undefined
+  const generalSections = canAdminister ? platformGeneralSections : []
+  const moduleSections = canAdminister ? platformModuleSections : []
+  // A remembered section that no longer exists, or that the user may not
+  // open, gives way to the first one the user has.
   const sectionExists = !!activeDef || !!activePage || activeSection === PROFILE_ID
+  const shownSection = sectionExists ? activeSection : PROFILE_ID
   useEffect(() => {
-    if (!sectionExists) setActiveSection("performance")
-  }, [sectionExists, setActiveSection])
+    if (!sectionExists && !permissions.loading) setActiveSection(canAdminister ? "performance" : PROFILE_ID)
+  }, [sectionExists, permissions.loading, canAdminister, setActiveSection])
 
   return (
     <div className="flex h-full flex-col md:flex-row">
@@ -119,7 +128,7 @@ export default function SettingsPage() {
         ))}
 
         {/* Profile section */}
-        <div className="mt-4 border-t pt-4 px-2 pb-4">
+        <div className={cn("px-2 pb-4", canAdminister && "mt-4 border-t pt-4")}>
           <div className="px-3 mb-2">
             <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
               Персональные
@@ -129,7 +138,7 @@ export default function SettingsPage() {
             onClick={() => setActiveSection(PROFILE_ID)}
             className={cn(
               "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1",
-              activeSection === PROFILE_ID
+              shownSection === PROFILE_ID
                 ? "border border-border/65 bg-workspace-surface text-foreground shadow-control"
                 : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
             )}
@@ -137,7 +146,7 @@ export default function SettingsPage() {
             <User
               className={cn(
                 "h-4 w-4 shrink-0",
-                activeSection === PROFILE_ID ? "text-primary" : "text-muted-foreground"
+                shownSection === PROFILE_ID ? "text-primary" : "text-muted-foreground"
               )}
             />
             <div className="min-w-0 flex-1">
@@ -146,7 +155,7 @@ export default function SettingsPage() {
                 Тема, формат, язык
               </div>
             </div>
-            {activeSection === PROFILE_ID && (
+            {shownSection === PROFILE_ID && (
               <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             )}
           </button>
@@ -156,20 +165,24 @@ export default function SettingsPage() {
       {/* Mobile section selector */}
       <div className="block w-full border-b bg-muted/30 px-4 py-2 md:hidden">
         <select
-          value={activeSection}
+          value={shownSection}
           onChange={(e) => setActiveSection(e.target.value as ActiveSection)}
           className="w-full rounded-md border bg-workspace-surface px-3 py-2 text-sm"
         >
-          <optgroup label="Общие">
-            {generalSections.map((s) => (
-              <option key={s.id} value={s.id}>{s.title}</option>
-            ))}
-          </optgroup>
-          <optgroup label="Модули">
-            {moduleSections.map((s) => (
-              <option key={s.id} value={s.id}>{s.title}</option>
-            ))}
-          </optgroup>
+          {generalSections.length > 0 && (
+            <optgroup label="Общие">
+              {generalSections.map((s) => (
+                <option key={s.id} value={s.id}>{s.title}</option>
+              ))}
+            </optgroup>
+          )}
+          {moduleSections.length > 0 && (
+            <optgroup label="Модули">
+              {moduleSections.map((s) => (
+                <option key={s.id} value={s.id}>{s.title}</option>
+              ))}
+            </optgroup>
+          )}
           {pageGroups.map(([group, pages]) => (
             <optgroup key={group} label={group}>
               {pages.map((page) => (
@@ -194,7 +207,7 @@ export default function SettingsPage() {
               </div>
               <activePage.component />
             </>
-          ) : activeSection === PROFILE_ID ? (
+          ) : shownSection === PROFILE_ID ? (
             <>
               <div className="mb-6">
                 <h2 className="text-lg font-semibold text-foreground">Профиль</h2>
