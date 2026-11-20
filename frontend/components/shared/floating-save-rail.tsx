@@ -62,13 +62,14 @@ export function FloatingSaveRail({
   const [hasRoom, setHasRoom] = useState(false)
   const [anchorVisible, setAnchorVisible] = useState(false)
 
+  // Observed afresh on every activation: a collapsible form mounts its save area only when opened.
   useEffect(() => {
     const anchor = anchorRef.current
-    if (!anchor) return
+    if (!active || !anchor) return
     const observer = new IntersectionObserver(([entry]) => setAnchorVisible(entry.isIntersecting))
     observer.observe(anchor)
     return () => observer.disconnect()
-  }, [anchorRef])
+  }, [anchorRef, active])
 
   useEffect(() => {
     const track = (event: PointerEvent) => {
