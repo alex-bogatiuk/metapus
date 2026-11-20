@@ -2293,8 +2293,10 @@ JOIN LATERAL (
 ON CONFLICT DO NOTHING;
 
 -- An unwatched network has no reader. Watching stops only when nothing still
--- needs the chain: processing is off, every outbound transaction has reached
--- the chain or failed, and no invoice awaits its payment or finality.
+-- needs the chain: processing is off, every outbound transaction has a final
+-- chain settlement or failed, and no invoice awaits its payment or finality.
+-- A broadcast authorization stays 'broadcast' after its transaction settles;
+-- the settlement row for its hash is what says the chain has answered.
 CREATE FUNCTION fn_crypto_network_watch_guard() RETURNS TRIGGER AS $$
 BEGIN
  IF OLD.is_active AND NOT NEW.is_active THEN
@@ -2304,9 +2306,8 @@ BEGIN
    RAISE EXCEPTION 'network watching cannot stop while operations processing is enabled' USING ERRCODE='23514';
   END IF;
   IF EXISTS(SELECT 1 FROM reg_crypto_signing_authorizations a WHERE a.network_id=NEW.id
-     AND (a.status IN ('created','signed','held') OR a.status='broadcast' AND EXISTS(
-      SELECT 1 FROM reg_crypto_expected_chain_effects e WHERE e.signing_authorization_id=a.id
-      AND NOT EXISTS(SELECT 1 FROM reg_crypto_chain_effect_matches m WHERE m.expected_effect_id=e.id)))) THEN
+     AND (a.status IN ('created','signed','held') OR a.status='broadcast' AND NOT EXISTS(
+      SELECT 1 FROM reg_crypto_chain_settlements s WHERE s.network_id=a.network_id AND s.tx_hash=a.tx_hash))) THEN
    RAISE EXCEPTION 'network watching cannot stop while outbound transactions await the chain' USING ERRCODE='23514';
   END IF;
   IF EXISTS(SELECT 1 FROM doc_crypto_invoices i JOIN cat_tokens t ON t.id=i.token_id WHERE t.network_id=NEW.id

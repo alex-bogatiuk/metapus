@@ -98,7 +98,33 @@ func TestNetworkWatchingStopsOnlyWhenNothingNeedsTheChain(t *testing.T) {
 	_, err = f.pool.Exec(f.ctx, `UPDATE reg_crypto_signing_authorizations SET status='failed' WHERE id=$1`, authorization)
 	require.NoError(t, err)
 
-	state, err := NewNetworkPolicyRepo().SetNetworkWatching(f.ctx, f.network, false)
+	// A broadcast transaction keeps its authorization in 'broadcast' after it
+	// settles, so only the settlement of its hash releases the network.
+	sent, basis := id.New(), id.New()
+	txHash := "0x" + id.Compact(sent)
+	_, err = f.pool.Exec(f.ctx, `
+		INSERT INTO reg_crypto_signing_authorizations(id,authorization_id,tenant_id,purpose,schema_version,network_id,network_code,chain_family,network_identifier,
+			source_address,fee_payer_address,vault_key_id,destination_address,asset_standard,amount_minor_units,basis_type,basis_id,expires_at,policy_version,
+			authorization_jws,unsigned_fingerprint,unsigned_envelope,status,tx_hash)
+		VALUES($1,$1::text,'tenant','sweep',1,$2,'NW','evm','11155111','source','source','test/key','destination','native',1,'CryptoSweepAttempt',$3,
+			NOW()+interval '1 hour','evm-v1','jws','fingerprint-'||$1::text,'{}','broadcast',$4)`,
+		pgx.QueryExecModeSimpleProtocol, sent, f.network, basis, txHash)
+	require.NoError(t, err)
+	requireWatchRefusal(t, f.setWatching(false), "outbound transactions await the chain")
+
+	// The settlement alone is the fixture: its fee proof chain is not under test.
+	tx, err := f.pool.Begin(f.ctx)
+	require.NoError(t, err)
+	_, err = tx.Exec(f.ctx, `SET LOCAL session_replication_role = replica`)
+	require.NoError(t, err)
+	_, err = tx.Exec(f.ctx, `
+		INSERT INTO reg_crypto_chain_settlements(network_id,basis_type,basis_id,tx_hash,status,block_hash,block_height,finality_status,native_token_id,total_fee_minor,raw_receipt,observed_at,network_fee_reservation_id)
+		VALUES($1,'CryptoSweepAttempt',$2,$3,'succeeded','0xblock',1,'finalized',$4,0,'{}',NOW(),$5)`,
+		f.network, basis, txHash, f.token, id.New())
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit(f.ctx))
+
+	state, err :=NewNetworkPolicyRepo().SetNetworkWatching(f.ctx, f.network, false)
 	require.NoError(t, err)
 	require.False(t, state.Watching, "an unwatched network stays visible to the networks page")
 	require.False(t, f.watching(t))
