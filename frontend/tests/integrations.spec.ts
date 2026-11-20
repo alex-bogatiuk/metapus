@@ -139,7 +139,6 @@ test("Ankr Freemium creates a monthly account from a Sepolia endpoint", async ({
 for (const [label, provider, slot, input] of [
   ["Validation Cloud", "validation_cloud", "sepolia", "https://sepolia.ethereum.validationcloud.io/v1/test-project-key"],
   ["ZAN", "zan", "default", "https://api.zan.top/node/v1/tron/nile/test-project-key/jsonrpc"],
-  ["Uniblock", "uniblock", "default", "test-project-key"],
 ]) {
   test(`${label} saves its project key in the declared slot`, async ({ page }) => {
     const writes = await setup(page, provider)

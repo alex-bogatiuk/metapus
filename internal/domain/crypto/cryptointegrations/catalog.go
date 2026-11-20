@@ -25,7 +25,6 @@ const (
 	Ankr            integrations.Provider = "ankr"
 	ValidationCloud integrations.Provider = "validation_cloud"
 	ZAN             integrations.Provider = "zan"
-	Uniblock        integrations.Provider = "uniblock"
 	Infura          integrations.Provider = "infura"
 	DRPC            integrations.Provider = "drpc"
 	TronAPI         integrations.Provider = "tron_api"
@@ -65,7 +64,6 @@ func Providers() []integrations.ProviderDefinition {
 			"Ключ или HTTPS-ссылка Ethereum Sepolia из Validation Cloud.",
 			integrations.CredentialURLImport{Host: "sepolia.ethereum.validationcloud.io", PathPrefix: "/v1"}),
 		zan,
-		monthlyRPC(Uniblock, "Uniblock", "Ethereum Sepolia через Uniblock JSON-RPC.", "default", "API-ключ проекта Uniblock."),
 		{
 			ID: Ankr, Label: "Ankr", Description: "Ethereum Sepolia по тарифу Freemium.",
 			Kinds: []integrations.Kind{KindRPC}, CanCreate: true, QuotaPolicy: integrations.QuotaMonthly,
@@ -142,7 +140,7 @@ var catalog = sync.OnceValue(func() *integrations.Catalog {
 // kindOrder and providerOrder fix the listing order of the settings UI.
 var (
 	kindOrder     = []integrations.Kind{KindAML, KindRPC, integrations.KindExchangeRates, integrations.KindNotifications, KindResources}
-	providerOrder = []integrations.Provider{DRPC, Alchemy, Ankr, Infura, ValidationCloud, ZAN, Uniblock, integrations.CoinGeckoDemo, TronAPI, Chainstack, GetBlock, GetBlockNet, TestnetAML, integrations.Telegram, integrations.SMTP, ResourceAPI}
+	providerOrder = []integrations.Provider{DRPC, Alchemy, Ankr, Infura, ValidationCloud, ZAN, integrations.CoinGeckoDemo, TronAPI, Chainstack, GetBlock, GetBlockNet, TestnetAML, integrations.Telegram, integrations.SMTP, ResourceAPI}
 )
 
 // Catalog is the application's catalog: platform and crypto kinds and

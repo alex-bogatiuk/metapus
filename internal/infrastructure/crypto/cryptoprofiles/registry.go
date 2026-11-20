@@ -13,7 +13,7 @@ import (
 // Profiles returns the configuration's provider profiles, paced as their
 // provider definitions require.
 func Profiles() []profiles.Profile {
-	list := []profiles.Profile{alchemy(), ankr(), validationCloud(), zan(), uniblock(), infura(), drpc(), tronAPI(), chainstack(), getBlock()}
+	list := []profiles.Profile{alchemy(), ankr(), validationCloud(), zan(), infura(), drpc(), tronAPI(), chainstack(), getBlock()}
 	for i := range list {
 		definition, _ := cryptointegrations.Catalog().Definition(list[i].Provider)
 		list[i].MinRequestIntervalMS = definition.AccountMinRequestIntervalMS

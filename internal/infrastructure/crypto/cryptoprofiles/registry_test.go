@@ -71,3 +71,12 @@ func TestTRONErrorEnvelopeIsClassifiedByCryptoProfiles(t *testing.T) {
 	require.Empty(t, profiles.Classify(200, body))
 	require.Empty(t, classifyFor(cryptointegrations.TronAPI, 200, []byte(`{"blockID":"x"}`)))
 }
+
+func TestRetiredUniblockCannotBeConfiguredAsAManagedProvider(t *testing.T) {
+	const provider integrations.Provider = "uniblock"
+	require.Error(t, cryptointegrations.Catalog().ValidateCreation(provider))
+	_, registered := Registry().Lookup(provider)
+	require.False(t, registered)
+	_, _, _, err := ImportRPC("https://api.uniblock.dev/uni/v1/json-rpc", "test-project-key", "rpc", "default")
+	require.Error(t, err)
+}

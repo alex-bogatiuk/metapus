@@ -37,7 +37,6 @@ func TestProjectRPCPoolProbes(t *testing.T) {
 		{cryptointegrations.ZAN, "default", "https://api.zan.top/node/v1/eth/sepolia", "rpc", "/" + key, sepolia},
 		{cryptointegrations.ZAN, "default", "https://api.zan.top/node/v1/tron/nile", "fullnode", "/" + key + "/wallet/getnowblock", nile},
 		{cryptointegrations.ZAN, "default", "https://api.zan.top/node/v1/tron/nile", "solidity", "/" + key + "/walletsolidity/getnowblock", nile},
-		{cryptointegrations.Uniblock, "default", "https://api.uniblock.dev/uni/v1/json-rpc", "rpc", "?chainId=11155111", sepolia},
 	} {
 		t.Run(string(tt.provider)+"/"+tt.role, func(t *testing.T) {
 			code := strings.ToUpper(string(tt.provider))
@@ -73,11 +72,6 @@ func TestProjectRPCPoolProbes(t *testing.T) {
 			prober := integrationhttp.ConnectionProber{Profiles: cryptoprofiles.Registry(), EndpointProbe: RPCProbe, EndpointTransport: RPCTransport, Base: mockRPCTransport(func(req *http.Request) (*http.Response, error) {
 				calls++
 				require.Equal(t, tt.base+tt.wireSuffix, req.URL.String())
-				if tt.provider == cryptointegrations.Uniblock {
-					require.Equal(t, key, req.Header.Get("X-Api-Key"))
-				} else {
-					require.Empty(t, req.Header.Get("X-Api-Key"))
-				}
 				return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(reply))}, nil
 			})}
 			ok, err := prober.Probe(ctx, target)

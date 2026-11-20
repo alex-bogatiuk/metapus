@@ -73,7 +73,7 @@ API: `GET` и `PATCH /api/v1/admin/crypto/networks/:networkId/rpc-configuration`
 
 Freemium предоставляет 200 млн кредитов в месяц. Metapus выдерживает интервал от 34 мс между запросами одного аккаунта внутри процесса. HTTP 429 и код `-32090` временно приостанавливают аккаунт с учётом `Retry-After`. Запрет отдельного метода сохраняет доступ аккаунта к остальным методам. [Тарифы Ankr](https://www.ankr.com/docs/rpc-service/service-plans/) · [Ошибки RPC](https://www.ankr.com/docs/rpc-service/errors/overview/)
 
-### Validation Cloud, ZAN и Uniblock
+### Validation Cloud и ZAN
 
 Создайте аккаунт и пул выбранного провайдера в справочнике интеграций. В карточке RPC-подключения укажите пул и базовый URL из таблицы. Для существующей tenant-БД обновите оба ограничения списка провайдеров по инструкции выше.
 
@@ -82,11 +82,8 @@ Freemium предоставляет 200 млн кредитов в месяц. M
 | Validation Cloud | Ethereum Sepolia | `rpc` | `https://sepolia.ethereum.validationcloud.io/v1` | `sepolia` | `validation_cloud` |
 | ZAN | Ethereum Sepolia | `rpc` | `https://api.zan.top/node/v1/eth/sepolia` | `default` | `zan` |
 | ZAN | TRON Nile | `fullnode`, `solidity` | `https://api.zan.top/node/v1/tron/nile` | `default` | `zan` |
-| Uniblock | Ethereum Sepolia | `rpc` | `https://api.uniblock.dev/uni/v1/json-rpc` | `default` | `uniblock` |
 
 В карточку аккаунта Validation Cloud или ZAN можно вставить полную ссылку из кабинета. Для ZAN подойдёт и ссылка Nile с окончанием `/jsonrpc`. Один ключ и пул ZAN обслуживают обе сети. Для Nile создайте по одному подключению каждой роли. Драйвер сам добавляет к запросам пути `wallet` и `walletsolidity`. Бесплатные кредиты ZAN обновляются каждые 30 дней с момента активации. Если ZAN сообщил об исчерпании пакета, пул переключается на следующий аккаунт. Повторная проверка исчерпанного аккаунта возможна через час или при наступлении настроенной даты сброса, если она наступит раньше. [Документация ZAN](https://docs.zan.top/docs/new-credit-costs)
-
-Для Uniblock введите ключ проекта. Транспорт отправляет его в заголовке `x-api-key` и добавляет `chainId=11155111` к исходящему запросу. Uniblock автоматически выбирает вышестоящего оператора. Metapus использует его для обычных запросов и отправки транзакций. При расчёте кворума и проверке финансовых доказательств этот шлюз пропускается. Uniblock предоставляет для TRON интерфейс JSON-RPC с методами `eth_*`. Роли TRON в Metapus требуют нативного HTTP API. [TRON Mainnet](https://docs.uniblock.dev/reference/jsonrpc/tron/tron-protocol-overview) · [TRON Testnet](https://docs.uniblock.dev/reference/jsonrpc/tron-testnet/tron-testnet-overview)
 
 ### Infura Ethereum Sepolia
 

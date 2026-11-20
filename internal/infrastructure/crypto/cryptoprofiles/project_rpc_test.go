@@ -27,7 +27,6 @@ func TestProjectRPCBindingsRefuseUnsafeRequestsBeforeAuthorization(t *testing.T)
 			"https://api.zan.top/node/v1/tron/nile/wallet/%67etnowblock",
 			"https://api.zan.top/node/v1/tron/mainnet/wallet/getnowblock",
 		}},
-		{cryptointegrations.Uniblock, "https://api.uniblock.dev/uni/v1/json-rpc", []string{"https://api.uniblock.dev/uni/v1/json-rpc?chainId=1"}},
 	} {
 		profile, ok := Registry().Lookup(tt.provider)
 		require.True(t, ok)
@@ -63,11 +62,6 @@ func TestProjectRPCGatewayErrors(t *testing.T) {
 		{cryptointegrations.ZAN, 403, `{"error":{"code":-32007}}`, "", providerpolicy.ErrUnsupported},
 		{cryptointegrations.ZAN, 413, "", "", providerpolicy.ErrQueryLimit},
 		{cryptointegrations.ZAN, 200, `{"error":{"code":-32000,"message":"node error"}}`, "", nil},
-		{cryptointegrations.Uniblock, 200, `{"error":{"code":-32429,"uniblockCode":"UR-429-03"}}`, integrations.Exhausted, nil},
-		{cryptointegrations.Uniblock, 429, `{"error":{"code":"UR-429-03"}}`, integrations.Exhausted, nil},
-		{cryptointegrations.Uniblock, 429, `{"message":"You have exceeded your monthly compute unit limit."}`, integrations.Exhausted, nil},
-		{cryptointegrations.Uniblock, 200, `{"error":{"code":-32429}}`, integrations.Throttled, nil},
-		{cryptointegrations.Uniblock, 200, `{"error":{"code":3,"message":"execution reverted: monthly quota exceeded"}}`, "", nil},
 	} {
 		profile, ok := Registry().Lookup(tt.provider)
 		require.True(t, ok)

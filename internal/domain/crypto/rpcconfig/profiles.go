@@ -27,7 +27,6 @@ var rpcProfiles = map[integrations.Provider][]RPCProfile{
 		{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "api.zan.top", BasePath: "/node/v1/eth/sepolia", TrustGroup: "zan", KeyName: "default"},
 		{Family: "tron", NetworkIdentifier: "nile", Roles: []string{"fullnode", "solidity"}, Host: "api.zan.top", BasePath: "/node/v1/tron/nile", TrustGroup: "zan", KeyName: "default"},
 	},
-	cryptointegrations.Uniblock: {{Family: "evm", NetworkIdentifier: "11155111", Roles: []string{"rpc"}, Host: "api.uniblock.dev", BasePath: "/uni/v1/json-rpc", TrustGroup: "uniblock", KeyName: "default"}},
 	cryptointegrations.TronAPI: {
 		{Family: "tron", NetworkIdentifier: "nile", Roles: []string{"fullnode", "solidity", "indexer"}, Host: "nile.trongrid.io", TrustGroup: "trongrid"},
 		{Family: "tron", NetworkIdentifier: "mainnet", Roles: []string{"fullnode", "solidity", "indexer"}, Host: "api.trongrid.io", TrustGroup: "trongrid"},
@@ -40,14 +39,14 @@ var rpcProfiles = map[integrations.Provider][]RPCProfile{
 }
 
 // rpcProviderOrder fixes host lookup order across operators.
-var rpcProviderOrder = []integrations.Provider{cryptointegrations.DRPC, cryptointegrations.Alchemy, cryptointegrations.Ankr, cryptointegrations.ValidationCloud, cryptointegrations.ZAN, cryptointegrations.Uniblock, cryptointegrations.Infura, cryptointegrations.TronAPI, cryptointegrations.Chainstack, cryptointegrations.GetBlock}
+var rpcProviderOrder = []integrations.Provider{cryptointegrations.DRPC, cryptointegrations.Alchemy, cryptointegrations.Ankr, cryptointegrations.ValidationCloud, cryptointegrations.ZAN, cryptointegrations.Infura, cryptointegrations.TronAPI, cryptointegrations.Chainstack, cryptointegrations.GetBlock}
 
 // managedRPCOnly marks operators whose endpoints must read keys from an
 // integration account pool.
 var managedRPCOnly = map[integrations.Provider]bool{
 	cryptointegrations.DRPC: true, cryptointegrations.Alchemy: true, cryptointegrations.Infura: true,
 	cryptointegrations.Chainstack: true, cryptointegrations.GetBlock: true, cryptointegrations.Ankr: true,
-	cryptointegrations.ValidationCloud: true, cryptointegrations.ZAN: true, cryptointegrations.Uniblock: true,
+	cryptointegrations.ValidationCloud: true, cryptointegrations.ZAN: true,
 }
 
 // RPCProfiles returns copies of the provider's RPC profiles.
@@ -191,7 +190,7 @@ func RPCTrustIdentity(raw, configured, endpointName string) string {
 		host := strings.ToLower(u.Hostname())
 		for _, operator := range []struct{ suffix, group string }{
 			{".g.alchemy.com", "alchemy"}, {".infura.io", "infura"}, {".tenderly.co", "tenderly"}, {".publicnode.com", "publicnode"},
-			{".onfinality.io", "onfinality"}, {".trongrid.io", "trongrid"}, {".nileex.io", "nileex"}, {".core.chainstack.com", "chainstack"},
+			{".uniblock.dev", "uniblock"}, {".onfinality.io", "onfinality"}, {".trongrid.io", "trongrid"}, {".nileex.io", "nileex"}, {".core.chainstack.com", "chainstack"},
 		} {
 			if host == strings.TrimPrefix(operator.suffix, ".") || strings.HasSuffix(host, operator.suffix) {
 				return operator.group
@@ -208,7 +207,7 @@ func RPCTrustIdentity(raw, configured, endpointName string) string {
 // operator. Its endpoints can service ordinary calls but cannot attest to chain state.
 func RPCVotingGroup(raw, configured, endpointName string) string {
 	group := RPCTrustIdentity(raw, configured, endpointName)
-	if group == string(cryptointegrations.Uniblock) {
+	if group == "uniblock" {
 		return ""
 	}
 	return group

@@ -104,8 +104,6 @@ func TestProjectProvidersRejectUnsupportedNetworksAndRoles(t *testing.T) {
 		{cryptointegrations.ZAN, zanNile, "tron", "nile", "indexer"},
 		{cryptointegrations.ZAN, zanNile, "evm", "11155111", "rpc"},
 		{cryptointegrations.ZAN, "https://api.zan.top/node/v1/eth/sepolia", "tron", "nile", "solidity"},
-		{cryptointegrations.Uniblock, "https://api.uniblock.dev/uni/v1/json-rpc", "tron", "nile", "fullnode"},
-		{cryptointegrations.Uniblock, "https://api.uniblock.dev/uni/v1/json-rpc", "tron", "mainnet", "solidity"},
 	} {
 		require.True(t, ManagedRPCOnly(tt.provider))
 		b := RPCBinding{Family: tt.family, NetworkIdentifier: tt.network, Role: tt.role, URL: tt.base, TrustGroup: string(tt.provider)}
