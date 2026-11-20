@@ -209,6 +209,31 @@ func (p *rpcGeneration) ReadLatestBlock(ctx context.Context, height int64) (comp
 type agreedBlockWindow struct {
 	pair, latestPair   []*rpcEndpoint
 	solidified, latest *BlockInfo
+	// pairs, when set, rotates the window's heights over every pair of its
+	// members (see extendBlockWindow); otherwise pair serves every height.
+	pairs []windowPair
+}
+
+// windowPair is one pair of independent sources with their latest-head
+// counterparts of the same trust groups.
+type windowPair struct{ pair, latestPair []*rpcEndpoint }
+
+// sourcesFor returns the pair that reads and compares height.
+func (w agreedBlockWindow) sourcesFor(height int64) (pair, latestPair []*rpcEndpoint) {
+	if len(w.pairs) == 0 {
+		return w.pair, w.latestPair
+	}
+	chosen := w.pairs[int(height%int64(len(w.pairs)))]
+	return chosen.pair, chosen.latestPair
+}
+
+// members is the number of independent sources the window spreads over.
+func (w agreedBlockWindow) members() int {
+	seen := map[*rpcEndpoint]bool{w.pair[0]: true, w.pair[1]: true}
+	for _, p := range w.pairs {
+		seen[p.pair[0]], seen[p.pair[1]] = true, true
+	}
+	return len(seen)
 }
 
 func (p *rpcGeneration) prepareBlockWindow(ctx context.Context) (agreedBlockWindow, error) {
@@ -279,7 +304,8 @@ func (p *rpcGeneration) readAgreedWindowBlockOnce(ctx context.Context, height in
 	if window.solidified.BlockHeader.RawData.Number < height || window.latest.BlockHeader.RawData.Number < height {
 		return completeBlock{}, nil, crypto.ErrVerificationPending
 	}
-	data, err := pairRead(ctx, window.pair, func(readCtx context.Context, endpoint *rpcEndpoint) (completeBlock, error) {
+	pair, latestPair := window.sourcesFor(height)
+	data, err := pairRead(ctx, pair, func(readCtx context.Context, endpoint *rpcEndpoint) (completeBlock, error) {
 		return p.completeEndpointBlock(readCtx, endpoint, height)
 	})
 	if err != nil {
@@ -289,8 +315,8 @@ func (p *rpcGeneration) readAgreedWindowBlockOnce(ctx context.Context, height in
 		return completeBlock{}, nil, crypto.ErrVerificationMismatch
 	}
 	sources := make([]crypto.VerificationSource, 0, 2)
-	for i, endpoint := range window.pair {
-		sources = append(sources, crypto.VerificationSource{ProviderID: endpoint.providerID, LatestProviderID: window.latestPair[i].providerID, TrustGroup: endpoint.trustGroup, Digest: data[i].Digest, HeadHeight: window.latest.BlockHeader.RawData.Number, HeadHash: strings.ToLower(window.latest.BlockID), DecoderVersion: crypto.TRONTransferEvidenceSchema, SourceDigest: data[i].SourceDigest, ExcludedTraces: data[i].ExcludedTraces})
+	for i, endpoint := range pair {
+		sources = append(sources, crypto.VerificationSource{ProviderID: endpoint.providerID, LatestProviderID: latestPair[i].providerID, TrustGroup: endpoint.trustGroup, Digest: data[i].Digest, HeadHeight: window.latest.BlockHeader.RawData.Number, HeadHash: strings.ToLower(window.latest.BlockID), DecoderVersion: crypto.TRONTransferEvidenceSchema, SourceDigest: data[i].SourceDigest, ExcludedTraces: data[i].ExcludedTraces})
 	}
 	return data[0], sources, nil
 }

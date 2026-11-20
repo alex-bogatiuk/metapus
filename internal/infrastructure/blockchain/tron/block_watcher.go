@@ -245,6 +245,7 @@ func (w *blockWatcher) pollSolidified(ctx context.Context, state *crypto.Watcher
 	size := int64(solidifiedTipWindow)
 	if head-state.LastBlock > size {
 		size = int64(settings.SolidifiedCatchUpBlocks)
+		window = pool.extendBlockWindow(ctx, window)
 	}
 	end := min(head, state.LastBlock+size)
 	if w.prefetched == nil {
@@ -279,8 +280,10 @@ func (w *blockWatcher) pollSolidified(ctx context.Context, state *crypto.Watcher
 		jobs <- i
 	}
 	close(jobs)
+	// Each block reads two members: this keeps every member at
+	// BackfillConcurrency concurrent block reads however many rotate.
 	var wg sync.WaitGroup
-	for range min(settings.BackfillConcurrency, len(results)) {
+	for range min(settings.BackfillConcurrency*window.members()/2, len(results)) {
 		wg.Go(func() {
 			for i := range jobs {
 				if ctx.Err() != nil {
