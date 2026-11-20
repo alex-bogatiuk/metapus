@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { toast } from "sonner"
 import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -63,14 +62,8 @@ export function SiteHeader() {
 
     const handleTabClick = React.useCallback(
         (tab: Tab) => {
-            if (tab.id === activeTabId) {
-                // M14: Click on already-active tab → copy title (document number)
-                navigator.clipboard.writeText(tab.title).then(
-                    () => toast.success("Скопировано: " + tab.title),
-                    () => { /* non-secure context — silently ignore */ },
-                )
-                return
-            }
+            // The open tab is already on screen; a double click on it copies its link (see TabItem).
+            if (tab.id === activeTabId) return
             setActiveTab(tab.id)
             // Record tab activation as recent visit (updates visitedAt)
             if (tab.id !== "/") {

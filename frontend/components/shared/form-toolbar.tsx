@@ -1,12 +1,9 @@
 "use client"
 
-import { useCallback } from "react"
 import { useCompactMode } from "@/hooks/useCompactMode"
 import { useCloseTab } from "@/hooks/useCloseTab"
-import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, MoreHorizontal, HelpCircle, Link2 } from "lucide-react"
-import { toast } from "sonner"
+import { ArrowLeft, MoreHorizontal, HelpCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { FavoriteButton } from "@/components/shared/favorite-button"
@@ -71,28 +68,6 @@ interface FormToolbarProps {
 }
 
 import { cn } from "@/lib/utils"
-
-function CopyLinkButton() {
-  const pathname = usePathname()
-  const handleCopy = useCallback(() => {
-    const fullUrl = `${window.location.origin}${pathname}`
-    navigator.clipboard.writeText(fullUrl).then(() => {
-      toast.success("Ссылка скопирована в буфер обмена")
-    })
-  }, [pathname])
-
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="h-7 w-7"
-      onClick={handleCopy}
-      title="Копировать ссылку"
-    >
-      <Link2 className="h-3.5 w-3.5" />
-    </Button>
-  )
-}
 
 export function FormToolbar({
   title,
@@ -242,7 +217,6 @@ export function FormToolbar({
           {onHelp && <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label="Справка по настройке аккаунта" onClick={onHelp}>
             <HelpCircle className="h-3.5 w-3.5" />
           </Button>}
-          <CopyLinkButton />
           {favoriteTarget && favoriteTarget.entityId && (
             <FavoriteButton
               entityType={favoriteTarget.entityType}

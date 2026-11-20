@@ -197,12 +197,32 @@ export const TabItem = React.memo(function TabItem({
     }
   }, [])
 
+  // Double click on the open tab and the context menu both copy the tab's full link.
   const handleCopyUrl = React.useCallback(() => {
     const fullUrl = `${window.location.origin}${tab.url}`
-    navigator.clipboard.writeText(fullUrl).then(() => {
-      toast.success("Ссылка скопирована в буфер обмена")
-    })
+    if (!navigator.clipboard) {
+      toast.error("Не удалось скопировать ссылку")
+      return
+    }
+    navigator.clipboard.writeText(fullUrl).then(
+      () => toast.success("Ссылка скопирована в буфер обмена"),
+      () => toast.error("Не удалось скопировать ссылку"),
+    )
   }, [tab.url])
+
+  // Whether the tab was already open when the current click sequence began: a double click
+  // copies the link only then, so double-clicking a background tab just opens it.
+  const openAtFirstClick = React.useRef(false)
+  const handleClick = React.useCallback(
+    (e: React.MouseEvent) => {
+      if (e.detail <= 1) openAtFirstClick.current = isActive
+      onTabClick(tab)
+    },
+    [isActive, onTabClick, tab],
+  )
+  const handleDoubleClick = React.useCallback(() => {
+    if (openAtFirstClick.current) handleCopyUrl()
+  }, [handleCopyUrl])
 
   const handleCloseKeyDown = React.useCallback(
     (e: React.KeyboardEvent) => {
@@ -228,7 +248,8 @@ export const TabItem = React.memo(function TabItem({
                 style={style}
                 aria-label={`Вкладка: ${tab.title}`}
                 aria-current={isActive ? "page" : undefined}
-                onClick={() => onTabClick(tab)}
+                onClick={handleClick}
+                onDoubleClick={handleDoubleClick}
                 onAuxClick={(e) => {
                   if (e.button === 1) onTabClose(e, tab)
                 }}
