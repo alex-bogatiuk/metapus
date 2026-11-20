@@ -467,90 +467,6 @@ func (p *rpcGeneration) ObserveNonceState(ctx context.Context, sourceAddress str
 	return result, nil
 }
 
-// CanonicalHeaderByNumber obtains at least two independent observations when
-// configured. Bounded parallel reads keep a stalled provider from consuming
-// the budget of the healthy providers. A disagreement is returned as an error: callers must
-// retry rather than classify a financially relevant receipt as orphaned from a
-// single stale RPC response. A one-provider Sepolia setup remains supported.
-func (p *rpcGeneration) CanonicalHeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
-	ctx, cancel := context.WithTimeout(ctx, p.settings.ReadBudget())
-	defer cancel()
-	if number == nil || number.Sign() < 0 {
-		return nil, errors.New("canonical EVM header requires a non-negative block number")
-	}
-	primary, fallback := []*rpcEndpoint{}, []*rpcEndpoint{}
-	for endpoint := range votingEndpoints(p.endpoints) {
-		if endpoint.quotaLimited {
-			fallback = append(fallback, endpoint)
-		} else {
-			primary = append(primary, endpoint)
-		}
-	}
-	required := min(p.independentProviders(), 2)
-	observations := 0
-	observedGroups := map[string]bool{}
-	var canonical *types.Header
-	// Preserve low-quota fallback capacity for reads that actually need it.
-	// Every successful observation within each group must still agree.
-	for _, group := range [][]*rpcEndpoint{primary, fallback} {
-		if required > 0 && observations >= required {
-			break
-		}
-		for _, observation := range p.canonicalHeaders(ctx, number, group) {
-			header := observation.header
-			if !observedGroups[observation.group] {
-				observedGroups[observation.group] = true
-				observations++
-			}
-			if canonical == nil {
-				canonical = header
-			} else if canonical.Hash() != header.Hash() {
-				recordRPCDivergence(ctx, p.networkCode, "canonical_block")
-				return nil, fmt.Errorf("%w on block %s", ErrRPCProviderDivergence, number.String())
-			}
-		}
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-	}
-	if required == 0 || observations < required {
-		return nil, fmt.Errorf("only %d/%d required providers returned canonical block %s", observations, required, number.String())
-	}
-	return canonical, nil
-}
-
-func (p *rpcGeneration) canonicalHeaders(ctx context.Context, number *big.Int, endpoints []*rpcEndpoint) []headerObservation {
-	jobs := make(chan *rpcEndpoint, len(endpoints))
-	headers := make(chan headerObservation, len(endpoints))
-	for _, endpoint := range endpoints {
-		jobs <- endpoint
-	}
-	close(jobs)
-	var workers sync.WaitGroup
-	for range min(4, len(endpoints)) {
-		workers.Go(func() {
-			for endpoint := range jobs {
-				if ctx.Err() != nil || !p.beginRead(endpoint, opHeader, time.Now()) {
-					continue
-				}
-				header, err := endpointRead(ctx, p, endpoint, opHeader, func(attempt context.Context, client *ethclient.Client) (*types.Header, error) {
-					return p.readHeader(attempt, client, number)
-				})
-				if err == nil {
-					headers <- headerObservation{header: header, group: endpoint.trustGroup}
-				}
-			}
-		})
-	}
-	workers.Wait()
-	close(headers)
-	result := make([]headerObservation, 0, len(endpoints))
-	for header := range headers {
-		result = append(result, header)
-	}
-	return result
-}
-
 func (p *rpcGeneration) EstimateGas(ctx context.Context, message ethereum.CallMsg) (uint64, error) {
 	return rpcRead(ctx, p, opState, "eth_estimateGas", func(attempt context.Context, client *ethclient.Client) (uint64, error) {
 		return client.EstimateGas(attempt, message)
@@ -671,11 +587,6 @@ func (p *rpcGeneration) assessReplacement(ctx context.Context, source [20]byte, 
 }
 
 func finalizedBlockNumber() *big.Int { return big.NewInt(int64(rpc.FinalizedBlockNumber)) }
-
-type headerObservation struct {
-	header *types.Header
-	group  string
-}
 
 func (p *rpcGeneration) independentProviders() int {
 	groups := map[string]bool{}
