@@ -18,7 +18,7 @@ Circuit threshold и cooldown читаются из `sys_crypto_network_policies
 | providerConcurrency | 8 | Общая process-wide capacity endpoint URL |
 | backfillConcurrency | 4 | Часть capacity для full block/logs; остальные slots зарезервированы |
 | requestsPerSecond | 20 | Общая process-wide частота endpoint URL |
-| nativeConcurrency | 4 | Fetch workers одного native watcher |
+| nativeConcurrency | 4 | Fetch workers native watcher у ведущего provider и предел ширины полосы каждого другого provider |
 | prefetchBlocks | 32 | Максимальное окно высот |
 | maxResponseBytes | 8388608 | Максимум wire response, включая chunked HTTP |
 | maxBufferedBytes | 268435456 | Ограничение окна по максимальному response size |
@@ -29,6 +29,25 @@ Circuit threshold и cooldown читаются из `sys_crypto_network_policies
 Провайдеры выбираются по priority при первом чтении, затем сохраняется последний
 успешный provider каждой операции. Единственная пробная попытка после cooldown
 проверяет именно отказавшую операцию. Header/runtime probe не лечит full block.
+
+При отставании native watcher распределяет полные блоки окна между providers.
+Ведущий provider операции `full_block` читает, как прежде, через failover.
+Каждый другой provider с закрытым circuit, без `minRequestIntervalMs` и с
+подтверждённой chain ID получает одну полосу, закреплённую за одним endpoint;
+подключения одной группы доверия делят одну полосу, поэтому provider не получает
+больше запросов, чем один его аккаунт. Полоса берёт только высоты не ближе
+4 блоков к head; последние высоты окна читает ведущий provider. Ширина полосы
+начинается с одного worker и растёт на единицу после окна, в котором она была
+полностью занята, до `nativeConcurrency`. Ожидание admission или интервала
+аккаунта сверх attempt timeout выводит из окна только этот worker и сужает
+полосу; ошибка provider закрывает полосу до конца окна. Высоту, которую полоса
+не прочитала, повторно читает обычный failover, повторного запроса к той же
+полосе нет. Тело проверяется по корням заголовка, а последовательность — по
+parent hash, поэтому источник блока не меняет принимаемые данные. Метрика
+`crypto.evm.watcher.prefetch_lane_fallbacks` (provider, reason
+`admission_busy`/`failure`) показывает такие возвраты. При нескольких
+providers окно `prefetchBlocks` ограничивает общее число одновременных чтений;
+token watcher и TRON это распределение не используют.
 429 учитывает Retry-After и короткий jitter; shared admission приостанавливает
 запросы к этому endpoint на всех ролях. Ожидание входит в attempt budget, поэтому
 чтение может перейти к другому endpoint. Parent cancellation не открывает circuit.

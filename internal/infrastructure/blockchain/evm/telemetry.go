@@ -20,6 +20,7 @@ type evmMetrics struct {
 	rpcCircuit        metric.Int64Gauge
 	rpcResponseBytes  metric.Int64Counter
 	prefetchBytes     metric.Int64UpDownCounter
+	laneFallbacks     metric.Int64Counter
 	committedBlocks   metric.Int64Counter
 	rpcDuration       metric.Float64Histogram
 	rpcErrors         metric.Int64Counter
@@ -42,7 +43,8 @@ func newEVMOperationalMetrics() evmMetrics {
 	responseBytes, _ := meter.Int64Counter("crypto.evm.rpc.response_bytes", metric.WithUnit("By"))
 	prefetch, _ := meter.Int64UpDownCounter("crypto.evm.watcher.prefetch_bytes", metric.WithUnit("By"))
 	blocks, _ := meter.Int64Counter("crypto.evm.watcher.committed_blocks")
-	return evmMetrics{rpcInFlight: inflight, rpcAdmission: admission, rpcFailover: failover, rpcCircuit: circuit, rpcResponseBytes: responseBytes, prefetchBytes: prefetch, committedBlocks: blocks,
+	laneFallbacks, _ := meter.Int64Counter("crypto.evm.watcher.prefetch_lane_fallbacks")
+	return evmMetrics{rpcInFlight: inflight, rpcAdmission: admission, rpcFailover: failover, rpcCircuit: circuit, rpcResponseBytes: responseBytes, prefetchBytes: prefetch, laneFallbacks: laneFallbacks, committedBlocks: blocks,
 		rpcDuration: mustRPCDuration(meter), rpcErrors: mustRPCErrors(meter),
 		rpcDivergence: rpcDivergence, watcherLagBlocks: watcherLagBlocks,
 		checkpointRewinds: checkpointRewinds, nonceDivergence: nonceDivergence,

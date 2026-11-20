@@ -71,6 +71,7 @@ type rpcEndpoint struct {
 	unsupportedMethods map[string]bool
 	admission          *providerAdmission
 	logBlockRange      uint64 // Learned from an explicit provider range-limit response.
+	blockLaneWidth     int    // Catch-up workers this provider sustained in its last window.
 }
 
 type rpcGeneration struct {
@@ -343,21 +344,29 @@ func (p *rpcGeneration) HeaderByNumber(ctx context.Context, number *big.Int) (*t
 }
 
 func (p *rpcGeneration) BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error) {
-	return rpcRead(ctx, p, opBlock, "eth_getBlockByNumber", func(attempt context.Context, client *ethclient.Client) (*types.Block, error) {
-		block, err := client.BlockByNumber(attempt, number)
-		if err != nil {
-			return nil, err
-		}
-		height := block.Number().Int64()
-		if number != nil && number.Sign() >= 0 {
-			height = number.Int64()
-		}
-		validator := Watcher{network: crypto.NetworkRef{NetworkIdentifier: p.expectedChainID.String()}}
-		if err := validator.validateNativeBlock(block, height); err != nil {
-			return nil, err
-		}
-		return block, nil
+	return rpcRead(ctx, p, opBlock, blockMethod, func(attempt context.Context, client *ethclient.Client) (*types.Block, error) {
+		return p.fetchBlock(attempt, client, number)
 	})
+}
+
+const blockMethod = "eth_getBlockByNumber"
+
+// fetchBlock rejects a body that does not match its own header roots, so a
+// provider failure is attributed to the endpoint that served it.
+func (p *rpcGeneration) fetchBlock(ctx context.Context, client *ethclient.Client, number *big.Int) (*types.Block, error) {
+	block, err := client.BlockByNumber(ctx, number)
+	if err != nil {
+		return nil, err
+	}
+	height := block.Number().Int64()
+	if number != nil && number.Sign() >= 0 {
+		height = number.Int64()
+	}
+	validator := Watcher{network: crypto.NetworkRef{NetworkIdentifier: p.expectedChainID.String()}}
+	if err := validator.validateNativeBlock(block, height); err != nil {
+		return nil, err
+	}
+	return block, nil
 }
 
 func (p *rpcGeneration) TransactionReceipt(ctx context.Context, hash [32]byte) (*types.Receipt, error) {
