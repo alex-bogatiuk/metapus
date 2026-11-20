@@ -161,10 +161,14 @@ export function WidgetGrid() {
   </div>
 }
 
-/** One line on screen: a grid as tall as its widgets need, settling smoothly when that changes. */
+/**
+ * One line on screen: a grid as tall as its widgets need, settling smoothly when that changes.
+ * Its one track is held to the line's height, so content taller than the widget scrolls inside
+ * the widget instead of stretching the track and running under the next line.
+ */
 function Line({ line, children, className, nodeRef }: { line: LayoutLine; children: ReactNode; className?: string; nodeRef?: (element: HTMLElement | null) => void }) {
   return <div ref={nodeRef} className={cn("relative grid gap-3 transition-[height] duration-[240ms] ease-panel motion-reduce:transition-none", className)}
-    style={{ gridTemplateColumns: `repeat(${line.columns}, minmax(0, 1fr))`, height: rowHeightPx(line.height) }}>
+    style={{ gridTemplateColumns: `repeat(${line.columns}, minmax(0, 1fr))`, gridTemplateRows: "minmax(0, 1fr)", height: rowHeightPx(line.height) }}>
     {children}
   </div>
 }
