@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   AlertTriangle,
   ChevronRight,
@@ -19,6 +19,7 @@ import type {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { FloatingSaveButton, FloatingSaveRail } from "@/components/shared/floating-save-rail"
 import {
   Card,
   CardContent,
@@ -104,6 +105,8 @@ export function CryptoNetworkCard({
   const ready = networkReady(incoming, form)
   const nativeSymbol = incoming.network.nativeTokenSymbol || getNativeTokenSymbol(incoming.network.family)
   const nativeDecimals = incoming.network.nativeDecimals
+  const footerRef = useRef<HTMLDivElement>(null)
+  const canSave = isDirty && !saving && Object.keys(errors).length === 0 && !stale
 
 
   useEffect(() => {
@@ -161,8 +164,8 @@ export function CryptoNetworkCard({
   }
 
   return (
-    <Collapsible open={expanded} onOpenChange={onExpandedChange}>
-      <Card>
+    <Collapsible open={expanded} onOpenChange={onExpandedChange} className="flex items-stretch gap-3">
+      <Card className="min-w-0 max-w-5xl flex-1">
         <CardHeader
           className="cursor-pointer"
           onClick={(event) => {
@@ -636,17 +639,25 @@ export function CryptoNetworkCard({
             </FieldSet>
           </CardContent>
 
-          <CardFooter className="justify-between gap-3">
+          <CardFooter ref={footerRef} className="justify-between gap-3">
             <p className="text-xs text-muted-foreground">
               Runtime: {formatTimestamp(incoming.runtime.observedAt)} · policy: {formatTimestamp(baseline.policy.updatedAt)}
             </p>
-            <Button onClick={() => void save()} disabled={!isDirty || saving || Object.keys(errors).length > 0 || stale}>
+            <Button onClick={() => void save()} disabled={!canSave}>
               {saving ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <Save data-icon="inline-start" />}
               Сохранить настройки
             </Button>
           </CardFooter>
         </CollapsibleContent>
       </Card>
+      {/* The settings are long: while they are unsaved, the save action follows the pointer beside the card. */}
+      <FloatingSaveRail active={expanded && isDirty} anchorRef={footerRef}>
+        <FloatingSaveButton onClick={() => void save()} disabled={!canSave}
+          aria-label={`Сохранить настройки сети ${incoming.network.code}`}>
+          {saving ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <Save data-icon="inline-start" />}
+          Сохранить
+        </FloatingSaveButton>
+      </FloatingSaveRail>
     </Collapsible>
   )
 }
