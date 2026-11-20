@@ -7,6 +7,8 @@ export interface Tab {
   title: string
   url: string
   isDirty?: boolean
+  /** The title was guessed from the URL and gives way to a better one. */
+  provisional?: boolean
 }
 
 export interface CloseTabResult {
@@ -54,12 +56,25 @@ interface TabsState {
   updateTabTitle: (id: string, title: string) => void
   /** Updates the URL of a tab (e.g. when search params change). */
   updateTabUrl: (id: string, url: string) => void
+  /** Re-resolves the titles of tabs whose title was guessed from their URL. */
+  refreshProvisionalTitles: (resolve: (pathname: string) => string) => void
 }
 
 export const DEFAULT_TAB: Tab = {
   id: "/",
   title: "Главное",
   url: "/",
+}
+
+const UUID_TITLE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Whether a tab's title is a guess from its URL. Tabs saved before the flag
+ * existed are recognised by the shapes such a guess takes: a trailing ellipsis
+ * or a raw id.
+ */
+function isGuessedTitle(tab: Tab): boolean {
+  return Boolean(tab.provisional) || tab.title.endsWith("…") || UUID_TITLE.test(tab.title)
 }
 
 /** Push id to front of activation history stack (dedupe, capped). */
@@ -274,8 +289,21 @@ export const useTabsStore = create<TabsState>()(
 
       updateTabTitle: (id, title) => {
         set((state) => ({
-          tabs: state.tabs.map((t) => (t.id === id ? { ...t, title } : t)),
+          tabs: state.tabs.map((t) => (t.id === id ? { ...t, title, provisional: undefined } : t)),
         }))
+      },
+
+      refreshProvisionalTitles: (resolve) => {
+        const { tabs } = get()
+        let changed = false
+        const next = tabs.map((t) => {
+          if (!isGuessedTitle(t)) return t
+          const title = resolve(t.id)
+          if (title === t.title) return t
+          changed = true
+          return { ...t, title }
+        })
+        if (changed) set({ tabs: next })
       },
 
       updateTabUrl: (id, url) => {

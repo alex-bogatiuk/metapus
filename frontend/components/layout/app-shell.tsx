@@ -23,7 +23,13 @@ import { SiteHeader } from "./site-header"
 function RouteSync() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  // AppShell restores the persisted tabs in its own effect, which React runs
+  // after this child's. Opening a tab before that would persist the default
+  // set over the saved tabs, so wait for the restore.
+  const hydrated = useTabsStore((s) => s._hasHydrated)
+  const metadataLoaded = useMetadataStore((s) => s.loaded)
   useEffect(() => {
+    if (!hydrated) return
     const { tabs, openTab, setActiveTab, updateTabUrl } = useTabsStore.getState()
     const search = searchParams.toString()
     const fullUrl = search ? `${pathname}?${search}` : pathname
@@ -35,24 +41,24 @@ function RouteSync() {
       if (matchingTab.url !== fullUrl) {
         updateTabUrl(matchingTab.id, fullUrl)
       }
-      // Heal persisted tab if title was a raw UUID
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-      if (uuidRegex.test(matchingTab.title)) {
-        const resolved = resolveTitleFromUrl(pathname)
-        if (resolved && !uuidRegex.test(resolved)) {
-          useTabsStore.getState().updateTabTitle(matchingTab.id, resolved)
-        }
-      }
     } else {
       // Auto-open a tab for this URL (e.g. browser back/forward)
       const result = openTab({
         id: pathname,
         title: resolveTitleFromUrl(pathname),
         url: fullUrl,
+        provisional: true,
       })
       if (result.warning) toast.warning(result.warning)
     }
-  }, [pathname, searchParams])
+  }, [pathname, searchParams, hydrated])
+
+  // A title read from the URL before metadata loaded can miss the entity's
+  // name; resolve it again once metadata is in. This also heals tabs saved
+  // with such a guess before tabs recorded it.
+  useEffect(() => {
+    if (hydrated && metadataLoaded) useTabsStore.getState().refreshProvisionalTitles(resolveTitleFromUrl)
+  }, [hydrated, metadataLoaded])
 
   return null
 }

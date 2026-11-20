@@ -1,3 +1,4 @@
+import { getNavigation } from "@/lib/navigation"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 
 /** Static section labels — navigation groups that are NOT entities */
@@ -54,11 +55,8 @@ export function registerRouteLabels(labels: { sections?: Record<string, string>;
  */
 export function resolveSegmentLabel(segment: string): string | undefined {
   // 1. Try entity metadata (e.g. "currencies" → "Валюты")
-  const metaState = useMetadataStore.getState()
-  const entity =
-    metaState.getEntityByRoute(segment) ??
-    (segment.endsWith("s") ? metaState.getEntityByRoute(segment.slice(0, -1)) : undefined)
-  if (entity) return entity.presentation.plural
+  const entityLabel = entityLabelForSegment(segment)
+  if (entityLabel) return entityLabel
 
   // 2. Static entity plural fallback (available synchronously before metadata fetch)
   const staticEntity = staticEntityPluralLabels[segment]
@@ -66,6 +64,43 @@ export function resolveSegmentLabel(segment: string): string | undefined {
 
   // 3. Static section label
   return sectionLabels[segment]
+}
+
+function entityLabelForSegment(segment: string): string | undefined {
+  const metaState = useMetadataStore.getState()
+  const entity =
+    metaState.getEntityByRoute(segment) ??
+    (segment.endsWith("s") ? metaState.getEntityByRoute(segment.slice(0, -1)) : undefined)
+  return entity?.presentation.plural
+}
+
+/**
+ * The label the navigation gives a page: a system link, a palette entry or a
+ * sidebar item with a URL, matched exactly. A sidebar entity item matches the
+ * list route its key spells (integration_pool → /catalogs/integration-pools),
+ * so the label is known before metadata loads.
+ */
+export function navigationTitleForUrl(pathname: string): string | undefined {
+  const { sections, systemLinks, commands } = getNavigation()
+  const link = systemLinks.find((l) => l.url === pathname)
+  if (link) return link.title
+  const command = commands.find((c) => c.url === pathname && c.section !== "create")
+  if (command) return command.label
+  const [, area, segment, ...rest] = pathname.split("/")
+  const listRoute = (area === "catalogs" || area === "documents") && segment && rest.length === 0
+  for (const section of sections) {
+    for (const group of section.groups) {
+      for (const item of group.items) {
+        if (item.url ? item.url === pathname : listRoute && entityRouteSegment(item.entityKey) === segment) return item.fallback
+      }
+    }
+  }
+  return undefined
+}
+
+function entityRouteSegment(entityKey: string): string {
+  const prefix = entityKey.replace(/_/g, "-")
+  return prefix.endsWith("s") ? prefix : `${prefix}s`
 }
 
 /**
@@ -89,6 +124,12 @@ export function resolveTitleFromUrl(pathname: string): string {
     return "Новый"
   }
 
+  // A page the navigation names; entity metadata, once loaded, names it as the sidebar does
+  if (!entityLabelForSegment(lastSegment)) {
+    const navTitle = navigationTitleForUrl(pathname)
+    if (navTitle) return navTitle
+  }
+
   // Known segment → list page title
   const label = resolveSegmentLabel(lastSegment)
   if (label) {
@@ -108,7 +149,8 @@ export function resolveTitleFromUrl(pathname: string): string {
   // UUID ([id] page) — temporary title until useTabTitle updates it
   if (segments.length >= 2) {
     const parentSegment = segments[segments.length - 2]
-    const parentLabel = resolveSegmentLabel(parentSegment)
+    const parentPath = `/${segments.slice(0, -1).join("/")}`
+    const parentLabel = entityLabelForSegment(parentSegment) ?? navigationTitleForUrl(parentPath) ?? resolveSegmentLabel(parentSegment)
     if (parentLabel) return `${parentLabel}…`
   }
 
