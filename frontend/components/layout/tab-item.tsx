@@ -23,6 +23,7 @@ import {
 import { useTabsStore, type Tab } from "@/stores/useTabsStore"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import { getRouteIcon } from "@/lib/entity-icon"
+import { copyText } from "@/lib/clipboard"
 
 interface TabItemProps {
   tab: Tab
@@ -199,15 +200,10 @@ export const TabItem = React.memo(function TabItem({
 
   // Double click on the open tab and the context menu both copy the tab's full link.
   const handleCopyUrl = React.useCallback(() => {
-    const fullUrl = `${window.location.origin}${tab.url}`
-    if (!navigator.clipboard) {
-      toast.error("Не удалось скопировать ссылку")
-      return
-    }
-    navigator.clipboard.writeText(fullUrl).then(
-      () => toast.success("Ссылка скопирована в буфер обмена"),
-      () => toast.error("Не удалось скопировать ссылку"),
-    )
+    void copyText(`${window.location.origin}${tab.url}`).then(copied => {
+      if (copied) toast.success("Ссылка скопирована в буфер обмена")
+      else toast.error("Не удалось скопировать ссылку")
+    })
   }, [tab.url])
 
   // Whether the tab was already open when the current click sequence began: a double click

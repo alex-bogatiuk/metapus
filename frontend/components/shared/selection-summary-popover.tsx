@@ -5,6 +5,7 @@ import { Copy, X } from "lucide-react"
 import { toast } from "sonner"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { formatSummaryNumber, summaryCopyText, type SelectionSummary } from "@/lib/selection-summary"
+import { copyText } from "@/lib/clipboard"
 
 export interface SelectionSummaryPopoverProps {
     summary: SelectionSummary
@@ -13,32 +14,6 @@ export interface SelectionSummaryPopoverProps {
     /** The current cell the popover points at. */
     children: React.ReactElement
     onDismiss: () => void
-}
-
-/**
- * Copies text: the Clipboard API, else a hidden textarea and execCommand for
- * browsers or embedded views that deny clipboard permission.
- */
-export async function copyText(text: string): Promise<boolean> {
-    try {
-        await navigator.clipboard.writeText(text)
-        return true
-    } catch {
-        const area = document.createElement("textarea")
-        area.value = text
-        area.setAttribute("readonly", "")
-        area.style.position = "fixed"
-        area.style.opacity = "0"
-        document.body.appendChild(area)
-        area.select()
-        try {
-            return document.execCommand("copy")
-        } catch {
-            return false
-        } finally {
-            area.remove()
-        }
-    }
 }
 
 /** True while Shift, Cmd or Ctrl is held: the user is extending a selection. */

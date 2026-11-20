@@ -44,6 +44,21 @@ test("a double click on the open tab copies its full link", async ({ page, baseU
   await expect(page.getByText("Ссылка скопирована в буфер обмена")).toBeVisible()
 })
 
+test("the link is still copied where the Clipboard API is denied", async ({ page, baseURL }) => {
+  await setup(page)
+  // Embedded browsers such as the Claude desktop pane refuse writeText; execCommand still copies.
+  await page.evaluate(() => {
+    Object.defineProperty(Clipboard.prototype, "writeText", {
+      configurable: true,
+      value: () => Promise.reject(new DOMException("Write permission denied.", "NotAllowedError")),
+    })
+  })
+  await tab(page, listPath).dblclick()
+  await expect.poll(() => clipboard(page)).toBe(`${baseURL}${listPath}`)
+  await expect(page.getByText("Ссылка скопирована в буфер обмена")).toBeVisible()
+  await expect(tab(page, listPath)).toBeFocused()
+})
+
 test("a double click on a background tab only opens it", async ({ page, baseURL }) => {
   await setup(page)
   await tab(page, "/").dblclick()
