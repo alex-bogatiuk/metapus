@@ -1,33 +1,34 @@
 "use client"
 
 import { useEffect } from "react"
-import { ChevronRight, User } from "lucide-react"
+import { ChevronRight } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useSettingsStore } from "@/stores/useSettingsStore"
 import type { SettingsSection } from "@/stores/useSettingsStore"
 import { useTabState } from "@/hooks/useTabState"
-import { usePermissions } from "@/hooks/use-permissions"
+import { PermissionGate } from "@/components/auth/permission-gate"
 import { SYSTEM_ADMIN } from "@/lib/system-permissions"
 import { getSettingsPages, settingsSections } from "@/lib/settings-registry"
 import type { SettingSectionDef } from "@/lib/settings-registry"
 import { SettingsSectionRenderer } from "@/components/settings/settings-section-renderer"
-import { PreferencesContent } from "@/components/settings/preferences-content"
 import { createTabStateKey } from "@/stores/useTabStateStore"
 
 const tabStateKeys = {
   "activeSection": createTabStateKey<ActiveSection>("frontend/app/(main)/settings/page.tsx:activeSection"),
 }
 
+// The system settings. The user's own preferences (theme, formats) open from
+// the profile menu in the sidebar (UserPreferencesDialog).
 
-// Pseudo-sections not stored in sys_settings JSONB: the profile and the
-// pages a configuration registers (by their ids).
-const PROFILE_ID = "__profile__" as const
-type ActiveSection = SettingsSection | typeof PROFILE_ID | (string & {})
+// A sys_settings JSONB section, or the id of a page a configuration registers.
+type ActiveSection = SettingsSection | (string & {})
 
-const platformGeneralSections = settingsSections.filter((s) => s.category === "general")
-const platformModuleSections = settingsSections.filter((s) => s.category === "module")
+const DEFAULT_SECTION = "performance"
+
+const generalSections = settingsSections.filter((s) => s.category === "general")
+const moduleSections = settingsSections.filter((s) => s.category === "module")
 
 /** Registered settings pages, grouped by their sidebar group in registration order. */
 function settingsPageGroups() {
@@ -36,36 +37,30 @@ function settingsPageGroups() {
   return [...groups]
 }
 
-export default function SettingsPage() {
+function SettingsPageContent() {
   const [activeSection, setActiveSection] =
-    useTabState(tabStateKeys["activeSection"], "performance")
+    useTabState(tabStateKeys["activeSection"], DEFAULT_SECTION)
 
   const fetchSettings = useSettingsStore((s) => s.fetchSettings)
-  const permissions = usePermissions()
-  // The system settings are for administrators; everyone has the profile.
-  const canAdminister = permissions.has(SYSTEM_ADMIN)
 
   useEffect(() => {
-    if (canAdminister) fetchSettings()
-  }, [canAdminister, fetchSettings])
+    fetchSettings()
+  }, [fetchSettings])
 
-  const activeDef = canAdminister ? settingsSections.find((s) => s.id === activeSection) as SettingSectionDef | undefined : undefined
-  const pageGroups = canAdminister ? settingsPageGroups() : []
-  const activePage = canAdminister ? getSettingsPages().find((p) => p.id === activeSection) : undefined
-  const generalSections = canAdminister ? platformGeneralSections : []
-  const moduleSections = canAdminister ? platformModuleSections : []
-  // A remembered section that no longer exists, or that the user may not
-  // open, gives way to the first one the user has.
-  const sectionExists = !!activeDef || !!activePage || activeSection === PROFILE_ID
-  const shownSection = sectionExists ? activeSection : PROFILE_ID
+  const activeDef = settingsSections.find((s) => s.id === activeSection) as SettingSectionDef | undefined
+  const pageGroups = settingsPageGroups()
+  const activePage = getSettingsPages().find((p) => p.id === activeSection)
+  // A remembered section that no longer exists (the former profile among
+  // them) opens the first one.
+  const sectionExists = !!activeDef || !!activePage
   useEffect(() => {
-    if (!sectionExists && !permissions.loading) setActiveSection(canAdminister ? "performance" : PROFILE_ID)
-  }, [sectionExists, permissions.loading, canAdminister, setActiveSection])
+    if (!sectionExists) setActiveSection(DEFAULT_SECTION)
+  }, [sectionExists, setActiveSection])
 
   return (
     <div className="flex h-full flex-col md:flex-row">
       {/* Left sidebar — section navigation */}
-      <div className="hidden w-64 shrink-0 border-r bg-muted/30 md:block overflow-y-auto scrollbar-hide">
+      <div className="hidden w-64 shrink-0 border-r bg-muted/30 pb-4 md:block overflow-y-auto scrollbar-hide">
         <div className="px-4 py-4">
           <h1 className="text-sm font-semibold text-foreground">Настройки</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">
@@ -126,56 +121,20 @@ export default function SettingsPage() {
             </nav>
           </div>
         ))}
-
-        {/* Profile section */}
-        <div className={cn("px-2 pb-4", canAdminister && "mt-4 border-t pt-4")}>
-          <div className="px-3 mb-2">
-            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-              Персональные
-            </span>
-          </div>
-          <button
-            onClick={() => setActiveSection(PROFILE_ID)}
-            className={cn(
-              "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1",
-              shownSection === PROFILE_ID
-                ? "border border-border/65 bg-workspace-surface text-foreground shadow-control"
-                : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
-            )}
-          >
-            <User
-              className={cn(
-                "h-4 w-4 shrink-0",
-                shownSection === PROFILE_ID ? "text-primary" : "text-muted-foreground"
-              )}
-            />
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-medium">Профиль</div>
-              <div className="truncate text-[11px] text-muted-foreground">
-                Тема, формат, язык
-              </div>
-            </div>
-            {shownSection === PROFILE_ID && (
-              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            )}
-          </button>
-        </div>
       </div>
 
       {/* Mobile section selector */}
       <div className="block w-full border-b bg-muted/30 px-4 py-2 md:hidden">
         <select
-          value={shownSection}
+          value={sectionExists ? activeSection : DEFAULT_SECTION}
           onChange={(e) => setActiveSection(e.target.value as ActiveSection)}
           className="w-full rounded-md border bg-workspace-surface px-3 py-2 text-sm"
         >
-          {generalSections.length > 0 && (
-            <optgroup label="Общие">
-              {generalSections.map((s) => (
-                <option key={s.id} value={s.id}>{s.title}</option>
-              ))}
-            </optgroup>
-          )}
+          <optgroup label="Общие">
+            {generalSections.map((s) => (
+              <option key={s.id} value={s.id}>{s.title}</option>
+            ))}
+          </optgroup>
           {moduleSections.length > 0 && (
             <optgroup label="Модули">
               {moduleSections.map((s) => (
@@ -190,9 +149,6 @@ export default function SettingsPage() {
               ))}
             </optgroup>
           ))}
-          <optgroup label="Персональные">
-            <option value={PROFILE_ID}>Профиль</option>
-          </optgroup>
         </select>
       </div>
 
@@ -206,16 +162,6 @@ export default function SettingsPage() {
                 <p className="mt-0.5 text-sm text-muted-foreground">{activePage.description}</p>
               </div>
               <activePage.component />
-            </>
-          ) : shownSection === PROFILE_ID ? (
-            <>
-              <div className="mb-6">
-                <h2 className="text-lg font-semibold text-foreground">Профиль</h2>
-                <p className="mt-0.5 text-sm text-muted-foreground">
-                  Тема интерфейса, формат дат и чисел
-                </p>
-              </div>
-              <PreferencesContent />
             </>
           ) : activeDef ? (
             <>
@@ -233,6 +179,14 @@ export default function SettingsPage() {
         </div>
       </ScrollArea>
     </div>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <PermissionGate permission={SYSTEM_ADMIN} subject="системным настройкам">
+      <SettingsPageContent />
+    </PermissionGate>
   )
 }
 

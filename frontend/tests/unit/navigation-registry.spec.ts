@@ -44,16 +44,16 @@ test("a preset goes after its anchor and an extension adds to an existing preset
   expect(presets.find(p => p.code === "viewer")?.fieldPolicies.at(-1)?.entityName).toBe("Probe")
 })
 
-test("system administration links and commands require their permissions, settings and help do not", () => {
+test("system administration links and commands require their permissions, help does not", () => {
   const { systemLinks, commands } = getNavigation()
   const linkPermission = (url: string) => systemLinks.find(l => l.url === url)?.permission
-  expect(linkPermission("/settings")).toBeUndefined()
+  expect(linkPermission("/settings")).toBe(SYSTEM_ADMIN)
   expect(linkPermission("/help")).toBeUndefined()
   expect(linkPermission("/admin")).toBe(SYSTEM_ADMIN)
   expect(linkPermission("/admin/event-log")).toBe(EVENT_LOG_READ)
   expect(linkPermission("/admin/worker-jobs")).toBe(WORKER_JOB_READ)
   const commandPermission = (id: string) => commands.find(c => c.id === id)?.permission
-  expect(commandPermission("sys:settings")).toBeUndefined()
+  expect(commandPermission("sys:settings")).toBe(SYSTEM_ADMIN)
   expect(commandPermission("sys:admin")).toBe(SYSTEM_ADMIN)
   expect(commandPermission("sys:automation-rules")).toBe(SYSTEM_ADMIN)
   expect(commandPermission("sys:event-log")).toBe(EVENT_LOG_READ)

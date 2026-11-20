@@ -144,8 +144,7 @@ const platformNavigation: Navigation = {
     },
   ],
   systemLinks: [
-    // Everyone has the personal settings; the page hides the system ones.
-    { title: "Настройки", url: "/settings", icon: Settings },
+    { title: "Настройки", url: "/settings", icon: Settings, permission: SYSTEM_ADMIN },
     { title: "Управление", url: "/admin", icon: ShieldCheck, permission: SYSTEM_ADMIN },
     { title: "Журнал событий", url: "/admin/event-log", icon: ScrollText, permission: EVENT_LOG_READ },
     { title: "Задачи воркера", url: "/admin/worker-jobs", icon: Activity, permission: WORKER_JOB_READ },
@@ -168,7 +167,7 @@ const platformNavigation: Navigation = {
     { id: "report:doc-journal", label: "Журнал документов", url: "/reports/document-journal", keywords: "журнал документов document journal", section: "report" },
 
     // System
-    { id: "sys:settings", label: "Настройки", url: "/settings", keywords: "настройки settings preferences", section: "system" },
+    { id: "sys:settings", label: "Настройки", url: "/settings", keywords: "настройки системные settings system", section: "system", permission: SYSTEM_ADMIN },
     { id: "sys:admin", label: "Управление", url: "/admin", keywords: "управление администрирование admin", section: "system", permission: SYSTEM_ADMIN },
     { id: "sys:automation-rules", label: "Правила автоматизации", url: "/admin/automation-rules", keywords: "автоматизация правила события уведомления расписание automation rules", section: "system", permission: SYSTEM_ADMIN },
     { id: "sys:event-log", label: "Журнал событий", url: "/admin/event-log", keywords: "журнал событий лог event log", section: "system", permission: EVENT_LOG_READ },
