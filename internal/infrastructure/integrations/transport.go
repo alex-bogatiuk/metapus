@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -186,6 +188,12 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 			cancelCredential()
 			return nil, err
 		}
+		if !id.IsNil(b.PoolID) {
+			if err := governorFor(req.Context(), b.PoolID).Wait(callCtx, t.now()); err != nil {
+				cancelCredential()
+				return nil, err
+			}
+		}
 		if interval := profile.MinRequestIntervalMS; interval > 0 {
 			if err := t.waitAccount(callCtx, b, s, interval); err != nil {
 				if errors.Is(context.Cause(callCtx), providerpolicy.ErrCredentialsExpired) {
@@ -275,9 +283,24 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 		if failure != "" && !id.IsNil(b.PoolID) {
 			_ = resp.Body.Close()
-			retry := profile.NextAttempt(resp.StatusCode, resp.Header, prefix, t.now())
-			if err := t.Repository.Report(req.Context(), s, failure, retry); err != nil {
-				return nil, errors.New("integration account state persistence failed")
+			now := t.now()
+			retry := profile.NextAttempt(resp.StatusCode, resp.Header, prefix, now)
+			report := true
+			if failure == model.Throttled {
+				governor := governorFor(req.Context(), b.PoolID)
+				shared := governor.Throttled(s.AccountID, retry, now)
+				recordPoolThrottle(req.Context(), b.Provider, shared)
+				if shared {
+					// Another account would meet the same limit. Keep the
+					// accounts selectable and hand the caller one 429.
+					return throttledResponse(req, retry, now), nil
+				}
+				report = governor.ShouldReport(s.AccountID, retry, now)
+			}
+			if report {
+				if err := t.Repository.Report(req.Context(), s, failure, retry); err != nil {
+					return nil, errors.New("integration account state persistence failed")
+				}
 			}
 			t.forget()
 			// A cursor cannot be replayed against another account. The caller must
@@ -349,6 +372,18 @@ type pagePin struct {
 }
 
 func retryAt(value string, now time.Time) time.Time { return profiles.RetryAt(value, now) }
+
+// throttledResponse is the 429 a caller receives when the pool's accounts share
+// a rate limit; Retry-After carries the provider's wait, at least one second.
+func throttledResponse(req *http.Request, retry, now time.Time) *http.Response {
+	seconds := max(1, int(math.Ceil(retry.Sub(now).Seconds())))
+	header := make(http.Header)
+	header.Set("Retry-After", strconv.Itoa(seconds))
+	header.Set("Content-Type", "application/json")
+	body := `{"error":"integration pool rate limited"}`
+	return &http.Response{Status: "429 Too Many Requests", StatusCode: http.StatusTooManyRequests, Proto: "HTTP/1.1", ProtoMajor: 1, ProtoMinor: 1,
+		Header: header, Body: io.NopCloser(strings.NewReader(body)), ContentLength: int64(len(body)), Request: req}
+}
 
 func hasProviderError(body []byte) bool {
 	var v struct {
