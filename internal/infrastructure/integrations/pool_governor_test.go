@@ -159,3 +159,46 @@ func TestTransportRotatesPastAccountLevelRateLimit(t *testing.T) {
 	require.Equal(t, []model.Failure{model.Throttled}, repo.reports)
 	require.Positive(t, governorFor(t.Context(), repo.selections[0].PoolID).limit, "the next account is paced below the refused rate")
 }
+
+func TestGovernorLetsUrgentSendOvertakeWaitingBulk(t *testing.T) {
+	g := &poolGovernor{reported: map[id.ID]time.Time{}, limit: 10}
+	g.throttledAt, g.adjustedAt = time.Now(), time.Now()
+	bulk := providerpolicy.WithBulk(t.Context(), true)
+	require.NoError(t, g.Wait(bulk, time.Now())) // Takes the free slot.
+
+	done := make(chan string, 2)
+	go func() {
+		if g.Wait(bulk, time.Now()) == nil {
+			done <- "bulk"
+		}
+	}()
+	time.Sleep(20 * time.Millisecond) // The bulk send is now waiting for a slot.
+	go func() {
+		if g.Wait(t.Context(), time.Now()) == nil {
+			done <- "urgent"
+		}
+	}()
+	require.Equal(t, "urgent", <-done, "an urgent send takes the next slot ahead of waiting bulk")
+	require.Equal(t, "bulk", <-done)
+}
+
+func TestGovernorKeepsBulkWithinItsShareOfLimit(t *testing.T) {
+	g := &poolGovernor{reported: map[id.ID]time.Time{}, limit: 20}
+	g.throttledAt, g.adjustedAt = time.Now(), time.Now()
+	bulk := providerpolicy.WithBulk(t.Context(), true)
+	started := time.Now()
+	for range 5 {
+		require.NoError(t, g.Wait(bulk, time.Now()))
+	}
+	// Four gaps at 20/s × 0.75 are 4 × 66.7 ms; urgent pacing would take 200 ms.
+	require.GreaterOrEqual(t, time.Since(started), 250*time.Millisecond)
+}
+
+func TestGovernorBulkFailsFastWhenPauseOutlastsDeadline(t *testing.T) {
+	g := &poolGovernor{reported: map[id.ID]time.Time{}, pausedUntil: time.Now().Add(time.Minute)}
+	ctx, cancel := context.WithTimeout(providerpolicy.WithBulk(t.Context(), true), 50*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	require.ErrorIs(t, g.Wait(ctx, time.Now()), providerpolicy.ErrAdmissionBusy)
+	require.Less(t, time.Since(started), 40*time.Millisecond)
+}

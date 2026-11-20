@@ -42,6 +42,9 @@ const (
 	governorReleaseAfter = time.Minute
 	// governorRateWindow is the span the send rate is measured over.
 	governorRateWindow = 2 * time.Second
+	// governorBulkShare is the part of a pool limit bulk sends may use; the
+	// rest stays free for urgent reads and broadcasts.
+	governorBulkShare = 0.75
 )
 
 var poolThrottles = func() metric.Int64Counter {
@@ -71,6 +74,7 @@ type poolGovernor struct {
 	// limit is the pool rate in requests per second; zero means no limit.
 	limit       float64
 	next        time.Time // Earliest send under limit.
+	bulkNext    time.Time // Earliest bulk send under its share of limit.
 	pausedUntil time.Time
 	adjustedAt  time.Time
 	cutAt       time.Time
@@ -80,40 +84,91 @@ type poolGovernor struct {
 	reported    map[id.ID]time.Time
 }
 
-// Wait reserves the pool's next send. A send that cannot start before the
-// caller's deadline fails at once with admission busy, so the caller can use
-// another provider instead of waiting out its whole attempt.
+// Wait admits the pool's next send. Urgent sends (heads, receipts, state,
+// broadcasts) reserve the next slot at once. Bulk sends, marked with
+// providerpolicy.WithBulk, reserve nothing ahead: they take a slot only when
+// it is free now, so an urgent send arriving later still goes first, and they
+// use at most governorBulkShare of the limit. A send that cannot start before
+// the caller's deadline fails at once with admission busy, so the caller can
+// use another provider instead of waiting out its whole attempt.
 func (g *poolGovernor) Wait(ctx context.Context, now time.Time) error {
+	if providerpolicy.IsBulk(ctx) {
+		return g.waitBulk(ctx, now)
+	}
 	g.mu.Lock()
 	g.recover(now)
 	at := now
 	if g.pausedUntil.After(at) {
 		at = g.pausedUntil
 	}
-	if g.limit > 0 {
-		if g.next.After(at) {
-			at = g.next
-		}
+	if g.limit > 0 && g.next.After(at) {
+		at = g.next
 	}
 	if deadline, ok := ctx.Deadline(); ok && at.Sub(now) > time.Until(deadline) {
 		g.mu.Unlock()
 		return errors.Join(providerpolicy.ErrAdmissionBusy, context.DeadlineExceeded)
 	}
 	if g.limit > 0 {
-		g.next = at.Add(time.Duration(float64(time.Second) / g.limit))
+		g.next = at.Add(g.interval())
 	}
 	g.record(at)
 	g.mu.Unlock()
-	if delay := at.Sub(now); delay > 0 {
-		timer := time.NewTimer(delay)
-		defer timer.Stop()
-		select {
-		case <-ctx.Done():
-			return errors.Join(providerpolicy.ErrAdmissionBusy, ctx.Err())
-		case <-timer.C:
+	return sleepUntil(ctx, at.Sub(now))
+}
+
+func (g *poolGovernor) waitBulk(ctx context.Context, now time.Time) error {
+	for {
+		g.mu.Lock()
+		g.recover(now)
+		at := now
+		if g.pausedUntil.After(at) {
+			at = g.pausedUntil
 		}
+		if g.limit > 0 {
+			if g.next.After(at) {
+				at = g.next
+			}
+			if g.bulkNext.After(at) {
+				at = g.bulkNext
+			}
+		}
+		if !at.After(now) {
+			if g.limit > 0 {
+				g.next = now.Add(g.interval())
+				g.bulkNext = now.Add(time.Duration(float64(g.interval()) / governorBulkShare))
+			}
+			g.record(now)
+			g.mu.Unlock()
+			return nil
+		}
+		g.mu.Unlock()
+		delay := at.Sub(now)
+		if deadline, ok := ctx.Deadline(); ok && delay > time.Until(deadline) {
+			return errors.Join(providerpolicy.ErrAdmissionBusy, context.DeadlineExceeded)
+		}
+		if err := sleepUntil(ctx, delay); err != nil {
+			return err
+		}
+		now = now.Add(delay) // Recheck: an urgent send may have taken the slot.
 	}
-	return nil
+}
+
+func (g *poolGovernor) interval() time.Duration {
+	return time.Duration(float64(time.Second) / g.limit)
+}
+
+func sleepUntil(ctx context.Context, delay time.Duration) error {
+	if delay <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return errors.Join(providerpolicy.ErrAdmissionBusy, ctx.Err())
+	case <-timer.C:
+		return nil
+	}
 }
 
 // Throttled records a 429 of account and reports whether the limit is
@@ -173,7 +228,7 @@ func (g *poolGovernor) recover(now time.Time) {
 		g.adjustedAt = now
 	}
 	if now.Sub(g.throttledAt) >= governorReleaseAfter && g.limit >= 2*g.rate(now) {
-		g.limit, g.next = 0, time.Time{}
+		g.limit, g.next, g.bulkNext = 0, time.Time{}, time.Time{}
 	}
 }
 

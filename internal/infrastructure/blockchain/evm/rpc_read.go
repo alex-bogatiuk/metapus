@@ -231,10 +231,11 @@ func endpointRead[T any](ctx context.Context, p *rpcGeneration, endpoint *rpcEnd
 	if op == opLogs {
 		timeout = time.Duration(p.settings.LogsTimeoutMS) * time.Millisecond
 	}
-	attempt, cancel := context.WithTimeout(context.WithValue(ctx, rpcOperationContextKey{}, op), timeout)
+	bulk := op == opBlock || op == opLogs
+	attempt, cancel := context.WithTimeout(providerpolicy.WithBulk(context.WithValue(ctx, rpcOperationContextKey{}, op), bulk), timeout)
 	defer cancel()
 	started := time.Now()
-	leave, err := endpoint.admission.Enter(attempt, op == opBlock || op == opLogs)
+	leave, err := endpoint.admission.Enter(attempt, bulk)
 	if err != nil {
 		err = errors.Join(ErrRPCAdmissionBusy, ctx.Err())
 		p.finishRead(endpoint, op, time.Since(started), err, ctx.Err())

@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"metapus/internal/domain/crypto"
+	"metapus/internal/infrastructure/providerpolicy"
 )
 
 // CheckIngestionRPC checks every endpoint directly, so a working fallback
@@ -128,9 +129,10 @@ func directIngestionRPCCheck(ctx context.Context, pool *rpcGeneration, endpoint 
 	if operation == opLogs {
 		budget = time.Duration(pool.settings.LogsTimeoutMS) * time.Millisecond
 	}
-	attempt, cancel := context.WithTimeout(ctx, budget)
+	bulk := operation == opBlock || operation == opLogs
+	attempt, cancel := context.WithTimeout(providerpolicy.WithBulk(ctx, bulk), budget)
 	defer cancel()
-	leave, err := endpoint.admission.Enter(attempt, operation == opBlock || operation == opLogs)
+	leave, err := endpoint.admission.Enter(attempt, bulk)
 	if err != nil {
 		return err
 	}

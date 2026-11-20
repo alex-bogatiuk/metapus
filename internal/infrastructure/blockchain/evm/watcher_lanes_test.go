@@ -22,7 +22,12 @@ import (
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/blockchain/chainconfig"
 	"metapus/internal/infrastructure/blockchain/rpcpolicy"
+	"metapus/internal/infrastructure/providerpolicy"
 )
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 type laneTestRPC struct {
 	*controlledFetchRPC
@@ -308,4 +313,35 @@ func TestRPCPoolSpreadsCatchUpBlocksOverProvidersWithoutDuplicates(t *testing.T)
 		require.LessOrEqual(t, height, int64(head-nativeLaneTipDistance))
 	}
 	require.Len(t, append(append([]int64{}, servedBy["leader"]...), servedBy["second"]...), head, "no block is requested twice")
+}
+
+func TestEVMReadsMarkOnlyBulkOperationsForPoolAdmission(t *testing.T) {
+	blocks := freshLinkedBlocks(3)
+	server := newChainRPCServer(t, blocks, 3, 0, func(int64) {})
+	defer server.Close()
+	var mu sync.Mutex
+	marked := map[string]bool{}
+	record := func(base http.RoundTripper) http.RoundTripper {
+		return roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			if op, ok := r.Context().Value(rpcOperationContextKey{}).(rpcOperation); ok {
+				mu.Lock()
+				marked[string(op)] = providerpolicy.IsBulk(r.Context())
+				mu.Unlock()
+			}
+			return base.RoundTrip(r)
+		})
+	}
+	pool, err := NewRPCPool(t.Context(), RPCPoolConfig{NetworkCode: "ETHEREUM-SEPOLIA", ExpectedChainID: big.NewInt(11155111), FailureThreshold: 2, OpenDuration: time.Second,
+		Endpoints: []chainconfig.Endpoint{{ProviderID: "only", TrustGroup: "a", URL: server.URL, WrapTransport: record}}})
+	require.NoError(t, err)
+	defer pool.Close()
+	_, err = pool.BlockByNumber(t.Context(), big.NewInt(2))
+	require.NoError(t, err)
+	_, err = pool.HeaderByNumber(t.Context(), big.NewInt(2))
+	require.NoError(t, err)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.True(t, marked[string(opBlock)], "full blocks are bulk")
+	require.False(t, marked[string(opHeader)], "headers stay urgent")
 }

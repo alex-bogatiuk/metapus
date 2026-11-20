@@ -227,10 +227,11 @@ func (p *rpcGeneration) readOrder(role chainconfig.Role, op string) []*rpcEndpoi
 
 func endpointRead[T any](ctx context.Context, p *rpcGeneration, e *rpcEndpoint, op string, call func(context.Context, *Client) (T, error)) (T, error) {
 	var zero T
-	attempt, cancel := context.WithTimeout(ctx, p.settings.AttemptTimeout())
+	bulk := op == opBlock || op == opBlockReceipts
+	attempt, cancel := context.WithTimeout(providerpolicy.WithBulk(ctx, bulk), p.settings.AttemptTimeout())
 	defer cancel()
 	span, started := beginRPCRequest(ctx, p.networkCode, e, op)
-	leave, err := e.admission.Enter(attempt, op == opBlock || op == opBlockReceipts)
+	leave, err := e.admission.Enter(attempt, bulk)
 	if err != nil {
 		err = errors.Join(providerpolicy.ErrAdmissionBusy, ctx.Err())
 	} else {
