@@ -39,17 +39,17 @@ async function setup(page: Page) {
   return { patches }
 }
 
-const rail = (page: Page) => page.locator("[data-floating-save]")
+const railState = (page: Page) => page.locator("[data-floating-save]")
 const floatingSave = (page: Page) => page.getByRole("button", { name: "Сохранить настройки сети ETHEREUM-SEPOLIA", exact: true })
 const footerSave = (page: Page) => page.getByRole("button", { name: "Сохранить настройки", exact: true })
 
-test("an unsaved change brings a save action beside the form, at the pointer's height", async ({ page }) => {
+test("an unsaved change brings a save action beside the form that follows the pointer lazily", async ({ page }) => {
   const state = await setup(page)
   await expect(footerSave(page)).not.toBeInViewport()
-  await expect(rail(page)).toHaveAttribute("data-floating-save", "hidden")
+  await expect(railState(page)).toHaveAttribute("data-floating-save", "hidden")
 
   await page.getByRole("switch", { name: "Обработка операций", exact: true }).click()
-  await expect(rail(page)).toHaveAttribute("data-floating-save", "shown")
+  await expect(railState(page)).toHaveAttribute("data-floating-save", "shown")
 
   await page.mouse.move(400, 520)
   await expect.poll(async () => {
@@ -57,19 +57,34 @@ test("an unsaved change brings a save action beside the form, at the pointer's h
     return box ? Math.round(box.y + box.height / 2) : null
   }).toBe(520)
 
+  // Working near the button does not move it.
+  const center = async () => {
+    const box = await floatingSave(page).boundingBox()
+    return box ? Math.round(box.y + box.height / 2) : null
+  }
+  await page.mouse.move(400, 560)
+  await page.waitForTimeout(700)
+  expect(await center()).toBe(520)
+
+  // Heading for the rail at another height leaves the target where it is, so it can be hit.
+  const rail = (await page.locator("[data-floating-save]").boundingBox())!
+  await page.mouse.move(rail.x + 20, 300, { steps: 4 })
+  await page.waitForTimeout(700)
+  expect(await center()).toBe(520)
+
   await floatingSave(page).click()
   await expect.poll(() => state.patches.length).toBe(1)
   expect(state.patches[0]).toMatchObject({ enabled: true })
-  await expect(rail(page)).toHaveAttribute("data-floating-save", "hidden")
+  await expect(railState(page)).toHaveAttribute("data-floating-save", "hidden")
 })
 
 test("the copy steps aside once the form's own save button is on screen", async ({ page }) => {
   await setup(page)
   await page.getByRole("switch", { name: "Обработка операций", exact: true }).click()
-  await expect(rail(page)).toHaveAttribute("data-floating-save", "shown")
+  await expect(railState(page)).toHaveAttribute("data-floating-save", "shown")
 
   await footerSave(page).scrollIntoViewIfNeeded()
   await expect(footerSave(page)).toBeEnabled()
-  await expect(rail(page)).toHaveAttribute("data-floating-save", "hidden")
+  await expect(railState(page)).toHaveAttribute("data-floating-save", "hidden")
   await expect(floatingSave(page)).toBeHidden()
 })

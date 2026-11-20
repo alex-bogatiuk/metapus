@@ -2,9 +2,20 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode, type RefObject } from "react"
 import { cn } from "@/lib/utils"
+import { stepSpring } from "@/lib/spring"
 
 /** Space kept between the floating action and the edges of the visible area, px. */
 const EDGE = 8
+/** The pointer may roam this far above or below the button's centre without moving it, px. */
+const DEAD_ZONE = 72
+/** The pointer must rest this long before the button relocates to it, ms: it moves after a gesture, not during. */
+const REST_MS = 160
+/** A pointer this close to the rail (or inside it) is heading for the button, which then holds still, px. */
+const APPROACH = 120
+/** Period of the critically damped spring that carries the button, s. Calm, since it moves in peripheral vision. */
+const RESPONSE = 0.42
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 
 /** The vertical span of the element that is actually on screen: clipped by the window and every clipping ancestor. */
 function visibleSpan(element: HTMLElement): { top: number; bottom: number } {
@@ -21,11 +32,15 @@ function visibleSpan(element: HTMLElement): { top: number; bottom: number } {
 }
 
 /**
- * A narrow column beside a long form that carries a copy of its save action while
- * there are unsaved changes. The copy rides at the height of the mouse pointer, kept
- * inside the visible part of the form (without a mouse it rests mid-way), so saving
- * needs no scroll to the bottom. Once the form's own save area is on screen the copy
- * steps aside. Below `xl` there is no room beside the form and the column stays hidden.
+ * A narrow column beside a long form that carries a copy of its save action while there are
+ * unsaved changes, so saving needs no scroll to the bottom. Once the form's own save area is on
+ * screen the copy steps aside. Below `xl` there is no room beside the form and the column stays hidden.
+ *
+ * The copy follows the mouse lazily, like a visionOS window: it stays put while the pointer works
+ * near it, relocates only after the pointer comes to rest elsewhere, holds still once the pointer
+ * heads for the rail (a moving target is hard to hit), and travels on a critically damped spring.
+ * It keeps its place on screen while the page scrolls, inside the visible part of the form.
+ * Without a mouse it rests mid-way; with reduced motion it moves without travel.
  */
 export function FloatingSaveRail({
   active,
@@ -42,8 +57,9 @@ export function FloatingSaveRail({
 }) {
   const railRef = useRef<HTMLDivElement>(null)
   const itemRef = useRef<HTMLDivElement>(null)
-  const pointerY = useRef<number | null>(null)
-  const [offset, setOffset] = useState<number | null>(null)
+  // Known before the form turns dirty, so the copy can appear where the user already is.
+  const pointer = useRef<{ x: number; y: number } | null>(null)
+  const [hasRoom, setHasRoom] = useState(false)
   const [anchorVisible, setAnchorVisible] = useState(false)
 
   useEffect(() => {
@@ -55,46 +71,102 @@ export function FloatingSaveRail({
   }, [anchorRef])
 
   useEffect(() => {
-    const rail = railRef.current
-    if (!active || !rail) return
-    let frame = 0
-    const place = () => {
-      frame = 0
-      const box = rail.getBoundingClientRect()
-      const span = visibleSpan(rail)
-      const top = span.top + EDGE
-      const bottom = span.bottom - EDGE
-      const height = itemRef.current?.offsetHeight ?? 0
-      // Too little of the form is on screen to hold the action.
-      if (bottom - top < height) return setOffset(null)
-      const wanted = (pointerY.current ?? (top + bottom) / 2) - height / 2
-      setOffset(Math.min(Math.max(wanted, top), bottom - height) - box.top)
+    const track = (event: PointerEvent) => {
+      if (event.pointerType === "mouse") pointer.current = { x: event.clientX, y: event.clientY }
     }
-    const schedule = () => {
-      if (!frame) frame = requestAnimationFrame(place)
+    window.addEventListener("pointermove", track, { passive: true })
+    return () => window.removeEventListener("pointermove", track)
+  }, [])
+
+  useEffect(() => {
+    const rail = railRef.current
+    const item = itemRef.current
+    if (!active || !rail || !item) return
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)")
+    // The button's centre in viewport px: its presentation value, its velocity in px/s, and where it is heading.
+    let y: number | null = null
+    let velocity = 0
+    let target: number | null = null
+    let frame = 0
+    let lastFrame = 0
+    let rest = 0
+
+    const bounds = () => {
+      const span = visibleSpan(rail)
+      const half = item.offsetHeight / 2
+      return { top: span.top + EDGE + half, bottom: span.bottom - EDGE - half, half, railTop: rail.getBoundingClientRect().top }
+    }
+    // Scroll and layout apply at once, without the spring, so the button never lags behind the page.
+    const render = () => {
+      const b = bounds()
+      const room = b.bottom >= b.top
+      setHasRoom(room)
+      if (!room) return
+      if (y == null) y = target = clamp(pointer.current?.y ?? (b.top + b.bottom) / 2, b.top, b.bottom)
+      item.style.transform = `translateY(${clamp(y, b.top, b.bottom) - b.half - b.railTop}px)`
+    }
+    const step = (now: number) => {
+      frame = 0
+      if (y == null || target == null) return render()
+      const dt = Math.min((now - lastFrame) / 1000, 1 / 30)
+      lastFrame = now
+      const next = stepSpring(y, velocity, target, dt, RESPONSE)
+      y = next.position
+      velocity = next.velocity
+      if (Math.abs(y - target) < 0.3 && Math.abs(velocity) < 2) {
+        y = target
+        velocity = 0
+      }
+      render()
+      if (y !== target) frame = requestAnimationFrame(step)
+    }
+    const relocate = () => {
+      const at = pointer.current
+      const b = bounds()
+      if (!at || y == null || b.bottom < b.top) return
+      // Start from where the button is seen, which scrolling may have pinned to an edge.
+      y = clamp(y, b.top, b.bottom)
+      const wanted = clamp(at.y, b.top, b.bottom)
+      if (Math.abs(wanted - y) <= DEAD_ZONE) return
+      target = wanted
+      if (reducedMotion.matches) {
+        y = target
+        velocity = 0
+        return render()
+      }
+      if (!frame) {
+        lastFrame = performance.now()
+        frame = requestAnimationFrame(step)
+      }
     }
     const follow = (event: PointerEvent) => {
       if (event.pointerType !== "mouse") return
-      pointerY.current = event.clientY
-      schedule()
+      window.clearTimeout(rest)
+      if (event.clientX >= rail.getBoundingClientRect().left - APPROACH) return
+      rest = window.setTimeout(relocate, REST_MS)
     }
-    const resize = new ResizeObserver(schedule)
+    const layout = () => {
+      if (!frame) render()
+    }
+
+    const resize = new ResizeObserver(layout)
     resize.observe(rail)
-    place()
+    render()
     window.addEventListener("pointermove", follow, { passive: true })
-    window.addEventListener("resize", schedule)
+    window.addEventListener("resize", layout)
     // Scroll does not bubble; capturing on the window hears every scrolling ancestor.
-    window.addEventListener("scroll", schedule, { capture: true, passive: true })
+    window.addEventListener("scroll", layout, { capture: true, passive: true })
     return () => {
       cancelAnimationFrame(frame)
+      window.clearTimeout(rest)
       resize.disconnect()
       window.removeEventListener("pointermove", follow)
-      window.removeEventListener("resize", schedule)
-      window.removeEventListener("scroll", schedule, { capture: true })
+      window.removeEventListener("resize", layout)
+      window.removeEventListener("scroll", layout, { capture: true })
     }
   }, [active])
 
-  const shown = active && !anchorVisible && offset != null
+  const shown = active && !anchorVisible && hasRoom
 
   return (
     <div ref={railRef} data-floating-save={shown ? "shown" : "hidden"} className={cn("relative hidden w-36 shrink-0 xl:block", className)}>
@@ -102,12 +174,14 @@ export function FloatingSaveRail({
         ref={itemRef}
         aria-hidden={!shown}
         className={cn(
-          "absolute inset-x-0 top-0 flex pl-3.5 transition-[transform,opacity,visibility] duration-150 ease-panel motion-reduce:transition-none",
+          "absolute inset-x-0 top-0 flex pl-3.5 transition-[opacity,visibility] duration-200 ease-panel motion-reduce:transition-none",
           shown ? "visible opacity-100" : "invisible opacity-0",
         )}
-        style={{ transform: `translateY(${offset ?? 0}px)` }}
       >
-        {children}
+        {/* It emerges from the form's edge and slips back into it. */}
+        <div className={cn("transition-transform duration-200 ease-panel motion-reduce:transition-none", shown ? "translate-x-0" : "-translate-x-1.5")}>
+          {children}
+        </div>
       </div>
     </div>
   )
