@@ -1,7 +1,6 @@
 "use client"
 
-import { forwardRef, useEffect, useRef, useState, type ReactNode, type RefObject } from "react"
-import { Button, type ButtonProps } from "@/components/ui/button"
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode, type RefObject } from "react"
 import { cn } from "@/lib/utils"
 
 /** Space kept between the floating action and the edges of the visible area, px. */
@@ -114,23 +113,90 @@ export function FloatingSaveRail({
   )
 }
 
+/** Height of the pointed button, px (h-7). */
+const TAG_HEIGHT = 28
+/** How far the "<" point reaches left of the button's body, px. */
+const TAG_POINT = 11
+
 /**
- * A compact save button for the rail whose left edge is a "<" point aimed at the form it saves.
- * The point is a rotated square in the button's own colour; its diagonal equals the
- * button's height (h-7), so its corners meet the button's top and bottom edges.
+ * Outline of a tag-shaped button: a "<" point on the left and a rounded body. Every corner
+ * is rounded, including the tip and the two joins between point and body, so it reads as one
+ * smooth shape. Built from straight edges and quadratic curves with the corners as controls.
  */
-export const FloatingSaveButton = forwardRef<HTMLButtonElement, ButtonProps>(function FloatingSaveButton({ className, ...props }, ref) {
-  return (
-    <Button
-      ref={ref}
-      size="sm"
-      className={cn(
-        "relative rounded-l-none pl-1.5 shadow-none drop-shadow-md",
-        // drop-shadow makes the button a stacking context, so -z-10 keeps the point under the icon yet over the button's background.
-        "before:absolute before:-z-10 before:-left-px before:top-1/2 before:size-[19.8px] before:-translate-x-1/2 before:-translate-y-1/2 before:rotate-45 before:rounded-[3px] before:bg-inherit before:content-['']",
-        className,
-      )}
-      {...props}
-    />
-  )
-})
+export function tagPath(width: number, height = TAG_HEIGHT, point = TAG_POINT): string {
+  const mid = height / 2
+  const edge = Math.hypot(point, mid)
+  // Unit vector from the tip up to the top join.
+  const ux = point / edge
+  const uy = mid / edge
+  const tip = 3 // rounding along the edges at the tip
+  const join = 4 // rounding at the joins of point and body
+  const body = 7 // corner radius on the right
+  const n = (value: number) => Number(value.toFixed(2))
+  return [
+    `M ${n(ux * tip)} ${n(mid - uy * tip)}`,
+    `L ${n(point - ux * join)} ${n(uy * join)}`,
+    `Q ${point} 0 ${point + join} 0`,
+    `L ${width - body} 0`,
+    `Q ${width} 0 ${width} ${body}`,
+    `L ${width} ${height - body}`,
+    `Q ${width} ${height} ${width - body} ${height}`,
+    `L ${point + join} ${height}`,
+    `Q ${point} ${height} ${n(point - ux * join)} ${n(height - uy * join)}`,
+    `L ${n(ux * tip)} ${n(mid + uy * tip)}`,
+    `Q 0 ${mid} ${n(ux * tip)} ${n(mid - uy * tip)}`,
+    "Z",
+  ].join(" ")
+}
+
+/**
+ * A compact save button for the rail, shaped like a tag whose "<" point aims at the form it saves.
+ * The shape is one SVG path drawn behind the content, so fill, hover, shadow and the focus ring
+ * apply to the whole outline at once; it follows the button's width as the label changes.
+ */
+export const FloatingSaveButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement>>(
+  function FloatingSaveButton({ className, children, type = "button", ...props }, ref) {
+    const own = useRef<HTMLButtonElement>(null)
+    useImperativeHandle(ref, () => own.current as HTMLButtonElement)
+    const [width, setWidth] = useState(0)
+    useLayoutEffect(() => {
+      const button = own.current
+      if (!button) return
+      setWidth(button.offsetWidth)
+      const observer = new ResizeObserver(() => setWidth(button.offsetWidth))
+      observer.observe(button)
+      return () => observer.disconnect()
+    }, [])
+    return (
+      <button
+        ref={own}
+        type={type}
+        className={cn(
+          "group/tag relative isolate inline-flex h-7 items-center gap-1.5 whitespace-nowrap pl-[17px] pr-2.5 text-[13px] font-medium text-primary-foreground outline-none",
+          "disabled:pointer-events-none disabled:opacity-50 [&>svg:not([data-tag-shape])]:pointer-events-none [&>svg:not([data-tag-shape])]:size-3.5 [&>svg:not([data-tag-shape])]:shrink-0",
+          className,
+        )}
+        {...props}
+      >
+        {width > 0 ? (
+          <svg
+            data-tag-shape
+            aria-hidden
+            width={width}
+            height={TAG_HEIGHT}
+            viewBox={`0 0 ${width} ${TAG_HEIGHT}`}
+            className="pointer-events-none absolute left-0 top-0 -z-10 overflow-visible drop-shadow-md"
+          >
+            <path
+              d={tagPath(width)}
+              strokeWidth={3}
+              strokeLinejoin="round"
+              className="fill-primary stroke-transparent transition-[fill,stroke] duration-150 group-hover/tag:fill-primary/90 group-focus-visible/tag:stroke-ring/40"
+            />
+          </svg>
+        ) : null}
+        {children}
+      </button>
+    )
+  },
+)
