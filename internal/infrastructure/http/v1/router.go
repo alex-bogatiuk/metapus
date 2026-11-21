@@ -16,6 +16,7 @@ import (
 	"metapus/internal/application/readaccess"
 	"metapus/internal/core/numerator"
 	"metapus/internal/core/security"
+	"metapus/internal/core/tenant"
 	"metapus/internal/domain"
 	"metapus/internal/domain/auth"
 	"metapus/internal/domain/documents"
@@ -91,6 +92,11 @@ type RouterConfig struct {
 	// IntegrationCatalog lists the integration kinds and providers of the
 	// application. Nil means the platform providers only.
 	IntegrationCatalog *integrations.Catalog
+
+	// ExpectedSchema is the schema of a tenant database migrated by this
+	// binary's configuration; the tenant monitor reports tenants at another
+	// as outdated. The zero value compares the platform's version only.
+	ExpectedSchema tenant.Schema
 
 	// IntegrationConnectionTests tests provider connections from the
 	// integrations admin API. Nil disables connection tests.

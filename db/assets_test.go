@@ -41,16 +41,16 @@ func TestCheckMigrationFormat(t *testing.T) {
 	}
 }
 
-func TestTenantMigrationsJoinPlatformAndConfigurationsIntoOneSequence(t *testing.T) {
+func TestExtensionMigrationsJoinModulesIntoOneSequence(t *testing.T) {
 	source := fstest.MapFS{
-		"migrations/00001_core.sql":      {Data: []byte("core")},
-		"migrations/00003_late_core.sql": {Data: []byte("late")},
-		"configuration/b/00002_b.sql":    {Data: []byte("b")},
-		"configuration/a/00004_a.sql":    {Data: []byte("a")},
-		"configuration/a/README.md":      {Data: []byte("ignored")},
-		"meta/00001_tenants.sql":         {Data: []byte("meta is separate")},
+		"migrations/00001_core.sql":     {Data: []byte("platform is separate")},
+		"extensions/b/10002_b.sql":      {Data: []byte("b")},
+		"extensions/a/10001_a.sql":      {Data: []byte("a")},
+		"extensions/a/10003_late_a.sql": {Data: []byte("late")},
+		"extensions/README.md":          {Data: []byte("ignored")},
+		"configuration/x/00006_x.sql":   {Data: []byte("configuration is separate")},
 	}
-	flat, err := tenantMigrations(source)
+	flat, err := extensionMigrations(source)
 	require.NoError(t, err)
 	entries, err := fs.ReadDir(flat, ".")
 	require.NoError(t, err)
@@ -58,29 +58,53 @@ func TestTenantMigrationsJoinPlatformAndConfigurationsIntoOneSequence(t *testing
 	for _, entry := range entries {
 		names = append(names, entry.Name())
 	}
-	require.Equal(t, []string{"00001_core.sql", "00002_b.sql", "00003_late_core.sql", "00004_a.sql"}, names)
-	raw, err := fs.ReadFile(flat, "00002_b.sql")
+	require.Equal(t, []string{"10001_a.sql", "10002_b.sql", "10003_late_a.sql"}, names)
+	raw, err := fs.ReadFile(flat, "10002_b.sql")
 	require.NoError(t, err)
 	require.Equal(t, "b", string(raw))
-	matches, err := fs.Glob(flat, "*.sql")
-	require.NoError(t, err)
-	require.Len(t, matches, 4)
 }
 
-func TestTenantMigrationsRejectReusedVersionsAndBadNames(t *testing.T) {
-	_, err := tenantMigrations(fstest.MapFS{
-		"migrations/00001_core.sql":   {Data: []byte("core")},
-		"configuration/x/00001_x.sql": {Data: []byte("x")},
+func TestExtensionMigrationsRejectReusedVersionsLowVersionsAndBadNames(t *testing.T) {
+	_, err := extensionMigrations(fstest.MapFS{
+		"extensions/a/10001_a.sql": {Data: []byte("a")},
+		"extensions/b/10001_b.sql": {Data: []byte("b")},
 	})
-	require.ErrorContains(t, err, "version 00001")
-	_, err = tenantMigrations(fstest.MapFS{"configuration/x/7_x.sql": {Data: []byte("x")}, "migrations/00001_core.sql": {}})
+	require.ErrorContains(t, err, "version 10001")
+	_, err = extensionMigrations(fstest.MapFS{"extensions/a/00007_a.sql": {Data: []byte("a")}})
+	require.ErrorContains(t, err, "starts at 10000")
+	_, err = extensionMigrations(fstest.MapFS{"extensions/a/7_a.sql": {Data: []byte("a")}})
 	require.ErrorContains(t, err, "NNNNN_name.sql")
 }
 
-func TestEmbeddedTenantMigrationsAreConsistent(t *testing.T) {
-	flat, err := TenantMigrations()
+func TestHighestVersionSkipsExtensionVersions(t *testing.T) {
+	version, err := HighestVersion(fstest.MapFS{
+		"00001_core.sql": {}, "00009_last.sql": {}, "10001_ext.sql": {}, "README.md": {},
+	})
 	require.NoError(t, err)
-	matches, err := fs.Glob(flat, "*.sql")
+	require.Equal(t, 9, version)
+	version, err = HighestVersion(nil)
+	require.NoError(t, err)
+	require.Zero(t, version)
+	_, err = HighestVersion(fstest.MapFS{"1_bad.sql": {}})
+	require.ErrorContains(t, err, "NNNNN_name.sql")
+}
+
+func TestEmbeddedMigrationsAreConsistent(t *testing.T) {
+	platform, err := PlatformMigrations()
+	require.NoError(t, err)
+	matches, err := fs.Glob(platform, "*.sql")
 	require.NoError(t, err)
 	require.NotEmpty(t, matches)
+	_, err = ExtensionMigrations()
+	require.NoError(t, err)
+	configurations, err := fs.Glob(Files, "configuration/*")
+	require.NoError(t, err)
+	for _, dir := range configurations {
+		source, err := ConfigurationMigrations(strings.TrimPrefix(dir, "configuration/"))
+		require.NoError(t, err, dir)
+		require.NotNil(t, source, dir)
+	}
+	missing, err := ConfigurationMigrations("no_such_configuration")
+	require.NoError(t, err)
+	require.Nil(t, missing)
 }

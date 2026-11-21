@@ -18,6 +18,7 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_catalog_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/types"
@@ -43,7 +44,7 @@ func custodyTestDatabase(t *testing.T) (context.Context, *pgxpool.Pool) {
 	address, err := url.Parse(dsn)
 	require.NoError(t, err)
 	address.Path = "/" + name
-	_, err = migration.RunAll(address.String())
+	_, err = migration.RunAll(address.String(), cryptoschema.Migration())
 	require.NoError(t, err)
 	pool, err := postgres.OpenPool(t.Context(), address.String())
 	require.NoError(t, err)

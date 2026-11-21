@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/domain/crypto"
+	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
@@ -26,7 +27,7 @@ import (
 func valuationFixture(t *testing.T) (context.Context, *pgxpool.Pool, *register_repo.ExchangeRateRepo, er.Configuration) {
 	t.Helper()
 	dsn := testsupport.ExchangeRateDSN(t)
-	output, err := migration.RunAll(dsn)
+	output, err := migration.RunAll(dsn, cryptoschema.Migration())
 	require.NoError(t, err, output)
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, dsn)

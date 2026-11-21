@@ -13,6 +13,7 @@ import (
 	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
 	"metapus/internal/configuration/crypto/domain/catalogs/token"
 	"metapus/internal/configuration/crypto/domain/catalogs/wallet"
+	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
 	"metapus/internal/core/security"
@@ -24,7 +25,7 @@ import (
 // The unit tests fix the projection field names and Go types the builder
 // expects; this test proves the production authorized reader supplies them.
 func TestCryptoInvoicePrintReadsReferencesThroughAuthorizedReader(t *testing.T) {
-	tenant := testsupport.NewSecurityTenants(t)[0]
+	tenant := testsupport.NewSecurityTenants(t, cryptoschema.Migration())[0]
 	reg := metadata.NewRegistry()
 	for _, entry := range []struct {
 		model any

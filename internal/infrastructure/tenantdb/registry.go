@@ -17,7 +17,8 @@ import (
 // tenantColumns is the shared SELECT column list for all tenant queries.
 // Update this constant when adding new columns to the tenants table.
 const tenantColumns = `id, slug, display_name, db_name, db_host, db_port,
-	       status, plan, schema_version, provisioning_stage,
+	       status, plan, schema_version, configuration,
+	       configuration_schema_version, provisioning_stage,
 	       provisioning_error, provisioned_at, created_at, updated_at, settings`
 
 // PostgresRegistry implements tenantcore.Registry using meta-database PostgreSQL.
@@ -99,11 +100,12 @@ func (r *PostgresRegistry) Create(ctx context.Context, t *tenantcore.Tenant) err
 		t.Plan = tenantcore.PlanStandard
 	}
 	input := tenantcore.CreateTenantInput{
-		Slug:        t.Slug,
-		DisplayName: t.DisplayName,
-		Plan:        t.Plan,
-		DBHost:      t.DBHost,
-		DBPort:      t.DBPort,
+		Configuration: t.Configuration,
+		Slug:          t.Slug,
+		DisplayName:   t.DisplayName,
+		Plan:          t.Plan,
+		DBHost:        t.DBHost,
+		DBPort:        t.DBPort,
 	}
 	if err := input.Validate(); err != nil {
 		return fmt.Errorf("validate tenant: %w", err)
@@ -141,11 +143,11 @@ func (r *PostgresRegistry) Create(ctx context.Context, t *tenantcore.Tenant) err
 	_, err = tx.Exec(ctx, `
 		INSERT INTO tenants (
 			id, slug, display_name, db_name, db_host, db_port, status, plan, settings,
-			provisioning_stage, provisioning_error, provisioned_at
+			provisioning_stage, provisioning_error, provisioned_at, configuration
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	`, t.ID, t.Slug, t.DisplayName, t.DBName, t.DBHost, t.DBPort, t.Status, t.Plan,
-		t.Settings, t.ProvisioningStage, t.ProvisioningError, t.ProvisionedAt)
+		t.Settings, t.ProvisioningStage, t.ProvisioningError, t.ProvisionedAt, t.Configuration)
 	if err != nil {
 		return fmt.Errorf("create tenant: %w", err)
 	}
@@ -250,7 +252,7 @@ func (r *PostgresRegistry) MarkProvisioningFailed(
 	return nil
 }
 
-func (r *PostgresRegistry) MarkProvisioned(ctx context.Context, tenantID string, schemaVersion int) error {
+func (r *PostgresRegistry) MarkProvisioned(ctx context.Context, tenantID string, schema tenantcore.Schema) error {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin tenant provisioning completion: %w", err)
@@ -263,9 +265,12 @@ func (r *PostgresRegistry) MarkProvisioned(ctx context.Context, tenantID string,
 		    schema_version = $3,
 		    provisioning_stage = $4,
 		    provisioning_error = '',
-		    provisioned_at = NOW()
-		WHERE id = $1 AND status = $5
-	`, tenantID, tenantcore.StatusActive, schemaVersion, tenantcore.ProvisioningStageComplete, tenantcore.StatusProvisioning)
+		    provisioned_at = NOW(),
+		    configuration = $6,
+		    configuration_schema_version = $7
+		WHERE id = $1 AND status = $5 AND configuration IN ('', $6)
+	`, tenantID, tenantcore.StatusActive, schema.Version, tenantcore.ProvisioningStageComplete, tenantcore.StatusProvisioning,
+		schema.Configuration, schema.ConfigurationVersion)
 	if err != nil {
 		return fmt.Errorf("mark tenant provisioned: %w", err)
 	}
@@ -275,8 +280,11 @@ func (r *PostgresRegistry) MarkProvisioned(ctx context.Context, tenantID string,
 
 	_, err = tx.Exec(ctx, `
 		INSERT INTO tenant_audit (tenant_id, action, details)
-		VALUES ($1, 'provisioned', jsonb_build_object('schema_version', $2::int))
-	`, tenantID, schemaVersion)
+		VALUES ($1, 'provisioned', jsonb_build_object(
+			'schema_version', $2::int,
+			'configuration', $3::text,
+			'configuration_schema_version', $4::int))
+	`, tenantID, schema.Version, schema.Configuration, schema.ConfigurationVersion)
 	if err != nil {
 		return fmt.Errorf("audit tenant provisioning completion: %w", err)
 	}
@@ -302,19 +310,25 @@ func (r *PostgresRegistry) UpdateStatusByID(ctx context.Context, tenantID string
 	return nil
 }
 
-func (r *PostgresRegistry) UpdateSchemaVersion(ctx context.Context, tenantID string, version int) error {
+func (r *PostgresRegistry) UpdateSchema(ctx context.Context, tenantID string, schema tenantcore.Schema) error {
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE tenants
-		SET schema_version = $2
-		WHERE id = $1
-	`, tenantID, version)
+		SET schema_version = $2,
+		    configuration = $3,
+		    configuration_schema_version = $4
+		WHERE id = $1 AND configuration IN ('', $3)
+	`, tenantID, schema.Version, schema.Configuration, schema.ConfigurationVersion)
 	if err != nil {
 		return fmt.Errorf("update schema version: %w", err)
 	}
-	if tag.RowsAffected() == 0 {
-		return tenantcore.ErrTenantNotFound
+	if tag.RowsAffected() > 0 {
+		return nil
 	}
-	return nil
+	t, err := r.GetByID(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+	return fmt.Errorf("%w: tenant %s is %q, not %q", tenantcore.ErrConfigurationMismatch, tenantID, t.Configuration, schema.Configuration)
 }
 
 var _ tenantcore.Registry = (*PostgresRegistry)(nil)

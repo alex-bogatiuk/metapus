@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io/fs"
 
 	"metapus/internal/core/entity"
 	"metapus/internal/domain/auth"
@@ -12,12 +13,14 @@ import (
 // AdminRoleCode is the system role that receives every newly created permission.
 const AdminRoleCode = "admin"
 
-// Option configures RunAll.
+// Option configures Run.
 type Option func(*options)
 
 type options struct {
-	permissions []auth.Permission
-	catalogs    []entity.Definition
+	configuration       string
+	configurationSource fs.FS
+	permissions         []auth.Permission
+	catalogs            []entity.Definition
 }
 
 // WithPermissions makes RunAll sync the given permissions into the tenant

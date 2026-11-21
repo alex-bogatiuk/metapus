@@ -36,6 +36,7 @@ import (
 	"metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/internal/infrastructure/storage/postgres/migration"
 	"metapus/internal/infrastructure/storage/postgres/testsupport"
 	"metapus/internal/metadata"
 )
@@ -60,7 +61,7 @@ func TestGeneratedMigrationsRoundTripAndDocumentHooksRollback(t *testing.T) {
 			args = append(args, "--hierarchical")
 		}
 		require.NoError(t, run(args, root, io.Discard))
-		provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS(filepath.Join(root, "db", "configuration", fixture.name)), goose.WithAllowOutofOrder(true))
+		provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS(filepath.Join(root, "db", "extensions", fixture.name)), goose.WithTableName(migration.ExtensionsVersionTable), goose.WithAllowOutofOrder(true))
 		require.NoError(t, err)
 		_, err = provider.Up(ctx)
 		require.NoError(t, err)
@@ -151,7 +152,7 @@ func TestDeclaredEntitiesServeCRUDAndPostingOverTheirGeneratedTables(t *testing.
 	root := t.TempDir()
 	for _, fixture := range []struct{ name, kind string }{{"fleet_vehicle", "catalog"}, {"fleet_waybill", "document"}} {
 		require.NoError(t, run([]string{"--name", fixture.name, "--type", fixture.kind}, root, io.Discard))
-		provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS(filepath.Join(root, "db", "configuration", fixture.name)), goose.WithAllowOutofOrder(true))
+		provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS(filepath.Join(root, "db", "extensions", fixture.name)), goose.WithTableName(migration.ExtensionsVersionTable), goose.WithAllowOutofOrder(true))
 		require.NoError(t, err)
 		_, err = provider.Up(ctx)
 		require.NoError(t, err)
@@ -310,7 +311,7 @@ func TestDeclaredDocumentStoresItsTablePartsWithTheHeader(t *testing.T) {
 	root := t.TempDir()
 	for _, args := range [][]string{{"--name", "goods_product"}, {"--name", "goods_receipt", "--type", "document", "--parts", "goods,services"}} {
 		require.NoError(t, run(args, root, io.Discard))
-		provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS(filepath.Join(root, "db", "configuration", args[1])), goose.WithAllowOutofOrder(true))
+		provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS(filepath.Join(root, "db", "extensions", args[1])), goose.WithTableName(migration.ExtensionsVersionTable), goose.WithAllowOutofOrder(true))
 		require.NoError(t, err)
 		_, err = provider.Up(ctx)
 		require.NoError(t, err)
@@ -467,7 +468,7 @@ func TestDeclaredDocumentStoresItsCalculatedFields(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	root := t.TempDir()
 	require.NoError(t, run([]string{"--name", "calc_invoice", "--type", "document", "--parts", "lines"}, root, io.Discard))
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS(filepath.Join(root, "db", "configuration", "calc_invoice")), goose.WithAllowOutofOrder(true))
+	provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS(filepath.Join(root, "db", "extensions", "calc_invoice")), goose.WithTableName(migration.ExtensionsVersionTable), goose.WithAllowOutofOrder(true))
 	require.NoError(t, err)
 	_, err = provider.Up(ctx)
 	require.NoError(t, err)

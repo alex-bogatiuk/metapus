@@ -26,7 +26,9 @@ type SecurityTenant struct {
 	Tx   *postgres.TxManager
 }
 
-func NewSecurityTenants(t *testing.T) [2]*SecurityTenant {
+// NewSecurityTenants creates two fresh tenant databases with the platform's
+// migrations and those opts add (a configuration's, migration.WithConfiguration).
+func NewSecurityTenants(t *testing.T, opts ...migration.Option) [2]*SecurityTenant {
 	t.Helper()
 	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	require.NotEmpty(t, dsn, "explicit isolated PostgreSQL DSN is required")
@@ -44,7 +46,7 @@ func NewSecurityTenants(t *testing.T) [2]*SecurityTenant {
 		_, err := cluster.Exec(ctx, "CREATE DATABASE "+pgx.Identifier{name}.Sanitize())
 		require.NoError(t, err)
 		target.Path = "/" + name
-		output, err := migration.RunAll(target.String())
+		output, err := migration.RunAll(target.String(), opts...)
 		require.NoError(t, err, output)
 		pool, err := pgxpool.New(ctx, target.String())
 		require.NoError(t, err)

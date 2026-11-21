@@ -9,8 +9,9 @@ import (
 
 func TestCreateTenantInputValidateCanonicalSlug(t *testing.T) {
 	input := CreateTenantInput{
-		Slug:        "  Acme-Europe  ",
-		DisplayName: " ACME Europe ",
+		Configuration: "probe",
+		Slug:          "  Acme-Europe  ",
+		DisplayName:   " ACME Europe ",
 	}
 
 	require.NoError(t, input.Validate())
@@ -31,7 +32,7 @@ func TestCreateTenantInputValidateRejectsUnsafeSlugs(t *testing.T) {
 		strings.Repeat("a", 64),
 	} {
 		t.Run(slug, func(t *testing.T) {
-			input := CreateTenantInput{Slug: slug, DisplayName: "ACME"}
+			input := CreateTenantInput{Configuration: "probe", Slug: slug, DisplayName: "ACME"}
 			require.Error(t, input.Validate())
 		})
 	}

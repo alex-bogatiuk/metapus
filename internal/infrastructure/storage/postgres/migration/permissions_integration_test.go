@@ -19,7 +19,7 @@ func migratedPermissionDB(t *testing.T, opts ...Option) *sql.DB {
 	t.Helper()
 	dsn := os.Getenv("METAPUS_TEST_MIGRATION_DSN")
 	require.NotEmpty(t, dsn, "explicit disposable migration database required")
-	output, err := RunAll(dsn, opts...)
+	output, err := RunAll(dsn, append([]Option{withCrypto(t)}, opts...)...)
 	require.NoError(t, err, output)
 	db, err := sql.Open("pgx", dsn)
 	require.NoError(t, err)

@@ -223,7 +223,7 @@ func registerSettingsRoutes(rg *gin.RouterGroup, cfg RouterConfig) {
 func registerAdminTenantRoutes(rg *gin.RouterGroup, cfg RouterConfig, healthHandler *handlers.MultiTenantHealthHandler) {
 	base := handlers.NewBaseHandler()
 	registry := cfg.TenantManager.GetRegistry()
-	h := handlers.NewAdminTenantHandler(base, registry)
+	h := handlers.NewAdminTenantHandler(base, registry, cfg.ExpectedSchema)
 
 	admin := rg.Group("/admin/tenants")
 	admin.Use(middleware.RequirePermissionOrSystemAdmin(auth.PermissionSystemAdmin))

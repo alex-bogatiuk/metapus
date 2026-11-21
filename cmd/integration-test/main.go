@@ -64,8 +64,8 @@ func run(ctx context.Context) error {
 	target.Path = "/" + name
 	dsn := target.String()
 	env := integrationEnv(os.Environ(), adminDSN, dsn)
-	// The core rollback suite must own an empty database: extension versions
-	// share goose's version table but are not part of the core provider.
+	// The migration suite rolls every module back and forward again, so it
+	// owns an empty database of its own.
 	migrationName := "metapus_migrations_" + id.Compact(id.New())
 	if _, err := conn.Exec(ctx, "CREATE DATABASE "+pgx.Identifier{migrationName}.Sanitize()); err != nil {
 		return fmt.Errorf("create isolated migration database: %w", err)
@@ -122,10 +122,9 @@ func run(ctx context.Context) error {
 	if actual != name {
 		return errors.New("integration database identity mismatch")
 	}
+	// The suite covers the platform and the crypto configuration together.
 	crypto := content.Crypto(content.Services{})
-	if output, err := migration.RunAll(dsn,
-		migration.WithPermissions(configuration.Permissions(crypto, extensions.Register)),
-		migration.WithCatalogCodes(configuration.CatalogDefinitions(crypto, extensions.Register))); err != nil {
+	if output, err := migration.RunAll(dsn, configuration.MigrationOptions(crypto, extensions.Register)...); err != nil {
 		return fmt.Errorf("prepare integration schema: %w\n%s", err, output)
 	}
 	fmt.Println("Integration database:", name)

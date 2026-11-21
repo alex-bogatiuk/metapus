@@ -21,6 +21,7 @@ import (
 	"metapus/internal/domain/automations"
 	"metapus/internal/domain/listview"
 	"metapus/internal/domain/reports/variants"
+	"metapus/internal/infrastructure/storage/postgres/migration"
 )
 
 func markerTestDB(t *testing.T) (*pgxpool.Pool, context.Context) {
@@ -45,9 +46,9 @@ func markerTestDB(t *testing.T) (*pgxpool.Pool, context.Context) {
 	t.Cleanup(pool.Close)
 	sqlDB := stdlib.OpenDBFromPool(pool)
 	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
-	source, err := dbassets.TenantMigrations()
+	source, err := dbassets.PlatformMigrations()
 	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, source)
+	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, source, goose.WithTableName(migration.PlatformVersionTable))
 	require.NoError(t, err)
 	_, err = provider.Up(t.Context())
 	require.NoError(t, err, "the original migrations must bootstrap a clean database")

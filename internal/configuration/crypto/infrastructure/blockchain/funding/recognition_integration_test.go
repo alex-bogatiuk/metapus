@@ -21,6 +21,7 @@ import (
 	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/core/tenant"
@@ -61,7 +62,7 @@ func newFundingFixture(t *testing.T, native bool) fundingFixture {
 	address, err := url.Parse(dsn)
 	require.NoError(t, err)
 	address.Path = "/" + name
-	_, err = migration.RunAll(address.String())
+	_, err = migration.RunAll(address.String(), cryptoschema.Migration())
 	require.NoError(t, err)
 	pool, err := postgres.OpenPool(t.Context(), address.String())
 	require.NoError(t, err)

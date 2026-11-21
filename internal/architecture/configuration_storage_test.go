@@ -45,6 +45,29 @@ func TestPlatformCodeDoesNotQueryConfigurationTables(t *testing.T) {
 		"leak %s -> %s is gone; remove it from knownConfigurationTableLeaks")
 }
 
+// TestPlatformMigrationsDoNotNameConfigurationTables keeps the platform's
+// migrations independent of every configuration: tenants of any
+// configuration get them, and a configuration's migrations build on the
+// platform's, never the other way round.
+func TestPlatformMigrationsDoNotNameConfigurationTables(t *testing.T) {
+	t.Parallel()
+	repoRoot := repositoryRoot(t)
+	tablePattern := configurationTablePattern(t, repoRoot)
+	migrations, err := filepath.Glob(filepath.Join(repoRoot, "db", "migrations", "*.sql"))
+	require.NoError(t, err)
+	require.NotEmpty(t, migrations)
+	for _, path := range migrations {
+		raw, err := os.ReadFile(path)
+		require.NoError(t, err)
+		for line := range strings.Lines(string(raw)) {
+			if code, _, _ := strings.Cut(line, "--"); tablePattern.MatchString(code) {
+				t.Errorf("%s names configuration table %s; a configuration's migration adds what joins its tables to the platform's",
+					filepath.Base(path), tablePattern.FindString(code))
+			}
+		}
+	}
+}
+
 func TestPlatformTestsDoNotImportConfiguration(t *testing.T) {
 	t.Parallel()
 	repoRoot := repositoryRoot(t)

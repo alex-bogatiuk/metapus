@@ -5,24 +5,28 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"metapus/internal/configuration/crypto/domain/crypto"
+	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/internal/core/id"
-	"metapus/internal/core/version"
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
 // ReadAMLConfiguration finishes its read-only snapshot before any Vault calls.
 // It deliberately does not claim jobs, enroll owners or refresh projections.
 func (r *AMLRepository) ReadAMLConfiguration(ctx context.Context, networkCode string, namespace id.ID) (crypto.AMLConfigurationReport, error) {
-	result := crypto.AMLConfigurationReport{ExpectedSchema: version.ExpectedSchemaVersion, Blockers: []string{}, Networks: []crypto.AMLNetworkConfiguration{}}
+	result := crypto.AMLConfigurationReport{ExpectedSchema: cryptoschema.ExpectedVersion, Blockers: []string{}, Networks: []crypto.AMLNetworkConfiguration{}}
 	tm := postgres.MustGetTxManager(ctx)
 	opts := postgres.DefaultTxOptions()
 	opts.AccessMode, opts.IsolationLevel = pgx.ReadOnly, pgx.RepeatableRead
 	err := tm.RunInTransactionWithOptions(ctx, opts, func(ctx context.Context) error {
 		q := tm.GetQuerier(ctx)
-		if err := q.QueryRow(ctx, `SELECT transaction_timestamp(),COALESCE(MAX(version_id),0) FROM goose_db_version WHERE is_applied AND version_id<$1`, version.FirstExtensionMigration).Scan(&result.ObservedAt, &result.DatabaseSchema); err != nil {
+		var platformSchema int
+		if err := q.QueryRow(ctx, `SELECT transaction_timestamp()`).Scan(&result.ObservedAt); err != nil {
 			return err
 		}
-		if !version.CompatibleSchema(result.DatabaseSchema) {
+		if err := q.QueryRow(ctx, cryptoschema.VersionQuery).Scan(&platformSchema, &result.DatabaseSchema); err != nil {
+			return err
+		}
+		if !cryptoschema.Compatible(platformSchema, result.DatabaseSchema) {
 			result.Blockers = append(result.Blockers, "schema_incompatible")
 			return nil
 		}

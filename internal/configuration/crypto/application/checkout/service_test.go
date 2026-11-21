@@ -169,8 +169,10 @@ func (r fakeTenantRegistry) SetProvisioningStage(context.Context, string, tenant
 func (r fakeTenantRegistry) MarkProvisioningFailed(context.Context, string, tenant.ProvisioningStage, string) error {
 	return nil
 }
-func (r fakeTenantRegistry) MarkProvisioned(context.Context, string, int) error { return nil }
+func (r fakeTenantRegistry) MarkProvisioned(context.Context, string, tenant.Schema) error {
+	return nil
+}
 func (r fakeTenantRegistry) UpdateStatusByID(context.Context, string, tenant.Status) error {
 	return nil
 }
-func (r fakeTenantRegistry) UpdateSchemaVersion(context.Context, string, int) error { return nil }
+func (r fakeTenantRegistry) UpdateSchema(context.Context, string, tenant.Schema) error { return nil }

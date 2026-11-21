@@ -17,8 +17,9 @@ func TestProvisionerPublishesOnlyAfterMigration(t *testing.T) {
 	svc := NewProvisioner(repo, db, migrator)
 
 	result, err := svc.Provision(context.Background(), CreateTenantInput{
-		Slug:        "acme-eu",
-		DisplayName: "ACME EU",
+		Configuration: "probe",
+		Slug:          "acme-eu",
+		DisplayName:   "ACME EU",
 	})
 
 	require.NoError(t, err)
@@ -26,9 +27,29 @@ func TestProvisionerPublishesOnlyAfterMigration(t *testing.T) {
 	require.False(t, result.AlreadyProvisioned)
 	require.Equal(t, StatusActive, result.Tenant.Status)
 	require.Equal(t, 50, result.Tenant.SchemaVersion)
+	require.Equal(t, Schema{Configuration: "probe", Version: 50, ConfigurationVersion: 7}, result.Tenant.Schema())
 	require.Regexp(t, `^mt_[0-9a-f]{32}$`, result.Tenant.DBName)
 	require.Equal(t, 1, db.calls)
 	require.Equal(t, 1, migrator.calls)
+}
+
+func TestProvisionerRefusesATenantOfAnotherConfiguration(t *testing.T) {
+	repo := newFakeProvisioningRegistry()
+	db := &fakeDatabaseAdmin{err: errors.New("permission denied")}
+	migrator := &fakeSchemaMigrator{version: 50}
+	svc := NewProvisioner(repo, db, migrator)
+	input := CreateTenantInput{Configuration: "probe", Slug: "acme-eu", DisplayName: "ACME EU"}
+	_, err := svc.Provision(context.Background(), input)
+	require.ErrorContains(t, err, "permission denied")
+
+	db.err = nil
+	input.Configuration = "other"
+	_, err = svc.Provision(context.Background(), input)
+	require.ErrorIs(t, err, ErrConfigurationMismatch)
+	require.Zero(t, migrator.calls)
+
+	_, err = svc.Provision(context.Background(), CreateTenantInput{Slug: "acme-us", DisplayName: "ACME US"})
+	require.ErrorContains(t, err, "configuration must be")
 }
 
 func TestProvisionerRecordsDatabaseFailureAndResumes(t *testing.T) {
@@ -38,8 +59,9 @@ func TestProvisionerRecordsDatabaseFailureAndResumes(t *testing.T) {
 	svc := NewProvisioner(repo, db, migrator)
 
 	result, err := svc.Provision(context.Background(), CreateTenantInput{
-		Slug:        "acme-eu",
-		DisplayName: "ACME EU",
+		Configuration: "probe",
+		Slug:          "acme-eu",
+		DisplayName:   "ACME EU",
 	})
 	require.ErrorContains(t, err, "permission denied")
 	require.NotNil(t, result.Tenant)
@@ -53,8 +75,9 @@ func TestProvisionerRecordsDatabaseFailureAndResumes(t *testing.T) {
 	db.err = nil
 	db.created = false
 	resumed, err := svc.Provision(context.Background(), CreateTenantInput{
-		Slug:        "acme-eu",
-		DisplayName: "ACME EU",
+		Configuration: "probe",
+		Slug:          "acme-eu",
+		DisplayName:   "ACME EU",
 	})
 	require.NoError(t, err)
 	require.False(t, resumed.DatabaseCreated)
@@ -70,8 +93,9 @@ func TestProvisionerDoesNotPublishMigrationFailure(t *testing.T) {
 	svc := NewProvisioner(repo, db, migrator)
 
 	_, err := svc.Provision(context.Background(), CreateTenantInput{
-		Slug:        "acme-eu",
-		DisplayName: "ACME EU",
+		Configuration: "probe",
+		Slug:          "acme-eu",
+		DisplayName:   "ACME EU",
 	})
 
 	require.ErrorContains(t, err, "broken migration")
@@ -88,7 +112,7 @@ func TestProvisionerSerializesConcurrentAttempts(t *testing.T) {
 	db := &fakeDatabaseAdmin{created: true}
 	migrator := &fakeSchemaMigrator{version: 50}
 	svc := NewProvisioner(repo, db, migrator)
-	input := CreateTenantInput{Slug: "acme-eu", DisplayName: "ACME EU"}
+	input := CreateTenantInput{Configuration: "probe", Slug: "acme-eu", DisplayName: "ACME EU"}
 
 	var wg sync.WaitGroup
 	errs := make(chan error, 2)
@@ -126,8 +150,9 @@ func TestProvisionerRepairsLegacyActiveTenantWithoutDatabase(t *testing.T) {
 	svc := NewProvisioner(repo, db, migrator)
 
 	result, err := svc.Provision(context.Background(), CreateTenantInput{
-		Slug:        "legacy-eu",
-		DisplayName: "Legacy EU",
+		Configuration: "probe",
+		Slug:          "legacy-eu",
+		DisplayName:   "Legacy EU",
 	})
 
 	require.NoError(t, err)
@@ -216,13 +241,15 @@ func (r *fakeProvisioningRegistry) MarkProvisioningFailed(
 	return nil
 }
 
-func (r *fakeProvisioningRegistry) MarkProvisioned(_ context.Context, tenantID string, version int) error {
+func (r *fakeProvisioningRegistry) MarkProvisioned(_ context.Context, tenantID string, schema Schema) error {
 	t, ok := r.byID[tenantID]
 	if !ok {
 		return ErrTenantNotFound
 	}
 	t.Status = StatusActive
-	t.SchemaVersion = version
+	t.Configuration = schema.Configuration
+	t.SchemaVersion = schema.Version
+	t.ConfigurationSchemaVersion = schema.ConfigurationVersion
 	t.ProvisioningStage = ProvisioningStageComplete
 	t.ProvisioningError = ""
 	return nil
@@ -237,12 +264,17 @@ func (r *fakeProvisioningRegistry) UpdateStatusByID(_ context.Context, tenantID 
 	return nil
 }
 
-func (r *fakeProvisioningRegistry) UpdateSchemaVersion(_ context.Context, tenantID string, version int) error {
+func (r *fakeProvisioningRegistry) UpdateSchema(_ context.Context, tenantID string, schema Schema) error {
 	t, ok := r.byID[tenantID]
 	if !ok {
 		return ErrTenantNotFound
 	}
-	t.SchemaVersion = version
+	if t.Configuration != "" && t.Configuration != schema.Configuration {
+		return ErrConfigurationMismatch
+	}
+	t.Configuration = schema.Configuration
+	t.SchemaVersion = schema.Version
+	t.ConfigurationSchemaVersion = schema.ConfigurationVersion
 	return nil
 }
 
@@ -271,7 +303,7 @@ type fakeSchemaMigrator struct {
 	calls   int
 }
 
-func (m *fakeSchemaMigrator) Migrate(context.Context, *Tenant) (int, error) {
+func (m *fakeSchemaMigrator) Migrate(_ context.Context, t *Tenant) (Schema, error) {
 	m.calls++
-	return m.version, m.err
+	return Schema{Configuration: t.Configuration, Version: m.version, ConfigurationVersion: 7}, m.err
 }

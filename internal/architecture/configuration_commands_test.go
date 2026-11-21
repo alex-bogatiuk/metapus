@@ -22,7 +22,9 @@ var configurationCommands = []string{
 	"crypto-ingestion-monitor",
 	"crypto-preflight",
 	"crypto-record-wallet-funding",
+	"crypto-seed",
 	"crypto-server",
+	"crypto-tenant",
 	"crypto-worker",
 	"integration-config",
 	"nile-tcp-relay",
@@ -59,9 +61,6 @@ var knownCommandConfigurationLeaks = map[string][]string{
 	"metapus/cmd/integration-test": {
 		"metapus/internal/configuration/crypto/content",
 	},
-	"metapus/cmd/tenant": {
-		"metapus/internal/configuration/crypto/content",
-	},
 }
 
 // knownCommandConfigurationTestLeaks lists platform commands whose tests
@@ -70,16 +69,8 @@ var knownCommandConfigurationLeaks = map[string][]string{
 var knownCommandConfigurationTestLeaks = map[string][]string{}
 
 // knownCommandConfigurationTableLeaks lists platform command files whose
-// string literals name configuration tables. Only remove entries.
-var knownCommandConfigurationTableLeaks = map[string][]string{
-	"cmd/seed/main.go": {
-		"cat_blockchain_networks",
-		"cat_merchants",
-		"cat_tokens",
-		"cat_wallets",
-		"reg_fee_schedule",
-	},
-}
+// string literals name configuration tables. It is empty: keep it empty.
+var knownCommandConfigurationTableLeaks = map[string][]string{}
 
 func TestEveryCommandIsClassified(t *testing.T) {
 	t.Parallel()

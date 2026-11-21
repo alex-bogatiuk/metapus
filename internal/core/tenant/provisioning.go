@@ -14,9 +14,10 @@ type DatabaseAdmin interface {
 	EnsureDatabase(ctx context.Context, databaseName string) (created bool, err error)
 }
 
-// SchemaMigrator applies all required migrations and returns the resulting schema version.
+// SchemaMigrator applies the platform's and t.Configuration's migrations and
+// returns the resulting schema.
 type SchemaMigrator interface {
-	Migrate(ctx context.Context, t *Tenant) (schemaVersion int, err error)
+	Migrate(ctx context.Context, t *Tenant) (Schema, error)
 }
 
 // ProvisionResult describes an idempotent tenant provisioning attempt.
@@ -52,6 +53,9 @@ func (p *Provisioner) Provision(ctx context.Context, input CreateTenantInput) (*
 		switch {
 		case err == nil:
 			result.Tenant = t
+			if t.Configuration != "" && t.Configuration != input.Configuration {
+				return fmt.Errorf("%w: tenant %s is %q, not %q", ErrConfigurationMismatch, t.ID, t.Configuration, input.Configuration)
+			}
 			if t.Status == StatusActive {
 				exists, existsErr := p.dbAdmin.DatabaseExists(ctx, t.DBName)
 				if existsErr != nil {
@@ -65,6 +69,7 @@ func (p *Provisioner) Provision(ctx context.Context, input CreateTenantInput) (*
 			if t.Status != StatusProvisioning && t.Status != StatusProvisionFailed && t.Status != StatusActive {
 				return fmt.Errorf("%w: tenant %s has status %s", ErrTenantProvisioningState, t.ID, t.Status)
 			}
+			t.Configuration = input.Configuration
 		case errors.Is(err, ErrTenantNotFound):
 			tenantID := id.New().String()
 			dbName, nameErr := GenerateDatabaseName(tenantID)
@@ -80,6 +85,7 @@ func (p *Provisioner) Provision(ctx context.Context, input CreateTenantInput) (*
 				DBPort:            input.DBPort,
 				Status:            StatusProvisioning,
 				Plan:              input.Plan,
+				Configuration:     input.Configuration,
 				ProvisioningStage: ProvisioningStageReserved,
 				Settings:          map[string]any{},
 			}
@@ -103,19 +109,20 @@ func (p *Provisioner) Provision(ctx context.Context, input CreateTenantInput) (*
 		if err := p.registry.SetProvisioningStage(ctx, t.ID, ProvisioningStageMigration); err != nil {
 			return fmt.Errorf("start tenant migrations: %w", err)
 		}
-		schemaVersion, err := p.migrator.Migrate(ctx, t)
+		schema, err := p.migrator.Migrate(ctx, t)
 		if err != nil {
 			return p.fail(ctx, t.ID, ProvisioningStageMigration, fmt.Errorf("migrate tenant database: %w", err))
 		}
-		if schemaVersion < 0 {
-			return p.fail(ctx, t.ID, ProvisioningStageMigration, fmt.Errorf("migrator returned invalid schema version %d", schemaVersion))
+		if schema.Version < 0 || schema.ConfigurationVersion < 0 || schema.Configuration != input.Configuration {
+			return p.fail(ctx, t.ID, ProvisioningStageMigration, fmt.Errorf("migrator returned invalid schema %+v", schema))
 		}
-		if err := p.registry.MarkProvisioned(ctx, t.ID, schemaVersion); err != nil {
+		if err := p.registry.MarkProvisioned(ctx, t.ID, schema); err != nil {
 			return fmt.Errorf("publish provisioned tenant: %w", err)
 		}
 
 		t.Status = StatusActive
-		t.SchemaVersion = schemaVersion
+		t.SchemaVersion = schema.Version
+		t.ConfigurationSchemaVersion = schema.ConfigurationVersion
 		t.ProvisioningStage = ProvisioningStageComplete
 		t.ProvisioningError = ""
 		return nil

@@ -8,7 +8,7 @@ LDFLAGS := -ldflags="-X main.Version=$(VERSION) -X main.BuildTime=$(shell date -
 
 # Build
 build:
-	go build $(LDFLAGS) -o bin/ ./cmd/server ./cmd/worker ./cmd/crypto-server ./cmd/crypto-worker
+	go build $(LDFLAGS) -o bin/ ./cmd/server ./cmd/worker ./cmd/tenant ./cmd/seed ./cmd/crypto-server ./cmd/crypto-worker ./cmd/crypto-tenant ./cmd/crypto-seed
 
 # Lint
 lint:
@@ -38,17 +38,15 @@ test-pdf:
 
 test: test-unit
 
-# Database
+# Database (crypto tenants: the platform's, the crypto and the extensions' migrations)
 migrate:
-	go run cmd/tenant/main.go migrate
+	go run ./cmd/crypto-tenant migrate --all
 
-# Migrate only extension tables (auto-discovers extensions/*/migrations/)
-migrate-extensions:
-	@echo "=== Extension migrations ==="
-	go run cmd/tenant/main.go migrate --all
+# Extension migrations (db/extensions/) are applied by every tenant migration
+migrate-extensions: migrate
 
 seed:
-	go run cmd/seed/main.go
+	go run ./cmd/crypto-seed
 
 # Run
 server:

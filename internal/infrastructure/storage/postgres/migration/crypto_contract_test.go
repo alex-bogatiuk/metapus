@@ -40,7 +40,7 @@ func TestEachMigrationDirectionIsOneGooseStatement(t *testing.T) {
 
 func TestBlockchainExplorerTemplateContractIsInBaseMigrationAndSeed(t *testing.T) {
 	migrationSQL := readMigrationSQL(t, "00006_crypto_core.sql")
-	seed := readSQL(t, "cmd", "seed", "main.go")
+	seed := readSQL(t, "internal", "configuration", "crypto", "content", "seed.go")
 
 	require.Contains(t, migrationSQL, "chk_blockchain_network_explorer_url")
 	require.Contains(t, migrationSQL, "{txHash}")
@@ -155,7 +155,7 @@ func TestWalletPoolMigrationUsesDurableCursorAndBudgetGate(t *testing.T) {
 
 func TestTRC20ReusableSweepReserveIsDefinedBySeed(t *testing.T) {
 	migrationSQL := readMigrationSQL(t, "00006_crypto_core.sql")
-	seed := readSQL(t, "cmd", "seed", "main.go")
+	seed := readSQL(t, "internal", "configuration", "crypto", "content", "seed.go")
 
 	require.Contains(t, migrationSQL, "Token minor units retained on reusable deposit wallets")
 	require.Contains(t, seed, `"10000000", 1, "1", usdtCurrencyIDVal`)

@@ -3,65 +3,134 @@ package dbassets
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"path"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
 
 // Files contains the platform's tenant migrations (migrations/), each
-// configuration's tenant migrations (configuration/<name>/) and the
+// configuration's tenant migrations (configuration/<name>/), the client
+// extension modules' tenant migrations (extensions/<module>/) and the
 // control-plane meta migrations (meta/).
 //
-//go:embed migrations/*.sql meta/*.sql configuration/*/*.sql
+//go:embed migrations/*.sql meta/*.sql configuration/*/*.sql extensions
 var Files embed.FS
 
 var migrationName = regexp.MustCompile(`^(\d{5})_[a-z0-9_]+\.sql$`)
 
-// TenantMigrations returns one flat directory with the platform's and every
-// configuration's tenant migrations. They share one version sequence and one
-// goose history: a version used twice, in any directory, is an error.
-func TenantMigrations() (fs.FS, error) { return tenantMigrations(Files) }
+// FirstExtensionMigration is the lowest version of a client extension
+// module's migration. The platform and the configurations number theirs
+// below it.
+const FirstExtensionMigration = 10000
 
-func tenantMigrations(source fs.FS) (fs.FS, error) {
-	dirs := []string{"migrations"}
-	configurations, err := fs.Glob(source, "configuration/*")
+// PlatformMigrations returns the platform's tenant migrations. They have a
+// goose history of their own; a configuration's migrations never share it.
+func PlatformMigrations() (fs.FS, error) { return checkedDir(Files, "migrations") }
+
+// ConfigurationMigrations returns the tenant migrations of configuration
+// name, or nil when it ships none.
+func ConfigurationMigrations(name string) (fs.FS, error) {
+	dir := path.Join("configuration", name)
+	if _, err := fs.Stat(Files, dir); errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	return checkedDir(Files, dir)
+}
+
+// ExtensionMigrations returns one flat directory with every client extension
+// module's tenant migrations. The modules share one version sequence from
+// FirstExtensionMigration and one goose history: a version used twice is an
+// error.
+func ExtensionMigrations() (fs.FS, error) { return extensionMigrations(Files) }
+
+func extensionMigrations(source fs.FS) (fs.FS, error) {
+	modules, err := fs.Glob(source, "extensions/*")
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(configurations)
-	dirs = append(dirs, configurations...)
+	sort.Strings(modules)
 	files := map[string][]byte{}
 	versions := map[string]string{}
-	for _, dir := range dirs {
-		entries, err := fs.ReadDir(source, dir)
-		if err != nil {
-			return nil, fmt.Errorf("read %s: %w", dir, err)
+	for _, dir := range modules {
+		if info, err := fs.Stat(source, dir); err != nil || !info.IsDir() {
+			continue
 		}
-		for _, entry := range entries {
-			if entry.IsDir() || path.Ext(entry.Name()) != ".sql" {
-				continue
+		names, err := migrationFiles(source, dir)
+		if err != nil {
+			return nil, err
+		}
+		for _, name := range names {
+			version := migrationName.FindStringSubmatch(name)[1]
+			if n, _ := strconv.Atoi(version); n < FirstExtensionMigration {
+				return nil, fmt.Errorf("%s/%s: an extension migration's version starts at %d", dir, name, FirstExtensionMigration)
 			}
-			match := migrationName.FindStringSubmatch(entry.Name())
-			if match == nil {
-				return nil, fmt.Errorf("%s/%s: migration file name must be NNNNN_name.sql", dir, entry.Name())
+			if other, taken := versions[version]; taken {
+				return nil, fmt.Errorf("migration version %s is used by %s and %s/%s", version, other, dir, name)
 			}
-			if other, taken := versions[match[1]]; taken {
-				return nil, fmt.Errorf("migration version %s is used by %s and %s/%s", match[1], other, dir, entry.Name())
-			}
-			raw, err := fs.ReadFile(source, path.Join(dir, entry.Name()))
+			raw, err := fs.ReadFile(source, path.Join(dir, name))
 			if err != nil {
 				return nil, err
 			}
-			versions[match[1]] = path.Join(dir, entry.Name())
-			files[entry.Name()] = raw
+			versions[version] = path.Join(dir, name)
+			files[name] = raw
 		}
 	}
 	return flatFS(files), nil
+}
+
+// checkedDir returns dir of source after checking its migration file names.
+func checkedDir(source fs.FS, dir string) (fs.FS, error) {
+	if _, err := migrationFiles(source, dir); err != nil {
+		return nil, err
+	}
+	return fs.Sub(source, dir)
+}
+
+// migrationFiles lists the migrations of dir, each named NNNNN_name.sql.
+func migrationFiles(source fs.FS, dir string) ([]string, error) {
+	entries, err := fs.ReadDir(source, dir)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", dir, err)
+	}
+	var names []string
+	for _, entry := range entries {
+		if entry.IsDir() || path.Ext(entry.Name()) != ".sql" {
+			continue
+		}
+		if !migrationName.MatchString(entry.Name()) {
+			return nil, fmt.Errorf("%s/%s: migration file name must be NNNNN_name.sql", dir, entry.Name())
+		}
+		names = append(names, entry.Name())
+	}
+	return names, nil
+}
+
+// HighestVersion returns the highest version of source's migrations below
+// FirstExtensionMigration: the schema version a database has once they are
+// all applied. A nil source has version 0.
+func HighestVersion(source fs.FS) (int, error) {
+	if source == nil {
+		return 0, nil
+	}
+	names, err := migrationFiles(source, ".")
+	if err != nil {
+		return 0, err
+	}
+	highest := 0
+	for _, name := range names {
+		version, _ := strconv.Atoi(migrationName.FindStringSubmatch(name)[1])
+		if version < FirstExtensionMigration && version > highest {
+			highest = version
+		}
+	}
+	return highest, nil
 }
 
 // CheckMigrationFormat reports a tenant migration that does not run each

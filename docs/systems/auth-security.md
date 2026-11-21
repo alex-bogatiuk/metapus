@@ -157,7 +157,7 @@ JWT содержит список разрешений пользователя.
 
 Права зарегистрированных сущностей в миграциях не объявляются: `v1.FactoryRegistry.Permissions()` выводит их из того же реестра, что монтирует маршруты. Справочник получает `read`, `create`, `update`, `delete`; документ — те из `read`, `create`, `update`, `delete`, `post`, `unpost`, что открывают его capabilities; кроме того — права объявленных действий документа (`DocumentActions`) и `read` каждого отчёта (`Dataset.Permission`). Ресурс права — ключ сущности (`currency`, для отчёта `report_<key>`), по нему редактор ролей подписывает строку из metadata.
 
-`cmd/tenant migrate` (и `create`) после goose-миграций вызывает `migration.SyncPermissions` со списком `configuration.Permissions(content.Crypto(content.Services{}), extensions.Register)`:
+Команда тенантов конфигурации (`cmd/crypto-tenant`, в образе `/bin/tenant`) в `migrate` и `create` после goose-миграций вызывает `migration.SyncPermissions` со списком `configuration.Permissions(cfg, extensions.Register)` (через `configuration.MigrationOptions`):
 
 - недостающий код создаётся и выдаётся роли `admin`; остальные роли назначаются явно;
 - у существующего кода сохраняются имя, описание и назначения ролей, исправляются только `resource` и `action`;

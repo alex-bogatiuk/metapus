@@ -8,6 +8,7 @@ import (
 	"path"
 	"regexp"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -88,13 +89,14 @@ func checkMigrations(t *testing.T, cfg configuration.Configuration) {
 	own := sqlFiles(t, migrations, ".")
 	require.Equalf(t, shipped, own, "the configuration's migrations must be db/configuration/%s", cfg.Name())
 
-	platform := map[string]bool{}
-	for _, name := range sqlFiles(t, dbassets.Files, "migrations") {
-		platform[name[:5]] = true
-	}
+	// The configuration's migrations have a goose history of their own; the
+	// versions from dbassets.FirstExtensionMigration are the extension
+	// modules'.
 	for _, name := range own {
 		require.Truef(t, migrationName.MatchString(name), "%s: migration file name must be NNNNN_name.sql", name)
-		require.Falsef(t, platform[name[:5]], "%s reuses a platform migration version", name)
+		version, err := strconv.Atoi(name[:5])
+		require.NoError(t, err)
+		require.Lessf(t, version, dbassets.FirstExtensionMigration, "%s: a configuration's migration version is below %d", name, dbassets.FirstExtensionMigration)
 		raw, err := fs.ReadFile(migrations, name)
 		require.NoError(t, err)
 		require.NoErrorf(t, dbassets.CheckMigrationFormat(string(raw)), "%s", name)

@@ -66,9 +66,9 @@ docker compose build frontend
 docker compose up -d frontend
 ```
 
-После явного запуска `cmd/seed` с `ADMIN_PASSWORD_FILE` откройте
+После явного запуска `seed` (в образе это `cmd/crypto-seed`) с `ADMIN_PASSWORD_FILE` откройте
 **http://localhost:3000** и войдите как `admin@metapus.io`, используя secret из
-указанного файла. `cmd/seed` не имеет пароля по умолчанию. `run-docker-stand.ps1` имеет собственный test-only default; при запуске задавайте `-AdminPassword` явно.
+указанного файла. Команда сида не имеет пароля по умолчанию. `run-docker-stand.ps1` имеет собственный test-only default; при запуске задавайте `-AdminPassword` явно.
 
 При `ADMIN_MFA_MODE=required` завершите регистрацию TOTP и последующие
 step-up-проверки через интерфейс.

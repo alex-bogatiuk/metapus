@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
+	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/infrastructure/storage/postgres"
@@ -24,7 +25,7 @@ func TestNonceReservationIsConcurrentIdempotentAndReclaimsOnlyUnsignedTail(t *te
 	if dsn == "" {
 		t.Fatal("METAPUS_TEST_DATABASE_DSN is required for integration tests")
 	}
-	_, err := migration.RunAll(dsn)
+	_, err := migration.RunAll(dsn, cryptoschema.Migration())
 	require.NoError(t, err)
 
 	ctx := context.Background()

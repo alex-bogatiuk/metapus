@@ -16,7 +16,7 @@ import (
 
 	walletcatalog "metapus/internal/configuration/crypto/domain/catalogs/wallet"
 	"metapus/internal/core/json"
-	"metapus/internal/core/version"
+	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
@@ -187,12 +187,12 @@ func validateDerivedWalletSet(walletSet derivedWalletSet) error {
 }
 
 func configureTenantDatabase(ctx context.Context, tx pgx.Tx, stateDir string, walletSet derivedWalletSet, keepOtherFamilies bool) error {
-	var schema int
-	if err := tx.QueryRow(ctx, `SELECT COALESCE(MAX(version_id),0) FROM goose_db_version WHERE is_applied AND version_id<$1`, version.FirstExtensionMigration).Scan(&schema); err != nil {
+	var platformSchema, cryptoSchema int
+	if err := tx.QueryRow(ctx, cryptoschema.VersionQuery).Scan(&platformSchema, &cryptoSchema); err != nil {
 		return fmt.Errorf("verify schema version: %w", err)
 	}
-	if !version.CompatibleSchema(schema) {
-		return fmt.Errorf("tenant database schema %d is not the expected version %d", schema, version.ExpectedSchemaVersion)
+	if !cryptoschema.Compatible(platformSchema, cryptoSchema) {
+		return cryptoschema.Mismatch(platformSchema, cryptoSchema)
 	}
 
 	networkCode, tokenCode, tokenStandard, expectedContract := "TRON-NILE", "USDT-TRC20", "TRC-20", nileUSDTContract

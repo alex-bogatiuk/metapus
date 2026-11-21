@@ -17,8 +17,8 @@ import (
 	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/require"
 
-	dbassets "metapus/db"
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
+	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/infrastructure/storage/postgres"
@@ -43,7 +43,7 @@ func amlTestDatabase(t *testing.T) (context.Context, *pgxpool.Pool) {
 	address, err := url.Parse(dsn)
 	require.NoError(t, err)
 	address.Path = "/" + name
-	_, err = migration.RunAll(address.String())
+	_, err = migration.RunAll(address.String(), cryptoschema.Migration())
 	require.NoError(t, err)
 	pool, err := postgres.OpenPool(t.Context(), address.String())
 	require.NoError(t, err)
@@ -218,9 +218,8 @@ func TestAMLFoundationRollbackRefusesCustodyEvidence(t *testing.T) {
 	db, err := sql.Open("pgx", pool.Config().ConnConfig.ConnString())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
-	migrations, err := dbassets.TenantMigrations()
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
+	provider, err := goose.NewProvider(goose.DialectPostgres, db, cryptoschema.Migrations(),
+		goose.WithTableName(migration.ConfigurationVersionTable(cryptoschema.Name)))
 	require.NoError(t, err)
 	merchantID, networkID, walletID := id.New(), id.New(), id.New()
 	_, err = pool.Exec(ctx, `INSERT INTO cat_merchants(id,code,name) VALUES($1,$2,'AML merchant')`, merchantID, merchantID.String())

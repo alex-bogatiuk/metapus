@@ -145,6 +145,10 @@ func run(ctx context.Context, cfg config, build Build, app configuration.Configu
 	numeratorSvc := numerator.New()
 
 	// --- The configuration's part ---
+	expectedSchema, err := configuration.ExpectedSchema(app)
+	if err != nil {
+		return err
+	}
 	part, err := app.Server(ctx, configuration.ServerEnv{
 		Logger:    log,
 		MetaPool:  metaPool,
@@ -233,6 +237,7 @@ func run(ctx context.Context, cfg config, build Build, app configuration.Configu
 		WSTicketStore:              wsTicketStore,
 		IntegrationConnectionTests: part.IntegrationConnectionTests,
 		IntegrationCatalog:         configuration.IntegrationCatalog(app),
+		ExpectedSchema:             expectedSchema,
 		RouteModules:               part.RouteModules,
 	})
 

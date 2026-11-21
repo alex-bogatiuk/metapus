@@ -17,7 +17,7 @@ import (
 	"strings"
 	"text/template"
 
-	schemaversion "metapus/internal/core/version"
+	dbassets "metapus/db"
 )
 
 //go:embed templates/*
@@ -81,22 +81,15 @@ func run(args []string, root string, out io.Writer) error {
 	if !valid.MatchString(*table) || !strings.HasPrefix(*table, prefix) {
 		return fmt.Errorf("--table must be a valid %s SQL identifier", prefix)
 	}
-	// Extension migrations are tenant migrations: they live with the
-	// configurations' in db/configuration/<name>/, are embedded into the
-	// binaries and share one version sequence with db/migrations/.
+	// Extension migrations are tenant migrations: each module's live in
+	// db/extensions/<name>/, are embedded into the binaries and share one
+	// version sequence and goose history with the other modules'.
 	used := map[int]bool{}
-	var migrations []string
-	for _, pattern := range []string{
-		filepath.Join(root, "db", "migrations", "*.sql"),
-		filepath.Join(root, "db", "configuration", "*", "*.sql"),
-	} {
-		matches, err := filepath.Glob(pattern)
-		if err != nil {
-			return err
-		}
-		migrations = append(migrations, matches...)
+	migrations, err := filepath.Glob(filepath.Join(root, "db", "extensions", "*", "*.sql"))
+	if err != nil {
+		return err
 	}
-	next := schemaversion.FirstExtensionMigration + 1
+	next := dbassets.FirstExtensionMigration + 1
 	for _, path := range migrations {
 		v, err := strconv.Atoi(strings.SplitN(filepath.Base(path), "_", 2)[0])
 		if err != nil {
@@ -110,7 +103,7 @@ func run(args []string, root string, out io.Writer) error {
 	if *version == 0 {
 		*version = next
 	}
-	if *version < schemaversion.FirstExtensionMigration || used[*version] {
+	if *version < dbassets.FirstExtensionMigration || used[*version] {
 		return fmt.Errorf("extension migration version %d is unavailable", *version)
 	}
 	pascal := ""
@@ -187,7 +180,7 @@ func run(args []string, root string, out io.Writer) error {
 		files[filename] = content
 	}
 	dir := filepath.Join(root, "extensions", *name)
-	migrationDir := filepath.Join(root, "db", "configuration", *name)
+	migrationDir := filepath.Join(root, "db", "extensions", *name)
 	for _, target := range []string{dir, migrationDir} {
 		if _, err := os.Stat(target); err == nil {
 			return fmt.Errorf("%s already exists", target)

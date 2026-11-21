@@ -15,14 +15,25 @@ import (
 type AdminTenantHandler struct {
 	base     *BaseHandler
 	registry tenant.Registry
+	expected tenant.Schema
 }
 
 // NewAdminTenantHandler creates a read-only tenant monitoring handler.
-func NewAdminTenantHandler(base *BaseHandler, registry tenant.Registry) *AdminTenantHandler {
-	return &AdminTenantHandler{base: base, registry: registry}
+// expected is the schema of a tenant database migrated by this binary's
+// configuration; the zero value compares the platform's version only.
+func NewAdminTenantHandler(base *BaseHandler, registry tenant.Registry, expected tenant.Schema) *AdminTenantHandler {
+	return &AdminTenantHandler{base: base, registry: registry, expected: expected}
 }
 
-func toTenantSummary(t *tenant.Tenant) dto.TenantSummary {
+// upToDate reports whether t's database is at the expected schema.
+func (h *AdminTenantHandler) upToDate(t *tenant.Tenant) bool {
+	if h.expected.Configuration == "" {
+		return version.CompatibleSchema(t.SchemaVersion)
+	}
+	return t.Schema().Matches(h.expected)
+}
+
+func (h *AdminTenantHandler) toTenantSummary(t *tenant.Tenant) dto.TenantSummary {
 	return dto.TenantSummary{
 		ID:             t.ID,
 		Slug:           t.Slug,
@@ -33,7 +44,7 @@ func toTenantSummary(t *tenant.Tenant) dto.TenantSummary {
 		SchemaVersion:  t.SchemaVersion,
 		CreatedAt:      t.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		UpdatedAt:      t.UpdatedAt.Format("2006-01-02T15:04:05Z"),
-		SchemaUpToDate: version.CompatibleSchema(t.SchemaVersion),
+		SchemaUpToDate: h.upToDate(t),
 	}
 }
 
@@ -49,11 +60,11 @@ func (h *AdminTenantHandler) List(c *gin.Context) {
 	activeCount := 0
 	outdatedCount := 0
 	for _, t := range tenants {
-		items = append(items, toTenantSummary(t))
+		items = append(items, h.toTenantSummary(t))
 		if t.IsActive() {
 			activeCount++
 		}
-		if !version.CompatibleSchema(t.SchemaVersion) {
+		if !h.upToDate(t) {
 			outdatedCount++
 		}
 	}
@@ -69,5 +80,5 @@ func (h *AdminTenantHandler) Get(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, toTenantSummary(t))
+	c.JSON(http.StatusOK, h.toTenantSummary(t))
 }

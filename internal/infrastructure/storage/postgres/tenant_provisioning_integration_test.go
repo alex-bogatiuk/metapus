@@ -87,10 +87,11 @@ func TestTenantProvisioningPostgres(t *testing.T) {
 	migrator := &integrationMigrator{user: parsed.User.Username(), password: password}
 	svc := tenant.NewProvisioner(repo, dbAdmin, migrator)
 	input := tenant.CreateTenantInput{
-		Slug:        "tenant-cli-e2e",
-		DisplayName: "Tenant CLI E2E",
-		DBHost:      parsed.Hostname(),
-		DBPort:      port,
+		Configuration: "none",
+		Slug:          "tenant-cli-e2e",
+		DisplayName:   "Tenant CLI E2E",
+		DBHost:        parsed.Hostname(),
+		DBPort:        port,
 	}
 
 	var wg sync.WaitGroup
@@ -123,7 +124,7 @@ func TestTenantProvisioningPostgres(t *testing.T) {
 	stored, err := repo.GetBySlug(ctx, "tenant-cli-e2e")
 	require.NoError(t, err)
 	require.Equal(t, tenant.StatusActive, stored.Status)
-	require.Equal(t, version.ExpectedSchemaVersion, stored.SchemaVersion)
+	require.Equal(t, tenant.Schema{Configuration: "none", Version: version.ExpectedSchemaVersion}, stored.Schema())
 	require.Equal(t, tenant.ProvisioningStageComplete, stored.ProvisioningStage)
 	require.Empty(t, stored.ProvisioningError)
 	require.NotNil(t, stored.ProvisionedAt)
@@ -132,6 +133,23 @@ func TestTenantProvisioningPostgres(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, tenantPool.Ping(ctx))
 	tenantPool.Close()
+
+	// The tenant keeps its configuration for life.
+	err = repo.UpdateSchema(ctx, stored.ID, tenant.Schema{Configuration: "crypto", Version: version.ExpectedSchemaVersion, ConfigurationVersion: 9})
+	require.ErrorIs(t, err, tenant.ErrConfigurationMismatch)
+	input.Configuration = "crypto"
+	_, err = svc.Provision(ctx, input)
+	require.ErrorIs(t, err, tenant.ErrConfigurationMismatch)
+	require.Equal(t, int32(1), migrator.calls.Load())
+
+	// A tenant registered before configurations were recorded takes the
+	// configuration of the binary that migrates it first.
+	_, err = metaPool.Exec(ctx, `UPDATE tenants SET configuration = '' WHERE id = $1`, stored.ID)
+	require.NoError(t, err)
+	require.NoError(t, repo.UpdateSchema(ctx, stored.ID, tenant.Schema{Configuration: "none", Version: version.ExpectedSchemaVersion}))
+	adopted, err := repo.GetByID(ctx, stored.ID)
+	require.NoError(t, err)
+	require.Equal(t, "none", adopted.Configuration)
 }
 
 type integrationMigrator struct {
@@ -140,13 +158,10 @@ type integrationMigrator struct {
 	calls    atomic.Int32
 }
 
-func (m *integrationMigrator) Migrate(_ context.Context, t *tenant.Tenant) (int, error) {
+func (m *integrationMigrator) Migrate(_ context.Context, t *tenant.Tenant) (tenant.Schema, error) {
 	m.calls.Add(1)
-	_, err := migration.RunAll(tenantdb.DSN(t, m.user, m.password))
-	if err != nil {
-		return 0, err
-	}
-	return version.ExpectedSchemaVersion, nil
+	result, err := migration.Run(tenantdb.DSN(t, m.user, m.password), migration.WithConfiguration(t.Configuration, nil))
+	return result.Schema, err
 }
 
 func integrationRepoRoot(t *testing.T) string {

@@ -10,7 +10,7 @@
 #   6. Set TENANT_ID in .env, then: docker compose build frontend
 #   7. docker compose up -d
 #
-# Initial admin credentials are supplied explicitly to cmd/seed.
+# Initial admin credentials are supplied explicitly to ./seed (cmd/crypto-seed).
 
 services:
   crypto-ingestion-monitor:

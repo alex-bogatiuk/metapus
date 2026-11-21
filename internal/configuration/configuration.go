@@ -55,12 +55,21 @@ type Configuration interface {
 	Server(ctx context.Context, env ServerEnv) (Server, error)
 	// Worker builds the configuration's part of the background worker.
 	Worker(ctx context.Context, env WorkerEnv) (Worker, error)
+	// Seed adds the configuration's initial data to a migrated tenant
+	// database after the platform's (the seed command): with env.Demo, its
+	// demo data. It must be safe to run again.
+	Seed(ctx context.Context, env SeedEnv) error
 }
 
-var validName = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+var validName = regexp.MustCompile(`^[a-z][a-z0-9_]{0,39}$`)
 
-// ValidName reports whether name can name a configuration.
-func ValidName(name string) bool { return validName.MatchString(name) }
+// ValidName reports whether name can name a configuration: a lowercase
+// identifier of at most 40 characters. A tenant database keeps the goose
+// history of the configuration's migrations in goose_db_version_<name>, so
+// the names of the platform's and the extensions' histories are taken.
+func ValidName(name string) bool {
+	return validName.MatchString(name) && name != "platform" && name != "extensions"
+}
 
 // IntegrationCatalog is the application's integration catalog: the
 // configuration's, or the platform's alone when it adds none.

@@ -22,6 +22,7 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_catalog_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
@@ -57,7 +58,7 @@ func newRotationFixture(t *testing.T) rotationFixture {
 	address, err := url.Parse(dsn)
 	require.NoError(t, err)
 	address.Path = "/" + name
-	output, err := migration.RunAll(address.String())
+	output, err := migration.RunAll(address.String(), cryptoschema.Migration())
 	require.NoError(t, err, output)
 	pool, err := postgres.OpenPool(t.Context(), address.String())
 	require.NoError(t, err)

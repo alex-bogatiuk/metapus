@@ -420,12 +420,12 @@ if ($LASTEXITCODE -ne 0 -and (($enableTransitOutput -join "`n") -notmatch "path 
     throw "enable Vault Transit failed: $($enableTransitOutput -join "`n")"
 }
 
-Invoke-CryptoNative "Initialize tenant meta database" { go run ./cmd/tenant/main.go init-meta }
+Invoke-CryptoNative "Initialize tenant meta database" { go run ./cmd/crypto-tenant init-meta }
 
 $tenant = Get-TenantInfo
 if ($null -eq $tenant) {
     Invoke-CryptoNative "Create tenant '$TenantSlug'" {
-        go run ./cmd/tenant/main.go create --slug $TenantSlug --name $TenantName
+        go run ./cmd/crypto-tenant create --slug $TenantSlug --name $TenantName
     }
     $tenant = Get-TenantInfo
 }
@@ -434,7 +434,7 @@ if ($null -eq $tenant) {
 }
 
 Invoke-CryptoNative "Run tenant migrations" {
-    go run ./cmd/tenant/main.go migrate --id $tenant.ID
+    go run ./cmd/crypto-tenant migrate --id $tenant.ID
 }
 
 $tenantDb = $tenant.DBName
@@ -443,7 +443,7 @@ $env:DATABASE_URL = $databaseUrl
 $env:TENANT_ID = $tenant.ID
 $env:TENANT_DB = $tenantDb
 
-Invoke-CryptoNative "Seed tenant demo data" { go run ./cmd/seed/main.go }
+Invoke-CryptoNative "Seed tenant demo data" { go run ./cmd/crypto-seed }
 
 $networkCodeSql = ConvertTo-CryptoSqlLiteral "TRON-NILE"
 $networkID = Invoke-CryptoPsql -Database $tenantDb -Sql "SELECT id FROM cat_blockchain_networks WHERE code='$networkCodeSql' AND deletion_mark=FALSE LIMIT 1;"

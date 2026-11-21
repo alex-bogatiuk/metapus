@@ -18,7 +18,7 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
-	"metapus/internal/core/version"
+	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/platform/secretfile"
 )
@@ -63,11 +63,11 @@ func run(ctx context.Context) error {
 	}
 	defer pool.Close()
 	var enrolled id.ID
-	var schema int
+	var platformSchema, cryptoSchema int
 	if err = pool.QueryRow(ctx, `SELECT vault_namespace FROM sys_crypto_aml_provisioning_identity WHERE id AND database_name=current_database()`).Scan(&enrolled); err != nil || enrolled != namespace {
 		return fmt.Errorf("database has no matching immutable Vault namespace binding")
 	}
-	if err = pool.QueryRow(ctx, `SELECT COALESCE(MAX(version_id),0) FROM goose_db_version WHERE is_applied AND version_id<$1`, version.FirstExtensionMigration).Scan(&schema); err != nil || !version.CompatibleSchema(schema) {
+	if err = pool.QueryRow(ctx, cryptoschema.VersionQuery).Scan(&platformSchema, &cryptoSchema); err != nil || !cryptoschema.Compatible(platformSchema, cryptoSchema) {
 		return fmt.Errorf("control-plane schema version mismatch")
 	}
 	ctx = tenant.WithTxManager(ctx, postgres.NewTxManagerFromRawPool(pool))

@@ -34,3 +34,4 @@ func (empty) Server(context.Context, configuration.ServerEnv) (configuration.Ser
 func (empty) Worker(context.Context, configuration.WorkerEnv) (configuration.Worker, error) {
 	return configuration.Worker{}, nil
 }
+func (empty) Seed(context.Context, configuration.SeedEnv) error { return nil }

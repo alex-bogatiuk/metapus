@@ -4,8 +4,8 @@ package crypto_repo
 
 import (
 	"context"
+	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/internal/core/id"
-	"metapus/internal/core/version"
 	"metapus/internal/infrastructure/storage/postgres"
 	"testing"
 	"time"
@@ -19,7 +19,7 @@ func TestAMLConfigurationSnapshotReportsMissingNativeAndNamespaceWithoutMutation
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT COUNT(*) FROM sys_outbox`).Scan(&before))
 	report, err := f.repo.ReadAMLConfiguration(f.ctx, "", namespace)
 	require.NoError(t, err)
-	require.Equal(t, version.ExpectedSchemaVersion, report.DatabaseSchema)
+	require.Equal(t, cryptoschema.ExpectedVersion, report.DatabaseSchema)
 	require.True(t, report.NamespaceEnrolled)
 	require.Empty(t, report.Blockers)
 	require.Len(t, report.Networks, 1)
@@ -44,7 +44,7 @@ func TestAMLConfigurationScopesAreFilteredAndOldSchemaNeverReadsNewTables(t *tes
 	require.Contains(t, report.Blockers, "no_aml_networks_found")
 	// Only synthetic migration metadata is changed; no protected AML row is
 	// altered. The report must stop before querying schema-specific relations.
-	_, err = f.pool.Exec(f.ctx, `UPDATE goose_db_version SET is_applied=FALSE WHERE version_id=$1`, version.ExpectedSchemaVersion)
+	_, err = f.pool.Exec(f.ctx, `UPDATE goose_db_version_crypto SET is_applied=FALSE WHERE version_id=$1`, cryptoschema.ExpectedVersion)
 	require.NoError(t, err)
 	report, err = f.repo.ReadAMLConfiguration(f.ctx, "", namespace)
 	require.NoError(t, err)

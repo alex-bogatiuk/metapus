@@ -38,7 +38,7 @@ func TestRunAllNumbersCatalogItemsStoredWithoutACode(t *testing.T) {
 	probe := entity.Definition{Kind: entity.CatalogKind, Key: key, Name: "BackfillProbe", Route: "backfill-probes", Table: table, Code: entity.CodeRule{Prefix: "BP"}}
 	derived := entity.Definition{Kind: entity.CatalogKind, Key: key + "_derived", Name: "DerivedProbe", Route: "derived-probes", Table: table, Code: entity.CodeRule{Source: entity.CodeDerived}}
 	missing := entity.Definition{Kind: entity.CatalogKind, Key: key + "_missing", Name: "MissingProbe", Route: "missing-probes", Table: table + "_missing"}
-	output, err := RunAll(os.Getenv("METAPUS_TEST_MIGRATION_DSN"), WithCatalogCodes([]entity.Definition{probe, derived, missing}))
+	output, err := RunAll(os.Getenv("METAPUS_TEST_MIGRATION_DSN"), withCrypto(t), WithCatalogCodes([]entity.Definition{probe, derived, missing}))
 	require.NoError(t, err, output)
 	require.Contains(t, output, "[catalog codes] "+key+": 2 assigned")
 

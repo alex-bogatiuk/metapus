@@ -14,4 +14,8 @@ var (
 
 	// ErrTenantProvisioningState is returned when provisioning cannot resume from the current state.
 	ErrTenantProvisioningState = errors.New("tenant cannot be provisioned from its current state")
+
+	// ErrConfigurationMismatch is returned when a binary of one configuration
+	// would migrate or provision a tenant of another.
+	ErrConfigurationMismatch = errors.New("tenant belongs to another configuration")
 )

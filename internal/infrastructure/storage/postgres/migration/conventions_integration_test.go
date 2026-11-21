@@ -15,7 +15,7 @@ import (
 func TestFreshSchemaAuthNamesUUIDDefaultsAndTenantBindingExceptions(t *testing.T) {
 	dsn := os.Getenv("METAPUS_TEST_MIGRATION_DSN")
 	require.NotEmpty(t, dsn, "explicit disposable migration database required")
-	output, err := RunAll(dsn)
+	output, err := RunAll(dsn, withCrypto(t))
 	require.NoError(t, err, output)
 	db, err := sql.Open("pgx", dsn)
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestFreshSchemaAuthNamesUUIDDefaultsAndTenantBindingExceptions(t *testing.T
 func TestFreshSchemaEveryDocumentNumberIsUnique(t *testing.T) {
 	dsn := os.Getenv("METAPUS_TEST_MIGRATION_DSN")
 	require.NotEmpty(t, dsn, "explicit disposable migration database required")
-	output, err := RunAll(dsn)
+	output, err := RunAll(dsn, withCrypto(t))
 	require.NoError(t, err, output)
 	db, err := sql.Open("pgx", dsn)
 	require.NoError(t, err)

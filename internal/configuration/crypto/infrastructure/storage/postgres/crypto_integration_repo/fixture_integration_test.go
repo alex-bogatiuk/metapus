@@ -5,6 +5,7 @@ package crypto_integration_repo
 import (
 	"context"
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
+	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/internal/domain/integrations"
 	"net/url"
 	"os"
@@ -45,7 +46,7 @@ func fixtureDB(t *testing.T) (context.Context, *pgxpool.Pool) {
 		}
 	})
 	u.Path = "/" + name
-	output, err := migration.RunAll(u.String())
+	output, err := migration.RunAll(u.String(), cryptoschema.Migration())
 	require.NoError(t, err, output)
 	p, err := pgxpool.New(context.Background(), u.String())
 	require.NoError(t, err)

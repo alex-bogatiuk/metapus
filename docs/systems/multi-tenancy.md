@@ -62,7 +62,7 @@ internal/core/tenant/registry.go — Абстрактный Registry и provisio
 internal/infrastructure/tenantdb/registry.go — PostgreSQL Registry для Meta-database
 internal/infrastructure/tenantdb/context.go — Raw pool context (только инфраструктура)
 internal/infrastructure/http/v1/middleware/tenant.go — Перехват X-Tenant-ID
-cmd/tenant/main.go                    — CLI для управления (миграции)
+internal/bootstrap/tenant/            — CLI для управления (cmd/tenant, cmd/crypto-tenant)
 ```
 
 ## Связанные документы

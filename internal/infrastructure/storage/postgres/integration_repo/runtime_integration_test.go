@@ -162,9 +162,9 @@ func TestTenantIsolationAndCatalogReferenceGuards(t *testing.T) {
 	ctx, permissionsDB := fixtureDB(t)
 	other, _ := fixtureDB(t)
 	var granted int
-	require.NoError(t, permissionsDB.QueryRow(ctx, `SELECT count(*) FROM auth_role_permissions rp JOIN auth_roles r ON r.id=rp.role_id JOIN auth_permissions p ON p.id=rp.permission_id WHERE r.code='admin' AND p.code IN('catalog:integration_account:read','catalog:integration_account:create','catalog:integration_account:update','catalog:integration_account:delete','catalog:integration_pool:read','catalog:integration_pool:create','catalog:integration_pool:update','catalog:integration_pool:delete','catalog:crypto_rpc_endpoint:read','catalog:crypto_rpc_endpoint:create','catalog:crypto_rpc_endpoint:update','catalog:crypto_rpc_endpoint:delete')`).Scan(&granted))
-	require.Equal(t, 12, granted)
-	require.NoError(t, permissionsDB.QueryRow(ctx, `SELECT count(*) FROM auth_role_permissions rp JOIN auth_roles r ON r.id=rp.role_id JOIN auth_permissions p ON p.id=rp.permission_id WHERE r.code<>'admin' AND p.resource IN('integration_account','integration_pool','crypto_rpc_endpoint')`).Scan(&granted))
+	require.NoError(t, permissionsDB.QueryRow(ctx, `SELECT count(*) FROM auth_role_permissions rp JOIN auth_roles r ON r.id=rp.role_id JOIN auth_permissions p ON p.id=rp.permission_id WHERE r.code='admin' AND p.code IN('catalog:integration_account:read','catalog:integration_account:create','catalog:integration_account:update','catalog:integration_account:delete','catalog:integration_pool:read','catalog:integration_pool:create','catalog:integration_pool:update','catalog:integration_pool:delete')`).Scan(&granted))
+	require.Equal(t, 8, granted)
+	require.NoError(t, permissionsDB.QueryRow(ctx, `SELECT count(*) FROM auth_role_permissions rp JOIN auth_roles r ON r.id=rp.role_id JOIN auth_permissions p ON p.id=rp.permission_id WHERE r.code<>'admin' AND p.resource IN('integration_account','integration_pool')`).Scan(&granted))
 	require.Zero(t, granted)
 	ar, pr := catalog_repo.NewIntegrationAccountRepo(), catalog_repo.NewIntegrationPoolRepo()
 	a := integrations.NewAccount("A", "Account A")

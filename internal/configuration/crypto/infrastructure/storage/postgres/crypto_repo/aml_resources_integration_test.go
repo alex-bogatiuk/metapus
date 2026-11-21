@@ -13,13 +13,14 @@ import (
 	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/require"
 
-	dbassets "metapus/db"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
+	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/core/types"
 	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/internal/infrastructure/storage/postgres/migration"
 )
 
 func nativeResourceFixture(t *testing.T) (amlRoutingFixture, id.ID, id.ID) {
@@ -297,9 +298,8 @@ func TestAMLResourceEvidenceCannotBeRolledBack(t *testing.T) {
 	db, err := sql.Open("pgx", f.pool.Config().ConnConfig.ConnString())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
-	migrations, err := dbassets.TenantMigrations()
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
+	provider, err := goose.NewProvider(goose.DialectPostgres, db, cryptoschema.Migrations(),
+		goose.WithTableName(migration.ConfigurationVersionTable(cryptoschema.Name)))
 	require.NoError(t, err)
 	_, err = provider.DownTo(f.ctx, migrationsBeforeAML)
 	require.ErrorContains(t, err, "cannot roll back AML resource evidence")

@@ -606,8 +606,8 @@ scripts/dev/crypto-setup.ps1             — полный local bootstrap
 scripts/dev/_crypto-env.ps1              — merge/import .env.crypto.local
 scripts/dev/crypto-run-server.ps1        — запуск server с required env
 scripts/dev/crypto-run-worker.ps1        — запуск worker с required env
-cmd/tenant/main.go                       — meta DB, tenant create и migrations
-cmd/seed/main.go                         — Nile/dev reference data
+cmd/crypto-tenant/main.go                — meta DB, tenant create и migrations
+cmd/crypto-seed/main.go                  — Nile/dev reference data (internal/configuration/crypto/content/seed.go)
 cmd/crypto-preflight/main.go             — on-chain pool generation check
 vault-sign-plugins/tron                  — custom Vault plugin
 docker-compose.yml                       — local PostgreSQL; Vault plugin запускается setup script

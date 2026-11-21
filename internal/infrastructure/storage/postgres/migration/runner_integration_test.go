@@ -9,6 +9,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	dbassets "metapus/db"
+	"metapus/internal/core/tenant"
+	"metapus/internal/core/version"
 )
 
 func TestRunAllFreshCryptoLifecycleSchema(t *testing.T) {
@@ -17,8 +21,13 @@ func TestRunAllFreshCryptoLifecycleSchema(t *testing.T) {
 		t.Fatal("METAPUS_TEST_MIGRATION_DSN is required for integration tests")
 	}
 
-	output, err := RunAll(dsn)
-	require.NoError(t, err, output)
+	result, err := Run(dsn, withCrypto(t))
+	require.NoError(t, err, result.Output)
+	cryptoSource, err := dbassets.ConfigurationMigrations("crypto")
+	require.NoError(t, err)
+	cryptoVersion, err := dbassets.HighestVersion(cryptoSource)
+	require.NoError(t, err)
+	require.Equal(t, tenant.Schema{Configuration: "crypto", Version: version.ExpectedSchemaVersion, ConfigurationVersion: cryptoVersion}, result.Schema)
 
 	db, err := sql.Open("pgx", dsn)
 	require.NoError(t, err)
@@ -185,17 +194,26 @@ func TestRunAllFreshCryptoLifecycleSchema(t *testing.T) {
 	require.True(t, externalOutflowObservationIdentity)
 	require.True(t, externalOutflowTerminalGuards)
 
-	provider, err := newProvider(coreMigrationsDir, db)
+	sources, err := tenantSources(options{configuration: "crypto", configurationSource: cryptoSource})
 	require.NoError(t, err)
-	// Without recorded evidence every module rolls back completely and
-	// re-applies to the same schema.
-	_, err = provider.DownTo(context.Background(), 0)
-	require.NoError(t, err)
+	// Without recorded evidence every module rolls back completely, the
+	// configuration's before the platform's, and re-applies to the same
+	// schema.
+	for i := len(sources) - 1; i >= 0; i-- {
+		provider, err := sources[i].provider(db)
+		require.NoError(t, err)
+		_, err = provider.DownTo(context.Background(), 0)
+		require.NoError(t, err, sources[i].name)
+	}
 	var objects int
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM pg_class WHERE relnamespace=current_schema()::regnamespace AND relname NOT LIKE 'goose_db_version%'`).Scan(&objects))
 	require.Zero(t, objects)
-	_, err = provider.Up(context.Background())
-	require.NoError(t, err)
+	for _, source := range sources {
+		provider, err := source.provider(db)
+		require.NoError(t, err)
+		_, err = provider.Up(context.Background())
+		require.NoError(t, err, source.name)
+	}
 	require.NoError(t, db.QueryRow(`SELECT to_regclass('reg_crypto_transfer_verifications') IS NOT NULL`).Scan(&watcherHistory))
 	require.True(t, watcherHistory)
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"metapus/internal/application/integrationapp"
+	"metapus/internal/core/id"
 	corenumerator "metapus/internal/core/numerator"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/workerjob"
@@ -111,4 +112,21 @@ type Component struct {
 type Cleanup struct {
 	Job string
 	Run func(context.Context) (int, error)
+}
+
+// SeedEnv is what the seed command hands a configuration that seeds its
+// data (Configuration.Seed) after the platform's.
+type SeedEnv struct {
+	Logger *logger.Logger
+	// Pool is the tenant database.
+	Pool *postgres.Pool
+	// AdminUserID is the administrator the platform seeded.
+	AdminUserID id.ID
+	// Demo asks for demo data (SEED_DEMO_DATA=true). The platform's is
+	// seeded already: Currencies and RateSources hold its IDs.
+	Demo bool
+	// Currencies are the platform's demo currencies by ISO code.
+	Currencies map[string]id.ID
+	// RateSources are the platform's demo exchange rate sources by code.
+	RateSources map[string]id.ID
 }

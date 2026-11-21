@@ -1,10 +1,11 @@
-package main
+package tenant
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"metapus/internal/configuration/none"
 	"metapus/internal/core/tenant"
 )
 
@@ -55,4 +56,13 @@ func TestCanMigrateTenant(t *testing.T) {
 	} {
 		require.False(t, canMigrateTenant(&tenant.Tenant{Status: status}), status)
 	}
+}
+
+func TestBelongsTo(t *testing.T) {
+	t.Parallel()
+
+	cfg := none.New()
+	require.True(t, belongsTo(&tenant.Tenant{Configuration: ""}, cfg), "a tenant no binary recorded the configuration of")
+	require.True(t, belongsTo(&tenant.Tenant{Configuration: cfg.Name()}, cfg))
+	require.False(t, belongsTo(&tenant.Tenant{Configuration: "crypto"}, cfg))
 }

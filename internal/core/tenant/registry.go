@@ -29,11 +29,14 @@ type Registry interface {
 	MarkProvisioningFailed(ctx context.Context, tenantID string, stage ProvisioningStage, message string) error
 
 	// MarkProvisioned atomically publishes the tenant after migrations succeed.
-	MarkProvisioned(ctx context.Context, tenantID string, schemaVersion int) error
+	MarkProvisioned(ctx context.Context, tenantID string, schema Schema) error
 
 	// UpdateStatusByID updates tenant status by UUID string.
 	UpdateStatusByID(ctx context.Context, tenantID string, status Status) error
 
-	// UpdateSchemaVersion sets the schema_version field after a successful migration.
-	UpdateSchemaVersion(ctx context.Context, tenantID string, version int) error
+	// UpdateSchema records the tenant database's schema after a successful
+	// migration. A tenant that has no configuration recorded yet takes
+	// schema's; one of another configuration fails with
+	// ErrConfigurationMismatch.
+	UpdateSchema(ctx context.Context, tenantID string, schema Schema) error
 }

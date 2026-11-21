@@ -87,7 +87,6 @@ func newReportFixture(t *testing.T) *reportFixture {
 
 	_, err = db.Pool.Exec(f.ctx, `CREATE TABLE cat_report_probe_items (code text NOT NULL, merchant_id uuid NOT NULL, _deleted_at timestamptz)`)
 	require.NoError(t, err)
-	f.exec(t, `INSERT INTO cat_merchants (id,code,name) VALUES ($1,'A','Merchant A'),($2,'B','Merchant B')`, 2, f.merchantA, f.merchantB)
 	f.exec(t, `INSERT INTO cat_report_probe_items (code,merchant_id) VALUES ($1,$2),($3,$4)`, 2, itemOfA, f.merchantA, itemOfB, f.merchantB)
 	f.exec(t, `INSERT INTO auth_roles (id,code,name,description) VALUES ($1,'report_reader','Report reader','')`, 1, f.roleID)
 	for _, permission := range []string{probeDataset.Permission, probeSourcePermission()} {
@@ -127,9 +126,8 @@ func (f *reportFixture) exec(t *testing.T, query string, rows int64, args ...any
 
 // reader is a non-admin user with the report and source permissions. A nil
 // profile leaves the user without a security profile; a non-nil one, even
-// empty, limits the merchant dimension to it. portal lists the merchants
-// whose portal the user may open.
-func (f *reportFixture) reader(t *testing.T, profile []id.ID, portal ...id.ID) reportReader {
+// empty, limits the merchant dimension to it.
+func (f *reportFixture) reader(t *testing.T, profile []id.ID) reportReader {
 	t.Helper()
 	r := reportReader{userID: id.New(), sessionID: id.New()}
 	f.exec(t, `INSERT INTO auth_users (id,email,password_hash,first_name,last_name) VALUES ($1,$2,'unused','Report','Reader')`, 1, r.userID, f.email(r))
@@ -143,9 +141,6 @@ func (f *reportFixture) reader(t *testing.T, profile []id.ID, portal ...id.ID) r
 		f.exec(t, `INSERT INTO auth_security_profiles (id,code,name,description) VALUES ($1,$2,'Merchant reader','')`, 1, profileID, "reader_"+id.Compact(profileID))
 		f.exec(t, `INSERT INTO auth_security_profile_dimensions (profile_id,dimension_name,allowed_ids) VALUES ($1,'merchant',$2)`, 1, profileID, allowed)
 		f.exec(t, `INSERT INTO auth_user_security_profiles (user_id,profile_id) VALUES ($1,$2)`, 1, r.userID, profileID)
-	}
-	for _, merchant := range portal {
-		f.exec(t, `INSERT INTO sys_merchant_users (user_id,merchant_id,role) VALUES ($1,$2,3)`, 1, r.userID, merchant)
 	}
 	f.exec(t, `INSERT INTO auth_sessions (id,user_id,user_auth_version,policy_version,expires_at)
 		SELECT $1,u.id,u.auth_version,p.version,now()+interval '1 hour' FROM auth_users u CROSS JOIN auth_policy_state p WHERE u.id=$2`, 1, r.sessionID, r.userID)
@@ -243,22 +238,20 @@ func TestExtensionReportHTTPAndScheduledAccess(t *testing.T) {
 }
 
 // The rows of an ERP report come from the reader's security profile, the same
-// over HTTP and in a scheduled XLSX. Portal access to a merchant neither
-// widens nor narrows them.
-func TestExtensionReportRowsFollowTheSecurityProfileNotPortalAccess(t *testing.T) {
+// over HTTP and in a scheduled XLSX.
+func TestExtensionReportRowsFollowTheSecurityProfile(t *testing.T) {
 	f := newReportFixture(t)
 	for _, tc := range []struct {
 		name    string
 		profile []id.ID
-		portal  []id.ID
 		want    []string
 	}{
-		{"profile A, portal A and B", []id.ID{f.merchantA}, []id.ID{f.merchantA, f.merchantB}, []string{itemOfA}},
-		{"profile A and B, portal A", []id.ID{f.merchantA, f.merchantB}, []id.ID{f.merchantA}, []string{itemOfA, itemOfB}},
-		{"explicitly empty profile, portal A", []id.ID{}, []id.ID{f.merchantA}, []string{}},
+		{"profile A", []id.ID{f.merchantA}, []string{itemOfA}},
+		{"profile A and B", []id.ID{f.merchantA, f.merchantB}, []string{itemOfA, itemOfB}},
+		{"explicitly empty profile", []id.ID{}, []string{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			reader := f.reader(t, tc.profile, tc.portal...)
+			reader := f.reader(t, tc.profile)
 			require.ElementsMatch(t, tc.want, f.httpItems(t, reader), "over HTTP")
 			require.ElementsMatch(t, tc.want, f.scheduledItems(t, f.schedule(t, reader)), "in the scheduled XLSX")
 		})
