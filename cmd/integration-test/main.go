@@ -17,6 +17,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"metapus/extensions"
+	"metapus/internal/configuration"
 	"metapus/internal/content"
 	"metapus/internal/core/id"
 	"metapus/internal/infrastructure/storage/postgres/migration"
@@ -121,9 +122,10 @@ func run(ctx context.Context) error {
 	if actual != name {
 		return errors.New("integration database identity mismatch")
 	}
+	crypto := content.Crypto(content.Services{})
 	if output, err := migration.RunAll(dsn,
-		migration.WithPermissions(content.Permissions(extensions.Register)),
-		migration.WithCatalogCodes(content.CatalogDefinitions(extensions.Register))); err != nil {
+		migration.WithPermissions(configuration.Permissions(crypto, extensions.Register)),
+		migration.WithCatalogCodes(configuration.CatalogDefinitions(crypto, extensions.Register))); err != nil {
 		return fmt.Errorf("prepare integration schema: %w\n%s", err, output)
 	}
 	fmt.Println("Integration database:", name)

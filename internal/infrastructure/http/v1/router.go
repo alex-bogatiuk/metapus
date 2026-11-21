@@ -72,8 +72,8 @@ type RouterConfig struct {
 	// EventLogRepo for event logging in middleware and handlers (optional)
 	EventLogRepo *postgres.EventLogRepo
 
-	// Registry holds all entity factory registrations (catalogs, documents).
-	// If nil, built-in defaults are used via RegisterDefaults().
+	// Registry holds all entity factory registrations (catalogs, documents):
+	// configuration.Compose of the server's configuration. It must be set.
 	Registry *FactoryRegistry
 
 	// PostingEngine is the document posting engine (optional).
@@ -159,7 +159,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 	// Use provided factory registry — composition root must configure this
 	factoryReg := cfg.Registry
 	if factoryReg == nil {
-		panic("v1.NewRouter: cfg.Registry must not be nil — use content.RegisterDefaults(reg) in main.go")
+		panic("v1.NewRouter: cfg.Registry must not be nil — build it with configuration.Compose in main.go")
 	}
 
 	// Build metadata registry from factories (auto-registration)

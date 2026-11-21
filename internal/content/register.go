@@ -1,8 +1,6 @@
 package content
 
 import (
-	"metapus/internal/core/entity"
-	"metapus/internal/domain/auth"
 	"metapus/internal/infrastructure/http/contracts/spec"
 	"metapus/internal/infrastructure/http/cryptohttp"
 	v1 "metapus/internal/infrastructure/http/v1"
@@ -13,11 +11,9 @@ import (
 // RegisterDefaults populates the registry with all built-in (core) entity factories.
 // This is the "business content" layer — specific entities shipped with Metapus.
 //
-// Client extensions call RegisterDefaults(reg) first, then add their own:
-//
-//	reg := v1.NewFactoryRegistry()
-//	content.RegisterDefaults(reg, content.Services{...})
-//	reg.RegisterCatalog(&custom.CustomCatalogRegistration{})
+// It is the crypto configuration's Register (Crypto). Until the platform
+// registers its shared entities itself, it also registers them
+// (RegisterPlatform).
 //
 // Services is optional; contract generation and tests register without it.
 func RegisterDefaults(reg *v1.FactoryRegistry, services ...Services) {
@@ -76,46 +72,13 @@ func registerCryptoEntities(reg *v1.FactoryRegistry, svc Services) {
 	reg.RegisterCustomDocument(&WithdrawalRequestRegistration{services: svc})
 }
 
-// Compose assembles the application's factory registry: the built-in
-// content, then each client extension (extensions.Register). The server and
-// the worker both start from it, so a dataset an extension registers is
-// served over HTTP and run by scheduled reports alike.
-func Compose(svc Services, register ...func(*v1.FactoryRegistry)) *v1.FactoryRegistry {
-	reg := v1.NewFactoryRegistry()
-	RegisterDefaults(reg, svc)
-	for _, fn := range register {
-		fn(reg)
-	}
-	return reg
-}
-
 // AllDatasets returns all built-in report dataset definitions. Processes
-// that run reports take them from Compose, which adds the extensions'.
+// that run reports take them from configuration.Compose, which adds the
+// extensions'.
 func AllDatasets() []*schema.Dataset {
 	return []*schema.Dataset{
 		&DocumentJournalDataset,
 	}
-}
-
-// Permissions returns every permission the assembled application's entities
-// and reports require (v1.FactoryRegistry.Permissions): the built-in content
-// and the given client extensions, followed by the platform's system
-// administration permissions (auth.SystemPermissions). Migration runs sync
-// them into each tenant.
-func Permissions(register ...func(*v1.FactoryRegistry)) []auth.Permission {
-	return append(Compose(Services{}, register...).Permissions(), auth.SystemPermissions()...)
-}
-
-// CatalogDefinitions returns the Definitions of every registered catalog,
-// built-in and of client extensions; tenant migrations number their items
-// stored without a code (migration.WithCatalogCodes).
-func CatalogDefinitions(register ...func(*v1.FactoryRegistry)) []entity.Definition {
-	reg := Compose(Services{}, register...)
-	definitions := make([]entity.Definition, 0, len(reg.Catalogs()))
-	for _, catalog := range reg.Catalogs() {
-		definitions = append(definitions, catalog.EntityDefinition())
-	}
-	return definitions
 }
 
 // HTTPContractBundles returns every wire contract of the application: the

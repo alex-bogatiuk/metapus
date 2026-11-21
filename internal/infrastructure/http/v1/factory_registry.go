@@ -29,9 +29,7 @@ type RouteRegistration interface {
 //
 // Usage (composition root / main.go):
 //
-//	reg := v1.NewFactoryRegistry()
-//	content.RegisterDefaults(reg)                     // built-in entities
-//	reg.RegisterDocument(&custom.MyDocRegistration{}) // client extension
+//	reg := configuration.Compose(cfg, extensions.Register) // the configuration's entities, then client extensions
 //
 //	router := v1.NewRouter(v1.RouterConfig{
 //	    Registry: reg,

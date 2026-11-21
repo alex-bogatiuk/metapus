@@ -21,6 +21,7 @@ import (
 	"metapus/extensions"
 	"metapus/internal/application/automation"
 	"metapus/internal/application/readaccess"
+	"metapus/internal/configuration"
 	"metapus/internal/content"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
@@ -143,7 +144,7 @@ func main() {
 	// Start multi-tenant worker
 	// The same composition as the server's: scheduled reports see every
 	// dataset the HTTP reports do, the extensions' included.
-	factories := content.Compose(content.Services{}, extensions.Register)
+	factories := configuration.Compose(content.Crypto(content.Services{}), extensions.Register)
 	worker := NewMultiTenantWorker(manager, log, factories, webhookSecrets, crypto_worker.NewInvoiceCheckoutHandler(crypto_repo.NewCheckoutReferenceRepo(metaPool)))
 	worker.resources = resources
 

@@ -107,10 +107,9 @@ type DocumentActionsProvider interface {
 }
 
 // NOTE: Document factories are now registered via FactoryRegistry (see factory_registry.go).
-// Use content.RegisterDefaults() to populate built-in documents, or register custom ones:
+// configuration.Compose fills one with a configuration's documents and the
+// client extensions'; an extension registers its own:
 //
-//	reg := v1.NewFactoryRegistry()
-//	content.RegisterDefaults(reg)
 //	reg.RegisterDocument(&custom.MyDocRegistration{})
 //
 // Concrete registrations: see document_registrations.go.

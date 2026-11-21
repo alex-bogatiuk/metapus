@@ -16,7 +16,8 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"metapus/internal/content"
+	"metapus/internal/configuration"
+	"metapus/internal/configuration/none"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/infrastructure/tenantdb"
@@ -61,7 +62,7 @@ func TestWorkerReliabilityTenantStartsAfterTransientInitializationFailure(t *tes
 	previous := otel.GetMeterProvider()
 	otel.SetMeterProvider(provider)
 	defer func() { otel.SetMeterProvider(previous); _ = provider.Shutdown(context.Background()) }()
-	worker := NewMultiTenantWorker(manager, log, content.Compose(content.Services{}), nil, nil)
+	worker := NewMultiTenantWorker(manager, log, configuration.Compose(none.New()), nil, nil)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	done := make(chan struct{})

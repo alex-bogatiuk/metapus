@@ -51,10 +51,9 @@ type CatalogRegistration interface {
 }
 
 // NOTE: Catalog factories are now registered via FactoryRegistry (see factory_registry.go).
-// Use content.RegisterDefaults() to populate built-in catalogs, or register custom ones:
+// configuration.Compose fills one with a configuration's catalogs and the
+// client extensions'; an extension registers its own:
 //
-//	reg := v1.NewFactoryRegistry()
-//	content.RegisterDefaults(reg)
 //	reg.RegisterCatalog(&custom.MyCatalogRegistration{})
 //
 // Optional interface examples (implement for richer metadata):

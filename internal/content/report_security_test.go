@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"metapus/internal/configuration"
 	"metapus/internal/content"
 	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
@@ -26,7 +27,7 @@ func reportCompiler(t *testing.T) *compiler.Compiler {
 	engine, err := security.NewPolicyEngine()
 	require.NoError(t, err)
 	t.Cleanup(engine.Stop)
-	factories := content.Compose(content.Services{})
+	factories := configuration.Compose(content.Crypto(content.Services{}))
 	registry := v1.BuildReadRegistry(factories)
 	datasets := []*schema.Dataset{}
 	for _, original := range factories.Datasets() {

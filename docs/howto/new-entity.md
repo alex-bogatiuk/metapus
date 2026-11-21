@@ -58,7 +58,7 @@ go run ./cmd/scaffold --name vehicle --type catalog --table cat_vehicles
 
 Встроенную фабрику подключите в `internal/content/register.go` через `RegisterCatalog`. Расширение подключается в composition root. Права стандартных действий создаются из регистрации при `cmd/tenant migrate` и выдаются роли admin ([RBAC](../systems/auth-security.md#2-rbac-role-based-access-control)); назначения другим ролям и права рукописных маршрутов добавьте в seed. Регистрация metadata не выдаёт пользователю право доступа.
 
-Стандартные DTO и маршруты собираются из factory registry через `HTTPContracts()` самой регистрации. Отдельного списка справочников или документов в HTTP codegen нет. Для custom подресурсов дополните bundle в регистрации сущности. Встроенные сущности подключаются в `content.RegisterDefaults`, расширения — в `extensions.Register`; сервер и codegen используют оба списка. `apiFetch` отклоняет незарегистрированные URL. Выполните:
+Стандартные DTO и маршруты собираются из factory registry через `HTTPContracts()` самой регистрации. Отдельного списка справочников или документов в HTTP codegen нет. Для custom подресурсов дополните bundle в регистрации сущности. Сущности конфигурации подключаются в её `Register` (у крипто — `content.RegisterDefaults`), расширения — в `extensions.Register`; сервер и codegen собирают оба списка через `configuration.Compose`. `apiFetch` отклоняет незарегистрированные URL. Выполните:
 
 ```bash
 go run ./cmd/http-contracts

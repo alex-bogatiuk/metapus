@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"metapus/extensions"
+	"metapus/internal/configuration"
 	"metapus/internal/content"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/version"
@@ -457,12 +458,13 @@ func truncate(s string, maxLen int) string {
 }
 
 // runAllMigrations delegates to the shared migration package, syncs the
-// permissions of the registered entities, built-in and client extensions, and
-// numbers their catalog items stored without a code.
+// permissions of the registered entities, the configuration's and client
+// extensions', and numbers their catalog items stored without a code.
 func runAllMigrations(dsn string) error {
+	cfg := content.Crypto(content.Services{})
 	output, err := migration.RunAll(dsn,
-		migration.WithPermissions(content.Permissions(extensions.Register)),
-		migration.WithCatalogCodes(content.CatalogDefinitions(extensions.Register)))
+		migration.WithPermissions(configuration.Permissions(cfg, extensions.Register)),
+		migration.WithCatalogCodes(configuration.CatalogDefinitions(cfg, extensions.Register)))
 	if output != "" {
 		fmt.Print(output)
 	}

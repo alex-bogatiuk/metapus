@@ -7,6 +7,7 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/stretchr/testify/require"
 
+	"metapus/internal/configuration"
 	"metapus/internal/content"
 	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
@@ -70,7 +71,7 @@ func TestScheduledReportsRunExtensionDatasets(t *testing.T) {
 	policies, err := security.NewPolicyEngine()
 	require.NoError(t, err)
 	t.Cleanup(policies.Stop)
-	worker := &MultiTenantWorker{factories: content.Compose(content.Services{}, registerProbe)}
+	worker := &MultiTenantWorker{factories: configuration.Compose(content.Crypto(content.Services{}), registerProbe)}
 	reports := worker.reportCompiler(policies)
 
 	require.Same(t, probeDataset, reports.GetDataset(probeDataset.Key))

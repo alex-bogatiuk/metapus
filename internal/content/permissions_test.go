@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"metapus/internal/configuration"
 	v1 "metapus/internal/infrastructure/http/v1"
 )
 
@@ -14,7 +15,7 @@ import (
 // read permission, codes are unique, and each row fits auth_permissions
 // (code VARCHAR(100), name VARCHAR(200), resource and action VARCHAR(50)).
 func TestAssembledPermissionsFitTheTableAndCoverEveryEntity(t *testing.T) {
-	permissions := Permissions()
+	permissions := configuration.Permissions(Crypto(Services{}))
 	codes := map[string]bool{}
 	for _, p := range permissions {
 		require.Falsef(t, codes[p.Code], "duplicate permission %s", p.Code)

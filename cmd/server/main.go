@@ -20,6 +20,7 @@ import (
 	"metapus/internal/application/checkout"
 	"metapus/internal/application/cryptoapp"
 	"metapus/internal/application/integrationapp"
+	"metapus/internal/configuration"
 	"metapus/internal/content"
 	corenumerator "metapus/internal/core/numerator"
 	"metapus/internal/core/security"
@@ -260,8 +261,8 @@ func run(ctx context.Context, cfg config, log *logger.Logger) error {
 		return fmt.Errorf("create money movement approval signer provider: %w", err)
 	}
 
-	// Entity factories: built-in content (with its crypto services), then client extensions.
-	factoryReg := content.Compose(content.Services{CheckoutRefs: checkoutRefs, MoneyMovementSigners: approvalSignerProvider}, extensions.Register)
+	// Entity factories: the crypto configuration (with its services), then client extensions.
+	factoryReg := configuration.Compose(content.Crypto(content.Services{CheckoutRefs: checkoutRefs, MoneyMovementSigners: approvalSignerProvider}), extensions.Register)
 	paymentLinkSvc, err := cryptoapp.NewPaymentLinkService(cryptoapp.PaymentLinkServiceConfig{
 		Repo: portalDashboardRepo,
 		Refs: checkoutRefs,
