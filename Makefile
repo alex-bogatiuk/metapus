@@ -53,7 +53,7 @@ server:
 	go run ./cmd/crypto-server
 
 frontend:
-	cd frontend && npm run dev
+	cd frontend && npm run configure -- crypto && npm run dev
 
 # Extension compatibility check
 check-extensions:

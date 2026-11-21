@@ -3,14 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "configure": "node scripts/configure.cjs",
+    "predev": "node scripts/configure.cjs",
     "dev": "next dev --turbopack",
+    "predev:open": "node scripts/configure.cjs",
     "dev:open": "start http://localhost:3000 & next dev --turbopack",
+    "prebuild": "node scripts/configure.cjs",
     "build": "next build",
     "start": "next start",
+    "prelint": "node scripts/configure.cjs",
     "lint": "eslint .",
+    "pretypecheck": "node scripts/configure.cjs",
     "typecheck": "tsc --noEmit",
+    "pretest:e2e": "node scripts/configure.cjs",
     "test:e2e": "playwright test",
+    "pretest:unit": "node scripts/configure.cjs",
     "test:unit": "playwright test --config=playwright.unit.config.ts",
+    "prebundle:report": "node scripts/configure.cjs",
     "bundle:report": "cross-env ANALYZE=true next build --webpack"
   },
   "dependencies": {

@@ -183,13 +183,23 @@ myExtension.Register(factoryReg)
 - `configuration_storage_test.go`: строковые литералы платформенного кода и платформенные миграции не называют таблицы из миграций конфигурации (`db/configuration/*`), а тесты платформы не импортируют конфигурацию; оба списка исключений пусты. Проверки собранного приложения (все HTTP-контракты, актуальность сгенерированных файлов, наборы отчётов конфигурации) лежат в `internal/configuration/crypto/content`, проверки поведения конфигурации — в её пакетах;
 - `configuration_commands_test.go`: каждая команда `cmd/` отнесена к платформе или к конфигурации; платформенные команды и их тесты не импортируют конфигурацию и не называют её таблицы. Оставшиеся связи `cmd/http-contracts` и `cmd/integration-test` собраны в замороженный список, из которого можно только удалять; список таблиц конфигурации в командах пуст.
 
-Во фронтенде код конфигурации лежит в `frontend/configuration/<имя>/` (`components`, `lib`, `hooks`, `types`, `stores` с той же структурой, что у платформы), платформенный — в `frontend/components`, `lib`, `hooks`, `stores`, `types`. Страницы и layout конфигурации лежат в `frontend/configuration/<имя>/pages/` по структуре маршрутов. `frontend/app/` — точка сборки: маршрут конфигурации в нём — однострочная обёртка `export { default } from "@/configuration/<имя>/pages/…"`, которую требует Next.js. Тест `frontend/tests/unit/configuration-boundary.spec.ts` проверяет, что:
+Во фронтенде код конфигурации лежит в `frontend/configuration/<имя>/` (`components`, `lib`, `hooks`, `types`, `stores` с той же структурой, что у платформы), платформенный — в `frontend/components`, `lib`, `hooks`, `stores`, `types`. Страницы и layout конфигурации лежат в `frontend/configuration/<имя>/pages/` по структуре `app/`, вместе с группами маршрутов: `pages/(portal)/layout.tsx` становится `app/(portal)/layout.tsx`.
+
+`frontend/app/` — точка сборки, и её конфигурационная часть генерируется: `npm run configure -- <имя>` (`frontend/scripts/configure.cjs`) собирает `app/` для одной конфигурации, `none` — для платформы без конфигурации.
+- Для каждого `page.tsx` и `layout.tsx` из `pages/` генератор пишет в `app/` по тому же пути однострочную обёртку `export { default } from "@/configuration/<имя>/pages/…"`. Next.js маршрутизирует её как обычную страницу и выделяет в отдельный чанк.
+- `app/configuration.ts` вызывает функцию регистрации, которую называет манифест конфигурации `frontend/configuration/<имя>/manifest.json` (`{ "register": "registerCryptoConfiguration" }`).
+- Сгенерированные файлы не коммитятся. Генератор перечисляет их в `app/.gitignore`, удаляет при сборке другой конфигурации вместе с устаревшими типами маршрутов в `.next` и отказывает, если страница конфигурации заняла бы платформенный файл.
+- Имя берётся из аргумента, затем из `METAPUS_CONFIGURATION`, затем из прошлой сборки; по умолчанию `none`. Скрипты `dev`, `build`, `lint`, `typecheck` и тестов сначала запускают генератор с этим выбором.
+- На каждую конфигурацию собирается свой образ: аргумент `METAPUS_CONFIGURATION` в `frontend/Dockerfile`, по умолчанию `crypto`. `make frontend` и e2e-тесты Playwright собирают крипто.
+- Модульные тесты собранного крипто-приложения подключают его регистрацию сами (`frontend/tests/crypto-configuration.ts`) и не зависят от выбора. `frontend/tests/unit/configure.spec.ts` проверяет генератор.
+
+Тест `frontend/tests/unit/configuration-boundary.spec.ts` проверяет, что:
 
 - платформенные файлы не импортируют `configuration/`, и список исключений пуст;
 - платформенный код и маршруты `app/` не используют словарь конфигурации (crypto, merchant, portal, wallet и т. п.), кроме путей модулей;
 - `app/` обращается к конфигурации только через такие обёртки и `app/configuration.ts`.
 
-Конфигурация подключает свои части при старте: `frontend/app/configuration.ts` вызывает `registerCryptoConfiguration()`, его импортируют первыми клиентский layout `app/(main)` и страница дашборда.
+Конфигурация подключает свои части при старте: сгенерированный `frontend/app/configuration.ts` вызывает функцию из её манифеста (у крипто — `registerCryptoConfiguration()`), его импортируют первыми клиентский layout `app/(main)` и страница дашборда.
 
 | Точка расширения фронтенда | Что даёт конфигурация | Пример |
 |---|---|---|

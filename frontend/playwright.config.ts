@@ -28,7 +28,8 @@ export default defineConfig({
   ],
   // Start local server before tests if not already running
   webServer: {
-    command: `npm run dev -- --port ${port}`,
+    // The end-to-end specs exercise the crypto configuration's UI.
+    command: `npm run configure -- crypto && npm run dev -- --port ${port}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,

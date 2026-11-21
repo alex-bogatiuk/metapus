@@ -18,6 +18,10 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# The configuration this image serves (configuration/<name>, or "none" for
+# the platform alone); scripts/configure.cjs assembles app/ for it.
+ARG METAPUS_CONFIGURATION="crypto"
+ENV METAPUS_CONFIGURATION=${METAPUS_CONFIGURATION}
 ARG NEXT_PUBLIC_TENANT_ID=""
 ARG API_PROXY_URL="http://localhost:8080"
 ENV NEXT_PUBLIC_TENANT_ID=${NEXT_PUBLIC_TENANT_ID}

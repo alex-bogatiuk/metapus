@@ -1,3 +1,5 @@
+// The crypto configuration registers its route contracts (tokens, ...).
+import "../crypto-configuration"
 import { expect, test } from "@playwright/test"
 import { apiFetch } from "../../lib/api"
 import { projectFormRequest, findHTTPContract } from "../../lib/http-contracts"

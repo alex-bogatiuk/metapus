@@ -1,6 +1,6 @@
-// The application configuration registers widgets and the default dashboard
+// The crypto configuration registers widgets and the default dashboard
 // before the dashboard modules load, as app/(main)/layout.tsx does.
-import "../../app/configuration"
+import "../crypto-configuration"
 import { test, expect } from "@playwright/test"
 import {
   defaultDashboardLayout, distributeColumns, fitRows, layoutLines, layoutWidgets, placeWidget, readDashboardLayout,
