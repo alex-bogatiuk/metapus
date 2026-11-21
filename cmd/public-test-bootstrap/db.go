@@ -15,8 +15,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	walletcatalog "metapus/internal/configuration/crypto/domain/catalogs/wallet"
-	"metapus/internal/core/json"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
+	"metapus/internal/core/json"
 	"metapus/internal/infrastructure/storage/postgres"
 )
 

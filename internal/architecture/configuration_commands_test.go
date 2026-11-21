@@ -12,9 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// configurationCommands are the cmd/ programs of the crypto-processing
-// configuration. They may import configuration packages freely.
+// configurationCommands are the cmd/ programs of the repository's
+// configurations, and http-contracts, which generates the frontend files of
+// all of them. They may import configuration packages freely.
 var configurationCommands = []string{
+	"autoparts-seed",
+	"autoparts-server",
+	"autoparts-tenant",
+	"autoparts-worker",
 	"aml-pool-controller",
 	"aml-testnet-bootstrap",
 	"aml-testnet-config",
@@ -26,6 +31,7 @@ var configurationCommands = []string{
 	"crypto-server",
 	"crypto-tenant",
 	"crypto-worker",
+	"http-contracts",
 	"integration-config",
 	"nile-tcp-relay",
 	"public-test-bootstrap",
@@ -35,7 +41,6 @@ var configurationCommands = []string{
 // They must reach a configuration only through a platform extension point.
 var platformCommands = []string{
 	"healthcheck",
-	"http-contracts",
 	"integration-test",
 	"npm-connect-proxy",
 	"pdf-renderer",
@@ -55,9 +60,6 @@ var platformCommands = []string{
 // configuration from a configuration's own main. Only remove entries: a new
 // edge fails the test.
 var knownCommandConfigurationLeaks = map[string][]string{
-	"metapus/cmd/http-contracts": {
-		"metapus/internal/configuration/crypto/content",
-	},
 	"metapus/cmd/integration-test": {
 		"metapus/internal/configuration/crypto/content",
 	},

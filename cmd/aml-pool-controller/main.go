@@ -15,10 +15,10 @@ import (
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/infrastructure/crypto/merchant_provisioning"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/platform/secretfile"
 )

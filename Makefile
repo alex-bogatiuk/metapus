@@ -1,4 +1,4 @@
-.PHONY: build lint lint-go lint-frontend typecheck test-unit test-integration test migrate migrate-extensions seed server frontend check check-extensions check-all changelog
+.PHONY: check-configurations build lint lint-go lint-frontend typecheck test-unit test-integration test migrate migrate-extensions seed server frontend check check-extensions check-all changelog
 
 # Default environment variables for local development
 export TENANT_DB_USER ?= metapus
@@ -8,7 +8,7 @@ LDFLAGS := -ldflags="-X main.Version=$(VERSION) -X main.BuildTime=$(shell date -
 
 # Build
 build:
-	go build $(LDFLAGS) -o bin/ ./cmd/server ./cmd/worker ./cmd/tenant ./cmd/seed ./cmd/crypto-server ./cmd/crypto-worker ./cmd/crypto-tenant ./cmd/crypto-seed
+	go build $(LDFLAGS) -o bin/ ./cmd/server ./cmd/worker ./cmd/tenant ./cmd/seed ./cmd/crypto-server ./cmd/crypto-worker ./cmd/crypto-tenant ./cmd/crypto-seed ./cmd/autoparts-server ./cmd/autoparts-worker ./cmd/autoparts-tenant ./cmd/autoparts-seed
 
 # Lint
 lint:
@@ -77,7 +77,11 @@ test-http-contracts:
 	go run ./cmd/http-contracts -check
 
 # Full check including extensions
-check-all: check check-extensions
+# Build every configuration (none, crypto, autoparts): Go commands and frontend
+check-configurations:
+	bash scripts/ci/check-configurations.sh
+
+check-all: check check-extensions check-configurations
 
 # Show breaking changes in extension API
 changelog:

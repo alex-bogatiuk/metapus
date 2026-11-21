@@ -22,6 +22,7 @@ import (
 // contract package itself, the empty configuration (none) and
 // internal/platformcontent with the shared applied catalogs.
 var configurationPackages = []string{
+	"metapus/internal/configuration/autoparts",
 	"metapus/internal/configuration/crypto",
 }
 
@@ -107,4 +108,46 @@ func isConfigurationPackage(importPath string) bool {
 		}
 	}
 	return false
+}
+
+// TestConfigurationsDoNotDependOnEachOther keeps each configuration buildable
+// on the platform alone: one configuration's code and tests never import
+// another's.
+func TestConfigurationsDoNotDependOnEachOther(t *testing.T) {
+	t.Parallel()
+	_, currentFile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	repoRoot := filepath.Dir(filepath.Dir(filepath.Dir(currentFile)))
+	owner := func(pkg string) string {
+		for _, root := range configurationPackages {
+			if pkg == root || strings.HasPrefix(pkg, root+"/") {
+				return root
+			}
+		}
+		return ""
+	}
+	for _, root := range configurationPackages {
+		dir := filepath.Join(repoRoot, filepath.FromSlash(strings.TrimPrefix(root, "metapus/")))
+		err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil || entry.IsDir() || filepath.Ext(path) != ".go" {
+				return walkErr
+			}
+			file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+			if err != nil {
+				return err
+			}
+			for _, imported := range file.Imports {
+				value, err := strconv.Unquote(imported.Path.Value)
+				if err != nil {
+					return err
+				}
+				if other := owner(value); other != "" && other != root {
+					rel, _ := filepath.Rel(repoRoot, path)
+					t.Errorf("%s imports %s of another configuration", filepath.ToSlash(rel), value)
+				}
+			}
+			return nil
+		})
+		require.NoError(t, err)
+	}
 }

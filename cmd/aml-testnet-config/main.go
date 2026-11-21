@@ -10,10 +10,10 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/core/tenant"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/platform/secretfile"
 )
