@@ -1,6 +1,6 @@
 //go:build integration
 
-package main
+package worker
 
 import (
 	"context"
@@ -45,7 +45,6 @@ func TestWorkerReliabilityTenantStartsAfterTransientInitializationFailure(t *tes
 	if dsn == "" {
 		t.Skip("METAPUS_TEST_DATABASE_DSN is required")
 	}
-	t.Setenv("CRYPTO_PROCESSING_ENABLED", "false")
 	config, err := pgx.ParseConfig(dsn)
 	require.NoError(t, err)
 	registry := &recoveringWorkerRegistry{entry: &tenant.Tenant{ID: id.New().String(), DBHost: config.Host, DBPort: int(config.Port), DBName: config.Database, Status: tenant.StatusActive}}
@@ -62,7 +61,10 @@ func TestWorkerReliabilityTenantStartsAfterTransientInitializationFailure(t *tes
 	previous := otel.GetMeterProvider()
 	otel.SetMeterProvider(provider)
 	defer func() { otel.SetMeterProvider(previous); _ = provider.Shutdown(context.Background()) }()
-	worker := NewMultiTenantWorker(manager, log, configuration.Compose(none.New()), nil, nil)
+	// The empty configuration's part: the platform's jobs alone, no Vault.
+	part, err := none.New().Worker(t.Context(), configuration.WorkerEnv{Logger: log})
+	require.NoError(t, err)
+	worker := NewMultiTenantWorker(manager, log, configuration.Compose(none.New()), part)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	done := make(chan struct{})

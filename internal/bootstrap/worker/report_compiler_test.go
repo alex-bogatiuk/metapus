@@ -1,4 +1,4 @@
-package main
+package worker
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/configuration"
-	"metapus/internal/configuration/crypto/content"
+	"metapus/internal/configuration/none"
 	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/entity"
@@ -59,6 +59,15 @@ func (merchantScopedProbe) RLSDimensions() map[string]string {
 	return map[string]string{"merchant": "merchant_id"}
 }
 
+// reportingConfiguration is a configuration with one report of its own.
+type reportingConfiguration struct{ configuration.Configuration }
+
+var configurationDataset = &schema.Dataset{Key: "configuration-probe", Name: "Configuration probe", Permission: "report:configuration-probe:read"}
+
+func (reportingConfiguration) Register(reg *v1.FactoryRegistry) {
+	reg.RegisterDataset(configurationDataset)
+}
+
 func registerProbe(reg *v1.FactoryRegistry) {
 	reg.RegisterCatalog(merchantScopedProbe{v1.Catalog[reportProbeItem](metadata.Presentation{Singular: "Probe item", Plural: "Probe items"})})
 	reg.RegisterDataset(probeDataset)
@@ -71,11 +80,11 @@ func TestScheduledReportsRunExtensionDatasets(t *testing.T) {
 	policies, err := security.NewPolicyEngine()
 	require.NoError(t, err)
 	t.Cleanup(policies.Stop)
-	worker := &MultiTenantWorker{factories: configuration.Compose(content.Crypto(content.Services{}), registerProbe)}
+	worker := &MultiTenantWorker{factories: configuration.Compose(reportingConfiguration{none.New()}, registerProbe)}
 	reports := worker.reportCompiler(policies)
 
 	require.Same(t, probeDataset, reports.GetDataset(probeDataset.Key))
-	require.NotNil(t, reports.GetDataset("document-journal"), "the built-in reports stay")
+	require.Same(t, configurationDataset, reports.GetDataset(configurationDataset.Key), "the configuration's reports stay")
 
 	user := appctx.UserContext{UserID: id.New().String(), Permissions: []string{probeDataset.Permission}}
 	request := compiler.QueryRequest{Dataset: probeDataset.Key}

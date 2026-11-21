@@ -16,8 +16,8 @@ COPY . .
 # Build binaries
 ARG VERSION=dev
 ARG BUILD_PARALLELISM=2
-RUN CGO_ENABLED=0 GOOS=linux go build -p ${BUILD_PARALLELISM} -ldflags="-s -w -X main.Version=${VERSION} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /bin/server ./cmd/server
-RUN CGO_ENABLED=0 GOOS=linux go build -p ${BUILD_PARALLELISM} -ldflags="-s -w -X main.Version=${VERSION} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /bin/worker ./cmd/worker
+RUN CGO_ENABLED=0 GOOS=linux go build -p ${BUILD_PARALLELISM} -ldflags="-s -w -X main.Version=${VERSION} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /bin/server ./cmd/crypto-server
+RUN CGO_ENABLED=0 GOOS=linux go build -p ${BUILD_PARALLELISM} -ldflags="-s -w -X main.Version=${VERSION} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /bin/worker ./cmd/crypto-worker
 RUN CGO_ENABLED=0 GOOS=linux go build -p ${BUILD_PARALLELISM} -ldflags="-s -w -X main.Version=${VERSION} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /bin/tenant ./cmd/tenant
 RUN CGO_ENABLED=0 GOOS=linux go build -p ${BUILD_PARALLELISM} -ldflags="-s -w" -o /bin/seed ./cmd/seed
 RUN CGO_ENABLED=0 GOOS=linux go build -p ${BUILD_PARALLELISM} -ldflags="-s -w" -o /bin/crypto-preflight ./cmd/crypto-preflight

@@ -62,7 +62,7 @@
 internal/core/          — Ядро платформы
 internal/domain/        — Бизнес-логика (контексты)
 internal/infrastructure/— HTTP и БД (Postgres)
-cmd/server/main.go      — Composition Root
+internal/bootstrap/server — Composition Root (cmd/<конфигурация>-server — её main)
 ```
 
 ## Связанные документы

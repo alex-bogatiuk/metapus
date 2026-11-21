@@ -1,0 +1,21 @@
+// Command crypto-server runs the Metapus API server for the crypto-processing
+// configuration with the client extensions.
+package main
+
+import (
+	"metapus/extensions"
+	"metapus/internal/bootstrap/server"
+	"metapus/internal/configuration/crypto/content"
+)
+
+// Version information — set via ldflags at build time:
+//
+//	go build -ldflags="-X main.Version=v1.3.0 -X main.BuildTime=2026-03-31T00:00:00Z" ./cmd/crypto-server
+var (
+	Version   = "dev"
+	BuildTime = "unknown"
+)
+
+func main() {
+	server.Main(server.Build{Version: Version, BuildTime: BuildTime}, content.Crypto(content.Services{}), extensions.Register)
+}

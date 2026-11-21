@@ -81,7 +81,7 @@ description: Главный инженер и архитектор транза�
   3. DB Tx: Записать результат / обновить FSM статус -> Commit
   ```
 
-### Безопасность горутин и воркеров (`cmd/worker`)
+### Безопасность горутин и воркеров (`internal/bootstrap/worker`)
 - Каждая `go func()` обязана принимать `context.Context` и слушать `<-ctx.Done()`.
 - Использовать `workerjob.JobRunner` / `tx.RunInTransaction` с таймаутами (statement timeout 30s).
 - Воркеры используют distributed leases с fencing tokens для защиты от одновременного исполнения.

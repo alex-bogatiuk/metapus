@@ -9,10 +9,10 @@
 
 | Контур | Реализация |
 |---|---|
-| HTTP и composition | `cmd/server`, `internal/infrastructure/http/v1` |
+| HTTP и composition | `cmd/crypto-server`, `internal/configuration/crypto/content/server.go`, `internal/infrastructure/http/v1` |
 | Сценарии | `internal/configuration/crypto/application/cryptoapp`, `outboundapp`, `checkout`, `portalapp` |
 | Бизнес-модель | `internal/configuration/crypto/domain/crypto`, `catalogs`, `documents`, `registers` |
-| Worker lifecycle | `cmd/worker`, `internal/configuration/crypto/infrastructure/crypto_worker` |
+| Worker lifecycle | `cmd/crypto-worker`, `internal/configuration/crypto/content/worker.go`, `internal/configuration/crypto/infrastructure/crypto_worker` |
 | Chain drivers | `internal/configuration/crypto/infrastructure/blockchain/tron`, `evm`, `bootstrap` |
 | Хранение | `internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo`, `outbound_repo`, `money_movement_repo` |
 | Custody и control signing | `vault-sign-plugins/tron`, `vault-sign-plugins/evm`, Vault Transit |

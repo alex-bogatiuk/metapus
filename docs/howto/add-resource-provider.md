@@ -20,7 +20,7 @@
 | `domain/crypto.ExternalResourceProvider` | Place / Query / Reclaim / Quote |
 | `crypto_worker.SharedResourcePreparer` | FSM, capacity, ledger, router |
 | `crypto/resources/<vendor>` | HTTP и маппинг статусов вендора |
-| `cmd/worker` | сборка адаптера из секретов |
+| `internal/configuration/crypto/content/worker.go` | сборка адаптера из секретов |
 
 In-flight заказ (`ordering` / `held` / `reclaiming`) закрывает только свой
 `rental.Provider`. Ambiguous Place не создаёт заказ у следующего вендора.
@@ -45,7 +45,7 @@ internal/configuration/crypto/infrastructure/crypto/resources/tronsave/
 
 ## Сборка
 
-В `cmd/worker` добавьте новый код провайдера в `buildAccountProviderFactory`.
+В `internal/configuration/crypto/content/worker.go` добавьте новый код провайдера в `accountProviderFactory`.
 Фабрика получает credentials из зашифрованной записи аккаунта.
 `crypto_worker` не импортирует `crypto/resources/*` — это ловит `architecture_test.go`.
 

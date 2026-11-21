@@ -8,7 +8,7 @@ LDFLAGS := -ldflags="-X main.Version=$(VERSION) -X main.BuildTime=$(shell date -
 
 # Build
 build:
-	go build $(LDFLAGS) -o bin/ ./cmd/server ./cmd/worker
+	go build $(LDFLAGS) -o bin/ ./cmd/server ./cmd/worker ./cmd/crypto-server ./cmd/crypto-worker
 
 # Lint
 lint:
@@ -52,7 +52,7 @@ seed:
 
 # Run
 server:
-	go run ./cmd/server
+	go run ./cmd/crypto-server
 
 frontend:
 	cd frontend && npm run dev

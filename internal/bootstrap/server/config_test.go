@@ -1,7 +1,6 @@
-package main
+package server
 
 import (
-	"crypto/ed25519"
 	"encoding/base64"
 	"net/netip"
 	"testing"
@@ -12,22 +11,17 @@ import (
 	"metapus/internal/domain/auth"
 )
 
-// setValidServerEnv sets the minimum environment loadConfig accepts.
+// setValidServerEnv sets the minimum environment loadConfig accepts: no
+// Vault and no configuration settings.
 func setValidServerEnv(t *testing.T) {
 	t.Helper()
-	pub, _, err := ed25519.GenerateKey(nil)
-	require.NoError(t, err)
 	for key, value := range map[string]string{
-		"APP_ENV":                           "development",
-		"META_DATABASE_URL":                 "postgres://meta",
-		"TENANT_DB_USER":                    "tenant",
-		"TENANT_DB_PASSWORD":                "tenant-password",
-		"JWT_SECRET":                        "jwt-secret",
-		"PUBLIC_CHECKOUT_BASE_URL":          "https://pay.example.test",
-		"VAULT_ADDR":                        "http://vault:8200",
-		"AUTH_MFA_ENCRYPTION_KEY":           base64.StdEncoding.EncodeToString(make([]byte, 32)),
-		"CRYPTO_APPROVAL_POLICY_PUBLIC_KEY": base64.StdEncoding.EncodeToString(pub),
-		"CRYPTO_APPROVAL_POLICY_BUNDLE_JWS": "header.payload.signature",
+		"APP_ENV":                 "development",
+		"META_DATABASE_URL":       "postgres://meta",
+		"TENANT_DB_USER":          "tenant",
+		"TENANT_DB_PASSWORD":      "tenant-password",
+		"JWT_SECRET":              "jwt-secret",
+		"AUTH_MFA_ENCRYPTION_KEY": base64.StdEncoding.EncodeToString(make([]byte, 32)),
 	} {
 		t.Setenv(key, value)
 	}
@@ -46,10 +40,6 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 	require.Equal(t, 5*time.Minute, cfg.AuthStateCacheTTL)
 	require.Equal(t, 168*time.Hour, cfg.Auth.AdminMFAGracePeriod)
 	require.Equal(t, 300*time.Second, cfg.Auth.AdminStepUpTTL)
-	require.Equal(t, "transit", cfg.CryptoTransitMount)
-	require.Equal(t, "secret", cfg.WebhookSecretKVMount)
-	require.Equal(t, map[string]string{"default": "header.payload.signature"}, cfg.ApprovalPolicyJWS)
-	require.Len(t, cfg.ApprovalPolicyKey, ed25519.PublicKeySize)
 	require.Len(t, cfg.Auth.MFAEncryptionKey, 32)
 }
 
@@ -60,8 +50,6 @@ func TestLoadConfigParsesOverrides(t *testing.T) {
 	t.Setenv("ADMIN_MFA_MODE", " Required ")
 	t.Setenv("ADMIN_SECURITY_MODE", "enforce")
 	t.Setenv("ADMIN_ALLOWED_CIDRS", "10.0.0.0/8, 192.168.1.7,")
-	t.Setenv("CRYPTO_APPROVAL_POLICY_BUNDLE_JWS", "")
-	t.Setenv("CRYPTO_APPROVAL_POLICY_BUNDLES_JWS", `{"acme":"a.b.c"}`)
 
 	cfg, err := loadConfig()
 
@@ -74,7 +62,6 @@ func TestLoadConfigParsesOverrides(t *testing.T) {
 		netip.MustParsePrefix("10.0.0.0/8"),
 		netip.MustParsePrefix("192.168.1.7/32"),
 	}, cfg.Auth.AdminAllowedCIDRs)
-	require.Equal(t, map[string]string{"acme": "a.b.c"}, cfg.ApprovalPolicyJWS)
 }
 
 func TestLoadConfigRejectsInvalidValues(t *testing.T) {
@@ -93,10 +80,6 @@ func TestLoadConfigRejectsInvalidValues(t *testing.T) {
 		{name: "invalid cidr", env: map[string]string{"ADMIN_ALLOWED_CIDRS": "10.0.0.0/8,not-an-ip"}, error: "ADMIN_ALLOWED_CIDRS"},
 		{name: "short mfa key", env: map[string]string{"AUTH_MFA_ENCRYPTION_KEY": base64.StdEncoding.EncodeToString(make([]byte, 16))}, error: "AUTH_MFA_ENCRYPTION_KEY"},
 		{name: "missing mfa key", env: map[string]string{"AUTH_MFA_ENCRYPTION_KEY": ""}, error: "AUTH_MFA_ENCRYPTION_KEY"},
-		{name: "invalid policy key", env: map[string]string{"CRYPTO_APPROVAL_POLICY_PUBLIC_KEY": "bad"}, error: "CRYPTO_APPROVAL_POLICY_PUBLIC_KEY"},
-		{name: "both policy forms", env: map[string]string{"CRYPTO_APPROVAL_POLICY_BUNDLES_JWS": `{"acme":"a.b.c"}`}, error: "configure only one"},
-		{name: "empty policy map", env: map[string]string{"CRYPTO_APPROVAL_POLICY_BUNDLE_JWS": "", "CRYPTO_APPROVAL_POLICY_BUNDLES_JWS": `{}`}, error: "at least one signed policy"},
-		{name: "vault token in production", env: map[string]string{"APP_ENV": "production", "VAULT_TOKEN": "root"}, error: "VAULT_TOKEN"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

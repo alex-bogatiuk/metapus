@@ -22,6 +22,8 @@ var configurationCommands = []string{
 	"crypto-ingestion-monitor",
 	"crypto-preflight",
 	"crypto-record-wallet-funding",
+	"crypto-server",
+	"crypto-worker",
 	"integration-config",
 	"nile-tcp-relay",
 	"public-test-bootstrap",
@@ -46,10 +48,10 @@ var platformCommands = []string{
 }
 
 // knownCommandConfigurationLeaks lists tolerated platform command →
-// configuration imports. The server and the worker are still assembled for
-// the crypto configuration only; each edge goes away once the command
-// receives its configuration through a platform interface. Only remove
-// entries: a new edge fails the test.
+// configuration imports: commands that still pick the crypto configuration
+// themselves. Each edge goes away once the command receives its
+// configuration from a configuration's own main. Only remove entries: a new
+// edge fails the test.
 var knownCommandConfigurationLeaks = map[string][]string{
 	"metapus/cmd/http-contracts": {
 		"metapus/internal/configuration/crypto/content",
@@ -57,50 +59,15 @@ var knownCommandConfigurationLeaks = map[string][]string{
 	"metapus/cmd/integration-test": {
 		"metapus/internal/configuration/crypto/content",
 	},
-	"metapus/cmd/server": {
-		"metapus/internal/configuration/crypto/application/checkout",
-		"metapus/internal/configuration/crypto/application/cryptoapp",
-		"metapus/internal/configuration/crypto/content",
-		"metapus/internal/configuration/crypto/domain/catalogs/merchant",
-		"metapus/internal/configuration/crypto/domain/crypto",
-		"metapus/internal/configuration/crypto/domain/documents/crypto_invoice",
-		"metapus/internal/configuration/crypto/infrastructure/blockchain/bootstrap",
-		"metapus/internal/configuration/crypto/infrastructure/crypto/approval_signer",
-		"metapus/internal/configuration/crypto/infrastructure/crypto/cryptoprofiles",
-		"metapus/internal/configuration/crypto/infrastructure/crypto/cryptoregisters",
-		"metapus/internal/configuration/crypto/infrastructure/crypto/webhooksecret",
-		"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp",
-		"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_catalog_repo",
-		"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo",
-		"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_integration_repo",
-		"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo",
-		"metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo",
-		"metapus/internal/configuration/crypto/infrastructure/vaultclient",
-	},
 	"metapus/cmd/tenant": {
 		"metapus/internal/configuration/crypto/content",
-	},
-	"metapus/cmd/worker": {
-		"metapus/internal/configuration/crypto/content",
-		"metapus/internal/configuration/crypto/domain/catalogs/crypto_provider_account",
-		"metapus/internal/configuration/crypto/domain/crypto",
-		"metapus/internal/configuration/crypto/infrastructure/blockchain/bootstrap",
-		"metapus/internal/configuration/crypto/infrastructure/crypto/resources/itrx",
-		"metapus/internal/configuration/crypto/infrastructure/crypto/webhook",
-		"metapus/internal/configuration/crypto/infrastructure/crypto/webhooksecret",
-		"metapus/internal/configuration/crypto/infrastructure/crypto_worker",
-		"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo",
-		"metapus/internal/configuration/crypto/infrastructure/vaultclient",
 	},
 }
 
 // knownCommandConfigurationTestLeaks lists platform commands whose tests
-// import configuration packages. Only remove entries.
-var knownCommandConfigurationTestLeaks = map[string][]string{
-	"metapus/cmd/worker": {
-		"metapus/internal/configuration/crypto/content",
-	},
-}
+// import configuration packages. It is empty: test a configuration's
+// behaviour in its own packages. Keep it empty.
+var knownCommandConfigurationTestLeaks = map[string][]string{}
 
 // knownCommandConfigurationTableLeaks lists platform command files whose
 // string literals name configuration tables. Only remove entries.
@@ -111,9 +78,6 @@ var knownCommandConfigurationTableLeaks = map[string][]string{
 		"cat_tokens",
 		"cat_wallets",
 		"reg_fee_schedule",
-	},
-	"cmd/worker/lifecycle.go": {
-		"sys_webhook_delivery_jobs",
 	},
 }
 

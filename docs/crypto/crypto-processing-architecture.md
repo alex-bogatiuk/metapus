@@ -69,12 +69,12 @@
 
 ```mermaid
 flowchart LR
-    Merchant["Мерчант / Portal / Merchant API"] --> Server["cmd/server"]
+    Merchant["Мерчант / Portal / Merchant API"] --> Server["cmd/crypto-server"]
     Customer["Плательщик"] --> Chain["TRON / EVM"]
     Server --> TenantDB["Tenant PostgreSQL"]
     Server --> MetaDB["Meta PostgreSQL"]
     Server --> Checkout["Public checkout"]
-    Worker["cmd/worker"] --> TenantDB
+    Worker["cmd/crypto-worker"] --> TenantDB
     Worker <--> Chain
     Worker --> Vault["Vault + tron plugin"]
     Worker <--> Resources["Resource providers (iTRX, …)"]
@@ -85,7 +85,7 @@ flowchart LR
 
 ### Server
 
-`cmd/server` обслуживает:
+`cmd/crypto-server` обслуживает:
 
 - Merchant Public API `/merchant/v1/*` с авторизацией по `X-Api-Key`;
 - личный кабинет `/portal/v1/*` с JWT, ролями мерчанта, MFA и step-up для чувствительных действий;
@@ -96,7 +96,7 @@ flowchart LR
 
 ### Worker
 
-`cmd/worker` запускает отдельный `CryptoProcessor` для каждого активного tenant только при `CRYPTO_PROCESSING_ENABLED=true`. Топология ролей indexer/fullnode/solidity загружается из `CRYPTO_CHAIN_CONFIG_FILE`; наличие отдельного TRON env больше не управляет запуском. Внутри работают:
+`cmd/crypto-worker` запускает отдельный `CryptoProcessor` для каждого активного tenant только при `CRYPTO_PROCESSING_ENABLED=true`. Топология ролей indexer/fullnode/solidity загружается из `CRYPTO_CHAIN_CONFIG_FILE`; наличие отдельного TRON env больше не управляет запуском. Внутри работают:
 
 - TRC-20 watcher;
 - native TRX watcher;
@@ -783,8 +783,8 @@ Production-требования к Vault, PostgreSQL, мониторингу и 
 ## 14. Файловая карта
 
 ```text
-cmd/server/main.go                                      — сборка HTTP/API-контура
-cmd/worker/main.go                                      — запуск tenant crypto processors
+internal/configuration/crypto/content/server.go         — часть конфигурации в HTTP/API-контуре
+internal/configuration/crypto/content/worker.go         — часть конфигурации в воркере: tenant crypto processors
 internal/configuration/crypto/infrastructure/crypto_worker/processor.go      — watcher и фоновые циклы
 internal/application/command/                           — transactional command idempotency
 internal/configuration/crypto/application/cryptoapp/external_outflow_service.go — audited outflow/custody FSM

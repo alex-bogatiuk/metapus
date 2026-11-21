@@ -46,7 +46,7 @@
 
 ## 3. Фоновые задачи (Workers)
 
-Отдельное приложение (`cmd/worker/main.go`), которое обрабатывает фоновые процессы:
+Отдельное приложение (`internal/bootstrap/worker`, точки входа `cmd/worker` и `cmd/crypto-worker`), которое обрабатывает фоновые процессы:
 - **Outbox Relay**: гарантированная доставка событий из `sys_outbox` во внешние системы.
 - **Cleanup loops**: истёкшие сессии, idempotency, automation history/files, notifications, worker jobs и retired webhook secrets. Универсального очистителя финансового audit ledger нет.
 - Воркеры циклично обходят базы данных всех активных тенантов.

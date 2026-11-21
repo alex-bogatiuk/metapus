@@ -1,4 +1,4 @@
-package main
+package worker
 
 import (
 	"context"
@@ -57,9 +57,7 @@ func validateWorkerSchema(ctx context.Context, pool *pgxpool.Pool) error {
 	var ready bool
 	err := pool.QueryRow(ctx, `SELECT
   (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='sys_outbox' AND column_name IN ('claim_token','claimed_at','lease_until'))=3
-  AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='sys_webhook_delivery_jobs' AND column_name IN ('claim_token','lease_until'))=2
   AND to_regclass('sys_automation_runs') IS NOT NULL AND to_regclass('sys_automation_schedules') IS NOT NULL
-  AND to_regclass('uq_webhook_delivery_jobs_processing_merchant') IS NOT NULL
   AND to_regclass('uq_automation_runs_processing_rule') IS NOT NULL`).Scan(&ready)
 	if err != nil {
 		return fmt.Errorf("validate worker schema: %w", err)

@@ -12,7 +12,7 @@ netstat -ano | findstr ":3000"  # Next.js
 ```powershell
 $env:JWT_SECRET="your-secret-key-change-in-production"; $env:META_DATABASE_URL="postgres://metapus:metapus@localhost:5432/tenants?sslmode=disable"; $env:TENANT_DB_USER="metapus"; $env:TENANT_DB_PASSWORD="metapus";
 $env:AUTOMATION_ENCRYPTION_KEY="test-encryption-key-32chars!!!!!"; $env:TRON_RPC_URL="https://api.nile.trongrid.io";
-$env:TRON_API_KEY="c9c9646e-0626-4035-857b-911c6aba25cc";$env:DATABASE_URL="postgres://metapus:metapus@localhost:5432/mt_default?sslmode=disable"; $env:APP_PORT="8080"; $env:APP_ENV="development"; $env:LOG_LEVEL="info"; Start-Job { go run ./cmd/server }; Start-Job { go run ./cmd/worker }
+$env:TRON_API_KEY="c9c9646e-0626-4035-857b-911c6aba25cc";$env:DATABASE_URL="postgres://metapus:metapus@localhost:5432/mt_default?sslmode=disable"; $env:APP_PORT="8080"; $env:APP_ENV="development"; $env:LOG_LEVEL="info"; Start-Job { go run ./cmd/crypto-server }; Start-Job { go run ./cmd/crypto-worker }
 ```
 
 ```bash

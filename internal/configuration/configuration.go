@@ -6,6 +6,7 @@
 package configuration
 
 import (
+	"context"
 	"io/fs"
 	"regexp"
 
@@ -48,6 +49,12 @@ type Configuration interface {
 	// PoolConsumers are the configuration's catalogs that read integration
 	// accounts through pools (integrations.PoolConsumer).
 	PoolConsumers() []integrations.PoolConsumer
+	// Server builds the configuration's part of the API server: its routes,
+	// posting modules and the runtime services of its entities. It reads
+	// the configuration's settings and fails when they are invalid.
+	Server(ctx context.Context, env ServerEnv) (Server, error)
+	// Worker builds the configuration's part of the background worker.
+	Worker(ctx context.Context, env WorkerEnv) (Worker, error)
 }
 
 var validName = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
@@ -98,3 +105,20 @@ func CatalogDefinitions(cfg Configuration, extensions ...func(*v1.FactoryRegistr
 	}
 	return definitions
 }
+
+// WithRegister is cfg registering its entities with register instead of its
+// own Register; a nil register keeps cfg as it is. The server composes the
+// configuration with the runtime services its part built (Server.Register).
+func WithRegister(cfg Configuration, register func(*v1.FactoryRegistry)) Configuration {
+	if register == nil {
+		return cfg
+	}
+	return registered{Configuration: cfg, register: register}
+}
+
+type registered struct {
+	Configuration
+	register func(*v1.FactoryRegistry)
+}
+
+func (r registered) Register(reg *v1.FactoryRegistry) { r.register(reg) }

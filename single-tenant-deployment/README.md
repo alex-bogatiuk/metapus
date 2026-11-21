@@ -31,7 +31,7 @@ Compose.
 # 1. Подготовьте окружение
 cp .env.example .env
 # Укажите auth secrets, PUBLIC_CHECKOUT_BASE_URL, AUTOMATION_ENCRYPTION_KEY
-# и CRYPTO_* approval signer values, необходимые cmd/server.
+# и CRYPTO_* approval signer values, необходимые cmd/crypto-server.
 
 # 2. Соберите образы
 docker compose build

@@ -5,6 +5,7 @@
 package none
 
 import (
+	"context"
 	"io/fs"
 
 	"metapus/internal/configuration"
@@ -27,3 +28,9 @@ func (empty) RouteContracts() []spec.Bundle              { return nil }
 func (empty) Migrations() fs.FS                          { return nil }
 func (empty) IntegrationCatalog() *integrations.Catalog  { return nil }
 func (empty) PoolConsumers() []integrations.PoolConsumer { return nil }
+func (empty) Server(context.Context, configuration.ServerEnv) (configuration.Server, error) {
+	return configuration.Server{}, nil
+}
+func (empty) Worker(context.Context, configuration.WorkerEnv) (configuration.Worker, error) {
+	return configuration.Worker{}, nil
+}

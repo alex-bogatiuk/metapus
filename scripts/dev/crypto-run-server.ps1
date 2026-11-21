@@ -14,4 +14,4 @@ Get-CryptoRequiredEnv "CRYPTO_APPROVAL_POLICY_PUBLIC_KEY" | Out-Null
 Get-CryptoRequiredEnv "CRYPTO_APPROVAL_POLICY_BUNDLE_JWS" | Out-Null
 Get-CryptoRequiredEnv "VAULT_ADDR" | Out-Null
 
-go run ./cmd/server
+go run ./cmd/crypto-server

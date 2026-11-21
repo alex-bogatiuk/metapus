@@ -22,4 +22,4 @@ Get-CryptoRequiredEnv "CRYPTO_RISK_APPROVAL_SIGNING_PUBLIC_KEY" | Out-Null
 Get-CryptoRequiredEnv "CRYPTO_PROCESSING_ENABLED" | Out-Null
 Get-CryptoRequiredEnv "CRYPTO_CHAIN_CONFIG_FILE" | Out-Null
 
-go run ./cmd/worker
+go run ./cmd/crypto-worker
