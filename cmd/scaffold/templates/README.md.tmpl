@@ -9,7 +9,7 @@
 
 Identity, table, route and hierarchy come from Definition. Do not add a second hierarchy flag.
 Update requires version. Server fields (id, version, posting state) are never writable.
-A reference field (`id.ID` tagged `meta:"ref:<entity key>"`, json name ending in `Id`) gets its display in responses. An entity that needs its own DTOs or custom routes switches to an explicit registration (`v1.CatalogRegistrationFor`, see `internal/content`).
+A reference field (`id.ID` tagged `meta:"ref:<entity key>"`, json name ending in `Id`) gets its display in responses. An entity that needs its own DTOs or custom routes switches to an explicit registration (`v1.CatalogRegistrationFor`, see `internal/configuration/crypto/content`).
 Before and Transaction hooks run in the mutation transaction. After hooks run only after the outer commit.
 {{if .Document}}{{if .Parts}}Table parts: {{range $i, $p := .Parts}}{{if $i}}, {{end}}`{{$p.Field}}` (`{{$p.Table}}`){{end}}. Add line fields to the line structs in `model.go` and their columns to the part tables in the migration. Lines are stored with the header in one transaction: an update replaces them, keeping the `lineId` of lines it sends back; an update that omits a part keeps its lines, an empty array clears it. Line numbers are the server's.
 {{else}}This document has no table parts; scaffold it with `--parts goods,services` to start with some, or add an `entity.Part` to Definition, a `[]Line` field and its table.

@@ -22,13 +22,13 @@
 
 | Шаг | Где |
 |---|---|
-| Capability `PrintForms: true` | `DocumentCapabilities()` регистрации, например `internal/content/entity_contracts.go`. Флаг включает маршруты `GET /print-forms`, `GET /:id/print`, их HTTP-контракты и `capabilities.printForms` в метаданных |
+| Capability `PrintForms: true` | `DocumentCapabilities()` регистрации, например `internal/configuration/crypto/content/entity_contracts.go`. Флаг включает маршруты `GET /print-forms`, `GET /:id/print`, их HTTP-контракты и `capabilities.printForms` в метаданных |
 | Формы | `PrintForms() []printing.PrintFormDef` регистрации (`v1.PrintFormsProvider`), например `CryptoInvoiceRegistration` → `cryptohandlers.CryptoInvoicePrintForms()` |
 | Handler | Поле `*DocumentPrintHandler[T]` и методы `Print`, `ListPrintForms`, делегирующие ему (`cryptohandlers/crypto_invoice.go`). Зависимости — `DocumentDeps.PrintRegistry/PrintRenderer/PDFRenderer` |
 | Данные формы | `BuildPrintData(ctx, doc, policy)` возвращает `PrintData.Table` (`cryptohandlers/crypto_invoice_print.go`) |
 | Шаблон | `printing.TableTemplate` подходит большинству документов; свой шаблон нужен только для другой вёрстки |
 
-Оба маршрута требуют `<permission>:read`. Если флаг объявлен без методов handler, тест `internal/content/http_contract_entities_test.go` найдёт расхождение маршрутов и контрактов.
+Оба маршрута требуют `<permission>:read`. Если флаг объявлен без методов handler, тест `internal/configuration/crypto/content/http_contract_entities_test.go` найдёт расхождение маршрутов и контрактов.
 
 ## 3. Безопасность данных
 
@@ -64,7 +64,7 @@ internal/infrastructure/printing/renderer.go — HTML-рендерер, FormatRa
 internal/infrastructure/printing/templates/ — base.gohtml (styles, table_form), table.gohtml (страница с таблицей)
 internal/infrastructure/printing/docx_renderer.go — DOCX
 internal/infrastructure/http/v1/handlers/print.go — DocumentPrintHandler
-internal/infrastructure/http/cryptohttp/cryptohandlers/crypto_invoice_print.go — данные формы инвойса
+internal/configuration/crypto/infrastructure/http/cryptohttp/cryptohandlers/crypto_invoice_print.go — данные формы инвойса
 frontend/components/shared/print-menu-button.tsx, frontend/hooks/usePrintForms.ts — UI
 ```
 

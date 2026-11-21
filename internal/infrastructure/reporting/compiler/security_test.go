@@ -20,7 +20,7 @@ import (
 )
 
 // These cases need no database: authorization and policy checks run before
-// any SQL. The configuration's own datasets are covered in internal/content.
+// any SQL. The configuration's own datasets are covered in internal/configuration/crypto/content.
 func fixtureCompiler(t *testing.T) (*compiler.Compiler, string) {
 	t.Helper()
 	engine, err := security.NewPolicyEngine()

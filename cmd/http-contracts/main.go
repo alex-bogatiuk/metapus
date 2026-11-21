@@ -12,7 +12,7 @@ import (
 
 	"metapus/extensions"
 	"metapus/internal/configuration"
-	"metapus/internal/content"
+	"metapus/internal/configuration/crypto/content"
 )
 
 func main() {

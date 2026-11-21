@@ -118,10 +118,10 @@ $env:METAPUS_TEST_MIGRATION_DSN = '<disposable-postgres-dsn>'
 $env:METAPUS_TEST_DATABASE_DSN = $env:METAPUS_TEST_MIGRATION_DSN
 
 go test -tags=integration ./internal/infrastructure/storage/postgres/migration -count=1 -v
-go test -tags=integration ./internal/infrastructure/storage/postgres/crypto_repo -count=1 -v
-go test -tags=integration ./internal/infrastructure/storage/postgres/portal_repo -count=1 -v
-go test -tags=integration ./internal/infrastructure/crypto_worker -count=1 -v
-go test -tags=integration ./internal/infrastructure/blockchain/evm -count=1 -v
+go test -tags=integration ./internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo -count=1 -v
+go test -tags=integration ./internal/configuration/crypto/infrastructure/storage/postgres/portal_repo -count=1 -v
+go test -tags=integration ./internal/configuration/crypto/infrastructure/crypto_worker -count=1 -v
+go test -tags=integration ./internal/configuration/crypto/infrastructure/blockchain/evm -count=1 -v
 ```
 
 Migration gate включает fresh `Up`, полный `Down → Up` и проверку итоговой версии по `ExpectedSchemaVersion` на disposable БД.
@@ -689,17 +689,17 @@ Screenshots без DB/chain/trace evidence не закрывают финанс�
 ## 16. Файловая карта
 
 ```text
-internal/domain/crypto/payment_cycle_test.go                    — invoice/payment lifecycle и financial rollback
+internal/configuration/crypto/domain/crypto/payment_cycle_test.go                    — invoice/payment lifecycle и financial rollback
 internal/application/command/                                  — durable application-command idempotency
-internal/application/cryptoapp/external_outflow_service.go      — audited classification/adjustment/resolution FSM
-internal/application/cryptoapp/external_outflow_detection_service.go — atomic exact-match/outflow/incident/observation orchestration
-internal/application/cryptoapp/operational_hold_service.go      — owner-bound network/wallet holds
-internal/application/cryptoapp/merchant_network_policy_service.go — Portal/API/per-key CIDR policy
-internal/infrastructure/crypto_worker/                          — activation, sweep, withdrawal, settlement, reconciliation
-internal/infrastructure/storage/postgres/crypto_repo/           — event/outflow/webhook/wallet persistence
-internal/infrastructure/storage/postgres/portal_repo/           — portal read models и custody allowlist
-internal/infrastructure/blockchain/tron/                        — TRON watcher/driver/funding
-internal/infrastructure/blockchain/evm/                         — EVM watcher/finality/nonce
+internal/configuration/crypto/application/cryptoapp/external_outflow_service.go      — audited classification/adjustment/resolution FSM
+internal/configuration/crypto/application/cryptoapp/external_outflow_detection_service.go — atomic exact-match/outflow/incident/observation orchestration
+internal/configuration/crypto/application/cryptoapp/operational_hold_service.go      — owner-bound network/wallet holds
+internal/configuration/crypto/application/cryptoapp/merchant_network_policy_service.go — Portal/API/per-key CIDR policy
+internal/configuration/crypto/infrastructure/crypto_worker/                          — activation, sweep, withdrawal, settlement, reconciliation
+internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/           — event/outflow/webhook/wallet persistence
+internal/configuration/crypto/infrastructure/storage/postgres/portal_repo/           — portal read models и custody allowlist
+internal/configuration/crypto/infrastructure/blockchain/tron/                        — TRON watcher/driver/funding
+internal/configuration/crypto/infrastructure/blockchain/evm/                         — EVM watcher/finality/nonce
 internal/infrastructure/storage/postgres/migration/             — schema contract и fresh/down/up
 db/configuration/crypto/00006_crypto_core.sql                         — network/token baseline
 db/configuration/crypto/00006_crypto_core.sql                         — merchant/wallet/API key baseline

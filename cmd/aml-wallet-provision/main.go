@@ -9,14 +9,14 @@ import (
 	"os"
 	"os/signal"
 
-	"metapus/internal/application/cryptoapp"
+	"metapus/internal/configuration/crypto/application/cryptoapp"
+	"metapus/internal/configuration/crypto/domain/crypto"
+	"metapus/internal/configuration/crypto/infrastructure/crypto/merchant_provisioning"
+	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
-	"metapus/internal/domain/crypto"
-	"metapus/internal/infrastructure/crypto/merchant_provisioning"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/infrastructure/vaultclient"
 )
 
 func main() {

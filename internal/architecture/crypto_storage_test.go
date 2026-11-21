@@ -18,7 +18,7 @@ func TestCryptoWorkerRuntimeDoesNotExecuteSQL(t *testing.T) {
 	t.Parallel()
 	_, current, _, ok := runtime.Caller(0)
 	require.True(t, ok)
-	root := filepath.Join(filepath.Dir(filepath.Dir(current)), "infrastructure", "crypto_worker")
+	root := filepath.Join(filepath.Dir(filepath.Dir(current)), "configuration", "crypto", "infrastructure", "crypto_worker")
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -64,32 +64,38 @@ func TestPostgresAdaptersDoNotDependOnCryptoWorker(t *testing.T) {
 	t.Parallel()
 	_, current, _, ok := runtime.Caller(0)
 	require.True(t, ok)
-	root := filepath.Join(filepath.Dir(filepath.Dir(current)), "infrastructure", "storage", "postgres")
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
-		if err != nil {
-			return err
-		}
-		for _, imp := range file.Imports {
-			value, err := strconv.Unquote(imp.Path.Value)
+	internalRoot := filepath.Dir(filepath.Dir(current))
+	// The platform's PostgreSQL adapters and the crypto configuration's.
+	for _, root := range []string{
+		filepath.Join(internalRoot, "infrastructure", "storage", "postgres"),
+		filepath.Join(internalRoot, "configuration", "crypto", "infrastructure", "storage", "postgres"),
+	} {
+		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
 			if err != nil {
 				return err
 			}
-			if value == "metapus/internal/infrastructure/crypto_worker" || strings.HasPrefix(value, "metapus/internal/infrastructure/crypto_worker/") {
-				t.Errorf("%s depends on crypto worker runtime", path)
+			for _, imp := range file.Imports {
+				value, err := strconv.Unquote(imp.Path.Value)
+				if err != nil {
+					return err
+				}
+				if value == "metapus/internal/configuration/crypto/infrastructure/crypto_worker" || strings.HasPrefix(value, "metapus/internal/configuration/crypto/infrastructure/crypto_worker/") {
+					t.Errorf("%s depends on crypto worker runtime", path)
+				}
+				if strings.Contains(filepath.ToSlash(path), "/outbound_repo/") &&
+					(strings.HasPrefix(value, "go.opentelemetry.io/") || strings.HasPrefix(value, "metapus/internal/configuration/crypto/infrastructure/blockchain/") || strings.HasPrefix(value, "metapus/internal/configuration/crypto/infrastructure/crypto/")) {
+					t.Errorf("%s imports a runtime adapter %s in persistence", path, value)
+				}
 			}
-			if strings.Contains(filepath.ToSlash(path), "/outbound_repo/") &&
-				(strings.HasPrefix(value, "go.opentelemetry.io/") || strings.HasPrefix(value, "metapus/internal/infrastructure/blockchain/") || strings.HasPrefix(value, "metapus/internal/infrastructure/crypto/")) {
-				t.Errorf("%s imports a runtime adapter %s in persistence", path, value)
-			}
-		}
-		return nil
-	})
-	require.NoError(t, err)
+			return nil
+		})
+		require.NoError(t, err)
+	}
 }

@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/infrastructure/crypto_worker"
+	"metapus/internal/configuration/crypto/infrastructure/crypto_worker"
 )
 
 func TestValidatePreflightResult(t *testing.T) {

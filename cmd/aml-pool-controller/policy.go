@@ -5,11 +5,11 @@ import (
 	"io"
 	"os"
 
+	"metapus/internal/configuration/crypto/domain/crypto"
+	"metapus/internal/configuration/crypto/domain/crypto/aml"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/core/types"
-	"metapus/internal/domain/crypto"
-	"metapus/internal/domain/crypto/aml"
 )
 
 // This is a local control-plane manifest, not a merchant-facing API payload.

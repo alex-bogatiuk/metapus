@@ -90,8 +90,8 @@ description: Главный инженер и архитектор транза�
 ### Хранение ключей и Vault
 - Приватные ключи блокчейна и секреты провайдеров **никогда не хранятся в PostgreSQL** и не логируются.
 - Подписание транзакций выполняется через плагины Vault:
-  - `internal/infrastructure/crypto/vault_signer` (TRON)
-  - `internal/infrastructure/crypto/evm_vault_signer` (EVM)
+  - `internal/configuration/crypto/infrastructure/crypto/vault_signer` (TRON)
+  - `internal/configuration/crypto/infrastructure/crypto/evm_vault_signer` (EVM)
 
 ---
 
@@ -101,7 +101,7 @@ description: Главный инженер и архитектор транза�
    - Любой мутирующий HTTP-запрос (POST/PUT/PATCH/DELETE) должен поддерживать `Idempotency-Key`.
    - На клиенте `frontend/lib/api/core.ts` автоматически генерирует и сохраняет стабильный ключ мутации через `withStableMutationKey`.
    - На бэкенде: проверка уникальности ключа и возврат сохранённого ответа при повторах.
-2. **Webhook Dispatcher (`internal/infrastructure/crypto/webhook`)**:
+2. **Webhook Dispatcher (`internal/configuration/crypto/infrastructure/crypto/webhook`)**:
    - Тело подписывается HMAC-SHA256 (`X-Metapus-Signature`).
    - Доставка с exponential backoff retries.
    - Защита от SSRF: адрес назначения валидируется через `urlsafe.ValidatePublicURL` (запрет internal IP, loopback, link-local, принудительный pinning IP).
@@ -117,7 +117,7 @@ description: Главный инженер и архитектор транза�
   - Репозиторий: встроить `*storage.BaseCatalogRepo[Model]`
   - Сервис: встроить `*domain.CatalogService[Model]`
   - Хэндлер: `handlers.NewCatalogHandler[Model, CreateDTO, UpdateDTO]`
-  - Регистрация: реализовать интерфейс `v1.CatalogRegistration` (`internal/infrastructure/http/v1/catalog_factory.go`) и зарегистрировать: общий справочник платформы — в `platformcontent.Register`, справочник конфигурации — в её `Register` (крипто: `internal/content/register.go`).
+  - Регистрация: реализовать интерфейс `v1.CatalogRegistration` (`internal/infrastructure/http/v1/catalog_factory.go`) и зарегистрировать: общий справочник платформы — в `platformcontent.Register`, справочник конфигурации — в её `Register` (крипто: `internal/configuration/crypto/content/register.go`).
 - **Документы (Documents)**:
   - Репозиторий: встроить `*storage.BaseDocumentRepo[DocModel, LineModel]`
   - Сервис: встроить `*domain.BaseDocumentService[DocModel, LineModel]`

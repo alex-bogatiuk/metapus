@@ -20,7 +20,7 @@ customer metadata в отчёт не включать.
 
 ```powershell
 go test ./...
-go test -race ./internal/domain/crypto ./internal/infrastructure/crypto_worker
+go test -race ./internal/configuration/crypto/domain/crypto ./internal/configuration/crypto/infrastructure/crypto_worker
 
 Push-Location frontend
 npm run typecheck
@@ -49,7 +49,7 @@ $env:METAPUS_TEST_MIGRATION_DSN = '<disposable-postgres-dsn>'
 go test -tags=integration ./internal/infrastructure/storage/postgres/migration -count=1 -v
 
 $env:METAPUS_TEST_DATABASE_DSN = $env:METAPUS_TEST_MIGRATION_DSN
-go test -tags=integration ./internal/infrastructure/storage/postgres/crypto_repo -count=1 -v
+go test -tags=integration ./internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo -count=1 -v
 ```
 
 Обязательная evidence из CI:

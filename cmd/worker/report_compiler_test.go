@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/configuration"
-	"metapus/internal/content"
+	"metapus/internal/configuration/crypto/content"
 	"metapus/internal/core/apperror"
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/entity"

@@ -18,7 +18,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"metapus/extensions"
 	"metapus/internal/configuration"
-	"metapus/internal/content"
+	"metapus/internal/configuration/crypto/content"
 	"metapus/internal/core/id"
 	"metapus/internal/infrastructure/storage/postgres/migration"
 )

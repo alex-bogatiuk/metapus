@@ -4,7 +4,7 @@ import { resolve } from "node:path"
 import { expect, test } from "@playwright/test"
 
 const checkoutDocument = readFileSync(
-  resolve(process.cwd(), "../internal/infrastructure/http/cryptohttp/static/payment.html"),
+  resolve(process.cwd(), "../internal/configuration/crypto/infrastructure/http/cryptohttp/static/payment.html"),
   "utf8",
 )
 

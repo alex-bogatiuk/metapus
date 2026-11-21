@@ -19,7 +19,7 @@ import (
 
 	"metapus/extensions"
 	"metapus/internal/configuration"
-	"metapus/internal/content"
+	"metapus/internal/configuration/crypto/content"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/version"
 	postgresstore "metapus/internal/infrastructure/storage/postgres"

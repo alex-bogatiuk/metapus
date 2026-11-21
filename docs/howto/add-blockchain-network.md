@@ -61,9 +61,9 @@ flowchart LR
     Vault --> Driver
 ```
 
-Оркестрация в `internal/infrastructure/crypto_worker` не должна импортировать
+Оркестрация в `internal/configuration/crypto/infrastructure/crypto_worker` не должна импортировать
 `blockchain/evm`. Единственное место, где собираются конкретные адаптеры, —
-`internal/infrastructure/blockchain/bootstrap`.
+`internal/configuration/crypto/infrastructure/blockchain/bootstrap`.
 
 В runtime запрещено маршрутизировать операции по `code`, символу токена или
 адресному префиксу. Driver выбирается только по UUID `network_id`; затем он
@@ -137,7 +137,7 @@ Merchant API, а не молча теряться.
 Рекомендуемая структура:
 
 ```text
-internal/infrastructure/blockchain/evm/
+internal/configuration/crypto/infrastructure/blockchain/evm/
 ├── driver.go          — реализация crypto.NetworkDriver
 ├── factory.go         — family factory для bootstrap
 ├── rpc_pool.go        — provider failover, circuit breaker, chain-ID probe
@@ -275,7 +275,7 @@ Worker регистрирует signer в `FamilySignerRegistry`, а wallet deri
 ### Шаг 5. Подключить family в composition root
 
 EVM factory регистрируется в
-`internal/infrastructure/blockchain/bootstrap`; `crypto_worker` остаётся без
+`internal/configuration/crypto/infrastructure/blockchain/bootstrap`; `crypto_worker` остаётся без
 импорта EVM package. Factory получает:
 
 - `NetworkRef` из tenant catalog;
@@ -461,7 +461,7 @@ reconciliation до terminal состояния, поэтому rollback вык�
 - семьи с `TokenAccountModel=derived_per_asset` реализуют `TokenAccounts()`,
   а не ветки в sweep/withdrawal;
 - worker не импортирует `blockchain/{tron,evm,ton,solana}`;
-- новый driver проходит `internal/infrastructure/blockchain/conformance`.
+- новый driver проходит `internal/configuration/crypto/infrastructure/blockchain/conformance`.
 
 ## 7. Оставшиеся verification gates
 
@@ -471,7 +471,7 @@ reconciliation до terminal состояния, поэтому rollback вык�
    delayed mining, fee spike и restart после reserve/sign/broadcast.
 3. **P1 — live PostgreSQL integration.** Выполнить concurrency suites для
    nonce leases, replacement race и fee budget на disposable database.
-4. **P1 — conformance.** `internal/infrastructure/blockchain/conformance`
+4. **P1 — conformance.** `internal/configuration/crypto/infrastructure/blockchain/conformance`
    проверяет, что factory capabilities полные и согласованы. Живой RPC и
    Sepolia E2E остаются отдельным gate.
 
@@ -487,20 +487,20 @@ reconciliation до terminal состояния, поэтому rollback вык�
 ## 8. Файловая карта
 
 ```text
-internal/domain/crypto/capabilities.go                  — compile-time family capability registry (sequence, lag, token accounts, resources)
-internal/infrastructure/blockchain/conformance          — contract tests for installed family factories
-internal/domain/crypto/chain.go                         — runtime driver contract и registry by network_id
-internal/domain/crypto/wallet_pool.go                   — capability-aware provisioning policy
-internal/domain/crypto/blockchain_event.go              — normalized inbound event
-internal/infrastructure/blockchain/bootstrap/builder.go — composition root family adapters
-internal/infrastructure/blockchain/chainconfig           — endpoint topology и secret-file loading
-internal/infrastructure/blockchain/tron                  — reference implementation family driver
-internal/infrastructure/crypto_worker/processor.go       — chain-neutral orchestration
-internal/domain/crypto/signing_authorization.go          — signing authorization contract
-internal/domain/crypto/transaction_signer.go             — family signer contract и registry
-internal/infrastructure/crypto/custody                    — family-keyed custody composition
-internal/infrastructure/crypto/evm_vault_signer           — EVM custody client
-internal/infrastructure/crypto/vault_signer              — текущая TRON custody implementation
+internal/configuration/crypto/domain/crypto/capabilities.go                  — compile-time family capability registry (sequence, lag, token accounts, resources)
+internal/configuration/crypto/infrastructure/blockchain/conformance          — contract tests for installed family factories
+internal/configuration/crypto/domain/crypto/chain.go                         — runtime driver contract и registry by network_id
+internal/configuration/crypto/domain/crypto/wallet_pool.go                   — capability-aware provisioning policy
+internal/configuration/crypto/domain/crypto/blockchain_event.go              — normalized inbound event
+internal/configuration/crypto/infrastructure/blockchain/bootstrap/builder.go — composition root family adapters
+internal/configuration/crypto/infrastructure/blockchain/chainconfig           — endpoint topology и secret-file loading
+internal/configuration/crypto/infrastructure/blockchain/tron                  — reference implementation family driver
+internal/configuration/crypto/infrastructure/crypto_worker/processor.go       — chain-neutral orchestration
+internal/configuration/crypto/domain/crypto/signing_authorization.go          — signing authorization contract
+internal/configuration/crypto/domain/crypto/transaction_signer.go             — family signer contract и registry
+internal/configuration/crypto/infrastructure/crypto/custody                    — family-keyed custody composition
+internal/configuration/crypto/infrastructure/crypto/evm_vault_signer           — EVM custody client
+internal/configuration/crypto/infrastructure/crypto/vault_signer              — текущая TRON custody implementation
 vault-sign-plugins/evm                                   — отдельный EVM policy-aware plugin
 vault-sign-plugins/tron                                  — reference policy-aware Vault plugin
 db/configuration/crypto/00006_crypto_core.sql            — Sepolia catalog, nonce, finality и policy schema

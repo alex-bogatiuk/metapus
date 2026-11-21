@@ -9,7 +9,7 @@
 
 `posting.Postable` определяет ID, тип, posted version, проверки и переходы состояния. `RegisterVisitor.CollectMovements` извлекает движения только у поддерживаемого source-интерфейса. Базовый `MovementSet` содержит settlement slice и `Extensions`; crypto visitors хранят в Extensions типизированные slices.
 
-Действующие crypto sources: CryptoBalance, CryptoMerchantBalance, CryptoFee, CryptoPlatformCost, CryptoProviderBalance, CryptoReceiptSuspense. StockVisitor/StockMovementSource в текущем контенте отсутствуют. Новый регистр подключается через `AddVisitor` и `AddRecorder`. Регистры конфигурации собираются модулем `posting.Module` (криптоконфигурация: [`cryptoregisters`](../../internal/infrastructure/crypto/cryptoregisters/module.go)), который HTTP-сервер получает через `RouterConfig.PostingModules`, а воркер вызывает напрямую. PostgreSQL-репозитории криптовых регистров находятся в `storage/postgres/crypto_register_repo`.
+Действующие crypto sources: CryptoBalance, CryptoMerchantBalance, CryptoFee, CryptoPlatformCost, CryptoProviderBalance, CryptoReceiptSuspense. StockVisitor/StockMovementSource в текущем контенте отсутствуют. Новый регистр подключается через `AddVisitor` и `AddRecorder`. Регистры конфигурации собираются модулем `posting.Module` (криптоконфигурация: [`cryptoregisters`](../../internal/configuration/crypto/infrastructure/crypto/cryptoregisters/module.go)), который HTTP-сервер получает через `RouterConfig.PostingModules`, а воркер вызывает напрямую. PostgreSQL-репозитории криптовых регистров находятся в `storage/postgres/crypto_register_repo`.
 
 ## 2. Транзакционная граница
 
@@ -34,11 +34,11 @@ Legacy settlement register имеет отдельный `ReverseMovements` с �
 
 CryptoPayment не двигает custody: проведение распределяет его receipt (невыясненные −gross, мерчант +net, комиссия +fee по замороженному снимку тарифа). Следующее поколение сохраняет economics/fee и допускается только после полного сторно всех трёх регистров. Неполный unpost, relabel recorder и неверные reversal dimensions запрещены SQL.
 
-CryptoSweep: на broadcast не генерируют CryptoBalance movements. PostingEngine фиксирует snapshot ресурсных расходов; `posted` не означает final principal. Final settlement записывает по две exact principal lines на строку через [SweepCustodyRepo](../../internal/infrastructure/storage/postgres/crypto_repo/sweep_recognition.go), с одним shared registry owner, immutable binding, normalized fee/cost и outbox в общей транзакции. Source attempt/wallet завершаются только после этого. Generic reversal/repost и новые поколения запрещены SQL до explicit recovery workflow. При revert создаётся только фактический network fee, без principal и storno.
+CryptoSweep: на broadcast не генерируют CryptoBalance movements. PostingEngine фиксирует snapshot ресурсных расходов; `posted` не означает final principal. Final settlement записывает по две exact principal lines на строку через [SweepCustodyRepo](../../internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/sweep_recognition.go), с одним shared registry owner, immutable binding, normalized fee/cost и outbox в общей транзакции. Source attempt/wallet завершаются только после этого. Generic reversal/repost и новые поколения запрещены SQL до explicit recovery workflow. При revert создаётся только фактический network fee, без principal и storno.
 
-TreasuryWithdrawal: не генерирует physical principal и platform revenue expense на broadcast. PostingEngine сохраняет состояние; wallet/revenue reservations остаются active. Final settlement выполняет exact expense set через [TreasuryCustodyRepo](../../internal/infrastructure/storage/postgres/crypto_repo/treasury_recognition.go) вместе с registry, fee/cost, binding/outbox и consumption резервов. Revert освобождает principal/revenue и учитывает actual fee. Generic repost/unpost/новый generation закрыты SQL.
+TreasuryWithdrawal: не генерирует physical principal и platform revenue expense на broadcast. PostingEngine сохраняет состояние; wallet/revenue reservations остаются active. Final settlement выполняет exact expense set через [TreasuryCustodyRepo](../../internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/treasury_recognition.go) вместе с registry, fee/cost, binding/outbox и consumption резервов. Revert освобождает principal/revenue и учитывает actual fee. Generic repost/unpost/новый generation закрыты SQL.
 
-CryptoWithdrawal: на broadcast не создаёт physical principal или fee income, principal reserve остаётся active. WithdrawalRequest сохраняет единственный original debit-first расход. Final proof и [WithdrawalCustodyRepo](../../internal/infrastructure/storage/postgres/crypto_repo/withdrawal_recognition.go) обеспечивают principal/fee/reserve/outbox set и binding к merchant debit. Revert возвращает merchant amount без physical principal/storno; AML refund ограничен отказавшей строкой. Generic reversal/repost закрыт.
+CryptoWithdrawal: на broadcast не создаёт physical principal или fee income, principal reserve остаётся active. WithdrawalRequest сохраняет единственный original debit-first расход. Final proof и [WithdrawalCustodyRepo](../../internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/withdrawal_recognition.go) обеспечивают principal/fee/reserve/outbox set и binding к merchant debit. Revert возвращает merchant amount без physical principal/storno; AML refund ограничен отказавшей строкой. Generic reversal/repost закрыт.
 
 ## 4. Batch operations
 
@@ -78,16 +78,16 @@ Processing fee — выручка; `chain_resource_rent` и `chain_network_fee` 
 internal/domain/posting/engine.go   — Координатор транзакции проведения
 internal/domain/posting/visitor.go  — Сбор движений из документов
 internal/domain/posting/recorder.go — Запись движений в регистры
-internal/domain/registers/cryptoposting/ — Visitor/Recorder криптовых регистров (конфигурация, подключается при сборке движка)
+internal/configuration/crypto/domain/registers/cryptoposting/ — Visitor/Recorder криптовых регистров (конфигурация, подключается при сборке движка)
 internal/infrastructure/http/v1/handlers/document.go — SSE Batch processing
-internal/domain/registers/crypto_merchant_balance/service.go — CheckAndReserveMerchantBalance + StornoMovements
-internal/domain/registers/crypto_balance/service.go — CheckAndReserveCryptoBalance
-internal/domain/registers/crypto_platform_cost/service.go — Запись platform expense movements
-internal/domain/documents/crypto_network_operation/model.go — источники движений активации
+internal/configuration/crypto/domain/registers/crypto_merchant_balance/service.go — CheckAndReserveMerchantBalance + StornoMovements
+internal/configuration/crypto/domain/registers/crypto_balance/service.go — CheckAndReserveCryptoBalance
+internal/configuration/crypto/domain/registers/crypto_platform_cost/service.go — Запись platform expense movements
+internal/configuration/crypto/domain/documents/crypto_network_operation/model.go — источники движений активации
 internal/domain/strict_document.go — защита ручной коррекции
-internal/application/outboundapp/ — сценарии outbound, confirmation/replacement и ресурсов
-internal/infrastructure/storage/postgres/outbound_repo/ — резервы hot wallet, claims и атомарный settlement
-internal/infrastructure/crypto_worker/ — планирование и сборка зависимостей
+internal/configuration/crypto/application/outboundapp/ — сценарии outbound, confirmation/replacement и ресурсов
+internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo/ — резервы hot wallet, claims и атомарный settlement
+internal/configuration/crypto/infrastructure/crypto_worker/ — планирование и сборка зависимостей
 ```
 
 ## Связанные документы

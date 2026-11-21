@@ -27,9 +27,9 @@ import (
 
 	bip39 "github.com/fbsobreira/go-bip39"
 
+	domaincrypto "metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
-	domaincrypto "metapus/internal/domain/crypto"
 )
 
 const (

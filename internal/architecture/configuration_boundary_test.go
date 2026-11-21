@@ -16,64 +16,13 @@ import (
 )
 
 // configurationPackages lists the import paths (and their subpackages) that
-// belong to the crypto-processing configuration rather than to the reusable
-// platform. Everything else under internal/ and pkg/ is treated as platform,
-// including the shared applied catalogs (currency, organization, counterparty,
-// contract) and the exchange-rate subsystem.
+// belong to an industry configuration rather than to the reusable platform:
+// each configuration lives under its own root in internal/configuration/.
+// Everything else under internal/ and pkg/ is the platform, including the
+// contract package itself, the empty configuration (none) and
+// internal/platformcontent with the shared applied catalogs.
 var configurationPackages = []string{
-	"metapus/internal/content",
-
-	"metapus/internal/domain/catalogs/blockchain_network",
-	"metapus/internal/domain/catalogs/crypto_provider_account",
-	"metapus/internal/domain/catalogs/merchant",
-	"metapus/internal/domain/catalogs/token",
-	"metapus/internal/domain/catalogs/wallet",
-	"metapus/internal/domain/crypto",
-	"metapus/internal/domain/dashboard",
-	"metapus/internal/domain/documents/crypto_custody_receipt",
-	"metapus/internal/domain/documents/crypto_invoice",
-	"metapus/internal/domain/documents/crypto_merchant_credit",
-	"metapus/internal/domain/documents/crypto_network_operation",
-	"metapus/internal/domain/documents/crypto_payment",
-	"metapus/internal/domain/documents/crypto_platform_funding",
-	"metapus/internal/domain/documents/crypto_provider_balance_operation",
-	"metapus/internal/domain/documents/crypto_resource_rental",
-	"metapus/internal/domain/documents/crypto_sweep",
-	"metapus/internal/domain/documents/crypto_withdrawal",
-	"metapus/internal/domain/documents/outbound_settlement",
-	"metapus/internal/domain/documents/treasury_withdrawal",
-	"metapus/internal/domain/documents/withdrawal_request",
-	"metapus/internal/domain/registers/crypto_balance",
-	"metapus/internal/domain/registers/crypto_fee",
-	"metapus/internal/domain/registers/crypto_merchant_balance",
-	"metapus/internal/domain/registers/crypto_platform_cost",
-	"metapus/internal/domain/registers/crypto_provider_balance",
-	"metapus/internal/domain/registers/crypto_receipt_suspense",
-	"metapus/internal/domain/registers/cryptoposting",
-	"metapus/internal/domain/tariff",
-
-	"metapus/internal/application/checkout",
-	"metapus/internal/application/cryptoapp",
-	"metapus/internal/application/dashboardapp",
-	"metapus/internal/application/outboundapp",
-	"metapus/internal/application/portalapp",
-
-	"metapus/internal/infrastructure/aml",
-	"metapus/internal/infrastructure/blockchain",
-	"metapus/internal/infrastructure/crypto",
-	"metapus/internal/infrastructure/crypto_worker",
-	"metapus/internal/infrastructure/http/cryptohttp",
-	"metapus/internal/infrastructure/ingestionmonitor",
-	"metapus/internal/infrastructure/vaultclient",
-	"metapus/internal/infrastructure/storage/postgres/crypto_catalog_repo",
-	"metapus/internal/infrastructure/storage/postgres/crypto_document_repo",
-	"metapus/internal/infrastructure/storage/postgres/crypto_integration_repo",
-	"metapus/internal/infrastructure/storage/postgres/crypto_register_repo",
-	"metapus/internal/infrastructure/storage/postgres/crypto_repo",
-	"metapus/internal/infrastructure/storage/postgres/dashboard_repo",
-	"metapus/internal/infrastructure/storage/postgres/money_movement_repo",
-	"metapus/internal/infrastructure/storage/postgres/outbound_repo",
-	"metapus/internal/infrastructure/storage/postgres/portal_repo",
+	"metapus/internal/configuration/crypto",
 }
 
 // knownConfigurationLeaks lists tolerated platform → configuration imports.

@@ -1,7 +1,7 @@
 # Добавление провайдера внешней аренды ресурсов
 
 > **TL;DR:** Новый вендор Energy/Bandwidth (TronSave, TronZap, …) — это адаптер
-> в `internal/infrastructure/crypto/resources/<code>/` с файлами `client.go`,
+> в `internal/configuration/crypto/infrastructure/crypto/resources/<code>/` с файлами `client.go`,
 > `adapter.go`, `adapter_test.go`. Оркестрация аренды в `crypto_worker` не
 > импортирует пакет вендора. Failover действует только на **новый** заказ.
 
@@ -28,7 +28,7 @@ In-flight заказ (`ordering` / `held` / `reclaiming`) закрывает т�
 ## Шаблон пакета
 
 ```text
-internal/infrastructure/crypto/resources/tronsave/
+internal/configuration/crypto/infrastructure/crypto/resources/tronsave/
 ├── client.go         — HTTP, подпись, errno вендора
 ├── adapter.go        — crypto.ExternalResourceProvider
 └── adapter_test.go   — HMAC/JSON, sentinel errors, идемпотентный Place
@@ -62,5 +62,5 @@ Base URL и callback URL входят в credentials аккаунта.
 ## Проверки
 
 ```bash
-go test ./internal/domain/crypto/ ./internal/infrastructure/crypto/resources/... ./internal/infrastructure/crypto_worker/ -count=1
+go test ./internal/configuration/crypto/domain/crypto/ ./internal/configuration/crypto/infrastructure/crypto/resources/... ./internal/configuration/crypto/infrastructure/crypto_worker/ -count=1
 ```

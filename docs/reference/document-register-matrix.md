@@ -158,27 +158,27 @@
 
 | Что проверено | Источник |
 |---|---|
-| Регистрация 12 типов и расширения | [Контент](../../internal/content/register.go), [расширения](../../extensions/register.go) |
-| Названия и доступность операций | [Регистрации](../../internal/content/document_registrations.go), [документы поступлений](../../internal/content/crypto_receipt_documents.go), [меню](../../frontend/configuration/crypto/lib/navigation.ts) |
+| Регистрация 12 типов и расширения | [Контент](../../internal/configuration/crypto/content/register.go), [расширения](../../extensions/register.go) |
+| Названия и доступность операций | [Регистрации](../../internal/configuration/crypto/content/document_registrations.go), [документы поступлений](../../internal/configuration/crypto/content/crypto_receipt_documents.go), [меню](../../frontend/configuration/crypto/lib/navigation.ts) |
 | Все `doc_*`, включая специальные типы | [Crypto core](../../db/configuration/crypto/00006_crypto_core.sql), [outbound](../../db/configuration/crypto/00007_crypto_outbound.sql), [custody](../../db/configuration/crypto/00009_crypto_custody.sql) |
-| Инвойс и платёжная ссылка | [Инвойс](../../internal/domain/documents/crypto_invoice/model.go), [использование ссылки](../../internal/application/cryptoapp/checkout_page_service.go) |
-| Физическое поступление и журналы | [Модель](../../internal/domain/documents/crypto_custody_receipt/model.go), [журналы](../../internal/application/cryptoapp/receipt_journal.go) |
-| Автоматическое распределение | [CryptoPayment](../../internal/domain/documents/crypto_payment/model.go) |
-| Ручное зачисление | [Модель](../../internal/domain/documents/crypto_merchant_credit/model.go), [сценарий](../../internal/application/cryptoapp/merchant_credit_service.go) |
-| Пополнение платформы | [Модель](../../internal/domain/documents/crypto_platform_funding/model.go), [сценарий](../../internal/application/cryptoapp/platform_funding_service.go) |
-| Прямое внешнее пополнение | [Запись](../../internal/infrastructure/blockchain/funding/record.go), [команда](../../cmd/crypto-record-wallet-funding/main.go) |
-| Ожидание 30 минут | [Worker](../../internal/infrastructure/crypto_worker/receipt_intake.go), [условие отбора](../../internal/infrastructure/storage/postgres/crypto_repo/chain_event_inbox.go) |
-| Заявка и исполнение вывода | [Заявка](../../internal/domain/documents/withdrawal_request/model.go), [признание/возврат](../../internal/infrastructure/storage/postgres/crypto_repo/withdrawal_recognition.go) |
-| Казначейский вывод | [Движения](../../internal/infrastructure/storage/postgres/crypto_repo/treasury_recognition.go), [доступность выручки](../../internal/infrastructure/storage/postgres/crypto_repo/treasury_workflow_repo.go) |
-| Свип | [Перемещение](../../internal/infrastructure/storage/postgres/crypto_repo/sweep_recognition.go), [модель](../../internal/domain/documents/crypto_sweep/model.go), [исполнитель](../../internal/application/outboundapp/sweep.go) |
-| Аренда и возврат | [Модель](../../internal/domain/documents/crypto_resource_rental/model.go), [признание/возврат](../../internal/infrastructure/storage/postgres/outbound_repo/resource_rental_manager.go) |
-| Активация и комиссия сети | [CryptoNetworkOperation](../../internal/domain/documents/crypto_network_operation/model.go), [ChainSettlement](../../internal/infrastructure/storage/postgres/outbound_repo/fee_budget_manager.go) |
-| Разрешённые операции провайдера | [Валидация и движения](../../internal/domain/documents/crypto_provider_balance_operation/model.go) |
-| Два режима криптокорректировки | [Решение](../../internal/domain/crypto/financial_adjustment.go), [запись движений](../../internal/infrastructure/storage/postgres/crypto_repo/financial_adjustment.go) |
-| Признание потери | [Модель](../../internal/domain/crypto/external_outflow.go), [согласование](../../internal/application/cryptoapp/external_outflow_service.go) |
-| Внутреннее пополнение для газа | [Исполнение](../../internal/application/cryptoapp/native_funding_settlement_service.go), [движения](../../internal/infrastructure/storage/postgres/crypto_repo/native_funding_settlement.go) |
-| Служебный капитал мерчанта | [AMLOperatingReceipt](../../internal/infrastructure/storage/postgres/crypto_repo/aml_resources.go) |
-| Компенсации reorg/orphan | [CryptoPaymentReorg](../../internal/infrastructure/storage/postgres/crypto_repo/financial_reorg.go), [компенсации ручных решений](../../internal/infrastructure/storage/postgres/crypto_repo/receipt_audit.go) |
+| Инвойс и платёжная ссылка | [Инвойс](../../internal/configuration/crypto/domain/documents/crypto_invoice/model.go), [использование ссылки](../../internal/configuration/crypto/application/cryptoapp/checkout_page_service.go) |
+| Физическое поступление и журналы | [Модель](../../internal/configuration/crypto/domain/documents/crypto_custody_receipt/model.go), [журналы](../../internal/configuration/crypto/application/cryptoapp/receipt_journal.go) |
+| Автоматическое распределение | [CryptoPayment](../../internal/configuration/crypto/domain/documents/crypto_payment/model.go) |
+| Ручное зачисление | [Модель](../../internal/configuration/crypto/domain/documents/crypto_merchant_credit/model.go), [сценарий](../../internal/configuration/crypto/application/cryptoapp/merchant_credit_service.go) |
+| Пополнение платформы | [Модель](../../internal/configuration/crypto/domain/documents/crypto_platform_funding/model.go), [сценарий](../../internal/configuration/crypto/application/cryptoapp/platform_funding_service.go) |
+| Прямое внешнее пополнение | [Запись](../../internal/configuration/crypto/infrastructure/blockchain/funding/record.go), [команда](../../cmd/crypto-record-wallet-funding/main.go) |
+| Ожидание 30 минут | [Worker](../../internal/configuration/crypto/infrastructure/crypto_worker/receipt_intake.go), [условие отбора](../../internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/chain_event_inbox.go) |
+| Заявка и исполнение вывода | [Заявка](../../internal/configuration/crypto/domain/documents/withdrawal_request/model.go), [признание/возврат](../../internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/withdrawal_recognition.go) |
+| Казначейский вывод | [Движения](../../internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/treasury_recognition.go), [доступность выручки](../../internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/treasury_workflow_repo.go) |
+| Свип | [Перемещение](../../internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/sweep_recognition.go), [модель](../../internal/configuration/crypto/domain/documents/crypto_sweep/model.go), [исполнитель](../../internal/configuration/crypto/application/outboundapp/sweep.go) |
+| Аренда и возврат | [Модель](../../internal/configuration/crypto/domain/documents/crypto_resource_rental/model.go), [признание/возврат](../../internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo/resource_rental_manager.go) |
+| Активация и комиссия сети | [CryptoNetworkOperation](../../internal/configuration/crypto/domain/documents/crypto_network_operation/model.go), [ChainSettlement](../../internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo/fee_budget_manager.go) |
+| Разрешённые операции провайдера | [Валидация и движения](../../internal/configuration/crypto/domain/documents/crypto_provider_balance_operation/model.go) |
+| Два режима криптокорректировки | [Решение](../../internal/configuration/crypto/domain/crypto/financial_adjustment.go), [запись движений](../../internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/financial_adjustment.go) |
+| Признание потери | [Модель](../../internal/configuration/crypto/domain/crypto/external_outflow.go), [согласование](../../internal/configuration/crypto/application/cryptoapp/external_outflow_service.go) |
+| Внутреннее пополнение для газа | [Исполнение](../../internal/configuration/crypto/application/cryptoapp/native_funding_settlement_service.go), [движения](../../internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/native_funding_settlement.go) |
+| Служебный капитал мерчанта | [AMLOperatingReceipt](../../internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/aml_resources.go) |
+| Компенсации reorg/orphan | [CryptoPaymentReorg](../../internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/financial_reorg.go), [компенсации ручных решений](../../internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/receipt_audit.go) |
 | Общие взаиморасчёты и подключение регистров | [Source-интерфейс](../../internal/domain/posting/visitor.go), [подключение](../../internal/infrastructure/http/v1/routes_documents.go) |
 
 Справочник составлен по исходникам. Документы, настройки и остатки конкретного tenant в БД не проверялись.

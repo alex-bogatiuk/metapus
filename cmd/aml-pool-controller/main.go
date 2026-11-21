@@ -12,14 +12,14 @@ import (
 	"syscall"
 	"time"
 
-	"metapus/internal/application/cryptoapp"
+	"metapus/internal/configuration/crypto/application/cryptoapp"
+	"metapus/internal/configuration/crypto/infrastructure/crypto/merchant_provisioning"
+	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/version"
-	"metapus/internal/infrastructure/crypto/merchant_provisioning"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/infrastructure/vaultclient"
 	"metapus/internal/platform/secretfile"
 )
 

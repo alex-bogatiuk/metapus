@@ -10,11 +10,11 @@
 | Контур | Реализация |
 |---|---|
 | HTTP и composition | `cmd/server`, `internal/infrastructure/http/v1` |
-| Сценарии | `internal/application/cryptoapp`, `outboundapp`, `checkout`, `portalapp` |
-| Бизнес-модель | `internal/domain/crypto`, `catalogs`, `documents`, `registers` |
-| Worker lifecycle | `cmd/worker`, `internal/infrastructure/crypto_worker` |
-| Chain drivers | `internal/infrastructure/blockchain/tron`, `evm`, `bootstrap` |
-| Хранение | `internal/infrastructure/storage/postgres/crypto_repo`, `outbound_repo`, `money_movement_repo` |
+| Сценарии | `internal/configuration/crypto/application/cryptoapp`, `outboundapp`, `checkout`, `portalapp` |
+| Бизнес-модель | `internal/configuration/crypto/domain/crypto`, `catalogs`, `documents`, `registers` |
+| Worker lifecycle | `cmd/worker`, `internal/configuration/crypto/infrastructure/crypto_worker` |
+| Chain drivers | `internal/configuration/crypto/infrastructure/blockchain/tron`, `evm`, `bootstrap` |
+| Хранение | `internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo`, `outbound_repo`, `money_movement_repo` |
 | Custody и control signing | `vault-sign-plugins/tron`, `vault-sign-plugins/evm`, Vault Transit |
 
 Domain не импортирует SQL/HTTP adapters. Worker выполняет orchestration и сетевые операции, durable SQL вынесен в repositories и application ports. Tenant DB и TxManager передаются через context. Ожидаемую версию схемы задаёт [ExpectedSchemaVersion](../../internal/core/version/version.go).

@@ -145,7 +145,7 @@ Latest перечитывает окно 128 блоков после реста�
 
 Канонический декодер одинаково для всех провайдеров исключает только проверенные операции
 ресурсов/голосования из платёжной проекции. Список и допустимая форма полей
-зафиксированы в [protocol audit](../../internal/infrastructure/blockchain/tron/testdata/receipt_profiles/protocol-audit.md).
+зафиксированы в [protocol audit](../../internal/configuration/crypto/infrastructure/blockchain/tron/testdata/receipt_profiles/protocol-audit.md).
 Финансовый `withdrawExpireUnfreezeWhileSuiciding` остаётся обязательным.
 Неизвестный note, некорректная форма, отсутствие обычного transfer или
 расхождение обязательных данных останавливают проверку; третий источник

@@ -30,7 +30,7 @@
 
 ## 3. Как создать новый отчёт
 
-1. Объявить `schema.Dataset` и источники/поля по аналогу `internal/content/report_datasets.go`; при необходимости добавить `DatasetExecutor`.
+1. Объявить `schema.Dataset` и источники/поля по аналогу `internal/configuration/crypto/content/report_datasets.go`; при необходимости добавить `DatasetExecutor`.
 2. Подключить dataset и его permission к реестру: `registerReportRoutes` в `internal/infrastructure/http/v1/routes_documents.go` строит compiler и монтирует generic handlers.
 3. Проверить authorized read declarations, денежные единицы и разрешённые связи/фильтры.
 4. Generic frontend расположен по `/reports/{key}`; проверьте metadata/navigation и HTTP route contracts. Метод `FactoryRegistry.RegisterReport` в текущем API отсутствует.

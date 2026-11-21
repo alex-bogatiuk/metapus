@@ -17,7 +17,7 @@
 | Регистрация | `counterpartyRegistration()` в `internal/platformcontent/catalogs.go`: `v1.Catalog` на собственном сервисе, DTO и контракты выводятся из модели |
 | Таблица | `db/migrations/00003_catalogs.sql` |
 
-Domain-модель находится в `internal/domain/catalogs/<name>/`, регистрации — в `internal/content/`. Клиентское расширение размещается в `extensions/<name>/` внутри Go-модуля Metapus. Доступны базовые типы `internal/core/entity` и совместимые aliases в `internal/platform`; `pkg/extension` пока содержит только версию API.
+Domain-модель находится в `internal/domain/catalogs/<name>/`, регистрации — в `internal/configuration/crypto/content/`. Клиентское расширение размещается в `extensions/<name>/` внутри Go-модуля Metapus. Доступны базовые типы `internal/core/entity` и совместимые aliases в `internal/platform`; `pkg/extension` пока содержит только версию API.
 
 Для расширения можно сгенерировать стартовые файлы из корня проекта:
 
@@ -56,9 +56,9 @@ go run ./cmd/scaffold --name vehicle --type catalog --table cat_vehicles
 
 Модель реализует `EntityDefinition() entity.Definition`. Регистрация — `v1.Catalog[Model](presentation)`; собственный сервис со своим репозиторием подключает `.Service(func(deps v1.CatalogDeps) *domain.CatalogService[*Model] { ... })`, псевдонимы ссылок — `.References(...)`, поисковые колонки — `.Search(...)`, имя ответа при конфликте — `.ResponseName(...)`. Явная регистрация `v1.CatalogRegistrationFor[Model, CreateDTO, UpdateDTO, ResponseDTO]` с `Build` остаётся для справочников вне правила. Оба пути общие для встроенных справочников и расширений.
 
-Встроенную фабрику подключите в `internal/content/register.go` через `RegisterCatalog`. Расширение подключается в composition root. Права стандартных действий создаются из регистрации при `cmd/tenant migrate` и выдаются роли admin ([RBAC](../systems/auth-security.md#2-rbac-role-based-access-control)); назначения другим ролям и права рукописных маршрутов добавьте в seed. Регистрация metadata не выдаёт пользователю право доступа.
+Встроенную фабрику подключите в `internal/configuration/crypto/content/register.go` через `RegisterCatalog`. Расширение подключается в composition root. Права стандартных действий создаются из регистрации при `cmd/tenant migrate` и выдаются роли admin ([RBAC](../systems/auth-security.md#2-rbac-role-based-access-control)); назначения другим ролям и права рукописных маршрутов добавьте в seed. Регистрация metadata не выдаёт пользователю право доступа.
 
-Стандартные DTO и маршруты собираются из factory registry через `HTTPContracts()` самой регистрации. Отдельного списка справочников или документов в HTTP codegen нет. Для custom подресурсов дополните bundle в регистрации сущности. Сущности конфигурации подключаются в её `Register` (у крипто — `register` в `internal/content/register.go`), расширения — в `extensions.Register`; сервер и codegen собирают их вместе с общими сущностями платформы через `configuration.Compose`. `apiFetch` отклоняет незарегистрированные URL. Выполните:
+Стандартные DTO и маршруты собираются из factory registry через `HTTPContracts()` самой регистрации. Отдельного списка справочников или документов в HTTP codegen нет. Для custom подресурсов дополните bundle в регистрации сущности. Сущности конфигурации подключаются в её `Register` (у крипто — `register` в `internal/configuration/crypto/content/register.go`), расширения — в `extensions.Register`; сервер и codegen собирают их вместе с общими сущностями платформы через `configuration.Compose`. `apiFetch` отклоняет незарегистрированные URL. Выполните:
 
 ```bash
 go run ./cmd/http-contracts

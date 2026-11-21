@@ -91,7 +91,7 @@ internal/infrastructure/storage/postgres/ref_finder_repo.go — ссылки и�
 internal/infrastructure/http/v1/handlers/ref_deleter.go — List / Plan / Delete
 frontend/app/(main)/admin/marked-objects/page.tsx — страница обработки
 frontend/lib/marked-objects.ts — формулировки статусов и действий
-internal/content/marked_deletion_integration_test.go — сценарии на реальной схеме
+internal/configuration/crypto/content/marked_deletion_integration_test.go — сценарии на реальной схеме
 ```
 
 ## Связанные документы

@@ -25,7 +25,7 @@ var knownConfigurationTableLeaks = map[string][]string{}
 
 // knownConfigurationTestLeaks lists platform packages whose tests import
 // configuration packages. It is empty: a test of the assembled application
-// (all contracts, the configuration's datasets) lives in internal/content, and
+// (all contracts, the configuration's datasets) lives in internal/configuration/crypto/content, and
 // a test of configuration behaviour in the configuration's own package.
 var knownConfigurationTestLeaks = map[string][]string{}
 

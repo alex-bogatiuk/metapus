@@ -22,4 +22,4 @@
 
 Прямое проведение разрешено системному администратору или пользователю с `crypto_adjustment:post_direct` и свежим step-up. Остальные отправляют документ в `pending_approval`, где другой уполномоченный пользователь проводит или отклоняет его. После проведения документ неизменяем. Прямой маршрут сохраняет те же проверки сумм, аудит и защиту от повторного сторно.
 
-[Команды](../../internal/application/cryptoapp/financial_adjustment_service.go) · [Хранилище](../../internal/infrastructure/storage/postgres/crypto_repo/financial_adjustment.go) · [Матрица движений](../reference/document-register-matrix.md)
+[Команды](../../internal/configuration/crypto/application/cryptoapp/financial_adjustment_service.go) · [Хранилище](../../internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/financial_adjustment.go) · [Матрица движений](../reference/document-register-matrix.md)

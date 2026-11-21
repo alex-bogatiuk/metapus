@@ -8,13 +8,13 @@ import (
 	"os"
 	"time"
 
+	"metapus/internal/configuration/crypto/domain/crypto/aml"
+	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/core/tenant"
 	"metapus/internal/core/version"
-	"metapus/internal/domain/crypto/aml"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/platform/secretfile"
 )
 

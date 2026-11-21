@@ -12,10 +12,10 @@
 | Сценарий | Аналог |
 |---|---|
 | Документ конфигурации, с табличными частями или без | `go run ./cmd/scaffold --type document [--parts ...]` и декларативная регистрация `v1.Document` ([Extension API](../systems/extension-api.md#2-регистрация-новых-сущностей)) |
-| Документ без табличных частей с явной регистрацией | `internal/domain/documents/crypto_invoice/` и `crypto_document_repo/crypto_invoice.go` (база — `document_repo/base.go`) |
-| Системный внешний факт только для чтения | `internal/domain/documents/crypto_network_operation/` и `handlers.NewReadOnlyDocumentHandler` |
+| Документ без табличных частей с явной регистрацией | `internal/configuration/crypto/domain/documents/crypto_invoice/` и `crypto_document_repo/crypto_invoice.go` (база — `document_repo/base.go`) |
+| Системный внешний факт только для чтения | `internal/configuration/crypto/domain/documents/crypto_network_operation/` и `handlers.NewReadOnlyDocumentHandler` |
 | Денежный workflow без generic CRUD/post/unpost | `WithdrawalRequestRegistration` и `CustomDocumentRegistration` |
-| Регистрация маршрутов и metadata | `internal/content/document_registrations.go` |
+| Регистрация маршрутов и metadata | `internal/configuration/crypto/content/document_registrations.go` |
 
 Изучите целиком model, service, repository, handler и регистрацию выбранного аналога: разные документы имеют разные запреты на создание, проведение и отмену.
 
@@ -41,7 +41,7 @@ ID выделяется в Go до INSERT и проведения. `Validate(ctx
 
 ## 3. Движения и проведение
 
-Реализуйте `posting.Postable` и source-интерфейсы нужных регистров. Смотрите `SettlementMovementSource` в `internal/domain/posting/visitor.go` и криптовые интерфейсы вроде `CryptoBalanceMovementSource` в `internal/domain/registers/cryptoposting/`. Они задают точные имена методов и типы срезов; общего обязательного метода `GenerateMovements()` нет.
+Реализуйте `posting.Postable` и source-интерфейсы нужных регистров. Смотрите `SettlementMovementSource` в `internal/domain/posting/visitor.go` и криптовые интерфейсы вроде `CryptoBalanceMovementSource` в `internal/configuration/crypto/domain/registers/cryptoposting/`. Они задают точные имена методов и типы срезов; общего обязательного метода `GenerateMovements()` нет.
 
 Генерация движений детерминирована и не вызывает внешние сервисы. Visitor собирает движения, recorder проверяет остатки и записывает их в общей транзакции. Для нового регистра подключите visitor и recorder в composition root; существующий engine расширяется через `AddVisitor`/`AddRecorder`.
 
@@ -67,7 +67,7 @@ ID выделяется в Go до INSERT и проведения. `Validate(ctx
 
 `RegisterDocumentRoutes` публикует только разрешённые capabilities и поддержанные handler-интерфейсы. Явно закройте неподдерживаемые Create/Delete/Copy/Post/Unpost. Для отдельного workflow используйте `CustomDocumentRegistration`.
 
-Подключите фабрику через `internal/content/register.go`. Права `document:<key>:*` для открытых capabilities и объявленных действий создаёт `cmd/tenant migrate` и выдаёт роли admin; назначения другим ролям — через seed. Опишите Create/Update/Response DTO, mapper, version и read projection. Стандартные HTTP method/path выводятся из Definition и capabilities. Custom workflow-команды добавляются в bundle той же регистрации. Codegen собирает bundles из общего factory registry; отдельного списка документов в `internal/infrastructure/http/contracts` нет. Обновите generated artifacts:
+Подключите фабрику через `internal/configuration/crypto/content/register.go`. Права `document:<key>:*` для открытых capabilities и объявленных действий создаёт `cmd/tenant migrate` и выдаёт роли admin; назначения другим ролям — через seed. Опишите Create/Update/Response DTO, mapper, version и read projection. Стандартные HTTP method/path выводятся из Definition и capabilities. Custom workflow-команды добавляются в bundle той же регистрации. Codegen собирает bundles из общего factory registry; отдельного списка документов в `internal/infrastructure/http/contracts` нет. Обновите generated artifacts:
 
 ```bash
 go run ./cmd/http-contracts

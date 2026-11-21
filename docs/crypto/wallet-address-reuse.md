@@ -59,13 +59,13 @@ Persistent `assigned` адреса не получают transient lease history
 Unit-тесты покрывают границы окна, token mismatch, overlap и lag. PostgreSQL integration tests проверяют allocation/inbox, lease predicate, retry, lifecycle и восстановление; внешний Nile/Sepolia acceptance проводится отдельно.
 
 ```path
-internal/domain/crypto/wallet_allocation.go
-internal/domain/crypto/wallet_allocation_test.go
-internal/domain/crypto/watcher_lag.go
-internal/domain/crypto/watcher_lag_test.go
-internal/domain/crypto/event_processor.go
-internal/infrastructure/storage/postgres/crypto_repo/wallet_allocation.go
-internal/infrastructure/storage/postgres/crypto_repo/chain_event_inbox.go
-internal/infrastructure/storage/postgres/crypto_catalog_repo/wallet.go
-internal/infrastructure/crypto_worker/lease_block.go
+internal/configuration/crypto/domain/crypto/wallet_allocation.go
+internal/configuration/crypto/domain/crypto/wallet_allocation_test.go
+internal/configuration/crypto/domain/crypto/watcher_lag.go
+internal/configuration/crypto/domain/crypto/watcher_lag_test.go
+internal/configuration/crypto/domain/crypto/event_processor.go
+internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/wallet_allocation.go
+internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/chain_event_inbox.go
+internal/configuration/crypto/infrastructure/storage/postgres/crypto_catalog_repo/wallet.go
+internal/configuration/crypto/infrastructure/crypto_worker/lease_block.go
 ```

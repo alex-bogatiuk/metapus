@@ -241,7 +241,7 @@ Metapus
 
 ### Блокчейн-сети — `blockchain_network`
 
-Модель: `BlockchainNetwork`. Таблица: `cat_blockchain_networks`. Источник: [model.go](../internal/domain/catalogs/blockchain_network/model.go).
+Модель: `BlockchainNetwork`. Таблица: `cat_blockchain_networks`. Источник: [model.go](../internal/configuration/crypto/domain/catalogs/blockchain_network/model.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -258,7 +258,7 @@ Metapus
 
 ### Токены — `token`
 
-Модель: `Token`. Таблица: `cat_tokens`. Источник: [model.go](../internal/domain/catalogs/token/model.go).
+Модель: `Token`. Таблица: `cat_tokens`. Источник: [model.go](../internal/configuration/crypto/domain/catalogs/token/model.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -275,7 +275,7 @@ Metapus
 
 ### Мерчанты — `merchant`
 
-Модель: `Merchant`. Таблица: `cat_merchants`. Источник: [model.go](../internal/domain/catalogs/merchant/model.go).
+Модель: `Merchant`. Таблица: `cat_merchants`. Источник: [model.go](../internal/configuration/crypto/domain/catalogs/merchant/model.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -286,7 +286,7 @@ Metapus
 
 ### Кошельки — `wallet`
 
-Модель: `Wallet`. Таблица: `cat_wallets`. Источник: [model.go](../internal/domain/catalogs/wallet/model.go).
+Модель: `Wallet`. Таблица: `cat_wallets`. Источник: [model.go](../internal/configuration/crypto/domain/catalogs/wallet/model.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -316,7 +316,7 @@ Metapus
 
 ### Аккаунты провайдеров ресурсов — `crypto_provider_account`
 
-Модель: `CryptoProviderAccount`. Таблица: `cat_crypto_provider_accounts`. Источник: [model.go](../internal/domain/catalogs/crypto_provider_account/model.go).
+Модель: `CryptoProviderAccount`. Таблица: `cat_crypto_provider_accounts`. Источник: [model.go](../internal/configuration/crypto/domain/catalogs/crypto_provider_account/model.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -380,7 +380,7 @@ Metapus
 
 ### Подключения RPC — `crypto_rpc_endpoint`
 
-Модель: `RPCEndpoint`. Таблица: `sys_crypto_rpc_endpoints`. Источник: [endpoint.go](../internal/domain/crypto/rpcconfig/endpoint.go).
+Модель: `RPCEndpoint`. Таблица: `sys_crypto_rpc_endpoints`. Источник: [endpoint.go](../internal/configuration/crypto/domain/crypto/rpcconfig/endpoint.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -402,7 +402,7 @@ Metapus
 
 ### API-ключи мерчантов
 
-Таблица: `cat_merchant_api_keys`. Источник: [api_key.go](../internal/domain/catalogs/merchant/api_key.go).
+Таблица: `cat_merchant_api_keys`. Источник: [api_key.go](../internal/configuration/crypto/domain/catalogs/merchant/api_key.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -421,7 +421,7 @@ Metapus
 
 ### Webhook-подписки мерчантов
 
-Таблица: `cat_merchant_webhook_endpoints`. Источник: [merchant_webhook_endpoint.go](../internal/domain/crypto/merchant_webhook_endpoint.go).
+Таблица: `cat_merchant_webhook_endpoints`. Источник: [merchant_webhook_endpoint.go](../internal/configuration/crypto/domain/crypto/merchant_webhook_endpoint.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -445,7 +445,7 @@ Metapus
 
 ### Крипто-инвойс — `crypto_invoice`
 
-Модель: `CryptoInvoice`. Таблица: `doc_crypto_invoices`. Источник: [model.go](../internal/domain/documents/crypto_invoice/model.go).
+Модель: `CryptoInvoice`. Таблица: `doc_crypto_invoices`. Источник: [model.go](../internal/configuration/crypto/domain/documents/crypto_invoice/model.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -484,7 +484,7 @@ Metapus
 
 ### Крипто-платёж — `crypto_payment`
 
-Модель: `CryptoPayment`. Таблица: `doc_crypto_payments`. Источник: [model.go](../internal/domain/documents/crypto_payment/model.go).
+Модель: `CryptoPayment`. Таблица: `doc_crypto_payments`. Источник: [model.go](../internal/configuration/crypto/domain/documents/crypto_payment/model.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -528,7 +528,7 @@ Metapus
 
 ### Заявка на вывод — `withdrawal_request`
 
-Модель: `WithdrawalRequest`. Таблица: `doc_withdrawal_requests`. Источник: [model.go](../internal/domain/documents/withdrawal_request/model.go).
+Модель: `WithdrawalRequest`. Таблица: `doc_withdrawal_requests`. Источник: [model.go](../internal/configuration/crypto/domain/documents/withdrawal_request/model.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -547,7 +547,7 @@ Metapus
 
 ### Крипто-вывод — `crypto_withdrawal`
 
-Модель: `CryptoWithdrawal`. Таблица: `doc_crypto_withdrawals`. Источник: [model.go](../internal/domain/documents/crypto_withdrawal/model.go).
+Модель: `CryptoWithdrawal`. Таблица: `doc_crypto_withdrawals`. Источник: [model.go](../internal/configuration/crypto/domain/documents/crypto_withdrawal/model.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -574,7 +574,7 @@ Metapus
 
 ### Крипто-свип — `crypto_sweep`
 
-Модель: `CryptoSweep`. Таблица: `doc_crypto_sweeps`. Источник: [model.go](../internal/domain/documents/crypto_sweep/model.go).
+Модель: `CryptoSweep`. Таблица: `doc_crypto_sweeps`. Источник: [model.go](../internal/configuration/crypto/domain/documents/crypto_sweep/model.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -627,7 +627,7 @@ SQL-часть с ключом `lines` объявлена в `crypto_sweep.Defin
 
 ### Казначейский вывод — `treasury_withdrawal`
 
-Модель: `TreasuryWithdrawal`. Таблица: `doc_treasury_withdrawals`. Источник: [model.go](../internal/domain/documents/treasury_withdrawal/model.go).
+Модель: `TreasuryWithdrawal`. Таблица: `doc_treasury_withdrawals`. Источник: [model.go](../internal/configuration/crypto/domain/documents/treasury_withdrawal/model.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -671,7 +671,7 @@ Broadcast не создаёт physical principal или expense platform revenue
 
 ### Сетевая криптооперация — `crypto_network_operation`
 
-Модель: `CryptoNetworkOperation`. Таблица: `doc_crypto_network_operations`. Источник: [model.go](../internal/domain/documents/crypto_network_operation/model.go).
+Модель: `CryptoNetworkOperation`. Таблица: `doc_crypto_network_operations`. Источник: [model.go](../internal/configuration/crypto/domain/documents/crypto_network_operation/model.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -689,7 +689,7 @@ Broadcast не создаёт physical principal или expense platform revenue
 
 ### Аренда TRON-ресурсов — `crypto_resource_rental`
 
-Модель: `CryptoResourceRental`. Таблица: `doc_crypto_resource_rentals`. Источник: [model.go](../internal/domain/documents/crypto_resource_rental/model.go).
+Модель: `CryptoResourceRental`. Таблица: `doc_crypto_resource_rentals`. Источник: [model.go](../internal/configuration/crypto/domain/documents/crypto_resource_rental/model.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -729,7 +729,7 @@ Broadcast не создаёт physical principal или expense platform revenue
 
 ### Операция баланса провайдера — `crypto_provider_balance_operation`
 
-Модель: `CryptoProviderBalanceOperation`. Таблица: `doc_crypto_provider_balance_operations`. Источник: [model.go](../internal/domain/documents/crypto_provider_balance_operation/model.go).
+Модель: `CryptoProviderBalanceOperation`. Таблица: `doc_crypto_provider_balance_operations`. Источник: [model.go](../internal/configuration/crypto/domain/documents/crypto_provider_balance_operation/model.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -759,7 +759,7 @@ Broadcast не создаёт physical principal или expense platform revenue
 
 ### Физическое криптопоступление — `crypto_custody_receipt`
 
-Модель: `CryptoCustodyReceipt`, включает `entity.Document`. Таблица: `doc_crypto_custody_receipts`. Источники: [модель](../internal/domain/documents/crypto_custody_receipt/model.go), [intake service](../internal/application/cryptoapp/receipt_intake_service.go), [миграция 00009](../db/configuration/crypto/00009_crypto_custody.sql).
+Модель: `CryptoCustodyReceipt`, включает `entity.Document`. Таблица: `doc_crypto_custody_receipts`. Источники: [модель](../internal/configuration/crypto/domain/documents/crypto_custody_receipt/model.go), [intake service](../internal/configuration/crypto/application/cryptoapp/receipt_intake_service.go), [миграция 00009](../db/configuration/crypto/00009_crypto_custody.sql).
 
 | Реквизит | Поле модели / JSON | Тип / назначение |
 |---|---|---|
@@ -776,7 +776,7 @@ Broadcast не создаёт physical principal или expense platform revenue
 
 ### Учётная криптокорректировка — `crypto_adjustment`
 
-Модель: `FinancialAdjustment`. Таблица: `doc_crypto_adjustments`. Источники: [domain-модель](../internal/domain/crypto/financial_adjustment.go), [application service](../internal/application/cryptoapp/financial_adjustment_service.go).
+Модель: `FinancialAdjustment`. Таблица: `doc_crypto_adjustments`. Источники: [domain-модель](../internal/configuration/crypto/domain/crypto/financial_adjustment.go), [application service](../internal/configuration/crypto/application/cryptoapp/financial_adjustment_service.go).
 
 Документ хранит immutable `basis_kind` (`payment_attribution` для режима `payment_reversal`, `wallet_variance` для `wallet_balance`) и внутренний `proposal_txid` для замораживания sources. API возвращает `basisKind`. Basis выводится из режима и источника, не из пользовательского evidence/tx hash. Проведённая корректировка требует exact financial set и `financial_correction_posted` outbox; chain effect она не занимает.
 
@@ -816,7 +816,7 @@ Broadcast не создаёт physical principal или expense platform revenue
 
 ### Корректировка хранения — `crypto_custody_adjustment`
 
-Модель: `CryptoCustodyAdjustment`. Таблица: `doc_crypto_custody_adjustments`. Источник: [external_outflow.go](../internal/domain/crypto/external_outflow.go).
+Модель: `CryptoCustodyAdjustment`. Таблица: `doc_crypto_custody_adjustments`. Источник: [external_outflow.go](../internal/configuration/crypto/domain/crypto/external_outflow.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -836,7 +836,7 @@ Broadcast не создаёт physical principal или expense platform revenue
 
 ### Пополнение сетевой комиссии — `crypto_native_funding`
 
-Модель: `NativeFunding`. Таблица: `doc_crypto_native_fundings`. Источник: [native_funding.go](../internal/domain/crypto/native_funding.go).
+Модель: `NativeFunding`. Таблица: `doc_crypto_native_fundings`. Источник: [native_funding.go](../internal/configuration/crypto/domain/crypto/native_funding.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -860,7 +860,7 @@ Broadcast не создаёт physical principal или expense platform revenue
 
 ### Платёжная ссылка — `payment_link`
 
-Таблица: `doc_payment_links`. Многоразовый шаблон, создающий крипто-инвойс при обращении по публичной ссылке. Полная структура хранения определена в [миграции 00006](../db/configuration/crypto/00006_crypto_core.sql); рабочая проекция — `RedeemablePaymentLink` в [checkout_page_service.go](../internal/application/cryptoapp/checkout_page_service.go).
+Таблица: `doc_payment_links`. Многоразовый шаблон, создающий крипто-инвойс при обращении по публичной ссылке. Полная структура хранения определена в [миграции 00006](../db/configuration/crypto/00006_crypto_core.sql); рабочая проекция — `RedeemablePaymentLink` в [checkout_page_service.go](../internal/configuration/crypto/application/cryptoapp/checkout_page_service.go).
 
 | Группа | Реквизиты |
 |---|---|
@@ -1014,7 +1014,7 @@ Broadcast не создаёт physical principal или expense platform revenue
 
 ### Настройки свипа по мерчанту и токену
 
-Таблица: `reg_merchant_token_config`. Измерения: мерчант, токен. Пустое значение настройки означает отсутствие индивидуального переопределения. Источник: [sweep_config.go](../internal/domain/crypto/sweep_config.go).
+Таблица: `reg_merchant_token_config`. Измерения: мерчант, токен. Пустое значение настройки означает отсутствие индивидуального переопределения. Источник: [sweep_config.go](../internal/configuration/crypto/domain/crypto/sweep_config.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -1026,7 +1026,7 @@ Broadcast не создаёт physical principal или expense platform revenue
 
 ### Тарифы комиссий
 
-Таблица: `reg_fee_schedule`. Измерения: мерчант, токен, направление операции. Пустой мерчант задаёт общий тариф. `PercentBP`: 100 базисных пунктов = 1%. Источник: [fee_config.go](../internal/domain/crypto/fee_config.go).
+Таблица: `reg_fee_schedule`. Измерения: мерчант, токен, направление операции. Пустой мерчант задаёт общий тариф. `PercentBP`: 100 базисных пунктов = 1%. Источник: [fee_config.go](../internal/configuration/crypto/domain/crypto/fee_config.go).
 
 | Реквизит | Поле модели / JSON | Тип | Особенности |
 |---|---|---|---|
@@ -1049,21 +1049,21 @@ Broadcast не создаёт physical principal или expense platform revenue
 | Адреса казначейских выводов | Сеть, адрес, наименование, активность, автор | `reg_treasury_withdrawal_addresses`; [00007](../db/configuration/crypto/00007_crypto_outbound.sql) |
 | Состав пула интеграций | Пул, аккаунт, позиция | `sys_integration_pool_accounts`; [00005](../db/migrations/00005_platform.sql) |
 | Состояние интеграций | Аккаунт / пул, квоты, состояние выбора | `sys_integration_account_state`, `sys_integration_pool_state`; [00005](../db/migrations/00005_platform.sql) |
-| Политики сетей | Сеть, лимиты комиссии, пополнение комиссии, внешние ресурсы, повторы, блокировка, версия | `sys_crypto_network_policies`, `sys_crypto_external_resource_policies`; [network_policy.go](../internal/domain/crypto/network_policy.go) |
-| Политики пулов кошельков | Сеть, целевой размер пула, условия активации и выдачи | `sys_crypto_wallet_pool_policies`; [wallet_pool.go](../internal/domain/crypto/wallet_pool.go) |
-| Индивидуальные условия выдачи кошельков | Мерчант, сеть, переопределения лимитов | `reg_merchant_wallet_allocation_overrides`; [wallet_pool.go](../internal/domain/crypto/wallet_pool.go) |
-| Выдача адресов | Кошелёк, мерчант, инвойс / клиент, сроки и причина закрытия | `reg_crypto_wallet_allocations`; [wallet_allocation.go](../internal/domain/crypto/wallet_allocation.go) |
+| Политики сетей | Сеть, лимиты комиссии, пополнение комиссии, внешние ресурсы, повторы, блокировка, версия | `sys_crypto_network_policies`, `sys_crypto_external_resource_policies`; [network_policy.go](../internal/configuration/crypto/domain/crypto/network_policy.go) |
+| Политики пулов кошельков | Сеть, целевой размер пула, условия активации и выдачи | `sys_crypto_wallet_pool_policies`; [wallet_pool.go](../internal/configuration/crypto/domain/crypto/wallet_pool.go) |
+| Индивидуальные условия выдачи кошельков | Мерчант, сеть, переопределения лимитов | `reg_merchant_wallet_allocation_overrides`; [wallet_pool.go](../internal/configuration/crypto/domain/crypto/wallet_pool.go) |
+| Выдача адресов | Кошелёк, мерчант, инвойс / клиент, сроки и причина закрытия | `reg_crypto_wallet_allocations`; [wallet_allocation.go](../internal/configuration/crypto/domain/crypto/wallet_allocation.go) |
 | Входящие события и доказательства переводов | Сеть, транзакция, событие, блок, проверка, результат сопоставления | `reg_crypto_inbound_chain_events`, `reg_crypto_chain_observations`, `reg_crypto_transfer_verifications`; [00006](../db/configuration/crypto/00006_crypto_core.sql), [00006](../db/configuration/crypto/00006_crypto_core.sql) |
 | Активации и ресурсы | Кошелёк, операция, заказ аренды, выделенные ресурсы, состояние | `reg_crypto_account_activations`, `reg_crypto_resource_allocations`, `reg_crypto_resource_allocation_events`; [00007](../db/configuration/crypto/00007_crypto_outbound.sql), [00007](../db/configuration/crypto/00007_crypto_outbound.sql) |
 | Резервы | Документ-основание, кошелёк / токен, сумма, статус, срок | `reg_crypto_balance_reservations`, `reg_crypto_revenue_reservations`, `reg_crypto_fee_reservations`; [00007](../db/configuration/crypto/00007_crypto_outbound.sql), [00007](../db/configuration/crypto/00007_crypto_outbound.sql), [00006](../db/configuration/crypto/00006_crypto_core.sql) |
 | Согласования и подпись | Намерение перевода, решение, подписант, авторизация, задание подписи | `reg_money_movement_intents`, `reg_money_movement_approvals`, `reg_money_movement_signing_jobs`, `reg_crypto_signing_authorizations`; [00007](../db/configuration/crypto/00007_crypto_outbound.sql), [00007](../db/configuration/crypto/00007_crypto_outbound.sql), [00007](../db/configuration/crypto/00007_crypto_outbound.sql) |
 | Сетевые расчёты | Транзакция, итог исполнения, компоненты комиссии | `reg_crypto_chain_settlements`, `reg_crypto_chain_settlement_components`; [00006](../db/configuration/crypto/00006_crypto_core.sql) |
 | Сверка и инциденты | Запуск сверки, кошелёк / токен, наблюдение, расхождение, блокировка | `reg_crypto_reconciliation_runs`, `reg_crypto_reconciliation_items`, `reg_crypto_reconciliation_observations`, `reg_crypto_wallet_allocation_holds`; [00007](../db/configuration/crypto/00007_crypto_outbound.sql), [00007](../db/configuration/crypto/00007_crypto_outbound.sql) |
-| Внешние исходящие операции | Сеть, кошелёк, транзакция, сумма, классификация и решения | `reg_crypto_external_outflows`, `reg_crypto_external_outflow_actions`; [external_outflow.go](../internal/domain/crypto/external_outflow.go) |
+| Внешние исходящие операции | Сеть, кошелёк, транзакция, сумма, классификация и решения | `reg_crypto_external_outflows`, `reg_crypto_external_outflow_actions`; [external_outflow.go](../internal/configuration/crypto/domain/crypto/external_outflow.go) |
 
 ## Индекс учётных событий
 
-Источник: `db/configuration/crypto/00009_crypto_custody.sql`, `internal/domain/crypto/accounting_effect.go`.
+Источник: `db/configuration/crypto/00009_crypto_custody.sql`, `internal/configuration/crypto/domain/crypto/accounting_effect.go`.
 
 | Таблица | Содержимое | Ограничения |
 |---|---|---|
@@ -1122,7 +1122,7 @@ Deferred constraints проверяют полный набор receipt/custody/
 
 Базовые классы риска — `low`, `medium`, `high`, `unknown`. Оценка сама не является разрешением расходования: проверяются полнота inventory, owner, evidence TTL, holds, batch и dispatch gates. Testnet opening не выдаётся за отчёт провайдера. Daily liquidity-address screening и reviewed снятие исторического high остаются планом.
 
-Доменные контракты: [AML](../internal/domain/crypto/aml), [custody](../internal/domain/crypto/custody_policy.go), [merchant pools](../internal/domain/crypto/merchant_pools.go). Подробные lifecycle и ограничения: [AML architecture](crypto/aml-kyt-architecture.md), [runtime](operations/crypto-aml-runtime.md), [outbound](operations/crypto-aml-outbound.md), [testnet bootstrap](operations/crypto-aml-testnet-bootstrap.md).
+Доменные контракты: [AML](../internal/configuration/crypto/domain/crypto/aml), [custody](../internal/configuration/crypto/domain/crypto/custody_policy.go), [merchant pools](../internal/configuration/crypto/domain/crypto/merchant_pools.go). Подробные lifecycle и ограничения: [AML architecture](crypto/aml-kyt-architecture.md), [runtime](operations/crypto-aml-runtime.md), [outbound](operations/crypto-aml-outbound.md), [testnet bootstrap](operations/crypto-aml-testnet-bootstrap.md).
 
 ## Перечисления
 
@@ -1130,40 +1130,40 @@ Deferred constraints проверяют полный набор receipt/custody/
 
 | Тип / область | Значения | Источник |
 |---|---|---|
-| `crypto_fee.FeeType` | `processing`, `network`, `withdrawal`, `sweep` | [movement.go](../internal/domain/registers/crypto_fee/movement.go) |
-| `crypto_platform_cost.PlatformCostPurpose` | `sweep`, `withdrawal`, `treasury`, `activation`, `resource_rental`, `custody_loss` | [movement.go](../internal/domain/registers/crypto_platform_cost/movement.go) |
-| `crypto_platform_cost.PlatformCostType` | `chain_resource_rent`, `chain_network_fee`, `custody_loss` | [movement.go](../internal/domain/registers/crypto_platform_cost/movement.go) |
+| `crypto_fee.FeeType` | `processing`, `network`, `withdrawal`, `sweep` | [movement.go](../internal/configuration/crypto/domain/registers/crypto_fee/movement.go) |
+| `crypto_platform_cost.PlatformCostPurpose` | `sweep`, `withdrawal`, `treasury`, `activation`, `resource_rental`, `custody_loss` | [movement.go](../internal/configuration/crypto/domain/registers/crypto_platform_cost/movement.go) |
+| `crypto_platform_cost.PlatformCostType` | `chain_resource_rent`, `chain_network_fee`, `custody_loss` | [movement.go](../internal/configuration/crypto/domain/registers/crypto_platform_cost/movement.go) |
 | `entity.RecordType` | `receipt`, `expense` | [register.go](../internal/core/entity/register.go) |
 | `contract.ContractType` | `supply`, `sale`, `other` | [model.go](../internal/domain/catalogs/contract/model.go) |
 | `counterparty.CounterpartyType` | `customer`, `supplier`, `both`, `other` | [model.go](../internal/domain/catalogs/counterparty/model.go) |
 | `counterparty.LegalForm` | `individual`, `sole_trader`, `company`, `government` | [model.go](../internal/domain/catalogs/counterparty/model.go) |
-| `merchant.KYBStatus` | `pending`, `approved`, `rejected` | [model.go](../internal/domain/catalogs/merchant/model.go) |
+| `merchant.KYBStatus` | `pending`, `approved`, `rejected` | [model.go](../internal/configuration/crypto/domain/catalogs/merchant/model.go) |
 | `organization.TaxSystem` | `osno`, `usn_income`, `usn_income_expense`, `envd`, `patent` | [model.go](../internal/domain/catalogs/organization/model.go) |
 | `rate_source.SourceType` | `coingecko`, `binance`, `coinmarketcap`, `manual` | [model.go](../internal/domain/catalogs/rate_source/model.go) |
-| `token.TokenStandard` | `native`, `TRC-20`, `ERC-20`, `BEP-20`, `SPL`, `Jetton` | [model.go](../internal/domain/catalogs/token/model.go) |
-| `wallet.AllocationMode` | `transient`, `persistent` | [model.go](../internal/domain/catalogs/wallet/model.go) |
-| `wallet.ChainActivationStatus` | `unknown`, `activating`, `active`, `held`, `failed` | [model.go](../internal/domain/catalogs/wallet/model.go) |
-| `wallet.WalletRole` | `merchant_pool`, `liquidity_hot`, `network_fee`, `treasury` | [model.go](../internal/domain/catalogs/wallet/model.go) |
-| `wallet.WalletStatus` | `free`, `leased`, `assigned`, `sweep_pending`, `sweeping`, `frozen` | [model.go](../internal/domain/catalogs/wallet/model.go) |
-| `wallet.WalletTier` | `pool`, `hot`, `warm`, `cold` | [model.go](../internal/domain/catalogs/wallet/model.go) |
-| `crypto.ChainFamily` | `tron`, `evm`, `ton`, `solana` | [chain.go](../internal/domain/crypto/chain.go) |
-| `crypto.FeeDirection` | `processing`, `withdrawal`, `payout`, `settlement`, `refund` | [fee_config.go](../internal/domain/crypto/fee_config.go) |
-| `crypto.FinalityMode` | `confirmations`, `protocol_finalized`, `confirmations_or_finalized` | [chain.go](../internal/domain/crypto/chain.go) |
-| `crypto_invoice.CreationSource` | `merchant_api`, `portal`, `system` | [model.go](../internal/domain/documents/crypto_invoice/model.go) |
-| `crypto_invoice.InvoiceKind` | `payment`, `top_up` | [model.go](../internal/domain/documents/crypto_invoice/model.go) |
-| `crypto_invoice.InvoiceStatus` | `created`, `partially_paid`, `paid`, `confirmed`, `completed`, `underpaid`, `expired`, `cancelled`, `reversed` | [model.go](../internal/domain/documents/crypto_invoice/model.go) |
-| `crypto_network_operation.OperationType` | `wallet_activation` | [model.go](../internal/domain/documents/crypto_network_operation/model.go) |
-| `crypto_network_operation.Status` | `broadcast`, `succeeded`, `reverted` | [model.go](../internal/domain/documents/crypto_network_operation/model.go) |
-| `crypto_payment.PaymentStatus` | `detected`, `confirming`, `confirmed`, `settled`, `reorged`, `replaced`, `failed` | [model.go](../internal/domain/documents/crypto_payment/model.go) |
-| `crypto_provider_balance_operation.DecisionMode` | `independent`, `admin_self` | [decision.go](../internal/domain/documents/crypto_provider_balance_operation/decision.go) |
-| `crypto_resource_rental.CostStatus` | `unknown`, `recorded`, `partially_refunded`, `refunded`, `held` | [model.go](../internal/domain/documents/crypto_resource_rental/model.go) |
-| `crypto_resource_rental.Status` | `created`, `ordering`, `delegated`, `active`, `reclaiming`, `closed`, `failed`, `held` | [model.go](../internal/domain/documents/crypto_resource_rental/model.go) |
-| `crypto_sweep.SweepStatus` | `created`, `signed`, `broadcast`, `confirmed`, `partial_failed`, `held` | [model.go](../internal/domain/documents/crypto_sweep/model.go) |
-| `crypto_withdrawal.WithdrawalStatus` | `created`, `signed`, `broadcast`, `confirmed`, `failed` | [model.go](../internal/domain/documents/crypto_withdrawal/model.go) |
-| `outbound_settlement.ChainResult` | `SUCCESS` | [status.go](../internal/domain/documents/outbound_settlement/status.go) |
-| `outbound_settlement.Status` | `unknown`, `repairing`, `recorded`, `not_applicable`, `held` | [status.go](../internal/domain/documents/outbound_settlement/status.go) |
-| `treasury_withdrawal.Status` | `pending_signature`, `pending_approval`, `approved`, `signing`, `broadcast`, `confirmed`, `held`, `rejected`, `failed` | [model.go](../internal/domain/documents/treasury_withdrawal/model.go) |
-| `withdrawal_request.Status` | `pending_signature`, `pending_approval`, `approved`, `signing`, `broadcast`, `confirmed`, `held`, `rejected`, `failed`, `partially_completed` | [model.go](../internal/domain/documents/withdrawal_request/model.go) |
+| `token.TokenStandard` | `native`, `TRC-20`, `ERC-20`, `BEP-20`, `SPL`, `Jetton` | [model.go](../internal/configuration/crypto/domain/catalogs/token/model.go) |
+| `wallet.AllocationMode` | `transient`, `persistent` | [model.go](../internal/configuration/crypto/domain/catalogs/wallet/model.go) |
+| `wallet.ChainActivationStatus` | `unknown`, `activating`, `active`, `held`, `failed` | [model.go](../internal/configuration/crypto/domain/catalogs/wallet/model.go) |
+| `wallet.WalletRole` | `merchant_pool`, `liquidity_hot`, `network_fee`, `treasury` | [model.go](../internal/configuration/crypto/domain/catalogs/wallet/model.go) |
+| `wallet.WalletStatus` | `free`, `leased`, `assigned`, `sweep_pending`, `sweeping`, `frozen` | [model.go](../internal/configuration/crypto/domain/catalogs/wallet/model.go) |
+| `wallet.WalletTier` | `pool`, `hot`, `warm`, `cold` | [model.go](../internal/configuration/crypto/domain/catalogs/wallet/model.go) |
+| `crypto.ChainFamily` | `tron`, `evm`, `ton`, `solana` | [chain.go](../internal/configuration/crypto/domain/crypto/chain.go) |
+| `crypto.FeeDirection` | `processing`, `withdrawal`, `payout`, `settlement`, `refund` | [fee_config.go](../internal/configuration/crypto/domain/crypto/fee_config.go) |
+| `crypto.FinalityMode` | `confirmations`, `protocol_finalized`, `confirmations_or_finalized` | [chain.go](../internal/configuration/crypto/domain/crypto/chain.go) |
+| `crypto_invoice.CreationSource` | `merchant_api`, `portal`, `system` | [model.go](../internal/configuration/crypto/domain/documents/crypto_invoice/model.go) |
+| `crypto_invoice.InvoiceKind` | `payment`, `top_up` | [model.go](../internal/configuration/crypto/domain/documents/crypto_invoice/model.go) |
+| `crypto_invoice.InvoiceStatus` | `created`, `partially_paid`, `paid`, `confirmed`, `completed`, `underpaid`, `expired`, `cancelled`, `reversed` | [model.go](../internal/configuration/crypto/domain/documents/crypto_invoice/model.go) |
+| `crypto_network_operation.OperationType` | `wallet_activation` | [model.go](../internal/configuration/crypto/domain/documents/crypto_network_operation/model.go) |
+| `crypto_network_operation.Status` | `broadcast`, `succeeded`, `reverted` | [model.go](../internal/configuration/crypto/domain/documents/crypto_network_operation/model.go) |
+| `crypto_payment.PaymentStatus` | `detected`, `confirming`, `confirmed`, `settled`, `reorged`, `replaced`, `failed` | [model.go](../internal/configuration/crypto/domain/documents/crypto_payment/model.go) |
+| `crypto_provider_balance_operation.DecisionMode` | `independent`, `admin_self` | [decision.go](../internal/configuration/crypto/domain/documents/crypto_provider_balance_operation/decision.go) |
+| `crypto_resource_rental.CostStatus` | `unknown`, `recorded`, `partially_refunded`, `refunded`, `held` | [model.go](../internal/configuration/crypto/domain/documents/crypto_resource_rental/model.go) |
+| `crypto_resource_rental.Status` | `created`, `ordering`, `delegated`, `active`, `reclaiming`, `closed`, `failed`, `held` | [model.go](../internal/configuration/crypto/domain/documents/crypto_resource_rental/model.go) |
+| `crypto_sweep.SweepStatus` | `created`, `signed`, `broadcast`, `confirmed`, `partial_failed`, `held` | [model.go](../internal/configuration/crypto/domain/documents/crypto_sweep/model.go) |
+| `crypto_withdrawal.WithdrawalStatus` | `created`, `signed`, `broadcast`, `confirmed`, `failed` | [model.go](../internal/configuration/crypto/domain/documents/crypto_withdrawal/model.go) |
+| `outbound_settlement.ChainResult` | `SUCCESS` | [status.go](../internal/configuration/crypto/domain/documents/outbound_settlement/status.go) |
+| `outbound_settlement.Status` | `unknown`, `repairing`, `recorded`, `not_applicable`, `held` | [status.go](../internal/configuration/crypto/domain/documents/outbound_settlement/status.go) |
+| `treasury_withdrawal.Status` | `pending_signature`, `pending_approval`, `approved`, `signing`, `broadcast`, `confirmed`, `held`, `rejected`, `failed` | [model.go](../internal/configuration/crypto/domain/documents/treasury_withdrawal/model.go) |
+| `withdrawal_request.Status` | `pending_signature`, `pending_approval`, `approved`, `signing`, `broadcast`, `confirmed`, `held`, `rejected`, `failed`, `partially_completed` | [model.go](../internal/configuration/crypto/domain/documents/withdrawal_request/model.go) |
 | `integrations.Provider` | `alchemy`, `infura`, `drpc`, `coingecko_demo`, `tron_api`, `chainstack`, `getblock`, `getblock_net`, `testnet_aml`, `telegram`, `smtp`, `resource_api` | [model.go](../internal/domain/integrations/model.go) |
 
 Список вариантов `integrations.Provider` в [integrations.go](../internal/platformcontent/integrations.go) строится при сборке приложения (`configuration.Compose`) из его каталога интеграций — у крипто это `cryptointegrations.Catalog()`. Возможность создания и поддерживаемые назначения определяет definition: не каждый enum доступен обычному Create API; `testnet_aml` настраивается доверенным control plane. `rate_source.SourceType` получает варианты через [catalogs.go](../internal/platformcontent/catalogs.go).
@@ -1172,8 +1172,8 @@ Deferred constraints проверяют полный набор receipt/custody/
 
 | Объект / реквизит | Значения | Источник |
 |---|---|---|
-| Операция баланса провайдера: операция | `opening`, `funding`, `adjustment`, `refund`; текущая валидация разрешает `opening`, остальные требуют отдельного подтверждённого сценария | [model.go](../internal/domain/documents/crypto_provider_balance_operation/model.go) |
-| Операция баланса провайдера: статус | `pending_approval`, `approved`, `posted`, `rejected` | [model.go](../internal/domain/documents/crypto_provider_balance_operation/model.go) |
+| Операция баланса провайдера: операция | `opening`, `funding`, `adjustment`, `refund`; текущая валидация разрешает `opening`, остальные требуют отдельного подтверждённого сценария | [model.go](../internal/configuration/crypto/domain/documents/crypto_provider_balance_operation/model.go) |
+| Операция баланса провайдера: статус | `pending_approval`, `approved`, `posted`, `rejected` | [model.go](../internal/configuration/crypto/domain/documents/crypto_provider_balance_operation/model.go) |
 | Подключение RPC: роль | `rpc`, `indexer`, `fullnode`, `solidity` | [00006](../db/configuration/crypto/00006_crypto_core.sql) |
 | Аренда ресурсов: ресурс / режим | `energy`, `bandwidth` / `fixed` | [00007](../db/configuration/crypto/00007_crypto_outbound.sql) |
 | Пополнение сетевой комиссии: статус хранения | `created`, `reserved`, `signed`, `broadcast`, `solidified`, `settled`, `retry_wait`, `held`, `failed` | [00006](../db/configuration/crypto/00006_crypto_core.sql) |
@@ -1196,7 +1196,7 @@ Deferred constraints проверяют полный набор receipt/custody/
 
 ### Журнал документов — `document-journal`
 
-Единственный встроенный декларативный набор данных в `AllDatasets`. Источник: [report_datasets.go](../internal/content/report_datasets.go).
+Единственный встроенный декларативный набор данных в `AllDatasets`. Источник: [report_datasets.go](../internal/configuration/crypto/content/report_datasets.go).
 
 | Элемент | Состав |
 |---|---|
@@ -1263,8 +1263,8 @@ Deferred constraints проверяют полный набор receipt/custody/
 
 | Источник | Что определяет |
 |---|---|
-| [internal/content/register.go](../internal/content/register.go) | Полный состав встроенных справочников, документов, маршрутов регистров и наборов данных |
-| [platformcontent](../internal/platformcontent/), [catalog_registrations.go](../internal/content/catalog_registrations.go), [integration_registrations.go](../internal/content/integration_registrations.go), [document_registrations.go](../internal/content/document_registrations.go) | Имена объектов, ключи прав, представления, команды и варианты перечислений |
+| [internal/configuration/crypto/content/register.go](../internal/configuration/crypto/content/register.go) | Полный состав встроенных справочников, документов, маршрутов регистров и наборов данных |
+| [platformcontent](../internal/platformcontent/), [catalog_registrations.go](../internal/configuration/crypto/content/catalog_registrations.go), [integration_registrations.go](../internal/configuration/crypto/content/integration_registrations.go), [document_registrations.go](../internal/configuration/crypto/content/document_registrations.go) | Имена объектов, ключи прав, представления, команды и варианты перечислений |
 | [internal/core/entity](../internal/core/entity), [internal/domain/catalogs](../internal/domain/catalogs), [internal/domain/documents](../internal/domain/documents) | Базовые и предметные реквизиты, типы, табличные части, источники движений |
 | [internal/metadata/inspector.go](../internal/metadata/inspector.go) | Построение метаданных из Go-структур и тегов `meta` / `json` |
 | [internal/infrastructure/http/v1/dto](../internal/infrastructure/http/v1/dto) | Поля чтения и записи фактического HTTP-контракта |
@@ -1290,7 +1290,7 @@ Immutable `reg_crypto_custody_loss_bindings`: posting_id (PK/FK), adjustment_id 
 
 ### Network fee recognition
 
-[00009](../db/configuration/crypto/00009_crypto_custody.sql) добавляет отдельную независимую fee role; [NetworkFeeProof](../internal/domain/crypto/network_fee_proof.go) не подменяет transfer proof.
+[00009](../db/configuration/crypto/00009_crypto_custody.sql) добавляет отдельную независимую fee role; [NetworkFeeProof](../internal/configuration/crypto/domain/crypto/network_fee_proof.go) не подменяет transfer proof.
 
 | Объект | Новые реквизиты / назначение |
 |---|---|

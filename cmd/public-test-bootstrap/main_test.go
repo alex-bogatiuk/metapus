@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	walletcatalog "metapus/internal/configuration/crypto/domain/catalogs/wallet"
+	domaincrypto "metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/core/id"
-	walletcatalog "metapus/internal/domain/catalogs/wallet"
-	domaincrypto "metapus/internal/domain/crypto"
 )
 
 func TestInitializeAndFinalizeStateKeepsSecretsOutOfEnv(t *testing.T) {

@@ -785,26 +785,26 @@ Production-требования к Vault, PostgreSQL, мониторингу и 
 ```text
 cmd/server/main.go                                      — сборка HTTP/API-контура
 cmd/worker/main.go                                      — запуск tenant crypto processors
-internal/infrastructure/crypto_worker/processor.go      — watcher и фоновые циклы
+internal/configuration/crypto/infrastructure/crypto_worker/processor.go      — watcher и фоновые циклы
 internal/application/command/                           — transactional command idempotency
-internal/application/cryptoapp/external_outflow_service.go — audited outflow/custody FSM
-internal/application/cryptoapp/operational_hold_service.go — owner-bound operational holds
-internal/application/cryptoapp/merchant_network_policy_service.go — merchant CIDR policies
-internal/domain/crypto/capabilities.go                  — compile-time family capabilities
-internal/domain/crypto/chain.go                         — runtime drivers by network_id
-internal/domain/crypto/wallet_pool.go                   — capability-aware pool policy
-internal/domain/crypto/event_processor.go               — применение входящих blockchain events
-internal/infrastructure/crypto_worker/sweep_executor.go — свипы
-internal/infrastructure/crypto_worker/withdrawal_executor.go — выплаты мерчантам
-internal/infrastructure/crypto_worker/treasury_executor.go   — treasury withdrawal
-internal/infrastructure/storage/postgres/outbound_repo/outbound_settlement.go — результат и network fee
-internal/infrastructure/crypto_worker/crypto_network_operation_coordinator.go — atomic finality активации
-internal/infrastructure/crypto_worker/reconciliation.go — сверка blockchain/ledger
-internal/domain/documents/crypto_network_operation/     — модель и сервис сетевой криптооперации
+internal/configuration/crypto/application/cryptoapp/external_outflow_service.go — audited outflow/custody FSM
+internal/configuration/crypto/application/cryptoapp/operational_hold_service.go — owner-bound operational holds
+internal/configuration/crypto/application/cryptoapp/merchant_network_policy_service.go — merchant CIDR policies
+internal/configuration/crypto/domain/crypto/capabilities.go                  — compile-time family capabilities
+internal/configuration/crypto/domain/crypto/chain.go                         — runtime drivers by network_id
+internal/configuration/crypto/domain/crypto/wallet_pool.go                   — capability-aware pool policy
+internal/configuration/crypto/domain/crypto/event_processor.go               — применение входящих blockchain events
+internal/configuration/crypto/infrastructure/crypto_worker/sweep_executor.go — свипы
+internal/configuration/crypto/infrastructure/crypto_worker/withdrawal_executor.go — выплаты мерчантам
+internal/configuration/crypto/infrastructure/crypto_worker/treasury_executor.go   — treasury withdrawal
+internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo/outbound_settlement.go — результат и network fee
+internal/configuration/crypto/infrastructure/crypto_worker/crypto_network_operation_coordinator.go — atomic finality активации
+internal/configuration/crypto/infrastructure/crypto_worker/reconciliation.go — сверка blockchain/ledger
+internal/configuration/crypto/domain/documents/crypto_network_operation/     — модель и сервис сетевой криптооперации
 internal/domain/strict_document.go                       — защита системных документов
-internal/infrastructure/http/cryptohttp/cryptohandlers/crypto_network_operation.go — unlock/lock API
-internal/infrastructure/blockchain/tron/funding/record.go — операторская TRON-проверка внешнего funding
-internal/infrastructure/crypto_worker/wallet_pool_controller.go — warm-pool controller
+internal/configuration/crypto/infrastructure/http/cryptohttp/cryptohandlers/crypto_network_operation.go — unlock/lock API
+internal/configuration/crypto/infrastructure/blockchain/tron/funding/record.go — операторская TRON-проверка внешнего funding
+internal/configuration/crypto/infrastructure/crypto_worker/wallet_pool_controller.go — warm-pool controller
 cmd/crypto-record-wallet-funding                     — операторская запись funding
 vault-sign-plugins/tron                                 — derivation и Vault-side signing policy
 db/configuration/crypto/00006_crypto_core.sql      — сети, токены, кошельки, инвойсы, платежи, watcher, allocation history и inbound inbox

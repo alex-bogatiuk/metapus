@@ -26,7 +26,7 @@
 
 ## 2. Объявить поддерживаемый контракт
 
-Добавить стабильный `Provider` и описание в `internal/domain/crypto/cryptointegrations/catalog.go` (`Providers()`, место в `providerOrder`) и тот же идентификатор в оба `ck_integration_*_provider` миграции `00006_crypto_core.sql`; тест каталога сверяет их. В описании:
+Добавить стабильный `Provider` и описание в `internal/configuration/crypto/domain/crypto/cryptointegrations/catalog.go` (`Providers()`, место в `providerOrder`) и тот же идентификатор в оба `ck_integration_*_provider` миграции `00006_crypto_core.sql`; тест каталога сверяет их. В описании:
 
 - `Kinds: []integrations.Kind{KindRPC}`, `CanCreate`, подписи и политику квоты;
 - `AccountMinRequestIntervalMS`, если все привязки аккаунта должны использовать общий pacer;
@@ -34,7 +34,7 @@
 - фиксированные credential fields, `RequireFields`, `SingleKey`, `KeyOnly` при необходимости;
 - `Credentials.URLImports`, если UI может извлекать ключ из строго проверенной ссылки. URL не посещается и не сохраняется.
 
-В `internal/domain/crypto/rpcconfig/profiles.go` добавить:
+В `internal/configuration/crypto/domain/crypto/rpcconfig/profiles.go` добавить:
 
 - `rpcProfiles`: family, network identifier, роли, точный host либо проверенный suffix, базовый путь без секрета и trust group; провайдер — в `rpcProviderOrder`;
 - `managedRPCOnly`, если доступ должен использовать пул аккаунтов.
@@ -47,7 +47,7 @@
 
 ## 3. Добавить HTTP-профиль
 
-Создать файл в `internal/infrastructure/crypto/cryptoprofiles/` по аналогии с `infura.go`, `chainstack.go`, `getblock.go` или `tron_api.go`. Для существующего способа авторизации использовать `pathSuffix`, `pathPrefix` либо платформенный `profiles.HeaderKey`.
+Создать файл в `internal/configuration/crypto/infrastructure/crypto/cryptoprofiles/` по аналогии с `infura.go`, `chainstack.go`, `getblock.go` или `tron_api.go`. Для существующего способа авторизации использовать `pathSuffix`, `pathPrefix` либо платформенный `profiles.HeaderKey`.
 
 `Profile` содержит только необходимые особенности:
 

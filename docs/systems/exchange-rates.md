@@ -49,7 +49,7 @@
 go test -tags integration ./internal/infrastructure/storage/postgres/migration -run TestRunAllFreshCryptoLifecycleSchema -count=1
 go test -tags integration ./internal/infrastructure/storage/postgres/register_repo -run TestExchangeRate -count=1
 go test -tags integration ./internal/infrastructure/rate_feed -run TestRateWorker -count=1
-go test -tags integration ./internal/content -run TestExchangeRate -count=1
+go test -tags integration ./internal/platformcontent -run TestExchangeRate -count=1
 ```
 
 Для UI выберите свободный порт через `E2E_FRONTEND_PORT` и выполните из `frontend`:

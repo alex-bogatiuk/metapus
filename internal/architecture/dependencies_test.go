@@ -26,6 +26,9 @@ func TestInternalLayerDependenciesPointInward(t *testing.T) {
 		{directory: "metadata", forbidden: []string{"metapus/internal/infrastructure/"}},
 		{directory: "domain", forbidden: []string{"metapus/internal/application/", "metapus/internal/infrastructure/"}},
 		{directory: "application", forbidden: []string{"metapus/internal/infrastructure/"}},
+		// A configuration keeps the same layers inside its own root.
+		{directory: "configuration/crypto/domain", forbidden: []string{"metapus/internal/application/", "metapus/internal/infrastructure/", "metapus/internal/configuration/crypto/application/", "metapus/internal/configuration/crypto/infrastructure/"}},
+		{directory: "configuration/crypto/application", forbidden: []string{"metapus/internal/infrastructure/", "metapus/internal/configuration/crypto/infrastructure/"}},
 	}
 
 	for _, rule := range rules {
@@ -94,7 +97,7 @@ func TestInnerPackagesDoNotTransitivelyDependOnAdapters(t *testing.T) {
 	require.NoError(t, err)
 	for start := range graph {
 		inner := false
-		for _, layer := range []string{"core", "domain", "application"} {
+		for _, layer := range []string{"core", "domain", "application", "configuration/crypto/domain", "configuration/crypto/application"} {
 			prefix := "metapus/internal/" + layer
 			inner = inner || start == prefix || strings.HasPrefix(start, prefix+"/")
 		}
