@@ -34,45 +34,11 @@ var createRelationPattern = regexp.MustCompile(`(?i)\bCREATE\s+(?:OR\s+REPLACE\s
 func TestPlatformCodeDoesNotQueryConfigurationTables(t *testing.T) {
 	t.Parallel()
 	repoRoot := repositoryRoot(t)
-
-	// Configuration migrations live in db/configuration/<name>/.
-	migrations, err := filepath.Glob(filepath.Join(repoRoot, "db", "configuration", "*", "*.sql"))
-	require.NoError(t, err)
-	require.NotEmpty(t, migrations)
-	tables := map[string]bool{}
-	for _, path := range migrations {
-		raw, err := os.ReadFile(path)
-		require.NoError(t, err)
-		for _, match := range createRelationPattern.FindAllStringSubmatch(string(raw), -1) {
-			tables[strings.ToLower(match[1])] = true
-		}
-	}
-	names := make([]string, 0, len(tables))
-	for table := range tables {
-		names = append(names, regexp.QuoteMeta(table))
-	}
-	slices.SortFunc(names, func(a, b string) int { return len(b) - len(a) })
-	tablePattern := regexp.MustCompile(`\b(` + strings.Join(names, "|") + `)\b`)
+	tablePattern := configurationTablePattern(t, repoRoot)
 
 	actual := map[string]map[string]bool{}
 	walkPlatformGo(t, repoRoot, false, func(rel string, file *ast.File) {
-		ast.Inspect(file, func(node ast.Node) bool {
-			literal, ok := node.(*ast.BasicLit)
-			if !ok || literal.Kind != token.STRING {
-				return true
-			}
-			value, err := strconv.Unquote(literal.Value)
-			if err != nil {
-				return true
-			}
-			for _, table := range tablePattern.FindAllString(value, -1) {
-				if actual[rel] == nil {
-					actual[rel] = map[string]bool{}
-				}
-				actual[rel][table] = true
-			}
-			return true
-		})
+		collectConfigurationTables(actual, tablePattern, rel, file)
 	})
 	compareKnownLeaks(t, actual, knownConfigurationTableLeaks,
 		"platform file %s names configuration table %s; move the query into a configuration package",
@@ -109,11 +75,64 @@ func repositoryRoot(t *testing.T) string {
 	return filepath.Dir(filepath.Dir(filepath.Dir(currentFile)))
 }
 
+// configurationTablePattern matches the name of any table or view that a
+// configuration migration (db/configuration/<name>/) creates.
+func configurationTablePattern(t *testing.T, repoRoot string) *regexp.Regexp {
+	t.Helper()
+	migrations, err := filepath.Glob(filepath.Join(repoRoot, "db", "configuration", "*", "*.sql"))
+	require.NoError(t, err)
+	require.NotEmpty(t, migrations)
+	tables := map[string]bool{}
+	for _, path := range migrations {
+		raw, err := os.ReadFile(path)
+		require.NoError(t, err)
+		for _, match := range createRelationPattern.FindAllStringSubmatch(string(raw), -1) {
+			tables[strings.ToLower(match[1])] = true
+		}
+	}
+	names := make([]string, 0, len(tables))
+	for table := range tables {
+		names = append(names, regexp.QuoteMeta(table))
+	}
+	slices.SortFunc(names, func(a, b string) int { return len(b) - len(a) })
+	return regexp.MustCompile(`\b(` + strings.Join(names, "|") + `)\b`)
+}
+
+// collectConfigurationTables records, under the file's path rel, every
+// configuration table that a string literal of file names.
+func collectConfigurationTables(actual map[string]map[string]bool, tablePattern *regexp.Regexp, rel string, file *ast.File) {
+	ast.Inspect(file, func(node ast.Node) bool {
+		literal, ok := node.(*ast.BasicLit)
+		if !ok || literal.Kind != token.STRING {
+			return true
+		}
+		value, err := strconv.Unquote(literal.Value)
+		if err != nil {
+			return true
+		}
+		for _, table := range tablePattern.FindAllString(value, -1) {
+			if actual[rel] == nil {
+				actual[rel] = map[string]bool{}
+			}
+			actual[rel][table] = true
+		}
+		return true
+	})
+}
+
 // walkPlatformGo parses the platform's Go files under internal/ and pkg/:
 // test files when tests is true, production files otherwise.
 func walkPlatformGo(t *testing.T, repoRoot string, tests bool, visit func(rel string, file *ast.File)) {
 	t.Helper()
-	for _, top := range []string{"internal", "pkg"} {
+	walkGo(t, repoRoot, []string{"internal", "pkg"}, tests, isConfigurationPackage, visit)
+}
+
+// walkGo parses the Go files under the given top-level directories, skipping
+// the packages for which skip reports true: test files when tests is true,
+// production files otherwise.
+func walkGo(t *testing.T, repoRoot string, tops []string, tests bool, skip func(pkg string) bool, visit func(rel string, file *ast.File)) {
+	t.Helper()
+	for _, top := range tops {
 		err := filepath.WalkDir(filepath.Join(repoRoot, top), func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
@@ -125,7 +144,7 @@ func walkPlatformGo(t *testing.T, repoRoot string, tests bool, visit func(rel st
 			if err != nil {
 				return err
 			}
-			if isConfigurationPackage("metapus/" + filepath.ToSlash(filepath.Dir(rel))) {
+			if skip("metapus/" + filepath.ToSlash(filepath.Dir(rel))) {
 				return nil
 			}
 			mode := parser.SkipObjectResolution
