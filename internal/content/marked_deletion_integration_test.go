@@ -5,6 +5,7 @@ package content
 import (
 	"context"
 	"errors"
+	"metapus/internal/configuration"
 	"os"
 	"slices"
 	"testing"
@@ -34,8 +35,7 @@ func markedFixture(t *testing.T, fn func(ctx context.Context, f *markedEnv)) {
 	txm := postgres.NewTxManagerFromRawPool(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 
-	factories := v1.NewFactoryRegistry()
-	RegisterDefaults(factories)
+	factories := configuration.Compose(Crypto(Services{}))
 	registry := v1.BuildReadRegistry(factories)
 	ctx = appctx.WithUser(ctx, &appctx.UserContext{UserID: id.New().String(), IsAdmin: true, Roles: []string{"admin"}})
 	ctx = readaccess.WithService(ctx, postgres.NewAuthorizedReadService(registry, nil))

@@ -1,6 +1,7 @@
 package content
 
 import (
+	"metapus/internal/configuration"
 	"slices"
 	"strings"
 	"testing"
@@ -14,8 +15,7 @@ import (
 // Every declared movement source reaches the read registry and names fields
 // the document really has; a typo would silently hide the column.
 func TestMovementSourcesNameRealDocumentFields(t *testing.T) {
-	factories := v1.NewFactoryRegistry()
-	RegisterDefaults(factories)
+	factories := configuration.Compose(Crypto(Services{}))
 	registry := v1.BuildReadRegistry(factories)
 
 	declared := map[string]bool{}

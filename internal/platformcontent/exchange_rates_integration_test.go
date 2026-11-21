@@ -1,6 +1,6 @@
 //go:build integration
 
-package content
+package platformcontent
 
 import (
 	"context"

@@ -398,7 +398,7 @@ Metapus
 
 ## Подчинённые справочники
 
-Эти объекты принадлежат мерчанту, имеют отдельные API и таблицы, но не включены в `RegisterDefaults` как обычные справочники. Общие реквизиты `entity.Catalog` к ним автоматически не добавляются.
+Эти объекты принадлежат мерчанту, имеют отдельные API и таблицы, но не регистрируются конфигурацией как обычные справочники. Общие реквизиты `entity.Catalog` к ним автоматически не добавляются.
 
 ### API-ключи мерчантов
 
@@ -883,7 +883,7 @@ Broadcast не создаёт physical principal или expense platform revenue
 | Балансы провайдеров | Аккаунт провайдера, токен | Сумма (`RawAmount`) | Операция, внешнее основание | `reg_crypto_provider_balance_movements` |
 | Излишки и недостачи кошельков | Кошелёк, токен, вид расхождения (`surplus` / `shortage`) | Сумма `NUMERIC(78,0)` | Корректировка, период, идентификатор строки | `reg_crypto_wallet_variance_movements` |
 
-Последний регистр имеет собственную SQL-структуру из [миграции 00006](../db/configuration/crypto/00006_crypto_core.sql), без встраивания `MovementBase`. Регистр взаиморасчётов реализован на уровне модели и сервиса; стандартных документов-регистраторов для него в текущем `RegisterDefaults` нет.
+Последний регистр имеет собственную SQL-структуру из [миграции 00006](../db/configuration/crypto/00006_crypto_core.sql), без встраивания `MovementBase`. Регистр взаиморасчётов реализован на уровне модели и сервиса; стандартных документов-регистраторов для него в текущей конфигурации нет.
 
 ### Общие реквизиты движения — `MovementBase`
 
@@ -1166,7 +1166,7 @@ Deferred constraints проверяют полный набор receipt/custody/
 | `withdrawal_request.Status` | `pending_signature`, `pending_approval`, `approved`, `signing`, `broadcast`, `confirmed`, `held`, `rejected`, `failed`, `partially_completed` | [model.go](../internal/domain/documents/withdrawal_request/model.go) |
 | `integrations.Provider` | `alchemy`, `infura`, `drpc`, `coingecko_demo`, `tron_api`, `chainstack`, `getblock`, `getblock_net`, `testnet_aml`, `telegram`, `smtp`, `resource_api` | [model.go](../internal/domain/integrations/model.go) |
 
-Список вариантов `integrations.Provider` в [integration_registrations.go](../internal/content/integration_registrations.go) строится из каталога приложения `cryptointegrations.Catalog().Providers()`. Возможность создания и поддерживаемые назначения определяет definition: не каждый enum доступен обычному Create API; `testnet_aml` настраивается доверенным control plane. `rate_source.SourceType` получает варианты через [catalog_registrations.go](../internal/content/catalog_registrations.go).
+Список вариантов `integrations.Provider` в [integrations.go](../internal/platformcontent/integrations.go) строится при сборке приложения (`configuration.Compose`) из его каталога интеграций — у крипто это `cryptointegrations.Catalog()`. Возможность создания и поддерживаемые назначения определяет definition: не каждый enum доступен обычному Create API; `testnet_aml` настраивается доверенным control plane. `rate_source.SourceType` получает варианты через [catalogs.go](../internal/platformcontent/catalogs.go).
 
 Часть закрытых наборов хранится обычными строками, а не именованными перечислениями: режимы и статусы корректировок, типы операций провайдера, роли RPC. Их допустимые значения задаются валидацией и SQL-ограничениями. `outbound_settlement.ChainResult` хранит нормализованный результат сети; объявленная константа `SUCCESS` не ограничивает весь набор возможных результатов.
 
@@ -1264,7 +1264,7 @@ Deferred constraints проверяют полный набор receipt/custody/
 | Источник | Что определяет |
 |---|---|
 | [internal/content/register.go](../internal/content/register.go) | Полный состав встроенных справочников, документов, маршрутов регистров и наборов данных |
-| [catalog_registrations.go](../internal/content/catalog_registrations.go), [integration_registrations.go](../internal/content/integration_registrations.go), [document_registrations.go](../internal/content/document_registrations.go) | Имена объектов, ключи прав, представления, команды и варианты перечислений |
+| [platformcontent](../internal/platformcontent/), [catalog_registrations.go](../internal/content/catalog_registrations.go), [integration_registrations.go](../internal/content/integration_registrations.go), [document_registrations.go](../internal/content/document_registrations.go) | Имена объектов, ключи прав, представления, команды и варианты перечислений |
 | [internal/core/entity](../internal/core/entity), [internal/domain/catalogs](../internal/domain/catalogs), [internal/domain/documents](../internal/domain/documents) | Базовые и предметные реквизиты, типы, табличные части, источники движений |
 | [internal/metadata/inspector.go](../internal/metadata/inspector.go) | Построение метаданных из Go-структур и тегов `meta` / `json` |
 | [internal/infrastructure/http/v1/dto](../internal/infrastructure/http/v1/dto) | Поля чтения и записи фактического HTTP-контракта |

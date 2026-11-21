@@ -6,15 +6,6 @@ import (
 	"metapus/internal/metadata"
 )
 
-func (r *RateSourceRegistration) HTTPContracts() spec.Bundle {
-	b := r.CatalogRegistrationFor.HTTPContracts()
-	b.AddRoute(r.EntityDefinition(), "GET", "/:id/mappings", "", "ExchangeRateMappingsResponse")
-	b.AddRoute(r.EntityDefinition(), "GET", "/:id/feed-state", "", "ExchangeRateFeedStateResponse")
-	b.AddRoute(r.EntityDefinition(), "PUT", "/:id/mappings/:currencyId/:baseCurrencyId", "UpdateRateMappingRequest", "ExchangeRateMappingResponse")
-
-	return b
-}
-
 func (r *CryptoNetworkOperationRegistration) HTTPContracts() spec.Bundle {
 	return spec.EntityWithDetail[struct{}, struct{}, cryptodto.CryptoNetworkOperationResponse, cryptodto.CryptoNetworkOperationResponse](r.EntityDefinition(), r.DocumentCapabilities())
 }

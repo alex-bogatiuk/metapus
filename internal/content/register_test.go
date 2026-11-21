@@ -1,6 +1,7 @@
 package content
 
 import (
+	"metapus/internal/configuration"
 	"net/http"
 	"testing"
 
@@ -86,9 +87,8 @@ func TestChainOwnedCryptoDocumentsDisableGenericMutationRoutes(t *testing.T) {
 	}
 }
 
-func TestRegisterDefaultsDocumentWorkflowRegistrations(t *testing.T) {
-	reg := v1.NewFactoryRegistry()
-	RegisterDefaults(reg)
+func TestCryptoDocumentWorkflowRegistrations(t *testing.T) {
+	reg := configuration.Compose(Crypto(Services{}))
 
 	var treasury v1.DocumentRegistration
 	for _, doc := range reg.Documents() {

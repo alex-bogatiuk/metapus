@@ -16,7 +16,8 @@ import (
 	"github.com/xuri/excelize/v2"
 
 	"metapus/internal/application/automation"
-	"metapus/internal/content"
+	"metapus/internal/configuration"
+	"metapus/internal/configuration/none"
 	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
@@ -78,9 +79,7 @@ func newReportFixture(t *testing.T) *reportFixture {
 	entry := &tenant.Tenant{ID: db.ID.String(), DBHost: conn.Host, DBPort: int(conn.Port), DBName: conn.Database, Status: tenant.StatusActive}
 	f := &reportFixture{db: db, entry: entry, ctx: tenant.WithTenant(tenant.WithTxManager(t.Context(), db.Tx), entry),
 		roleID: id.New(), merchantA: id.New(), merchantB: id.New()}
-	factories := v1.NewFactoryRegistry()
-	content.RegisterPlatform(factories)
-	registerProbe(factories)
+	factories := configuration.Compose(none.New(), registerProbe)
 	sqlDB := stdlib.OpenDBFromPool(db.Pool)
 	t.Cleanup(func() { _ = sqlDB.Close() })
 	_, err := migration.SyncPermissions(f.ctx, sqlDB, factories.Permissions())

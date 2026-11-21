@@ -1,16 +1,20 @@
 package content
 
 import (
-	"metapus/internal/domain/crypto/cryptointegrations"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"metapus/internal/configuration"
+	"metapus/internal/domain/crypto/cryptointegrations"
 	"metapus/internal/domain/integrations"
 	"metapus/internal/metadata"
 )
 
+// Composing the application lists its catalog's providers, the crypto ones
+// included, as the values of integration accounts' and pools' provider.
 func TestIntegrationProviderMetadataIncludesAllRegisteredProfiles(t *testing.T) {
+	configuration.Compose(Crypto(Services{}))
 	for _, model := range []any{integrations.Account{}, integrations.Pool{}} {
 		definition := metadata.Inspect(model, "", metadata.TypeCatalog)
 		found := false

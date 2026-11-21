@@ -1,6 +1,7 @@
 package content_test
 
 import (
+	"metapus/internal/configuration"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -24,8 +25,7 @@ type routeSigners struct {
 
 func TestEveryBuiltInEntityDerivesIdentityAndConcreteRoutesFromItsDefinition(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	factories := v1.NewFactoryRegistry()
-	content.RegisterDefaults(factories, content.Services{MoneyMovementSigners: routeSigners{}})
+	factories := configuration.Compose(content.Crypto(content.Services{MoneyMovementSigners: routeSigners{}}))
 	deps := v1.DocumentDeps{BaseHandler: handlers.NewBaseHandler(), Numerator: numerator.Noop(), PostingEngine: posting.NewEngine(nil), StepUpChecker: routeStepUp{}, StepUpGuard: func(string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }}
 	identities := map[string]bool{}
 	checkIdentity := func(reg entity.DefinitionProvider) {

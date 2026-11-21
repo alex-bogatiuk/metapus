@@ -11,8 +11,10 @@ import (
 
 	"metapus/internal/core/entity"
 	"metapus/internal/domain/auth"
+	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/http/contracts/spec"
 	v1 "metapus/internal/infrastructure/http/v1"
+	"metapus/internal/platformcontent"
 )
 
 // Configuration is an industry configuration built on the platform.
@@ -27,7 +29,8 @@ type Configuration interface {
 	// frontend/configuration/<name>/ its user interface.
 	Name() string
 	// Register adds the configuration's catalogs, documents, registers,
-	// report datasets and dataset executors to reg.
+	// report datasets and dataset executors to reg. The platform's shared
+	// entities (platformcontent) are already registered.
 	Register(reg *v1.FactoryRegistry)
 	// RouteContracts are the wire contracts of the routes the configuration
 	// serves besides its registered entities' (its v1.RouteModule
@@ -37,6 +40,14 @@ type Configuration interface {
 	// NNNNN_name.sql at the root, applied after the platform's. It is nil
 	// when the configuration has no tables of its own.
 	Migrations() fs.FS
+	// IntegrationCatalog lists the application's integration kinds and
+	// providers: the platform's (integrations.PlatformKinds,
+	// PlatformProviders) and the configuration's, in the order the settings
+	// UI shows them. It is nil when the configuration adds none.
+	IntegrationCatalog() *integrations.Catalog
+	// PoolConsumers are the configuration's catalogs that read integration
+	// accounts through pools (integrations.PoolConsumer).
+	PoolConsumers() []integrations.PoolConsumer
 }
 
 var validName = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
@@ -44,12 +55,23 @@ var validName = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 // ValidName reports whether name can name a configuration.
 func ValidName(name string) bool { return validName.MatchString(name) }
 
-// Compose assembles the application's factory registry: the configuration's
-// entities, then each client extension (extensions.Register). The server and
-// the worker both start from it, so a dataset an extension registers is
-// served over HTTP and run by scheduled reports alike.
+// IntegrationCatalog is the application's integration catalog: the
+// configuration's, or the platform's alone when it adds none.
+func IntegrationCatalog(cfg Configuration) *integrations.Catalog {
+	if catalog := cfg.IntegrationCatalog(); catalog != nil {
+		return catalog
+	}
+	return integrations.PlatformCatalog()
+}
+
+// Compose assembles the application's factory registry: the platform's
+// shared entities (platformcontent), the configuration's, then each client
+// extension (extensions.Register). The server and the worker both start from
+// it, so a dataset an extension registers is served over HTTP and run by
+// scheduled reports alike.
 func Compose(cfg Configuration, extensions ...func(*v1.FactoryRegistry)) *v1.FactoryRegistry {
 	reg := v1.NewFactoryRegistry()
+	platformcontent.Register(reg, platformcontent.Integrations{Catalog: IntegrationCatalog(cfg), PoolConsumers: cfg.PoolConsumers()})
 	cfg.Register(reg)
 	for _, register := range extensions {
 		register(reg)

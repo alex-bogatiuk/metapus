@@ -5,6 +5,7 @@ package content
 import (
 	"context"
 	"errors"
+	"metapus/internal/configuration"
 	"os"
 	"testing"
 
@@ -32,8 +33,7 @@ func TestDeclaredTablePartsMatchSchema(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 
-	factories := v1.NewFactoryRegistry()
-	RegisterDefaults(factories)
+	factories := configuration.Compose(Crypto(Services{}))
 	registry := v1.BuildReadRegistry(factories)
 	declared := map[string]bool{}
 	for _, def := range registry.List() {

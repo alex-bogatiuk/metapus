@@ -248,7 +248,7 @@ Headers: Authorization: Bearer <token>, X-Tenant-ID: <uuid>
 Чтобы добавить свои поля, декларативная регистрация вызывает `.Search(...)`, а явная фабрика реализует интерфейс `platform.SearchFieldsProvider`:
 
 ```go
-// internal/content/catalog_registrations.go
+// internal/platformcontent/catalogs.go
 v1.Catalog[counterparty.Counterparty](presentation).
     Search(platform.SearchFields{
         SearchCols:  []string{"name", "code", "inn", "phone", "email"},

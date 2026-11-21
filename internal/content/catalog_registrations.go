@@ -1,5 +1,7 @@
-// Package content contains concrete Registration implementations for all
-// built-in entity types shipped with Metapus ("business content" layer).
+// Package content is the crypto-processing configuration (Crypto): the
+// Registration implementations of its catalogs and documents, its reports
+// and the checks of the application assembled with it. The platform's shared
+// entities live in internal/platformcontent.
 //
 // Platform Core interfaces live in internal/platform/ and v1/.
 // Client extensions DO NOT modify this package — they register their own
@@ -13,62 +15,22 @@ import (
 
 	"metapus/internal/domain"
 	"metapus/internal/domain/catalogs/blockchain_network"
-	"metapus/internal/domain/catalogs/contract"
-	"metapus/internal/domain/catalogs/counterparty"
 	"metapus/internal/domain/catalogs/crypto_provider_account"
-	"metapus/internal/domain/catalogs/currency"
 	"metapus/internal/domain/catalogs/merchant"
-	"metapus/internal/domain/catalogs/organization"
-	"metapus/internal/domain/catalogs/rate_source"
 	"metapus/internal/domain/catalogs/token"
 	"metapus/internal/domain/catalogs/wallet"
 	"metapus/internal/domain/crypto"
 	"metapus/internal/infrastructure/http/cryptohttp/cryptodto"
 	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/http/v1/dto"
 	"metapus/internal/infrastructure/http/v1/handlers"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"metapus/internal/infrastructure/storage/postgres/crypto_catalog_repo"
 	"metapus/internal/infrastructure/tenantdb"
 	"metapus/internal/metadata"
-	"metapus/internal/platform"
 )
 
 func init() {
 	// Register Enum metadata globally for automatic filter UI dropdown resolution.
-
-	// Counterparty Types
-	metadata.RegisterEnum[counterparty.CounterpartyType]([]metadata.EnumValue{
-		{Value: "customer", Label: "Покупатель"},
-		{Value: "supplier", Label: "Поставщик"},
-		{Value: "both", Label: "Покупатель и Поставщик"},
-		{Value: "other", Label: "Прочие"},
-	})
-
-	// Legal Forms
-	metadata.RegisterEnum[counterparty.LegalForm]([]metadata.EnumValue{
-		{Value: "individual", Label: "Физлицо"},
-		{Value: "sole_trader", Label: "ИП"},
-		{Value: "company", Label: "Юрлицо"},
-		{Value: "government", Label: "Гос. орган"},
-	})
-
-	// Contract Types
-	metadata.RegisterEnum[contract.ContractType]([]metadata.EnumValue{
-		{Value: "supply", Label: "С поставщиком"},
-		{Value: "sale", Label: "С покупателем"},
-		{Value: "other", Label: "Прочее"},
-	})
-
-	// Organization Tax Systems
-	metadata.RegisterEnum[organization.TaxSystem]([]metadata.EnumValue{
-		{Value: "osno", Label: "ОСНО"},
-		{Value: "usn_income", Label: "УСН (доходы)"},
-		{Value: "usn_income_expense", Label: "УСН (доходы − расходы)"},
-		{Value: "envd", Label: "ЕНВД"},
-		{Value: "patent", Label: "Патент"},
-	})
 
 	// Merchant KYB Status
 	metadata.RegisterEnum[merchant.KYBStatus]([]metadata.EnumValue{
@@ -118,14 +80,6 @@ func init() {
 		{Value: "persistent", Label: "Постоянный (per-customer)"},
 	})
 
-	// Rate Source Types
-	metadata.RegisterEnum[rate_source.SourceType]([]metadata.EnumValue{
-		{Value: "coingecko", Label: "CoinGecko"},
-		{Value: "binance", Label: "Binance"},
-		{Value: "coinmarketcap", Label: "CoinMarketCap"},
-		{Value: "manual", Label: "Ручной ввод"},
-	})
-
 	// Blockchain Network Chain Families
 	metadata.RegisterEnum[crypto.ChainFamily]([]metadata.EnumValue{
 		{Value: string(crypto.ChainFamilyTRON), Label: "TRON"},
@@ -150,65 +104,6 @@ func init() {
 		{Value: string(token.TokenStandardSPL), Label: "SPL"},
 		{Value: string(token.TokenStandardJetton), Label: "Jetton"},
 	})
-}
-
-// ---------------------------------------------------------------------------
-// Platform catalogs declared from their models: DTOs, routes, contracts,
-// references and permissions are derived; each keeps its domain service.
-// ---------------------------------------------------------------------------
-
-func counterpartyRegistration() v1.CatalogRegistration {
-	return v1.Catalog[counterparty.Counterparty](metadata.Presentation{
-		Singular: "Контрагент", Plural: "Контрагенты", NewLabel: "Новый контрагент", Genitive: "контрагента",
-	}).
-		References("supplier", "customer").
-		Search(platform.SearchFields{SearchCols: []string{"name", "code", "inn", "phone", "email"}, TitleCol: "name", SubtitleCol: "code"}).
-		Service(func(deps v1.CatalogDeps) *domain.CatalogService[*counterparty.Counterparty] {
-			return counterparty.NewService(catalog_repo.NewCounterpartyRepo(), deps.Numerator).CatalogService
-		})
-}
-
-func currencyRegistration() v1.CatalogRegistration {
-	return v1.Catalog[currency.Currency](metadata.Presentation{
-		Singular: "Валюта", Plural: "Валюты", NewLabel: "Новая валюта", Genitive: "валюты",
-	}).
-		Service(func(deps v1.CatalogDeps) *domain.CatalogService[*currency.Currency] {
-			return currency.NewService(catalog_repo.NewCurrencyRepo(), deps.Numerator).CatalogService
-		})
-}
-
-func organizationRegistration() v1.CatalogRegistration {
-	return v1.Catalog[organization.Organization](metadata.Presentation{
-		Singular: "Организация", Plural: "Организации", NewLabel: "Новая организация", Genitive: "организации",
-	}).
-		Service(func(deps v1.CatalogDeps) *domain.CatalogService[*organization.Organization] {
-			service := organization.NewService(catalog_repo.NewOrganizationRepo(), deps.Numerator)
-			// Invalidate CurrencyResolver cache when org's base currency changes
-			if inv := deps.CurrencyCacheInvalidator; inv != nil {
-				service.Hooks().OnAfterUpdate(func(_ context.Context, org *organization.Organization) error {
-					inv.InvalidateOrgCurrency(org.ID)
-					return nil
-				})
-			}
-			return service.CatalogService
-		})
-}
-
-func contractRegistration() v1.CatalogRegistration {
-	return v1.Catalog[contract.Contract](metadata.Presentation{
-		Singular: "Договор", Plural: "Договоры", NewLabel: "Новый договор", Genitive: "договора",
-	}).
-		Service(func(deps v1.CatalogDeps) *domain.CatalogService[*contract.Contract] {
-			service := contract.NewService(catalog_repo.NewContractRepo(), deps.Numerator)
-			// Invalidate CurrencyResolver cache when contract's currency changes
-			if inv := deps.CurrencyCacheInvalidator; inv != nil {
-				service.Hooks().OnAfterUpdate(func(_ context.Context, c *contract.Contract) error {
-					inv.InvalidateContractCurrency(c.ID)
-					return nil
-				})
-			}
-			return service.CatalogService
-		})
 }
 
 // ── ResolveRefs callbacks for catalogs with FK references ───────────────
@@ -418,44 +313,5 @@ func (r *CryptoProviderAccountRegistration) Build(deps v1.CatalogDeps) v1.Catalo
 		MapToDTO: func(account *crypto_provider_account.CryptoProviderAccount) any {
 			return cryptodto.FromCryptoProviderAccount(account)
 		},
-	})
-}
-
-// ---------------------------------------------------------------------------
-// RateSource
-// ---------------------------------------------------------------------------
-
-type RateSourceRegistration struct {
-	v1.CatalogRegistrationFor[rate_source.RateSource, dto.CreateRateSourceRequest, dto.UpdateRateSourceRequest, dto.RateSourceResponse]
-}
-
-func (r *RateSourceRegistration) ReferenceTypes() []string { return []string{"rate_source"} }
-func (r *RateSourceRegistration) EntityLabel() string      { return "Источники курсов" }
-func (r *RateSourceRegistration) EntityPresentation() metadata.Presentation {
-	return metadata.Presentation{
-		Singular: "Источник курсов",
-		Plural:   "Источники курсов",
-		NewLabel: "Новый источник курсов",
-		Genitive: "источника курсов",
-	}
-}
-func (r *RateSourceRegistration) Build(deps v1.CatalogDeps) v1.CatalogRouteHandler {
-	repo := catalog_repo.NewRateSourceRepo()
-	service := rate_source.NewService(repo, deps.Numerator)
-	service.SetPolicyEngine(deps.PolicyEngine)
-	domain.NewEventLogCatalogService(service.CatalogService, rate_source.Definition.Key, deps.EventWriter)
-	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[
-		*rate_source.RateSource,
-		dto.CreateRateSourceRequest,
-		dto.UpdateRateSourceRequest,
-	]{
-		Service:      service.CatalogService,
-		EntityName:   rate_source.Definition.Key,
-		MapCreateDTO: func(req dto.CreateRateSourceRequest) *rate_source.RateSource { return req.ToEntity() },
-		MapUpdateDTO: func(req dto.UpdateRateSourceRequest, existing *rate_source.RateSource) *rate_source.RateSource {
-			req.ApplyTo(existing)
-			return existing
-		},
-		MapToDTO: func(entity *rate_source.RateSource) any { return dto.FromRateSource(entity) },
 	})
 }

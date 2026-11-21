@@ -14,16 +14,18 @@ import (
 
 	dbassets "metapus/db"
 	"metapus/internal/configuration"
+	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/http/contracts"
-	"metapus/internal/infrastructure/http/contracts/spec"
 )
 
 var migrationName = regexp.MustCompile(`^\d{5}_[a-z0-9_]+\.sql$`)
 
 // Check verifies cfg: its name, that it registers the same entities each
 // time, that the assembled application's permissions and routes are unique,
-// that its wire contracts generate, and that its migrations are the ones the
-// repository holds for it, in the platform's format and versions of their own.
+// that its wire contracts and frontend files generate, that its integration
+// catalog keeps the platform's kinds and providers, and that its migrations
+// are the ones the repository holds for it, in the platform's format and
+// versions of their own.
 func Check(t *testing.T, cfg configuration.Configuration) {
 	t.Helper()
 	require.Truef(t, configuration.ValidName(cfg.Name()), "configuration name %q must be a lowercase directory name", cfg.Name())
@@ -35,7 +37,7 @@ func Check(t *testing.T, cfg configuration.Configuration) {
 	})
 
 	t.Run("contracts", func(t *testing.T) {
-		bundles := append([]spec.Bundle{configuration.Compose(cfg).HTTPContracts()}, cfg.RouteContracts()...)
+		bundles := configuration.HTTPContractBundles(cfg)
 		seen := map[string]bool{}
 		for _, route := range contracts.Routes(bundles...) {
 			key := route.Scope + " " + route.Method + " " + route.Path
@@ -44,6 +46,20 @@ func Check(t *testing.T, cfg configuration.Configuration) {
 		}
 		_, err := contracts.Generate(contracts.Registry(bundles...))
 		require.NoError(t, err)
+		_, _, err = configuration.HTTPArtifacts(cfg)
+		require.NoError(t, err)
+	})
+
+	t.Run("integrations", func(t *testing.T) {
+		catalog := configuration.IntegrationCatalog(cfg)
+		for _, kind := range integrations.PlatformKinds() {
+			require.Truef(t, slices.ContainsFunc(catalog.Kinds(), func(k integrations.KindDefinition) bool { return k.ID == kind.ID }),
+				"the integration catalog misses platform kind %s", kind.ID)
+		}
+		for _, provider := range integrations.PlatformProviders() {
+			_, ok := catalog.Definition(provider.ID)
+			require.Truef(t, ok, "the integration catalog misses platform provider %s", provider.ID)
+		}
 	})
 
 	t.Run("migrations", func(t *testing.T) {

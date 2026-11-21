@@ -63,7 +63,6 @@ var knownCommandConfigurationLeaks = map[string][]string{
 		"metapus/internal/content",
 		"metapus/internal/domain/catalogs/merchant",
 		"metapus/internal/domain/crypto",
-		"metapus/internal/domain/crypto/cryptointegrations",
 		"metapus/internal/domain/documents/crypto_invoice",
 		"metapus/internal/infrastructure/blockchain/bootstrap",
 		"metapus/internal/infrastructure/crypto/approval_signer",

@@ -14,7 +14,8 @@ When adding or changing an endpoint:
 3. Run `go run ./cmd/http-contracts`. Do not edit the generated files: the
    platform's three (`frontend/types/generated`, `frontend/lib/generated`) and
    each configuration's three under `frontend/configuration/<name>/`. A
-   configuration's contracts belong in its bundle (`content.CryptoHTTPContractBundles`);
+   configuration's contracts belong to its entities or its `RouteContracts`
+   (`configuration.OwnHTTPContractBundles`);
    its files import platform types instead of declaring them again.
 4. Use the generated types in consumers. Add local schemas for frontend-owned
    state or domain refinements; validate before publishing to a store. Normalize

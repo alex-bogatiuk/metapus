@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"metapus/extensions"
+	"metapus/internal/configuration"
 	"metapus/internal/content"
 	"metapus/internal/infrastructure/http/contracts"
 	"metapus/internal/infrastructure/http/cryptohttp/cryptohandlers"
@@ -30,7 +31,7 @@ func TestServiceRouteRegistrationsHaveWireContracts(t *testing.T) {
 	cryptohandlers.NewCryptoRPCConfigurationHandler(nil).RegisterRoutes(root, guard)
 	handlers.RegisterListViewRoutes(root, nil)
 	registry := map[string]contracts.RouteContract{}
-	for _, route := range contracts.Routes(content.HTTPContractBundles(extensions.Register)...) {
+	for _, route := range contracts.Routes(configuration.HTTPContractBundles(content.Crypto(content.Services{}), extensions.Register)...) {
 		if route.Scope == "api" {
 			registry[route.Method+" "+route.Path] = route
 		}

@@ -1,51 +1,22 @@
 package content
 
 import (
-	"metapus/internal/infrastructure/http/contracts/spec"
-	"metapus/internal/infrastructure/http/cryptohttp"
 	v1 "metapus/internal/infrastructure/http/v1"
 
 	"metapus/internal/domain/reports/schema"
 )
 
-// RegisterDefaults populates the registry with all built-in (core) entity factories.
-// This is the "business content" layer — specific entities shipped with Metapus.
-//
-// It is the crypto configuration's Register (Crypto). Until the platform
-// registers its shared entities itself, it also registers them
-// (RegisterPlatform).
-//
-// Services is optional; contract generation and tests register without it.
-func RegisterDefaults(reg *v1.FactoryRegistry, services ...Services) {
-	var svc Services
-	if len(services) > 0 {
-		svc = services[0]
-	}
-
-	RegisterPlatform(reg)
+// register adds the crypto configuration's entities and reports: its
+// catalogs and documents, the document journal and its executor. svc may be
+// the zero value; contract generation and tests register without it.
+func register(reg *v1.FactoryRegistry, svc Services) {
 	registerCryptoEntities(reg, svc)
-
 	for key, executor := range DatasetExecutors() {
 		reg.RegisterDatasetExecutor(key, executor)
 	}
-
-	// Datasets — declarative, metadata-driven reports
 	for _, ds := range AllDatasets() {
 		reg.RegisterDataset(ds)
 	}
-}
-
-// RegisterPlatform registers the platform's applied entities: the shared
-// catalogs, integrations and exchange rates that any configuration uses.
-func RegisterPlatform(reg *v1.FactoryRegistry) {
-	reg.RegisterCatalog(counterpartyRegistration())
-	reg.RegisterCatalog(currencyRegistration())
-	reg.RegisterCatalog(organizationRegistration())
-	reg.RegisterCatalog(contractRegistration())
-	reg.RegisterCatalog(&IntegrationAccountRegistration{})
-	reg.RegisterCatalog(&IntegrationPoolRegistration{})
-	reg.RegisterCatalog(&RateSourceRegistration{})
-	reg.RegisterRegister(&ExchangeRateRegisterRegistration{})
 }
 
 // registerCryptoEntities registers the crypto-processing configuration's
@@ -79,32 +50,4 @@ func AllDatasets() []*schema.Dataset {
 	return []*schema.Dataset{
 		&DocumentJournalDataset,
 	}
-}
-
-// HTTPContractBundles returns every wire contract of the application: the
-// platform's (with client extensions) followed by the crypto configuration's.
-// Route checks of the assembled server use it.
-func HTTPContractBundles(register ...func(*v1.FactoryRegistry)) []spec.Bundle {
-	return append(PlatformHTTPContractBundles(register...), CryptoHTTPContractBundles()...)
-}
-
-// PlatformHTTPContractBundles are the platform entities' contracts and those
-// of client extensions, which use the platform's generic UI. The generator
-// writes them to the platform's frontend files.
-func PlatformHTTPContractBundles(register ...func(*v1.FactoryRegistry)) []spec.Bundle {
-	reg := v1.NewFactoryRegistry()
-	RegisterPlatform(reg)
-	for _, fn := range register {
-		fn(reg)
-	}
-	return []spec.Bundle{reg.HTTPContracts()}
-}
-
-// CryptoHTTPContractBundles are the crypto configuration's contracts: its
-// entities and its route module. The generator writes them to the
-// configuration's own frontend files.
-func CryptoHTTPContractBundles() []spec.Bundle {
-	reg := v1.NewFactoryRegistry()
-	registerCryptoEntities(reg, Services{})
-	return []spec.Bundle{reg.HTTPContracts(), cryptohttp.HTTPContracts()}
 }

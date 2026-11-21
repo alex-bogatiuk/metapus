@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/configuration"
-	v1 "metapus/internal/infrastructure/http/v1"
 )
 
 // TestAssembledPermissionsFitTheTableAndCoverEveryEntity checks the list the
@@ -28,8 +27,7 @@ func TestAssembledPermissionsFitTheTableAndCoverEveryEntity(t *testing.T) {
 		require.NotEmpty(t, p.Action, p.Code)
 	}
 
-	reg := v1.NewFactoryRegistry()
-	RegisterDefaults(reg)
+	reg := configuration.Compose(Crypto(Services{}))
 	var required []string
 	for _, f := range reg.Catalogs() {
 		required = append(required, f.Permission()+":read", f.Permission()+":create", f.Permission()+":update", f.Permission()+":delete")

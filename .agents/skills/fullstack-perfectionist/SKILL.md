@@ -117,7 +117,7 @@ description: Главный инженер и архитектор транза�
   - Репозиторий: встроить `*storage.BaseCatalogRepo[Model]`
   - Сервис: встроить `*domain.CatalogService[Model]`
   - Хэндлер: `handlers.NewCatalogHandler[Model, CreateDTO, UpdateDTO]`
-  - Регистрация: реализовать интерфейс `v1.CatalogRegistration` (`internal/infrastructure/http/v1/catalog_factory.go`) и зарегистрировать в `content.RegisterDefaults`.
+  - Регистрация: реализовать интерфейс `v1.CatalogRegistration` (`internal/infrastructure/http/v1/catalog_factory.go`) и зарегистрировать: общий справочник платформы — в `platformcontent.Register`, справочник конфигурации — в её `Register` (крипто: `internal/content/register.go`).
 - **Документы (Documents)**:
   - Репозиторий: встроить `*storage.BaseDocumentRepo[DocModel, LineModel]`
   - Сервис: встроить `*domain.BaseDocumentService[DocModel, LineModel]`

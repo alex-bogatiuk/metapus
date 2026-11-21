@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"metapus/internal/configuration"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -19,8 +20,7 @@ import (
 // Every "ref" movement column of a register names an entity of the read
 // registry; otherwise readers would drop the reference.
 func TestRegisterRefColumnsNameRegisteredEntities(t *testing.T) {
-	factories := v1.NewFactoryRegistry()
-	RegisterDefaults(factories)
+	factories := configuration.Compose(Crypto(Services{}))
 	registry := v1.BuildReadRegistry(factories)
 	known := map[string]bool{}
 	for _, def := range registry.List() {

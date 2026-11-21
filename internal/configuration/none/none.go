@@ -8,6 +8,7 @@ import (
 	"io/fs"
 
 	"metapus/internal/configuration"
+	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/http/contracts/spec"
 	v1 "metapus/internal/infrastructure/http/v1"
 )
@@ -20,7 +21,9 @@ type empty struct{}
 // New returns the empty configuration.
 func New() configuration.Configuration { return empty{} }
 
-func (empty) Name() string                  { return Name }
-func (empty) Register(*v1.FactoryRegistry)  {}
-func (empty) RouteContracts() []spec.Bundle { return nil }
-func (empty) Migrations() fs.FS             { return nil }
+func (empty) Name() string                               { return Name }
+func (empty) Register(*v1.FactoryRegistry)               {}
+func (empty) RouteContracts() []spec.Bundle              { return nil }
+func (empty) Migrations() fs.FS                          { return nil }
+func (empty) IntegrationCatalog() *integrations.Catalog  { return nil }
+func (empty) PoolConsumers() []integrations.PoolConsumer { return nil }

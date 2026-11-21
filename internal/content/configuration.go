@@ -5,9 +5,12 @@ import (
 
 	dbassets "metapus/db"
 	"metapus/internal/configuration"
+	"metapus/internal/domain/crypto/cryptointegrations"
+	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/http/contracts/spec"
 	"metapus/internal/infrastructure/http/cryptohttp"
 	v1 "metapus/internal/infrastructure/http/v1"
+	"metapus/internal/infrastructure/storage/postgres/crypto_integration_repo"
 )
 
 // CryptoName is the crypto-processing configuration's name.
@@ -22,7 +25,7 @@ type cryptoConfiguration struct{ services Services }
 
 func (cryptoConfiguration) Name() string { return CryptoName }
 
-func (c cryptoConfiguration) Register(reg *v1.FactoryRegistry) { RegisterDefaults(reg, c.services) }
+func (c cryptoConfiguration) Register(reg *v1.FactoryRegistry) { register(reg, c.services) }
 
 func (cryptoConfiguration) RouteContracts() []spec.Bundle {
 	return []spec.Bundle{cryptohttp.HTTPContracts()}
@@ -34,4 +37,12 @@ func (cryptoConfiguration) Migrations() fs.FS {
 		panic(err) // the path is a valid constant
 	}
 	return migrations
+}
+
+func (cryptoConfiguration) IntegrationCatalog() *integrations.Catalog {
+	return cryptointegrations.Catalog()
+}
+
+func (cryptoConfiguration) PoolConsumers() []integrations.PoolConsumer {
+	return []integrations.PoolConsumer{crypto_integration_repo.RPCPoolConsumer{}}
 }

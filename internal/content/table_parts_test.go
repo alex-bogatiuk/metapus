@@ -1,6 +1,7 @@
 package content
 
 import (
+	"metapus/internal/configuration"
 	"testing"
 
 	v1 "metapus/internal/infrastructure/http/v1"
@@ -9,8 +10,7 @@ import (
 // Building the read registry binds every inspected collection to a declared
 // SQL part or a derived collection, so it fails on any undeclared one.
 func TestBuiltInTablePartsAreDeclared(t *testing.T) {
-	factories := v1.NewFactoryRegistry()
-	RegisterDefaults(factories)
+	factories := configuration.Compose(Crypto(Services{}))
 	registry := v1.BuildReadRegistry(factories)
 	sql := map[string]string{}
 	derived := map[string]bool{}

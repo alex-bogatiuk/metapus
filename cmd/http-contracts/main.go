@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"metapus/extensions"
+	"metapus/internal/configuration"
 	"metapus/internal/content"
 )
 
@@ -24,7 +25,7 @@ func main() {
 }
 
 func run(check bool) error {
-	artifacts, count, err := content.HTTPArtifacts(extensions.Register)
+	artifacts, count, err := configuration.HTTPArtifacts(content.Crypto(content.Services{}), extensions.Register)
 	if err != nil {
 		return err
 	}

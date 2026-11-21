@@ -27,7 +27,6 @@ import (
 	"metapus/internal/domain/auth"
 	"metapus/internal/domain/catalogs/merchant"
 	domaincrypto "metapus/internal/domain/crypto"
-	"metapus/internal/domain/crypto/cryptointegrations"
 	"metapus/internal/domain/documents/crypto_invoice"
 	"metapus/internal/domain/posting"
 	"metapus/internal/domain/printing"
@@ -261,8 +260,11 @@ func run(ctx context.Context, cfg config, log *logger.Logger) error {
 		return fmt.Errorf("create money movement approval signer provider: %w", err)
 	}
 
-	// Entity factories: the crypto configuration (with its services), then client extensions.
-	factoryReg := configuration.Compose(content.Crypto(content.Services{CheckoutRefs: checkoutRefs, MoneyMovementSigners: approvalSignerProvider}), extensions.Register)
+	// Entity factories: the platform's, the crypto configuration's (with its
+	// services), then client extensions.
+	app := content.Crypto(content.Services{CheckoutRefs: checkoutRefs, MoneyMovementSigners: approvalSignerProvider})
+	factoryReg := configuration.Compose(app, extensions.Register)
+	integrationCatalog := configuration.IntegrationCatalog(app)
 	paymentLinkSvc, err := cryptoapp.NewPaymentLinkService(cryptoapp.PaymentLinkServiceConfig{
 		Repo: portalDashboardRepo,
 		Refs: checkoutRefs,
@@ -315,8 +317,8 @@ func run(ctx context.Context, cfg config, log *logger.Logger) error {
 		Version:                    Version,
 		BuildTime:                  BuildTime,
 		WSTicketStore:              wsTicketStore,
-		IntegrationConnectionTests: integrationapp.NewConnectionTestService(crypto_integration_repo.NewConnectionTargets(), integrationhttp.ConnectionProber{Accounts: integration_repo.NewRuntime(cryptointegrations.Catalog()), Profiles: cryptoprofiles.Registry(), EndpointProbe: crypto_integration_repo.RPCProbe, EndpointTransport: crypto_integration_repo.RPCTransport}),
-		IntegrationCatalog:         cryptointegrations.Catalog(),
+		IntegrationConnectionTests: integrationapp.NewConnectionTestService(crypto_integration_repo.NewConnectionTargets(), integrationhttp.ConnectionProber{Accounts: integration_repo.NewRuntime(integrationCatalog), Profiles: cryptoprofiles.Registry(), EndpointProbe: crypto_integration_repo.RPCProbe, EndpointTransport: crypto_integration_repo.RPCTransport}),
+		IntegrationCatalog:         integrationCatalog,
 		RouteModules: []v1.RouteModule{cryptohttp.New(cryptohttp.Config{
 			CheckoutRefs:                 checkoutRefs,
 			MoneyMovementApprovalSigners: approvalSignerProvider,
