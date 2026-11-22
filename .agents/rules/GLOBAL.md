@@ -7,58 +7,33 @@ trigger: always_on
 Ты работаешь над **Metapus** — мультитенантной ERP-платформой.
 **Стек:** Go 1.27 (Clean Architecture, pgx, squirrel, Gin) + Next.js 16 (App Router, TypeScript, shadcn/ui, Zustand, Zod).
 
----
-
-## §1. Перед тем как писать код — ОСТАНОВИСЬ
-
-1. **Прочитай `docs/ROUTER.md`** → найди релевантные документы архитектуры.
-2. **Найди ближайший аналог** в кодовой базе — в обоих слоях (backend + frontend).
-3. **Можно ли решить задачу расширением существующей абстракции?** Если да — расширяй, не создавай новое.
-4. **Если нет аналога** — спроектируй решение как generic и reusable, не под одну страницу/сущность.
-
-> Самый частый источник плохого кода — начать писать, не изучив, что уже есть.
+**Архитектура бэкенда** — слои, граница «платформа / конфигурация / расширение», `pkg/sdk`, тенанты, транзакции, проведение, хуки, миграции, ошибки, деньги и паттерны проектирования — в скилле `metapus-architecture` (`.agents/skills/metapus-architecture/`). Загрузи его перед любой работой с Go-кодом в `internal/`, `pkg/`, `extensions/`, `cmd/`. Ниже — только то, чего в скилле нет.
 
 ---
 
-## §2. Архитектурные инварианты (нарушение = критическая ошибка)
+## §1. Инварианты (нарушение = ошибка)
 
 | # | Инвариант | Почему |
 |---|-----------|--------|
-| 1 | **`core` → `domain` → `infrastructure`**. Domain НЕ импортирует infrastructure. | Clean Architecture |
-| 2 | **Нет `tenant_id`** в бизнес-таблицах. `TxManager` из `context.Context`. | Database-per-Tenant |
-| 3 | **Нет `any`/`unknown`** в TypeScript API-типах. Нет `interface{}`/`any` в Go, где можно generic. | Type Safety |
-| 4 | **Нет хардкода валютного scale** (100, 1000). Только `decimalPlaces` из метаданных. | Финансовая точность |
-| 5 | **Handler — тонкий адаптер.** `c.Error(err) + c.Abort()`, никогда `c.JSON(status, error)`. | Единая точка ошибок |
-| 6 | **Все ошибки** через `apperror.AppError`. Wrapping: `fmt.Errorf("action: %w", err)`. | Трассируемость |
-| 7 | **`Validate(ctx)`** — чистая функция, без обращений к БД. | Тестируемость |
-| 8 | **`GenerateMovements()`** — детерминированная, без side effects. | Воспроизводимость |
-| 9 | **TypeScript types === Go DTO** (поля, имена, nullability). | Contract Integrity |
-| 10 | **Enum `iota + 1`** для бизнес-значений. Нулевое значение = «не задано». `iota` без `+1` — только для `ctxKey` и sentinel. | Zero-value Safety |
-| 11 | **Ошибку обработай один раз.** Либо `log` + swallow, либо `wrap` + return. Никогда `log` + return одновременно. | Трассируемость |
-| 12 | **Слайсы на границах — defensive copy.** Принимаешь `[]T` в domain — `copy()`. Возвращаешь внутренний `[]T` — `copy()`. | Иммутабельность |
+| 1 | **Нет `any`/`unknown`** в TypeScript API-типах. | Type Safety |
+| 2 | **TypeScript types === Go DTO** (поля, имена, nullability). Типы генерируются `go run ./cmd/http-contracts`, руками не правятся. | Contract Integrity |
+| 3 | **Enum `iota + 1`** для бизнес-значений. Нулевое значение = «не задано». `iota` без `+1` — только для `ctxKey` и sentinel. | Zero-value Safety |
+| 4 | **Слайсы на границах — defensive copy.** Принимаешь `[]T` в domain — `copy()`. Возвращаешь внутренний `[]T` — `copy()`. | Иммутабельность |
 
 ---
 
-## §3. Go: качество и производительность
+## §2. Go: качество и производительность
 
 - **Capacity hints**: `make([]T, 0, n)` если размер известен или оценим. Единая точка: generic `List()` в `BaseCatalogRepo[T]`.
 - **`strconv` > `fmt`** для числовых конвертаций в hot paths (`strconv.Itoa`, `strconv.FormatInt`). `fmt.Sprintf` допустим для шаблонов с текстом.
-- **Functional Options** (`func NewX(required, opts ...Option)`) — для новых конструкторов с ≥3 необязательными параметрами. Не переписывать существующее ретроактивно.
 - **`_` префикс** для неэкспортируемых package-level `const`/`var` (`_defaultBatchSize`, `_maxRetries`).
 - **Table-driven тесты**: `tests := []struct{...}`, переменная `tt`, поля `give`/`want`. Единая конвенция для всех тестов.
 - **Импорты**: 3 группы — `stdlib` → `external` → `internal`.
 
 ---
 
-## §4. Паттерны: расширяй, не дублируй
+## §3. Frontend: расширяй, не дублируй
 
-### Backend
-- **CRUD**: embed `BaseCatalogRepo[T]`, `CatalogService[T]`, `BaseDocumentService[T, L]`. Запрещено писать Create/Update/GetByID/List с нуля.
-- **Миграции** (ранний этап): редактируй оригинальную, не создавай новую. Префиксы `cat_`/`doc_`/`reg_`/`sys_`/`auth_`. CDC-колонки + триггеры + `TIMESTAMPTZ`.
-- **Транзакции**: Optimistic Locking (version) по умолчанию. `FOR UPDATE` + resource ordering — только для остатков. Короткие tx, statement_timeout 30s.
-- **Goroutines**: каждая `go func()` → owner + `ctx.Done()` + stop-signal. `defer ticker.Stop()`.
-
-### Frontend
 - **API**: `createCatalogApi<>()` / `createDocumentApi<>()` — одна строка на сущность.
 - **Списки**: `CatalogListPage` / `useDocumentListPage` + `FilterSidebar` (metadata-driven).
 - **Формы**: `useCatalogForm` + `useTabDirty` + `useFormDraft`. Все запросы через `apiFetch<T>()`.
@@ -67,31 +42,25 @@ trigger: always_on
 
 ---
 
-## §5. Формат вывода
+## §4. Формат вывода
 
 1. **Начни с решения.** Какие паттерны применяешь, какие файлы затронуты.
 2. **Покажи только уникальное.** НЕ генерируй портянки стандартного boilerplate — покажи модель, валидацию, хуки, строки регистрации.
 3. **Код** — первая строка блока = полный путь к файлу.
 4. **Trade-offs** — если есть выбор, обоснуй.
-5. **Verify** — в конце напомни:
+5. **Verify** — в конце напомни проверки: для Go — из скилла `metapus-architecture` (раздел 6), для фронтенда:
    ```
-   go build ./... && golangci-lint run ./...
    cd frontend && npx tsc --noEmit && npm run lint
    ```
 
 ---
 
-## §6. Запрещено (Anti-patterns)
+## §5. Запрещено (Anti-patterns)
 
-- ❌ Копипаста CRUD/UI между сущностями — используй generics и фабрики
-- ❌ Бизнес-логика в handler — только в domain service
+- ❌ Копипаста UI между сущностями — используй generics и фабрики
 - ❌ Сырой state в React-компоненте — выноси в хук
-- ❌ `go func()` без контекста — goroutine leak
-- ❌ `SELECT FOR UPDATE` без сортировки — deadlock
-- ❌ Новая миграция для правки существующей таблицы (ранний этап) — редактируй оригинал
 - ❌ Hex-цвета в Tailwind — только design tokens
 - ❌ «Быстрый хак» вместо системного решения — мы строим на десятилетия
-- ❌ `log.Error(err)` + `return err` — двойная обработка ошибки. Выбери одно
 - ❌ `var items []T` + `append` в цикле при известном размере — используй `make([]T, 0, n)`
 - ❌ `fmt.Sprintf("%d", n)` в hot path — используй `strconv`
 - ❌ `iota` (без `+1`) для бизнес-enum, где 0 не осмыслен — zero-value ловушка

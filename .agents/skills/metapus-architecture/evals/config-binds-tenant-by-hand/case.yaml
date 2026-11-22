@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: config-binds-tenant-by-hand
+expected_outcome: |
+  The answer steers away from binding the tenant by hand: crypto may import only
+  pkg/sdk, which no longer exposes the raw pool or NewTxManagerFromRawPool. It
+  recommends middleware.BindTenant(ctx, manager, tenantID) with defer release()
+  and a route group from RouteContext (ProtectedGroup, Authenticated or API)
+  instead of assembling TenantDB/Auth by hand.

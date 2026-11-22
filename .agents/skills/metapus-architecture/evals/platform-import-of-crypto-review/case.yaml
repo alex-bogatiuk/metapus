@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: platform-import-of-crypto-review
+expected_outcome: |
+  The answer rejects the plan because the platform would import a configuration
+  package (TestPlatformDoesNotDependOnConfiguration), and points to the existing
+  extension point integrations.PoolConsumer that crypto already implements and
+  passes through Configuration.PoolConsumers(). It does not suggest adding an
+  exception to the architecture test.

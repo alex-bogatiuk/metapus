@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: autoparts-supplier-settlement-register
+expected_outcome: |
+  The register lives entirely under internal/configuration/autoparts and its
+  migration under db/configuration/autoparts. It follows the visitor/recorder
+  pattern through a posting.Module, the receipt generates movements in a pure
+  function, money is MinorUnits, and the code imports only metapus/pkg/sdk from
+  the platform. The architecture tests and the build pass.
