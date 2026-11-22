@@ -10,7 +10,7 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,7 +23,7 @@ func TestWatcherBlockCommitAtomicRollbackAndFencing(t *testing.T) {
 	pool, err := pgxpool.New(t.Context(), dsn)
 	require.NoError(t, err)
 	defer pool.Close()
-	ctx := tenant.WithTxManager(t.Context(), postgres.NewTxManagerFromRawPool(pool))
+	ctx := tenant.WithTxManager(t.Context(), sdktest.NewTxManager(pool))
 	network := id.New()
 	suffix := id.Compact(network)
 	_, err = pool.Exec(ctx, `INSERT INTO cat_blockchain_networks(id,code,name,chain_family,network_identifier,native_token_symbol,native_decimals,confirmations_needed,is_active)

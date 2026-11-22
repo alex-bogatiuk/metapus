@@ -14,7 +14,7 @@ import (
 	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -22,10 +22,10 @@ func TestPortalMerchantSettingsPatch(t *testing.T) {
 	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	require.NotEmpty(t, dsn, "METAPUS_TEST_DATABASE_DSN is required for integration tests")
 	ctx := context.Background()
-	pool, err := postgres.OpenPool(ctx, dsn)
+	pool, err := sdktest.OpenPool(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 	repo := NewDashboardRepo()
 	ttl, minimumTTL, maximumTTL, invalidTTL := 120, 5, 10080, 4

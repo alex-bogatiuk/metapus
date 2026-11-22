@@ -14,7 +14,7 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -28,7 +28,7 @@ func TestConcurrentWebhookSecretRotationsAreSerializedAndRetired(t *testing.T) {
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 
 	merchantID := id.New()
@@ -125,7 +125,7 @@ func TestManualWebhookDeliveryJobUsesManualScheduleStart(t *testing.T) {
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 
 	merchantID, endpointID, aggregateID := id.New(), id.New(), id.New()

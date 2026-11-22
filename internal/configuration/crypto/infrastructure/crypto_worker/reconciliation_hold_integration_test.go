@@ -17,10 +17,11 @@ import (
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/logger"
 	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/types"
 )
 
-func seedBalanceReconciliationRun(t *testing.T, ctx context.Context, txm *postgres.TxManager) id.ID {
+func seedBalanceReconciliationRun(t *testing.T, ctx context.Context, txm *sdktest.TxManager) id.ID {
 	t.Helper()
 	runID := id.New()
 	_, err := txm.GetQuerier(ctx).Exec(ctx, `
@@ -31,7 +32,7 @@ func seedBalanceReconciliationRun(t *testing.T, ctx context.Context, txm *postgr
 	return runID
 }
 
-func balanceObservation(t *testing.T, ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) crypto.BalanceObservation {
+func balanceObservation(t *testing.T, ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) crypto.BalanceObservation {
 	t.Helper()
 	return crypto.BalanceObservation{RunID: seedBalanceReconciliationRun(t, ctx, txm), NetworkID: f.network,
 		WalletID: f.wallet, TokenID: f.token, Kind: crypto.BalanceMismatchToken,
@@ -39,7 +40,7 @@ func balanceObservation(t *testing.T, ctx context.Context, txm *postgres.TxManag
 }
 
 func TestReconciliationHoldConcurrentReplayAndResolution(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		service := newBalanceReconciliationService()
 		first := balanceObservation(t, ctx, txm, f)
 		concurrent := func(observations []crypto.BalanceObservation) (created, updated, resolved int) {
@@ -127,7 +128,7 @@ func TestReconciliationHoldConcurrentReplayAndResolution(t *testing.T) {
 }
 
 func TestReconciliationHoldSelectiveMultiTokenResolution(t *testing.T) {
-	withSweepCoordinationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	withSweepCoordinationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		service := newBalanceReconciliationService()
 		holds := cryptoapp.NewOperationalHoldService(contextTxManager{}, crypto_repo.NewOperationalHoldRepo())
 		for _, owner := range []string{"wallet_reconciliation", "external_outflow"} {
@@ -201,7 +202,7 @@ func reconciliationServiceWithFailure(acquire, resolve bool) *cryptoapp.BalanceR
 }
 
 func TestReconciliationHoldAtomicRollbackAndRetry(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		o := balanceObservation(t, ctx, txm, f)
 		outcome, err := reconciliationServiceWithFailure(true, false).Record(ctx, o)
 		require.ErrorIs(t, err, errInjectedReconciliation)
@@ -232,7 +233,7 @@ func TestReconciliationHoldAtomicRollbackAndRetry(t *testing.T) {
 }
 
 func TestReconciliationHoldRejectsConflictingReplay(t *testing.T) {
-	withSweepCoordinationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	withSweepCoordinationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		o := balanceObservation(t, ctx, txm, f)
 		service := newBalanceReconciliationService()
 		_, err := service.Record(ctx, o)
@@ -267,7 +268,7 @@ func (d reconciliationBalanceDriver) TokenBalance(ctx context.Context, _ crypto.
 }
 
 func TestReconciliationHoldWorkerFailureIsNotSuccessfulRun(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		registry := crypto.NewChainDriverRegistry()
 		driver := reconciliationBalanceDriver{fundingReceiptDriver: fundingReceiptDriver{network: crypto.NetworkRef{
 			ID: f.network, Code: "TEST", Family: crypto.ChainFamilyTRON, NetworkIdentifier: "nile",
@@ -304,7 +305,7 @@ func TestReconciliationHoldWorkerFailureIsNotSuccessfulRun(t *testing.T) {
 }
 
 func TestReconciliationHoldRepeatedMismatchPreservesAcquisition(t *testing.T) {
-	withSweepCoordinationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	withSweepCoordinationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		service := newBalanceReconciliationService()
 		w := reconciliationWalletBalance{WalletID: f.wallet, NetworkID: f.network, TokenID: f.token,
 			TokenStandard: token.TokenStandardTRC20, LedgerAmount: types.NewRawAmountFromInt64(100)}

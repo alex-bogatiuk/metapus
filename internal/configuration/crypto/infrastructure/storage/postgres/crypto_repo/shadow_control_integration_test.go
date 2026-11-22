@@ -15,7 +15,7 @@ import (
 	"metapus/pkg/sdk/appctx"
 	"metapus/pkg/sdk/eventlog"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -34,7 +34,7 @@ func TestShadowPauseFencesCapturePreservesCheckpointAndRollsBackWithAudit(t *tes
 	pool, err := pgxpool.New(t.Context(), dsn)
 	require.NoError(t, err)
 	defer pool.Close()
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx := tenant.WithTxManager(t.Context(), txm)
 	network := id.New()
 	_, err = pool.Exec(ctx, `INSERT INTO cat_blockchain_networks(id,code,name,network_identifier,native_token_symbol,native_decimals,chain_family) VALUES($1,$2,'shadow',$2,'TRX',6,'tron')`, network, "SH"+id.Compact(network))

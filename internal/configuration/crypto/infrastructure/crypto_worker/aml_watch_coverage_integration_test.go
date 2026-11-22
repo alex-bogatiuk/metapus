@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 
 	"github.com/stretchr/testify/require"
@@ -16,7 +16,7 @@ import (
 
 func TestAMLOwnedAddressRemainsObservedAfterCatalogDeactivation(t *testing.T) {
 	ctx, pool := custodyTestDatabase(t)
-	tm := postgres.NewTxManagerFromRawPool(pool)
+	tm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, tm)
 	rollback := errors.New("rollback watcher fixture")
 	err := tm.RunInTransaction(ctx, func(ctx context.Context) error {

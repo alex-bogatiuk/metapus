@@ -16,8 +16,9 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
 	"metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
+
 	"metapus/pkg/sdk/types"
 )
 
@@ -34,7 +35,7 @@ func TestCreateWithdrawalRequestStoresTheDocumentDate(t *testing.T) {
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 	rollback := errors.New("rollback withdrawal date fixture")
 	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {

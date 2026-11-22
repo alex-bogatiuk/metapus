@@ -167,7 +167,7 @@ myExtension.Register(factoryReg)
 | Точка расширения | Что даёт конфигурация | Пример в Metapus |
 |---|---|---|
 | `posting.Module` | регистры, visitors/recorders и проверки проведения; возвращает `MovementProvider` | `infrastructure/crypto/cryptoregisters` |
-| `v1.RouteModule` (`RouterConfig.RouteModules`) | маршруты на группах из `v1.RouteContext`: `Root`, `API`, `Protected`, `System`; свои зависимости модуль хранит сам | `infrastructure/http/cryptohttp` |
+| `v1.RouteModule` (`RouterConfig.RouteModules`) | маршруты на группах из `v1.RouteContext`: `Root`, `API`, `Protected`, `System`, а под своим префиксом — `ProtectedGroup(path)` и `Authenticated(path)` с цепочкой платформы; маршрут, который сам находит тенанта, привязывает его `middleware.BindTenant`; свои зависимости модуль хранит сам | `infrastructure/http/cryptohttp` |
 | `auth.WithAccessScopeProvider` | объектные права сессии в claim `scp` | `merchant.NewPortalAccessScopes` |
 | `middleware.WithCommandScope` | владелец ключей идемпотентных команд (например, партнёр по API-ключу) | `cryptomiddleware.WithMerchant`, `MerchantPortal` |
 | `content.Services` | сервисы конфигурации для регистраций документов вне `v1.DocumentDeps` | ссылки checkout, подписанты согласований |

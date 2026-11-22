@@ -18,11 +18,12 @@ import (
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/json"
 	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/types"
 )
 
 func TestFinancialAdjustmentRepeatedPartialReversal(t *testing.T) {
-	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
+	withRemediationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f remediationFixture) {
 		q := txm.GetQuerier(ctx)
 		paymentID, custodyID, merchantID, feeID := attributedRemediationPayment(t, ctx, f, id.New(), "partial")
 		service := cryptoapp.NewFinancialAdjustmentService(postgres.NewContextTxManager(), crypto_repo.NewFinancialAdjustmentRepo())
@@ -67,7 +68,7 @@ func TestFinancialAdjustmentRepeatedPartialReversal(t *testing.T) {
 }
 
 func TestFinancialAdjustmentPartialReversalBeforeReorg(t *testing.T) {
-	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
+	withRemediationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f remediationFixture) {
 		q := txm.GetQuerier(ctx)
 		invoiceID := id.New()
 		paymentID, custodyID, merchantID, feeID := attributedRemediationPayment(t, ctx, f, invoiceID, "reorg")
@@ -149,7 +150,7 @@ func attributedRemediationPayment(t *testing.T, ctx context.Context, f remediati
 }
 
 func TestFinancialAdjustmentWalletCorrectionDirectAndApproved(t *testing.T) {
-	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
+	withRemediationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f remediationFixture) {
 		service := cryptoapp.NewFinancialAdjustmentService(postgres.NewContextTxManager(), crypto_repo.NewFinancialAdjustmentRepo())
 		maker, checker := id.New(), id.New()
 		receipt, err := service.Propose(ctx, cryptoapp.ProposeFinancialAdjustmentCommand{

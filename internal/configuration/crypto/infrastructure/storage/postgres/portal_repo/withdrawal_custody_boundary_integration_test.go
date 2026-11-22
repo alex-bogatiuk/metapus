@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -26,7 +26,7 @@ func TestWithdrawalAllowlistRejectsManagedCustodyDestination(t *testing.T) {
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 
 	merchantID, networkID, walletID := id.New(), id.New(), id.New()

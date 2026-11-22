@@ -19,7 +19,7 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/receipttest"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -33,7 +33,7 @@ func TestInvoiceExpiryAgainstFullPaymentPreservesCommittedWinnerAndCredit(t *tes
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 
 	networkID, tokenID, merchantID, walletID, invoiceID, paymentID := id.New(), id.New(), id.New(), id.New(), id.New(), id.New()
@@ -162,7 +162,7 @@ func TestInvoiceExpiryClosesTransientWalletAllocation(t *testing.T) {
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 
 	networkID, tokenID, merchantID := id.New(), id.New(), id.New()

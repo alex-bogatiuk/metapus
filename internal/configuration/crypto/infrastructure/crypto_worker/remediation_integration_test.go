@@ -21,6 +21,7 @@ import (
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/json"
 	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/telemetry"
 	"metapus/pkg/sdk/types"
 )
@@ -30,7 +31,7 @@ type remediationFixture struct {
 	code                             string
 }
 
-func withRemediationFixture(t *testing.T, fn func(context.Context, *postgres.TxManager, remediationFixture)) {
+func withRemediationFixture(t *testing.T, fn func(context.Context, *sdktest.TxManager, remediationFixture)) {
 	t.Helper()
 	ctx, txm, closePool := cryptoIntegrationTxManager(t)
 	defer closePool()
@@ -56,7 +57,7 @@ func withRemediationFixture(t *testing.T, fn func(context.Context, *postgres.TxM
 }
 
 func TestRemediationTokenIdentityCannotChangeAfterMovement(t *testing.T) {
-	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
+	withRemediationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f remediationFixture) {
 		q := txm.GetQuerier(ctx)
 		_, err := q.Exec(ctx, `INSERT INTO reg_crypto_balance_movements
 			(line_id,recorder_id,recorder_type,recorder_version,period,record_type,wallet_id,token_id,amount)
@@ -69,7 +70,7 @@ func TestRemediationTokenIdentityCannotChangeAfterMovement(t *testing.T) {
 }
 
 func TestRemediationReversalPreservesOriginalMovement(t *testing.T) {
-	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
+	withRemediationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f remediationFixture) {
 		q := txm.GetQuerier(ctx)
 		recorderID, lineID := id.New(), id.New()
 		_, err := q.Exec(ctx, `INSERT INTO reg_crypto_balance_movements
@@ -110,7 +111,7 @@ func TestRemediationReversalPreservesOriginalMovement(t *testing.T) {
 }
 
 func TestRemediationSecondFinancialReorgCompensatesNewGeneration(t *testing.T) {
-	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
+	withRemediationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f remediationFixture) {
 		q := txm.GetQuerier(ctx)
 		invoiceID := id.New()
 		paymentID, _, _, _ := attributedRemediationPayment(t, ctx, f, invoiceID, "second-reorg")
@@ -174,7 +175,7 @@ func TestRemediationSecondFinancialReorgCompensatesNewGeneration(t *testing.T) {
 }
 
 func TestRemediationConfirmationClaimReachesNewPayment(t *testing.T) {
-	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
+	withRemediationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f remediationFixture) {
 		q := txm.GetQuerier(ctx)
 		_, err := q.Exec(ctx, `INSERT INTO doc_crypto_payments
 			(id,invoice_id,merchant_id,network_id,token_id,wallet_id,tx_hash,amount,status)
@@ -198,7 +199,7 @@ func TestRemediationConfirmationClaimReachesNewPayment(t *testing.T) {
 }
 
 func TestRemediationReconciliationPagesCoverEveryWallet(t *testing.T) {
-	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
+	withRemediationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f remediationFixture) {
 		q := txm.GetQuerier(ctx)
 		_, err := q.Exec(ctx, `INSERT INTO cat_wallets(id,code,name,network_id,address,tier,wallet_role,status,vault_key_id,chain_activation_status)
 			SELECT gen_random_uuid_v7(),$1||'-'||n,'Reconciliation wallet',$2,$1||'-address-'||n,
@@ -234,7 +235,7 @@ func TestRemediationReconciliationPagesCoverEveryWallet(t *testing.T) {
 }
 
 func TestRemediationUnmatchedReplayDoesNotStarveNewEvent(t *testing.T) {
-	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
+	withRemediationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f remediationFixture) {
 		q := txm.GetQuerier(ctx)
 		_, err := q.Exec(ctx, `INSERT INTO reg_crypto_inbound_chain_events
 			(id,network_id,tx_hash,event_kind,event_index,to_address,block_timestamp,match_status,match_reason)
@@ -259,7 +260,7 @@ func TestRemediationUnmatchedReplayDoesNotStarveNewEvent(t *testing.T) {
 }
 
 func TestRemediationWatcherAcknowledgesDurableObservations(t *testing.T) {
-	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
+	withRemediationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f remediationFixture) {
 		processor := &CryptoProcessor{}
 		_, err := telemetry.ConfigureTracing(ctx, "remediation-test", "dev", func(string) string { return "" })
 		require.NoError(t, err)
@@ -302,7 +303,7 @@ func TestRemediationWatcherAcknowledgesDurableObservations(t *testing.T) {
 }
 
 func TestRemediationWatcherFencingRejectsStaleOwner(t *testing.T) {
-	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
+	withRemediationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f remediationFixture) {
 		repo := crypto_repo.NewWatcherStateRepo()
 		candidate := &crypto.WatcherState{NetworkID: f.network, WatcherKey: "remediation", LastBlock: 100, LastTimestamp: 100}
 		first, err := repo.Acquire(ctx, candidate, "owner-1")
@@ -332,7 +333,7 @@ func TestRemediationWatcherFencingRejectsStaleOwner(t *testing.T) {
 }
 
 func TestRemediationFinancialAdjustmentRequiresDifferentChecker(t *testing.T) {
-	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
+	withRemediationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f remediationFixture) {
 		q := txm.GetQuerier(ctx)
 		makerID, checkerID := id.New(), id.New()
 		paymentID, _, _, _ := attributedRemediationPayment(t, ctx, f, id.New(), "checker")

@@ -97,7 +97,8 @@ func (m *Module) registerCryptoNetworkRoutes(rg *gin.RouterGroup, cfg v1.RouterC
 //
 // Auth: X-Api-Key header. Tenant is resolved from the meta-database key index.
 // These routes are completely isolated from the JWT-authenticated /api/v1/ group.
-func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterConfig) {
+func (m *Module) registerMerchantPublicRoutes(rc v1.RouteContext) {
+	router, cfg := rc.Root, rc.Config
 	moneyMovementApprovals := money_movement_repo.New()
 	networkPolicyRepo := portal_repo.NewMerchantNetworkPolicyRepo()
 	if m.cfg.MerchantAPIKeyRepo == nil {
@@ -172,15 +173,11 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 	}
 
 	// /api/v1/merchant-admin/ — admin API for managing merchant API keys and users (JWT auth).
-	// Security chain matches the main protected group:
-	//   TenantDB → Auth → SecurityContext → RequireMerchantAccess → RequirePermission(per route)
+	// Security chain is the main protected group's (RouteContext.ProtectedGroup):
+	//   TenantDB → Auth → AdminGuard → SecurityContext → RequireMerchantAccess → RequirePermission(per route)
 	// CWE-639 fix: RequireMerchantAccess validates that the authenticated user
 	// has a Manager+ association with the target :merchantId. Global admins bypass.
-	merchantAdmin := router.Group("/api/v1/merchant-admin")
-	merchantAdmin.Use(middleware.TenantDB(cfg.TenantManager))
-	merchantAdmin.Use(middleware.Auth(cfg.JWTValidator))
-	merchantAdmin.Use(middleware.AdminGuard(cfg.AdminSecurityMode, cfg.AdminAllowedCIDRs, cfg.AdminMFAMode, cfg.MFARepo, cfg.EventLogRepo))
-	merchantAdmin.Use(middleware.SecurityContext(cfg.ProfileProvider))
+	merchantAdmin := rc.ProtectedGroup("/api/v1/merchant-admin")
 	merchantAdmin.Use(middleware.CommandIdempotency(true))
 	requireStepUp := func(actionCode string) gin.HandlerFunc {
 		return middleware.SensitiveActionGuard(cfg.MFARepo, actionCode, cfg.EventLogRepo)
@@ -279,10 +276,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 			Settings:        portalapp.NewSettingsService(m.cfg.PortalDashboardRepo, m.cfg.MerchantInvoiceAppSvc, tenant.ContextTxManager{}),
 		}, networkPolicyRepo, merchantCryptoQueries, walletSvc)
 
-		portalV1 := router.Group("/portal/v1")
-		portalV1.Use(middleware.TenantDB(cfg.TenantManager))
-		portalV1.Use(middleware.Auth(cfg.JWTValidator))
-		portalV1.Use(middleware.AdminGuard(cfg.AdminSecurityMode, cfg.AdminAllowedCIDRs, cfg.AdminMFAMode, cfg.MFARepo, cfg.EventLogRepo))
+		portalV1 := rc.Authenticated("/portal/v1")
 		portalV1.Use(cryptomiddleware.MerchantPortal())
 		portalV1.Use(cryptomiddleware.MerchantNetworkAccess(networkPolicyRepo, merchant.NetworkSurfacePortal))
 		portalV1.Use(middleware.CommandIdempotency(true))
@@ -431,11 +425,7 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 	// System-admin recovery is intentionally outside merchant portal policy
 	// enforcement, but remains behind platform admin CIDR, MFA, RBAC and a fresh
 	// object-bound step-up in the handler.
-	recovery := router.Group("/api/v1/catalog/merchants/:id/network-policies")
-	recovery.Use(middleware.TenantDB(cfg.TenantManager))
-	recovery.Use(middleware.Auth(cfg.JWTValidator))
-	recovery.Use(middleware.AdminGuard(cfg.AdminSecurityMode, cfg.AdminAllowedCIDRs, cfg.AdminMFAMode, cfg.MFARepo, cfg.EventLogRepo))
-	recovery.Use(middleware.SecurityContext(cfg.ProfileProvider))
+	recovery := rc.ProtectedGroup("/api/v1/catalog/merchants/:id/network-policies")
 	recovery.Use(middleware.RequireSystemAdmin())
 	recovery.Use(middleware.CommandIdempotency(true))
 	recoveryHandler := cryptohandlers.NewMerchantNetworkPolicyHandler(networkPolicyRepo, cfg.MFARepo, true)

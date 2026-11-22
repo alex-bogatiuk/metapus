@@ -80,7 +80,7 @@ func (m *Module) RegisterRoutes(rc v1.RouteContext) {
 	m.registerFeeScheduleRoutes(rc.System, cfg)
 	cryptohandlers.NewRPCKeyNamesHandler(crypto_integration_repo.RPCPoolConsumer{}).RegisterRoutes(rc.System)
 	if m.cfg.MerchantAPIKeyRepo != nil {
-		m.registerMerchantPublicRoutes(rc.Root, cfg)
+		m.registerMerchantPublicRoutes(rc)
 	}
 }
 

@@ -111,3 +111,34 @@ func declaredTypes(decl ast.Decl) []declaredType {
 	}
 	return result
 }
+
+// TestSDKTestStaysInTests keeps pkg/sdk/sdktest out of a configuration's run
+// time: its fixtures build transaction managers over raw pools and bind
+// tenants by hand, which the platform does for configuration code. Tests and
+// test-support packages (named *test) may use it.
+func TestSDKTestStaysInTests(t *testing.T) {
+	t.Parallel()
+	repoRoot := repositoryRoot(t)
+	for _, name := range sdkConfigurations {
+		err := filepath.WalkDir(filepath.Join(repoRoot, "internal", "configuration", name), func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil || entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+				return walkErr
+			}
+			file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+			if err != nil {
+				return err
+			}
+			if strings.HasSuffix(file.Name.Name, "test") {
+				return nil
+			}
+			for _, imported := range file.Imports {
+				if value, _ := strconv.Unquote(imported.Path.Value); value == "metapus/pkg/sdk/sdktest" {
+					rel, _ := filepath.Rel(repoRoot, path)
+					t.Errorf("%s imports %s outside tests", filepath.ToSlash(rel), value)
+				}
+			}
+			return nil
+		})
+		require.NoError(t, err)
+	}
+}

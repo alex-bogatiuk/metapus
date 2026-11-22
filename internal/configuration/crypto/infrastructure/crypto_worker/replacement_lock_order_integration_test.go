@@ -11,6 +11,7 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/types"
 
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,7 @@ func TestReplacementPublicationLocksAdvisoryAndWalletBeforeExecutionRow(t *testi
 	for _, kind := range []string{"WithdrawalRequest", "CryptoSweepAttempt", "TreasuryWithdrawal"} {
 		for _, resource := range []string{"document_advisory", "wallet"} {
 			t.Run(kind+"/"+resource, func(t *testing.T) {
-				runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture) {
+				runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, f sweepCoordinationFixture) {
 					var basis, document, source id.ID
 					var documentType, rowSQL, hash string
 					switch kind {
@@ -63,7 +64,7 @@ func TestReplacementPublicationLocksAdvisoryAndWalletBeforeExecutionRow(t *testi
 }
 
 func TestSweepAuthorizationPublicationLocksCollectorBeforeSQLGuards(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, f sweepCoordinationFixture) {
 		attempt := id.New()
 		var from, to, network string
 		require.NoError(t, tm.GetQuerier(ctx).QueryRow(ctx, `SELECT s.address,d.address,n.network_identifier FROM cat_wallets s,cat_wallets d,cat_blockchain_networks n WHERE s.id=$1 AND d.id=$2 AND n.id=$3`, f.wallet, f.hot, f.network).Scan(&from, &to, &network))

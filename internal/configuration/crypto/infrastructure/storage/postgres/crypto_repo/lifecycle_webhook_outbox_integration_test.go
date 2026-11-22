@@ -18,9 +18,10 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/telemetry"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
+
+	"metapus/pkg/sdk/telemetry"
 )
 
 func TestLifecycleWebhookOutboxDedupRepeatTransitionAndRollback(t *testing.T) {
@@ -43,7 +44,7 @@ func TestLifecycleWebhookOutboxDedupRepeatTransitionAndRollback(t *testing.T) {
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 
 	aggregateID, merchantID := id.New(), id.New()

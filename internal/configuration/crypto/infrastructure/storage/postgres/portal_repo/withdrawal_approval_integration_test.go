@@ -23,7 +23,8 @@ import (
 	"metapus/pkg/sdk/appctx"
 	"metapus/pkg/sdk/apperror"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
+
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -71,7 +72,7 @@ func TestConcurrentWithdrawalApprovalsCreateOneFrozenTransition(t *testing.T) {
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	tenantID := "withdrawal-approval-integration"
 	ctx = tenant.WithTenant(tenant.WithTxManager(ctx, txm), &tenant.Tenant{ID: tenantID})
 

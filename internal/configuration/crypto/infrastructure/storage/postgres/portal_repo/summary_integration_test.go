@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -24,7 +24,7 @@ func TestSummaryKeepsDifferentAssetsSeparateAndSharesCountInvoices(t *testing.T)
 	pool, err := pgxpool.New(t.Context(), dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	manager := postgres.NewTxManagerFromRawPool(pool)
+	manager := sdktest.NewTxManager(pool)
 	ctx := tenant.WithTxManager(t.Context(), manager)
 	rollback := errors.New("rollback summary fixture")
 	err = manager.RunInTransaction(ctx, func(ctx context.Context) error {

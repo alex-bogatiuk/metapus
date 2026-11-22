@@ -15,7 +15,6 @@ import (
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/settings"
-	"metapus/pkg/sdk/tenantdb"
 )
 
 // CryptoPaymentHandler handles HTTP requests for CryptoPayment documents.
@@ -44,8 +43,7 @@ func resolveCryptoPaymentRefs(ctx context.Context, docs ...*crypto_payment.Crypt
 		cryptodto.CollectCryptoPaymentRefs(resolver, doc)
 	}
 
-	pool := tenantdb.MustGetPool(ctx)
-	refs, err := resolver.Resolve(ctx, pool)
+	refs, err := resolver.Resolve(ctx)
 	if err != nil {
 		return nil, err
 	}

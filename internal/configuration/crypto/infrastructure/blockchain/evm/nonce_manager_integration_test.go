@@ -15,8 +15,7 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/migration"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -25,14 +24,14 @@ func TestNonceReservationIsConcurrentIdempotentAndReclaimsOnlyUnsignedTail(t *te
 	if dsn == "" {
 		t.Fatal("METAPUS_TEST_DATABASE_DSN is required for integration tests")
 	}
-	_, err := migration.RunAll(dsn, cryptoschema.Migration())
+	_, err := sdktest.Migrate(dsn, cryptoschema.Migration())
 	require.NoError(t, err)
 
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	ctx = tenant.WithTxManager(ctx, postgres.NewTxManagerFromRawPool(pool))
+	ctx = tenant.WithTxManager(ctx, sdktest.NewTxManager(pool))
 
 	networkID := id.MustParse("11155111-0000-4000-8000-000000000001")
 	// Every stress iteration owns a fresh valid address. Nonce lease events are
@@ -109,7 +108,7 @@ func TestNonceStartupConcurrentReservationRetriesWithoutFalseDivergence(t *testi
 	pool, err := pgxpool.New(t.Context(), dsn)
 	require.NoError(t, err)
 	defer pool.Close()
-	ctx := tenant.WithTxManager(t.Context(), postgres.NewTxManagerFromRawPool(pool))
+	ctx := tenant.WithTxManager(t.Context(), sdktest.NewTxManager(pool))
 	network, source := id.New(), "0x"+id.Compact(id.New())+"00000000"
 	_, err = pool.Exec(ctx, "INSERT INTO cat_blockchain_networks(id,code,name,chain_family,network_identifier,native_token_symbol,native_decimals) VALUES($1,$1::uuid::text,'Nonce concurrency fixture','evm',$1::uuid::text,'ETH',18)", network)
 	require.NoError(t, err)
@@ -141,7 +140,7 @@ func TestNonceStartupVerifiesAndReleasesOnlyProviderDisagreementHolds(t *testing
 	pool, err := pgxpool.New(t.Context(), dsn)
 	require.NoError(t, err)
 	defer pool.Close()
-	ctx := tenant.WithTxManager(t.Context(), postgres.NewTxManagerFromRawPool(pool))
+	ctx := tenant.WithTxManager(t.Context(), sdktest.NewTxManager(pool))
 	network := id.New()
 	_, err = pool.Exec(ctx, "INSERT INTO cat_blockchain_networks(id,code,name,chain_family,network_identifier,native_token_symbol,native_decimals) VALUES($1,$1::uuid::text,'Nonce hold release fixture','evm',$1::uuid::text,'ETH',18)", network)
 	require.NoError(t, err)

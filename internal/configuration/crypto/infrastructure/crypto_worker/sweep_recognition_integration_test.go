@@ -21,6 +21,7 @@ import (
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/types"
 
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,7 @@ import (
 
 type sweepFinalFixture struct {
 	ctx      context.Context
-	tm       *postgres.TxManager
+	tm       *sdktest.TxManager
 	doc      *crypto_sweep.CryptoSweep
 	tasks    []outboundapp.SettlementTask
 	group    []outboundapp.SweepTask
@@ -43,7 +44,7 @@ func (d sweepReceiptDriver) VerifyExpectedTransfer(ctx context.Context, e crypto
 	return proof, err
 }
 
-func newSweepFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture, count int) sweepFinalFixture {
+func newSweepFinalFixture(t *testing.T, ctx context.Context, tm *sdktest.TxManager, f sweepCoordinationFixture, count int) sweepFinalFixture {
 	t.Helper()
 	q := tm.GetQuerier(ctx)
 	var networkIdentifier string
@@ -150,7 +151,7 @@ func (f sweepFinalFixture) service(t *testing.T, index int) *outboundapp.Settlem
 }
 
 func TestSweepV2FinalLinesAreIndependentAndConcurrent(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 		f := newSweepFinalFixture(t, ctx, tm, c, 2)
 		f.broadcast(t)
 		var state string
@@ -188,7 +189,7 @@ func TestSweepV2FinalLinesAreIndependentAndConcurrent(t *testing.T) {
 }
 
 func TestSweepV2RevertedLineHasOnlyActualFee(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 		f := newSweepFinalFixture(t, ctx, tm, c, 1)
 		f.broadcast(t)
 		f.receipts[0].Status = crypto.ReceiptReverted
@@ -242,7 +243,7 @@ func (r incompleteSweepRepo) RecordOutboundSettlement(ctx context.Context, task 
 func TestSweepV2IncompleteSetRollsBackAndRetries(t *testing.T) {
 	for _, component := range []string{"claim", "outbox", "writer"} {
 		t.Run(component, func(t *testing.T) {
-			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 				f := newSweepFinalFixture(t, ctx, tm, c, 1)
 				f.broadcast(t)
 				service := outboundapp.NewSettlementService(outboundapp.SettlementConfig{Drivers: f.registry(t, 0), Repository: incompleteSweepRepo{OutboundRepo: NewOutboundRepo(), component: component},
@@ -263,7 +264,7 @@ func TestSweepV2IncompleteSetRollsBackAndRetries(t *testing.T) {
 
 func TestSweepV2FeeCannotReleasePrincipalSeparately(t *testing.T) {
 	for _, actual := range []int64{0, 2} {
-		runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+		runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 			f := newSweepFinalFixture(t, ctx, tm, c, 1)
 			f.broadcast(t)
 			f.receipts[0].Fee.TotalFee = types.NewRawAmountFromInt64(actual)
@@ -276,7 +277,7 @@ func TestSweepV2FeeCannotReleasePrincipalSeparately(t *testing.T) {
 }
 
 func TestSweepV2NativePrincipalAndFeeAreAtomic(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 		c.token = c.native
 		f := newSweepFinalFixture(t, ctx, tm, c, 1)
 		f.broadcast(t)
@@ -293,7 +294,7 @@ func TestSweepV2NativePrincipalAndFeeAreAtomic(t *testing.T) {
 }
 
 func TestSweepV2FinalBasisAndPrincipalCannotBeRewritten(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 		f := newSweepFinalFixture(t, ctx, tm, c, 1)
 		q := tm.GetQuerier(ctx)
 		_, err := q.Exec(ctx, "UPDATE doc_crypto_sweeps SET date=date+interval '1 second' WHERE id=$1", f.doc.ID)

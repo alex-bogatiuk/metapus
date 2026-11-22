@@ -17,6 +17,7 @@ import (
 	"metapus/pkg/sdk/apperror"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -29,7 +30,7 @@ func TestPortalInvoiceOutcomeLedgerAndScope(t *testing.T) {
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 	rollback := errors.New("rollback invoice outcome fixture")
 	err = postgres.ReadSnapshot(ctx, func(txCtx context.Context) error {

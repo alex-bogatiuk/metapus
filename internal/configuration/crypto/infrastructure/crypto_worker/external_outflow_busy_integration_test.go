@@ -12,7 +12,8 @@ import (
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/pkg/sdk/postgres"
+
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/types"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -20,7 +21,7 @@ import (
 )
 
 func TestExternalOutflowBusyDefersObservationWithoutExhaustingAttempts(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, f sweepCoordinationFixture) {
 		pool, err := pgxpool.New(ctx, os.Getenv("METAPUS_TEST_DATABASE_DSN"))
 		require.NoError(t, err)
 		t.Cleanup(pool.Close)

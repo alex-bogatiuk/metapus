@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,7 +23,7 @@ func TestIngestionInboxAgeExcludesProcessedHistoryAndNeedsReview(t *testing.T) {
 	pool, err := pgxpool.NewWithConfig(t.Context(), cfg)
 	require.NoError(t, err)
 	defer pool.Close()
-	ctx := tenant.WithTxManager(t.Context(), postgres.NewTxManagerFromRawPool(pool))
+	ctx := tenant.WithTxManager(t.Context(), sdktest.NewTxManager(pool))
 	_, err = pool.Exec(ctx, `CREATE TEMP TABLE reg_crypto_chain_observations(network_id uuid,status text,received_at timestamptz)`)
 	require.NoError(t, err)
 	network, future := id.New(), id.New()

@@ -9,7 +9,6 @@ import (
 	"metapus/pkg/sdk/apperror"
 	"metapus/pkg/sdk/http/middleware"
 	"metapus/pkg/sdk/logger"
-	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/tenant"
 	"metapus/pkg/sdk/tenantdb"
 )
@@ -39,7 +38,7 @@ func CheckoutTenantDB(manager *tenantdb.Manager, refs *checkout.Service) gin.Han
 			return
 		}
 
-		managedPool, err := manager.GetPool(c.Request.Context(), tenantID)
+		ctx, release, err := middleware.BindTenant(c.Request.Context(), manager, tenantID)
 		if err != nil {
 			logger.Warn(c.Request.Context(), "checkout tenant pool error", "error", err)
 			switch {
@@ -51,14 +50,8 @@ func CheckoutTenantDB(manager *tenantdb.Manager, refs *checkout.Service) gin.Han
 			c.Abort()
 			return
 		}
+		defer release()
 
-		managedPool.AcquireRef()
-		defer managedPool.ReleaseRef()
-
-		txManager := postgres.NewTxManagerFromRawPool(managedPool.Pool())
-		ctx := tenantdb.WithPool(c.Request.Context(), managedPool.Pool())
-		ctx = tenant.WithTxManager(ctx, txManager)
-		ctx = tenant.WithTenant(ctx, managedPool.Tenant())
 		ctx = checkout.WithReference(ctx, ref)
 		c.Request = c.Request.WithContext(ctx)
 

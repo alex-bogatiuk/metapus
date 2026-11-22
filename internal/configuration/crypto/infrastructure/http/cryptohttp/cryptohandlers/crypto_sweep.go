@@ -18,7 +18,6 @@ import (
 	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/readaccess"
 	"metapus/pkg/sdk/settings"
-	"metapus/pkg/sdk/tenantdb"
 )
 
 // CryptoSweepHandler handles HTTP requests for CryptoSweep documents.
@@ -63,8 +62,7 @@ func resolveCryptoSweepRefs(ctx context.Context, docs ...*crypto_sweep.CryptoSwe
 	for _, doc := range docs {
 		cryptodto.CollectCryptoSweepRefs(resolver, doc)
 	}
-	pool := tenantdb.MustGetPool(ctx)
-	refs, err := resolver.Resolve(ctx, pool)
+	refs, err := resolver.Resolve(ctx)
 	if err != nil {
 		return nil, err
 	}

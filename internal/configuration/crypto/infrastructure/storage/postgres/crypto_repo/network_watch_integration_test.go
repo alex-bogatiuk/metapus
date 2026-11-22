@@ -13,7 +13,7 @@ import (
 
 	"metapus/pkg/sdk/apperror"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -34,7 +34,7 @@ func newNetworkWatchFixture(t *testing.T) networkWatchFixture {
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	ctx = tenant.WithTxManager(ctx, postgres.NewTxManagerFromRawPool(pool))
+	ctx = tenant.WithTxManager(ctx, sdktest.NewTxManager(pool))
 	f := networkWatchFixture{ctx: ctx, pool: pool, network: id.New(), token: id.New()}
 	suffix := id.Compact(f.network)
 	_, err = pool.Exec(ctx, `

@@ -26,9 +26,11 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
 	"metapus/pkg/sdk/apperror"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/migration"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
+
+	"metapus/pkg/sdk/postgres"
+
 	"metapus/pkg/sdk/types"
 )
 
@@ -58,13 +60,13 @@ func newRotationFixture(t *testing.T) rotationFixture {
 	address, err := url.Parse(dsn)
 	require.NoError(t, err)
 	address.Path = "/" + name
-	output, err := migration.RunAll(address.String(), cryptoschema.Migration())
+	output, err := sdktest.Migrate(address.String(), cryptoschema.Migration())
 	require.NoError(t, err, output)
-	pool, err := postgres.OpenPool(t.Context(), address.String())
+	pool, err := sdktest.OpenPool(t.Context(), address.String())
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 	f := rotationFixture{pool: pool, repo: crypto_catalog_repo.NewWalletRepo(), merchant: id.New(), network: id.New(), token: id.New(), old: id.New(), spare: id.New(), actor: id.New()}
-	f.ctx = tenant.WithTxManager(t.Context(), postgres.NewTxManagerFromRawPool(pool))
+	f.ctx = tenant.WithTxManager(t.Context(), sdktest.NewTxManager(pool))
 	f.service = cryptoapp.NewDepositAddressRotationService(f.repo, crypto_repo.NewLifecycleWebhookOutbox())
 	_, err = pool.Exec(f.ctx, `INSERT INTO cat_merchants(id,code,name) VALUES($1,'ROTATION','Rotation test')`, f.merchant)
 	require.NoError(t, err)

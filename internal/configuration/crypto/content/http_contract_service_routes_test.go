@@ -9,26 +9,19 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptohandlers"
 	"metapus/pkg/sdk/configuration"
 	"metapus/pkg/sdk/contracts"
-	"metapus/pkg/sdk/http/handlers"
 )
 
+// The crypto service routes have wire contracts; the platform's own are
+// checked by the platform (configuration/none).
 func TestServiceRouteRegistrationsHaveWireContracts(t *testing.T) {
 	router := gin.New()
-	system := router.Group("/system")
-	handlers.NewAutomationAccountHandler(nil, nil, nil).RegisterRoutes(system)
-	handlers.NewAutomationChannelHandler(nil, nil).RegisterRoutes(system)
-	handlers.NewAutomationRuleHandler(nil, nil).RegisterRoutes(system)
-	handlers.NewAutomationHistoryHandler(nil, nil).RegisterRoutes(system)
-	handlers.NewAutomationMetaHandler(nil, nil).RegisterRoutes(system)
 	root := router.Group("")
-	new(handlers.AuthHandler).RegisterRoutes(router.Group("/auth"), router.Group("/auth"), nil)
 	new(cryptohandlers.WithdrawalRequestWorkflowHandler).RegisterDocumentRoutes(router.Group("/document/withdrawal-request"), "document:withdrawal_request")
 	new(cryptohandlers.CryptoProviderBalanceOperationHandler).RegisterCustomDocumentRoutes(router.Group("/document/crypto-provider-balance-operation"), "document:crypto_provider_balance_operation")
 	guard := func(c *gin.Context) { c.Next() }
 	cryptohandlers.NewWalletPoolHandler(nil, nil).RegisterRoutes(root, guard)
 	cryptohandlers.NewCryptoNetworkHandler(nil, nil, nil).RegisterRoutes(root, guard)
 	cryptohandlers.NewCryptoRPCConfigurationHandler(nil).RegisterRoutes(root, guard)
-	handlers.RegisterListViewRoutes(root, nil)
 	registry := map[string]contracts.RouteContract{}
 	for _, route := range contracts.Routes(configuration.HTTPContractBundles(content.Crypto(content.Services{}), configuration.Extensions)...) {
 		if route.Scope == "api" {

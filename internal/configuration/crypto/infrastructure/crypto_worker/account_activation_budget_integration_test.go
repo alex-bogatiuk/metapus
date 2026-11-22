@@ -12,7 +12,7 @@ import (
 
 	"metapus/internal/configuration/crypto/application/outboundapp"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -25,7 +25,7 @@ func TestIntegrationAccountActivationBudgetReservationUsesLedgerAndConcurrency(t
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 
 	networkID, tokenID := id.New(), id.New()

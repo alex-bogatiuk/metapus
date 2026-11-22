@@ -26,6 +26,7 @@ import (
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/types"
 )
 
@@ -38,7 +39,7 @@ type withdrawalRecoveryFixture struct {
 	feeID      id.ID
 }
 
-func seedWithdrawalRecovery(t *testing.T, ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) withdrawalRecoveryFixture {
+func seedWithdrawalRecovery(t *testing.T, ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) withdrawalRecoveryFixture {
 	t.Helper()
 	wr := withdrawalRecoveryFixture{documentID: id.New(), feeID: id.New()}
 	wr.task = WithdrawalTask{RequestID: id.New(), MerchantID: id.New(), TokenID: f.token, NetworkID: f.network,
@@ -91,7 +92,7 @@ func recoveryExecutor(wr withdrawalRecoveryFixture, f sweepCoordinationFixture, 
 		merchantBalanceSvc: crypto_merchant_balance.NewService(crypto_register_repo.NewCryptoMerchantBalanceRepo()), now: func() time.Time { return wr.auth.ExpiresAt.Add(24 * time.Hour) }}
 }
 
-func assertMerchantBalance(t *testing.T, ctx context.Context, txm *postgres.TxManager, wr withdrawalRecoveryFixture, want string) {
+func assertMerchantBalance(t *testing.T, ctx context.Context, txm *sdktest.TxManager, wr withdrawalRecoveryFixture, want string) {
 	t.Helper()
 	var balance string
 	require.NoError(t, txm.GetQuerier(ctx).QueryRow(ctx, `SELECT amount::text FROM reg_crypto_merchant_balance_balances WHERE merchant_id=$1 AND token_id=$2`, wr.task.MerchantID, wr.task.TokenID).Scan(&balance))
@@ -101,7 +102,7 @@ func assertMerchantBalance(t *testing.T, ctx context.Context, txm *postgres.TxMa
 func TestWithdrawalRecoveryAfterExpiryNeverReleasesBalance(t *testing.T) {
 	for _, phase := range []string{"authorization-issued", "signed", "broadcast-accepted-before-commit"} {
 		t.Run(phase, func(t *testing.T) {
-			runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+			runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 				wr := seedWithdrawalRecovery(t, ctx, txm, f)
 				repo := NewOutboundRepo()
 				_, err := repo.InsertSigningAuthorization(ctx, wr.auth, "signed-authorization", wr.unsigned, crypto.ApprovalBundle{IntentJWS: "expired"})
@@ -123,7 +124,7 @@ func TestWithdrawalRecoveryAfterExpiryNeverReleasesBalance(t *testing.T) {
 }
 
 func TestWithdrawalRecoveryFinalityCompletesOnceWithTwoWorkers(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		wr := seedWithdrawalRecovery(t, ctx, txm, f)
 		repo := NewOutboundRepo()
 		_, err := repo.InsertSigningAuthorization(ctx, wr.auth, "signed-authorization", wr.unsigned, crypto.ApprovalBundle{IntentJWS: "expired"})
@@ -180,7 +181,7 @@ func (failingCompensationWrite) MarkWithdrawalExecutionFailed(context.Context, i
 }
 
 func TestWithdrawalCompensationFailureRollsBackBalanceAndReservation(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		wr := seedWithdrawalRecovery(t, ctx, txm, f)
 		s := cryptoapp.NewWithdrawalFailureService(contextTxManager{}, failingCompensationWrite{NewOutboundRepo()}, crypto_merchant_balance.NewService(crypto_register_repo.NewCryptoMerchantBalanceRepo()))
 		changed, err := s.FailWithdrawalBeforeEffect(ctx, wr.task.RequestID, "approval expired")
@@ -195,7 +196,7 @@ func TestWithdrawalCompensationFailureRollsBackBalanceAndReservation(t *testing.
 }
 
 func TestWithdrawalCompensationRacesAuthorizationPublication(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		wr := seedWithdrawalRecovery(t, ctx, txm, f)
 		repo := NewOutboundRepo()
 		s := cryptoapp.NewWithdrawalFailureService(contextTxManager{}, repo, crypto_merchant_balance.NewService(crypto_register_repo.NewCryptoMerchantBalanceRepo()))

@@ -24,9 +24,11 @@ import (
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/json"
 	"metapus/pkg/sdk/numerator"
-	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
+
+	"metapus/pkg/sdk/posting"
+
 	"metapus/pkg/sdk/types"
 )
 
@@ -52,7 +54,7 @@ func TestIntegrationActivationFinalityPostsDocumentOnce(t *testing.T) {
 			pool, err := pgxpool.New(baseCtx, dsn)
 			require.NoError(t, err)
 			defer pool.Close()
-			ctx := tenant.WithTxManager(baseCtx, postgres.NewTxManagerFromRawPool(pool))
+			ctx := tenant.WithTxManager(baseCtx, sdktest.NewTxManager(pool))
 
 			networkID, tokenID := id.New(), id.New()
 			sourceWalletID, targetWalletID, activationID, reservationID := id.New(), id.New(), id.New(), id.New()

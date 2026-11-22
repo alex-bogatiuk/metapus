@@ -312,7 +312,7 @@ func autoReferenceMappers[PT any](shape *autoShape, tables map[string]string) (f
 		for _, model := range models {
 			shape.collectRefs(resolver, tables, model)
 		}
-		return resolver.Resolve(ctx, nil)
+		return resolver.Resolve(ctx)
 	}
 	mapWithRefs := func(model PT, refs any) any {
 		resolved, _ := refs.(postgres.ResolvedRefs)

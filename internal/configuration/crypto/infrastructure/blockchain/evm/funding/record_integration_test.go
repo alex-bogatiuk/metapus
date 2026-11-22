@@ -21,7 +21,7 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/evm"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -33,7 +33,7 @@ func TestEVMFundingUsesPersistedIndependentProofAndRecognition(t *testing.T) {
 	pool, err := pgxpool.New(t.Context(), dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	tm := postgres.NewTxManagerFromRawPool(pool)
+	tm := sdktest.NewTxManager(pool)
 	ctx := tenant.WithTxManager(t.Context(), tm)
 	for _, scenario := range []string{"two_sources", "one_source", "disagreement", "recipient_code"} {
 		t.Run(scenario, func(t *testing.T) {

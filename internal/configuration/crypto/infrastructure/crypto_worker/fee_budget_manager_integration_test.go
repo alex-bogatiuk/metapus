@@ -13,8 +13,9 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
+
 	"metapus/pkg/sdk/types"
 )
 
@@ -71,7 +72,7 @@ func TestFeeBudgetConcurrentReservationsCannotOversubscribe(t *testing.T) {
 	// a rollback-only fixture. Reservation events are intentionally append-only;
 	// the disposable integration database is destroyed after the test run.
 
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	manager := NewFeeBudgetManager()
 	start := make(chan struct{})
 	errs := make(chan error, 2)
@@ -163,7 +164,7 @@ func TestFeeBudgetRejectsInsufficientUnsignedBalanceWithoutPanic(t *testing.T) {
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM cat_blockchain_networks WHERE id=$1`, networkID)
 	})
 
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	callCtx := tenant.WithTxManager(ctx, txm)
 	manager := NewFeeBudgetManager()
 	var reserveErr error
@@ -223,7 +224,7 @@ func TestNativeFundingCreationIsIdempotentUnderConcurrency(t *testing.T) {
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM cat_blockchain_networks WHERE id=$1`, networkID)
 	})
 
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	start := make(chan struct{})
 	results := make(chan crypto.NativeFunding, 2)
 	errs := make(chan error, 2)

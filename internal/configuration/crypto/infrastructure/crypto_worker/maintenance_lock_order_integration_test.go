@@ -11,7 +11,8 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
+
 	"metapus/pkg/sdk/types"
 
 	"github.com/jackc/pgx/v5"
@@ -21,7 +22,7 @@ import (
 func TestNativeFundingOperationalUpdatesLockWalletBeforeFunding(t *testing.T) {
 	for _, operation := range []string{"status", "broadcast", "release", "replacement"} {
 		t.Run(operation, func(t *testing.T) {
-			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture) {
+			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, f sweepCoordinationFixture) {
 				funding, _, receipt := seedNativeFunding(t, ctx, tm, f, 1, false)
 				_, err := tm.GetQuerier(ctx).Exec(ctx, "UPDATE doc_crypto_native_fundings SET claimed_by='test-owner' WHERE id=$1", funding)
 				require.NoError(t, err)
@@ -54,9 +55,9 @@ func TestNativeFundingOperationalUpdatesLockWalletBeforeFunding(t *testing.T) {
 func TestNativeFundingConfirmationSkipsBusyFootprintWithoutLeakingLocks(t *testing.T) {
 	for _, resource := range []string{"wallet", "funding"} {
 		t.Run(resource, func(t *testing.T) {
-			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture) {
+			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, f sweepCoordinationFixture) {
 				funding, _, _ := seedNativeFunding(t, ctx, tm, f, 1, false)
-				runSweepCoordinationFixture(t, true, func(_ context.Context, _ *postgres.TxManager, other sweepCoordinationFixture) {
+				runSweepCoordinationFixture(t, true, func(_ context.Context, _ *sdktest.TxManager, other sweepCoordinationFixture) {
 					available, _, _ := seedNativeFunding(t, ctx, tm, other, 1, false)
 					holder := make(chan struct{})
 					locked, done := make(chan error, 1), make(chan error, 1)
@@ -106,7 +107,7 @@ func TestNativeFundingConfirmationSkipsBusyFootprintWithoutLeakingLocks(t *testi
 	}
 }
 
-func seedUnsignedMaintenanceAttempt(t *testing.T, ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture) (id.ID, id.ID, id.ID) {
+func seedUnsignedMaintenanceAttempt(t *testing.T, ctx context.Context, tm *sdktest.TxManager, f sweepCoordinationFixture) (id.ID, id.ID, id.ID) {
 	t.Helper()
 	attempt, auth, fee := id.New(), id.New(), id.New()
 	_, err := tm.GetQuerier(ctx).Exec(ctx, `
@@ -123,7 +124,7 @@ func seedUnsignedMaintenanceAttempt(t *testing.T, ctx context.Context, tm *postg
 }
 
 func TestSweepMaintenanceLocksWalletBeforeAuthorization(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, f sweepCoordinationFixture) {
 		attempt, auth, fee := seedUnsignedMaintenanceAttempt(t, ctx, tm, f)
 		assertWorkerResourceOrder(t, ctx,
 			func(ctx context.Context) error {
@@ -142,7 +143,7 @@ func TestSweepMaintenanceLocksWalletBeforeAuthorization(t *testing.T) {
 }
 
 func TestSweepMaintenanceDoesNotExpandFrozenCohort(t *testing.T) {
-	withSweepCoordinationFixture(t, func(ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture) {
+	withSweepCoordinationFixture(t, func(ctx context.Context, tm *sdktest.TxManager, f sweepCoordinationFixture) {
 		first, firstAuth, firstFee := seedUnsignedMaintenanceAttempt(t, ctx, tm, f)
 		repo := NewOutboundRepo()
 		batch, err := repo.PrepareSweepMaintenance(ctx)
@@ -168,7 +169,7 @@ func TestSweepMaintenanceDoesNotExpandFrozenCohort(t *testing.T) {
 }
 
 func TestNativeFundingConcurrentCreationValidatesImmutableReplay(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, f sweepCoordinationFixture) {
 		candidate := crypto.NativeFunding{BasisType: "CryptoSweepAttempt", BasisID: id.New(), Attempt: 1,
 			NetworkID: f.network, NativeTokenID: f.native, SourceWalletID: f.hot, DestinationWalletID: f.wallet, Amount: types.MustRawAmount("100")}
 		store := nativeFundingStore{OutboundRepo: NewOutboundRepo()}
@@ -216,7 +217,7 @@ func TestNativeFundingConcurrentCreationValidatesImmutableReplay(t *testing.T) {
 }
 
 func TestSweepMaintenanceRechecksSignedEnvelopeAfterPreparation(t *testing.T) {
-	withSweepCoordinationFixture(t, func(ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture) {
+	withSweepCoordinationFixture(t, func(ctx context.Context, tm *sdktest.TxManager, f sweepCoordinationFixture) {
 		attempt, auth, fee := seedUnsignedMaintenanceAttempt(t, ctx, tm, f)
 		repo := NewOutboundRepo()
 		batch, err := repo.PrepareSweepMaintenance(ctx)

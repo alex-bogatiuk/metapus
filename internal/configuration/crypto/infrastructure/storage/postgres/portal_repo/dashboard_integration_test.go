@@ -17,6 +17,7 @@ import (
 	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -30,7 +31,7 @@ func TestPortalTransactionItemsIncludeExplorerURLTemplate(t *testing.T) {
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 
 	errRollback := errors.New("rollback portal explorer fixture")
@@ -145,7 +146,7 @@ func TestGetCurrenciesIncludesActiveTokensWithoutInvoiceHistory(t *testing.T) {
 	}
 
 	merchantID := id.New()
-	ctx = tenant.WithTxManager(ctx, postgres.NewTxManagerFromRawPool(pool))
+	ctx = tenant.WithTxManager(ctx, sdktest.NewTxManager(pool))
 	ctx = merchant.WithPortalScope(ctx, merchant.PortalScope{
 		MerchantIDs: []id.ID{merchantID},
 		Roles:       map[id.ID]merchant.PortalRole{merchantID: merchant.PortalRoleOwner},

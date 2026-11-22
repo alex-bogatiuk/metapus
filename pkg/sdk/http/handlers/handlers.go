@@ -7,16 +7,14 @@ import (
 
 	"metapus/internal/core/entity"
 	"metapus/internal/domain"
-	"metapus/internal/domain/automations"
+
 	"metapus/internal/domain/settings"
 	"metapus/internal/infrastructure/http/v1/dto"
 	core "metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/reporting/compiler"
 )
 
 type (
-	// AuthHandler handles authentication endpoints.
-	AuthHandler = core.AuthHandler
+
 	// BaseDocumentHandler provides generic HTTP handlers for document entities.
 	// In Database-per-Tenant architecture, tenantID is not needed (isolation is physical).
 	BaseDocumentHandler[T any, CreateDTO any, UpdateDTO any] = core.BaseDocumentHandler[T, CreateDTO, UpdateDTO]
@@ -53,31 +51,6 @@ const (
 // This is the simplest approach for extracting field values by key.
 func DTOToMap(v any) (map[string]any, error) { return core.DTOToMap(v) }
 
-// NewAutomationAccountHandler creates a new handler.
-func NewAutomationAccountHandler(base *core.BaseHandler, repo automations.AccountRepository, credMgr automations.CredentialManager) *core.AutomationAccountHandler {
-	return core.NewAutomationAccountHandler(base, repo, credMgr)
-}
-
-// NewAutomationChannelHandler creates a new handler.
-func NewAutomationChannelHandler(base *core.BaseHandler, repo automations.ChannelRepository) *core.AutomationChannelHandler {
-	return core.NewAutomationChannelHandler(base, repo)
-}
-
-// NewAutomationHistoryHandler creates a new handler.
-func NewAutomationHistoryHandler(base *core.BaseHandler, repo automations.HistoryRepository) *core.AutomationHistoryHandler {
-	return core.NewAutomationHistoryHandler(base, repo)
-}
-
-// NewAutomationMetaHandler creates a new handler.
-func NewAutomationMetaHandler(base *core.BaseHandler, comp *compiler.Compiler) *core.AutomationMetaHandler {
-	return core.NewAutomationMetaHandler(base, comp)
-}
-
-// NewAutomationRuleHandler creates a new handler.
-func NewAutomationRuleHandler(base *core.BaseHandler, repo automations.RuleRepository) *core.AutomationRuleHandler {
-	return core.NewAutomationRuleHandler(base, repo)
-}
-
 // NewBaseDocumentHandler creates a new base document handler.
 func NewBaseDocumentHandler[T any, CreateDTO any, UpdateDTO any](base *core.BaseHandler, cfg core.BaseDocumentHandlerConfig[T, CreateDTO, UpdateDTO]) *core.BaseDocumentHandler[T, CreateDTO, UpdateDTO] {
 	return core.NewBaseDocumentHandler[T, CreateDTO, UpdateDTO](base, cfg)
@@ -111,11 +84,6 @@ func NewRelatedDocumentsHandler(finder domain.RelatedDocFinder, entityName strin
 // ParseExportRequest parses and validates an ExportListRequest from the gin context.
 func ParseExportRequest(c *gin.Context) (dto.ExportListRequest, domain.ListFilter, error) {
 	return core.ParseExportRequest(c)
-}
-
-// RegisterListViewRoutes registers list view routes on the given router group.
-func RegisterListViewRoutes(rg *gin.RouterGroup, handler *core.ListViewHandler) {
-	core.RegisterListViewRoutes(rg, handler)
 }
 
 // WriteExportXLSX builds the XLSX from DTO items and writes it to the response.

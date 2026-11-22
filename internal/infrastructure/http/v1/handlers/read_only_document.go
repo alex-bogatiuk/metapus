@@ -8,7 +8,6 @@ import (
 	"metapus/internal/domain"
 	"metapus/internal/domain/settings"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/tenantdb"
 )
 
 // ReadOnlyDocumentPresenter maps a system-owned document to its response DTO.
@@ -54,7 +53,7 @@ func NewReadOnlyDocumentHandler[T any, R any](base *BaseHandler, service domain.
 			if resolver.Empty() {
 				return postgres.ResolvedRefs{}, nil
 			}
-			return resolver.Resolve(ctx, tenantdb.MustGetPool(ctx))
+			return resolver.Resolve(ctx)
 		},
 		MapToDTOWithRefs: func(doc T, refs any) any {
 			resolved, _ := refs.(postgres.ResolvedRefs)

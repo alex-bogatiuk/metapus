@@ -6,8 +6,6 @@ package postgres
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"metapus/internal/application/readaccess"
 	"metapus/internal/core/security"
 	"metapus/internal/domain/eventlog"
@@ -57,7 +55,7 @@ type (
 	//	resolver := NewReferenceResolver()
 	//	resolver.Add("cat_counterparties", doc.CounterpartyID)
 	//	resolver.Add("cat_merchants", doc.MerchantID)
-	//	resolved, err := resolver.Resolve(ctx, querier)
+	//	resolved, err := resolver.Resolve(ctx)
 	//	supplierName := resolved["cat_counterparties"][doc.CounterpartyID.String()]
 	ReferenceResolver = core.ReferenceResolver
 	// ResolvedRefs maps table → id_string → RefDisplay.
@@ -65,14 +63,6 @@ type (
 	// RetryPolicy controls retries for one outbox message without imposing
 	// webhook-specific limits on unrelated outbox consumers.
 	RetryPolicy = core.RetryPolicy
-	// TxManager manages database transactions with support for:
-	// - Nested transactions (with optional savepoints)
-	// - Statement timeout protection
-	// - Context cancellation handling
-	// - Distributed tracing integration
-	TxManager = core.TxManager
-	// TxOptions configures transaction behavior.
-	TxOptions = core.TxOptions
 )
 
 const (
@@ -145,14 +135,6 @@ func NewRefFinderRepo(registry *metadata.Registry) *core.RefFinderRepo {
 
 // NewReferenceResolver creates a new resolver.
 func NewReferenceResolver() *core.ReferenceResolver { return core.NewReferenceResolver() }
-
-// NewTxManagerFromRawPool creates a new transaction manager from raw pgxpool.Pool.
-func NewTxManagerFromRawPool(pool *pgxpool.Pool) *core.TxManager {
-	return core.NewTxManagerFromRawPool(pool)
-}
-
-// OpenPool is pgxpool.New with the mandatory Metapus JSON codecs installed.
-func OpenPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) { return core.OpenPool(ctx, dsn) }
 
 func ReadSnapshot(ctx context.Context, read func(context.Context) error) error {
 	return core.ReadSnapshot(ctx, read)

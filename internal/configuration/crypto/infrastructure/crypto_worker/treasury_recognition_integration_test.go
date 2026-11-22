@@ -20,6 +20,7 @@ import (
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/types"
 
 	"github.com/stretchr/testify/require"
@@ -27,7 +28,7 @@ import (
 
 type treasuryFinalFixture struct {
 	ctx       context.Context
-	tm        *postgres.TxManager
+	tm        *sdktest.TxManager
 	doc       *treasury_withdrawal.TreasuryWithdrawal
 	task      outboundapp.SettlementTask
 	execution outboundapp.TreasuryTask
@@ -35,13 +36,13 @@ type treasuryFinalFixture struct {
 	merchant  id.ID
 }
 
-func newTreasuryFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) treasuryFinalFixture {
+func newTreasuryFinalFixture(t *testing.T, ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) treasuryFinalFixture {
 	return newTreasuryFixture(t, ctx, tm, c, nil)
 }
 
 // newTreasuryRefundFixture returns the 25 of an unidentified receipt with 2
 // withheld for gas, so the payer receives the same 23 a revenue withdrawal sends.
-func newTreasuryRefundFixture(t *testing.T, ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) (treasuryFinalFixture, id.ID) {
+func newTreasuryRefundFixture(t *testing.T, ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) (treasuryFinalFixture, id.ID) {
 	t.Helper()
 	rowID := seedUnmatchedTransfer(t, ctx, tm, c, crypto.MatchReasonWrongToken, 0)
 	intake, registry, _ := receiptIntakeForTest(t, c)
@@ -53,7 +54,7 @@ func newTreasuryRefundFixture(t *testing.T, ctx context.Context, tm *postgres.Tx
 	return newTreasuryFixture(t, ctx, tm, c, &receipt), receipt
 }
 
-func newTreasuryFixture(t *testing.T, ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture, refundOf *id.ID) treasuryFinalFixture {
+func newTreasuryFixture(t *testing.T, ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture, refundOf *id.ID) treasuryFinalFixture {
 	t.Helper()
 	q := tm.GetQuerier(ctx)
 	var networkIdentifier string
@@ -160,7 +161,7 @@ func (f treasuryFinalFixture) service(t *testing.T) *outboundapp.SettlementServi
 }
 
 func TestTreasuryV2ConcurrentFinalPrincipalAndRevenue(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 		f := newTreasuryFinalFixture(t, ctx, tm, c)
 		f.broadcast(t)
 		var wg sync.WaitGroup
@@ -187,7 +188,7 @@ func TestTreasuryV2ConcurrentFinalPrincipalAndRevenue(t *testing.T) {
 }
 
 func TestTreasuryV2RevertedReleasesWithoutPrincipal(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 		f := newTreasuryFinalFixture(t, ctx, tm, c)
 		f.broadcast(t)
 		f.receipt.Status = crypto.ReceiptReverted
@@ -232,7 +233,7 @@ func (r incompleteTreasuryRepo) RecordOutboundSettlement(ctx context.Context, ta
 func TestTreasuryV2IncompleteSetRollsBackAndRetries(t *testing.T) {
 	for _, component := range []string{"claim", "outbox", "writer"} {
 		t.Run(component, func(t *testing.T) {
-			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 				f := newTreasuryFinalFixture(t, ctx, tm, c)
 				f.broadcast(t)
 				service := outboundapp.NewSettlementService(outboundapp.SettlementConfig{Drivers: f.registry(t), Repository: incompleteTreasuryRepo{OutboundRepo: NewOutboundRepo(), component: component}, Fees: NewFeeBudgetManager(), Transactions: contextTxManager{}, TreasuryEvidence: outboundapp.NewTreasuryEvidenceService(crypto_repo.NewTreasuryCustodyRepo())})
@@ -249,7 +250,7 @@ func TestTreasuryV2IncompleteSetRollsBackAndRetries(t *testing.T) {
 
 func TestTreasuryV2NativePrincipalAndFeeStayReservedUntilFinal(t *testing.T) {
 	for _, actual := range []int64{0, 2} {
-		runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+		runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 			c.token = c.native
 			f := newTreasuryFinalFixture(t, ctx, tm, c)
 			f.receipt.Fee.TotalFee = types.NewRawAmountFromInt64(actual)
@@ -268,7 +269,7 @@ func TestTreasuryV2NativePrincipalAndFeeStayReservedUntilFinal(t *testing.T) {
 }
 
 func TestTreasuryV2BasisAndFinalHistoryAreImmutable(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 		f := newTreasuryFinalFixture(t, ctx, tm, c)
 		q := tm.GetQuerier(ctx)
 		_, err := q.Exec(ctx, "UPDATE doc_treasury_withdrawals SET amount=24 WHERE id=$1", f.doc.ID)
@@ -291,7 +292,7 @@ func TestTreasuryV2BasisAndFinalHistoryAreImmutable(t *testing.T) {
 }
 
 func TestTreasuryV2NativeFeeCannotSpendPrincipalReservation(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 		c.token = c.native
 		_ = newTreasuryFinalFixture(t, ctx, tm, c)
 		_, err := tm.GetQuerier(ctx).Exec(ctx, `UPDATE sys_crypto_network_policies SET enabled=true,per_transaction_max_fee_minor=100,daily_network_fee_budget_minor=1000,
@@ -304,7 +305,7 @@ func TestTreasuryV2NativeFeeCannotSpendPrincipalReservation(t *testing.T) {
 }
 
 func TestNativeSweepPrincipalDoesNotConsumeDailyNetworkFeeBudget(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 		_, err := tm.GetQuerier(ctx).Exec(ctx, `UPDATE sys_crypto_network_policies SET enabled=true,per_transaction_max_fee_minor=20,daily_network_fee_budget_minor=20,
 			fee_funding_mode='source_only',daily_jit_funding_budget_minor=0,min_fee_wallet_balance_minor=0,min_source_wallet_residual_minor=0,jit_funding_max_amount_minor=0 WHERE network_id=$1`, c.network)
 		require.NoError(t, err)
@@ -336,7 +337,7 @@ func (d treasuryBadProofDriver) VerifyExpectedTransfer(ctx context.Context, e cr
 func TestTreasuryV2MissingOrContradictoryProofRetainsReservations(t *testing.T) {
 	for _, mode := range []string{"no_quorum", "wrong_amount"} {
 		t.Run(mode, func(t *testing.T) {
-			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 				f := newTreasuryFinalFixture(t, ctx, tm, c)
 				f.broadcast(t)
 				base, err := f.registry(t).Resolve(c.network)
@@ -356,7 +357,7 @@ func TestTreasuryV2MissingOrContradictoryProofRetainsReservations(t *testing.T) 
 }
 
 func TestTreasuryV2ExpectedOutflowCannotBecomeAnotherCustodyExpense(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 		f := newTreasuryFinalFixture(t, ctx, tm, c)
 		f.broadcast(t)
 		outflow, adjustment := id.New(), id.New()
@@ -384,7 +385,7 @@ func TestTreasuryV2ExpectedOutflowCannotBecomeAnotherCustodyExpense(t *testing.T
 func TestTreasuryV2ConcurrentReservationsCannotOversubscribe(t *testing.T) {
 	for _, resource := range []string{"wallet", "revenue"} {
 		t.Run(resource, func(t *testing.T) {
-			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 				f := newTreasuryFinalFixture(t, ctx, tm, c)
 				documents := make([]*treasury_withdrawal.TreasuryWithdrawal, 2)
 				for i := range documents {
@@ -422,7 +423,7 @@ func TestTreasuryV2ConcurrentReservationsCannotOversubscribe(t *testing.T) {
 	}
 }
 
-func receiptRefundAmounts(t *testing.T, ctx context.Context, tm *postgres.TxManager, receipt, refund id.ID) (suspense, payable string, feeLines int) {
+func receiptRefundAmounts(t *testing.T, ctx context.Context, tm *sdktest.TxManager, receipt, refund id.ID) (suspense, payable string, feeLines int) {
 	t.Helper()
 	require.NoError(t, tm.GetQuerier(ctx).QueryRow(ctx, `SELECT (SELECT amount::text FROM reg_crypto_receipt_suspense_balances WHERE receipt_id=$1),
 		COALESCE((SELECT amount::text FROM reg_crypto_refund_payable_balances WHERE receipt_id=$1),'0'),
@@ -431,7 +432,7 @@ func receiptRefundAmounts(t *testing.T, ctx context.Context, tm *postgres.TxMana
 }
 
 func TestTreasuryReceiptRefundPayoutClosesThePayable(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 		f, receipt := newTreasuryRefundFixture(t, ctx, tm, c)
 		suspense, payable, _ := receiptRefundAmounts(t, ctx, tm, receipt, f.doc.ID)
 		require.Equal(t, []string{"0", "23"}, []string{suspense, payable}, "approval takes 25 from suspense and owes the payer 23")
@@ -452,7 +453,7 @@ func TestTreasuryReceiptRefundPayoutClosesThePayable(t *testing.T) {
 }
 
 func TestTreasuryReceiptRefundRevertedGivesTheReceiptBack(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 		f, receipt := newTreasuryRefundFixture(t, ctx, tm, c)
 		f.broadcast(t)
 		f.receipt.Status = crypto.ReceiptReverted

@@ -18,10 +18,11 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/types"
 )
 
-func seedNativeFundingConfirmation(t *testing.T, ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture, round ...int) (id.ID, id.ID, crypto.ChainReceipt) {
+func seedNativeFundingConfirmation(t *testing.T, ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture, round ...int) (id.ID, id.ID, crypto.ChainReceipt) {
 	t.Helper()
 	attempt := 1
 	if len(round) > 0 {
@@ -30,7 +31,7 @@ func seedNativeFundingConfirmation(t *testing.T, ctx context.Context, txm *postg
 	return seedNativeFunding(t, ctx, txm, f, attempt, true)
 }
 
-func seedNativeFunding(t *testing.T, ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture, attempt int, verified bool) (id.ID, id.ID, crypto.ChainReceipt) {
+func seedNativeFunding(t *testing.T, ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture, attempt int, verified bool) (id.ID, id.ID, crypto.ChainReceipt) {
 	t.Helper()
 	fundingID, feeID, attemptID, sweepID := id.New(), id.New(), id.New(), id.New()
 	txHash := strings.ReplaceAll(fundingID.String()+fundingID.String(), "-", "")
@@ -81,7 +82,7 @@ func reproveNetworkFee(t *testing.T, ctx context.Context, r crypto.ChainReceipt)
 	return r
 }
 
-func nativeFundingProof(t *testing.T, ctx context.Context, txm *postgres.TxManager, fundingID id.ID, receipt crypto.ChainReceipt) crypto.TransferVerification {
+func nativeFundingProof(t *testing.T, ctx context.Context, txm *sdktest.TxManager, fundingID id.ID, receipt crypto.ChainReceipt) crypto.TransferVerification {
 	t.Helper()
 	_, err := txm.GetQuerier(ctx).Exec(ctx, `INSERT INTO sys_crypto_block_ingestion(network_id,start_height,start_hash,start_timestamp,mode,decoder_version) VALUES($1,0,'fixture',0,'shadow',2) ON CONFLICT DO NOTHING`, receipt.NetworkID)
 	require.NoError(t, err)
@@ -169,7 +170,7 @@ func (d fundingReceiptDriver) FinalizedBlock(context.Context) (int64, string, er
 }
 
 func TestNativeFundingConfirmationOutlivesExpiredParentAndKillSwitch(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		fundingID, sweepID, receipt := seedNativeFundingConfirmation(t, ctx, txm, f)
 		registry := crypto.NewChainDriverRegistry()
 		driver := fundingReceiptDriver{network: crypto.NetworkRef{ID: f.network, Code: "TEST", Family: crypto.ChainFamilyTRON,
@@ -230,7 +231,7 @@ func TestNativeFundingConfirmationOutlivesExpiredParentAndKillSwitch(t *testing.
 }
 
 func TestNativeFundingConfirmationLeaseFencesConcurrentWorkers(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		fundingID, _, receipt := seedNativeFundingConfirmation(t, ctx, txm, f)
 		start := make(chan struct{})
 		results := make(chan []crypto.NativeFunding, 2)
@@ -280,7 +281,7 @@ func TestNativeFundingConfirmationLeaseFencesConcurrentWorkers(t *testing.T) {
 }
 
 func TestNativeFundingConcurrentSettlementIsOneEconomicEffect(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		fundingID, _, receipt := seedNativeFundingConfirmation(t, ctx, txm, f)
 		service := cryptoapp.NewNativeFundingSettlementService(contextTxManager{}, nativeFundingSettlementRepo{}, NewFeeBudgetManager())
 		start := make(chan struct{})
@@ -308,7 +309,7 @@ func (failingFundingPrincipalRepo) RecordNativeFundingPrincipal(context.Context,
 }
 
 func TestNativeFundingSettlementRollsBackFeeAndRetries(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		fundingID, _, receipt := seedNativeFundingConfirmation(t, ctx, txm, f)
 		broken := cryptoapp.NewNativeFundingSettlementService(contextTxManager{}, failingFundingPrincipalRepo{}, NewFeeBudgetManager())
 		_, err := broken.Settle(ctx, fundingID, receipt)
@@ -326,7 +327,7 @@ func TestNativeFundingSettlementRollsBackFeeAndRetries(t *testing.T) {
 func TestNativeFundingRevertedAndProvisionalReceipts(t *testing.T) {
 	for _, state := range []string{"provisional", "reverted", "wrong_network", "cap_exceeded"} {
 		t.Run(state, func(t *testing.T) {
-			withSweepCoordinationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+			withSweepCoordinationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 				fundingID, _, receipt := seedNativeFundingConfirmation(t, ctx, txm, f)
 				switch state {
 				case "provisional":
@@ -366,7 +367,7 @@ func TestNativeFundingRevertedAndProvisionalReceipts(t *testing.T) {
 }
 
 func TestNativeFundingAdditionalRoundSettlesItsOwnFirstAuthorizationOnce(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		fundingID, _, receipt := seedNativeFundingConfirmation(t, ctx, txm, f, 2)
 		// Each new round is immutable from creation and has its own first auth.
 		service := cryptoapp.NewNativeFundingSettlementService(contextTxManager{}, nativeFundingSettlementRepo{}, NewFeeBudgetManager())

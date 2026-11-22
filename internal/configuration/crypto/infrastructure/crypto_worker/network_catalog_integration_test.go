@@ -15,18 +15,18 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
-func withNetworkCatalog(t *testing.T, fn func(context.Context, *postgres.TxManager)) {
+func withNetworkCatalog(t *testing.T, fn func(context.Context, *sdktest.TxManager)) {
 	t.Helper()
 	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	require.NotEmpty(t, dsn, "a disposable integration database is required")
 	pool, err := pgxpool.New(context.Background(), dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx := tenant.WithTxManager(context.Background(), txm)
 	rollback := errors.New("rollback network catalog fixture")
 	err = txm.RunInTransaction(ctx, func(txCtx context.Context) error {
@@ -37,7 +37,7 @@ func withNetworkCatalog(t *testing.T, fn func(context.Context, *postgres.TxManag
 }
 
 func TestProcessorNetworkCatalogLoadsEveryNetwork(t *testing.T) {
-	withNetworkCatalog(t, func(ctx context.Context, txm *postgres.TxManager) {
+	withNetworkCatalog(t, func(ctx context.Context, txm *sdktest.TxManager) {
 		const networkCount = 1005
 		prefix := "CAT-N-" + id.Compact(id.New())
 		q := txm.GetQuerier(ctx)
@@ -95,7 +95,7 @@ func TestProcessorNetworkCatalogLoadsEveryAsset(t *testing.T) {
 		for _, active := range []bool{true, false} {
 			for _, nativeLast := range []bool{false, true} {
 				t.Run(fmt.Sprintf("%s/active=%t/nativeLast=%t", family, active, nativeLast), func(t *testing.T) {
-					withNetworkCatalog(t, func(ctx context.Context, txm *postgres.TxManager) {
+					withNetworkCatalog(t, func(ctx context.Context, txm *sdktest.TxManager) {
 						const contractCount = 1005
 						networkID, nativeID := id.New(), id.New()
 						prefix := "CAT-A-" + id.Compact(networkID)

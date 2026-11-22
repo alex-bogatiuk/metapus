@@ -12,7 +12,7 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +21,7 @@ func TestExpectedNativeFundingWatcherAndSettlementHaveOneOwner(t *testing.T) {
 	for _, order := range []string{"watcher_first", "settlement_first"} {
 		t.Run(order, func(t *testing.T) {
 			payer := "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb"
-			runSweepCoordinationFixtureWithAddresses(t, true, payer, "", func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+			runSweepCoordinationFixtureWithAddresses(t, true, payer, "", func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 				funding, _, receipt := seedNativeFunding(t, ctx, tm, c, 1, false)
 				proveTRONNetworkFee(t, &receipt, payer)
 				p := nativeFundingProof(t, ctx, tm, funding, receipt)
@@ -98,7 +98,7 @@ func TestExpectedNativeFundingWatcherAndSettlementHaveOneOwner(t *testing.T) {
 func TestExpectedOutboundHandoffPreservesWorkerLeasesAndMoney(t *testing.T) {
 	for _, kind := range []string{"withdrawal", "treasury", "sweep"} {
 		t.Run(kind, func(t *testing.T) {
-			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 				var ownerType, table, keyColumn string
 				var owner, target, document id.ID
 				switch kind {

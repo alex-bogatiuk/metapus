@@ -26,7 +26,9 @@ import (
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
+
 	"metapus/pkg/sdk/types"
 )
 
@@ -40,7 +42,7 @@ func TestExternalOutflowCreatesOneIncidentAndFailClosedHolds(t *testing.T) {
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 
 	errRollback := errors.New("rollback external outflow fixture")
@@ -146,7 +148,7 @@ func TestConcurrentExternalOutflowWorkflowCreatesOneAdjustmentAndSelectiveResolu
 			pool, err := pgxpool.New(ctx, dsn)
 			require.NoError(t, err)
 			t.Cleanup(pool.Close)
-			txm := postgres.NewTxManagerFromRawPool(pool)
+			txm := sdktest.NewTxManager(pool)
 			ctx = tenant.WithTxManager(ctx, txm)
 
 			networkID, tokenID, walletID := id.New(), id.New(), id.New()
@@ -413,7 +415,7 @@ func TestConcurrentExternalOutflowWorkflowCreatesOneAdjustmentAndSelectiveResolu
 	}
 }
 
-func newIntegrationExternalOutflowRecorder(txm *postgres.TxManager) crypto.ExternalOutflowRecorder {
+func newIntegrationExternalOutflowRecorder(txm *sdktest.TxManager) crypto.ExternalOutflowRecorder {
 	holds := cryptoapp.NewOperationalHoldService(txm, NewOperationalHoldRepo())
 	return cryptoapp.NewExternalOutflowDetectionService(
 		txm,

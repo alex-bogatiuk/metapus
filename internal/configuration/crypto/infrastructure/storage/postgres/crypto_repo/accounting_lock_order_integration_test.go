@@ -12,6 +12,7 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,7 @@ import (
 // Wait for a real PostgreSQL wait edge, then let its owner acquire the next
 // resource. This exercises both orders without scheduling sleeps or retries.
 func assertAccountingLockOrder(t *testing.T, ctx context.Context, pool *pgxpool.Pool,
-	first, next, writer func(context.Context) error, writerOptions ...postgres.TxOptions) {
+	first, next, writer func(context.Context) error, writerOptions ...sdktest.TxOptions) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()

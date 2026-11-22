@@ -17,7 +17,7 @@ import (
 	"metapus/internal/configuration/crypto/application/outboundapp"
 	"metapus/internal/configuration/crypto/domain/catalogs/wallet"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -31,7 +31,7 @@ func TestQuerySweepCandidatesIncludesSettledPayments(t *testing.T) {
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 	errRollback := errors.New("rollback integration fixture")
 
@@ -102,7 +102,7 @@ func TestClaimSweepPendingWalletsRetainsConfiguredRawTokenUnit(t *testing.T) {
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 
 	errRollback := errors.New("rollback integration fixture")
@@ -205,7 +205,7 @@ func TestConcurrentWorkersClaimOneSweepPendingWalletOnce(t *testing.T) {
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 
 	networkID, tokenID, hotWalletID, poolWalletID := id.New(), id.New(), id.New(), id.New()

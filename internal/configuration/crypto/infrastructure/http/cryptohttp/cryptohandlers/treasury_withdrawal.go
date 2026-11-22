@@ -21,7 +21,6 @@ import (
 	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/posting"
 	"metapus/pkg/sdk/settings"
-	"metapus/pkg/sdk/tenantdb"
 	"metapus/pkg/sdk/types"
 )
 
@@ -40,8 +39,7 @@ func resolveTreasuryWithdrawalRefs(ctx context.Context, docs ...*treasury_withdr
 	for _, doc := range docs {
 		cryptodto.CollectTreasuryWithdrawalRefs(resolver, doc)
 	}
-	pool := tenantdb.MustGetPool(ctx)
-	return resolver.Resolve(ctx, pool)
+	return resolver.Resolve(ctx)
 }
 
 // NewTreasuryWithdrawalHandler creates a treasury withdrawal handler.

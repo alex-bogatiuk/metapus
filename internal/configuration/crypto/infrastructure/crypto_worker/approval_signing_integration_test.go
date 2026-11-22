@@ -18,7 +18,8 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/logger"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
+
 	"metapus/pkg/sdk/telemetry"
 	"metapus/pkg/sdk/tenant"
 )
@@ -85,7 +86,7 @@ func newRemediationApprovalProvider(t *testing.T, tenantID string) remediationAp
 }
 
 func TestRemediationWithdrawalSigningJobCompletesOutsideRequest(t *testing.T) {
-	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
+	withRemediationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f remediationFixture) {
 		ctx = tenant.WithTenant(ctx, &tenant.Tenant{ID: "remediation-signing"})
 		q := txm.GetQuerier(ctx)
 		addressID, requestID := id.New(), id.New()
@@ -121,7 +122,7 @@ func TestRemediationWithdrawalSigningJobCompletesOutsideRequest(t *testing.T) {
 }
 
 func TestRemediationTreasurySigningJobCompletesOutsideRequest(t *testing.T) {
-	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
+	withRemediationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f remediationFixture) {
 		ctx = tenant.WithTenant(ctx, &tenant.Tenant{ID: "remediation-treasury-signing"})
 		q := txm.GetQuerier(ctx)
 		addressID, withdrawalID := id.New(), id.New()

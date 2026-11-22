@@ -16,6 +16,7 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 	"metapus/pkg/sdk/types"
 )
@@ -46,7 +47,7 @@ func TestInvoiceCheckoutCommitRollbackAndIdempotentDelivery(t *testing.T) {
 		updated_at TIMESTAMPTZ DEFAULT NOW(),
 		CONSTRAINT uq_public_checkout_refs_resource UNIQUE(tenant_id,resource_type,resource_id))`)
 	require.NoError(t, err)
-	txm := postgres.NewTxManagerFromRawPool(tenantPool)
+	txm := sdktest.NewTxManager(tenantPool)
 	ctx = tenant.WithTxManager(ctx, txm)
 	ctx = tenant.WithTenant(ctx, &tenant.Tenant{ID: id.New().String()})
 	invoice := crypto_invoice.NewCryptoInvoice(id.New(), id.New(), types.NewRawAmountFromInt64(1000000))

@@ -12,8 +12,9 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
+
 	"metapus/pkg/sdk/types"
 )
 
@@ -27,7 +28,7 @@ func (integrationControlAuthorizationSigner) CheckReady(context.Context, string)
 
 func TestIntegrationSigningAuthorizationJWSIsWriteOnce(t *testing.T) {
 	ctx, pool := custodyTestDatabase(t)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 
 	errRollback := errors.New("rollback signing authorization fixture")

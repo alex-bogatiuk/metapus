@@ -25,6 +25,7 @@ import (
 	"metapus/pkg/sdk/json"
 	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/types"
 )
 
@@ -36,7 +37,7 @@ func (s *providerTestStepUp) HasFreshStepUp(context.Context, id.ID, id.ID, strin
 
 type providerOpeningFixture struct {
 	ctx                                                   context.Context
-	txm                                                   *postgres.TxManager
+	txm                                                   *sdktest.TxManager
 	account, token, incident, observation, maker, checker id.ID
 	service                                               *cryptoapp.ProviderBalanceWorkflowService
 	stepUp                                                *providerTestStepUp
@@ -44,7 +45,7 @@ type providerOpeningFixture struct {
 
 func withProviderOpening(t *testing.T, fn func(providerOpeningFixture)) {
 	t.Helper()
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, base sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *sdktest.TxManager, base sweepCoordinationFixture) {
 		f := providerOpeningFixture{ctx: ctx, txm: txm, account: id.New(), token: base.native, maker: id.New(), checker: id.New(), stepUp: &providerTestStepUp{}}
 		err := txm.RunInTransaction(ctx, func(ctx context.Context) error {
 			_, err := txm.GetQuerier(ctx).Exec(ctx, `INSERT INTO cat_crypto_provider_accounts(id,code,name,provider,network_id,balance_token_id) VALUES($1::uuid,$1::uuid::text,'Provider workflow test','itrx',$2,$3)`, f.account, base.network, f.token)

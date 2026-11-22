@@ -13,7 +13,6 @@ import (
 	"metapus/pkg/sdk/http/handlers"
 	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/settings"
-	"metapus/pkg/sdk/tenantdb"
 )
 
 // CryptoWithdrawalHandler handles HTTP requests for CryptoWithdrawal documents.
@@ -27,8 +26,7 @@ func resolveCryptoWithdrawalRefs(ctx context.Context, docs ...*crypto_withdrawal
 	for _, doc := range docs {
 		cryptodto.CollectCryptoWithdrawalRefs(resolver, doc)
 	}
-	pool := tenantdb.MustGetPool(ctx)
-	refs, err := resolver.Resolve(ctx, pool)
+	refs, err := resolver.Resolve(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -26,7 +26,6 @@ import (
 	"metapus/pkg/sdk/http/v1"
 	"metapus/pkg/sdk/metadata"
 	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/tenantdb"
 )
 
 func init() {
@@ -113,8 +112,7 @@ func resolveCatalogRefs[T any](ctx context.Context, collect func(*postgres.Refer
 	for _, e := range entities {
 		collect(resolver, e)
 	}
-	pool := tenantdb.MustGetPool(ctx)
-	return resolver.Resolve(ctx, pool)
+	return resolver.Resolve(ctx)
 }
 
 // ---------------------------------------------------------------------------

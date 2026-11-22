@@ -15,8 +15,9 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
+
 	"metapus/pkg/sdk/workerjob"
 )
 
@@ -30,7 +31,7 @@ func TestWorkerReliabilityWebhookClaimsAcrossReplicas(t *testing.T) {
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	defer pool.Close()
-	ctx = tenant.WithTxManager(ctx, postgres.NewTxManagerFromRawPool(pool))
+	ctx = tenant.WithTxManager(ctx, sdktest.NewTxManager(pool))
 	merchants := []id.ID{id.New(), id.New()}
 	defer func() {
 		cleanup := context.Background()

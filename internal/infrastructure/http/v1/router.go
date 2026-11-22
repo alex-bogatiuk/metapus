@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -183,20 +184,21 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		v1.GET("/system/version", versionHandler.Version)
 
 		// Protected endpoints - TenantDB runs first, then Auth
-		protected := v1.Group("")
-		protected.Use(middleware.TenantDB(cfg.TenantManager)) // 1. Resolve tenant, get DB pool
-		protected.Use(middleware.Auth(cfg.JWTValidator))      // 2. Validate JWT
-		protected.Use(middleware.AdminGuard(cfg.AdminSecurityMode, cfg.AdminAllowedCIDRs, cfg.AdminMFAMode, cfg.MFARepo, eventLogRepo))
+		authenticated := gin.HandlersChain{
+			middleware.TenantDB(cfg.TenantManager), // 1. Resolve tenant, get DB pool
+			middleware.Auth(cfg.JWTValidator),      // 2. Validate JWT
+			middleware.AdminGuard(cfg.AdminSecurityMode, cfg.AdminAllowedCIDRs, cfg.AdminMFAMode, cfg.MFARepo, eventLogRepo),
+		}
 		// Security profiles are mandatory — fail-fast if misconfigured.
 		if cfg.ProfileProvider == nil {
 			panic("v1.NewRouter: cfg.ProfileProvider must not be nil — security profiles are required for DataScope")
 		}
-		protected.Use(middleware.SecurityContext(cfg.ProfileProvider))
 		reads := postgres.NewAuthorizedReadService(reg, cfg.PolicyEngine)
-		protected.Use(func(c *gin.Context) {
+		protectedChain := append(slices.Clone(authenticated), middleware.SecurityContext(cfg.ProfileProvider), func(c *gin.Context) {
 			c.Request = c.Request.WithContext(readaccess.WithService(c.Request.Context(), reads))
 			c.Next()
 		})
+		protected := v1.Group("", protectedChain...)
 
 		// Pre-create CurrencyResolver so catalog hooks can register invalidation,
 		// and document services can use it for resolution. This must happen BEFORE
@@ -236,7 +238,8 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		sysGroup := protected.Group("/system")
 		sysGroup.Use(middleware.RequirePermissionOrSystemAdmin(auth.PermissionSystemAdmin))
 		registerSystemRoutes(protected, sysGroup, wsGroup, cfg, eventLogRepo, reg, cfg.WSTicketStore, reportCompiler)
-		moduleContext = RouteContext{Root: router, API: v1, Protected: protected, System: sysGroup, Config: cfg, Metadata: reg}
+		moduleContext = RouteContext{Root: router, API: v1, Protected: protected, System: sysGroup, Config: cfg, Metadata: reg,
+			authenticated: authenticated, protected: protectedChain}
 
 		// Global data search (Ctrl+K) — available to all authenticated users.
 		// Must be registered after entity routes so metadata.Registry is populated.

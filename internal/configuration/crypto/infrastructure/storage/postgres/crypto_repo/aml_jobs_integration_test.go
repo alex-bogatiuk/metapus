@@ -21,7 +21,7 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/migration"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -43,12 +43,12 @@ func amlTestDatabase(t *testing.T) (context.Context, *pgxpool.Pool) {
 	address, err := url.Parse(dsn)
 	require.NoError(t, err)
 	address.Path = "/" + name
-	_, err = migration.RunAll(address.String(), cryptoschema.Migration())
+	_, err = sdktest.Migrate(address.String(), cryptoschema.Migration())
 	require.NoError(t, err)
-	pool, err := postgres.OpenPool(t.Context(), address.String())
+	pool, err := sdktest.OpenPool(t.Context(), address.String())
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	ctx := tenant.WithTxManager(t.Context(), postgres.NewTxManagerFromRawPool(pool))
+	ctx := tenant.WithTxManager(t.Context(), sdktest.NewTxManager(pool))
 	return ctx, pool
 }
 

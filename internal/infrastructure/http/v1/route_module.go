@@ -26,4 +26,27 @@ type RouteContext struct {
 	Config RouterConfig
 	// Metadata is the populated entity metadata registry.
 	Metadata *metadata.Registry
+
+	authenticated, protected gin.HandlersChain
+}
+
+// Authenticated returns a group at path under Root behind the platform's
+// tenant resolution, authentication and admin guard: Protected's chain
+// without the security profile, for routes that enforce a policy of their own
+// (a merchant portal).
+func (rc RouteContext) Authenticated(path string) *gin.RouterGroup {
+	if len(rc.authenticated) == 0 {
+		panic("v1.RouteContext.Authenticated: the context was not built by NewRouter")
+	}
+	return rc.Root.Group(path, rc.authenticated...)
+}
+
+// ProtectedGroup returns a group at path under Root behind the same chain as
+// Protected: tenant resolution, authentication, admin guard, the security
+// profile and the authorized reader.
+func (rc RouteContext) ProtectedGroup(path string) *gin.RouterGroup {
+	if len(rc.protected) == 0 {
+		panic("v1.RouteContext.ProtectedGroup: the context was not built by NewRouter")
+	}
+	return rc.Root.Group(path, rc.protected...)
 }

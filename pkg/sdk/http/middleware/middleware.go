@@ -4,12 +4,8 @@ package middleware
 
 import (
 	"context"
-	"net/netip"
-
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/domain/auth"
-	"metapus/internal/domain/security_profile"
 	core "metapus/internal/infrastructure/http/v1/middleware"
 	"metapus/internal/infrastructure/tenantdb"
 )
@@ -28,14 +24,6 @@ const (
 	// TenantHeader is the HTTP header for tenant identification.
 	TenantHeader = core.TenantHeader
 )
-
-// AdminGuard applies admin CIDR and MFA controls to authenticated admin principals.
-func AdminGuard(mode auth.AdminSecurityMode, allowedCIDRs []netip.Prefix, mfaMode auth.MFAMode, mfaRepo auth.MFARepository, writer core.DirectEventWriter) gin.HandlerFunc {
-	return core.AdminGuard(mode, allowedCIDRs, mfaMode, mfaRepo, writer)
-}
-
-// Auth middleware validates JWT tokens and populates user context.
-func Auth(validator core.JWTValidator) gin.HandlerFunc { return core.Auth(validator) }
 
 // CommandIdempotency executes each mutating request as one durable application
 // command. Authentication and merchant-scope middleware must run before it.
@@ -65,28 +53,22 @@ func RequirePermissionOrSystemAdmin(permission string) gin.HandlerFunc {
 // controls merely by being inside the broader admin security boundary.
 func RequireSystemAdmin() gin.HandlerFunc { return core.RequireSystemAdmin() }
 
-// SecurityContext uses the shared application builder for HTTP and scheduled reads.
-func SecurityContext(provider security_profile.ProfileProvider, resolvers ...security_profile.DimensionResolver) gin.HandlerFunc {
-	return core.SecurityContext(provider, resolvers...)
-}
-
 // SensitiveActionGuard requires a fresh step-up confirmation for one action code.
 func SensitiveActionGuard(checker core.StepUpChecker, actionCode string, writer core.DirectEventWriter) gin.HandlerFunc {
 	return core.SensitiveActionGuard(checker, actionCode, writer)
 }
 
-// TenantDB middleware resolves tenant from header and injects database pool into context.
-// This middleware MUST run before any database operations.
-//
-// Flow:
-// 1. Extract tenant UUID from X-Tenant-ID header
-// 2. Get pool from MultiTenantManager
-// 3. Create TxManager for this request
-// 4. Inject pool, TxManager, and Tenant into context
-func TenantDB(manager *tenantdb.Manager) gin.HandlerFunc { return core.TenantDB(manager) }
-
 // WithCommandScope makes idempotent commands in this request scope their
 // keys through resolve instead of the authenticated user.
 func WithCommandScope(ctx context.Context, resolve core.CommandScopeResolver) context.Context {
 	return core.WithCommandScope(ctx, resolve)
+}
+
+// BindTenant puts tenant tenantID's database into ctx as the platform's
+// tenant routes see it: the pool, a transaction manager over it and the
+// tenant. The pool is not closed while it is bound; call release when the
+// work on ctx is done. A route that finds its tenant itself (an API key, a
+// public link) binds it with this instead of TenantDB.
+func BindTenant(ctx context.Context, manager *tenantdb.Manager, tenantID string) (context.Context, func(), error) {
+	return core.BindTenant(ctx, manager, tenantID)
 }

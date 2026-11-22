@@ -14,8 +14,7 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
 	"metapus/pkg/sdk/appctx"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/migration"
-	"metapus/pkg/sdk/postgres"
+
 	"metapus/pkg/sdk/registers"
 	"metapus/pkg/sdk/registers/exchange_rate"
 	"metapus/pkg/sdk/sdktest"
@@ -27,13 +26,13 @@ import (
 func valuationFixture(t *testing.T) (context.Context, *pgxpool.Pool, *registers.ExchangeRateRepo, exchange_rate.Configuration) {
 	t.Helper()
 	dsn := sdktest.NewExchangeRateDatabase(t)
-	output, err := migration.RunAll(dsn, cryptoschema.Migration())
+	output, err := sdktest.Migrate(dsn, cryptoschema.Migration())
 	require.NoError(t, err, output)
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	ctx = tenant.WithTxManager(ctx, postgres.NewTxManagerFromRawPool(pool))
+	ctx = tenant.WithTxManager(ctx, sdktest.NewTxManager(pool))
 	ctx = appctx.WithUser(ctx, &appctx.UserContext{UserID: id.New().String(), Permissions: []string{"catalog:rate_source:update", "catalog:rate_source:read"}})
 	source := id.New()
 	_, err = pool.Exec(ctx, `INSERT INTO cat_rate_sources(id,code,name,source_type) VALUES($1,$2,'Integration CoinGecko','coingecko')`, source, "RATE-"+id.Compact(source))

@@ -25,11 +25,13 @@ import (
 	"metapus/pkg/sdk/domain"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/migration"
+	"metapus/pkg/sdk/sdktest"
+	"metapus/pkg/sdk/tenant"
+
 	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/postgres/numerator"
 	"metapus/pkg/sdk/posting"
-	"metapus/pkg/sdk/tenant"
+
 	"metapus/pkg/sdk/types"
 
 	"github.com/jackc/pgx/v5"
@@ -62,13 +64,13 @@ func newFundingFixture(t *testing.T, native bool) fundingFixture {
 	address, err := url.Parse(dsn)
 	require.NoError(t, err)
 	address.Path = "/" + name
-	_, err = migration.RunAll(address.String(), cryptoschema.Migration())
+	_, err = sdktest.Migrate(address.String(), cryptoschema.Migration())
 	require.NoError(t, err)
-	pool, err := postgres.OpenPool(t.Context(), address.String())
+	pool, err := sdktest.OpenPool(t.Context(), address.String())
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 	f := fundingFixture{pool: pool}
-	f.ctx = tenant.WithTxManager(t.Context(), postgres.NewTxManagerFromRawPool(pool))
+	f.ctx = tenant.WithTxManager(t.Context(), sdktest.NewTxManager(pool))
 	f.target = Target{NetworkID: id.New(), WalletID: id.New(), TokenID: id.New(), TokenCode: "FUND", TokenStandard: token.TokenStandardERC20,
 		Address: "0x00000000000000000000000000000000000000CD", ContractAddress: "0x00000000000000000000000000000000000000EF"}
 	kind, ordinal := crypto.EventKindContractLog, int64(2)

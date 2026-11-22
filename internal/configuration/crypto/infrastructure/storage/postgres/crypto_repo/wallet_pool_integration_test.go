@@ -19,7 +19,7 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_catalog_repo"
 	"metapus/pkg/sdk/apperror"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -32,7 +32,7 @@ func TestIntegrationConcurrentWalletPoolControllersCreateOnlyDeficit(t *testing.
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 
 	networkID, tokenID, merchantID := id.New(), id.New(), id.New()

@@ -36,6 +36,7 @@ import (
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/json"
 	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -47,7 +48,7 @@ type referenceTopUp struct {
 type referenceFixture struct {
 	ctx                                                    context.Context
 	pool                                                   *pgxpool.Pool
-	txm                                                    *postgres.TxManager
+	txm                                                    *sdktest.TxManager
 	repo                                                   *crypto_document_repo.CryptoInvoiceRepo
 	docSvc                                                 *crypto_invoice.Service
 	merchantID, otherMerchantID, keyID, networkID, tokenID id.ID
@@ -63,7 +64,7 @@ func newReferenceFixture(t *testing.T) *referenceFixture {
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 	f := &referenceFixture{pool: pool, merchantID: id.New(), otherMerchantID: id.New(), keyID: id.New(), networkID: id.New(), tokenID: id.New()}
-	f.txm = postgres.NewTxManagerFromRawPool(pool)
+	f.txm = sdktest.NewTxManager(pool)
 	f.ctx = tenant.WithTxManager(ctx, f.txm)
 	f.repo = crypto_document_repo.NewCryptoInvoiceRepo()
 	f.docSvc = crypto_invoice.NewService(f.repo, nil, nil, nil)

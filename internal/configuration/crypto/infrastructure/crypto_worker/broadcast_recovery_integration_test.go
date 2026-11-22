@@ -15,8 +15,9 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
+
 	"metapus/pkg/sdk/types"
 )
 
@@ -139,7 +140,7 @@ func TestSweepRecoveryPreservesBroadcastStateForPostRetry(t *testing.T) {
 	require.ErrorIs(t, err, errRollback)
 }
 
-func cryptoIntegrationTxManager(t *testing.T) (context.Context, *postgres.TxManager, func()) {
+func cryptoIntegrationTxManager(t *testing.T) (context.Context, *sdktest.TxManager, func()) {
 	t.Helper()
 	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	if dsn == "" {
@@ -148,7 +149,7 @@ func cryptoIntegrationTxManager(t *testing.T) (context.Context, *postgres.TxMana
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	return tenant.WithTxManager(ctx, txm), txm, pool.Close
 }
 

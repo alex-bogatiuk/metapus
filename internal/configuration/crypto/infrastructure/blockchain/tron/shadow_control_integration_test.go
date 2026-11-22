@@ -22,8 +22,9 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
+
 	"metapus/pkg/sdk/types"
 )
 
@@ -39,7 +40,7 @@ func TestShadowWorkerPausesReleasesLeaseAndResumesWithoutRestart(t *testing.T) {
 	pg, err := pgxpool.New(t.Context(), dsn)
 	require.NoError(t, err)
 	defer pg.Close()
-	txm := postgres.NewTxManagerFromRawPool(pg)
+	txm := sdktest.NewTxManager(pg)
 	ctx := tenant.WithTxManager(t.Context(), txm)
 	// The watcher registers ingestion only for the exact catalog identity of
 	// its network, so the reference below mirrors these rows.

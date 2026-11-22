@@ -15,7 +15,8 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
+
 	"metapus/pkg/sdk/postgres/numerator"
 	"metapus/pkg/sdk/posting"
 	"metapus/pkg/sdk/types"
@@ -36,7 +37,7 @@ func (d receiptProofDriver) VerifyTransfer(ctx context.Context, event crypto.Blo
 	return d.fundingReceiptDriver.VerifyTransfer(ctx, event)
 }
 
-func seedUnmatchedTransfer(t *testing.T, ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture, reason string, age time.Duration) id.ID {
+func seedUnmatchedTransfer(t *testing.T, ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture, reason string, age time.Duration) id.ID {
 	t.Helper()
 	rowID := id.New()
 	hash := strings.ReplaceAll(rowID.String()+rowID.String(), "-", "")
@@ -58,7 +59,7 @@ func seedUnmatchedTransfer(t *testing.T, ctx context.Context, txm *postgres.TxMa
 	return rowID
 }
 
-func receiptError(t *testing.T, ctx context.Context, txm *postgres.TxManager, rowID id.ID) string {
+func receiptError(t *testing.T, ctx context.Context, txm *sdktest.TxManager, rowID id.ID) string {
 	var reason string
 	require.NoError(t, txm.GetQuerier(ctx).QueryRow(ctx, "SELECT receipt_error FROM reg_crypto_inbound_chain_events WHERE id=$1", rowID).Scan(&reason))
 	return reason
@@ -83,7 +84,7 @@ func receiptIntakeForTest(t *testing.T, f sweepCoordinationFixture) (*receiptInt
 }
 
 func TestReceiptIntakeAccountsFinalUnmatchedTransferOnce(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		rowID := seedUnmatchedTransfer(t, ctx, txm, f, crypto.MatchReasonWrongToken, 0)
 		intake, registry, calls := receiptIntakeForTest(t, f)
 		recorded, err := intake.poll(ctx, registry)
@@ -119,7 +120,7 @@ func TestReceiptIntakeAccountsFinalUnmatchedTransferOnce(t *testing.T) {
 }
 
 func TestReceiptIntakeWaitsForLateInvoiceMatchingWindow(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		fresh := seedUnmatchedTransfer(t, ctx, txm, f, crypto.MatchReasonNoAllocation, 0)
 		intake, registry, calls := receiptIntakeForTest(t, f)
 		recorded, err := intake.poll(ctx, registry)
@@ -144,7 +145,7 @@ func TestReceiptIntakeWaitsForLateInvoiceMatchingWindow(t *testing.T) {
 }
 
 func TestReceiptIntakeDefersWithoutIndependentProof(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		rowID := seedUnmatchedTransfer(t, ctx, txm, f, crypto.MatchReasonDust, 0)
 		intake, _, _ := receiptIntakeForTest(t, f)
 		recorded, err := intake.poll(ctx, crypto.NewChainDriverRegistry())
@@ -172,7 +173,7 @@ func (d orphaningDriver) VerifyTransfer(ctx context.Context, event crypto.Blockc
 }
 
 func TestReceiptAuditOrphanOpensIncidentAndBlocksAttribution(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		rowID := seedUnmatchedTransfer(t, ctx, txm, f, crypto.MatchReasonWrongToken, 0)
 		intake, registry, calls := receiptIntakeForTest(t, f)
 		recorded, err := intake.poll(ctx, registry)

@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"metapus/pkg/sdk/configuration"
+	"metapus/pkg/sdk/sdktest"
+	"metapus/pkg/sdk/tenant"
 	"os"
 	"testing"
 
@@ -19,7 +21,6 @@ import (
 	"metapus/pkg/sdk/http/v1"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/tenant"
 )
 
 // TestDeclaredTablePartsMatchSchema is the schema gate for physical table
@@ -84,7 +85,7 @@ func TestDeclaredTablePartsMatchSchema(t *testing.T) {
 
 	// Reference search reads the part table from the declaration and fails
 	// instead of skipping a table it cannot query.
-	ctx = tenant.WithTxManager(ctx, postgres.NewTxManagerFromRawPool(pool))
+	ctx = tenant.WithTxManager(ctx, sdktest.NewTxManager(pool))
 	finder := postgres.NewRefFinderRepo(registry)
 	for _, def := range registry.List() {
 		_, err := finder.CountReferences(ctx, domain.FindReferencesRequest{EntityName: def.Name, EntityID: id.New()})

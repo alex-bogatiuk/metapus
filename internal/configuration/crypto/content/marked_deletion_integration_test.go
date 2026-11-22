@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"metapus/pkg/sdk/configuration"
+	"metapus/pkg/sdk/sdktest"
+	"metapus/pkg/sdk/tenant"
 	"os"
 	"slices"
 	"testing"
@@ -19,7 +21,6 @@ import (
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/readaccess"
-	"metapus/pkg/sdk/tenant"
 )
 
 // markedFixture runs fn in a transaction that is always rolled back, with
@@ -32,7 +33,7 @@ func markedFixture(t *testing.T, fn func(ctx context.Context, f *markedEnv)) {
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx = tenant.WithTxManager(ctx, txm)
 
 	factories := configuration.Compose(Crypto(Services{}))
@@ -56,7 +57,7 @@ func markedFixture(t *testing.T, fn func(ctx context.Context, f *markedEnv)) {
 
 type markedEnv struct {
 	t      *testing.T
-	txm    *postgres.TxManager
+	txm    *sdktest.TxManager
 	repo   *postgres.MarkedObjectsRepo
 	finder *postgres.RefFinderRepo
 }

@@ -16,8 +16,9 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
+
 	"metapus/pkg/sdk/types"
 )
 
@@ -27,7 +28,7 @@ func TestInternalFundingReplayKeepsOneReceiptAndLedgerMovement(t *testing.T) {
 	pool, err := pgxpool.New(t.Context(), dsn)
 	require.NoError(t, err)
 	defer pool.Close()
-	tm := postgres.NewTxManagerFromRawPool(pool)
+	tm := sdktest.NewTxManager(pool)
 	ctx := tenant.WithTxManager(t.Context(), tm)
 	rollback := errors.New("rollback funding fixture")
 	err = tm.RunInTransaction(ctx, func(ctx context.Context) error {

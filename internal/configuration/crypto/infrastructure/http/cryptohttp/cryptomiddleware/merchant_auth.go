@@ -16,7 +16,6 @@ import (
 	"metapus/pkg/sdk/http/middleware"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/logger"
-	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/tenant"
 	"metapus/pkg/sdk/tenantdb"
 )
@@ -112,8 +111,8 @@ func MerchantAPIKey(repo MerchantAPIKeyAuthenticator, manager *tenantdb.Manager,
 			return
 		}
 
-		// Resolve tenant pool
-		managedPool, err := manager.GetPool(c.Request.Context(), tenantID)
+		// Bind the tenant's database
+		ctx, release, err := middleware.BindTenant(c.Request.Context(), manager, tenantID)
 		if err != nil {
 			logger.Warn(c.Request.Context(), "merchant api: tenant pool error",
 				"tenant_id", tenantID, "error", err)
@@ -121,15 +120,7 @@ func MerchantAPIKey(repo MerchantAPIKeyAuthenticator, manager *tenantdb.Manager,
 			c.Abort()
 			return
 		}
-
-		managedPool.AcquireRef()
-		defer managedPool.ReleaseRef()
-
-		// Inject TxManager so the repo can operate
-		txManager := postgres.NewTxManagerFromRawPool(managedPool.Pool())
-		ctx := tenantdb.WithPool(c.Request.Context(), managedPool.Pool())
-		ctx = tenant.WithTxManager(ctx, txManager)
-		ctx = tenant.WithTenant(ctx, managedPool.Tenant())
+		defer release()
 		c.Request = c.Request.WithContext(ctx)
 
 		// Lookup key by hash (hot-path — uses partial index)
@@ -171,35 +162,30 @@ func MerchantAPIKey(repo MerchantAPIKeyAuthenticator, manager *tenantdb.Manager,
 		// Audit is tracked via doc.APIKeyID → cat_merchant_api_keys.CreatedByUserID.
 		syntheticUser := &appctx.UserContext{
 			UserID:   "", // no JWT user — audit via APIKeyID, not UserID
-			TenantID: managedPool.Tenant().ID,
+			TenantID: tenant.GetTenant(ctx).ID,
 		}
 		ctx = appctx.WithUser(ctx, syntheticUser)
 		c.Request = c.Request.WithContext(ctx)
 
 		// Best-effort: record last used time without blocking the request.
-		// We build an independent background context that carries the same
-		// pool/txManager/tenant values as the request context, but is NOT
-		// tied to the request lifetime. This prevents MustGetTxManager from
-		// panicking (context.Background() has no TxManager) and avoids
-		// holding connections past graceful shutdown via a 5-second timeout.
-		//
-		// NEW-1 fix (CWE-362): the goroutine acquires its own ref so that the
-		// pool lifecycle manager (evictionLoop/healthCheckLoop) cannot close
-		// the pool while the goroutine is still executing a query.
-		// Order matters: AcquireRef BEFORE the handler's defer ReleaseRef fires.
-		managedPool.AcquireRef() // goroutine's own ref — released inside go func
-		go func(mp *tenantdb.ManagedPool, pool *pgxpool.Pool, tm *postgres.TxManager, t *tenant.Tenant, keyID id.ID) {
-			defer mp.ReleaseRef()
+		// The goroutine binds the tenant again in a context of its own: it is
+		// not tied to the request lifetime, holds its own reference to the pool
+		// (so pool eviction cannot close it mid-query, CWE-362) and gives up
+		// after 5 seconds so it never outlives graceful shutdown.
+		go func(keyID id.ID) {
 			bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			bgCtx = tenantdb.WithPool(bgCtx, pool)
-			bgCtx = tenant.WithTxManager(bgCtx, tm)
-			bgCtx = tenant.WithTenant(bgCtx, t)
+			bgCtx, release, err := middleware.BindTenant(bgCtx, manager, tenantID)
+			if err != nil {
+				logger.Warn(bgCtx, "merchant api: update last_used skipped", "tenant_id", tenantID, "error", err)
+				return
+			}
+			defer release()
 			if uerr := repo.UpdateLastUsed(bgCtx, keyID); uerr != nil {
 				logger.Warn(bgCtx, "merchant api: update last_used failed",
 					"key_id", keyID, "error", uerr)
 			}
-		}(managedPool, managedPool.Pool(), txManager, managedPool.Tenant(), apiKey.ID)
+		}(apiKey.ID)
 
 		c.Next()
 	}

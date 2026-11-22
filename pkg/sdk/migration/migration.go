@@ -37,9 +37,6 @@ func HighestVersion(source fs.FS) (int, error) { return dbassets.HighestVersion(
 // migrations in a tenant database.
 func ConfigurationVersionTable(name string) string { return core.ConfigurationVersionTable(name) }
 
-// RunAll is Run that returns only its output.
-func RunAll(dsn string, opts ...core.Option) (string, error) { return core.RunAll(dsn, opts...) }
-
 // WithConfiguration makes Run apply configuration name's tenant migrations
 // after the platform's; source is nil when the configuration ships none. A
 // database that holds another configuration's migrations is refused. Without

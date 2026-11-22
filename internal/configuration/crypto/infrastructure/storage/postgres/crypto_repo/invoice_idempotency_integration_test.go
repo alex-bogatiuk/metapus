@@ -27,8 +27,9 @@ import (
 	corenumerator "metapus/pkg/sdk/numerator"
 	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/postgres/numerator"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
-	"metapus/pkg/sdk/tenantdb"
+
 	"metapus/pkg/sdk/types"
 )
 
@@ -41,8 +42,8 @@ func TestTwentyConcurrentInvoiceCommandsCreateOneAggregateAllocationAndEvent(t *
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
-	ctx = tenantdb.WithPool(tenant.WithTxManager(ctx, txm), pool)
+	txm := sdktest.NewTxManager(pool)
+	ctx = sdktest.WithPool(tenant.WithTxManager(ctx, txm), pool)
 
 	networkID, tokenID, merchantID, walletID := id.New(), id.New(), id.New(), id.New()
 	suffix := id.Compact(networkID)

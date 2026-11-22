@@ -182,7 +182,7 @@ func TestAuthorizedSupplementalReadMatrixAcrossTenants(t *testing.T) {
 		require.NotContains(t, preview.Fields, search.PreviewField{Label: "Address", Value: "secret-address"})
 		generic := postgres.NewReferenceResolver()
 		generic.Add("test_search_items", hidden)
-		refs, err := generic.Resolve(ctx, tenants[0].Tx.GetQuerier(ctx))
+		refs, err := generic.Resolve(ctx)
 		require.NoError(t, err)
 		require.Empty(t, refs.Get("test_search_items", hidden).Name)
 	})

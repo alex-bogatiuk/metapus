@@ -24,6 +24,7 @@ import (
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/types"
 
 	"github.com/stretchr/testify/require"
@@ -31,7 +32,7 @@ import (
 
 type withdrawalFinalFixture struct {
 	ctx       context.Context
-	tm        *postgres.TxManager
+	tm        *sdktest.TxManager
 	doc       *crypto_withdrawal.CryptoWithdrawal
 	request   *withdrawal_request.WithdrawalRequest
 	task      outboundapp.SettlementTask
@@ -39,7 +40,7 @@ type withdrawalFinalFixture struct {
 	receipt   crypto.ChainReceipt
 }
 
-func newWithdrawalFinalFixture(t *testing.T, ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) withdrawalFinalFixture {
+func newWithdrawalFinalFixture(t *testing.T, ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) withdrawalFinalFixture {
 	t.Helper()
 	q := tm.GetQuerier(ctx)
 	var networkIdentifier string
@@ -133,7 +134,7 @@ func (f withdrawalFinalFixture) service(t *testing.T) *outboundapp.SettlementSer
 }
 
 func TestWithdrawalV2ConcurrentFinalPrincipalKeepsOriginalMerchantDebit(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 		f := newWithdrawalFinalFixture(t, ctx, tm, c)
 		f.broadcast(t)
 		var wg sync.WaitGroup
@@ -160,7 +161,7 @@ func TestWithdrawalV2ConcurrentFinalPrincipalKeepsOriginalMerchantDebit(t *testi
 }
 
 func TestWithdrawalV2RevertRefundsMerchantWithoutPhysicalStorno(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 		f := newWithdrawalFinalFixture(t, ctx, tm, c)
 		f.broadcast(t)
 		f.receipt.Status = crypto.ReceiptReverted
@@ -203,7 +204,7 @@ func (r incompleteWithdrawalRepo) RecordOutboundSettlement(ctx context.Context, 
 func TestWithdrawalV2IncompleteSetRollsBackAndRetries(t *testing.T) {
 	for _, component := range []string{"claim", "outbox", "writer"} {
 		t.Run(component, func(t *testing.T) {
-			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 				f := newWithdrawalFinalFixture(t, ctx, tm, c)
 				f.broadcast(t)
 				service := outboundapp.NewSettlementService(outboundapp.SettlementConfig{Drivers: f.registry(t), Repository: incompleteWithdrawalRepo{OutboundRepo: NewOutboundRepo(), component: component}, Fees: NewFeeBudgetManager(), Transactions: contextTxManager{}, WithdrawalEvidence: outboundapp.NewWithdrawalEvidenceService(crypto_repo.NewWithdrawalCustodyRepo())})
@@ -220,7 +221,7 @@ func TestWithdrawalV2IncompleteSetRollsBackAndRetries(t *testing.T) {
 
 func TestWithdrawalV2NativePrincipalCannotBeReleasedOrSpentOnGas(t *testing.T) {
 	for _, actual := range []int64{0, 2} {
-		runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+		runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 			c.token = c.native
 			f := newWithdrawalFinalFixture(t, ctx, tm, c)
 			f.receipt.Fee.TotalFee = types.NewRawAmountFromInt64(actual)
@@ -251,7 +252,7 @@ func TestWithdrawalV2NativePrincipalCannotBeReleasedOrSpentOnGas(t *testing.T) {
 func TestWithdrawalV2MissingOrContradictoryProofRetainsReservations(t *testing.T) {
 	for _, mode := range []string{"no_quorum", "wrong_amount"} {
 		t.Run(mode, func(t *testing.T) {
-			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 				f := newWithdrawalFinalFixture(t, ctx, tm, c)
 				f.broadcast(t)
 				base, err := f.registry(t).Resolve(c.network)
@@ -270,7 +271,7 @@ func TestWithdrawalV2MissingOrContradictoryProofRetainsReservations(t *testing.T
 }
 
 func TestWithdrawalV2FinancialBasisAndFinalHistoryAreImmutable(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 		f := newWithdrawalFinalFixture(t, ctx, tm, c)
 		q := tm.GetQuerier(ctx)
 		for _, query := range []string{"UPDATE doc_withdrawal_requests SET amount=24 WHERE id=$1", "UPDATE reg_crypto_balance_reservations SET amount=24 WHERE document_id=$1"} {
@@ -297,7 +298,7 @@ func TestWithdrawalV2FinancialBasisAndFinalHistoryAreImmutable(t *testing.T) {
 }
 
 func TestWithdrawalV2ExpectedPrincipalCannotBecomeAnotherCustodyExpense(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 		f := newWithdrawalFinalFixture(t, ctx, tm, c)
 		f.broadcast(t)
 		outflow, adjustment, legacy := id.New(), id.New(), id.New()
@@ -322,7 +323,7 @@ func TestWithdrawalV2ExpectedPrincipalCannotBecomeAnotherCustodyExpense(t *testi
 }
 
 func TestWithdrawalV2FailedAuthorizationLabelCannotReleaseSignedUnknownOutcome(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 		f := newWithdrawalFinalFixture(t, ctx, tm, c)
 		q := tm.GetQuerier(ctx)
 		_, err := q.Exec(ctx, `UPDATE reg_crypto_signing_authorizations SET status='failed' WHERE basis_type='WithdrawalRequest' AND basis_id=$1`, f.request.ID)

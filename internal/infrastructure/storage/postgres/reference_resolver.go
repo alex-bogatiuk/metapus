@@ -32,7 +32,7 @@ type RefDisplay struct {
 //	resolver := NewReferenceResolver()
 //	resolver.Add("cat_counterparties", doc.CounterpartyID)
 //	resolver.Add("cat_merchants", doc.MerchantID)
-//	resolved, err := resolver.Resolve(ctx, querier)
+//	resolved, err := resolver.Resolve(ctx)
 //	supplierName := resolved["cat_counterparties"][doc.CounterpartyID.String()]
 type ReferenceResolver struct {
 	// table → set of IDs to resolve
@@ -94,12 +94,13 @@ func (rr ResolvedRefs) GetPtr(table string, entityID *id.ID) *RefDisplay {
 	return &d
 }
 
-// Resolve executes batch queries to resolve all pending IDs.
-// Uses one SELECT per table: SELECT id, name FROM <table> WHERE id IN (...)
 // Empty reports whether no reference was added, so nothing needs to be read.
 func (r *ReferenceResolver) Empty() bool { return len(r.pending) == 0 }
 
-func (r *ReferenceResolver) Resolve(ctx context.Context, querier Querier) (ResolvedRefs, error) {
+// Resolve reads the names of all pending IDs, one batch per table, through
+// the request's authorized reader (readaccess): a reference the user may not
+// read stays unresolved.
+func (r *ReferenceResolver) Resolve(ctx context.Context) (ResolvedRefs, error) {
 	result := make(ResolvedRefs, len(r.pending))
 
 	for table, idSet := range r.pending {
@@ -112,7 +113,7 @@ func (r *ReferenceResolver) Resolve(ctx context.Context, querier Querier) (Resol
 			ids = append(ids, eid)
 		}
 
-		refs, err := batchResolveName(ctx, querier, table, ids)
+		refs, err := batchResolveName(ctx, table, ids)
 		if err != nil {
 			return nil, fmt.Errorf("resolve %s: %w", table, err)
 		}
@@ -122,8 +123,7 @@ func (r *ReferenceResolver) Resolve(ctx context.Context, querier Querier) (Resol
 	return result, nil
 }
 
-// referenceRows reads reference projections; the supplied
-// querier is intentionally not a way to bypass application authorization.
+// referenceRows reads reference projections through the authorized reader.
 func referenceRows(ctx context.Context, table string, ids []id.ID) ([]readaccess.Projection, error) {
 	if len(ids) == 0 {
 		return nil, nil
@@ -140,7 +140,7 @@ func referenceRows(ctx context.Context, table string, ids []id.ID) ([]readaccess
 	}
 	return reads.ReadIDs(ctx, table, ids)
 }
-func batchResolveName(ctx context.Context, _ Querier, table string, ids []id.ID) (map[string]RefDisplay, error) {
+func batchResolveName(ctx context.Context, table string, ids []id.ID) (map[string]RefDisplay, error) {
 	rows, err := referenceRows(ctx, table, ids)
 	if err != nil {
 		return nil, err

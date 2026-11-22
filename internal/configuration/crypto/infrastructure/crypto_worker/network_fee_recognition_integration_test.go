@@ -22,6 +22,7 @@ import (
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/types"
 
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,7 @@ import (
 
 type networkFeeFixture struct {
 	ctx         context.Context
-	tm          *postgres.TxManager
+	tm          *sdktest.TxManager
 	reservation crypto.FeeReservation
 	receipt     crypto.ChainReceipt
 }
@@ -190,7 +191,7 @@ func TestNetworkFeeV2ActivationUsesDocumentOwner(t *testing.T) {
 func TestNetworkFeeV2FundingPrincipalAndFeeHaveDifferentOwners(t *testing.T) {
 	for _, status := range []crypto.ReceiptStatus{crypto.ReceiptSucceeded, crypto.ReceiptReverted} {
 		payer := "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb"
-		runSweepCoordinationFixtureWithAddresses(t, true, payer, "", func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+		runSweepCoordinationFixtureWithAddresses(t, true, payer, "", func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 			funding, _, receipt := seedNativeFunding(t, ctx, tm, c, 1, status == crypto.ReceiptSucceeded)
 			receipt.Status = status
 			receipt.Fee.Components = []crypto.FeeComponent{{Name: "energy_fee", Amount: types.ZeroRawAmount()}, {Name: "bandwidth_fee", Amount: receipt.Fee.TotalFee, Quantity: 2}}
@@ -390,7 +391,7 @@ func TestNetworkFeeV2OutboundPrincipalCommitsWithItsIndependentFee(t *testing.T)
 				if kind == "sweep" {
 					hotAddress, depositAddress = "", payer
 				}
-				runSweepCoordinationFixtureWithAddresses(t, true, hotAddress, depositAddress, func(ctx context.Context, tm *postgres.TxManager, c sweepCoordinationFixture) {
+				runSweepCoordinationFixtureWithAddresses(t, true, hotAddress, depositAddress, func(ctx context.Context, tm *sdktest.TxManager, c sweepCoordinationFixture) {
 					var task outboundapp.SettlementTask
 					var r *crypto.ChainReceipt
 					var service func() *outboundapp.SettlementService

@@ -12,13 +12,14 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/types"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestNativeFundingRecognitionFreezesBothSidesAndRejectsPaymentAlias(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, f sweepCoordinationFixture) {
 		funding, _, receipt := seedNativeFundingConfirmation(t, ctx, tm, f)
 		service := cryptoapp.NewNativeFundingSettlementService(contextTxManager{}, nativeFundingSettlementRepo{}, NewFeeBudgetManager())
 		ok, err := service.Settle(ctx, funding, receipt)
@@ -80,7 +81,7 @@ func (r incompleteNativeFundingRepo) RecordNativeFundingPrincipal(ctx context.Co
 func TestNativeFundingRecognitionRollsBackIncompleteSets(t *testing.T) {
 	for _, component := range []string{"claim", "destination", "outbox", "proof", "orphan"} {
 		t.Run(component, func(t *testing.T) {
-			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture) {
+			runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, f sweepCoordinationFixture) {
 				funding, _, receipt := seedNativeFunding(t, ctx, tm, f, 1, component != "proof")
 				if component == "orphan" {
 					proof := nativeFundingProof(t, ctx, tm, funding, receipt)
@@ -110,7 +111,7 @@ func TestNativeFundingRecognitionRollsBackIncompleteSets(t *testing.T) {
 
 func TestNativeFundingFeeCannotReleasePrincipalBeforeRecognition(t *testing.T) {
 	for _, feeAmount := range []int64{0, 2} {
-		runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *postgres.TxManager, f sweepCoordinationFixture) {
+		runSweepCoordinationFixture(t, true, func(ctx context.Context, tm *sdktest.TxManager, f sweepCoordinationFixture) {
 			funding, _, receipt := seedNativeFundingConfirmation(t, ctx, tm, f)
 			receipt.Fee.TotalFee = types.NewRawAmountFromInt64(feeAmount)
 			receipt = reproveNetworkFee(t, ctx, receipt)

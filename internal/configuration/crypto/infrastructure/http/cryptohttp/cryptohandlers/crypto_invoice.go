@@ -15,7 +15,6 @@ import (
 	"metapus/pkg/sdk/printing"
 	"metapus/pkg/sdk/printing/render"
 	"metapus/pkg/sdk/settings"
-	"metapus/pkg/sdk/tenantdb"
 )
 
 // CryptoInvoiceHandler handles HTTP requests for CryptoInvoice documents.
@@ -40,8 +39,7 @@ func resolveCryptoInvoiceRefs(ctx context.Context, docs ...*crypto_invoice.Crypt
 		cryptodto.CollectCryptoInvoiceRefs(resolver, doc)
 	}
 
-	pool := tenantdb.MustGetPool(ctx)
-	refs, err := resolver.Resolve(ctx, pool)
+	refs, err := resolver.Resolve(ctx)
 	if err != nil {
 		return nil, err
 	}

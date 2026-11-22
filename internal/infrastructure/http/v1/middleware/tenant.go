@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -18,6 +19,23 @@ const (
 	// TenantHeader is the HTTP header for tenant identification.
 	TenantHeader = "X-Tenant-ID"
 )
+
+// BindTenant puts tenant tenantID's database into ctx as the platform's
+// tenant routes see it: the pool, a transaction manager over it and the
+// tenant. The pool is not closed while it is bound; call release when the
+// work on ctx is done. A route that finds its tenant itself (an API key, a
+// public link) binds it with this instead of TenantDB.
+func BindTenant(ctx context.Context, manager *tenantdb.Manager, tenantID string) (bound context.Context, release func(), err error) {
+	managedPool, err := manager.GetPool(ctx, tenantID)
+	if err != nil {
+		return ctx, func() {}, err
+	}
+	managedPool.AcquireRef()
+	bound = tenantdb.WithPool(ctx, managedPool.Pool())
+	bound = tenant.WithTxManager(bound, postgres.NewTxManagerFromRawPool(managedPool.Pool()))
+	bound = tenant.WithTenant(bound, managedPool.Tenant())
+	return bound, managedPool.ReleaseRef, nil
+}
 
 // TenantDB middleware resolves tenant from header and injects database pool into context.
 // This middleware MUST run before any database operations.
@@ -60,8 +78,8 @@ func TenantDB(manager *tenantdb.Manager) gin.HandlerFunc {
 		}
 		tenantID := tenantUUID.String()
 
-		// 2. Get pool from manager
-		managedPool, err := manager.GetPool(ctx, tenantID)
+		// 2. Bind the tenant's database to the request
+		ctx, release, err := BindTenant(ctx, manager, tenantID)
 		if err != nil {
 			logger.Warn(ctx, "tenant pool error", "tenant_id", tenantID, "error", err)
 
@@ -81,18 +99,8 @@ func TenantDB(manager *tenantdb.Manager) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-
-		// Track active request for graceful shutdown
-		managedPool.AcquireRef()
-		defer managedPool.ReleaseRef()
-
-		// 3. Create TxManager for this request
-		txManager := postgres.NewTxManagerFromRawPool(managedPool.Pool())
-
-		// 4. Inject into context
-		ctx = tenantdb.WithPool(ctx, managedPool.Pool())
-		ctx = tenant.WithTxManager(ctx, txManager)
-		ctx = tenant.WithTenant(ctx, managedPool.Tenant())
+		// The pool stays open while the request uses it (graceful shutdown).
+		defer release()
 
 		c.Request = c.Request.WithContext(ctx)
 

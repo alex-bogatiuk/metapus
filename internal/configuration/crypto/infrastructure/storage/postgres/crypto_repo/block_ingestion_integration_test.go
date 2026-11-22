@@ -14,7 +14,9 @@ import (
 	"metapus/internal/configuration/crypto/domain/documents/crypto_payment"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
+
 	"metapus/pkg/sdk/types"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -28,7 +30,7 @@ func TestTRONBlockCaptureAtomicFenceProofAndTargetRegistration(t *testing.T) {
 	pool, err := pgxpool.New(t.Context(), dsn)
 	require.NoError(t, err)
 	defer pool.Close()
-	ctx := tenant.WithTxManager(t.Context(), postgres.NewTxManagerFromRawPool(pool))
+	ctx := tenant.WithTxManager(t.Context(), sdktest.NewTxManager(pool))
 	network, wallet, token := id.New(), id.New(), id.New()
 	_, err = pool.Exec(ctx, `INSERT INTO cat_blockchain_networks(id,code,name,network_identifier,native_token_symbol,native_decimals) VALUES($1,$2,'TRON test',$2,'TRX',6)`, network, "T"+id.Compact(network))
 	require.NoError(t, err)
@@ -170,7 +172,7 @@ func TestTRONShadowStoresAuditWithoutFinancialInboxOrEvidence(t *testing.T) {
 	pool, err := pgxpool.New(t.Context(), os.Getenv("METAPUS_TEST_DATABASE_DSN"))
 	require.NoError(t, err)
 	defer pool.Close()
-	ctx := tenant.WithTxManager(t.Context(), postgres.NewTxManagerFromRawPool(pool))
+	ctx := tenant.WithTxManager(t.Context(), sdktest.NewTxManager(pool))
 	network, wallet := id.New(), id.New()
 	_, err = pool.Exec(ctx, `INSERT INTO cat_blockchain_networks(id,code,name,network_identifier,native_token_symbol,native_decimals) VALUES($1,$2,'Shadow test',$2,'TRX',6)`, network, "S"+id.Compact(network))
 	require.NoError(t, err)

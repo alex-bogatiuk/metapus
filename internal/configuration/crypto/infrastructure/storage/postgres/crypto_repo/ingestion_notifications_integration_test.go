@@ -13,7 +13,7 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -32,7 +32,7 @@ func TestIngestionNotificationsReplayRecipientsAndAtomicRollback(t *testing.T) {
 	admin1, admin2, disabled, merchant := id.New(), id.New(), id.New(), id.New()
 	_, err = pool.Exec(t.Context(), `INSERT INTO auth_users VALUES($1,TRUE,TRUE,FALSE),($2,TRUE,TRUE,FALSE),($3,TRUE,FALSE,FALSE),($4,FALSE,TRUE,FALSE)`, admin1, admin2, disabled, merchant)
 	require.NoError(t, err)
-	ctx := tenant.WithTxManager(t.Context(), postgres.NewTxManagerFromRawPool(pool))
+	ctx := tenant.WithTxManager(t.Context(), sdktest.NewTxManager(pool))
 	lag, progressAge := int64(84), int64(4)
 	event := crypto.IngestionAlertTransition{ID: id.New().String(), At: time.Now().UTC(), Condition: crypto.IngestionCondition{Scope: "network/SEPOLIA", NetworkCode: "SEPOLIA", Severity: "error", Reason: "rpc_coverage", LagSeconds: &lag, ProgressAgeSeconds: &progressAge}}
 	errors := make(chan error, 8)

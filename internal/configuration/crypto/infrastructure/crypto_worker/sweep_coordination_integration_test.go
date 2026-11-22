@@ -16,7 +16,7 @@ import (
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/domain/catalogs/token"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/sdktest"
 	"metapus/pkg/sdk/tenant"
 )
 
@@ -25,23 +25,23 @@ type sweepCoordinationFixture struct {
 	hotAddress, walletAddress           string
 }
 
-func withSweepCoordinationFixture(t *testing.T, fn func(context.Context, *postgres.TxManager, sweepCoordinationFixture)) {
+func withSweepCoordinationFixture(t *testing.T, fn func(context.Context, *sdktest.TxManager, sweepCoordinationFixture)) {
 	runSweepCoordinationFixture(t, false, fn)
 }
 
-func runSweepCoordinationFixture(t *testing.T, committed bool, fn func(context.Context, *postgres.TxManager, sweepCoordinationFixture)) {
+func runSweepCoordinationFixture(t *testing.T, committed bool, fn func(context.Context, *sdktest.TxManager, sweepCoordinationFixture)) {
 	t.Helper()
 	runSweepCoordinationFixtureWithAddresses(t, committed, "", "", fn)
 }
 
-func runSweepCoordinationFixtureWithAddresses(t *testing.T, committed bool, hotAddress, depositAddress string, fn func(context.Context, *postgres.TxManager, sweepCoordinationFixture)) {
+func runSweepCoordinationFixtureWithAddresses(t *testing.T, committed bool, hotAddress, depositAddress string, fn func(context.Context, *sdktest.TxManager, sweepCoordinationFixture)) {
 	t.Helper()
 	dsn := os.Getenv("METAPUS_TEST_DATABASE_DSN")
 	require.NotEmpty(t, dsn, "a disposable integration database is required")
 	pool, err := pgxpool.New(context.Background(), dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	txm := postgres.NewTxManagerFromRawPool(pool)
+	txm := sdktest.NewTxManager(pool)
 	ctx := tenant.WithTxManager(context.Background(), txm)
 	rollback := errors.New("rollback fixture")
 	f := sweepCoordinationFixture{network: id.New(), native: id.New(), token: id.New(), hot: id.New(), wallet: id.New()}
@@ -85,7 +85,7 @@ func runSweepCoordinationFixtureWithAddresses(t *testing.T, committed bool, hotA
 }
 
 func TestSweepCoordinationDefersNativeWhileTokenNeedsGas(t *testing.T) {
-	withSweepCoordinationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	withSweepCoordinationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		tasks, err := NewOutboundRepo().ClaimSweepPendingWallets(ctx, 100)
 		require.NoError(t, err)
 		var own []SweepTask
@@ -101,7 +101,7 @@ func TestSweepCoordinationDefersNativeWhileTokenNeedsGas(t *testing.T) {
 }
 
 func TestSweepCoordinationKeepsWalletUntilEverySiblingFinishes(t *testing.T) {
-	withSweepCoordinationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	withSweepCoordinationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		q := txm.GetQuerier(ctx)
 		nativeAttempt, tokenAttempt := id.New(), id.New()
 		_, err := q.Exec(ctx, `
@@ -132,7 +132,7 @@ func TestSweepCoordinationKeepsWalletUntilEverySiblingFinishes(t *testing.T) {
 }
 
 func TestSweepCoordinationDoesNotExpireWhileFundingIsDurable(t *testing.T) {
-	withSweepCoordinationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	withSweepCoordinationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		q := txm.GetQuerier(ctx)
 		attemptID, fundingID := id.New(), id.New()
 		_, err := q.Exec(ctx, `
@@ -155,7 +155,7 @@ func TestSweepCoordinationDoesNotExpireWhileFundingIsDurable(t *testing.T) {
 }
 
 func TestSweepCoordinationExpiryDoesNotStrandSibling(t *testing.T) {
-	withSweepCoordinationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	withSweepCoordinationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		q := txm.GetQuerier(ctx)
 		expired, active := id.New(), id.New()
 		_, err := q.Exec(ctx, `
@@ -177,7 +177,7 @@ func TestSweepCoordinationExpiryDoesNotStrandSibling(t *testing.T) {
 }
 
 func TestSweepCoordinationConcurrentSiblingCompletionReleasesOnce(t *testing.T) {
-	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	runSweepCoordinationFixture(t, true, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		first, second := id.New(), id.New()
 		_, err := txm.GetQuerier(ctx).Exec(ctx, `
 			UPDATE cat_wallets SET status='sweeping' WHERE id=$1;
@@ -206,7 +206,7 @@ func TestSweepCoordinationConcurrentSiblingCompletionReleasesOnce(t *testing.T) 
 }
 
 func TestSweepCoordinationNativeOnlyRemainsRunnable(t *testing.T) {
-	withSweepCoordinationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	withSweepCoordinationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		_, err := txm.GetQuerier(ctx).Exec(ctx, `UPDATE reg_crypto_balance_balances SET amount=1 WHERE wallet_id=$1 AND token_id=$2`, f.wallet, f.token)
 		require.NoError(t, err)
 		tasks, err := NewOutboundRepo().ClaimSweepPendingWallets(ctx, 100)
@@ -223,7 +223,7 @@ func TestSweepCoordinationNativeOnlyRemainsRunnable(t *testing.T) {
 }
 
 func TestSweepCoordinationRecoveryIgnoresRetainedDust(t *testing.T) {
-	withSweepCoordinationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	withSweepCoordinationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		q := txm.GetQuerier(ctx)
 		_, err := q.Exec(ctx, `
 			UPDATE cat_wallets SET status='free' WHERE id=$1;
@@ -240,7 +240,7 @@ func TestSweepCoordinationRecoveryIgnoresRetainedDust(t *testing.T) {
 }
 
 func TestSweepCoordinationSignedAttemptRemainsRecoverableAfterTTL(t *testing.T) {
-	withSweepCoordinationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+	withSweepCoordinationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 		q := txm.GetQuerier(ctx)
 		attemptID, authID := id.New(), id.New()
 		_, err := q.Exec(ctx, `
@@ -266,7 +266,7 @@ func TestSweepCoordinationSignedAttemptRemainsRecoverableAfterTTL(t *testing.T) 
 
 func TestSweepCoordinationRetriesExactSavedUnsignedAuthorizationOnlyBeforeTTL(t *testing.T) {
 	for _, expired := range []bool{false, true} {
-		withSweepCoordinationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture) {
+		withSweepCoordinationFixture(t, func(ctx context.Context, txm *sdktest.TxManager, f sweepCoordinationFixture) {
 			attempt, auth, fee := id.New(), id.New(), id.New()
 			ttl := "10 minutes"
 			if expired {
